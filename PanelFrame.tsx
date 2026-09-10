@@ -15,15 +15,21 @@ import * as React from 'react';
 import Box, { type BoxProps } from '@mui/material/Box';
 
 /**
- * A typical modern smartphone's CSS-pixel viewport (iPhone 12/13/14's own
- * reported size -- the most commonly cited "standard phone" figure in
+ * Loosely a modern smartphone's CSS-pixel viewport (iPhone 12/13/14's own
+ * reported WIDTH -- the most commonly cited "standard phone" figure in
  * responsive design). A stand-in, not a real measurement: the owner's own
  * direction is that this becomes the connected device's ACTUAL screen size
  * once phone-size-auto-detection exists (plans/queue.yaml stub) -- nothing
  * here should assume every phone is this exact size going forward.
+ *
+ * Height is deliberately shorter than a real iPhone's (844) -- tall enough
+ * to read as "phone-shaped", short enough that a default-height window has
+ * spare room below one row of these, so the next row's tops peek into view
+ * as a sign there's more below without having to scroll first to find out
+ * (owner report, 2026-09-10).
  */
 export const PHONE_WIDTH = 390;
-export const PHONE_HEIGHT = 844;
+export const PHONE_HEIGHT = 700;
 
 export interface PhoneFrameProps extends Omit<BoxProps, 'children'> {
   children: React.ReactNode;
