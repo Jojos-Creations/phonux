@@ -55,10 +55,15 @@ export interface PhoneFrameProps extends Omit<BoxProps, 'children'> {
   expanded?: boolean;
 }
 
-export default function PhoneFrame({ children, size = 'phone', expanded, sx, ...rest }: PhoneFrameProps) {
+/** Forwards its ref to the underlying Box -- callers (e.g. a FLIP position animation) need the real DOM node. */
+const PhoneFrame = React.forwardRef<HTMLDivElement, PhoneFrameProps>(function PhoneFrame(
+  { children, size = 'phone', expanded, sx, ...rest },
+  ref,
+) {
   const { width, height } = SIZE_DIMENSIONS[size];
   return (
     <Box
+      ref={ref}
       data-phone-frame=""
       data-phone-frame-size={size}
       {...rest}
@@ -79,4 +84,6 @@ export default function PhoneFrame({ children, size = 'phone', expanded, sx, ...
       {children}
     </Box>
   );
-}
+});
+
+export default PhoneFrame;
