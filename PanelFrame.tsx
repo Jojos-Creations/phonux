@@ -5,9 +5,8 @@
  * one component, not three near-identical border/radius/background
  * declarations drifting out of sync with each other.
  *
- * Always this one fixed size (owner decision, 2026-09-10: the row grows by
- * adding more phone-sized slots as the window widens, not by growing any
- * single slot) -- the `expanded` escape hatch is only for the tap-to-expand
+ * Always this one fixed size (owner decision, 2026-09-10: slots don't grow
+ * to fill space) -- the `expanded` escape hatch is only for the tap-to-expand
  * fullscreen overlay.
  */
 
