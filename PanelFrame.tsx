@@ -48,6 +48,14 @@ const PhoneFrame = React.forwardRef<HTMLDivElement, PhoneFrameProps>(function Ph
       data-phone-frame=""
       {...rest}
       sx={{
+        // border-box: PHONE_WIDTH/PHONE_HEIGHT must be the REAL rendered
+        // size everywhere else in the codebase does width math against
+        // them (GoalFrontPage's LEFT_WIDTH, columnsForWidth). Content-box
+        // (the CSS default) would add this border+padding on top of that,
+        // silently under-fitting every width computation by ~26px per
+        // phone (owner report, 2026-09-10 -- confirmed via
+        // getBoundingClientRect() reporting 416px against an intended 390).
+        boxSizing: 'border-box',
         border: '1px solid',
         borderColor: 'divider',
         borderRadius: 4,
