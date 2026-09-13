@@ -12,23 +12,15 @@
 
 import * as React from 'react';
 import Box, { type BoxProps } from '@mui/material/Box';
+import { usePhoneSize } from './phoneSize.js';
 
 /**
- * Loosely a modern smartphone's CSS-pixel viewport (iPhone 12/13/14's own
- * reported WIDTH -- the most commonly cited "standard phone" figure in
- * responsive design). A stand-in, not a real measurement: the owner's own
- * direction is that this becomes the connected device's ACTUAL screen size
- * once phone-size-auto-detection exists (plans/queue.yaml stub) -- nothing
- * here should assume every phone is this exact size going forward.
- *
- * Height is deliberately shorter than a real iPhone's (844) -- tall enough
- * to read as "phone-shaped", short enough that a default-height window has
- * spare room below one row of these, so the next row's tops peek into view
- * as a sign there's more below without having to scroll first to find out
- * (owner report, 2026-09-10).
+ * phone-size-auto-detection: the fixed 390x700 stand-in this comment used to
+ * describe now lives as DEFAULT_PHONE_SIZE in phoneSize.ts, read reactively
+ * here via usePhoneSize() -- the connected device's actual screen size (USB
+ * popup) or a Settings-chosen model overrides it from there. Nothing here
+ * assumes every phone is one fixed size.
  */
-export const PHONE_WIDTH = 390;
-export const PHONE_HEIGHT = 700;
 
 export interface PhoneFrameProps extends Omit<BoxProps, 'children'> {
   children: React.ReactNode;
@@ -63,19 +55,20 @@ const PhoneFrame = React.forwardRef<HTMLDivElement, PhoneFrameProps>(function Ph
   { children, expanded, sx, ...rest },
   ref,
 ) {
+  const { width, height } = usePhoneSize();
   return (
     <Box
       ref={ref}
       data-phone-frame=""
       {...rest}
       sx={{
-        // border-box: PHONE_WIDTH/PHONE_HEIGHT must be the REAL rendered
-        // size everywhere else in the codebase does width math against
-        // them (GoalFrontPage's LEFT_WIDTH, columnsForWidth). Content-box
-        // (the CSS default) would add this border+padding on top of that,
-        // silently under-fitting every width computation by ~26px per
-        // phone (owner report, 2026-09-10 -- confirmed via
-        // getBoundingClientRect() reporting 416px against an intended 390).
+        // border-box: the current phone size must be the REAL rendered size
+        // everywhere else in the codebase does width math against it
+        // (GoalFrontPage's usePhoneSize() usages). Content-box (the CSS
+        // default) would add this border+padding on top of that, silently
+        // under-fitting every width computation by ~26px per phone (owner
+        // report, 2026-09-10 -- confirmed via getBoundingClientRect()
+        // reporting 416px against an intended 390).
         boxSizing: 'border-box',
         border: '1px solid',
         borderColor: 'divider',
@@ -85,7 +78,7 @@ const PhoneFrame = React.forwardRef<HTMLDivElement, PhoneFrameProps>(function Ph
         flexDirection: 'column',
         overflow: 'hidden',
         flexShrink: 0,
-        ...(expanded ? { width: '100%', height: '100%' } : { width: PHONE_WIDTH, height: PHONE_HEIGHT }),
+        ...(expanded ? { width: '100%', height: '100%' } : { width, height }),
       }}
     >
       <Box
