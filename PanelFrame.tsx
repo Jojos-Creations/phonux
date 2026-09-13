@@ -38,17 +38,26 @@ export interface PhoneFrameProps extends Omit<BoxProps, 'children'> {
 
 /**
  * Two nested boxes, not one (owner report, 2026-09-13: the scrollbar sat
- * inset from the phone's own rounded edge, with a visible padding gap on
- * both sides of it, instead of flush against the border like the webview
- * panel's own scrollbar). The OUTER box owns the border/radius/size and
- * clips to the rounded corners (`overflow: hidden`) but carries NO padding
- * of its own; the INNER box owns the padding and is the actual
- * `overflow: auto` scroll container, sized to fill the outer box exactly
- * (`flex: 1`, `minHeight: 0`). Because the scrolling element's own edge IS
- * the outer box's edge, the scrollbar now renders flush against the phone's
- * border, with padding applying only to the content inside it -- matching
- * the live-webpage panel's own p:0 case, which never had this problem
- * because LiveWebview manages its own scrolling with nothing wrapping it.
+ * inset from the phone's own rounded edge, with a visible gap on both sides
+ * of it, instead of flush against the border like the webview panel's own
+ * scrollbar). The OUTER box owns the border/radius/size and clips to the
+ * rounded corners (`overflow: hidden`) but carries NO padding of its own;
+ * the INNER box owns the padding and is the actual `overflow: auto` scroll
+ * container, sized to fill the outer box exactly (`flex: 1`, `minHeight: 0`).
+ *
+ * That box-model split alone was NOT sufficient (measured live, 2026-09-13,
+ * after the owner reported the gap was still there): `inner.offsetWidth ===
+ * inner.clientWidth` even with real overflowing content confirmed this is
+ * Chromium's OVERLAY-style scrollbar (floats over content, reserves no
+ * layout width) -- and an overlay scrollbar renders with its own built-in
+ * inset margin from the scrolling element's edge, which no amount of
+ * padding/box-model change on OUR side can remove; it's the browser's own
+ * scrollbar chrome, not part of the boxes we control. Fixed with explicit
+ * `::-webkit-scrollbar` rules below, which force a CLASSIC (non-overlay)
+ * scrollbar that Chromium renders flush against the scrolling element's own
+ * edge -- confirmed the classic scrollbar reserves real layout width
+ * (`offsetWidth - clientWidth` now equals the declared `width` below) and
+ * sits flush, matching the live-webpage panel's own real browser scrollbar.
  */
 const PhoneFrame = React.forwardRef<HTMLDivElement, PhoneFrameProps>(function PhoneFrame(
   { children, expanded, sx, ...rest },
@@ -87,6 +96,24 @@ const PhoneFrame = React.forwardRef<HTMLDivElement, PhoneFrameProps>(function Ph
           flexDirection: 'column',
           overflow: 'auto',
           p: 1.5,
+          // Forces a classic (non-overlay) scrollbar -- see this file's own
+          // header comment for why the overlay default can't be fixed by
+          // box-model/padding changes alone. Track is transparent (the
+          // frame's own bgcolor shows through); thumb is a plain, low-
+          // contrast fill that doesn't compete with real content.
+          '&::-webkit-scrollbar': {
+            width: 8,
+          },
+          '&::-webkit-scrollbar-track': {
+            background: 'transparent',
+          },
+          '&::-webkit-scrollbar-thumb': {
+            background: 'rgba(255, 255, 255, 0.25)',
+            borderRadius: 4,
+          },
+          '&::-webkit-scrollbar-thumb:hover': {
+            background: 'rgba(255, 255, 255, 0.4)',
+          },
           ...sx,
         }}
       >
