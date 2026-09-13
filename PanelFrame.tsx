@@ -130,8 +130,11 @@ export interface PhoneFrameHeaderProps extends Omit<BoxProps, 'children'> {
  * parent to be `position: relative` (every caller already wraps its
  * PhoneFrame in one, for exactly this).
  *
- * Provides positioning/spacing/color only -- `px` so text doesn't sit flush
- * against the phone's own rounded corners (owner report, 2026-09-13) -- not
+ * Provides positioning/spacing/color only -- `px` matches PhoneFrame's own
+ * inner content padding exactly (owner report, 2026-09-13: the border
+ * padding wasn't consistent -- this header's text sat at a different inset
+ * than the frame's own rows below it) so a header's text lines up with the
+ * frame's own content, not just "some padding" picked independently -- not
  * internal layout, since one caller needs a centered ellipsis title and
  * another needs a space-between icon row; pass `sx` for that.
  */
@@ -144,7 +147,7 @@ export function PhoneFrameHeader({ children, sx, ...rest }: PhoneFrameHeaderProp
         bottom: 'calc(100% + 4px)',
         left: 0,
         right: 0,
-        px: 1,
+        px: 1.5,
         fontSize: 13,
         color: 'common.white',
         ...sx,
