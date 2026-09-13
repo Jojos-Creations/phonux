@@ -116,4 +116,43 @@ const PhoneFrame = React.forwardRef<HTMLDivElement, PhoneFrameProps>(function Ph
   );
 });
 
+export interface PhoneFrameHeaderProps extends Omit<BoxProps, 'children'> {
+  children: React.ReactNode;
+}
+
+/**
+ * The shared shape for a header that floats ABOVE a PhoneFrame rather than
+ * inside it -- the session title and ActStatusBar (GoalFrontPage.tsx) and
+ * the Sessions sidebar's title+icons (PreviousSessionsSidebar.tsx) all used
+ * their own near-identical `position: absolute; bottom: calc(100% + 4px)`
+ * block before this (owner direction, 2026-09-13: "make a universal header
+ * component so the style stays consistent across views"). Requires its
+ * parent to be `position: relative` (every caller already wraps its
+ * PhoneFrame in one, for exactly this).
+ *
+ * Provides positioning/spacing/color only -- `px` so text doesn't sit flush
+ * against the phone's own rounded corners (owner report, 2026-09-13) -- not
+ * internal layout, since one caller needs a centered ellipsis title and
+ * another needs a space-between icon row; pass `sx` for that.
+ */
+export function PhoneFrameHeader({ children, sx, ...rest }: PhoneFrameHeaderProps) {
+  return (
+    <Box
+      {...rest}
+      sx={{
+        position: 'absolute',
+        bottom: 'calc(100% + 4px)',
+        left: 0,
+        right: 0,
+        px: 1,
+        fontSize: 13,
+        color: 'common.white',
+        ...sx,
+      }}
+    >
+      {children}
+    </Box>
+  );
+}
+
 export default PhoneFrame;
