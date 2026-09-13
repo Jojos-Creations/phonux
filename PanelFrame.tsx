@@ -88,6 +88,16 @@ const PhoneFrame = React.forwardRef<HTMLDivElement, PhoneFrameProps>(function Ph
           display: 'flex',
           flexDirection: 'column',
           overflow: 'auto',
+          // Reserves the scrollbar's own width whether or not content
+          // actually overflows right now (owner report, 2026-09-13: "the
+          // borders still do not match consistently across views" -- a
+          // panel with enough content to scroll has its classic scrollbar
+          // eating 8px out of its own right padding that a panel with no
+          // overflow doesn't lose, so the two looked inset by different
+          // amounts even though the CSS padding was identical). Stable
+          // regardless of scroll state, not just when a scrollbar happens
+          // to be showing.
+          scrollbarGutter: 'stable',
           p: 1.5,
           // Forces a classic (non-overlay) scrollbar -- see this file's own
           // header comment for why the overlay default can't be fixed by
