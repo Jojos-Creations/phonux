@@ -28,6 +28,76 @@ export interface PhoneFrameProps extends Omit<BoxProps, 'children'> {
   expanded?: boolean;
 }
 
+/** The classic (non-overlay) scrollbar this app draws for itself, in px. */
+const SCROLLBAR_PX = 8;
+/** How far content sits from the frame's own border, on every side, in px. */
+const CONTENT_INSET_PX = 12;
+
+/**
+ * Everything a scrolling box inside a phone needs so its content is inset
+ * the SAME distance from the frame's border on every side, whether or not a
+ * scrollbar happens to be showing right now (owner report, 2026-09-13: "the
+ * borders still do not match consistently across views", and then "views
+ * should have alternate paddings for when the scroll bar shows or doesn't").
+ *
+ * How the two states end up identical, rather than by measuring anything at
+ * runtime: `scrollbar-gutter: stable` reserves the scrollbar's own strip
+ * between the border and the padding box permanently, so the strip is there
+ * whether or not a bar is painted in it -- and this box's own right padding
+ * is reduced by exactly that strip's width. Right side is therefore
+ * (12 - 8) + 8 = 12px in both states, matching the plain 12px on the other
+ * three sides, with the bar itself flush against the frame's border (owner
+ * report, 2026-09-13, wanting the webview panel's own look).
+ *
+ * Nested scrollers need their own copy of the `::-webkit-scrollbar` rules --
+ * those style the scrollbar OF the element they're set on, so an inner
+ * scrolling box that skipped them would fall back to Chromium's own
+ * default-width bar and blow the arithmetic above.
+ */
+export const phoneFrameScrollSx = {
+  overflowX: 'hidden',
+  overflowY: 'auto',
+  scrollbarGutter: 'stable',
+  pt: `${CONTENT_INSET_PX}px`,
+  pb: `${CONTENT_INSET_PX}px`,
+  pl: `${CONTENT_INSET_PX}px`,
+  pr: `${CONTENT_INSET_PX - SCROLLBAR_PX}px`,
+  // Forces a classic (non-overlay) scrollbar -- see this file's own header
+  // comment for why the overlay default can't be fixed by box-model/padding
+  // changes alone. Track is transparent (the frame's own bgcolor shows
+  // through); thumb is a plain, low-contrast fill that doesn't compete with
+  // real content.
+  '&::-webkit-scrollbar': { width: SCROLLBAR_PX },
+  '&::-webkit-scrollbar-track': { background: 'transparent' },
+  '&::-webkit-scrollbar-thumb': {
+    background: 'rgba(255, 255, 255, 0.25)',
+    borderRadius: SCROLLBAR_PX / 2,
+  },
+  '&::-webkit-scrollbar-thumb:hover': { background: 'rgba(255, 255, 255, 0.4)' },
+} as const;
+
+/**
+ * For a caller that does its own scrolling one level deeper (a transcript
+ * that scrolls under a pinned input bar, a `<webview>` that scrolls itself):
+ * cancels PhoneFrame's own padding AND its reserved scrollbar strip, so
+ * neither is reserved twice. Reserving twice is exactly the bug the owner
+ * caught on 2026-09-13 -- a phantom 8px gap outside the scrollbar, and a
+ * right-hand inset of 28px against the left's 12px.
+ *
+ * Every property here is a longhand on purpose: MUI resolves `p` and `pr`
+ * (and `overflow` vs `overflowY`) independently, so a shorthand spread over
+ * a longhand does not reliably win.
+ */
+export const phoneFrameBareSx = {
+  pt: 0,
+  pr: 0,
+  pb: 0,
+  pl: 0,
+  overflowX: 'hidden',
+  overflowY: 'hidden',
+  scrollbarGutter: 'auto',
+} as const;
+
 /**
  * Two nested boxes, not one (owner report, 2026-09-13: the scrollbar sat
  * inset from the phone's own rounded edge, with a visible gap on both sides
@@ -87,36 +157,7 @@ const PhoneFrame = React.forwardRef<HTMLDivElement, PhoneFrameProps>(function Ph
           minHeight: 0,
           display: 'flex',
           flexDirection: 'column',
-          overflow: 'auto',
-          // Reserves the scrollbar's own width whether or not content
-          // actually overflows right now (owner report, 2026-09-13: "the
-          // borders still do not match consistently across views" -- a
-          // panel with enough content to scroll has its classic scrollbar
-          // eating 8px out of its own right padding that a panel with no
-          // overflow doesn't lose, so the two looked inset by different
-          // amounts even though the CSS padding was identical). Stable
-          // regardless of scroll state, not just when a scrollbar happens
-          // to be showing.
-          scrollbarGutter: 'stable',
-          p: 1.5,
-          // Forces a classic (non-overlay) scrollbar -- see this file's own
-          // header comment for why the overlay default can't be fixed by
-          // box-model/padding changes alone. Track is transparent (the
-          // frame's own bgcolor shows through); thumb is a plain, low-
-          // contrast fill that doesn't compete with real content.
-          '&::-webkit-scrollbar': {
-            width: 8,
-          },
-          '&::-webkit-scrollbar-track': {
-            background: 'transparent',
-          },
-          '&::-webkit-scrollbar-thumb': {
-            background: 'rgba(255, 255, 255, 0.25)',
-            borderRadius: 4,
-          },
-          '&::-webkit-scrollbar-thumb:hover': {
-            background: 'rgba(255, 255, 255, 0.4)',
-          },
+          ...phoneFrameScrollSx,
           ...sx,
         }}
       >
