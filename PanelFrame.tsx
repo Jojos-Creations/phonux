@@ -36,7 +36,20 @@ export interface PhoneFrameProps extends Omit<BoxProps, 'children'> {
   expanded?: boolean;
 }
 
-/** Forwards its ref to the underlying Box -- callers doing position/size measurement need the real DOM node. */
+/**
+ * Two nested boxes, not one (owner report, 2026-09-13: the scrollbar sat
+ * inset from the phone's own rounded edge, with a visible padding gap on
+ * both sides of it, instead of flush against the border like the webview
+ * panel's own scrollbar). The OUTER box owns the border/radius/size and
+ * clips to the rounded corners (`overflow: hidden`) but carries NO padding
+ * of its own; the INNER box owns the padding and is the actual
+ * `overflow: auto` scroll container, sized to fill the outer box exactly
+ * (`flex: 1`, `minHeight: 0`). Because the scrolling element's own edge IS
+ * the outer box's edge, the scrollbar now renders flush against the phone's
+ * border, with padding applying only to the content inside it -- matching
+ * the live-webpage panel's own p:0 case, which never had this problem
+ * because LiveWebview manages its own scrolling with nothing wrapping it.
+ */
 const PhoneFrame = React.forwardRef<HTMLDivElement, PhoneFrameProps>(function PhoneFrame(
   { children, expanded, sx, ...rest },
   ref,
@@ -59,16 +72,26 @@ const PhoneFrame = React.forwardRef<HTMLDivElement, PhoneFrameProps>(function Ph
         borderColor: 'divider',
         borderRadius: 4,
         bgcolor: 'background.paper',
-        p: 1.5,
         display: 'flex',
         flexDirection: 'column',
-        overflow: 'auto',
+        overflow: 'hidden',
         flexShrink: 0,
         ...(expanded ? { width: '100%', height: '100%' } : { width: PHONE_WIDTH, height: PHONE_HEIGHT }),
-        ...sx,
       }}
     >
-      {children}
+      <Box
+        sx={{
+          flex: 1,
+          minHeight: 0,
+          display: 'flex',
+          flexDirection: 'column',
+          overflow: 'auto',
+          p: 1.5,
+          ...sx,
+        }}
+      >
+        {children}
+      </Box>
     </Box>
   );
 });
