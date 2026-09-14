@@ -209,4 +209,38 @@ export function PhoneFrameHeader({ children, sx, ...rest }: PhoneFrameHeaderProp
   );
 }
 
+export interface PhoneFrameHeaderRowProps extends Omit<PhoneFrameHeaderProps, 'children' | 'title'> {
+  /** Left-aligned primary content -- ellipsis-truncated if it overflows. */
+  title: React.ReactNode;
+  /**
+   * Right-aligned content (icon buttons, a status badge, ...) -- never
+   * truncated, laid out in its own row so multiple actions space themselves
+   * correctly. Falsy (undefined/null/false) renders nothing on the right,
+   * so a caller can pass a conditional like `isRunning && <IconButton .../>`
+   * directly.
+   */
+  actions?: React.ReactNode;
+}
+
+/**
+ * The title-left/actions-right row shape every PhoneFrameHeader caller
+ * actually wants (owner report, 2026-09-13: "a reusable component is not
+ * being used between each view" -- PhoneFrameHeader itself only ever
+ * provided position/spacing/color, so the sidebar, the webview pane's
+ * ActStatusBar and the chat panel's session-title header had each grown
+ * their own near-identical inline `display: flex; justifyContent:
+ * space-between` + ellipsis-Box markup, the same drift this file's own
+ * top-of-file doc comment already named as the reason PhoneFrame itself
+ * exists). One shared row layout, parameterized by `title`/`actions`,
+ * rather than three call sites reimplementing it.
+ */
+export function PhoneFrameHeaderRow({ title, actions, sx, ...rest }: PhoneFrameHeaderRowProps) {
+  return (
+    <PhoneFrameHeader {...rest} sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 1, ...sx }}>
+      <Box sx={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 }}>{title}</Box>
+      {actions ? <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.25, flexShrink: 0 }}>{actions}</Box> : null}
+    </PhoneFrameHeader>
+  );
+}
+
 export default PhoneFrame;
