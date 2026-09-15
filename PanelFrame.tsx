@@ -12,6 +12,7 @@
 
 import * as React from 'react';
 import Box, { type BoxProps } from '@mui/material/Box';
+import MoreHorizIcon from '@mui/icons-material/MoreHoriz';
 import { usePhoneSize } from './phoneSize.js';
 
 /**
@@ -181,13 +182,36 @@ export interface PhoneFrameHeaderProps extends Omit<BoxProps, 'children'> {
  * parent to be `position: relative` (every caller already wraps its
  * PhoneFrame in one, for exactly this).
  *
- * Provides positioning/spacing/color only -- `px` matches PhoneFrame's own
- * inner content padding exactly (owner report, 2026-09-13: the border
- * padding wasn't consistent -- this header's text sat at a different inset
- * than the frame's own rows below it) so a header's text lines up with the
- * frame's own content, not just "some padding" picked independently -- not
- * internal layout, since one caller needs a centered ellipsis title and
- * another needs a space-between icon row; pass `sx` for that.
+ * front-page-unify-panel-header-visual-style (owner, 2026-09-14, pointing at
+ * the live app: "every header [should be] a circular like input with one or
+ * two icons aligned to the right ... They should all use the same reusable
+ * component"): until this entry, this component only ever provided
+ * position/spacing/color -- shared LAYOUT, never shared LOOK -- so every
+ * caller floated plain white text with no visible background at all. Now a
+ * real pill, baked in here once so every caller gets it for free: `bgcolor`
+ * + `border` below is the SAME background/border MUI's `Paper
+ * variant="outlined"` renders (a plain `Box` rather than an actual `Paper`
+ * only because `Paper`'s own polymorphic-`component` typing collides with
+ * this component's own `Omit<BoxProps, ...>` props type -- an equivalent sx
+ * treatment, not a different visual result) -- this app's own existing pill
+ * precedent, the goal-input bar's "Paper as the visual pill + InputBase as
+ * the bare text input" (GoalFrontPage.tsx's own doc comment, ~line
+ * 2056-2060, citing MUI's own customized-text-field reference), not a new
+ * one-off style. `borderRadius: '999px'` (a raw px string, not a themed
+ * multiple of `shape.borderRadius`) guarantees a true stadium/pill shape
+ * regardless of this header's own height, rather than merely a rounded
+ * rectangle that happens to read as one at today's height. `height: 32`
+ * fixes that height so the pill reads consistently across every call site,
+ * regardless of how much of its title/actions content wraps or truncates.
+ *
+ * `px` matches PhoneFrame's own inner content padding exactly (owner report,
+ * 2026-09-13: the border padding wasn't consistent -- this header's text sat
+ * at a different inset than the frame's own rows below it) so a header's
+ * text lines up with the frame's own content, not just "some padding" picked
+ * independently -- not internal layout, since one caller needs a centered
+ * ellipsis title and another needs a space-between icon row; pass `sx` for
+ * that (genuinely per-instance styling like `fontWeight: 'bold'` or
+ * `cursor: 'grab'` layers on top of, rather than replacing, this base).
  */
 export function PhoneFrameHeader({ children, sx, ...rest }: PhoneFrameHeaderProps) {
   return (
@@ -198,6 +222,13 @@ export function PhoneFrameHeader({ children, sx, ...rest }: PhoneFrameHeaderProp
         bottom: 'calc(100% + 4px)',
         left: 0,
         right: 0,
+        height: 32,
+        display: 'flex',
+        alignItems: 'center',
+        bgcolor: 'background.paper',
+        border: '1px solid',
+        borderColor: 'divider',
+        borderRadius: '999px',
         px: 1.5,
         fontSize: 13,
         color: 'common.white',
@@ -210,17 +241,56 @@ export function PhoneFrameHeader({ children, sx, ...rest }: PhoneFrameHeaderProp
 }
 
 export interface PhoneFrameHeaderRowProps extends Omit<PhoneFrameHeaderProps, 'children' | 'title'> {
-  /** Left-aligned primary content -- ellipsis-truncated if it overflows. */
+  /**
+   * Left-aligned primary content -- ellipsis-truncated if it overflows.
+   * Falsy (undefined/null/false/'') renders a placeholder ("Untitled")
+   * instead, so the pill never shrinks or blanks out for a view with no
+   * real title yet (owner follow-up, 2026-09-14: "if the view has no title
+   * or icon put placeholders").
+   */
   title: React.ReactNode;
   /**
    * Right-aligned content (icon buttons, a status badge, ...) -- never
    * truncated, laid out in its own row so multiple actions space themselves
-   * correctly. Falsy (undefined/null/false) renders nothing on the right,
-   * so a caller can pass a conditional like `isRunning && <IconButton .../>`
-   * directly.
+   * correctly. Falsy (undefined/null/false/'') renders a placeholder icon
+   * slot instead of nothing, so a caller can still pass a conditional like
+   * `isRunning && <IconButton .../>` directly and the pill keeps its full
+   * shape either way (owner follow-up, 2026-09-14, same instruction as
+   * `title` above).
    */
   actions?: React.ReactNode;
 }
+
+/** True for the exact "nothing real here" values PhoneFrameHeaderRow treats
+ * as empty -- deliberately narrow (mirrors JSX's own falsy-child rules, not
+ * a general emptiness check) so a real value like `0` or whitespace is never
+ * mistaken for "no content". */
+function isEmptyHeaderContent(node: React.ReactNode): boolean {
+  return node === undefined || node === null || node === false || node === '';
+}
+
+/** Owner follow-up, 2026-09-14 (same conversation as the pill request): "if
+ * the view has no title or icon put placeholders" -- a plain em-dash reads
+ * as "intentionally blank" rather than a loading glitch or missing data. */
+const PLACEHOLDER_TITLE = (
+  <Box component="span" data-header-placeholder-title="" sx={{ color: 'text.disabled' }}>
+    Untitled
+  </Box>
+);
+
+/** Same owner follow-up as PLACEHOLDER_TITLE, for the action slot -- a
+ * dimmed "more" glyph reads as "no actions here" rather than a missing
+ * icon/broken layout, and keeps the row's right edge occupied so the pill's
+ * height/shape never depends on whether a caller happened to pass any. */
+const PLACEHOLDER_ACTIONS = (
+  <Box
+    data-header-placeholder-action=""
+    aria-hidden="true"
+    sx={{ display: 'flex', alignItems: 'center', color: 'text.disabled' }}
+  >
+    <MoreHorizIcon fontSize="small" />
+  </Box>
+);
 
 /**
  * The title-left/actions-right row shape every PhoneFrameHeader caller
@@ -233,12 +303,18 @@ export interface PhoneFrameHeaderRowProps extends Omit<PhoneFrameHeaderProps, 'c
  * top-of-file doc comment already named as the reason PhoneFrame itself
  * exists). One shared row layout, parameterized by `title`/`actions`,
  * rather than three call sites reimplementing it.
+ *
+ * Placeholder substitution lives HERE, not in each caller, so every caller
+ * gets it for free (owner follow-up, 2026-09-14) -- see isEmptyHeaderContent
+ * and the two PLACEHOLDER_* constants above.
  */
 export function PhoneFrameHeaderRow({ title, actions, sx, ...rest }: PhoneFrameHeaderRowProps) {
+  const resolvedTitle = isEmptyHeaderContent(title) ? PLACEHOLDER_TITLE : title;
+  const resolvedActions = isEmptyHeaderContent(actions) ? PLACEHOLDER_ACTIONS : actions;
   return (
     <PhoneFrameHeader {...rest} sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 1, ...sx }}>
-      <Box sx={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 }}>{title}</Box>
-      {actions ? <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.25, flexShrink: 0 }}>{actions}</Box> : null}
+      <Box sx={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 }}>{resolvedTitle}</Box>
+      <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.25, flexShrink: 0 }}>{resolvedActions}</Box>
     </PhoneFrameHeader>
   );
 }
