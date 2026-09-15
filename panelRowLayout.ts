@@ -97,3 +97,25 @@ export function predictWouldOverflow(input: WindowGrowthInput): boolean {
   const wanted = input.baseWidth + Math.max(0, input.extraCount) * input.perPanel;
   return desiredWindowWidth(input) < wanted;
 }
+
+/**
+ * front-page-link-windows-primary-panel-unification, fix-up round (verifier
+ * gap, evidence bullet 3): the third of the overflow/collapse mechanism's
+ * pure extractions, alongside `isRowOverflowing` and
+ * `desiredWindowWidth`/`computeGrownWindowWidth` above -- previously
+ * `AUTO_COLLAPSE_SETTLE_MS` (GoalFrontPage.tsx) was a bare constant with no
+ * comparison logic of its own to unit-test; the actual decision "has the
+ * settle window elapsed since overflow first latched true" now lives here.
+ *
+ * GoalFrontPage.tsx's proactive-collapse effect records `latchedAtMs`
+ * (`Date.now()`) the moment it schedules its settle-delay `setTimeout`, and
+ * this function is called from inside that timeout's own callback (at fire
+ * time, with `Date.now()` again as `nowMs`) to decide whether to actually
+ * run the collapse -- a real, reachable go/no-go check for that call site
+ * rather than a re-export of the constant, and the single place that
+ * comparison lives (no duplicate inline `now - latchedAt >= settleMs` sits
+ * beside it).
+ */
+export function shouldFireCollapse(latchedAtMs: number, nowMs: number, settleMs: number): boolean {
+  return nowMs - latchedAtMs >= settleMs;
+}

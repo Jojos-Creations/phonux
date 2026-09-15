@@ -12,6 +12,7 @@ import {
   desiredWindowWidth,
   isRowOverflowing,
   predictWouldOverflow,
+  shouldFireCollapse,
 } from '../src/panel-layout.js';
 
 test('isRowOverflowing: true once the row is wider than the container showing it', () => {
@@ -99,4 +100,25 @@ test('predictWouldOverflow: exactly at the display width is NOT an overflow (>= 
     predictWouldOverflow({ baseWidth: 1250, extraCount: 0, perPanel: 406, displayWidth: 1250 }),
     false,
   );
+});
+
+// ---------------------------------------------------------------------------
+// shouldFireCollapse: fix-up round (evidence bullet 3) -- the third pure
+// extraction, backing GoalFrontPage.tsx's AUTO_COLLAPSE_SETTLE_MS debounce.
+// ---------------------------------------------------------------------------
+
+test('shouldFireCollapse: false before the settle window has elapsed', () => {
+  assert.equal(shouldFireCollapse(1_000, 1_499, 500), false);
+});
+
+test('shouldFireCollapse: true exactly at the settle boundary', () => {
+  assert.equal(shouldFireCollapse(1_000, 1_500, 500), true);
+});
+
+test('shouldFireCollapse: true once well past the settle window', () => {
+  assert.equal(shouldFireCollapse(1_000, 5_000, 500), true);
+});
+
+test('shouldFireCollapse: false when nowMs is somehow before latchedAtMs (clock skew never fires early)', () => {
+  assert.equal(shouldFireCollapse(1_000, 900, 500), false);
 });
