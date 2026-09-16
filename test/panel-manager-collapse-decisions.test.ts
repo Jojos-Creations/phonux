@@ -41,7 +41,7 @@ import {
   type MaxViewsSettings,
 } from '../client/src/adventureSettings.js';
 import { predictWouldOverflow } from '../src/panel-layout.js';
-import { autoCollapseOldest, type PanelWindow } from '../client/src/panelWindow.js';
+import { autoCollapseOldest, type PanelWindow } from '../client/src/live-panels/panelWindow.js';
 
 function panel(id: string, live: boolean): PanelWindow {
   return { id, kind: 'extra', url: `http://example.test/${id}`, webContentsId: null, sourceWebContentsId: 1, live, checked: false, autoSwept: false };
