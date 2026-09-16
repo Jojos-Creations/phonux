@@ -9,6 +9,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
   computeGrownWindowWidth,
+  computeRowLayout,
   desiredWindowWidth,
   isRowOverflowing,
   predictWouldOverflow,
@@ -121,4 +122,66 @@ test('shouldFireCollapse: true once well past the settle window', () => {
 
 test('shouldFireCollapse: false when nowMs is somehow before latchedAtMs (clock skew never fires early)', () => {
   assert.equal(shouldFireCollapse(1_000, 900, 500), false);
+});
+
+// ---------------------------------------------------------------------------
+// computeRowLayout: front-page-extract-row-centering-math -- previously bare
+// inline arithmetic in GoalFrontPage.tsx with no unit coverage of its own,
+// twice shipped mis-centered (owner-caught, 2026-09-15) from a hand-mirrored
+// fixed-item count drifting from what the row actually rendered.
+// ---------------------------------------------------------------------------
+
+test('computeRowLayout: live panels that comfortably fit are not capped, and the row centers with a positive margin', () => {
+  const result = computeRowLayout({
+    containerWidth: 1250,
+    phoneWidth: 390,
+    gap: 16,
+    fixedItemCount: 1,
+    liveCountNow: 2,
+  });
+  assert.equal(result.maxLiveThatFit, 2);
+  assert.equal(result.effectiveLiveCount, 2);
+  assert.equal(result.rowTotalWidth, 1202);
+  assert.equal(result.computedRowMarginLeft, 8);
+});
+
+test('computeRowLayout: more live panels than fit are capped at maxLiveThatFit for the width/centering math', () => {
+  const result = computeRowLayout({
+    containerWidth: 1250,
+    phoneWidth: 390,
+    gap: 16,
+    fixedItemCount: 1,
+    liveCountNow: 5,
+  });
+  assert.equal(result.maxLiveThatFit, 2);
+  assert.equal(result.effectiveLiveCount, 2, 'liveCountNow (5) must be capped at maxLiveThatFit (2), not used raw');
+  assert.equal(result.rowTotalWidth, 1202);
+  assert.equal(result.computedRowMarginLeft, 8);
+});
+
+test('computeRowLayout: all 3 fixed slots shown (compose + middle slot + history) leaves zero room for live panels here', () => {
+  const result = computeRowLayout({
+    containerWidth: 1250,
+    phoneWidth: 390,
+    gap: 16,
+    fixedItemCount: 3,
+    liveCountNow: 0,
+  });
+  assert.equal(result.maxLiveThatFit, 0);
+  assert.equal(result.effectiveLiveCount, 0);
+  assert.equal(result.rowTotalWidth, 1202);
+  assert.equal(result.computedRowMarginLeft, 8);
+});
+
+test('computeRowLayout: fixed items alone already exceed the container -- maxLiveThatFit and computedRowMarginLeft both floor at 0, never negative', () => {
+  const result = computeRowLayout({
+    containerWidth: 800,
+    phoneWidth: 390,
+    gap: 16,
+    fixedItemCount: 3,
+    liveCountNow: 1,
+  });
+  assert.equal(result.maxLiveThatFit, 0, 'a negative raw fit must clamp to 0, not go negative');
+  assert.equal(result.effectiveLiveCount, 0);
+  assert.equal(result.computedRowMarginLeft, 0, 'an overflowing row must never get a negative margin');
 });

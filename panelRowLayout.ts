@@ -119,3 +119,77 @@ export function predictWouldOverflow(input: WindowGrowthInput): boolean {
 export function shouldFireCollapse(latchedAtMs: number, nowMs: number, settleMs: number): boolean {
   return nowMs - latchedAtMs >= settleMs;
 }
+
+export interface RowLayoutInput {
+  /** GoalFrontPage.tsx's own measured row container width (a `useState`
+   * populated by a ResizeObserver -- the DOM/effect wiring itself stays in
+   * the component; only the arithmetic that consumes the resulting number
+   * moves here). */
+  containerWidth: number;
+  /** PhoneFrame's own default width -- every fixed and live row item alike
+   * is exactly this wide. */
+  phoneWidth: number;
+  /** The row's own gap between adjacent items (LivePanelSlot's `GAP`). */
+  gap: number;
+  /**
+   * How many non-live, always-rendered slots the row holds before any live
+   * panels: the chat-compose panel (always 1) plus `showMiddleSlot`
+   * (LiveViewPanel) and `showHistoryColumn` (the History panel) if shown --
+   * computed by the caller from `panels`/`currentView` state, passed in as
+   * a plain count so this function stays free of that state dependency.
+   */
+  fixedItemCount: number;
+  /** How many panels are actually live right now (`panels.filter((p) =>
+   * p.live).length`) -- computed by the caller from `panels` state, passed
+   * in as a plain count for the same reason as `fixedItemCount`. */
+  liveCountNow: number;
+}
+
+export interface RowLayoutResult {
+  /** How many live panels the row can actually show before it would
+   * overflow `containerWidth`, given the fixed items' own share of it. */
+  maxLiveThatFit: number;
+  /** `liveCountNow`, capped at `maxLiveThatFit` -- what the row actually
+   * renders width-wise (rendering itself is still `liveCountNow`-driven
+   * elsewhere; this is only the centering math's own capped view of it). */
+  effectiveLiveCount: number;
+  /** The fixed items' width plus the live items' width, at
+   * `effectiveLiveCount`. */
+  rowTotalWidth: number;
+  /** The `marginLeft` that centers `rowTotalWidth` inside the row's
+   * available width -- 0 once the row is at or past capacity, matching the
+   * unmoved `Math.max(0, ...)` floor this had before extraction. */
+  computedRowMarginLeft: number;
+}
+
+/**
+ * front-page-extract-row-centering-math: GoalFrontPage.tsx's row-centering
+ * math, no DOM ref or effect dependency of its own (see this entry's own
+ * plan record for why that -- not "zero state dependency at all" -- is the
+ * property that actually matters here; `fixedItemCount`/`liveCountNow`
+ * still ultimately derive from component state, just computed by the
+ * caller and passed in as plain numbers).
+ *
+ * The fixed items have to be counted against what the row ACTUALLY renders,
+ * or the arithmetic silently mis-centers by half an item -- this has
+ * shipped wrong twice already (owner-caught, 2026-09-15, two separate
+ * times) from the count being a hand-mirrored copy of the JSX conditions
+ * rather than sharing their actual boolean; GoalFrontPage.tsx's own
+ * `fixedItemCount` and the row's JSX further down still read the exact same
+ * `showMiddleSlot`/`showHistoryColumn` source of truth this depends on.
+ */
+export function computeRowLayout({
+  containerWidth,
+  phoneWidth,
+  gap,
+  fixedItemCount,
+  liveCountNow,
+}: RowLayoutInput): RowLayoutResult {
+  const availableForRow = Math.max(0, containerWidth - 2 * gap);
+  const fixedWidth = fixedItemCount * phoneWidth + (fixedItemCount - 1) * gap;
+  const maxLiveThatFit = Math.max(0, Math.floor((availableForRow - fixedWidth) / (phoneWidth + gap)));
+  const effectiveLiveCount = Math.min(liveCountNow, maxLiveThatFit);
+  const rowTotalWidth = fixedWidth + effectiveLiveCount * (phoneWidth + gap);
+  const computedRowMarginLeft = Math.max(0, (availableForRow - rowTotalWidth) / 2);
+  return { maxLiveThatFit, effectiveLiveCount, rowTotalWidth, computedRowMarginLeft };
+}
