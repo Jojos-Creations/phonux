@@ -26,12 +26,9 @@
 import { useEffect } from 'react';
 import type { Dispatch, RefObject, SetStateAction } from 'react';
 import { countModeShouldCollapse, countModeTargetLiveWebviews, type MaxViewsSettings } from '../adventureSettings.js';
-import { isRowOverflowing, predictWouldOverflow, shouldFireCollapse } from '../../../src/panel-layout.js';
+import { computeBaseWidth, isRowOverflowing, predictWouldOverflow, shouldFireCollapse } from '../../../src/panel-layout.js';
 import { GAP } from './LivePanelSlot.js';
 import { autoCollapseOldest, promoteToLive, type PanelWindow } from './panelWindow.js';
-
-/** The window's own fixed 3-phone baseline (sidebar + compose + one result panel) -- must match electron/main.ts's own `baseWidth` (itself matching createWindow's minWidth) so the renderer's own proactive prediction (src/panel-layout.ts's predictWouldOverflow) agrees with the real window-growth handler on what "the base layout" costs. */
-const BASE_WINDOW_WIDTH = 1250;
 
 /** How long rowOverflowing must stay true before auto-collapse actually parks a panel -- gives the window-growth IPC round trip (bridge().reportPanelCount) time to resize the OS window and this renderer's own layout to catch up first, so a panel that just opened isn't collapsed before the window ever gets a chance to grow and fit it. See the effect's own doc comment for the live-caught bug this fixes. */
 const AUTO_COLLAPSE_SETTLE_MS = 500;
@@ -55,7 +52,11 @@ export function usePanelManager(
   autoCollapseAdventure: boolean,
   rowRef: RefObject<HTMLDivElement | null>,
   overflowContainerRef: RefObject<HTMLDivElement | null>,
+  /** How many always-rendered, non-webview columns the row currently has (GoalFrontPage.tsx's own `fixedItemCount`) -- fed into `computeBaseWidth` so 'screen-width' mode's overflow math reflects the columns actually on screen instead of a stale guess. See `computeBaseWidth`'s own doc comment for the bug this replaced. */
+  fixedColumnCount: number,
 ): UsePanelManagerResult {
+  const baseWidth = computeBaseWidth({ fixedColumnCount, phoneWidth, gap: GAP });
+
   /**
    * The renderer-side equivalent of electron/main.ts's own
    * `display.workAreaSize.width` -- `window.screen.availWidth` is a
@@ -77,7 +78,7 @@ export function usePanelManager(
    * M" spec, which can be a bigger drop than the +1 that triggered it).
    *
    * `incomingKind` matters ONLY for 'screen-width' mode's own extraCount:
-   * BASE_WINDOW_WIDTH already budgets for the primary panel's own slot
+   * baseWidth already budgets for the primary panel's own slot
    * unconditionally (see that constant's own doc comment), so revealing the
    * PRIMARY panel never adds to extraCount the way opening a new EXTRA
    * panel does -- getting this wrong would proactively (and needlessly)
@@ -94,12 +95,12 @@ export function usePanelManager(
   const collapseCountForNewPanel = (panelsNow: PanelWindow[], incomingKind: 'primary' | 'extra'): number => {
     const liveCountAfter = panelsNow.filter((p) => p.live).length + 1;
     if (maxViews.mode === 'count') {
-      if (!countModeShouldCollapse(liveCountAfter, maxViews)) return 0;
-      return Math.max(0, liveCountAfter - countModeTargetLiveWebviews(maxViews));
+      if (!countModeShouldCollapse(liveCountAfter, maxViews, fixedColumnCount)) return 0;
+      return Math.max(0, liveCountAfter - countModeTargetLiveWebviews(maxViews, fixedColumnCount));
     }
     const extraCountAfter = panelsNow.filter((p) => p.kind === 'extra' && p.live).length + (incomingKind === 'extra' ? 1 : 0);
     const overflow = predictWouldOverflow({
-      baseWidth: BASE_WINDOW_WIDTH,
+      baseWidth,
       extraCount: extraCountAfter,
       perPanel: phoneWidth + GAP,
       displayWidth: displayWidth(),
@@ -194,11 +195,11 @@ export function usePanelManager(
     const target = panels.find((p) => p.id === id);
     if (!target || target.live) return;
     const wouldOverflow = (liveCountAfter: number): boolean => {
-      if (maxViews.mode === 'count') return countModeShouldCollapse(liveCountAfter, maxViews);
+      if (maxViews.mode === 'count') return countModeShouldCollapse(liveCountAfter, maxViews, fixedColumnCount);
       const extraLiveCountAfter =
         panels.filter((p) => p.kind === 'extra' && p.live).length + (target.kind === 'extra' ? 1 : 0);
       return predictWouldOverflow({
-        baseWidth: BASE_WINDOW_WIDTH,
+        baseWidth,
         extraCount: extraLiveCountAfter,
         perPanel: phoneWidth + GAP,
         displayWidth: displayWidth(),

@@ -1,24 +1,27 @@
 /**
  * Characterization tests for plans/records/front-page-panel-manager-
- * characterization-tests.md, behavior 1: `GoalFrontPage.tsx`'s
- * `collapseCountForNewPanel(panelsNow, incomingKind)` -- its count-mode and
+ * characterization-tests.md, behavior 1: `usePanelManager.ts`'s
+ * `collapseCountForNewPanel(panelsNow, incomingKind)` (extracted out of
+ * `GoalFrontPage.tsx` by front-page-scope-use-panel-manager-hook, then its
+ * own `baseWidth` fixed by front-page-strip-task-prompt's `fixedColumnCount`
+ * threading -- see that file's own doc comments) -- its count-mode and
  * overflow-mode collapse-count decisions.
  *
- * `collapseCountForNewPanel` itself is a closure defined inside the
- * GoalFrontPage component body (not a separately exported function), so it
- * cannot be called directly without either rendering the whole component or
- * extracting it -- and extracting it would be a refactor, which this entry
- * (pure test-writing against unchanged behavior) explicitly is not. Its own
- * source (verified live, GoalFrontPage.tsx) is exactly this, verbatim:
+ * `collapseCountForNewPanel` is a closure defined inside the `usePanelManager`
+ * hook body (not a separately exported function), so it cannot be called
+ * directly without either rendering the whole hook or extracting it -- and
+ * extracting it would be a refactor, which this entry (pure test-writing
+ * against unchanged behavior) explicitly is not. Its own source (verified
+ * live, usePanelManager.ts) is exactly this, verbatim:
  *
  *   const liveCountAfter = panelsNow.filter((p) => p.live).length + 1;
  *   if (maxViews.mode === 'count') {
- *     if (!countModeShouldCollapse(liveCountAfter, maxViews)) return 0;
- *     return Math.max(0, liveCountAfter - countModeTargetLiveWebviews(maxViews));
+ *     if (!countModeShouldCollapse(liveCountAfter, maxViews, fixedColumnCount)) return 0;
+ *     return Math.max(0, liveCountAfter - countModeTargetLiveWebviews(maxViews, fixedColumnCount));
  *   }
  *   const extraCountAfter = panelsNow.filter((p) => p.kind === 'extra' && p.live).length
  *     + (incomingKind === 'extra' ? 1 : 0);
- *   const overflow = predictWouldOverflow({ baseWidth: BASE_WINDOW_WIDTH, extraCount: extraCountAfter, perPanel: phoneWidth + GAP, displayWidth: displayWidth() });
+ *   const overflow = predictWouldOverflow({ baseWidth, extraCount: extraCountAfter, perPanel: phoneWidth + GAP, displayWidth: displayWidth() });
  *   return overflow ? 1 : 0;
  *
  * i.e. a thin dispatch over two ALREADY-exported, already-unit-tested pure
@@ -48,9 +51,9 @@ function panel(id: string, live: boolean): PanelWindow {
 }
 
 /** Verbatim replica of collapseCountForNewPanel's own count-mode branch, see this file's header. */
-function countModeCollapseCount(liveCountAfter: number, settings: MaxViewsSettings): number {
-  if (!countModeShouldCollapse(liveCountAfter, settings)) return 0;
-  return Math.max(0, liveCountAfter - countModeTargetLiveWebviews(settings));
+function countModeCollapseCount(liveCountAfter: number, settings: MaxViewsSettings, fixedViewCount: number): number {
+  if (!countModeShouldCollapse(liveCountAfter, settings, fixedViewCount)) return 0;
+  return Math.max(0, liveCountAfter - countModeTargetLiveWebviews(settings, fixedViewCount));
 }
 
 /** Verbatim replica of collapseCountForNewPanel's own overflow-mode branch, see this file's header. */
@@ -61,19 +64,25 @@ function overflowModeCollapseCount(extraCountAfter: number, baseWidth: number, p
 
 test("collapseCountForNewPanel count-mode: returns 0 below collapseAtViews, then exactly enough to reach downToViews", () => {
   const settings: MaxViewsSettings = { mode: 'count', collapseAtViews: 6, downToViews: 4 };
-  // FIXED_VIEW_COUNT (3) + liveCountAfter live webviews. collapseAtViews=6
+  // fixedViewCount 3 + liveCountAfter live webviews. collapseAtViews=6
   // means the trigger is liveCountAfter >= 3 (3 fixed + 3 live = 6).
-  assert.equal(countModeCollapseCount(1, settings), 0, 'well under the trigger -- must not collapse anything');
-  assert.equal(countModeCollapseCount(2, settings), 0, 'still under the trigger (3+2=5 < 6)');
-  assert.equal(countModeCollapseCount(3, settings), 2, 'exactly at the trigger (3+3=6) -- downToViews=4 targets 1 live webview, so 3 live minus 1 target collapses 2');
-  assert.equal(countModeCollapseCount(4, settings), 3, 'well past the trigger -- collapses down to the 1-live-webview target regardless of how far past');
+  assert.equal(countModeCollapseCount(1, settings, 3), 0, 'well under the trigger -- must not collapse anything');
+  assert.equal(countModeCollapseCount(2, settings, 3), 0, 'still under the trigger (3+2=5 < 6)');
+  assert.equal(countModeCollapseCount(3, settings, 3), 2, 'exactly at the trigger (3+3=6) -- downToViews=4 targets 1 live webview, so 3 live minus 1 target collapses 2');
+  assert.equal(countModeCollapseCount(4, settings, 3), 3, 'well past the trigger -- collapses down to the 1-live-webview target regardless of how far past');
 });
 
 test('collapseCountForNewPanel count-mode: a stricter downToViews collapses further, a looser one collapses less', () => {
   const strict: MaxViewsSettings = { mode: 'count', collapseAtViews: 6, downToViews: 3 };
   const loose: MaxViewsSettings = { mode: 'count', collapseAtViews: 6, downToViews: 5 };
-  assert.equal(countModeCollapseCount(3, strict), 3, 'downToViews=3 (0 live webviews target) collapses all 3');
-  assert.equal(countModeCollapseCount(3, loose), 1, 'downToViews=5 (2 live webviews target) collapses only down to 2');
+  assert.equal(countModeCollapseCount(3, strict, 3), 3, 'downToViews=3 (0 live webviews target) collapses all 3');
+  assert.equal(countModeCollapseCount(3, loose, 3), 1, 'downToViews=5 (2 live webviews target) collapses only down to 2');
+});
+
+test('collapseCountForNewPanel count-mode: a smaller fixedViewCount (e.g. Settings hidden this session) reaches the trigger with more live webviews', () => {
+  const settings: MaxViewsSettings = { mode: 'count', collapseAtViews: 6, downToViews: 4 };
+  assert.equal(countModeCollapseCount(3, settings, 1), 0, 'fixedViewCount 1: 1+3=4, still under the trigger of 6');
+  assert.equal(countModeCollapseCount(5, settings, 1), 2, 'fixedViewCount 1: 1+5=6 triggers; downToViews=4 targets 3 live webviews, so 5 minus 3 collapses 2');
 });
 
 test('collapseCountForNewPanel overflow-mode: never collapses more than exactly 1, regardless of how far the row would overflow', () => {
