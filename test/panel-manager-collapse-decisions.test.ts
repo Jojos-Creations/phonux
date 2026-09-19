@@ -26,7 +26,7 @@
  *
  * i.e. a thin dispatch over two ALREADY-exported, already-unit-tested pure
  * primitives (`countModeShouldCollapse`/`countModeTargetLiveWebviews` from
- * client/src/adventureSettings.ts, `predictWouldOverflow` from
+ * client/src/desktop/settings/adventureSettings.ts, `predictWouldOverflow` from
  * src/panel-layout.ts) plus its own live-panel counting. This file pins that
  * exact dispatch formula against those real primitives directly (not a
  * fresh reimplementation of the math the primitives themselves already
@@ -42,9 +42,9 @@ import {
   countModeShouldCollapse,
   countModeTargetLiveWebviews,
   type MaxViewsSettings,
-} from '../client/src/adventureSettings.js';
+} from '../client/src/desktop/settings/adventureSettings.js';
 import { predictWouldOverflow } from '../src/panel-layout.js';
-import { autoCollapseOldest, type PanelWindow } from '../client/src/live-panels/panelWindow.js';
+import { autoCollapseOldest, type PanelWindow } from '../client/src/desktop/panels/panelWindow.js';
 
 function panel(id: string, live: boolean): PanelWindow {
   return { id, kind: 'extra', url: `http://example.test/${id}`, webContentsId: null, sourceWebContentsId: 1, live, checked: false, autoSwept: false };
@@ -102,7 +102,7 @@ test('collapseCountForNewPanel overflow-mode: never collapses more than exactly 
  * (GoalFrontPage.tsx's own `.filter((p) => p.live).slice(0, count).map((p)
  * => p.id)`, called from `revealPanelProactively` -- not separately
  * exported, so not directly callable). Pinned here instead via
- * `autoCollapseOldest` (client/src/panelWindow.ts, already exported and
+ * `autoCollapseOldest` (client/src/desktop/panels/panelWindow.ts, already exported and
  * already production-wired into the REACTIVE safety-net collapse path):
  * both implement the identical "the OLDEST live panel(s), by array order"
  * policy -- GoalFrontPage.tsx's own comment on `promoteToLive` names

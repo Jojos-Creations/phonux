@@ -3,7 +3,7 @@
  * overflow threshold, the window-growth arithmetic, and part 3's own
  * (owner-added) proactive-overflow prediction -- src/panel-layout.ts's own
  * header comment explains why this lives in a plain, Electron-free module
- * importable from both electron/main.ts and client/src/GoalFrontPage.tsx.
+ * importable from both electron/main.ts and client/src/desktop/GoalFrontPage.tsx.
  */
 import test from 'node:test';
 import assert from 'node:assert/strict';

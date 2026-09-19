@@ -2,7 +2,7 @@
  * front-page-link-windows-primary-panel-unification, part 3 (owner-added,
  * 2026-09-14): pure overflow/collapse arithmetic shared between the main
  * process (electron/main.ts's real window resize, driven off a real
- * `display.workAreaSize.width`) and the renderer (client/src/GoalFrontPage.tsx's
+ * `display.workAreaSize.width`) and the renderer (client/src/desktop/GoalFrontPage.tsx's
  * PROACTIVE, pre-mount overflow prediction, driven off `window.screen.availWidth`
  * -- a close-enough renderer-side read of the same real quantity, with no new
  * IPC round trip needed to ask the main process for it). The owner's own
@@ -17,7 +17,7 @@
  * Zero Electron/DOM imports -- same reasoning as electron/reload-gate.ts's
  * own header comment -- so this is directly unit-testable under plain node
  * (test/panel-layout.test.ts), and importable from both electron/main.ts and
- * client/src/GoalFrontPage.tsx exactly the way top-level src/navigate.ts and
+ * client/src/desktop/GoalFrontPage.tsx exactly the way top-level src/navigate.ts and
  * src/model.ts already are (both already imported from client/src/*.tsx AND
  * from electron/main.ts before this file existed).
  */
@@ -45,7 +45,7 @@ export interface WindowGrowthInput {
    */
   baseWidth: number;
   /**
-   * Live, non-primary panels beyond that baseline (client/src/GoalFrontPage.tsx's
+   * Live, non-primary panels beyond that baseline (client/src/desktop/GoalFrontPage.tsx's
    * own live EXTRA-kind panel count) -- the primary panel's own slot is
    * already inside `baseWidth`, so it never adds to this count regardless of
    * whether it currently happens to be live or collapsed (see this entry's
