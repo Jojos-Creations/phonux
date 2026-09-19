@@ -6,8 +6,7 @@
  *
  * Written with createElement rather than JSX so the file is a .ts and is
  * picked up by the existing `test/*.test.ts` runner without changing it
- * (see test/tabchip.test.ts, which established this pattern, and
- * test/goal-front-page.test.ts's own renderDom helper, mirrored here).
+ * (see test/goal-front-page.test.ts's own renderDom helper, mirrored here).
  *
  * These are pure server-render (renderToStaticMarkup) checks, so they can
  * only assert on markup/text/data-attributes -- not on computed CSS (no
