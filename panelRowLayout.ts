@@ -33,7 +33,16 @@ export function isRowOverflowing(scrollWidth: number, clientWidth: number): bool
 }
 
 export interface WindowGrowthInput {
-  /** The window's own fixed 3-phone baseline (sidebar + compose + one result panel) -- electron/main.ts's own `1250`, matching createWindow's minWidth. */
+  /**
+   * The width of whatever always-rendered, non-webview columns the row
+   * currently has (e.g. the Settings view and/or History panel) -- see
+   * `computeBaseWidth` below for how callers derive this. NOT a fixed
+   * constant: front-page-strip-task-prompt found this hardcoded at `1250`
+   * (a stale "3-phone baseline" left over from the pre-strip sidebar +
+   * compose + result-panel layout) long after that layout was gone, which
+   * silently reserved a whole phantom column's worth of width and made the
+   * row collapse one panel earlier than the screen could actually fit.
+   */
   baseWidth: number;
   /**
    * Live, non-primary panels beyond that baseline (client/src/GoalFrontPage.tsx's
@@ -58,6 +67,40 @@ export interface WindowGrowthInput {
    * exceed either way.
    */
   displayWidth: number;
+}
+
+/**
+ * `WindowGrowthInput.baseWidth`, derived from however many fixed
+ * (non-webview) columns the row actually has right now, rather than a
+ * hardcoded guess -- both main-process callers (createWindow's `minWidth`,
+ * the `window:report-panel-count` handler) and the renderer's own
+ * proactive prediction (usePanelManager.ts) call this with the SAME
+ * `fixedColumnCount` the renderer computed for itself (`fixedItemCount` in
+ * GoalFrontPage.tsx), so "the base layout" always means the columns
+ * actually on screen, not a number that quietly drifts every time the
+ * fixed-column layout changes.
+ *
+ * `fixedColumnCount` phone-width columns, `fixedColumnCount + 1` gaps (left
+ * page padding, one gap between each pair of columns, right page padding),
+ * plus a flat `slack` for the scrollbar the row would otherwise force --
+ * same shape as this constant's own original, since-stale derivation
+ * (3 phones + 4 gaps + 16 slack = 1250), just parameterized on the real
+ * column count and the real (possibly user-resized) phone width instead of
+ * the old fixed 390/3-column assumption.
+ */
+export function computeBaseWidth({
+  fixedColumnCount,
+  phoneWidth,
+  gap,
+  slack = 16,
+}: {
+  fixedColumnCount: number;
+  phoneWidth: number;
+  gap: number;
+  slack?: number;
+}): number {
+  const columns = Math.max(0, fixedColumnCount);
+  return columns * phoneWidth + (columns + 1) * gap + slack;
 }
 
 /** `baseWidth + max(0,extraCount) * perPanel`, capped at `displayWidth` -- the width electron/main.ts's real window resize (or the renderer's own prediction of it) computes before applying its own "never shrink" rule. */
