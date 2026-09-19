@@ -25,8 +25,8 @@
  */
 import { useEffect } from 'react';
 import type { Dispatch, RefObject, SetStateAction } from 'react';
-import { countModeShouldCollapse, countModeTargetLiveWebviews, type MaxViewsSettings } from '../adventureSettings.js';
-import { computeBaseWidth, isRowOverflowing, predictWouldOverflow, shouldFireCollapse } from '../../../src/panel-layout.js';
+import { countModeShouldCollapse, countModeTargetLiveWebviews, type MaxViewsSettings } from '../settings/adventureSettings.js';
+import { computeBaseWidth, isRowOverflowing, predictWouldOverflow, shouldFireCollapse } from '../../../../src/panel-layout.js';
 import { GAP } from './LivePanelSlot.js';
 import { autoCollapseOldest, promoteToLive, type PanelWindow } from './panelWindow.js';
 

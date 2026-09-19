@@ -1,7 +1,7 @@
 /**
  * The shared shell every column in the row renders through -- Settings,
- * History, and each live panel (client/src/SettingsView.tsx,
- * client/src/live-panels/HistoryColumn.tsx, client/src/live-panels/
+ * History, and each live panel (client/src/desktop/settings/SettingsView.tsx,
+ * client/src/desktop/history/HistoryColumn.tsx, client/src/desktop/panels/
  * LivePanel.tsx) all build their own content, then hand it to PhoneView for
  * the part that was drifting between them: the `position: relative` +
  * `width: phoneWidth` wrapper box, and PhoneFrameHeaderRow's floating title

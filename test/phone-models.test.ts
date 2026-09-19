@@ -1,9 +1,9 @@
 /**
- * client/src/phoneModels.ts's pure lookup/labeling helpers.
+ * client/src/shared/phone/phoneModels.ts's pure lookup/labeling helpers.
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { findPhoneModel, PHONE_MODELS, vendorLabelForUsbVendorId } from '../client/src/phoneModels.js';
+import { findPhoneModel, PHONE_MODELS, vendorLabelForUsbVendorId } from '../client/src/shared/phone/phoneModels.js';
 
 test('PHONE_MODELS is a real, non-trivial curated list', () => {
   assert.ok(PHONE_MODELS.length >= 10);
