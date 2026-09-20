@@ -48,6 +48,12 @@ test('setPanelContentsId: sets webContentsId for the matching panel only, immuta
   assert.equal(next[0]!.webContentsId, null, 'the other panel is untouched');
   assert.equal(next[1]!.webContentsId, 42);
   assert.notEqual(next, panels, 'a new array is returned, not the same reference');
+
+  // The FIRST panel updates too (before the primary kind was cut, this case checked exactly that: a first panel updated by id), and only it.
+  const nextFirst = setPanelContentsId(panels, 'w1', 7);
+  assert.equal(nextFirst[0]!.webContentsId, 7, 'the first panel is updated');
+  assert.equal(nextFirst[1]!.webContentsId, null, 'and the second is untouched');
+  assert.equal(panels[0]!.webContentsId, null, 'the input array was not mutated');
 });
 
 test('setPanelContentsId: an unknown id leaves panels unchanged', () => {
