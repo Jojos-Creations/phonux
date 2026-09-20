@@ -341,14 +341,6 @@ test('promoteToLive: an unknown id returns null -- nothing to promote', () => {
   assert.equal(promoteToLive(makeExtraPanels('w1'), 'nope', () => false), null);
 });
 
-test('promoteToLive: carries the staged screenshot through so LiveWebview can show it as a placeholder while the fresh webview reloads', () => {
-  const panels: PanelWindow[] = [
-    { id: 'a', kind: 'extra', url: 'https://a.example', webContentsId: null, sourceWebContentsId: -1, live: false, checked: false, autoSwept: false, screenshot: 'data:image/png;base64,AAAA' },
-  ];
-  const result = promoteToLive(panels, 'a', () => false)!;
-  assert.equal(result[0]!.screenshot, 'data:image/png;base64,AAAA');
-});
-
 test('promoteToLive: the PRIMARY panel can be promoted back live too, same as any extra', () => {
   const panels = setPrimaryUrl([], 'https://primary.example').map((p) => ({ ...p, live: false }));
   const result = promoteToLive(panels, 'primary', () => false)!;

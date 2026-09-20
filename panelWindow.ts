@@ -55,17 +55,6 @@ export interface PanelWindow {
   webContentsId: number | null;
   /** The guest `<webview>` this panel's own new-window request came FROM -- electron/main.ts's `pageId`. `-1` for the primary panel, which was never opened FROM anything else. */
   sourceWebContentsId: number;
-  /**
-   * front-page-session-switch-keep-page-alive's own screenshot-placeholder
-   * pattern (LiveWebview.tsx's `screenshot`/`shouldShowPlaceholder`),
-   * applied to a panel that's about to unmount (staged into the adventure
-   * card, dragged or auto-collapsed alike) or was staged like that in the
-   * past -- shown as a placeholder over a freshly-remounted/re-live
-   * `<webview>` until it actually finishes loading again, rather than a
-   * blank flash. Absent for a panel that's never been through that round
-   * trip.
-   */
-  screenshot?: string;
   /** Mounted live in the row right now. `false` means parked in the adventure card only -- still fully present in this array, just not rendered as a `<webview>`. */
   live: boolean;
   /** Marked for closing via the adventure card's own checkbox (confirmDeadEndClose's own "toClose" set) -- independent of `live` (a panel can be checked while still live, mid-decision, or while already parked). */
@@ -156,12 +145,6 @@ export function computeDeadEndBatch(
  * PanelWindow's own doc comment for why parking is no longer a
  * remove-and-append across two separate arrays). `null` for a stale
  * `draggedId` (see computeDeadEndBatch) -- `panels` is left untouched.
- *
- * `handleDeadEndDrop` (this file, below) always captures a screenshot of
- * each panel in the batch via `capturePanels` BEFORE calling this function,
- * and folds the result onto `PanelWindow.screenshot` once this returns --
- * this function itself is synchronous and never touches `screenshot`, but
- * every panel it parks does get one, supplied by its caller.
  */
 export function stageDeadEnd(panels: PanelWindow[], draggedId: string): PanelWindow[] | null {
   const batch = computeDeadEndBatch(panels, draggedId);
