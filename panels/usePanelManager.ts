@@ -36,7 +36,7 @@ const AUTO_COLLAPSE_SETTLE_MS = 500;
 export interface UsePanelManagerResult {
   revealPanelProactively: (
     panelsNow: PanelWindow[],
-    incomingKind: 'primary' | 'extra',
+    incomingKind: 'extra',
     apply: (prev: PanelWindow[]) => PanelWindow[],
   ) => void;
   handleActivatePanel: (id: string) => void;
@@ -47,7 +47,6 @@ export function usePanelManager(
   setPanels: Dispatch<SetStateAction<PanelWindow[]>>,
   maxViews: MaxViewsSettings,
   phoneWidth: number,
-  capturePanels: (ids: string[]) => Promise<Map<string, string>>,
   rowOverflowing: boolean,
   autoCollapseAdventure: boolean,
   rowRef: RefObject<HTMLDivElement | null>,
@@ -77,14 +76,11 @@ export function usePanelManager(
    * mode can need more than one at once (the owner's own "collapse down to
    * M" spec, which can be a bigger drop than the +1 that triggered it).
    *
-   * `incomingKind` matters ONLY for 'screen-width' mode's own extraCount:
-   * baseWidth already budgets for the primary panel's own slot
-   * unconditionally (see that constant's own doc comment), so revealing the
-   * PRIMARY panel never adds to extraCount the way opening a new EXTRA
-   * panel does -- getting this wrong would proactively (and needlessly)
-   * collapse something else just because the primary panel came back live.
-   * 'count' mode has no such asymmetry: every live webview, primary or
-   * extra, counts the same toward its own total.
+   * `incomingKind` only feeds 'screen-width' mode's own extraCount: an
+   * incoming 'extra' panel adds one to it. Every panel is 'extra' now that
+   * the primary kind is gone; the parameter stays until the `kind` field
+   * itself is dropped. 'count' mode counts every live webview the same
+   * toward its own total.
    *
    * `panelsNow` is passed explicitly (never read from the `panels` state
    * closure) so this stays correct when called from the onOpenNewWindow
@@ -92,7 +88,7 @@ export function usePanelManager(
    * avoid the classic stale-closure bug a `[]`-deps subscription effect
    * would otherwise have.
    */
-  const collapseCountForNewPanel = (panelsNow: PanelWindow[], incomingKind: 'primary' | 'extra'): number => {
+  const collapseCountForNewPanel = (panelsNow: PanelWindow[], incomingKind: 'extra'): number => {
     const liveCountAfter = panelsNow.filter((p) => p.live).length + 1;
     if (maxViews.mode === 'count') {
       if (!countModeShouldCollapse(liveCountAfter, maxViews, fixedColumnCount)) return 0;
@@ -123,16 +119,15 @@ export function usePanelManager(
   /**
    * front-page-link-windows-primary-panel-unification, part 3 (owner-added,
    * 2026-09-14): before a NEW panel is actually shown -- a brand-new extra
-   * window (a just-intercepted new-window request) or the primary panel's
-   * own fresh reveal -- predicts whether showing it would overflow, and if
-   * so collapses whatever's necessary FIRST (capturing a screenshot
-   * placeholder for each, same precedent as every other collapse path in
-   * this file), waits PROACTIVE_COLLAPSE_REVEAL_DELAY_MS, THEN reveals the
-   * new panel -- rather than today's reactive design (append first, let a
-   * ResizeObserver notice the overflow, collapse afterward), which left a
-   * visible moment where the row overflowed/scrolled before settling down.
-   * If nothing needs to collapse, `apply` runs immediately with no delay at
-   * all -- the owner's own spec: no artificial delay for the common case.
+   * window (a just-intercepted new-window request) -- predicts whether
+   * showing it would overflow, and if
+   * so collapses whatever's necessary FIRST, in the same update that
+   * reveals the new panel -- rather than today's reactive design (append
+   * first, let a ResizeObserver notice the overflow, collapse afterward),
+   * which left a visible moment where the row overflowed/scrolled before
+   * settling down. If nothing needs to collapse, `apply` runs immediately
+   * all the same -- the owner's own spec: no artificial delay for the
+   * common case.
    *
    * `panelsNow`/`incomingKind` -- see collapseCountForNewPanel's own doc
    * comment for why both are threaded through explicitly rather than read
@@ -140,7 +135,7 @@ export function usePanelManager(
    */
   const revealPanelProactively = (
     panelsNow: PanelWindow[],
-    incomingKind: 'primary' | 'extra',
+    incomingKind: 'extra',
     apply: (prev: PanelWindow[]) => PanelWindow[],
   ) => {
     const needed = collapseCountForNewPanel(panelsNow, incomingKind);
@@ -148,38 +143,27 @@ export function usePanelManager(
       setPanels((prev) => apply(prev));
       return;
     }
-    const collapsedIds = collapseOldestIds(panelsNow, needed);
-    void capturePanels(collapsedIds).then((screenshots) => {
-      // ONE atomic update -- collapse the outgoing panels and reveal the new
-      // one in the same commit (owner-caught, 2026-09-15).
-      //
-      // This used to be two updates separated by a
-      // PROACTIVE_COLLAPSE_REVEAL_DELAY_MS timer, which is what produced the
-      // reported "the second view autoshrinks and THEN shows the new phone
-      // view": the collapse landed, 220ms of nothing, then the arrival. The
-      // delay existed to hide a visible overflow/scroll flash between the two
-      // commits -- but with both in a single commit there is no intermediate
-      // state to hide, and AnimatePresence (see the panel list below) is what
-      // keeps the outgoing panel on screen long enough to animate out, rather
-      // than a timer holding back the incoming one.
-      //
-      // A functional update, merged by id, rather than replacing `panels`
-      // outright with a snapshot derived from `panelsNow` -- the capture()
-      // round trip above is async, so something else may well have changed
-      // `panels` in the meantime (another new-window event, a user action);
-      // touching only the specific ids this call decided to collapse keeps
-      // this safe regardless of what else landed in between.
-      const collapsedSet = new Set(collapsedIds);
-      setPanels((current) =>
-        apply(
-          current.map((p) =>
-            collapsedSet.has(p.id)
-              ? { ...p, live: false, checked: false, autoSwept: false, screenshot: screenshots.get(p.id) ?? p.screenshot }
-              : p,
-          ),
-        ),
-      );
-    });
+    const collapsedSet = new Set(collapseOldestIds(panelsNow, needed));
+    // ONE atomic update -- collapse the outgoing panels and reveal the new
+    // one in the same commit (owner-caught, 2026-09-15).
+    //
+    // This used to be two updates separated by a
+    // PROACTIVE_COLLAPSE_REVEAL_DELAY_MS timer, which is what produced the
+    // reported "the second view autoshrinks and THEN shows the new phone
+    // view": the collapse landed, 220ms of nothing, then the arrival. The
+    // delay existed to hide a visible overflow/scroll flash between the two
+    // commits -- but with both in a single commit there is no intermediate
+    // state to hide, and AnimatePresence (see the panel list below) is what
+    // keeps the outgoing panel on screen long enough to animate out, rather
+    // than a timer holding back the incoming one.
+    //
+    // A functional update, merged by id, rather than replacing `panels`
+    // outright with a snapshot derived from `panelsNow` -- touching only the
+    // specific ids this call decided to collapse keeps this safe regardless
+    // of what else changed `panels` in the meantime.
+    setPanels((current) =>
+      apply(current.map((p) => (collapsedSet.has(p.id) ? { ...p, live: false, checked: false, autoSwept: false } : p))),
+    );
   };
 
   /**
@@ -212,22 +196,13 @@ export function usePanelManager(
       setPanels(result);
       return;
     }
-    // A demotion is about to unmount `demoted`'s own live webview -- same
-    // capture-before-unmount precedent as every other collapse path in this
-    // file (handleDeadEndDrop, the reactive safety net, revealPanelProactively).
-    // Applied in two steps so the CLICK still feels instant: `id` goes live
-    // right away (no demotion yet -- `() => false` guarantees that for this
-    // call only), and the actual demotion (with whatever screenshot the
-    // capture produced) lands once that capture resolves or times out.
+    // Applied in two functional updates, in this order: `id` goes live first
+    // (no demotion yet -- `() => false` guarantees that for this call only),
+    // then the panel it displaces is parked.
     setPanels((prev) => promoteToLive(prev, id, () => false) ?? prev);
-    void capturePanels([demoted.id]).then((screenshots) => {
-      const shot = screenshots.get(demoted.id);
-      setPanels((current) =>
-        current.map((p) =>
-          p.id === demoted.id ? { ...p, live: false, checked: false, autoSwept: false, screenshot: shot ?? p.screenshot } : p,
-        ),
-      );
-    });
+    setPanels((current) =>
+      current.map((p) => (p.id === demoted.id ? { ...p, live: false, checked: false, autoSwept: false } : p)),
+    );
   };
 
   // REACTIVE safety net -- part 3's own new proactive, pre-mount check
@@ -286,15 +261,9 @@ export function usePanelManager(
       const row = rowRef.current;
       const container = overflowContainerRef.current;
       if (row && container && !isRowOverflowing(row.scrollWidth, container.clientWidth)) return;
-      const oldestLive = panels.find((p) => p.live);
-      if (!oldestLive) return;
-      // Same screenshot-before-unmount capture as handleDeadEndDrop above
-      // -- owner spec, 2026-09-14.
-      void capturePanels([oldestLive.id]).then((screenshots) => {
-        const result = autoCollapseOldest(panels);
-        if (!result) return;
-        setPanels(result.map((p) => (screenshots.has(p.id) ? { ...p, screenshot: screenshots.get(p.id) } : p)));
-      });
+      const result = autoCollapseOldest(panels);
+      if (!result) return;
+      setPanels(result);
     }, AUTO_COLLAPSE_SETTLE_MS);
     return () => clearTimeout(t);
   }, [rowOverflowing, autoCollapseAdventure, panels, maxViews.mode]);

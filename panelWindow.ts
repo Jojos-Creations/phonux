@@ -1,8 +1,8 @@
 /**
  * front-page-link-windows-and-adventure-collapse /
  * front-page-link-windows-primary-panel-unification: the `PanelWindow` model
- * -- one browsing panel in the unified row (primary session page or an
- * "extra" guest-opened window) -- and every pure state-transition function
+ * -- one browsing panel in the unified row (an "extra" guest-opened
+ * window) -- and every pure state-transition function
  * that operates on a `PanelWindow[]` array. Extracted out of GoalFrontPage.tsx
  * (2026-09-15 thinning pass) verbatim, comments included: this was already a
  * self-contained model within that file (AdventurePanel.tsx already imports
@@ -19,7 +19,7 @@
  * front-page-link-windows-primary-panel-unification (owner decision,
  * 2026-09-14: full unification, not a thin compatibility shim) folds BOTH
  * into ONE array of `PanelWindow` -- `kind: 'primary'` for the current
- * session's own starting page (see setPrimaryUrl), `kind: 'extra'` for
+ * session's own starting page (since cut), `kind: 'extra'` for
  * everything opened from a new-window request after it (human-clicked or
  * AI-clicked alike -- see electron/main.ts's setWindowOpenHandler, one code
  * path for both) -- so the SAME overflow/collapse/dead-end mechanism
@@ -43,29 +43,17 @@
 export interface PanelWindow {
   id: string;
   /**
-   * 'primary' names the CURRENT session's own starting page -- see
-   * setPrimaryUrl. Exactly zero or one 'primary' entry exists at a time
-   * (reset to none on newSession/selectSession, same scoping the old
-   * `directUrl` had). 'extra' is everything opened via a guest
-   * `<webview>`'s own new-window request.
+   * Always 'extra' now: everything opened via a new-window request or
+   * History's "+". A 'primary' kind (the session's own starting page) used
+   * to exist and was cut with the screenshot-open chain; the field stays
+   * until the API layer drops it.
    */
-  kind: 'primary' | 'extra';
+  kind: 'extra';
   url: string;
   title?: string;
   webContentsId: number | null;
-  /** The guest `<webview>` this panel's own new-window request came FROM -- electron/main.ts's `pageId`. `-1` for the primary panel, which was never opened FROM anything else. */
+  /** The guest `<webview>` this panel's own new-window request came FROM -- electron/main.ts's `pageId`. `-1` for a panel that was not opened FROM another page (History's "+" makes these). */
   sourceWebContentsId: number;
-  /**
-   * front-page-session-switch-keep-page-alive's own screenshot-placeholder
-   * pattern (LiveWebview.tsx's `screenshot`/`shouldShowPlaceholder`),
-   * applied to a panel that's about to unmount (staged into the adventure
-   * card, dragged or auto-collapsed alike) or was staged like that in the
-   * past -- shown as a placeholder over a freshly-remounted/re-live
-   * `<webview>` until it actually finishes loading again, rather than a
-   * blank flash. Absent for a panel that's never been through that round
-   * trip.
-   */
-  screenshot?: string;
   /** Mounted live in the row right now. `false` means parked in the adventure card only -- still fully present in this array, just not rendered as a `<webview>`. */
   live: boolean;
   /** Marked for closing via the adventure card's own checkbox (confirmDeadEndClose's own "toClose" set) -- independent of `live` (a panel can be checked while still live, mid-decision, or while already parked). */
@@ -82,45 +70,13 @@ export function appendPanel(panels: PanelWindow[], info: { sourceWebContentsId: 
   ];
 }
 
-/**
- * Unifies the primary session panel's own url (previously a separate
- * `directUrl` state field) into the panel array. `url` falsy removes the
- * primary entry entirely (mirrors the old `setDirectUrl(null)` -- nothing
- * real to show, the render below falls back to the mock/placeholder
- * branches). An existing primary entry's `url` is updated IN PLACE (never
- * re-created or reordered, so a follow-up submit that repoints an
- * already-live primary panel never disturbs its position, webContentsId,
- * live, checked, or autoSwept). A brand-new primary entry is PREPENDED
- * (index 0) -- in practice extra panels can only ever exist once the
- * primary is already live (every extra panel originates from a guest
- * `<webview>`'s own new-window request, which needs a webview already
- * open), so this only ever runs against an empty array; prepending is
- * simply the more defensively-correct choice regardless of that.
- */
-export function setPrimaryUrl(panels: PanelWindow[], url: string | null): PanelWindow[] {
-  if (!url) return panels.filter((p) => p.kind !== 'primary');
-  const existing = panels.find((p) => p.kind === 'primary');
-  if (existing) return panels.map((p) => (p.kind === 'primary' ? { ...p, url } : p));
-  const primary: PanelWindow = {
-    id: 'primary',
-    kind: 'primary',
-    url,
-    webContentsId: null,
-    sourceWebContentsId: -1,
-    live: true,
-    checked: false,
-    autoSwept: false,
-  };
-  return [primary, ...panels];
-}
-
-/** `id`'s own WebContents id, once its 'dom-ready' fires -- works for the primary panel (`id === 'primary'`) or any extra panel alike. Unknown `id` (already closed/reset by the time 'dom-ready' fires) leaves `panels` unchanged. */
+/** `id`'s own WebContents id, once its 'dom-ready' fires. Unknown `id` (already closed/reset by the time 'dom-ready' fires) leaves `panels` unchanged. */
 export function setPanelContentsId(panels: PanelWindow[], id: string, webContentsId: number): PanelWindow[] {
   if (!panels.some((p) => p.id === id)) return panels;
   return panels.map((p) => (p.id === id ? { ...p, webContentsId } : p));
 }
 
-/** `id`'s own page title, first-write-wins -- mirrors updateSessionPageTitle's own reasoning (never renamed by later in-page navigation). Works for the primary panel or any extra panel alike. */
+/** `id`'s own page title, first-write-wins -- mirrors updateSessionPageTitle's own reasoning (never renamed by later in-page navigation). */
 export function setPanelTitle(panels: PanelWindow[], id: string, title: string): PanelWindow[] {
   if (!panels.some((p) => p.id === id && !p.title)) return panels;
   return panels.map((p) => (p.id === id && !p.title ? { ...p, title } : p));
@@ -156,12 +112,6 @@ export function computeDeadEndBatch(
  * PanelWindow's own doc comment for why parking is no longer a
  * remove-and-append across two separate arrays). `null` for a stale
  * `draggedId` (see computeDeadEndBatch) -- `panels` is left untouched.
- *
- * `handleDeadEndDrop` (this file, below) always captures a screenshot of
- * each panel in the batch via `capturePanels` BEFORE calling this function,
- * and folds the result onto `PanelWindow.screenshot` once this returns --
- * this function itself is synchronous and never touches `screenshot`, but
- * every panel it parks does get one, supplied by its caller.
  */
 export function stageDeadEnd(panels: PanelWindow[], draggedId: string): PanelWindow[] | null {
   const batch = computeDeadEndBatch(panels, draggedId);
@@ -173,9 +123,7 @@ export function stageDeadEnd(panels: PanelWindow[], draggedId: string): PanelWin
 
 /**
  * "Auto collapse into adventure card" (owner setting, default on): park the
- * SINGLE OLDEST live panel -- primary or extra alike, by array order (see
- * this entry's own evidence report for why the primary now participates,
- * where it never did before this entry) -- unchecked (this is space
+ * SINGLE OLDEST live panel, by array order -- unchecked (this is space
  * management, not a dead end) and never `autoSwept` (reserved for an
  * ACTUAL drag). `null` when nothing is live to park. `promoteToLive` below
  * reuses this exact same "oldest live, by array order" policy for its own

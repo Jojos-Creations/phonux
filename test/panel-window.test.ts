@@ -1,6 +1,6 @@
 /**
  * desktop/panels/panelWindow.ts's pure panel-array helpers (append,
- * primary, dead-end staging, auto-collapse, promote). Split out of goal-
+ * dead-end staging, auto-collapse, promote). Split out of goal-
  * front-page.test.ts (plan step 6).
  */
 
@@ -15,7 +15,6 @@ import {
   promoteToLive,
   setPanelContentsId,
   setPanelTitle,
-  setPrimaryUrl,
   stageDeadEnd,
   toggleDeadEndChecked,
   undoDeadEndClose,
@@ -39,71 +38,22 @@ test('appendPanel: always appends to the end, regardless of which panel the requ
   );
 });
 
-// ---------------------------------------------------------------------------
-// setPrimaryUrl (front-page-link-windows-primary-panel-unification): the
-// primary session panel's own url is now slot 0 of the unified array,
-// replacing the old, entirely separate `directUrl` state field.
-// ---------------------------------------------------------------------------
-
-test('setPrimaryUrl: a null url on an empty array stays empty -- nothing to remove', () => {
-  assert.deepEqual(setPrimaryUrl([], null), []);
-});
-
-test('setPrimaryUrl: creates a new, live primary entry at the front, id "primary"', () => {
-  const next = setPrimaryUrl([], 'https://example.com');
-  assert.deepEqual(next, [
-    { id: 'primary', kind: 'primary', url: 'https://example.com', webContentsId: null, sourceWebContentsId: -1, live: true, checked: false, autoSwept: false },
-  ]);
-});
-
-test('setPrimaryUrl: prepends the primary ahead of any existing extra panels', () => {
-  const extras = appendPanel([], { sourceWebContentsId: 1, url: 'https://extra.example' }, 'w1');
-  const next = setPrimaryUrl(extras, 'https://example.com');
-  assert.deepEqual(
-    next.map((p) => p.id),
-    ['primary', 'w1'],
-  );
-});
-
-test('setPrimaryUrl: an existing primary entry is updated IN PLACE -- position, webContentsId, live, checked, autoSwept all preserved', () => {
-  const withExtra = [
-    { id: 'primary', kind: 'primary' as const, url: 'https://old.example', webContentsId: 42, sourceWebContentsId: -1, live: false, checked: true, autoSwept: false },
-    ...appendPanel([], { sourceWebContentsId: 1, url: 'https://extra.example' }, 'w1'),
-  ];
-  const next = setPrimaryUrl(withExtra, 'https://new.example');
-  assert.deepEqual(
-    next.map((p) => p.id),
-    ['primary', 'w1'],
-    'still at the front, never re-appended',
-  );
-  assert.equal(next[0]!.url, 'https://new.example');
-  assert.equal(next[0]!.webContentsId, 42, 'untouched by a url-only update');
-  assert.equal(next[0]!.live, false, 'untouched -- this is not a revive');
-  assert.equal(next[0]!.checked, true, 'untouched');
-});
-
-test('setPrimaryUrl: a falsy url removes the primary entry entirely, leaving extras untouched', () => {
-  const withExtra = setPrimaryUrl(appendPanel([], { sourceWebContentsId: 1, url: 'https://extra.example' }, 'w1'), 'https://example.com');
-  const next = setPrimaryUrl(withExtra, null);
-  assert.deepEqual(
-    next.map((p) => p.id),
-    ['w1'],
-  );
-});
-
-test('setPanelContentsId: sets webContentsId for the matching panel only, immutably, primary or extra alike', () => {
+test('setPanelContentsId: sets webContentsId for the matching panel only, immutably', () => {
   const panels = appendPanel(
-    setPrimaryUrl([], 'https://primary.example'),
+    appendPanel([], { sourceWebContentsId: 1, url: 'https://a.example' }, 'w1'),
     { sourceWebContentsId: 1, url: 'https://b.example' },
     'w2',
   );
   const next = setPanelContentsId(panels, 'w2', 42);
-  assert.equal(next[0]!.webContentsId, null, 'the primary panel is untouched');
+  assert.equal(next[0]!.webContentsId, null, 'the other panel is untouched');
   assert.equal(next[1]!.webContentsId, 42);
   assert.notEqual(next, panels, 'a new array is returned, not the same reference');
 
-  const nextPrimary = setPanelContentsId(panels, 'primary', 7);
-  assert.equal(nextPrimary[0]!.webContentsId, 7);
+  // The FIRST panel updates too (before the primary kind was cut, this case checked exactly that: a first panel updated by id), and only it.
+  const nextFirst = setPanelContentsId(panels, 'w1', 7);
+  assert.equal(nextFirst[0]!.webContentsId, 7, 'the first panel is updated');
+  assert.equal(nextFirst[1]!.webContentsId, null, 'and the second is untouched');
+  assert.equal(panels[0]!.webContentsId, null, 'the input array was not mutated');
 });
 
 test('setPanelContentsId: an unknown id leaves panels unchanged', () => {
@@ -152,13 +102,6 @@ test('computeDeadEndBatch: dragging a later panel auto-sweeps every earlier one,
   assert.deepEqual(batch!.staged.map((p) => p.id), ['w1', 'w2', 'w3']);
   assert.deepEqual([...batch!.autoSweptIds].sort(), ['w1', 'w2']);
   assert.ok(!batch!.autoSweptIds.has('w3'), 'the actually-dragged panel is never itself auto-swept');
-});
-
-test('computeDeadEndBatch: the primary panel is never draggable, so it never enters a batch even sitting first in the array', () => {
-  const panels = appendPanel(setPrimaryUrl([], 'https://primary.example'), { sourceWebContentsId: 1, url: 'https://w1.example' }, 'w1');
-  const batch = computeDeadEndBatch(panels, 'w1');
-  assert.deepEqual(batch!.staged.map((p) => p.id), ['w1'], 'only the live EXTRA panel, never the primary ahead of it');
-  assert.deepEqual([...batch!.autoSweptIds], []);
 });
 
 test('computeDeadEndBatch: an unknown draggedId returns null -- a stale drag, nothing to stage', () => {
@@ -255,21 +198,6 @@ test('autoCollapseOldest: parks the single oldest LIVE panel, unchecked and neve
   assert.equal(parked.autoSwept, false, 'never part of a drag');
 });
 
-test('autoCollapseOldest: the PRIMARY panel participates too -- if it is the oldest live panel, it collapses first', () => {
-  // front-page-link-windows-primary-panel-unification's own headline fix:
-  // before this entry, the primary panel was entirely exempt from
-  // auto-collapse. Now it is index 0 of the SAME array, so it is the
-  // "oldest" by construction whenever it is still live.
-  const panels = appendPanel(setPrimaryUrl([], 'https://primary.example'), { sourceWebContentsId: 1, url: 'https://w1.example' }, 'w1');
-  const result = autoCollapseOldest(panels)!;
-  assert.deepEqual(
-    result.filter((p) => p.live).map((p) => p.id),
-    ['w1'],
-    'the primary panel, not w1, was swept -- it was oldest by array position',
-  );
-  assert.equal(result.find((p) => p.kind === 'primary')!.live, false);
-});
-
 test('autoCollapseOldest: returns null when nothing is live to park', () => {
   assert.equal(autoCollapseOldest([]), null);
   const allParked = stageDeadEnd(makeExtraPanels('w1'), 'w1')!;
@@ -339,18 +267,4 @@ test('promoteToLive: an already-live panel is a no-op (null) -- "keep it live" n
 
 test('promoteToLive: an unknown id returns null -- nothing to promote', () => {
   assert.equal(promoteToLive(makeExtraPanels('w1'), 'nope', () => false), null);
-});
-
-test('promoteToLive: carries the staged screenshot through so LiveWebview can show it as a placeholder while the fresh webview reloads', () => {
-  const panels: PanelWindow[] = [
-    { id: 'a', kind: 'extra', url: 'https://a.example', webContentsId: null, sourceWebContentsId: -1, live: false, checked: false, autoSwept: false, screenshot: 'data:image/png;base64,AAAA' },
-  ];
-  const result = promoteToLive(panels, 'a', () => false)!;
-  assert.equal(result[0]!.screenshot, 'data:image/png;base64,AAAA');
-});
-
-test('promoteToLive: the PRIMARY panel can be promoted back live too, same as any extra', () => {
-  const panels = setPrimaryUrl([], 'https://primary.example').map((p) => ({ ...p, live: false }));
-  const result = promoteToLive(panels, 'primary', () => false)!;
-  assert.equal(result[0]!.live, true);
 });

@@ -26,9 +26,8 @@ export interface PhoneViewProps extends Omit<BoxProps, 'children' | 'sx' | 'titl
   phoneWidth: number;
   /**
    * The header pill's title. Omitted entirely (not passed at all) renders
-   * NO header row -- a live panel with `kind: 'primary'` currently has no
-   * header at all, and this keeps that exact look rather than forcing every
-   * view into PhoneFrameHeaderRow's own "Untitled" placeholder. Pass an
+   * NO header row, rather than forcing the view into
+   * PhoneFrameHeaderRow's own "Untitled" placeholder. Pass an
    * explicit falsy value (e.g. `''`) to get that placeholder on purpose.
    */
   title?: React.ReactNode;
