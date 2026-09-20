@@ -12,6 +12,7 @@
 
 import * as React from 'react';
 import Box, { type BoxProps } from '@mui/material/Box';
+import { type Theme } from '@mui/material/styles';
 import MoreHorizIcon from '@mui/icons-material/MoreHoriz';
 import { usePhoneSize } from './phoneSize.js';
 
@@ -33,6 +34,11 @@ export interface PhoneFrameProps extends Omit<BoxProps, 'children'> {
 const SCROLLBAR_PX = 8;
 /** How far content sits from the frame's own border, on every side, in px. */
 const CONTENT_INSET_PX = 12;
+/** The phone's corner radius in theme shape units (4 x 6px = 24px). The frame's corners and the header
+ * pills' semicircular ends both derive from it, so they cannot drift apart. */
+export const PHONE_CORNER_RADIUS_UNITS = 4;
+/** That radius in px for `theme`; a header pill is twice this tall (exact semicircles). */
+export const phoneCornerRadiusPx = (theme: Theme): number => PHONE_CORNER_RADIUS_UNITS * Number(theme.shape.borderRadius);
 
 /**
  * Everything a scrolling box inside a phone needs so its content is inset
@@ -143,7 +149,7 @@ const PhoneFrame = React.forwardRef<HTMLDivElement, PhoneFrameProps>(function Ph
         boxSizing: 'border-box',
         border: '1px solid',
         borderColor: 'divider',
-        borderRadius: 4,
+        borderRadius: PHONE_CORNER_RADIUS_UNITS,
         bgcolor: 'background.paper',
         display: 'flex',
         flexDirection: 'column',
@@ -185,24 +191,18 @@ export interface PhoneFrameHeaderProps extends Omit<BoxProps, 'children'> {
  * front-page-unify-panel-header-visual-style (owner, 2026-09-14, pointing at
  * the live app: "every header [should be] a circular like input with one or
  * two icons aligned to the right ... They should all use the same reusable
- * component"): until this entry, this component only ever provided
- * position/spacing/color -- shared LAYOUT, never shared LOOK -- so every
- * caller floated plain white text with no visible background at all. Now a
- * real pill, baked in here once so every caller gets it for free: `bgcolor`
- * + `border` below is the SAME background/border MUI's `Paper
- * variant="outlined"` renders (a plain `Box` rather than an actual `Paper`
- * only because `Paper`'s own polymorphic-`component` typing collides with
- * this component's own `Omit<BoxProps, ...>` props type -- an equivalent sx
- * treatment, not a different visual result) -- this app's own existing pill
- * precedent, the goal-input bar's "Paper as the visual pill + InputBase as
- * the bare text input" (GoalFrontPage.tsx's own doc comment, ~line
- * 2056-2060, citing MUI's own customized-text-field reference), not a new
- * one-off style. `borderRadius: '999px'` (a raw px string, not a themed
- * multiple of `shape.borderRadius`) guarantees a true stadium/pill shape
- * regardless of this header's own height, rather than merely a rounded
- * rectangle that happens to read as one at today's height. `height: 32`
- * fixes that height so the pill reads consistently across every call site,
- * regardless of how much of its title/actions content wraps or truncates.
+ * component"): until then this component only provided position/spacing/
+ * color, never a shared LOOK. Now a real pill, baked in once: `bgcolor` +
+ * `border` are MUI's `Paper variant="outlined"` look (a plain `Box` only
+ * because `Paper`'s polymorphic `component` typing collides with this
+ * component's `Omit<BoxProps, ...>` props), the goal-input bar's pill.
+ *
+ * Shape (owner, 2026-09-20: "have the rounding match the phone views and
+ * have the height form a perfect half circle on the left and right"): the
+ * radius is the phone's own (PHONE_CORNER_RADIUS_UNITS) and the height is
+ * twice it (phoneCornerRadiusPx), so each end is an exact semicircle with
+ * the phone's curvature; both derive from the theme, never a raw 24/48.
+ * The fixed height keeps the pill the same however its content wraps.
  *
  * `px` matches PhoneFrame's own inner content padding exactly (owner report,
  * 2026-09-13: the border padding wasn't consistent -- this header's text sat
@@ -222,13 +222,13 @@ export function PhoneFrameHeader({ children, sx, ...rest }: PhoneFrameHeaderProp
         bottom: 'calc(100% + 4px)',
         left: 0,
         right: 0,
-        height: 32,
+        height: (theme: Theme) => 2 * phoneCornerRadiusPx(theme),
         display: 'flex',
         alignItems: 'center',
         bgcolor: 'background.paper',
         border: '1px solid',
         borderColor: 'divider',
-        borderRadius: '999px',
+        borderRadius: PHONE_CORNER_RADIUS_UNITS,
         px: 1.5,
         fontSize: 13,
         color: 'common.white',
