@@ -36,7 +36,7 @@ const AUTO_COLLAPSE_SETTLE_MS = 500;
 export interface UsePanelManagerResult {
   revealPanelProactively: (
     panelsNow: PanelWindow[],
-    incomingKind: 'primary' | 'extra',
+    incomingKind: 'extra',
     apply: (prev: PanelWindow[]) => PanelWindow[],
   ) => void;
   handleActivatePanel: (id: string) => void;
@@ -76,14 +76,11 @@ export function usePanelManager(
    * mode can need more than one at once (the owner's own "collapse down to
    * M" spec, which can be a bigger drop than the +1 that triggered it).
    *
-   * `incomingKind` matters ONLY for 'screen-width' mode's own extraCount:
-   * baseWidth already budgets for the primary panel's own slot
-   * unconditionally (see that constant's own doc comment), so revealing the
-   * PRIMARY panel never adds to extraCount the way opening a new EXTRA
-   * panel does -- getting this wrong would proactively (and needlessly)
-   * collapse something else just because the primary panel came back live.
-   * 'count' mode has no such asymmetry: every live webview, primary or
-   * extra, counts the same toward its own total.
+   * `incomingKind` only feeds 'screen-width' mode's own extraCount: an
+   * incoming 'extra' panel adds one to it. Every panel is 'extra' now that
+   * the primary kind is gone; the parameter stays until the `kind` field
+   * itself is dropped. 'count' mode counts every live webview the same
+   * toward its own total.
    *
    * `panelsNow` is passed explicitly (never read from the `panels` state
    * closure) so this stays correct when called from the onOpenNewWindow
@@ -91,7 +88,7 @@ export function usePanelManager(
    * avoid the classic stale-closure bug a `[]`-deps subscription effect
    * would otherwise have.
    */
-  const collapseCountForNewPanel = (panelsNow: PanelWindow[], incomingKind: 'primary' | 'extra'): number => {
+  const collapseCountForNewPanel = (panelsNow: PanelWindow[], incomingKind: 'extra'): number => {
     const liveCountAfter = panelsNow.filter((p) => p.live).length + 1;
     if (maxViews.mode === 'count') {
       if (!countModeShouldCollapse(liveCountAfter, maxViews, fixedColumnCount)) return 0;
@@ -122,8 +119,8 @@ export function usePanelManager(
   /**
    * front-page-link-windows-primary-panel-unification, part 3 (owner-added,
    * 2026-09-14): before a NEW panel is actually shown -- a brand-new extra
-   * window (a just-intercepted new-window request) or the primary panel's
-   * own fresh reveal -- predicts whether showing it would overflow, and if
+   * window (a just-intercepted new-window request) -- predicts whether
+   * showing it would overflow, and if
    * so collapses whatever's necessary FIRST, in the same update that
    * reveals the new panel -- rather than today's reactive design (append
    * first, let a ResizeObserver notice the overflow, collapse afterward),
@@ -138,7 +135,7 @@ export function usePanelManager(
    */
   const revealPanelProactively = (
     panelsNow: PanelWindow[],
-    incomingKind: 'primary' | 'extra',
+    incomingKind: 'extra',
     apply: (prev: PanelWindow[]) => PanelWindow[],
   ) => {
     const needed = collapseCountForNewPanel(panelsNow, incomingKind);
