@@ -82,8 +82,6 @@ export interface PhoneViewAPI {
   closePanel: (id: string) => void;
   /** Open the closed-pages history viewer (DeadEndHistoryViewer -- a DIFFERENT history than this row's own live/parked History column). */
   openDeadEndHistory: () => void;
-  /** Open the legacy settings modal (SettingsPanel.tsx -- BYOK key, phone size, auto-collapse, its own "Maximum views" section). */
-  openSettingsModal: () => void;
   /** Start a brand-new session. */
   newSession: () => void;
 }
