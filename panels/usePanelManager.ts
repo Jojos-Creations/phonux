@@ -8,7 +8,7 @@
  * that produced this exact signature and the ordering hazard below).
  *
  * The raw ResizeObserver measurement effect that PRODUCES `rowOverflowing`/
- * `containerWidth` stays in GoalFrontPage (containerWidth also feeds that
+ * `containerWidth` lives in row/useRowShell.ts (containerWidth also feeds that
  * file's own row-centering math, so duplicating the observer would be a
  * confirmed anti-pattern) -- this hook only owns the REACTIVE response to
  * `rowOverflowing` once it's already computed, passed in as a plain value.
@@ -18,8 +18,9 @@
  * run post-render, long after the whole render function has executed), this
  * hook is a real function CALL -- its arguments are evaluated immediately,
  * at the call site. It must be called AFTER `rowRef`, `overflowContainerRef`,
- * `rowOverflowing`, and `autoCollapseAdventure` are already declared in
- * GoalFrontPage, or those argument expressions throw a
+ * `rowOverflowing`, and `autoCollapseAdventure` are already declared (the host
+ * calls useRowShell() before useAppApis, which calls this), or those argument
+ * expressions throw a
  * "used before initialization" error instead of silently working the way
  * the pre-extraction code did.
  */
@@ -47,7 +48,7 @@ export function usePanelManager(
   autoCollapseAdventure: boolean,
   rowRef: RefObject<HTMLDivElement | null>,
   overflowContainerRef: RefObject<HTMLDivElement | null>,
-  /** How many always-rendered, non-webview columns the row currently has (GoalFrontPage.tsx's own `fixedItemCount`) -- fed into `computeBaseWidth` so 'screen-width' mode's overflow math reflects the columns actually on screen instead of a stale guess. See `computeBaseWidth`'s own doc comment for the bug this replaced. */
+  /** How many always-rendered, non-webview columns the row currently has (the host's `fixedColumns.length`, via useAppApis) -- fed into `computeBaseWidth` so 'screen-width' mode's overflow math reflects the columns actually on screen instead of a stale guess. See `computeBaseWidth`'s own doc comment for the bug this replaced. */
   fixedColumnCount: number,
 ): UsePanelManagerResult {
   const baseWidth = computeBaseWidth({ fixedColumnCount, phoneWidth, gap: GAP });
