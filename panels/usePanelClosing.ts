@@ -96,7 +96,7 @@ export function usePanelClosing(
       if (working.some((p) => p.id === panel.id)) continue;
       if (panel.live) {
         // Through the same room-making rule as opening a view: the oldest live view is parked if the row is full.
-        revealPanelProactively(working, 'extra', (prev) => restorePanel(prev, panel, index));
+        revealPanelProactively(working, (prev) => restorePanel(prev, panel, index));
       } else {
         setPanels((prev) => restorePanel(prev, panel, index));
       }

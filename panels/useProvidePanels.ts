@@ -82,7 +82,7 @@ export function useProvidePanels(i: PanelsInput): PanelsAPI {
   // 'count' mode (adventureSettings.ts's MaxViewsSettings) skips this
   // entirely -- it ignores window/screen width by design, so the window
   // must never grow on its account.
-  const liveExtraCount = i.panels.filter((p) => p.kind === 'extra' && p.live).length;
+  const liveExtraCount = i.panels.filter((p) => p.live).length;
   useEffect(() => {
     if (i.maxViews.mode !== 'screen-width') return;
     try {
@@ -101,7 +101,7 @@ export function useProvidePanels(i: PanelsInput): PanelsAPI {
     panelList: i.panels,
     create: () => {
       const id = String(nextWindowId++);
-      revealPanelProactively(i.panels, 'extra', (prev) => appendPanel(prev, { sourceWebContentsId: -1, url: 'about:blank' }, id));
+      revealPanelProactively(i.panels, (prev) => appendPanel(prev, { sourceWebContentsId: -1, url: 'about:blank' }, id));
     },
     activate: handleActivatePanel,
     close: closing.close,

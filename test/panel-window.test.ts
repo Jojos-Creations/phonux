@@ -22,7 +22,7 @@ import {
 test('appendPanel: appends a new LIVE extra panel carrying the source id and url, unstarted webContentsId', () => {
   const next = appendPanel([], { sourceWebContentsId: 7, url: 'https://example.com/new-tab' }, 'w1');
   assert.deepEqual(next, [
-    { id: 'w1', kind: 'extra', url: 'https://example.com/new-tab', webContentsId: null, sourceWebContentsId: 7, live: true },
+    { id: 'w1', url: 'https://example.com/new-tab', webContentsId: null, sourceWebContentsId: 7, live: true },
   ]);
 });
 
@@ -70,7 +70,7 @@ test('setPanelTitle: a panel that already has a title is never overwritten by a 
   // Mirrors updateSessionPageTitle's own reasoning: later in-page navigation
   // must not silently rename a panel already named from its first real page.
   const panels: PanelWindow[] = [
-    { id: 'w1', kind: 'extra', url: 'https://a.example', webContentsId: 5, sourceWebContentsId: 1, title: 'Example Domain', live: true },
+    { id: 'w1', url: 'https://a.example', webContentsId: 5, sourceWebContentsId: 1, title: 'Example Domain', live: true },
   ];
   const next = setPanelTitle(panels, 'w1', 'Some Other Page');
   assert.equal(next[0]!.title, 'Example Domain');

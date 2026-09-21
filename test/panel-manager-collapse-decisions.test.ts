@@ -1,7 +1,7 @@
 /**
  * Characterization tests for plans/records/front-page-panel-manager-
  * characterization-tests.md, behavior 1: `usePanelManager.ts`'s
- * `collapseCountForNewPanel(panelsNow, incomingKind)` (extracted out of
+ * `collapseCountForNewPanel(panelsNow)` (extracted out of
  * `GoalFrontPage.tsx` by front-page-scope-use-panel-manager-hook, then its
  * own `baseWidth` fixed by front-page-strip-task-prompt's `fixedColumnCount`
  * threading -- see that file's own doc comments) -- its count-mode and
@@ -19,8 +19,7 @@
  *     if (!countModeShouldCollapse(liveCountAfter, maxViews, fixedColumnCount)) return 0;
  *     return Math.max(0, liveCountAfter - countModeTargetLiveWebviews(maxViews, fixedColumnCount));
  *   }
- *   const extraCountAfter = panelsNow.filter((p) => p.kind === 'extra' && p.live).length
- *     + (incomingKind === 'extra' ? 1 : 0);
+ *   const extraCountAfter = panelsNow.filter((p) => p.live).length + 1;
  *   const overflow = predictWouldOverflow({ baseWidth, extraCount: extraCountAfter, perPanel: phoneWidth + GAP, displayWidth: displayWidth() });
  *   return overflow ? 1 : 0;
  *
@@ -47,7 +46,7 @@ import { predictWouldOverflow } from '../src/panel-layout.js';
 import { autoCollapseOldest, type PanelWindow } from '../client/src/desktop/panels/panelWindow.js';
 
 function panel(id: string, live: boolean): PanelWindow {
-  return { id, kind: 'extra', url: `http://example.test/${id}`, webContentsId: null, sourceWebContentsId: 1, live };
+  return { id, url: `http://example.test/${id}`, webContentsId: null, sourceWebContentsId: 1, live };
 }
 
 /** Verbatim replica of collapseCountForNewPanel's own count-mode branch, see this file's header. */

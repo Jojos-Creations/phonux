@@ -18,8 +18,8 @@
  *
  * front-page-link-windows-primary-panel-unification (owner decision,
  * 2026-09-14: full unification, not a thin compatibility shim) folds BOTH
- * into ONE array of `PanelWindow` -- `kind: 'primary'` for the current
- * session's own starting page (since cut), `kind: 'extra'` for
+ * into ONE array of `PanelWindow` -- the current session's own starting
+ * page (a 'primary' kind, since cut, and the `kind` field with it) and
  * everything opened from a new-window request after it (human-clicked or
  * AI-clicked alike -- see electron/main.ts's setWindowOpenHandler, one code
  * path for both) -- so the SAME overflow/collapse/dead-end mechanism
@@ -41,13 +41,6 @@
  */
 export interface PanelWindow {
   id: string;
-  /**
-   * Always 'extra' now: everything opened via a new-window request or
-   * History's "+". A 'primary' kind (the session's own starting page) used
-   * to exist and was cut with the screenshot-open chain; the field stays
-   * until the API layer drops it.
-   */
-  kind: 'extra';
   url: string;
   title?: string;
   webContentsId: number | null;
@@ -61,7 +54,7 @@ export interface PanelWindow {
 export function appendPanel(panels: PanelWindow[], info: { sourceWebContentsId: number; url: string }, id: string): PanelWindow[] {
   return [
     ...panels,
-    { id, kind: 'extra', url: info.url, webContentsId: null, sourceWebContentsId: info.sourceWebContentsId, live: true },
+    { id, url: info.url, webContentsId: null, sourceWebContentsId: info.sourceWebContentsId, live: true },
   ];
 }
 
