@@ -7,20 +7,18 @@
  *     {(handle) => <PhoneView title="Mine" headerProps={{ ...handle, sx: { ...handle.sx, fontWeight: 'bold' } }}>...</PhoneView>}
  *   </DragToClose>
  *
- * The HANDLE is the header pill and nothing else, so the view's body keeps its own scrolling and clicks.
- * The box follows the pointer vertically only, and only downward (upward movement is refused). On
- * release `shouldCloseOnRelease` decides: close (the box leaves downward, then onClose runs) or snap
- * back on a spring. Motion's drag machinery does the pointer work: pointer events on `window`, so the
- * drag survives the pointer leaving the header.
+ * The HANDLE is the header pill and nothing else, so the body keeps its own scrolling and clicks. The box follows the
+ * pointer vertically and only downward. On release `shouldCloseOnRelease` decides: close (the box leaves downward,
+ * then the LATEST onClose runs) or snap back on a spring. Motion's drag machinery does the pointer work (events on
+ * `window`, so the drag survives leaving the header).
  *
- * Coexistence: touch-action is `pan-x` on the handle, so a horizontal swipe still scrolls the row while
- * a vertical one is ours; a press on a button, link or field inside the header is left alone, and only
- * the primary button grabs. While a drag is live any ancestor that scrolls vertically is locked
- * (`overflow-y: hidden`), because a transformed box adds to its scrollable area and a scrollbar would
- * appear. The lock is released on snap-back and when the box UNMOUNTS. A close never unlocks by itself
- * (the box is still parked below the fold), so onClose MUST remove the view: a caller that keeps it
- * mounted leaves the box off-screen and its scrolling ancestors locked.
- * Reduced motion: no exit animation and no spring, onClose runs at once.
+ * Coexistence: touch-action is `pan-x` on the handle (a horizontal swipe still scrolls the row, a vertical one is
+ * ours); a press on a button, link or field in the header is left alone, and only the primary button grabs. While a
+ * drag is live every vertically scrolling ancestor is locked (`overflow-y: hidden`: a transformed box would add a
+ * scrollbar); the lock ends with the spring back (or a press that stops it) and when the box UNMOUNTS. A close never
+ * unlocks (the box is parked below the fold), so onClose MUST remove the view, and once a release has decided to close
+ * the box takes no more presses (one would stop the exit and the close would never run). Reduced motion: no exit
+ * animation and no spring; a far drag calls onClose at once, a short one puts the box back at once.
  *
  * Keyboard or single-click alternative (WCAG 2.5.7): offer a button that calls the same onClose, as
  * History's trash buttons do.
@@ -80,6 +78,7 @@ export function DragToClose({ onClose, children }: { onClose: () => void; childr
   const locked = React.useRef<Array<[HTMLElement, string]>>([]);
   const closeRef = React.useRef(onClose);
   closeRef.current = onClose;
+  const closing = React.useRef(false); // a release has decided to close: the exit runs and takes no more presses
 
   const lockScrollParents = () => {
     for (let el = box.current?.parentElement ?? null; el; el = el.parentElement) {
@@ -103,9 +102,9 @@ export function DragToClose({ onClose, children }: { onClose: () => void; childr
 
   const handle: DragHandleProps = {
     onPointerDown: (event) => {
-      if (event.button !== 0 || (event.target as Element).closest(INTERACTIVE)) return;
-      running.current?.stop();
-      controls.start(event);
+      if (event.button !== 0 || (event.target as Element).closest(INTERACTIVE) || closing.current) return; // a press would stop the exit: onClose would never run
+      if (running.current) { running.current.stop(); running.current = null; unlockScrollParents(); } // stop() never settles the spring's promise, so its own unlock would not run
+      controls.start(event); // a real drag locks again in onDragStart
     },
     sx: { cursor: 'grab', touchAction: 'pan-x', userSelect: 'none', '&:active': { cursor: 'grabbing' } },
   };
@@ -130,9 +129,10 @@ export function DragToClose({ onClose, children }: { onClose: () => void; childr
           const toBottom = Math.max(height, window.innerHeight - (rect?.top ?? 0));
           const exit = animate(y, toBottom, { duration: DRAG_CLOSE.exitSeconds, ease: 'easeIn' });
           running.current = exit;
+          closing.current = true;
           void exit.then(() => closeRef.current());
         } else if (reduceMotion) {
-          y.set(0);
+          animate(y, 0, { duration: 0 }); // not y.set(0): Motion's own constraint return is animating y and would win
           unlockScrollParents();
         } else {
           const back = animate(y, 0, DRAG_CLOSE.snapBack);

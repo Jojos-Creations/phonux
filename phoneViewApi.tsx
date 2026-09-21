@@ -7,7 +7,7 @@
  * `<PhoneAPIsProvider>`; a test mounts the same provider with the fakes from
  * `phoneApisFake.ts`.
  *
- * This file, and the rest of shared/phone, imports only react, MUI and itself.
+ * This file, and the rest of shared/phone, imports only react, MUI, motion and itself.
  *
  * The provider value is REBUILT EVERY RENDER on purpose (see PhoneAPIsProvider).
  */
