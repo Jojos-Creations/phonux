@@ -27,8 +27,6 @@ export type { PhoneAPIs } from './phoneViewApi.js';
 export { DRAG_CLOSE, DragToClose, shouldCloseOnRelease, type DragHandleProps } from './dragToClose.js';
 
 export interface PhoneViewProps extends Omit<BoxProps, 'children' | 'sx' | 'title'> {
-  /** Overrides the width, which otherwise comes from usePhoneAPIs().device.size (the width every PhoneFrame sizes to). Removed in plan step 16: no caller passes it. */
-  phoneWidth?: number;
   /**
    * The header pill's title. Omitted entirely (not passed at all) renders
    * NO header row, rather than forcing the view into
@@ -57,31 +55,15 @@ export interface PhoneViewProps extends Omit<BoxProps, 'children' | 'sx' | 'titl
   children: React.ReactNode;
 }
 
-export function PhoneView({ phoneWidth, title, actions, headerProps, overlay, sx, children, ...rest }: PhoneViewProps) {
+export function PhoneView({ title, actions, headerProps, overlay, sx, children, ...rest }: PhoneViewProps) {
   const { device } = usePhoneAPIs();
   return (
-    <Box sx={{ position: 'relative', width: phoneWidth ?? device.size.width, ...sx }} {...rest}>
+    <Box sx={{ position: 'relative', width: device.size.width, ...sx }} {...rest}>
       {title !== undefined && <PhoneFrameHeaderRow title={title} actions={actions} {...headerProps} />}
       {children}
       {overlay}
     </Box>
   );
-}
-
-/**
- * LEGACY prop bag HistoryColumn still takes. It shrinks slice by slice (plan
- * steps 13-15) as each member moves to usePhoneAPIs() and is deleted in step
- * 16. New views must not use it: see phoneViewApi.tsx.
- */
-export interface PhoneViewAPI {
-  /** Create a new blank live panel/window -- the "+" Fab's own action. */
-  createView: () => void;
-  /** Make (or keep) the given panel live, in place, without reordering the row -- clicking any panel row, live or parked, in History. */
-  activatePanel: (id: string) => void;
-  /** Close a panel completely (History's trash button; the live panel's own drag-down uses its own prop): logged, undoable for 10 s. */
-  closePanel: (id: string) => void;
-  /** Start a brand-new session. */
-  newSession: () => void;
 }
 
 export default PhoneView;
