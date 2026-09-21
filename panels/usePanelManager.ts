@@ -162,7 +162,7 @@ export function usePanelManager(
     // specific ids this call decided to collapse keeps this safe regardless
     // of what else changed `panels` in the meantime.
     setPanels((current) =>
-      apply(current.map((p) => (collapsedSet.has(p.id) ? { ...p, live: false, checked: false, autoSwept: false } : p))),
+      apply(current.map((p) => (collapsedSet.has(p.id) ? { ...p, live: false } : p))),
     );
   };
 
@@ -201,7 +201,7 @@ export function usePanelManager(
     // then the panel it displaces is parked.
     setPanels((prev) => promoteToLive(prev, id, () => false) ?? prev);
     setPanels((current) =>
-      current.map((p) => (p.id === demoted.id ? { ...p, live: false, checked: false, autoSwept: false } : p)),
+      current.map((p) => (p.id === demoted.id ? { ...p, live: false } : p)),
     );
   };
 

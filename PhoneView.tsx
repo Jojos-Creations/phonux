@@ -12,9 +12,8 @@
  * covers the shared "phone shape" -- rounded card, fixed size, scrollbar
  * treatment). A caller's `children` is expected to already be one or more
  * PhoneFrame elements (or whatever else that view needs at that width), the
- * same way it is today. Splitting it this way means AdventurePanel.tsx's own
- * PhoneFrame usage (onDragOver/onDrop, the drag-active overlay) needed no
- * changes at all to move under PhoneView.
+ * same way it is today. Splitting it this way means a view's own PhoneFrame
+ * usage needed no changes at all to move under PhoneView.
  */
 
 import * as React from 'react';
@@ -25,6 +24,7 @@ import { usePhoneAPIs } from './phoneViewApi.js';
 // One import path for a view author: the contracts, the provider and the hook.
 export { PhoneAPIsMissingProviderError, PhoneAPIsProvider, usePhoneAPIs } from './phoneViewApi.js';
 export type { PhoneAPIs } from './phoneViewApi.js';
+export { DRAG_CLOSE, DragToClose, shouldCloseOnRelease, type DragHandleProps } from './dragToClose.js';
 
 export interface PhoneViewProps extends Omit<BoxProps, 'children' | 'sx' | 'title'> {
   /** Overrides the width, which otherwise comes from usePhoneAPIs().device.size (the width every PhoneFrame sizes to). Removed in plan step 16: no caller passes it. */
@@ -38,9 +38,8 @@ export interface PhoneViewProps extends Omit<BoxProps, 'children' | 'sx' | 'titl
   title?: React.ReactNode;
   actions?: React.ReactNode;
   /**
-   * Extra PhoneFrameHeaderRow props beyond title/actions -- draggable/
-   * onDragStart/onDragEnd for an extra panel's header, a custom `sx`,
-   * `data-*` attributes, etc. The `data-${string}` index signature is
+   * Extra PhoneFrameHeaderRow props beyond title/actions -- the drag handle
+   * of a DragToClose view (`onPointerDown`, `sx`), `data-*` attributes, etc. The `data-${string}` index signature is
    * needed because TS's "data-* is always valid" leniency only applies to
    * attributes written directly on a JSX element -- it does not extend to a
    * plain object literal like this one being checked against
@@ -79,12 +78,8 @@ export interface PhoneViewAPI {
   createView: () => void;
   /** Make (or keep) the given panel live, in place, without reordering the row -- clicking any panel row, live or parked, in History. */
   activatePanel: (id: string) => void;
-  /** Toggle one panel's own "staged for dead-end close" checkbox. */
-  toggleDeadEndChecked: (id: string) => void;
-  /** A panel's draggable header was dropped onto History -- `draggedId` is that panel's own id, off the native DragEvent's dataTransfer payload. */
-  dropDeadEndWindow: (draggedId: string) => void;
-  /** Confirm closing every currently-checked dead-end panel. */
-  confirmDeadEndClose: () => void;
+  /** Close a panel completely (History's trash button; the live panel's own drag-down uses its own prop): logged, undoable for 10 s. */
+  closePanel: (id: string) => void;
   /** Open the closed-pages history viewer (DeadEndHistoryViewer -- a DIFFERENT history than this row's own live/parked History column). */
   openDeadEndHistory: () => void;
   /** Open the legacy settings modal (SettingsPanel.tsx -- BYOK key, phone size, auto-collapse, its own "Maximum views" section). */

@@ -23,7 +23,7 @@
  * everything opened from a new-window request after it (human-clicked or
  * AI-clicked alike -- see electron/main.ts's setWindowOpenHandler, one code
  * path for both) -- so the SAME overflow/collapse/dead-end mechanism
- * (autoCollapseOldest, computeDeadEndBatch/stageDeadEnd, promoteToLive)
+ * (autoCollapseOldest, promoteToLive)
  * applies to every panel a session has open, the primary included. The
  * owner live-tested a 5-panel session and confirmed by eye that the primary
  * panel looked just as stale/collapsible as anything already in the
@@ -32,13 +32,12 @@
  * front-page-link-windows-primary-panel-unification's OWNER-ADDED live
  * decision (2026-09-14, folded in mid-implementation): the adventure card
  * no longer shows only PARKED panels -- AdventurePanel.tsx now renders
- * every entry in this array, live or not, so `live`/`checked`/`autoSwept`
- * live directly on this type rather than a panel getting converted into a
- * separate `DeadEndEntry` shape once staged. A panel is EITHER shown live
+ * every entry in this array, live or not. A panel is EITHER shown live
  * in the row (`live: true`) or parked in the adventure card only
  * (`live: false`) -- never both -- and is never removed from this array
- * just for being parked; only `confirmDeadEndClose` ("Close N pages") ever
- * actually drops an entry.
+ * just for being parked; only `closePanel` (owner, 2026-09-20: a view
+ * dragged down or trashed from History closes COMPLETELY) ever drops an
+ * entry. There is no staging any more: no `checked`, no `autoSwept`.
  */
 export interface PanelWindow {
   id: string;
@@ -56,17 +55,13 @@ export interface PanelWindow {
   sourceWebContentsId: number;
   /** Mounted live in the row right now. `false` means parked in the adventure card only -- still fully present in this array, just not rendered as a `<webview>`. */
   live: boolean;
-  /** Marked for closing via the adventure card's own checkbox (confirmDeadEndClose's own "toClose" set) -- independent of `live` (a panel can be checked while still live, mid-decision, or while already parked). */
-  checked: boolean;
-  /** True for a panel pulled into a close-batch automatically because it sat between a DIRECTLY dragged panel and the row's own leading edge (see computeDeadEndBatch) -- AdventurePanel's own red-tone styling. Always false for anything that arrived by auto-collapse or a plain activate-click rather than a drag. */
-  autoSwept: boolean;
 }
 
 /** Appends a brand-new, live 'extra' panel for a just-intercepted new-window request, immutably. Always appended to the END (oldest-first array order) regardless of which panel it came from (`sourceWebContentsId`) -- "appended to the right of any currently-open ones" per this entry's own intent, not inserted next to its source. */
 export function appendPanel(panels: PanelWindow[], info: { sourceWebContentsId: number; url: string }, id: string): PanelWindow[] {
   return [
     ...panels,
-    { id, kind: 'extra', url: info.url, webContentsId: null, sourceWebContentsId: info.sourceWebContentsId, live: true, checked: false, autoSwept: false },
+    { id, kind: 'extra', url: info.url, webContentsId: null, sourceWebContentsId: info.sourceWebContentsId, live: true },
   ];
 }
 
@@ -83,49 +78,9 @@ export function setPanelTitle(panels: PanelWindow[], id: string, title: string):
 }
 
 /**
- * front-page-link-windows-and-adventure-collapse's dead-end feature
- * (Intent addendum, point 4): the dragged panel plus every LIVE panel
- * positioned before it. Only ever reachable by dragging an EXTRA panel's
- * own header (the primary panel has no drag handle of its own -- see this
- * entry's own evidence report), so this only ever considers `kind ===
- * 'extra'` panels that are currently live, in their own relative (array)
- * order -- exactly the set the row actually shows as draggable headers.
- * `null` for a `draggedId` no longer present/no longer live (a stale drag)
- * -- nothing to stage, not an error.
- */
-export function computeDeadEndBatch(
-  panels: PanelWindow[],
-  draggedId: string,
-): { staged: PanelWindow[]; autoSweptIds: Set<string> } | null {
-  const liveExtras = panels.filter((p) => p.kind === 'extra' && p.live);
-  const draggedIndex = liveExtras.findIndex((p) => p.id === draggedId);
-  if (draggedIndex < 0) return null;
-  const staged = liveExtras.slice(0, draggedIndex + 1);
-  const autoSweptIds = new Set(staged.slice(0, -1).map((p) => p.id));
-  return { staged, autoSweptIds };
-}
-
-/**
- * Applies a drop, immutably: every panel in the staged batch
- * (computeDeadEndBatch) is marked `live: false, checked: true` (plus
- * `autoSwept` per the batch), IN PLACE -- never removed from `panels` (see
- * PanelWindow's own doc comment for why parking is no longer a
- * remove-and-append across two separate arrays). `null` for a stale
- * `draggedId` (see computeDeadEndBatch) -- `panels` is left untouched.
- */
-export function stageDeadEnd(panels: PanelWindow[], draggedId: string): PanelWindow[] | null {
-  const batch = computeDeadEndBatch(panels, draggedId);
-  if (!batch) return null;
-  const { staged, autoSweptIds } = batch;
-  const stagedIds = new Set(staged.map((p) => p.id));
-  return panels.map((p) => (stagedIds.has(p.id) ? { ...p, live: false, checked: true, autoSwept: autoSweptIds.has(p.id) } : p));
-}
-
-/**
  * "Auto collapse into adventure card" (owner setting, default on): park the
- * SINGLE OLDEST live panel, by array order -- unchecked (this is space
- * management, not a dead end) and never `autoSwept` (reserved for an
- * ACTUAL drag). `null` when nothing is live to park. `promoteToLive` below
+ * SINGLE OLDEST live panel, by array order (this is space management, not a
+ * close: the panel stays in the array). `null` when nothing is live to park. `promoteToLive` below
  * reuses this exact same "oldest live, by array order" policy for its own
  * demotion, so there is one demotion rule in this file, not two that could
  * silently drift apart.
@@ -133,7 +88,7 @@ export function stageDeadEnd(panels: PanelWindow[], draggedId: string): PanelWin
 export function autoCollapseOldest(panels: PanelWindow[]): PanelWindow[] | null {
   const oldest = panels.find((p) => p.live);
   if (!oldest) return null;
-  return panels.map((p) => (p.id === oldest.id ? { ...p, live: false, checked: false, autoSwept: false } : p));
+  return panels.map((p) => (p.id === oldest.id ? { ...p, live: false } : p));
 }
 
 /**
@@ -172,47 +127,39 @@ export function promoteToLive(
   const target = panels.find((p) => p.id === id);
   if (!target || target.live) return null;
   const liveCountAfter = panels.filter((p) => p.live).length + 1;
-  let next = panels.map((p) => (p.id === id ? { ...p, live: true, checked: false, autoSwept: false } : p));
+  let next = panels.map((p) => (p.id === id ? { ...p, live: true } : p));
   if (wouldOverflow(liveCountAfter)) {
     const demote = next.find((p) => p.live && p.id !== id);
     if (demote) {
-      next = next.map((p) => (p.id === demote.id ? { ...p, live: false, checked: false, autoSwept: false } : p));
+      next = next.map((p) => (p.id === demote.id ? { ...p, live: false } : p));
     }
   }
   return next;
 }
 
-/** Toggles one panel's checked state, immutably -- lets the owner uncheck an auto-swept-in entry before confirming (owner's own spec: "checkmarks... maybe with a red tone" implies these are reversible, not a fait accompli). Unknown `id` leaves `panels` unchanged. */
-export function toggleDeadEndChecked(panels: PanelWindow[], id: string): PanelWindow[] {
-  if (!panels.some((p) => p.id === id)) return panels;
-  return panels.map((p) => (p.id === id ? { ...p, checked: !p.checked } : p));
+/**
+ * Closes one panel COMPLETELY (owner, 2026-09-20): it leaves the array, live or
+ * parked, so it leaves the row and History together. Returns what a caller
+ * needs to log it and to undo it -- the array without it, the panel itself and
+ * the index it had -- or `null` for an unknown `id` (already closed, cleared):
+ * nothing to do, not an error.
+ */
+export function closePanel(panels: PanelWindow[], id: string): { remaining: PanelWindow[]; closed: PanelWindow; index: number } | null {
+  const index = panels.findIndex((p) => p.id === id);
+  if (index < 0) return null;
+  return { remaining: panels.filter((p) => p.id !== id), closed: panels[index]!, index };
 }
 
 /**
- * "Close {x} pages": splits the checked panels out (`toClose`) from the
- * ones left behind unchecked (`remaining`, which stay in `panels` exactly
- * as they were -- unchecking a panel before confirming means "don't close
- * this one," not "remove it from the list entirely"). Operates across
- * EVERY panel, live or parked -- closing a checked panel that happens to
- * still be live unmounts it too, same as closing a parked one discards it;
- * `remaining` is the caller's own next `panels` state either way.
+ * Reverses closePanel for one panel: puts `panel` back at `index` (clamped to
+ * the current length, so a shorter array still takes it), `webContentsId` reset
+ * because whatever it pointed at was unmounted when it closed. An id that is
+ * already present leaves `panels` unchanged (a double undo never duplicates).
+ * Whether it comes back live or parked is the caller's choice: it is whatever
+ * `panel.live` says.
  */
-export function confirmDeadEndClose(panels: PanelWindow[]): { toClose: PanelWindow[]; remaining: PanelWindow[] } {
-  return { toClose: panels.filter((p) => p.checked), remaining: panels.filter((p) => !p.checked) };
-}
-
-/**
- * Reverses confirmDeadEndClose: the just-closed batch goes back into
- * `panels`, appended at the end (position is not preserved through a
- * close/undo round trip -- an accepted trade-off for this rarely-used
- * path, see this entry's own evidence report). Always restored PARKED
- * (`live: false`, `webContentsId: null`) regardless of whether the closed
- * panel happened to be live at the moment it was closed -- its real
- * `<webview>` was actually unmounted the instant it left `panels`, so
- * `webContentsId` is stale either way; the owner clicking it again
- * (promoteToLive) is what remounts it fresh, exactly like any other
- * revive.
- */
-export function undoDeadEndClose(panels: PanelWindow[], closedBatch: PanelWindow[]): PanelWindow[] {
-  return [...panels, ...closedBatch.map((p) => ({ ...p, live: false, webContentsId: null }))];
+export function restorePanel(panels: PanelWindow[], panel: PanelWindow, index: number): PanelWindow[] {
+  if (panels.some((p) => p.id === panel.id)) return panels;
+  const at = Math.max(0, Math.min(index, panels.length));
+  return [...panels.slice(0, at), { ...panel, webContentsId: null }, ...panels.slice(at)];
 }
