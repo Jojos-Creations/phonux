@@ -126,6 +126,7 @@ test('restorePanel: an index past the end is clamped, a negative one goes first,
   const extra = makeExtraPanels('w9')[0]!;
   assert.deepEqual(restorePanel(panels, extra, 99).map((p) => p.id), ['w1', 'w2', 'w9']);
   assert.deepEqual(restorePanel(panels, extra, -3).map((p) => p.id), ['w9', 'w1', 'w2']);
+  assert.deepEqual(restorePanel(panels, extra, -1).map((p) => p.id), ['w9', 'w1', 'w2'], 'a negative index goes first however small it is: -1 is not "before the last" (slice would read it that way, and -3 only clamps by accident on two panels)');
   assert.equal(restorePanel(panels, panels[0]!, 1), panels, 'a double undo never duplicates a panel');
 });
 
