@@ -1,29 +1,29 @@
 /**
- * Drag a view's header DOWN to close it (owner, 2026-09-20: "drag a shown
- * phone view vertically downward to close it completely"). A UX-system
- * primitive next to PhoneView: it knows nothing about panels or the app, only
- * "the user dragged this box down far enough, call onClose".
+ * Drag a view's header DOWN to close it (owner, 2026-09-20: "drag a shown phone view vertically
+ * downward to close it completely"). A UX-system primitive next to PhoneView: it knows nothing about
+ * panels or the app, only "the user dragged this box down far enough, call onClose".
  *
  *   <DragToClose onClose={() => panels.close(id)}>
  *     {(handle) => <PhoneView title="Mine" headerProps={{ ...handle, sx: { ...handle.sx, fontWeight: 'bold' } }}>...</PhoneView>}
  *   </DragToClose>
  *
- * The HANDLE is the header pill and nothing else, so the view's body keeps its
- * own scrolling and clicks. The box follows the pointer vertically only, and
- * only downward (upward movement is refused). On release `shouldCloseOnRelease`
- * decides: close (the box leaves downward, then onClose runs) or snap back on a
- * spring. Motion's drag machinery does the pointer work: pointer events on
- * `window`, so the drag survives the pointer leaving the header.
+ * The HANDLE is the header pill and nothing else, so the view's body keeps its own scrolling and clicks.
+ * The box follows the pointer vertically only, and only downward (upward movement is refused). On
+ * release `shouldCloseOnRelease` decides: close (the box leaves downward, then onClose runs) or snap
+ * back on a spring. Motion's drag machinery does the pointer work: pointer events on `window`, so the
+ * drag survives the pointer leaving the header.
  *
- * Coexistence: touch-action is `pan-x` on the handle, so a horizontal swipe
- * still scrolls the row while a vertical one is ours; a press on a button, link
- * or field inside the header is left alone; while a drag is live any ancestor
- * that scrolls vertically is locked (`overflow-y: hidden`), because a
- * transformed box adds to its scrollable area and a scrollbar would appear.
+ * Coexistence: touch-action is `pan-x` on the handle, so a horizontal swipe still scrolls the row while
+ * a vertical one is ours; a press on a button, link or field inside the header is left alone, and only
+ * the primary button grabs. While a drag is live any ancestor that scrolls vertically is locked
+ * (`overflow-y: hidden`), because a transformed box adds to its scrollable area and a scrollbar would
+ * appear. The lock is released on snap-back and when the box UNMOUNTS. A close never unlocks by itself
+ * (the box is still parked below the fold), so onClose MUST remove the view: a caller that keeps it
+ * mounted leaves the box off-screen and its scrolling ancestors locked.
  * Reduced motion: no exit animation and no spring, onClose runs at once.
  *
- * For a keyboard or single-click way to do the same thing, offer a button that
- * calls the same onClose (History's trash buttons do): WCAG 2.5.7.
+ * Keyboard or single-click alternative (WCAG 2.5.7): offer a button that calls the same onClose, as
+ * History's trash buttons do.
  */
 
 import * as React from 'react';

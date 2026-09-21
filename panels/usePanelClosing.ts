@@ -23,22 +23,22 @@ export interface UsePanelClosingResult {
 }
 
 /**
- * Owner, 2026-09-20: a view closed by dragging it down or by the trash icon on a
- * History row is removed COMPLETELY (row and History), a closed event is appended
- * to the background log (electron/dead-end-history.ts: deadEnd.record) and a toast
- * offers Undo for 10 s (undo restores the view and removes the log entry). This
- * replaces useDeadEndActions (stage / confirm / undo of a checked batch).
+ * Owner, 2026-09-20: a view closed by dragging it down or by the trash icon on a History row is removed
+ * COMPLETELY (row and History), a closed event is appended to the background log
+ * (electron/dead-end-history.ts: deadEnd.record) and a toast offers Undo for 10 s (undo restores the view
+ * and removes the log entry). This replaces useDeadEndActions (stage / confirm / undo of a checked batch).
  *
- * `panels` / `setPanels` / `revealPanelProactively` are the panel manager's (one
- * owner of the array: usePanelManager merges by id across async writers). Called
- * with the values of the CURRENT render: the handlers close over them, so nothing
- * here may be memoised.
+ * `panels` / `setPanels` / `revealPanelProactively` are the panel manager's (one owner of the array:
+ * usePanelManager merges by id across async writers). Called with the values of the CURRENT render: the
+ * handlers close over them, so nothing here may be memoised. That is also why `close` takes a view's index
+ * from that render's array: two close() calls before ONE re-render would index the second against an array
+ * that still holds the first, and Undo would then restore the pair in the wrong relative order. Discrete
+ * gestures (a drag release, a click) re-render between events, so nothing reaches that today; a caller that
+ * batches closes needs one setPanels for the lot.
  *
- * Every close writes ONE log entry whose id is `<closedAt>#<panel id>`: panel ids
- * restart at 1 each launch, and the store's removeByIds (the undo path) would
- * otherwise also delete an older launch's entry with the same id. The bridge
- * calls are best effort: with no desktop bridge nothing is persisted, the same as
- * every other bridge-only feature.
+ * Every close writes ONE log entry whose id is `<closedAt>#<panel id>`: panel ids restart at 1 each launch,
+ * and the store's removeByIds (the undo path) would otherwise also delete an older launch's entry with the
+ * same id. The bridge calls are best effort: with no desktop bridge (a browser-only preview) nothing is persisted.
  */
 export function usePanelClosing(
   panels: PanelWindow[],
