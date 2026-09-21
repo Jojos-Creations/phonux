@@ -80,8 +80,6 @@ export interface PhoneViewAPI {
   activatePanel: (id: string) => void;
   /** Close a panel completely (History's trash button; the live panel's own drag-down uses its own prop): logged, undoable for 10 s. */
   closePanel: (id: string) => void;
-  /** Open the closed-pages history viewer (DeadEndHistoryViewer -- a DIFFERENT history than this row's own live/parked History column). */
-  openDeadEndHistory: () => void;
   /** Start a brand-new session. */
   newSession: () => void;
 }
