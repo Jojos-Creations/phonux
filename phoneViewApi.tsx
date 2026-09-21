@@ -1,0 +1,203 @@
+/**
+ * The public surface a view is written against. A view is any component that
+ * renders a phone-shaped column (Settings, History, a live panel, or one a
+ * third party writes): it reads what it needs from `usePhoneAPIs()`, renders a
+ * `<PhoneView>`, and never touches the desktop bridge, `localStorage` or any
+ * other app internal. The host implements these interfaces and mounts ONE
+ * `<PhoneAPIsProvider>`; a test mounts the same provider with the fakes from
+ * `phoneApisFake.ts`.
+ *
+ * This file, and the rest of shared/phone, imports only react, MUI and itself.
+ *
+ * The provider value is REBUILT EVERY RENDER on purpose (see PhoneAPIsProvider).
+ */
+
+import * as React from 'react';
+import type { PhoneModel } from './phoneModels.js';
+
+// ---------------------------------------------------------------------------
+// Value types
+// ---------------------------------------------------------------------------
+
+export type MaxViewsMode = 'screen-width' | 'count';
+
+/**
+ * "Maximum views": how many panels the row keeps live before parking the
+ * oldest in History. 'screen-width' grows the window and collapses only once
+ * the screen is full; 'count' collapses at `collapseAtViews` total views down
+ * to `downToViews` and never asks the window to grow. A "view" counts the
+ * always-present columns plus the live panels.
+ */
+export interface MaxViewsSettings {
+  mode: MaxViewsMode;
+  /** 'count' mode only: total views at which collapse triggers. */
+  collapseAtViews: number;
+  /** 'count' mode only: total views to collapse down to once triggered. */
+  downToViews: number;
+}
+
+/** A phone size. `modelId` 'default' means the app's built-in size, not a PHONE_MODELS entry. */
+export interface PhoneSize {
+  modelId: string;
+  width: number;
+  height: number;
+}
+
+/** The app's built-in size: upgrading must never silently resize anyone who has not chosen a model. */
+export const DEFAULT_PHONE_SIZE: PhoneSize = { modelId: 'default', width: 390, height: 700 };
+
+/** A phone-like USB device the app has just seen for the first time. */
+export interface DetectedPhone {
+  vendorId: number;
+  productId: number;
+}
+
+/** One entry of the persisted "Closed Pages" log. */
+export interface ClosedPageEntry {
+  id: string;
+  title: string;
+  url: string;
+  /** ISO-8601, UTC. */
+  closedAt: string;
+}
+
+/** What a view may know about a panel. The app's own panel record is structurally assignable to it. */
+export interface PanelSummary {
+  readonly id: string;
+  readonly url: string;
+  readonly title?: string;
+  /** Mounted in the row now (false = parked, listed in History only). */
+  readonly live: boolean;
+  /** Staged for "Close N pages". */
+  readonly checked: boolean;
+  /** Pulled into the staged batch by a drag rather than ticked by hand. */
+  readonly autoSwept: boolean;
+}
+
+// ---------------------------------------------------------------------------
+// The APIs
+// ---------------------------------------------------------------------------
+
+export interface SettingsAPI {
+  /** Live value: a view re-renders when it changes. */
+  readonly maxViews: MaxViewsSettings;
+  /** Legal range for `maxViews.collapseAtViews`. `min` already counts the columns on screen, so a view never passes a column count. */
+  readonly maxViewsBounds: { readonly min: number; readonly max: number };
+  /** Clamped against the CURRENT column count inside the app. */
+  setMaxViews(next: MaxViewsSettings): void;
+  /** Whether the row parks its oldest panel instead of scrolling when it would overflow. */
+  readonly autoCollapse: boolean;
+  /** Applies at once, then persists. Never rejects: with no desktop bridge the choice lasts this session only. */
+  setAutoCollapse(on: boolean): Promise<void>;
+  /** The "hide the Settings column at start" preference. Takes effect at the NEXT launch; toggling it never hides the column mid-session. */
+  readonly hideAtStart: boolean;
+  setHideAtStart(on: boolean): void;
+  /** The Settings column itself. `show()` also clears `hideAtStart`; `hide()` hides it for this session only. The column count changes when either is called. */
+  readonly settingsColumn: { readonly visible: boolean; show(): void; hide(): void };
+}
+
+export interface HistoryAPI {
+  /** Stage or unstage one panel's checkbox. */
+  toggleChecked(id: string): void;
+  /** A live panel's header was dropped on History. `draggedId` is the drag's 'text/plain' payload. Stages that panel plus every live panel before it. */
+  dropPanel(draggedId: string): void;
+  /** Close every staged panel, record the batch, and open the 10 s undo window. */
+  confirmClose(): void;
+  /** Non-null exactly while the undo window is open. */
+  readonly lastClosed: readonly PanelSummary[] | null;
+  undoClose(): void;
+  /** The persisted Closed Pages log, oldest first. NEVER rejects: any failure, including no desktop bridge, resolves to []. */
+  loadClosedPages(): Promise<readonly ClosedPageEntry[]>;
+  /** The Closed Pages overlay. `open()` (re)fetches through loadClosedPages(). */
+  readonly closedPagesViewer: {
+    readonly isOpen: boolean;
+    readonly loading: boolean;
+    readonly entries: readonly ClosedPageEntry[];
+    open(): void;
+    close(): void;
+  };
+}
+
+export interface PanelsAPI {
+  /** Every panel, live or parked, in array order. History lists them as given; the row shows the live ones. */
+  readonly panelList: readonly PanelSummary[];
+  /** Append a blank live panel. The app parks the oldest live one first when the row would overflow. */
+  create(): void;
+  /** Make a panel live in place, without reordering the row. May park the oldest live one. */
+  activate(id: string): void;
+  /** Forget every panel and cancel any drag. */
+  clearAll(): void;
+  readonly drag: {
+    /** Id of the panel whose header is mid-drag, else null. History shows its drop overlay while non-null. */
+    readonly activeId: string | null;
+    /** Call from a draggable header's onDragStart: sets effectAllowed, the 'text/plain' id payload and a small drag image. */
+    start(id: string, e: React.DragEvent): void;
+    end(): void;
+  };
+}
+
+export interface DeviceAPI {
+  /** The size every PhoneFrame renders at. Live. */
+  readonly size: PhoneSize;
+  /** The built-in size (`modelId` 'default'), for a "Default (390 × 700)" choice. */
+  readonly defaultSize: PhoneSize;
+  /** Selectable models. 'default' is not among them. */
+  readonly models: readonly PhoneModel[];
+  /** Applies at once, then persists. 'default' resets. Never rejects: with no desktop bridge the choice lasts this session only. */
+  chooseModel(modelId: string): Promise<void>;
+  /** Non-null exactly while the one-time "phone connected" notice should show. */
+  readonly detectedPhone: DetectedPhone | null;
+  dismissDetectedPhone(): void;
+  /** Resize to `modelId` and dismiss the notice. */
+  resizeForDetectedPhone(modelId: string): void;
+}
+
+export interface KeyAPI {
+  /** Whether an API key is saved on this device. NEVER rejects: no bridge or a failed check resolves false. */
+  status(): Promise<boolean>;
+  /** Rejects with an Error whose message is safe to show. */
+  save(key: string): Promise<void>;
+  clear(): Promise<void>;
+}
+
+export interface PhoneAPIs {
+  readonly settings: SettingsAPI;
+  readonly history: HistoryAPI;
+  readonly panels: PanelsAPI;
+  readonly device: DeviceAPI;
+  readonly key: KeyAPI;
+}
+
+// ---------------------------------------------------------------------------
+// Provider and hook
+// ---------------------------------------------------------------------------
+
+/** Thrown by usePhoneAPIs() when no provider is mounted, so a view rendered without APIs fails loudly instead of rendering defaults. */
+export class PhoneAPIsMissingProviderError extends Error {
+  constructor(hook = 'usePhoneAPIs') {
+    super(
+      `${hook}() was called outside a <PhoneAPIsProvider>. A view must render under the provider the host mounts; ` +
+        'in a test, wrap it in <PhoneAPIsProvider apis={createFakePhoneAPIs()}> (shared/phone/phoneApisFake).',
+    );
+    this.name = 'PhoneAPIsMissingProviderError';
+  }
+}
+
+const PhoneAPIsContext = React.createContext<PhoneAPIs | null>(null);
+
+/**
+ * Mount once, at the host. `apis` is passed straight through as the context
+ * value: NEVER memoise it here or where it is built. The handlers behind it
+ * close over render-time state (the panel list, the column count), so a
+ * memoised bag hands views stale closures.
+ */
+export function PhoneAPIsProvider({ apis, children }: { apis: PhoneAPIs; children: React.ReactNode }) {
+  return <PhoneAPIsContext.Provider value={apis}>{children}</PhoneAPIsContext.Provider>;
+}
+
+/** The one hook a view uses to reach the rest of the app. Call API methods from event handlers; do not capture one in an effect with empty deps. */
+export function usePhoneAPIs(): PhoneAPIs {
+  const apis = React.useContext(PhoneAPIsContext);
+  if (apis === null) throw new PhoneAPIsMissingProviderError();
+  return apis;
+}
