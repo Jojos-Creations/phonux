@@ -34,11 +34,7 @@ import { autoCollapseOldest, promoteToLive, type PanelWindow } from './panelWind
 const AUTO_COLLAPSE_SETTLE_MS = 500;
 
 export interface UsePanelManagerResult {
-  revealPanelProactively: (
-    panelsNow: PanelWindow[],
-    incomingKind: 'extra',
-    apply: (prev: PanelWindow[]) => PanelWindow[],
-  ) => void;
+  revealPanelProactively: (panelsNow: PanelWindow[], apply: (prev: PanelWindow[]) => PanelWindow[]) => void;
   handleActivatePanel: (id: string) => void;
 }
 
@@ -76,11 +72,7 @@ export function usePanelManager(
    * mode can need more than one at once (the owner's own "collapse down to
    * M" spec, which can be a bigger drop than the +1 that triggered it).
    *
-   * `incomingKind` only feeds 'screen-width' mode's own extraCount: an
-   * incoming 'extra' panel adds one to it. Every panel is 'extra' now that
-   * the primary kind is gone; the parameter stays until the `kind` field
-   * itself is dropped. 'count' mode counts every live webview the same
-   * toward its own total.
+   * Both modes count every live panel the same: the incoming one adds one.
    *
    * `panelsNow` is passed explicitly (never read from the `panels` state
    * closure) so this stays correct when called from the onOpenNewWindow
@@ -88,13 +80,13 @@ export function usePanelManager(
    * avoid the classic stale-closure bug a `[]`-deps subscription effect
    * would otherwise have.
    */
-  const collapseCountForNewPanel = (panelsNow: PanelWindow[], incomingKind: 'extra'): number => {
+  const collapseCountForNewPanel = (panelsNow: PanelWindow[]): number => {
     const liveCountAfter = panelsNow.filter((p) => p.live).length + 1;
     if (maxViews.mode === 'count') {
       if (!countModeShouldCollapse(liveCountAfter, maxViews, fixedColumnCount)) return 0;
       return Math.max(0, liveCountAfter - countModeTargetLiveWebviews(maxViews, fixedColumnCount));
     }
-    const extraCountAfter = panelsNow.filter((p) => p.kind === 'extra' && p.live).length + (incomingKind === 'extra' ? 1 : 0);
+    const extraCountAfter = panelsNow.filter((p) => p.live).length + 1;
     const overflow = predictWouldOverflow({
       baseWidth,
       extraCount: extraCountAfter,
@@ -129,16 +121,12 @@ export function usePanelManager(
    * all the same -- the owner's own spec: no artificial delay for the
    * common case.
    *
-   * `panelsNow`/`incomingKind` -- see collapseCountForNewPanel's own doc
-   * comment for why both are threaded through explicitly rather than read
-   * from the `panels`/closure state.
+   * `panelsNow` -- see collapseCountForNewPanel's own doc comment for why it
+   * is threaded through explicitly rather than read from the `panels`/closure
+   * state.
    */
-  const revealPanelProactively = (
-    panelsNow: PanelWindow[],
-    incomingKind: 'extra',
-    apply: (prev: PanelWindow[]) => PanelWindow[],
-  ) => {
-    const needed = collapseCountForNewPanel(panelsNow, incomingKind);
+  const revealPanelProactively = (panelsNow: PanelWindow[], apply: (prev: PanelWindow[]) => PanelWindow[]) => {
+    const needed = collapseCountForNewPanel(panelsNow);
     if (needed === 0) {
       setPanels((prev) => apply(prev));
       return;
@@ -162,7 +150,7 @@ export function usePanelManager(
     // specific ids this call decided to collapse keeps this safe regardless
     // of what else changed `panels` in the meantime.
     setPanels((current) =>
-      apply(current.map((p) => (collapsedSet.has(p.id) ? { ...p, live: false, checked: false, autoSwept: false } : p))),
+      apply(current.map((p) => (collapsedSet.has(p.id) ? { ...p, live: false } : p))),
     );
   };
 
@@ -181,7 +169,7 @@ export function usePanelManager(
     const wouldOverflow = (liveCountAfter: number): boolean => {
       if (maxViews.mode === 'count') return countModeShouldCollapse(liveCountAfter, maxViews, fixedColumnCount);
       const extraLiveCountAfter =
-        panels.filter((p) => p.kind === 'extra' && p.live).length + (target.kind === 'extra' ? 1 : 0);
+        panels.filter((p) => p.live).length + 1;
       return predictWouldOverflow({
         baseWidth,
         extraCount: extraLiveCountAfter,
@@ -201,7 +189,7 @@ export function usePanelManager(
     // then the panel it displaces is parked.
     setPanels((prev) => promoteToLive(prev, id, () => false) ?? prev);
     setPanels((current) =>
-      current.map((p) => (p.id === demoted.id ? { ...p, live: false, checked: false, autoSwept: false } : p)),
+      current.map((p) => (p.id === demoted.id ? { ...p, live: false } : p)),
     );
   };
 
