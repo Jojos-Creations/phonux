@@ -14,6 +14,7 @@
 
 import * as React from 'react';
 import type { PhoneModel } from './phoneModels.js';
+import { OverlayProvider } from './windowOverlay.js';
 
 // ---------------------------------------------------------------------------
 // Value types
@@ -183,7 +184,11 @@ const PhoneAPIsContext = React.createContext<PhoneAPIs | null>(null);
  * memoised bag hands views stale closures.
  */
 export function PhoneAPIsProvider({ apis, children }: { apis: PhoneAPIs; children: React.ReactNode }) {
-  return <PhoneAPIsContext.Provider value={apis}>{children}</PhoneAPIsContext.Provider>;
+  return (
+    <PhoneAPIsContext.Provider value={apis}>
+      <OverlayProvider>{children}</OverlayProvider>
+    </PhoneAPIsContext.Provider>
+  );
 }
 
 /** The one hook a view uses to reach the rest of the app. Call API methods from event handlers; do not capture one in an effect with empty deps. */

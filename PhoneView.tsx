@@ -25,6 +25,7 @@ import { usePhoneAPIs } from './phoneViewApi.js';
 export { PhoneAPIsMissingProviderError, PhoneAPIsProvider, usePhoneAPIs } from './phoneViewApi.js';
 export type { PhoneAPIs } from './phoneViewApi.js';
 export { DRAG_CLOSE, DragToClose, shouldCloseOnRelease, type DragHandleProps } from './dragToClose.js';
+export { WindowOverlay, OverlaySlot, OVERLAY_Z, type OverlaySlotName, type WindowOverlayProps } from './windowOverlay.js';
 
 export interface PhoneViewProps extends Omit<BoxProps, 'children' | 'sx' | 'title'> {
   /**
