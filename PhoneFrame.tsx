@@ -14,12 +14,12 @@ import * as React from 'react';
 import Box, { type BoxProps } from '@mui/material/Box';
 import { type Theme } from '@mui/material/styles';
 import MoreHorizIcon from '@mui/icons-material/MoreHoriz';
-import { usePhoneSize } from './phoneSize.js';
+import { usePhoneAPIs } from './phoneViewApi.js';
 
 /**
  * phone-size-auto-detection: the fixed 390x700 stand-in this comment used to
- * describe now lives as DEFAULT_PHONE_SIZE in phoneSize.ts, read reactively
- * here via usePhoneSize() -- the connected device's actual screen size (USB
+ * describe now lives as DEFAULT_PHONE_SIZE in phoneViewApi.tsx, read reactively
+ * here via usePhoneAPIs().device.size -- the connected device's actual screen size (USB
  * popup) or a Settings-chosen model overrides it from there. Nothing here
  * assumes every phone is one fixed size.
  */
@@ -132,7 +132,7 @@ const PhoneFrame = React.forwardRef<HTMLDivElement, PhoneFrameProps>(function Ph
   { children, expanded, sx, ...rest },
   ref,
 ) {
-  const { width, height } = usePhoneSize();
+  const { width, height } = usePhoneAPIs().device.size;
   return (
     <Box
       ref={ref}

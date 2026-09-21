@@ -20,10 +20,15 @@
 import * as React from 'react';
 import Box, { type BoxProps } from '@mui/material/Box';
 import { PhoneFrameHeaderRow, type PhoneFrameHeaderRowProps } from './PhoneFrame.js';
+import { usePhoneAPIs } from './phoneViewApi.js';
+
+// One import path for a view author: the contracts, the provider and the hook.
+export { PhoneAPIsMissingProviderError, PhoneAPIsProvider, usePhoneAPIs } from './phoneViewApi.js';
+export type { PhoneAPIs } from './phoneViewApi.js';
 
 export interface PhoneViewProps extends Omit<BoxProps, 'children' | 'sx' | 'title'> {
-  /** Same fixed width every PhoneFrame body already sizes to (usePhoneSize()) -- this wrapper and the header pill both use it. */
-  phoneWidth: number;
+  /** Overrides the width, which otherwise comes from usePhoneAPIs().device.size (the width every PhoneFrame sizes to). Removed in plan step 16: no caller passes it. */
+  phoneWidth?: number;
   /**
    * The header pill's title. Omitted entirely (not passed at all) renders
    * NO header row, rather than forcing the view into
@@ -54,8 +59,9 @@ export interface PhoneViewProps extends Omit<BoxProps, 'children' | 'sx' | 'titl
 }
 
 export function PhoneView({ phoneWidth, title, actions, headerProps, overlay, sx, children, ...rest }: PhoneViewProps) {
+  const { device } = usePhoneAPIs();
   return (
-    <Box sx={{ position: 'relative', width: phoneWidth, ...sx }} {...rest}>
+    <Box sx={{ position: 'relative', width: phoneWidth ?? device.size.width, ...sx }} {...rest}>
       {title !== undefined && <PhoneFrameHeaderRow title={title} actions={actions} {...headerProps} />}
       {children}
       {overlay}
@@ -64,22 +70,9 @@ export function PhoneView({ phoneWidth, title, actions, headerProps, overlay, sx
 }
 
 /**
- * The one, coherent surface a PhoneView-based view uses to reach "the rest
- * of the app" -- GoalFrontPage.tsx's own session/panel/dead-end state and
- * the modals that live outside the row. This exists because
- * HistoryColumn.tsx used to take eight separate callback props
- * (openDeadEndHistory, setSettingsOpen, newSession, onToggleChecked,
- * onDropWindow, onConfirmClose, onActivate, plus the "+" Fab's own
- * onCreateView) -- one prop per action, growing without any shared shape,
- * exactly the "views implement PhoneView" abstraction was meant to prevent
- * happening again for the NEXT view that needs to spawn a window or
- * activate a panel. One object, one place to look, one place to extend.
- *
- * GoalFrontPage.tsx builds exactly one of these (its own handlers, already
- * defined for other reasons, just gathered here) and hands it to whichever
- * view needs it -- a view that needs none of this (SettingsView today) just
- * doesn't take the prop, rather than every view being forced to accept an
- * `api` object it never calls.
+ * LEGACY prop bag HistoryColumn still takes. It shrinks slice by slice (plan
+ * steps 13-15) as each member moves to usePhoneAPIs() and is deleted in step
+ * 16. New views must not use it: see phoneViewApi.tsx.
  */
 export interface PhoneViewAPI {
   /** Create a new blank live panel/window -- the "+" Fab's own action. */

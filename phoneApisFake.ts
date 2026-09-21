@@ -9,9 +9,9 @@
  * Every method records `{ api, method, args }` in `apis.calls`, in call order,
  * and does nothing else: the fakes hold no state, so a test that wants a
  * different live value re-renders with new overrides. Async methods resolve.
- * `overrides` replaces whole members of one API (an override of `drag` or
- * `closedPagesViewer` replaces the whole nested object); an overridden method
- * no longer records.
+ * `overrides` replaces whole members of one API (an override of
+ * `closedPagesViewer` or `settingsColumn` replaces the whole nested object); an
+ * overridden method no longer records.
  *
  * Lives beside the API contracts, not in the app's test folder, so a view
  * written by a third party can import it. It has no test-runner dependency and
@@ -55,8 +55,9 @@ export function createFakePhoneAPIs(overrides: FakeOverrides = {}): FakePhoneAPI
     setMaxViews: (next) => log('settings', 'setMaxViews', [next]),
     autoCollapse: true,
     setAutoCollapse: async (on) => log('settings', 'setAutoCollapse', [on]),
-    hideAtStart: false,
-    setHideAtStart: (on) => log('settings', 'setHideAtStart', [on]),
+    hideSettingsAfterViews: null,
+    setHideSettingsAfterViews: (views) => log('settings', 'setHideSettingsAfterViews', [views]),
+    shownViews: 1,
     settingsColumn: {
       visible: true,
       show: () => log('settings', 'settingsColumn.show', []),
@@ -65,11 +66,6 @@ export function createFakePhoneAPIs(overrides: FakeOverrides = {}): FakePhoneAPI
   };
 
   const history: HistoryAPI = {
-    toggleChecked: (id) => log('history', 'toggleChecked', [id]),
-    dropPanel: (draggedId) => log('history', 'dropPanel', [draggedId]),
-    confirmClose: () => log('history', 'confirmClose', []),
-    lastClosed: null,
-    undoClose: () => log('history', 'undoClose', []),
     loadClosedPages: async () => {
       log('history', 'loadClosedPages', []);
       return [];
@@ -87,12 +83,10 @@ export function createFakePhoneAPIs(overrides: FakeOverrides = {}): FakePhoneAPI
     panelList: [],
     create: () => log('panels', 'create', []),
     activate: (id) => log('panels', 'activate', [id]),
+    close: (id) => log('panels', 'close', [id]),
+    recentlyClosed: null,
+    undoClose: () => log('panels', 'undoClose', []),
     clearAll: () => log('panels', 'clearAll', []),
-    drag: {
-      activeId: null,
-      start: (id, e) => log('panels', 'drag.start', [id, e]),
-      end: () => log('panels', 'drag.end', []),
-    },
   };
 
   const device: DeviceAPI = {

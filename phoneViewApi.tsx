@@ -68,11 +68,10 @@ export interface PanelSummary {
   readonly title?: string;
   /** Mounted in the row now (false = parked, listed in History only). */
   readonly live: boolean;
-  /** Staged for "Close N pages". */
-  readonly checked: boolean;
-  /** Pulled into the staged batch by a drag rather than ticked by hand. */
-  readonly autoSwept: boolean;
 }
+
+/** The choices for `SettingsAPI.hideSettingsAfterViews`, besides "never" (null): 1 hides the column as soon as History is shown. 10 is more than any screen holds at a time. */
+export const HIDE_SETTINGS_AFTER_VIEWS_CHOICES: readonly number[] = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
 
 // ---------------------------------------------------------------------------
 // The APIs
@@ -89,24 +88,17 @@ export interface SettingsAPI {
   readonly autoCollapse: boolean;
   /** Applies at once, then persists. Never rejects: with no desktop bridge the choice lasts this session only. */
   setAutoCollapse(on: boolean): Promise<void>;
-  /** The "hide the Settings column at start" preference. Takes effect at the NEXT launch; toggling it never hides the column mid-session. */
-  readonly hideAtStart: boolean;
-  setHideAtStart(on: boolean): void;
-  /** The Settings column itself. `show()` also clears `hideAtStart`; `hide()` hides it for this session only. The column count changes when either is called. */
+  /** "Hide settings after view threshold": the Settings column hides itself when `shownViews` rises to this value (or at launch, when it is already that high). null = never (default), else one of HIDE_SETTINGS_AFTER_VIEWS_CHOICES. Persisted. Changing it never hides the column at that moment. */
+  readonly hideSettingsAfterViews: number | null;
+  setHideSettingsAfterViews(views: number | null): void;
+  /** The number the threshold is compared with: History always counts one, plus every LIVE panel. The Settings column itself is not counted. */
+  readonly shownViews: number;
+  /** The Settings column itself. `show()` and `hide()` are the manual switch (History's gear): they last for this session and never change the stored threshold. The column count changes when either is called, or when the threshold hides the column. */
   readonly settingsColumn: { readonly visible: boolean; show(): void; hide(): void };
 }
 
 export interface HistoryAPI {
-  /** Stage or unstage one panel's checkbox. */
-  toggleChecked(id: string): void;
-  /** A live panel's header was dropped on History. `draggedId` is the drag's 'text/plain' payload. Stages that panel plus every live panel before it. */
-  dropPanel(draggedId: string): void;
-  /** Close every staged panel, record the batch, and open the 10 s undo window. */
-  confirmClose(): void;
-  /** Non-null exactly while the undo window is open. */
-  readonly lastClosed: readonly PanelSummary[] | null;
-  undoClose(): void;
-  /** The persisted Closed Pages log, oldest first. NEVER rejects: any failure, including no desktop bridge, resolves to []. */
+  /** The persisted Closed Pages log (every view ever closed, oldest first). NEVER rejects: any failure, including no desktop bridge, resolves to []. */
   loadClosedPages(): Promise<readonly ClosedPageEntry[]>;
   /** The Closed Pages overlay. `open()` (re)fetches through loadClosedPages(). */
   readonly closedPagesViewer: {
@@ -125,15 +117,14 @@ export interface PanelsAPI {
   create(): void;
   /** Make a panel live in place, without reordering the row. May park the oldest live one. */
   activate(id: string): void;
-  /** Forget every panel and cancel any drag. */
+  /** Close a view completely, live or parked: it leaves the row and History at once, a closed event is appended to the persisted log (HistoryAPI), and it can be undone for 10 s (recentlyClosed, undoClose). An id not in `panelList` does nothing. */
+  close(id: string): void;
+  /** The views closed within the current undo window, oldest first; non-null exactly while it is open (10 s after the LAST close). Drives the "Closed N pages / Undo" toast. */
+  readonly recentlyClosed: readonly PanelSummary[] | null;
+  /** Undo every close in `recentlyClosed`: each view returns at its old place (a live one comes back live, parking the oldest live one if the row is full) and its log entry is removed. Does nothing when the window is closed. */
+  undoClose(): void;
+  /** Forget every panel. Not logged and not undoable. */
   clearAll(): void;
-  readonly drag: {
-    /** Id of the panel whose header is mid-drag, else null. History shows its drop overlay while non-null. */
-    readonly activeId: string | null;
-    /** Call from a draggable header's onDragStart: sets effectAllowed, the 'text/plain' id payload and a small drag image. */
-    start(id: string, e: React.DragEvent): void;
-    end(): void;
-  };
 }
 
 export interface DeviceAPI {
