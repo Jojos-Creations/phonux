@@ -17,15 +17,17 @@
  * drag is live every vertically scrolling ancestor is locked (`overflow-y: hidden`: a transformed box would add a
  * scrollbar); the lock ends with the spring back (or a press that stops it) and when the box UNMOUNTS. A close never
  * unlocks (the box is parked below the fold), so onClose MUST remove the view, and once a release has decided to close
- * the box takes no more presses (one would stop the exit and the close would never run). Reduced motion: no exit
- * animation and no spring; a far drag calls onClose at once, a short one puts the box back at once.
+ * the box takes no more presses (one would stop the exit and the close would never run). If the owner then brings the box back
+ * while AnimatePresence still holds it (the same key returns: an undo), it is made a fresh box at once: at rest, unlocked, taking
+ * presses, its pending exit stopped. Reduced motion: no exit animation and no spring; a far drag calls onClose at once, a short
+ * one puts the box back at once.
  *
  * Keyboard or single-click alternative (WCAG 2.5.7): offer a button that calls the same onClose, as
  * History's trash buttons do.
  */
 
 import * as React from 'react';
-import { animate, motion, useDragControls, useMotionValue, useReducedMotion } from 'motion/react';
+import { animate, motion, useDragControls, useIsPresent, useMotionValue, useReducedMotion } from 'motion/react';
 
 /** The tunables, in one place. Distances in px, velocities in px/s, positive = downward. */
 export const DRAG_CLOSE = {
@@ -99,6 +101,20 @@ export function DragToClose({ onClose, children }: { onClose: () => void; childr
     },
     [],
   );
+  // Revival: an AnimatePresence that is still holding this box while it leaves keeps the SAME instance when the key returns (an undo), parked
+  // below the fold, locked and refusing presses. A layout effect, and the DOM is written here too, not on Motion's next frame: the host scrolls a
+  // revived view into view in this same commit, right after this, and must find the box at rest.
+  const isPresent = useIsPresent();
+  const wasPresent = React.useRef(true);
+  React.useLayoutEffect(() => {
+    const revived = isPresent && !wasPresent.current;
+    wasPresent.current = isPresent;
+    if (!revived) return;
+    closing.current = false;
+    unlockScrollParents();
+    y.jump(0); // also stops an exit that is still running: its end would call onClose for a box that is back
+    if (box.current) box.current.style.transform = 'none';
+  }, [isPresent]);
 
   const handle: DragHandleProps = {
     onPointerDown: (event) => {
