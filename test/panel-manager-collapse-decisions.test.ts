@@ -31,9 +31,14 @@
  * fresh reimplementation of the math the primitives themselves already
  * cover) so a future extraction has something to diff against. The
  * overflow-mode branch's WRAPPER-level plumbing (that a real overflowing
- * open really does collapse exactly one panel) is additionally exercised
- * live over CDP by test/dead-end-overflow-growth-integration.test.ts's
- * bullet 4b and test/front-page-overflow-observer-race-regression.test.ts.
+ * open really does collapse exactly one panel, the oldest by array order,
+ * and never a second time for the same overflow event) is additionally
+ * exercised at the mount level (D6, 2026-09-22, replacing the CDP files this
+ * comment used to name -- their subject, the old drag-onto-History flow,
+ * is gone; test/dead-end-drag-drop-integration.test.ts is now the one
+ * real-Electron smoke test) by test/goal-front-page-mount.test.ts's T9a,
+ * T9c and T10a-T10d and test/goal-front-page-row-shell.test.ts's RS1, RS2,
+ * RS6a and RS6b.
  */
 import test from 'node:test';
 import assert from 'node:assert/strict';
