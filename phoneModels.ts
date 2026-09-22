@@ -2,7 +2,7 @@
  * phone-size-auto-detection: the Settings dropdown's (and the USB-detect
  * popup's) list of known phone models, each with its own CSS-pixel
  * PhoneFrame size. Pure and unit-testable, same reasoning as this
- * codebase's other neighbors (e.g. SettingsPanel.tsx's keyStatusMessage).
+ * codebase's other neighbors (e.g. ApiKeySection.tsx's keyStatusMessage).
  *
  * Hand-copied from vendor/device-specs/viewport-sizes.json (not imported
  * directly -- that file lives outside client/'s own tsconfig root, and
