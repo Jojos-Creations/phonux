@@ -61,3 +61,12 @@ test('rowShellStyle: the margin centres the columns and LIVE panels it is given,
   assert.equal(margin({ ...wide, liveCount: 9 }), 27, 'never more than fit: the margin stops at what the container holds, and never goes negative');
   assert.equal(margin({ shell: { ...base.shell, containerWidth: 0 } }), 0, 'before the first measurement');
 });
+
+test('rowShellStyle E3/E4: a fractional pixel of margin is kept exactly, never rounded or truncated (an odd container width centres on a half pixel)', () => {
+  // Every other case in this file (and in RS3/RS14d) was deliberately chosen to land on a whole pixel, so a `Math.round` or `Math.floor`
+  // dropped into the arithmetic anywhere between computeRowLayout and this function's return would pass every one of them unnoticed. A
+  // 1301 container (one wider than the 1300 every other test uses) is the smallest change that forces the centring math itself to land on
+  // a half pixel: (1301 - 2*16 - 796) / 2 = 236.5.
+  const margin = (over: Partial<RowShellStyleInput>): number => rowShellStyle({ ...base, ...over }).marginLeft;
+  assert.equal(margin({ shell: { ...base.shell, containerWidth: 1301 } }), 236.5, 'a whole pixel of drift either way (236 or 237) would be a rounding bug, not measurement noise');
+});
