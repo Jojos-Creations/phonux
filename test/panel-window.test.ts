@@ -15,8 +15,6 @@ import {
   closePanel,
   promoteToLive,
   restorePanel,
-  setPanelContentsId,
-  setPanelTitle,
 } from '../client/src/desktop/panels/panelWindow.js';
 
 test('appendPanel: appends a new LIVE extra panel carrying the source id and url, unstarted webContentsId', () => {
@@ -35,50 +33,6 @@ test('appendPanel: always appends to the end, regardless of which panel the requ
     panels.map((p) => p.id),
     ['w1', 'w2', 'w3'],
   );
-});
-
-test('setPanelContentsId: sets webContentsId for the matching panel only, immutably', () => {
-  const panels = appendPanel(
-    appendPanel([], { sourceWebContentsId: 1, url: 'https://a.example' }, 'w1'),
-    { sourceWebContentsId: 1, url: 'https://b.example' },
-    'w2',
-  );
-  const next = setPanelContentsId(panels, 'w2', 42);
-  assert.equal(next[0]!.webContentsId, null, 'the other panel is untouched');
-  assert.equal(next[1]!.webContentsId, 42);
-  assert.notEqual(next, panels, 'a new array is returned, not the same reference');
-
-  // The FIRST panel updates too (before the primary kind was cut, this case checked exactly that: a first panel updated by id), and only it.
-  const nextFirst = setPanelContentsId(panels, 'w1', 7);
-  assert.equal(nextFirst[0]!.webContentsId, 7, 'the first panel is updated');
-  assert.equal(nextFirst[1]!.webContentsId, null, 'and the second is untouched');
-  assert.equal(panels[0]!.webContentsId, null, 'the input array was not mutated');
-});
-
-test('setPanelContentsId: an unknown id leaves panels unchanged', () => {
-  const panels = appendPanel([], { sourceWebContentsId: 1, url: 'https://a.example' }, 'w1');
-  assert.equal(setPanelContentsId(panels, 'nope', 42), panels);
-});
-
-test('setPanelTitle: sets the title the first time a real one arrives', () => {
-  const panels = appendPanel([], { sourceWebContentsId: 1, url: 'https://a.example' }, 'w1');
-  const next = setPanelTitle(panels, 'w1', 'Example Domain');
-  assert.equal(next[0]!.title, 'Example Domain');
-});
-
-test('setPanelTitle: a panel that already has a title is never overwritten by a later one', () => {
-  // Mirrors updateSessionPageTitle's own reasoning: later in-page navigation
-  // must not silently rename a panel already named from its first real page.
-  const panels: PanelWindow[] = [
-    { id: 'w1', url: 'https://a.example', webContentsId: 5, sourceWebContentsId: 1, title: 'Example Domain', live: true },
-  ];
-  const next = setPanelTitle(panels, 'w1', 'Some Other Page');
-  assert.equal(next[0]!.title, 'Example Domain');
-});
-
-test('setPanelTitle: an unknown id leaves panels unchanged', () => {
-  const panels = appendPanel([], { sourceWebContentsId: 1, url: 'https://a.example' }, 'w1');
-  assert.equal(setPanelTitle(panels, 'nope', 'X'), panels);
 });
 
 function makeExtraPanels(...ids: string[]): PanelWindow[] {

@@ -58,18 +58,6 @@ export function appendPanel(panels: PanelWindow[], info: { sourceWebContentsId: 
   ];
 }
 
-/** `id`'s own WebContents id, once its 'dom-ready' fires. Unknown `id` (already closed/reset by the time 'dom-ready' fires) leaves `panels` unchanged. */
-export function setPanelContentsId(panels: PanelWindow[], id: string, webContentsId: number): PanelWindow[] {
-  if (!panels.some((p) => p.id === id)) return panels;
-  return panels.map((p) => (p.id === id ? { ...p, webContentsId } : p));
-}
-
-/** `id`'s own page title, first-write-wins -- mirrors updateSessionPageTitle's own reasoning (never renamed by later in-page navigation). */
-export function setPanelTitle(panels: PanelWindow[], id: string, title: string): PanelWindow[] {
-  if (!panels.some((p) => p.id === id && !p.title)) return panels;
-  return panels.map((p) => (p.id === id && !p.title ? { ...p, title } : p));
-}
-
 /**
  * "Auto collapse into adventure card" (owner setting, default on): park the
  * SINGLE OLDEST live panel, by array order (this is space management, not a
