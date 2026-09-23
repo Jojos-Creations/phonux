@@ -37,7 +37,19 @@ export interface PanelsInput {
   overflowContainerRef: RefObject<HTMLDivElement | null>;
 }
 
-export function useProvidePanels(i: PanelsInput): PanelsAPI {
+/**
+ * PanelsAPI plus `closingIds`, kept OFF that interface on purpose: PanelsAPI is
+ * the narrow surface a third-party view is written against (phoneViewApi.tsx's
+ * own header comment), and `closingIds` is desktop-only exit-animation plumbing
+ * (LivePanels.tsx/LivePanelSlot.tsx) that no view has a reason to see. Still
+ * structurally a PanelsAPI, so every existing caller that only wants that
+ * narrower type keeps working unchanged.
+ */
+export interface ProvidedPanels extends PanelsAPI {
+  readonly closingIds: ReadonlySet<string>;
+}
+
+export function useProvidePanels(i: PanelsInput): ProvidedPanels {
   // Owner report: a newly-revealed panel (a brand-new "+" view, or an old
   // one reactivated from History) could land outside the currently-scrolled
   // area with nothing to bring it into view -- especially now that 'count'
@@ -106,5 +118,6 @@ export function useProvidePanels(i: PanelsInput): PanelsAPI {
     recentlyClosed: closing.recentlyClosed?.map(summarise) ?? null,
     undoClose: closing.undoClose,
     clearAll: () => i.setPanels([]),
+    closingIds: closing.closingIds,
   };
 }

@@ -1,5 +1,6 @@
 import * as React from 'react';
-import { motion } from 'motion/react';
+import { motion, type TargetAndTransition } from 'motion/react';
+import { DRAG_CLOSE } from '../../shared/phone/dragToClose.js';
 
 /** The one spacing value used everywhere a gap is needed in this row. */
 export const GAP = 16;
@@ -40,27 +41,52 @@ export const PANEL_TRANSITION = { duration: PANEL_ANIM_SEC, ease: PANEL_ANIM_EAS
  * edits theme.ts: keep that reset scoped to `transition` and `animation`. If
  * it ever grows to cover `transform` or `opacity` with `!important`, it kills
  * both of Motion's paths at once, silently.
+ *
+ * Owner, 2026-09-22, two decisions the same day: a CLOSE (History's
+ * hover-trash, or DragToClose) should slide down, not left; an auto-collapse
+ * to parked (usePanelManager.ts's collapseOldestIds/autoCollapseOldest -- the
+ * row overflowed, nothing was closed) must stay doing what it always did,
+ * `x: -slot` behind the adventure card, so the two remain visually distinct.
+ * `exitDirection` (LivePanels.tsx computes it from usePanelClosing.ts's
+ * `closingIds`) picks between them:
+ *   - 'down': timed/eased to DragToClose's own downward exit
+ *     (`DRAG_CLOSE.exitSeconds`/`easeIn`, dragToClose.tsx) via a per-variant
+ *     `transition` override, so trash and drag closes read as one motion.
+ *     DragToClose itself needs no change: its own `y` animation finishes and
+ *     calls `onClose` BEFORE this exit starts, so the two run in sequence --
+ *     this exit's `y` ramps in underneath a box already off-screen,
+ *     invisibly, not fighting it (no snap, no jump).
+ *   - 'left': the original `x: -slot` on plain `PANEL_TRANSITION`, restored
+ *     verbatim (no DragToClose involvement to time against: nothing closed).
+ *
+ * `exitDirection` MUST be correct on THIS component's LAST render before it
+ * leaves the `live`-filtered array -- AnimatePresence has no later render of
+ * a removed child to fix a wrong guess (see LivePanels.tsx's own comment).
  */
 export function LivePanelSlot({
   index,
   phoneWidth,
+  phoneHeight,
+  exitDirection,
   children,
 }: {
   index: number;
   phoneWidth: number;
+  phoneHeight: number;
+  exitDirection: 'down' | 'left';
   children: React.ReactNode;
 }) {
   const slot = phoneWidth + GAP;
+  const exit: TargetAndTransition =
+    exitDirection === 'down'
+      ? { x: index * slot, y: phoneHeight, opacity: 0, transition: { duration: DRAG_CLOSE.exitSeconds, ease: 'easeIn' } }
+      : { x: -slot, opacity: 0 };
   return (
     <motion.div
       // Enter from one slot beyond its destination, i.e. in from the right.
       initial={{ x: (index + 1) * slot, opacity: 0 }}
       animate={{ x: index * slot, opacity: 1 }}
-      // Leave to the LEFT of the slot container's own origin -- which is
-      // exactly where the adventure card sits -- so a collapsing panel slides
-      // behind the card before unmounting. The container's zIndex keeps it
-      // painted under the card while it does (see the slot container below).
-      exit={{ x: -slot, opacity: 0 }}
+      exit={exit}
       transition={PANEL_TRANSITION}
       style={{
         position: 'absolute',

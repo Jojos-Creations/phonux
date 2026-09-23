@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, type Dispatch, type SetStateAction } from 'react';
+import { flushSync } from 'react-dom';
 import { bridge } from '../../shared/ipc/bridge.js';
 import { closePanel, restorePanel, type PanelWindow } from './panelWindow.js';
 import type { UsePanelManagerResult } from './usePanelManager.js';
@@ -20,6 +21,15 @@ export interface UsePanelClosingResult {
   undoClose: () => void;
   /** The views closed inside the window, oldest first; non-null exactly while the window is open. */
   recentlyClosed: PanelWindow[] | null;
+  /**
+   * Ids currently leaving through THIS hook's own `close()` -- never through
+   * usePanelManager's auto-collapse, which flips `live` false but never touches
+   * this set. LivePanels.tsx reads it to give each exiting LivePanelSlot an
+   * `exitDirection` (down for a close, left for an auto-collapse); see this
+   * file's `close()` for why the id must land here BEFORE the panel leaves
+   * `panels`, not after.
+   */
+  closingIds: ReadonlySet<string>;
 }
 
 /**
@@ -46,6 +56,7 @@ export function usePanelClosing(
   revealPanelProactively: UsePanelManagerResult['revealPanelProactively'],
 ): UsePanelClosingResult {
   const [closed, setClosed] = useState<ClosedView[]>([]);
+  const [closingIds, setClosingIds] = useState<ReadonlySet<string>>(new Set());
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   // Ids closed in the current window: a second close of the same id (a gesture callback that outlived a trash click) is ignored.
   const claimed = useRef<Set<string>>(new Set());
@@ -66,6 +77,14 @@ export function usePanelClosing(
     const found = closePanel(panels, id);
     if (!found || claimed.current.has(id)) return;
     claimed.current.add(id);
+    // Commits ALONE, before the removal below: AnimatePresence takes an exiting
+    // child's `exit` animation from its LAST props before it left `live`, and
+    // there is no render of it AFTER removal to fix this up. A plain setState
+    // here would batch with the setPanels below (React 18) into one commit that
+    // never has the panel both present AND marked -- flushSync forces this one
+    // to land first, so the next commit (the removal) is the one AnimatePresence
+    // captures, and it already says closingIds.has(id).
+    flushSync(() => setClosingIds((prev) => new Set(prev).add(id)));
     const closedAt = new Date().toISOString();
     const logId = `${closedAt}#${id}`;
     setPanels((prev) => closePanel(prev, id)?.remaining ?? prev);
@@ -102,6 +121,18 @@ export function usePanelClosing(
       }
       working = restorePanel(working, panel, index);
     }
+    // A restored id is no longer closing: leaving it marked would wrongly slide
+    // a LATER auto-collapse of the same id down instead of left. An id that is
+    // never restored (its window just elapses) keeps its entry here forever,
+    // harmlessly -- ids never repeat within a session (useProvidePanels.ts's
+    // nextWindowId), so a stale `true` can never be read by a live panel again.
+    setClosingIds((prev) => {
+      const ids = batch.map((e) => e.panel.id).filter((restoredId) => prev.has(restoredId));
+      if (ids.length === 0) return prev;
+      const next = new Set(prev);
+      for (const restoredId of ids) next.delete(restoredId);
+      return next;
+    });
     try {
       bridge()
         .deadEnd.undo(batch.map((e) => e.logId))
@@ -111,5 +142,5 @@ export function usePanelClosing(
     }
   };
 
-  return { close, undoClose, recentlyClosed: closed.length > 0 ? closed.map((e) => e.panel) : null };
+  return { close, undoClose, recentlyClosed: closed.length > 0 ? closed.map((e) => e.panel) : null, closingIds };
 }
