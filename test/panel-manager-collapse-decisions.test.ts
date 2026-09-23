@@ -51,7 +51,7 @@ import { predictWouldOverflow } from '../src/panel-layout.js';
 import { autoCollapseOldest, type PanelWindow } from '../client/src/desktop/panels/panelWindow.js';
 
 function panel(id: string, live: boolean): PanelWindow {
-  return { id, url: `http://example.test/${id}`, webContentsId: null, sourceWebContentsId: 1, live };
+  return { id, url: `http://example.test/${id}`, webContentsId: null, sourceWebContentsId: 1, live, locked: false };
 }
 
 /** Verbatim replica of collapseCountForNewPanel's own count-mode branch, see this file's header. */
