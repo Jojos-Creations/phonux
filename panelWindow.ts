@@ -60,10 +60,10 @@ export interface PanelWindow {
 }
 
 /** Appends a brand-new, live 'extra' panel for a just-intercepted new-window request, immutably. Always appended to the END (oldest-first array order) regardless of which panel it came from (`sourceWebContentsId`) -- "appended to the right of any currently-open ones" per this entry's own intent, not inserted next to its source. */
-export function appendPanel(panels: PanelWindow[], info: { sourceWebContentsId: number; url: string }, id: string): PanelWindow[] {
+export function appendPanel(panels: PanelWindow[], info: { sourceWebContentsId: number; url: string; title?: string }, id: string): PanelWindow[] {
   return [
     ...panels,
-    { id, url: info.url, webContentsId: null, sourceWebContentsId: info.sourceWebContentsId, live: true, locked: false },
+    { id, url: info.url, ...(info.title !== undefined ? { title: info.title } : {}), webContentsId: null, sourceWebContentsId: info.sourceWebContentsId, live: true, locked: false },
   ];
 }
 

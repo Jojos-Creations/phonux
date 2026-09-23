@@ -118,7 +118,9 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
     panelList: i.panels.map(summarise),
     create: () => {
       const id = String(nextWindowId++);
-      revealPanelProactively(i.panels, (prev) => appendPanel(prev, { sourceWebContentsId: -1, url: 'about:blank' }, id));
+      // Owner, 2026-09-23: "Panel N" for testing -- "about:blank" was stale
+      // verbiage from the webview days and made every panel look identical.
+      revealPanelProactively(i.panels, (prev) => appendPanel(prev, { sourceWebContentsId: -1, url: 'about:blank', title: `Panel ${id}` }, id));
     },
     activate: handleActivatePanel,
     close: closing.close,
