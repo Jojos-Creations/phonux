@@ -61,12 +61,10 @@ export function LivePanels({
 
        `zIndex: 1` against History's `zIndex: 2` puts a leaving panel BEHIND
        History as it slides out past this container's left edge (see
-       HistoryColumn.tsx). A close's exit is DOWNWARD (owner, 2026-09-22 --
-       LivePanelSlot.tsx) and never reaches History's footprint, so it is not
-       load-bearing THERE; auto-collapse's exit is LEFT again (owner,
-       2026-09-22, same day, second decision -- must stay visually distinct
-       from a close), which does cross it, so this ordering is load-bearing
-       once more for that path.
+       HistoryColumn.tsx). A close's exit is DOWNWARD and never reaches
+       History's footprint, so it is not load-bearing THERE; auto-collapse's
+       exit is LEFT (must stay visually distinct from a close), which does
+       cross it, so this ordering matters for that path.
 
        This container is ALWAYS mounted, and hidden with `display: none` when it
        holds nothing, rather than being conditionally rendered. Two reasons, both
