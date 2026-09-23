@@ -1,18 +1,18 @@
 import * as React from 'react';
 import { motion, type TargetAndTransition } from 'motion/react';
 import { DRAG_CLOSE } from '../../shared/phone/dragToClose.js';
+import { SLOT_TRANSITION, directionalTransition } from '../../shared/phone/directionalTransition.js';
 
 /** The one spacing value used everywhere a gap is needed in this row. */
 export const GAP = 16;
-/** Duration (seconds -- Motion's unit) for the panel slide animations. Was
- * 3 (deliberately slow for testing, owner ask, 2026-09-15) while the
- * mechanics were confirmed live; 0.26 (Chromium tab-strip BoundsAnimator
- * territory) read as too fast once seen at speed (owner report, same
- * session) -- 0.4 is the current happy medium. */
-const PANEL_ANIM_SEC = 0.4;
-/** Motion wants a cubic-bezier as a fixed 4-tuple, not a plain number[]. */
-const PANEL_ANIM_EASE: [number, number, number, number] = [0.2, 0, 0, 1];
-export const PANEL_TRANSITION = { duration: PANEL_ANIM_SEC, ease: PANEL_ANIM_EASE };
+/** The timing/easing every panel slide uses, now shared with History's rows
+ * (ux-history-column-card-transitions) via shared/phone/directionalTransition.ts
+ * -- see that file for the tuning history. Re-exported under the old name:
+ * row/useRowShell.ts and test/row-shell-style.test.ts key off THIS binding
+ * (`transition: PANEL_TRANSITION`) to read the row's own recenter animation as
+ * "the same motion as a panel"; it is the SAME object as SLOT_TRANSITION, not a
+ * copy, so that reference-equality check keeps working unchanged. */
+export const PANEL_TRANSITION = SLOT_TRANSITION;
 
 /**
  * One live panel's animated slot.
@@ -63,6 +63,35 @@ export const PANEL_TRANSITION = { duration: PANEL_ANIM_SEC, ease: PANEL_ANIM_EAS
  * leaves the `live`-filtered array -- AnimatePresence has no later render of
  * a removed child to fix a wrong guess (see LivePanels.tsx's own comment).
  */
+export interface PanelSlotMotion {
+  readonly initial: TargetAndTransition;
+  readonly animate: TargetAndTransition;
+  readonly exit: TargetAndTransition;
+  readonly transition: typeof PANEL_TRANSITION;
+}
+
+/**
+ * The pure values behind one LivePanelSlot render, split out of the component
+ * so a test can assert the ux-history-column-card-transitions refactor (which
+ * introduced directionalTransition.ts) produced EXACTLY the pre-refactor
+ * numbers, for both exit directions, without mounting a component or reading
+ * computed style. `initial`/`animate` come from the shared preset (both were
+ * already expressible as "distance from rest" -- rest = `index * slot`, enter
+ * one slot further along `x`); `exit` stays entirely local, per this file's
+ * own header: 'down' needs a second axis and a different transition,
+ * 'left' needs a target that is independent of `index`, and neither fits
+ * directionalTransition's symmetric default.
+ */
+export function panelSlotMotion(index: number, phoneWidth: number, phoneHeight: number, exitDirection: 'down' | 'left'): PanelSlotMotion {
+  const slot = phoneWidth + GAP;
+  const { initial, animate, transition } = directionalTransition('x', index * slot, slot);
+  const exit: TargetAndTransition =
+    exitDirection === 'down'
+      ? { x: index * slot, y: phoneHeight, opacity: 0, transition: { duration: DRAG_CLOSE.exitSeconds, ease: 'easeIn' } }
+      : { x: -slot, opacity: 0 };
+  return { initial, animate, exit, transition };
+}
+
 export function LivePanelSlot({
   index,
   phoneWidth,
@@ -76,18 +105,14 @@ export function LivePanelSlot({
   exitDirection: 'down' | 'left';
   children: React.ReactNode;
 }) {
-  const slot = phoneWidth + GAP;
-  const exit: TargetAndTransition =
-    exitDirection === 'down'
-      ? { x: index * slot, y: phoneHeight, opacity: 0, transition: { duration: DRAG_CLOSE.exitSeconds, ease: 'easeIn' } }
-      : { x: -slot, opacity: 0 };
+  const { initial, animate, exit, transition } = panelSlotMotion(index, phoneWidth, phoneHeight, exitDirection);
   return (
     <motion.div
       // Enter from one slot beyond its destination, i.e. in from the right.
-      initial={{ x: (index + 1) * slot, opacity: 0 }}
-      animate={{ x: index * slot, opacity: 1 }}
+      initial={initial}
+      animate={animate}
       exit={exit}
-      transition={PANEL_TRANSITION}
+      transition={transition}
       style={{
         position: 'absolute',
         top: 0,
