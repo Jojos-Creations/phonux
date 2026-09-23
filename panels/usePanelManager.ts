@@ -60,6 +60,19 @@ export interface UsePanelManagerResult {
    * that keeps the stack from pointing at nothing.
    */
   revealMostRecentlyCollapsed: (panelsAfterClose: PanelWindow[]) => void;
+  /**
+   * ux-reveal-direction-and-fixed-column-animation: ids currently (re)entering `live` via
+   * `revealMostRecentlyCollapsed` (below, marks its own candidate) or usePanelClosing.ts's `undoClose`
+   * restoring a LIVE panel (useProvidePanels.ts wires `markEnteringViaAnchor` into that hook's optional
+   * `onRestoreLive` callback) -- the ENTER-side mirror of usePanelClosing's own `closingIds`. LivePanels.tsx
+   * reads it to decide each entering LivePanelSlot's `enterDirection` (anchorPanel.ts's
+   * `resolveEnterDirection` for a member, 'right' unconditionally otherwise) -- see that file's own doc
+   * comment for the full membership contract, including why a brand-new panel or a manual activation are
+   * deliberately never marked.
+   */
+  enteringViaAnchorIds: ReadonlySet<string>;
+  /** Marks `id` as entering via the anchor formula -- see `enteringViaAnchorIds`'s own doc comment for who calls this and why. */
+  markEnteringViaAnchor: (id: string) => void;
 }
 
 export function usePanelManager(
@@ -97,6 +110,34 @@ export function usePanelManager(
    * entry's own evidence report.
    */
   const collapseOrderRef = useRef<string[]>([]);
+
+  /**
+   * ux-reveal-direction-and-fixed-column-animation: the ids currently marked "entering via anchor" -- see
+   * `UsePanelManagerResult.enteringViaAnchorIds`'s own doc comment for the full contract. A ref, not
+   * `useState`, for the same reason `collapseOrderRef` above is one: nothing renders off this directly, only
+   * imperative handlers read/write it, and the mutating handler (`revealMostRecentlyCollapsed` below, or
+   * `undoClose` via `markEnteringViaAnchor`) always calls `setPanels` synchronously in the SAME handler, so
+   * the state change that actually triggers the re-render both this hook and LivePanels.tsx need already
+   * exists -- this ref only needs to be correct BY the time that re-render reads it, which a synchronous
+   * mutation before/alongside the `setPanels` call already guarantees (no flushSync needed here, unlike
+   * `closingIds`'s own EXIT-side concern: that one needs the marking and the removal to land as separate
+   * commits; entering only needs them to land in the SAME one, which they already do). Reassigned (never
+   * mutated by reference) on every add/delete so a caller that captured an earlier `.current` never sees a
+   * later mutation "underneath" it.
+   */
+  const enteringViaAnchorRef = useRef<ReadonlySet<string>>(new Set());
+
+  const markEnteringViaAnchor = (id: string): void => {
+    enteringViaAnchorRef.current = new Set(enteringViaAnchorRef.current).add(id);
+  };
+
+  /** The inverse of `markEnteringViaAnchor`: forces the NEXT mount of `id` back to the row's default 'right', overriding any stale mark left by an earlier reveal/undo of the same id (ids cycle live/parked/live repeatedly over a session -- see `handleActivatePanel`'s own call site below). */
+  const forgetEnteringViaAnchor = (id: string): void => {
+    if (!enteringViaAnchorRef.current.has(id)) return;
+    const next = new Set(enteringViaAnchorRef.current);
+    next.delete(id);
+    enteringViaAnchorRef.current = next;
+  };
 
   /**
    * Same overflow question `handleActivatePanel`'s own inline `wouldOverflow` asks (would one more live
@@ -238,6 +279,11 @@ export function usePanelManager(
   const handleActivatePanel = (id: string) => {
     const target = panels.find((p) => p.id === id);
     if (!target || target.live) return;
+    // ux-reveal-direction-and-fixed-column-animation: a manual History-row activation keeps entering from
+    // the right unconditionally (the plan record's own scope decision) -- forget any stale anchor-entry mark
+    // this id picked up from an earlier reveal/undo (ids cycle live/parked repeatedly over a session), so a
+    // manual click can never inherit the wrong direction from what happened to it last time.
+    forgetEnteringViaAnchor(id);
     const wouldOverflow = (liveCountAfter: number): boolean => {
       if (maxViews.mode === 'count') return countModeShouldCollapse(liveCountAfter, maxViews, fixedColumnCount);
       const extraLiveCountAfter =
@@ -364,6 +410,11 @@ export function usePanelManager(
     if (wouldOneMoreLiveOverflow(panelsAfterClose)) return;
     const candidateId = stack[stack.length - 1]!;
     collapseOrderRef.current = stack.slice(0, -1);
+    // ux-reveal-direction-and-fixed-column-animation: this IS one of the two "reappearance" paths the owner
+    // asked to enter from the anchor's side (History) -- mark it BEFORE the setPanels call below, so it is
+    // already true by the render that promotes this id back to live (see enteringViaAnchorRef's own doc
+    // comment for why no flushSync is needed here).
+    markEnteringViaAnchor(candidateId);
     // A functional update against whatever `current` is at flush time (never `panelsAfterClose` directly --
     // this hook's own header names usePanelManager as the array's one owner that "merges by id across
     // async writers"), the SAME idiom `handleActivatePanel`'s own no-demotion step uses: `promoteToLive`
@@ -371,5 +422,12 @@ export function usePanelManager(
     setPanels((current) => promoteToLive(current, candidateId, () => false) ?? current);
   };
 
-  return { revealPanelProactively, handleActivatePanel, forgetCollapsed, revealMostRecentlyCollapsed };
+  return {
+    revealPanelProactively,
+    handleActivatePanel,
+    forgetCollapsed,
+    revealMostRecentlyCollapsed,
+    enteringViaAnchorIds: enteringViaAnchorRef.current,
+    markEnteringViaAnchor,
+  };
 }

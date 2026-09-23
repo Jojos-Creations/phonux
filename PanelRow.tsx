@@ -13,20 +13,44 @@
  * (closingIds has it: exits DOWN) or auto-collapsed to parked (usePanelManager.ts:
  * exits LEFT, the original behavior) -- see LivePanelSlot.tsx for why this must
  * be a prop rather than something read after the fact.
+ *
+ * ux-reveal-direction-and-fixed-column-animation: `enteringViaAnchorIds` is the
+ * ENTER-side mirror of `closingIds` -- ids currently (re)joining `live` through
+ * usePanelManager.ts's `revealMostRecentlyCollapsed` or usePanelClosing.ts's
+ * `undoClose` (both "a closed/collapsed panel reappears" paths the owner asked
+ * to enter from the anchor's side), threaded the same way `closingIds` is. A
+ * brand-new panel (`useProvidePanels.create`) or a manual History-row
+ * activation (`handleActivatePanel`) never appear in this set, so they keep
+ * entering from the right unconditionally -- the plan record's own scope
+ * decision. For an id that IS in the set, the actual direction is COMPUTED
+ * (anchorPanel.ts's `resolveEnterDirection`) against `fixedColumnIds` -- the
+ * row's real fixed-column order (GoalFrontPage's own array, the SAME one
+ * FixedColumns.tsx renders) -- rather than hardcoded, so a live panel's own
+ * row slot index is `fixedColumnIds.length + itsOwnIndexAmongLivePanels`.
  */
 
 import * as React from 'react';
 import { AnimatePresence } from 'motion/react';
 import Box from '@mui/material/Box';
 import { usePhoneAPIs } from '../../shared/phone/PhoneView.js';
+import { ANCHOR_PANEL_ID, resolveEnterDirection } from './anchorPanel.js';
 import { LivePanel } from './LivePanel.js';
 import { GAP, LivePanelSlot } from './LivePanelSlot.js';
 
-export function LivePanels({ closingIds }: { closingIds: ReadonlySet<string> }): React.ReactElement {
+export function LivePanels({
+  closingIds,
+  enteringViaAnchorIds,
+  fixedColumnIds,
+}: {
+  closingIds: ReadonlySet<string>;
+  enteringViaAnchorIds: ReadonlySet<string>;
+  fixedColumnIds: readonly string[];
+}): React.ReactElement {
   const { panels, device } = usePhoneAPIs();
   const phoneWidth = device.size.width;
   const phoneHeight = device.size.height;
   const live = panels.panelList.filter((p) => p.live);
+  const anchorIndex = fixedColumnIds.indexOf(ANCHOR_PANEL_ID);
   return (
     /* front-page-link-windows-and-adventure-collapse: each LIVE panel gets its
        own phone-view slot, in the unified array's own order
@@ -74,6 +98,7 @@ export function LivePanels({ closingIds }: { closingIds: ReadonlySet<string> }):
             index={panelIndex}
             phoneWidth={phoneWidth}
             phoneHeight={phoneHeight}
+            enterDirection={enteringViaAnchorIds.has(p.id) ? resolveEnterDirection(anchorIndex, fixedColumnIds.length + panelIndex) : 'right'}
             exitDirection={closingIds.has(p.id) ? 'down' : 'left'}
           >
             <LivePanel panel={p} />
