@@ -54,6 +54,16 @@ export function usePanelClosing(
   panels: PanelWindow[],
   setPanels: Dispatch<SetStateAction<PanelWindow[]>>,
   revealPanelProactively: UsePanelManagerResult['revealPanelProactively'],
+  /**
+   * ux-reveal-most-recently-collapsed-panel: called once per successful close, with the id that just left
+   * `panels` and the array immediately after (`closePanel`'s own `remaining` -- computed synchronously
+   * above, from THIS render's `panels`, same as everything else in `close()`). Optional: useFixedPanels.ts's
+   * own instance of this hook has no collapse/reveal concept at all (its own header comment -- "no
+   * overflow/collapse concept applies to a fixed column") and simply never passes one, so this stays a
+   * no-op for Settings/History; only useProvidePanels.ts (the live/spawned `panelList` array) wires it to
+   * usePanelManager's `forgetCollapsed`/`revealMostRecentlyCollapsed`.
+   */
+  onAfterClose?: (id: string, remaining: PanelWindow[]) => void,
 ): UsePanelClosingResult {
   const [closed, setClosed] = useState<ClosedView[]>([]);
   const [closingIds, setClosingIds] = useState<ReadonlySet<string>>(new Set());
@@ -88,6 +98,7 @@ export function usePanelClosing(
     const closedAt = new Date().toISOString();
     const logId = `${closedAt}#${id}`;
     setPanels((prev) => closePanel(prev, id)?.remaining ?? prev);
+    onAfterClose?.(id, found.remaining);
     try {
       bridge()
         .deadEnd.record([{ id: logId, title: found.closed.title || found.closed.url, url: found.closed.url, closedAt }])

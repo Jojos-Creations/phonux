@@ -24,7 +24,7 @@
  * "used before initialization" error instead of silently working the way
  * the pre-extraction code did.
  */
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import type { Dispatch, RefObject, SetStateAction } from 'react';
 import { countModeShouldCollapse, countModeTargetLiveWebviews, type MaxViewsSettings } from '../settings/adventureSettings.js';
 import { computeBaseWidth, isRowOverflowing, predictWouldOverflow, shouldFireCollapse } from '../../../../src/panel-layout.js';
@@ -37,6 +37,29 @@ const AUTO_COLLAPSE_SETTLE_MS = 500;
 export interface UsePanelManagerResult {
   revealPanelProactively: (panelsNow: PanelWindow[], apply: (prev: PanelWindow[]) => PanelWindow[]) => void;
   handleActivatePanel: (id: string) => void;
+  /**
+   * ux-reveal-most-recently-collapsed-panel: removes `id` from the collapse-order stack if it is there --
+   * called whenever a panel leaves the collapsed state through a path that is NOT
+   * `revealMostRecentlyCollapsed` itself (this hook's own `handleActivatePanel` calls it inline;
+   * usePanelClosing.ts's `close()` calls it for whatever id it just closed, live or parked, so a panel
+   * closed while parked -- or later restored by `undoClose` -- never leaves a stale entry that could
+   * resurrect it outside this feature's scope). A no-op for an id not on the stack.
+   */
+  forgetCollapsed: (id: string) => void;
+  /**
+   * ux-reveal-most-recently-collapsed-panel: given the panels array immediately AFTER a close
+   * (usePanelClosing's own `remaining`, not this hook's `panels` argument -- that is still the pre-close
+   * snapshot), reveals the MOST recently auto-collapsed panel still on the stack, provided doing so would
+   * not immediately overflow again (mirrors `handleActivatePanel`'s own overflow check, just asked against
+   * `panelsAfterClose` instead of this hook's `panels` closure). Does nothing if the stack is empty, or if
+   * revealing the top entry would overflow -- it never falls through to an older entry: this feature is
+   * about the single MOST recently collapsed panel, not "whichever collapsed panel currently fits".
+   * Silently discards (permanently) any stack entries that no longer point at a currently-collapsed panel
+   * in `panelsAfterClose` -- a panel closed outright while parked (a History trash click) or wiped by
+   * `clearAll()` never goes through `forgetCollapsed`'s own explicit call sites, so this is the backstop
+   * that keeps the stack from pointing at nothing.
+   */
+  revealMostRecentlyCollapsed: (panelsAfterClose: PanelWindow[]) => void;
 }
 
 export function usePanelManager(
@@ -52,6 +75,48 @@ export function usePanelManager(
   fixedColumnCount: number,
 ): UsePanelManagerResult {
   const baseWidth = computeBaseWidth({ fixedColumnCount, phoneWidth, gap: GAP });
+
+  /**
+   * ux-reveal-most-recently-collapsed-panel: the ids of currently-collapsed panels, in the order they were
+   * auto-collapsed (oldest push first, most recent push last -- the top/end is what "most recently
+   * collapsed" means). A ref, not `useState`: nothing renders off this directly (it is read only inside
+   * imperative handlers -- `handleActivatePanel`, and `revealMostRecentlyCollapsed` called from
+   * usePanelClosing's `close()`), so there is no reason to pay for a re-render on every push/pop the way a
+   * `PanelWindow[]`-sized state array would. Kept alongside `panels` rather than as a new field on every
+   * `PanelWindow` (the plan record's own recommendation): items 8/9's `PanelWindow` is already shared with
+   * useFixedPanels.ts's separate fixed-column array, and a collapse-order concern that only ever applies to
+   * `panelList` has no business living on a type two different arrays share.
+   *
+   * Scope (plan record's own proposed default, followed here): pushed ONLY from the two existing
+   * auto-collapse paths below (`collapseOldestIds` inside `revealPanelProactively`, and `autoCollapseOldest`
+   * in the reactive safety-net effect) -- never from `promoteToLive`'s own demotion side effect inside
+   * `handleActivatePanel` (bumping one panel out to make room for another a user just manually activated).
+   * That demotion is a real park too, but it is triggered by a manual activate, not a bare overflow
+   * reaction, and the plan record's own scope default ("auto-collapsed panels only... revisit if a
+   * manual-park action is ever added") reads as deliberately excluding it -- a judgment call, see this
+   * entry's own evidence report.
+   */
+  const collapseOrderRef = useRef<string[]>([]);
+
+  /**
+   * Same overflow question `handleActivatePanel`'s own inline `wouldOverflow` asks (would one more live
+   * panel, on top of whatever's in `panelsNow`, overflow?), just parameterized on an explicit array rather
+   * than this hook's own `panels` closure -- `revealMostRecentlyCollapsed` below needs to ask this against
+   * the array immediately AFTER a close (usePanelClosing's own `remaining`), which `panels` does not yet
+   * reflect (still this render's pre-close snapshot). Left as its own small function, rather than
+   * refactoring `handleActivatePanel` to share it, so this entry's diff never touches that already-tested
+   * code path.
+   */
+  const wouldOneMoreLiveOverflow = (panelsNow: PanelWindow[]): boolean => {
+    const liveCountAfter = panelsNow.filter((p) => p.live).length + 1;
+    if (maxViews.mode === 'count') return countModeShouldCollapse(liveCountAfter, maxViews, fixedColumnCount);
+    return predictWouldOverflow({
+      baseWidth,
+      extraCount: liveCountAfter,
+      perPanel: phoneWidth + GAP,
+      displayWidth: displayWidth(),
+    });
+  };
 
   /**
    * The renderer-side equivalent of electron/main.ts's own
@@ -132,7 +197,13 @@ export function usePanelManager(
       setPanels((prev) => apply(prev));
       return;
     }
-    const collapsedSet = new Set(collapseOldestIds(panelsNow, needed));
+    const idsToCollapse = collapseOldestIds(panelsNow, needed);
+    const collapsedSet = new Set(idsToCollapse);
+    // ux-reveal-most-recently-collapsed-panel: pushed in `idsToCollapse`'s own oldest-first order, so
+    // when `needed` collapses more than one at once ('count' mode's own "collapse down to M" spec), the
+    // LAST of this batch (the youngest of the ones just parked) ends up on top -- the most recent to leave
+    // the live row, even within a single atomic collapse event.
+    collapseOrderRef.current = [...collapseOrderRef.current, ...idsToCollapse];
     // ONE atomic update -- collapse the outgoing panels and reveal the new
     // one in the same commit (owner-caught, 2026-09-15).
     //
@@ -180,6 +251,9 @@ export function usePanelManager(
     };
     const result = promoteToLive(panels, id, wouldOverflow);
     if (!result) return;
+    // ux-reveal-most-recently-collapsed-panel: `id` just left the collapsed state (manually, via a History
+    // row click) -- forget it so a later reveal-on-close can never target a panel that is already live.
+    collapseOrderRef.current = collapseOrderRef.current.filter((x) => x !== id);
     const demoted = result.find((p) => !p.live && panels.find((prev) => prev.id === p.id)?.live);
     if (!demoted) {
       setPanels(result);
@@ -250,12 +324,52 @@ export function usePanelManager(
       const row = rowRef.current;
       const container = overflowContainerRef.current;
       if (row && container && !isRowOverflowing(row.scrollWidth, container.clientWidth)) return;
+      // ux-reveal-most-recently-collapsed-panel: captured BEFORE autoCollapseOldest runs, but it selects
+      // the exact same "first live by array order" entry that function's own doc comment names -- see this
+      // file's own collapseOrderRef doc comment for why this is a push site.
+      const collapsingId = panels.find((p) => p.live)?.id;
       const result = autoCollapseOldest(panels);
       if (!result) return;
       setPanels(result);
+      if (collapsingId) collapseOrderRef.current = [...collapseOrderRef.current, collapsingId];
     }, AUTO_COLLAPSE_SETTLE_MS);
     return () => clearTimeout(t);
   }, [rowOverflowing, autoCollapseAdventure, panels, maxViews.mode]);
 
-  return { revealPanelProactively, handleActivatePanel };
+  /**
+   * ux-reveal-most-recently-collapsed-panel: see this hook's own `UsePanelManagerResult.forgetCollapsed`
+   * doc comment for the contract; implementation is a plain idempotent filter.
+   */
+  const forgetCollapsed = (id: string): void => {
+    collapseOrderRef.current = collapseOrderRef.current.filter((x) => x !== id);
+  };
+
+  /**
+   * ux-reveal-most-recently-collapsed-panel: see this hook's own `UsePanelManagerResult.revealMostRecentlyCollapsed`
+   * doc comment for the full contract. Walks the stack from its own top (most recent), discarding entries
+   * that no longer name a currently-collapsed panel in `panelsAfterClose`, until it finds one that does or
+   * the stack is empty; that first valid entry is the only one ever considered for THIS call (an older
+   * entry underneath it is left exactly where it is, for a later close to consider).
+   */
+  const revealMostRecentlyCollapsed = (panelsAfterClose: PanelWindow[]): void => {
+    let stack = collapseOrderRef.current;
+    while (stack.length > 0) {
+      const candidateId = stack[stack.length - 1]!;
+      const candidate = panelsAfterClose.find((p) => p.id === candidateId);
+      if (candidate && !candidate.live) break;
+      stack = stack.slice(0, -1);
+    }
+    collapseOrderRef.current = stack;
+    if (stack.length === 0) return;
+    if (wouldOneMoreLiveOverflow(panelsAfterClose)) return;
+    const candidateId = stack[stack.length - 1]!;
+    collapseOrderRef.current = stack.slice(0, -1);
+    // A functional update against whatever `current` is at flush time (never `panelsAfterClose` directly --
+    // this hook's own header names usePanelManager as the array's one owner that "merges by id across
+    // async writers"), the SAME idiom `handleActivatePanel`'s own no-demotion step uses: `promoteToLive`
+    // returning `null` (the candidate is somehow already live, or gone) is a safe, silent no-op.
+    setPanels((current) => promoteToLive(current, candidateId, () => false) ?? current);
+  };
+
+  return { revealPanelProactively, handleActivatePanel, forgetCollapsed, revealMostRecentlyCollapsed };
 }
