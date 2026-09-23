@@ -23,7 +23,6 @@ import {
   DEFAULT_PHONE_SIZE,
   type DeviceAPI,
   type HistoryAPI,
-  type KeyAPI,
   type PanelsAPI,
   type PhoneAPIs,
   type SettingsAPI,
@@ -105,21 +104,11 @@ export function createFakePhoneAPIs(overrides: FakeOverrides = {}): FakePhoneAPI
     resizeForDetectedPhone: (modelId) => log('device', 'resizeForDetectedPhone', [modelId]),
   };
 
-  const key: KeyAPI = {
-    status: async () => {
-      log('key', 'status', []);
-      return false;
-    },
-    save: async (k) => log('key', 'save', [k]),
-    clear: async () => log('key', 'clear', []),
-  };
-
   return {
     settings: { ...settings, ...overrides.settings },
     history: { ...history, ...overrides.history },
     panels: { ...panels, ...overrides.panels },
     device: { ...device, ...overrides.device },
-    key: { ...key, ...overrides.key },
     calls,
   };
 }

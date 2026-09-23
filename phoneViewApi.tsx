@@ -162,20 +162,11 @@ export interface DeviceAPI {
   resizeForDetectedPhone(modelId: string): void;
 }
 
-export interface KeyAPI {
-  /** Whether an API key is saved on this device. NEVER rejects: no bridge or a failed check resolves false. */
-  status(): Promise<boolean>;
-  /** Rejects with an Error whose message is safe to show. */
-  save(key: string): Promise<void>;
-  clear(): Promise<void>;
-}
-
 export interface PhoneAPIs {
   readonly settings: SettingsAPI;
   readonly history: HistoryAPI;
   readonly panels: PanelsAPI;
   readonly device: DeviceAPI;
-  readonly key: KeyAPI;
 }
 
 // ---------------------------------------------------------------------------
