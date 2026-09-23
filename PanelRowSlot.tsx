@@ -42,25 +42,16 @@ export const PANEL_TRANSITION = { duration: PANEL_ANIM_SEC, ease: PANEL_ANIM_EAS
  * it ever grows to cover `transform` or `opacity` with `!important`, it kills
  * both of Motion's paths at once, silently.
  *
- * Owner, 2026-09-22: "Closing a panel from the history panel should slide it
- * down, not left." This is the one place that governed the History
- * hover-trash close's exit (it used to be `x: -slot`, a pure LEFT slide,
- * behind the adventure card). It now leaves DOWN instead, timed and eased to
- * match `DragToClose`'s (shared/phone/dragToClose.tsx) own downward exit
- * (`DRAG_CLOSE.exitSeconds`/`easeIn`), via a per-variant `transition` that
- * overrides `PANEL_TRANSITION` for this one animation only -- so both close
- * paths (trash icon, drag-down) now read as one motion.
- *
- * The drag-down path does NOT need to be touched for this: `DragToClose` runs
- * its OWN separate `y` animation on the box it wraps and only calls `onClose`
- * once that finishes (dragToClose.tsx's `onDragEnd`), so this slot's own exit
- * never starts until the box is already off-screen. The two compose in
- * sequence, not concurrently -- this exit's `y` motion value starts fresh
- * from 0 (it was never part of `initial`/`animate`) and ramps to
- * `phoneHeight` UNDERNEATH the already-off-screen box, so the extra motion is
- * invisible: no snap-back, no jump, just a continued (if redundant) descent
- * before the DOM node unmounts. Confirmed by reading both animations' values
- * together, not by guessing -- see the plan record's Handoff section.
+ * Owner, 2026-09-22: closing from History's hover-trash should slide down,
+ * not left -- this was the one place still doing `x: -slot` (behind the
+ * adventure card). Now exits DOWN, timed/eased to DragToClose's own downward
+ * exit (`DRAG_CLOSE.exitSeconds`/`easeIn`, dragToClose.tsx) via a per-variant
+ * `transition` that overrides `PANEL_TRANSITION` for just this animation, so
+ * trash and drag closes read as one motion. DragToClose itself needs no
+ * change: its own `y` animation finishes and calls `onClose` BEFORE this
+ * exit starts, so the two run in sequence, not concurrently -- this exit's
+ * `y` ramps in underneath a box that is already off-screen, invisibly, not
+ * fighting it (no snap, no jump).
  */
 export function LivePanelSlot({
   index,
@@ -79,11 +70,8 @@ export function LivePanelSlot({
       // Enter from one slot beyond its destination, i.e. in from the right.
       initial={{ x: (index + 1) * slot, opacity: 0 }}
       animate={{ x: index * slot, opacity: 1 }}
-      // Leave DOWNWARD (owner, 2026-09-22) by one phone-height -- the
-      // vertical analogue of "-slot" -- fading out at the same time. Timed to
-      // DragToClose's own exit (exitSeconds/easeIn), not PANEL_TRANSITION, so
-      // a trash-close (which has no pre-animation of its own) reads at the
-      // same speed as a drag-close's real, physical downward exit.
+      // Leave DOWNWARD by one phone-height (owner, 2026-09-22) -- the vertical
+      // analogue of "-slot" -- on DragToClose's own timing, not PANEL_TRANSITION.
       exit={{ x: index * slot, y: phoneHeight, opacity: 0, transition: { duration: DRAG_CLOSE.exitSeconds, ease: 'easeIn' } }}
       transition={PANEL_TRANSITION}
       style={{
