@@ -47,6 +47,8 @@ export interface PanelsInput {
  */
 export interface ProvidedPanels extends PanelsAPI {
   readonly closingIds: ReadonlySet<string>;
+  /** ux-reveal-direction-and-fixed-column-animation: see usePanelManager.ts's `UsePanelManagerResult.enteringViaAnchorIds` for the full contract -- kept off PanelsAPI for the same reason `closingIds` is (desktop-only animation plumbing, LivePanels.tsx's own input). */
+  readonly enteringViaAnchorIds: ReadonlySet<string>;
 }
 
 export function useProvidePanels(i: PanelsInput): ProvidedPanels {
@@ -74,7 +76,7 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
     target?.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'end' });
   }, [i.panels]);
 
-  const { revealPanelProactively, handleActivatePanel, forgetCollapsed, revealMostRecentlyCollapsed } = usePanelManager(
+  const { revealPanelProactively, handleActivatePanel, forgetCollapsed, revealMostRecentlyCollapsed, enteringViaAnchorIds, markEnteringViaAnchor } = usePanelManager(
     i.panels,
     i.setPanels,
     i.maxViews,
@@ -109,10 +111,16 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
   // was itself parked, e.g. a History trash click on a collapsed row -- see usePanelManager's own
   // `forgetCollapsed` doc comment), then offers the freed-up room to the most recently auto-collapsed
   // panel still on the stack, if any and if there's room for it.
-  const closing = usePanelClosing(i.panels, i.setPanels, revealPanelProactively, (id, remaining) => {
-    forgetCollapsed(id);
-    revealMostRecentlyCollapsed(remaining);
-  });
+  const closing = usePanelClosing(
+    i.panels,
+    i.setPanels,
+    revealPanelProactively,
+    (id, remaining) => {
+      forgetCollapsed(id);
+      revealMostRecentlyCollapsed(remaining);
+    },
+    markEnteringViaAnchor,
+  );
 
   return {
     panelList: i.panels.map(summarise),
@@ -126,5 +134,6 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
     undoClose: closing.undoClose,
     clearAll: () => i.setPanels([]),
     closingIds: closing.closingIds,
+    enteringViaAnchorIds,
   };
 }

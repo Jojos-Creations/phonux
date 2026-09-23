@@ -64,6 +64,16 @@ export function usePanelClosing(
    * usePanelManager's `forgetCollapsed`/`revealMostRecentlyCollapsed`.
    */
   onAfterClose?: (id: string, remaining: PanelWindow[]) => void,
+  /**
+   * ux-reveal-direction-and-fixed-column-animation: called once per panel `undoClose` restores through the
+   * "comes back LIVE" branch below (the same branch that calls `revealPanelProactively`) -- this, and
+   * usePanelManager.ts's own `revealMostRecentlyCollapsed`, are the two "reappearance" paths the owner asked
+   * to enter from the anchor panel's side. Optional, same convention as `onAfterClose`: useFixedPanels.ts's
+   * own instance passes neither (its own restores always resolve to 'right' via the anchor formula compared
+   * against itself -- see FixedColumns.tsx's own header comment) -- only useProvidePanels.ts (the live/spawned
+   * `panelList` array) wires this to usePanelManager's `markEnteringViaAnchor`.
+   */
+  onRestoreLive?: (id: string) => void,
 ): UsePanelClosingResult {
   const [closed, setClosed] = useState<ClosedView[]>([]);
   const [closingIds, setClosingIds] = useState<ReadonlySet<string>>(new Set());
@@ -125,6 +135,10 @@ export function usePanelClosing(
     for (const { panel, index } of [...batch].reverse()) {
       if (working.some((p) => p.id === panel.id)) continue;
       if (panel.live) {
+        // ux-reveal-direction-and-fixed-column-animation: this restore is one of the two "reappearance"
+        // paths that enters from the anchor's side -- mark it BEFORE revealPanelProactively's own setPanels
+        // call, same ordering reasoning as usePanelManager.ts's own markEnteringViaAnchor call site.
+        onRestoreLive?.(panel.id);
         // Through the same room-making rule as opening a view: the oldest live view is parked if the row is full.
         revealPanelProactively(working, (prev) => restorePanel(prev, panel, index));
       } else {
