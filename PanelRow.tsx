@@ -87,9 +87,7 @@ export function LivePanels({
         position: 'relative',
         zIndex: 1,
         flexShrink: 0,
-        // Explicit, not inherited -- see FixedColumns.tsx's matching comment: with Settings no longer
-        // in normal document flow, nothing else stretches this box to the phone's real height.
-        height: phoneHeight,
+        height: phoneHeight, // explicit, not inherited -- see FixedColumns.tsx's matching box for why
         display: live.length > 0 ? 'block' : 'none',
         width: Math.max(0, live.length * (phoneWidth + GAP) - GAP),
       }}
