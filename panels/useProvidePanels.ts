@@ -74,7 +74,7 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
     target?.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'end' });
   }, [i.panels]);
 
-  const { revealPanelProactively, handleActivatePanel } = usePanelManager(
+  const { revealPanelProactively, handleActivatePanel, forgetCollapsed, revealMostRecentlyCollapsed } = usePanelManager(
     i.panels,
     i.setPanels,
     i.maxViews,
@@ -105,7 +105,14 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
 
   // Closing a view completely (History trash or the live panel's drag-down), its 10 s undo window and the log entry.
   // After usePanelManager: undo makes room for a live view through its revealPanelProactively.
-  const closing = usePanelClosing(i.panels, i.setPanels, revealPanelProactively);
+  // ux-reveal-most-recently-collapsed-panel: `onAfterClose` first forgets the just-closed id (in case it
+  // was itself parked, e.g. a History trash click on a collapsed row -- see usePanelManager's own
+  // `forgetCollapsed` doc comment), then offers the freed-up room to the most recently auto-collapsed
+  // panel still on the stack, if any and if there's room for it.
+  const closing = usePanelClosing(i.panels, i.setPanels, revealPanelProactively, (id, remaining) => {
+    forgetCollapsed(id);
+    revealMostRecentlyCollapsed(remaining);
+  });
 
   return {
     panelList: i.panels.map(summarise),
