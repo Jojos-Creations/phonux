@@ -19,7 +19,7 @@ import { usePanelClosing } from './usePanelClosing.js';
 import { usePanelManager } from './usePanelManager.js';
 
 /** What a view may see of a panel: exactly PanelSummary's keys (`title` is always one, undefined until the page has a title). Rebuilt every render, like the rest of the bag. */
-const summarise = ({ id, url, title, live }: PanelWindow): PanelSummary => ({ id, url, title, live });
+const summarise = ({ id, url, title, live, locked }: PanelWindow): PanelSummary => ({ id, url, title, live, locked });
 
 /** Ids for panels this app creates itself. A module counter, bumped only from event handlers (never from a state initialiser), so StrictMode's double invocation cannot skip one. */
 let nextWindowId = 1;

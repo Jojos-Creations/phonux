@@ -63,6 +63,9 @@ export function createFakePhoneAPIs(overrides: FakeOverrides = {}): FakePhoneAPI
       show: () => log('settings', 'settingsColumn.show', []),
       hide: () => log('settings', 'settingsColumn.hide', []),
     },
+    locked: false,
+    closed: false,
+    close: () => log('settings', 'close', []),
   };
 
   const history: HistoryAPI = {
@@ -77,6 +80,9 @@ export function createFakePhoneAPIs(overrides: FakeOverrides = {}): FakePhoneAPI
       open: () => log('history', 'closedPagesViewer.open', []),
       close: () => log('history', 'closedPagesViewer.close', []),
     },
+    locked: true,
+    closed: false,
+    close: () => log('history', 'close', []),
   };
 
   const panels: PanelsAPI = {

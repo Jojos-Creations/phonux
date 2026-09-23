@@ -69,6 +69,8 @@ export interface PanelSummary {
   readonly title?: string;
   /** Mounted in the row now (false = parked, listed in History only). */
   readonly live: boolean;
+  /** ux-panels-draggable-close-with-lock-api: whether a drag-down close is offered for this panel. A live/spawned panel is always false (no behavior change). */
+  readonly locked: boolean;
 }
 
 /** The choices for `SettingsAPI.hideSettingsAfterViews`, besides "never" (null): 1 hides the column as soon as History is shown. 10 is more than any screen holds at a time. */
@@ -96,6 +98,17 @@ export interface SettingsAPI {
   readonly shownViews: number;
   /** The Settings column itself. `show()` and `hide()` are the manual switch (History's gear): they last for this session and never change the stored threshold. The column count changes when either is called, or when the threshold hides the column. */
   readonly settingsColumn: { readonly visible: boolean; show(): void; hide(): void };
+  /**
+   * ux-panels-draggable-close-with-lock-api (owner, 2026-09-22): Settings is a panel like the ones the row
+   * spawns, closable by dragging its header down. Deliberately INDEPENDENT of `settingsColumn` above (the
+   * threshold/gear hide, unaffected by this): the column renders only when `settingsColumn.visible` AND
+   * `!closed`. Always false today (only History defaults locked).
+   */
+  readonly locked: boolean;
+  /** True once Settings has been closed (drag-down or `close()`) and not yet undone via `PanelsAPI.undoClose()`. */
+  readonly closed: boolean;
+  /** Same treatment as `PanelsAPI.close`: removed from view, logged to the background history, 10 s undo (`PanelsAPI.recentlyClosed`/`undoClose` cover both). A no-op while `locked`. */
+  close(): void;
 }
 
 export interface HistoryAPI {
@@ -109,6 +122,11 @@ export interface HistoryAPI {
     open(): void;
     close(): void;
   };
+  /** ux-panels-draggable-close-with-lock-api: History is a panel like the ones the row spawns too, but defaults locked (owner: "Right now only the history panel should be locked") -- see `SettingsAPI.locked`'s own doc comment for the exact contract, shared verbatim. */
+  readonly locked: boolean;
+  readonly closed: boolean;
+  /** A no-op while `locked` (today, always -- see `locked`). */
+  close(): void;
 }
 
 export interface PanelsAPI {
@@ -118,7 +136,7 @@ export interface PanelsAPI {
   create(): void;
   /** Make a panel live in place, without reordering the row. May park the oldest live one. */
   activate(id: string): void;
-  /** Close a view completely, live or parked: it leaves the row and History at once, a closed event is appended to the persisted log (HistoryAPI), and it can be undone for 10 s (recentlyClosed, undoClose). An id not in `panelList` does nothing. */
+  /** Close a view completely, live or parked: it leaves the row and History at once, a closed event is appended to the persisted log (HistoryAPI), and it can be undone for 10 s (recentlyClosed, undoClose). Also accepts the fixed Settings/History panels' own ids (SettingsAPI.close/HistoryAPI.close are the same mechanism, offered per-panel so a view need not know the id) -- an id not in `panelList` and not a fixed panel, or a LOCKED fixed panel's id, does nothing. */
   close(id: string): void;
   /** The views closed within the current undo window, oldest first; non-null exactly while it is open (10 s after the LAST close). Drives the "Closed N pages / Undo" toast. */
   readonly recentlyClosed: readonly PanelSummary[] | null;

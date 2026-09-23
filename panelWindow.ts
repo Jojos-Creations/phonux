@@ -48,13 +48,22 @@ export interface PanelWindow {
   sourceWebContentsId: number;
   /** Mounted live in the row right now. `false` means parked in the adventure card only -- still fully present in this array, just not rendered as a `<webview>`. */
   live: boolean;
+  /**
+   * ux-panels-draggable-close-with-lock-api (owner, 2026-09-22: "dragging down should close it unless the
+   * panel is locked"): whether DragToClose's drag-down gesture may close this panel at all. Every panel
+   * created here (appendPanel) is unlocked -- no behavior change for a live/spawned panel.
+   * client/src/desktop/panels/useFixedPanels.ts reuses this same field on TWO more PanelWindow-shaped
+   * records (Settings, History) that never enter this array or panelList -- see that file's header for why
+   * they stay in their own array.
+   */
+  locked: boolean;
 }
 
 /** Appends a brand-new, live 'extra' panel for a just-intercepted new-window request, immutably. Always appended to the END (oldest-first array order) regardless of which panel it came from (`sourceWebContentsId`) -- "appended to the right of any currently-open ones" per this entry's own intent, not inserted next to its source. */
 export function appendPanel(panels: PanelWindow[], info: { sourceWebContentsId: number; url: string }, id: string): PanelWindow[] {
   return [
     ...panels,
-    { id, url: info.url, webContentsId: null, sourceWebContentsId: info.sourceWebContentsId, live: true },
+    { id, url: info.url, webContentsId: null, sourceWebContentsId: info.sourceWebContentsId, live: true, locked: false },
   ];
 }
 
