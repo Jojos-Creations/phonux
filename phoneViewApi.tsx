@@ -73,9 +73,6 @@ export interface PanelSummary {
   readonly locked: boolean;
 }
 
-/** The choices for `SettingsAPI.hideSettingsAfterViews`, besides "never" (null): 1 hides the column as soon as History is shown. 10 is more than any screen holds at a time. */
-export const HIDE_SETTINGS_AFTER_VIEWS_CHOICES: readonly number[] = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
-
 // ---------------------------------------------------------------------------
 // The APIs
 // ---------------------------------------------------------------------------
@@ -91,12 +88,7 @@ export interface SettingsAPI {
   readonly autoCollapse: boolean;
   /** Applies at once, then persists. Never rejects: with no desktop bridge the choice lasts this session only. */
   setAutoCollapse(on: boolean): Promise<void>;
-  /** "Hide settings after view threshold": the Settings column hides itself when `shownViews` rises to this value (or at launch, when it is already that high). null = never (default), else one of HIDE_SETTINGS_AFTER_VIEWS_CHOICES. Persisted. Changing it never hides the column at that moment. */
-  readonly hideSettingsAfterViews: number | null;
-  setHideSettingsAfterViews(views: number | null): void;
-  /** The number the threshold is compared with: History always counts one, plus every LIVE panel. The Settings column itself is not counted. */
-  readonly shownViews: number;
-  /** Settings' own sections render inside History's body when this is true (History's gear toggles it), rather than as a separate column. `show()`/`hide()` are the manual switch: they last for this session and never change the stored threshold. */
+  /** Settings' own sections render inside History's body when this is true (History's gear toggles it), rather than as a separate column. Starts false: a fresh session opens on History's own row list. `show()`/`hide()` last for the session. */
   readonly settingsColumn: { readonly visible: boolean; show(): void; hide(): void };
 }
 
@@ -111,7 +103,7 @@ export interface HistoryAPI {
     open(): void;
     close(): void;
   };
-  /** ux-panels-draggable-close-with-lock-api: History is a panel like the ones the row spawns too, but defaults locked (owner: "Right now only the history panel should be locked") -- see `SettingsAPI.locked`'s own doc comment for the exact contract, shared verbatim. */
+  /** Whether a drag-down close or an API close does anything for History; defaults true (owner: "Right now only the history panel should be locked"). */
   readonly locked: boolean;
   readonly closed: boolean;
   /** A no-op while `locked` (today, always -- see `locked`). */

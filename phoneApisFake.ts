@@ -54,11 +54,8 @@ export function createFakePhoneAPIs(overrides: FakeOverrides = {}): FakePhoneAPI
     setMaxViews: (next) => log('settings', 'setMaxViews', [next]),
     autoCollapse: true,
     setAutoCollapse: async (on) => log('settings', 'setAutoCollapse', [on]),
-    hideSettingsAfterViews: null,
-    setHideSettingsAfterViews: (views) => log('settings', 'setHideSettingsAfterViews', [views]),
-    shownViews: 1,
     settingsColumn: {
-      visible: true,
+      visible: false,
       show: () => log('settings', 'settingsColumn.show', []),
       hide: () => log('settings', 'settingsColumn.hide', []),
     },
