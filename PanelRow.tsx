@@ -16,6 +16,7 @@ import { GAP, LivePanelSlot } from './LivePanelSlot.js';
 export function LivePanels(): React.ReactElement {
   const { panels, device } = usePhoneAPIs();
   const phoneWidth = device.size.width;
+  const phoneHeight = device.size.height;
   const live = panels.panelList.filter((p) => p.live);
   return (
     /* front-page-link-windows-and-adventure-collapse: each LIVE panel gets its
@@ -25,8 +26,14 @@ export function LivePanels(): React.ReactElement {
        one relatively-positioned "slot" Box sized to fit them, so adding or
        removing one never nudges the fixed items to its left.
 
-       `zIndex: 1` against History's `zIndex: 2` is what puts a collapsing panel
-       BEHIND History as it slides out past this container's left edge.
+       `zIndex: 1` against History's `zIndex: 2` used to be what put a
+       collapsing/closing panel BEHIND History as it slid out past this
+       container's left edge (see HistoryColumn.tsx's matching comment). Since
+       the exit is now DOWNWARD (owner, 2026-09-22 -- see LivePanelSlot.tsx),
+       a leaving panel no longer crosses History's footprint at all, so this
+       ordering is no longer load-bearing for the exit; left as a harmless,
+       no-longer-explained default rather than risk an unrelated stacking
+       regression by removing it here.
 
        This container is ALWAYS mounted, and hidden with `display: none` when it
        holds nothing, rather than being conditionally rendered. Two reasons, both
@@ -53,7 +60,7 @@ export function LivePanels(): React.ReactElement {
     >
       <AnimatePresence initial={false}>
         {live.map((p, panelIndex) => (
-          <LivePanelSlot key={p.id} index={panelIndex} phoneWidth={phoneWidth}>
+          <LivePanelSlot key={p.id} index={panelIndex} phoneWidth={phoneWidth} phoneHeight={phoneHeight}>
             <LivePanel panel={p} />
           </LivePanelSlot>
         ))}

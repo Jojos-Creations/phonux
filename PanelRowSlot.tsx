@@ -1,5 +1,6 @@
 import * as React from 'react';
 import { motion } from 'motion/react';
+import { DRAG_CLOSE } from '../../shared/phone/dragToClose.js';
 
 /** The one spacing value used everywhere a gap is needed in this row. */
 export const GAP = 16;
@@ -40,14 +41,36 @@ export const PANEL_TRANSITION = { duration: PANEL_ANIM_SEC, ease: PANEL_ANIM_EAS
  * edits theme.ts: keep that reset scoped to `transition` and `animation`. If
  * it ever grows to cover `transform` or `opacity` with `!important`, it kills
  * both of Motion's paths at once, silently.
+ *
+ * Owner, 2026-09-22: "Closing a panel from the history panel should slide it
+ * down, not left." This is the one place that governed the History
+ * hover-trash close's exit (it used to be `x: -slot`, a pure LEFT slide,
+ * behind the adventure card). It now leaves DOWN instead, timed and eased to
+ * match `DragToClose`'s (shared/phone/dragToClose.tsx) own downward exit
+ * (`DRAG_CLOSE.exitSeconds`/`easeIn`), via a per-variant `transition` that
+ * overrides `PANEL_TRANSITION` for this one animation only -- so both close
+ * paths (trash icon, drag-down) now read as one motion.
+ *
+ * The drag-down path does NOT need to be touched for this: `DragToClose` runs
+ * its OWN separate `y` animation on the box it wraps and only calls `onClose`
+ * once that finishes (dragToClose.tsx's `onDragEnd`), so this slot's own exit
+ * never starts until the box is already off-screen. The two compose in
+ * sequence, not concurrently -- this exit's `y` motion value starts fresh
+ * from 0 (it was never part of `initial`/`animate`) and ramps to
+ * `phoneHeight` UNDERNEATH the already-off-screen box, so the extra motion is
+ * invisible: no snap-back, no jump, just a continued (if redundant) descent
+ * before the DOM node unmounts. Confirmed by reading both animations' values
+ * together, not by guessing -- see the plan record's Handoff section.
  */
 export function LivePanelSlot({
   index,
   phoneWidth,
+  phoneHeight,
   children,
 }: {
   index: number;
   phoneWidth: number;
+  phoneHeight: number;
   children: React.ReactNode;
 }) {
   const slot = phoneWidth + GAP;
@@ -56,11 +79,12 @@ export function LivePanelSlot({
       // Enter from one slot beyond its destination, i.e. in from the right.
       initial={{ x: (index + 1) * slot, opacity: 0 }}
       animate={{ x: index * slot, opacity: 1 }}
-      // Leave to the LEFT of the slot container's own origin -- which is
-      // exactly where the adventure card sits -- so a collapsing panel slides
-      // behind the card before unmounting. The container's zIndex keeps it
-      // painted under the card while it does (see the slot container below).
-      exit={{ x: -slot, opacity: 0 }}
+      // Leave DOWNWARD (owner, 2026-09-22) by one phone-height -- the
+      // vertical analogue of "-slot" -- fading out at the same time. Timed to
+      // DragToClose's own exit (exitSeconds/easeIn), not PANEL_TRANSITION, so
+      // a trash-close (which has no pre-animation of its own) reads at the
+      // same speed as a drag-close's real, physical downward exit.
+      exit={{ x: index * slot, y: phoneHeight, opacity: 0, transition: { duration: DRAG_CLOSE.exitSeconds, ease: 'easeIn' } }}
       transition={PANEL_TRANSITION}
       style={{
         position: 'absolute',
