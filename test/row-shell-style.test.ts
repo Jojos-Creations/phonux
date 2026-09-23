@@ -14,7 +14,9 @@ import { PANEL_TRANSITION } from '../client/src/desktop/panels/LivePanelSlot.js'
 const base: RowShellStyleInput = {
   shell: { containerWidth: 1300, rowOverflowSettled: false, rowResizeSettled: false },
   phoneWidth: 390,
-  fixedColumnCount: 2,
+  // History alone: Settings folds into its body (panel-metadata-driven-model Phase A) rather than adding
+  // a second fixed column, so this is never more than 1 in the real app.
+  fixedColumnCount: 1,
   liveCount: 0,
   maxViewsMode: 'screen-width',
   autoCollapse: true,
@@ -48,17 +50,16 @@ test('rowShellStyle: the scrollbar rule over every combination of mode, auto-col
   }
 });
 
-test('rowShellStyle: the margin centres the columns and LIVE panels it is given, at the phone width it is given (390 and 430, two columns and one, a parked panel not counted)', () => {
+test('rowShellStyle: the margin centres the column and LIVE panels it is given, at the phone width it is given (390 and 430, a parked panel not counted)', () => {
   const margin = (over: Partial<RowShellStyleInput>): number => rowShellStyle({ ...base, ...over }).marginLeft;
   // (containerWidth - 2*16 - (n*w + (n-1)*16)) / 2 with room for no live panel
-  assert.equal(margin({}), 236, '2 columns of 390 in 1300');
-  assert.equal(margin({ phoneWidth: 430 }), 196, '2 columns of 430 in 1300: a hard-coded 390 would say 236');
-  assert.equal(margin({ fixedColumnCount: 1 }), 439, 'Settings hidden: one column, half a column further right');
-  // room for two live panels beside two columns (RS3b / RS14d): every live panel moves the row, up to what fits
+  assert.equal(margin({}), 439, '1 column of 390 in 1300');
+  assert.equal(margin({ phoneWidth: 430 }), 419, '1 column of 430 in 1300: a hard-coded 390 would say 439');
+  // room for live panels beside the one column (RS3b / RS14d): every live panel moves the row, up to what fits
   const wide = { shell: { ...base.shell, containerWidth: 2100 } };
-  assert.equal(margin({ ...wide, liveCount: 2 }), 230, '(2068 - (796 + 2*406)) / 2');
-  assert.equal(margin({ ...wide, liveCount: 3 }), 27, 'the same room with a third LIVE panel: a parked one must not be passed as live (RS14d)');
-  assert.equal(margin({ ...wide, liveCount: 9 }), 27, 'never more than fit: the margin stops at what the container holds, and never goes negative');
+  assert.equal(margin({ ...wide, liveCount: 2 }), 433, '(2068 - (390 + 2*406)) / 2');
+  assert.equal(margin({ ...wide, liveCount: 4 }), 27, 'a fourth LIVE panel fills the row exactly: fixed 390 + 4*406 = 2014 inside 2068');
+  assert.equal(margin({ ...wide, liveCount: 9 }), 27, 'never more than fit: the margin stops at what the container holds, and never goes negative -- a parked one must not be passed as live (RS14d)');
   assert.equal(margin({ shell: { ...base.shell, containerWidth: 0 } }), 0, 'before the first measurement');
 });
 
@@ -66,7 +67,7 @@ test('rowShellStyle E3/E4: a fractional pixel of margin is kept exactly, never r
   // Every other case in this file (and in RS3/RS14d) was deliberately chosen to land on a whole pixel, so a `Math.round` or `Math.floor`
   // dropped into the arithmetic anywhere between computeRowLayout and this function's return would pass every one of them unnoticed. A
   // 1301 container (one wider than the 1300 every other test uses) is the smallest change that forces the centring math itself to land on
-  // a half pixel: (1301 - 2*16 - 796) / 2 = 236.5.
+  // a half pixel: (1301 - 2*16 - 390) / 2 = 439.5.
   const margin = (over: Partial<RowShellStyleInput>): number => rowShellStyle({ ...base, ...over }).marginLeft;
-  assert.equal(margin({ shell: { ...base.shell, containerWidth: 1301 } }), 236.5, 'a whole pixel of drift either way (236 or 237) would be a rounding bug, not measurement noise');
+  assert.equal(margin({ shell: { ...base.shell, containerWidth: 1301 } }), 439.5, 'a whole pixel of drift either way (439 or 440) would be a rounding bug, not measurement noise');
 });

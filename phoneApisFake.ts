@@ -62,9 +62,6 @@ export function createFakePhoneAPIs(overrides: FakeOverrides = {}): FakePhoneAPI
       show: () => log('settings', 'settingsColumn.show', []),
       hide: () => log('settings', 'settingsColumn.hide', []),
     },
-    locked: false,
-    closed: false,
-    close: () => log('settings', 'close', []),
   };
 
   const history: HistoryAPI = {
