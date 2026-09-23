@@ -42,13 +42,28 @@ export const PANEL_TRANSITION = SLOT_TRANSITION;
  * it ever grows to cover `transform` or `opacity` with `!important`, it kills
  * both of Motion's paths at once, silently.
  *
+ * ux-reveal-direction-and-fixed-column-animation: generalized to serve a second
+ * caller, FixedColumns.tsx (the row's fixed columns -- History today), not just
+ * LivePanels.tsx's live webview panels -- both are "one item, absolutely
+ * positioned at `index * (phoneWidth + GAP)` inside a reserved-width Box,"
+ * differing only in WHICH array they come from and WHY they enter/exit. `index`
+ * is always relative to the caller's OWN Box, never a whole-row offset (each
+ * caller reserves its own width the same way LivePanels.tsx's Box does), so
+ * this component itself never needs to know about the other caller's items.
+ *
+ * `enterDirection` (new, mirroring `exitDirection` below) is computed by the
+ * CALLER from the anchor-panel formula (anchorPanel.ts's `resolveEnterDirection`)
+ * -- never a bare hardcoded 'left'/'right' here -- and, like `exitDirection`,
+ * must be correct on THIS component's FIRST render after the item (re)appears
+ * (AnimatePresence has no later render of a fresh mount to fix a wrong guess).
+ *
  * Owner, 2026-09-22, two decisions the same day: a CLOSE (History's
  * hover-trash, or DragToClose) should slide down, not left; an auto-collapse
  * to parked (usePanelManager.ts's collapseOldestIds/autoCollapseOldest -- the
  * row overflowed, nothing was closed) must stay doing what it always did,
  * `x: -slot` behind the adventure card, so the two remain visually distinct.
- * `exitDirection` (LivePanels.tsx computes it from usePanelClosing.ts's
- * `closingIds`) picks between them:
+ * `exitDirection` (LivePanels.tsx/FixedColumns.tsx each compute it from their
+ * OWN usePanelClosing instance's `closingIds`) picks between them:
  *   - 'down': timed/eased to DragToClose's own downward exit
  *     (`DRAG_CLOSE.exitSeconds`/`easeIn`, dragToClose.tsx) via a per-variant
  *     `transition` override, so trash and drag closes read as one motion.
@@ -82,12 +97,22 @@ export interface PanelSlotMotion {
  * 'left' needs a target that is independent of `index`, and neither fits
  * directionalTransition's symmetric default.
  */
-export function panelSlotMotion(index: number, phoneWidth: number, phoneHeight: number, exitDirection: 'down' | 'left'): PanelSlotMotion {
+export function panelSlotMotion(
+  index: number,
+  phoneWidth: number,
+  phoneHeight: number,
+  enterDirection: 'left' | 'right',
+  exitDirection: 'down' | 'left',
+): PanelSlotMotion {
   const slot = phoneWidth + GAP;
-  const { initial, animate, transition } = directionalTransition('x', index * slot, slot);
+  const rest = index * slot;
+  // Positive distance enters from the right (directionalTransition.ts's own sign convention); a negative
+  // one enters from the left -- see anchorPanel.ts for who decides which.
+  const enterDistance = enterDirection === 'left' ? -slot : slot;
+  const { initial, animate, transition } = directionalTransition('x', rest, enterDistance);
   const exit: TargetAndTransition =
     exitDirection === 'down'
-      ? { x: index * slot, y: phoneHeight, opacity: 0, transition: { duration: DRAG_CLOSE.exitSeconds, ease: 'easeIn' } }
+      ? { x: rest, y: phoneHeight, opacity: 0, transition: { duration: DRAG_CLOSE.exitSeconds, ease: 'easeIn' } }
       : { x: -slot, opacity: 0 };
   return { initial, animate, exit, transition };
 }
@@ -96,19 +121,22 @@ export function LivePanelSlot({
   index,
   phoneWidth,
   phoneHeight,
+  enterDirection,
   exitDirection,
   children,
 }: {
   index: number;
   phoneWidth: number;
   phoneHeight: number;
+  /** ux-reveal-direction-and-fixed-column-animation: computed by the caller (anchorPanel.ts's `resolveEnterDirection`), never a bare literal picked here. */
+  enterDirection: 'left' | 'right';
   exitDirection: 'down' | 'left';
   children: React.ReactNode;
 }) {
-  const { initial, animate, exit, transition } = panelSlotMotion(index, phoneWidth, phoneHeight, exitDirection);
+  const { initial, animate, exit, transition } = panelSlotMotion(index, phoneWidth, phoneHeight, enterDirection, exitDirection);
   return (
     <motion.div
-      // Enter from one slot beyond its destination, i.e. in from the right.
+      // Enters from one slot beyond its destination, right or left per `enterDirection` above.
       initial={initial}
       animate={animate}
       exit={exit}
