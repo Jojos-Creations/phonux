@@ -30,7 +30,7 @@ export interface PanelsInput {
   maxViews: MaxViewsSettings;
   autoCollapse: boolean;
   phoneWidth: number;
-  /** The number of always-present columns on screen NOW (it changes when the Settings column is shown or hidden). */
+  /** `count(!collapsible)` over the one panel list right now -- the host's own single source of truth (appApis.ts), passed through rather than recomputed here so usePanelManager and reportPanelCount below always agree with it. */
   fixedViewCount: number;
   rowOverflowing: boolean;
   rowRef: RefObject<HTMLDivElement | null>;
@@ -65,7 +65,8 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
   // across collapse/reveal and a stale ref would go silently null.
   const prevLiveIdsRef = useRef<Set<string>>(new Set());
   useEffect(() => {
-    const liveIds = new Set(i.panels.filter((p) => p.live).map((p) => p.id));
+    // `collapsible` excludes History: it never leaves the row to need scrolling back into view.
+    const liveIds = new Set(i.panels.filter((p) => p.collapsible && p.live).map((p) => p.id));
     const prevLiveIds = prevLiveIdsRef.current;
     const newlyLiveIds = [...liveIds].filter((id) => !prevLiveIds.has(id));
     prevLiveIdsRef.current = liveIds;
@@ -94,7 +95,8 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
   // 'window:report-panel-count' handler. Fire-and-forget on every live-count /
   // phoneWidth change. 'count' mode (MaxViewsSettings; adventureSettings.ts has
   // both modes' spec) skips this: it ignores window/screen width by design, so the window must never grow on its account.
-  const liveExtraCount = i.panels.filter((p) => p.live).length;
+  // `collapsible` excludes History (always live, never an "extra" panel) from this count.
+  const liveExtraCount = i.panels.filter((p) => p.collapsible && p.live).length;
   useEffect(() => {
     if (i.maxViews.mode !== 'screen-width') return;
     try {
@@ -123,7 +125,9 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
   );
 
   return {
-    panelList: i.panels.map(summarise),
+    // `listed` excludes History: it must not list itself (AdventurePanel.tsx renders every entry here as a
+    // clickable row).
+    panelList: i.panels.filter((p) => p.listed).map(summarise),
     create: () => {
       const id = String(nextWindowId++);
       // Owner, 2026-09-23: "Panel N" for testing -- "about:blank" was stale
@@ -134,7 +138,9 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
     close: closing.close,
     recentlyClosed: closing.recentlyClosed?.map(summarise) ?? null,
     undoClose: closing.undoClose,
-    clearAll: () => i.setPanels([]),
+    // Forgets every web panel, live or parked -- never History (`collapsible: false`, the one always-shown
+    // column): "Clear all" empties the row list, not the column showing it.
+    clearAll: () => i.setPanels((prev) => prev.filter((p) => !p.collapsible)),
     closingIds: closing.closingIds,
     enteringViaAnchorIds,
   };

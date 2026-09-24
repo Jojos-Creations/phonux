@@ -95,7 +95,9 @@ export function usePanelClosing(
 
   const close = (id: string) => {
     const found = closePanel(panels, id);
-    if (!found || claimed.current.has(id)) return;
+    // History defaults locked (no unlock control exists yet): a locked entry's close is a no-op, the one
+    // list's own lock gate -- formerly useFixedPanels.ts's own check before delegating to this same hook.
+    if (!found || claimed.current.has(id) || found.closed.locked) return;
     claimed.current.add(id);
     // Commits ALONE, before the removal below: AnimatePresence takes an exiting
     // child's `exit` animation from its LAST props before it left `live`, and

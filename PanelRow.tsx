@@ -1,106 +1,100 @@
 /**
- * The row's live-panel slot, moved out of GoalFrontPage. App-side (not a view):
- * it reads the panel list and the phone size from usePhoneAPIs() and lays each
- * live panel out in its animated slot. It renders ONE root, the slot Box, the
- * row's last child (test T11a); the off-screen JSX drag chip that used to follow
- * it went with the HTML5 drag flow (owner, 2026-09-20).
+ * The row's one panel wrapper -- History and every live web panel, together
+ * (panel-metadata-driven-model: merges what used to be FixedColumns.tsx and
+ * this file, one AnimatePresence over ONE array instead of two near-identical
+ * containers over two arrays). App-side (not a view): reads the phone size
+ * from usePhoneAPIs() and lays out each PRESENT entry -- an always-shown
+ * column (`collapsible: false`, e.g. History) regardless of `live`, or a web
+ * panel only while `live` -- in its own animated slot, in the one list's own
+ * array order. It renders ONE root, this Box, the row's last child (test
+ * T11a).
+ *
+ * `entries` is the raw one-list array (PanelWindow, not the public
+ * PanelSummary): `view` (which component to render) and `collapsible`
+ * (stacking order below) live only on that shape, never on PanelsAPI.
+ * `view` is the ONLY thing that picks the component -- every other decision
+ * here (present, zIndex, enter direction) reads `collapsible`/`live`, the
+ * same behavior flags production code reads everywhere else.
  *
  * `closingIds` is a PROP, not read off usePhoneAPIs(): it is
  * usePanelClosing.ts's own set (appApis.ts/GoalFrontPage.tsx thread it down),
  * kept off PanelsAPI on purpose (useProvidePanels.ts's ProvidedPanels). Each
- * live panel's `exitDirection` is decided HERE, at render time, while it is
- * still present -- a panel leaves `live` either because it was closed
- * (closingIds has it: exits DOWN) or auto-collapsed to parked (usePanelManager.ts:
- * exits LEFT, the original behavior) -- see LivePanelSlot.tsx for why this must
+ * present entry's `exitDirection` is decided HERE, at render time, while it
+ * is still present -- an entry leaves either because it was closed
+ * (closingIds has it: exits DOWN) or auto-collapsed to parked
+ * (usePanelManager.ts: exits LEFT) -- see LivePanelSlot.tsx for why this must
  * be a prop rather than something read after the fact.
  *
- * ux-reveal-direction-and-fixed-column-animation: `enteringViaAnchorIds` is the
- * ENTER-side mirror of `closingIds` -- ids currently (re)joining `live` through
- * usePanelManager.ts's `revealMostRecentlyCollapsed` or usePanelClosing.ts's
- * `undoClose` (both "a closed/collapsed panel reappears" paths the owner asked
- * to enter from the anchor's side), threaded the same way `closingIds` is. A
- * brand-new panel (`useProvidePanels.create`) or a manual History-row
- * activation (`handleActivatePanel`) never appear in this set, so they keep
- * entering from the right unconditionally -- the plan record's own scope
- * decision. For an id that IS in the set, the actual direction is COMPUTED
- * (anchorPanel.ts's `resolveEnterDirection`) against `fixedColumnIds` -- the
- * row's real fixed-column order (GoalFrontPage's own array, the SAME one
- * FixedColumns.tsx renders) -- rather than hardcoded, so a live panel's own
- * row slot index is `fixedColumnIds.length + itsOwnIndexAmongLivePanels`.
+ * ux-reveal-direction-and-fixed-column-animation: `enteringViaAnchorIds` is
+ * the ENTER-side mirror of `closingIds` -- ids currently (re)joining `live`
+ * through usePanelManager.ts's `revealMostRecentlyCollapsed` or
+ * usePanelClosing.ts's `undoClose`. A brand-new panel or a manual
+ * History-row activation never appear in this set, so they keep entering
+ * from the right unconditionally. History's own reappearance always resolves
+ * through the SAME anchor formula (anchorPanel.ts) unconditionally: compared
+ * against itself its index is never less-than, so it always computes to
+ * 'right' anyway -- no separate gate needed for it.
+ *
+ * Both `anchorIndex` and each entry's own row-slot `index` now come from the
+ * SAME one-list array (no more `fixedColumnIds.length + panelIndex` offset
+ * math: that existed only because History and the live panels used to be two
+ * separate arrays with two separate index spaces).
  */
 
 import * as React from 'react';
 import { AnimatePresence } from 'motion/react';
 import Box from '@mui/material/Box';
 import { usePhoneAPIs } from '../../shared/phone/PhoneView.js';
+import { HistoryColumn } from '../history/HistoryColumn.js';
 import { ANCHOR_PANEL_ID, resolveEnterDirection } from './anchorPanel.js';
 import { LivePanel } from './LivePanel.js';
 import { GAP, LivePanelSlot } from './LivePanelSlot.js';
+import type { PanelWindow } from './panelWindow.js';
+
+/** History's slot sits above a web panel's: auto-collapse's exit is LEFT and crosses History's footprint on the way out, so this ordering is load-bearing for that path (a close's exit is DOWN and never reaches it). */
+const HISTORY_SLOT_Z_INDEX = 2;
+const WEB_SLOT_Z_INDEX = 1;
 
 export function LivePanels({
+  entries,
   closingIds,
   enteringViaAnchorIds,
-  fixedColumnIds,
 }: {
+  entries: readonly PanelWindow[];
   closingIds: ReadonlySet<string>;
   enteringViaAnchorIds: ReadonlySet<string>;
-  fixedColumnIds: readonly string[];
 }): React.ReactElement {
-  const { panels, device } = usePhoneAPIs();
+  const { device } = usePhoneAPIs();
   const phoneWidth = device.size.width;
   const phoneHeight = device.size.height;
-  const live = panels.panelList.filter((p) => p.live);
-  const anchorIndex = fixedColumnIds.indexOf(ANCHOR_PANEL_ID);
+  const present = entries.filter((p) => !p.collapsible || p.live);
+  const anchorIndex = present.findIndex((p) => p.id === ANCHOR_PANEL_ID);
   return (
-    /* front-page-link-windows-and-adventure-collapse: each LIVE panel gets its
-       own phone-view slot, in the unified array's own order
-       (front-page-link-windows-primary-panel-unification). Owner design,
-       2026-09-15: each live panel sits at `x: index * (phoneWidth + GAP)` inside
-       one relatively-positioned "slot" Box sized to fit them, so adding or
-       removing one never nudges the fixed items to its left.
-
-       `zIndex: 1` against History's `zIndex: 2` puts a leaving panel BEHIND
-       History as it slides out past this container's left edge (see
-       HistoryColumn.tsx). A close's exit is DOWNWARD and never reaches
-       History's footprint, so it is not load-bearing THERE; auto-collapse's
-       exit is LEFT (must stay visually distinct from a close), which does
-       cross it, so this ordering matters for that path.
-
-       This container is ALWAYS mounted, and hidden with `display: none` when it
-       holds nothing, rather than being conditionally rendered. Two reasons, both
-       load-bearing:
-         - AnimatePresence must not unmount, or an exiting panel has nothing to
-           animate inside.
-         - `initial={false}` suppresses the enter animation for children present
-           when AnimatePresence ITSELF first mounts. Mounting it together with
-           the first panel therefore ate that panel's slide-in (measured:
-           transform stayed `none` for the whole animation). Mounted from app
-           start, it means what it should: don't animate a restored session, do
-           animate every panel opened afterwards.
-       `display: none` (not width 0) because an empty flex child still consumes
-       one `gap` from the row, which would throw off both the spacing and the
-       centering arithmetic; a `display: none` child generates no box at all. */
+    // Always mounted (never conditionally rendered): AnimatePresence must not unmount, or an exiting entry
+    // has nothing to animate inside, and `initial={false}` needs to see whatever is present at ITS OWN
+    // first mount (app start) to skip animating a restored session. `display: none` (not width 0) so an
+    // empty row consumes no flex `gap` from its own siblings.
     <Box
       sx={{
         position: 'relative',
-        zIndex: 1,
         flexShrink: 0,
-        height: phoneHeight, // explicit, not inherited -- see FixedColumns.tsx's matching box for why
-        display: live.length > 0 ? 'block' : 'none',
-        width: Math.max(0, live.length * (phoneWidth + GAP) - GAP),
+        height: phoneHeight,
+        display: present.length > 0 ? 'block' : 'none',
+        width: Math.max(0, present.length * (phoneWidth + GAP) - GAP),
       }}
     >
       <AnimatePresence initial={false}>
-        {live.map((p, panelIndex) => (
+        {present.map((p, index) => (
           <LivePanelSlot
             key={p.id}
-            index={panelIndex}
+            index={index}
             phoneWidth={phoneWidth}
             phoneHeight={phoneHeight}
-            enterDirection={enteringViaAnchorIds.has(p.id) ? resolveEnterDirection(anchorIndex, fixedColumnIds.length + panelIndex) : 'right'}
+            enterDirection={!p.collapsible || enteringViaAnchorIds.has(p.id) ? resolveEnterDirection(anchorIndex, index) : 'right'}
             exitDirection={closingIds.has(p.id) ? 'down' : 'left'}
+            zIndex={p.collapsible ? WEB_SLOT_Z_INDEX : HISTORY_SLOT_Z_INDEX}
           >
-            <LivePanel panel={p} />
+            {p.view === 'history' ? <HistoryColumn /> : <LivePanel panel={p} />}
           </LivePanelSlot>
         ))}
       </AnimatePresence>

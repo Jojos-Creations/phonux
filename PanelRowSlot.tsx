@@ -123,6 +123,7 @@ export function LivePanelSlot({
   phoneHeight,
   enterDirection,
   exitDirection,
+  zIndex,
   children,
 }: {
   index: number;
@@ -131,6 +132,14 @@ export function LivePanelSlot({
   /** ux-reveal-direction-and-fixed-column-animation: computed by the caller (anchorPanel.ts's `resolveEnterDirection`), never a bare literal picked here. */
   enterDirection: 'left' | 'right';
   exitDirection: 'down' | 'left';
+  /**
+   * panel-metadata-driven-model: each slot's own `motion.div` is a `transform`-bearing element, which
+   * establishes its OWN CSS stacking context -- a child's `zIndex` can no longer escape it to compare
+   * against a SIBLING slot. Stacking order between slots (e.g. History always above a web panel sliding
+   * left behind it) must therefore be set HERE, on the slot itself, not on whatever renders inside it.
+   * Defaults to 0 (no caller currently needs more than two tiers).
+   */
+  zIndex?: number;
   children: React.ReactNode;
 }) {
   const { initial, animate, exit, transition } = panelSlotMotion(index, phoneWidth, phoneHeight, enterDirection, exitDirection);
@@ -147,6 +156,7 @@ export function LivePanelSlot({
         bottom: 0,
         left: 0,
         width: phoneWidth,
+        zIndex: zIndex ?? 0,
       }}
     >
       {children}

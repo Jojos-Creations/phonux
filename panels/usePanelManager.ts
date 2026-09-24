@@ -84,7 +84,7 @@ export function usePanelManager(
   autoCollapseAdventure: boolean,
   rowRef: RefObject<HTMLDivElement | null>,
   overflowContainerRef: RefObject<HTMLDivElement | null>,
-  /** How many always-rendered, non-webview columns the row currently has (the host's `fixedColumns.length`, via useAppApis) -- fed into `computeBaseWidth` so 'screen-width' mode's overflow math reflects the columns actually on screen instead of a stale guess. See `computeBaseWidth`'s own doc comment for the bug this replaced. */
+  /** How many always-rendered, non-webview columns the row currently has (`count(!collapsible)` over the one panel list, via useAppApis) -- fed into `computeBaseWidth` so 'screen-width' mode's overflow math reflects the columns actually on screen instead of a stale guess. See `computeBaseWidth`'s own doc comment for the bug this replaced. */
   fixedColumnCount: number,
 ): UsePanelManagerResult {
   const baseWidth = computeBaseWidth({ fixedColumnCount, phoneWidth, gap: GAP });
@@ -149,7 +149,7 @@ export function usePanelManager(
    * code path.
    */
   const wouldOneMoreLiveOverflow = (panelsNow: PanelWindow[]): boolean => {
-    const liveCountAfter = panelsNow.filter((p) => p.live).length + 1;
+    const liveCountAfter = panelsNow.filter((p) => p.collapsible && p.live).length + 1;
     if (maxViews.mode === 'count') return countModeShouldCollapse(liveCountAfter, maxViews, fixedColumnCount);
     return predictWouldOverflow({
       baseWidth,
@@ -188,12 +188,12 @@ export function usePanelManager(
    * would otherwise have.
    */
   const collapseCountForNewPanel = (panelsNow: PanelWindow[]): number => {
-    const liveCountAfter = panelsNow.filter((p) => p.live).length + 1;
+    const liveCountAfter = panelsNow.filter((p) => p.collapsible && p.live).length + 1;
     if (maxViews.mode === 'count') {
       if (!countModeShouldCollapse(liveCountAfter, maxViews, fixedColumnCount)) return 0;
       return Math.max(0, liveCountAfter - countModeTargetLiveWebviews(maxViews, fixedColumnCount));
     }
-    const extraCountAfter = panelsNow.filter((p) => p.live).length + 1;
+    const extraCountAfter = panelsNow.filter((p) => p.collapsible && p.live).length + 1;
     const overflow = predictWouldOverflow({
       baseWidth,
       extraCount: extraCountAfter,
@@ -211,7 +211,7 @@ export function usePanelManager(
    */
   const collapseOldestIds = (start: PanelWindow[], count: number): string[] =>
     start
-      .filter((p) => p.live)
+      .filter((p) => p.collapsible && p.live)
       .slice(0, count)
       .map((p) => p.id);
 
@@ -287,7 +287,7 @@ export function usePanelManager(
     const wouldOverflow = (liveCountAfter: number): boolean => {
       if (maxViews.mode === 'count') return countModeShouldCollapse(liveCountAfter, maxViews, fixedColumnCount);
       const extraLiveCountAfter =
-        panels.filter((p) => p.live).length + 1;
+        panels.filter((p) => p.collapsible && p.live).length + 1;
       return predictWouldOverflow({
         baseWidth,
         extraCount: extraLiveCountAfter,
@@ -352,7 +352,7 @@ export function usePanelManager(
   // elapsed, rather than trusting setTimeout's delay alone.
   useEffect(() => {
     if (maxViews.mode !== 'screen-width') return;
-    if (!rowOverflowing || !autoCollapseAdventure || !panels.some((p) => p.live)) return;
+    if (!rowOverflowing || !autoCollapseAdventure || !panels.some((p) => p.collapsible && p.live)) return;
     const latchedAtMs = Date.now();
     const t = setTimeout(() => {
       if (!shouldFireCollapse(latchedAtMs, Date.now(), AUTO_COLLAPSE_SETTLE_MS)) return;
@@ -373,7 +373,7 @@ export function usePanelManager(
       // ux-reveal-most-recently-collapsed-panel: captured BEFORE autoCollapseOldest runs, but it selects
       // the exact same "first live by array order" entry that function's own doc comment names -- see this
       // file's own collapseOrderRef doc comment for why this is a push site.
-      const collapsingId = panels.find((p) => p.live)?.id;
+      const collapsingId = panels.find((p) => p.collapsible && p.live)?.id;
       const result = autoCollapseOldest(panels);
       if (!result) return;
       setPanels(result);
