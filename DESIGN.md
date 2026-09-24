@@ -57,6 +57,28 @@ interpret. `JsonValue` (not `unknown`) is the type on purpose: a future persiste
 data to already be serializable, and starting from `unknown` would mean redesigning the field the day
 persistence is attempted.
 
+## `create()` is two overloads, and its own implementation still guards the positional case
+
+`PanelsAPI.create` is `create(): void; create(options: CreatePanelOptions): void;`, never one
+`create(options?: CreatePanelOptions)`. A single optional-argument signature is structurally assignable to
+a DOM `MouseEventHandler`, and `MouseEvent`'s own required `view: Window` field collides with this bag's
+`view?: string` -- a host that writes the ordinary React idiom `onClick={panels.create}` would fail to
+typecheck, or worse, silently spread the click event's `view` into the new panel at runtime. The overload
+form is assignable to a handler type (a function accepting fewer arguments always is); the real
+implementation additionally treats any event-shaped positional argument (duck-typed by a `preventDefault`
+function) as "no options", so a bare `onClick={panels.create}` reference behaves exactly like zero-arg
+`create()` even though nothing here can stop a caller from writing that reference.
+
+## A resolved panel component only ever sees a `PanelSummary`
+
+`LivePanels.tsx` holds the internal `PanelWindow` record (not `PanelSummary`) because it alone decides
+`insertAt`/`layer`/`anchoredEnter`/`collapsible`, but every component it resolves through the registry --
+built-in or third-party -- is written against `PanelComponent<P> = ComponentType<{ panel: PanelSummary<P>
+}>`. It narrows through the same `summarisePanel()` projection `PanelsAPI.panelList`/`recentlyClosed` use
+(`panelWindow.ts`), so a view can never read a desktop-only field (`webContentsId`, `collapsible`,
+`insertAt`, `layer`, `anchoredEnter`) just because it happens to be a plain variable, not an object literal,
+and so escapes TypeScript's excess-property check at the call site.
+
 ## The package lives in place, with no build step
 
 This folder is a package (`phonux`) in place, not under `packages/phonux/`, because splitting it out
