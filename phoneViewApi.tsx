@@ -116,10 +116,8 @@ export interface HistoryAPI {
 }
 
 /**
- * `PanelsAPI.create`'s options bag. A named type (not inlined into `create`'s signature) so both the real
- * implementation (useProvidePanels.ts) and the test fake (phoneApisFake.ts) can annotate their own
- * `options` parameter explicitly -- see `create`'s own two-overload comment for why that annotation is
- * required, not cosmetic.
+ * `PanelsAPI.create`'s options bag, named so useProvidePanels.ts and phoneApisFake.ts can each annotate
+ * their own `options` parameter explicitly (see `create`'s overload comment).
  */
 export interface CreatePanelOptions {
   view?: string;
@@ -138,18 +136,15 @@ export interface PanelsAPI {
   /** Every panel, live or parked, in array order. History lists them as given; the row shows the live ones. */
   readonly panelList: readonly PanelSummary[];
   /**
-   * Append a live panel. Zero-arg: today's exact blank web panel, unchanged. `view` picks the rendered
-   * component (registerPanelView/resolvePanelView) -- an unregistered key renders a placeholder, never a
-   * crash. No `collapsible`/`locked` key: a spawned panel can never claim a permanent column or an
-   * unclosable lock (that is panel-spawn-permanent-columns's own, separate scope). The app parks the oldest
-   * live one first when the row would overflow, same as today.
+   * Appends a live panel; zero-arg is the blank-web-panel default. `view` selects the rendered component
+   * (registerPanelView/resolvePanelView) -- an unregistered key renders a placeholder, never a crash. No
+   * `collapsible`/`locked` key: a spawned panel can never claim a permanent column or an unclosable lock.
+   * Overflow parks the oldest live panel first, as it does for any panel.
    */
   create(): void;
   /**
-   * Two overloads, not one `create(options?: CreatePanelOptions)`: a single optional-arg signature is
-   * structurally assignable to a DOM `MouseEventHandler`, and `CreatePanelOptions.view` collides with
-   * `MouseEvent`'s own required `view: Window` field -- a bare `onClick={panels.create}` reference would
-   * then both fail typecheck AND, at runtime, spread the click event's `view` into the new panel.
+   * Two overloads, not one `create(options?: CreatePanelOptions)` -- see DESIGN.md for why a single
+   * optional-arg signature would collide with a bare `onClick={panels.create}` reference.
    */
   create(options: CreatePanelOptions): void;
   /** Make a panel live in place, without reordering the row. May park the oldest live one. */

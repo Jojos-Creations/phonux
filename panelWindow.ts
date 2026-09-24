@@ -73,7 +73,7 @@ function insertPanelAt(panels: PanelWindow[], entry: PanelWindow): PanelWindow[]
   return [...panels.slice(0, at), entry, ...panels.slice(at)];
 }
 
-/** Builds a brand-new, live 'extra' panel for a just-intercepted new-window request or a PanelsAPI.create() call, immutably, and inserts it per `info.insertAt` (default: appended to the END, "to the right of any currently-open ones" per this entry's own intent, not inserted next to its source). History is seeded directly, never through this function, so it stays first with no extra invariant code here regardless of what else is inserted at 'start'. */
+/** Builds a brand-new, live 'extra' panel for a just-intercepted new-window request or a PanelsAPI.create() call, immutably, and inserts it per `info.insertAt` (default: appended to the END, to the right of any currently-open ones, not next to its source). History is seeded directly, never through this function, so it stays first with no extra invariant code here regardless of what else is inserted at 'start'. */
 export function appendPanel(panels: PanelWindow[], info: { sourceWebContentsId: number; url: string } & AppendPanelOptions, id: string): PanelWindow[] {
   const entry: PanelWindow = {
     id,

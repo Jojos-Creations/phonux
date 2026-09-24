@@ -22,9 +22,8 @@ import { usePanelManager } from './usePanelManager.js';
 let nextWindowId = 1;
 
 /**
- * A bare `onClick={panels.create}` reference (HistoryColumn.tsx's Fab) passes the click's own Event
- * positionally as `options` -- duck-typed here (a function `preventDefault`) and discarded rather than
- * spread, or its `view: Window` would silently overwrite `CreatePanelOptions.view` at runtime.
+ * Duck-typed (a `preventDefault` function): a bare `onClick={panels.create}` reference passes the click
+ * event positionally, so this discards it rather than spreading `view` into the new panel (see DESIGN.md).
  */
 function isEventLike(value: unknown): boolean {
   return typeof value === 'object' && value !== null && typeof (value as { preventDefault?: unknown }).preventDefault === 'function';
