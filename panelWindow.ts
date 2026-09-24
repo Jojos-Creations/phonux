@@ -2,6 +2,7 @@
  * The `PanelWindow` model -- one browsing panel in the unified row -- and every pure state-transition
  * function that operates on a `PanelWindow[]` array.
  */
+import type { JsonValue } from 'phonux';
 
 /**
  * One browsing panel in the unified row. Every panel goes through the same overflow/collapse mechanism
@@ -26,25 +27,68 @@ export interface PanelWindow {
   live: boolean;
   /** Whether DragToClose's drag-down gesture may close this panel at all. Every panel created by `appendPanel` is unlocked. */
   locked: boolean;
-  /** Which component renders this entry -- read ONLY by the rendering wrapper (LivePanels.tsx); every overflow/collapse/close site reads `collapsible`/`listed`/`locked` instead, never this. */
-  view: 'web' | 'history';
+  /** Which component renders this entry (phonux's registry, resolvePanelView) -- read ONLY by the rendering wrapper (LivePanels.tsx); every overflow/collapse/close site reads `collapsible`/`listed`/`locked` instead, never this. An open string, not a closed union: an unregistered value renders a placeholder, never a crash. */
+  view: string;
   /** Overflow/auto-collapse/promote-demotion may park this entry; `false` marks an always-shown column exempt from all three. */
   collapsible: boolean;
   /** Appears in the public `panelList` (History's own row list, and PanelsAPI). */
   listed: boolean;
+  /** Opaque per-panel data a create() caller supplied (PanelsAPI.create's `params`); undefined for built-ins. Threaded to PanelSummary.params by useProvidePanels.ts's summarise(); no behavior site here reads it. */
+  params?: JsonValue;
+  /** Where a NEW entry lands in the array -- read ONLY by insertPanelAt, at the moment this entry is inserted, never again afterward. 'start' = right after the last non-collapsible entry (e.g. History), never before one. Default 'end'. */
+  insertAt?: 'start' | 'end';
+  /** Which of the row's two stacking tiers this entry's slot sits in -- read ONLY by LivePanels.tsx's per-slot zIndex. Default 'base'. */
+  layer?: 'base' | 'raised';
+  /** Whether this entry's reappearance always resolves through the anchor formula (resolveEnterDirection) instead of unconditionally entering from the right -- read ONLY by LivePanels.tsx's enterDirection. Default false. */
+  anchoredEnter?: boolean;
 }
 
-/** History's own seeded entry: never collapsible (an always-shown column), never listed (it must not list itself), always live, locked by default (usePanelClosing.ts's lock gate). */
+/** History's own seeded entry: never collapsible (an always-shown column), never listed (it must not list itself), always live, locked by default (usePanelClosing.ts's lock gate); raised/anchored so its slot and reappearance behave the way they always have. */
 export function createHistoryPanel(): PanelWindow {
-  return { id: HISTORY_PANEL_ID, url: '', title: 'History', webContentsId: null, sourceWebContentsId: -1, live: true, locked: true, view: 'history', collapsible: false, listed: false };
+  return {
+    id: HISTORY_PANEL_ID, url: '', title: 'History', webContentsId: null, sourceWebContentsId: -1, live: true, locked: true,
+    view: 'history', collapsible: false, listed: false, insertAt: 'start', layer: 'raised', anchoredEnter: true,
+  };
 }
 
-/** Appends a brand-new, live 'extra' panel for a just-intercepted new-window request, immutably. Always appended to the END (oldest-first array order) regardless of which panel it came from (`sourceWebContentsId`) -- "appended to the right of any currently-open ones" per this entry's own intent, not inserted next to its source. History is seeded at index 0 and never appended again, so it stays first with no extra invariant code here. */
-export function appendPanel(panels: PanelWindow[], info: { sourceWebContentsId: number; url: string; title?: string }, id: string): PanelWindow[] {
-  return [
-    ...panels,
-    { id, url: info.url, ...(info.title !== undefined ? { title: info.title } : {}), webContentsId: null, sourceWebContentsId: info.sourceWebContentsId, live: true, locked: false, view: 'web', collapsible: true, listed: true },
-  ];
+/** Per-call metadata create() may set beyond a bare url/source. Deliberately no `collapsible`/`locked` key: create() can never make a permanent column or an unclosable panel. */
+export interface AppendPanelOptions {
+  view?: string;
+  title?: string;
+  params?: JsonValue;
+  listed?: boolean;
+  insertAt?: 'start' | 'end';
+  layer?: 'base' | 'raised';
+  anchoredEnter?: boolean;
+}
+
+/** Inserts `entry` at the position its OWN `insertAt` says: 'end' (default) appends; 'start' lands right after the last non-collapsible entry (e.g. History), never before one. */
+function insertPanelAt(panels: PanelWindow[], entry: PanelWindow): PanelWindow[] {
+  if (entry.insertAt !== 'start') return [...panels, entry];
+  let at = 0;
+  for (let i = 0; i < panels.length; i++) if (!panels[i]!.collapsible) at = i + 1;
+  return [...panels.slice(0, at), entry, ...panels.slice(at)];
+}
+
+/** Builds a brand-new, live 'extra' panel for a just-intercepted new-window request or a PanelsAPI.create() call, immutably, and inserts it per `info.insertAt` (default: appended to the END, "to the right of any currently-open ones" per this entry's own intent, not inserted next to its source). History is seeded directly, never through this function, so it stays first with no extra invariant code here regardless of what else is inserted at 'start'. */
+export function appendPanel(panels: PanelWindow[], info: { sourceWebContentsId: number; url: string } & AppendPanelOptions, id: string): PanelWindow[] {
+  const entry: PanelWindow = {
+    id,
+    url: info.url,
+    ...(info.title !== undefined ? { title: info.title } : {}),
+    webContentsId: null,
+    sourceWebContentsId: info.sourceWebContentsId,
+    live: true,
+    locked: false,
+    view: info.view ?? 'web',
+    collapsible: true,
+    listed: info.listed ?? true,
+    ...(info.params !== undefined ? { params: info.params } : {}),
+    insertAt: info.insertAt ?? 'end',
+    layer: info.layer ?? 'base',
+    anchoredEnter: info.anchoredEnter ?? false,
+  };
+  return insertPanelAt(panels, entry);
 }
 
 /**

@@ -18,8 +18,8 @@ import { appendPanel, type PanelWindow } from './panelWindow.js';
 import { usePanelClosing } from './usePanelClosing.js';
 import { usePanelManager } from './usePanelManager.js';
 
-/** What a view may see of a panel: exactly PanelSummary's keys (`title` is always one, undefined until the page has a title). Rebuilt every render, like the rest of the bag. */
-const summarise = ({ id, url, title, live, locked }: PanelWindow): PanelSummary => ({ id, url, title, live, locked });
+/** What a view may see of a panel: exactly PanelSummary's keys (`title`/`params` are always keys, undefined until set). Rebuilt every render, like the rest of the bag. */
+const summarise = ({ id, url, title, live, locked, params }: PanelWindow): PanelSummary => ({ id, url, title, live, locked, params });
 
 /** Ids for panels this app creates itself. A module counter, bumped only from event handlers (never from a state initialiser), so StrictMode's double invocation cannot skip one. */
 let nextWindowId = 1;
@@ -128,10 +128,13 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
     // `listed` excludes History: it must not list itself (AdventurePanel.tsx renders every entry here as a
     // clickable row).
     panelList: i.panels.filter((p) => p.listed).map(summarise),
-    create: () => {
+    create: (options) => {
       const id = String(nextWindowId++);
-      // "Panel N", not "about:blank": every panel needs a distinguishable title, for testing.
-      revealPanelProactively(i.panels, (prev) => appendPanel(prev, { sourceWebContentsId: -1, url: 'about:blank', title: `Panel ${id}` }, id));
+      // "Panel N", not "about:blank": every panel needs a distinguishable title, for testing. options?.title
+      // overrides it; the explicit `title:` below (after the spread) is what makes that override win either way.
+      revealPanelProactively(i.panels, (prev) =>
+        appendPanel(prev, { sourceWebContentsId: -1, url: 'about:blank', ...options, title: options?.title ?? `Panel ${id}` }, id),
+      );
     },
     activate: handleActivatePanel,
     close: closing.close,

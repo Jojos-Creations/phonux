@@ -29,6 +29,34 @@ listing and rendering -- but `PanelSummary` (this folder's own view of a panel) 
 needs to render a row: id, url, title, live, locked. A view never sees or reasons about the flags that
 decided whether a panel is in `panelList` at all.
 
+## The panel-view registry: never a crash, never a silent substitution
+
+`registerPanelView`/`resolvePanelView` (`panelRegistry.tsx`) let `PanelWindow.view` be an open string
+instead of a closed union, so a host or a third party can spawn any registered component by name.
+`resolvePanelView` never returns nothing: an unregistered key -- a typo, or a plugin that failed to
+register -- renders a visible, inert placeholder naming the title and the key, rather than throwing (which
+would take the whole row down with it) or silently falling back to the built-in web panel (which would
+render a blank webview shell for what is actually broken, more confusing than an honest placeholder). `view`
+is read ONLY at this one render-selection site; every overflow/collapse/close decision elsewhere reads
+`collapsible`/`listed`/`locked` instead, never `view`, so widening it to an open string cannot change any of
+those decisions.
+
+## Position, layer and enter-direction are per-panel metadata, not per-view rules
+
+`PanelWindow.insertAt`/`layer`/`anchoredEnter` replace three separate hard-coded special cases for History
+(seeded at index 0, a higher zIndex, entering unconditionally via the anchor formula) with one field each,
+set once at creation and read by exactly the site that decides that one behavior: `insertAt` by the function
+placing a new entry into the array, `layer` by the row's per-slot zIndex, `anchoredEnter` by the row's
+enter-direction choice. A custom panel can opt into any of History's three behaviors without becoming
+History-shaped in any other way -- `listed`, `collapsible` and `locked` stay independent of all three.
+
+## `params` is opaque and JSON-serializable by construction
+
+`PanelSummary.params`/`PanelsAPI.create({ params })` carry per-component data the registry and the row never
+interpret. `JsonValue` (not `unknown`) is the type on purpose: a future persistence layer needs every panel's
+data to already be serializable, and starting from `unknown` would mean redesigning the field the day
+persistence is attempted.
+
 ## The package lives in place, with no build step
 
 This folder is a package (`phonux`) in place, not under `packages/phonux/`, because splitting it out

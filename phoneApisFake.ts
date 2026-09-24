@@ -80,7 +80,7 @@ export function createFakePhoneAPIs(overrides: FakeOverrides = {}): FakePhoneAPI
 
   const panels: PanelsAPI = {
     panelList: [],
-    create: () => log('panels', 'create', []),
+    create: (options) => log('panels', 'create', options !== undefined ? [options] : []),
     activate: (id) => log('panels', 'activate', [id]),
     close: (id) => log('panels', 'close', [id]),
     recentlyClosed: null,

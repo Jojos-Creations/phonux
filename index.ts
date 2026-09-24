@@ -14,6 +14,7 @@ export type {
   PhoneSize,
   DetectedPhone,
   ClosedPageEntry,
+  JsonValue,
   PanelSummary,
   SettingsAPI,
   HistoryAPI,
@@ -21,6 +22,9 @@ export type {
   DeviceAPI,
   PhoneAPIs,
 } from './phoneViewApi.js';
+
+export { registerPanelView, resolvePanelView } from './panelRegistry.js';
+export type { PanelComponent } from './panelRegistry.js';
 
 export {
   PhoneView,

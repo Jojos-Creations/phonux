@@ -62,8 +62,11 @@ export interface ClosedPageEntry {
   closedAt: string;
 }
 
+/** JSON-serializable by construction -- the minimum shape any future persistence layer could round-trip (see DESIGN.md). */
+export type JsonValue = string | number | boolean | null | readonly JsonValue[] | { readonly [key: string]: JsonValue };
+
 /** What a view may know about a panel. The app's own panel record is structurally assignable to it. */
-export interface PanelSummary {
+export interface PanelSummary<P = JsonValue> {
   readonly id: string;
   readonly url: string;
   readonly title?: string;
@@ -71,6 +74,8 @@ export interface PanelSummary {
   readonly live: boolean;
   /** Whether a drag-down close is offered for this panel. A live/spawned panel is always false. */
   readonly locked: boolean;
+  /** Opaque per-panel data a create() caller supplied; undefined for built-ins. */
+  readonly params?: P;
 }
 
 // ---------------------------------------------------------------------------
@@ -113,8 +118,25 @@ export interface HistoryAPI {
 export interface PanelsAPI {
   /** Every panel, live or parked, in array order. History lists them as given; the row shows the live ones. */
   readonly panelList: readonly PanelSummary[];
-  /** Append a blank live panel. The app parks the oldest live one first when the row would overflow. */
-  create(): void;
+  /**
+   * Append a live panel. Zero-arg: today's exact blank web panel, unchanged. `view` picks the rendered
+   * component (registerPanelView/resolvePanelView) -- an unregistered key renders a placeholder, never a
+   * crash. No `collapsible`/`locked` key: a spawned panel can never claim a permanent column or an
+   * unclosable lock (that is panel-spawn-permanent-columns's own, separate scope). The app parks the oldest
+   * live one first when the row would overflow, same as today.
+   */
+  create(options?: {
+    view?: string;
+    title?: string;
+    params?: JsonValue;
+    listed?: boolean;
+    /** Where the new entry lands: 'start' = right after the last non-collapsible entry (e.g. History), never before it. Default 'end'. */
+    insertAt?: 'start' | 'end';
+    /** Which stacking tier the new entry's row slot sits in. Default 'base'. */
+    layer?: 'base' | 'raised';
+    /** Whether the new entry's reappearance always resolves through the anchor formula instead of unconditionally entering from the right. Default false. */
+    anchoredEnter?: boolean;
+  }): void;
   /** Make a panel live in place, without reordering the row. May park the oldest live one. */
   activate(id: string): void;
   /** Close a view completely, live or parked: it leaves the row and History at once, a closed event is appended to the persisted log (HistoryAPI), and it can be undone for 10 s (recentlyClosed, undoClose). Also accepts History's own fixed-panel id (HistoryAPI.close is the same mechanism, offered per-panel so a view need not know the id) -- an id not in `panelList` and not History's id, or a LOCKED fixed panel's id, does nothing. */

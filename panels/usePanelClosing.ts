@@ -107,7 +107,8 @@ export function usePanelClosing(
     onAfterClose?.(id, found.remaining);
     try {
       bridge()
-        .deadEnd.record([{ id: logId, title: found.closed.title || found.closed.url, url: found.closed.url, closedAt }])
+        // A url-less custom panel has nothing sensible to fall back to: 'Untitled panel', never an empty string.
+        .deadEnd.record([{ id: logId, title: found.closed.title || found.closed.url || 'Untitled panel', url: found.closed.url, closedAt }])
         .catch(() => {});
     } catch {
       // No desktop bridge (a browser-only preview build) -- the log simply never persists.

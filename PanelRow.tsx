@@ -8,11 +8,12 @@
  * last child (test T11a).
  *
  * `entries` is the raw one-list array (PanelWindow, not the public
- * PanelSummary): `view` (which component to render) and `collapsible`
- * (stacking order below) live only on that shape, never on PanelsAPI.
- * `view` is the ONLY thing that picks the component -- every other decision
- * here (present, zIndex, enter direction) reads `collapsible`/`live`, the
- * same behavior flags production code reads everywhere else.
+ * PanelSummary): `view`/`layer`/`anchoredEnter` (rendering, stacking, enter
+ * direction) live only on that shape, never on PanelsAPI. `view` is the ONLY
+ * thing that picks the component (through phonux's resolvePanelView, which
+ * never returns nothing) -- `present` reads `collapsible`/`live`, zIndex
+ * reads `layer`, enter direction reads `anchoredEnter`: three independent
+ * per-panel fields, not one flag doing triple duty.
  *
  * `closingIds` is a PROP, not read off usePhoneAPIs(): it is
  * usePanelClosing.ts's own set (appApis.ts/GoalFrontPage.tsx thread it down),
@@ -40,16 +41,14 @@
 import * as React from 'react';
 import { AnimatePresence } from 'motion/react';
 import Box from '@mui/material/Box';
-import { usePhoneAPIs } from 'phonux';
-import { HistoryColumn } from '../history/HistoryColumn.js';
+import { resolvePanelView, usePhoneAPIs } from 'phonux';
 import { ANCHOR_PANEL_ID, resolveEnterDirection } from './anchorPanel.js';
-import { LivePanel } from './LivePanel.js';
 import { GAP, LivePanelSlot } from './LivePanelSlot.js';
 import type { PanelWindow } from './panelWindow.js';
 
-/** History's slot sits above a web panel's: auto-collapse's exit is LEFT and crosses History's footprint on the way out, so this ordering is load-bearing for that path (a close's exit is DOWN and never reaches it). */
-const HISTORY_SLOT_Z_INDEX = 2;
-const WEB_SLOT_Z_INDEX = 1;
+/** A 'raised' slot sits above a 'base' one: auto-collapse's exit is LEFT and crosses a raised panel's footprint (History, today) on the way out, so this ordering is load-bearing for that path (a close's exit is DOWN and never reaches it). */
+const RAISED_LAYER_Z_INDEX = 2;
+const BASE_LAYER_Z_INDEX = 1;
 
 export function LivePanels({
   entries,
@@ -80,19 +79,22 @@ export function LivePanels({
       }}
     >
       <AnimatePresence initial={false}>
-        {present.map((p, index) => (
-          <LivePanelSlot
-            key={p.id}
-            index={index}
-            phoneWidth={phoneWidth}
-            phoneHeight={phoneHeight}
-            enterDirection={!p.collapsible || enteringViaAnchorIds.has(p.id) ? resolveEnterDirection(anchorIndex, index) : 'right'}
-            exitDirection={closingIds.has(p.id) ? 'down' : 'left'}
-            zIndex={p.collapsible ? WEB_SLOT_Z_INDEX : HISTORY_SLOT_Z_INDEX}
-          >
-            {p.view === 'history' ? <HistoryColumn /> : <LivePanel panel={p} />}
-          </LivePanelSlot>
-        ))}
+        {present.map((p, index) => {
+          const Component = resolvePanelView(p.view);
+          return (
+            <LivePanelSlot
+              key={p.id}
+              index={index}
+              phoneWidth={phoneWidth}
+              phoneHeight={phoneHeight}
+              enterDirection={(p.anchoredEnter ?? false) || enteringViaAnchorIds.has(p.id) ? resolveEnterDirection(anchorIndex, index) : 'right'}
+              exitDirection={closingIds.has(p.id) ? 'down' : 'left'}
+              zIndex={(p.layer ?? 'base') === 'raised' ? RAISED_LAYER_Z_INDEX : BASE_LAYER_Z_INDEX}
+            >
+              <Component panel={p} />
+            </LivePanelSlot>
+          );
+        })}
       </AnimatePresence>
     </Box>
   );
