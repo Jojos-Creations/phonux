@@ -5,60 +5,56 @@ import { SLOT_TRANSITION, directionalTransition } from '../../shared/phone/direc
 
 /** The one spacing value used everywhere a gap is needed in this row. */
 export const GAP = 16;
-/** The timing/easing every panel slide uses, now shared with History's rows
- * (ux-history-column-card-transitions) via shared/phone/directionalTransition.ts
- * -- see that file for the tuning history. Re-exported under the old name:
+/** The timing/easing every panel slide uses, shared with History's rows via
+ * shared/phone/directionalTransition.ts. Re-exported under the old name:
  * row/useRowShell.ts and test/row-shell-style.test.ts key off THIS binding
  * (`transition: PANEL_TRANSITION`) to read the row's own recenter animation as
  * "the same motion as a panel"; it is the SAME object as SLOT_TRANSITION, not a
- * copy, so that reference-equality check keeps working unchanged. */
+ * copy, so that reference-equality check keeps working. */
 export const PANEL_TRANSITION = SLOT_TRANSITION;
 
 /**
  * One live panel's animated slot.
  *
- * Owner design, 2026-09-15: panels are positioned PER ITEM (the model
- * Chromium's own tab strip uses -- BoundsAnimator animates each view's bounds
- * individually -- rather than translating the whole strip as one unit, which
- * suits continuous carousels instead). Each panel sits absolutely at x =
- * index * (phoneWidth + GAP), so adding or removing one never disturbs the
- * fixed sidebar/chat/adventure-card cluster to its left.
+ * Panels are positioned PER ITEM, not as one translated strip: each sits
+ * absolutely at x = index * (phoneWidth + GAP), so adding or removing one
+ * never disturbs the panels to its left.
  *
  * `x` (a transform), not `left`, so the browser can composite it rather than
  * re-laying-out every frame.
  *
- * Motion (npm `motion`) rather than a hand-rolled FLIP, for one specific
- * reason: React unmounts a removed panel in the same commit that adds the new
- * one, so there is no moment at which an exit animation could run.
- * AnimatePresence (the caller) intercepts the removal and keeps the outgoing
- * node mounted until its `exit` finishes, which is the entire bug.
+ * Motion (npm `motion`) rather than a hand-rolled FLIP: React unmounts a
+ * removed panel in the same commit that adds the new one, so there is no
+ * moment at which a plain exit animation could run -- AnimatePresence
+ * intercepts the removal and keeps the outgoing node mounted until its
+ * `exit` finishes.
  *
  * It is also immune to theme.ts's global `transition/animation: none
  * !important` reset: Motion never writes `style.transition` or
  * `style.animation` -- `exit`/`animate` run through the Web Animations API
  * (`element.animate()`, which that CSS cannot reach) and layout changes run
- * through Motion's own rAF loop writing inline transforms. NOTE for whoever
- * edits theme.ts: keep that reset scoped to `transition` and `animation`. If
- * it ever grows to cover `transform` or `opacity` with `!important`, it kills
- * both of Motion's paths at once, silently.
+ * through Motion's own rAF loop writing inline transforms. That reset must
+ * stay scoped to `transition`/`animation` (test/theme-motion-reset.test.ts
+ * pins it) -- covering `transform` or `opacity` too would kill both of
+ * Motion's paths at once, silently.
  *
- * ux-reveal-direction-and-fixed-column-animation, panel-metadata-driven-model: one caller, LivePanels.tsx,
- * uses this for every PRESENT entry of the one panel list -- History and every live web panel alike, each
- * "one item, absolutely positioned at `index * (phoneWidth + GAP)`" inside that caller's one reserved-width
- * Box. `index` is the entry's own position in that list, so this component itself never needs to know
- * which kind of entry it is rendering.
+ * One caller, LivePanels.tsx, uses this for every PRESENT entry of the one
+ * panel list -- History and every live web panel alike, each "one item,
+ * absolutely positioned at `index * (phoneWidth + GAP)`" inside that
+ * caller's one reserved-width Box. `index` is the entry's own position in
+ * that list, so this component itself never needs to know which kind of
+ * entry it is rendering.
  *
- * `enterDirection` (new, mirroring `exitDirection` below) is computed by the
- * CALLER from the anchor-panel formula (anchorPanel.ts's `resolveEnterDirection`)
- * -- never a bare hardcoded 'left'/'right' here -- and, like `exitDirection`,
- * must be correct on THIS component's FIRST render after the item (re)appears
- * (AnimatePresence has no later render of a fresh mount to fix a wrong guess).
+ * `enterDirection` is computed by the CALLER from the anchor-panel formula
+ * (anchorPanel.ts's `resolveEnterDirection`) -- never a bare hardcoded
+ * 'left'/'right' here -- and, like `exitDirection`, must be correct on THIS
+ * component's FIRST render after the item (re)appears (AnimatePresence has
+ * no later render of a fresh mount to fix a wrong guess).
  *
- * Owner, 2026-09-22, two decisions the same day: a CLOSE (History's
- * hover-trash, or DragToClose) should slide down, not left; an auto-collapse
- * to parked (usePanelManager.ts's collapseOldestIds/autoCollapseOldest -- the
- * row overflowed, nothing was closed) must stay doing what it always did,
- * `x: -slot` behind the adventure card, so the two remain visually distinct.
+ * A CLOSE (History's hover-trash, or DragToClose) slides down; an
+ * auto-collapse to parked (usePanelManager.ts's
+ * collapseOldestIds/autoCollapseOldest) keeps `x: -slot` behind the
+ * adventure card -- so the two read as visually distinct causes.
  * `exitDirection` (LivePanels.tsx computes it from the one usePanelClosing instance's `closingIds`) picks
  * between them:
  *   - 'down': timed/eased to DragToClose's own downward exit
@@ -84,13 +80,11 @@ export interface PanelSlotMotion {
 
 /**
  * The pure values behind one LivePanelSlot render, split out of the component
- * so a test can assert the ux-history-column-card-transitions refactor (which
- * introduced directionalTransition.ts) produced EXACTLY the pre-refactor
- * numbers, for both exit directions, without mounting a component or reading
- * computed style. `initial`/`animate` come from the shared preset (both were
- * already expressible as "distance from rest" -- rest = `index * slot`, enter
- * one slot further along `x`); `exit` stays entirely local, per this file's
- * own header: 'down' needs a second axis and a different transition,
+ * so a test can assert exact motion values for both exit directions without
+ * mounting a component or reading computed style. `initial`/`animate` come
+ * from the shared preset (both are expressible as "distance from rest" --
+ * rest = `index * slot`, enter one slot further along `x`); `exit` stays
+ * entirely local: 'down' needs a second axis and a different transition,
  * 'left' needs a target that is independent of `index`, and neither fits
  * directionalTransition's symmetric default.
  */
@@ -126,15 +120,15 @@ export function LivePanelSlot({
   index: number;
   phoneWidth: number;
   phoneHeight: number;
-  /** ux-reveal-direction-and-fixed-column-animation: computed by the caller (anchorPanel.ts's `resolveEnterDirection`), never a bare literal picked here. */
+  /** Computed by the caller (anchorPanel.ts's `resolveEnterDirection`), never a bare literal picked here. */
   enterDirection: 'left' | 'right';
   exitDirection: 'down' | 'left';
   /**
-   * panel-metadata-driven-model: each slot's own `motion.div` is a `transform`-bearing element, which
-   * establishes its OWN CSS stacking context -- a child's `zIndex` can no longer escape it to compare
-   * against a SIBLING slot. Stacking order between slots (e.g. History always above a web panel sliding
-   * left behind it) must therefore be set HERE, on the slot itself, not on whatever renders inside it.
-   * Defaults to 0 (no caller currently needs more than two tiers).
+   * Each slot's own `motion.div` is a `transform`-bearing element, which establishes its OWN CSS stacking
+   * context -- a child's `zIndex` can no longer escape it to compare against a SIBLING slot. Stacking order
+   * between slots (e.g. History always above a web panel sliding left behind it) must therefore be set
+   * HERE, on the slot itself, not on whatever renders inside it. Defaults to 0 (no caller currently needs
+   * more than two tiers).
    */
   zIndex?: number;
   children: React.ReactNode;
