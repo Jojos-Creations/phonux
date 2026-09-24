@@ -1,7 +1,7 @@
 import * as React from 'react';
 import { motion, type TargetAndTransition } from 'motion/react';
-import { DRAG_CLOSE } from '../../shared/phone/dragToClose.js';
-import { SLOT_TRANSITION, directionalTransition } from '../../shared/phone/directionalTransition.js';
+import { DRAG_CLOSE } from 'phonux';
+import { SLOT_TRANSITION, directionalTransition } from 'phonux/internal/directionalTransition';
 
 /** The one spacing value used everywhere a gap is needed in this row. */
 export const GAP = 16;

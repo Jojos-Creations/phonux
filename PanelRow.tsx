@@ -40,7 +40,7 @@
 import * as React from 'react';
 import { AnimatePresence } from 'motion/react';
 import Box from '@mui/material/Box';
-import { usePhoneAPIs } from '../../shared/phone/PhoneView.js';
+import { usePhoneAPIs } from 'phonux';
 import { HistoryColumn } from '../history/HistoryColumn.js';
 import { ANCHOR_PANEL_ID, resolveEnterDirection } from './anchorPanel.js';
 import { LivePanel } from './LivePanel.js';

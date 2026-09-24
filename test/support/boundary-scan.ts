@@ -115,9 +115,13 @@
  *    types, `export ... from`, `import x = require()` and `new URL(literal,
  *    import.meta.url)` (a non-literal first argument is refused as
  *    unverifiable, and a wrong-case path IS caught -- see the next bullet).
- *    They do not follow a bare specifier (this repo has no tsconfig `paths` or
- *    bundler alias, so one cannot reach into the app), a triple-slash
- *    `/// <reference path>` directive (a comment), `createRequire(...)` or
+ *    They also follow a BARE specifier that resolves into `node_modules`
+ *    (walked up from the importing file the way Node does, then realpathed):
+ *    a workspace symlink reaches the app exactly as a relative path would, so
+ *    it cannot stay unfollowed; one that resolves to nothing, or to an
+ *    ordinary package elsewhere in `node_modules`, is unaffected either way.
+ *    Not followed: a triple-slash `/// <reference path>` directive (a
+ *    comment), `createRequire(...)` or
  *    another name for `require`, `import.meta.resolve`, `new Worker('path')`
  *    (only the `new URL(..., import.meta.url)` form a Worker source is
  *    usually built from is checked), or assets referenced from CSS or HTML.
@@ -147,7 +151,7 @@
  *    .mjs .cjs); .vue, .json, .css, .html and the like are never scanned.
  */
 
-import { lstatSync, readdirSync, readFileSync } from 'node:fs';
+import { lstatSync, readdirSync, readFileSync, realpathSync, statSync } from 'node:fs';
 import { dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 import ts from 'typescript';
 
@@ -358,14 +362,43 @@ function scanFile(file: string, spec: ScanSpec): Violation[] {
         out.push(at(site.pos, 'unverifiable-import'));
         continue;
       }
-      if (!site.specifier.startsWith('.') && !isAbsolute(site.specifier)) continue;
-      const target = resolve(dirname(file), site.specifier);
+      const target =
+        site.specifier.startsWith('.') || isAbsolute(site.specifier)
+          ? resolve(dirname(file), site.specifier)
+          : resolveBareSpecifier(dirname(file), site.specifier);
+      if (target === null) continue; // resolves to nothing, or to an ordinary package: not a path into the app
       for (const rule of importRules) {
         if (isInside(rule.forbiddenDir, target)) out.push(at(site.pos, rule.name));
       }
     }
   }
   return out;
+}
+
+/**
+ * Node's own resolution shape for a bare specifier, stopped at the package boundary rather than
+ * walked all the way to the file `exports` points at: a workspace symlink (or any other
+ * `node_modules` entry) is a path into a real directory the moment it exists, so isInside only needs
+ * that directory, not the subpath the specifier requests within it.
+ */
+function resolveBareSpecifier(fromDir: string, specifier: string): string | null {
+  const match = /^(@[^/]+\/[^/]+|[^@][^/]*)(?:\/.*)?$/.exec(specifier);
+  if (!match) return null;
+  const packageName = match[1]!;
+  let dir = fromDir;
+  for (;;) {
+    const candidate = join(dir, 'node_modules', packageName);
+    try {
+      // statSync (not the lstatSync-based isDirectory used elsewhere): a workspace package is normally
+      // ITSELF a symlink, so the existence check here must follow it rather than reject it.
+      if (statSync(candidate).isDirectory()) return realpathSync(candidate);
+    } catch {
+      // no node_modules/<packageName> here; keep walking up
+    }
+    const parent = dirname(dir);
+    if (parent === dir) return null;
+    dir = parent;
+  }
 }
 
 /** The same pattern with the global flag, so matchAll finds EVERY match (the to-do list is complete, header decision 4). */
