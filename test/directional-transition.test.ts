@@ -21,7 +21,7 @@ import assert from 'node:assert/strict';
 import { SLOT_TRANSITION, directionalTransition } from '../client/src/shared/phone/directionalTransition.js';
 import { GAP, PANEL_TRANSITION, panelSlotMotion } from '../client/src/desktop/panels/LivePanelSlot.js';
 import { ANCHOR_PANEL_ID, resolveEnterDirection } from '../client/src/desktop/panels/anchorPanel.js';
-import { HISTORY_PANEL_ID } from '../client/src/desktop/panels/useFixedPanels.js';
+import { HISTORY_PANEL_ID } from '../client/src/desktop/panels/panelWindow.js';
 import { DRAG_CLOSE } from '../client/src/shared/phone/dragToClose.js';
 
 test('SLOT_TRANSITION is the tuned duration/easing (0.4s, the [0.2,0,0,1] cubic-bezier), and PANEL_TRANSITION is the SAME object, not a copy', () => {
