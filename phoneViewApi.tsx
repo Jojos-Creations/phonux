@@ -115,6 +115,25 @@ export interface HistoryAPI {
   close(): void;
 }
 
+/**
+ * `PanelsAPI.create`'s options bag. A named type (not inlined into `create`'s signature) so both the real
+ * implementation (useProvidePanels.ts) and the test fake (phoneApisFake.ts) can annotate their own
+ * `options` parameter explicitly -- see `create`'s own two-overload comment for why that annotation is
+ * required, not cosmetic.
+ */
+export interface CreatePanelOptions {
+  view?: string;
+  title?: string;
+  params?: JsonValue;
+  listed?: boolean;
+  /** Where the new entry lands: 'start' = right after the last non-collapsible entry (e.g. History), never before it. Default 'end'. */
+  insertAt?: 'start' | 'end';
+  /** Which stacking tier the new entry's row slot sits in. Default 'base'. */
+  layer?: 'base' | 'raised';
+  /** Whether the new entry's reappearance always resolves through the anchor formula instead of unconditionally entering from the right. Default false. */
+  anchoredEnter?: boolean;
+}
+
 export interface PanelsAPI {
   /** Every panel, live or parked, in array order. History lists them as given; the row shows the live ones. */
   readonly panelList: readonly PanelSummary[];
@@ -125,18 +144,14 @@ export interface PanelsAPI {
    * unclosable lock (that is panel-spawn-permanent-columns's own, separate scope). The app parks the oldest
    * live one first when the row would overflow, same as today.
    */
-  create(options?: {
-    view?: string;
-    title?: string;
-    params?: JsonValue;
-    listed?: boolean;
-    /** Where the new entry lands: 'start' = right after the last non-collapsible entry (e.g. History), never before it. Default 'end'. */
-    insertAt?: 'start' | 'end';
-    /** Which stacking tier the new entry's row slot sits in. Default 'base'. */
-    layer?: 'base' | 'raised';
-    /** Whether the new entry's reappearance always resolves through the anchor formula instead of unconditionally entering from the right. Default false. */
-    anchoredEnter?: boolean;
-  }): void;
+  create(): void;
+  /**
+   * Two overloads, not one `create(options?: CreatePanelOptions)`: a single optional-arg signature is
+   * structurally assignable to a DOM `MouseEventHandler`, and `CreatePanelOptions.view` collides with
+   * `MouseEvent`'s own required `view: Window` field -- a bare `onClick={panels.create}` reference would
+   * then both fail typecheck AND, at runtime, spread the click event's `view` into the new panel.
+   */
+  create(options: CreatePanelOptions): void;
   /** Make a panel live in place, without reordering the row. May park the oldest live one. */
   activate(id: string): void;
   /** Close a view completely, live or parked: it leaves the row and History at once, a closed event is appended to the persisted log (HistoryAPI), and it can be undone for 10 s (recentlyClosed, undoClose). Also accepts History's own fixed-panel id (HistoryAPI.close is the same mechanism, offered per-panel so a view need not know the id) -- an id not in `panelList` and not History's id, or a LOCKED fixed panel's id, does nothing. */

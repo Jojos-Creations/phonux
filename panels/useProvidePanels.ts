@@ -12,17 +12,23 @@
 
 import { useEffect, useRef, type Dispatch, type RefObject, type SetStateAction } from 'react';
 import { bridge } from '../../shared/ipc/bridge.js';
-import type { MaxViewsSettings, PanelsAPI, PanelSummary } from 'phonux';
+import type { CreatePanelOptions, MaxViewsSettings, PanelsAPI } from 'phonux';
 import { GAP } from './LivePanelSlot.js';
-import { appendPanel, type PanelWindow } from './panelWindow.js';
+import { appendPanel, summarisePanel, type PanelWindow } from './panelWindow.js';
 import { usePanelClosing } from './usePanelClosing.js';
 import { usePanelManager } from './usePanelManager.js';
 
-/** What a view may see of a panel: exactly PanelSummary's keys (`title`/`params` are always keys, undefined until set). Rebuilt every render, like the rest of the bag. */
-const summarise = ({ id, url, title, live, locked, params }: PanelWindow): PanelSummary => ({ id, url, title, live, locked, params });
-
 /** Ids for panels this app creates itself. A module counter, bumped only from event handlers (never from a state initialiser), so StrictMode's double invocation cannot skip one. */
 let nextWindowId = 1;
+
+/**
+ * A bare `onClick={panels.create}` reference (HistoryColumn.tsx's Fab) passes the click's own Event
+ * positionally as `options` -- duck-typed here (a function `preventDefault`) and discarded rather than
+ * spread, or its `view: Window` would silently overwrite `CreatePanelOptions.view` at runtime.
+ */
+function isEventLike(value: unknown): boolean {
+  return typeof value === 'object' && value !== null && typeof (value as { preventDefault?: unknown }).preventDefault === 'function';
+}
 
 export interface PanelsInput {
   panels: PanelWindow[];
@@ -127,18 +133,21 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
   return {
     // `listed` excludes History: it must not list itself (AdventurePanel.tsx renders every entry here as a
     // clickable row).
-    panelList: i.panels.filter((p) => p.listed).map(summarise),
-    create: (options) => {
+    panelList: i.panels.filter((p) => p.listed).map(summarisePanel),
+    create: (options?: CreatePanelOptions) => {
+      // `options` is explicitly optional here (not left to infer from `create`'s own overloaded interface
+      // member) -- an implementation inferred as requiring it would no longer satisfy the zero-arg overload.
+      const safeOptions = isEventLike(options) ? undefined : options;
       const id = String(nextWindowId++);
       // "Panel N", not "about:blank": every panel needs a distinguishable title, for testing. options?.title
       // overrides it; the explicit `title:` below (after the spread) is what makes that override win either way.
       revealPanelProactively(i.panels, (prev) =>
-        appendPanel(prev, { sourceWebContentsId: -1, url: 'about:blank', ...options, title: options?.title ?? `Panel ${id}` }, id),
+        appendPanel(prev, { sourceWebContentsId: -1, url: 'about:blank', ...safeOptions, title: safeOptions?.title ?? `Panel ${id}` }, id),
       );
     },
     activate: handleActivatePanel,
     close: closing.close,
-    recentlyClosed: closing.recentlyClosed?.map(summarise) ?? null,
+    recentlyClosed: closing.recentlyClosed?.map(summarisePanel) ?? null,
     undoClose: closing.undoClose,
     // Forgets every web panel, live or parked -- never History (`collapsible: false`, the one always-shown
     // column): "Clear all" empties the row list, not the column showing it.

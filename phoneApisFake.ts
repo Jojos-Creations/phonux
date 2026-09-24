@@ -21,6 +21,7 @@
 import { PHONE_MODELS } from './phoneModels.js';
 import {
   DEFAULT_PHONE_SIZE,
+  type CreatePanelOptions,
   type DeviceAPI,
   type HistoryAPI,
   type PanelsAPI,
@@ -80,7 +81,9 @@ export function createFakePhoneAPIs(overrides: FakeOverrides = {}): FakePhoneAPI
 
   const panels: PanelsAPI = {
     panelList: [],
-    create: (options) => log('panels', 'create', options !== undefined ? [options] : []),
+    // Explicitly optional (not inferred from PanelsAPI's own overloaded `create`): an inferred-required
+    // parameter would no longer satisfy the interface's zero-arg overload.
+    create: (options?: CreatePanelOptions) => log('panels', 'create', options !== undefined ? [options] : []),
     activate: (id) => log('panels', 'activate', [id]),
     close: (id) => log('panels', 'close', [id]),
     recentlyClosed: null,

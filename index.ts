@@ -16,6 +16,7 @@ export type {
   ClosedPageEntry,
   JsonValue,
   PanelSummary,
+  CreatePanelOptions,
   SettingsAPI,
   HistoryAPI,
   PanelsAPI,
