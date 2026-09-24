@@ -1,0 +1,60 @@
+// The public surface of the phonux package. A name that moves or changes kind here is a breaking
+// change for every consumer, checked by test/phonux-barrel.test.ts (values) and a typecheck fixture
+// (types); see DESIGN.md for why the split exists and why some exports stay off this list.
+
+export {
+  DEFAULT_PHONE_SIZE,
+  PhoneAPIsMissingProviderError,
+  PhoneAPIsProvider,
+  usePhoneAPIs,
+} from './phoneViewApi.js';
+export type {
+  MaxViewsMode,
+  MaxViewsSettings,
+  PhoneSize,
+  DetectedPhone,
+  ClosedPageEntry,
+  PanelSummary,
+  SettingsAPI,
+  HistoryAPI,
+  PanelsAPI,
+  DeviceAPI,
+  PhoneAPIs,
+} from './phoneViewApi.js';
+
+export {
+  PhoneView,
+  DRAG_CLOSE,
+  DragToClose,
+  shouldCloseOnRelease,
+  WindowOverlay,
+  OverlaySlot,
+  OVERLAY_Z,
+} from './PhoneView.js';
+export type {
+  PhoneViewProps,
+  DragHandleProps,
+  OverlaySlotName,
+  WindowOverlayProps,
+} from './PhoneView.js';
+
+export { default as PhoneFrame } from './PhoneFrame.js';
+export {
+  PHONE_CORNER_RADIUS_UNITS,
+  phoneCornerRadiusPx,
+  phoneFrameScrollSx,
+  phoneFrameBareSx,
+  PhoneFrameHeader,
+  PhoneFrameHeaderRow,
+} from './PhoneFrame.js';
+export type {
+  PhoneFrameProps,
+  PhoneFrameHeaderProps,
+  PhoneFrameHeaderRowProps,
+} from './PhoneFrame.js';
+
+export { PHONE_MODELS, findPhoneModel, vendorLabelForUsbVendorId } from './phoneModels.js';
+export type { PhoneModel } from './phoneModels.js';
+
+export { PhoneDetectPrompt } from './PhoneDetectPrompt.js';
+export type { PhoneDetectPromptProps } from './PhoneDetectPrompt.js';

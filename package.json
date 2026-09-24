@@ -1,0 +1,10 @@
+{
+  "name": "phonux",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./index.ts",
+    "./testing": "./phoneApisFake.ts",
+    "./internal/directionalTransition": "./directionalTransition.ts"
+  }
+}
