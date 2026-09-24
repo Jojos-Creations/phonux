@@ -1,13 +1,11 @@
 /**
- * The row's one panel wrapper -- History and every live web panel, together
- * (panel-metadata-driven-model: merges what used to be FixedColumns.tsx and
- * this file, one AnimatePresence over ONE array instead of two near-identical
- * containers over two arrays). App-side (not a view): reads the phone size
- * from usePhoneAPIs() and lays out each PRESENT entry -- an always-shown
- * column (`collapsible: false`, e.g. History) regardless of `live`, or a web
- * panel only while `live` -- in its own animated slot, in the one list's own
- * array order. It renders ONE root, this Box, the row's last child (test
- * T11a).
+ * The row's one panel wrapper -- History and every live web panel, together,
+ * one AnimatePresence over ONE array. App-side (not a view): reads the phone
+ * size from usePhoneAPIs() and lays out each PRESENT entry -- an
+ * always-shown column (`collapsible: false`, e.g. History) regardless of
+ * `live`, or a web panel only while `live` -- in its own animated slot, in
+ * the one list's own array order. It renders ONE root, this Box, the row's
+ * last child (test T11a).
  *
  * `entries` is the raw one-list array (PanelWindow, not the public
  * PanelSummary): `view` (which component to render) and `collapsible`
@@ -25,20 +23,18 @@
  * (usePanelManager.ts: exits LEFT) -- see LivePanelSlot.tsx for why this must
  * be a prop rather than something read after the fact.
  *
- * ux-reveal-direction-and-fixed-column-animation: `enteringViaAnchorIds` is
- * the ENTER-side mirror of `closingIds` -- ids currently (re)joining `live`
- * through usePanelManager.ts's `revealMostRecentlyCollapsed` or
- * usePanelClosing.ts's `undoClose`. A brand-new panel or a manual
- * History-row activation never appear in this set, so they keep entering
- * from the right unconditionally. History's own reappearance always resolves
- * through the SAME anchor formula (anchorPanel.ts) unconditionally: compared
- * against itself its index is never less-than, so it always computes to
- * 'right' anyway -- no separate gate needed for it.
+ * `enteringViaAnchorIds` is the ENTER-side mirror of `closingIds` -- ids
+ * currently (re)joining `live` through usePanelManager.ts's
+ * `revealMostRecentlyCollapsed` or usePanelClosing.ts's `undoClose`. A
+ * brand-new panel or a manual History-row activation never appear in this
+ * set, so they keep entering from the right unconditionally. History's own
+ * reappearance always resolves through the SAME anchor formula
+ * (anchorPanel.ts) unconditionally: compared against itself its index is
+ * never less-than, so it always computes to 'right' anyway -- no separate
+ * gate needed for it.
  *
- * Both `anchorIndex` and each entry's own row-slot `index` now come from the
- * SAME one-list array (no more `fixedColumnIds.length + panelIndex` offset
- * math: that existed only because History and the live panels used to be two
- * separate arrays with two separate index spaces).
+ * Both `anchorIndex` and each entry's own row-slot `index` come from the
+ * SAME one-list array.
  */
 
 import * as React from 'react';
