@@ -19,16 +19,35 @@ import {
 test('appendPanel: appends a new LIVE extra panel carrying the source id and url, unstarted webContentsId', () => {
   const next = appendPanel([], { sourceWebContentsId: 7, url: 'https://example.com/new-tab' }, 'w1');
   assert.deepEqual(next, [
-    { id: 'w1', url: 'https://example.com/new-tab', webContentsId: null, sourceWebContentsId: 7, live: true, locked: false, view: 'web', collapsible: true, listed: true },
+    { id: 'w1', url: 'https://example.com/new-tab', webContentsId: null, sourceWebContentsId: 7, live: true, locked: false, view: 'web', collapsible: true, listed: true, insertAt: 'end', layer: 'base', anchoredEnter: false },
   ]);
 });
 
-test('createHistoryPanel: an always-shown, unlisted, locked, live entry -- never a plain web panel', () => {
+test('createHistoryPanel: an always-shown, unlisted, locked, live entry -- never a plain web panel; raised/anchored/start, matching its own current position/layer/enter behavior', () => {
   const history = createHistoryPanel();
   assert.deepEqual(
-    [history.id, history.view, history.collapsible, history.listed, history.locked, history.live],
-    [HISTORY_PANEL_ID, 'history', false, false, true, true],
+    [history.id, history.view, history.collapsible, history.listed, history.locked, history.live, history.insertAt, history.layer, history.anchoredEnter],
+    [HISTORY_PANEL_ID, 'history', false, false, true, true, 'start', 'raised', true],
   );
+});
+
+test('appendPanel: view/params/listed/layer/anchoredEnter from create()\'s options land on the new entry; it is always unlocked regardless of options (create() has no locked key to set)', () => {
+  const next = appendPanel(
+    [],
+    { sourceWebContentsId: -1, url: 'about:blank', view: 'test-custom', params: { a: 1 }, listed: false, layer: 'raised', anchoredEnter: true },
+    'c1',
+  );
+  assert.deepEqual(next, [
+    { id: 'c1', url: 'about:blank', webContentsId: null, sourceWebContentsId: -1, live: true, locked: false, view: 'test-custom', collapsible: true, listed: false, params: { a: 1 }, insertAt: 'end', layer: 'raised', anchoredEnter: true },
+  ]);
+});
+
+test('appendPanel: insertAt "start" lands immediately after the last non-collapsible entry (History), never before it; the default still appends to the array end', () => {
+  const withHistory = [createHistoryPanel(), ...makeExtraPanels('w1', 'w2')];
+  const front = appendPanel(withHistory, { sourceWebContentsId: -1, url: 'https://front.example', insertAt: 'start' }, 'front');
+  assert.deepEqual(front.map((p) => p.id), [HISTORY_PANEL_ID, 'front', 'w1', 'w2'], 'right after History, never before it');
+  const end = appendPanel(withHistory, { sourceWebContentsId: -1, url: 'https://end.example' }, 'end');
+  assert.deepEqual(end.map((p) => p.id), [HISTORY_PANEL_ID, 'w1', 'w2', 'end'], 'a plain create() still appends to the array end');
 });
 
 test('appendPanel: always appends to the end, regardless of which panel the request came from', () => {

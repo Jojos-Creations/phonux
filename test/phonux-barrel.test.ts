@@ -1,7 +1,7 @@
 /**
  * The phonux barrel (client/src/shared/phone/index.ts): its runtime export surface. Types are erased by
  * TypeScript before this module ever runs, so Object.keys() on the imported namespace can only ever see
- * the 22 value exports; the 20 type exports are not checked here. The 22-name list here is spelled out
+ * the 24 value exports; the type exports are not checked here. The 24-name list here is spelled out
  * literally, never derived from the module or from index.ts, so a name silently added, removed or renamed
  * on either side makes this test red.
  */
@@ -33,8 +33,10 @@ const VALUE_EXPORTS = [
   'findPhoneModel',
   'vendorLabelForUsbVendorId',
   'PhoneDetectPrompt',
+  'registerPanelView',
+  'resolvePanelView',
 ].sort();
 
-test('the phonux barrel exports exactly the 22 runtime values, no more, no fewer', () => {
+test('the phonux barrel exports exactly the 24 runtime values, no more, no fewer', () => {
   assert.deepEqual(Object.keys(phonux).sort(), VALUE_EXPORTS);
 });
