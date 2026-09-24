@@ -103,7 +103,7 @@ export interface HistoryAPI {
     open(): void;
     close(): void;
   };
-  /** Whether a drag-down close or an API close does anything for History; defaults true (owner: "Right now only the history panel should be locked"). */
+  /** Whether a drag-down close or an API close does anything for History; defaults true. */
   readonly locked: boolean;
   readonly closed: boolean;
   /** A no-op while `locked` (today, always -- see `locked`). */
