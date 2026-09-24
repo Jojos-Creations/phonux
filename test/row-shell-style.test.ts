@@ -14,8 +14,8 @@ import { PANEL_TRANSITION } from '../client/src/desktop/panels/LivePanelSlot.js'
 const base: RowShellStyleInput = {
   shell: { containerWidth: 1300, rowOverflowSettled: false, rowResizeSettled: false },
   phoneWidth: 390,
-  // History alone: Settings folds into its body (panel-metadata-driven-model Phase A) rather than adding
-  // a second fixed column, so this is never more than 1 in the real app.
+  // History alone: Settings toggles inside its body rather than adding a second fixed column, so this is
+  // never more than 1 in the real app.
   fixedColumnCount: 1,
   liveCount: 0,
   maxViewsMode: 'screen-width',
