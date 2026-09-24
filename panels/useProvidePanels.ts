@@ -47,12 +47,12 @@ export interface PanelsInput {
  */
 export interface ProvidedPanels extends PanelsAPI {
   readonly closingIds: ReadonlySet<string>;
-  /** ux-reveal-direction-and-fixed-column-animation: see usePanelManager.ts's `UsePanelManagerResult.enteringViaAnchorIds` for the full contract -- kept off PanelsAPI for the same reason `closingIds` is (desktop-only animation plumbing, LivePanels.tsx's own input). */
+  /** See usePanelManager.ts's `UsePanelManagerResult.enteringViaAnchorIds` for the full contract -- kept off PanelsAPI for the same reason `closingIds` is (desktop-only animation plumbing, LivePanels.tsx's own input). */
   readonly enteringViaAnchorIds: ReadonlySet<string>;
 }
 
 export function useProvidePanels(i: PanelsInput): ProvidedPanels {
-  // Owner report: a newly-revealed panel (a brand-new "+" view, or an old
+  // A newly-revealed panel (a brand-new "+" view, or an old
   // one reactivated from History) could land outside the currently-scrolled
   // area with nothing to bring it into view -- especially now that 'count'
   // mode can genuinely need to scroll (GoalFrontPage's overflow container).
@@ -109,10 +109,10 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
 
   // Closing a view completely (History trash or the live panel's drag-down), its 10 s undo window and the log entry.
   // After usePanelManager: undo makes room for a live view through its revealPanelProactively.
-  // ux-reveal-most-recently-collapsed-panel: `onAfterClose` first forgets the just-closed id (in case it
-  // was itself parked, e.g. a History trash click on a collapsed row -- see usePanelManager's own
-  // `forgetCollapsed` doc comment), then offers the freed-up room to the most recently auto-collapsed
-  // panel still on the stack, if any and if there's room for it.
+  // `onAfterClose` first forgets the just-closed id (in case it was itself parked, e.g. a History trash
+  // click on a collapsed row -- see usePanelManager's own `forgetCollapsed` doc comment), then offers the
+  // freed-up room to the most recently auto-collapsed panel still on the stack, if any and if there's room
+  // for it.
   const closing = usePanelClosing(
     i.panels,
     i.setPanels,
@@ -130,8 +130,7 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
     panelList: i.panels.filter((p) => p.listed).map(summarise),
     create: () => {
       const id = String(nextWindowId++);
-      // Owner, 2026-09-23: "Panel N" for testing -- "about:blank" was stale
-      // verbiage from the webview days and made every panel look identical.
+      // "Panel N", not "about:blank": every panel needs a distinguishable title, for testing.
       revealPanelProactively(i.panels, (prev) => appendPanel(prev, { sourceWebContentsId: -1, url: 'about:blank', title: `Panel ${id}` }, id));
     },
     activate: handleActivatePanel,
