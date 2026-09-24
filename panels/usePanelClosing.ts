@@ -4,7 +4,7 @@ import { bridge } from '../../shared/ipc/bridge.js';
 import { closePanel, restorePanel, type PanelWindow } from './panelWindow.js';
 import type { UsePanelManagerResult } from './usePanelManager.js';
 
-/** Owner's own spec: "a toast to undo the action should appear for 10 seconds." One window, restarted by every close. */
+/** The undo toast stays up for 10 seconds, one window, restarted by every close. */
 export const UNDO_WINDOW_MS = 10_000;
 
 /** A view closed inside the current undo window: the panel, where it sat, and the id of its entry in the background log. */
@@ -33,10 +33,9 @@ export interface UsePanelClosingResult {
 }
 
 /**
- * Owner, 2026-09-20: a view closed by dragging it down or by the trash icon on a History row is removed
- * COMPLETELY (row and History), a closed event is appended to the background log
- * (electron/dead-end-history.ts: deadEnd.record) and a toast offers Undo for 10 s (undo restores the view
- * and removes the log entry). This replaces useDeadEndActions (stage / confirm / undo of a checked batch).
+ * A view closed by dragging it down or by the trash icon on a History row is removed COMPLETELY (row and
+ * History), a closed event is appended to the background log (electron/dead-end-history.ts: deadEnd.record)
+ * and a toast offers Undo for 10 s (undo restores the view and removes the log entry).
  *
  * `panels` / `setPanels` / `revealPanelProactively` are the panel manager's (one owner of the array:
  * usePanelManager merges by id across async writers). Called with the values of the CURRENT render: the
@@ -55,19 +54,18 @@ export function usePanelClosing(
   setPanels: Dispatch<SetStateAction<PanelWindow[]>>,
   revealPanelProactively: UsePanelManagerResult['revealPanelProactively'],
   /**
-   * ux-reveal-most-recently-collapsed-panel: called once per successful close, with the id that just left
-   * `panels` and the array immediately after (`closePanel`'s own `remaining` -- computed synchronously
-   * above, from THIS render's `panels`, same as everything else in `close()`). Optional (a close of a
-   * `collapsible: false` entry, i.e. History, has nothing to forget or reveal); useProvidePanels.ts, the
-   * one caller, wires it to usePanelManager's `forgetCollapsed`/`revealMostRecentlyCollapsed`.
+   * Called once per successful close, with the id that just left `panels` and the array immediately after
+   * (`closePanel`'s own `remaining` -- computed synchronously above, from THIS render's `panels`, same as
+   * everything else in `close()`). Optional (a close of a `collapsible: false` entry, i.e. History, has
+   * nothing to forget or reveal); useProvidePanels.ts, the one caller, wires it to usePanelManager's
+   * `forgetCollapsed`/`revealMostRecentlyCollapsed`.
    */
   onAfterClose?: (id: string, remaining: PanelWindow[]) => void,
   /**
-   * ux-reveal-direction-and-fixed-column-animation: called once per panel `undoClose` restores through the
-   * "comes back LIVE" branch below (the same branch that calls `revealPanelProactively`) -- this, and
-   * usePanelManager.ts's own `revealMostRecentlyCollapsed`, are the two "reappearance" paths the owner asked
-   * to enter from the anchor panel's side. Optional, same convention as `onAfterClose`; useProvidePanels.ts,
-   * the one caller, wires this to usePanelManager's `markEnteringViaAnchor`.
+   * Called once per panel `undoClose` restores through the "comes back LIVE" branch below (the same branch
+   * that calls `revealPanelProactively`) -- this, and usePanelManager.ts's own `revealMostRecentlyCollapsed`,
+   * are the two "reappearance" paths that enter from the anchor panel's side. Optional, same convention as
+   * `onAfterClose`; useProvidePanels.ts, the one caller, wires this to usePanelManager's `markEnteringViaAnchor`.
    */
   onRestoreLive?: (id: string) => void,
 ): UsePanelClosingResult {
@@ -133,9 +131,9 @@ export function usePanelClosing(
     for (const { panel, index } of [...batch].reverse()) {
       if (working.some((p) => p.id === panel.id)) continue;
       if (panel.live) {
-        // ux-reveal-direction-and-fixed-column-animation: this restore is one of the two "reappearance"
-        // paths that enters from the anchor's side -- mark it BEFORE revealPanelProactively's own setPanels
-        // call, same ordering reasoning as usePanelManager.ts's own markEnteringViaAnchor call site.
+        // This restore is one of the two "reappearance" paths that enters from the anchor's side -- mark it
+        // BEFORE revealPanelProactively's own setPanels call, same ordering reasoning as usePanelManager.ts's
+        // own markEnteringViaAnchor call site.
         onRestoreLive?.(panel.id);
         // Through the same room-making rule as opening a view: the oldest live view is parked if the row is full.
         revealPanelProactively(working, (prev) => restorePanel(prev, panel, index));
