@@ -1,9 +1,6 @@
 /**
- * desktop/panels/panelWindow.ts's pure panel-array helpers (append,
- * close/restore, auto-collapse, promote). Split out of goal-
- * front-page.test.ts (plan step 6). Owner, 2026-09-20: closing a view removes
- * it completely (closePanel) and undo puts it back (restorePanel); staging and
- * the checked/autoSwept marks are gone.
+ * desktop/panels/panelWindow.ts's pure panel-array helpers (append, close/restore, auto-collapse,
+ * promote). Closing a view removes it completely (closePanel) and undo puts it back (restorePanel).
  */
 
 import test from 'node:test';
@@ -152,13 +149,8 @@ test('History stays at array index 0 through appendPanel, closePanel and restore
 });
 
 // ---------------------------------------------------------------------------
-// promoteToLive (front-page-link-windows-primary-panel-unification, parts 2
-// + the owner-added "click any adventure-list row" requirement): replaces
-// the old reviveDeadEndEntry, which used to re-append a revived entry at the
-// row's newest slot and never demoted anything (the bug evidence bullet 5
-// was written against). Now: flips `live` IN PLACE (never reorders), and
-// demotes at most one OTHER live panel (the oldest, by array order) when
-// the caller's own `wouldOverflow` predicate says so.
+// promoteToLive: flips `live` IN PLACE (never reorders), and demotes at most one OTHER live panel (the
+// oldest, by array order) when the caller's own `wouldOverflow` predicate says so.
 // ---------------------------------------------------------------------------
 
 test('promoteToLive: makes a parked panel live IN PLACE -- array order is unchanged, nothing is appended', () => {

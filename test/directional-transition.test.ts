@@ -1,15 +1,12 @@
 /**
- * shared/phone/directionalTransition.ts, proven directly (pure function, no
- * DOM needed) -- ux-history-column-card-transitions. Two things this file
- * pins:
+ * shared/phone/directionalTransition.ts, proven directly (pure function, no DOM needed). Two things this
+ * file pins:
  *
  *  - the shared preset itself: SLOT_TRANSITION's exact value, and
  *    directionalTransition's initial/animate/exit formulas for both axes;
- *  - a POSITIVE CONTROL that the LivePanelSlot refactor which consumes it
- *    (panelSlotMotion, exported from client/src/desktop/panels/LivePanelSlot.tsx)
- *    produces EXACTLY the pre-refactor numbers, for both exit directions,
- *    against literal values hand-computed from the ORIGINAL (pre-refactor)
- *    formulas in that file's git history:
+ *  - a POSITIVE CONTROL that panelSlotMotion (exported from
+ *    client/src/desktop/panels/LivePanelSlot.tsx), which consumes that preset,
+ *    produces EXACTLY these numbers, for both exit directions:
  *      initial: { x: (index + 1) * slot, opacity: 0 }
  *      animate: { x: index * slot, opacity: 1 }
  *      exit (down): { x: index * slot, y: phoneHeight, opacity: 0, transition: { duration: DRAG_CLOSE.exitSeconds, ease: 'easeIn' } }
@@ -58,7 +55,7 @@ test('directionalTransition: a negative distance enters/exits from the opposite 
 });
 
 // ---------------------------------------------------------------------------
-// positive control: panelSlotMotion matches the pre-refactor LivePanelSlot numbers exactly
+// positive control: panelSlotMotion matches these exact numbers
 // ---------------------------------------------------------------------------
 
 const PHONE_WIDTH = 320;
@@ -95,10 +92,9 @@ test('panelSlotMotion: exit "left" is EXACTLY the pre-refactor formula (-slot, i
 });
 
 // ---------------------------------------------------------------------------
-// ux-reveal-direction-and-fixed-column-animation: enterDirection 'left' -- a NEGATIVE distance, i.e. a
-// panel starting to the LEFT of its rest position, mirroring the -slot exit target directly above, red on
-// break against a mutant that leaves enterDirection unconsumed (always entering from the right regardless
-// of the argument).
+// enterDirection 'left' -- a NEGATIVE distance, i.e. a panel starting to the LEFT of its rest position,
+// mirroring the -slot exit target directly above, red on break against a mutant that leaves enterDirection
+// unconsumed (always entering from the right regardless of the argument).
 // ---------------------------------------------------------------------------
 
 test('panelSlotMotion: enterDirection "left" enters from -slot relative to rest (index * slot - slot), for several indices, both exit directions', () => {
@@ -122,9 +118,9 @@ test('panelSlotMotion: enterDirection flips ONLY initial\'s sign relative to res
 });
 
 // ---------------------------------------------------------------------------
-// ux-reveal-direction-and-fixed-column-animation: anchorPanel.ts's resolveEnterDirection, the "computed,
-// not hardcoded" formula the plan record specifies verbatim (anchorIndex < ownIndex ? 'left' : 'right').
-// Proven generically over arbitrary row-slot indices, not just the ONE degenerate case (History comparing
+// anchorPanel.ts's resolveEnterDirection, the "computed, not hardcoded" formula
+// (anchorIndex < ownIndex ? 'left' : 'right'). Proven generically over arbitrary row-slot indices, not just
+// the ONE degenerate case (History comparing
 // against itself) production currently calls it with -- this is what makes the "computed, not hardcoded"
 // property real rather than merely asserted in prose.
 // ---------------------------------------------------------------------------

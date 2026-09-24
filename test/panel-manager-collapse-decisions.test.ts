@@ -1,17 +1,11 @@
 /**
- * Characterization tests for plans/records/front-page-panel-manager-
- * characterization-tests.md, behavior 1: `usePanelManager.ts`'s
- * `collapseCountForNewPanel(panelsNow)` (extracted out of
- * `GoalFrontPage.tsx` by front-page-scope-use-panel-manager-hook, then its
- * own `baseWidth` fixed by front-page-strip-task-prompt's `fixedColumnCount`
- * threading -- see that file's own doc comments) -- its count-mode and
- * overflow-mode collapse-count decisions.
+ * Characterization tests for `usePanelManager.ts`'s `collapseCountForNewPanel(panelsNow)` -- its count-mode
+ * and overflow-mode collapse-count decisions.
  *
  * `collapseCountForNewPanel` is a closure defined inside the `usePanelManager`
  * hook body (not a separately exported function), so it cannot be called
  * directly without either rendering the whole hook or extracting it -- and
- * extracting it would be a refactor, which this entry (pure test-writing
- * against unchanged behavior) explicitly is not. Its own source (verified
+ * extracting it would be a refactor. Its own source (verified
  * live, usePanelManager.ts) is exactly this, verbatim:
  *
  *   const liveCountAfter = panelsNow.filter((p) => p.live).length + 1;
@@ -33,12 +27,10 @@
  * overflow-mode branch's WRAPPER-level plumbing (that a real overflowing
  * open really does collapse exactly one panel, the oldest by array order,
  * and never a second time for the same overflow event) is additionally
- * exercised at the mount level (D6, 2026-09-22, replacing the CDP files this
- * comment used to name -- their subject, the old drag-onto-History flow,
- * is gone; test/dead-end-drag-drop-integration.test.ts is now the one
- * real-Electron smoke test) by test/goal-front-page-mount.test.ts's T9a,
+ * exercised at the mount level by test/goal-front-page-mount.test.ts's T9a,
  * T9c and T10a-T10d and test/goal-front-page-row-shell.test.ts's RS1, RS2,
- * RS6a and RS6b.
+ * RS6a and RS6b; test/dead-end-drag-drop-integration.test.ts is the one
+ * real-Electron smoke test for this path.
  */
 import test from 'node:test';
 import assert from 'node:assert/strict';
