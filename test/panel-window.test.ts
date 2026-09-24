@@ -13,6 +13,8 @@ import {
   appendPanel,
   autoCollapseOldest,
   closePanel,
+  createHistoryPanel,
+  HISTORY_PANEL_ID,
   promoteToLive,
   restorePanel,
 } from '../client/src/desktop/panels/panelWindow.js';
@@ -20,8 +22,16 @@ import {
 test('appendPanel: appends a new LIVE extra panel carrying the source id and url, unstarted webContentsId', () => {
   const next = appendPanel([], { sourceWebContentsId: 7, url: 'https://example.com/new-tab' }, 'w1');
   assert.deepEqual(next, [
-    { id: 'w1', url: 'https://example.com/new-tab', webContentsId: null, sourceWebContentsId: 7, live: true, locked: false },
+    { id: 'w1', url: 'https://example.com/new-tab', webContentsId: null, sourceWebContentsId: 7, live: true, locked: false, view: 'web', collapsible: true, listed: true },
   ]);
+});
+
+test('createHistoryPanel: an always-shown, unlisted, locked, live entry -- never a plain web panel', () => {
+  const history = createHistoryPanel();
+  assert.deepEqual(
+    [history.id, history.view, history.collapsible, history.listed, history.locked, history.live],
+    [HISTORY_PANEL_ID, 'history', false, false, true, true],
+  );
 });
 
 test('appendPanel: always appends to the end, regardless of which panel the request came from', () => {
@@ -113,6 +123,34 @@ test('autoCollapseOldest: returns null when nothing is live to park', () => {
   assert.equal(autoCollapseOldest(allParked), null);
 });
 
+test('autoCollapseOldest: never parks a collapsible:false entry (History) even though it is live and oldest by array order', () => {
+  const panels = [createHistoryPanel(), ...makeExtraPanels('w1', 'w2')];
+  const result = autoCollapseOldest(panels)!;
+  assert.equal(result.find((p) => p.id === HISTORY_PANEL_ID)!.live, true, 'History is oldest by array order but exempt: collapsible is false');
+  assert.equal(result.find((p) => p.id === 'w1')!.live, false, 'the oldest COLLAPSIBLE entry is the one actually parked');
+});
+
+test('autoCollapseOldest: flipping collapsible on ONE entry changes only whether IT can be picked -- nothing else about the array', () => {
+  const base = makeExtraPanels('w1', 'w2', 'w3');
+  const exempt = base.map((p) => (p.id === 'w1' ? { ...p, collapsible: false } : p));
+  const result = autoCollapseOldest(exempt)!;
+  assert.equal(result.find((p) => p.id === 'w1')!.live, true, 'w1 is oldest by array order but now exempt');
+  assert.equal(result.find((p) => p.id === 'w2')!.live, false, 'w2 (the oldest still-collapsible entry) is parked instead');
+  assert.deepEqual(result.find((p) => p.id === 'w3'), base.find((p) => p.id === 'w3'), 'a third, untouched entry is unaffected');
+});
+
+test('History stays at array index 0 through appendPanel, closePanel and restorePanel', () => {
+  let panels: PanelWindow[] = [createHistoryPanel()];
+  panels = appendPanel(panels, { sourceWebContentsId: -1, url: 'https://a.example' }, 'a');
+  panels = appendPanel(panels, { sourceWebContentsId: -1, url: 'https://b.example' }, 'b');
+  assert.equal(panels[0]!.id, HISTORY_PANEL_ID, 'append never disturbs index 0');
+  const closedA = closePanel(panels, 'a')!;
+  assert.equal(closedA.remaining[0]!.id, HISTORY_PANEL_ID, 'closing a later entry leaves History at 0');
+  const restored = restorePanel(closedA.remaining, closedA.closed, closedA.index);
+  assert.equal(restored[0]!.id, HISTORY_PANEL_ID, 'restoring it back leaves History at 0 too');
+  assert.deepEqual(restored.map((p) => p.id), ['history', 'a', 'b'], 'and the original order is exactly back');
+});
+
 // ---------------------------------------------------------------------------
 // promoteToLive (front-page-link-windows-primary-panel-unification, parts 2
 // + the owner-added "click any adventure-list row" requirement): replaces
@@ -173,4 +211,11 @@ test('promoteToLive: an already-live panel is a no-op (null) -- "keep it live" n
 
 test('promoteToLive: an unknown id returns null -- nothing to promote', () => {
   assert.equal(promoteToLive(makeExtraPanels('w1'), 'nope', () => false), null);
+});
+
+test('promoteToLive: demotion never targets a collapsible:false entry (History) -- a manual activation must not bump an always-shown column', () => {
+  const panels = park([createHistoryPanel(), ...makeExtraPanels('w1')], 'w1'); // History live; w1 parked
+  const result = promoteToLive(panels, 'w1', () => true)!; // wouldOverflow says yes: something should demote
+  assert.equal(result.find((p) => p.id === HISTORY_PANEL_ID)!.live, true, 'History stays live: it is the only OTHER live entry, but it is exempt');
+  assert.equal(result.find((p) => p.id === 'w1')!.live, true, 'w1 was promoted -- nothing was left to demote');
 });
