@@ -39,6 +39,9 @@
  * dragged down or trashed from History closes COMPLETELY) ever drops an
  * entry. There is no staging any more: no `checked`, no `autoSwept`.
  */
+/** The seeded History entry's id -- every array this model governs carries exactly one. */
+export const HISTORY_PANEL_ID = 'history';
+
 export interface PanelWindow {
   id: string;
   url: string;
@@ -52,31 +55,40 @@ export interface PanelWindow {
    * ux-panels-draggable-close-with-lock-api (owner, 2026-09-22: "dragging down should close it unless the
    * panel is locked"): whether DragToClose's drag-down gesture may close this panel at all. Every panel
    * created here (appendPanel) is unlocked -- no behavior change for a live/spawned panel.
-   * client/src/desktop/panels/useFixedPanels.ts reuses this same field on TWO more PanelWindow-shaped
-   * records (Settings, History) that never enter this array or panelList -- see that file's header for why
-   * they stay in their own array.
    */
   locked: boolean;
+  /** Which component renders this entry -- read ONLY by the rendering wrapper (LivePanels.tsx); every overflow/collapse/close site reads `collapsible`/`listed`/`locked` instead, never this. */
+  view: 'web' | 'history';
+  /** Overflow/auto-collapse/promote-demotion may park this entry; `false` marks an always-shown column exempt from all three. */
+  collapsible: boolean;
+  /** Appears in the public `panelList` (History's own row list, and PanelsAPI). */
+  listed: boolean;
 }
 
-/** Appends a brand-new, live 'extra' panel for a just-intercepted new-window request, immutably. Always appended to the END (oldest-first array order) regardless of which panel it came from (`sourceWebContentsId`) -- "appended to the right of any currently-open ones" per this entry's own intent, not inserted next to its source. */
+/** History's own seeded entry: never collapsible (an always-shown column), never listed (it must not list itself), always live, locked by default (usePanelClosing.ts's lock gate). */
+export function createHistoryPanel(): PanelWindow {
+  return { id: HISTORY_PANEL_ID, url: '', title: 'History', webContentsId: null, sourceWebContentsId: -1, live: true, locked: true, view: 'history', collapsible: false, listed: false };
+}
+
+/** Appends a brand-new, live 'extra' panel for a just-intercepted new-window request, immutably. Always appended to the END (oldest-first array order) regardless of which panel it came from (`sourceWebContentsId`) -- "appended to the right of any currently-open ones" per this entry's own intent, not inserted next to its source. History is seeded at index 0 and never appended again, so it stays first with no extra invariant code here. */
 export function appendPanel(panels: PanelWindow[], info: { sourceWebContentsId: number; url: string; title?: string }, id: string): PanelWindow[] {
   return [
     ...panels,
-    { id, url: info.url, ...(info.title !== undefined ? { title: info.title } : {}), webContentsId: null, sourceWebContentsId: info.sourceWebContentsId, live: true, locked: false },
+    { id, url: info.url, ...(info.title !== undefined ? { title: info.title } : {}), webContentsId: null, sourceWebContentsId: info.sourceWebContentsId, live: true, locked: false, view: 'web', collapsible: true, listed: true },
   ];
 }
 
 /**
  * "Auto collapse into adventure card" (owner setting, default on): park the
- * SINGLE OLDEST live panel, by array order (this is space management, not a
- * close: the panel stays in the array). `null` when nothing is live to park. `promoteToLive` below
+ * SINGLE OLDEST live, collapsible panel, by array order (this is space management, not a
+ * close: the panel stays in the array). `null` when nothing eligible is live to park. `promoteToLive` below
  * reuses this exact same "oldest live, by array order" policy for its own
  * demotion, so there is one demotion rule in this file, not two that could
- * silently drift apart.
+ * silently drift apart. Never picks a `collapsible: false` entry (History): an always-shown column is
+ * exempt from every overflow/auto-collapse site, this one included.
  */
 export function autoCollapseOldest(panels: PanelWindow[]): PanelWindow[] | null {
-  const oldest = panels.find((p) => p.live);
+  const oldest = panels.find((p) => p.collapsible && p.live);
   if (!oldest) return null;
   return panels.map((p) => (p.id === oldest.id ? { ...p, live: false } : p));
 }
@@ -107,7 +119,8 @@ export function autoCollapseOldest(panels: PanelWindow[]): PanelWindow[] | null 
  * specifying this requirement), keeping "exactly one window swaps for
  * another" true past the collapse threshold (this entry's own evidence
  * bullet). When it returns false, no demotion happens: there was room,
- * nothing needs to leave.
+ * nothing needs to leave. Never demotes a `collapsible: false` entry (History):
+ * a manual activation must not bump an always-shown column.
  */
 export function promoteToLive(
   panels: PanelWindow[],
@@ -116,10 +129,10 @@ export function promoteToLive(
 ): PanelWindow[] | null {
   const target = panels.find((p) => p.id === id);
   if (!target || target.live) return null;
-  const liveCountAfter = panels.filter((p) => p.live).length + 1;
+  const liveCountAfter = panels.filter((p) => p.collapsible && p.live).length + 1;
   let next = panels.map((p) => (p.id === id ? { ...p, live: true } : p));
   if (wouldOverflow(liveCountAfter)) {
-    const demote = next.find((p) => p.live && p.id !== id);
+    const demote = next.find((p) => p.collapsible && p.live && p.id !== id);
     if (demote) {
       next = next.map((p) => (p.id === demote.id ? { ...p, live: false } : p));
     }
