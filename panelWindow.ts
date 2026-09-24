@@ -1,43 +1,16 @@
 /**
- * front-page-link-windows-and-adventure-collapse /
- * front-page-link-windows-primary-panel-unification: the `PanelWindow` model
- * -- one browsing panel in the unified row (an "extra" guest-opened
- * window) -- and every pure state-transition function
- * that operates on a `PanelWindow[]` array. Extracted out of GoalFrontPage.tsx
- * (2026-09-15 thinning pass) verbatim, comments included: this was already a
- * self-contained model within that file (AdventurePanel.tsx already imports
- * `PanelWindow` as a type from it), so giving it its own module changes
- * nothing about behavior, only where the code lives.
+ * The `PanelWindow` model -- one browsing panel in the unified row -- and every pure state-transition
+ * function that operates on a `PanelWindow[]` array.
  */
 
 /**
- * front-page-link-windows-and-adventure-collapse: one browsing panel in the
- * unified row. Originally two separate things: the primary session's own
- * `directUrl`/`liveWebviewRef`/`liveWebContentsId`, and a list of
- * `ExtraWindow`s opened by a guest `<webview>`'s own new-window request.
+ * One browsing panel in the unified row. Every panel goes through the same overflow/collapse mechanism
+ * (`autoCollapseOldest`, `promoteToLive`) regardless of how it was opened. AdventurePanel.tsx renders every
+ * entry in this array, live or parked -- never filtered to only parked ones.
  *
- * front-page-link-windows-primary-panel-unification (owner decision,
- * 2026-09-14: full unification, not a thin compatibility shim) folds BOTH
- * into ONE array of `PanelWindow` -- the current session's own starting
- * page (a 'primary' kind, since cut, and the `kind` field with it) and
- * everything opened from a new-window request after it (human-clicked or
- * AI-clicked alike -- see electron/main.ts's setWindowOpenHandler, one code
- * path for both) -- so the SAME overflow/collapse/dead-end mechanism
- * (autoCollapseOldest, promoteToLive)
- * applies to every panel a session has open, the primary included. The
- * owner live-tested a 5-panel session and confirmed by eye that the primary
- * panel looked just as stale/collapsible as anything already in the
- * adventure card, but never got swept in before this.
- *
- * front-page-link-windows-primary-panel-unification's OWNER-ADDED live
- * decision (2026-09-14, folded in mid-implementation): the adventure card
- * no longer shows only PARKED panels -- AdventurePanel.tsx now renders
- * every entry in this array, live or not. A panel is EITHER shown live
- * in the row (`live: true`) or parked in the adventure card only
- * (`live: false`) -- never both -- and is never removed from this array
- * just for being parked; only `closePanel` (owner, 2026-09-20: a view
- * dragged down or trashed from History closes COMPLETELY) ever drops an
- * entry. There is no staging any more: no `checked`, no `autoSwept`.
+ * A panel is EITHER shown live in the row (`live: true`) or parked in the adventure card only
+ * (`live: false`) -- never both -- and is never removed from this array just for being parked; only
+ * `closePanel` (a drag-down close or a History-row trash) ever drops an entry.
  */
 /** The seeded History entry's id -- every array this model governs carries exactly one. */
 export const HISTORY_PANEL_ID = 'history';
@@ -51,11 +24,7 @@ export interface PanelWindow {
   sourceWebContentsId: number;
   /** Mounted live in the row right now. `false` means parked in the adventure card only -- still fully present in this array, just not rendered as a `<webview>`. */
   live: boolean;
-  /**
-   * ux-panels-draggable-close-with-lock-api (owner, 2026-09-22: "dragging down should close it unless the
-   * panel is locked"): whether DragToClose's drag-down gesture may close this panel at all. Every panel
-   * created here (appendPanel) is unlocked -- no behavior change for a live/spawned panel.
-   */
+  /** Whether DragToClose's drag-down gesture may close this panel at all. Every panel created by `appendPanel` is unlocked. */
   locked: boolean;
   /** Which component renders this entry -- read ONLY by the rendering wrapper (LivePanels.tsx); every overflow/collapse/close site reads `collapsible`/`listed`/`locked` instead, never this. */
   view: 'web' | 'history';
@@ -79,13 +48,11 @@ export function appendPanel(panels: PanelWindow[], info: { sourceWebContentsId: 
 }
 
 /**
- * "Auto collapse into adventure card" (owner setting, default on): park the
- * SINGLE OLDEST live, collapsible panel, by array order (this is space management, not a
- * close: the panel stays in the array). `null` when nothing eligible is live to park. `promoteToLive` below
- * reuses this exact same "oldest live, by array order" policy for its own
- * demotion, so there is one demotion rule in this file, not two that could
- * silently drift apart. Never picks a `collapsible: false` entry (History): an always-shown column is
- * exempt from every overflow/auto-collapse site, this one included.
+ * Parks the SINGLE OLDEST live, collapsible panel, by array order -- space management, not a close: the
+ * panel stays in the array. `null` when nothing eligible is live to park. `promoteToLive` below reuses this
+ * exact same "oldest live, by array order" policy for its own demotion, so there is one demotion rule in
+ * this file, not two that could silently drift apart. Never picks a `collapsible: false` entry (History):
+ * an always-shown column is exempt from every overflow/auto-collapse site, this one included.
  */
 export function autoCollapseOldest(panels: PanelWindow[]): PanelWindow[] | null {
   const oldest = panels.find((p) => p.collapsible && p.live);
@@ -94,33 +61,20 @@ export function autoCollapseOldest(panels: PanelWindow[]): PanelWindow[] | null 
 }
 
 /**
- * Clicking ANY adventure-card row (live or parked alike) activates it --
- * front-page-link-windows-primary-panel-unification's OWNER-ADDED
- * requirement (2026-09-14, folded in mid-implementation): the live row's
- * own rendering order must always follow the unified array's natural
- * order, so this NEVER moves the target panel's position (contrast the
- * pre-unification `reviveDeadEndEntry`, which re-appended a revived entry
- * at the row's newest/rightmost slot) -- it only ever flips `live` in
- * place, on the SAME array entry.
+ * Clicking ANY adventure-card row (live or parked alike) activates it. The live row's rendering order
+ * always follows the array's natural order, so this never moves the target panel's position -- it only
+ * flips `live` in place, on the same array entry.
  *
- * `null` for an unknown `id` -- nothing to do. Also `null` when the target
- * is ALREADY live: clicking an already-live row in the (now
- * everything-shows) adventure list is a legitimate no-op ("keep it live"),
- * not an error, but there is nothing for the caller to apply.
+ * `null` for an unknown `id` -- nothing to do. Also `null` when the target is ALREADY live: clicking an
+ * already-live row (every row, live or parked, is clickable) is a legitimate no-op, not an error.
  *
- * `wouldOverflow(liveCountAfter)` is the caller's own overflow prediction
- * (src/panel-layout.ts's predictWouldOverflow for 'screen-width' mode, or
- * adventureSettings.ts's countModeShouldCollapse for 'count' mode) --
- * `liveCountAfter` is how many panels would be live counting the one just
- * activated. When it returns true, this demotes exactly one OTHER live
- * panel back to parked: the OLDEST other live one, by array order -- the
- * SAME policy autoCollapseOldest already uses (this file's own documented
- * choice for the "which panel gets bumped" ambiguity the owner flagged when
- * specifying this requirement), keeping "exactly one window swaps for
- * another" true past the collapse threshold (this entry's own evidence
- * bullet). When it returns false, no demotion happens: there was room,
- * nothing needs to leave. Never demotes a `collapsible: false` entry (History):
- * a manual activation must not bump an always-shown column.
+ * `wouldOverflow(liveCountAfter)` is the caller's own overflow prediction (src/panel-layout.ts's
+ * `predictWouldOverflow` for 'screen-width' mode, or adventureSettings.ts's `countModeShouldCollapse` for
+ * 'count' mode) -- `liveCountAfter` is how many panels would be live counting the one just activated. When
+ * it returns true, this demotes exactly one OTHER live panel back to parked: the OLDEST other live one, by
+ * array order -- the SAME policy `autoCollapseOldest` uses, so there is one demotion rule, not two that
+ * could drift apart. When it returns false, no demotion happens. Never demotes a `collapsible: false` entry
+ * (History): a manual activation must not bump an always-shown column.
  */
 export function promoteToLive(
   panels: PanelWindow[],
@@ -141,11 +95,10 @@ export function promoteToLive(
 }
 
 /**
- * Closes one panel COMPLETELY (owner, 2026-09-20): it leaves the array, live or
- * parked, so it leaves the row and History together. Returns what a caller
- * needs to log it and to undo it -- the array without it, the panel itself and
- * the index it had -- or `null` for an unknown `id` (already closed, cleared):
- * nothing to do, not an error.
+ * Closes one panel COMPLETELY: it leaves the array, live or parked, so it leaves the row and History
+ * together. Returns what a caller needs to log it and to undo it -- the array without it, the panel itself
+ * and the index it had -- or `null` for an unknown `id` (already closed, cleared): nothing to do, not an
+ * error.
  */
 export function closePanel(panels: PanelWindow[], id: string): { remaining: PanelWindow[]; closed: PanelWindow; index: number } | null {
   const index = panels.findIndex((p) => p.id === id);
