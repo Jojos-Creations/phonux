@@ -1,8 +1,7 @@
 /**
  * The phonux barrel (client/src/shared/phone/index.ts): its runtime export surface. Types are erased by
  * TypeScript before this module ever runs, so Object.keys() on the imported namespace can only ever see
- * the 22 value exports -- a compile-time fixture covers the 20 type exports separately (see the plan
- * record for how that fixture is exercised; it is not checked in). The 22-name list here is spelled out
+ * the 22 value exports; the 20 type exports are not checked here. The 22-name list here is spelled out
  * literally, never derived from the module or from index.ts, so a name silently added, removed or renamed
  * on either side makes this test red.
  */
