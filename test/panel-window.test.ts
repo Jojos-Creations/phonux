@@ -23,12 +23,17 @@ test('appendPanel: appends a new LIVE extra panel carrying the source id and url
   ]);
 });
 
-test('createHistoryPanel: an always-shown, unlisted, locked, live entry -- never a plain web panel; raised/anchored/start, matching its own current position/layer/enter behavior', () => {
+test('createHistoryPanel: an always-shown, unlisted, locked, live entry -- never a plain web panel', () => {
   const history = createHistoryPanel();
   assert.deepEqual(
-    [history.id, history.view, history.collapsible, history.listed, history.locked, history.live, history.insertAt, history.layer, history.anchoredEnter],
-    [HISTORY_PANEL_ID, 'history', false, false, true, true, 'start', 'raised', true],
+    [history.id, history.view, history.collapsible, history.listed, history.locked, history.live],
+    [HISTORY_PANEL_ID, 'history', false, false, true, true],
   );
+});
+
+test('createHistoryPanel: start/raised/anchored -- matching its own current position/layer/enter behavior exactly', () => {
+  const history = createHistoryPanel();
+  assert.deepEqual([history.insertAt, history.layer, history.anchoredEnter], ['start', 'raised', true]);
 });
 
 test('appendPanel: view/params/listed/layer/anchoredEnter from create()\'s options land on the new entry; it is always unlocked regardless of options (create() has no locked key to set)', () => {
