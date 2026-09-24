@@ -12,7 +12,7 @@
 
 import { useEffect, useRef, type Dispatch, type RefObject, type SetStateAction } from 'react';
 import { bridge } from '../../shared/ipc/bridge.js';
-import type { MaxViewsSettings, PanelsAPI, PanelSummary } from '../../shared/phone/phoneViewApi.js';
+import type { MaxViewsSettings, PanelsAPI, PanelSummary } from 'phonux';
 import { GAP } from './LivePanelSlot.js';
 import { appendPanel, type PanelWindow } from './panelWindow.js';
 import { usePanelClosing } from './usePanelClosing.js';

@@ -1,16 +1,15 @@
 /**
- * Boundary scanner: the engine behind the phone-boundary tests
- * (HANDOFF-simplify-goalfrontpage.md, step 20; ported forward for Phase E from
- * the parked gfp-e-scan branch). It answers one question about a set of
- * source files: does any of them use something it must not?
+ * Boundary scanner: the engine behind the phone-boundary tests. It answers one
+ * question about a set of source files: does any of them use something it
+ * must not?
  *
  *   scanBoundary({ files, roots, rules, importRules, minFiles }) -> { scannedFiles, violations }
  *
- * The owner's principle is that our own views are written as if a third party
- * wrote them: they reach the app only through the public API surface, so they
- * may not touch the IPC bridge, `window.simplebrowser` or `localStorage`, and
- * the UX-system folder may not import the app. This file proves nothing about
- * any particular tree; test/phone-boundary.test.ts points it at the real one.
+ * Our own views are written as if a third party wrote them: they reach the
+ * app only through the public API surface, so they may not touch the IPC
+ * bridge, `window.simplebrowser` or `localStorage`, and the UX-system folder
+ * may not import the app. This file proves nothing about any particular tree;
+ * test/phone-boundary.test.ts points it at the real one.
  *
  * Four decisions are load-bearing, and each exists because a check that
  * silently does nothing reports the same green as a check that passed.
@@ -35,9 +34,9 @@
  *    view rule) matches the source with its comments blanked. 'text' matches
  *    the file exactly as written, comments included, which is what `grep`
  *    does. The host rules are 'text' because their acceptance check IS a grep
- *    (step 20: `grep 'bridge\|localStorage\|useEffect\|useRef'` over
- *    GoalFrontPage.tsx returns nothing): a test that stayed green on a file
- *    that grep fails would report a pass the acceptance check does not give.
+ *    (the host's own acceptance check: `grep 'bridge\|localStorage\|useEffect\|useRef'`
+ *    over GoalFrontPage.tsx returns nothing): a test that stayed green on a
+ *    file that grep fails would report a pass the acceptance check does not give.
  *    This is a DELIBERATE relaxation for the host too, same as the view
  *    rules and for the same reason (a check that goes red on prose tells us
  *    nothing about code) -- it is not an oversight, and it is the opposite of
@@ -98,11 +97,11 @@
  *    b()`); those need the name to reach the file, and importing the bridge
  *    module itself is caught by 'ipc/bridge', so the gap is a re-export of it
  *    under another module name plus deliberate obfuscation.
- *  - Ambient channels the step 20 spec does not name are not matched:
+ *  - Ambient channels the host acceptance spec does not name are not matched:
  *    `indexedDB`, `document.cookie`, `cookieStore`, `caches`,
  *    `navigator.storage`, and a bare `import 'electron'` (a bare specifier is a
  *    package, not a path into the app). Adding one is a one-line rule and a
- *    decision about the boundary, so it is the owner's.
+ *    decision about the boundary, so it needs an owner decision.
  *  - `import.meta.glob` (and `globEager`) IS matched as a rule ('import.meta.glob'
  *    below), any spacing or comments between the tokens, specifically because a
  *    glob pulls in a directory whose members text cannot list -- e.g.
@@ -115,9 +114,13 @@
  *    types, `export ... from`, `import x = require()` and `new URL(literal,
  *    import.meta.url)` (a non-literal first argument is refused as
  *    unverifiable, and a wrong-case path IS caught -- see the next bullet).
- *    They do not follow a bare specifier (this repo has no tsconfig `paths` or
- *    bundler alias, so one cannot reach into the app), a triple-slash
- *    `/// <reference path>` directive (a comment), `createRequire(...)` or
+ *    They also follow a BARE specifier that resolves into `node_modules`
+ *    (walked up from the importing file the way Node does, then realpathed):
+ *    a workspace symlink reaches the app exactly as a relative path would, so
+ *    it cannot stay unfollowed; one that resolves to nothing, or to an
+ *    ordinary package elsewhere in `node_modules`, is unaffected either way.
+ *    Not followed: a triple-slash `/// <reference path>` directive (a
+ *    comment), `createRequire(...)` or
  *    another name for `require`, `import.meta.resolve`, `new Worker('path')`
  *    (only the `new URL(..., import.meta.url)` form a Worker source is
  *    usually built from is checked), or assets referenced from CSS or HTML.
@@ -129,13 +132,13 @@
  *    files it is given and does not follow their imports, so a view that
  *    imports an app helper which itself calls the bridge stays green as long
  *    as only the view is listed (and test/phone-boundary.test.ts gives import
- *    rules to the UX-system folder only). DECIDED 2026-09-20: words only for
- *    now -- no import-graph/allowlist analysis. Revisit when the UX system is
- *    split into its own package (the follow-up project this decision defers
- *    to); nothing here builds toward that in the meantime.
- *  - The host rules are step 20's grep plus useLayoutEffect, matched as the
- *    grep matches: case-sensitive substrings (not words -- `bridgeHelper` and
- *    `getbridge` both match, proven in the self-tests), escapes not decoded.
+ *    rules to the UX-system folder only). Words only for now -- no
+ *    import-graph/allowlist analysis; revisit once the UX system splits into
+ *    its own package. Nothing here builds toward that in the meantime.
+ *  - The host rules are the acceptance grep's own tokens plus useLayoutEffect,
+ *    matched as the grep matches: case-sensitive substrings (not words --
+ *    `bridgeHelper` and `getbridge` both match, proven in the self-tests),
+ *    escapes not decoded.
  *    Refs and effects spelled any other way (`createRef`, a callback
  *    `ref={fn}`, `useImperativeHandle`, `useInsertionEffect`) are not matched,
  *    because the grep does not match them either. A different CASE is also not
@@ -147,7 +150,7 @@
  *    .mjs .cjs); .vue, .json, .css, .html and the like are never scanned.
  */
 
-import { lstatSync, readdirSync, readFileSync } from 'node:fs';
+import { lstatSync, readdirSync, readFileSync, realpathSync, statSync } from 'node:fs';
 import { dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 import ts from 'typescript';
 
@@ -358,14 +361,43 @@ function scanFile(file: string, spec: ScanSpec): Violation[] {
         out.push(at(site.pos, 'unverifiable-import'));
         continue;
       }
-      if (!site.specifier.startsWith('.') && !isAbsolute(site.specifier)) continue;
-      const target = resolve(dirname(file), site.specifier);
+      const target =
+        site.specifier.startsWith('.') || isAbsolute(site.specifier)
+          ? resolve(dirname(file), site.specifier)
+          : resolveBareSpecifier(dirname(file), site.specifier);
+      if (target === null) continue; // resolves to nothing, or to an ordinary package: not a path into the app
       for (const rule of importRules) {
         if (isInside(rule.forbiddenDir, target)) out.push(at(site.pos, rule.name));
       }
     }
   }
   return out;
+}
+
+/**
+ * Node's own resolution shape for a bare specifier, stopped at the package boundary rather than
+ * walked all the way to the file `exports` points at: a workspace symlink (or any other
+ * `node_modules` entry) is a path into a real directory the moment it exists, so isInside only needs
+ * that directory, not the subpath the specifier requests within it.
+ */
+function resolveBareSpecifier(fromDir: string, specifier: string): string | null {
+  const match = /^(@[^/]+\/[^/]+|[^@][^/]*)(?:\/.*)?$/.exec(specifier);
+  if (!match) return null;
+  const packageName = match[1]!;
+  let dir = fromDir;
+  for (;;) {
+    const candidate = join(dir, 'node_modules', packageName);
+    try {
+      // statSync (not the lstatSync-based isDirectory used elsewhere): a workspace package is normally
+      // ITSELF a symlink, so the existence check here must follow it rather than reject it.
+      if (statSync(candidate).isDirectory()) return realpathSync(candidate);
+    } catch {
+      // no node_modules/<packageName> here; keep walking up
+    }
+    const parent = dirname(dir);
+    if (parent === dir) return null;
+    dir = parent;
+  }
 }
 
 /** The same pattern with the global flag, so matchAll finds EVERY match (the to-do list is complete, header decision 4). */
@@ -582,7 +614,7 @@ const BRIDGE_CALL = /\bbridge\s*(?:\?\.\s*|!\s*)?(?:<[^()]*?>\s*)?\(|\bbridge\s*
 
 /**
  * What our own views and the UX-system folder must not contain. The first,
- * third and fourth are step 20's `ipc/bridge|window.simplebrowser|localStorage`
+ * third and fourth are the acceptance grep's own `ipc/bridge|window.simplebrowser|localStorage`
  * check; the rest close the obvious ways round it. Rule names are the tokens a
  * reader would grep for. All of them are 'code' rules: comments are exempt.
  *  - 'ipc/bridge'          any import of the bridge module (`import type` too).
@@ -608,10 +640,10 @@ export const PHONE_BOUNDARY_RULES: readonly TextRule[] = [
 ];
 
 /**
- * What the thin GoalFrontPage host must not contain: step 20's acceptance
- * check, `grep 'bridge\|localStorage\|useEffect\|useRef' GoalFrontPage.tsx`
- * returns nothing, plus `useLayoutEffect` because the plan says the host keeps
- * no ref or effect of its own. Literally that grep: scope 'text' (comments
+ * What the thin GoalFrontPage host must not contain: the host's own
+ * acceptance check, `grep 'bridge\|localStorage\|useEffect\|useRef' GoalFrontPage.tsx`
+ * returns nothing, plus `useLayoutEffect`, since the host keeps no ref or
+ * effect of its own. Literally that grep: scope 'text' (comments
  * count, like the grep -- this is intentional, the same "a check that goes red
  * on prose tells us nothing about code" relaxation the phone rules get, just
  * inverted: here the acceptance check itself reads comments, so agreeing with
