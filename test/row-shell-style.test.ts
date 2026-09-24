@@ -1,5 +1,5 @@
 /**
- * rowShellStyle (client/src/desktop/row/useRowShell.ts): the PURE half of the row shell, step 18. It turns the measured
+ * rowShellStyle (client/src/desktop/row/useRowShell.ts): the PURE half of the row shell. It turns the measured
  * widths and the settings into the three values the front page's markup reads. The mount tests
  * (goal-front-page-row-shell.test.ts, RS3-RS5, RS14) pin the same behaviour through the whole page in jsdom; these
  * pin the function itself with plain data, so a wrong input (a hard-coded phone width, a parked panel counted as live,
