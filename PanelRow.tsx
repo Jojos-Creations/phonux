@@ -44,7 +44,7 @@ import Box from '@mui/material/Box';
 import { resolvePanelView, usePhoneAPIs } from 'phonux';
 import { ANCHOR_PANEL_ID, resolveEnterDirection } from './anchorPanel.js';
 import { GAP, LivePanelSlot } from './LivePanelSlot.js';
-import type { PanelWindow } from './panelWindow.js';
+import { summarisePanel, type PanelWindow } from './panelWindow.js';
 
 /** A 'raised' slot sits above a 'base' one: auto-collapse's exit is LEFT and crosses a raised panel's footprint (History, today) on the way out, so this ordering is load-bearing for that path (a close's exit is DOWN and never reaches it). */
 const RAISED_LAYER_Z_INDEX = 2;
@@ -91,7 +91,9 @@ export function LivePanels({
               exitDirection={closingIds.has(p.id) ? 'down' : 'left'}
               zIndex={(p.layer ?? 'base') === 'raised' ? RAISED_LAYER_Z_INDEX : BASE_LAYER_Z_INDEX}
             >
-              <Component panel={p} />
+              {/* Narrowed through the SAME projection PanelsAPI itself uses: a resolved component -- built-in or
+                  third-party -- is written against PanelSummary only, never the internal PanelWindow record. */}
+              <Component panel={summarisePanel(p)} />
             </LivePanelSlot>
           );
         })}

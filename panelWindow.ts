@@ -2,7 +2,7 @@
  * The `PanelWindow` model -- one browsing panel in the unified row -- and every pure state-transition
  * function that operates on a `PanelWindow[]` array.
  */
-import type { JsonValue } from 'phonux';
+import type { JsonValue, PanelSummary } from 'phonux';
 
 /**
  * One browsing panel in the unified row. Every panel goes through the same overflow/collapse mechanism
@@ -33,7 +33,7 @@ export interface PanelWindow {
   collapsible: boolean;
   /** Appears in the public `panelList` (History's own row list, and PanelsAPI). */
   listed: boolean;
-  /** Opaque per-panel data a create() caller supplied (PanelsAPI.create's `params`); undefined for built-ins. Threaded to PanelSummary.params by useProvidePanels.ts's summarise(); no behavior site here reads it. */
+  /** Opaque per-panel data a create() caller supplied (PanelsAPI.create's `params`); undefined for built-ins. Threaded to PanelSummary.params by this file's own summarisePanel(); no behavior site here reads it. */
   params?: JsonValue;
   /** Where a NEW entry lands in the array -- read ONLY by insertPanelAt, at the moment this entry is inserted, never again afterward. 'start' = right after the last non-collapsible entry (e.g. History), never before one. Default 'end'. */
   insertAt?: 'start' | 'end';
@@ -42,6 +42,9 @@ export interface PanelWindow {
   /** Whether this entry's reappearance always resolves through the anchor formula (resolveEnterDirection) instead of unconditionally entering from the right -- read ONLY by LivePanels.tsx's enterDirection. Default false. */
   anchoredEnter?: boolean;
 }
+
+/** The one PanelWindow -> PanelSummary projection: every site that hands a panel to a VIEW (LivePanels.tsx's resolved component, useProvidePanels.ts's panelList/recentlyClosed) narrows through this SAME function, so a third-party or built-in view can never see a desktop-only field (webContentsId, collapsible, insertAt, layer, anchoredEnter, ...). */
+export const summarisePanel = ({ id, url, title, live, locked, params }: PanelWindow): PanelSummary => ({ id, url, title, live, locked, params });
 
 /** History's own seeded entry: never collapsible (an always-shown column), never listed (it must not list itself), always live, locked by default (usePanelClosing.ts's lock gate); raised/anchored so its slot and reappearance behave the way they always have. */
 export function createHistoryPanel(): PanelWindow {
