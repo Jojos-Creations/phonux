@@ -7,7 +7,7 @@
  * `<PhoneAPIsProvider>`; a test mounts the same provider with the fakes from
  * `phoneApisFake.ts`.
  *
- * This file, and the rest of shared/phone, imports only react, MUI, motion and itself.
+ * This file, and the rest of shared/phone, imports only react, MUI, motion and itself (see DESIGN.md).
  *
  * The provider value is REBUILT EVERY RENDER on purpose (see PhoneAPIsProvider).
  */
@@ -69,7 +69,7 @@ export interface PanelSummary {
   readonly title?: string;
   /** Mounted in the row now (false = parked, listed in History only). */
   readonly live: boolean;
-  /** ux-panels-draggable-close-with-lock-api: whether a drag-down close is offered for this panel. A live/spawned panel is always false (no behavior change). */
+  /** Whether a drag-down close is offered for this panel. A live/spawned panel is always false. */
   readonly locked: boolean;
 }
 
