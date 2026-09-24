@@ -57,21 +57,17 @@ export function usePanelClosing(
   /**
    * ux-reveal-most-recently-collapsed-panel: called once per successful close, with the id that just left
    * `panels` and the array immediately after (`closePanel`'s own `remaining` -- computed synchronously
-   * above, from THIS render's `panels`, same as everything else in `close()`). Optional: useFixedPanels.ts's
-   * own instance of this hook has no collapse/reveal concept at all (its own header comment -- "no
-   * overflow/collapse concept applies to a fixed column") and simply never passes one, so this stays a
-   * no-op for Settings/History; only useProvidePanels.ts (the live/spawned `panelList` array) wires it to
-   * usePanelManager's `forgetCollapsed`/`revealMostRecentlyCollapsed`.
+   * above, from THIS render's `panels`, same as everything else in `close()`). Optional (a close of a
+   * `collapsible: false` entry, i.e. History, has nothing to forget or reveal); useProvidePanels.ts, the
+   * one caller, wires it to usePanelManager's `forgetCollapsed`/`revealMostRecentlyCollapsed`.
    */
   onAfterClose?: (id: string, remaining: PanelWindow[]) => void,
   /**
    * ux-reveal-direction-and-fixed-column-animation: called once per panel `undoClose` restores through the
    * "comes back LIVE" branch below (the same branch that calls `revealPanelProactively`) -- this, and
    * usePanelManager.ts's own `revealMostRecentlyCollapsed`, are the two "reappearance" paths the owner asked
-   * to enter from the anchor panel's side. Optional, same convention as `onAfterClose`: useFixedPanels.ts's
-   * own instance passes neither (its own restores always resolve to 'right' via the anchor formula compared
-   * against itself -- see FixedColumns.tsx's own header comment) -- only useProvidePanels.ts (the live/spawned
-   * `panelList` array) wires this to usePanelManager's `markEnteringViaAnchor`.
+   * to enter from the anchor panel's side. Optional, same convention as `onAfterClose`; useProvidePanels.ts,
+   * the one caller, wires this to usePanelManager's `markEnteringViaAnchor`.
    */
   onRestoreLive?: (id: string) => void,
 ): UsePanelClosingResult {
@@ -96,7 +92,7 @@ export function usePanelClosing(
   const close = (id: string) => {
     const found = closePanel(panels, id);
     // History defaults locked (no unlock control exists yet): a locked entry's close is a no-op, the one
-    // list's own lock gate -- formerly useFixedPanels.ts's own check before delegating to this same hook.
+    // list's own lock gate -- every entry (History included) goes through this same close().
     if (!found || claimed.current.has(id) || found.closed.locked) return;
     claimed.current.add(id);
     // Commits ALONE, before the removal below: AnimatePresence takes an exiting

@@ -96,9 +96,9 @@ export function usePanelManager(
    * imperative handlers -- `handleActivatePanel`, and `revealMostRecentlyCollapsed` called from
    * usePanelClosing's `close()`), so there is no reason to pay for a re-render on every push/pop the way a
    * `PanelWindow[]`-sized state array would. Kept alongside `panels` rather than as a new field on every
-   * `PanelWindow` (the plan record's own recommendation): items 8/9's `PanelWindow` is already shared with
-   * useFixedPanels.ts's separate fixed-column array, and a collapse-order concern that only ever applies to
-   * `panelList` has no business living on a type two different arrays share.
+   * `PanelWindow` (the plan record's own recommendation): this is a transient ordering concern for THIS
+   * hook's own reveal logic, never read by `collapsible`/`listed`/`locked`'s own behavior sites, so it has
+   * no business on the record itself.
    *
    * Scope (plan record's own proposed default, followed here): pushed ONLY from the two existing
    * auto-collapse paths below (`collapseOldestIds` inside `revealPanelProactively`, and `autoCollapseOldest`

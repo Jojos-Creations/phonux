@@ -42,14 +42,11 @@ export const PANEL_TRANSITION = SLOT_TRANSITION;
  * it ever grows to cover `transform` or `opacity` with `!important`, it kills
  * both of Motion's paths at once, silently.
  *
- * ux-reveal-direction-and-fixed-column-animation: generalized to serve a second
- * caller, FixedColumns.tsx (the row's fixed columns -- History today), not just
- * LivePanels.tsx's live webview panels -- both are "one item, absolutely
- * positioned at `index * (phoneWidth + GAP)` inside a reserved-width Box,"
- * differing only in WHICH array they come from and WHY they enter/exit. `index`
- * is always relative to the caller's OWN Box, never a whole-row offset (each
- * caller reserves its own width the same way LivePanels.tsx's Box does), so
- * this component itself never needs to know about the other caller's items.
+ * ux-reveal-direction-and-fixed-column-animation, panel-metadata-driven-model: one caller, LivePanels.tsx,
+ * uses this for every PRESENT entry of the one panel list -- History and every live web panel alike, each
+ * "one item, absolutely positioned at `index * (phoneWidth + GAP)`" inside that caller's one reserved-width
+ * Box. `index` is the entry's own position in that list, so this component itself never needs to know
+ * which kind of entry it is rendering.
  *
  * `enterDirection` (new, mirroring `exitDirection` below) is computed by the
  * CALLER from the anchor-panel formula (anchorPanel.ts's `resolveEnterDirection`)
@@ -62,8 +59,8 @@ export const PANEL_TRANSITION = SLOT_TRANSITION;
  * to parked (usePanelManager.ts's collapseOldestIds/autoCollapseOldest -- the
  * row overflowed, nothing was closed) must stay doing what it always did,
  * `x: -slot` behind the adventure card, so the two remain visually distinct.
- * `exitDirection` (LivePanels.tsx/FixedColumns.tsx each compute it from their
- * OWN usePanelClosing instance's `closingIds`) picks between them:
+ * `exitDirection` (LivePanels.tsx computes it from the one usePanelClosing instance's `closingIds`) picks
+ * between them:
  *   - 'down': timed/eased to DragToClose's own downward exit
  *     (`DRAG_CLOSE.exitSeconds`/`easeIn`, dragToClose.tsx) via a per-variant
  *     `transition` override, so trash and drag closes read as one motion.
