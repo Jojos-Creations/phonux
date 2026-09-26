@@ -1,8 +1,8 @@
 /**
  * front-page-unify-panel-header-visual-style (plans/queue.yaml): unit
- * coverage for PhoneFrameHeaderRow's placeholder behavior -- the owner's own
+ * coverage for PanelHeaderRow's placeholder behavior -- the owner's own
  * explicit follow-up ("if the view has no title or icon put placeholders")
- * on top of the earlier layout-only PhoneFrameHeaderRow.
+ * on top of the earlier layout-only PanelHeaderRow.
  *
  * Written with createElement rather than JSX so the file is a .ts and is
  * picked up by the existing `test/*.test.ts` runner without changing it
@@ -23,16 +23,16 @@ import assert from 'node:assert/strict';
 import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { JSDOM } from 'jsdom';
-import { PhoneFrameHeaderRow } from '../client/src/shared/phone/PhoneFrame.js';
+import { PanelHeaderRow } from '../client/src/shared/phone/PhoneFrame.js';
 
 function renderDom(el: ReturnType<typeof createElement>): Document {
   const markup = renderToStaticMarkup(el);
   return new JSDOM(`<body>${markup}</body>`).window.document;
 }
 
-test('PhoneFrameHeaderRow: a real title and real actions render as-is, no placeholders', () => {
+test('PanelHeaderRow: a real title and real actions render as-is, no placeholders', () => {
   const doc = renderDom(
-    createElement(PhoneFrameHeaderRow, {
+    createElement(PanelHeaderRow, {
       title: 'Sessions',
       actions: createElement('button', { key: 'a' }, 'Settings'),
     }),
@@ -45,9 +45,9 @@ test('PhoneFrameHeaderRow: a real title and real actions render as-is, no placeh
 });
 
 for (const emptyTitle of [undefined, null, false, '']) {
-  test(`PhoneFrameHeaderRow: a falsy title (${JSON.stringify(emptyTitle)}) still renders the full pill with a placeholder title`, () => {
+  test(`PanelHeaderRow: a falsy title (${JSON.stringify(emptyTitle)}) still renders the full pill with a placeholder title`, () => {
     const doc = renderDom(
-      createElement(PhoneFrameHeaderRow, {
+      createElement(PanelHeaderRow, {
         title: emptyTitle as never,
         actions: createElement('button', {}, 'Settings'),
       }),
@@ -63,9 +63,9 @@ for (const emptyTitle of [undefined, null, false, '']) {
 }
 
 for (const emptyActions of [undefined, null, false]) {
-  test(`PhoneFrameHeaderRow: falsy actions (${JSON.stringify(emptyActions)}) still render the full pill with a placeholder icon slot`, () => {
+  test(`PanelHeaderRow: falsy actions (${JSON.stringify(emptyActions)}) still render the full pill with a placeholder icon slot`, () => {
     const doc = renderDom(
-      createElement(PhoneFrameHeaderRow, {
+      createElement(PanelHeaderRow, {
         title: 'Extra window',
         actions: emptyActions as never,
       }),
@@ -82,18 +82,18 @@ for (const emptyActions of [undefined, null, false]) {
   });
 }
 
-test('PhoneFrameHeaderRow: both a falsy title and falsy actions render both placeholders at once', () => {
-  const doc = renderDom(createElement(PhoneFrameHeaderRow, { title: undefined as never, actions: undefined }));
+test('PanelHeaderRow: both a falsy title and falsy actions render both placeholders at once', () => {
+  const doc = renderDom(createElement(PanelHeaderRow, { title: undefined as never, actions: undefined }));
 
   assert.ok(doc.querySelector('[data-header-placeholder-title]'));
   assert.ok(doc.querySelector('[data-header-placeholder-action]'));
 });
 
-test('PhoneFrameHeaderRow: the actions slot always renders a container even with no actions, so the pill never loses its right-hand slot', () => {
+test('PanelHeaderRow: the actions slot always renders a container even with no actions, so the pill never loses its right-hand slot', () => {
   // Before this entry, `actions ? <Box>...</Box> : null` meant a caller with
   // no actions rendered NO right-hand box at all. Now the slot is always
   // present (holding either real actions or the placeholder), which is what
   // keeps the pill's shape/height identical regardless of a caller's props.
-  const doc = renderDom(createElement(PhoneFrameHeaderRow, { title: 'x', actions: false }));
+  const doc = renderDom(createElement(PanelHeaderRow, { title: 'x', actions: false }));
   assert.ok(doc.querySelector('[data-header-placeholder-action]'));
 });
