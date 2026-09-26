@@ -50,6 +50,17 @@ placing a new entry into the array, `layer` by the row's per-slot zIndex, `ancho
 enter-direction choice. A custom panel can opt into any of History's three behaviors without becoming
 History-shaped in any other way -- `listed`, `collapsible` and `locked` stay independent of all three.
 
+### `permanent` is the one door to a collapsible:false column
+
+`CreatePanelOptions.permanent` (`AppendPanelOptions.permanent` underneath it) is the only way a spawned panel
+can become a permanent column -- there is no raw `collapsible` or public `locked` key. Setting it forces
+`listed:false` regardless of any `listed` the caller also passes: the framework's History-row trash
+(suppressed by `listed:false`, History's own precedent) must never be the close affordance for a column whose
+own component owns its own close control. It adds no fourth field alongside `insertAt`/`layer`/`anchoredEnter`
+above -- those three already work on any entry, collapsible or not, unchanged. A permanent column is exempt
+from every row gesture, capacity park and reorder for free, by already being `collapsible:false`, the same
+way History already is -- see `PanelsAPI.move`'s own section below for the reorder half of that exemption.
+
 ## `PanelsAPI.move` is directional (move-by-one), not "move to index"
 
 `move(id, 'left' | 'right')` swaps `id` past whichever OTHER shown panel currently sits toward that side,
