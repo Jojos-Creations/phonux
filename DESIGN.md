@@ -252,20 +252,32 @@ parked entry) and revived. The store is a plain `Map<panelId, Map<key, cell>>` o
 `windowOverlay.tsx`'s `OverlayStore` shape (a private `Map` plus per-cell subscribers via
 `useSyncExternalStore`), mounted once by `HostProvider` as `ViewStateProvider`, alongside `OverlayProvider`,
 the same way `HostProvider` already mounts a second context for a concern that is not part of the public host
-bag. Close then `undoClose` inside the undo window needs no special-case code: both keep the SAME panel id
-(`panelWindow.ts`'s close/restore, `usePanelClosing.ts`'s `undoClose`), so the store's Map already has the
-right cell waiting when the view remounts. It does not survive an app restart: a pure in-memory store, no
-desktop bridge, no local storage. Surviving a park is the whole contract; surviving a restart is not part of it.
+bag. Close then `undoClose` inside the undo window keeps the value too: both keep the SAME panel id
+(`panelWindow.ts`'s close/restore, `usePanelClosing.ts`'s `undoClose`), and the id stays in
+`PanelsAPI.recentlyClosed` until then, so its cells are still held when the view remounts. It does not
+survive an app restart: a pure in-memory store, no desktop bridge, no local storage. Surviving a park is the
+whole contract; surviving a restart is not part of it.
+
+A panel's state is released once nothing can show that panel again, as `OverlayStore.remove` releases an
+overlay. Panel ids never repeat within a session, so that is when the id is in neither the row's own list nor
+`PanelsAPI.recentlyClosed`: when its undo window elapses, or at once on `clearAll`. Without this, every panel
+closed during a long-running session would keep its state until the app quits. The host's row reports the ids
+it can still show by calling `useViewState.useRetainOnly(ids)` on every render. The release runs one task
+after that render's commit, and any newer commit cancels it. That delay is load-bearing: when restoring a
+live panel parks another one to its right, `undoClose` commits once with `recentlyClosed` already cleared
+and the restored id not yet back in the row. A view still mounted when its panel is released, such as one
+mid exit animation after `clearAll`, keeps showing its value, and its cells go when it unmounts. Nothing is
+stored for a key until its first `setValue`, so until then each mount reads its own `initial`.
 
 `useViewState(key, initial)` takes no id argument at all: a view never wires its own identity. The id is
 ambient, read from a context set exactly once, at the ONE place a resolved View is actually rendered
 (`LivePanels.tsx`'s `<Component panel={summarisePanel(p)} />`) -- never by the view itself. That setter is
 exposed as `useViewState.Provider`, a property of the hook function, rather than a second value on the phonux
-barrel: the barrel's public surface stays the two names a view genuinely depends on (`useViewState`,
-`ViewStateMissingProviderError`); the ambient id is host-render-loop wiring a view never touches directly, and
-a bare `'phonux'` import is the only way `LivePanels.tsx` (desktop-side) may reach into this folder at all
-(see the phone-boundary suite), so the setter still has to travel through the SAME public entry point
-`useViewState` already does, not a separate one.
+barrel, and `useViewState.useRetainOnly` travels the same way: the barrel's public surface stays the two names
+a view genuinely depends on (`useViewState`, `ViewStateMissingProviderError`); the ambient id and the release
+are host-render-loop wiring a view never touches directly, and a bare `'phonux'` import is the only way
+`LivePanels.tsx` (desktop-side) may reach into this folder at all (see the phone-boundary suite), so both
+still have to travel through the SAME public entry point `useViewState` already does, not a separate one.
 
 Types read exactly as `React.useState`'s do. With no type argument, `useViewState('count', 0)` infers
 `number`, an object literal's `true` infers `boolean`, and a value already typed `'idle' | 'loading'` keeps that
