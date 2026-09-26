@@ -82,7 +82,7 @@ test('panelSlotMotion: exit "down" is EXACTLY the pre-refactor formula (x stays 
   }
 });
 
-test('panelSlotMotion: exit "right" is `rest + slot` (relative to rest, unlike the absolute -slot "left" target), for either enter direction -- the ux-row-scroll-by-hiding far-side park', () => {
+test('panelSlotMotion: exit "right" is `rest + slot` (relative to rest, unlike the absolute -slot "left" target), for either enter direction -- the far-side park', () => {
   for (const index of [0, 1, 2]) {
     for (const enterDirection of ['left', 'right'] as const) {
       const m = panelSlotMotion(index, PHONE_WIDTH, PHONE_HEIGHT, enterDirection, 'right');

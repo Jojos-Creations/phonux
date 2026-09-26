@@ -1,8 +1,6 @@
 /**
  * `effectiveMaxPanels` (adventureSettings.ts): the pure capacity decision usePanelManager.ts and
- * useProvideSettings.ts both derive their own live cap from. Replaces this file's old
- * collapse-count-for-a-new-panel dispatch over two settings modes -- that dispatch is retired along with the
- * window-growth model (ux-row-scroll-by-hiding); the row now has one hard capacity, never a mode.
+ * useProvideSettings.ts both derive their own live cap from -- one hard capacity, never a mode.
  */
 import test from 'node:test';
 import assert from 'node:assert/strict';
