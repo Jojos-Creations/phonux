@@ -66,6 +66,7 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
     markEnteringViaAnchor,
     clearEnterSide,
     scrollRow,
+    reorderPanel,
     enterSideById,
     exitRightIds,
   } = usePanelManager(i.panels, i.setPanels, i.storedMaxPanels, i.phoneWidth, i.containerWidth, i.fixedViewCount);
@@ -111,6 +112,7 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
       );
     },
     activate: handleActivatePanel,
+    move: reorderPanel,
     close: closing.close,
     recentlyClosed: closing.recentlyClosed?.map(summarisePanel) ?? null,
     undoClose: closing.undoClose,

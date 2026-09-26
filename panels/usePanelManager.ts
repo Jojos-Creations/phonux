@@ -24,6 +24,7 @@ import {
   lastParkedBefore,
   leftmostLiveIndex,
   farthestLiveCollapsibleId,
+  movePanel,
   promoteToLive,
   rightmostLiveIndex,
   sideOfLiveRange,
@@ -73,6 +74,13 @@ export interface UsePanelManagerResult {
    * mirror. One step per call. With nothing parked on that side, does nothing (no `setPanels` at all).
    */
   scrollRow: (direction: 'left' | 'right') => void;
+  /**
+   * Moves `id` one row-slot toward `direction` -- PanelsAPI's own public `move` (Phase 4 of the plan record):
+   * the drag-to-reorder gesture's underlying primitive, exposed for reuse (a future keyboard/single-pointer
+   * alternative, ux-pin-panel-real-move placing a panel left of History). See `movePanel` (panelWindow.ts)
+   * for the full no-op contract.
+   */
+  reorderPanel: (id: string, direction: 'left' | 'right') => void;
   /**
    * Explicit enter sides set by `scrollRow` and the capacity-rise reconcile -- LivePanels.tsx's own
    * `enterSideById` prop. Wins over `enteringViaAnchorIds`/`anchoredEnter`: those two describe "enters via
@@ -282,6 +290,11 @@ export function usePanelManager(
     }
   };
 
+  /** See `UsePanelManagerResult.reorderPanel`'s own doc comment. */
+  const reorderPanel = (id: string, direction: 'left' | 'right'): void => {
+    setPanels((prev) => movePanel(prev, id, direction));
+  };
+
   /**
    * Reconciles the live count against `capacity` whenever either changes (a resize, a phone-size change, or
    * the setting itself) -- an effect, not something a render can decide, since it must act on a measurement
@@ -365,6 +378,7 @@ export function usePanelManager(
     markEnteringViaAnchor,
     clearEnterSide,
     scrollRow,
+    reorderPanel,
     enterSideById: enterSideRef.current,
     exitRightIds,
   };
