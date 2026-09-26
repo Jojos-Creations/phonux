@@ -128,9 +128,39 @@ A `WorkspaceGrid` holds many `Workspace`s, a `Workspace` holds one or more `Pane
 developer writes and registers. This folder owns the `Panel` shell and the `View` registry, the two levels a
 View author actually touches, plus the host contract that connects them.
 
-`Workspace` and `PanelRow` stay host code for now. Both sit inside a row whose own shape is still being
-reworked; moving either into this package before that settles would mean designing a public API for it
-twice.
+`Workspace` and `PanelRow` are still host code today. This section names the split a later entry moves code
+against, so extraction is a rename-and-relocate pass, not a fresh design.
+
+**What phonux will own once extracted.** `PanelRow` renders N animated slots from a plain entries array --
+today's `client/src/desktop/panels/LivePanels.tsx` (the composition) and `LivePanelSlot.tsx` (one slot's
+motion), both already written against this folder's own animation primitives. `Workspace` is the shell around
+it: the scroll container, the centered/animated-margin math `client/src/desktop/row/useRowShell.ts` computes
+today, and the `OverlaySlot` mounts. Neither consumes `PanelSummary`: the row needs fields that decide
+overflow and motion (id, view, collapsible, layer, anchoredEnter, its row) that a View must never see, so
+extraction adds a new, row-only entry type rather than reusing the View-facing one.
+
+**What stays host.** The Electron drag-strip chrome (the draggable title-bar region and macOS traffic-light
+clearance) and every other window-chrome concern; the IPC calls a panel's own actions make; and mounting the
+real `<webview>` inside a resolved View. None of that is row layout, and none of it can move here without
+this folder depending on Electron.
+
+**The second row is one field, not a second shape.** An entry's `row: number` (default 0) groups the flat
+panel array into one `PanelRow` per group, instead of restructuring the array into rows-as-list-of-lists. A
+second row appears once the fit count -- the same pure function of container width and panel widths a single
+row already uses -- says more panels fit than one row should hold; there is no fixed pixel threshold for when
+a second row starts. One field keeps every function that already operates on the flat array (append, close,
+restore, promote) working unchanged, filtered by row, instead of duplicated per row.
+
+**Workspace state, in memory first.** A Workspace's open panels, their order and their row assignment stay in
+the same plain, unsaved `useState` the app's panel list already lives in -- no file, no load, no save.
+Persisting workspace state is not built yet: the shape, the file and the rehydrate timing are each their own
+later, separate design, and folding persistence into the extraction would tie decisions that do not have to
+move together.
+
+**Files the eventual extraction touches.** `client/src/desktop/panels/LivePanels.tsx`, `LivePanelSlot.tsx`,
+`client/src/desktop/row/useRowShell.ts` and `src/panel-layout.ts`'s row-layout math move into this folder;
+`test/phone-boundary.test.ts`'s `APP_SIDE` map loses their entries and its `MIN_PHONE_FILES` count goes up.
+Naming them here lets a later entry's own touches be checked against this list instead of re-deriving it.
 
 ## Naming rules R1-R4
 
