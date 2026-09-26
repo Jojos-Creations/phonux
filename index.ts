@@ -4,9 +4,9 @@
 
 export {
   DEFAULT_PHONE_SIZE,
-  PhoneAPIsMissingProviderError,
-  PhoneAPIsProvider,
-  usePhoneAPIs,
+  HostMissingProviderError,
+  HostProvider,
+  useHost,
 } from './phoneViewApi.js';
 export type {
   MaxViewsMode,
@@ -20,15 +20,25 @@ export type {
   SettingsAPI,
   HistoryAPI,
   PanelsAPI,
-  DeviceAPI,
-  PhoneAPIs,
+  PhoneDeviceAPI,
+  Host,
 } from './phoneViewApi.js';
+// Deprecated aliases (design-ux-system-split R4): same value, kept until the owner removes them.
+export {
+  PhoneAPIsMissingProviderError,
+  PhoneAPIsProvider,
+  usePhoneAPIs,
+} from './phoneViewApi.js';
+export type { DeviceAPI, PhoneAPIs } from './phoneViewApi.js';
 
+export { registerView, resolveView } from './panelRegistry.js';
+export type { ViewComponent, ViewProps } from './panelRegistry.js';
+/** @deprecated use registerView/resolveView/ViewComponent */
 export { registerPanelView, resolvePanelView } from './panelRegistry.js';
 export type { PanelComponent } from './panelRegistry.js';
 
 export {
-  PhoneView,
+  Panel,
   DRAG_CLOSE,
   DragToClose,
   shouldCloseOnRelease,
@@ -37,12 +47,30 @@ export {
   OVERLAY_Z,
 } from './PhoneView.js';
 export type {
-  PhoneViewProps,
+  PanelProps,
   DragHandleProps,
   OverlaySlotName,
   WindowOverlayProps,
 } from './PhoneView.js';
+/** @deprecated use Panel/PanelProps */
+export { PhoneView } from './PhoneView.js';
+export type { PhoneViewProps } from './PhoneView.js';
 
+export { default as PanelFrame } from './PhoneFrame.js';
+export {
+  PANEL_CORNER_RADIUS_UNITS,
+  panelCornerRadiusPx,
+  panelFrameScrollSx,
+  panelFrameBareSx,
+  PanelHeader,
+  PanelHeaderRow,
+} from './PhoneFrame.js';
+export type {
+  PanelFrameProps,
+  PanelHeaderProps,
+  PanelHeaderRowProps,
+} from './PhoneFrame.js';
+/** @deprecated use PanelFrame/PanelHeader/PanelHeaderRow (+ their PANEL_*/panel* siblings above) */
 export { default as PhoneFrame } from './PhoneFrame.js';
 export {
   PHONE_CORNER_RADIUS_UNITS,
