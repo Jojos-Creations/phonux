@@ -46,6 +46,10 @@ export const PHONE_CORNER_RADIUS_UNITS = PANEL_CORNER_RADIUS_UNITS;
 export const panelCornerRadiusPx = (theme: Theme): number => PANEL_CORNER_RADIUS_UNITS * Number(theme.shape.borderRadius);
 /** @deprecated use panelCornerRadiusPx */
 export const phoneCornerRadiusPx = panelCornerRadiusPx;
+/** The header pill's gap above the frame, in px -- also the grab bar's own height (Panel, PhoneView.tsx),
+ * since the grab bar fills that whole strip. One constant so the two can't drift apart, and sized to WCAG
+ * 2.5.8's 24px minimum pointer-target height even though the drawn pill inside it is thinner. */
+export const PANEL_HEADER_GAP_PX = 24;
 
 /**
  * Everything a scrolling box inside a phone needs so its content is inset
@@ -233,7 +237,7 @@ export function PanelHeader({ children, sx, ...rest }: PanelHeaderProps) {
       {...rest}
       sx={{
         position: 'absolute',
-        bottom: 'calc(100% + 4px)',
+        bottom: `calc(100% + ${PANEL_HEADER_GAP_PX}px)`,
         left: 0,
         right: 0,
         height: (theme: Theme) => 2 * panelCornerRadiusPx(theme),
