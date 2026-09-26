@@ -1,7 +1,7 @@
 /**
  * The phonux barrel (client/src/shared/phone/index.ts): its runtime export surface. Types are erased by
  * TypeScript before this module ever runs, so Object.keys() on the imported namespace can only ever see
- * the 41 value exports (24 old names, kept as @deprecated same-value aliases, 16 new ones, plus the
+ * the 43 value exports (24 old names, kept as @deprecated same-value aliases, 18 new ones, plus the
  * opt-in createDefaultTheme); the type exports are not checked here. The list here is spelled out
  * literally, never derived from the module or from index.ts, so a name silently added, removed or
  * renamed on either side makes this test red.
@@ -54,10 +54,12 @@ const VALUE_EXPORTS = [
   'useViewSnapshot',
   'CaptureRegistryContext',
   'CaptureRegistryProvider',
+  'useViewState',
+  'ViewStateMissingProviderError',
   // Opt-in extras (never applied implicitly).
   'createDefaultTheme',
 ].sort();
 
-test('the phonux barrel exports exactly the 41 runtime values, no more, no fewer', () => {
+test('the phonux barrel exports exactly the 43 runtime values, no more, no fewer', () => {
   assert.deepEqual(Object.keys(phonux).sort(), VALUE_EXPORTS);
 });

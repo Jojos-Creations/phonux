@@ -231,3 +231,26 @@ only it renders `<CaptureRegistryProvider registry={realRegistry}>`, wrapping `<
 never gains a `snapshot` field for the same reason `PanelWindow`'s desktop-only fields never leak into it
 (see "A resolved panel component only ever sees a `PanelSummary`" above): a picture is read on demand through
 `useViewSnapshot`, not pushed into every row's own summary object.
+
+## `useViewState`: per-view state that outlives a park, not a restart
+
+`viewState.ts` gives a view a `[value, setValue]` pair -- the same tuple shape `React.useState` returns --
+that survives its OWN panel being parked (`live: false`; `LivePanels.tsx`'s `present` filter fully unmounts a
+parked entry) and revived. The store is a plain `Map<panelId, Map<key, cell>>` outside React state, copying
+`windowOverlay.tsx`'s `OverlayStore` shape (a private `Map` plus per-cell subscribers via
+`useSyncExternalStore`), mounted once by `HostProvider` as `ViewStateProvider`, alongside `OverlayProvider`,
+the same way `HostProvider` already mounts a second context for a concern that is not part of the public host
+bag. Close then `undoClose` inside the undo window needs no special-case code: both keep the SAME panel id
+(`panelWindow.ts`'s close/restore, `usePanelClosing.ts`'s `undoClose`), so the store's Map already has the
+right cell waiting when the view remounts. It does not survive an app restart: a pure in-memory store, no
+desktop bridge, no local storage -- the owner's "survives parking" request, not "survives a restart".
+
+`useViewState(key, initial)` takes no id argument at all: a view never wires its own identity. The id is
+ambient, read from a context set exactly once, at the ONE place a resolved View is actually rendered
+(`LivePanels.tsx`'s `<Component panel={summarisePanel(p)} />`) -- never by the view itself. That setter is
+exposed as `useViewState.Provider`, a property of the hook function, rather than a second value on the phonux
+barrel: the barrel's public surface stays the two names a view genuinely depends on (`useViewState`,
+`ViewStateMissingProviderError`); the ambient id is host-render-loop wiring a view never touches directly, and
+a bare `'phonux'` import is the only way `LivePanels.tsx` (desktop-side) may reach into this folder at all
+(see the phone-boundary suite), so the setter still has to travel through the SAME public entry point
+`useViewState` already does, not a separate one.
