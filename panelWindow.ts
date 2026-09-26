@@ -5,9 +5,9 @@
 import type { JsonValue, PanelSummary } from 'phonux';
 
 /**
- * One browsing panel in the unified row. Every panel goes through the same capacity mechanism
- * (`parkFarthestLive`, `promoteToLive`) regardless of how it was opened. AdventurePanel.tsx renders every
- * entry in this array, live or parked -- never filtered to only parked ones.
+ * One browsing panel in the unified row. Every panel is parked and revived by the same capacity rules
+ * (usePanelManager.ts, over this file's helpers) regardless of how it was opened. AdventurePanel.tsx renders
+ * every entry in this array, live or parked -- never filtered to only parked ones.
  *
  * A panel is EITHER shown live in the row (`live: true`) or parked in the adventure card only
  * (`live: false`) -- never both -- and is never removed from this array just for being parked; only
@@ -27,9 +27,9 @@ export interface PanelWindow {
   live: boolean;
   /** Whether DragToClose's drag-down gesture may close this panel at all. Every panel created by `appendPanel` is unlocked. */
   locked: boolean;
-  /** Which component renders this entry (phonux's registry, resolveView) -- read ONLY by the rendering wrapper (LivePanels.tsx); every overflow/collapse/close site reads `collapsible`/`listed`/`locked` instead, never this. An open string, not a closed union: an unregistered value renders a placeholder, never a crash. */
+  /** Which component renders this entry (phonux's registry, resolveView) -- read ONLY by the rendering wrapper (LivePanels.tsx); every park/close site reads `collapsible`/`listed`/`locked` instead, never this. An open string, not a closed union: an unregistered value renders a placeholder, never a crash. */
   view: string;
-  /** Overflow/auto-collapse/promote-demotion may park this entry; `false` marks an always-shown column exempt from all three. */
+  /** Capacity parks (an open, a revive, the row gesture, a capacity drop) may park this entry; `false` marks an always-shown column exempt from all of them. */
   collapsible: boolean;
   /** Appears in the public `panelList` (History's own row list, and PanelsAPI). */
   listed: boolean;
@@ -95,15 +95,11 @@ export function appendPanel(panels: PanelWindow[], info: { sourceWebContentsId: 
 }
 
 /**
- * Every live collapsible panel's own array index, whichever of the two ends of that set sits farthest (by
- * index distance) from `fromIndex` -- ties toward the lower index, because the strict `>` below keeps the
- * first (lowest-index) of equal distances. Appending a panel at the array's end
- * (`fromIndex` = the new length) always resolves to the lowest live index (the LEFT end); inserting at
- * `insertAt: 'start'` (`fromIndex` low) always resolves to the highest (the RIGHT end). The SAME formula,
- * called with a revive target's own index, picks whichever end sits opposite it -- one distance rule serves
- * every demotion site in this file, so a capacity change can never silently pick two different "far"
- * panels for what is really one concept. `excludeId` additionally exempts one already-live id (a revive
- * target the caller flipped live before asking who else must give way).
+ * The id of the live collapsible panel farthest (by array index) from `fromIndex`, or null with none live.
+ * Ties go to the lower index (the strict `>` keeps the first). From an append (`fromIndex` = the new length)
+ * that is the LEFT end of the live range; from an `insertAt: 'start'` or a revive left of the range it is the
+ * RIGHT end. promoteToLive and usePanelManager.ts's open/restore park both pick through this. `excludeId`
+ * exempts the panel being opened or restored, which is already live in the array the caller passes.
  */
 export function farthestLiveCollapsibleId(panels: PanelWindow[], fromIndex: number, excludeId?: string): string | null {
   let bestId: string | null = null;
@@ -121,11 +117,9 @@ export function farthestLiveCollapsibleId(panels: PanelWindow[], fromIndex: numb
 
 /**
  * Which side of the row a park/reveal at `id` reads as, for the exit/enter animation: 'left' when `id`'s
- * own array index sits below every OTHER live collapsible panel's index (it is the current left edge of
- * the visible range), 'right' otherwise -- including a panel in the middle of the range, which cannot
- * happen here since every caller only ever asks this about one of `farthestLiveCollapsibleId`'s own two
- * edge picks. Computed fresh from array position every time (never a persisted flag), which is what makes
- * an append always read 'left' and an `insertAt: 'start'` always read 'right' regardless of history.
+ * own array index sits below every OTHER live collapsible panel's index, 'right' otherwise (a parked panel
+ * between two live ones included). Computed fresh from array position every time, never a persisted flag,
+ * so an append's park always reads 'left' and an `insertAt: 'start'` park always reads 'right'.
  */
 export function sideOfLiveRange(panels: PanelWindow[], id: string): 'left' | 'right' {
   const ownIndex = panels.findIndex((p) => p.id === id);
@@ -164,20 +158,6 @@ export function lastParkedBefore(panels: PanelWindow[], index: number): PanelWin
 }
 
 /**
- * Parks the single live, collapsible panel farthest (by array index) from `fromIndex` -- space management,
- * not a close: the panel stays in the array. `null` when nothing eligible is live to park. Never picks a
- * `collapsible: false` entry (History): an always-shown column is exempt from every capacity site, this one
- * included. `fromIndex = panels.length` (one past the end) always resolves to the leftmost live panel --
- * the capacity-drop reconcile's own "parks from the LEFT only" rule (usePanelManager.ts) is this same
- * function called that way, not a second policy.
- */
-export function parkFarthestLive(panels: PanelWindow[], fromIndex: number): PanelWindow[] | null {
-  const id = farthestLiveCollapsibleId(panels, fromIndex);
-  if (id === null) return null;
-  return panels.map((p) => (p.id === id ? { ...p, live: false } : p));
-}
-
-/**
  * Clicking ANY adventure-card row (live or parked alike) activates it. The live row's rendering order
  * always follows the array's natural order, so this never moves the target panel's position -- it only
  * flips `live` in place, on the same array entry.
@@ -186,11 +166,10 @@ export function parkFarthestLive(panels: PanelWindow[], fromIndex: number): Pane
  * already-live row (every row, live or parked, is clickable) is a legitimate no-op, not an error.
  *
  * `capacity` is how many live collapsible panels the row may hold at once (usePanelManager.ts's own
- * `max(1, effectiveMax - fixedCount)`). When promoting `id` would exceed it, this demotes exactly one OTHER
- * live panel back to parked: the one `farthestLiveCollapsibleId` picks from `id`'s OWN index -- the same
- * far rule `parkFarthestLive` uses, so there is one demotion rule in this file, not two that could drift
- * apart. Never demotes a `collapsible: false` entry (History): a manual activation must not bump an
- * always-shown column.
+ * `max(1, effectiveMax - fixedColumnCount)`). When promoting `id` would exceed it, this demotes exactly one
+ * OTHER live panel back to parked: the one `farthestLiveCollapsibleId` picks from `id`'s OWN index, the same
+ * far rule an open or restore parks by. Never demotes a `collapsible: false` entry (History): a manual
+ * activation must not bump an always-shown column.
  */
 export function promoteToLive(panels: PanelWindow[], id: string, capacity: number): PanelWindow[] | null {
   const target = panels.find((p) => p.id === id);

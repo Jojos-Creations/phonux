@@ -1,6 +1,6 @@
 /**
- * desktop/panels/panelWindow.ts's pure panel-array helpers (append, close/restore, auto-collapse,
- * promote). Closing a view removes it completely (closePanel) and undo puts it back (restorePanel).
+ * desktop/panels/panelWindow.ts's pure panel-array helpers (append, close/restore, the row's edge and side
+ * helpers, promote). Closing a view removes it completely (closePanel) and undo puts it back (restorePanel).
  */
 
 import test from 'node:test';
@@ -14,7 +14,6 @@ import {
   HISTORY_PANEL_ID,
   lastParkedBefore,
   leftmostLiveIndex,
-  parkFarthestLive,
   promoteToLive,
   restorePanel,
   rightmostLiveIndex,
@@ -78,7 +77,7 @@ function makeExtraPanels(...ids: string[]): PanelWindow[] {
   );
 }
 
-/** Parks the given ids in place, as auto-collapse would (the tests below need parked panels without going through any close flow). */
+/** Parks the given ids in place (the tests below need parked panels without going through any close flow). */
 function park(panels: PanelWindow[], ...ids: string[]): PanelWindow[] {
   return panels.map((p) => (ids.includes(p.id) ? { ...p, live: false } : p));
 }
@@ -132,62 +131,9 @@ test('closePanel then restorePanel in REVERSE order undoes a run of closes exact
 });
 
 // ---------------------------------------------------------------------------
-// parkFarthestLive: replaces the retired "park the oldest live panel by array
-// order" rule with the far-side rule the owner's binding
-// decision names -- park the live collapsible panel farthest, by array
-// index, from a reference index. `fromIndex = panels.length` (one past the
-// end) always resolves to the LEFTMOST live panel, which is what an append
-// and the capacity-drop reconcile both need.
-// ---------------------------------------------------------------------------
-
-test('parkFarthestLive: fromIndex past the end parks the LEFTMOST live panel and keeps it in the array (space management, not a close)', () => {
-  const panels = makeExtraPanels('w1', 'w2', 'w3');
-  const result = parkFarthestLive(panels, panels.length)!;
-  assert.deepEqual(
-    result.filter((p) => p.live).map((p) => p.id),
-    ['w2', 'w3'],
-  );
-  const parked = result.find((p) => p.id === 'w1')!;
-  assert.equal(parked.live, false);
-  assert.equal(result.length, 3, 'parked, never removed: only closePanel drops a panel');
-});
-
-test('parkFarthestLive: a LOW fromIndex parks the RIGHTMOST live panel instead -- the same function, the opposite edge', () => {
-  const panels = makeExtraPanels('w1', 'w2', 'w3');
-  const result = parkFarthestLive(panels, -1)!;
-  assert.equal(result.find((p) => p.id === 'w3')!.live, false, 'w3 (the rightmost) is farthest from a fromIndex below everything');
-  assert.deepEqual(
-    result.filter((p) => p.live).map((p) => p.id),
-    ['w1', 'w2'],
-  );
-});
-
-test('parkFarthestLive: returns null when nothing is live to park', () => {
-  assert.equal(parkFarthestLive([], 0), null);
-  const allParked = park(makeExtraPanels('w1'), 'w1');
-  assert.equal(parkFarthestLive(allParked, 1), null);
-});
-
-test('parkFarthestLive: never parks a collapsible:false entry (History) even though it is live and farthest by array order', () => {
-  const panels = [createHistoryPanel(), ...makeExtraPanels('w1', 'w2')];
-  const result = parkFarthestLive(panels, panels.length)!;
-  assert.equal(result.find((p) => p.id === HISTORY_PANEL_ID)!.live, true, 'History is leftmost but exempt: collapsible is false');
-  assert.equal(result.find((p) => p.id === 'w1')!.live, false, 'the leftmost COLLAPSIBLE entry is the one actually parked');
-});
-
-test('parkFarthestLive: flipping collapsible on ONE entry changes only whether IT can be picked -- nothing else about the array', () => {
-  const base = makeExtraPanels('w1', 'w2', 'w3');
-  const exempt = base.map((p) => (p.id === 'w1' ? { ...p, collapsible: false } : p));
-  const result = parkFarthestLive(exempt, exempt.length)!;
-  assert.equal(result.find((p) => p.id === 'w1')!.live, true, 'w1 is leftmost by array order but now exempt');
-  assert.equal(result.find((p) => p.id === 'w2')!.live, false, 'w2 (the leftmost still-collapsible entry) is parked instead');
-  assert.deepEqual(result.find((p) => p.id === 'w3'), base.find((p) => p.id === 'w3'), 'a third, untouched entry is unaffected');
-});
-
-// ---------------------------------------------------------------------------
 // sideOfLiveRange / leftmostLiveIndex / rightmostLiveIndex / firstParkedAfter / lastParkedBefore: the
-// row-gesture and exit-direction primitives -- pure, so the far rule's own edge cases are pinned without a
-// hook or a DOM.
+// row-gesture and exit-direction primitives -- pure, so their edge cases are pinned without a hook or a
+// DOM.
 // ---------------------------------------------------------------------------
 
 test('sideOfLiveRange: the leftmost live panel always reads LEFT, the rightmost always reads RIGHT', () => {
@@ -232,8 +178,7 @@ test('History stays at array index 0 through appendPanel, closePanel and restore
 
 // ---------------------------------------------------------------------------
 // promoteToLive: flips `live` IN PLACE (never reorders), and demotes at most one OTHER live panel -- the
-// one `sideOfLiveRange`'s far rule picks, from `id`'s own array index -- when doing so would exceed
-// `capacity`.
+// one farthest from `id`'s own array index -- when doing so would exceed `capacity`.
 // ---------------------------------------------------------------------------
 
 test('promoteToLive: makes a parked panel live IN PLACE -- array order is unchanged, nothing is appended', () => {
