@@ -79,7 +79,7 @@ built-in or third-party -- is written against `PanelComponent<P>` (renamed to `V
 `insertAt`, `layer`, `anchoredEnter`) just because it happens to be a plain variable, not an object literal,
 and so escapes TypeScript's excess-property check at the call site.
 
-## The package lives in place, with no build step
+## The package lives in place, with no build step for in-repo use
 
 This folder is a package (`phonux`) in place, not under `packages/phonux/`, because splitting it out
 today would need a build and a version to track before the export surface has ever been used by an
@@ -87,7 +87,12 @@ outside consumer -- moving it once, after the surface has proven itself, costs l
 build for a surface still being drafted. `package.json`'s `exports` map points `.` straight at
 `index.ts` source: there is nothing to compile here, so a consumer's own toolchain (tsc, tsx, Vite)
 compiles this folder exactly as it would compile any other module in the tree, and a change here is
-visible to a consumer without a publish step.
+visible to this repo's own dev and test without a publish step.
+
+Packing for an outside consumer is a separate, opt-in step, never run as part of this repo's own build
+or test: `npm run build:phonux` compiles to `dist/` and generates a throwaway `dist/package.json` with
+its paths rewritten relative to `dist/` (never hand-edited, never committed); `npm run smoke:phonux`
+proves the packed tarball actually installs and resolves in a throwaway app outside this repo.
 
 ## `index.ts` splits values from types on purpose
 
