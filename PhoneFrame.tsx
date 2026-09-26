@@ -14,21 +14,24 @@ import * as React from 'react';
 import Box, { type BoxProps } from '@mui/material/Box';
 import { type Theme } from '@mui/material/styles';
 import MoreHorizIcon from '@mui/icons-material/MoreHoriz';
-import { usePhoneAPIs } from './phoneViewApi.js';
+import { useHost } from './phoneViewApi.js';
 
 /**
  * phone-size-auto-detection: the fixed 390x700 stand-in this comment used to
  * describe now lives as DEFAULT_PHONE_SIZE in phoneViewApi.tsx, read reactively
- * here via usePhoneAPIs().device.size -- the connected device's actual screen size (USB
+ * here via useHost().device.size -- the connected device's actual screen size (USB
  * popup) or a Settings-chosen model overrides it from there. Nothing here
  * assumes every phone is one fixed size.
  */
 
-export interface PhoneFrameProps extends Omit<BoxProps, 'children'> {
+export interface PanelFrameProps extends Omit<BoxProps, 'children'> {
   children: React.ReactNode;
   /** Fill the available space instead of the fixed phone size (the tap-to-expand overlay). */
   expanded?: boolean;
 }
+
+/** @deprecated use PanelFrameProps */
+export type PhoneFrameProps = PanelFrameProps;
 
 /** The classic (non-overlay) scrollbar this app draws for itself, in px. */
 const SCROLLBAR_PX = 8;
@@ -36,9 +39,13 @@ const SCROLLBAR_PX = 8;
 const CONTENT_INSET_PX = 12;
 /** The phone's corner radius in theme shape units (4 x 6px = 24px). The frame's corners and the header
  * pills' semicircular ends both derive from it, so they cannot drift apart. */
-export const PHONE_CORNER_RADIUS_UNITS = 4;
+export const PANEL_CORNER_RADIUS_UNITS = 4;
+/** @deprecated use PANEL_CORNER_RADIUS_UNITS */
+export const PHONE_CORNER_RADIUS_UNITS = PANEL_CORNER_RADIUS_UNITS;
 /** That radius in px for `theme`; a header pill is twice this tall (exact semicircles). */
-export const phoneCornerRadiusPx = (theme: Theme): number => PHONE_CORNER_RADIUS_UNITS * Number(theme.shape.borderRadius);
+export const panelCornerRadiusPx = (theme: Theme): number => PANEL_CORNER_RADIUS_UNITS * Number(theme.shape.borderRadius);
+/** @deprecated use panelCornerRadiusPx */
+export const phoneCornerRadiusPx = panelCornerRadiusPx;
 
 /**
  * Everything a scrolling box inside a phone needs so its content is inset
@@ -61,7 +68,7 @@ export const phoneCornerRadiusPx = (theme: Theme): number => PHONE_CORNER_RADIUS
  * scrolling box that skipped them would fall back to Chromium's own
  * default-width bar and blow the arithmetic above.
  */
-export const phoneFrameScrollSx = {
+export const panelFrameScrollSx = {
   overflowX: 'hidden',
   overflowY: 'auto',
   scrollbarGutter: 'stable',
@@ -82,6 +89,8 @@ export const phoneFrameScrollSx = {
   },
   '&::-webkit-scrollbar-thumb:hover': { background: 'rgba(255, 255, 255, 0.4)' },
 } as const;
+/** @deprecated use panelFrameScrollSx */
+export const phoneFrameScrollSx = panelFrameScrollSx;
 
 /**
  * For a caller that does its own scrolling one level deeper (a transcript
@@ -95,7 +104,7 @@ export const phoneFrameScrollSx = {
  * (and `overflow` vs `overflowY`) independently, so a shorthand spread over
  * a longhand does not reliably win.
  */
-export const phoneFrameBareSx = {
+export const panelFrameBareSx = {
   pt: 0,
   pr: 0,
   pb: 0,
@@ -104,6 +113,8 @@ export const phoneFrameBareSx = {
   overflowY: 'hidden',
   scrollbarGutter: 'auto',
 } as const;
+/** @deprecated use panelFrameBareSx */
+export const phoneFrameBareSx = panelFrameBareSx;
 
 /**
  * Two nested boxes, not one (owner report, 2026-09-13: the scrollbar sat
@@ -128,11 +139,11 @@ export const phoneFrameBareSx = {
  * (`offsetWidth - clientWidth` now equals the declared `width` below) and
  * sits flush, matching the live-webpage panel's own real browser scrollbar.
  */
-const PhoneFrame = React.forwardRef<HTMLDivElement, PhoneFrameProps>(function PhoneFrame(
+const PanelFrame = React.forwardRef<HTMLDivElement, PanelFrameProps>(function PanelFrame(
   { children, expanded, sx, ...rest },
   ref,
 ) {
-  const { width, height } = usePhoneAPIs().device.size;
+  const { width, height } = useHost().device.size;
   return (
     <Box
       ref={ref}
@@ -149,7 +160,7 @@ const PhoneFrame = React.forwardRef<HTMLDivElement, PhoneFrameProps>(function Ph
         boxSizing: 'border-box',
         border: '1px solid',
         borderColor: 'divider',
-        borderRadius: PHONE_CORNER_RADIUS_UNITS,
+        borderRadius: PANEL_CORNER_RADIUS_UNITS,
         bgcolor: 'background.paper',
         display: 'flex',
         flexDirection: 'column',
@@ -164,7 +175,7 @@ const PhoneFrame = React.forwardRef<HTMLDivElement, PhoneFrameProps>(function Ph
           minHeight: 0,
           display: 'flex',
           flexDirection: 'column',
-          ...phoneFrameScrollSx,
+          ...panelFrameScrollSx,
           ...sx,
         }}
       >
@@ -174,9 +185,12 @@ const PhoneFrame = React.forwardRef<HTMLDivElement, PhoneFrameProps>(function Ph
   );
 });
 
-export interface PhoneFrameHeaderProps extends Omit<BoxProps, 'children'> {
+export interface PanelHeaderProps extends Omit<BoxProps, 'children'> {
   children: React.ReactNode;
 }
+
+/** @deprecated use PanelHeaderProps */
+export type PhoneFrameHeaderProps = PanelHeaderProps;
 
 /**
  * The shared shape for a header that floats ABOVE a PhoneFrame rather than
@@ -213,7 +227,7 @@ export interface PhoneFrameHeaderProps extends Omit<BoxProps, 'children'> {
  * that (genuinely per-instance styling like `fontWeight: 'bold'` or
  * `cursor: 'grab'` layers on top of, rather than replacing, this base).
  */
-export function PhoneFrameHeader({ children, sx, ...rest }: PhoneFrameHeaderProps) {
+export function PanelHeader({ children, sx, ...rest }: PanelHeaderProps) {
   return (
     <Box
       {...rest}
@@ -222,13 +236,13 @@ export function PhoneFrameHeader({ children, sx, ...rest }: PhoneFrameHeaderProp
         bottom: 'calc(100% + 4px)',
         left: 0,
         right: 0,
-        height: (theme: Theme) => 2 * phoneCornerRadiusPx(theme),
+        height: (theme: Theme) => 2 * panelCornerRadiusPx(theme),
         display: 'flex',
         alignItems: 'center',
         bgcolor: 'background.paper',
         border: '1px solid',
         borderColor: 'divider',
-        borderRadius: PHONE_CORNER_RADIUS_UNITS,
+        borderRadius: PANEL_CORNER_RADIUS_UNITS,
         px: 1.5,
         fontSize: 13,
         color: 'common.white',
@@ -240,7 +254,10 @@ export function PhoneFrameHeader({ children, sx, ...rest }: PhoneFrameHeaderProp
   );
 }
 
-export interface PhoneFrameHeaderRowProps extends Omit<PhoneFrameHeaderProps, 'children' | 'title'> {
+/** @deprecated use PanelHeader */
+export const PhoneFrameHeader = PanelHeader;
+
+export interface PanelHeaderRowProps extends Omit<PanelHeaderProps, 'children' | 'title'> {
   /**
    * Left-aligned primary content -- ellipsis-truncated if it overflows.
    * Falsy (undefined/null/false/'') renders a placeholder ("Untitled")
@@ -260,6 +277,9 @@ export interface PhoneFrameHeaderRowProps extends Omit<PhoneFrameHeaderProps, 'c
    */
   actions?: React.ReactNode;
 }
+
+/** @deprecated use PanelHeaderRowProps */
+export type PhoneFrameHeaderRowProps = PanelHeaderRowProps;
 
 /** True for the exact "nothing real here" values PhoneFrameHeaderRow treats
  * as empty -- deliberately narrow (mirrors JSX's own falsy-child rules, not
@@ -308,15 +328,18 @@ const PLACEHOLDER_ACTIONS = (
  * gets it for free (owner follow-up, 2026-09-14) -- see isEmptyHeaderContent
  * and the two PLACEHOLDER_* constants above.
  */
-export function PhoneFrameHeaderRow({ title, actions, sx, ...rest }: PhoneFrameHeaderRowProps) {
+export function PanelHeaderRow({ title, actions, sx, ...rest }: PanelHeaderRowProps) {
   const resolvedTitle = isEmptyHeaderContent(title) ? PLACEHOLDER_TITLE : title;
   const resolvedActions = isEmptyHeaderContent(actions) ? PLACEHOLDER_ACTIONS : actions;
   return (
-    <PhoneFrameHeader {...rest} sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 1, ...sx }}>
+    <PanelHeader {...rest} sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 1, ...sx }}>
       <Box sx={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 }}>{resolvedTitle}</Box>
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.25, flexShrink: 0 }}>{resolvedActions}</Box>
-    </PhoneFrameHeader>
+    </PanelHeader>
   );
 }
 
-export default PhoneFrame;
+/** @deprecated use PanelHeaderRow */
+export const PhoneFrameHeaderRow = PanelHeaderRow;
+
+export default PanelFrame;
