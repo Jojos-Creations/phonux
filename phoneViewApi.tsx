@@ -137,7 +137,7 @@ export interface PanelsAPI {
   readonly panelList: readonly PanelSummary[];
   /**
    * Appends a live panel; zero-arg is the blank-web-panel default. `view` selects the rendered component
-   * (registerPanelView/resolvePanelView) -- an unregistered key renders a placeholder, never a crash. No
+   * (registerView/resolveView) -- an unregistered key renders a placeholder, never a crash. No
    * `collapsible`/`locked` key: a spawned panel can never claim a permanent column or an unclosable lock.
    * Overflow parks the oldest live panel first, as it does for any panel.
    */
@@ -160,7 +160,7 @@ export interface PanelsAPI {
 }
 
 export interface PhoneDeviceAPI {
-  /** The size every PhoneFrame renders at. Live. */
+  /** The size every PanelFrame renders at. Live. */
   readonly size: PhoneSize;
   /** The built-in size (`modelId` 'default'), for a "Default (390 × 700)" choice. */
   readonly defaultSize: PhoneSize;

@@ -95,7 +95,7 @@ export const phoneFrameScrollSx = panelFrameScrollSx;
 /**
  * For a caller that does its own scrolling one level deeper (a transcript
  * that scrolls under a pinned input bar, a `<webview>` that scrolls itself):
- * cancels PhoneFrame's own padding AND its reserved scrollbar strip, so
+ * cancels PanelFrame's own padding AND its reserved scrollbar strip, so
  * neither is reserved twice. Reserving twice is exactly the bug the owner
  * caught on 2026-09-13 -- a phantom 8px gap outside the scrollbar, and a
  * right-hand inset of 28px against the left's 12px.
@@ -193,14 +193,14 @@ export interface PanelHeaderProps extends Omit<BoxProps, 'children'> {
 export type PhoneFrameHeaderProps = PanelHeaderProps;
 
 /**
- * The shared shape for a header that floats ABOVE a PhoneFrame rather than
+ * The shared shape for a header that floats ABOVE a PanelFrame rather than
  * inside it -- the session title and ActStatusBar (GoalFrontPage.tsx) and
  * the Sessions sidebar's title+icons (PreviousSessionsSidebar.tsx) all used
  * their own near-identical `position: absolute; bottom: calc(100% + 4px)`
  * block before this (owner direction, 2026-09-13: "make a universal header
  * component so the style stays consistent across views"). Requires its
  * parent to be `position: relative` (every caller already wraps its
- * PhoneFrame in one, for exactly this).
+ * PanelFrame in one, for exactly this).
  *
  * front-page-unify-panel-header-visual-style (owner, 2026-09-14, pointing at
  * the live app: "every header [should be] a circular like input with one or
@@ -213,12 +213,12 @@ export type PhoneFrameHeaderProps = PanelHeaderProps;
  *
  * Shape (owner, 2026-09-20: "have the rounding match the phone views and
  * have the height form a perfect half circle on the left and right"): the
- * radius is the phone's own (PHONE_CORNER_RADIUS_UNITS) and the height is
- * twice it (phoneCornerRadiusPx), so each end is an exact semicircle with
+ * radius is the phone's own (PANEL_CORNER_RADIUS_UNITS) and the height is
+ * twice it (panelCornerRadiusPx), so each end is an exact semicircle with
  * the phone's curvature; both derive from the theme, never a raw 24/48.
  * The fixed height keeps the pill the same however its content wraps.
  *
- * `px` matches PhoneFrame's own inner content padding exactly (owner report,
+ * `px` matches PanelFrame's own inner content padding exactly (owner report,
  * 2026-09-13: the border padding wasn't consistent -- this header's text sat
  * at a different inset than the frame's own rows below it) so a header's
  * text lines up with the frame's own content, not just "some padding" picked
@@ -281,7 +281,7 @@ export interface PanelHeaderRowProps extends Omit<PanelHeaderProps, 'children' |
 /** @deprecated use PanelHeaderRowProps */
 export type PhoneFrameHeaderRowProps = PanelHeaderRowProps;
 
-/** True for the exact "nothing real here" values PhoneFrameHeaderRow treats
+/** True for the exact "nothing real here" values PanelHeaderRow treats
  * as empty -- deliberately narrow (mirrors JSX's own falsy-child rules, not
  * a general emptiness check) so a real value like `0` or whitespace is never
  * mistaken for "no content". */
@@ -313,14 +313,14 @@ const PLACEHOLDER_ACTIONS = (
 );
 
 /**
- * The title-left/actions-right row shape every PhoneFrameHeader caller
+ * The title-left/actions-right row shape every PanelHeader caller
  * actually wants (owner report, 2026-09-13: "a reusable component is not
- * being used between each view" -- PhoneFrameHeader itself only ever
+ * being used between each view" -- PanelHeader itself only ever
  * provided position/spacing/color, so the sidebar, the webview pane's
  * ActStatusBar and the chat panel's session-title header had each grown
  * their own near-identical inline `display: flex; justifyContent:
  * space-between` + ellipsis-Box markup, the same drift this file's own
- * top-of-file doc comment already named as the reason PhoneFrame itself
+ * top-of-file doc comment already named as the reason PanelFrame itself
  * exists). One shared row layout, parameterized by `title`/`actions`,
  * rather than three call sites reimplementing it.
  *
