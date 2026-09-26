@@ -2,11 +2,11 @@
  * Recording fakes of every API in phoneViewApi.tsx, for testing a view with no
  * host and no desktop bridge:
  *
- *   const apis = createFakePhoneAPIs({ panels: { panelList: [...] } });
- *   render(<PhoneAPIsProvider apis={apis}><MyView /></PhoneAPIsProvider>);
- *   // interact, then assert on apis.calls
+ *   const host = createFakeHost({ panels: { panelList: [...] } });
+ *   render(<HostProvider host={host}><MyView /></HostProvider>);
+ *   // interact, then assert on host.calls
  *
- * Every method records `{ api, method, args }` in `apis.calls`, in call order,
+ * Every method records `{ api, method, args }` in `host.calls`, in call order,
  * and does nothing else: the fakes hold no state, so a test that wants a
  * different live value re-renders with new overrides. Async methods resolve.
  * `overrides` replaces whole members of one API (an override of
@@ -22,30 +22,33 @@ import { PHONE_MODELS } from './phoneModels.js';
 import {
   DEFAULT_PHONE_SIZE,
   type CreatePanelOptions,
-  type DeviceAPI,
   type HistoryAPI,
+  type Host,
   type PanelsAPI,
-  type PhoneAPIs,
+  type PhoneDeviceAPI,
   type SettingsAPI,
 } from './phoneViewApi.js';
 
 export interface FakeCall {
-  api: keyof PhoneAPIs;
+  api: keyof Host;
   method: string;
   args: unknown[];
 }
 
 /** Replacement members, per API. */
-export type FakeOverrides = { [K in keyof PhoneAPIs]?: Partial<PhoneAPIs[K]> };
+export type FakeOverrides = { [K in keyof Host]?: Partial<Host[K]> };
 
-export interface FakePhoneAPIs extends PhoneAPIs {
+export interface FakeHost extends Host {
   /** Every method call any of the fakes received, in order. */
   readonly calls: FakeCall[];
 }
 
-export function createFakePhoneAPIs(overrides: FakeOverrides = {}): FakePhoneAPIs {
+/** @deprecated use FakeHost */
+export type FakePhoneAPIs = FakeHost;
+
+export function createFakeHost(overrides: FakeOverrides = {}): FakeHost {
   const calls: FakeCall[] = [];
-  const log = (api: keyof PhoneAPIs, method: string, args: unknown[]): void => {
+  const log = (api: keyof Host, method: string, args: unknown[]): void => {
     calls.push({ api, method, args });
   };
 
@@ -91,7 +94,7 @@ export function createFakePhoneAPIs(overrides: FakeOverrides = {}): FakePhoneAPI
     clearAll: () => log('panels', 'clearAll', []),
   };
 
-  const device: DeviceAPI = {
+  const device: PhoneDeviceAPI = {
     size: DEFAULT_PHONE_SIZE,
     defaultSize: DEFAULT_PHONE_SIZE,
     models: PHONE_MODELS,
@@ -109,3 +112,6 @@ export function createFakePhoneAPIs(overrides: FakeOverrides = {}): FakePhoneAPI
     calls,
   };
 }
+
+/** @deprecated use createFakeHost -- same function, so identity checks keep working. */
+export const createFakePhoneAPIs = createFakeHost;
