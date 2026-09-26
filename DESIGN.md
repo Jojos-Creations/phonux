@@ -152,3 +152,17 @@ A `Workspace`'s own saved state -- which panels are open, their order, sizes and
 persisted front-page sessions (`electron/sessions.ts`), a url plus titles and turn strings, stored in a file
 that must never change shape. The two are different data owned by different code, so reusing one word for
 both would leave every future name ambiguous about which it meant.
+
+## The header-to-frame gap is one constant, and the grab bar fills exactly it
+
+`PANEL_HEADER_GAP_PX` (`PhoneFrame.tsx`) is the one number both `PanelHeader`'s `bottom` offset and
+`Panel`'s grab-bar element measure themselves against -- the same reason `PANEL_CORNER_RADIUS_UNITS` is a
+named export rather than a literal inlined twice: two independently-tuned numbers drift out of sync the
+moment either changes on its own, and here the drift would show up as a visible seam or overlap between the
+header pill and the grab bar beneath it.
+
+`Panel`'s `grabProps` is a separate prop from `headerProps`, not a field folded into it, because the header
+and the grab bar are two different elements: the header keeps only its title/actions and cosmetic `sx`,
+while `grabProps`'s `onPointerDown`/`sx` reach the grab bar instead, so clicking the title text or an action
+icon is never mistaken for a drag start. Omitting `grabProps` renders no grab bar at all, which is the
+correct shape for a locked view (nothing to drag).
