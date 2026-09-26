@@ -5,10 +5,8 @@
  */
 
 export interface RowLayoutInput {
-  /** GoalFrontPage.tsx's own measured row container width (a `useState`
-   * populated by a ResizeObserver -- the DOM/effect wiring itself stays in
-   * the component; only the arithmetic that consumes the resulting number
-   * moves here). */
+  /** The row container's measured width (useRowShell.ts's ResizeObserver);
+   * the DOM wiring stays there so this function has none. */
   containerWidth: number;
   /** PanelFrame's own default width -- every fixed and live row item alike
    * is exactly this wide. */
@@ -16,10 +14,9 @@ export interface RowLayoutInput {
   /** The row's own gap between adjacent items (LivePanelSlot's `GAP`). */
   gap: number;
   /**
-   * How many non-live, always-rendered slots the row holds before any live
-   * panels: History (and Settings, when it is its own column) -- computed by
-   * the caller from `panels`/`currentView` state, passed in as a plain count
-   * so this function stays free of that state dependency.
+   * How many always-rendered (non-collapsible) slots the row holds before any
+   * live panels -- History today. A plain count so this function stays free
+   * of the caller's panel state.
    */
   fixedItemCount: number;
   /** How many panels are actually live right now (`panels.filter((p) =>
@@ -42,23 +39,18 @@ export interface RowLayoutResult {
    * `effectiveLiveCount`. */
   rowTotalWidth: number;
   /** The `marginLeft` that centers `rowTotalWidth` inside the row's
-   * available width -- 0 once the row is at or past capacity, matching the
-   * unmoved `Math.max(0, ...)` floor this had before extraction. */
+   * available width -- floored at 0 once the row is at or past capacity. */
   computedRowMarginLeft: number;
 }
 
 /**
- * GoalFrontPage.tsx's row-centering math, no DOM ref or effect dependency of its own (`fixedItemCount`/
- * `liveCountNow` still ultimately derive from component state, just computed by the caller and passed in as
- * plain numbers). The fixed items have to be counted against what the row ACTUALLY renders, or the
- * arithmetic silently mis-centers by half an item -- this has shipped wrong twice already (owner-caught,
- * 2026-09-15, two separate times) from the count being a hand-mirrored copy of the JSX conditions rather
- * than sharing their actual boolean.
+ * The row's centering math. `fixedItemCount` must come from the same array the row's JSX renders, never a
+ * hand-mirrored copy of its conditions: a count that drifts from what is drawn mis-centers the row by half
+ * an item, silently.
  *
- * `maxLiveThatFit` is also the one pure "how many fit" function usePanelManager.ts's `capacity` and
- * SettingsAPI's `fitCount` both derive from, at a `liveCountNow` of 0 -- keeping "how many fit" as one
- * function of container width and panel widths means a wider panel (design-ux-system-split's future
- * phone->tablet->desktop panels) lowers the count instead of overflowing unnoticed.
+ * `maxLiveThatFit` (at a `liveCountNow` of 0) is the one "how many fit" function usePanelManager.ts's
+ * `capacity` and SettingsAPI's `fitCount` both derive from, so a wider panel lowers the count instead of
+ * overflowing unnoticed.
  */
 export function computeRowLayout({ containerWidth, phoneWidth, gap, fixedItemCount, liveCountNow }: RowLayoutInput): RowLayoutResult {
   const availableForRow = Math.max(0, containerWidth - 2 * gap);

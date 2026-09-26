@@ -6,7 +6,7 @@
  *
  * Native `addEventListener`, not React's `onWheel`: React 17+ makes the wheel listener passive, so
  * `preventDefault()` (needed so a horizontal swipe never ALSO scrolls the page vertically) has no effect
- * through it (see the record's own citation).
+ * through it.
  *
  * `scrollRow` is read through a ref, updated every render but never re-subscribed: `scrollRow` closes over
  * the latest `panels` and is a fresh function every render (nothing here may be memoised, matching the rest
@@ -36,9 +36,8 @@ export function useRowScrollGesture(overflowContainerRef: RefObject<HTMLDivEleme
       }, GESTURE_LOCK_MS);
     };
     const onWheel = (e: WheelEvent): void => {
-      // A tilt wheel or two-finger swipe reports deltaX; Shift+wheel usually still reports deltaY (MDN, cited
-      // in the record) -- treat Shift+deltaY as a horizontal ask too. Plain vertical wheel (RS14g's own
-      // overflowY:'auto' rule) is left alone.
+      // A tilt wheel or two-finger swipe reports deltaX; Shift+wheel usually still reports deltaY, so treat
+      // Shift+deltaY as a horizontal ask too. Plain vertical wheel is left to overflowY:'auto'.
       const horizontal = Math.abs(e.deltaX) > Math.abs(e.deltaY) || (e.shiftKey && e.deltaY !== 0);
       if (!horizontal) return;
       const amount = Math.abs(e.deltaX) > Math.abs(e.deltaY) ? e.deltaX : e.deltaY;

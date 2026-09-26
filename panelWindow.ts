@@ -96,7 +96,8 @@ export function appendPanel(panels: PanelWindow[], info: { sourceWebContentsId: 
 
 /**
  * Every live collapsible panel's own array index, whichever of the two ends of that set sits farthest (by
- * index distance) from `fromIndex` -- ties toward the lower index. Appending a panel at the array's end
+ * index distance) from `fromIndex` -- ties toward the lower index, because the strict `>` below keeps the
+ * first (lowest-index) of equal distances. Appending a panel at the array's end
  * (`fromIndex` = the new length) always resolves to the lowest live index (the LEFT end); inserting at
  * `insertAt: 'start'` (`fromIndex` low) always resolves to the highest (the RIGHT end). The SAME formula,
  * called with a revive target's own index, picks whichever end sits opposite it -- one distance rule serves
@@ -106,15 +107,13 @@ export function appendPanel(panels: PanelWindow[], info: { sourceWebContentsId: 
  */
 export function farthestLiveCollapsibleId(panels: PanelWindow[], fromIndex: number, excludeId?: string): string | null {
   let bestId: string | null = null;
-  let bestIndex = -1;
   let bestDist = -1;
   panels.forEach((p, i) => {
     if (!p.collapsible || !p.live || p.id === excludeId) return;
     const dist = Math.abs(i - fromIndex);
-    if (dist > bestDist || (dist === bestDist && i < bestIndex)) {
+    if (dist > bestDist) {
       bestDist = dist;
       bestId = p.id;
-      bestIndex = i;
     }
   });
   return bestId;
@@ -126,8 +125,7 @@ export function farthestLiveCollapsibleId(panels: PanelWindow[], fromIndex: numb
  * the visible range), 'right' otherwise -- including a panel in the middle of the range, which cannot
  * happen here since every caller only ever asks this about one of `farthestLiveCollapsibleId`'s own two
  * edge picks. Computed fresh from array position every time (never a persisted flag), which is what makes
- * an append always read 'left' and an `insertAt: 'start'` always read 'right' regardless of history -- see
- * this file's own record for the far-rule this replaces.
+ * an append always read 'left' and an `insertAt: 'start'` always read 'right' regardless of history.
  */
 export function sideOfLiveRange(panels: PanelWindow[], id: string): 'left' | 'right' {
   const ownIndex = panels.findIndex((p) => p.id === id);

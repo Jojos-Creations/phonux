@@ -152,7 +152,7 @@ export function usePanelManager(
     });
   };
 
-  /** No flushSync needed: the mark only has to be in the commit that mounts the slot (see enteringViaAnchorRef's own reasoning in the record). */
+  /** No flushSync needed: the mark only has to be in the commit that mounts the slot, like enteringViaAnchorRef's. */
   const setEnterSide = (id: string, side: 'left' | 'right'): void => {
     enterSideRef.current = new Map(enterSideRef.current).set(id, side);
     purgeExitRight(id);
@@ -297,7 +297,7 @@ export function usePanelManager(
    * the setting itself) -- an effect, not something a render can decide, since it must act on a measurement
    * that just changed rather than one this render was given. A DROP parks the excess strictly from the LEFT
    * (`leftmostLiveIndex`, repeatedly): a right-exit mark cannot be committed first from inside an effect
-   * (flushSync throws mid-lifecycle -- see the record), so every park here reads the default 'left'. A RISE
+   * (flushSync cannot flush inside a passive effect), so every park here reads the default 'left'. A RISE
    * reveals from the top of `collapseOrderRef`, most-recently-parked first, entering from whichever side
    * `sideOfLiveRange` says it sits on.
    */
