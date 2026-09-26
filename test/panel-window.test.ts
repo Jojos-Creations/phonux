@@ -14,6 +14,7 @@ import {
   HISTORY_PANEL_ID,
   lastParkedBefore,
   leftmostLiveIndex,
+  movePanel,
   promoteToLive,
   restorePanel,
   rightmostLiveIndex,
@@ -228,4 +229,47 @@ test('promoteToLive: demotion never targets a collapsible:false entry (History) 
   const result = promoteToLive(panels, 'w1', 1)!; // capacity 1: something should demote, but History is exempt
   assert.equal(result.find((p) => p.id === HISTORY_PANEL_ID)!.live, true, 'History stays live: it is the only OTHER live entry, but it is exempt');
   assert.equal(result.find((p) => p.id === 'w1')!.live, true, 'w1 was promoted -- nothing was left to demote');
+});
+
+// ---------------------------------------------------------------------------
+// movePanel: the drag-to-reorder gesture's own pure primitive (ux-drag-to-reorder-panels). A single
+// present-hop can cross several parked array slots at once -- that IS "moving a live panel across parked
+// entries" (present = `!collapsible || live`, LivePanels.tsx's own filter).
+// ---------------------------------------------------------------------------
+
+test('movePanel: a live panel moved past its present-neighbor crosses every parked entry between them, and their OWN relative order is unchanged', () => {
+  // present order (web only): [live1, live2]; p1/p2 sit physically between them in the array.
+  const panels = park(makeExtraPanels('live1', 'p1', 'p2', 'live2'), 'p1', 'p2');
+  const result = movePanel(panels, 'live1', 'right');
+  assert.deepEqual(result.map((p) => p.id), ['p1', 'p2', 'live2', 'live1'], 'live1 crossed both parked entries in one hop, landing after live2');
+  assert.deepEqual(result.filter((p) => !p.live).map((p) => p.id), ['p1', 'p2'], 'p1 still comes before p2 -- their own relative order never changed');
+  assert.notEqual(result, panels, 'a real move returns a genuinely different array, never the same reference');
+});
+
+test('movePanel: the mirror direction (right-to-left) crosses the same parked block the other way', () => {
+  const panels = park(makeExtraPanels('live1', 'p1', 'p2', 'live2'), 'p1', 'p2');
+  const result = movePanel(panels, 'live2', 'left');
+  assert.deepEqual(result.map((p) => p.id), ['live2', 'live1', 'p1', 'p2'], 'live2 crossed both parked entries, landing before live1');
+  assert.deepEqual(result.filter((p) => !p.live).map((p) => p.id), ['p1', 'p2'], 'still p1 before p2');
+});
+
+test('movePanel: a collapsible:false entry (History) is rejected -- the array comes back byte-for-byte the same reference', () => {
+  const panels = [createHistoryPanel(), ...makeExtraPanels('w1', 'w2')];
+  assert.equal(movePanel(panels, HISTORY_PANEL_ID, 'right'), panels, 'no copy at all: History never reorders');
+});
+
+test('movePanel: an unknown id is a no-op -- same array reference back', () => {
+  const panels = makeExtraPanels('w1', 'w2');
+  assert.equal(movePanel(panels, 'nope', 'left'), panels);
+});
+
+test('movePanel: a panel already at the present edge in that direction is a no-op (no neighbor to cross)', () => {
+  const panels = makeExtraPanels('w1', 'w2', 'w3');
+  assert.equal(movePanel(panels, 'w1', 'left'), panels, 'w1 is already the leftmost present panel');
+  assert.equal(movePanel(panels, 'w3', 'right'), panels, 'w3 is already the rightmost present panel');
+});
+
+test('movePanel: a PARKED panel is never a move source, even toward an available neighbor -- present excludes it, so it is a no-op', () => {
+  const panels = park(makeExtraPanels('w1', 'w2', 'w3'), 'w2'); // w2 parked between two live panels
+  assert.equal(movePanel(panels, 'w2', 'right'), panels, 'w2 is parked: never a drag source');
 });
