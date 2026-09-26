@@ -28,6 +28,7 @@ import {
   type PhoneDeviceAPI,
   type SettingsAPI,
 } from './phoneViewApi.js';
+import type { SnapshotsAPI } from './snapshots.js';
 
 export interface FakeCall {
   api: keyof Host;
@@ -92,6 +93,20 @@ export function createFakeHost(overrides: FakeOverrides = {}): FakeHost {
     clearAll: () => log('panels', 'clearAll', []),
   };
 
+  // Holds no state, like every other fake here: get() always answers null, subscribe()'s listener is never
+  // called. A test that wants useViewSnapshot to see a real value builds its own SnapshotsAPI (e.g.
+  // client/src/desktop/capture's real store) and passes it as `overrides.snapshots` directly.
+  const snapshots: SnapshotsAPI = {
+    get: (viewId) => {
+      log('snapshots', 'get', [viewId]);
+      return null;
+    },
+    subscribe: (viewId, _listener) => {
+      log('snapshots', 'subscribe', [viewId]);
+      return () => log('snapshots', 'unsubscribe', [viewId]);
+    },
+  };
+
   const device: PhoneDeviceAPI = {
     size: DEFAULT_PHONE_SIZE,
     defaultSize: DEFAULT_PHONE_SIZE,
@@ -107,6 +122,7 @@ export function createFakeHost(overrides: FakeOverrides = {}): FakeHost {
     history: { ...history, ...overrides.history },
     panels: { ...panels, ...overrides.panels },
     device: { ...device, ...overrides.device },
+    snapshots: { ...snapshots, ...overrides.snapshots },
     calls,
   };
 }
