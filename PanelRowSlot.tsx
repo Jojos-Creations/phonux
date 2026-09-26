@@ -64,11 +64,10 @@ export const PANEL_TRANSITION = SLOT_TRANSITION;
  *     calls `onClose` BEFORE this exit starts, so the two run in sequence --
  *     this exit's `y` ramps in underneath a box already off-screen,
  *     invisibly, not fighting it (no snap, no jump).
- *   - 'left': `x: -slot` on plain `PANEL_TRANSITION` -- a park whose far side
- *     (panelWindow.ts's `sideOfLiveRange`) is the row's own left edge.
- *   - 'right': `x: rest + slot` -- the mirror, for a park whose far side is
- *     the right edge (an `insertAt: 'start'` open, a revive left of the
- *     visible range, or a leftward gesture).
+ *   - 'left': `x: -slot` on plain `PANEL_TRANSITION` -- a park off the row's
+ *     own left edge (the default for every park not marked right).
+ *   - 'right': `x: rest + slot` -- the mirror, off the right edge (an
+ *     `insertAt: 'start'` open, a revive left of the range, a leftward gesture).
  *
  * `exitDirection` MUST be correct on THIS component's LAST render before it
  * leaves the `live`-filtered array -- AnimatePresence has no later render of
