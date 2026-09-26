@@ -201,6 +201,31 @@ export function closePanel(panels: PanelWindow[], id: string): { remaining: Pane
 }
 
 /**
+ * Moves `id` one PRESENT slot toward `direction` (present = `!collapsible || live`, the SAME filter
+ * LivePanels.tsx renders), swapping past whichever OTHER present panel currently sits there; every entry's
+ * relative order is otherwise untouched -- a parked panel physically between the two present panels simply
+ * shifts by one array slot, which is what keeps firstParkedAfter/lastParkedBefore/sideOfLiveRange meaningful
+ * after a reorder (a single present-hop can cross several parked array slots at once; this is the "moving a
+ * live panel across parked entries" case). Returns the SAME array reference (never a copy) for every no-op:
+ * an unknown id, a `collapsible: false` entry (e.g. History -- an always-shown column is never a reorder
+ * source), a panel that is not currently present (parked, never a drag source), or one already at that edge
+ * of the present range.
+ */
+export function movePanel(panels: PanelWindow[], id: string, direction: 'left' | 'right'): PanelWindow[] {
+  const present = panels.filter((p) => !p.collapsible || p.live);
+  const presentIndex = present.findIndex((p) => p.id === id);
+  if (presentIndex < 0 || !present[presentIndex]!.collapsible) return panels;
+  const neighbor = present[direction === 'left' ? presentIndex - 1 : presentIndex + 1];
+  if (!neighbor) return panels;
+  const from = panels.findIndex((p) => p.id === id);
+  const to = panels.findIndex((p) => p.id === neighbor.id);
+  const next = panels.slice();
+  const [entry] = next.splice(from, 1);
+  next.splice(to, 0, entry!);
+  return next;
+}
+
+/**
  * Reverses closePanel for one panel: puts `panel` back at `index` (clamped to
  * the current length, so a shorter array still takes it), `webContentsId` reset
  * because whatever it pointed at was unmounted when it closed. An id that is
