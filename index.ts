@@ -24,6 +24,8 @@ export type {
 
 export { useViewSnapshot, CaptureRegistryContext, CaptureRegistryProvider } from './snapshots.js';
 export type { ViewId, ViewSnapshot, SnapshotsAPI, CaptureRegistry } from './snapshots.js';
+
+export { useViewState, ViewStateMissingProviderError } from './viewState.js';
 // Deprecated aliases: same value as their new-name counterpart, kept until removed.
 export {
   PhoneAPIsMissingProviderError,

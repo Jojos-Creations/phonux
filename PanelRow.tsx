@@ -48,7 +48,7 @@
 import * as React from 'react';
 import { AnimatePresence } from 'motion/react';
 import Box from '@mui/material/Box';
-import { resolveView, useHost } from 'phonux';
+import { resolveView, useHost, useViewState } from 'phonux';
 import { ANCHOR_PANEL_ID, resolveEnterDirection } from './anchorPanel.js';
 import { GAP, LivePanelSlot } from './LivePanelSlot.js';
 import { summarisePanel, type PanelWindow } from './panelWindow.js';
@@ -109,7 +109,11 @@ export function LivePanels({
             >
               {/* Narrowed through the SAME projection PanelsAPI itself uses: a resolved component -- built-in or
                   third-party -- is written against PanelSummary only, never the internal PanelWindow record. */}
-              <Component panel={summarisePanel(p)} />
+              {/* The ONE place useViewState's ambient panel id is set: a view calls useViewState(key, initial)
+                  with no id argument at all, so this wrap is what makes that id ambient rather than explicit. */}
+              <useViewState.Provider value={p.id}>
+                <Component panel={summarisePanel(p)} />
+              </useViewState.Provider>
             </LivePanelSlot>
           );
         })}

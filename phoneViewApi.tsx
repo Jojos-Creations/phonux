@@ -16,6 +16,7 @@ import * as React from 'react';
 import type { PhoneModel } from './phoneModels.js';
 import type { SnapshotsAPI } from './snapshots.js';
 import { OverlayProvider } from './windowOverlay.js';
+import { ViewStateProvider } from './viewState.js';
 
 // ---------------------------------------------------------------------------
 // Value types
@@ -203,7 +204,9 @@ const HostContext = React.createContext<Host | null>(null);
 export function HostProvider({ host, children }: { host: Host; children: React.ReactNode }) {
   return (
     <HostContext.Provider value={host}>
-      <OverlayProvider>{children}</OverlayProvider>
+      <OverlayProvider>
+        <ViewStateProvider>{children}</ViewStateProvider>
+      </OverlayProvider>
     </HostContext.Provider>
   );
 }
