@@ -1,20 +1,18 @@
 /**
- * Compile-only proof that useViewState<T>'s generic actually enforces `T extends JsonValue`: a plain,
- * JSON-shaped params type (declared with `type`, not `interface`, same reason registerView.typecheck.ts
- * gives) is accepted with no cast, for both the read and the setter. Never imported by anything;
- * `tsc -p client --noEmit` type-checks it as a root file because it lives under client/src. Widening
- * useViewState's bound from `T extends JsonValue` to bare `T` in viewState.ts, then passing a non-JSON
- * value (e.g. `{ fn: () => {} }`) here, must newly compile -- proving the bound is actually enforced today
- * (see viewState.ts's own useViewState signature).
+ * Compile-only proof of useViewState's types. Never imported by anything; `tsc -p client --noEmit` type-checks
+ * it as a root file because it lives under client/src. `DraftParams` is declared with `type`, not `interface`,
+ * for the same reason registerView.typecheck.ts gives.
  *
- * The second fixture below proves the companion property: a bare literal initial value still widens the
- * way `React.useState`'s does, despite the `JsonValue` bound. Replacing `Widen<T>` with bare `T` in
- * useViewState's return type (viewState.ts) must newly fail this file on `setCount(7)` (TS2345, `7` not
- * assignable to `0`) -- proving Widen<T> is load-bearing, not the JsonValue bound this file's first fixture
- * already covers.
+ * JSON bound: widening either check in viewState.ts (the second overload's `T extends JsonValue`, or the
+ * first overload's `[T] extends [JsonValue]` on `key`) and adding `useViewState('k', { fn: () => {} })` here
+ * must newly compile. useState parity: each `Same` below stops compiling if useViewState infers a different
+ * type than React.useState does from the same argument, and the @ts-expect-error stops compiling (TS2578) if
+ * an explicit literal-union type argument is ever widened.
  */
-import { createElement } from 'react';
+import { createElement, useState } from 'react';
 import { useViewState } from './viewState.js';
+
+type Same<A, B> = (<X>() => X extends A ? 1 : 2) extends (<X>() => X extends B ? 1 : 2) ? true : false;
 
 type DraftParams = { readonly text: string; readonly pinned: boolean };
 
@@ -23,10 +21,31 @@ function DraftViewStateFixture() {
   return createElement('button', { onClick: () => setDraft({ text: draft.text, pinned: !draft.pinned }) }, draft.text);
 }
 
-function LiteralWidensViewStateFixture() {
-  const [count, setCount] = useViewState('count', 0);
-  return createElement('button', { onClick: () => setCount(7) }, String(count));
+type Status = 'idle' | 'loading' | 'done';
+
+function StatusViewStateFixture() {
+  const [status, setStatus] = useViewState<Status>('status', 'idle');
+  // @ts-expect-error an explicit literal union is kept exactly, as useState<Status> keeps it
+  const reject = () => setStatus('nonsense-value');
+  return createElement('button', { onClick: () => setStatus(status === 'idle' ? 'loading' : 'done'), onBlur: reject }, status);
+}
+
+function ParityViewStateFixture({ declared }: { declared: Status }) {
+  const count = useViewState('count', 0);
+  const countViaUseState = useState(0);
+  const flags = useViewState('flags', { open: true, tabs: [1, 2] });
+  const flagsViaUseState = useState({ open: true, tabs: [1, 2] });
+  const kept = useViewState('kept', declared);
+  const keptViaUseState = useState(declared);
+  const parity: [
+    Same<typeof count, typeof countViaUseState>,
+    Same<typeof flags, typeof flagsViaUseState>,
+    Same<typeof kept, typeof keptViaUseState>,
+  ] = [true, true, true];
+  count[1]((n) => n + 1);
+  return createElement('span', null, String(parity), String(flags[0].open), kept[0]);
 }
 
 void DraftViewStateFixture;
-void LiteralWidensViewStateFixture;
+void StatusViewStateFixture;
+void ParityViewStateFixture;
