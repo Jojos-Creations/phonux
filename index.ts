@@ -70,7 +70,7 @@ export type {
   PanelHeaderProps,
   PanelHeaderRowProps,
 } from './PhoneFrame.js';
-/** @deprecated use PanelFrame/PanelHeader/PanelHeaderRow (+ their PANEL_*/panel* siblings above) */
+/** @deprecated use PanelFrame, PanelHeader, PanelHeaderRow and their PANEL_ and panel-prefixed siblings above */
 export { default as PhoneFrame } from './PhoneFrame.js';
 export {
   PHONE_CORNER_RADIUS_UNITS,
