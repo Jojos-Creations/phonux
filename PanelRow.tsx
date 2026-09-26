@@ -43,6 +43,10 @@
  *
  * Both `anchorIndex` and each entry's own row-slot `index` come from the
  * SAME one-list array.
+ *
+ * Each present entry's slot is wrapped in `PanelReorderContext` (this file's own export,
+ * `usePanelReorderEligible`) so LivePanel.tsx's grab bar knows whether IT is a reorder source without
+ * needing a new prop through `resolveView`'s third-party `Component` contract.
  */
 
 import * as React from 'react';
@@ -59,6 +63,17 @@ const BASE_LAYER_Z_INDEX = 1;
 
 const EMPTY_SET: ReadonlySet<string> = new Set();
 const EMPTY_MAP: ReadonlyMap<string, 'left' | 'right'> = new Map();
+
+/**
+ * Whether the row's drag-to-reorder gesture applies to THIS entry's own grab bar -- true only for a
+ * `collapsible` entry (an always-shown column, e.g. History, is never a reorder source). A resolved view
+ * only ever receives `PanelSummary` (no `collapsible` field, on purpose -- phoneViewApi.tsx), so LivePanel.tsx
+ * reads this instead of checking the field itself. Default false: a view with no provider above it (e.g. a
+ * test mounting itself directly) never reorders.
+ */
+const PanelReorderContext = React.createContext<boolean>(false);
+/** See `PanelReorderContext`'s own doc comment. */
+export const usePanelReorderEligible = (): boolean => React.useContext(PanelReorderContext);
 
 export function LivePanels({
   entries,
@@ -98,19 +113,20 @@ export function LivePanels({
         {present.map((p, index) => {
           const Component = resolveView(p.view);
           return (
-            <LivePanelSlot
-              key={p.id}
-              index={index}
-              phoneWidth={phoneWidth}
-              phoneHeight={phoneHeight}
-              enterDirection={enterSideById.get(p.id) ?? ((p.anchoredEnter ?? false) || enteringViaAnchorIds.has(p.id) ? resolveEnterDirection(anchorIndex, index) : 'right')}
-              exitDirection={closingIds.has(p.id) ? 'down' : exitRightIds.has(p.id) ? 'right' : 'left'}
-              zIndex={(p.layer ?? 'base') === 'raised' ? RAISED_LAYER_Z_INDEX : BASE_LAYER_Z_INDEX}
-            >
-              {/* Narrowed through the SAME projection PanelsAPI itself uses: a resolved component -- built-in or
-                  third-party -- is written against PanelSummary only, never the internal PanelWindow record. */}
-              <Component panel={summarisePanel(p)} />
-            </LivePanelSlot>
+            <PanelReorderContext.Provider key={p.id} value={p.collapsible}>
+              <LivePanelSlot
+                index={index}
+                phoneWidth={phoneWidth}
+                phoneHeight={phoneHeight}
+                enterDirection={enterSideById.get(p.id) ?? ((p.anchoredEnter ?? false) || enteringViaAnchorIds.has(p.id) ? resolveEnterDirection(anchorIndex, index) : 'right')}
+                exitDirection={closingIds.has(p.id) ? 'down' : exitRightIds.has(p.id) ? 'right' : 'left'}
+                zIndex={(p.layer ?? 'base') === 'raised' ? RAISED_LAYER_Z_INDEX : BASE_LAYER_Z_INDEX}
+              >
+                {/* Narrowed through the SAME projection PanelsAPI itself uses: a resolved component -- built-in or
+                    third-party -- is written against PanelSummary only, never the internal PanelWindow record. */}
+                <Component panel={summarisePanel(p)} />
+              </LivePanelSlot>
+            </PanelReorderContext.Provider>
           );
         })}
       </AnimatePresence>

@@ -23,11 +23,25 @@
  * one puts the box back at once.
  *
  * Keyboard or single-click alternative (WCAG 2.5.7): offer a button that calls the same onClose, as
- * History's trash buttons do.
+ * History's trash buttons do. The row's own drag-to-reorder gesture needs a single-pointer alternative too
+ * (a `move` API exists, phoneViewApi.tsx's PanelsAPI.move) -- not built here, a disclosed gap.
+ *
+ * `reorder` (optional) makes the SAME handle also drag horizontally: both axes stay enabled the whole
+ * gesture (`drag={true}`, never toggled -- a ref-driven axis prop never re-renders, so Motion would keep
+ * reading the value from before the gesture began), and the first ~`DIRECTION_LOCK_PX` of movement decides
+ * which axis wins, zeroing the LOSING axis's OWN MotionValue every tick after that. A gesture that locks
+ * horizontal never evaluates `shouldCloseOnRelease` at all (so residual vertical jitter, however Motion
+ * reports it, can never close the view); one that locks vertical (or never locks, a sub-threshold jiggle)
+ * runs the exact close logic above, unchanged. Omit `reorder` for a handle that only ever closes (e.g.
+ * History's own bar, which is never a reorder source) -- `drag` stays `'y'`, matching this file's original,
+ * narrower contract exactly.
  */
 
 import * as React from 'react';
 import { animate, motion, useDragControls, useIsPresent, useMotionValue, useReducedMotion } from 'motion/react';
+
+/** The first this many px of either axis decide which one the gesture locks to. */
+const DIRECTION_LOCK_PX = 8;
 
 /** The tunables, in one place. Distances in px, velocities in px/s, positive = downward. */
 export const DRAG_CLOSE = {
@@ -69,11 +83,26 @@ export interface DragHandleProps {
   sx: { cursor: 'grab'; touchAction: 'pan-x'; userSelect: 'none'; '&:active': { cursor: 'grabbing' } };
 }
 
+/** Wires the SAME handle's horizontal branch to a caller's own reorder mechanism -- see this file's own header comment for the full contract. */
+export interface ReorderHandle {
+  /** The gesture's own total horizontal offset (px, +right/-left from where the drag started), read once it has locked horizontal AND released. */
+  onDragEnd: (offsetX: number) => void;
+}
+
 const INTERACTIVE = 'button, a, input, select, textarea, [role="button"]';
 
-export function DragToClose({ onClose, children }: { onClose: () => void; children: (handle: DragHandleProps) => React.ReactNode }): React.ReactElement {
+export function DragToClose({
+  onClose,
+  reorder,
+  children,
+}: {
+  onClose: () => void;
+  reorder?: ReorderHandle;
+  children: (handle: DragHandleProps) => React.ReactNode;
+}): React.ReactElement {
   const controls = useDragControls();
   const y = useMotionValue(0);
+  const x = useMotionValue(0);
   const box = React.useRef<HTMLDivElement>(null);
   const reduceMotion = useReducedMotion();
   const running = React.useRef<{ stop: () => void } | null>(null);
@@ -81,6 +110,9 @@ export function DragToClose({ onClose, children }: { onClose: () => void; childr
   const closeRef = React.useRef(onClose);
   closeRef.current = onClose;
   const closing = React.useRef(false); // a release has decided to close: the exit runs and takes no more presses
+  // Which axis this gesture locked to, once the first DIRECTION_LOCK_PX decides -- null before that (or for
+  // a plain vertical-only handle, which never sets it at all).
+  const axisLock = React.useRef<'x' | 'y' | null>(null);
 
   const lockScrollParents = () => {
     for (let el = box.current?.parentElement ?? null; el; el = el.parentElement) {
@@ -113,6 +145,7 @@ export function DragToClose({ onClose, children }: { onClose: () => void; childr
     closing.current = false;
     unlockScrollParents();
     y.jump(0); // also stops an exit that is still running: its end would call onClose for a box that is back
+    x.jump(0);
     if (box.current) box.current.style.transform = 'none';
   }, [isPresent]);
 
@@ -129,15 +162,41 @@ export function DragToClose({ onClose, children }: { onClose: () => void; childr
     <motion.div
       ref={box}
       data-drag-to-close=""
-      drag="y"
+      drag={reorder ? true : 'y'}
       dragControls={controls}
       dragListener={false}
       dragMomentum={false}
       dragConstraints={{ top: 0, bottom: 0 }}
       dragElastic={{ top: 0, bottom: 1 }}
-      style={{ y }}
-      onDragStart={lockScrollParents}
+      style={reorder ? { x, y } : { y }}
+      onDragStart={() => {
+        axisLock.current = null;
+        lockScrollParents();
+      }}
+      onDrag={
+        reorder
+          ? (_event, info) => {
+              if (axisLock.current === null && (Math.abs(info.offset.x) >= DIRECTION_LOCK_PX || Math.abs(info.offset.y) >= DIRECTION_LOCK_PX)) {
+                axisLock.current = Math.abs(info.offset.x) >= Math.abs(info.offset.y) ? 'x' : 'y';
+              }
+              // Every tick after the lock resolves, override whatever Motion just wrote to the LOSING axis:
+              // this file's own header comment explains why toggling the `drag` prop mid-gesture cannot work.
+              if (axisLock.current === 'x') y.set(0);
+              else if (axisLock.current === 'y') x.set(0);
+            }
+          : undefined
+      }
       onDragEnd={(_event, info) => {
+        const lockedAxis = axisLock.current;
+        axisLock.current = null;
+        if (reorder && lockedAxis === 'x') {
+          reorder.onDragEnd(info.offset.x);
+          const back = animate(x, 0, DRAG_CLOSE.snapBack);
+          running.current = back;
+          void back.then(unlockScrollParents);
+          return; // never a close: shouldCloseOnRelease is not even consulted for a horizontal-locked release
+        }
+        if (reorder) x.jump(0); // residual sub-threshold horizontal drift from a gesture that never locked (or locked vertical)
         const rect = box.current?.getBoundingClientRect();
         const height = rect?.height ?? 0;
         if (shouldCloseOnRelease({ offsetY: info.offset.y, velocityY: info.velocity.y, height })) {
