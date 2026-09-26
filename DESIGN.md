@@ -107,8 +107,43 @@ would invite a consumer to couple to an implementation detail that owes nothing 
 production barrel can never pull test-only fake implementations into a real bundle; a consumer opts into
 fakes by importing the subpath explicitly, and a bundler that only ever sees `.` never sees them at all.
 
-## No `PhoneView` alias yet
+## The hierarchy: `WorkspaceGrid` > `Workspace` > `PanelRow` > `Panel` > `View`
 
-The barrel exports `PhoneView` under its existing name. A rename (or an added alias) is parked until the
-UX-system split has an actual design for the wider naming scheme; adding one alias now, ahead of that
-design, would commit this package to a name nothing else has settled on yet.
+A `WorkspaceGrid` holds many `Workspace`s, a `Workspace` holds one or more `PanelRow`s, a `PanelRow` holds
+`Panel` slots sized phone, tablet or desktop, and each `Panel` renders one `View` -- the component a
+developer writes and registers. This folder owns the `Panel` shell and the `View` registry, the two levels a
+View author actually touches, plus the host contract that connects them.
+
+`Workspace` and `PanelRow` stay host code for now. Both sit inside a row whose own shape is still being
+reworked; moving either into this package before that settles would mean designing a public API for it
+twice.
+
+## Naming rules R1-R4
+
+- **R1. Name by the hierarchy.** A `Panel` slot's own parts are named `Panel*`, what a developer writes is
+  named `View*`, and the bag a `View` reaches the host through is named `Host*`.
+- **R2. Phone-only things keep "Phone".** A name keeps "Phone" when the thing it names is phone-specific no
+  matter how big its panel gets -- the phone-model catalog, USB phone detection, the phone size -- so the
+  prefix still means something once panels stop being phone-shaped.
+- **R3. Size-neutral names stay.** A name that already says nothing about phones is not renamed just because
+  its folder is; renaming a name that was never phone-specific would buy nothing.
+- **R4. Every rename keeps the old name as an alias.** The old name is marked `@deprecated`, and wherever the
+  export is a value the alias is the same value as the new export, never a separate wrapper, so instanceof
+  and identity checks on the old name keep working after the rename.
+
+## The alias policy
+
+A renamed export keeps its old name working as a same-value `@deprecated` alias, not a rewritten wrapper,
+until every consumer that imports this package has moved off it. Whoever wires those consumers is the only
+one positioned to know once nothing outside still resolves the old name, so removal is never scheduled here.
+
+This is why a rename here is never a breaking change by itself: an existing import keeps compiling and keeps
+returning the same value, only flagged deprecated, for as long as the alias stays in place.
+
+## Workspace state, not "session"
+
+A `Workspace`'s own saved state -- which panels are open, their order, sizes and params -- is named
+*workspace state* in this package, never "session". "Session" already names something else: the app's
+persisted front-page sessions (`electron/sessions.ts`), a url plus titles and turn strings, stored in a file
+that must never change shape. The two are different data owned by different code, so reusing one word for
+both would leave every future name ambiguous about which it meant.
