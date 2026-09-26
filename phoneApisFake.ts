@@ -93,18 +93,14 @@ export function createFakeHost(overrides: FakeOverrides = {}): FakeHost {
     clearAll: () => log('panels', 'clearAll', []),
   };
 
-  // Holds no state, like every other fake here: get() always answers null, subscribe()'s listener is never
-  // called. A test that wants useViewSnapshot to see a real value builds its own SnapshotsAPI (e.g.
-  // client/src/desktop/capture's real store) and passes it as `overrides.snapshots` directly.
+  // Deliberately does NOT log, unlike every other member here: useSyncExternalStore calls get()/subscribe()
+  // as part of ordinary React rendering (every render, every mount), not as a discrete user action -- logging
+  // them would put a `snapshots.get`/`snapshots.subscribe` entry in `calls` for every test that merely renders
+  // a view with a capturable Panel, breaking every exact `deepEqual(calls, [...])` assertion elsewhere that
+  // has nothing to do with snapshots. Holds no state either way: get() always answers null.
   const snapshots: SnapshotsAPI = {
-    get: (viewId) => {
-      log('snapshots', 'get', [viewId]);
-      return null;
-    },
-    subscribe: (viewId, _listener) => {
-      log('snapshots', 'subscribe', [viewId]);
-      return () => log('snapshots', 'unsubscribe', [viewId]);
-    },
+    get: () => null,
+    subscribe: () => () => {},
   };
 
   const device: PhoneDeviceAPI = {
