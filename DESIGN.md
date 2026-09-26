@@ -255,7 +255,7 @@ the same way `HostProvider` already mounts a second context for a concern that i
 bag. Close then `undoClose` inside the undo window needs no special-case code: both keep the SAME panel id
 (`panelWindow.ts`'s close/restore, `usePanelClosing.ts`'s `undoClose`), so the store's Map already has the
 right cell waiting when the view remounts. It does not survive an app restart: a pure in-memory store, no
-desktop bridge, no local storage -- the owner's "survives parking" request, not "survives a restart".
+desktop bridge, no local storage. Surviving a park is the whole contract; surviving a restart is not part of it.
 
 `useViewState(key, initial)` takes no id argument at all: a view never wires its own identity. The id is
 ambient, read from a context set exactly once, at the ONE place a resolved View is actually rendered
@@ -267,12 +267,17 @@ a bare `'phonux'` import is the only way `LivePanels.tsx` (desktop-side) may rea
 (see the phone-boundary suite), so the setter still has to travel through the SAME public entry point
 `useViewState` already does, not a separate one.
 
-Type inference reads identically to `React.useState` too, including for a bare literal initial value:
-`useViewState('count', 0)` then `setCount(7)` type-checks with no annotation, the same as `useState(0)` then
-`setCount(7)`. A JsonValue-constrained generic naively infers a LITERAL type from a bare argument (`T` would
-lock to `0`, rejecting `setCount(7)`) where an unconstrained one widens -- a TS inference quirk of constrained
-generics, not a property of JSON data itself. `viewState.ts`'s internal `Widen<T>` type re-widens exactly what
-an unconstrained `T` would, recursing into arrays and objects, so a view author never needs an explicit type
-argument (`useViewState<number>(...)`) just to use a plain literal initial value; one is still needed only
-where `useState` itself would need one -- to name a union wider than the initial value infers, e.g.
-`useViewState<number | null>('id', null)`.
+Types read exactly as `React.useState`'s do. With no type argument, `useViewState('count', 0)` infers
+`number`, an object literal's `true` infers `boolean`, and a value already typed `'idle' | 'loading'` keeps that
+union. An explicit type argument is kept as given, so `useViewState<'idle' | 'loading' | 'done'>('status',
+'idle')` rejects `setStatus('nonsense')`. As with `useState`, a type argument is needed only to name a type
+wider than the initial value, e.g. `useViewState<number | null>('id', null)`. `setValue` keeps one identity
+for the component's lifetime, as `useState`'s setter does, even when `initial` is a fresh object each render.
+
+The JSON rule cannot be a constraint on the hook's type parameter. TypeScript keeps a literal as a literal
+(`0`, not `number`) for any type parameter whose constraint includes primitives, and `JsonValue` does. Instead,
+the type parameter stays unconstrained, which is the same inference `useState<S>` gets, and the first overload
+checks `[T] extends [JsonValue]` through `key`'s parameter type. A second overload, `T extends JsonValue`,
+serves a caller that is itself generic over `JsonValue`, where that check cannot resolve. A non-JSON `initial`
+fails both overloads. `viewState.typecheck.ts` compares these types against `useState` directly and pins the
+literal-union case.
