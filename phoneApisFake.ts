@@ -28,6 +28,7 @@ import {
   type PhoneDeviceAPI,
   type SettingsAPI,
 } from './phoneViewApi.js';
+import type { SnapshotsAPI } from './snapshots.js';
 
 export interface FakeCall {
   api: keyof Host;
@@ -93,6 +94,16 @@ export function createFakeHost(overrides: FakeOverrides = {}): FakeHost {
     clearAll: () => log('panels', 'clearAll', []),
   };
 
+  // Deliberately does NOT log, unlike every other member here: useSyncExternalStore calls get()/subscribe()
+  // as part of ordinary React rendering (every render, every mount), not as a discrete user action -- logging
+  // them would put a `snapshots.get`/`snapshots.subscribe` entry in `calls` for every test that merely renders
+  // a view with a capturable Panel, breaking every exact `deepEqual(calls, [...])` assertion elsewhere that
+  // has nothing to do with snapshots. Holds no state either way: get() always answers null.
+  const snapshots: SnapshotsAPI = {
+    get: () => null,
+    subscribe: () => () => {},
+  };
+
   const device: PhoneDeviceAPI = {
     size: DEFAULT_PHONE_SIZE,
     defaultSize: DEFAULT_PHONE_SIZE,
@@ -108,6 +119,7 @@ export function createFakeHost(overrides: FakeOverrides = {}): FakeHost {
     history: { ...history, ...overrides.history },
     panels: { ...panels, ...overrides.panels },
     device: { ...device, ...overrides.device },
+    snapshots: { ...snapshots, ...overrides.snapshots },
     calls,
   };
 }

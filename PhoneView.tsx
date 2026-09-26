@@ -20,6 +20,7 @@ import * as React from 'react';
 import Box, { type BoxProps } from '@mui/material/Box';
 import { PANEL_HEADER_GAP_PX, PanelHeaderRow, type PanelHeaderRowProps } from './PhoneFrame.js';
 import { useHost } from './phoneViewApi.js';
+import { CaptureRegistryContext, type ViewId } from './snapshots.js';
 
 // One import path for a view author: the contracts, the provider and the hook.
 export { HostMissingProviderError, HostProvider, useHost } from './phoneViewApi.js';
@@ -65,15 +66,30 @@ export interface PanelProps extends Omit<BoxProps, 'children' | 'sx' | 'title'> 
   overlay?: React.ReactNode;
   sx?: BoxProps['sx'];
   children: React.ReactNode;
+  /**
+   * Registers this Panel's own root element with the desktop's capture registry (see snapshots.ts's
+   * CaptureRegistryContext) so the host can later ask for a picture of it by id. Omitted: never registered.
+   */
+  viewId?: ViewId;
+  /** 'never' opts a Panel with a viewId out of registration entirely -- default 'auto'. */
+  capture?: 'auto' | 'never';
 }
 
 /** @deprecated use PanelProps */
 export type PhoneViewProps = PanelProps;
 
-export function Panel({ title, actions, headerProps, grabProps, overlay, sx, children, ...rest }: PanelProps) {
+export function Panel({ title, actions, headerProps, grabProps, overlay, sx, children, viewId, capture = 'auto', ...rest }: PanelProps) {
   const { device } = useHost();
+  const registry = React.useContext(CaptureRegistryContext);
+  const rootRef = React.useRef<HTMLDivElement | null>(null);
+  React.useEffect(() => {
+    // No provider mounted (the common case under a bare <HostProvider> in a test, per CaptureRegistryContext's
+    // own doc comment) or this Panel opted out: registration is a no-op, never a throw.
+    if (!registry || !viewId || capture === 'never' || !rootRef.current) return undefined;
+    return registry.register(viewId, rootRef.current, 'viewport');
+  }, [registry, viewId, capture]);
   return (
-    <Box sx={{ position: 'relative', width: device.size.width, ...sx }} {...rest}>
+    <Box sx={{ position: 'relative', width: device.size.width, ...sx }} {...rest} ref={rootRef}>
       {title !== undefined && <PanelHeaderRow title={title} actions={actions} {...headerProps} />}
       {grabProps && (
         <Box

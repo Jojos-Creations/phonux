@@ -21,6 +21,9 @@ export type {
   PhoneDeviceAPI,
   Host,
 } from './phoneViewApi.js';
+
+export { useViewSnapshot, CaptureRegistryContext, CaptureRegistryProvider } from './snapshots.js';
+export type { ViewId, ViewSnapshot, SnapshotsAPI, CaptureRegistry } from './snapshots.js';
 // Deprecated aliases: same value as their new-name counterpart, kept until removed.
 export {
   PhoneAPIsMissingProviderError,

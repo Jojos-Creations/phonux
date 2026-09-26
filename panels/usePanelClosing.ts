@@ -68,8 +68,22 @@ export function usePanelClosing(
    * `onAfterClose`; useProvidePanels.ts, the one caller, wires this to usePanelManager's `markEnteringViaAnchor`.
    */
   onRestoreLive?: (id: string) => void,
+  /**
+   * Called with the ids the undo window's own NATURAL elapse (never Undo -- that path calls stopWindow()
+   * instead, below) just finalized, so a caller (useProvidePanels.ts, the capture-eviction wiring) can tell a
+   * restored close apart from one nothing will ever undo again. Optional, same convention as the other two.
+   */
+  onWindowElapsed?: (ids: string[]) => void,
 ): UsePanelClosingResult {
   const [closed, setClosed] = useState<ClosedView[]>([]);
+  // Mirrors `closed` synchronously (never via an effect): the timer callback below fires from a closure
+  // created at the LAST close() call, whose own render still saw `closed` BEFORE that call's own setClosed
+  // took effect -- reading this ref instead always sees every entry the window is actually holding when it fires.
+  const closedRef = useRef<ClosedView[]>([]);
+  const setClosedBoth = (next: ClosedView[]): void => {
+    closedRef.current = next;
+    setClosed(next);
+  };
   const [closingIds, setClosingIds] = useState<ReadonlySet<string>>(new Set());
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   // Ids closed in the current window: a second close of the same id (a gesture callback that outlived a trash click) is ignored.
@@ -113,12 +127,14 @@ export function usePanelClosing(
     } catch {
       // No desktop bridge (a browser-only preview build) -- the log simply never persists.
     }
-    setClosed((prev) => [...prev, { panel: found.closed, index: found.index, logId }]);
+    setClosedBoth([...closedRef.current, { panel: found.closed, index: found.index, logId }]);
     if (timer.current) clearTimeout(timer.current);
     timer.current = setTimeout(() => {
       timer.current = null;
       claimed.current.clear();
-      setClosed([]);
+      const elapsedIds = closedRef.current.map((e) => e.panel.id);
+      setClosedBoth([]);
+      onWindowElapsed?.(elapsedIds);
     }, UNDO_WINDOW_MS);
   };
 
@@ -126,7 +142,7 @@ export function usePanelClosing(
     if (closed.length === 0) return;
     const batch = closed;
     stopWindow();
-    setClosed([]);
+    setClosedBoth([]);
     // Last closed first: each index was taken from the array as it was when THAT view closed, so undoing in reverse re-creates it.
     let working = panels;
     for (const { panel, index } of [...batch].reverse()) {

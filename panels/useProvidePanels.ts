@@ -9,8 +9,9 @@
  * value it takes is an INPUT here, declared by the host before useAppApis is called.
  */
 
-import { type Dispatch, type RefObject, type SetStateAction } from 'react';
+import { useEffect, useRef, type Dispatch, type RefObject, type SetStateAction } from 'react';
 import type { CreatePanelOptions, PanelsAPI } from 'phonux';
+import { captureController, type CaptureTrigger } from '../capture/controller.js';
 import { appendPanel, summarisePanel, type PanelWindow } from './panelWindow.js';
 import { usePanelClosing } from './usePanelClosing.js';
 import { usePanelManager } from './usePanelManager.js';
@@ -39,6 +40,12 @@ export interface PanelsInput {
   containerWidth: number;
   /** The row's scroll container: the gesture's wheel listener attaches here. */
   overflowContainerRef: RefObject<HTMLDivElement | null>;
+  /**
+   * Optional so this hook's own tests (and every existing caller, e.g. useAppApis) need not supply one --
+   * defaults to the app's one real capture controller (client/src/desktop/capture/controller.ts). A test
+   * that wants to count calls passes its own fake instead.
+   */
+  capture?: CaptureTrigger;
 }
 
 /**
@@ -57,6 +64,7 @@ export interface ProvidedPanels extends PanelsAPI {
 }
 
 export function useProvidePanels(i: PanelsInput): ProvidedPanels {
+  const capture = i.capture ?? captureController;
   const {
     revealPanelProactively,
     handleActivatePanel,
@@ -74,6 +82,20 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
   // The row's own wheel/arrow-key gesture: lives off the host (GoalFrontPage.tsx's own acceptance grep
   // forbids useEffect/useRef there), wired here instead.
   useRowScrollGesture(i.overflowContainerRef, scrollRow);
+
+  // v1's "capture only at fixed moments" policy, park half: usePanelManager flips `live` false at 7
+  // independent call sites (autoCollapseOldest and friends) with no single "on park" hook of its own -- a
+  // per-site capture call would need all 7 touched and one missed site breaks the contract silently. Diffing
+  // the ONE array this hook already receives, at the ONE place that composes every panel-array writer, finds
+  // every transition regardless of which of the 7 sites caused it.
+  const prevLiveRef = useRef<ReadonlyMap<string, boolean>>(new Map());
+  useEffect(() => {
+    const prev = prevLiveRef.current;
+    for (const p of i.panels) {
+      if (prev.get(p.id) === true && !p.live) capture.capture(p.id);
+    }
+    prevLiveRef.current = new Map(i.panels.map((p) => [p.id, p.live]));
+  }, [i.panels, capture]);
 
   // Closing a view completely (History trash or the live panel's drag-down), its 10 s undo window and the log entry.
   // After usePanelManager: undo makes room for a live view through its revealPanelProactively.
@@ -94,6 +116,12 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
       clearEnterSide(id);
       markEnteringViaAnchor(id);
     },
+    // v1's 5th accepted default: a closed-and-not-restored panel's picture must not outlive its undo window.
+    // usePanelClosing.ts alone knows exactly which ids the window's NATURAL elapse (never Undo) just
+    // finalized, so eviction is keyed off this callback rather than re-deriving it here.
+    (ids) => {
+      for (const id of ids) capture.evict(id);
+    },
   );
 
   return {
@@ -113,7 +141,14 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
     },
     activate: handleActivatePanel,
     move: reorderPanel,
-    close: closing.close,
+    close: (id: string) => {
+      // v1's "capture only at fixed moments" policy, close half: fires on every close() call, whether or not
+      // this particular id actually leaves the array (an unknown or locked id's close is already a no-op one
+      // line down) -- a harmless extra attempt costs nothing, and keeping this unconditional avoids a second
+      // callback into usePanelClosing.ts just to gate it exactly.
+      capture.capture(id);
+      closing.close(id);
+    },
     recentlyClosed: closing.recentlyClosed?.map(summarisePanel) ?? null,
     undoClose: closing.undoClose,
     // Forgets every web panel, live or parked -- never History (`collapsible: false`, the one always-shown
