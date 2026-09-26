@@ -228,8 +228,10 @@ export type PhoneFrameHeaderProps = PanelHeaderProps;
  * text lines up with the frame's own content, not just "some padding" picked
  * independently -- not internal layout, since one caller needs a centered
  * ellipsis title and another needs a space-between icon row; pass `sx` for
- * that (genuinely per-instance styling like `fontWeight: 'bold'` or
- * `cursor: 'grab'` layers on top of, rather than replacing, this base).
+ * that (genuinely per-instance styling like `fontWeight: 'bold'` layers on
+ * top of, rather than replacing, this base). Pointer/drag wiring belongs on
+ * `Panel`'s separate `grabProps`, never here -- this header never carries a
+ * grab cursor.
  */
 export function PanelHeader({ children, sx, ...rest }: PanelHeaderProps) {
   return (
