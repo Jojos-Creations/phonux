@@ -57,8 +57,11 @@ void _typeSanity;
 
 const CHECK_IMPORT_MJS = `import * as phonux from 'phonux';
 
+// PanelFrame is React.forwardRef(...), a plain OBJECT at runtime (React has
+// never made forwardRef return a function) -- checking for "defined", not
+// "function", so this doesn't fail on a real, correctly-shipped component.
 const required = ['Panel', 'PanelFrame', 'useHost', 'HostProvider', 'registerView'];
-const missing = required.filter((name) => typeof phonux[name] !== 'function');
+const missing = required.filter((name) => typeof phonux[name] === 'undefined');
 if (missing.length > 0) {
   throw new Error(\`ESM import of phonux resolved but is missing: \${missing.join(', ')}\`);
 }
