@@ -28,8 +28,8 @@
  * `enteringViaAnchorIds` is one ENTER-side source -- ids currently (re)joining
  * `live` through usePanelManager.ts's `revealMostRecentlyCollapsed` or
  * usePanelClosing.ts's `undoClose`. A brand-new panel or a manual
- * History-row activation never appear in this set, so they keep entering
- * from the right unconditionally. History's own reappearance always resolves
+ * History-row activation never appear in this set, so they enter from the
+ * right unless their own `anchoredEnter` says otherwise. History's own reappearance always resolves
  * through the SAME anchor formula (anchorPanel.ts) unconditionally: compared
  * against itself its index is never less-than, so it always computes to
  * 'right' anyway -- no separate gate needed for it.

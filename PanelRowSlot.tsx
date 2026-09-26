@@ -52,10 +52,10 @@ export const PANEL_TRANSITION = SLOT_TRANSITION;
  * no later render of a fresh mount to fix a wrong guess).
  *
  * A CLOSE (History's hover-trash, or DragToClose) slides down; a park (hidden
- * by opening/reviving another panel, or by the row's own scroll gesture)
- * slides left or right, off the edge nearer to where it went -- so a close
- * always reads as visually distinct from a park, whichever side the park
- * picks. `exitDirection` (LivePanels.tsx computes it from `closingIds` and
+ * by opening or reviving another panel, by the row's own scroll gesture, or
+ * by a capacity drop) slides left or right, off the row edge it was hidden
+ * past -- so a close always reads as visually distinct from a park, whichever
+ * side the park picks. `exitDirection` (LivePanels.tsx computes it from `closingIds` and
  * `exitRightIds`) picks between the three:
  *   - 'down': timed/eased to DragToClose's own downward exit
  *     (`DRAG_CLOSE.exitSeconds`/`easeIn`, dragToClose.tsx) via a per-variant
@@ -67,7 +67,8 @@ export const PANEL_TRANSITION = SLOT_TRANSITION;
  *   - 'left': `x: -slot` on plain `PANEL_TRANSITION` -- a park whose far side
  *     (panelWindow.ts's `sideOfLiveRange`) is the row's own left edge.
  *   - 'right': `x: rest + slot` -- the mirror, for a park whose far side is
- *     the right edge (an `insertAt: 'start'` open, or a leftward gesture).
+ *     the right edge (an `insertAt: 'start'` open, a revive left of the
+ *     visible range, or a leftward gesture).
  *
  * `exitDirection` MUST be correct on THIS component's LAST render before it
  * leaves the `live`-filtered array -- AnimatePresence has no later render of
@@ -80,7 +81,7 @@ export interface PanelSlotMotion {
   readonly transition: typeof PANEL_TRANSITION;
 }
 
-export type ExitDirection = 'down' | 'left' | 'right';
+type ExitDirection = 'down' | 'left' | 'right';
 
 /**
  * The pure values behind one LivePanelSlot render, split out of the component

@@ -1,7 +1,8 @@
 /**
- * Pure row-layout arithmetic, shared between the renderer's row shell (client/src/desktop/row/useRowShell.ts)
- * and its panel manager (client/src/desktop/panels/usePanelManager.ts). Zero Electron/DOM imports, so this is
- * directly unit-testable under plain node (test/panel-layout.test.ts).
+ * Pure row-layout arithmetic, shared by the renderer's row shell (client/src/desktop/row/useRowShell.ts), its
+ * panel manager (client/src/desktop/panels/usePanelManager.ts) and SettingsAPI's fit count
+ * (client/src/desktop/settings/useProvideSettings.ts). Zero Electron/DOM imports, so this is directly
+ * unit-testable under plain node (test/panel-layout.test.ts).
  */
 
 export interface RowLayoutInput {
@@ -19,17 +20,17 @@ export interface RowLayoutInput {
    * of the caller's panel state.
    */
   fixedItemCount: number;
-  /** How many panels are actually live right now (`panels.filter((p) =>
-   * p.live).length`) -- computed by the caller from `panels` state, passed
-   * in as a plain count for the same reason as `fixedItemCount`. */
+  /** How many collapsible panels are actually live right now -- computed by
+   * the caller from `panels` state, passed in as a plain count for the same
+   * reason as `fixedItemCount`. */
   liveCountNow: number;
 }
 
 export interface RowLayoutResult {
   /** How many live panels the row can actually show before it would
    * overflow `containerWidth`, given the fixed items' own share of it --
-   * usePanelManager.ts's own `fitCount` and `capacity` are derived from
-   * this. */
+   * usePanelManager.ts's capacity and SettingsAPI's `fitCount` are derived
+   * from this. */
   maxLiveThatFit: number;
   /** `liveCountNow`, capped at `maxLiveThatFit` -- what the row actually
    * renders width-wise (rendering itself is still `liveCountNow`-driven
@@ -39,7 +40,8 @@ export interface RowLayoutResult {
    * `effectiveLiveCount`. */
   rowTotalWidth: number;
   /** The `marginLeft` that centers `rowTotalWidth` inside the row's
-   * available width -- floored at 0 once the row is at or past capacity. */
+   * available width -- floored at 0 when the fixed items alone are wider
+   * than that. */
   computedRowMarginLeft: number;
 }
 

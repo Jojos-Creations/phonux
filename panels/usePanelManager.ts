@@ -9,10 +9,9 @@
  * `revealMostRecentlyCollapsed` (closing a live panel) keeps working regardless of which of this hook's own
  * paths did the parking.
  *
- * CALL-SITE ORDERING HAZARD: this hook is a real function CALL -- its arguments are evaluated immediately,
- * at the call site. It must be called AFTER `overflowContainerRef` is already declared (the host calls
- * useRowShell() before useAppApis, which calls this), or that argument expression throws a "used before
- * initialization" error.
+ * CALL-SITE ORDERING HAZARD: `containerWidth` is evaluated at the call site, so the host must call
+ * useRowShell() before useAppApis (which reaches this through useProvidePanels), or reading it throws a
+ * "used before initialization" error.
  */
 import { useEffect, useRef, useState } from 'react';
 import type { Dispatch, RefObject, SetStateAction } from 'react';
@@ -32,18 +31,13 @@ import {
 } from './panelWindow.js';
 
 export interface UsePanelManagerResult {
-  /** How many live collapsible panels the row may hold right now (`Infinity` while unmeasured). */
-  capacity: number;
-  /** `containerWidth === 0 ? null : fixedColumnCount + the fit count` -- SettingsAPI's own `fitCount`. */
-  fitCount: number | null;
   revealPanelProactively: (panelsNow: PanelWindow[], apply: (prev: PanelWindow[]) => PanelWindow[]) => void;
   handleActivatePanel: (id: string) => void;
   /**
-   * Removes `id` from the collapse-order stack if it is there -- called whenever a panel leaves the
-   * collapsed state through a path that is NOT `revealMostRecentlyCollapsed` itself (usePanelClosing.ts's
-   * `close()` calls it for whatever id it just closed, live or parked, so a panel closed while parked --
-   * or later restored by `undoClose` -- never leaves a stale entry that could resurrect it outside this
-   * feature's scope). A no-op for an id not on the stack.
+   * Removes `id` from the collapse-order stack if it is there. useProvidePanels.ts's `onAfterClose` calls it
+   * for whatever id usePanelClosing just closed, live or parked, so a closed panel -- or one later restored
+   * by `undoClose` -- never leaves a stale entry a later reveal could resurrect. A no-op for an id not on the
+   * stack.
    */
   forgetCollapsed: (id: string) => void;
   /**
@@ -52,9 +46,8 @@ export interface UsePanelManagerResult {
    * is empty, or if the row is already at capacity -- it never falls through to an older entry: this is
    * about the single MOST recently parked panel, not "whichever parked panel currently fits". Silently
    * discards (permanently) any stack entries that no longer point at a currently-parked panel in
-   * `panelsAfterClose` -- a panel closed outright while parked, or wiped by `clearAll()`, never goes
-   * through `forgetCollapsed`'s own explicit call sites, so this is the backstop that keeps the stack from
-   * pointing at nothing.
+   * `panelsAfterClose` -- a panel wiped by `clearAll()` never goes through `forgetCollapsed`, so this is the
+   * backstop that keeps the stack from pointing at nothing.
    */
   revealMostRecentlyCollapsed: (panelsAfterClose: PanelWindow[]) => void;
   /**
@@ -180,12 +173,10 @@ export function usePanelManager(
   };
 
   /**
-   * Before a NEW panel is actually shown (a just-intercepted new-window request, PanelsAPI.create(), or
-   * usePanelClosing's own undo restoring a LIVE panel) -- or an existing one is restored -- parks whatever is
-   * necessary to stay at capacity FIRST, in the SAME update that reveals it. `apply` is called once, purely
-   * (no side effect), against `panelsNow` to learn the id and array position of whatever it adds/restores --
-   * the real commit re-runs it against the LATEST state instead of trusting this snapshot, the same
-   * "merge by id, not by snapshot" idiom every write here uses.
+   * Before a panel is shown -- a new one from PanelsAPI.create(), or usePanelClosing's undo restoring a LIVE
+   * one -- parks whatever is necessary to stay at capacity, in the SAME update that reveals it. `apply` is
+   * called once, purely (no side effect), against `panelsNow` to learn the id and array position of whatever
+   * it adds/restores; the real commit re-runs it against the LATEST state instead of trusting this snapshot.
    */
   const revealPanelProactively = (panelsNow: PanelWindow[], apply: (prev: PanelWindow[]) => PanelWindow[]): void => {
     const afterInsert = apply(panelsNow);
@@ -235,10 +226,9 @@ export function usePanelManager(
   const handleActivatePanel = (id: string): void => {
     const target = panels.find((p) => p.id === id);
     if (!target || target.live) return;
-    // A manual History-row activation keeps entering from the right unconditionally -- forget any stale
-    // anchor-entry OR gesture-enter-side mark this id picked up from an earlier reveal (ids cycle
-    // live/parked repeatedly over a session), so a manual click can never inherit the wrong direction from
-    // what happened to it last time (the UX-ANCHOR-d rule).
+    // A manual History-row activation enters from the right (or by its own `anchoredEnter`) -- forget any
+    // stale anchor-entry OR gesture-enter-side mark this id picked up from an earlier reveal (ids cycle
+    // live/parked repeatedly over a session), so a manual click never inherits the direction of its last one.
     forgetEnteringViaAnchor(id);
     clearEnterSide(id);
     const before = panels;
@@ -271,7 +261,7 @@ export function usePanelManager(
       const parkIndex = leftmostLiveIndex(panels);
       const parkId = parkIndex >= 0 ? panels[parkIndex]!.id : null;
       setEnterSide(reveal.id, 'right');
-      // The leftmost live panel always sides 'left' (sideOfLiveRange's own definition): no exit-right mark needed.
+      // The leftmost live panel exits LEFT, the default: no exit-right mark needed.
       if (parkId) pushCollapsed([parkId]);
       forgetCollapsed(reveal.id);
       setPanels((prev) => prev.map((p) => (p.id === parkId ? { ...p, live: false } : p.id === reveal.id ? { ...p, live: true } : p)));
@@ -282,7 +272,7 @@ export function usePanelManager(
       const parkIndex = rightmostLiveIndex(panels);
       const parkId = parkIndex >= 0 ? panels[parkIndex]!.id : null;
       setEnterSide(reveal.id, 'left');
-      // The rightmost live panel always sides 'right': mark it BEFORE the setPanels below, in its own commit.
+      // The rightmost live panel exits RIGHT: mark it BEFORE the setPanels below, in its own commit.
       if (parkId) {
         markExitRight(parkId);
         pushCollapsed([parkId]);
@@ -361,14 +351,12 @@ export function usePanelManager(
     // reveal would slide in from the wrong side. Mirrors handleActivatePanel's own clear-then-mark order.
     clearEnterSide(candidateId);
     // One of the two "reappearance" paths that enter from the anchor's side -- mark it BEFORE the setPanels
-    // call below (see enteringViaAnchorRef's own doc comment for why no flushSync is needed here).
+    // call below; no flushSync, since the mark only has to be in the commit that mounts the slot.
     markEnteringViaAnchor(candidateId);
     setPanels((current) => promoteToLive(current, candidateId, Number.POSITIVE_INFINITY) ?? current);
   };
 
   return {
-    capacity,
-    fitCount,
     revealPanelProactively,
     handleActivatePanel,
     forgetCollapsed,
