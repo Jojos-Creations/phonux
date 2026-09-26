@@ -227,6 +227,16 @@ export function movePanel(panels: PanelWindow[], id: string, direction: 'left' |
 }
 
 /**
+ * How many movePanel hops a horizontal drag of `offsetX` px asks for (+right/-left), one per `slotWidth`:
+ * past a sibling's midpoint is one hop. Rounds the MAGNITUDE, so an exact half slot is a hop either way
+ * (`Math.round(-0.5)` is -0, which would drop a leftward tie), and never returns -0.
+ */
+export function reorderStepsForOffset(offsetX: number, slotWidth: number): number {
+  const steps = Math.round(Math.abs(offsetX) / slotWidth);
+  return steps === 0 ? 0 : Math.sign(offsetX) * steps;
+}
+
+/**
  * Reverses closePanel for one panel: puts `panel` back at `index` (clamped to
  * the current length, so a shorter array still takes it), `webContentsId` reset
  * because whatever it pointed at was unmounted when it closed. An id that is
