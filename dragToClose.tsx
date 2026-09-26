@@ -20,7 +20,7 @@
  * the box takes no more presses (one would stop the exit and the close would never run). If the owner then brings the box back
  * while AnimatePresence still holds it (the same key returns: an undo), it is made a fresh box at once: at rest, unlocked, taking
  * presses, its pending exit stopped. Reduced motion: no exit animation and no spring; a far drag calls onClose at once, a short
- * one puts the box back at once.
+ * one (or a horizontal reorder release) puts the box back at once.
  *
  * Keyboard or single-click alternative (WCAG 2.5.7): offer a button that calls the same onClose, as
  * History's trash buttons do. The row's own drag-to-reorder gesture needs a single-pointer alternative too
@@ -191,6 +191,10 @@ export function DragToClose({
         axisLock.current = null;
         if (reorder && lockedAxis === 'x') {
           reorder.onDragEnd(info.offset.x);
+          if (reduceMotion) {
+            x.jump(0); // jump, not set: it also stops the inertia Motion itself just started on x
+            return unlockScrollParents();
+          }
           const back = animate(x, 0, DRAG_CLOSE.snapBack);
           running.current = back;
           void back.then(unlockScrollParents);
