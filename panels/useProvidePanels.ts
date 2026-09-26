@@ -74,6 +74,7 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
     markEnteringViaAnchor,
     clearEnterSide,
     scrollRow,
+    reorderPanel,
     enterSideById,
     exitRightIds,
   } = usePanelManager(i.panels, i.setPanels, i.storedMaxPanels, i.phoneWidth, i.containerWidth, i.fixedViewCount);
@@ -139,6 +140,7 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
       );
     },
     activate: handleActivatePanel,
+    move: reorderPanel,
     close: (id: string) => {
       // v1's "capture only at fixed moments" policy, close half: fires on every close() call, whether or not
       // this particular id actually leaves the array (an unknown or locked id's close is already a no-op one

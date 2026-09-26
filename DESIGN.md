@@ -50,6 +50,18 @@ placing a new entry into the array, `layer` by the row's per-slot zIndex, `ancho
 enter-direction choice. A custom panel can opt into any of History's three behaviors without becoming
 History-shaped in any other way -- `listed`, `collapsible` and `locked` stay independent of all three.
 
+## `PanelsAPI.move` is directional (move-by-one), not "move to index"
+
+`move(id, 'left' | 'right')` swaps `id` past whichever OTHER shown panel currently sits toward that side,
+rather than taking a raw target index. A raw index is meaningless across the `panelList`/internal-array
+split (`panelList` only ever lists panels, `collapsible: false` columns like History are never addressable
+targets) and would leak the internal array's own indexing into the public surface. The row's own
+drag-to-reorder gesture (LivePanel.tsx) converts a pointer's cumulative offset into a step count
+(`round(offsetX / slotWidth)`) and calls `move` that many times in the same direction -- the same primitive a
+future keyboard/single-pointer alternative (WCAG 2.5.7) would call once per key press. `collapsible: false`
+panels are excluded from the drag itself through a plain React context LivePanels.tsx provides per slot (a
+resolved view only ever receives `PanelSummary`, which carries no `collapsible` field to check locally).
+
 ## `params` is opaque and JSON-serializable by construction
 
 `PanelSummary.params`/`PanelsAPI.create({ params })` carry per-component data the registry and the row never

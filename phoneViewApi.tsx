@@ -130,6 +130,12 @@ export interface PanelsAPI {
   create(options: CreatePanelOptions): void;
   /** Make a panel live in place, without reordering the row. May park the live panel farthest from it. */
   activate(id: string): void;
+  /**
+   * Moves `id` one row-slot toward `direction`, swapping past whichever OTHER currently-shown panel sits
+   * there -- the row's own drag-to-reorder gesture calls this underneath. No-op for an id that is unknown,
+   * not currently shown (parked), a permanent column (e.g. History), or already at that edge of the row.
+   */
+  move(id: string, direction: 'left' | 'right'): void;
   /** Close a view completely, live or parked: it leaves the row and History at once, a closed event is appended to the persisted log (HistoryAPI), and it can be undone for 10 s (recentlyClosed, undoClose). Also accepts History's own fixed-panel id (HistoryAPI.close is the same mechanism, offered per-panel so a view need not know the id) -- an id not in `panelList` and not History's id, or a LOCKED fixed panel's id, does nothing. */
   close(id: string): void;
   /** The views closed within the current undo window, oldest first; non-null exactly while it is open (10 s after the LAST close). Drives the "Closed N pages / Undo" toast. */
