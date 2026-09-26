@@ -124,7 +124,7 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
     },
   );
 
-  return {
+  const api: ProvidedPanels = {
     // `listed` excludes History: it must not list itself (AdventurePanel.tsx renders every entry here as a
     // clickable row).
     panelList: i.panels.filter((p) => p.listed).map(summarisePanel),
@@ -159,4 +159,16 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
     exitRightIds,
     enterSideById,
   };
+
+  // Real-Electron test access ONLY (test/panel-spawn-permanent-columns-electron.test.ts, driven over CDP
+  // Runtime.evaluate): there is no production UI to create a permanent column, so a real-Electron proof needs
+  // a way to call the real create({ permanent: true }) path against the actually-mounted app. Gated on the
+  // same build-time flag capture/controller.ts uses, for the same reason: `MODE === 'test'` is set only by
+  // that test file's own `electron-vite build --mode test`, never an ordinary production build. Reassigned on
+  // every render (never memoised, same as `api` itself) so a test always reaches the LATEST closure.
+  if (typeof window !== 'undefined' && import.meta.env?.MODE === 'test') {
+    (window as unknown as { __panelsApiForTests?: ProvidedPanels }).__panelsApiForTests = api;
+  }
+
+  return api;
 }
