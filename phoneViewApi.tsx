@@ -72,7 +72,9 @@ export interface SettingsAPI {
   readonly maxPanelsOnScreen: number | null;
   /** How many panels (History plus web panels together) the window can currently show -- `null` while unmeasured (no cap yet). */
   readonly fitCount: number | null;
-  /** Clamped to [2, fitCount] on read; `null` resets to "follow the fit count". Applies at once, then persists. Never rejects: with no desktop bridge the choice lasts this session only. */
+  /** The lowest legal `maxPanelsOnScreen` choice: every permanent column (`collapsible:false`) plus at least one web panel. Never below 2 (History alone already counts as one). */
+  readonly minPanelsOnScreen: number;
+  /** Clamped to [minPanelsOnScreen, fitCount] on read; `null` resets to "follow the fit count". Applies at once, then persists. Never rejects: with no desktop bridge the choice lasts this session only. */
   setMaxPanelsOnScreen(n: number | null): Promise<void>;
   /** Settings' own sections render inside History's body when this is true (History's gear toggles it), rather than as a separate column. Starts false: a fresh session opens on History's own row list. `show()`/`hide()` last for the session. */
   readonly settingsColumn: { readonly visible: boolean; show(): void; hide(): void };
@@ -111,6 +113,14 @@ export interface CreatePanelOptions {
   layer?: 'base' | 'raised';
   /** Whether the new entry's reappearance always resolves through the anchor formula instead of unconditionally entering from the right. Default false. */
   anchoredEnter?: boolean;
+  /**
+   * Makes the new entry a permanent column: `collapsible:false` (never parked by a row gesture or capacity,
+   * excluded from reorder and counted in `minPanelsOnScreen`'s floor) and `listed:false`, forced regardless of
+   * any `listed` also passed -- a permanent column must supply its own close control (History's own
+   * precedent), never the framework's History-row trash. `locked` stays false always: closing it through its
+   * own control still works. Default false.
+   */
+  permanent?: boolean;
 }
 
 export interface PanelsAPI {
@@ -118,9 +128,10 @@ export interface PanelsAPI {
   readonly panelList: readonly PanelSummary[];
   /**
    * Appends a live panel; zero-arg is the blank-web-panel default. `view` selects the rendered component
-   * (registerView/resolveView) -- an unregistered key renders a placeholder, never a crash. No
-   * `collapsible`/`locked` key: a spawned panel can never claim a permanent column or an unclosable lock.
-   * At capacity, the live panel farthest from it is parked, as for any panel.
+   * (registerView/resolveView) -- an unregistered key renders a placeholder, never a crash. No raw
+   * `collapsible`/`locked` key: `permanent` (CreatePanelOptions) is the only door to a permanent column, and
+   * `locked` is never settable at all. At capacity, the live panel farthest from it is parked, as for any
+   * non-permanent panel.
    */
   create(): void;
   /**

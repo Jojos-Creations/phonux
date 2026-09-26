@@ -54,7 +54,11 @@ export function createHistoryPanel(): PanelWindow {
   };
 }
 
-/** Per-call metadata create() may set beyond a bare url/source. Deliberately no `collapsible`/`locked` key: create() can never make a permanent column or an unclosable panel. */
+/**
+ * Per-call metadata create() may set beyond a bare url/source. No raw `collapsible`/`locked` key: `permanent`
+ * is the only door to `collapsible:false` (see `appendPanel`'s own doc comment for what it forces), and
+ * `locked` is never settable at all -- create() can never make an unclosable panel.
+ */
 export interface AppendPanelOptions {
   view?: string;
   title?: string;
@@ -63,6 +67,8 @@ export interface AppendPanelOptions {
   insertAt?: 'start' | 'end';
   layer?: 'base' | 'raised';
   anchoredEnter?: boolean;
+  /** See `CreatePanelOptions.permanent` (phoneViewApi.tsx) for the full contract; `appendPanel` is what enforces it. */
+  permanent?: boolean;
 }
 
 /** Inserts `entry` at the position its OWN `insertAt` says: 'end' (default) appends; 'start' lands right after the last non-collapsible entry (e.g. History), never before one. */
@@ -73,7 +79,17 @@ function insertPanelAt(panels: PanelWindow[], entry: PanelWindow): PanelWindow[]
   return [...panels.slice(0, at), entry, ...panels.slice(at)];
 }
 
-/** Builds a brand-new, live 'extra' panel for a just-intercepted new-window request or a PanelsAPI.create() call, immutably, and inserts it per `info.insertAt` (default: appended to the END, to the right of any currently-open ones, not next to its source). History is seeded directly, never through this function, so it stays first with no extra invariant code here regardless of what else is inserted at 'start'. */
+/**
+ * Builds a brand-new, live 'extra' panel for a just-intercepted new-window request or a PanelsAPI.create()
+ * call, immutably, and inserts it per `info.insertAt` (default: appended to the END, to the right of any
+ * currently-open ones, not next to its source). History is seeded directly, never through this function, so
+ * it stays first with no extra invariant code here regardless of what else is inserted at 'start'.
+ *
+ * `permanent` forces `collapsible:false` and `listed:false` -- `listed` wins over any `info.listed` the
+ * caller also passed, since a permanent column must supply its own close control (History's own precedent),
+ * never the framework's History-row trash. `locked` stays false regardless: closing it through its own
+ * control must keep working with zero extra plumbing (usePanelClosing.ts gates only on `locked`).
+ */
 export function appendPanel(panels: PanelWindow[], info: { sourceWebContentsId: number; url: string } & AppendPanelOptions, id: string): PanelWindow[] {
   const entry: PanelWindow = {
     id,
@@ -84,8 +100,8 @@ export function appendPanel(panels: PanelWindow[], info: { sourceWebContentsId: 
     live: true,
     locked: false,
     view: info.view ?? 'web',
-    collapsible: true,
-    listed: info.listed ?? true,
+    collapsible: !info.permanent,
+    listed: info.permanent ? false : (info.listed ?? true),
     ...(info.params !== undefined ? { params: info.params } : {}),
     insertAt: info.insertAt ?? 'end',
     layer: info.layer ?? 'base',

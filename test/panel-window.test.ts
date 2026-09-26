@@ -53,6 +53,20 @@ test('appendPanel: view/params/listed/layer/anchoredEnter from create()\'s optio
   ]);
 });
 
+test('appendPanel: permanent:true forces collapsible:false and listed:false, even when `listed:true` is ALSO passed -- the forced-false precedence; locked stays false', () => {
+  const next = appendPanel([], { sourceWebContentsId: -1, url: 'about:blank', view: 'test-custom', permanent: true, listed: true }, 'p1');
+  assert.deepEqual(
+    [next[0]!.collapsible, next[0]!.listed, next[0]!.locked],
+    [false, false, false],
+    'permanent wins over the caller\'s own listed:true',
+  );
+});
+
+test('appendPanel: permanent:true with `view` OMITTED (the single most obvious create({ permanent: true }) call) still defaults to the built-in "web" view, collapsible:false -- the exact combination LivePanel.tsx must render with no framework close handle', () => {
+  const next = appendPanel([], { sourceWebContentsId: -1, url: 'about:blank', permanent: true }, 'p1');
+  assert.deepEqual([next[0]!.view, next[0]!.collapsible], ['web', false], 'permanent:true alone reaches the built-in view, not just a caller-supplied custom one');
+});
+
 test('appendPanel: insertAt "start" lands immediately after the last non-collapsible entry (History), never before it; the default still appends to the array end', () => {
   const withHistory = [createHistoryPanel(), ...makeExtraPanels('w1', 'w2')];
   const front = appendPanel(withHistory, { sourceWebContentsId: -1, url: 'https://front.example', insertAt: 'start' }, 'front');
@@ -264,6 +278,15 @@ test('movePanel: a live panel immediately right of History moved left is a no-op
   // swapping INTO History's slot, which the dragged-entry-only check above can never catch.
   const panels = [createHistoryPanel(), ...makeExtraPanels('live1', 'live2')];
   assert.equal(movePanel(panels, 'live1', 'left'), panels, 'History sits immediately left: no swap past a collapsible:false neighbor');
+});
+
+test('movePanel: with TWO collapsible:false entries (History + a permanent column) present, BOTH reject as a move source, and a live neighbor cannot swap past either -- exercised on more than just the single-History case', () => {
+  const perm = appendPanel([], { sourceWebContentsId: -1, url: 'about:blank', view: 'perm-view', permanent: true }, 'perm')[0]!;
+  const panels = [createHistoryPanel(), perm, ...makeExtraPanels('live1', 'live2')];
+  assert.equal(movePanel(panels, HISTORY_PANEL_ID, 'right'), panels, 'History still never reorders with a second fixed column present');
+  assert.equal(movePanel(panels, 'perm', 'right'), panels, 'the permanent column itself is also rejected as a move source');
+  assert.equal(movePanel(panels, 'perm', 'left'), panels, 'and in the other direction too');
+  assert.equal(movePanel(panels, 'live1', 'left'), panels, 'live1 sits immediately right of perm: no swap past a collapsible:false neighbor');
 });
 
 test('movePanel: an unknown id is a no-op -- same array reference back', () => {
