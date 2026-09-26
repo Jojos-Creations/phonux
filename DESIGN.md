@@ -205,3 +205,29 @@ and the grab bar are two different elements: the header keeps only its title/act
 while `grabProps`'s `onPointerDown`/`sx` reach the grab bar instead, so clicking the title text or an action
 icon is never mistaken for a drag start. Omitting `grabProps` renders no grab bar at all, which is the
 correct shape for a locked view (nothing to drag).
+
+## Snapshots: a picture is data, capturing one is not
+
+`snapshots.ts` splits a view's picture into two surfaces on purpose. `ViewId` (a panel's id, or a fixed
+`'settings'`/`'history'`), `ViewSnapshot` (`src`/`width`/`height`/`extent`/`capturedAt`/`stale`) and
+`SnapshotsAPI` (`get`/`subscribe`) are plain data plus a read/subscribe contract -- `Host.snapshots?:
+SnapshotsAPI` (optional: a host mid-rollout, or one that never wires this, degrades to "no picture" rather
+than being forced into a no-op implementation) and `useViewSnapshot(viewId)` (a `useSyncExternalStore` wrapper)
+are the only way a view ever touches a picture. Neither this file nor any view ever decides WHEN a capture
+happens or HOW pixels are produced -- that is a second, independent surface:
+
+`CaptureRegistry`/`CaptureRegistryContext`/`CaptureRegistryProvider` let `Panel` (`PhoneView.tsx`) hand its own
+root DOM node to whatever real registry the host mounts, without that capability ever becoming part of
+`Host`/`SnapshotsAPI`. This is the same pattern `HostProvider` already uses internally for `OverlayProvider`
+(`phoneViewApi.tsx`: `<HostContext.Provider value={host}><OverlayProvider>{children}</OverlayProvider></HostContext.Provider>`)
+-- a second context, mounted alongside the first, for a concern that is not part of the public host bag. A
+view rendered under a bare `<HostProvider>` (the common case in a test) sees no `CaptureRegistryContext`
+provider at all, so `Panel`'s registration effect is a no-op and nothing here ever throws for a missing
+registry, the same "missing capability degrades gracefully" convention `Host.snapshots` itself uses.
+
+Only `client/src/desktop/capture/` (app-side, never this folder -- see "Import boundary" above) implements a
+real `CaptureRegistry`, the DOM-redraw pixel engine, and the `SnapshotsAPI` store those pixels land in, and
+only it renders `<CaptureRegistryProvider registry={realRegistry}>`, wrapping `<HostProvider>`. `PanelSummary`
+never gains a `snapshot` field for the same reason `PanelWindow`'s desktop-only fields never leak into it
+(see "A resolved panel component only ever sees a `PanelSummary`" above): a picture is read on demand through
+`useViewSnapshot`, not pushed into every row's own summary object.
