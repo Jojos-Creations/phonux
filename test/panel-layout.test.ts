@@ -1,10 +1,7 @@
 /**
- * src/panel-layout.ts: `computeRowLayout`, the row's centring math and the one pure "how many fit" function
- * usePanelManager.ts's `capacity`/SettingsAPI's `fitCount` both derive from. ux-row-scroll-by-hiding removed
- * this file's own window-growth arithmetic (`desiredWindowWidth`/`computeGrownWindowWidth`/`computeBaseWidth`/
- * `predictWouldOverflow`), the DOM-overflow check (`isRowOverflowing`) and the settle-window comparison
- * (`shouldFireCollapse`) along with the maxViews/autoCollapse model they served -- the row now hides its far
- * panel at a hard, measured capacity, never by growing the OS window or reacting to a DOM overflow reading.
+ * computeRowLayout is the one pure "how many fit" function usePanelManager's capacity and
+ * SettingsAPI's fitCount both derive from: it must stay free of window-resize or DOM-overflow
+ * side effects so a wider panel lowers the count instead of the row ever growing the OS window.
  */
 import test from 'node:test';
 import assert from 'node:assert/strict';

@@ -64,6 +64,7 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
     revealMostRecentlyCollapsed,
     enteringViaAnchorIds,
     markEnteringViaAnchor,
+    clearEnterSide,
     scrollRow,
     enterSideById,
     exitRightIds,
@@ -86,7 +87,12 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
       forgetCollapsed(id);
       revealMostRecentlyCollapsed(remaining);
     },
-    markEnteringViaAnchor,
+    // A restored LIVE panel can carry a stale gesture-enter-side/exit-right mark from an earlier park of
+    // the same id; clear it before marking entering-via-anchor (usePanelManager's own clear-then-mark order).
+    (id) => {
+      clearEnterSide(id);
+      markEnteringViaAnchor(id);
+    },
   );
 
   return {

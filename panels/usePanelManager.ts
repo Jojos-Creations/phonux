@@ -68,6 +68,13 @@ export interface UsePanelManagerResult {
   /** Marks `id` as entering via the anchor formula -- see `enteringViaAnchorIds`'s own doc comment for who calls this and why. */
   markEnteringViaAnchor: (id: string) => void;
   /**
+   * Drops any stale `enterSideById`/`exitRightIds` entry `id` picked up from an EARLIER park (ids cycle
+   * live/parked repeatedly over a session) -- every path that revives a panel via the anchor formula must
+   * call this FIRST, or a stale explicit side would win over the anchor formula (LivePanels.tsx's own
+   * precedence) and the revived panel would slide in from the wrong side.
+   */
+  clearEnterSide: (id: string) => void;
+  /**
    * The row gesture (wheel or arrow key, wired in `useRowScrollGesture.ts`): 'right' parks the LEFTMOST
    * live panel and promotes the first parked one after the current rightmost live panel; 'left' is the
    * mirror. One step per call. With nothing parked on that side, does nothing (no `setPanels` at all).
@@ -348,6 +355,11 @@ export function usePanelManager(
     if (capacity !== Number.POSITIVE_INFINITY && liveCollapsibleCount + 1 > capacity) return;
     const candidateId = stack[stack.length - 1]!;
     collapseOrderRef.current = stack.slice(0, -1);
+    // A candidate can carry a stale gesture-enter-side or exit-right mark from an EARLIER park of the same
+    // id (ids cycle live/parked repeatedly); clear both before marking it entering-via-anchor, or a stale
+    // `enterSideById` entry would win over the anchor formula (LivePanels.tsx's own precedence) and this
+    // reveal would slide in from the wrong side. Mirrors handleActivatePanel's own clear-then-mark order.
+    clearEnterSide(candidateId);
     // One of the two "reappearance" paths that enter from the anchor's side -- mark it BEFORE the setPanels
     // call below (see enteringViaAnchorRef's own doc comment for why no flushSync is needed here).
     markEnteringViaAnchor(candidateId);
@@ -363,6 +375,7 @@ export function usePanelManager(
     revealMostRecentlyCollapsed,
     enteringViaAnchorIds: enteringViaAnchorRef.current,
     markEnteringViaAnchor,
+    clearEnterSide,
     scrollRow,
     enterSideById: enterSideRef.current,
     exitRightIds,
