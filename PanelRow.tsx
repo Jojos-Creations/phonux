@@ -90,9 +90,11 @@ export function LivePanels({
   /** See this file's own header for the full contract. Optional, defaulting to empty (the anchor formula alone decides). */
   enterSideById?: ReadonlyMap<string, 'left' | 'right'>;
 }): React.ReactElement {
-  const { device } = useHost();
+  const { device, panels } = useHost();
   const phoneWidth = device.size.width;
   const phoneHeight = device.size.height;
+  // Ids never repeat, so a panel in neither list can never be shown again and its view state is released.
+  useViewState.useRetainOnly([...entries, ...(panels.recentlyClosed ?? [])].map((p) => p.id));
   const present = entries.filter((p) => !p.collapsible || p.live);
   const anchorIndex = present.findIndex((p) => p.id === ANCHOR_PANEL_ID);
   return (

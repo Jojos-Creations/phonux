@@ -9,28 +9,32 @@ import type { JsonValue } from './phoneViewApi.js';
 /** Ambient id of the panel currently rendering; read only by useViewState, set only by useViewState.Provider. */
 const ViewIdContext = React.createContext<string | null>(null);
 
-/** Thrown by useViewState() with no ambient panel id (e.g. called outside a View LivePanels.tsx rendered). */
+/** Thrown by useViewState() unless it renders under BOTH wrappers a host's panel row supplies. */
 export class ViewStateMissingProviderError extends Error {
-  constructor() {
+  constructor(missing: 'host' | 'view id') {
     super(
-      'useViewState() was called with no ambient view id. A view must render as the child LivePanels.tsx mounts ' +
-        '(inside useViewState.Provider); a test calling a view\'s hooks directly must wrap it the same way: ' +
-        '<useViewState.Provider value="some-id">.',
+      `useViewState() was called ${missing === 'host' ? 'outside a <HostProvider>, which holds the state' : 'with no ambient view id'}. ` +
+        'A view must render where its host mounts it, under both <HostProvider> and <useViewState.Provider value={panelId}>; ' +
+        'a test calling a view\'s hooks directly must wrap it in both: ' +
+        '<HostProvider host={createFakeHost()}><useViewState.Provider value="some-id">...</useViewState.Provider></HostProvider>.',
     );
     this.name = 'ViewStateMissingProviderError';
   }
 }
 
 interface Cell {
-  value: JsonValue;
+  /** undefined until the first set: until then each mount reads its own `initial`. */
+  value: JsonValue | undefined;
   listeners: Set<() => void>;
 }
 
 /** Keyed by panel id first, so two views that pick the same key never share a cell. */
 class ViewStateStore {
   private panels = new Map<string, Map<string, Cell>>();
+  /** Released while a view was still mounted (mid exit animation): dropped once its last listener leaves. */
+  private released = new Set<string>();
 
-  private cellFor(panelId: string, key: string, initial: JsonValue): Cell {
+  private cellFor(panelId: string, key: string): Cell {
     let byKey = this.panels.get(panelId);
     if (!byKey) {
       byKey = new Map();
@@ -38,27 +42,52 @@ class ViewStateStore {
     }
     let cell = byKey.get(key);
     if (!cell) {
-      cell = { value: initial, listeners: new Set() };
+      cell = { value: undefined, listeners: new Set() };
       byKey.set(key, cell);
     }
     return cell;
   }
 
-  get(panelId: string, key: string, initial: JsonValue): JsonValue {
-    return this.cellFor(panelId, key, initial).value;
+  get(panelId: string, key: string): JsonValue | undefined {
+    return this.panels.get(panelId)?.get(key)?.value;
   }
 
   set(panelId: string, key: string, value: JsonValue): void {
-    const cell = this.cellFor(panelId, key, value);
+    const cell = this.cellFor(panelId, key);
     if (cell.value === value) return;
     cell.value = value;
     for (const listener of [...cell.listeners]) listener();
   }
 
-  subscribe(panelId: string, key: string, initial: JsonValue, listener: () => void): () => void {
-    const cell = this.cellFor(panelId, key, initial);
+  subscribe(panelId: string, key: string, listener: () => void): () => void {
+    const cell = this.cellFor(panelId, key);
     cell.listeners.add(listener);
-    return () => void cell.listeners.delete(listener);
+    return () => {
+      cell.listeners.delete(listener);
+      this.dropIfReleased(panelId);
+    };
+  }
+
+  hasPanelOutside(keep: ReadonlySet<string>): boolean {
+    for (const panelId of this.panels.keys()) if (!keep.has(panelId)) return true;
+    return false;
+  }
+
+  /** Never notifies: a still-mounted view keeps showing its value until it unmounts. */
+  releaseAllExcept(keep: ReadonlySet<string>): void {
+    for (const panelId of this.released) if (keep.has(panelId)) this.released.delete(panelId);
+    for (const panelId of [...this.panels.keys()]) {
+      if (keep.has(panelId)) continue;
+      this.released.add(panelId);
+      this.dropIfReleased(panelId);
+    }
+  }
+
+  private dropIfReleased(panelId: string): void {
+    if (!this.released.has(panelId)) return;
+    for (const cell of this.panels.get(panelId)?.values() ?? []) if (cell.listeners.size > 0) return;
+    this.panels.delete(panelId);
+    this.released.delete(panelId);
   }
 }
 
@@ -80,30 +109,47 @@ function useViewStateImpl<T extends JsonValue>(key: string, initial: T): ViewSta
 function useViewStateImpl(key: string, initial: JsonValue): ViewStateTuple<JsonValue> {
   const panelId = React.useContext(ViewIdContext);
   const store = React.useContext(StoreContext);
-  if (panelId === null || store === null) throw new ViewStateMissingProviderError();
-  // The callbacks below run only after a render's getSnapshot has created the cell, so the first `initial` is
-  // enough; keeping `initial` out of their deps keeps setValue stable, as useState's setter is.
+  if (store === null) throw new ViewStateMissingProviderError('host');
+  if (panelId === null) throw new ViewStateMissingProviderError('view id');
+  // A ref, not `initial` itself: a fresh object each render must neither change the snapshot (useSyncExternalStore
+  // needs a stable one) nor the setter's identity (useState's setter never changes).
   const firstInitial = React.useRef(initial);
-  const subscribe = React.useCallback(
-    (onChange: () => void) => store.subscribe(panelId, key, firstInitial.current, onChange),
-    [store, panelId, key],
-  );
-  const getSnapshot = (): JsonValue => store.get(panelId, key, initial);
-  const value = React.useSyncExternalStore(subscribe, getSnapshot, getSnapshot);
+  const read = React.useCallback((): JsonValue => {
+    const stored = store.get(panelId, key);
+    return stored === undefined ? firstInitial.current : stored; // not `??`: null is a real stored value
+  }, [store, panelId, key]);
+  const subscribe = React.useCallback((onChange: () => void) => store.subscribe(panelId, key, onChange), [store, panelId, key]);
+  const value = React.useSyncExternalStore(subscribe, read, read);
   const setValue = React.useCallback(
     (next: JsonValue | ((prev: JsonValue) => JsonValue)) => {
       // JsonValue never includes a function, so this check can never mistake a real value for an updater.
-      const resolved = typeof next === 'function' ? next(store.get(panelId, key, firstInitial.current)) : next;
-      store.set(panelId, key, resolved);
+      store.set(panelId, key, typeof next === 'function' ? next(read()) : next);
     },
-    [store, panelId, key],
+    [store, panelId, key, read],
   );
   return [value, setValue];
 }
 
 /**
- * The one hook a view uses for state that must survive its own panel parking and reviving: same `[value,
- * setValue]` pair and same type inference as `React.useState`, but `initial` must be JSON-shaped. Close +
- * undoClose need nothing extra: both keep the same panel id, so the store's cell is still there on remount.
+ * For the host's panel row, once per HostProvider: `panelIds` is every panel that can still be shown again
+ * (the row's own list plus `PanelsAPI.recentlyClosed`); every other panel's state is released.
  */
-export const useViewState = Object.assign(useViewStateImpl, { Provider: ViewIdContext.Provider });
+function useRetainOnly(panelIds: Iterable<string>): void {
+  const store = React.useContext(StoreContext);
+  if (store === null) throw new ViewStateMissingProviderError('host');
+  const keep = new Set(panelIds);
+  React.useEffect(() => {
+    if (!store.hasPanelOutside(keep)) return;
+    // A task later, and cancelled by any newer commit: undoClose can commit once with a restored id in
+    // neither list (recentlyClosed already null) before the commit that puts it back in the row.
+    const timer = setTimeout(() => store.releaseAllExcept(keep), 0);
+    return () => clearTimeout(timer);
+  });
+}
+
+/**
+ * The one hook a view uses for state that must survive its own panel parking and reviving: same `[value,
+ * setValue]` pair and same type inference as `React.useState`, but `initial` must be JSON-shaped.
+ * `Provider` and `useRetainOnly` are the host's side (LivePanels.tsx), never called by a view.
+ */
+export const useViewState = Object.assign(useViewStateImpl, { Provider: ViewIdContext.Provider, useRetainOnly });
