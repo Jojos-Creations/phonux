@@ -56,6 +56,9 @@ export function createFakeHost(overrides: FakeOverrides = {}): FakeHost {
   const settings: SettingsAPI = {
     maxPanelsOnScreen: null,
     fitCount: 4,
+    // Matches the app's own single-fixed-column (History-only) default; a test with more permanent columns
+    // overrides this explicitly.
+    minPanelsOnScreen: 2,
     setMaxPanelsOnScreen: async (n) => log('settings', 'setMaxPanelsOnScreen', [n]),
     settingsColumn: {
       visible: false,

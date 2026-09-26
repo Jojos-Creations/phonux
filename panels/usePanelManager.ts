@@ -116,10 +116,10 @@ export function usePanelManager(
     containerWidth === 0
       ? null
       : fixedColumnCount + computeRowLayout({ containerWidth, phoneWidth, gap: GAP, fixedItemCount: fixedColumnCount, liveCountNow: 0 }).maxLiveThatFit;
-  const effectiveMax = effectiveMaxPanels(storedMaxPanels, fitCount);
-  // The owner's floor of 1 keeps the panel just opened on screen even at the narrowest legal width (the
-  // fit-below-2 rule already floors `effectiveMax` itself at 2, so this only ever bites when fixedColumnCount
-  // alone reaches or exceeds effectiveMax).
+  const effectiveMax = effectiveMaxPanels(storedMaxPanels, fitCount, fixedColumnCount);
+  // The owner's floor of 1 keeps the panel just opened on screen even at the narrowest legal width
+  // (effectiveMaxPanels already floors itself at fixedColumnCount + 1, so this only ever bites when the
+  // fixed columns alone reach or exceed effectiveMax).
   const capacity = effectiveMax === Number.POSITIVE_INFINITY ? Number.POSITIVE_INFINITY : Math.max(1, effectiveMax - fixedColumnCount);
 
   /**
