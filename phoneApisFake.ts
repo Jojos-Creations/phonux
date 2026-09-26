@@ -87,6 +87,7 @@ export function createFakeHost(overrides: FakeOverrides = {}): FakeHost {
     // parameter would no longer satisfy the interface's zero-arg overload.
     create: (options?: CreatePanelOptions) => log('panels', 'create', options !== undefined ? [options] : []),
     activate: (id) => log('panels', 'activate', [id]),
+    move: (id, direction) => log('panels', 'move', [id, direction]),
     close: (id) => log('panels', 'close', [id]),
     recentlyClosed: null,
     undoClose: () => log('panels', 'undoClose', []),
