@@ -1,6 +1,6 @@
 /**
- * `effectiveMaxPanels` (adventureSettings.ts): the pure capacity decision usePanelManager.ts and
- * useProvideSettings.ts both derive their own live cap from -- one hard capacity, never a mode.
+ * `effectiveMaxPanels` (adventureSettings.ts): the pure capacity decision usePanelManager.ts derives its live
+ * cap from -- one hard capacity, never a mode.
  */
 import test from 'node:test';
 import assert from 'node:assert/strict';
