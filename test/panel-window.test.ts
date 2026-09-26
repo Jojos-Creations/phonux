@@ -232,7 +232,7 @@ test('promoteToLive: demotion never targets a collapsible:false entry (History) 
 });
 
 // ---------------------------------------------------------------------------
-// movePanel: the drag-to-reorder gesture's own pure primitive (ux-drag-to-reorder-panels). A single
+// movePanel: the drag-to-reorder gesture's own pure primitive. A single
 // present-hop can cross several parked array slots at once -- that IS "moving a live panel across parked
 // entries" (present = `!collapsible || live`, LivePanels.tsx's own filter).
 // ---------------------------------------------------------------------------
