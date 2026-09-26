@@ -5,10 +5,10 @@
  *   function NotesView() {
  *     const [open, setOpen] = useState(false);
  *     return (
- *       <PhoneView title="Notes">
+ *       <Panel title="Notes">
  *         <button onClick={() => setOpen(true)}>About</button>
  *         <WindowOverlay open={open}><AboutSheet onClose={() => setOpen(false)} /></WindowOverlay>
- *       </PhoneView>
+ *       </Panel>
  *     );
  *   }
  *
@@ -38,7 +38,7 @@
  *     overlay registers with nobody to show it: it never appears, and one console.error per mount names the missing
  *     slot. Such a test mounts <OverlaySlot name="dialog" /> and <OverlaySlot name="toast" /> beside the view, as the host does.
  *
- * Not to be confused with PhoneView's `overlay` prop, which decorates ONE view inside its own relative box
+ * Not to be confused with Panel's `overlay` prop, which decorates ONE view inside its own relative box
  * (History's "+" Fab) and is meant to be clipped to it.
  */
 
