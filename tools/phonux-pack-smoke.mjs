@@ -13,26 +13,19 @@
  */
 
 import { execFileSync } from 'node:child_process';
-import { mkdtempSync, mkdirSync, writeFileSync, existsSync, rmSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, existsSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const REPO_ROOT = fileURLToPath(new URL('..', import.meta.url));
-const DIST_DIR = join(REPO_ROOT, 'client/src/shared/phone/dist');
+const PHONE_DIR = join(REPO_ROOT, 'client/src/shared/phone');
+const DIST_DIR = join(PHONE_DIR, 'dist');
 const TSC_BIN = join(REPO_ROOT, 'node_modules', '.bin', 'tsc');
 
-// Must match client/src/shared/phone/package.json's peerDependencies exactly;
-// drift here would let this script silently install a different range than
-// what the shipped package.json actually declares to a real consumer.
-const PEERS = {
-  react: '^19.2.8',
-  'react-dom': '^19.2.8',
-  '@mui/material': '^9.3.1',
-  '@mui/icons-material': '^9.3.1',
-  '@emotion/react': '^11.14.0',
-  '@emotion/styled': '^11.14.1',
-  motion: '^13.3.0',
-};
+// Read at runtime, not copied by hand, so this can never drift from what the
+// shipped package.json actually declares to a real consumer.
+const srcPkg = JSON.parse(readFileSync(join(PHONE_DIR, 'package.json'), 'utf8'));
+const PEERS = srcPkg.peerDependencies;
 
 const CHECK_TYPES_TSX = `import * as React from 'react';
 import { Panel, PanelFrame, useHost, HostProvider, registerView, type ViewProps } from 'phonux';

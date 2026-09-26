@@ -86,12 +86,15 @@ for (const [key, sourcePath] of Object.entries(srcPkg.exports)) {
   }
 }
 
+// Gates consumer tree-shaking; a silent undefined default could drop a real side effect.
+if (!('sideEffects' in srcPkg)) fail("source package.json is missing 'sideEffects'");
+
 const distPkg = {
   name: srcPkg.name,
   version: srcPkg.version,
   private: true,
   type: srcPkg.type,
-  sideEffects: false,
+  sideEffects: srcPkg.sideEffects,
   peerDependencies: srcPkg.peerDependencies,
   exports,
 };
