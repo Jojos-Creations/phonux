@@ -20,19 +20,26 @@
  * kept off PanelsAPI on purpose (useProvidePanels.ts's ProvidedPanels). Each
  * present entry's `exitDirection` is decided HERE, at render time, while it
  * is still present -- an entry leaves either because it was closed
- * (closingIds has it: exits DOWN) or auto-collapsed to parked
- * (usePanelManager.ts: exits LEFT) -- see LivePanelSlot.tsx for why this must
- * be a prop rather than something read after the fact.
+ * (closingIds has it: exits DOWN), parks to the row's right edge
+ * (exitRightIds has it: exits RIGHT), or parks anywhere else (the default,
+ * LEFT) -- see LivePanelSlot.tsx for why this must be a prop rather than
+ * something read after the fact.
  *
- * `enteringViaAnchorIds` is the ENTER-side mirror of `closingIds` -- ids
- * currently (re)joining `live` through usePanelManager.ts's
- * `revealMostRecentlyCollapsed` or usePanelClosing.ts's `undoClose`. A
- * brand-new panel or a manual History-row activation never appear in this
- * set, so they keep entering from the right unconditionally. History's own
- * reappearance always resolves through the SAME anchor formula
- * (anchorPanel.ts) unconditionally: compared against itself its index is
- * never less-than, so it always computes to 'right' anyway -- no separate
- * gate needed for it.
+ * `enteringViaAnchorIds` is one ENTER-side source -- ids currently (re)joining
+ * `live` through usePanelManager.ts's `revealMostRecentlyCollapsed` or
+ * usePanelClosing.ts's `undoClose`. A brand-new panel or a manual
+ * History-row activation never appear in this set, so they keep entering
+ * from the right unconditionally. History's own reappearance always resolves
+ * through the SAME anchor formula (anchorPanel.ts) unconditionally: compared
+ * against itself its index is never less-than, so it always computes to
+ * 'right' anyway -- no separate gate needed for it.
+ *
+ * `enterSideById` is the other, and wins over the anchor formula when both
+ * would otherwise apply: usePanelManager.ts's row gesture and its
+ * capacity-rise reconcile know exactly which side a reveal must enter from
+ * (the side it was hidden toward), which the boolean anchor formula alone
+ * cannot express. Optional, defaulting to an empty map, so a caller that
+ * never needs it (e.g. a test mounting this component directly) is unaffected.
  *
  * Both `anchorIndex` and each entry's own row-slot `index` come from the
  * SAME one-list array.
@@ -46,18 +53,27 @@ import { ANCHOR_PANEL_ID, resolveEnterDirection } from './anchorPanel.js';
 import { GAP, LivePanelSlot } from './LivePanelSlot.js';
 import { summarisePanel, type PanelWindow } from './panelWindow.js';
 
-/** A 'raised' slot sits above a 'base' one: auto-collapse's exit is LEFT and crosses a raised panel's footprint (History, today) on the way out, so this ordering is load-bearing for that path (a close's exit is DOWN and never reaches it). */
+/** A 'raised' slot sits above a 'base' one: a LEFT-exiting park crosses a raised panel's footprint (History, today) on the way out, so this ordering is load-bearing for that path (a close's exit is DOWN and never reaches it). */
 const RAISED_LAYER_Z_INDEX = 2;
 const BASE_LAYER_Z_INDEX = 1;
+
+const EMPTY_SET: ReadonlySet<string> = new Set();
+const EMPTY_MAP: ReadonlyMap<string, 'left' | 'right'> = new Map();
 
 export function LivePanels({
   entries,
   closingIds,
   enteringViaAnchorIds,
+  exitRightIds = EMPTY_SET,
+  enterSideById = EMPTY_MAP,
 }: {
   entries: readonly PanelWindow[];
   closingIds: ReadonlySet<string>;
   enteringViaAnchorIds: ReadonlySet<string>;
+  /** See this file's own header for the full contract. Optional, defaulting to empty (nothing exits right). */
+  exitRightIds?: ReadonlySet<string>;
+  /** See this file's own header for the full contract. Optional, defaulting to empty (the anchor formula alone decides). */
+  enterSideById?: ReadonlyMap<string, 'left' | 'right'>;
 }): React.ReactElement {
   const { device } = useHost();
   const phoneWidth = device.size.width;
@@ -87,8 +103,11 @@ export function LivePanels({
               index={index}
               phoneWidth={phoneWidth}
               phoneHeight={phoneHeight}
-              enterDirection={(p.anchoredEnter ?? false) || enteringViaAnchorIds.has(p.id) ? resolveEnterDirection(anchorIndex, index) : 'right'}
-              exitDirection={closingIds.has(p.id) ? 'down' : 'left'}
+              enterDirection={
+                enterSideById.get(p.id) ??
+                ((p.anchoredEnter ?? false) || enteringViaAnchorIds.has(p.id) ? resolveEnterDirection(anchorIndex, index) : 'right')
+              }
+              exitDirection={closingIds.has(p.id) ? 'down' : exitRightIds.has(p.id) ? 'right' : 'left'}
               zIndex={(p.layer ?? 'base') === 'raised' ? RAISED_LAYER_Z_INDEX : BASE_LAYER_Z_INDEX}
             >
               {/* Narrowed through the SAME projection PanelsAPI itself uses: a resolved component -- built-in or

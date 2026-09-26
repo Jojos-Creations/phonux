@@ -51,12 +51,12 @@ export const PANEL_TRANSITION = SLOT_TRANSITION;
  * component's FIRST render after the item (re)appears (AnimatePresence has
  * no later render of a fresh mount to fix a wrong guess).
  *
- * A CLOSE (History's hover-trash, or DragToClose) slides down; an
- * auto-collapse to parked (usePanelManager.ts's
- * collapseOldestIds/autoCollapseOldest) keeps `x: -slot` behind the
- * adventure card -- so the two read as visually distinct causes.
- * `exitDirection` (LivePanels.tsx computes it from the one usePanelClosing instance's `closingIds`) picks
- * between them:
+ * A CLOSE (History's hover-trash, or DragToClose) slides down; a park (hidden
+ * by opening/reviving another panel, or by the row's own scroll gesture)
+ * slides left or right, off the edge nearer to where it went -- so a close
+ * always reads as visually distinct from a park, whichever side the park
+ * picks. `exitDirection` (LivePanels.tsx computes it from `closingIds` and
+ * `exitRightIds`) picks between the three:
  *   - 'down': timed/eased to DragToClose's own downward exit
  *     (`DRAG_CLOSE.exitSeconds`/`easeIn`, dragToClose.tsx) via a per-variant
  *     `transition` override, so trash and drag closes read as one motion.
@@ -64,8 +64,10 @@ export const PANEL_TRANSITION = SLOT_TRANSITION;
  *     calls `onClose` BEFORE this exit starts, so the two run in sequence --
  *     this exit's `y` ramps in underneath a box already off-screen,
  *     invisibly, not fighting it (no snap, no jump).
- *   - 'left': the original `x: -slot` on plain `PANEL_TRANSITION`, restored
- *     verbatim (no DragToClose involvement to time against: nothing closed).
+ *   - 'left': `x: -slot` on plain `PANEL_TRANSITION` -- a park whose far side
+ *     (panelWindow.ts's `sideOfLiveRange`) is the row's own left edge.
+ *   - 'right': `x: rest + slot` -- the mirror, for a park whose far side is
+ *     the right edge (an `insertAt: 'start'` open, or a leftward gesture).
  *
  * `exitDirection` MUST be correct on THIS component's LAST render before it
  * leaves the `live`-filtered array -- AnimatePresence has no later render of
@@ -77,6 +79,8 @@ export interface PanelSlotMotion {
   readonly exit: TargetAndTransition;
   readonly transition: typeof PANEL_TRANSITION;
 }
+
+export type ExitDirection = 'down' | 'left' | 'right';
 
 /**
  * The pure values behind one LivePanelSlot render, split out of the component
@@ -93,7 +97,7 @@ export function panelSlotMotion(
   phoneWidth: number,
   phoneHeight: number,
   enterDirection: 'left' | 'right',
-  exitDirection: 'down' | 'left',
+  exitDirection: ExitDirection,
 ): PanelSlotMotion {
   const slot = phoneWidth + GAP;
   const rest = index * slot;
@@ -104,7 +108,9 @@ export function panelSlotMotion(
   const exit: TargetAndTransition =
     exitDirection === 'down'
       ? { x: rest, y: phoneHeight, opacity: 0, transition: { duration: DRAG_CLOSE.exitSeconds, ease: 'easeIn' } }
-      : { x: -slot, opacity: 0 };
+      : exitDirection === 'right'
+        ? { x: rest + slot, opacity: 0 }
+        : { x: -slot, opacity: 0 };
   return { initial, animate, exit, transition };
 }
 
@@ -120,9 +126,9 @@ export function LivePanelSlot({
   index: number;
   phoneWidth: number;
   phoneHeight: number;
-  /** Computed by the caller (anchorPanel.ts's `resolveEnterDirection`), never a bare literal picked here. */
+  /** Computed by the caller (anchorPanel.ts's `resolveEnterDirection`, or an explicit gesture side), never a bare literal picked here. */
   enterDirection: 'left' | 'right';
-  exitDirection: 'down' | 'left';
+  exitDirection: ExitDirection;
   /**
    * Each slot's own `motion.div` is a `transform`-bearing element, which establishes its OWN CSS stacking
    * context -- a child's `zIndex` can no longer escape it to compare against a SIBLING slot. Stacking order

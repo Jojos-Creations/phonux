@@ -5,8 +5,8 @@
 import type { JsonValue, PanelSummary } from 'phonux';
 
 /**
- * One browsing panel in the unified row. Every panel goes through the same overflow/collapse mechanism
- * (`autoCollapseOldest`, `promoteToLive`) regardless of how it was opened. AdventurePanel.tsx renders every
+ * One browsing panel in the unified row. Every panel goes through the same capacity mechanism
+ * (`parkFarthestLive`, `promoteToLive`) regardless of how it was opened. AdventurePanel.tsx renders every
  * entry in this array, live or parked -- never filtered to only parked ones.
  *
  * A panel is EITHER shown live in the row (`live: true`) or parked in the adventure card only
@@ -95,16 +95,88 @@ export function appendPanel(panels: PanelWindow[], info: { sourceWebContentsId: 
 }
 
 /**
- * Parks the SINGLE OLDEST live, collapsible panel, by array order -- space management, not a close: the
- * panel stays in the array. `null` when nothing eligible is live to park. `promoteToLive` below reuses this
- * exact same "oldest live, by array order" policy for its own demotion, so there is one demotion rule in
- * this file, not two that could silently drift apart. Never picks a `collapsible: false` entry (History):
- * an always-shown column is exempt from every overflow/auto-collapse site, this one included.
+ * Every live collapsible panel's own array index, whichever of the two ends of that set sits farthest (by
+ * index distance) from `fromIndex` -- ties toward the lower index. Appending a panel at the array's end
+ * (`fromIndex` = the new length) always resolves to the lowest live index (the LEFT end); inserting at
+ * `insertAt: 'start'` (`fromIndex` low) always resolves to the highest (the RIGHT end). The SAME formula,
+ * called with a revive target's own index, picks whichever end sits opposite it -- one distance rule serves
+ * every demotion site in this file, so a capacity change can never silently pick two different "far"
+ * panels for what is really one concept. `excludeId` additionally exempts one already-live id (a revive
+ * target the caller flipped live before asking who else must give way).
  */
-export function autoCollapseOldest(panels: PanelWindow[]): PanelWindow[] | null {
-  const oldest = panels.find((p) => p.collapsible && p.live);
-  if (!oldest) return null;
-  return panels.map((p) => (p.id === oldest.id ? { ...p, live: false } : p));
+export function farthestLiveCollapsibleId(panels: PanelWindow[], fromIndex: number, excludeId?: string): string | null {
+  let bestId: string | null = null;
+  let bestIndex = -1;
+  let bestDist = -1;
+  panels.forEach((p, i) => {
+    if (!p.collapsible || !p.live || p.id === excludeId) return;
+    const dist = Math.abs(i - fromIndex);
+    if (dist > bestDist || (dist === bestDist && i < bestIndex)) {
+      bestDist = dist;
+      bestId = p.id;
+      bestIndex = i;
+    }
+  });
+  return bestId;
+}
+
+/**
+ * Which side of the row a park/reveal at `id` reads as, for the exit/enter animation: 'left' when `id`'s
+ * own array index sits below every OTHER live collapsible panel's index (it is the current left edge of
+ * the visible range), 'right' otherwise -- including a panel in the middle of the range, which cannot
+ * happen here since every caller only ever asks this about one of `farthestLiveCollapsibleId`'s own two
+ * edge picks. Computed fresh from array position every time (never a persisted flag), which is what makes
+ * an append always read 'left' and an `insertAt: 'start'` always read 'right' regardless of history -- see
+ * this file's own record for the far-rule this replaces.
+ */
+export function sideOfLiveRange(panels: PanelWindow[], id: string): 'left' | 'right' {
+  const ownIndex = panels.findIndex((p) => p.id === id);
+  let firstOtherLiveIndex = Number.POSITIVE_INFINITY;
+  panels.forEach((p, i) => {
+    if (p.collapsible && p.live && p.id !== id) firstOtherLiveIndex = Math.min(firstOtherLiveIndex, i);
+  });
+  return ownIndex < firstOtherLiveIndex ? 'left' : 'right';
+}
+
+/** The row-slot index of the LEFTMOST (lowest-index) live collapsible panel, or -1 if none are live. */
+export function leftmostLiveIndex(panels: PanelWindow[]): number {
+  for (let i = 0; i < panels.length; i++) if (panels[i]!.collapsible && panels[i]!.live) return i;
+  return -1;
+}
+
+/** The row-slot index of the RIGHTMOST (highest-index) live collapsible panel, or -1 if none are live. */
+export function rightmostLiveIndex(panels: PanelWindow[]): number {
+  let found = -1;
+  panels.forEach((p, i) => {
+    if (p.collapsible && p.live) found = i;
+  });
+  return found;
+}
+
+/** The first PARKED collapsible panel strictly after `index` -- a rightward gesture's own "next one to bring in", or null with nothing parked on that side. */
+export function firstParkedAfter(panels: PanelWindow[], index: number): PanelWindow | null {
+  for (let i = index + 1; i < panels.length; i++) if (panels[i]!.collapsible && !panels[i]!.live) return panels[i]!;
+  return null;
+}
+
+/** The last PARKED collapsible panel strictly before `index` -- a leftward gesture's own "next one to bring in", or null with nothing parked on that side. */
+export function lastParkedBefore(panels: PanelWindow[], index: number): PanelWindow | null {
+  for (let i = index - 1; i >= 0; i--) if (panels[i]!.collapsible && !panels[i]!.live) return panels[i]!;
+  return null;
+}
+
+/**
+ * Parks the single live, collapsible panel farthest (by array index) from `fromIndex` -- space management,
+ * not a close: the panel stays in the array. `null` when nothing eligible is live to park. Never picks a
+ * `collapsible: false` entry (History): an always-shown column is exempt from every capacity site, this one
+ * included. `fromIndex = panels.length` (one past the end) always resolves to the leftmost live panel --
+ * the capacity-drop reconcile's own "parks from the LEFT only" rule (usePanelManager.ts) is this same
+ * function called that way, not a second policy.
+ */
+export function parkFarthestLive(panels: PanelWindow[], fromIndex: number): PanelWindow[] | null {
+  const id = farthestLiveCollapsibleId(panels, fromIndex);
+  if (id === null) return null;
+  return panels.map((p) => (p.id === id ? { ...p, live: false } : p));
 }
 
 /**
@@ -115,27 +187,25 @@ export function autoCollapseOldest(panels: PanelWindow[]): PanelWindow[] | null 
  * `null` for an unknown `id` -- nothing to do. Also `null` when the target is ALREADY live: clicking an
  * already-live row (every row, live or parked, is clickable) is a legitimate no-op, not an error.
  *
- * `wouldOverflow(liveCountAfter)` is the caller's own overflow prediction (src/panel-layout.ts's
- * `predictWouldOverflow` for 'screen-width' mode, or adventureSettings.ts's `countModeShouldCollapse` for
- * 'count' mode) -- `liveCountAfter` is how many panels would be live counting the one just activated. When
- * it returns true, this demotes exactly one OTHER live panel back to parked: the OLDEST other live one, by
- * array order -- the SAME policy `autoCollapseOldest` uses, so there is one demotion rule, not two that
- * could drift apart. When it returns false, no demotion happens. Never demotes a `collapsible: false` entry
- * (History): a manual activation must not bump an always-shown column.
+ * `capacity` is how many live collapsible panels the row may hold at once (usePanelManager.ts's own
+ * `max(1, effectiveMax - fixedCount)`). When promoting `id` would exceed it, this demotes exactly one OTHER
+ * live panel back to parked: the one `farthestLiveCollapsibleId` picks from `id`'s OWN index -- the same
+ * far rule `parkFarthestLive` uses, so there is one demotion rule in this file, not two that could drift
+ * apart. Never demotes a `collapsible: false` entry (History): a manual activation must not bump an
+ * always-shown column.
  */
-export function promoteToLive(
-  panels: PanelWindow[],
-  id: string,
-  wouldOverflow: (liveCountAfter: number) => boolean,
-): PanelWindow[] | null {
+export function promoteToLive(panels: PanelWindow[], id: string, capacity: number): PanelWindow[] | null {
   const target = panels.find((p) => p.id === id);
   if (!target || target.live) return null;
+  const ownIndex = panels.findIndex((p) => p.id === id);
   const liveCountAfter = panels.filter((p) => p.collapsible && p.live).length + 1;
   let next = panels.map((p) => (p.id === id ? { ...p, live: true } : p));
-  if (wouldOverflow(liveCountAfter)) {
-    const demote = next.find((p) => p.collapsible && p.live && p.id !== id);
+  if (liveCountAfter > capacity) {
+    // `panels` (pre-promotion): `id` itself still reads live:false there, so it is naturally excluded
+    // from the search without needing `excludeId`.
+    const demote = farthestLiveCollapsibleId(panels, ownIndex);
     if (demote) {
-      next = next.map((p) => (p.id === demote.id ? { ...p, live: false } : p));
+      next = next.map((p) => (p.id === demote ? { ...p, live: false } : p));
     }
   }
   return next;

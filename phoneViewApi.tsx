@@ -20,23 +20,6 @@ import { OverlayProvider } from './windowOverlay.js';
 // Value types
 // ---------------------------------------------------------------------------
 
-export type MaxViewsMode = 'screen-width' | 'count';
-
-/**
- * "Maximum views": how many panels the row keeps live before parking the
- * oldest in History. 'screen-width' grows the window and collapses only once
- * the screen is full; 'count' collapses at `collapseAtViews` total views down
- * to `downToViews` and never asks the window to grow. A "view" counts the
- * always-present columns plus the live panels.
- */
-export interface MaxViewsSettings {
-  mode: MaxViewsMode;
-  /** 'count' mode only: total views at which collapse triggers. */
-  collapseAtViews: number;
-  /** 'count' mode only: total views to collapse down to once triggered. */
-  downToViews: number;
-}
-
 /** A phone size. `modelId` 'default' means the app's built-in size, not a PHONE_MODELS entry. */
 export interface PhoneSize {
   modelId: string;
@@ -83,16 +66,12 @@ export interface PanelSummary<P = JsonValue> {
 // ---------------------------------------------------------------------------
 
 export interface SettingsAPI {
-  /** Live value: a view re-renders when it changes. */
-  readonly maxViews: MaxViewsSettings;
-  /** Legal range for `maxViews.collapseAtViews`. `min` already counts the columns on screen, so a view never passes a column count. */
-  readonly maxViewsBounds: { readonly min: number; readonly max: number };
-  /** Clamped against the CURRENT column count inside the app. */
-  setMaxViews(next: MaxViewsSettings): void;
-  /** Whether the row parks its oldest panel instead of scrolling when it would overflow. */
-  readonly autoCollapse: boolean;
-  /** Applies at once, then persists. Never rejects: with no desktop bridge the choice lasts this session only. */
-  setAutoCollapse(on: boolean): Promise<void>;
+  /** The stored "max panels on screen" choice: `null` means "follow the fit count" (the default). Live: a view re-renders when it changes. */
+  readonly maxPanelsOnScreen: number | null;
+  /** How many panels (History plus web panels together) the window can currently show -- `null` while unmeasured (no cap yet). */
+  readonly fitCount: number | null;
+  /** Clamped to [2, fitCount] on read; `null` resets to "follow the fit count". Applies at once, then persists. Never rejects: with no desktop bridge the choice lasts this session only. */
+  setMaxPanelsOnScreen(n: number | null): Promise<void>;
   /** Settings' own sections render inside History's body when this is true (History's gear toggles it), rather than as a separate column. Starts false: a fresh session opens on History's own row list. `show()`/`hide()` last for the session. */
   readonly settingsColumn: { readonly visible: boolean; show(): void; hide(): void };
 }
