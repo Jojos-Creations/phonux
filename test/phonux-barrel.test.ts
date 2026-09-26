@@ -1,9 +1,9 @@
 /**
  * The phonux barrel (client/src/shared/phone/index.ts): its runtime export surface. Types are erased by
  * TypeScript before this module ever runs, so Object.keys() on the imported namespace can only ever see
- * the 24 value exports; the type exports are not checked here. The 24-name list here is spelled out
- * literally, never derived from the module or from index.ts, so a name silently added, removed or renamed
- * on either side makes this test red.
+ * the 37 value exports (24 old names, kept as @deprecated same-value aliases, plus 13 new ones); the type
+ * exports are not checked here. The list here is spelled out literally, never derived from the module or
+ * from index.ts, so a name silently added, removed or renamed on either side makes this test red.
  */
 
 import { test } from 'node:test';
@@ -11,6 +11,7 @@ import assert from 'node:assert/strict';
 import * as phonux from '../client/src/shared/phone/index.js';
 
 const VALUE_EXPORTS = [
+  // Old names (kept as @deprecated same-value aliases -- design-ux-system-split R4).
   'DEFAULT_PHONE_SIZE',
   'PhoneAPIsMissingProviderError',
   'PhoneAPIsProvider',
@@ -35,8 +36,22 @@ const VALUE_EXPORTS = [
   'PhoneDetectPrompt',
   'registerPanelView',
   'resolvePanelView',
+  // New names (design-ux-system-split sec.3).
+  'HostMissingProviderError',
+  'HostProvider',
+  'useHost',
+  'Panel',
+  'PanelFrame',
+  'PANEL_CORNER_RADIUS_UNITS',
+  'panelCornerRadiusPx',
+  'panelFrameScrollSx',
+  'panelFrameBareSx',
+  'PanelHeader',
+  'PanelHeaderRow',
+  'registerView',
+  'resolveView',
 ].sort();
 
-test('the phonux barrel exports exactly the 24 runtime values, no more, no fewer', () => {
+test('the phonux barrel exports exactly the 37 runtime values, no more, no fewer', () => {
   assert.deepEqual(Object.keys(phonux).sort(), VALUE_EXPORTS);
 });
