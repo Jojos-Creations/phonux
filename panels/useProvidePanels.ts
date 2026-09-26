@@ -37,7 +37,7 @@ export interface PanelsInput {
   fixedViewCount: number;
   /** useRowShell's own measured width (0 before the first measurement) -- usePanelManager derives the fit count and capacity from this, the same inputs SettingsAPI.fitCount uses. */
   containerWidth: number;
-  rowRef: RefObject<HTMLDivElement | null>;
+  /** The row's scroll container: the gesture's wheel listener attaches here. */
   overflowContainerRef: RefObject<HTMLDivElement | null>;
 }
 
