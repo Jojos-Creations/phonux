@@ -89,3 +89,5 @@ export type { PhoneModel } from './phoneModels.js';
 
 export { PhoneDetectPrompt } from './PhoneDetectPrompt.js';
 export type { PhoneDetectPromptProps } from './PhoneDetectPrompt.js';
+
+export { createDefaultTheme } from './defaultTheme.js';
