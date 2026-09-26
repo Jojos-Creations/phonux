@@ -23,7 +23,7 @@ export type {
   PhoneDeviceAPI,
   Host,
 } from './phoneViewApi.js';
-// Deprecated aliases (design-ux-system-split R4): same value, kept until the owner removes them.
+// Deprecated aliases: same value as their new-name counterpart, kept until removed.
 export {
   PhoneAPIsMissingProviderError,
   PhoneAPIsProvider,

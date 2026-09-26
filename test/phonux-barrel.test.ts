@@ -11,7 +11,7 @@ import assert from 'node:assert/strict';
 import * as phonux from '../client/src/shared/phone/index.js';
 
 const VALUE_EXPORTS = [
-  // Old names (kept as @deprecated same-value aliases -- design-ux-system-split R4).
+  // Old names (kept as @deprecated same-value aliases).
   'DEFAULT_PHONE_SIZE',
   'PhoneAPIsMissingProviderError',
   'PhoneAPIsProvider',
@@ -36,7 +36,7 @@ const VALUE_EXPORTS = [
   'PhoneDetectPrompt',
   'registerPanelView',
   'resolvePanelView',
-  // New names (design-ux-system-split sec.3).
+  // New names.
   'HostMissingProviderError',
   'HostProvider',
   'useHost',
