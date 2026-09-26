@@ -275,6 +275,15 @@ test('movePanel: a live panel immediately right of History moved left is a no-op
   assert.equal(movePanel(panels, 'live1', 'left'), panels, 'History sits immediately left: no swap past a collapsible:false neighbor');
 });
 
+test('movePanel: with TWO collapsible:false entries (History + a permanent column) present, BOTH reject as a move source, and a live neighbor cannot swap past either -- exercised on more than just the single-History case', () => {
+  const perm = appendPanel([], { sourceWebContentsId: -1, url: 'about:blank', view: 'perm-view', permanent: true }, 'perm')[0]!;
+  const panels = [createHistoryPanel(), perm, ...makeExtraPanels('live1', 'live2')];
+  assert.equal(movePanel(panels, HISTORY_PANEL_ID, 'right'), panels, 'History still never reorders with a second fixed column present');
+  assert.equal(movePanel(panels, 'perm', 'right'), panels, 'the permanent column itself is also rejected as a move source');
+  assert.equal(movePanel(panels, 'perm', 'left'), panels, 'and in the other direction too');
+  assert.equal(movePanel(panels, 'live1', 'left'), panels, 'live1 sits immediately right of perm: no swap past a collapsible:false neighbor');
+});
+
 test('movePanel: an unknown id is a no-op -- same array reference back', () => {
   const panels = makeExtraPanels('w1', 'w2');
   assert.equal(movePanel(panels, 'nope', 'left'), panels);
