@@ -112,6 +112,15 @@ would invite a consumer to couple to an implementation detail that owes nothing 
 production barrel can never pull test-only fake implementations into a real bundle; a consumer opts into
 fakes by importing the subpath explicitly, and a bundler that only ever sees `.` never sees them at all.
 
+## `createDefaultTheme` carries the no-motion rule only, never the brand
+
+The optional default theme ports phonUX's own no-animation MUI settings (disabled
+`transitions.create`, and a CssBaseline reset scoped to `transition`/`animation`, never
+`transform`/`opacity`) because a consumer's phonux views run the same slide animations
+that rule protects. It deliberately leaves out phonUX's palette, typography and
+per-component style overrides: those are this product's own branding, not something a
+third-party consumer should inherit just by taking the default.
+
 ## The hierarchy: `WorkspaceGrid` > `Workspace` > `PanelRow` > `Panel` > `View`
 
 A `WorkspaceGrid` holds many `Workspace`s, a `Workspace` holds one or more `PanelRow`s, a `PanelRow` holds
