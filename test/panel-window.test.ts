@@ -258,6 +258,13 @@ test('movePanel: a collapsible:false entry (History) is rejected -- the array co
   assert.equal(movePanel(panels, HISTORY_PANEL_ID, 'right'), panels, 'no copy at all: History never reorders');
 });
 
+test('movePanel: a live panel immediately right of History moved left is a no-op -- the NEIGHBOR is checked, not just the dragged entry', () => {
+  // History is always seeded leftmost (insertAt:'start'); the vulnerable direction is a live neighbor
+  // swapping INTO History's slot, which the dragged-entry-only check above can never catch.
+  const panels = [createHistoryPanel(), ...makeExtraPanels('live1', 'live2')];
+  assert.equal(movePanel(panels, 'live1', 'left'), panels, 'History sits immediately left: no swap past a collapsible:false neighbor');
+});
+
 test('movePanel: an unknown id is a no-op -- same array reference back', () => {
   const panels = makeExtraPanels('w1', 'w2');
   assert.equal(movePanel(panels, 'nope', 'left'), panels);

@@ -208,15 +208,16 @@ export function closePanel(panels: PanelWindow[], id: string): { remaining: Pane
  * after a reorder (a single present-hop can cross several parked array slots at once; this is the "moving a
  * live panel across parked entries" case). Returns the SAME array reference (never a copy) for every no-op:
  * an unknown id, a `collapsible: false` entry (e.g. History -- an always-shown column is never a reorder
- * source), a panel that is not currently present (parked, never a drag source), or one already at that edge
- * of the present range.
+ * source OR TARGET: a `collapsible:false` neighbor must also block the swap, or a live panel could displace
+ * a fixed column out of its seeded slot), a panel that is not currently present (parked, never a drag
+ * source), or one already at that edge of the present range.
  */
 export function movePanel(panels: PanelWindow[], id: string, direction: 'left' | 'right'): PanelWindow[] {
   const present = panels.filter((p) => !p.collapsible || p.live);
   const presentIndex = present.findIndex((p) => p.id === id);
   if (presentIndex < 0 || !present[presentIndex]!.collapsible) return panels;
   const neighbor = present[direction === 'left' ? presentIndex - 1 : presentIndex + 1];
-  if (!neighbor) return panels;
+  if (!neighbor || !neighbor.collapsible) return panels;
   const from = panels.findIndex((p) => p.id === id);
   const to = panels.findIndex((p) => p.id === neighbor.id);
   const next = panels.slice();

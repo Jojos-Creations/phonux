@@ -75,10 +75,12 @@ export interface UsePanelManagerResult {
    */
   scrollRow: (direction: 'left' | 'right') => void;
   /**
-   * Moves `id` one row-slot toward `direction` -- PanelsAPI's own public `move` (Phase 4 of the plan record):
-   * the drag-to-reorder gesture's underlying primitive, exposed for reuse (a future keyboard/single-pointer
-   * alternative, ux-pin-panel-real-move placing a panel left of History). See `movePanel` (panelWindow.ts)
-   * for the full no-op contract.
+   * Moves `id` one row-slot toward `direction` -- exposed on the public PanelsAPI, not kept desktop-internal,
+   * so any future caller that needs to place a panel relative to a fixed edge (e.g. next to History) can
+   * reuse this same primitive rather than a second one. Directional move-by-one, not move-to-index: every
+   * known caller only ever needs "closer to" an edge, never an arbitrary absolute slot, and move-by-one
+   * composes into that without exposing raw array positions across the API boundary. See `movePanel`
+   * (panelWindow.ts) for the full no-op contract.
    */
   reorderPanel: (id: string, direction: 'left' | 'right') => void;
   /**
