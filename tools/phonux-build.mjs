@@ -86,12 +86,17 @@ for (const [key, sourcePath] of Object.entries(srcPkg.exports)) {
   }
 }
 
+// 'sideEffects' gates bundler tree-shaking for every consumer; a silent
+// `undefined` here would let a real side effect (e.g. injected CSS) get
+// dropped, so a missing source value fails the build instead of defaulting.
+if (!('sideEffects' in srcPkg)) fail("source package.json is missing 'sideEffects'");
+
 const distPkg = {
   name: srcPkg.name,
   version: srcPkg.version,
   private: true,
   type: srcPkg.type,
-  sideEffects: false,
+  sideEffects: srcPkg.sideEffects,
   peerDependencies: srcPkg.peerDependencies,
   exports,
 };
