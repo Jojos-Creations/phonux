@@ -16,6 +16,7 @@ import {
   leftmostLiveIndex,
   movePanel,
   promoteToLive,
+  reorderStepsForOffset,
   restorePanel,
   rightmostLiveIndex,
   sideOfLiveRange,
@@ -279,4 +280,17 @@ test('movePanel: a panel already at the present edge in that direction is a no-o
 test('movePanel: a PARKED panel is never a move source, even toward an available neighbor -- present excludes it, so it is a no-op', () => {
   const panels = park(makeExtraPanels('w1', 'w2', 'w3'), 'w2'); // w2 parked between two live panels
   assert.equal(movePanel(panels, 'w2', 'right'), panels, 'w2 is parked: never a drag source');
+});
+
+test('reorderStepsForOffset: an EXACT half-slot drag is one hop in BOTH directions -- the tie is symmetric around zero', () => {
+  const slot = 406;
+  assert.equal(reorderStepsForOffset(slot / 2, slot), 1, 'right, exactly at the midpoint: one hop');
+  assert.equal(reorderStepsForOffset(-slot / 2, slot), -1, 'left, exactly at the midpoint: one hop (Math.round(-0.5) is -0 and would drop it)');
+  assert.equal(reorderStepsForOffset(1.5 * slot, slot), 2);
+  assert.equal(reorderStepsForOffset(-1.5 * slot, slot), -2, 'a second tie rounds away from zero too');
+  for (const offset of [0.3, 0.49, 0.7, 1.2, 1.6, 2.5].map((f) => f * slot)) {
+    assert.equal(reorderStepsForOffset(-offset, slot), 0 - reorderStepsForOffset(offset, slot), `mirror of ${offset}px`); // 0 - x: +0, not -0, when no hop
+  }
+  assert.ok(Object.is(reorderStepsForOffset(-0.3 * slot, slot), 0), 'short of the midpoint leftward is +0 (no hop), never -0');
+  assert.ok(Object.is(reorderStepsForOffset(0, slot), 0));
 });
