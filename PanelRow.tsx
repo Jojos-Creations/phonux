@@ -1,7 +1,7 @@
 /**
  * The row's one panel wrapper -- History and every live web panel, together,
  * one AnimatePresence over ONE array. App-side (not a view): reads the phone
- * size from usePhoneAPIs() and lays out each PRESENT entry -- an
+ * size from useHost() and lays out each PRESENT entry -- an
  * always-shown column (`collapsible: false`, e.g. History) regardless of
  * `live`, or a web panel only while `live` -- in its own animated slot, in
  * the one list's own array order. It renders ONE root, this Box, the row's
@@ -10,12 +10,12 @@
  * `entries` is the raw one-list array (PanelWindow, not the public
  * PanelSummary): `view`/`layer`/`anchoredEnter` (rendering, stacking, enter
  * direction) live only on that shape, never on PanelsAPI. `view` is the ONLY
- * thing that picks the component (through phonux's resolvePanelView, which
+ * thing that picks the component (through phonux's resolveView, which
  * never returns nothing) -- `present` reads `collapsible`/`live`, zIndex
  * reads `layer`, enter direction reads `anchoredEnter`: three independent
  * per-panel fields, not one flag doing triple duty.
  *
- * `closingIds` is a PROP, not read off usePhoneAPIs(): it is
+ * `closingIds` is a PROP, not read off useHost(): it is
  * usePanelClosing.ts's own set (appApis.ts/GoalFrontPage.tsx thread it down),
  * kept off PanelsAPI on purpose (useProvidePanels.ts's ProvidedPanels). Each
  * present entry's `exitDirection` is decided HERE, at render time, while it
@@ -41,7 +41,7 @@
 import * as React from 'react';
 import { AnimatePresence } from 'motion/react';
 import Box from '@mui/material/Box';
-import { resolvePanelView, usePhoneAPIs } from 'phonux';
+import { resolveView, useHost } from 'phonux';
 import { ANCHOR_PANEL_ID, resolveEnterDirection } from './anchorPanel.js';
 import { GAP, LivePanelSlot } from './LivePanelSlot.js';
 import { summarisePanel, type PanelWindow } from './panelWindow.js';
@@ -59,7 +59,7 @@ export function LivePanels({
   closingIds: ReadonlySet<string>;
   enteringViaAnchorIds: ReadonlySet<string>;
 }): React.ReactElement {
-  const { device } = usePhoneAPIs();
+  const { device } = useHost();
   const phoneWidth = device.size.width;
   const phoneHeight = device.size.height;
   const present = entries.filter((p) => !p.collapsible || p.live);
@@ -80,7 +80,7 @@ export function LivePanels({
     >
       <AnimatePresence initial={false}>
         {present.map((p, index) => {
-          const Component = resolvePanelView(p.view);
+          const Component = resolveView(p.view);
           return (
             <LivePanelSlot
               key={p.id}

@@ -169,7 +169,7 @@ export interface RowLayoutInput {
    * the component; only the arithmetic that consumes the resulting number
    * moves here). */
   containerWidth: number;
-  /** PhoneFrame's own default width -- every fixed and live row item alike
+  /** PanelFrame's own default width -- every fixed and live row item alike
    * is exactly this wide. */
   phoneWidth: number;
   /** The row's own gap between adjacent items (LivePanelSlot's `GAP`). */

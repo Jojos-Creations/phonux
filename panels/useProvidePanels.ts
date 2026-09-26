@@ -65,7 +65,7 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
   // (`prevLiveIdsRef`, not state -- this must never itself trigger a
   // re-render) so this only fires for an id that just TURNED live, never on
   // every unrelated `panels` update (a close, a park). `data-panel-id` (on
-  // each live LivePanel's PhoneFrame) is queried fresh each time rather than
+  // each live LivePanel's PanelFrame) is queried fresh each time rather than
   // kept in a ref map, since AnimatePresence unmounts/remounts these nodes
   // across collapse/reveal and a stale ref would go silently null.
   const prevLiveIdsRef = useRef<Set<string>>(new Set());
