@@ -1,15 +1,15 @@
 /**
  * The public surface a view is written against. A view is any component that
  * renders a phone-shaped column (Settings, History, a live panel, or one a
- * third party writes): it reads what it needs from `usePhoneAPIs()`, renders a
- * `<PhoneView>`, and never touches the desktop bridge, `localStorage` or any
+ * third party writes): it reads what it needs from `useHost()`, renders a
+ * `<Panel>`, and never touches the desktop bridge, `localStorage` or any
  * other app internal. The host implements these interfaces and mounts ONE
- * `<PhoneAPIsProvider>`; a test mounts the same provider with the fakes from
+ * `<HostProvider>`; a test mounts the same provider with the fakes from
  * `phoneApisFake.ts`.
  *
  * This file, and the rest of shared/phone, imports only react, MUI, motion and itself (see DESIGN.md).
  *
- * The provider value is REBUILT EVERY RENDER on purpose (see PhoneAPIsProvider).
+ * The provider value is REBUILT EVERY RENDER on purpose (see HostProvider).
  */
 
 import * as React from 'react';
@@ -159,7 +159,7 @@ export interface PanelsAPI {
   clearAll(): void;
 }
 
-export interface DeviceAPI {
+export interface PhoneDeviceAPI {
   /** The size every PhoneFrame renders at. Live. */
   readonly size: PhoneSize;
   /** The built-in size (`modelId` 'default'), for a "Default (390 × 700)" choice. */
@@ -175,47 +175,67 @@ export interface DeviceAPI {
   resizeForDetectedPhone(modelId: string): void;
 }
 
-export interface PhoneAPIs {
+/** @deprecated use PhoneDeviceAPI */
+export type DeviceAPI = PhoneDeviceAPI;
+
+export interface Host {
   readonly settings: SettingsAPI;
   readonly history: HistoryAPI;
   readonly panels: PanelsAPI;
-  readonly device: DeviceAPI;
+  readonly device: PhoneDeviceAPI;
 }
+
+/** @deprecated use Host */
+export type PhoneAPIs = Host;
 
 // ---------------------------------------------------------------------------
 // Provider and hook
 // ---------------------------------------------------------------------------
 
-/** Thrown by usePhoneAPIs() when no provider is mounted, so a view rendered without APIs fails loudly instead of rendering defaults. */
-export class PhoneAPIsMissingProviderError extends Error {
-  constructor(hook = 'usePhoneAPIs') {
+/** Thrown by useHost() when no provider is mounted, so a view rendered without a host fails loudly instead of rendering defaults. */
+export class HostMissingProviderError extends Error {
+  constructor(hook = 'useHost') {
     super(
-      `${hook}() was called outside a <PhoneAPIsProvider>. A view must render under the provider the host mounts; ` +
-        'in a test, wrap it in <PhoneAPIsProvider apis={createFakePhoneAPIs()}> (shared/phone/phoneApisFake).',
+      `${hook}() was called outside a <HostProvider>. A view must render under the provider the host mounts; ` +
+        'in a test, wrap it in <HostProvider host={createFakeHost()}> (shared/phone/phoneApisFake).',
     );
-    this.name = 'PhoneAPIsMissingProviderError';
+    this.name = 'HostMissingProviderError';
   }
 }
 
-const PhoneAPIsContext = React.createContext<PhoneAPIs | null>(null);
+/** @deprecated use HostMissingProviderError -- same class, so `instanceof` works under either name. */
+export const PhoneAPIsMissingProviderError = HostMissingProviderError;
+
+const HostContext = React.createContext<Host | null>(null);
 
 /**
- * Mount once, at the host. `apis` is passed straight through as the context
+ * Mount once, at the host. `host` is passed straight through as the context
  * value: NEVER memoise it here or where it is built. The handlers behind it
  * close over render-time state (the panel list, the column count), so a
  * memoised bag hands views stale closures.
  */
-export function PhoneAPIsProvider({ apis, children }: { apis: PhoneAPIs; children: React.ReactNode }) {
+export function HostProvider({ host, children }: { host: Host; children: React.ReactNode }) {
   return (
-    <PhoneAPIsContext.Provider value={apis}>
+    <HostContext.Provider value={host}>
       <OverlayProvider>{children}</OverlayProvider>
-    </PhoneAPIsContext.Provider>
+    </HostContext.Provider>
   );
 }
 
-/** The one hook a view uses to reach the rest of the app. Call API methods from event handlers; do not capture one in an effect with empty deps. */
-export function usePhoneAPIs(): PhoneAPIs {
-  const apis = React.useContext(PhoneAPIsContext);
-  if (apis === null) throw new PhoneAPIsMissingProviderError();
-  return apis;
+/**
+ * @deprecated use HostProvider (its prop is `host`, not `apis`). This is a distinct thin wrapper, not the
+ * same value as HostProvider, because the prop itself renamed.
+ */
+export function PhoneAPIsProvider({ apis, children }: { apis: Host; children: React.ReactNode }) {
+  return <HostProvider host={apis}>{children}</HostProvider>;
 }
+
+/** The one hook a view uses to reach the rest of the app. Call API methods from event handlers; do not capture one in an effect with empty deps. */
+export function useHost(): Host {
+  const host = React.useContext(HostContext);
+  if (host === null) throw new HostMissingProviderError();
+  return host;
+}
+
+/** @deprecated use useHost -- same function, so identity checks keep working. */
+export const usePhoneAPIs = useHost;
