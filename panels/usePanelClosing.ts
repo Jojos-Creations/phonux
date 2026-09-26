@@ -136,7 +136,7 @@ export function usePanelClosing(
         // BEFORE revealPanelProactively's own setPanels call, same ordering reasoning as usePanelManager.ts's
         // own markEnteringViaAnchor call site.
         onRestoreLive?.(panel.id);
-        // Through the same room-making rule as opening a view: the oldest live view is parked if the row is full.
+        // Through the same room-making rule as opening a view: the live view farthest from it is parked if the row is full.
         revealPanelProactively(working, (prev) => restorePanel(prev, panel, index));
       } else {
         setPanels((prev) => restorePanel(prev, panel, index));

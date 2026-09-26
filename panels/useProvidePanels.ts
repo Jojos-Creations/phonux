@@ -1,8 +1,7 @@
 /**
  * The app's implementation of PanelsAPI (shared/phone/phoneViewApi.tsx): the panel list, create / activate / close /
  * undo / clear-all. Wraps usePanelManager UNCHANGED, composes usePanelClosing (closing a view completely, its undo
- * window and the closed-page log) and owns the two host-level effects that belong to the panel list: bringing a
- * newly-live panel into view, and reporting the live count to the main process so it can grow the window.
+ * window and the closed-page log) and owns the row's scroll gesture (useRowScrollGesture.ts).
  *
  * Never exposes setPanels, webContentsId or anything else a view has no use for: panelList and recentlyClosed hold
  * PanelSummary objects built here (a test pins their key set), never the app's own PanelWindow records. The hook
@@ -10,13 +9,12 @@
  * value it takes is an INPUT here, declared by the host before useAppApis is called.
  */
 
-import { useEffect, useRef, type Dispatch, type RefObject, type SetStateAction } from 'react';
-import { bridge } from '../../shared/ipc/bridge.js';
-import type { CreatePanelOptions, MaxViewsSettings, PanelsAPI } from 'phonux';
-import { GAP } from './LivePanelSlot.js';
+import { type Dispatch, type RefObject, type SetStateAction } from 'react';
+import type { CreatePanelOptions, PanelsAPI } from 'phonux';
 import { appendPanel, summarisePanel, type PanelWindow } from './panelWindow.js';
 import { usePanelClosing } from './usePanelClosing.js';
 import { usePanelManager } from './usePanelManager.js';
+import { useRowScrollGesture } from '../row/useRowScrollGesture.js';
 
 /** Ids for panels this app creates itself. A module counter, bumped only from event handlers (never from a state initialiser), so StrictMode's double invocation cannot skip one. */
 let nextWindowId = 1;
@@ -32,92 +30,55 @@ function isEventLike(value: unknown): boolean {
 export interface PanelsInput {
   panels: PanelWindow[];
   setPanels: Dispatch<SetStateAction<PanelWindow[]>>;
-  maxViews: MaxViewsSettings;
-  autoCollapse: boolean;
+  /** The stored "max panels on screen" choice (`null` = follow the fit count) -- SettingsAPI's own value. */
+  storedMaxPanels: number | null;
   phoneWidth: number;
-  /** `count(!collapsible)` over the one panel list right now -- the host's own single source of truth (appApis.ts), passed through rather than recomputed here so usePanelManager and reportPanelCount below always agree with it. */
+  /** `count(!collapsible)` over the one panel list right now -- the host's own single source of truth (appApis.ts), passed through rather than recomputed here so usePanelManager always agrees with it. */
   fixedViewCount: number;
-  rowOverflowing: boolean;
-  rowRef: RefObject<HTMLDivElement | null>;
+  /** useRowShell's own measured width (0 before the first measurement) -- usePanelManager derives the fit count and capacity from this, the same inputs SettingsAPI.fitCount uses. */
+  containerWidth: number;
+  /** The row's scroll container: the gesture's wheel listener attaches here. */
   overflowContainerRef: RefObject<HTMLDivElement | null>;
 }
 
 /**
- * PanelsAPI plus `closingIds`, kept OFF that interface on purpose: PanelsAPI is
- * the narrow surface a third-party view is written against (phoneViewApi.tsx's
- * own header comment), and `closingIds` is desktop-only exit-animation plumbing
- * (LivePanels.tsx/LivePanelSlot.tsx) that no view has a reason to see. Still
- * structurally a PanelsAPI, so every existing caller that only wants that
- * narrower type keeps working unchanged.
+ * PanelsAPI plus the desktop-only exit/enter animation plumbing (LivePanels.tsx's own inputs), kept OFF
+ * PanelsAPI on purpose: that interface is the narrow surface a third-party view is written against
+ * (phoneViewApi.tsx's own header comment). Still structurally a PanelsAPI, so every existing caller that
+ * only wants that narrower type keeps working unchanged.
  */
 export interface ProvidedPanels extends PanelsAPI {
   readonly closingIds: ReadonlySet<string>;
-  /** See usePanelManager.ts's `UsePanelManagerResult.enteringViaAnchorIds` for the full contract -- kept off PanelsAPI for the same reason `closingIds` is (desktop-only animation plumbing, LivePanels.tsx's own input). */
   readonly enteringViaAnchorIds: ReadonlySet<string>;
+  /** See usePanelManager.ts's `UsePanelManagerResult.exitRightIds` for the full contract. */
+  readonly exitRightIds: ReadonlySet<string>;
+  /** See usePanelManager.ts's `UsePanelManagerResult.enterSideById` for the full contract. */
+  readonly enterSideById: ReadonlyMap<string, 'left' | 'right'>;
 }
 
 export function useProvidePanels(i: PanelsInput): ProvidedPanels {
-  // A newly-revealed panel (a brand-new "+" view, or an old
-  // one reactivated from History) could land outside the currently-scrolled
-  // area with nothing to bring it into view -- especially now that 'count'
-  // mode can genuinely need to scroll (GoalFrontPage's overflow container).
-  // Diffs the live-panel id set against the previous render's own snapshot
-  // (`prevLiveIdsRef`, not state -- this must never itself trigger a
-  // re-render) so this only fires for an id that just TURNED live, never on
-  // every unrelated `panels` update (a close, a park). `data-panel-id` (on
-  // each live LivePanel's PanelFrame) is queried fresh each time rather than
-  // kept in a ref map, since AnimatePresence unmounts/remounts these nodes
-  // across collapse/reveal and a stale ref would go silently null.
-  const prevLiveIdsRef = useRef<Set<string>>(new Set());
-  useEffect(() => {
-    // `collapsible` excludes History: it never leaves the row to need scrolling back into view.
-    const liveIds = new Set(i.panels.filter((p) => p.collapsible && p.live).map((p) => p.id));
-    const prevLiveIds = prevLiveIdsRef.current;
-    const newlyLiveIds = [...liveIds].filter((id) => !prevLiveIds.has(id));
-    prevLiveIdsRef.current = liveIds;
-    if (newlyLiveIds.length === 0) return;
-    const targetId = newlyLiveIds[newlyLiveIds.length - 1];
-    const container = i.overflowContainerRef.current;
-    const target = container?.querySelector(`[data-panel-id="${targetId}"]`);
-    target?.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'end' });
-  }, [i.panels]);
+  const {
+    revealPanelProactively,
+    handleActivatePanel,
+    forgetCollapsed,
+    revealMostRecentlyCollapsed,
+    enteringViaAnchorIds,
+    markEnteringViaAnchor,
+    clearEnterSide,
+    scrollRow,
+    enterSideById,
+    exitRightIds,
+  } = usePanelManager(i.panels, i.setPanels, i.storedMaxPanels, i.phoneWidth, i.containerWidth, i.fixedViewCount);
 
-  const { revealPanelProactively, handleActivatePanel, forgetCollapsed, revealMostRecentlyCollapsed, enteringViaAnchorIds, markEnteringViaAnchor } = usePanelManager(
-    i.panels,
-    i.setPanels,
-    i.maxViews,
-    i.phoneWidth,
-    i.rowOverflowing,
-    i.autoCollapse,
-    i.rowRef,
-    i.overflowContainerRef,
-    i.fixedViewCount,
-  );
-
-  // Tells the main process how many extra panels are open so it can grow the
-  // window to fit a few more before rowOverflowing (GoalFrontPage) would
-  // otherwise fire on the very first one -- see electron/main.ts's
-  // 'window:report-panel-count' handler. Fire-and-forget on every live-count /
-  // phoneWidth change. 'count' mode (MaxViewsSettings; adventureSettings.ts has
-  // both modes' spec) skips this: it ignores window/screen width by design, so the window must never grow on its account.
-  // `collapsible` excludes History (always live, never an "extra" panel) from this count.
-  const liveExtraCount = i.panels.filter((p) => p.collapsible && p.live).length;
-  useEffect(() => {
-    if (i.maxViews.mode !== 'screen-width') return;
-    try {
-      bridge().reportPanelCount(liveExtraCount, i.phoneWidth, GAP, i.fixedViewCount);
-    } catch {
-      // No desktop bridge (a browser-only preview build) -- the window
-      // simply never grows, same as every other bridge-only feature.
-    }
-  }, [liveExtraCount, i.phoneWidth, i.maxViews.mode, i.fixedViewCount]);
+  // The row's own wheel/arrow-key gesture: lives off the host (GoalFrontPage.tsx's own acceptance grep
+  // forbids useEffect/useRef there), wired here instead.
+  useRowScrollGesture(i.overflowContainerRef, scrollRow);
 
   // Closing a view completely (History trash or the live panel's drag-down), its 10 s undo window and the log entry.
   // After usePanelManager: undo makes room for a live view through its revealPanelProactively.
   // `onAfterClose` first forgets the just-closed id (in case it was itself parked, e.g. a History trash
   // click on a collapsed row -- see usePanelManager's own `forgetCollapsed` doc comment), then offers the
-  // freed-up room to the most recently auto-collapsed panel still on the stack, if any and if there's room
-  // for it.
+  // freed-up room to the most recently parked panel still on the stack, if any and if there's room for it.
   const closing = usePanelClosing(
     i.panels,
     i.setPanels,
@@ -126,7 +87,12 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
       forgetCollapsed(id);
       revealMostRecentlyCollapsed(remaining);
     },
-    markEnteringViaAnchor,
+    // A restored LIVE panel can carry a stale gesture-enter-side/exit-right mark from an earlier park of
+    // the same id; clear it before marking entering-via-anchor (usePanelManager's own clear-then-mark order).
+    (id) => {
+      clearEnterSide(id);
+      markEnteringViaAnchor(id);
+    },
   );
 
   return {
@@ -153,5 +119,7 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
     clearAll: () => i.setPanels((prev) => prev.filter((p) => !p.collapsible)),
     closingIds: closing.closingIds,
     enteringViaAnchorIds,
+    exitRightIds,
+    enterSideById,
   };
 }

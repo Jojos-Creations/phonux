@@ -9,8 +9,6 @@ export {
   useHost,
 } from './phoneViewApi.js';
 export type {
-  MaxViewsMode,
-  MaxViewsSettings,
   PhoneSize,
   DetectedPhone,
   ClosedPageEntry,

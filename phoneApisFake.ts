@@ -53,11 +53,9 @@ export function createFakeHost(overrides: FakeOverrides = {}): FakeHost {
   };
 
   const settings: SettingsAPI = {
-    maxViews: { mode: 'screen-width', collapseAtViews: 6, downToViews: 4 },
-    maxViewsBounds: { min: 3, max: 20 },
-    setMaxViews: (next) => log('settings', 'setMaxViews', [next]),
-    autoCollapse: true,
-    setAutoCollapse: async (on) => log('settings', 'setAutoCollapse', [on]),
+    maxPanelsOnScreen: null,
+    fitCount: 4,
+    setMaxPanelsOnScreen: async (n) => log('settings', 'setMaxPanelsOnScreen', [n]),
     settingsColumn: {
       visible: false,
       show: () => log('settings', 'settingsColumn.show', []),

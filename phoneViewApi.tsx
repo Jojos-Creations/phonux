@@ -20,23 +20,6 @@ import { OverlayProvider } from './windowOverlay.js';
 // Value types
 // ---------------------------------------------------------------------------
 
-export type MaxViewsMode = 'screen-width' | 'count';
-
-/**
- * "Maximum views": how many panels the row keeps live before parking the
- * oldest in History. 'screen-width' grows the window and collapses only once
- * the screen is full; 'count' collapses at `collapseAtViews` total views down
- * to `downToViews` and never asks the window to grow. A "view" counts the
- * always-present columns plus the live panels.
- */
-export interface MaxViewsSettings {
-  mode: MaxViewsMode;
-  /** 'count' mode only: total views at which collapse triggers. */
-  collapseAtViews: number;
-  /** 'count' mode only: total views to collapse down to once triggered. */
-  downToViews: number;
-}
-
 /** A phone size. `modelId` 'default' means the app's built-in size, not a PHONE_MODELS entry. */
 export interface PhoneSize {
   modelId: string;
@@ -83,16 +66,12 @@ export interface PanelSummary<P = JsonValue> {
 // ---------------------------------------------------------------------------
 
 export interface SettingsAPI {
-  /** Live value: a view re-renders when it changes. */
-  readonly maxViews: MaxViewsSettings;
-  /** Legal range for `maxViews.collapseAtViews`. `min` already counts the columns on screen, so a view never passes a column count. */
-  readonly maxViewsBounds: { readonly min: number; readonly max: number };
-  /** Clamped against the CURRENT column count inside the app. */
-  setMaxViews(next: MaxViewsSettings): void;
-  /** Whether the row parks its oldest panel instead of scrolling when it would overflow. */
-  readonly autoCollapse: boolean;
-  /** Applies at once, then persists. Never rejects: with no desktop bridge the choice lasts this session only. */
-  setAutoCollapse(on: boolean): Promise<void>;
+  /** The stored "max panels on screen" choice: `null` means "follow the fit count" (the default). Live: a view re-renders when it changes. */
+  readonly maxPanelsOnScreen: number | null;
+  /** How many panels (History plus web panels together) the window can currently show -- `null` while unmeasured (no cap yet). */
+  readonly fitCount: number | null;
+  /** Clamped to [2, fitCount] on read; `null` resets to "follow the fit count". Applies at once, then persists. Never rejects: with no desktop bridge the choice lasts this session only. */
+  setMaxPanelsOnScreen(n: number | null): Promise<void>;
   /** Settings' own sections render inside History's body when this is true (History's gear toggles it), rather than as a separate column. Starts false: a fresh session opens on History's own row list. `show()`/`hide()` last for the session. */
   readonly settingsColumn: { readonly visible: boolean; show(): void; hide(): void };
 }
@@ -139,7 +118,7 @@ export interface PanelsAPI {
    * Appends a live panel; zero-arg is the blank-web-panel default. `view` selects the rendered component
    * (registerView/resolveView) -- an unregistered key renders a placeholder, never a crash. No
    * `collapsible`/`locked` key: a spawned panel can never claim a permanent column or an unclosable lock.
-   * Overflow parks the oldest live panel first, as it does for any panel.
+   * At capacity, the live panel farthest from it is parked, as for any panel.
    */
   create(): void;
   /**
@@ -147,13 +126,13 @@ export interface PanelsAPI {
    * optional-arg signature would collide with a bare `onClick={panels.create}` reference.
    */
   create(options: CreatePanelOptions): void;
-  /** Make a panel live in place, without reordering the row. May park the oldest live one. */
+  /** Make a panel live in place, without reordering the row. May park the live panel farthest from it. */
   activate(id: string): void;
   /** Close a view completely, live or parked: it leaves the row and History at once, a closed event is appended to the persisted log (HistoryAPI), and it can be undone for 10 s (recentlyClosed, undoClose). Also accepts History's own fixed-panel id (HistoryAPI.close is the same mechanism, offered per-panel so a view need not know the id) -- an id not in `panelList` and not History's id, or a LOCKED fixed panel's id, does nothing. */
   close(id: string): void;
   /** The views closed within the current undo window, oldest first; non-null exactly while it is open (10 s after the LAST close). Drives the "Closed N pages / Undo" toast. */
   readonly recentlyClosed: readonly PanelSummary[] | null;
-  /** Undo every close in `recentlyClosed`: each view returns at its old place (a live one comes back live, parking the oldest live one if the row is full) and its log entry is removed. Does nothing when the window is closed. */
+  /** Undo every close in `recentlyClosed`: each view returns at its old place (a live one comes back live, parking the live one farthest from it if the row is full) and its log entry is removed. Does nothing when the window is closed. */
   undoClose(): void;
   /** Forget every panel. Not logged and not undoable. */
   clearAll(): void;
