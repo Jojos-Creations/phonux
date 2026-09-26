@@ -81,20 +81,46 @@ export function ViewStateProvider({ children }: { children: React.ReactNode }): 
   return React.createElement(StoreContext.Provider, { value: store }, children);
 }
 
-function useViewStateImpl<T extends JsonValue>(key: string, initial: T): [T, (next: T | ((prev: T) => T)) => void] {
+/**
+ * `T extends JsonValue` alone infers a LITERAL type from a bare initial value (`useViewState('k', 0)` would
+ * lock T to the type `0`, rejecting `setValue(7)`) -- a TS quirk of union-constrained generic inference that
+ * plain `useState`'s unconstrained `T` never hits. Widen<T> re-widens exactly the cases TS's own inference
+ * would widen for an unconstrained T (recursing into arrays/objects, since the same over-narrowing happens at
+ * every nesting level), so the hook's public type reads identically to `useState` while `T extends JsonValue`
+ * still rejects a non-JSON value at the call site.
+ */
+type Widen<T> = T extends string
+  ? string
+  : T extends number
+    ? number
+    : T extends boolean
+      ? boolean
+      : T extends null
+        ? null
+        : T extends readonly (infer U)[]
+          ? readonly Widen<U>[]
+          : T extends object
+            ? { readonly [K in keyof T]: Widen<T[K]> }
+            : T;
+
+function useViewStateImpl<T extends JsonValue>(
+  key: string,
+  initial: T,
+): [Widen<T>, (next: Widen<T> | ((prev: Widen<T>) => Widen<T>)) => void] {
   const panelId = React.useContext(ViewIdContext);
   const store = React.useContext(StoreContext);
   if (panelId === null || store === null) throw new ViewStateMissingProviderError();
   const value = React.useSyncExternalStore(
     (onChange) => store.subscribe(panelId, key, initial, onChange),
-    () => store.get(panelId, key, initial) as T,
-    () => store.get(panelId, key, initial) as T,
+    () => store.get(panelId, key, initial) as Widen<T>,
+    () => store.get(panelId, key, initial) as Widen<T>,
   );
   const setValue = React.useCallback(
-    (next: T | ((prev: T) => T)) => {
+    (next: Widen<T> | ((prev: Widen<T>) => Widen<T>)) => {
       // JsonValue never includes a function, so this check can never mistake a real value for an updater.
-      const resolved = typeof next === 'function' ? (next as (prev: T) => T)(store.get(panelId, key, initial) as T) : next;
-      store.set(panelId, key, resolved);
+      const resolved =
+        typeof next === 'function' ? (next as (prev: Widen<T>) => Widen<T>)(store.get(panelId, key, initial) as Widen<T>) : next;
+      store.set(panelId, key, resolved as JsonValue);
     },
     [store, panelId, key, initial],
   );
