@@ -18,7 +18,7 @@
 
 import * as React from 'react';
 import Box, { type BoxProps } from '@mui/material/Box';
-import { PanelHeaderRow, type PanelHeaderRowProps } from './PhoneFrame.js';
+import { PANEL_HEADER_GAP_PX, PanelHeaderRow, type PanelHeaderRowProps } from './PhoneFrame.js';
 import { useHost } from './phoneViewApi.js';
 
 // One import path for a view author: the contracts, the provider and the hook.
@@ -50,6 +50,13 @@ export interface PanelProps extends Omit<BoxProps, 'children' | 'sx' | 'title'> 
    */
   headerProps?: Omit<PanelHeaderRowProps, 'title' | 'actions'> & { [key: `data-${string}`]: string | boolean | undefined };
   /**
+   * The grab handle for dragging this Panel (DragToClose's `onPointerDown`/`sx`), rendered as its OWN
+   * element filling the gap between the header and the frame -- never spread onto `headerProps` -- so a
+   * click on the title text or an action icon in the header is never mistaken for a drag start. Omitted
+   * (the usual case for a locked view, e.g. History) renders no grab bar at all.
+   */
+  grabProps?: Omit<BoxProps, 'children'> & { [key: `data-${string}`]: string | boolean | undefined };
+  /**
    * Content positioned absolutely over this view (History's own "+" Fab,
    * bottom-right) -- rendered as a plain sibling of `children` inside this
    * component's own `position: relative` box, which is already the
@@ -63,11 +70,32 @@ export interface PanelProps extends Omit<BoxProps, 'children' | 'sx' | 'title'> 
 /** @deprecated use PanelProps */
 export type PhoneViewProps = PanelProps;
 
-export function Panel({ title, actions, headerProps, overlay, sx, children, ...rest }: PanelProps) {
+export function Panel({ title, actions, headerProps, grabProps, overlay, sx, children, ...rest }: PanelProps) {
   const { device } = useHost();
   return (
     <Box sx={{ position: 'relative', width: device.size.width, ...sx }} {...rest}>
       {title !== undefined && <PanelHeaderRow title={title} actions={actions} {...headerProps} />}
+      {grabProps && (
+        <Box
+          data-panel-grab-bar=""
+          {...grabProps}
+          sx={{
+            position: 'absolute',
+            bottom: '100%',
+            left: 0,
+            right: 0,
+            height: `${PANEL_HEADER_GAP_PX}px`,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            ...grabProps.sx,
+          }}
+        >
+          {/* Decorative only -- the clickable area is the whole strip above, sized to WCAG 2.5.8's 24px
+              minimum even though this drawn pill is thinner. */}
+          <Box aria-hidden="true" sx={{ width: 32, height: 4, borderRadius: 2, bgcolor: 'divider' }} />
+        </Box>
+      )}
       {children}
       {overlay}
     </Box>
