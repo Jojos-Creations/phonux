@@ -44,9 +44,10 @@
  * Both `anchorIndex` and each entry's own row-slot `index` come from the
  * SAME one-list array.
  *
- * Each present entry's slot is wrapped in `PanelReorderContext` (this file's own export,
- * `usePanelReorderEligible`) so LivePanel.tsx's grab bar knows whether IT is a reorder source without
- * needing a new prop through `resolveView`'s third-party `Component` contract.
+ * Each present entry's slot is wrapped in `PanelCollapsibleContext` (this file's own export,
+ * `usePanelReorderEligible`/`usePanelCloseEligible`) so LivePanel.tsx's grab bar knows whether IT is a
+ * reorder source, and whether the framework may offer ANY drag-to-close handle at all, without needing a new
+ * prop through `resolveView`'s third-party `Component` contract.
  */
 
 import * as React from 'react';
@@ -65,15 +66,23 @@ const EMPTY_SET: ReadonlySet<string> = new Set();
 const EMPTY_MAP: ReadonlyMap<string, 'left' | 'right'> = new Map();
 
 /**
- * Whether the row's drag-to-reorder gesture applies to THIS entry's own grab bar -- true only for a
- * `collapsible` entry (an always-shown column, e.g. History, is never a reorder source). A resolved view
- * only ever receives `PanelSummary` (no `collapsible` field, on purpose -- phoneViewApi.tsx), so LivePanel.tsx
- * reads this instead of checking the field itself. Default false: a view with no provider above it (e.g. a
- * test mounting itself directly) never reorders.
+ * Mirrors this entry's own `collapsible` for the two things LivePanel.tsx must decide without ever reading
+ * the field itself (a resolved view only ever receives `PanelSummary`, which has no `collapsible` field, on
+ * purpose -- phoneViewApi.tsx): whether its grab bar is a reorder source, and whether the framework may offer
+ * ANY drag-to-close handle at all. `undefined` (no provider above, e.g. a view mounted directly in a test)
+ * is deliberately distinct from an explicit `false`: each hook below resolves that case to whichever default
+ * matches today's pre-`permanent`-columns behavior for its OWN concern, not one shared default.
  */
-const PanelReorderContext = React.createContext<boolean>(false);
-/** See `PanelReorderContext`'s own doc comment. */
-export const usePanelReorderEligible = (): boolean => React.useContext(PanelReorderContext);
+const PanelCollapsibleContext = React.createContext<boolean | undefined>(undefined);
+/** True only for a `collapsible` entry (e.g. a plain web panel) -- an always-shown column (History, or a
+ * `permanent:true` custom column) is never a reorder source. Unprovided resolves to false: a view mounted
+ * with no `LivePanels` above it never reorders. */
+export const usePanelReorderEligible = (): boolean => React.useContext(PanelCollapsibleContext) ?? false;
+/** False only for an always-shown column (`collapsible:false`): the built-in 'web' view must never wrap such
+ * an entry in a framework close handle (CreatePanelOptions.permanent's 'own control only' guarantee).
+ * Unprovided resolves to true, matching every pre-existing test that mounts LivePanel directly for an
+ * ordinary (implicitly collapsible) panel. */
+export const usePanelCloseEligible = (): boolean => React.useContext(PanelCollapsibleContext) ?? true;
 
 export function LivePanels({
   entries,
@@ -115,7 +124,7 @@ export function LivePanels({
         {present.map((p, index) => {
           const Component = resolveView(p.view);
           return (
-            <PanelReorderContext.Provider key={p.id} value={p.collapsible}>
+            <PanelCollapsibleContext.Provider key={p.id} value={p.collapsible}>
               <LivePanelSlot
                 index={index}
                 phoneWidth={phoneWidth}
@@ -132,7 +141,7 @@ export function LivePanels({
                   <Component panel={summarisePanel(p)} />
                 </useViewState.Provider>
               </LivePanelSlot>
-            </PanelReorderContext.Provider>
+            </PanelCollapsibleContext.Provider>
           );
         })}
       </AnimatePresence>
