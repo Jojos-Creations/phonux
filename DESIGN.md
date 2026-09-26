@@ -12,7 +12,7 @@ contracts must work under ANY host, not just this one.
 
 ## The provider is rebuilt every render
 
-`PhoneAPIsProvider`'s `apis` value is never memoised, on either side: the host's handlers close over
+`HostProvider` (renamed from `PhoneAPIsProvider`)'s `host` value is never memoised, on either side: the host's handlers close over
 render-time state (the panel list, the column count), so a memoised bag would hand a view a stale closure.
 
 ## Testing without a host
@@ -31,9 +31,9 @@ decided whether a panel is in `panelList` at all.
 
 ## The panel-view registry: never a crash, never a silent substitution
 
-`registerPanelView`/`resolvePanelView` (`panelRegistry.tsx`) let `PanelWindow.view` be an open string
+`registerView` (renamed from `registerPanelView`)/`resolveView` (renamed from `resolvePanelView`) (`panelRegistry.tsx`) let `PanelWindow.view` be an open string
 instead of a closed union, so a host or a third party can spawn any registered component by name.
-`resolvePanelView` never returns nothing: an unregistered key -- a typo, or a plugin that failed to
+`resolveView` never returns nothing: an unregistered key -- a typo, or a plugin that failed to
 register -- renders a visible, inert placeholder naming the title and the key, rather than throwing (which
 would take the whole row down with it) or silently falling back to the built-in web panel (which would
 render a blank webview shell for what is actually broken, more confusing than an honest placeholder). `view`
@@ -73,7 +73,7 @@ function) as "no options", so a bare `onClick={panels.create}` reference behaves
 
 `LivePanels.tsx` holds the internal `PanelWindow` record (not `PanelSummary`) because it alone decides
 `insertAt`/`layer`/`anchoredEnter`/`collapsible`, but every component it resolves through the registry --
-built-in or third-party -- is written against `PanelComponent<P> = ComponentType<{ panel: PanelSummary<P>
+built-in or third-party -- is written against `PanelComponent<P>` (renamed to `ViewComponent<P>`) `= ComponentType<{ panel: PanelSummary<P>
 }>`. It narrows through the same `summarisePanel()` projection `PanelsAPI.panelList`/`recentlyClosed` use
 (`panelWindow.ts`), so a view can never read a desktop-only field (`webContentsId`, `collapsible`,
 `insertAt`, `layer`, `anchoredEnter`) just because it happens to be a plain variable, not an object literal,
