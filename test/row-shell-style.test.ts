@@ -1,9 +1,10 @@
 /**
  * rowShellStyle (client/src/desktop/row/useRowShell.ts): the PURE half of the row shell. It turns the measured
- * widths and the settings into the three values the front page's markup reads. The mount tests
- * (goal-front-page-row-shell.test.ts, RS3-RS5, RS14) pin the same behaviour through the whole page in jsdom; these
- * pin the function itself with plain data, so a wrong input (a hard-coded phone width, a parked panel counted as live,
- * a swapped flag) fails here by name. No DOM, no React: the function is not a hook.
+ * widths into the two values the front page's markup reads (there is no scrollbar: `overflowX` is always
+ * 'hidden', the owner's binding decision). The mount tests (goal-front-page-row-shell.test.ts, RS3-RS4,
+ * RS14) pin the same behaviour through the whole page in jsdom; these pin the function itself with plain
+ * data, so a wrong input (a hard-coded phone width, a parked panel counted as live) fails here by name. No
+ * DOM, no React: the function is not a hook.
  */
 
 import { test } from 'node:test';
@@ -12,42 +13,24 @@ import { rowShellStyle, type RowShellStyleInput } from '../client/src/desktop/ro
 import { PANEL_TRANSITION } from '../client/src/desktop/panels/LivePanelSlot.js';
 
 const base: RowShellStyleInput = {
-  shell: { containerWidth: 1300, rowOverflowSettled: false, rowResizeSettled: false },
+  shell: { containerWidth: 1300, rowResizeSettled: false },
   phoneWidth: 390,
   // History alone: Settings toggles inside its body rather than adding a second fixed column, so this is
   // never more than 1 in the real app.
   fixedColumnCount: 1,
   liveCount: 0,
-  maxViewsMode: 'screen-width',
-  autoCollapse: true,
 };
 const withShell = (shell: Partial<RowShellStyleInput['shell']>): RowShellStyleInput => ({ ...base, shell: { ...base.shell, ...shell } });
+
+test('rowShellStyle: overflowX is always "hidden" -- there is no scrollbar, whatever the inputs', () => {
+  assert.equal(rowShellStyle(base).overflowX, 'hidden');
+  assert.equal(rowShellStyle({ ...base, liveCount: 9 }).overflowX, 'hidden');
+  assert.equal(rowShellStyle(withShell({ containerWidth: 0 })).overflowX, 'hidden');
+});
 
 test('rowShellStyle: the margin snaps (duration 0) until the container width has settled, then glides with the panels\' own transition', () => {
   assert.deepEqual(rowShellStyle(withShell({ rowResizeSettled: false })).transition, { duration: 0 });
   assert.equal(rowShellStyle(withShell({ rowResizeSettled: true })).transition, PANEL_TRANSITION, 'the very same transition the panels slide with, so the row and a panel read as one motion');
-  // the overflow flag is a different clock: it must not decide the transition
-  assert.deepEqual(rowShellStyle(withShell({ rowResizeSettled: false, rowOverflowSettled: true })).transition, { duration: 0 });
-  assert.equal(rowShellStyle(withShell({ rowResizeSettled: true, rowOverflowSettled: false })).transition, PANEL_TRANSITION);
-});
-
-test('rowShellStyle: the scrollbar rule over every combination of mode, auto-collapse and a settled overflow', () => {
-  // expected, written out (not derived): 'use window width' hides the bar exactly when auto-collapse is on (the reactive net guarantees the row
-  // settles back to fitting), and ignores the overflow clock; count mode hides it until an overflow has lasted, and ignores auto-collapse.
-  const table: Array<[mode: 'screen-width' | 'count', autoCollapse: boolean, overflowSettled: boolean, expected: 'hidden' | 'auto']> = [
-    ['screen-width', true, false, 'hidden'],
-    ['screen-width', true, true, 'hidden'],
-    ['screen-width', false, false, 'auto'],
-    ['screen-width', false, true, 'auto'],
-    ['count', true, false, 'hidden'],
-    ['count', true, true, 'auto'],
-    ['count', false, false, 'hidden'],
-    ['count', false, true, 'auto'],
-  ];
-  for (const [mode, autoCollapse, overflowSettled, expected] of table) {
-    const got = rowShellStyle({ ...withShell({ rowOverflowSettled: overflowSettled }), maxViewsMode: mode, autoCollapse }).overflowX;
-    assert.equal(got, expected, `${mode}, auto-collapse ${autoCollapse}, overflow settled ${overflowSettled}`);
-  }
 });
 
 test('rowShellStyle: the margin centres the column and LIVE panels it is given, at the phone width it is given (390 and 430, a parked panel not counted)', () => {

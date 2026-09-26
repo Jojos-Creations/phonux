@@ -82,6 +82,15 @@ test('panelSlotMotion: exit "down" is EXACTLY the pre-refactor formula (x stays 
   }
 });
 
+test('panelSlotMotion: exit "right" is `rest + slot` (relative to rest, unlike the absolute -slot "left" target), for either enter direction -- the ux-row-scroll-by-hiding far-side park', () => {
+  for (const index of [0, 1, 2]) {
+    for (const enterDirection of ['left', 'right'] as const) {
+      const m = panelSlotMotion(index, PHONE_WIDTH, PHONE_HEIGHT, enterDirection, 'right');
+      assert.deepEqual(m.exit, { x: index * SLOT + SLOT, opacity: 0 }, `index ${index}, enter ${enterDirection}`);
+    }
+  }
+});
+
 test('panelSlotMotion: exit "left" is EXACTLY the pre-refactor formula (-slot, independent of index -- NOT directionalTransition\'s symmetric default), for either enter direction', () => {
   for (const index of [0, 1, 2]) {
     for (const enterDirection of ['left', 'right'] as const) {

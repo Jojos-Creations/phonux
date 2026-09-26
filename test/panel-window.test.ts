@@ -8,12 +8,17 @@ import assert from 'node:assert/strict';
 import {
   type PanelWindow,
   appendPanel,
-  autoCollapseOldest,
   closePanel,
   createHistoryPanel,
+  firstParkedAfter,
   HISTORY_PANEL_ID,
+  lastParkedBefore,
+  leftmostLiveIndex,
+  parkFarthestLive,
   promoteToLive,
   restorePanel,
+  rightmostLiveIndex,
+  sideOfLiveRange,
 } from '../client/src/desktop/panels/panelWindow.js';
 
 test('appendPanel: appends a new LIVE extra panel carrying the source id and url, unstarted webContentsId', () => {
@@ -126,9 +131,18 @@ test('closePanel then restorePanel in REVERSE order undoes a run of closes exact
   assert.deepEqual(back.map((p) => p.id), ['w1', 'w2', 'w3', 'w4'], 'last closed first: the original order comes back');
 });
 
-test('autoCollapseOldest: parks the single oldest LIVE panel and keeps it in the array (space management, not a close)', () => {
+// ---------------------------------------------------------------------------
+// parkFarthestLive: replaces the retired "park the oldest live panel by array
+// order" rule with the far-side rule the owner's binding
+// decision names -- park the live collapsible panel farthest, by array
+// index, from a reference index. `fromIndex = panels.length` (one past the
+// end) always resolves to the LEFTMOST live panel, which is what an append
+// and the capacity-drop reconcile both need.
+// ---------------------------------------------------------------------------
+
+test('parkFarthestLive: fromIndex past the end parks the LEFTMOST live panel and keeps it in the array (space management, not a close)', () => {
   const panels = makeExtraPanels('w1', 'w2', 'w3');
-  const result = autoCollapseOldest(panels)!;
+  const result = parkFarthestLive(panels, panels.length)!;
   assert.deepEqual(
     result.filter((p) => p.live).map((p) => p.id),
     ['w2', 'w3'],
@@ -138,26 +152,70 @@ test('autoCollapseOldest: parks the single oldest LIVE panel and keeps it in the
   assert.equal(result.length, 3, 'parked, never removed: only closePanel drops a panel');
 });
 
-test('autoCollapseOldest: returns null when nothing is live to park', () => {
-  assert.equal(autoCollapseOldest([]), null);
+test('parkFarthestLive: a LOW fromIndex parks the RIGHTMOST live panel instead -- the same function, the opposite edge', () => {
+  const panels = makeExtraPanels('w1', 'w2', 'w3');
+  const result = parkFarthestLive(panels, -1)!;
+  assert.equal(result.find((p) => p.id === 'w3')!.live, false, 'w3 (the rightmost) is farthest from a fromIndex below everything');
+  assert.deepEqual(
+    result.filter((p) => p.live).map((p) => p.id),
+    ['w1', 'w2'],
+  );
+});
+
+test('parkFarthestLive: returns null when nothing is live to park', () => {
+  assert.equal(parkFarthestLive([], 0), null);
   const allParked = park(makeExtraPanels('w1'), 'w1');
-  assert.equal(autoCollapseOldest(allParked), null);
+  assert.equal(parkFarthestLive(allParked, 1), null);
 });
 
-test('autoCollapseOldest: never parks a collapsible:false entry (History) even though it is live and oldest by array order', () => {
+test('parkFarthestLive: never parks a collapsible:false entry (History) even though it is live and farthest by array order', () => {
   const panels = [createHistoryPanel(), ...makeExtraPanels('w1', 'w2')];
-  const result = autoCollapseOldest(panels)!;
-  assert.equal(result.find((p) => p.id === HISTORY_PANEL_ID)!.live, true, 'History is oldest by array order but exempt: collapsible is false');
-  assert.equal(result.find((p) => p.id === 'w1')!.live, false, 'the oldest COLLAPSIBLE entry is the one actually parked');
+  const result = parkFarthestLive(panels, panels.length)!;
+  assert.equal(result.find((p) => p.id === HISTORY_PANEL_ID)!.live, true, 'History is leftmost but exempt: collapsible is false');
+  assert.equal(result.find((p) => p.id === 'w1')!.live, false, 'the leftmost COLLAPSIBLE entry is the one actually parked');
 });
 
-test('autoCollapseOldest: flipping collapsible on ONE entry changes only whether IT can be picked -- nothing else about the array', () => {
+test('parkFarthestLive: flipping collapsible on ONE entry changes only whether IT can be picked -- nothing else about the array', () => {
   const base = makeExtraPanels('w1', 'w2', 'w3');
   const exempt = base.map((p) => (p.id === 'w1' ? { ...p, collapsible: false } : p));
-  const result = autoCollapseOldest(exempt)!;
-  assert.equal(result.find((p) => p.id === 'w1')!.live, true, 'w1 is oldest by array order but now exempt');
-  assert.equal(result.find((p) => p.id === 'w2')!.live, false, 'w2 (the oldest still-collapsible entry) is parked instead');
+  const result = parkFarthestLive(exempt, exempt.length)!;
+  assert.equal(result.find((p) => p.id === 'w1')!.live, true, 'w1 is leftmost by array order but now exempt');
+  assert.equal(result.find((p) => p.id === 'w2')!.live, false, 'w2 (the leftmost still-collapsible entry) is parked instead');
   assert.deepEqual(result.find((p) => p.id === 'w3'), base.find((p) => p.id === 'w3'), 'a third, untouched entry is unaffected');
+});
+
+// ---------------------------------------------------------------------------
+// sideOfLiveRange / leftmostLiveIndex / rightmostLiveIndex / firstParkedAfter / lastParkedBefore: the
+// row-gesture and exit-direction primitives -- pure, so the far rule's own edge cases are pinned without a
+// hook or a DOM.
+// ---------------------------------------------------------------------------
+
+test('sideOfLiveRange: the leftmost live panel always reads LEFT, the rightmost always reads RIGHT', () => {
+  const panels = makeExtraPanels('w1', 'w2', 'w3');
+  assert.equal(sideOfLiveRange(panels, 'w1'), 'left');
+  assert.equal(sideOfLiveRange(panels, 'w3'), 'right');
+});
+
+test('sideOfLiveRange: a parked id (about to be revived) is judged the same way, against the OTHER live ids', () => {
+  const panels = park(makeExtraPanels('w1', 'w2', 'w3'), 'w1', 'w3'); // w2 live; w1, w3 parked
+  assert.equal(sideOfLiveRange(panels, 'w1'), 'left', 'w1 sits left of the only other live one (w2)');
+  assert.equal(sideOfLiveRange(panels, 'w3'), 'right', 'w3 sits right of it');
+});
+
+test('leftmostLiveIndex / rightmostLiveIndex: -1 with nothing live, otherwise the array index of the edge panel', () => {
+  assert.equal(leftmostLiveIndex([]), -1);
+  assert.equal(rightmostLiveIndex([]), -1);
+  const panels = park(makeExtraPanels('w1', 'w2', 'w3'), 'w1');
+  assert.equal(leftmostLiveIndex(panels), 1, 'w2, the first live one');
+  assert.equal(rightmostLiveIndex(panels), 2, 'w3, the last live one');
+});
+
+test('firstParkedAfter / lastParkedBefore: the next parked panel toward each side, or null with nothing parked that way', () => {
+  const panels = park(makeExtraPanels('w1', 'w2', 'w3', 'w4'), 'w1', 'w4');
+  assert.equal(firstParkedAfter(panels, rightmostLiveIndex(panels))?.id, 'w4');
+  assert.equal(lastParkedBefore(panels, leftmostLiveIndex(panels))?.id, 'w1');
+  assert.equal(firstParkedAfter(panels, panels.length - 1), null, 'nothing after the last entry');
+  assert.equal(lastParkedBefore(panels, 0), null, 'nothing before the first entry');
 });
 
 test('History stays at array index 0 through appendPanel, closePanel and restorePanel', () => {
@@ -173,13 +231,14 @@ test('History stays at array index 0 through appendPanel, closePanel and restore
 });
 
 // ---------------------------------------------------------------------------
-// promoteToLive: flips `live` IN PLACE (never reorders), and demotes at most one OTHER live panel (the
-// oldest, by array order) when the caller's own `wouldOverflow` predicate says so.
+// promoteToLive: flips `live` IN PLACE (never reorders), and demotes at most one OTHER live panel -- the
+// one `sideOfLiveRange`'s far rule picks, from `id`'s own array index -- when doing so would exceed
+// `capacity`.
 // ---------------------------------------------------------------------------
 
 test('promoteToLive: makes a parked panel live IN PLACE -- array order is unchanged, nothing is appended', () => {
   const panels = park(makeExtraPanels('w1', 'w2', 'w3'), 'w1', 'w2'); // w1,w2 parked; w3 live
-  const result = promoteToLive(panels, 'w1', () => false)!;
+  const result = promoteToLive(panels, 'w1', Number.POSITIVE_INFINITY)!;
   assert.deepEqual(
     result.map((p) => p.id),
     ['w1', 'w2', 'w3'],
@@ -188,31 +247,21 @@ test('promoteToLive: makes a parked panel live IN PLACE -- array order is unchan
   assert.equal(result[0]!.live, true);
 });
 
-test('promoteToLive: when wouldOverflow says yes, demotes exactly one OTHER live panel -- the oldest, by array order', () => {
-  const panels = park(makeExtraPanels('w1', 'w2', 'w3'), 'w1'); // w1 parked; w2,w3 live
-  const result = promoteToLive(panels, 'w1', () => true)!;
+test('promoteToLive: over capacity, demotes exactly one OTHER live panel -- the one farthest from the promoted id', () => {
+  const panels = park(makeExtraPanels('w1', 'w2', 'w3'), 'w1'); // w1 parked (index 0); w2,w3 live
+  const result = promoteToLive(panels, 'w1', 2)!; // capacity 2: promoting w1 would make 3 live
   assert.deepEqual(
     result.filter((p) => p.live).map((p) => p.id),
-    ['w1', 'w3'],
-    'w2 (the oldest OTHER live panel) was demoted to keep exactly one swap',
+    ['w1', 'w2'],
+    'w3 (farthest from w1\'s own index 0) was demoted to keep exactly one swap',
   );
-  const demoted = result.find((p) => p.id === 'w2')!;
+  const demoted = result.find((p) => p.id === 'w3')!;
   assert.equal(demoted.live, false);
 });
 
-test('promoteToLive: wouldOverflow receives the live count counting the panel about to be promoted', () => {
-  const panels = park(makeExtraPanels('w1', 'w2'), 'w1'); // w1 parked; w2 live (liveCount 1)
-  let seen: number | undefined;
-  promoteToLive(panels, 'w1', (liveCountAfter) => {
-    seen = liveCountAfter;
-    return false;
-  });
-  assert.equal(seen, 2, 'one currently live (w2) plus the one being promoted (w1)');
-});
-
-test('promoteToLive: a no-overflow prediction demotes nothing at all', () => {
-  const panels = park(makeExtraPanels('w1', 'w2'), 'w1');
-  const result = promoteToLive(panels, 'w1', () => false)!;
+test('promoteToLive: exactly at capacity demotes nothing at all', () => {
+  const panels = park(makeExtraPanels('w1', 'w2'), 'w1'); // w1 parked; w2 live
+  const result = promoteToLive(panels, 'w1', 2)!; // promoting w1 makes 2 live, exactly capacity
   assert.deepEqual(
     result.filter((p) => p.live).map((p) => p.id).sort(),
     ['w1', 'w2'],
@@ -222,16 +271,16 @@ test('promoteToLive: a no-overflow prediction demotes nothing at all', () => {
 
 test('promoteToLive: an already-live panel is a no-op (null) -- "keep it live" needs nothing applied', () => {
   const panels = makeExtraPanels('w1');
-  assert.equal(promoteToLive(panels, 'w1', () => true), null);
+  assert.equal(promoteToLive(panels, 'w1', 1), null);
 });
 
 test('promoteToLive: an unknown id returns null -- nothing to promote', () => {
-  assert.equal(promoteToLive(makeExtraPanels('w1'), 'nope', () => false), null);
+  assert.equal(promoteToLive(makeExtraPanels('w1'), 'nope', Number.POSITIVE_INFINITY), null);
 });
 
 test('promoteToLive: demotion never targets a collapsible:false entry (History) -- a manual activation must not bump an always-shown column', () => {
   const panels = park([createHistoryPanel(), ...makeExtraPanels('w1')], 'w1'); // History live; w1 parked
-  const result = promoteToLive(panels, 'w1', () => true)!; // wouldOverflow says yes: something should demote
+  const result = promoteToLive(panels, 'w1', 1)!; // capacity 1: something should demote, but History is exempt
   assert.equal(result.find((p) => p.id === HISTORY_PANEL_ID)!.live, true, 'History stays live: it is the only OTHER live entry, but it is exempt');
   assert.equal(result.find((p) => p.id === 'w1')!.live, true, 'w1 was promoted -- nothing was left to demote');
 });

@@ -103,10 +103,7 @@ export function LivePanels({
               index={index}
               phoneWidth={phoneWidth}
               phoneHeight={phoneHeight}
-              enterDirection={
-                enterSideById.get(p.id) ??
-                ((p.anchoredEnter ?? false) || enteringViaAnchorIds.has(p.id) ? resolveEnterDirection(anchorIndex, index) : 'right')
-              }
+              enterDirection={enterSideById.get(p.id) ?? ((p.anchoredEnter ?? false) || enteringViaAnchorIds.has(p.id) ? resolveEnterDirection(anchorIndex, index) : 'right')}
               exitDirection={closingIds.has(p.id) ? 'down' : exitRightIds.has(p.id) ? 'right' : 'left'}
               zIndex={(p.layer ?? 'base') === 'raised' ? RAISED_LAYER_Z_INDEX : BASE_LAYER_Z_INDEX}
             >
