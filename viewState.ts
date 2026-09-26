@@ -111,15 +111,17 @@ function useViewStateImpl<T extends JsonValue>(
   const store = React.useContext(StoreContext);
   if (panelId === null || store === null) throw new ViewStateMissingProviderError();
   const value = React.useSyncExternalStore(
-    (onChange) => store.subscribe(panelId, key, initial, onChange),
-    () => store.get(panelId, key, initial) as Widen<T>,
-    () => store.get(panelId, key, initial) as Widen<T>,
+    // Cast, not a narrower store signature: keeps `T extends JsonValue` on useViewStateImpl the ONLY thing
+    // enforcing the JSON bound, so widening that one clause is a complete, isolated proof it's load-bearing.
+    (onChange) => store.subscribe(panelId, key, initial as JsonValue, onChange),
+    () => store.get(panelId, key, initial as JsonValue) as Widen<T>,
+    () => store.get(panelId, key, initial as JsonValue) as Widen<T>,
   );
   const setValue = React.useCallback(
     (next: Widen<T> | ((prev: Widen<T>) => Widen<T>)) => {
       // JsonValue never includes a function, so this check can never mistake a real value for an updater.
       const resolved =
-        typeof next === 'function' ? (next as (prev: Widen<T>) => Widen<T>)(store.get(panelId, key, initial) as Widen<T>) : next;
+        typeof next === 'function' ? (next as (prev: Widen<T>) => Widen<T>)(store.get(panelId, key, initial as JsonValue) as Widen<T>) : next;
       store.set(panelId, key, resolved as JsonValue);
     },
     [store, panelId, key, initial],

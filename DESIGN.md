@@ -254,3 +254,13 @@ barrel: the barrel's public surface stays the two names a view genuinely depends
 a bare `'phonux'` import is the only way `LivePanels.tsx` (desktop-side) may reach into this folder at all
 (see the phone-boundary suite), so the setter still has to travel through the SAME public entry point
 `useViewState` already does, not a separate one.
+
+Type inference reads identically to `React.useState` too, including for a bare literal initial value:
+`useViewState('count', 0)` then `setCount(7)` type-checks with no annotation, the same as `useState(0)` then
+`setCount(7)`. A JsonValue-constrained generic naively infers a LITERAL type from a bare argument (`T` would
+lock to `0`, rejecting `setCount(7)`) where an unconstrained one widens -- a TS inference quirk of constrained
+generics, not a property of JSON data itself. `viewState.ts`'s internal `Widen<T>` type re-widens exactly what
+an unconstrained `T` would, recursing into arrays and objects, so a view author never needs an explicit type
+argument (`useViewState<number>(...)`) just to use a plain literal initial value; one is still needed only
+where `useState` itself would need one -- to name a union wider than the initial value infers, e.g.
+`useViewState<number | null>('id', null)`.
