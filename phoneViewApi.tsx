@@ -173,8 +173,9 @@ export interface PanelsAPI {
   move(id: string, direction: 'left' | 'right'): void;
   /**
    * Resizes `id` to `next`'s tier in place: it stays mounted and live, its content the same node, and the row
-   * reflows around it. If the row no longer fits, OTHER panels park, never this one. No-op for an unknown id,
-   * a permanent column (e.g. History), or a panel already at `next`. See DESIGN.md for the tier sizes.
+   * reflows around it. If the row no longer fits, OTHER panels park, never this one -- also when one handler
+   * resizes, opens or activates several panels, unless the earlier of them already fill the row. No-op for an
+   * unknown id, a permanent column (e.g. History), or a panel already at `next`. See DESIGN.md for the tiers.
    */
   setFormFactor(id: string, next: FormFactor): void;
   /** Close a view completely, live or parked: it leaves the row and History at once, a closed event is appended to the persisted log (HistoryAPI), and it can be undone for 10 s (recentlyClosed, undoClose). Also accepts History's own fixed-panel id (HistoryAPI.close is the same mechanism, offered per-panel so a view need not know the id) -- an id not in `panelList` and not History's id, or a LOCKED fixed panel's id, does nothing. */

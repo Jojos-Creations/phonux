@@ -137,6 +137,10 @@ already at `next`. A parked panel may change tier and stays parked. `create({ fo
 a tier directly (ignored with `permanent`). The host replaces the panel's `size` with a new object each time;
 the default size object is shared by every panel and never changes.
 
+Several calls in one handler (resizes, `create`, `activate`) each keep their own panel live the same way.
+When they cannot all fit together, the earlier calls keep their room and a later panel parks, as it would had
+it come second.
+
 ### The tier table
 
 The host owns one table, `TIER_SIZES` (`panelWindow.ts`); these numbers are tunable, the rest of this section
