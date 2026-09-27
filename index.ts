@@ -50,10 +50,13 @@ export {
   WindowOverlay,
   OverlaySlot,
   OVERLAY_Z,
+  OverlayProvider,
+  OverlayStore,
 } from './PhoneView.js';
 export type {
   PanelProps,
   DragHandleProps,
+  ReleaseMeasure,
   OverlaySlotName,
   WindowOverlayProps,
 } from './PhoneView.js';
