@@ -309,7 +309,13 @@ export function usePanelManager(
    * (`leftmostLiveIndex`, repeatedly): a right-exit mark cannot be committed first from inside an effect
    * (flushSync cannot flush inside a passive effect), so every park here reads the default 'left'. A RISE
    * reveals from the top of `collapseOrderRef`, most-recently-parked first, entering from whichever side
-   * `sideOfLiveRange` says it sits on.
+   * `sideOfLiveRange` says it sits on -- but ONLY a candidate whose OWN width, added to whatever is already
+   * confirmed live, still fits: `capacity` above extrapolates every not-yet-live slot at `phoneWidth`, so
+   * trusting it as a scalar "room" count would revive a wider panel it never priced in, which would not
+   * actually fit -- re-triggering the DROP branch on that exact panel next render, forever (proven for a
+   * wide panel leftmost among phones: capacity reads 5 with it parked, 3 with it live, an unbroken cycle).
+   * A candidate that fails the check is left on the stack (not discarded) in case an OLDER, narrower one
+   * still has room.
    */
   useEffect(() => {
     if (capacity === Number.POSITIVE_INFINITY) return;
@@ -329,19 +335,28 @@ export function usePanelManager(
       const parkedSet = new Set(toPark);
       setPanels((current) => current.map((p) => (parkedSet.has(p.id) ? { ...p, live: false } : p)));
     } else if (liveCollapsibleCount < capacity && collapseOrderRef.current.length > 0) {
-      const room = capacity - liveCollapsibleCount;
-      const toReveal: string[] = [];
-      let stack = collapseOrderRef.current;
-      while (toReveal.length < room && stack.length > 0) {
-        const id = stack[stack.length - 1]!;
-        stack = stack.slice(0, -1);
-        if (panels.some((p) => p.id === id && !p.live)) toReveal.push(id);
+      const stack = collapseOrderRef.current;
+      const revealed = new Set<string>();
+      const remaining: string[] = [];
+      for (let i = stack.length - 1; i >= 0; i--) {
+        const id = stack[i]!;
+        const candidate = panels.find((p) => p.id === id);
+        if (!candidate || candidate.live) continue; // stale entry (closed, or already live some other way) -- drop it
+        // The row-order widths of every panel already confirmed live PLUS this candidate -- the only
+        // question that matters is whether THIS SET fits, never a count against the optimistic `capacity`.
+        const hypotheticalWidths = panels
+          .filter((p) => p.collapsible && (p.live || revealed.has(p.id) || p.id === id))
+          .map((p) => panelWidthOf(p, phoneWidth));
+        const fits =
+          computeRowLayout({ containerWidth, phoneWidth, gap: GAP, fixedItemCount: fixedColumnCount, liveWidths: hypotheticalWidths })
+            .maxLiveThatFit >= hypotheticalWidths.length;
+        if (fits) revealed.add(id);
+        else remaining.unshift(id);
       }
-      if (toReveal.length === 0) return;
-      collapseOrderRef.current = stack;
-      for (const id of toReveal) setEnterSide(id, sideOfLiveRange(panels, id));
-      const revealSet = new Set(toReveal);
-      setPanels((current) => current.map((p) => (revealSet.has(p.id) ? { ...p, live: true } : p)));
+      if (revealed.size === 0) return;
+      collapseOrderRef.current = remaining;
+      for (const id of revealed) setEnterSide(id, sideOfLiveRange(panels, id));
+      setPanels((current) => current.map((p) => (revealed.has(p.id) ? { ...p, live: true } : p)));
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [capacity, panels]);
