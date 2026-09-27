@@ -20,7 +20,8 @@ render-time state (the panel list, the column count), so a memoised bag would ha
 `fakeHost.ts` lives beside the contracts, not in the app's test folder, specifically so a third-party
 view (with no access to the app's own test utilities) can still write a test against these APIs. It records
 every call rather than simulating real behavior, since simulating real behavior would require importing the
-app's own logic -- exactly what this boundary exists to avoid.
+app's own logic -- exactly what this boundary exists to avoid. It has no test-runner dependency and
+imports only the contracts and the data-only phone model list.
 
 ## Behavior flags cross this boundary as data only
 
@@ -336,6 +337,15 @@ would invite a consumer to couple to an implementation detail that owes nothing 
 `./testing` exists as its own subpath, rather than being re-exported from `.`, so that importing the
 production barrel can never pull test-only fake implementations into a real bundle; a consumer opts into
 fakes by importing the subpath explicitly, and a bundler that only ever sees `.` never sees them at all.
+
+`directionalTransition` shares the timing, easing and opacity contract between the app's animated slots, not
+their position math. A live panel is absolutely positioned (`index * (phoneWidth + GAP)`) and leaves for two
+reasons: a close slides down, and an auto-collapse slides left to a fixed spot behind the sidebar whatever the
+panel's own index. A History row sits in normal flow and has one exit, its trash button. One generic `exit`
+would either lose the index-independent collapse target or grow conditionals History never needs, so this is
+a shared preset, not a shared wrapper component. It returns `initial`/`animate` (both callers enter the same
+way: `distance` past rest, faded out), the shared `transition`, and a symmetric `exit` that History uses
+as-is; `LivePanelSlot` builds its own two exits and takes only `transition`.
 
 ## `createDefaultTheme` carries the no-motion rule only, never the brand
 
