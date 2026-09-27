@@ -123,8 +123,8 @@ export interface CreatePanelOptions {
   title?: string;
   params?: JsonValue;
   listed?: boolean;
-  /** Where the new entry lands: 'start' = right after the last non-collapsible entry (e.g. History), never before it. Default 'end'. */
-  insertAt?: 'start' | 'end';
+  /** Where the new entry sits: on `position`'s side of `panel` (default History), `priority` lower = nearer (default: past the far end of that side). Default { position: 'right' }. */
+  anchor?: { panel?: string; position: 'left' | 'right'; priority?: number };
   /** Which stacking tier the new entry's row slot sits in. Default 'base'. */
   layer?: 'base' | 'raised';
   /** Whether the new entry's reappearance always resolves through the anchor formula instead of unconditionally entering from the right. Default false. */
