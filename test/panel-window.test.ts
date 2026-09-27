@@ -21,9 +21,12 @@ import {
   reorderStepsForOffset,
   restorePanel,
   rightmostLiveIndex,
+  setFormFactor,
   sideOfLiveRange,
   summarisePanel,
+  TIER_SIZES,
 } from '../client/src/desktop/panels/panelWindow.js';
+import { GAP } from '../client/src/desktop/panels/LivePanelSlot.js';
 
 /** Every entry's own default tier/size (panelWindow.ts's DEFAULT_PANEL_SIZE, reconstructed here from the same
  * shared phonux constant rather than a second 390/700 literal, so this file cannot drift from panelWindow.ts's
@@ -365,17 +368,34 @@ test('movePanel: a PARKED panel is never a move source, even toward an available
   assert.equal(movePanel(panels, 'w2', 'right'), panels, 'w2 is parked: never a drag source');
 });
 
-test('reorderStepsForOffset: an EXACT half-slot drag is one hop in BOTH directions -- the tie is symmetric around zero', () => {
+test('reorderStepsForOffset: with equal neighbours an EXACT half-slot drag is one hop in BOTH directions -- the tie is symmetric around zero', () => {
   const slot = 406;
-  assert.equal(reorderStepsForOffset(slot / 2, slot), 1, 'right, exactly at the midpoint: one hop');
-  assert.equal(reorderStepsForOffset(-slot / 2, slot), -1, 'left, exactly at the midpoint: one hop (Math.round(-0.5) is -0 and would drop it)');
-  assert.equal(reorderStepsForOffset(1.5 * slot, slot), 2);
-  assert.equal(reorderStepsForOffset(-1.5 * slot, slot), -2, 'a second tie rounds away from zero too');
-  for (const offset of [0.3, 0.49, 0.7, 1.2, 1.6, 2.5].map((f) => f * slot)) {
-    assert.equal(reorderStepsForOffset(-offset, slot), 0 - reorderStepsForOffset(offset, slot), `mirror of ${offset}px`); // 0 - x: +0, not -0, when no hop
+  const row = { left: [390, 390, 390], right: [390, 390, 390] };
+  assert.equal(reorderStepsForOffset(slot / 2, row, GAP), 1, 'right, exactly at the midpoint: one hop');
+  assert.equal(reorderStepsForOffset(-slot / 2, row, GAP), -1, 'left, exactly at the midpoint: one hop');
+  assert.equal(reorderStepsForOffset(1.5 * slot, row, GAP), 2);
+  assert.equal(reorderStepsForOffset(-1.5 * slot, row, GAP), -2, 'a second tie rounds away from zero too');
+  for (const offset of [0.3, 0.49, 0.7, 1.2, 1.6, 2.4].map((f) => f * slot)) {
+    assert.equal(reorderStepsForOffset(-offset, row, GAP), 0 - reorderStepsForOffset(offset, row, GAP), `mirror of ${offset}px`); // 0 - x: +0, not -0, when no hop
+    assert.equal(reorderStepsForOffset(offset, row, GAP), Math.round(offset / slot), `equal widths reduce to one hop per slot (${offset}px)`);
   }
-  assert.ok(Object.is(reorderStepsForOffset(-0.3 * slot, slot), 0), 'short of the midpoint leftward is +0 (no hop), never -0');
-  assert.ok(Object.is(reorderStepsForOffset(0, slot), 0));
+  assert.ok(Object.is(reorderStepsForOffset(-0.3 * slot, row, GAP), 0), 'short of the midpoint leftward is +0 (no hop), never -0');
+  assert.ok(Object.is(reorderStepsForOffset(0, row, GAP), 0));
+  assert.equal(reorderStepsForOffset(10 * slot, row, GAP), 3, 'never more hops than there are neighbours to cross');
+});
+
+test('reorderStepsForOffset: crossing a DIFFERENTLY-sized neighbour hops exactly once, at half of THAT neighbour\'s own span -- never at the dragged panel\'s own width', () => {
+  // A phone (390) dragged right past a tablet (768): the hop lands at (768 + 16) / 2 = 392, not at 406 / 2 = 203.
+  const phoneBesideTablet = { left: [], right: [768, 390] };
+  assert.equal(reorderStepsForOffset(391, phoneBesideTablet, GAP), 0, 'one px short of the tablet\'s own half-span: no hop (a divide-by-406 rule already hops at 203)');
+  assert.equal(reorderStepsForOffset(392, phoneBesideTablet, GAP), 1, 'exactly at half the tablet\'s span: one hop');
+  assert.equal(reorderStepsForOffset(700, phoneBesideTablet, GAP), 1, 'still one hop at 700 (a divide-by-406 rule says 2)');
+  assert.equal(reorderStepsForOffset(784 + 203, phoneBesideTablet, GAP), 2, 'the second hop lands half-way across the NEXT neighbour (the phone), after the tablet\'s whole span');
+  // A tablet (768) dragged left past a phone (390): the hop lands at 203, not at (768 + 16) / 2 = 392.
+  const tabletBesidePhone = { left: [390], right: [] };
+  assert.equal(reorderStepsForOffset(-202, tabletBesidePhone, GAP), 0);
+  assert.equal(reorderStepsForOffset(-203, tabletBesidePhone, GAP), -1, 'half the PHONE neighbour\'s span: one hop (a divide-by-own-784 rule rounds 203/784 to 0)');
+  assert.equal(reorderStepsForOffset(203, tabletBesidePhone, GAP), 0, 'nothing to its right: no hop, however far');
 });
 
 test('panelWidthOf: a "phone" panel (explicit or omitted formFactor) ALWAYS uses the live phoneWidth argument, never its own stored size', () => {
@@ -395,4 +415,65 @@ test('panelWidthOf: a "tablet"/"desktop" panel uses its OWN stored size.width, n
 test('panelWidthOf: a "tablet"/"desktop" panel with no stored size falls back to the live phoneWidth, never a second hardcoded literal', () => {
   const noSize: PanelWindow = { ...createHistoryPanel(), formFactor: 'desktop', size: undefined };
   assert.equal(panelWidthOf(noSize, 430), 430, 'size?.width ?? phoneWidth: a missing size means the live phoneWidth, not a hardcoded fallback');
+});
+
+// ---------------------------------------------------------------------------
+// setFormFactor: one panel's own tier and size, replaced in place.
+// ---------------------------------------------------------------------------
+
+const webEntry = (id: string, more: Partial<PanelWindow> = {}): PanelWindow => ({ ...appendPanel([], { sourceWebContentsId: -1, url: `https://${id}.example` }, id)[0]!, ...more });
+
+test('setFormFactor: changes ONLY the named panel\'s tier and size, grow and shrink alike; every other entry is the same object, in the same place', () => {
+  const start = [createHistoryPanel(), webEntry('a'), webEntry('b'), webEntry('c', { live: false })];
+  const grown = setFormFactor(start, 'b', 'desktop');
+  assert.deepEqual(grown.map((p) => p.id), ['history', 'a', 'b', 'c'], 'order unchanged');
+  assert.deepEqual([grown[2]!.formFactor, grown[2]!.size], ['desktop', { formFactor: 'desktop', width: 1200, height: 'fill' }]);
+  assert.equal(grown[2]!.live, true, 'still live: a resize is never a park');
+  for (const i of [0, 1, 3]) assert.equal(grown[i], start[i], `entry ${start[i]!.id} is untouched (same object)`);
+  const shrunk = setFormFactor(grown, 'b', 'tablet');
+  assert.deepEqual([shrunk[2]!.formFactor, shrunk[2]!.size], ['tablet', { formFactor: 'tablet', width: 768, height: 'fill' }]);
+  const back = setFormFactor(shrunk, 'b', 'phone');
+  assert.deepEqual([back[2]!.formFactor, back[2]!.size], ['phone', DEFAULT_PANEL_SIZE], 'back to phone: the phone placeholder size again');
+  for (const i of [0, 1, 3]) assert.equal(back[i], start[i], `entry ${start[i]!.id} is still the same object after three resizes`);
+});
+
+test('setFormFactor: REPLACES size with a fresh object every time -- the shared default and the tier table are never mutated', () => {
+  const history = createHistoryPanel();
+  const shared = history.size!; // the one DEFAULT_PANEL_SIZE object every entry is created with
+  const start = [history, webEntry('a')];
+  assert.equal(start[1]!.size, shared, 'precondition: a new panel references the shared default object');
+  const tablet = setFormFactor(start, 'a', 'tablet');
+  assert.notEqual(tablet[1]!.size, shared);
+  assert.notEqual(tablet[1]!.size, TIER_SIZES.tablet, 'a copy of the table entry, not the entry itself');
+  const phone = setFormFactor(tablet, 'a', 'phone');
+  assert.notEqual(phone[1]!.size, shared, 'even back to phone: a copy, never the shared object');
+  assert.notEqual(phone[1]!.size, tablet[1]!.size);
+  assert.deepEqual(shared, DEFAULT_PANEL_SIZE, 'the shared default still reads 390x700 phone');
+  assert.deepEqual(TIER_SIZES.tablet, { formFactor: 'tablet', width: 768, height: 'fill' });
+  assert.ok(Object.isFrozen(shared) && Object.isFrozen(TIER_SIZES.tablet) && Object.isFrozen(TIER_SIZES.desktop), 'the shared objects are frozen, so a mutation throws instead of resizing every panel at once');
+});
+
+test('setFormFactor: a no-op (the SAME array back) for History, a permanent column, an unknown id, and a panel already at that tier', () => {
+  const permanent = appendPanel([], { sourceWebContentsId: -1, url: 'about:blank', permanent: true }, 'perm')[0]!;
+  const start = [createHistoryPanel(), permanent, webEntry('a')];
+  assert.equal(setFormFactor(start, 'history', 'desktop'), start, 'History (collapsible:false) never changes tier');
+  assert.equal(setFormFactor(start, 'perm', 'tablet'), start, 'nor does a permanent column');
+  assert.equal(setFormFactor(start, 'nope', 'tablet'), start, 'an unknown id');
+  assert.equal(setFormFactor(start, 'a', 'phone'), start, 'already phone');
+  const tablet = setFormFactor(start, 'a', 'tablet');
+  assert.equal(setFormFactor(tablet, 'a', 'tablet'), tablet, 'already tablet');
+});
+
+test('setFormFactor: a PARKED panel may change tier and stays parked', () => {
+  const start = [createHistoryPanel(), webEntry('a', { live: false })];
+  const next = setFormFactor(start, 'a', 'tablet');
+  assert.deepEqual([next[1]!.formFactor, next[1]!.live], ['tablet', false]);
+});
+
+test('appendPanel: formFactor lands on a new panel with that tier\'s size; a permanent column ignores it and stays phone', () => {
+  const tablet = appendPanel([], { sourceWebContentsId: -1, url: 'about:blank', formFactor: 'tablet' }, 't1')[0]!;
+  assert.deepEqual([tablet.formFactor, tablet.size], ['tablet', { formFactor: 'tablet', width: 768, height: 'fill' }]);
+  assert.notEqual(tablet.size, TIER_SIZES.tablet, 'a copy, not the shared table entry');
+  const permanent = appendPanel([], { sourceWebContentsId: -1, url: 'about:blank', permanent: true, formFactor: 'desktop' }, 'p1')[0]!;
+  assert.deepEqual([permanent.formFactor, permanent.size], ['phone', DEFAULT_PANEL_SIZE], 'a permanent column is always phone');
 });
