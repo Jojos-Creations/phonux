@@ -89,9 +89,10 @@ export interface UsePanelManagerResult {
    */
   reorderPanel: (id: string, direction: 'left' | 'right') => void;
   /**
-   * PanelsAPI.setFormFactor: panelWindow.ts's `setFormFactor` through setPanels, so the capacity reconcile
-   * below runs on the new width exactly as on a window resize, except that its DROP keeps `id` live. False
-   * for a no-op (see `setFormFactor`), which changes nothing and reconciles nothing.
+   * PanelsAPI.setFormFactor: panelWindow.ts's `setFormFactor` through setPanels. If the row no longer fits,
+   * the same update parks what the capacity reconcile's DROP would (`fewestParksThatSettle`), keeping `id` and
+   * every other panel acted on in this handler live, so no committed row overflows. False for a no-op (see
+   * `setFormFactor`), which changes nothing.
    */
   resizePanel: (id: string, next: FormFactor) => boolean;
   /**
@@ -161,6 +162,19 @@ export function usePanelManager(
     keepLiveRef.current = new Map(keepLiveRef.current).set(id, panels);
   };
   const keptIds = (): ReadonlySet<string> => new Set(keepLiveRef.current.keys());
+  /** Tiers resizePanel queued on `seen` that have not reached `panels` yet, so a later action in the same handler can price them. */
+  const pendingTiersRef = useRef<{ seen: PanelWindow[] | null; tiers: ReadonlyMap<string, FormFactor> }>({ seen: null, tiers: new Map() });
+  const withPendingTiers = (row: PanelWindow[]): PanelWindow[] => {
+    const { seen, tiers } = pendingTiersRef.current;
+    return seen === row ? [...tiers].reduce((acc, [id, tier]) => setFormFactor(acc, id, tier), row) : row;
+  };
+  /** `next`, plus in the same update whatever the reconcile's DROP would park, so no committed row overflows. */
+  const settledKeeping = (next: PanelWindow[], keep: readonly string[]): PanelWindow[] => {
+    const live = next.filter((p) => p.collapsible && p.live);
+    if (settles(live)) return next;
+    const parked = new Set(fewestParksThatSettle(live, widthOf, settles, keep));
+    return parked.size === 0 ? next : next.map((p) => (parked.has(p.id) ? { ...p, live: false } : p));
+  };
   /** Nonzero inside this hook's own flushSync: a reconcile run there is mid-handler, before later actions land. */
   const flushingRef = useRef(0);
   const flushOwn = (update: () => void): void => {
@@ -308,10 +322,12 @@ export function usePanelManager(
     if (!reveal) return;
     const kept = keptIds();
     markKeepLive(reveal.id);
-    const live = panels.filter((p) => p.collapsible && p.live);
+    // A resize earlier in this handler is priced at its new tier, or the row committed below could overflow.
+    const sized = withPendingTiers(panels);
+    const live = sized.filter((p) => p.collapsible && p.live);
     const farFirst = (direction === 'right' ? live : [...live].reverse()).filter((p) => !kept.has(p.id));
     const toPark = new Set<string>();
-    const rowAfter = (): PanelWindow[] => panels.filter((p) => p.collapsible && (p.live || p.id === reveal.id) && !toPark.has(p.id));
+    const rowAfter = (): PanelWindow[] => sized.filter((p) => p.collapsible && (p.live || p.id === reveal.id) && !toPark.has(p.id));
     // At least the one panel the gesture swaps out, then more only while the row with `reveal` would not settle.
     for (const p of farFirst) {
       if (toPark.size > 0 && settles(rowAfter())) break;
@@ -335,12 +351,19 @@ export function usePanelManager(
     if (setFormFactor(panels, id, next) === panels) return false;
     const wasLive = panels.find((p) => p.id === id)?.live === true;
     markKeepLive(id);
-    if (wasLive) purgeExitRight(id);
+    const keep = [...keptIds()];
+    const pending = pendingTiersRef.current.seen === panels ? pendingTiersRef.current.tiers : [];
+    pendingTiersRef.current = { seen: panels, tiers: new Map(pending).set(id, next) };
+    if (wasLive) {
+      purgeExitRight(id);
+      forgetCollapsed(id);
+    }
     setPanels((prev) => {
       const resized = setFormFactor(prev, id, next);
-      // An earlier call in this same handler may have queued a park of it (and its exit mark, dropped above):
-      // a resize never parks its own panel, so that park is cancelled before anything commits.
-      return wasLive && resized.some((p) => p.id === id && !p.live) ? resized.map((p) => (p.id === id ? { ...p, live: true } : p)) : resized;
+      // An earlier call in this same handler may have queued a park of it (its exit mark and stack entry are
+      // dropped above): a resize never parks its own panel, so that park is cancelled before anything commits.
+      const own = wasLive && resized.some((p) => p.id === id && !p.live) ? resized.map((p) => (p.id === id ? { ...p, live: true } : p)) : resized;
+      return settledKeeping(own, keep);
     });
     return true;
   };
@@ -355,9 +378,16 @@ export function usePanelManager(
    * since flushSync cannot commit a right-exit mark first from inside a passive effect. A RISE reveals from
    * the top of `collapseOrderRef`, most-recently-parked first, entering from whichever side
    * `sideOfLiveRange` says it sits on; a candidate that does not settle stays on the stack in case an OLDER,
-   * narrower one still has room. A resize (resizePanel) lands here like any other width change.
+   * narrower one still has room. A resize (resizePanel) has already parked what this DROP would.
    */
+  const committedRef = useRef(panels);
   useEffect(() => {
+    // resizePanel parks inside its state update, where no call-time code sees which panels it chose: the
+    // stack learns of any park not already on it from the commit itself.
+    const before = committedRef.current;
+    committedRef.current = panels;
+    const unrecorded = panels.filter((p) => p.collapsible && !p.live && !collapseOrderRef.current.includes(p.id) && before.some((q) => q.id === p.id && q.live));
+    if (unrecorded.length > 0) pushCollapsed(unrecorded.map((p) => p.id));
     const keepIds: string[] = [];
     const waiting = new Map<string, PanelWindow[]>();
     // A mark still on the array its action read waits for that action to land. Inside flushOwn every mark
