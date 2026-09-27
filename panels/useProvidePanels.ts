@@ -1,12 +1,8 @@
 /**
- * The app's implementation of PanelsAPI (shared/phone/phoneViewApi.tsx): the panel list, create / activate / close /
- * undo / clear-all. Wraps usePanelManager UNCHANGED, composes usePanelClosing (closing a view completely, its undo
- * window and the closed-page log) and owns the row's scroll gesture (useRowScrollGesture.ts).
- *
- * Never exposes setPanels, webContentsId or anything else a view has no use for: panelList and recentlyClosed hold
- * PanelSummary objects built here (a test pins their key set), never the app's own PanelWindow records. The hook
- * order and its arguments are the ones usePanelManager documents (its call-site ordering hazard): every ref and
- * value it takes is an INPUT here, declared by the host before useAppApis is called.
+ * The app's implementation of PanelsAPI: the panel list, create/activate/close/undo/clear-all. Wraps
+ * usePanelManager UNCHANGED, composes usePanelClosing and owns the row's scroll gesture. Never
+ * exposes setPanels, webContentsId or anything else a view has no use for: panelList and
+ * recentlyClosed hold PanelSummary objects built here, never the app's own PanelWindow records.
  */
 
 import { useEffect, useRef, type Dispatch, type RefObject, type SetStateAction } from 'react';
@@ -86,11 +82,9 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
   // forbids useEffect/useRef there), wired here instead.
   useRowScrollGesture(i.overflowContainerRef, scrollRow);
 
-  // v1's "capture only at fixed moments" policy, park half: usePanelManager flips `live` false at 7
-  // independent call sites (autoCollapseOldest and friends) with no single "on park" hook of its own -- a
-  // per-site capture call would need all 7 touched and one missed site breaks the contract silently. Diffing
-  // the ONE array this hook already receives, at the ONE place that composes every panel-array writer, finds
-  // every transition regardless of which of the 7 sites caused it.
+  // Captures only at fixed moments (a park), never continuously. usePanelManager flips `live` false at
+  // several independent call sites with no single "on park" hook, so diffing the ONE array this hook
+  // already receives finds every transition regardless of which site caused it.
   const prevLiveRef = useRef<ReadonlyMap<string, boolean>>(new Map());
   useEffect(() => {
     const prev = prevLiveRef.current;
@@ -119,9 +113,8 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
       clearEnterSide(id);
       markEnteringViaAnchor(id);
     },
-    // v1's 5th accepted default: a closed-and-not-restored panel's picture must not outlive its undo window.
-    // usePanelClosing.ts alone knows exactly which ids the window's NATURAL elapse (never Undo) just
-    // finalized, so eviction is keyed off this callback rather than re-deriving it here.
+    // A closed-and-not-restored panel's picture must not outlive its undo window; usePanelClosing.ts alone
+    // knows which ids the window's NATURAL elapse (never Undo) just finalized.
     (ids) => {
       for (const id of ids) capture.evict(id);
     },
@@ -148,10 +141,8 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
       if (resizePanel(id, next)) i.onPanelResize?.();
     },
     close: (id: string) => {
-      // v1's "capture only at fixed moments" policy, close half: fires on every close() call, whether or not
-      // this particular id actually leaves the array (an unknown or locked id's close is already a no-op one
-      // line down) -- a harmless extra attempt costs nothing, and keeping this unconditional avoids a second
-      // callback into usePanelClosing.ts just to gate it exactly.
+      // Fires on every close() call regardless of whether this id actually leaves the array (an
+      // unknown/locked id's close is already a no-op below) -- a harmless extra attempt costs nothing.
       capture.capture(id);
       closing.close(id);
     },
