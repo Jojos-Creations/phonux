@@ -56,7 +56,7 @@ import Box from '@mui/material/Box';
 import { resolveView, useHost, useViewState } from 'phonux';
 import { ANCHOR_PANEL_ID, resolveEnterDirection } from './anchorPanel.js';
 import { GAP, LivePanelSlot } from './LivePanelSlot.js';
-import { summarisePanel, type PanelWindow } from './panelWindow.js';
+import { panelWidthOf, summarisePanel, type PanelWindow } from './panelWindow.js';
 
 /** A 'raised' slot sits above a 'base' one: a LEFT-exiting park crosses a raised panel's footprint (History, today) on the way out, so this ordering is load-bearing for that path (a close's exit is DOWN and never reaches it). */
 const RAISED_LAYER_Z_INDEX = 2;
@@ -105,6 +105,19 @@ export function LivePanels({
   // Ids never repeat, so a panel in neither list can never be shown again and its view state is released.
   useViewState.useRetainOnly([...entries, ...(panels.recentlyClosed ?? [])].map((p) => p.id));
   const present = entries.filter((p) => !p.collapsible || p.live);
+  // Every present entry's OWN width, in row order -- History and a permanent column included: neither can
+  // actually carry a non-'phone' formFactor today (PanelsAPI.setFormFactor no-ops on a collapsible:false id),
+  // so panelWidthOf gives them `phoneWidth` exactly, the same as reading it directly, with no special case.
+  const widths = present.map((p) => panelWidthOf(p, phoneWidth));
+  // Each slot's own rest x: the running sum of every PRECEDING item's own width plus one gap -- a wider item
+  // ahead of this one pushes it further right, so this can no longer be `index * one shared slot`.
+  const leftOffsets: number[] = [];
+  let runningOffset = 0;
+  for (const width of widths) {
+    leftOffsets.push(runningOffset);
+    runningOffset += width + GAP;
+  }
+  const reservedWidth = Math.max(0, widths.reduce((sum, width) => sum + width + GAP, 0) - GAP);
   const anchorIndex = present.findIndex((p) => p.id === ANCHOR_PANEL_ID);
   return (
     // Always mounted (never conditionally rendered): AnimatePresence must not unmount, or an exiting entry
@@ -117,7 +130,7 @@ export function LivePanels({
         flexShrink: 0,
         height: phoneHeight,
         display: present.length > 0 ? 'block' : 'none',
-        width: Math.max(0, present.length * (phoneWidth + GAP) - GAP),
+        width: reservedWidth,
       }}
     >
       <AnimatePresence initial={false}>
@@ -126,8 +139,8 @@ export function LivePanels({
           return (
             <PanelCollapsibleContext.Provider key={p.id} value={p.collapsible}>
               <LivePanelSlot
-                index={index}
-                phoneWidth={phoneWidth}
+                leftOffset={leftOffsets[index]!}
+                width={widths[index]!}
                 phoneHeight={phoneHeight}
                 enterDirection={enterSideById.get(p.id) ?? ((p.anchoredEnter ?? false) || enteringViaAnchorIds.has(p.id) ? resolveEnterDirection(anchorIndex, index) : 'right')}
                 exitDirection={closingIds.has(p.id) ? 'down' : exitRightIds.has(p.id) ? 'right' : 'left'}

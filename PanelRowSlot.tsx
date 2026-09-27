@@ -17,8 +17,9 @@ export const PANEL_TRANSITION = SLOT_TRANSITION;
  * One live panel's animated slot.
  *
  * Panels are positioned PER ITEM, not as one translated strip: each sits
- * absolutely at x = index * (phoneWidth + GAP), so adding or removing one
- * never disturbs the panels to its left.
+ * absolutely at its own `leftOffset` (the caller's running sum of every PRECEDING
+ * item's own width plus one gap), so adding, removing or resizing one never
+ * disturbs the panels to its left.
  *
  * `x` (a transform), not `left`, so the browser can composite it rather than
  * re-laying-out every frame.
@@ -40,10 +41,11 @@ export const PANEL_TRANSITION = SLOT_TRANSITION;
  *
  * One caller, LivePanels.tsx, uses this for every PRESENT entry of the one
  * panel list -- History and every live web panel alike, each "one item,
- * absolutely positioned at `index * (phoneWidth + GAP)`" inside that
- * caller's one reserved-width Box. `index` is the entry's own position in
- * that list, so this component itself never needs to know which kind of
- * entry it is rendering.
+ * absolutely positioned at its own `leftOffset`" inside that caller's one
+ * reserved-width Box. `leftOffset` and `width` are the entry's own position
+ * and own size in that list, so this component itself never needs to know
+ * which kind of entry it is rendering, nor whether every entry shares one
+ * width.
  *
  * `enterDirection` is computed by the CALLER from the anchor-panel formula
  * (anchorPanel.ts's `resolveEnterDirection`) -- never a bare hardcoded
@@ -64,9 +66,11 @@ export const PANEL_TRANSITION = SLOT_TRANSITION;
  *     calls `onClose` BEFORE this exit starts, so the two run in sequence --
  *     this exit's `y` ramps in underneath a box already off-screen,
  *     invisibly, not fighting it (no snap, no jump).
- *   - 'left': `x: -slot` on plain `PANEL_TRANSITION` -- a park off the row's
- *     own left edge (the default for every park not marked right).
- *   - 'right': `x: rest + slot` -- the mirror, off the right edge (an
+ *   - 'left': `x: -ownSpan` on plain `PANEL_TRANSITION` -- a park off the row's
+ *     own left edge (the default for every park not marked right); `ownSpan`
+ *     (this panel's own width plus one gap) so a wide panel clears far enough
+ *     to be fully off-screen, not just one uniform slot.
+ *   - 'right': `x: rest + ownSpan` -- the mirror, off the right edge (an
  *     `insertAt: 'start'` open, a revive left of the range, a leftward gesture).
  *
  * `exitDirection` MUST be correct on THIS component's LAST render before it
@@ -87,44 +91,49 @@ type ExitDirection = 'down' | 'left' | 'right';
  * so a test can assert exact motion values for both exit directions without
  * mounting a component or reading computed style. `initial`/`animate` come
  * from the shared preset (both are expressible as "distance from rest" --
- * rest = `index * slot`, enter one slot further along `x`); `exit` stays
- * entirely local: 'down' needs a second axis and a different transition,
- * 'left' needs a target that is independent of `index`, and neither fits
- * directionalTransition's symmetric default.
+ * rest = `leftOffset`, the caller's own running sum, enter one `ownSpan`
+ * further along `x`); `exit` stays entirely local: 'down' needs a second axis
+ * and a different transition, 'left' needs a target that is independent of
+ * `leftOffset`, and neither fits directionalTransition's symmetric default.
  */
 export function panelSlotMotion(
-  index: number,
-  phoneWidth: number,
+  leftOffset: number,
+  width: number,
   phoneHeight: number,
   enterDirection: 'left' | 'right',
   exitDirection: ExitDirection,
 ): PanelSlotMotion {
-  const slot = phoneWidth + GAP;
-  const rest = index * slot;
+  // This panel's OWN footprint (its width plus one gap) is how far it must travel to clear the row edge --
+  // a wider panel needs to travel further than a uniform `slot` would have, so this can no longer be one
+  // value shared by every item.
+  const ownSpan = width + GAP;
+  const rest = leftOffset;
   // Positive distance enters from the right (directionalTransition.ts's own sign convention); a negative
   // one enters from the left -- see anchorPanel.ts for who decides which.
-  const enterDistance = enterDirection === 'left' ? -slot : slot;
+  const enterDistance = enterDirection === 'left' ? -ownSpan : ownSpan;
   const { initial, animate, transition } = directionalTransition('x', rest, enterDistance);
   const exit: TargetAndTransition =
     exitDirection === 'down'
       ? { x: rest, y: phoneHeight, opacity: 0, transition: { duration: DRAG_CLOSE.exitSeconds, ease: 'easeIn' } }
       : exitDirection === 'right'
-        ? { x: rest + slot, opacity: 0 }
-        : { x: -slot, opacity: 0 };
+        ? { x: rest + ownSpan, opacity: 0 }
+        : { x: -ownSpan, opacity: 0 };
   return { initial, animate, exit, transition };
 }
 
 export function LivePanelSlot({
-  index,
-  phoneWidth,
+  leftOffset,
+  width,
   phoneHeight,
   enterDirection,
   exitDirection,
   zIndex,
   children,
 }: {
-  index: number;
-  phoneWidth: number;
+  /** This slot's own rest x position -- the caller's running sum of every PRECEDING present item's own width plus one gap. */
+  leftOffset: number;
+  /** This panel's own width (panelWindow.ts's `panelWidthOf`) -- also this slot's own enter/exit travel distance (see `panelSlotMotion`'s `ownSpan`). */
+  width: number;
   phoneHeight: number;
   /** Computed by the caller (anchorPanel.ts's `resolveEnterDirection`, or an explicit gesture side), never a bare literal picked here. */
   enterDirection: 'left' | 'right';
@@ -139,10 +148,10 @@ export function LivePanelSlot({
   zIndex?: number;
   children: React.ReactNode;
 }) {
-  const { initial, animate, exit, transition } = panelSlotMotion(index, phoneWidth, phoneHeight, enterDirection, exitDirection);
+  const { initial, animate, exit, transition } = panelSlotMotion(leftOffset, width, phoneHeight, enterDirection, exitDirection);
   return (
     <motion.div
-      // Enters from one slot beyond its destination, right or left per `enterDirection` above.
+      // Enters from one own-width-plus-gap span beyond its destination, right or left per `enterDirection` above.
       initial={initial}
       animate={animate}
       exit={exit}
@@ -152,7 +161,7 @@ export function LivePanelSlot({
         top: 0,
         bottom: 0,
         left: 0,
-        width: phoneWidth,
+        width,
         zIndex: zIndex ?? 0,
       }}
     >

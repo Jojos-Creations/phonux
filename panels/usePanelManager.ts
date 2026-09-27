@@ -25,6 +25,7 @@ import {
   leftmostLiveIndex,
   farthestLiveCollapsibleId,
   movePanel,
+  panelWidthOf,
   promoteToLive,
   rightmostLiveIndex,
   sideOfLiveRange,
@@ -110,12 +111,16 @@ export function usePanelManager(
   /** How many always-rendered, non-webview columns the row currently has (`count(!collapsible)` over the one panel list, via useAppApis). */
   fixedColumnCount: number,
 ): UsePanelManagerResult {
+  // Each LIVE collapsible panel's own width, in row order -- panelWidthOf is the one place that knows a
+  // 'phone' panel means the LIVE phoneWidth, never its placeholder stored size, so a 'tablet'/'desktop' panel
+  // already on screen lowers the ceiling below by exactly its own extra width.
+  const liveWidths = panels.filter((p) => p.collapsible && p.live).map((p) => panelWidthOf(p, phoneWidth));
   // `containerWidth === 0` means unmeasured (the first commit, and every jsdom test that never calls
   // measure()): null means no cap and no reconcile, never "zero panels fit".
   const fitCount =
     containerWidth === 0
       ? null
-      : fixedColumnCount + computeRowLayout({ containerWidth, phoneWidth, gap: GAP, fixedItemCount: fixedColumnCount, liveCountNow: 0 }).maxLiveThatFit;
+      : fixedColumnCount + computeRowLayout({ containerWidth, phoneWidth, gap: GAP, fixedItemCount: fixedColumnCount, liveWidths }).maxLiveThatFit;
   const effectiveMax = effectiveMaxPanels(storedMaxPanels, fitCount, fixedColumnCount);
   // The owner's floor of 1 keeps the panel just opened on screen even at the narrowest legal width
   // (effectiveMaxPanels already floors itself at fixedColumnCount + 1, so this only ever bites when the

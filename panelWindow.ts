@@ -54,6 +54,17 @@ export interface PanelWindow {
   size?: PanelSize;
 }
 
+/**
+ * A panel's own width for the row's layout math (src/panel-layout.ts's `liveWidths`). A 'phone' panel ALWAYS
+ * uses the live `phoneWidth` the caller passes (the model the user picked), never its own stored `size`:
+ * `DEFAULT_PANEL_SIZE.width` is a placeholder pinned at `DEFAULT_PHONE_SIZE`, not a live measurement, so
+ * reading it here would freeze every phone panel's row width at 390 regardless of the real phone model. Only
+ * 'tablet'/'desktop' read their own stored size.
+ */
+export function panelWidthOf(p: PanelWindow, phoneWidth: number): number {
+  return (p.formFactor ?? 'phone') === 'phone' ? phoneWidth : (p.size?.width ?? phoneWidth);
+}
+
 /** The one PanelWindow -> PanelSummary projection: every site that hands a panel to a VIEW (LivePanels.tsx's resolved component, useProvidePanels.ts's panelList/recentlyClosed) narrows through this SAME function, so a third-party or built-in view can never see a desktop-only field (webContentsId, collapsible, insertAt, layer, anchoredEnter, ...). formFactor/size ARE forwarded (unlike those desktop-only fields): a view's own tier control reads its tier from this projection, not the internal record. */
 export const summarisePanel = ({ id, url, title, live, locked, params, formFactor, size }: PanelWindow): PanelSummary => ({
   id, url, title, live, locked, params,
