@@ -1,12 +1,10 @@
 /**
- * Recording fakes of every API in hostApi.tsx, for testing a view with no host and no desktop
- * bridge: `createFakeHost({ panels: { panelList: [...] } })`, render under `<HostProvider>`,
- * interact, then assert on `host.calls`. Every method records `{ api, method, args }`, in call order,
- * and does nothing else (async methods resolve) -- the fakes hold no state, so a test wanting a different
- * live value re-renders with new overrides; `overrides` replaces whole members (an override of
- * `closedPagesViewer` or `settingsColumn` replaces the whole nested object), and an overridden method no
- * longer records. Lives beside the contracts, not the app's test folder, so a third-party view can import
- * it: no test-runner dependency, and imports only the contracts and the data-only phone model list.
+ * Recording fakes of every API in hostApi.tsx, for testing a view with no host and no desktop bridge:
+ * `createFakeHost({ panels: { panelList: [...] } })`, render under `<HostProvider>`, interact, then assert on
+ * `host.calls`. Every method records `{ api, method, args }` in call order and does nothing else (async ones
+ * resolve). The fakes hold no state: a test wanting a different live value re-renders with new overrides. An
+ * override replaces a whole member (a nested object such as `closedPagesViewer` too), and an overridden
+ * method no longer records. Why it lives here: DESIGN.md, "Testing without a host".
  */
 
 import { PHONE_MODELS } from './phoneModels.js';
@@ -98,11 +96,8 @@ export function createFakeHost(overrides: FakeOverrides = {}): FakeHost {
     clearAll: () => log('panels', 'clearAll', []),
   };
 
-  // Deliberately does NOT log, unlike every other member here: useSyncExternalStore calls get()/subscribe()
-  // as part of ordinary React rendering (every render, every mount), not as a discrete user action -- logging
-  // them would put a `snapshots.get`/`snapshots.subscribe` entry in `calls` for every test that merely renders
-  // a view with a capturable Panel, breaking every exact `deepEqual(calls, [...])` assertion elsewhere that
-  // has nothing to do with snapshots. Holds no state either way: get() always answers null.
+  // Never logs, unlike every other member: React calls get()/subscribe() on every render, so logging would add
+  // `calls` entries to every test that merely renders a capturable Panel. get() always answers null.
   const snapshots: SnapshotsAPI = {
     get: () => null,
     subscribe: () => () => {},

@@ -221,11 +221,8 @@ export interface Host {
   readonly history: HistoryAPI;
   readonly panels: PanelsAPI;
   readonly device: PhoneDeviceAPI;
-  /**
-   * Optional -- unlike every other member here, a host may genuinely not wire this yet: useViewSnapshot
-   * (snapshots.ts) degrades to "no picture" rather than throwing when it is absent, so a host mid-rollout of
-   * the feature (or a third-party host that never adds it) is not forced to supply a no-op implementation.
-   */
+  /** Optional, unlike every other member: without it useViewSnapshot (snapshots.ts) shows no picture instead
+   * of throwing, so a host that does not capture need not supply a no-op. */
   readonly snapshots?: SnapshotsAPI;
 }
 

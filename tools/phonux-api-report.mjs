@@ -1,14 +1,10 @@
 #!/usr/bin/env node
 /**
- * Regenerates or checks the committed API reports of the phonux package
- * (client/src/shared/phone/etc/*.api.md), one per entry in its package.json exports map.
- *
- * Usage: npm run api-report:update   (node tools/phonux-api-report.mjs --local: rewrites the reports)
- *        npm run check:api-report    (node tools/phonux-api-report.mjs: fails on any warning, or on
- *                                     a report that no longer matches the source)
- *
- * tsc emits declarations into client/api-extractor-temp/, a sibling of client/src, so typecheck:app,
- * the file-size ratchet and the phone-boundary scan never see them; API Extractor reads them from there.
+ * Regenerates (npm run api-report:update, i.e. --local) or checks (npm run check:api-report) the phonux
+ * package's committed API reports, client/src/shared/phone/etc/*.api.md, one per key of its exports map.
+ * The check fails on any warning, or on a report that no longer matches the source. Declarations go to
+ * client/api-extractor-temp/, a sibling of client/src, so typecheck:app, the file-size ratchet and the
+ * phone-boundary scan never see them.
  */
 
 import { execFileSync } from 'node:child_process';
@@ -105,9 +101,8 @@ for (const { config, report } of entries) {
     problems.push(`${relative(REPO_ROOT, committed)} is missing`);
     continue;
   }
-  // Messages such as ae-forgotten-export go into the report file instead of stdout, and a report that
-  // already carries one matches its own regeneration, so API Extractor alone would pass it. Some land
-  // only in the "Warnings were encountered" footer, whose lines carry the message id but no "Warning:".
+  // Some messages (ae-forgotten-export) go into the report, not stdout, and a report carrying one matches its
+  // own regeneration, so API Extractor passes it. Footer lines carry the message id but no "Warning:".
   const embedded = readFileSync(committed, 'utf8').match(/^.*(?:Warning:|Warnings were encountered|\((?:ae|tsdoc)-[a-z-]+\)).*$/gm) ?? [];
   for (const line of embedded) problems.push(`${report} embeds ${line.trim()}`);
 }

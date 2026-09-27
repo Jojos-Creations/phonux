@@ -77,8 +77,7 @@ export function Panel({ title, actions, headerProps, grabProps, overlay, sx, chi
   const registry = React.useContext(CaptureRegistryContext);
   const rootRef = React.useRef<HTMLDivElement | null>(null);
   React.useEffect(() => {
-    // No provider mounted (the common case under a bare <HostProvider> in a test, per CaptureRegistryContext's
-    // own doc comment) or this Panel opted out: registration is a no-op, never a throw.
+    // No registry (a bare <HostProvider>, as in most tests) or opted out: registering is a no-op, never a throw.
     if (!registry || !viewId || capture === 'never' || !rootRef.current) return undefined;
     return registry.register(viewId, rootRef.current, 'viewport');
   }, [registry, viewId, capture]);
