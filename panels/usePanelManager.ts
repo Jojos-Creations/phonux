@@ -45,13 +45,13 @@ export interface UsePanelManagerResult {
    */
   forgetCollapsed: (id: string) => void;
   /**
-   * Given the panels array immediately AFTER a close (usePanelClosing's own `remaining`), reveals the MOST
-   * recently parked panel still on the stack, provided the row has room for it. Does nothing if the stack
-   * is empty, or if the row is already at capacity -- it never falls through to an older entry: this is
-   * about the single MOST recently parked panel, not "whichever parked panel currently fits". Silently
-   * discards (permanently) any stack entries that no longer point at a currently-parked panel in
-   * `panelsAfterClose` -- a panel wiped by `clearAll()` never goes through `forgetCollapsed`, so this is the
-   * backstop that keeps the stack from pointing at nothing.
+   * Given the panels array immediately AFTER a close (usePanelClosing's own `remaining`), reveals the most
+   * recently parked panel on the stack that fits beside the live ones (the same settle rule as the capacity
+   * RISE), or none. A more recent one that does not fit stays on the stack, in place, for a later close. With
+   * equal widths the most recent one fits exactly when any does. Silently discards (permanently) any stack
+   * entries that no longer point at a currently-parked panel in `panelsAfterClose` -- a panel wiped by
+   * `clearAll()` never goes through `forgetCollapsed`, so this is the backstop that keeps the stack from
+   * pointing at nothing.
    */
   revealMostRecentlyCollapsed: (panelsAfterClose: PanelWindow[]) => void;
   /**
@@ -72,9 +72,11 @@ export interface UsePanelManagerResult {
    */
   clearEnterSide: (id: string) => void;
   /**
-   * The row gesture (wheel or arrow key, wired in `useRowScrollGesture.ts`): 'right' parks the LEFTMOST
-   * live panel and promotes the first parked one after the current rightmost live panel; 'left' is the
-   * mirror. One step per call. With nothing parked on that side, does nothing (no `setPanels` at all).
+   * The row gesture (wheel or arrow key, wired in `useRowScrollGesture.ts`): 'right' promotes the first parked
+   * panel after the current rightmost live panel and parks the LEFTMOST live one; 'left' is the mirror. One
+   * reveal per call, in one commit: when the revealed panel is wider than the one parked, the next live
+   * panels on the same side park too until the row settles, never a panel another action in the same update
+   * keeps live. With nothing parked on that side, does nothing (no `setPanels` at all).
    */
   scrollRow: (direction: 'left' | 'right') => void;
   /**
@@ -300,38 +302,27 @@ export function usePanelManager(
     setPanels((current) => current.map((p) => (p.id === demoted.id ? { ...p, live: false } : p)));
   };
 
-  /**
-   * The row gesture: 'right' brings in whatever is parked past the current rightmost live panel, parking
-   * the current leftmost live panel to make room; 'left' is the exact mirror. See `UsePanelManagerResult.
-   * scrollRow`'s own doc comment for the full contract.
-   */
+  /** See `UsePanelManagerResult.scrollRow`'s own doc comment. */
   const scrollRow = (direction: 'left' | 'right'): void => {
-    if (direction === 'right') {
-      const rightmost = rightmostLiveIndex(panels);
-      const reveal = firstParkedAfter(panels, rightmost);
-      if (!reveal) return;
-      const parkIndex = leftmostLiveIndex(panels);
-      const parkId = parkIndex >= 0 ? panels[parkIndex]!.id : null;
-      setEnterSide(reveal.id, 'right');
-      // The leftmost live panel exits LEFT, the default: no exit-right mark needed.
-      if (parkId) pushCollapsed([parkId]);
-      forgetCollapsed(reveal.id);
-      setPanels((prev) => prev.map((p) => (p.id === parkId ? { ...p, live: false } : p.id === reveal.id ? { ...p, live: true } : p)));
-    } else {
-      const leftmost = leftmostLiveIndex(panels);
-      const reveal = lastParkedBefore(panels, leftmost);
-      if (!reveal) return;
-      const parkIndex = rightmostLiveIndex(panels);
-      const parkId = parkIndex >= 0 ? panels[parkIndex]!.id : null;
-      setEnterSide(reveal.id, 'left');
-      // The rightmost live panel exits RIGHT: mark it BEFORE the setPanels below, in its own commit.
-      if (parkId) {
-        markExitRight(parkId);
-        pushCollapsed([parkId]);
-      }
-      forgetCollapsed(reveal.id);
-      setPanels((prev) => prev.map((p) => (p.id === parkId ? { ...p, live: false } : p.id === reveal.id ? { ...p, live: true } : p)));
+    const reveal = direction === 'right' ? firstParkedAfter(panels, rightmostLiveIndex(panels)) : lastParkedBefore(panels, leftmostLiveIndex(panels));
+    if (!reveal) return;
+    const kept = keptIds();
+    markKeepLive(reveal.id);
+    const live = panels.filter((p) => p.collapsible && p.live);
+    const farFirst = (direction === 'right' ? live : [...live].reverse()).filter((p) => !kept.has(p.id));
+    const toPark = new Set<string>();
+    const rowAfter = (): PanelWindow[] => panels.filter((p) => p.collapsible && (p.live || p.id === reveal.id) && !toPark.has(p.id));
+    // At least the one panel the gesture swaps out, then more only while the row with `reveal` would not settle.
+    for (const p of farFirst) {
+      if (toPark.size > 0 && settles(rowAfter())) break;
+      toPark.add(p.id);
     }
+    setEnterSide(reveal.id, direction);
+    // A leftward gesture parks off the RIGHT edge: mark those BEFORE the setPanels below, in their own commit.
+    if (direction === 'left' && toPark.size > 0) flushOwn(() => setExitRightIds((prev) => new Set([...prev, ...toPark])));
+    pushCollapsed([...toPark]);
+    forgetCollapsed(reveal.id);
+    setPanels((prev) => prev.map((p) => (toPark.has(p.id) ? { ...p, live: false } : p.id === reveal.id ? { ...p, live: true } : p)));
   };
 
   /** See `UsePanelManagerResult.reorderPanel`'s own doc comment. */
@@ -403,34 +394,30 @@ export function usePanelManager(
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [capacity, panels]);
 
-  /**
-   * See `UsePanelManagerResult.revealMostRecentlyCollapsed`'s own doc comment for the full contract. Walks
-   * the stack from its own top (most recent), discarding entries that no longer name a currently-parked
-   * panel in `panelsAfterClose`, until it finds one that does or the stack is empty.
-   */
+  /** See `UsePanelManagerResult.revealMostRecentlyCollapsed`'s own doc comment for the full contract. */
   const revealMostRecentlyCollapsed = (panelsAfterClose: PanelWindow[]): void => {
-    let stack = collapseOrderRef.current;
-    while (stack.length > 0) {
-      const candidateId = stack[stack.length - 1]!;
-      const candidate = panelsAfterClose.find((p) => p.id === candidateId);
-      if (candidate && !candidate.live) break;
-      stack = stack.slice(0, -1);
+    const stack = collapseOrderRef.current;
+    const remaining: string[] = [];
+    let candidateId: string | null = null;
+    for (let i = stack.length - 1; i >= 0; i--) {
+      const id = stack[i]!;
+      const candidate = panelsAfterClose.find((p) => p.id === id);
+      if (!candidate || candidate.live) continue; // stale entry (closed, or already live some other way) -- drop it
+      if (candidateId === null && settles(panelsAfterClose.filter((p) => p.collapsible && (p.live || p.id === id)))) candidateId = id;
+      else remaining.unshift(id);
     }
-    collapseOrderRef.current = stack;
-    if (stack.length === 0) return;
-    const liveCollapsibleCount = panelsAfterClose.filter((p) => p.collapsible && p.live).length;
-    if (capacity !== Number.POSITIVE_INFINITY && liveCollapsibleCount + 1 > capacity) return;
-    const candidateId = stack[stack.length - 1]!;
-    collapseOrderRef.current = stack.slice(0, -1);
+    collapseOrderRef.current = remaining;
+    if (candidateId === null) return;
+    const revealId = candidateId;
     // A candidate can carry a stale gesture-enter-side or exit-right mark from an EARLIER park of the same
     // id (ids cycle live/parked repeatedly); clear both before marking it entering-via-anchor, or a stale
     // `enterSideById` entry would win over the anchor formula (LivePanels.tsx's own precedence) and this
     // reveal would slide in from the wrong side. Mirrors handleActivatePanel's own clear-then-mark order.
-    clearEnterSide(candidateId);
+    clearEnterSide(revealId);
     // One of the two "reappearance" paths that enter from the anchor's side -- mark it BEFORE the setPanels
     // call below; no flushSync, since the mark only has to be in the commit that mounts the slot.
-    markEnteringViaAnchor(candidateId);
-    setPanels((current) => promoteToLive(current, candidateId, Number.POSITIVE_INFINITY) ?? current);
+    markEnteringViaAnchor(revealId);
+    setPanels((current) => promoteToLive(current, revealId, Number.POSITIVE_INFINITY) ?? current);
   };
 
   return {
