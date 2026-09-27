@@ -1,15 +1,9 @@
 /**
- * The public surface a view is written against. A view is any component that
- * renders a phone-shaped column (Settings, History, a live panel, or one a
- * third party writes): it reads what it needs from `useHost()`, renders a
- * `<Panel>`, and never touches the desktop bridge, `localStorage` or any
- * other app internal. The host implements these interfaces and mounts ONE
- * `<HostProvider>`; a test mounts the same provider with the fakes from
- * `phoneApisFake.ts`.
- *
- * This file, and the rest of shared/phone, imports only react, MUI, motion and itself (see DESIGN.md).
- *
- * The provider value is REBUILT EVERY RENDER on purpose (see HostProvider).
+ * The public surface a view is written against: any component rendering a phone-shaped column
+ * (Settings, History, a live panel, or a third party's) reads what it needs from `useHost()`,
+ * renders a `<Panel>`, and never touches the desktop bridge, `localStorage` or any other app
+ * internal (see DESIGN.md). The host mounts ONE `<HostProvider>`; a test uses the same provider
+ * with `phoneApisFake.ts`'s fakes. The provider value is REBUILT EVERY RENDER (see HostProvider).
  */
 
 import * as React from 'react';
