@@ -149,11 +149,25 @@ export function usePanelManager(
   const collapseOrderRef = useRef<string[]>([]);
 
   /**
-   * The panel the NEXT capacity-reconcile DROP must keep live: the one just resized, opened or activated, so
-   * acting on a panel never parks that same panel. `landed` says whether the state it waits for has
-   * committed; a reconcile for an earlier commit leaves it pending. Consumed by the first reconcile after.
+   * The panels the next capacity-reconcile DROP must keep live, in the order they were acted on: each one just
+   * resized, opened or activated, so acting on a panel never parks it, and each of several actions in one
+   * update keeps its own. The value is the array the action read: a reconcile still on it ran before the action.
    */
-  const keepLiveRef = useRef<{ id: string; landed: (p: PanelWindow) => boolean } | null>(null);
+  const keepLiveRef = useRef<ReadonlyMap<string, PanelWindow[]>>(new Map());
+  const markKeepLive = (id: string): void => {
+    keepLiveRef.current = new Map(keepLiveRef.current).set(id, panels);
+  };
+  const keptIds = (): ReadonlySet<string> => new Set(keepLiveRef.current.keys());
+  /** Nonzero inside this hook's own flushSync: a reconcile run there is mid-handler, before later actions land. */
+  const flushingRef = useRef(0);
+  const flushOwn = (update: () => void): void => {
+    flushingRef.current++;
+    try {
+      flushSync(update);
+    } finally {
+      flushingRef.current--;
+    }
+  };
 
   const enteringViaAnchorRef = useRef<ReadonlySet<string>>(new Set());
   const markEnteringViaAnchor = (id: string): void => {
@@ -195,7 +209,7 @@ export function usePanelManager(
   };
   /** flushSync BEFORE the parking setPanels -- see `UsePanelManagerResult.exitRightIds`'s own doc comment for why. */
   const markExitRight = (id: string): void => {
-    flushSync(() => setExitRightIds((prev) => new Set(prev).add(id)));
+    flushOwn(() => setExitRightIds((prev) => new Set(prev).add(id)));
   };
 
   const pushCollapsed = (ids: readonly string[]): void => {
@@ -215,7 +229,7 @@ export function usePanelManager(
   const revealPanelProactively = (panelsNow: PanelWindow[], apply: (prev: PanelWindow[]) => PanelWindow[]): void => {
     const afterInsert = apply(panelsNow);
     const targetId = afterInsert.find((p) => !panelsNow.some((q) => q.id === p.id))?.id;
-    if (targetId !== undefined) keepLiveRef.current = { id: targetId, landed: (p) => p.live };
+    if (targetId !== undefined) markKeepLive(targetId);
     if (targetId === undefined || capacity === Number.POSITIVE_INFINITY) {
       setPanels((prev) => apply(prev));
       return;
@@ -228,9 +242,10 @@ export function usePanelManager(
       return;
     }
     const toPark: string[] = [];
+    const exempt = keptIds();
     let scratch = afterInsert;
     for (let i = 0; i < overCapacity; i++) {
-      const id = farthestLiveCollapsibleId(scratch, targetIndex, targetId);
+      const id = farthestLiveCollapsibleId(scratch, targetIndex, exempt);
       if (!id) break;
       toPark.push(id);
       scratch = scratch.map((p) => (p.id === id ? { ...p, live: false } : p));
@@ -241,7 +256,7 @@ export function usePanelManager(
     }
     const rightParks = toPark.filter((id) => sideOfLiveRange(afterInsert, id) === 'right');
     if (rightParks.length > 0) {
-      flushSync(() =>
+      flushOwn(() =>
         setExitRightIds((prev) => {
           const next = new Set(prev);
           for (const id of rightParks) next.add(id);
@@ -261,14 +276,14 @@ export function usePanelManager(
   const handleActivatePanel = (id: string): void => {
     const target = panels.find((p) => p.id === id);
     if (!target || target.live) return;
-    keepLiveRef.current = { id, landed: (p) => p.live };
+    markKeepLive(id);
     // A manual History-row activation enters from the right (or by its own `anchoredEnter`) -- forget any
     // stale anchor-entry OR gesture-enter-side mark this id picked up from an earlier reveal (ids cycle
     // live/parked repeatedly over a session), so a manual click never inherits the direction of its last one.
     forgetEnteringViaAnchor(id);
     clearEnterSide(id);
     const before = panels;
-    const result = promoteToLive(panels, id, capacity);
+    const result = promoteToLive(panels, id, capacity, keptIds());
     if (!result) return;
     forgetCollapsed(id);
     const demoted = result.find((p) => !p.live && before.find((prev) => prev.id === p.id)?.live);
@@ -326,8 +341,15 @@ export function usePanelManager(
   /** See `UsePanelManagerResult.resizePanel`'s own doc comment. */
   const resizePanel = (id: string, next: FormFactor): boolean => {
     if (setFormFactor(panels, id, next) === panels) return false;
-    keepLiveRef.current = { id, landed: (p) => (p.formFactor ?? 'phone') === next };
-    setPanels((prev) => setFormFactor(prev, id, next));
+    const wasLive = panels.find((p) => p.id === id)!.live;
+    markKeepLive(id);
+    if (wasLive) purgeExitRight(id);
+    setPanels((prev) => {
+      const resized = setFormFactor(prev, id, next);
+      // An earlier call in this same handler may have queued a park of it (and its exit mark, dropped above):
+      // a resize never parks its own panel, so that park is cancelled before anything commits.
+      return wasLive && resized.some((p) => p.id === id && !p.live) ? resized.map((p) => (p.id === id ? { ...p, live: true } : p)) : resized;
+    });
     return true;
   };
 
@@ -344,14 +366,17 @@ export function usePanelManager(
    * narrower one still has room. A resize (resizePanel) lands here like any other width change.
    */
   useEffect(() => {
-    const pending = keepLiveRef.current;
-    const acted = pending ? panels.find((p) => p.id === pending.id) : undefined;
-    const keepId = acted && pending!.landed(acted) ? acted.id : undefined;
-    if (!acted || keepId !== undefined) keepLiveRef.current = null;
+    const keepIds: string[] = [];
+    const waiting = new Map<string, PanelWindow[]>();
+    for (const [id, seen] of keepLiveRef.current) {
+      if (seen !== panels) keepIds.push(id);
+      if (seen === panels || flushingRef.current > 0) waiting.set(id, seen);
+    }
+    keepLiveRef.current = waiting;
     if (capacity === Number.POSITIVE_INFINITY) return;
     const live = panels.filter((p) => p.collapsible && p.live);
     if (live.length > capacity) {
-      const toPark = fewestParksThatSettle(live, widthOf, settles, keepId);
+      const toPark = fewestParksThatSettle(live, widthOf, settles, keepIds);
       if (toPark.length === 0) return;
       pushCollapsed(toPark);
       const parkedSet = new Set(toPark);
@@ -424,22 +449,28 @@ export function usePanelManager(
 /**
  * The ids (row order) to park so the live panels left settle: as FEW as possible, and among equally few the
  * LEFTMOST -- so a row of equal widths parks exactly its leftmost excess, and a wide panel parks alone when
- * that is what leaves the most panels live. `keepId` is never parked, whatever that costs the others.
+ * that is what leaves the most panels live. Each of `keepIds` (in the order they were acted on) is never
+ * parked, whatever that costs the others, unless the ones before it already fill the row.
  */
 function fewestParksThatSettle(
   live: readonly PanelWindow[],
   widthOf: (p: PanelWindow) => number,
   settles: (set: readonly PanelWindow[]) => boolean,
-  keepId?: string,
+  keepIds: readonly string[] = [],
 ): string[] {
-  // Whether a set settles depends only on its size and its width sum, so the k narrowest candidates are the
-  // cheapest k to keep: if they do not settle, no k do. `keepId` alone always settles (capacity is >= 1).
-  const mustKeep = live.filter((p) => p.id === keepId);
-  const candidates = live.filter((p) => p.id !== keepId);
   const narrowestFirst = (set: readonly PanelWindow[]): PanelWindow[] => [...set].sort((a, b) => widthOf(a) - widthOf(b));
   const inRowOrder = (set: readonly PanelWindow[]): PanelWindow[] => live.filter((p) => set.includes(p));
+  // The first kept panel alone always settles (capacity is >= 1).
+  const mustKeep: PanelWindow[] = [];
+  for (const id of keepIds) {
+    const p = live.find((q) => q.id === id);
+    if (p && !mustKeep.includes(p) && settles(inRowOrder([...mustKeep, p]))) mustKeep.push(p);
+  }
+  const candidates = live.filter((p) => !mustKeep.includes(p));
+  // Whether a set settles depends only on its size and its width sum, so the k narrowest candidates are the
+  // cheapest k to keep: if they do not settle, no k do.
   let keep = candidates.length;
-  while (mustKeep.length + keep > 1 && !settles(inRowOrder([...mustKeep, ...narrowestFirst(candidates).slice(0, keep)]))) keep--;
+  while (keep > 0 && mustKeep.length + keep > 1 && !settles(inRowOrder([...mustKeep, ...narrowestFirst(candidates).slice(0, keep)]))) keep--;
   const kept: PanelWindow[] = [...mustKeep];
   const toPark: string[] = [];
   candidates.forEach((p, i) => {

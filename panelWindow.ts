@@ -159,14 +159,15 @@ export function appendPanel(panels: PanelWindow[], info: { sourceWebContentsId: 
  * The id of the live collapsible panel farthest (by array index) from `fromIndex`, or null with none live.
  * Ties go to the lower index (the strict `>` keeps the first). From an append (`fromIndex` = the new length)
  * that is the LEFT end of the live range; from an `insertAt: 'start'` or a revive left of the range it is the
- * RIGHT end. promoteToLive and usePanelManager.ts's open/restore park both pick through this. `excludeId`
- * exempts the panel being opened or restored, which is already live in the array the caller passes.
+ * RIGHT end. promoteToLive and usePanelManager.ts's open/restore park both pick through this. `exclude`
+ * exempts the panel being opened or restored, which is already live in the array the caller passes, and any
+ * panel another action in the same update must keep live.
  */
-export function farthestLiveCollapsibleId(panels: PanelWindow[], fromIndex: number, excludeId?: string): string | null {
+export function farthestLiveCollapsibleId(panels: PanelWindow[], fromIndex: number, exclude: ReadonlySet<string> = new Set()): string | null {
   let bestId: string | null = null;
   let bestDist = -1;
   panels.forEach((p, i) => {
-    if (!p.collapsible || !p.live || p.id === excludeId) return;
+    if (!p.collapsible || !p.live || exclude.has(p.id)) return;
     const dist = Math.abs(i - fromIndex);
     if (dist > bestDist) {
       bestDist = dist;
@@ -230,9 +231,9 @@ export function lastParkedBefore(panels: PanelWindow[], index: number): PanelWin
  * `max(1, effectiveMax - fixedColumnCount)`). When promoting `id` would exceed it, this demotes exactly one
  * OTHER live panel back to parked: the one `farthestLiveCollapsibleId` picks from `id`'s OWN index, the same
  * far rule an open or restore parks by. Never demotes a `collapsible: false` entry (History): a manual
- * activation must not bump an always-shown column.
+ * activation must not bump an always-shown column, nor any id in `keep`.
  */
-export function promoteToLive(panels: PanelWindow[], id: string, capacity: number): PanelWindow[] | null {
+export function promoteToLive(panels: PanelWindow[], id: string, capacity: number, keep: ReadonlySet<string> = new Set()): PanelWindow[] | null {
   const target = panels.find((p) => p.id === id);
   if (!target || target.live) return null;
   const ownIndex = panels.findIndex((p) => p.id === id);
@@ -240,8 +241,8 @@ export function promoteToLive(panels: PanelWindow[], id: string, capacity: numbe
   let next = panels.map((p) => (p.id === id ? { ...p, live: true } : p));
   if (liveCountAfter > capacity) {
     // `panels` (pre-promotion): `id` itself still reads live:false there, so it is naturally excluded
-    // from the search without needing `excludeId`.
-    const demote = farthestLiveCollapsibleId(panels, ownIndex);
+    // from the search without needing `keep`.
+    const demote = farthestLiveCollapsibleId(panels, ownIndex, keep);
     if (demote) {
       next = next.map((p) => (p.id === demote ? { ...p, live: false } : p));
     }
