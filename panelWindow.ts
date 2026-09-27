@@ -60,7 +60,7 @@ export interface PanelWindow {
   listed: boolean;
   /** Opaque per-panel data a create() caller supplied (PanelsAPI.create's `params`); undefined for built-ins. Threaded to PanelSummary.params by this file's own summarisePanel(); no behavior site here reads it. */
   params?: JsonValue;
-  /** Where this entry sits in the row (computeRowOrder). Undefined only for History, the root; a hand-built record without one reads as anchored where it already stands. */
+  /** Where this entry sits in the row (computeRowOrder). Undefined only for History, the root; a hand-built record without one reads as anchored where it already stands, and computeRowOrder writes that anchor. */
   anchor?: PanelAnchor;
   /** Which of the row's two stacking tiers this entry's slot sits in -- read ONLY by LivePanels.tsx's per-slot zIndex. Default 'base'. */
   layer?: 'base' | 'raised';
@@ -193,15 +193,13 @@ export function computeRowOrder(panels: PanelWindow[]): PanelWindow[] {
   // Nearest first; on a tie the entry nearer in the current row wins (later on the left, earlier on the right).
   const nearestFirst = (list: PanelWindow[], position: 'left' | 'right'): PanelWindow[] =>
     [...list].sort((a, b) => effective(a).priority - effective(b).priority || (position === 'right' ? 1 : -1) * (rowIndex.get(a.id)! - rowIndex.get(b.id)!));
-  // A hand-built record with no anchor keeps none: its place is re-read from its position every time.
-  const anchoredAs = (p: PanelWindow, anchor: PanelAnchor): PanelWindow => (p.anchor ? withAnchor(p, anchor) : p);
   const out: PanelWindow[] = [];
   const walk = (id: string, self: PanelWindow | undefined): void => {
     const side = sides.get(id);
     const left = nearestFirst(side?.left ?? [], 'left');
-    for (let k = left.length - 1; k >= 0; k--) walk(left[k]!.id, anchoredAs(left[k]!, { panel: id, position: 'left', priority: k }));
+    for (let k = left.length - 1; k >= 0; k--) walk(left[k]!.id, withAnchor(left[k]!, { panel: id, position: 'left', priority: k }));
     if (self) out.push(self);
-    nearestFirst(side?.right ?? [], 'right').forEach((p, k) => walk(p.id, anchoredAs(p, { panel: id, position: 'right', priority: k })));
+    nearestFirst(side?.right ?? [], 'right').forEach((p, k) => walk(p.id, withAnchor(p, { panel: id, position: 'right', priority: k })));
   };
   walk(HISTORY_PANEL_ID, byId.get(HISTORY_PANEL_ID));
   return out;
