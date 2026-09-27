@@ -18,7 +18,7 @@ import type { Dispatch, RefObject, SetStateAction } from 'react';
 import { flushSync } from 'react-dom';
 import type { FormFactor } from 'phonux';
 import { GAP } from './LivePanelSlot.js';
-import { computeRowLayout } from '../../../../src/panel-layout.js';
+import { computeMaxLiveWidth, computeRowLayout } from '../../../../src/panel-layout.js';
 import { effectiveMaxPanels } from '../settings/adventureSettings.js';
 import {
   firstParkedAfter,
@@ -133,8 +133,9 @@ export function usePanelManager(
     // fixed columns alone reach or exceed effectiveMax).
     return effectiveMax === Number.POSITIVE_INFINITY ? Number.POSITIVE_INFINITY : Math.max(1, effectiveMax - fixedColumnCount);
   };
-  // panelWidthOf prices a 'phone' panel at the LIVE phoneWidth, never its placeholder stored size.
-  const widthOf = (p: PanelWindow): number => panelWidthOf(p, phoneWidth);
+  // The same cap every other width reader passes, from the same row inputs.
+  const maxLiveWidth = computeMaxLiveWidth({ containerWidth, phoneWidth, gap: GAP, fixedItemCount: fixedColumnCount });
+  const widthOf = (p: PanelWindow): number => panelWidthOf(p, phoneWidth, maxLiveWidth);
   /** Whether `set` (live collapsible panels, row order) can stay live as it is: the one test both reconcile branches settle against. */
   const settles = (set: readonly PanelWindow[]): boolean => set.length <= capacityFor(set.map(widthOf));
   const capacity = capacityFor(panels.filter((p) => p.collapsible && p.live).map(widthOf));

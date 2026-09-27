@@ -61,9 +61,7 @@ export interface RowLayoutResult {
  * overflowing unnoticed.
  */
 export function computeRowLayout({ containerWidth, phoneWidth, gap, fixedItemCount, liveWidths }: RowLayoutInput): RowLayoutResult {
-  const availableForRow = Math.max(0, containerWidth - 2 * gap);
-  const fixedWidth = fixedItemCount * phoneWidth + (fixedItemCount - 1) * gap;
-  const usedBudget = availableForRow - fixedWidth;
+  const { availableForRow, fixedWidth, usedBudget } = rowBudget({ containerWidth, phoneWidth, gap, fixedItemCount });
 
   // Walk the given widths in row order, in the budget they already occupy (each already live, so each has
   // already "passed" this once) -- stopping at the first one that would not is how a caller asks "how many of
@@ -88,4 +86,23 @@ export function computeRowLayout({ containerWidth, phoneWidth, gap, fixedItemCou
   const rowTotalWidth = fixedWidth + effectiveLiveWidth;
   const computedRowMarginLeft = Math.max(0, (availableForRow - rowTotalWidth) / 2);
   return { maxLiveThatFit, effectiveLiveCount, rowTotalWidth, computedRowMarginLeft };
+}
+
+/** The row's width, the fixed items' share of it, and what is left for live panels (each counted with its own gap). */
+function rowBudget({ containerWidth, phoneWidth, gap, fixedItemCount }: Omit<RowLayoutInput, 'liveWidths'>) {
+  const availableForRow = Math.max(0, containerWidth - 2 * gap);
+  const fixedWidth = fixedItemCount * phoneWidth + (fixedItemCount - 1) * gap;
+  return { availableForRow, fixedWidth, usedBudget: availableForRow - fixedWidth };
+}
+
+/**
+ * The widest ONE live panel can be beside the fixed items and still fit: `computeRowLayout`'s own live budget
+ * less that panel's gap. A tablet/desktop panel is capped here (panelWindow.ts's `panelWidthOf`), so its tier
+ * width is a maximum and a wide panel never overflows a narrow window. Never below `phoneWidth`: when not even
+ * a phone fits, a narrower "tablet" would not fit either. Infinity while unmeasured (`containerWidth` 0), the
+ * same reading usePanelManager and SettingsAPI give it: no cap before the first measurement.
+ */
+export function computeMaxLiveWidth(input: Omit<RowLayoutInput, 'liveWidths'>): number {
+  if (input.containerWidth === 0) return Number.POSITIVE_INFINITY;
+  return Math.max(input.phoneWidth, rowBudget(input).usedBudget - input.gap);
 }

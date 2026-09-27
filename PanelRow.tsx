@@ -67,6 +67,12 @@ const EMPTY_SET: ReadonlySet<string> = new Set();
 const EMPTY_MAP: ReadonlyMap<string, 'left' | 'right'> = new Map();
 const NO_NEIGHBORS: NeighborWidths = { left: [], right: [] };
 
+/** The view's summary with `size.width` at the width the row renders it, so a view passing `panel.size` to Panel stays inside its slot. */
+function renderedSummary(p: PanelWindow, width: number) {
+  const summary = summarisePanel(p);
+  return summary.size && summary.size.width !== width && (p.formFactor ?? 'phone') !== 'phone' ? { ...summary, size: { ...summary.size, width } } : summary;
+}
+
 /**
  * Mirrors this entry's own `collapsible` for the two things LivePanel.tsx must decide without ever reading
  * the field itself (a resolved view only ever receives `PanelSummary`, which has no `collapsible` field, on
@@ -75,7 +81,7 @@ const NO_NEIGHBORS: NeighborWidths = { left: [], right: [] };
  * is deliberately distinct from an explicit `false`: each hook below resolves that case to whichever default
  * matches today's pre-`permanent`-columns behavior for its OWN concern, not one shared default.
  */
-const PanelSlotContext = React.createContext<{ collapsible: boolean; neighborWidths: NeighborWidths } | undefined>(undefined);
+const PanelSlotContext = React.createContext<{ collapsible: boolean; neighborWidths: NeighborWidths; maxLiveWidth: number } | undefined>(undefined);
 /** True only for a `collapsible` entry (e.g. a plain web panel) -- an always-shown column (History, or a
  * `permanent:true` custom column) is never a reorder source. Unprovided resolves to false: a view mounted
  * with no `LivePanels` above it never reorders. */
@@ -87,6 +93,8 @@ export const usePanelReorderEligible = (): boolean => React.useContext(PanelSlot
 export const usePanelCloseEligible = (): boolean => React.useContext(PanelSlotContext)?.collapsible ?? true;
 /** The widths this entry's drag can cross (reorderStepsForOffset's input). Unprovided: none, so no hop. */
 export const usePanelNeighborWidths = (): NeighborWidths => React.useContext(PanelSlotContext)?.neighborWidths ?? NO_NEIGHBORS;
+/** The row's cap on a tablet/desktop panel's width (panelWidthOf's `maxLiveWidth`). Unprovided: no cap. */
+export const usePanelMaxLiveWidth = (): number => React.useContext(PanelSlotContext)?.maxLiveWidth ?? Number.POSITIVE_INFINITY;
 
 export function LivePanels({
   entries,
@@ -94,6 +102,7 @@ export function LivePanels({
   enteringViaAnchorIds,
   exitRightIds = EMPTY_SET,
   enterSideById = EMPTY_MAP,
+  maxLiveWidth = Number.POSITIVE_INFINITY,
 }: {
   entries: readonly PanelWindow[];
   closingIds: ReadonlySet<string>;
@@ -102,6 +111,8 @@ export function LivePanels({
   exitRightIds?: ReadonlySet<string>;
   /** See this file's own header for the full contract. Optional, defaulting to empty (the anchor formula alone decides). */
   enterSideById?: ReadonlyMap<string, 'left' | 'right'>;
+  /** The widest one live panel can be in this row (useAppApis's, from computeMaxLiveWidth). Optional: no cap. */
+  maxLiveWidth?: number;
 }): React.ReactElement {
   const { device, panels } = useHost();
   const phoneWidth = device.size.width;
@@ -112,7 +123,7 @@ export function LivePanels({
   // Every present entry's OWN width, in row order -- History and a permanent column included: neither can
   // actually carry a non-'phone' formFactor today (PanelsAPI.setFormFactor no-ops on a collapsible:false id),
   // so panelWidthOf gives them `phoneWidth` exactly, the same as reading it directly, with no special case.
-  const widths = present.map((p) => panelWidthOf(p, phoneWidth));
+  const widths = present.map((p) => panelWidthOf(p, phoneWidth, maxLiveWidth));
   // Each slot's own rest x: the running sum of every PRECEDING item's own width plus one gap -- a wider item
   // ahead of this one pushes it further right, so this can no longer be `index * one shared slot`.
   const leftOffsets: number[] = [];
@@ -150,7 +161,7 @@ export function LivePanels({
         {present.map((p, index) => {
           const Component = resolveView(p.view);
           return (
-            <PanelSlotContext.Provider key={p.id} value={{ collapsible: p.collapsible, neighborWidths: neighborWidthsAt(index) }}>
+            <PanelSlotContext.Provider key={p.id} value={{ collapsible: p.collapsible, neighborWidths: neighborWidthsAt(index), maxLiveWidth }}>
               <LivePanelSlot
                 leftOffset={leftOffsets[index]!}
                 width={widths[index]!}
@@ -159,12 +170,12 @@ export function LivePanels({
                 exitDirection={closingIds.has(p.id) ? 'down' : exitRightIds.has(p.id) ? 'right' : 'left'}
                 zIndex={(p.layer ?? 'base') === 'raised' ? RAISED_LAYER_Z_INDEX : BASE_LAYER_Z_INDEX}
               >
-                {/* Narrowed through the SAME projection PanelsAPI itself uses: a resolved component -- built-in or
-                    third-party -- is written against PanelSummary only, never the internal PanelWindow record. */}
+                {/* Narrowed through the SAME projection PanelsAPI itself uses (its size at the rendered width): a resolved
+                    component -- built-in or third-party -- is written against PanelSummary only, never the internal record. */}
                 {/* The ONE place useViewState's ambient panel id is set: a view calls useViewState(key, initial)
                     with no id argument at all, so this wrap is what makes that id ambient rather than explicit. */}
                 <useViewState.Provider value={p.id}>
-                  <Component panel={summarisePanel(p)} />
+                  <Component panel={renderedSummary(p, widths[index]!)} />
                 </useViewState.Provider>
               </LivePanelSlot>
             </PanelSlotContext.Provider>
