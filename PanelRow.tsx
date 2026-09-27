@@ -96,11 +96,11 @@ export function LivePanels({
     runningOffset += width + GAP;
   }
   const reservedWidth = Math.max(0, widths.reduce((sum, width) => sum + width + GAP, 0) - GAP);
-  // Nearest first on each side, stopping at an always-shown column: movePanel never swaps past one.
+  // Nearest first on each side, an always-shown column included: movePanel swaps past one like any neighbour.
   const neighborWidthsAt = (index: number): NeighborWidths => {
     const side = (step: 1 | -1): number[] => {
       const out: number[] = [];
-      for (let i = index + step; i >= 0 && i < present.length && present[i]!.collapsible; i += step) out.push(widths[i]!);
+      for (let i = index + step; i >= 0 && i < present.length; i += step) out.push(widths[i]!);
       return out;
     };
     return { left: side(-1), right: side(1) };

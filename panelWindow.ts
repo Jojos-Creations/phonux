@@ -376,7 +376,7 @@ export function movePanel(panels: PanelWindow[], id: string, direction: 'left' |
   return deriveAnchorsFromOrder(next);
 }
 
-/** The widths of the present panels a drag can cross, nearest first on each side; LivePanels.tsx stops each side at the first `collapsible: false` one. */
+/** The widths of the present panels a drag can cross, nearest first on each side: every one, an always-shown column (History included) too, since movePanel crosses it; only the drag SOURCE must be collapsible. */
 export interface NeighborWidths {
   readonly left: readonly number[];
   readonly right: readonly number[];
