@@ -39,12 +39,13 @@ export const PANEL_TRANSITION = SLOT_TRANSITION;
  * pins it) -- covering `transform` or `opacity` too would kill both of
  * Motion's paths at once, silently.
  *
- * A resize animates in place on an INNER box (`data-panel-size-box`), never on
+ * A resize animates in place on an INNER box (`PanelSizeBox`, below), never on
  * the slot itself: the slot owns `exit`, and Motion's own docs warn against
  * `layout` and `exit` on one element. That inner box is Motion `layout="size"`
  * (the real size is set once and a transform animates toward it, so the view
  * never re-lays out mid-resize); "size" so a position change snaps there, since
- * the slot's own `x` already animates it.
+ * the slot's own `x` already animates it. The slot itself only snaps its
+ * `width`, which nothing paints.
  *
  * One caller, LivePanels.tsx, uses this for every PRESENT entry of the one
  * panel list -- History and every live web panel alike, each "one item,
@@ -172,10 +173,19 @@ export function LivePanelSlot({
         zIndex: zIndex ?? 0,
       }}
     >
-      {/* A flex row, so the view's root stretches to this box's height and a 'fill' tier's percentage height resolves. */}
-      <motion.div data-panel-size-box="" layout="size" transition={transition} style={{ display: 'flex', width, height: '100%' }}>
-        {children}
-      </motion.div>
+      {children}
+    </motion.div>
+  );
+}
+
+/**
+ * The element a resize animates. The view renders it inside its own slot (LivePanel: under DragToClose), so
+ * the slot stays the drag box's direct parent and History, which never resizes, gains no wrapper at all.
+ */
+export function PanelSizeBox({ width, height, children }: { width: number; height: number; children: React.ReactNode }) {
+  return (
+    <motion.div data-panel-size-box="" layout="size" transition={PANEL_TRANSITION} style={{ width, height }}>
+      {children}
     </motion.div>
   );
 }

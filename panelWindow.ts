@@ -72,7 +72,7 @@ export interface PanelWindow {
  * reading it here would freeze every phone panel's row width at 390 regardless of the real phone model. Only
  * 'tablet'/'desktop' read their own stored size.
  */
-export function panelWidthOf(p: PanelWindow, phoneWidth: number): number {
+export function panelWidthOf(p: Pick<PanelWindow, 'formFactor' | 'size'>, phoneWidth: number): number {
   return (p.formFactor ?? 'phone') === 'phone' ? phoneWidth : (p.size?.width ?? phoneWidth);
 }
 
