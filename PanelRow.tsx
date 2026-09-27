@@ -1,54 +1,8 @@
 /**
- * The row's one panel wrapper -- History and every live web panel, together,
- * one AnimatePresence over ONE array. App-side (not a view): reads the phone
- * size from useHost() and lays out each PRESENT entry -- an
- * always-shown column (`collapsible: false`, e.g. History) regardless of
- * `live`, or a web panel only while `live` -- in its own animated slot, in
- * the one list's own array order. It renders ONE root, this Box, the row's
- * last child (test T11a).
- *
- * `entries` is the raw one-list array (PanelWindow, not the public
- * PanelSummary): `view`/`layer`/`anchoredEnter` (rendering, stacking, enter
- * direction) live only on that shape, never on PanelsAPI. `view` is the ONLY
- * thing that picks the component (through phonux's resolveView, which
- * never returns nothing) -- `present` reads `collapsible`/`live`, zIndex
- * reads `layer`, enter direction reads `anchoredEnter`: three independent
- * per-panel fields, not one flag doing triple duty.
- *
- * `closingIds` is a PROP, not read off useHost(): it is
- * usePanelClosing.ts's own set (appApis.ts/GoalFrontPage.tsx thread it down),
- * kept off PanelsAPI on purpose (useProvidePanels.ts's ProvidedPanels). Each
- * present entry's `exitDirection` is decided HERE, at render time, while it
- * is still present -- an entry leaves either because it was closed
- * (closingIds has it: exits DOWN), parks to the row's right edge
- * (exitRightIds has it: exits RIGHT), or parks anywhere else (the default,
- * LEFT) -- see LivePanelSlot.tsx for why this must be a prop rather than
- * something read after the fact.
- *
- * `enteringViaAnchorIds` is one ENTER-side source -- ids currently (re)joining
- * `live` through usePanelManager.ts's `revealMostRecentlyCollapsed` or
- * usePanelClosing.ts's `undoClose`. A brand-new panel or a manual
- * History-row activation never appear in this set, so they enter from the
- * right unless their own `anchoredEnter` says otherwise. History's own reappearance always resolves
- * through the SAME anchor formula (anchorPanel.ts) unconditionally: compared
- * against itself its index is never less-than, so it always computes to
- * 'right' anyway -- no separate gate needed for it.
- *
- * `enterSideById` is the other, and wins over the anchor formula when both
- * would otherwise apply: usePanelManager.ts's row gesture and its
- * capacity-rise reconcile know exactly which side a reveal must enter from
- * (the side it was hidden toward), which the boolean anchor formula alone
- * cannot express. Optional, defaulting to an empty map, so a caller that
- * never needs it (e.g. a test mounting this component directly) is unaffected.
- *
- * Both `anchorIndex` and each entry's own row-slot `index` come from the
- * SAME one-list array.
- *
- * Each present entry's slot is wrapped in `PanelSlotContext` (this file's own hooks,
- * `usePanelReorderEligible`/`usePanelCloseEligible`/`usePanelNeighborWidths`) so LivePanel.tsx's grab bar
- * knows whether IT is a reorder source, whether the framework may offer ANY drag-to-close handle at all, and
- * how wide the panels its drag can cross are, without needing a new prop through `resolveView`'s third-party
- * `Component` contract.
+ * The row's one panel wrapper -- History and every live web panel, together, one AnimatePresence
+ * over ONE array. App-side (not a view): lays out each PRESENT entry (an always-shown column
+ * regardless of `live`, or a web panel only while `live`) in its own animated slot, in the array's
+ * own order. Renders ONE root, this Box, the row's last child (test T11a).
  */
 
 import * as React from 'react';
@@ -102,12 +56,23 @@ export function LivePanels({
   enterSideById = EMPTY_MAP,
   maxLiveWidth = Number.POSITIVE_INFINITY,
 }: {
+  /** The raw one-list array (PanelWindow, not PanelSummary): `view`/`layer`/`anchoredEnter`
+   * (rendering, stacking, enter direction) are three independent fields here, not one flag doing
+   * triple duty -- `view` alone picks the component (resolveView, which never returns nothing). */
   entries: readonly PanelWindow[];
+  /** usePanelClosing.ts's own set, kept off PanelsAPI on purpose. An entry in it exits DOWN
+   * (closed); see `exitDirection` below for the other two cases. */
   closingIds: ReadonlySet<string>;
+  /** Ids currently (re)joining `live` via usePanelManager.ts's `revealMostRecentlyCollapsed` or
+   * `undoClose`. A brand-new panel or manual activation is never in this set, so it enters from the
+   * right unless its own `anchoredEnter` says otherwise. */
   enteringViaAnchorIds: ReadonlySet<string>;
-  /** See this file's own header for the full contract. Optional, defaulting to empty (nothing exits right). */
+  /** Ids parking with an exit to the RIGHT; every other park defaults to LEFT. Optional, defaulting
+   * to empty (nothing exits right). */
   exitRightIds?: ReadonlySet<string>;
-  /** See this file's own header for the full contract. Optional, defaulting to empty (the anchor formula alone decides). */
+  /** Wins over the anchor formula when both would otherwise apply: the row gesture and the
+   * capacity-rise reconcile know exactly which side a reveal must enter from, which the boolean
+   * anchor formula alone cannot express. Optional, defaulting to empty. */
   enterSideById?: ReadonlyMap<string, 'left' | 'right'>;
   /** The widest one live panel can be in this row (useAppApis's, from computeMaxLiveWidth). Optional: no cap. */
   maxLiveWidth?: number;
@@ -140,6 +105,7 @@ export function LivePanels({
     };
     return { left: side(-1), right: side(1) };
   };
+  // anchorIndex and each entry's own slot `index` below come from the SAME array.
   const anchorIndex = present.findIndex((p) => p.id === ANCHOR_PANEL_ID);
   return (
     // Always mounted (never conditionally rendered): AnimatePresence must not unmount, or an exiting entry
@@ -168,10 +134,10 @@ export function LivePanels({
                 exitDirection={closingIds.has(p.id) ? 'down' : exitRightIds.has(p.id) ? 'right' : 'left'}
                 zIndex={(p.layer ?? 'base') === 'raised' ? RAISED_LAYER_Z_INDEX : BASE_LAYER_Z_INDEX}
               >
-                {/* Narrowed through the SAME projection PanelsAPI itself uses (its size at the rendered width): a resolved
-                    component -- built-in or third-party -- is written against PanelSummary only, never the internal record. */}
-                {/* The ONE place useViewState's ambient panel id is set: a view calls useViewState(key, initial)
-                    with no id argument at all, so this wrap is what makes that id ambient rather than explicit. */}
+                {/* A resolved component -- built-in or third-party -- is written against PanelSummary only,
+                    never the internal record. */}
+                {/* The ONE place useViewState's ambient panel id is set, so a view's own useViewState(key,
+                    initial) call needs no id argument. */}
                 <useViewState.Provider value={p.id}>
                   <Component panel={renderedSummary(p, widths[index]!)} />
                 </useViewState.Provider>
