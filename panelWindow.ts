@@ -23,13 +23,10 @@ export const TIER_SIZES: Readonly<Record<FormFactor, PanelSize>> = Object.freeze
 });
 
 /**
- * One browsing panel in the unified row. Every panel is parked and revived by the same capacity rules
- * (usePanelManager.ts, over this file's helpers) regardless of how it was opened. AdventurePanel.tsx renders
- * every entry in this array, live or parked -- never filtered to only parked ones.
- *
- * A panel is EITHER shown live in the row (`live: true`) or parked in the adventure card only
- * (`live: false`) -- never both -- and is never removed from this array just for being parked; only
- * `closePanel` (a drag-down close or a History-row trash) ever drops an entry.
+ * One browsing panel in the unified row, parked and revived by the same capacity rules
+ * (usePanelManager.ts) regardless of how it was opened. AdventurePanel.tsx renders every entry
+ * here, live or parked. A panel is EITHER live in the row or parked in the adventure card, never
+ * both, and is never removed from this array just for being parked -- only `closePanel` drops one.
  */
 /** The seeded History entry's id -- every array this model governs carries exactly one. */
 export const HISTORY_PANEL_ID = 'history';
@@ -66,13 +63,10 @@ export interface PanelWindow {
 }
 
 /**
- * A panel's own width in the row, the one rule every width reader goes through (capacity, fit count, margin,
- * slot positions, the size box). A 'phone' panel ALWAYS uses the live `phoneWidth` the caller passes (the
- * model the user picked), never its own stored `size`: `DEFAULT_PANEL_SIZE.width` is a placeholder pinned at
- * `DEFAULT_PHONE_SIZE`, so reading it would freeze every phone panel at 390 whatever the real model. Only
- * 'tablet'/'desktop' read their own stored size, and that is a maximum: capped at `maxLiveWidth`
- * (src/panel-layout.ts's `computeMaxLiveWidth` for the current row), so a wide panel always fits beside the
- * fixed columns. A phone panel is never capped.
+ * A panel's own width in the row -- the one rule every width reader goes through. A 'phone' panel
+ * ALWAYS uses the live `phoneWidth` the caller passes, never its own stored `size` (a placeholder
+ * pinned at `DEFAULT_PHONE_SIZE`, which would freeze it at 390 regardless of the real model). Only
+ * 'tablet'/'desktop' read their stored size, capped at `maxLiveWidth` so a wide panel always fits.
  */
 export function panelWidthOf(p: Pick<PanelWindow, 'formFactor' | 'size'>, phoneWidth: number, maxLiveWidth: number): number {
   return (p.formFactor ?? 'phone') === 'phone' ? phoneWidth : Math.min(p.size?.width ?? phoneWidth, maxLiveWidth);
@@ -123,15 +117,11 @@ function insertPanelAt(panels: PanelWindow[], entry: PanelWindow): PanelWindow[]
 }
 
 /**
- * Builds a brand-new, live 'extra' panel for a just-intercepted new-window request or a PanelsAPI.create()
- * call, immutably, and inserts it per `info.insertAt` (default: appended to the END, to the right of any
- * currently-open ones, not next to its source). History is seeded directly, never through this function, so
- * it stays first with no extra invariant code here regardless of what else is inserted at 'start'.
- *
- * `permanent` forces `collapsible:false` and `listed:false` -- `listed` wins over any `info.listed` the
- * caller also passed, since a permanent column must supply its own close control (History's own precedent),
- * never the framework's History-row trash. `locked` stays false regardless: closing it through its own
- * control must keep working with zero extra plumbing (usePanelClosing.ts gates only on `locked`).
+ * Builds a brand-new, live 'extra' panel immutably and inserts it per `info.insertAt` (default:
+ * appended to the END, not next to its source). History is seeded directly, never through this
+ * function. `permanent` forces `collapsible:false` and `listed:false` (overriding any `info.listed`
+ * passed) since such a column must supply its own close control, never the row's trash; `locked`
+ * stays false regardless so that control keeps working with no extra plumbing.
  */
 export function appendPanel(panels: PanelWindow[], info: { sourceWebContentsId: number; url: string } & AppendPanelOptions, id: string): PanelWindow[] {
   const formFactor = info.permanent ? 'phone' : (info.formFactor ?? 'phone');
@@ -222,18 +212,11 @@ export function lastParkedBefore(panels: PanelWindow[], index: number): PanelWin
 }
 
 /**
- * Clicking ANY adventure-card row (live or parked alike) activates it. The live row's rendering order
- * always follows the array's natural order, so this never moves the target panel's position -- it only
- * flips `live` in place, on the same array entry.
- *
- * `null` for an unknown `id` -- nothing to do. Also `null` when the target is ALREADY live: clicking an
- * already-live row (every row, live or parked, is clickable) is a legitimate no-op, not an error.
- *
- * `capacity` is how many live collapsible panels the row may hold at once (usePanelManager.ts's own
- * `max(1, effectiveMax - fixedColumnCount)`). When promoting `id` would exceed it, this demotes exactly one
- * OTHER live panel back to parked: the one `farthestLiveCollapsibleId` picks from `id`'s OWN index, the same
- * far rule an open or restore parks by. Never demotes a `collapsible: false` entry (History): a manual
- * activation must not bump an always-shown column, nor any id in `keep`.
+ * Clicking ANY adventure-card row (live or parked) activates it -- flips `live` in place, never
+ * moving the entry's array position. Returns `null` for an unknown id or one already live (a
+ * legitimate no-op, not an error). When promoting `id` would exceed `capacity`, demotes exactly one
+ * OTHER live panel: whichever `farthestLiveCollapsibleId` picks from `id`'s own index, the same far
+ * rule an open/restore parks by. Never demotes a `collapsible: false` entry or any id in `keep`.
  */
 export function promoteToLive(panels: PanelWindow[], id: string, capacity: number, keep: ReadonlySet<string> = new Set()): PanelWindow[] | null {
   const target = panels.find((p) => p.id === id);
@@ -265,16 +248,12 @@ export function closePanel(panels: PanelWindow[], id: string): { remaining: Pane
 }
 
 /**
- * Moves `id` one PRESENT slot toward `direction` (present = `!collapsible || live`, the SAME filter
- * LivePanels.tsx renders), swapping past whichever OTHER present panel currently sits there; every entry's
- * relative order is otherwise untouched -- a parked panel physically between the two present panels simply
- * shifts by one array slot, which is what keeps firstParkedAfter/lastParkedBefore/sideOfLiveRange meaningful
- * after a reorder (a single present-hop can cross several parked array slots at once; this is the "moving a
- * live panel across parked entries" case). Returns the SAME array reference (never a copy) for every no-op:
- * an unknown id, a `collapsible: false` entry (e.g. History -- an always-shown column is never a reorder
- * source OR TARGET: a `collapsible:false` neighbor must also block the swap, or a live panel could displace
- * a fixed column out of its seeded slot), a panel that is not currently present (parked, never a drag
- * source), or one already at that edge of the present range.
+ * Moves `id` one PRESENT slot toward `direction` (present = `!collapsible || live`, the same filter
+ * LivePanels.tsx renders), swapping past whichever other present panel sits there; a parked panel
+ * physically between the two present ones simply shifts by one array slot, keeping
+ * firstParkedAfter/lastParkedBefore/sideOfLiveRange meaningful afterward. Returns the SAME array
+ * reference for every no-op: unknown id, a `collapsible: false` source or neighbor (an always-shown
+ * column is never a reorder source or target), a parked panel, or one already at that edge.
  */
 export function movePanel(panels: PanelWindow[], id: string, direction: 'left' | 'right'): PanelWindow[] {
   const present = panels.filter((p) => !p.collapsible || p.live);
