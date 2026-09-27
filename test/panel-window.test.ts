@@ -82,8 +82,8 @@ test('appendPanel: permanent:true with `view` OMITTED (the single most obvious c
 
 // ---------------------------------------------------------------------------
 // formFactor/size: the SAME default lands on every entry (a plain web panel, a permanent column, and
-// History alike) -- setFormFactor's own eligibility is a later phase's concern, never this construction
-// site's. summarisePanel forwards both fields into PanelSummary unchanged (panel-form-factors-build Phase 2).
+// History alike); a permanent column differs only in whether its tier may change, never in carrying one.
+// summarisePanel forwards both fields into PanelSummary unchanged.
 // ---------------------------------------------------------------------------
 
 test('appendPanel: formFactor/size default to "phone"/DEFAULT_PANEL_SIZE for a plain panel AND a permanent:true one alike -- the default applies uniformly regardless of collapsible', () => {
