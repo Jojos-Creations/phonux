@@ -221,8 +221,8 @@ export function reanchorPanel(panels: PanelWindow[], id: string, request: Anchor
 
 /**
  * Builds a brand-new, live 'extra' panel immutably and places it by `info.anchor` (default: right of
- * History, past every panel already there -- the row's far right end). History is seeded directly, never through this
- * function. `permanent` forces `collapsible:false` and `listed:false` (overriding any `info.listed`
+ * History, past every panel already there -- the row's far right end). History is seeded directly, never
+ * through this function. `permanent` forces `collapsible:false` and `listed:false` (overriding any `info.listed`
  * passed) since such a column must supply its own close control, never the row's trash; `locked`
  * stays false regardless so that control keeps working with no extra plumbing (usePanelClosing.ts gates
  * only on `locked`).
