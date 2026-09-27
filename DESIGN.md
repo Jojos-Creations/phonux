@@ -165,12 +165,16 @@ the row's centring margin and each slot's position. A view follows the same rule
 
 ### How the resize animates
 
-The row's slot (`LivePanelSlot`) owns the enter/exit animation, so the resize lives on an inner box it
-renders around the view, never on the slot itself: Motion's docs warn against `layout` and `exit` on one
-element. That inner box is Motion `layout="size"`, a transform-based resize over the same 0.4 s transition the
-slots slide with; `"size"` because the slot's own `x` already animates position. It is a flex row, so a
-`'fill'` view's percentage height resolves. The row's centring margin glides with the resize even right
-after a window resize, when a window-driven margin change would snap.
+The row's slot (`LivePanelSlot`) owns the enter/exit animation, so the resize never lives on the slot
+itself: Motion's docs warn against `layout` and `exit` on one element. It lives on an inner size box
+(`PanelSizeBox`) that the built-in web view renders inside its slot, under its drag box. That box is Motion
+`layout="size"`, a transform-based resize over the same 0.4 s transition the slots slide with; `"size"`
+because the slot's own `x` already animates position. It is the panel's own width and the row's own height,
+so a `'fill'` view's percentage height resolves inside it. A column that is not collapsible (History, a
+permanent column) never changes tier and renders no size box. A third-party view may change tier too: its
+slot, position and the row's capacity follow, but its content snaps to the new size, since only the built-in
+view renders a size box. The row's centring margin glides with the resize even right after a window resize,
+when a window-driven margin change would snap.
 
 ## `params` is opaque and JSON-serializable by construction
 
