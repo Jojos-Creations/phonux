@@ -1,40 +1,7 @@
 /**
- * Drag a view's header DOWN to close it (owner, 2026-09-20: "drag a shown phone view vertically
- * downward to close it completely"). A UX-system primitive next to PhoneView: it knows nothing about
- * panels or the app, only "the user dragged this box down far enough, call onClose".
- *
- *   <DragToClose onClose={() => panels.close(id)}>
- *     {(handle) => <PhoneView title="Mine" headerProps={{ ...handle, sx: { ...handle.sx, fontWeight: 'bold' } }}>...</PhoneView>}
- *   </DragToClose>
- *
- * The HANDLE is the header pill and nothing else, so the body keeps its own scrolling and clicks. The box follows the
- * pointer vertically and only downward. On release `shouldCloseOnRelease` decides: close (the box leaves downward,
- * then the LATEST onClose runs) or snap back on a spring. Motion's drag machinery does the pointer work (events on
- * `window`, so the drag survives leaving the header).
- *
- * Coexistence: touch-action is `pan-x` on the handle (a horizontal swipe still scrolls the row, a vertical one is
- * ours); a press on a button, link or field in the header is left alone, and only the primary button grabs. While a
- * drag is live every vertically scrolling ancestor is locked (`overflow-y: hidden`: a transformed box would add a
- * scrollbar); the lock ends with the spring back (or a press that stops it) and when the box UNMOUNTS. A close never
- * unlocks (the box is parked below the fold), so onClose MUST remove the view, and once a release has decided to close
- * the box takes no more presses (one would stop the exit and the close would never run). If the owner then brings the box back
- * while AnimatePresence still holds it (the same key returns: an undo), it is made a fresh box at once: at rest, unlocked, taking
- * presses, its pending exit stopped. Reduced motion: no exit animation and no spring; a far drag calls onClose at once, a short
- * one (or a horizontal reorder release) puts the box back at once.
- *
- * Keyboard or single-click alternative (WCAG 2.5.7): offer a button that calls the same onClose, as
- * History's trash buttons do. The row's own drag-to-reorder gesture needs a single-pointer alternative too
- * (a `move` API exists, hostApi.tsx's PanelsAPI.move) -- not built here, a disclosed gap.
- *
- * `reorder` (optional) makes the SAME handle also drag horizontally: both axes stay enabled the whole
- * gesture (`drag={true}`, never toggled -- a ref-driven axis prop never re-renders, so Motion would keep
- * reading the value from before the gesture began), and the first ~`DIRECTION_LOCK_PX` of movement decides
- * which axis wins, zeroing the LOSING axis's OWN MotionValue every tick after that. A gesture that locks
- * horizontal never evaluates `shouldCloseOnRelease` at all (so residual vertical jitter, however Motion
- * reports it, can never close the view); one that locks vertical (or never locks, a sub-threshold jiggle)
- * runs the exact close logic above, unchanged. Omit `reorder` for a handle that only ever closes (e.g.
- * History's own bar, which is never a reorder source) -- `drag` stays `'y'`, matching this file's original,
- * narrower contract exactly.
+ * Drag a view's grab handle DOWN to close it; with `reorder`, also sideways to reorder. It knows nothing about
+ * panels or the app. onClose MUST remove the view: a close never unlocks the scroll ancestors. Also offer a
+ * button calling the same onClose (WCAG 2.5.7). The full contract: DESIGN.md, "`DragToClose`".
  */
 
 import * as React from 'react';
@@ -77,13 +44,13 @@ export function shouldCloseOnRelease({ offsetY, velocityY, height }: ReleaseMeas
   return offsetY >= DRAG_CLOSE.flickMinDistancePx && velocityY >= DRAG_CLOSE.flickVelocity;
 }
 
-/** Spread into PhoneView's `headerProps` (merge `sx` with the view's own). */
+/** Spread onto Panel's `grabProps`. */
 export interface DragHandleProps {
   onPointerDown: (event: React.PointerEvent<HTMLElement>) => void;
   sx: { cursor: 'grab'; touchAction: 'pan-x'; userSelect: 'none'; '&:active': { cursor: 'grabbing' } };
 }
 
-/** Wires the SAME handle's horizontal branch to a caller's own reorder mechanism -- see this file's own header comment for the full contract. */
+/** Hands the same handle's horizontal drag to the caller's own reorder (DESIGN.md, "`DragToClose`"). */
 export interface ReorderHandle {
   /** The gesture's own total horizontal offset (px, +right/-left from where the drag started), read once it has locked horizontal AND released. */
   onDragEnd: (offsetX: number) => void;
@@ -110,10 +77,10 @@ export function DragToClose({
   const closeRef = React.useRef(onClose);
   closeRef.current = onClose;
   const closing = React.useRef(false); // a release has decided to close: the exit runs and takes no more presses
-  // Which axis this gesture locked to, once the first DIRECTION_LOCK_PX decides -- null before that (or for
-  // a plain vertical-only handle, which never sets it at all).
+  // Set once the first DIRECTION_LOCK_PX decide; null until then, and always for a vertical-only handle.
   const axisLock = React.useRef<'x' | 'y' | null>(null);
 
+  // overflow-y: hidden while a drag is live: the transformed box would otherwise add a scrollbar.
   const lockScrollParents = () => {
     for (let el = box.current?.parentElement ?? null; el; el = el.parentElement) {
       const overflowY = window.getComputedStyle(el).overflowY;
@@ -133,9 +100,8 @@ export function DragToClose({
     },
     [],
   );
-  // Revival: an AnimatePresence that is still holding this box while it leaves keeps the SAME instance when the key returns (an undo), parked
-  // below the fold, locked and refusing presses. A layout effect, and the DOM is written here too, not on Motion's next frame: the host scrolls a
-  // revived view into view in this same commit, right after this, and must find the box at rest.
+  // An undo while AnimatePresence still holds this box revives the SAME instance: parked, locked, refusing presses. A layout effect that
+  // writes the DOM itself, not on Motion's next frame: the host scrolls a revived view into view in this same commit and must find it at rest.
   const isPresent = useIsPresent();
   const wasPresent = React.useRef(true);
   React.useLayoutEffect(() => {
@@ -155,6 +121,7 @@ export function DragToClose({
       if (running.current) { running.current.stop(); running.current = null; unlockScrollParents(); } // stop() never settles the spring's promise, so its own unlock would not run
       controls.start(event); // a real drag locks again in onDragStart
     },
+    // pan-x: a horizontal swipe still scrolls the row; a vertical one is this gesture's.
     sx: { cursor: 'grab', touchAction: 'pan-x', userSelect: 'none', '&:active': { cursor: 'grabbing' } },
   };
 
@@ -179,8 +146,8 @@ export function DragToClose({
               if (axisLock.current === null && (Math.abs(info.offset.x) >= DIRECTION_LOCK_PX || Math.abs(info.offset.y) >= DIRECTION_LOCK_PX)) {
                 axisLock.current = Math.abs(info.offset.x) >= Math.abs(info.offset.y) ? 'x' : 'y';
               }
-              // Every tick after the lock resolves, override whatever Motion just wrote to the LOSING axis:
-              // this file's own header comment explains why toggling the `drag` prop mid-gesture cannot work.
+              // Zero the losing axis every tick instead of toggling `drag`: Motion keeps reading the axis prop's
+              // value from before the gesture began.
               if (axisLock.current === 'x') y.set(0);
               else if (axisLock.current === 'y') x.set(0);
             }

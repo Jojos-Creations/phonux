@@ -431,6 +431,49 @@ while `grabProps`'s `onPointerDown`/`sx` reach the grab bar instead, so clicking
 icon is never mistaken for a drag start. Omitting `grabProps` renders no grab bar at all, which is the
 correct shape for a locked view (nothing to drag).
 
+## `DragToClose`: drag down to close, optionally sideways to reorder
+
+`DragToClose` (`dragToClose.tsx`) knows nothing about panels or the app, only "the user dragged this box down
+far enough, call `onClose`". Its render prop hands out a handle for `Panel`'s `grabProps`:
+
+```tsx
+<DragToClose onClose={() => panels.close(id)}>
+  {(handle) => <Panel title="Mine" grabProps={{ ...handle }}>...</Panel>}
+</DragToClose>
+```
+
+The handle is the grab bar and nothing else, so the body keeps its own scrolling and clicks. The box follows
+the pointer vertically and only downward. On release `shouldCloseOnRelease` decides: close (the box leaves
+downward, then the latest `onClose` runs) or snap back on a spring. Motion's drag machinery does the pointer
+work, with its events on `window`, so a drag survives leaving the handle.
+
+**Coexistence.** `touch-action` is `pan-x` on the handle: a horizontal swipe still scrolls the row, a vertical
+one is the gesture's. A press on a button, link or field is left alone, and only the primary button grabs.
+While a drag is live every vertically scrolling ancestor is locked (`overflow-y: hidden`, because a
+transformed box would add a scrollbar). The lock ends with the spring back (or a press that stops it) and
+when the box unmounts.
+
+**A close is final for the box.** A close never unlocks (the box is parked below the fold), so `onClose` must
+remove the view. Once a release has decided to close, the box takes no more presses: one would stop the exit
+and the close would never run. If the caller brings the box back while `AnimatePresence` still holds it (the
+same key returns, as on an undo), it becomes a fresh box at once: at rest, unlocked, taking presses, its
+pending exit stopped.
+
+**Reduced motion.** No exit animation and no spring: a far drag calls `onClose` at once, and a short one (or a
+horizontal reorder release) puts the box back at once.
+
+**Reorder on the same handle.** With `reorder` set, the handle also drags horizontally. Both axes stay enabled
+for the whole gesture (`drag={true}`, never toggled: a ref-driven axis prop never re-renders, so Motion would
+keep reading the value from before the gesture began). The first `DIRECTION_LOCK_PX` of movement decides
+which axis wins, and the losing axis's own MotionValue is zeroed on every tick after that. A gesture locked
+horizontal never evaluates `shouldCloseOnRelease`, so residual vertical jitter can never close the view; one
+locked vertical, or one that never locks (a sub-threshold jiggle), runs the close logic unchanged. Without
+`reorder`, for a handle that only closes (History's bar, never a reorder source), `drag` stays `'y'`.
+
+**Alternatives to the gesture.** WCAG 2.5.7 asks for a single-pointer alternative: offer a button that calls
+the same `onClose`, as History's trash buttons do. The row's drag-to-reorder needs one too; `PanelsAPI.move`
+exists for it, but no such control is built.
+
 ## PanelFrame's inset, scrollbar and header pill
 
 Every view renders inside `PanelFrame` so each section reads as one phone silhouette; a view that grew its
