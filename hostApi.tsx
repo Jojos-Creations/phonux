@@ -3,7 +3,7 @@
  * (Settings, History, a live panel, or a third party's) reads what it needs from `useHost()`,
  * renders a `<Panel>`, and never touches the desktop bridge, `localStorage` or any other app
  * internal (see DESIGN.md). The host mounts ONE `<HostProvider>`; a test uses the same provider
- * with `phoneApisFake.ts`'s fakes. The provider value is REBUILT EVERY RENDER (see HostProvider).
+ * with `fakeHost.ts`'s fakes. The provider value is REBUILT EVERY RENDER (see HostProvider).
  */
 
 import * as React from 'react';
@@ -115,7 +115,7 @@ export interface HistoryAPI {
 }
 
 /**
- * `PanelsAPI.create`'s options bag, named so useProvidePanels.ts and phoneApisFake.ts can each annotate
+ * `PanelsAPI.create`'s options bag, named so useProvidePanels.ts and fakeHost.ts can each annotate
  * their own `options` parameter explicitly (see `create`'s overload comment).
  */
 export interface CreatePanelOptions {

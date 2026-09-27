@@ -7,7 +7,7 @@ export {
   HostMissingProviderError,
   HostProvider,
   useHost,
-} from './phoneViewApi.js';
+} from './hostApi.js';
 export type {
   PhoneSize,
   DetectedPhone,
@@ -22,7 +22,7 @@ export type {
   PanelsAPI,
   PhoneDeviceAPI,
   Host,
-} from './phoneViewApi.js';
+} from './hostApi.js';
 
 export { useViewSnapshot, CaptureRegistryContext, CaptureRegistryProvider } from './snapshots.js';
 export type { ViewId, ViewSnapshot, SnapshotsAPI, CaptureRegistry } from './snapshots.js';
@@ -33,14 +33,14 @@ export {
   PhoneAPIsMissingProviderError,
   PhoneAPIsProvider,
   usePhoneAPIs,
-} from './phoneViewApi.js';
-export type { DeviceAPI, PhoneAPIs } from './phoneViewApi.js';
+} from './hostApi.js';
+export type { DeviceAPI, PhoneAPIs } from './hostApi.js';
 
-export { registerView, resolveView } from './panelRegistry.js';
-export type { ViewComponent, ViewProps } from './panelRegistry.js';
+export { registerView, resolveView } from './viewRegistry.js';
+export type { ViewComponent, ViewProps } from './viewRegistry.js';
 /** @deprecated use registerView/resolveView/ViewComponent */
-export { registerPanelView, resolvePanelView } from './panelRegistry.js';
-export type { PanelComponent } from './panelRegistry.js';
+export { registerPanelView, resolvePanelView } from './viewRegistry.js';
+export type { PanelComponent } from './viewRegistry.js';
 
 export {
   Panel,
@@ -52,19 +52,19 @@ export {
   OVERLAY_Z,
   OverlayProvider,
   OverlayStore,
-} from './PhoneView.js';
+} from './Panel.js';
 export type {
   PanelProps,
   DragHandleProps,
   ReleaseMeasure,
   OverlaySlotName,
   WindowOverlayProps,
-} from './PhoneView.js';
+} from './Panel.js';
 /** @deprecated use Panel/PanelProps */
-export { PhoneView } from './PhoneView.js';
-export type { PhoneViewProps } from './PhoneView.js';
+export { PhoneView } from './Panel.js';
+export type { PhoneViewProps } from './Panel.js';
 
-export { default as PanelFrame } from './PhoneFrame.js';
+export { default as PanelFrame } from './PanelFrame.js';
 export {
   PANEL_CORNER_RADIUS_UNITS,
   panelCornerRadiusPx,
@@ -72,14 +72,14 @@ export {
   panelFrameBareSx,
   PanelHeader,
   PanelHeaderRow,
-} from './PhoneFrame.js';
+} from './PanelFrame.js';
 export type {
   PanelFrameProps,
   PanelHeaderProps,
   PanelHeaderRowProps,
-} from './PhoneFrame.js';
+} from './PanelFrame.js';
 /** @deprecated use PanelFrame, PanelHeader, PanelHeaderRow and their PANEL_ and panel-prefixed siblings above */
-export { default as PhoneFrame } from './PhoneFrame.js';
+export { default as PhoneFrame } from './PanelFrame.js';
 export {
   PHONE_CORNER_RADIUS_UNITS,
   phoneCornerRadiusPx,
@@ -87,12 +87,12 @@ export {
   phoneFrameBareSx,
   PhoneFrameHeader,
   PhoneFrameHeaderRow,
-} from './PhoneFrame.js';
+} from './PanelFrame.js';
 export type {
   PhoneFrameProps,
   PhoneFrameHeaderProps,
   PhoneFrameHeaderRowProps,
-} from './PhoneFrame.js';
+} from './PanelFrame.js';
 
 export { PHONE_MODELS, findPhoneModel, vendorLabelForUsbVendorId } from './phoneModels.js';
 export type { PhoneModel } from './phoneModels.js';

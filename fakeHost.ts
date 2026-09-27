@@ -1,5 +1,5 @@
 /**
- * Recording fakes of every API in phoneViewApi.tsx, for testing a view with no host and no desktop
+ * Recording fakes of every API in hostApi.tsx, for testing a view with no host and no desktop
  * bridge: `createFakeHost({ panels: { panelList: [...] } })`, render under `<HostProvider>`,
  * interact, then assert on `host.calls`. Every method records `{ api, method, args }`, in call order,
  * and does nothing else (async methods resolve) -- the fakes hold no state, so a test wanting a different
@@ -18,7 +18,7 @@ import {
   type PanelsAPI,
   type PhoneDeviceAPI,
   type SettingsAPI,
-} from './phoneViewApi.js';
+} from './hostApi.js';
 import type { SnapshotsAPI } from './snapshots.js';
 
 export interface FakeCall {

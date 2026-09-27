@@ -9,7 +9,7 @@ import * as React from 'react';
 import Box, { type BoxProps } from '@mui/material/Box';
 import { type Theme } from '@mui/material/styles';
 import MoreHorizIcon from '@mui/icons-material/MoreHoriz';
-import { useHost, type PanelSize } from './phoneViewApi.js';
+import { useHost, type PanelSize } from './hostApi.js';
 
 export interface PanelFrameProps extends Omit<BoxProps, 'children'> {
   children: React.ReactNode;
@@ -35,7 +35,7 @@ export const PHONE_CORNER_RADIUS_UNITS = PANEL_CORNER_RADIUS_UNITS;
 export const panelCornerRadiusPx = (theme: Theme): number => PANEL_CORNER_RADIUS_UNITS * Number(theme.shape.borderRadius);
 /** @deprecated use panelCornerRadiusPx */
 export const phoneCornerRadiusPx = panelCornerRadiusPx;
-/** The header pill's gap above the frame, in px -- also the grab bar's own height (Panel, PhoneView.tsx),
+/** The header pill's gap above the frame, in px -- also the grab bar's own height (Panel.tsx),
  * since the grab bar fills that whole strip. One constant so the two can't drift apart, and sized to WCAG
  * 2.5.8's 24px minimum pointer-target height even though the drawn pill inside it is thinner. */
 export const PANEL_HEADER_GAP_PX = 24;

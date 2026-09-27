@@ -5,7 +5,7 @@
  * `registerView` to its old non-generic signature must fail this file with TS2345 (see panelRegistry.tsx).
  */
 import { createElement } from 'react';
-import { registerView, type ViewProps } from './panelRegistry.js';
+import { registerView, type ViewProps } from './viewRegistry.js';
 
 type NotesParams = { readonly noteId: string };
 

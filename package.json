@@ -6,7 +6,7 @@
   "sideEffects": false,
   "exports": {
     ".": "./index.ts",
-    "./testing": "./phoneApisFake.ts",
+    "./testing": "./fakeHost.ts",
     "./internal/directionalTransition": "./directionalTransition.ts"
   },
   "peerDependencies": {

@@ -5,7 +5,7 @@
  * panel. See DESIGN.md for the fallback's full reasoning.
  */
 import * as React from 'react';
-import type { JsonValue, PanelSummary } from './phoneViewApi.js';
+import type { JsonValue, PanelSummary } from './hostApi.js';
 
 /** A View's own props: what it reads about the panel it renders inside. */
 export type ViewProps<P = JsonValue> = { panel: PanelSummary<P> };

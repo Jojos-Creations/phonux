@@ -8,17 +8,17 @@
 
 import * as React from 'react';
 import Box, { type BoxProps } from '@mui/material/Box';
-import { PANEL_HEADER_GAP_PX, PanelHeaderRow, type PanelHeaderRowProps } from './PhoneFrame.js';
-import { useHost, type PanelSize } from './phoneViewApi.js';
+import { PANEL_HEADER_GAP_PX, PanelHeaderRow, type PanelHeaderRowProps } from './PanelFrame.js';
+import { useHost, type PanelSize } from './hostApi.js';
 import { CaptureRegistryContext, type ViewId } from './snapshots.js';
 
 // One import path for a view author: the contracts, the provider and the hook.
-export { HostMissingProviderError, HostProvider, useHost } from './phoneViewApi.js';
-export type { Host } from './phoneViewApi.js';
+export { HostMissingProviderError, HostProvider, useHost } from './hostApi.js';
+export type { Host } from './hostApi.js';
 /** @deprecated use HostMissingProviderError, HostProvider, useHost */
-export { PhoneAPIsMissingProviderError, PhoneAPIsProvider, usePhoneAPIs } from './phoneViewApi.js';
+export { PhoneAPIsMissingProviderError, PhoneAPIsProvider, usePhoneAPIs } from './hostApi.js';
 /** @deprecated use Host */
-export type { PhoneAPIs } from './phoneViewApi.js';
+export type { PhoneAPIs } from './hostApi.js';
 export { DRAG_CLOSE, DragToClose, shouldCloseOnRelease, type DragHandleProps, type ReleaseMeasure } from './dragToClose.js';
 export { WindowOverlay, OverlaySlot, OVERLAY_Z, OverlayProvider, OverlayStore, type OverlaySlotName, type WindowOverlayProps } from './windowOverlay.js';
 

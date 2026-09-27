@@ -4,7 +4,7 @@
  */
 
 import * as React from 'react';
-import type { JsonValue } from './phoneViewApi.js';
+import type { JsonValue } from './hostApi.js';
 
 /** Ambient id of the panel currently rendering; read only by useViewState, set only by useViewState.Provider. */
 const ViewIdContext = React.createContext<string | null>(null);

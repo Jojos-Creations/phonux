@@ -8,7 +8,7 @@
  */
 
 import * as React from 'react';
-import { useHost } from './phoneViewApi.js';
+import { useHost } from './hostApi.js';
 
 /** A panel's PanelSummary.id, or a fixed id ('settings' | 'history') for the non-panel columns. */
 export type ViewId = string;
