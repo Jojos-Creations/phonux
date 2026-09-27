@@ -111,6 +111,21 @@ test('summarisePanel: round-trip through create -> panelList for the DEFAULT tie
   assert.deepEqual([summary.formFactor, summary.size], ['phone', DEFAULT_PANEL_SIZE]);
 });
 
+test('summarisePanel: every entry this file creates (History, a plain panel, a permanent column) summarises to exactly the PanelSummary keys -- formFactor/size included, no desktop-only field', () => {
+  const entries = [
+    createHistoryPanel(),
+    appendPanel([], { sourceWebContentsId: 3, url: 'https://w.example', title: 'W', params: { a: 1 } }, 'w1')[0]!,
+    appendPanel([], { sourceWebContentsId: -1, url: 'about:blank', permanent: true }, 'p1')[0]!,
+  ];
+  const keys = ['formFactor', 'id', 'live', 'locked', 'params', 'size', 'title', 'url'];
+  assert.deepEqual(entries.map((p) => Object.keys(summarisePanel(p)).sort()), [keys, keys, keys]);
+});
+
+test('summarisePanel: a record that carries no formFactor/size summarises with those keys ABSENT, not present as undefined', () => {
+  const bare: PanelWindow = { id: 'b1', url: 'https://b.example', webContentsId: null, sourceWebContentsId: -1, live: true, locked: false, view: 'web', collapsible: true, listed: true };
+  assert.deepEqual(Object.keys(summarisePanel(bare)).sort(), ['id', 'live', 'locked', 'params', 'title', 'url']);
+});
+
 test('appendPanel: insertAt "start" lands immediately after the last non-collapsible entry (History), never before it; the default still appends to the array end', () => {
   const withHistory = [createHistoryPanel(), ...makeExtraPanels('w1', 'w2')];
   const front = appendPanel(withHistory, { sourceWebContentsId: -1, url: 'https://front.example', insertAt: 'start' }, 'front');
