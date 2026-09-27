@@ -11,6 +11,7 @@ import { type Theme } from '@mui/material/styles';
 import MoreHorizIcon from '@mui/icons-material/MoreHoriz';
 import { useHost, type PanelSize } from './hostApi.js';
 
+/** @public */
 export interface PanelFrameProps extends Omit<BoxProps, 'children'> {
   children: React.ReactNode;
   /** Fill the available space instead of the fixed phone size (the tap-to-expand overlay). */
@@ -19,7 +20,7 @@ export interface PanelFrameProps extends Omit<BoxProps, 'children'> {
   size?: PanelSize;
 }
 
-/** @deprecated use PanelFrameProps */
+/** @public @deprecated use PanelFrameProps */
 export type PhoneFrameProps = PanelFrameProps;
 
 /** The classic (non-overlay) scrollbar this app draws for itself, in px. */
@@ -27,17 +28,17 @@ const SCROLLBAR_PX = 8;
 /** How far content sits from the frame's own border, on every side, in px. */
 const CONTENT_INSET_PX = 12;
 /** The phone's corner radius in theme shape units (4 x 6px = 24px). The frame's corners and the header
- * pills' semicircular ends both derive from it, so they cannot drift apart. */
+ * pills' semicircular ends both derive from it, so they cannot drift apart. @public */
 export const PANEL_CORNER_RADIUS_UNITS = 4;
-/** @deprecated use PANEL_CORNER_RADIUS_UNITS */
+/** @public @deprecated use PANEL_CORNER_RADIUS_UNITS */
 export const PHONE_CORNER_RADIUS_UNITS = PANEL_CORNER_RADIUS_UNITS;
-/** That radius in px for `theme`; a header pill is twice this tall (exact semicircles). */
+/** That radius in px for `theme`; a header pill is twice this tall (exact semicircles). @public */
 export const panelCornerRadiusPx = (theme: Theme): number => PANEL_CORNER_RADIUS_UNITS * Number(theme.shape.borderRadius);
-/** @deprecated use panelCornerRadiusPx */
+/** @public @deprecated use panelCornerRadiusPx */
 export const phoneCornerRadiusPx = panelCornerRadiusPx;
 /** The header pill's gap above the frame, in px -- also the grab bar's own height (Panel.tsx),
  * since the grab bar fills that whole strip. One constant so the two can't drift apart, and sized to WCAG
- * 2.5.8's 24px minimum pointer-target height even though the drawn pill inside it is thinner. */
+ * 2.5.8's 24px minimum pointer-target height even though the drawn pill inside it is thinner. @internal */
 export const PANEL_HEADER_GAP_PX = 24;
 
 /**
@@ -47,6 +48,7 @@ export const PANEL_HEADER_GAP_PX = 24;
  * A nested scroller needs its own copy of the `::-webkit-scrollbar` rules below (they style
  * only the element they're set on) or it falls back to Chromium's default-width bar and breaks
  * the arithmetic above.
+ * @public
  */
 export const panelFrameScrollSx = {
   overflowX: 'hidden',
@@ -66,7 +68,7 @@ export const panelFrameScrollSx = {
   },
   '&::-webkit-scrollbar-thumb:hover': { background: 'rgba(255, 255, 255, 0.4)' },
 } as const;
-/** @deprecated use panelFrameScrollSx */
+/** @public @deprecated use panelFrameScrollSx */
 export const phoneFrameScrollSx = panelFrameScrollSx;
 
 /**
@@ -74,6 +76,7 @@ export const phoneFrameScrollSx = panelFrameScrollSx;
  * pinned input bar): cancels PanelFrame's own padding AND its reserved scrollbar strip, so
  * neither is reserved twice. Every property is a longhand -- MUI resolves `p`/`pr` and
  * `overflow`/`overflowY` independently, so a shorthand spread over a longhand does not reliably win.
+ * @public
  */
 export const panelFrameBareSx = {
   pt: 0,
@@ -84,7 +87,7 @@ export const panelFrameBareSx = {
   overflowY: 'hidden',
   scrollbarGutter: 'auto',
 } as const;
-/** @deprecated use panelFrameBareSx */
+/** @public @deprecated use panelFrameBareSx */
 export const phoneFrameBareSx = panelFrameBareSx;
 
 /**
@@ -94,6 +97,7 @@ export const phoneFrameBareSx = panelFrameBareSx;
  * floats over content with its own built-in inset margin that no padding/box-model change on
  * this side can cancel, so `panelFrameScrollSx`'s explicit `::-webkit-scrollbar` rules force a
  * classic scrollbar that reserves real layout width and sits flush against the edge instead.
+ * @public
  */
 const PanelFrame = React.forwardRef<HTMLDivElement, PanelFrameProps>(function PanelFrame(
   { children, expanded, size, sx, ...rest },
@@ -138,11 +142,12 @@ const PanelFrame = React.forwardRef<HTMLDivElement, PanelFrameProps>(function Pa
   );
 });
 
+/** @public */
 export interface PanelHeaderProps extends Omit<BoxProps, 'children'> {
   children: React.ReactNode;
 }
 
-/** @deprecated use PanelHeaderProps */
+/** @public @deprecated use PanelHeaderProps */
 export type PhoneFrameHeaderProps = PanelHeaderProps;
 
 /**
@@ -152,6 +157,7 @@ export type PhoneFrameHeaderProps = PanelHeaderProps;
  * `Omit<BoxProps, ...>`. Internal layout is NOT baked in (callers differ); pass `sx` for that,
  * layered on top rather than replacing it. Drag wiring and any grab cursor belong on `Panel`'s
  * `grabProps`, never here.
+ * @public
  */
 export function PanelHeader({ children, sx, ...rest }: PanelHeaderProps) {
   return (
@@ -184,9 +190,10 @@ export function PanelHeader({ children, sx, ...rest }: PanelHeaderProps) {
   );
 }
 
-/** @deprecated use PanelHeader */
+/** @public @deprecated use PanelHeader */
 export const PhoneFrameHeader = PanelHeader;
 
+/** @public */
 export interface PanelHeaderRowProps extends Omit<PanelHeaderProps, 'children' | 'title'> {
   /** Left-aligned, ellipsis-truncated. Falsy renders a placeholder ("Untitled") instead of
    * nothing, so the pill never blanks for a view with no title yet. */
@@ -196,7 +203,7 @@ export interface PanelHeaderRowProps extends Omit<PanelHeaderProps, 'children' |
   actions?: React.ReactNode;
 }
 
-/** @deprecated use PanelHeaderRowProps */
+/** @public @deprecated use PanelHeaderRowProps */
 export type PhoneFrameHeaderRowProps = PanelHeaderRowProps;
 
 /** Deliberately narrow (mirrors JSX's own falsy-child rules, not a general emptiness check) so a
@@ -228,6 +235,7 @@ const PLACEHOLDER_ACTIONS = (
  * The title-left/actions-right row shape every PanelHeader caller wants, as one shared layout
  * instead of each call site reimplementing near-identical flex/ellipsis markup. Placeholder
  * substitution lives HERE, not in each caller, so every caller gets it for free.
+ * @public
  */
 export function PanelHeaderRow({ title, actions, sx, ...rest }: PanelHeaderRowProps) {
   const resolvedTitle = isEmptyHeaderContent(title) ? PLACEHOLDER_TITLE : title;
@@ -240,7 +248,7 @@ export function PanelHeaderRow({ title, actions, sx, ...rest }: PanelHeaderRowPr
   );
 }
 
-/** @deprecated use PanelHeaderRow */
+/** @public @deprecated use PanelHeaderRow */
 export const PhoneFrameHeaderRow = PanelHeaderRow;
 
 export default PanelFrame;

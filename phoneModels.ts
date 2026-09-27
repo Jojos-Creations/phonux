@@ -13,6 +13,7 @@
  * sync by hand if either changes.
  */
 
+/** @public */
 export interface PhoneModel {
   id: string;
   label: string;
@@ -20,7 +21,7 @@ export interface PhoneModel {
   height: number;
 }
 
-/** id 'default' is deliberately NOT in this list -- it means "the app's own built-in default", handled separately (DEFAULT_PHONE_SIZE in phoneSize.ts) so upgrading this app never silently resizes anyone who hasn't chosen a model. */
+/** id 'default' is deliberately NOT in this list -- it means "the app's own built-in default", handled separately (DEFAULT_PHONE_SIZE in phoneSize.ts) so upgrading this app never silently resizes anyone who hasn't chosen a model. @public */
 export const PHONE_MODELS: readonly PhoneModel[] = [
   { id: 'iphone8', label: 'iPhone 8 / SE (2nd/3rd gen) (375 × 667)', width: 375, height: 667 },
   { id: 'iphonex', label: 'iPhone X (375 × 812)', width: 375, height: 812 },
@@ -37,6 +38,7 @@ export const PHONE_MODELS: readonly PhoneModel[] = [
   { id: 'oneplus11', label: 'OnePlus 11 (412 × 919)', width: 412, height: 919 },
 ];
 
+/** @public */
 export function findPhoneModel(id: string): PhoneModel | undefined {
   return PHONE_MODELS.find((m) => m.id === id);
 }
@@ -46,6 +48,7 @@ export function findPhoneModel(id: string): PhoneModel | undefined {
  * the one-time connect popup's copy. Deliberately vague past "iPhone" vs.
  * "Android phone" -- plans/records/phone-size-auto-detection.md: exact
  * model can't be determined from a bare USB vendor/product id.
+ * @public
  */
 export function vendorLabelForUsbVendorId(vendorId: number): string {
   if (vendorId === 0x05ac) return 'an iPhone';

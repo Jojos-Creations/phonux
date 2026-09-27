@@ -10,7 +10,7 @@ import { animate, motion, useDragControls, useIsPresent, useMotionValue, useRedu
 /** The first this many px of either axis decide which one the gesture locks to. */
 const DIRECTION_LOCK_PX = 8;
 
-/** The tunables, in one place. Distances in px, velocities in px/s, positive = downward. */
+/** The tunables, in one place. Distances in px, velocities in px/s, positive = downward. @public */
 export const DRAG_CLOSE = {
   /** Close once dragged this fraction of the view's height ... */
   distanceFraction: 0.25,
@@ -27,6 +27,7 @@ export const DRAG_CLOSE = {
   snapBack: { type: 'spring', stiffness: 520, damping: 42 },
 } as const;
 
+/** @public */
 export interface ReleaseMeasure {
   /** How far the box was dragged from its resting place, px (positive = down). */
   offsetY: number;
@@ -36,7 +37,7 @@ export interface ReleaseMeasure {
   height: number;
 }
 
-/** The whole close rule, pure. Never closes on an upward or zero offset, or when released moving back up. */
+/** The whole close rule, pure. Never closes on an upward or zero offset, or when released moving back up. @public */
 export function shouldCloseOnRelease({ offsetY, velocityY, height }: ReleaseMeasure): boolean {
   if (!(offsetY > 0) || velocityY <= DRAG_CLOSE.cancelVelocity) return false;
   const distance = Math.max(DRAG_CLOSE.minDistancePx, DRAG_CLOSE.distanceFraction * (Number.isFinite(height) ? height : 0));
@@ -44,13 +45,13 @@ export function shouldCloseOnRelease({ offsetY, velocityY, height }: ReleaseMeas
   return offsetY >= DRAG_CLOSE.flickMinDistancePx && velocityY >= DRAG_CLOSE.flickVelocity;
 }
 
-/** Spread onto Panel's `grabProps`. */
+/** Spread onto Panel's `grabProps`. @public */
 export interface DragHandleProps {
   onPointerDown: (event: React.PointerEvent<HTMLElement>) => void;
   sx: { cursor: 'grab'; touchAction: 'pan-x'; userSelect: 'none'; '&:active': { cursor: 'grabbing' } };
 }
 
-/** Hands the same handle's horizontal drag to the caller's own reorder (DESIGN.md, "`DragToClose`"). */
+/** Hands the same handle's horizontal drag to the caller's own reorder (DESIGN.md, "`DragToClose`"). @internal */
 export interface ReorderHandle {
   /** The gesture's own total horizontal offset (px, +right/-left from where the drag started), read once it has locked horizontal AND released. */
   onDragEnd: (offsetX: number) => void;
@@ -58,6 +59,7 @@ export interface ReorderHandle {
 
 const INTERACTIVE = 'button, a, input, select, textarea, [role="button"]';
 
+/** @public */
 export function DragToClose({
   onClose,
   reorder,

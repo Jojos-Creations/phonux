@@ -16,23 +16,23 @@ import { ViewStateProvider } from './viewState.js';
 // Value types
 // ---------------------------------------------------------------------------
 
-/** A phone size. `modelId` 'default' means the app's built-in size, not a PHONE_MODELS entry. */
+/** A phone size. `modelId` 'default' means the app's built-in size, not a PHONE_MODELS entry. @public */
 export interface PhoneSize {
   modelId: string;
   width: number;
   height: number;
 }
 
-/** The app's built-in size: upgrading must never silently resize anyone who has not chosen a model. */
+/** The app's built-in size: upgrading must never silently resize anyone who has not chosen a model. @public */
 export const DEFAULT_PHONE_SIZE: PhoneSize = { modelId: 'default', width: 390, height: 700 };
 
-/** A phone-like USB device the app has just seen for the first time. */
+/** A phone-like USB device the app has just seen for the first time. @public */
 export interface DetectedPhone {
   vendorId: number;
   productId: number;
 }
 
-/** One entry of the persisted "Closed Pages" log. */
+/** One entry of the persisted "Closed Pages" log. @public */
 export interface ClosedPageEntry {
   id: string;
   title: string;
@@ -41,16 +41,17 @@ export interface ClosedPageEntry {
   closedAt: string;
 }
 
-/** JSON-serializable by construction -- the minimum shape any future persistence layer could round-trip (see DESIGN.md). */
+/** JSON-serializable by construction -- the minimum shape any future persistence layer could round-trip (see DESIGN.md). @public */
 export type JsonValue = string | number | boolean | null | readonly JsonValue[] | { readonly [key: string]: JsonValue };
 
-/** A panel's own visual tier. The app gives every panel 'phone' by default. */
+/** A panel's own visual tier. The app gives every panel 'phone' by default. @public */
 export type FormFactor = 'phone' | 'tablet' | 'desktop';
 
 /**
  * A panel's own rendered size, carrying its tier alongside the pixels so a size value stays meaningful on its
  * own (e.g. passed to Panel/PanelFrame's optional `size` prop without also passing a separate formFactor).
  * `height: 'fill'` lets a tier fill its container's height instead of a fixed pixel value.
+ * @public
  */
 export interface PanelSize {
   formFactor: FormFactor;
@@ -62,6 +63,7 @@ export interface PanelSize {
  * What a view may know about a panel. The app's own panel record is structurally assignable to it.
  * `formFactor`/`size` are optional so a hand-built or third-party summary without them stays valid, even
  * though every panel the app itself creates carries both -- see DESIGN.md.
+ * @public
  */
 export interface PanelSummary<P = JsonValue> {
   readonly id: string;
@@ -83,6 +85,7 @@ export interface PanelSummary<P = JsonValue> {
 // The APIs
 // ---------------------------------------------------------------------------
 
+/** @public */
 export interface SettingsAPI {
   /** The stored "max panels on screen" choice: `null` means "follow the fit count" (the default). Live: a view re-renders when it changes. */
   readonly maxPanelsOnScreen: number | null;
@@ -96,6 +99,7 @@ export interface SettingsAPI {
   readonly settingsColumn: { readonly visible: boolean; show(): void; hide(): void };
 }
 
+/** @public */
 export interface HistoryAPI {
   /** The persisted Closed Pages log (every view ever closed, oldest first). NEVER rejects: any failure, including no desktop bridge, resolves to []. */
   loadClosedPages(): Promise<readonly ClosedPageEntry[]>;
@@ -117,6 +121,7 @@ export interface HistoryAPI {
 /**
  * `PanelsAPI.create`'s options bag, named so useProvidePanels.ts and fakeHost.ts can each annotate
  * their own `options` parameter explicitly (see `create`'s overload comment).
+ * @public
  */
 export interface CreatePanelOptions {
   view?: string;
@@ -141,6 +146,7 @@ export interface CreatePanelOptions {
   formFactor?: FormFactor;
 }
 
+/** @public */
 export interface PanelsAPI {
   /** Every panel, live or parked, in array order. History lists them as given; the row shows the live ones. */
   readonly panelList: readonly PanelSummary[];
@@ -189,6 +195,7 @@ export interface PanelsAPI {
   clearAll(): void;
 }
 
+/** @public */
 export interface PhoneDeviceAPI {
   /** The size every PanelFrame renders at. Live. */
   readonly size: PhoneSize;
@@ -205,9 +212,10 @@ export interface PhoneDeviceAPI {
   resizeForDetectedPhone(modelId: string): void;
 }
 
-/** @deprecated use PhoneDeviceAPI */
+/** @public @deprecated use PhoneDeviceAPI */
 export type DeviceAPI = PhoneDeviceAPI;
 
+/** @public */
 export interface Host {
   readonly settings: SettingsAPI;
   readonly history: HistoryAPI;
@@ -221,14 +229,14 @@ export interface Host {
   readonly snapshots?: SnapshotsAPI;
 }
 
-/** @deprecated use Host */
+/** @public @deprecated use Host */
 export type PhoneAPIs = Host;
 
 // ---------------------------------------------------------------------------
 // Provider and hook
 // ---------------------------------------------------------------------------
 
-/** Thrown by useHost() when no provider is mounted, so a view rendered without a host fails loudly instead of rendering defaults. */
+/** Thrown by useHost() when no provider is mounted, so a view rendered without a host fails loudly instead of rendering defaults. @public */
 export class HostMissingProviderError extends Error {
   constructor(hook = 'useHost') {
     super(
@@ -239,7 +247,7 @@ export class HostMissingProviderError extends Error {
   }
 }
 
-/** @deprecated use HostMissingProviderError -- same class, so `instanceof` works under either name. */
+/** @public @deprecated use HostMissingProviderError -- same class, so `instanceof` works under either name. */
 export const PhoneAPIsMissingProviderError = HostMissingProviderError;
 
 const HostContext = React.createContext<Host | null>(null);
@@ -249,6 +257,7 @@ const HostContext = React.createContext<Host | null>(null);
  * value: NEVER memoise it here or where it is built. The handlers behind it
  * close over render-time state (the panel list, the column count), so a
  * memoised bag hands views stale closures.
+ * @public
  */
 export function HostProvider({ host, children }: { host: Host; children: React.ReactNode }) {
   return (
@@ -263,17 +272,18 @@ export function HostProvider({ host, children }: { host: Host; children: React.R
 /**
  * @deprecated use HostProvider (its prop is `host`, not `apis`). This is a distinct thin wrapper, not the
  * same value as HostProvider, because the prop itself renamed.
+ * @public
  */
 export function PhoneAPIsProvider({ apis, children }: { apis: Host; children: React.ReactNode }) {
   return <HostProvider host={apis}>{children}</HostProvider>;
 }
 
-/** The one hook a view uses to reach the rest of the app. Call API methods from event handlers; do not capture one in an effect with empty deps. */
+/** The one hook a view uses to reach the rest of the app. Call API methods from event handlers; do not capture one in an effect with empty deps. @public */
 export function useHost(): Host {
   const host = React.useContext(HostContext);
   if (host === null) throw new HostMissingProviderError();
   return host;
 }
 
-/** @deprecated use useHost -- same function, so identity checks keep working. */
+/** @public @deprecated use useHost -- same function, so identity checks keep working. */
 export const usePhoneAPIs = useHost;

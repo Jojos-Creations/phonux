@@ -2,13 +2,13 @@
 import * as React from 'react';
 import type { JsonValue, PanelSummary } from './hostApi.js';
 
-/** A View's own props: what it reads about the panel it renders inside. */
+/** A View's own props: what it reads about the panel it renders inside. @public */
 export type ViewProps<P = JsonValue> = { panel: PanelSummary<P> };
 
-/** What any View -- built-in or third-party -- is rendered as. */
+/** What any View -- built-in or third-party -- is rendered as. @public */
 export type ViewComponent<P = JsonValue> = React.ComponentType<ViewProps<P>>;
 
-/** @deprecated use ViewComponent */
+/** @public @deprecated use ViewComponent */
 export type PanelComponent<P = JsonValue> = ViewComponent<P>;
 
 const registry = new Map<string, ViewComponent>();
@@ -18,12 +18,13 @@ const placeholders = new Map<string, ViewComponent>();
 /**
  * Registers (or replaces) `key`'s component; this module registers nothing itself. Declare `P` with a `type`,
  * never an `interface`: an interface has no implicit index signature, so it never satisfies `JsonValue`.
+ * @public
  */
 export function registerView<P extends JsonValue>(key: string, Component: ViewComponent<P>): void {
   registry.set(key, Component as unknown as ViewComponent);
 }
 
-/** @deprecated use registerView */
+/** @public @deprecated use registerView */
 export const registerPanelView = registerView;
 
 function placeholderFor(key: string): ViewComponent {
@@ -41,10 +42,10 @@ function placeholderFor(key: string): ViewComponent {
   return UnregisteredPanelPlaceholder;
 }
 
-/** Never throws, never returns nothing: an unregistered key is a typo or a plugin missing THIS session, not a corrupt layout. */
+/** Never throws, never returns nothing: an unregistered key is a typo or a plugin missing THIS session, not a corrupt layout. @public */
 export function resolveView(key: string): ViewComponent {
   return registry.get(key) ?? placeholderFor(key);
 }
 
-/** @deprecated use resolveView */
+/** @public @deprecated use resolveView */
 export const resolvePanelView = resolveView;

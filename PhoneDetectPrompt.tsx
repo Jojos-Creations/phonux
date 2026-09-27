@@ -9,6 +9,7 @@ import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import SmartphoneIcon from '@mui/icons-material/Smartphone';
 import { PHONE_MODELS, vendorLabelForUsbVendorId } from './phoneModels.js';
 
+/** @public */
 export interface PhoneDetectPromptProps {
   /** Non-null exactly once, right after electron/main.ts's wirePhoneUsbDetection first sees a not-yet-asked-about phone-like USB device. */
   detected: { vendorId: number; productId: number } | null;
@@ -41,6 +42,7 @@ export interface PhoneDetectPromptProps {
  * `borderRadius: 2.5` is unchanged -- it already equals ReloadGateNotice's
  * hardcoded 15px at this theme's 6px shape unit (2.5 * 6), so the two toasts
  * already shared a corner radius even before this pass.
+ * @public
  */
 export function PhoneDetectPrompt({ detected, onResize, onDismiss }: PhoneDetectPromptProps) {
   const [modelId, setModelId] = useState(PHONE_MODELS[0]?.id ?? 'default');

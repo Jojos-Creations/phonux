@@ -22,6 +22,7 @@ export type { PhoneAPIs } from './hostApi.js';
 export { DRAG_CLOSE, DragToClose, shouldCloseOnRelease, type DragHandleProps, type ReleaseMeasure, type ReorderHandle } from './dragToClose.js';
 export { WindowOverlay, OverlaySlot, OVERLAY_Z, OverlayProvider, OverlayStore, type OverlaySlotName, type WindowOverlayProps, type Item, type Entry } from './windowOverlay.js';
 
+/** @public */
 export interface PanelProps extends Omit<BoxProps, 'children' | 'sx' | 'title'> {
   /**
    * The header pill's title. Omitted entirely (not passed at all) renders
@@ -67,9 +68,10 @@ export interface PanelProps extends Omit<BoxProps, 'children' | 'sx' | 'title'> 
   size?: PanelSize;
 }
 
-/** @deprecated use PanelProps */
+/** @public @deprecated use PanelProps */
 export type PhoneViewProps = PanelProps;
 
+/** @public */
 export function Panel({ title, actions, headerProps, grabProps, overlay, sx, children, viewId, capture = 'auto', size, ...rest }: PanelProps) {
   const { device } = useHost();
   const registry = React.useContext(CaptureRegistryContext);
@@ -110,7 +112,7 @@ export function Panel({ title, actions, headerProps, grabProps, overlay, sx, chi
   );
 }
 
-/** @deprecated use Panel */
+/** @public @deprecated use Panel */
 export const PhoneView = Panel;
 
 export default Panel;

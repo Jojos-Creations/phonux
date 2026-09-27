@@ -19,6 +19,7 @@ import { createTheme, type Theme } from '@mui/material/styles';
  * Deliberately excludes phonUX's own brand palette, typography and per-component style
  * overrides -- those are product branding, not something a third-party consumer of this
  * package should inherit by taking the default.
+ * @public
  */
 export function createDefaultTheme(mode: 'light' | 'dark'): Theme {
   return createTheme({

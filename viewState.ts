@@ -9,7 +9,7 @@ import type { JsonValue } from './hostApi.js';
 /** Ambient id of the panel currently rendering; read only by useViewState, set only by useViewState.Provider. */
 const ViewIdContext = React.createContext<string | null>(null);
 
-/** Thrown by useViewState() unless it renders under BOTH wrappers a host's panel row supplies. */
+/** Thrown by useViewState() unless it renders under BOTH wrappers a host's panel row supplies. @public */
 export class ViewStateMissingProviderError extends Error {
   constructor(missing: 'host' | 'view id') {
     super(
@@ -93,7 +93,7 @@ class ViewStateStore {
 
 const StoreContext = React.createContext<ViewStateStore | null>(null);
 
-/** Mounted once by HostProvider, beside OverlayProvider. Not on the barrel: app code never needs its own store. */
+/** Mounted once by HostProvider, beside OverlayProvider. Not on the barrel: app code never needs its own store. @internal */
 export function ViewStateProvider({ children }: { children: React.ReactNode }): React.ReactElement {
   const [store] = React.useState(() => new ViewStateStore()); // pure constructor: StrictMode's double init is harmless
   return React.createElement(StoreContext.Provider, { value: store }, children);
@@ -150,6 +150,7 @@ function useRetainOnly(panelIds: Iterable<string>): void {
 /**
  * useViewState's type, spelled out so the public declaration names none of this file's private helpers.
  * Callers see these call signatures, not useViewStateImpl's, so the JSON bound that counts is the one here.
+ * @public
  */
 export interface UseViewState {
   <T>(key: [T] extends [JsonValue] ? string : never, initial: T): [T, (next: T | ((prev: T) => T)) => void];
@@ -162,5 +163,6 @@ export interface UseViewState {
  * The one hook a view uses for state that must survive its own panel parking and reviving: same
  * `[value, setValue]` pair and same type inference as `React.useState`, but `initial` must be JSON-shaped.
  * `Provider` and `useRetainOnly` are the host's side (LivePanels.tsx), never called by a view.
+ * @public
  */
 export const useViewState: UseViewState = Object.assign(useViewStateImpl, { Provider: ViewIdContext.Provider, useRetainOnly });

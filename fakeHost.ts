@@ -26,23 +26,26 @@ export type { Host, PhoneSize, DetectedPhone, ClosedPageEntry, JsonValue, FormFa
 export type { SnapshotsAPI, ViewId, ViewSnapshot } from './snapshots.js';
 export type { PhoneModel } from './phoneModels.js';
 
+/** @public */
 export interface FakeCall {
   api: keyof Host;
   method: string;
   args: unknown[];
 }
 
-/** Replacement members, per API. */
+/** Replacement members, per API. @public */
 export type FakeOverrides = { [K in keyof Host]?: Partial<Host[K]> };
 
+/** @public */
 export interface FakeHost extends Host {
   /** Every method call any of the fakes received, in order. */
   readonly calls: FakeCall[];
 }
 
-/** @deprecated use FakeHost */
+/** @public @deprecated use FakeHost */
 export type FakePhoneAPIs = FakeHost;
 
+/** @public */
 export function createFakeHost(overrides: FakeOverrides = {}): FakeHost {
   const calls: FakeCall[] = [];
   const log = (api: keyof Host, method: string, args: unknown[]): void => {
@@ -125,5 +128,5 @@ export function createFakeHost(overrides: FakeOverrides = {}): FakeHost {
   };
 }
 
-/** @deprecated use createFakeHost -- same function, so identity checks keep working. */
+/** @public @deprecated use createFakeHost -- same function, so identity checks keep working. */
 export const createFakePhoneAPIs = createFakeHost;

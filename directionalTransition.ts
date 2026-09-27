@@ -43,11 +43,13 @@ import type { TargetAndTransition } from 'motion/react';
 const TRANSITION_SEC = 0.4;
 /** Motion wants a cubic-bezier as a fixed 4-tuple, not a plain number[]. */
 const TRANSITION_EASE: [number, number, number, number] = [0.2, 0, 0, 1];
-/** The one enter/exit timing/easing every animated slot in the app shares. */
+/** The one enter/exit timing/easing every animated slot in the app shares. @internal */
 export const SLOT_TRANSITION = { duration: TRANSITION_SEC, ease: TRANSITION_EASE };
 
+/** @internal */
 export type TransitionAxis = 'x' | 'y';
 
+/** @internal */
 export interface DirectionalTransition {
   readonly transition: typeof SLOT_TRANSITION;
   /** A motion.div's `initial`: `rest + distance` along `axis`, faded out. */
@@ -74,6 +76,7 @@ function withAxis(axis: TransitionAxis, value: number, opacity: 0 | 1): TargetAn
  * -- signed, so a positive `distance` enters from the positive-`axis`
  * direction (the right, or down) and a negative one enters from the negative
  * direction (the left, or up).
+ * @internal
  */
 export function directionalTransition(axis: TransitionAxis, rest: number, distance: number): DirectionalTransition {
   return {

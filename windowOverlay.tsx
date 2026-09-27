@@ -49,6 +49,7 @@ import { Fragment, createContext, useContext, useEffect, useId, useLayoutEffect,
  * Where hoisted content renders (a PLACE the host chooses, never the view).
  *   'dialog': the row's first children. Modal-ish, window-sized (scrims, dialogs, full-screen viewers).
  *   'toast':  the window root, after the scroll container. Transient notices (snackbars).
+ * @public
  */
 export type OverlaySlotName = 'dialog' | 'toast';
 
@@ -56,9 +57,11 @@ export type OverlaySlotName = 'dialog' | 'toast';
  * The z-index each slot's content applies to ITS OWN root. WindowOverlay adds no wrapper element,
  * so it cannot set it for you. dialog 2000 = today's Closed Pages viewer (above the 1400 drag strip);
  * toast 1400 = MUI's snackbar band = today's undo toast.
+ * @public
  */
 export const OVERLAY_Z = { dialog: 2000, toast: 1400 } as const;
 
+/** @public */
 export interface WindowOverlayProps {
   /** Default 'dialog'. */
   slot?: OverlaySlotName;
@@ -70,17 +73,19 @@ export interface WindowOverlayProps {
   children: React.ReactNode;
 }
 
+/** @public */
 export interface Entry {
   slot: OverlaySlotName;
   node: React.ReactNode;
 }
+/** @public */
 export interface Item {
   id: string;
   node: React.ReactNode;
 }
 const EMPTY: readonly Item[] = Object.freeze([]);
 
-/** External store, NOT React state: a registration re-renders neither the host nor any view. */
+/** External store, NOT React state: a registration re-renders neither the host nor any view. @public */
 export class OverlayStore {
   private entries = new Map<string, Entry>(); // Map keeps FIRST-insertion position across overwrites
   private listeners = new Set<() => void>();
@@ -146,13 +151,14 @@ const noopSubscribe = () => () => {};
 /**
  * Rendered by HostProvider, so a host adds nothing. The store is never part of the app-supplied Host bag
  * (nothing about an overlay is app-specific). `store` is a TEST SEAM: a test passes its own to read `notifications`/`ids()`.
+ * @public
  */
 export function OverlayProvider({ children, store: injected }: { children: React.ReactNode; store?: OverlayStore }) {
   const [store] = useState(() => injected ?? new OverlayStore()); // pure constructor: StrictMode's double init is harmless
   return <StoreContext.Provider value={store}>{children}</StoreContext.Provider>; // stable value: never re-renders consumers
 }
 
-/** Mounted by the HOST once per slot. Emits NO element: hoisted overlays become its parent's direct children. */
+/** Mounted by the HOST once per slot. Emits NO element: hoisted overlays become its parent's direct children. @public */
 export const OverlaySlot = React.memo(function OverlaySlot({ name }: { name: OverlaySlotName }) {
   const store = useContext(StoreContext);
   useLayoutEffect(() => store?.mountSlot(name), [store, name]);
@@ -171,6 +177,7 @@ export const OverlaySlot = React.memo(function OverlaySlot({ name }: { name: Ove
 /**
  * Render this anywhere in a view, at any depth. Its children appear in the matching OverlaySlot.
  * With no provider, or under renderToStaticMarkup (no effects), the children render IN PLACE instead.
+ * @public
  */
 export function WindowOverlay({ slot = 'dialog', open = true, children }: WindowOverlayProps) {
   const store = useContext(StoreContext);
