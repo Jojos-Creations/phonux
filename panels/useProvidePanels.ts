@@ -46,6 +46,8 @@ export interface PanelsInput {
    * that wants to count calls passes its own fake instead.
    */
   capture?: CaptureTrigger;
+  /** Called when setFormFactor really resizes a panel (useRowShell's `morph`, so the row's margin glides with it). */
+  onPanelResize?: () => void;
 }
 
 /**
@@ -75,6 +77,7 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
     clearEnterSide,
     scrollRow,
     reorderPanel,
+    resizePanel,
     enterSideById,
     exitRightIds,
   } = usePanelManager(i.panels, i.setPanels, i.storedMaxPanels, i.phoneWidth, i.containerWidth, i.fixedViewCount);
@@ -141,6 +144,9 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
     },
     activate: handleActivatePanel,
     move: reorderPanel,
+    setFormFactor: (id, next) => {
+      if (resizePanel(id, next)) i.onPanelResize?.();
+    },
     close: (id: string) => {
       // v1's "capture only at fixed moments" policy, close half: fires on every close() call, whether or not
       // this particular id actually leaves the array (an unknown or locked id's close is already a no-op one

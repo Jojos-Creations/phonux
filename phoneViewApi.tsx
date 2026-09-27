@@ -81,7 +81,7 @@ export interface PanelSummary<P = JsonValue> {
   readonly params?: P;
   /** This panel's own visual tier. */
   readonly formFactor?: FormFactor;
-  /** This panel's own rendered size. Panel/PanelFrame do not read it: their separate `size` prop does the sizing, falling back to useHost().device.size when omitted. */
+  /** This panel's own rendered size. Panel/PanelFrame do not read it: a view passes it to their separate `size` prop for a non-phone tier (a phone panel follows useHost().device.size instead). */
   readonly size?: PanelSize;
 }
 
@@ -143,6 +143,8 @@ export interface CreatePanelOptions {
    * own control still works. Default false.
    */
   permanent?: boolean;
+  /** The new panel's tier (see `setFormFactor`). Ignored with `permanent`: a permanent column is always 'phone'. Default 'phone'. */
+  formFactor?: FormFactor;
 }
 
 export interface PanelsAPI {
@@ -169,6 +171,12 @@ export interface PanelsAPI {
    * not currently shown (parked), a permanent column (e.g. History), or already at that edge of the row.
    */
   move(id: string, direction: 'left' | 'right'): void;
+  /**
+   * Resizes `id` to `next`'s tier in place: it stays mounted and live, its content the same node, and the row
+   * reflows around it. If the row no longer fits, OTHER panels park, never this one. No-op for an unknown id,
+   * a permanent column (e.g. History), or a panel already at `next`. See DESIGN.md for the tier sizes.
+   */
+  setFormFactor(id: string, next: FormFactor): void;
   /** Close a view completely, live or parked: it leaves the row and History at once, a closed event is appended to the persisted log (HistoryAPI), and it can be undone for 10 s (recentlyClosed, undoClose). Also accepts History's own fixed-panel id (HistoryAPI.close is the same mechanism, offered per-panel so a view need not know the id) -- an id not in `panelList` and not History's id, or a LOCKED fixed panel's id, does nothing. */
   close(id: string): void;
   /** The views closed within the current undo window, oldest first; non-null exactly while it is open (10 s after the LAST close). Drives the "Closed N pages / Undo" toast. */
