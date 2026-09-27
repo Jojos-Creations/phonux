@@ -87,8 +87,8 @@ choice already made for `insertAt`/`layer`/`anchoredEnter` on the internal `Pane
 is a structural type: any object shaped like one satisfies it, including hand-built test fixtures that predate
 this feature and never set these two fields. Required fields would force every such fixture, in this app and
 any third party's, to add them just to keep compiling, for a schema addition that changes no rendered pixel
-by itself (nothing reads `PanelSummary.size` yet; only `Panel`/`PanelFrame`'s own separate `size` prop, passed
-explicitly by whatever wires it up, does). The app's projection (`summarisePanel()`) follows the same rule in
+by itself (`Panel`/`PanelFrame` never read `PanelSummary.size`; only their own separate `size` prop, passed
+explicitly by the view, does -- see `setFormFactor` below). The app's projection (`summarisePanel()`) follows the same rule in
 the other direction: it forwards `formFactor`/`size` when the record carries them and omits the key when it
 does not, never a key present with the value `undefined` -- so a summary never lists a field its record never
 had, and a view testing `'size' in panel` gets the same answer as `panel.size !== undefined`.
@@ -101,15 +101,13 @@ different: `panelWindow.ts`'s own functions (`appendPanel`, `createHistoryPanel`
 file) are pure, taking no device-state argument, and are tested that way (`test/panel-window.test.ts` builds
 panels with no device store initialized at all). Reading `phoneSizeStore`'s live, module-level `current` size
 inside these functions would make them impure and would need a new parameter threaded in from
-`usePanelManager.ts`/`useProvidePanels.ts` -- the very call sites a later phase (the one that wires
-`setFormFactor` and per-panel resizing into shipped code) already owns. So the default here is
+`usePanelManager.ts`/`useProvidePanels.ts`. So the default here is
 `phonux`'s own `DEFAULT_PHONE_SIZE` constant (390x700) -- the SAME value `phoneSizeStore.ts`'s own `current`
 starts at before any resize -- rather than a second hardcoded literal or a live read. It is a value, not yet a
 behavior: nothing renders a panel at its own `PanelWindow.size` today (`Panel`/`PanelFrame` still read
-`useHost().device.size` when their `size` prop is omitted, which is always, today), so this default cannot
-cause any visible difference from the live device size until a later phase actually threads it into rendering
--- at which point that phase, already touching the call sites this one could not, can reconcile a per-panel
-size against a live resize if it needs to.
+`useHost().device.size` when their `size` prop is omitted), and a phone panel never passes it: a phone
+panel's width is always the live phone width (see "The width source" below), so this placeholder never
+reaches a pixel.
 
 ## `PanelsAPI.move` is directional (move-by-one), not "move to index"
 
@@ -117,11 +115,62 @@ size against a live resize if it needs to.
 rather than taking a raw target index. A raw index is meaningless across the `panelList`/internal-array
 split (`panelList` only ever lists panels, `collapsible: false` columns like History are never addressable
 targets) and would leak the internal array's own indexing into the public surface. The row's own
-drag-to-reorder gesture (LivePanel.tsx) converts a pointer's cumulative offset into a step count
-(`round(offsetX / slotWidth)`) and calls `move` that many times in the same direction -- the same primitive a
-future keyboard/single-pointer alternative (WCAG 2.5.7) would call once per key press. `collapsible: false`
+drag-to-reorder gesture (LivePanel.tsx) converts a pointer's cumulative offset into a step count and calls
+`move` that many times in the same direction -- the same primitive a future keyboard/single-pointer
+alternative (WCAG 2.5.7) would call once per key press. Panels can differ in width, so the step count is not
+`offset / one slot`: a hop past a neighbour moves the dragged panel by that NEIGHBOUR's span (its width plus
+the gap), so each hop lands half-way across the next neighbour's span (`reorderStepsForOffset`, over the
+neighbour widths the row supplies per slot). With equal widths this is exactly one hop per slot. `collapsible: false`
 panels are excluded from the drag itself through a plain React context LivePanels.tsx provides per slot (a
 resolved view only ever receives `PanelSummary`, which carries no `collapsible` field to check locally).
+
+## `PanelsAPI.setFormFactor`: one panel's own tier, resized in place
+
+`setFormFactor(id, next)` gives ONE panel a new tier. Every other panel keeps its own size; panels to its
+right slide over by the width change. It is a size change, never a park: the panel stays live and mounted,
+its content stays the same DOM node, and nothing is captured or evicted for it. If the wider panel no longer
+fits, the host's ordinary capacity rules park OTHER panels, exactly as a narrower window would, but never the
+one just resized; when it alone cannot fit, it stays live anyway (the row always keeps at least one panel).
+Shrinking it gives the room back, and parked panels return as for a wider window. No-op for an unknown id, a
+permanent column such as History (it always stays phone-sized, like `move`'s own exemption), or a panel
+already at `next`. A parked panel may change tier and stays parked. `create({ formFactor })` opens a panel at
+a tier directly (ignored with `permanent`). The host replaces the panel's `size` with a new object each time;
+the default size object is shared by every panel and never changes.
+
+### The tier table
+
+The host owns one table, `TIER_SIZES` (`panelWindow.ts`); these numbers are tunable, the rest of this section
+is not:
+
+| tier | width | height |
+| --- | --- | --- |
+| phone | the live phone model's width | the live phone model's height |
+| tablet | 768 | `'fill'` |
+| desktop | 1200 | `'fill'` |
+
+`'fill'` is the row's own height: the same box a phone panel's height sits in. So a bigger tier is wider and
+exactly as tall as the row, never taller than the window. 768 is the common tablet-portrait CSS width, the
+smallest width sites treat as "not a phone". 1200 is a common desktop-layout breakpoint. Beside History it
+needs a row about 1640 px wide (a large or full-screen display); in the default 1280 x 900 window a desktop
+panel overflows the row, and stays live by the rule above, clipped at the row's edge.
+
+### The width source
+
+A `'phone'` panel's width is ALWAYS the live phone width -- the model the user picked, `device.size` -- and
+never its stored `size`: that stored value is a placeholder, and reading it would freeze every phone panel at
+390 whatever the model. Only `'tablet'`/`'desktop'` use their stored `size.width`. One host helper
+(`panelWidthOf`) owns this rule, and every width sum reads through it: the row's capacity, `SettingsAPI.fitCount`,
+the row's centring margin and each slot's position. A view follows the same rule: pass `panel.size` to
+`Panel`/`PanelFrame` only for a non-phone tier, and omit it for a phone one so the device size applies.
+
+### How the resize animates
+
+The row's slot (`LivePanelSlot`) owns the enter/exit animation, so the resize lives on an inner box it
+renders around the view, never on the slot itself: Motion's docs warn against `layout` and `exit` on one
+element. That inner box is Motion `layout="size"`, a transform-based resize over the same 0.4 s transition the
+slots slide with; `"size"` because the slot's own `x` already animates position. It is a flex row, so a
+`'fill'` view's percentage height resolves. The row's centring margin glides with the resize even right
+after a window resize, when a window-driven margin change would snap.
 
 ## `params` is opaque and JSON-serializable by construction
 
