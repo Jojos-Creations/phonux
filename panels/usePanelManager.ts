@@ -164,9 +164,10 @@ export function usePanelManager(
   const keptIds = (): ReadonlySet<string> => new Set(keepLiveRef.current.keys());
   /** Tiers resizePanel queued on `seen` that have not reached `panels` yet, so a later action in the same handler can price them. */
   const pendingTiersRef = useRef<{ seen: PanelWindow[] | null; tiers: ReadonlyMap<string, FormFactor> }>({ seen: null, tiers: new Map() });
+  /** `row` (read in this render) with those tiers applied. */
   const withPendingTiers = (row: PanelWindow[]): PanelWindow[] => {
     const { seen, tiers } = pendingTiersRef.current;
-    return seen === row ? [...tiers].reduce((acc, [id, tier]) => setFormFactor(acc, id, tier), row) : row;
+    return seen === panels ? [...tiers].reduce((acc, [id, tier]) => setFormFactor(acc, id, tier), row) : row;
   };
   /** `next`, plus in the same update whatever the reconcile's DROP would park, so no committed row overflows. */
   const settledKeeping = (next: PanelWindow[], keep: readonly string[]): PanelWindow[] => {
@@ -239,7 +240,7 @@ export function usePanelManager(
 
   /**
    * Before a panel is shown -- a new one from PanelsAPI.create(), or usePanelClosing's undo restoring a LIVE
-   * one -- parks whatever is necessary to stay at capacity, in the SAME update that reveals it. `apply` is
+   * one -- parks whatever is necessary to stay at capacity (by count, then by width), in the SAME update that reveals it. `apply` is
    * called once, purely (no side effect), against `panelsNow` to learn the id and array position of whatever
    * it adds/restores; the real commit re-runs it against the LATEST state instead of trusting this snapshot.
    */
@@ -247,15 +248,17 @@ export function usePanelManager(
     const afterInsert = apply(panelsNow);
     const targetId = afterInsert.find((p) => !panelsNow.some((q) => q.id === p.id))?.id;
     if (targetId !== undefined) markKeepLive(targetId);
+    const keep = [...keptIds()];
+    const settledApply = (prev: PanelWindow[]): PanelWindow[] => settledKeeping(apply(prev), keep);
     if (targetId === undefined || capacity === Number.POSITIVE_INFINITY) {
-      setPanels((prev) => apply(prev));
+      setPanels(settledApply);
       return;
     }
     const targetIndex = afterInsert.findIndex((p) => p.id === targetId);
     const liveCollapsibleCountAfter = afterInsert.filter((p) => p.collapsible && p.live).length;
     const overCapacity = Math.max(0, liveCollapsibleCountAfter - capacity);
     if (overCapacity === 0) {
-      setPanels((prev) => apply(prev));
+      setPanels(settledApply);
       return;
     }
     const toPark: string[] = [];
@@ -268,7 +271,7 @@ export function usePanelManager(
       scratch = scratch.map((p) => (p.id === id ? { ...p, live: false } : p));
     }
     if (toPark.length === 0) {
-      setPanels((prev) => apply(prev));
+      setPanels(settledApply);
       return;
     }
     const rightParks = toPark.filter((id) => sideOfLiveRange(afterInsert, id) === 'right');
@@ -283,7 +286,7 @@ export function usePanelManager(
     }
     pushCollapsed(toPark);
     const parkedSet = new Set(toPark);
-    setPanels((current) => apply(current).map((p) => (parkedSet.has(p.id) ? { ...p, live: false } : p)));
+    setPanels((current) => settledKeeping(apply(current).map((p) => (parkedSet.has(p.id) ? { ...p, live: false } : p)), keep));
   };
 
   /**
@@ -294,6 +297,7 @@ export function usePanelManager(
     const target = panels.find((p) => p.id === id);
     if (!target || target.live) return;
     markKeepLive(id);
+    const keep = [...keptIds()];
     // A manual History-row activation enters from the right (or by its own `anchoredEnter`) -- forget any
     // stale anchor-entry OR gesture-enter-side mark this id picked up from an earlier reveal (ids cycle
     // live/parked repeatedly over a session), so a manual click never inherits the direction of its last one.
@@ -305,7 +309,9 @@ export function usePanelManager(
     forgetCollapsed(id);
     const demoted = result.find((p) => !p.live && before.find((prev) => prev.id === p.id)?.live);
     if (!demoted) {
-      setPanels(result);
+      // An updater, not `result`: `result` is built from this render's array and would drop an update queued
+      // earlier in the same handler.
+      setPanels((prev) => settledKeeping(promoteToLive(prev, id, Number.POSITIVE_INFINITY) ?? prev, keep));
       return;
     }
     if (sideOfLiveRange(before, demoted.id) === 'right') markExitRight(demoted.id);
@@ -313,7 +319,7 @@ export function usePanelManager(
     // Applied in two functional updates, in this order: `id` goes live first (no demotion yet -- capacity
     // Infinity guarantees that for this call only), then the panel it displaces is parked.
     setPanels((prev) => promoteToLive(prev, id, Number.POSITIVE_INFINITY) ?? prev);
-    setPanels((current) => current.map((p) => (p.id === demoted.id ? { ...p, live: false } : p)));
+    setPanels((current) => settledKeeping(current.map((p) => (p.id === demoted.id ? { ...p, live: false } : p)), keep));
   };
 
   /** See `UsePanelManagerResult.scrollRow`'s own doc comment. */
@@ -426,6 +432,8 @@ export function usePanelManager(
 
   /** See `UsePanelManagerResult.revealMostRecentlyCollapsed`'s own doc comment for the full contract. */
   const revealMostRecentlyCollapsed = (panelsAfterClose: PanelWindow[]): void => {
+    // Priced like scrollRow: a resize earlier in this handler is not in `panelsAfterClose` yet.
+    const sized = withPendingTiers(panelsAfterClose);
     const stack = collapseOrderRef.current;
     const remaining: string[] = [];
     let candidateId: string | null = null;
@@ -433,7 +441,7 @@ export function usePanelManager(
       const id = stack[i]!;
       const candidate = panelsAfterClose.find((p) => p.id === id);
       if (!candidate || candidate.live) continue; // stale entry (closed, or already live some other way) -- drop it
-      if (candidateId === null && settles(panelsAfterClose.filter((p) => p.collapsible && (p.live || p.id === id)))) candidateId = id;
+      if (candidateId === null && settles(sized.filter((p) => p.collapsible && (p.live || p.id === id)))) candidateId = id;
       else remaining.unshift(id);
     }
     collapseOrderRef.current = remaining;
