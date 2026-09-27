@@ -9,7 +9,7 @@
 import { useEffect, useRef, type Dispatch, type RefObject, type SetStateAction } from 'react';
 import type { CreatePanelOptions, PanelsAPI } from 'phonux';
 import { captureController, type CaptureTrigger } from '../capture/controller.js';
-import { appendPanel, summarisePanel, type PanelWindow } from './panelWindow.js';
+import { appendPanel, reanchorPanel, summarisePanel, type PanelWindow } from './panelWindow.js';
 import { usePanelClosing } from './usePanelClosing.js';
 import { usePanelManager } from './usePanelManager.js';
 import { useRowScrollGesture } from '../row/useRowScrollGesture.js';
@@ -141,6 +141,9 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
     setFormFactor: (id, next) => {
       if (resizePanel(id, next)) i.onPanelResize?.();
     },
+    // No keep-live mark and no settle step: settles() reads only the live set's widths and count, never its
+    // order, so a reorder cannot unsettle a row, and a DROP later in the handler may park this panel as any other.
+    reanchor: (id, anchor) => i.setPanels((prev) => reanchorPanel(prev, id, anchor)),
     close: (id: string) => {
       // Fires on every close() call regardless of whether this id actually leaves the array (an
       // unknown/locked id's close is already a no-op below) -- a harmless extra attempt costs nothing, and
