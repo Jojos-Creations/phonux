@@ -11,9 +11,9 @@
  * README.md for exactly which entries are verbatim from DevExpress/
  * device-specs vs. hand-supplemented for newer devices; keep the two in
  * sync by hand if either changes.
+ * @public
  */
 
-/** @public */
 export interface PhoneModel {
   id: string;
   label: string;

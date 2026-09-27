@@ -166,7 +166,7 @@ export interface PhoneDeviceAPI {
     readonly size: PhoneSize;
 }
 
-// @public (undocumented)
+// @public
 export interface PhoneModel {
     // (undocumented)
     height: number;
