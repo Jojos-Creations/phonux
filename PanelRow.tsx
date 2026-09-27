@@ -44,10 +44,11 @@
  * Both `anchorIndex` and each entry's own row-slot `index` come from the
  * SAME one-list array.
  *
- * Each present entry's slot is wrapped in `PanelCollapsibleContext` (this file's own export,
- * `usePanelReorderEligible`/`usePanelCloseEligible`) so LivePanel.tsx's grab bar knows whether IT is a
- * reorder source, and whether the framework may offer ANY drag-to-close handle at all, without needing a new
- * prop through `resolveView`'s third-party `Component` contract.
+ * Each present entry's slot is wrapped in `PanelSlotContext` (this file's own hooks,
+ * `usePanelReorderEligible`/`usePanelCloseEligible`/`usePanelNeighborWidths`) so LivePanel.tsx's grab bar
+ * knows whether IT is a reorder source, whether the framework may offer ANY drag-to-close handle at all, and
+ * how wide the panels its drag can cross are, without needing a new prop through `resolveView`'s third-party
+ * `Component` contract.
  */
 
 import * as React from 'react';
@@ -56,7 +57,7 @@ import Box from '@mui/material/Box';
 import { resolveView, useHost, useViewState } from 'phonux';
 import { ANCHOR_PANEL_ID, resolveEnterDirection } from './anchorPanel.js';
 import { GAP, LivePanelSlot } from './LivePanelSlot.js';
-import { panelWidthOf, summarisePanel, type PanelWindow } from './panelWindow.js';
+import { panelWidthOf, summarisePanel, type NeighborWidths, type PanelWindow } from './panelWindow.js';
 
 /** A 'raised' slot sits above a 'base' one: a LEFT-exiting park crosses a raised panel's footprint (History, today) on the way out, so this ordering is load-bearing for that path (a close's exit is DOWN and never reaches it). */
 const RAISED_LAYER_Z_INDEX = 2;
@@ -64,6 +65,7 @@ const BASE_LAYER_Z_INDEX = 1;
 
 const EMPTY_SET: ReadonlySet<string> = new Set();
 const EMPTY_MAP: ReadonlyMap<string, 'left' | 'right'> = new Map();
+const NO_NEIGHBORS: NeighborWidths = { left: [], right: [] };
 
 /**
  * Mirrors this entry's own `collapsible` for the two things LivePanel.tsx must decide without ever reading
@@ -73,16 +75,18 @@ const EMPTY_MAP: ReadonlyMap<string, 'left' | 'right'> = new Map();
  * is deliberately distinct from an explicit `false`: each hook below resolves that case to whichever default
  * matches today's pre-`permanent`-columns behavior for its OWN concern, not one shared default.
  */
-const PanelCollapsibleContext = React.createContext<boolean | undefined>(undefined);
+const PanelSlotContext = React.createContext<{ collapsible: boolean; neighborWidths: NeighborWidths } | undefined>(undefined);
 /** True only for a `collapsible` entry (e.g. a plain web panel) -- an always-shown column (History, or a
  * `permanent:true` custom column) is never a reorder source. Unprovided resolves to false: a view mounted
  * with no `LivePanels` above it never reorders. */
-export const usePanelReorderEligible = (): boolean => React.useContext(PanelCollapsibleContext) ?? false;
+export const usePanelReorderEligible = (): boolean => React.useContext(PanelSlotContext)?.collapsible ?? false;
 /** False only for an always-shown column (`collapsible:false`): the built-in 'web' view must never wrap such
  * an entry in a framework close handle (CreatePanelOptions.permanent's 'own control only' guarantee).
  * Unprovided resolves to true, matching every pre-existing test that mounts LivePanel directly for an
  * ordinary (implicitly collapsible) panel. */
-export const usePanelCloseEligible = (): boolean => React.useContext(PanelCollapsibleContext) ?? true;
+export const usePanelCloseEligible = (): boolean => React.useContext(PanelSlotContext)?.collapsible ?? true;
+/** The widths this entry's drag can cross (reorderStepsForOffset's input). Unprovided: none, so no hop. */
+export const usePanelNeighborWidths = (): NeighborWidths => React.useContext(PanelSlotContext)?.neighborWidths ?? NO_NEIGHBORS;
 
 export function LivePanels({
   entries,
@@ -118,6 +122,15 @@ export function LivePanels({
     runningOffset += width + GAP;
   }
   const reservedWidth = Math.max(0, widths.reduce((sum, width) => sum + width + GAP, 0) - GAP);
+  // Nearest first on each side, stopping at an always-shown column: movePanel never swaps past one.
+  const neighborWidthsAt = (index: number): NeighborWidths => {
+    const side = (step: 1 | -1): number[] => {
+      const out: number[] = [];
+      for (let i = index + step; i >= 0 && i < present.length && present[i]!.collapsible; i += step) out.push(widths[i]!);
+      return out;
+    };
+    return { left: side(-1), right: side(1) };
+  };
   const anchorIndex = present.findIndex((p) => p.id === ANCHOR_PANEL_ID);
   return (
     // Always mounted (never conditionally rendered): AnimatePresence must not unmount, or an exiting entry
@@ -137,7 +150,7 @@ export function LivePanels({
         {present.map((p, index) => {
           const Component = resolveView(p.view);
           return (
-            <PanelCollapsibleContext.Provider key={p.id} value={p.collapsible}>
+            <PanelSlotContext.Provider key={p.id} value={{ collapsible: p.collapsible, neighborWidths: neighborWidthsAt(index) }}>
               <LivePanelSlot
                 leftOffset={leftOffsets[index]!}
                 width={widths[index]!}
@@ -154,7 +167,7 @@ export function LivePanels({
                   <Component panel={summarisePanel(p)} />
                 </useViewState.Provider>
               </LivePanelSlot>
-            </PanelCollapsibleContext.Provider>
+            </PanelSlotContext.Provider>
           );
         })}
       </AnimatePresence>
