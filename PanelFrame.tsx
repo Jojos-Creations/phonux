@@ -42,12 +42,9 @@ export const phoneCornerRadiusPx = panelCornerRadiusPx;
 export const PANEL_HEADER_GAP_PX = 24;
 
 /**
- * Keeps content inset the same distance from the border on every side whether or not a
- * scrollbar paints: `scrollbar-gutter: stable` reserves the bar's own strip permanently, so the
- * right padding can be pre-shrunk by that strip's width -- (12 - 8) + 8 = 12px either way.
- * A nested scroller needs its own copy of the `::-webkit-scrollbar` rules below (they style
- * only the element they're set on) or it falls back to Chromium's default-width bar and breaks
- * the arithmetic above.
+ * Keeps content inset the same from the border on every side, scrollbar or not: `scrollbar-gutter: stable`
+ * reserves the bar's strip, so the right padding is pre-shrunk by its width. A nested scroller needs its own
+ * copy of the `::-webkit-scrollbar` rules below, which style only the element they are set on.
  * @public
  */
 export const panelFrameScrollSx = {
@@ -91,12 +88,9 @@ export const panelFrameBareSx = {
 export const phoneFrameBareSx = panelFrameBareSx;
 
 /**
- * Two nested boxes: the OUTER owns border/radius/size and clips to the rounded corner
- * (`overflow: hidden`) with no padding of its own; the INNER owns the padding and is the actual
- * `overflow: auto` scroll container (`flex: 1`, `minHeight: 0`). An overlay-style scrollbar
- * floats over content with its own built-in inset margin that no padding/box-model change on
- * this side can cancel, so `panelFrameScrollSx`'s explicit `::-webkit-scrollbar` rules force a
- * classic scrollbar that reserves real layout width and sits flush against the edge instead.
+ * Two nested boxes: the OUTER owns border, radius and size and clips to the rounded corner; the INNER owns
+ * the padding and is the scroll container. `panelFrameScrollSx` forces a classic scrollbar, because an
+ * overlay one floats over content with an inset no padding can cancel (DESIGN.md).
  * @public
  */
 const PanelFrame = React.forwardRef<HTMLDivElement, PanelFrameProps>(function PanelFrame(
@@ -151,12 +145,10 @@ export interface PanelHeaderProps extends Omit<BoxProps, 'children'> {
 export type PhoneFrameHeaderProps = PanelHeaderProps;
 
 /**
- * A header that floats ABOVE a PanelFrame (`position: absolute; bottom: calc(100% + gap)`)
- * rather than inside it; requires a `position: relative` parent (every caller already has one).
- * The pill is a plain `Box` since `Paper`'s polymorphic `component` typing collides with
- * `Omit<BoxProps, ...>`. Internal layout is NOT baked in (callers differ); pass `sx` for that,
- * layered on top rather than replacing it. Drag wiring and any grab cursor belong on `Panel`'s
- * `grabProps`, never here.
+ * A header that floats ABOVE a PanelFrame (`position: absolute; bottom: calc(100% + gap)`), so its parent must
+ * be `position: relative`. Internal layout is not baked in (callers differ): pass `sx`, layered on top. A plain
+ * `Box`, since `Paper`'s polymorphic `component` typing collides with `Omit<BoxProps, ...>`. Drag wiring and
+ * any grab cursor belong on `Panel`'s `grabProps`, never here.
  * @public
  */
 export function PanelHeader({ children, sx, ...rest }: PanelHeaderProps) {

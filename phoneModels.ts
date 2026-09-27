@@ -1,16 +1,6 @@
 /**
- * phone-size-auto-detection: the Settings dropdown's (and the USB-detect
- * popup's) list of known phone models, each with its own CSS-pixel
- * PhoneFrame size. Pure and unit-testable, same reasoning as this
- * codebase's other neighbors (e.g. ApiKeySection.tsx's keyStatusMessage).
- *
- * Hand-copied from vendor/device-specs/viewport-sizes.json (not imported
- * directly -- that file lives outside client/'s own tsconfig root, and
- * cross-project JSON module resolution isn't worth the build-config
- * complexity for a ~14-entry static list). See that directory's own
- * README.md for exactly which entries are verbatim from DevExpress/
- * device-specs vs. hand-supplemented for newer devices; keep the two in
- * sync by hand if either changes.
+ * A known phone model and its CSS-pixel frame size, as PHONE_MODELS lists them for the Settings dropdown and
+ * the USB-detect prompt.
  * @public
  */
 
@@ -21,7 +11,12 @@ export interface PhoneModel {
   height: number;
 }
 
-/** id 'default' is deliberately NOT in this list -- it means "the app's own built-in default", handled separately (DEFAULT_PHONE_SIZE in phoneSize.ts) so upgrading this app never silently resizes anyone who hasn't chosen a model. @public */
+/**
+ * Hand-copied from vendor/device-specs/viewport-sizes.json, which sits outside client/'s tsconfig root; keep
+ * the two in sync by hand (that directory's README.md says which entries are verbatim). No 'default' entry:
+ * that is DEFAULT_PHONE_SIZE (hostApi.tsx), so upgrading never resizes anyone who has not chosen a model.
+ * @public
+ */
 export const PHONE_MODELS: readonly PhoneModel[] = [
   { id: 'iphone8', label: 'iPhone 8 / SE (2nd/3rd gen) (375 × 667)', width: 375, height: 667 },
   { id: 'iphonex', label: 'iPhone X (375 × 812)', width: 375, height: 812 },
@@ -44,10 +39,8 @@ export function findPhoneModel(id: string): PhoneModel | undefined {
 }
 
 /**
- * A short, friendly noun phrase for a just-detected USB vendor id, used by
- * the one-time connect popup's copy. Deliberately vague past "iPhone" vs.
- * "Android phone" -- plans/records/phone-size-auto-detection.md: exact
- * model can't be determined from a bare USB vendor/product id.
+ * A short, friendly noun phrase for a just-detected USB vendor id, for the connect prompt's copy. Never more
+ * specific than "iPhone" or "Android phone": a bare USB vendor/product id cannot tell the exact model.
  * @public
  */
 export function vendorLabelForUsbVendorId(vendorId: number): string {

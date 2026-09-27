@@ -11,37 +11,16 @@ import { PHONE_MODELS, vendorLabelForUsbVendorId } from './phoneModels.js';
 
 /** @public */
 export interface PhoneDetectPromptProps {
-  /** Non-null exactly once, right after electron/main.ts's wirePhoneUsbDetection first sees a not-yet-asked-about phone-like USB device. */
+  /** Non-null exactly once, right after the host first sees a phone-like USB device it has not asked about. */
   detected: { vendorId: number; productId: number } | null;
   onResize: (modelId: string) => void;
   onDismiss: () => void;
 }
 
 /**
- * phone-size-auto-detection: the one-time notice for mechanism 1 (USB
- * connect). Owner direction, 2026-09-13: a non-blocking TOAST centered in
- * the empty space above the phone row, not a dimmed full-screen popup (the
- * earlier same-day direction that produced this component's original modal
- * shape) -- the picker itself stays inline (same PHONE_MODELS list Settings
- * uses, one click to resize), only the blocking backdrop goes away.
- *
- * Renders just the card itself, un-positioned -- GoalFrontPage's own render
- * wraps it in a `position: absolute` Box, vertically centered in the gap
- * above the phone row (measured live via the row's own `offsetTop`, not a
- * fixed offset -- owner feedback, 2026-09-13: "center it in the top space
- * instead of attaching it" to the row's own edge). No Portal needed (this
- * file's test harness renders via renderToStaticMarkup with no live
- * `document`, which a Portal can't target).
- *
- * phone-detect-toast-visual-polish, 2026-09-14: owner flagged the toast as
- * still merely "fine for now" after the iteration above. This pass replaces
- * the one-off raw-pixel `sx` values (fontSize:13, gap:1.25, px:1.75, py:1.25)
- * with this app's own typography variant (theme.ts's `caption`) and the same
- * round 8px-grid gap/padding ReloadGateNotice below already uses, so the two
- * toasts read as one design family instead of two independently-tuned ones.
- * `borderRadius: 2.5` is unchanged -- it already equals ReloadGateNotice's
- * hardcoded 15px at this theme's 6px shape unit (2.5 * 6), so the two toasts
- * already shared a corner radius even before this pass.
+ * The one-time "phone connected" notice: a non-blocking toast card, not a modal, with the model picker inline
+ * (the PHONE_MODELS list Settings uses; one click resizes). It renders only the card, un-positioned: the host
+ * places it. No Portal, because a static render (renderToStaticMarkup) has no `document` for one to target.
  * @public
  */
 export function PhoneDetectPrompt({ detected, onResize, onDismiss }: PhoneDetectPromptProps) {
