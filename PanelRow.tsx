@@ -81,7 +81,7 @@ function renderedSummary(p: PanelWindow, width: number) {
  * is deliberately distinct from an explicit `false`: each hook below resolves that case to whichever default
  * matches today's pre-`permanent`-columns behavior for its OWN concern, not one shared default.
  */
-const PanelSlotContext = React.createContext<{ collapsible: boolean; neighborWidths: NeighborWidths; maxLiveWidth: number } | undefined>(undefined);
+const PanelSlotContext = React.createContext<{ collapsible: boolean; neighborWidths: NeighborWidths } | undefined>(undefined);
 /** True only for a `collapsible` entry (e.g. a plain web panel) -- an always-shown column (History, or a
  * `permanent:true` custom column) is never a reorder source. Unprovided resolves to false: a view mounted
  * with no `LivePanels` above it never reorders. */
@@ -93,8 +93,6 @@ export const usePanelReorderEligible = (): boolean => React.useContext(PanelSlot
 export const usePanelCloseEligible = (): boolean => React.useContext(PanelSlotContext)?.collapsible ?? true;
 /** The widths this entry's drag can cross (reorderStepsForOffset's input). Unprovided: none, so no hop. */
 export const usePanelNeighborWidths = (): NeighborWidths => React.useContext(PanelSlotContext)?.neighborWidths ?? NO_NEIGHBORS;
-/** The row's cap on a tablet/desktop panel's width (panelWidthOf's `maxLiveWidth`). Unprovided: no cap. */
-export const usePanelMaxLiveWidth = (): number => React.useContext(PanelSlotContext)?.maxLiveWidth ?? Number.POSITIVE_INFINITY;
 
 export function LivePanels({
   entries,
@@ -161,7 +159,7 @@ export function LivePanels({
         {present.map((p, index) => {
           const Component = resolveView(p.view);
           return (
-            <PanelSlotContext.Provider key={p.id} value={{ collapsible: p.collapsible, neighborWidths: neighborWidthsAt(index), maxLiveWidth }}>
+            <PanelSlotContext.Provider key={p.id} value={{ collapsible: p.collapsible, neighborWidths: neighborWidthsAt(index) }}>
               <LivePanelSlot
                 leftOffset={leftOffsets[index]!}
                 width={widths[index]!}
