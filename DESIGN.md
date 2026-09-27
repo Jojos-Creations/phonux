@@ -6,7 +6,7 @@ depend on the app that hosts it.
 
 ## Import boundary
 
-`phoneViewApi.tsx`, and the rest of this folder, import only React, MUI, motion and itself -- never
+`hostApi.tsx`, and the rest of this folder, import only React, MUI, motion and itself -- never
 `localStorage`, the desktop IPC bridge, or any other app-internal module. A view written against these
 contracts must work under ANY host, not just this one.
 
@@ -17,7 +17,7 @@ render-time state (the panel list, the column count), so a memoised bag would ha
 
 ## Testing without a host
 
-`phoneApisFake.ts` lives beside the contracts, not in the app's test folder, specifically so a third-party
+`fakeHost.ts` lives beside the contracts, not in the app's test folder, specifically so a third-party
 view (with no access to the app's own test utilities) can still write a test against these APIs. It records
 every call rather than simulating real behavior, since simulating real behavior would require importing the
 app's own logic -- exactly what this boundary exists to avoid.
@@ -31,7 +31,7 @@ flags that decided whether a panel is in `panelList` at all.
 
 ## The panel-view registry: never a crash, never a silent substitution
 
-`registerView` (renamed from `registerPanelView`)/`resolveView` (renamed from `resolvePanelView`) (`panelRegistry.tsx`) let `PanelWindow.view` be an open string
+`registerView` (renamed from `registerPanelView`)/`resolveView` (renamed from `resolvePanelView`) (`viewRegistry.tsx`) let `PanelWindow.view` be an open string
 instead of a closed union, so a host or a third party can spawn any registered component by name.
 `resolveView` never returns nothing: an unregistered key -- a typo, or a plugin that failed to
 register -- renders a visible, inert placeholder naming the title and the key, rather than throwing (which
@@ -73,8 +73,8 @@ bar at all -- when it reads false, exactly like History's own locked Panel today
 
 ## `size?` is additive: omitted means "read the shared device size, exactly as before this prop existed"
 
-`Panel`/`PanelFrame` (`PhoneView.tsx`/`PhoneFrame.tsx`) each gain an optional `size?: PanelSize`
-(`FormFactor`/`PanelSize`, `phoneViewApi.tsx`, beside `PanelSummary`). A caller that omits it -- every
+`Panel`/`PanelFrame` (`Panel.tsx`/`PanelFrame.tsx`) each gain an optional `size?: PanelSize`
+(`FormFactor`/`PanelSize`, `hostApi.tsx`, beside `PanelSummary`). A caller that omits it -- every
 caller today -- gets exactly what it got before this prop existed: `useHost().device.size`, read live, so it
 still reacts to a phone-size change the same way. This is the whole point of making it optional rather than
 required with a default: a third-party view compiled against an OLDER phonux (one with no `size` prop at
@@ -419,7 +419,7 @@ both would leave every future name ambiguous about which it meant.
 
 ## The header-to-frame gap is one constant, and the grab bar fills exactly it
 
-`PANEL_HEADER_GAP_PX` (`PhoneFrame.tsx`) is the one number both `PanelHeader`'s `bottom` offset and
+`PANEL_HEADER_GAP_PX` (`PanelFrame.tsx`) is the one number both `PanelHeader`'s `bottom` offset and
 `Panel`'s grab-bar element measure themselves against -- the same reason `PANEL_CORNER_RADIUS_UNITS` is a
 named export rather than a literal inlined twice: two independently-tuned numbers drift out of sync the
 moment either changes on its own, and here the drift would show up as a visible seam or overlap between the
@@ -484,10 +484,10 @@ than being forced into a no-op implementation) and `useViewSnapshot(viewId)` (a 
 are the only way a view ever touches a picture. Neither this file nor any view ever decides WHEN a capture
 happens or HOW pixels are produced -- that is a second, independent surface:
 
-`CaptureRegistry`/`CaptureRegistryContext`/`CaptureRegistryProvider` let `Panel` (`PhoneView.tsx`) hand its own
+`CaptureRegistry`/`CaptureRegistryContext`/`CaptureRegistryProvider` let `Panel` (`Panel.tsx`) hand its own
 root DOM node to whatever real registry the host mounts, without that capability ever becoming part of
 `Host`/`SnapshotsAPI`. This is the same pattern `HostProvider` already uses internally for `OverlayProvider`
-(`phoneViewApi.tsx`: `<HostContext.Provider value={host}><OverlayProvider>{children}</OverlayProvider></HostContext.Provider>`)
+(`hostApi.tsx`: `<HostContext.Provider value={host}><OverlayProvider>{children}</OverlayProvider></HostContext.Provider>`)
 -- a second context, mounted alongside the first, for a concern that is not part of the public host bag. A
 view rendered under a bare `<HostProvider>` (the common case in a test) sees no `CaptureRegistryContext`
 provider at all, so `Panel`'s registration effect is a no-op and nothing here ever throws for a missing

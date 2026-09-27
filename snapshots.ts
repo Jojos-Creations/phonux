@@ -39,7 +39,7 @@ const NO_SNAPSHOT = null;
 /** The one hook a view actually uses. Re-renders ONLY the calling component when ITS view's picture changes -- a sibling subscribed to a different viewId never re-renders (SnapshotsAPI.subscribe is keyed per id, not one global listener list). */
 export function useViewSnapshot(viewId: ViewId): ViewSnapshot | null {
   const { snapshots } = useHost();
-  // A host that never wired a real SnapshotsAPI (snapshots is optional on Host -- see phoneViewApi.tsx) shows
+  // A host that never wired a real SnapshotsAPI (snapshots is optional on Host -- see hostApi.tsx) shows
   // no picture, never throws: the same "missing capability degrades gracefully" convention the rest of this
   // folder uses for a missing desktop bridge.
   return React.useSyncExternalStore(

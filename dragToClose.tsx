@@ -24,7 +24,7 @@
  *
  * Keyboard or single-click alternative (WCAG 2.5.7): offer a button that calls the same onClose, as
  * History's trash buttons do. The row's own drag-to-reorder gesture needs a single-pointer alternative too
- * (a `move` API exists, phoneViewApi.tsx's PanelsAPI.move) -- not built here, a disclosed gap.
+ * (a `move` API exists, hostApi.tsx's PanelsAPI.move) -- not built here, a disclosed gap.
  *
  * `reorder` (optional) makes the SAME handle also drag horizontally: both axes stay enabled the whole
  * gesture (`drag={true}`, never toggled -- a ref-driven axis prop never re-renders, so Motion would keep
