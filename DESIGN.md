@@ -213,6 +213,24 @@ the slots slide to their new positions; History, which has no size box, takes th
 panel lands exactly on the new phone size. A window resize that moves the fit cap resizes a capped panel the
 same way.
 
+### The size control, and how a view reads its own tier
+
+The built-in web view's header carries one size control beside its other actions. Each press moves that
+panel one tier along phone -> tablet -> desktop -> phone by calling `setFormFactor(panel.id, next)`, and the
+click does nothing else. All three tiers are offered: the fit cap keeps a desktop panel inside the row at
+every window size, so no tier needs holding back. The control is a plain button with a fixed accessible name,
+"Panel size"; the current tier is its description and its glyph (a phone, a tablet or a desktop screen), so
+focus never lands on a control that renamed itself. It renders only on a collapsible panel: History and a
+permanent column never change tier.
+
+A view reads its own tier from the `panel` prop it is rendered with: `panel.formFactor ?? 'phone'`. The
+field is optional, so a summary without it is a phone panel. `panel.size` is the size the panel is drawn at,
+already within the fit cap; pass it to `Panel`/`PanelFrame` for a non-phone tier and omit it for a phone
+one (see "The width source"). A third-party view can offer its own control the same way, through
+`useHost().panels.setFormFactor(panel.id, next)`; its slot, its neighbours and the row's capacity follow,
+while its content snaps (see above). Keep such a handler to `setFormFactor` alone: a close in the same
+handler can leave panels the resize parked unable to return to the row.
+
 ## `params` is opaque and JSON-serializable by construction
 
 `PanelSummary.params`/`PanelsAPI.create({ params })` carry per-component data the registry and the row never
