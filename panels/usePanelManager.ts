@@ -39,7 +39,8 @@ export interface UsePanelManagerResult {
   forgetCollapsed: (id: string) => void;
   /**
    * Given the panels array immediately AFTER a close, reveals the most recently parked panel that fits
-   * beside the live ones (or none); one that doesn't fit stays on the stack for a later close. Also drops
+   * beside the live ones (the capacity RISE's own settle rule), or none; one that doesn't fit stays on the
+   * stack for a later close. With equal widths the most recent one fits exactly when any does. Also drops
    * any stack entry that no longer points at a parked panel -- the backstop for `clearAll()`, which wipes
    * panels without going through `forgetCollapsed`.
    */
@@ -70,9 +71,10 @@ export interface UsePanelManagerResult {
    */
   scrollRow: (direction: 'left' | 'right') => void;
   /**
-   * Moves `id` one row-slot toward `direction`. Directional move-by-one, not move-to-index: every known
-   * caller only ever needs "closer to" an edge, so this composes into that without exposing raw array
-   * positions across the API boundary. See `movePanel` (panelWindow.ts) for the full no-op contract.
+   * Moves `id` one row-slot toward `direction`. On the public PanelsAPI, not desktop-internal, so a future
+   * edge-relative placement (e.g. next to History) reuses this primitive. Directional move-by-one, not
+   * move-to-index: every known caller only ever needs "closer to" an edge, so this composes into that without
+   * exposing raw array positions across the API boundary. See `movePanel` (panelWindow.ts) for the no-op contract.
    */
   reorderPanel: (id: string, direction: 'left' | 'right') => void;
   /**
@@ -116,8 +118,8 @@ export function usePanelManager(
         ? null
         : fixedColumnCount + computeRowLayout({ containerWidth, phoneWidth, gap: GAP, fixedItemCount: fixedColumnCount, liveWidths }).maxLiveThatFit;
     const effectiveMax = effectiveMaxPanels(storedMaxPanels, fitCount, fixedColumnCount);
-    // Floor of 1 keeps the panel just opened on screen even at the narrowest legal width (bites only
-    // when the fixed columns alone reach or exceed effectiveMax).
+    // Floor of 1 keeps the panel just opened on screen even at the narrowest legal width (effectiveMaxPanels
+    // already floors at fixedColumnCount + 1, so this bites only when the fixed columns alone reach effectiveMax).
     return effectiveMax === Number.POSITIVE_INFINITY ? Number.POSITIVE_INFINITY : Math.max(1, effectiveMax - fixedColumnCount);
   };
   // The same cap every other width reader passes, from the same row inputs.
@@ -360,12 +362,14 @@ export function usePanelManager(
   };
 
   /**
-   * Reconciles the live set against `capacity` whenever either changes -- an effect, since it must act on
-   * a measurement that just changed, not one this render was given. Both branches judge a candidate set by
-   * `settles`, never `capacity` as a count, because WHICH panels park or return decides whether the rest
-   * fits. A DROP parks `fewestParksThatSettle` and exits 'left' (flushSync cannot mark a right exit first
-   * from inside a passive effect). A RISE reveals from the top of `collapseOrderRef`; a candidate that
-   * doesn't settle stays on the stack in case an OLDER, narrower one still has room.
+   * Reconciles the live set against `capacity` whenever either changes (a resize, a phone-size change, the
+   * setting) -- an effect, since it must act on a measurement that just changed, not one this render was
+   * given. Both branches judge a candidate set by `settles`, never `capacity` as a count: `capacity` prices
+   * every not-yet-live slot at `phoneWidth`, so WHICH panels park or return decides whether the rest fits, and
+   * a set that does not settle re-triggers a branch next render. A DROP parks `fewestParksThatSettle` and
+   * exits 'left' (flushSync cannot mark a right exit first from inside a passive effect). A RISE reveals from
+   * the top of `collapseOrderRef`; a candidate that doesn't settle stays on the stack in case an OLDER,
+   * narrower one still has room.
    */
   const committedRef = useRef(panels);
   useEffect(() => {

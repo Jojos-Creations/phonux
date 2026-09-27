@@ -29,8 +29,9 @@ type ExitDirection = 'down' | 'left' | 'right';
 
 /**
  * The pure values behind one LivePanelSlot render, split out so a test can assert exact motion
- * values without mounting a component. `exit` stays entirely local to this function: 'down' needs
- * a second axis and its own transition, neither of which fits directionalTransition's symmetric default.
+ * values without mounting a component. `exit` stays entirely local to this function: 'down' needs a second
+ * axis and its own transition, 'left' a target independent of `leftOffset`; neither fits directionalTransition's
+ * symmetric default.
  */
 export function panelSlotMotion(
   leftOffset: number,
@@ -106,6 +107,7 @@ export function LivePanelSlot({
         top: 0,
         bottom: 0,
         left: 0,
+        // Snaps, never animates: nothing paints the slot's own width (PanelSizeBox animates the visible resize).
         width,
         zIndex: zIndex ?? 0,
       }}
@@ -117,8 +119,9 @@ export function LivePanelSlot({
 
 /**
  * The element a resize animates, on an INNER box, never the slot itself (the slot owns `exit`, and
- * Motion's own docs warn against `layout` and `exit` on one element). `layout="size"` so a position
- * change snaps here since the slot's own `x` already animates it. The view renders it inside its own
+ * Motion's own docs warn against `layout` and `exit` on one element). A layout animation sets the real size
+ * once and animates a transform toward it, so the view never re-lays out mid-resize; `layout="size"` so a
+ * position change snaps here since the slot's own `x` already animates it. The view renders it inside its own
  * slot (LivePanel: under DragToClose), so History, which never resizes, gains no wrapper at all.
  */
 export function PanelSizeBox({ width, height, children }: { width: number; height: number; children: React.ReactNode }) {

@@ -2,7 +2,8 @@
  * The app's implementation of PanelsAPI: the panel list, create/activate/close/undo/clear-all. Wraps
  * usePanelManager UNCHANGED, composes usePanelClosing and owns the row's scroll gesture. Never
  * exposes setPanels, webContentsId or anything else a view has no use for: panelList and
- * recentlyClosed hold PanelSummary objects built here, never the app's own PanelWindow records.
+ * recentlyClosed hold PanelSummary objects built here, never the app's own PanelWindow records
+ * (provide-panels.test.ts's "holds EXACTLY the PanelSummary keys" tests pin their key set).
  */
 
 import { useEffect, useRef, type Dispatch, type RefObject, type SetStateAction } from 'react';
@@ -83,8 +84,8 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
   useRowScrollGesture(i.overflowContainerRef, scrollRow);
 
   // Captures only at fixed moments (a park), never continuously. usePanelManager flips `live` false at
-  // several independent call sites with no single "on park" hook, so diffing the ONE array this hook
-  // already receives finds every transition regardless of which site caused it.
+  // several independent call sites with no single "on park" hook (a per-site capture call would silently miss
+  // any site not touched), so diffing the ONE array this hook receives finds every transition regardless of site.
   const prevLiveRef = useRef<ReadonlyMap<string, boolean>>(new Map());
   useEffect(() => {
     const prev = prevLiveRef.current;
@@ -142,7 +143,8 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
     },
     close: (id: string) => {
       // Fires on every close() call regardless of whether this id actually leaves the array (an
-      // unknown/locked id's close is already a no-op below) -- a harmless extra attempt costs nothing.
+      // unknown/locked id's close is already a no-op below) -- a harmless extra attempt costs nothing, and
+      // gating it exactly would need a second callback into usePanelClosing.ts.
       capture.capture(id);
       closing.close(id);
     },

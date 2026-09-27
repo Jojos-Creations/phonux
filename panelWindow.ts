@@ -66,7 +66,8 @@ export interface PanelWindow {
  * A panel's own width in the row -- the one rule every width reader goes through. A 'phone' panel
  * ALWAYS uses the live `phoneWidth` the caller passes, never its own stored `size` (a placeholder
  * pinned at `DEFAULT_PHONE_SIZE`, which would freeze it at 390 regardless of the real model). Only
- * 'tablet'/'desktop' read their stored size, capped at `maxLiveWidth` so a wide panel always fits.
+ * 'tablet'/'desktop' read their stored size, capped at `maxLiveWidth` (computeMaxLiveWidth for the current
+ * row) so a wide panel always fits beside the fixed columns.
  */
 export function panelWidthOf(p: Pick<PanelWindow, 'formFactor' | 'size'>, phoneWidth: number, maxLiveWidth: number): number {
   return (p.formFactor ?? 'phone') === 'phone' ? phoneWidth : Math.min(p.size?.width ?? phoneWidth, maxLiveWidth);
@@ -121,7 +122,8 @@ function insertPanelAt(panels: PanelWindow[], entry: PanelWindow): PanelWindow[]
  * appended to the END, not next to its source). History is seeded directly, never through this
  * function. `permanent` forces `collapsible:false` and `listed:false` (overriding any `info.listed`
  * passed) since such a column must supply its own close control, never the row's trash; `locked`
- * stays false regardless so that control keeps working with no extra plumbing.
+ * stays false regardless so that control keeps working with no extra plumbing (usePanelClosing.ts gates
+ * only on `locked`).
  */
 export function appendPanel(panels: PanelWindow[], info: { sourceWebContentsId: number; url: string } & AppendPanelOptions, id: string): PanelWindow[] {
   const formFactor = info.permanent ? 'phone' : (info.formFactor ?? 'phone');
@@ -253,7 +255,8 @@ export function closePanel(panels: PanelWindow[], id: string): { remaining: Pane
  * physically between the two present ones simply shifts by one array slot, keeping
  * firstParkedAfter/lastParkedBefore/sideOfLiveRange meaningful afterward. Returns the SAME array
  * reference for every no-op: unknown id, a `collapsible: false` source or neighbor (an always-shown
- * column is never a reorder source or target), a parked panel, or one already at that edge.
+ * column is never a reorder source or target, or a live panel could displace it from its seeded slot),
+ * a parked panel, or one already at that edge.
  */
 export function movePanel(panels: PanelWindow[], id: string, direction: 'left' | 'right'): PanelWindow[] {
   const present = panels.filter((p) => !p.collapsible || p.live);
