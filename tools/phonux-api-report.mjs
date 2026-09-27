@@ -13,16 +13,21 @@
 
 import { execFileSync } from 'node:child_process';
 import { existsSync, readFileSync, rmSync } from 'node:fs';
-import { basename, join, relative } from 'node:path';
+import { join, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const REPO_ROOT = fileURLToPath(new URL('..', import.meta.url));
 const PHONE_DIR = join(REPO_ROOT, 'client/src/shared/phone');
 const TEMP_DIR = join(REPO_ROOT, 'client/api-extractor-temp');
+const DTS_DIR = join(TEMP_DIR, 'dts');
 const REPORT_DIR = join(PHONE_DIR, 'etc');
 const TSC_BIN = join(REPO_ROOT, 'node_modules', '.bin', 'tsc');
 const API_EXTRACTOR_BIN = join(REPO_ROOT, 'node_modules', '.bin', 'api-extractor');
-const CONFIGS = ['api-extractor.json', 'api-extractor.testing.json', 'api-extractor.internal.json'];
+const CONFIG_FOR_EXPORT = {
+  '.': 'api-extractor.json',
+  './testing': 'api-extractor.testing.json',
+  './internal/directionalTransition': 'api-extractor.internal.json',
+};
 
 const LOCAL = process.argv.includes('--local');
 const LABEL = LOCAL ? 'api-report:update' : 'check:api-report';
@@ -45,16 +50,29 @@ function describeConfig(config) {
   return { config, entry, report: `${reportName}.api.md` };
 }
 
-const entries = CONFIGS.map(describeConfig);
+// An exports-map key with no config would never get a report, and the gate would stay green.
+const exportsMap = readJson(join(PHONE_DIR, 'package.json')).exports;
+const unconfigured = Object.keys(exportsMap).filter((key) => !Object.hasOwn(CONFIG_FOR_EXPORT, key));
+if (unconfigured.length > 0) fail(`package.json exports ${unconfigured.join(', ')} with no API Extractor config`);
+const unexported = Object.keys(CONFIG_FOR_EXPORT).filter((key) => !Object.hasOwn(exportsMap, key));
+if (unexported.length > 0) fail(`a config is mapped to ${unexported.join(', ')}, which package.json no longer exports`);
 
-// An exports-map entry with no config would never get a report, and the gate would stay green.
-const exportTargets = Object.values(readJson(join(PHONE_DIR, 'package.json')).exports)
-  .map((source) => basename(source).replace(/\.tsx?$/, '.d.ts'))
-  .sort();
-const configTargets = entries.map((e) => basename(e.entry)).sort();
-if (JSON.stringify(exportTargets) !== JSON.stringify(configTargets)) {
-  fail(`package.json exports map to [${exportTargets.join(', ')}] but the configs read [${configTargets.join(', ')}]`);
-}
+// Per key, not as a set: two configs with transposed entry points cover the same set of files,
+// yet each report would then describe the other entry point's API.
+const entries = Object.entries(CONFIG_FOR_EXPORT).map(([key, config]) => {
+  const described = describeConfig(config);
+  const source = exportsMap[key];
+  if (typeof source !== 'string') fail(`package.json exports["${key}"] must be a plain path, got ${JSON.stringify(source)}`);
+  const expected = join(DTS_DIR, source.replace(/\.tsx?$/, '.d.ts'));
+  const actual = resolve(described.entry);
+  if (actual !== expected) {
+    fail(
+      `exports["${key}"] is ${source}, so ${config} must read ${relative(REPO_ROOT, expected)}, ` +
+        `but its mainEntryPointFilePath reads ${relative(REPO_ROOT, actual)}`,
+    );
+  }
+  return described;
+});
 
 // Deleted first: a stale declaration or temp report would look identical to one this run produced.
 rmSync(TEMP_DIR, { recursive: true, force: true });
