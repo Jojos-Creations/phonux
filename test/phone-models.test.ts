@@ -1,6 +1,4 @@
-/**
- * client/src/shared/phone/phoneModels.ts's pure lookup/labeling helpers.
- */
+/** shared/phone/phoneModels.ts's pure lookup and labeling helpers. */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { findPhoneModel, PHONE_MODELS, vendorLabelForUsbVendorId } from 'phonux';

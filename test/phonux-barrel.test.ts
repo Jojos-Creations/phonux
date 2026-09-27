@@ -1,10 +1,6 @@
 /**
- * The phonux barrel (client/src/shared/phone/index.ts): its runtime export surface. Types are erased by
- * TypeScript before this module ever runs, so Object.keys() on the imported namespace can only ever see
- * the 45 value exports (24 old names, kept as @deprecated same-value aliases, 20 new ones, plus the
- * opt-in createDefaultTheme); the type exports are not checked here. The list here is spelled out
- * literally, never derived from the module or from index.ts, so a name silently added, removed or
- * renamed on either side makes this test red.
+ * The runtime surface of the phonux barrel (shared/phone/index.ts): types are erased, so Object.keys() sees
+ * only value exports. The list is spelled out, never derived, so a name added, removed or renamed turns it red.
  */
 
 import { test } from 'node:test';
