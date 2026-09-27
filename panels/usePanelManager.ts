@@ -111,21 +111,25 @@ export function usePanelManager(
   /** How many always-rendered, non-webview columns the row currently has (`count(!collapsible)` over the one panel list, via useAppApis). */
   fixedColumnCount: number,
 ): UsePanelManagerResult {
-  // Each LIVE collapsible panel's own width, in row order -- panelWidthOf is the one place that knows a
-  // 'phone' panel means the LIVE phoneWidth, never its placeholder stored size, so a 'tablet'/'desktop' panel
-  // already on screen lowers the ceiling below by exactly its own extra width.
-  const liveWidths = panels.filter((p) => p.collapsible && p.live).map((p) => panelWidthOf(p, phoneWidth));
-  // `containerWidth === 0` means unmeasured (the first commit, and every jsdom test that never calls
-  // measure()): null means no cap and no reconcile, never "zero panels fit".
-  const fitCount =
-    containerWidth === 0
-      ? null
-      : fixedColumnCount + computeRowLayout({ containerWidth, phoneWidth, gap: GAP, fixedItemCount: fixedColumnCount, liveWidths }).maxLiveThatFit;
-  const effectiveMax = effectiveMaxPanels(storedMaxPanels, fitCount, fixedColumnCount);
-  // The owner's floor of 1 keeps the panel just opened on screen even at the narrowest legal width
-  // (effectiveMaxPanels already floors itself at fixedColumnCount + 1, so this only ever bites when the
-  // fixed columns alone reach or exceed effectiveMax).
-  const capacity = effectiveMax === Number.POSITIVE_INFINITY ? Number.POSITIVE_INFINITY : Math.max(1, effectiveMax - fixedColumnCount);
+  /** The live-collapsible ceiling for a row whose live set has these widths (row order). */
+  const capacityFor = (liveWidths: readonly number[]): number => {
+    // `containerWidth === 0` means unmeasured (the first commit, and every jsdom test that never calls
+    // measure()): null means no cap and no reconcile, never "zero panels fit".
+    const fitCount =
+      containerWidth === 0
+        ? null
+        : fixedColumnCount + computeRowLayout({ containerWidth, phoneWidth, gap: GAP, fixedItemCount: fixedColumnCount, liveWidths }).maxLiveThatFit;
+    const effectiveMax = effectiveMaxPanels(storedMaxPanels, fitCount, fixedColumnCount);
+    // The owner's floor of 1 keeps the panel just opened on screen even at the narrowest legal width
+    // (effectiveMaxPanels already floors itself at fixedColumnCount + 1, so this only ever bites when the
+    // fixed columns alone reach or exceed effectiveMax).
+    return effectiveMax === Number.POSITIVE_INFINITY ? Number.POSITIVE_INFINITY : Math.max(1, effectiveMax - fixedColumnCount);
+  };
+  // panelWidthOf prices a 'phone' panel at the LIVE phoneWidth, never its placeholder stored size.
+  const widthOf = (p: PanelWindow): number => panelWidthOf(p, phoneWidth);
+  /** Whether `set` (live collapsible panels, row order) can stay live as it is: the one test both reconcile branches settle against. */
+  const settles = (set: readonly PanelWindow[]): boolean => set.length <= capacityFor(set.map(widthOf));
+  const capacity = capacityFor(panels.filter((p) => p.collapsible && p.live).map(widthOf));
 
   /**
    * The ids of currently-parked panels, in the order they were parked (oldest push first, most recent push
@@ -303,38 +307,27 @@ export function usePanelManager(
   };
 
   /**
-   * Reconciles the live count against `capacity` whenever either changes (a resize, a phone-size change, or
+   * Reconciles the live set against `capacity` whenever either changes (a resize, a phone-size change, or
    * the setting itself) -- an effect, not something a render can decide, since it must act on a measurement
-   * that just changed rather than one this render was given. A DROP parks the excess strictly from the LEFT
-   * (`leftmostLiveIndex`, repeatedly): a right-exit mark cannot be committed first from inside an effect
-   * (flushSync cannot flush inside a passive effect), so every park here reads the default 'left'. A RISE
-   * reveals from the top of `collapseOrderRef`, most-recently-parked first, entering from whichever side
-   * `sideOfLiveRange` says it sits on -- but ONLY a candidate whose OWN width, added to whatever is already
-   * confirmed live, still fits: `capacity` above extrapolates every not-yet-live slot at `phoneWidth`, so
-   * trusting it as a scalar "room" count would revive a wider panel it never priced in, which would not
-   * actually fit -- re-triggering the DROP branch on that exact panel next render, forever (proven for a
-   * wide panel leftmost among phones: capacity reads 5 with it parked, 3 with it live, an unbroken cycle).
-   * A candidate that fails the check is left on the stack (not discarded) in case an OLDER, narrower one
-   * still has room.
+   * that just changed rather than one this render was given. Both branches judge a candidate live set by
+   * `settles`, never by `capacity` as a count: `capacity` prices every not-yet-live slot at `phoneWidth`, so
+   * WHICH panels park or return decides whether the rest fits, and a set that does not settle re-triggers a
+   * branch next render. A DROP parks `fewestParksThatSettle`; every park here reads the default 'left' exit,
+   * since flushSync cannot commit a right-exit mark first from inside a passive effect. A RISE reveals from
+   * the top of `collapseOrderRef`, most-recently-parked first, entering from whichever side
+   * `sideOfLiveRange` says it sits on; a candidate that does not settle stays on the stack in case an OLDER,
+   * narrower one still has room.
    */
   useEffect(() => {
     if (capacity === Number.POSITIVE_INFINITY) return;
-    const liveCollapsibleCount = panels.filter((p) => p.collapsible && p.live).length;
-    if (liveCollapsibleCount > capacity) {
-      const toPark: string[] = [];
-      let scratch = panels;
-      for (let i = liveCollapsibleCount - capacity; i > 0; i--) {
-        const idx = leftmostLiveIndex(scratch);
-        if (idx < 0) break;
-        const id = scratch[idx]!.id;
-        toPark.push(id);
-        scratch = scratch.map((p, j) => (j === idx ? { ...p, live: false } : p));
-      }
+    const live = panels.filter((p) => p.collapsible && p.live);
+    if (live.length > capacity) {
+      const toPark = fewestParksThatSettle(live, widthOf, settles);
       if (toPark.length === 0) return;
       pushCollapsed(toPark);
       const parkedSet = new Set(toPark);
       setPanels((current) => current.map((p) => (parkedSet.has(p.id) ? { ...p, live: false } : p)));
-    } else if (liveCollapsibleCount < capacity && collapseOrderRef.current.length > 0) {
+    } else if (live.length < capacity && collapseOrderRef.current.length > 0) {
       const stack = collapseOrderRef.current;
       const revealed = new Set<string>();
       const remaining: string[] = [];
@@ -342,15 +335,7 @@ export function usePanelManager(
         const id = stack[i]!;
         const candidate = panels.find((p) => p.id === id);
         if (!candidate || candidate.live) continue; // stale entry (closed, or already live some other way) -- drop it
-        // The row-order widths of every panel already confirmed live PLUS this candidate -- the only
-        // question that matters is whether THIS SET fits, never a count against the optimistic `capacity`.
-        const hypotheticalWidths = panels
-          .filter((p) => p.collapsible && (p.live || revealed.has(p.id) || p.id === id))
-          .map((p) => panelWidthOf(p, phoneWidth));
-        const fits =
-          computeRowLayout({ containerWidth, phoneWidth, gap: GAP, fixedItemCount: fixedColumnCount, liveWidths: hypotheticalWidths })
-            .maxLiveThatFit >= hypotheticalWidths.length;
-        if (fits) revealed.add(id);
+        if (settles(panels.filter((p) => p.collapsible && (p.live || revealed.has(p.id) || p.id === id)))) revealed.add(id);
         else remaining.unshift(id);
       }
       if (revealed.size === 0) return;
@@ -404,4 +389,34 @@ export function usePanelManager(
     enterSideById: enterSideRef.current,
     exitRightIds,
   };
+}
+
+/**
+ * The ids (row order) to park so the live panels left settle: as FEW as possible, and among equally few the
+ * LEFTMOST -- so a row of equal widths parks exactly its leftmost excess, and a wide panel parks alone when
+ * that is what leaves the most panels live.
+ */
+function fewestParksThatSettle(
+  live: readonly PanelWindow[],
+  widthOf: (p: PanelWindow) => number,
+  settles: (set: readonly PanelWindow[]) => boolean,
+): string[] {
+  // Whether a set settles depends only on its size and its width sum, so the k narrowest panels are the
+  // cheapest k to keep: if they do not settle, no k do.
+  const narrowestFirst = (set: readonly PanelWindow[]): PanelWindow[] => [...set].sort((a, b) => widthOf(a) - widthOf(b));
+  const inRowOrder = (set: readonly PanelWindow[]): PanelWindow[] => live.filter((p) => set.includes(p));
+  let keep = live.length;
+  while (keep > 1 && !settles(inRowOrder(narrowestFirst(live).slice(0, keep)))) keep--;
+  const kept: PanelWindow[] = [];
+  const toPark: string[] = [];
+  live.forEach((p, i) => {
+    const stillToKeep = keep - kept.length;
+    const rest = live.slice(i + 1);
+    // Park `p` only if what is left to its right can still complete a set that settles.
+    const canPark =
+      toPark.length < live.length - keep && rest.length >= stillToKeep && settles(inRowOrder([...kept, ...narrowestFirst(rest).slice(0, stillToKeep)]));
+    if (canPark) toPark.push(p.id);
+    else kept.push(p);
+  });
+  return toPark;
 }
