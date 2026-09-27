@@ -13,7 +13,7 @@ import { test, mock } from 'node:test';
 import assert from 'node:assert/strict';
 import { createElement, StrictMode, type ReactNode } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
-import { OverlayProvider, OverlaySlot, OverlayStore, WindowOverlay } from '../client/src/shared/phone/windowOverlay.js';
+import { OverlayProvider, OverlaySlot, OverlayStore, WindowOverlay } from 'phonux';
 
 const count = (haystack: string, needle: string): number => haystack.split(needle).length - 1;
 const marker = (name: string) => createElement('i', { 'data-ov': name });

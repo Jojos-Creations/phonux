@@ -3,7 +3,7 @@
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { findPhoneModel, PHONE_MODELS, vendorLabelForUsbVendorId } from '../client/src/shared/phone/phoneModels.js';
+import { findPhoneModel, PHONE_MODELS, vendorLabelForUsbVendorId } from 'phonux';
 
 test('PHONE_MODELS is a real, non-trivial curated list', () => {
   assert.ok(PHONE_MODELS.length >= 10);

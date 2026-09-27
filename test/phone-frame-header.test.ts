@@ -23,7 +23,7 @@ import assert from 'node:assert/strict';
 import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { JSDOM } from 'jsdom';
-import { PanelHeaderRow } from '../client/src/shared/phone/PhoneFrame.js';
+import { PanelHeaderRow } from 'phonux';
 
 function renderDom(el: ReturnType<typeof createElement>): Document {
   const markup = renderToStaticMarkup(el);
