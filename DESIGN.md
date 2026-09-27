@@ -616,9 +616,10 @@ file-size ratchet or the phone-boundary scan.
 `./internal/directionalTransition` is tracked and tagged `@internal`, not excluded: `LivePanelSlot.tsx` and
 `HistoryRowSlot.tsx` import it, so it is a real entry point whose changes deserve the same diff. API Extractor
 wants every `@internal` name to start with an underscore, but these names are already imported under their
-current spelling, so `ae-internal-missing-underscore` is switched off in `api-extractor.json` and in
-`api-extractor.internal.json` instead of renaming them. The switch covers a whole config, not one name, so a
-future `@internal` export without an underscore passes silently too.
+current spelling, so `ae-internal-missing-underscore` is switched off in `api-extractor.internal.json` only,
+instead of renaming them. The switch covers that whole config, not one name, so a future `@internal` export
+without an underscore passes silently there too. `.` and `./testing` still enforce the rule: nothing they
+reach is `@internal`, and an underscore-less `@internal` tag on one of their exports fails the check.
 
 Every declaration an entry point reaches carries exactly one release tag in its own doc comment: `@public`
 for `.` and `./testing`, `@internal` for `./internal/directionalTransition`. A deprecated alias keeps
