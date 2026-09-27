@@ -1,8 +1,8 @@
 /**
  * Compile-only proof that `ReleaseMeasure`, the parameter type of the exported `shouldCloseOnRelease`, is itself
  * exported from the barrel. Never imported by anything; `tsc -p client --noEmit` type-checks it as a root file.
- * Dropping `ReleaseMeasure` from index.ts or PhoneView.tsx fails this file with TS2305; a drift between it and
- * the rule's parameter fails the `Same` check.
+ * Dropping `ReleaseMeasure` from the barrel's export list fails this file with TS2305; a drift from
+ * the rule's parameter type fails the `Same` check.
  */
 import { shouldCloseOnRelease, type ReleaseMeasure } from './index.js';
 
