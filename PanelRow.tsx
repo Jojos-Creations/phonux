@@ -9,7 +9,7 @@ import * as React from 'react';
 import { AnimatePresence } from 'motion/react';
 import Box from '@mui/material/Box';
 import { resolveView, useHost, useViewState } from 'phonux';
-import { ANCHOR_PANEL_ID, resolveEnterDirection } from './anchorPanel.js';
+import { anchorTargetOf, resolveEnterDirection } from './anchorPanel.js';
 import { GAP, LivePanelSlot } from './LivePanelSlot.js';
 import { panelWidthOf, summarisePanel, type NeighborWidths, type PanelWindow } from './panelWindow.js';
 
@@ -105,8 +105,8 @@ export function LivePanels({
     };
     return { left: side(-1), right: side(1) };
   };
-  // anchorIndex and each entry's own slot `index` below come from the SAME array.
-  const anchorIndex = present.findIndex((p) => p.id === ANCHOR_PANEL_ID);
+  // Per panel, and searched in `present`: each slot's own `index` below counts in that same array.
+  const anchorIndexOf = (p: PanelWindow): number => present.findIndex((x) => x.id === anchorTargetOf(p));
   return (
     // Always mounted (never conditionally rendered): AnimatePresence must not unmount, or an exiting entry
     // has nothing to animate inside, and `initial={false}` needs to see whatever is present at ITS OWN
@@ -130,7 +130,7 @@ export function LivePanels({
                 leftOffset={leftOffsets[index]!}
                 width={widths[index]!}
                 phoneHeight={phoneHeight}
-                enterDirection={enterSideById.get(p.id) ?? ((p.anchoredEnter ?? false) || enteringViaAnchorIds.has(p.id) ? resolveEnterDirection(anchorIndex, index) : 'right')}
+                enterDirection={enterSideById.get(p.id) ?? ((p.anchoredEnter ?? false) || enteringViaAnchorIds.has(p.id) ? resolveEnterDirection(anchorIndexOf(p), index) : 'right')}
                 exitDirection={closingIds.has(p.id) ? 'down' : exitRightIds.has(p.id) ? 'right' : 'left'}
                 zIndex={(p.layer ?? 'base') === 'raised' ? RAISED_LAYER_Z_INDEX : BASE_LAYER_Z_INDEX}
               >

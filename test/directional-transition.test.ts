@@ -7,8 +7,8 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { SLOT_TRANSITION, directionalTransition } from '../client/src/shared/phone/directionalTransition.js';
 import { GAP, PANEL_TRANSITION, panelSlotMotion } from '../client/src/desktop/panels/LivePanelSlot.js';
-import { ANCHOR_PANEL_ID, resolveEnterDirection } from '../client/src/desktop/panels/anchorPanel.js';
-import { HISTORY_PANEL_ID } from '../client/src/desktop/panels/panelWindow.js';
+import { anchorTargetOf, resolveEnterDirection } from '../client/src/desktop/panels/anchorPanel.js';
+import { createHistoryPanel, HISTORY_PANEL_ID } from '../client/src/desktop/panels/panelWindow.js';
 import { DRAG_CLOSE } from '../client/src/shared/phone/dragToClose.js';
 
 test('SLOT_TRANSITION is the tuned duration/easing (0.4s, the [0.2,0,0,1] cubic-bezier), and PANEL_TRANSITION is the SAME object, not a copy', () => {
@@ -117,23 +117,23 @@ test('panelSlotMotion: enterDirection flips ONLY initial\'s sign relative to res
 });
 
 // ---------------------------------------------------------------------------
-// anchorPanel.ts's resolveEnterDirection, the "computed, not hardcoded" formula
-// (anchorIndex < ownIndex ? 'left' : 'right'). Proven generically over arbitrary row-slot indices, not just
-// the ONE degenerate case (History comparing
-// against itself) production currently calls it with -- this is what makes the "computed, not hardcoded"
-// property real rather than merely asserted in prose.
+// anchorPanel.ts: each panel's own anchor target, and resolveEnterDirection's formula
+// (anchorIndex < ownIndex ? 'left' : 'right') over arbitrary row-slot indices.
 // ---------------------------------------------------------------------------
 
-test('resolveEnterDirection: ANCHOR_PANEL_ID really is HISTORY_PANEL_ID today (the owner\'s own default)', () => {
-  assert.equal(ANCHOR_PANEL_ID, HISTORY_PANEL_ID);
+test('anchorTargetOf: a panel with no anchor (History itself, or a record built without one) targets HISTORY_PANEL_ID; an explicit anchor targets its own panel -- red if the default is not History or a per-panel target is ignored', () => {
+  assert.equal(anchorTargetOf(createHistoryPanel()), HISTORY_PANEL_ID, 'History carries no anchor and resolves against itself');
+  assert.equal(anchorTargetOf({}), HISTORY_PANEL_ID, 'no anchor: the default target');
+  assert.equal(anchorTargetOf({ anchor: { panel: HISTORY_PANEL_ID, position: 'left', priority: 0 } }), HISTORY_PANEL_ID);
+  assert.equal(anchorTargetOf({ anchor: { panel: 'b', position: 'left', priority: 0 } }), 'b', 'an anchor naming another panel targets that panel, not History');
 });
 
-test('resolveEnterDirection: the anchor sitting BEFORE the panel (a lower row-slot index) resolves LEFT -- the live-panel reveal/undo case (History is always to a live panel\'s left)', () => {
+test('resolveEnterDirection: the anchor sitting BEFORE the panel (a lower row-slot index) resolves LEFT -- a panel right of its anchor', () => {
   assert.equal(resolveEnterDirection(0, 1), 'left', 'anchor at slot 0 (e.g. History alone), panel at slot 1 (the first live panel)');
   assert.equal(resolveEnterDirection(1, 3), 'left', 'anchor at slot 1 (History, with Settings at slot 0), panel at slot 3 (a later live panel)');
 });
 
-test('resolveEnterDirection: the anchor sitting AT OR AFTER the panel (equal or higher row-slot index) resolves RIGHT -- a fixed column comparing against itself, or a hypothetical panel to the anchor\'s own left', () => {
+test('resolveEnterDirection: the anchor sitting AT OR AFTER the panel (equal or higher row-slot index) resolves RIGHT -- a fixed column comparing against itself, or a panel to the anchor\'s own left', () => {
   assert.equal(resolveEnterDirection(0, 0), 'right', 'History compared against itself (FixedColumns.tsx\'s own call, anchorIndex === ownIndex): equal is not less-than');
   assert.equal(resolveEnterDirection(1, 0), 'right', "a hypothetical panel at slot 0 with the anchor at slot 1 (Settings' own position relative to History, before Settings left fixedColumns)");
   assert.equal(resolveEnterDirection(5, 2), 'right', 'a higher anchor index than the panel\'s own, however far apart');
