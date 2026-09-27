@@ -24,7 +24,7 @@ export interface ViewSnapshot {
   readonly stale: boolean;
 }
 
-/** Read-only, and STABLE across renders unlike the rest of Host: rebuilt every render, it would re-render every view on every snapshot. */
+/** Read-only, and STABLE across renders unlike the rest of Host: a field rebuilt per render would re-render every view on each snapshot, not just the one showing it. */
 export interface SnapshotsAPI {
   get(viewId: ViewId): ViewSnapshot | null;
   /** For useSyncExternalStore. */
