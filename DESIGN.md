@@ -129,8 +129,9 @@ resolved view only ever receives `PanelSummary`, which carries no `collapsible` 
 `setFormFactor(id, next)` gives ONE panel a new tier. Every other panel keeps its own size; panels to its
 right slide over by the width change. It is a size change, never a park: the panel stays live and mounted,
 its content stays the same DOM node, and nothing is captured or evicted for it. If the wider panel no longer
-fits, the host's ordinary capacity rules park OTHER panels, exactly as a narrower window would, but never the
-one just resized; when it alone cannot fit, it stays live anyway (the row always keeps at least one panel).
+fits, OTHER panels park by the host's ordinary capacity rule (as few as a narrower window would park), never
+the one just resized, and in the same update, so no frame shows the row overflowing; when it alone cannot
+fit, it stays live anyway (the row always keeps at least one panel).
 Shrinking it gives the room back, and parked panels return as for a wider window. No-op for an unknown id, a
 permanent column such as History (it always stays phone-sized, like `move`'s own exemption), or a panel
 already at `next`. A parked panel may change tier and stays parked. `create({ formFactor })` opens a panel at
@@ -139,7 +140,7 @@ the default size object is shared by every panel and never changes.
 
 Several calls in one handler (resizes, `create`, `activate`) each keep their own panel live the same way.
 When they cannot all fit together, the earlier calls keep their room and a later panel parks, as it would had
-it come second.
+it come second. A row gesture or a close later in the same handler prices the resize at its new width.
 
 ### The tier table
 

@@ -240,9 +240,10 @@ export function usePanelManager(
 
   /**
    * Before a panel is shown -- a new one from PanelsAPI.create(), or usePanelClosing's undo restoring a LIVE
-   * one -- parks whatever is necessary to stay at capacity (by count, then by width), in the SAME update that reveals it. `apply` is
-   * called once, purely (no side effect), against `panelsNow` to learn the id and array position of whatever
-   * it adds/restores; the real commit re-runs it against the LATEST state instead of trusting this snapshot.
+   * one -- parks whatever is necessary to stay at capacity (by count, then by width), in the SAME update that
+   * reveals it. `apply` is called once, purely (no side effect), against `panelsNow` to learn the id and array
+   * position of whatever it adds/restores; the real commit re-runs it against the LATEST state instead of
+   * trusting this snapshot.
    */
   const revealPanelProactively = (panelsNow: PanelWindow[], apply: (prev: PanelWindow[]) => PanelWindow[]): void => {
     const afterInsert = apply(panelsNow);
@@ -388,7 +389,7 @@ export function usePanelManager(
    */
   const committedRef = useRef(panels);
   useEffect(() => {
-    // resizePanel parks inside its state update, where no call-time code sees which panels it chose: the
+    // `settledKeeping` parks inside a state update, where no call-time code sees which panels it chose: the
     // stack learns of any park not already on it from the commit itself.
     const before = committedRef.current;
     committedRef.current = panels;
