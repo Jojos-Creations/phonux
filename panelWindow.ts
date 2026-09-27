@@ -114,7 +114,7 @@ export interface AppendPanelOptions {
   anchor?: { panel?: string; position: 'left' | 'right'; priority?: number };
   layer?: 'base' | 'raised';
   anchoredEnter?: boolean;
-  /** See `CreatePanelOptions.permanent` (phoneViewApi.tsx) for the full contract; `appendPanel` is what enforces it. */
+  /** See `CreatePanelOptions.permanent` (hostApi.tsx) for the full contract; `appendPanel` is what enforces it. */
   permanent?: boolean;
   /** The new panel's tier. Ignored for a permanent column, which is always 'phone'. Default 'phone'. */
   formFactor?: FormFactor;

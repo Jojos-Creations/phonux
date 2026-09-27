@@ -50,7 +50,7 @@ export interface PanelsInput {
 /**
  * PanelsAPI plus the desktop-only exit/enter animation plumbing (LivePanels.tsx's own inputs), kept OFF
  * PanelsAPI on purpose: that interface is the narrow surface a third-party view is written against
- * (phoneViewApi.tsx's own header comment). Still structurally a PanelsAPI, so every existing caller that
+ * (hostApi.tsx's own header comment). Still structurally a PanelsAPI, so every existing caller that
  * only wants that narrower type keeps working unchanged.
  */
 export interface ProvidedPanels extends PanelsAPI {

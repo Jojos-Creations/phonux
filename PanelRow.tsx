@@ -29,7 +29,7 @@ function renderedSummary(p: PanelWindow, width: number) {
 
 /**
  * Per-slot facts LivePanel.tsx cannot read itself: a resolved view only receives `PanelSummary`, which has no
- * `collapsible` or `anchor`, on purpose (phoneViewApi.tsx). No provider above (a view mounted directly, as in
+ * `collapsible` or `anchor`, on purpose (hostApi.tsx). No provider above (a view mounted directly, as in
  * tests) is `undefined`, deliberately not `false`: each hook below resolves that case to its OWN default.
  */
 const PanelSlotContext = React.createContext<{ collapsible: boolean; neighborWidths: NeighborWidths; pinned: boolean } | undefined>(undefined);
