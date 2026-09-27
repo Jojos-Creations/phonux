@@ -1,19 +1,9 @@
 /**
- * The shared shell every column in the row renders through -- Settings,
- * History, and each live panel (client/src/desktop/settings/SettingsView.tsx,
- * client/src/desktop/history/HistoryColumn.tsx, client/src/desktop/panels/
- * LivePanel.tsx) all build their own content, then hand it to Panel for
- * the part that was drifting between them: the `position: relative` +
- * `width: phoneWidth` wrapper box, and PanelHeaderRow's floating title
- * pill above it.
- *
- * This is deliberately a SHELL, not a content container -- it does not
- * render PanelFrame itself (PhoneFrame.tsx's own header comment already
- * covers the shared "phone shape" -- rounded card, fixed size, scrollbar
- * treatment). A caller's `children` is expected to already be one or more
- * PanelFrame elements (or whatever else that view needs at that width), the
- * same way it is today. Splitting it this way means a view's own PanelFrame
- * usage needed no changes at all to move under Panel.
+ * The shared shell every column in the row renders through -- Settings, History and each live
+ * panel build their own content, then hand it to Panel for the `position: relative` +
+ * `width: phoneWidth` wrapper box and PanelHeaderRow's floating title pill above it. Deliberately
+ * a SHELL, not a content container: it does not render PanelFrame itself, so a caller's `children`
+ * (already one or more PanelFrame elements) needs no change to move under Panel.
  */
 
 import * as React from 'react';
