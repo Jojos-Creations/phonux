@@ -341,7 +341,7 @@ export function usePanelManager(
   /** See `UsePanelManagerResult.resizePanel`'s own doc comment. */
   const resizePanel = (id: string, next: FormFactor): boolean => {
     if (setFormFactor(panels, id, next) === panels) return false;
-    const wasLive = panels.find((p) => p.id === id)!.live;
+    const wasLive = panels.find((p) => p.id === id)?.live === true;
     markKeepLive(id);
     if (wasLive) purgeExitRight(id);
     setPanels((prev) => {
@@ -368,6 +368,8 @@ export function usePanelManager(
   useEffect(() => {
     const keepIds: string[] = [];
     const waiting = new Map<string, PanelWindow[]>();
+    // A mark still on the array its action read waits for that action to land. Inside flushOwn every mark
+    // outlives this reconcile: the rest of its handler has not landed yet.
     for (const [id, seen] of keepLiveRef.current) {
       if (seen !== panels) keepIds.push(id);
       if (seen === panels || flushingRef.current > 0) waiting.set(id, seen);
