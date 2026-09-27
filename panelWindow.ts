@@ -9,7 +9,18 @@ import { DEFAULT_PHONE_SIZE, type FormFactor, type JsonValue, type PanelSize, ty
  * live size, so this file's helpers stay pure (no device-state argument); derived from DEFAULT_PHONE_SIZE so
  * the two cannot drift. See DESIGN.md, "Where `PanelWindow`'s own default size comes from".
  */
-const DEFAULT_PANEL_SIZE: PanelSize = { formFactor: 'phone', width: DEFAULT_PHONE_SIZE.width, height: DEFAULT_PHONE_SIZE.height };
+const DEFAULT_PANEL_SIZE: PanelSize = Object.freeze({ formFactor: 'phone', width: DEFAULT_PHONE_SIZE.width, height: DEFAULT_PHONE_SIZE.height });
+
+/**
+ * Each tier's own size, the one table setFormFactor and appendPanel copy from (see DESIGN.md, "The tier
+ * table"). The 'phone' entry is only a placeholder: a phone panel renders at the live phone model size.
+ * 'fill' is the row's own height. Frozen because every panel starts out referencing these same objects.
+ */
+export const TIER_SIZES: Readonly<Record<FormFactor, PanelSize>> = Object.freeze({
+  phone: DEFAULT_PANEL_SIZE,
+  tablet: Object.freeze({ formFactor: 'tablet', width: 768, height: 'fill' }),
+  desktop: Object.freeze({ formFactor: 'desktop', width: 1200, height: 'fill' }),
+});
 
 /**
  * One browsing panel in the unified row. Every panel is parked and revived by the same capacity rules
@@ -50,7 +61,7 @@ export interface PanelWindow {
   anchoredEnter?: boolean;
   /** This panel's own visual tier; createHistoryPanel/appendPanel always set it. Optional so a record built by hand without it still typechecks. */
   formFactor?: FormFactor;
-  /** This panel's own rendered size; no renderer reads it yet. Optional for the same reason as `formFactor`. */
+  /** This panel's own rendered size (LivePanel passes it to Panel/PanelFrame for a non-phone tier). Optional for the same reason as `formFactor`. */
   size?: PanelSize;
 }
 
@@ -97,6 +108,8 @@ export interface AppendPanelOptions {
   anchoredEnter?: boolean;
   /** See `CreatePanelOptions.permanent` (phoneViewApi.tsx) for the full contract; `appendPanel` is what enforces it. */
   permanent?: boolean;
+  /** The new panel's tier. Ignored for a permanent column, which is always 'phone'. Default 'phone'. */
+  formFactor?: FormFactor;
 }
 
 /** Inserts `entry` at the position its OWN `insertAt` says: 'end' (default) appends; 'start' lands right after the last non-collapsible entry (e.g. History), never before one. */
@@ -119,6 +132,7 @@ function insertPanelAt(panels: PanelWindow[], entry: PanelWindow): PanelWindow[]
  * control must keep working with zero extra plumbing (usePanelClosing.ts gates only on `locked`).
  */
 export function appendPanel(panels: PanelWindow[], info: { sourceWebContentsId: number; url: string } & AppendPanelOptions, id: string): PanelWindow[] {
+  const formFactor = info.permanent ? 'phone' : (info.formFactor ?? 'phone');
   const entry: PanelWindow = {
     id,
     url: info.url,
@@ -134,9 +148,9 @@ export function appendPanel(panels: PanelWindow[], info: { sourceWebContentsId: 
     insertAt: info.insertAt ?? 'end',
     layer: info.layer ?? 'base',
     anchoredEnter: info.anchoredEnter ?? false,
-    // Permanent columns get the same default: every entry carries a tier.
-    formFactor: 'phone',
-    size: DEFAULT_PANEL_SIZE,
+    // Every entry carries a tier; a permanent column's is always 'phone'.
+    formFactor,
+    size: formFactor === 'phone' ? DEFAULT_PANEL_SIZE : { ...TIER_SIZES[formFactor] },
   };
   return insertPanelAt(panels, entry);
 }
@@ -273,14 +287,40 @@ export function movePanel(panels: PanelWindow[], id: string, direction: 'left' |
   return next;
 }
 
+/** The widths of the present panels a drag can cross, nearest first on each side: movePanel never swaps past a `collapsible: false` one, so each side stops there. */
+export interface NeighborWidths {
+  readonly left: readonly number[];
+  readonly right: readonly number[];
+}
+
 /**
- * How many movePanel hops a horizontal drag of `offsetX` px asks for (+right/-left), one per `slotWidth`:
- * past a sibling's midpoint is one hop. Rounds the MAGNITUDE, so an exact half slot is a hop either way
- * (`Math.round(-0.5)` is -0, which would drop a leftward tie), and never returns -0.
+ * How many movePanel hops a horizontal drag of `offsetX` px asks for (+right/-left). A hop past a neighbour
+ * moves the dragged panel by that NEIGHBOUR's span (its width plus `gap`), so each hop lands half-way across
+ * the next neighbour's span, counted from where the previous hop ended; the dragged panel's own width never
+ * enters it. Exactly half a span is a hop either way, and this never returns -0.
  */
-export function reorderStepsForOffset(offsetX: number, slotWidth: number): number {
-  const steps = Math.round(Math.abs(offsetX) / slotWidth);
+export function reorderStepsForOffset(offsetX: number, neighbors: NeighborWidths, gap: number): number {
+  const distance = Math.abs(offsetX);
+  let travelled = 0;
+  let steps = 0;
+  for (const width of offsetX > 0 ? neighbors.right : neighbors.left) {
+    const span = width + gap;
+    if (distance < travelled + span / 2) break;
+    travelled += span;
+    steps++;
+  }
   return steps === 0 ? 0 : Math.sign(offsetX) * steps;
+}
+
+/**
+ * `id` at `next`'s tier, its `size` REPLACED by a fresh copy of that tier's TIER_SIZES entry. Returns the SAME
+ * array reference for every no-op: an unknown id, a `collapsible: false` entry (History or a permanent column,
+ * movePanel's own source guard), or a panel already at `next`. A parked panel may change tier and stays parked.
+ */
+export function setFormFactor(panels: PanelWindow[], id: string, next: FormFactor): PanelWindow[] {
+  const target = panels.find((p) => p.id === id);
+  if (!target || !target.collapsible || (target.formFactor ?? 'phone') === next) return panels;
+  return panels.map((p) => (p.id === id ? { ...p, formFactor: next, size: { ...TIER_SIZES[next] } } : p));
 }
 
 /**
