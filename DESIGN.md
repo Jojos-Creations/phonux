@@ -493,6 +493,12 @@ view rendered under a bare `<HostProvider>` (the common case in a test) sees no 
 provider at all, so `Panel`'s registration effect is a no-op and nothing here ever throws for a missing
 registry, the same "missing capability degrades gracefully" convention `Host.snapshots` itself uses.
 
+The two contexts nest in opposite directions. `HostProvider` mounts no `CaptureRegistryProvider`, so the
+real one may wrap it; but it always mounts its own `OverlayProvider`, so a caller's
+`<OverlayProvider store={...}>` (a test reading `ids()`/`notifications`) must sit INSIDE `<HostProvider>`,
+around the `OverlaySlot`s and the views. Placed as `HostProvider`'s ancestor instead, it is shadowed by the
+nearer built-in provider and silently receives nothing, with no error.
+
 Only `client/src/desktop/capture/` (app-side, never this folder -- see "Import boundary" above) implements a
 real `CaptureRegistry`, the DOM-redraw pixel engine, and the `SnapshotsAPI` store those pixels land in, and
 only it renders `<CaptureRegistryProvider registry={realRegistry}>`, wrapping `<HostProvider>`. `PanelSummary`
