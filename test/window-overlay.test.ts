@@ -1,12 +1,8 @@
 /**
- * shared/phone/windowOverlay.tsx, STATIC side: renderToStaticMarkup with NO `document` in this process (this file
- * must never import test/support/dom-harness.ts or jsdom-globals.ts, which would install one). Effects do not run
- * here, so this file pins what a static render does (WindowOverlay renders IN PLACE, closed adds nothing, idle slots
- * add nothing, nothing warns) and the pure OverlayStore. Where an overlay LANDS is a mounted question:
- * test/window-overlay-mount.test.ts.
- *
- * NEVER hand a DOM node or a React element to assert.equal (a failing assertion inspects React's fiber graph and can
- * spin a CPU for a minute): compare inside the test and assert a boolean.
+ * shared/phone/windowOverlay.tsx, STATIC side: no `document` may exist here, so never import dom-harness.ts or
+ * jsdom-globals.ts. Effects do not run, so where an overlay LANDS is window-overlay-mount.test.ts's question.
+ * NEVER hand a DOM node or a React element to assert.equal: a failing assertion walks React's fiber graph and can
+ * spin a CPU for a minute. Compare inside the test and assert a boolean.
  */
 
 import { test, mock } from 'node:test';
