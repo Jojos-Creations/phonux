@@ -362,14 +362,12 @@ export function usePanelManager(
   };
 
   /**
-   * Reconciles the live set against `capacity` whenever either changes (a resize, a phone-size change, the
-   * setting) -- an effect, since it must act on a measurement that just changed, not one this render was
-   * given. Both branches judge a candidate set by `settles`, never `capacity` as a count: `capacity` prices
-   * every not-yet-live slot at `phoneWidth`, so WHICH panels park or return decides whether the rest fits, and
-   * a set that does not settle re-triggers a branch next render. A DROP parks `fewestParksThatSettle` and
-   * exits 'left' (flushSync cannot mark a right exit first from inside a passive effect). A RISE reveals from
-   * the top of `collapseOrderRef`; a candidate that doesn't settle stays on the stack in case an OLDER,
-   * narrower one still has room.
+   * Reconciles the live set against `capacity` whenever either changes -- an effect, since it must act on a
+   * measurement that just changed, not one this render was given. Both branches judge a candidate set by `settles`,
+   * never `capacity` as a count: `capacity` prices every not-yet-live slot at `phoneWidth`, so WHICH panels park or
+   * return decides whether the rest fits, and a set that does not settle re-triggers a branch next render. A DROP
+   * parks `fewestParksThatSettle` and exits 'left' (flushSync cannot mark a right exit first from a passive effect).
+   * A RISE reveals from the top of `collapseOrderRef`; one that doesn't settle stays on the stack for an OLDER, narrower one.
    */
   const committedRef = useRef(panels);
   useEffect(() => {

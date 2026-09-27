@@ -250,13 +250,12 @@ export function closePanel(panels: PanelWindow[], id: string): { remaining: Pane
 }
 
 /**
- * Moves `id` one PRESENT slot toward `direction` (present = `!collapsible || live`, the same filter
- * LivePanels.tsx renders), swapping past whichever other present panel sits there; a parked panel
- * physically between the two present ones simply shifts by one array slot, keeping
- * firstParkedAfter/lastParkedBefore/sideOfLiveRange meaningful afterward. Returns the SAME array
- * reference for every no-op: unknown id, a `collapsible: false` source or neighbor (an always-shown
- * column is never a reorder source or target, or a live panel could displace it from its seeded slot),
- * a parked panel, or one already at that edge.
+ * Moves `id` one PRESENT slot toward `direction` (present = `!collapsible || live`, the same filter LivePanels.tsx
+ * renders), swapping past whichever other present panel sits there; a parked panel physically between the two
+ * present ones simply shifts by one array slot, keeping firstParkedAfter/lastParkedBefore/sideOfLiveRange
+ * meaningful afterward. Returns the SAME array reference for every no-op: unknown id, a `collapsible: false`
+ * source or neighbor (an always-shown column is never a reorder source or target, or a live panel could displace
+ * it from its seeded slot), a parked panel, or one already at that edge.
  */
 export function movePanel(panels: PanelWindow[], id: string, direction: 'left' | 'right'): PanelWindow[] {
   const present = panels.filter((p) => !p.collapsible || p.live);
