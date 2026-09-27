@@ -88,7 +88,10 @@ is a structural type: any object shaped like one satisfies it, including hand-bu
 this feature and never set these two fields. Required fields would force every such fixture, in this app and
 any third party's, to add them just to keep compiling, for a schema addition that changes no rendered pixel
 by itself (nothing reads `PanelSummary.size` yet; only `Panel`/`PanelFrame`'s own separate `size` prop, passed
-explicitly by whatever wires it up, does).
+explicitly by whatever wires it up, does). The app's projection (`summarisePanel()`) follows the same rule in
+the other direction: it forwards `formFactor`/`size` when the record carries them and omits the key when it
+does not, never a key present with the value `undefined` -- so a summary never lists a field its record never
+had, and a view testing `'size' in panel` gets the same answer as `panel.size !== undefined`.
 
 ### Where `PanelWindow`'s own default size comes from, without importing desktop code into phonux
 
