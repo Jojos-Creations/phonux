@@ -43,12 +43,14 @@ those decisions.
 
 ## Position, layer and enter-direction are per-panel metadata, not per-view rules
 
-`PanelWindow.insertAt`/`layer`/`anchoredEnter` replace three separate hard-coded special cases for History
-(seeded at index 0, a higher zIndex, entering unconditionally via the anchor formula) with one field each,
-set once at creation and read by exactly the site that decides that one behavior: `insertAt` by the function
-placing a new entry into the array, `layer` by the row's per-slot zIndex, `anchoredEnter` by the row's
-enter-direction choice. A custom panel can opt into any of History's three behaviors without becoming
-History-shaped in any other way -- `listed`, `collapsible` and `locked` stay independent of all three.
+`PanelWindow.anchor`/`layer`/`anchoredEnter` replace three separate hard-coded special cases for History
+(always the leftmost column, a higher zIndex, entering unconditionally via the anchor formula) with one field
+each, read by exactly the site that decides that one behavior: `anchor` by the function that orders the row
+(see "Row order is anchor metadata" below), `layer` by the row's per-slot zIndex, `anchoredEnter` by the row's
+enter-direction choice, which resolves against that panel's own anchor target. `layer` and `anchoredEnter` are
+set once at creation; `anchor` is set at creation and changed by `reanchor` and by a drag. A custom panel can
+opt into any of History's behaviors without becoming History-shaped in any other way -- `listed`,
+`collapsible` and `locked` stay independent of all three.
 
 ### `permanent` is the one door to a collapsible:false column
 
@@ -56,10 +58,11 @@ History-shaped in any other way -- `listed`, `collapsible` and `locked` stay ind
 can become a permanent column -- there is no raw `collapsible` or public `locked` key. Setting it forces
 `listed:false` regardless of any `listed` the caller also passes: the framework's History-row trash
 (suppressed by `listed:false`, History's own precedent) must never be the close affordance for a column whose
-own component owns its own close control. It adds no fourth field alongside `insertAt`/`layer`/`anchoredEnter`
-above -- those three already work on any entry, collapsible or not, unchanged. A permanent column is exempt
-from every row gesture, capacity park and reorder for free, by already being `collapsible:false`, the same
-way History already is -- see `PanelsAPI.move`'s own section below for the reorder half of that exemption.
+own component owns its own close control. It adds no fourth field alongside `anchor`/`layer`/`anchoredEnter`
+above -- those three already work on any entry, collapsible or not, unchanged (`create({ permanent: true,
+anchor })` places the column like any panel). A permanent column is exempt from every row gesture, capacity
+park, `reanchor` and from being dragged, for free, by already being `collapsible:false`, the same way History
+already is. Other panels can still be dragged past it -- see `PanelsAPI.move`'s own section below.
 
 The "own control only" guarantee also has to hold for the built-in 'web' view, not just a custom one: `view`
 left at its default (or set explicitly to `'web'`) still resolves to LivePanel.tsx, which otherwise wraps
@@ -83,7 +86,7 @@ never leaves a size-less view rendering stale dimensions.
 
 `PanelSummary.formFactor`/`size` are themselves optional, not required, even though the app's own
 `panelWindow.ts` always sets them on every entry it creates (`createHistoryPanel`, `appendPanel`) -- the same
-choice already made for `insertAt`/`layer`/`anchoredEnter` on the internal `PanelWindow` record. A `PanelSummary`
+choice already made for `anchor`/`layer`/`anchoredEnter` on the internal `PanelWindow` record. A `PanelSummary`
 is a structural type: any object shaped like one satisfies it, including hand-built test fixtures that predate
 this feature and never set these two fields. Required fields would force every such fixture, in this app and
 any third party's, to add them just to keep compiling, for a schema addition that changes no rendered pixel
@@ -120,9 +123,50 @@ drag-to-reorder gesture (LivePanel.tsx) converts a pointer's cumulative offset i
 alternative (WCAG 2.5.7) would call once per key press. Panels can differ in width, so the step count is not
 `offset / one slot`: a hop past a neighbour moves the dragged panel by that NEIGHBOUR's span (its width plus
 the gap), so each hop lands half-way across the next neighbour's span (`reorderStepsForOffset`, over the
-neighbour widths the row supplies per slot). With equal widths this is exactly one hop per slot. `collapsible: false`
-panels are excluded from the drag itself through a plain React context LivePanels.tsx provides per slot (a
-resolved view only ever receives `PanelSummary`, which carries no `collapsible` field to check locally).
+neighbour widths the row supplies per slot). With equal widths this is exactly one hop per slot.
+
+`collapsible: false` panels are excluded as a drag SOURCE only: they render no grab bar, through a plain React
+context LivePanels.tsx provides per slot (a resolved view only ever receives `PanelSummary`, which carries no
+`collapsible` field to check locally), and `move` is a no-op on their id. As a NEIGHBOUR they are crossable
+like any other panel: a drag passes History or a permanent column, one hop per that column's own span, so a
+drag is one way a panel ends up left of History. After every `move` each panel's anchor is re-read from the
+row as it then stands -- see "The drag contract" in the next section.
+
+## Row order is anchor metadata: `{ panel, position, priority }`
+
+Every panel's place in the row comes from its own anchor, never from a fixed rule about History. History is
+the root: it carries no anchor, and every other panel sits on one side of one panel. For a view, the one
+shape is `{ panel?: string; position: 'left' | 'right'; priority?: number }`.
+
+- **Where it is set.** `CreatePanelOptions.anchor` when a panel is created, and
+  `PanelsAPI.reanchor(id, anchor)` for a panel that already exists, live or parked. `reanchor` is a no-op for
+  an unknown id or a permanent column (History included). Both reorder the row at once.
+- **Defaults.** `panel` omitted means History; otherwise it is another panel's `PanelSummary.id`. `priority`
+  omitted means one past the highest priority already on that side of that panel: the far end. `create()`
+  with no `anchor` at all is `{ position: 'right' }`, so a plain create lands at the row's far right end.
+  `{ position: 'left' }` on a row with nothing left of History puts the panel immediately left of History; a
+  second one lands farther left.
+- **Priority.** Within one (panel, side), priorities compare numerically and LOWER is NEARER the anchor, on
+  both sides; ties keep the current row order. After every placement the host renumbers each side 0, 1, 2 ...
+  from the nearest, so `-1` always means "nearest": `{ position: 'right', priority: -1 }` opens a panel
+  immediately right of History, whatever is already there.
+- **Anchored to another panel.** A panel anchored to P sits next to P, before P's other neighbours on that
+  side: with [History, A, B], opening C with `{ panel: A, position: 'right' }` gives [History, A, C, B].
+  When P closes, every panel anchored to P takes over P's own anchor, so they close up in the place P held.
+  An anchor naming a panel that is not in the row, or one that closes a cycle, falls back to
+  `{ History, 'right' }` with its own priority -- never a crash, never a lost panel.
+- **Placement only, never protection.** `reanchor` never parks or reveals by itself: whether the live panels
+  fit depends only on their widths and how many there are, never their order. A panel anchored left of
+  History parks by the same rules as any other -- a capacity drop, for one, parks the leftmost of equally
+  wide panels first, and that can be it.
+- **The drag contract.** A user drag -- and `PanelsAPI.move`, which the drag calls -- re-derives EVERY panel's
+  anchor from the row as it then stands, relative to History: each panel becomes `{ History, the side it is on,
+  its distance rank }`. The order is unchanged by that step, but an anchor naming another panel lasts only
+  until the next drag. `undoClose` does the same when it puts a panel back at its old index. `create` and
+  `reanchor` are the ways to set an anchor on purpose.
+- **In memory only.** Row order and anchors are workspace state (see "Workspace state, in memory first"
+  below): held in memory, never written anywhere. `PanelSummary` never carries `anchor`, so a view reads the
+  resulting order from `panelList`, never anyone's anchor.
 
 ## `PanelsAPI.setFormFactor`: one panel's own tier, resized in place
 
@@ -252,12 +296,12 @@ function) as "no options", so a bare `onClick={panels.create}` reference behaves
 
 ## A resolved panel component only ever sees a `PanelSummary`
 
-`LivePanels.tsx` holds the internal `PanelWindow` record (not `PanelSummary`) because it alone decides
-`insertAt`/`layer`/`anchoredEnter`/`collapsible`, but every component it resolves through the registry --
+`LivePanels.tsx` holds the internal `PanelWindow` record (not `PanelSummary`) because it alone reads
+`anchor`/`layer`/`anchoredEnter`/`collapsible`, but every component it resolves through the registry --
 built-in or third-party -- is written against `PanelComponent<P>` (renamed to `ViewComponent<P>`) `= ComponentType<{ panel: PanelSummary<P>
 }>`. It narrows through the same `summarisePanel()` projection `PanelsAPI.panelList`/`recentlyClosed` use
 (`panelWindow.ts`), so a view can never read a desktop-only field (`webContentsId`, `collapsible`,
-`insertAt`, `layer`, `anchoredEnter`) just because it happens to be a plain variable, not an object literal,
+`anchor`, `layer`, `anchoredEnter`) just because it happens to be a plain variable, not an object literal,
 and so escapes TypeScript's excess-property check at the call site.
 
 ## The package lives in place, with no build step for in-repo use
