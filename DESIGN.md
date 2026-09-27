@@ -598,3 +598,44 @@ checks `[T] extends [JsonValue]` through `key`'s parameter type. A second overlo
 serves a caller that is itself generic over `JsonValue`, where that check cannot resolve. A non-JSON `initial`
 fails both overloads. `viewState.typecheck.ts` compares these types against `useState` directly and pins the
 literal-union case.
+
+## The API reports in `etc/`
+
+`etc/phonux.api.md`, `etc/phonux-testing.api.md` and `etc/phonux-internal.api.md` are API Extractor's reading
+of this package's surface, one per `exports` key in `package.json` (`.`, `./testing`,
+`./internal/directionalTransition`). They are committed so that a change to what a consumer can import shows
+up as a diff in review. Only `npm run api-report:update` writes them. `npm run check:api-report` regenerates
+each one in a temp folder and fails if it differs from the committed copy, so a hand edit fails the next check.
+
+There are three `api-extractor*.json` configs because API Extractor analyses one entry point per run. The
+report script checks the `exports` map against the configs key by key, so an entry point with no config, or
+two configs pointed at each other's entry, fails before anything runs. The declarations it reads are emitted
+into `client/api-extractor-temp/`, a sibling of `client/src`, so they never reach `typecheck:app`, the
+file-size ratchet or the phone-boundary scan.
+
+`./internal/directionalTransition` is tracked and tagged `@internal`, not excluded: `LivePanelSlot.tsx` and
+`HistoryRowSlot.tsx` import it, so it is a real entry point whose changes deserve the same diff. API Extractor
+wants every `@internal` name to start with an underscore, but these names are already imported under their
+current spelling, so `ae-internal-missing-underscore` is switched off in `api-extractor.json` and in
+`api-extractor.internal.json` instead of renaming them. The switch covers a whole config, not one name, so a
+future `@internal` export without an underscore passes silently too.
+
+Every declaration an entry point reaches carries exactly one release tag in its own doc comment: `@public`
+for `.` and `./testing`, `@internal` for `./internal/directionalTransition`. A deprecated alias keeps
+`@deprecated` beside its tag. A tag above a re-export line (`export { X } from ...`) does nothing, because
+API Extractor reads only the declaration's own comment. `ViewStateProvider` and `PANEL_HEADER_GAP_PX` are
+exported for this package's own files and tests but reached by no entry point, and are tagged `@internal` to
+say so.
+
+A public signature pins every type it names. Each one must be exported by the same entry point (otherwise
+`ae-forgotten-export`), which is why `fakeHost.ts` re-exports `Host`'s whole type closure and
+`windowOverlay.tsx` exports `Item` and `Entry` for `OverlayStore`. Each one must also be at least as public as
+the signature (otherwise `ae-incompatible-release-tags`), which is why `ReorderHandle`, named by
+`DragToClose`'s public `reorder` prop, is `@public` rather than `@internal`. It is a type, so it never joins
+the runtime values the barrel test pins.
+
+The script fails on warnings written into the reports, not only on API Extractor's exit code or stdout.
+Several messages, `ae-forgotten-export` among them, go into the report file instead of the console, some only
+into its trailing "Warnings were encountered" footer. Once such a report is committed, the next check
+regenerates the same text, matches it, and API Extractor exits 0. So the script also scans each committed
+report for an embedded warning or message id, and fails on any.
