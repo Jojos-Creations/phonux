@@ -1,6 +1,6 @@
 // The public surface of the phonux package. A name that moves or changes kind here breaks every consumer.
-// test/phonux-barrel.test.ts pins the value names; type names are erased at runtime, so only a consumer's
-// tsc checks them. DESIGN.md says why the split exists and why some exports stay off this list.
+// test/phonux-barrel.test.ts pins the value names; type names are erased at runtime, so only tsc checks them
+// (releaseMeasure.typecheck.ts pins one). DESIGN.md says why the split exists and why some exports stay off.
 
 export {
   DEFAULT_PHONE_SIZE,

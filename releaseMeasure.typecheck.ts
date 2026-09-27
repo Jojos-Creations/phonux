@@ -1,8 +1,7 @@
 /**
- * Compile-only proof that `ReleaseMeasure`, the parameter type of the exported `shouldCloseOnRelease`, is itself
- * exported from the barrel. Never imported by anything; `tsc -p client --noEmit` type-checks it as a root file.
- * Dropping `ReleaseMeasure` from the barrel's export list fails this file with TS2305; a drift from
- * the rule's parameter type fails the `Same` check.
+ * Compile-only: the barrel exports `ReleaseMeasure`, `shouldCloseOnRelease`'s parameter type. Dropping it fails
+ * here with TS2305, and a drift from that parameter type fails `Same`. Nothing imports this file; `tsc -p client`
+ * checks it as a root file.
  */
 import { shouldCloseOnRelease, type ReleaseMeasure } from './index.js';
 
