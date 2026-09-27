@@ -387,6 +387,49 @@ while `grabProps`'s `onPointerDown`/`sx` reach the grab bar instead, so clicking
 icon is never mistaken for a drag start. Omitting `grabProps` renders no grab bar at all, which is the
 correct shape for a locked view (nothing to drag).
 
+## PanelFrame's inset, scrollbar and header pill
+
+Every view renders inside `PanelFrame` so each section reads as one phone silhouette; a view that grew its
+own border/radius/background declarations would drift from the others. The frame is the phone's size unless
+`size` or `expanded` says otherwise: a slot never grows to fill space.
+
+**Equal inset with or without a scrollbar.** Content sits `CONTENT_INSET_PX` (12px) from the border on all
+four sides whether or not a scrollbar is painted, with nothing measured at runtime: `scrollbar-gutter:
+stable` reserves the bar's strip permanently and the right padding is pre-shrunk by that strip
+(`SCROLLBAR_PX`, 8px), so the right side is (12 - 8) + 8 = 12px in both states, the bar flush against the
+border.
+
+**Why a classic scrollbar.** Chromium's default here is an overlay scrollbar: it floats over content,
+reserves no layout width (`offsetWidth === clientWidth` on a scroller with real overflowing content) and
+draws with its own built-in inset from the scroller's edge, which no padding or box-model change on this
+side can remove. Splitting the frame into an outer box (border, radius, size, `overflow: hidden` clipping, no
+padding) and an inner scroll container (the padding, `flex: 1`, `minHeight: 0`) is therefore not enough on
+its own. The explicit `::-webkit-scrollbar` rules force a classic scrollbar, which reserves real width
+(`offsetWidth - clientWidth` equals the declared `width`) and sits flush against the edge like a web page's
+own scrollbar. Those rules style only the element they are set on, so a nested scroller needs its own copy
+or it falls back to Chromium's default-width bar and breaks the arithmetic above.
+
+**Never reserved twice.** A caller that scrolls one level deeper (a `<webview>`, a transcript under a pinned
+input bar) spreads `panelFrameBareSx`, which cancels both the padding and the gutter. Keeping either leaves a
+phantom gap outside the inner scrollbar and an uneven inset (28px on the right against 12px on the left).
+Its properties are longhands because MUI resolves `p`/`pr` and `overflow`/`overflowY` independently, so a
+shorthand spread over a longhand does not reliably win.
+
+**border-box.** Row-layout width math treats `device.size` as the frame's real rendered size. Under
+content-box the border and padding land on top of it: a 390px phone rendered 416px wide by
+`getBoundingClientRect()`, about 26px of silent under-fit per phone.
+
+**The header pill.** `PanelHeader` floats above the frame (it needs a `position: relative` parent) and bakes
+in one look: Paper `variant="outlined"`'s bgcolor and border, the same pill as the goal-input bar; a radius
+equal to the phone's own corner radius and a height of twice it, so each end is an exact semicircle with the
+phone's curvature, both from the theme rather than a raw 24/48; and a fixed height, so wrapping content never
+changes the shape. Its horizontal padding equals the frame's content inset so header text lines up with the
+frame's own content. Internal layout is left to callers (`sx`), since one centers an ellipsis title and
+another spaces out an icon row. `PanelHeaderRow` is the shared title-left/actions-right layout, so call sites
+stop re-implementing flex/ellipsis markup, and it substitutes placeholders for a falsy `title`/`actions` (a
+dimmed "Untitled", a dimmed "more" glyph) so the pill never blanks or changes shape. Its emptiness check
+mirrors JSX's own falsy-child rules, so `0` or whitespace still counts as content.
+
 ## Snapshots: a picture is data, capturing one is not
 
 `snapshots.ts` splits a view's picture into two surfaces on purpose. `ViewId` (a panel's id, or a fixed

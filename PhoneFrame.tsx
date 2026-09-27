@@ -1,7 +1,8 @@
 /**
  * The shared phone-shaped card every view renders inside, so every section reads as one
  * silhouette instead of near-identical border/radius/background declarations drifting apart.
- * Fixed size by default; `expanded` is only the tap-to-expand fullscreen overlay.
+ * Fixed size by default; `expanded` is only the tap-to-expand fullscreen overlay. The inset, scrollbar
+ * and header-pill rules below are explained in DESIGN.md ("PanelFrame's inset, scrollbar and header pill").
  */
 
 import * as React from 'react';
@@ -147,10 +148,10 @@ export type PhoneFrameHeaderProps = PanelHeaderProps;
 /**
  * A header that floats ABOVE a PanelFrame (`position: absolute; bottom: calc(100% + gap)`)
  * rather than inside it; requires a `position: relative` parent (every caller already has one).
- * The pill look (a plain `Box` since `Paper`'s polymorphic `component` typing collides with
- * `Omit<BoxProps, ...>`) has radius/height derived from the phone's own corner radius so each end
- * is an exact semicircle. Internal layout is NOT baked in (callers differ); pass `sx` for that,
- * layered on top rather than replacing it. Drag wiring belongs on `Panel`'s `grabProps`, never here.
+ * The pill is a plain `Box` since `Paper`'s polymorphic `component` typing collides with
+ * `Omit<BoxProps, ...>`. Internal layout is NOT baked in (callers differ); pass `sx` for that,
+ * layered on top rather than replacing it. Drag wiring and any grab cursor belong on `Panel`'s
+ * `grabProps`, never here.
  */
 export function PanelHeader({ children, sx, ...rest }: PanelHeaderProps) {
   return (
@@ -161,13 +162,17 @@ export function PanelHeader({ children, sx, ...rest }: PanelHeaderProps) {
         bottom: `calc(100% + ${PANEL_HEADER_GAP_PX}px)`,
         left: 0,
         right: 0,
+        // Twice the phone's own corner radius, so each end is an exact semicircle; from the theme, never a
+        // raw 48. Fixed, so however the content wraps the pill keeps its shape.
         height: (theme: Theme) => 2 * panelCornerRadiusPx(theme),
         display: 'flex',
         alignItems: 'center',
+        // bgcolor + border: MUI Paper variant="outlined"'s look, the goal-input bar's pill.
         bgcolor: 'background.paper',
         border: '1px solid',
         borderColor: 'divider',
         borderRadius: PANEL_CORNER_RADIUS_UNITS,
+        // 12px, PanelFrame's own content inset, so a header's text lines up with the frame's content below.
         px: 1.5,
         fontSize: 13,
         color: 'common.white',
@@ -200,7 +205,7 @@ function isEmptyHeaderContent(node: React.ReactNode): boolean {
   return node === undefined || node === null || node === false || node === '';
 }
 
-/** A plain em-dash reads as "intentionally blank" rather than a loading glitch or missing data. */
+/** A dimmed "Untitled" reads as "intentionally blank" rather than a loading glitch or missing data. */
 const PLACEHOLDER_TITLE = (
   <Box component="span" data-header-placeholder-title="" sx={{ color: 'text.disabled' }}>
     Untitled
