@@ -254,7 +254,7 @@ export function appendPanel(panels: PanelWindow[], info: { sourceWebContentsId: 
 /**
  * The id of the live collapsible panel farthest (by array index) from `fromIndex`, or null with none live.
  * Ties go to the lower index (the strict `>` keeps the first). From an append (`fromIndex` = the new length)
- * that is the LEFT end of the live range; from an open anchored nearest History or a revive left of the range it is the
+ * that is the LEFT end of the live range; from an open nearest History or a revive left of the range, the
  * RIGHT end. promoteToLive and usePanelManager.ts's open/restore park both pick through this. `exclude`
  * exempts the panel being opened or restored, which is already live in the array the caller passes, and any
  * panel another action in the same update must keep live.
@@ -355,12 +355,11 @@ export function closePanel(panels: PanelWindow[], id: string): { remaining: Pane
 }
 
 /**
- * Moves `id` one PRESENT slot toward `direction` (present = `!collapsible || live`, the same filter LivePanels.tsx
- * renders), swapping past whichever other present panel sits there -- History and a permanent column included;
- * a parked panel physically between the two present ones simply shifts by one array slot, keeping
- * firstParkedAfter/lastParkedBefore/sideOfLiveRange meaningful afterward. Every anchor is then re-read from the
- * new order. Returns the SAME array reference for every no-op: unknown id, a `collapsible: false` source (an
- * always-shown column is never dragged), a parked panel, or one already at that edge.
+ * Moves `id` one PRESENT slot (`!collapsible || live`, LivePanels.tsx's filter) toward `direction`, past
+ * whichever present panel sits there, History included; a parked panel between the two shifts one array slot,
+ * keeping firstParkedAfter/lastParkedBefore/sideOfLiveRange meaningful. Every anchor is then re-read from the
+ * new order. The SAME array for every no-op: unknown id, a `collapsible: false` source (an always-shown column
+ * is never dragged), a parked panel, or one already at that edge.
  */
 export function movePanel(panels: PanelWindow[], id: string, direction: 'left' | 'right'): PanelWindow[] {
   const present = panels.filter((p) => !p.collapsible || p.live);
@@ -376,7 +375,7 @@ export function movePanel(panels: PanelWindow[], id: string, direction: 'left' |
   return deriveAnchorsFromOrder(next);
 }
 
-/** The widths of the present panels a drag can cross, nearest first on each side: every one, an always-shown column (History included) too, since movePanel crosses it; only the drag SOURCE must be collapsible. */
+/** The widths of the present panels a drag can cross, nearest first on each side: all of them, History included, since only the drag SOURCE must be collapsible. */
 export interface NeighborWidths {
   readonly left: readonly number[];
   readonly right: readonly number[];
@@ -413,13 +412,10 @@ export function setFormFactor(panels: PanelWindow[], id: string, next: FormFacto
 }
 
 /**
- * Reverses closePanel for one panel: puts `panel` back at `index` (clamped to
- * the current length, so a shorter array still takes it), `webContentsId` reset
- * because whatever it pointed at was unmounted when it closed. An id that is
- * already present leaves `panels` unchanged (a double undo never duplicates).
- * Whether it comes back live or parked is the caller's choice: it is whatever
- * `panel.live` says. Anchors are re-read from the result, since its old anchor
- * may no longer describe that index.
+ * Reverses closePanel for one panel: puts `panel` back at `index` (clamped to the current length, so a shorter
+ * array still takes it), `webContentsId` reset because whatever it pointed at was unmounted when it closed. An
+ * id already present leaves `panels` unchanged (a double undo never duplicates). Live or parked is whatever
+ * `panel.live` says. Anchors are re-read from the result: its old anchor may no longer describe that index.
  */
 export function restorePanel(panels: PanelWindow[], panel: PanelWindow, index: number): PanelWindow[] {
   if (panels.some((p) => p.id === panel.id)) return panels;

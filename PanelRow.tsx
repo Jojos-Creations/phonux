@@ -32,8 +32,7 @@ function renderedSummary(p: PanelWindow, width: number) {
  * the field itself (a resolved view only ever receives `PanelSummary`, which has no `collapsible` field, on
  * purpose -- phoneViewApi.tsx): whether its grab bar is a reorder source, and whether the framework may offer
  * ANY drag-to-close handle at all. `undefined` (no provider above, e.g. a view mounted directly in a test)
- * is deliberately distinct from an explicit `false`: each hook below resolves that case to whichever default
- * matches today's pre-`permanent`-columns behavior for its OWN concern, not one shared default.
+ * is deliberately distinct from an explicit `false`: each hook below resolves that case to its OWN default.
  */
 const PanelSlotContext = React.createContext<{ collapsible: boolean; neighborWidths: NeighborWidths } | undefined>(undefined);
 /** True only for a `collapsible` entry (e.g. a plain web panel) -- an always-shown column (History, or a
@@ -42,8 +41,7 @@ const PanelSlotContext = React.createContext<{ collapsible: boolean; neighborWid
 export const usePanelReorderEligible = (): boolean => React.useContext(PanelSlotContext)?.collapsible ?? false;
 /** False only for an always-shown column (`collapsible:false`): the built-in 'web' view must never wrap such
  * an entry in a framework close handle (CreatePanelOptions.permanent's 'own control only' guarantee).
- * Unprovided resolves to true, matching every pre-existing test that mounts LivePanel directly for an
- * ordinary (implicitly collapsible) panel. */
+ * Unprovided resolves to true: a LivePanel mounted directly (as tests do) is an ordinary collapsible panel. */
 export const usePanelCloseEligible = (): boolean => React.useContext(PanelSlotContext)?.collapsible ?? true;
 /** The widths this entry's drag can cross (reorderStepsForOffset's input). Unprovided: none, so no hop. */
 export const usePanelNeighborWidths = (): NeighborWidths => React.useContext(PanelSlotContext)?.neighborWidths ?? NO_NEIGHBORS;
@@ -87,8 +85,7 @@ export function LivePanels({
   // actually carry a non-'phone' formFactor today (PanelsAPI.setFormFactor no-ops on a collapsible:false id),
   // so panelWidthOf gives them `phoneWidth` exactly, the same as reading it directly, with no special case.
   const widths = present.map((p) => panelWidthOf(p, phoneWidth, maxLiveWidth));
-  // Each slot's own rest x: the running sum of every PRECEDING item's own width plus one gap -- a wider item
-  // ahead of this one pushes it further right, so this can no longer be `index * one shared slot`.
+  // Each slot's rest x: every PRECEDING item's own width plus one gap, so a wider item pushes the rest right.
   const leftOffsets: number[] = [];
   let runningOffset = 0;
   for (const width of widths) {

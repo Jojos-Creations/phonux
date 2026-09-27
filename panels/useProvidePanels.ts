@@ -162,14 +162,11 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
     enterSideById,
   };
 
-  // Real-Electron test access ONLY (test/panel-spawn-permanent-columns-electron.test.ts, driven over CDP
-  // Runtime.evaluate): there is no production UI to create a permanent column, so a real-Electron proof needs
-  // a way to call the real create({ permanent: true }) path against the actually-mounted app. Gated on the
-  // same build-time flag capture/controller.ts uses, for the same reason: `MODE === 'test'` is set only by
-  // that test file's own `electron-vite build --mode test`, never an ordinary production build. An EFFECT, not
-  // a render-body assignment: the real entry point mounts under StrictMode, which double-invokes render
-  // bodies in development. No deps array on purpose: `api` is a fresh object every render (never memoised,
-  // same as `api` itself), and a test must always reach the LATEST closure.
+  // Real-Electron test access ONLY (the *-electron.test.ts files, over CDP Runtime.evaluate): no production UI
+  // calls create({ permanent }) or reanchor(), so a real-window proof calls the real API on the mounted app.
+  // Gated like capture/controller.ts: `MODE === 'test'` is set only by `electron-vite build --mode test`, never
+  // a production build. An EFFECT, not a render-body assignment: StrictMode double-invokes render bodies. No
+  // deps array: `api` is a fresh object every render, and a test must always reach the LATEST closure.
   useEffect(() => {
     if (typeof window === 'undefined' || import.meta.env?.MODE !== 'test') return;
     (window as unknown as { __panelsApiForTests?: ProvidedPanels }).__panelsApiForTests = api;

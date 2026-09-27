@@ -131,7 +131,7 @@ export interface CreatePanelOptions {
   anchoredEnter?: boolean;
   /**
    * Makes the new entry a permanent column: `collapsible:false` (never parked by a row gesture or capacity,
-   * excluded from reorder and counted in `minPanelsOnScreen`'s floor) and `listed:false`, forced regardless of
+   * never a drag source, and counted in `minPanelsOnScreen`'s floor) and `listed:false`, forced regardless of
    * any `listed` also passed -- a permanent column must supply its own close control (History's own
    * precedent), never the framework's History-row trash. `locked` stays false always: closing it through its
    * own control still works. Default false.
