@@ -6,7 +6,7 @@
 
 import type { TargetAndTransition } from 'motion/react';
 
-// @public (undocumented)
+// @internal (undocumented)
 export interface DirectionalTransition {
     readonly animate: TargetAndTransition;
     readonly exit: TargetAndTransition;
@@ -15,16 +15,16 @@ export interface DirectionalTransition {
     readonly transition: typeof SLOT_TRANSITION;
 }
 
-// @public
+// @internal
 export function directionalTransition(axis: TransitionAxis, rest: number, distance: number): DirectionalTransition;
 
-// @public
+// @internal
 export const SLOT_TRANSITION: {
     duration: number;
     ease: [number, number, number, number];
 };
 
-// @public (undocumented)
+// @internal (undocumented)
 export type TransitionAxis = 'x' | 'y';
 
 // (No @packageDocumentation comment for this package)

@@ -455,7 +455,7 @@ export const phoneFrameScrollSx: {
     };
 };
 
-// @public
+// @public (undocumented)
 export interface PhoneModel {
     // (undocumented)
     height: number;
