@@ -16,6 +16,7 @@ import {
   lastParkedBefore,
   leftmostLiveIndex,
   movePanel,
+  panelWidthOf,
   promoteToLive,
   reorderStepsForOffset,
   restorePanel,
@@ -375,4 +376,23 @@ test('reorderStepsForOffset: an EXACT half-slot drag is one hop in BOTH directio
   }
   assert.ok(Object.is(reorderStepsForOffset(-0.3 * slot, slot), 0), 'short of the midpoint leftward is +0 (no hop), never -0');
   assert.ok(Object.is(reorderStepsForOffset(0, slot), 0));
+});
+
+test('panelWidthOf: a "phone" panel (explicit or omitted formFactor) ALWAYS uses the live phoneWidth argument, never its own stored size', () => {
+  const phonePanel = createHistoryPanel(); // formFactor 'phone', size DEFAULT_PANEL_SIZE (390x700)
+  assert.equal(panelWidthOf(phonePanel, 430), 430, 'the LIVE phoneWidth (430), not the stored 390 placeholder');
+  const omitted: PanelWindow = { ...phonePanel, formFactor: undefined };
+  assert.equal(panelWidthOf(omitted, 430), 430, 'an omitted formFactor defaults to "phone", same as explicit');
+});
+
+test('panelWidthOf: a "tablet"/"desktop" panel uses its OWN stored size.width, never the live phoneWidth argument', () => {
+  const tablet: PanelWindow = { ...createHistoryPanel(), formFactor: 'tablet', size: { formFactor: 'tablet', width: 820, height: 1180 } };
+  assert.equal(panelWidthOf(tablet, 430), 820, 'reads its own stored size.width, ignoring the live phoneWidth entirely');
+  const desktop: PanelWindow = { ...createHistoryPanel(), formFactor: 'desktop', size: { formFactor: 'desktop', width: 1200, height: 800 } };
+  assert.equal(panelWidthOf(desktop, 430), 1200);
+});
+
+test('panelWidthOf: a "tablet"/"desktop" panel with no stored size falls back to the live phoneWidth, never a second hardcoded literal', () => {
+  const noSize: PanelWindow = { ...createHistoryPanel(), formFactor: 'desktop', size: undefined };
+  assert.equal(panelWidthOf(noSize, 430), 430, 'size?.width ?? phoneWidth: a missing size means the live phoneWidth, not a hardcoded fallback');
 });
