@@ -11,7 +11,7 @@ import Box from '@mui/material/Box';
 import { resolveView, useHost, useViewState } from 'phonux';
 import { anchorTargetOf, resolveEnterDirection } from './anchorPanel.js';
 import { GAP, LivePanelSlot } from './LivePanelSlot.js';
-import { panelWidthOf, summarisePanel, type NeighborWidths, type PanelWindow } from './panelWindow.js';
+import { HISTORY_PANEL_ID, panelWidthOf, summarisePanel, type NeighborWidths, type PanelWindow } from './panelWindow.js';
 
 /** A 'raised' slot sits above a 'base' one: a LEFT-exiting park crosses a raised panel's footprint (History, today) on the way out, so this ordering is load-bearing for that path (a close's exit is DOWN and never reaches it). */
 const RAISED_LAYER_Z_INDEX = 2;
@@ -28,13 +28,11 @@ function renderedSummary(p: PanelWindow, width: number) {
 }
 
 /**
- * Mirrors this entry's own `collapsible` for the two things LivePanel.tsx must decide without ever reading
- * the field itself (a resolved view only ever receives `PanelSummary`, which has no `collapsible` field, on
- * purpose -- phoneViewApi.tsx): whether its grab bar is a reorder source, and whether the framework may offer
- * ANY drag-to-close handle at all. `undefined` (no provider above, e.g. a view mounted directly in a test)
- * is deliberately distinct from an explicit `false`: each hook below resolves that case to its OWN default.
+ * Per-slot facts LivePanel.tsx cannot read itself: a resolved view only receives `PanelSummary`, which has no
+ * `collapsible` or `anchor`, on purpose (phoneViewApi.tsx). No provider above (a view mounted directly, as in
+ * tests) is `undefined`, deliberately not `false`: each hook below resolves that case to its OWN default.
  */
-const PanelSlotContext = React.createContext<{ collapsible: boolean; neighborWidths: NeighborWidths } | undefined>(undefined);
+const PanelSlotContext = React.createContext<{ collapsible: boolean; neighborWidths: NeighborWidths; pinned: boolean } | undefined>(undefined);
 /** True only for a `collapsible` entry (e.g. a plain web panel) -- an always-shown column (History, or a
  * `permanent:true` custom column) is never a reorder source. Unprovided resolves to false: a view mounted
  * with no `LivePanels` above it never reorders. */
@@ -45,6 +43,8 @@ export const usePanelReorderEligible = (): boolean => React.useContext(PanelSlot
 export const usePanelCloseEligible = (): boolean => React.useContext(PanelSlotContext)?.collapsible ?? true;
 /** The widths this entry's drag can cross (reorderStepsForOffset's input). Unprovided: none, so no hop. */
 export const usePanelNeighborWidths = (): NeighborWidths => React.useContext(PanelSlotContext)?.neighborWidths ?? NO_NEIGHBORS;
+/** Anchored left of History, read from the anchor every render so a drag across History changes it too. Unprovided: false. */
+export const usePanelPinned = (): boolean => React.useContext(PanelSlotContext)?.pinned ?? false;
 
 export function LivePanels({
   entries,
@@ -122,7 +122,10 @@ export function LivePanels({
         {present.map((p, index) => {
           const Component = resolveView(p.view);
           return (
-            <PanelSlotContext.Provider key={p.id} value={{ collapsible: p.collapsible, neighborWidths: neighborWidthsAt(index) }}>
+            <PanelSlotContext.Provider
+              key={p.id}
+              value={{ collapsible: p.collapsible, neighborWidths: neighborWidthsAt(index), pinned: anchorTargetOf(p) === HISTORY_PANEL_ID && p.anchor?.position === 'left' }}
+            >
               <LivePanelSlot
                 leftOffset={leftOffsets[index]!}
                 width={widths[index]!}
