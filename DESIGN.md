@@ -26,8 +26,8 @@ app's own logic -- exactly what this boundary exists to avoid.
 
 The app's own panel model adds behavior flags (`collapsible`, `listed`, `view`, ...) to decide overflow,
 listing and rendering -- but `PanelSummary` (this folder's own view of a panel) exposes only what a view
-needs to render a row: id, url, title, live, locked. A view never sees or reasons about the flags that
-decided whether a panel is in `panelList` at all.
+needs to render a row: id, url, title, live, locked, formFactor, size. A view never sees or reasons about the
+flags that decided whether a panel is in `panelList` at all.
 
 ## The panel-view registry: never a crash, never a silent substitution
 
@@ -67,6 +67,46 @@ EVERY panel in a framework drag-to-close handle unconditionally. LivePanel.tsx r
 through the same per-slot context LivePanels.tsx already provides for the reorder exemption
 (`usePanelCloseEligible`, alongside `usePanelReorderEligible`) and renders no DragToClose wrapper -- no grab
 bar at all -- when it reads false, exactly like History's own locked Panel today.
+
+## `size?` is additive: omitted means "read the shared device size, exactly as before this prop existed"
+
+`Panel`/`PanelFrame` (`PhoneView.tsx`/`PhoneFrame.tsx`) each gain an optional `size?: PanelSize`
+(`FormFactor`/`PanelSize`, `phoneViewApi.tsx`, beside `PanelSummary`). A caller that omits it -- every
+caller today -- gets exactly what it got before this prop existed: `useHost().device.size`, read live, so it
+still reacts to a phone-size change the same way. This is the whole point of making it optional rather than
+required with a default: a third-party view compiled against an OLDER phonux (one with no `size` prop at
+all) is still a valid caller of the current `Panel`/`PanelFrame` -- passing nothing is not a special case, it
+is the type's own default state, so there is no version where "the new field" could be missing versus
+"explicitly opted out." The omitted default is never a static per-tier constant (e.g. a fixed "phone" pixel
+size) -- it is the live, shared value every panel already read, so a host that resizes its window mid-session
+never leaves a size-less view rendering stale dimensions.
+
+`PanelSummary.formFactor`/`size` are themselves optional, not required, even though the app's own
+`panelWindow.ts` always sets them on every entry it creates (`createHistoryPanel`, `appendPanel`) -- the same
+choice already made for `insertAt`/`layer`/`anchoredEnter` on the internal `PanelWindow` record. A `PanelSummary`
+is a structural type: any object shaped like one satisfies it, including hand-built test fixtures that predate
+this feature and never set these two fields. Required fields would force every such fixture, in this app and
+any third party's, to add them just to keep compiling, for a schema addition that changes no rendered pixel
+by itself (nothing reads `PanelSummary.size` yet; only `Panel`/`PanelFrame`'s own separate `size` prop, passed
+explicitly by whatever wires it up, does).
+
+### Where `PanelWindow`'s own default size comes from, without importing desktop code into phonux
+
+`panelWindow.ts` (`client/src/desktop/panels/`) is desktop code, not part of this folder's import boundary --
+it may import anything the rest of the desktop app can. The constraint that actually shaped its default is
+different: `panelWindow.ts`'s own functions (`appendPanel`, `createHistoryPanel`, and everything else in the
+file) are pure, taking no device-state argument, and are tested that way (`test/panel-window.test.ts` builds
+panels with no device store initialized at all). Reading `phoneSizeStore`'s live, module-level `current` size
+inside these functions would make them impure and would need a new parameter threaded in from
+`usePanelManager.ts`/`useProvidePanels.ts` -- the very call sites a later phase (the one that wires
+`setFormFactor` and per-panel resizing into shipped code) already owns. So the default here is
+`phonux`'s own `DEFAULT_PHONE_SIZE` constant (390x700) -- the SAME value `phoneSizeStore.ts`'s own `current`
+starts at before any resize -- rather than a second hardcoded literal or a live read. It is a value, not yet a
+behavior: nothing renders a panel at its own `PanelWindow.size` today (`Panel`/`PanelFrame` still read
+`useHost().device.size` when their `size` prop is omitted, which is always, today), so this default cannot
+cause any visible difference from the live device size until a later phase actually threads it into rendering
+-- at which point that phase, already touching the call sites this one could not, can reconcile a per-panel
+size against a live resize if it needs to.
 
 ## `PanelsAPI.move` is directional (move-by-one), not "move to index"
 

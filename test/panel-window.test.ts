@@ -5,6 +5,7 @@
 
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { DEFAULT_PHONE_SIZE, type PanelSize } from 'phonux';
 import {
   type PanelWindow,
   appendPanel,
@@ -20,12 +21,21 @@ import {
   restorePanel,
   rightmostLiveIndex,
   sideOfLiveRange,
+  summarisePanel,
 } from '../client/src/desktop/panels/panelWindow.js';
+
+/** Every entry's own default tier/size (panelWindow.ts's DEFAULT_PANEL_SIZE, reconstructed here from the same
+ * shared phonux constant rather than a second 390/700 literal, so this file cannot drift from panelWindow.ts's
+ * own derivation). */
+const DEFAULT_PANEL_SIZE: PanelSize = { formFactor: 'phone', width: DEFAULT_PHONE_SIZE.width, height: DEFAULT_PHONE_SIZE.height };
 
 test('appendPanel: appends a new LIVE extra panel carrying the source id and url, unstarted webContentsId', () => {
   const next = appendPanel([], { sourceWebContentsId: 7, url: 'https://example.com/new-tab' }, 'w1');
   assert.deepEqual(next, [
-    { id: 'w1', url: 'https://example.com/new-tab', webContentsId: null, sourceWebContentsId: 7, live: true, locked: false, view: 'web', collapsible: true, listed: true, insertAt: 'end', layer: 'base', anchoredEnter: false },
+    {
+      id: 'w1', url: 'https://example.com/new-tab', webContentsId: null, sourceWebContentsId: 7, live: true, locked: false, view: 'web', collapsible: true, listed: true, insertAt: 'end', layer: 'base', anchoredEnter: false,
+      formFactor: 'phone', size: DEFAULT_PANEL_SIZE,
+    },
   ]);
 });
 
@@ -49,7 +59,10 @@ test('appendPanel: view/params/listed/layer/anchoredEnter from create()\'s optio
     'c1',
   );
   assert.deepEqual(next, [
-    { id: 'c1', url: 'about:blank', webContentsId: null, sourceWebContentsId: -1, live: true, locked: false, view: 'test-custom', collapsible: true, listed: false, params: { a: 1 }, insertAt: 'end', layer: 'raised', anchoredEnter: true },
+    {
+      id: 'c1', url: 'about:blank', webContentsId: null, sourceWebContentsId: -1, live: true, locked: false, view: 'test-custom', collapsible: true, listed: false, params: { a: 1 }, insertAt: 'end', layer: 'raised', anchoredEnter: true,
+      formFactor: 'phone', size: DEFAULT_PANEL_SIZE,
+    },
   ]);
 });
 
@@ -65,6 +78,37 @@ test('appendPanel: permanent:true forces collapsible:false and listed:false, eve
 test('appendPanel: permanent:true with `view` OMITTED (the single most obvious create({ permanent: true }) call) still defaults to the built-in "web" view, collapsible:false -- the exact combination LivePanel.tsx must render with no framework close handle', () => {
   const next = appendPanel([], { sourceWebContentsId: -1, url: 'about:blank', permanent: true }, 'p1');
   assert.deepEqual([next[0]!.view, next[0]!.collapsible], ['web', false], 'permanent:true alone reaches the built-in view, not just a caller-supplied custom one');
+});
+
+// ---------------------------------------------------------------------------
+// formFactor/size: the SAME default lands on every entry (a plain web panel, a permanent column, and
+// History alike) -- setFormFactor's own eligibility is a later phase's concern, never this construction
+// site's. summarisePanel forwards both fields into PanelSummary unchanged (panel-form-factors-build Phase 2).
+// ---------------------------------------------------------------------------
+
+test('appendPanel: formFactor/size default to "phone"/DEFAULT_PANEL_SIZE for a plain panel AND a permanent:true one alike -- the default applies uniformly regardless of collapsible', () => {
+  const plain = appendPanel([], { sourceWebContentsId: -1, url: 'about:blank' }, 'w1')[0]!;
+  const permanent = appendPanel([], { sourceWebContentsId: -1, url: 'about:blank', permanent: true }, 'p1')[0]!;
+  assert.deepEqual([plain.formFactor, plain.size], ['phone', DEFAULT_PANEL_SIZE]);
+  assert.deepEqual([permanent.formFactor, permanent.size], ['phone', DEFAULT_PANEL_SIZE], 'a permanent column gets the SAME default -- only setFormFactor\'s later eligibility differs, not the default itself');
+});
+
+test('createHistoryPanel: formFactor/size default the same way as any other entry', () => {
+  const history = createHistoryPanel();
+  assert.deepEqual([history.formFactor, history.size], ['phone', DEFAULT_PANEL_SIZE]);
+});
+
+test('summarisePanel: forwards formFactor and size from PanelWindow into PanelSummary unchanged -- red if summarisePanel drops the fields', () => {
+  const tabletSize: PanelSize = { formFactor: 'tablet', width: 800, height: 1100 };
+  const [tablet] = appendPanel([], { sourceWebContentsId: -1, url: 'https://t.example' }, 't1').map((p) => ({ ...p, formFactor: 'tablet' as const, size: tabletSize }));
+  const summary = summarisePanel(tablet!);
+  assert.deepEqual([summary.formFactor, summary.size], ['tablet', tabletSize], 'a panel set to tablet reads tablet back through summarisePanel, not the "phone" it was created with');
+});
+
+test('summarisePanel: round-trip through create -> panelList for the DEFAULT tier too (a panel created with no override reads "phone" back, not undefined)', () => {
+  const created = appendPanel([], { sourceWebContentsId: -1, url: 'https://d.example' }, 'd1')[0]!;
+  const summary = summarisePanel(created);
+  assert.deepEqual([summary.formFactor, summary.size], ['phone', DEFAULT_PANEL_SIZE]);
 });
 
 test('appendPanel: insertAt "start" lands immediately after the last non-collapsible entry (History), never before it; the default still appends to the array end', () => {

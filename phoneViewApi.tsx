@@ -50,7 +50,25 @@ export interface ClosedPageEntry {
 /** JSON-serializable by construction -- the minimum shape any future persistence layer could round-trip (see DESIGN.md). */
 export type JsonValue = string | number | boolean | null | readonly JsonValue[] | { readonly [key: string]: JsonValue };
 
-/** What a view may know about a panel. The app's own panel record is structurally assignable to it. */
+/** A panel's own visual tier. 'phone' is every panel's tier until a later phase's PanelsAPI.setFormFactor changes it. */
+export type FormFactor = 'phone' | 'tablet' | 'desktop';
+
+/**
+ * A panel's own rendered size, carrying its tier alongside the pixels so a size value stays meaningful on its
+ * own (e.g. passed to Panel/PanelFrame's optional `size` prop without also passing a separate formFactor).
+ * `height: 'fill'` lets a tier fill its container's height instead of a fixed pixel value.
+ */
+export interface PanelSize {
+  formFactor: FormFactor;
+  width: number;
+  height: number | 'fill';
+}
+
+/**
+ * What a view may know about a panel. The app's own panel record is structurally assignable to it.
+ * `formFactor`/`size` are optional (like an ad hoc test fixture predating this field, or a third-party
+ * producer) even though the app's own panelWindow.ts always sets them -- see DESIGN.md.
+ */
 export interface PanelSummary<P = JsonValue> {
   readonly id: string;
   readonly url: string;
@@ -61,6 +79,10 @@ export interface PanelSummary<P = JsonValue> {
   readonly locked: boolean;
   /** Opaque per-panel data a create() caller supplied; undefined for built-ins. */
   readonly params?: P;
+  /** This panel's own visual tier. */
+  readonly formFactor?: FormFactor;
+  /** This panel's own rendered size. Not yet read by Panel/PanelFrame's rendering (their `size` prop is separate, read from useHost().device.size when absent) -- informational until a later phase wires per-panel resizing. */
+  readonly size?: PanelSize;
 }
 
 // ---------------------------------------------------------------------------

@@ -2,7 +2,20 @@
  * The `PanelWindow` model -- one browsing panel in the unified row -- and every pure state-transition
  * function that operates on a `PanelWindow[]` array.
  */
-import type { JsonValue, PanelSummary } from 'phonux';
+import { DEFAULT_PHONE_SIZE, type FormFactor, type JsonValue, type PanelSize, type PanelSummary } from 'phonux';
+
+/**
+ * Every panel's own default tier/size, for every entry this file creates (History and permanent columns
+ * alike -- Phase 4's setFormFactor is the only thing that later tells them apart). Derived from phonux's own
+ * DEFAULT_PHONE_SIZE rather than a second 390/700 literal, so the two stay in sync if that constant ever
+ * changes. Not `phoneSizeStore`'s LIVE current size on purpose: this file's own functions are pure
+ * (appendPanel/createHistoryPanel take no device-state argument, and their existing tests build panels with
+ * no device store initialized at all), and desktop/panels/usePanelManager.ts -- the only call site that could
+ * thread a live value in -- is out of scope until a later phase wires setFormFactor. See DESIGN.md ("Where
+ * PanelWindow's own default size comes from, without importing desktop code into phonux") for the full
+ * boundary reasoning.
+ */
+const DEFAULT_PANEL_SIZE: PanelSize = { formFactor: 'phone', width: DEFAULT_PHONE_SIZE.width, height: DEFAULT_PHONE_SIZE.height };
 
 /**
  * One browsing panel in the unified row. Every panel is parked and revived by the same capacity rules
@@ -41,16 +54,21 @@ export interface PanelWindow {
   layer?: 'base' | 'raised';
   /** Whether this entry's reappearance always resolves through the anchor formula (resolveEnterDirection) instead of unconditionally entering from the right -- read ONLY by LivePanels.tsx's enterDirection. Default false. */
   anchoredEnter?: boolean;
+  /** This panel's own visual tier -- 'phone' for every entry until a later phase's PanelsAPI.setFormFactor exists. Optional (like insertAt/layer/anchoredEnter above) so a hand-built fixture predating this field still typechecks; createHistoryPanel/appendPanel always set it. */
+  formFactor?: FormFactor;
+  /** This panel's own rendered size -- DEFAULT_PANEL_SIZE for every entry until a later phase wires per-panel resizing; not yet read by any renderer. Optional for the same reason as `formFactor`. */
+  size?: PanelSize;
 }
 
-/** The one PanelWindow -> PanelSummary projection: every site that hands a panel to a VIEW (LivePanels.tsx's resolved component, useProvidePanels.ts's panelList/recentlyClosed) narrows through this SAME function, so a third-party or built-in view can never see a desktop-only field (webContentsId, collapsible, insertAt, layer, anchoredEnter, ...). */
-export const summarisePanel = ({ id, url, title, live, locked, params }: PanelWindow): PanelSummary => ({ id, url, title, live, locked, params });
+/** The one PanelWindow -> PanelSummary projection: every site that hands a panel to a VIEW (LivePanels.tsx's resolved component, useProvidePanels.ts's panelList/recentlyClosed) narrows through this SAME function, so a third-party or built-in view can never see a desktop-only field (webContentsId, collapsible, insertAt, layer, anchoredEnter, ...). formFactor/size ARE forwarded (unlike those desktop-only fields): a resolved view's own tier control reads its tier from this projection, not the internal record. */
+export const summarisePanel = ({ id, url, title, live, locked, params, formFactor, size }: PanelWindow): PanelSummary => ({ id, url, title, live, locked, params, formFactor, size });
 
-/** History's own seeded entry: never collapsible (an always-shown column), never listed (it must not list itself), always live, locked by default (usePanelClosing.ts's lock gate); raised/anchored so its slot and reappearance behave the way they always have. */
+/** History's own seeded entry: never collapsible (an always-shown column), never listed (it must not list itself), always live, locked by default (usePanelClosing.ts's lock gate); raised/anchored so its slot and reappearance behave the way they always have. Same default tier/size as every other entry (DEFAULT_PANEL_SIZE) -- a permanent column is exempt from setFormFactor later, never from carrying the field at all. */
 export function createHistoryPanel(): PanelWindow {
   return {
     id: HISTORY_PANEL_ID, url: '', title: 'History', webContentsId: null, sourceWebContentsId: -1, live: true, locked: true,
     view: 'history', collapsible: false, listed: false, insertAt: 'start', layer: 'raised', anchoredEnter: true,
+    formFactor: 'phone', size: DEFAULT_PANEL_SIZE,
   };
 }
 
@@ -106,6 +124,10 @@ export function appendPanel(panels: PanelWindow[], info: { sourceWebContentsId: 
     insertAt: info.insertAt ?? 'end',
     layer: info.layer ?? 'base',
     anchoredEnter: info.anchoredEnter ?? false,
+    // Same default for every entry, permanent (`permanent:true`) or not -- setFormFactor's own eligibility
+    // check is a later phase's concern, never this construction site's.
+    formFactor: 'phone',
+    size: DEFAULT_PANEL_SIZE,
   };
   return insertPanelAt(panels, entry);
 }

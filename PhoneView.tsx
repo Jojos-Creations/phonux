@@ -19,7 +19,7 @@
 import * as React from 'react';
 import Box, { type BoxProps } from '@mui/material/Box';
 import { PANEL_HEADER_GAP_PX, PanelHeaderRow, type PanelHeaderRowProps } from './PhoneFrame.js';
-import { useHost } from './phoneViewApi.js';
+import { useHost, type PanelSize } from './phoneViewApi.js';
 import { CaptureRegistryContext, type ViewId } from './snapshots.js';
 
 // One import path for a view author: the contracts, the provider and the hook.
@@ -73,12 +73,14 @@ export interface PanelProps extends Omit<BoxProps, 'children' | 'sx' | 'title'> 
   viewId?: ViewId;
   /** 'never' opts a Panel with a viewId out of registration entirely -- default 'auto'. */
   capture?: 'auto' | 'never';
+  /** This panel's own size instead of the shared useHost().device.size. Omitted (every caller today): reads device.size exactly as before this prop existed -- see DESIGN.md. */
+  size?: PanelSize;
 }
 
 /** @deprecated use PanelProps */
 export type PhoneViewProps = PanelProps;
 
-export function Panel({ title, actions, headerProps, grabProps, overlay, sx, children, viewId, capture = 'auto', ...rest }: PanelProps) {
+export function Panel({ title, actions, headerProps, grabProps, overlay, sx, children, viewId, capture = 'auto', size, ...rest }: PanelProps) {
   const { device } = useHost();
   const registry = React.useContext(CaptureRegistryContext);
   const rootRef = React.useRef<HTMLDivElement | null>(null);
@@ -89,7 +91,7 @@ export function Panel({ title, actions, headerProps, grabProps, overlay, sx, chi
     return registry.register(viewId, rootRef.current, 'viewport');
   }, [registry, viewId, capture]);
   return (
-    <Box sx={{ position: 'relative', width: device.size.width, ...sx }} {...rest} ref={rootRef}>
+    <Box sx={{ position: 'relative', width: size?.width ?? device.size.width, ...sx }} {...rest} ref={rootRef}>
       {title !== undefined && <PanelHeaderRow title={title} actions={actions} {...headerProps} />}
       {grabProps && (
         <Box

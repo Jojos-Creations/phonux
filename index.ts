@@ -13,6 +13,8 @@ export type {
   DetectedPhone,
   ClosedPageEntry,
   JsonValue,
+  FormFactor,
+  PanelSize,
   PanelSummary,
   CreatePanelOptions,
   SettingsAPI,

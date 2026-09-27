@@ -14,7 +14,7 @@ import * as React from 'react';
 import Box, { type BoxProps } from '@mui/material/Box';
 import { type Theme } from '@mui/material/styles';
 import MoreHorizIcon from '@mui/icons-material/MoreHoriz';
-import { useHost } from './phoneViewApi.js';
+import { useHost, type PanelSize } from './phoneViewApi.js';
 
 /**
  * phone-size-auto-detection: the fixed 390x700 stand-in this comment used to
@@ -28,6 +28,8 @@ export interface PanelFrameProps extends Omit<BoxProps, 'children'> {
   children: React.ReactNode;
   /** Fill the available space instead of the fixed phone size (the tap-to-expand overlay). */
   expanded?: boolean;
+  /** This panel's own size instead of the shared useHost().device.size. Omitted (every caller today): reads device.size exactly as before this prop existed, for both width and height -- see DESIGN.md. `height: 'fill'` renders as `100%` rather than a pixel value. */
+  size?: PanelSize;
 }
 
 /** @deprecated use PanelFrameProps */
@@ -144,10 +146,12 @@ export const phoneFrameBareSx = panelFrameBareSx;
  * sits flush, matching the live-webpage panel's own real browser scrollbar.
  */
 const PanelFrame = React.forwardRef<HTMLDivElement, PanelFrameProps>(function PanelFrame(
-  { children, expanded, sx, ...rest },
+  { children, expanded, size, sx, ...rest },
   ref,
 ) {
-  const { width, height } = useHost().device.size;
+  const deviceSize = useHost().device.size;
+  const width = size?.width ?? deviceSize.width;
+  const height = size?.height === 'fill' ? '100%' : (size?.height ?? deviceSize.height);
   return (
     <Box
       ref={ref}
