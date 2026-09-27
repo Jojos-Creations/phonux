@@ -228,6 +228,26 @@ test('closePanel then restorePanel in REVERSE order undoes a run of closes exact
   assert.deepEqual(back.map((p) => p.id), ['w1', 'w2', 'w3', 'w4'], 'last closed first: the original order comes back');
 });
 
+test('restorePanel re-reads anchors from the restored order: A closed right of History, B moved left, undo A at index 1 -> [B, A, History] with A anchored LEFT, and the next computeRowOrder/appendPanel keeps it there -- red if restorePanel keeps A\'s stale right-of-History anchor', () => {
+  let panels: PanelWindow[] = [createHistoryPanel()];
+  panels = appendPanel(panels, { sourceWebContentsId: -1, url: 'https://a.example' }, 'a');
+  panels = appendPanel(panels, { sourceWebContentsId: -1, url: 'https://b.example' }, 'b');
+  const { remaining, closed, index } = closePanel(panels, 'a')!;
+  assert.deepEqual([closed.anchor, index], [{ panel: HISTORY_PANEL_ID, position: 'right', priority: 0 }, 1], 'precondition: A closed at index 1, anchored right of History');
+  const moved = movePanel(remaining, 'b', 'left');
+  assert.deepEqual(moved.map((p) => p.id), ['b', HISTORY_PANEL_ID], 'precondition: B crossed History');
+  const restored = restorePanel(moved, closed, index);
+  assert.deepEqual(restored.map((p) => p.id), ['b', 'a', HISTORY_PANEL_ID], 'undo puts A back at its old index');
+  assert.deepEqual(
+    restored.map((p) => p.anchor),
+    [{ panel: HISTORY_PANEL_ID, position: 'left', priority: 1 }, { panel: HISTORY_PANEL_ID, position: 'left', priority: 0 }, undefined],
+    'A is anchored where it now sits (left of History, nearest), B one farther',
+  );
+  assert.deepEqual(computeRowOrder(restored).map((p) => p.id), ['b', 'a', HISTORY_PANEL_ID], 'computeRowOrder leaves A where undo put it');
+  const opened = appendPanel(restored, { sourceWebContentsId: -1, url: 'https://c.example' }, 'c');
+  assert.deepEqual(opened.map((p) => p.id), ['b', 'a', HISTORY_PANEL_ID, 'c'], 'so does the next open: A never jumps across History');
+});
+
 // ---------------------------------------------------------------------------
 // sideOfLiveRange / leftmostLiveIndex / rightmostLiveIndex / firstParkedAfter / lastParkedBefore: the
 // row-gesture and exit-direction primitives -- pure, so their edge cases are pinned without a hook or a
