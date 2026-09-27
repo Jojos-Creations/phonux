@@ -52,12 +52,10 @@ export interface RowLayoutResult {
 }
 
 /**
- * The row's centering math. `fixedItemCount` must come from the same array the row's JSX renders, never a
- * hand-mirrored copy of its conditions: a count that drifts from what is drawn mis-centers the row by half
- * an item, silently.
- *
- * `maxLiveThatFit` (at an empty `liveWidths`) is the one "how many fit" function usePanelManager.ts's
- * `capacity` and SettingsAPI's `fitCount` both derive from, so a wider panel lowers the count instead of
+ * The row's centering math. `fixedItemCount` must come from the same array the row's JSX renders,
+ * never a hand-mirrored copy of its conditions, or a drifted count mis-centers the row by half an
+ * item, silently. `maxLiveThatFit` is the one "how many fit" function both usePanelManager.ts's
+ * `capacity` and SettingsAPI's `fitCount` derive from, so a wider panel lowers the count instead of
  * overflowing unnoticed.
  */
 export function computeRowLayout({ containerWidth, phoneWidth, gap, fixedItemCount, liveWidths }: RowLayoutInput): RowLayoutResult {

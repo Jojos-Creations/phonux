@@ -1,21 +1,11 @@
 /**
- * Recording fakes of every API in phoneViewApi.tsx, for testing a view with no
- * host and no desktop bridge:
- *
- *   const host = createFakeHost({ panels: { panelList: [...] } });
- *   render(<HostProvider host={host}><MyView /></HostProvider>);
- *   // interact, then assert on host.calls
- *
- * Every method records `{ api, method, args }` in `host.calls`, in call order,
- * and does nothing else: the fakes hold no state, so a test that wants a
- * different live value re-renders with new overrides. Async methods resolve.
- * `overrides` replaces whole members of one API (an override of
- * `closedPagesViewer` or `settingsColumn` replaces the whole nested object); an
- * overridden method no longer records.
- *
- * Lives beside the API contracts, not in the app's test folder, so a view
- * written by a third party can import it. It has no test-runner dependency and
- * imports only the contracts and the data-only phone model list.
+ * Recording fakes of every API in phoneViewApi.tsx, for testing a view with no host and no desktop
+ * bridge: `createFakeHost({ panels: { panelList: [...] } })`, render under `<HostProvider>`,
+ * interact, then assert on `host.calls`. Every method records `{ api, method, args }` and does
+ * nothing else -- the fakes hold no state, so a test wanting a different live value re-renders with
+ * new overrides; `overrides` replaces whole members (e.g. `closedPagesViewer`), and an overridden
+ * method no longer records. Lives beside the contracts, not the app's test folder, so a third-party
+ * view can import it, with no test-runner dependency.
  */
 
 import { PHONE_MODELS } from './phoneModels.js';
