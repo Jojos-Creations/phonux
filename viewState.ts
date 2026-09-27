@@ -148,8 +148,19 @@ function useRetainOnly(panelIds: Iterable<string>): void {
 }
 
 /**
- * The one hook a view uses for state that must survive its own panel parking and reviving: same `[value,
- * setValue]` pair and same type inference as `React.useState`, but `initial` must be JSON-shaped.
+ * useViewState's type, spelled out so the public declaration names none of this file's private helpers.
+ * Callers see these call signatures, not useViewStateImpl's, so the JSON bound that counts is the one here.
+ */
+export interface UseViewState {
+  <T>(key: [T] extends [JsonValue] ? string : never, initial: T): [T, (next: T | ((prev: T) => T)) => void];
+  <T extends JsonValue>(key: string, initial: T): [T, (next: T | ((prev: T) => T)) => void];
+  Provider: React.Provider<string | null>;
+  useRetainOnly: (panelIds: Iterable<string>) => void;
+}
+
+/**
+ * The one hook a view uses for state that must survive its own panel parking and reviving: same
+ * `[value, setValue]` pair and same type inference as `React.useState`, but `initial` must be JSON-shaped.
  * `Provider` and `useRetainOnly` are the host's side (LivePanels.tsx), never called by a view.
  */
-export const useViewState = Object.assign(useViewStateImpl, { Provider: ViewIdContext.Provider, useRetainOnly });
+export const useViewState: UseViewState = Object.assign(useViewStateImpl, { Provider: ViewIdContext.Provider, useRetainOnly });
