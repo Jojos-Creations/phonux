@@ -77,7 +77,7 @@ export function DragToClose({
   const closeRef = React.useRef(onClose);
   closeRef.current = onClose;
   const closing = React.useRef(false); // a release has decided to close: the exit runs and takes no more presses
-  // Set once the first DIRECTION_LOCK_PX decide; null until then, and always for a vertical-only handle.
+  // Set once the first DIRECTION_LOCK_PX decides; null until then, and always for a vertical-only handle.
   const axisLock = React.useRef<'x' | 'y' | null>(null);
 
   // overflow-y: hidden while a drag is live: the transformed box would otherwise add a scrollbar.
