@@ -50,7 +50,7 @@ export interface ClosedPageEntry {
 /** JSON-serializable by construction -- the minimum shape any future persistence layer could round-trip (see DESIGN.md). */
 export type JsonValue = string | number | boolean | null | readonly JsonValue[] | { readonly [key: string]: JsonValue };
 
-/** A panel's own visual tier. 'phone' is every panel's tier until a later phase's PanelsAPI.setFormFactor changes it. */
+/** A panel's own visual tier. The app gives every panel 'phone' by default. */
 export type FormFactor = 'phone' | 'tablet' | 'desktop';
 
 /**
@@ -66,8 +66,8 @@ export interface PanelSize {
 
 /**
  * What a view may know about a panel. The app's own panel record is structurally assignable to it.
- * `formFactor`/`size` are optional (like an ad hoc test fixture predating this field, or a third-party
- * producer) even though the app's own panelWindow.ts always sets them -- see DESIGN.md.
+ * `formFactor`/`size` are optional so a hand-built or third-party summary without them stays valid, even
+ * though every panel the app itself creates carries both -- see DESIGN.md.
  */
 export interface PanelSummary<P = JsonValue> {
   readonly id: string;
@@ -81,7 +81,7 @@ export interface PanelSummary<P = JsonValue> {
   readonly params?: P;
   /** This panel's own visual tier. */
   readonly formFactor?: FormFactor;
-  /** This panel's own rendered size. Not yet read by Panel/PanelFrame's rendering (their `size` prop is separate, read from useHost().device.size when absent) -- informational until a later phase wires per-panel resizing. */
+  /** This panel's own rendered size. Panel/PanelFrame do not read it: their separate `size` prop does the sizing, falling back to useHost().device.size when omitted. */
   readonly size?: PanelSize;
 }
 

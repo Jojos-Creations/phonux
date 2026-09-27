@@ -73,7 +73,7 @@ export interface PanelProps extends Omit<BoxProps, 'children' | 'sx' | 'title'> 
   viewId?: ViewId;
   /** 'never' opts a Panel with a viewId out of registration entirely -- default 'auto'. */
   capture?: 'auto' | 'never';
-  /** This panel's own size instead of the shared useHost().device.size. Omitted (every caller today): reads device.size exactly as before this prop existed -- see DESIGN.md. */
+  /** This panel's own size instead of the shared useHost().device.size. Omitted: the width comes from device.size, read live -- see DESIGN.md. */
   size?: PanelSize;
 }
 

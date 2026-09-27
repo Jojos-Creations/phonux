@@ -28,7 +28,7 @@ export interface PanelFrameProps extends Omit<BoxProps, 'children'> {
   children: React.ReactNode;
   /** Fill the available space instead of the fixed phone size (the tap-to-expand overlay). */
   expanded?: boolean;
-  /** This panel's own size instead of the shared useHost().device.size. Omitted (every caller today): reads device.size exactly as before this prop existed, for both width and height -- see DESIGN.md. `height: 'fill'` renders as `100%` rather than a pixel value. */
+  /** This panel's own size instead of the shared useHost().device.size. Omitted: width and height come from device.size, read live -- see DESIGN.md. `height: 'fill'` renders as `100%` rather than a pixel value. */
   size?: PanelSize;
 }
 
