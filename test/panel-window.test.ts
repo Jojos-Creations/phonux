@@ -27,6 +27,7 @@ import {
   TIER_SIZES,
 } from '../client/src/desktop/panels/panelWindow.js';
 import { GAP } from '../client/src/desktop/panels/LivePanelSlot.js';
+import { computeMaxLiveWidth } from '../src/panel-layout.js';
 
 /** Every entry's own default tier/size (panelWindow.ts's DEFAULT_PANEL_SIZE, reconstructed here from the same
  * shared phonux constant rather than a second 390/700 literal, so this file cannot drift from panelWindow.ts's
@@ -400,21 +401,41 @@ test('reorderStepsForOffset: crossing a DIFFERENTLY-sized neighbour hops exactly
 
 test('panelWidthOf: a "phone" panel (explicit or omitted formFactor) ALWAYS uses the live phoneWidth argument, never its own stored size', () => {
   const phonePanel = createHistoryPanel(); // formFactor 'phone', size DEFAULT_PANEL_SIZE (390x700)
-  assert.equal(panelWidthOf(phonePanel, 430), 430, 'the LIVE phoneWidth (430), not the stored 390 placeholder');
+  assert.equal(panelWidthOf(phonePanel, 430, Number.POSITIVE_INFINITY), 430, 'the LIVE phoneWidth (430), not the stored 390 placeholder');
   const omitted: PanelWindow = { ...phonePanel, formFactor: undefined };
-  assert.equal(panelWidthOf(omitted, 430), 430, 'an omitted formFactor defaults to "phone", same as explicit');
+  assert.equal(panelWidthOf(omitted, 430, Number.POSITIVE_INFINITY), 430, 'an omitted formFactor defaults to "phone", same as explicit');
 });
 
 test('panelWidthOf: a "tablet"/"desktop" panel uses its OWN stored size.width, never the live phoneWidth argument', () => {
   const tablet: PanelWindow = { ...createHistoryPanel(), formFactor: 'tablet', size: { formFactor: 'tablet', width: 820, height: 1180 } };
-  assert.equal(panelWidthOf(tablet, 430), 820, 'reads its own stored size.width, ignoring the live phoneWidth entirely');
+  assert.equal(panelWidthOf(tablet, 430, Number.POSITIVE_INFINITY), 820, 'reads its own stored size.width, ignoring the live phoneWidth entirely');
   const desktop: PanelWindow = { ...createHistoryPanel(), formFactor: 'desktop', size: { formFactor: 'desktop', width: 1200, height: 800 } };
-  assert.equal(panelWidthOf(desktop, 430), 1200);
+  assert.equal(panelWidthOf(desktop, 430, Number.POSITIVE_INFINITY), 1200);
 });
 
 test('panelWidthOf: a "tablet"/"desktop" panel with no stored size falls back to the live phoneWidth, never a second hardcoded literal', () => {
   const noSize: PanelWindow = { ...createHistoryPanel(), formFactor: 'desktop', size: undefined };
-  assert.equal(panelWidthOf(noSize, 430), 430, 'size?.width ?? phoneWidth: a missing size means the live phoneWidth, not a hardcoded fallback');
+  assert.equal(panelWidthOf(noSize, 430, Number.POSITIVE_INFINITY), 430, 'size?.width ?? phoneWidth: a missing size means the live phoneWidth, not a hardcoded fallback');
+});
+
+test('panelWidthOf caps a tablet/desktop panel at maxLiveWidth, the widest one live panel can be: the tier width is a maximum. History alone, phone 390: 842 at the default 1280 window (never 1200), exactly 1200 at 1920, and a tablet is capped at the 844 minimum', () => {
+  const [desktop] = setFormFactor(appendPanel([], { sourceWebContentsId: -1, url: 'about:blank' }, 'd'), 'd', 'desktop');
+  const [tablet] = setFormFactor(appendPanel([], { sourceWebContentsId: -1, url: 'about:blank' }, 't'), 't', 'tablet');
+  const cap = (containerWidth: number) => computeMaxLiveWidth({ containerWidth, phoneWidth: 390, gap: GAP, fixedItemCount: 1 });
+  assert.equal(cap(1280), 842, 'precondition: the budget beside History in the default window');
+  assert.equal(panelWidthOf(desktop!, 390, cap(1280)), 842, 'a desktop panel in the default window is the budget, never its 1200 tier width');
+  assert.equal(panelWidthOf(tablet!, 390, cap(1280)), 768, 'a tablet fits under that cap: its own tier width');
+  assert.equal(panelWidthOf(desktop!, 390, cap(1920)), 1200, 'at 1920 the cap (1482) does not bind: exactly the tier width');
+  assert.equal(cap(844), 406, 'precondition: the budget at the window minimum');
+  assert.equal(panelWidthOf(tablet!, 390, cap(844)), 406, 'a tablet at the window minimum is capped too');
+  assert.equal(panelWidthOf(desktop!, 390, cap(844)), 406);
+  assert.equal(panelWidthOf(desktop!, 390, Number.POSITIVE_INFINITY), 1200, 'unmeasured (no cap): the tier width');
+});
+
+test('panelWidthOf never caps a phone panel: it is always the live phone width, whatever maxLiveWidth says', () => {
+  const phone = createHistoryPanel();
+  assert.equal(panelWidthOf(phone, 430, 300), 430, 'a cap below the phone width leaves a phone panel alone');
+  assert.equal(panelWidthOf({ ...phone, formFactor: undefined }, 390, 100), 390);
 });
 
 // ---------------------------------------------------------------------------
