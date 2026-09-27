@@ -28,6 +28,7 @@ export { useViewSnapshot, CaptureRegistryContext, CaptureRegistryProvider } from
 export type { ViewId, ViewSnapshot, SnapshotsAPI, CaptureRegistry } from './snapshots.js';
 
 export { useViewState, ViewStateMissingProviderError } from './viewState.js';
+export type { UseViewState } from './viewState.js';
 // Deprecated aliases: same value as their new-name counterpart, kept until removed.
 export {
   PhoneAPIsMissingProviderError,
@@ -57,8 +58,11 @@ export type {
   PanelProps,
   DragHandleProps,
   ReleaseMeasure,
+  ReorderHandle,
   OverlaySlotName,
   WindowOverlayProps,
+  Item,
+  Entry,
 } from './Panel.js';
 /** @deprecated use Panel/PanelProps */
 export { PhoneView } from './Panel.js';

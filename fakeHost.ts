@@ -21,6 +21,11 @@ import {
 } from './hostApi.js';
 import type { SnapshotsAPI } from './snapshots.js';
 
+// The ./testing entry point has to name every type FakeHost's own declaration reaches, not just Host.
+export type { Host, PhoneSize, DetectedPhone, ClosedPageEntry, JsonValue, FormFactor, PanelSize, PanelSummary, CreatePanelOptions, SettingsAPI, HistoryAPI, PanelsAPI, PhoneDeviceAPI } from './hostApi.js';
+export type { SnapshotsAPI, ViewId, ViewSnapshot } from './snapshots.js';
+export type { PhoneModel } from './phoneModels.js';
+
 export interface FakeCall {
   api: keyof Host;
   method: string;

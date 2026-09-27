@@ -88,8 +88,9 @@ for (const { config, report } of entries) {
     continue;
   }
   // Messages such as ae-forgotten-export go into the report file instead of stdout, and a report that
-  // already carries one matches its own regeneration, so API Extractor alone would pass it.
-  const embedded = readFileSync(committed, 'utf8').match(/^.*Warning:.*$/gm) ?? [];
+  // already carries one matches its own regeneration, so API Extractor alone would pass it. Some land
+  // only in the "Warnings were encountered" footer, whose lines carry the message id but no "Warning:".
+  const embedded = readFileSync(committed, 'utf8').match(/^.*(?:Warning:|Warnings were encountered|\((?:ae|tsdoc)-[a-z-]+\)).*$/gm) ?? [];
   for (const line of embedded) problems.push(`${report} embeds ${line.trim()}`);
 }
 

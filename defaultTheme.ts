@@ -4,7 +4,7 @@ import { createTheme, type Theme } from '@mui/material/styles';
  * An optional MUI theme for a consumer that embeds phonux views but has no theme of
  * its own. Opt-in only -- phonux never applies any theme implicitly. Wire it explicitly:
  *
- *   <ThemeProvider theme={createDefaultTheme(mode)}><CssBaseline />...
+ *   `<ThemeProvider theme={createDefaultTheme(mode)}><CssBaseline />...`
  *
  * Both are required: the no-animation reset below lives in MuiCssBaseline's
  * styleOverrides, which stay inert until CssBaseline is actually rendered

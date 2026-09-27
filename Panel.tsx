@@ -19,8 +19,8 @@ export type { Host } from './hostApi.js';
 export { PhoneAPIsMissingProviderError, PhoneAPIsProvider, usePhoneAPIs } from './hostApi.js';
 /** @deprecated use Host */
 export type { PhoneAPIs } from './hostApi.js';
-export { DRAG_CLOSE, DragToClose, shouldCloseOnRelease, type DragHandleProps, type ReleaseMeasure } from './dragToClose.js';
-export { WindowOverlay, OverlaySlot, OVERLAY_Z, OverlayProvider, OverlayStore, type OverlaySlotName, type WindowOverlayProps } from './windowOverlay.js';
+export { DRAG_CLOSE, DragToClose, shouldCloseOnRelease, type DragHandleProps, type ReleaseMeasure, type ReorderHandle } from './dragToClose.js';
+export { WindowOverlay, OverlaySlot, OVERLAY_Z, OverlayProvider, OverlayStore, type OverlaySlotName, type WindowOverlayProps, type Item, type Entry } from './windowOverlay.js';
 
 export interface PanelProps extends Omit<BoxProps, 'children' | 'sx' | 'title'> {
   /**

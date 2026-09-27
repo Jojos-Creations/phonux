@@ -70,11 +70,11 @@ export interface WindowOverlayProps {
   children: React.ReactNode;
 }
 
-interface Entry {
+export interface Entry {
   slot: OverlaySlotName;
   node: React.ReactNode;
 }
-interface Item {
+export interface Item {
   id: string;
   node: React.ReactNode;
 }
