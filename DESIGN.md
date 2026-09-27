@@ -154,17 +154,43 @@ is not:
 
 `'fill'` is the row's own height: the same box a phone panel's height sits in. So a bigger tier is wider and
 exactly as tall as the row, never taller than the window. 768 is the common tablet-portrait CSS width, the
-smallest width sites treat as "not a phone". 1200 is a common desktop-layout breakpoint. Beside History it
-needs a row about 1640 px wide (a large or full-screen display); in the default 1280 x 900 window a desktop
-panel overflows the row, and stays live by the rule above, clipped at the row's edge.
+smallest width sites treat as "not a phone". 1200 is a common desktop-layout breakpoint. Both are MAXIMUMS:
+see "The fit cap" below.
+
+### The fit cap
+
+A tablet or desktop panel is never wider than the widest ONE live panel can be beside the fixed columns in
+the current window: `min(tier width, max(phone width, row width - 2 x gap - fixed columns - gap))`
+(`computeMaxLiveWidth`, from the same budget arithmetic the row's fit count uses). So a wide panel always
+fits in the row instead of overflowing it, at every window size. With History as the only fixed column and a 390 phone:
+
+| window width | cap | desktop panel | tablet panel |
+| --- | --- | --- | --- |
+| 1280 (the default) | 842 | 842 | 768 |
+| 1920 | 1482 | 1200 | 768 |
+| 844 (the window minimum) | 406 | 406 | 406 |
+
+The floor is the phone width: when not even a phone fits beside the fixed columns, a narrower "tablet"
+would not fit either, so a bigger tier is then just phone-wide. A phone panel is never capped (the window
+minimum already fits History plus one phone). The cap moves with the window, so a capped panel widens and
+narrows as the window does. Before the first measurement there is no cap.
+
+A panel at the cap fills the row beside the fixed columns, so nothing else fits beside it, which is also
+true of the same panel at its raw tier width. The capacity rules therefore park and reveal exactly the same
+panels either way; the cap changes how wide the panel is drawn, never which panels are live.
+
+`PanelsAPI.panelList` reports each panel's stored tier `size`. The `panel` prop a resolved view receives
+carries the size it is drawn at, so a view that passes `panel.size` to `Panel`/`PanelFrame` stays inside
+its slot.
 
 ### The width source
 
 A `'phone'` panel's width is ALWAYS the live phone width -- the model the user picked, `device.size` -- and
 never its stored `size`: that stored value is a placeholder, and reading it would freeze every phone panel at
 390 whatever the model. Only `'tablet'`/`'desktop'` use their stored `size.width`. One host helper
-(`panelWidthOf`) owns this rule, and every width sum reads through it: the row's capacity, `SettingsAPI.fitCount`,
-the row's centring margin and each slot's position. A view follows the same rule: pass `panel.size` to
+(`panelWidthOf`) owns this rule and the fit cap, and every width sum reads through it: the row's capacity,
+`SettingsAPI.fitCount`, the row's centring margin, each slot's position and width, the size box, and the
+neighbour widths a drag crosses. A view follows the same rule: pass `panel.size` to
 `Panel`/`PanelFrame` only for a non-phone tier, and omit it for a phone one so the device size applies.
 
 ### How the resize animates
@@ -179,6 +205,12 @@ permanent column) never changes tier and renders no size box. A third-party view
 slot, position and the row's capacity follow, but its content snaps to the new size, since only the built-in
 view renders a size box. The row's centring margin glides with the resize even right after a window resize,
 when a window-driven margin change would snap.
+
+The size box follows any change of the panel's width, not only a tier change. Choosing a different phone
+model resizes every PHONE panel's size box too, so their width and height glide over the same 0.4 s while
+the slots slide to their new positions; History, which has no size box, takes the new size at once. Every
+panel lands exactly on the new phone size. A window resize that moves the fit cap resizes a capped panel the
+same way.
 
 ## `params` is opaque and JSON-serializable by construction
 
