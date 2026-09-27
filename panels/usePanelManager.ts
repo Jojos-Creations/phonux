@@ -1,17 +1,10 @@
 /**
- * The panel capacity machinery: how many live collapsible panels the row may show at once (`capacity`,
- * derived from the measured fit and the stored setting), parking/revealing to stay at that capacity when a
- * panel opens or the capacity itself changes, revive-with-demotion (`handleActivatePanel`), and the row
- * gesture (`scrollRow`) that brings a hidden panel back into view from either side.
- *
- * Every hide is a park (`live: false`); nothing here ever removes a panel from the array (that is
- * `closePanel`'s own job, `usePanelClosing.ts`). Every park is pushed onto `collapseOrderRef`, so
- * `revealMostRecentlyCollapsed` (closing a live panel) keeps working regardless of which of this hook's own
- * paths did the parking.
- *
- * CALL-SITE ORDERING HAZARD: `containerWidth` is evaluated at the call site, so the host must call
- * useRowShell() before useAppApis (which reaches this through useProvidePanels), or reading it throws a
- * "used before initialization" error.
+ * The panel capacity machinery: how many live collapsible panels the row shows at once (`capacity`),
+ * parking/revealing to stay at it, revive-with-demotion (`handleActivatePanel`), and the row gesture
+ * (`scrollRow`) that brings a hidden panel back from either side. Every hide is a park (`live: false`,
+ * never a removal) pushed onto `collapseOrderRef`, so `revealMostRecentlyCollapsed` keeps working
+ * regardless of which path did the parking. `containerWidth` is evaluated at the call site: the host
+ * must call useRowShell() before useAppApis, or reading it throws "used before initialization".
  */
 import { useEffect, useRef, useState } from 'react';
 import type { Dispatch, RefObject, SetStateAction } from 'react';
@@ -45,13 +38,10 @@ export interface UsePanelManagerResult {
    */
   forgetCollapsed: (id: string) => void;
   /**
-   * Given the panels array immediately AFTER a close (usePanelClosing's own `remaining`), reveals the most
-   * recently parked panel on the stack that fits beside the live ones (the same settle rule as the capacity
-   * RISE), or none. A more recent one that does not fit stays on the stack, in place, for a later close. With
-   * equal widths the most recent one fits exactly when any does. Silently discards (permanently) any stack
-   * entries that no longer point at a currently-parked panel in `panelsAfterClose` -- a panel wiped by
-   * `clearAll()` never goes through `forgetCollapsed`, so this is the backstop that keeps the stack from
-   * pointing at nothing.
+   * Given the panels array immediately AFTER a close, reveals the most recently parked panel that fits
+   * beside the live ones (or none); one that doesn't fit stays on the stack for a later close. Also drops
+   * any stack entry that no longer points at a parked panel -- the backstop for `clearAll()`, which wipes
+   * panels without going through `forgetCollapsed`.
    */
   revealMostRecentlyCollapsed: (panelsAfterClose: PanelWindow[]) => void;
   /**
@@ -80,12 +70,9 @@ export interface UsePanelManagerResult {
    */
   scrollRow: (direction: 'left' | 'right') => void;
   /**
-   * Moves `id` one row-slot toward `direction` -- exposed on the public PanelsAPI, not kept desktop-internal,
-   * so any future caller that needs to place a panel relative to a fixed edge (e.g. next to History) can
-   * reuse this same primitive rather than a second one. Directional move-by-one, not move-to-index: every
-   * known caller only ever needs "closer to" an edge, never an arbitrary absolute slot, and move-by-one
-   * composes into that without exposing raw array positions across the API boundary. See `movePanel`
-   * (panelWindow.ts) for the full no-op contract.
+   * Moves `id` one row-slot toward `direction`. Directional move-by-one, not move-to-index: every known
+   * caller only ever needs "closer to" an edge, so this composes into that without exposing raw array
+   * positions across the API boundary. See `movePanel` (panelWindow.ts) for the full no-op contract.
    */
   reorderPanel: (id: string, direction: 'left' | 'right') => void;
   /**
@@ -103,12 +90,10 @@ export interface UsePanelManagerResult {
    */
   enterSideById: ReadonlyMap<string, 'left' | 'right'>;
   /**
-   * Ids currently parking with an exit to the RIGHT (LivePanels.tsx's own `exitRightIds` prop) -- every
-   * other park defaults to 'left' (LivePanels.tsx's `exitDirection` expression), so only the right-exiting
-   * minority needs a mark at all. Marked via `flushSync` BEFORE the `setPanels` call that actually parks the
-   * panel, the same `usePanelClosing.ts`-`closingIds` pattern: AnimatePresence takes an exiting child's
-   * `exit` prop from its LAST render before it left `present`, and a plain `setState` here would batch with
-   * that same commit and never let the panel render "still present, but marked" first.
+   * Ids currently parking with an exit to the RIGHT; every other park defaults to 'left', so only this
+   * minority needs a mark. Set via `flushSync` BEFORE the parking `setPanels` call: AnimatePresence reads
+   * an exiting child's `exit` prop from its LAST render before it left `present`, and a plain `setState`
+   * here would batch with that commit instead of rendering "still present, but marked" first.
    */
   exitRightIds: ReadonlySet<string>;
 }
@@ -131,9 +116,8 @@ export function usePanelManager(
         ? null
         : fixedColumnCount + computeRowLayout({ containerWidth, phoneWidth, gap: GAP, fixedItemCount: fixedColumnCount, liveWidths }).maxLiveThatFit;
     const effectiveMax = effectiveMaxPanels(storedMaxPanels, fitCount, fixedColumnCount);
-    // The owner's floor of 1 keeps the panel just opened on screen even at the narrowest legal width
-    // (effectiveMaxPanels already floors itself at fixedColumnCount + 1, so this only ever bites when the
-    // fixed columns alone reach or exceed effectiveMax).
+    // Floor of 1 keeps the panel just opened on screen even at the narrowest legal width (bites only
+    // when the fixed columns alone reach or exceed effectiveMax).
     return effectiveMax === Number.POSITIVE_INFINITY ? Number.POSITIVE_INFINITY : Math.max(1, effectiveMax - fixedColumnCount);
   };
   // The same cap every other width reader passes, from the same row inputs.
@@ -376,16 +360,12 @@ export function usePanelManager(
   };
 
   /**
-   * Reconciles the live set against `capacity` whenever either changes (a resize, a phone-size change, or
-   * the setting itself) -- an effect, not something a render can decide, since it must act on a measurement
-   * that just changed rather than one this render was given. Both branches judge a candidate live set by
-   * `settles`, never by `capacity` as a count: `capacity` prices every not-yet-live slot at `phoneWidth`, so
-   * WHICH panels park or return decides whether the rest fits, and a set that does not settle re-triggers a
-   * branch next render. A DROP parks `fewestParksThatSettle`; every park here reads the default 'left' exit,
-   * since flushSync cannot commit a right-exit mark first from inside a passive effect. A RISE reveals from
-   * the top of `collapseOrderRef`, most-recently-parked first, entering from whichever side
-   * `sideOfLiveRange` says it sits on; a candidate that does not settle stays on the stack in case an OLDER,
-   * narrower one still has room. A resize (resizePanel) has already parked what this DROP would.
+   * Reconciles the live set against `capacity` whenever either changes -- an effect, since it must act on
+   * a measurement that just changed, not one this render was given. Both branches judge a candidate set by
+   * `settles`, never `capacity` as a count, because WHICH panels park or return decides whether the rest
+   * fits. A DROP parks `fewestParksThatSettle` and exits 'left' (flushSync cannot mark a right exit first
+   * from inside a passive effect). A RISE reveals from the top of `collapseOrderRef`; a candidate that
+   * doesn't settle stays on the stack in case an OLDER, narrower one still has room.
    */
   const committedRef = useRef(panels);
   useEffect(() => {
