@@ -28,11 +28,9 @@ function renderedSummary(p: PanelWindow, width: number) {
 }
 
 /**
- * Mirrors this entry's own `collapsible` for the two things LivePanel.tsx must decide without ever reading
- * the field itself (a resolved view only ever receives `PanelSummary`, which has no `collapsible` field, on
- * purpose -- phoneViewApi.tsx): whether its grab bar is a reorder source, and whether the framework may offer
- * ANY drag-to-close handle at all. `undefined` (no provider above, e.g. a view mounted directly in a test)
- * is deliberately distinct from an explicit `false`: each hook below resolves that case to its OWN default.
+ * Per-slot facts LivePanel.tsx cannot read itself: a resolved view only receives `PanelSummary`, which has no
+ * `collapsible` or `anchor`, on purpose (phoneViewApi.tsx). No provider above (a view mounted directly, as in
+ * tests) is `undefined`, deliberately not `false`: each hook below resolves that case to its OWN default.
  */
 const PanelSlotContext = React.createContext<{ collapsible: boolean; neighborWidths: NeighborWidths; pinned: boolean } | undefined>(undefined);
 /** True only for a `collapsible` entry (e.g. a plain web panel) -- an always-shown column (History, or a
