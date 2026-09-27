@@ -233,7 +233,7 @@ export class HostMissingProviderError extends Error {
   constructor(hook = 'useHost') {
     super(
       `${hook}() was called outside a <HostProvider>. A view must render under the provider the host mounts; ` +
-        'in a test, wrap it in <HostProvider host={createFakeHost()}> (shared/phone/phoneApisFake).',
+        'in a test, wrap it in <HostProvider host={createFakeHost()}> (shared/phone/fakeHost).',
     );
     this.name = 'HostMissingProviderError';
   }
