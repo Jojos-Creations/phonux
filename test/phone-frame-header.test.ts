@@ -1,21 +1,7 @@
 /**
- * front-page-unify-panel-header-visual-style (plans/queue.yaml): unit
- * coverage for PanelHeaderRow's placeholder behavior -- the owner's own
- * explicit follow-up ("if the view has no title or icon put placeholders")
- * on top of the earlier layout-only PanelHeaderRow.
- *
- * Written with createElement rather than JSX so the file is a .ts and is
- * picked up by the existing `test/*.test.ts` runner without changing it
- * (see test/goal-front-page.test.ts's own renderDom helper, mirrored here).
- *
- * These are pure server-render (renderToStaticMarkup) checks, so they can
- * only assert on markup/text/data-attributes -- not on computed CSS (no
- * emotion style extraction in this harness, matching every other test in
- * this repo that touches an sx-styled component). The shared pill's actual
- * visual look (background/border-radius/height) is confirmed live, by
- * screenshot of the real desktop app, per this entry's own evidence
- * requirement -- see plans/evidence/front-page-unify-panel-header-visual-
- * style/.
+ * PanelHeaderRow's placeholders for a view with no title or icon. Server-render checks: markup, text and data
+ * attributes only, never computed CSS, so the pill's look (background, radius, height) needs a real-app check.
+ * createElement keeps this a .ts file the `test/*.test.ts` runner picks up.
  */
 
 import test from 'node:test';
@@ -56,8 +42,7 @@ for (const emptyTitle of [undefined, null, false, '']) {
     const placeholder = doc.querySelector('[data-header-placeholder-title]');
     assert.ok(placeholder, 'a placeholder title node must render in the title slot');
     assert.match(placeholder!.textContent ?? '', /Untitled/);
-    // The real actions passed alongside the falsy title must still render
-    // untouched -- placeholder substitution is per-slot, not all-or-nothing.
+    // Placeholders are per slot, not all-or-nothing: the real actions render untouched.
     assert.equal(doc.querySelector('[data-header-placeholder-action]'), null);
   });
 }
@@ -75,8 +60,7 @@ for (const emptyActions of [undefined, null, false]) {
       doc.querySelector('[data-header-placeholder-action]'),
       'a placeholder action node must render in the actions slot',
     );
-    // The real title passed alongside the falsy actions must still render
-    // untouched -- placeholder substitution is per-slot, not all-or-nothing.
+    // Placeholders are per slot, not all-or-nothing: the real title renders untouched.
     assert.equal(doc.querySelector('[data-header-placeholder-title]'), null);
     assert.match(doc.body.textContent ?? '', /Extra window/);
   });
@@ -90,10 +74,8 @@ test('PanelHeaderRow: both a falsy title and falsy actions render both placehold
 });
 
 test('PanelHeaderRow: the actions slot always renders a container even with no actions, so the pill never loses its right-hand slot', () => {
-  // Before this entry, `actions ? <Box>...</Box> : null` meant a caller with
-  // no actions rendered NO right-hand box at all. Now the slot is always
-  // present (holding either real actions or the placeholder), which is what
-  // keeps the pill's shape/height identical regardless of a caller's props.
+  // Real actions or the placeholder, the slot is always there: it keeps the pill's shape and height the same
+  // whatever a caller passes.
   const doc = renderDom(createElement(PanelHeaderRow, { title: 'x', actions: false }));
   assert.ok(doc.querySelector('[data-header-placeholder-action]'));
 });
