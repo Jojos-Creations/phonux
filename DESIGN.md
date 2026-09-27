@@ -527,6 +527,56 @@ stop re-implementing flex/ellipsis markup, and it substitutes placeholders for a
 dimmed "Untitled", a dimmed "more" glyph) so the pill never blanks or changes shape. Its emptiness check
 mirrors JSX's own falsy-child rules, so `0` or whitespace still counts as content.
 
+## `WindowOverlay`: window-level content with no Portal
+
+A view (the app's own or a third party's) shows something over the whole window -- a dialog, a full-screen
+viewer, a toast -- by rendering `WindowOverlay` anywhere in its tree, with no host wiring:
+
+```tsx
+function NotesView() {
+  const [open, setOpen] = useState(false);
+  return (
+    <Panel title="Notes">
+      <button onClick={() => setOpen(true)}>About</button>
+      <WindowOverlay open={open}><AboutSheet onClose={() => setOpen(false)} /></WindowOverlay>
+    </Panel>
+  );
+}
+```
+
+`WindowOverlay` registers its children with a store (from a layout effect, never during render) and renders
+null; the host mounts two `<OverlaySlot>`s once, and each renders what was registered for it, as plain
+fragments with no wrapper element. Hoisting matters because a view's own box is the wrong place: History's
+column is a `zIndex: 2` stacking context (capped under the 1400 drag strip), and every live panel sits inside
+a transformed slot, which re-anchors `position: fixed` to itself.
+
+The layer adds no wrapper, so it cannot enforce the contract the CONTENT must keep:
+
+1. Its root element is `position: fixed` and sets its own zIndex from `OVERLAY_Z`. A non-fixed root would
+   become a flex item of the row and mis-centre it.
+2. It renders where the SLOT is. Context (theme, `useHost()`) comes from the slot's position; React events
+   bubble through the slot's ancestors, not the view's; a provider the view installs itself is not visible
+   to it.
+3. `open={false}` removes the content at once. Content that must animate out (MUI Snackbar) stays registered
+   and takes its own `open`.
+4. Content that stays registered while idle should be a MODULE-LEVEL constant element that reads what it
+   needs through `useHost()`: an element built inline is a new node every render and costs one store
+   notification per view render.
+5. Never key an effect inside overlay content on a `useHost()` member: the provider value is rebuilt every
+   render on purpose, so such an effect re-fires on every host render. Use `[]` for "once per open".
+6. Stacking inside a slot is open order (later on top at equal z-index). Two slots never mix.
+7. Lifetime is the registering view's: unmounting the view removes its overlays.
+8. With no provider, or under `renderToStaticMarkup` (effects do not run), the children render IN PLACE.
+   That is what makes a view testable without a host; where an overlay LANDS is only ever asserted in a
+   mounted test.
+9. Under a `HostProvider` with NO slot mounted (a test that wraps a view in the provider with the fakes), the
+   overlay registers with nobody to show it: it never appears, and one `console.error` per mount names the
+   missing slot. Such a test mounts `<OverlaySlot name="dialog" />` and `<OverlaySlot name="toast" />` beside
+   the view, as the host does.
+
+`WindowOverlay` is not `Panel`'s `overlay` prop, which decorates ONE view inside its own relative box
+(History's "+" Fab) and is meant to be clipped to it.
+
 ## Snapshots: a picture is data, capturing one is not
 
 `snapshots.ts` splits a view's picture into two surfaces on purpose. `ViewId` (a panel's id, or a fixed

@@ -1,45 +1,9 @@
 /**
- * WindowOverlay: how a view (ours or a third party's) shows something over the WINDOW (a dialog, a full-screen
- * viewer, a toast) with no host wiring and no Portal.
- *
- *   function NotesView() {
- *     const [open, setOpen] = useState(false);
- *     return (
- *       <Panel title="Notes">
- *         <button onClick={() => setOpen(true)}>About</button>
- *         <WindowOverlay open={open}><AboutSheet onClose={() => setOpen(false)} /></WindowOverlay>
- *       </Panel>
- *     );
- *   }
- *
- * How: WindowOverlay registers its children with a store (from a layout effect, never during render) and renders
- * null; the host mounts two <OverlaySlot>s once, and each renders what was registered for it, as plain fragments with
- * no wrapper element. Hoisting matters because a view's own box is the wrong place: History's column is a
- * `zIndex: 2` stacking context (capped under the 1400 drag strip) and every live panel sits inside a transformed
- * slot (a transformed ancestor re-anchors `position: fixed` to itself).
- *
- * The contract for the CONTENT (the layer adds no wrapper, so it cannot enforce these):
- *  1. Its root element is `position: fixed` and sets its own zIndex from OVERLAY_Z. A non-fixed root would become a
- *     flex item of the row and mis-centre it.
- *  2. It renders where the SLOT is. Context (theme, useHost()) comes from the slot's position; React events
- *     bubble through the slot's ancestors, not the view's; a provider the view installs itself is not visible to it.
- *  3. `open={false}` removes the content at once. Content that must animate out (MUI Snackbar) stays registered and
- *     takes its own `open`.
- *  4. Content that stays registered while idle should be a MODULE-LEVEL constant element that reads what it needs
- *     through useHost(): an element built inline is a new node every render and costs one store notification
- *     per view render.
- *  5. Never key an effect inside overlay content on a useHost() member: the provider value is rebuilt every
- *     render on purpose, so such an effect re-fires on every host render. Use [] for "once per open".
- *  6. Stacking inside a slot is open order (later on top at equal z-index). Two slots never mix.
- *  7. Lifetime is the registering view's: unmounting the view removes its overlays.
- *  8. With no provider, or under renderToStaticMarkup (effects do not run), the children render IN PLACE. That is
- *     what makes a view testable without a host; where an overlay LANDS is only ever asserted in a mounted test.
- *  9. Under a HostProvider with NO slot mounted (a test that wraps a view in the provider with the fakes), the
- *     overlay registers with nobody to show it: it never appears, and one console.error per mount names the missing
- *     slot. Such a test mounts <OverlaySlot name="dialog" /> and <OverlaySlot name="toast" /> beside the view, as the host does.
- *
- * Not to be confused with Panel's `overlay` prop, which decorates ONE view inside its own relative box
- * (History's "+" Fab) and is meant to be clipped to it.
+ * WindowOverlay: how a view shows something over the WINDOW (a dialog, a full-screen viewer, a toast) with no
+ * host wiring and no Portal. It registers its children with a store, and the host's two OverlaySlots render
+ * them. Usage, why content is hoisted, and the numbered contract the content must keep (the layer adds no
+ * wrapper, so it cannot enforce it): DESIGN.md, "`WindowOverlay`: window-level content with no Portal".
+ * Not to be confused with Panel's `overlay` prop, which decorates ONE view and is clipped to it.
  */
 
 import * as React from 'react';
@@ -55,8 +19,8 @@ export type OverlaySlotName = 'dialog' | 'toast';
 
 /**
  * The z-index each slot's content applies to ITS OWN root. WindowOverlay adds no wrapper element,
- * so it cannot set it for you. dialog 2000 = today's Closed Pages viewer (above the 1400 drag strip);
- * toast 1400 = MUI's snackbar band = today's undo toast.
+ * so it cannot set it for you. dialog 2000 clears the host's 1400 drag strip (the Closed Pages viewer);
+ * toast 1400 is MUI's snackbar band (the undo toast).
  * @public
  */
 export const OVERLAY_Z = { dialog: 2000, toast: 1400 } as const;
@@ -189,9 +153,8 @@ export function WindowOverlay({ slot = 'dialog', open = true, children }: Window
   useLayoutEffect(() => {
     if (active) store!.set(id, { slot, node: children });
   });
-  // Unregister on unmount, on close and on slot change. Declaration order against the set-effect above is NOT
-  // load-bearing (measured: swapping them turns no test red): React runs every cleanup of a commit, StrictMode's
-  // simulated remount included, before any setup.
+  // Unregister on unmount, close and slot change. Order against the set-effect above is not load-bearing:
+  // React runs every cleanup of a commit, StrictMode's simulated remount included, before any setup.
   useLayoutEffect(
     () => () => {
       store?.remove(id);
