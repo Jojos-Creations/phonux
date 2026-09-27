@@ -91,9 +91,8 @@ test('panelSlotMotion: exit "left" is EXACTLY the pre-refactor formula (-slot, i
 });
 
 // ---------------------------------------------------------------------------
-// enterDirection 'left' -- a NEGATIVE distance, i.e. a panel starting to the LEFT of its rest position,
-// mirroring the -slot exit target directly above, red on break against a mutant that leaves enterDirection
-// unconsumed (always entering from the right regardless of the argument).
+// enterDirection 'left': a panel starts one slot LEFT of its rest (mirroring the -slot exit target above);
+// red if enterDirection is ignored and every panel enters from the right.
 // ---------------------------------------------------------------------------
 
 test('panelSlotMotion: enterDirection "left" enters from -slot relative to rest (index * slot - slot), for several indices, both exit directions', () => {

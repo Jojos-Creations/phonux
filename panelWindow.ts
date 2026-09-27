@@ -91,7 +91,7 @@ export const summarisePanel = ({ id, url, title, live, locked, params, formFacto
   ...(size !== undefined ? { size } : {}),
 });
 
-/** History's own seeded entry: never collapsible (an always-shown column), never listed (it must not list itself), always live, locked by default (usePanelClosing.ts's lock gate); raised/anchored so its slot and reappearance behave the way they always have. Same default tier/size as every other entry: a permanent column carries a tier like any other. */
+/** History's own seeded entry: never collapsible (an always-shown column), never listed (it must not list itself), always live, locked by default (usePanelClosing.ts's lock gate); raised, so a left-exiting park slides under it; anchoredEnter, which against itself resolves 'right'; no anchor: it is the root every anchor leads to. Same default tier/size as every other entry: a permanent column carries a tier like any other. */
 export function createHistoryPanel(): PanelWindow {
   return {
     id: HISTORY_PANEL_ID, url: '', title: 'History', webContentsId: null, sourceWebContentsId: -1, live: true, locked: true,
