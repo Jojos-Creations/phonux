@@ -1,20 +1,7 @@
 /**
- * shared/phone/directionalTransition.ts, proven directly (pure function, no DOM needed). Two things this
- * file pins:
- *
- *  - the shared preset itself: SLOT_TRANSITION's exact value, and
- *    directionalTransition's initial/animate/exit formulas for both axes;
- *  - a POSITIVE CONTROL that panelSlotMotion (exported from
- *    client/src/desktop/panels/LivePanelSlot.tsx), which consumes that preset,
- *    produces EXACTLY these numbers (calling it with `leftOffset = index * slot`
- *    and `width = PHONE_WIDTH`, i.e. a uniform row -- panelSlotMotion itself no
- *    longer multiplies by an index; the caller's own running sum IS `leftOffset`),
- *    for both exit directions:
- *      initial: { x: (index + 1) * slot, opacity: 0 }
- *      animate: { x: index * slot, opacity: 1 }
- *      exit (down): { x: index * slot, y: phoneHeight, opacity: 0, transition: { duration: DRAG_CLOSE.exitSeconds, ease: 'easeIn' } }
- *      exit (left): { x: -slot, opacity: 0 }
- *      transition: PANEL_TRANSITION === { duration: 0.4, ease: [0.2, 0, 0, 1] }
+ * shared/phone/directionalTransition.ts, proven directly (pure function, no DOM needed): the shared
+ * preset's exact value and formulas, plus a POSITIVE CONTROL that panelSlotMotion produces exactly
+ * those numbers for a uniform row (`leftOffset = index * slot`, `width = PHONE_WIDTH`).
  */
 import test from 'node:test';
 import assert from 'node:assert/strict';
