@@ -42,8 +42,11 @@ function describeConfig(config) {
   const json = readJson(join(PHONE_DIR, config));
   const entry = json.mainEntryPointFilePath?.replace('<projectFolder>', PHONE_DIR);
   const reportName = json.apiReport?.reportFileName;
-  if (!entry || !reportName) fail(`${config} must state mainEntryPointFilePath and apiReport.reportFileName`);
-  return { config, entry, report: `${reportName}.api.md` };
+  const reportTempFolder = json.apiReport?.reportTempFolder?.replace('<projectFolder>', PHONE_DIR);
+  if (!entry || !reportName || !reportTempFolder) {
+    fail(`${config} must state mainEntryPointFilePath, apiReport.reportFileName, and apiReport.reportTempFolder`);
+  }
+  return { config, entry, report: `${reportName}.api.md`, reportTempFolder };
 }
 
 // An exports-map key with no config would never get a report, and the gate would stay green.
@@ -65,6 +68,16 @@ const entries = Object.entries(CONFIG_FOR_EXPORT).map(([key, config]) => {
     fail(
       `exports["${key}"] is ${source}, so ${config} must read ${relative(REPO_ROOT, expected)}, ` +
         `but its mainEntryPointFilePath reads ${relative(REPO_ROOT, actual)}`,
+    );
+  }
+  // Additive to the mainEntryPointFilePath check above: a stale reportTempFolder climb would
+  // otherwise only surface late, via the missing-report-file check after tsc and api-extractor ran.
+  const expectedReportTempFolder = join(TEMP_DIR, 'report');
+  const actualReportTempFolder = resolve(described.reportTempFolder);
+  if (actualReportTempFolder !== expectedReportTempFolder) {
+    fail(
+      `${config}'s apiReport.reportTempFolder must resolve to ${relative(REPO_ROOT, expectedReportTempFolder)}, ` +
+        `but it resolves to ${relative(REPO_ROOT, actualReportTempFolder)}`,
     );
   }
   return described;
