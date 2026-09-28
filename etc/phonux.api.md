@@ -34,6 +34,18 @@ export interface ClosedPageEntry {
 }
 
 // @public
+export function computeMaxLiveWidth(input: Omit<RowLayoutInput, 'liveWidths'>): number;
+
+// @public
+export function computeRowLayout(input: RowLayoutInput): RowLayoutResult;
+
+// @public
+export function computeRowOrder<T extends {
+    id: string;
+    anchor?: PanelAnchor;
+}>(panels: readonly T[], rootId: string): T[];
+
+// @public
 export function createDefaultTheme(mode: 'light' | 'dark'): Theme;
 
 // @public
@@ -58,7 +70,16 @@ export interface CreatePanelOptions {
 }
 
 // @public
+export const DEFAULT_PANEL_SIZE: PanelSize;
+
+// @public
 export const DEFAULT_PHONE_SIZE: PhoneSize;
+
+// @public
+export function deriveAnchorsFromOrder<T extends {
+    id: string;
+    anchor?: PanelAnchor;
+}>(panels: readonly T[], rootId: string): T[];
 
 // @public
 export interface DetectedPhone {
@@ -176,6 +197,14 @@ export type JsonValue = string | number | boolean | null | readonly JsonValue[] 
 };
 
 // @public
+export interface NeighborWidths {
+    // (undocumented)
+    readonly left: readonly number[];
+    // (undocumented)
+    readonly right: readonly number[];
+}
+
+// @public
 export const OVERLAY_Z: {
     readonly dialog: 2000;
     readonly toast: 1400;
@@ -219,6 +248,16 @@ export function Panel(input: PanelProps): React_2.JSX.Element;
 
 // @public
 export const PANEL_CORNER_RADIUS_UNITS = 4;
+
+// @public
+export interface PanelAnchor {
+    // (undocumented)
+    panel: string;
+    // (undocumented)
+    position: 'left' | 'right';
+    // (undocumented)
+    priority: number;
+}
 
 // @public @deprecated (undocumented)
 export type PanelComponent<P = JsonValue> = ViewComponent<P>;
@@ -313,6 +352,15 @@ export interface PanelProps extends Omit<BoxProps, 'children' | 'sx' | 'title'> 
     viewId?: ViewId;
 }
 
+// @public
+export interface PanelRowEntry<P = JsonValue> extends PanelSummary<P> {
+    readonly anchor?: PanelAnchor;
+    readonly anchoredEnter?: boolean;
+    readonly collapsible: boolean;
+    readonly layer?: 'base' | 'raised';
+    readonly view: string;
+}
+
 // @public (undocumented)
 export interface PanelsAPI {
     activate(id: string): void;
@@ -356,6 +404,9 @@ export interface PanelSummary<P = JsonValue> {
     // (undocumented)
     readonly url: string;
 }
+
+// @public
+export function panelWidthOf(p: Pick<PanelRowEntry, 'formFactor' | 'size'>, phoneWidth: number, maxLiveWidth: number): number;
 
 // @public @deprecated (undocumented)
 export const PHONE_CORNER_RADIUS_UNITS = 4;
@@ -507,6 +558,23 @@ export const resolvePanelView: typeof resolveView;
 // @public
 export function resolveView(key: string): ViewComponent;
 
+// @public
+export interface RowLayoutInput {
+    containerWidth: number;
+    fixedItemCount: number;
+    gap: number;
+    liveWidths: readonly number[];
+    phoneWidth: number;
+}
+
+// @public
+export interface RowLayoutResult {
+    computedRowMarginLeft: number;
+    effectiveLiveCount: number;
+    maxLiveThatFit: number;
+    rowTotalWidth: number;
+}
+
 // @public (undocumented)
 export interface SettingsAPI {
     readonly fitCount: number | null;
@@ -529,6 +597,12 @@ export interface SnapshotsAPI {
     get(viewId: ViewId): ViewSnapshot | null;
     subscribe(viewId: ViewId, listener: () => void): () => void;
 }
+
+// @public
+export const summarisePanel: (input: PanelRowEntry) => PanelSummary;
+
+// @public
+export const TIER_SIZES: Readonly<Record<FormFactor, PanelSize>>;
 
 // @public
 export function useHost(): Host;
