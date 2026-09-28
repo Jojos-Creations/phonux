@@ -98,3 +98,20 @@ export function deriveAnchorsFromOrder<T extends { id: string; anchor?: PanelAnc
   const positional = positionalAnchors(panels, rootId);
   return panels.map((p) => (p.id === rootId ? p : withAnchor(p, positional.get(p.id)!)));
 }
+
+export type EnterDirection = 'left' | 'right';
+
+/** The id of the entry `panel` orients its enter animation against: its anchor's, or the root's when it has none. */
+export function anchorTargetOf(panel: { anchor?: PanelAnchor }, rootId: string): string {
+  return panel.anchor?.panel ?? rootId;
+}
+
+/**
+ * Which side a reappearing entry enters from: the side its anchor entry sits on. Both indexes must count in the
+ * SAME present list the row renders, never the raw array, which miscounts whenever an entry is parked. -1 for
+ * either (not present) falls back to 'right', the row's default; the root against itself compares equal, so 'right'.
+ */
+export function resolveEnterDirection(anchorIndex: number, ownIndex: number): EnterDirection {
+  if (anchorIndex < 0 || ownIndex < 0) return 'right';
+  return anchorIndex < ownIndex ? 'left' : 'right';
+}

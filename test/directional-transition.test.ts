@@ -6,10 +6,10 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { SLOT_TRANSITION, directionalTransition } from 'phonux/internal/directionalTransition';
-import { GAP, PANEL_TRANSITION, panelRowSlotMotion } from '../client/src/desktop/panels/LivePanelSlot.js';
-import { anchorTargetOf, resolveEnterDirection } from '../client/src/desktop/panels/anchorPanel.js';
+import { panelRowSlotMotion } from '../client/src/shared/phone/PanelRowSlot.js';
+import { anchorTargetOf, resolveEnterDirection } from '../client/src/shared/phone/panelRowOrder.js';
 import { createHistoryPanel, HISTORY_PANEL_ID } from '../client/src/desktop/panels/panelWindow.js';
-import { DRAG_CLOSE } from 'phonux';
+import { DRAG_CLOSE, GAP, PANEL_TRANSITION } from 'phonux';
 
 test('SLOT_TRANSITION is the tuned duration/easing (0.4s, the [0.2,0,0,1] cubic-bezier), and PANEL_TRANSITION is the SAME object, not a copy', () => {
   assert.deepEqual(SLOT_TRANSITION, { duration: 0.4, ease: [0.2, 0, 0, 1] });
@@ -116,15 +116,17 @@ test('panelRowSlotMotion: enterDirection flips ONLY initial\'s sign relative to 
 });
 
 // ---------------------------------------------------------------------------
-// anchorPanel.ts: each panel's own anchor target, and resolveEnterDirection's formula
+// panelRowOrder.ts: each panel's own anchor target, and resolveEnterDirection's formula
 // (anchorIndex < ownIndex ? 'left' : 'right') over arbitrary row-slot indices.
 // ---------------------------------------------------------------------------
 
 test('anchorTargetOf: a panel with no anchor (History itself, or a record built without one) targets HISTORY_PANEL_ID; an explicit anchor targets its own panel -- red if the default is not History or a per-panel target is ignored', () => {
-  assert.equal(anchorTargetOf(createHistoryPanel()), HISTORY_PANEL_ID, 'History carries no anchor and resolves against itself');
-  assert.equal(anchorTargetOf({}), HISTORY_PANEL_ID, 'no anchor: the default target');
-  assert.equal(anchorTargetOf({ anchor: { panel: HISTORY_PANEL_ID, position: 'left', priority: 0 } }), HISTORY_PANEL_ID);
-  assert.equal(anchorTargetOf({ anchor: { panel: 'b', position: 'left', priority: 0 } }), 'b', 'an anchor naming another panel targets that panel, not History');
+  assert.equal(anchorTargetOf(createHistoryPanel(), HISTORY_PANEL_ID), HISTORY_PANEL_ID, 'History carries no anchor and resolves against itself');
+  assert.equal(anchorTargetOf({}, HISTORY_PANEL_ID), HISTORY_PANEL_ID, 'no anchor: the default target');
+  assert.equal(anchorTargetOf({ anchor: { panel: HISTORY_PANEL_ID, position: 'left', priority: 0 } }, HISTORY_PANEL_ID), HISTORY_PANEL_ID);
+  assert.equal(anchorTargetOf({ anchor: { panel: 'b', position: 'left', priority: 0 } }, HISTORY_PANEL_ID), 'b', 'an anchor naming another panel targets that panel, not History');
+  // The default is whatever root the caller passes, so phonux holds no app id of its own.
+  assert.equal(anchorTargetOf({}, 'some-other-root'), 'some-other-root', 'no anchor: the root passed in, not a built-in id');
 });
 
 test('resolveEnterDirection: the anchor sitting BEFORE the panel (a lower row-slot index) resolves LEFT -- a panel right of its anchor', () => {
