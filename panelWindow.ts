@@ -5,15 +5,14 @@
 import { computeRowOrder, DEFAULT_PANEL_SIZE, deriveAnchorsFromOrder, TIER_SIZES } from 'phonux';
 import type { FormFactor, JsonValue, NeighborWidths, PanelAnchor, PanelSize } from 'phonux';
 
-/**
- * One browsing panel in the unified row, parked and revived by the same capacity rules
- * (usePanelManager.ts) regardless of how it was opened. AdventurePanel.tsx renders every entry
- * here, live or parked. A panel is EITHER live in the row or parked in the adventure card, never
- * both, and is never removed from this array just for being parked -- only `closePanel` drops one.
- */
 /** The seeded History entry's id -- every array this model governs carries exactly one. */
 export const HISTORY_PANEL_ID = 'history';
 
+/**
+ * One browsing panel in the unified row, parked and revived by the same capacity rules (usePanelManager.ts)
+ * however it was opened. EITHER live in the row or parked in the adventure card (AdventurePanel.tsx lists
+ * every entry), never both; parking never removes it from the array, only `closePanel` does.
+ */
 export interface PanelWindow {
   id: string;
   url: string;
@@ -25,19 +24,19 @@ export interface PanelWindow {
   live: boolean;
   /** Whether DragToClose's drag-down gesture may close this panel at all. Every panel created by `appendPanel` is unlocked. */
   locked: boolean;
-  /** Which component renders this entry (phonux's registry, resolveView) -- read ONLY by the rendering wrapper (LivePanels.tsx); every park/close site reads `collapsible`/`listed`/`locked` instead, never this. An open string, not a closed union: an unregistered value renders a placeholder, never a crash. */
+  /** Which component renders this entry (phonux's registry, resolveView) -- read ONLY by the row (PanelRow); every park/close site reads `collapsible`/`listed`/`locked` instead, never this. An open string, not a closed union: an unregistered value renders a placeholder, never a crash. */
   view: string;
   /** Capacity parks (an open, a revive, the row gesture, a capacity drop) may park this entry; `false` marks an always-shown column exempt from all of them. */
   collapsible: boolean;
   /** Appears in the public `panelList` (History's own row list, and PanelsAPI). */
   listed: boolean;
-  /** Opaque per-panel data a create() caller supplied (PanelsAPI.create's `params`); undefined for built-ins. Threaded to PanelSummary.params by this file's own summarisePanel(); no behavior site here reads it. */
+  /** Opaque per-panel data a create() caller supplied (PanelsAPI.create's `params`); undefined for built-ins. summarisePanel threads it to PanelSummary.params; no behavior site here reads it. */
   params?: JsonValue;
   /** Where this entry sits in the row (computeRowOrder). Undefined only for History, the root; a hand-built record without one reads as anchored where it already stands, and computeRowOrder writes that anchor. */
   anchor?: PanelAnchor;
-  /** Which of the row's two stacking tiers this entry's slot sits in -- read ONLY by LivePanels.tsx's per-slot zIndex. Default 'base'. */
+  /** Which of the row's two stacking tiers this entry's slot sits in -- read ONLY by PanelRow's per-slot zIndex. Default 'base'. */
   layer?: 'base' | 'raised';
-  /** Whether this entry's reappearance always resolves through the anchor formula (resolveEnterDirection) instead of unconditionally entering from the right -- read ONLY by LivePanels.tsx's enterDirection. Default false. */
+  /** Whether this entry's reappearance always resolves through the anchor formula (resolveEnterDirection) instead of unconditionally entering from the right -- read ONLY by PanelRow's enterDirection. Default false. */
   anchoredEnter?: boolean;
   /** This panel's own visual tier; createHistoryPanel/appendPanel always set it. Optional so a record built by hand without it still typechecks. */
   formFactor?: FormFactor;
@@ -232,7 +231,7 @@ export function closePanel(panels: PanelWindow[], id: string): { remaining: Pane
 }
 
 /**
- * Moves `id` one PRESENT slot (`!collapsible || live`, LivePanels.tsx's filter) toward `direction`, past
+ * Moves `id` one PRESENT slot (`!collapsible || live`, PanelRow's filter) toward `direction`, past
  * whichever present panel sits there, History included; a parked panel between the two shifts one array slot,
  * keeping firstParkedAfter/lastParkedBefore/sideOfLiveRange meaningful. Every anchor is then re-read from the
  * new order. The SAME array for every no-op: unknown id, a `collapsible: false` source (an always-shown column

@@ -44,7 +44,7 @@ export interface UsePanelManagerResult {
   revealMostRecentlyCollapsed: (panelsAfterClose: PanelWindow[]) => void;
   /**
    * Ids (re)entering `live` via `revealMostRecentlyCollapsed` or usePanelClosing.ts's `undoClose` of a LIVE
-   * panel (its `onRestoreLive`). LivePanels.tsx consults it only when `id` has no `enterSideById` entry: an
+   * panel (its `onRestoreLive`). PanelRow consults it only when `id` has no `enterSideById` entry: an
    * explicit gesture/capacity-rise side always wins.
    */
   enteringViaAnchorIds: ReadonlySet<string>;
@@ -53,7 +53,7 @@ export interface UsePanelManagerResult {
   /**
    * Drops any stale `enterSideById`/`exitRightIds` entry `id` picked up from an EARLIER park (ids cycle
    * live/parked repeatedly over a session) -- every path that revives a panel via the anchor formula must
-   * call this FIRST, or a stale explicit side would win over the anchor formula (LivePanels.tsx's own
+   * call this FIRST, or a stale explicit side would win over the anchor formula (PanelRow's own
    * precedence) and the revived panel would slide in from the wrong side.
    */
   clearEnterSide: (id: string) => void;
@@ -78,7 +78,7 @@ export interface UsePanelManagerResult {
    */
   resizePanel: (id: string, next: FormFactor) => boolean;
   /**
-   * Explicit enter sides set by `scrollRow` and the capacity-rise reconcile -- LivePanels.tsx's own
+   * Explicit enter sides set by `scrollRow` and the capacity-rise reconcile -- PanelRow's own
    * `enterSideById` prop. Wins over `enteringViaAnchorIds`/`anchoredEnter`: those two describe "enters via
    * the anchor formula" as a boolean, which cannot express "enters from the LEFT because a rightward
    * gesture revealed it", the case this exists for.

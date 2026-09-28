@@ -44,7 +44,7 @@ export interface PanelsInput {
 }
 
 /**
- * PanelsAPI plus the desktop-only exit/enter animation inputs LivePanels.tsx reads, kept OFF PanelsAPI on
+ * PanelsAPI plus the desktop-only exit/enter animation inputs PanelRow reads, kept OFF PanelsAPI on
  * purpose: that interface is the narrow surface a third-party view is written against (hostApi.tsx's header).
  */
 export interface ProvidedPanels extends PanelsAPI {
