@@ -5,6 +5,7 @@
  * unit-testable under plain node (test/panel-layout.test.ts).
  */
 
+/** One row's measurements: what computeRowLayout and computeMaxLiveWidth read. @public */
 export interface RowLayoutInput {
   /** The row container's measured width (useRowShell.ts's ResizeObserver);
    * the DOM wiring stays there so this function has none. */
@@ -26,6 +27,7 @@ export interface RowLayoutInput {
   liveWidths: readonly number[];
 }
 
+/** How many live panels fit in one row, and where that row starts so it is centered. @public */
 export interface RowLayoutResult {
   /**
    * How many live panels the row can show at most: every entry already in `liveWidths` is assumed to already
@@ -54,6 +56,7 @@ export interface RowLayoutResult {
  * item, silently. `maxLiveThatFit` is the one "how many fit" function both usePanelManager.ts's
  * `capacity` and SettingsAPI's `fitCount` derive from, so a wider panel lowers the count instead of
  * overflowing unnoticed.
+ * @public
  */
 export function computeRowLayout({ containerWidth, phoneWidth, gap, fixedItemCount, liveWidths }: RowLayoutInput): RowLayoutResult {
   const { availableForRow, fixedWidth, usedBudget } = rowBudget({ containerWidth, phoneWidth, gap, fixedItemCount });
@@ -96,6 +99,7 @@ function rowBudget({ containerWidth, phoneWidth, gap, fixedItemCount }: Omit<Row
  * width is a maximum and a wide panel never overflows a narrow window. Never below `phoneWidth`: when not even
  * a phone fits, a narrower "tablet" would not fit either. Infinity while unmeasured (`containerWidth` 0), the
  * same reading usePanelManager and SettingsAPI give it: no cap before the first measurement.
+ * @public
  */
 export function computeMaxLiveWidth(input: Omit<RowLayoutInput, 'liveWidths'>): number {
   if (input.containerWidth === 0) return Number.POSITIVE_INFINITY;
