@@ -360,19 +360,25 @@ third-party consumer should inherit just by taking the default.
 
 A `WorkspaceGrid` holds many `Workspace`s, a `Workspace` holds one or more `PanelRow`s, a `PanelRow` holds
 `Panel` slots sized phone, tablet or desktop, and each `Panel` renders one `View` -- the component a
-developer writes and registers. This folder owns the `Panel` shell and the `View` registry, the two levels a
-View author actually touches, plus the host contract that connects them.
+developer writes and registers. This folder owns `PanelRow`, the `Panel` shell and the `View` registry, plus
+the host contract that connects them; the `Panel` shell and the `View` registry are the two levels a View
+author actually touches.
 
-`Workspace` and `PanelRow` are still host code today. This section names the split a later entry moves code
-against, so extraction is a rename-and-relocate pass, not a fresh design.
+`PanelRow` lives in this folder; `Workspace` is still host code. This section names the split the `Workspace`
+extraction moves code against, so that extraction is a rename-and-relocate pass, not a fresh design.
 
-**What phonux will own once extracted.** `PanelRow` renders N animated slots from a plain entries array --
-today's `client/src/desktop/panels/LivePanels.tsx` (the composition) and `LivePanelSlot.tsx` (one slot's
-motion), both already written against this folder's own animation primitives. `Workspace` is the shell around
-it: the scroll container, the centered/animated-margin math `client/src/desktop/row/useRowShell.ts` computes
-today, and the `OverlaySlot` mounts. Neither consumes `PanelSummary`: the row needs fields that decide
-overflow and motion (id, view, collapsible, layer, anchoredEnter, its row) that a View must never see, so
-extraction adds a new, row-only entry type rather than reusing the View-facing one.
+**What phonux owns: `PanelRow`.** `PanelRow` renders N animated slots from a plain entries array --
+`PanelRow.tsx` (the composition) and `PanelRowSlot.tsx` (one slot's motion), over this folder's own animation
+primitives -- with the row's order math (`panelRowOrder.ts`), tier widths (`panelTiers.ts`) and fit math
+(`panelRowLayout.ts`) beside it. It does not consume `PanelSummary`: the row needs fields that decide overflow
+and motion (id, view, collapsible, anchor, layer, anchoredEnter) that a View must never see, so it takes its
+own row-only entry type, `PanelRowEntry`, rather than reusing the View-facing one. The host passes the row's
+root entry as a required `rootId` prop with no default here, so no host's own panel id is baked into this
+folder.
+
+**What phonux will own once `Workspace` is extracted.** `Workspace` is the shell around the row: the scroll
+container, the centered/animated-margin math `client/src/desktop/row/useRowShell.ts` computes today, and the
+`OverlaySlot` mounts. Like `PanelRow`, it does not consume `PanelSummary`.
 
 **What stays host.** The Electron drag-strip chrome (the draggable title-bar region and macOS traffic-light
 clearance) and every other window-chrome concern; the IPC calls a panel's own actions make; and mounting the
@@ -392,10 +398,10 @@ The shape, the ownership split and the save/restore timing are now designed -- s
 persistence: shape, ownership and timing" below -- but nothing is built yet: this Workspace still keeps no
 file, still loads nothing and still saves nothing today.
 
-**Files the eventual extraction touches.** `client/src/desktop/panels/LivePanels.tsx`, `LivePanelSlot.tsx`,
-`client/src/desktop/row/useRowShell.ts` and `src/panel-layout.ts`'s row-layout math move into this folder;
-`test/phone-boundary.test.ts`'s `APP_SIDE` map loses their entries and its `MIN_PHONE_FILES` count goes up.
-Naming them here lets a later entry's own touches be checked against this list instead of re-deriving it.
+**Files the `Workspace` extraction touches.** `client/src/desktop/row/useRowShell.ts` moves into this folder,
+and `test/phone-boundary.test.ts`'s `MIN_PHONE_FILES` goes up to the number of files the shared/phone folder
+scan then reads. Naming them here lets a later entry's own touches be checked against this list instead of
+re-deriving it.
 
 ## Naming rules R1-R4
 
