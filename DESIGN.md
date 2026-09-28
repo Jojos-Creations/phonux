@@ -364,7 +364,7 @@ developer writes and registers. This folder owns `PanelRow`, the `Panel` shell a
 the host contract that connects them; the `Panel` shell and the `View` registry are the two levels a View
 author actually touches.
 
-`PanelRow` lives in this folder; `Workspace` is still host code. This section names the split the `Workspace`
+`PanelRow` lives in this folder; `Workspace` is a phonux component too. This section names the split the `Workspace`
 extraction moves code against, so that extraction is a rename-and-relocate pass, not a fresh design.
 
 **What phonux owns: `PanelRow`.** `PanelRow` renders N animated slots from a plain entries array --
@@ -377,8 +377,8 @@ root entry as a required `rootId` prop with no default here, so no host's own pa
 folder.
 
 **What phonux will own once `Workspace` is extracted.** `Workspace` is the shell around the row: the scroll
-container, the centered/animated-margin math `client/src/desktop/row/useRowShell.ts` computes today, and the
-`OverlaySlot` mounts. Like `PanelRow`, it does not consume `PanelSummary`.
+container, the centered/animated-margin math `workspaceShellStyle` (in `client/src/shared/phone/Workspace.tsx`)
+computes, and the `OverlaySlot` mounts. Like `PanelRow`, it does not consume `PanelSummary`.
 
 **What stays host.** The Electron drag-strip chrome (the draggable title-bar region and macOS traffic-light
 clearance) and every other window-chrome concern; the IPC calls a panel's own actions make; and mounting the
@@ -398,8 +398,8 @@ The shape, the ownership split and the save/restore timing are now designed -- s
 persistence: shape, ownership and timing" below -- but nothing is built yet: this Workspace still keeps no
 file, still loads nothing and still saves nothing today.
 
-**Files the `Workspace` extraction touches.** `client/src/desktop/row/useRowShell.ts` moves into this folder,
-and `test/phone-boundary.test.ts`'s `MIN_PHONE_FILES` goes up to the number of files the shared/phone folder
+**Files the `Workspace` extraction touches.** `workspaceShellStyle` (out of `client/src/desktop/row/useRowShell.ts`)
+moves into this folder, and `test/phone-boundary.test.ts`'s `MIN_PHONE_FILES` goes up to the number of files the shared/phone folder
 scan then reads. Naming them here lets a later entry's own touches be checked against this list instead of
 re-deriving it.
 
