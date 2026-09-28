@@ -60,11 +60,19 @@ const VALUE_EXPORTS = [
   'ViewStateMissingProviderError',
   'OverlayProvider',
   'OverlayStore',
+  'computeRowOrder',
+  'deriveAnchorsFromOrder',
+  'summarisePanel',
+  'DEFAULT_PANEL_SIZE',
+  'TIER_SIZES',
+  'panelWidthOf',
+  'computeRowLayout',
+  'computeMaxLiveWidth',
   // Opt-in extras (never applied implicitly).
   'createDefaultTheme',
 ].sort();
 
-test('the phonux barrel exports exactly the 45 runtime values, no more, no fewer', () => {
+test('the phonux barrel exports exactly the 53 runtime values, no more, no fewer', () => {
   assert.deepEqual(Object.keys(phonux).sort(), VALUE_EXPORTS);
 });
 
