@@ -111,5 +111,7 @@ export type { NeighborWidths, PanelRowEntry } from './panelRowEntry.js';
 export { DEFAULT_PANEL_SIZE, TIER_SIZES, panelWidthOf } from './panelTiers.js';
 export { computeMaxLiveWidth, computeRowLayout } from './panelRowLayout.js';
 export type { RowLayoutInput, RowLayoutResult } from './panelRowLayout.js';
+export { PanelRow, usePanelCloseEligible, usePanelNeighborWidths, usePanelPinned, usePanelReorderEligible } from './PanelRow.js';
+export { GAP, PANEL_TRANSITION, PanelRowSlot, PanelSizeBox } from './PanelRowSlot.js';
 
 export { createDefaultTheme } from './defaultTheme.js';

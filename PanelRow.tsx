@@ -66,7 +66,7 @@ export function PanelRow({
   enterSideById = EMPTY_MAP,
   maxLiveWidth = Number.POSITIVE_INFINITY,
 }: {
-  /** The raw one-list array (PanelWindow, not PanelSummary): `view` alone picks the component (resolveView
+  /** The raw one-list array (PanelRowEntry, not PanelSummary): `view` alone picks the component (resolveView
    * never returns nothing), independent of `layer` (stacking) and `anchoredEnter` (enter direction). */
   entries: readonly PanelRowEntry[];
   /** The row's root entry: an entry with no anchor orients against it, and `usePanelPinned` means left of it. */

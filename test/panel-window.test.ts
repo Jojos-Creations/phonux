@@ -10,6 +10,7 @@ import {
   computeRowOrder,
   DEFAULT_PHONE_SIZE,
   deriveAnchorsFromOrder,
+  GAP,
   panelWidthOf,
   summarisePanel,
   TIER_SIZES,
@@ -34,7 +35,6 @@ import {
   setFormFactor,
   sideOfLiveRange,
 } from '../client/src/desktop/panels/panelWindow.js';
-import { GAP } from '../client/src/desktop/panels/LivePanelSlot.js';
 
 /** Every entry's own default tier/size (panelWindow.ts's DEFAULT_PANEL_SIZE, reconstructed here from the same
  * shared phonux constant rather than a second 390/700 literal, so this file cannot drift from panelWindow.ts's

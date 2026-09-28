@@ -10,7 +10,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { workspaceShellStyle, type WorkspaceShellStyleInput } from '../client/src/desktop/row/useRowShell.js';
-import { PANEL_TRANSITION } from '../client/src/desktop/panels/LivePanelSlot.js';
+import { PANEL_TRANSITION } from 'phonux';
 
 const base: WorkspaceShellStyleInput = {
   shell: { containerWidth: 1300, rowResizeSettled: false },
