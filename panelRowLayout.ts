@@ -13,7 +13,7 @@ export interface RowLayoutInput {
    * changes form factor), and it is also the width assumed for a hypothetical slot beyond `liveWidths` --
    * see `maxLiveThatFit`'s own doc comment. */
   phoneWidth: number;
-  /** The row's own gap between adjacent items (LivePanelSlot's `GAP`). */
+  /** The row's own gap between adjacent items (PanelRowSlot's `GAP`). */
   gap: number;
   /**
    * How many always-rendered (non-collapsible) slots the row holds before any

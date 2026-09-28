@@ -241,7 +241,7 @@ neighbour widths a drag crosses. A view follows the same rule: pass `panel.size`
 
 ### How the resize animates
 
-The row's slot (`LivePanelSlot`) owns the enter/exit animation, so the resize never lives on the slot
+The row's slot (`PanelRowSlot`) owns the enter/exit animation, so the resize never lives on the slot
 itself: Motion's docs warn against `layout` and `exit` on one element. It lives on an inner size box
 (`PanelSizeBox`) that the built-in web view renders inside its slot, under its drag box. That box is Motion
 `layout="size"`, a transform-based resize over the same 0.4 s transition the slots slide with; `"size"`
@@ -345,7 +345,7 @@ panel's own index. A History row sits in normal flow and has one exit, its trash
 would either lose the index-independent collapse target or grow conditionals History never needs, so this is
 a shared preset, not a shared wrapper component. It returns `initial`/`animate` (both callers enter the same
 way: `distance` past rest, faded out), the shared `transition`, and a symmetric `exit` that History uses
-as-is; `LivePanelSlot` builds its own two exits and takes only `transition`.
+as-is; `PanelRowSlot` builds its own two exits and takes only `transition`.
 
 ## `createDefaultTheme` carries the no-motion rule only, never the brand
 

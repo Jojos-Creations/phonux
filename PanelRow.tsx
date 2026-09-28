@@ -10,7 +10,7 @@ import { AnimatePresence } from 'motion/react';
 import Box from '@mui/material/Box';
 import { resolveView, useHost, useViewState } from 'phonux';
 import { anchorTargetOf, resolveEnterDirection } from './anchorPanel.js';
-import { GAP, LivePanelSlot } from './LivePanelSlot.js';
+import { GAP, PanelRowSlot } from './LivePanelSlot.js';
 import { HISTORY_PANEL_ID, panelWidthOf, summarisePanel, type NeighborWidths, type PanelWindow } from './panelWindow.js';
 
 /** A 'raised' slot sits above a 'base' one: a LEFT-exiting park crosses a raised panel's footprint (History, today) on the way out, so this ordering is load-bearing for that path (a close's exit is DOWN and never reaches it). */
@@ -35,7 +35,7 @@ function renderedSummary(p: PanelWindow, width: number) {
 const PanelSlotContext = React.createContext<{ collapsible: boolean; neighborWidths: NeighborWidths; pinned: boolean } | undefined>(undefined);
 /** True only for a `collapsible` entry (e.g. a plain web panel) -- an always-shown column (History, or a
  * `permanent:true` custom column) is never a reorder source. Unprovided resolves to false: a view mounted
- * with no `LivePanels` above it never reorders. */
+ * with no `PanelRow` above it never reorders. */
 export const usePanelReorderEligible = (): boolean => React.useContext(PanelSlotContext)?.collapsible ?? false;
 /** False only for an always-shown column (`collapsible:false`): the built-in 'web' view must never wrap such
  * an entry in a framework close handle (CreatePanelOptions.permanent's 'own control only' guarantee).
@@ -46,7 +46,7 @@ export const usePanelNeighborWidths = (): NeighborWidths => React.useContext(Pan
 /** Anchored left of History, read from the anchor every render so a drag across History changes it too. Unprovided: false. */
 export const usePanelPinned = (): boolean => React.useContext(PanelSlotContext)?.pinned ?? false;
 
-export function LivePanels({
+export function PanelRow({
   entries,
   closingIds,
   enteringViaAnchorIds,
@@ -126,7 +126,7 @@ export function LivePanels({
               key={p.id}
               value={{ collapsible: p.collapsible, neighborWidths: neighborWidthsAt(index), pinned: anchorTargetOf(p) === HISTORY_PANEL_ID && p.anchor?.position === 'left' }}
             >
-              <LivePanelSlot
+              <PanelRowSlot
                 leftOffset={leftOffsets[index]!}
                 width={widths[index]!}
                 phoneHeight={phoneHeight}
@@ -141,7 +141,7 @@ export function LivePanels({
                 <useViewState.Provider value={p.id}>
                   <Component panel={renderedSummary(p, widths[index]!)} />
                 </useViewState.Provider>
-              </LivePanelSlot>
+              </PanelRowSlot>
             </PanelSlotContext.Provider>
           );
         })}

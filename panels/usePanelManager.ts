@@ -4,7 +4,7 @@
  * (`scrollRow`) that brings a hidden panel back from either side. Every hide is a park (`live: false`,
  * never a removal) pushed onto `collapseOrderRef`, so `revealMostRecentlyCollapsed` keeps working
  * regardless of which path did the parking. `containerWidth` is evaluated at the call site: the host
- * must call useRowShell() before useAppApis, or reading it throws "used before initialization".
+ * must call useWorkspaceShell() before useAppApis, or reading it throws "used before initialization".
  */
 import { useEffect, useRef, useState } from 'react';
 import type { Dispatch, RefObject, SetStateAction } from 'react';

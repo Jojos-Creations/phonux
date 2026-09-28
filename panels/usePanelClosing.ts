@@ -24,7 +24,7 @@ export interface UsePanelClosingResult {
   /**
    * Ids currently leaving through THIS hook's own `close()` -- never through
    * usePanelManager's auto-collapse, which flips `live` false but never touches
-   * this set. LivePanels.tsx reads it to give each exiting LivePanelSlot an
+   * this set. LivePanels.tsx reads it to give each exiting PanelRowSlot an
    * `exitDirection` (down for a close, left for an auto-collapse); see this
    * file's `close()` for why the id must land here BEFORE the panel leaves
    * `panels`, not after.

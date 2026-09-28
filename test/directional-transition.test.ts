@@ -1,12 +1,12 @@
 /**
  * shared/phone/directionalTransition.ts, proven directly (pure function, no DOM needed): the shared
- * preset's exact value and formulas, plus a POSITIVE CONTROL that panelSlotMotion produces exactly
+ * preset's exact value and formulas, plus a POSITIVE CONTROL that panelRowSlotMotion produces exactly
  * those numbers for a uniform row (`leftOffset = index * slot`, `width = PHONE_WIDTH`).
  */
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { SLOT_TRANSITION, directionalTransition } from 'phonux/internal/directionalTransition';
-import { GAP, PANEL_TRANSITION, panelSlotMotion } from '../client/src/desktop/panels/LivePanelSlot.js';
+import { GAP, PANEL_TRANSITION, panelRowSlotMotion } from '../client/src/desktop/panels/LivePanelSlot.js';
 import { anchorTargetOf, resolveEnterDirection } from '../client/src/desktop/panels/anchorPanel.js';
 import { createHistoryPanel, HISTORY_PANEL_ID } from '../client/src/desktop/panels/panelWindow.js';
 import { DRAG_CLOSE } from 'phonux';
@@ -31,11 +31,11 @@ test('directionalTransition: y axis, rest 0, distance 24 (History\'s own call) -
   assert.deepEqual(t.exit, { y: -24, opacity: 0 });
 });
 
-test('directionalTransition: a nonzero rest offsets every value by the same amount (LivePanelSlot\'s own case: rest = index * slot)', () => {
+test('directionalTransition: a nonzero rest offsets every value by the same amount (PanelRowSlot\'s own case: rest = index * slot)', () => {
   const t = directionalTransition('x', 300, 116); // index 2, slot 116 (phoneWidth 100 + GAP 16)
   assert.deepEqual(t.initial, { x: 416, opacity: 0 });
   assert.deepEqual(t.animate, { x: 300, opacity: 1 });
-  assert.deepEqual(t.exit, { x: 184, opacity: 0 }, 'the symmetric default -- LivePanelSlot does NOT use this value for its own exit, see below');
+  assert.deepEqual(t.exit, { x: 184, opacity: 0 }, 'the symmetric default -- PanelRowSlot does NOT use this value for its own exit, see below');
 });
 
 test('directionalTransition: a negative distance enters/exits from the opposite side', () => {
@@ -45,17 +45,17 @@ test('directionalTransition: a negative distance enters/exits from the opposite 
 });
 
 // ---------------------------------------------------------------------------
-// positive control: panelSlotMotion matches these exact numbers
+// positive control: panelRowSlotMotion matches these exact numbers
 // ---------------------------------------------------------------------------
 
 const PHONE_WIDTH = 320;
 const PHONE_HEIGHT = 640;
 const SLOT = PHONE_WIDTH + GAP; // 336
 
-test('panelSlotMotion: with enterDirection "right" (the pre-refactor, still-default case), initial/animate are EXACTLY the pre-refactor formulas, for several indices, both exit directions', () => {
+test('panelRowSlotMotion: with enterDirection "right" (the pre-refactor, still-default case), initial/animate are EXACTLY the pre-refactor formulas, for several indices, both exit directions', () => {
   for (const index of [0, 1, 2]) {
     for (const exitDirection of ['down', 'left'] as const) {
-      const m = panelSlotMotion(index * SLOT, PHONE_WIDTH, PHONE_HEIGHT, 'right', exitDirection);
+      const m = panelRowSlotMotion(index * SLOT, PHONE_WIDTH, PHONE_HEIGHT, 'right', exitDirection);
       assert.deepEqual(m.initial, { x: (index + 1) * SLOT, opacity: 0 }, `initial, index ${index}, ${exitDirection}`);
       assert.deepEqual(m.animate, { x: index * SLOT, opacity: 1 }, `animate, index ${index}, ${exitDirection}`);
       assert.equal(m.transition, PANEL_TRANSITION, `transition, index ${index}, ${exitDirection}`);
@@ -63,28 +63,28 @@ test('panelSlotMotion: with enterDirection "right" (the pre-refactor, still-defa
   }
 });
 
-test('panelSlotMotion: exit "down" is EXACTLY the pre-refactor formula (x stays at rest, y goes to phoneHeight, DRAG_CLOSE.exitSeconds timing), for either enter direction', () => {
+test('panelRowSlotMotion: exit "down" is EXACTLY the pre-refactor formula (x stays at rest, y goes to phoneHeight, DRAG_CLOSE.exitSeconds timing), for either enter direction', () => {
   for (const index of [0, 1, 2]) {
     for (const enterDirection of ['left', 'right'] as const) {
-      const m = panelSlotMotion(index * SLOT, PHONE_WIDTH, PHONE_HEIGHT, enterDirection, 'down');
+      const m = panelRowSlotMotion(index * SLOT, PHONE_WIDTH, PHONE_HEIGHT, enterDirection, 'down');
       assert.deepEqual(m.exit, { x: index * SLOT, y: PHONE_HEIGHT, opacity: 0, transition: { duration: DRAG_CLOSE.exitSeconds, ease: 'easeIn' } }, `index ${index}, enter ${enterDirection}`);
     }
   }
 });
 
-test('panelSlotMotion: exit "right" is `rest + slot` (relative to rest, unlike the absolute -slot "left" target), for either enter direction -- the far-side park', () => {
+test('panelRowSlotMotion: exit "right" is `rest + slot` (relative to rest, unlike the absolute -slot "left" target), for either enter direction -- the far-side park', () => {
   for (const index of [0, 1, 2]) {
     for (const enterDirection of ['left', 'right'] as const) {
-      const m = panelSlotMotion(index * SLOT, PHONE_WIDTH, PHONE_HEIGHT, enterDirection, 'right');
+      const m = panelRowSlotMotion(index * SLOT, PHONE_WIDTH, PHONE_HEIGHT, enterDirection, 'right');
       assert.deepEqual(m.exit, { x: index * SLOT + SLOT, opacity: 0 }, `index ${index}, enter ${enterDirection}`);
     }
   }
 });
 
-test('panelSlotMotion: exit "left" is EXACTLY the pre-refactor formula (-slot, independent of index -- NOT directionalTransition\'s symmetric default), for either enter direction', () => {
+test('panelRowSlotMotion: exit "left" is EXACTLY the pre-refactor formula (-slot, independent of index -- NOT directionalTransition\'s symmetric default), for either enter direction', () => {
   for (const index of [0, 1, 2]) {
     for (const enterDirection of ['left', 'right'] as const) {
-      const m = panelSlotMotion(index * SLOT, PHONE_WIDTH, PHONE_HEIGHT, enterDirection, 'left');
+      const m = panelRowSlotMotion(index * SLOT, PHONE_WIDTH, PHONE_HEIGHT, enterDirection, 'left');
       assert.deepEqual(m.exit, { x: -SLOT, opacity: 0 }, `index ${index}, enter ${enterDirection}`);
     }
   }
@@ -95,20 +95,20 @@ test('panelSlotMotion: exit "left" is EXACTLY the pre-refactor formula (-slot, i
 // red if enterDirection is ignored and every panel enters from the right.
 // ---------------------------------------------------------------------------
 
-test('panelSlotMotion: enterDirection "left" enters from -slot relative to rest (index * slot - slot), for several indices, both exit directions', () => {
+test('panelRowSlotMotion: enterDirection "left" enters from -slot relative to rest (index * slot - slot), for several indices, both exit directions', () => {
   for (const index of [0, 1, 2]) {
     for (const exitDirection of ['down', 'left'] as const) {
-      const m = panelSlotMotion(index * SLOT, PHONE_WIDTH, PHONE_HEIGHT, 'left', exitDirection);
+      const m = panelRowSlotMotion(index * SLOT, PHONE_WIDTH, PHONE_HEIGHT, 'left', exitDirection);
       assert.deepEqual(m.initial, { x: (index - 1) * SLOT, opacity: 0 }, `initial, index ${index}, ${exitDirection}`);
       assert.deepEqual(m.animate, { x: index * SLOT, opacity: 1 }, `animate (rest is unaffected by enter direction), index ${index}, ${exitDirection}`);
     }
   }
 });
 
-test('panelSlotMotion: enterDirection flips ONLY initial\'s sign relative to rest -- animate and exit are identical to the "right" case (isolating the one thing this parameter controls)', () => {
+test('panelRowSlotMotion: enterDirection flips ONLY initial\'s sign relative to rest -- animate and exit are identical to the "right" case (isolating the one thing this parameter controls)', () => {
   for (const index of [0, 1, 2]) {
-    const right = panelSlotMotion(index * SLOT, PHONE_WIDTH, PHONE_HEIGHT, 'right', 'down');
-    const left = panelSlotMotion(index * SLOT, PHONE_WIDTH, PHONE_HEIGHT, 'left', 'down');
+    const right = panelRowSlotMotion(index * SLOT, PHONE_WIDTH, PHONE_HEIGHT, 'right', 'down');
+    const left = panelRowSlotMotion(index * SLOT, PHONE_WIDTH, PHONE_HEIGHT, 'left', 'down');
     assert.deepEqual(right.animate, left.animate, `index ${index}`);
     assert.deepEqual(right.exit, left.exit, `index ${index}`);
     assert.notDeepEqual(right.initial, left.initial, `index ${index}: the two enter directions must actually differ`);

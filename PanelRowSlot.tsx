@@ -18,7 +18,7 @@ export const PANEL_TRANSITION = SLOT_TRANSITION;
  * API is immune to theme.ts's transition/animation:none reset (test/theme-motion-reset.test.ts
  * pins the reset stays scoped there, not transform/opacity, or it would kill this silently).
  */
-export interface PanelSlotMotion {
+export interface PanelRowSlotMotion {
   readonly initial: TargetAndTransition;
   readonly animate: TargetAndTransition;
   readonly exit: TargetAndTransition;
@@ -28,18 +28,18 @@ export interface PanelSlotMotion {
 type ExitDirection = 'down' | 'left' | 'right';
 
 /**
- * The pure values behind one LivePanelSlot render, split out so a test can assert exact motion
+ * The pure values behind one PanelRowSlot render, split out so a test can assert exact motion
  * values without mounting a component. `exit` stays entirely local to this function: 'down' needs a second
  * axis and its own transition, 'left' a target independent of `leftOffset`; neither fits directionalTransition's
  * symmetric default.
  */
-export function panelSlotMotion(
+export function panelRowSlotMotion(
   leftOffset: number,
   width: number,
   phoneHeight: number,
   enterDirection: 'left' | 'right',
   exitDirection: ExitDirection,
-): PanelSlotMotion {
+): PanelRowSlotMotion {
   // This panel's OWN footprint (its width plus one gap) is how far it must travel to clear the row edge --
   // a wider panel needs to travel further than a uniform `slot` would have, so this can no longer be one
   // value shared by every item.
@@ -63,7 +63,7 @@ export function panelSlotMotion(
   return { initial, animate, exit, transition };
 }
 
-export function LivePanelSlot({
+export function PanelRowSlot({
   leftOffset,
   width,
   phoneHeight,
@@ -74,7 +74,7 @@ export function LivePanelSlot({
 }: {
   /** This slot's own rest x position -- the caller's running sum of every PRECEDING present item's own width plus one gap. */
   leftOffset: number;
-  /** This panel's own width (panelWindow.ts's `panelWidthOf`) -- also this slot's own enter/exit travel distance (see `panelSlotMotion`'s `ownSpan`). */
+  /** This panel's own width (panelWindow.ts's `panelWidthOf`) -- also this slot's own enter/exit travel distance (see `panelRowSlotMotion`'s `ownSpan`). */
   width: number;
   phoneHeight: number;
   /** Computed by the caller (anchorPanel.ts's `resolveEnterDirection`, or an explicit gesture side).
@@ -94,7 +94,7 @@ export function LivePanelSlot({
   zIndex?: number;
   children: React.ReactNode;
 }) {
-  const { initial, animate, exit, transition } = panelSlotMotion(leftOffset, width, phoneHeight, enterDirection, exitDirection);
+  const { initial, animate, exit, transition } = panelRowSlotMotion(leftOffset, width, phoneHeight, enterDirection, exitDirection);
   return (
     <motion.div
       // Enters from one own-width-plus-gap span beyond its destination, right or left per `enterDirection` above.

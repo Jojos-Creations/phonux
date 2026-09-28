@@ -33,7 +33,7 @@ export interface PanelsInput {
   phoneWidth: number;
   /** `count(!collapsible)` over the one panel list right now -- the host's own single source of truth (appApis.ts), passed through rather than recomputed here so usePanelManager always agrees with it. */
   fixedViewCount: number;
-  /** useRowShell's own measured width (0 before the first measurement) -- usePanelManager derives the fit count and capacity from this, the same inputs SettingsAPI.fitCount uses. */
+  /** useWorkspaceShell's own measured width (0 before the first measurement) -- usePanelManager derives the fit count and capacity from this, the same inputs SettingsAPI.fitCount uses. */
   containerWidth: number;
   /** The row's scroll container: the gesture's wheel listener attaches here. */
   overflowContainerRef: RefObject<HTMLDivElement | null>;
@@ -43,7 +43,7 @@ export interface PanelsInput {
    * that wants to count calls passes its own fake instead.
    */
   capture?: CaptureTrigger;
-  /** Called when setFormFactor really resizes a panel (useRowShell's `morph`, so the row's margin glides with it). */
+  /** Called when setFormFactor really resizes a panel (useWorkspaceShell's `morph`, so the row's margin glides with it). */
   onPanelResize?: () => void;
 }
 
