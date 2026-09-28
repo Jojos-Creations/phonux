@@ -86,10 +86,8 @@ async function main() {
     ...forwardArgv,
   ];
 
-  // exitCode is decided inside the try but process.exit() itself happens
-  // after the finally below runs -- exiting from inside a try/finally skips
-  // the finally entirely, which previously leaked this scratch dir on every
-  // single invocation.
+  // process.exit() must stay outside the try: calling it from inside skips
+  // the finally below, so the scratch dir would never get cleaned up.
   let exitCode;
   try {
     // 'close' (not 'exit'): fires once stdio has flushed, whether the child
@@ -123,10 +121,9 @@ async function main() {
   process.exit(exitCode);
 }
 
-// Importing this module (e.g. test/run-tests-guard.test.ts pulling in its
-// pure exports) must never re-run the CLI: without this guard, the import
-// itself spawned a full child `--test` run and raced its own process.exit()
-// against the importing test file's assertions.
+// Only run the CLI when this file IS the entry point: importing it for its
+// pure exports must not also spawn a child --test run and race its
+// process.exit() against the importer's own assertions.
 if (import.meta.url === pathToFileURL(process.argv[1] ?? '').href) {
   main();
 }
