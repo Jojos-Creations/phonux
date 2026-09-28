@@ -505,12 +505,13 @@ phonux owns the `WorkspaceState`/`WorkspacePanelState` type, the pure `projectWo
 never puts on the public `Host`/`PanelsAPI` bag. Keeping a capability off the public bag has a real precedent
 already in this package: `CaptureRegistryContext` keeps the write side of a picture out of `Host`/
 `SnapshotsAPI` entirely, as its own second context that app code mounts AROUND `HostProvider` (see "Snapshots"
-below) -- `HostProvider` itself never mounts `CaptureRegistryContext`; the only context it mounts internally is
-its own `OverlayProvider`. `WorkspaceStorage` follows that same "keep it off the public bag" idea, but not
-`CaptureRegistryContext`'s context-based wiring: unlike `CaptureRegistryContext`, which arbitrary descendant
-`Panel` instances each need to reach independently, `WorkspaceStorage` is consumed at exactly one call site --
-inside the future panel-behavior provider itself, the only thing that ever calls `load()`/`save()` -- so a
-plain injected value on that provider's own input is enough and no context is needed. That is the same
+below) -- `HostProvider` itself never mounts `CaptureRegistryContext`. `HostProvider` does mount two contexts
+internally, for its own concerns kept off the public bag: `OverlayProvider` and `ViewStateProvider` (see
+"useViewState" below). `WorkspaceStorage` follows the same "keep it off the public bag" idea as all three, but
+not any of their context-based wiring: unlike `CaptureRegistryContext` and `ViewStateProvider`, each reached by
+arbitrary descendant `Panel`/view instances independently, `WorkspaceStorage` is consumed at exactly one call
+site -- inside the future panel-behavior provider itself, the only thing that ever calls `load()`/`save()` --
+so a plain injected value on that provider's own input is enough and no context is needed. That is the same
 single-call-site injection an existing dependency already uses on that same provider's input today
 (`useProvidePanels.ts`'s `PanelsInput.capture`). The host owns the storage entirely: the file's real name and
 on-disk location, the IPC channel names, and the write mechanics (including whether the write is atomic) are
@@ -578,6 +579,12 @@ root column (History today) is never saved, because the host reseeds it fresh ev
 creates a permanent column at mount today, so a view-created one would otherwise vanish on restart, against
 the owner's every-saved-panel-comes-back ruling; if a host later creates a permanent column at mount itself, it
 must not also be restored from saved state, a case to revisit then.
+
+Saving `permanent` needs the same kind of caveat "The shape" already gives `row`: `PanelWindow` has no
+`permanent` field to read today, only `collapsible` (set once at creation from `appendPanel`'s own
+`!info.permanent` derivation and never itself retained as `permanent`), so until a real `permanent` field
+lands on the panel model, `projectWorkspaceState` derives the saved value as `!collapsible`, excluding the
+host's own root column, which is never saved at all regardless of its `collapsible` value.
 
 ### Known limitation, not fixed here
 
