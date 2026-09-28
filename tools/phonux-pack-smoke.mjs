@@ -14,11 +14,14 @@
 
 import { execFileSync } from 'node:child_process';
 import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, existsSync, rmSync } from 'node:fs';
-import { join } from 'node:path';
+import { join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const REPO_ROOT = fileURLToPath(new URL('..', import.meta.url));
-const PHONE_DIR = join(REPO_ROOT, 'client/src/shared/phone');
+// Discovered from the workspace, not a hardcoded literal, so this script keeps
+// working if phone/ moves to a different nesting depth (e.g. a repo split).
+const rootPkg = JSON.parse(readFileSync(join(REPO_ROOT, 'package.json'), 'utf8'));
+const PHONE_DIR = resolve(REPO_ROOT, rootPkg.workspaces[0]);
 const DIST_DIR = join(PHONE_DIR, 'dist');
 const TSC_BIN = join(REPO_ROOT, 'node_modules', '.bin', 'tsc');
 
