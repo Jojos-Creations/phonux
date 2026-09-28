@@ -881,8 +881,9 @@ neither needs revisiting when the move happens.
 
 `tools/phonux-build.mjs` and `tools/phonux-pack-smoke.mjs` each hardcode their own `PHONE_DIR` today as
 `join(REPO_ROOT, 'client/src/shared/phone')`. PHONE_DIR is computed from the root `package.json`'s
-`workspaces[0]` entry instead, so both scripts keep resolving to wherever this package actually sits, at
-whatever nesting depth, without hand-editing either script on every relocation. `DIST_DIR` stays relative to
+`workspaces[0]` entry instead, so `tools/phonux-build.mjs`, `tools/phonux-pack-smoke.mjs`, and
+`tools/phonux-api-report.mjs` all keep resolving to wherever this package actually sits, at whatever nesting
+depth, without hand-editing any of them on every relocation. `DIST_DIR` stays relative to
 whatever `PHONE_DIR` resolves to, unchanged, since `dist/` has always been this package's own subdirectory,
 not a sibling that needs its own discovery.
 
