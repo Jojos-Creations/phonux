@@ -20,7 +20,7 @@ import { spawn } from 'node:child_process';
 import { existsSync, mkdtempSync, readFileSync, rmSync, statSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, relative, resolve } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const REPO_ROOT = fileURLToPath(new URL('..', import.meta.url));
 const TSX_BIN = join(REPO_ROOT, 'node_modules', '.bin', 'tsx');
@@ -86,6 +86,11 @@ async function main() {
     ...forwardArgv,
   ];
 
+  // exitCode is decided inside the try but process.exit() itself happens
+  // after the finally below runs -- exiting from inside a try/finally skips
+  // the finally entirely, which previously leaked this scratch dir on every
+  // single invocation.
+  let exitCode;
   try {
     // 'close' (not 'exit'): fires once stdio has flushed, whether the child
     // exited cleanly, threw, or was signal-killed (code is then null) --
@@ -111,13 +116,17 @@ async function main() {
       }),
     );
 
-    if (missing.length > 0) {
-      process.exit(1);
-    }
-    process.exit(code === 0 ? 0 : code === null ? 1 : code);
+    exitCode = missing.length > 0 ? 1 : code === 0 ? 0 : code === null ? 1 : code;
   } finally {
     rmSync(scratchDir, { recursive: true, force: true });
   }
+  process.exit(exitCode);
 }
 
-main();
+// Importing this module (e.g. test/run-tests-guard.test.ts pulling in its
+// pure exports) must never re-run the CLI: without this guard, the import
+// itself spawned a full child `--test` run and raced its own process.exit()
+// against the importing test file's assertions.
+if (import.meta.url === pathToFileURL(process.argv[1] ?? '').href) {
+  main();
+}
