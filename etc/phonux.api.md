@@ -143,6 +143,9 @@ export function findPhoneModel(id: string): PhoneModel | undefined;
 // @public
 export type FormFactor = 'phone' | 'tablet' | 'desktop';
 
+// @public
+export const GAP = 16;
+
 // @public (undocumented)
 export interface HistoryAPI {
     close(): void;
@@ -250,6 +253,12 @@ export function Panel(input: PanelProps): React_2.JSX.Element;
 export const PANEL_CORNER_RADIUS_UNITS = 4;
 
 // @public
+export const PANEL_TRANSITION: {
+    duration: number;
+    ease: [number, number, number, number];
+};
+
+// @public
 export interface PanelAnchor {
     // (undocumented)
     panel: string;
@@ -353,6 +362,17 @@ export interface PanelProps extends Omit<BoxProps, 'children' | 'sx' | 'title'> 
 }
 
 // @public
+export function PanelRow(input: {
+    entries: readonly PanelRowEntry[];
+    rootId: string;
+    closingIds: ReadonlySet<string>;
+    enteringViaAnchorIds: ReadonlySet<string>;
+    exitRightIds?: ReadonlySet<string>;
+    enterSideById?: ReadonlyMap<string, 'left' | 'right'>;
+    maxLiveWidth?: number;
+}): React_2.ReactElement;
+
+// @public
 export interface PanelRowEntry<P = JsonValue> extends PanelSummary<P> {
     readonly anchor?: PanelAnchor;
     readonly anchoredEnter?: boolean;
@@ -360,6 +380,17 @@ export interface PanelRowEntry<P = JsonValue> extends PanelSummary<P> {
     readonly layer?: 'base' | 'raised';
     readonly view: string;
 }
+
+// @public
+export function PanelRowSlot(input: {
+    leftOffset: number;
+    width: number;
+    phoneHeight: number;
+    enterDirection: 'left' | 'right';
+    exitDirection: 'down' | 'left' | 'right';
+    zIndex?: number;
+    children: React_2.ReactNode;
+}): React_2.JSX.Element;
 
 // @public (undocumented)
 export interface PanelsAPI {
@@ -389,6 +420,13 @@ export interface PanelSize {
     // (undocumented)
     width: number;
 }
+
+// @public
+export function PanelSizeBox(input: {
+    width: number;
+    height: number;
+    children: React_2.ReactNode;
+}): React_2.JSX.Element;
 
 // @public
 export interface PanelSummary<P = JsonValue> {
@@ -606,6 +644,18 @@ export const TIER_SIZES: Readonly<Record<FormFactor, PanelSize>>;
 
 // @public
 export function useHost(): Host;
+
+// @public
+export const usePanelCloseEligible: () => boolean;
+
+// @public
+export const usePanelNeighborWidths: () => NeighborWidths;
+
+// @public
+export const usePanelPinned: () => boolean;
+
+// @public
+export const usePanelReorderEligible: () => boolean;
 
 // @public @deprecated (undocumented)
 export const usePhoneAPIs: typeof useHost;
