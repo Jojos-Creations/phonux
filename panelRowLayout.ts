@@ -15,11 +15,8 @@ export interface RowLayoutInput {
   phoneWidth: number;
   /** The row's own gap between adjacent items (PanelRowSlot's `GAP`). */
   gap: number;
-  /**
-   * How many always-rendered (non-collapsible) slots the row holds before any
-   * live panels -- History today. A plain count so this function stays free
-   * of the caller's panel state.
-   */
+  /** How many always-rendered (non-collapsible) slots the row holds, History today: a plain count, so this
+   * function stays free of the caller's panel state. */
   fixedItemCount: number;
   /**
    * Each LIVE collapsible panel's own width, in row order -- a 'tablet'/'desktop' panel contributes its own
@@ -33,7 +30,7 @@ export interface RowLayoutResult {
   /**
    * How many live panels the row can show at most: every entry already in `liveWidths` is assumed to already
    * fit (it is already live), plus however many MORE default-`phoneWidth` slots still fit in whatever budget
-   * is left over. When every entry is exactly `phoneWidth` this is independent of `liveWidths.length` --a
+   * is left over. When every entry is exactly `phoneWidth` this is independent of `liveWidths.length` -- a
    * live panel then "spends" exactly what a hypothetical one would have -- so passing `[]` (nothing live yet)
    * recovers the same ceiling as passing any number of phoneWidth-only entries. usePanelManager.ts's
    * `capacity` and SettingsAPI's `fitCount` are both derived from this.

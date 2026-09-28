@@ -37,21 +37,15 @@ export interface PanelsInput {
   containerWidth: number;
   /** The row's scroll container: the gesture's wheel listener attaches here. */
   overflowContainerRef: RefObject<HTMLDivElement | null>;
-  /**
-   * Optional so this hook's own tests (and every existing caller, e.g. useAppApis) need not supply one --
-   * defaults to the app's one real capture controller (client/src/desktop/capture/controller.ts). A test
-   * that wants to count calls passes its own fake instead.
-   */
+  /** Defaults to the app's one capture controller (capture/controller.ts); a test that counts calls passes a fake. */
   capture?: CaptureTrigger;
   /** Called when setFormFactor really resizes a panel (useWorkspaceShell's `morph`, so the row's margin glides with it). */
   onPanelResize?: () => void;
 }
 
 /**
- * PanelsAPI plus the desktop-only exit/enter animation plumbing (LivePanels.tsx's own inputs), kept OFF
- * PanelsAPI on purpose: that interface is the narrow surface a third-party view is written against
- * (hostApi.tsx's own header comment). Still structurally a PanelsAPI, so every existing caller that
- * only wants that narrower type keeps working unchanged.
+ * PanelsAPI plus the desktop-only exit/enter animation inputs LivePanels.tsx reads, kept OFF PanelsAPI on
+ * purpose: that interface is the narrow surface a third-party view is written against (hostApi.tsx's header).
  */
 export interface ProvidedPanels extends PanelsAPI {
   readonly closingIds: ReadonlySet<string>;
@@ -79,8 +73,8 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
     exitRightIds,
   } = usePanelManager(i.panels, i.setPanels, i.storedMaxPanels, i.phoneWidth, i.containerWidth, i.fixedViewCount);
 
-  // The row's own wheel/arrow-key gesture: lives off the host (GoalFrontPage.tsx's own acceptance grep
-  // forbids useEffect/useRef there), wired here instead.
+  // The row's wheel/arrow-key gesture is wired here, not in the host: phone-boundary.test.ts forbids
+  // useEffect/useRef in GoalFrontPage.tsx.
   useRowScrollGesture(i.overflowContainerRef, scrollRow);
 
   // Captures only at fixed moments (a park), never continuously. usePanelManager flips `live` false at
@@ -95,11 +89,8 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
     prevLiveRef.current = new Map(i.panels.map((p) => [p.id, p.live]));
   }, [i.panels, capture]);
 
-  // Closing a view completely (History trash or the live panel's drag-down), its 10 s undo window and the log entry.
-  // After usePanelManager: undo makes room for a live view through its revealPanelProactively.
-  // `onAfterClose` first forgets the just-closed id (in case it was itself parked, e.g. a History trash
-  // click on a collapsed row -- see usePanelManager's own `forgetCollapsed` doc comment), then offers the
-  // freed-up room to the most recently parked panel still on the stack, if any and if there's room for it.
+  // After usePanelManager: undo makes room for a live view through its revealPanelProactively. `onAfterClose`
+  // forgets the closed id (it may have been parked), then offers the freed room to the most recently parked panel.
   const closing = usePanelClosing(
     i.panels,
     i.setPanels,

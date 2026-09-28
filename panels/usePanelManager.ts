@@ -46,11 +46,9 @@ export interface UsePanelManagerResult {
    */
   revealMostRecentlyCollapsed: (panelsAfterClose: PanelWindow[]) => void;
   /**
-   * Ids currently (re)entering `live` via `revealMostRecentlyCollapsed` (marks its own candidate) or
-   * usePanelClosing.ts's `undoClose` restoring a LIVE panel (useProvidePanels.ts wires `markEnteringViaAnchor`
-   * into that hook's optional `onRestoreLive` callback) -- consulted by LivePanels.tsx only when `id` has no
-   * explicit `enterSideById` entry (see that field's own doc comment: an explicit gesture/capacity-rise side
-   * always wins over this).
+   * Ids (re)entering `live` via `revealMostRecentlyCollapsed` or usePanelClosing.ts's `undoClose` of a LIVE
+   * panel (its `onRestoreLive`). LivePanels.tsx consults it only when `id` has no `enterSideById` entry: an
+   * explicit gesture/capacity-rise side always wins.
    */
   enteringViaAnchorIds: ReadonlySet<string>;
   /** Marks `id` as entering via the anchor formula -- see `enteringViaAnchorIds`'s own doc comment for who calls this and why. */
@@ -71,10 +69,8 @@ export interface UsePanelManagerResult {
    */
   scrollRow: (direction: 'left' | 'right') => void;
   /**
-   * Moves `id` one row-slot toward `direction`. On the public PanelsAPI, not desktop-internal, so a future
-   * edge-relative placement (e.g. next to History) reuses this primitive. Directional move-by-one, not
-   * move-to-index: every known caller only ever needs "closer to" an edge, so this composes into that without
-   * exposing raw array positions across the API boundary. See `movePanel` (panelWindow.ts) for the no-op contract.
+   * Moves `id` one row-slot toward `direction`: move-by-one, not move-to-index, so no raw array position crosses
+   * the PanelsAPI boundary. See `movePanel` (panelWindow.ts) for the no-op contract.
    */
   reorderPanel: (id: string, direction: 'left' | 'right') => void;
   /**
@@ -130,11 +126,8 @@ export function usePanelManager(
   const capacity = capacityFor(panels.filter((p) => p.collapsible && p.live).map(widthOf));
 
   /**
-   * The ids of currently-parked panels, in the order they were parked (oldest push first, most recent push
-   * last -- the top/end is what "most recently parked" means). A ref, not `useState`: nothing renders off
-   * this directly (it is read only inside imperative handlers and the capacity-reconcile effect below), so
-   * there is no reason to pay for a re-render on every push/pop the way a `PanelWindow[]`-sized state array
-   * would.
+   * Parked ids in park order, most recent last. A ref, not state: only handlers and the reconcile effect below
+   * read it, so a push or pop need not re-render.
    */
   const collapseOrderRef = useRef<string[]>([]);
 
@@ -285,9 +278,8 @@ export function usePanelManager(
     if (!target || target.live) return;
     markKeepLive(id);
     const keep = [...keptIds()];
-    // A manual History-row activation enters from the right (or by its own `anchoredEnter`) -- forget any
-    // stale anchor-entry OR gesture-enter-side mark this id picked up from an earlier reveal (ids cycle
-    // live/parked repeatedly over a session), so a manual click never inherits the direction of its last one.
+    // A manual History-row activation enters from the right (or by its own `anchoredEnter`), so it drops any
+    // anchor-entry or gesture-side mark left from an earlier reveal of this id.
     forgetEnteringViaAnchor(id);
     clearEnterSide(id);
     const before = panels;
@@ -430,10 +422,7 @@ export function usePanelManager(
     collapseOrderRef.current = remaining;
     if (candidateId === null) return;
     const revealId = candidateId;
-    // A candidate can carry a stale gesture-enter-side or exit-right mark from an EARLIER park of the same
-    // id (ids cycle live/parked repeatedly); clear both before marking it entering-via-anchor, or a stale
-    // `enterSideById` entry would win over the anchor formula (LivePanels.tsx's own precedence) and this
-    // reveal would slide in from the wrong side. Mirrors handleActivatePanel's own clear-then-mark order.
+    // Clear before marking, as `clearEnterSide`'s contract requires: a stale explicit side would win over the anchor.
     clearEnterSide(revealId);
     // One of the two "reappearance" paths that enter from the anchor's side -- mark it BEFORE the setPanels
     // call below; no flushSync, since the mark only has to be in the commit that mounts the slot.
