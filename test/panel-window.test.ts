@@ -5,21 +5,27 @@
 
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { DEFAULT_PHONE_SIZE, type PanelSize } from 'phonux';
 import {
+  computeMaxLiveWidth,
+  computeRowOrder,
+  DEFAULT_PHONE_SIZE,
+  deriveAnchorsFromOrder,
+  panelWidthOf,
+  summarisePanel,
+  TIER_SIZES,
   type PanelAnchor,
+  type PanelSize,
+} from 'phonux';
+import {
   type PanelWindow,
   appendPanel,
   closePanel,
-  computeRowOrder,
   createHistoryPanel,
-  deriveAnchorsFromOrder,
   firstParkedAfter,
   HISTORY_PANEL_ID,
   lastParkedBefore,
   leftmostLiveIndex,
   movePanel,
-  panelWidthOf,
   promoteToLive,
   reanchorPanel,
   reorderStepsForOffset,
@@ -27,11 +33,8 @@ import {
   rightmostLiveIndex,
   setFormFactor,
   sideOfLiveRange,
-  summarisePanel,
-  TIER_SIZES,
 } from '../client/src/desktop/panels/panelWindow.js';
 import { GAP } from '../client/src/desktop/panels/LivePanelSlot.js';
-import { computeMaxLiveWidth } from '../src/panel-layout.js';
 
 /** Every entry's own default tier/size (panelWindow.ts's DEFAULT_PANEL_SIZE, reconstructed here from the same
  * shared phonux constant rather than a second 390/700 literal, so this file cannot drift from panelWindow.ts's
@@ -243,7 +246,7 @@ test('restorePanel re-reads anchors from the restored order: A closed right of H
     [{ panel: HISTORY_PANEL_ID, position: 'left', priority: 1 }, { panel: HISTORY_PANEL_ID, position: 'left', priority: 0 }, undefined],
     'A is anchored where it now sits (left of History, nearest), B one farther',
   );
-  assert.deepEqual(computeRowOrder(restored).map((p) => p.id), ['b', 'a', HISTORY_PANEL_ID], 'computeRowOrder leaves A where undo put it');
+  assert.deepEqual(computeRowOrder(restored, HISTORY_PANEL_ID).map((p) => p.id), ['b', 'a', HISTORY_PANEL_ID], 'computeRowOrder leaves A where undo put it');
   const opened = appendPanel(restored, { sourceWebContentsId: -1, url: 'https://c.example' }, 'c');
   assert.deepEqual(opened.map((p) => p.id), ['b', 'a', HISTORY_PANEL_ID, 'c'], 'so does the next open: A never jumps across History');
 });
@@ -383,7 +386,7 @@ test('movePanel: a live panel immediately right of History moved left crosses it
   assert.deepEqual(moved.map((p) => p.id), ['live1', HISTORY_PANEL_ID, 'live2'], 'live1 now sits left of History');
   assert.deepEqual(moved[0]!.anchor, { panel: HISTORY_PANEL_ID, position: 'left', priority: 0 }, 'its anchor says so');
   assert.deepEqual(moved[2]!.anchor, { panel: HISTORY_PANEL_ID, position: 'right', priority: 0 }, 'live2 is now the nearest right of History');
-  assert.deepEqual(computeRowOrder(moved).map((p) => p.id), moved.map((p) => p.id), 'the anchors reproduce the new order');
+  assert.deepEqual(computeRowOrder(moved, HISTORY_PANEL_ID).map((p) => p.id), moved.map((p) => p.id), 'the anchors reproduce the new order');
   assert.deepEqual(movePanel(moved, 'live1', 'right').map((p) => p.id), panels.map((p) => p.id), 'and it crosses back');
 });
 
@@ -585,17 +588,17 @@ test('property: computeRowOrder(deriveAnchorsFromOrder(x)) reproduces x exactly 
       const j = Math.floor(random() * (i + 1));
       [x[i], x[j]] = [x[j]!, x[i]!];
     }
-    const derived = deriveAnchorsFromOrder(x);
-    assert.deepEqual(ids(computeRowOrder(derived)), ids(x), `seed ${seed}: the round trip reproduces the row`);
+    const derived = deriveAnchorsFromOrder(x, HISTORY_PANEL_ID);
+    assert.deepEqual(ids(computeRowOrder(derived, HISTORY_PANEL_ID)), ids(x), `seed ${seed}: the round trip reproduces the row`);
     const h = x.findIndex((p) => p.id === HISTORY_PANEL_ID);
     derived.forEach((p, i) => {
       if (p.id === HISTORY_PANEL_ID) return;
       const expected = i < h ? left(h - 1 - i) : right(i - h - 1);
       assert.deepEqual(p.anchor, expected, `seed ${seed}: ${p.id} at ${i} is anchored by its distance from History at ${h}`);
     });
-    const ordered = computeRowOrder(x);
+    const ordered = computeRowOrder(x, HISTORY_PANEL_ID);
     assert.deepEqual([...ids(ordered)].sort(), [...ids(x)].sort(), `seed ${seed}: arbitrary anchors never lose or duplicate a panel`);
-    assert.deepEqual(ids(computeRowOrder(ordered)), ids(ordered), `seed ${seed}: computeRowOrder is a fixed point of itself`);
+    assert.deepEqual(ids(computeRowOrder(ordered, HISTORY_PANEL_ID)), ids(ordered), `seed ${seed}: computeRowOrder is a fixed point of itself`);
   }
 });
 
@@ -609,14 +612,14 @@ test('computeRowOrder: priority is nearness on BOTH sides (lower = nearer), ties
     anchored('child', right(0, 'a')),
     anchored('first', right(-1)),
   ];
-  const ordered = computeRowOrder(row);
+  const ordered = computeRowOrder(row, HISTORY_PANEL_ID);
   assert.deepEqual(ids(ordered), ['far-left', 'near-left', HISTORY_PANEL_ID, 'first', 'b', 'a', 'child'], 'b and a tie at 5: b stays first, as it was in the row; child follows a');
   assert.deepEqual(ordered.map((p) => p.anchor), [left(1), left(0), undefined, right(0), right(1), right(2), right(0, 'a')]);
 });
 
 test('computeRowOrder: A anchored to B and B anchored to A (and a panel anchored to itself) never recurse forever -- each lands at the {History, "right"} fallback; red (stack overflow or a vanished panel) without the visiting-set guard', () => {
   const row = [createHistoryPanel(), anchored('x', right(0)), anchored('a', right(1, 'b')), anchored('b', right(0, 'a')), anchored('self', left(0, 'self')), anchored('hangs-off-a', left(0, 'a'))];
-  const ordered = computeRowOrder(row);
+  const ordered = computeRowOrder(row, HISTORY_PANEL_ID);
   assert.deepEqual([...ids(ordered)].sort(), [...ids(row)].sort(), 'every panel is still there, exactly once');
   for (const id of ['a', 'b', 'self']) {
     const p = ordered.find((q) => q.id === id)!;
@@ -629,7 +632,7 @@ test('computeRowOrder: A anchored to B and B anchored to A (and a panel anchored
 
 test('computeRowOrder: an anchor naming a panel that is not in the row falls back to {History, "right"} -- never throws, never drops the panel; red if a dangling target is looked up blindly', () => {
   const row = [anchored('l', left(0)), createHistoryPanel(), anchored('a', right(0)), anchored('orphan', left(0, 'gone')), anchored('b', right(1))];
-  const ordered = computeRowOrder(row);
+  const ordered = computeRowOrder(row, HISTORY_PANEL_ID);
   assert.deepEqual(ids(ordered), ['l', HISTORY_PANEL_ID, 'a', 'orphan', 'b'], 'the orphan keeps its priority (0) on the right of History; the tie with a keeps row order');
   assert.deepEqual(ordered[3]!.anchor, right(1), 'and its stored anchor now says so');
   assert.deepEqual(ids(appendPanel(row, { sourceWebContentsId: -1, url: 'about:blank', anchor: { panel: 'also-gone', position: 'left' } }, 'new')), ['l', HISTORY_PANEL_ID, 'a', 'orphan', 'new', 'b'], 'appendPanel with a dangling anchor.panel places the panel too');
@@ -638,7 +641,7 @@ test('computeRowOrder: an anchor naming a panel that is not in the row falls bac
 test('closePanel: every panel anchored to the closed one inherits ITS anchor (target and side), so they close up where it sat -- red if a reparented child is reset to the right of History instead', () => {
   // P sits LEFT of History with one dependent on each side of it.
   const leftSide = [anchored('l1', left(0, 'p')), anchored('p', left(0)), anchored('r1', right(0, 'p')), createHistoryPanel(), anchored('a', right(0))];
-  assert.deepEqual(ids(computeRowOrder(leftSide)), ids(leftSide), 'precondition: the hand-built row is already in anchor order');
+  assert.deepEqual(ids(computeRowOrder(leftSide, HISTORY_PANEL_ID)), ids(leftSide), 'precondition: the hand-built row is already in anchor order');
   const closed = closePanel(leftSide, 'p')!;
   assert.deepEqual(ids(closed.remaining), ['l1', 'r1', HISTORY_PANEL_ID, 'a'], 'both dependents stay left of History, in the place p held');
   assert.deepEqual(closed.remaining.slice(0, 2).map((p) => p.anchor), [left(1), left(0)], 'each inherited p\'s own target and side');
@@ -680,5 +683,5 @@ test('a desktop-tier panel keeps its formFactor, size, webContentsId and params 
   check(reanchorPanel(row, 'a', { position: 'left' }), 'reanchorPanel of a to the left', true);
   check(closePanel(row, 'a')!.remaining, 'closePanel of a', true);
   check(closePanel(row, 'b')!.remaining, 'closePanel of b (q reparented)', false);
-  check(deriveAnchorsFromOrder([...row].reverse()), 'deriveAnchorsFromOrder of a reversed row', true);
+  check(deriveAnchorsFromOrder([...row].reverse(), HISTORY_PANEL_ID), 'deriveAnchorsFromOrder of a reversed row', true);
 });

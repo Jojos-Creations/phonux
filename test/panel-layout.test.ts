@@ -5,7 +5,7 @@
  */
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { computeMaxLiveWidth, computeRowLayout } from '../src/panel-layout.js';
+import { computeMaxLiveWidth, computeRowLayout } from '../client/src/shared/phone/panelRowLayout.js';
 
 test('computeRowLayout: live panels that comfortably fit are not capped, and the row centers with a positive margin', () => {
   const result = computeRowLayout({
