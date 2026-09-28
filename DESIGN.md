@@ -388,9 +388,9 @@ restore, promote) working unchanged, filtered by row, instead of duplicated per 
 
 **Workspace state, in memory first.** A Workspace's open panels, their order and their row assignment stay in
 the same plain, unsaved `useState` the app's panel list already lives in -- no file, no load, no save.
-Persisting workspace state is not built yet: the shape, the file and the rehydrate timing are each their own
-later, separate design, and folding persistence into the extraction would tie decisions that do not have to
-move together.
+The shape, the ownership split and the save/restore timing are now designed -- see "Workspace state
+persistence: shape, ownership and timing" below -- but nothing is built yet: this Workspace still keeps no
+file, still loads nothing and still saves nothing today.
 
 **Files the eventual extraction touches.** `client/src/desktop/panels/LivePanels.tsx`, `LivePanelSlot.tsx`,
 `client/src/desktop/row/useRowShell.ts` and `src/panel-layout.ts`'s row-layout math move into this folder;
@@ -426,6 +426,170 @@ A `Workspace`'s own saved state -- which panels are open, their order, sizes and
 persisted front-page sessions (`electron/sessions.ts`), a url plus titles and turn strings, stored in a file
 that must never change shape. The two are different data owned by different code, so reusing one word for
 both would leave every future name ambiguous about which it meant.
+
+## Workspace state persistence: shape, ownership and timing
+
+This section designs phonux's own half of workspace-state persistence: the saved `JsonValue` shape, the pure
+project/hydrate functions, phonux's own storage-hook contract, and the save/restore timing. It defines no
+`WorkspaceGrid` mechanism -- one workspace, no grid, a single `{version, panels}` envelope is enough, per the
+owner's no-grid ruling -- and it does not design where or how the data reaches disk; the host's own choices
+there are out of scope (see "Ownership and scope" below).
+
+### The shape
+
+Declared as `type`, never `interface`, for the same reason `viewRegistry.tsx`'s documented rule already gives:
+an interface has no implicit index signature, so it silently fails to satisfy `JsonValue` the moment anything
+typed as `JsonValue` touches it.
+
+```ts
+type WorkspaceState = {
+  version: 1;
+  panels: WorkspacePanelState[];
+};
+
+type WorkspacePanelState = {
+  id: string;
+  view: string;
+  url: string;
+  title?: string;
+  params?: JsonValue;
+  listed?: boolean;
+  live: boolean;
+  anchor: { panel: string; position: 'left' | 'right'; priority: number };
+  formFactor?: FormFactor;
+  row?: number;
+  permanent?: boolean;
+  layer?: 'base' | 'raised';
+};
+```
+
+`version` is a literal `1`, bumped only on a breaking shape change; an unrecognized value is handled in
+"Versioning and failure" below. `panels` holds one entry per saveable panel; the host's own root column
+(History today) is never one of them (see "Permanent columns" below). `id` is FILE-SCOPED ONLY: it resolves
+another entry's `anchor.panel` within this same array during hydrate, and is always replaced with a fresh
+runtime id on restore -- a saved id is never reused verbatim, since panel ids restart at 1 each launch. `view`
+is the registry key; an unrecognized key renders the existing placeholder, the same as it does outside
+restore, never dropped. `params` is opaque and view-supplied, carried verbatim and never interpreted. `listed`
+defaults to `true` when a panel isn't `permanent`, but `permanent:true` forces `listed:false` regardless of any
+`listed` also present in the same saved entry -- the identical forcing rule `appendPanel` already applies at
+create time, and hydrate applies it again rather than trusting a saved `listed` value on a permanent entry. A
+saved entry with `permanent:true` and `listed:true` together is not a shape-guard failure (both fields
+individually type-check); it is a combination `create()` itself can never produce today, most likely from a
+hand-edited file, and hydrate resolves it silently by letting `permanent` win, exactly as `appendPanel` would
+if both were passed to it. `live` is honored verbatim on restore (see "Restore behavior" below). `anchor`
+composes through the existing anchor-fallback logic when its `panel` is dangling or cyclic (see "Versioning
+and failure" below). `formFactor` defaults to `'phone'`; `row` defaults to `0`, reserved ahead of
+add-second-panel-row-support landing a real `row` field on the panel model. `permanent` and `layer` are
+covered in "Permanent columns" and "What's saved, and what's never" below.
+
+### What's saved, and what's never
+
+- **Saved.** `id` (file-scoped only, remapped on restore), `view`, `url`, `title`, `params`, `listed`, `live`,
+  `anchor`, `formFactor`, `row`, `permanent`, `layer`.
+- **Never saved -- `webContentsId`, `sourceWebContentsId`.** Electron's own runtime handles; the owner's ruling
+  is that no runtime handle is ever saved, full stop.
+- **Never saved -- `size`.** Always recomputed from `formFactor`, never round-tripped.
+- **Never saved -- `locked`.** Always `false` at create time for anything saveable, never independently set
+  on a saveable panel today.
+- **Never saved -- `collapsible`.** Not an independent stored fact: it is `appendPanel`'s own `!info.permanent`
+  derivation, recomputed from the saved `permanent` field on restore rather than round-tripped.
+- **Never saved -- `anchoredEnter`.** A creation-time enter-animation hint, defaulted on restore, not a fact
+  about the panel worth persisting.
+- **Never saved -- History's own entry.** Host-supplied and reseeded fresh every launch (see "Permanent
+  columns" below).
+
+### Ownership and scope
+
+phonux owns the `WorkspaceState`/`WorkspacePanelState` type, the pure `projectWorkspaceState`/
+`hydrateWorkspaceState` function pair, and a small `WorkspaceStorage` (load/save) contract phonux defines but
+never puts on the public `Host`/`PanelsAPI` bag. Keeping a capability off the public bag has a real precedent
+already in this package: `CaptureRegistryContext` keeps the write side of a picture out of `Host`/
+`SnapshotsAPI` entirely, as its own second context that app code mounts AROUND `HostProvider` (see "Snapshots"
+below) -- `HostProvider` itself never mounts `CaptureRegistryContext`. `HostProvider` does mount two contexts
+internally, for its own concerns kept off the public bag: `OverlayProvider` and `ViewStateProvider` (see
+"useViewState" below). `WorkspaceStorage` follows the same "keep it off the public bag" idea as all three, but
+not any of their context-based wiring: unlike `CaptureRegistryContext` and `ViewStateProvider`, each reached by
+arbitrary descendant `Panel`/view instances independently, `WorkspaceStorage` is consumed at exactly one call
+site -- inside the future panel-behavior provider itself, the only thing that ever calls `load()`/`save()` --
+so a plain injected value on that provider's own input is enough and no context is needed. That is the same
+single-call-site injection an existing dependency already uses on that same provider's input today
+(`useProvidePanels.ts`'s `PanelsInput.capture`). The host owns the storage entirely: the file's real name and
+on-disk location, the IPC channel names, and the write mechanics (including whether the write is atomic) are
+the host's own choice, out of this design's scope.
+
+```ts
+declare function projectWorkspaceState(panels: readonly PanelModel[]): WorkspaceState;
+declare function hydrateWorkspaceState(state: WorkspaceState, freshId: () => string): PanelModel[];
+
+type WorkspaceStorage = {
+  load(): Promise<WorkspaceState | null>;
+  save(state: WorkspaceState): void;
+};
+```
+
+`projectWorkspaceState` and `hydrateWorkspaceState` are pure and phonux-owned, operating on whatever the
+relocated panel-model type is called once extract-panel-model-into-phonux lands. `WorkspaceStorage` is
+phonux's own contract, not an implementation: the host supplies a real `load`/`save` pair, injected into the
+future panel-behavior provider the same single-call-site way an existing injectable dependency already works
+on that provider's own input (`useProvidePanels.ts`'s `PanelsInput.capture`).
+
+### Save timing
+
+phonux computes `projectWorkspaceState` on every committed panels change, debounces a short quiet period
+(never fired per-drag-hop), and gates the whole thing behind its own "initial restore attempt has settled"
+flag -- set once `load()` resolves, whether or not it found data -- before ever calling `save()`. The hazard
+this gate exists for is real: `appApis.ts`'s synchronous seed initializer runs before any async `load()` can
+possibly resolve, so an unconditional save fired before the gate would let that transient boot state clobber a
+real saved file.
+
+### Restore timing and the storage-hook contract
+
+`load()` is necessarily async, so first paint is always the app's existing default (the synchronous seed), and
+the restored array applies via one later state update inside a mount effect once `load()` resolves -- never
+inside a synchronous initializer. `WorkspaceStorage.load(): Promise<WorkspaceState | null>` is called once, at
+mount; `null` (or a caught rejection) means nothing saved. `WorkspaceStorage.save(state): void` is
+fire-and-forget, called only from phonux's own debounced, restore-settled-gated change signal described above,
+never from any other call site.
+
+### Restore behavior
+
+Restore honors each panel's saved `live` flag verbatim, unconditionally and with no prompt: a panel that was
+showing a page reloads it, a parked panel stays parked. Capacity still applies after a bulk restore exactly as
+it does for any width change: `usePanelManager`'s capacity-reconcile effect parks live overflow on the current
+panels array regardless of what produced that array, so a restore that brings back more live panels than the
+current width holds gets parked the same way an ordinary resize does, with no separate fit-checking logic
+needed in hydrate.
+
+### Versioning and failure
+
+- **Missing.** A missing file -- no saved data at all -- is treated the same as first launch: no saved state, nothing restored.
+- **Corrupt.** A corrupt file -- unparsable JSON, or content that fails the shape guard -- likewise yields no saved state, logged once and otherwise silent.
+- **Version.** An unrecognized `version` yields no saved state and no migration path: `version` is bumped only on a breaking shape change, and hydrate never guesses at an old shape.
+- **Not a new failure case: anchors and view keys.** A dangling or cyclic `anchor.panel` and an unregistered `view` key are not new failure cases: hydrate composes through the existing anchor-fallback and view-placeholder mechanisms already used at runtime, the same ones either can hit outside restore.
+- **Not a new failure case: formFactor fit.** A restored panel whose `formFactor` no longer fits the live window width is likewise not a new failure case needing its own fit-checking: `usePanelManager`'s capacity-reconcile effect already fires on any panels-array change, including a bulk restore, and parks the overflow the same way it parks an ordinary width overflow.
+
+A panel closed inside the undo window does not survive a restart or quit, by design: `usePanelClosing`'s
+`close()` removes the panel from the live panels array synchronously, and the separate closed/undo state that
+keeps it available for the undo window is never saved.
+
+### Permanent columns
+
+A view-created permanent column is saved with `permanent: true` and restored as permanent, and only the host's
+root column (History today) is never saved, because the host reseeds it fresh every launch. No app code
+creates a permanent column at mount today, so a view-created one would otherwise vanish on restart, against
+the owner's every-saved-panel-comes-back ruling; if a host later creates a permanent column at mount itself, it
+must not also be restored from saved state, a case to revisit then.
+
+Saving `permanent` needs the same kind of caveat "The shape" already gives `row`: `PanelWindow` has no
+`permanent` field to read today, only `collapsible` (set once at creation from `appendPanel`'s own
+`!info.permanent` derivation and never itself retained as `permanent`), so until a real `permanent` field
+lands on the panel model, `projectWorkspaceState` derives the saved value as `!collapsible`, excluding the
+host's own root column, which is never saved at all regardless of its `collapsible` value.
+
+### Known limitation, not fixed here
+
+There is no way to update a panel's `params` after it is created, so persistence freezes a view's resumable
+content at the moment the panel was created -- worth a follow-on stub, not a blocker for this design.
 
 ## The header-to-frame gap is one constant, and the grab bar fills exactly it
 
