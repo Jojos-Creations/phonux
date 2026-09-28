@@ -2,25 +2,7 @@
  * The `PanelWindow` model -- one browsing panel in the unified row -- and every pure state-transition
  * function that operates on a `PanelWindow[]` array.
  */
-import { DEFAULT_PHONE_SIZE, type FormFactor, type JsonValue, type PanelSize, type PanelSummary } from 'phonux';
-
-/**
- * Every entry's default tier/size, History and permanent columns included. A constant, not phoneSizeStore's
- * live size, so this file's helpers stay pure (no device-state argument); derived from DEFAULT_PHONE_SIZE so
- * the two cannot drift. See DESIGN.md, "Where `PanelWindow`'s own default size comes from".
- */
-const DEFAULT_PANEL_SIZE: PanelSize = Object.freeze({ formFactor: 'phone', width: DEFAULT_PHONE_SIZE.width, height: DEFAULT_PHONE_SIZE.height });
-
-/**
- * Each tier's own size, the one table setFormFactor and appendPanel copy from (see DESIGN.md, "The tier
- * table"). The 'phone' entry is only a placeholder: a phone panel renders at the live phone model size.
- * 'fill' is the row's own height. Frozen because every panel starts out referencing these same objects.
- */
-export const TIER_SIZES: Readonly<Record<FormFactor, PanelSize>> = Object.freeze({
-  phone: DEFAULT_PANEL_SIZE,
-  tablet: Object.freeze({ formFactor: 'tablet', width: 768, height: 'fill' }),
-  desktop: Object.freeze({ formFactor: 'desktop', width: 1200, height: 'fill' }),
-});
+import { computeRowOrder, DEFAULT_PANEL_SIZE, deriveAnchorsFromOrder, TIER_SIZES, type FormFactor, type JsonValue, type NeighborWidths, type PanelAnchor, type PanelSize } from 'phonux';
 
 /**
  * One browsing panel in the unified row, parked and revived by the same capacity rules
@@ -30,16 +12,6 @@ export const TIER_SIZES: Readonly<Record<FormFactor, PanelSize>> = Object.freeze
  */
 /** The seeded History entry's id -- every array this model governs carries exactly one. */
 export const HISTORY_PANEL_ID = 'history';
-
-/**
- * A panel's row place: on `position`'s side of `panel`, ranked by `priority` among the panels on that same side
- * of that same panel -- lower is nearer, ties keep the current row order. Row order lives in memory only.
- */
-export interface PanelAnchor {
-  panel: string;
-  position: 'left' | 'right';
-  priority: number;
-}
 
 export interface PanelWindow {
   id: string;
@@ -72,25 +44,6 @@ export interface PanelWindow {
   size?: PanelSize;
 }
 
-/**
- * A panel's own width in the row -- the one rule every width reader goes through. A 'phone' panel
- * ALWAYS uses the live `phoneWidth` the caller passes, never its own stored `size` (a placeholder
- * pinned at `DEFAULT_PHONE_SIZE`, which would freeze it at 390 regardless of the real model). Only
- * 'tablet'/'desktop' read their stored size, capped at `maxLiveWidth` (computeMaxLiveWidth for the current
- * row) so a wide panel always fits beside the fixed columns.
- */
-export function panelWidthOf(p: Pick<PanelWindow, 'formFactor' | 'size'>, phoneWidth: number, maxLiveWidth: number): number {
-  return (p.formFactor ?? 'phone') === 'phone' ? phoneWidth : Math.min(p.size?.width ?? phoneWidth, maxLiveWidth);
-}
-
-/** The one PanelWindow -> PanelSummary projection: every site that hands a panel to a VIEW (LivePanels.tsx's resolved component, useProvidePanels.ts's panelList/recentlyClosed) narrows through this SAME function, so a third-party or built-in view can never see a desktop-only field (webContentsId, collapsible, anchor, layer, anchoredEnter, ...). formFactor/size ARE forwarded (unlike those desktop-only fields): a view's own tier control reads its tier from this projection, not the internal record. */
-export const summarisePanel = ({ id, url, title, live, locked, params, formFactor, size }: PanelWindow): PanelSummary => ({
-  id, url, title, live, locked, params,
-  // Absent, not undefined, when the record lacks them: a summary never lists a key its record never had.
-  ...(formFactor !== undefined ? { formFactor } : {}),
-  ...(size !== undefined ? { size } : {}),
-});
-
 /** History's own seeded entry: never collapsible (an always-shown column), never listed (it must not list itself), always live, locked by default (usePanelClosing.ts's lock gate); raised, so a left-exiting park slides under it; anchoredEnter, which against itself resolves 'right'; no anchor: it is the root every anchor leads to. Same default tier/size as every other entry: a permanent column carries a tier like any other. */
 export function createHistoryPanel(): PanelWindow {
   return {
@@ -121,25 +74,11 @@ export interface AppendPanelOptions {
 }
 
 type AnchorRequest = NonNullable<AppendPanelOptions['anchor']>;
-const sameAnchor = (a: PanelAnchor | undefined, b: PanelAnchor): boolean => !!a && a.panel === b.panel && a.position === b.position && a.priority === b.priority;
-/** Spreads the whole record: formFactor, size, webContentsId and params must survive a re-anchor untouched. */
-const withAnchor = (p: PanelWindow, anchor: PanelAnchor): PanelWindow => (sameAnchor(p.anchor, anchor) ? p : { ...p, anchor });
-
-/** Every non-History entry's anchor as read off its array position alone: History's side, 0 = nearest. With no History present, every entry reads 'right'. */
-function positionalAnchors(panels: readonly PanelWindow[]): Map<string, PanelAnchor> {
-  const root = panels.findIndex((p) => p.id === HISTORY_PANEL_ID);
-  const out = new Map<string, PanelAnchor>();
-  panels.forEach((p, i) => {
-    if (p.id !== HISTORY_PANEL_ID) out.set(p.id, i < root ? { panel: HISTORY_PANEL_ID, position: 'left', priority: root - 1 - i } : { panel: HISTORY_PANEL_ID, position: 'right', priority: i - root - 1 });
-  });
-  return out;
-}
-
 /** `request` with its defaults filled against `panels`: History, and one past the highest priority already on that side (`self` excluded). */
 function fillAnchor(panels: readonly PanelWindow[], request: AnchorRequest, self?: string): PanelAnchor {
   const panel = request.panel ?? HISTORY_PANEL_ID;
   if (request.priority !== undefined) return { panel, position: request.position, priority: request.priority };
-  const positional = positionalAnchors(panels);
+  const positional = new Map(deriveAnchorsFromOrder(panels, HISTORY_PANEL_ID).map((p) => [p.id, p.anchor]));
   let max = -1;
   for (const p of panels) {
     const a = p.anchor ?? positional.get(p.id);
@@ -148,75 +87,12 @@ function fillAnchor(panels: readonly PanelWindow[], request: AnchorRequest, self
   return { panel, position: request.position, priority: max + 1 };
 }
 
-/**
- * The array in the order its anchors describe: a walk from History, each panel's left side (farthest first),
- * then the panel, then its right side (nearest first). Priorities come back renumbered 0.. per side of each
- * panel, so -1 always means "nearest". An anchor naming a missing panel, or one in a cycle, falls back to
- * {History, 'right'} (keeping its priority) instead of recursing forever or dropping the panel.
- */
-export function computeRowOrder(panels: PanelWindow[]): PanelWindow[] {
-  const byId = new Map(panels.map((p) => [p.id, p]));
-  const rowIndex = new Map(panels.map((p, i) => [p.id, i]));
-  const positional = positionalAnchors(panels);
-  const declared = (p: PanelWindow): PanelAnchor => p.anchor ?? positional.get(p.id)!;
-  const fallback = new Set<string>();
-  const visiting = new Set<string>();
-  const resolved = new Set<string>();
-  const resolve = (id: string, path: readonly string[]): void => {
-    if (resolved.has(id)) return;
-    if (visiting.has(id)) {
-      for (const member of path.slice(path.indexOf(id))) fallback.add(member);
-      return;
-    }
-    visiting.add(id);
-    const target = declared(byId.get(id)!).panel;
-    if (target !== HISTORY_PANEL_ID) {
-      if (byId.has(target)) resolve(target, [...path, id]);
-      else fallback.add(id);
-    }
-    visiting.delete(id);
-    resolved.add(id);
-  };
-  const effective = (p: PanelWindow): PanelAnchor => (fallback.has(p.id) ? { panel: HISTORY_PANEL_ID, position: 'right', priority: declared(p).priority } : declared(p));
-  const sides = new Map<string, { left: PanelWindow[]; right: PanelWindow[] }>();
-  for (const p of panels) {
-    if (p.id === HISTORY_PANEL_ID) continue;
-    resolve(p.id, []);
-  }
-  for (const p of panels) {
-    if (p.id === HISTORY_PANEL_ID) continue;
-    const { panel, position } = effective(p);
-    const side = sides.get(panel) ?? { left: [], right: [] };
-    side[position].push(p);
-    sides.set(panel, side);
-  }
-  // Nearest first; on a tie the entry nearer in the current row wins (later on the left, earlier on the right).
-  const nearestFirst = (list: PanelWindow[], position: 'left' | 'right'): PanelWindow[] =>
-    [...list].sort((a, b) => effective(a).priority - effective(b).priority || (position === 'right' ? 1 : -1) * (rowIndex.get(a.id)! - rowIndex.get(b.id)!));
-  const out: PanelWindow[] = [];
-  const walk = (id: string, self: PanelWindow | undefined): void => {
-    const side = sides.get(id);
-    const left = nearestFirst(side?.left ?? [], 'left');
-    for (let k = left.length - 1; k >= 0; k--) walk(left[k]!.id, withAnchor(left[k]!, { panel: id, position: 'left', priority: k }));
-    if (self) out.push(self);
-    nearestFirst(side?.right ?? [], 'right').forEach((p, k) => walk(p.id, withAnchor(p, { panel: id, position: 'right', priority: k })));
-  };
-  walk(HISTORY_PANEL_ID, byId.get(HISTORY_PANEL_ID));
-  return out;
-}
-
-/** Every non-History entry re-anchored to History from its current array position, so computeRowOrder reproduces this exact order. */
-export function deriveAnchorsFromOrder(panels: PanelWindow[]): PanelWindow[] {
-  const positional = positionalAnchors(panels);
-  return panels.map((p) => (p.id === HISTORY_PANEL_ID ? p : withAnchor(p, positional.get(p.id)!)));
-}
-
 /** `id` re-anchored per `request` (defaults as for appendPanel), the row re-ordered to match. The SAME array for an unknown id or a `collapsible: false` entry. */
 export function reanchorPanel(panels: PanelWindow[], id: string, request: AnchorRequest): PanelWindow[] {
   const target = panels.find((p) => p.id === id);
   if (!target || !target.collapsible) return panels;
   const anchor = fillAnchor(panels, request, id);
-  return computeRowOrder(panels.map((p) => (p.id === id ? { ...p, anchor } : p)));
+  return computeRowOrder(panels.map((p) => (p.id === id ? { ...p, anchor } : p)), HISTORY_PANEL_ID);
 }
 
 /**
@@ -248,7 +124,7 @@ export function appendPanel(panels: PanelWindow[], info: { sourceWebContentsId: 
     formFactor,
     size: formFactor === 'phone' ? DEFAULT_PANEL_SIZE : { ...TIER_SIZES[formFactor] },
   };
-  return computeRowOrder([...panels, entry]);
+  return computeRowOrder([...panels, entry], HISTORY_PANEL_ID);
 }
 
 /**
@@ -349,9 +225,9 @@ export function closePanel(panels: PanelWindow[], id: string): { remaining: Pane
   const index = panels.findIndex((p) => p.id === id);
   if (index < 0) return null;
   const closed = panels[index]!;
-  const inherited = closed.anchor ?? positionalAnchors(panels).get(id);
+  const inherited = closed.anchor ?? deriveAnchorsFromOrder(panels, HISTORY_PANEL_ID)[index]!.anchor;
   const rest = panels.filter((p) => p.id !== id).map((p) => (inherited && p.anchor?.panel === id ? { ...p, anchor: { ...inherited } } : p));
-  return { remaining: computeRowOrder(rest), closed, index };
+  return { remaining: computeRowOrder(rest, HISTORY_PANEL_ID), closed, index };
 }
 
 /**
@@ -372,13 +248,7 @@ export function movePanel(panels: PanelWindow[], id: string, direction: 'left' |
   const next = panels.slice();
   const [entry] = next.splice(from, 1);
   next.splice(to, 0, entry!);
-  return deriveAnchorsFromOrder(next);
-}
-
-/** The widths of the present panels a drag can cross, nearest first on each side: all of them, History included, since only the drag SOURCE must be collapsible. */
-export interface NeighborWidths {
-  readonly left: readonly number[];
-  readonly right: readonly number[];
+  return deriveAnchorsFromOrder(next, HISTORY_PANEL_ID);
 }
 
 /**
@@ -420,5 +290,5 @@ export function setFormFactor(panels: PanelWindow[], id: string, next: FormFacto
 export function restorePanel(panels: PanelWindow[], panel: PanelWindow, index: number): PanelWindow[] {
   if (panels.some((p) => p.id === panel.id)) return panels;
   const at = Math.max(0, Math.min(index, panels.length));
-  return deriveAnchorsFromOrder([...panels.slice(0, at), { ...panel, webContentsId: null }, ...panels.slice(at)]);
+  return deriveAnchorsFromOrder([...panels.slice(0, at), { ...panel, webContentsId: null }, ...panels.slice(at)], HISTORY_PANEL_ID);
 }

@@ -104,4 +104,12 @@ export type { PhoneModel } from './phoneModels.js';
 export { PhoneDetectPrompt } from './PhoneDetectPrompt.js';
 export type { PhoneDetectPromptProps } from './PhoneDetectPrompt.js';
 
+export { computeRowOrder, deriveAnchorsFromOrder } from './panelRowOrder.js';
+export type { PanelAnchor } from './panelRowOrder.js';
+export { summarisePanel } from './panelRowEntry.js';
+export type { NeighborWidths, PanelRowEntry } from './panelRowEntry.js';
+export { DEFAULT_PANEL_SIZE, TIER_SIZES, panelWidthOf } from './panelTiers.js';
+export { computeMaxLiveWidth, computeRowLayout } from './panelRowLayout.js';
+export type { RowLayoutInput, RowLayoutResult } from './panelRowLayout.js';
+
 export { createDefaultTheme } from './defaultTheme.js';
