@@ -54,9 +54,8 @@ export function PanelRow({
   enterSideById = EMPTY_MAP,
   maxLiveWidth = Number.POSITIVE_INFINITY,
 }: {
-  /** The raw one-list array (PanelWindow, not PanelSummary): `view`/`layer`/`anchoredEnter`
-   * (rendering, stacking, enter direction) are three independent fields here, not one flag doing
-   * triple duty -- `view` alone picks the component (resolveView, which never returns nothing). */
+  /** The raw one-list array (PanelWindow, not PanelSummary): `view` alone picks the component (resolveView
+   * never returns nothing), independent of `layer` (stacking) and `anchoredEnter` (enter direction). */
   entries: readonly PanelWindow[];
   /** usePanelClosing.ts's own set, kept off PanelsAPI on purpose. An entry in it exits DOWN
    * (closed); see `exitDirection` below for the other two cases. */
