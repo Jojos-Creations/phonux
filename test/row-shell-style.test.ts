@@ -48,10 +48,8 @@ test('workspaceShellStyle: the margin centres the column and LIVE panels it is g
 });
 
 test('workspaceShellStyle E3/E4: a fractional pixel of margin is kept exactly, never rounded or truncated (an odd container width centres on a half pixel)', () => {
-  // Every other case in this file (and in RS3/RS14d) was deliberately chosen to land on a whole pixel, so a `Math.round` or `Math.floor`
-  // dropped into the arithmetic anywhere between computeRowLayout and this function's return would pass every one of them unnoticed. A
-  // 1301 container (one wider than the 1300 every other test uses) is the smallest change that forces the centring math itself to land on
-  // a half pixel: (1301 - 2*16 - 390) / 2 = 439.5.
+  // Every other case here and in RS3/RS14d lands on a whole pixel, so a stray `Math.round` or `Math.floor` would pass them all; 1301 (one
+  // wider than the usual 1300) is the smallest change that lands the centring on a half pixel: (1301 - 2*16 - 390) / 2 = 439.5.
   const margin = (over: Partial<WorkspaceShellStyleInput>): number => workspaceShellStyle({ ...base, ...over }).marginLeft;
   assert.equal(margin({ shell: { ...base.shell, containerWidth: 1301 } }), 439.5, 'a whole pixel of drift either way (439 or 440) would be a rounding bug, not measurement noise');
 });
