@@ -8,10 +8,13 @@
 import * as React from 'react';
 import { AnimatePresence } from 'motion/react';
 import Box from '@mui/material/Box';
-import { panelWidthOf, resolveView, summarisePanel, useHost, useViewState, type NeighborWidths } from 'phonux';
-import { anchorTargetOf, resolveEnterDirection } from './anchorPanel.js';
-import { GAP, PanelRowSlot } from './LivePanelSlot.js';
-import { HISTORY_PANEL_ID, type PanelWindow } from './panelWindow.js';
+import { useHost } from './hostApi.js';
+import { summarisePanel, type NeighborWidths, type PanelRowEntry } from './panelRowEntry.js';
+import { anchorTargetOf, resolveEnterDirection } from './panelRowOrder.js';
+import { GAP, PanelRowSlot } from './PanelRowSlot.js';
+import { panelWidthOf } from './panelTiers.js';
+import { resolveView } from './viewRegistry.js';
+import { useViewState } from './viewState.js';
 
 /** A 'raised' slot sits above a 'base' one: a LEFT-exiting park crosses a raised panel's footprint (History, today) on the way out, so this ordering is load-bearing for that path (a close's exit is DOWN and never reaches it). */
 const RAISED_LAYER_Z_INDEX = 2;
@@ -22,7 +25,7 @@ const EMPTY_MAP: ReadonlyMap<string, 'left' | 'right'> = new Map();
 const NO_NEIGHBORS: NeighborWidths = { left: [], right: [] };
 
 /** The view's summary with `size.width` at the width the row renders it, so a view passing `panel.size` to Panel stays inside its slot. */
-function renderedSummary(p: PanelWindow, width: number) {
+function renderedSummary(p: PanelRowEntry, width: number) {
   const summary = summarisePanel(p);
   return summary.size && summary.size.width !== width && (p.formFactor ?? 'phone') !== 'phone' ? { ...summary, size: { ...summary.size, width } } : summary;
 }
@@ -35,19 +38,28 @@ function renderedSummary(p: PanelWindow, width: number) {
 const PanelSlotContext = React.createContext<{ collapsible: boolean; neighborWidths: NeighborWidths; pinned: boolean } | undefined>(undefined);
 /** True only for a `collapsible` entry (e.g. a plain web panel) -- an always-shown column (History, or a
  * `permanent:true` custom column) is never a reorder source. Unprovided resolves to false: a view mounted
- * with no `PanelRow` above it never reorders. */
+ * with no `PanelRow` above it never reorders.
+ * @public */
 export const usePanelReorderEligible = (): boolean => React.useContext(PanelSlotContext)?.collapsible ?? false;
 /** False only for an always-shown column (`collapsible:false`): the built-in 'web' view must never wrap such
  * an entry in a framework close handle (CreatePanelOptions.permanent's 'own control only' guarantee).
- * Unprovided resolves to true: a LivePanel mounted directly (as tests do) is an ordinary collapsible panel. */
+ * Unprovided resolves to true: a LivePanel mounted directly (as tests do) is an ordinary collapsible panel.
+ * @public */
 export const usePanelCloseEligible = (): boolean => React.useContext(PanelSlotContext)?.collapsible ?? true;
-/** The widths this entry's drag can cross (reorderStepsForOffset's input). Unprovided: none, so no hop. */
+/** The widths this entry's drag can cross (reorderStepsForOffset's input). Unprovided: none, so no hop.
+ * @public */
 export const usePanelNeighborWidths = (): NeighborWidths => React.useContext(PanelSlotContext)?.neighborWidths ?? NO_NEIGHBORS;
-/** Anchored left of History, read from the anchor every render so a drag across History changes it too. Unprovided: false. */
+/** Anchored left of the row's root, read from the anchor every render so a drag across the root changes it too. Unprovided: false.
+ * @public */
 export const usePanelPinned = (): boolean => React.useContext(PanelSlotContext)?.pinned ?? false;
 
+/**
+ * The row: every present entry in its own animated slot, in the array's order, each rendered by its registered view.
+ * @public
+ */
 export function PanelRow({
   entries,
+  rootId,
   closingIds,
   enteringViaAnchorIds,
   exitRightIds = EMPTY_SET,
@@ -56,7 +68,9 @@ export function PanelRow({
 }: {
   /** The raw one-list array (PanelWindow, not PanelSummary): `view` alone picks the component (resolveView
    * never returns nothing), independent of `layer` (stacking) and `anchoredEnter` (enter direction). */
-  entries: readonly PanelWindow[];
+  entries: readonly PanelRowEntry[];
+  /** The row's root entry: an entry with no anchor orients against it, and `usePanelPinned` means left of it. */
+  rootId: string;
   /** usePanelClosing.ts's own set, kept off PanelsAPI on purpose. An entry in it exits DOWN
    * (closed); see `exitDirection` below for the other two cases. */
   closingIds: ReadonlySet<string>;
@@ -102,7 +116,7 @@ export function PanelRow({
     return { left: side(-1), right: side(1) };
   };
   // Per panel, and searched in `present`: each slot's own `index` below counts in that same array.
-  const anchorIndexOf = (p: PanelWindow): number => present.findIndex((x) => x.id === anchorTargetOf(p));
+  const anchorIndexOf = (p: PanelRowEntry): number => present.findIndex((x) => x.id === anchorTargetOf(p, rootId));
   return (
     // Always mounted (never conditionally rendered): AnimatePresence must not unmount, or an exiting entry
     // has nothing to animate inside, and `initial={false}` needs to see whatever is present at ITS OWN
@@ -123,7 +137,7 @@ export function PanelRow({
           return (
             <PanelSlotContext.Provider
               key={p.id}
-              value={{ collapsible: p.collapsible, neighborWidths: neighborWidthsAt(index), pinned: anchorTargetOf(p) === HISTORY_PANEL_ID && p.anchor?.position === 'left' }}
+              value={{ collapsible: p.collapsible, neighborWidths: neighborWidthsAt(index), pinned: anchorTargetOf(p, rootId) === rootId && p.anchor?.position === 'left' }}
             >
               <PanelRowSlot
                 leftOffset={leftOffsets[index]!}

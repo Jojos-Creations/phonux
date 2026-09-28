@@ -1,13 +1,17 @@
 import * as React from 'react';
 import { motion, type TargetAndTransition } from 'motion/react';
-import { DRAG_CLOSE } from 'phonux';
-import { SLOT_TRANSITION, directionalTransition } from 'phonux/internal/directionalTransition';
+import { DRAG_CLOSE } from './dragToClose.js';
+import { SLOT_TRANSITION, directionalTransition } from './directionalTransition.js';
 
-/** The one spacing value used everywhere a gap is needed in this row. */
+/**
+ * The one spacing value used everywhere a gap is needed in this row.
+ * @public
+ */
 export const GAP = 16;
 /** The timing/easing every panel slide uses. Kept as the SAME object as SLOT_TRANSITION (not a
  * copy): row/useRowShell.ts and test/row-shell-style.test.ts key off this binding by reference
- * to read the row's own recenter animation as "the same motion as a panel". */
+ * to read the row's own recenter animation as "the same motion as a panel".
+ * @public */
 export const PANEL_TRANSITION = SLOT_TRANSITION;
 
 /**
@@ -45,7 +49,7 @@ export function panelRowSlotMotion(
   const ownSpan = width + GAP;
   const rest = leftOffset;
   // Positive distance enters from the right (directionalTransition.ts's own sign convention); a negative
-  // one enters from the left -- see anchorPanel.ts for who decides which.
+  // one enters from the left -- see panelRowOrder.ts for who decides which.
   const enterDistance = enterDirection === 'left' ? -ownSpan : ownSpan;
   const { initial, animate, transition } = directionalTransition('x', rest, enterDistance);
   // 'down': a close, timed to DragToClose's own exit so trash and drag closes read as one motion
@@ -62,6 +66,10 @@ export function panelRowSlotMotion(
   return { initial, animate, exit, transition };
 }
 
+/**
+ * One entry's animated slot in the row: its position, width, enter/exit motion and stacking.
+ * @public
+ */
 export function PanelRowSlot({
   leftOffset,
   width,
@@ -76,13 +84,13 @@ export function PanelRowSlot({
   /** This panel's own width (panelWindow.ts's `panelWidthOf`) -- also this slot's own enter/exit travel distance (see `panelRowSlotMotion`'s `ownSpan`). */
   width: number;
   phoneHeight: number;
-  /** Computed by the caller (anchorPanel.ts's `resolveEnterDirection`, or an explicit gesture side).
+  /** Computed by the caller (panelRowOrder.ts's `resolveEnterDirection`, or an explicit gesture side).
    * Must be correct on this component's FIRST render after the item (re)appears -- AnimatePresence
    * has no later render of a fresh mount to fix a wrong guess. */
   enterDirection: 'left' | 'right';
   /** Must be correct on this component's LAST render before it leaves the `live`-filtered array --
    * AnimatePresence has no later render of a removed child to fix a wrong guess. */
-  exitDirection: ExitDirection;
+  exitDirection: 'down' | 'left' | 'right';
   /**
    * Each slot's `motion.div` carries a `transform`, so it is its OWN stacking context and a child's `zIndex`
    * cannot compare against a SIBLING slot: stacking between slots (e.g. History above a web panel sliding
@@ -120,6 +128,7 @@ export function PanelRowSlot({
  * once and animates a transform toward it, so the view never re-lays out mid-resize; `layout="size"` so a
  * position change snaps here since the slot's own `x` already animates it. The view renders it inside its own
  * slot (LivePanel: under DragToClose), so History, which never resizes, gains no wrapper at all.
+ * @public
  */
 export function PanelSizeBox({ width, height, children }: { width: number; height: number; children: React.ReactNode }) {
   return (
