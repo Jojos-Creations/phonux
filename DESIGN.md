@@ -68,7 +68,7 @@ already is. Other panels can still be dragged past it -- see `PanelsAPI.move`'s 
 The "own control only" guarantee also has to hold for the built-in 'web' view, not just a custom one: `view`
 left at its default (or set explicitly to `'web'`) still resolves to LivePanel.tsx, which otherwise wraps
 EVERY panel in a framework drag-to-close handle unconditionally. LivePanel.tsx reads its own `collapsible`
-through the same per-slot context LivePanels.tsx already provides for the reorder exemption
+through the same per-slot context PanelRow.tsx already provides for the reorder exemption
 (`usePanelCloseEligible`, alongside `usePanelReorderEligible`) and renders no DragToClose wrapper -- no grab
 bar at all -- when it reads false, exactly like History's own locked Panel today.
 
@@ -127,7 +127,7 @@ the gap), so each hop lands half-way across the next neighbour's span (`reorderS
 neighbour widths the row supplies per slot). With equal widths this is exactly one hop per slot.
 
 `collapsible: false` panels are excluded as a drag SOURCE only: they render no grab bar, through a plain React
-context LivePanels.tsx provides per slot (a resolved view only ever receives `PanelSummary`, which carries no
+context PanelRow.tsx provides per slot (a resolved view only ever receives `PanelSummary`, which carries no
 `collapsible` field to check locally), and `move` is a no-op on their id. As a NEIGHBOUR they are crossable
 like any other panel: a drag passes History or a permanent column, one hop per that column's own span, so a
 drag is one way a panel ends up left of History. After every `move` each panel's anchor is re-read from the
@@ -297,11 +297,11 @@ function) as "no options", so a bare `onClick={panels.create}` reference behaves
 
 ## A resolved panel component only ever sees a `PanelSummary`
 
-`LivePanels.tsx` holds the internal `PanelWindow` record (not `PanelSummary`) because it alone reads
+`PanelRow.tsx` takes the row-only `PanelRowEntry` record (not `PanelSummary`) because it alone reads
 `anchor`/`layer`/`anchoredEnter`/`collapsible`, but every component it resolves through the registry --
 built-in or third-party -- is written against `PanelComponent<P>` (renamed to `ViewComponent<P>`) `= ComponentType<{ panel: PanelSummary<P>
 }>`. It narrows through the same `summarisePanel()` projection `PanelsAPI.panelList`/`recentlyClosed` use
-(`panelWindow.ts`), so a view can never read a desktop-only field (`webContentsId`, `collapsible`,
+(`panelRowEntry.ts`), so a view can never read a row-only or host-only field (`webContentsId`, `collapsible`,
 `anchor`, `layer`, `anchoredEnter`) just because it happens to be a plain variable, not an object literal,
 and so escapes TypeScript's excess-property check at the call site.
 
@@ -782,7 +782,7 @@ never gains a `snapshot` field for the same reason `PanelWindow`'s desktop-only 
 ## `useViewState`: per-view state that outlives a park, not a restart
 
 `viewState.ts` gives a view a `[value, setValue]` pair -- the same tuple shape `React.useState` returns --
-that survives its OWN panel being parked (`live: false`; `LivePanels.tsx`'s `present` filter fully unmounts a
+that survives its OWN panel being parked (`live: false`; `PanelRow.tsx`'s `present` filter fully unmounts a
 parked entry) and revived. The store is a plain `Map<panelId, Map<key, cell>>` outside React state, copying
 `windowOverlay.tsx`'s `OverlayStore` shape (a private `Map` plus per-cell subscribers via
 `useSyncExternalStore`), mounted once by `HostProvider` as `ViewStateProvider`, alongside `OverlayProvider`,
@@ -796,7 +796,7 @@ whole contract; surviving a restart is not part of it.
 A panel's state is released once nothing can show that panel again, as `OverlayStore.remove` releases an
 overlay. Panel ids never repeat within a session, so that is when the id is in neither the row's own list nor
 `PanelsAPI.recentlyClosed`: when its undo window elapses, or at once on `clearAll`. Without this, every panel
-closed during a long-running session would keep its state until the app quits. The host's row reports the ids
+closed during a long-running session would keep its state until the app quits. `PanelRow` reports the ids
 it can still show by calling `useViewState.useRetainOnly(ids)` on every render. The release runs one task
 after that render's commit, and any newer commit cancels it. That delay is load-bearing: when restoring a
 live panel parks another one to its right, `undoClose` commits once with `recentlyClosed` already cleared
@@ -806,13 +806,13 @@ stored for a key until its first `setValue`, so until then each mount reads its 
 
 `useViewState(key, initial)` takes no id argument at all: a view never wires its own identity. The id is
 ambient, read from a context set exactly once, at the ONE place a resolved View is actually rendered
-(`LivePanels.tsx`'s `<Component panel={summarisePanel(p)} />`) -- never by the view itself. That setter is
+(`PanelRow.tsx`'s `<Component panel={renderedSummary(p, widths[index]!)} />`) -- never by the view itself. That setter is
 exposed as `useViewState.Provider`, a property of the hook function, rather than a second value on the phonux
 barrel, and `useViewState.useRetainOnly` travels the same way: the barrel's public surface stays the two names
 a view genuinely depends on (`useViewState`, `ViewStateMissingProviderError`); the ambient id and the release
-are host-render-loop wiring a view never touches directly, and a bare `'phonux'` import is the only way
-`LivePanels.tsx` (desktop-side) may reach into this folder at all (see the phone-boundary suite), so both
-still have to travel through the SAME public entry point `useViewState` already does, not a separate one.
+are row-render-loop wiring a view never touches directly. Their one caller, `PanelRow.tsx`, sits inside this
+folder; anything outside it reaches this folder only through a bare `'phonux'` import (see the phone-boundary
+suite), so both travel through the SAME public entry point `useViewState` already does, not a separate one.
 
 Types read exactly as `React.useState`'s do. With no type argument, `useViewState('count', 0)` infers
 `number`, an object literal's `true` infers `boolean`, and a value already typed `'idle' | 'loading'` keeps that
@@ -843,11 +843,11 @@ two configs pointed at each other's entry, fails before anything runs. The decla
 into `client/api-extractor-temp/`, a sibling of `client/src`, so they never reach `typecheck:app`, the
 file-size ratchet or the phone-boundary scan.
 
-`./internal/directionalTransition` is tracked and tagged `@internal`, not excluded: `LivePanelSlot.tsx` and
-`HistoryRowSlot.tsx` import it, so it is a real entry point whose changes deserve the same diff. API Extractor
-wants every `@internal` name to start with an underscore, but these names are already imported under their
-current spelling, so `ae-internal-missing-underscore` is switched off in `api-extractor.internal.json` only,
-instead of renaming them. The switch covers that whole config, not one name, so a future `@internal` export
+`./internal/directionalTransition` is tracked and tagged `@internal`, not excluded: `HistoryRowSlot.tsx`
+imports it from outside this folder (`PanelRowSlot.tsx`, inside it, imports the module directly), so it is a
+real entry point whose changes deserve the same diff. API Extractor wants every `@internal` name to start
+with an underscore, but these names are already imported under their current spelling, so
+`ae-internal-missing-underscore` is switched off in `api-extractor.internal.json` only, instead of renaming them. The switch covers that whole config, not one name, so a future `@internal` export
 without an underscore passes silently there too. `.` and `./testing` still enforce the rule: nothing they
 reach is `@internal`, and an underscore-less `@internal` tag on one of their exports fails the check.
 
