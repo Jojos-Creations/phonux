@@ -2,7 +2,8 @@
  * The `PanelWindow` model -- one browsing panel in the unified row -- and every pure state-transition
  * function that operates on a `PanelWindow[]` array.
  */
-import { computeRowOrder, DEFAULT_PANEL_SIZE, deriveAnchorsFromOrder, TIER_SIZES, type FormFactor, type JsonValue, type NeighborWidths, type PanelAnchor, type PanelSize } from 'phonux';
+import { computeRowOrder, DEFAULT_PANEL_SIZE, deriveAnchorsFromOrder, TIER_SIZES } from 'phonux';
+import type { FormFactor, JsonValue, NeighborWidths, PanelAnchor, PanelSize } from 'phonux';
 
 /**
  * One browsing panel in the unified row, parked and revived by the same capacity rules
