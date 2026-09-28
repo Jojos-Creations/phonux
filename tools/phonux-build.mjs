@@ -105,7 +105,7 @@ const distPkg = {
 writeFileSync(join(DIST_DIR, 'package.json'), `${JSON.stringify(distPkg, null, 2)}\n`);
 
 const readmeSrc = join(PHONE_DIR, 'README.md');
-if (!existsSync(readmeSrc)) fail('client/src/shared/phone/README.md is missing; dist/ needs a copy for npm pack');
+if (!existsSync(readmeSrc)) fail(`${relative(REPO_ROOT, readmeSrc)} is missing; dist/ needs a copy for npm pack`);
 copyFileSync(readmeSrc, join(DIST_DIR, 'README.md'));
 
 console.log(`build:phonux OK -- wrote ${relative(REPO_ROOT, DIST_DIR)}/{package.json,README.md} and ${Object.keys(exports).length} export target(s)`);

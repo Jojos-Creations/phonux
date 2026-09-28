@@ -14,7 +14,7 @@
 
 import { execFileSync } from 'node:child_process';
 import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, existsSync, rmSync } from 'node:fs';
-import { join, resolve } from 'node:path';
+import { join, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const REPO_ROOT = fileURLToPath(new URL('..', import.meta.url));
@@ -109,7 +109,7 @@ function record(name, fn) {
 
 try {
   if (!existsSync(join(DIST_DIR, 'package.json'))) {
-    throw new Error('client/src/shared/phone/dist/package.json is missing -- run `npm run build:phonux` first');
+    throw new Error(`${relative(REPO_ROOT, join(DIST_DIR, 'package.json'))} is missing -- run \`npm run build:phonux\` first`);
   }
 
   // Bare mktemp under $TMPDIR would work too, but this script's own gate greps
