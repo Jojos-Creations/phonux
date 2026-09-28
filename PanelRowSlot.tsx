@@ -8,9 +8,8 @@ import { SLOT_TRANSITION, directionalTransition } from './directionalTransition.
  * @public
  */
 export const GAP = 16;
-/** The timing/easing every panel slide uses. Kept as the SAME object as SLOT_TRANSITION (not a
- * copy): row/useRowShell.ts and test/row-shell-style.test.ts key off this binding by reference
- * to read the row's own recenter animation as "the same motion as a panel".
+/** The timing/easing every panel slide uses. The SAME object as SLOT_TRANSITION, not a copy: a host animates
+ * its own row "the same as a panel" by this reference (test/row-shell-style.test.ts pins it).
  * @public */
 export const PANEL_TRANSITION = SLOT_TRANSITION;
 
@@ -52,11 +51,9 @@ export function panelRowSlotMotion(
   // one enters from the left -- see panelRowOrder.ts for who decides which.
   const enterDistance = enterDirection === 'left' ? -ownSpan : ownSpan;
   const { initial, animate, transition } = directionalTransition('x', rest, enterDistance);
-  // 'down': a close, timed to DragToClose's own exit so trash and drag closes read as one motion
-  // (DragToClose's `y` animation finishes and calls `onClose` before this exit starts, so this
-  // ramps in underneath a box already off-screen rather than fighting it). 'left'/'right': a park,
-  // off whichever row edge it was hidden past, so a close always reads as visually distinct from
-  // a park regardless of which side the park picks.
+  // 'down': a close, timed to DragToClose's exit so trash and drag closes read as one motion (DragToClose calls
+  // `onClose` after its own `y` animation, so this ramps in under a box already off-screen). 'left'/'right': a
+  // park, off the edge it was hidden past, so a close never looks like a park.
   const exit: TargetAndTransition =
     exitDirection === 'down'
       ? { x: rest, y: phoneHeight, opacity: 0, transition: { duration: DRAG_CLOSE.exitSeconds, ease: 'easeIn' } }
@@ -81,7 +78,7 @@ export function PanelRowSlot({
 }: {
   /** This slot's own rest x position -- the caller's running sum of every PRECEDING present item's own width plus one gap. */
   leftOffset: number;
-  /** This panel's own width (panelWindow.ts's `panelWidthOf`) -- also this slot's own enter/exit travel distance (see `panelRowSlotMotion`'s `ownSpan`). */
+  /** This panel's own width (`panelWidthOf`), also this slot's enter/exit travel distance (`panelRowSlotMotion`'s `ownSpan`). */
   width: number;
   phoneHeight: number;
   /** Computed by the caller (panelRowOrder.ts's `resolveEnterDirection`, or an explicit gesture side).
@@ -93,7 +90,7 @@ export function PanelRowSlot({
   exitDirection: 'down' | 'left' | 'right';
   /**
    * Each slot's `motion.div` carries a `transform`, so it is its OWN stacking context and a child's `zIndex`
-   * cannot compare against a SIBLING slot: stacking between slots (e.g. History above a web panel sliding
+   * cannot compare against a SIBLING slot: stacking between slots (e.g. a raised column above a panel sliding
    * left behind it) must be set HERE, on the slot, not on what renders inside it. Defaults to 0.
    */
   zIndex?: number;
@@ -123,11 +120,10 @@ export function PanelRowSlot({
 }
 
 /**
- * The element a resize animates, on an INNER box, never the slot itself (the slot owns `exit`, and
- * Motion's own docs warn against `layout` and `exit` on one element). A layout animation sets the real size
- * once and animates a transform toward it, so the view never re-lays out mid-resize; `layout="size"` so a
- * position change snaps here since the slot's own `x` already animates it. The view renders it inside its own
- * slot (LivePanel: under DragToClose), so History, which never resizes, gains no wrapper at all.
+ * The element a resize animates: an INNER box, never the slot, which owns `exit` (Motion's docs warn against
+ * `layout` and `exit` on one element). A layout animation sets the real size once and animates a transform
+ * toward it, so the view never re-lays out mid-resize; `layout="size"` because the slot's `x` already animates
+ * position. A view renders it inside its own slot, so a view that never resizes needs no wrapper.
  * @public
  */
 export function PanelSizeBox({ width, height, children }: { width: number; height: number; children: React.ReactNode }) {
