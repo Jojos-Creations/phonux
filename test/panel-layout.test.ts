@@ -68,9 +68,8 @@ test('computeRowLayout: at containerWidth 0 (unmeasured), maxLiveThatFit is 0 --
   assert.equal(result.computedRowMarginLeft, 0);
 });
 
-// The single-width formula, kept here verbatim ONLY as a fixed reference for the equal-widths
-// property test below (it took `liveCountNow: number`, unlike production's `liveWidths` array) --
-// never imported by production code.
+// The single-width formula, a fixed reference for the equal-widths property test below only: it takes a
+// count, where production takes a `liveWidths` array.
 function oldComputeRowLayout({
   containerWidth,
   phoneWidth,

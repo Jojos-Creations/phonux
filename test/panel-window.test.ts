@@ -1,6 +1,6 @@
 /**
- * desktop/panels/panelWindow.ts's pure panel-array helpers (append, close/restore, the row's edge and side
- * helpers, promote). Closing a view removes it completely (closePanel) and undo puts it back (restorePanel).
+ * desktop/panels/panelWindow.ts's pure panel-array helpers, and the phonux row-order and tier functions they
+ * call. Closing a view removes it completely (closePanel) and undo puts it back (restorePanel).
  */
 
 import test from 'node:test';
@@ -36,9 +36,8 @@ import {
   sideOfLiveRange,
 } from '../client/src/desktop/panels/panelWindow.js';
 
-/** Every entry's own default tier/size (panelWindow.ts's DEFAULT_PANEL_SIZE, reconstructed here from the same
- * shared phonux constant rather than a second 390/700 literal, so this file cannot drift from panelWindow.ts's
- * own derivation). */
+/** Every entry's default tier/size, rebuilt from DEFAULT_PHONE_SIZE rather than a 390/700 literal, so this file
+ * cannot drift from panelTiers.ts's DEFAULT_PANEL_SIZE derivation. */
 const DEFAULT_PANEL_SIZE: PanelSize = { formFactor: 'phone', width: DEFAULT_PHONE_SIZE.width, height: DEFAULT_PHONE_SIZE.height };
 
 test('appendPanel: appends a new LIVE extra panel carrying the source id and url, unstarted webContentsId', () => {
@@ -354,7 +353,7 @@ test('promoteToLive: demotion never targets a collapsible:false entry (History) 
 // ---------------------------------------------------------------------------
 // movePanel: the drag-to-reorder gesture's own pure primitive. A single
 // present-hop can cross several parked array slots at once -- that IS "moving a live panel across parked
-// entries" (present = `!collapsible || live`, LivePanels.tsx's own filter).
+// entries" (present = `!collapsible || live`, PanelRow's own filter).
 // ---------------------------------------------------------------------------
 
 test('movePanel: a live panel moved past its present-neighbor crosses every parked entry between them, and their OWN relative order is unchanged', () => {
