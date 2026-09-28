@@ -9,9 +9,8 @@
 import { useEffect, useRef, useState } from 'react';
 import type { Dispatch, RefObject, SetStateAction } from 'react';
 import { flushSync } from 'react-dom';
-import type { FormFactor } from 'phonux';
+import { computeMaxLiveWidth, computeRowLayout, panelWidthOf, type FormFactor } from 'phonux';
 import { GAP } from './LivePanelSlot.js';
-import { computeMaxLiveWidth, computeRowLayout } from '../../../../src/panel-layout.js';
 import { effectiveMaxPanels } from '../settings/adventureSettings.js';
 import {
   firstParkedAfter,
@@ -19,7 +18,6 @@ import {
   leftmostLiveIndex,
   farthestLiveCollapsibleId,
   movePanel,
-  panelWidthOf,
   promoteToLive,
   rightmostLiveIndex,
   setFormFactor,

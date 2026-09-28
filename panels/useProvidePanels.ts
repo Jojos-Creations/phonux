@@ -7,9 +7,9 @@
  */
 
 import { useEffect, useRef, type Dispatch, type RefObject, type SetStateAction } from 'react';
-import type { CreatePanelOptions, PanelsAPI } from 'phonux';
+import { summarisePanel, type CreatePanelOptions, type PanelsAPI } from 'phonux';
 import { captureController, type CaptureTrigger } from '../capture/controller.js';
-import { appendPanel, reanchorPanel, summarisePanel, type PanelWindow } from './panelWindow.js';
+import { appendPanel, reanchorPanel, type PanelWindow } from './panelWindow.js';
 import { usePanelClosing } from './usePanelClosing.js';
 import { usePanelManager } from './usePanelManager.js';
 import { useRowScrollGesture } from '../row/useRowScrollGesture.js';

@@ -8,10 +8,10 @@
 import * as React from 'react';
 import { AnimatePresence } from 'motion/react';
 import Box from '@mui/material/Box';
-import { resolveView, useHost, useViewState } from 'phonux';
+import { panelWidthOf, resolveView, summarisePanel, useHost, useViewState, type NeighborWidths } from 'phonux';
 import { anchorTargetOf, resolveEnterDirection } from './anchorPanel.js';
 import { GAP, PanelRowSlot } from './LivePanelSlot.js';
-import { HISTORY_PANEL_ID, panelWidthOf, summarisePanel, type NeighborWidths, type PanelWindow } from './panelWindow.js';
+import { HISTORY_PANEL_ID, type PanelWindow } from './panelWindow.js';
 
 /** A 'raised' slot sits above a 'base' one: a LEFT-exiting park crosses a raised panel's footprint (History, today) on the way out, so this ordering is load-bearing for that path (a close's exit is DOWN and never reaches it). */
 const RAISED_LAYER_Z_INDEX = 2;
