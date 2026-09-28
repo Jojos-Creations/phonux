@@ -22,56 +22,38 @@ export interface UsePanelClosingResult {
   /** The views closed inside the window, oldest first; non-null exactly while the window is open. */
   recentlyClosed: PanelWindow[] | null;
   /**
-   * Ids currently leaving through THIS hook's own `close()` -- never through
-   * usePanelManager's auto-collapse, which flips `live` false but never touches
-   * this set. LivePanels.tsx reads it to give each exiting PanelRowSlot an
-   * `exitDirection` (down for a close, left for an auto-collapse); see this
-   * file's `close()` for why the id must land here BEFORE the panel leaves
-   * `panels`, not after.
+   * Ids leaving through THIS hook's `close()`, never usePanelManager's auto-collapse (which only flips `live`):
+   * LivePanels.tsx reads it for each exiting PanelRowSlot's `exitDirection` (down for a close, left for a park).
+   * See `close()` for why an id must land here BEFORE the panel leaves `panels`.
    */
   closingIds: ReadonlySet<string>;
 }
 
 /**
- * A view closed by dragging it down or by the trash icon on a History row is removed COMPLETELY (row and
- * History), a closed event is appended to the background log (electron/dead-end-history.ts: deadEnd.record)
- * and a toast offers Undo for 10 s (undo restores the view and removes the log entry).
- *
- * `panels` / `setPanels` / `revealPanelProactively` are the panel manager's (one owner of the array:
- * usePanelManager merges by id across async writers). Called with the values of the CURRENT render: the
- * handlers close over them, so nothing here may be memoised. That is also why `close` takes a view's index
- * from that render's array: two close() calls before ONE re-render would index the second against an array
- * that still holds the first, and Undo would then restore the pair in the wrong relative order. Discrete
- * gestures (a drag release, a click) re-render between events, so nothing reaches that today; a caller that
- * batches closes needs one setPanels for the lot.
- *
- * Every close writes ONE log entry whose id is `<closedAt>#<panel id>`: panel ids restart at 1 each launch,
- * and the store's removeByIds (the undo path) would otherwise also delete an older launch's entry with the
- * same id. The bridge calls are best effort: with no desktop bridge (a browser-only preview) nothing is persisted.
+ * A close (drag down, or History's trash) removes the view COMPLETELY, logs a closed event (electron/dead-end-history.ts)
+ * and offers Undo for 10 s. Takes the CURRENT render's values, so nothing here may be memoised, and `close` reads the
+ * index from that render: two closes before one re-render would undo in the wrong order (discrete gestures re-render
+ * between events), so a caller that batches closes needs one setPanels for the lot. Log ids are `<closedAt>#<panel id>`:
+ * panel ids restart each launch, and undo's removeByIds would otherwise also delete an older launch's entry. The bridge
+ * calls are best effort: a browser-only preview persists nothing.
  */
 export function usePanelClosing(
   panels: PanelWindow[],
   setPanels: Dispatch<SetStateAction<PanelWindow[]>>,
   revealPanelProactively: UsePanelManagerResult['revealPanelProactively'],
   /**
-   * Called once per successful close, with the id that just left `panels` and the array immediately after
-   * (`closePanel`'s own `remaining` -- computed synchronously above, from THIS render's `panels`, same as
-   * everything else in `close()`). Optional (a close of a `collapsible: false` entry, i.e. History, has
-   * nothing to forget or reveal); useProvidePanels.ts, the one caller, wires it to usePanelManager's
-   * `forgetCollapsed`/`revealMostRecentlyCollapsed`.
+   * Called once per successful close with the id that just left and `closePanel`'s `remaining`, the array right
+   * after it, computed from THIS render's `panels` like everything else in `close()`.
    */
   onAfterClose?: (id: string, remaining: PanelWindow[]) => void,
   /**
-   * Called once per panel `undoClose` restores through the "comes back LIVE" branch below (the same branch
-   * that calls `revealPanelProactively`) -- this, and usePanelManager.ts's own `revealMostRecentlyCollapsed`,
-   * are the two "reappearance" paths that enter from the anchor panel's side. Optional, same convention as
-   * `onAfterClose`; useProvidePanels.ts, the one caller, wires this to usePanelManager's `markEnteringViaAnchor`.
+   * Called per panel `undoClose` restores LIVE (the branch that calls `revealPanelProactively`): with
+   * usePanelManager.ts's `revealMostRecentlyCollapsed`, one of the two paths that enter from the anchor's side.
    */
   onRestoreLive?: (id: string) => void,
   /**
-   * Called with the ids the undo window's own NATURAL elapse (never Undo -- that path calls stopWindow()
-   * instead, below) just finalized, so a caller (useProvidePanels.ts, the capture-eviction wiring) can tell a
-   * restored close apart from one nothing will ever undo again. Optional, same convention as the other two.
+   * Called with the ids the undo window's NATURAL elapse just finalized (Undo calls stopWindow() instead), so a
+   * caller can tell a restored close from one nothing will ever undo.
    */
   onWindowElapsed?: (ids: string[]) => void,
 ): UsePanelClosingResult {
@@ -107,13 +89,9 @@ export function usePanelClosing(
     // list's own lock gate -- every entry (History included) goes through this same close().
     if (!found || claimed.current.has(id) || found.closed.locked) return;
     claimed.current.add(id);
-    // Commits ALONE, before the removal below: AnimatePresence takes an exiting
-    // child's `exit` animation from its LAST props before it left `live`, and
-    // there is no render of it AFTER removal to fix this up. A plain setState
-    // here would batch with the setPanels below (React 18) into one commit that
-    // never has the panel both present AND marked -- flushSync forces this one
-    // to land first, so the next commit (the removal) is the one AnimatePresence
-    // captures, and it already says closingIds.has(id).
+    // Commits ALONE, before the removal: AnimatePresence takes an exiting child's `exit` from its LAST props
+    // before it left, and a plain setState would batch with the setPanels below into one commit that never
+    // has the panel both present AND marked.
     flushSync(() => setClosingIds((prev) => new Set(prev).add(id)));
     const closedAt = new Date().toISOString();
     const logId = `${closedAt}#${id}`;
@@ -159,11 +137,8 @@ export function usePanelClosing(
       }
       working = restorePanel(working, panel, index);
     }
-    // A restored id is no longer closing: leaving it marked would wrongly slide
-    // a LATER auto-collapse of the same id down instead of left. An id that is
-    // never restored (its window just elapses) keeps its entry here forever,
-    // harmlessly -- ids never repeat within a session (useProvidePanels.ts's
-    // nextWindowId), so a stale `true` can never be read by a live panel again.
+    // A restored id is no longer closing: a stale mark would slide a LATER park of it down instead of left. An
+    // id never restored keeps its mark, harmlessly: ids never repeat in a session (useProvidePanels.ts's nextWindowId).
     setClosingIds((prev) => {
       const ids = batch.map((e) => e.panel.id).filter((restoredId) => prev.has(restoredId));
       if (ids.length === 0) return prev;

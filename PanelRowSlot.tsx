@@ -40,9 +40,8 @@ export function panelRowSlotMotion(
   enterDirection: 'left' | 'right',
   exitDirection: ExitDirection,
 ): PanelRowSlotMotion {
-  // This panel's OWN footprint (its width plus one gap) is how far it must travel to clear the row edge --
-  // a wider panel needs to travel further than a uniform `slot` would have, so this can no longer be one
-  // value shared by every item.
+  // This panel's OWN footprint (its width plus one gap) is how far it must travel to clear the row edge,
+  // so the distance is per panel: a wider one travels further.
   const ownSpan = width + GAP;
   const rest = leftOffset;
   // Positive distance enters from the right (directionalTransition.ts's own sign convention); a negative
@@ -85,11 +84,9 @@ export function PanelRowSlot({
    * AnimatePresence has no later render of a removed child to fix a wrong guess. */
   exitDirection: ExitDirection;
   /**
-   * Each slot's own `motion.div` is a `transform`-bearing element, which establishes its OWN CSS stacking
-   * context -- a child's `zIndex` can no longer escape it to compare against a SIBLING slot. Stacking order
-   * between slots (e.g. History always above a web panel sliding left behind it) must therefore be set
-   * HERE, on the slot itself, not on whatever renders inside it. Defaults to 0 (no caller currently needs
-   * more than two tiers).
+   * Each slot's `motion.div` carries a `transform`, so it is its OWN stacking context and a child's `zIndex`
+   * cannot compare against a SIBLING slot: stacking between slots (e.g. History above a web panel sliding
+   * left behind it) must be set HERE, on the slot, not on what renders inside it. Defaults to 0.
    */
   zIndex?: number;
   children: React.ReactNode;
