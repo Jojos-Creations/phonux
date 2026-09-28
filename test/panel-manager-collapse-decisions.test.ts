@@ -1,10 +1,10 @@
 /**
- * `effectiveMaxPanels` (adventureSettings.ts): the pure capacity decision usePanelManager.ts derives its live
- * cap from -- one hard capacity, never a mode.
+ * `effectiveMaxPanels` (shared/phone/panelCapacity.ts): the pure capacity decision usePanelManager.ts derives
+ * its live cap from -- one hard capacity, never a mode.
  */
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { effectiveMaxPanels } from '../client/src/desktop/settings/adventureSettings.js';
+import { effectiveMaxPanels } from '../client/src/shared/phone/panelCapacity.js';
 
 test('effectiveMaxPanels: the full matrix the owner\'s spec names (fixedColumnCount 1: History alone, byte-identical to the pre-permanent-columns floor of 2)', () => {
   const cases: Array<[stored: number | null, fitCount: number | null, expected: number]> = [

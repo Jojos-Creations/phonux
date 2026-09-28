@@ -10,7 +10,7 @@ import { useEffect, useRef, useState } from 'react';
 import type { Dispatch, RefObject, SetStateAction } from 'react';
 import { flushSync } from 'react-dom';
 import { computeMaxLiveWidth, computeRowLayout, GAP, panelWidthOf, type FormFactor } from 'phonux';
-import { effectiveMaxPanels } from '../settings/adventureSettings.js';
+import { effectiveMaxPanels } from '../../shared/phone/panelCapacity.js';
 import {
   firstParkedAfter,
   lastParkedBefore,
