@@ -470,11 +470,17 @@ another entry's `anchor.panel` within this same array during hydrate, and is alw
 runtime id on restore -- a saved id is never reused verbatim, since panel ids restart at 1 each launch. `view`
 is the registry key; an unrecognized key renders the existing placeholder, the same as it does outside
 restore, never dropped. `params` is opaque and view-supplied, carried verbatim and never interpreted. `listed`
-defaults to `true`, a real, view-settable field independent of `permanent`. `live` is honored verbatim on
-restore (see "Restore behavior" below). `anchor` composes through the existing anchor-fallback logic when its
-`panel` is dangling or cyclic (see "Versioning and failure" below). `formFactor` defaults to `'phone'`; `row`
-defaults to `0`, reserved ahead of add-second-panel-row-support landing a real `row` field on the panel model.
-`permanent` and `layer` are covered in "Permanent columns" and "What's saved, and what's never" below.
+defaults to `true` when a panel isn't `permanent`, but `permanent:true` forces `listed:false` regardless of any
+`listed` also present in the same saved entry -- the identical forcing rule `appendPanel` already applies at
+create time, and hydrate applies it again rather than trusting a saved `listed` value on a permanent entry. A
+saved entry with `permanent:true` and `listed:true` together is not a shape-guard failure (both fields
+individually type-check); it is a combination `create()` itself can never produce today, most likely from a
+hand-edited file, and hydrate resolves it silently by letting `permanent` win, exactly as `appendPanel` would
+if both were passed to it. `live` is honored verbatim on restore (see "Restore behavior" below). `anchor`
+composes through the existing anchor-fallback logic when its `panel` is dangling or cyclic (see "Versioning
+and failure" below). `formFactor` defaults to `'phone'`; `row` defaults to `0`, reserved ahead of
+add-second-panel-row-support landing a real `row` field on the panel model. `permanent` and `layer` are
+covered in "Permanent columns" and "What's saved, and what's never" below.
 
 ### What's saved, and what's never
 
@@ -483,8 +489,10 @@ defaults to `0`, reserved ahead of add-second-panel-row-support landing a real `
 - **Never saved -- `webContentsId`, `sourceWebContentsId`.** Electron's own runtime handles; the owner's ruling
   is that no runtime handle is ever saved, full stop.
 - **Never saved -- `size`.** Always recomputed from `formFactor`, never round-tripped.
-- **Never saved -- `locked`, `collapsible`.** Both are the implicit, always-the-same `create()`-time default
-  for anything saveable, never independently set on a saveable panel today.
+- **Never saved -- `locked`.** Always `false` at create time for anything saveable, never independently set
+  on a saveable panel today.
+- **Never saved -- `collapsible`.** Not an independent stored fact: it is `appendPanel`'s own `!info.permanent`
+  derivation, recomputed from the saved `permanent` field on restore rather than round-tripped.
 - **Never saved -- `anchoredEnter`.** A creation-time enter-animation hint, defaulted on restore, not a fact
   about the panel worth persisting.
 - **Never saved -- History's own entry.** Host-supplied and reseeded fresh every launch (see "Permanent
@@ -494,11 +502,19 @@ defaults to `0`, reserved ahead of add-second-panel-row-support landing a real `
 
 phonux owns the `WorkspaceState`/`WorkspacePanelState` type, the pure `projectWorkspaceState`/
 `hydrateWorkspaceState` function pair, and a small `WorkspaceStorage` (load/save) contract phonux defines but
-never puts on the public `Host`/`PanelsAPI` bag -- the same pattern `HostProvider` already uses for
-`CaptureRegistryContext` (a second context, mounted alongside the first, for a concern that is not part of the
-public host bag). The host owns the storage entirely: the file's real name and on-disk location, the IPC
-channel names, and the write mechanics (including whether the write is atomic) are the host's own choice, out
-of this design's scope.
+never puts on the public `Host`/`PanelsAPI` bag. Keeping a capability off the public bag has a real precedent
+already in this package: `CaptureRegistryContext` keeps the write side of a picture out of `Host`/
+`SnapshotsAPI` entirely, as its own second context that app code mounts AROUND `HostProvider` (see "Snapshots"
+below) -- `HostProvider` itself never mounts `CaptureRegistryContext`; the only context it mounts internally is
+its own `OverlayProvider`. `WorkspaceStorage` follows that same "keep it off the public bag" idea, but not
+`CaptureRegistryContext`'s context-based wiring: unlike `CaptureRegistryContext`, which arbitrary descendant
+`Panel` instances each need to reach independently, `WorkspaceStorage` is consumed at exactly one call site --
+inside the future panel-behavior provider itself, the only thing that ever calls `load()`/`save()` -- so a
+plain injected value on that provider's own input is enough and no context is needed. That is the same
+single-call-site injection an existing dependency already uses on that same provider's input today
+(`useProvidePanels.ts`'s `PanelsInput.capture`). The host owns the storage entirely: the file's real name and
+on-disk location, the IPC channel names, and the write mechanics (including whether the write is atomic) are
+the host's own choice, out of this design's scope.
 
 ```ts
 declare function projectWorkspaceState(panels: readonly PanelModel[]): WorkspaceState;
