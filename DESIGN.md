@@ -908,6 +908,45 @@ so the split adds no rename step, and no checkout's `origin` URL changes at the 
 `package.json` gets `"license": "UNLICENSED"` added at split time, since it stays private and no LICENSE file
 is needed while it does.
 
+### History and link mechanism for the move
+
+The move uses `git filter-repo` with `--path`/`--path-rename` for the folder plus every inbound file's old
+paths, not `git subtree split`. Both produce a byte-identical tree at the claim commit, but `git filter-repo`
+also keeps the inbound files' real pre-move content history (every content-changing commit; only pure,
+100%-identical-content rename hops that collapse onto the same target path are lost), for a modest size cost
+over `git subtree split`'s history-truncating result; `git subtree split --rejoin` is not needed, because the
+link below does not depend on which extraction method produced the library's first commit.
+
+The inbound file set and the `--path`/`--path-rename` list are re-derived at the move's own claim-time commit,
+not carried forward as a fixed list from whenever this design was written: files move into and out of this
+folder's history over time (recent examples already have), so the move re-runs the same `git log --follow
+--name-only` scan this design's own test-file partition uses as its model, against the folder's actual
+content at claim time, rather than trusting a stale enumeration.
+
+The two-way link between phonux-app and the library is established by exactly one hand-made commit in
+phonux-app, made immediately after the library repo is created, carrying `git-subtree-dir`,
+`git-subtree-mainline` and `git-subtree-split` trailers in the same format `git subtree split --rejoin`
+itself writes (built by hand here since filter-repo's commit hashes are foreign to `git subtree`, which has no
+automatic way to attach a link to an already-populated directory). That link commit's folder diff against its
+own mainline parent must be empty -- a non-empty diff there means the library tip's tree was not actually
+byte-identical to the folder's, and something was silently changed or lost -- and the first `git subtree push`
+after the link must be ancestry-clean (`git merge-base --is-ancestor <library tip before> <pushed tip>` true)
+before anyone relies on the link for a real pull or push. Once both hold, plain `git subtree pull` and `git
+subtree push` work as ordinary git operations from then on, including normal merge-conflict behavior when both
+sides touch the same location.
+
+The library's README (or, if no README exists yet, its first commit) records the phonux-app commit the split
+was taken at. phonux-app's own pre-split history for the folder and its inbound files is not deleted or moved
+anywhere -- it stays exactly where it already is, in phonux-app, at the same commit content but different
+hashes (filter-repo rewrites hashes), findable by matching author, author-date and subject rather than by
+hash.
+
+A `CHANGELOG.md` starts in the library at the split, its first entry naming the split's phonux-app source
+commit. CI is not added to the library at the split: every phonux change is still made in phonux-app and flows
+out to the library by `git subtree push`, and phonux-app's own strict gate already covers those changes before
+they ever leave it. CI is added to the library once it first receives a commit that was not made through
+phonux-app, or gains an outside consumer -- whichever comes first.
+
 ### Ongoing consumption: two mechanisms, one per audience
 
 This repo's own dev loop keeps consuming the package as an npm workspace: `git subtree` is the mechanism for
@@ -948,9 +987,10 @@ One command or check per item, each independently verifiable without further des
 3. `check:api-report` fails loud from the same relocated depth while its four path-sensitive configs
    (`tsconfig.build.json` and the three `api-extractor*.json` configs) are left unedited, naming the
    mismatched config and field; it exits 0 once those configs are hand-fixed to the new depth.
-4. `git subtree split` reproduces a byte-identical tree hash between this package's own committed tree and
-   the split branch's tip, checked fresh at whatever commit the move actually claims against, not assumed
-   from an earlier run.
+4. The `git filter-repo` result's tip tree equals `<claim sha>:client/src/shared/phone`, checked fresh at
+   whatever commit the move actually claims against, not assumed from an earlier run; the link commit's
+   folder diff against its mainline parent is empty; and the first `git subtree push` after the link is
+   ancestry-clean.
 5. The commit that performs the move removes the `workspaces` entry and the physical folder together, in one
    commit; `node_modules/phonux` shows no dangling symlink afterward.
 6. All seven gate commands stay green afterward, with `npm test`'s pass count unchanged from immediately
