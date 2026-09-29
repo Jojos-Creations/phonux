@@ -675,6 +675,7 @@ test('a desktop-tier panel keeps its formFactor, size, hostData and params byte-
   const check = (panels: readonly PanelWindow[], what: string, rebuilt: boolean): void => {
     const w = panels.find((p) => p.id === 'wide')!;
     assert.deepEqual([w.formFactor, (w.hostData as { webContentsId: number } | undefined)?.webContentsId], ['desktop', 42], what);
+    assert.equal(w.hostData, wide.hostData, `${what}: the same hostData object`);
     assert.equal(w.size, size, `${what}: the same size object`);
     assert.equal(w.params, params, `${what}: the same params object`);
     assert.equal(w.url, 'https://wide.example', what);
