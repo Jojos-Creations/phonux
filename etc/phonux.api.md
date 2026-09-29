@@ -6,6 +6,7 @@
 
 import { BoxProps } from '@mui/material/Box';
 import * as React_2 from 'react';
+import { RefObject } from 'react';
 import { Theme } from '@mui/material/styles';
 
 // @public
@@ -720,6 +721,29 @@ export interface WindowOverlayProps {
     children: React_2.ReactNode;
     open?: boolean;
     slot?: OverlaySlotName;
+}
+
+// @public
+export function Workspace(props: WorkspaceProps): React_2.ReactElement;
+
+// @public (undocumented)
+export interface WorkspaceProps extends Omit<BoxProps, 'children'> {
+    beforeRow?: React_2.ReactNode;
+    // (undocumented)
+    children: React_2.ReactNode;
+    // (undocumented)
+    containerWidth: number;
+    // (undocumented)
+    fixedColumnCount: number;
+    // (undocumented)
+    liveWidths: readonly number[];
+    overflowContainerRef: RefObject<HTMLDivElement | null>;
+    // (undocumented)
+    phoneWidth: number;
+    rowRef: RefObject<HTMLDivElement | null>;
+    // (undocumented)
+    rowResizeSettled: boolean;
+    topPadding?: number;
 }
 
 // (No @packageDocumentation comment for this package)
