@@ -13,7 +13,7 @@
  */
 
 import { spawn } from 'node:child_process';
-import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { existsSync, mkdtempSync, readFileSync, realpathSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, relative } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
@@ -61,6 +61,17 @@ export function parseNarrowArgs(argvTokens) {
     }
   }
   return { flags, fileTokens, patterns };
+}
+
+/**
+ * Real paths, because a test's own data.file comes from the loader's real
+ * path while the file-level event echoes argv: /var vs /private/var on
+ * macOS would otherwise read as a zero-match.
+ */
+export function resolveNarrowFiles(fileTokens, cwd) {
+  const notFiles = fileTokens.filter((token) => resolveRequestedFiles([token], cwd).length === 0);
+  const requestedAbs = [...new Set(resolveRequestedFiles(fileTokens, cwd).map((abs) => realpathSync(abs)))];
+  return { requestedAbs, notFiles };
 }
 
 export function selectReporter(patterns) {
@@ -149,20 +160,17 @@ async function main() {
     );
     process.exit(1);
   }
-  const cwd = process.cwd();
-  const notFiles = fileTokens.filter((token) => resolveRequestedFiles([token], cwd).length === 0);
+  const { requestedAbs, notFiles } = resolveNarrowFiles(fileTokens, process.cwd());
   if (notFiles.length > 0) {
     console.error(`run-tests-narrow: not a file: ${notFiles.join(', ')}\n${USAGE}`);
     process.exit(1);
   }
-  const requestedAbs = resolveRequestedFiles(fileTokens, cwd);
 
   const scratchDir = mkdtempSync(join(tmpdir(), 'phonux-run-tests-narrow-'));
   const reporterDestination = join(scratchDir, 'observed-files.log');
   const childArgv = buildChildArgv({
     flags,
     patterns,
-    // Absolute, so the reporter's always-absolute data.file matches as-is.
     files: requestedAbs,
     reporterPath: selectReporter(patterns),
     reporterDestination,
