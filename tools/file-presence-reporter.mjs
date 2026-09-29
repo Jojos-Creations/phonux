@@ -17,7 +17,9 @@
  * test style, so it cannot tell them apart.
  * `line === 1 && column === 1` does: every test file opens with an import,
  * so no real test() call is ever declared at line 1, but the file-level
- * event always reports line 1, column 1.
+ * event always reports line 1, column 1. Validated against Node v24.18.0;
+ * Node's docs call this event shape unversioned, so an upgrade that changes
+ * it fails loud here (every file reports missing), never silently.
  */
 
 export default async function* filePresenceReporter(source) {

@@ -77,6 +77,8 @@ async function main() {
   const childArgv = [
     '--test',
     '--test-timeout=900000',
+    // --test-force-exit stays: unrelated to the file-drop bug above; removing
+    // it hangs indefinitely on any file with imperfect teardown (Electron tests especially).
     '--test-force-exit',
     '--test-reporter=spec',
     '--test-reporter-destination=stdout',
