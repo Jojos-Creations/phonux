@@ -14,7 +14,7 @@
  * File-level discriminator: Node emits a `test:complete` event for the file
  * itself (name = the argv token, e.g. "test/foo.test.ts") in addition to one
  * per real test. `nesting` is 0 on BOTH in this repo's flat, describe-free
- * test style (proven live on Node v24.18.0), so it cannot tell them apart.
+ * test style, so it cannot tell them apart.
  * `line === 1 && column === 1` does: every test file opens with an import,
  * so no real test() call is ever declared at line 1, but the file-level
  * event always reports line 1, column 1.

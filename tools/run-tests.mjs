@@ -2,9 +2,9 @@
 /**
  * Wraps `tsx --test` so a run that silently drops a requested file (Node's
  * own --test CLI re-resolves its file argv at start and tolerates a partial
- * miss as long as one match remains -- reproduced independently of
- * --test-force-exit, which stays) exits non-zero and names the file, instead
- * of a clean-looking summary and exit 0 for fewer files than were asked for.
+ * miss as long as one match remains) exits non-zero and names the file,
+ * instead of a clean-looking summary and exit 0 for fewer files than were
+ * asked for.
  *
  * Usage: node tools/run-tests.mjs <file-or-flag ...>   (or: npm test)
  * Every argv token is forwarded to the real tsx/node --test child unchanged;
@@ -31,9 +31,8 @@ const REPORTER_PATH = join(REPO_ROOT, 'tools', 'file-presence-reporter.mjs');
  * matching how the shell/npm handed it to us) to a real file on disk right
  * now -- flag names and pattern values never do. Resolved to an ABSOLUTE
  * path because the reporter's own `data.file` is always absolute regardless
- * of how the file was named on argv (proven live: joining raw relative argv
- * strings against absolute `data.file` would report every file missing on
- * every run, including a clean one).
+ * of how the file was named on argv; pinned by the "resolveRequestedFiles
+ * resolves relative tokens..." test in test/run-tests-guard.test.ts.
  */
 export function resolveRequestedFiles(argvTokens, cwd) {
   const seen = new Set();
