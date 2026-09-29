@@ -14,11 +14,14 @@
 
 import { execFileSync } from 'node:child_process';
 import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, existsSync, rmSync } from 'node:fs';
-import { join } from 'node:path';
+import { join, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const REPO_ROOT = fileURLToPath(new URL('..', import.meta.url));
-const PHONE_DIR = join(REPO_ROOT, 'client/src/shared/phone');
+// Discovered from the workspace, not a hardcoded literal, so this script keeps
+// working if phone/ moves to a different nesting depth (e.g. a repo split).
+const rootPkg = JSON.parse(readFileSync(join(REPO_ROOT, 'package.json'), 'utf8'));
+const PHONE_DIR = resolve(REPO_ROOT, rootPkg.workspaces[0]);
 const DIST_DIR = join(PHONE_DIR, 'dist');
 const TSC_BIN = join(REPO_ROOT, 'node_modules', '.bin', 'tsc');
 
@@ -106,7 +109,7 @@ function record(name, fn) {
 
 try {
   if (!existsSync(join(DIST_DIR, 'package.json'))) {
-    throw new Error('client/src/shared/phone/dist/package.json is missing -- run `npm run build:phonux` first');
+    throw new Error(`${relative(REPO_ROOT, join(DIST_DIR, 'package.json'))} is missing -- run \`npm run build:phonux\` first`);
   }
 
   // Bare mktemp under $TMPDIR would work too, but this script's own gate greps
