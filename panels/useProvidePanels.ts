@@ -1,7 +1,7 @@
 /**
  * The app's implementation of PanelsAPI: the panel list, create/activate/close/undo/clear-all. Wraps
  * usePanelManager UNCHANGED, composes usePanelClosing and owns the row's scroll gesture. Never
- * exposes setPanels, webContentsId or anything else a view has no use for: panelList and
+ * exposes setPanels, hostData or anything else a view has no use for: panelList and
  * recentlyClosed hold PanelSummary objects built here, never the app's own PanelWindow records
  * (provide-panels.test.ts's "holds EXACTLY the PanelSummary keys" tests pin their key set).
  */
@@ -127,7 +127,12 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
       // "Panel N", not "about:blank": every panel needs a distinguishable title, for testing. options?.title
       // overrides it; the explicit `title:` below (after the spread) is what makes that override win either way.
       revealPanelProactively(i.panels, (prev) =>
-        appendPanel(prev, { sourceWebContentsId: -1, url: 'about:blank', ...safeOptions, title: safeOptions?.title ?? `Panel ${id}` }, id, i.rootId),
+        appendPanel(
+          prev,
+          { url: 'about:blank', hostData: { sourceWebContentsId: -1, webContentsId: null }, ...safeOptions, title: safeOptions?.title ?? `Panel ${id}` },
+          id,
+          i.rootId,
+        ),
       );
     },
     activate: handleActivatePanel,

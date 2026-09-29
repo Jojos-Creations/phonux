@@ -14,9 +14,10 @@ export interface PanelWindow {
   id: string;
   url: string;
   title?: string;
-  webContentsId: number | null;
-  /** The guest `<webview>` this panel's own new-window request came FROM -- electron/main.ts's `pageId`. `-1` for a panel that was not opened FROM another page (History's "+" makes these). */
-  sourceWebContentsId: number;
+  /** Host-supplied, opaque to every function here (only ever copied through, never read or branched on). Its
+   * conventional shape (electron/main.ts's webContentsId/sourceWebContentsId pageIds) is a host-side agreement
+   * this JsonValue type does not and cannot enforce. */
+  hostData?: JsonValue;
   /** Mounted live in the row right now. `false` means parked in the adventure card only -- still fully present in this array, just not rendered as a `<webview>`. */
   live: boolean;
   /** Whether DragToClose's drag-down gesture may close this panel at all. Every panel created by `appendPanel` is unlocked. */
@@ -44,7 +45,7 @@ export interface PanelWindow {
 /** History's own seeded entry: never collapsible (an always-shown column), never listed (it must not list itself), always live, locked by default (usePanelClosing.ts's lock gate); raised, so a left-exiting park slides under it; anchoredEnter, which against itself resolves 'right'; no anchor: it is the root every anchor leads to. Same default tier/size as every other entry: a permanent column carries a tier like any other. */
 export function createHistoryPanel(rootId: string): PanelWindow {
   return {
-    id: rootId, url: '', title: 'History', webContentsId: null, sourceWebContentsId: -1, live: true, locked: true,
+    id: rootId, url: '', title: 'History', live: true, locked: true,
     view: 'history', collapsible: false, listed: false, layer: 'raised', anchoredEnter: true,
     formFactor: 'phone', size: DEFAULT_PANEL_SIZE,
   };
@@ -59,6 +60,8 @@ export interface AppendPanelOptions {
   view?: string;
   title?: string;
   params?: JsonValue;
+  /** Copied through to the new entry's `hostData` unchanged; absent means the entry carries no `hostData` key at all (never an explicit `undefined`). */
+  hostData?: JsonValue;
   listed?: boolean;
   /** `panel` defaults to History, `priority` to one past the far end of that side. Default { position: 'right' }. */
   anchor?: { panel?: string; position: 'left' | 'right'; priority?: number };
@@ -100,14 +103,13 @@ export function reanchorPanel(panels: PanelWindow[], id: string, request: Anchor
  * stays false regardless so that control keeps working with no extra plumbing (usePanelClosing.ts gates
  * only on `locked`).
  */
-export function appendPanel(panels: PanelWindow[], info: { sourceWebContentsId: number; url: string } & AppendPanelOptions, id: string, rootId: string): PanelWindow[] {
+export function appendPanel(panels: PanelWindow[], info: { url: string } & AppendPanelOptions, id: string, rootId: string): PanelWindow[] {
   const formFactor = info.permanent ? 'phone' : (info.formFactor ?? 'phone');
   const entry: PanelWindow = {
     id,
     url: info.url,
     ...(info.title !== undefined ? { title: info.title } : {}),
-    webContentsId: null,
-    sourceWebContentsId: info.sourceWebContentsId,
+    ...(info.hostData !== undefined ? { hostData: info.hostData } : {}),
     live: true,
     locked: false,
     view: info.view ?? 'web',
@@ -280,12 +282,14 @@ export function setFormFactor(panels: PanelWindow[], id: string, next: FormFacto
 
 /**
  * Reverses closePanel for one panel: puts `panel` back at `index` (clamped to the current length, so a shorter
- * array still takes it), `webContentsId` reset because whatever it pointed at was unmounted when it closed. An
- * id already present leaves `panels` unchanged (a double undo never duplicates). Live or parked is whatever
- * `panel.live` says. Anchors are re-read from the result: its old anchor may no longer describe that index.
+ * array still takes it), unchanged -- a pure spread, no `hostData` reset (usePanelClosing.ts's undoClose does
+ * that itself, since it is the only caller that knows what "unmounted when it closed" should mean for the
+ * opaque blob). An id already present leaves `panels` unchanged (a double undo never duplicates). Live or
+ * parked is whatever `panel.live` says. Anchors are re-read from the result: its old anchor may no longer
+ * describe that index.
  */
 export function restorePanel(panels: PanelWindow[], panel: PanelWindow, index: number, rootId: string): PanelWindow[] {
   if (panels.some((p) => p.id === panel.id)) return panels;
   const at = Math.max(0, Math.min(index, panels.length));
-  return deriveAnchorsFromOrder([...panels.slice(0, at), { ...panel, webContentsId: null }, ...panels.slice(at)], rootId);
+  return deriveAnchorsFromOrder([...panels.slice(0, at), { ...panel }, ...panels.slice(at)], rootId);
 }
