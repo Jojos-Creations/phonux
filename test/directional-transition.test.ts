@@ -8,7 +8,8 @@ import assert from 'node:assert/strict';
 import { SLOT_TRANSITION, directionalTransition } from 'phonux/internal/directionalTransition';
 import { panelRowSlotMotion } from '../client/src/shared/phone/PanelRowSlot.js';
 import { anchorTargetOf, resolveEnterDirection } from '../client/src/shared/phone/panelRowOrder.js';
-import { createHistoryPanel, HISTORY_PANEL_ID } from '../client/src/desktop/panels/panelWindow.js';
+import { createHistoryPanel } from '../client/src/desktop/panels/panelWindow.js';
+import { HISTORY_PANEL_ID } from '../client/src/desktop/appApis.js';
 import { DRAG_CLOSE, GAP, PANEL_TRANSITION } from 'phonux';
 
 test('SLOT_TRANSITION is the tuned duration/easing (0.4s, the [0.2,0,0,1] cubic-bezier), and PANEL_TRANSITION is the SAME object, not a copy', () => {
@@ -121,7 +122,7 @@ test('panelRowSlotMotion: enterDirection flips ONLY initial\'s sign relative to 
 // ---------------------------------------------------------------------------
 
 test('anchorTargetOf: a panel with no anchor (History itself, or a record built without one) targets HISTORY_PANEL_ID; an explicit anchor targets its own panel -- red if the default is not History or a per-panel target is ignored', () => {
-  assert.equal(anchorTargetOf(createHistoryPanel(), HISTORY_PANEL_ID), HISTORY_PANEL_ID, 'History carries no anchor and resolves against itself');
+  assert.equal(anchorTargetOf(createHistoryPanel(HISTORY_PANEL_ID), HISTORY_PANEL_ID), HISTORY_PANEL_ID, 'History carries no anchor and resolves against itself');
   assert.equal(anchorTargetOf({}, HISTORY_PANEL_ID), HISTORY_PANEL_ID, 'no anchor: the default target');
   assert.equal(anchorTargetOf({ anchor: { panel: HISTORY_PANEL_ID, position: 'left', priority: 0 } }, HISTORY_PANEL_ID), HISTORY_PANEL_ID);
   assert.equal(anchorTargetOf({ anchor: { panel: 'b', position: 'left', priority: 0 } }, HISTORY_PANEL_ID), 'b', 'an anchor naming another panel targets that panel, not History');
