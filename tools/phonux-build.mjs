@@ -45,7 +45,7 @@ function fail(message) {
 }
 
 // Deleted first: a stale dist/ passing this script's own file-existence checks
-// would look identical to a build that actually ran (see repo-wide rule).
+// would look identical to a build that actually ran.
 rmSync(DIST_DIR, { recursive: true, force: true });
 
 execFileSync(TSC_BIN, ['-p', TSCONFIG], { cwd: REPO_ROOT, stdio: 'inherit' });
