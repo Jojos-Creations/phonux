@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type Dispatch, type SetStateAction } from 'react';
 import { flushSync } from 'react-dom';
+import type { JsonValue } from 'phonux';
 import { bridge } from '../../shared/ipc/bridge.js';
 import { closePanel, restorePanel, type PanelWindow } from './panelWindow.js';
 import type { UsePanelManagerResult } from './usePanelManager.js';
@@ -126,17 +127,21 @@ export function usePanelClosing(
     let working = panels;
     for (const { panel, index } of [...batch].reverse()) {
       if (working.some((p) => p.id === panel.id)) continue;
+      // restorePanel itself is a pure spread now (panelWindow.ts): whatever hostData pointed at was
+      // unmounted when this panel closed, so the reset lives here, computed once and reused at every
+      // restorePanel call below, rather than duplicated per call site.
+      const restoringPanel: PanelWindow = { ...panel, hostData: { ...(panel.hostData as Record<string, JsonValue> | undefined), webContentsId: null } };
       if (panel.live) {
         // This restore is one of the two "reappearance" paths that enters from the anchor's side -- mark it
         // BEFORE revealPanelProactively's own setPanels call, same ordering reasoning as usePanelManager.ts's
         // own markEnteringViaAnchor call site.
         onRestoreLive?.(panel.id);
         // Through the same room-making rule as opening a view: the live view farthest from it is parked if the row is full.
-        revealPanelProactively(working, (prev) => restorePanel(prev, panel, index, rootId));
+        revealPanelProactively(working, (prev) => restorePanel(prev, restoringPanel, index, rootId));
       } else {
-        setPanels((prev) => restorePanel(prev, panel, index, rootId));
+        setPanels((prev) => restorePanel(prev, restoringPanel, index, rootId));
       }
-      working = restorePanel(working, panel, index, rootId);
+      working = restorePanel(working, restoringPanel, index, rootId);
     }
     // A restored id is no longer closing: a stale mark would slide a LATER park of it down instead of left. An
     // id never restored keeps its mark, harmlessly: ids never repeat in a session (useProvidePanels.ts's nextWindowId).
