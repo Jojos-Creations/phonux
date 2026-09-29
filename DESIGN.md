@@ -879,11 +879,10 @@ neither needs revisiting when the move happens.
 
 ### Path discovery replaces the hardcoded three-level join
 
-`tools/phonux-build.mjs` and `tools/phonux-pack-smoke.mjs` each hardcode their own `PHONE_DIR` today as
-`join(REPO_ROOT, 'client/src/shared/phone')`. PHONE_DIR is computed from the root `package.json`'s
-`workspaces[0]` entry instead, so `tools/phonux-build.mjs`, `tools/phonux-pack-smoke.mjs`, and
-`tools/phonux-api-report.mjs` all keep resolving to wherever this package actually sits, at whatever nesting
-depth, without hand-editing any of them on every relocation. `DIST_DIR` stays relative to
+`tools/phonux-build.mjs`, `tools/phonux-pack-smoke.mjs`, and `tools/phonux-api-report.mjs` each compute their
+own `PHONE_DIR` from the root `package.json`'s `workspaces[0]` entry, instead of hardcoding
+`join(REPO_ROOT, 'client/src/shared/phone')`. All three keep resolving to wherever this package actually sits,
+at whatever nesting depth, without hand-editing any of them on every relocation. `DIST_DIR` stays relative to
 whatever `PHONE_DIR` resolves to, unchanged, since `dist/` has always been this package's own subdirectory,
 not a sibling that needs its own discovery.
 
@@ -891,15 +890,16 @@ TEMP_DIR stays the literal `client/api-extractor-temp` path unconditionally. It 
 outside this package, and a package relocation does not move it, so it is never derived from `PHONE_DIR` and
 needs no discovery logic of its own; `.gitignore`'s existing entry for it needs no edit either.
 
-### The climb-check covers the one field with no pre-flight today
+### The climb-check extends the pre-existing check to `reportTempFolder`
 
-`tools/phonux-api-report.mjs`'s `describeConfig`/`entries` functions already fail loud, before API Extractor
-ever runs, when a config's `mainEntryPointFilePath` climb no longer matches this package's real depth. The
+`tools/phonux-api-report.mjs`'s `describeConfig`/`entries` functions fail loud, before API Extractor ever
+runs, when a config's `mainEntryPointFilePath` climb no longer matches this package's real depth. The
 climb-check is additive to that existing `mainEntryPointFilePath` comparison in `describeConfig`/`entries`,
-not a new parallel mechanism: the same two functions gain one more per-config comparison, covering only
-`apiReport.reportTempFolder`, resolved the same way and checked against `join(TEMP_DIR, 'report')`. Today a
-stale `reportTempFolder` climb is caught only late, once the expected report file turns up missing after a
-run; the climb-check catches it before API Extractor runs at all, next to the entry-point check it extends.
+not a new parallel mechanism: the same two functions carry one more per-config comparison, covering
+`apiReport.reportTempFolder`, resolved the same way and checked against `join(TEMP_DIR, 'report')`. Before
+this comparison existed, a stale `reportTempFolder` climb was caught only late, once the expected report file
+turned up missing after a run; the climb-check now catches it before API Extractor runs at all, next to the
+entry-point check it extends.
 
 ### Repo identity and license, settled
 
