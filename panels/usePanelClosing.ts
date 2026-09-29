@@ -41,6 +41,7 @@ export function usePanelClosing(
   panels: PanelWindow[],
   setPanels: Dispatch<SetStateAction<PanelWindow[]>>,
   revealPanelProactively: UsePanelManagerResult['revealPanelProactively'],
+  rootId: string,
   /**
    * Called once per successful close with the id that just left and `closePanel`'s `remaining`, the array right
    * after it, computed from THIS render's `panels` like everything else in `close()`.
@@ -84,7 +85,7 @@ export function usePanelClosing(
   };
 
   const close = (id: string) => {
-    const found = closePanel(panels, id);
+    const found = closePanel(panels, id, rootId);
     // History defaults locked (no unlock control exists yet): a locked entry's close is a no-op, the one
     // list's own lock gate -- every entry (History included) goes through this same close().
     if (!found || claimed.current.has(id) || found.closed.locked) return;
@@ -95,7 +96,7 @@ export function usePanelClosing(
     flushSync(() => setClosingIds((prev) => new Set(prev).add(id)));
     const closedAt = new Date().toISOString();
     const logId = `${closedAt}#${id}`;
-    setPanels((prev) => closePanel(prev, id)?.remaining ?? prev);
+    setPanels((prev) => closePanel(prev, id, rootId)?.remaining ?? prev);
     onAfterClose?.(id, found.remaining);
     try {
       bridge()
@@ -131,11 +132,11 @@ export function usePanelClosing(
         // own markEnteringViaAnchor call site.
         onRestoreLive?.(panel.id);
         // Through the same room-making rule as opening a view: the live view farthest from it is parked if the row is full.
-        revealPanelProactively(working, (prev) => restorePanel(prev, panel, index));
+        revealPanelProactively(working, (prev) => restorePanel(prev, panel, index, rootId));
       } else {
-        setPanels((prev) => restorePanel(prev, panel, index));
+        setPanels((prev) => restorePanel(prev, panel, index, rootId));
       }
-      working = restorePanel(working, panel, index);
+      working = restorePanel(working, panel, index, rootId);
     }
     // A restored id is no longer closing: a stale mark would slide a LATER park of it down instead of left. An
     // id never restored keeps its mark, harmlessly: ids never repeat in a session (useProvidePanels.ts's nextWindowId).

@@ -5,9 +5,6 @@
 import { computeRowOrder, DEFAULT_PANEL_SIZE, deriveAnchorsFromOrder, TIER_SIZES } from 'phonux';
 import type { FormFactor, JsonValue, NeighborWidths, PanelAnchor, PanelSize } from 'phonux';
 
-/** The seeded History entry's id -- every array this model governs carries exactly one. */
-export const HISTORY_PANEL_ID = 'history';
-
 /**
  * One browsing panel in the unified row, parked and revived by the same capacity rules (usePanelManager.ts)
  * however it was opened. EITHER live in the row or parked in the adventure card (AdventurePanel.tsx lists
@@ -45,9 +42,9 @@ export interface PanelWindow {
 }
 
 /** History's own seeded entry: never collapsible (an always-shown column), never listed (it must not list itself), always live, locked by default (usePanelClosing.ts's lock gate); raised, so a left-exiting park slides under it; anchoredEnter, which against itself resolves 'right'; no anchor: it is the root every anchor leads to. Same default tier/size as every other entry: a permanent column carries a tier like any other. */
-export function createHistoryPanel(): PanelWindow {
+export function createHistoryPanel(rootId: string): PanelWindow {
   return {
-    id: HISTORY_PANEL_ID, url: '', title: 'History', webContentsId: null, sourceWebContentsId: -1, live: true, locked: true,
+    id: rootId, url: '', title: 'History', webContentsId: null, sourceWebContentsId: -1, live: true, locked: true,
     view: 'history', collapsible: false, listed: false, layer: 'raised', anchoredEnter: true,
     formFactor: 'phone', size: DEFAULT_PANEL_SIZE,
   };
@@ -75,24 +72,24 @@ export interface AppendPanelOptions {
 
 type AnchorRequest = NonNullable<AppendPanelOptions['anchor']>;
 /** `request` with its defaults filled against `panels`: History, and one past the highest priority already on that side (`self` excluded). */
-function fillAnchor(panels: readonly PanelWindow[], request: AnchorRequest, self?: string): PanelAnchor {
-  const panel = request.panel ?? HISTORY_PANEL_ID;
+function fillAnchor(panels: readonly PanelWindow[], rootId: string, request: AnchorRequest, self?: string): PanelAnchor {
+  const panel = request.panel ?? rootId;
   if (request.priority !== undefined) return { panel, position: request.position, priority: request.priority };
-  const positional = new Map(deriveAnchorsFromOrder(panels, HISTORY_PANEL_ID).map((p) => [p.id, p.anchor]));
+  const positional = new Map(deriveAnchorsFromOrder(panels, rootId).map((p) => [p.id, p.anchor]));
   let max = -1;
   for (const p of panels) {
     const a = p.anchor ?? positional.get(p.id);
-    if (p.id !== self && p.id !== HISTORY_PANEL_ID && a && a.panel === panel && a.position === request.position) max = Math.max(max, a.priority);
+    if (p.id !== self && p.id !== rootId && a && a.panel === panel && a.position === request.position) max = Math.max(max, a.priority);
   }
   return { panel, position: request.position, priority: max + 1 };
 }
 
 /** `id` re-anchored per `request` (defaults as for appendPanel), the row re-ordered to match. The SAME array for an unknown id or a `collapsible: false` entry. */
-export function reanchorPanel(panels: PanelWindow[], id: string, request: AnchorRequest): PanelWindow[] {
+export function reanchorPanel(panels: PanelWindow[], id: string, request: AnchorRequest, rootId: string): PanelWindow[] {
   const target = panels.find((p) => p.id === id);
   if (!target || !target.collapsible) return panels;
-  const anchor = fillAnchor(panels, request, id);
-  return computeRowOrder(panels.map((p) => (p.id === id ? { ...p, anchor } : p)), HISTORY_PANEL_ID);
+  const anchor = fillAnchor(panels, rootId, request, id);
+  return computeRowOrder(panels.map((p) => (p.id === id ? { ...p, anchor } : p)), rootId);
 }
 
 /**
@@ -103,7 +100,7 @@ export function reanchorPanel(panels: PanelWindow[], id: string, request: Anchor
  * stays false regardless so that control keeps working with no extra plumbing (usePanelClosing.ts gates
  * only on `locked`).
  */
-export function appendPanel(panels: PanelWindow[], info: { sourceWebContentsId: number; url: string } & AppendPanelOptions, id: string): PanelWindow[] {
+export function appendPanel(panels: PanelWindow[], info: { sourceWebContentsId: number; url: string } & AppendPanelOptions, id: string, rootId: string): PanelWindow[] {
   const formFactor = info.permanent ? 'phone' : (info.formFactor ?? 'phone');
   const entry: PanelWindow = {
     id,
@@ -117,14 +114,14 @@ export function appendPanel(panels: PanelWindow[], info: { sourceWebContentsId: 
     collapsible: !info.permanent,
     listed: info.permanent ? false : (info.listed ?? true),
     ...(info.params !== undefined ? { params: info.params } : {}),
-    anchor: fillAnchor(panels, info.anchor ?? { position: 'right' }),
+    anchor: fillAnchor(panels, rootId, info.anchor ?? { position: 'right' }),
     layer: info.layer ?? 'base',
     anchoredEnter: info.anchoredEnter ?? false,
     // Every entry carries a tier; a permanent column's is always 'phone'.
     formFactor,
     size: formFactor === 'phone' ? DEFAULT_PANEL_SIZE : { ...TIER_SIZES[formFactor] },
   };
-  return computeRowOrder([...panels, entry], HISTORY_PANEL_ID);
+  return computeRowOrder([...panels, entry], rootId);
 }
 
 /**
@@ -221,13 +218,13 @@ export function promoteToLive(panels: PanelWindow[], id: string, capacity: numbe
  * and the index it had -- or `null` for an unknown `id` (already closed, cleared): nothing to do, not an
  * error. Every panel anchored to it takes over its own anchor, so they close up in the place it held.
  */
-export function closePanel(panels: PanelWindow[], id: string): { remaining: PanelWindow[]; closed: PanelWindow; index: number } | null {
+export function closePanel(panels: PanelWindow[], id: string, rootId: string): { remaining: PanelWindow[]; closed: PanelWindow; index: number } | null {
   const index = panels.findIndex((p) => p.id === id);
   if (index < 0) return null;
   const closed = panels[index]!;
-  const inherited = closed.anchor ?? deriveAnchorsFromOrder(panels, HISTORY_PANEL_ID)[index]!.anchor;
+  const inherited = closed.anchor ?? deriveAnchorsFromOrder(panels, rootId)[index]!.anchor;
   const rest = panels.filter((p) => p.id !== id).map((p) => (inherited && p.anchor?.panel === id ? { ...p, anchor: { ...inherited } } : p));
-  return { remaining: computeRowOrder(rest, HISTORY_PANEL_ID), closed, index };
+  return { remaining: computeRowOrder(rest, rootId), closed, index };
 }
 
 /**
@@ -237,7 +234,7 @@ export function closePanel(panels: PanelWindow[], id: string): { remaining: Pane
  * new order. The SAME array for every no-op: unknown id, a `collapsible: false` source (an always-shown column
  * is never dragged), a parked panel, or one already at that edge.
  */
-export function movePanel(panels: PanelWindow[], id: string, direction: 'left' | 'right'): PanelWindow[] {
+export function movePanel(panels: PanelWindow[], id: string, direction: 'left' | 'right', rootId: string): PanelWindow[] {
   const present = panels.filter((p) => !p.collapsible || p.live);
   const presentIndex = present.findIndex((p) => p.id === id);
   if (presentIndex < 0 || !present[presentIndex]!.collapsible) return panels;
@@ -248,7 +245,7 @@ export function movePanel(panels: PanelWindow[], id: string, direction: 'left' |
   const next = panels.slice();
   const [entry] = next.splice(from, 1);
   next.splice(to, 0, entry!);
-  return deriveAnchorsFromOrder(next, HISTORY_PANEL_ID);
+  return deriveAnchorsFromOrder(next, rootId);
 }
 
 /**
@@ -287,8 +284,8 @@ export function setFormFactor(panels: PanelWindow[], id: string, next: FormFacto
  * id already present leaves `panels` unchanged (a double undo never duplicates). Live or parked is whatever
  * `panel.live` says. Anchors are re-read from the result: its old anchor may no longer describe that index.
  */
-export function restorePanel(panels: PanelWindow[], panel: PanelWindow, index: number): PanelWindow[] {
+export function restorePanel(panels: PanelWindow[], panel: PanelWindow, index: number, rootId: string): PanelWindow[] {
   if (panels.some((p) => p.id === panel.id)) return panels;
   const at = Math.max(0, Math.min(index, panels.length));
-  return deriveAnchorsFromOrder([...panels.slice(0, at), { ...panel, webContentsId: null }, ...panels.slice(at)], HISTORY_PANEL_ID);
+  return deriveAnchorsFromOrder([...panels.slice(0, at), { ...panel, webContentsId: null }, ...panels.slice(at)], rootId);
 }

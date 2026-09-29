@@ -101,6 +101,7 @@ export function usePanelManager(
   containerWidth: number,
   /** How many always-rendered, non-webview columns the row currently has (`count(!collapsible)` over the one panel list, via useAppApis). */
   fixedColumnCount: number,
+  rootId: string,
 ): UsePanelManagerResult {
   /** The live-collapsible ceiling for a row whose live set has these widths (row order). */
   const capacityFor = (liveWidths: readonly number[]): number => {
@@ -325,7 +326,7 @@ export function usePanelManager(
 
   /** See `UsePanelManagerResult.reorderPanel`'s own doc comment. */
   const reorderPanel = (id: string, direction: 'left' | 'right'): void => {
-    setPanels((prev) => movePanel(prev, id, direction));
+    setPanels((prev) => movePanel(prev, id, direction, rootId));
   };
 
   /** See `UsePanelManagerResult.resizePanel`'s own doc comment. */

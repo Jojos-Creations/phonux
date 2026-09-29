@@ -28,6 +28,8 @@ function isEventLike(value: unknown): boolean {
 export interface PanelsInput {
   panels: PanelWindow[];
   setPanels: Dispatch<SetStateAction<PanelWindow[]>>;
+  /** History's seeded id (appApis.ts's HISTORY_PANEL_ID) -- threaded through to every panelWindow.ts call that needs it. */
+  rootId: string;
   /** The stored "max panels on screen" choice (`null` = follow the fit count) -- SettingsAPI's own value. */
   storedMaxPanels: number | null;
   phoneWidth: number;
@@ -71,7 +73,7 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
     resizePanel,
     enterSideById,
     exitRightIds,
-  } = usePanelManager(i.panels, i.setPanels, i.storedMaxPanels, i.phoneWidth, i.containerWidth, i.fixedViewCount);
+  } = usePanelManager(i.panels, i.setPanels, i.storedMaxPanels, i.phoneWidth, i.containerWidth, i.fixedViewCount, i.rootId);
 
   // The row's wheel/arrow-key gesture is wired here, not in the host: phone-boundary.test.ts forbids
   // useEffect/useRef in GoalFrontPage.tsx.
@@ -95,6 +97,7 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
     i.panels,
     i.setPanels,
     revealPanelProactively,
+    i.rootId,
     (id, remaining) => {
       forgetCollapsed(id);
       revealMostRecentlyCollapsed(remaining);
@@ -124,7 +127,7 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
       // "Panel N", not "about:blank": every panel needs a distinguishable title, for testing. options?.title
       // overrides it; the explicit `title:` below (after the spread) is what makes that override win either way.
       revealPanelProactively(i.panels, (prev) =>
-        appendPanel(prev, { sourceWebContentsId: -1, url: 'about:blank', ...safeOptions, title: safeOptions?.title ?? `Panel ${id}` }, id),
+        appendPanel(prev, { sourceWebContentsId: -1, url: 'about:blank', ...safeOptions, title: safeOptions?.title ?? `Panel ${id}` }, id, i.rootId),
       );
     },
     activate: handleActivatePanel,
@@ -134,7 +137,7 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
     },
     // No keep-live mark and no settle step: settles() reads only the live set's widths and count, never its
     // order, so a reorder cannot unsettle a row, and a DROP later in the handler may park this panel as any other.
-    reanchor: (id, anchor) => i.setPanels((prev) => reanchorPanel(prev, id, anchor)),
+    reanchor: (id, anchor) => i.setPanels((prev) => reanchorPanel(prev, id, anchor, i.rootId)),
     close: (id: string) => {
       // Fires on every close() call regardless of whether this id actually leaves the array (an
       // unknown/locked id's close is already a no-op below) -- a harmless extra attempt costs nothing, and
