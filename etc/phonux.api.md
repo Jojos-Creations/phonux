@@ -24,6 +24,12 @@ export function CaptureRegistryProvider(input: {
 }): React_2.ReactElement;
 
 // @public
+export interface CaptureTrigger {
+    capture(viewId: ViewId): void;
+    evict(viewId: ViewId): void;
+}
+
+// @public
 export interface ClosedPageEntry {
     closedAt: string;
     // (undocumented)
@@ -207,6 +213,9 @@ export interface NeighborWidths {
     // (undocumented)
     readonly right: readonly number[];
 }
+
+// @public
+export const noopCaptureTrigger: CaptureTrigger;
 
 // @public
 export const OVERLAY_Z: {
