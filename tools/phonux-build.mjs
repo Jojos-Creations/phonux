@@ -1,17 +1,7 @@
 #!/usr/bin/env node
 /**
- * Builds the phonux package (client/src/shared/phone) to dist/ for packing.
- * In-repo dev/test never runs this: package.json's own exports still point at
- * .ts source, so this script exists only for `npm pack`/`npm run smoke:phonux`.
- *
- * Usage: node tools/phonux-build.mjs   (or: npm run build:phonux)
- *
- * Compiles with tsc -p <phone>/tsconfig.build.json (declaration:true, excludes
- * *.typecheck.ts), then GENERATES dist/package.json from the source
- * package.json -- exports rewritten relative to dist/ with 'types' first in
- * each condition, every INTERNAL_ONLY_EXPORT_KEYS subpath ('./internal/directionalTransition',
- * './internal/panelModel') dropped (they stay in-repo-only, resolved via the unbuilt
- * package.json instead), and copies README.md, DESIGN.md and (when present) LICENSE alongside it.
+ * Builds the phonux package to dist/ and generates dist/package.json from the source manifest.
+ * In-repo dev and test never run this: the source manifest's exports point at .ts.
  */
 
 import { execFileSync } from 'node:child_process';
@@ -33,8 +23,7 @@ const DIST_DIR = join(PHONE_DIR, 'dist');
 const TSCONFIG = join(PHONE_DIR, 'tsconfig.build.json');
 const TSC_BIN = join(REPO_ROOT, 'node_modules', '.bin', 'tsc');
 
-// Subpaths only this repo's own app resolves; an outside consumer has no use for them, so they never
-// appear in the shipped exports map.
+// Only this repo's own app resolves these subpaths; they stay out of the shipped exports map.
 const INTERNAL_ONLY_EXPORT_KEYS = new Set(['./internal/directionalTransition', './internal/panelModel']);
 
 function fail(message) {
@@ -70,7 +59,6 @@ if (leaked.length > 0) fail(`typecheck/fixture files leaked into dist: ${leaked.
 const srcPkg = JSON.parse(readFileSync(join(PHONE_DIR, 'package.json'), 'utf8'));
 
 function distExportPaths(sourcePath) {
-  // sourcePath is e.g. './index.ts' -- same basename, extension swapped, now under dist/.
   const withoutExt = sourcePath.replace(/\.tsx?$/, '');
   return { js: `${withoutExt}.js`, dts: `${withoutExt}.d.ts` };
 }
@@ -90,9 +78,8 @@ for (const [key, sourcePath] of Object.entries(srcPkg.exports)) {
 // Gates consumer tree-shaking; a silent undefined default could drop a real side effect.
 if (!('sideEffects' in srcPkg)) fail("source package.json is missing 'sideEffects'");
 
-// Everything a registry page shows comes from the source manifest, never from a literal here, so each owner answer
-// (license, repository) is one line in that file. The source keeps `private: true` so nothing can publish the
-// .ts-pointing folder by accident; the dist manifest is the only publishable one.
+// Registry-page fields come from the source manifest, never from a literal here. The source keeps `private: true`
+// so the .ts-pointing folder cannot be published by accident; only dist/package.json is publishable.
 const REQUIRED_METADATA = ['description', 'license'];
 const OPTIONAL_METADATA = ['repository', 'homepage', 'bugs', 'keywords', 'author'];
 for (const field of REQUIRED_METADATA) {

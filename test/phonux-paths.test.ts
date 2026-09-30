@@ -15,7 +15,7 @@ function resolvePhoneDirIn(root: string) {
   return spawnSync(process.execPath, ['--input-type=module', '-e', script], { encoding: 'utf8' });
 }
 
-// Files map a path under the tree to a JSON value; the tree is removed even when an assertion throws.
+// The tree is removed even when an assertion throws.
 function withTree<T>(files: Record<string, unknown>, body: (root: string) => T): T {
   const root = mkdtempSync(join(tmpdir(), 'phonux-paths-'));
   try {

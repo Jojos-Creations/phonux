@@ -1,10 +1,7 @@
 #!/usr/bin/env node
 /**
- * Regenerates (npm run api-report:update, i.e. --local) or checks (npm run check:api-report) the phonux
- * package's committed API reports, client/src/shared/phone/etc/*.api.md, one per key of its exports map.
- * The check fails on any warning, or on a report that no longer matches the source. Declarations go to
- * client/api-extractor-temp/, a sibling of client/src, so typecheck:app, the file-size ratchet and the
- * phone-boundary scan never see them.
+ * Regenerates (--local) or checks the committed API reports, one per key of the phonux exports map.
+ * The check fails on any warning, or on a report that differs from what the source generates.
  */
 
 import { execFileSync } from 'node:child_process';
@@ -15,7 +12,8 @@ import { resolvePhoneDir } from './phonux-paths.mjs';
 
 const REPO_ROOT = fileURLToPath(new URL('..', import.meta.url));
 const PHONE_DIR = resolvePhoneDir(REPO_ROOT);
-// Beside client/src in this repo, so typecheck:app and the phone-boundary scan never see the declarations; in a repo whose root is the package there is no such neighbour.
+// A sibling of client/src in this repo, so typecheck:app and the phone-boundary scan never see the declarations;
+// where the package is the repo root there is no such neighbour.
 const TEMP_DIR = join(REPO_ROOT, PHONE_DIR === REPO_ROOT ? 'api-extractor-temp' : 'client/api-extractor-temp');
 const DTS_DIR = join(TEMP_DIR, 'dts');
 const REPORT_DIR = join(PHONE_DIR, 'etc');

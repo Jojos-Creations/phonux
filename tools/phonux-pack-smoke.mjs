@@ -1,19 +1,9 @@
 #!/usr/bin/env node
 /**
- * The publish gate for phonux: proves the packed tarball is publishable AND consumable outside this repo.
- * It unpacks the tarball into a throwaway app under /private/tmp, installs the real peer set from the npm
- * registry (never a local file:/link: substitute for a peer), and runs every check against only what
- * npm pack shipped.
- *
- * Usage: node tools/phonux-pack-smoke.mjs [--from <tarball path or registry spec>]
- *
- * Without --from it needs `node tools/phonux-build.mjs` to have already produced dist/ -- this script never
- * rebuilds it, so a run here checks whatever dist/ currently holds, not source. With --from it checks that
- * artifact instead (for example phonux@0.1.0 after publishing); name, version and peers are still compared
- * with the source manifest.
- *
- * `npm publish --dry-run` is NOT a check: it exits 0 and prints "+ name@version" for a `private: true`
- * manifest, because the EPRIVATE refusal lives in the real-publish path only. The manifest is asserted directly.
+ * The publish gate for phonux: unpacks the tarball into a throwaway app under /private/tmp, installs the real peer
+ * set from the npm registry (never a local stand-in for a peer), and checks only what npm pack shipped.
+ * `npm publish --dry-run` is not a check: it exits 0 for a `private: true` manifest, because only a real publish
+ * refuses it (EPRIVATE), so the manifest is asserted directly.
  */
 
 import { execFileSync } from 'node:child_process';
@@ -226,7 +216,8 @@ try {
   root = mkdtempSync('/private/tmp/phonux-smoke.');
   console.log(`smoke:phonux: working in ${root}`);
 
-  // npm runs with cwd = root, so a relative tarball path must be made absolute first; a registry spec has no file and passes through.
+  // npm runs with cwd = root, so a relative tarball path must be made absolute first;
+  // a registry spec has no file on disk and passes through.
   const packTarget = FROM === null ? DIST_DIR : existsSync(resolve(FROM)) ? resolve(FROM) : FROM;
   const packOut = run('npm', ['pack', packTarget, '--pack-destination', root, '--json'], root);
   const [packInfo] = JSON.parse(packOut);
@@ -291,7 +282,8 @@ try {
     const missing = Object.values(packed.exports).flatMap((c) => Object.values(c)).filter((p) => !packedFiles.includes(p.replace(/^\.\//, '')));
     if (missing.length) throw new Error(`exports point at files not in the tarball: ${missing.join(', ')}`);
     for (const doc of ['README.md', 'DESIGN.md']) if (!packedFiles.includes(doc)) throw new Error(`${doc} is not in the tarball`);
-    // The packed README is the registry page: it must tell a reader how to install, and must not point at this repo's layout or at a file the page cannot link.
+    // The packed README is the registry page: it must say how to install, and must not name this repo's
+    // layout or link to a file the page cannot serve.
     const readme = run('tar', ['-xOzf', tarball, 'package/README.md'], root);
     const readmeProblems = [];
     if (!readme.includes(`npm install ${srcPkg.name}`)) readmeProblems.push(`has no "npm install ${srcPkg.name}" line`);

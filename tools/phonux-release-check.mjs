@@ -1,9 +1,7 @@
 #!/usr/bin/env node
 /**
- * The owner's pre-publish check: proves name@version is still free on the registry and that the built package
- * passes the publish gate, then PRINTS the command the owner runs by hand. It never publishes and never logs in.
- *
- * Usage: node tools/phonux-release-check.mjs   (or: npm run release:check)
+ * Pre-publish check: name@version must still be free on the registry and the built package must pass the publish
+ * gate, then it PRINTS the publish command for the owner to run by hand. It never publishes and never logs in.
  */
 
 import { spawnSync } from 'node:child_process';

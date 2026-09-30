@@ -13,7 +13,7 @@ const readJson = (path) => JSON.parse(readFileSync(path, 'utf8'));
 export function resolvePhoneDir(repoRoot) {
   const members = readJson(join(repoRoot, 'package.json')).workspaces;
   const candidates = Array.isArray(members) && members.length > 0 ? members.map((m) => resolve(repoRoot, m)) : [repoRoot];
-  // Matching on the name, not taking workspaces[0]: a second workspace listed first would otherwise be built and reported green as phonux.
+  // By name, not workspaces[0]: another member listed first would otherwise be built and reported green as phonux.
   const found = candidates.filter((dir) => existsSync(join(dir, 'package.json')) && readJson(join(dir, 'package.json')).name === PHONUX_PACKAGE_NAME);
   if (found.length !== 1) {
     const where = candidates.map((dir) => relative(repoRoot, dir) || '.').join(', ');
