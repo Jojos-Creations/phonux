@@ -1,20 +1,8 @@
 #!/usr/bin/env node
-/**
- * Wraps `tsx --test` so a run that silently drops a requested file (Node's
- * own --test CLI re-resolves its file argv at start and tolerates a partial
- * miss as long as one match remains) exits non-zero and names the file,
- * instead of a clean-looking summary and exit 0 for fewer files than were
- * asked for.
- *
- * Usage: node tools/run-tests.mjs <file-or-flag ...>   (or: npm test)
- * Every argv token is forwarded to the real tsx/node --test child unchanged;
- * this script only adds its own machine-readable reporter alongside it.
- *
- * package.json's `scripts.test` key must keep the exact substring "test" --
- * the full-suite lease hook (.claude/coordinator-config.yaml) matches the
- * raw shell command text ("npm test"/"npm run test"), never this script's
- * internals, so renaming the key would silently escape that cap.
- */
+// Fails a run that Node's exit code would pass: a requested file that never completed, one whose results stopped early, or no test at all.
+// Node's --test CLI re-resolves its file argv at start and tolerates a partial miss while one match remains.
+// package.json's `test` key must stay exactly `test`: the full-suite lease hook (.claude/coordinator-config.yaml)
+// matches the raw command text (`npm test` / `npm run test`), so a renamed key would silently escape that cap.
 
 import { spawn } from 'node:child_process';
 import { existsSync, mkdtempSync, readFileSync, realpathSync, rmSync, statSync } from 'node:fs';
@@ -27,14 +15,7 @@ const REPO_ROOT = fileURLToPath(new URL('..', import.meta.url));
 const TSX_BIN = join(REPO_ROOT, 'node_modules', '.bin', 'tsx');
 const REPORTER_PATH = join(REPO_ROOT, 'tools', 'file-presence-reporter.mjs');
 
-/**
- * An argv token counts as "requested" only if it resolves (relative to cwd,
- * matching how the shell/npm handed it to us) to a real file on disk right
- * now -- flag names and pattern values never do. Resolved to an ABSOLUTE
- * path because the reporter's own `data.file` is always absolute regardless
- * of how the file was named on argv; pinned by the "resolveRequestedFiles
- * resolves relative tokens..." test in test/run-tests-guard.test.ts.
- */
+// Absolute paths, because the reporter's data.file is always absolute however argv spelled the file.
 export function resolveRequestedFiles(argvTokens, cwd) {
   const seen = new Set();
   const requested = [];
@@ -48,7 +29,6 @@ export function resolveRequestedFiles(argvTokens, cwd) {
   return requested;
 }
 
-/** Pure set difference: requested files with no matching observed completion. */
 export function missingFiles(requestedAbs, observedAbs) {
   const observed = new Set(observedAbs);
   return requestedAbs.filter((f) => !observed.has(f));
@@ -69,7 +49,8 @@ export function formatSummary({ repoRoot, requestedCount, observedCount, missing
   return lines.join('\n');
 }
 
-// argv[1] keeps a symlinked spelling (/var vs /private/var) while import.meta.url is the real path.
+// argv[1] keeps a symlinked spelling (/var vs /private/var) while import.meta.url is the real path;
+// compared raw, main() would silently never run and the process would exit 0.
 export function isEntryPoint(metaUrl, argv1) {
   try {
     return metaUrl === pathToFileURL(realpathSync(argv1)).href;
@@ -113,9 +94,7 @@ async function main() {
   // the finally below, so the scratch dir would never get cleaned up.
   let exitCode;
   try {
-    // 'close' (not 'exit'): fires once stdio has flushed, whether the child
-    // exited cleanly, threw, or was signal-killed (code is then null) --
-    // 'exit' alone can race the reporter file's own last write.
+    // 'close', not 'exit': 'exit' alone can race the reporter file's own last write, while 'close' fires once stdio has flushed.
     const code = await new Promise((resolvePromise, reject) => {
       const child = spawn(TSX_BIN, childArgv, { cwd: REPO_ROOT, stdio: 'inherit' });
       child.on('error', reject);
@@ -150,9 +129,8 @@ async function main() {
   process.exit(exitCode);
 }
 
-// Only run the CLI when this file IS the entry point: importing it for its
-// pure exports must not also spawn a child --test run and race its
-// process.exit() against the importer's own assertions.
+// Only run the CLI when this file is the entry point: importing it for its exports must not spawn a child --test run
+// or call process.exit() under the importer's own assertions.
 if (isEntryPoint(import.meta.url, process.argv[1])) {
   main();
 }
