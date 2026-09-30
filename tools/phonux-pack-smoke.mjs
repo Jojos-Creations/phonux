@@ -5,10 +5,12 @@
  * registry (never a local file:/link: substitute for a peer), and runs every check against only what
  * npm pack shipped.
  *
- * Usage: node tools/phonux-pack-smoke.mjs   (or: npm run smoke:phonux)
+ * Usage: node tools/phonux-pack-smoke.mjs [--from <tarball path or registry spec>]
  *
- * Requires `npm run build:phonux` to have already produced dist/ -- this script never rebuilds it, so a
- * run here checks whatever dist/ currently holds, not source.
+ * Without --from it needs `node tools/phonux-build.mjs` to have already produced dist/ -- this script never
+ * rebuilds it, so a run here checks whatever dist/ currently holds, not source. With --from it checks that
+ * artifact instead (for example phonux@0.1.0 after publishing); name, version and peers are still compared
+ * with the source manifest.
  *
  * `npm publish --dry-run` is NOT a check: it exits 0 and prints "+ name@version" for a `private: true`
  * manifest, because the EPRIVATE refusal lives in the real-publish path only. The manifest is asserted directly.
@@ -16,7 +18,7 @@
 
 import { execFileSync } from 'node:child_process';
 import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, existsSync, rmSync } from 'node:fs';
-import { join, relative } from 'node:path';
+import { join, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { resolvePhoneDir } from './phonux-paths.mjs';
 
@@ -32,6 +34,9 @@ const PEERS = srcPkg.peerDependencies;
 
 // A list that silently lost entries must not print a smaller "all passed".
 const MIN_CHECKS = 9;
+
+const fromIndex = process.argv.indexOf('--from');
+const FROM = fromIndex === -1 ? null : process.argv[fromIndex + 1];
 
 // Value exports come from the committed API reports, so a name added to the barrel is checked here with no edit to this file.
 function valueExportsOf(reportFile) {
@@ -209,8 +214,11 @@ function record(name, fn) {
 const run = (file, args, cwd) => execFileSync(file, args, { cwd, stdio: 'pipe', encoding: 'utf8' });
 
 try {
-  if (!existsSync(join(DIST_DIR, 'package.json'))) {
-    throw new Error(`${relative(REPO_ROOT, join(DIST_DIR, 'package.json'))} is missing -- run \`npm run build:phonux\` first`);
+  if (fromIndex !== -1 && (!FROM || FROM.startsWith('--'))) {
+    throw new Error('--from needs a tarball path or a registry spec such as phonux@0.1.0');
+  }
+  if (FROM === null && !existsSync(join(DIST_DIR, 'package.json'))) {
+    throw new Error(`${relative(REPO_ROOT, join(DIST_DIR, 'package.json'))} is missing -- run \`node tools/phonux-build.mjs\` first`);
   }
 
   // Bare mktemp under $TMPDIR would work too, but a fixed /private/tmp prefix makes a leftover directory from a
@@ -218,7 +226,9 @@ try {
   root = mkdtempSync('/private/tmp/phonux-smoke.');
   console.log(`smoke:phonux: working in ${root}`);
 
-  const packOut = run('npm', ['pack', DIST_DIR, '--pack-destination', root, '--json'], root);
+  // npm runs with cwd = root, so a relative tarball path must be made absolute first; a registry spec has no file and passes through.
+  const packTarget = FROM === null ? DIST_DIR : existsSync(resolve(FROM)) ? resolve(FROM) : FROM;
+  const packOut = run('npm', ['pack', packTarget, '--pack-destination', root, '--json'], root);
   const [packInfo] = JSON.parse(packOut);
   const tarball = join(root, packInfo.filename);
   if (!existsSync(tarball)) throw new Error(`npm pack reported ${packInfo.filename} but it is missing at ${tarball}`);
@@ -281,6 +291,14 @@ try {
     const missing = Object.values(packed.exports).flatMap((c) => Object.values(c)).filter((p) => !packedFiles.includes(p.replace(/^\.\//, '')));
     if (missing.length) throw new Error(`exports point at files not in the tarball: ${missing.join(', ')}`);
     for (const doc of ['README.md', 'DESIGN.md']) if (!packedFiles.includes(doc)) throw new Error(`${doc} is not in the tarball`);
+    // The packed README is the registry page: it must tell a reader how to install, and must not point at this repo's layout or at a file the page cannot link.
+    const readme = run('tar', ['-xOzf', tarball, 'package/README.md'], root);
+    const readmeProblems = [];
+    if (!readme.includes(`npm install ${srcPkg.name}`)) readmeProblems.push(`has no "npm install ${srcPkg.name}" line`);
+    if (readme.includes('client/src/shared/phone')) readmeProblems.push('names client/src/shared/phone');
+    if (readme.includes('plans/')) readmeProblems.push('names plans/');
+    if (/\]\((?:\.\.?\/|[\w-]+\.md)/.test(readme)) readmeProblems.push('has a relative markdown link');
+    if (readmeProblems.length) throw new Error(`the packed README ${readmeProblems.join('; ')}`);
     return `${packedFiles.length} files`;
   });
 
