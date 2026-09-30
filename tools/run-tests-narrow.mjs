@@ -8,6 +8,7 @@ import { existsSync, mkdtempSync, readFileSync, realpathSync, rmSync } from 'nod
 import { tmpdir } from 'node:os';
 import { join, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { formatLateScan, lateScanFailed, scanLateRegistrations } from './late-registration-scan.mjs';
 import { CHILD_BASE_FLAGS, isEntryPoint, missingFiles, resolveRequestedFiles } from './run-tests.mjs';
 import { formatStopped, parseStreamLines, realKey, stoppedEarly, streamTotals } from './test-stream.mjs';
 
@@ -141,6 +142,12 @@ async function main() {
     process.exit(1);
   }
 
+  const lateScan = { repoRoot: REPO_ROOT, ...scanLateRegistrations(requestedAbs) };
+  if (lateScanFailed(lateScan)) {
+    console.log(formatLateScan(lateScan).join('\n'));
+    process.exit(1);
+  }
+
   const scratchDir = mkdtempSync(join(tmpdir(), 'phonux-run-tests-narrow-'));
   const reporterDestination = join(scratchDir, 'observed-files.log');
   const childArgv = buildChildArgv({
@@ -168,7 +175,7 @@ async function main() {
     const ranNothing = patterns.length === 0 && requestedAbs.length > 0 && streamTotals(stream).queued === 0;
 
     console.log(
-      formatNarrowSummary({
+      `${formatNarrowSummary({
         repoRoot: REPO_ROOT,
         requestedCount: requestedAbs.length,
         observedCount: observedAbs.length,
@@ -177,7 +184,7 @@ async function main() {
         zeroMatch,
         stopped,
         ranNothing,
-      }),
+      })}\n${formatLateScan(lateScan).join('\n')}`,
     );
     exitCode = narrowExitCode({ childCode, missing, zeroMatch, stopped, ranNothing });
   } finally {
