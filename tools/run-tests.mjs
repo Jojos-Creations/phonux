@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 // Fails a run that Node's exit code would pass: a requested file that never completed, one whose results stopped early, or no test at all.
+// It also refuses to start on a file that registers after an await: --test-force-exit drops that test and leaves no line in the stream.
 // Node's --test CLI re-resolves its file argv at start and tolerates a partial miss while one match remains.
 // package.json's `test` key must stay exactly `test`: the full-suite lease hook (.claude/coordinator-config.yaml)
 // matches the raw command text (`npm test` / `npm run test`), so a renamed key would silently escape that cap.
@@ -9,6 +10,7 @@ import { existsSync, mkdtempSync, readFileSync, realpathSync, rmSync, statSync }
 import { tmpdir } from 'node:os';
 import { join, relative, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
+import { formatLateScan, lateScanFailed, scanLateRegistrations } from './late-registration-scan.mjs';
 import { formatStopped, parseStreamLines, realKey, stoppedEarly, streamTotals } from './test-stream.mjs';
 
 const REPO_ROOT = fileURLToPath(new URL('..', import.meta.url));
@@ -85,6 +87,12 @@ async function main() {
   const cwd = process.cwd();
   const requestedAbs = resolveRequestedFiles(forwardArgv, cwd);
 
+  const lateScan = { repoRoot: REPO_ROOT, ...scanLateRegistrations(requestedAbs) };
+  if (lateScanFailed(lateScan)) {
+    console.log(formatLateScan(lateScan).join('\n'));
+    process.exit(1);
+  }
+
   const scratchDir = mkdtempSync(join(tmpdir(), 'phonux-run-tests-'));
   const observedDestination = join(scratchDir, 'observed-files.log');
 
@@ -112,14 +120,14 @@ async function main() {
     const ranNothing = requestedReal.length > 0 && streamTotals(parsed).queued === 0;
 
     console.log(
-      formatSummary({
+      `${formatSummary({
         repoRoot: REPO_ROOT,
         requestedCount: requestedReal.length,
         observedCount: observedUnique.length,
         missing,
         stopped,
         ranNothing,
-      }),
+      })}\n${formatLateScan(lateScan).join('\n')}`,
     );
 
     exitCode = runExitCode({ childCode: code, missing, stopped, ranNothing });
