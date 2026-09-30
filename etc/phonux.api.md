@@ -633,6 +633,9 @@ export interface ProvidedPanels extends PanelsAPI {
     readonly enterSideById: ReadonlyMap<string, 'left' | 'right'>;
     readonly entries: readonly PanelWindow[];
     readonly exitRightIds: ReadonlySet<string>;
+    readonly fixedViewCount: number;
+    readonly liveWidths: readonly number[];
+    readonly maxLiveWidth: number;
 }
 
 // @public @deprecated (undocumented)
