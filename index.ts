@@ -24,8 +24,8 @@ export type {
   Host,
 } from './hostApi.js';
 
-export { useViewSnapshot, CaptureRegistryContext, CaptureRegistryProvider } from './snapshots.js';
-export type { ViewId, ViewSnapshot, SnapshotsAPI, CaptureRegistry } from './snapshots.js';
+export { useViewSnapshot, CaptureRegistryContext, CaptureRegistryProvider, noopCaptureTrigger } from './snapshots.js';
+export type { ViewId, ViewSnapshot, SnapshotsAPI, CaptureRegistry, CaptureTrigger } from './snapshots.js';
 
 export { useViewState, ViewStateMissingProviderError } from './viewState.js';
 export type { UseViewState } from './viewState.js';

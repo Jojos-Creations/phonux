@@ -55,6 +55,20 @@ export interface CaptureRegistry {
   register(viewId: ViewId, el: HTMLElement, extent: 'viewport' | 'full'): () => void;
 }
 
+/**
+ * What a host hands phonux to call at a park or close: (re)capture a view's picture, or drop it. phonux only says
+ * WHEN; what a capture is stays host code (see the DOM-redraw note above). @public
+ */
+export interface CaptureTrigger {
+  /** (Re)captures whatever is registered for this id; a no-op if nothing is. Never throws, even if the engine does. */
+  capture(viewId: ViewId): void;
+  /** Discard viewId's stored picture, e.g. once its undo window elapses without being restored. A no-op if nothing was stored. */
+  evict(viewId: ViewId): void;
+}
+
+/** The trigger a provider uses when its host supplies none: phonux never produces a real capture itself. @public */
+export const noopCaptureTrigger: CaptureTrigger = { capture: () => {}, evict: () => {} };
+
 /** @public */
 export const CaptureRegistryContext = React.createContext<CaptureRegistry | null>(null);
 
