@@ -34,10 +34,10 @@ if (!viewOut.includes('E404')) {
 }
 
 // Node on the tool files, not `npm run`: the standalone repo names its scripts differently from this one.
-for (const tool of ['phonux-build.mjs', 'phonux-pack-smoke.mjs']) {
-  const run = spawnSync(process.execPath, [fileURLToPath(new URL(`./${tool}`, import.meta.url))], { stdio: 'inherit' });
-  if (run.status !== 0) fail(`node tools/${tool} exited ${run.status}`);
-}
+const build = spawnSync(process.execPath, [fileURLToPath(new URL('./phonux-build.mjs', import.meta.url))], { stdio: 'inherit' });
+if (build.status !== 0) fail(`node tools/phonux-build.mjs exited ${build.status}`);
+const smoke = spawnSync(process.execPath, [fileURLToPath(new URL('./phonux-pack-smoke.mjs', import.meta.url))], { stdio: 'inherit' });
+if (smoke.status !== 0) fail(`node tools/phonux-pack-smoke.mjs exited ${smoke.status}`);
 
 const distDir = relative(process.cwd(), join(PHONE_DIR, 'dist')) || '.';
 console.log(`release:check OK -- ${spec} is free on the registry and the built package passed the publish gate.`);
