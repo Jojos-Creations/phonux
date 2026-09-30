@@ -1,9 +1,8 @@
 /**
  * The app's implementation of PanelsAPI: the panel list, create/activate/close/undo/clear-all. Wraps
- * usePanelManager, composes usePanelClosing and owns the row's scroll gesture. Never
- * exposes setPanels, hostData or anything else a view has no use for: panelList and
- * recentlyClosed hold PanelSummary objects built here, never the app's own PanelWindow records
- * (provide-panels.test.ts's "holds EXACTLY the PanelSummary keys" tests pin their key set).
+ * usePanelManager, composes usePanelClosing and owns the row's scroll gesture. panelList and recentlyClosed hold
+ * PanelSummary objects built here, never PanelWindow records (provide-panels.test.ts pins their key set); `entries`
+ * is the raw list, hostData included, for the app and PanelRow only: an app keeps it out of the bag its views read.
  */
 
 import { useEffect, useRef, useState, type RefObject } from 'react';
@@ -56,7 +55,7 @@ export interface PanelsInput {
   onPanelsRestored?: (logIds: string[]) => void;
   /** Called once per restored panel; the return value becomes its `hostData` (`undefined` drops the key). Unset keeps what it closed with. phonux never reads inside `hostData`, so what needs resetting after an undo is the host's call. */
   resetHostDataOnRestore?: (hostData: JsonValue | undefined, panel: PanelWindow) => JsonValue | undefined;
-  /** Builds the `hostData` of every panel `create()` opens; an explicit `options.hostData` replaces it. Unset: new panels carry none. */
+  /** Builds the `hostData` of every panel `create()` opens. Unset: new panels carry none. */
   defaultHostData?: () => JsonValue;
 }
 
@@ -68,7 +67,9 @@ export interface PanelsInput {
 export interface ProvidedPanels extends PanelsAPI {
   /** The provider's one panel list, raw (not summarised): the row's input, never part of PanelsAPI. */
   readonly entries: readonly PanelWindow[];
+  /** Ids being closed: each exits DOWN before it leaves `entries`. */
   readonly closingIds: ReadonlySet<string>;
+  /** Ids (re)joining `live` by a reveal or an undo: each enters from its anchor's side. */
   readonly enteringViaAnchorIds: ReadonlySet<string>;
   /** See usePanelManager.ts's `UsePanelManagerResult.exitRightIds` for the full contract. */
   readonly exitRightIds: ReadonlySet<string>;
@@ -174,9 +175,8 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
     // order, so a reorder cannot unsettle a row, and a DROP later in the handler may park this panel as any other.
     reanchor: (id, anchor) => setPanels((prev) => reanchorPanel(prev, id, anchor, i.rootId)),
     close: (id: string) => {
-      // Fires on every close() call regardless of whether this id actually leaves the array (an
-      // unknown/locked id's close is already a no-op below) -- a harmless extra attempt costs nothing, and
-      // gating it exactly would need a second callback into usePanelClosing.ts.
+      // Fires on every close() call, even an unknown or locked id's no-op below: a harmless extra attempt,
+      // and gating it exactly would need a second callback into usePanelClosing.ts.
       capture.capture(id);
       closing.close(id);
     },
