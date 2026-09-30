@@ -25,8 +25,12 @@ const PEERS = srcPkg.peerDependencies;
 // A list that silently lost entries must not print a smaller "all passed".
 const MIN_CHECKS = 9;
 
-const fromIndex = process.argv.indexOf('--from');
-const FROM = fromIndex === -1 ? null : process.argv[fromIndex + 1];
+// Anything but `--from <value>` is an error: npm swallows a `--from` placed before a bare `--` and forwards its value as
+// a stray positional, and an ignored argument would leave the local dist/ being gated instead of the requested artifact.
+const argv = process.argv.slice(2);
+const fromIndex = argv.indexOf('--from');
+const FROM = fromIndex === -1 ? null : argv[fromIndex + 1];
+const strayArgs = argv.filter((arg, i) => i !== fromIndex && !(fromIndex !== -1 && i === fromIndex + 1));
 
 // Value exports come from the committed API reports, so a name added to the barrel is checked here with no edit to this file.
 function valueExportsOf(reportFile) {
@@ -204,6 +208,9 @@ function record(name, fn) {
 const run = (file, args, cwd) => execFileSync(file, args, { cwd, stdio: 'pipe', encoding: 'utf8' });
 
 try {
+  if (strayArgs.length > 0) {
+    throw new Error(`unexpected argument "${strayArgs[0]}"; the only option is --from <tarball path or registry spec>, after a bare -- when run through npm`);
+  }
   if (fromIndex !== -1 && (!FROM || FROM.startsWith('--'))) {
     throw new Error('--from needs a tarball path or a registry spec such as phonux@0.1.0');
   }
@@ -219,6 +226,7 @@ try {
   // npm runs with cwd = root, so a relative tarball path must be made absolute first;
   // a registry spec has no file on disk and passes through.
   const packTarget = FROM === null ? DIST_DIR : existsSync(resolve(FROM)) ? resolve(FROM) : FROM;
+  console.log(`smoke:phonux: packing ${FROM ?? DIST_DIR}`);
   const packOut = run('npm', ['pack', packTarget, '--pack-destination', root, '--json'], root);
   const [packInfo] = JSON.parse(packOut);
   const tarball = join(root, packInfo.filename);
@@ -290,9 +298,17 @@ try {
     const readmeBans = [
       [/client\/src\/shared\/phone/, "names this repo's source folder"],
       [/plans\//, 'names the plans folder'],
-      [/\]\((?:\.\.?\/|[\w-]+\.md)/, 'has a relative markdown link'],
     ];
     for (const [pattern, problem] of readmeBans) if (pattern.test(readme)) readmeProblems.push(problem);
+    // Every link target must be absolute: the registry page has no sibling files, so a path, a bare file name or an
+    // empty target dead-ends there. Inline links, reference definitions and raw html href/src are all covered.
+    const linkTargets = [
+      ...[...readme.matchAll(/\]\(\s*<?([^)\s>]*)/g)].map((m) => m[1]),
+      ...[...readme.matchAll(/^ {0,3}\[(?!\^)[^\]\n]+\]:[ \t]*<?([^\s>]*)/gm)].map((m) => m[1]),
+      ...[...readme.matchAll(/\b(?:href|src)\s*=\s*["']?([^"'\s>]*)/gi)].map((m) => m[1]),
+    ];
+    const badTargets = linkTargets.filter((target) => !/^(?:https?:|mailto:|#)/i.test(target));
+    if (badTargets.length) readmeProblems.push(`has links the registry page cannot serve (${badTargets.map((t) => `"${t}"`).join(', ')}); only http(s):, mailto: and #anchor targets are allowed`);
     if (readmeProblems.length) throw new Error(`the packed README ${readmeProblems.join('; ')}`);
     return `${packedFiles.length} files`;
   });

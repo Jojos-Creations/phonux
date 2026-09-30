@@ -935,16 +935,18 @@ neither needs revisiting when the move happens.
 
 ### Path discovery replaces the hardcoded three-level join
 
-`tools/phonux-build.mjs`, `tools/phonux-pack-smoke.mjs`, and `tools/phonux-api-report.mjs` each compute their
-own `PHONE_DIR` from the root `package.json`'s `workspaces[0]` entry, instead of hardcoding
-`join(REPO_ROOT, 'client/src/shared/phone')`. All three keep resolving to wherever this package actually sits,
-at whatever nesting depth, without hand-editing any of them on every relocation. `DIST_DIR` stays relative to
-whatever `PHONE_DIR` resolves to, unchanged, since `dist/` has always been this package's own subdirectory,
-not a sibling that needs its own discovery.
+`tools/phonux-build.mjs`, `tools/phonux-pack-smoke.mjs`, `tools/phonux-api-report.mjs` and
+`tools/phonux-release-check.mjs` each take `PHONE_DIR` from `resolvePhoneDir` in `tools/phonux-paths.mjs`,
+instead of hardcoding `join(REPO_ROOT, 'client/src/shared/phone')`. It selects the one `workspaces` member
+whose `package.json` is named `phonux`, or the root itself when there is no `workspaces` key, and throws on
+zero or several. So all four keep resolving to wherever this package actually sits, at whatever nesting depth,
+without hand-editing any of them on every relocation, and another package listed first in `workspaces` is never
+built and reported green as phonux. `DIST_DIR` stays relative to whatever `PHONE_DIR` resolves to, unchanged,
+since `dist/` has always been this package's own subdirectory, not a sibling that needs its own discovery.
 
-TEMP_DIR stays the literal `client/api-extractor-temp` path unconditionally. It lives beside `client/src`,
-outside this package, and a package relocation does not move it, so it is never derived from `PHONE_DIR` and
-needs no discovery logic of its own; `.gitignore`'s existing entry for it needs no edit either.
+`tools/phonux-api-report.mjs` derives `TEMP_DIR` from the same layout: `client/api-extractor-temp`, beside
+`client/src`, while this package is a workspace member, and `api-extractor-temp` at the root once the package
+is the root. `.gitignore`'s existing entry for `client/api-extractor-temp/` covers the workspace layout.
 
 ### The climb-check extends the pre-existing check to `reportTempFolder`
 
@@ -961,8 +963,9 @@ entry-point check it extends.
 
 The library's repo is `Jojos-Creations/phonux`, private. The app repo is already `Jojos-Creations/phonux-app`,
 so the split adds no rename step, and no checkout's `origin` URL changes at the split. The library's own
-`package.json` gets `"license": "UNLICENSED"` added at split time, since it stays private and no LICENSE file
-is needed while it does.
+`package.json` already says `"license": "MIT"` and `LICENSE` in this folder holds the MIT text, so the split
+carries both with no edit. The source manifest keeps `private: true`; only the generated `dist/package.json`
+is publishable.
 
 ### History and link mechanism for the move
 
@@ -1039,7 +1042,7 @@ One command or check per item, each independently verifiable without further des
 
 1. `build:phonux` exits 0 run from a relocated depth -- a scratch copy at a different nesting level from
    today's.
-2. `smoke:phonux` reports 3/3 from the same relocated depth.
+2. `smoke:phonux` reports 9/9 from the same relocated depth.
 3. `check:api-report` fails loud from the same relocated depth while its four path-sensitive configs
    (`tsconfig.build.json` and the three `api-extractor*.json` configs) are left unedited, naming the
    mismatched config and field; it exits 0 once those configs are hand-fixed to the new depth.

@@ -78,3 +78,24 @@ test('zero packages named phonux and two packages named phonux are both refused,
     2,
   );
 });
+
+test('the smoke refuses any argument but --from <value> before it packs or installs anything', () => {
+  const smoke = fileURLToPath(new URL('../tools/phonux-pack-smoke.mjs', import.meta.url));
+  const cases: Array<[string[], RegExp]> = [
+    [['--from=phonux@0.0.0'], /unexpected argument "--from=phonux@0.0.0"/],
+    [['phonux@0.0.0'], /unexpected argument "phonux@0.0.0"/],
+    [['--bogus'], /unexpected argument "--bogus"/],
+    [['--from'], /--from needs a tarball path/],
+    [['--from', '--bogus'], /--from needs a tarball path/],
+  ];
+  for (const [args, reason] of cases) {
+    const run = spawnSync(process.execPath, [smoke, ...args], { encoding: 'utf8' });
+    const label = args.join(' ');
+    assert.equal(run.status, 1, `${label}: ${run.stdout}${run.stderr}`);
+    // The reason is asserted too: without a dist/ the smoke would also exit 1 for a missing package.json.
+    assert.match(run.stderr, reason, label);
+    assert.match(run.stderr, /smoke:phonux FAILED before all checks could run/, label);
+    assert.ok(!run.stdout.includes('smoke:phonux OK'), `${label}: must not print an OK line`);
+    assert.ok(!run.stdout.includes('working in'), `${label}: must fail before a scratch app is created`);
+  }
+});
