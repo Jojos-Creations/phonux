@@ -15,20 +15,18 @@ export type { NeighborWidths };
 export { effectiveMaxPanels } from './panelCapacity.js';
 
 /**
- * One browsing panel in the unified row, parked and revived by the same capacity rules (usePanelManager.ts)
- * however it was opened. EITHER live in the row or parked in the adventure card (AdventurePanel.tsx lists
- * every entry), never both; parking never removes it from the array, only `closePanel` does.
+ * One browsing panel in the unified row: either live in the row or parked, never both. Parking only flips
+ * `live`; it never removes the entry from the array, only `closePanel` does.
  * @internal
  */
 export interface PanelWindow {
   id: string;
   url: string;
   title?: string;
-  /** Host-supplied, opaque to every function here (only ever copied through, never read or branched on). Its
-   * conventional shape (electron/main.ts's webContentsId/sourceWebContentsId pageIds) is a host-side agreement
-   * this JsonValue type does not and cannot enforce. */
+  /** Host-supplied and opaque: every function here only copies it through, never reads or branches on it. Its
+   * shape is a host-side agreement `JsonValue` cannot enforce. */
   hostData?: JsonValue;
-  /** Mounted live in the row right now. `false` means parked in the adventure card only -- still fully present in this array, just not rendered as a `<webview>`. */
+  /** Mounted in the row right now. `false` means parked: still in this array, just not rendered. */
   live: boolean;
   /** Whether DragToClose's drag-down gesture may close this panel at all. Every panel created by `appendPanel` is unlocked. */
   locked: boolean;
@@ -52,7 +50,7 @@ export interface PanelWindow {
   size?: PanelSize;
 }
 
-/** History's own seeded entry: never collapsible (an always-shown column), never listed (it must not list itself), always live, locked by default (usePanelClosing.ts's lock gate); raised, so a left-exiting park slides under it; anchoredEnter, which against itself resolves 'right'; no anchor: it is the root every anchor leads to. Same default tier/size as every other entry: a permanent column carries a tier like any other. @internal */
+/** History's own seeded entry: never collapsible (an always-shown column), never listed (it must not list itself), always live, locked by default (the host's close path honours `locked`); raised, so a left-exiting park slides under it; anchoredEnter, which against itself resolves 'right'; no anchor: it is the root every anchor leads to. Same default tier/size as every other entry: a permanent column carries a tier like any other. @internal */
 export function createHistoryPanel(rootId: string): PanelWindow {
   return {
     id: rootId, url: '', title: 'History', live: true, locked: true,
@@ -112,7 +110,7 @@ export function reanchorPanel(panels: PanelWindow[], id: string, request: Anchor
  * History, past every panel already there -- the row's far right end). History is seeded directly, never
  * through this function. `permanent` forces `collapsible:false` and `listed:false` (overriding any `info.listed`
  * passed) since such a column must supply its own close control, never the row's trash; `locked`
- * stays false regardless so that control keeps working with no extra plumbing (usePanelClosing.ts gates
+ * stays false regardless so that control keeps working with no extra plumbing (the host's close path gates
  * only on `locked`).
  * @internal
  */
@@ -143,7 +141,7 @@ export function appendPanel(panels: PanelWindow[], info: { url: string } & Appen
  * The id of the live collapsible panel farthest (by array index) from `fromIndex`, or null with none live.
  * Ties go to the lower index (the strict `>` keeps the first). From an append (`fromIndex` = the new length)
  * that is the LEFT end of the live range; from an open nearest History or a revive left of the range, the
- * RIGHT end. promoteToLive and usePanelManager.ts's open/restore park both pick through this. `exclude`
+ * RIGHT end. promoteToLive and the host's open/restore park both pick through this. `exclude`
  * exempts the panel being opened or restored, which is already live in the array the caller passes, and any
  * panel another action in the same update must keep live.
  * @internal
@@ -206,11 +204,11 @@ export function lastParkedBefore(panels: PanelWindow[], index: number): PanelWin
 }
 
 /**
- * Clicking ANY adventure-card row (live or parked) activates it -- flips `live` in place, never
- * moving the entry's array position. Returns `null` for an unknown id or one already live (a
- * legitimate no-op, not an error). When promoting `id` would exceed `capacity`, demotes exactly one
- * OTHER live panel: whichever `farthestLiveCollapsibleId` picks from `id`'s own index, the same far
- * rule an open/restore parks by. Never demotes a `collapsible: false` entry or any id in `keep`.
+ * Activating ANY panel (live or parked) flips `live` in place, never moving the entry's array position.
+ * Returns `null` for an unknown id or one already live (a legitimate no-op, not an error). When promoting
+ * `id` would exceed `capacity`, demotes exactly one OTHER live panel: whichever `farthestLiveCollapsibleId`
+ * picks from `id`'s own index, the same far rule an open/restore parks by. Never demotes a
+ * `collapsible: false` entry or any id in `keep`.
  * @internal
  */
 export function promoteToLive(panels: PanelWindow[], id: string, capacity: number, keep: ReadonlySet<string> = new Set()): PanelWindow[] | null {
@@ -302,11 +300,10 @@ export function setFormFactor(panels: PanelWindow[], id: string, next: FormFacto
 
 /**
  * Reverses closePanel for one panel: puts `panel` back at `index` (clamped to the current length, so a shorter
- * array still takes it), unchanged -- a pure spread, no `hostData` reset (usePanelClosing.ts's undoClose does
- * that itself, since it is the only caller that knows what "unmounted when it closed" should mean for the
- * opaque blob). An id already present leaves `panels` unchanged (a double undo never duplicates). Live or
- * parked is whatever `panel.live` says. Anchors are re-read from the result: its old anchor may no longer
- * describe that index.
+ * array still takes it), unchanged -- a pure spread, no `hostData` reset (the host's undo does that itself: only
+ * it knows what "unmounted when it closed" means for the opaque blob). An id already present leaves `panels`
+ * unchanged (a double undo never duplicates). Live or parked is whatever `panel.live` says. Anchors are
+ * re-read from the result: its old anchor may no longer describe that index.
  * @internal
  */
 export function restorePanel(panels: PanelWindow[], panel: PanelWindow, index: number, rootId: string): PanelWindow[] {

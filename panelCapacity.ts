@@ -10,8 +10,7 @@
  * commit, and every jsdom test that never calls measure(). Otherwise the floor of `fixedColumnCount + 1` wins
  * over a stored value or a fit count below it (every permanent column plus at least one web panel stays on
  * screen even at the narrowest legal window), and a stored value above the fit count is capped at the fit
- * count. At `fixedColumnCount === 1` (History alone) this floor is 2, byte-identical to before this function
- * took a third parameter.
+ * count. At `fixedColumnCount === 1` (History alone) this floor is 2.
  * @internal
  */
 export function effectiveMaxPanels(stored: number | null, fitCount: number | null, fixedColumnCount: number): number {

@@ -24,7 +24,7 @@ export interface UsePanelClosingResult {
   recentlyClosed: PanelWindow[] | null;
   /**
    * Ids leaving through THIS hook's `close()`, never usePanelManager's auto-collapse (which only flips `live`):
-   * LivePanels.tsx reads it for each exiting PanelRowSlot's `exitDirection` (down for a close, left for a park).
+   * PanelRow reads it for each exiting PanelRowSlot's `exitDirection` (down for a close, left for a park).
    * See `close()` for why an id must land here BEFORE the panel leaves `panels`.
    */
   closingIds: ReadonlySet<string>;
@@ -127,9 +127,8 @@ export function usePanelClosing(
     let working = panels;
     for (const { panel, index } of [...batch].reverse()) {
       if (working.some((p) => p.id === panel.id)) continue;
-      // restorePanel itself is a pure spread now (panelWindow.ts): whatever hostData pointed at was
-      // unmounted when this panel closed, so the reset lives here, computed once and reused at every
-      // restorePanel call below, rather than duplicated per call site.
+      // restorePanel is a pure spread and phonux never reads inside hostData: whatever it pointed at was
+      // unmounted when this panel closed, so the reset lives here, computed once for every call below.
       const restoringPanel: PanelWindow = { ...panel, hostData: { ...(panel.hostData as Record<string, JsonValue> | undefined), webContentsId: null } };
       if (panel.live) {
         // This restore is one of the two "reappearance" paths that enters from the anchor's side -- mark it

@@ -1,5 +1,5 @@
 /**
- * desktop/panels/panelWindow.ts's pure panel-array helpers, and the phonux row-order and tier functions they
+ * shared/phone/panelWindow.ts's pure panel-array helpers, and the phonux row-order and tier functions they
  * call. Closing a view removes it completely (closePanel) and undo puts it back (restorePanel).
  */
 
@@ -39,7 +39,7 @@ import {
  * cannot drift from panelTiers.ts's DEFAULT_PANEL_SIZE derivation. */
 const DEFAULT_PANEL_SIZE: PanelSize = { formFactor: 'phone', width: DEFAULT_PHONE_SIZE.width, height: DEFAULT_PHONE_SIZE.height };
 
-/** History's own seeded id -- the production constant now lives in appApis.ts (host-only), so this pure-function test keeps its own copy instead of importing it. */
+/** History's own seeded id. The production constant is host-owned (appApis.ts), so this pure-function test keeps its own copy. */
 const ROOT_ID = 'history';
 
 test('appendPanel: appends a new LIVE extra panel carrying the hostData and url', () => {

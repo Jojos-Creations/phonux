@@ -9,9 +9,9 @@
  * Compiles with tsc -p <phone>/tsconfig.build.json (declaration:true, excludes
  * *.typecheck.ts), then GENERATES dist/package.json from the source
  * package.json -- exports rewritten relative to dist/ with 'types' first in
- * each condition, './internal/directionalTransition' dropped (it stays an
- * in-repo-only subpath, resolved via the unbuilt package.json instead), and
- * copies README.md alongside it.
+ * each condition, every INTERNAL_ONLY_EXPORT_KEYS subpath ('./internal/directionalTransition',
+ * './internal/panelModel') dropped (they stay in-repo-only, resolved via the unbuilt
+ * package.json instead), and copies README.md alongside it.
  */
 
 import { execFileSync } from 'node:child_process';
@@ -35,9 +35,8 @@ const DIST_DIR = join(PHONE_DIR, 'dist');
 const TSCONFIG = join(PHONE_DIR, 'tsconfig.build.json');
 const TSC_BIN = join(REPO_ROOT, 'node_modules', '.bin', 'tsc');
 
-// Subpaths the app resolves in-repo only (directionalTransition: HistoryRowSlot.tsx; panelModel: appApis.ts,
-// LivePanel.tsx and the usePanelManager/usePanelClosing/useProvidePanels hooks); an outside consumer has no
-// use for them, so they never appear in the shipped exports map.
+// Subpaths only this repo's own app resolves; an outside consumer has no use for them, so they never
+// appear in the shipped exports map.
 const INTERNAL_ONLY_EXPORT_KEYS = new Set(['./internal/directionalTransition', './internal/panelModel']);
 
 function fail(message) {

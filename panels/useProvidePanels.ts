@@ -1,6 +1,6 @@
 /**
  * The app's implementation of PanelsAPI: the panel list, create/activate/close/undo/clear-all. Wraps
- * usePanelManager UNCHANGED, composes usePanelClosing and owns the row's scroll gesture. Never
+ * usePanelManager, composes usePanelClosing and owns the row's scroll gesture. Never
  * exposes setPanels, hostData or anything else a view has no use for: panelList and
  * recentlyClosed hold PanelSummary objects built here, never the app's own PanelWindow records
  * (provide-panels.test.ts's "holds EXACTLY the PanelSummary keys" tests pin their key set).
