@@ -101,7 +101,7 @@ had, and a view testing `'size' in panel` gets the same answer as `panel.size !=
 
 `panelWindow.ts` is part of this folder: the `PanelWindow` record and every pure transition over a
 `PanelWindow[]` (`appendPanel`, `createHistoryPanel`, `closePanel`, `restorePanel`, ...). It sits inside the
-import boundary above, so it imports only its siblings and never the desktop app, and it reaches the app only
+import boundary above, so it imports only its siblings and never the desktop app. The app reaches it only
 through the `phonux/internal/panelModel` subpath, never the main barrel (see "The API reports in `etc/`").
 Its functions are pure, taking no device-state argument, and are tested that way (`test/panel-window.test.ts`
 builds panels with no device store initialized at all). Reading a live device size inside them -- the
@@ -190,7 +190,8 @@ it come second. A row gesture or a close later in the same handler prices the re
 
 ### The tier table
 
-One table, `TIER_SIZES` (`panelTiers.ts`), holds every tier's size; these numbers are tunable, the rest of this
+One table, `TIER_SIZES` (`panelTiers.ts`), holds the tablet and desktop sizes and a phone placeholder (the real
+phone size is the live model's, see "The width source" below); these numbers are tunable, the rest of this
 section is not:
 
 | tier | width | height |
@@ -871,9 +872,10 @@ the app resolves them in place.
 
 Every declaration an entry point reaches carries exactly one release tag in its own doc comment: `@public`
 for `.` and `./testing`, `@internal` for `./internal/directionalTransition` and for what `./internal/panelModel`
-declares itself (the five types it re-exports keep their own `@public`, so that report lists them as
-`@public`). A deprecated alias keeps `@deprecated` beside its tag. A tag above a re-export line
-(`export { X } from ...`) does nothing, because API Extractor reads only the declaration's own comment.
+declares itself, plus `effectiveMaxPanels`, which is `@internal` in `panelCapacity.ts` (the five types it
+re-exports keep their own `@public`, so that report lists them as `@public`). A deprecated alias keeps
+`@deprecated` beside its tag. A tag above a re-export line (`export { X } from ...`) does nothing, because API
+Extractor reads only the declaration's own comment.
 `ViewStateProvider` and `PANEL_HEADER_GAP_PX` are exported for this package's own files and tests but reached
 by no entry point, and are tagged `@internal` to say so.
 
