@@ -295,9 +295,12 @@ try {
     const readme = run('tar', ['-xOzf', tarball, 'package/README.md'], root);
     const readmeProblems = [];
     if (!readme.includes(`npm install ${srcPkg.name}`)) readmeProblems.push(`has no "npm install ${srcPkg.name}" line`);
-    if (readme.includes('client/src/shared/phone')) readmeProblems.push('names client/src/shared/phone');
-    if (readme.includes('plans/')) readmeProblems.push('names plans/');
-    if (/\]\((?:\.\.?\/|[\w-]+\.md)/.test(readme)) readmeProblems.push('has a relative markdown link');
+    const readmeBans = [
+      [/client\/src\/shared\/phone/, "names this repo's source folder"],
+      [/plans\//, 'names the plans folder'],
+      [/\]\((?:\.\.?\/|[\w-]+\.md)/, 'has a relative markdown link'],
+    ];
+    for (const [pattern, problem] of readmeBans) if (pattern.test(readme)) readmeProblems.push(problem);
     if (readmeProblems.length) throw new Error(`the packed README ${readmeProblems.join('; ')}`);
     return `${packedFiles.length} files`;
   });
