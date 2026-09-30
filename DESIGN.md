@@ -532,17 +532,19 @@ phonux owns the `WorkspaceState`/`WorkspacePanelState` types, the guard `isWorks
 `projectWorkspaceState`/`hydrateWorkspaceState` function pair, the restore and save timing, and a small
 `WorkspaceStorage` (load/save) contract phonux defines but never puts on the public `Host`/`PanelsAPI` bag. Only
 the three types are public, exported from the package entry point so a host can implement the contract; the
-guard and the pair live in `workspaceState.ts` and stay inside the package, because only `useProvidePanels` and
-the tests call them. Keeping a capability off the public bag has a real precedent already in this package:
+guard and the pair live in `workspaceState.ts` and stay inside the package, because only `useProvidePanels`
+(through its persistence hook, `panels/useWorkspacePersistence.ts`) and the tests call them. Keeping a capability
+off the public bag has a real precedent already in this package:
 `CaptureRegistryContext` keeps the write side of a picture out of `Host`/`SnapshotsAPI` entirely, as its own
 second context that app code mounts AROUND `HostProvider` (see "Snapshots" below) -- `HostProvider` itself never
 mounts `CaptureRegistryContext`. `HostProvider` does mount two contexts internally, for its own concerns kept off
 the public bag: `OverlayProvider` and `ViewStateProvider` (see "useViewState" below). `WorkspaceStorage` follows
 the same "keep it off the public bag" idea as all three, but not any of their context-based wiring: unlike
 `CaptureRegistryContext` and `ViewStateProvider`, each reached by arbitrary descendant `Panel`/view instances
-independently, `WorkspaceStorage` is consumed at exactly one call site -- inside `useProvidePanels` itself, the
-only thing that ever calls `load()`/`save()` -- so a plain injected value on that hook's own input,
-`PanelsInput.storage`, is enough and no context is needed. That is the same single-call-site injection an
+independently, `WorkspaceStorage` is consumed at exactly one call site -- inside `useProvidePanels`, by its
+persistence hook (`panels/useWorkspacePersistence.ts`), the only thing that ever calls `load()`/`save()` -- so a
+plain injected value on `useProvidePanels`'s own input, `PanelsInput.storage`, is enough and no context is
+needed. That is the same single-call-site injection an
 existing dependency already uses on that same input (`PanelsInput.capture`). The host owns the storage entirely:
 the file's real name and on-disk location, the IPC channel names, and the write mechanics (including whether the
 write is atomic) are the host's own choice, out of this design's scope. With no `storage`, nothing is loaded and
