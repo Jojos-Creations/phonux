@@ -214,6 +214,7 @@ try {
   if (fromIndex !== -1 && (!FROM || FROM.startsWith('--'))) {
     throw new Error('--from needs a tarball path or a registry spec such as phonux@0.1.0');
   }
+  // Without --from the smoke never rebuilds dist/: it checks whatever dist/ holds now, which may be stale against source.
   if (FROM === null && !existsSync(join(DIST_DIR, 'package.json'))) {
     throw new Error(`${relative(REPO_ROOT, join(DIST_DIR, 'package.json'))} is missing -- run \`node tools/phonux-build.mjs\` first`);
   }
