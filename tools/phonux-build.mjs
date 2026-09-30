@@ -122,6 +122,7 @@ for (const name of ['README.md', 'DESIGN.md']) {
 }
 // An SPDX id with no LICENSE text grants nothing on a public package; UNLICENSED and SEE LICENSE IN need no file.
 const licenseSrc = join(PHONE_DIR, 'LICENSE');
-if (existsSync(licenseSrc)) copyFileSync(licenseSrc, join(DIST_DIR, 'LICENSE'));
+const hasLicenseFile = existsSync(licenseSrc);
+if (hasLicenseFile) copyFileSync(licenseSrc, join(DIST_DIR, 'LICENSE'));
 
-console.log(`build:phonux OK -- wrote ${relative(REPO_ROOT, DIST_DIR)}/{package.json,README.md,DESIGN.md} and ${Object.keys(exports).length} export target(s)`);
+console.log(`build:phonux OK -- wrote ${relative(REPO_ROOT, DIST_DIR)}/{package.json,README.md,DESIGN.md${hasLicenseFile ? ',LICENSE' : ''}} and ${Object.keys(exports).length} export target(s)`);
