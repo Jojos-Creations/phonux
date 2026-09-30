@@ -26,6 +26,11 @@ function isEventLike(value: unknown): boolean {
   return typeof value === 'object' && value !== null && typeof (value as { preventDefault?: unknown }).preventDefault === 'function';
 }
 
+/**
+ * What an app hands `useProvidePanels`: the row's measured inputs, plus the behaviour only the host can decide
+ * (where closes are logged, what `hostData` means).
+ * @public
+ */
 export interface PanelsInput {
   /** The list the provider starts with, read once on mount (the host seeds its always-shown columns here); the provider owns the list from then on. Default: empty. */
   initialEntries?: readonly PanelWindow[];
@@ -33,6 +38,7 @@ export interface PanelsInput {
   rootId: string;
   /** The stored "max panels on screen" choice (`null` = follow the fit count) -- SettingsAPI's own value. */
   storedMaxPanels: number | null;
+  /** The phone frame's current width: the unit a default-sized panel is priced in. */
   phoneWidth: number;
   /** Overrides `count(!collapsible)` over the provider's own list, which is the default: a host that prices the row from a count it already holds passes it through so usePanelManager always agrees with it. */
   fixedViewCount?: number;
@@ -57,6 +63,7 @@ export interface PanelsInput {
 /**
  * PanelsAPI plus the desktop-only exit/enter animation inputs PanelRow reads, kept OFF PanelsAPI on
  * purpose: that interface is the narrow surface a third-party view is written against (hostApi.tsx's header).
+ * @public
  */
 export interface ProvidedPanels extends PanelsAPI {
   /** The provider's one panel list, raw (not summarised): the row's input, never part of PanelsAPI. */
@@ -69,6 +76,11 @@ export interface ProvidedPanels extends PanelsAPI {
   readonly enterSideById: ReadonlyMap<string, 'left' | 'right'>;
 }
 
+/**
+ * Builds the `PanelsAPI` an app hands its views. The provider owns the panel list, seeded once from `initialEntries`.
+ * Call it with this render's inputs and never memoise the result: its handlers close over this render's list.
+ * @public
+ */
 export function useProvidePanels(i: PanelsInput): ProvidedPanels {
   const capture = i.capture ?? noopCaptureTrigger;
   const [panels, setPanels] = useState<PanelWindow[]>(() => [...(i.initialEntries ?? [])]);

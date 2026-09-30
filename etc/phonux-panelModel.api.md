@@ -100,7 +100,7 @@ export interface PanelSize {
     width: number;
 }
 
-// @internal
+// @public
 export interface PanelWindow {
     anchor?: PanelAnchor;
     anchoredEnter?: boolean;

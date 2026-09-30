@@ -422,6 +422,28 @@ export interface PanelsAPI {
 }
 
 // @public
+export interface PanelsInput {
+    capture?: CaptureTrigger;
+    containerWidth: number;
+    defaultHostData?: () => JsonValue;
+    fixedViewCount?: number;
+    initialEntries?: readonly PanelWindow[];
+    onPanelResize?: () => void;
+    onPanelsClosed?: (entry: {
+        id: string;
+        title: string;
+        url: string;
+        closedAt: string;
+    }) => void;
+    onPanelsRestored?: (logIds: string[]) => void;
+    overflowContainerRef: RefObject<HTMLDivElement | null>;
+    phoneWidth: number;
+    resetHostDataOnRestore?: (hostData: JsonValue | undefined, panel: PanelWindow) => JsonValue | undefined;
+    rootId: string;
+    storedMaxPanels: number | null;
+}
+
+// @public
 export interface PanelSize {
     // (undocumented)
     formFactor: FormFactor;
@@ -455,6 +477,28 @@ export interface PanelSummary<P = JsonValue> {
 
 // @public
 export function panelWidthOf(p: Pick<PanelRowEntry, 'formFactor' | 'size'>, phoneWidth: number, maxLiveWidth: number): number;
+
+// @public
+export interface PanelWindow {
+    anchor?: PanelAnchor;
+    anchoredEnter?: boolean;
+    collapsible: boolean;
+    formFactor?: FormFactor;
+    hostData?: JsonValue;
+    // (undocumented)
+    id: string;
+    layer?: 'base' | 'raised';
+    listed: boolean;
+    live: boolean;
+    locked: boolean;
+    params?: JsonValue;
+    size?: PanelSize;
+    // (undocumented)
+    title?: string;
+    // (undocumented)
+    url: string;
+    view: string;
+}
 
 // @public @deprecated (undocumented)
 export const PHONE_CORNER_RADIUS_UNITS = 4;
@@ -582,6 +626,17 @@ export const PhoneView: typeof Panel;
 // @public @deprecated (undocumented)
 export type PhoneViewProps = PanelProps;
 
+// @public
+export interface ProvidedPanels extends PanelsAPI {
+    // (undocumented)
+    readonly closingIds: ReadonlySet<string>;
+    // (undocumented)
+    readonly enteringViaAnchorIds: ReadonlySet<string>;
+    readonly enterSideById: ReadonlyMap<string, 'left' | 'right'>;
+    readonly entries: readonly PanelWindow[];
+    readonly exitRightIds: ReadonlySet<string>;
+}
+
 // @public @deprecated (undocumented)
 export const registerPanelView: typeof registerView;
 
@@ -669,6 +724,9 @@ export const usePanelReorderEligible: () => boolean;
 
 // @public @deprecated (undocumented)
 export const usePhoneAPIs: typeof useHost;
+
+// @public
+export function useProvidePanels(i: PanelsInput): ProvidedPanels;
 
 // @public
 export function useViewSnapshot(viewId: ViewId): ViewSnapshot | null;
