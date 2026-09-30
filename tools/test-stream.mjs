@@ -8,7 +8,7 @@ export function realKey(file) {
   try { return realpathSync(file); } catch { return file; }
 }
 
-// The event shape is unversioned (validated on Node v24.18.0): a change makes files read as missing or stopped, never green.
+// The event shape is unversioned (read from Node v24.18): an upgrade that changes it makes files read as missing or stopped, never green.
 export function lineFor(event) {
   const d = event.data ?? {};
   if (typeof d.file !== 'string') return null;
