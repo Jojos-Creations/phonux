@@ -8,7 +8,7 @@ import assert from 'node:assert/strict';
 import { SLOT_TRANSITION, directionalTransition } from 'phonux/internal/directionalTransition';
 import { panelRowSlotMotion } from '../client/src/shared/phone/PanelRowSlot.js';
 import { anchorTargetOf, resolveEnterDirection } from '../client/src/shared/phone/panelRowOrder.js';
-import { createHistoryPanel } from '../client/src/desktop/panels/panelWindow.js';
+import { createHistoryPanel } from 'phonux/internal/panelModel';
 import { HISTORY_PANEL_ID } from '../client/src/desktop/appApis.js';
 import { DRAG_CLOSE, GAP, PANEL_TRANSITION } from 'phonux';
 

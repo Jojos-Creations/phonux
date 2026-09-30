@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, type Dispatch, type SetStateAction } from 
 import { flushSync } from 'react-dom';
 import type { JsonValue } from 'phonux';
 import { bridge } from '../../shared/ipc/bridge.js';
-import { closePanel, restorePanel, type PanelWindow } from './panelWindow.js';
+import { closePanel, restorePanel, type PanelWindow } from 'phonux/internal/panelModel';
 import type { UsePanelManagerResult } from './usePanelManager.js';
 
 /** The undo toast stays up for 10 seconds, one window, restarted by every close. */

@@ -32,9 +32,10 @@ const DIST_DIR = join(PHONE_DIR, 'dist');
 const TSCONFIG = join(PHONE_DIR, 'tsconfig.build.json');
 const TSC_BIN = join(REPO_ROOT, 'node_modules', '.bin', 'tsc');
 
-// A subpath the app resolves in-repo only (LivePanelSlot.tsx, HistoryRowSlot.tsx);
-// an outside consumer has no use for it, so it never appears in the shipped exports map.
-const INTERNAL_ONLY_EXPORT_KEYS = new Set(['./internal/directionalTransition']);
+// Subpaths the app resolves in-repo only (directionalTransition: HistoryRowSlot.tsx; panelModel: appApis.ts,
+// LivePanel.tsx and the usePanelManager/usePanelClosing/useProvidePanels hooks); an outside consumer has no
+// use for them, so they never appear in the shipped exports map.
+const INTERNAL_ONLY_EXPORT_KEYS = new Set(['./internal/directionalTransition', './internal/panelModel']);
 
 function fail(message) {
   console.error(`build:phonux FAILED: ${message}`);

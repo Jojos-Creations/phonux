@@ -10,8 +10,8 @@ import { useEffect, useRef, useState } from 'react';
 import type { Dispatch, RefObject, SetStateAction } from 'react';
 import { flushSync } from 'react-dom';
 import { computeMaxLiveWidth, computeRowLayout, GAP, panelWidthOf, type FormFactor } from 'phonux';
-import { effectiveMaxPanels } from '../../shared/phone/panelCapacity.js';
 import {
+  effectiveMaxPanels,
   firstParkedAfter,
   lastParkedBefore,
   leftmostLiveIndex,
@@ -22,7 +22,7 @@ import {
   setFormFactor,
   sideOfLiveRange,
   type PanelWindow,
-} from './panelWindow.js';
+} from 'phonux/internal/panelModel';
 
 export interface UsePanelManagerResult {
   revealPanelProactively: (panelsNow: PanelWindow[], apply: (prev: PanelWindow[]) => PanelWindow[]) => void;
