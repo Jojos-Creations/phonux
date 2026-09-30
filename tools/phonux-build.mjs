@@ -23,11 +23,14 @@ import {
   existsSync,
   readdirSync,
 } from 'node:fs';
-import { join, relative } from 'node:path';
+import { join, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const REPO_ROOT = fileURLToPath(new URL('..', import.meta.url));
-const PHONE_DIR = join(REPO_ROOT, 'client/src/shared/phone');
+// Discovered from the workspace, not a hardcoded literal, so this script keeps
+// working if phone/ moves to a different nesting depth (e.g. a repo split).
+const rootPkg = JSON.parse(readFileSync(join(REPO_ROOT, 'package.json'), 'utf8'));
+const PHONE_DIR = resolve(REPO_ROOT, rootPkg.workspaces[0]);
 const DIST_DIR = join(PHONE_DIR, 'dist');
 const TSCONFIG = join(PHONE_DIR, 'tsconfig.build.json');
 const TSC_BIN = join(REPO_ROOT, 'node_modules', '.bin', 'tsc');
@@ -43,7 +46,7 @@ function fail(message) {
 }
 
 // Deleted first: a stale dist/ passing this script's own file-existence checks
-// would look identical to a build that actually ran (see repo-wide rule).
+// would look identical to a build that actually ran.
 rmSync(DIST_DIR, { recursive: true, force: true });
 
 execFileSync(TSC_BIN, ['-p', TSCONFIG], { cwd: REPO_ROOT, stdio: 'inherit' });
@@ -103,7 +106,7 @@ const distPkg = {
 writeFileSync(join(DIST_DIR, 'package.json'), `${JSON.stringify(distPkg, null, 2)}\n`);
 
 const readmeSrc = join(PHONE_DIR, 'README.md');
-if (!existsSync(readmeSrc)) fail('client/src/shared/phone/README.md is missing; dist/ needs a copy for npm pack');
+if (!existsSync(readmeSrc)) fail(`${relative(REPO_ROOT, readmeSrc)} is missing; dist/ needs a copy for npm pack`);
 copyFileSync(readmeSrc, join(DIST_DIR, 'README.md'));
 
 console.log(`build:phonux OK -- wrote ${relative(REPO_ROOT, DIST_DIR)}/{package.json,README.md} and ${Object.keys(exports).length} export target(s)`);

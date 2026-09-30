@@ -364,7 +364,7 @@ developer writes and registers. This folder owns `PanelRow`, the `Panel` shell a
 the host contract that connects them; the `Panel` shell and the `View` registry are the two levels a View
 author actually touches.
 
-`PanelRow` lives in this folder; `Workspace` is still host code. This section names the split the `Workspace`
+`PanelRow` lives in this folder; `Workspace` is a phonux component too. This section names the split the `Workspace`
 extraction moves code against, so that extraction is a rename-and-relocate pass, not a fresh design.
 
 **What phonux owns: `PanelRow`.** `PanelRow` renders N animated slots from a plain entries array --
@@ -377,8 +377,8 @@ root entry as a required `rootId` prop with no default here, so no host's own pa
 folder.
 
 **What phonux will own once `Workspace` is extracted.** `Workspace` is the shell around the row: the scroll
-container, the centered/animated-margin math `client/src/desktop/row/useRowShell.ts` computes today, and the
-`OverlaySlot` mounts. Like `PanelRow`, it does not consume `PanelSummary`.
+container, the centered/animated-margin math `workspaceShellStyle` (in `client/src/shared/phone/Workspace.tsx`)
+computes, and the `OverlaySlot` mounts. Like `PanelRow`, it does not consume `PanelSummary`.
 
 **What stays host.** The Electron drag-strip chrome (the draggable title-bar region and macOS traffic-light
 clearance) and every other window-chrome concern; the IPC calls a panel's own actions make; and mounting the
@@ -398,8 +398,8 @@ The shape, the ownership split and the save/restore timing are now designed -- s
 persistence: shape, ownership and timing" below -- but nothing is built yet: this Workspace still keeps no
 file, still loads nothing and still saves nothing today.
 
-**Files the `Workspace` extraction touches.** `client/src/desktop/row/useRowShell.ts` moves into this folder,
-and `test/phone-boundary.test.ts`'s `MIN_PHONE_FILES` goes up to the number of files the shared/phone folder
+**Files the `Workspace` extraction touches.** `workspaceShellStyle` (out of `client/src/desktop/row/useRowShell.ts`)
+moves into this folder, and `test/phone-boundary.test.ts`'s `MIN_PHONE_FILES` goes up to the number of files the shared/phone folder
 scan then reads. Naming them here lets a later entry's own touches be checked against this list instead of
 re-deriving it.
 
@@ -870,3 +870,131 @@ Several messages, `ae-forgotten-export` among them, go into the report file inst
 into its trailing "Warnings were encountered" footer. Once such a report is committed, the next check
 regenerates the same text, matches it, and API Extractor exits 0. So the script also scans each committed
 report for an embedded warning or message id, and fails on any.
+
+## Splitting into its own repo: path discovery, the climb-check, and the identity that's already settled
+
+This package moves out of this repo into its own eventually. Three mechanical pieces make that move a single
+automated step instead of a manual one, and the repo's identity and license are settled well enough that
+neither needs revisiting when the move happens.
+
+### Path discovery replaces the hardcoded three-level join
+
+`tools/phonux-build.mjs`, `tools/phonux-pack-smoke.mjs`, and `tools/phonux-api-report.mjs` each compute their
+own `PHONE_DIR` from the root `package.json`'s `workspaces[0]` entry, instead of hardcoding
+`join(REPO_ROOT, 'client/src/shared/phone')`. All three keep resolving to wherever this package actually sits,
+at whatever nesting depth, without hand-editing any of them on every relocation. `DIST_DIR` stays relative to
+whatever `PHONE_DIR` resolves to, unchanged, since `dist/` has always been this package's own subdirectory,
+not a sibling that needs its own discovery.
+
+TEMP_DIR stays the literal `client/api-extractor-temp` path unconditionally. It lives beside `client/src`,
+outside this package, and a package relocation does not move it, so it is never derived from `PHONE_DIR` and
+needs no discovery logic of its own; `.gitignore`'s existing entry for it needs no edit either.
+
+### The climb-check extends the pre-existing check to `reportTempFolder`
+
+`tools/phonux-api-report.mjs`'s `describeConfig`/`entries` functions fail loud, before API Extractor ever
+runs, when a config's `mainEntryPointFilePath` climb no longer matches this package's real depth. The
+climb-check is additive to that existing `mainEntryPointFilePath` comparison in `describeConfig`/`entries`,
+not a new parallel mechanism: the same two functions carry one more per-config comparison, covering
+`apiReport.reportTempFolder`, resolved the same way and checked against `join(TEMP_DIR, 'report')`. Before
+this comparison existed, a stale `reportTempFolder` climb was caught only late, once the expected report file
+turned up missing after a run; the climb-check now catches it before API Extractor runs at all, next to the
+entry-point check it extends.
+
+### Repo identity and license, settled
+
+The library's repo is `Jojos-Creations/phonux`, private. The app repo is already `Jojos-Creations/phonux-app`,
+so the split adds no rename step, and no checkout's `origin` URL changes at the split. The library's own
+`package.json` gets `"license": "UNLICENSED"` added at split time, since it stays private and no LICENSE file
+is needed while it does.
+
+### History and link mechanism for the move
+
+The move uses `git filter-repo` with `--path`/`--path-rename` for the folder plus every inbound file's old
+paths, not `git subtree split`. Both produce a byte-identical tree at the claim commit, but `git filter-repo`
+also keeps the inbound files' real pre-move content history (every content-changing commit; only pure,
+100%-identical-content rename hops that collapse onto the same target path are lost), for a modest size cost
+over `git subtree split`'s history-truncating result; `git subtree split --rejoin` is not needed, because the
+link below does not depend on which extraction method produced the library's first commit.
+
+The inbound file set and the `--path`/`--path-rename` list are re-derived at the move's own claim-time commit,
+not carried forward as a fixed list from whenever this design was written: files move into and out of this
+folder's history over time (recent examples already have), so the move re-runs the same `git log --follow
+--name-only` scan this design's own test-file partition uses as its model, against the folder's actual
+content at claim time, rather than trusting a stale enumeration.
+
+The two-way link between phonux-app and the library is established by exactly one hand-made commit in
+phonux-app, made immediately after the library repo is created, carrying `git-subtree-dir`,
+`git-subtree-mainline` and `git-subtree-split` trailers in the same format `git subtree split --rejoin`
+itself writes (built by hand here since filter-repo's commit hashes are foreign to `git subtree`, which has no
+automatic way to attach a link to an already-populated directory). That link commit's folder diff against its
+own mainline parent must be empty -- a non-empty diff there means the library tip's tree was not actually
+byte-identical to the folder's, and something was silently changed or lost -- and the first `git subtree push`
+after the link must be ancestry-clean (`git merge-base --is-ancestor <library tip before> <pushed tip>` true)
+before anyone relies on the link for a real pull or push. Once both hold, plain `git subtree pull` and `git
+subtree push` work as ordinary git operations from then on, including normal merge-conflict behavior when both
+sides touch the same location.
+
+The library's README (or, if no README exists yet, its first commit) records the phonux-app commit the split
+was taken at. phonux-app's own pre-split history for the folder and its inbound files is not deleted or moved
+anywhere -- it stays exactly where it already is, in phonux-app, at the same commit content but different
+hashes (filter-repo rewrites hashes), findable by matching author, author-date and subject rather than by
+hash.
+
+A `CHANGELOG.md` starts in the library at the split, its first entry naming the split's phonux-app source
+commit. CI is not added to the library at the split: every phonux change is still made in phonux-app and flows
+out to the library by `git subtree push`, and phonux-app's own strict gate already covers those changes before
+they ever leave it. CI is added to the library once it first receives a commit that was not made through
+phonux-app, or gains an outside consumer -- whichever comes first.
+
+### Ongoing consumption: two mechanisms, one per audience
+
+This repo's own dev loop keeps consuming the package as an npm workspace: `git subtree` is the mechanism for
+moving commits between the two repos in either direction, and nothing about the workspace symlink or the bare
+`'phonux'` import specifier changes because of it. An outside consumer installs the packed tarball that
+`build:phonux`/`smoke:phonux` already produce and prove installable, instead of a workspace link; a registry
+publish is a later decision, not a precondition for the first outside consumer.
+
+The bare-`phonux`-style import count is a moving target, not a number to hardcode into a design: recounted
+fresh (`git grep -F "from 'phonux'"`, `"from 'phonux/testing"`, `"from 'phonux/internal/directionalTransition"`
+against `*.ts`/`*.tsx`, cross-checked with `-P`/`-E` for the plain-string case), it changes every time a file
+elsewhere in the repo starts or stops importing this package, so the pairing above names the mechanism that
+stays true regardless of the count, not the count itself.
+
+### The test-file partition
+
+Files under `test/` that import `'phonux'`, `'phonux/testing'`, or `'phonux/internal/...'` by bare specifier
+split into exactly two buckets, not three. MOVE: 4 test files (`phone-frame-header.test.ts`,
+`phone-models.test.ts`, `phonux-barrel.test.ts`, `window-overlay.test.ts`) plus 2 fixture files
+(`test/support/third-party-overlay-view.ts`, `test/support/third-party-panel-view.ts`) have no direct or
+transitive dependency on this repo's app code, and move cleanly. STAY: every other such file either imports
+this repo's app code directly (desktop/panel/history/ipc/sessions/theme modules) or depends on
+`test/support/dom-harness.ts`, which itself reaches into this repo's device, settings and ipc modules; none of
+those moves as-is. Whether a STAY file is later duplicated into the new repo's own suite, rewritten against
+fakes, or left host-only is not decided here -- that call belongs to whichever work actually performs the
+move, not to this design. This partition is re-derived by re-running the same two greps above and re-checking
+each hit against `dom-harness.ts`/app-internal imports, not carried forward as a fixed file list, because a
+new phonux-touching test file added after this design was written still needs the same classification applied
+to it.
+
+### Readiness checklist
+
+One command or check per item, each independently verifiable without further design work:
+
+1. `build:phonux` exits 0 run from a relocated depth -- a scratch copy at a different nesting level from
+   today's.
+2. `smoke:phonux` reports 3/3 from the same relocated depth.
+3. `check:api-report` fails loud from the same relocated depth while its four path-sensitive configs
+   (`tsconfig.build.json` and the three `api-extractor*.json` configs) are left unedited, naming the
+   mismatched config and field; it exits 0 once those configs are hand-fixed to the new depth.
+4. The `git filter-repo` result's tip tree equals `<claim sha>:client/src/shared/phone`, checked fresh at
+   whatever commit the move actually claims against, not assumed from an earlier run; the link commit's
+   folder diff against its mainline parent is empty; and the first `git subtree push` after the link is
+   ancestry-clean.
+5. The commit that performs the move removes the `workspaces` entry and the physical folder together, in one
+   commit; `node_modules/phonux` shows no dangling symlink afterward.
+6. All seven gate commands stay green afterward, with `npm test`'s pass count unchanged from immediately
+   before the move.
+7. A real-repo mutation of one config's `apiReport.reportTempFolder` -- the one field with no pre-flight check
+   before the climb-check above existed -- makes `check:api-report` fail, naming that config specifically,
+   then pass again once reverted.

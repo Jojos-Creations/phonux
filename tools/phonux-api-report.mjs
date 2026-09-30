@@ -12,8 +12,22 @@ import { existsSync, readFileSync, rmSync } from 'node:fs';
 import { join, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+// Discovered from the workspace, not a hardcoded literal, so this script keeps
+// working if phone/ moves to a different nesting depth (e.g. a repo split).
+// A helper, not inline, because it must fail loud on a missing directory before
+// LABEL exists below (LABEL depends on argv parsed further down this file).
+function resolvePhoneDir(repoRoot) {
+  const rootPkg = JSON.parse(readFileSync(join(repoRoot, 'package.json'), 'utf8'));
+  const dir = resolve(repoRoot, rootPkg.workspaces[0]);
+  if (!existsSync(dir)) {
+    console.error(`phonux-api-report FAILED: workspaces[0] in package.json resolves to ${relative(repoRoot, dir)}, which does not exist`);
+    process.exit(1);
+  }
+  return dir;
+}
+
 const REPO_ROOT = fileURLToPath(new URL('..', import.meta.url));
-const PHONE_DIR = join(REPO_ROOT, 'client/src/shared/phone');
+const PHONE_DIR = resolvePhoneDir(REPO_ROOT);
 const TEMP_DIR = join(REPO_ROOT, 'client/api-extractor-temp');
 const DTS_DIR = join(TEMP_DIR, 'dts');
 const REPORT_DIR = join(PHONE_DIR, 'etc');
@@ -43,8 +57,11 @@ function describeConfig(config) {
   const json = readJson(join(PHONE_DIR, config));
   const entry = json.mainEntryPointFilePath?.replace('<projectFolder>', PHONE_DIR);
   const reportName = json.apiReport?.reportFileName;
-  if (!entry || !reportName) fail(`${config} must state mainEntryPointFilePath and apiReport.reportFileName`);
-  return { config, entry, report: `${reportName}.api.md` };
+  const reportTempFolder = json.apiReport?.reportTempFolder?.replace('<projectFolder>', PHONE_DIR);
+  if (!entry || !reportName || !reportTempFolder) {
+    fail(`${config} must state mainEntryPointFilePath, apiReport.reportFileName, and apiReport.reportTempFolder`);
+  }
+  return { config, entry, report: `${reportName}.api.md`, reportTempFolder };
 }
 
 // An exports-map key with no config would never get a report, and the gate would stay green.
@@ -66,6 +83,16 @@ const entries = Object.entries(CONFIG_FOR_EXPORT).map(([key, config]) => {
     fail(
       `exports["${key}"] is ${source}, so ${config} must read ${relative(REPO_ROOT, expected)}, ` +
         `but its mainEntryPointFilePath reads ${relative(REPO_ROOT, actual)}`,
+    );
+  }
+  // Additive to the mainEntryPointFilePath check above: a stale reportTempFolder climb would
+  // otherwise only surface late, via the missing-report-file check after tsc and api-extractor ran.
+  const expectedReportTempFolder = join(TEMP_DIR, 'report');
+  const actualReportTempFolder = resolve(described.reportTempFolder);
+  if (actualReportTempFolder !== expectedReportTempFolder) {
+    fail(
+      `${config}'s apiReport.reportTempFolder must resolve to ${relative(REPO_ROOT, expectedReportTempFolder)}, ` +
+        `but it resolves to ${relative(REPO_ROOT, actualReportTempFolder)}`,
     );
   }
   return described;
