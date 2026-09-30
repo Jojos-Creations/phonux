@@ -16,6 +16,8 @@ const MEMBER_REGISTRARS = new Set([
 ]);
 // On a test context only these register something; t.skip() and t.todo() just mark the running test.
 const CONTEXT_REGISTRARS = new Set(['test', 'it', 'describe', 'suite', 'before', 'after', 'beforeEach', 'afterEach']);
+// A computed member cannot be told from skip, only or mock, so it stays in the chain and the call counts as a registration.
+const COMPUTED = Symbol('computed member');
 
 // reg: a test-like registration may already have run. aw: line of an await that may have run after one (0 = none).
 // Hooks do not set reg: a hook followed by an await and then the first test is safe.
@@ -43,7 +45,7 @@ const peel = (e) => {
   return cur;
 };
 
-// `a.b['c'](...)` gives root `a` and chain ['b', 'c'].
+// `a.b['c'](...)` gives root `a` and chain ['b', 'c']; `a[k]()` gives chain [COMPUTED].
 const calleeChain = (call) => {
   const chain = [];
   let cur = peel(call.expression);
@@ -51,8 +53,8 @@ const calleeChain = (call) => {
     if (ts.isPropertyAccessExpression(cur)) {
       chain.unshift(cur.name.text);
       cur = peel(cur.expression);
-    } else if (ts.isElementAccessExpression(cur) && ts.isStringLiteralLike(cur.argumentExpression)) {
-      chain.unshift(cur.argumentExpression.text);
+    } else if (ts.isElementAccessExpression(cur)) {
+      chain.unshift(ts.isStringLiteralLike(cur.argumentExpression) ? cur.argumentExpression.text : COMPUTED);
       cur = peel(cur.expression);
     } else {
       return { root: cur, chain };
@@ -159,7 +161,7 @@ function scanFile(sf, file, program, checker) {
     if (NON_REGISTERING.has(exported)) return null;
     const member = rest[0];
     // test.mock.method(...), test.run(...): members of the default export that are not registrars.
-    if (exported === 'test' && member !== undefined && !MEMBER_REGISTRARS.has(member)) {
+    if (exported === 'test' && member !== undefined && member !== COMPUTED && !MEMBER_REGISTRARS.has(member)) {
       if (NON_REGISTERING.has(member)) return null;
       report(call, 'unresolved-import', `unknown member test.${member} of the node:test default export`);
       return null;
