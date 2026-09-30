@@ -495,9 +495,9 @@ covered in "Permanent columns" and "What's saved, and what's never" below.
 - **Saved.** `id` (file-scoped only, remapped on restore), `view`, `url`, `title`, `params`, `listed`, `live`,
   `anchor`, `formFactor`, `row`, `permanent`, `layer`.
 - **Never saved -- `hostData`.** The host's own opaque per-panel data, which the desktop host uses for its
-  Electron runtime handles. The owner's ruling is that no runtime handle is ever saved, full stop, and phonux
-  cannot tell a handle from any other value inside the blob, so none of it is saved: `WorkspacePanelState` has
-  no field for it, and a restored panel starts without one.
+  Electron runtime handles. No runtime handle is ever saved, and phonux cannot tell a handle from any other
+  value inside the blob, so none of it is saved: `WorkspacePanelState` has no field for it, and a restored
+  panel starts without one.
 - **Never saved -- `size`.** Always recomputed from `formFactor`, never round-tripped.
 - **Never saved -- `locked`.** Always `false` at create time for anything saveable, never independently set
   on a saveable panel today.
@@ -528,8 +528,8 @@ on-disk location, the IPC channel names, and the write mechanics (including whet
 the host's own choice, out of this design's scope.
 
 ```ts
-declare function projectWorkspaceState(panels: readonly PanelModel[]): WorkspaceState;
-declare function hydrateWorkspaceState(state: WorkspaceState, freshId: () => string): PanelModel[];
+declare function projectWorkspaceState(panels: readonly PanelWindow[]): WorkspaceState;
+declare function hydrateWorkspaceState(state: WorkspaceState, freshId: () => string): PanelWindow[];
 
 type WorkspaceStorage = {
   load(): Promise<WorkspaceState | null>;
@@ -537,8 +537,8 @@ type WorkspaceStorage = {
 };
 ```
 
-`projectWorkspaceState` and `hydrateWorkspaceState` are pure and phonux-owned, operating on whatever the
-relocated panel-model type is called once extract-panel-model-into-phonux lands. `WorkspaceStorage` is
+`projectWorkspaceState` and `hydrateWorkspaceState` are pure and phonux-owned, operating on `PanelWindow`,
+the panel model in `panelWindow.ts`. `WorkspaceStorage` is
 phonux's own contract, not an implementation: the host supplies a real `load`/`save` pair, injected into the
 future panel-behavior provider the same single-call-site way an existing injectable dependency already works
 on that provider's own input (`useProvidePanels.ts`'s `PanelsInput.capture`).
