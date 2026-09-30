@@ -131,6 +131,13 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
     prevLiveRef.current = new Map(panels.map((p) => [p.id, p.live]));
   }, [panels, capture]);
 
+  // clearAll only records ids here: React may run its updater during render, where evict would notify other components.
+  const clearedIds = useRef(new Set<string>());
+  useEffect(() => {
+    for (const id of clearedIds.current) capture.evict(id);
+    clearedIds.current.clear();
+  }, [panels, capture]);
+
   // After usePanelManager: undo makes room for a live view through its revealPanelProactively. `onAfterClose`
   // forgets the closed id (it may have been parked), then offers the freed room to the most recently parked panel.
   const closing = usePanelClosing(
@@ -198,7 +205,13 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
     undoClose: closing.undoClose,
     // Forgets every web panel, live or parked -- never History (`collapsible: false`, the one always-shown
     // column): "Clear all" empties the row list, not the column showing it.
-    clearAll: () => setPanels((prev) => prev.filter((p) => !p.collapsible)),
+    // A dropped panel can never be shown again, so its picture must go now, not at an undo window. The ids come from
+    // the updater's own list: this render's `panels` misses a panel created earlier in the same batch.
+    clearAll: () =>
+      setPanels((prev) => {
+        for (const p of prev) if (p.collapsible) clearedIds.current.add(p.id);
+        return prev.filter((p) => !p.collapsible);
+      }),
     entries: panels,
     fixedViewCount,
     liveWidths,
