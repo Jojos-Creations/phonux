@@ -1,18 +1,13 @@
 /**
- * The row's own scroll gesture: a trackpad/wheel swipe or an arrow key moves the row one step, bringing a
- * hidden (parked) panel back into view from whichever side it sits on. Lives here, off `GoalFrontPage.tsx`
- * (the host's own acceptance grep forbids `useEffect`/`useRef` there), called from `useProvidePanels.ts`
- * instead.
+ * The row's scroll gesture: a wheel swipe or an arrow key moves the row one step, bringing a parked panel back from
+ * whichever side it sits on.
  *
- * Native `addEventListener`, not React's `onWheel`: React 17+ makes the wheel listener passive, so
- * `preventDefault()` (needed so a horizontal swipe never ALSO scrolls the page vertically) has no effect
- * through it.
+ * Native `addEventListener`, not React's `onWheel`: React's wheel listener is passive, so the `preventDefault()` that
+ * keeps a horizontal swipe from also scrolling the page vertically would do nothing.
  *
- * `scrollRow` is read through a ref, updated every render but never re-subscribed: `scrollRow` closes over
- * the latest `panels` and is a fresh function every render (nothing here may be memoised, matching the rest
- * of this app's API-bag rule), so a plain dependency-array subscription would tear the listeners down and
- * lose the momentum lock's own timer on every single re-render -- including the one `scrollRow` itself just
- * caused.
+ * `scrollRow` is read through a ref and never re-subscribed: it is a fresh closure every render (nothing here may be
+ * memoised), and tearing the listeners down would lose the momentum lock's timer on every re-render, including the
+ * one `scrollRow` itself causes.
  */
 import { useEffect, useRef } from 'react';
 import type { RefObject } from 'react';

@@ -38,12 +38,11 @@ export interface UsePanelClosingResult {
 }
 
 /**
- * A close (drag down, or History's trash) removes the view COMPLETELY, logs a closed event (electron/dead-end-history.ts)
- * and offers Undo for 10 s. Takes the CURRENT render's values, so nothing here may be memoised, and `close` reads the
- * index from that render: two closes before one re-render would undo in the wrong order (discrete gestures re-render
- * between events), so a caller that batches closes needs one setPanels for the lot. Log ids are `<closedAt>#<panel id>`:
- * panel ids restart each launch, and undo's removeByIds would otherwise also delete an older launch's entry.
- * `onPanelsClosed`/`onPanelsRestored` are how the host persists the log; this hook never reaches the bridge itself.
+ * A close (drag down, or History's trash) removes the view COMPLETELY, reports it through `onPanelsClosed` and offers
+ * Undo for 10 s. Takes the CURRENT render's values, so nothing here may be memoised, and `close` reads the index from
+ * that render: two closes before one re-render would undo in the wrong order (discrete gestures re-render between
+ * events), so a caller that batches closes needs one setPanels for the lot. Log ids are `<closedAt>#<panel id>`: panel
+ * ids restart each launch, and a host undoing by id would otherwise also delete an older launch's entry.
  */
 export function usePanelClosing(
   panels: PanelWindow[],

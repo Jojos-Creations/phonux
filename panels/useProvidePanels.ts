@@ -119,9 +119,8 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
   // useEffect/useRef in GoalFrontPage.tsx.
   useRowScrollGesture(i.overflowContainerRef, scrollRow);
 
-  // Captures only at fixed moments (a park), never continuously. usePanelManager flips `live` false at
-  // several independent call sites with no single "on park" hook (a per-site capture call would silently miss
-  // any site not touched), so diffing the ONE array this hook receives finds every transition regardless of site.
+  // Diffs the one list instead of capturing per call site: usePanelManager parks from several sites with no single
+  // "on park" hook, and a per-site call would silently miss any site not touched.
   const prevLiveRef = useRef<ReadonlyMap<string, boolean>>(new Map());
   useEffect(() => {
     const prev = prevLiveRef.current;
@@ -203,10 +202,9 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
     },
     recentlyClosed: closing.recentlyClosed?.map(summarisePanel) ?? null,
     undoClose: closing.undoClose,
-    // Forgets every web panel, live or parked -- never History (`collapsible: false`, the one always-shown
-    // column): "Clear all" empties the row list, not the column showing it.
-    // A dropped panel can never be shown again, so its picture must go now, not at an undo window. The ids come from
-    // the updater's own list: this render's `panels` misses a panel created earlier in the same batch.
+    // Drops every collapsible panel, never History (the always-shown column). Its picture goes now, not at an undo
+    // window: a dropped panel can never be shown again. The ids come from the updater's own list, because this
+    // render's `panels` misses a panel created earlier in the same batch.
     clearAll: () =>
       setPanels((prev) => {
         for (const p of prev) if (p.collapsible) clearedIds.current.add(p.id);
@@ -222,11 +220,9 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
     enterSideById,
   };
 
-  // Real-Electron test access ONLY (the *-electron.test.ts files, over CDP Runtime.evaluate): no production UI
-  // calls create({ permanent }) or reanchor(), so a real-window proof calls the real API on the mounted app.
-  // Gated like capture/controller.ts: `MODE === 'test'` is set only by `electron-vite build --mode test`, never
-  // a production build. An EFFECT, not a render-body assignment: StrictMode double-invokes render bodies. No
-  // deps array: `api` is a fresh object every render, and a test must always reach the LATEST closure.
+  // Real-Electron tests (over CDP) reach the API here: no production UI calls create({ permanent }) or reanchor().
+  // Gated on MODE 'test', which only `electron-vite build --mode test` sets. An effect with no deps array, not a
+  // render-body assignment: StrictMode double-invokes render bodies, and a test must always reach the LATEST closure.
   useEffect(() => {
     // Structural cast: the package builds without Vite's ambient types, so `import.meta.env` is untyped here.
     const mode = (import.meta as unknown as { env?: { MODE?: string } }).env?.MODE;
