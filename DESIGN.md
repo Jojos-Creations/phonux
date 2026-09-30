@@ -25,10 +25,10 @@ imports only the contracts and the data-only phone model list.
 
 ## Behavior flags cross this boundary as data only
 
-The app's own panel model adds behavior flags (`collapsible`, `listed`, `view`, ...) to decide overflow,
-listing and rendering -- but `PanelSummary` (this folder's own view of a panel) exposes only what a view
-needs to render a row: id, url, title, live, locked, formFactor, size. A view never sees or reasons about the
-flags that decided whether a panel is in `panelList` at all.
+The panel model (`PanelWindow`, `panelWindow.ts`) adds behavior flags (`collapsible`, `listed`, `view`, ...)
+to decide overflow, listing and rendering -- but `PanelSummary` (a view's own read of a panel) exposes only
+what a view needs to render a row: id, url, title, live, locked, formFactor, size. A view never sees or
+reasons about the flags that decided whether a panel is in `panelList` at all.
 
 ## The panel-view registry: never a crash, never a silent substitution
 
@@ -85,7 +85,7 @@ is the type's own default state, so there is no version where "the new field" co
 size) -- it is the live, shared value every panel already read, so a host that resizes its window mid-session
 never leaves a size-less view rendering stale dimensions.
 
-`PanelSummary.formFactor`/`size` are themselves optional, not required, even though the app's own
+`PanelSummary.formFactor`/`size` are themselves optional, not required, even though
 `panelWindow.ts` always sets them on every entry it creates (`createHistoryPanel`, `appendPanel`) -- the same
 choice already made for `anchor`/`layer`/`anchoredEnter` on the internal `PanelWindow` record. A `PanelSummary`
 is a structural type: any object shaped like one satisfies it, including hand-built test fixtures that predate
@@ -99,19 +99,20 @@ had, and a view testing `'size' in panel` gets the same answer as `panel.size !=
 
 ### Where `PanelWindow`'s own default size comes from, without importing desktop code into phonux
 
-`panelWindow.ts` (`client/src/desktop/panels/`) is desktop code, not part of this folder's import boundary --
-it may import anything the rest of the desktop app can. The constraint that actually shaped its default is
-different: `panelWindow.ts`'s own functions (`appendPanel`, `createHistoryPanel`, and everything else in the
-file) are pure, taking no device-state argument, and are tested that way (`test/panel-window.test.ts` builds
-panels with no device store initialized at all). Reading `phoneSizeStore`'s live, module-level `current` size
-inside these functions would make them impure and would need a new parameter threaded in from
-`usePanelManager.ts`/`useProvidePanels.ts`. So the default here is
-`phonux`'s own `DEFAULT_PHONE_SIZE` constant (390x700) -- the SAME value `phoneSizeStore.ts`'s own `current`
-starts at before any resize -- rather than a second hardcoded literal or a live read. It is a value, not yet a
-behavior: nothing renders a panel at its own `PanelWindow.size` today (`Panel`/`PanelFrame` still read
-`useHost().device.size` when their `size` prop is omitted), and a phone panel never passes it: a phone
-panel's width is always the live phone width (see "The width source" below), so this placeholder never
-reaches a pixel.
+`panelWindow.ts` is part of this folder: the `PanelWindow` record and every pure transition over a
+`PanelWindow[]` (`appendPanel`, `createHistoryPanel`, `closePanel`, `restorePanel`, ...). It sits inside the
+import boundary above, so it imports only its siblings and never the desktop app, and it reaches the app only
+through the `phonux/internal/panelModel` subpath, never the main barrel (see "The API reports in `etc/`").
+Its functions are pure, taking no device-state argument, and are tested that way (`test/panel-window.test.ts`
+builds panels with no device store initialized at all). Reading a live device size inside them -- the
+desktop app's `phoneSizeStore.ts` keeps one in a module-level `current` -- would make them impure, would
+need an import of desktop code this folder may not have, and would need a new parameter threaded in from
+`usePanelManager.ts`/`useProvidePanels.ts`. So the default is `DEFAULT_PANEL_SIZE` (`panelTiers.ts`): the
+phone tier at `DEFAULT_PHONE_SIZE`'s (`hostApi.tsx`) 390x700 -- the SAME value `phoneSizeStore.ts`'s own
+`current` starts at before any resize -- rather than a second hardcoded literal or a live read. A tablet or
+desktop panel takes its tier's size from `TIER_SIZES` (also `panelTiers.ts`). The default is a placeholder, not
+a drawn size: a phone panel never passes its stored `size` on, because its width is always the live phone width (see
+"The width source" below), so the default never reaches a pixel.
 
 ## `PanelsAPI.move` is directional (move-by-one), not "move to index"
 
@@ -189,8 +190,8 @@ it come second. A row gesture or a close later in the same handler prices the re
 
 ### The tier table
 
-The host owns one table, `TIER_SIZES` (`panelWindow.ts`); these numbers are tunable, the rest of this section
-is not:
+One table, `TIER_SIZES` (`panelTiers.ts`), holds every tier's size; these numbers are tunable, the rest of this
+section is not:
 
 | tier | width | height |
 | --- | --- | --- |
@@ -301,7 +302,7 @@ function) as "no options", so a bare `onClick={panels.create}` reference behaves
 `anchor`/`layer`/`anchoredEnter`/`collapsible`, but every component it resolves through the registry --
 built-in or third-party -- is written against `PanelComponent<P>` (renamed to `ViewComponent<P>`) `= ComponentType<{ panel: PanelSummary<P>
 }>`. It narrows through the same `summarisePanel()` projection `PanelsAPI.panelList`/`recentlyClosed` use
-(`panelRowEntry.ts`), so a view can never read a row-only or host-only field (`webContentsId`, `collapsible`,
+(`panelRowEntry.ts`), so a view can never read a row-only or host-only field (`hostData`, `collapsible`,
 `anchor`, `layer`, `anchoredEnter`) just because it happens to be a plain variable, not an object literal,
 and so escapes TypeScript's excess-property check at the call site.
 
@@ -492,8 +493,10 @@ covered in "Permanent columns" and "What's saved, and what's never" below.
 
 - **Saved.** `id` (file-scoped only, remapped on restore), `view`, `url`, `title`, `params`, `listed`, `live`,
   `anchor`, `formFactor`, `row`, `permanent`, `layer`.
-- **Never saved -- `webContentsId`, `sourceWebContentsId`.** Electron's own runtime handles; the owner's ruling
-  is that no runtime handle is ever saved, full stop.
+- **Never saved -- `hostData`.** The host's own opaque per-panel data, which the desktop host uses for its
+  Electron runtime handles. The owner's ruling is that no runtime handle is ever saved, full stop, and phonux
+  cannot tell a handle from any other value inside the blob, so none of it is saved: `WorkspacePanelState` has
+  no field for it, and a restored panel starts without one.
 - **Never saved -- `size`.** Always recomputed from `formFactor`, never round-tripped.
 - **Never saved -- `locked`.** Always `false` at create time for anything saveable, never independently set
   on a saveable panel today.
@@ -775,7 +778,7 @@ nearer built-in provider and silently receives nothing, with no error.
 Only `client/src/desktop/capture/` (app-side, never this folder -- see "Import boundary" above) implements a
 real `CaptureRegistry`, the DOM-redraw pixel engine, and the `SnapshotsAPI` store those pixels land in, and
 only it renders `<CaptureRegistryProvider registry={realRegistry}>`, wrapping `<HostProvider>`. `PanelSummary`
-never gains a `snapshot` field for the same reason `PanelWindow`'s desktop-only fields never leak into it
+never gains a `snapshot` field for the same reason `PanelWindow`'s host-only fields never leak into it
 (see "A resolved panel component only ever sees a `PanelSummary`" above): a picture is read on demand through
 `useViewSnapshot`, not pushed into every row's own summary object.
 
@@ -831,13 +834,15 @@ literal-union case.
 
 ## The API reports in `etc/`
 
-`etc/phonux.api.md`, `etc/phonux-testing.api.md` and `etc/phonux-internal.api.md` are API Extractor's reading
-of this package's surface, one per `exports` key in `package.json` (`.`, `./testing`,
-`./internal/directionalTransition`). They are committed so that a change to what a consumer can import shows
-up as a diff in review. Only `npm run api-report:update` writes them. `npm run check:api-report` regenerates
-each one in a temp folder and fails if it differs from the committed copy, so a hand edit fails the next check.
+`etc/phonux.api.md`, `etc/phonux-testing.api.md`, `etc/phonux-internal.api.md` and
+`etc/phonux-panelModel.api.md` are API Extractor's reading of this package's surface, one per `exports` key in
+`package.json` (`.`, `./testing`, `./internal/directionalTransition`, `./internal/panelModel`). They are
+committed so that a change to what a consumer can import shows up as a diff in review. Only
+`npm run api-report:update` writes them. `npm run check:api-report` regenerates each one in a temp folder and
+fails if it differs from the committed copy, so a hand edit fails the next check.
 
-There are three `api-extractor*.json` configs because API Extractor analyses one entry point per run. The
+There are four `api-extractor*.json` configs, the fourth being `api-extractor.panelModel.json` for
+`./internal/panelModel`, because API Extractor analyses one entry point per run. The
 report script checks the `exports` map against the configs key by key, so an entry point with no config, or
 two configs pointed at each other's entry, fails before anything runs. The declarations it reads are emitted
 into `client/api-extractor-temp/`, a sibling of `client/src`, so they never reach `typecheck:app`, the
@@ -851,12 +856,26 @@ with an underscore, but these names are already imported under their current spe
 without an underscore passes silently there too. `.` and `./testing` still enforce the rule: nothing they
 reach is `@internal`, and an underscore-less `@internal` tag on one of their exports fails the check.
 
+`./internal/panelModel` is the same kind of entry point: `panelWindow.ts` (the `PanelWindow` record and its pure
+transitions, plus `effectiveMaxPanels` re-exported from `panelCapacity.ts` so one config covers both),
+imported as `phonux/internal/panelModel` by `appApis.ts`, `LivePanel.tsx` and the panel hooks outside this
+folder. It is tracked and tagged `@internal`, and `api-extractor.panelModel.json` carries its own
+`ae-internal-missing-underscore` switch-off, because a config does not inherit another's, so the caveat above
+holds for it too. `panelWindow.ts` also re-exports `FormFactor`, `JsonValue`, `PanelSize`, `PanelAnchor` and
+`NeighborWidths`, which its signatures name, so that the report has no `ae-forgotten-export`.
+
+Neither `@internal` subpath ships. `npm run build:phonux` skips every key in `INTERNAL_ONLY_EXPORT_KEYS`
+(`tools/phonux-build.mjs`), which holds `./internal/directionalTransition` and `./internal/panelModel`, so
+`dist/package.json`'s `exports` lists only `.` and `./testing`: an outside consumer has no use for either, and
+the app resolves them in place.
+
 Every declaration an entry point reaches carries exactly one release tag in its own doc comment: `@public`
-for `.` and `./testing`, `@internal` for `./internal/directionalTransition`. A deprecated alias keeps
-`@deprecated` beside its tag. A tag above a re-export line (`export { X } from ...`) does nothing, because
-API Extractor reads only the declaration's own comment. `ViewStateProvider` and `PANEL_HEADER_GAP_PX` are
-exported for this package's own files and tests but reached by no entry point, and are tagged `@internal` to
-say so.
+for `.` and `./testing`, `@internal` for `./internal/directionalTransition` and for what `./internal/panelModel`
+declares itself (the five types it re-exports keep their own `@public`, so that report lists them as
+`@public`). A deprecated alias keeps `@deprecated` beside its tag. A tag above a re-export line
+(`export { X } from ...`) does nothing, because API Extractor reads only the declaration's own comment.
+`ViewStateProvider` and `PANEL_HEADER_GAP_PX` are exported for this package's own files and tests but reached
+by no entry point, and are tagged `@internal` to say so.
 
 A public signature pins every type it names. Each one must be exported by the same entry point (otherwise
 `ae-forgotten-export`), which is why `fakeHost.ts` re-exports `Host`'s whole type closure and
