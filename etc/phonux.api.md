@@ -440,6 +440,7 @@ export interface PanelsInput {
     phoneWidth: number;
     resetHostDataOnRestore?: (hostData: JsonValue | undefined, panel: PanelWindow) => JsonValue | undefined;
     rootId: string;
+    storage?: WorkspaceStorage;
     storedMaxPanels: number | null;
 }
 
@@ -794,6 +795,25 @@ export interface WindowOverlayProps {
 // @public
 export function Workspace(props: WorkspaceProps): React_2.ReactElement;
 
+// @public
+export type WorkspacePanelState = {
+    id: string;
+    view: string;
+    url: string;
+    title?: string;
+    params?: JsonValue;
+    listed?: boolean;
+    live: boolean;
+    anchor: {
+        panel: string;
+        position: 'left' | 'right';
+        priority: number;
+    };
+    formFactor?: FormFactor;
+    permanent?: boolean;
+    layer?: 'base' | 'raised';
+};
+
 // @public (undocumented)
 export interface WorkspaceProps extends Omit<BoxProps, 'children'> {
     beforeRow?: React_2.ReactNode;
@@ -813,6 +833,18 @@ export interface WorkspaceProps extends Omit<BoxProps, 'children'> {
     rowResizeSettled: boolean;
     topPadding?: number;
 }
+
+// @public
+export type WorkspaceState = {
+    version: 1;
+    panels: WorkspacePanelState[];
+};
+
+// @public
+export type WorkspaceStorage = {
+    load(): Promise<WorkspaceState | null>;
+    save(state: WorkspaceState): void;
+};
 
 // (No @packageDocumentation comment for this package)
 
