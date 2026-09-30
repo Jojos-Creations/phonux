@@ -5,17 +5,18 @@ APIs, register it, and render it inside one `<HostProvider>`. The host decides
 which views are live; a view never touches the desktop bridge, `localStorage`,
 or anything else app-internal (see `DESIGN.md` in this folder for why).
 
-Today this package is consumed in place, from inside the phonUX/SimpleBrowser
-repo (`client/src/shared/phone`), with `exports` pointing straight at `.ts`
-source -- no build step for in-repo use. `npm run build:phonux` (repo root)
-packs a versioned, typed build to `dist/` for use from outside the repo.
+Today this package is consumed in place, from inside the phonux-app repository
+(Jojos-Creations/phonux-app, at `client/src/shared/phone`), with `exports`
+pointing straight at `.ts` source -- no build step for in-repo use.
+`npm run build:phonux` (repo root) packs a versioned, typed build to `dist/`
+for use from outside the repo.
 
 ## Peer dependencies
 
 phonux does not bundle React, MUI, emotion or motion -- it expects the host
 app to already have them:
 
-```
+```sh
 npm install react react-dom @mui/material @mui/icons-material @emotion/react @emotion/styled motion
 ```
 
