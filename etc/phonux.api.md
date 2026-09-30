@@ -628,9 +628,7 @@ export type PhoneViewProps = PanelProps;
 
 // @public
 export interface ProvidedPanels extends PanelsAPI {
-    // (undocumented)
     readonly closingIds: ReadonlySet<string>;
-    // (undocumented)
     readonly enteringViaAnchorIds: ReadonlySet<string>;
     readonly enterSideById: ReadonlyMap<string, 'left' | 'right'>;
     readonly entries: readonly PanelWindow[];
