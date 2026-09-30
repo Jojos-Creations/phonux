@@ -79,11 +79,12 @@ const VALUE_EXPORTS = [
   'usePanelNeighborWidths',
   'usePanelPinned',
   'Workspace',
+  'useProvidePanels',
   // Opt-in extras (never applied implicitly).
   'createDefaultTheme',
 ].sort();
 
-test('the phonux barrel exports exactly the 64 runtime values, no more, no fewer', () => {
+test('the phonux barrel exports exactly the 65 runtime values, no more, no fewer', () => {
   assert.deepEqual(Object.keys(phonux).sort(), VALUE_EXPORTS);
 });
 
