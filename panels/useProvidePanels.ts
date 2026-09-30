@@ -6,12 +6,14 @@
  * (provide-panels.test.ts's "holds EXACTLY the PanelSummary keys" tests pin their key set).
  */
 
-import { useEffect, useRef, type Dispatch, type RefObject, type SetStateAction } from 'react';
-import { noopCaptureTrigger, summarisePanel, type CaptureTrigger, type CreatePanelOptions, type PanelsAPI } from 'phonux';
-import { appendPanel, reanchorPanel, type PanelWindow } from 'phonux/internal/panelModel';
+import { useEffect, useRef, useState, type RefObject } from 'react';
+import type { CreatePanelOptions, JsonValue, PanelsAPI } from '../hostApi.js';
+import { summarisePanel } from '../panelRowEntry.js';
+import { noopCaptureTrigger, type CaptureTrigger } from '../snapshots.js';
+import { appendPanel, reanchorPanel, type PanelWindow } from '../panelWindow.js';
 import { usePanelClosing } from './usePanelClosing.js';
 import { usePanelManager } from './usePanelManager.js';
-import { useRowScrollGesture } from '../row/useRowScrollGesture.js';
+import { useRowScrollGesture } from './useRowScrollGesture.js';
 
 /** Ids for panels this app creates itself. A module counter, bumped only from event handlers (never from a state initialiser), so StrictMode's double invocation cannot skip one. */
 let nextWindowId = 1;
@@ -25,15 +27,15 @@ function isEventLike(value: unknown): boolean {
 }
 
 export interface PanelsInput {
-  panels: PanelWindow[];
-  setPanels: Dispatch<SetStateAction<PanelWindow[]>>;
-  /** History's seeded id (appApis.ts's HISTORY_PANEL_ID) -- threaded through to every panelWindow.ts call that needs it. */
+  /** The list the provider starts with, read once on mount (the host seeds its always-shown columns here); the provider owns the list from then on. Default: empty. */
+  initialEntries?: readonly PanelWindow[];
+  /** The id of the row's root entry, the one every anchor leads to -- threaded through to every panelWindow.ts call that needs it. */
   rootId: string;
   /** The stored "max panels on screen" choice (`null` = follow the fit count) -- SettingsAPI's own value. */
   storedMaxPanels: number | null;
   phoneWidth: number;
-  /** `count(!collapsible)` over the one panel list right now -- the host's own single source of truth (appApis.ts), passed through rather than recomputed here so usePanelManager always agrees with it. */
-  fixedViewCount: number;
+  /** Overrides `count(!collapsible)` over the provider's own list, which is the default: a host that prices the row from a count it already holds passes it through so usePanelManager always agrees with it. */
+  fixedViewCount?: number;
   /** useWorkspaceShell's own measured width (0 before the first measurement) -- usePanelManager derives the fit count and capacity from this, the same inputs SettingsAPI.fitCount uses. */
   containerWidth: number;
   /** The row's scroll container: the gesture's wheel listener attaches here. */
@@ -46,6 +48,10 @@ export interface PanelsInput {
   onPanelsClosed?: (entry: { id: string; title: string; url: string; closedAt: string }) => void;
   /** Called once per undo batch with the log ids it restores. See usePanelClosing.ts. */
   onPanelsRestored?: (logIds: string[]) => void;
+  /** Called once per restored panel; the return value becomes its `hostData` (`undefined` drops the key). Unset keeps what it closed with. phonux never reads inside `hostData`, so what needs resetting after an undo is the host's call. */
+  resetHostDataOnRestore?: (hostData: JsonValue | undefined, panel: PanelWindow) => JsonValue | undefined;
+  /** Builds the `hostData` of every panel `create()` opens; an explicit `options.hostData` replaces it. Unset: new panels carry none. */
+  defaultHostData?: () => JsonValue;
 }
 
 /**
@@ -53,6 +59,8 @@ export interface PanelsInput {
  * purpose: that interface is the narrow surface a third-party view is written against (hostApi.tsx's header).
  */
 export interface ProvidedPanels extends PanelsAPI {
+  /** The provider's one panel list, raw (not summarised): the row's input, never part of PanelsAPI. */
+  readonly entries: readonly PanelWindow[];
   readonly closingIds: ReadonlySet<string>;
   readonly enteringViaAnchorIds: ReadonlySet<string>;
   /** See usePanelManager.ts's `UsePanelManagerResult.exitRightIds` for the full contract. */
@@ -63,6 +71,8 @@ export interface ProvidedPanels extends PanelsAPI {
 
 export function useProvidePanels(i: PanelsInput): ProvidedPanels {
   const capture = i.capture ?? noopCaptureTrigger;
+  const [panels, setPanels] = useState<PanelWindow[]>(() => [...(i.initialEntries ?? [])]);
+  const fixedViewCount = i.fixedViewCount ?? panels.filter((p) => !p.collapsible).length;
   const {
     revealPanelProactively,
     handleActivatePanel,
@@ -76,7 +86,7 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
     resizePanel,
     enterSideById,
     exitRightIds,
-  } = usePanelManager(i.panels, i.setPanels, i.storedMaxPanels, i.phoneWidth, i.containerWidth, i.fixedViewCount, i.rootId);
+  } = usePanelManager(panels, setPanels, i.storedMaxPanels, i.phoneWidth, i.containerWidth, fixedViewCount, i.rootId);
 
   // The row's wheel/arrow-key gesture is wired here, not in the host: phone-boundary.test.ts forbids
   // useEffect/useRef in GoalFrontPage.tsx.
@@ -88,17 +98,17 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
   const prevLiveRef = useRef<ReadonlyMap<string, boolean>>(new Map());
   useEffect(() => {
     const prev = prevLiveRef.current;
-    for (const p of i.panels) {
+    for (const p of panels) {
       if (prev.get(p.id) === true && !p.live) capture.capture(p.id);
     }
-    prevLiveRef.current = new Map(i.panels.map((p) => [p.id, p.live]));
-  }, [i.panels, capture]);
+    prevLiveRef.current = new Map(panels.map((p) => [p.id, p.live]));
+  }, [panels, capture]);
 
   // After usePanelManager: undo makes room for a live view through its revealPanelProactively. `onAfterClose`
   // forgets the closed id (it may have been parked), then offers the freed room to the most recently parked panel.
   const closing = usePanelClosing(
-    i.panels,
-    i.setPanels,
+    panels,
+    setPanels,
     revealPanelProactively,
     i.rootId,
     (id, remaining) => {
@@ -118,23 +128,26 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
     },
     i.onPanelsClosed,
     i.onPanelsRestored,
+    i.resetHostDataOnRestore,
   );
 
   const api: ProvidedPanels = {
     // `listed` excludes History: it must not list itself (AdventurePanel.tsx renders every entry here as a
     // clickable row).
-    panelList: i.panels.filter((p) => p.listed).map(summarisePanel),
+    panelList: panels.filter((p) => p.listed).map(summarisePanel),
     create: (options?: CreatePanelOptions) => {
       // `options` is explicitly optional here (not left to infer from `create`'s own overloaded interface
       // member) -- an implementation inferred as requiring it would no longer satisfy the zero-arg overload.
       const safeOptions = isEventLike(options) ? undefined : options;
       const id = String(nextWindowId++);
+      // Built here, outside the updater below: React may run an updater twice, and the host's builder is not required to be pure.
+      const hostData = i.defaultHostData?.();
       // "Panel N", not "about:blank": every panel needs a distinguishable title, for testing. options?.title
       // overrides it; the explicit `title:` below (after the spread) is what makes that override win either way.
-      revealPanelProactively(i.panels, (prev) =>
+      revealPanelProactively(panels, (prev) =>
         appendPanel(
           prev,
-          { url: 'about:blank', hostData: { sourceWebContentsId: -1, webContentsId: null }, ...safeOptions, title: safeOptions?.title ?? `Panel ${id}` },
+          { url: 'about:blank', hostData, ...safeOptions, title: safeOptions?.title ?? `Panel ${id}` },
           id,
           i.rootId,
         ),
@@ -147,7 +160,7 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
     },
     // No keep-live mark and no settle step: settles() reads only the live set's widths and count, never its
     // order, so a reorder cannot unsettle a row, and a DROP later in the handler may park this panel as any other.
-    reanchor: (id, anchor) => i.setPanels((prev) => reanchorPanel(prev, id, anchor, i.rootId)),
+    reanchor: (id, anchor) => setPanels((prev) => reanchorPanel(prev, id, anchor, i.rootId)),
     close: (id: string) => {
       // Fires on every close() call regardless of whether this id actually leaves the array (an
       // unknown/locked id's close is already a no-op below) -- a harmless extra attempt costs nothing, and
@@ -159,7 +172,8 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
     undoClose: closing.undoClose,
     // Forgets every web panel, live or parked -- never History (`collapsible: false`, the one always-shown
     // column): "Clear all" empties the row list, not the column showing it.
-    clearAll: () => i.setPanels((prev) => prev.filter((p) => !p.collapsible)),
+    clearAll: () => setPanels((prev) => prev.filter((p) => !p.collapsible)),
+    entries: panels,
     closingIds: closing.closingIds,
     enteringViaAnchorIds,
     exitRightIds,
@@ -172,7 +186,9 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
   // a production build. An EFFECT, not a render-body assignment: StrictMode double-invokes render bodies. No
   // deps array: `api` is a fresh object every render, and a test must always reach the LATEST closure.
   useEffect(() => {
-    if (typeof window === 'undefined' || import.meta.env?.MODE !== 'test') return;
+    // Structural cast: the package builds without Vite's ambient types, so `import.meta.env` is untyped here.
+    const mode = (import.meta as unknown as { env?: { MODE?: string } }).env?.MODE;
+    if (typeof window === 'undefined' || mode !== 'test') return;
     (window as unknown as { __panelsApiForTests?: ProvidedPanels }).__panelsApiForTests = api;
   });
 

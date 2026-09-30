@@ -17,7 +17,7 @@ export { effectiveMaxPanels } from './panelCapacity.js';
 /**
  * One browsing panel in the unified row: either live in the row or parked, never both. Parking only flips
  * `live`; it never removes the entry from the array, only `closePanel` does.
- * @internal
+ * @public
  */
 export interface PanelWindow {
   id: string;

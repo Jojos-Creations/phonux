@@ -1,11 +1,19 @@
 import { useEffect, useRef, useState, type Dispatch, type SetStateAction } from 'react';
 import { flushSync } from 'react-dom';
-import type { JsonValue } from 'phonux';
-import { closePanel, restorePanel, type PanelWindow } from 'phonux/internal/panelModel';
+import type { JsonValue } from '../hostApi.js';
+import { closePanel, restorePanel, type PanelWindow } from '../panelWindow.js';
 import type { UsePanelManagerResult } from './usePanelManager.js';
 
 /** The undo toast stays up for 10 seconds, one window, restarted by every close. */
 export const UNDO_WINDOW_MS = 10_000;
+
+/** `panel` carrying `hostData`; `undefined` leaves no `hostData` key at all, the same shape appendPanel produces. */
+function withHostData(panel: PanelWindow, hostData: JsonValue | undefined): PanelWindow {
+  const next: PanelWindow = { ...panel };
+  if (hostData === undefined) delete next.hostData;
+  else next.hostData = hostData;
+  return next;
+}
 
 /** A view closed inside the current undo window: the panel, where it sat, and the id of its entry in the background log. */
 interface ClosedView {
@@ -61,6 +69,12 @@ export function usePanelClosing(
   onPanelsClosed?: (entry: { id: string; title: string; url: string; closedAt: string }) => void,
   /** Called once per `undoClose` batch with the log ids of every close the batch restores, in close order. */
   onPanelsRestored?: (logIds: string[]) => void,
+  /**
+   * Called once per restored panel with the `hostData` it closed carrying; its return value is what the panel comes
+   * back with (`undefined` drops the key). Unset leaves `hostData` exactly as it closed: only the host knows what
+   * the opaque blob pointed at, and whether that outlived the close.
+   */
+  resetHostDataOnRestore?: (hostData: JsonValue | undefined, panel: PanelWindow) => JsonValue | undefined,
 ): UsePanelClosingResult {
   const [closed, setClosed] = useState<ClosedView[]>([]);
   // Mirrors `closed` synchronously (never via an effect): the timer callback below fires from a closure
@@ -124,9 +138,9 @@ export function usePanelClosing(
     let working = panels;
     for (const { panel, index } of [...batch].reverse()) {
       if (working.some((p) => p.id === panel.id)) continue;
-      // restorePanel is a pure spread and phonux never reads inside hostData: whatever it pointed at was
-      // unmounted when this panel closed, so the reset lives here, computed once for every call below.
-      const restoringPanel: PanelWindow = { ...panel, hostData: { ...(panel.hostData as Record<string, JsonValue> | undefined), webContentsId: null } };
+      // restorePanel is a pure spread and phonux never reads inside hostData, so the host's own reset runs
+      // here, once per panel, and its result is what every call below restores.
+      const restoringPanel = resetHostDataOnRestore ? withHostData(panel, resetHostDataOnRestore(panel.hostData, panel)) : panel;
       if (panel.live) {
         // This restore is one of the two "reappearance" paths that enters from the anchor's side -- mark it
         // BEFORE revealPanelProactively's own setPanels call, same ordering reasoning as usePanelManager.ts's

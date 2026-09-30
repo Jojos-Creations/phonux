@@ -115,5 +115,8 @@ export { PanelRow, usePanelCloseEligible, usePanelNeighborWidths, usePanelPinned
 export { GAP, PANEL_TRANSITION, PanelRowSlot, PanelSizeBox } from './PanelRowSlot.js';
 export { Workspace } from './Workspace.js';
 export type { WorkspaceProps } from './Workspace.js';
+export { useProvidePanels } from './panels/useProvidePanels.js';
+export type { PanelsInput, ProvidedPanels } from './panels/useProvidePanels.js';
+export type { PanelWindow } from './panelWindow.js';
 
 export { createDefaultTheme } from './defaultTheme.js';
