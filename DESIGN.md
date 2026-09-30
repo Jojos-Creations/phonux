@@ -382,6 +382,22 @@ folder.
 container, the centered/animated-margin math `workspaceShellStyle` (in `client/src/shared/phone/Workspace.tsx`)
 computes, and the `OverlaySlot` mounts. Like `PanelRow`, it does not consume `PanelSummary`.
 
+**What phonux owns: the panel state machine.** The hooks that decide which panels exist and which are live sit in
+`panels/` in this folder: `usePanelManager` (capacity, parking, reveal, reorder), `usePanelClosing` (close, the undo
+window, Undo), `useRowScrollGesture` (the row's wheel and arrow-key gesture) and `useProvidePanels`, which composes
+the other three. A host mounts `useProvidePanels` with its seed entries (`initialEntries`, `rootId`) and the row's
+measured inputs, plus optional hooks: `onPanelsClosed`, `onPanelsRestored`, `resetHostDataOnRestore`,
+`defaultHostData` and `capture`. It gets back `ProvidedPanels`: `PanelsAPI` plus the row's animation sets,
+`entries`, `fixedViewCount`, `liveWidths` and `maxLiveWidth`. The provider owns the list from the first render,
+seeded once from `initialEntries`, so a host never holds a `setPanels`; it seeds its always-shown columns through
+`initialEntries` too (the History column is one, and it is still host code). `entries` is the raw list with
+`hostData` in it and stays off `PanelsAPI`, so a host hands its views only `PanelsAPI`'s own members. `hostData`
+stays opaque: phonux never reads inside it, which is why the two places that would need its shape (a created panel,
+a restored one) are host callbacks. Host callbacks must not throw: phonux does not guard them, and a throwing
+callback leaves the operation half-applied. A throwing `onPanelsClosed` leaves the panel out of the list with no
+Undo offered for it; a throwing `resetHostDataOnRestore` part-way through an undo restores the panels before it and
+loses the rest.
+
 **What stays host.** The Electron drag-strip chrome (the draggable title-bar region and macOS traffic-light
 clearance) and every other window-chrome concern; the IPC calls a panel's own actions make; and mounting the
 real `<webview>` inside a resolved View. None of that is row layout, and none of it can move here without
@@ -782,6 +798,15 @@ only it renders `<CaptureRegistryProvider registry={realRegistry}>`, wrapping `<
 never gains a `snapshot` field for the same reason `PanelWindow`'s host-only fields never leak into it
 (see "A resolved panel component only ever sees a `PanelSummary`" above): a picture is read on demand through
 `useViewSnapshot`, not pushed into every row's own summary object.
+
+`CaptureTrigger` -- what `useProvidePanels` calls at a park or close to (re)capture a view's picture or to drop
+it -- is declared in `snapshots.ts`, beside `CaptureRegistry`. phonux only says WHEN. A provider with no `capture`
+input uses `noopCaptureTrigger`, so phonux never captures by itself; a host that wants real pictures passes its own
+trigger. The two eviction paths differ in timing: `clearAll` evicts every dropped panel's picture at once, because
+a dropped panel can never be shown again, while a closed panel's picture waits for its undo window (Undo keeps it;
+the window's natural elapse evicts it). Known limit: a capture already in flight can still store its picture after
+an evict, because the store has no per-id generation, so a panel parked and then cleared within one engine call can
+end up with a picture nothing evicts.
 
 ## `useViewState`: per-view state that outlives a park, not a restart
 
