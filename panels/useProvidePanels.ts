@@ -2,12 +2,16 @@
  * The app's implementation of PanelsAPI: the panel list, create/activate/close/undo/clear-all. Wraps
  * usePanelManager, composes usePanelClosing and owns the row's scroll gesture. panelList and recentlyClosed hold
  * PanelSummary objects built here, never PanelWindow records (provide-panels.test.ts pins their key set); `entries`
- * is the raw list, hostData included, for the app and PanelRow only: an app keeps it out of the bag its views read.
+ * is the raw list, hostData included, for the app and PanelRow only: an app keeps it out of the bag its views read,
+ * and the row's numbers (fixedViewCount, liveWidths, maxLiveWidth) beside it.
  */
 
 import { useEffect, useRef, useState, type RefObject } from 'react';
 import type { CreatePanelOptions, JsonValue, PanelsAPI } from '../hostApi.js';
+import { GAP } from '../PanelRowSlot.js';
+import { computeMaxLiveWidth } from '../panelRowLayout.js';
 import { summarisePanel } from '../panelRowEntry.js';
+import { panelWidthOf } from '../panelTiers.js';
 import { noopCaptureTrigger, type CaptureTrigger } from '../snapshots.js';
 import { appendPanel, reanchorPanel, type PanelWindow } from '../panelWindow.js';
 import { usePanelClosing } from './usePanelClosing.js';
@@ -60,13 +64,20 @@ export interface PanelsInput {
 }
 
 /**
- * PanelsAPI plus the desktop-only exit/enter animation inputs PanelRow reads, kept OFF PanelsAPI on
- * purpose: that interface is the narrow surface a third-party view is written against (hostApi.tsx's header).
+ * PanelsAPI plus the inputs PanelRow and the workspace read: the raw list, the exit/enter animation sets and the
+ * row's numbers. They stay OFF PanelsAPI on purpose: that interface is the narrow surface a third-party view is
+ * written against (hostApi.tsx's header).
  * @public
  */
 export interface ProvidedPanels extends PanelsAPI {
   /** The provider's one panel list, raw (not summarised): the row's input, never part of PanelsAPI. */
   readonly entries: readonly PanelWindow[];
+  /** How many always-rendered columns the row has: `PanelsInput.fixedViewCount` when passed, else `count(!collapsible)` over `entries`. Capacity and `SettingsAPI.fitCount` are priced from it. */
+  readonly fixedViewCount: number;
+  /** Each live collapsible panel's own width in row order, capped at `maxLiveWidth`: the row's centring margin and `SettingsAPI.fitCount` read the same array capacity is priced from. */
+  readonly liveWidths: readonly number[];
+  /** The widest one live panel can be in this row; `Infinity` until the row is measured (`containerWidth` 0). */
+  readonly maxLiveWidth: number;
   /** Ids being closed: each exits DOWN before it leaves `entries`. */
   readonly closingIds: ReadonlySet<string>;
   /** Ids (re)joining `live` by a reveal or an undo: each enters from its anchor's side. */
@@ -86,6 +97,9 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
   const capture = i.capture ?? noopCaptureTrigger;
   const [panels, setPanels] = useState<PanelWindow[]>(() => [...(i.initialEntries ?? [])]);
   const fixedViewCount = i.fixedViewCount ?? panels.filter((p) => !p.collapsible).length;
+  // Filters over the whole list, never an array position: a panel anchored left of History changes none of these.
+  const maxLiveWidth = computeMaxLiveWidth({ containerWidth: i.containerWidth, phoneWidth: i.phoneWidth, gap: GAP, fixedItemCount: fixedViewCount });
+  const liveWidths = panels.filter((p) => p.collapsible && p.live).map((p) => panelWidthOf(p, i.phoneWidth, maxLiveWidth));
   const {
     revealPanelProactively,
     handleActivatePanel,
@@ -186,6 +200,9 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
     // column): "Clear all" empties the row list, not the column showing it.
     clearAll: () => setPanels((prev) => prev.filter((p) => !p.collapsible)),
     entries: panels,
+    fixedViewCount,
+    liveWidths,
+    maxLiveWidth,
     closingIds: closing.closingIds,
     enteringViaAnchorIds,
     exitRightIds,
