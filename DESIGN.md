@@ -318,9 +318,19 @@ compiles this folder exactly as it would compile any other module in the tree, a
 visible to this repo's own dev and test without a publish step.
 
 Packing for an outside consumer is a separate, opt-in step, never run as part of this repo's own build
-or test: `npm run build:phonux` compiles to `dist/` and generates a throwaway `dist/package.json` with
-its paths rewritten relative to `dist/` (never hand-edited, never committed); `npm run smoke:phonux`
-proves the packed tarball actually installs and resolves in a throwaway app outside this repo.
+or test. `npm run build:phonux` compiles to `dist/` and generates a throwaway `dist/package.json` with
+its paths rewritten relative to `dist/` (never hand-edited, never committed). `description` and
+`license` come from this folder's `package.json` (the build refuses a source manifest without them),
+the generated manifest has no `private` key and sets `publishConfig.access` to `public`, and `LICENSE`,
+`README.md` and `DESIGN.md` ship beside it.
+
+`npm run smoke:phonux` is the publish gate: it asserts the manifest inside the packed tarball, then
+proves the tarball installs and resolves in a throwaway app outside this repo, with the real peer set
+from the registry, in nine checks. `--from <tarball path or registry spec>` runs the same checks on an
+already-packed or already-published artifact. `npm run release:check` confirms that `name@version` is
+still free on the registry, runs the build and the smoke, and prints the `npm publish` command for the
+owner to run with their own login; it never publishes. `npm publish --dry-run` is not evidence, because
+it accepts a `private: true` manifest.
 
 ## `index.ts` splits values from types on purpose
 
