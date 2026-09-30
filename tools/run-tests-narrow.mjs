@@ -8,7 +8,7 @@ import { existsSync, mkdtempSync, readFileSync, realpathSync, rmSync } from 'nod
 import { tmpdir } from 'node:os';
 import { join, relative } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
-import { missingFiles, resolveRequestedFiles } from './run-tests.mjs';
+import { CHILD_BASE_FLAGS, missingFiles, resolveRequestedFiles } from './run-tests.mjs';
 
 const REPO_ROOT = fileURLToPath(new URL('..', import.meta.url));
 const TSX_BIN = join(REPO_ROOT, 'node_modules', '.bin', 'tsx');
@@ -65,9 +65,7 @@ export function selectReporter(patterns) {
 export function buildChildArgv({ flags, patterns, files, reporterPath, reporterDestination }) {
   return [
     '--test',
-    '--test-timeout=900000',
-    // Without this a file with imperfect teardown (the Electron tests) hangs the run.
-    '--test-force-exit',
+    ...CHILD_BASE_FLAGS,
     '--test-reporter=spec',
     '--test-reporter-destination=stdout',
     `--test-reporter=${reporterPath}`,

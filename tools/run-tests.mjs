@@ -66,6 +66,22 @@ export function formatSummary({ repoRoot, requestedCount, observedCount, missing
   return lines.join('\n');
 }
 
+export const FLUSH_PRELOAD_PATH = join(REPO_ROOT, 'tools', 'flush-stdout-before-exit.mjs');
+// --test-force-exit stays: a file with imperfect teardown (the Electron tests) hangs the run without it.
+export const CHILD_BASE_FLAGS = ['--test-timeout=900000', '--test-force-exit', `--import=${FLUSH_PRELOAD_PATH}`];
+
+export function buildRunTestsArgv({ reporterDestination, forwardArgv }) {
+  return [
+    '--test',
+    ...CHILD_BASE_FLAGS,
+    '--test-reporter=spec',
+    '--test-reporter-destination=stdout',
+    `--test-reporter=${REPORTER_PATH}`,
+    `--test-reporter-destination=${reporterDestination}`,
+    ...forwardArgv,
+  ];
+}
+
 async function main() {
   const forwardArgv = process.argv.slice(2);
   const cwd = process.cwd();
@@ -74,18 +90,7 @@ async function main() {
   const scratchDir = mkdtempSync(join(tmpdir(), 'phonux-run-tests-'));
   const observedDestination = join(scratchDir, 'observed-files.log');
 
-  const childArgv = [
-    '--test',
-    '--test-timeout=900000',
-    // --test-force-exit stays: unrelated to the file-drop bug above; removing
-    // it hangs indefinitely on any file with imperfect teardown (Electron tests especially).
-    '--test-force-exit',
-    '--test-reporter=spec',
-    '--test-reporter-destination=stdout',
-    `--test-reporter=${REPORTER_PATH}`,
-    `--test-reporter-destination=${observedDestination}`,
-    ...forwardArgv,
-  ];
+  const childArgv = buildRunTestsArgv({ reporterDestination: observedDestination, forwardArgv });
 
   // process.exit() must stay outside the try: calling it from inside skips
   // the finally below, so the scratch dir would never get cleaned up.
