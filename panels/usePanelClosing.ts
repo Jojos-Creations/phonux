@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState, type Dispatch, type SetStateAction } from 'react';
 import { flushSync } from 'react-dom';
 import type { JsonValue } from 'phonux';
-import { bridge } from '../../shared/ipc/bridge.js';
 import { closePanel, restorePanel, type PanelWindow } from 'phonux/internal/panelModel';
 import type { UsePanelManagerResult } from './usePanelManager.js';
 
@@ -35,8 +34,8 @@ export interface UsePanelClosingResult {
  * and offers Undo for 10 s. Takes the CURRENT render's values, so nothing here may be memoised, and `close` reads the
  * index from that render: two closes before one re-render would undo in the wrong order (discrete gestures re-render
  * between events), so a caller that batches closes needs one setPanels for the lot. Log ids are `<closedAt>#<panel id>`:
- * panel ids restart each launch, and undo's removeByIds would otherwise also delete an older launch's entry. The bridge
- * calls are best effort: a browser-only preview persists nothing.
+ * panel ids restart each launch, and undo's removeByIds would otherwise also delete an older launch's entry.
+ * `onPanelsClosed`/`onPanelsRestored` are how the host persists the log; this hook never reaches the bridge itself.
  */
 export function usePanelClosing(
   panels: PanelWindow[],
@@ -58,6 +57,10 @@ export function usePanelClosing(
    * caller can tell a restored close from one nothing will ever undo.
    */
   onWindowElapsed?: (ids: string[]) => void,
+  /** Called once per successful close with the log entry: `id` is the log id, `title` already falls back to the url, then 'Untitled panel'. */
+  onPanelsClosed?: (entry: { id: string; title: string; url: string; closedAt: string }) => void,
+  /** Called once per `undoClose` batch with the log ids of every close the batch restores, in close order. */
+  onPanelsRestored?: (logIds: string[]) => void,
 ): UsePanelClosingResult {
   const [closed, setClosed] = useState<ClosedView[]>([]);
   // Mirrors `closed` synchronously (never via an effect): the timer callback below fires from a closure
@@ -99,14 +102,8 @@ export function usePanelClosing(
     const logId = `${closedAt}#${id}`;
     setPanels((prev) => closePanel(prev, id, rootId)?.remaining ?? prev);
     onAfterClose?.(id, found.remaining);
-    try {
-      bridge()
-        // A url-less custom panel has nothing sensible to fall back to: 'Untitled panel', never an empty string.
-        .deadEnd.record([{ id: logId, title: found.closed.title || found.closed.url || 'Untitled panel', url: found.closed.url, closedAt }])
-        .catch(() => {});
-    } catch {
-      // No desktop bridge (a browser-only preview build) -- the log simply never persists.
-    }
+    // A url-less custom panel has nothing sensible to fall back to: 'Untitled panel', never an empty string.
+    onPanelsClosed?.({ id: logId, title: found.closed.title || found.closed.url || 'Untitled panel', url: found.closed.url, closedAt });
     setClosedBoth([...closedRef.current, { panel: found.closed, index: found.index, logId }]);
     if (timer.current) clearTimeout(timer.current);
     timer.current = setTimeout(() => {
@@ -151,13 +148,7 @@ export function usePanelClosing(
       for (const restoredId of ids) next.delete(restoredId);
       return next;
     });
-    try {
-      bridge()
-        .deadEnd.undo(batch.map((e) => e.logId))
-        .catch(() => {});
-    } catch {
-      // No desktop bridge -- nothing was persisted to undo either.
-    }
+    onPanelsRestored?.(batch.map((e) => e.logId));
   };
 
   return { close, undoClose, recentlyClosed: closed.length > 0 ? closed.map((e) => e.panel) : null, closingIds };

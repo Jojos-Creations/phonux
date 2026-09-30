@@ -7,8 +7,7 @@
  */
 
 import { useEffect, useRef, type Dispatch, type RefObject, type SetStateAction } from 'react';
-import { summarisePanel, type CreatePanelOptions, type PanelsAPI } from 'phonux';
-import { captureController, type CaptureTrigger } from '../capture/controller.js';
+import { noopCaptureTrigger, summarisePanel, type CaptureTrigger, type CreatePanelOptions, type PanelsAPI } from 'phonux';
 import { appendPanel, reanchorPanel, type PanelWindow } from 'phonux/internal/panelModel';
 import { usePanelClosing } from './usePanelClosing.js';
 import { usePanelManager } from './usePanelManager.js';
@@ -39,10 +38,14 @@ export interface PanelsInput {
   containerWidth: number;
   /** The row's scroll container: the gesture's wheel listener attaches here. */
   overflowContainerRef: RefObject<HTMLDivElement | null>;
-  /** Defaults to the app's one capture controller (capture/controller.ts); a test that counts calls passes a fake. */
+  /** Defaults to phonux's `noopCaptureTrigger`: a host that wants real pictures (appApis.ts) passes its own. */
   capture?: CaptureTrigger;
   /** Called when setFormFactor really resizes a panel (useWorkspaceShell's `morph`, so the row's margin glides with it). */
   onPanelResize?: () => void;
+  /** Called once per close with its closed-pages log entry; the host decides where that log lives. See usePanelClosing.ts. */
+  onPanelsClosed?: (entry: { id: string; title: string; url: string; closedAt: string }) => void;
+  /** Called once per undo batch with the log ids it restores. See usePanelClosing.ts. */
+  onPanelsRestored?: (logIds: string[]) => void;
 }
 
 /**
@@ -59,7 +62,7 @@ export interface ProvidedPanels extends PanelsAPI {
 }
 
 export function useProvidePanels(i: PanelsInput): ProvidedPanels {
-  const capture = i.capture ?? captureController;
+  const capture = i.capture ?? noopCaptureTrigger;
   const {
     revealPanelProactively,
     handleActivatePanel,
@@ -113,6 +116,8 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
     (ids) => {
       for (const id of ids) capture.evict(id);
     },
+    i.onPanelsClosed,
+    i.onPanelsRestored,
   );
 
   const api: ProvidedPanels = {
