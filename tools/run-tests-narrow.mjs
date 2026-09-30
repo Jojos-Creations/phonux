@@ -1,16 +1,7 @@
 #!/usr/bin/env node
-/**
- * Narrowed test run: only the named test files, and with a pattern only the
- * tests whose names match it. Plain `npm test` stays the full-suite command.
- *
- * Usage: npm run file-test -- <file...> [-t <pattern> | --grep <pattern> | --test-name-pattern=<pattern>]
- *    or: node tools/run-tests-narrow.mjs <file...> [-t <pattern>]
- *
- * The package.json key must never be the token "test" plus a separator
- * (test-file, test:file, test.file): the full-suite lease hook matches
- * `npm run test\b` in the raw command text, and a narrowed run must not
- * take that lease. `file-test` does not match.
- */
+// `npm test -- <file>` still runs every file (npm appends it after the glob): hence this wrapper.
+// The package.json key must never be "test" plus a separator (test-file, test:file, test.file): the
+// full-suite lease hook matches `npm run test\b` in the raw command text. `file-test` does not match.
 
 import { spawn } from 'node:child_process';
 import { existsSync, mkdtempSync, readFileSync, realpathSync, rmSync } from 'node:fs';
@@ -25,16 +16,11 @@ export const FILE_PRESENCE_REPORTER = join(REPO_ROOT, 'tools', 'file-presence-re
 export const NARROW_MATCH_REPORTER = join(REPO_ROOT, 'tools', 'narrow-match-reporter.mjs');
 
 const PATTERN_FLAG = '--test-name-pattern';
+// `-t` and `--grep` exist only in this wrapper (Node has neither); both become --test-name-pattern.
 const PATTERN_SPELLINGS = new Set(['-t', '--grep', PATTERN_FLAG]);
 const USAGE =
   'usage: npm run file-test -- <file...> [-t <pattern> | --grep <pattern> | --test-name-pattern=<pattern>]';
 
-/**
- * Splits argv into forwarded flags, file tokens and name patterns. `-t` and
- * `--grep` exist only here (Node has neither) and become
- * --test-name-pattern. Node flags that take a value must use the
- * `--flag=value` form, or the value is read as a file token.
- */
 export function parseNarrowArgs(argvTokens) {
   const flags = [];
   const fileTokens = [];
@@ -55,6 +41,7 @@ export function parseNarrowArgs(argvTokens) {
       // shared TestsStream; this wrapper always runs exactly two.
       return { error: `${name} is set by this wrapper and cannot be passed` };
     } else if (token.startsWith('-')) {
+      // A Node flag that takes a value must be `--flag=value`, or the value is read as a file token.
       flags.push(token);
     } else {
       fileTokens.push(token);
@@ -63,13 +50,10 @@ export function parseNarrowArgs(argvTokens) {
   return { flags, fileTokens, patterns };
 }
 
-/**
- * Real paths, because a test's own data.file comes from the loader's real
- * path while the file-level event echoes argv: /var vs /private/var on
- * macOS would otherwise read as a zero-match.
- */
 export function resolveNarrowFiles(fileTokens, cwd) {
   const notFiles = fileTokens.filter((token) => resolveRequestedFiles([token], cwd).length === 0);
+  // Real paths: a test's data.file is the loader's real path while the file-level event echoes argv
+  // (/var vs /private/var on macOS), so an unresolved path would read as a zero-match.
   const requestedAbs = [...new Set(resolveRequestedFiles(fileTokens, cwd).map((abs) => realpathSync(abs)))];
   return { requestedAbs, notFiles };
 }
@@ -78,32 +62,23 @@ export function selectReporter(patterns) {
   return patterns.length > 0 ? NARROW_MATCH_REPORTER : FILE_PRESENCE_REPORTER;
 }
 
-/**
- * Every flag goes BEFORE the files: Node 24 silently ignores
- * --test-name-pattern once it follows a file positional.
- */
 export function buildChildArgv({ flags, patterns, files, reporterPath, reporterDestination }) {
   return [
     '--test',
-    // Same two flags as tools/run-tests.mjs: without --test-force-exit a
-    // file with imperfect teardown (the Electron tests) hangs the run.
     '--test-timeout=900000',
+    // Without this a file with imperfect teardown (the Electron tests) hangs the run.
     '--test-force-exit',
     '--test-reporter=spec',
     '--test-reporter-destination=stdout',
     `--test-reporter=${reporterPath}`,
     `--test-reporter-destination=${reporterDestination}`,
+    // Flags go before the files: Node 24 silently ignores --test-name-pattern after a file positional.
     ...flags,
     ...patterns.map((pattern) => `${PATTERN_FLAG}=${pattern}`),
     ...files,
   ];
 }
 
-/**
- * Reads the reporter's destination file: bare paths from
- * file-presence-reporter.mjs, or FILE:/MATCH: lines from
- * narrow-match-reporter.mjs when a pattern is active.
- */
 export function parseReporterOutput(text, patternActive) {
   const lines = text.split('\n').filter((line) => line.length > 0);
   if (!patternActive) {
@@ -118,7 +93,6 @@ export function parseReporterOutput(text, patternActive) {
   return { observedAbs: [...observed], matchedAbs: [...matched] };
 }
 
-/** Requested files that completed but where the pattern selected no test. */
 export function zeroMatchFiles(requestedAbs, observedAbs, matchedAbs) {
   const observed = new Set(observedAbs);
   const matched = new Set(matchedAbs);
