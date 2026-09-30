@@ -5,19 +5,15 @@
  * test as `pass 1`, exit 0.
  */
 
+import { isFileLevel, lineFor } from './test-stream.mjs';
+
 export default async function* narrowMatchReporter(source) {
   for await (const event of source) {
-    if (event.type !== 'test:complete') continue;
-    // Node's docs call this event shape unversioned, so an upgrade that changes it fails loud
-    // (files report missing or zero-match), never silently green.
-    const { line, column, file, skip, details } = event.data ?? {};
-    if (typeof file !== 'string') continue;
-    // File-level event: every test file opens with an import, so no real test sits at line 1, column 1.
-    if (line === 1 && column === 1) {
-      yield `FILE:${file}\n`;
-    } else if (!skip && details?.type !== 'suite') {
-      // Suites and skipped tests are not MATCHes: neither is a test that ran.
-      yield `MATCH:${file}\n`;
-    }
+    const line = lineFor(event);
+    if (line !== null) yield `${line}\n`;
+    if (event.type !== 'test:complete' || typeof event.data?.file !== 'string' || isFileLevel(event.data)) continue;
+    // Suites and skipped tests are not MATCHes: neither is a test that ran.
+    const { file, skip, details } = event.data;
+    if (!skip && details?.type !== 'suite') yield `MATCH:${file}\n`;
   }
 }

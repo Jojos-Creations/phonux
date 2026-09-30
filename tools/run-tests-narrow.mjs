@@ -7,8 +7,9 @@ import { spawn } from 'node:child_process';
 import { existsSync, mkdtempSync, readFileSync, realpathSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, relative } from 'node:path';
-import { fileURLToPath, pathToFileURL } from 'node:url';
-import { CHILD_BASE_FLAGS, missingFiles, resolveRequestedFiles } from './run-tests.mjs';
+import { fileURLToPath } from 'node:url';
+import { CHILD_BASE_FLAGS, isEntryPoint, missingFiles, resolveRequestedFiles } from './run-tests.mjs';
+import { formatStopped, parseStreamLines, realKey, stoppedEarly, streamTotals } from './test-stream.mjs';
 
 const REPO_ROOT = fileURLToPath(new URL('..', import.meta.url));
 const TSX_BIN = join(REPO_ROOT, 'node_modules', '.bin', 'tsx');
@@ -77,18 +78,9 @@ export function buildChildArgv({ flags, patterns, files, reporterPath, reporterD
   ];
 }
 
-export function parseReporterOutput(text, patternActive) {
-  const lines = text.split('\n').filter((line) => line.length > 0);
-  if (!patternActive) {
-    return { observedAbs: [...new Set(lines)], matchedAbs: [] };
-  }
-  const observed = new Set();
-  const matched = new Set();
-  for (const line of lines) {
-    if (line.startsWith('FILE:')) observed.add(line.slice('FILE:'.length));
-    else if (line.startsWith('MATCH:')) matched.add(line.slice('MATCH:'.length));
-  }
-  return { observedAbs: [...observed], matchedAbs: [...matched] };
+export function parseReporterOutput(text) {
+  const stream = parseStreamLines(text, realKey);
+  return { observedAbs: [...stream.completed], matchedAbs: [...stream.matched], stream };
 }
 
 export function zeroMatchFiles(requestedAbs, observedAbs, matchedAbs) {
@@ -97,7 +89,16 @@ export function zeroMatchFiles(requestedAbs, observedAbs, matchedAbs) {
   return requestedAbs.filter((f) => observed.has(f) && !matched.has(f));
 }
 
-export function formatNarrowSummary({ repoRoot, requestedCount, observedCount, missing, patterns, zeroMatch }) {
+export function formatNarrowSummary({
+  repoRoot,
+  requestedCount,
+  observedCount,
+  missing,
+  patterns,
+  zeroMatch,
+  stopped = [],
+  ranNothing = false,
+}) {
   const lines = [
     `run-tests-narrow: requested ${requestedCount} file(s), observed ${observedCount} file(s) complete.`,
   ];
@@ -110,11 +111,13 @@ export function formatNarrowSummary({ repoRoot, requestedCount, observedCount, m
     const files = zeroMatch.map((abs) => relative(repoRoot, abs)).join(', ');
     lines.push(`run-tests-narrow: ${shown} matched ZERO tests in ${zeroMatch.length} file(s): ${files}`);
   }
+  lines.push(...formatStopped(stopped, (abs) => relative(repoRoot, abs), 'run-tests-narrow: '));
+  if (ranNothing) lines.push('run-tests-narrow: no test was queued: this run proved nothing.');
   return lines.join('\n');
 }
 
-export function narrowExitCode({ childCode, missing, zeroMatch }) {
-  if (missing.length > 0 || zeroMatch.length > 0) return 1;
+export function narrowExitCode({ childCode, missing, zeroMatch, stopped = [], ranNothing = false }) {
+  if (missing.length > 0 || zeroMatch.length > 0 || stopped.length > 0 || ranNothing) return 1;
   if (childCode === null) return 1;
   return childCode;
 }
@@ -157,9 +160,12 @@ async function main() {
     });
 
     const text = existsSync(reporterDestination) ? readFileSync(reporterDestination, 'utf8') : '';
-    const { observedAbs, matchedAbs } = parseReporterOutput(text, patterns.length > 0);
+    const { observedAbs, matchedAbs, stream } = parseReporterOutput(text);
     const missing = missingFiles(requestedAbs, observedAbs);
     const zeroMatch = patterns.length > 0 ? zeroMatchFiles(requestedAbs, observedAbs, matchedAbs) : [];
+    const stopped = stoppedEarly(requestedAbs, observedAbs, stream);
+    // A name pattern may legitimately select nothing; that case has its own ZERO-match line.
+    const ranNothing = patterns.length === 0 && requestedAbs.length > 0 && streamTotals(stream).queued === 0;
 
     console.log(
       formatNarrowSummary({
@@ -169,15 +175,17 @@ async function main() {
         missing,
         patterns,
         zeroMatch,
+        stopped,
+        ranNothing,
       }),
     );
-    exitCode = narrowExitCode({ childCode, missing, zeroMatch });
+    exitCode = narrowExitCode({ childCode, missing, zeroMatch, stopped, ranNothing });
   } finally {
     rmSync(scratchDir, { recursive: true, force: true });
   }
   process.exit(exitCode);
 }
 
-if (import.meta.url === pathToFileURL(process.argv[1] ?? '').href) {
+if (isEntryPoint(import.meta.url, process.argv[1])) {
   main();
 }

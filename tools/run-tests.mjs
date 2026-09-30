@@ -17,10 +17,11 @@
  */
 
 import { spawn } from 'node:child_process';
-import { existsSync, mkdtempSync, readFileSync, rmSync, statSync } from 'node:fs';
+import { existsSync, mkdtempSync, readFileSync, realpathSync, rmSync, statSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, relative, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
+import { formatStopped, parseStreamLines, realKey, stoppedEarly, streamTotals } from './test-stream.mjs';
 
 const REPO_ROOT = fileURLToPath(new URL('..', import.meta.url));
 const TSX_BIN = join(REPO_ROOT, 'node_modules', '.bin', 'tsx');
@@ -53,7 +54,7 @@ export function missingFiles(requestedAbs, observedAbs) {
   return requestedAbs.filter((f) => !observed.has(f));
 }
 
-export function formatSummary({ repoRoot, requestedCount, observedCount, missing }) {
+export function formatSummary({ repoRoot, requestedCount, observedCount, missing, stopped = [], ranNothing = false }) {
   const lines = [
     `run-tests: requested ${requestedCount} file(s), observed ${observedCount} file(s) complete.`,
   ];
@@ -63,7 +64,23 @@ export function formatSummary({ repoRoot, requestedCount, observedCount, missing
       lines.push(`  ${relative(repoRoot, abs)}`);
     }
   }
+  lines.push(...formatStopped(stopped, (abs) => relative(repoRoot, abs), 'run-tests: '));
+  if (ranNothing) lines.push('run-tests: no test was queued: this run proved nothing.');
   return lines.join('\n');
+}
+
+// argv[1] keeps a symlinked spelling (/var vs /private/var) while import.meta.url is the real path.
+export function isEntryPoint(metaUrl, argv1) {
+  try {
+    return metaUrl === pathToFileURL(realpathSync(argv1)).href;
+  } catch {
+    return false;
+  }
+}
+
+export function runExitCode({ childCode, missing, stopped, ranNothing }) {
+  if (missing.length > 0 || stopped.length > 0 || ranNothing) return 1;
+  return childCode === 0 ? 0 : childCode === null ? 1 : childCode;
 }
 
 export const FLUSH_PRELOAD_PATH = join(REPO_ROOT, 'tools', 'flush-stdout-before-exit.mjs');
@@ -105,22 +122,28 @@ async function main() {
       child.on('close', (code) => resolvePromise(code));
     });
 
-    const observedAbs = existsSync(observedDestination)
-      ? readFileSync(observedDestination, 'utf8').split('\n').filter((line) => line.length > 0)
-      : [];
-    const observedUnique = [...new Set(observedAbs)];
-    const missing = missingFiles(requestedAbs, observedUnique);
+    const parsed = parseStreamLines(
+      existsSync(observedDestination) ? readFileSync(observedDestination, 'utf8') : '',
+      realKey,
+    );
+    const requestedReal = [...new Set(requestedAbs.map(realKey))];
+    const observedUnique = [...parsed.completed];
+    const missing = missingFiles(requestedReal, observedUnique);
+    const stopped = stoppedEarly(requestedReal, observedUnique, parsed);
+    const ranNothing = requestedReal.length > 0 && streamTotals(parsed).queued === 0;
 
     console.log(
       formatSummary({
         repoRoot: REPO_ROOT,
-        requestedCount: requestedAbs.length,
+        requestedCount: requestedReal.length,
         observedCount: observedUnique.length,
         missing,
+        stopped,
+        ranNothing,
       }),
     );
 
-    exitCode = missing.length > 0 ? 1 : code === 0 ? 0 : code === null ? 1 : code;
+    exitCode = runExitCode({ childCode: code, missing, stopped, ranNothing });
   } finally {
     rmSync(scratchDir, { recursive: true, force: true });
   }
@@ -130,6 +153,6 @@ async function main() {
 // Only run the CLI when this file IS the entry point: importing it for its
 // pure exports must not also spawn a child --test run and race its
 // process.exit() against the importer's own assertions.
-if (import.meta.url === pathToFileURL(process.argv[1] ?? '').href) {
+if (isEntryPoint(import.meta.url, process.argv[1])) {
   main();
 }
