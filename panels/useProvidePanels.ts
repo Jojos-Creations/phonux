@@ -17,9 +17,12 @@ import { appendPanel, reanchorPanel, type PanelWindow } from '../panelWindow.js'
 import { usePanelClosing } from './usePanelClosing.js';
 import { usePanelManager } from './usePanelManager.js';
 import { useRowScrollGesture } from './useRowScrollGesture.js';
+import { useWorkspacePersistence } from './useWorkspacePersistence.js';
+import type { WorkspaceStorage } from '../workspaceState.js';
 
-/** Ids for panels this app creates itself. A module counter, bumped only from event handlers (never from a state initialiser), so StrictMode's double invocation cannot skip one. */
+/** Ids for panels this app creates itself. A module counter, bumped only from event handlers and the restore callback (never from a state initialiser or updater), so StrictMode's double invocation cannot skip one. */
 let nextWindowId = 1;
+const freshId = (): string => String(nextWindowId++);
 
 /**
  * Duck-typed (a `preventDefault` function): a bare `onClick={panels.create}` reference passes the click
@@ -59,8 +62,10 @@ export interface PanelsInput {
   onPanelsRestored?: (logIds: string[]) => void;
   /** Called once per restored panel; the return value becomes its `hostData` (`undefined` drops the key). Unset keeps what it closed with. phonux never reads inside `hostData`, so what needs resetting after an undo is the host's call. */
   resetHostDataOnRestore?: (hostData: JsonValue | undefined, panel: PanelWindow) => JsonValue | undefined;
-  /** Builds the `hostData` of every panel `create()` opens. Unset: new panels carry none. */
+  /** Builds the `hostData` of every panel `create()` opens, and of every panel restored from `storage`. Unset: new panels carry none. */
   defaultHostData?: () => JsonValue;
+  /** Where the workspace is kept between launches: loaded once at mount, then saved after every change that settles. Unset: nothing is loaded or saved. */
+  storage?: WorkspaceStorage;
 }
 
 /**
@@ -119,6 +124,8 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
   // useEffect/useRef in GoalFrontPage.tsx.
   useRowScrollGesture(i.overflowContainerRef, scrollRow);
 
+  useWorkspacePersistence({ storage: i.storage, panels, setPanels, rootId: i.rootId, freshId, defaultHostData: i.defaultHostData });
+
   // Diffs the one list instead of capturing per call site: usePanelManager parks from several sites with no single
   // "on park" hook, and a per-site call would silently miss any site not touched.
   const prevLiveRef = useRef<ReadonlyMap<string, boolean>>(new Map());
@@ -172,7 +179,7 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
       // `options` is explicitly optional here (not left to infer from `create`'s own overloaded interface
       // member) -- an implementation inferred as requiring it would no longer satisfy the zero-arg overload.
       const safeOptions = isEventLike(options) ? undefined : options;
-      const id = String(nextWindowId++);
+      const id = freshId();
       // Built here, outside the updater below: React may run an updater twice, and the host's builder is not required to be pure.
       const hostData = i.defaultHostData?.();
       // "Panel N", not "about:blank": every panel needs a distinguishable title, for testing. options?.title

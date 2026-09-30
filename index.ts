@@ -120,3 +120,5 @@ export type { PanelsInput, ProvidedPanels } from './panels/useProvidePanels.js';
 export type { PanelWindow } from './panelWindow.js';
 
 export { createDefaultTheme } from './defaultTheme.js';
+
+export type { WorkspacePanelState, WorkspaceState, WorkspaceStorage } from './workspaceState.js';
