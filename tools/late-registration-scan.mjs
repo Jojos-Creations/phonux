@@ -206,8 +206,7 @@ function scanFile(sf, file, program, checker) {
     const { root, chain } = calleeChain(call);
     return ts.isIdentifier(root) && CONTEXT_REGISTRARS.has(chain[0] ?? '') ? checker.getSymbolAtLocation(root) : undefined;
   };
-  // A subtest or hook registered on a test's context from a function nested in the test body (a timer, a .then, a map callback)
-  // can arrive after the parent finished. The direct body is safe, and each direct subtest callback is checked against its own parameter.
+  // A subtest or hook registered on a test context from a function nested in the test body (a timer, .then, map callback) can arrive after the parent finished.
   // `enclosing` holds the parameters of the test callbacks that contain `cb`: a call through one of those from `cb` is flagged too.
   const flagDetachedSubtests = (cb, enclosing) => {
     const first = cb.parameters[0];
