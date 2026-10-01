@@ -25,8 +25,8 @@ const PEERS = srcPkg.peerDependencies;
 // A list that silently lost entries must not print a smaller "all passed".
 const MIN_CHECKS = 9;
 
-// Anything but `--from <value>` is an error: npm swallows a `--from` placed before a bare `--` and forwards its value as
-// a stray positional, and an ignored argument would leave the local dist/ being gated instead of the requested artifact.
+// npm keeps a `--from` placed before a bare `--` for itself (as npm_config_from, a spaced value forwarded as a stray
+// positional); that and anything but `--from <value>` is refused, or the local dist/ would be gated in its place.
 const argv = process.argv.slice(2);
 const fromIndex = argv.indexOf('--from');
 const FROM = fromIndex === -1 ? null : argv[fromIndex + 1];
@@ -208,6 +208,9 @@ function record(name, fn) {
 const run = (file, args, cwd) => execFileSync(file, args, { cwd, stdio: 'pipe', encoding: 'utf8' });
 
 try {
+  if (process.env.npm_config_from !== undefined) {
+    throw new Error(`npm kept a --from placed before a bare -- for itself (npm_config_from=${process.env.npm_config_from}), so it never reached this script; run \`npm run smoke:phonux -- --from <tarball path or registry spec>\``);
+  }
   if (strayArgs.length > 0) {
     throw new Error(`unexpected argument "${strayArgs[0]}"; the only option is --from <tarball path or registry spec>, after a bare -- when run through npm`);
   }
