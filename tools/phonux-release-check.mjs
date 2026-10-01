@@ -22,6 +22,7 @@ function fail(message) {
 
 // Cheapest check first: a taken name@version makes the rest of the run pointless, and versions are never reusable.
 const view = spawnSync('npm', ['view', spec, 'version'], { encoding: 'utf8' });
+if (view.error) fail(`could not run npm view for ${spec} (${view.error.message}); this proved nothing`);
 const viewOut = `${view.stdout}${view.stderr}`;
 if (view.status === 0 && view.stdout.trim() !== '') {
   fail(`${spec} is already published (registry says ${view.stdout.trim()}); bump the version in ${relative(REPO_ROOT, join(PHONE_DIR, 'package.json'))}`);

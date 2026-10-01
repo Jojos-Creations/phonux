@@ -326,11 +326,13 @@ the generated manifest has no `private` key and sets `publishConfig.access` to `
 
 `npm run smoke:phonux` is the publish gate: it asserts the manifest inside the packed tarball, then
 proves the tarball installs and resolves in a throwaway app outside this repo, with the real peer set
-from the registry, in nine checks. `--from <tarball path or registry spec>` runs the same checks on an
-already-packed or already-published artifact. `npm run release:check` confirms that `name@version` is
-still free on the registry, runs the build and the smoke, and prints the `npm publish` command for the
-owner to run with their own login; it never publishes. `npm publish --dry-run` is not evidence, because
-it accepts a `private: true` manifest.
+from the registry, in nine checks. `npm run smoke:phonux -- --from <tarball path or registry spec>`
+runs the same checks on an already-packed or already-published artifact. The bare `--` is required:
+npm keeps a `--from` placed before it for itself, and the smoke refuses to run rather than check the
+local `dist/` in its place. `npm run release:check` confirms that `name@version` is still free on the
+registry, runs the build and the smoke, and prints the `npm publish` command for the owner to run with
+their own login; it never publishes. `npm publish --dry-run` is not evidence, because it accepts a
+`private: true` manifest.
 
 ## `index.ts` splits values from types on purpose
 
