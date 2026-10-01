@@ -79,8 +79,23 @@ test('zero packages named phonux and two packages named phonux are both refused,
   );
 });
 
+const SMOKE = fileURLToPath(new URL('../tools/phonux-pack-smoke.mjs', import.meta.url));
+
+function assertRefusedBeforePacking(run: ReturnType<typeof spawnSync>, label: string, reason: RegExp) {
+  const stdout = String(run.stdout);
+  const stderr = String(run.stderr);
+  assert.equal(run.status, 1, `${label}: ${stdout}${stderr}`);
+  // The reason is asserted too: without a dist/ the smoke would also exit 1 for a missing package.json.
+  assert.match(stderr, reason, label);
+  assert.match(stderr, /smoke:phonux FAILED before all checks could run/, label);
+  assert.ok(!stdout.includes('smoke:phonux OK'), `${label}: must not print an OK line`);
+  assert.ok(!stdout.includes('working in'), `${label}: must fail before a scratch app is created`);
+}
+
 test('the smoke refuses any argument but --from <value> before it packs or installs anything', () => {
-  const smoke = fileURLToPath(new URL('../tools/phonux-pack-smoke.mjs', import.meta.url));
+  // A --from that npm kept for itself is a separate refusal; leaving it out keeps these cases about argv alone.
+  const argvOnlyEnv = { ...process.env };
+  delete argvOnlyEnv.npm_config_from;
   const cases: Array<[string[], RegExp]> = [
     [['--from=phonux@0.0.0'], /unexpected argument "--from=phonux@0.0.0"/],
     [['phonux@0.0.0'], /unexpected argument "phonux@0.0.0"/],
@@ -89,13 +104,13 @@ test('the smoke refuses any argument but --from <value> before it packs or insta
     [['--from', '--bogus'], /--from needs a tarball path/],
   ];
   for (const [args, reason] of cases) {
-    const run = spawnSync(process.execPath, [smoke, ...args], { encoding: 'utf8' });
-    const label = args.join(' ');
-    assert.equal(run.status, 1, `${label}: ${run.stdout}${run.stderr}`);
-    // The reason is asserted too: without a dist/ the smoke would also exit 1 for a missing package.json.
-    assert.match(run.stderr, reason, label);
-    assert.match(run.stderr, /smoke:phonux FAILED before all checks could run/, label);
-    assert.ok(!run.stdout.includes('smoke:phonux OK'), `${label}: must not print an OK line`);
-    assert.ok(!run.stdout.includes('working in'), `${label}: must fail before a scratch app is created`);
+    const run = spawnSync(process.execPath, [SMOKE, ...args], { encoding: 'utf8', env: argvOnlyEnv });
+    assertRefusedBeforePacking(run, args.join(' '), reason);
   }
+});
+
+test('the smoke refuses a --from that npm kept for itself, before it packs or installs anything', () => {
+  // `npm run smoke:phonux --from=X` never passes --from to the script; npm exports it as npm_config_from instead.
+  const run = spawnSync(process.execPath, [SMOKE], { encoding: 'utf8', env: { ...process.env, npm_config_from: 'phonux@0.0.0' } });
+  assertRefusedBeforePacking(run, 'npm_config_from=phonux@0.0.0', /npm_config_from=phonux@0\.0\.0.*npm run smoke:phonux -- --from/);
 });
