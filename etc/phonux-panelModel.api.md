@@ -128,7 +128,7 @@ export function promoteToLive(panels: PanelWindow[], id: string, capacity: numbe
 // @internal
 export function reanchorPanel(panels: PanelWindow[], id: string, request: AnchorRequest, rootId: string): PanelWindow[];
 
-// @internal
+// @public
 export function reorderStepsForOffset(offsetX: number, neighbors: NeighborWidths, gap: number): number;
 
 // @internal

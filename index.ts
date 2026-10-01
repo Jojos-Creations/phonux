@@ -1,6 +1,5 @@
-// The public surface of the phonux package. A name that moves or changes kind here breaks every consumer.
-// test/phonux-barrel.test.ts pins the value names; type names are erased at runtime, so only tsc checks them
-// (releaseMeasure.typecheck.ts pins one). DESIGN.md says why the split exists and why some exports stay off this list.
+// The public surface of phonux: a name that moves or changes kind here breaks every consumer. test/phonux-barrel.test.ts pins the value
+// names; only tsc checks type names (releaseMeasure.typecheck.ts pins one). DESIGN.md says why some exports stay off this list.
 
 export {
   DEFAULT_PHONE_SIZE,
@@ -118,6 +117,7 @@ export type { WorkspaceProps } from './Workspace.js';
 export { useProvidePanels } from './panels/useProvidePanels.js';
 export type { PanelsInput, ProvidedPanels } from './panels/useProvidePanels.js';
 export type { PanelWindow } from './panelWindow.js';
+export { reorderStepsForOffset } from './panelWindow.js';
 
 export { createDefaultTheme } from './defaultTheme.js';
 

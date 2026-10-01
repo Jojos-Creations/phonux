@@ -271,7 +271,7 @@ export function movePanel(panels: PanelWindow[], id: string, direction: 'left' |
  * moves the dragged panel by that NEIGHBOUR's span (its width plus `gap`), so each hop lands half-way across
  * the next neighbour's span, counted from where the previous hop ended; the dragged panel's own width never
  * enters it. Exactly half a span is a hop either way, and this never returns -0.
- * @internal
+ * @public
  */
 export function reorderStepsForOffset(offsetX: number, neighbors: NeighborWidths, gap: number): number {
   const distance = Math.abs(offsetX);

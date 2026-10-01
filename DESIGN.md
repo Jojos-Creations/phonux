@@ -101,8 +101,9 @@ had, and a view testing `'size' in panel` gets the same answer as `panel.size !=
 
 `panelWindow.ts` is part of this folder: the `PanelWindow` record and every pure transition over a
 `PanelWindow[]` (`appendPanel`, `createHistoryPanel`, `closePanel`, `restorePanel`, ...). It sits inside the
-import boundary above, so it imports only its siblings and never the desktop app. The app reaches it only
-through the `phonux/internal/panelModel` subpath, never the main barrel (see "The API reports in `etc/`").
+import boundary above, so it imports only its siblings and never the desktop app. The main barrel exports
+`PanelWindow` and `reorderStepsForOffset` from it; every other name stays `@internal` behind the
+`phonux/internal/panelModel` subpath, which only this folder's own tests import (see "The API reports in `etc/`").
 Its functions are pure, taking no device-state argument, and are tested that way (`test/panel-window.test.ts`
 builds panels with no device store initialized at all). Reading a live device size inside them -- the
 desktop app's `phoneSizeStore.ts` keeps one in a module-level `current` -- would make them impure, would
@@ -347,20 +348,19 @@ of a name governs a runtime test versus a compile-time one just by which stateme
 ## `directionalTransition` and the test fakes are subpaths, not part of `.`
 
 `./internal/directionalTransition` stays out of the main barrel because it is an animation timing helper
-for this app's own slot components, not a contract a view is meant to depend on -- exposing it on `.`
+for the package's own slot components, not a contract a view is meant to depend on -- exposing it on `.`
 would invite a consumer to couple to an implementation detail that owes nothing to any view contract.
 `./testing` exists as its own subpath, rather than being re-exported from `.`, so that importing the
 production barrel can never pull test-only fake implementations into a real bundle; a consumer opts into
 fakes by importing the subpath explicitly, and a bundler that only ever sees `.` never sees them at all.
 
-`directionalTransition` shares the timing, easing and opacity contract between the app's animated slots, not
-their position math. A live panel is absolutely positioned (`index * (phoneWidth + GAP)`) and leaves for two
-reasons: a close slides down, and an auto-collapse slides left to a fixed spot behind the sidebar whatever the
-panel's own index. A History row sits in normal flow and has one exit, its trash button. One generic `exit`
-would either lose the index-independent collapse target or grow conditionals History never needs, so this is
-a shared preset, not a shared wrapper component. It returns `initial`/`animate` (both callers enter the same
-way: `distance` past rest, faded out), the shared `transition`, and a symmetric `exit` that History uses
-as-is; `PanelRowSlot` builds its own two exits and takes only `transition`.
+`directionalTransition` holds the timing, easing and opacity contract `PanelRowSlot` uses, not its position math. A live panel is
+absolutely positioned (`index * (phoneWidth + GAP)`) and leaves for two reasons: a close slides down, and an auto-collapse
+slides left to a fixed spot behind the sidebar whatever the panel's own index. One generic `exit` would lose the
+index-independent collapse target, so this is a preset, not a wrapper component. It returns `initial`/`animate` (`distance`
+past rest, faded out), the shared `transition` and a symmetric `exit`; `PanelRowSlot`, its one caller, builds its own two exits
+and takes only `transition`. A host that animates rows of its own builds them over the public `PANEL_TRANSITION`, the same object
+as `SLOT_TRANSITION`.
 
 ## `createDefaultTheme` carries the no-motion rule only, never the brand
 
@@ -946,8 +946,8 @@ two configs pointed at each other's entry, fails before anything runs. The decla
 into `client/api-extractor-temp/`, a sibling of `client/src`, so they never reach `typecheck:app`, the
 file-size ratchet or the phone-boundary scan.
 
-`./internal/directionalTransition` is tracked and tagged `@internal`, not excluded: `HistoryRowSlot.tsx`
-imports it from outside this folder (`PanelRowSlot.tsx`, inside it, imports the module directly), so it is a
+`./internal/directionalTransition` is tracked and tagged `@internal`, not excluded: this folder's own tests
+import it (`PanelRowSlot.tsx`, inside the folder, imports the module directly), so it is a
 real entry point whose changes deserve the same diff. API Extractor wants every `@internal` name to start
 with an underscore, but these names are already imported under their current spelling, so
 `ae-internal-missing-underscore` is switched off in `api-extractor.internal.json` only, instead of renaming them. The switch covers that whole config, not one name, so a future `@internal` export
@@ -956,16 +956,14 @@ reach is `@internal`, and an underscore-less `@internal` tag on one of their exp
 
 `./internal/panelModel` is the same kind of entry point: `panelWindow.ts` (the `PanelWindow` record and its pure
 transitions, plus `effectiveMaxPanels` re-exported from `panelCapacity.ts` so one config covers both),
-imported as `phonux/internal/panelModel` by `appApis.ts`, `LivePanel.tsx` and the panel hooks outside this
-folder. It is tracked and tagged `@internal`, and `api-extractor.panelModel.json` carries its own
+imported as `phonux/internal/panelModel` by this folder's own tests. It is tracked and tagged `@internal`, and `api-extractor.panelModel.json` carries its own
 `ae-internal-missing-underscore` switch-off, because a config does not inherit another's, so the caveat above
 holds for it too. `panelWindow.ts` also re-exports `FormFactor`, `JsonValue`, `PanelSize`, `PanelAnchor` and
 `NeighborWidths`, which its signatures name, so that the report has no `ae-forgotten-export`.
 
 Neither `@internal` subpath ships. `npm run build:phonux` skips every key in `INTERNAL_ONLY_EXPORT_KEYS`
 (`tools/phonux-build.mjs`), which holds `./internal/directionalTransition` and `./internal/panelModel`, so
-`dist/package.json`'s `exports` lists only `.` and `./testing`: an outside consumer has no use for either, and
-the app resolves them in place.
+`dist/package.json`'s `exports` lists only `.` and `./testing`: an outside consumer, this app included, reaches the package only through `.` and `./testing`; the two subpaths exist for the folder's own tests.
 
 Every declaration an entry point reaches carries exactly one release tag in its own doc comment: `@public`
 for `.` and `./testing`, `@internal` for `./internal/directionalTransition` and for what `./internal/panelModel`

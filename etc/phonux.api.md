@@ -657,6 +657,9 @@ export interface ReorderHandle {
     onDragEnd: (offsetX: number) => void;
 }
 
+// @public
+export function reorderStepsForOffset(offsetX: number, neighbors: NeighborWidths, gap: number): number;
+
 // @public @deprecated (undocumented)
 export const resolvePanelView: typeof resolveView;
 
