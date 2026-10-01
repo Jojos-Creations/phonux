@@ -1,6 +1,8 @@
 {
   "name": "phonux",
   "version": "0.1.0",
+  "description": "A phone-shaped view host for React: write a view against a small set of host APIs, register it, and render it in one HostProvider.",
+  "license": "MIT",
   "private": true,
   "type": "module",
   "sideEffects": false,

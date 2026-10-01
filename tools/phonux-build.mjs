@@ -1,17 +1,7 @@
 #!/usr/bin/env node
 /**
- * Builds the phonux package (client/src/shared/phone) to dist/ for packing.
- * In-repo dev/test never runs this: package.json's own exports still point at
- * .ts source, so this script exists only for `npm pack`/`npm run smoke:phonux`.
- *
- * Usage: node tools/phonux-build.mjs   (or: npm run build:phonux)
- *
- * Compiles with tsc -p <phone>/tsconfig.build.json (declaration:true, excludes
- * *.typecheck.ts), then GENERATES dist/package.json from the source
- * package.json -- exports rewritten relative to dist/ with 'types' first in
- * each condition, every INTERNAL_ONLY_EXPORT_KEYS subpath ('./internal/directionalTransition',
- * './internal/panelModel') dropped (they stay in-repo-only, resolved via the unbuilt
- * package.json instead), and copies README.md alongside it.
+ * Builds the phonux package to dist/ and generates dist/package.json from the source manifest.
+ * In-repo dev and test never run this: the source manifest's exports point at .ts.
  */
 
 import { execFileSync } from 'node:child_process';
@@ -23,20 +13,17 @@ import {
   existsSync,
   readdirSync,
 } from 'node:fs';
-import { join, relative, resolve } from 'node:path';
+import { join, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { resolvePhoneDir } from './phonux-paths.mjs';
 
 const REPO_ROOT = fileURLToPath(new URL('..', import.meta.url));
-// Discovered from the workspace, not a hardcoded literal, so this script keeps
-// working if phone/ moves to a different nesting depth (e.g. a repo split).
-const rootPkg = JSON.parse(readFileSync(join(REPO_ROOT, 'package.json'), 'utf8'));
-const PHONE_DIR = resolve(REPO_ROOT, rootPkg.workspaces[0]);
+const PHONE_DIR = resolvePhoneDir(REPO_ROOT);
 const DIST_DIR = join(PHONE_DIR, 'dist');
 const TSCONFIG = join(PHONE_DIR, 'tsconfig.build.json');
 const TSC_BIN = join(REPO_ROOT, 'node_modules', '.bin', 'tsc');
 
-// Subpaths only this repo's own app resolves; an outside consumer has no use for them, so they never
-// appear in the shipped exports map.
+// Only this repo's own app resolves these subpaths; they stay out of the shipped exports map.
 const INTERNAL_ONLY_EXPORT_KEYS = new Set(['./internal/directionalTransition', './internal/panelModel']);
 
 function fail(message) {
@@ -72,7 +59,6 @@ if (leaked.length > 0) fail(`typecheck/fixture files leaked into dist: ${leaked.
 const srcPkg = JSON.parse(readFileSync(join(PHONE_DIR, 'package.json'), 'utf8'));
 
 function distExportPaths(sourcePath) {
-  // sourcePath is e.g. './index.ts' -- same basename, extension swapped, now under dist/.
   const withoutExt = sourcePath.replace(/\.tsx?$/, '');
   return { js: `${withoutExt}.js`, dts: `${withoutExt}.d.ts` };
 }
@@ -92,20 +78,38 @@ for (const [key, sourcePath] of Object.entries(srcPkg.exports)) {
 // Gates consumer tree-shaking; a silent undefined default could drop a real side effect.
 if (!('sideEffects' in srcPkg)) fail("source package.json is missing 'sideEffects'");
 
+// Registry-page fields come from the source manifest, never from a literal here. The source keeps `private: true`
+// so the .ts-pointing folder cannot be published by accident; only dist/package.json is publishable.
+const REQUIRED_METADATA = ['description', 'license'];
+const OPTIONAL_METADATA = ['repository', 'homepage', 'bugs', 'keywords', 'author'];
+for (const field of REQUIRED_METADATA) {
+  if (!srcPkg[field]) fail(`source package.json is missing '${field}', which a published manifest needs`);
+}
+const metadata = Object.fromEntries([...REQUIRED_METADATA, ...OPTIONAL_METADATA].filter((f) => f in srcPkg).map((f) => [f, srcPkg[f]]));
+
 const distPkg = {
   name: srcPkg.name,
   version: srcPkg.version,
-  private: true,
+  ...metadata,
   type: srcPkg.type,
   sideEffects: srcPkg.sideEffects,
+  // A scoped name would otherwise publish as restricted; stating it keeps "public" true whichever name is chosen.
+  publishConfig: { access: 'public' },
   peerDependencies: srcPkg.peerDependencies,
   exports,
 };
 
 writeFileSync(join(DIST_DIR, 'package.json'), `${JSON.stringify(distPkg, null, 2)}\n`);
 
-const readmeSrc = join(PHONE_DIR, 'README.md');
-if (!existsSync(readmeSrc)) fail(`${relative(REPO_ROOT, readmeSrc)} is missing; dist/ needs a copy for npm pack`);
-copyFileSync(readmeSrc, join(DIST_DIR, 'README.md'));
+// README is the registry page; DESIGN.md travels with it so the README can point at a file the consumer has.
+for (const name of ['README.md', 'DESIGN.md']) {
+  const from = join(PHONE_DIR, name);
+  if (!existsSync(from)) fail(`${relative(REPO_ROOT, from)} is missing; dist/ needs a copy for npm pack`);
+  copyFileSync(from, join(DIST_DIR, name));
+}
+// An SPDX id with no LICENSE text grants nothing on a public package; UNLICENSED and SEE LICENSE IN need no file.
+const licenseSrc = join(PHONE_DIR, 'LICENSE');
+const hasLicenseFile = existsSync(licenseSrc);
+if (hasLicenseFile) copyFileSync(licenseSrc, join(DIST_DIR, 'LICENSE'));
 
-console.log(`build:phonux OK -- wrote ${relative(REPO_ROOT, DIST_DIR)}/{package.json,README.md} and ${Object.keys(exports).length} export target(s)`);
+console.log(`build:phonux OK -- wrote ${relative(REPO_ROOT, DIST_DIR)}/{package.json,README.md,DESIGN.md${hasLicenseFile ? ',LICENSE' : ''}} and ${Object.keys(exports).length} export target(s)`);
