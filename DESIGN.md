@@ -344,7 +344,7 @@ fakes by importing the subpath explicitly, and a bundler that only ever sees `.`
 
 `directionalTransition` holds the timing, easing and opacity contract `PanelRowSlot` uses, not its position math. A live panel is
 absolutely positioned (`index * (phoneWidth + GAP)`) and leaves for two reasons: a close slides down, and an auto-collapse
-slides left to a fixed spot behind the sidebar whatever the panel's own index. One generic `exit` would lose the
+slides left to a fixed spot just past the row's left edge whatever the panel's own index. One generic `exit` would lose the
 index-independent collapse target, so this is a preset, not a wrapper component. It returns `initial`/`animate` (`distance`
 past rest, faded out), the shared `transition` and a symmetric `exit`; `PanelRowSlot`, its one caller, builds its own two exits
 and takes only `transition`. A host that animates rows of its own builds them over the public `PANEL_TRANSITION`, the same object
@@ -399,10 +399,10 @@ callback leaves the operation half-applied. A throwing `onPanelsClosed` leaves t
 Undo offered for it; a throwing `resetHostDataOnRestore` part-way through an undo restores the panels before it and
 loses the rest.
 
-**What stays host.** The Electron drag-strip chrome (the draggable title-bar region and macOS traffic-light
-clearance) and every other window-chrome concern; the IPC calls a panel's own actions make; and mounting the
-real `<webview>` inside a resolved View. None of that is row layout, and none of it can move here without
-this folder depending on Electron.
+**What stays host.** The window's own chrome (a draggable title-bar region and the clearance the platform's
+window controls need) and every other window-chrome concern; the IPC calls a panel's own actions make; and
+mounting real web content inside a resolved View. None of that is row layout, and none of it can move here
+without this package depending on the host's runtime.
 
 **The second row is one field, not a second shape.** An entry's `row: number` (default 0) groups the flat
 panel array into one `PanelRow` per group, instead of restructuring the array into rows-as-list-of-lists. A
@@ -441,8 +441,8 @@ returning the same value, only flagged deprecated, for as long as the alias stay
 ## Workspace state, not "session"
 
 A `Workspace`'s own saved state -- which panels are open, their order, sizes and params -- is named
-*workspace state* in this package, never "session". "Session" already names something else: the app's
-persisted front-page sessions, a url plus titles and turn strings, stored in a file
+*workspace state* in this package, never "session". "Session" already names something else: a host's own
+saved sessions, a separate record stored in a file
 that must never change shape. The two are different data owned by different code, so reusing one word for
 both would leave every future name ambiguous about which it meant.
 
@@ -505,8 +505,8 @@ when its `panel` is dangling or cyclic (see "How hydrate builds the list" below)
   `anchor`, `formFactor`, `permanent`, `layer`. `listed`, `layer` and `formFactor` are written whenever the panel
   has them, `title` and `params` only when defined, and `permanent` only when true; no key is ever written as
   `undefined`. A panel with no anchor of its own is saved with the one its position in the row implies.
-- **Never saved -- `hostData`.** The host's own opaque per-panel data, which the desktop host uses for its
-  Electron runtime handles. No runtime handle is ever saved, and phonux cannot tell a handle from any other
+- **Never saved -- `hostData`.** The host's own opaque per-panel data, which a host may use for its
+  runtime handles (a live web view's id, say). No runtime handle is ever saved, and phonux cannot tell a handle from any other
   value inside the blob, so none of it is saved: `WorkspacePanelState` has no field for it. A restored panel
   gets `defaultHostData()` like a created one, so a host that needs a fresh handle per panel builds it there;
   with no `defaultHostData`, or when it returns `undefined`, the panel has no `hostData` key at all.
@@ -750,7 +750,7 @@ its own. The explicit `::-webkit-scrollbar` rules force a classic scrollbar, whi
 own scrollbar. Those rules style only the element they are set on, so a nested scroller needs its own copy
 or it falls back to Chromium's default-width bar and breaks the arithmetic above.
 
-**Never reserved twice.** A caller that scrolls one level deeper (a `<webview>`, a transcript under a pinned
+**Never reserved twice.** A caller that scrolls one level deeper (an embedded web view, a transcript under a pinned
 input bar) spreads `panelFrameBareSx`, which cancels both the padding and the gutter. Keeping either leaves a
 phantom gap outside the inner scrollbar and an uneven inset (28px on the right against 12px on the left).
 Its properties are longhands because MUI resolves `p`/`pr` and `overflow`/`overflowY` independently, so a
