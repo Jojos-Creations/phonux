@@ -110,7 +110,7 @@ test('the smoke refuses any argument but --from <value> before it packs or insta
 });
 
 test('the smoke refuses a --from that npm kept for itself, before it packs or installs anything', () => {
-  // `npm run smoke:phonux --from=X` never passes --from to the script; npm exports it as npm_config_from instead.
+  // `npm run smoke --from=X` never passes --from to the script; npm exports it as npm_config_from instead.
   const run = spawnSync(process.execPath, [SMOKE], { encoding: 'utf8', env: { ...process.env, npm_config_from: 'phonux@0.0.0' } });
-  assertRefusedBeforePacking(run, 'npm_config_from=phonux@0.0.0', /npm_config_from=phonux@0\.0\.0.*npm run smoke:phonux -- --from/);
+  assertRefusedBeforePacking(run, 'npm_config_from=phonux@0.0.0', /npm_config_from=phonux@0\.0\.0.*npm run smoke -- --from/);
 });

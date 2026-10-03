@@ -210,7 +210,7 @@ const run = (file, args, cwd) => execFileSync(file, args, { cwd, stdio: 'pipe', 
 
 try {
   if (process.env.npm_config_from !== undefined) {
-    throw new Error(`npm kept a --from placed before a bare -- for itself (npm_config_from=${process.env.npm_config_from}), so it never reached this script; run \`npm run smoke:phonux -- --from <tarball path or registry spec>\``);
+    throw new Error(`npm kept a --from placed before a bare -- for itself (npm_config_from=${process.env.npm_config_from}), so it never reached this script; run \`npm run smoke -- --from <tarball path or registry spec>\``);
   }
   if (strayArgs.length > 0) {
     throw new Error(`unexpected argument "${strayArgs[0]}"; the only option is --from <tarball path or registry spec>, after a bare -- when run through npm`);
