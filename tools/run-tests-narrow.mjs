@@ -1,7 +1,5 @@
 #!/usr/bin/env node
 // `npm test -- <file>` still runs every file (npm appends it after the glob): hence this wrapper.
-// The package.json key must never be "test" plus a separator (test-file, test:file, test.file): the
-// full-suite lease hook matches `npm run test\b` in the raw command text. `file-test` does not match.
 
 import { spawn } from 'node:child_process';
 import { existsSync, mkdtempSync, readFileSync, realpathSync, rmSync } from 'node:fs';

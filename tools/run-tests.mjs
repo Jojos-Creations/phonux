@@ -2,8 +2,6 @@
 // Fails a run that Node's exit code would pass: a requested file that never completed, one whose results stopped early, or no test at all.
 // It also refuses to start on a file that registers after an await: --test-force-exit drops that test and leaves no line in the stream.
 // Node's --test CLI re-resolves its file argv at start and tolerates a partial miss while one match remains.
-// package.json's `test` key must stay exactly `test`: the full-suite lease hook (.claude/coordinator-config.yaml)
-// matches the raw command text (`npm test` / `npm run test`), so a renamed key would silently escape that cap.
 
 import { spawn } from 'node:child_process';
 import { existsSync, mkdtempSync, readFileSync, realpathSync, rmSync, statSync } from 'node:fs';
@@ -67,7 +65,7 @@ export function runExitCode({ childCode, missing, stopped, ranNothing }) {
 }
 
 export const FLUSH_PRELOAD_PATH = join(REPO_ROOT, 'tools', 'flush-stdout-before-exit.mjs');
-// --test-force-exit stays: a file with imperfect teardown (the Electron tests) hangs the run without it.
+// --test-force-exit stays: a file with imperfect teardown hangs the run without it.
 export const CHILD_BASE_FLAGS = ['--test-timeout=900000', '--test-force-exit', `--import=${FLUSH_PRELOAD_PATH}`];
 
 export function buildRunTestsArgv({ reporterDestination, forwardArgv }) {

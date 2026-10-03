@@ -1,6 +1,6 @@
 /**
  * Compile-only: the barrel exports `ReleaseMeasure`, `shouldCloseOnRelease`'s parameter type. Dropping it fails
- * here with TS2305, and a drift from that parameter type fails `Same`. Nothing imports this file; `tsc -p client`
+ * here with TS2305, and a drift from that parameter type fails `Same`. Nothing imports this file; `npm run typecheck`
  * checks it as a root file.
  */
 import { shouldCloseOnRelease, type ReleaseMeasure } from './index.js';
