@@ -9,8 +9,8 @@
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { workspaceShellStyle, type WorkspaceShellStyleInput } from '../client/src/shared/phone/Workspace.js';
-import { PANEL_TRANSITION } from 'phonux';
+import { workspaceShellStyle, type WorkspaceShellStyleInput } from '../Workspace.js';
+import { PANEL_TRANSITION } from '../index.js';
 
 const base: WorkspaceShellStyleInput = {
   containerWidth: 1300,

@@ -2,7 +2,7 @@
   "$schema": "https://developer.microsoft.com/json-schemas/api-extractor/v7/api-extractor.schema.json",
   "projectFolder": ".",
   "newlineKind": "lf",
-  "mainEntryPointFilePath": "<projectFolder>/../../../api-extractor-temp/dts/index.d.ts",
+  "mainEntryPointFilePath": "<projectFolder>/api-extractor-temp/dts/index.d.ts",
   "compiler": {
     "tsconfigFilePath": "<projectFolder>/tsconfig.api-extractor.json"
   },
@@ -10,7 +10,7 @@
     "enabled": true,
     "reportFileName": "phonux",
     "reportFolder": "<projectFolder>/etc/",
-    "reportTempFolder": "<projectFolder>/../../../api-extractor-temp/report/"
+    "reportTempFolder": "<projectFolder>/api-extractor-temp/report/"
   },
   "docModel": { "enabled": false },
   "dtsRollup": { "enabled": false },

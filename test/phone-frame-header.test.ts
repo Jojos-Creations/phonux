@@ -9,7 +9,7 @@ import assert from 'node:assert/strict';
 import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { JSDOM } from 'jsdom';
-import { PanelHeaderRow } from 'phonux';
+import { PanelHeaderRow } from '../index.js';
 
 function renderDom(el: ReturnType<typeof createElement>): Document {
   const markup = renderToStaticMarkup(el);

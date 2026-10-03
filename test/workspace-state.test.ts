@@ -5,11 +5,11 @@
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { computeRowOrder } from '../client/src/shared/phone/panelRowOrder.js';
-import { DEFAULT_PANEL_SIZE, TIER_SIZES } from '../client/src/shared/phone/panelTiers.js';
-import { appendPanel, createHistoryPanel } from '../client/src/shared/phone/panelWindow.js';
-import { hydrateWorkspaceState, isWorkspaceState, projectWorkspaceState } from '../client/src/shared/phone/workspaceState.js';
-import type { JsonValue, PanelWindow, WorkspacePanelState, WorkspaceState } from 'phonux';
+import { computeRowOrder } from '../panelRowOrder.js';
+import { DEFAULT_PANEL_SIZE, TIER_SIZES } from '../panelTiers.js';
+import { appendPanel, createHistoryPanel } from '../panelWindow.js';
+import { hydrateWorkspaceState, isWorkspaceState, projectWorkspaceState } from '../workspaceState.js';
+import type { JsonValue, PanelWindow, WorkspacePanelState, WorkspaceState } from '../index.js';
 
 const ROOT = 'history';
 

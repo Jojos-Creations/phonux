@@ -16,7 +16,7 @@ import {
   TIER_SIZES,
   type PanelAnchor,
   type PanelSize,
-} from 'phonux';
+} from '../index.js';
 import {
   type PanelWindow,
   appendPanel,
@@ -33,7 +33,7 @@ import {
   rightmostLiveIndex,
   setFormFactor,
   sideOfLiveRange,
-} from 'phonux/internal/panelModel';
+} from '../panelWindow.js';
 
 /** Every entry's default tier/size, rebuilt from DEFAULT_PHONE_SIZE rather than a 390/700 literal, so this file
  * cannot drift from panelTiers.ts's DEFAULT_PANEL_SIZE derivation. */

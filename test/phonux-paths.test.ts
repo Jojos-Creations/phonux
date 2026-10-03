@@ -30,10 +30,10 @@ function withTree<T>(files: Record<string, unknown>, body: (root: string) => T):
   }
 }
 
-test('the real repo root resolves to the phonux workspace member', () => {
+test('the library root, which has no workspaces key, resolves to itself', () => {
   const run = resolvePhoneDirIn(REPO_ROOT);
   assert.equal(run.status, 0, run.stderr);
-  assert.equal(run.stdout, join(REPO_ROOT, 'client/src/shared/phone'));
+  assert.equal(run.stdout, REPO_ROOT);
 });
 
 test('a root with no workspaces key and the name phonux resolves to itself', () => {

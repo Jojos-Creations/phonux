@@ -5,12 +5,12 @@
  */
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { SLOT_TRANSITION, directionalTransition } from 'phonux/internal/directionalTransition';
-import { panelRowSlotMotion } from '../client/src/shared/phone/PanelRowSlot.js';
-import { anchorTargetOf, resolveEnterDirection } from '../client/src/shared/phone/panelRowOrder.js';
-import { createHistoryPanel } from 'phonux/internal/panelModel';
-import { HISTORY_PANEL_ID } from '../client/src/desktop/appApis.js';
-import { DRAG_CLOSE, GAP, PANEL_TRANSITION } from 'phonux';
+import { SLOT_TRANSITION, directionalTransition } from '../directionalTransition.js';
+import { panelRowSlotMotion } from '../PanelRowSlot.js';
+import { anchorTargetOf, resolveEnterDirection } from '../panelRowOrder.js';
+import { createHistoryPanel } from '../panelWindow.js';
+const HISTORY_PANEL_ID = 'history';
+import { DRAG_CLOSE, GAP, PANEL_TRANSITION } from '../index.js';
 
 test('SLOT_TRANSITION is the tuned duration/easing (0.4s, the [0.2,0,0,1] cubic-bezier), and PANEL_TRANSITION is the SAME object, not a copy', () => {
   assert.deepEqual(SLOT_TRANSITION, { duration: 0.4, ease: [0.2, 0, 0, 1] });

@@ -3,7 +3,11 @@
     "target": "ES2022",
     "module": "ESNext",
     "moduleResolution": "bundler",
-    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "lib": [
+      "ES2022",
+      "DOM",
+      "DOM.Iterable"
+    ],
     "jsx": "react-jsx",
     "strict": true,
     "noUncheckedIndexedAccess": true,
@@ -13,8 +17,18 @@
     "declaration": true,
     "emitDeclarationOnly": true,
     "rootDir": ".",
-    "outDir": "../../../api-extractor-temp/dts"
+    "outDir": "./api-extractor-temp/dts"
   },
-  "include": ["**/*.ts", "**/*.tsx"],
-  "exclude": ["dist", "**/*.typecheck.ts"]
+  "include": [
+    "**/*.ts",
+    "**/*.tsx"
+  ],
+  "exclude": [
+    "**/*.typecheck.ts",
+    "api-extractor-temp",
+    "dist",
+    "node_modules",
+    "test",
+    "tools"
+  ]
 }

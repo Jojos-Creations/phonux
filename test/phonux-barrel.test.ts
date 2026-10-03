@@ -5,13 +5,13 @@
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import * as phonux from '../client/src/shared/phone/index.js';
-import * as bare from 'phonux';
-import * as bareTesting from 'phonux/testing';
-import { HostProvider, useHost } from '../client/src/shared/phone/hostApi.js';
-import { CaptureRegistryContext } from '../client/src/shared/phone/snapshots.js';
-import { OverlayProvider, OverlayStore } from '../client/src/shared/phone/windowOverlay.js';
-import { createFakeHost } from '../client/src/shared/phone/fakeHost.js';
+import * as phonux from '../index.js';
+import * as bare from '../index.js';
+import * as bareTesting from '../fakeHost.js';
+import { HostProvider, useHost } from '../hostApi.js';
+import { CaptureRegistryContext } from '../snapshots.js';
+import { OverlayProvider, OverlayStore } from '../windowOverlay.js';
+import { createFakeHost } from '../fakeHost.js';
 
 const VALUE_EXPORTS = [
   // Old names (kept as @deprecated same-value aliases).
@@ -96,7 +96,7 @@ test('module identity: context-bearing exports reached via bare phonux and phonu
   assert.ok(bare.OverlayProvider === OverlayProvider && bare.OverlayStore === OverlayStore, 'OverlayProvider/OverlayStore: two instances of windowOverlay');
   assert.ok(bareTesting.createFakeHost === createFakeHost, 'createFakeHost: two instances of the testing subpath');
   // Control: a genuinely separate instance of the same file is NOT ===, so the checks above can fail.
-  const secondInstance = '../client/src/shared/phone/snapshots.js?second-instance';
+  const secondInstance = '../snapshots.js?second-instance';
   const second = (await import(secondInstance)) as { CaptureRegistryContext: unknown };
   assert.ok(second.CaptureRegistryContext !== undefined && second.CaptureRegistryContext !== CaptureRegistryContext, 'control: a second module instance must yield a distinct context');
 });
