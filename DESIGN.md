@@ -1,8 +1,7 @@
-# shared/phone: design notes
+# phonux: design notes
 
-This folder is the seam between the app and any view -- Settings, History, a live web panel, or a future
-third-party one. It is meant to split out into its own package/repo boundary eventually, so nothing here may
-depend on the app that hosts it.
+This package is the seam between a host app and any view -- Settings, History, a live web panel, or a
+third-party one. Nothing here may depend on the app that hosts it.
 
 ## Import boundary
 
@@ -66,8 +65,8 @@ park, `reanchor` and from being dragged, for free, by already being `collapsible
 already is. Other panels can still be dragged past it -- see `PanelsAPI.move`'s own section below.
 
 The "own control only" guarantee also has to hold for the built-in 'web' view, not just a custom one: `view`
-left at its default (or set explicitly to `'web'`) still resolves to LivePanel.tsx, which otherwise wraps
-EVERY panel in a framework drag-to-close handle unconditionally. LivePanel.tsx reads its own `collapsible`
+left at its default (or set explicitly to `'web'`) still resolves to the host's own panel component, which otherwise wraps
+EVERY panel in a framework drag-to-close handle unconditionally. That component reads its own `collapsible`
 through the same per-slot context PanelRow.tsx already provides for the reorder exemption
 (`usePanelCloseEligible`, alongside `usePanelReorderEligible`) and renders no DragToClose wrapper -- no grab
 bar at all -- when it reads false, exactly like History's own locked Panel today.
@@ -121,7 +120,7 @@ a drawn size: a phone panel never passes its stored `size` on, because its width
 rather than taking a raw target index. A raw index is meaningless across the `panelList`/internal-array
 split (`panelList` only ever lists panels, `collapsible: false` columns like History are never addressable
 targets) and would leak the internal array's own indexing into the public surface. The row's own
-drag-to-reorder gesture (LivePanel.tsx) converts a pointer's cumulative offset into a step count and calls
+drag-to-reorder gesture (the host's panel component) converts a pointer's cumulative offset into a step count and calls
 `move` that many times in the same direction -- the same primitive a future keyboard/single-pointer
 alternative (WCAG 2.5.7) would call once per key press. Panels can differ in width, so the step count is not
 `offset / one slot`: a hop past a neighbour moves the dragged panel by that NEIGHBOUR's span (its width plus
@@ -309,32 +308,21 @@ built-in or third-party -- is written against `PanelComponent<P>` (renamed to `V
 `anchor`, `layer`, `anchoredEnter`) just because it happens to be a plain variable, not an object literal,
 and so escapes TypeScript's excess-property check at the call site.
 
-## The package lives in place, with no build step for in-repo use
+## Building, packing and publishing
 
-This folder is a package (`phonux`) in place, not under `packages/phonux/`, because splitting it out
-today would need a build and a version to track before the export surface has ever been used by an
-outside consumer -- moving it once, after the surface has proven itself, costs less than maintaining a
-build for a surface still being drafted. `package.json`'s `exports` map points `.` straight at
-`index.ts` source: there is nothing to compile here, so a consumer's own toolchain (tsc, tsx, Vite)
-compiles this folder exactly as it would compile any other module in the tree, and a change here is
-visible to this repo's own dev and test without a publish step.
+The repository root is the package. Its `package.json` is private and its `exports` map points at `.ts` source, so the tests and
+the API reports run against source and nothing is published from the root. `npm run build` compiles to `dist/` and generates the
+publishable `dist/package.json` with its paths rewritten relative to `dist/` (never hand-edited, never committed). `description` and
+`license` come from the root `package.json` (the build refuses a source manifest without them), the generated manifest has no
+`private` key and sets `publishConfig.access` to `public`, and `LICENSE`, `README.md` and `DESIGN.md` ship beside it.
 
-Packing for an outside consumer is a separate, opt-in step, never run as part of this repo's own build
-or test. `npm run build:phonux` compiles to `dist/` and generates a throwaway `dist/package.json` with
-its paths rewritten relative to `dist/` (never hand-edited, never committed). `description` and
-`license` come from this folder's `package.json` (the build refuses a source manifest without them),
-the generated manifest has no `private` key and sets `publishConfig.access` to `public`, and `LICENSE`,
-`README.md` and `DESIGN.md` ship beside it.
-
-`npm run smoke:phonux` is the publish gate: it asserts the manifest inside the packed tarball, then
-proves the tarball installs and resolves in a throwaway app outside this repo, with the real peer set
-from the registry, in nine checks. `npm run smoke:phonux -- --from <tarball path or registry spec>`
-runs the same checks on an already-packed or already-published artifact. The bare `--` is required:
-npm keeps a `--from` placed before it for itself, and the smoke refuses to run rather than check the
-local `dist/` in its place. `npm run release:check` confirms that `name@version` is still free on the
-registry, runs the build and the smoke, and prints the `npm publish` command for the owner to run with
-their own login; it never publishes. `npm publish --dry-run` is not evidence, because it accepts a
-`private: true` manifest.
+`npm run smoke` is the publish gate: it asserts the manifest inside the packed tarball, then proves the tarball installs and
+resolves in a throwaway app outside this checkout, with the real peer set from the registry, in nine checks.
+`npm run smoke -- --from <tarball path or registry spec>` runs the same checks on an already-packed or already-published
+artifact. The bare `--` is required: npm keeps a `--from` placed before it for itself, and the smoke refuses to run rather than
+check the local `dist/` in its place. `npm run release:check` confirms that `name@version` is still free on the registry, runs the build and the smoke, and prints
+the `npm publish` command for the maintainer to run with their own login; it never publishes. `npm publish --dry-run` is not
+evidence, because it accepts a `private: true` manifest.
 
 ## `index.ts` splits values from types on purpose
 
@@ -364,10 +352,10 @@ as `SLOT_TRANSITION`.
 
 ## `createDefaultTheme` carries the no-motion rule only, never the brand
 
-The optional default theme ports phonUX's own no-animation MUI settings (disabled
+The optional default theme ports phonux-app's own no-animation MUI settings (disabled
 `transitions.create`, and a CssBaseline reset scoped to `transition`/`animation`, never
 `transform`/`opacity`) because a consumer's phonux views run the same slide animations
-that rule protects. It deliberately leaves out phonUX's palette, typography and
+that rule protects. It deliberately leaves out phonux-app's palette, typography and
 per-component style overrides: those are this product's own branding, not something a
 third-party consumer should inherit just by taking the default.
 
@@ -391,8 +379,8 @@ own row-only entry type, `PanelRowEntry`, rather than reusing the View-facing on
 root entry as a required `rootId` prop with no default here, so no host's own panel id is baked into this
 folder.
 
-**What phonux will own once `Workspace` is extracted.** `Workspace` is the shell around the row: the scroll
-container, the centered/animated-margin math `workspaceShellStyle` (in `client/src/shared/phone/Workspace.tsx`)
+**What phonux owns: `Workspace`.** `Workspace` is the shell around the row: the scroll
+container, the centered/animated-margin math `workspaceShellStyle` (in `Workspace.tsx`)
 computes, and the `OverlaySlot` mounts. Like `PanelRow`, it does not consume `PanelSummary`.
 
 **What phonux owns: the panel state machine.** The hooks that decide which panels exist and which are live sit in
@@ -428,11 +416,6 @@ When a host passes `storage`, the provider restores that list once at mount and 
 settles; with none, nothing is loaded and nothing is saved. The shape, the ownership split and the save/restore
 timing are in "Workspace state persistence: shape, ownership and timing" below.
 
-**Files the `Workspace` extraction touches.** `workspaceShellStyle` (out of `client/src/desktop/row/useRowShell.ts`)
-moves into this folder, and `test/phone-boundary.test.ts`'s `MIN_PHONE_FILES` goes up to the number of files the shared/phone folder
-scan then reads. Naming them here lets a later entry's own touches be checked against this list instead of
-re-deriving it.
-
 ## Naming rules R1-R4
 
 - **R1. Name by the hierarchy.** A `Panel` slot's own parts are named `Panel*`, what a developer writes is
@@ -467,8 +450,7 @@ both would leave every future name ambiguous about which it meant.
 
 This section describes phonux's own half of workspace-state persistence: the saved `JsonValue` shape, the pure
 project/hydrate functions, phonux's own storage contract, and the save/restore timing. It defines no
-`WorkspaceGrid` mechanism -- one workspace, one row, a single `{version, panels}` envelope is enough, per the
-owner's no-grid ruling -- and it does not say where or how the data reaches disk; the host's own choices there are
+`WorkspaceGrid` mechanism -- one workspace, one row, a single `{version, panels}` envelope is enough, by design -- and it does not say where or how the data reaches disk; the host's own choices there are
 out of scope (see "Ownership and scope" below).
 
 ### The shape
@@ -606,7 +588,7 @@ was saved saves nothing. The baseline advances when the timer fires.
 
 The gate is React state, not a ref: opening it must re-run the save effect, or a change committed while `load()`
 was pending and then found nothing to restore would never be saved. The hazard the gate exists for is real:
-`appApis.ts`'s synchronous seed initializer runs before any async `load()` can possibly resolve, so an
+A host's synchronous seed initializer runs before any async `load()` can possibly resolve, so an
 unconditional save fired before the gate would let that transient boot state clobber a real saved file.
 
 There is no flush when the window closes or the provider unmounts: a change made in the last 500 ms before a
@@ -666,7 +648,7 @@ A view-created permanent column is saved with `permanent: true` and restored as 
 root column (History today) is never saved, because the host reseeds it fresh every launch. A permanent column is
 always live on restore: as for `listed`, `permanent` wins, because an always-shown column is never parked, so one
 saved as parked would never render and could never be revealed. No app code creates a permanent column at mount today, so
-a view-created one would otherwise vanish on restart, against the owner's every-saved-panel-comes-back ruling; if
+a view-created one would otherwise vanish on restart, against the rule that every saved panel comes back; if
 a host later creates a permanent column at mount itself, it must not also be restored from saved state, a case to
 revisit then.
 
@@ -864,7 +846,7 @@ real one may wrap it; but it always mounts its own `OverlayProvider`, so a calle
 around the `OverlaySlot`s and the views. Placed as `HostProvider`'s ancestor instead, it is shadowed by the
 nearer built-in provider and silently receives nothing, with no error.
 
-Only `client/src/desktop/capture/` (app-side, never this folder -- see "Import boundary" above) implements a
+Only a host (phonux-app's capture controller, for one; never this package -- see "Import boundary" above) implements a
 real `CaptureRegistry`, the DOM-redraw pixel engine, and the `SnapshotsAPI` store those pixels land in, and
 only it renders `<CaptureRegistryProvider registry={realRegistry}>`, wrapping `<HostProvider>`. `PanelSummary`
 never gains a `snapshot` field for the same reason `PanelWindow`'s host-only fields never leak into it
@@ -912,8 +894,8 @@ exposed as `useViewState.Provider`, a property of the hook function, rather than
 barrel, and `useViewState.useRetainOnly` travels the same way: the barrel's public surface stays the two names
 a view genuinely depends on (`useViewState`, `ViewStateMissingProviderError`); the ambient id and the release
 are row-render-loop wiring a view never touches directly. Their one caller, `PanelRow.tsx`, sits inside this
-folder; anything outside it reaches this folder only through a bare `'phonux'` import (see the phone-boundary
-suite), so both travel through the SAME public entry point `useViewState` already does, not a separate one.
+folder; anything outside it reaches this folder only through a bare `'phonux'` import (phonux-app's boundary
+tests check this), so both travel through the SAME public entry point `useViewState` already does, not a separate one.
 
 Types read exactly as `React.useState`'s do. With no type argument, `useViewState('count', 0)` infers
 `number`, an object literal's `true` infers `boolean`, and a value already typed `'idle' | 'loading'` keeps that
@@ -943,8 +925,7 @@ There are four `api-extractor*.json` configs, the fourth being `api-extractor.pa
 `./internal/panelModel`, because API Extractor analyses one entry point per run. The
 report script checks the `exports` map against the configs key by key, so an entry point with no config, or
 two configs pointed at each other's entry, fails before anything runs. The declarations it reads are emitted
-into `client/api-extractor-temp/`, a sibling of `client/src`, so they never reach `typecheck:app`, the
-file-size ratchet or the phone-boundary scan.
+into `api-extractor-temp/` at the repository root (git-ignored), so they never reach `npm run typecheck` or the published package.
 
 `./internal/directionalTransition` is tracked and tagged `@internal`, not excluded: this folder's own tests
 import it (`PanelRowSlot.tsx`, inside the folder, imports the module directly), so it is a
@@ -961,9 +942,9 @@ imported as `phonux/internal/panelModel` by this folder's own tests. It is track
 holds for it too. `panelWindow.ts` also re-exports `FormFactor`, `JsonValue`, `PanelSize`, `PanelAnchor` and
 `NeighborWidths`, which its signatures name, so that the report has no `ae-forgotten-export`.
 
-Neither `@internal` subpath ships. `npm run build:phonux` skips every key in `INTERNAL_ONLY_EXPORT_KEYS`
+Neither `@internal` subpath ships. `npm run build` skips every key in `INTERNAL_ONLY_EXPORT_KEYS`
 (`tools/phonux-build.mjs`), which holds `./internal/directionalTransition` and `./internal/panelModel`, so
-`dist/package.json`'s `exports` lists only `.` and `./testing`: an outside consumer, this app included, reaches the package only through `.` and `./testing`; the two subpaths exist for the folder's own tests.
+`dist/package.json`'s `exports` lists only `.` and `./testing`: an outside consumer reaches the package only through `.` and `./testing`; the two subpaths exist for this package's own tests.
 
 Every declaration an entry point reaches carries exactly one release tag in its own doc comment: `@public`
 for `.` and `./testing`, `@internal` for `./internal/directionalTransition` and for what `./internal/panelModel`
@@ -987,133 +968,18 @@ into its trailing "Warnings were encountered" footer. Once such a report is comm
 regenerates the same text, matches it, and API Extractor exits 0. So the script also scans each committed
 report for an embedded warning or message id, and fails on any.
 
-## Splitting into its own repo: path discovery, the climb-check, and the identity that's already settled
+## History, releases and development
 
-This package moves out of this repo into its own eventually. Three mechanical pieces make that move a single
-automated step instead of a manual one, and the repo's identity and license are settled well enough that
-neither needs revisiting when the move happens.
+The library began as a folder inside phonux-app and was extracted with `git filter-repo`, renaming every path the folder ever had,
+so `git log --follow` on a source file runs back through its years inside the app. The first entry of `CHANGELOG.md` names the
+phonux-app commit the extraction was taken at.
 
-### Path discovery replaces the hardcoded three-level join
+A release is `npm run release:check`, then the maintainer's own `npm publish` from `dist/`. Nothing in this repository publishes,
+and a published version is never edited: a fix is a new version, and `CHANGELOG.md` says what changed. `.github/workflows/ci.yml`
+runs the typecheck, the tests, the build, the API report check and the smoke on every push and pull request.
 
-`tools/phonux-build.mjs`, `tools/phonux-pack-smoke.mjs`, `tools/phonux-api-report.mjs` and
-`tools/phonux-release-check.mjs` each take `PHONE_DIR` from `resolvePhoneDir` in `tools/phonux-paths.mjs`,
-instead of hardcoding `join(REPO_ROOT, 'client/src/shared/phone')`. It selects the one `workspaces` member
-whose `package.json` is named `phonux`, or the root itself when there is no `workspaces` key, and throws on
-zero or several. So all four keep resolving to wherever this package actually sits, at whatever nesting depth,
-without hand-editing any of them on every relocation, and another package listed first in `workspaces` is never
-built and reported green as phonux. `DIST_DIR` stays relative to whatever `PHONE_DIR` resolves to, unchanged,
-since `dist/` has always been this package's own subdirectory, not a sibling that needs its own discovery.
-
-`tools/phonux-api-report.mjs` derives `TEMP_DIR` from the same layout: `client/api-extractor-temp`, beside
-`client/src`, while this package is a workspace member, and `api-extractor-temp` at the root once the package
-is the root. `.gitignore`'s existing entry for `client/api-extractor-temp/` covers the workspace layout.
-
-### The climb-check extends the pre-existing check to `reportTempFolder`
-
-`tools/phonux-api-report.mjs`'s `describeConfig`/`entries` functions fail loud, before API Extractor ever
-runs, when a config's `mainEntryPointFilePath` climb no longer matches this package's real depth. The
-climb-check is additive to that existing `mainEntryPointFilePath` comparison in `describeConfig`/`entries`,
-not a new parallel mechanism: the same two functions carry one more per-config comparison, covering
-`apiReport.reportTempFolder`, resolved the same way and checked against `join(TEMP_DIR, 'report')`. Before
-this comparison existed, a stale `reportTempFolder` climb was caught only late, once the expected report file
-turned up missing after a run; the climb-check now catches it before API Extractor runs at all, next to the
-entry-point check it extends.
-
-### Repo identity and license, settled
-
-The library's repo is `Jojos-Creations/phonux`, private. The app repo is already `Jojos-Creations/phonux-app`,
-so the split adds no rename step, and no checkout's `origin` URL changes at the split. The library's own
-`package.json` already says `"license": "MIT"` and `LICENSE` in this folder holds the MIT text, so the split
-carries both with no edit. The source manifest keeps `private: true`; only the generated `dist/package.json`
-is publishable.
-
-### History and link mechanism for the move
-
-The move uses `git filter-repo` with `--path`/`--path-rename` for the folder plus every inbound file's old
-paths, not `git subtree split`. Both produce a byte-identical tree at the claim commit, but `git filter-repo`
-also keeps the inbound files' real pre-move content history (every content-changing commit; only pure,
-100%-identical-content rename hops that collapse onto the same target path are lost), for a modest size cost
-over `git subtree split`'s history-truncating result; `git subtree split --rejoin` is not needed, because the
-link below does not depend on which extraction method produced the library's first commit.
-
-The inbound file set and the `--path`/`--path-rename` list are re-derived at the move's own claim-time commit,
-not carried forward as a fixed list from whenever this design was written: files move into and out of this
-folder's history over time (recent examples already have), so the move re-runs the same `git log --follow
---name-only` scan this design's own test-file partition uses as its model, against the folder's actual
-content at claim time, rather than trusting a stale enumeration.
-
-The two-way link between phonux-app and the library is established by exactly one hand-made commit in
-phonux-app, made immediately after the library repo is created, carrying `git-subtree-dir`,
-`git-subtree-mainline` and `git-subtree-split` trailers in the same format `git subtree split --rejoin`
-itself writes (built by hand here since filter-repo's commit hashes are foreign to `git subtree`, which has no
-automatic way to attach a link to an already-populated directory). That link commit's folder diff against its
-own mainline parent must be empty -- a non-empty diff there means the library tip's tree was not actually
-byte-identical to the folder's, and something was silently changed or lost -- and the first `git subtree push`
-after the link must be ancestry-clean (`git merge-base --is-ancestor <library tip before> <pushed tip>` true)
-before anyone relies on the link for a real pull or push. Once both hold, plain `git subtree pull` and `git
-subtree push` work as ordinary git operations from then on, including normal merge-conflict behavior when both
-sides touch the same location.
-
-The library's README (or, if no README exists yet, its first commit) records the phonux-app commit the split
-was taken at. phonux-app's own pre-split history for the folder and its inbound files is not deleted or moved
-anywhere -- it stays exactly where it already is, in phonux-app, at the same commit content but different
-hashes (filter-repo rewrites hashes), findable by matching author, author-date and subject rather than by
-hash.
-
-A `CHANGELOG.md` starts in the library at the split, its first entry naming the split's phonux-app source
-commit. CI is not added to the library at the split: every phonux change is still made in phonux-app and flows
-out to the library by `git subtree push`, and phonux-app's own strict gate already covers those changes before
-they ever leave it. CI is added to the library once it first receives a commit that was not made through
-phonux-app, or gains an outside consumer -- whichever comes first.
-
-### Ongoing consumption: two mechanisms, one per audience
-
-This repo's own dev loop keeps consuming the package as an npm workspace: `git subtree` is the mechanism for
-moving commits between the two repos in either direction, and nothing about the workspace symlink or the bare
-`'phonux'` import specifier changes because of it. An outside consumer installs the packed tarball that
-`build:phonux`/`smoke:phonux` already produce and prove installable, instead of a workspace link; a registry
-publish is a later decision, not a precondition for the first outside consumer.
-
-The bare-`phonux`-style import count is a moving target, not a number to hardcode into a design: recounted
-fresh (`git grep -F "from 'phonux'"`, `"from 'phonux/testing"`, `"from 'phonux/internal/directionalTransition"`
-against `*.ts`/`*.tsx`, cross-checked with `-P`/`-E` for the plain-string case), it changes every time a file
-elsewhere in the repo starts or stops importing this package, so the pairing above names the mechanism that
-stays true regardless of the count, not the count itself.
-
-### The test-file partition
-
-Files under `test/` that import `'phonux'`, `'phonux/testing'`, or `'phonux/internal/...'` by bare specifier
-split into exactly two buckets, not three. MOVE: 4 test files (`phone-frame-header.test.ts`,
-`phone-models.test.ts`, `phonux-barrel.test.ts`, `window-overlay.test.ts`) plus 2 fixture files
-(`test/support/third-party-overlay-view.ts`, `test/support/third-party-panel-view.ts`) have no direct or
-transitive dependency on this repo's app code, and move cleanly. STAY: every other such file either imports
-this repo's app code directly (desktop/panel/history/ipc/sessions/theme modules) or depends on
-`test/support/dom-harness.ts`, which itself reaches into this repo's device, settings and ipc modules; none of
-those moves as-is. Whether a STAY file is later duplicated into the new repo's own suite, rewritten against
-fakes, or left host-only is not decided here -- that call belongs to whichever work actually performs the
-move, not to this design. This partition is re-derived by re-running the same two greps above and re-checking
-each hit against `dom-harness.ts`/app-internal imports, not carried forward as a fixed file list, because a
-new phonux-touching test file added after this design was written still needs the same classification applied
-to it.
-
-### Readiness checklist
-
-One command or check per item, each independently verifiable without further design work:
-
-1. `build:phonux` exits 0 run from a relocated depth -- a scratch copy at a different nesting level from
-   today's.
-2. `smoke:phonux` reports 9/9 from the same relocated depth.
-3. `check:api-report` fails loud from the same relocated depth while its four path-sensitive configs
-   (`tsconfig.build.json` and the three `api-extractor*.json` configs) are left unedited, naming the
-   mismatched config and field; it exits 0 once those configs are hand-fixed to the new depth.
-4. The `git filter-repo` result's tip tree equals `<claim sha>:client/src/shared/phone`, checked fresh at
-   whatever commit the move actually claims against, not assumed from an earlier run; the link commit's
-   folder diff against its mainline parent is empty; and the first `git subtree push` after the link is
-   ancestry-clean.
-5. The commit that performs the move removes the `workspaces` entry and the physical folder together, in one
-   commit; `node_modules/phonux` shows no dangling symlink afterward.
-6. All seven gate commands stay green afterward, with `npm test`'s pass count unchanged from immediately
-   before the move.
-7. A real-repo mutation of one config's `apiReport.reportTempFolder` -- the one field with no pre-flight check
-   before the climb-check above existed -- makes `check:api-report` fail, naming that config specifically,
-   then pass again once reverted.
+phonux-app installs the published package from the registry. To try a change there before publishing, install a copy of this
+checkout over it: `npm install --no-save --install-links <path to this checkout>` from the app leaves the app's `package.json`
+and lockfile untouched, and `npm ci` restores the registry copy. Never `npm link` or a `file:` directory spec: a symlink resolves
+this checkout's own `node_modules`, which can give the app a second copy of React. The copy is source (`.ts`); to rehearse exactly
+what will be published, run `npm run build`, pack `dist/` and install that tarball instead.

@@ -14,7 +14,7 @@ import { DRAG_CLOSE, GAP, PANEL_TRANSITION } from '../index.js';
 
 test('SLOT_TRANSITION is the tuned duration/easing (0.4s, the [0.2,0,0,1] cubic-bezier), and PANEL_TRANSITION is the SAME object, not a copy', () => {
   assert.deepEqual(SLOT_TRANSITION, { duration: 0.4, ease: [0.2, 0, 0, 1] });
-  assert.equal(PANEL_TRANSITION, SLOT_TRANSITION, 'row/useRowShell.ts and its test key off reference equality with LivePanelSlot.tsx\'s own PANEL_TRANSITION export');
+  assert.equal(PANEL_TRANSITION, SLOT_TRANSITION, 'hosts key off reference equality with PanelRowSlot\'s own PANEL_TRANSITION export');
 });
 
 test('directionalTransition: x axis, rest 0, distance 100 -- enters from the right, exits to the left, both faded, sharing the one transition', () => {

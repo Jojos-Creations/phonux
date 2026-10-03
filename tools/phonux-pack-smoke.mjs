@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * The publish gate for phonux: unpacks the tarball into a throwaway app under /private/tmp, installs the real peer
+ * The publish gate for phonux: unpacks the tarball into a throwaway app under the OS temp directory, installs the real peer
  * set from the npm registry (never a local stand-in for a peer), and checks only what npm pack shipped.
  * `npm publish --dry-run` is not a check: it exits 0 for a `private: true` manifest, because only a real publish
  * refuses it (EPRIVATE), so the manifest is asserted directly.
@@ -8,6 +8,7 @@
 
 import { execFileSync } from 'node:child_process';
 import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, existsSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { join, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { resolvePhoneDir } from './phonux-paths.mjs';
@@ -222,9 +223,9 @@ try {
     throw new Error(`${relative(REPO_ROOT, join(DIST_DIR, 'package.json'))} is missing -- run \`node tools/phonux-build.mjs\` first`);
   }
 
-  // Bare mktemp under $TMPDIR would work too, but a fixed /private/tmp prefix makes a leftover directory from a
-  // killed run findable by path alone; never reused between runs.
-  root = mkdtempSync('/private/tmp/phonux-smoke.');
+  // A fixed macOS-only prefix would fail on the Linux CI runner; the printed path still makes a leftover from a
+  // killed run findable. Never reused between runs.
+  root = mkdtempSync(join(tmpdir(), 'phonux-smoke.'));
   console.log(`smoke:phonux: working in ${root}`);
 
   // npm runs with cwd = root, so a relative tarball path must be made absolute first;

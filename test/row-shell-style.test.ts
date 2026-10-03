@@ -44,7 +44,7 @@ test('workspaceShellStyle: the margin centres the column and LIVE panels it is g
   const wide = { containerWidth: 2100 };
   assert.equal(margin({ ...wide, liveWidths: phones(2) }), 433, '(2068 - (390 + 2*406)) / 2');
   assert.equal(margin({ ...wide, liveWidths: phones(4) }), 27, 'a fourth LIVE panel fills the row exactly: fixed 390 + 4*406 = 2014 inside 2068');
-  assert.equal(margin({ ...wide, liveWidths: phones(9) }), 27, 'never more than fit: the margin stops at what the container holds, and never goes negative -- a parked one must not be passed as live (RS14d)');
+  assert.equal(margin({ ...wide, liveWidths: phones(9) }), 27, 'never more than fit: the margin stops at what the container holds, and never goes negative -- a parked one must not be passed as live');
   assert.equal(margin({ containerWidth: 0 }), 0, 'before the first measurement');
 });
 
