@@ -1,5 +1,5 @@
 /**
- * The saved workspace shape and its pure functions (shared/phone/workspaceState.ts): what project saves, what
+ * The saved workspace shape and its pure functions (workspaceState.ts): what project saves, what
  * hydrate rebuilds, what the guard accepts. No React, no DOM.
  */
 

@@ -18,8 +18,8 @@ export const PANEL_TRANSITION = SLOT_TRANSITION;
  * removing or resizing a panel never disturbs the ones to its left; `x`, not `left`, so the
  * browser composites it. Motion drives enter/exit (AnimatePresence keeps an outgoing node
  * mounted through its own unmount commit, unlike a plain CSS transition), and its Web Animations
- * API is immune to theme.ts's transition/animation:none reset (test/theme-motion-reset.test.ts
- * pins the reset stays scoped there, not transform/opacity, or it would kill this silently).
+ * API is immune to a theme's transition/animation:none reset, which must stay scoped there and never reach
+ * transform/opacity, or it would kill this silently.
  */
 export interface PanelRowSlotMotion {
   readonly initial: TargetAndTransition;

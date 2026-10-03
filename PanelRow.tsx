@@ -1,7 +1,7 @@
 /**
  * One AnimatePresence over ONE array: each PRESENT entry (an always-shown column regardless of `live`, a
  * collapsible one only while `live`) in its own animated slot, in the array's order. Not a view. Renders ONE
- * root, this Box (goal-front-page-mount's T11a).
+ * root, this Box.
  */
 
 import * as React from 'react';

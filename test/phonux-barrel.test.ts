@@ -1,5 +1,5 @@
 /**
- * The runtime surface of the phonux barrel (shared/phone/index.ts): types are erased, so Object.keys() sees
+ * The runtime surface of the phonux barrel (index.ts): types are erased, so Object.keys() sees
  * only value exports. The list is spelled out, never derived, so a name added, removed or renamed turns it red.
  */
 

@@ -1,6 +1,6 @@
 /**
- * shared/phone/windowOverlay.tsx, STATIC side: no `document` may exist here, so never import dom-harness.ts or
- * jsdom-globals.ts. Effects do not run, so where an overlay LANDS is window-overlay-mount.test.ts's question.
+ * windowOverlay.tsx, STATIC side: no `document` may exist here, so never import a jsdom harness.
+ * Effects do not run, so where an overlay LANDS is a mount test's question (phonux-app's window-overlay-mount test).
  * NEVER hand a DOM node or a React element to assert.equal: a failing assertion walks React's fiber graph and can
  * spin a CPU for a minute. Compare inside the test and assert a boolean.
  */

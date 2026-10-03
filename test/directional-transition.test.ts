@@ -1,5 +1,5 @@
 /**
- * shared/phone/directionalTransition.ts, proven directly (pure function, no DOM needed): the shared
+ * directionalTransition.ts, proven directly (pure function, no DOM needed): the shared
  * preset's exact value and formulas, plus a POSITIVE CONTROL that panelRowSlotMotion produces exactly
  * those numbers for a uniform row (`leftOffset = index * slot`, `width = PHONE_WIDTH`).
  */

@@ -59,7 +59,7 @@ export function useRowScrollGesture(overflowContainerRef: RefObject<HTMLDivEleme
       window.removeEventListener('keydown', onKeyDown);
       if (unlockTimer) clearTimeout(unlockTimer);
     };
-    // `overflowContainerRef` is a stable ref object (useRef in useRowShell.ts): this effect attaches once,
+    // `overflowContainerRef` is a stable ref object (a useRef in the host's row shell): this effect attaches once,
     // at mount, and reads the latest `scrollRow` through `scrollRowRef` instead of re-subscribing to it.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [overflowContainerRef]);

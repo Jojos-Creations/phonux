@@ -162,7 +162,7 @@ export interface UseViewState {
 /**
  * The one hook a view uses for state that must survive its own panel parking and reviving: same
  * `[value, setValue]` pair and same type inference as `React.useState`, but `initial` must be JSON-shaped.
- * `Provider` and `useRetainOnly` are the host's side (LivePanels.tsx), never called by a view.
+ * `Provider` and `useRetainOnly` are the host's side (PanelRow.tsx), never called by a view.
  * @public
  */
 export const useViewState: UseViewState = Object.assign(useViewStateImpl, { Provider: ViewIdContext.Provider, useRetainOnly });

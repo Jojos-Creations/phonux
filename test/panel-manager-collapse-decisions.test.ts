@@ -1,5 +1,5 @@
 /**
- * `effectiveMaxPanels` (shared/phone/panelCapacity.ts): the pure capacity decision usePanelManager.ts derives
+ * `effectiveMaxPanels` (panelCapacity.ts): the pure capacity decision usePanelManager.ts derives
  * its live cap from -- one hard capacity, never a mode.
  */
 import test from 'node:test';

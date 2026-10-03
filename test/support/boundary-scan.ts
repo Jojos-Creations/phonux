@@ -1,5 +1,5 @@
 /**
- * Boundary scanner: the engine behind the phone-boundary tests. It answers one
+ * Boundary scanner: the engine behind phonux-app's phone-boundary tests and this library's boundary tests. It answers one
  * question about a set of source files: does any of them use something it
  * must not?
  *
@@ -9,7 +9,7 @@
  * app only through the public API surface, so they may not touch the IPC
  * bridge, `window.simplebrowser` or `localStorage`, and the UX-system folder
  * may not import the app. This file proves nothing about any particular tree;
- * test/phone-boundary.test.ts points it at the real one.
+ * each test points it at a real tree.
  *
  * Four decisions are load-bearing, and each exists because a check that
  * silently does nothing reports the same green as a check that passed.
@@ -35,7 +35,7 @@
  *    the file exactly as written, comments included, which is what `grep`
  *    does. The host rules are 'text' because their acceptance check IS a grep
  *    (the host's own acceptance check: `grep 'bridge\|localStorage\|useEffect\|useRef'`
- *    over GoalFrontPage.tsx returns nothing): a test that stayed green on a
+ *    over phonux-app's GoalFrontPage.tsx returns nothing): a test that stayed green on a
  *    file that grep fails would report a pass the acceptance check does not give.
  *    This is a DELIBERATE relaxation for the host too, same as the view
  *    rules and for the same reason (a check that goes red on prose tells us
@@ -68,7 +68,7 @@
  *    line and column, not the first one per rule or per file: a red run is the
  *    whole list of what to fix, and fixing the first line must not reveal a
  *    second red run for the same rule. (Proven directly in
- *    test/phone-boundary-scanner.test.ts: two `bridge()` calls in one file
+ *    phonux-app's phone-boundary-scanner test: two `bridge()` calls in one file
  *    produce two violations, not one, and a mutant that reports only the
  *    first match per rule/file turns exactly that test red.)
  *
@@ -80,7 +80,7 @@
  * (`window['simple\x62rowser']`) is reported under that rule.
  *
  * LIMITS, stated so nobody trusts this further than it goes. Each item below is
- * pinned by a "documented limit" fixture in test/phone-boundary-scanner.test.ts,
+ * pinned by a "documented limit" fixture in phonux-app's phone-boundary-scanner test,
  * so a limit that stops being true turns a test red and gets this list edited,
  * instead of going stale.
  *  - Computed names cannot be matched by text: `window[name]`, `window['simple'
@@ -131,7 +131,7 @@
  *  - The scanner checks words and named directories, not REACH: it reads the
  *    files it is given and does not follow their imports, so a view that
  *    imports an app helper which itself calls the bridge stays green as long
- *    as only the view is listed (and test/phone-boundary.test.ts gives import
+ *    as only the view is listed (and phonux-app's phone-boundary test gives import
  *    rules to the UX-system folder only). Words only for now -- no
  *    import-graph/allowlist analysis; revisit once the UX system splits into
  *    its own package. Nothing here builds toward that in the meantime.
@@ -640,8 +640,8 @@ export const PHONE_BOUNDARY_RULES: readonly TextRule[] = [
 ];
 
 /**
- * What the thin GoalFrontPage host must not contain: the host's own
- * acceptance check, `grep 'bridge\|localStorage\|useEffect\|useRef' GoalFrontPage.tsx`
+ * What phonux-app's thin GoalFrontPage host must not contain: the host's own
+ * acceptance check, `grep 'bridge\|localStorage\|useEffect\|useRef'` over it
  * returns nothing, plus `useLayoutEffect`, since the host keeps no ref or
  * effect of its own. Literally that grep: scope 'text' (comments
  * count, like the grep -- this is intentional, the same "a check that goes red

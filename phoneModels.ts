@@ -12,7 +12,7 @@ export interface PhoneModel {
 }
 
 /**
- * Hand-copied from vendor/device-specs/viewport-sizes.json, which sits outside client/'s tsconfig root; keep
+ * Hand-copied from phonux-app's vendor/device-specs/viewport-sizes.json; keep
  * the two in sync by hand (that directory's README.md says which entries are verbatim). No 'default' entry:
  * that is DEFAULT_PHONE_SIZE (hostApi.tsx), so upgrading never resizes anyone who has not chosen a model.
  * @public

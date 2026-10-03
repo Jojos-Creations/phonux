@@ -1,8 +1,7 @@
 /**
- * workspaceShellStyle (client/src/shared/phone/Workspace.tsx): the PURE half of the row shell. It turns the measured
+ * workspaceShellStyle (Workspace.tsx): the PURE half of the row shell. It turns the measured
  * widths into the values the front page's markup reads (there is no scrollbar: `overflowX` is always
- * 'hidden'). The mount tests (goal-front-page-row-shell.test.ts, RS3-RS4,
- * RS14) pin the same behaviour through the whole page in jsdom; these pin the function itself with plain
+ * 'hidden'). phonux-app's mount tests pin the same behaviour through the whole page in jsdom; these pin the function itself with plain
  * data, so a wrong input (a hard-coded phone width, a parked panel counted as live) fails here by name. No
  * DOM, no React: the function is not a hook.
  */
@@ -40,7 +39,7 @@ test('workspaceShellStyle: the margin centres the column and LIVE panels it is g
   // (containerWidth - 2*16 - (n*w + (n-1)*16)) / 2 with room for no live panel
   assert.equal(margin({}), 439, '1 column of 390 in 1300');
   assert.equal(margin({ phoneWidth: 430 }), 419, '1 column of 430 in 1300: a hard-coded 390 would say 439');
-  // room for live panels beside the one column (RS3b / RS14d): every live panel moves the row, up to what fits
+  // room for live panels beside the one column: every live panel moves the row, up to what fits
   const wide = { containerWidth: 2100 };
   assert.equal(margin({ ...wide, liveWidths: phones(2) }), 433, '(2068 - (390 + 2*406)) / 2');
   assert.equal(margin({ ...wide, liveWidths: phones(4) }), 27, 'a fourth LIVE panel fills the row exactly: fixed 390 + 4*406 = 2014 inside 2068');
@@ -49,7 +48,7 @@ test('workspaceShellStyle: the margin centres the column and LIVE panels it is g
 });
 
 test('workspaceShellStyle E3/E4: a fractional pixel of margin is kept exactly, never rounded or truncated (an odd container width centres on a half pixel)', () => {
-  // Every other case here and in RS3/RS14d lands on a whole pixel, so a stray `Math.round` or `Math.floor` would pass them all; 1301 (one
+  // Every other case here lands on a whole pixel, so a stray `Math.round` or `Math.floor` would pass them all; 1301 (one
   // wider than the usual 1300) is the smallest change that lands the centring on a half pixel: (1301 - 2*16 - 390) / 2 = 439.5.
   const margin = (over: Partial<WorkspaceShellStyleInput>): number => workspaceShellStyle({ ...base, ...over }).marginLeft;
   assert.equal(margin({ containerWidth: 1301 }), 439.5, 'a whole pixel of drift either way (439 or 440) would be a rounding bug, not measurement noise');

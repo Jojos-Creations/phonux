@@ -1,6 +1,6 @@
 /**
  * A view's picture, captured only by the host at fixed moments (park/close, History opening), never by a view.
- * Why the DOM-redraw engine lives in client/src/desktop/capture/: DESIGN.md, "Snapshots: a picture is data,
+ * Why the DOM-redraw engine lives in the host, not here: DESIGN.md, "Snapshots: a picture is data,
  * capturing one is not".
  */
 
@@ -72,7 +72,7 @@ export const noopCaptureTrigger: CaptureTrigger = { capture: () => {}, evict: ()
 /** @public */
 export const CaptureRegistryContext = React.createContext<CaptureRegistry | null>(null);
 
-/** Rendered only by client/src/desktop, around HostProvider. Without it (a bare HostProvider, as in most tests) Panel registers nothing. @public */
+/** Rendered only by a host that captures pictures, around HostProvider. Without it (a bare HostProvider, as in most tests) Panel registers nothing. @public */
 export function CaptureRegistryProvider({ registry, children }: { registry: CaptureRegistry; children: React.ReactNode }): React.ReactElement {
   return React.createElement(CaptureRegistryContext.Provider, { value: registry }, children);
 }

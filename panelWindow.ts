@@ -46,7 +46,7 @@ export interface PanelWindow {
   anchoredEnter?: boolean;
   /** This panel's own visual tier; createHistoryPanel/appendPanel always set it. Optional so a record built by hand without it still typechecks. */
   formFactor?: FormFactor;
-  /** This panel's own rendered size (LivePanel passes it to Panel/PanelFrame for a non-phone tier). Optional for the same reason as `formFactor`. */
+  /** This panel's own rendered size (a host's panel component passes it to Panel/PanelFrame for a non-phone tier). Optional for the same reason as `formFactor`. */
   size?: PanelSize;
 }
 

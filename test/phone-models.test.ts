@@ -1,4 +1,4 @@
-/** shared/phone/phoneModels.ts's pure lookup and labeling helpers. */
+/** phoneModels.ts's pure lookup and labeling helpers. */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { findPhoneModel, PHONE_MODELS, vendorLabelForUsbVendorId } from '../index.js';

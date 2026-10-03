@@ -1,7 +1,7 @@
 /**
  * The app's implementation of PanelsAPI: the panel list, create/activate/close/undo/clear-all. Wraps
  * usePanelManager, composes usePanelClosing and owns the row's scroll gesture. panelList and recentlyClosed hold
- * PanelSummary objects built here, never PanelWindow records (provide-panels.test.ts pins their key set); `entries`
+ * PanelSummary objects built here, never PanelWindow records (phonux-app's provide-panels test pins their key set); `entries`
  * is the raw list, hostData included, for the app and PanelRow only: an app keeps it out of the bag its views read,
  * and the row's numbers (fixedViewCount, liveWidths, maxLiveWidth) beside it.
  */
@@ -52,7 +52,7 @@ export interface PanelsInput {
   containerWidth: number;
   /** The row's scroll container: the gesture's wheel listener attaches here. */
   overflowContainerRef: RefObject<HTMLDivElement | null>;
-  /** Defaults to phonux's `noopCaptureTrigger`: a host that wants real pictures (appApis.ts) passes its own. */
+  /** Defaults to phonux's `noopCaptureTrigger`: a host that wants real pictures passes its own. */
   capture?: CaptureTrigger;
   /** Called when setFormFactor really resizes a panel (useWorkspaceShell's `morph`, so the row's margin glides with it). */
   onPanelResize?: () => void;
@@ -120,8 +120,7 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
     exitRightIds,
   } = usePanelManager(panels, setPanels, i.storedMaxPanels, i.phoneWidth, i.containerWidth, fixedViewCount, i.rootId);
 
-  // The row's wheel/arrow-key gesture is wired here, not in the host: phone-boundary.test.ts forbids
-  // useEffect/useRef in GoalFrontPage.tsx.
+  // The row's wheel/arrow-key gesture is wired here, not in the host, so a host stays free of effects and refs.
   useRowScrollGesture(i.overflowContainerRef, scrollRow);
 
   useWorkspacePersistence({ storage: i.storage, panels, setPanels, rootId: i.rootId, freshId, defaultHostData: i.defaultHostData });
@@ -172,7 +171,7 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
   );
 
   const api: ProvidedPanels = {
-    // `listed` excludes History: it must not list itself (AdventurePanel.tsx renders every entry here as a
+    // `listed` excludes History: it must not list itself (a host's history column renders every entry here as a
     // clickable row).
     panelList: panels.filter((p) => p.listed).map(summarisePanel),
     create: (options?: CreatePanelOptions) => {

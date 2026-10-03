@@ -12,8 +12,8 @@ import { resolvePhoneDir } from './phonux-paths.mjs';
 
 const REPO_ROOT = fileURLToPath(new URL('..', import.meta.url));
 const PHONE_DIR = resolvePhoneDir(REPO_ROOT);
-// A sibling of client/src in this repo, so typecheck:app and the phone-boundary scan never see the declarations;
-// where the package is the repo root there is no such neighbour.
+// A workspace member's declarations sit beside the host's source, out of its typecheck;
+// where the package is the repo root they stay in its own api-extractor-temp/.
 const TEMP_DIR = join(REPO_ROOT, PHONE_DIR === REPO_ROOT ? 'api-extractor-temp' : 'client/api-extractor-temp');
 const DTS_DIR = join(TEMP_DIR, 'dts');
 const REPORT_DIR = join(PHONE_DIR, 'etc');
