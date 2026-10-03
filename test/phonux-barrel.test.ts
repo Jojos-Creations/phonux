@@ -6,12 +6,9 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import * as phonux from '../index.js';
-import * as bare from '../index.js';
-import * as bareTesting from '../fakeHost.js';
 import { HostProvider, useHost } from '../hostApi.js';
 import { CaptureRegistryContext } from '../snapshots.js';
 import { OverlayProvider, OverlayStore } from '../windowOverlay.js';
-import { createFakeHost } from '../fakeHost.js';
 
 const VALUE_EXPORTS = [
   // Old names (kept as @deprecated same-value aliases).
@@ -89,12 +86,12 @@ test('the phonux barrel exports exactly the 66 runtime values, no more, no fewer
   assert.deepEqual(Object.keys(phonux).sort(), VALUE_EXPORTS);
 });
 
-// Red if bare 'phonux' or 'phonux/testing' loads a second copy of a source file: a context from one copy is invisible to the other's hooks.
-test('module identity: context-bearing exports reached via bare phonux and phonux/testing are the very objects their relative source files export', async () => {
-  assert.ok(bare.CaptureRegistryContext === CaptureRegistryContext, 'CaptureRegistryContext: two instances');
-  assert.ok(bare.HostProvider === HostProvider && bare.useHost === useHost, 'HostProvider/useHost: two instances of hostApi');
-  assert.ok(bare.OverlayProvider === OverlayProvider && bare.OverlayStore === OverlayStore, 'OverlayProvider/OverlayStore: two instances of windowOverlay');
-  assert.ok(bareTesting.createFakeHost === createFakeHost, 'createFakeHost: two instances of the testing subpath');
+// Red if index.ts re-exports a copy or wrapper instead of the defining file's own object: a context from one copy is invisible to the other's hooks.
+// The exports map ('phonux', 'phonux/testing') is checked against the packed tarball by the smoke, not here.
+test('module identity: the context-bearing exports of the barrel are the very objects their defining source files export', async () => {
+  assert.ok(phonux.CaptureRegistryContext === CaptureRegistryContext, 'CaptureRegistryContext: the barrel holds another object');
+  assert.ok(phonux.HostProvider === HostProvider && phonux.useHost === useHost, 'HostProvider/useHost: the barrel holds other objects than hostApi');
+  assert.ok(phonux.OverlayProvider === OverlayProvider && phonux.OverlayStore === OverlayStore, 'OverlayProvider/OverlayStore: the barrel holds other objects than windowOverlay');
   // Control: a genuinely separate instance of the same file is NOT ===, so the checks above can fail.
   const secondInstance = '../snapshots.js?second-instance';
   const second = (await import(secondInstance)) as { CaptureRegistryContext: unknown };
