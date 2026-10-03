@@ -102,14 +102,14 @@ had, and a view testing `'size' in panel` gets the same answer as `panel.size !=
 `PanelWindow[]` (`appendPanel`, `createHistoryPanel`, `closePanel`, `restorePanel`, ...). It sits inside the
 import boundary above, so it imports only its siblings and never the desktop app. The main barrel exports
 `PanelWindow` and `reorderStepsForOffset` from it; every other name stays `@internal` behind the
-`phonux/internal/panelModel` subpath, which only this folder's own tests import (see "The API reports in `etc/`").
+`./internal/panelModel` export key, the entry point for its internal API report, which `dist/` does not ship (see "The API reports in `etc/`"); the package's own tests import `panelWindow.ts` by relative path.
 Its functions are pure, taking no device-state argument, and are tested that way (`test/panel-window.test.ts`
 builds panels with no device store initialized at all). Reading a live device size inside them -- the
-desktop app's `phoneSizeStore.ts` keeps one in a module-level `current` -- would make them impure, would
-need an import of desktop code this folder may not have, and would need a new parameter threaded in from
+host's device-size store holds one that changes with every resize -- would make them impure, would
+need an import of host code this package may not have, and would need a new parameter threaded in from
 `usePanelManager.ts`/`useProvidePanels.ts`. So the default is `DEFAULT_PANEL_SIZE` (`panelTiers.ts`): the
-phone tier at `DEFAULT_PHONE_SIZE`'s (`hostApi.tsx`) 390x700 -- the SAME value `phoneSizeStore.ts`'s own
-`current` starts at before any resize -- rather than a second hardcoded literal or a live read. A tablet or
+phone tier at `DEFAULT_PHONE_SIZE`'s (`hostApi.tsx`) 390x700 -- the SAME value a host's device-size store,
+like `fakeHost.ts`'s, starts at before any resize -- rather than a second hardcoded literal or a live read. A tablet or
 desktop panel takes its tier's size from `TIER_SIZES` (also `panelTiers.ts`). The default is a placeholder, not
 a drawn size: a phone panel never passes its stored `size` on, because its width is always the live phone width (see
 "The width source" below), so the default never reaches a pixel.
@@ -761,7 +761,7 @@ content-box the border and padding land on top of it: a 390px phone rendered 416
 `getBoundingClientRect()`, about 26px of silent under-fit per phone.
 
 **The header pill.** `PanelHeader` floats above the frame (it needs a `position: relative` parent) and bakes
-in one look: Paper `variant="outlined"`'s bgcolor and border, the same pill as the goal-input bar; a radius
+in one look: Paper `variant="outlined"`'s bgcolor and border, shaped as a pill; a radius
 equal to the phone's own corner radius and a height of twice it, so each end is an exact semicircle with the
 phone's curvature, both from the theme rather than a raw 24/48; and a fixed height, so wrapping content never
 changes the shape. Its horizontal padding equals the frame's content inset so header text lines up with the
@@ -927,8 +927,8 @@ report script checks the `exports` map against the configs key by key, so an ent
 two configs pointed at each other's entry, fails before anything runs. The declarations it reads are emitted
 into `api-extractor-temp/` at the repository root (git-ignored), so they never reach `npm run typecheck` or the published package.
 
-`./internal/directionalTransition` is tracked and tagged `@internal`, not excluded: this folder's own tests
-import it (`PanelRowSlot.tsx`, inside the folder, imports the module directly), so it is a
+`./internal/directionalTransition` is tracked and tagged `@internal`, not excluded: it is the entry point for
+its own internal API report (`PanelRowSlot.tsx` and the package's own tests import the module by relative path), so it is a
 real entry point whose changes deserve the same diff. API Extractor wants every `@internal` name to start
 with an underscore, but these names are already imported under their current spelling, so
 `ae-internal-missing-underscore` is switched off in `api-extractor.internal.json` only, instead of renaming them. The switch covers that whole config, not one name, so a future `@internal` export
@@ -937,14 +937,14 @@ reach is `@internal`, and an underscore-less `@internal` tag on one of their exp
 
 `./internal/panelModel` is the same kind of entry point: `panelWindow.ts` (the `PanelWindow` record and its pure
 transitions, plus `effectiveMaxPanels` re-exported from `panelCapacity.ts` so one config covers both),
-imported as `phonux/internal/panelModel` by this folder's own tests. It is tracked and tagged `@internal`, and `api-extractor.panelModel.json` carries its own
+which the package's own tests import by relative path. It is tracked and tagged `@internal`, and `api-extractor.panelModel.json` carries its own
 `ae-internal-missing-underscore` switch-off, because a config does not inherit another's, so the caveat above
 holds for it too. `panelWindow.ts` also re-exports `FormFactor`, `JsonValue`, `PanelSize`, `PanelAnchor` and
 `NeighborWidths`, which its signatures name, so that the report has no `ae-forgotten-export`.
 
 Neither `@internal` subpath ships. `npm run build` skips every key in `INTERNAL_ONLY_EXPORT_KEYS`
 (`tools/phonux-build.mjs`), which holds `./internal/directionalTransition` and `./internal/panelModel`, so
-`dist/package.json`'s `exports` lists only `.` and `./testing`: an outside consumer reaches the package only through `.` and `./testing`; the two subpaths exist for this package's own tests.
+`dist/package.json`'s `exports` lists only `.` and `./testing`: an outside consumer reaches the package only through `.` and `./testing`; the two keys exist only as the entry points for the two internal API reports.
 
 Every declaration an entry point reaches carries exactly one release tag in its own doc comment: `@public`
 for `.` and `./testing`, `@internal` for `./internal/directionalTransition` and for what `./internal/panelModel`

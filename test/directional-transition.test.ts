@@ -136,7 +136,7 @@ test('resolveEnterDirection: the anchor sitting BEFORE the panel (a lower row-sl
 });
 
 test('resolveEnterDirection: the anchor sitting AT OR AFTER the panel (equal or higher row-slot index) resolves RIGHT -- a fixed column comparing against itself, or a panel to the anchor\'s own left', () => {
-  assert.equal(resolveEnterDirection(0, 0), 'right', 'History compared against itself (FixedColumns.tsx\'s own call, anchorIndex === ownIndex): equal is not less-than');
+  assert.equal(resolveEnterDirection(0, 0), 'right', 'History compared against itself (a fixed column\'s own call, anchorIndex === ownIndex): equal is not less-than');
   assert.equal(resolveEnterDirection(1, 0), 'right', "a hypothetical panel at slot 0 with the anchor at slot 1 (Settings' own position relative to History, before Settings left fixedColumns)");
   assert.equal(resolveEnterDirection(5, 2), 'right', 'a higher anchor index than the panel\'s own, however far apart');
 });
