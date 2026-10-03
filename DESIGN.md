@@ -442,7 +442,7 @@ returning the same value, only flagged deprecated, for as long as the alias stay
 
 A `Workspace`'s own saved state -- which panels are open, their order, sizes and params -- is named
 *workspace state* in this package, never "session". "Session" already names something else: the app's
-persisted front-page sessions (`electron/sessions.ts`), a url plus titles and turn strings, stored in a file
+persisted front-page sessions, a url plus titles and turn strings, stored in a file
 that must never change shape. The two are different data owned by different code, so reusing one word for
 both would leave every future name ambiguous about which it meant.
 
