@@ -1,6 +1,6 @@
 /**
  * workspaceShellStyle (Workspace.tsx): the PURE half of the row shell. It turns the measured
- * widths into the values the front page's markup reads (there is no scrollbar: `overflowX` is always
+ * widths into the values Workspace's markup reads (there is no scrollbar: `overflowX` is always
  * 'hidden'). phonux-app's mount tests pin the same behaviour through the whole page in jsdom; these pin the function itself with plain
  * data, so a wrong input (a hard-coded phone width, a parked panel counted as live) fails here by name. No
  * DOM, no React: the function is not a hook.

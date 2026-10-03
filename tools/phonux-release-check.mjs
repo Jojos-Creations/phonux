@@ -32,7 +32,6 @@ if (!viewOut.includes('E404')) {
   fail(`could not tell whether ${spec} is free (npm view said: ${viewOut.split('\n')[0] || 'nothing'}); this proved nothing`);
 }
 
-// Node on the tool files, not `npm run`: the standalone repo names its scripts differently from this one.
 const build = spawnSync(process.execPath, [fileURLToPath(new URL('./phonux-build.mjs', import.meta.url))], { stdio: 'inherit' });
 if (build.status !== 0) fail(`node tools/phonux-build.mjs exited ${build.status}`);
 const smoke = spawnSync(process.execPath, [fileURLToPath(new URL('./phonux-pack-smoke.mjs', import.meta.url))], { stdio: 'inherit' });

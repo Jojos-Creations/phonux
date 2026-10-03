@@ -69,7 +69,7 @@ export const panelFrameScrollSx = {
 export const phoneFrameScrollSx = panelFrameScrollSx;
 
 /**
- * For a caller doing its own scrolling one level deeper (a `<webview>`, a transcript under a
+ * For a caller doing its own scrolling one level deeper (an embedded web view, a transcript under a
  * pinned input bar): cancels PanelFrame's own padding AND its reserved scrollbar strip, so
  * neither is reserved twice. Every property is a longhand -- MUI resolves `p`/`pr` and
  * `overflow`/`overflowY` independently, so a shorthand spread over a longhand does not reliably win.

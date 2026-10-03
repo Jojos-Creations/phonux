@@ -1,9 +1,8 @@
 /**
  * The workspace shell: the scroll container that holds the centred, animated row, plus the pure
  * `workspaceShellStyle` derivation behind its centring math (computed synchronously on every render,
- * never through state or an effect -- see DESIGN.md). The host still measures the row itself
- * (`useWorkspaceShell`, unmoved: it must run before the host's own API builder in the same render) and
- * hands the measurement in as props.
+ * never through state or an effect -- see DESIGN.md). The host measures the row itself, before building its
+ * own panels API in the same render, and passes the measurement in as props.
  */
 
 import * as React from 'react';
@@ -14,7 +13,7 @@ import { computeRowLayout } from './panelRowLayout.js';
 import { GAP, PANEL_TRANSITION } from './PanelRowSlot.js';
 import { OverlaySlot } from './windowOverlay.js';
 
-/** The pure half of the row shell's input: the two measured fields a caller's `useWorkspaceShell()` produces,
+/** The pure half of the row shell's input: the two measured fields the host's row measurement produces,
  * flattened here (not a nested `shell` object) so this file never imports a host measurement type.
  * @internal */
 export interface WorkspaceShellStyleInput {
@@ -24,7 +23,7 @@ export interface WorkspaceShellStyleInput {
   rowResizeSettled: boolean;
   /** The width every fixed column renders at (PhoneDeviceAPI size). */
   phoneWidth: number;
-  /** The number of always-present columns the row renders: `fixedColumns.length`. */
+  /** The number of always-present columns the row renders. */
   fixedColumnCount: number;
   /** Each LIVE panel's own width, in row order (useProvidePanels's `liveWidths`): a parked one is not in the row. */
   liveWidths: readonly number[];
