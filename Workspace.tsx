@@ -26,7 +26,7 @@ export interface WorkspaceShellStyleInput {
   phoneWidth: number;
   /** The number of always-present columns the row renders: `fixedColumns.length`. */
   fixedColumnCount: number;
-  /** Each LIVE panel's own width, in row order (useAppApis's `liveWidths`): a parked one is not in the row. */
+  /** Each LIVE panel's own width, in row order (useProvidePanels's `liveWidths`): a parked one is not in the row. */
   liveWidths: readonly number[];
 }
 

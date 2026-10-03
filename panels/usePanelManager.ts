@@ -270,7 +270,7 @@ export function usePanelManager(
   };
 
   /**
-   * Clicking ANY adventure-card row -- live or parked alike -- activates it (promoteToLive's own doc
+   * Clicking ANY row -- live or parked alike -- activates it (promoteToLive's own doc
    * comment has the full "make/keep it live, preserve array order" spec).
    */
   const handleActivatePanel = (id: string): void => {

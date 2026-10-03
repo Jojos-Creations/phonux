@@ -23,7 +23,7 @@ const DIST_DIR = join(PHONE_DIR, 'dist');
 const TSCONFIG = join(PHONE_DIR, 'tsconfig.build.json');
 const TSC_BIN = join(REPO_ROOT, 'node_modules', '.bin', 'tsc');
 
-// Only this repo's own app resolves these subpaths; they stay out of the shipped exports map.
+// Entry points for the two internal API reports only; they stay out of the shipped exports map.
 const INTERNAL_ONLY_EXPORT_KEYS = new Set(['./internal/directionalTransition', './internal/panelModel']);
 
 function fail(message) {

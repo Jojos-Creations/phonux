@@ -1,6 +1,6 @@
 /**
  * Pure row-layout arithmetic: the row's centring margin, how many live panels fit, and how wide one may be.
- * Zero Electron/DOM imports, so test/panel-layout.test.ts runs it under plain node.
+ * Zero DOM imports, so test/panel-layout.test.ts runs it under plain node.
  */
 
 /** One row's measurements: what computeRowLayout and computeMaxLiveWidth read. @public */

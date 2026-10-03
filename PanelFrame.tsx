@@ -165,7 +165,7 @@ export function PanelHeader({ children, sx, ...rest }: PanelHeaderProps) {
         height: (theme: Theme) => 2 * panelCornerRadiusPx(theme),
         display: 'flex',
         alignItems: 'center',
-        // bgcolor + border: MUI Paper variant="outlined"'s look, the goal-input bar's pill.
+        // bgcolor + border: MUI Paper variant="outlined"'s look, shaped as a pill.
         bgcolor: 'background.paper',
         border: '1px solid',
         borderColor: 'divider',
