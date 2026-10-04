@@ -1,0 +1,100 @@
+# TERMINAL FILE -- plans/completed/retired.yaml. Entries here are `retired`, permanent, and never
+# move again. See plans/SCHEMA.md.
+#
+# <PROJECT NAME> plan queue
+#
+# The coordinator owns this file. <OWNER> adds entries; the coordinator moves
+# them through states and merges/retires them. See plans/SCHEMA.md for the
+# full schema (state machine, transitions, per-state fields) and
+# plans/README.md for the workflow. .claude/coordinator-config.yaml has the
+# gates and cascade rules.
+#
+# No agent other than the coordinator may edit `state`, `worker_branch`,
+# `merge_sha`, `blocked_from`, or `log`.
+#
+# >>> GENERATED: queue-schema
+#
+#   state:             REQUIRED. One of:
+#                        stub                   intent recorded; not yet researched
+#                        researched             touches + evidence_required filed; plan written
+#                        claimed                worker_branch assigned; in flight
+#                        implemented            handoff written; partial allowed
+#                        blocked                needs an owner decision; carries blocked_from
+#                        merged                 verifier PASS + merged (TERMINAL; leaves queue.yaml)
+#                        retired                will not be undertaken (TERMINAL; leaves queue.yaml)
+#
+#   priority:          OPTIONAL, default 3. Integer 1..5, 1 dispatched first.
+#                      (What each number MEANS is repo policy, documented
+#                      outside this generated block.)
+#
+#   id:                REQUIRED. kebab-case, unique, stable. Never reuse or
+#                      rename an id after dispatch.
+#   title:             REQUIRED. One line, imperative. What changes, not how.
+#   log:               COORDINATOR-WRITTEN. Append-only, <=20 items, each
+#                      "YYYY-MM-DD <text>", <=120 chars, no newlines or block
+#                      scalars. Presence of `log:` marks an entry migrated
+#                      and judged strictly; its absence marks it legacy.
+#   intent:            OPTIONAL. <=400 bytes. REQUIRED for stub. FORBIDDEN
+#                      from researched on -- EXCEPT on blocked, which permits
+#                      it (OWNER RULING 2026-09-07). A stub has no plan, no
+#                      touches and no evidence: its intent is the only thing
+#                      that says what it IS, so parking one used to erase its
+#                      description and leave a bare title. Every other field
+#                      blocked forbids is a leftover of work in progress
+#                      (merge_sha, split_into); intent is the entry's own
+#                      identity, which is why it is the exception. An entry
+#                      blocked from researched or later carries plan/touches
+#                      instead and has no need of it.
+#   plan:              OPTIONAL. Path to plans/records/<id>.md. REQUIRED
+#                      from researched on.
+#   touches:           OPTIONAL. Non-empty list of globs. REQUIRED from
+#                      researched on.
+#   evidence_required: OPTIONAL. List of bullet strings. REQUIRED from
+#                      researched on.
+#   prerequisites:     OPTIONAL. List of entry ids that must land first.
+#   shared_writes:     OPTIONAL. Docs the coordinator may also update.
+#   resources:         OPTIONAL. Exclusive resource ids the gate needs.
+#   gate_override:     OPTIONAL. Named gate list override.
+#   worker_branch:     COORDINATOR-WRITTEN. REQUIRED from claimed on.
+#   handoff:           OPTIONAL. <=200 chars. REQUIRED for implemented.
+#   partial:           OPTIONAL. Boolean. REQUIRED for implemented.
+#   merge_sha:         COORDINATOR-WRITTEN. REQUIRED for merged.
+#   split_into:        OPTIONAL. List of successor entry ids. REQUIRED on a
+#                      merged entry whose partial was true.
+#   blocked_from:      COORDINATOR-WRITTEN. State the entry was in before
+#                      being blocked. REQUIRED for blocked.
+#   blocked_on:        OPTIONAL. What is being waited on. REQUIRED for
+#                      blocked.
+#
+#   TRANSITION stub -> researched | retired | blocked
+#   TRANSITION researched -> claimed | retired | blocked | stub
+#   TRANSITION claimed -> implemented | retired | blocked | researched
+#   TRANSITION implemented -> merged | retired | blocked | researched
+#   TRANSITION blocked -> stub | researched | claimed | implemented | retired
+#   TRANSITION queued -> researched
+#   TRANSITION queued -> stub
+#   TRANSITION claimed -> claimed
+#   TRANSITION blocked -> blocked
+#   TRANSITION done -> merged
+#   TRANSITION dropped -> retired
+#   TRANSITION pending -> researched
+#   TRANSITION pending -> stub
+#   TRANSITION in_progress -> claimed
+#   TRANSITION in_progress -> researched
+#   TRANSITION in_progress -> stub
+#   TRANSITION deferred -> blocked
+#   TRANSITION parked -> stub
+#   TRANSITION awaiting-verification -> claimed
+#   TRANSITION awaiting-verification -> researched
+#   TRANSITION awaiting-verification -> stub
+#
+#   FIELDS stub: REQUIRED intent; FORBIDDEN touches,evidence_required,plan,worker_branch,merge_sha,handoff,partial,split_into,blocked_from,blocked_on
+#   FIELDS researched: REQUIRED plan,touches,evidence_required; FORBIDDEN intent,worker_branch,merge_sha,handoff,partial,split_into,blocked_from,blocked_on
+#   FIELDS claimed: REQUIRED plan,touches,evidence_required,worker_branch; FORBIDDEN intent,merge_sha,handoff,partial,split_into,blocked_from,blocked_on
+#   FIELDS implemented: REQUIRED plan,touches,evidence_required,worker_branch,handoff,partial; FORBIDDEN intent,merge_sha,split_into,blocked_from,blocked_on
+#   FIELDS blocked: REQUIRED blocked_from,blocked_on; FORBIDDEN merge_sha,split_into
+#   FIELDS merged: REQUIRED merge_sha; FORBIDDEN intent,blocked_from,blocked_on
+#   FIELDS retired: FORBIDDEN merge_sha,split_into,blocked_from,blocked_on
+# <<< END GENERATED
+#
+entries: []

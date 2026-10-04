@@ -1,0 +1,11 @@
+Records live here: one plans/records/<id>.md per entry from `researched` on,
+and one per entry a migration touched, whatever its state.
+
+This file exists so the directory is tracked from the first commit. Two
+things point at it and would otherwise be describing something absent:
+.markdownlint-cli2.yaml's `plans/records/**` ignore (owner ruling: the
+archive is exempt from the style gate, because reformatting it would rewrite
+the very text migrate-queue.py asserts moved across unchanged), and
+tools/queue/render-queue-docs.py's record-heading checks.
+
+Delete it once the directory holds real records.

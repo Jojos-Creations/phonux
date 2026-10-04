@@ -1,0 +1,37 @@
+# .claude/coordinator-config.yaml -- phonux (the library)
+#
+# Coordinator config for this repo's plan pipeline (GitHub issues and pull
+# requests; see plans/README.md). Anything omitted here falls back to the
+# coordinator's own defaults, EXCEPT strict_gate: a missing gate makes the
+# coordinator ask rather than guess.
+
+default_branch: main
+branch_prefix: plan
+worktree_root: ../phonux-lib.worktrees
+
+escalation_model: opus
+max_parallel_workers: 8
+
+# CI runs the same lines on every push and pull request; a verifier PASS rests
+# on its own local re-run of all of them.
+strict_gate:
+  - npm run typecheck
+  - npm test
+  - npm run build
+  - npm run check:api-report
+  - npm run smoke
+  - python3 tools/vendor-queue-tooling.py . --check
+  - python3 tools/queue/queue.py lint --offline
+
+# Stays empty unless a failure is independently tracked as pre-existing;
+# never use this to silence a regression an entry itself introduced.
+tolerated_test_failures: []
+
+autodetect_shared_resources: true
+shared_resources: []
+exclusive_resources: []
+cascade_rules: []
+verifier_mode: local
+ship_behind_policy: disjoint-ok
+gh_mode: on
+pipeline: github

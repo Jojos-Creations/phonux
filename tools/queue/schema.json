@@ -1,0 +1,104 @@
+{
+  "labels": {
+    "plan": {
+      "name": "plan",
+      "color": "1d76db",
+      "description": "A plan entry in the queue: a candidate, or accepted work"
+    },
+    "p1": {
+      "name": "p1",
+      "color": "b60205",
+      "description": "Priority 1, the highest"
+    },
+    "p2": {
+      "name": "p2",
+      "color": "d93f0b",
+      "description": "Priority 2"
+    },
+    "p3": {
+      "name": "p3",
+      "color": "fbca04",
+      "description": "Priority 3, the default"
+    },
+    "p4": {
+      "name": "p4",
+      "color": "c2e0c6",
+      "description": "Priority 4"
+    },
+    "p5": {
+      "name": "p5",
+      "color": "cfd3d7",
+      "description": "Priority 5, the lowest"
+    },
+    "accepted": {
+      "name": "accepted",
+      "color": "0075ca",
+      "description": "Accepted: the issue is frozen and its pull request is the record"
+    },
+    "blocked": {
+      "name": "blocked",
+      "color": "d73a4a",
+      "description": "Blocked: the newest Blocked comment says why"
+    },
+    "needs_verify": {
+      "name": "needs-verify",
+      "color": "c5def5",
+      "description": "Implemented and waiting for the verifier"
+    },
+    "legacy": {
+      "name": "legacy",
+      "color": "ededed",
+      "description": "Imported finished history, frozen and never read by the pipeline"
+    }
+  },
+  "issue_body": {
+    "marker": "<!-- plan:v1 -->",
+    "sections": {
+      "intent": "## Intent",
+      "touches": "## Touches",
+      "evidence_required": "## Evidence required",
+      "research": "## Research",
+      "local_insights": "### Local insights",
+      "online_insights": "### Online insights",
+      "api_docs_needed": "### API docs needed",
+      "gates": "## Gates"
+    }
+  },
+  "pr_body": {
+    "sections": {
+      "entry": "## Entry",
+      "brief": "## Brief",
+      "research": "## Research",
+      "local_insights": "### Local insights",
+      "online_insights": "### Online insights",
+      "api_docs_needed": "### API docs needed",
+      "handoff": "## Handoff",
+      "evidence_report": "## Evidence report"
+    },
+    "brief_labels": {
+      "evidence_required": "Evidence required:"
+    }
+  },
+  "verifier_report": {
+    "fence_info_string": "json verifier-report",
+    "pass_verdict": "PASS",
+    "fields": {
+      "verdict": "string",
+      "pr": "integer",
+      "issue": "integer",
+      "audited_sha": "string",
+      "entries_audited": "array",
+      "gate_rerun": "array",
+      "evidence_checked": "array",
+      "bullets_expected": "integer",
+      "scope_ok": "boolean",
+      "gaps": "array"
+    },
+    "field_roles": {
+      "verdict": "verdict",
+      "audited_sha": "audited_sha",
+      "evidence_checked": "evidence_checked",
+      "bullets_expected": "bullets_expected"
+    }
+  }
+}

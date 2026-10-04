@@ -2,6 +2,12 @@
 
 The library's own rules. phonux-app, the app that uses it, is a separate repository.
 
+## Plans
+
+Plans are GitHub issues with the `plan` label in this repository, and accepted work is a pull
+request (`pipeline: github` in `.claude/coordinator-config.yaml`); `python3 tools/queue/queue.py`
+is the only writer of a plan body. See `plans/README.md`; the config holds the gate.
+
 ## Comments
 
 Comments say why: a constraint the code cannot show. Clean as you touch: when your work on a file is verified, cut that file's comments to this standard in its own commit. Files you did not touch are out of scope.
