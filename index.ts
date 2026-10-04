@@ -28,19 +28,9 @@ export type { ViewId, ViewSnapshot, SnapshotsAPI, CaptureRegistry, CaptureTrigge
 
 export { useViewState, ViewStateMissingProviderError } from './viewState.js';
 export type { UseViewState } from './viewState.js';
-// Deprecated aliases: same value as their new-name counterpart, kept until removed.
-export {
-  PhoneAPIsMissingProviderError,
-  PhoneAPIsProvider,
-  usePhoneAPIs,
-} from './hostApi.js';
-export type { DeviceAPI, PhoneAPIs } from './hostApi.js';
 
 export { registerView, resolveView } from './viewRegistry.js';
 export type { ViewComponent, ViewProps } from './viewRegistry.js';
-/** @deprecated use registerView/resolveView/ViewComponent */
-export { registerPanelView, resolvePanelView } from './viewRegistry.js';
-export type { PanelComponent } from './viewRegistry.js';
 
 export {
   Panel,
@@ -63,9 +53,6 @@ export type {
   Item,
   Entry,
 } from './Panel.js';
-/** @deprecated use Panel/PanelProps */
-export { PhoneView } from './Panel.js';
-export type { PhoneViewProps } from './Panel.js';
 
 export { default as PanelFrame } from './PanelFrame.js';
 export {
@@ -80,21 +67,6 @@ export type {
   PanelFrameProps,
   PanelHeaderProps,
   PanelHeaderRowProps,
-} from './PanelFrame.js';
-/** @deprecated use PanelFrame, PanelHeader, PanelHeaderRow and their PANEL_ and panel-prefixed siblings above */
-export { default as PhoneFrame } from './PanelFrame.js';
-export {
-  PHONE_CORNER_RADIUS_UNITS,
-  phoneCornerRadiusPx,
-  phoneFrameScrollSx,
-  phoneFrameBareSx,
-  PhoneFrameHeader,
-  PhoneFrameHeaderRow,
-} from './PanelFrame.js';
-export type {
-  PhoneFrameProps,
-  PhoneFrameHeaderProps,
-  PhoneFrameHeaderRowProps,
 } from './PanelFrame.js';
 
 export { PHONE_MODELS, findPhoneModel, vendorLabelForUsbVendorId } from './phoneModels.js';

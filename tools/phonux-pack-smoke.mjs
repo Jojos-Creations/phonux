@@ -24,7 +24,7 @@ const srcPkg = JSON.parse(readFileSync(join(PHONE_DIR, 'package.json'), 'utf8'))
 const PEERS = srcPkg.peerDependencies;
 
 // A list that silently lost entries must not print a smaller "all passed".
-const MIN_CHECKS = 9;
+const MIN_CHECKS = 8;
 
 // npm keeps a `--from` placed before a bare `--` for itself (as npm_config_from, a spaced value forwarded as a stray
 // positional); that and anything but `--from <value>` is refused, or the local dist/ would be gated in its place.
@@ -42,7 +42,6 @@ function valueExportsOf(reportFile) {
   return [...new Set([...declared, ...reExported])].sort();
 }
 const EXPECTED_VALUES = { phonux: valueExportsOf('phonux.api.md'), 'phonux/testing': valueExportsOf('phonux-testing.api.md') };
-const HIDDEN_SUBPATHS = ['phonux/internal/panelModel', 'phonux/internal/directionalTransition'];
 
 const CONSUMER_TSX = `import * as React from 'react';
 import { renderToString } from 'react-dom/server';
@@ -153,21 +152,6 @@ if (problems.length) throw new Error(problems.join('; '));
 console.log('checkExports:', expected.phonux.length, 'values from phonux,', expected['phonux/testing'].length, 'from phonux/testing');
 `;
 
-const CHECK_HIDDEN_MJS = `const hidden = ${JSON.stringify(HIDDEN_SUBPATHS)};
-const leaked = [];
-for (const spec of hidden) {
-  try {
-    await import(spec);
-    leaked.push(spec);
-  } catch (err) {
-    // Any other failure (syntax error, missing file) would also "not import", and is not the closed door this asserts.
-    if (err?.code !== 'ERR_PACKAGE_PATH_NOT_EXPORTED') throw new Error(spec + ' failed with ' + (err?.code ?? err));
-  }
-}
-if (leaked.length) throw new Error('importable from the published package: ' + leaked.join(', '));
-console.log('checkHidden: internal subpaths are not exported');
-`;
-
 const CHECK_SSR_MJS = `import { MARKER, render } from './consumer.node.mjs';
 const html = render();
 if (!html.includes(MARKER)) throw new Error('renderToString output is missing "' + MARKER + '". Got: ' + html.slice(0, 300));
@@ -266,7 +250,6 @@ try {
   writeFileSync(join(appDir, 'consumer.tsx'), CONSUMER_TSX);
   writeFileSync(join(appDir, 'negative.tsx'), NEGATIVE_TSX);
   writeFileSync(join(appDir, 'checkExports.mjs'), CHECK_EXPORTS_MJS);
-  writeFileSync(join(appDir, 'checkHidden.mjs'), CHECK_HIDDEN_MJS);
   writeFileSync(join(appDir, 'checkSsr.mjs'), CHECK_SSR_MJS);
   const esbuild = join(appDir, 'node_modules', '.bin', 'esbuild');
 
@@ -334,12 +317,11 @@ try {
     if (!out.includes('TS2322')) throw new Error(`expected TS2322, got: ${out.split('\n')[0] || 'tsc exited 0'}`);
   });
   record('(6) every reported value export is importable, and no unreported one is', () => run(process.execPath, ['checkExports.mjs'], appDir).trim());
-  record('(7) the internal subpaths are closed to a consumer', () => run(process.execPath, ['checkHidden.mjs'], appDir).trim());
-  record('(8) Workspace + PanelRow server-render a registered view', () => {
+  record('(7) Workspace + PanelRow server-render a registered view', () => {
     run(esbuild, ['consumer.tsx', '--bundle', '--format=esm', '--platform=node', '--packages=external', '--jsx=automatic', '--outfile=consumer.node.mjs', '--log-level=error'], appDir);
     return run(process.execPath, ['checkSsr.mjs'], appDir).trim();
   });
-  record('(9) esbuild bundles the same consumer for a browser', () => {
+  record('(8) esbuild bundles the same consumer for a browser', () => {
     run(esbuild, ['consumer.tsx', '--bundle', '--format=esm', '--platform=browser', '--jsx=automatic', '--define:process.env.NODE_ENV="production"', '--outfile=consumer.browser.js', '--log-level=error'], appDir);
     const out = readFileSync(join(appDir, 'consumer.browser.js'), 'utf8');
     if (!out.includes('phonux-smoke-marker-9f3a1c')) throw new Error('bundle does not contain the consumer code');

@@ -23,9 +23,6 @@ const DIST_DIR = join(PHONE_DIR, 'dist');
 const TSCONFIG = join(PHONE_DIR, 'tsconfig.build.json');
 const TSC_BIN = join(REPO_ROOT, 'node_modules', '.bin', 'tsc');
 
-// Entry points for the two internal API reports only; they stay out of the shipped exports map.
-const INTERNAL_ONLY_EXPORT_KEYS = new Set(['./internal/directionalTransition', './internal/panelModel']);
-
 function fail(message) {
   console.error(`build:phonux FAILED: ${message}`);
   process.exit(1);
@@ -65,7 +62,6 @@ function distExportPaths(sourcePath) {
 
 const exports = {};
 for (const [key, sourcePath] of Object.entries(srcPkg.exports)) {
-  if (INTERNAL_ONLY_EXPORT_KEYS.has(key)) continue;
   const { js, dts } = distExportPaths(sourcePath);
   // 'types' must be listed first in each condition or a resolver can miss the .d.ts entirely.
   exports[key] = { types: dts, import: js };

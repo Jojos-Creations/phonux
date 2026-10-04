@@ -18,9 +18,6 @@ export interface ClosedPageEntry {
 // @public (undocumented)
 export function createFakeHost(overrides?: FakeOverrides): FakeHost;
 
-// @public @deprecated (undocumented)
-export const createFakePhoneAPIs: typeof createFakeHost;
-
 // @public
 export interface CreatePanelOptions {
     anchor?: {
@@ -69,9 +66,6 @@ export interface FakeHost extends Host {
 export type FakeOverrides = {
     [K in keyof Host]?: Partial<Host[K]>;
 };
-
-// @public @deprecated (undocumented)
-export type FakePhoneAPIs = FakeHost;
 
 // @public
 export type FormFactor = 'phone' | 'tablet' | 'desktop';

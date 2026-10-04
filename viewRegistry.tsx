@@ -8,9 +8,6 @@ export type ViewProps<P = JsonValue> = { panel: PanelSummary<P> };
 /** What any View -- built-in or third-party -- is rendered as. @public */
 export type ViewComponent<P = JsonValue> = React.ComponentType<ViewProps<P>>;
 
-/** @public @deprecated use ViewComponent */
-export type PanelComponent<P = JsonValue> = ViewComponent<P>;
-
 const registry = new Map<string, ViewComponent>();
 /** One placeholder instance per unregistered key: AnimatePresence tracks a rendered element's own identity, so a fresh component type on every resolve would remount it on every render instead of once. */
 const placeholders = new Map<string, ViewComponent>();
@@ -23,9 +20,6 @@ const placeholders = new Map<string, ViewComponent>();
 export function registerView<P extends JsonValue>(key: string, Component: ViewComponent<P>): void {
   registry.set(key, Component as unknown as ViewComponent);
 }
-
-/** @public @deprecated use registerView */
-export const registerPanelView = registerView;
 
 function placeholderFor(key: string): ViewComponent {
   const cached = placeholders.get(key);
@@ -46,6 +40,3 @@ function placeholderFor(key: string): ViewComponent {
 export function resolveView(key: string): ViewComponent {
   return registry.get(key) ?? placeholderFor(key);
 }
-
-/** @public @deprecated use resolveView */
-export const resolvePanelView = resolveView;

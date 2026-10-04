@@ -15,10 +15,6 @@ import { CaptureRegistryContext, type ViewId } from './snapshots.js';
 // One import path for a view author: the contracts, the provider and the hook.
 export { HostMissingProviderError, HostProvider, useHost } from './hostApi.js';
 export type { Host } from './hostApi.js';
-/** @deprecated use HostMissingProviderError, HostProvider, useHost */
-export { PhoneAPIsMissingProviderError, PhoneAPIsProvider, usePhoneAPIs } from './hostApi.js';
-/** @deprecated use Host */
-export type { PhoneAPIs } from './hostApi.js';
 export { DRAG_CLOSE, DragToClose, shouldCloseOnRelease, type DragHandleProps, type ReleaseMeasure, type ReorderHandle } from './dragToClose.js';
 export { WindowOverlay, OverlaySlot, OVERLAY_Z, OverlayProvider, OverlayStore, type OverlaySlotName, type WindowOverlayProps, type Item, type Entry } from './windowOverlay.js';
 
@@ -68,9 +64,6 @@ export interface PanelProps extends Omit<BoxProps, 'children' | 'sx' | 'title'> 
   size?: PanelSize;
 }
 
-/** @public @deprecated use PanelProps */
-export type PhoneViewProps = PanelProps;
-
 /** @public */
 export function Panel({ title, actions, headerProps, grabProps, overlay, sx, children, viewId, capture = 'auto', size, ...rest }: PanelProps) {
   const { device } = useHost();
@@ -110,8 +103,5 @@ export function Panel({ title, actions, headerProps, grabProps, overlay, sx, chi
     </Box>
   );
 }
-
-/** @public @deprecated use Panel */
-export const PhoneView = Panel;
 
 export default Panel;

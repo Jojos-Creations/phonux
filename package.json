@@ -8,9 +8,7 @@
   "sideEffects": false,
   "exports": {
     ".": "./index.ts",
-    "./testing": "./fakeHost.ts",
-    "./internal/directionalTransition": "./directionalTransition.ts",
-    "./internal/panelModel": "./panelWindow.ts"
+    "./testing": "./fakeHost.ts"
   },
   "peerDependencies": {
     "react": "^19.2.8",

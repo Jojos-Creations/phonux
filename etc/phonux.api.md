@@ -96,9 +96,6 @@ export interface DetectedPhone {
     vendorId: number;
 }
 
-// @public @deprecated (undocumented)
-export type DeviceAPI = PhoneDeviceAPI;
-
 // @public
 export const DRAG_CLOSE: {
     readonly distanceFraction: 0.25;
@@ -278,16 +275,11 @@ export interface PanelAnchor {
     priority: number;
 }
 
-// @public @deprecated (undocumented)
-export type PanelComponent<P = JsonValue> = ViewComponent<P>;
-
 // @public
 export const panelCornerRadiusPx: (theme: Theme) => number;
 
 // @public
-const PanelFrame: React_2.ForwardRefExoticComponent<Omit<PanelFrameProps, "ref"> & React_2.RefAttributes<HTMLDivElement>>;
-export { PanelFrame }
-export { PanelFrame as PhoneFrame }
+export const PanelFrame: React_2.ForwardRefExoticComponent<Omit<PanelFrameProps, "ref"> & React_2.RefAttributes<HTMLDivElement>>;
 
 // @public
 export const panelFrameBareSx: {
@@ -501,26 +493,8 @@ export interface PanelWindow {
     view: string;
 }
 
-// @public @deprecated (undocumented)
-export const PHONE_CORNER_RADIUS_UNITS = 4;
-
 // @public
 export const PHONE_MODELS: readonly PhoneModel[];
-
-// @public @deprecated (undocumented)
-export type PhoneAPIs = Host;
-
-// @public @deprecated (undocumented)
-export const PhoneAPIsMissingProviderError: typeof HostMissingProviderError;
-
-// @public @deprecated (undocumented)
-export function PhoneAPIsProvider(input: {
-    apis: Host;
-    children: React_2.ReactNode;
-}): React_2.JSX.Element;
-
-// @public @deprecated (undocumented)
-export const phoneCornerRadiusPx: (theme: Theme) => number;
 
 // @public
 export function PhoneDetectPrompt(input: PhoneDetectPromptProps): React_2.JSX.Element | null;
@@ -549,56 +523,6 @@ export interface PhoneDeviceAPI {
     readonly size: PhoneSize;
 }
 
-// @public @deprecated (undocumented)
-export const phoneFrameBareSx: {
-    readonly pt: 0;
-    readonly pr: 0;
-    readonly pb: 0;
-    readonly pl: 0;
-    readonly overflowX: "hidden";
-    readonly overflowY: "hidden";
-    readonly scrollbarGutter: "auto";
-};
-
-// @public @deprecated (undocumented)
-export const PhoneFrameHeader: typeof PanelHeader;
-
-// @public @deprecated (undocumented)
-export type PhoneFrameHeaderProps = PanelHeaderProps;
-
-// @public @deprecated (undocumented)
-export const PhoneFrameHeaderRow: typeof PanelHeaderRow;
-
-// @public @deprecated (undocumented)
-export type PhoneFrameHeaderRowProps = PanelHeaderRowProps;
-
-// @public @deprecated (undocumented)
-export type PhoneFrameProps = PanelFrameProps;
-
-// @public @deprecated (undocumented)
-export const phoneFrameScrollSx: {
-    readonly overflowX: "hidden";
-    readonly overflowY: "auto";
-    readonly scrollbarGutter: "stable";
-    readonly pt: "12px";
-    readonly pb: "12px";
-    readonly pl: "12px";
-    readonly pr: "4px";
-    readonly '&::-webkit-scrollbar': {
-        readonly width: 8;
-    };
-    readonly '&::-webkit-scrollbar-track': {
-        readonly background: "transparent";
-    };
-    readonly '&::-webkit-scrollbar-thumb': {
-        readonly background: "rgba(255, 255, 255, 0.25)";
-        readonly borderRadius: number;
-    };
-    readonly '&::-webkit-scrollbar-thumb:hover': {
-        readonly background: "rgba(255, 255, 255, 0.4)";
-    };
-};
-
 // @public
 export interface PhoneModel {
     // (undocumented)
@@ -621,12 +545,6 @@ export interface PhoneSize {
     width: number;
 }
 
-// @public @deprecated (undocumented)
-export const PhoneView: typeof Panel;
-
-// @public @deprecated (undocumented)
-export type PhoneViewProps = PanelProps;
-
 // @public
 export interface ProvidedPanels extends PanelsAPI {
     readonly closingIds: ReadonlySet<string>;
@@ -638,9 +556,6 @@ export interface ProvidedPanels extends PanelsAPI {
     readonly liveWidths: readonly number[];
     readonly maxLiveWidth: number;
 }
-
-// @public @deprecated (undocumented)
-export const registerPanelView: typeof registerView;
 
 // @public
 export function registerView<P extends JsonValue>(key: string, Component: ViewComponent<P>): void;
@@ -659,9 +574,6 @@ export interface ReorderHandle {
 
 // @public
 export function reorderStepsForOffset(offsetX: number, neighbors: NeighborWidths, gap: number): number;
-
-// @public @deprecated (undocumented)
-export const resolvePanelView: typeof resolveView;
 
 // @public
 export function resolveView(key: string): ViewComponent;
@@ -726,9 +638,6 @@ export const usePanelPinned: () => boolean;
 
 // @public
 export const usePanelReorderEligible: () => boolean;
-
-// @public @deprecated (undocumented)
-export const usePhoneAPIs: typeof useHost;
 
 // @public
 export function useProvidePanels(i: PanelsInput): ProvidedPanels;

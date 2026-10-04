@@ -40,9 +40,6 @@ export interface FakeHost extends Host {
   readonly calls: FakeCall[];
 }
 
-/** @public @deprecated use FakeHost */
-export type FakePhoneAPIs = FakeHost;
-
 /** @public */
 export function createFakeHost(overrides: FakeOverrides = {}): FakeHost {
   const calls: FakeCall[] = [];
@@ -122,6 +119,3 @@ export function createFakeHost(overrides: FakeOverrides = {}): FakeHost {
     calls,
   };
 }
-
-/** @public @deprecated use createFakeHost -- same function, so identity checks keep working. */
-export const createFakePhoneAPIs = createFakeHost;
