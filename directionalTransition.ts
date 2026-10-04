@@ -1,8 +1,8 @@
 /**
  * The enter/exit timing, easing and opacity every animated slot shares, so a live panel and a History row
  * slide with one feel. A plain function, not a hook: it holds no state and calls no hook, so a test calls it
- * directly. Why it shares a preset and not the position math: DESIGN.md, "`directionalTransition` and the
- * test fakes are subpaths, not part of `.`".
+ * directly. Why it shares a preset and not the position math: DESIGN.md, "The test fakes are a subpath;
+ * `directionalTransition` is not exported".
  */
 import type { TargetAndTransition } from 'motion/react';
 

@@ -317,7 +317,7 @@ publishable `dist/package.json` with its paths rewritten relative to `dist/` (ne
 `private` key and sets `publishConfig.access` to `public`, and `LICENSE`, `README.md` and `DESIGN.md` ship beside it.
 
 `npm run smoke` is the publish gate: it asserts the manifest inside the packed tarball, then proves the tarball installs and
-resolves in a throwaway app outside this checkout, with the real peer set from the registry, in nine checks.
+resolves in a throwaway app outside this checkout, with the real peer set from the registry, in eight checks.
 `npm run smoke -- --from <tarball path or registry spec>` runs the same checks on an already-packed or already-published
 artifact. The bare `--` is required: npm keeps a `--from` placed before it for itself, and the smoke refuses to run rather than
 check the local `dist/` in its place. `npm run release:check` confirms that `name@version` is still free on the registry, runs the build and the smoke, and prints

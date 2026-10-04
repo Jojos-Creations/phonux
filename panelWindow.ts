@@ -8,7 +8,6 @@ import { computeRowOrder, deriveAnchorsFromOrder } from './panelRowOrder.js';
 import type { PanelAnchor } from './panelRowOrder.js';
 import { DEFAULT_PANEL_SIZE, TIER_SIZES } from './panelTiers.js';
 
-
 /**
  * One browsing panel in the unified row: either live in the row or parked, never both. Parking only flips
  * `live`; it never removes the entry from the array, only `closePanel` does.
