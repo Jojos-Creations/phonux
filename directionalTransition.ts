@@ -6,7 +6,7 @@
  */
 import type { TargetAndTransition } from 'motion/react';
 
-/** Seconds, tuned by eye (0.26 read as too fast); one value for every slot, so no copy can drift. */
+/** Seconds; one value for every slot, so no copy can drift. */
 const TRANSITION_SEC = 0.4;
 /** Motion wants a cubic-bezier as a fixed 4-tuple, not a plain number[]. */
 const TRANSITION_EASE: [number, number, number, number] = [0.2, 0, 0, 1];
