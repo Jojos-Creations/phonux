@@ -11,7 +11,7 @@ contracts must work under ANY host, not just this one.
 
 ## The provider is rebuilt every render
 
-`HostProvider` (renamed from `PhoneAPIsProvider`)'s `host` value is never memoised, on either side: the host's handlers close over
+`HostProvider`'s `host` value is never memoised, on either side: the host's handlers close over
 render-time state (the panel list, the column count), so a memoised bag would hand a view a stale closure.
 
 ## Testing without a host
@@ -31,7 +31,7 @@ reasons about the flags that decided whether a panel is in `panelList` at all.
 
 ## The panel-view registry: never a crash, never a silent substitution
 
-`registerView` (renamed from `registerPanelView`)/`resolveView` (renamed from `resolvePanelView`) (`viewRegistry.tsx`) let `PanelWindow.view` be an open string
+`registerView`/`resolveView` (`viewRegistry.tsx`) let `PanelWindow.view` be an open string
 instead of a closed union, so a host or a third party can spawn any registered component by name.
 `resolveView` never returns nothing: an unregistered key -- a typo, or a plugin that failed to
 register -- renders a visible, inert placeholder naming the title and the key, rather than throwing (which
@@ -101,8 +101,8 @@ had, and a view testing `'size' in panel` gets the same answer as `panel.size !=
 `panelWindow.ts` is part of this folder: the `PanelWindow` record and every pure transition over a
 `PanelWindow[]` (`appendPanel`, `createHistoryPanel`, `closePanel`, `restorePanel`, ...). It sits inside the
 import boundary above, so it imports only its siblings and never the desktop app. The main barrel exports
-`PanelWindow` and `reorderStepsForOffset` from it; every other name stays `@internal` behind the
-`./internal/panelModel` export key, the entry point for its internal API report, which `dist/` does not ship (see "The API reports in `etc/`"); the package's own tests import `panelWindow.ts` by relative path.
+`PanelWindow` and `reorderStepsForOffset` from it; every other name stays `@internal`, reached by no
+entry point, and the package's own tests import `panelWindow.ts` by relative path.
 Its functions are pure, taking no device-state argument, and are tested that way (`test/panel-window.test.ts`
 builds panels with no device store initialized at all). Reading a live device size inside them -- the
 host's device-size store holds one that changes with every resize -- would make them impure, would
@@ -302,7 +302,7 @@ function) as "no options", so a bare `onClick={panels.create}` reference behaves
 
 `PanelRow.tsx` takes the row-only `PanelRowEntry` record (not `PanelSummary`) because it alone reads
 `anchor`/`layer`/`anchoredEnter`/`collapsible`, but every component it resolves through the registry --
-built-in or third-party -- is written against `PanelComponent<P>` (renamed to `ViewComponent<P>`) `= ComponentType<{ panel: PanelSummary<P>
+built-in or third-party -- is written against `ViewComponent<P>` `= ComponentType<{ panel: PanelSummary<P>
 }>`. It narrows through the same `summarisePanel()` projection `PanelsAPI.panelList`/`recentlyClosed` use
 (`panelRowEntry.ts`), so a view can never read a row-only or host-only field (`hostData`, `collapsible`,
 `anchor`, `layer`, `anchoredEnter`) just because it happens to be a plain variable, not an object literal,
@@ -317,7 +317,7 @@ publishable `dist/package.json` with its paths rewritten relative to `dist/` (ne
 `private` key and sets `publishConfig.access` to `public`, and `LICENSE`, `README.md` and `DESIGN.md` ship beside it.
 
 `npm run smoke` is the publish gate: it asserts the manifest inside the packed tarball, then proves the tarball installs and
-resolves in a throwaway app outside this checkout, with the real peer set from the registry, in nine checks.
+resolves in a throwaway app outside this checkout, with the real peer set from the registry, in eight checks.
 `npm run smoke -- --from <tarball path or registry spec>` runs the same checks on an already-packed or already-published
 artifact. The bare `--` is required: npm keeps a `--from` placed before it for itself, and the smoke refuses to run rather than
 check the local `dist/` in its place. `npm run release:check` confirms that `name@version` is still free on the registry, runs the build and the smoke, and prints
@@ -333,11 +333,11 @@ this file's exports. `index.ts` re-exports values with `export { ... }` and type
 in the file, not just in the type checker's head -- a reviewer (or a future editor) can tell which half
 of a name governs a runtime test versus a compile-time one just by which statement it is in.
 
-## `directionalTransition` and the test fakes are subpaths, not part of `.`
+## The test fakes are a subpath; `directionalTransition` is not exported
 
-`./internal/directionalTransition` stays out of the main barrel because it is an animation timing helper
-for the package's own slot components, not a contract a view is meant to depend on -- exposing it on `.`
-would invite a consumer to couple to an implementation detail that owes nothing to any view contract.
+`directionalTransition.ts` is an animation timing helper for the package's own slot components, not a
+contract a view is meant to depend on, so no entry point exports it: exposing it would invite a consumer to
+couple to an implementation detail that owes nothing to any view contract.
 `./testing` exists as its own subpath, rather than being re-exported from `.`, so that importing the
 production barrel can never pull test-only fake implementations into a real bundle; a consumer opts into
 fakes by importing the subpath explicitly, and a bundler that only ever sees `.` never sees them at all.
@@ -432,8 +432,8 @@ timing are in "Workspace state persistence: shape, ownership and timing" below.
 ## The alias policy
 
 A renamed export keeps its old name working as a same-value `@deprecated` alias, not a rewritten wrapper,
-until every consumer that imports this package has moved off it. Whoever wires those consumers is the only
-one positioned to know once nothing outside still resolves the old name, so removal is never scheduled here.
+until a later minor release removes it. The owner decides when, because only whoever wires the consumers
+knows once nothing outside still resolves the old name.
 
 This is why a rename here is never a breaking change by itself: an existing import keeps compiling and keeps
 returning the same value, only flagged deprecated, for as long as the alias stays in place.
@@ -914,43 +914,21 @@ literal-union case.
 
 ## The API reports in `etc/`
 
-`etc/phonux.api.md`, `etc/phonux-testing.api.md`, `etc/phonux-internal.api.md` and
-`etc/phonux-panelModel.api.md` are API Extractor's reading of this package's surface, one per `exports` key in
-`package.json` (`.`, `./testing`, `./internal/directionalTransition`, `./internal/panelModel`). They are
-committed so that a change to what a consumer can import shows up as a diff in review. Only
-`npm run api-report:update` writes them. `npm run check:api-report` regenerates each one in a temp folder and
-fails if it differs from the committed copy, so a hand edit fails the next check.
+`etc/phonux.api.md` and `etc/phonux-testing.api.md` are API Extractor's reading of this package's surface, one
+per `exports` key in `package.json` (`.` and `./testing`). They are committed so that a change to what a
+consumer can import shows up as a diff in review. Only `npm run api-report:update` writes them.
+`npm run check:api-report` regenerates each one in a temp folder and fails if it differs from the committed
+copy, so a hand edit fails the next check.
 
-There are four `api-extractor*.json` configs, the fourth being `api-extractor.panelModel.json` for
-`./internal/panelModel`, because API Extractor analyses one entry point per run. The
-report script checks the `exports` map against the configs key by key, so an entry point with no config, or
-two configs pointed at each other's entry, fails before anything runs. The declarations it reads are emitted
-into `api-extractor-temp/` at the repository root (git-ignored), so they never reach `npm run typecheck` or the published package.
+There is one `api-extractor*.json` config per entry point, because API Extractor analyses one entry point per
+run. The report script checks the `exports` map against the configs key by key, so an entry point with no
+config, or two configs pointed at each other's entry, fails before anything runs. The declarations it reads
+are emitted into `api-extractor-temp/` at the repository root (git-ignored), so they never reach
+`npm run typecheck` or the published package.
 
-`./internal/directionalTransition` is tracked and tagged `@internal`, not excluded: it is the entry point for
-its own internal API report (`PanelRowSlot.tsx` and the package's own tests import the module by relative path), so it is a
-real entry point whose changes deserve the same diff. API Extractor wants every `@internal` name to start
-with an underscore, but these names are already imported under their current spelling, so
-`ae-internal-missing-underscore` is switched off in `api-extractor.internal.json` only, instead of renaming them. The switch covers that whole config, not one name, so a future `@internal` export
-without an underscore passes silently there too. `.` and `./testing` still enforce the rule: nothing they
-reach is `@internal`, and an underscore-less `@internal` tag on one of their exports fails the check.
-
-`./internal/panelModel` is the same kind of entry point: `panelWindow.ts` (the `PanelWindow` record and its pure
-transitions, plus `effectiveMaxPanels` re-exported from `panelCapacity.ts` so one config covers both),
-which the package's own tests import by relative path. It is tracked and tagged `@internal`, and `api-extractor.panelModel.json` carries its own
-`ae-internal-missing-underscore` switch-off, because a config does not inherit another's, so the caveat above
-holds for it too. `panelWindow.ts` also re-exports `FormFactor`, `JsonValue`, `PanelSize`, `PanelAnchor` and
-`NeighborWidths`, which its signatures name, so that the report has no `ae-forgotten-export`.
-
-Neither `@internal` subpath ships. `npm run build` skips every key in `INTERNAL_ONLY_EXPORT_KEYS`
-(`tools/phonux-build.mjs`), which holds `./internal/directionalTransition` and `./internal/panelModel`, so
-`dist/package.json`'s `exports` lists only `.` and `./testing`: an outside consumer reaches the package only through `.` and `./testing`; the two keys exist only as the entry points for the two internal API reports.
-
-Every declaration an entry point reaches carries exactly one release tag in its own doc comment: `@public`
-for `.` and `./testing`, `@internal` for `./internal/directionalTransition` and for what `./internal/panelModel`
-declares itself, plus `effectiveMaxPanels`, which is `@internal` in `panelCapacity.ts` (the five types it
-re-exports keep their own `@public`, so that report lists them as `@public`). A deprecated alias keeps
-`@deprecated` beside its tag. A tag above a re-export line (`export { X } from ...`) does nothing, because API
+Every declaration an entry point reaches carries exactly one release tag in its own doc comment, `@public`;
+`.` and `./testing` reach nothing `@internal`, and an underscore-less `@internal` tag on one of their exports
+fails the check. A deprecated alias keeps `@deprecated` beside its tag. A tag above a re-export line (`export { X } from ...`) does nothing, because API
 Extractor reads only the declaration's own comment.
 `ViewStateProvider` and `PANEL_HEADER_GAP_PX` are exported for this package's own files and tests but reached
 by no entry point, and are tagged `@internal` to say so.

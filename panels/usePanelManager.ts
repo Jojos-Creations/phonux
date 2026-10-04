@@ -12,8 +12,8 @@ import type { FormFactor } from '../hostApi.js';
 import { GAP } from '../PanelRowSlot.js';
 import { computeMaxLiveWidth, computeRowLayout } from '../panelRowLayout.js';
 import { panelWidthOf } from '../panelTiers.js';
+import { effectiveMaxPanels } from '../panelCapacity.js';
 import {
-  effectiveMaxPanels,
   firstParkedAfter,
   lastParkedBefore,
   leftmostLiveIndex,

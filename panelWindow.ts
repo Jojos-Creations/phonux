@@ -8,12 +8,6 @@ import { computeRowOrder, deriveAnchorsFromOrder } from './panelRowOrder.js';
 import type { PanelAnchor } from './panelRowOrder.js';
 import { DEFAULT_PANEL_SIZE, TIER_SIZES } from './panelTiers.js';
 
-// Re-exported so this entry point's API report can name every type its own signatures mention.
-export type { FormFactor, JsonValue, PanelSize };
-export type { PanelAnchor };
-export type { NeighborWidths };
-export { effectiveMaxPanels } from './panelCapacity.js';
-
 /**
  * One browsing panel in the unified row: either live in the row or parked, never both. Parking only flips
  * `live`; it never removes the entry from the array, only `closePanel` does.

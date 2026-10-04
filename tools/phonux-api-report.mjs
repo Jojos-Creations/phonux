@@ -22,8 +22,6 @@ const API_EXTRACTOR_BIN = join(REPO_ROOT, 'node_modules', '.bin', 'api-extractor
 const CONFIG_FOR_EXPORT = {
   '.': 'api-extractor.json',
   './testing': 'api-extractor.testing.json',
-  './internal/directionalTransition': 'api-extractor.internal.json',
-  './internal/panelModel': 'api-extractor.panelModel.json',
 };
 
 const LOCAL = process.argv.includes('--local');

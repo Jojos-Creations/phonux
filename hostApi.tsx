@@ -212,9 +212,6 @@ export interface PhoneDeviceAPI {
   resizeForDetectedPhone(modelId: string): void;
 }
 
-/** @public @deprecated use PhoneDeviceAPI */
-export type DeviceAPI = PhoneDeviceAPI;
-
 /** @public */
 export interface Host {
   readonly settings: SettingsAPI;
@@ -225,9 +222,6 @@ export interface Host {
    * of throwing, so a host that does not capture need not supply a no-op. */
   readonly snapshots?: SnapshotsAPI;
 }
-
-/** @public @deprecated use Host */
-export type PhoneAPIs = Host;
 
 // ---------------------------------------------------------------------------
 // Provider and hook
@@ -243,9 +237,6 @@ export class HostMissingProviderError extends Error {
     this.name = 'HostMissingProviderError';
   }
 }
-
-/** @public @deprecated use HostMissingProviderError -- same class, so `instanceof` works under either name. */
-export const PhoneAPIsMissingProviderError = HostMissingProviderError;
 
 const HostContext = React.createContext<Host | null>(null);
 
@@ -266,21 +257,9 @@ export function HostProvider({ host, children }: { host: Host; children: React.R
   );
 }
 
-/**
- * @deprecated use HostProvider (its prop is `host`, not `apis`). This is a distinct thin wrapper, not the
- * same value as HostProvider, because the prop itself renamed.
- * @public
- */
-export function PhoneAPIsProvider({ apis, children }: { apis: Host; children: React.ReactNode }) {
-  return <HostProvider host={apis}>{children}</HostProvider>;
-}
-
 /** The one hook a view uses to reach the rest of the app. Call API methods from event handlers; do not capture one in an effect with empty deps. @public */
 export function useHost(): Host {
   const host = React.useContext(HostContext);
   if (host === null) throw new HostMissingProviderError();
   return host;
 }
-
-/** @public @deprecated use useHost -- same function, so identity checks keep working. */
-export const usePhoneAPIs = useHost;

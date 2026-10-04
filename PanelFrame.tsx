@@ -20,9 +20,6 @@ export interface PanelFrameProps extends Omit<BoxProps, 'children'> {
   size?: PanelSize;
 }
 
-/** @public @deprecated use PanelFrameProps */
-export type PhoneFrameProps = PanelFrameProps;
-
 /** The classic (non-overlay) scrollbar this app draws for itself, in px. */
 const SCROLLBAR_PX = 8;
 /** How far content sits from the frame's own border, on every side, in px. */
@@ -30,12 +27,8 @@ const CONTENT_INSET_PX = 12;
 /** The phone's corner radius in theme shape units (4 x 6px = 24px). The frame's corners and the header
  * pills' semicircular ends both derive from it, so they cannot drift apart. @public */
 export const PANEL_CORNER_RADIUS_UNITS = 4;
-/** @public @deprecated use PANEL_CORNER_RADIUS_UNITS */
-export const PHONE_CORNER_RADIUS_UNITS = PANEL_CORNER_RADIUS_UNITS;
 /** That radius in px for `theme`; a header pill is twice this tall (exact semicircles). @public */
 export const panelCornerRadiusPx = (theme: Theme): number => PANEL_CORNER_RADIUS_UNITS * Number(theme.shape.borderRadius);
-/** @public @deprecated use panelCornerRadiusPx */
-export const phoneCornerRadiusPx = panelCornerRadiusPx;
 /** The header pill's gap above the frame, in px -- also the grab bar's own height (Panel.tsx),
  * since the grab bar fills that whole strip. One constant so the two can't drift apart, and sized to WCAG
  * 2.5.8's 24px minimum pointer-target height even though the drawn pill inside it is thinner. @internal */
@@ -65,8 +58,6 @@ export const panelFrameScrollSx = {
   },
   '&::-webkit-scrollbar-thumb:hover': { background: 'rgba(255, 255, 255, 0.4)' },
 } as const;
-/** @public @deprecated use panelFrameScrollSx */
-export const phoneFrameScrollSx = panelFrameScrollSx;
 
 /**
  * For a caller doing its own scrolling one level deeper (an embedded web view, a transcript under a
@@ -84,8 +75,6 @@ export const panelFrameBareSx = {
   overflowY: 'hidden',
   scrollbarGutter: 'auto',
 } as const;
-/** @public @deprecated use panelFrameBareSx */
-export const phoneFrameBareSx = panelFrameBareSx;
 
 /**
  * Two nested boxes: the OUTER owns border, radius and size and clips to the rounded corner; the INNER owns
@@ -141,9 +130,6 @@ export interface PanelHeaderProps extends Omit<BoxProps, 'children'> {
   children: React.ReactNode;
 }
 
-/** @public @deprecated use PanelHeaderProps */
-export type PhoneFrameHeaderProps = PanelHeaderProps;
-
 /**
  * A header that floats ABOVE a PanelFrame (`position: absolute; bottom: calc(100% + gap)`), so its parent must
  * be `position: relative`. Internal layout is not baked in (callers differ): pass `sx`, layered on top. A plain
@@ -182,9 +168,6 @@ export function PanelHeader({ children, sx, ...rest }: PanelHeaderProps) {
   );
 }
 
-/** @public @deprecated use PanelHeader */
-export const PhoneFrameHeader = PanelHeader;
-
 /** @public */
 export interface PanelHeaderRowProps extends Omit<PanelHeaderProps, 'children' | 'title'> {
   /** Left-aligned, ellipsis-truncated. Falsy renders a placeholder ("Untitled") instead of
@@ -194,9 +177,6 @@ export interface PanelHeaderRowProps extends Omit<PanelHeaderProps, 'children' |
    * so a conditional like `isRunning && <IconButton .../>` still keeps the pill's full shape. */
   actions?: React.ReactNode;
 }
-
-/** @public @deprecated use PanelHeaderRowProps */
-export type PhoneFrameHeaderRowProps = PanelHeaderRowProps;
 
 /** Deliberately narrow (mirrors JSX's own falsy-child rules, not a general emptiness check) so a
  * real value like `0` or whitespace is never mistaken for "no content". */
@@ -239,8 +219,5 @@ export function PanelHeaderRow({ title, actions, sx, ...rest }: PanelHeaderRowPr
     </PanelHeader>
   );
 }
-
-/** @public @deprecated use PanelHeaderRow */
-export const PhoneFrameHeaderRow = PanelHeaderRow;
 
 export default PanelFrame;

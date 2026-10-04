@@ -11,32 +11,17 @@ import { CaptureRegistryContext } from '../snapshots.js';
 import { OverlayProvider, OverlayStore } from '../windowOverlay.js';
 
 const VALUE_EXPORTS = [
-  // Old names (kept as @deprecated same-value aliases).
   'DEFAULT_PHONE_SIZE',
-  'PhoneAPIsMissingProviderError',
-  'PhoneAPIsProvider',
-  'usePhoneAPIs',
-  'PhoneView',
   'DRAG_CLOSE',
   'DragToClose',
   'shouldCloseOnRelease',
   'WindowOverlay',
   'OverlaySlot',
   'OVERLAY_Z',
-  'PhoneFrame',
-  'PHONE_CORNER_RADIUS_UNITS',
-  'phoneCornerRadiusPx',
-  'phoneFrameScrollSx',
-  'phoneFrameBareSx',
-  'PhoneFrameHeader',
-  'PhoneFrameHeaderRow',
   'PHONE_MODELS',
   'findPhoneModel',
   'vendorLabelForUsbVendorId',
   'PhoneDetectPrompt',
-  'registerPanelView',
-  'resolvePanelView',
-  // New names.
   'HostMissingProviderError',
   'HostProvider',
   'useHost',
@@ -82,7 +67,7 @@ const VALUE_EXPORTS = [
   'createDefaultTheme',
 ].sort();
 
-test('the phonux barrel exports exactly the 66 runtime values, no more, no fewer', () => {
+test('the phonux barrel exports exactly the 53 runtime values, no more, no fewer', () => {
   assert.deepEqual(Object.keys(phonux).sort(), VALUE_EXPORTS);
 });
 

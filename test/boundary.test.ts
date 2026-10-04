@@ -78,7 +78,7 @@ test("boundary: no library source imports 'phonux' by its own name", () => {
   const files = [...rootSources(), ...panelSources()];
   assert.deepEqual(formatViolations(scanBoundary({ files, rules: [SELF_IMPORT], minFiles: MIN_LIBRARY_FILES }).violations, ROOT), []);
   withTempDir((dir) => {
-    const planted = plant(dir, 'Planted.ts', ["import a from 'phonux';", 'import { b } from "phonux/testing";', "export { c } from 'phonux/internal/panelModel';", "const d = await import('phonux');", 'const e = require(`phonux`);', "type F = import('phonux').PanelsAPI;"]);
+    const planted = plant(dir, 'Planted.ts', ["import a from 'phonux';", 'import { b } from "phonux/testing";', "export { c } from 'phonux/some/subpath';", "const d = await import('phonux');", 'const e = require(`phonux`);', "type F = import('phonux').PanelsAPI;"]);
     const clean = plant(dir, 'Clean.ts', ["import g from './phonux.js';", "import h from 'phonuxx';", "import j from 'notphonux';", "// import k from 'phonux';", '/* import l from "phonux/testing" */', 'const m = "phonux is the name";']);
     assert.deepEqual(scanBoundary({ files: [planted], rules: [SELF_IMPORT], minFiles: 1 }).violations.map((v) => v.line), [1, 2, 3, 4, 5, 6]);
     assert.deepEqual(scanBoundary({ files: [clean], rules: [SELF_IMPORT], minFiles: 1 }).violations, []);
