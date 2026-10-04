@@ -11,9 +11,7 @@ directory is the body-shape reference for those issue and pull request bodies
 
 The marker `pipeline: github` in `.claude/coordinator-config.yaml` says this
 repo is on that pipeline, and `python3 tools/queue/queue.py` is the only
-sanctioned writer of a plan body. A vendor run writes no marker, so until you
-add it `tools/queue/queue.py` refuses every verb except `init` and `migrate`
-(exit 3); the template's cutover runbook says when to add it.
+sanctioned writer of a plan body.
 
 ## The queue tool
 
@@ -82,8 +80,8 @@ is its pull request body.
 ## The gate
 
 `strict_gate` in `.claude/coordinator-config.yaml` lists the gate, and CI
-(`.github/workflows/ci.yml`) runs the same commands on every push and pull
-request. Besides the typecheck, tests, build, API report and pack smoke, it runs
+(`.github/workflows/ci.yml`) runs the same commands on pushes to main and on
+every pull request. Besides the typecheck, tests, build, API report and pack smoke, it runs
 `queue.py lint --offline` and the vendored-tooling drift check
 (`tools/vendor-queue-tooling.py . --check`). To refresh the vendored tooling,
 run `python3 tools/vendor-queue-tooling.py <this repo>` from a checkout of
