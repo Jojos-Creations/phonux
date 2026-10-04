@@ -1,0 +1,27 @@
+# Read by .githooks/lib/markdown_lint.sh, which lints staged markdown on commit.
+globs:
+  - "**/*.md"
+
+ignores:
+  - "node_modules/**"
+  # Plan records are kept exactly as written; the auto-fixer must not reformat them.
+  - "plans/records/**"
+
+config:
+  # Pinned: the default infers a table style per file, so a file with mixed tables fails on a
+  # style nobody chose.
+  MD060:
+    style: compact
+
+  # Long table cells and URLs.
+  MD013: false
+  # Blank lines around headings and lists are a style preference.
+  MD022: false
+  MD032: false
+  # Parallel sections repeat heading names.
+  MD024: false
+  MD025: false
+  MD029: false
+  MD033: false
+  # A file may start with frontmatter or a banner rather than a heading.
+  MD041: false

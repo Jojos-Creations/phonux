@@ -1,0 +1,33 @@
+#!/usr/bin/env bash
+# Starter pre-commit hook, seeded by tools/vendor-queue-tooling.py and never
+# overwritten by a later vendor run -- if this repo already had one, yours was
+# left exactly as it was and this file was not written at all.
+#
+# THIS FILE DOES NOTHING UNTIL YOU RUN, ONCE PER CLONE:
+#
+#     git config core.hooksPath .githooks
+#
+# That setting is per CLONE, not per repo: it is not carried in a commit, so
+# every fresh clone (and every `git worktree add`) needs it again. Without it
+# git looks in .git/hooks/ and none of the gates below ever fire -- and the
+# failure mode is silence, not an error.
+#
+# Verify it is on, from the repo root:
+#
+#     git config --get core.hooksPath        # must print: .githooks
+#
+set -euo pipefail
+here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+repo_root="$(git rev-parse --show-toplevel)"
+
+# Both variables below are read by the sourced lint fragment.
+# `staged_paths_for_gate` deliberately includes D (deletions): a gate that
+# cannot see a file being removed cannot notice a guarded file going missing.
+staged_paths_for_gate=$(git diff --cached --name-only --diff-filter=ACMRD)
+
+# Staged-markdown lint + the inline-suppression check, against this repo's own
+# .markdownlint-cli2.yaml. Skips loudly (never blocks) when markdownlint-cli2
+# is not resolvable offline here.
+if [ -f "$here/lib/markdown_lint.sh" ]; then
+	. "$here/lib/markdown_lint.sh"
+fi

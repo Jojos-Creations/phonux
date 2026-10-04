@@ -23,3 +23,5 @@ jobs:
       - run: npm run build
       - run: npm run check:api-report
       - run: npm run smoke
+      - run: python3 tools/vendor-queue-tooling.py . --check
+      - run: python3 tools/queue/queue.py lint --offline
