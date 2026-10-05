@@ -1,0 +1,74 @@
+/**
+ * The shapes a change to a settings layer takes, and the one pure step that applies it. `null` deletes a value
+ * from the instance layer; `undefined` never changes anything. The patch is not validated here: the layer it
+ * produces is validated when the whole stack is resolved again.
+ */
+
+import type { FormFactor } from './hostApi.js';
+import { sameSettingsValue } from './panelSettings.js';
+import type { AnchorRequest, PanelId, PanelSettings } from './panelSettings.js';
+
+/** A change to one settings layer; `null` deletes that key from the layer. @public */
+export type SettingsPatch = { [K in keyof PanelSettings]?: PanelSettings[K] | null };
+
+/** What `configure(id, ...)` accepts: every key except the three that belong to a template. @public */
+export type InstancePatch = Omit<SettingsPatch, 'hostCreatable' | 'multiple' | 'maxInstances'>;
+
+/** Exactly the keys a view may set on its own panel; any other key is not-view-settable. @public */
+export type ViewPatch = {
+  title?: string | null;
+  listed?: boolean | null;
+  layer?: 'base' | 'raised' | null;
+  formFactor?: FormFactor | null;
+  placeOnAdd?: { anchor: AnchorRequest & { panel: PanelId } } | null;
+  enterFrom?: 'anchor' | null;
+};
+
+type Plain = Record<string, unknown>;
+
+const isPlain = (v: unknown): v is Plain => typeof v === 'object' && v !== null && !Array.isArray(v);
+
+/** Merges a patch into one container (tuning, or one tuning leaf, or the header-button map) member by member. */
+function mergeMembers(base: unknown, patch: unknown, deeper: boolean): unknown {
+  if (!isPlain(patch)) return patch;
+  const result: Plain = isPlain(base) ? { ...base } : {};
+  for (const key of Object.keys(patch)) {
+    const asked = patch[key];
+    if (asked === undefined) continue;
+    if (asked === null) {
+      delete result[key];
+    } else if (deeper && isPlain(asked)) {
+      const inner = mergeMembers(result[key], asked, false);
+      if (isPlain(inner) && Object.keys(inner).length === 0 && !isPlain(result[key])) continue;
+      result[key] = inner;
+    } else {
+      result[key] = asked;
+    }
+  }
+  return sameSettingsValue(result, base) ? base : result;
+}
+
+/**
+ * Applies a patch to a settings layer and returns the new layer; the layer and the patch are never changed. `null`
+ * deletes a value, and inside `tuning` and `headerButtons` it deletes one leaf or slot. An empty patch, or one that
+ * changes nothing, returns the very same layer object.
+ * @public
+ */
+export function mergePatch(layer: PanelSettings, patch: SettingsPatch): PanelSettings {
+  const next: Plain = { ...layer };
+  const asked = patch as Plain;
+  for (const key of Object.keys(asked)) {
+    const value = asked[key];
+    if (value === undefined) continue;
+    if (value === null) {
+      delete next[key];
+    } else if (key === 'tuning' || key === 'headerButtons') {
+      const merged = mergeMembers(next[key], value, key === 'tuning');
+      if (isPlain(merged) && Object.keys(merged).length === 0 && !isPlain(next[key])) continue;
+      next[key] = merged;
+    } else {
+      next[key] = value;
+    }
+  }
+  return sameSettingsValue(next, layer) ? layer : (next as PanelSettings);
+}

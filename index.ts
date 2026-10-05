@@ -86,3 +86,64 @@ export { reorderStepsForOffset } from './panelWindow.js';
 export { createDefaultTheme } from './defaultTheme.js';
 
 export type { WorkspacePanelState, WorkspaceState, WorkspaceStorage } from './workspaceState.js';
+
+export { PANEL_SETTINGS_CATALOG, LIBRARY_PANEL_DEFAULTS, LIBRARY_TUNING_DEFAULTS, resolvePanelSettings } from './panelSettings.js';
+export type {
+  PanelId,
+  AnchorRequest,
+  AddPlacement,
+  Overflow,
+  ScrollAlign,
+  ScrollOnOpen,
+  ScrollOnMove,
+  ScrollOnDrag,
+  HeaderButtonContext,
+  HeaderButton,
+  PinHalf,
+  Pinning,
+  PinWhenNotLive,
+  PinningWhenNotLive,
+  SettingValues,
+  PanelSettings,
+  ResolvedPanelSettings,
+  DragToCloseTuning,
+  SlideTuning,
+  EdgeScrollTuning,
+  PanelTuning,
+  WorkspaceTuning,
+  ResolvedPanelTuning,
+  ResolvedWorkspaceTuning,
+  SettingNote,
+  SettingConflict,
+  SourceLayer,
+  SettingDescriptor,
+  CatalogName,
+  SettingClass,
+  SettingDoor,
+  SettingScope,
+  LibraryPanelDefaults,
+  PanelSettingsLayers,
+  PanelUserLayer,
+  ResolveOptions,
+  PanelSettingsResolution,
+} from './panelSettings.js';
+
+export { mergePatch } from './settingsPatch.js';
+export type { SettingsPatch, InstancePatch, ViewPatch } from './settingsPatch.js';
+
+export { definePanel } from './panelTemplate.js';
+export type {
+  PanelTemplate,
+  PanelStatus,
+  DeferredPin,
+  PanelState,
+  ListFilter,
+  PanelSnapshot,
+  WorkspaceStatus,
+  PanelReadHandle,
+  ViewHandle,
+  PanelReader,
+} from './panelTemplate.js';
+
+export { PanelManagerError } from './panelManagerError.js';
+export type { PanelRefusal, PanelManagerErrorCode } from './panelManagerError.js';

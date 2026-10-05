@@ -912,6 +912,161 @@ serves a caller that is itself generic over `JsonValue`, where that check cannot
 fails both overloads. `viewState.typecheck.ts` compares these types against `useState` directly and pins the
 literal-union case.
 
+## The settings catalog and its one resolver
+
+Every behaviour that can differ between panels is a named setting. Each setting is three things that must agree: a
+descriptor in `PANEL_SETTINGS_CATALOG` (exported data), a library default in `LIBRARY_PANEL_DEFAULTS` or
+`LIBRARY_TUNING_DEFAULTS`, and a check in `resolvePanelSettings`, the one pure function that interprets a settings
+layer. The library picks no policy: each default reproduces what 0.1.0 did, except the few the table words
+otherwise. A test (`test/panel-settings-catalog.test.ts`) holds the descriptors, the defaults and the table below
+equal, so a changed default is a one-value edit in the constant and in its table row, and the test fails until both
+are done.
+
+### Layers and the cascade
+
+Lowest to highest: library defaults, workspace defaults, template, host (what a view asked for in a Host-bag
+`create`), instance, and the person's own overrides. The last defined value wins field by field and `undefined`
+never overrides. `placeOnAdd`, `placeOnShow`, `placeOnReturn`, `undoPlacement`, `formFactors`, `pinning` and
+`pinningWhenNotLive` are replaced whole; `tuning` merges per leaf and member; `headerButtons` merges per slot id (a
+later layer's slot replaces that id whole, `false` removes it). The resolver's `source` map names the winning layer
+for every key: one of `library`, `workspace`, `template`, `host`, `instance`, `user`, `derived` (filled from another
+resolved field) or `forced` (overridden by a coupling rule, which runs last and so wins over every layer).
+
+`mergePatch(layer, patch)` is the one pure step that edits the instance layer: `null` deletes a value (and, inside
+`tuning` or `headerButtons`, one leaf or slot), `undefined` changes nothing, and a patch that changes nothing returns
+the very same layer object. Deleting an instance value lets the host's ask, then the rest of the cascade, show
+through again.
+
+### Derived defaults and coupling rules
+
+`draggable`, `placeable` and `listed` follow `parkable`; `clearable` follows `parkable` and `closable`. Any layer may
+set them, and a value a layer sets is never forced.
+
+| Rule | When | Forces |
+| --- | --- | --- |
+| C1 | `parkable: false` (a fixed column) | `resizable: false`, `formFactors: ['phone']`, `formFactor: 'phone'`, `overflow: 'scroll'`, `startVisibility: 'live'`, `restoreVisibility: 'live'`, `keepMounted: false` |
+| C2 | `closable: false` | `clearable: false` |
+| C3 | `persist: 'session'` | `rememberLayout: false`, `afterClose: 'return-next-launch'` |
+| C4 | `formFactor` not in `formFactors` | `formFactor` is the first allowed tier |
+| C5 | the root | `parkable: false`, `closable: false`, `draggable: false`, `placeable: false` |
+| C6 | `viewState: 'reset-on-park'` | `keepMounted: false` |
+
+The root's rule runs first because it feeds C1 and C2. A conflict is recorded only when a template, host or instance
+layer asked for a value a rule overrides; the same collision caused by the library or the workspace defaults is
+overridden silently, with source `forced`. A conflict carries `key`, `layer`, `kind`, `asked`, `applied` and
+`message`, plus `rule` and `forcedBy` when the kind is `forced`. Two more kinds exist: `wrong-scope` (a template-scope
+key or a workspace-only tuning key at the instance or host layer, ignored) and `not-view-settable` (a key a view may
+not set, at the host layer, ignored).
+
+Notes never throw: `park-lever-inert` when a layer sets a park lever (`capacityReturn`, `returnPriority`,
+`evictionRank`, `evictionOrder`) on a panel that resolves to `overflow: 'scroll'`, `pin-unlists` when a pinned half
+names `parkable: false` and `listed` is unset, `override-dropped` when the person's tier is outside `formFactors` or
+a fixed column would not be on the phone tier, and `invalid-saved-setting` for each key a lenient resolve dropped.
+
+### Who may set what
+
+The `doors` of a descriptor name the configure call that accepts the key: `instance` (`configure(id)`), `template`
+(`configureTemplate`: `hostCreatable`, `multiple`, `maxInstances`) and `tuning` (`configureTuning`). Seven tuning
+leaves are workspace-only (`rowGap`, `saveQuietMs`, `gestureLockMs`, `returnTieBreak`, `dropTieBreak`, `rowGesture`,
+`initialScroll`); four are per panel and also workspace-wide (`dragToClose`, `slide`, `hopFraction`, `edgeScroll`).
+A workspace-only leaf at the template layer throws, at the instance or host layer it is a `wrong-scope` conflict, and
+any tuning key in the workspace defaults throws. A view's own door, the host layer, accepts only `title`, `listed`,
+`layer`, `formFactor`, `placeOnAdd: { anchor }` and `enterFrom: 'anchor'`.
+
+### Pin definitions
+
+A `pinning` definition is valid only if a drag cannot make it unreadable, because pinned is read from the panel and
+never stored. Either both halves name `parkable` with opposite values, or the pinned half is `row-start` and the
+unpinned half `row-end` or `after-fixed`. If both hold, both are read. Other placements may appear only beside the
+parkable pair. An empty definition is valid and reads false. `parkable` in one half only, equal values, `in-place` in
+a half, an unknown key, or a definition that is neither readable form throws `invalid-settings`.
+
+### Restore reads leniently
+
+A saved file may hold settings an older or newer build wrote. With `lenient`, the instance and user layers drop an
+invalid key with an `invalid-saved-setting` note and keep the rest; the workspace and template layers are the
+developer's own and throw in both modes.
+
+### Leaf modules
+
+`panelSettings.ts` imports no value except `rowConstants.ts` and `panelManagerError.ts`, so the table and the
+resolver load without React, Motion or any row code. `rowConstants.ts` holds the default numbers under names that
+differ from the ones the row code exports today (`GAP`, `DRAG_CLOSE`, `SLOT_TRANSITION`, `WORKSPACE_SAVE_QUIET_MS`),
+and `test/rowconstants-drift.test.ts` holds the two sets equal until the row code reads the new module.
+
+### The catalog
+
+One row per setting, between the markers below; the docs-drift test parses every row and compares its name, values,
+default and class word with the descriptor. The class word opens the on_configure cell: NOW (a button, a History row,
+a z-index or the row's price changes at that commit), NEXT (stored, read by the next event that uses it), STATE (a
+flip with a transition rule of its own) or SCOPE (a template-scope key).
+
+<!-- catalog:start -->
+| Setting | Values | Default | On configure |
+| --- | --- | --- | --- |
+| `closable` | true, false | true (root: false) | NOW. L, T: true->false removes the drag-down close and makes close() answer not-closable at this commit; clearable re-derives false (C2); a DragToClose release already decided re-checks at its animation end and snaps back. false->true restores them. K, H: History row only. Root: closable:true is settings-conflict (C5); explicit clearable:true beside closable:false is settings-conflict. |
+| `parkable` | true, false | true | STATE. L, T: true->false needs the phone tier (tier-not-allowed) and no conflicting explicit value (settings-conflict); listed, draggable, placeable, clearable re-derive false at this commit unless named; the row re-prices and the reconcile settles it (two commits). false->true lifts C1. K, H: per pinningWhenNotLive (place-only and refuse: would-reshape-row; show: shown true then flips; apply-on-next-show: stores deferredPin { parkable }). C, U: place-only, refuse, show answer is-closed; apply-on-next-show stores on the record. A person's overrides.parkable outvotes the flip (shadowed). |
+| `draggable` | true, false | derived: parkable | NOW. L, T: true->false removes the reorder grab and makes move() a same-array no-op from this commit; a drag in flight ends with no hops. K, H: stored. Root: true is settings-conflict. |
+| `crossable` | true, false | true | NOW. L, T: the next drag of any other panel sees it at once; a drag already released is judged by movePanel (changed:false). K, H: a non-crossable parked panel is a barrier for the next drag too. |
+| `placeable` | true, false | derived: parkable | NOW. L, T, K, H: false makes reanchor, place and a placement-bearing pin() refuse (not-placeable) from this commit. Row: nothing moves. Root: true is settings-conflict. |
+| `resizable` | true, false | true (C1) | NOW. L, T, K, H: true->false freezes the tier (setFormFactor refused); the tier and the person's saved tier are never changed or dropped by this call. C1: true on a fixed column is settings-conflict. |
+| `formFactors` | non-empty subset of phone, tablet, desktop | all three (C1) | STATE. Widening: ok. Narrowing on L, T, K, H: ok only if the CURRENT tier stays inside, else tier-not-allowed; the tier is never changed by this call. A patch leaving the initial formFactor outside is settings-conflict. An empty set throws. |
+| `clearable` | true, false | derived: parkable and closable (C2) | NEXT. Read by the next clearAll. C2: clearable:true with closable:false is settings-conflict; null re-derives it. |
+| `hostCreatable` | true, false (template scope) | true | SCOPE (configureTemplate). Applies to the next Host-bag create naming the template; existing instances and code addPanel are untouched. configure(panelId) and configureTuning answer wrong-scope; an unknown template throws. Before ready: not-ready. |
+| `multiple` | true, false (template scope) | false | SCOPE (configureTemplate). false->true: ok. true->false: ok only if every existing instance (row, declared closed records, undo-window records) is the singleton whose id equals the template id, else instance-limit with the count; nothing is closed or renamed. |
+| `maxInstances` | integer >= 1, unlimited (template scope) | unlimited | SCOPE (configureTemplate). Raising it or null: ok. Lowering below the instances that exist: instance-limit with the count; no instance is closed. Moot without multiple (a note). |
+| `listed` | true, false | derived: parkable | NOW. L, T, K, H: the panel appears in or leaves panelList at this commit; its slot and state do not change. false on a hidden panel whose hold the gesture cannot release leaves it showable by code only (note). |
+| `startVisibility` | live, parked | live (C1) | NEXT. Governs panels created after the commit; every existing panel keeps its state. C: used by the next open(). C1: parked on a fixed column is settings-conflict. |
+| `hideStickiness` | sticky, until-room | sticky | NEXT. Governs hides after the commit. A hidden panel keeps the hold it has; configure shows nothing. K: unaffected. L, T: the next hide() uses the new value. |
+| `hideWhenLast` | allow, refuse | allow | NEXT. Read by the next hide(). Panels already hidden stay hidden; no reveal. |
+| `capacityReturn` | auto, manual | auto | NEXT. Governs parks decided after the commit. A panel on the stack stays returnable; one already held stays held; no reveal. |
+| `returnPriority` | integer | 0 | NEXT. Read when the stack is next walked. K: changes its place in the next walk. H: moot. Nothing returns at configure. |
+| `overflow` | scroll, park | scroll for every panel built through the cascade (a template, workspace defaults, a Host-bag create, or a restore inside a workspace; C1: scroll for a fixed column); a hand-built 0.1.0 entry in a row with no workspace defaults: park | NEXT. Read at the next park decision. L: park->scroll protects it from then on; scroll->park makes it eligible; nothing parks, returns or scrolls at configure. K, H: stored; a K panel already on the stack still returns. C1: park on a fixed column is settings-conflict. |
+| `evictionRank` | integer | 0 | NEXT. Read at the next park decision. Nothing is re-evaluated now. T: skipped whatever its rank. |
+| `evictionOrder` | farthest, nearest, leftmost, rightmost | farthest | NEXT. Read when this panel next needs room. Nothing moves now. |
+| `revealOnScroll` | edges, any, never | edges (a design default the owner never fixed; Q1 holds under it) | NEXT. Read by the next gesture. K: edges->any makes an engine-parked panel reachable. H: edges and any reach it. Nothing is revealed by configure. |
+| `scrollOnOpen` | into-view, start, center, none | into-view (owner-confirmed, Q21) | NEXT. Read by the next open, show or click of this panel. L, T, K, H: stored. No scroll happens at configure. Use handle.scrollTo() to scroll now (its align defaults to this setting, 'into-view' when it is none). |
+| `scrollOnMove` | follow, none | follow (owner-confirmed, Q21) | NEXT. Read by the next move, place, setFormFactor, pin, unpin or resetLayout of this panel. L, T, K, H: stored. Nothing scrolls at configure. |
+| `scrollOnDrag` | edge, none | edge (Q19: the owner asked for a per-panel switch and 'Yes, scroll at the edge'; the library default is edge) | NEXT. Read at the next drag start of this panel; a drag in flight keeps the mode it began with. L, T, K, H: stored. Nothing scrolls at configure. |
+| `toggleWhenClosed` | ignore, reopen | ignore | NEXT. Read by the next toggleVisibility() on a closed declared panel. C, U: the record's value is used by the next toggle. |
+| `showWhenClosed` | refuse, reopen | refuse | NEXT. Read by the next show() on a closed declared panel. C, U: the record's value is used. |
+| `viewState` | keep, reset-on-park | keep | STATE. The latch is set at each park commit, so a change reaches the NEXT park only. With keepMounted resolved true, reset-on-park is settings-conflict (C6): patch keepMounted:false in the same call. |
+| `keepMounted` | true, false | false (C1, C6) | STATE. Read through the park latch. L, T: false->true: the next park hides the view instead of unmounting it; true->false: the next park unmounts. K: true waits for the next show and park. H (latched, mounted): true->false unmounts at this commit (zero-duration exit; picture and viewState untouched). With viewState reset-on-park, true is settings-conflict (C6). |
+| `placeOnAdd` | row-start, row-end, parkable-start, parkable-end, after-fixed, order, {before}, {after}, {anchor} | row-end | NEXT. Read by the next add of this panel and by resetLayout; no live, parked or hidden panel moves (use place()). in-place throws invalid-settings; a missing target uses placeFallback. |
+| `placeOnShow` | the same plus in-place | in-place | NEXT. Read by the next show. K, H: configure does not re-place or reveal. |
+| `placeOnReturn` | in-place, row-start, row-end, parkable-start, parkable-end, after-fixed, order, {before}, {after}, {anchor} | in-place | NEXT. Read by the next automatic return. K: takes the new value when it returns. H: moot. |
+| `placeFallback` | row-start, row-end, parkable-start, parkable-end, after-fixed | row-end | NEXT. Read when a placement target is missing or self-naming. A value outside the named positions throws invalid-settings. |
+| `undoPlacement` | old-slot or any placeOnAdd value | old-slot | NEXT. Read when undoClose restores a panel; a configure inside the undo window changes where that undo puts it. U: stored on the record. |
+| `layer` | base, raised | base | NOW. L, T: the z-index changes at this commit; a slot mid-exit keeps the one it left with. Row order and widths do not change. |
+| `enterFrom` | auto, left, right, anchor | auto | NEXT. Read at the next enter; a slide in progress keeps its start side. |
+| `exitTo` | auto, left, right | auto | NEXT. Read at the next park; an exit in progress is unchanged. |
+| `closeExit` | down, left, right | down | NEXT. Read at the next close of this panel; a close in the same turn is busy. |
+| `animated` | true, false | true | NEXT. Read at the next enter, exit, park or scroll; an animation running finishes as started. |
+| `formFactor` | phone, tablet, desktop | phone (C4) | NEXT. Changes the DEFAULT tier only (next open(), a restore without a saved tier, resetLayout); never resizes a live, parked or hidden panel; the person's recorded tier wins (shadowed). A tier outside formFactors is settings-conflict. |
+| `title` | string | none ('Panel N' for the bag) | NOW. L, T, K, H: the summary title changes at this commit (header pill, History row); the closed-pages log entry keeps the old title. U: undo rebuilds with it. null restores the cascade value. |
+| `pinning` | object { pinned: PinHalf, unpinned: PinHalf }; PinHalf = { placement?, parkable? }; valid only if readable after a drag (6A); empty = no pin | { pinned: { placement: 'row-start' }, unpinned: { placement: 'row-end' } } (0.1.0's one pin rule) | NOW. PanelState.pinned and a slot's pressed state re-read at this commit; nothing moves, parks, shows or scrolls. A deferred pin keeps its direction. An unreadable definition or in-place throws. |
+| `pinningWhenNotLive` | place-only, refuse, show, apply-on-next-show; or { parked?, hidden?, closed? } (closed: refuse or apply-on-next-show) | place-only | NEXT. Read by the next pin change. A stored deferred pin is neither applied nor dropped by a flip of this setting. C, U: the record's value governs. |
+| `headerButtons` | object: slot id (1-32 chars a-z0-9-) to HeaderButton or false; HeaderButton = { icon, label, onClick, side?, order?, pressed?, description?, tooltip?, disabled?, hidden?, sx? } (section 6) | {} (no button drawn) | NOW. L, T: a slot appears, changes or disappears at this commit; a focused button that leaves moves focus to the header row; a press already dispatched completes. K, H: stored, first drawn when it returns. null deletes the instance entry; false removes the slot. |
+| `persist` | saved, session | saved | NEXT. Takes effect at the next save projection; no row effect. saved->session: the entry leaves the file; dependents get derived anchors; an explicit rememberLayout:true is settings-conflict. session->saved: written at the next save. |
+| `rememberLayout` | true, false | true (C3) | NEXT. true->false: gestures are not recorded and, at restore, stored overrides are not applied; nothing moves; the file keeps them. false->true: recording and applying resume. C3: true under persist:session is settings-conflict. |
+| `restoreVisibility` | saved, live, parked | saved (C1) | NEXT. Read only at the next launch's restore. C1: anything but live on a fixed column is settings-conflict. |
+| `afterClose` | stay-closed, return-next-launch | stay-closed (C3) | NEXT. Read when the panel next leaves the list. An existing tombstone is neither added nor removed by the flip. C3: stay-closed under persist:session is settings-conflict. |
+| `undoWindowMs` | integer ms; 0 = no undo | 10000 | NEXT. Read by the next close of this panel. An open undo window keeps the end it has; a 0 affects only later closes. |
+| `reportClose` | true, false | true | NEXT. Read by the next close; log entries already reported stay. |
+| `snapshot` | both, park, close, never | both | NEXT. Read at the next park or close. Switching to never asks the host to evict this panel's stored picture once, from the commit's layout effect. |
+| `tuning.rowGap` | integer px 0 to 200 (workspace only) | 16 (GAP) | NOW (configureTuning only). The whole row re-prices at this commit; in park mode a smaller capacity parks the fewest park panels through the reconcile effect; a scrolling row only re-prices and clamps scrollLeft. Slides in progress retarget. Unmeasured: stored. Busy while any panel has a token. Outside 0-200 throws. |
+| `tuning.dragToClose` | object: distanceFraction [0.05, 1], minDistancePx >= 8, flickMinDistancePx >= 8, flickVelocity >= 100, cancelVelocity <= -50, directionLockPx integer [2, 64], snapBack { stiffness [50, 2000], damping [5, 200] }; panel or workspace | 0.25, 80, 40, 700, -300, 8, { 520, 42 } (DRAG_CLOSE; DIRECTION_LOCK_PX) | NEXT. Panel door: configure(id, { tuning: { dragToClose } }); workspace door: configureTuning sets the default. Read at the next release; a drag in flight is judged by the values current at release. Leaves merge; null removes a panel leaf. |
+| `tuning.slide` | object: durationSec [0, 10], ease (four numbers, x1 and x2 in [0,1]), closeExitSeconds [0, 5]; panel or workspace | 0.4, [0.2, 0, 0, 1], 0.18 (SLOT_TRANSITION, DRAG_CLOSE.exitSeconds) | NEXT. Panel and workspace doors. Read at the next enter, exit, close or scroll; animations running keep their timing. animated:false still wins. |
+| `tuning.hopFraction` | number in (0, 1]; panel or workspace | 0.5 | NEXT. Panel and workspace doors. Read by the dragged panel's view at its next release. Outside (0, 1] throws. |
+| `tuning.edgeScroll` | object: zonePx integer [8, 200], maxPxPerSec integer [100, 5000], reducedStepMs integer [100, 5000]; panel or workspace (a key derived from Q19; the numbers are owner-confirmed, Q21) | 48, 900, 500 (owner-confirmed, Q21; the numbers live in rowConstants.ts) | NEXT. Panel door: configure(id, { tuning: { edgeScroll } }); workspace door: configureTuning sets the default. Read at the next drag start; a drag in flight keeps its numbers. Leaves merge; null removes a panel leaf. |
+| `tuning.saveQuietMs` | integer ms >= 0 (workspace only) | 500 | NEXT (configureTuning only). A timer already armed keeps its deadline; the next arm uses the new value. Session-only. |
+| `tuning.gestureLockMs` | integer ms >= 0 (workspace only) | 350 | NEXT (configureTuning only). A lock already armed keeps its remaining time. Session-only. |
+| `tuning.returnTieBreak` | latest-first, earliest-first, row-order (workspace only) | latest-first | NEXT (configureTuning only). Read at the next stack walk; nothing returns now. |
+| `tuning.dropTieBreak` | leftmost, rightmost (workspace only) | leftmost | NEXT (configureTuning only). Read at the next capacity drop or resize; nothing parks now. |
+| `tuning.rowGesture` | step, free, off (workspace only; a design-derived key from Q15, not requested) | step | NEXT (configureTuning only). The listener set is re-read at the next render; a gesture in flight finishes; no panel moves. Session-only. |
+| `tuning.initialScroll` | start, end, root, { panel: PanelId } (workspace only; a design-derived key from Q15, not requested) | start (the library default, a design default the owner did not rule on; phonux-app sets 'end', owner Q20: the newest closable panels in view at launch) | NEXT (configureTuning only). Read at the next mount; nothing scrolls now. Session-only. |
+<!-- catalog:end -->
+
 ## The API reports in `etc/`
 
 `etc/phonux.api.md` and `etc/phonux-testing.api.md` are API Extractor's reading of this package's surface, one
