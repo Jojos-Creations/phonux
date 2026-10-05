@@ -2,6 +2,25 @@
 
 ## Unreleased
 
+### Added
+
+- `usePanelCapabilities()`: what the panel a view sits in lets a person do (`closable`, `draggable`, `placeable`,
+  `resizable` and the allowed `formFactors`); outside a row it returns the library defaults.
+- `PanelWindow` and `PanelRowEntry` gain the optional `settings` (the resolved settings an entry was made under)
+  and `key`. A hand-built entry has neither and behaves as before.
+
+### Changed
+
+- `clearAll` keeps an entry whose `clearable` setting is false. An entry seeded with `locked: true` and
+  `collapsible: true` used to be removed by it; it is kept now, like History and a permanent column.
+- `usePanelCloseEligible` is also false for a locked entry, and `usePanelReorderEligible` follows the
+  `draggable` setting (true for every collapsible entry unless it is set false).
+- A `close` the engine refuses (an unknown or locked id) no longer asks the host's `CaptureTrigger` for a picture.
+- `onPanelsRestored` lists only the closes that were reported and restored; it is not called when there are none.
+  Before, it listed every id of the batch, including one `undoClose` skipped because the id was already back.
+- The undo window ends at the latest of each close's `undoWindowMs` after that close, and no close shortens it;
+  with the default 10 000 ms that is the 0.1.0 behaviour, where every close restarted the window.
+
 ### Removed
 
 - The 22 deprecated aliases left by the renames before 0.1.0. Use the current names: `DeviceAPI` ->

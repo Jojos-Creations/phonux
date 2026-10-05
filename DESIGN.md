@@ -25,9 +25,31 @@ imports only the contracts and the data-only phone model list.
 ## Behavior flags cross this boundary as data only
 
 The panel model (`PanelWindow`, `panelWindow.ts`) adds behavior flags (`collapsible`, `listed`, `view`, ...)
-to decide overflow, listing and rendering -- but `PanelSummary` (a view's own read of a panel) exposes only
-what a view needs to render a row: id, url, title, live, locked, formFactor, size. A view never sees or
-reasons about the flags that decided whether a panel is in `panelList` at all.
+and, for an entry made from settings, the resolved `settings` and a `key`, to decide overflow, listing,
+permissions and rendering -- but `PanelSummary` (a view's own read of a panel) exposes only what a view needs to
+render a row: id, url, title, live, locked, formFactor, size. A view never sees the entry, its flags or its
+settings. What it may ask is what its own panel permits, and that crosses as data too: `usePanelCapabilities()`
+returns the five booleans and the tier list a person can act on (`closable`, `draggable`, `placeable`,
+`resizable`, `formFactors`), read from the slot context `panelSlotContext.ts` holds, never a reference to the
+entry. A view mounted outside a row is told the library defaults.
+
+### An entry carries the settings it was made under
+
+`effective(p)` (`panelSettings.ts`, internal) is the one reader of an entry's settings: `p.settings` itself when
+the entry has them, otherwise values read from the fields a hand-built entry carries (`locked` gives `closable`
+and, with `collapsible`, `clearable`; `collapsible` gives `parkable`, `draggable`, `placeable` and `resizable`; a
+collapsible entry's `overflow` is 'park', a fixed column's 'scroll'), with every other key at its library
+default. So a hand-built 0.1.0 entry behaves as it did. `applyTemplate(entry, resolved, mode)` is the one writer
+of the fields that mirror the settings: 'create' writes `locked` (`!closable`), `collapsible` (`parkable`),
+`listed`, `layer`, `anchoredEnter`, `formFactor`, its `size`, `title`, `settings` and `key`; 'reconfigure'
+writes only `locked`, `listed`, `layer`, `anchoredEnter`, `title`, `settings` and, for a parkable flip,
+`collapsible`, and leaves the tier, size, anchor, `live`, `hostData` and `key` as the person and the row left
+them. `appendPanel`, `restorePanel` and `hydrateWorkspaceState` write no `key`, so a hand-built entry has none
+and a reader uses `p.key ?? p.id`. Every guard that decides a permission reads `effective(p)`: `movePanel`
+(`draggable`, and `crossable` of every array slot from the source to the target, parked ones included),
+`reanchorPanel` (`placeable`), `setFormFactor` (`resizable` and `formFactors`), the `clearAll` filter
+(`clearable`), and the close path (`locked`, which `applyTemplate` writes). Reads of `.collapsible` that remain
+are about presence and parking, and test/source-invariants.test.ts lists the functions that make them.
 
 ## The panel-view registry: never a crash, never a silent substitution
 
@@ -66,10 +88,11 @@ already is. Other panels can still be dragged past it -- see `PanelsAPI.move`'s 
 
 The "own control only" guarantee also has to hold for the built-in 'web' view, not just a custom one: `view`
 left at its default (or set explicitly to `'web'`) still resolves to the host's own panel component, which otherwise wraps
-EVERY panel in a framework drag-to-close handle unconditionally. That component reads its own `collapsible`
-through the same per-slot context PanelRow.tsx already provides for the reorder exemption
-(`usePanelCloseEligible`, alongside `usePanelReorderEligible`) and renders no DragToClose wrapper -- no grab
-bar at all -- when it reads false, exactly like History's own locked Panel today.
+EVERY panel in a framework drag-to-close handle unconditionally. That component reads
+`usePanelCloseEligible`, which is false for a column with `collapsible:false` and for an entry whose `closable`
+setting is false, through the same per-slot context (`panelSlotContext.ts`) that gives `usePanelReorderEligible`
+its answer from `draggable`. It renders no DragToClose wrapper -- no grab bar at all -- when it reads false,
+exactly like History's own locked Panel today.
 
 ## `size?` is additive: omitted means "read the shared device size, exactly as before this prop existed"
 
@@ -511,8 +534,9 @@ when its `panel` is dangling or cyclic (see "How hydrate builds the list" below)
   gets `defaultHostData()` like a created one, so a host that needs a fresh handle per panel builds it there;
   with no `defaultHostData`, or when it returns `undefined`, the panel has no `hostData` key at all.
 - **Never saved -- `size`.** Always recomputed from `formFactor`, never round-tripped.
-- **Never saved -- `locked`.** Always `false` at create time for anything saveable, never independently set
-  on a saveable panel today.
+- **Never saved -- `locked`.** Mirrors the `closable` setting (`locked` is `!closable`) and is written only by
+  `applyTemplate`; `appendPanel`, which every restore goes through, writes `false`. It is rebuilt on restore, never
+  round-tripped.
 - **Never saved -- `collapsible`.** Not an independent stored fact: it is `appendPanel`'s own `!info.permanent`
   derivation, recomputed from the saved `permanent` field on restore rather than round-tripped.
 - **Never saved -- `anchoredEnter`.** A creation-time enter-animation hint, defaulted on restore, not a fact
@@ -856,7 +880,8 @@ never gains a `snapshot` field for the same reason `PanelWindow`'s host-only fie
 `CaptureTrigger` -- what `useProvidePanels` calls at a park or close to (re)capture a view's picture or to drop
 it -- is declared in `snapshots.ts`, beside `CaptureRegistry`. phonux only says WHEN. A provider with no `capture`
 input uses `noopCaptureTrigger`, so phonux never captures by itself; a host that wants real pictures passes its own
-trigger. The two eviction paths differ in timing: `clearAll` evicts every dropped panel's picture at once, because
+trigger. A panel's `snapshot` setting says which events ask: 'both' (the default), 'park', 'close' or 'never',
+and 'never' also skips the evict call. The two eviction paths differ in timing: `clearAll` evicts every dropped panel's picture at once, because
 a dropped panel can never be shown again, while a closed panel's picture waits for its undo window (Undo keeps it;
 the window's natural elapse evicts it). Known limit: a capture already in flight can still store its picture after
 an evict, because the store has no per-id generation, so a panel parked and then cleared within one engine call can

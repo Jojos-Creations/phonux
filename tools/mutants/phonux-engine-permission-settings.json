@@ -1,0 +1,88 @@
+{
+  "tests": [
+    "test/settings-enforcement-permissions.test.ts",
+    "test/pins-permission.test.ts",
+    "test/source-invariants.test.ts",
+    "test/compat-0.1.0.test.ts"
+  ],
+  "mutants": [
+    {
+      "name": "the draggable guard in movePanel is reverted to collapsible",
+      "file": "panelWindow.ts",
+      "find": "if (presentIndex < 0 || !effective(present[presentIndex]!).draggable) return panels;",
+      "replace": "if (presentIndex < 0 || !present[presentIndex]!.collapsible) return panels;",
+      "expectRed": [
+        "differential draggable",
+        "draggable false: movePanel returns the same array"
+      ]
+    },
+    {
+      "name": "clearAll ignores locked and clearable and drops every collapsible panel",
+      "file": "panels/useProvidePanels.ts",
+      "find": "return prev.filter((p) => !effective(p).clearable);",
+      "replace": "return prev.filter((p) => !p.collapsible);",
+      "expectRed": [
+        "clearAll keeps an initialEntries entry seeded",
+        "closable false: a close leaves the entries"
+      ]
+    },
+    {
+      "name": "the reportClose filter is removed from the close report",
+      "file": "panels/usePanelClosing.ts",
+      "find": "if (settings.reportClose) onPanelsClosed?.(",
+      "replace": "onPanelsClosed?.(",
+      "expectRed": [
+        "differential reportClose",
+        "reportClose false: onPanelsClosed is not called"
+      ]
+    },
+    {
+      "name": "the snapshot gate is removed from the park capture",
+      "file": "panels/useProvidePanels.ts",
+      "find": " && !p.live && asksForPicture(p, 'park')) capture.capture(p.id);",
+      "replace": " && !p.live) capture.capture(p.id);",
+      "expectRed": [
+        "snapshot never: a park, a close and a clearAll",
+        "snapshot 'close' differs from 'both'"
+      ]
+    },
+    {
+      "name": "applyTemplate create writes locked from the wrong key",
+      "file": "panelSettings.ts",
+      "find": "locked: !resolved.closable,\n    collapsible: resolved.parkable,",
+      "replace": "locked: !resolved.parkable,\n    collapsible: resolved.parkable,",
+      "expectRed": [
+        "create over 300 resolver-random entries",
+        "closable false: the entry is locked and not clearable"
+      ]
+    },
+    {
+      "name": "the crossable scan is reduced to the present neighbour",
+      "file": "panelWindow.ts",
+      "find": "for (let i = from + step; i !== to + step; i += step) if (!effective(panels[i]!).crossable) return panels;",
+      "replace": "if (!effective(neighbor).crossable) return panels;",
+      "expectRed": [
+        "crossable false: a parked non-crossable panel between source and target is a barrier"
+      ]
+    },
+    {
+      "name": "the legacy effective overflow default is changed from park to scroll",
+      "file": "panelSettings.ts",
+      "find": "overflow: parkable ? 'park' : 'scroll',",
+      "replace": "overflow: 'scroll',",
+      "expectRed": [
+        "effective of a hand-built collapsible entry has overflow 'park'"
+      ]
+    },
+    {
+      "name": "appendPanel writes key = id",
+      "file": "panelWindow.ts",
+      "find": "anchoredEnter: info.anchoredEnter ?? false,",
+      "replace": "anchoredEnter: info.anchoredEnter ?? false,\n    key: id,",
+      "expectRed": [
+        "compat-0.1.0 corpus: the 14 pure functions",
+        "appendPanel, restorePanel and hydrateWorkspaceState never write a key"
+      ]
+    }
+  ]
+}
