@@ -1,0 +1,83 @@
+{
+  "tests": [
+    "test/panel-settings-catalog.test.ts",
+    "test/panel-settings-resolver.test.ts",
+    "test/panel-settings-patch.test.ts",
+    "test/panel-template.test.ts",
+    "test/rowconstants-drift.test.ts"
+  ],
+  "mutants": [
+    {
+      "name": "a coupling rule is a no-op (C1 never fires)",
+      "file": "panelSettings.ts",
+      "find": "if (s.values.parkable === false) {",
+      "replace": "if (s.values.parkable === 'never') {",
+      "expectRed": [
+        "C1: a fixed column forces"
+      ]
+    },
+    {
+      "name": "template and instance layers swapped in the cascade",
+      "file": "panelSettings.ts",
+      "find": "const ASK_LAYERS: readonly AskLayer[] = ['workspace', 'template', 'host', 'instance'];",
+      "replace": "const ASK_LAYERS: readonly AskLayer[] = ['workspace', 'instance', 'host', 'template'];",
+      "expectRed": [
+        "cascade: a table of eight"
+      ]
+    },
+    {
+      "name": "the derived default of draggable is removed",
+      "file": "panelSettings.ts",
+      "find": "fill(s, 'draggable', parkable);",
+      "replace": "void parkable;",
+      "expectRed": [
+        "derived defaults: draggable, placeable, listed and clearable follow parkable"
+      ]
+    },
+    {
+      "name": "the invalid-value check is removed",
+      "file": "panelSettings.ts",
+      "find": "const problem = SETTING_CHECKS[key as SettingKey](value);",
+      "replace": "const problem = undefined as string | undefined;",
+      "expectRed": [
+        "enumerations: every enumerated value resolves to itself"
+      ]
+    },
+    {
+      "name": "a conflict is recorded for a workspace-layer ask",
+      "file": "panelSettings.ts",
+      "find": "if (layer === 'template' || layer === 'host' || layer === 'instance') s.drafts.push({ key, layer, asked, rule, forcedBy });",
+      "replace": "if (layer === 'workspace' || layer === 'template' || layer === 'host' || layer === 'instance') s.drafts.push({ key, layer: layer as 'template', asked, rule, forcedBy });",
+      "expectRed": [
+        "C1: without the trigger the same asks stand"
+      ]
+    },
+    {
+      "name": "C6 is removed",
+      "file": "panelSettings.ts",
+      "find": "if (s.values.viewState === 'reset-on-park') force(s, 'keepMounted', false, 'C6', 'viewState');",
+      "replace": "void 0;",
+      "expectRed": [
+        "C6: reset-on-park forces keepMounted false"
+      ]
+    },
+    {
+      "name": "headerButtons is replaced whole instead of merged per slot id",
+      "file": "panelSettings.ts",
+      "find": "const slots: Plain = { ...(values.headerButtons as Plain) };",
+      "replace": "const slots: Plain = {};",
+      "expectRed": [
+        "cascade: headerButtons merges per slot id"
+      ]
+    },
+    {
+      "name": "the pin readability check is removed",
+      "file": "panelSettings.ts",
+      "find": "if (!pinIsReadable(pinnedHalf, unpinnedHalf))",
+      "replace": "if (false as boolean)",
+      "expectRed": [
+        "pinning: a hand-written table of valid and invalid definitions"
+      ]
+    }
+  ]
+}
