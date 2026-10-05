@@ -5,6 +5,7 @@
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { isDeepStrictEqual } from 'node:util';
 import { PANEL_SETTINGS_CATALOG, PanelManagerError, mergePatch, resolvePanelSettings } from '../index.js';
 import type { CatalogName, HeaderButton, PanelSettings, PanelSettingsLayers, PanelSettingsResolution, ResolveOptions, SettingConflict, SourceLayer } from '../index.js';
 
@@ -992,4 +993,242 @@ test('pinning: pin-unlists appears when a pinned half names parkable false and l
   assert.deepEqual(resolve({ template: { pinning: { pinned: { parkable: true }, unpinned: { parkable: false } } } }).notes, []);
   assert.deepEqual(resolve().notes, []);
   assert.deepEqual(resolve({ template: { pinning: { pinned: { placement: 'row-start' }, unpinned: { placement: 'row-end' } } } }).notes, []);
+});
+
+// ---------------------------------------------------------------------------
+// Property: seeded random layer stacks
+// ---------------------------------------------------------------------------
+
+type Rng = () => number;
+type Loose = Record<string, unknown>;
+
+function mulberry32(seed: number): Rng {
+  let a = seed >>> 0;
+  return () => {
+    a = (a + 0x6d2b79f5) >>> 0;
+    let t = a;
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+const chance = (rng: Rng, p: number): boolean => rng() < p;
+const pick = <T>(rng: Rng, items: readonly T[]): T => items[Math.floor(rng() * items.length)] as T;
+
+function deepFreeze<T>(value: T): T {
+  if (typeof value === 'object' && value !== null && !Object.isFrozen(value)) {
+    Object.freeze(value);
+    for (const inner of Object.values(value)) deepFreeze(inner);
+  }
+  return value;
+}
+
+/** Keys a stack asks for more often, so the coupling rules fire in most stacks. */
+const BOOSTED: Record<string, number> = { parkable: 0.3, closable: 0.25, persist: 0.25, viewState: 0.25, formFactors: 0.3, formFactor: 0.3, keepMounted: 0.3, overflow: 0.3, clearable: 0.2, rememberLayout: 0.2, afterClose: 0.2, resizable: 0.2, startVisibility: 0.2, restoreVisibility: 0.2 };
+const SKEWED_FALSE = new Set(['parkable', 'closable']);
+const PIN_VALID = PIN_TABLE.filter((row) => row[2] === 'valid').map((row) => row[1]);
+const SLOT_IDS = ['size', 'pin', 'menu'] as const;
+const TUNING_POOL: readonly Loose[] = [
+  { dragToClose: { distanceFraction: 0.3 } },
+  { dragToClose: { minDistancePx: 120, flickVelocity: 900 } },
+  { dragToClose: { snapBack: { stiffness: 300, damping: 30 } } },
+  { slide: { durationSec: 0.2 } },
+  { slide: { ease: [0.3, 0, 0.7, 1] } },
+  { edgeScroll: { zonePx: 30 } },
+  { hopFraction: 0.3 },
+  { hopFraction: 0.6 },
+];
+const VIEW_KEYS = ['title', 'listed', 'layer', 'formFactor', 'placeOnAdd', 'enterFrom'];
+
+function randomHeaderButtons(rng: Rng): Loose {
+  const map: Loose = {};
+  for (const id of SLOT_IDS) {
+    if (!chance(rng, 0.4)) continue;
+    map[id] = chance(rng, 0.25) ? false : slot(`${id}-${Math.floor(rng() * 3)}`, chance(rng, 0.5) ? { side: 'end', order: 2 } : {});
+  }
+  return map;
+}
+
+function randomTuning(rng: Rng, allowWorkspaceOnly: boolean): Loose {
+  const tuning: Loose = {};
+  for (let n = 0; n < 2; n += 1) if (chance(rng, 0.6)) Object.assign(tuning, pick(rng, TUNING_POOL));
+  if (allowWorkspaceOnly && chance(rng, 0.4)) {
+    const [leaf, value] = pick(rng, WORKSPACE_ONLY_ASKS);
+    tuning[leaf] = value;
+  }
+  return tuning;
+}
+
+function randomLayer(rng: Rng, kind: 'workspace' | 'template' | 'host' | 'instance'): PanelSettings | undefined {
+  if (chance(rng, kind === 'host' ? 0.5 : 0.2)) return undefined;
+  const layer: Loose = {};
+  for (const [key, values] of Object.entries(ENUMERATED)) {
+    const p = kind === 'host' ? (VIEW_KEYS.includes(key) ? 0.35 : 0.04) : (BOOSTED[key] ?? 0.08);
+    if (!chance(rng, p)) continue;
+    layer[key] = SKEWED_FALSE.has(key) ? pick(rng, [false, false, true]) : pick(rng, values);
+  }
+  if (chance(rng, 0.15)) layer.pinning = pick(rng, PIN_VALID);
+  if (chance(rng, 0.2)) layer.headerButtons = randomHeaderButtons(rng);
+  if (kind === 'template' && chance(rng, 0.25)) layer.tuning = randomTuning(rng, false);
+  if (kind === 'instance' && chance(rng, 0.3)) layer.tuning = randomTuning(rng, true);
+  if (kind === 'host' && chance(rng, 0.05)) layer.tuning = randomTuning(rng, true);
+  return layer as PanelSettings;
+}
+
+function randomStack(rng: Rng): { layers: PanelSettingsLayers; options: ResolveOptions } {
+  const layers: PanelSettingsLayers = {};
+  for (const kind of ['workspace', 'template', 'host', 'instance'] as const) {
+    const layer = randomLayer(rng, kind);
+    if (layer !== undefined) layers[kind] = layer;
+  }
+  if (chance(rng, 0.5)) {
+    const user: Loose = {};
+    if (chance(rng, 0.5)) user.formFactor = pick(rng, TIERS);
+    if (chance(rng, 0.4)) user.parkable = pick(rng, [false, false, true]);
+    if (chance(rng, 0.3)) user.anchor = { panel: 'x', position: pick(rng, ['left', 'right'] as const) };
+    layers.user = user as PanelSettingsLayers['user'];
+  }
+  return { layers, options: { root: chance(rng, 0.15) } };
+}
+
+/** Independent bounds for every tuning member, written from the ranges and not from the validators. */
+function tuningInDomain(t: Loose): boolean {
+  const within = (v: unknown, lo: number, hi: number): boolean => typeof v === 'number' && v >= lo && v <= hi;
+  const d = t.dragToClose as Loose;
+  const sb = d.snapBack as Loose;
+  const sl = t.slide as Loose;
+  const ease = sl.ease as number[];
+  const es = t.edgeScroll as Loose;
+  return (
+    Object.keys(t).sort().join() === 'dragToClose,edgeScroll,hopFraction,slide' &&
+    within(d.distanceFraction, 0.05, 1) && within(d.minDistancePx, 8, Infinity) && within(d.flickMinDistancePx, 8, Infinity) && within(d.flickVelocity, 100, Infinity) &&
+    within(d.cancelVelocity, -Infinity, -50) && within(d.directionLockPx, 2, 64) && within(sb.stiffness, 50, 2000) && within(sb.damping, 5, 200) &&
+    within(sl.durationSec, 0, 10) && within(sl.closeExitSeconds, 0, 5) && ease.length === 4 && within(ease[0], 0, 1) && within(ease[2], 0, 1) &&
+    within(t.hopFraction, 0.0001, 1) && within(es.zonePx, 8, 200) && within(es.maxPxPerSec, 100, 5000) && within(es.reducedStepMs, 100, 5000)
+  );
+}
+
+const PIN_DOMAIN = PIN_VALID.map((p) => ({ pinned: {}, unpinned: {}, ...(p as object) }));
+const NOTE_CODES = ['override-dropped', 'pin-unlists', 'park-lever-inert'];
+
+const coverage = { stacks: 0, roots: 0, withConflicts: 0, withNotes: 0, userParkableApplied: 0, userTierApplied: 0, rules: new Set<string>(), kinds: new Set<string>(), noteCodes: new Set<string>() };
+
+function checkStack(layers: PanelSettingsLayers, options: ResolveOptions): void {
+  const before = structuredCloneKeepingFunctions(layers);
+  deepFreeze(layers);
+  const res = resolve(layers, options);
+  assert.deepEqual(resolvePanelSettings(layers, options), res, 'resolving the same layers twice gives equal results');
+  assert.deepEqual(layers, before, 'the layers were not changed');
+  const v = res.value as unknown as Loose;
+
+  for (const [key, value] of Object.entries(v)) {
+    if (key === 'tuning') assert.ok(tuningInDomain(value as Loose), 'tuning in domain');
+    else if (key === 'headerButtons') assert.ok(Object.values(value as Loose).every((s) => typeof s === 'object' && s !== null && typeof (s as Loose).label === 'string'), 'headerButtons holds slots only');
+    else if (key === 'pinning') assert.ok(PIN_DOMAIN.some((p) => isDeepStrictEqual(p, value)) || isDeepStrictEqual(value, { pinned: { placement: 'row-start' }, unpinned: { placement: 'row-end' } }), 'pinning in domain');
+    else assert.ok((ENUMERATED[key] ?? []).some((member) => isDeepStrictEqual(member, value)), `${key} = ${JSON.stringify(value)} is in its domain`);
+  }
+  for (const key of Object.keys(v)) if (key !== 'tuning' && key !== 'headerButtons') assert.ok(key in res.source, `${key} has a source`);
+
+  if (v.parkable === false) {
+    assert.deepEqual([v.resizable, v.formFactors, v.formFactor, v.overflow, v.startVisibility, v.restoreVisibility, v.keepMounted], [false, ['phone'], 'phone', 'scroll', 'live', 'live', false], 'C1');
+  }
+  if (v.closable === false) assert.equal(v.clearable, false, 'C2');
+  if (v.persist === 'session') assert.deepEqual([v.rememberLayout, v.afterClose], [false, 'return-next-launch'], 'C3');
+  assert.ok((v.formFactors as string[]).includes(v.formFactor as string), 'C4');
+  if (options.root === true) assert.deepEqual([v.closable, v.parkable, v.draggable, v.placeable, v.clearable], [false, false, false, false, false], 'C5');
+  if (v.viewState === 'reset-on-park') assert.equal(v.keepMounted, false, 'C6');
+  for (const key of ['draggable', 'placeable', 'listed']) if (res.source[key] === 'derived') assert.equal(v[key], v.parkable, `${key} derived`);
+  if (res.source.clearable === 'derived') assert.equal(v.clearable, v.parkable === true && v.closable === true, 'clearable derived');
+
+  for (const [key, layerName] of [['parkable', 'user'], ['formFactor', 'user']] as const) if (res.source[key] === layerName) {
+    assert.equal(v[key], (layers.user as Loose)[key], `${key} from the user layer`);
+    coverage[key === 'parkable' ? 'userParkableApplied' : 'userTierApplied'] += 1;
+  }
+  for (const layerName of ['workspace', 'template', 'host', 'instance'] as const) {
+    const layer = layers[layerName] as Loose | undefined;
+    if (layer === undefined) continue;
+    for (const key of Object.keys(layer)) {
+      if (res.source[key] === layerName && key !== 'headerButtons' && key !== 'pinning' && key !== 'tuning') assert.ok(isDeepStrictEqual(layer[key], v[key]), `${layerName}.${key} won, so its value stands`);
+    }
+  }
+  const instance = layers.instance as Loose | undefined;
+  if (instance !== undefined) {
+    for (const key of Object.keys(instance)) {
+      if (['hostCreatable', 'multiple', 'maxInstances', 'tuning', 'headerButtons', 'pinning'].includes(key)) continue;
+      assert.ok(['instance', 'forced', 'user'].includes(res.source[key] as string), `an instance ask of ${key} is beaten only by a rule or the person: ${String(res.source[key])}`);
+    }
+  }
+
+  const seen = new Set<string>();
+  for (const c of res.conflicts) {
+    const id = `${c.layer}|${c.key}|${c.kind}`;
+    assert.ok(!seen.has(id), `a conflict is recorded once: ${id}`);
+    seen.add(id);
+    const layer = layers[c.layer] as Loose | undefined;
+    assert.ok(layer !== undefined, `the ${c.layer} layer exists`);
+    if (c.key.startsWith('tuning.')) {
+      assert.ok(Object.hasOwn((layer as Loose).tuning as Loose, c.key.slice('tuning.'.length)), `${c.layer} asked ${c.key}`);
+    } else {
+      assert.ok(isDeepStrictEqual((layer as Loose)[c.key], c.asked), `${c.layer} asked ${c.key}`);
+      assert.ok(isDeepStrictEqual(v[c.key], c.applied), `${c.key} applied`);
+    }
+    if (c.kind === 'forced') assert.ok(!isDeepStrictEqual(c.asked, c.applied), 'a forced conflict changed something');
+    coverage.kinds.add(c.kind);
+    if (c.rule !== undefined) coverage.rules.add(c.rule);
+  }
+  for (const n of res.notes) {
+    assert.ok(NOTE_CODES.includes(n.code), `note ${n.code}`);
+    coverage.noteCodes.add(n.code);
+  }
+  coverage.stacks += 1;
+  if (options.root === true) coverage.roots += 1;
+  if (res.conflicts.length > 0) coverage.withConflicts += 1;
+  if (res.notes.length > 0) coverage.withNotes += 1;
+}
+
+/** A deep copy that keeps functions by reference: header-button slots hold functions, which structuredClone refuses. */
+function structuredCloneKeepingFunctions<T>(value: T): T {
+  if (Array.isArray(value)) return value.map((item) => structuredCloneKeepingFunctions(item as unknown)) as unknown as T;
+  if (typeof value === 'object' && value !== null) return Object.fromEntries(Object.entries(value).map(([k, inner]) => [k, structuredCloneKeepingFunctions(inner)])) as T;
+  return value;
+}
+
+test('property: 1200 seeded random layer stacks resolve inside their domains, obey every coupling rule, are deterministic and leave frozen inputs alone', () => {
+  const SEED = 20241005;
+  const ITERATIONS = 1200;
+  let iterations = 0;
+  for (let i = 0; i < ITERATIONS; i += 1) {
+    const seed = SEED + i;
+    const { layers, options } = randomStack(mulberry32(seed));
+    try {
+      checkStack(layers, options);
+    } catch (error) {
+      throw new Error(`property failed at seed ${seed} (iteration ${i}): ${error instanceof Error ? error.message : String(error)}\nlayers: ${JSON.stringify(layers)}\noptions: ${JSON.stringify(options)}`, { cause: error });
+    }
+    iterations += 1;
+  }
+  assert.ok(iterations >= 1000, `the property ran ${iterations} stacks`);
+  assert.equal(iterations, ITERATIONS);
+});
+
+test('property: the generator exercised every rule, every conflict kind, the root, the user layer and the notes, so a pass was not an empty run', () => {
+  assert.ok(coverage.stacks >= 1000, `${coverage.stacks} stacks were checked before this test`);
+  assert.deepEqual([...coverage.rules].sort(), ['C1', 'C2', 'C3', 'C4', 'C5', 'C6']);
+  assert.deepEqual([...coverage.kinds].sort(), ['forced', 'not-view-settable', 'wrong-scope']);
+  assert.deepEqual([...coverage.noteCodes].sort(), ['override-dropped', 'park-lever-inert', 'pin-unlists']);
+  assert.ok(coverage.roots >= 100 && coverage.withConflicts >= 300 && coverage.withNotes >= 300, JSON.stringify({ ...coverage, rules: undefined, kinds: undefined, noteCodes: undefined }));
+  assert.ok(coverage.userParkableApplied >= 20 && coverage.userTierApplied >= 100, JSON.stringify({ ...coverage, rules: undefined, kinds: undefined, noteCodes: undefined }));
+});
+
+test('property: a fixed stack holding every layer is not mutated, even deeply frozen, and resolves the same twice', () => {
+  const layers: PanelSettingsLayers = deepFreeze({
+    workspace: { animated: false, hostCreatable: false },
+    template: { parkable: false, overflow: 'park', headerButtons: { size: slot('Size') }, tuning: { dragToClose: { minDistancePx: 100 } } },
+    host: { title: 'T' },
+    instance: { closable: false, headerButtons: { pin: slot('Pin') }, tuning: { hopFraction: 0.7 } },
+    user: { formFactor: 'phone', anchor: { panel: 'x', position: 'left' } },
+  }) as PanelSettingsLayers;
+  const first = resolve(layers);
+  assert.deepEqual(resolve(layers), first);
+  assert.deepEqual(Object.keys(first.value.headerButtons).sort(), ['pin', 'size']);
 });
