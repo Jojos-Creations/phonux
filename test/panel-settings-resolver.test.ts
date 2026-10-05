@@ -809,3 +809,187 @@ test('scope: a wrong-scope ask beside valid keys leaves the valid keys applied',
   const res = resolve({ instance: asSettings({ closable: false, tuning: { rowGap: 4, hopFraction: 0.8 } }) });
   assert.deepEqual([res.value.closable, res.value.tuning.hopFraction, res.conflicts.map((c) => c.key)], [false, 0.8, ['tuning.rowGap']]);
 });
+
+// ---------------------------------------------------------------------------
+// The user layer
+// ---------------------------------------------------------------------------
+
+test('user layer: a tier outside formFactors is dropped with an override-dropped note and the resolved tier stands', () => {
+  const res = resolve({ template: { formFactors: ['phone', 'tablet'] }, user: { formFactor: 'desktop' } });
+  assert.deepEqual([res.value.formFactor, res.source.formFactor], ['phone', 'library']);
+  assert.deepEqual(res.notes.map((n) => [n.code, n.key]), [['override-dropped', 'formFactor']]);
+  const inside = resolve({ template: { formFactors: ['phone', 'tablet'] }, user: { formFactor: 'tablet' } });
+  assert.deepEqual([inside.value.formFactor, inside.source.formFactor, inside.notes], ['tablet', 'user', []]);
+});
+
+test('user layer: a tier on a resizable:false panel and an anchor on a panel that is neither draggable nor placeable are not dropped', () => {
+  const tier = resolve({ instance: { resizable: false }, user: { formFactor: 'tablet' } });
+  assert.deepEqual([tier.value.formFactor, tier.value.resizable, tier.source.formFactor, tier.notes], ['tablet', false, 'user', []]);
+  const anchor = { panel: 'notes', position: 'left', priority: 2 } as const;
+  const res = resolve({ instance: { draggable: false, placeable: false }, user: { anchor } });
+  assert.deepEqual(res.userAnchor, anchor);
+  assert.deepEqual(res.notes, []);
+  assert.deepEqual([res.value.draggable, res.value.placeable], [false, false]);
+  assert.equal('userAnchor' in resolve(), false, 'no user anchor, no userAnchor');
+});
+
+test('user layer: parkable false joins as the top layer, so C1 re-runs with source user and no conflict', () => {
+  const res = resolve({ user: { parkable: false } });
+  assert.deepEqual([res.value.parkable, res.source.parkable], [false, 'user']);
+  assert.deepEqual([res.value.resizable, res.value.overflow, res.value.formFactors, res.value.keepMounted], [false, 'scroll', ['phone'], false]);
+  assert.deepEqual([res.value.draggable, res.value.placeable, res.value.listed, res.value.clearable], [false, false, false, false]);
+  assert.deepEqual(res.conflicts, []);
+  assert.deepEqual(res.notes, []);
+  const kept = resolve({ user: { parkable: true } });
+  assert.deepEqual([kept.value.parkable, kept.source.parkable], [true, 'user']);
+});
+
+test("user layer: a template's own ask that the user's fixed column forces is still a conflict of that template", () => {
+  const res = resolve({ template: { overflow: 'park' }, user: { parkable: false } });
+  assert.deepEqual(res.conflicts.map((c) => [c.layer, c.key, c.rule, c.forcedBy]), [['template', 'overflow', 'C1', 'parkable']]);
+  assert.equal(res.value.overflow, 'scroll');
+});
+
+test('user layer: parkable false is dropped with a note when the resolved tier is not phone, and kept when the user tier is phone', () => {
+  const tablet = resolve({ template: { formFactor: 'tablet' }, user: { parkable: false } });
+  assert.deepEqual([tablet.value.parkable, tablet.source.parkable, tablet.value.formFactor], [true, 'library', 'tablet']);
+  assert.deepEqual(tablet.notes.map((n) => [n.code, n.key]), [['override-dropped', 'parkable']]);
+  const userTablet = resolve({ user: { formFactor: 'tablet', parkable: false } });
+  assert.deepEqual([userTablet.value.parkable, userTablet.value.formFactor], [true, 'tablet']);
+  assert.deepEqual(userTablet.notes.map((n) => [n.code, n.key]), [['override-dropped', 'parkable']]);
+  const phone = resolve({ template: { formFactor: 'tablet' }, user: { formFactor: 'phone', parkable: false } });
+  assert.deepEqual([phone.value.parkable, phone.source.parkable, phone.value.formFactor, phone.source.formFactor, phone.notes], [false, 'user', 'phone', 'user', []]);
+});
+
+test('user layer: only formFactor, anchor and parkable are accepted; anything else, or a wrong type, throws unless lenient', () => {
+  refuses({ user: { closable: false } as never }, 'user', 'closable');
+  refuses({ user: { formFactor: 'watch' } as never }, 'user', 'formFactor');
+  refuses({ user: { parkable: 'no' } as never }, 'user', 'parkable');
+  refuses({ user: { anchor: { position: 'up' } } as never }, 'user', 'anchor');
+  refuses({ user: 5 as never }, 'user', undefined);
+});
+
+// ---------------------------------------------------------------------------
+// Lenient mode
+// ---------------------------------------------------------------------------
+
+const SAVED_INSTANCE = asSettings({ closable: false, bogus: 1, listed: 'yes', overflow: 'evictable', parkable: 'yes', tuning: { rowGap: 999, hopFraction: 0.7 } });
+const SAVED_USER = { formFactor: 'tablet', bogus: 1, parkable: 'yes', anchor: 5 } as unknown as PanelSettingsLayers['user'];
+
+test('lenient: an instance and a user layer holding bad keys return the others intact with one invalid-saved-setting note per drop and never throw', () => {
+  const res = resolve({ instance: SAVED_INSTANCE, user: SAVED_USER }, { lenient: true });
+  assert.deepEqual([res.value.closable, res.value.tuning.hopFraction, res.value.formFactor, res.value.listed, res.value.overflow, res.value.parkable], [false, 0.7, 'tablet', true, 'scroll', true]);
+  assert.ok(res.notes.every((n) => n.code === 'invalid-saved-setting'));
+  const instanceNotes = res.notes.filter((n) => n.message.startsWith('instance.'));
+  const userNotes = res.notes.filter((n) => n.message.startsWith('user.'));
+  assert.deepEqual(instanceNotes.map((n) => n.key).sort(), ['bogus', 'listed', 'overflow', 'parkable', 'tuning.rowGap']);
+  assert.deepEqual(userNotes.map((n) => n.key).sort(), ['anchor', 'bogus', 'parkable']);
+  assert.equal(res.notes.length, 8, 'one note per drop');
+  assert.deepEqual(res.conflicts, []);
+});
+
+test('lenient: the same stack without lenient throws, naming the first bad key of the instance layer', () => {
+  refuses({ instance: SAVED_INSTANCE, user: SAVED_USER }, 'instance', 'bogus');
+  refuses({ instance: SAVED_INSTANCE, user: SAVED_USER }, 'instance', 'bogus', { lenient: false });
+  refuses({ user: SAVED_USER }, 'user', 'bogus');
+});
+
+test('lenient: each kind of bad saved value is dropped alone: unknown key, wrong type, tuning out of range, a removed enum member, a non-boolean parkable', () => {
+  const rows: ReadonlyArray<readonly [string, PanelSettings, string]> = [
+    ['unknown key', asSettings({ gone: true }), 'gone'],
+    ['wrong type', asSettings({ title: 5 }), 'title'],
+    ['tuning.rowGap 999', asSettings({ tuning: { rowGap: 999 } }), 'tuning.rowGap'],
+    ['removed enum member', asSettings({ overflow: 'evictable' }), 'overflow'],
+    ['non-boolean parkable', asSettings({ parkable: 1 }), 'parkable'],
+    ['out-of-range member', asSettings({ tuning: { dragToClose: { distanceFraction: 7 } } }), 'tuning.dragToClose.distanceFraction'],
+    ['unknown tuning key', asSettings({ tuning: { wobble: 1 } }), 'tuning.wobble'],
+  ];
+  for (const [what, instance, key] of rows) {
+    const res = resolve({ instance }, { lenient: true });
+    assert.deepEqual(res.notes.map((n) => [n.code, n.key]), [['invalid-saved-setting', key]], what);
+    assert.deepEqual(res.value, resolve().value, `${what}: nothing else changed`);
+  }
+});
+
+test('lenient: a layer that is not an object is dropped whole with one note; the workspace, template and host layers throw in both modes', () => {
+  const res = resolve({ instance: 5 as unknown as PanelSettings, user: 'x' as never }, { lenient: true });
+  assert.deepEqual(res.notes.map((n) => n.code), ['invalid-saved-setting', 'invalid-saved-setting']);
+  for (const lenient of [false, true]) {
+    refuses({ workspace: asSettings({ bogus: 1 }) }, 'workspace', 'bogus', { lenient });
+    refuses({ template: asSettings({ bogus: 1 }) }, 'template', 'bogus', { lenient });
+    refuses({ host: asSettings({ bogus: 1 }) }, 'host', 'bogus', { lenient });
+    refuses({ template: asSettings({ overflow: 'evictable' }) }, 'template', 'overflow', { lenient });
+    refuses({ workspace: asSettings({ tuning: { rowGap: 1 } }) }, 'workspace', 'tuning', { lenient });
+    refuses({ template: asSettings({ tuning: { rowGap: 1 } }) }, 'template', 'tuning.rowGap', { lenient });
+  }
+});
+
+// ---------------------------------------------------------------------------
+// Pin definitions
+// ---------------------------------------------------------------------------
+
+type PinRow = readonly [what: string, pinning: unknown, outcome: 'valid' | 'invalid'];
+const PIN_TABLE: readonly PinRow[] = [
+  ['the default', { pinned: { placement: 'row-start' }, unpinned: { placement: 'row-end' } }, 'valid'],
+  ['the parkable pair alone', { pinned: { parkable: false }, unpinned: { parkable: true } }, 'valid'],
+  ['the pair, pinned next to a dock, unpinned at the row end', { pinned: { placement: { after: 'dock' }, parkable: false }, unpinned: { placement: 'row-end', parkable: true } }, 'valid'],
+  ['row-start with after-fixed', { pinned: { placement: 'row-start' }, unpinned: { placement: 'after-fixed' } }, 'valid'],
+  ['the pair with row-start and row-end', { pinned: { placement: 'row-start', parkable: false }, unpinned: { placement: 'row-end', parkable: true } }, 'valid'],
+  ['the pair the other way round', { pinned: { parkable: true }, unpinned: { parkable: false } }, 'valid'],
+  ['empty halves', { pinned: {}, unpinned: {} }, 'valid'],
+  ['an empty definition', {}, 'valid'],
+  ['parkable in one half only', { pinned: { placement: 'row-start', parkable: false }, unpinned: { placement: 'row-end' } }, 'invalid'],
+  ['parkable in the unpinned half only', { pinned: { placement: 'row-start' }, unpinned: { placement: 'row-end', parkable: true } }, 'invalid'],
+  ['equal parkable values, both true', { pinned: { parkable: true }, unpinned: { parkable: true } }, 'invalid'],
+  ['equal parkable values, both false', { pinned: { parkable: false }, unpinned: { parkable: false } }, 'invalid'],
+  ['pinned row-end with unpinned row-start', { pinned: { placement: 'row-end' }, unpinned: { placement: 'row-start' } }, 'invalid'],
+  ['parkable-start without the pair', { pinned: { placement: 'parkable-start' }, unpinned: { placement: 'row-end' } }, 'invalid'],
+  ['parkable-end without the pair', { pinned: { placement: 'parkable-end' }, unpinned: { placement: 'row-start' } }, 'invalid'],
+  ['in-place in the pinned half', { pinned: { placement: 'in-place' }, unpinned: { placement: 'row-end' } }, 'invalid'],
+  ['in-place in the unpinned half', { pinned: { placement: 'row-start' }, unpinned: { placement: 'in-place' } }, 'invalid'],
+  ['an unknown half key', { pinned: { placement: 'row-start', slot: 1 }, unpinned: { placement: 'row-end' } }, 'invalid'],
+  ['an unknown key beside the halves', { pinned: {}, unpinned: {}, extra: {} }, 'invalid'],
+  ['pinned filled and unpinned empty', { pinned: { placement: 'row-start' }, unpinned: {} }, 'invalid'],
+  ['pinned empty and unpinned filled', { pinned: {}, unpinned: { placement: 'row-end' } }, 'invalid'],
+];
+
+test('pinning: a hand-written table of valid and invalid definitions; invalid ones throw invalid-settings naming layer and key; executed equals rows', () => {
+  let executed = 0;
+  for (const [what, pinning, outcome] of PIN_TABLE) {
+    for (const layer of ['template', 'instance'] as const) {
+      const layers: PanelSettingsLayers = { [layer]: asSettings({ pinning }) };
+      if (outcome === 'valid') {
+        const res = resolve(layers);
+        assert.deepEqual(res.value.pinning, { pinned: {}, unpinned: {}, ...(pinning as object) }, `${what} at ${layer}`);
+        assert.equal(res.source.pinning, layer);
+      } else {
+        refuses(layers, layer, 'pinning');
+      }
+    }
+    executed += 1;
+  }
+  assert.equal(executed, PIN_TABLE.length);
+  assert.equal(PIN_TABLE.filter((row) => row[2] === 'valid').length, 8);
+  assert.equal(PIN_TABLE.filter((row) => row[2] === 'invalid').length, 13);
+});
+
+test('pinning: the default is the row-start and row-end pair, and a saved invalid pinning is dropped in lenient mode', () => {
+  assert.deepEqual(resolve().value.pinning, { pinned: { placement: 'row-start' }, unpinned: { placement: 'row-end' } });
+  assert.equal(resolve().source.pinning, 'library');
+  const res = resolve({ instance: asSettings({ pinning: { pinned: { placement: 'row-end' }, unpinned: { placement: 'row-start' } } }) }, { lenient: true });
+  assert.deepEqual(res.notes.map((n) => [n.code, n.key]), [['invalid-saved-setting', 'pinning']]);
+  assert.deepEqual(res.value.pinning, resolve().value.pinning);
+});
+
+test('pinning: pin-unlists appears when a pinned half names parkable false and listed is unset, and not when listed is set', () => {
+  const pinning = { pinned: { parkable: false }, unpinned: { parkable: true } } as const;
+  const unset = resolve({ template: { pinning } });
+  assert.deepEqual(unset.notes.map((n) => [n.code, n.key]), [['pin-unlists', 'pinning']]);
+  for (const listed of [true, false]) {
+    const set = resolve({ template: { pinning, listed } });
+    assert.deepEqual(set.notes, [], `listed ${listed}`);
+  }
+  assert.deepEqual(resolve({ template: { pinning: { pinned: { parkable: true }, unpinned: { parkable: false } } } }).notes, []);
+  assert.deepEqual(resolve().notes, []);
+  assert.deepEqual(resolve({ template: { pinning: { pinned: { placement: 'row-start' }, unpinned: { placement: 'row-end' } } } }).notes, []);
+});

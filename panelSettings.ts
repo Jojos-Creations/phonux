@@ -1444,6 +1444,9 @@ function checkTuning(layer: AskLayer, raw: unknown, accepted: Accepted, env: Env
   }
 }
 
+/** A pin definition may leave a half out; the resolved value always has both. */
+const withBothHalves = (v: Plain): Pinning => ({ pinned: (v.pinned ?? {}) as PinHalf, unpinned: (v.unpinned ?? {}) as PinHalf });
+
 function checkLayer(layer: AskLayer, raw: unknown, env: Env): Accepted {
   const accepted: Accepted = { flat: new Map(), tuning: new Map() };
   if (raw === undefined) return accepted;
@@ -1476,7 +1479,7 @@ function checkLayer(layer: AskLayer, raw: unknown, env: Env): Accepted {
       env.pending.push({ key, layer, kind: 'not-view-settable', asked: value });
       continue;
     }
-    accepted.flat.set(key, value);
+    accepted.flat.set(key, key === 'pinning' ? withBothHalves(value as Plain) : value);
   }
   return accepted;
 }
