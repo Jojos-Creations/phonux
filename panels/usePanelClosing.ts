@@ -107,8 +107,7 @@ export function usePanelClosing(
 
   const close = (id: string) => {
     const found = closePanel(panels, id, rootId);
-    // History defaults locked (no unlock control exists yet): a locked entry's close is a no-op, the one
-    // list's own lock gate -- every entry (History included) goes through this same close().
+    // A locked entry's close is a no-op: the one lock gate, which every entry (History included) goes through.
     if (!found || claimed.current.has(id) || found.closed.locked) return;
     claimed.current.add(id);
     const settings = effective(found.closed);
