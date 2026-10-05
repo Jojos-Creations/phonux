@@ -1,11 +1,9 @@
 import { useEffect, useRef, useState, type Dispatch, type SetStateAction } from 'react';
 import { flushSync } from 'react-dom';
 import type { JsonValue } from '../hostApi.js';
+import { effective } from '../panelSettings.js';
 import { closePanel, restorePanel, type PanelWindow } from '../panelWindow.js';
 import type { UsePanelManagerResult } from './usePanelManager.js';
-
-/** The undo toast stays up for 10 seconds, one window, restarted by every close. */
-export const UNDO_WINDOW_MS = 10_000;
 
 /** `panel` carrying `hostData`; `undefined` leaves no `hostData` key at all, the same shape appendPanel produces. */
 function withHostData(panel: PanelWindow, hostData: JsonValue | undefined): PanelWindow {
@@ -15,15 +13,16 @@ function withHostData(panel: PanelWindow, hostData: JsonValue | undefined): Pane
   return next;
 }
 
-/** A view closed inside the current undo window: the panel, where it sat, and the id of its entry in the background log. */
+/** A view closed inside the current undo window: the panel, where it sat, the id of its entry in the background log, and whether that entry was reported to the host. */
 interface ClosedView {
   panel: PanelWindow;
   index: number;
   logId: string;
+  reported: boolean;
 }
 
 export interface UsePanelClosingResult {
-  /** Closes a view completely and opens (or restarts) the 10 s undo window. Unknown or already-closed id: does nothing. */
+  /** Closes a view completely and opens the undo window, or extends it to at least the panel's `undoWindowMs` from now (a panel with 0 is final at once). Unknown, locked or already-closed id: does nothing. */
   close: (id: string) => void;
   /** Restores every view closed inside the window, last closed first, each at its old index; a live one comes back live. */
   undoClose: () => void;
@@ -38,8 +37,9 @@ export interface UsePanelClosingResult {
 }
 
 /**
- * A close (drag down, or History's trash) removes the view COMPLETELY, reports it through `onPanelsClosed` and offers
- * Undo for 10 s. Takes the CURRENT render's values, so nothing here may be memoised, and `close` reads the index from
+ * A close (drag down, or History's trash) removes the view COMPLETELY, reports it through `onPanelsClosed` unless its
+ * `reportClose` is false, and offers Undo until the one shared window ends: it ends at the latest of the closes' own
+ * `undoWindowMs` after each close, and no close shortens it. Takes the CURRENT render's values, so nothing here may be memoised, and `close` reads the index from
  * that render: two closes before one re-render would undo in the wrong order (discrete gestures re-render between
  * events), so a caller that batches closes needs one setPanels for the lot. Log ids are `<closedAt>#<panel id>`: panel
  * ids restart each launch, and a host undoing by id would otherwise also delete an older launch's entry.
@@ -60,13 +60,14 @@ export function usePanelClosing(
    */
   onRestoreLive?: (id: string) => void,
   /**
-   * Called with the ids the undo window's NATURAL elapse just finalized (Undo calls stopWindow() instead), so a
-   * caller can tell a restored close from one nothing will ever undo.
+   * Called with the panels the undo window's NATURAL elapse just finalized (Undo calls stopWindow() instead), and
+   * at once with a panel whose `undoWindowMs` is 0, so a caller can tell a restored close from one nothing will
+   * ever undo.
    */
-  onWindowElapsed?: (ids: string[]) => void,
+  onWindowElapsed?: (panels: PanelWindow[]) => void,
   /** Called once per successful close with the log entry: `id` is the log id, `title` already falls back to the url, then 'Untitled panel'. */
   onPanelsClosed?: (entry: { id: string; title: string; url: string; closedAt: string }) => void,
-  /** Called once per `undoClose` batch with the log ids of every close the batch restores, in close order. */
+  /** Called once per `undoClose` batch with the log ids of the closes it restores that were reported, in close order; not called when there are none. */
   onPanelsRestored?: (logIds: string[]) => void,
   /**
    * Called once per restored panel with the `hostData` it closed carrying; its return value is what the panel comes
@@ -86,6 +87,8 @@ export function usePanelClosing(
   };
   const [closingIds, setClosingIds] = useState<ReadonlySet<string>>(new Set());
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // When the open window ends, ms since the epoch: a later close may move it later, never earlier.
+  const windowEnd = useRef<number | null>(null);
   // Ids closed in the current window: a second close of the same id (a gesture callback that outlived a trash click) is ignored.
   const claimed = useRef<Set<string>>(new Set());
   useEffect(
@@ -98,15 +101,16 @@ export function usePanelClosing(
   const stopWindow = () => {
     if (timer.current) clearTimeout(timer.current);
     timer.current = null;
+    windowEnd.current = null;
     claimed.current.clear();
   };
 
   const close = (id: string) => {
     const found = closePanel(panels, id, rootId);
-    // History defaults locked (no unlock control exists yet): a locked entry's close is a no-op, the one
-    // list's own lock gate -- every entry (History included) goes through this same close().
+    // A locked entry's close is a no-op: the one lock gate, which every entry (History included) goes through.
     if (!found || claimed.current.has(id) || found.closed.locked) return;
     claimed.current.add(id);
+    const settings = effective(found.closed);
     // Commits ALONE, before the removal: AnimatePresence takes an exiting child's `exit` from its LAST props
     // before it left, and a plain setState would batch with the setPanels below into one commit that never
     // has the panel both present AND marked.
@@ -116,16 +120,24 @@ export function usePanelClosing(
     setPanels((prev) => closePanel(prev, id, rootId)?.remaining ?? prev);
     onAfterClose?.(id, found.remaining);
     // A url-less custom panel has nothing sensible to fall back to: 'Untitled panel', never an empty string.
-    onPanelsClosed?.({ id: logId, title: found.closed.title || found.closed.url || 'Untitled panel', url: found.closed.url, closedAt });
-    setClosedBoth([...closedRef.current, { panel: found.closed, index: found.index, logId }]);
+    if (settings.reportClose) onPanelsClosed?.({ id: logId, title: found.closed.title || found.closed.url || 'Untitled panel', url: found.closed.url, closedAt });
+    if (settings.undoWindowMs === 0) {
+      onWindowElapsed?.([found.closed]);
+      return;
+    }
+    setClosedBoth([...closedRef.current, { panel: found.closed, index: found.index, logId, reported: settings.reportClose }]);
+    const now = Date.now();
+    const end = Math.max(windowEnd.current ?? 0, now + settings.undoWindowMs);
+    windowEnd.current = end;
     if (timer.current) clearTimeout(timer.current);
     timer.current = setTimeout(() => {
       timer.current = null;
+      windowEnd.current = null;
       claimed.current.clear();
-      const elapsedIds = closedRef.current.map((e) => e.panel.id);
+      const elapsed = closedRef.current.map((e) => e.panel);
       setClosedBoth([]);
-      onWindowElapsed?.(elapsedIds);
-    }, UNDO_WINDOW_MS);
+      onWindowElapsed?.(elapsed);
+    }, end - now);
   };
 
   const undoClose = () => {
@@ -135,6 +147,7 @@ export function usePanelClosing(
     setClosedBoth([]);
     // Last closed first: each index was taken from the array as it was when THAT view closed, so undoing in reverse re-creates it.
     let working = panels;
+    const restoredIds = new Set<string>();
     for (const { panel, index } of [...batch].reverse()) {
       if (working.some((p) => p.id === panel.id)) continue;
       // restorePanel is a pure spread and phonux never reads inside hostData, so the host's own reset runs
@@ -151,6 +164,7 @@ export function usePanelClosing(
         setPanels((prev) => restorePanel(prev, restoringPanel, index, rootId));
       }
       working = restorePanel(working, restoringPanel, index, rootId);
+      restoredIds.add(panel.id);
     }
     // A restored id is no longer closing: a stale mark would slide a LATER park of it down instead of left. An
     // id never restored keeps its mark, harmlessly: ids never repeat in a session (useProvidePanels.ts's nextWindowId).
@@ -161,7 +175,8 @@ export function usePanelClosing(
       for (const restoredId of ids) next.delete(restoredId);
       return next;
     });
-    onPanelsRestored?.(batch.map((e) => e.logId));
+    const restoredLogIds = batch.filter((e) => e.reported && restoredIds.has(e.panel.id)).map((e) => e.logId);
+    if (restoredLogIds.length > 0) onPanelsRestored?.(restoredLogIds);
   };
 
   return { close, undoClose, recentlyClosed: closed.length > 0 ? closed.map((e) => e.panel) : null, closingIds };

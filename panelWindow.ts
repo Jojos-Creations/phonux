@@ -6,6 +6,8 @@ import type { FormFactor, JsonValue, PanelSize } from './hostApi.js';
 import type { NeighborWidths } from './panelRowEntry.js';
 import { computeRowOrder, deriveAnchorsFromOrder } from './panelRowOrder.js';
 import type { PanelAnchor } from './panelRowOrder.js';
+import { effective } from './panelSettings.js';
+import type { ResolvedPanelSettings } from './panelSettings.js';
 import { DEFAULT_PANEL_SIZE, TIER_SIZES } from './panelTiers.js';
 
 /**
@@ -30,9 +32,9 @@ export interface PanelWindow {
   collapsible: boolean;
   /** Appears in the public `panelList` (History's own row list, and PanelsAPI). */
   listed: boolean;
-  /** Opaque per-panel data a create() caller supplied (PanelsAPI.create's `params`); undefined for built-ins. summarisePanel threads it to PanelSummary.params; no behavior site here reads it. */
+  /** Opaque per-panel data a create() caller supplied (PanelsAPI.create's `params`); undefined for built-ins. It reaches PanelSummary.params; no behavior site here reads it. */
   params?: JsonValue;
-  /** Where this entry sits in the row (computeRowOrder). Undefined only for History, the root; a hand-built record without one reads as anchored where it already stands, and computeRowOrder writes that anchor. */
+  /** Where this entry sits in the row. Undefined only for History, the root; a hand-built record without one reads as anchored where it already stands, and useProvidePanels orders the row from the anchors, which writes that anchor. */
   anchor?: PanelAnchor;
   /** Which of the row's two stacking tiers this entry's slot sits in -- read ONLY by PanelRow's per-slot zIndex. Default 'base'. */
   layer?: 'base' | 'raised';
@@ -42,6 +44,10 @@ export interface PanelWindow {
   formFactor?: FormFactor;
   /** This panel's own rendered size (a host's panel component passes it to Panel/PanelFrame for a non-phone tier). Optional for the same reason as `formFactor`. */
   size?: PanelSize;
+  /** The resolved settings this entry was created under, whose mirror fields (`locked`, `collapsible`, `listed`, `layer`, `anchoredEnter`, `formFactor`) were written from them. Absent for a hand-built entry, which behaves as it did before settings existed. */
+  settings?: ResolvedPanelSettings;
+  /** This entry's stable name, written once when it is created from settings; absent on a hand-built entry, whose `id` stands in. */
+  key?: string;
 }
 
 /** History's own seeded entry: never collapsible (an always-shown column), never listed (it must not list itself), always live, locked by default (the host's close path honours `locked`); raised, so a left-exiting park slides under it; anchoredEnter, which against itself resolves 'right'; no anchor: it is the root every anchor leads to. Same default tier/size as every other entry: a permanent column carries a tier like any other. @internal */
@@ -91,10 +97,10 @@ function fillAnchor(panels: readonly PanelWindow[], rootId: string, request: Anc
   return { panel, position: request.position, priority: max + 1 };
 }
 
-/** `id` re-anchored per `request` (defaults as for appendPanel), the row re-ordered to match. The SAME array for an unknown id or a `collapsible: false` entry. @internal */
+/** `id` re-anchored per `request` (defaults as for appendPanel), the row re-ordered to match. The SAME array for an unknown id or an entry whose `placeable` setting is false (a fixed column by default). @internal */
 export function reanchorPanel(panels: PanelWindow[], id: string, request: AnchorRequest, rootId: string): PanelWindow[] {
   const target = panels.find((p) => p.id === id);
-  if (!target || !target.collapsible) return panels;
+  if (!target || !effective(target).placeable) return panels;
   const anchor = fillAnchor(panels, rootId, request, id);
   return computeRowOrder(panels.map((p) => (p.id === id ? { ...p, anchor } : p)), rootId);
 }
@@ -242,18 +248,21 @@ export function closePanel(panels: PanelWindow[], id: string, rootId: string): {
  * Moves `id` one PRESENT slot (`!collapsible || live`, PanelRow's filter) toward `direction`, past
  * whichever present panel sits there, History included; a parked panel between the two shifts one array slot,
  * keeping firstParkedAfter/lastParkedBefore/sideOfLiveRange meaningful. Every anchor is then re-read from the
- * new order. The SAME array for every no-op: unknown id, a `collapsible: false` source (an always-shown column
- * is never dragged), a parked panel, or one already at that edge.
+ * new order. The SAME array for every no-op: unknown id, a source whose `draggable` setting is false (a fixed
+ * column by default), a parked panel, one already at that edge, or any array slot from the source to the target
+ * (parked ones included) holding an entry whose `crossable` setting is false.
  * @internal
  */
 export function movePanel(panels: PanelWindow[], id: string, direction: 'left' | 'right', rootId: string): PanelWindow[] {
   const present = panels.filter((p) => !p.collapsible || p.live);
   const presentIndex = present.findIndex((p) => p.id === id);
-  if (presentIndex < 0 || !present[presentIndex]!.collapsible) return panels;
+  if (presentIndex < 0 || !effective(present[presentIndex]!).draggable) return panels;
   const neighbor = present[direction === 'left' ? presentIndex - 1 : presentIndex + 1];
   if (!neighbor) return panels;
   const from = panels.findIndex((p) => p.id === id);
   const to = panels.findIndex((p) => p.id === neighbor.id);
+  const step = to > from ? 1 : -1;
+  for (let i = from + step; i !== to + step; i += step) if (!effective(panels[i]!).crossable) return panels;
   const next = panels.slice();
   const [entry] = next.splice(from, 1);
   next.splice(to, 0, entry!);
@@ -282,13 +291,16 @@ export function reorderStepsForOffset(offsetX: number, neighbors: NeighborWidths
 
 /**
  * `id` at `next`'s tier, its `size` REPLACED by a fresh copy of that tier's TIER_SIZES entry. Returns the SAME
- * array reference for every no-op: an unknown id, a `collapsible: false` entry (History or a permanent column,
- * movePanel's own source guard), or a panel already at `next`. A parked panel may change tier and stays parked.
+ * array reference for every no-op: an unknown id, an entry whose `resizable` setting is false (History or a
+ * permanent column by default) or whose `formFactors` lacks `next`, or a panel already at `next`. A parked panel
+ * may change tier and stays parked.
  * @internal
  */
 export function setFormFactor(panels: PanelWindow[], id: string, next: FormFactor): PanelWindow[] {
   const target = panels.find((p) => p.id === id);
-  if (!target || !target.collapsible || (target.formFactor ?? 'phone') === next) return panels;
+  if (!target) return panels;
+  const allowed = effective(target);
+  if (!allowed.resizable || !allowed.formFactors.includes(next) || (target.formFactor ?? 'phone') === next) return panels;
   return panels.map((p) => (p.id === id ? { ...p, formFactor: next, size: { ...TIER_SIZES[next] } } : p));
 }
 

@@ -470,7 +470,9 @@ export interface PanelRowEntry<P = JsonValue> extends PanelSummary<P> {
     readonly anchor?: PanelAnchor;
     readonly anchoredEnter?: boolean;
     readonly collapsible: boolean;
+    readonly key?: string;
     readonly layer?: 'base' | 'raised';
+    readonly settings?: ResolvedPanelSettings;
     readonly view: string;
 }
 
@@ -665,11 +667,13 @@ export interface PanelWindow {
     hostData?: JsonValue;
     // (undocumented)
     id: string;
+    key?: string;
     layer?: 'base' | 'raised';
     listed: boolean;
     live: boolean;
     locked: boolean;
     params?: JsonValue;
+    settings?: ResolvedPanelSettings;
     size?: PanelSize;
     // (undocumented)
     title?: string;
@@ -995,6 +999,9 @@ export const TIER_SIZES: Readonly<Record<FormFactor, PanelSize>>;
 
 // @public
 export function useHost(): Host;
+
+// @public
+export const usePanelCapabilities: () => Pick<ResolvedPanelSettings, "closable" | "draggable" | "placeable" | "resizable" | "formFactors">;
 
 // @public
 export const usePanelCloseEligible: () => boolean;

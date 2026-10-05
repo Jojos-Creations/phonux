@@ -4,6 +4,7 @@
  */
 import type { JsonValue, PanelSummary } from './hostApi.js';
 import type { PanelAnchor } from './panelRowOrder.js';
+import type { ResolvedPanelSettings } from './panelSettings.js';
 
 /**
  * One entry of a panel row: everything a view sees (PanelSummary) plus the layout fields only the row reads.
@@ -20,6 +21,10 @@ export interface PanelRowEntry<P = JsonValue> extends PanelSummary<P> {
   readonly layer?: 'base' | 'raised';
   /** Whether a reappearance enters from its anchor's side instead of from the right. Default false. */
   readonly anchoredEnter?: boolean;
+  /** The resolved settings this entry was made under; absent for a hand-built entry, which behaves as it did before settings existed. */
+  readonly settings?: ResolvedPanelSettings;
+  /** This entry's stable name, written once when it is created from settings; a hand-built entry has none and its `id` stands in. */
+  readonly key?: string;
 }
 
 /**

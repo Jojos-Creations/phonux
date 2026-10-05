@@ -1,0 +1,16 @@
+{
+  "tests": [
+    "test/settings-enforcement-permissions.test.ts"
+  ],
+  "mutants": [
+    {
+      "name": "reconfigure writes formFactor from settings",
+      "file": "panelSettings.ts",
+      "find": "      anchoredEnter: resolved.enterFrom === 'anchor',\n      ...title,",
+      "replace": "      anchoredEnter: resolved.enterFrom === 'anchor',\n      formFactor: resolved.formFactor,\n      ...title,",
+      "expectRed": [
+        "reconfigure writes only locked, listed, layer, anchoredEnter, title, settings and collapsible"
+      ]
+    }
+  ]
+}

@@ -13,6 +13,7 @@ import { computeMaxLiveWidth } from '../panelRowLayout.js';
 import { summarisePanel } from '../panelRowEntry.js';
 import { panelWidthOf } from '../panelTiers.js';
 import { noopCaptureTrigger, type CaptureTrigger } from '../snapshots.js';
+import { effective } from '../panelSettings.js';
 import { appendPanel, reanchorPanel, type PanelWindow } from '../panelWindow.js';
 import { usePanelClosing } from './usePanelClosing.js';
 import { usePanelManager } from './usePanelManager.js';
@@ -23,6 +24,12 @@ import type { WorkspaceStorage } from '../workspaceState.js';
 /** Ids for panels this app creates itself. A module counter, bumped only from event handlers and the restore callback (never from a state initialiser or updater), so StrictMode's double invocation cannot skip one. */
 let nextWindowId = 1;
 const freshId = (): string => String(nextWindowId++);
+
+/** Whether `p`'s `snapshot` setting asks the host's CaptureTrigger for a picture at `event`. */
+const asksForPicture = (p: PanelWindow, event: 'park' | 'close'): boolean => {
+  const { snapshot } = effective(p);
+  return snapshot === 'both' || snapshot === event;
+};
 
 /**
  * Duck-typed (a `preventDefault` function): a bare `onClick={panels.create}` reference passes the click
@@ -131,7 +138,7 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
   useEffect(() => {
     const prev = prevLiveRef.current;
     for (const p of panels) {
-      if (prev.get(p.id) === true && !p.live) capture.capture(p.id);
+      if (prev.get(p.id) === true && !p.live && asksForPicture(p, 'park')) capture.capture(p.id);
     }
     prevLiveRef.current = new Map(panels.map((p) => [p.id, p.live]));
   }, [panels, capture]);
@@ -162,8 +169,8 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
     },
     // A closed-and-not-restored panel's picture must not outlive its undo window; usePanelClosing.ts alone
     // knows which ids the window's NATURAL elapse (never Undo) just finalized.
-    (ids) => {
-      for (const id of ids) capture.evict(id);
+    (closed) => {
+      for (const p of closed) if (effective(p).snapshot !== 'never') capture.evict(p.id);
     },
     i.onPanelsClosed,
     i.onPanelsRestored,
@@ -201,20 +208,20 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
     // order, so a reorder cannot unsettle a row, and a DROP later in the handler may park this panel as any other.
     reanchor: (id, anchor) => setPanels((prev) => reanchorPanel(prev, id, anchor, i.rootId)),
     close: (id: string) => {
-      // Fires on every close() call, even an unknown or locked id's no-op below: a harmless extra attempt,
-      // and gating it exactly would need a second callback into usePanelClosing.ts.
-      capture.capture(id);
+      // A close the gate in usePanelClosing.ts will refuse (an unknown or locked id) takes no picture.
+      const target = panels.find((p) => p.id === id);
+      if (target && !target.locked && asksForPicture(target, 'close')) capture.capture(id);
       closing.close(id);
     },
     recentlyClosed: closing.recentlyClosed?.map(summarisePanel) ?? null,
     undoClose: closing.undoClose,
-    // Drops every collapsible panel, never History (the always-shown column). Its picture goes now, not at an undo
-    // window: a dropped panel can never be shown again. The ids come from the updater's own list, because this
-    // render's `panels` misses a panel created earlier in the same batch.
+    // Drops every clearable panel: never History, a fixed column or a locked one. Its picture goes now, not at an
+    // undo window: a dropped panel can never be shown again. The ids come from the updater's own list, because
+    // this render's `panels` misses a panel created earlier in the same batch.
     clearAll: () =>
       setPanels((prev) => {
-        for (const p of prev) if (p.collapsible) clearedIds.current.add(p.id);
-        return prev.filter((p) => !p.collapsible);
+        for (const p of prev) if (effective(p).clearable && effective(p).snapshot !== 'never') clearedIds.current.add(p.id);
+        return prev.filter((p) => !effective(p).clearable);
       }),
     entries: panels,
     fixedViewCount,

@@ -5,9 +5,11 @@
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { readdirSync, readFileSync } from 'node:fs';
+import { mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import ts from 'typescript';
 import { stripComments } from './support/boundary-scan.js';
 
 const ROOT = fileURLToPath(new URL('..', import.meta.url));
@@ -76,4 +78,152 @@ test('source: provider hooks under panels/ are memo-free and are exactly the exp
   const providers = readdirSync(join(ROOT, 'panels')).filter((f) => /^useProvide.*\.tsx?$/.test(f)).sort();
   assert.deepEqual(providers, ['useProvidePanels.ts'], 'the provider scan found a different set than the one this test was written against');
   assert.deepEqual(providers.filter((f) => usesMemo(read(`panels/${f}`))), []);
+});
+
+// ---------------------------------------------------------------------------
+// Who writes an entry's mirror fields, and who reads `.collapsible`
+// ---------------------------------------------------------------------------
+
+type Site = { fn: string; key: string; line: number };
+
+/** The nearest named function around `node`: a declaration, or a function or arrow assigned to a const. */
+function enclosingFunction(node: ts.Node): string {
+  for (let n: ts.Node | undefined = node.parent; n; n = n.parent) {
+    if (ts.isFunctionDeclaration(n) && n.name) return n.name.text;
+    if (ts.isVariableDeclaration(n) && ts.isIdentifier(n.name) && n.initializer && (ts.isArrowFunction(n.initializer) || ts.isFunctionExpression(n.initializer))) return n.name.text;
+    if (ts.isMethodDeclaration(n) && ts.isIdentifier(n.name)) return n.name.text;
+  }
+  return '<module>';
+}
+
+const propertyName = (name: ts.PropertyName): string | undefined => (ts.isIdentifier(name) || ts.isStringLiteral(name) ? name.text : undefined);
+
+/** Every assignment `x.key = ...` and every object-literal member named in `keys`, with the function it sits in. */
+function writesOf(source: string, file: string, keys: readonly string[]): Site[] {
+  const sf = ts.createSourceFile(file, source, ts.ScriptTarget.Latest, true);
+  const found: Site[] = [];
+  const at = (node: ts.Node, key: string): void => void found.push({ fn: enclosingFunction(node), key, line: sf.getLineAndCharacterOfPosition(node.getStart(sf)).line + 1 });
+  const visit = (node: ts.Node): void => {
+    if (ts.isBinaryExpression(node) && node.operatorToken.kind === ts.SyntaxKind.EqualsToken) {
+      const left = node.left;
+      if (ts.isPropertyAccessExpression(left) && keys.includes(left.name.text)) at(node, left.name.text);
+      if (ts.isElementAccessExpression(left) && ts.isStringLiteral(left.argumentExpression) && keys.includes(left.argumentExpression.text)) at(node, left.argumentExpression.text);
+    }
+    if (ts.isPropertyAssignment(node)) {
+      const name = propertyName(node.name);
+      if (name !== undefined && keys.includes(name)) at(node, name);
+    }
+    if (ts.isShorthandPropertyAssignment(node) && keys.includes(node.name.text)) at(node, node.name.text);
+    ts.forEachChild(node, visit);
+  };
+  visit(sf);
+  return found;
+}
+
+/** Every read of a `.collapsible` property (or a destructured `collapsible`), with the function it sits in. */
+function collapsibleReads(source: string, file: string): Site[] {
+  const sf = ts.createSourceFile(file, source, ts.ScriptTarget.Latest, true);
+  const found: Site[] = [];
+  const visit = (node: ts.Node): void => {
+    const isRead =
+      (ts.isPropertyAccessExpression(node) && node.name.text === 'collapsible' && !(ts.isBinaryExpression(node.parent) && node.parent.left === node && node.parent.operatorToken.kind === ts.SyntaxKind.EqualsToken)) ||
+      (ts.isBindingElement(node) && ts.isIdentifier(node.name) && (node.propertyName ?? node.name).getText(sf) === 'collapsible');
+    if (isRead) found.push({ fn: enclosingFunction(node), key: 'collapsible', line: sf.getLineAndCharacterOfPosition(node.getStart(sf)).line + 1 });
+    ts.forEachChild(node, visit);
+  };
+  visit(sf);
+  return found;
+}
+
+const ENTRY_FILES = ['panelWindow.ts', 'panelRowEntry.ts', ...readdirSync(join(ROOT, 'panels')).filter((f) => /[.]tsx?$/.test(f)).sort().map((f) => `panels/${f}`)];
+const sitesOf = (sites: Site[]): string[] => sites.map((s) => `${s.fn}:${s.key}`).sort();
+
+test("source: `locked` and `collapsible` are written only by applyTemplate, plus the 0.1.0 literals in appendPanel and createHistoryPanel; `key` is written by applyTemplate alone", () => {
+  assert.ok(ENTRY_FILES.length >= 7, 'the scan list is short: panels/ was not read');
+  const outside: string[] = [];
+  for (const file of ENTRY_FILES) {
+    for (const site of writesOf(read(file), file, ['locked', 'collapsible', 'key'])) outside.push(`${file} ${site.fn}:${site.key}`);
+  }
+  // summarisePanel only copies `locked` into the PanelSummary a view sees; it writes no entry.
+  assert.deepEqual(
+    outside.sort(),
+    [
+      'panelRowEntry.ts summarisePanel:locked',
+      'panelWindow.ts appendPanel:collapsible',
+      'panelWindow.ts appendPanel:locked',
+      'panelWindow.ts createHistoryPanel:collapsible',
+      'panelWindow.ts createHistoryPanel:locked',
+    ],
+    'a writer of locked, collapsible or key outside the allowed functions',
+  );
+  const settingsFile = writesOf(read('panelSettings.ts'), 'panelSettings.ts', ['locked', 'collapsible']);
+  assert.deepEqual(sitesOf(settingsFile), ['applyTemplate:collapsible', 'applyTemplate:collapsible', 'applyTemplate:locked', 'applyTemplate:locked'], 'panelSettings.ts writes them in applyTemplate and nowhere else, once per mode');
+});
+
+/** The `key` member written inside applyTemplate, and whether it sits in the reconfigure branch. */
+function keyWritesInApplyTemplate(source: string): { total: number; inReconfigure: number } {
+  const sf = ts.createSourceFile('panelSettings.ts', source, ts.ScriptTarget.Latest, true);
+  let total = 0;
+  let inReconfigure = 0;
+  const visit = (node: ts.Node): void => {
+    if (ts.isFunctionDeclaration(node) && node.name?.text === 'applyTemplate') {
+      const walk = (inner: ts.Node, reconfigure: boolean): void => {
+        if (ts.isIfStatement(inner) && inner.expression.getText(sf).includes("'reconfigure'")) {
+          walk(inner.thenStatement, true);
+          if (inner.elseStatement) walk(inner.elseStatement, reconfigure);
+          return;
+        }
+        if ((ts.isPropertyAssignment(inner) && propertyName(inner.name) === 'key') || (ts.isShorthandPropertyAssignment(inner) && inner.name.text === 'key')) {
+          total += 1;
+          if (reconfigure) inReconfigure += 1;
+        }
+        ts.forEachChild(inner, (child) => walk(child, reconfigure));
+      };
+      walk(node, false);
+    }
+    ts.forEachChild(node, visit);
+  };
+  visit(sf);
+  return { total, inReconfigure };
+}
+
+test("source: applyTemplate writes `key` once, outside its reconfigure branch, and appendPanel writes none", () => {
+  assert.deepEqual(keyWritesInApplyTemplate(read('panelSettings.ts')), { total: 1, inReconfigure: 0 });
+  assert.deepEqual(writesOf(read('panelWindow.ts'), 'panelWindow.ts', ['key']), [], 'panelWindow.ts has no key write, appendPanel included');
+});
+
+test('source: a planted extra writer of locked, collapsible or key in a scratch copy of panelWindow.ts is found, and a planted key write in the reconfigure branch is too', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'phonux-invariants-'));
+  try {
+    const copy = join(dir, 'panelWindow.ts');
+    writeFileSync(copy, `${read('panelWindow.ts')}\nexport function plantedWriter(p: PanelWindow): PanelWindow {\n  const q = { ...p, locked: true, key: 'k' };\n  q.collapsible = false;\n  return q;\n}\n`);
+    const planted = sitesOf(writesOf(readFileSync(copy, 'utf8'), copy, ['locked', 'collapsible', 'key']));
+    assert.deepEqual(planted.filter((s) => s.startsWith('plantedWriter')), ['plantedWriter:collapsible', 'plantedWriter:key', 'plantedWriter:locked'], 'the scan sees all three planted writes');
+    const reconfigureWrite = read('panelSettings.ts').replace("listed: resolved.listed,\n      layer", "listed: resolved.listed,\n      key: entry.id,\n      layer");
+    assert.notEqual(reconfigureWrite, read('panelSettings.ts'), 'the plant found its place');
+    assert.deepEqual(keyWritesInApplyTemplate(reconfigureWrite), { total: 2, inReconfigure: 1 });
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+/** Functions that still read `.collapsible`: presence, parking and fixed-column bookkeeping. Permission decisions read effective(p). */
+const COLLAPSIBLE_READERS: Record<string, readonly string[]> = {
+  'panelWindow.ts': ['farthestLiveCollapsibleId', 'firstParkedAfter', 'lastParkedBefore', 'leftmostLiveIndex', 'movePanel', 'promoteToLive', 'rightmostLiveIndex', 'sideOfLiveRange'],
+  'panels/usePanelManager.ts': ['revealMostRecentlyCollapsed', 'revealPanelProactively', 'rowAfter', 'scrollRow', 'settledKeeping', 'usePanelManager'],
+  'panels/useProvidePanels.ts': ['useProvidePanels'],
+};
+
+test('source: every read of `.collapsible` in panelWindow.ts, usePanelManager.ts and useProvidePanels.ts sits in a function on the allow-list', () => {
+  for (const [file, allowed] of Object.entries(COLLAPSIBLE_READERS)) {
+    const readers = [...new Set(collapsibleReads(read(file), file).map((s) => s.fn))].sort();
+    assert.deepEqual(readers, [...allowed].sort(), `${file}: the functions that read .collapsible differ from the allow-list`);
+  }
+});
+
+test('source: a planted `.collapsible` read in a new function is found, so the allow-list can fail', () => {
+  const planted = collapsibleReads('export function newGuard(p: { collapsible: boolean }) { return p.collapsible; }', 'planted.ts');
+  assert.deepEqual(planted.map((s) => s.fn), ['newGuard']);
+  assert.deepEqual(collapsibleReads('const f = ({ collapsible }: { collapsible: boolean }) => collapsible;', 'planted.ts').map((s) => s.fn), ['f'], 'a destructured read counts too');
+  assert.deepEqual(collapsibleReads('function g(p: { collapsible: boolean }) { p.collapsible = true; }', 'planted.ts'), [], 'a write is not a read');
 });
