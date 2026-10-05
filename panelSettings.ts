@@ -1016,7 +1016,7 @@ type DerivedDefaultKey = (typeof DERIVED_DEFAULT_KEYS)[number];
 
 /** Every setting that has its own default. The four derived ones follow `parkable` and `closable`; `title` has none. @public */
 export type LibraryPanelDefaults = {
-  readonly [K in Exclude<keyof SettingValues, DerivedDefaultKey | 'title'>]: SettingValues[K];
+  readonly [K in Exclude<keyof SettingValues, 'draggable' | 'placeable' | 'listed' | 'clearable' | 'title'>]: SettingValues[K];
 } & { readonly headerButtons: { readonly [id: string]: HeaderButton }; readonly title: undefined };
 
 /**

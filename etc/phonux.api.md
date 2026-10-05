@@ -7,7 +7,26 @@
 import { BoxProps } from '@mui/material/Box';
 import * as React_2 from 'react';
 import { RefObject } from 'react';
+import type { SxProps } from '@mui/material/styles';
 import { Theme } from '@mui/material/styles';
+
+// @public
+export type AddPlacement = 'row-start' | 'row-end' | 'parkable-start' | 'parkable-end' | 'after-fixed' | 'order' | {
+    before: PanelId;
+} | {
+    after: PanelId;
+} | {
+    anchor: AnchorRequest & {
+        panel: PanelId;
+    };
+};
+
+// @public
+export type AnchorRequest = {
+    panel?: PanelId;
+    position: 'left' | 'right';
+    priority?: number;
+};
 
 // @public
 export interface CaptureRegistry {
@@ -25,6 +44,9 @@ export interface CaptureTrigger {
     capture(viewId: ViewId): void;
     evict(viewId: ViewId): void;
 }
+
+// @public
+export type CatalogName = Exclude<keyof PanelSettings, 'tuning'> | `tuning.${keyof WorkspaceTuning}`;
 
 // @public
 export interface ClosedPageEntry {
@@ -69,6 +91,16 @@ export const DEFAULT_PANEL_SIZE: PanelSize;
 
 // @public
 export const DEFAULT_PHONE_SIZE: PhoneSize;
+
+// @public
+export type DeferredPin = {
+    by: 'pin' | 'unpin';
+} | {
+    parkable: boolean;
+};
+
+// @public
+export function definePanel<P extends JsonValue = JsonValue>(t: PanelTemplate<P>): PanelTemplate<P>;
 
 // @public
 export interface DetectedPhone {
@@ -116,6 +148,27 @@ export function DragToClose(input: {
 }): React_2.ReactElement;
 
 // @public (undocumented)
+export type DragToCloseTuning = {
+    distanceFraction: number;
+    minDistancePx: number;
+    flickMinDistancePx: number;
+    flickVelocity: number;
+    cancelVelocity: number;
+    directionLockPx: number;
+    snapBack: {
+        stiffness: number;
+        damping: number;
+    };
+};
+
+// @public (undocumented)
+export type EdgeScrollTuning = {
+    zonePx: number;
+    maxPxPerSec: number;
+    reducedStepMs: number;
+};
+
+// @public (undocumented)
 export function findPhoneModel(id: string): PhoneModel | undefined;
 
 // @public
@@ -123,6 +176,29 @@ export type FormFactor = 'phone' | 'tablet' | 'desktop';
 
 // @public
 export const GAP = 16;
+
+// @public
+export type HeaderButton = {
+    icon: React_2.ReactNode | ((c: HeaderButtonContext) => React_2.ReactNode);
+    label: string | ((c: HeaderButtonContext) => string);
+    onClick: (handle: ViewHandle, c: HeaderButtonContext & {
+        announce(text: string): void;
+    }) => void | Promise<unknown>;
+    side?: 'start' | 'end';
+    order?: number;
+    pressed?: (c: HeaderButtonContext) => boolean;
+    description?: string | ((c: HeaderButtonContext) => string);
+    tooltip?: string | ((c: HeaderButtonContext) => string);
+    disabled?: boolean | ((c: HeaderButtonContext) => boolean);
+    hidden?: boolean | ((c: HeaderButtonContext) => boolean);
+    sx?: SxProps<Theme>;
+};
+
+// @public
+export type HeaderButtonContext = {
+    state: PanelState;
+    settings: ResolvedPanelSettings;
+};
 
 // @public (undocumented)
 export interface HistoryAPI {
@@ -165,9 +241,37 @@ export function HostProvider(input: {
 }): React_2.JSX.Element;
 
 // @public
+export type InstancePatch = Omit<SettingsPatch, 'hostCreatable' | 'multiple' | 'maxInstances'>;
+
+// @public
 export type JsonValue = string | number | boolean | null | readonly JsonValue[] | {
     readonly [key: string]: JsonValue;
 };
+
+// @public
+export const LIBRARY_PANEL_DEFAULTS: LibraryPanelDefaults;
+
+// @public
+export const LIBRARY_TUNING_DEFAULTS: ResolvedWorkspaceTuning;
+
+// @public
+export type LibraryPanelDefaults = {
+    readonly [K in Exclude<keyof SettingValues, 'draggable' | 'placeable' | 'listed' | 'clearable' | 'title'>]: SettingValues[K];
+} & {
+    readonly headerButtons: {
+        readonly [id: string]: HeaderButton;
+    };
+    readonly title: undefined;
+};
+
+// @public (undocumented)
+export type ListFilter = {
+    status?: PanelStatus | readonly PanelStatus[];
+    listed?: boolean;
+};
+
+// @public
+export function mergePatch(layer: PanelSettings, patch: SettingsPatch): PanelSettings;
 
 // @public
 export interface NeighborWidths {
@@ -179,6 +283,9 @@ export interface NeighborWidths {
 
 // @public
 export const noopCaptureTrigger: CaptureTrigger;
+
+// @public
+export type Overflow = 'scroll' | 'park';
 
 // @public
 export const OVERLAY_Z: {
@@ -199,6 +306,9 @@ export function Panel(input: PanelProps): React_2.JSX.Element;
 
 // @public
 export const PANEL_CORNER_RADIUS_UNITS = 4;
+
+// @public
+export const PANEL_SETTINGS_CATALOG: readonly SettingDescriptor[];
 
 // @public
 export const PANEL_TRANSITION: {
@@ -283,6 +393,26 @@ export interface PanelHeaderRowProps extends Omit<PanelHeaderProps, 'children' |
     title: React_2.ReactNode;
 }
 
+// @public
+export type PanelId = string;
+
+// @public
+export class PanelManagerError extends Error {
+    constructor(code: PanelManagerErrorCode, message: string, where?: {
+        readonly layer?: string;
+        readonly key?: string;
+    });
+    // (undocumented)
+    readonly code: PanelManagerErrorCode;
+    // (undocumented)
+    readonly key: string | undefined;
+    // (undocumented)
+    readonly layer: string | undefined;
+}
+
+// @public
+export type PanelManagerErrorCode = 'invalid-template' | 'duplicate-template' | 'unknown-template' | 'template-collision' | 'root-mismatch' | 'invalid-options' | 'invalid-settings' | 'instance-id-required' | 'already-attached' | 'disposed';
+
 // @public (undocumented)
 export interface PanelProps extends Omit<BoxProps, 'children' | 'sx' | 'title'> {
     // (undocumented)
@@ -303,6 +433,26 @@ export interface PanelProps extends Omit<BoxProps, 'children' | 'sx' | 'title'> 
     title?: React_2.ReactNode;
     viewId?: ViewId;
 }
+
+// @public
+export type PanelReader = {
+    get(id: PanelId): PanelReadHandle | undefined;
+    list(f?: ListFilter): readonly PanelState[];
+    getSnapshot(): PanelSnapshot;
+    subscribe(l: () => void): () => void;
+};
+
+// @public
+export type PanelReadHandle = {
+    readonly id: PanelId;
+    readonly templateId: string;
+    getState(): PanelState;
+    getSettings(): PanelSettingsResolution;
+    subscribe(l: () => void): () => void;
+};
+
+// @public
+export type PanelRefusal = 'disposed' | 'not-attached' | 'not-ready' | 'is-pending' | 'is-closed' | 'not-live' | 'busy' | 'not-closable' | 'not-parkable' | 'not-draggable' | 'not-placeable' | 'not-resizable' | 'tier-not-allowed' | 'would-empty-row' | 'instance-limit' | 'unknown-panel' | 'wrong-scope' | 'would-reshape-row' | 'settings-conflict' | 'not-view-settable';
 
 // @public
 export function PanelRow(input: {
@@ -344,6 +494,34 @@ export interface PanelsAPI {
 }
 
 // @public
+export type PanelSettings = {
+    [K in keyof SettingValues]?: SettingValues[K];
+} & {
+    tuning?: PanelTuning;
+    headerButtons?: {
+        [id: string]: HeaderButton | false;
+    };
+};
+
+// @public
+export type PanelSettingsLayers = {
+    workspace?: PanelSettings;
+    template?: PanelSettings;
+    instance?: PanelSettings;
+    host?: PanelSettings;
+    user?: PanelUserLayer;
+};
+
+// @public
+export type PanelSettingsResolution = {
+    value: ResolvedPanelSettings;
+    source: Record<string, SourceLayer>;
+    conflicts: SettingConflict[];
+    notes: SettingNote[];
+    userAnchor?: AnchorRequest;
+};
+
+// @public
 export interface PanelsInput {
     capture?: CaptureTrigger;
     containerWidth: number;
@@ -383,6 +561,47 @@ export function PanelSizeBox(input: {
     children: React_2.ReactNode;
 }): React_2.JSX.Element;
 
+// @public (undocumented)
+export type PanelSnapshot = {
+    readonly version: number;
+    readonly status: WorkspaceStatus;
+    readonly panels: readonly PanelState[];
+};
+
+// @public
+export interface PanelState {
+    // (undocumented)
+    readonly deferredPin: DeferredPin | null;
+    readonly engineId: string | null;
+    // (undocumented)
+    readonly formFactor: FormFactor;
+    // (undocumented)
+    readonly held: boolean;
+    // (undocumented)
+    readonly id: PanelId;
+    // (undocumented)
+    readonly index: number | null;
+    // (undocumented)
+    readonly listed: boolean;
+    // (undocumented)
+    readonly params: JsonValue | undefined;
+    // (undocumented)
+    readonly pinned: boolean;
+    // (undocumented)
+    readonly settings: ResolvedPanelSettings;
+    // (undocumented)
+    readonly status: PanelStatus;
+    // (undocumented)
+    readonly templateId: string;
+    // (undocumented)
+    readonly title: string | undefined;
+    // (undocumented)
+    readonly url: string;
+}
+
+// @public
+export type PanelStatus = 'pending' | 'live' | 'parked' | 'closed';
+
 // @public
 export interface PanelSummary<P = JsonValue> {
     readonly formFactor?: FormFactor;
@@ -397,6 +616,42 @@ export interface PanelSummary<P = JsonValue> {
     // (undocumented)
     readonly url: string;
 }
+
+// @public
+export interface PanelTemplate<P extends JsonValue = JsonValue> {
+    readonly id: string;
+    // (undocumented)
+    readonly params?: P;
+    // (undocumented)
+    readonly settings?: PanelSettings;
+    // (undocumented)
+    readonly view: React_2.ComponentType<{
+        panel: PanelSummary<P>;
+        handle: ViewHandle<P>;
+        manager: PanelReader;
+    }>;
+}
+
+// @public
+export type PanelTuning = {
+    dragToClose?: {
+        [K in keyof DragToCloseTuning]?: DragToCloseTuning[K];
+    };
+    slide?: {
+        [K in keyof SlideTuning]?: SlideTuning[K];
+    };
+    hopFraction?: number;
+    edgeScroll?: {
+        [K in keyof EdgeScrollTuning]?: EdgeScrollTuning[K];
+    };
+};
+
+// @public
+export type PanelUserLayer = {
+    formFactor?: FormFactor;
+    anchor?: AnchorRequest;
+    parkable?: boolean;
+};
 
 // @public
 export function panelWidthOf(p: Pick<PanelRowEntry, 'formFactor' | 'size'>, phoneWidth: number, maxLiveWidth: number): number;
@@ -476,6 +731,28 @@ export interface PhoneSize {
 }
 
 // @public
+export type PinHalf = {
+    placement?: AddPlacement;
+    parkable?: boolean;
+};
+
+// @public
+export type Pinning = {
+    pinned: PinHalf;
+    unpinned: PinHalf;
+};
+
+// @public
+export type PinningWhenNotLive = PinWhenNotLive | {
+    parked?: PinWhenNotLive;
+    hidden?: PinWhenNotLive;
+    closed?: 'refuse' | 'apply-on-next-show';
+};
+
+// @public (undocumented)
+export type PinWhenNotLive = 'place-only' | 'refuse' | 'show' | 'apply-on-next-show';
+
+// @public
 export interface ProvidedPanels extends PanelsAPI {
     readonly closingIds: ReadonlySet<string>;
     readonly enteringViaAnchorIds: ReadonlySet<string>;
@@ -499,6 +776,47 @@ export interface ReorderHandle {
 export function reorderStepsForOffset(offsetX: number, neighbors: NeighborWidths, gap: number): number;
 
 // @public
+export type ResolvedPanelSettings = {
+    readonly [K in Exclude<keyof SettingValues, 'title'>]: SettingValues[K];
+} & {
+    readonly title?: string;
+    readonly tuning: ResolvedPanelTuning;
+    readonly headerButtons: {
+        readonly [id: string]: HeaderButton;
+    };
+};
+
+// @public (undocumented)
+export type ResolvedPanelTuning = {
+    dragToClose: DragToCloseTuning;
+    slide: SlideTuning;
+    hopFraction: number;
+    edgeScroll: EdgeScrollTuning;
+};
+
+// @public (undocumented)
+export type ResolvedWorkspaceTuning = ResolvedPanelTuning & {
+    rowGap: number;
+    saveQuietMs: number;
+    gestureLockMs: number;
+    returnTieBreak: 'latest-first' | 'earliest-first' | 'row-order';
+    dropTieBreak: 'leftmost' | 'rightmost';
+    rowGesture: 'step' | 'free' | 'off';
+    initialScroll: 'start' | 'end' | 'root' | {
+        panel: PanelId;
+    };
+};
+
+// @public (undocumented)
+export type ResolveOptions = {
+    root?: boolean;
+    lenient?: boolean;
+};
+
+// @public
+export function resolvePanelSettings(layers?: PanelSettingsLayers, options?: ResolveOptions): PanelSettingsResolution;
+
+// @public
 export function resolveView(key: string): ViewComponent;
 
 // @public
@@ -518,6 +836,69 @@ export interface RowLayoutResult {
     rowTotalWidth: number;
 }
 
+// @public
+export type ScrollAlign = 'into-view' | 'start' | 'center';
+
+// @public (undocumented)
+export type ScrollOnDrag = 'edge' | 'none';
+
+// @public (undocumented)
+export type ScrollOnMove = 'follow' | 'none';
+
+// @public (undocumented)
+export type ScrollOnOpen = ScrollAlign | 'none';
+
+// @public
+export type SettingClass = 'NOW' | 'NEXT' | 'STATE' | 'SCOPE';
+
+// @public
+export type SettingConflict = {
+    readonly key: string;
+    readonly layer: 'template' | 'host' | 'instance';
+    readonly kind: 'forced' | 'wrong-scope' | 'not-view-settable';
+    readonly asked: unknown;
+    readonly applied: unknown;
+    readonly rule?: 'C1' | 'C2' | 'C3' | 'C4' | 'C5' | 'C6';
+    readonly forcedBy?: string;
+    readonly message: string;
+};
+
+// @public
+export interface SettingDescriptor {
+    // (undocumented)
+    readonly configure: {
+        readonly cls: SettingClass;
+        readonly doors: readonly SettingDoor[];
+    };
+    // (undocumented)
+    readonly default: string;
+    // (undocumented)
+    readonly exists: 'today' | 'new';
+    // (undocumented)
+    readonly group: string;
+    // (undocumented)
+    readonly name: CatalogName;
+    // (undocumented)
+    readonly ownerEntry: string;
+    // (undocumented)
+    readonly scope: SettingScope;
+    // (undocumented)
+    readonly values: string;
+    // (undocumented)
+    readonly viewSettable: boolean;
+}
+
+// @public
+export type SettingDoor = 'instance' | 'template' | 'tuning';
+
+// @public
+export type SettingNote = {
+    code: string;
+    panelId?: PanelId;
+    key?: string;
+    message: string;
+};
+
 // @public (undocumented)
 export interface SettingsAPI {
     readonly fitCount: number | null;
@@ -532,11 +913,82 @@ export interface SettingsAPI {
 }
 
 // @public
+export type SettingScope = 'instance' | 'template' | 'workspace' | 'panel or workspace';
+
+// @public
+export type SettingsPatch = {
+    [K in keyof PanelSettings]?: PanelSettings[K] | null;
+};
+
+// @public
+export type SettingValues = {
+    closable: boolean;
+    parkable: boolean;
+    draggable: boolean;
+    crossable: boolean;
+    placeable: boolean;
+    resizable: boolean;
+    formFactors: readonly FormFactor[];
+    clearable: boolean;
+    hostCreatable: boolean;
+    multiple: boolean;
+    maxInstances: number | 'unlimited';
+    listed: boolean;
+    startVisibility: 'live' | 'parked';
+    hideStickiness: 'sticky' | 'until-room';
+    hideWhenLast: 'allow' | 'refuse';
+    capacityReturn: 'auto' | 'manual';
+    returnPriority: number;
+    overflow: Overflow;
+    evictionRank: number;
+    evictionOrder: 'farthest' | 'nearest' | 'leftmost' | 'rightmost';
+    revealOnScroll: 'edges' | 'any' | 'never';
+    scrollOnOpen: ScrollOnOpen;
+    scrollOnMove: ScrollOnMove;
+    scrollOnDrag: ScrollOnDrag;
+    toggleWhenClosed: 'ignore' | 'reopen';
+    showWhenClosed: 'refuse' | 'reopen';
+    viewState: 'keep' | 'reset-on-park';
+    keepMounted: boolean;
+    placeOnAdd: AddPlacement;
+    placeOnShow: AddPlacement | 'in-place';
+    placeOnReturn: AddPlacement | 'in-place';
+    placeFallback: 'row-start' | 'row-end' | 'parkable-start' | 'parkable-end' | 'after-fixed';
+    undoPlacement: 'old-slot' | AddPlacement;
+    layer: 'base' | 'raised';
+    enterFrom: 'auto' | 'left' | 'right' | 'anchor';
+    exitTo: 'auto' | 'left' | 'right';
+    closeExit: 'down' | 'left' | 'right';
+    animated: boolean;
+    formFactor: FormFactor;
+    title: string;
+    pinning: Pinning;
+    pinningWhenNotLive: PinningWhenNotLive;
+    persist: 'saved' | 'session';
+    rememberLayout: boolean;
+    restoreVisibility: 'saved' | 'live' | 'parked';
+    afterClose: 'stay-closed' | 'return-next-launch';
+    undoWindowMs: number;
+    reportClose: boolean;
+    snapshot: 'both' | 'park' | 'close' | 'never';
+};
+
+// @public (undocumented)
+export type SlideTuning = {
+    durationSec: number;
+    ease: readonly [number, number, number, number];
+    closeExitSeconds: number;
+};
+
+// @public
 export interface SnapshotsAPI {
     // (undocumented)
     get(viewId: ViewId): ViewSnapshot | null;
     subscribe(viewId: ViewId, listener: () => void): () => void;
 }
+
+// @public
+export type SourceLayer = 'library' | 'workspace' | 'template' | 'host' | 'instance' | 'user' | 'derived' | 'forced';
 
 // @public
 export const TIER_SIZES: Readonly<Record<FormFactor, PanelSize>>;
@@ -581,7 +1033,24 @@ export const useViewState: UseViewState;
 export type ViewComponent<P = JsonValue> = React_2.ComponentType<ViewProps<P>>;
 
 // @public
+export type ViewHandle<P extends JsonValue = JsonValue> = PanelReadHandle;
+
+// @public
 export type ViewId = string;
+
+// @public
+export type ViewPatch = {
+    title?: string | null;
+    listed?: boolean | null;
+    layer?: 'base' | 'raised' | null;
+    formFactor?: FormFactor | null;
+    placeOnAdd?: {
+        anchor: AnchorRequest & {
+            panel: PanelId;
+        };
+    } | null;
+    enterFrom?: 'anchor' | null;
+};
 
 // @public
 export type ViewProps<P = JsonValue> = {
@@ -666,10 +1135,26 @@ export type WorkspaceState = {
     panels: WorkspacePanelState[];
 };
 
+// @public (undocumented)
+export type WorkspaceStatus = 'detached' | 'loading' | 'ready' | 'disposed';
+
 // @public
 export type WorkspaceStorage = {
     load(): Promise<WorkspaceState | null>;
     save(state: WorkspaceState): void;
+};
+
+// @public
+export type WorkspaceTuning = PanelTuning & {
+    rowGap?: number;
+    saveQuietMs?: number;
+    gestureLockMs?: number;
+    returnTieBreak?: 'latest-first' | 'earliest-first' | 'row-order';
+    dropTieBreak?: 'leftmost' | 'rightmost';
+    rowGesture?: 'step' | 'free' | 'off';
+    initialScroll?: 'start' | 'end' | 'root' | {
+        panel: PanelId;
+    };
 };
 
 // (No @packageDocumentation comment for this package)
