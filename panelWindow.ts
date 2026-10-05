@@ -144,13 +144,10 @@ export function parkLevers(p: PanelWindow): Pick<ResolvedPanelSettings, 'evictio
 }
 
 /**
- * The id of the live collapsible panel to park for room, or null with none live. Only the lowest `evictionRank` among
- * the candidates is considered; `order` then picks among those by distance from `fromIndex`: 'farthest' and 'nearest'
- * take the greatest and smallest distance, 'leftmost' and 'rightmost' ignore it, and a tie goes to the lower index.
- * From an append (`fromIndex` = the new length) 'farthest' is the LEFT end of the live range; from an open nearest
- * History or a revive left of the range, the RIGHT end. promoteToLive and the host's open/restore park both pick
- * through this. `exclude` exempts the panel being opened or restored, which is already live in the array the caller
- * passes, and any panel another action in the same update must keep live.
+ * The id of the live collapsible panel to park for room, or null with none live: among the lowest `evictionRank`,
+ * the one `order` picks by distance from `fromIndex` ('leftmost' and 'rightmost' ignore it); a tie goes to the lower
+ * index. `exclude` exempts the panel being opened or restored, already live in `panels`, and any panel another
+ * action in the same update must keep live.
  * @internal
  */
 export function farthestLiveCollapsibleId(
@@ -226,7 +223,7 @@ export function lastParkedBefore(panels: PanelWindow[], index: number): PanelWin
  * Activating ANY panel (live or parked) flips `live` in place, never moving the entry's array position.
  * Returns `null` for an unknown id or one already live (a legitimate no-op, not an error). When promoting
  * `id` would exceed `capacity`, demotes exactly one OTHER live panel: whichever `farthestLiveCollapsibleId`
- * picks from `id`'s own index, the same far rule an open/restore parks by. Never demotes a
+ * picks from `id`'s own index by `id`'s own `evictionOrder`. Never demotes a
  * `collapsible: false` entry or any id in `keep`.
  * @internal
  */

@@ -780,7 +780,7 @@ test('a capacity drop with every rank equal parks the leftmost excess', () => {
   assert.deepEqual(e.parked(), ['a', 'b']);
 });
 
-/** The algorithm as it stood before ranks and tie-breaks, kept here so the equal-rank case is held to what it returned. */
+/** A copy of the park choice without ranks or tie-breaks: the oracle the equal-rank case is held to. */
 function referenceFewest(live: readonly PanelWindow[], widthOf: (p: PanelWindow) => number, settles: (set: readonly PanelWindow[]) => boolean, keepIds: readonly string[] = []): string[] {
   const narrowestFirst = (set: readonly PanelWindow[]): PanelWindow[] => [...set].sort((a, b) => widthOf(a) - widthOf(b));
   const inRowOrder = (set: readonly PanelWindow[]): PanelWindow[] => live.filter((p) => set.includes(p));

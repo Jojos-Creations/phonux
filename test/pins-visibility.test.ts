@@ -1,6 +1,6 @@
 /**
- * Behaviour pinned before the engine learns the visibility settings. A pin states what the code does today, with
- * the bad ones named KNOWN-BAD so a later change has to rename the pin it fixes, never delete it.
+ * What a plain park and a parked view's state do. A pin states what the code does, with the bad ones named
+ * KNOWN-BAD so a change has to rename the pin it fixes, never delete it.
  */
 import { test, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
