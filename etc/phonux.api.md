@@ -14,9 +14,6 @@ export interface CaptureRegistry {
     register(viewId: ViewId, el: HTMLElement, extent: 'viewport' | 'full'): () => void;
 }
 
-// @public (undocumented)
-export const CaptureRegistryContext: React_2.Context<CaptureRegistry | null>;
-
 // @public
 export function CaptureRegistryProvider(input: {
     registry: CaptureRegistry;
@@ -41,16 +38,7 @@ export interface ClosedPageEntry {
 }
 
 // @public
-export function computeMaxLiveWidth(input: Omit<RowLayoutInput, 'liveWidths'>): number;
-
-// @public
 export function computeRowLayout(input: RowLayoutInput): RowLayoutResult;
-
-// @public
-export function computeRowOrder<T extends {
-    id: string;
-    anchor?: PanelAnchor;
-}>(panels: readonly T[], rootId: string): T[];
 
 // @public
 export function createDefaultTheme(mode: 'light' | 'dark'): Theme;
@@ -81,12 +69,6 @@ export const DEFAULT_PANEL_SIZE: PanelSize;
 
 // @public
 export const DEFAULT_PHONE_SIZE: PhoneSize;
-
-// @public
-export function deriveAnchorsFromOrder<T extends {
-    id: string;
-    anchor?: PanelAnchor;
-}>(panels: readonly T[], rootId: string): T[];
 
 // @public
 export interface DetectedPhone {
@@ -132,14 +114,6 @@ export function DragToClose(input: {
     reorder?: ReorderHandle;
     children: (handle: DragHandleProps) => React_2.ReactNode;
 }): React_2.ReactElement;
-
-// @public (undocumented)
-export interface Entry {
-    // (undocumented)
-    node: React_2.ReactNode;
-    // (undocumented)
-    slot: OverlaySlotName;
-}
 
 // @public (undocumented)
 export function findPhoneModel(id: string): PhoneModel | undefined;
@@ -190,14 +164,6 @@ export function HostProvider(input: {
     children: React_2.ReactNode;
 }): React_2.JSX.Element;
 
-// @public (undocumented)
-export interface Item {
-    // (undocumented)
-    id: string;
-    // (undocumented)
-    node: React_2.ReactNode;
-}
-
 // @public
 export type JsonValue = string | number | boolean | null | readonly JsonValue[] | {
     readonly [key: string]: JsonValue;
@@ -221,37 +187,12 @@ export const OVERLAY_Z: {
 };
 
 // @public
-export function OverlayProvider(input: {
-    children: React_2.ReactNode;
-    store?: OverlayStore;
-}): React_2.JSX.Element;
-
-// @public
 export const OverlaySlot: React_2.NamedExoticComponent<{
     name: OverlaySlotName;
 }>;
 
 // @public
 export type OverlaySlotName = 'dialog' | 'toast';
-
-// @public
-export class OverlayStore {
-    firstWarning(name: OverlaySlotName): boolean;
-    // (undocumented)
-    hasSlot(name: OverlaySlotName): boolean;
-    ids(): string[];
-    // (undocumented)
-    mountSlot(name: OverlaySlotName): () => void;
-    notifications: number;
-    // (undocumented)
-    read(slot: OverlaySlotName): readonly Item[];
-    // (undocumented)
-    remove(id: string): void;
-    // (undocumented)
-    set(id: string, entry: Entry): void;
-    // (undocumented)
-    subscribe: (l: () => void) => (() => void);
-}
 
 // @public (undocumented)
 export function Panel(input: PanelProps): React_2.JSX.Element;
@@ -382,17 +323,6 @@ export interface PanelRowEntry<P = JsonValue> extends PanelSummary<P> {
     readonly layer?: 'base' | 'raised';
     readonly view: string;
 }
-
-// @public
-export function PanelRowSlot(input: {
-    leftOffset: number;
-    width: number;
-    phoneHeight: number;
-    enterDirection: 'left' | 'right';
-    exitDirection: 'down' | 'left' | 'right';
-    zIndex?: number;
-    children: React_2.ReactNode;
-}): React_2.JSX.Element;
 
 // @public (undocumented)
 export interface PanelsAPI {
@@ -560,13 +490,6 @@ export interface ProvidedPanels extends PanelsAPI {
 // @public
 export function registerView<P extends JsonValue>(key: string, Component: ViewComponent<P>): void;
 
-// @public (undocumented)
-export interface ReleaseMeasure {
-    height: number;
-    offsetY: number;
-    velocityY: number;
-}
-
 // @public
 export interface ReorderHandle {
     onDragEnd: (offsetX: number) => void;
@@ -609,17 +532,11 @@ export interface SettingsAPI {
 }
 
 // @public
-export function shouldCloseOnRelease(input: ReleaseMeasure): boolean;
-
-// @public
 export interface SnapshotsAPI {
     // (undocumented)
     get(viewId: ViewId): ViewSnapshot | null;
     subscribe(viewId: ViewId, listener: () => void): () => void;
 }
-
-// @public
-export const summarisePanel: (input: PanelRowEntry) => PanelSummary;
 
 // @public
 export const TIER_SIZES: Readonly<Record<FormFactor, PanelSize>>;
@@ -659,9 +576,6 @@ export interface UseViewState {
 
 // @public
 export const useViewState: UseViewState;
-
-// @public
-export function vendorLabelForUsbVendorId(vendorId: number): string;
 
 // @public
 export type ViewComponent<P = JsonValue> = React_2.ComponentType<ViewProps<P>>;

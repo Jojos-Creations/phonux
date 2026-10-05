@@ -65,7 +65,7 @@ export function panelRowSlotMotion(
 
 /**
  * One entry's animated slot in the row: its position, width, enter/exit motion and stacking.
- * @public
+ * @internal
  */
 export function PanelRowSlot({
   leftOffset,

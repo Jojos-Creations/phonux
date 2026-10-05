@@ -1,5 +1,5 @@
 // The public surface of phonux: a name that moves or changes kind here breaks every consumer. test/phonux-barrel.test.ts pins the value
-// names; only tsc checks type names (releaseMeasure.typecheck.ts pins one). DESIGN.md says why some exports stay off this list.
+// names; type names are pinned by the API reports under etc/. DESIGN.md says why some exports stay off this list.
 
 export {
   DEFAULT_PHONE_SIZE,
@@ -23,7 +23,7 @@ export type {
   Host,
 } from './hostApi.js';
 
-export { useViewSnapshot, CaptureRegistryContext, CaptureRegistryProvider, noopCaptureTrigger } from './snapshots.js';
+export { useViewSnapshot, CaptureRegistryProvider, noopCaptureTrigger } from './snapshots.js';
 export type { ViewId, ViewSnapshot, SnapshotsAPI, CaptureRegistry, CaptureTrigger } from './snapshots.js';
 
 export { useViewState, ViewStateMissingProviderError } from './viewState.js';
@@ -36,22 +36,16 @@ export {
   Panel,
   DRAG_CLOSE,
   DragToClose,
-  shouldCloseOnRelease,
   WindowOverlay,
   OverlaySlot,
   OVERLAY_Z,
-  OverlayProvider,
-  OverlayStore,
 } from './Panel.js';
 export type {
   PanelProps,
   DragHandleProps,
-  ReleaseMeasure,
   ReorderHandle,
   OverlaySlotName,
   WindowOverlayProps,
-  Item,
-  Entry,
 } from './Panel.js';
 
 export { default as PanelFrame } from './PanelFrame.js';
@@ -69,21 +63,19 @@ export type {
   PanelHeaderRowProps,
 } from './PanelFrame.js';
 
-export { PHONE_MODELS, findPhoneModel, vendorLabelForUsbVendorId } from './phoneModels.js';
+export { PHONE_MODELS, findPhoneModel } from './phoneModels.js';
 export type { PhoneModel } from './phoneModels.js';
 
 export { PhoneDetectPrompt } from './PhoneDetectPrompt.js';
 export type { PhoneDetectPromptProps } from './PhoneDetectPrompt.js';
 
-export { computeRowOrder, deriveAnchorsFromOrder } from './panelRowOrder.js';
 export type { PanelAnchor } from './panelRowOrder.js';
-export { summarisePanel } from './panelRowEntry.js';
 export type { NeighborWidths, PanelRowEntry } from './panelRowEntry.js';
 export { DEFAULT_PANEL_SIZE, TIER_SIZES, panelWidthOf } from './panelTiers.js';
-export { computeMaxLiveWidth, computeRowLayout } from './panelRowLayout.js';
+export { computeRowLayout } from './panelRowLayout.js';
 export type { RowLayoutInput, RowLayoutResult } from './panelRowLayout.js';
 export { PanelRow, usePanelCloseEligible, usePanelNeighborWidths, usePanelPinned, usePanelReorderEligible } from './PanelRow.js';
-export { GAP, PANEL_TRANSITION, PanelRowSlot, PanelSizeBox } from './PanelRowSlot.js';
+export { GAP, PANEL_TRANSITION, PanelSizeBox } from './PanelRowSlot.js';
 export { Workspace } from './Workspace.js';
 export type { WorkspaceProps } from './Workspace.js';
 export { useProvidePanels } from './panels/useProvidePanels.js';

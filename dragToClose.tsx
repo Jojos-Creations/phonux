@@ -27,7 +27,7 @@ export const DRAG_CLOSE = {
   snapBack: { type: 'spring', stiffness: 520, damping: 42 },
 } as const;
 
-/** @public */
+/** @internal */
 export interface ReleaseMeasure {
   /** How far the box was dragged from its resting place, px (positive = down). */
   offsetY: number;
@@ -37,7 +37,7 @@ export interface ReleaseMeasure {
   height: number;
 }
 
-/** The whole close rule, pure. Never closes on an upward or zero offset, or when released moving back up. @public */
+/** The whole close rule, pure. Never closes on an upward or zero offset, or when released moving back up. @internal */
 export function shouldCloseOnRelease({ offsetY, velocityY, height }: ReleaseMeasure): boolean {
   if (!(offsetY > 0) || velocityY <= DRAG_CLOSE.cancelVelocity) return false;
   const distance = Math.max(DRAG_CLOSE.minDistancePx, DRAG_CLOSE.distanceFraction * (Number.isFinite(height) ? height : 0));

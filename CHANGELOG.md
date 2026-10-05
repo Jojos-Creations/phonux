@@ -17,6 +17,16 @@
 - The `./internal/panelModel` and `./internal/directionalTransition` keys of the source `package.json`, with
   their two API reports and configs. The published package never exported them; it exports `.` and
   `./testing`, as before.
+- Ten values and three types no longer importable from `phonux` (none was reachable from `phonux/testing`); the
+  package's own files still use them. Each group and what to use instead:
+  - `OverlayProvider`, `OverlayStore` and its types `Item` and `Entry`: `HostProvider` already mounts the overlay
+    provider, so `OverlaySlot` and `WindowOverlay` work without it.
+  - `PanelRowSlot`: `Workspace` and `PanelRow` mount the slots; `GAP`, `PANEL_TRANSITION` and `PanelSizeBox` stay.
+  - `shouldCloseOnRelease` and its type `ReleaseMeasure`: `DragToClose` applies the release rule.
+  - `computeRowOrder`, `deriveAnchorsFromOrder`, `summarisePanel` and `computeMaxLiveWidth`: `useProvidePanels`
+    orders the row and builds `PanelSummary` values; `computeRowLayout` stays.
+  - `CaptureRegistryContext`: mount `CaptureRegistryProvider` instead.
+  - `vendorLabelForUsbVendorId`: `PhoneDetectPrompt` renders the label; `PHONE_MODELS` and `findPhoneModel` stay.
 
 ## 0.1.0
 

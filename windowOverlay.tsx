@@ -37,19 +37,19 @@ export interface WindowOverlayProps {
   children: React.ReactNode;
 }
 
-/** @public */
+/** @internal */
 export interface Entry {
   slot: OverlaySlotName;
   node: React.ReactNode;
 }
-/** @public */
+/** @internal */
 export interface Item {
   id: string;
   node: React.ReactNode;
 }
 const EMPTY: readonly Item[] = Object.freeze([]);
 
-/** External store, NOT React state: a registration re-renders neither the host nor any view. @public */
+/** External store, NOT React state: a registration re-renders neither the host nor any view. @internal */
 export class OverlayStore {
   private entries = new Map<string, Entry>(); // Map keeps FIRST-insertion position across overwrites
   private listeners = new Set<() => void>();
@@ -115,7 +115,7 @@ const noopSubscribe = () => () => {};
 /**
  * Rendered by HostProvider, so a host adds nothing. The store is never part of the app-supplied Host bag
  * (nothing about an overlay is app-specific). `store` is a TEST SEAM: a test passes its own to read `notifications`/`ids()`.
- * @public
+ * @internal
  */
 export function OverlayProvider({ children, store: injected }: { children: React.ReactNode; store?: OverlayStore }) {
   const [store] = useState(() => injected ?? new OverlayStore()); // pure constructor: StrictMode's double init is harmless

@@ -36,7 +36,7 @@ function positionalAnchors(panels: readonly Anchored[], rootId: string): Map<str
  * first), then the entry, then its right side (nearest first). Priorities come back renumbered from 0 per side
  * of each entry, so a priority of -1 always lands nearest. An anchor naming a missing entry, or one in a cycle,
  * falls back to the root's right side (keeping its priority) instead of recursing forever or dropping the entry.
- * @public
+ * @internal
  */
 export function computeRowOrder<T extends { id: string; anchor?: PanelAnchor }>(panels: readonly T[], rootId: string): T[] {
   const byId = new Map(panels.map((p) => [p.id, p]));
@@ -92,7 +92,7 @@ export function computeRowOrder<T extends { id: string; anchor?: PanelAnchor }>(
 /**
  * Every non-root entry re-anchored to the root from its current array position, so computeRowOrder reproduces
  * this exact order.
- * @public
+ * @internal
  */
 export function deriveAnchorsFromOrder<T extends { id: string; anchor?: PanelAnchor }>(panels: readonly T[], rootId: string): T[] {
   const positional = positionalAnchors(panels, rootId);

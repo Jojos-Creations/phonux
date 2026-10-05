@@ -69,7 +69,7 @@ export interface CaptureTrigger {
 /** The trigger a provider uses when its host supplies none: phonux never produces a real capture itself. @public */
 export const noopCaptureTrigger: CaptureTrigger = { capture: () => {}, evict: () => {} };
 
-/** @public */
+/** @internal */
 export const CaptureRegistryContext = React.createContext<CaptureRegistry | null>(null);
 
 /** Rendered only by a host that captures pictures, around HostProvider. Without it (a bare HostProvider, as in most tests) Panel registers nothing. @public */

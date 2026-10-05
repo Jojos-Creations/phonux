@@ -35,7 +35,7 @@ export interface NeighborWidths {
 /**
  * A row entry narrowed to what a view may see. Every place that hands a panel to a view goes through this one
  * function, so no view ever sees a layout field; `formFactor` and `size` are forwarded.
- * @public
+ * @internal
  */
 export const summarisePanel = ({ id, url, title, live, locked, params, formFactor, size }: PanelRowEntry): PanelSummary => ({
   id, url, title, live, locked, params,

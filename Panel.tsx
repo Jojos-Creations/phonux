@@ -15,8 +15,8 @@ import { CaptureRegistryContext, type ViewId } from './snapshots.js';
 // One import path for a view author: the contracts, the provider and the hook.
 export { HostMissingProviderError, HostProvider, useHost } from './hostApi.js';
 export type { Host } from './hostApi.js';
-export { DRAG_CLOSE, DragToClose, shouldCloseOnRelease, type DragHandleProps, type ReleaseMeasure, type ReorderHandle } from './dragToClose.js';
-export { WindowOverlay, OverlaySlot, OVERLAY_Z, OverlayProvider, OverlayStore, type OverlaySlotName, type WindowOverlayProps, type Item, type Entry } from './windowOverlay.js';
+export { DRAG_CLOSE, DragToClose, type DragHandleProps, type ReorderHandle } from './dragToClose.js';
+export { WindowOverlay, OverlaySlot, OVERLAY_Z, type OverlaySlotName, type WindowOverlayProps } from './windowOverlay.js';
 
 /** @public */
 export interface PanelProps extends Omit<BoxProps, 'children' | 'sx' | 'title'> {
