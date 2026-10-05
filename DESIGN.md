@@ -955,7 +955,8 @@ phonux-app commit the extraction was taken at.
 
 A release is `npm run release:check`, then the maintainer's own `npm publish` from `dist/`. Nothing in this repository publishes,
 and a published version is never edited: a fix is a new version, and `CHANGELOG.md` says what changed. `.github/workflows/ci.yml`
-runs the typecheck, the tests, the build, the API report check and the smoke on every push and pull request.
+runs the typecheck, the tests, the build, the API report check and the smoke on a pull request into `release` and on dispatch;
+a pull request into `main` runs no cloud check.
 
 phonux-app installs the published package from the registry. To try a change there before publishing, install a copy of this
 checkout over it: `npm install --no-save --install-links <path to this checkout>` from the app leaves the app's `package.json`
