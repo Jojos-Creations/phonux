@@ -57,6 +57,7 @@ test("source: PanelRow's zIndex and enterDirection do not read `collapsible` -- 
   assert.ok(enterLine && !enterLine.includes('collapsible'), `enterDirection must not read collapsible: ${enterLine}`);
   assert.ok(zIndexLine.includes('layer'), 'zIndex must read layer');
   assert.ok(enterLine.includes('anchoredEnter'), 'enterDirection must read anchoredEnter');
+  assert.ok(enterLine.includes('enterFrom'), 'enterDirection must read enterFrom');
 });
 
 test('source: PanelRowSlot has one motion element that owns exit and one that owns layout, never the same', () => {
@@ -209,7 +210,7 @@ test('source: a planted extra writer of locked, collapsible or key in a scratch 
 
 /** Functions that still read `.collapsible`: presence, parking and fixed-column bookkeeping. Permission decisions read effective(p). */
 const COLLAPSIBLE_READERS: Record<string, readonly string[]> = {
-  'panelWindow.ts': ['farthestLiveCollapsibleId', 'firstParkedAfter', 'lastParkedBefore', 'leftmostLiveIndex', 'movePanel', 'promoteToLive', 'rightmostLiveIndex', 'sideOfLiveRange'],
+  'panelWindow.ts': ['farthestLiveCollapsibleId', 'firstParkedAfter', 'lastParkedBefore', 'leftmostLiveIndex', 'promoteToLive', 'rightmostLiveIndex', 'sideOfLiveRange'],
   'panels/usePanelManager.ts': ['holdPanel', 'liveParkable', 'markHeld', 'revealMostRecentlyCollapsed', 'revealPanelProactively', 'rowAfter', 'scrollRow', 'settledKeeping', 'usePanelManager', 'wouldEmptyRow'],
   'panels/useProvidePanels.ts': ['useProvidePanels'],
 };

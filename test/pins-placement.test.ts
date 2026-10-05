@@ -172,19 +172,19 @@ test('PIN positional anchors: with the root absent every entry reads root-right 
   assert.deepEqual(anchorsOf(deriveAnchorsFromOrder([entry('a'), root('r'), entry('b')], 'r')), { a: 'r left 0', b: 'r right 0' });
 });
 
-test("PIN root marker: an entry '__root__' passed as rootId stays put when an unrelated pair swaps, reads what follows it as right, and today is drawn as a slot and counted as a fixed column", () => {
+test("root marker: an entry '__root__' passed as rootId stays put when an unrelated pair swaps, reads what follows it as right, and is neither drawn as a slot nor counted as a fixed column", () => {
   const marker = withMarker(root('__root__'));
   const moved = movePanel([marker, entry('a'), entry('b')], 'b', 'left', '__root__');
   assert.deepEqual(ids(moved), ['__root__', 'b', 'a'], 'the marker keeps index 0');
   assert.deepEqual(anchorsOf(moved), { b: '__root__ right 0', a: '__root__ right 1' });
 
   const mounted = mount(rowOf([marker, entry('a'), entry('b')], '__root__'));
-  assert.equal(slotCount(mounted.container), 3, 'today the marker is a slot of its own');
-  assert.equal(slotX(mounted.container, '__root__'), 0);
-  assert.equal(slotX(mounted.container, 'a'), 406, 'the first panel starts a phone width and a gap in');
+  assert.equal(slotCount(mounted.container), 2, 'the marker holds the anchor point and has no slot of its own');
+  assert.equal(slotX(mounted.container, 'a'), 0, 'the first panel starts where the marker would have');
+  assert.equal(slotX(mounted.container, 'b'), 406);
 
   const provider = mountProvider([marker, entry('a'), entry('b')], { rootId: '__root__' });
-  assert.equal(provider.latest().fixedViewCount, 1, 'today the marker counts as a fixed column');
+  assert.equal(provider.latest().fixedViewCount, 0, 'the marker is not a fixed column');
 });
 
 test('PIN a capacity rise returns a parked panel to the slot it was parked in', () => {
@@ -195,7 +195,7 @@ test('PIN a capacity rise returns a parked panel to the slot it was parked in', 
   assert.deepEqual(view.latest().panels.map((p) => `${p.id}:${p.live}`), ['root:true', 'a:true', 'b:true', 'c:true'], 'the rise returned it in the slot it was parked in');
 });
 
-test('KNOWN-BAD:2 after one close, two undoClose calls in one handler report the same log id twice', () => {
+test('after one close, two undoClose calls in one handler report the log id once', () => {
   const restored: string[][] = [];
   const closedLog: string[] = [];
   const provider = mountProvider([root(), entry('a'), entry('b')], {
@@ -210,6 +210,6 @@ test('KNOWN-BAD:2 after one close, two undoClose calls in one handler report the
     stale.undoClose();
     stale.undoClose();
   });
-  assert.deepEqual(restored, [[closedLog[0]!], [closedLog[0]!]], 'the second call read the stale window and reported the id again');
+  assert.deepEqual(restored, [[closedLog[0]!]], 'the second call found the key already present and reported nothing');
   assert.deepEqual(ids(provider.latest().entries), ['root', 'a', 'b'], 'the panel itself came back once');
 });

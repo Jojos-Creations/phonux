@@ -25,7 +25,16 @@ export interface PanelRowEntry<P = JsonValue> extends PanelSummary<P> {
   readonly settings?: ResolvedPanelSettings;
   /** This entry's stable name, written once when it is created from settings; a hand-built entry has none and its `id` stands in. */
   readonly key?: string;
+  /** True only for the reserved '__root__' entry a row without a root keeps so every other entry has something to anchor to: it stays in the array and is never drawn, priced, counted or hopped over. */
+  readonly marker?: true;
 }
+
+/**
+ * Whether `p` is drawn in the row: an always-shown column, or a parkable entry while it is live, and never the
+ * marker. Every reader of presence goes through this one function, so a marker excluded here is excluded everywhere.
+ * @internal
+ */
+export const isPresent = (p: { collapsible: boolean; live: boolean; marker?: boolean }): boolean => p.marker !== true && (!p.collapsible || p.live);
 
 /**
  * The widths of the present panels a drag can cross, nearest first on each side. An always-shown column is

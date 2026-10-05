@@ -12,6 +12,8 @@ import { flushSync } from 'react-dom';
 import type { FormFactor } from '../hostApi.js';
 import { GAP } from '../PanelRowSlot.js';
 import { computeMaxLiveWidth, computeRowLayout } from '../panelRowLayout.js';
+import { placePanel, reportNotes } from '../panelPlacement.js';
+import { isPresent } from '../panelRowEntry.js';
 import { panelWidthOf } from '../panelTiers.js';
 import { effectiveMaxPanels } from '../panelCapacity.js';
 import { effective, holdUnlistedNote } from '../panelSettings.js';
@@ -46,6 +48,8 @@ export interface UsePanelManagerResult {
   enteringViaAnchorIds: ReadonlySet<string>;
   /** Marks `id` as entering via the anchor formula. */
   markEnteringViaAnchor: (id: string) => void;
+  /** Marks `id` to enter from `side`, which wins over the anchor formula: a placed panel's side is a fact of the row it landed in, not of its anchor. */
+  markEnterSide: (id: string, side: 'left' | 'right') => void;
   /** Drops a stale `enterSideById`/`exitRightIds` entry from an earlier park of `id`; call it FIRST on every anchor-formula revive, or the stale side wins. */
   clearEnterSide: (id: string) => void;
   /**
@@ -289,13 +293,15 @@ export function usePanelManager(
       }
     }
   };
+  /** What a placement of `p` resolves against: the row's root and the panel's own `placeFallback`. */
+  const placing = (p: PanelWindow) => ({ rootId, fallback: effective(p).placeFallback });
   const noteHold = (p: PanelWindow): void => {
     if (!effective(p).listed) noteOnce(holdUnlistedNote(p.id));
   };
 
   const wouldEmptyRow = (ids: readonly string[]): boolean => {
     const gone = new Set([...ids, ...inFlight()]);
-    return !panels.some((p) => (!p.collapsible || p.live) && !(p.collapsible && gone.has(p.id)));
+    return !panels.some((p) => isPresent(p) && !(p.collapsible && gone.has(p.id)));
   };
 
   const holdPanel = (id: string, kind: 'sticky' | 'until-room'): boolean => {
@@ -391,23 +397,29 @@ export function usePanelManager(
     // anchor-entry or gesture-side mark left from an earlier reveal of this id.
     forgetEnteringViaAnchor(id);
     clearEnterSide(id);
-    const before = panels;
-    const result = promoteToLive(panels, id, capacity, keptIds());
+    // Re-placed before it goes live, in the same update; the updaters below place again over the latest list.
+    const showAt = effective(target).placeOnShow;
+    const placed = placePanel(panels, id, showAt, placing(target));
+    const placeFirst = (row: PanelWindow[]): PanelWindow[] => placePanel(row, id, showAt, placing(target)).row;
+    const before = showAt === 'in-place' ? panels : placed.row;
+    const result = promoteToLive(before, id, capacity, keptIds());
     if (!result) return;
+    reportNotes(options?.onNote, placed.notes);
+    if (showAt !== 'in-place') setEnterSide(id, sideOfLiveRange(result, id));
     forgetCollapsed(id);
     releaseHold(id);
     const demoted = result.find((p) => !p.live && before.find((prev) => prev.id === p.id)?.live);
     if (!demoted) {
       // An updater, not `result`: `result` is built from this render's array and would drop an update queued
       // earlier in the same handler.
-      setPanels((prev) => settledKeeping(promoteToLive(prev, id, Number.POSITIVE_INFINITY) ?? prev, keep));
+      setPanels((prev) => settledKeeping(promoteToLive(placeFirst(prev), id, Number.POSITIVE_INFINITY) ?? prev, keep));
       return;
     }
     if (sideOfLiveRange(before, demoted.id) === 'right') markExitRight(demoted.id);
     recordPark([demoted.id], { kind: 'capacity' });
     // Applied in two functional updates, in this order: `id` goes live first (no demotion yet -- capacity
     // Infinity guarantees that for this call only), then the panel it displaces is parked.
-    setPanels((prev) => promoteToLive(prev, id, Number.POSITIVE_INFINITY) ?? prev);
+    setPanels((prev) => promoteToLive(placeFirst(prev), id, Number.POSITIVE_INFINITY) ?? prev);
     setPanels((current) => settledKeeping(current.map((p) => (p.id === demoted.id ? { ...p, live: false } : p)), keep));
   };
 
@@ -519,11 +531,25 @@ export function usePanelManager(
       }
       if (revealed.size === 0) return;
       collapseOrderRef.current = stack.filter((id) => !revealed.has(id) && !stale.has(id));
+      // Each returning panel is placed by its own `placeOnReturn`, in return order, in the update that makes it live.
+      const placements = [...revealed].flatMap((id) => {
+        const returning = panels.find((p) => p.id === id)!;
+        const value = effective(returning).placeOnReturn;
+        return value === 'in-place' ? [] : [{ id, value, at: placing(returning) }];
+      });
+      const placeAll = (row: PanelWindow[]): PanelWindow[] => placements.reduce((acc, { id, value, at }) => placePanel(acc, id, value, at).row, row);
+      let landing = panels;
+      for (const { id, value, at } of placements) {
+        const result = placePanel(landing, id, value, at);
+        reportNotes(options?.onNote, result.notes);
+        landing = result.row;
+      }
+      const landed = landing.map((p) => (revealed.has(p.id) ? { ...p, live: true } : p));
       for (const id of revealed) {
         releaseHold(id);
-        setEnterSide(id, sideOfLiveRange(panels, id));
+        setEnterSide(id, sideOfLiveRange(placements.some((x) => x.id === id) ? landed : panels, id));
       }
-      setPanels((current) => current.map((p) => (revealed.has(p.id) ? { ...p, live: true } : p)));
+      setPanels((current) => placeAll(current).map((p) => (revealed.has(p.id) ? { ...p, live: true } : p)));
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [capacity, panels]);
@@ -563,10 +589,19 @@ export function usePanelManager(
     releaseHold(revealId);
     // Clear before marking, as `clearEnterSide`'s contract requires: a stale explicit side would win over the anchor.
     clearEnterSide(revealId);
-    // One of the two "reappearance" paths that enter from the anchor's side -- mark it BEFORE the setPanels
-    // call below; no flushSync, since the mark only has to be in the commit that mounts the slot.
-    markEnteringViaAnchor(revealId);
-    setPanels((current) => promoteToLive(current, revealId, Number.POSITIVE_INFINITY) ?? current);
+    const returning = panelsAfterClose.find((p) => p.id === revealId)!;
+    const returnAt = effective(returning).placeOnReturn;
+    if (returnAt === 'in-place') {
+      // One of the two "reappearance" paths that enter from the anchor's side -- mark it BEFORE the setPanels
+      // call below; no flushSync, since the mark only has to be in the commit that mounts the slot.
+      markEnteringViaAnchor(revealId);
+      setPanels((current) => promoteToLive(current, revealId, Number.POSITIVE_INFINITY) ?? current);
+      return;
+    }
+    const placed = placePanel(panelsAfterClose, revealId, returnAt, placing(returning));
+    reportNotes(options?.onNote, placed.notes);
+    setEnterSide(revealId, sideOfLiveRange(placed.row, revealId));
+    setPanels((current) => promoteToLive(placePanel(current, revealId, returnAt, placing(returning)).row, revealId, Number.POSITIVE_INFINITY) ?? current);
   };
 
   return {
@@ -576,6 +611,7 @@ export function usePanelManager(
     revealMostRecentlyCollapsed,
     enteringViaAnchorIds: enteringViaAnchorRef.current,
     markEnteringViaAnchor,
+    markEnterSide: setEnterSide,
     clearEnterSide,
     scrollRow,
     reorderPanel,

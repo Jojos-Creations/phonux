@@ -1,8 +1,10 @@
 import { useEffect, useRef, useState, type Dispatch, type SetStateAction } from 'react';
 import { flushSync } from 'react-dom';
 import type { JsonValue } from '../hostApi.js';
-import { effective } from '../panelSettings.js';
-import { closePanel, restorePanel, type PanelWindow } from '../panelWindow.js';
+import { reportNotes, restorePlaced } from '../panelPlacement.js';
+import { effective, panelKey } from '../panelSettings.js';
+import type { SettingNote } from '../panelSettings.js';
+import { closePanel, sideOfLiveRange, type PanelWindow } from '../panelWindow.js';
 import type { UsePanelManagerResult } from './usePanelManager.js';
 
 /** `panel` carrying `hostData`; `undefined` leaves no `hostData` key at all, the same shape appendPanel produces. */
@@ -57,8 +59,9 @@ export function usePanelClosing(
   /**
    * Called per panel `undoClose` restores LIVE (the branch that calls `revealPanelProactively`): with
    * usePanelManager.ts's `revealMostRecentlyCollapsed`, one of the two paths that enter from the anchor's side.
+   * `side` is set when its `undoPlacement` moved it: the side of the row it landed on, which the anchor cannot say.
    */
-  onRestoreLive?: (id: string) => void,
+  onRestoreLive?: (id: string, side?: 'left' | 'right') => void,
   /**
    * Called with the panels the undo window's NATURAL elapse just finalized (Undo calls stopWindow() instead), and
    * at once with a panel whose `undoWindowMs` is 0, so a caller can tell a restored close from one nothing will
@@ -75,6 +78,8 @@ export function usePanelClosing(
    * the opaque blob pointed at, and whether that outlived the close.
    */
   resetHostDataOnRestore?: (hostData: JsonValue | undefined, panel: PanelWindow) => JsonValue | undefined,
+  /** Receives each note an undo raises (a placement that fell back); whatever it throws is swallowed. */
+  onNote?: (note: SettingNote) => void,
 ): UsePanelClosingResult {
   const [closed, setClosed] = useState<ClosedView[]>([]);
   // Mirrors `closed` synchronously (never via an effect): the timer callback below fires from a closure
@@ -141,29 +146,36 @@ export function usePanelClosing(
   };
 
   const undoClose = () => {
-    if (closed.length === 0) return;
-    const batch = closed;
+    // The batch comes from the ref, which a first call empties at once: a second call in the same handler still
+    // holds this render's `closed` and would restore and report the same panels again.
+    const batch = closedRef.current;
+    if (batch.length === 0) return;
     stopWindow();
     setClosedBoth([]);
     // Last closed first: each index was taken from the array as it was when THAT view closed, so undoing in reverse re-creates it.
     let working = panels;
     const restoredIds = new Set<string>();
     for (const { panel, index } of [...batch].reverse()) {
-      if (working.some((p) => p.id === panel.id)) continue;
+      if (working.some((p) => p.id === panel.id || panelKey(p) === panelKey(panel))) continue;
       // restorePanel is a pure spread and phonux never reads inside hostData, so the host's own reset runs
       // here, once per panel, and its result is what every call below restores.
       const restoringPanel = resetHostDataOnRestore ? withHostData(panel, resetHostDataOnRestore(panel.hostData, panel)) : panel;
+      const placeAt = effective(panel).undoPlacement;
+      const at = { rootId, fallback: effective(panel).placeFallback };
+      const restoreInto = (row: PanelWindow[]): PanelWindow[] => restorePlaced(row, restoringPanel, index, placeAt, at).row;
+      const landed = restorePlaced(working, restoringPanel, index, placeAt, at);
+      reportNotes(onNote, landed.notes);
       if (panel.live) {
         // This restore is one of the two "reappearance" paths that enters from the anchor's side -- mark it
         // BEFORE revealPanelProactively's own setPanels call, same ordering reasoning as usePanelManager.ts's
         // own markEnteringViaAnchor call site.
-        onRestoreLive?.(panel.id);
+        onRestoreLive?.(panel.id, placeAt === 'old-slot' ? undefined : sideOfLiveRange(landed.row, panel.id));
         // Through the same room-making rule as opening a view: the live view farthest from it is parked if the row is full.
-        revealPanelProactively(working, (prev) => restorePanel(prev, restoringPanel, index, rootId));
+        revealPanelProactively(working, restoreInto);
       } else {
-        setPanels((prev) => restorePanel(prev, restoringPanel, index, rootId));
+        setPanels(restoreInto);
       }
-      working = restorePanel(working, restoringPanel, index, rootId);
+      working = landed.row;
       restoredIds.add(panel.id);
     }
     // A restored id is no longer closing: a stale mark would slide a LATER park of it down instead of left. An

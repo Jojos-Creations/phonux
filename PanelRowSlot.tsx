@@ -25,8 +25,11 @@ export interface PanelRowSlotMotion {
   readonly initial: TargetAndTransition;
   readonly animate: TargetAndTransition;
   readonly exit: TargetAndTransition;
-  readonly transition: typeof PANEL_TRANSITION;
+  readonly transition: typeof PANEL_TRANSITION | typeof INSTANT_TRANSITION;
 }
+
+/** What an `animated: false` slot moves with: the same targets, no time taken. */
+const INSTANT_TRANSITION = { duration: 0 } as const;
 
 type ExitDirection = 'down' | 'left' | 'right';
 
@@ -42,6 +45,7 @@ export function panelRowSlotMotion(
   phoneHeight: number,
   enterDirection: 'left' | 'right',
   exitDirection: ExitDirection,
+  animated = true,
 ): PanelRowSlotMotion {
   // This panel's OWN footprint (its width plus one gap) is how far it must travel to clear the row edge,
   // so the distance is per panel: a wider one travels further.
@@ -50,13 +54,14 @@ export function panelRowSlotMotion(
   // Positive distance enters from the right (directionalTransition.ts's own sign convention); a negative
   // one enters from the left -- see panelRowOrder.ts for who decides which.
   const enterDistance = enterDirection === 'left' ? -ownSpan : ownSpan;
-  const { initial, animate, transition } = directionalTransition('x', rest, enterDistance);
+  const { initial, animate, transition: slideTransition } = directionalTransition('x', rest, enterDistance);
+  const transition = animated ? slideTransition : INSTANT_TRANSITION;
   // 'down': a close, timed to DragToClose's exit so trash and drag closes read as one motion (DragToClose calls
   // `onClose` after its own `y` animation, so this ramps in under a box already off-screen). 'left'/'right': a
   // park, off the edge it was hidden past, so a close never looks like a park.
   const exit: TargetAndTransition =
     exitDirection === 'down'
-      ? { x: rest, y: phoneHeight, opacity: 0, transition: { duration: DRAG_CLOSE.exitSeconds, ease: 'easeIn' } }
+      ? { x: rest, y: phoneHeight, opacity: 0, transition: animated ? { duration: DRAG_CLOSE.exitSeconds, ease: 'easeIn' } : INSTANT_TRANSITION }
       : exitDirection === 'right'
         ? { x: rest + ownSpan, opacity: 0 }
         : { x: -ownSpan, opacity: 0 };
@@ -74,6 +79,7 @@ export function PanelRowSlot({
   enterDirection,
   exitDirection,
   zIndex,
+  animated = true,
   children,
 }: {
   /** This slot's own rest x position -- the caller's running sum of every PRECEDING present item's own width plus one gap. */
@@ -94,9 +100,11 @@ export function PanelRowSlot({
    * left behind it) must be set HERE, on the slot, not on what renders inside it. Defaults to 0.
    */
   zIndex?: number;
+  /** False: the slot's enter and exit take no time. Default true. */
+  animated?: boolean;
   children: React.ReactNode;
 }) {
-  const { initial, animate, exit, transition } = panelRowSlotMotion(leftOffset, width, phoneHeight, enterDirection, exitDirection);
+  const { initial, animate, exit, transition } = panelRowSlotMotion(leftOffset, width, phoneHeight, enterDirection, exitDirection, animated);
   return (
     <motion.div
       // Enters from one own-width-plus-gap span beyond its destination, right or left per `enterDirection` above.
