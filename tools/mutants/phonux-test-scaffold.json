@@ -1,0 +1,64 @@
+{
+  "tests": [
+    "test/harness-control.test.ts",
+    "test/panel-row-golden.test.ts",
+    "test/panel-header-golden.test.ts",
+    "test/compat-0.1.0.test.ts"
+  ],
+  "mutants": [
+    {
+      "name": "harness skips act",
+      "file": "test/support/mount-harness.ts",
+      "find": "act(() => root.render(ui));",
+      "replace": "root.render(ui);",
+      "expectRed": [
+        "harness positive control"
+      ]
+    },
+    {
+      "name": "harness mounts nothing",
+      "file": "test/support/mount-harness.ts",
+      "find": "renderInto(root, ui);",
+      "replace": "void ui;",
+      "expectRed": [
+        "harness positive control"
+      ]
+    },
+    {
+      "name": "advanceFrames is a no-op",
+      "file": "test/support/mount-harness.ts",
+      "find": "const frames = Math.ceil(ms / FRAME_MS);",
+      "replace": "const frames = 0;",
+      "expectRed": [
+        "PanelRow exit"
+      ]
+    },
+    {
+      "name": "PanelRow renders one more data attribute",
+      "file": "PanelRow.tsx",
+      "find": "<Box\n      sx={{\n        position: 'relative',",
+      "replace": "<Box\n      data-extra=\"\"\n      sx={{\n        position: 'relative',",
+      "expectRed": [
+        "PanelRow golden"
+      ]
+    },
+    {
+      "name": "Panel appends an empty element to the actions cluster",
+      "file": "PanelFrame.tsx",
+      "find": "{resolvedActions}</Box>",
+      "replace": "{resolvedActions}<span /></Box>",
+      "expectRed": [
+        "Panel golden: a title with actions"
+      ]
+    },
+    {
+      "name": "appendPanel defaults layer to raised",
+      "file": "panelWindow.ts",
+      "find": "layer: info.layer ?? 'base',",
+      "replace": "layer: info.layer ?? 'raised',",
+      "expectRed": [
+        "compat-0.1.0 corpus"
+      ]
+    }
+  ]
+}
