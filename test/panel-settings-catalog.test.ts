@@ -104,7 +104,7 @@ const OWNER_TABLE: ReadonlyArray<readonly [string, readonly CatalogName[]]> = [
   ['phonux-header-buttons', ['headerButtons']],
 ];
 
-/** Problems in an owner table: a name missing, a name owned twice, or a name outside the catalog. */
+/** Problems in a name-to-entry table: a name with no entry, a name given two entries, or a name outside the catalog. */
 function ownerTableProblems(table: ReadonlyArray<readonly [string, readonly string[]]>): string[] {
   const seen = new Map<string, string>();
   const problems: string[] = [];
