@@ -11,6 +11,15 @@
       "expectRed": [
         "viewState flipped to reset-on-park after the park: the revive still reads the value, and the next park releases it"
       ]
+    },
+    {
+      "name": "the latch is computed after the live flags are overwritten, so it never records a release",
+      "file": "PanelRow.tsx",
+      "find": "    releasedAtParkRef.current = new Map(entries.filter((p) => p.collapsible && !p.live).map((p) => [p.id, parkReleases(p)]));\n    liveBeforeRef.current = new Map(entries.map((p) => [p.id, p.live]));\n",
+      "replace": "    liveBeforeRef.current = new Map(entries.map((p) => [p.id, p.live]));\n    releasedAtParkRef.current = new Map(entries.filter((p) => p.collapsible && !p.live).map((p) => [p.id, parkReleases(p)]));\n",
+      "expectRed": [
+        "a second render of the parked row before the retain timer fires still releases the value"
+      ]
     }
   ]
 }

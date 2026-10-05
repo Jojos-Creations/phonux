@@ -110,9 +110,10 @@ export function PanelRow({
     if (!p.collapsible || p.live) return false;
     return liveBeforeRef.current.get(p.id) === true ? effective(p).viewState === 'reset-on-park' : releasedAtParkRef.current.get(p.id) === true;
   };
+  // The latch is computed from the previous commit's live flags, so it must be assigned before they are overwritten.
   React.useLayoutEffect(() => {
-    liveBeforeRef.current = new Map(entries.map((p) => [p.id, p.live]));
     releasedAtParkRef.current = new Map(entries.filter((p) => p.collapsible && !p.live).map((p) => [p.id, parkReleases(p)]));
+    liveBeforeRef.current = new Map(entries.map((p) => [p.id, p.live]));
   });
   // Ids never repeat, so a panel in neither list can never be shown again and its view state is released.
   useViewState.useRetainOnly([...entries.filter((p) => !parkReleases(p)), ...(panels.recentlyClosed ?? [])].map((p) => p.id));

@@ -101,7 +101,7 @@ test('rowConstants: no source file outside rowConstants.ts declares its own copy
   const offenders: string[] = [];
   const walk = (dir: string): void => {
     for (const entry of readdirSync(dir, { withFileTypes: true })) {
-      if (['node_modules', 'test', 'tools', 'dist', '.git', 'etc', 'plans'].includes(entry.name)) continue;
+      if (['node_modules', 'test', 'tools', 'dist', '.git', 'etc', 'plans', 'api-extractor-temp'].includes(entry.name)) continue;
       const path = join(dir, entry.name);
       if (entry.isDirectory()) walk(path);
       else if (/\.tsx?$/.test(entry.name) && entry.name !== 'rowConstants.ts' && /\b(GESTURE_LOCK_MS|SAVE_QUIET_MS) = \d/.test(readFileSync(path, 'utf8'))) offenders.push(path.slice(ROOT.length));

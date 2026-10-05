@@ -62,6 +62,7 @@ const parkedOf = (panels: readonly PanelWindow[]): string[] => panels.filter((p)
 
 interface EngineView {
   panels: PanelWindow[];
+  setPanels: React.Dispatch<React.SetStateAction<PanelWindow[]>>;
   manager: UsePanelManagerResult;
   closing: UsePanelClosingResult;
 }
@@ -90,7 +91,7 @@ function mountEngine(initial: PanelWindow[], width = 0) {
         manager.markEnteringViaAnchor(id);
       },
     );
-    latest = { panels, manager, closing };
+    latest = { panels, setPanels, manager, closing };
     return React.createElement('output');
   }
   const mounted = mount(React.createElement(Probe, { containerWidth: width }));
@@ -118,6 +119,7 @@ function mountEngine(initial: PanelWindow[], width = 0) {
     open: (entry: PanelWindow) => call((v) => v.manager.revealPanelProactively(v.panels, (prev) => deriveAnchorsFromOrder([...prev, entry], ROOT))),
     close: (id: string) => call((v) => v.closing.close(id)),
     undo: () => call((v) => v.closing.undoClose()),
+    wipe: () => call((v) => v.setPanels((prev) => prev.filter((p) => !p.collapsible))),
     activate: (id: string) => call((v) => v.manager.handleActivatePanel(id)),
     scroll: (direction: 'left' | 'right') => call((v) => v.manager.scrollRow(direction)),
     resize: (id: string, tier: 'phone' | 'tablet' | 'desktop') => call((v) => v.manager.resizePanel(id, tier)),
@@ -537,6 +539,24 @@ test('until-room: a capacity rise returns B', () => {
   assert.deepEqual(e.live(), ['a', 'b', 'c']);
 });
 
+test('until-room: a panel returned by a capacity rise keeps no hold', () => {
+  const e = mountEngine(row(rootEntry(), park('a'), park('b'), park('c')), W(3));
+  e.hold('b', 'until-room');
+  e.setWidth(W(4));
+  assert.deepEqual(e.live(), ['a', 'b', 'c']);
+  assert.deepEqual(e.held(), [], 'the return released the hold');
+});
+
+test('a wipe that removes held panels without a close leaves no hold behind', () => {
+  const e = mountEngine(row(rootEntry(), park('a'), park('b'), park('c')), W(3));
+  e.hold('a');
+  e.hold('b', 'until-room');
+  assert.deepEqual(e.held().length, 2);
+  e.wipe();
+  assert.deepEqual(e.ids(), ['root']);
+  assert.deepEqual(e.held(), []);
+});
+
 test('until-room: a capacity drop and a rise back to the old capacity leaves the free slots at the threshold, and B stays parked', () => {
   const e = mountEngine(row(rootEntry(), park('a'), park('b'), park('c')), W(3));
   e.hold('b', 'until-room');
@@ -740,6 +760,16 @@ test('evictionOrder leftmost: activating p parks the leftmost live panel, a', ()
 });
 test('evictionOrder rightmost: activating p parks the rightmost live panel, d', () => {
   assert.deepEqual(parkedByActivation('rightmost'), ['d']);
+});
+
+test('evictionOrder farthest with the demander near the left end parks the right end, e, where leftmost would park a', () => {
+  const layout = (order: 'farthest' | 'leftmost'): string[] => {
+    const e = mountEngine(row(rootEntry(), park('a'), park('p', { evictionOrder: order }, { live: false }), park('c'), park('d'), park('e')), W(4));
+    e.activate('p');
+    return e.parked();
+  };
+  assert.deepEqual(layout('farthest'), ['e']);
+  assert.deepEqual(layout('leftmost'), ['a']);
 });
 
 test('farthestLiveCollapsibleId: a tie in distance goes to the lower index, for farthest and for nearest', () => {
@@ -1062,6 +1092,19 @@ test('viewState flipped to reset-on-park after the park: the revive still reads 
   mounted.rerender(viewRow([rootEntry(), entry('reset-on-park', true)]));
   await advanceFrames(100);
   assert.equal(slotText(mounted.container, 'a'), '0', 'the next park reads the new setting and released the value');
+});
+
+test('viewState reset-on-park: a second render of the parked row before the retain timer fires still releases the value', async () => {
+  const entry = (live: boolean): PanelWindow => made('a', { viewState: 'reset-on-park' }, { view: 'vis-vs', live });
+  const mounted = mount(viewRow([rootEntry(), entry(true)]));
+  act(() => setters.get('a')!(5));
+  mounted.rerender(viewRow([rootEntry(), entry(false)]));
+  mounted.rerender(viewRow([rootEntry(), entry(false)]));
+  await flushRetain();
+  await advanceFrames(600);
+  mounted.rerender(viewRow([rootEntry(), entry(true)]));
+  await advanceFrames(100);
+  assert.equal(slotText(mounted.container, 'a'), '0', 'the park latched as a release, so a later render of the same parked row does not retain it');
 });
 
 test('viewState reset-on-park: a view still mounted during its exit keeps its value until it unmounts', async () => {
