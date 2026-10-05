@@ -146,8 +146,7 @@ export function usePanelClosing(
   };
 
   const undoClose = () => {
-    // The batch comes from the ref, which a first call empties at once: a second call in the same handler still
-    // holds this render's `closed` and would restore and report the same panels again.
+    // The ref, not this render's `closed`: a second call in the same handler must find the batch already taken.
     const batch = closedRef.current;
     if (batch.length === 0) return;
     stopWindow();

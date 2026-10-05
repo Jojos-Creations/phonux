@@ -1,6 +1,6 @@
 /**
- * What the row does today where placement, a missing root and a repeated undo are concerned. A pin states what the
- * code does, with the bad ones named KNOWN-BAD so a change has to rename the pin it fixes, never delete it.
+ * What the row does where placement, a missing root and a repeated undo are concerned. A pin states what the code
+ * does, with the bad ones named KNOWN-BAD so a change has to rename the pin it fixes, never delete it.
  */
 import { test, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
@@ -45,7 +45,7 @@ const slotX = (container: HTMLElement, id: string): number => {
 };
 const slotCount = (container: HTMLElement): number => container.querySelectorAll('[data-slot]').length;
 
-/** A marker-shaped root: the field is set through a variable so the pin compiles before the type has the field. */
+/** `p` as the marker a root-less row keeps. */
 const withMarker = (p: PanelWindow): PanelWindow => {
   const marked = { ...p, marker: true as const };
   return marked;
