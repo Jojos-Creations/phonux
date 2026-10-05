@@ -87,10 +87,16 @@ test("a row [marker, A, B] draws two slots at x 0 and 406, each 390 wide, in a r
   assert.equal(getComputedStyle(slotOf(mounted.container, 'a')!.parentElement as HTMLElement).width, '796px', 'the row reserves 390 + 16 + 390');
 });
 
-test('a row of only a marker draws nothing and reserves no width', () => {
+test('a row of only a marker draws nothing, is hidden and reserves no width', () => {
   const mounted = mount(rowOf([marker()], MARKER));
   assert.deepEqual(slotIds(mounted.container), []);
-  assert.equal(mounted.container.querySelectorAll('[style*="display: block"]').length, 0, 'the row is hidden, not a zero-width block');
+  const box = mounted.container.firstElementChild as HTMLElement;
+  assert.ok(box, 'the row element is mounted');
+  assert.equal(getComputedStyle(box).display, 'none', 'hidden, so it takes no flex gap from its siblings');
+  assert.equal(getComputedStyle(box).width, '0px');
+  cleanup();
+  const shown = mount(rowOf([marker(), entry('a')], MARKER));
+  assert.equal(getComputedStyle(shown.container.firstElementChild as HTMLElement).display, 'block', 'control: one present panel shows the row');
 });
 
 test('usePanelNeighborWidths for A in [marker, A, B] sees nothing on the left and one panel on the right', () => {

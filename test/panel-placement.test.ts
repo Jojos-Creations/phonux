@@ -11,11 +11,11 @@ import * as React from 'react';
 import { act } from 'react';
 import { PanelRow, registerView, resolvePanelSettings, useProvidePanels } from '../index.js';
 import type { PanelSettings, PanelWindow, PanelsInput, ProvidedPanels, ResolvedPanelSettings, SettingNote } from '../index.js';
-import { placePanel, resolvePlacement, restorePlaced, type NamedPlacement, type PlacementOptions } from '../panelPlacement.js';
+import { placePanel, reportNotes, resolvePlacement, restorePlaced, type NamedPlacement, type PlacementOptions } from '../panelPlacement.js';
 import { computeRowOrder, deriveAnchorsFromOrder } from '../panelRowOrder.js';
 import { applyTemplate } from '../panelSettings.js';
 import type { AddPlacement } from '../panelSettings.js';
-import { appendPanel, createHistoryPanel, sideOfLiveRange, type AnchorRequest } from '../panelWindow.js';
+import { anchorPanel, appendPanel, createHistoryPanel, sideOfLiveRange, type AnchorRequest } from '../panelWindow.js';
 import { differential, differentialsCovered } from './support/differential.js';
 import { advanceFrames, cleanup, mount, panelsInput, withHost } from './support/mount-harness.js';
 
@@ -411,6 +411,67 @@ test('differential placeFallback: a missing target lands where the resolved plac
 afterEach(() => cleanup());
 
 // ---------------------------------------------------------------------------
+// Where the values land when the target is not at the edge of the row
+// ---------------------------------------------------------------------------
+
+const O: PlacementOptions & { rootId: string } = { rootId: ROOT, fallback: 'row-start' };
+const landed = (row: PanelWindow[], value: AddPlacement): string[] => {
+  const { anchor } = resolvePlacement(row, ROOT, 'N', value, O);
+  return ids(appendPanel(row, { url: 'https://n.example', ...(anchor === null ? {} : { anchor }) }, 'N', ROOT));
+};
+const anchored = (p: PanelWindow, panel: string, position: 'left' | 'right', priority: number): PanelWindow => ({ ...p, anchor: { panel, position, priority } });
+
+test('a fixed column right of the parkables: parkable-end lands before it, and row-end and after-fixed land after it', () => {
+  const row = rowOf([fixed('H'), made('A'), made('B'), fixed('F')]);
+  assert.deepEqual(landed(row, 'parkable-end'), ['H', 'A', 'B', 'N', 'F']);
+  assert.deepEqual(landed(row, 'row-end'), ['H', 'A', 'B', 'F', 'N']);
+  assert.deepEqual(landed(row, 'after-fixed'), ['H', 'A', 'B', 'F', 'N']);
+  assert.deepEqual(landed(row, 'parkable-start'), ['H', 'N', 'A', 'B', 'F']);
+  assert.deepEqual(ids(placePanel([row[0]!, row[1]!, made('N'), row[2]!, row[3]!], 'N', 'parkable-end', O).row), ['H', 'A', 'B', 'N', 'F'], 're-placing a present panel lands it the same');
+});
+
+test('two fixed columns: after-fixed lands after the last of them, and the parkable ends land beside the parkables', () => {
+  const row = rowOf([fixed('H'), fixed('F1'), made('A'), fixed('F2'), made('B')]);
+  assert.deepEqual(landed(row, 'after-fixed'), ['H', 'F1', 'A', 'F2', 'N', 'B']);
+  assert.deepEqual(landed(row, 'parkable-start'), ['H', 'F1', 'N', 'A', 'F2', 'B']);
+  assert.deepEqual(landed(row, 'parkable-end'), ['H', 'F1', 'A', 'F2', 'B', 'N']);
+});
+
+test('priority -1 lands a placed panel nearest its neighbour even when another entry already sits there at priority 0', () => {
+  // F is anchored left of A at priority 0 and N, earlier in the array, is on the root's right: at a tie the later entry on the left side is nearer.
+  const base = computeRowOrder([fixed('H'), anchored(made('N'), 'H', 'right', 0), anchored(fixed('F'), 'A', 'left', 0), anchored(made('A'), 'H', 'right', 1), anchored(made('B'), 'H', 'right', 2)], ROOT);
+  assert.deepEqual(ids(base), ['H', 'N', 'F', 'A', 'B'], 'control: the arrangement before the placement');
+  assert.deepEqual(ids(placePanel(base, 'N', 'parkable-start', O).row), ['H', 'F', 'N', 'A', 'B'], 'N lands between F and A');
+  assert.deepEqual(ids(anchorPanel(base, 'N', { panel: 'A', position: 'left', priority: 0 }, ROOT)), ['H', 'N', 'F', 'A', 'B'], 'control: priority 0 would have lost the tie');
+  // F is anchored right of B at priority 0, and an appended panel loses a right-side tie to the entry earlier in the row.
+  const right = computeRowOrder([fixed('H'), anchored(made('A'), 'H', 'right', 0), anchored(made('B'), 'H', 'right', 1), anchored(fixed('F'), 'B', 'right', 0)], ROOT);
+  assert.deepEqual(ids(right), ['H', 'A', 'B', 'F'], 'control: the arrangement before the placement');
+  assert.deepEqual(landed(right, 'parkable-end'), ['H', 'A', 'B', 'N', 'F'], 'N lands between B and F');
+});
+
+test('a placement note reaches onNote, and an onNote that throws neither stops the others nor breaks the placement', () => {
+  const seen: string[] = [];
+  const row = rowOf([fixed(ROOT), made('A')]);
+  const notes = resolvePlacement(row, ROOT, 'N', { after: 'ghost' }, O).notes.concat(resolvePlacement(row, ROOT, 'N', { before: 'ghost' }, O).notes);
+  assert.equal(notes.length, 2);
+  assert.doesNotThrow(() =>
+    reportNotes((n) => {
+      seen.push(n.code);
+      throw new Error('a reporter that throws');
+    }, notes),
+  );
+  assert.deepEqual(seen, ['placement-fallback', 'placement-fallback'], 'the second note was delivered after the first one threw');
+  assert.doesNotThrow(() => reportNotes(undefined, notes));
+});
+
+test('{ anchor } keeps the priority it was given: a fractional priority lands between two entries on the same side', () => {
+  const flat = rowOf([fixed('H'), made('A'), made('B'), made('C')]);
+  const row = flat.map((p) => (p.id === 'B' ? anchored(p, 'A', 'right', 0) : p.id === 'C' ? anchored(p, 'A', 'right', 1) : p));
+  assert.deepEqual(landed(row, { anchor: { panel: 'A', position: 'right', priority: 0.5 } }), ['H', 'A', 'B', 'N', 'C']);
+  assert.deepEqual(landed(row, { anchor: { panel: 'A', position: 'right' } }), ['H', 'A', 'B', 'C', 'N'], 'without a priority the far end of that side is filled');
+});
+
+// ---------------------------------------------------------------------------
 // The show, return and undo paths through the real provider
 // ---------------------------------------------------------------------------
 
@@ -568,6 +629,167 @@ test('differential undoPlacement: the resolved setting decides where undoClose p
       });
     }
   });
+});
+
+// ---------------------------------------------------------------------------
+// The enter side on the return, reveal and undo paths, and the updaters' re-read of the latest row
+// ---------------------------------------------------------------------------
+
+const MARK = '__root__';
+const marker = (): PanelWindow => ({ ...fixed(MARK), marker: true as const });
+/** The container width whose capacity is `n` phone panels in a row whose root is a marker. */
+const W0 = (n: number): number => 16 + 406 * n;
+const rootless = { rootId: MARK };
+
+/** useProvidePanels over a marker-rooted row, drawn by a real PanelRow so a slot's first transform can be read. */
+function provideRow(initialEntries: PanelWindow[], width = 0, notes: SettingNote[] = []) {
+  let latest: ProvidedPanels | undefined;
+  function Probe({ containerWidth }: { containerWidth: number }): React.ReactElement {
+    latest = useProvidePanels(panelsInput({ rootId: MARK, initialEntries: rowOf(initialEntries, MARK), containerWidth, onNote: (n) => notes.push(n) }));
+    return React.createElement(PanelRow, {
+      entries: latest.entries,
+      rootId: MARK,
+      closingIds: latest.closingIds,
+      enteringViaAnchorIds: latest.enteringViaAnchorIds,
+      exitRightIds: latest.exitRightIds,
+      enterSideById: latest.enterSideById,
+    });
+  }
+  const mounted = mount(withHost(React.createElement(Probe, { containerWidth: width })));
+  const now = (): ProvidedPanels => {
+    assert.ok(latest, 'the probe never rendered');
+    return latest;
+  };
+  const translateX = (slot: HTMLElement): number => Number(/translateX\((-?[\d.]+)px\)/.exec(slot.style.transform)?.[1] ?? 0);
+  return {
+    now,
+    flags: () => liveFlags(now().entries),
+    setWidth: (next: number) => mounted.rerender(withHost(React.createElement(Probe, { containerWidth: next }))),
+    /** Lets every exit finish, so a panel that comes back mounts a new slot and does not revive one that is still leaving. */
+    settle: () => advanceFrames(600),
+    /** Which way `id`'s slot starts from its rest position: -1 left of it, 1 right of it. Read straight after the act that mounted it. */
+    entersFrom: async (id: string): Promise<number> => {
+      const slot = mounted.container.querySelector(`[data-slot="${id}"]`)?.parentElement;
+      assert.ok(slot, `slot ${id} is mounted`);
+      const initial = translateX(slot);
+      await advanceFrames(600);
+      console.log("DBG", id, initial, translateX(slot), slot.style.transform);
+      return Math.sign(initial - translateX(slot));
+    },
+  };
+}
+
+test('enter side, capacity rise: a panel returned at the row end carries a right mark and starts right of its slot, though it left from the left', async () => {
+  const provider = provideRow([marker(), made('A', { placeOnReturn: 'row-end' }), made('B'), made('C'), made('D')], W0(4));
+  act(() => provider.setWidth(W0(2)));
+  assert.deepEqual(provider.flags(), [MARK, 'A~', 'B~', 'C', 'D'], 'control: the narrow row parked A and B');
+  await provider.settle();
+  act(() => provider.setWidth(W0(4)));
+  assert.deepEqual(provider.flags(), [MARK, 'B', 'C', 'D', 'A'], 'B returned in its slot and A at the row end');
+  assert.equal(provider.now().enterSideById.get('A'), 'right');
+  assert.equal(provider.now().enterSideById.get('A'), sideOfLiveRange([...provider.now().entries], 'A'), 'the side of the slot it landed in');
+  assert.equal(provider.now().enterSideById.get('B'), 'left', 'a panel that returns in place enters from the side of its old slot');
+  assert.equal(await provider.entersFrom('A'), 1);
+});
+
+test('enter side, capacity rise: a panel returned at the row start carries a left mark', async () => {
+  const provider = provideRow([marker(), made('A'), made('B', { placeOnReturn: 'row-start' }), made('C'), made('D')], W0(4));
+  act(() => provider.setWidth(W0(2)));
+  assert.deepEqual(provider.flags(), [MARK, 'A~', 'B~', 'C', 'D']);
+  await provider.settle();
+  act(() => provider.setWidth(W0(4)));
+  assert.deepEqual(provider.flags(), ['B', MARK, 'A', 'C', 'D'], 'the row-start placement sits left of the marker');
+  assert.equal(provider.now().enterSideById.get('B'), 'left');
+  assert.equal(await provider.entersFrom('B'), -1);
+});
+
+test('enter side, reveal after a close: the revealed panel carries the side of the slot it was placed in', async () => {
+  const provider = provideRow([marker(), made('A', { placeOnReturn: 'row-end' }), made('B'), made('C')], W0(2));
+  assert.deepEqual(provider.flags(), [MARK, 'A~', 'B', 'C'], 'control: A was parked for room');
+  await provider.settle();
+  act(() => provider.now().close('B'));
+  assert.deepEqual(provider.flags(), [MARK, 'C', 'A']);
+  assert.equal(provider.now().enterSideById.get('A'), 'right');
+  assert.equal(await provider.entersFrom('A'), 1);
+});
+
+test('enter side, undo: a restored panel carries the side of its placed slot, whatever its old slot was', async () => {
+  for (const [value, want, row] of [
+    ['row-end', 'right', ['H', 'A', 'B', 'X'] as const],
+    ['row-start', 'left', ['X', 'H', 'A', 'B'] as const],
+  ] as const) {
+    const provider = provideRow([marker(), made('A'), made('X', { undoPlacement: value }), made('B')]);
+    act(() => provider.now().close('X'));
+    await provider.settle();
+    act(() => provider.now().undoClose());
+    assert.deepEqual(provider.now().entries.map((p) => p.id).map((id) => (id === MARK ? 'H' : id)), row, `undoPlacement ${value}`);
+    assert.equal(provider.now().enterSideById.get('X'), want);
+    assert.equal(provider.now().enterSideById.get('X'), sideOfLiveRange([...provider.now().entries], 'X'));
+    assert.equal(await provider.entersFrom('X'), want === 'left' ? -1 : 1);
+    cleanup();
+  }
+});
+
+test('placement notes: a placeOnReturn whose target is missing is noted exactly once on the capacity-rise return and on the reveal after a close', () => {
+  const lost = { placeOnReturn: { after: 'ghost' }, placeFallback: 'row-start' } as const;
+  const rise = provide([fixed(ROOT), made('A', lost), made('B'), made('C'), made('D')], { width: W(4), over: { onNote: (n) => riseNotes.push(n) } });
+  const riseNotes: SettingNote[] = [];
+  act(() => rise.setWidth(W(2)));
+  act(() => rise.setWidth(W(4)));
+  assert.deepEqual(rise.flags(), ['A', 'H', 'B', 'C', 'D'], 'A returned at its placeFallback');
+  assert.deepEqual(riseNotes.map((n) => [n.code, n.panelId]), [['placement-fallback', 'A']]);
+  cleanup();
+  const revealNotes: SettingNote[] = [];
+  const reveal = provide([fixed(ROOT), made('A', lost), made('B'), made('C')], { width: W(2), over: { onNote: (n) => revealNotes.push(n) } });
+  assert.deepEqual(reveal.flags(), ['H', 'A~', 'B', 'C']);
+  act(() => reveal.now().close('B'));
+  assert.deepEqual(reveal.flags(), ['A', 'H', 'C']);
+  assert.deepEqual(revealNotes.map((n) => [n.code, n.panelId]), [['placement-fallback', 'A']]);
+});
+
+test('show: two activates in one handler each place over the row the other left, not over this render', () => {
+  const provider = provide([fixed(ROOT), made('A'), made('B', { placeOnShow: 'row-end' }, { live: false }), made('C', { placeOnShow: 'row-start' }, { live: false }), made('D')]);
+  act(() => {
+    provider.now().activate('B');
+    provider.now().activate('C');
+  });
+  assert.deepEqual(provider.flags(), ['C', 'H', 'A', 'D', 'B']);
+});
+
+test('show: an activate that makes room parks the farthest panel and places the shown one in the same update, whatever an earlier update in the handler did', () => {
+  const entries = () => [fixed(ROOT), made('A'), made('B'), made('C', { placeOnShow: 'row-start' }, { live: false })];
+  const plain = provide(entries(), { width: W(2) });
+  assert.deepEqual(plain.flags(), ['H', 'A', 'B', 'C~'], 'control: two live panels fill the row');
+  act(() => plain.now().activate('C'));
+  assert.deepEqual(plain.flags(), ['C', 'H', 'A', 'B~'], 'C is placed first, and the panel farthest from it parks');
+  cleanup();
+  const moved = provide(entries(), { width: W(2) });
+  act(() => {
+    moved.now().move('B', 'left');
+    moved.now().activate('C');
+  });
+  assert.deepEqual(moved.flags(), ['C', 'H', 'B~', 'A'], 'the earlier move survived: B still stands before A, and the panel the render picked to park is the one that parks');
+});
+
+test('reveal after a close: the placement runs over the row an earlier update in the same handler left', () => {
+  const provider = provide([fixed(ROOT), made('A', { placeOnReturn: 'row-end' }), made('B'), made('C'), made('D')], { width: W(3) });
+  assert.deepEqual(provider.flags(), ['H', 'A~', 'B', 'C', 'D']);
+  act(() => {
+    provider.now().move('D', 'left');
+    provider.now().close('B');
+  });
+  assert.deepEqual(provider.flags(), ['H', 'D', 'C', 'A']);
+});
+
+test('undo: two panels restored by one undoClose are each placed over the row the first left, with no fallback note', () => {
+  const notes: SettingNote[] = [];
+  const provider = provide([fixed(ROOT), made('A'), made('X', { undoPlacement: { after: 'Y' } }), made('Y', { undoPlacement: 'row-end' }), made('B')], { over: { onNote: (n) => notes.push(n) } });
+  act(() => provider.now().close('X'));
+  act(() => provider.now().close('Y'));
+  assert.deepEqual(provider.ids(), ['H', 'A', 'B']);
+  act(() => provider.now().undoClose());
+  assert.deepEqual(provider.ids(), ['H', 'A', 'B', 'Y', 'X'], 'Y, closed last, is restored first at the row end, and X lands after it');
+  assert.deepEqual(notes, [], 'X found Y, so nothing fell back');
 });
 
 // ---------------------------------------------------------------------------

@@ -37,8 +37,6 @@ export function reportNotes(onNote: ((note: SettingNote) => void) | undefined, n
   }
 }
 
-const matchesName = (p: PanelWindow, name: string): boolean => panelKey(p) === name || p.id === name;
-
 /** `position` against `others`, the row without the panel being placed, in array order. */
 function named(others: readonly PanelWindow[], rootId: string, position: NamedPlacement): AnchorRequest {
   const rowStart: AnchorRequest = { panel: rootId, position: 'left' };
