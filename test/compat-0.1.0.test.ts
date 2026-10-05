@@ -2,7 +2,7 @@
  * What a 0.1.0 consumer relied on, against the vendored 0.1.0 tarball in test/fixtures/compat-0.1.0 (made by
  * tools/gen-compat-corpus.mjs): which names the entry points exported, and what the pure functions answered over
  * seeded random rows. The current export count is computed here and never written as a literal, so a release that
- * only adds exports needs nothing from this file. The ten values 7a60e82 hid are imported from their defining files.
+ * only adds exports needs nothing from this file. Values the barrel hides are imported from their defining files.
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
