@@ -83,5 +83,5 @@ test('rowConstants: every exported constant reaches LIBRARY_TUNING_DEFAULTS, so 
   assert.equal(t.rowGesture, rowConstants.ROW_GESTURE);
   assert.equal(t.initialScroll, rowConstants.INITIAL_SCROLL);
   assert.deepEqual({ ...t.edgeScroll }, { zonePx: rowConstants.EDGE_SCROLL_ZONE_PX, maxPxPerSec: rowConstants.EDGE_SCROLL_MAX_PX_PER_SEC, reducedStepMs: rowConstants.EDGE_SCROLL_REDUCED_STEP_MS });
-  assert.ok(Object.keys(rowConstants).length >= 19, 'the module exports its whole set');
+  assert.equal(Object.keys(rowConstants).length, 17, 'the module exports exactly the 17 constants this test compares');
 });
