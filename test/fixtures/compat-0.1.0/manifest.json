@@ -1,0 +1,317 @@
+{
+  "package": "phonux",
+  "version": "0.1.0",
+  "integrity": "sha512-3YCsOVqxSz4Fn5QDOc5BvFu41eOIDa6IUULRRLrSfXmTJSIxMQx1cHRLRKBewuLU79/dmzGuld7bnS6Eh6EqvQ==",
+  "files": [
+    {
+      "path": "DESIGN.md",
+      "sha256": "96f94e608eaab156d91a5c70e2cfc7e5b248baf5a9270cec1b5f7e3d4624faf0",
+      "stored": false
+    },
+    {
+      "path": "LICENSE",
+      "sha256": "5020b256215f9a79992c36a5a2228c757dcbc4c36c3263efac0dc98c3d35af77",
+      "stored": false
+    },
+    {
+      "path": "Panel.d.ts",
+      "sha256": "f1d8b1aa650b81ea8face966a921a623848ad8de0ee7dd75da16a06daacda283",
+      "stored": true
+    },
+    {
+      "path": "Panel.js",
+      "sha256": "6959cdc4faece0160541c218e1fc64bcad683f1f309b68ad2dbb318d750bbfd1",
+      "stored": true
+    },
+    {
+      "path": "PanelFrame.d.ts",
+      "sha256": "b8f85853aacc4f5b15e9be3d3b483294b609c5ab0215661e6e76257daeff6c9f",
+      "stored": true
+    },
+    {
+      "path": "PanelFrame.js",
+      "sha256": "66fab5f2981f911a41963ebf5a0f7b91b9cb60347e6bdc7474d91ff829811f3e",
+      "stored": true
+    },
+    {
+      "path": "PanelRow.d.ts",
+      "sha256": "0cb415659f6e07571c88355d3a2c751e8b5cf12feb473e14bf021ff6852fd24f",
+      "stored": true
+    },
+    {
+      "path": "PanelRow.js",
+      "sha256": "42d038685923c21d54df16ff7f90b4684f2c2feb514435196498a3d96a9d41d1",
+      "stored": true
+    },
+    {
+      "path": "PanelRowSlot.d.ts",
+      "sha256": "956ccd669f62391a71eed83bd114a9b00d68366615dda720891253e728be2df7",
+      "stored": true
+    },
+    {
+      "path": "PanelRowSlot.js",
+      "sha256": "0a8c09b022b8f9084495bdeb065eba3a527ed72f842f61a1110515e370eb8741",
+      "stored": true
+    },
+    {
+      "path": "PhoneDetectPrompt.d.ts",
+      "sha256": "940df5f6d19bcf6dfe0496e442f37a962fd798896a01a817a821f5174a83cbe1",
+      "stored": true
+    },
+    {
+      "path": "PhoneDetectPrompt.js",
+      "sha256": "c0dd7f865e846331f60d7c1143897a0df40d4099305ed70c24062afa3aa5dc2a",
+      "stored": true
+    },
+    {
+      "path": "README.md",
+      "sha256": "9b46edede913c2e1587a1b3b07825e6b3b0cfbc3d3cd3488dc18519212ec3b31",
+      "stored": false
+    },
+    {
+      "path": "Workspace.d.ts",
+      "sha256": "a7660d23d303ff39642df41b9087a0aadb0e01cc15533d34d68c2565d62333b7",
+      "stored": true
+    },
+    {
+      "path": "Workspace.js",
+      "sha256": "bc985636e15b192c3d0ec9482e650fe6d3794bb9475ab28729cb7fd5283dde43",
+      "stored": true
+    },
+    {
+      "path": "defaultTheme.d.ts",
+      "sha256": "24558c1cd6d03080e4a7ab5ba5bc49827cd18feb154dfcf308b4e44d2e221b2e",
+      "stored": true
+    },
+    {
+      "path": "defaultTheme.js",
+      "sha256": "38adb0a55a4e6a441eb6fea2fa46546cea5bbf43dffea615fbafc6117300d214",
+      "stored": true
+    },
+    {
+      "path": "directionalTransition.d.ts",
+      "sha256": "c1ad26d9d0fda5acc073b865432bf673cb0ae0593615d7772119a96a19251cc4",
+      "stored": true
+    },
+    {
+      "path": "directionalTransition.js",
+      "sha256": "d290b8777e6498623a3be92a8860ac16649bd1e64a145348317d48a8793be168",
+      "stored": true
+    },
+    {
+      "path": "dragToClose.d.ts",
+      "sha256": "2ac324ea3f0916868a0ef89d74441731e9d2962be9d617815d6059f5c69f6e53",
+      "stored": true
+    },
+    {
+      "path": "dragToClose.js",
+      "sha256": "ab922bc745f90fcb04694814f662ba889b8f04069dbe732d25c641ee60c26483",
+      "stored": true
+    },
+    {
+      "path": "fakeHost.d.ts",
+      "sha256": "db59047aa50a1c30f08acfd6d80c39c65bfd5d8118af25d8c0d1044884291458",
+      "stored": true
+    },
+    {
+      "path": "fakeHost.js",
+      "sha256": "1307df6fb2678321b630f3f4e0885e7ba55bd01c1d1847684e5381a239c95048",
+      "stored": true
+    },
+    {
+      "path": "hostApi.d.ts",
+      "sha256": "f01984eede817eeded880ad99e20527e25c31c1974a5541e05fe152ae8885750",
+      "stored": true
+    },
+    {
+      "path": "hostApi.js",
+      "sha256": "7fbfa439e7570c76ee4cef7e262617df3d67c5e6a8a524180afc04db1b7ba589",
+      "stored": true
+    },
+    {
+      "path": "index.d.ts",
+      "sha256": "da25ca8acf86e6105fe85c57c565e9d6dbe99474d2f7a2406995d48f365ec7f8",
+      "stored": true
+    },
+    {
+      "path": "index.js",
+      "sha256": "b7e848278aef2bd7922c44969da93236e2e1e5536b77d33dcd612336942a3ee5",
+      "stored": true
+    },
+    {
+      "path": "package.json",
+      "sha256": "8d09f9b6465063c7a502fb47351c0171b8a19f0bdb1fa15baf1b3e08e8d2abb3",
+      "stored": true
+    },
+    {
+      "path": "panelCapacity.d.ts",
+      "sha256": "72a2e217b7a41bb58084d8e2f93882d0876e18af6c5da775c6f77170d592d0fc",
+      "stored": true
+    },
+    {
+      "path": "panelCapacity.js",
+      "sha256": "5417356c722e3a906605d4fbfae30ac5277d9439f3329fae1576b430f0715208",
+      "stored": true
+    },
+    {
+      "path": "panelRowEntry.d.ts",
+      "sha256": "ee715a6eb0f361895bacda86cf610b4f4c242eddb1667f3b305fcaa09b719db1",
+      "stored": true
+    },
+    {
+      "path": "panelRowEntry.js",
+      "sha256": "1a43348b065d92acd0717ac6af155084029df26aa2b23a6879e5e4f26ed6ca39",
+      "stored": true
+    },
+    {
+      "path": "panelRowLayout.d.ts",
+      "sha256": "532694411baa509a379d0499d3ddddca9aae74a520d6fa9c2bf1d7b3175e4054",
+      "stored": true
+    },
+    {
+      "path": "panelRowLayout.js",
+      "sha256": "8f233ad7d719376fd2912bc76d2310bdd406c81f3bb337d83a1a67004a4dbd27",
+      "stored": true
+    },
+    {
+      "path": "panelRowOrder.d.ts",
+      "sha256": "c3386c9876d94674ea4c44c1a7b65865de0ef0b57371576996019bb1b1542568",
+      "stored": true
+    },
+    {
+      "path": "panelRowOrder.js",
+      "sha256": "48fa0da0350a7a8517010aabd8a3957d041bb9bac6f35dcfb5b5a866e87b1278",
+      "stored": true
+    },
+    {
+      "path": "panelTiers.d.ts",
+      "sha256": "d5bdf48748f553a88beaa66c62ea7987de0604ef7f0826d015eb0ca47f7484d1",
+      "stored": true
+    },
+    {
+      "path": "panelTiers.js",
+      "sha256": "3711e78dbd67791e3c52cea482eb106119ce3b822e086640c0b4e657f0a115d8",
+      "stored": true
+    },
+    {
+      "path": "panelWindow.d.ts",
+      "sha256": "db6283f20c87cb7149b79fae976cde2b84e77cd2755fb8935e528736b9735937",
+      "stored": true
+    },
+    {
+      "path": "panelWindow.js",
+      "sha256": "1735295763af0ae628d4ecb46a0887008a16d73b83751c64a41304feca5dfdc8",
+      "stored": true
+    },
+    {
+      "path": "panels/usePanelClosing.d.ts",
+      "sha256": "c7ed41ccc773eb8df2d1f4a95f93aca7b518db14c8a7c1e49212f6b1a5c6a06d",
+      "stored": true
+    },
+    {
+      "path": "panels/usePanelClosing.js",
+      "sha256": "c0e566c276c3d48748a1475cd9021d74ebc1c928458e9c905b049b6bd81238c5",
+      "stored": true
+    },
+    {
+      "path": "panels/usePanelManager.d.ts",
+      "sha256": "da2dc868de1f91fa172e2eaacbdcca7ee8f2e8e8e9b8df9c08f3e4a239525358",
+      "stored": true
+    },
+    {
+      "path": "panels/usePanelManager.js",
+      "sha256": "c4afa6725a23f33f2d78ca5d19f7991bfeb92bdda1fe5940b17c82d6de7b6ca9",
+      "stored": true
+    },
+    {
+      "path": "panels/useProvidePanels.d.ts",
+      "sha256": "fbe2ce9bc90c4e9c97f7250872da4e5db4e82dc9543561ce5e533b95a9091d1b",
+      "stored": true
+    },
+    {
+      "path": "panels/useProvidePanels.js",
+      "sha256": "f0b401c814f59aad0fe4ca1327556214e9552568443c2c4d87a1af4a5995f281",
+      "stored": true
+    },
+    {
+      "path": "panels/useRowScrollGesture.d.ts",
+      "sha256": "9a52fc3b3094a3803c5255df7ba03d2d1292317a4a13f2e0939d1b5a0bc76abc",
+      "stored": true
+    },
+    {
+      "path": "panels/useRowScrollGesture.js",
+      "sha256": "8593f3b95bf49e6b51b74ac70434126eb14627de65dcab7dc5bd8adaea06e5b6",
+      "stored": true
+    },
+    {
+      "path": "panels/useWorkspacePersistence.d.ts",
+      "sha256": "520597bfd829b1f8e3297ac0a1730ef55ff0ad0722aef210e02de860e2e80c87",
+      "stored": true
+    },
+    {
+      "path": "panels/useWorkspacePersistence.js",
+      "sha256": "0c91456d915dec438eab763cc8cacacdf91cc641a21ff6c74d3f47e6d0b26b60",
+      "stored": true
+    },
+    {
+      "path": "phoneModels.d.ts",
+      "sha256": "e60e0dbc19e5adc656417f9d857a07aaafff6a20a6c7d1b5fce15fd22adf4143",
+      "stored": true
+    },
+    {
+      "path": "phoneModels.js",
+      "sha256": "9a3a9e34e082e0ebce435785fb7946e6cb9b455f1ddd640ff907639657f58846",
+      "stored": true
+    },
+    {
+      "path": "snapshots.d.ts",
+      "sha256": "bd7d7b59c9e6c840e5b85c61c13c99cb38385301835e7263d96916d16c57c688",
+      "stored": true
+    },
+    {
+      "path": "snapshots.js",
+      "sha256": "243884d7e7685599918e28cf0add27b7c8112b68a2c746b39212c9ba37147b99",
+      "stored": true
+    },
+    {
+      "path": "viewRegistry.d.ts",
+      "sha256": "263b77d6100e97fcb715326a2e04c43a3960bf44e8c9cacdaf3d7fa586bed74a",
+      "stored": true
+    },
+    {
+      "path": "viewRegistry.js",
+      "sha256": "05078bcda1eb1b9eac505b4fe99ad84b28d5b754e39d05ff5b82cbee192b3a70",
+      "stored": true
+    },
+    {
+      "path": "viewState.d.ts",
+      "sha256": "e4406059a5d53805dcdb5597ec57c986e53de6f7d1a6a7a81353be37570b950b",
+      "stored": true
+    },
+    {
+      "path": "viewState.js",
+      "sha256": "a3dcbb062c78fe9022df348eac3a7e42d56b89e855cb5abab6c5cad5c2122a70",
+      "stored": true
+    },
+    {
+      "path": "windowOverlay.d.ts",
+      "sha256": "cff9e97d9f9b323809fada2945ee57fc8312512812d0ac7629f6ba4ebce21594",
+      "stored": true
+    },
+    {
+      "path": "windowOverlay.js",
+      "sha256": "a27fde48e9d4bbede14bef31efc17e89c5ebb6d1b39939f75dc433dc9bf19eee",
+      "stored": true
+    },
+    {
+      "path": "workspaceState.d.ts",
+      "sha256": "e8ab7a891e7703244fbd2362350c4df5d77ce6921a66b931f5e4c39439eadaf2",
+      "stored": true
+    },
+    {
+      "path": "workspaceState.js",
+      "sha256": "c93a354a286f9749e0a888b9fc3620f0ce1aa8df3029e398ed0eb75bff4ca1fb",
+      "stored": true
+    }
+  ]
+}

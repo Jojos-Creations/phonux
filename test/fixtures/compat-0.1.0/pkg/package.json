@@ -1,0 +1,30 @@
+{
+  "name": "phonux",
+  "version": "0.1.0",
+  "description": "A phone-shaped view host for React: write a view against a small set of host APIs, register it, and render it in one HostProvider.",
+  "license": "MIT",
+  "type": "module",
+  "sideEffects": false,
+  "publishConfig": {
+    "access": "public"
+  },
+  "peerDependencies": {
+    "react": "^19.2.8",
+    "react-dom": "^19.2.8",
+    "@mui/material": "^9.3.1",
+    "@mui/icons-material": "^9.3.1",
+    "@emotion/react": "^11.14.0",
+    "@emotion/styled": "^11.14.1",
+    "motion": "^13.3.0"
+  },
+  "exports": {
+    ".": {
+      "types": "./index.d.ts",
+      "import": "./index.js"
+    },
+    "./testing": {
+      "types": "./fakeHost.d.ts",
+      "import": "./fakeHost.js"
+    }
+  }
+}
