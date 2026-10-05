@@ -1751,6 +1751,9 @@ export function effective(p: PanelWindow | PanelRowEntry): ResolvedPanelSettings
   return Object.freeze(legacy);
 }
 
+/** The note raised when a hold keeps an unlisted panel parked: nothing in the list can show it, so only code can. @internal */
+export const holdUnlistedNote = (panelId: PanelId): SettingNote => ({ code: 'hold-unlisted', panelId, key: 'listed', message: 'listed: a held hide of an unlisted panel can be shown by code only' });
+
 /** The name readers use for an entry: its `key` when created from settings, its `id` when hand-built. @internal */
 export const panelKey = (p: PanelWindow | PanelRowEntry): string => p.key ?? p.id;
 
@@ -1764,8 +1767,9 @@ const TIER_SIZE_LITERALS: Readonly<Record<FormFactor, PanelSize>> = {
 
 /**
  * `entry` with `resolved` written into the fields that mirror it, and into no other. 'create' writes them all,
- * the tier and its size and `key` included; 'reconfigure' writes only what a later change may move and leaves the
- * tier, size, anchor, `live`, `hostData` and `key` as the person and the row left them.
+ * the tier and its size, `key` and `live` included (`startVisibility` 'parked' parks the entry; 'live' never revives
+ * one the caller handed in parked); 'reconfigure' writes only what a later change may move and leaves the tier,
+ * size, anchor, `live`, `hostData` and `key` as the person and the row left them.
  * @internal
  */
 export function applyTemplate(entry: PanelWindow, resolved: ResolvedPanelSettings, mode: 'create' | 'reconfigure'): PanelWindow {
@@ -1786,6 +1790,7 @@ export function applyTemplate(entry: PanelWindow, resolved: ResolvedPanelSetting
     ...entry,
     locked: !resolved.closable,
     collapsible: resolved.parkable,
+    live: entry.live && resolved.startVisibility === 'live',
     listed: resolved.listed,
     layer: resolved.layer,
     anchoredEnter: resolved.enterFrom === 'anchor',

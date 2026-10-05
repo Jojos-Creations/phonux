@@ -1,0 +1,16 @@
+{
+  "tests": [
+    "test/settings-enforcement-visibility.test.ts"
+  ],
+  "mutants": [
+    {
+      "name": "the keep list reads the live viewState setting instead of the latch set at the park commit",
+      "file": "PanelRow.tsx",
+      "find": "return liveBeforeRef.current.get(p.id) === true ? effective(p).viewState === 'reset-on-park' : releasedAtParkRef.current.get(p.id) === true;",
+      "replace": "return effective(p).viewState === 'reset-on-park';",
+      "expectRed": [
+        "viewState flipped to reset-on-park after the park: the revive still reads the value, and the next park releases it"
+      ]
+    }
+  ]
+}

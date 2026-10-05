@@ -11,13 +11,23 @@
  */
 import { useEffect, useRef } from 'react';
 import type { RefObject } from 'react';
+import { GESTURE_LOCK_MS } from '../rowConstants.js';
 
-/** A trackpad swipe arrives as a burst of small wheel deltas with a momentum tail; Chromium cannot tell a momentum event from a fresh user one. Locking on the first event of a burst and unlocking only after this long of silence (not a shorter one -- gaps inside a real momentum stream can exceed 150 ms) keeps one swipe to one step. */
-const GESTURE_LOCK_MS = 350;
-
-export function useRowScrollGesture(overflowContainerRef: RefObject<HTMLDivElement | null>, scrollRow: (direction: 'left' | 'right') => void): void {
+/**
+ * `gestureLockMs`: a trackpad swipe arrives as a burst of small wheel deltas with a momentum tail, and Chromium cannot
+ * tell a momentum event from a fresh user one. Locking on the first event of a burst and unlocking only after this
+ * long of silence (the default is not shorter: gaps inside a real momentum stream can exceed 150 ms) keeps one swipe
+ * to one step.
+ */
+export function useRowScrollGesture(
+  overflowContainerRef: RefObject<HTMLDivElement | null>,
+  scrollRow: (direction: 'left' | 'right') => void,
+  gestureLockMs: number = GESTURE_LOCK_MS,
+): void {
   const scrollRowRef = useRef(scrollRow);
   scrollRowRef.current = scrollRow;
+  const gestureLockMsRef = useRef(gestureLockMs);
+  gestureLockMsRef.current = gestureLockMs;
 
   useEffect(() => {
     const container = overflowContainerRef.current;
@@ -28,7 +38,7 @@ export function useRowScrollGesture(overflowContainerRef: RefObject<HTMLDivEleme
       if (unlockTimer) clearTimeout(unlockTimer);
       unlockTimer = setTimeout(() => {
         locked = false;
-      }, GESTURE_LOCK_MS);
+      }, gestureLockMsRef.current);
     };
     const onWheel = (e: WheelEvent): void => {
       // A tilt wheel or two-finger swipe reports deltaX; Shift+wheel usually still reports deltaY, so treat

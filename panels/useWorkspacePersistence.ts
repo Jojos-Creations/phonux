@@ -6,12 +6,12 @@ import { useEffect, useRef, useState } from 'react';
 import type { Dispatch, SetStateAction } from 'react';
 import type { JsonValue } from '../hostApi.js';
 import { computeRowOrder } from '../panelRowOrder.js';
+import { SAVE_QUIET_MS } from '../rowConstants.js';
 import type { PanelWindow } from '../panelWindow.js';
 import { hydrateWorkspaceState, isWorkspaceState, projectWorkspaceState } from '../workspaceState.js';
 import type { WorkspaceState, WorkspaceStorage } from '../workspaceState.js';
 
-/** How long the panel list must stay unchanged before it is saved. A change inside that time restarts it. */
-export const WORKSPACE_SAVE_QUIET_MS = 500;
+export { SAVE_QUIET_MS as WORKSPACE_SAVE_QUIET_MS };
 
 export function useWorkspacePersistence(i: {
   storage: WorkspaceStorage | undefined;
@@ -20,8 +20,12 @@ export function useWorkspacePersistence(i: {
   rootId: string;
   freshId: () => string;
   defaultHostData: (() => JsonValue) | undefined;
+  /** How long the panel list must stay unchanged before it is saved; a change inside that time restarts it. Default SAVE_QUIET_MS. */
+  saveQuietMs?: number;
 }): void {
   const { panels, setPanels } = i;
+  const saveQuietMsRef = useRef(i.saveQuietMs ?? SAVE_QUIET_MS);
+  saveQuietMsRef.current = i.saveQuietMs ?? SAVE_QUIET_MS;
   // Everything but the list itself is read once, at mount.
   const { storage, rootId, freshId, defaultHostData } = useRef(i).current;
   // State, not a ref: opening the gate must re-run the save effect, or a change committed while load() was
@@ -78,7 +82,7 @@ export function useWorkspacePersistence(i: {
     const timer = setTimeout(() => {
       lastSaved.current = json;
       storage.save(state);
-    }, WORKSPACE_SAVE_QUIET_MS);
+    }, saveQuietMsRef.current);
     return () => clearTimeout(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps -- storage and rootId never change
   }, [panels, settled]);

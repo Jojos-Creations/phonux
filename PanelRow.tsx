@@ -102,8 +102,20 @@ export function PanelRow({
   const { device, panels } = useHost();
   const phoneWidth = device.size.width;
   const phoneHeight = device.size.height;
+  // The live flags of the previous commit, and per parked entry whether its park released its view state. The latch
+  // is read from the entry's setting at the commit that parks it, so changing the setting later reaches the next park only.
+  const liveBeforeRef = React.useRef<ReadonlyMap<string, boolean>>(new Map());
+  const releasedAtParkRef = React.useRef<ReadonlyMap<string, boolean>>(new Map());
+  const parkReleases = (p: PanelRowEntry): boolean => {
+    if (!p.collapsible || p.live) return false;
+    return liveBeforeRef.current.get(p.id) === true ? effective(p).viewState === 'reset-on-park' : releasedAtParkRef.current.get(p.id) === true;
+  };
+  React.useLayoutEffect(() => {
+    liveBeforeRef.current = new Map(entries.map((p) => [p.id, p.live]));
+    releasedAtParkRef.current = new Map(entries.filter((p) => p.collapsible && !p.live).map((p) => [p.id, parkReleases(p)]));
+  });
   // Ids never repeat, so a panel in neither list can never be shown again and its view state is released.
-  useViewState.useRetainOnly([...entries, ...(panels.recentlyClosed ?? [])].map((p) => p.id));
+  useViewState.useRetainOnly([...entries.filter((p) => !parkReleases(p)), ...(panels.recentlyClosed ?? [])].map((p) => p.id));
   const present = entries.filter((p) => !p.collapsible || p.live);
   // Every present entry's OWN width, in row order. An always-shown column needs no special case: setFormFactor
   // no-ops on a collapsible:false id, so panelWidthOf gives it `phoneWidth`.
