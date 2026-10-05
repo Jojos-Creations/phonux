@@ -10,6 +10,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { workspaceShellStyle, type WorkspaceShellStyleInput } from '../Workspace.js';
 import { PANEL_TRANSITION } from '../index.js';
+import { panelRowSlotMotion } from '../PanelRowSlot.js';
 
 const base: WorkspaceShellStyleInput = {
   containerWidth: 1300,
@@ -61,4 +62,10 @@ test('workspaceShellStyle: a live panel wider than a phone centres by its OWN wi
   assert.equal(margin({ ...wide, liveWidths: [768, 390] }), 244, 'a tablet (768) and a phone');
   assert.notEqual(margin({ ...wide, liveWidths: [768, 390] }), margin({ ...wide, liveWidths: phones(2) }), 'the same COUNT of panels, a different margin');
   assert.equal(margin({ ...wide, liveWidths: [1200] }), (2068 - (390 + 1216)) / 2, 'a desktop panel alone');
+});
+
+test('panelRowSlotMotion: the default transition is the shared PANEL_TRANSITION by reference, and animated false is a zero-duration one', () => {
+  assert.equal(panelRowSlotMotion(0, 390, 700, 'right', 'left').transition, PANEL_TRANSITION);
+  assert.equal(panelRowSlotMotion(0, 390, 700, 'right', 'left', true).transition, PANEL_TRANSITION);
+  assert.deepEqual(panelRowSlotMotion(0, 390, 700, 'right', 'left', false).transition, { duration: 0 });
 });
