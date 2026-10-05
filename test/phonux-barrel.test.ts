@@ -46,6 +46,7 @@ const VALUE_EXPORTS = [
   'GAP',
   'PANEL_TRANSITION',
   'usePanelReorderEligible',
+  'usePanelCapabilities',
   'usePanelCloseEligible',
   'usePanelNeighborWidths',
   'usePanelPinned',
@@ -63,7 +64,7 @@ const VALUE_EXPORTS = [
   'createDefaultTheme',
 ].sort();
 
-test('the phonux barrel exports exactly the 50 runtime values, no more, no fewer', () => {
+test('the phonux barrel exports exactly the 51 runtime values, no more, no fewer', () => {
   assert.deepEqual(Object.keys(phonux).sort(), VALUE_EXPORTS);
 });
 

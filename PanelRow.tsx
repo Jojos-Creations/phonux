@@ -10,6 +10,9 @@ import Box from '@mui/material/Box';
 import { useHost } from './hostApi.js';
 import { summarisePanel, type NeighborWidths, type PanelRowEntry } from './panelRowEntry.js';
 import { anchorTargetOf, resolveEnterDirection } from './panelRowOrder.js';
+import { PanelSlotContext } from './panelSlotContext.js';
+import { effective, resolvePanelSettings } from './panelSettings.js';
+import type { ResolvedPanelSettings } from './panelSettings.js';
 import { GAP, PanelRowSlot } from './PanelRowSlot.js';
 import { panelWidthOf } from './panelTiers.js';
 import { resolveView } from './viewRegistry.js';
@@ -29,22 +32,35 @@ function renderedSummary(p: PanelRowEntry, width: number) {
   return summary.size && summary.size.width !== width && (p.formFactor ?? 'phone') !== 'phone' ? { ...summary, size: { ...summary.size, width } } : summary;
 }
 
+/** What a view mounted outside any row is told: the library defaults, which `resolvePanelSettings` fills in for the derived keys too. */
+const OUTSIDE_ROW = resolvePanelSettings().value;
 /**
- * Per-slot facts a view cannot read itself: it only receives `PanelSummary`, which has no `collapsible` or
- * `anchor`, on purpose (hostApi.tsx). No provider above (a view mounted directly, as in tests) is `undefined`,
- * deliberately not `false`: each hook below resolves that case to its OWN default.
+ * True only for an entry whose `draggable` setting is true (a plain web panel by default): an always-shown column
+ * (the root, or a `permanent:true` custom column) is never a reorder source. Unprovided resolves to false: a view
+ * mounted with no `PanelRow` above it never reorders.
+ * @public
  */
-const PanelSlotContext = React.createContext<{ collapsible: boolean; neighborWidths: NeighborWidths; pinned: boolean } | undefined>(undefined);
-/** True only for a `collapsible` entry (e.g. a plain web panel): an always-shown column (the root, or a
- * `permanent:true` custom column) is never a reorder source. Unprovided resolves to false: a view mounted
- * with no `PanelRow` above it never reorders.
- * @public */
-export const usePanelReorderEligible = (): boolean => React.useContext(PanelSlotContext)?.collapsible ?? false;
-/** False only for an always-shown column (`collapsible:false`): the built-in 'web' view must never wrap such
- * an entry in a framework close handle (CreatePanelOptions.permanent's 'own control only' guarantee).
- * Unprovided resolves to true: a view mounted directly (as tests do) is an ordinary collapsible panel.
- * @public */
-export const usePanelCloseEligible = (): boolean => React.useContext(PanelSlotContext)?.collapsible ?? true;
+export const usePanelReorderEligible = (): boolean => React.useContext(PanelSlotContext)?.draggable ?? false;
+/**
+ * False for an always-shown column (`collapsible:false`) and for an entry whose `closable` setting is false: the
+ * built-in 'web' view must never wrap either in a framework close handle (CreatePanelOptions.permanent's 'own
+ * control only' guarantee, and a locked panel's refusal). Unprovided resolves to true: a view mounted directly
+ * (as tests do) is an ordinary closable panel.
+ * @public
+ */
+export const usePanelCloseEligible = (): boolean => {
+  const slot = React.useContext(PanelSlotContext);
+  return slot === undefined ? true : slot.collapsible && slot.closable;
+};
+/**
+ * What this panel's own settings let a person do with it: close, drag, re-anchor and resize it, and which tiers it
+ * may take. Outside a row: the library defaults.
+ * @public
+ */
+export const usePanelCapabilities = (): Pick<ResolvedPanelSettings, 'closable' | 'draggable' | 'placeable' | 'resizable' | 'formFactors'> => {
+  const slot = React.useContext(PanelSlotContext) ?? OUTSIDE_ROW;
+  return { closable: slot.closable, draggable: slot.draggable, placeable: slot.placeable, resizable: slot.resizable, formFactors: slot.formFactors };
+};
 /** The widths this entry's drag can cross (reorderStepsForOffset's input). Unprovided: none, so no hop.
  * @public */
 export const usePanelNeighborWidths = (): NeighborWidths => React.useContext(PanelSlotContext)?.neighborWidths ?? NO_NEIGHBORS;
@@ -80,7 +96,7 @@ export function PanelRow({
   /** An explicit enter side per id, winning over the anchor formula: a scroll gesture knows which side a reveal
    * must enter from, which the boolean anchor formula cannot express. */
   enterSideById?: ReadonlyMap<string, 'left' | 'right'>;
-  /** The widest one live panel can be in this row (see computeMaxLiveWidth). Omitted: no cap. */
+  /** The widest one live panel can be in this row (ProvidedPanels.maxLiveWidth). Omitted: no cap. */
   maxLiveWidth?: number;
 }): React.ReactElement {
   const { device, panels } = useHost();
@@ -100,11 +116,20 @@ export function PanelRow({
     runningOffset += width + GAP;
   }
   const reservedWidth = Math.max(0, widths.reduce((sum, width) => sum + width + GAP, 0) - GAP);
-  // Nearest first on each side, an always-shown column included: movePanel swaps past one like any neighbour.
-  const neighborWidthsAt = (index: number): NeighborWidths => {
+  const widthById = new Map(present.map((p, index) => [p.id, widths[index]!]));
+  // Nearest first on each side, an always-shown column included: movePanel swaps past one like any neighbour. The
+  // walk is over every array slot and stops at the first entry that is not crossable, a parked one included,
+  // because that is where movePanel refuses the hop.
+  const neighborWidthsAt = (entry: PanelRowEntry): NeighborWidths => {
+    const at = entries.indexOf(entry);
     const side = (step: 1 | -1): number[] => {
       const out: number[] = [];
-      for (let i = index + step; i >= 0 && i < present.length; i += step) out.push(widths[i]!);
+      for (let i = at + step; i >= 0 && i < entries.length; i += step) {
+        const next = entries[i]!;
+        if (!effective(next).crossable) break;
+        const width = widthById.get(next.id);
+        if (width !== undefined) out.push(width);
+      }
       return out;
     };
     return { left: side(-1), right: side(1) };
@@ -127,10 +152,20 @@ export function PanelRow({
       <AnimatePresence initial={false}>
         {present.map((p, index) => {
           const Component = resolveView(p.view);
+          const { closable, draggable, placeable, resizable, formFactors } = effective(p);
           return (
             <PanelSlotContext.Provider
               key={p.id}
-              value={{ collapsible: p.collapsible, neighborWidths: neighborWidthsAt(index), pinned: anchorTargetOf(p, rootId) === rootId && p.anchor?.position === 'left' }}
+              value={{
+                collapsible: p.collapsible,
+                closable,
+                draggable,
+                placeable,
+                resizable,
+                formFactors,
+                neighborWidths: neighborWidthsAt(p),
+                pinned: anchorTargetOf(p, rootId) === rootId && p.anchor?.position === 'left',
+              }}
             >
               <PanelRowSlot
                 leftOffset={leftOffsets[index]!}

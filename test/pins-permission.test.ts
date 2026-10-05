@@ -50,11 +50,11 @@ test('PIN movePanel across a parked panel: [P, X parked, Q] moving P right gives
   assert.deepEqual(ids(moved), ['root', 'x', 'q', 'p'], 'P hops past the next present panel Q, and the parked X shifts one slot with it');
 });
 
-test('KNOWN-BAD:1 initialEntries seeded { locked: true, collapsible: true } is removed by clearAll', () => {
+test('clearAll keeps an initialEntries entry seeded { locked: true, collapsible: true } and removes a plain one', () => {
   const provider = mountProvider([root(), entry('locked', { locked: true }), entry('plain')]);
   assert.deepEqual(ids(provider.latest().entries), ['root', 'locked', 'plain'], 'control: both panels are seeded');
   act(() => provider.latest().clearAll());
-  assert.deepEqual(ids(provider.latest().entries), ['root'], 'a locked parkable entry is wiped like any other: clearAll reads only collapsible');
+  assert.deepEqual(ids(provider.latest().entries), ['root', 'locked'], 'a locked parkable entry is not clearable, a plain one still is');
 });
 
 test('KNOWN-BAD:3 two closes before a re-render undo in the wrong order', () => {

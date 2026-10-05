@@ -7,9 +7,11 @@
 
 import type * as React from 'react';
 import type { SxProps, Theme } from '@mui/material/styles';
-import type { FormFactor } from './hostApi.js';
+import type { FormFactor, PanelSize } from './hostApi.js';
 import { PanelManagerError } from './panelManagerError.js';
+import type { PanelRowEntry } from './panelRowEntry.js';
 import type { PanelState, ViewHandle } from './panelTemplate.js';
+import type { PanelWindow } from './panelWindow.js';
 import {
   DIRECTION_LOCK_PX,
   DRAG_CLOSE_NUMBERS,
@@ -1710,4 +1712,87 @@ export function resolvePanelSettings(layers: PanelSettingsLayers = {}, options: 
   const result: PanelSettingsResolution = { value: Object.freeze(value) as unknown as ResolvedPanelSettings, source: state.source, conflicts, notes };
   if (user.anchor !== undefined) result.userAnchor = user.anchor;
   return result;
+}
+
+// ---------------------------------------------------------------------------
+// Entries: the settings an entry carries and the one writer of the fields that mirror them
+// ---------------------------------------------------------------------------
+
+/** What an entry with no settings starts from: every library default, the derived ones included. */
+const LEGACY_BASE: ResolvedPanelSettings = resolvePanelSettings().value;
+const FIXED_COLUMN_TIERS: readonly FormFactor[] = Object.freeze(['phone'] as const);
+
+/**
+ * The settings `p` behaves under: `p.settings` itself when it has them, else values read from the fields a
+ * hand-built entry carries (`locked`, `collapsible`, `listed`, `layer`, `anchoredEnter`, `formFactor`, `title`),
+ * with every other key at its library default. A hand-built entry keeps its original parking and a fixed column
+ * cannot be dragged, placed or resized.
+ * @internal
+ */
+export function effective(p: PanelWindow | PanelRowEntry): ResolvedPanelSettings {
+  if (p.settings !== undefined) return p.settings;
+  const parkable = p.collapsible;
+  const legacy: ResolvedPanelSettings = {
+    ...LEGACY_BASE,
+    closable: !p.locked,
+    parkable,
+    draggable: parkable,
+    placeable: parkable,
+    resizable: parkable,
+    formFactors: parkable ? LEGACY_BASE.formFactors : FIXED_COLUMN_TIERS,
+    clearable: parkable && !p.locked,
+    listed: 'listed' in p ? p.listed : parkable,
+    overflow: parkable ? 'park' : 'scroll',
+    layer: p.layer ?? 'base',
+    enterFrom: p.anchoredEnter === true ? 'anchor' : 'auto',
+    formFactor: p.formFactor ?? 'phone',
+    ...(p.title !== undefined ? { title: p.title } : {}),
+  };
+  return Object.freeze(legacy);
+}
+
+/** The name readers use for an entry: its `key` when created from settings, its `id` when hand-built. @internal */
+export const panelKey = (p: PanelWindow | PanelRowEntry): string => p.key ?? p.id;
+
+// Literals, not panelTiers.ts's TIER_SIZES: this file may value-import only its two leaf modules, and
+// test/settings-enforcement-permissions.test.ts holds these equal to the table the row prices widths from.
+const TIER_SIZE_LITERALS: Readonly<Record<FormFactor, PanelSize>> = {
+  phone: { formFactor: 'phone', width: 390, height: 700 },
+  tablet: { formFactor: 'tablet', width: 768, height: 'fill' },
+  desktop: { formFactor: 'desktop', width: 1200, height: 'fill' },
+};
+
+/**
+ * `entry` with `resolved` written into the fields that mirror it, and into no other. 'create' writes them all,
+ * the tier and its size and `key` included; 'reconfigure' writes only what a later change may move and leaves the
+ * tier, size, anchor, `live`, `hostData` and `key` as the person and the row left them.
+ * @internal
+ */
+export function applyTemplate(entry: PanelWindow, resolved: ResolvedPanelSettings, mode: 'create' | 'reconfigure'): PanelWindow {
+  const title = resolved.title !== undefined ? { title: resolved.title } : {};
+  if (mode === 'reconfigure') {
+    return {
+      ...entry,
+      locked: !resolved.closable,
+      ...(resolved.parkable !== entry.collapsible ? { collapsible: resolved.parkable } : {}),
+      listed: resolved.listed,
+      layer: resolved.layer,
+      anchoredEnter: resolved.enterFrom === 'anchor',
+      ...title,
+      settings: resolved,
+    };
+  }
+  return {
+    ...entry,
+    locked: !resolved.closable,
+    collapsible: resolved.parkable,
+    listed: resolved.listed,
+    layer: resolved.layer,
+    anchoredEnter: resolved.enterFrom === 'anchor',
+    formFactor: resolved.formFactor,
+    size: entry.size?.formFactor === resolved.formFactor ? entry.size : { ...TIER_SIZE_LITERALS[resolved.formFactor] },
+    ...title,
+    settings: resolved,
+    key: entry.key ?? entry.id,
+  };
 }
