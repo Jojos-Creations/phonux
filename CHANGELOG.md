@@ -8,9 +8,22 @@
   `resizable` and the allowed `formFactors`); outside a row it returns the library defaults.
 - `PanelWindow` and `PanelRowEntry` gain the optional `settings` (the resolved settings an entry was made under)
   and `key`. A hand-built entry has neither and behaves as before.
+- `PanelsInput` gains `tuning` (a partial `WorkspaceTuning`; the engine reads `saveQuietMs`, `gestureLockMs`,
+  `returnTieBreak` and `dropTieBreak`, each defaulting to today's value) and `onNote`, which receives the notes the
+  engine raises while it works and swallows whatever it throws.
 
 ### Changed
 
+- An entry that carries `settings` is parked, returned and held by its `startVisibility`, `hideStickiness`,
+  `hideWhenLast`, `capacityReturn`, `returnPriority`, `evictionRank` and `evictionOrder`, and releases its
+  `useViewState` values at a park when its `viewState` is `reset-on-park`. The park levers act only on a panel whose
+  `overflow` is `park`. A hand-built entry has none of these and parks, returns and keeps its view state as before.
+- `applyTemplate(entry, resolved, 'create')` also writes `live`: `startVisibility` `parked` creates the entry parked,
+  and `live` never revives an entry handed in parked.
+- A panel that is added parked (restored from a saved workspace, or put back by `undoClose`) is held per its
+  `hideStickiness`: it stays parked until shown, as before, and an `until-room` one also returns when room opens.
+- The row gesture's lock and the workspace save delay are read from `PanelsInput.tuning`; `WORKSPACE_SAVE_QUIET_MS`
+  stays exported from the persistence module as an alias of the one default, 500.
 - `clearAll` keeps an entry whose `clearable` setting is false. An entry seeded with `locked: true` and
   `collapsible: true` used to be removed by it; it is kept now, like History and a permanent column.
 - `usePanelCloseEligible` is also false for a locked entry, and `usePanelReorderEligible` follows the

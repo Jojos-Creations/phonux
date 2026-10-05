@@ -137,27 +137,43 @@ export function appendPanel(panels: PanelWindow[], info: { url: string } & Appen
   return computeRowOrder([...panels, entry], rootId);
 }
 
+/** The park-lever settings of `p`: its own when its `overflow` is 'park', the library defaults otherwise, because a panel the row never parks for room has no lever to pull. @internal */
+export function parkLevers(p: PanelWindow): Pick<ResolvedPanelSettings, 'evictionRank' | 'evictionOrder' | 'returnPriority' | 'capacityReturn'> {
+  const s = effective(p);
+  return s.overflow === 'park' ? s : { evictionRank: 0, evictionOrder: 'farthest', returnPriority: 0, capacityReturn: 'auto' };
+}
+
 /**
- * The id of the live collapsible panel farthest (by array index) from `fromIndex`, or null with none live.
- * Ties go to the lower index (the strict `>` keeps the first). From an append (`fromIndex` = the new length)
- * that is the LEFT end of the live range; from an open nearest History or a revive left of the range, the
- * RIGHT end. promoteToLive and the host's open/restore park both pick through this. `exclude`
- * exempts the panel being opened or restored, which is already live in the array the caller passes, and any
- * panel another action in the same update must keep live.
+ * The id of the live collapsible panel to park for room, or null with none live: among the lowest `evictionRank`,
+ * the one `order` picks by distance from `fromIndex` ('leftmost' and 'rightmost' ignore it); a tie goes to the lower
+ * index. `exclude` exempts the panel being opened or restored, already live in `panels`, and any panel another
+ * action in the same update must keep live.
  * @internal
  */
-export function farthestLiveCollapsibleId(panels: PanelWindow[], fromIndex: number, exclude: ReadonlySet<string> = new Set()): string | null {
-  let bestId: string | null = null;
-  let bestDist = -1;
-  panels.forEach((p, i) => {
-    if (!p.collapsible || !p.live || exclude.has(p.id)) return;
-    const dist = Math.abs(i - fromIndex);
-    if (dist > bestDist) {
-      bestDist = dist;
-      bestId = p.id;
-    }
+export function farthestLiveCollapsibleId(
+  panels: PanelWindow[],
+  fromIndex: number,
+  exclude: ReadonlySet<string> = new Set(),
+  order: ResolvedPanelSettings['evictionOrder'] = 'farthest',
+): string | null {
+  const candidates: { id: string; index: number; rank: number }[] = [];
+  panels.forEach((p, index) => {
+    if (p.collapsible && p.live && !exclude.has(p.id)) candidates.push({ id: p.id, index, rank: parkLevers(p).evictionRank });
   });
-  return bestId;
+  if (candidates.length === 0) return null;
+  const lowest = Math.min(...candidates.map((c) => c.rank));
+  let best: { id: string; index: number } | null = null;
+  let bestScore = -Infinity;
+  for (const c of candidates) {
+    if (c.rank !== lowest) continue;
+    const distance = Math.abs(c.index - fromIndex);
+    const score = order === 'farthest' ? distance : order === 'nearest' ? -distance : order === 'rightmost' ? c.index : -c.index;
+    if (score > bestScore) {
+      bestScore = score;
+      best = c;
+    }
+  }
+  return best?.id ?? null;
 }
 
 /**
@@ -207,7 +223,7 @@ export function lastParkedBefore(panels: PanelWindow[], index: number): PanelWin
  * Activating ANY panel (live or parked) flips `live` in place, never moving the entry's array position.
  * Returns `null` for an unknown id or one already live (a legitimate no-op, not an error). When promoting
  * `id` would exceed `capacity`, demotes exactly one OTHER live panel: whichever `farthestLiveCollapsibleId`
- * picks from `id`'s own index, the same far rule an open/restore parks by. Never demotes a
+ * picks from `id`'s own index by `id`'s own `evictionOrder`. Never demotes a
  * `collapsible: false` entry or any id in `keep`.
  * @internal
  */
@@ -220,7 +236,7 @@ export function promoteToLive(panels: PanelWindow[], id: string, capacity: numbe
   if (liveCountAfter > capacity) {
     // `panels` (pre-promotion): `id` itself still reads live:false there, so it is naturally excluded
     // from the search without needing `keep`.
-    const demote = farthestLiveCollapsibleId(panels, ownIndex, keep);
+    const demote = farthestLiveCollapsibleId(panels, ownIndex, keep, parkLevers(target).evictionOrder);
     if (demote) {
       next = next.map((p) => (p.id === demote ? { ...p, live: false } : p));
     }

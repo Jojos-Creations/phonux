@@ -1,0 +1,34 @@
+{
+  "tests": [
+    "test/settings-enforcement-visibility.test.ts"
+  ],
+  "mutants": [
+    {
+      "name": "the capacity-rise walk does not release the hold of a panel it returns",
+      "file": "panels/usePanelManager.ts",
+      "find": "      for (const id of revealed) {\n        releaseHold(id);\n        setEnterSide",
+      "replace": "      for (const id of revealed) {\n        setEnterSide",
+      "expectRed": [
+        "until-room: a panel returned by a capacity rise keeps no hold"
+      ]
+    },
+    {
+      "name": "a hold whose panel is gone is not pruned",
+      "file": "panels/usePanelManager.ts",
+      "find": "    for (const id of heldRef.current.keys()) if (!panels.some((p) => p.id === id)) releaseHold(id);\n",
+      "replace": "",
+      "expectRed": [
+        "a wipe that removes held panels without a close leaves no hold behind"
+      ]
+    },
+    {
+      "name": "farthest scores by leftmost position",
+      "file": "panelWindow.ts",
+      "find": "const score = order === 'farthest' ? distance :",
+      "replace": "const score = order === 'farthest' ? -c.index :",
+      "expectRed": [
+        "evictionOrder farthest with the demander near the left end parks the right end"
+      ]
+    }
+  ]
+}

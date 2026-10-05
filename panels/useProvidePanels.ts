@@ -13,7 +13,8 @@ import { computeMaxLiveWidth } from '../panelRowLayout.js';
 import { summarisePanel } from '../panelRowEntry.js';
 import { panelWidthOf } from '../panelTiers.js';
 import { noopCaptureTrigger, type CaptureTrigger } from '../snapshots.js';
-import { effective } from '../panelSettings.js';
+import { LIBRARY_TUNING_DEFAULTS, effective } from '../panelSettings.js';
+import type { SettingNote, WorkspaceTuning } from '../panelSettings.js';
 import { appendPanel, reanchorPanel, type PanelWindow } from '../panelWindow.js';
 import { usePanelClosing } from './usePanelClosing.js';
 import { usePanelManager } from './usePanelManager.js';
@@ -73,6 +74,24 @@ export interface PanelsInput {
   defaultHostData?: () => JsonValue;
   /** Where the workspace is kept between launches: loaded once at mount, then saved after every change that settles. Unset: nothing is loaded or saved. */
   storage?: WorkspaceStorage;
+  /** Called with each note the engine raises while it works (a runtime diagnostic, never an error): whatever it throws is swallowed. */
+  onNote?: (note: SettingNote) => void;
+  /** The workspace's tuning leaves; each one left out takes the library default. The engine reads `saveQuietMs`, `gestureLockMs`, `returnTieBreak` and `dropTieBreak` here. */
+  tuning?: WorkspaceTuning;
+}
+
+/** The four timing leaves of `tuning`, each at its library default when unset or unusable. */
+function timingTuning(tuning: WorkspaceTuning | undefined): Required<Pick<WorkspaceTuning, 'saveQuietMs' | 'gestureLockMs' | 'returnTieBreak' | 'dropTieBreak'>> {
+  const ms = (value: number | undefined, fallback: number): number => (typeof value === 'number' && Number.isFinite(value) && value >= 0 ? value : fallback);
+  const defaults = LIBRARY_TUNING_DEFAULTS;
+  const returnTieBreak = tuning?.returnTieBreak;
+  const dropTieBreak = tuning?.dropTieBreak;
+  return {
+    saveQuietMs: ms(tuning?.saveQuietMs, defaults.saveQuietMs),
+    gestureLockMs: ms(tuning?.gestureLockMs, defaults.gestureLockMs),
+    returnTieBreak: returnTieBreak === 'earliest-first' || returnTieBreak === 'row-order' ? returnTieBreak : defaults.returnTieBreak,
+    dropTieBreak: dropTieBreak === 'rightmost' ? dropTieBreak : defaults.dropTieBreak,
+  };
 }
 
 /**
@@ -108,6 +127,7 @@ export interface ProvidedPanels extends PanelsAPI {
 export function useProvidePanels(i: PanelsInput): ProvidedPanels {
   const capture = i.capture ?? noopCaptureTrigger;
   const [panels, setPanels] = useState<PanelWindow[]>(() => [...(i.initialEntries ?? [])]);
+  const timing = timingTuning(i.tuning);
   const fixedViewCount = i.fixedViewCount ?? panels.filter((p) => !p.collapsible).length;
   // Filters over the whole list, never an array position: a panel anchored left of History changes none of these.
   const maxLiveWidth = computeMaxLiveWidth({ containerWidth: i.containerWidth, phoneWidth: i.phoneWidth, gap: GAP, fixedItemCount: fixedViewCount });
@@ -125,12 +145,16 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
     resizePanel,
     enterSideById,
     exitRightIds,
-  } = usePanelManager(panels, setPanels, i.storedMaxPanels, i.phoneWidth, i.containerWidth, fixedViewCount, i.rootId);
+    releaseHold,
+  } = usePanelManager(panels, setPanels, i.storedMaxPanels, i.phoneWidth, i.containerWidth, fixedViewCount, i.rootId, {
+    onNote: i.onNote,
+    tuning: { returnTieBreak: timing.returnTieBreak, dropTieBreak: timing.dropTieBreak },
+  });
 
   // The row's wheel/arrow-key gesture is wired here, not in the host, so a host stays free of effects and refs.
-  useRowScrollGesture(i.overflowContainerRef, scrollRow);
+  useRowScrollGesture(i.overflowContainerRef, scrollRow, timing.gestureLockMs);
 
-  useWorkspacePersistence({ storage: i.storage, panels, setPanels, rootId: i.rootId, freshId, defaultHostData: i.defaultHostData });
+  useWorkspacePersistence({ storage: i.storage, panels, setPanels, rootId: i.rootId, freshId, defaultHostData: i.defaultHostData, saveQuietMs: timing.saveQuietMs });
 
   // Diffs the one list instead of capturing per call site: usePanelManager parks from several sites with no single
   // "on park" hook, and a per-site call would silently miss any site not touched.
@@ -159,6 +183,7 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
     i.rootId,
     (id, remaining) => {
       forgetCollapsed(id);
+      releaseHold(id);
       revealMostRecentlyCollapsed(remaining);
     },
     // A restored LIVE panel can carry a stale gesture-enter-side/exit-right mark from an earlier park of

@@ -530,6 +530,7 @@ export interface PanelsInput {
     defaultHostData?: () => JsonValue;
     fixedViewCount?: number;
     initialEntries?: readonly PanelWindow[];
+    onNote?: (note: SettingNote) => void;
     onPanelResize?: () => void;
     onPanelsClosed?: (entry: {
         id: string;
@@ -544,6 +545,7 @@ export interface PanelsInput {
     rootId: string;
     storage?: WorkspaceStorage;
     storedMaxPanels: number | null;
+    tuning?: WorkspaceTuning;
 }
 
 // @public
