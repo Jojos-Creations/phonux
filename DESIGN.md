@@ -530,8 +530,8 @@ guard and the pair live in `workspaceState.ts` and stay inside the package, beca
 (through its persistence hook, `panels/useWorkspacePersistence.ts`) and the tests call them. Keeping a capability
 off the public bag has a real precedent already in this package:
 `CaptureRegistryContext` keeps the write side of a picture out of `Host`/`SnapshotsAPI` entirely, as its own
-second context that app code mounts AROUND `HostProvider` (see "Snapshots" below) -- `HostProvider` itself never
-mounts `CaptureRegistryContext`. `HostProvider` does mount two contexts internally, for its own concerns kept off
+second context that app code mounts through `CaptureRegistryProvider`, AROUND `HostProvider` (see "Snapshots"
+below) -- `HostProvider` itself never mounts it. `HostProvider` does mount two contexts internally, for its own concerns kept off
 the public bag: `OverlayProvider` and `ViewStateProvider` (see "useViewState" below). `WorkspaceStorage` follows
 the same "keep it off the public bag" idea as all three, but not any of their context-based wiring: unlike
 `CaptureRegistryContext` and `ViewStateProvider`, each reached by arbitrary descendant `Panel`/view instances
@@ -831,7 +831,7 @@ than being forced into a no-op implementation) and `useViewSnapshot(viewId)` (a 
 are the only way a view ever touches a picture. Neither this file nor any view ever decides WHEN a capture
 happens or HOW pixels are produced -- that is a second, independent surface:
 
-`CaptureRegistry`/`CaptureRegistryContext`/`CaptureRegistryProvider` let `Panel` (`Panel.tsx`) hand its own
+`CaptureRegistry`, `CaptureRegistryProvider` and the context behind it (`CaptureRegistryContext`, package-internal) let `Panel` (`Panel.tsx`) hand its own
 root DOM node to whatever real registry the host mounts, without that capability ever becoming part of
 `Host`/`SnapshotsAPI`. This is the same pattern `HostProvider` already uses internally for `OverlayProvider`
 (`hostApi.tsx`: `<HostContext.Provider value={host}><OverlayProvider>{children}</OverlayProvider></HostContext.Provider>`)
@@ -842,9 +842,9 @@ registry, the same "missing capability degrades gracefully" convention `Host.sna
 
 The two contexts nest in opposite directions. `HostProvider` mounts no `CaptureRegistryProvider`, so the
 real one may wrap it; but it always mounts its own `OverlayProvider`, so a caller's
-`<OverlayProvider store={...}>` (a test reading `ids()`/`notifications`) must sit INSIDE `<HostProvider>`,
-around the `OverlaySlot`s and the views. Placed as `HostProvider`'s ancestor instead, it is shadowed by the
-nearer built-in provider and silently receives nothing, with no error.
+`<OverlayProvider store={...}>` (this package's own tests reading `ids()`/`notifications`; neither is exported) must
+sit INSIDE `<HostProvider>`, around the `OverlaySlot`s and the views. Placed as `HostProvider`'s ancestor instead,
+it is shadowed by the nearer built-in provider and silently receives nothing, with no error.
 
 Only a host (phonux-app's capture controller, for one; never this package -- see "Import boundary" above) implements a
 real `CaptureRegistry`, the DOM-redraw pixel engine, and the `SnapshotsAPI` store those pixels land in, and
@@ -930,12 +930,13 @@ Every declaration an entry point reaches carries exactly one release tag in its 
 `.` and `./testing` reach nothing `@internal`, and an underscore-less `@internal` tag on one of their exports
 fails the check. A deprecated alias keeps `@deprecated` beside its tag. A tag above a re-export line (`export { X } from ...`) does nothing, because API
 Extractor reads only the declaration's own comment.
-`ViewStateProvider` and `PANEL_HEADER_GAP_PX` are exported for this package's own files and tests but reached
-by no entry point, and are tagged `@internal` to say so.
+`ViewStateProvider`, `PANEL_HEADER_GAP_PX`, `OverlayProvider`, `OverlayStore` (with its `Item` and `Entry`),
+`CaptureRegistryContext`, `PanelRowSlot`, `shouldCloseOnRelease` (with its `ReleaseMeasure`), `computeRowOrder`,
+`deriveAnchorsFromOrder`, `summarisePanel`, `computeMaxLiveWidth` and `vendorLabelForUsbVendorId` are exported
+for this package's own files and tests but reached by no entry point, and are tagged `@internal` to say so.
 
 A public signature pins every type it names. Each one must be exported by the same entry point (otherwise
-`ae-forgotten-export`), which is why `fakeHost.ts` re-exports `Host`'s whole type closure and
-`windowOverlay.tsx` exports `Item` and `Entry` for `OverlayStore`. Each one must also be at least as public as
+`ae-forgotten-export`), which is why `fakeHost.ts` re-exports `Host`'s whole type closure. Each one must also be at least as public as
 the signature (otherwise `ae-incompatible-release-tags`), which is why `ReorderHandle`, named by
 `DragToClose`'s public `reorder` prop, is `@public` rather than `@internal`. It is a type, so it never joins
 the runtime values the barrel test pins.

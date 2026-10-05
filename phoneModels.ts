@@ -41,7 +41,7 @@ export function findPhoneModel(id: string): PhoneModel | undefined {
 /**
  * A short, friendly noun phrase for a just-detected USB vendor id, for the connect prompt's copy. Never more
  * specific than "iPhone" or "Android phone": a bare USB vendor/product id cannot tell the exact model.
- * @public
+ * @internal
  */
 export function vendorLabelForUsbVendorId(vendorId: number): string {
   if (vendorId === 0x05ac) return 'an iPhone';

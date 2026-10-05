@@ -6,17 +6,16 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  computeMaxLiveWidth,
-  computeRowOrder,
   DEFAULT_PHONE_SIZE,
-  deriveAnchorsFromOrder,
   GAP,
   panelWidthOf,
-  summarisePanel,
   TIER_SIZES,
   type PanelAnchor,
   type PanelSize,
 } from '../index.js';
+import { computeMaxLiveWidth } from '../panelRowLayout.js';
+import { computeRowOrder, deriveAnchorsFromOrder } from '../panelRowOrder.js';
+import { summarisePanel } from '../panelRowEntry.js';
 import {
   type PanelWindow,
   appendPanel,

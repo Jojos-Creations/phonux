@@ -86,7 +86,7 @@ function rowBudget({ containerWidth, phoneWidth, gap, fixedItemCount }: Omit<Row
  * that panel's gap. `panelWidthOf` caps a tablet/desktop panel at this, so its tier width is a maximum and a
  * wide panel never overflows a narrow window. Never below `phoneWidth`: when not even a phone fits, a narrower
  * "tablet" would not fit either. Infinity while unmeasured (`containerWidth` 0), as every reader treats 0.
- * @public
+ * @internal
  */
 export function computeMaxLiveWidth(input: Omit<RowLayoutInput, 'liveWidths'>): number {
   if (input.containerWidth === 0) return Number.POSITIVE_INFINITY;

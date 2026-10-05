@@ -7,20 +7,17 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import * as phonux from '../index.js';
 import { HostProvider, useHost } from '../hostApi.js';
-import { CaptureRegistryContext } from '../snapshots.js';
-import { OverlayProvider, OverlayStore } from '../windowOverlay.js';
+import { CaptureRegistryProvider } from '../snapshots.js';
 
 const VALUE_EXPORTS = [
   'DEFAULT_PHONE_SIZE',
   'DRAG_CLOSE',
   'DragToClose',
-  'shouldCloseOnRelease',
   'WindowOverlay',
   'OverlaySlot',
   'OVERLAY_Z',
   'PHONE_MODELS',
   'findPhoneModel',
-  'vendorLabelForUsbVendorId',
   'PhoneDetectPrompt',
   'HostMissingProviderError',
   'HostProvider',
@@ -36,23 +33,15 @@ const VALUE_EXPORTS = [
   'registerView',
   'resolveView',
   'useViewSnapshot',
-  'CaptureRegistryContext',
   'CaptureRegistryProvider',
   'noopCaptureTrigger',
   'useViewState',
   'ViewStateMissingProviderError',
-  'OverlayProvider',
-  'OverlayStore',
-  'computeRowOrder',
-  'deriveAnchorsFromOrder',
-  'summarisePanel',
   'DEFAULT_PANEL_SIZE',
   'TIER_SIZES',
   'panelWidthOf',
   'computeRowLayout',
-  'computeMaxLiveWidth',
   'PanelRow',
-  'PanelRowSlot',
   'PanelSizeBox',
   'GAP',
   'PANEL_TRANSITION',
@@ -67,18 +56,17 @@ const VALUE_EXPORTS = [
   'createDefaultTheme',
 ].sort();
 
-test('the phonux barrel exports exactly the 53 runtime values, no more, no fewer', () => {
+test('the phonux barrel exports exactly the 43 runtime values, no more, no fewer', () => {
   assert.deepEqual(Object.keys(phonux).sort(), VALUE_EXPORTS);
 });
 
 // Red if index.ts re-exports a copy or wrapper instead of the defining file's own object: a context from one copy is invisible to the other's hooks.
 // The exports map ('phonux', 'phonux/testing') is checked against the packed tarball by the smoke, not here.
 test('module identity: the context-bearing exports of the barrel are the very objects their defining source files export', async () => {
-  assert.ok(phonux.CaptureRegistryContext === CaptureRegistryContext, 'CaptureRegistryContext: the barrel holds another object');
+  assert.ok(phonux.CaptureRegistryProvider === CaptureRegistryProvider, 'CaptureRegistryProvider: the barrel holds another object');
   assert.ok(phonux.HostProvider === HostProvider && phonux.useHost === useHost, 'HostProvider/useHost: the barrel holds other objects than hostApi');
-  assert.ok(phonux.OverlayProvider === OverlayProvider && phonux.OverlayStore === OverlayStore, 'OverlayProvider/OverlayStore: the barrel holds other objects than windowOverlay');
   // Control: a genuinely separate instance of the same file is NOT ===, so the checks above can fail.
   const secondInstance = '../snapshots.js?second-instance';
-  const second = (await import(secondInstance)) as { CaptureRegistryContext: unknown };
-  assert.ok(second.CaptureRegistryContext !== undefined && second.CaptureRegistryContext !== CaptureRegistryContext, 'control: a second module instance must yield a distinct context');
+  const second = (await import(secondInstance)) as { CaptureRegistryProvider: unknown };
+  assert.ok(second.CaptureRegistryProvider !== undefined && second.CaptureRegistryProvider !== CaptureRegistryProvider, 'control: a second module instance must yield a distinct provider');
 });
