@@ -16,7 +16,7 @@ function pointerEvent(type: 'pointerdown' | 'pointermove' | 'pointerup', x: numb
   return event;
 }
 
-export interface Drag {
+interface Drag {
   dx: number;
   dy: number;
   steps?: number;
@@ -25,7 +25,7 @@ export interface Drag {
   keepDown?: boolean;
 }
 
-export async function press(handle: Element): Promise<void> {
+async function press(handle: Element): Promise<void> {
   await act(async () => {
     handle.dispatchEvent(pointerEvent('pointerdown', ORIGIN, ORIGIN));
   });

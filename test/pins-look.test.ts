@@ -1,5 +1,5 @@
 /**
- * What the row's look numbers do today, with the single gap of 16 and the shared slide: the markup of the workspace
+ * What the row's look numbers produce at the library gap of 16 and the shared slide: the markup of the workspace
  * shell, the row's own offsets and width, a slot's travel and close exit, the capacity a measured row derives, and the
  * hop rule of a horizontal drag. Each pin states a literal sum, never a call back into the code under test, so a
  * change that moves any of them has to rename the pin it changes and cannot delete it.
