@@ -361,6 +361,20 @@ def run_git(args, cwd=None, check=True):
     return result
 
 
+def _tracking_refspec(branch):
+    return "+refs/heads/%s:refs/remotes/origin/%s" % (branch, branch)
+
+
+def _fetch_pinned(refspecs, repo_root, check=True):
+    """Fetch exactly `refspecs` from origin and write nothing but remote-tracking refs and FETCH_HEAD, whatever the
+    user's git config says; returns run_git's result."""
+    # --refmap= stops remote.origin.fetch mapping the named refs (a refs/heads one would move a local branch),
+    # --no-tags the tag auto-follow, --no-recurse-submodules fetch.recurseSubmodules and submodule.recurse.
+    if not refspecs:  # --refmap= with no refspec is fatal, so an empty list is a caller's bug, not a skip
+        raise ValueError("_fetch_pinned needs at least one refspec: a fetch with --refmap= and none is fatal")
+    return run_git(["fetch", "-q", "--no-tags", "--no-recurse-submodules", "--refmap=", "origin"] + list(refspecs), cwd=repo_root, check=check)
+
+
 # =============================================================================
 # Body-section helpers -- get/replace a `## Heading` or `### Heading`
 # section's own text, bounded by the next heading of the same or shallower
@@ -788,22 +802,27 @@ def _gate_entry_time(entry):
     return None
 
 
+_GATE_NO_TIME = datetime.min.replace(tzinfo=timezone.utc)
+
+
+def _gate_entry_rank(position, entry):
+    """Sort key of a rollup entry, the largest being the newest. A run that has not ended (a CheckRun with
+    no conclusion, or any entry with no usable time) outranks every finished run whatever its position or
+    time, because gh serves such a run with the time it started and that can fall inside an older run's span.
+    Among the rest the later time wins, then the later list position."""
+    when = _gate_entry_time(entry)
+    unended = when is None or (_gate_entry_kind(entry) == "CheckRun" and not entry.get("conclusion"))
+    return (unended, when or _GATE_NO_TIME, position)
+
+
 def _newest_gate_entries(rollup):
     """{(kind, name): the newest verifier-gate entry of that kind} over a statusCheckRollup. GitHub
-    counts only the newest run of a check, so an older FAILURE is history. Newest is by time when
-    every entry of the kind has one, else by list position, later winning ties: a run with no time
-    at all (a queued one) is never ranked below an older run that has one."""
+    counts only the newest run of a check, so an older FAILURE is history. Newest is by `_gate_entry_rank`."""
     groups = {}
     for position, entry in enumerate(rollup or []):
         if isinstance(entry, dict) and (entry.get("name") or entry.get("context")) == VERIFIER_GATE_NAME:
             groups.setdefault((_gate_entry_kind(entry), VERIFIER_GATE_NAME), []).append((position, entry))
-    newest = {}
-    for key, members in groups.items():
-        if all(_gate_entry_time(entry) is not None for _, entry in members):
-            newest[key] = max(members, key=lambda member: (_gate_entry_time(member[1]), member[0]))[1]
-        else:
-            newest[key] = max(members, key=lambda member: member[0])[1]
-    return newest
+    return {key: max(members, key=lambda member: _gate_entry_rank(*member))[1] for key, members in groups.items()}
 
 
 def _gate_entry_succeeded(entry):
@@ -842,11 +861,13 @@ def _stale_check_run_text(pr_number, entry):
     url = url if isinstance(url, str) else ""
     match = re.search(r"/actions/runs/(\d+)", url)
     run_id = match.group(1) if match else (url or "unknown")
+    conclusion = entry.get("conclusion")
+    ended = "ended %s" % conclusion if conclusion else "has not ended (%s)" % (entry.get("status") or "unknown")
     return (
-        "STALE CHECK RUN: PR #%s: the newest %s check run %s ended %s on this head, and a check and a status "
+        "STALE CHECK RUN: PR #%s: the newest %s check run %s %s on this head, and a check and a status "
         "of the same name must both pass; refresh the head with gh pr update-branch (branch behind main) or "
         "any new commit (level with main), then have the verifier audit the new head"
-        % (pr_number, VERIFIER_GATE_NAME, run_id, entry.get("conclusion") or entry.get("status"))
+        % (pr_number, VERIFIER_GATE_NAME, run_id, ended)
     )
 
 
@@ -1199,7 +1220,7 @@ def cmd_accept(args, repo_root):
 
     base = args.base or "main"
     branch = "plan/%s" % entry_id
-    run_git(["fetch", "-q", "origin"], cwd=repo_root)
+    _fetch_pinned([_tracking_refspec(base)], repo_root)
     existing_branches = _parse_ls_remote_branch_names(
         run_git(["ls-remote", "origin", "refs/heads/%s" % branch], cwd=repo_root).stdout
     )
@@ -1434,7 +1455,11 @@ def cmd_ship_check(args, repo_root):
 
 
 def _ship_behind_overlap(pr, head_sha, repo_root):
-    run_git(["fetch", "-q", "origin"], cwd=repo_root)
+    refspecs = [_tracking_refspec("main")]
+    # The PR head is a branch tip on origin: fetched by object name, so no ref is written for it.
+    if run_git(["cat-file", "-e", "%s^{commit}" % head_sha], cwd=repo_root, check=False).returncode != 0:
+        refspecs.append(head_sha)
+    _fetch_pinned(refspecs, repo_root)
     main_sha = run_git(["rev-parse", "origin/main"], cwd=repo_root).stdout.strip()
     merge_base = run_git(["merge-base", "origin/main", head_sha], cwd=repo_root).stdout.strip()
     if merge_base == main_sha:
@@ -1492,7 +1517,7 @@ def cmd_ship_confirm(args, repo_root):
     if not merge_sha:
         sys.stderr.write("CANNOT CONFIRM: PR #%d has no mergeCommit.oid\n" % args.pr)
         raise SystemExit(1)
-    run_git(["fetch", "-q", "origin"], cwd=repo_root)
+    _fetch_pinned([_tracking_refspec("main")], repo_root)
     run_git(["merge-base", "--is-ancestor", merge_sha, "origin/main"], cwd=repo_root)
 
     issue_number, entry_id = parse_entry_header(pr["body"])
@@ -1534,7 +1559,7 @@ def _judge_integrity_problem(repo_root):
     choose which tools/queue runs. Fetches first, since a stale origin/main would call a changed
     judge unchanged; compares blob ids, so line endings and decoding cannot hide a difference."""
     try:
-        run_git(["fetch", "-q", "origin", "+refs/heads/main:refs/remotes/origin/main"], cwd=repo_root)
+        _fetch_pinned([_tracking_refspec("main")], repo_root)
     except GitError as exc:
         return "could not fetch origin/main: %s" % exc
     for name in JUDGED_FILES:
@@ -2138,8 +2163,8 @@ def cmd_init(args, repo_root):
 # one before it held:
 #   1. pre-flight: every refusal, the conservation check on the composed
 #      bodies, the idempotence check and the write cap -- no write at all
-#      (a claimed entry's branch is read here, with one fetch that moves only
-#      FETCH_HEAD and the remote-tracking refs);
+#      (a claimed entry's branch is read here, with one fetch by explicit
+#      refspecs, which moves only the remote-tracking refs and FETCH_HEAD);
 #   2. the issue and comment writes, and for a claimed entry, right after its
 #      own issue: the branch push, the draft pull request, then the accepted
 #      label and accept's two comments, so the label never precedes the PR;
@@ -2598,6 +2623,13 @@ def _migrate_branch_names_entry(branch, entry_id):
     return isinstance(branch, str) and isinstance(entry_id, str) and bool(entry_id) and branch == "plan/" + entry_id
 
 
+def _migrate_control_chars(text):
+    """Each distinct control character (Cc) or surrogate (Cs) in `text` as U+XXXX, in code point order: none of
+    them can be in a branch name or a gh argument, and NUL and a lone surrogate crash subprocess."""
+    import unicodedata
+    return ["U+%04X" % code for code in sorted({ord(ch) for ch in text if unicodedata.category(ch) in ("Cc", "Cs")})]
+
+
 def _migrate_normalise_entry(raw, repo_root, legacy=False):
     """One YAML entry -> (spec, problems). `spec` is the entry with every
     value checked and, for a researched one, its record read; None when the
@@ -2610,13 +2642,19 @@ def _migrate_normalise_entry(raw, repo_root, legacy=False):
             return None, found
     problems = []
     entry_id = raw.get("id")
+    controls = _migrate_control_chars(entry_id) if isinstance(entry_id, str) else []
     name = entry_id if isinstance(entry_id, str) and entry_id.strip() else "<entry without an id>"
+    if controls:
+        name = _migrate_short(entry_id)  # its repr, so an escape sequence in an id never reaches a terminal
 
     def bad(text):
         problems.append("%s: %s" % (name, text))
 
     if not isinstance(entry_id, str) or not entry_id.strip() or re.search(r"\s", entry_id):
         bad("id must be one token without whitespace, got %s" % _migrate_short(entry_id))
+    if controls:
+        bad("id holds control character(s) %s, which no branch name or gh argument can carry, got %s"
+            % (", ".join(controls), _migrate_short(entry_id)))
     state = raw.get("state")
     blocked_from = raw.get("blocked_from") if state == "blocked" else None
     if legacy and (state in ("claimed", "implemented") or blocked_from in ("claimed", "implemented")):
@@ -3000,6 +3038,46 @@ def _migrate_remote_shas(listed):
     return found
 
 
+def _migrate_local_branch_sha(branch, repo_root):
+    """(sha, None) for the local branch named exactly `branch`; (None, name) when none is but one differing only
+    in case is (the first listed); else (None, None). It reads the names for-each-ref lists: on a volume that
+    folds case, rev-parse resolves a differently cased branch for the requested one."""
+    listing = run_git(["for-each-ref", "--format=%(refname)%09%(objectname)", "refs/heads/"], cwd=repo_root).stdout
+    variant = None
+    for line in listing.splitlines():
+        refname, _, sha = line.partition("\t")
+        listed = refname[len("refs/heads/"):]
+        if listed == branch:
+            return sha, None
+        if variant is None and listed.lower() == branch.lower():
+            variant = listed
+    return None, variant
+
+
+def _migrate_ref_conflicts(adopted, origin_branches):
+    """Problems for two branches git cannot hold together, a name and a name below it (plan/a and plan/a/b): the
+    adopted branches among themselves, and each against the branches origin already has. `origin_branches` holds
+    exact names only, because ls-remote tail-matches (plan/a also returns x/refs/heads/plan/a)."""
+    problems = []
+    for spec in adopted:
+        branch = spec["branch"]
+        for other in adopted:
+            if other["branch"].startswith(branch + "/"):
+                problems.append("%s: ref name conflict: branch %s (this entry) cannot exist beside %s (entry %s): git "
+                                "cannot hold a branch and a branch below it" % (spec["id"], branch, other["branch"],
+                                                                                other["id"]))
+        for name in sorted(origin_branches):
+            if name.startswith(branch + "/"):
+                problems.append("%s: ref name conflict: origin holds branch %s, which cannot exist beside %s (this "
+                                "entry's branch): git cannot hold a branch and a branch below it"
+                                % (spec["id"], name, branch))
+            if branch.startswith(name + "/"):
+                problems.append("%s: ref name conflict: origin holds branch %s, which cannot exist beside %s (this "
+                                "entry's branch): git cannot hold a branch and a branch below it"
+                                % (spec["id"], name, branch))
+    return problems
+
+
 def _migrate_adopt_branch(spec, remote, repo_root):
     """(info, problems) for one adopted entry's branch, read only. `remote` is origin's tip of it or None.
     `info` says where the branch is, the tip the PR will head, and whether a push is needed: a branch on
@@ -3013,8 +3091,11 @@ def _migrate_adopt_branch(spec, remote, repo_root):
     base_sha = run_git(["rev-parse", "--verify", "-q", "%s^{commit}" % base], cwd=repo_root, check=False).stdout.strip()
     if not base_sha:
         return None, ["%s: origin has no %s branch to open a pull request against" % (name, MIGRATE_ADOPT_BASE)]
-    local = run_git(["rev-parse", "--verify", "-q", "refs/heads/%s^{commit}" % branch], cwd=repo_root,
-                    check=False).stdout.strip() or None
+    local, variant = _migrate_local_branch_sha(branch, repo_root)
+    if variant is not None:
+        return None, ["%s: local branch %s differs only in case from this entry's branch %s, and a volume that folds "
+                      "case would resolve one for the other and push its commits under this name; rename or delete "
+                      "one of them" % (name, variant, branch)]
     if local is None and remote is None:
         return {"branch": branch, "action": "create", "tip": None, "push": True, "where": "new", "base": base_sha}, []
     if remote is not None and run_git(["cat-file", "-e", "%s^{commit}" % remote], cwd=repo_root,
@@ -3043,22 +3124,30 @@ def _migrate_adopt_branch(spec, remote, repo_root):
 
 def _migrate_adopt_preflight(adopted, repo_root):
     """({id: info}, problems) for every adopted entry: the repository is the checkout's own, origin answers
-    (one fetch, which moves FETCH_HEAD and the remote-tracking refs and nothing in the tree, and one read of
-    the branches), each branch can be adopted without a force, and no open or merged PR already heads it. A
+    (one read of its branches, then one fetch by explicit refspecs that moves only the
+    remote-tracking refs and FETCH_HEAD, never a local branch or a tag), each branch can be adopted without a
+    force and sits beside no ref git cannot hold with it, and no open or merged PR already heads it. A
     closed, unmerged one does not count, so the advice to close a PR leads to a clean re-run."""
     top = run_git(["rev-parse", "--show-toplevel"], cwd=repo_root, check=False)
     if top.returncode != 0 or Path(top.stdout.strip()).resolve() != Path(repo_root).resolve():
         return {}, ["%s: %s is not the top of a git repository, so the branch of an adopted entry cannot be read "
                     "or pushed" % (spec["id"], repo_root) for spec in adopted]
-    fetched = run_git(["fetch", "-q", "origin"], cwd=repo_root, check=False)
-    listed = run_git(["ls-remote", "origin"] + ["refs/heads/%s" % spec["branch"] for spec in adopted],
+    # plan/* is read too, so a ref that cannot sit beside an adopted branch shows up before any write.
+    wanted = ["refs/heads/%s" % MIGRATE_ADOPT_BASE, "refs/heads/plan", "refs/heads/plan/*"]
+    listed = run_git(["ls-remote", "origin"] + wanted + ["refs/heads/%s" % spec["branch"] for spec in adopted],
                      cwd=repo_root, check=False)
+    remotes = _migrate_remote_shas(listed.stdout)
+    # A refspec for a branch origin lacks is fatal, and so is a fetch with none left.
+    refspecs = [_tracking_refspec(name)
+                for name in [MIGRATE_ADOPT_BASE] + [spec["branch"] for spec in adopted] if name in remotes]
+    fetched = subprocess.CompletedProcess([], 0, "", "")
+    if refspecs:
+        fetched = _fetch_pinned(refspecs, repo_root, check=False)
     if fetched.returncode != 0 or listed.returncode != 0:
         why = (fetched.stderr if fetched.returncode != 0 else listed.stderr).strip() or "git could not read it"
         return {}, ["%s: could not reach origin (%s), so its branch %s cannot be read or pushed"
                     % (spec["id"], why, spec["branch"]) for spec in adopted]
-    remotes = _migrate_remote_shas(listed.stdout)
-    info, problems = {}, []
+    info, problems = {}, _migrate_ref_conflicts(adopted, remotes)
     for spec in adopted:
         found, issues = _migrate_adopt_branch(spec, remotes.get(spec["branch"]), repo_root)
         problems += issues
@@ -3203,7 +3292,7 @@ def _migrate_preflight(repo_root, max_writes, legacy=False):
         "queue_path": repo_root.joinpath(*QUEUE_RELPATH), "config_removed": removed, "config_added": added,
         "max_writes": max_writes, "legacy": legacy, "adopt": adopt_info,
         "pushes_planned": sum(1 for found in adopt_info.values() if found["push"]),
-        "ledger": {"pushed": [], "prs": [], "adopted": {}},
+        "ledger": {"pushed": [], "prs": [], "adopted": {}, "attempted": []},
     }
 
 
@@ -3270,6 +3359,14 @@ def _migrate_report_partial(created, reason, ledger=None):
                          "blocks a re-run):\n")
         for number, branch, _ in ledger["prs"]:
             sys.stderr.write("  gh pr close %d\n" % number)
+    recorded = {branch for _, branch, _ in ledger.get("prs") or []}
+    unrecorded = [branch for branch in ledger.get("attempted") or [] if branch not in recorded]
+    if unrecorded:
+        sys.stderr.write("  gh may have created a pull request whose number this run never learned; for each branch "
+                         "below, list its open pull requests and close each (a closed, unmerged one no longer "
+                         "blocks a re-run):\n")
+        for branch in unrecorded:
+            sys.stderr.write("  gh pr list --head %s --state open\n" % branch)
     # The pre-flight lists issues by the plan label and a closed issue keeps its id:, so closing alone
     # leaves the re-run refused; taking the label off is what frees the id.
     sys.stderr.write(
@@ -3286,8 +3383,10 @@ def _migrate_report_partial(created, reason, ledger=None):
 
 def _migrate_push_args(branch, sha):
     # The plain SHA refspec: no `+` (a rejected non-fast-forward stays rejected) and no -u, which would
-    # write a branch section into .git/config.
-    return ["push", "origin", "%s:refs/heads/%s" % (sha, branch)]
+    # write a branch section into .git/config. The pins undo the user's config: remote.origin.mirror makes a
+    # refspec push fatal (and --no-mirror does not override it), push.followTags publishes local tags and
+    # push.gpgSign needs a signing server.
+    return ["-c", "remote.origin.mirror=false", "push", "--no-follow-tags", "--no-signed", "origin", "%s:refs/heads/%s" % (sha, branch)]
 
 
 def _migrate_empty_commit(branch, repo_root):
@@ -3320,6 +3419,7 @@ def _migrate_adopt_write(spec, number, issue, depends, plan, repo_root, pace):
     body_path = _body_tempfile(pr_body)
     try:
         pace()
+        ledger["attempted"].append(branch)
         result = run_gh(["pr", "create", "--draft", "--title", issue["title"], "--body-file", body_path,
                          "--head", branch, "--base", MIGRATE_ADOPT_BASE], cwd=repo_root)
     finally:
@@ -3385,7 +3485,7 @@ def _migrate_write_issues(plan, repo_root):
             print("migrate: issue #%d created for %s (%d comment(s))" % (number, spec["id"], len(issue["comments"])))
             if spec["adopt"]:
                 _migrate_adopt_write(spec, number, issue, depends, plan, repo_root, pace)
-    except (GhError, GitError, MigrateWriteError) as exc:
+    except (GhError, GitError, MigrateWriteError, ValueError, OSError) as exc:
         _migrate_report_partial(created, exc, plan["ledger"])
         raise SystemExit(1)
     return created
@@ -3426,7 +3526,7 @@ def _migrate_read_back_one(item, number_to_id, repo_root, plan):
     spec, number, issue = item
     try:
         view = gh_json(["issue", "view", number, "--json", "title,body,labels,comments"], cwd=repo_root)
-    except (GhError, ValueError) as exc:
+    except (GhError, ValueError, OSError) as exc:
         return ["%s: issue #%d could not be read back -- %s" % (spec["id"], number, exc)], None
     observed = {
         "number": number, "title": view.get("title"), "body": view.get("body") or "",
@@ -3440,7 +3540,7 @@ def _migrate_read_back_one(item, number_to_id, repo_root, plan):
             return ["%s: no pull request was recorded for this adopted entry" % spec["id"]], None
         try:
             observed["prs"] = fetch_all_prs(repo_root)
-        except (GhError, ValueError) as exc:
+        except (GhError, ValueError, OSError) as exc:
             return ["%s: the pull requests could not be read back -- %s" % (spec["id"], exc)], None
         problems += _migrate_check_adopted_pr(spec, number, adopted, observed["prs"])
         comments = [(text or "").strip() for text in observed["comments"]]
@@ -3546,7 +3646,10 @@ def cmd_migrate(args, repo_root):
         made = "%d gh write(s)" % plan["planned_writes"]
         if plan["adopt"]:
             made += " and %d git push(es)" % plan["pushes_planned"]
-        print("migrate --dry-run: nothing was written (%s would be made)" % made)
+            print("migrate --dry-run: no gh write, no push and no file in the working tree was written; the pre-flight "
+                  "git fetch updated only remote-tracking refs and FETCH_HEAD (%s would be made)" % made)
+        else:
+            print("migrate --dry-run: nothing was written (%s would be made)" % made)
         return 0
     created = _migrate_write_issues(plan, repo_root)
     _migrate_read_back(plan, created, repo_root)
@@ -3647,7 +3750,8 @@ def build_parser():
     p = sub.add_parser("migrate", help="one-time cutover: plans/queue.yaml entries become plan issues, then the marker")
     p.add_argument("--dry-run", action="store_true",
                     help="run every pre-flight check and print the plan; no gh write, no push and no file write "
-                         "(a claimed entry's branch is read with one git fetch of origin)")
+                         "(a claimed entry's branch is read with one git fetch that updates only "
+                         "remote-tracking refs and FETCH_HEAD)")
     p.add_argument("--legacy", action="store_true",
                     help="map a queue in its own vocabulary (depends_on, why, pending, in_progress) onto the standard "
                          "fields; every key with no destination is kept verbatim in one Legacy fields comment per entry")
