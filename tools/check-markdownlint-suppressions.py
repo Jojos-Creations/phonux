@@ -402,6 +402,13 @@ def check_file(repo_root, rel_path):
 
 
 def main():
+    """Check inline markdownlint suppressions across the repo or the named files.
+
+    Returns:
+        Exit code 0 when every suppression is scoped, explained and load-bearing
+        (or all named files are out of lint scope), 1 on a failing suppression,
+        2 when zero files were examined, 3 when the linter could not run.
+    """
     ap = argparse.ArgumentParser()
     ap.add_argument("--repo-root", default=".")
     ap.add_argument("files", nargs="*")

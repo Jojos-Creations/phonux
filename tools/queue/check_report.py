@@ -54,6 +54,15 @@ def _gh_json(args):
 
 
 def main(argv=None):
+    """Check a verifier report against a PR's body and head sha, printing one JSON line.
+
+    Args:
+        argv: Command-line arguments; `None` reads `sys.argv`.
+
+    Returns:
+        Exit code 0 on PASS, 1 on a named rule failure, 2 when it could not run
+        (no PR source given, or a failed fetch or file read).
+    """
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--report", required=True, help="path to a file holding the review body or just its fenced verifier-report block")
     parser.add_argument("--pr", type=int, default=None, help="PR number; fetches body and headRefOid live via gh")
