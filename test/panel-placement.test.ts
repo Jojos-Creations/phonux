@@ -639,7 +639,6 @@ const MARK = '__root__';
 const marker = (): PanelWindow => ({ ...fixed(MARK), marker: true as const });
 /** The container width whose capacity is `n` phone panels in a row whose root is a marker. */
 const W0 = (n: number): number => 16 + 406 * n;
-const rootless = { rootId: MARK };
 
 /** useProvidePanels over a marker-rooted row, drawn by a real PanelRow so a slot's first transform can be read. */
 function provideRow(initialEntries: PanelWindow[], width = 0, notes: SettingNote[] = []) {
@@ -673,7 +672,6 @@ function provideRow(initialEntries: PanelWindow[], width = 0, notes: SettingNote
       assert.ok(slot, `slot ${id} is mounted`);
       const initial = translateX(slot);
       await advanceFrames(600);
-      console.log("DBG", id, initial, translateX(slot), slot.style.transform);
       return Math.sign(initial - translateX(slot));
     },
   };
