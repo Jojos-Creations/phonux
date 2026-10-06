@@ -2326,6 +2326,9 @@ def build_release_ruleset(checks):
     pull_request_rule = next(rule for rule in RULESET["rules"] if rule["type"] == "pull_request")
     parameters = dict(pull_request_rule["parameters"])
     parameters["allowed_merge_methods"] = ["merge"]
+    # One approval nobody but the owner can give: the pull requests are opened under the owner's own
+    # account, which GitHub bars from approving them, so only the owner's admin bypass merges a promote.
+    parameters["required_approving_review_count"] = 1
     rules = [{"type": "pull_request", "parameters": parameters}]
     if checks:
         rules.append({"type": "required_status_checks", "parameters": {
