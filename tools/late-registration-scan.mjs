@@ -23,6 +23,7 @@ const COMPUTED = Symbol('computed member');
 // Hooks do not set reg: a hook followed by an await and then the first test is safe.
 const START = { reg: false, aw: 0 };
 const join = (a, b) => ({ reg: a.reg || b.reg, aw: a.aw || b.aw });
+const joinAll = (...states) => states.filter(Boolean).reduce(join);
 const mergeFlow = (a, b) => {
   if (a.live && b.live) return { live: true, state: join(a.state, b.state) };
   if (a.live) return a;
@@ -179,10 +180,87 @@ function scanFile(sf, file, program, checker) {
   };
   countAwaits(sf);
 
+  // An identifier that only names a declaration, property or label reads no binding.
+  const isNonReferenceName = (n) => {
+    const p = n.parent;
+    if (ts.isLabeledStatement(p) || ts.isBreakOrContinueStatement(p) || ts.isQualifiedName(p)) return true;
+    if (ts.isImportSpecifier(p) || ts.isImportClause(p) || ts.isNamespaceImport(p)) return true;
+    if (ts.isBindingElement(p) && p.propertyName === n) return true;
+    return (
+      (ts.isPropertyAccessExpression(p) || ts.isPropertyAssignment(p) || ts.isVariableDeclaration(p) || ts.isParameter(p) ||
+        ts.isBindingElement(p) || ts.isFunctionDeclaration(p) || ts.isClassDeclaration(p) || ts.isFunctionExpression(p) ||
+        ts.isClassExpression(p) || ts.isMethodDeclaration(p) || ts.isPropertyDeclaration(p) || ts.isPropertySignature(p) ||
+        ts.isMethodSignature(p) || ts.isGetAccessorDeclaration(p) || ts.isSetAccessorDeclaration(p) || ts.isEnumMember(p) ||
+        ts.isTypeAliasDeclaration(p) || ts.isInterfaceDeclaration(p)) && p.name === n
+    );
+  };
   const all = [];
   walkAll(sf, (n) => { if (ts.isCallExpression(n) && classify(n)) all.push(n); });
   result.registrations = all.length;
   const classified = new Set();
+
+  // A literal can be a test name or an options object but never a callback; `+` always yields a primitive.
+  const isInert = (e) =>
+    ts.isStringLiteralLike(e) || ts.isNumericLiteral(e) || ts.isTemplateExpression(e) || ts.isObjectLiteralExpression(e) || ts.isArrayLiteralExpression(e) ||
+    e.kind === ts.SyntaxKind.NullKeyword || e.kind === ts.SyntaxKind.TrueKeyword || e.kind === ts.SyntaxKind.FalseKeyword ||
+    (ts.isBinaryExpression(e) && e.operatorToken.kind === ts.SyntaxKind.PlusToken) ||
+    (ts.isIdentifier(e) && e.text === 'undefined' && !checker.getSymbolAtLocation(e)?.declarations?.length);
+
+  // Only a function declaration or a const arrow or function expression in this file stands for its body: a let can be reassigned and an import has none here.
+  const functionOf = (id) => {
+    const decls = checker.getSymbolAtLocation(id)?.declarations ?? [];
+    if (decls.length > 0 && decls.every(ts.isFunctionDeclaration)) {
+      const withBody = decls.filter((d) => d.body);
+      return withBody.length === 1 ? withBody[0] : undefined;
+    }
+    const [d] = decls;
+    if (decls.length !== 1 || !ts.isVariableDeclaration(d) || !ts.isIdentifier(d.name) || !d.initializer) return undefined;
+    if (!ts.isVariableDeclarationList(d.parent) || !(d.parent.flags & ts.NodeFlags.Const)) return undefined;
+    const init = peel(d.initializer);
+    return isCallback(init) ? init : undefined;
+  };
+  const whyUnresolved = (e) => {
+    if (ts.isCallExpression(e)) return 'a call result';
+    if (ts.isPropertyAccessExpression(e) || ts.isElementAccessExpression(e)) return 'a member access';
+    if (!ts.isIdentifier(e)) return 'an expression that is not a function';
+    const d = checker.getSymbolAtLocation(e)?.declarations?.[0];
+    if (!d) return 'a name this file does not declare';
+    if (ts.isImportSpecifier(d) || ts.isImportClause(d) || ts.isNamespaceImport(d)) return 'an import';
+    if (ts.isParameter(d)) return 'a parameter';
+    return 'a name that is not a function declaration or a const arrow or function expression';
+  };
+  // The callback argument of a test, it or describe, as the function it stands for; undefined when it is inline, absent, or reported as unresolvable.
+  // Hooks are left alone: test files hand them imported cleanups, which the scan has no reason to follow.
+  const namedCallback = (call, reg) => {
+    const last = call.arguments[call.arguments.length - 1];
+    if (reg.hook || !last || isCallback(last)) return undefined;
+    const e = peel(last);
+    if (isCallback(e)) return e;
+    if (isInert(e)) return undefined;
+    const fn = ts.isIdentifier(e) ? functionOf(e) : undefined;
+    if (!fn) report(last, 'unresolved-callback', `the callback given to a test or suite is ${whyUnresolved(e)}, so its body cannot be scanned; pass a function written in this file`);
+    return fn;
+  };
+
+  // A function that only ever serves as a suite callback runs in the harness's build phase like an inline one, so its registrations are not late.
+  const suiteUses = new Map();
+  for (const c of all) {
+    const reg = classify(c);
+    const last = c.arguments[c.arguments.length - 1];
+    const e = last && peel(last);
+    if (!reg.suite || !e || !ts.isIdentifier(e)) continue;
+    const fn = functionOf(e);
+    if (fn) suiteUses.set(fn, (suiteUses.get(fn) ?? new Set()).add(e));
+  }
+  const suiteOnly = new Set();
+  for (const [fn, uses] of suiteUses) {
+    const decl = ts.isFunctionDeclaration(fn) ? fn : ts.findAncestor(fn, ts.isVariableDeclaration);
+    if (!decl.name || (ts.getCombinedModifierFlags(decl) & ts.ModifierFlags.Export) !== 0) continue;
+    let others = 0;
+    walkAll(sf, (id) => { if (ts.isIdentifier(id) && id.text === decl.name.text && id !== decl.name && !uses.has(id) && !isNonReferenceName(id)) others++; });
+    if (others === 0) suiteOnly.add(fn);
+  }
+  const flagFunctionBody = (fn) => { if (!suiteOnly.has(fn)) flagInsideFunction(fn); };
 
   const suppress = (n) => {
     ts.forEachChild(n, function mark(c) {
@@ -204,9 +282,10 @@ function scanFile(sf, file, program, checker) {
     ts.forEachChild(fn, visit);
   };
 
+  // A computed member cannot be told from test or after, so a call through one counts as a registrar call on the context.
   const contextRoot = (call) => {
     const { root, chain } = calleeChain(call);
-    return ts.isIdentifier(root) && CONTEXT_REGISTRARS.has(chain[0] ?? '') ? checker.getSymbolAtLocation(root) : undefined;
+    return ts.isIdentifier(root) && (chain[0] === COMPUTED || CONTEXT_REGISTRARS.has(chain[0] ?? '')) ? checker.getSymbolAtLocation(root) : undefined;
   };
   // A subtest or hook registered on a test context from a function nested in the test body (a timer, .then, map callback) can arrive after the parent finished.
   // `enclosing` holds the parameters of the test callbacks that contain `cb`: a call through one of those from `cb` is flagged too.
@@ -236,12 +315,26 @@ function scanFile(sf, file, program, checker) {
     ts.forEachChild(cb, (c) => visit(c, false));
   };
 
+  // The state at each throw inside the try blocks being analysed, innermost last. A branch that throws is dead, so a merge would drop its state before the catch block could see it.
+  const tries = [];
+  const noteThrow = (state) => {
+    const top = tries[tries.length - 1];
+    if (top) top.thrown = top.thrown ? join(top.thrown, state) : state;
+  };
+  const capture = (analyse) => {
+    const frame = { thrown: null };
+    tries.push(frame);
+    const flow = analyse();
+    tries.pop();
+    return { flow, thrown: frame.thrown };
+  };
+
   const awaitNow = (s, at, track) => (track && s.reg && !s.aw ? { reg: true, aw: lineOf(at) } : s);
 
   // Expressions never terminate, and state only grows along evaluation order, so threading it left to right is the may-analysis.
   const expr = (n, s, track) => {
     if (ts.isAwaitExpression(n)) return awaitNow(expr(n.expression, s, track), n, track);
-    if (isFunctionLike(n)) { flagInsideFunction(n); return s; }
+    if (isFunctionLike(n)) { flagFunctionBody(n); return s; }
     if (ts.isConditionalExpression(n)) {
       const c = expr(n.condition, s, track);
       return join(expr(n.whenTrue, c, track), expr(n.whenFalse, c, track));
@@ -274,6 +367,8 @@ function scanFile(sf, file, program, checker) {
       return cur;
     }
     classified.add(n);
+    const named = namedCallback(n, reg);
+    if (named) callbacks.push(named);
     const after = reg.hook ? cur : { reg: true, aw: cur.aw };
     if (track && cur.aw) {
       report(n, 'after-await', `registered after the await at line ${cur.aw}; Node under --test-force-exit may already have exited, so put awaits before the first registration or inside test bodies`);
@@ -288,9 +383,14 @@ function scanFile(sf, file, program, checker) {
     return after;
   };
 
+  // A named suite callback can register itself again; a body already being scanned yields the same result, so it is skipped.
+  const scanningSuites = new Set();
   const suiteBody = (fn) => {
+    if (scanningSuites.has(fn)) return;
+    scanningSuites.add(fn);
     if (ts.isBlock(fn.body)) stmts(fn.body.statements, START, false);
     else expr(fn.body, START, false);
+    scanningSuites.delete(fn);
   };
 
   const stmts = (list, s, track) => {
@@ -311,7 +411,11 @@ function scanFile(sf, file, program, checker) {
 
   const stmt = (n, s, track) => {
     if (ts.isBlock(n)) return stmts(n.statements, s, track);
-    if (ts.isReturnStatement(n) || ts.isThrowStatement(n)) return { state: n.expression ? expr(n.expression, s, track) : s, live: false };
+    if (ts.isReturnStatement(n) || ts.isThrowStatement(n)) {
+      const state = n.expression ? expr(n.expression, s, track) : s;
+      if (ts.isThrowStatement(n)) noteThrow(state);
+      return { state, live: false };
+    }
     if (ts.isIfStatement(n)) {
       const c = expr(n.expression, s, track);
       const t = stmt(n.thenStatement, c, track);
@@ -337,13 +441,19 @@ function scanFile(sf, file, program, checker) {
     if (ts.isWhileStatement(n)) return loop(s, (from) => stmt(n.statement, expr(n.expression, from, track), track).state);
     if (ts.isDoStatement(n)) return loop(s, (from) => expr(n.expression, stmt(n.statement, from, track).state, track));
     if (ts.isTryStatement(n)) {
-      const t = stmt(n.tryBlock, s, track);
-      // The catch block can be entered from any point in the try block, so it starts from the state at its end.
-      const reach = join(s, t.state);
-      const c = n.catchClause ? stmt(n.catchClause.block, reach, track) : { state: reach, live: true };
-      const joined = n.catchClause ? mergeFlow(t, c) : t;
-      if (!n.finallyBlock) return joined;
-      const f = stmt(n.finallyBlock, join(reach, c.state), track);
+      const t = capture(() => stmt(n.tryBlock, s, track));
+      // The catch block can be entered from any point in the try block, so it starts from the state at its end and from the state at each throw.
+      const reach = joinAll(s, t.flow.state, t.thrown);
+      const c = n.catchClause ? capture(() => stmt(n.catchClause.block, reach, track)) : { flow: { state: reach, live: true }, thrown: null };
+      const joined = n.catchClause ? mergeFlow(t.flow, c.flow) : t.flow;
+      // A throw that no catch block takes, or that a catch block raises, runs the finally block and then leaves for the enclosing try.
+      const leaving = n.catchClause ? c.thrown : t.thrown;
+      if (!n.finallyBlock) {
+        if (leaving) noteThrow(leaving);
+        return joined;
+      }
+      const f = stmt(n.finallyBlock, joinAll(reach, c.flow.state, c.thrown), track);
+      if (leaving) noteThrow(join(leaving, f.state));
       return { state: join(joined.state, f.state), live: joined.live && f.live };
     }
     if (ts.isSwitchStatement(n)) {
@@ -361,7 +471,7 @@ function scanFile(sf, file, program, checker) {
     }
     if (ts.isLabeledStatement(n)) return stmt(n.statement, s, track);
     // break and continue stay live: the code after them is then analysed as if they were absent, which can only over-report.
-    if (isFunctionLike(n)) { flagInsideFunction(n); return { state: s, live: true }; }
+    if (isFunctionLike(n)) { flagFunctionBody(n); return { state: s, live: true }; }
     return { state: expr(n, s, track), live: true };
   };
 
@@ -372,19 +482,6 @@ function scanFile(sf, file, program, checker) {
   }
 
   // A registrar read as a value (passed, aliased, exported) can be called from somewhere the scan never looks.
-  const isNonReferenceName = (n) => {
-    const p = n.parent;
-    if (ts.isLabeledStatement(p) || ts.isBreakOrContinueStatement(p) || ts.isQualifiedName(p)) return true;
-    if (ts.isImportSpecifier(p) || ts.isImportClause(p) || ts.isNamespaceImport(p)) return true;
-    if (ts.isBindingElement(p) && p.propertyName === n) return true;
-    return (
-      (ts.isPropertyAccessExpression(p) || ts.isPropertyAssignment(p) || ts.isVariableDeclaration(p) || ts.isParameter(p) ||
-        ts.isBindingElement(p) || ts.isFunctionDeclaration(p) || ts.isClassDeclaration(p) || ts.isFunctionExpression(p) ||
-        ts.isClassExpression(p) || ts.isMethodDeclaration(p) || ts.isPropertyDeclaration(p) || ts.isPropertySignature(p) ||
-        ts.isMethodSignature(p) || ts.isGetAccessorDeclaration(p) || ts.isSetAccessorDeclaration(p) || ts.isEnumMember(p) ||
-        ts.isTypeAliasDeclaration(p) || ts.isInterfaceDeclaration(p)) && p.name === n
-    );
-  };
   walkAll(sf, (n) => {
     if (!ts.isIdentifier(n) || !importedNames.has(n.text) || isNonReferenceName(n)) return;
     // A type annotation such as `(t: TestContext)` reads no value.
