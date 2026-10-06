@@ -53,7 +53,9 @@ import shlex
 import subprocess
 import sys
 import tempfile
+import threading
 import time
+import urllib.parse
 from collections import Counter
 from datetime import date, datetime, timezone
 from pathlib import Path
@@ -318,6 +320,8 @@ class GhError(RuntimeError):
 
 
 def run_gh(args, check=True, cwd=None):
+    if _REST_TRANSPORT["on"] and str(args[0]) != "api":
+        return _rest_run_gh([str(a) for a in args], check, cwd)
     # No `cwd` -> the process's OWN cwd, which is the invoking checkout,
     # not necessarily --repo-root: every production call site threads
     # repo_root through explicitly so `gh` (including its own `{owner}/
@@ -329,6 +333,10 @@ def run_gh(args, check=True, cwd=None):
         capture_output=True,
         text=True,
     )
+    if result.returncode != 0 and str(args[0]) != "api" and GRAPHQL_BLOCKED_TEXT in result.stderr:
+        # A cloud session's proxy refused GraphQL before applying anything, so replaying over REST is safe.
+        _REST_TRANSPORT["on"] = True
+        return _rest_run_gh([str(a) for a in args], check, cwd)
     if check and result.returncode != 0:
         raise GhError(args, result)
     return result
@@ -337,6 +345,370 @@ def run_gh(args, check=True, cwd=None):
 def gh_json(args, cwd=None):
     result = run_gh(args, cwd=cwd)
     return json.loads(result.stdout)
+
+
+# =============================================================================
+# REST transport for `gh` -- Claude Code cloud sessions
+#
+# Claude Code cloud sessions refuse GraphQL at the egress proxy (HTTP 403), and every `gh issue|pr|repo|
+# label` verb is GraphQL underneath. When the transport is "rest", run_gh answers those verbs from
+# `gh api repos/{owner}/{repo}/...` (REST, which the proxy allows) and returns the stdout `gh` would have:
+# the same --json field names, and the issue/PR URL a create verb prints. Call sites do not change.
+#
+# Nothing is configured: run_gh runs `gh` as written, and only when the proxy answers a verb with its GraphQL
+# refusal does it switch the rest of the process to the shim (the refused call applied nothing, so replaying it
+# is safe). A Mac never sees that refusal, so its behaviour is untouched. (This file may not read the environment:
+# test_queue_schema forbids it.) An unsupported verb or --json field raises _RestUnsupported -- loudly, never an
+# empty answer that reads as "nothing there".
+#
+# Known differences from GraphQL, each approximated from REST:
+#   closingIssuesReferences   GitHub computes it; REST has no field. Read from the PR body's closing keywords
+#                             (close/fix/resolve + #n), only when the PR targets the default branch.
+#   closedByPullRequestsReferences  [] always: nothing reads it, and REST has no cheap equivalent.
+#   statusCheckRollup         check runs (latest per name) + the combined commit status, in the rollup's
+#                             CheckRun / StatusContext shapes.
+# =============================================================================
+
+
+class _RestUnsupported(RuntimeError):
+    pass
+
+
+GRAPHQL_BLOCKED_TEXT = "GraphQL is not available"
+PROXY_WRITE_BLOCKED_TEXT = "not permitted through this proxy"
+_REST_TRANSPORT = {"on": False}
+
+
+def _rest_call(method, path, cwd, body=None, paginate=False):
+    """(parsed JSON or None, CompletedProcess) of one `gh api` call. `path` may hold gh's {owner}/{repo}
+    placeholders. A paginated call returns the flattened list of items (check-runs pages are merged)."""
+    cmd = ["gh", "api", path, "--method", method]
+    if paginate:
+        cmd += ["--paginate", "--slurp"]
+    if body is not None:
+        cmd += ["--input", "-"]
+    result = subprocess.run(
+        cmd, cwd=str(cwd) if cwd is not None else None, capture_output=True, text=True,
+        input=json.dumps(body) if body is not None else None,
+    )
+    if result.returncode != 0:
+        raise GhError(["api", method, path], result)
+    text = result.stdout.strip()
+    data = json.loads(text) if text else None
+    if paginate:
+        flat = []
+        for page in data or []:
+            if isinstance(page, dict) and isinstance(page.get("check_runs"), list):
+                flat += page["check_runs"]
+            elif isinstance(page, list):
+                flat += page
+            else:
+                flat.append(page)
+        data = flat
+    return data
+
+
+_REST_REPO_CACHE = {}
+
+
+def _rest_repo(cwd):
+    """The repo object for the checkout at `cwd` (owner, name, default branch), fetched once per cwd."""
+    key = str(cwd)
+    if key not in _REST_REPO_CACHE:
+        _REST_REPO_CACHE[key] = _rest_call("GET", "repos/{owner}/{repo}", cwd)
+    return _REST_REPO_CACHE[key]
+
+
+def _rest_user(user):
+    return {"login": user.get("login")} if isinstance(user, dict) else None
+
+
+def _rest_label(label):
+    return {"id": label.get("node_id"), "name": label.get("name"), "description": label.get("description") or "",
+            "color": label.get("color")}
+
+
+def _rest_comment(comment):
+    return {"id": comment.get("node_id"), "author": _rest_user(comment.get("user")), "body": comment.get("body") or "",
+            "createdAt": comment.get("created_at"), "url": comment.get("html_url"),
+            "authorAssociation": comment.get("author_association")}
+
+
+def _rest_review(review):
+    commit = review.get("commit_id")
+    return {"id": review.get("node_id"), "author": _rest_user(review.get("user")), "body": review.get("body") or "",
+            "state": review.get("state"), "submittedAt": review.get("submitted_at"),
+            "commit": {"oid": commit} if commit else None, "authorAssociation": review.get("author_association")}
+
+
+_CLOSING_RE = re.compile(r"\b(?:close[sd]?|fix(?:e[sd])?|resolve[sd]?)\b:?[ \t]+(?:([\w.-]+/[\w.-]+))?#(\d+)", re.IGNORECASE)
+
+
+def _rest_closing_refs(pr, cwd):
+    repo = _rest_repo(cwd)
+    if (pr.get("base") or {}).get("ref") != repo.get("default_branch"):
+        return []
+    numbers = []
+    for slug, number in _CLOSING_RE.findall("%s\n%s" % (pr.get("title") or "", pr.get("body") or "")):
+        if slug and slug.lower() != repo["full_name"].lower():
+            continue
+        if int(number) not in numbers:
+            numbers.append(int(number))
+    return [{"number": n, "url": "%s/issues/%d" % (repo["html_url"], n),
+             "repository": {"name": repo["name"], "owner": {"login": repo["owner"]["login"]}}} for n in numbers]
+
+
+def _rest_status_rollup(sha, cwd):
+    runs = _rest_call("GET", "repos/{owner}/{repo}/commits/%s/check-runs?per_page=100" % sha, cwd, paginate=True)
+    entries = [{
+        "__typename": "CheckRun", "name": run.get("name"), "status": (run.get("status") or "").upper(),
+        "conclusion": (run.get("conclusion") or "").upper(), "detailsUrl": run.get("details_url") or run.get("html_url"),
+        "startedAt": run.get("started_at"), "completedAt": run.get("completed_at"),
+        "workflowName": ((run.get("app") or {}).get("name") or ""),
+    } for run in runs]
+    combined = _rest_call("GET", "repos/{owner}/{repo}/commits/%s/status?per_page=100" % sha, cwd)
+    for status in (combined or {}).get("statuses") or []:
+        entries.append({
+            "__typename": "StatusContext", "context": status.get("context"), "state": (status.get("state") or "").upper(),
+            "targetUrl": status.get("target_url"), "description": status.get("description"),
+            "startedAt": status.get("created_at"),
+        })
+    return entries
+
+
+def _rest_state(item):
+    if item.get("merged_at"):
+        return "MERGED"
+    return "OPEN" if item.get("state") == "open" else "CLOSED"
+
+
+def _rest_pr_object(pr, fields, cwd):
+    """One PR in `gh pr view --json` shape for exactly `fields`; the heavy ones are fetched only when asked."""
+    number = pr["number"]
+    simple = {
+        "number": lambda: number,
+        "title": lambda: pr.get("title"),
+        "body": lambda: pr.get("body") or "",
+        "state": lambda: _rest_state(pr),
+        "isDraft": lambda: bool(pr.get("draft")),
+        "headRefName": lambda: pr["head"]["ref"],
+        "headRefOid": lambda: pr["head"]["sha"],
+        "baseRefName": lambda: pr["base"]["ref"],
+        "mergedAt": lambda: pr.get("merged_at"),
+        "mergeCommit": lambda: {"oid": pr["merge_commit_sha"]} if pr.get("merged_at") and pr.get("merge_commit_sha") else None,
+        "labels": lambda: [_rest_label(l) for l in pr.get("labels") or []],
+        "closingIssuesReferences": lambda: _rest_closing_refs(pr, cwd),
+        "reviews": lambda: [_rest_review(r) for r in _rest_call(
+            "GET", "repos/{owner}/{repo}/pulls/%d/reviews?per_page=100" % number, cwd, paginate=True)],
+        "comments": lambda: [_rest_comment(c) for c in _rest_call(
+            "GET", "repos/{owner}/{repo}/issues/%d/comments?per_page=100" % number, cwd, paginate=True)],
+        "statusCheckRollup": lambda: _rest_status_rollup(pr["head"]["sha"], cwd),
+    }
+    unknown = [f for f in fields if f not in simple]
+    if unknown:
+        raise _RestUnsupported("pr --json field(s) %s have no REST mapping" % ",".join(unknown))
+    return {f: simple[f]() for f in fields}
+
+
+def _rest_issue_object(issue, fields, cwd):
+    number = issue["number"]
+    simple = {
+        "number": lambda: number,
+        "title": lambda: issue.get("title"),
+        "body": lambda: issue.get("body") or "",
+        "state": lambda: "CLOSED" if issue.get("state") == "closed" else "OPEN",
+        "updatedAt": lambda: issue.get("updated_at"),
+        "labels": lambda: [_rest_label(l) for l in issue.get("labels") or []],
+        "comments": lambda: [_rest_comment(c) for c in _rest_call(
+            "GET", "repos/{owner}/{repo}/issues/%d/comments?per_page=100" % number, cwd, paginate=True)],
+        "closedByPullRequestsReferences": lambda: [],
+    }
+    unknown = [f for f in fields if f not in simple]
+    if unknown:
+        raise _RestUnsupported("issue --json field(s) %s have no REST mapping" % ",".join(unknown))
+    return {f: simple[f]() for f in fields}
+
+
+class _ShimParser(argparse.ArgumentParser):
+    def error(self, message):
+        raise _RestUnsupported("unsupported gh arguments: %s" % message)
+
+
+def _shim_parse(argv, positionals, **flags):
+    """Parse a verb's own argv. `flags` maps a --flag name to "one", "many" or "bool"; any other flag is refused.
+    A flag's value is bound with `=` first, so a value that starts with `-` (a comment body) is not read as a flag."""
+    parser = _ShimParser(add_help=False, exit_on_error=False)
+    for name in positionals:
+        parser.add_argument(name)
+    for flag, arity in flags.items():
+        if arity == "bool":
+            parser.add_argument("--" + flag, action="store_true")
+        else:
+            parser.add_argument("--" + flag, action="append" if arity == "many" else "store",
+                                default=[] if arity == "many" else None)
+    bound, index = [], 0
+    while index < len(argv):
+        token = argv[index]
+        if token.startswith("--") and flags.get(token[2:]) in ("one", "many") and index + 1 < len(argv):
+            bound.append("%s=%s" % (token, argv[index + 1]))
+            index += 2
+        else:
+            bound.append(token)
+            index += 1
+    return parser.parse_args(bound)
+
+
+def _shim_split_fields(value):
+    return [f for f in (value or "").split(",") if f]
+
+
+def _rest_read_text(path):
+    return Path(path).read_text(encoding="utf-8")
+
+
+def _rest_list_items(kind, ns, cwd):
+    state = ns.state or "open"
+    if state not in ("open", "closed", "all"):
+        raise _RestUnsupported("--state %r" % state)
+    limit = int(ns.limit) if ns.limit else 30
+    query = "state=%s&per_page=100" % state
+    if kind == "issue":
+        if ns.label:
+            query += "&labels=" + urllib.parse.quote(",".join(ns.label))
+        items = _rest_call("GET", "repos/{owner}/{repo}/issues?" + query, cwd, paginate=True)
+        return [i for i in items if "pull_request" not in i][:limit]
+    if ns.head:
+        query += "&head=%s:%s" % (_rest_repo(cwd)["owner"]["login"], urllib.parse.quote(ns.head, safe=""))
+    return _rest_call("GET", "repos/{owner}/{repo}/pulls?" + query, cwd, paginate=True)[:limit]
+
+
+def _rest_fanout(function, items):
+    """[function(item) for item in items], over 8 threads. Not concurrent.futures: this file is named
+    queue.py, so when it runs as a script it shadows the stdlib `queue` that module imports."""
+    results, errors, lock, cursor = [None] * len(items), [], threading.Lock(), [0]
+
+    def work():
+        while True:
+            with lock:
+                index = cursor[0]
+                cursor[0] += 1
+            if index >= len(items) or errors:
+                return
+            try:
+                results[index] = function(items[index])
+            except BaseException as error:  # re-raised below, on the calling thread
+                errors.append(error)
+                return
+
+    threads = [threading.Thread(target=work) for _ in range(min(8, len(items)))]
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join()
+    if errors:
+        raise errors[0]
+    return results
+
+
+def _rest_dispatch(argv, cwd):
+    """(stdout text) for one gh verb answered over REST. Raises _RestUnsupported for anything not mapped."""
+    kind, verb, rest = argv[0], argv[1] if len(argv) > 1 else "", argv[2:]
+    out = lambda obj: json.dumps(obj) + "\n"
+    if kind in ("issue", "pr") and verb == "view":
+        ns = _shim_parse(rest, ["number"], json="one")
+        fields = _shim_split_fields(ns.json)
+        if not fields:
+            raise _RestUnsupported("%s view without --json" % kind)
+        if kind == "pr":
+            return out(_rest_pr_object(_rest_call("GET", "repos/{owner}/{repo}/pulls/%s" % ns.number, cwd), fields, cwd))
+        return out(_rest_issue_object(_rest_call("GET", "repos/{owner}/{repo}/issues/%s" % ns.number, cwd), fields, cwd))
+    if kind in ("issue", "pr") and verb == "list":
+        ns = _shim_parse(rest, [], json="one", label="many", state="one", limit="one", head="one")
+        fields = _shim_split_fields(ns.json)
+        if not fields:
+            raise _RestUnsupported("%s list without --json" % kind)
+        build = _rest_pr_object if kind == "pr" else _rest_issue_object
+        return out(_rest_fanout(lambda item: build(item, fields, cwd), _rest_list_items(kind, ns, cwd)))
+    if kind == "repo" and verb == "view":
+        ns = _shim_parse(rest, [], json="one")
+        if _shim_split_fields(ns.json) != ["nameWithOwner"]:
+            raise _RestUnsupported("repo view --json %s" % ns.json)
+        return out({"nameWithOwner": _rest_repo(cwd)["full_name"]})
+    if kind == "label" and verb == "list":
+        ns = _shim_parse(rest, [], json="one", limit="one")
+        labels = _rest_call("GET", "repos/{owner}/{repo}/labels?per_page=100", cwd, paginate=True)
+        want = _shim_split_fields(ns.json)
+        return out([{f: _rest_label(l)[f] for f in want} for l in labels[:int(ns.limit or 30)]])
+    if kind == "label" and verb == "create":
+        ns = _shim_parse(rest, ["name"], color="one", description="one", force="bool")
+        if not ns.force:
+            raise _RestUnsupported("label create without --force")
+        body = {"color": ns.color, "description": ns.description or ""}
+        quoted = urllib.parse.quote(ns.name, safe="")
+        try:
+            _rest_call("GET", "repos/{owner}/{repo}/labels/" + quoted, cwd)
+        except GhError as error:
+            if "404" not in error.result.stderr and "Not Found" not in error.result.stderr:
+                raise
+            _rest_call("POST", "repos/{owner}/{repo}/labels", cwd, body=dict(body, name=ns.name))
+        else:
+            _rest_call("PATCH", "repos/{owner}/{repo}/labels/" + quoted, cwd, body=body)
+        return ""
+    if kind == "issue" and verb == "create":
+        ns = _shim_parse(rest, [], title="one", label="many", **{"body-file": "one"})
+        body = {"title": ns.title, "body": _rest_read_text(ns.body_file), "labels": ns.label}
+        return _rest_call("POST", "repos/{owner}/{repo}/issues", cwd, body=body)["html_url"] + "\n"
+    if kind == "pr" and verb == "create":
+        ns = _shim_parse(rest, [], title="one", head="one", base="one", draft="bool", **{"body-file": "one"})
+        if not ns.draft:
+            raise _RestUnsupported("pr create without --draft")
+        body = {"title": ns.title, "body": _rest_read_text(ns.body_file), "head": ns.head, "base": ns.base, "draft": True}
+        return _rest_call("POST", "repos/{owner}/{repo}/pulls", cwd, body=body)["html_url"] + "\n"
+    if kind in ("issue", "pr") and verb == "comment":
+        ns = _shim_parse(rest, ["number"], body="one")
+        _rest_call("POST", "repos/{owner}/{repo}/issues/%s/comments" % ns.number, cwd, body={"body": ns.body})
+        return ""
+    if kind in ("issue", "pr") and verb == "edit":
+        ns = _shim_parse(rest, ["number"], **{"body-file": "one", "add-label": "many", "remove-label": "many"})
+        base = "repos/{owner}/{repo}/issues/%s" % ns.number
+        if ns.body_file:
+            _rest_call("PATCH", base, cwd, body={"body": _rest_read_text(ns.body_file)})
+        if ns.add_label:
+            _rest_call("POST", base + "/labels", cwd, body={"labels": ns.add_label})
+        for label in ns.remove_label:
+            _rest_call("DELETE", base + "/labels/" + urllib.parse.quote(label, safe=""), cwd)
+        return ""
+    if kind == "issue" and verb == "close":
+        ns = _shim_parse(rest, ["number"], reason="one")
+        reason = {"completed": "completed", "not planned": "not_planned", None: "completed"}.get(ns.reason)
+        if reason is None:
+            raise _RestUnsupported("issue close --reason %r" % ns.reason)
+        _rest_call("PATCH", "repos/{owner}/{repo}/issues/%s" % ns.number, cwd,
+                   body={"state": "closed", "state_reason": reason})
+        return ""
+    if kind == "pr" and verb == "close":
+        ns = _shim_parse(rest, ["number"])
+        _rest_call("PATCH", "repos/{owner}/{repo}/pulls/%s" % ns.number, cwd, body={"state": "closed"})
+        return ""
+    if kind == "pr" and verb == "ready":
+        ns = _shim_parse(rest, ["number"])
+        _rest_call("POST", "repos/{owner}/{repo}/pulls/%s/ccr/ready_for_review" % ns.number, cwd)
+        return ""
+    raise _RestUnsupported("gh %s has no REST mapping" % " ".join(argv[:2]))
+
+
+def _rest_run_gh(argv, check, cwd):
+    """run_gh's answer for a verb handled over REST: a CompletedProcess, or GhError when check is set."""
+    try:
+        stdout = _rest_dispatch(argv, cwd)
+        return subprocess.CompletedProcess(["gh"] + argv, 0, stdout, "")
+    except GhError as error:
+        result = error.result
+    except _RestUnsupported as error:
+        result = subprocess.CompletedProcess(["gh"] + argv, 1, "", "REST shim: %s" % error)
+    if check:
+        raise GhError(argv, result)
+    return result
 
 
 class GitError(RuntimeError):
@@ -359,6 +731,20 @@ def run_git(args, cwd=None, check=True):
     if check and result.returncode != 0:
         raise GitError(args, result)
     return result
+
+
+def _tracking_refspec(branch):
+    return "+refs/heads/%s:refs/remotes/origin/%s" % (branch, branch)
+
+
+def _fetch_pinned(refspecs, repo_root, check=True):
+    """Fetch exactly `refspecs` from origin and write nothing but remote-tracking refs and FETCH_HEAD, whatever the
+    user's git config says; returns run_git's result."""
+    # --refmap= stops remote.origin.fetch mapping the named refs (a refs/heads one would move a local branch),
+    # --no-tags the tag auto-follow, --no-recurse-submodules fetch.recurseSubmodules and submodule.recurse.
+    if not refspecs:  # --refmap= with no refspec is fatal, so an empty list is a caller's bug, not a skip
+        raise ValueError("_fetch_pinned needs at least one refspec: a fetch with --refmap= and none is fatal")
+    return run_git(["fetch", "-q", "--no-tags", "--no-recurse-submodules", "--refmap=", "origin"] + list(refspecs), cwd=repo_root, check=check)
 
 
 # =============================================================================
@@ -788,22 +1174,27 @@ def _gate_entry_time(entry):
     return None
 
 
+_GATE_NO_TIME = datetime.min.replace(tzinfo=timezone.utc)
+
+
+def _gate_entry_rank(position, entry):
+    """Sort key of a rollup entry, the largest being the newest. A run that has not ended (a CheckRun with
+    no conclusion, or any entry with no usable time) outranks every finished run whatever its position or
+    time, because gh serves such a run with the time it started and that can fall inside an older run's span.
+    Among the rest the later time wins, then the later list position."""
+    when = _gate_entry_time(entry)
+    unended = when is None or (_gate_entry_kind(entry) == "CheckRun" and not entry.get("conclusion"))
+    return (unended, when or _GATE_NO_TIME, position)
+
+
 def _newest_gate_entries(rollup):
     """{(kind, name): the newest verifier-gate entry of that kind} over a statusCheckRollup. GitHub
-    counts only the newest run of a check, so an older FAILURE is history. Newest is by time when
-    every entry of the kind has one, else by list position, later winning ties: a run with no time
-    at all (a queued one) is never ranked below an older run that has one."""
+    counts only the newest run of a check, so an older FAILURE is history. Newest is by `_gate_entry_rank`."""
     groups = {}
     for position, entry in enumerate(rollup or []):
         if isinstance(entry, dict) and (entry.get("name") or entry.get("context")) == VERIFIER_GATE_NAME:
             groups.setdefault((_gate_entry_kind(entry), VERIFIER_GATE_NAME), []).append((position, entry))
-    newest = {}
-    for key, members in groups.items():
-        if all(_gate_entry_time(entry) is not None for _, entry in members):
-            newest[key] = max(members, key=lambda member: (_gate_entry_time(member[1]), member[0]))[1]
-        else:
-            newest[key] = max(members, key=lambda member: member[0])[1]
-    return newest
+    return {key: max(members, key=lambda member: _gate_entry_rank(*member))[1] for key, members in groups.items()}
 
 
 def _gate_entry_succeeded(entry):
@@ -842,11 +1233,13 @@ def _stale_check_run_text(pr_number, entry):
     url = url if isinstance(url, str) else ""
     match = re.search(r"/actions/runs/(\d+)", url)
     run_id = match.group(1) if match else (url or "unknown")
+    conclusion = entry.get("conclusion")
+    ended = "ended %s" % conclusion if conclusion else "has not ended (%s)" % (entry.get("status") or "unknown")
     return (
-        "STALE CHECK RUN: PR #%s: the newest %s check run %s ended %s on this head, and a check and a status "
+        "STALE CHECK RUN: PR #%s: the newest %s check run %s %s on this head, and a check and a status "
         "of the same name must both pass; refresh the head with gh pr update-branch (branch behind main) or "
         "any new commit (level with main), then have the verifier audit the new head"
-        % (pr_number, VERIFIER_GATE_NAME, run_id, entry.get("conclusion") or entry.get("status"))
+        % (pr_number, VERIFIER_GATE_NAME, run_id, ended)
     )
 
 
@@ -1199,7 +1592,7 @@ def cmd_accept(args, repo_root):
 
     base = args.base or "main"
     branch = "plan/%s" % entry_id
-    run_git(["fetch", "-q", "origin"], cwd=repo_root)
+    _fetch_pinned([_tracking_refspec(base)], repo_root)
     existing_branches = _parse_ls_remote_branch_names(
         run_git(["ls-remote", "origin", "refs/heads/%s" % branch], cwd=repo_root).stdout
     )
@@ -1434,7 +1827,11 @@ def cmd_ship_check(args, repo_root):
 
 
 def _ship_behind_overlap(pr, head_sha, repo_root):
-    run_git(["fetch", "-q", "origin"], cwd=repo_root)
+    refspecs = [_tracking_refspec("main")]
+    # The PR head is a branch tip on origin: fetched by object name, so no ref is written for it.
+    if run_git(["cat-file", "-e", "%s^{commit}" % head_sha], cwd=repo_root, check=False).returncode != 0:
+        refspecs.append(head_sha)
+    _fetch_pinned(refspecs, repo_root)
     main_sha = run_git(["rev-parse", "origin/main"], cwd=repo_root).stdout.strip()
     merge_base = run_git(["merge-base", "origin/main", head_sha], cwd=repo_root).stdout.strip()
     if merge_base == main_sha:
@@ -1492,7 +1889,7 @@ def cmd_ship_confirm(args, repo_root):
     if not merge_sha:
         sys.stderr.write("CANNOT CONFIRM: PR #%d has no mergeCommit.oid\n" % args.pr)
         raise SystemExit(1)
-    run_git(["fetch", "-q", "origin"], cwd=repo_root)
+    _fetch_pinned([_tracking_refspec("main")], repo_root)
     run_git(["merge-base", "--is-ancestor", merge_sha, "origin/main"], cwd=repo_root)
 
     issue_number, entry_id = parse_entry_header(pr["body"])
@@ -1534,7 +1931,7 @@ def _judge_integrity_problem(repo_root):
     choose which tools/queue runs. Fetches first, since a stale origin/main would call a changed
     judge unchanged; compares blob ids, so line endings and decoding cannot hide a difference."""
     try:
-        run_git(["fetch", "-q", "origin", "+refs/heads/main:refs/remotes/origin/main"], cwd=repo_root)
+        _fetch_pinned([_tracking_refspec("main")], repo_root)
     except GitError as exc:
         return "could not fetch origin/main: %s" % exc
     for name in JUDGED_FILES:
@@ -1579,6 +1976,26 @@ def _gate_pass_read_back(pr_number, head_sha, review_url, repo_root):
     return 1
 
 
+def _post_gate_status(head_sha, review_url, repo_root):
+    """0 once the verifier-gate success status is posted; 1 (with a clear refusal) when a cloud session's proxy
+    refuses commit-status writes. Any other gh failure raises."""
+    try:
+        run_gh([
+            "api", "repos/{owner}/{repo}/statuses/%s" % head_sha, "--method", "POST",
+            "-f", "state=success", "-f", "context=%s" % VERIFIER_GATE_NAME, "-f", "target_url=%s" % review_url,
+            "-f", "description=verifier-report PASS audited on %s" % head_sha[:12],
+        ], cwd=repo_root)
+    except GhError as error:
+        if PROXY_WRITE_BLOCKED_TEXT not in error.result.stderr + error.result.stdout:
+            raise
+        sys.stderr.write(
+            "CANNOT POST GATE: this session's proxy refuses commit-status writes (a Claude Code cloud session); "
+            "no %s status was posted. Run gate-pass from a machine with direct GitHub access.\n" % VERIFIER_GATE_NAME
+        )
+        return 1
+    return 0
+
+
 def cmd_gate_pass(args, repo_root):
     problem = _judge_integrity_problem(repo_root)
     if problem is not None:
@@ -1613,11 +2030,9 @@ def cmd_gate_pass(args, repo_root):
         print("gate-pass: already posted %s success on %s for %s; posted nothing" % (VERIFIER_GATE_NAME, head_sha, review_url))
         return 0
 
-    run_gh([
-        "api", "repos/{owner}/{repo}/statuses/%s" % head_sha, "--method", "POST",
-        "-f", "state=success", "-f", "context=%s" % VERIFIER_GATE_NAME, "-f", "target_url=%s" % review_url,
-        "-f", "description=verifier-report PASS audited on %s" % head_sha[:12],
-    ], cwd=repo_root)
+    posted = _post_gate_status(head_sha, review_url, repo_root)
+    if posted != 0:
+        return posted
     code = _gate_pass_read_back(args.pr, head_sha, review_url, repo_root)
     if code == 0:
         print("gate-pass: posted %s success on %s for %s" % (VERIFIER_GATE_NAME, head_sha, review_url))
@@ -1891,11 +2306,8 @@ RULESET = {
             "required_review_thread_resolution": False,
             "require_extra_approval_for_unattributed_changes": False,
         }},
-        # No integration_id: a status posted with a user token has no app, so an app-scoped rule refuses it forever.
-        {"type": "required_status_checks", "parameters": {
-            "required_status_checks": [{"context": "verifier-gate"}],
-            "strict_required_status_checks_policy": False,
-        }},
+        # No required status on the default branch: work is verified locally before it lands, and cloud
+        # verification gates the promotion to `release` instead (build_release_ruleset).
         {"type": "non_fast_forward"},
         {"type": "deletion"},
     ],
@@ -2138,8 +2550,8 @@ def cmd_init(args, repo_root):
 # one before it held:
 #   1. pre-flight: every refusal, the conservation check on the composed
 #      bodies, the idempotence check and the write cap -- no write at all
-#      (a claimed entry's branch is read here, with one fetch that moves only
-#      FETCH_HEAD and the remote-tracking refs);
+#      (a claimed entry's branch is read here, with one fetch by explicit
+#      refspecs, which moves only the remote-tracking refs and FETCH_HEAD);
 #   2. the issue and comment writes, and for a claimed entry, right after its
 #      own issue: the branch push, the draft pull request, then the accepted
 #      label and accept's two comments, so the label never precedes the PR;
@@ -2598,6 +3010,13 @@ def _migrate_branch_names_entry(branch, entry_id):
     return isinstance(branch, str) and isinstance(entry_id, str) and bool(entry_id) and branch == "plan/" + entry_id
 
 
+def _migrate_control_chars(text):
+    """Each distinct control character (Cc) or surrogate (Cs) in `text` as U+XXXX, in code point order: none of
+    them can be in a branch name or a gh argument, and NUL and a lone surrogate crash subprocess."""
+    import unicodedata
+    return ["U+%04X" % code for code in sorted({ord(ch) for ch in text if unicodedata.category(ch) in ("Cc", "Cs")})]
+
+
 def _migrate_normalise_entry(raw, repo_root, legacy=False):
     """One YAML entry -> (spec, problems). `spec` is the entry with every
     value checked and, for a researched one, its record read; None when the
@@ -2610,13 +3029,19 @@ def _migrate_normalise_entry(raw, repo_root, legacy=False):
             return None, found
     problems = []
     entry_id = raw.get("id")
+    controls = _migrate_control_chars(entry_id) if isinstance(entry_id, str) else []
     name = entry_id if isinstance(entry_id, str) and entry_id.strip() else "<entry without an id>"
+    if controls:
+        name = _migrate_short(entry_id)  # its repr, so an escape sequence in an id never reaches a terminal
 
     def bad(text):
         problems.append("%s: %s" % (name, text))
 
     if not isinstance(entry_id, str) or not entry_id.strip() or re.search(r"\s", entry_id):
         bad("id must be one token without whitespace, got %s" % _migrate_short(entry_id))
+    if controls:
+        bad("id holds control character(s) %s, which no branch name or gh argument can carry, got %s"
+            % (", ".join(controls), _migrate_short(entry_id)))
     state = raw.get("state")
     blocked_from = raw.get("blocked_from") if state == "blocked" else None
     if legacy and (state in ("claimed", "implemented") or blocked_from in ("claimed", "implemented")):
@@ -3000,6 +3425,46 @@ def _migrate_remote_shas(listed):
     return found
 
 
+def _migrate_local_branch_sha(branch, repo_root):
+    """(sha, None) for the local branch named exactly `branch`; (None, name) when none is but one differing only
+    in case is (the first listed); else (None, None). It reads the names for-each-ref lists: on a volume that
+    folds case, rev-parse resolves a differently cased branch for the requested one."""
+    listing = run_git(["for-each-ref", "--format=%(refname)%09%(objectname)", "refs/heads/"], cwd=repo_root).stdout
+    variant = None
+    for line in listing.splitlines():
+        refname, _, sha = line.partition("\t")
+        listed = refname[len("refs/heads/"):]
+        if listed == branch:
+            return sha, None
+        if variant is None and listed.lower() == branch.lower():
+            variant = listed
+    return None, variant
+
+
+def _migrate_ref_conflicts(adopted, origin_branches):
+    """Problems for two branches git cannot hold together, a name and a name below it (plan/a and plan/a/b): the
+    adopted branches among themselves, and each against the branches origin already has. `origin_branches` holds
+    exact names only, because ls-remote tail-matches (plan/a also returns x/refs/heads/plan/a)."""
+    problems = []
+    for spec in adopted:
+        branch = spec["branch"]
+        for other in adopted:
+            if other["branch"].startswith(branch + "/"):
+                problems.append("%s: ref name conflict: branch %s (this entry) cannot exist beside %s (entry %s): git "
+                                "cannot hold a branch and a branch below it" % (spec["id"], branch, other["branch"],
+                                                                                other["id"]))
+        for name in sorted(origin_branches):
+            if name.startswith(branch + "/"):
+                problems.append("%s: ref name conflict: origin holds branch %s, which cannot exist beside %s (this "
+                                "entry's branch): git cannot hold a branch and a branch below it"
+                                % (spec["id"], name, branch))
+            if branch.startswith(name + "/"):
+                problems.append("%s: ref name conflict: origin holds branch %s, which cannot exist beside %s (this "
+                                "entry's branch): git cannot hold a branch and a branch below it"
+                                % (spec["id"], name, branch))
+    return problems
+
+
 def _migrate_adopt_branch(spec, remote, repo_root):
     """(info, problems) for one adopted entry's branch, read only. `remote` is origin's tip of it or None.
     `info` says where the branch is, the tip the PR will head, and whether a push is needed: a branch on
@@ -3013,8 +3478,11 @@ def _migrate_adopt_branch(spec, remote, repo_root):
     base_sha = run_git(["rev-parse", "--verify", "-q", "%s^{commit}" % base], cwd=repo_root, check=False).stdout.strip()
     if not base_sha:
         return None, ["%s: origin has no %s branch to open a pull request against" % (name, MIGRATE_ADOPT_BASE)]
-    local = run_git(["rev-parse", "--verify", "-q", "refs/heads/%s^{commit}" % branch], cwd=repo_root,
-                    check=False).stdout.strip() or None
+    local, variant = _migrate_local_branch_sha(branch, repo_root)
+    if variant is not None:
+        return None, ["%s: local branch %s differs only in case from this entry's branch %s, and a volume that folds "
+                      "case would resolve one for the other and push its commits under this name; rename or delete "
+                      "one of them" % (name, variant, branch)]
     if local is None and remote is None:
         return {"branch": branch, "action": "create", "tip": None, "push": True, "where": "new", "base": base_sha}, []
     if remote is not None and run_git(["cat-file", "-e", "%s^{commit}" % remote], cwd=repo_root,
@@ -3043,22 +3511,30 @@ def _migrate_adopt_branch(spec, remote, repo_root):
 
 def _migrate_adopt_preflight(adopted, repo_root):
     """({id: info}, problems) for every adopted entry: the repository is the checkout's own, origin answers
-    (one fetch, which moves FETCH_HEAD and the remote-tracking refs and nothing in the tree, and one read of
-    the branches), each branch can be adopted without a force, and no open or merged PR already heads it. A
+    (one read of its branches, then one fetch by explicit refspecs that moves only the
+    remote-tracking refs and FETCH_HEAD, never a local branch or a tag), each branch can be adopted without a
+    force and sits beside no ref git cannot hold with it, and no open or merged PR already heads it. A
     closed, unmerged one does not count, so the advice to close a PR leads to a clean re-run."""
     top = run_git(["rev-parse", "--show-toplevel"], cwd=repo_root, check=False)
     if top.returncode != 0 or Path(top.stdout.strip()).resolve() != Path(repo_root).resolve():
         return {}, ["%s: %s is not the top of a git repository, so the branch of an adopted entry cannot be read "
                     "or pushed" % (spec["id"], repo_root) for spec in adopted]
-    fetched = run_git(["fetch", "-q", "origin"], cwd=repo_root, check=False)
-    listed = run_git(["ls-remote", "origin"] + ["refs/heads/%s" % spec["branch"] for spec in adopted],
+    # plan/* is read too, so a ref that cannot sit beside an adopted branch shows up before any write.
+    wanted = ["refs/heads/%s" % MIGRATE_ADOPT_BASE, "refs/heads/plan", "refs/heads/plan/*"]
+    listed = run_git(["ls-remote", "origin"] + wanted + ["refs/heads/%s" % spec["branch"] for spec in adopted],
                      cwd=repo_root, check=False)
+    remotes = _migrate_remote_shas(listed.stdout)
+    # A refspec for a branch origin lacks is fatal, and so is a fetch with none left.
+    refspecs = [_tracking_refspec(name)
+                for name in [MIGRATE_ADOPT_BASE] + [spec["branch"] for spec in adopted] if name in remotes]
+    fetched = subprocess.CompletedProcess([], 0, "", "")
+    if refspecs:
+        fetched = _fetch_pinned(refspecs, repo_root, check=False)
     if fetched.returncode != 0 or listed.returncode != 0:
         why = (fetched.stderr if fetched.returncode != 0 else listed.stderr).strip() or "git could not read it"
         return {}, ["%s: could not reach origin (%s), so its branch %s cannot be read or pushed"
                     % (spec["id"], why, spec["branch"]) for spec in adopted]
-    remotes = _migrate_remote_shas(listed.stdout)
-    info, problems = {}, []
+    info, problems = {}, _migrate_ref_conflicts(adopted, remotes)
     for spec in adopted:
         found, issues = _migrate_adopt_branch(spec, remotes.get(spec["branch"]), repo_root)
         problems += issues
@@ -3203,7 +3679,7 @@ def _migrate_preflight(repo_root, max_writes, legacy=False):
         "queue_path": repo_root.joinpath(*QUEUE_RELPATH), "config_removed": removed, "config_added": added,
         "max_writes": max_writes, "legacy": legacy, "adopt": adopt_info,
         "pushes_planned": sum(1 for found in adopt_info.values() if found["push"]),
-        "ledger": {"pushed": [], "prs": [], "adopted": {}},
+        "ledger": {"pushed": [], "prs": [], "adopted": {}, "attempted": []},
     }
 
 
@@ -3270,6 +3746,14 @@ def _migrate_report_partial(created, reason, ledger=None):
                          "blocks a re-run):\n")
         for number, branch, _ in ledger["prs"]:
             sys.stderr.write("  gh pr close %d\n" % number)
+    recorded = {branch for _, branch, _ in ledger.get("prs") or []}
+    unrecorded = [branch for branch in ledger.get("attempted") or [] if branch not in recorded]
+    if unrecorded:
+        sys.stderr.write("  gh may have created a pull request whose number this run never learned; for each branch "
+                         "below, list its open pull requests and close each (a closed, unmerged one no longer "
+                         "blocks a re-run):\n")
+        for branch in unrecorded:
+            sys.stderr.write("  gh pr list --head %s --state open\n" % branch)
     # The pre-flight lists issues by the plan label and a closed issue keeps its id:, so closing alone
     # leaves the re-run refused; taking the label off is what frees the id.
     sys.stderr.write(
@@ -3286,8 +3770,10 @@ def _migrate_report_partial(created, reason, ledger=None):
 
 def _migrate_push_args(branch, sha):
     # The plain SHA refspec: no `+` (a rejected non-fast-forward stays rejected) and no -u, which would
-    # write a branch section into .git/config.
-    return ["push", "origin", "%s:refs/heads/%s" % (sha, branch)]
+    # write a branch section into .git/config. The pins undo the user's config: remote.origin.mirror makes a
+    # refspec push fatal (and --no-mirror does not override it), push.followTags publishes local tags and
+    # push.gpgSign needs a signing server.
+    return ["-c", "remote.origin.mirror=false", "push", "--no-follow-tags", "--no-signed", "origin", "%s:refs/heads/%s" % (sha, branch)]
 
 
 def _migrate_empty_commit(branch, repo_root):
@@ -3320,6 +3806,7 @@ def _migrate_adopt_write(spec, number, issue, depends, plan, repo_root, pace):
     body_path = _body_tempfile(pr_body)
     try:
         pace()
+        ledger["attempted"].append(branch)
         result = run_gh(["pr", "create", "--draft", "--title", issue["title"], "--body-file", body_path,
                          "--head", branch, "--base", MIGRATE_ADOPT_BASE], cwd=repo_root)
     finally:
@@ -3385,7 +3872,7 @@ def _migrate_write_issues(plan, repo_root):
             print("migrate: issue #%d created for %s (%d comment(s))" % (number, spec["id"], len(issue["comments"])))
             if spec["adopt"]:
                 _migrate_adopt_write(spec, number, issue, depends, plan, repo_root, pace)
-    except (GhError, GitError, MigrateWriteError) as exc:
+    except (GhError, GitError, MigrateWriteError, ValueError, OSError) as exc:
         _migrate_report_partial(created, exc, plan["ledger"])
         raise SystemExit(1)
     return created
@@ -3426,7 +3913,7 @@ def _migrate_read_back_one(item, number_to_id, repo_root, plan):
     spec, number, issue = item
     try:
         view = gh_json(["issue", "view", number, "--json", "title,body,labels,comments"], cwd=repo_root)
-    except (GhError, ValueError) as exc:
+    except (GhError, ValueError, OSError) as exc:
         return ["%s: issue #%d could not be read back -- %s" % (spec["id"], number, exc)], None
     observed = {
         "number": number, "title": view.get("title"), "body": view.get("body") or "",
@@ -3440,7 +3927,7 @@ def _migrate_read_back_one(item, number_to_id, repo_root, plan):
             return ["%s: no pull request was recorded for this adopted entry" % spec["id"]], None
         try:
             observed["prs"] = fetch_all_prs(repo_root)
-        except (GhError, ValueError) as exc:
+        except (GhError, ValueError, OSError) as exc:
             return ["%s: the pull requests could not be read back -- %s" % (spec["id"], exc)], None
         problems += _migrate_check_adopted_pr(spec, number, adopted, observed["prs"])
         comments = [(text or "").strip() for text in observed["comments"]]
@@ -3546,7 +4033,10 @@ def cmd_migrate(args, repo_root):
         made = "%d gh write(s)" % plan["planned_writes"]
         if plan["adopt"]:
             made += " and %d git push(es)" % plan["pushes_planned"]
-        print("migrate --dry-run: nothing was written (%s would be made)" % made)
+            print("migrate --dry-run: no gh write, no push and no file in the working tree was written; the pre-flight "
+                  "git fetch updated only remote-tracking refs and FETCH_HEAD (%s would be made)" % made)
+        else:
+            print("migrate --dry-run: nothing was written (%s would be made)" % made)
         return 0
     created = _migrate_write_issues(plan, repo_root)
     _migrate_read_back(plan, created, repo_root)
@@ -3647,7 +4137,8 @@ def build_parser():
     p = sub.add_parser("migrate", help="one-time cutover: plans/queue.yaml entries become plan issues, then the marker")
     p.add_argument("--dry-run", action="store_true",
                     help="run every pre-flight check and print the plan; no gh write, no push and no file write "
-                         "(a claimed entry's branch is read with one git fetch of origin)")
+                         "(a claimed entry's branch is read with one git fetch that updates only "
+                         "remote-tracking refs and FETCH_HEAD)")
     p.add_argument("--legacy", action="store_true",
                     help="map a queue in its own vocabulary (depends_on, why, pending, in_progress) onto the standard "
                          "fields; every key with no destination is kept verbatim in one Legacy fields comment per entry")

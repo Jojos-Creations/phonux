@@ -13,8 +13,8 @@ escalation_model: opus
 max_parallel_workers: 8
 
 # CI runs the same lines on pull requests into release and on dispatch. A pull
-# request into main gets only the verifier-gate status, so a verifier PASS rests
-# on its own local re-run of all of them.
+# request into main requires no status check, so the authoring session runs all
+# of them locally before it merges.
 strict_gate:
   - npm run typecheck
   - npm test
