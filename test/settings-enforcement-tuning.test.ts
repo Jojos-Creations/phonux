@@ -195,8 +195,16 @@ test('slideToTransition: the default slide is SLOT_TRANSITION itself, any other 
   assert.notEqual(slowed, SLOT_TRANSITION);
   assert.deepEqual(slowed, { duration: 0.8, ease: [0.2, 0, 0, 1] });
   assert.notEqual(slowed.ease, slow.ease, 'the ease is copied: the tuning holds a read-only tuple');
-  assert.deepEqual(slideToTransition({ ...LIBRARY_TUNING_DEFAULTS.slide, ease: [0.2, 0, 0, 0.9] }), { duration: 0.4, ease: [0.2, 0, 0, 0.9] });
   assert.equal(slideToTransition({ ...LIBRARY_TUNING_DEFAULTS.slide, closeExitSeconds: 0.3 }), SLOT_TRANSITION, 'the close exit is not part of a transition');
+});
+
+test('slideToTransition: each of the four ease numbers alone makes the transition its own, carrying that number', () => {
+  const one = (ease: readonly [number, number, number, number]) => slideToTransition({ ...LIBRARY_TUNING_DEFAULTS.slide, ease });
+  assert.deepEqual(one([0.3, 0, 0, 1]), { duration: 0.4, ease: [0.3, 0, 0, 1] }, 'the first');
+  assert.deepEqual(one([0.2, 0.1, 0, 1]), { duration: 0.4, ease: [0.2, 0.1, 0, 1] }, 'the second');
+  assert.deepEqual(one([0.2, 0, 0.1, 1]), { duration: 0.4, ease: [0.2, 0, 0.1, 1] }, 'the third');
+  assert.deepEqual(one([0.2, 0, 0, 0.9]), { duration: 0.4, ease: [0.2, 0, 0, 0.9] }, 'the fourth');
+  for (const ease of [[0.3, 0, 0, 1], [0.2, 0.1, 0, 1], [0.2, 0, 0.1, 1], [0.2, 0, 0, 0.9]] as const) assert.notEqual(one(ease), SLOT_TRANSITION, `${ease.join(',')} is not the shared transition`);
 });
 
 // ---------------------------------------------------------------------------
@@ -224,14 +232,14 @@ test('slide: the shell glides with the resolved slide once settled, and snaps be
   assert.deepEqual(workspaceShellStyle({ ...input, rowResizeSettled: false, slide }).transition, { duration: 0 });
 });
 
-/** The props of the nearest motion component above `el`: a DOM node never carries the layout or transition props itself. */
-function motionPropsOf(el: Element): Record<string, unknown> {
-  const key = Object.keys(el).find((k) => k.startsWith('__reactFiber$'));
-  assert.ok(key, 'the node has a React fiber');
-  for (let fiber = (el as unknown as Record<string, { return: unknown; memoizedProps?: Record<string, unknown> }>)[key]!; fiber; fiber = fiber.return as typeof fiber) {
-    if (fiber.memoizedProps !== undefined && 'layout' in fiber.memoizedProps) return fiber.memoizedProps;
+/** The props of the nearest motion component above `el` that carries `key`: a DOM node never holds them itself. */
+function motionPropsOf(el: Element, key = 'layout'): Record<string, unknown> {
+  const fiberKey = Object.keys(el).find((k) => k.startsWith('__reactFiber$'));
+  assert.ok(fiberKey, 'the node has a React fiber');
+  for (let fiber = (el as unknown as Record<string, { return: unknown; memoizedProps?: Record<string, unknown> }>)[fiberKey]!; fiber; fiber = fiber.return as typeof fiber) {
+    if (fiber.memoizedProps !== undefined && key in fiber.memoizedProps) return fiber.memoizedProps;
   }
-  assert.fail('no motion component above the node');
+  assert.fail(`no motion component above the node carries ${key}`);
 }
 
 test("slide: PanelSizeBox's layout transition is the panel's resolved slide inside a slot and the shared one outside", () => {
@@ -245,6 +253,45 @@ test("slide: PanelSizeBox's layout transition is the panel's resolved slide insi
   const outside = mount(React.createElement(PanelSizeBox, { width: 390, height: 700, children: React.createElement('i') }));
   assert.equal(motionPropsOf(outside.container.querySelector('[data-panel-size-box]')!).transition, PANEL_TRANSITION);
   outside.unmount();
+});
+
+/** A Workspace over one PanelRow: `workspace` is the Workspace's tuning, `row` the PanelRow's own prop. */
+function inWorkspace(workspace: WorkspaceTuning, entries: PanelWindow[], rowRef: React.RefObject<HTMLDivElement | null>, liveWidths: number[] = []): React.ReactElement {
+  return withHost(
+    React.createElement(Workspace, {
+      overflowContainerRef: { current: null } as React.RefObject<HTMLDivElement | null>,
+      rowRef,
+      containerWidth: 2400,
+      rowResizeSettled: true,
+      phoneWidth: 390,
+      fixedColumnCount: 1,
+      liveWidths,
+      tuning: workspace,
+      children: React.createElement(PanelRow, { entries, rootId: ROOT, closingIds: NONE, enteringViaAnchorIds: NONE }),
+    }),
+  );
+}
+
+/** x of slot b `frames` frames after it joined a row holding only a. */
+async function joinedX(second: PanelWindow, frames: number): Promise<number> {
+  const mounted = mount(rowOf([entry('a')]));
+  mounted.rerender(rowOf([entry('a'), second]));
+  await advanceFrames(frames * 16);
+  const x = xOf(mounted.container, 'b');
+  mounted.unmount();
+  return x;
+}
+
+test("slide: a panel's own slide, not the workspace's, times that panel's own entrance", async () => {
+  const plain = await joinedX(entry('b'), 8);
+  const slow = await joinedX(made('b', { slide: { durationSec: 0.9 } }), 8);
+  assert.ok(slow > plain, `the panel with its own 0.9 s slide (${slow}) is further from rest than the default 0.4 s one (${plain})`);
+});
+
+test('slide: the Workspace hands its resolved slide to the shell glide', () => {
+  const rowRef = { current: null } as React.RefObject<HTMLDivElement | null>;
+  mount(inWorkspace({ slide: { durationSec: 0.8 } }, [entry('a')], rowRef, [768, 390]));
+  assert.deepEqual(motionPropsOf(rowRef.current!, 'animate').transition, { duration: 0.8, ease: [0.2, 0, 0, 1] });
 });
 
 // ---------------------------------------------------------------------------

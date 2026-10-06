@@ -240,24 +240,49 @@ test('a PanelRow inside a Workspace at rowGap 40 draws, pads and prices at 40, a
   for (const commit of log) assert.equal(new Set(Object.values(commit)).size, 1, 'no commit holds two gaps');
 });
 
+const NO_ROW_REF = (): React.RefObject<HTMLDivElement | null> => ({ current: null });
+/** A Workspace at `workspace` over one PanelRow carrying `row` as its own tuning prop, when given. */
+const inWorkspace = (
+  workspace: WorkspaceTuning,
+  row: WorkspaceTuning | undefined,
+  entries: PanelWindow[] = [entry('a')],
+  rowRef: React.RefObject<HTMLDivElement | null> = NO_ROW_REF(),
+  liveWidths: number[] = [],
+): React.ReactElement =>
+  withHost(
+    React.createElement(Workspace, {
+      overflowContainerRef: NO_ROW_REF(),
+      rowRef,
+      containerWidth: 2400,
+      rowResizeSettled: true,
+      phoneWidth: 390,
+      fixedColumnCount: 1,
+      liveWidths,
+      tuning: workspace,
+      children: React.createElement(PanelRow, { entries, rootId: ROOT, closingIds: NONE, enteringViaAnchorIds: NONE, ...(row === undefined ? {} : { tuning: row }) }),
+    }),
+  );
+/** How many warnings one mount of a Workspace at `workspace` over a PanelRow carrying `row` prints. */
+function warnsFor(workspace: WorkspaceTuning, row: WorkspaceTuning | undefined): number {
+  const warn = mock.method(console, 'warn', () => undefined);
+  const mounted = mount(inWorkspace(workspace, row));
+  const count = warn.mock.callCount();
+  mounted.unmount();
+  warn.mock.restore();
+  return count;
+}
+/** The props of the nearest motion component above `el` that carries `key`. */
+function motionProps(el: Element, key: string): Record<string, unknown> {
+  const fiberKey = Object.keys(el).find((k) => k.startsWith('__reactFiber$'));
+  assert.ok(fiberKey, 'the node has a React fiber');
+  for (let fiber = (el as unknown as Record<string, { return: unknown; memoizedProps?: Record<string, unknown> }>)[fiberKey]!; fiber; fiber = fiber.return as typeof fiber) {
+    if (fiber.memoizedProps !== undefined && key in fiber.memoizedProps) return fiber.memoizedProps;
+  }
+  assert.fail(`no motion component above the node carries ${key}`);
+}
+
 test('a PanelRow with its own tuning that differs from its Workspace warns once in development; equal tuning warns never', () => {
   const warn = mock.method(console, 'warn', () => undefined);
-  const containerRef = { current: null } as React.RefObject<HTMLDivElement | null>;
-  const rowRef = { current: null } as React.RefObject<HTMLDivElement | null>;
-  const inWorkspace = (workspace: WorkspaceTuning, row: WorkspaceTuning | undefined): React.ReactElement =>
-    withHost(
-      React.createElement(Workspace, {
-        overflowContainerRef: containerRef,
-        rowRef,
-        containerWidth: 2400,
-        rowResizeSettled: true,
-        phoneWidth: 390,
-        fixedColumnCount: 1,
-        liveWidths: [],
-        tuning: workspace,
-        children: React.createElement(PanelRow, { entries: [entry('a')], rootId: ROOT, closingIds: NONE, enteringViaAnchorIds: NONE, ...(row === undefined ? {} : { tuning: row }) }),
-      }),
-    );
   const equal = mount(inWorkspace({ rowGap: 40 }, { rowGap: 40 }));
   equal.rerender(inWorkspace({ rowGap: 40 }, { rowGap: 40 }));
   assert.equal(warn.mock.callCount(), 0, 'equal values');
@@ -276,4 +301,58 @@ test('a PanelRow with its own tuning that differs from its Workspace warns once 
   assert.equal(warn.mock.callCount(), 1, 'and does not warn: there is nothing to disagree with');
   mount(inWorkspace({ rowGap: 40 }, { rowGap: 24 }));
   assert.equal(warn.mock.callCount(), 2, 'a second instance warns on its own');
+});
+
+test('a PanelRow prop beats the Workspace tuning in what the row draws', () => {
+  mock.method(console, 'warn', () => undefined);
+  const mounted = mount(inWorkspace({ rowGap: 40 }, { rowGap: 24 }, [entry('a'), entry('b')]));
+  assert.equal(slotX(mounted.container, 'b'), 390 + 24, 'the second slot rests one prop gap beyond the first column, not one Workspace gap');
+});
+
+test('the row gap reaches the slot that is entering: through a PanelRow at gap 40 it starts one own span, 40 included, beyond its rest', () => {
+  const mounted = mount(rowOf([entry('a')], { rowGap: 40 }));
+  mounted.rerender(rowOf([entry('a'), entry('b')], { rowGap: 40 }));
+  assert.equal(slotX(mounted.container, 'b'), 390 + 40 + (390 + 40), 'rest 430 plus the slot span 430');
+});
+
+test('the Workspace hands its row gap to the shell margin: with live widths [768, 390] at gap 40 the shell sits 346 left', () => {
+  const rowRef = NO_ROW_REF();
+  mount(inWorkspace({ rowGap: 40 }, undefined, [entry('a')], rowRef, [768, 390]));
+  assert.deepEqual(motionProps(rowRef.current!, 'animate').animate, { marginLeft: 346 });
+});
+
+test('a differing look leaf warns, whichever of the five it is', () => {
+  const differing: Array<[string, WorkspaceTuning]> = [
+    ['rowGap', { rowGap: 24 }],
+    ['dragToClose', { dragToClose: { minDistancePx: 100 } }],
+    ['slide', { slide: { durationSec: 0.9 } }],
+    ['hopFraction', { hopFraction: 0.3 }],
+    ['edgeScroll', { edgeScroll: { zonePx: 60 } }],
+  ];
+  for (const [leaf, row] of differing) assert.equal(warnsFor({}, row), 1, `${leaf} differs from the Workspace default`);
+});
+
+test('a leaf the row does not read does not warn when it differs', () => {
+  assert.equal(warnsFor({}, { saveQuietMs: 900 }), 0, 'saveQuietMs is the host persistence cadence, not part of the look');
+});
+
+test('the warning is once per instance for its lifetime: it does not come again when the disagreement ends and returns', () => {
+  const warn = mock.method(console, 'warn', () => undefined);
+  const mounted = mount(inWorkspace({ rowGap: 40 }, { rowGap: 24 }));
+  mounted.rerender(inWorkspace({ rowGap: 24 }, { rowGap: 24 }));
+  mounted.rerender(inWorkspace({ rowGap: 40 }, { rowGap: 24 }));
+  assert.equal(warn.mock.callCount(), 1);
+});
+
+test('the warning is for development only: nothing prints when NODE_ENV is production, and it does when it is not', () => {
+  const before = process.env.NODE_ENV;
+  try {
+    process.env.NODE_ENV = 'production';
+    assert.equal(warnsFor({}, { rowGap: 24 }), 0, 'production');
+    process.env.NODE_ENV = 'development';
+    assert.equal(warnsFor({}, { rowGap: 24 }), 1, 'development');
+  } finally {
+    if (before === undefined) delete process.env.NODE_ENV;
+    else process.env.NODE_ENV = before;
+  }
 });

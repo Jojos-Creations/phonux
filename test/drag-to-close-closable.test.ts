@@ -164,6 +164,37 @@ test('the snap-back spring: the slot values drive it, the default is 520 and 42,
   }
 });
 
+test('the snap-back spring: damping alone and stiffness alone each change the path', async () => {
+  const byDefault = await springBack(undefined, 'Y', 6);
+  const looser = await springBack({ stiffness: 520, damping: 5 }, 'Y', 6);
+  const softer = await springBack({ stiffness: 50, damping: 42 }, 'Y', 6);
+  assert.notEqual(looser, byDefault, `damping 5 over the default stiffness (${looser}) is not the default path (${byDefault})`);
+  assert.notEqual(softer, byDefault, `stiffness 50 over the default damping (${softer}) is not the default path (${byDefault})`);
+});
+
+test('the direction lock: the vertical offset is read against the slot lock too, and outside a row the lock is 8', async () => {
+  const ends: number[] = [];
+  const reorder: ReorderHandle = { onDragEnd: (offsetX) => ends.push(offsetX) };
+  const wide = mountBox({ reorder, onClose: () => undefined, slot: { tuning: { dragToClose: { ...LIBRARY_TUNING_DEFAULTS.dragToClose, directionLockPx: 20 } } } });
+  await drag(wide.handle, { dx: 15, dy: 10, steps: 5 });
+  await frames(30);
+  assert.deepEqual(ends, [], 'neither axis reached the lock of 20, so a 15 by 10 drag locked nothing');
+  wide.mounted.unmount();
+  const byDefault = mountBox({ reorder, onClose: () => undefined, slot: {} });
+  await drag(byDefault.handle, { dx: 15, dy: 10, steps: 5 });
+  await frames(30);
+  assert.deepEqual(ends.map(Math.round), [15], 'at the default 8 the same drag locked horizontal');
+  byDefault.mounted.unmount();
+  ends.length = 0;
+  const outside = mountBox({ reorder, onClose: () => undefined });
+  await drag(outside.handle, { dx: 7, dy: 0, steps: 1 });
+  await frames(30);
+  assert.deepEqual(ends, [], 'outside a row 7 px is short of the lock');
+  await drag(outside.handle, { dx: 8, dy: 0, steps: 1 });
+  await frames(30);
+  assert.deepEqual(ends.map(Math.round), [8], 'and 8 px locks it');
+});
+
 /** Frames from the release until onClose runs. */
 async function framesToClose(closeExitSeconds: number | undefined): Promise<number> {
   let closedAt = -1;
@@ -278,4 +309,39 @@ test('closable turning false on the last frame of the exit still stops the close
   assert.ok(Math.abs(out.rest) < 1, `the box returned to rest (${out.rest})`);
   assert.equal(out.locked, 'auto');
   assert.ok(out.again > 20);
+});
+
+/** The box's distance from rest on each frame after an exit that closability stops partway, under `snapBack` for the return. */
+async function returnPath(snapBack: { stiffness: number; damping: number } | undefined): Promise<number[]> {
+  const setup: Setup = { onClose: () => undefined, slot: { closable: true, ...(snapBack === undefined ? {} : { tuning: { dragToClose: { ...LIBRARY_TUNING_DEFAULTS.dragToClose, snapBack } } }) } };
+  const { box, handle, update } = mountBox(setup);
+  await drag(handle, { dx: 0, dy: 300 });
+  const path: number[] = [];
+  for (let i = 0; i < 40; i += 1) {
+    if (i === 1) update({ ...setup, slot: { ...setup.slot, closable: false } });
+    await frames(1);
+    path.push(Math.round(axis(box, 'Y')));
+  }
+  return path;
+}
+
+test('the return after an exit that closability stopped runs under the slot spring, not the library one', async () => {
+  const byDefault = await returnPath(undefined);
+  const soft = await returnPath({ stiffness: 50, damping: 5 });
+  assert.ok(Math.max(...byDefault) > 600 && Math.max(...soft) > 600, 'both went down first');
+  assert.notDeepEqual(soft, byDefault, 'a soft slot spring gives its own return path');
+});
+
+test('onClose gone during the exit: the end of the exit returns the box to rest and calls nothing', async () => {
+  const closes: number[] = [];
+  const setup: Setup = { onClose: () => closes.push(1), slot: { closable: true } };
+  const { box, handle, scroller, update } = mountBox(setup);
+  await drag(handle, { dx: 0, dy: 300 });
+  await frames(2);
+  assert.ok(axis(box, 'Y') > 300, `the exit is under way (${axis(box, 'Y')})`);
+  update({ slot: { closable: true } });
+  for (let i = 0; i < 70; i += 1) await frames(1);
+  assert.equal(closes.length, 0);
+  assert.ok(Math.abs(axis(box, 'Y')) < 1, `back at rest (${axis(box, 'Y')})`);
+  assert.equal(scroller.style.overflowY, 'auto');
 });
