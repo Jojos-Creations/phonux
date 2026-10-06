@@ -792,7 +792,9 @@ def set_section(body, heading, new_content):
 # Body composition -- section 5's exact shapes.
 # =============================================================================
 
-PLACEHOLDER_RE = re.compile(r"<[A-Za-z][A-Za-z0-9_ -]*>")
+# A placeholder is a whole line that is one angle-bracket token, with or without a bullet marker.
+# A bullet that merely starts with, ends with or contains such a token (argument notation) is not one.
+PLACEHOLDER_RE = re.compile(r"^[ \t]*(?:(?:[-*]|\d+\.)[ \t]+)?<[A-Za-z][A-Za-z0-9_ -]*>[ \t\r]*$", re.MULTILINE)
 
 BRIEF_HEADING = report_rules.BRIEF_HEADING  # "## Brief"
 HANDOFF_HEADING = PR_HEADINGS["handoff"]
@@ -2230,15 +2232,81 @@ def _predates_cutover(sha, cutover_sha, repo_root):
     return run_git(["merge-base", "--is-ancestor", sha, cutover_sha], cwd=repo_root, check=False).returncode == 0
 
 
+DOCTOR_WAIVERS_RELPATH = ("plans", "doctor-waivers.json")
+
+
+def _read_doctor_waivers(repo_root):
+    """`(data, None)` for a parsed waiver file, `(None, None)` when there is none, `(None, why)` when one is present
+    and unusable. A file that is present but ignored would read as green, so the last case is a finding."""
+    path = repo_root.joinpath(*DOCTOR_WAIVERS_RELPATH)
+    if not path.is_file():
+        return None, None
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError) as error:
+        return None, "cannot read %s: %s" % ("/".join(DOCTOR_WAIVERS_RELPATH), error)
+    if not isinstance(data, dict) or not isinstance(data.get("closed_at"), str) or not data["closed_at"]:
+        return None, "top level must be an object with a non-empty closed_at"
+    if not isinstance(data.get("waivers"), list):
+        return None, "waivers must be a list"
+    for index, entry in enumerate(data["waivers"]):
+        if not isinstance(entry, dict) or not isinstance(entry.get("pr"), int):
+            return None, "waivers[%d] must be an object with an integer pr" % index
+        for key in ("merge", "audited_sha", "reason", "evidence"):
+            if not isinstance(entry.get(key), str):
+                return None, "waivers[%d] (PR #%d) needs a string %s" % (index, entry["pr"], key)
+    return data, None
+
+
+def _waiver_failure(entry, merged, repo_root, closed_at):
+    """The first condition a waiver entry fails, or None when it holds. `merged` is `(merge_sha, trailer_present)` of
+    the merged non-release PR with the entry's number, or None when there is no such PR."""
+    if entry is None:
+        return "no-matching-PR"
+    if not entry["reason"].strip():
+        return "empty-reason"
+    if not entry["evidence"].strip():
+        return "empty-evidence"
+    if merged is None:
+        return "no-matching-PR"
+    merge_sha, trailer_present = merged
+    if merge_sha != entry["merge"]:
+        return "merge-mismatch"
+    if trailer_present:
+        return "now-has-trailer"
+    second = run_git(["rev-parse", "--verify", "-q", merge_sha + "^2"], cwd=repo_root, check=False)
+    if second.returncode != 0 or second.stdout.strip() != entry["audited_sha"]:
+        return "second-parent-mismatch"
+    if not _predates_cutover(merge_sha, closed_at, repo_root):
+        return "after-closed_at"
+    return None
+
+
+def _waiver_applies(entry, merged, repo_root, closed_at):
+    """True only when `entry` names this exact merge, binds it to the audited head as second parent, and the merge is
+    at or before `closed_at`; each check is a closed list so a later merge can never be waived."""
+    return _waiver_failure(entry, merged, repo_root, closed_at) is None
+
+
 def cmd_doctor(args, repo_root):
     """Every negative-control finding section 4's state table and section
     17's checker table name for `doctor`, each printed as its own line
     naming the exact token a test greps for. A STALE BRANCH or SHIPPED
     WITHOUT VERDICT whose commit is at or before the cutover point is listed
     under a PRE-CUTOVER RESIDUE header and not counted; every other finding
-    makes it exit 1. It reads committed history and never fetches."""
+    makes it exit 1. A merge listed in plans/doctor-waivers.json, bound to its audited head
+    and at or before that file's closed_at, prints under a WAIVED header and is not counted; a listed entry that no
+    longer matches GitHub is a WAIVER INVALID finding. It reads committed history and never fetches."""
     findings = []
     residue = []
+    waived = []
+    merged_prs = {}
+
+    waiver_data, waiver_problem = _read_doctor_waivers(repo_root)
+    if waiver_problem:
+        findings.append("UNPARSEABLE WAIVERS: %s" % waiver_problem)
+    waivers_by_merge = {entry["merge"]: entry for entry in (waiver_data or {}).get("waivers", [])}
+    closed_at = (waiver_data or {}).get("closed_at")
 
     mode = pipeline_mode(repo_root)
     schema_present = repo_root.joinpath(*SCHEMA_REFERENCE_RELPATH).is_file()
@@ -2334,10 +2402,14 @@ def cmd_doctor(args, repo_root):
                     trailer_present = "Verified-Sha:" in commit_message
                 except GitError:
                     trailer_present = False  # e.g. the merge commit isn't fetched locally -- treat as unproven, not silently clean
+            merged_prs[pr_number] = (merge_sha, trailer_present)
             if not trailer_present:
                 line = "SHIPPED WITHOUT VERDICT: PR #%d's merge commit has no Verified-Sha: trailer" % pr_number
+                entry = waivers_by_merge.get(merge_sha)
                 if _predates_cutover(merge_sha, cutover_sha, repo_root):
                     residue.append(line)
+                elif _waiver_applies(entry, merged_prs[pr_number], repo_root, closed_at):
+                    waived.append("  PR #%d %s -- %s" % (pr_number, merge_sha[:7], entry["reason"]))
                 else:
                     findings.append(line)
 
@@ -2349,6 +2421,12 @@ def cmd_doctor(args, repo_root):
                         % (pr_number, issue_number, issue_number)
                     )
 
+    for entry in (waiver_data or {}).get("waivers", []):
+        merged = merged_prs.get(entry["pr"])
+        if not _waiver_applies(entry, merged, repo_root, closed_at):
+            findings.append(
+                "WAIVER INVALID: PR #%d -- %s" % (entry["pr"], _waiver_failure(entry, merged, repo_root, closed_at)))
+
     if cutover_sha is None and any(f.startswith(("STALE BRANCH", "SHIPPED WITHOUT VERDICT")) for f in findings):
         sys.stderr.write("NOTE: cutover point unknown (%s); nothing is treated as pre-cutover\n" % cutover_reason)
     for finding in findings:
@@ -2357,6 +2435,11 @@ def cmd_doctor(args, repo_root):
         print("PRE-CUTOVER RESIDUE at or before cutover point %s: %d line(s), listed and not counted" % (cutover_sha, len(residue)))
         for line in residue:
             print("  " + line)
+    if waived:
+        print("WAIVED (no Verified-Sha trailer; owner-approved, list closed at %s): %d line(s), listed and not counted"
+              % (closed_at[:7], len(waived)))
+        for line in waived:
+            print(line)
     if findings:
         return 1
     print("doctor: OK, marker=%r agrees with plans/SCHEMA.md and queue.yaml presence, no findings" % mode)

@@ -40,7 +40,14 @@ A body missing the `<!-- plan:v1 -->` marker is `UNPARSEABLE #<n>`, never
 read as a silent stub (`queue lint`). A placeholder bullet (a bare
 `<TODO>` or similar angle-bracket token) under `## Touches` or
 `## Evidence required` is caught by the same lint pass, never read as
-researched.
+researched. "Bare" is exact: a bullet is a placeholder only when it is that
+one token and nothing else, with or without its `-` or number, so `- <TODO>`
+and `1. <placeholder>` are placeholders, and so is a line that is just
+`<TODO>`. A bullet that merely starts with, ends with or contains such a
+token, such as `1. <TODO> then more text` or a command written with `<repo>`
+arguments, is not a placeholder and is not flagged. The same rule decides
+whether a `## Research` subsection counts as researched, and one placeholder
+bullet anywhere in a section still rejects the whole section.
 
 ## The PR body (the record from acceptance on)
 
