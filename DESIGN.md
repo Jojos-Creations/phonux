@@ -1143,6 +1143,25 @@ a closing panel always uses `closeExit`. `layer` sets the stacking, and `animate
 zero-duration transition on enter, exit and close, with the targets unchanged; the default transition is the shared
 `PANEL_TRANSITION` object itself.
 
+## Doc comments
+
+An export reachable from `index.ts` or `fakeHost.ts` is documented with TSDoc, the `/** */` syntax API Extractor already
+reads for the release tag. Every export, and every property or method of an exported interface, type literal or class,
+gets one. An undocumented one prints `// (undocumented)` in `etc/*.api.md`, and `npm run check:api-report` fails on that
+line, so the reports are also the audit.
+
+- A doc comment says what a consumer may rely on: what it is, what a value means or what it is measured in, what a call
+  returns, when it throws. It does not say why the code is shaped that way; that is a `//` comment on the line it
+  governs, or a section of this file.
+- Open with one sentence that stands alone, as it renders in an editor tooltip. A property gets a fragment
+  ("Width in px.") rather than a restated name.
+- Types stay in the signature: write `@param name - what it means` and `@returns what it gives back` only where the name
+  and type do not already say it, and `@throws` for an error a caller is meant to catch. Use `@example` for the one call
+  a reader would otherwise have to guess, `@remarks` for what does not fit in the opening sentence, `@defaultValue`
+  for an optional property's default, and `{@link Name}` for a cross-reference.
+- Every declaration keeps its single `@public` tag (see "The API reports in `etc/`").
+- Internal helpers are documented only where the contract is not obvious from the name; they come after the public API.
+
 ## The API reports in `etc/`
 
 `etc/phonux.api.md` and `etc/phonux-testing.api.md` are API Extractor's reading of this package's surface, one

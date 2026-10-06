@@ -42,7 +42,9 @@ export const isPresent = (p: { collapsible: boolean; live: boolean; marker?: boo
  * @public
  */
 export interface NeighborWidths {
+  /** Widths in px of the present panels left of the dragged one, nearest first. */
   readonly left: readonly number[];
+  /** Widths in px of the present panels right of the dragged one, nearest first. */
   readonly right: readonly number[];
 }
 

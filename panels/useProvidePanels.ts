@@ -65,7 +65,16 @@ export interface PanelsInput {
   /** Called when setFormFactor really resizes a panel, so the host can glide the row's margin with it. */
   onPanelResize?: () => void;
   /** Called once per close with its closed-pages log entry; the host decides where that log lives. See usePanelClosing.ts. */
-  onPanelsClosed?: (entry: { id: string; title: string; url: string; closedAt: string }) => void;
+  onPanelsClosed?: (entry: {
+    /** The log id, `<closedAt>#<panel id>`; the id `onPanelsRestored` reports back. */
+    id: string;
+    /** The panel's title, else its URL, else 'Untitled panel'. */
+    title: string;
+    /** The panel's URL. */
+    url: string;
+    /** When the panel closed, as an ISO 8601 timestamp. */
+    closedAt: string;
+  }) => void;
   /** Called once per undo batch with the log ids it restores. See usePanelClosing.ts. */
   onPanelsRestored?: (logIds: string[]) => void;
   /** Called once per restored panel; the return value becomes its `hostData` (`undefined` drops the key). Unset keeps what it closed with. phonux never reads inside `hostData`, so what needs resetting after an undo is the host's call. */

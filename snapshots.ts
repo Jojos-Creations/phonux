@@ -10,14 +10,17 @@ import { useHost } from './hostApi.js';
 /** A panel's PanelSummary.id, or a fixed id ('settings' | 'history') for the non-panel columns. @public */
 export type ViewId = string;
 
-/** @public */
+/** A captured picture of one view, as `useViewSnapshot` returns it. @public */
 export interface ViewSnapshot {
+  /** The view this picture shows. */
   readonly viewId: ViewId;
   /** A data: or blob: URL for an <img>; opaque -- never parsed, never persisted verbatim. */
   readonly src: string;
+  /** CSS px of the VIEW photographed, not of the image's pixel dimensions. */
   readonly width: number;
   /** CSS px of the VIEW photographed, not of the resulting image's pixel dimensions. */
   readonly height: number;
+  /** The extent the picture covers, as passed to `CaptureRegistry.register`: 'viewport' or 'full'. */
   readonly extent: 'viewport' | 'full';
   /** Epoch ms. */
   readonly capturedAt: number;
@@ -27,6 +30,7 @@ export interface ViewSnapshot {
 
 /** Read-only, and STABLE across renders unlike the rest of Host: a field rebuilt per render would re-render every view on each snapshot, not just the one showing it. @public */
 export interface SnapshotsAPI {
+  /** The current picture of `viewId`, or `null` when there is none. */
   get(viewId: ViewId): ViewSnapshot | null;
   /** For useSyncExternalStore. */
   subscribe(viewId: ViewId, listener: () => void): () => void;

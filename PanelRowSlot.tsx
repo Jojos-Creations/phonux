@@ -22,9 +22,13 @@ export const PANEL_TRANSITION = SLOT_TRANSITION;
  * transform/opacity, or it would kill this silently.
  */
 export interface PanelRowSlotMotion {
+  /** Where the slot starts when it mounts: one span beyond its resting place, faded out. */
   readonly initial: TargetAndTransition;
+  /** The slot's resting position. */
   readonly animate: TargetAndTransition;
+  /** Where the slot goes when it leaves: off the edge it was hidden past, or down for a close. */
   readonly exit: TargetAndTransition;
+  /** The timing the slot moves with; instant when `animated` is false. */
   readonly transition: typeof PANEL_TRANSITION | typeof INSTANT_TRANSITION;
 }
 
@@ -86,6 +90,7 @@ export function PanelRowSlot({
   leftOffset: number;
   /** This panel's own width (`panelWidthOf`), also this slot's enter/exit travel distance (`panelRowSlotMotion`'s `ownSpan`). */
   width: number;
+  /** The height in px a closing slot drops by. */
   phoneHeight: number;
   /** Computed by the caller (panelRowOrder.ts's `resolveEnterDirection`, or an explicit gesture side).
    * Must be correct on this component's FIRST render after the item (re)appears -- AnimatePresence
@@ -102,6 +107,7 @@ export function PanelRowSlot({
   zIndex?: number;
   /** False: the slot's enter and exit take no time. Default true. */
   animated?: boolean;
+  /** The panel rendered inside the slot. */
   children: React.ReactNode;
 }) {
   const { initial, animate, exit, transition } = panelRowSlotMotion(leftOffset, width, phoneHeight, enterDirection, exitDirection, animated);
@@ -134,7 +140,18 @@ export function PanelRowSlot({
  * position. A view renders it inside its own slot, so a view that never resizes needs no wrapper.
  * @public
  */
-export function PanelSizeBox({ width, height, children }: { width: number; height: number; children: React.ReactNode }) {
+export function PanelSizeBox({
+  width,
+  height,
+  children,
+}: {
+  /** The box's width in px; a change animates. */
+  width: number;
+  /** The box's height in px; a change animates. */
+  height: number;
+  /** The content, laid out at the new size at once. */
+  children: React.ReactNode;
+}) {
   return (
     <motion.div data-panel-size-box="" layout="size" transition={PANEL_TRANSITION} style={{ width, height }}>
       {children}

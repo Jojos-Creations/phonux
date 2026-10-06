@@ -7,15 +7,12 @@
 // @public
 export interface ClosedPageEntry {
     closedAt: string;
-    // (undocumented)
     id: string;
-    // (undocumented)
     title: string;
-    // (undocumented)
     url: string;
 }
 
-// @public (undocumented)
+// @public
 export function createFakeHost(overrides?: FakeOverrides): FakeHost;
 
 // @public
@@ -28,36 +25,27 @@ export interface CreatePanelOptions {
     anchoredEnter?: boolean;
     formFactor?: FormFactor;
     layer?: 'base' | 'raised';
-    // (undocumented)
     listed?: boolean;
-    // (undocumented)
     params?: JsonValue;
     permanent?: boolean;
-    // (undocumented)
     title?: string;
-    // (undocumented)
     view?: string;
 }
 
 // @public
 export interface DetectedPhone {
-    // (undocumented)
     productId: number;
-    // (undocumented)
     vendorId: number;
 }
 
-// @public (undocumented)
+// @public
 export interface FakeCall {
-    // (undocumented)
     api: keyof Host;
-    // (undocumented)
     args: unknown[];
-    // (undocumented)
     method: string;
 }
 
-// @public (undocumented)
+// @public
 export interface FakeHost extends Host {
     readonly calls: FakeCall[];
 }
@@ -70,10 +58,9 @@ export type FakeOverrides = {
 // @public
 export type FormFactor = 'phone' | 'tablet' | 'desktop';
 
-// @public (undocumented)
+// @public
 export interface HistoryAPI {
     close(): void;
-    // (undocumented)
     readonly closed: boolean;
     readonly closedPagesViewer: {
         readonly isOpen: boolean;
@@ -86,15 +73,11 @@ export interface HistoryAPI {
     readonly locked: boolean;
 }
 
-// @public (undocumented)
+// @public
 export interface Host {
-    // (undocumented)
     readonly device: PhoneDeviceAPI;
-    // (undocumented)
     readonly history: HistoryAPI;
-    // (undocumented)
     readonly panels: PanelsAPI;
-    // (undocumented)
     readonly settings: SettingsAPI;
     readonly snapshots?: SnapshotsAPI;
 }
@@ -104,7 +87,7 @@ export type JsonValue = string | number | boolean | null | readonly JsonValue[] 
     readonly [key: string]: JsonValue;
 };
 
-// @public (undocumented)
+// @public
 export interface PanelsAPI {
     activate(id: string): void;
     clearAll(): void;
@@ -125,35 +108,28 @@ export interface PanelsAPI {
 
 // @public
 export interface PanelSize {
-    // (undocumented)
     formFactor: FormFactor;
-    // (undocumented)
     height: number | 'fill';
-    // (undocumented)
     width: number;
 }
 
 // @public
 export interface PanelSummary<P = JsonValue> {
     readonly formFactor?: FormFactor;
-    // (undocumented)
     readonly id: string;
     readonly live: boolean;
     readonly locked: boolean;
     readonly params?: P;
     readonly size?: PanelSize;
-    // (undocumented)
     readonly title?: string;
-    // (undocumented)
     readonly url: string;
 }
 
-// @public (undocumented)
+// @public
 export interface PhoneDeviceAPI {
     chooseModel(modelId: string): Promise<void>;
     readonly defaultSize: PhoneSize;
     readonly detectedPhone: DetectedPhone | null;
-    // (undocumented)
     dismissDetectedPhone(): void;
     readonly models: readonly PhoneModel[];
     resizeForDetectedPhone(modelId: string): void;
@@ -162,27 +138,20 @@ export interface PhoneDeviceAPI {
 
 // @public
 export interface PhoneModel {
-    // (undocumented)
     height: number;
-    // (undocumented)
     id: string;
-    // (undocumented)
     label: string;
-    // (undocumented)
     width: number;
 }
 
 // @public
 export interface PhoneSize {
-    // (undocumented)
     height: number;
-    // (undocumented)
     modelId: string;
-    // (undocumented)
     width: number;
 }
 
-// @public (undocumented)
+// @public
 export interface SettingsAPI {
     readonly fitCount: number | null;
     readonly maxPanelsOnScreen: number | null;
@@ -197,7 +166,6 @@ export interface SettingsAPI {
 
 // @public
 export interface SnapshotsAPI {
-    // (undocumented)
     get(viewId: ViewId): ViewSnapshot | null;
     subscribe(viewId: ViewId, listener: () => void): () => void;
 }
@@ -205,17 +173,14 @@ export interface SnapshotsAPI {
 // @public
 export type ViewId = string;
 
-// @public (undocumented)
+// @public
 export interface ViewSnapshot {
     readonly capturedAt: number;
-    // (undocumented)
     readonly extent: 'viewport' | 'full';
     readonly height: number;
     readonly src: string;
     readonly stale: boolean;
-    // (undocumented)
     readonly viewId: ViewId;
-    // (undocumented)
     readonly width: number;
 }
 

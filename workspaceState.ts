@@ -14,17 +14,28 @@ import { appendPanel, type PanelWindow } from './panelWindow.js';
  * @public
  */
 export type WorkspacePanelState = {
+  /** Names this panel within its own file; other entries' `anchor.panel` may point at it. */
   id: string;
+  /** Key of the registered view that renders the panel. */
   view: string;
+  /** The URL the panel shows. */
   url: string;
+  /** The panel's title, when it had one. */
   title?: string;
+  /** Opaque per-panel data, as `CreatePanelOptions.params`. */
   params?: JsonValue;
+  /** Whether the panel appears in `PanelsAPI.panelList`, as `CreatePanelOptions.listed`. */
   listed?: boolean;
+  /** Whether the panel was mounted in the row (true) or parked (false). */
   live: boolean;
   // Inline, not PanelAnchor: an interface is not assignable to JsonValue.
+  /** Where the panel sits: on `position`'s side of the entry with id `panel` (or the host's root column), ordered by `priority`. */
   anchor: { panel: string; position: 'left' | 'right'; priority: number };
+  /** The panel's tier. */
   formFactor?: FormFactor;
+  /** Whether the panel is a permanent column, as `CreatePanelOptions.permanent`. */
   permanent?: boolean;
+  /** The stacking tier of the panel's row slot, as `CreatePanelOptions.layer`. */
   layer?: 'base' | 'raised';
 };
 
@@ -33,7 +44,9 @@ export type WorkspacePanelState = {
  * @public
  */
 export type WorkspaceState = {
+  /** The file format version; always 1. */
   version: 1;
+  /** The saved panels, in row order. */
   panels: WorkspacePanelState[];
 };
 
@@ -43,7 +56,9 @@ export type WorkspaceState = {
  * @public
  */
 export type WorkspaceStorage = {
+  /** Resolves the saved state, or `null` when there is none. */
   load(): Promise<WorkspaceState | null>;
+  /** Stores `state`; fire-and-forget, and must not throw. */
   save(state: WorkspaceState): void;
 };
 
