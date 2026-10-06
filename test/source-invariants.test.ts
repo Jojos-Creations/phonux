@@ -57,6 +57,7 @@ test("source: PanelRow's zIndex and enterDirection do not read `collapsible` -- 
   assert.ok(enterLine && !enterLine.includes('collapsible'), `enterDirection must not read collapsible: ${enterLine}`);
   assert.ok(zIndexLine.includes('layer'), 'zIndex must read layer');
   assert.ok(enterLine.includes('anchoredEnter'), 'enterDirection must read anchoredEnter');
+  assert.ok(enterLine.includes('enterFrom'), 'enterDirection must read enterFrom');
 });
 
 test('source: PanelRowSlot has one motion element that owns exit and one that owns layout, never the same', () => {
@@ -209,8 +210,8 @@ test('source: a planted extra writer of locked, collapsible or key in a scratch 
 
 /** Functions that still read `.collapsible`: presence, parking and fixed-column bookkeeping. Permission decisions read effective(p). */
 const COLLAPSIBLE_READERS: Record<string, readonly string[]> = {
-  'panelWindow.ts': ['farthestLiveCollapsibleId', 'firstParkedAfter', 'lastParkedBefore', 'leftmostLiveIndex', 'movePanel', 'promoteToLive', 'rightmostLiveIndex', 'sideOfLiveRange'],
-  'panels/usePanelManager.ts': ['revealMostRecentlyCollapsed', 'revealPanelProactively', 'rowAfter', 'scrollRow', 'settledKeeping', 'usePanelManager'],
+  'panelWindow.ts': ['farthestLiveCollapsibleId', 'firstParkedAfter', 'lastParkedBefore', 'leftmostLiveIndex', 'promoteToLive', 'rightmostLiveIndex', 'sideOfLiveRange'],
+  'panels/usePanelManager.ts': ['holdPanel', 'liveParkable', 'markHeld', 'revealMostRecentlyCollapsed', 'revealPanelProactively', 'rowAfter', 'scrollRow', 'settledKeeping', 'usePanelManager', 'wouldEmptyRow'],
   'panels/useProvidePanels.ts': ['useProvidePanels'],
 };
 
@@ -226,4 +227,45 @@ test('source: a planted `.collapsible` read in a new function is found, so the a
   assert.deepEqual(planted.map((s) => s.fn), ['newGuard']);
   assert.deepEqual(collapsibleReads('const f = ({ collapsible }: { collapsible: boolean }) => collapsible;', 'planted.ts').map((s) => s.fn), ['f'], 'a destructured read counts too');
   assert.deepEqual(collapsibleReads('function g(p: { collapsible: boolean }) { p.collapsible = true; }', 'planted.ts'), [], 'a write is not a read');
+});
+
+// ---------------------------------------------------------------------------
+// Timing tuning and the hold wiring
+// ---------------------------------------------------------------------------
+
+test('source: useRowScrollGesture reads gestureLockMs from a ref assigned on every render, arms the timer from it and never lists it as an effect dependency', () => {
+  const src = read('panels/useRowScrollGesture.ts');
+  assert.match(src, /const gestureLockMsRef = useRef\(gestureLockMs\);\s*gestureLockMsRef\.current = gestureLockMs;/, 'the ref is created and assigned in the render body, like scrollRowRef');
+  assert.match(src, /setTimeout\(\(\) => \{\s*locked = false;\s*\}, gestureLockMsRef\.current\);/, 'armUnlock arms the timer from the ref');
+  assert.match(src, /\}, \[overflowContainerRef\]\);/, 'the effect still depends on the container ref alone, so a new lock does not tear the listeners down');
+  assert.doesNotMatch(src, /GESTURE_LOCK_MS = /, 'the module constant is gone');
+  assert.match(src, /gestureLockMs: number = GESTURE_LOCK_MS/, 'the parameter defaults to the one constant');
+});
+
+test('source: useWorkspacePersistence reads saveQuietMs from a ref assigned on every render and arms the save timer from it', () => {
+  const src = read('panels/useWorkspacePersistence.ts');
+  assert.match(src, /const saveQuietMsRef = useRef\(i\.saveQuietMs \?\? SAVE_QUIET_MS\);\s*saveQuietMsRef\.current = i\.saveQuietMs \?\? SAVE_QUIET_MS;/);
+  assert.match(src, /\}, saveQuietMsRef\.current\);/, 'the save timer is armed from the ref');
+  assert.doesNotMatch(src, /SAVE_QUIET_MS = 500/, 'the module constant is gone');
+});
+
+test('source: usePanelManager takes its new inputs in one optional trailing options object, so the harness call with seven arguments still typechecks', () => {
+  const sf = ts.createSourceFile('usePanelManager.ts', read('panels/usePanelManager.ts'), ts.ScriptTarget.Latest, true);
+  let params: readonly ts.ParameterDeclaration[] | undefined;
+  sf.forEachChild((node) => {
+    if (ts.isFunctionDeclaration(node) && node.name?.text === 'usePanelManager') params = node.parameters;
+  });
+  assert.ok(params, 'usePanelManager was not found');
+  assert.deepEqual(params.map((p) => p.name.getText(sf)), ['panels', 'setPanels', 'storedMaxPanels', 'phoneWidth', 'containerWidth', 'fixedColumnCount', 'rootId', 'options']);
+  assert.ok(params[7]!.questionToken !== undefined, 'the options object is optional');
+  assert.ok(params.slice(0, 7).every((p) => p.questionToken === undefined), 'the seven positional parameters are unchanged');
+});
+
+test('source: useProvidePanels drops the hold of a closed panel after forgetting it and before the reveal walk', () => {
+  const src = read('panels/useProvidePanels.ts');
+  assert.match(src, /forgetCollapsed\(id\);\s*releaseHold\(id\);\s*revealMostRecentlyCollapsed\(remaining\);/);
+});
+
+test('source: usePanelManager and PanelRow use no useMemo or useCallback', () => {
+  for (const file of ['panels/usePanelManager.ts', 'PanelRow.tsx']) assert.equal(usesMemo(read(file)), false, `${file} must close over this render's values`);
 });

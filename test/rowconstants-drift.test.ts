@@ -5,7 +5,8 @@
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { readdirSync, readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { GAP } from '../PanelRowSlot.js';
 import { DRAG_CLOSE } from '../dragToClose.js';
@@ -41,15 +42,25 @@ test('rowConstants: the slide numbers equal SLOT_TRANSITION, and its close exit 
   assert.equal(rowConstants.SLIDE_CLOSE_EXIT_SECONDS, DRAG_CLOSE.exitSeconds);
 });
 
-test('rowConstants: SAVE_QUIET_MS equals WORKSPACE_SAVE_QUIET_MS', () => {
+test('rowConstants: SAVE_QUIET_MS equals WORKSPACE_SAVE_QUIET_MS, which stays exported as the one-line alias and equals the tuning default', () => {
   assert.equal(rowConstants.SAVE_QUIET_MS, WORKSPACE_SAVE_QUIET_MS);
+  assert.equal(WORKSPACE_SAVE_QUIET_MS, LIBRARY_TUNING_DEFAULTS.saveQuietMs);
+  assert.equal(WORKSPACE_SAVE_QUIET_MS, 500);
 });
 
-test('rowConstants: the gesture lock is the literal 350 and the hop fraction is the literal 0.5', () => {
+test('rowConstants: the gesture lock is the literal 350 and the hop fraction is the literal 0.5, and neither number has a second copy in the row code', () => {
   assert.equal(rowConstants.GESTURE_LOCK_MS, 350);
   assert.equal(rowConstants.HOP_FRACTION, 0.5);
   const gesture = readFileSync(`${ROOT}panels/useRowScrollGesture.ts`, 'utf8');
-  assert.match(gesture, /const GESTURE_LOCK_MS = 350;/, 'the live gesture lock is private, so its source line is held instead');
+  const persistence = readFileSync(`${ROOT}panels/useWorkspacePersistence.ts`, 'utf8');
+  assert.match(gesture, /import \{ GESTURE_LOCK_MS \} from '\.\.\/rowConstants\.js';/, 'the gesture imports the one constant it defaults to');
+  assert.doesNotMatch(gesture, /GESTURE_LOCK_MS = /, 'no module constant of the gesture lock is left in the gesture file');
+  assert.doesNotMatch(gesture, /\b350\b/, 'the number 350 is not written in the gesture file');
+  assert.match(persistence, /import \{ SAVE_QUIET_MS \} from '\.\.\/rowConstants\.js';/, 'the persistence hook imports the one constant it defaults to');
+  assert.doesNotMatch(persistence, /SAVE_QUIET_MS = 500/, 'no module constant of the save delay is left in the persistence file');
+  assert.doesNotMatch(persistence, /\b500\b/, 'the number 500 is not written in the persistence file');
+  assert.match(persistence, /export \{ SAVE_QUIET_MS as WORKSPACE_SAVE_QUIET_MS \};/, 'the old name stays exported by the one alias line');
+  assert.doesNotMatch(persistence, /export const WORKSPACE_SAVE_QUIET_MS/, 'the old declaration is gone');
 });
 
 test('rowConstants: the remaining defaults are the strings and numbers the tuning defaults carry', () => {
@@ -84,4 +95,23 @@ test('rowConstants: every exported constant reaches LIBRARY_TUNING_DEFAULTS, so 
   assert.equal(t.initialScroll, rowConstants.INITIAL_SCROLL);
   assert.deepEqual({ ...t.edgeScroll }, { zonePx: rowConstants.EDGE_SCROLL_ZONE_PX, maxPxPerSec: rowConstants.EDGE_SCROLL_MAX_PX_PER_SEC, reducedStepMs: rowConstants.EDGE_SCROLL_REDUCED_STEP_MS });
   assert.equal(Object.keys(rowConstants).length, 17, 'the module exports exactly the 17 constants this test compares');
+});
+
+test('rowConstants: no source file outside rowConstants.ts declares its own copy of the save delay or the gesture lock', () => {
+  const offenders: string[] = [];
+  const walk = (dir: string): void => {
+    for (const entry of readdirSync(dir, { withFileTypes: true })) {
+      if (['node_modules', 'test', 'tools', 'dist', '.git', 'etc', 'plans', 'api-extractor-temp'].includes(entry.name)) continue;
+      const path = join(dir, entry.name);
+      if (entry.isDirectory()) walk(path);
+      else if (/\.tsx?$/.test(entry.name) && entry.name !== 'rowConstants.ts' && /\b(GESTURE_LOCK_MS|SAVE_QUIET_MS) = \d/.test(readFileSync(path, 'utf8'))) offenders.push(path.slice(ROOT.length));
+    }
+  };
+  walk(ROOT);
+  assert.deepEqual(offenders, []);
+});
+
+test('rowConstants: the gesture and the persistence hook default to the constants, which are the tuning defaults', () => {
+  assert.equal(LIBRARY_TUNING_DEFAULTS.gestureLockMs, rowConstants.GESTURE_LOCK_MS);
+  assert.equal(LIBRARY_TUNING_DEFAULTS.saveQuietMs, rowConstants.SAVE_QUIET_MS);
 });

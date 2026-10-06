@@ -3,7 +3,10 @@ import * as React from 'react';
 import type { JsonValue, PanelSummary } from './hostApi.js';
 
 /** A View's own props: what it reads about the panel it renders inside. @public */
-export type ViewProps<P = JsonValue> = { panel: PanelSummary<P> };
+export type ViewProps<P = JsonValue> = {
+  /** The panel this view renders inside. */
+  panel: PanelSummary<P>;
+};
 
 /** What any View -- built-in or third-party -- is rendered as. @public */
 export type ViewComponent<P = JsonValue> = React.ComponentType<ViewProps<P>>;

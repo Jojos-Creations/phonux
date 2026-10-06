@@ -31,7 +31,7 @@ const MIN_CHECKS = 8;
 const argv = process.argv.slice(2);
 const fromIndex = argv.indexOf('--from');
 const FROM = fromIndex === -1 ? null : argv[fromIndex + 1];
-const strayArgs = argv.filter((arg, i) => i !== fromIndex && !(fromIndex !== -1 && i === fromIndex + 1));
+const strayArgs = argv.filter((_arg, i) => i !== fromIndex && !(fromIndex !== -1 && i === fromIndex + 1));
 
 // Value exports come from the committed API reports, so a name added to the barrel is checked here with no edit to this file.
 function valueExportsOf(reportFile) {

@@ -1,0 +1,64 @@
+{
+  "tests": [
+    "test/settings-enforcement-visibility.test.ts",
+    "test/pins-visibility.test.ts"
+  ],
+  "mutants": [
+    {
+      "name": "the commit scan stops skipping held ids, so a held park is stacked and bounces back",
+      "file": "panels/usePanelManager.ts",
+      "find": "!collapseOrderRef.current.includes(p.id) && !heldRef.current.has(p.id) &&",
+      "replace": "!collapseOrderRef.current.includes(p.id) &&",
+      "expectRed": [
+        "holdPanel sticky: the panel is parked, marked held, and a roomy measured row does not return it"
+      ]
+    },
+    {
+      "name": "a hold on a panel parked for room no longer takes it off the collapse stack",
+      "file": "panels/usePanelManager.ts",
+      "find": "          writeHold(id, 'sticky');\n          forgetCollapsed(id);\n        }\n        continue;",
+      "replace": "          writeHold(id, 'sticky');\n        }\n        continue;",
+      "expectRed": [
+        "holdPanel on a panel parked for room takes it off the collapse stack"
+      ]
+    },
+    {
+      "name": "releaseHold drops nothing, so show and the row gesture leave the mark",
+      "file": "panels/usePanelManager.ts",
+      "find": "const releaseHold = (id: string): boolean => writeHold(id, null);",
+      "replace": "const releaseHold = (_id: string): boolean => false;",
+      "expectRed": [
+        "activate releases the hold",
+        "the row gesture releases the hold of the panel it brings back"
+      ]
+    },
+    {
+      "name": "recordPark ignores capacityReturn manual and stacks the panel",
+      "file": "panels/usePanelManager.ts",
+      "find": "if (parked !== undefined && parkLevers(parked).capacityReturn === 'manual') {",
+      "replace": "if (parked === undefined) {",
+      "expectRed": [
+        "capacityReturn manual: a panel parked for room is held like a sticky hide and does not return when room opens"
+      ]
+    },
+    {
+      "name": "the until-room threshold is ignored, so the panel returns as soon as there is room",
+      "file": "panels/usePanelManager.ts",
+      "find": "return typeof hold === 'object' && !(freeSlots(base) > hold.freeAfterPark);",
+      "replace": "return false;",
+      "expectRed": [
+        "until-room: [A B C] at capacity 3, hide B records one free slot and leaves it parked",
+        "until-room: open D then close D, free slots back at the threshold, leaves B parked"
+      ]
+    },
+    {
+      "name": "wouldEmptyRow ignores the holds already taken this turn",
+      "file": "panels/usePanelManager.ts",
+      "find": "const gone = new Set([...ids, ...inFlight()]);",
+      "replace": "const gone = new Set([...ids]);",
+      "expectRed": [
+        "wouldEmptyRow counts the holds already taken this turn: hide A and hide B on [A B] leaves one present"
+      ]
+    }
+  ]
+}

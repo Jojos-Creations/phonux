@@ -52,10 +52,18 @@ export type PanelManagerErrorCode =
  * @public
  */
 export class PanelManagerError extends Error {
+  /** Why the error was thrown. */
   readonly code: PanelManagerErrorCode;
+  /** The offending settings layer when the code is 'invalid-settings'. */
   readonly layer: string | undefined;
+  /** The offending catalog name when the code is 'invalid-settings'. */
   readonly key: string | undefined;
 
+  /**
+   * @param code - Why the error is thrown.
+   * @param message - Human-readable detail, as `Error.message`.
+   * @param where - The settings layer and catalog name at fault, for code 'invalid-settings'.
+   */
   constructor(code: PanelManagerErrorCode, message: string, where: { readonly layer?: string; readonly key?: string } = {}) {
     super(message);
     this.name = 'PanelManagerError';

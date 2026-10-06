@@ -8,8 +8,8 @@ import * as React from 'react';
 import { AnimatePresence } from 'motion/react';
 import Box from '@mui/material/Box';
 import { useHost } from './hostApi.js';
-import { summarisePanel, type NeighborWidths, type PanelRowEntry } from './panelRowEntry.js';
-import { anchorTargetOf, resolveEnterDirection } from './panelRowOrder.js';
+import { isPresent, summarisePanel, type NeighborWidths, type PanelRowEntry } from './panelRowEntry.js';
+import { anchorTargetOf, resolveEnterDirection, type EnterDirection } from './panelRowOrder.js';
 import { PanelSlotContext } from './panelSlotContext.js';
 import { effective, resolvePanelSettings } from './panelSettings.js';
 import type { ResolvedPanelSettings } from './panelSettings.js';
@@ -25,6 +25,16 @@ const BASE_LAYER_Z_INDEX = 1;
 const EMPTY_SET: ReadonlySet<string> = new Set();
 const EMPTY_MAP: ReadonlyMap<string, 'left' | 'right'> = new Map();
 const NO_NEIGHBORS: NeighborWidths = { left: [], right: [] };
+
+/**
+ * The side an entry slides in from. 'left' and 'right' are constants that beat every mark. Otherwise an explicit mark
+ * from the engine wins, then the anchor formula for an entry that always uses it ('anchor', or the 0.1.0
+ * `anchoredEnter` flag) or is entering via an anchor, then the right.
+ */
+export function enterDirectionOf(from: ResolvedPanelSettings['enterFrom'], anchoredEnter: boolean, mark: EnterDirection | undefined, viaAnchor: boolean, formula: () => EnterDirection): EnterDirection {
+  if (from === 'left' || from === 'right') return from;
+  return mark ?? (from === 'anchor' || anchoredEnter || viaAnchor ? formula() : 'right');
+}
 
 /** The view's summary with `size.width` at the width the row renders it, so a view passing `panel.size` to Panel stays inside its slot. */
 function renderedSummary(p: PanelRowEntry, width: number) {
@@ -102,9 +112,22 @@ export function PanelRow({
   const { device, panels } = useHost();
   const phoneWidth = device.size.width;
   const phoneHeight = device.size.height;
+  // The live flags of the previous commit, and per parked entry whether its park released its view state. The latch
+  // is read from the entry's setting at the commit that parks it, so changing the setting later reaches the next park only.
+  const liveBeforeRef = React.useRef<ReadonlyMap<string, boolean>>(new Map());
+  const releasedAtParkRef = React.useRef<ReadonlyMap<string, boolean>>(new Map());
+  const parkReleases = (p: PanelRowEntry): boolean => {
+    if (!p.collapsible || p.live) return false;
+    return liveBeforeRef.current.get(p.id) === true ? effective(p).viewState === 'reset-on-park' : releasedAtParkRef.current.get(p.id) === true;
+  };
+  // The latch is computed from the previous commit's live flags, so it must be assigned before they are overwritten.
+  React.useLayoutEffect(() => {
+    releasedAtParkRef.current = new Map(entries.filter((p) => p.collapsible && !p.live).map((p) => [p.id, parkReleases(p)]));
+    liveBeforeRef.current = new Map(entries.map((p) => [p.id, p.live]));
+  });
   // Ids never repeat, so a panel in neither list can never be shown again and its view state is released.
-  useViewState.useRetainOnly([...entries, ...(panels.recentlyClosed ?? [])].map((p) => p.id));
-  const present = entries.filter((p) => !p.collapsible || p.live);
+  useViewState.useRetainOnly([...entries.filter((p) => !parkReleases(p)), ...(panels.recentlyClosed ?? [])].map((p) => p.id));
+  const present = entries.filter(isPresent);
   // Every present entry's OWN width, in row order. An always-shown column needs no special case: setFormFactor
   // no-ops on a collapsible:false id, so panelWidthOf gives it `phoneWidth`.
   const widths = present.map((p) => panelWidthOf(p, phoneWidth, maxLiveWidth));
@@ -152,7 +175,7 @@ export function PanelRow({
       <AnimatePresence initial={false}>
         {present.map((p, index) => {
           const Component = resolveView(p.view);
-          const { closable, draggable, placeable, resizable, formFactors } = effective(p);
+          const { closable, draggable, placeable, resizable, formFactors, enterFrom, exitTo, closeExit, animated, layer } = effective(p);
           return (
             <PanelSlotContext.Provider
               key={p.id}
@@ -171,9 +194,10 @@ export function PanelRow({
                 leftOffset={leftOffsets[index]!}
                 width={widths[index]!}
                 phoneHeight={phoneHeight}
-                enterDirection={enterSideById.get(p.id) ?? ((p.anchoredEnter ?? false) || enteringViaAnchorIds.has(p.id) ? resolveEnterDirection(anchorIndexOf(p), index) : 'right')}
-                exitDirection={closingIds.has(p.id) ? 'down' : exitRightIds.has(p.id) ? 'right' : 'left'}
-                zIndex={(p.layer ?? 'base') === 'raised' ? RAISED_LAYER_Z_INDEX : BASE_LAYER_Z_INDEX}
+                enterDirection={enterDirectionOf(enterFrom, p.anchoredEnter ?? false, enterSideById.get(p.id), enteringViaAnchorIds.has(p.id), () => resolveEnterDirection(anchorIndexOf(p), index))}
+                exitDirection={closingIds.has(p.id) ? closeExit : exitTo !== 'auto' ? exitTo : exitRightIds.has(p.id) ? 'right' : 'left'}
+                zIndex={layer === 'raised' ? RAISED_LAYER_Z_INDEX : BASE_LAYER_Z_INDEX}
+                animated={animated}
               >
                 {/* A resolved component -- built-in or third-party -- is written against PanelSummary only,
                     never the internal record. */}

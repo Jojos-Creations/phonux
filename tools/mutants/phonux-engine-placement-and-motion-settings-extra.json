@@ -1,0 +1,102 @@
+{
+  "tests": [
+    "test/panel-placement.test.ts",
+    "test/settings-enforcement-motion.test.ts",
+    "test/key-aware-undo.test.ts",
+    "test/root-marker.test.ts",
+    "test/pins-placement.test.ts",
+    "test/row-shell-style.test.ts"
+  ],
+  "mutants": [
+    {
+      "name": "row-end lands left of the root",
+      "file": "panelPlacement.ts",
+      "find": "const rowEnd: AnchorRequest = { panel: rootId, position: 'right' };",
+      "replace": "const rowEnd: AnchorRequest = { panel: rootId, position: 'left' };",
+      "expectRed": [
+        "row-end"
+      ]
+    },
+    {
+      "name": "the show path reads placeOnReturn",
+      "file": "panels/usePanelManager.ts",
+      "find": "const showAt = effective(target).placeOnShow;",
+      "replace": "const showAt = effective(target).placeOnReturn;",
+      "expectRed": [
+        "show"
+      ]
+    },
+    {
+      "name": "placeOnShow ignored",
+      "file": "panels/usePanelManager.ts",
+      "find": "const showAt = effective(target).placeOnShow;",
+      "replace": "const showAt = 'in-place' as const;",
+      "expectRed": [
+        "show"
+      ]
+    },
+    {
+      "name": "placeOnReturn ignored on the reveal after a close",
+      "file": "panels/usePanelManager.ts",
+      "find": "const returnAt = effective(returning).placeOnReturn;",
+      "replace": "const returnAt = 'in-place' as const;",
+      "expectRed": [
+        "return"
+      ]
+    },
+    {
+      "name": "undoPlacement ignored",
+      "file": "panels/usePanelClosing.ts",
+      "find": "const placeAt = effective(panel).undoPlacement;",
+      "replace": "const placeAt = 'old-slot' as const;",
+      "expectRed": [
+        "undo"
+      ]
+    },
+    {
+      "name": "exitTo constant ignored",
+      "file": "PanelRow.tsx",
+      "find": "exitTo !== 'auto' ? exitTo : exitRightIds",
+      "replace": "false ? exitTo : exitRightIds",
+      "expectRed": [
+        "exitTo"
+      ]
+    },
+    {
+      "name": "closeExit ignored",
+      "file": "PanelRow.tsx",
+      "find": "closingIds.has(p.id) ? closeExit :",
+      "replace": "closingIds.has(p.id) ? 'down' :",
+      "expectRed": [
+        "closeExit"
+      ]
+    },
+    {
+      "name": "layer ignored",
+      "file": "PanelRow.tsx",
+      "find": "zIndex={layer === 'raised' ? RAISED_LAYER_Z_INDEX : BASE_LAYER_Z_INDEX}",
+      "replace": "zIndex={BASE_LAYER_Z_INDEX}",
+      "expectRed": [
+        "layer"
+      ]
+    },
+    {
+      "name": "closingIds loses to exitTo",
+      "file": "PanelRow.tsx",
+      "find": "closingIds.has(p.id) ? closeExit : exitTo !== 'auto' ? exitTo",
+      "replace": "exitTo !== 'auto' ? exitTo : closingIds.has(p.id) ? closeExit",
+      "expectRed": [
+        "exitTo"
+      ]
+    },
+    {
+      "name": "show picks the demoted panel before it places",
+      "file": "panels/usePanelManager.ts",
+      "find": "const before = showAt === 'in-place' ? panels : placed.row;",
+      "replace": "const before = panels;",
+      "expectRed": [
+        "show"
+      ]
+    }
+  ]
+}

@@ -25,7 +25,7 @@ sanctioned writer of a plan body.
 | `accept` | open `plan/<id>`, open the draft pull request, freeze the issue |
 | `implemented` | write the Handoff and Evidence report into the pull request |
 | `ship` | `--check` prints the preflight and the merge command, or refuses with `STALE CHECK RUN` when a failed `verifier-gate` check run on the head would block the merge; `--confirm` re-proves the merge; neither merges |
-| `gate-pass` | judge a pull request's newest PASS review with `origin/main`'s own `tools/queue`, then post the `verifier-gate` commit status on its head, refusing first on a `STALE CHECK RUN`; the only way to write that status |
+| `gate-pass` | judge a pull request's newest PASS review with `origin/main`'s own `tools/queue`, then post the `verifier-gate` commit status on its head, refusing first on a `STALE CHECK RUN`; the only way to write that status; optional, because no ruleset requires it on main |
 | `block`, `unblock` | add or remove the `blocked` label together with its comment |
 | `retire`, `retire-pr` | close an issue as not planned, or a pull request unmerged |
 | `log` | add a dated comment to an issue or pull request |
@@ -52,7 +52,7 @@ A state is read from GitHub, never stored in a file.
 | researched | the same issue with those sections and `## Research` filled in |
 | accepted | label `accepted`, branch `plan/<id>`, an open draft pull request closing the issue |
 | implemented | the pull request is ready, with `## Handoff` and `## Evidence report` filled in |
-| verified | a verifier review with `verdict: PASS` bound to the head commit, and a green `verifier-gate` commit status |
+| verified | the gate run locally and green; a separate verifier review with `verdict: PASS` bound to the head commit is optional, and main requires no `verifier-gate` status |
 | merged | the pull request merged and the issue closed |
 | blocked | label `blocked` with a `**Blocked**` comment |
 | retired | issue closed as not planned, or pull request closed unmerged |
@@ -81,8 +81,8 @@ is its pull request body.
 
 `strict_gate` in `.claude/coordinator-config.yaml` lists the gate, and CI
 (`.github/workflows/ci.yml`) runs the same commands on pull requests into
-`release` and on dispatch. A pull request into main gets only the `verifier-gate`
-status, so a verifier PASS rests on the verifier's local re-run. Besides the typecheck, tests, build, API report and pack smoke, it runs
+`release` and on dispatch. A pull request into main requires no status check: the
+authoring session runs the gate locally before it merges. Besides the typecheck, tests, build, API report and pack smoke, it runs
 `queue.py lint --offline` and the vendored-tooling drift check
 (`tools/vendor-queue-tooling.py . --check`). To refresh the vendored tooling,
 run `python3 tools/vendor-queue-tooling.py <this repo>` from a checkout of

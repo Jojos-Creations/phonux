@@ -1,0 +1,92 @@
+{
+  "tests": [
+    "test/panel-placement.test.ts",
+    "test/settings-enforcement-motion.test.ts",
+    "test/key-aware-undo.test.ts",
+    "test/root-marker.test.ts",
+    "test/pins-placement.test.ts"
+  ],
+  "mutants": [
+    {
+      "name": "priority 0 instead of -1 for next-to",
+      "file": "panelPlacement.ts",
+      "find": "if ('after' in value) return toward(value.after, 'right', -1);",
+      "replace": "if ('after' in value) return toward(value.after, 'right', 0);",
+      "expectRed": [
+        "placement"
+      ]
+    },
+    {
+      "name": "row-start and parkable-start swapped",
+      "file": "panelPlacement.ts",
+      "find": "if (position === 'row-start') return rowStart;\n  if (position === 'row-end') return rowEnd;\n  if (position === 'parkable-start') {",
+      "replace": "if (position === 'parkable-start') return rowStart;\n  if (position === 'row-end') return rowEnd;\n  if (position === 'row-start') {",
+      "expectRed": [
+        "placement"
+      ]
+    },
+    {
+      "name": "placeFallback ignored",
+      "file": "panelPlacement.ts",
+      "find": "anchor: named(others, rootId, o.fallback)",
+      "replace": "anchor: named(others, rootId, 'row-end')",
+      "expectRed": [
+        "placeFallback"
+      ]
+    },
+    {
+      "name": "enterFrom constant ignored",
+      "file": "PanelRow.tsx",
+      "find": "if (from === 'left' || from === 'right') return from;\n",
+      "replace": "",
+      "expectRed": [
+        "enterFrom"
+      ]
+    },
+    {
+      "name": "animated ignored",
+      "file": "PanelRowSlot.tsx",
+      "find": "const transition = animated ? slideTransition : INSTANT_TRANSITION;",
+      "replace": "const transition = slideTransition;",
+      "expectRed": [
+        "animated"
+      ]
+    },
+    {
+      "name": "placeOnReturn ignored on the capacity-rise return",
+      "file": "panels/usePanelManager.ts",
+      "find": "const value = effective(returning).placeOnReturn;",
+      "replace": "const value = 'in-place' as const;",
+      "expectRed": [
+        "return"
+      ]
+    },
+    {
+      "name": "undoClose reads the render-time closed list",
+      "file": "panels/usePanelClosing.ts",
+      "find": "const batch = closedRef.current;",
+      "replace": "const batch = closed;",
+      "expectRed": [
+        "undoClose"
+      ]
+    },
+    {
+      "name": "PanelRow filters by collapsible and live instead of isPresent",
+      "file": "PanelRow.tsx",
+      "find": "const present = entries.filter(isPresent);",
+      "replace": "const present = entries.filter((p) => !p.collapsible || p.live);",
+      "expectRed": [
+        "marker"
+      ]
+    },
+    {
+      "name": "fixedViewCount counts the marker",
+      "file": "panels/useProvidePanels.ts",
+      "find": " && p.marker !== true).length",
+      "replace": ").length",
+      "expectRed": [
+        "fixedViewCount"
+      ]
+    }
+  ]
+}

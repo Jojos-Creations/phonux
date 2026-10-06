@@ -15,7 +15,7 @@ import type { CatalogName, HeaderButton, PanelSettings, PanelSettingsLayers, Pan
 
 const SOURCE_WORDS: readonly SourceLayer[] = ['library', 'workspace', 'template', 'host', 'instance', 'user', 'derived', 'forced'];
 const CATALOG_NAMES: ReadonlySet<string> = new Set(PANEL_SETTINGS_CATALOG.map((d) => d.name));
-let shapesChecked = 0;
+let _shapesChecked = 0;
 
 /** What every resolve output must look like, whatever the test is about. */
 function assertShape(res: PanelSettingsResolution): void {
@@ -39,7 +39,7 @@ function assertShape(res: PanelSettingsResolution): void {
   }
   for (const n of res.notes) assert.ok(typeof n.code === 'string' && n.code.length > 0 && typeof n.message === 'string' && n.message.length > 0);
   assert.ok(Object.isFrozen(res.value) && Object.isFrozen(res.value.tuning) && Object.isFrozen(res.value.headerButtons));
-  shapesChecked += 1;
+  _shapesChecked += 1;
 }
 
 /** Every resolve in this file goes through here, so the shape of every output is checked and not only the ones a test reads. */

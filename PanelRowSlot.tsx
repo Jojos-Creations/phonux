@@ -22,11 +22,18 @@ export const PANEL_TRANSITION = SLOT_TRANSITION;
  * transform/opacity, or it would kill this silently.
  */
 export interface PanelRowSlotMotion {
+  /** Where the slot starts when it mounts: one span beyond its resting place, faded out. */
   readonly initial: TargetAndTransition;
+  /** The slot's resting position. */
   readonly animate: TargetAndTransition;
+  /** Where the slot goes when it leaves: off the edge it was hidden past, or down for a close. */
   readonly exit: TargetAndTransition;
-  readonly transition: typeof PANEL_TRANSITION;
+  /** The timing the slot moves with; instant when `animated` is false. */
+  readonly transition: typeof PANEL_TRANSITION | typeof INSTANT_TRANSITION;
 }
+
+/** What an `animated: false` slot moves with: the same targets, no time taken. */
+const INSTANT_TRANSITION = { duration: 0 } as const;
 
 type ExitDirection = 'down' | 'left' | 'right';
 
@@ -42,6 +49,7 @@ export function panelRowSlotMotion(
   phoneHeight: number,
   enterDirection: 'left' | 'right',
   exitDirection: ExitDirection,
+  animated = true,
 ): PanelRowSlotMotion {
   // This panel's OWN footprint (its width plus one gap) is how far it must travel to clear the row edge,
   // so the distance is per panel: a wider one travels further.
@@ -50,13 +58,14 @@ export function panelRowSlotMotion(
   // Positive distance enters from the right (directionalTransition.ts's own sign convention); a negative
   // one enters from the left -- see panelRowOrder.ts for who decides which.
   const enterDistance = enterDirection === 'left' ? -ownSpan : ownSpan;
-  const { initial, animate, transition } = directionalTransition('x', rest, enterDistance);
+  const { initial, animate, transition: slideTransition } = directionalTransition('x', rest, enterDistance);
+  const transition = animated ? slideTransition : INSTANT_TRANSITION;
   // 'down': a close, timed to DragToClose's exit so trash and drag closes read as one motion (DragToClose calls
   // `onClose` after its own `y` animation, so this ramps in under a box already off-screen). 'left'/'right': a
   // park, off the edge it was hidden past, so a close never looks like a park.
   const exit: TargetAndTransition =
     exitDirection === 'down'
-      ? { x: rest, y: phoneHeight, opacity: 0, transition: { duration: DRAG_CLOSE.exitSeconds, ease: 'easeIn' } }
+      ? { x: rest, y: phoneHeight, opacity: 0, transition: animated ? { duration: DRAG_CLOSE.exitSeconds, ease: 'easeIn' } : INSTANT_TRANSITION }
       : exitDirection === 'right'
         ? { x: rest + ownSpan, opacity: 0 }
         : { x: -ownSpan, opacity: 0 };
@@ -74,12 +83,14 @@ export function PanelRowSlot({
   enterDirection,
   exitDirection,
   zIndex,
+  animated = true,
   children,
 }: {
   /** This slot's own rest x position -- the caller's running sum of every PRECEDING present item's own width plus one gap. */
   leftOffset: number;
   /** This panel's own width (`panelWidthOf`), also this slot's enter/exit travel distance (`panelRowSlotMotion`'s `ownSpan`). */
   width: number;
+  /** The height in px a closing slot drops by. */
   phoneHeight: number;
   /** Computed by the caller (panelRowOrder.ts's `resolveEnterDirection`, or an explicit gesture side).
    * Must be correct on this component's FIRST render after the item (re)appears -- AnimatePresence
@@ -94,9 +105,12 @@ export function PanelRowSlot({
    * left behind it) must be set HERE, on the slot, not on what renders inside it. Defaults to 0.
    */
   zIndex?: number;
+  /** False: the slot's enter and exit take no time. Default true. */
+  animated?: boolean;
+  /** The panel rendered inside the slot. */
   children: React.ReactNode;
 }) {
-  const { initial, animate, exit, transition } = panelRowSlotMotion(leftOffset, width, phoneHeight, enterDirection, exitDirection);
+  const { initial, animate, exit, transition } = panelRowSlotMotion(leftOffset, width, phoneHeight, enterDirection, exitDirection, animated);
   return (
     <motion.div
       // Enters from one own-width-plus-gap span beyond its destination, right or left per `enterDirection` above.
@@ -126,7 +140,18 @@ export function PanelRowSlot({
  * position. A view renders it inside its own slot, so a view that never resizes needs no wrapper.
  * @public
  */
-export function PanelSizeBox({ width, height, children }: { width: number; height: number; children: React.ReactNode }) {
+export function PanelSizeBox({
+  width,
+  height,
+  children,
+}: {
+  /** The box's width in px; a change animates. */
+  width: number;
+  /** The box's height in px; a change animates. */
+  height: number;
+  /** The content, laid out at the new size at once. */
+  children: React.ReactNode;
+}) {
   return (
     <motion.div data-panel-size-box="" layout="size" transition={PANEL_TRANSITION} style={{ width, height }}>
       {children}

@@ -14,42 +14,80 @@ import type { PanelId, PanelSettings, PanelSettingsResolution, ResolvedPanelSett
 export type PanelStatus = 'pending' | 'live' | 'parked' | 'closed';
 
 /** A pin change waiting for the panel to become live. @public */
-export type DeferredPin = { by: 'pin' | 'unpin' } | { parkable: boolean };
+export type DeferredPin =
+  | {
+      /** Which call to apply once the panel is live: `pin` or `unpin`. */
+      by: 'pin' | 'unpin';
+    }
+  | {
+      /** The `parkable` value to apply once the panel is live. */
+      parkable: boolean;
+    };
 
-/** @public */
+/** Where a workspace is in its life: `detached`, `loading`, `ready` or `disposed`. @public */
 export type WorkspaceStatus = 'detached' | 'loading' | 'ready' | 'disposed';
 
-/** @public */
-export type ListFilter = { status?: PanelStatus | readonly PanelStatus[]; listed?: boolean };
+/** What `PanelReader.list` keeps; a field left out keeps everything on that field. @public */
+export type ListFilter = {
+  /** Keep only panels in this status, or in any of these statuses. */
+  status?: PanelStatus | readonly PanelStatus[];
+  /** Keep only panels whose `listed` equals this. */
+  listed?: boolean;
+};
 
 /** A readonly snapshot of one panel. @public */
 export interface PanelState {
+  /** The panel's id. */
   readonly id: PanelId;
+  /** The id of the template the panel was made from. */
   readonly templateId: string;
+  /** Where the panel is now. */
   readonly status: PanelStatus;
+  /** Whether the panel is held: a held park stays parked until a person shows it. */
   readonly held: boolean;
   /** Null while the panel has no engine entry (pending or closed). */
   readonly engineId: string | null;
+  /** The panel's index in the row, or null when it has no place in it. */
   readonly index: number | null;
+  /** The panel's title, or undefined when none is set. */
   readonly title: string | undefined;
+  /** The panel's URL; the empty string when it has none. */
   readonly url: string;
+  /** The opaque, JSON-serializable params the panel was made with, or undefined when it has none. */
   readonly params: JsonValue | undefined;
+  /** The panel's current tier. */
   readonly formFactor: FormFactor;
+  /** Whether the panel appears in `PanelReader.list` and the panel list a view reads. */
   readonly listed: boolean;
+  /** The panel's settings, resolved from every layer. */
   readonly settings: ResolvedPanelSettings;
+  /** Whether the panel's `pinning` setting currently reads as pinned. */
   readonly pinned: boolean;
+  /** A pin change waiting for the panel to become live, or null when none is. */
   readonly deferredPin: DeferredPin | null;
 }
 
-/** @public */
-export type PanelSnapshot = { readonly version: number; readonly status: WorkspaceStatus; readonly panels: readonly PanelState[] };
+/** A readonly picture of a workspace at one moment: its version, its status and every panel's state. @public */
+export type PanelSnapshot = {
+  /** The snapshot's version, for telling one snapshot from another. */
+  readonly version: number;
+  /** The workspace's status when the snapshot was taken. */
+  readonly status: WorkspaceStatus;
+  /** The state of every panel. */
+  readonly panels: readonly PanelState[];
+};
 
 /** The five read-only members every handle and view handle has. @public */
 export type PanelReadHandle = {
+  /** The panel's id. */
   readonly id: PanelId;
+  /** The id of the template the panel was made from. */
   readonly templateId: string;
+  /** The panel's current state. */
   getState(): PanelState;
+  /** The panel's settings resolved from every layer, with the layer each value came from and any conflicts. */
   getSettings(): PanelSettingsResolution;
+  /** Calls `l` when the panel changes; returns a function that stops the calls. */
   subscribe(l: () => void): () => void;
 };
 
@@ -58,9 +96,13 @@ export type ViewHandle<P extends JsonValue = JsonValue> = PanelReadHandle;
 
 /** What a template's view receives as `manager`: read-only access to every panel. @public */
 export type PanelReader = {
+  /** The read handle of the panel with this id, or undefined when there is none. */
   get(id: PanelId): PanelReadHandle | undefined;
+  /** The state of every panel `f` keeps; all panels when `f` is left out. */
   list(f?: ListFilter): readonly PanelState[];
+  /** A readonly picture of the whole workspace. */
   getSnapshot(): PanelSnapshot;
+  /** Calls `l` when the workspace changes; returns a function that stops the calls. */
   subscribe(l: () => void): () => void;
 };
 
@@ -68,8 +110,18 @@ export type PanelReader = {
 export interface PanelTemplate<P extends JsonValue = JsonValue> {
   /** 1-48 characters, no whitespace, no '~', no leading '_', not all digits, not 'all'; unique in a workspace. */
   readonly id: string;
-  readonly view: React.ComponentType<{ panel: PanelSummary<P>; handle: ViewHandle<P>; manager: PanelReader }>;
+  /** The component that renders the panel. It receives the panel's summary, its own read handle and a reader for every panel. */
+  readonly view: React.ComponentType<{
+    /** What a view may see of this panel. */
+    panel: PanelSummary<P>;
+    /** The panel's own read members. */
+    handle: ViewHandle<P>;
+    /** Read-only access to every panel. */
+    manager: PanelReader;
+  }>;
+  /** The template's settings layer, applied to every panel made from it. */
   readonly settings?: PanelSettings;
+  /** The params a panel made from this template starts with. */
   readonly params?: P;
 }
 

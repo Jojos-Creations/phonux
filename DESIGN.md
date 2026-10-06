@@ -1092,6 +1092,76 @@ flip with a transition rule of its own) or SCOPE (a template-scope key).
 | `tuning.initialScroll` | start, end, root, { panel: PanelId } (workspace only; a design-derived key from Q15, not requested) | start (the library default, a design default the owner did not rule on; phonux-app sets 'end', owner Q20: the newest closable panels in view at launch) | NEXT (configureTuning only). Read at the next mount; nothing scrolls now. Session-only. |
 <!-- catalog:end -->
 
+## Placement, the root marker, key-aware undo and motion
+
+### Where a panel lands
+
+`panelPlacement.ts` holds the pure half. `resolvePlacement(row, rootId, self, value, o)` turns one value into an
+anchor request against the row without the panel itself, and `placePanel(row, id, value, o)` applies it to a panel
+already in the row. The row is then ordered by `computeRowOrder`, so a placement is only ever an anchor. It is the
+developer's own ask: nothing here reads `placeable`, and no placement is recorded as a person's override.
+
+Every "immediately next to" request carries priority -1. Only -1 lands nearest, because an equal priority on the
+right of the anchor goes to the entry earlier in the row and on the left to the later one. `row-end` has no priority,
+so the far end of the root's right side is filled, which is where 0.1.0 put a new panel. `parkable-start` and
+`parkable-end` are the first and last parkable entry, and resolve like `row-start` and `row-end` when that entry is
+already at the edge of the row. `after-fixed` is the last non-parkable entry, or the row start when there is none.
+`order` lands after the nearest earlier name of the developer's list that is in the row, else before the nearest later
+one. A target that is missing or is the panel itself, and an `order` that cannot place it, lands at `placeFallback`
+and raises one `placement-fallback` note.
+
+`placeOnShow` is applied in `activate` before `promoteToLive`, so the panel that room-making parks is the one farthest
+from where the shown panel will stand. `placeOnReturn` is applied in the same update that flips a returned panel
+live, on both automatic returns (a capacity rise, and the reveal after a close). `undoPlacement` is applied by
+`undoClose`; `old-slot` is `restorePanel` at the recorded index. The show path never reads `placeOnReturn`.
+
+A placed panel's enter side is an explicit mark, the side of the live range its landing slot is on, not the anchor
+formula: the formula reads the slot's neighbours, and a root-less row has none. A row without a History panel reads
+every entry as the root's right side, so such a row renders and orders as it did.
+
+### The root marker
+
+An entry with `marker: true` (collapsible false) holds the anchor point of a row with no History panel. It orders the
+row like a root and nothing else reads it: `isPresent(p)` is `marker !== true && (!collapsible || live)`, and it is
+the one reader of presence. The row draws, prices and offsets only present entries, so `[marker, A, B]` is two slots,
+a row 796 wide, and `usePanelNeighborWidths` for A sees `{ left: [], right: [390] }`. `movePanel` hops over the
+entries that are not present, so the first present panel cannot go left of the marker. The marker is not a fixed
+column: `fixedViewCount` is 0 beside it, and History in a row with a root still counts 1.
+
+### Key-aware undo
+
+`undoClose` takes the batch from a ref that the first call empties, so a second call in the same handler finds
+nothing and reports nothing. A closed panel whose key (`panelKey`: its `key`, else its id) is already in the row is
+skipped and its log id is not reported.
+
+### Motion
+
+`enterFrom` `left` and `right` are constants and beat the engine's mark and the anchor formula. `auto` is today's
+order: a mark, then the formula for an entry entering via an anchor, then the right. `anchor` is the 0.1.0
+`anchoredEnter` flag as a setting. `exitTo` `left` and `right` beat the exit-right marks and `auto` follows them;
+a closing panel always uses `closeExit`. `layer` sets the stacking, and `animated: false` gives a slot a
+zero-duration transition on enter, exit and close, with the targets unchanged; the default transition is the shared
+`PANEL_TRANSITION` object itself.
+
+## Doc comments
+
+An export reachable from `index.ts` or `fakeHost.ts` is documented with TSDoc, the `/** */` syntax API Extractor already
+reads for the release tag. Every export, and every property or method of an exported interface, type literal or class,
+gets one. An undocumented one prints `// (undocumented)` in `etc/*.api.md`, and `npm run check:api-report` fails on that
+line, so the reports are also the audit.
+
+- A doc comment says what a consumer may rely on: what it is, what a value means or what it is measured in, what a call
+  returns, when it throws. It does not say why the code is shaped that way; that is a `//` comment on the line it
+  governs, or a section of this file.
+- Open with one sentence that stands alone, as it renders in an editor tooltip. A property gets a fragment
+  ("Width in px.") rather than a restated name.
+- Types stay in the signature: write `@param name - what it means` and `@returns what it gives back` only where the name
+  and type do not already say it, and `@throws` for an error a caller is meant to catch. Use `@example` for the one call
+  a reader would otherwise have to guess, `@remarks` for what does not fit in the opening sentence, `@defaultValue`
+  for an optional property's default, and `{@link Name}` for a cross-reference.
+- Every declaration keeps its single `@public` tag (see "The API reports in `etc/`").
+- Internal helpers are documented only where the contract is not obvious from the name; they come after the public API.
+
 ## The API reports in `etc/`
 
 `etc/phonux.api.md` and `etc/phonux-testing.api.md` are API Extractor's reading of this package's surface, one

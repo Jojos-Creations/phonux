@@ -40,7 +40,14 @@ import {
 export type PanelId = string;
 
 /** Where a panel asks to sit relative to another panel. @public */
-export type AnchorRequest = { panel?: PanelId; position: 'left' | 'right'; priority?: number };
+export type AnchorRequest = {
+  /** The panel to sit beside; absent means the root. */
+  panel?: PanelId;
+  /** Which side of `panel` to sit on. */
+  position: 'left' | 'right';
+  /** Nearness to `panel` on that side; a lower number is nearer. Absent means the far end. */
+  priority?: number;
+};
 
 /** A named place in the row, or a place next to a named panel. See DESIGN.md, "The settings catalog". @public */
 export type AddPlacement =
@@ -50,9 +57,18 @@ export type AddPlacement =
   | 'parkable-end'
   | 'after-fixed'
   | 'order'
-  | { before: PanelId }
-  | { after: PanelId }
-  | { anchor: AnchorRequest & { panel: PanelId } };
+  | {
+      /** Immediately left of this panel. */
+      before: PanelId;
+    }
+  | {
+      /** Immediately right of this panel. */
+      after: PanelId;
+    }
+  | {
+      /** The given anchor, with its `panel` required. */
+      anchor: AnchorRequest & { panel: PanelId };
+    };
 
 /** What the row may do with a panel when the open panels do not all fit: scroll past it, or park it. @public */
 export type Overflow = 'scroll' | 'park';
@@ -60,174 +76,343 @@ export type Overflow = 'scroll' | 'park';
 /** Where a scrolled-to panel lands in the window. @public */
 export type ScrollAlign = 'into-view' | 'start' | 'center';
 
-/** @public */
+/** Where the row scrolls a panel to on open, show or click: a `ScrollAlign`, or 'none' for no scroll. @public */
 export type ScrollOnOpen = ScrollAlign | 'none';
 
-/** @public */
+/** Whether the row follows a panel that moves: 'follow' scrolls it into view, 'none' leaves the scroll alone. @public */
 export type ScrollOnMove = 'follow' | 'none';
 
-/** @public */
+/** Whether the row scrolls while a panel is dragged near the window's edge: 'edge' scrolls, 'none' does not. @public */
 export type ScrollOnDrag = 'edge' | 'none';
 
 /** What a header button's functions are given. @public */
-export type HeaderButtonContext = { state: PanelState; settings: ResolvedPanelSettings };
+export type HeaderButtonContext = {
+  /** The panel's current state. */
+  state: PanelState;
+  /** The panel's resolved settings. */
+  settings: ResolvedPanelSettings;
+};
 
 /** One generic title-bar button slot. The label is the accessible name and is never empty. @public */
 export type HeaderButton = {
+  /** The button's icon, or a function that picks it from the panel's current state. */
   icon: React.ReactNode | ((c: HeaderButtonContext) => React.ReactNode);
+  /** The button's accessible name, or a function that picks it; never empty. */
   label: string | ((c: HeaderButtonContext) => string);
-  onClick: (handle: ViewHandle, c: HeaderButtonContext & { announce(text: string): void }) => void | Promise<unknown>;
+  /** Called when the button is pressed, with the panel's handle and the context plus `announce`, which tells assistive technology a message. */
+  onClick: (
+    handle: ViewHandle,
+    c: HeaderButtonContext & {
+      /** Announces `text` to assistive technology. */
+      announce(text: string): void;
+    },
+  ) => void | Promise<unknown>;
+  /** Which end of the header row the button sits at. */
   side?: 'start' | 'end';
+  /** Sort position among the buttons on the same side. */
   order?: number;
+  /** Whether the button shows as pressed, read from the panel's current state. */
   pressed?: (c: HeaderButtonContext) => boolean;
+  /** Longer help text for the button, or a function that picks it. */
   description?: string | ((c: HeaderButtonContext) => string);
+  /** The button's tooltip text, or a function that picks it. */
   tooltip?: string | ((c: HeaderButtonContext) => string);
+  /** Whether the button is disabled, or a function that decides. */
   disabled?: boolean | ((c: HeaderButtonContext) => boolean);
+  /** Whether the button is left out, or a function that decides. */
   hidden?: boolean | ((c: HeaderButtonContext) => boolean);
+  /** Extra styles for the button. */
   sx?: SxProps<Theme>;
 };
 
 /** One half of a pin definition: where the panel goes and, optionally, whether it is parkable in that state. @public */
-export type PinHalf = { placement?: AddPlacement; parkable?: boolean };
+export type PinHalf = {
+  /** Where the panel is placed in this state. */
+  placement?: AddPlacement;
+  /** The `parkable` value the panel takes in this state. */
+  parkable?: boolean;
+};
 
 /** What pin() and unpin() do. Valid only when a drag cannot make the pinned state unreadable. @public */
-export type Pinning = { pinned: PinHalf; unpinned: PinHalf };
+export type Pinning = {
+  /** What `pin()` does, and what the panel reads as when pinned. */
+  pinned: PinHalf;
+  /** What `unpin()` does. */
+  unpinned: PinHalf;
+};
 
-/** @public */
+/** What a pin change does to a panel that is not live: place it only, refuse, show it, or apply on its next show. @public */
 export type PinWhenNotLive = 'place-only' | 'refuse' | 'show' | 'apply-on-next-show';
 
 /** What a pin change does to a panel that is not live: one answer, or one per status. @public */
-export type PinningWhenNotLive = PinWhenNotLive | { parked?: PinWhenNotLive; hidden?: PinWhenNotLive; closed?: 'refuse' | 'apply-on-next-show' };
+export type PinningWhenNotLive =
+  | PinWhenNotLive
+  | {
+      /** The answer for a parked panel. */
+      parked?: PinWhenNotLive;
+      /** The answer for a hidden panel. */
+      hidden?: PinWhenNotLive;
+      /** The answer for a closed panel: refuse, or apply on its next show. */
+      closed?: 'refuse' | 'apply-on-next-show';
+    };
 
 /** Which layer a resolved value came from. A rule overrides the rest and 'derived' marks a value filled from another resolved field. @public */
 export type SourceLayer = 'library' | 'workspace' | 'template' | 'host' | 'instance' | 'user' | 'derived' | 'forced';
 
 /** The 49 settings whose value is one plain member; the catalog's other names are headerButtons and the eleven tuning leaves. @public */
 export type SettingValues = {
+  /** Whether the panel can be closed; false removes the drag-down close and makes `close()` answer not-closable. */
   closable: boolean;
+  /** Whether the panel can be parked; false makes it a fixed column, which needs the phone tier. */
   parkable: boolean;
+  /** Whether the panel can be moved by dragging or by `move()`. Defaults to the resolved `parkable`. */
   draggable: boolean;
+  /** Whether another panel's drag can cross this panel. */
   crossable: boolean;
+  /** Whether the panel can be re-anchored, placed, or pinned with a placement. Defaults to the resolved `parkable`. */
   placeable: boolean;
+  /** Whether the panel's tier can be changed. */
   resizable: boolean;
+  /** The tiers the panel may take; never empty. */
   formFactors: readonly FormFactor[];
+  /** Whether clear-all closes the panel. Defaults to the resolved `parkable` and `closable`. */
   clearable: boolean;
+  /** Whether a view's host-bag `create` may name the template. Template scope. */
   hostCreatable: boolean;
+  /** Whether the template may have more than one instance. Template scope. */
   multiple: boolean;
+  /** The most instances the template may have: an integer of at least 1, or 'unlimited'. Template scope. */
   maxInstances: number | 'unlimited';
+  /** Whether the panel appears in the panel list. Defaults to the resolved `parkable`. */
   listed: boolean;
+  /** Whether a panel made from this setting starts live or parked. */
   startVisibility: 'live' | 'parked';
+  /** Whether a hidden panel stays hidden until shown ('sticky') or comes back once there is room ('until-room'). */
   hideStickiness: 'sticky' | 'until-room';
+  /** Whether `hide()` is allowed or refused when the panel is the last one visible. */
   hideWhenLast: 'allow' | 'refuse';
+  /** Whether a panel parked for room returns by itself when room appears ('auto') or only when shown ('manual'). */
   capacityReturn: 'auto' | 'manual';
+  /** An integer ranking which parked panel returns first when room appears; the highest returns first. Read only when `overflow` is 'park'. */
   returnPriority: number;
+  /** What the row may do with the panel when the open panels do not all fit. */
   overflow: Overflow;
+  /** An integer ranking which panel is parked first when room is needed; the lowest rank is parked first. Read only when `overflow` is 'park'. */
   evictionRank: number;
+  /** Which live panel is parked when this panel needs room: the farthest from it, the nearest, the leftmost or the rightmost. Read only when `overflow` is 'park'. */
   evictionOrder: 'farthest' | 'nearest' | 'leftmost' | 'rightmost';
+  /** Which hidden panels a row scroll gesture may reveal: 'edges', 'any' or 'never'. */
   revealOnScroll: 'edges' | 'any' | 'never';
+  /** Where the row scrolls the panel to on its next open, show or click. */
   scrollOnOpen: ScrollOnOpen;
+  /** Whether the row follows the panel when it is moved, placed, resized, pinned, unpinned or its layout reset. */
   scrollOnMove: ScrollOnMove;
+  /** Whether the row scrolls at the window's edge while the panel is dragged. */
   scrollOnDrag: ScrollOnDrag;
+  /** What `toggleVisibility()` does to a closed declared panel: nothing ('ignore') or reopen it ('reopen'). */
   toggleWhenClosed: 'ignore' | 'reopen';
+  /** What `show()` does to a closed declared panel: refuse it or reopen it. */
   showWhenClosed: 'refuse' | 'reopen';
+  /** Whether the view's `useViewState` state is kept across a park ('keep') or reset at each park ('reset-on-park'). */
   viewState: 'keep' | 'reset-on-park';
+  /** Whether parking hides the view instead of unmounting it. */
   keepMounted: boolean;
+  /** Where the panel lands when it is added, and when the layout is reset. */
   placeOnAdd: AddPlacement;
+  /** Where the panel lands when it is shown; 'in-place' leaves it where it is. */
   placeOnShow: AddPlacement | 'in-place';
+  /** Where a parked panel lands when it returns automatically; 'in-place' leaves it where it is. */
   placeOnReturn: AddPlacement | 'in-place';
+  /** Where a panel lands when its placement names a panel that is missing or is the panel itself. */
   placeFallback: 'row-start' | 'row-end' | 'parkable-start' | 'parkable-end' | 'after-fixed';
+  /** Where `undoClose` puts the panel back: 'old-slot', or a placement. */
   undoPlacement: 'old-slot' | AddPlacement;
+  /** The stacking tier of the panel's slot. */
   layer: 'base' | 'raised';
+  /** The side the panel slides in from; 'auto' follows the row and 'anchor' uses its anchor's side. */
   enterFrom: 'auto' | 'left' | 'right' | 'anchor';
+  /** The side the panel slides out toward when parked; 'auto' follows the row. */
   exitTo: 'auto' | 'left' | 'right';
+  /** How the panel leaves when it closes. */
   closeExit: 'down' | 'left' | 'right';
+  /** Whether the panel's enter, exit, park and scroll are animated. */
   animated: boolean;
+  /** The tier a panel starts at; it never resizes a panel that already exists. */
   formFactor: FormFactor;
+  /** The panel's title. */
   title: string;
+  /** What `pin()` and `unpin()` do, and what the panel reads as pinned. */
   pinning: Pinning;
+  /** What a pin change does to a panel that is not live. */
   pinningWhenNotLive: PinningWhenNotLive;
+  /** Whether the panel is saved with the workspace ('saved') or lasts only for the session ('session'). */
   persist: 'saved' | 'session';
+  /** Whether a person's layout changes to the panel are recorded and applied when the workspace is restored. */
   rememberLayout: boolean;
+  /** Whether the panel is restored as it was saved ('saved'), live or parked. */
   restoreVisibility: 'saved' | 'live' | 'parked';
+  /** Whether a closed panel stays closed ('stay-closed') or returns at the next launch ('return-next-launch'). */
   afterClose: 'stay-closed' | 'return-next-launch';
+  /** How long a close can be undone, in ms; 0 means no undo. */
   undoWindowMs: number;
+  /** Whether closing the panel is reported to the host. */
   reportClose: boolean;
+  /** When a picture of the panel is taken: on park, on close, on both or never. */
   snapshot: 'both' | 'park' | 'close' | 'never';
 };
 
-/** @public */
+/** The numbers behind a drag-down close. Distances are in px and velocities in px per second, positive downward. @public */
 export type DragToCloseTuning = {
+  /** The fraction of the panel's height a drag must cover to close. */
   distanceFraction: number;
+  /** The least distance in px that closes, however short the panel. */
   minDistancePx: number;
+  /** The least distance in px a flick must cover to close. */
   flickMinDistancePx: number;
+  /** The release velocity at or above which a drag of at least `flickMinDistancePx` closes. */
   flickVelocity: number;
+  /** A negative velocity: a release moving back up at least this fast cancels the close. */
   cancelVelocity: number;
+  /** The movement in px on either axis that decides whether a drag locks to the horizontal or the vertical. */
   directionLockPx: number;
-  snapBack: { stiffness: number; damping: number };
+  /** The spring a released drag that does not close returns with. */
+  snapBack: {
+    /** The spring's stiffness. */
+    stiffness: number;
+    /** The spring's damping. */
+    damping: number;
+  };
 };
 
-/** @public */
-export type SlideTuning = { durationSec: number; ease: readonly [number, number, number, number]; closeExitSeconds: number };
+/** The timing of a panel's slide in and out of the row. @public */
+export type SlideTuning = {
+  /** Seconds an enter or exit slide takes. */
+  durationSec: number;
+  /** The slide's easing, as the four numbers of a cubic bezier. */
+  ease: readonly [number, number, number, number];
+  /** Seconds a closing panel takes to leave. */
+  closeExitSeconds: number;
+};
 
-/** @public */
-export type EdgeScrollTuning = { zonePx: number; maxPxPerSec: number; reducedStepMs: number };
+/** How the row scrolls while a dragged panel is held near the window's edge. @public */
+export type EdgeScrollTuning = {
+  /** The width in px of the band at each window edge that scrolls the row. */
+  zonePx: number;
+  /** The fastest scroll speed, in px per second. */
+  maxPxPerSec: number;
+  /** The interval in ms between scroll steps when reduced motion is requested. */
+  reducedStepMs: number;
+};
 
 /** The tuning leaves a panel may set; each may also be set on the workspace. @public */
 export type PanelTuning = {
+  /** Overrides for the drag-down close numbers. */
   dragToClose?: { [K in keyof DragToCloseTuning]?: DragToCloseTuning[K] };
+  /** Overrides for the slide timing. */
   slide?: { [K in keyof SlideTuning]?: SlideTuning[K] };
+  /** The fraction of a neighbour's span a dragged panel must cover to cross it, above 0 and at most 1. */
   hopFraction?: number;
+  /** Overrides for the edge-scroll numbers. */
   edgeScroll?: { [K in keyof EdgeScrollTuning]?: EdgeScrollTuning[K] };
 };
 
 /** The per-panel leaves plus the seven that only the workspace sets. @public */
 export type WorkspaceTuning = PanelTuning & {
+  /** The gap between panels in px, an integer from 0 to 200. */
   rowGap?: number;
+  /** Milliseconds of quiet before the workspace is saved. */
   saveQuietMs?: number;
+  /** Milliseconds after a row scroll gesture during which further wheel events are ignored. */
   gestureLockMs?: number;
+  /** Which of two equally ranked parked panels returns first: the latest parked, the earliest parked, or the earlier in the row. */
   returnTieBreak?: 'latest-first' | 'earliest-first' | 'row-order';
+  /** Which of two equally ranked panels is parked first when the row loses room: the leftmost or the rightmost. */
   dropTieBreak?: 'leftmost' | 'rightmost';
+  /** What the row's own scroll input does: 'step', 'free' or 'off'. */
   rowGesture?: 'step' | 'free' | 'off';
+  /** Where the row starts scrolled: its 'start', its 'end', the 'root', or a given panel. */
   initialScroll?: 'start' | 'end' | 'root' | { panel: PanelId };
 };
 
-/** @public */
-export type ResolvedPanelTuning = { dragToClose: DragToCloseTuning; slide: SlideTuning; hopFraction: number; edgeScroll: EdgeScrollTuning };
+/** The per-panel tuning leaves after resolving, every one present. @public */
+export type ResolvedPanelTuning = {
+  /** The drag-down close numbers. */
+  dragToClose: DragToCloseTuning;
+  /** The slide timing. */
+  slide: SlideTuning;
+  /** The fraction of a neighbour's span a dragged panel must cover to cross it. */
+  hopFraction: number;
+  /** The edge-scroll numbers. */
+  edgeScroll: EdgeScrollTuning;
+};
 
-/** @public */
+/** Every tuning leaf after resolving: the per-panel ones plus the workspace-only ones. @public */
 export type ResolvedWorkspaceTuning = ResolvedPanelTuning & {
+  /** The gap between panels in px, an integer from 0 to 200. */
   rowGap: number;
+  /** Milliseconds of quiet before the workspace is saved. */
   saveQuietMs: number;
+  /** Milliseconds after a row scroll gesture during which further wheel events are ignored. */
   gestureLockMs: number;
+  /** Which of two equally ranked parked panels returns first: the latest parked, the earliest parked, or the earlier in the row. */
   returnTieBreak: 'latest-first' | 'earliest-first' | 'row-order';
+  /** Which of two equally ranked panels is parked first when the row loses room: the leftmost or the rightmost. */
   dropTieBreak: 'leftmost' | 'rightmost';
+  /** What the row's own scroll input does: 'step', 'free' or 'off'. */
   rowGesture: 'step' | 'free' | 'off';
+  /** Where the row starts scrolled: its 'start', its 'end', the 'root', or a given panel. */
   initialScroll: 'start' | 'end' | 'root' | { panel: PanelId };
 };
 
 /** Deeply frozen; every key is present after a resolve except `title`. @public */
 export type ResolvedPanelSettings = {
   readonly [K in Exclude<keyof SettingValues, 'title'>]: SettingValues[K];
-} & { readonly title?: string; readonly tuning: ResolvedPanelTuning; readonly headerButtons: { readonly [id: string]: HeaderButton } };
+} & {
+  /** The panel's title; absent when no layer set one. */
+  readonly title?: string;
+  /** The panel's tuning leaves, every one present. */
+  readonly tuning: ResolvedPanelTuning;
+  /** The panel's header buttons by slot id. */
+  readonly headerButtons: { readonly [id: string]: HeaderButton };
+};
 
 /** What one settings layer may hold. A tuning key at the workspace-defaults layer is refused. @public */
 export type PanelSettings = { [K in keyof SettingValues]?: SettingValues[K] } & {
+  /** Tuning leaves to override. */
   tuning?: PanelTuning;
+  /** Header buttons by slot id; `false` removes a slot an earlier layer set. */
   headerButtons?: { [id: string]: HeaderButton | false };
 };
 
 /** A diagnostic that never throws: what a rule or a restore did and which setting it concerns. @public */
-export type SettingNote = { code: string; panelId?: PanelId; key?: string; message: string };
+export type SettingNote = {
+  /** A short name for what happened, such as `park-lever-inert`. */
+  code: string;
+  /** The panel the note concerns, when it concerns one. */
+  panelId?: PanelId;
+  /** The setting the note concerns, when it concerns one. */
+  key?: string;
+  /** A readable description. */
+  message: string;
+};
 
 /** Recorded only for a template, host or instance layer that asked for what a rule or a scope forbids. @public */
 export type SettingConflict = {
+  /** The setting that was asked for. */
   readonly key: string;
+  /** The layer that asked for it. */
   readonly layer: 'template' | 'host' | 'instance';
+  /** Why the ask was not honoured: a rule forced another value, the key is set at the wrong scope, or a view may not set it. */
   readonly kind: 'forced' | 'wrong-scope' | 'not-view-settable';
+  /** The value the layer asked for. */
   readonly asked: unknown;
+  /** The value that applies instead. */
   readonly applied: unknown;
+  /** The coupling rule that forced the value, for kind 'forced'. */
   readonly rule?: 'C1' | 'C2' | 'C3' | 'C4' | 'C5' | 'C6';
+  /** The setting or condition behind the rule, for kind 'forced'. */
   readonly forcedBy?: string;
+  /** A readable description. */
   readonly message: string;
 };
 
@@ -245,38 +430,74 @@ export type SettingScope = 'instance' | 'template' | 'workspace' | 'panel or wor
 
 /** One row of the catalog. `values` and `default` are the wording of the row in DESIGN.md. @public */
 export interface SettingDescriptor {
+  /** The setting's catalog name. */
   readonly name: CatalogName;
+  /** The catalog group the setting belongs to, such as 'permissions' or 'motion'. */
   readonly group: string;
+  /** The values the setting accepts, as worded in DESIGN.md. */
   readonly values: string;
+  /** The library default, as worded in DESIGN.md. */
   readonly default: string;
+  /** Who may set the setting. */
   readonly scope: SettingScope;
+  /** Whether a view may set it, through the host layer. */
   readonly viewSettable: boolean;
+  /** Whether the setting names a behaviour that already existed ('today') or a new one ('new'). */
   readonly exists: 'today' | 'new';
+  /** The catalog's identifier for the part of the library that owns the setting. */
   readonly ownerEntry: string;
-  readonly configure: { readonly cls: SettingClass; readonly doors: readonly SettingDoor[] };
+  /** How a change is accepted: the class of its on-configure rule and the calls that accept it. */
+  readonly configure: {
+    /** The class word of the setting's on-configure rule. */
+    readonly cls: SettingClass;
+    /** The configure calls that accept the setting. */
+    readonly doors: readonly SettingDoor[];
+  };
 }
 
 /** The layers one resolve reads, lowest to highest: workspace, template, host, instance, user. @public */
 export type PanelSettingsLayers = {
+  /** The workspace defaults. */
   workspace?: PanelSettings;
+  /** The template's own settings. */
   template?: PanelSettings;
+  /** The settings given to this one panel. */
   instance?: PanelSettings;
+  /** What a view asked for in a host-bag `create`. */
   host?: PanelSettings;
+  /** The person's own overrides. */
   user?: PanelUserLayer;
 };
 
 /** The person's own overrides: the only three things a person can change about a panel. @public */
-export type PanelUserLayer = { formFactor?: FormFactor; anchor?: AnchorRequest; parkable?: boolean };
+export type PanelUserLayer = {
+  /** The tier the person chose. */
+  formFactor?: FormFactor;
+  /** Where the person put the panel. */
+  anchor?: AnchorRequest;
+  /** Whether the person made the panel parkable. */
+  parkable?: boolean;
+};
 
-/** @public */
-export type ResolveOptions = { root?: boolean; lenient?: boolean };
+/** Options for `resolvePanelSettings`. @public */
+export type ResolveOptions = {
+  /** Resolve the root panel, which its coupling rule makes unparkable, unclosable, undraggable and unplaceable. Default false. */
+  root?: boolean;
+  /** Drop an invalid key from the instance and user layers with a note instead of throwing. Default false. */
+  lenient?: boolean;
+};
 
 /** What a resolve returns. `source` is keyed by catalog name, a tuning leaf dotted, headerButtons as one key. @public */
 export type PanelSettingsResolution = {
+  /** The resolved settings, deeply frozen. */
   value: ResolvedPanelSettings;
+  /** The layer each value came from. */
   source: Record<string, SourceLayer>;
+  /** What a template, host or instance layer asked for that a rule or scope overrode. */
   conflicts: SettingConflict[];
+  /** Diagnostics raised during the resolve. */
   notes: SettingNote[];
+  /** The person's anchor for the panel, when they set one. */
   userAnchor?: AnchorRequest;
 };
 
@@ -1019,7 +1240,12 @@ type DerivedDefaultKey = (typeof DERIVED_DEFAULT_KEYS)[number];
 /** Every setting that has its own default. The four derived ones follow `parkable` and `closable`; `title` has none. @public */
 export type LibraryPanelDefaults = {
   readonly [K in Exclude<keyof SettingValues, 'draggable' | 'placeable' | 'listed' | 'clearable' | 'title'>]: SettingValues[K];
-} & { readonly headerButtons: { readonly [id: string]: HeaderButton }; readonly title: undefined };
+} & {
+  /** No header buttons by default. */
+  readonly headerButtons: { readonly [id: string]: HeaderButton };
+  /** Always undefined: a title has no default. */
+  readonly title: undefined;
+};
 
 /**
  * The library default of every setting that has one. `title` is present with no value so that the keys of this
@@ -1751,6 +1977,9 @@ export function effective(p: PanelWindow | PanelRowEntry): ResolvedPanelSettings
   return Object.freeze(legacy);
 }
 
+/** The note raised when a hold keeps an unlisted panel parked: nothing in the list can show it, so only code can. @internal */
+export const holdUnlistedNote = (panelId: PanelId): SettingNote => ({ code: 'hold-unlisted', panelId, key: 'listed', message: 'listed: a held hide of an unlisted panel can be shown by code only' });
+
 /** The name readers use for an entry: its `key` when created from settings, its `id` when hand-built. @internal */
 export const panelKey = (p: PanelWindow | PanelRowEntry): string => p.key ?? p.id;
 
@@ -1764,8 +1993,9 @@ const TIER_SIZE_LITERALS: Readonly<Record<FormFactor, PanelSize>> = {
 
 /**
  * `entry` with `resolved` written into the fields that mirror it, and into no other. 'create' writes them all,
- * the tier and its size and `key` included; 'reconfigure' writes only what a later change may move and leaves the
- * tier, size, anchor, `live`, `hostData` and `key` as the person and the row left them.
+ * the tier and its size, `key` and `live` included (`startVisibility` 'parked' parks the entry; 'live' never revives
+ * one the caller handed in parked); 'reconfigure' writes only what a later change may move and leaves the tier,
+ * size, anchor, `live`, `hostData` and `key` as the person and the row left them.
  * @internal
  */
 export function applyTemplate(entry: PanelWindow, resolved: ResolvedPanelSettings, mode: 'create' | 'reconfigure'): PanelWindow {
@@ -1786,6 +2016,7 @@ export function applyTemplate(entry: PanelWindow, resolved: ResolvedPanelSetting
     ...entry,
     locked: !resolved.closable,
     collapsible: resolved.parkable,
+    live: entry.live && resolved.startVisibility === 'live',
     listed: resolved.listed,
     layer: resolved.layer,
     anchoredEnter: resolved.enterFrom === 'anchor',

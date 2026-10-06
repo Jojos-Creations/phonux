@@ -3,7 +3,7 @@
  * function that operates on a `PanelWindow[]` array.
  */
 import type { FormFactor, JsonValue, PanelSize } from './hostApi.js';
-import type { NeighborWidths } from './panelRowEntry.js';
+import { isPresent, type NeighborWidths } from './panelRowEntry.js';
 import { computeRowOrder, deriveAnchorsFromOrder } from './panelRowOrder.js';
 import type { PanelAnchor } from './panelRowOrder.js';
 import { effective } from './panelSettings.js';
@@ -16,8 +16,11 @@ import { DEFAULT_PANEL_SIZE, TIER_SIZES } from './panelTiers.js';
  * @public
  */
 export interface PanelWindow {
+  /** The panel's id, unique in the row. */
   id: string;
+  /** The panel's URL; the empty string for a panel with none, such as History. */
   url: string;
+  /** The title shown in the panel's header; absent when none was set. */
   title?: string;
   /** Host-supplied and opaque: every function here only copies it through, never reads or branches on it. Its
    * shape is a host-side agreement `JsonValue` cannot enforce. */
@@ -48,6 +51,8 @@ export interface PanelWindow {
   settings?: ResolvedPanelSettings;
   /** This entry's stable name, written once when it is created from settings; absent on a hand-built entry, whose `id` stands in. */
   key?: string;
+  /** True only for the reserved '__root__' entry a row without a root keeps: it holds the anchor point, is never drawn and never counted as a column or a hop. */
+  marker?: true;
 }
 
 /** History's own seeded entry: never collapsible (an always-shown column), never listed (it must not list itself), always live, locked by default (the host's close path honours `locked`); raised, so a left-exiting park slides under it; anchoredEnter, which against itself resolves 'right'; no anchor: it is the root every anchor leads to. Same default tier/size as every other entry: a permanent column carries a tier like any other. @internal */
@@ -66,15 +71,28 @@ export function createHistoryPanel(rootId: string): PanelWindow {
  * @internal
  */
 export interface AppendPanelOptions {
+  /** The view that renders the new panel, becoming `PanelWindow.view`. Default 'web'. */
   view?: string;
+  /** The new panel's title. */
   title?: string;
+  /** Opaque per-panel data, copied through to `PanelWindow.params`. */
   params?: JsonValue;
   /** Copied through to the new entry's `hostData` unchanged; absent means the entry carries no `hostData` key at all (never an explicit `undefined`). */
   hostData?: JsonValue;
+  /** Whether the new panel appears in `panelList`. Default true; a `permanent` panel is never listed. */
   listed?: boolean;
   /** `panel` defaults to History, `priority` to one past the far end of that side. Default \{ position: 'right' \}. */
-  anchor?: { panel?: string; position: 'left' | 'right'; priority?: number };
+  anchor?: {
+    /** The panel to sit beside; absent means History. */
+    panel?: string;
+    /** Which side of `panel` the new panel sits on. */
+    position: 'left' | 'right';
+    /** Nearness to `panel` on that side; a lower number is nearer. Absent means the far end. */
+    priority?: number;
+  };
+  /** The stacking tier of the new panel's slot, becoming `PanelWindow.layer`. Default 'base'. */
   layer?: 'base' | 'raised';
+  /** Becomes `PanelWindow.anchoredEnter`. Default false. */
   anchoredEnter?: boolean;
   /** See `CreatePanelOptions.permanent` (hostApi.tsx) for the full contract; `appendPanel` is what enforces it. */
   permanent?: boolean;
@@ -82,7 +100,7 @@ export interface AppendPanelOptions {
   formFactor?: FormFactor;
 }
 
-/** @internal */
+/** An anchor as a caller may give it: `panel` and `priority` are optional and filled in against the row. @internal */
 export type AnchorRequest = NonNullable<AppendPanelOptions['anchor']>;
 /** `request` with its defaults filled against `panels`: History, and one past the highest priority already on that side (`self` excluded). */
 function fillAnchor(panels: readonly PanelWindow[], rootId: string, request: AnchorRequest, self?: string): PanelAnchor {
@@ -101,6 +119,11 @@ function fillAnchor(panels: readonly PanelWindow[], rootId: string, request: Anc
 export function reanchorPanel(panels: PanelWindow[], id: string, request: AnchorRequest, rootId: string): PanelWindow[] {
   const target = panels.find((p) => p.id === id);
   if (!target || !effective(target).placeable) return panels;
+  return anchorPanel(panels, id, request, rootId);
+}
+
+/** `id` anchored per `request` and the row ordered to match, with no `placeable` check: a placement setting is the developer's own ask, not a person's re-anchor. @internal */
+export function anchorPanel(panels: readonly PanelWindow[], id: string, request: AnchorRequest, rootId: string): PanelWindow[] {
   const anchor = fillAnchor(panels, rootId, request, id);
   return computeRowOrder(panels.map((p) => (p.id === id ? { ...p, anchor } : p)), rootId);
 }
@@ -137,27 +160,43 @@ export function appendPanel(panels: PanelWindow[], info: { url: string } & Appen
   return computeRowOrder([...panels, entry], rootId);
 }
 
+/** The park-lever settings of `p`: its own when its `overflow` is 'park', the library defaults otherwise, because a panel the row never parks for room has no lever to pull. @internal */
+export function parkLevers(p: PanelWindow): Pick<ResolvedPanelSettings, 'evictionRank' | 'evictionOrder' | 'returnPriority' | 'capacityReturn'> {
+  const s = effective(p);
+  return s.overflow === 'park' ? s : { evictionRank: 0, evictionOrder: 'farthest', returnPriority: 0, capacityReturn: 'auto' };
+}
+
 /**
- * The id of the live collapsible panel farthest (by array index) from `fromIndex`, or null with none live.
- * Ties go to the lower index (the strict `>` keeps the first). From an append (`fromIndex` = the new length)
- * that is the LEFT end of the live range; from an open nearest History or a revive left of the range, the
- * RIGHT end. promoteToLive and the host's open/restore park both pick through this. `exclude`
- * exempts the panel being opened or restored, which is already live in the array the caller passes, and any
- * panel another action in the same update must keep live.
+ * The id of the live collapsible panel to park for room, or null with none live: among the lowest `evictionRank`,
+ * the one `order` picks by distance from `fromIndex` ('leftmost' and 'rightmost' ignore it); a tie goes to the lower
+ * index. `exclude` exempts the panel being opened or restored, already live in `panels`, and any panel another
+ * action in the same update must keep live.
  * @internal
  */
-export function farthestLiveCollapsibleId(panels: PanelWindow[], fromIndex: number, exclude: ReadonlySet<string> = new Set()): string | null {
-  let bestId: string | null = null;
-  let bestDist = -1;
-  panels.forEach((p, i) => {
-    if (!p.collapsible || !p.live || exclude.has(p.id)) return;
-    const dist = Math.abs(i - fromIndex);
-    if (dist > bestDist) {
-      bestDist = dist;
-      bestId = p.id;
-    }
+export function farthestLiveCollapsibleId(
+  panels: PanelWindow[],
+  fromIndex: number,
+  exclude: ReadonlySet<string> = new Set(),
+  order: ResolvedPanelSettings['evictionOrder'] = 'farthest',
+): string | null {
+  const candidates: { id: string; index: number; rank: number }[] = [];
+  panels.forEach((p, index) => {
+    if (p.collapsible && p.live && !exclude.has(p.id)) candidates.push({ id: p.id, index, rank: parkLevers(p).evictionRank });
   });
-  return bestId;
+  if (candidates.length === 0) return null;
+  const lowest = Math.min(...candidates.map((c) => c.rank));
+  let best: { id: string; index: number } | null = null;
+  let bestScore = -Infinity;
+  for (const c of candidates) {
+    if (c.rank !== lowest) continue;
+    const distance = Math.abs(c.index - fromIndex);
+    const score = order === 'farthest' ? distance : order === 'nearest' ? -distance : order === 'rightmost' ? c.index : -c.index;
+    if (score > bestScore) {
+      bestScore = score;
+      best = c;
+    }
+  }
+  return best?.id ?? null;
 }
 
 /**
@@ -207,7 +246,7 @@ export function lastParkedBefore(panels: PanelWindow[], index: number): PanelWin
  * Activating ANY panel (live or parked) flips `live` in place, never moving the entry's array position.
  * Returns `null` for an unknown id or one already live (a legitimate no-op, not an error). When promoting
  * `id` would exceed `capacity`, demotes exactly one OTHER live panel: whichever `farthestLiveCollapsibleId`
- * picks from `id`'s own index, the same far rule an open/restore parks by. Never demotes a
+ * picks from `id`'s own index by `id`'s own `evictionOrder`. Never demotes a
  * `collapsible: false` entry or any id in `keep`.
  * @internal
  */
@@ -220,7 +259,7 @@ export function promoteToLive(panels: PanelWindow[], id: string, capacity: numbe
   if (liveCountAfter > capacity) {
     // `panels` (pre-promotion): `id` itself still reads live:false there, so it is naturally excluded
     // from the search without needing `keep`.
-    const demote = farthestLiveCollapsibleId(panels, ownIndex, keep);
+    const demote = farthestLiveCollapsibleId(panels, ownIndex, keep, parkLevers(target).evictionOrder);
     if (demote) {
       next = next.map((p) => (p.id === demote ? { ...p, live: false } : p));
     }
@@ -245,7 +284,7 @@ export function closePanel(panels: PanelWindow[], id: string, rootId: string): {
 }
 
 /**
- * Moves `id` one PRESENT slot (`!collapsible || live`, PanelRow's filter) toward `direction`, past
+ * Moves `id` one PRESENT slot (`isPresent`, PanelRow's filter) toward `direction`, past
  * whichever present panel sits there, History included; a parked panel between the two shifts one array slot,
  * keeping firstParkedAfter/lastParkedBefore/sideOfLiveRange meaningful. Every anchor is then re-read from the
  * new order. The SAME array for every no-op: unknown id, a source whose `draggable` setting is false (a fixed
@@ -254,7 +293,7 @@ export function closePanel(panels: PanelWindow[], id: string, rootId: string): {
  * @internal
  */
 export function movePanel(panels: PanelWindow[], id: string, direction: 'left' | 'right', rootId: string): PanelWindow[] {
-  const present = panels.filter((p) => !p.collapsible || p.live);
+  const present = panels.filter(isPresent);
   const presentIndex = present.findIndex((p) => p.id === id);
   if (presentIndex < 0 || !effective(present[presentIndex]!).draggable) return panels;
   const neighbor = present[direction === 'left' ? presentIndex - 1 : presentIndex + 1];

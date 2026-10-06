@@ -402,6 +402,15 @@ def _cmd_gate(args):
 
 
 def main(argv=None):
+    """Run the `gate` subcommand, which judges saved PR reviews against a PR body and head sha.
+
+    Args:
+        argv: Command-line arguments; `None` reads `sys.argv`.
+
+    Returns:
+        The subcommand's exit code: 0 on PASS, 1 on a rule failure, 2 when an
+        input cannot be read or is not a JSON array.
+    """
     parser = argparse.ArgumentParser(description=__doc__)
     subparsers = parser.add_subparsers(dest="command", required=True)
 

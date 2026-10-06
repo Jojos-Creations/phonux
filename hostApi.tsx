@@ -18,8 +18,11 @@ import { ViewStateProvider } from './viewState.js';
 
 /** A phone size. `modelId` 'default' means the app's built-in size, not a PHONE_MODELS entry. @public */
 export interface PhoneSize {
+  /** Id of the chosen `PhoneModel`, or 'default' for the built-in size. */
   modelId: string;
+  /** Width in CSS px. */
   width: number;
+  /** Height in CSS px. */
   height: number;
 }
 
@@ -28,23 +31,32 @@ export const DEFAULT_PHONE_SIZE: PhoneSize = { modelId: 'default', width: 390, h
 
 /** A phone-like USB device the app has just seen for the first time. @public */
 export interface DetectedPhone {
+  /** The device's USB vendor id. */
   vendorId: number;
+  /** The device's USB product id. */
   productId: number;
 }
 
 /** One entry of the persisted "Closed Pages" log. @public */
 export interface ClosedPageEntry {
+  /** Id of the closed view. */
   id: string;
+  /** The view's title when it was closed. */
   title: string;
+  /** The view's URL when it was closed. */
   url: string;
   /** ISO-8601, UTC. */
   closedAt: string;
 }
 
-/** JSON-serializable by construction -- the minimum shape any future persistence layer could round-trip (see DESIGN.md). @public */
+/**
+ * Any value that survives a JSON round trip: string, number, boolean, `null`, or arrays and plain objects of these.
+ * Never `undefined` or a function.
+ * @public
+ */
 export type JsonValue = string | number | boolean | null | readonly JsonValue[] | { readonly [key: string]: JsonValue };
 
-/** A panel's own visual tier. The app gives every panel 'phone' by default. @public */
+/** A panel's own visual tier: 'phone', 'tablet' or 'desktop'. The app gives every panel 'phone' by default. @public */
 export type FormFactor = 'phone' | 'tablet' | 'desktop';
 
 /**
@@ -54,8 +66,11 @@ export type FormFactor = 'phone' | 'tablet' | 'desktop';
  * @public
  */
 export interface PanelSize {
+  /** The tier this size belongs to. */
   formFactor: FormFactor;
+  /** Width in CSS px. */
   width: number;
+  /** Height in CSS px, or 'fill' to fill the container's height. */
   height: number | 'fill';
 }
 
@@ -66,8 +81,11 @@ export interface PanelSize {
  * @public
  */
 export interface PanelSummary<P = JsonValue> {
+  /** The panel's unique id, as `PanelsAPI` methods take it. */
   readonly id: string;
+  /** The URL the panel shows. */
   readonly url: string;
+  /** The panel's title, when it has one. */
   readonly title?: string;
   /** Mounted in the row now (false = parked, listed in History only). */
   readonly live: boolean;
@@ -85,7 +103,7 @@ export interface PanelSummary<P = JsonValue> {
 // The APIs
 // ---------------------------------------------------------------------------
 
-/** @public */
+/** Window-layout settings a view reads and changes. @public */
 export interface SettingsAPI {
   /** The stored "max panels on screen" choice: `null` means "follow the fit count" (the default). Live: a view re-renders when it changes. */
   readonly maxPanelsOnScreen: number | null;
@@ -99,20 +117,26 @@ export interface SettingsAPI {
   readonly settingsColumn: { readonly visible: boolean; show(): void; hide(): void };
 }
 
-/** @public */
+/** The persisted Closed Pages log and the History column's own state. @public */
 export interface HistoryAPI {
   /** The persisted Closed Pages log (every view ever closed, oldest first). NEVER rejects: any failure, including no desktop bridge, resolves to []. */
   loadClosedPages(): Promise<readonly ClosedPageEntry[]>;
   /** The Closed Pages overlay. `open()` (re)fetches through loadClosedPages(). */
   readonly closedPagesViewer: {
+    /** Whether the overlay is showing. */
     readonly isOpen: boolean;
+    /** Whether `entries` is still being fetched. */
     readonly loading: boolean;
+    /** The entries the overlay lists, as last fetched. */
     readonly entries: readonly ClosedPageEntry[];
+    /** Shows the overlay and fetches the log. */
     open(): void;
+    /** Hides the overlay. */
     close(): void;
   };
   /** Whether a drag-down close or an API close does anything for History; defaults true. */
   readonly locked: boolean;
+  /** Whether History has been closed. */
   readonly closed: boolean;
   /** A no-op while `locked` (today, always -- see `locked`). */
   close(): void;
@@ -124,9 +148,13 @@ export interface HistoryAPI {
  * @public
  */
 export interface CreatePanelOptions {
+  /** Key of the registered view that renders the panel (see `registerView`). Default 'web'. */
   view?: string;
+  /** The new panel's title. */
   title?: string;
+  /** Opaque data for the view, readable as `PanelSummary.params`. */
   params?: JsonValue;
+  /** Whether the panel appears in `PanelsAPI.panelList`. Default true; always false with `permanent`. */
   listed?: boolean;
   /** Where the new entry sits: on `position`'s side of `panel` (default History), `priority` lower = nearer (default: past the far end of that side). Default `{ position: 'right' }`. */
   anchor?: { panel?: string; position: 'left' | 'right'; priority?: number };
@@ -146,7 +174,7 @@ export interface CreatePanelOptions {
   formFactor?: FormFactor;
 }
 
-/** @public */
+/** The panel row: list, open, activate, move, resize, re-anchor and close panels. @public */
 export interface PanelsAPI {
   /** Every panel, live or parked, in array order. History lists them as given; the row shows the live ones. */
   readonly panelList: readonly PanelSummary[];
@@ -195,7 +223,7 @@ export interface PanelsAPI {
   clearAll(): void;
 }
 
-/** @public */
+/** The phone size every panel renders at, and the USB phone-detect notice. @public */
 export interface PhoneDeviceAPI {
   /** The size every PanelFrame renders at. Live. */
   readonly size: PhoneSize;
@@ -207,16 +235,21 @@ export interface PhoneDeviceAPI {
   chooseModel(modelId: string): Promise<void>;
   /** Non-null exactly while the one-time "phone connected" notice should show. */
   readonly detectedPhone: DetectedPhone | null;
+  /** Hides the notice without changing the size. */
   dismissDetectedPhone(): void;
   /** Resize to `modelId` and dismiss the notice. */
   resizeForDetectedPhone(modelId: string): void;
 }
 
-/** @public */
+/** Everything a view reaches through `useHost()`. @public */
 export interface Host {
+  /** Window-layout settings. */
   readonly settings: SettingsAPI;
+  /** The Closed Pages log and History column. */
   readonly history: HistoryAPI;
+  /** The panel row. */
   readonly panels: PanelsAPI;
+  /** The phone size and phone-detect notice. */
   readonly device: PhoneDeviceAPI;
   /** Optional, unlike every other member: without it useViewSnapshot (snapshots.ts) shows no picture instead
    * of throwing, so a host that does not capture need not supply a no-op. */
@@ -229,6 +262,7 @@ export interface Host {
 
 /** Thrown by useHost() when no provider is mounted, so a view rendered without a host fails loudly instead of rendering defaults. @public */
 export class HostMissingProviderError extends Error {
+  /** @param hook - Name of the hook that was called, shown in the message. */
   constructor(hook = 'useHost') {
     super(
       `${hook}() was called outside a <HostProvider>. A view must render under the provider the host mounts; ` +

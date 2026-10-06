@@ -29,12 +29,17 @@ export interface WorkspaceShellStyleInput {
   liveWidths: readonly number[];
 }
 
-/** @internal */
+/** The values the row shell renders with, derived by `workspaceShellStyle`. @internal */
 export interface WorkspaceShellStyle {
   /** The row's centring margin, px. */
   marginLeft: number;
   /** Snap while the container width is still moving, glide once it has held still. */
-  transition: typeof PANEL_TRANSITION | { duration: 0 };
+  transition:
+    | typeof PANEL_TRANSITION
+    | {
+        /** Zero: the margin snaps with no animation. */
+        duration: 0;
+      };
   /** The scroll container's horizontal overflow -- always 'hidden': the row hides its far panel instead of ever scrolling or growing past what fits. */
   overflowX: 'hidden';
 }
@@ -58,23 +63,29 @@ export function workspaceShellStyle(i: WorkspaceShellStyleInput): WorkspaceShell
   };
 }
 
-/** @public */
+/** The props of `Workspace`: every `Box` prop except `children`, plus the row's refs and the host's measurements. @public */
 export interface WorkspaceProps extends Omit<BoxProps, 'children'> {
   /** Attach to the scroll container: the caller's ResizeObserver measures it. */
   overflowContainerRef: RefObject<HTMLDivElement | null>;
   /** Attach to the row (the flex box holding the columns): the SAME ref object a caller's own
    * `beforeRow` content may need too, so both centre against the one measured element. */
   rowRef: RefObject<HTMLDivElement | null>;
+  /** The scroll container's measured width in px; 0 before the first measurement. */
   containerWidth: number;
+  /** Whether the container width has held still: the row's centring margin glides once it has, and snaps otherwise. */
   rowResizeSettled: boolean;
+  /** The width in px every fixed column renders at. */
   phoneWidth: number;
+  /** The number of always-present columns the row renders. */
   fixedColumnCount: number;
+  /** Each live panel's own width in px, in row order; a parked panel is not in the row. */
   liveWidths: readonly number[];
   /** Clearance above the row, in px. Defaults to GAP; a host with its own chrome above the scroll container (e.g. a drag strip) passes more. */
   topPadding?: number;
   /** Rendered as the scroll container's first child, ahead of the row -- a slot for host content (e.g. a
    * device toast) that must sit there without being absorbed as row content via `children`. */
   beforeRow?: React.ReactNode;
+  /** The row's content: the panels. */
   children: React.ReactNode;
 }
 
