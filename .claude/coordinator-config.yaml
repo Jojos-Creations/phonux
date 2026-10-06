@@ -17,6 +17,7 @@ max_parallel_workers: 8
 # on its own local re-run of all of them.
 strict_gate:
   - npm run typecheck
+  - npm run lint
   - npm test
   - npm run build
   - npm run check:api-report

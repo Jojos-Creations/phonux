@@ -27,9 +27,11 @@
     "smoke": "node tools/phonux-pack-smoke.mjs",
     "check:api-report": "node tools/phonux-api-report.mjs",
     "api-report:update": "node tools/phonux-api-report.mjs --local",
-    "release:check": "node tools/phonux-release-check.mjs"
+    "release:check": "node tools/phonux-release-check.mjs",
+    "lint": "biome lint --error-on-warnings ."
   },
   "devDependencies": {
+    "@biomejs/biome": "2.5.15",
     "@microsoft/api-extractor": "^7.59.2",
     "@types/jsdom": "^21.1.7",
     "@types/node": "^22.10.0",

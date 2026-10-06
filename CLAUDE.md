@@ -22,3 +22,10 @@ API Extractor reads into `etc/*.api.md` (an export without one shows `// (undocu
 what a consumer may rely on, never why the code is built that way. Rules and the tag set: `DESIGN.md` "Doc comments".
 
 Put this rule in any brief you give a subagent.
+
+## Lint
+
+`npm run lint` (Biome, `biome.json`) is part of the gate and fails on warnings. Fix the line rather than adding
+a suppression. Formatting is not enforced. `useExhaustiveDependencies` is off until its hits are fixed one by one,
+because each fix changes when an effect re-runs. Python here is vendored from agent-ready-template and linted
+there.
