@@ -41,7 +41,7 @@ const OUTSIDE_ROW_DRAG: DragToCloseTuning = {
 /** The five numbers the close rule reads. */
 type CloseRule = Pick<DragToCloseTuning, 'distanceFraction' | 'minDistancePx' | 'flickMinDistancePx' | 'flickVelocity' | 'cancelVelocity'>;
 
-/** @internal */
+/** What `shouldCloseOnRelease` reads from a drag's release. @internal */
 export interface ReleaseMeasure {
   /** How far the box was dragged from its resting place, px (positive = down). */
   offsetY: number;
@@ -61,7 +61,9 @@ export function shouldCloseOnRelease({ offsetY, velocityY, height }: ReleaseMeas
 
 /** Spread onto Panel's `grabProps`. @public */
 export interface DragHandleProps {
+  /** Starts a drag from a primary-button press on the handle; a press on a button, link or field is ignored. */
   onPointerDown: (event: React.PointerEvent<HTMLElement>) => void;
+  /** The handle's styles: a grab cursor, no text selection, and `touch-action: pan-x` so a horizontal swipe still scrolls the row. */
   sx: { cursor: 'grab'; touchAction: 'pan-x'; userSelect: 'none'; '&:active': { cursor: 'grabbing' } };
 }
 
@@ -73,7 +75,11 @@ export interface ReorderHandle {
 
 const INTERACTIVE = 'button, a, input, select, textarea, [role="button"]';
 
-/** @public */
+/**
+ * A box whose grab handle, dragged down far enough, calls `onClose`; with `reorder`, the same handle also drags
+ * sideways. `onClose` must remove the view, because a close never unlocks the scroll ancestors.
+ * @public
+ */
 export function DragToClose({
   onClose,
   reorder,
@@ -81,7 +87,9 @@ export function DragToClose({
 }: {
   /** Without it a release past the close line snaps back: the box has nothing to close. */
   onClose?: () => void;
+  /** When set, the handle also drags horizontally and reports the total offset to `reorder.onDragEnd` on release. */
   reorder?: ReorderHandle;
+  /** Render prop: receives the handle props to spread onto the grab bar, and returns the box's content. */
   children: (handle: DragHandleProps) => React.ReactNode;
 }): React.ReactElement {
   const controls = useDragControls();

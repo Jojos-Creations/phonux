@@ -4,18 +4,18 @@
     ".claude/hooks/pipeline_marker.py": "a921379a1e5a4472837ba57b5847e4934f37d026bf3be272191db83f16e48b69",
     ".githooks/lib/markdown_lint.sh": "ed4ffce96b74bac18d81221cb91e0fe57655791f56ab7c2066d4a45ae7250c0f",
     "plans/SCHEMA.md": "2d1f8b0c2f7ba1ac9f72e9b59b78ca1d18a874396a5484e182ea174acfb9b1d1",
-    "tools/check-markdownlint-suppressions.py": "2bd2e60027c2831037ca93e3b450b5e52e5ba36b1853ddec86025f75fdeb93b4",
+    "tools/check-markdownlint-suppressions.py": "7a7db310d05aff5f782f4fada147d78ad23119dcfe33bbd22541e587612fc086",
     "tools/git-safe-push.sh": "2e56e36b9b9f9294f9cd8b54e4970557f5cf52ba706542a04e5f235fc827fb78",
-    "tools/queue/check_report.py": "1600db5fad051d208b90b0defe92525b1ee7b15721f07d34951c9f5bb97c2ccf",
-    "tools/queue/queue.py": "cfc10ccba0607b9fafdccdd5a61562afa24de8ca77929702388f7ef621bc663a",
-    "tools/queue/report_rules.py": "b45bb5ddd73b8a7b5e9357c7168a0a080fba99cc2c7d3f32d51f5e9d13892780",
+    "tools/queue/check_report.py": "43bd1ee1512c03940e6a22e858d5b3b8dad13f491336a831942ffb2aafb676b6",
+    "tools/queue/queue.py": "a064371067d654d27ad511860e641345a30f85505170b21378875df82cf9c70b",
+    "tools/queue/report_rules.py": "bcc082eec76f99b4efbd423878fc069d739005119b43d59c44a7a1e493e037f3",
     "tools/queue/schema.json": "d6fa7015d9e7a126fc59c4d9f3fd6be96f68172f9a62180b84c8d387bf13ddda",
     "tools/tests/test_check_markdownlint_suppressions.py": "482462f3357420498389612f8e884f40231838d4e26eb7569d5e702993efc1e9",
-    "tools/vendor-queue-tooling.py": "35d6d092e3e84f7a3b98c8294666f1ef07f1ea3d7e3db49e89b42c07f932752d"
+    "tools/vendor-queue-tooling.py": "95a6e697c77469fd9b4923f438614cb5e8016cb902233eac326f5ae8c96d8dc1"
   },
   "self": false,
   "upstream": "agent-ready-template",
   "upstream_dirty": false,
-  "upstream_sha": "679c23c1e6c419b98e821260c5556d1e8f8e48ca",
+  "upstream_sha": "37d7a7da42622c23df80ac7c219d720c9b98c693",
   "upstream_sha_means": "the content of the vendored files as of this upstream commit"
 }

@@ -11,6 +11,7 @@ const ViewIdContext = React.createContext<string | null>(null);
 
 /** Thrown by useViewState() unless it renders under BOTH wrappers a host's panel row supplies. @public */
 export class ViewStateMissingProviderError extends Error {
+  /** @param missing - Which wrapper is absent: the host provider, or the ambient view id. */
   constructor(missing: 'host' | 'view id') {
     super(
       `useViewState() was called ${missing === 'host' ? 'outside a <HostProvider>, which holds the state' : 'with no ambient view id'}. ` +
@@ -153,9 +154,18 @@ function useRetainOnly(panelIds: Iterable<string>): void {
  * @public
  */
 export interface UseViewState {
+  /**
+   * Reads and sets the value stored under `key` for the calling view's panel; `initial` is used until the first set.
+   * @param key - Names the value within the panel; two views may use the same key without sharing it.
+   * @param initial - The starting value, which must be JSON-shaped (see `JsonValue`).
+   * @returns The current value and a setter that takes a value or an updater function, as `React.useState`'s does.
+   */
   <T>(key: [T] extends [JsonValue] ? string : never, initial: T): [T, (next: T | ((prev: T) => T)) => void];
+  /** The same call for a caller that is itself generic over `T extends JsonValue`. */
   <T extends JsonValue>(key: string, initial: T): [T, (next: T | ((prev: T) => T)) => void];
+  /** Supplies the ambient panel id the hook reads; the host's panel row mounts it, a view never does. */
   Provider: React.Provider<string | null>;
+  /** Releases the state of every panel not in `panelIds`; called by the host's panel row, never by a view. */
   useRetainOnly: (panelIds: Iterable<string>) => void;
 }
 

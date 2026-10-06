@@ -17,8 +17,11 @@ import { HOP_FRACTION } from './rowConstants.js';
  * @public
  */
 export interface PanelWindow {
+  /** The panel's id, unique in the row. */
   id: string;
+  /** The panel's URL; the empty string for a panel with none, such as History. */
   url: string;
+  /** The title shown in the panel's header; absent when none was set. */
   title?: string;
   /** Host-supplied and opaque: every function here only copies it through, never reads or branches on it. Its
    * shape is a host-side agreement `JsonValue` cannot enforce. */
@@ -69,15 +72,28 @@ export function createHistoryPanel(rootId: string): PanelWindow {
  * @internal
  */
 export interface AppendPanelOptions {
+  /** The view that renders the new panel, becoming `PanelWindow.view`. Default 'web'. */
   view?: string;
+  /** The new panel's title. */
   title?: string;
+  /** Opaque per-panel data, copied through to `PanelWindow.params`. */
   params?: JsonValue;
   /** Copied through to the new entry's `hostData` unchanged; absent means the entry carries no `hostData` key at all (never an explicit `undefined`). */
   hostData?: JsonValue;
+  /** Whether the new panel appears in `panelList`. Default true; a `permanent` panel is never listed. */
   listed?: boolean;
   /** `panel` defaults to History, `priority` to one past the far end of that side. Default \{ position: 'right' \}. */
-  anchor?: { panel?: string; position: 'left' | 'right'; priority?: number };
+  anchor?: {
+    /** The panel to sit beside; absent means History. */
+    panel?: string;
+    /** Which side of `panel` the new panel sits on. */
+    position: 'left' | 'right';
+    /** Nearness to `panel` on that side; a lower number is nearer. Absent means the far end. */
+    priority?: number;
+  };
+  /** The stacking tier of the new panel's slot, becoming `PanelWindow.layer`. Default 'base'. */
   layer?: 'base' | 'raised';
+  /** Becomes `PanelWindow.anchoredEnter`. Default false. */
   anchoredEnter?: boolean;
   /** See `CreatePanelOptions.permanent` (hostApi.tsx) for the full contract; `appendPanel` is what enforces it. */
   permanent?: boolean;
@@ -85,7 +101,7 @@ export interface AppendPanelOptions {
   formFactor?: FormFactor;
 }
 
-/** @internal */
+/** An anchor as a caller may give it: `panel` and `priority` are optional and filled in against the row. @internal */
 export type AnchorRequest = NonNullable<AppendPanelOptions['anchor']>;
 /** `request` with its defaults filled against `panels`: History, and one past the highest priority already on that side (`self` excluded). */
 function fillAnchor(panels: readonly PanelWindow[], rootId: string, request: AnchorRequest, self?: string): PanelAnchor {

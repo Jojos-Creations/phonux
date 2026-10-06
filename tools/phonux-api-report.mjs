@@ -115,7 +115,8 @@ for (const { config, report } of entries) {
   }
   // Some messages (ae-forgotten-export) go into the report, not stdout, and a report carrying one matches its
   // own regeneration, so API Extractor passes it. Footer lines carry the message id but no "Warning:".
-  const embedded = readFileSync(committed, 'utf8').match(/^.*(?:Warning:|Warnings were encountered|\((?:ae|tsdoc)-[a-z-]+\)).*$/gm) ?? [];
+  // "(undocumented)" marks an export or member with no doc comment; DESIGN.md "Doc comments" requires none.
+  const embedded = readFileSync(committed, 'utf8').match(/^.*(?:Warning:|Warnings were encountered|\((?:ae|tsdoc)-[a-z-]+\)|\(undocumented\)).*$/gm) ?? [];
   for (const line of embedded) problems.push(`${report} embeds ${line.trim()}`);
 }
 

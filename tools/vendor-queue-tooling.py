@@ -318,6 +318,7 @@ def _rel_to_native(rel):
 
 
 def sha256_file(path):
+    """Return the hex SHA-256 digest of the file at `path`."""
     digest = hashlib.sha256()
     with open(path, "rb") as handle:
         for chunk in iter(lambda: handle.read(65536), b""):
@@ -478,6 +479,10 @@ def guard_is_wired(target_repo):
 
 
 def warn_if_guard_unwired(target_repo):
+    """Print a NOT WIRED warning with the command to add when `target_repo`'s settings do not run the gh write guard.
+
+    Never edits settings and never changes the exit code.
+    """
     if guard_is_wired(target_repo):
         return
     print(
@@ -490,6 +495,19 @@ def warn_if_guard_unwired(target_repo):
 
 
 def cmd_vendor(template_root, target_repo, allow_dirty):
+    """Copy the tracked and starter files into `target_repo` and write the drift lock.
+
+    Args:
+        template_root: Repo root holding the vendoring source.
+        target_repo: Repo to vendor into; may equal `template_root`.
+        allow_dirty: Vendor from uncommitted template source, recording
+            `upstream_dirty: true` in the lock.
+
+    Returns:
+        Exit code 0 on success, 1 when refusing (missing source, missing target
+        directory, unsafe retirement, or dirty source without `allow_dirty`);
+        a refusal copies and writes nothing.
+    """
     # Self-vendoring: this template vendoring itself into its own repo root
     # (target_repo == template_root). Recorded in the lock so `--check` can
     # tell it apart from vendoring into a consumer -- see cmd_check()'s own
@@ -659,6 +677,14 @@ def adoption_markers_present(target_repo):
 
 
 def cmd_check(target_repo):
+    """Verify `target_repo`'s vendored files against its lock; never writes.
+
+    Returns:
+        Exit code 0 when every file matches, 1 on drift, a missing file, or a
+        missing or unparseable lock in a repo that already adopted the tooling,
+        and `CHECK_SKIP_EXIT_CODE` when the repo never vendored, which proves
+        nothing about drift.
+    """
     lock_path = os.path.join(target_repo, LOCK_FILENAME)
 
     if not os.path.isfile(lock_path):
@@ -903,6 +929,14 @@ def _manifest_help_text():
 
 
 def main(argv):
+    """Vendor the queue tooling into a repo, or with `--check` verify it.
+
+    Args:
+        argv: Command-line arguments, without the program name.
+
+    Returns:
+        Exit code from `cmd_vendor` or `cmd_check`; 0 for `--print-tracked`.
+    """
     parser = argparse.ArgumentParser(
         description=__doc__ + "\n" + _manifest_help_text(),
         formatter_class=argparse.RawDescriptionHelpFormatter,

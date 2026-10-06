@@ -7,7 +7,7 @@
  * shows it (`holdPanel`, `heldIds`).
  */
 import { useEffect, useRef, useState } from 'react';
-import type { Dispatch, RefObject, SetStateAction } from 'react';
+import type { Dispatch, SetStateAction } from 'react';
 import { flushSync } from 'react-dom';
 import type { FormFactor } from '../hostApi.js';
 import { computeMaxLiveWidth, computeRowLayout } from '../panelRowLayout.js';
@@ -306,7 +306,7 @@ export function usePanelManager(
 
   const holdPanel = (id: string, kind: 'sticky' | 'until-room'): boolean => {
     const target = panels.find((p) => p.id === id);
-    if (!target || !target.collapsible) return false;
+    if (!target?.collapsible) return false;
     if ((!target.live && heldRef.current.has(id)) || inFlight().has(id)) return false;
     if (effective(target).hideWhenLast === 'refuse' && wouldEmptyRow([id])) return false;
     const liveAfter = liveParkable(panels).filter((p) => p.id !== id && !inFlight().has(p.id));
@@ -326,7 +326,7 @@ export function usePanelManager(
   const markHeld = (id: string, kind: 'sticky' | 'until-room'): boolean => {
     const row = committedRef.current;
     const target = row.find((p) => p.id === id);
-    if (!target || !target.collapsible || target.live) return false;
+    if (!target?.collapsible || target.live) return false;
     recordPark([id], { kind: 'hide', stickiness: kind, liveAfter: liveParkable(row) });
     noteHold(target);
     return true;

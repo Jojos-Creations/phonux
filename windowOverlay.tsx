@@ -25,7 +25,7 @@ export type OverlaySlotName = 'dialog' | 'toast';
  */
 export const OVERLAY_Z = { dialog: 2000, toast: 1400 } as const;
 
-/** @public */
+/** The props of `WindowOverlay`. @public */
 export interface WindowOverlayProps {
   /** Default 'dialog'. */
   slot?: OverlaySlotName;
@@ -34,17 +34,22 @@ export interface WindowOverlayProps {
    * (MUI Snackbar) stays registered and takes its own `open`.
    */
   open?: boolean;
+  /** The content to show in the slot; rendered in place when there is no provider. */
   children: React.ReactNode;
 }
 
-/** @internal */
+/** One registered overlay: the slot it renders in and its content. @internal */
 export interface Entry {
+  /** The slot the content renders in. */
   slot: OverlaySlotName;
+  /** The content. */
   node: React.ReactNode;
 }
-/** @internal */
+/** One overlay as a slot reads it: the registration id and its content. @internal */
 export interface Item {
+  /** The registration id. */
   id: string;
+  /** The content. */
   node: React.ReactNode;
 }
 const EMPTY: readonly Item[] = Object.freeze([]);
@@ -59,6 +64,7 @@ export class OverlayStore {
   /** Count of listener notifications (test seam: pins the same-node short-circuit). */
   notifications = 0;
 
+  /** Registers `entry` under `id`, replacing an earlier one; does nothing when it is identical. */
   set(id: string, entry: Entry): void {
     const prev = this.entries.get(id);
     if (prev && prev.slot === entry.slot && prev.node === entry.node) return;
@@ -67,6 +73,7 @@ export class OverlayStore {
     if (prev && prev.slot !== entry.slot) this.rebuild(prev.slot);
     this.emit();
   }
+  /** Removes the registration `id`; does nothing when there is none. */
   remove(id: string): void {
     const prev = this.entries.get(id);
     if (!prev) return;
@@ -74,10 +81,12 @@ export class OverlayStore {
     this.rebuild(prev.slot);
     this.emit();
   }
+  /** Records that a slot named `name` is mounted; returns a function that undoes it. */
   mountSlot(name: OverlaySlotName): () => void {
     this.slots.set(name, (this.slots.get(name) ?? 0) + 1);
     return () => void this.slots.set(name, (this.slots.get(name) ?? 1) - 1);
   }
+  /** Whether at least one slot named `name` is mounted. */
   hasSlot(name: OverlaySlotName): boolean {
     return (this.slots.get(name) ?? 0) > 0;
   }
@@ -87,10 +96,12 @@ export class OverlayStore {
     this.warned.add(name);
     return true;
   }
+  /** Calls `l` when any registration changes; returns a function that stops the calls. */
   subscribe = (l: () => void): (() => void) => {
     this.listeners.add(l);
     return () => void this.listeners.delete(l);
   };
+  /** The overlays registered for `slot`, in registration order. */
   read(slot: OverlaySlotName): readonly Item[] {
     return this.snap[slot];
   }

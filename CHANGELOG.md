@@ -4,6 +4,8 @@
 
 ### Added
 
+- TSDoc on every export of `phonux` and `phonux/testing` and on every member of the exported interfaces, so editors show
+  what a prop or call means. `npm run check:api-report` now also fails on an `(undocumented)` line in `etc/`.
 - `PanelWindow` and `PanelRowEntry` gain the optional `marker`: an entry with `marker: true` holds the anchor point
   of a row without a History panel and is never drawn, priced, counted as a fixed column or hopped over.
 - `usePanelCapabilities()`: what the panel a view sits in lets a person do (`closable`, `draggable`, `placeable`,
