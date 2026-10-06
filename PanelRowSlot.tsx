@@ -1,13 +1,12 @@
 import * as React from 'react';
 import { motion, type TargetAndTransition } from 'motion/react';
-import { DRAG_CLOSE } from './dragToClose.js';
-import { SLOT_TRANSITION, directionalTransition } from './directionalTransition.js';
+import { SLOT_TRANSITION, directionalTransition, slideToTransition } from './directionalTransition.js';
+import { PanelSlotContext } from './panelSlotContext.js';
+import { LIBRARY_TUNING_DEFAULTS } from './panelSettings.js';
+import type { SlideTuning } from './panelSettings.js';
+import { ROW_GAP } from './rowConstants.js';
 
-/**
- * The one spacing value used everywhere a gap is needed in this row.
- * @public
- */
-export const GAP = 16;
+export { ROW_GAP as GAP } from './rowConstants.js';
 /** The timing/easing every panel slide uses. The SAME object as SLOT_TRANSITION, not a copy: a host animates
  * its own row "the same as a panel" by this reference (test/row-shell-style.test.ts pins it).
  * @public */
@@ -50,22 +49,24 @@ export function panelRowSlotMotion(
   enterDirection: 'left' | 'right',
   exitDirection: ExitDirection,
   animated = true,
+  gap: number = ROW_GAP,
+  slide: SlideTuning = LIBRARY_TUNING_DEFAULTS.slide,
 ): PanelRowSlotMotion {
   // This panel's OWN footprint (its width plus one gap) is how far it must travel to clear the row edge,
   // so the distance is per panel: a wider one travels further.
-  const ownSpan = width + GAP;
+  const ownSpan = width + gap;
   const rest = leftOffset;
   // Positive distance enters from the right (directionalTransition.ts's own sign convention); a negative
   // one enters from the left -- see panelRowOrder.ts for who decides which.
   const enterDistance = enterDirection === 'left' ? -ownSpan : ownSpan;
-  const { initial, animate, transition: slideTransition } = directionalTransition('x', rest, enterDistance);
+  const { initial, animate, transition: slideTransition } = directionalTransition('x', rest, enterDistance, slideToTransition(slide));
   const transition = animated ? slideTransition : INSTANT_TRANSITION;
   // 'down': a close, timed to DragToClose's exit so trash and drag closes read as one motion (DragToClose calls
   // `onClose` after its own `y` animation, so this ramps in under a box already off-screen). 'left'/'right': a
   // park, off the edge it was hidden past, so a close never looks like a park.
   const exit: TargetAndTransition =
     exitDirection === 'down'
-      ? { x: rest, y: phoneHeight, opacity: 0, transition: animated ? { duration: DRAG_CLOSE.exitSeconds, ease: 'easeIn' } : INSTANT_TRANSITION }
+      ? { x: rest, y: phoneHeight, opacity: 0, transition: animated ? { duration: slide.closeExitSeconds, ease: 'easeIn' } : INSTANT_TRANSITION }
       : exitDirection === 'right'
         ? { x: rest + ownSpan, opacity: 0 }
         : { x: -ownSpan, opacity: 0 };
@@ -84,6 +85,8 @@ export function PanelRowSlot({
   exitDirection,
   zIndex,
   animated = true,
+  gap,
+  slide,
   children,
 }: {
   /** This slot's own rest x position -- the caller's running sum of every PRECEDING present item's own width plus one gap. */
@@ -107,10 +110,13 @@ export function PanelRowSlot({
   zIndex?: number;
   /** False: the slot's enter and exit take no time. Default true. */
   animated?: boolean;
+  /** The row's gap and this panel's slide; the library defaults when omitted. */
+  gap?: number;
+  slide?: SlideTuning;
   /** The panel rendered inside the slot. */
   children: React.ReactNode;
 }) {
-  const { initial, animate, exit, transition } = panelRowSlotMotion(leftOffset, width, phoneHeight, enterDirection, exitDirection, animated);
+  const { initial, animate, exit, transition } = panelRowSlotMotion(leftOffset, width, phoneHeight, enterDirection, exitDirection, animated, gap, slide);
   return (
     <motion.div
       // Enters from one own-width-plus-gap span beyond its destination, right or left per `enterDirection` above.
@@ -152,8 +158,9 @@ export function PanelSizeBox({
   /** The content, laid out at the new size at once. */
   children: React.ReactNode;
 }) {
+  const slide = React.useContext(PanelSlotContext)?.tuning.slide;
   return (
-    <motion.div data-panel-size-box="" layout="size" transition={PANEL_TRANSITION} style={{ width, height }}>
+    <motion.div data-panel-size-box="" layout="size" transition={slide === undefined ? PANEL_TRANSITION : slideToTransition(slide)} style={{ width, height }}>
       {children}
     </motion.div>
   );

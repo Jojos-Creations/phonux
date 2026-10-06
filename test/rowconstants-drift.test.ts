@@ -1,6 +1,6 @@
 /**
- * The default numbers in rowConstants.ts equal the live constants they will replace, so the two sources cannot
- * drift apart while the row code still reads its own.
+ * rowConstants.ts is the only holder of the row's default numbers: the exported constants of the row files read from it,
+ * and no row file writes a second copy.
  */
 
 import { test } from 'node:test';
@@ -8,6 +8,7 @@ import assert from 'node:assert/strict';
 import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import ts from 'typescript';
 import { GAP } from '../PanelRowSlot.js';
 import { DRAG_CLOSE } from '../dragToClose.js';
 import { SLOT_TRANSITION } from '../directionalTransition.js';
@@ -28,12 +29,13 @@ test('rowConstants: the six drag-to-close numbers equal DRAG_CLOSE, key for key'
   assert.equal(Object.keys(rowConstants.DRAG_CLOSE_NUMBERS).length, 6);
 });
 
-test('rowConstants: the snap-back spring equals DRAG_CLOSE.snapBack, and the direction lock is the 8 px the drag code locks at', () => {
+test('rowConstants: the snap-back spring equals DRAG_CLOSE.snapBack, and the direction lock is the number 8 that dragToClose.tsx imports', () => {
   assert.equal(rowConstants.SNAP_BACK_SPRING.stiffness, DRAG_CLOSE.snapBack.stiffness);
   assert.equal(rowConstants.SNAP_BACK_SPRING.damping, DRAG_CLOSE.snapBack.damping);
   assert.equal(rowConstants.DIRECTION_LOCK_PX, 8);
   const source = readFileSync(`${ROOT}dragToClose.tsx`, 'utf8');
-  assert.match(source, /const DIRECTION_LOCK_PX = 8;/, 'the live constant is not exported, so its source line is held instead');
+  assert.match(source, /import \{[^}]*\bDIRECTION_LOCK_PX\b[^}]*\} from '\.\/rowConstants\.js';/, 'dragToClose.tsx reads the lock from rowConstants.ts');
+  assert.doesNotMatch(source, /DIRECTION_LOCK_PX = /, 'and declares no copy of it');
 });
 
 test('rowConstants: the slide numbers equal SLOT_TRANSITION, and its close exit equals the drag-to-close exit', () => {
@@ -114,4 +116,41 @@ test('rowConstants: no source file outside rowConstants.ts declares its own copy
 test('rowConstants: the gesture and the persistence hook default to the constants, which are the tuning defaults', () => {
   assert.equal(LIBRARY_TUNING_DEFAULTS.gestureLockMs, rowConstants.GESTURE_LOCK_MS);
   assert.equal(LIBRARY_TUNING_DEFAULTS.saveQuietMs, rowConstants.SAVE_QUIET_MS);
+});
+
+const HELD_NUMBERS: ReadonlySet<number> = new Set([0.25, 80, 700, 520, 42, 0.18, 0.4, 16]);
+
+/** The numeric literals of `text` (a negative one by its magnitude) that are in HELD_NUMBERS, comments never counted. */
+function heldLiterals(text: string, name: string): number[] {
+  const found: number[] = [];
+  const visit = (node: ts.Node): void => {
+    if (ts.isNumericLiteral(node) && HELD_NUMBERS.has(Number(node.text))) found.push(Number(node.text));
+    ts.forEachChild(node, visit);
+  };
+  visit(ts.createSourceFile(name, text, ts.ScriptTarget.Latest, true));
+  return found;
+}
+
+test('rowconstants: none of the held numbers is written outside a comment in PanelRowSlot.tsx, dragToClose.tsx or directionalTransition.ts', () => {
+  assert.deepEqual(heldLiterals('const a = 16; const b = 0.4 + 80; // 700\n/* 520 */ const c = [42, 0.18, 0.25];', 'planted.ts'), [16, 0.4, 80, 42, 0.18, 0.25], 'control: a planted source is caught and its comments are not');
+  for (const file of ['PanelRowSlot.tsx', 'dragToClose.tsx', 'directionalTransition.ts']) {
+    assert.deepEqual(heldLiterals(readFileSync(`${ROOT}${file}`, 'utf8'), file), [], `${file} writes a number rowConstants.ts holds`);
+  }
+});
+
+test('rowconstants: GAP is the one re-export line of ROW_GAP in PanelRowSlot.tsx and no file declares a gap number of its own', () => {
+  const slot = readFileSync(`${ROOT}PanelRowSlot.tsx`, 'utf8');
+  assert.equal(slot.split('\n').filter((line) => line === "export { ROW_GAP as GAP } from './rowConstants.js';").length, 1);
+  assert.doesNotMatch(slot, /export const GAP/);
+  const offenders: string[] = [];
+  const walk = (dir: string): void => {
+    for (const entry of readdirSync(dir, { withFileTypes: true })) {
+      if (['node_modules', 'test', 'tools', 'dist', '.git', 'etc', 'plans', 'api-extractor-temp'].includes(entry.name)) continue;
+      const path = join(dir, entry.name);
+      if (entry.isDirectory()) walk(path);
+      else if (/\.tsx?$/.test(entry.name) && entry.name !== 'rowConstants.ts' && /\b(ROW_GAP|GAP) = \d/.test(readFileSync(path, 'utf8'))) offenders.push(path.slice(ROOT.length));
+    }
+  };
+  walk(ROOT);
+  assert.deepEqual(offenders, []);
 });

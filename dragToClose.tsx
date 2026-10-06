@@ -6,26 +6,40 @@
 
 import * as React from 'react';
 import { animate, motion, useDragControls, useIsPresent, useMotionValue, useReducedMotion } from 'motion/react';
-
-/** The first this many px of either axis decide which one the gesture locks to. */
-const DIRECTION_LOCK_PX = 8;
+import { PanelSlotContext } from './panelSlotContext.js';
+import type { DragToCloseTuning } from './panelSettings.js';
+import { DIRECTION_LOCK_PX, DRAG_CLOSE_NUMBERS, SLIDE_CLOSE_EXIT_SECONDS, SNAP_BACK_SPRING } from './rowConstants.js';
 
 /** The tunables, in one place. Distances in px, velocities in px/s, positive = downward. @public */
 export const DRAG_CLOSE = {
   /** Close once dragged this fraction of the view's height ... */
-  distanceFraction: 0.25,
+  distanceFraction: DRAG_CLOSE_NUMBERS.distanceFraction,
   /** ... but never less than this: a click that slips a few px is not a close. */
-  minDistancePx: 80,
+  minDistancePx: DRAG_CLOSE_NUMBERS.minDistancePx,
   /** A flick closes early: at least this fast at release ... */
-  flickVelocity: 700,
+  flickVelocity: DRAG_CLOSE_NUMBERS.flickVelocity,
   /** ... and at least this far. */
-  flickMinDistancePx: 40,
+  flickMinDistancePx: DRAG_CLOSE_NUMBERS.flickMinDistancePx,
   /** Released while moving back UP faster than this (negative): the user changed their mind. */
-  cancelVelocity: -300,
+  cancelVelocity: DRAG_CLOSE_NUMBERS.cancelVelocity,
   /** Seconds the box takes to leave the screen. */
-  exitSeconds: 0.18,
-  snapBack: { type: 'spring', stiffness: 520, damping: 42 },
+  exitSeconds: DRAG_CLOSE_NUMBERS.exitSeconds,
+  snapBack: { type: 'spring', stiffness: SNAP_BACK_SPRING.stiffness, damping: SNAP_BACK_SPRING.damping },
 } as const;
+
+/** What a DragToClose outside any row reads: the library defaults. */
+const OUTSIDE_ROW_DRAG: DragToCloseTuning = {
+  distanceFraction: DRAG_CLOSE.distanceFraction,
+  minDistancePx: DRAG_CLOSE.minDistancePx,
+  flickMinDistancePx: DRAG_CLOSE.flickMinDistancePx,
+  flickVelocity: DRAG_CLOSE.flickVelocity,
+  cancelVelocity: DRAG_CLOSE.cancelVelocity,
+  directionLockPx: DIRECTION_LOCK_PX,
+  snapBack: { stiffness: DRAG_CLOSE.snapBack.stiffness, damping: DRAG_CLOSE.snapBack.damping },
+};
+
+/** The five numbers the close rule reads. */
+type CloseRule = Pick<DragToCloseTuning, 'distanceFraction' | 'minDistancePx' | 'flickMinDistancePx' | 'flickVelocity' | 'cancelVelocity'>;
 
 /** What `shouldCloseOnRelease` reads from a drag's release. @internal */
 export interface ReleaseMeasure {
@@ -37,12 +51,12 @@ export interface ReleaseMeasure {
   height: number;
 }
 
-/** The whole close rule, pure. Never closes on an upward or zero offset, or when released moving back up. @internal */
-export function shouldCloseOnRelease({ offsetY, velocityY, height }: ReleaseMeasure): boolean {
-  if (!(offsetY > 0) || velocityY <= DRAG_CLOSE.cancelVelocity) return false;
-  const distance = Math.max(DRAG_CLOSE.minDistancePx, DRAG_CLOSE.distanceFraction * (Number.isFinite(height) ? height : 0));
+/** The whole close rule, pure, over `rule` (default DRAG_CLOSE). Never closes on an upward or zero offset, or when released moving back up. @internal */
+export function shouldCloseOnRelease({ offsetY, velocityY, height }: ReleaseMeasure, rule: CloseRule = DRAG_CLOSE): boolean {
+  if (!(offsetY > 0) || velocityY <= rule.cancelVelocity) return false;
+  const distance = Math.max(rule.minDistancePx, rule.distanceFraction * (Number.isFinite(height) ? height : 0));
   if (offsetY >= distance) return true;
-  return offsetY >= DRAG_CLOSE.flickMinDistancePx && velocityY >= DRAG_CLOSE.flickVelocity;
+  return offsetY >= rule.flickMinDistancePx && velocityY >= rule.flickVelocity;
 }
 
 /** Spread onto Panel's `grabProps`. @public */
@@ -71,8 +85,8 @@ export function DragToClose({
   reorder,
   children,
 }: {
-  /** Called, with the latest closure, after a drag has decided to close and the box has left the screen. */
-  onClose: () => void;
+  /** Without it a release past the close line snaps back: the box has nothing to close. */
+  onClose?: () => void;
   /** When set, the handle also drags horizontally and reports the total offset to `reorder.onDragEnd` on release. */
   reorder?: ReorderHandle;
   /** Render prop: receives the handle props to spread onto the grab bar, and returns the box's content. */
@@ -87,9 +101,16 @@ export function DragToClose({
   const locked = React.useRef<Array<[HTMLElement, string]>>([]);
   const closeRef = React.useRef(onClose);
   closeRef.current = onClose;
+  const slot = React.useContext(PanelSlotContext);
+  const drag = slot?.tuning.dragToClose ?? OUTSIDE_ROW_DRAG;
+  const exitSeconds = slot?.tuning.slide.closeExitSeconds ?? SLIDE_CLOSE_EXIT_SECONDS;
+  // Read again when the exit ends: a lock that lands mid-exit must stop the close.
+  const closableRef = React.useRef(true);
+  closableRef.current = slot?.closable ?? true;
   const closing = React.useRef(false); // a release has decided to close: the exit runs and takes no more presses
-  // Set once the first DIRECTION_LOCK_PX decides; null until then, and always for a vertical-only handle.
+  // Set once the first `directionLockPx` decides; null until then, and always for a vertical-only handle.
   const axisLock = React.useRef<'x' | 'y' | null>(null);
+  const snapBack = { type: 'spring', stiffness: drag.snapBack.stiffness, damping: drag.snapBack.damping } as const;
 
   // overflow-y: hidden while a drag is live: the transformed box would otherwise add a scrollbar.
   const lockScrollParents = () => {
@@ -154,7 +175,7 @@ export function DragToClose({
       onDrag={
         reorder
           ? (_event, info) => {
-              if (axisLock.current === null && (Math.abs(info.offset.x) >= DIRECTION_LOCK_PX || Math.abs(info.offset.y) >= DIRECTION_LOCK_PX)) {
+              if (axisLock.current === null && (Math.abs(info.offset.x) >= drag.directionLockPx || Math.abs(info.offset.y) >= drag.directionLockPx)) {
                 axisLock.current = Math.abs(info.offset.x) >= Math.abs(info.offset.y) ? 'x' : 'y';
               }
               // Zero the losing axis every tick instead of toggling `drag`: Motion keeps reading the axis prop's
@@ -173,7 +194,7 @@ export function DragToClose({
             x.jump(0); // jump, not set: it also stops the inertia Motion itself just started on x
             return unlockScrollParents();
           }
-          const back = animate(x, 0, DRAG_CLOSE.snapBack);
+          const back = animate(x, 0, snapBack);
           running.current = back;
           void back.then(unlockScrollParents);
           return; // never a close: shouldCloseOnRelease is not even consulted for a horizontal-locked release
@@ -181,18 +202,24 @@ export function DragToClose({
         if (reorder) x.jump(0); // residual sub-threshold horizontal drift from a gesture that never locked (or locked vertical)
         const rect = box.current?.getBoundingClientRect();
         const height = rect?.height ?? 0;
-        if (shouldCloseOnRelease({ offsetY: info.offset.y, velocityY: info.velocity.y, height })) {
+        if (closeRef.current !== undefined && closableRef.current && shouldCloseOnRelease({ offsetY: info.offset.y, velocityY: info.velocity.y, height }, drag)) {
           if (reduceMotion) return closeRef.current();
           const toBottom = Math.max(height, window.innerHeight - (rect?.top ?? 0));
-          const exit = animate(y, toBottom, { duration: DRAG_CLOSE.exitSeconds, ease: 'easeIn' });
+          const exit = animate(y, toBottom, { duration: exitSeconds, ease: 'easeIn' });
           running.current = exit;
           closing.current = true;
-          void exit.then(() => closeRef.current());
+          void exit.then(() => {
+            if (closeRef.current !== undefined && closableRef.current) return closeRef.current();
+            closing.current = false;
+            const back = animate(y, 0, snapBack);
+            running.current = back;
+            void back.then(unlockScrollParents);
+          });
         } else if (reduceMotion) {
           animate(y, 0, { duration: 0 }); // not y.set(0): Motion's own constraint return is animating y and would win
           unlockScrollParents();
         } else {
-          const back = animate(y, 0, DRAG_CLOSE.snapBack);
+          const back = animate(y, 0, snapBack);
           running.current = back;
           void back.then(unlockScrollParents);
         }

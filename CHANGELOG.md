@@ -15,6 +15,15 @@
 - `PanelsInput` gains `tuning` (a partial `WorkspaceTuning`; the engine reads `saveQuietMs`, `gestureLockMs`,
   `returnTieBreak` and `dropTieBreak`, each defaulting to today's value) and `onNote`, which receives the notes the
   engine raises while it works and swallows whatever it throws.
+- `usePanelTuning()`: the look tuning of the panel a view sits in (`rowGap`, `dragToClose`, `slide`, `hopFraction`,
+  `edgeScroll`); outside a row it returns the library defaults.
+- `usePanelReorderSteps()`: `steps(offsetX)` is `reorderStepsForOffset` over the slot's neighbours, the row gap and the
+  panel's hop fraction; outside a row it is 0.
+- `slideToTransition(slide)`: the Motion transition for a `SlideTuning`, `PANEL_TRANSITION` itself for the default.
+- `Workspace` and `PanelRow` gain the optional `tuning` prop, and `ProvidedPanels` gains `tuning`, the resolved
+  workspace tuning to hand to a `Workspace`.
+- `reorderStepsForOffset` takes an optional fourth argument, `hopFraction` (default 0.5).
+- `DragToClose`'s `onClose` is optional: without it a release past the close line snaps back.
 
 ### Changed
 
@@ -45,6 +54,12 @@
 - `undoClose` reads its batch from a ref that the first call empties, so a second call in the same handler restores
   and reports nothing (it used to report the same log ids twice), and it skips a closed panel whose key is already
   in the row, not only one whose id is.
+- `PanelsInput.tuning` also reads `rowGap`, `dragToClose`, `slide` and `hopFraction`, each defaulting to today's value
+  (16, the drag-to-close numbers, the 0.4 s slide with a 0.18 s close exit, 0.5); a member out of range takes its
+  default. The gap, the slot travel, the close and snap-back numbers, the slide and the hop rule read the one
+  resolved value instead of fixed constants.
+- `DragToClose` reads the slot's `closable` at the release and when its exit ends: a box locked in between springs
+  back and does not call `onClose`.
 
 ### Removed
 

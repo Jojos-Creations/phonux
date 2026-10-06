@@ -712,7 +712,8 @@ correct shape for a locked view (nothing to drag).
 ## `DragToClose`: drag down to close, optionally sideways to reorder
 
 `DragToClose` (`dragToClose.tsx`) knows nothing about panels or the app, only "the user dragged this box down
-far enough, call `onClose`". Its render prop hands out a handle for `Panel`'s `grabProps`:
+far enough, call `onClose`". `onClose` is optional: a box without one has nothing to close, so a release past the
+line snaps back. Its render prop hands out a handle for `Panel`'s `grabProps`:
 
 ```tsx
 <DragToClose onClose={() => panels.close(id)}>
@@ -730,6 +731,14 @@ one is the gesture's. A press on a button, link or field is left alone, and only
 While a drag is live every vertically scrolling ancestor is locked (`overflow-y: hidden`, because a
 transformed box would add a scrollbar). The lock ends with the spring back (or a press that stops it) and
 when the box unmounts.
+
+**Tuning and closability.** Inside a row the box reads its numbers from the slot it sits in: the close rule, the
+direction lock and the snap-back spring from the panel's `dragToClose`, and the exit's length from its
+`slide.closeExitSeconds`, which the slot's own down exit shares so a trash-button close and a drag close read as one
+motion. Outside a row it reads the library defaults. It also reads the slot's `closable` (alone: not `collapsible`,
+which only decides whether the view wraps a box at all) at the release and again when the exit animation ends. A
+release that finds `closable` false starts no exit; one that finds it turned false at the end of the exit does not
+call `onClose` and springs the box back to rest, unlocks the scroll ancestors and takes presses again.
 
 **A close is final for the box.** A close never unlocks (the box is parked below the fold), so `onClose` must
 remove the view. Once a release has decided to close, the box takes no more presses: one would stop the exit
@@ -1015,9 +1024,20 @@ developer's own and throw in both modes.
 ### Leaf modules
 
 `panelSettings.ts` imports no value except `rowConstants.ts` and `panelManagerError.ts`, so the table and the
-resolver load without React, Motion or any row code. `rowConstants.ts` holds the default numbers under names that
-differ from the ones the row code exports today (`GAP`, `DRAG_CLOSE`, `SLOT_TRANSITION`, `WORKSPACE_SAVE_QUIET_MS`),
-and `test/rowconstants-drift.test.ts` holds the two sets equal until the row code reads the new module.
+resolver load without React, Motion or any row code. `rowConstants.ts` is the one place each default number is
+written. `GAP`, `DRAG_CLOSE`, `SLOT_TRANSITION` and `WORKSPACE_SAVE_QUIET_MS` keep their names and values and read it
+(`GAP` is a re-export of `ROW_GAP`), and `test/rowconstants-drift.test.ts` asserts that no row file writes a second copy.
+
+### One tuning value per render
+
+`panelTuning.ts` resolves a `WorkspaceTuning` over `LIBRARY_TUNING_DEFAULTS` member by member. A member the resolver
+would refuse keeps its default and nothing throws, because a prop has no caller to refuse it to (a settings layer
+still throws). `Workspace` resolves its `tuning` and provides the result by context; `useProvidePanels` resolves
+the same input for the capacity and `maxLiveWidth` and returns it as `ProvidedPanels.tuning`. `PanelRow` takes its
+`tuning` prop, else the context, else the defaults, and warns once per instance in development when a given prop
+differs from the context. A panel's own `settings.tuning` supplies its `dragToClose`, `slide`, `hopFraction` and
+`edgeScroll`; an entry without `settings` follows the workspace live. The `rowGap` is always the workspace's.
+Everything arrives through props and context in one render, so no commit holds two gaps.
 
 ### The catalog
 

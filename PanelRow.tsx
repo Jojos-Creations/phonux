@@ -11,9 +11,11 @@ import { useHost } from './hostApi.js';
 import { isPresent, summarisePanel, type NeighborWidths, type PanelRowEntry } from './panelRowEntry.js';
 import { anchorTargetOf, resolveEnterDirection, type EnterDirection } from './panelRowOrder.js';
 import { PanelSlotContext } from './panelSlotContext.js';
-import { effective, resolvePanelSettings } from './panelSettings.js';
-import type { ResolvedPanelSettings } from './panelSettings.js';
-import { GAP, PanelRowSlot } from './PanelRowSlot.js';
+import { LIBRARY_TUNING_DEFAULTS, effective, resolvePanelSettings } from './panelSettings.js';
+import type { ResolvedPanelSettings, ResolvedPanelTuning, WorkspaceTuning } from './panelSettings.js';
+import { PanelRowSlot } from './PanelRowSlot.js';
+import { WorkspaceTuningContext, lookTuningDiffers, resolveWorkspaceTuning, slotTuning, type SlotTuning } from './panelTuning.js';
+import { reorderStepsForOffset } from './panelWindow.js';
 import { panelWidthOf } from './panelTiers.js';
 import { resolveView } from './viewRegistry.js';
 import { useViewState } from './viewState.js';
@@ -74,6 +76,22 @@ export const usePanelCapabilities = (): Pick<ResolvedPanelSettings, 'closable' |
 /** The widths this entry's drag can cross (reorderStepsForOffset's input). Unprovided: none, so no hop.
  * @public */
 export const usePanelNeighborWidths = (): NeighborWidths => React.useContext(PanelSlotContext)?.neighborWidths ?? NO_NEIGHBORS;
+const OUTSIDE_ROW_TUNING: SlotTuning = slotTuning(LIBRARY_TUNING_DEFAULTS, undefined);
+/**
+ * This panel's look tuning: its own dragToClose, slide, hopFraction and edgeScroll, and the workspace's rowGap.
+ * Outside a row: the library defaults.
+ * @public
+ */
+export const usePanelTuning = (): ResolvedPanelTuning & { readonly rowGap: number } => React.useContext(PanelSlotContext)?.tuning ?? OUTSIDE_ROW_TUNING;
+/**
+ * The hops a horizontal drag of this panel asks for: `steps(offsetX)` is reorderStepsForOffset over this slot's
+ * neighbours, the row's gap and this panel's hop fraction. Outside a row there are no neighbours, so it is 0.
+ * @public
+ */
+export const usePanelReorderSteps = (): ((offsetX: number) => number) => {
+  const slot = React.useContext(PanelSlotContext);
+  return (offsetX) => reorderStepsForOffset(offsetX, slot?.neighborWidths ?? NO_NEIGHBORS, (slot?.tuning ?? OUTSIDE_ROW_TUNING).rowGap, (slot?.tuning ?? OUTSIDE_ROW_TUNING).hopFraction);
+};
 /** Anchored left of the row's root, read from the anchor every render so a drag across the root changes it too. Unprovided: false.
  * @public */
 export const usePanelPinned = (): boolean => React.useContext(PanelSlotContext)?.pinned ?? false;
@@ -90,6 +108,7 @@ export function PanelRow({
   exitRightIds = EMPTY_SET,
   enterSideById = EMPTY_MAP,
   maxLiveWidth = Number.POSITIVE_INFINITY,
+  tuning,
 }: {
   /** The raw one-list array (PanelRowEntry, not PanelSummary): `view` alone picks the component (resolveView
    * never returns nothing), independent of `layer` (stacking) and `anchoredEnter` (enter direction). */
@@ -108,8 +127,21 @@ export function PanelRow({
   enterSideById?: ReadonlyMap<string, 'left' | 'right'>;
   /** The widest one live panel can be in this row (ProvidedPanels.maxLiveWidth). Omitted: no cap. */
   maxLiveWidth?: number;
+  /** The workspace tuning this row renders with. Omitted: the enclosing Workspace's, else the library defaults. A value that differs from the Workspace's warns once in development. */
+  tuning?: WorkspaceTuning;
 }): React.ReactElement {
   const { device, panels } = useHost();
+  const inherited = React.useContext(WorkspaceTuningContext);
+  const given = tuning === undefined ? undefined : resolveWorkspaceTuning(tuning);
+  const workspaceTuning = given ?? inherited ?? LIBRARY_TUNING_DEFAULTS;
+  const gap = workspaceTuning.rowGap;
+  const disagrees = given !== undefined && inherited !== undefined && lookTuningDiffers(given, inherited);
+  const warned = React.useRef(false);
+  React.useEffect(() => {
+    if (!disagrees || warned.current || typeof process === 'undefined' || process.env.NODE_ENV === 'production') return;
+    warned.current = true;
+    console.warn('PanelRow: its tuning prop differs from the Workspace tuning above it; the row renders with its own, but the Workspace and the capacity still price the row with theirs.');
+  }, [disagrees]);
   const phoneWidth = device.size.width;
   const phoneHeight = device.size.height;
   // The live flags of the previous commit, and per parked entry whether its park released its view state. The latch
@@ -136,9 +168,9 @@ export function PanelRow({
   let runningOffset = 0;
   for (const width of widths) {
     leftOffsets.push(runningOffset);
-    runningOffset += width + GAP;
+    runningOffset += width + gap;
   }
-  const reservedWidth = Math.max(0, widths.reduce((sum, width) => sum + width + GAP, 0) - GAP);
+  const reservedWidth = Math.max(0, widths.reduce((sum, width) => sum + width + gap, 0) - gap);
   const widthById = new Map(present.map((p, index) => [p.id, widths[index]!]));
   // Nearest first on each side, an always-shown column included: movePanel swaps past one like any neighbour. The
   // walk is over every array slot and stops at the first entry that is not crossable, a parked one included,
@@ -176,6 +208,7 @@ export function PanelRow({
         {present.map((p, index) => {
           const Component = resolveView(p.view);
           const { closable, draggable, placeable, resizable, formFactors, enterFrom, exitTo, closeExit, animated, layer } = effective(p);
+          const own = slotTuning(workspaceTuning, p.settings?.tuning);
           return (
             <PanelSlotContext.Provider
               key={p.id}
@@ -188,6 +221,7 @@ export function PanelRow({
                 formFactors,
                 neighborWidths: neighborWidthsAt(p),
                 pinned: anchorTargetOf(p, rootId) === rootId && p.anchor?.position === 'left',
+                tuning: own,
               }}
             >
               <PanelRowSlot
@@ -198,6 +232,8 @@ export function PanelRow({
                 exitDirection={closingIds.has(p.id) ? closeExit : exitTo !== 'auto' ? exitTo : exitRightIds.has(p.id) ? 'right' : 'left'}
                 zIndex={layer === 'raised' ? RAISED_LAYER_Z_INDEX : BASE_LAYER_Z_INDEX}
                 animated={animated}
+                gap={gap}
+                slide={own.slide}
               >
                 {/* A resolved component -- built-in or third-party -- is written against PanelSummary only,
                     never the internal record. */}

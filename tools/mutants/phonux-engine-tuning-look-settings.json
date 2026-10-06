@@ -1,0 +1,97 @@
+{
+  "tests": [
+    "test/pins-look.test.ts",
+    "test/settings-enforcement-tuning.test.ts",
+    "test/row-gap-threading.test.ts",
+    "test/drag-to-close-closable.test.ts"
+  ],
+  "mutants": [
+    {
+      "name": "PanelRow offsets ignore rowGap",
+      "file": "PanelRow.tsx",
+      "find": "runningOffset += width + gap;",
+      "replace": "runningOffset += width + 16;",
+      "expectRed": [
+        "the gap threads through every site",
+        "differential tuning.rowGap"
+      ]
+    },
+    {
+      "name": "capacity prices with the library gap",
+      "file": "panels/usePanelManager.ts",
+      "find": "const gap = options?.tuning?.rowGap ?? ROW_GAP;",
+      "replace": "const gap = ROW_GAP;",
+      "expectRed": [
+        "the gap threads through every site",
+        "property: over 300 seeded rows"
+      ]
+    },
+    {
+      "name": "the hop fraction is ignored",
+      "file": "panelWindow.ts",
+      "find": "if (distance < travelled + span * hopFraction) break;",
+      "replace": "if (distance < travelled + span / 2) break;",
+      "expectRed": [
+        "hopFraction: over [phone, tablet]",
+        "differential tuning.hopFraction"
+      ]
+    },
+    {
+      "name": "DragToClose's close rule reads DRAG_CLOSE instead of the slot",
+      "file": "dragToClose.tsx",
+      "find": "shouldCloseOnRelease({ offsetY: info.offset.y, velocityY: info.velocity.y, height }, drag)",
+      "replace": "shouldCloseOnRelease({ offsetY: info.offset.y, velocityY: info.velocity.y, height })",
+      "expectRed": [
+        "a DragToClose in a slot closes at the slot minimum",
+        "differential tuning.dragToClose"
+      ]
+    },
+    {
+      "name": "DragToClose's exit reads DRAG_CLOSE.exitSeconds instead of the slot's closeExitSeconds",
+      "file": "dragToClose.tsx",
+      "find": "animate(y, toBottom, { duration: exitSeconds, ease: 'easeIn' })",
+      "replace": "animate(y, toBottom, { duration: DRAG_CLOSE.exitSeconds, ease: 'easeIn' })",
+      "expectRed": [
+        "the exit seconds: DragToClose's own exit"
+      ]
+    },
+    {
+      "name": "the slot ignores slide.durationSec",
+      "file": "PanelRowSlot.tsx",
+      "find": "directionalTransition('x', rest, enterDistance, slideToTransition(slide))",
+      "replace": "directionalTransition('x', rest, enterDistance)",
+      "expectRed": [
+        "slide: the slot enters and leaves over durationSec",
+        "differential tuning.slide"
+      ]
+    },
+    {
+      "name": "usePanelReorderSteps passes the library gap",
+      "file": "PanelRow.tsx",
+      "find": "(slot?.tuning ?? OUTSIDE_ROW_TUNING).rowGap, (slot?.tuning",
+      "replace": "16, (slot?.tuning",
+      "expectRed": [
+        "usePanelReorderSteps: in a slot"
+      ]
+    },
+    {
+      "name": "DragToClose reads the constant direction lock",
+      "file": "dragToClose.tsx",
+      "find": "Math.abs(info.offset.x) >= drag.directionLockPx || Math.abs(info.offset.y) >= drag.directionLockPx",
+      "replace": "Math.abs(info.offset.x) >= DIRECTION_LOCK_PX || Math.abs(info.offset.y) >= DIRECTION_LOCK_PX",
+      "expectRed": [
+        "the direction lock"
+      ]
+    },
+    {
+      "name": "the end-of-exit closability re-check is removed",
+      "file": "dragToClose.tsx",
+      "find": "if (closeRef.current !== undefined && closableRef.current) return closeRef.current();",
+      "replace": "return closeRef.current?.();",
+      "expectRed": [
+        "closable turning false just after the release",
+        "closable turning false on the last frame of the exit"
+      ]
+    }
+  ]
+}
