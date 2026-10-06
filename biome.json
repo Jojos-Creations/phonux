@@ -1,0 +1,66 @@
+{
+  "$schema": "./node_modules/@biomejs/biome/configuration_schema.json",
+  "vcs": {
+    "enabled": true,
+    "clientKind": "git",
+    "useIgnoreFile": true
+  },
+  "files": {
+    "includes": [
+      "**",
+      "!etc",
+      "!dist",
+      "!test/fixtures"
+    ]
+  },
+  "formatter": {
+    "enabled": false
+  },
+  "assist": {
+    "enabled": false
+  },
+  "linter": {
+    "enabled": true,
+    "rules": {
+      "recommended": true,
+      "style": {
+        "noNonNullAssertion": "off",
+        "useImportType": "off"
+      },
+      "correctness": {
+        "noChildrenProp": "off",
+        "useExhaustiveDependencies": "off",
+        "noUnusedVariables": "off",
+        "noUnusedFunctionParameters": "off"
+      },
+      "suspicious": {
+        "noConfusingVoidType": "off",
+        "noExplicitAny": "off"
+      },
+      "complexity": {
+        "noUselessFragments": "off"
+      }
+    }
+  },
+  "overrides": [
+    {
+      "includes": [
+        "test/**",
+        "**/*.typecheck.ts"
+      ],
+      "linter": {
+        "rules": {
+          "suspicious": {
+            "useIterableCallbackReturn": "off",
+            "noShadowRestrictedNames": "off",
+            "noAssignInExpressions": "off",
+            "noImplicitAnyLet": "off"
+          },
+          "a11y": {
+            "useButtonType": "off"
+          }
+        }
+      }
+    }
+  ]
+}

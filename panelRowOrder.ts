@@ -86,7 +86,7 @@ export function computeRowOrder<T extends { id: string; anchor?: PanelAnchor }>(
     const left = nearestFirst(side?.left ?? [], 'left');
     for (let k = left.length - 1; k >= 0; k--) walk(left[k]!.id, withAnchor(left[k]!, { panel: id, position: 'left', priority: k }));
     if (self) out.push(self);
-    nearestFirst(side?.right ?? [], 'right').forEach((p, k) => walk(p.id, withAnchor(p, { panel: id, position: 'right', priority: k })));
+    nearestFirst(side?.right ?? [], 'right').forEach((p, k) => { walk(p.id, withAnchor(p, { panel: id, position: 'right', priority: k })); });
   };
   walk(rootId, byId.get(rootId));
   return out;

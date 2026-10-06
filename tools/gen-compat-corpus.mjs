@@ -166,8 +166,8 @@ function mulberry32(seed) {
 }
 
 // JSON cannot carry these numbers; the replacer here and the reviver in the test agree on this spelling.
-const encodeNumber = (key, value) => (value === Infinity ? { $: 'Infinity' } : value === -Infinity ? { $: '-Infinity' } : Number.isNaN(value) ? { $: 'NaN' } : value);
-const decodeNumber = (key, value) => (value && typeof value === 'object' && '$' in value ? { Infinity, '-Infinity': -Infinity, NaN }[value.$] ?? value : value);
+const encodeNumber = (_key, value) => (value === Infinity ? { $: 'Infinity' } : value === -Infinity ? { $: '-Infinity' } : Number.isNaN(value) ? { $: 'NaN' } : value);
+const decodeNumber = (_key, value) => (value && typeof value === 'object' && '$' in value ? { Infinity, '-Infinity': -Infinity, NaN }[value.$] ?? value : value);
 const toJson = (value) => JSON.stringify(value, encodeNumber);
 const fromJson = (text) => JSON.parse(text, decodeNumber);
 
