@@ -9,6 +9,7 @@ import type { PanelAnchor } from './panelRowOrder.js';
 import { effective } from './panelSettings.js';
 import type { ResolvedPanelSettings } from './panelSettings.js';
 import { DEFAULT_PANEL_SIZE, TIER_SIZES } from './panelTiers.js';
+import { HOP_FRACTION } from './rowConstants.js';
 
 /**
  * One browsing panel in the unified row: either live in the row or parked, never both. Parking only flips
@@ -294,18 +295,18 @@ export function movePanel(panels: PanelWindow[], id: string, direction: 'left' |
 
 /**
  * How many movePanel hops a horizontal drag of `offsetX` px asks for (+right/-left). A hop past a neighbour
- * moves the dragged panel by that NEIGHBOUR's span (its width plus `gap`), so each hop lands half-way across
- * the next neighbour's span, counted from where the previous hop ended; the dragged panel's own width never
- * enters it. Exactly half a span is a hop either way, and this never returns -0.
+ * moves the dragged panel by that NEIGHBOUR's span (its width plus `gap`), so each hop lands `hopFraction` (default
+ * half) of the way across the next neighbour's span, counted from where the previous hop ended; the dragged panel's
+ * own width never enters it. Exactly that fraction of a span is a hop either way, and this never returns -0.
  * @public
  */
-export function reorderStepsForOffset(offsetX: number, neighbors: NeighborWidths, gap: number): number {
+export function reorderStepsForOffset(offsetX: number, neighbors: NeighborWidths, gap: number, hopFraction: number = HOP_FRACTION): number {
   const distance = Math.abs(offsetX);
   let travelled = 0;
   let steps = 0;
   for (const width of offsetX > 0 ? neighbors.right : neighbors.left) {
     const span = width + gap;
-    if (distance < travelled + span / 2) break;
+    if (distance < travelled + span * hopFraction) break;
     travelled += span;
     steps++;
   }

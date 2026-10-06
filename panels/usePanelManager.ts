@@ -10,7 +10,6 @@ import { useEffect, useRef, useState } from 'react';
 import type { Dispatch, RefObject, SetStateAction } from 'react';
 import { flushSync } from 'react-dom';
 import type { FormFactor } from '../hostApi.js';
-import { GAP } from '../PanelRowSlot.js';
 import { computeMaxLiveWidth, computeRowLayout } from '../panelRowLayout.js';
 import { placePanel, reportNotes } from '../panelPlacement.js';
 import { isPresent } from '../panelRowEntry.js';
@@ -18,7 +17,7 @@ import { panelWidthOf } from '../panelTiers.js';
 import { effectiveMaxPanels } from '../panelCapacity.js';
 import { effective, holdUnlistedNote } from '../panelSettings.js';
 import type { SettingNote, WorkspaceTuning } from '../panelSettings.js';
-import { DROP_TIE_BREAK, RETURN_TIE_BREAK } from '../rowConstants.js';
+import { DROP_TIE_BREAK, RETURN_TIE_BREAK, ROW_GAP } from '../rowConstants.js';
 import {
   firstParkedAfter,
   lastParkedBefore,
@@ -90,7 +89,7 @@ export type Hold = 'sticky' | { readonly freeAfterPark: number };
 export interface PanelManagerOptions {
   /** Receives each note the engine raises; whatever it throws is swallowed. */
   onNote?: (note: SettingNote) => void;
-  /** Only `returnTieBreak` and `dropTieBreak` are read here. */
+  /** Only `rowGap`, `returnTieBreak` and `dropTieBreak` are read here. */
   tuning?: WorkspaceTuning;
 }
 
@@ -110,6 +109,7 @@ export function usePanelManager(
 ): UsePanelManagerResult {
   const returnTieBreak: NonNullable<WorkspaceTuning['returnTieBreak']> = options?.tuning?.returnTieBreak ?? RETURN_TIE_BREAK;
   const dropTieBreak: NonNullable<WorkspaceTuning['dropTieBreak']> = options?.tuning?.dropTieBreak ?? DROP_TIE_BREAK;
+  const gap = options?.tuning?.rowGap ?? ROW_GAP;
   /** The live-collapsible ceiling for a row whose live set has these widths (row order). */
   const capacityFor = (liveWidths: readonly number[]): number => {
     // `containerWidth === 0` means unmeasured (the first commit, and every jsdom test that never calls
@@ -117,14 +117,14 @@ export function usePanelManager(
     const fitCount =
       containerWidth === 0
         ? null
-        : fixedColumnCount + computeRowLayout({ containerWidth, phoneWidth, gap: GAP, fixedItemCount: fixedColumnCount, liveWidths }).maxLiveThatFit;
+        : fixedColumnCount + computeRowLayout({ containerWidth, phoneWidth, gap, fixedItemCount: fixedColumnCount, liveWidths }).maxLiveThatFit;
     const effectiveMax = effectiveMaxPanels(storedMaxPanels, fitCount, fixedColumnCount);
     // Floor of 1 keeps the panel just opened on screen even at the narrowest legal width (effectiveMaxPanels
     // already floors at fixedColumnCount + 1, so this bites only when the fixed columns alone reach effectiveMax).
     return effectiveMax === Number.POSITIVE_INFINITY ? Number.POSITIVE_INFINITY : Math.max(1, effectiveMax - fixedColumnCount);
   };
   // The same cap every other width reader passes, from the same row inputs.
-  const maxLiveWidth = computeMaxLiveWidth({ containerWidth, phoneWidth, gap: GAP, fixedItemCount: fixedColumnCount });
+  const maxLiveWidth = computeMaxLiveWidth({ containerWidth, phoneWidth, gap, fixedItemCount: fixedColumnCount });
   const widthOf = (p: PanelWindow): number => panelWidthOf(p, phoneWidth, maxLiveWidth);
   /** Whether `set` (live collapsible panels, row order) can stay live as it is: the one test both reconcile branches settle against. */
   const settles = (set: readonly PanelWindow[]): boolean => set.length <= capacityFor(set.map(widthOf));

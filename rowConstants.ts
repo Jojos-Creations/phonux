@@ -1,11 +1,12 @@
 /**
- * The default numbers behind the tuning settings, in one leaf module with no imports so the settings table
- * can read them without pulling in React or the row code. The names differ from the ones the row code exports today
- * (GAP, DRAG_CLOSE, SLOT_TRANSITION, WORKSPACE_SAVE_QUIET_MS) so that moving a consumer over later changes a
- * reference count, not a meaning; test/rowconstants-drift.test.ts holds the two sets equal until then.
+ * The default numbers behind the tuning settings, the one place each is written. A leaf module with no imports so
+ * the settings table can read it without pulling in React or the row code.
  */
 
-/** Pixels between two panels in the row. */
+/**
+ * The one spacing value used everywhere a gap is needed in this row.
+ * @public
+ */
 export const ROW_GAP = 16;
 
 /** Seconds the box takes to leave the screen after a drag-down close; also the slide's close exit. */

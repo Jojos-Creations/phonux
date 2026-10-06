@@ -1288,7 +1288,7 @@ const SETTING_CHECKS: Record<SettingKey, Check> = {
   snapshot: oneOf('both', 'park', 'close', 'never'),
 };
 
-type TuningLeaf = keyof WorkspaceTuning;
+export type TuningLeaf = keyof WorkspaceTuning;
 
 /** Members of the three object-valued leaves, each with the check for its value. */
 const TUNING_MEMBER_CHECKS: Record<'dragToClose' | 'slide' | 'edgeScroll', Record<string, Check>> = {
@@ -1340,7 +1340,7 @@ const isObjectLeaf = (leaf: string): leaf is keyof typeof TUNING_MEMBER_CHECKS =
 const isTuningLeaf = (leaf: string): leaf is TuningLeaf => isObjectLeaf(leaf) || Object.hasOwn(TUNING_SCALAR_CHECKS, leaf);
 
 /** What a tuning leaf's value holds: the members that passed, and one problem per member that did not. */
-function checkTuningLeaf(leaf: TuningLeaf, value: unknown): { accepted: unknown; problems: { key: string; problem: string }[] } {
+export function checkTuningLeaf(leaf: TuningLeaf, value: unknown): { accepted: unknown; problems: { key: string; problem: string }[] } {
   const base = `tuning.${leaf}`;
   if (!isObjectLeaf(leaf)) {
     const problem = TUNING_SCALAR_CHECKS[leaf](value);

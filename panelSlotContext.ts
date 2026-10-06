@@ -4,7 +4,7 @@
  */
 import * as React from 'react';
 import type { NeighborWidths } from './panelRowEntry.js';
-import type { ResolvedPanelSettings } from './panelSettings.js';
+import type { ResolvedPanelSettings, ResolvedPanelTuning } from './panelSettings.js';
 
 /**
  * Per-slot facts a view cannot read itself: it only receives `PanelSummary`, which has no `collapsible`, `anchor`
@@ -20,6 +20,8 @@ export interface PanelSlotValue {
   readonly formFactors: ResolvedPanelSettings['formFactors'];
   readonly neighborWidths: NeighborWidths;
   readonly pinned: boolean;
+  /** This panel's tuning: its own dragToClose, slide, hopFraction and edgeScroll, and the workspace's row gap. */
+  readonly tuning: ResolvedPanelTuning & { readonly rowGap: number };
 }
 
 export const PanelSlotContext = React.createContext<PanelSlotValue | undefined>(undefined);

@@ -46,6 +46,8 @@ const VALUE_EXPORTS = [
   'GAP',
   'PANEL_TRANSITION',
   'usePanelReorderEligible',
+  'usePanelReorderSteps',
+  'usePanelTuning',
   'usePanelCapabilities',
   'usePanelCloseEligible',
   'usePanelNeighborWidths',
@@ -53,6 +55,7 @@ const VALUE_EXPORTS = [
   'Workspace',
   'useProvidePanels',
   'reorderStepsForOffset',
+  'slideToTransition',
   'PANEL_SETTINGS_CATALOG',
   'LIBRARY_PANEL_DEFAULTS',
   'LIBRARY_TUNING_DEFAULTS',
@@ -64,7 +67,7 @@ const VALUE_EXPORTS = [
   'createDefaultTheme',
 ].sort();
 
-test('the phonux barrel exports exactly the 51 runtime values, no more, no fewer', () => {
+test('the phonux barrel exports exactly the 54 runtime values, no more, no fewer', () => {
   assert.deepEqual(Object.keys(phonux).sort(), VALUE_EXPORTS);
 });
 

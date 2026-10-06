@@ -8,13 +8,13 @@
 
 import { useEffect, useRef, useState, type RefObject } from 'react';
 import type { CreatePanelOptions, JsonValue, PanelsAPI } from '../hostApi.js';
-import { GAP } from '../PanelRowSlot.js';
 import { computeMaxLiveWidth } from '../panelRowLayout.js';
 import { summarisePanel } from '../panelRowEntry.js';
 import { panelWidthOf } from '../panelTiers.js';
 import { noopCaptureTrigger, type CaptureTrigger } from '../snapshots.js';
 import { LIBRARY_TUNING_DEFAULTS, effective } from '../panelSettings.js';
-import type { SettingNote, WorkspaceTuning } from '../panelSettings.js';
+import type { ResolvedWorkspaceTuning, SettingNote, WorkspaceTuning } from '../panelSettings.js';
+import { resolveWorkspaceTuning } from '../panelTuning.js';
 import { appendPanel, reanchorPanel, type PanelWindow } from '../panelWindow.js';
 import { usePanelClosing } from './usePanelClosing.js';
 import { usePanelManager } from './usePanelManager.js';
@@ -76,7 +76,7 @@ export interface PanelsInput {
   storage?: WorkspaceStorage;
   /** Called with each note the engine raises while it works (a runtime diagnostic, never an error): whatever it throws is swallowed. */
   onNote?: (note: SettingNote) => void;
-  /** The workspace's tuning leaves; each one left out takes the library default. The engine reads `saveQuietMs`, `gestureLockMs`, `returnTieBreak` and `dropTieBreak` here. */
+  /** The workspace's tuning leaves; each one left out, or out of range, takes the library default. The engine reads `rowGap`, `saveQuietMs`, `gestureLockMs`, `returnTieBreak` and `dropTieBreak` here; the row reads `dragToClose`, `slide` and `hopFraction` through the Workspace given the same value. */
   tuning?: WorkspaceTuning;
 }
 
@@ -109,6 +109,8 @@ export interface ProvidedPanels extends PanelsAPI {
   readonly liveWidths: readonly number[];
   /** The widest one live panel can be in this row; `Infinity` until the row is measured (`containerWidth` 0). */
   readonly maxLiveWidth: number;
+  /** `PanelsInput.tuning` over the library defaults, leaf by leaf: the one value this render's capacity and widths were priced from. Hand it to a Workspace's `tuning`. */
+  readonly tuning: ResolvedWorkspaceTuning;
   /** Ids being closed: each exits DOWN before it leaves `entries`. */
   readonly closingIds: ReadonlySet<string>;
   /** Ids (re)joining `live` by a reveal or an undo: each enters from its anchor's side. */
@@ -128,9 +130,10 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
   const capture = i.capture ?? noopCaptureTrigger;
   const [panels, setPanels] = useState<PanelWindow[]>(() => [...(i.initialEntries ?? [])]);
   const timing = timingTuning(i.tuning);
+  const tuning = resolveWorkspaceTuning(i.tuning);
   const fixedViewCount = i.fixedViewCount ?? panels.filter((p) => !p.collapsible && p.marker !== true).length;
   // Filters over the whole list, never an array position: a panel anchored left of History changes none of these.
-  const maxLiveWidth = computeMaxLiveWidth({ containerWidth: i.containerWidth, phoneWidth: i.phoneWidth, gap: GAP, fixedItemCount: fixedViewCount });
+  const maxLiveWidth = computeMaxLiveWidth({ containerWidth: i.containerWidth, phoneWidth: i.phoneWidth, gap: tuning.rowGap, fixedItemCount: fixedViewCount });
   const liveWidths = panels.filter((p) => p.collapsible && p.live).map((p) => panelWidthOf(p, i.phoneWidth, maxLiveWidth));
   const {
     revealPanelProactively,
@@ -149,7 +152,7 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
     releaseHold,
   } = usePanelManager(panels, setPanels, i.storedMaxPanels, i.phoneWidth, i.containerWidth, fixedViewCount, i.rootId, {
     onNote: i.onNote,
-    tuning: { returnTieBreak: timing.returnTieBreak, dropTieBreak: timing.dropTieBreak },
+    tuning: { rowGap: tuning.rowGap, returnTieBreak: timing.returnTieBreak, dropTieBreak: timing.dropTieBreak },
   });
 
   // The row's wheel/arrow-key gesture is wired here, not in the host, so a host stays free of effects and refs.
@@ -255,6 +258,7 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
     fixedViewCount,
     liveWidths,
     maxLiveWidth,
+    tuning,
     closingIds: closing.closingIds,
     enteringViaAnchorIds,
     exitRightIds,

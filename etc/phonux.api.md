@@ -142,7 +142,7 @@ export interface DragHandleProps {
 
 // @public (undocumented)
 export function DragToClose(input: {
-    onClose: () => void;
+    onClose?: () => void;
     reorder?: ReorderHandle;
     children: (handle: DragHandleProps) => React_2.ReactNode;
 }): React_2.ReactElement;
@@ -463,6 +463,7 @@ export function PanelRow(input: {
     exitRightIds?: ReadonlySet<string>;
     enterSideById?: ReadonlyMap<string, 'left' | 'right'>;
     maxLiveWidth?: number;
+    tuning?: WorkspaceTuning;
 }): React_2.ReactElement;
 
 // @public
@@ -770,6 +771,7 @@ export interface ProvidedPanels extends PanelsAPI {
     readonly fixedViewCount: number;
     readonly liveWidths: readonly number[];
     readonly maxLiveWidth: number;
+    readonly tuning: ResolvedWorkspaceTuning;
 }
 
 // @public
@@ -781,7 +783,7 @@ export interface ReorderHandle {
 }
 
 // @public
-export function reorderStepsForOffset(offsetX: number, neighbors: NeighborWidths, gap: number): number;
+export function reorderStepsForOffset(offsetX: number, neighbors: NeighborWidths, gap: number, hopFraction?: number): number;
 
 // @public
 export type ResolvedPanelSettings = {
@@ -981,6 +983,12 @@ export type SettingValues = {
     snapshot: 'both' | 'park' | 'close' | 'never';
 };
 
+// @public
+export function slideToTransition(slide: SlideTuning): {
+    duration: number;
+    ease: [number, number, number, number];
+};
+
 // @public (undocumented)
 export type SlideTuning = {
     durationSec: number;
@@ -1018,6 +1026,14 @@ export const usePanelPinned: () => boolean;
 
 // @public
 export const usePanelReorderEligible: () => boolean;
+
+// @public
+export const usePanelReorderSteps: () => ((offsetX: number) => number);
+
+// @public
+export const usePanelTuning: () => ResolvedPanelTuning & {
+    readonly rowGap: number;
+};
 
 // @public
 export function useProvidePanels(i: PanelsInput): ProvidedPanels;
@@ -1138,6 +1154,7 @@ export interface WorkspaceProps extends Omit<BoxProps, 'children'> {
     // (undocumented)
     rowResizeSettled: boolean;
     topPadding?: number;
+    tuning?: WorkspaceTuning;
 }
 
 // @public
