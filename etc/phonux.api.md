@@ -472,6 +472,7 @@ export interface PanelRowEntry<P = JsonValue> extends PanelSummary<P> {
     readonly collapsible: boolean;
     readonly key?: string;
     readonly layer?: 'base' | 'raised';
+    readonly marker?: true;
     readonly settings?: ResolvedPanelSettings;
     readonly view: string;
 }
@@ -674,6 +675,7 @@ export interface PanelWindow {
     listed: boolean;
     live: boolean;
     locked: boolean;
+    marker?: true;
     params?: JsonValue;
     settings?: ResolvedPanelSettings;
     size?: PanelSize;

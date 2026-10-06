@@ -1,0 +1,588 @@
+{
+  "tests": [
+    "test/panel-placement.test.ts",
+    "test/settings-enforcement-motion.test.ts",
+    "test/key-aware-undo.test.ts",
+    "test/root-marker.test.ts",
+    "test/pins-placement.test.ts",
+    "test/row-shell-style.test.ts"
+  ],
+  "mutants": [
+    {
+      "name": "P1 parkable-end always rowEnd",
+      "file": "panelPlacement.ts",
+      "find": "return last === others[others.length - 1] ? rowEnd : { panel: last.id, position: 'right', priority: -1 };",
+      "replace": "return rowEnd;",
+      "expectRed": [
+        " "
+      ]
+    },
+    {
+      "name": "P2 parkable-start always rowStart",
+      "file": "panelPlacement.ts",
+      "find": "return first === others[0] ? rowStart : { panel: first.id, position: 'left', priority: -1 };",
+      "replace": "return rowStart;",
+      "expectRed": [
+        " "
+      ]
+    },
+    {
+      "name": "P3 after-fixed first fixed",
+      "file": "panelPlacement.ts",
+      "find": "const lastFixed = fixed[fixed.length - 1];",
+      "replace": "const lastFixed = fixed[0];",
+      "expectRed": [
+        " "
+      ]
+    },
+    {
+      "name": "P4 after-fixed none -> rowEnd",
+      "file": "panelPlacement.ts",
+      "find": "return lastFixed === undefined ? rowStart : {",
+      "replace": "return lastFixed === undefined ? rowEnd : {",
+      "expectRed": [
+        " "
+      ]
+    },
+    {
+      "name": "P5 after-fixed priority 0",
+      "file": "panelPlacement.ts",
+      "find": "{ panel: lastFixed.id, position: 'right', priority: -1 }",
+      "replace": "{ panel: lastFixed.id, position: 'right', priority: 0 }",
+      "expectRed": [
+        " "
+      ]
+    },
+    {
+      "name": "P6 parkable-start priority 0",
+      "file": "panelPlacement.ts",
+      "find": "{ panel: first.id, position: 'left', priority: -1 }",
+      "replace": "{ panel: first.id, position: 'left', priority: 0 }",
+      "expectRed": [
+        " "
+      ]
+    },
+    {
+      "name": "P7 parkable-end priority 0",
+      "file": "panelPlacement.ts",
+      "find": "{ panel: last.id, position: 'right', priority: -1 }",
+      "replace": "{ panel: last.id, position: 'right', priority: 0 }",
+      "expectRed": [
+        " "
+      ]
+    },
+    {
+      "name": "P8 before uses right",
+      "file": "panelPlacement.ts",
+      "find": "if ('before' in value) return toward(value.before, 'left', -1);",
+      "replace": "if ('before' in value) return toward(value.before, 'right', -1);",
+      "expectRed": [
+        " "
+      ]
+    },
+    {
+      "name": "P9 before priority 0",
+      "file": "panelPlacement.ts",
+      "find": "if ('before' in value) return toward(value.before, 'left', -1);",
+      "replace": "if ('before' in value) return toward(value.before, 'left', 0);",
+      "expectRed": [
+        " "
+      ]
+    },
+    {
+      "name": "P10 anchor priority dropped",
+      "file": "panelPlacement.ts",
+      "find": "return toward(value.anchor.panel, value.anchor.position, value.anchor.priority);",
+      "replace": "return toward(value.anchor.panel, value.anchor.position);",
+      "expectRed": [
+        " "
+      ]
+    },
+    {
+      "name": "P12 order never looks back",
+      "file": "panelPlacement.ts",
+      "find": "for (let i = at - 1; i >= 0; i--) {",
+      "replace": "for (let i = at - 1; i >= 0 && false; i--) {",
+      "expectRed": [
+        " "
+      ]
+    },
+    {
+      "name": "P13 order forward uses right",
+      "file": "panelPlacement.ts",
+      "find": "return { anchor: { panel: after.id, position: 'left', priority: -1 }, notes: [] };",
+      "replace": "return { anchor: { panel: after.id, position: 'right', priority: -1 }, notes: [] };",
+      "expectRed": [
+        " "
+      ]
+    },
+    {
+      "name": "P14 order back uses left",
+      "file": "panelPlacement.ts",
+      "find": "return { anchor: { panel: before.id, position: 'right', priority: -1 }, notes: [] };",
+      "replace": "return { anchor: { panel: before.id, position: 'left', priority: -1 }, notes: [] };",
+      "expectRed": [
+        " "
+      ]
+    },
+    {
+      "name": "P15 order no list -> silent fallback",
+      "file": "panelPlacement.ts",
+      "find": "if (list === undefined) return fallback('order has no list');",
+      "replace": "if (list === undefined) return { anchor: named(others, rootId, o.fallback), notes: [] };",
+      "expectRed": [
+        " "
+      ]
+    },
+    {
+      "name": "P16 fallback note dropped",
+      "file": "panelPlacement.ts",
+      "find": "notes: [placementFallbackNote(self, why)] });",
+      "replace": "notes: [] });",
+      "expectRed": [
+        " "
+      ]
+    },
+    {
+      "name": "P18 restorePlaced present id not guarded",
+      "file": "panelPlacement.ts",
+      "find": "value === 'old-slot' || row.some((p) => p.id === panel.id)",
+      "replace": "value === 'old-slot'",
+      "expectRed": [
+        " "
+      ]
+    },
+    {
+      "name": "P19 restorePlaced live forced",
+      "file": "panelPlacement.ts",
+      "find": "return placePanel(restorePanel([...row], panel, row.length, o.rootId), panel.id, value, o);",
+      "replace": "return placePanel(restorePanel([...row], { ...panel, live: true }, row.length, o.rootId), panel.id, value, o);",
+      "expectRed": [
+        " "
+      ]
+    },
+    {
+      "name": "P20 placement gated by placeable",
+      "file": "panelPlacement.ts",
+      "find": "import { anchorPanel, restorePanel,",
+      "replace": "import { reanchorPanel as anchorPanel, restorePanel,",
+      "expectRed": [
+        " "
+      ]
+    },
+    {
+      "name": "P21 reportNotes lets onNote throw",
+      "file": "panelPlacement.ts",
+      "find": "} catch {",
+      "replace": "} catch (e) { throw e;",
+      "expectRed": [
+        " "
+      ]
+    },
+    {
+      "name": "P22 note code changed",
+      "file": "panelPlacement.ts",
+      "find": "const NOTE_CODE = 'placement-fallback';",
+      "replace": "const NOTE_CODE = 'placement-fallbackx';",
+      "expectRed": [
+        " "
+      ]
+    },
+    {
+      "name": "P23 key-first lookup swapped to id-only",
+      "file": "panelPlacement.ts",
+      "find": "const find = (name: string): PanelWindow | undefined => others.find((p) => panelKey(p) === name) ?? others.find((p) => p.id === name);",
+      "replace": "const find = (name: string): PanelWindow | undefined => others.find((p) => p.id === name);",
+      "expectRed": [
+        " "
+      ]
+    },
+    {
+      "name": "R1 isPresent ignores marker",
+      "file": "panelRowEntry.ts",
+      "find": "p.marker !== true && (!p.collapsible || p.live)",
+      "replace": "(!p.collapsible || p.live)",
+      "expectRed": [
+        " "
+      ]
+    },
+    {
+      "name": "R2 movePanel plain filter",
+      "file": "panelWindow.ts",
+      "find": "const present = panels.filter(isPresent);",
+      "replace": "const present = panels.filter((p) => !p.collapsible || p.live);",
+      "expectRed": [
+        " "
+      ]
+    },
+    {
+      "name": "R3 wouldEmptyRow plain filter",
+      "file": "panels/usePanelManager.ts",
+      "find": "!panels.some((p) => isPresent(p) && !(p.collapsible && gone.has(p.id)))",
+      "replace": "!panels.some((p) => (!p.collapsible || p.live) && !(p.collapsible && gone.has(p.id)))",
+      "expectRed": [
+        " "
+      ]
+    },
+    {
+      "name": "S1 show: no enter side mark",
+      "file": "panels/usePanelManager.ts",
+      "find": "if (showAt !== 'in-place') setEnterSide(id, sideOfLiveRange(result, id));",
+      "replace": "",
+      "expectRed": [
+        " "
+      ]
+    },
+    {
+      "name": "S2 show: enter side from unplaced row",
+      "file": "panels/usePanelManager.ts",
+      "find": "setEnterSide(id, sideOfLiveRange(result, id))",
+      "replace": "setEnterSide(id, sideOfLiveRange(panels, id))",
+      "expectRed": [
+        " "
+      ]
+    },
+    {
+      "name": "S3a show: no placeFirst in simple updater",
+      "file": "panels/usePanelManager.ts",
+      "find": "setPanels((prev) => settledKeeping(promoteToLive(placeFirst(prev), id, Number.POSITIVE_INFINITY) ?? prev, keep));",
+      "replace": "setPanels((prev) => settledKeeping(promoteToLive(prev, id, Number.POSITIVE_INFINITY) ?? prev, keep));",
+      "expectRed": [
+        " "
+      ]
+    },
+    {
+      "name": "S3b show: no placeFirst in demote updater",
+      "file": "panels/usePanelManager.ts",
+      "find": "setPanels((prev) => promoteToLive(placeFirst(prev), id, Number.POSITIVE_INFINITY) ?? prev);",
+      "replace": "setPanels((prev) => promoteToLive(prev, id, Number.POSITIVE_INFINITY) ?? prev);",
+      "expectRed": [
+        " "
+      ]
+    },
+    {
+      "name": "S3c show: updater uses render-time placed row",
+      "file": "panels/usePanelManager.ts",
+      "find": "setPanels((prev) => settledKeeping(promoteToLive(placeFirst(prev), id, Number.POSITIVE_INFINITY) ?? prev, keep));",
+      "replace": "setPanels(() => settledKeeping(result, keep));",
+      "expectRed": [
+        " "
+      ]
+    },
+    {
+      "name": "S4 show: notes not reported",
+      "file": "panels/usePanelManager.ts",
+      "find": "if (!result) return;\n    reportNotes(options?.onNote, placed.notes);",
+      "replace": "if (!result) return;",
+      "expectRed": [
+        " "
+      ]
+    },
+    {
+      "name": "S5 return effect: enter side from unplaced row",
+      "file": "panels/usePanelManager.ts",
+      "find": "setEnterSide(id, sideOfLiveRange(placements.some((x) => x.id === id) ? landed : panels, id));",
+      "replace": "setEnterSide(id, sideOfLiveRange(panels, id));",
+      "expectRed": [
+        " "
+      ]
+    },
+    {
+      "name": "S6 return effect: no placement in updater",
+      "file": "panels/usePanelManager.ts",
+      "find": "setPanels((current) => placeAll(current).map(",
+      "replace": "setPanels((current) => current.map(",
+      "expectRed": [
+        " "
+      ]
+    },
+    {
+      "name": "S7 return effect: notes dropped",
+      "file": "panels/usePanelManager.ts",
+      "find": "reportNotes(options?.onNote, result.notes);",
+      "replace": "",
+      "expectRed": [
+        " "
+      ]
+    },
+    {
+      "name": "S8 return effect: reverse order",
+      "file": "panels/usePanelManager.ts",
+      "find": "const placements = [...revealed].flatMap(",
+      "replace": "const placements = [...revealed].reverse().flatMap(",
+      "expectRed": [
+        " "
+      ]
+    },
+    {
+      "name": "S9 reveal-after-close: enter side from unplaced",
+      "file": "panels/usePanelManager.ts",
+      "find": "setEnterSide(revealId, sideOfLiveRange(placed.row, revealId));",
+      "replace": "setEnterSide(revealId, sideOfLiveRange(panelsAfterClose, revealId));",
+      "expectRed": [
+        " "
+      ]
+    },
+    {
+      "name": "S10 reveal-after-close: notes dropped",
+      "file": "panels/usePanelManager.ts",
+      "find": "const placed = placePanel(panelsAfterClose, revealId, returnAt, placing(returning));\n    reportNotes(options?.onNote, placed.notes);",
+      "replace": "const placed = placePanel(panelsAfterClose, revealId, returnAt, placing(returning));",
+      "expectRed": [
+        " "
+      ]
+    },
+    {
+      "name": "S11 reveal-after-close: updater uses render-time row",
+      "file": "panels/usePanelManager.ts",
+      "find": "setPanels((current) => promoteToLive(placePanel(current, revealId, returnAt, placing(returning)).row, revealId, Number.POSITIVE_INFINITY) ?? current);",
+      "replace": "setPanels((current) => promoteToLive(placed.row, revealId, Number.POSITIVE_INFINITY) ?? current);",
+      "expectRed": [
+        " "
+      ]
+    },
+    {
+      "name": "S12 show: placement skipped when target parked-flag ...",
+      "file": "panels/usePanelManager.ts",
+      "find": "const placed = placePanel(panels, id, showAt, placing(target));",
+      "replace": "const placed = placePanel(panels, id, 'in-place', placing(target));",
+      "expectRed": [
+        " "
+      ]
+    },
+    {
+      "name": "S13 show: fallback taken from default not setting",
+      "file": "panels/usePanelManager.ts",
+      "find": "const placing = (p: PanelWindow) => ({ rootId, fallback: effective(p).placeFallback });",
+      "replace": "const placing = (p: PanelWindow) => ({ rootId, fallback: 'row-end' as const });",
+      "expectRed": [
+        " "
+      ]
+    },
+    {
+      "name": "U1 undo: key skip -> id only",
+      "file": "panels/usePanelClosing.ts",
+      "find": "if (working.some((p) => p.id === panel.id || panelKey(p) === panelKey(panel))) continue;",
+      "replace": "if (working.some((p) => p.id === panel.id)) continue;",
+      "expectRed": [
+        " "
+      ]
+    },
+    {
+      "name": "U3 undo: side never passed",
+      "file": "panels/usePanelClosing.ts",
+      "find": "onRestoreLive?.(panel.id, placeAt === 'old-slot' ? undefined : sideOfLiveRange(landed.row, panel.id));",
+      "replace": "onRestoreLive?.(panel.id);",
+      "expectRed": [
+        " "
+      ]
+    },
+    {
+      "name": "U4 undo: working not advanced",
+      "file": "panels/usePanelClosing.ts",
+      "find": "working = landed.row;",
+      "replace": "working = working;",
+      "expectRed": [
+        " "
+      ]
+    },
+    {
+      "name": "U5 undo: notes not reported",
+      "file": "panels/usePanelClosing.ts",
+      "find": "reportNotes(onNote, landed.notes);",
+      "replace": "",
+      "expectRed": [
+        " "
+      ]
+    },
+    {
+      "name": "U6 undo: live updater ignores placement",
+      "file": "panels/usePanelClosing.ts",
+      "find": "revealPanelProactively(working, restoreInto);",
+      "replace": "revealPanelProactively(working, (prev) => restorePlaced(prev, restoringPanel, index, 'old-slot', at).row);",
+      "expectRed": [
+        " "
+      ]
+    },
+    {
+      "name": "U7 undo: parked updater ignores placement",
+      "file": "panels/usePanelClosing.ts",
+      "find": "setPanels(restoreInto);",
+      "replace": "setPanels((prev) => restorePlaced(prev, restoringPanel, index, 'old-slot', at).row);",
+      "expectRed": [
+        " "
+      ]
+    },
+    {
+      "name": "U8 undo: reports skipped ids",
+      "file": "panels/usePanelClosing.ts",
+      "find": "batch.filter((e) => e.reported && restoredIds.has(e.panel.id))",
+      "replace": "batch.filter((e) => e.reported)",
+      "expectRed": [
+        " "
+      ]
+    },
+    {
+      "name": "U9 undo: ref not emptied",
+      "file": "panels/usePanelClosing.ts",
+      "find": "stopWindow();\n    setClosedBoth([]);",
+      "replace": "stopWindow();",
+      "expectRed": [
+        " "
+      ]
+    },
+    {
+      "name": "U10 undo: placeFallback ignored",
+      "file": "panels/usePanelClosing.ts",
+      "find": "const at = { rootId, fallback: effective(panel).placeFallback };",
+      "replace": "const at = { rootId, fallback: 'row-end' as const };",
+      "expectRed": [
+        " "
+      ]
+    },
+    {
+      "name": "U11 undo: side marks anchor not side (always marks via anchor)",
+      "file": "panels/useProvidePanels.ts",
+      "find": "if (side === undefined) markEnteringViaAnchor(id);\n      else markEnterSide(id, side);",
+      "replace": "markEnteringViaAnchor(id);",
+      "expectRed": [
+        " "
+      ]
+    },
+    {
+      "name": "U12 undo: onNote not forwarded",
+      "file": "panels/useProvidePanels.ts",
+      "find": "    i.resetHostDataOnRestore,\n    i.onNote,\n",
+      "replace": "    i.resetHostDataOnRestore,\n",
+      "expectRed": [
+        " "
+      ]
+    },
+    {
+      "name": "M1 enter: mark ignored",
+      "file": "PanelRow.tsx",
+      "find": "return mark ?? (from === 'anchor' || anchoredEnter || viaAnchor ? formula() : 'right');",
+      "replace": "return (from === 'anchor' || anchoredEnter || viaAnchor ? formula() : 'right');",
+      "expectRed": [
+        " "
+      ]
+    },
+    {
+      "name": "M2 enter: anchoredEnter dropped",
+      "file": "PanelRow.tsx",
+      "find": "from === 'anchor' || anchoredEnter || viaAnchor",
+      "replace": "from === 'anchor' || viaAnchor",
+      "expectRed": [
+        " "
+      ]
+    },
+    {
+      "name": "M3 enter: viaAnchor dropped",
+      "file": "PanelRow.tsx",
+      "find": "from === 'anchor' || anchoredEnter || viaAnchor",
+      "replace": "from === 'anchor' || anchoredEnter",
+      "expectRed": [
+        " "
+      ]
+    },
+    {
+      "name": "M4 animated prop not passed",
+      "file": "PanelRow.tsx",
+      "find": "animated={animated}",
+      "replace": "animated={true}",
+      "expectRed": [
+        " "
+      ]
+    },
+    {
+      "name": "M5 close exit keeps its time when not animated",
+      "file": "PanelRowSlot.tsx",
+      "find": "transition: animated ? { duration: DRAG_CLOSE.exitSeconds, ease: 'easeIn' } : INSTANT_TRANSITION",
+      "replace": "transition: { duration: DRAG_CLOSE.exitSeconds, ease: 'easeIn' }",
+      "expectRed": [
+        " "
+      ]
+    },
+    {
+      "name": "M6 animated default false",
+      "file": "PanelRowSlot.tsx",
+      "find": "  animated = true,\n): PanelRowSlotMotion",
+      "replace": "  animated = false,\n): PanelRowSlotMotion",
+      "expectRed": [
+        " "
+      ]
+    },
+    {
+      "name": "M8 enter 'anchor' no longer formula",
+      "file": "PanelRow.tsx",
+      "find": "if (from === 'left' || from === 'right') return from;",
+      "replace": "if (from === 'left' || from === 'right') return from === 'left' ? 'right' : 'left';",
+      "expectRed": [
+        " "
+      ]
+    },
+    {
+      "name": "M10 closeExit/exitTo from raw",
+      "file": "PanelRow.tsx",
+      "find": "closingIds.has(p.id) ? closeExit : exitTo !== 'auto' ? exitTo : exitRightIds.has(p.id) ? 'right' : 'left'",
+      "replace": "closingIds.has(p.id) ? closeExit : exitRightIds.has(p.id) ? 'right' : 'left'",
+      "expectRed": [
+        " "
+      ]
+    },
+    {
+      "name": "B5 parkable-start like after-fixed",
+      "file": "panelPlacement.ts",
+      "find": "if (position === 'parkable-start') {\n    const first",
+      "replace": "if (position === 'parkable-start') {\n    return named(others, rootId, 'after-fixed');\n    const first",
+      "expectRed": [
+        " "
+      ]
+    },
+    {
+      "name": "B7 hidden row counts marker",
+      "file": "PanelRow.tsx",
+      "find": "display: present.length > 0 ? 'block' : 'none',",
+      "replace": "display: entries.length > 0 ? 'block' : 'none',",
+      "expectRed": [
+        " "
+      ]
+    },
+    {
+      "name": "B13 show marks via anchor not side",
+      "file": "panels/usePanelManager.ts",
+      "find": "if (showAt !== 'in-place') setEnterSide(id, sideOfLiveRange(result, id));",
+      "replace": "if (showAt !== 'in-place') markEnteringViaAnchor(id);",
+      "expectRed": [
+        " "
+      ]
+    },
+    {
+      "name": "B14 show placed row: notes duplicated",
+      "file": "panels/usePanelManager.ts",
+      "find": "    reportNotes(options?.onNote, placed.notes);\n    if (showAt",
+      "replace": "    reportNotes(options?.onNote, placed.notes);\n    reportNotes(options?.onNote, placed.notes);\n    if (showAt",
+      "expectRed": [
+        " "
+      ]
+    },
+    {
+      "name": "B15 exitTo auto ignores exitRight",
+      "file": "PanelRow.tsx",
+      "find": "exitTo !== 'auto' ? exitTo : exitRightIds.has(p.id) ? 'right' : 'left'",
+      "replace": "exitTo !== 'auto' ? exitTo : 'left'",
+      "expectRed": [
+        " "
+      ]
+    },
+    {
+      "name": "B16 enter side uses sideOfLiveRange of render-time panels in return (reveal) ",
+      "file": "panels/usePanelManager.ts",
+      "find": "const placed = placePanel(panelsAfterClose, revealId, returnAt, placing(returning));",
+      "replace": "const placed = placePanel(panelsAfterClose, revealId, 'row-start', placing(returning));",
+      "expectRed": [
+        " "
+      ]
+    }
+  ]
+}

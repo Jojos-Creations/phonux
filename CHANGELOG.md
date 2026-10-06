@@ -4,6 +4,8 @@
 
 ### Added
 
+- `PanelWindow` and `PanelRowEntry` gain the optional `marker`: an entry with `marker: true` holds the anchor point
+  of a row without a History panel and is never drawn, priced, counted as a fixed column or hopped over.
 - `usePanelCapabilities()`: what the panel a view sits in lets a person do (`closable`, `draggable`, `placeable`,
   `resizable` and the allowed `formFactors`); outside a row it returns the library defaults.
 - `PanelWindow` and `PanelRowEntry` gain the optional `settings` (the resolved settings an entry was made under)
@@ -33,6 +35,14 @@
   Before, it listed every id of the batch, including one `undoClose` skipped because the id was already back.
 - The undo window ends at the latest of each close's `undoWindowMs` after that close, and no close shortens it;
   with the default 10 000 ms that is the 0.1.0 behaviour, where every close restarted the window.
+
+- An entry that carries `settings` is placed by `placeOnShow` when it is shown, by `placeOnReturn` when it returns on
+  its own, and by `undoPlacement` when `undoClose` restores it, with `placeFallback` and an `onNote` note when the
+  value cannot be honoured; it enters from `enterFrom`, leaves by `exitTo` and `closeExit`, stacks by `layer` and
+  skips its slide when `animated` is false. A hand-built entry places, enters and leaves as before.
+- `undoClose` reads its batch from a ref that the first call empties, so a second call in the same handler restores
+  and reports nothing (it used to report the same log ids twice), and it skips a closed panel whose key is already
+  in the row, not only one whose id is.
 
 ### Removed
 

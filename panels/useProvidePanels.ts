@@ -128,7 +128,7 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
   const capture = i.capture ?? noopCaptureTrigger;
   const [panels, setPanels] = useState<PanelWindow[]>(() => [...(i.initialEntries ?? [])]);
   const timing = timingTuning(i.tuning);
-  const fixedViewCount = i.fixedViewCount ?? panels.filter((p) => !p.collapsible).length;
+  const fixedViewCount = i.fixedViewCount ?? panels.filter((p) => !p.collapsible && p.marker !== true).length;
   // Filters over the whole list, never an array position: a panel anchored left of History changes none of these.
   const maxLiveWidth = computeMaxLiveWidth({ containerWidth: i.containerWidth, phoneWidth: i.phoneWidth, gap: GAP, fixedItemCount: fixedViewCount });
   const liveWidths = panels.filter((p) => p.collapsible && p.live).map((p) => panelWidthOf(p, i.phoneWidth, maxLiveWidth));
@@ -139,6 +139,7 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
     revealMostRecentlyCollapsed,
     enteringViaAnchorIds,
     markEnteringViaAnchor,
+    markEnterSide,
     clearEnterSide,
     scrollRow,
     reorderPanel,
@@ -188,9 +189,10 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
     },
     // A restored LIVE panel can carry a stale gesture-enter-side/exit-right mark from an earlier park of
     // the same id; clear it before marking entering-via-anchor (usePanelManager's own clear-then-mark order).
-    (id) => {
+    (id, side) => {
       clearEnterSide(id);
-      markEnteringViaAnchor(id);
+      if (side === undefined) markEnteringViaAnchor(id);
+      else markEnterSide(id, side);
     },
     // A closed-and-not-restored panel's picture must not outlive its undo window; usePanelClosing.ts alone
     // knows which ids the window's NATURAL elapse (never Undo) just finalized.
@@ -200,6 +202,7 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
     i.onPanelsClosed,
     i.onPanelsRestored,
     i.resetHostDataOnRestore,
+    i.onNote,
   );
 
   const api: ProvidedPanels = {
