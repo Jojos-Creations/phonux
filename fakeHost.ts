@@ -24,23 +24,31 @@ export type { Host, PhoneSize, DetectedPhone, ClosedPageEntry, JsonValue, FormFa
 export type { SnapshotsAPI, ViewId, ViewSnapshot } from './snapshots.js';
 export type { PhoneModel } from './phoneModels.js';
 
-/** @public */
+/** One recorded call to a fake method, as listed in `FakeHost.calls`. @public */
 export interface FakeCall {
+  /** Which `Host` member the method belongs to, e.g. 'panels'. */
   api: keyof Host;
+  /** The method's name; a method of a nested object is dotted, e.g. 'settingsColumn.show'. */
   method: string;
+  /** The arguments the method received, in order. */
   args: unknown[];
 }
 
 /** Replacement members, per API. @public */
 export type FakeOverrides = { [K in keyof Host]?: Partial<Host[K]> };
 
-/** @public */
+/** A `Host` whose methods record their calls instead of acting. @public */
 export interface FakeHost extends Host {
   /** Every method call any of the fakes received, in order. */
   readonly calls: FakeCall[];
 }
 
-/** @public */
+/**
+ * Builds a recording `FakeHost` with inert defaults: `overrides` replaces whole members per API, and every
+ * non-overridden method appends to `calls`.
+ * @param overrides - Members to replace, per API; an overridden method no longer records.
+ * @public
+ */
 export function createFakeHost(overrides: FakeOverrides = {}): FakeHost {
   const calls: FakeCall[] = [];
   const log = (api: keyof Host, method: string, args: unknown[]): void => {

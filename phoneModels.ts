@@ -5,9 +5,13 @@
  */
 
 export interface PhoneModel {
+  /** Stable identifier of the model, as stored in a setting. */
   id: string;
+  /** Display name for the Settings dropdown, ending in the CSS-pixel size. */
   label: string;
+  /** Frame width in CSS px. */
   width: number;
+  /** Frame height in CSS px. */
   height: number;
 }
 
@@ -33,7 +37,7 @@ export const PHONE_MODELS: readonly PhoneModel[] = [
   { id: 'oneplus11', label: 'OnePlus 11 (412 × 919)', width: 412, height: 919 },
 ];
 
-/** @public */
+/** The entry of `PHONE_MODELS` whose `id` is `id`, or undefined when there is none. @public */
 export function findPhoneModel(id: string): PhoneModel | undefined {
   return PHONE_MODELS.find((m) => m.id === id);
 }

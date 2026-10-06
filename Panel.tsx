@@ -18,7 +18,7 @@ export type { Host } from './hostApi.js';
 export { DRAG_CLOSE, DragToClose, type DragHandleProps, type ReorderHandle } from './dragToClose.js';
 export { WindowOverlay, OverlaySlot, OVERLAY_Z, type OverlaySlotName, type WindowOverlayProps } from './windowOverlay.js';
 
-/** @public */
+/** The props of `Panel`: every `Box` prop except `children`, `sx` and `title`, plus the header, grab bar, overlay and capture options. @public */
 export interface PanelProps extends Omit<BoxProps, 'children' | 'sx' | 'title'> {
   /**
    * The header pill's title. Omitted entirely (not passed at all) renders
@@ -27,6 +27,7 @@ export interface PanelProps extends Omit<BoxProps, 'children' | 'sx' | 'title'> 
    * explicit falsy value (e.g. `''`) to get that placeholder on purpose.
    */
   title?: React.ReactNode;
+  /** Content shown in the header row beside the title. Has no effect when `title` is omitted. */
   actions?: React.ReactNode;
   /**
    * Extra PanelHeaderRow props beyond title/actions -- the drag handle
@@ -51,7 +52,9 @@ export interface PanelProps extends Omit<BoxProps, 'children' | 'sx' | 'title'> 
    * positioning context an `overlay` needs.
    */
   overlay?: React.ReactNode;
+  /** Extra styles for the panel's root box, merged over the width and positioning it sets itself. */
   sx?: BoxProps['sx'];
+  /** The panel's content, rendered inside the root box below the header. */
   children: React.ReactNode;
   /**
    * Registers this Panel's own root element with the desktop's capture registry (see snapshots.ts's
@@ -64,7 +67,11 @@ export interface PanelProps extends Omit<BoxProps, 'children' | 'sx' | 'title'> 
   size?: PanelSize;
 }
 
-/** @public */
+/**
+ * The shell every column in the row renders through: a relatively positioned box the width of the panel, with an
+ * optional header pill above it, an optional grab bar and an optional overlay.
+ * @public
+ */
 export function Panel({ title, actions, headerProps, grabProps, overlay, sx, children, viewId, capture = 'auto', size, ...rest }: PanelProps) {
   const { device } = useHost();
   const registry = React.useContext(CaptureRegistryContext);

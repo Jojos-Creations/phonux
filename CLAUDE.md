@@ -17,4 +17,8 @@ Comments say why: a constraint the code cannot show. Clean as you touch: when yo
 - Keep a real constraint as 1-2 lines on the line it governs, or make it a test.
 - Design notes go in DESIGN.md, never in a link to an outside tracker.
 
+Doc comments are different: every export from `index.ts` or `fakeHost.ts` carries a TSDoc `/** */` comment, which
+API Extractor reads into `etc/*.api.md` (an export without one shows `// (undocumented)` there). A doc comment says
+what a consumer may rely on, never why the code is built that way. Rules and the tag set: `DESIGN.md` "Doc comments".
+
 Put this rule in any brief you give a subagent.

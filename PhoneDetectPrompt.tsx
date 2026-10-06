@@ -9,11 +9,18 @@ import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import SmartphoneIcon from '@mui/icons-material/Smartphone';
 import { PHONE_MODELS, vendorLabelForUsbVendorId } from './phoneModels.js';
 
-/** @public */
+/** The props of `PhoneDetectPrompt`. @public */
 export interface PhoneDetectPromptProps {
   /** Non-null exactly once, right after the host first sees a phone-like USB device it has not asked about. */
-  detected: { vendorId: number; productId: number } | null;
+  detected: {
+    /** The USB vendor id of the detected device. */
+    vendorId: number;
+    /** The USB product id of the detected device. */
+    productId: number;
+  } | null;
+  /** Called with the `id` of the picked `PhoneModel` when the person presses Resize. */
   onResize: (modelId: string) => void;
+  /** Called when the person dismisses the prompt. */
   onDismiss: () => void;
 }
 

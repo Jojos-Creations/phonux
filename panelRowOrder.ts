@@ -10,8 +10,11 @@
  * @public
  */
 export interface PanelAnchor {
+  /** The id of the entry this one sits beside. */
   panel: string;
+  /** Which side of `panel` the entry sits on. */
   position: 'left' | 'right';
+  /** Nearness to `panel` on that side; a lower number is nearer. */
   priority: number;
 }
 
@@ -99,6 +102,7 @@ export function deriveAnchorsFromOrder<T extends { id: string; anchor?: PanelAnc
   return panels.map((p) => (p.id === rootId ? p : withAnchor(p, positional.get(p.id)!)));
 }
 
+/** The side of the row a reappearing entry slides in from. */
 export type EnterDirection = 'left' | 'right';
 
 /** The id of the entry `panel` orients its enter animation against: its anchor's, or the root's when it has none. */

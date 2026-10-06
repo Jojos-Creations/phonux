@@ -11,8 +11,9 @@ import { type Theme } from '@mui/material/styles';
 import MoreHorizIcon from '@mui/icons-material/MoreHoriz';
 import { useHost, type PanelSize } from './hostApi.js';
 
-/** @public */
+/** The props of `PanelFrame`: every `Box` prop except `children`, plus `expanded` and `size`. @public */
 export interface PanelFrameProps extends Omit<BoxProps, 'children'> {
+  /** The frame's content, rendered inside its scroll container. */
   children: React.ReactNode;
   /** Fill the available space instead of the fixed phone size (the tap-to-expand overlay). */
   expanded?: boolean;
@@ -125,8 +126,9 @@ const PanelFrame = React.forwardRef<HTMLDivElement, PanelFrameProps>(function Pa
   );
 });
 
-/** @public */
+/** The props of `PanelHeader`: every `Box` prop except `children`. @public */
 export interface PanelHeaderProps extends Omit<BoxProps, 'children'> {
+  /** The header's content; its internal layout is the caller's. */
   children: React.ReactNode;
 }
 
@@ -168,7 +170,7 @@ export function PanelHeader({ children, sx, ...rest }: PanelHeaderProps) {
   );
 }
 
-/** @public */
+/** The props of `PanelHeaderRow`: every `PanelHeader` prop except `children` and `title`, plus `title` and `actions`. @public */
 export interface PanelHeaderRowProps extends Omit<PanelHeaderProps, 'children' | 'title'> {
   /** Left-aligned, ellipsis-truncated. Falsy renders a placeholder ("Untitled") instead of
    * nothing, so the pill never blanks for a view with no title yet. */
