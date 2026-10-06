@@ -1,0 +1,921 @@
+[
+ {
+  "name": "closable",
+  "values": "true, false",
+  "default": "true (root: false)",
+  "behaviour": "May any path remove the panel (drag-down, History trash, close(), clearAll). false: the manager answers not-closable, the raw call is a same-array no-op, clearAll keeps it (C2), it never enters the undo window. The root is forced false (C5).",
+  "enforced_by": "applyTemplate is the only writer of PanelWindow.locked (= !closable); usePanelClosing.close (:108) is the gate; the clearAll filter reads effective(p).clearable; DragToClose re-checks closability at release and at the end of its exit and animates back if closing is no longer allowed.",
+  "exists_today": "Partly: PanelWindow.locked gates close (usePanelClosing.ts:108); appendPanel hard-codes locked:false (panelWindow.ts:119); only host-seeded entries are locked.",
+  "on_configure": "NOW. L, T: true->false removes the drag-down close and makes close() answer not-closable at this commit; clearable re-derives false (C2); a DragToClose release already decided re-checks at its animation end and snaps back. false->true restores them. K, H: History row only. Root: closable:true is settings-conflict (C5); explicit clearable:true beside closable:false is settings-conflict.",
+  "ownerEntry": "phonux-engine-permission-settings",
+  "cls": "NOW",
+  "doors": [
+   "instance"
+  ],
+  "scope": "instance"
+ },
+ {
+  "name": "parkable",
+  "values": "true, false",
+  "default": "true",
+  "behaviour": "May the panel ever be hidden or parked (hide(), or overflow 'park'). false makes it a fixed column: never hidden, parked, dragged or resized, always live and in the strip, priced phoneWidth, counted in fixedViewCount; it may scroll out of view (Q15). C1 forces resizable false, formFactors phone, formFactor phone, overflow scroll, startVisibility live, restoreVisibility live, keepMounted false. Derives draggable, placeable, listed, clearable false. A flip never needs room; in a row holding park panels the capacity reconcile parks the fewest of them. A flip on a panel that is not live follows pinningWhenNotLive. The person's pin stores it as overrides.parkable.",
+  "enforced_by": "applyTemplate writes PanelWindow.collapsible = parkable (reconfigure only for the live flip, which sets live true when it makes the panel fixed); the engine reads it at panelWindow.ts:147, :175, PanelRow.tsx:91; hide() returns not-parkable; every flip goes through decidePinChange.",
+  "exists_today": "Yes, as collapsible (panelWindow.ts:30); public door permanent (hostApi.tsx:144).",
+  "on_configure": "STATE. L, T: true->false needs the phone tier (tier-not-allowed) and no conflicting explicit value (settings-conflict); listed, draggable, placeable, clearable re-derive false at this commit unless named; the row re-prices and the reconcile settles it (two commits). false->true lifts C1. K, H: per pinningWhenNotLive (place-only and refuse: would-reshape-row; show: shown true then flips; apply-on-next-show: stores deferredPin { parkable }). C, U: place-only, refuse, show answer is-closed; apply-on-next-show stores on the record. A person's overrides.parkable outvotes the flip (shadowed).",
+  "ownerEntry": "phonux-engine-permission-settings",
+  "cls": "STATE",
+  "doors": [
+   "instance"
+  ],
+  "scope": "instance"
+ },
+ {
+  "name": "draggable",
+  "values": "true, false",
+  "default": "derived: parkable",
+  "behaviour": "May this panel be the dragged panel in a reorder (move(), the drag gesture). It does not stop another panel crossing it (crossable). C5 forces false for the root.",
+  "enforced_by": "movePanel's source guard reads effective(p).draggable (panelWindow.ts:252); usePanelReorderEligible reads it (PanelRow.tsx:42); the manager answers not-draggable.",
+  "exists_today": "Guard only: movePanel refuses a collapsible:false source (panelWindow.ts:252).",
+  "on_configure": "NOW. L, T: true->false removes the reorder grab and makes move() a same-array no-op from this commit; a drag in flight ends with no hops. K, H: stored. Root: true is settings-conflict.",
+  "ownerEntry": "phonux-engine-permission-settings",
+  "cls": "NOW",
+  "doors": [
+   "instance"
+  ],
+  "scope": "instance"
+ },
+ {
+  "name": "crossable",
+  "values": "true, false",
+  "default": "true",
+  "behaviour": "May ANOTHER panel's drag hop past this panel. false: the hop stops at it: movePanel returns the same array when any array slot between source and target holds a non-crossable entry, parked ones included, and neighborWidthsAt stops listing widths at it.",
+  "enforced_by": "movePanel's neighbour check (panelWindow.ts:253) scans every array slot from source to target reading effective(entry).crossable; PanelRow's neighborWidthsAt (PanelRow.tsx:104-111) truncates at the first non-crossable entry.",
+  "exists_today": "New. Today every present neighbour is crossable and a parked panel between shifts (panelWindow.ts:249-261).",
+  "on_configure": "NOW. L, T: the next drag of any other panel sees it at once; a drag already released is judged by movePanel (changed:false). K, H: a non-crossable parked panel is a barrier for the next drag too.",
+  "ownerEntry": "phonux-engine-permission-settings",
+  "cls": "NOW",
+  "doors": [
+   "instance"
+  ],
+  "scope": "instance"
+ },
+ {
+  "name": "placeable",
+  "values": "true, false",
+  "default": "derived: parkable",
+  "behaviour": "May this panel be re-anchored afterwards: reanchor(), place(), and a pin whose half has a placement. Placement on add, show, return and undo is the developer's and not gated. C5 forces false for the root.",
+  "enforced_by": "reanchorPanel guard reads effective(p).placeable (panelWindow.ts:97); the manager answers not-placeable.",
+  "exists_today": "Guard only (panelWindow.ts:97).",
+  "on_configure": "NOW. L, T, K, H: false makes reanchor, place and a placement-bearing pin() refuse (not-placeable) from this commit. Row: nothing moves. Root: true is settings-conflict.",
+  "ownerEntry": "phonux-engine-permission-settings",
+  "cls": "NOW",
+  "doors": [
+   "instance"
+  ],
+  "scope": "instance"
+ },
+ {
+  "name": "resizable",
+  "values": "true, false",
+  "default": "true (C1)",
+  "behaviour": "May the panel's tier change after creation (setFormFactor). false freezes the current tier (the person's saved tier still applies at restore). A parked panel's tier change is allowed and it stays parked.",
+  "enforced_by": "setFormFactor guard reads effective(p).resizable (panelWindow.ts:291); the manager answers not-resizable; the engine no-op returns the same array so onPanelResize never fires.",
+  "exists_today": "Guard only: setFormFactor no-ops for collapsible:false (panelWindow.ts:291).",
+  "on_configure": "NOW. L, T, K, H: true->false freezes the tier (setFormFactor refused); the tier and the person's saved tier are never changed or dropped by this call. C1: true on a fixed column is settings-conflict.",
+  "ownerEntry": "phonux-engine-permission-settings",
+  "cls": "NOW",
+  "doors": [
+   "instance"
+  ],
+  "scope": "instance"
+ },
+ {
+  "name": "formFactors",
+  "values": "non-empty subset of phone, tablet, desktop",
+  "default": "all three (C1)",
+  "behaviour": "Which tiers the panel may take. setFormFactor outside the set is tier-not-allowed; the initial formFactor must be inside it (C4). A saved person override outside the set is dropped with a note. An empty set is invalid-settings.",
+  "enforced_by": "setFormFactor guard checks membership (panelWindow.ts:289-293); the resolver validates, applies C4 and checks the user layer.",
+  "exists_today": "New. Tiers are fixed at three (hostApi.tsx:48; panelTiers.ts:19-23).",
+  "on_configure": "STATE. Widening: ok. Narrowing on L, T, K, H: ok only if the CURRENT tier stays inside, else tier-not-allowed; the tier is never changed by this call. A patch leaving the initial formFactor outside is settings-conflict. An empty set throws.",
+  "ownerEntry": "phonux-engine-permission-settings",
+  "cls": "STATE",
+  "doors": [
+   "instance"
+  ],
+  "scope": "instance"
+ },
+ {
+  "name": "clearable",
+  "values": "true, false",
+  "default": "derived: parkable and closable (C2)",
+  "behaviour": "Whether clearAll removes the panel. Not clearable: kept. Clearable: removed (not logged, not undoable, its picture evicted).",
+  "enforced_by": "clearAll filter reads effective(p).clearable (useProvidePanels.ts:214-218); locked entries survive (fixes F3).",
+  "exists_today": "Partly: clearAll keeps exactly collapsible:false and ignores locked (useProvidePanels.ts:214-218).",
+  "on_configure": "NEXT. Read by the next clearAll. C2: clearable:true with closable:false is settings-conflict; null re-derives it.",
+  "ownerEntry": "phonux-engine-permission-settings",
+  "cls": "NEXT",
+  "doors": [
+   "instance"
+  ],
+  "scope": "instance"
+ },
+ {
+  "name": "hostCreatable",
+  "values": "true, false (template scope)",
+  "default": "true",
+  "behaviour": "May a view create an instance of this template through Host.panels.create({ view: id }). false: that call is a no-op (code addPanel and restore still work).",
+  "enforced_by": "applyTemplate on the Host-bag create path looks up the template for the view key; false returns the list unchanged.",
+  "exists_today": "New. Any view may create any registered view key (hostApi.tsx:153-160).",
+  "on_configure": "SCOPE (configureTemplate). Applies to the next Host-bag create naming the template; existing instances and code addPanel are untouched. configure(panelId) and configureTuning answer wrong-scope; an unknown template throws. Before ready: not-ready.",
+  "ownerEntry": "phonux-saved-overrides-and-template-paths",
+  "cls": "SCOPE",
+  "doors": [
+   "template"
+  ],
+  "scope": "template"
+ },
+ {
+  "name": "multiple",
+  "values": "true, false (template scope)",
+  "default": "false",
+  "behaviour": "false: one instance, id = template id; a second addPanel returns the existing handle; a Host-bag create opens a closed singleton or is a no-op. true: many instances; before ready each needs an explicit id, after it the id is optional (templateId~random). Restore is exempt: extra saved copies of a singleton are kept as anonymous instances.",
+  "enforced_by": "applyTemplate and the workspace core on every creation path; instance-id-required for an id-less declarative intent; explicit ids are validated like template ids.",
+  "exists_today": "New. Without templates any create() makes another panel (hostApi.tsx:160).",
+  "on_configure": "SCOPE (configureTemplate). false->true: ok. true->false: ok only if every existing instance (row, declared closed records, undo-window records) is the singleton whose id equals the template id, else instance-limit with the count; nothing is closed or renamed.",
+  "ownerEntry": "phonux-saved-overrides-and-template-paths",
+  "cls": "SCOPE",
+  "doors": [
+   "template"
+  ],
+  "scope": "template"
+ },
+ {
+  "name": "maxInstances",
+  "values": "integer >= 1, unlimited (template scope)",
+  "default": "unlimited",
+  "behaviour": "Upper bound on instances of a multiple template. A Host-bag create over the limit is a no-op; addPanel over it returns a handle in status closed whose open() answers instance-limit. Restore is exempt.",
+  "enforced_by": "The workspace core and the Host-bag create path count entries by view key; open() returns instance-limit.",
+  "exists_today": "New (hostApi.tsx:160).",
+  "on_configure": "SCOPE (configureTemplate). Raising it or null: ok. Lowering below the instances that exist: instance-limit with the count; no instance is closed. Moot without multiple (a note).",
+  "ownerEntry": "phonux-saved-overrides-and-template-paths",
+  "cls": "SCOPE",
+  "doors": [
+   "template"
+  ],
+  "scope": "template"
+ },
+ {
+  "name": "listed",
+  "values": "true, false",
+  "default": "derived: parkable",
+  "behaviour": "Whether the panel appears in panelList, which History renders as rows. A fixed panel is unlisted by default but may be listed. The legacy create({ permanent }) path forces false.",
+  "enforced_by": "The panelList filter (useProvidePanels.ts:176) reads PanelWindow.listed, which applyTemplate writes.",
+  "exists_today": "Yes: PanelWindow.listed (panelWindow.ts:32).",
+  "on_configure": "NOW. L, T, K, H: the panel appears in or leaves panelList at this commit; its slot and state do not change. false on a hidden panel whose hold the gesture cannot release leaves it showable by code only (note).",
+  "ownerEntry": "phonux-engine-permission-settings",
+  "cls": "NOW",
+  "doors": [
+   "instance"
+  ],
+  "scope": "instance"
+ },
+ {
+  "name": "startVisibility",
+  "values": "live, parked",
+  "default": "live (C1)",
+  "behaviour": "State of a NEW panel (addPanel, Host-bag create, open); restore uses restoreVisibility. parked: created parked, held per hideStickiness as if hidden at once; listed and shown by show().",
+  "enforced_by": "applyTemplate('create') writes live from startVisibility and markHeld(id, kind) records the hold of a panel created parked; the commit scan never pushes it (usePanelManager.ts:370-371).",
+  "exists_today": "New. appendPanel always creates a live panel (panelWindow.ts:118).",
+  "on_configure": "NEXT. Governs panels created after the commit; every existing panel keeps its state. C: used by the next open(). C1: parked on a fixed column is settings-conflict.",
+  "ownerEntry": "phonux-engine-visibility-settings",
+  "cls": "NEXT",
+  "doors": [
+   "instance"
+  ],
+  "scope": "instance"
+ },
+ {
+  "name": "hideStickiness",
+  "values": "sticky, until-room",
+  "default": "sticky",
+  "behaviour": "What a hide means (hide(), a panel started or restored parked). sticky: held until shown (show, activate, History click, an allowed gesture); held ids are never on the collapse stack. until-room: held until the free slots exceed the free slots the park itself left, then returned by the auto-return path; unmeasured: holds like sticky. Held ids are session-only.",
+  "enforced_by": "One choke point recordPark(id, cause) in usePanelManager: cause hide puts the id in the held map, skipped by the commit scan and absent from the stack walks; show, activate, the gesture and close drop the mark.",
+  "exists_today": "New. A plain park bounces back in any row with room (usePanelManager.ts:370-371, :389-404, :409-431).",
+  "on_configure": "NEXT. Governs hides after the commit. A hidden panel keeps the hold it has; configure shows nothing. K: unaffected. L, T: the next hide() uses the new value.",
+  "ownerEntry": "phonux-engine-visibility-settings",
+  "cls": "NEXT",
+  "doors": [
+   "instance"
+  ],
+  "scope": "instance"
+ },
+ {
+  "name": "hideWhenLast",
+  "values": "allow, refuse",
+  "default": "allow",
+  "behaviour": "refuse: hide() answers would-empty-row when no other panel would remain present once this turn's accepted hides and closes count (fixed columns count). allow: hide succeeds.",
+  "enforced_by": "The engine's wouldEmptyRow(ids) pure check over the entries and the in-flight set; the manager answers would-empty-row before the engine call.",
+  "exists_today": "New. An empty row is display none (PanelRow.tsx:123).",
+  "on_configure": "NEXT. Read by the next hide(). Panels already hidden stay hidden; no reveal.",
+  "ownerEntry": "phonux-engine-visibility-settings",
+  "cls": "NEXT",
+  "doors": [
+   "instance"
+  ],
+  "scope": "instance"
+ },
+ {
+  "name": "capacityReturn",
+  "values": "auto, manual",
+  "default": "auto",
+  "behaviour": "Park-mode lever (overflow 'park'; park-lever-inert note otherwise). What happens to a panel the engine parked for room. auto: returns by itself when room opens. manual: held like a sticky hide, returns only when shown.",
+  "enforced_by": "recordPark(id, 'capacity'), called from pushCollapsed (usePanelManager.ts:212-215) and the commit scan: manual ids go to the held map.",
+  "exists_today": "auto only: the collapse stack (usePanelManager.ts:132, :389-404, :409-431).",
+  "on_configure": "NEXT. Governs parks decided after the commit. A panel on the stack stays returnable; one already held stays held; no reveal.",
+  "ownerEntry": "phonux-engine-visibility-settings",
+  "cls": "NEXT",
+  "doors": [
+   "instance"
+  ],
+  "scope": "instance"
+ },
+ {
+  "name": "returnPriority",
+  "values": "integer",
+  "default": "0",
+  "behaviour": "Park-mode lever (note park-lever-inert when the panel's resolved overflow is scroll). Among engine-parked panels that fit when room opens, the higher value returns first; ties follow tuning.returnTieBreak.",
+  "enforced_by": "The two stack walks (usePanelManager.ts:393-403, :415-421) order candidates by returnPriority then the tie-break; all zero is today's walk.",
+  "exists_today": "New. The stack is walked latest-first (usePanelManager.ts:393-403, :415-421).",
+  "on_configure": "NEXT. Read when the stack is next walked. K: changes its place in the next walk. H: moot. Nothing returns at configure.",
+  "ownerEntry": "phonux-engine-visibility-settings",
+  "cls": "NEXT",
+  "doors": [
+   "instance"
+  ],
+  "scope": "instance"
+ },
+ {
+  "name": "overflow",
+  "values": "scroll, park",
+  "default": "scroll for every panel built through the cascade (a template, workspace defaults, a Host-bag create, or a restore inside a workspace; C1: scroll for a fixed column); a hand-built 0.1.0 entry in a row with no workspace defaults: park",
+  "behaviour": "What the row may do with THIS panel when the open panels do not all fit the window. scroll (Q16, the owner's default for every panel): never parked for room; it keeps its slot and may scroll out of view. park: the engine may park it when the strip is wider than the window, fewest first and never the panel the action just opened or shown; it returns when room opens (capacityReturn). Role of park: a memory limit and 0.1.0 compatibility; no person-set count exists (Q17). scroll panels are the overflow, park panels only reduce it; remaining overflow scrolls. Replaces the shield (evictable).",
+  "enforced_by": "computeRowNumbers (reservedWidths = present non-park panels, parkLiveWidths) feeds capacityFor in usePanelManager; keptIds is unioned with the acted-on panels; the reconcile effect, revealPanelProactively, handleActivatePanel, resizePanel and promoteToLive park only entries whose effective(p).overflow is park; the container's overflow is one pure function of rowScroll and tuning.rowGesture (hidden for a legacy row), and scrollLeft resets to 0 when rowScroll turns false. Capacity is effectiveMaxPanels(fitCount, fixedColumnCount) with no stored argument: the person sets no count (Q17).",
+  "exists_today": "New. Only acted-on panels are protected, first come (usePanelManager.ts:139-143); the row never scrolls (Workspace.tsx:57).",
+  "on_configure": "NEXT. Read at the next park decision. L: park->scroll protects it from then on; scroll->park makes it eligible; nothing parks, returns or scrolls at configure. K, H: stored; a K panel already on the stack still returns. C1: park on a fixed column is settings-conflict.",
+  "ownerEntry": "phonux-row-numbers-and-overflow",
+  "cls": "NEXT",
+  "doors": [
+   "instance"
+  ],
+  "scope": "instance"
+ },
+ {
+  "name": "evictionRank",
+  "values": "integer",
+  "default": "0",
+  "behaviour": "Park-mode lever (note park-lever-inert when the panel's resolved overflow is scroll). Lower is parked first when the engine must park a park-policy panel for room. Equal ranks fall back to the demanding panel's evictionOrder or tuning.dropTieBreak.",
+  "enforced_by": "farthestLiveCollapsibleId (panelWindow.ts:143-155) filters to the minimum rank first; fewestParksThatSettle (usePanelManager.ts:455-486) iterates by rank then tie-break, so fewest-parks is unchanged.",
+  "exists_today": "New. Only geometry decides today.",
+  "on_configure": "NEXT. Read at the next park decision. Nothing is re-evaluated now. T: skipped whatever its rank.",
+  "ownerEntry": "phonux-engine-visibility-settings",
+  "cls": "NEXT",
+  "doors": [
+   "instance"
+  ],
+  "scope": "instance"
+ },
+ {
+  "name": "evictionOrder",
+  "values": "farthest, nearest, leftmost, rightmost",
+  "default": "farthest",
+  "behaviour": "Park-mode lever (note park-lever-inert when the panel's resolved overflow is scroll). Which live park-policy panel THIS panel displaces when it needs room (opening, activation, show, undo revive), after rank. Capacity drops and resizes use tuning.dropTieBreak.",
+  "enforced_by": "farthestLiveCollapsibleId gains an order argument; revealPanelProactively (usePanelManager.ts:247-252) and promoteToLive (panelWindow.ts:217) pass the demander's setting.",
+  "exists_today": "Implicit: always farthest (panelWindow.ts:143-155).",
+  "on_configure": "NEXT. Read when this panel next needs room. Nothing moves now.",
+  "ownerEntry": "phonux-engine-visibility-settings",
+  "cls": "NEXT",
+  "doors": [
+   "instance"
+  ],
+  "scope": "instance"
+ },
+ {
+  "name": "revealOnScroll",
+  "values": "edges, any, never",
+  "default": "edges (a design default the owner never fixed; Q1 holds under it)",
+  "behaviour": "Whether the row gesture brings back THIS hidden panel: the nearest hidden panel in the gesture's direction beyond the window edge, revealed only when no live panel lies between the window edge and its slot (else the gesture steps to the next panel start), so a held panel is never reached by skipping live ones. edges: a held panel under that rule (Q1 holds); an engine-parked panel only when no live panel lies beyond the window on that side. any: the rule for both. never: skipped; show() and the History click always work. Inert under tuning.rowGesture 'free' and 'off', which install no gesture listener.",
+  "enforced_by": "firstParkedAfter and lastParkedBefore (panelWindow.ts:189-198) gain the window-edge bound and a held predicate; the gesture's pure gestureTarget returns show, scroll or none and never skips a live panel between the window edge and the candidate; useRowScrollGesture calls it (scroller entry).",
+  "exists_today": "Implicit: edges only, beyond the live range (usePanelManager.ts:306; panelWindow.ts:189-198).",
+  "on_configure": "NEXT. Read by the next gesture. K: edges->any makes an engine-parked panel reachable. H: edges and any reach it. Nothing is revealed by configure.",
+  "ownerEntry": "phonux-row-scroll-gesture-and-requests",
+  "cls": "NEXT",
+  "doors": [
+   "instance"
+  ],
+  "scope": "instance"
+ },
+ {
+  "name": "scrollOnOpen",
+  "values": "into-view, start, center, none",
+  "default": "into-view (owner-confirmed, Q21)",
+  "behaviour": "After the commit that makes this panel newly present the row scrolls to it: addPanel after ready, Host-bag create, open(), an undo restoring it live, show() or a History click or Host-bag activate on a hidden panel, a pin with pinningWhenNotLive show, a deferred pin applied by a show, and show() or a click on a live panel out of view. Never first paint, restore, an automatic return or a panel created hidden. into-view: the least distance that shows the whole panel inside the window (the container's visible width less its padding); start: left edge at the window start; center: centred; none: the row stays put. One pending request per commit, the last wins. A request recorded while a drag holds the row is dropped with a runtime note (6B).",
+  "enforced_by": "A scroll request recorded in the commit's layout effect in useProvidePanels and run through RowScroller.glideTo with the pure scrollTargetFor (left = gap + rowMarginLeft + leftOffsets[k], the target margin of the same commit, clamped to the farthest legal scrollLeft from the row numbers, never read back from the DOM) and the tuning.slide glide; a request for a panel not yet present waits two commits then drops with a note.",
+  "exists_today": "New. Nothing scrolls to a panel today (F20, F22).",
+  "on_configure": "NEXT. Read by the next open, show or click of this panel. L, T, K, H: stored. No scroll happens at configure. Use handle.scrollTo() to scroll now (its align defaults to this setting, 'into-view' when it is none).",
+  "ownerEntry": "phonux-row-scroll-gesture-and-requests",
+  "cls": "NEXT",
+  "doors": [
+   "instance"
+  ],
+  "scope": "instance"
+ },
+ {
+  "name": "scrollOnMove",
+  "values": "follow, none",
+  "default": "follow (owner-confirmed, Q21)",
+  "behaviour": "After an accepted move(), place(), setFormFactor(), pin(), unpin() or resetLayout(id) on a panel that was in view when the call was accepted, follow scrolls the least distance that shows it whole again. A panel out of view is not chased, so a code call never yanks the row. none: nothing scrolls. A drag release, resetLayout('all'), automatic returns and configure scroll nothing. The default keeps 0.1.0's guarantee that a panel the person operates stays on screen. A request recorded while a drag holds the row is dropped (6B).",
+  "enforced_by": "The verbs and the raw reanchor and setFormFactor wrappers record a follow request with a was-in-view flag (ProvidedPanels.followPanel); the same executor and scrollTargetFor run it after the commit; one pending request per commit, the last wins.",
+  "exists_today": "New. 0.1.0 kept an operated panel on screen only because the row never scrolled (F20, F22).",
+  "on_configure": "NEXT. Read by the next move, place, setFormFactor, pin, unpin or resetLayout of this panel. L, T, K, H: stored. Nothing scrolls at configure.",
+  "ownerEntry": "phonux-row-scroll-gesture-and-requests",
+  "cls": "NEXT",
+  "doors": [
+   "instance"
+  ],
+  "scope": "instance"
+ },
+ {
+  "name": "scrollOnDrag",
+  "values": "edge, none",
+  "default": "edge (Q19: the owner asked for a per-panel switch and 'Yes, scroll at the edge'; the library default is edge)",
+  "behaviour": "Q19. While THIS panel's grab handle holds a horizontal-locked reorder drag by mouse or pen (its handle was given reorder) in a row that scrolls, the row scrolls toward a visible edge the pointer is in or beyond (zone and speed: tuning.edgeScroll). edge: on, under every tuning.rowGesture including 'off' (the 'off' container is overflow-x hidden but code still scrolls it). none: the row stays put (drop, scroll, drag again). A touch swipe never reorders (the grab handle is touch-action: pan-x, dragToClose.tsx:127) so touch never edge-scrolls; a pointercancel from a native pan releases the claim with no scroll. The limit is the strip's, never the DOM's: the dragged box is a transformed descendant that CSS counts into scrollable overflow, so scrollWidth grows with the box and a DOM bound would never be reached. The bound is max(0, rowMarginLeft + stripWidth - windowWidth) from computeRowNumbers, given to the claim (setMaxScroll) at drag start and on every commit, and used by the frame loop and the reduced-motion stepTarget. The scroll distance counts from scrollLeft at pointer-down, whoever wrote the change. The box is drawn at Motion's drag x plus a second MotionValue (the scroll distance) rendered as the CSS translate property, which Motion's rewrites of transform cannot overwrite. ReorderHandle.onDragEnd reports the pointer offset plus that distance, and the view's unchanged reorderStepsForOffset(offset, neighbors, gap, hopFraction) hops across every crossed panel at release (the neighbour list holds all present panels); nothing hops mid-drag. At release both components animate to 0 together while the slot animates to its new rest (reduced motion: both jump together), so the box lands on its slot (transform none) and never jumps. A vertical-locked drag never scrolls and closes by today's rule; a horizontal-locked one never closes; a closable:false panel still scrolls and reorders. Claim and cancel rules (6B): the pointer-down that starts the drag stops a glide in flight; the drag holds the scroller's exclusive claim, so programmatic scrolls (scrollOnOpen, scrollOnMove, scrollTo) are dropped with the note scroll-dropped-during-drag and the row gesture is inert; if another drag already holds the claim (claim() answers null) this drag does not edge-scroll while reorder and close still work; a native scroll during the drag is added to under 'free' and cannot happen under 'step' or 'off', so the loop never fights one; the claim ends at drag end, cancel or unmount and the row stays where the pointer left it. Reduced motion (OS preference or animated false): no continuous scroll; one panel-start jump per reducedStepMs of dwell in a band, the first after a full reducedStepMs, instantly.",
+  "enforced_by": "PanelRow builds the slot context's dragScroll from effective(p).scrollOnDrag, the merged tuning.edgeScroll and animated. DragToClose, once its axis lock is x, reorder was given and the pointer type is mouse or pen, finds the row's RowScroller from its element by the data-row-scroller mark Workspace sets on the container (never by computed overflow, so 'off' still works), takes claim() and, if it is not null, runs one frame loop of the pure edgeScrollSpeed and edgeScrollStep on the last pointer position, writing only through the claim; the loop is bounded by the claim's setMaxScroll from the row numbers. A second MotionValue carries the scroll distance (rendered as the CSS translate property) and is added to the offset onDragEnd reports; at release it and x animate to 0 together. reorderStepsForOffset and the hop rule are untouched.",
+  "exists_today": "New. Dragging never scrolled because the row never scrolled (F20); onDragEnd reads the pointer offset alone (dragToClose.tsx:158-162); the grab handle is touch-action: pan-x (dragToClose.tsx:127) and the drag locks overflow-y on its scroll parents (dragToClose.tsx:85).",
+  "on_configure": "NEXT. Read at the next drag start of this panel; a drag in flight keeps the mode it began with. L, T, K, H: stored. Nothing scrolls at configure.",
+  "ownerEntry": "phonux-edge-scroll-while-dragging",
+  "cls": "NEXT",
+  "doors": [
+   "instance"
+  ],
+  "scope": "instance"
+ },
+ {
+  "name": "toggleWhenClosed",
+  "values": "ignore, reopen",
+  "default": "ignore",
+  "behaviour": "handle.toggleVisibility() on a closed declared panel. ignore: ok, changed:false. reopen: open(), re-adding it at placeOnAdd. Not for an anonymous instance (is-closed).",
+  "enforced_by": "Manager only; a table-driven test over both values and the closed, live and parked states.",
+  "exists_today": "New.",
+  "on_configure": "NEXT. Read by the next toggleVisibility() on a closed declared panel. C, U: the record's value is used by the next toggle.",
+  "ownerEntry": "phonux-panel-handle-operations",
+  "cls": "NEXT",
+  "doors": [
+   "instance"
+  ],
+  "scope": "instance"
+ },
+ {
+  "name": "showWhenClosed",
+  "values": "refuse, reopen",
+  "default": "refuse",
+  "behaviour": "handle.show() on a closed declared panel. refuse: is-closed. reopen: open() (instance-limit when full). Not for an anonymous instance. A History click or Host-bag activate on a closed panel is not a show of it.",
+  "enforced_by": "Manager only: the show verb's closed branch reads it; a table-driven test over both values and the closed declared, undo-window and anonymous cases.",
+  "exists_today": "New. Rev 4 fixed show() on a closed panel to is-closed.",
+  "on_configure": "NEXT. Read by the next show() on a closed declared panel. C, U: the record's value is used.",
+  "ownerEntry": "phonux-panel-handle-operations",
+  "cls": "NEXT",
+  "doors": [
+   "instance"
+  ],
+  "scope": "instance"
+ },
+ {
+  "name": "viewState",
+  "values": "keep, reset-on-park",
+  "default": "keep",
+  "behaviour": "Whether useViewState values survive a park. keep: they live until the panel is gone. reset-on-park: released when the panel parks, so a revive starts from each hook's initial value. Decided by a per-entry latch set at the park commit. A view still mounted during its exit keeps its value until it unmounts. C6: reset-on-park forces keepMounted false.",
+  "enforced_by": "PanelRow's useRetainOnly keep list (PanelRow.tsx:90) omits a parked entry whose latch says reset-on-park; the latch is derived in render from the previous commit's live flags and written in a layout effect; resolver rule C6.",
+  "exists_today": "keep only (viewState.ts:137-148).",
+  "on_configure": "STATE. The latch is set at each park commit, so a change reaches the NEXT park only. With keepMounted resolved true, reset-on-park is settings-conflict (C6): patch keepMounted:false in the same call.",
+  "ownerEntry": "phonux-engine-visibility-settings",
+  "cls": "STATE",
+  "doors": [
+   "instance"
+  ],
+  "scope": "instance"
+ },
+ {
+  "name": "keepMounted",
+  "values": "true, false",
+  "default": "false (C1, C6)",
+  "behaviour": "false (today): the view unmounts after the park exit. true: a parked panel's view stays mounted inside the same slot, not rendered (display:none, inert, aria-hidden after its exit slide), told so by usePanelHidden(), keeping its state, DOM, canvas and media; re-enters with the normal slide. Decided at the park commit (latch). A live panel scrolled out of view is mounted and is not hidden. Ends at close, clearAll, configure to false or PanelRow unmount; never saved. No memory cap (Q9). Not view-settable.",
+  "enforced_by": "PanelRow renders present plus latched kept-parked entries in one AnimatePresence with every geometry input over present alone; PanelRowSlot is driven imperatively while kept and sets display none, inert and aria-hidden when the exit animation's promise resolves; Panel leaves the capture registry while hidden; resolver rules C1 and C6.",
+  "exists_today": "No. A parked view always unmounts after its exit (PanelRow.tsx:91, :127-154).",
+  "on_configure": "STATE. Read through the park latch. L, T: false->true: the next park hides the view instead of unmounting it; true->false: the next park unmounts. K: true waits for the next show and park. H (latched, mounted): true->false unmounts at this commit (zero-duration exit; picture and viewState untouched). With viewState reset-on-park, true is settings-conflict (C6).",
+  "ownerEntry": "phonux-keep-mounted-render-path",
+  "cls": "STATE",
+  "doors": [
+   "instance"
+  ],
+  "scope": "instance"
+ },
+ {
+  "name": "placeOnAdd",
+  "values": "row-start, row-end, parkable-start, parkable-end, after-fixed, order, {before}, {after}, {anchor}",
+  "default": "row-end",
+  "behaviour": "Where a NEW panel lands (addPanel, Host-bag create, open() of a declared panel) and where resetLayout re-places it. See section 5. A missing or self-naming target uses placeFallback. Every immediately-next-to value emits priority -1 (F11). Placement never scrolls.",
+  "enforced_by": "Pure resolvePlacement turns the value into a concrete anchor against the row as it stands; appendPanel writes it (panelWindow.ts:111-132); a property test pins row-end equal to the 0.1.0 default; the enter side is an explicit mark (sideOfLiveRange, panelWindow.ts:164-171).",
+  "exists_today": "Yes, as CreatePanelOptions.anchor, default { position: 'right' } (hostApi.tsx:131; panelWindow.ts:124).",
+  "on_configure": "NEXT. Read by the next add of this panel and by resetLayout; no live, parked or hidden panel moves (use place()). in-place throws invalid-settings; a missing target uses placeFallback.",
+  "ownerEntry": "phonux-engine-placement-and-motion-settings",
+  "cls": "NEXT",
+  "doors": [
+   "instance"
+  ],
+  "scope": "instance"
+ },
+ {
+  "name": "placeOnShow",
+  "values": "the same plus in-place",
+  "default": "in-place",
+  "behaviour": "Where a parked panel re-enters when shown (show(), History click, Host-bag activate). in-place keeps its slot. Otherwise it is re-placed first, then made live. A pin with pinningWhenNotLive show replaces this value for that show. Never recorded as the person's arrangement.",
+  "enforced_by": "placePanel runs inside handleActivatePanel before promoteToLive (usePanelManager.ts:276-302), so every show path is one path.",
+  "exists_today": "Implicit: activate flips live in place (panelWindow.ts:200-223).",
+  "on_configure": "NEXT. Read by the next show. K, H: configure does not re-place or reveal.",
+  "ownerEntry": "phonux-engine-placement-and-motion-settings",
+  "cls": "NEXT",
+  "doors": [
+   "instance"
+  ],
+  "scope": "instance"
+ },
+ {
+  "name": "placeOnReturn",
+  "values": "in-place, row-start, row-end, parkable-start, parkable-end, after-fixed, order, {before}, {after}, {anchor}",
+  "default": "in-place",
+  "behaviour": "Park-mode lever. Where an engine-parked panel lands when it comes back by itself (capacity rise, reveal after a close). Any value but in-place re-places it first in the same update that makes it live. An undo uses undoPlacement, a show placeOnShow. Automatic returns never scroll.",
+  "enforced_by": "placePanel runs inside both return paths before promoteToLive (usePanelManager.ts:397-403, :430); a missing target uses placeFallback.",
+  "exists_today": "Implicit: returns flip live in place (usePanelManager.ts:402-403, :430).",
+  "on_configure": "NEXT. Read by the next automatic return. K: takes the new value when it returns. H: moot.",
+  "ownerEntry": "phonux-engine-placement-and-motion-settings",
+  "cls": "NEXT",
+  "doors": [
+   "instance"
+  ],
+  "scope": "instance"
+ },
+ {
+  "name": "placeFallback",
+  "values": "row-start, row-end, parkable-start, parkable-end, after-fixed",
+  "default": "row-end",
+  "behaviour": "Used when a before or after target is absent or the panel itself, or order has no list or no known id. Named positions only. Each fallback is noted.",
+  "enforced_by": "resolvePlacement; a fallback note goes to the note reporter.",
+  "exists_today": "Implicit: an anchor naming a missing panel falls back to the root's right (panelRowOrder.ts:38, :57-60, :64).",
+  "on_configure": "NEXT. Read when a placement target is missing or self-naming. A value outside the named positions throws invalid-settings.",
+  "ownerEntry": "phonux-engine-placement-and-motion-settings",
+  "cls": "NEXT",
+  "doors": [
+   "instance"
+  ],
+  "scope": "instance"
+ },
+ {
+  "name": "undoPlacement",
+  "values": "old-slot or any placeOnAdd value",
+  "default": "old-slot",
+  "behaviour": "Where undoClose puts a restored panel: its old slot or any placeOnAdd value. The restored panel keeps its live flag, scrolls per scrollOnOpen, and in park mode goes through the room-making rule.",
+  "enforced_by": "undoClose's restore step (usePanelClosing.ts:131-154) calls resolvePlacement for a non-default value (through reapply's placeAs once a workspace exists).",
+  "exists_today": "Implicit: always the old slot (panelWindow.ts:303-307).",
+  "on_configure": "NEXT. Read when undoClose restores a panel; a configure inside the undo window changes where that undo puts it. U: stored on the record.",
+  "ownerEntry": "phonux-engine-placement-and-motion-settings",
+  "cls": "NEXT",
+  "doors": [
+   "instance"
+  ],
+  "scope": "instance"
+ },
+ {
+  "name": "layer",
+  "values": "base, raised",
+  "default": "base",
+  "behaviour": "The stacking tier of the panel's row slot: a raised slot sits above a base one.",
+  "enforced_by": "PanelRow's per-slot zIndex (PanelRow.tsx:141) reads the entry's layer; applyTemplate writes it.",
+  "exists_today": "Yes: PanelWindow.layer (panelWindow.ts:38).",
+  "on_configure": "NOW. L, T: the z-index changes at this commit; a slot mid-exit keeps the one it left with. Row order and widths do not change.",
+  "ownerEntry": "phonux-engine-placement-and-motion-settings",
+  "cls": "NOW",
+  "doors": [
+   "instance"
+  ],
+  "scope": "instance"
+ },
+ {
+  "name": "enterFrom",
+  "values": "auto, left, right, anchor",
+  "default": "auto",
+  "behaviour": "The side the panel slides in from. auto: an explicit engine mark, else the anchor formula when entering via an anchor, else right. anchor: the anchor formula whenever it appears. left and right: a constant that beats every mark.",
+  "enforced_by": "PanelRow's enterDirection (PanelRow.tsx:139) reads entry.enterFrom; applyTemplate writes anchoredEnter from it for 0.1.0 readers.",
+  "exists_today": "Partly: anchoredEnter boolean (panelWindow.ts:40) plus marks (usePanelManager.ts:180-206).",
+  "on_configure": "NEXT. Read at the next enter; a slide in progress keeps its start side.",
+  "ownerEntry": "phonux-engine-placement-and-motion-settings",
+  "cls": "NEXT",
+  "doors": [
+   "instance"
+  ],
+  "scope": "instance"
+ },
+ {
+  "name": "exitTo",
+  "values": "auto, left, right",
+  "default": "auto",
+  "behaviour": "The side a PARK exits toward. auto: left unless the engine marked a right exit. The travel is rest minus (left) or plus (right) the panel's span in a scrolling row, and today's -span for left in a legacy row. A close exits by closeExit.",
+  "enforced_by": "PanelRow's exitDirection (PanelRow.tsx:140): a constant wins over exitRightIds; closingIds wins over both; the pure parkExitTarget(rest, ownSpan, side, rowScroll) gives the target.",
+  "exists_today": "auto only: exitRightIds (usePanelManager.ts:181-191, :259-266, :296); the left exit is x -ownSpan (PanelRowSlot.tsx:62).",
+  "on_configure": "NEXT. Read at the next park; an exit in progress is unchanged.",
+  "ownerEntry": "phonux-engine-placement-and-motion-settings",
+  "cls": "NEXT",
+  "doors": [
+   "instance"
+  ],
+  "scope": "instance"
+ },
+ {
+  "name": "closeExit",
+  "values": "down, left, right",
+  "default": "down",
+  "behaviour": "The side a CLOSED panel's slot exits toward. down matches DragToClose. The exit duration is tuning.slide.closeExitSeconds.",
+  "enforced_by": "PanelRow's exitDirection (PanelRow.tsx:140): closingIds picks the entry's closeExit instead of the literal down.",
+  "exists_today": "Implicit: closes always exit down (PanelRow.tsx:140).",
+  "on_configure": "NEXT. Read at the next close of this panel; a close in the same turn is busy.",
+  "ownerEntry": "phonux-engine-placement-and-motion-settings",
+  "cls": "NEXT",
+  "doors": [
+   "instance"
+  ],
+  "scope": "instance"
+ },
+ {
+  "name": "animated",
+  "values": "true, false",
+  "default": "true",
+  "behaviour": "false: the slot's enter and exit take no time for this panel (and its scrolls are instant), whatever tuning.slide says. A tier resize inside a view is not affected. Edge scrolling of a drag from this panel then steps by panel starts, as under reduced motion.",
+  "enforced_by": "panelRowSlotMotion gains an optional animated argument returning a zero-duration transition (PanelRowSlot.tsx:39-64); the scroll executor reads it.",
+  "exists_today": "New.",
+  "on_configure": "NEXT. Read at the next enter, exit, park or scroll; an animation running finishes as started.",
+  "ownerEntry": "phonux-engine-placement-and-motion-settings",
+  "cls": "NEXT",
+  "doors": [
+   "instance"
+  ],
+  "scope": "instance"
+ },
+ {
+  "name": "formFactor",
+  "values": "phone, tablet, desktop",
+  "default": "phone (C4)",
+  "behaviour": "The tier the panel starts in. The person's change is saved as an override and wins on restore when rememberLayout is true. Must be inside formFactors (C4). The current tier is getState().formFactor.",
+  "enforced_by": "appendPanel (panelWindow.ts:112, :129); resolver C4; setFormFactor records the override for settings-carrying entries.",
+  "exists_today": "Yes: PanelWindow.formFactor (panelWindow.ts:42).",
+  "on_configure": "NEXT. Changes the DEFAULT tier only (next open(), a restore without a saved tier, resetLayout); never resizes a live, parked or hidden panel; the person's recorded tier wins (shadowed). A tier outside formFactors is settings-conflict.",
+  "ownerEntry": "phonux-engine-permission-settings",
+  "cls": "NEXT",
+  "doors": [
+   "instance"
+  ],
+  "scope": "instance"
+ },
+ {
+  "name": "title",
+  "values": "string",
+  "default": "none ('Panel N' for the bag)",
+  "behaviour": "The panel's title. Data kept in the settings so every layer can set it; a singleton restores its title from the template each launch, any other entry from the file.",
+  "enforced_by": "applyTemplate writes PanelWindow.title; the reconcile rules in section 9.",
+  "exists_today": "Yes: PanelWindow.title; the bag titles Panel N (useProvidePanels.ts:189).",
+  "on_configure": "NOW. L, T, K, H: the summary title changes at this commit (header pill, History row); the closed-pages log entry keeps the old title. U: undo rebuilds with it. null restores the cascade value.",
+  "ownerEntry": "phonux-engine-permission-settings",
+  "cls": "NOW",
+  "doors": [
+   "instance"
+  ],
+  "scope": "instance"
+ },
+ {
+  "name": "pinning",
+  "values": "object { pinned: PinHalf, unpinned: PinHalf }; PinHalf = { placement?, parkable? }; valid only if readable after a drag (6A); empty = no pin",
+  "default": "{ pinned: { placement: 'row-start' }, unpinned: { placement: 'row-end' } } (0.1.0's one pin rule)",
+  "behaviour": "What pin() and unpin() do. pin places (gated by placeable), then fixes; unpin frees first, then places, so a fixed pin can always be unpinned. Pinned is READ from facts a drag cannot erase: both halves name parkable -> resolved parkable equals the pinned half's; pinned placement row-start with unpinned row-end or after-fixed -> anchor left of the root (a root-less workspace reads it through the marker entry). If both hold, both are read; an empty definition is valid and reads false; parkable in one half only throws. Other placements only beside the parkable pair. Anything else throws invalid-settings. A fixed pin unlists (note pin-unlists) and never needs room: it may scroll out of view (Q15). A person's press records overrides.anchor and overrides.parkable; code records nothing. An accepted pin or unpin then follows scrollOnMove.",
+  "enforced_by": "Pure isPinned(entry, row, definition) in panelPin.ts reads the anchor through resolvePlacement and the resolved parkable; the resolver validates the definition; pin() and unpin() apply a half in one setPanels through placePanel and applyTemplate(reconfigure); usePanelPinned keeps its anchor reading.",
+  "exists_today": "Partly. usePanelPinned reads an anchor left of the root (PanelRow.tsx:53, :133); the app's pin calls reanchor (app: LivePanel.tsx:56).",
+  "on_configure": "NOW. PanelState.pinned and a slot's pressed state re-read at this commit; nothing moves, parks, shows or scrolls. A deferred pin keeps its direction. An unreadable definition or in-place throws.",
+  "ownerEntry": "phonux-pin-and-reset",
+  "cls": "NOW",
+  "doors": [
+   "instance"
+  ],
+  "scope": "instance"
+ },
+ {
+  "name": "pinningWhenNotLive",
+  "values": "place-only, refuse, show, apply-on-next-show; or { parked?, hidden?, closed? } (closed: refuse or apply-on-next-show)",
+  "default": "place-only",
+  "behaviour": "What a pin change (pin(), unpin(), a configure flipping parkable) does to a panel that is not live; table in 6A. place-only: the placement half applies in place and the panel stays parked or held; a half naming parkable is refused whole (would-reshape-row). refuse: whole pin refused. show: the show path runs, the change applies in the same commit. apply-on-next-show: stored as deferredPin.",
+  "enforced_by": "One pure decidePinChange(entry, status, setting) used by pin(), unpin() and configure(parkable) returns apply, show, defer or a refusal; deferredPin is applied inside every path that makes the panel live, re-validated, then cleared.",
+  "exists_today": "New. reanchor works on a parked panel and never reveals it (hostApi.tsx:183-187).",
+  "on_configure": "NEXT. Read by the next pin change. A stored deferred pin is neither applied nor dropped by a flip of this setting. C, U: the record's value governs.",
+  "ownerEntry": "phonux-pin-and-reset",
+  "cls": "NEXT",
+  "doors": [
+   "instance"
+  ],
+  "scope": "instance"
+ },
+ {
+  "name": "headerButtons",
+  "values": "object: slot id (1-32 chars a-z0-9-) to HeaderButton or false; HeaderButton = { icon, label, onClick, side?, order?, pressed?, description?, tooltip?, disabled?, hidden?, sx? } (section 6)",
+  "default": "{} (no button drawn)",
+  "behaviour": "Generic title-bar button slots declared at spawn (Q14). The library draws one MUI IconButton (size small, a native button) per slot: end-side after the view's own actions, start-side before the title, ordered by order then id; sx defaults to { color: 'inherit' } and a slot's own sx replaces it whole. onClick receives the panel's self-only ViewHandle and a context with state, settings and announce(text); the handle's verbs are the person's gesture while the synchronous part runs. A refused verb returns its typed code to the function. disabled keeps the button focusable with aria-disabled; hidden removes it. Each slot sits in its own error boundary; a throwing or rejected onClick goes to onError, else console.error. Layers merge per slot id; false removes a slot. Not view-settable.",
+  "enforced_by": "Panel appends the resolved slots to PanelHeaderRow from the slot context PanelRow provides (leading for start); PanelRow builds each slot's ViewHandle from its workspace prop; usePanelHeaderButtons() serves a view with its own header; the press runs the function with a person-source handle through the in-flight gate; the post-press refocus calls focus({ preventScroll: true }); the resolver validates ids, label, onClick, side, order and sx.",
+  "exists_today": "No. The library draws no title-bar button (F17); the app draws its own size and pin (app: LivePanel.tsx:24-61).",
+  "on_configure": "NOW. L, T: a slot appears, changes or disappears at this commit; a focused button that leaves moves focus to the header row; a press already dispatched completes. K, H: stored, first drawn when it returns. null deletes the instance entry; false removes the slot.",
+  "ownerEntry": "phonux-header-buttons",
+  "cls": "NOW",
+  "doors": [
+   "instance"
+  ],
+  "scope": "instance"
+ },
+ {
+  "name": "persist",
+  "values": "saved, session",
+  "default": "saved",
+  "behaviour": "saved: written to the workspace file and restored. session: never written; a declared panel is recreated by code each launch, a runtime one is gone after restart. Saved panels anchored to a session panel are written with anchors derived from the filtered row order. C3 forces rememberLayout false and afterClose return-next-launch.",
+  "enforced_by": "projectWorkspaceState filters session entries (workspaceState.ts:97-113) and re-derives anchors of saved panels that named them; reconcile creates declared ones.",
+  "exists_today": "Implicit: every non-root panel is saved (workspaceState.ts:97).",
+  "on_configure": "NEXT. Takes effect at the next save projection; no row effect. saved->session: the entry leaves the file; dependents get derived anchors; an explicit rememberLayout:true is settings-conflict. session->saved: written at the next save.",
+  "ownerEntry": "phonux-saved-overrides-and-template-paths",
+  "cls": "NEXT",
+  "doors": [
+   "instance"
+  ],
+  "scope": "instance"
+ },
+ {
+  "name": "rememberLayout",
+  "values": "true, false",
+  "default": "true (C3)",
+  "behaviour": "true: the person's drag, pin (anchor and parkable half) or resize (PanelsAPI calls and header-button presses) is stored as an override and beats later defaults on restore; after any drag every non-root remembering panel's position counts as theirs, sizes per panel. false: nothing stored or applied, but stored overrides stay in the file (dormant).",
+  "enforced_by": "Overrides are recorded at the hook layer (reorderPanel, resizePanel and the reanchor wrapper), only for entries carrying settings; reconcile applies them and carries dormant ones through projectWorkspaceState; verbs from code, configure and resetLayout never record.",
+  "exists_today": "New. 0.1.0 restores the saved layout verbatim (workspaceState.ts:121-149).",
+  "on_configure": "NEXT. true->false: gestures are not recorded and, at restore, stored overrides are not applied; nothing moves; the file keeps them. false->true: recording and applying resume. C3: true under persist:session is settings-conflict.",
+  "ownerEntry": "phonux-saved-overrides-and-template-paths",
+  "cls": "NEXT",
+  "doors": [
+   "instance"
+  ],
+  "scope": "instance"
+ },
+ {
+  "name": "restoreVisibility",
+  "values": "saved, live, parked",
+  "default": "saved (C1)",
+  "behaviour": "The live flag of a restored panel. saved: as written. live: always shown (a park-policy panel may then be parked for room and returns). parked: restored hidden, held per hideStickiness. A fixed column is always live.",
+  "enforced_by": "reconcile step 4; the capacity reconcile still parks park-policy overflow (usePanelManager.ts:383-388).",
+  "exists_today": "Implicit: saved verbatim except permanent columns (workspaceState.ts:143-145).",
+  "on_configure": "NEXT. Read only at the next launch's restore. C1: anything but live on a fixed column is settings-conflict.",
+  "ownerEntry": "phonux-saved-overrides-and-template-paths",
+  "cls": "NEXT",
+  "doors": [
+   "instance"
+  ],
+  "scope": "instance"
+ },
+ {
+  "name": "afterClose",
+  "values": "stay-closed, return-next-launch",
+  "default": "stay-closed (C3)",
+  "behaviour": "For a declared panel the person closed. stay-closed: remembered in dismissed and not recreated next launch; the way back is open(). return-next-launch: recreated by the declaration. Anonymous instances are never tombstoned.",
+  "enforced_by": "The tombstone diff in the snapshot-publishing layout effect after the load settles; reconcile step 4; the 256-entry cap drops the oldest.",
+  "exists_today": "New. 0.1.0 does not recreate panels.",
+  "on_configure": "NEXT. Read when the panel next leaves the list. An existing tombstone is neither added nor removed by the flip. C3: stay-closed under persist:session is settings-conflict.",
+  "ownerEntry": "phonux-workspace-attach-and-snapshot",
+  "cls": "NEXT",
+  "doors": [
+   "instance"
+  ],
+  "scope": "instance"
+ },
+ {
+  "name": "undoWindowMs",
+  "values": "integer ms; 0 = no undo",
+  "default": "10000",
+  "behaviour": "Milliseconds a close can be undone. A close extends the one shared window to at least now plus this value, never shortens it. 0: the close is final at once: not in recentlyClosed, no log record, picture evicted at close.",
+  "enforced_by": "usePanelClosing.close (:104-129): 0 skips setClosedBoth and the timer; otherwise the window end is max(previous end, now + value); a commit-cleared set makes a double close in one turn a no-op.",
+  "exists_today": "Implicit: one 10 s window restarted by every close (usePanelClosing.ts:8, :121-128).",
+  "on_configure": "NEXT. Read by the next close of this panel. An open undo window keeps the end it has; a 0 affects only later closes.",
+  "ownerEntry": "phonux-engine-permission-settings",
+  "cls": "NEXT",
+  "doors": [
+   "instance"
+  ],
+  "scope": "instance"
+ },
+ {
+  "name": "reportClose",
+  "values": "true, false",
+  "default": "true",
+  "behaviour": "true: onPanelsClosed fires with a log entry per close. false: no entry; onPanelsRestored lists only ids that were reported and restored.",
+  "enforced_by": "usePanelClosing.close guards onPanelsClosed (:119); undoClose filters its batch ids by a per-entry reported flag and by what it restored (:164).",
+  "exists_today": "Implicit: every close is reported (usePanelClosing.ts:119).",
+  "on_configure": "NEXT. Read by the next close; log entries already reported stay.",
+  "ownerEntry": "phonux-engine-permission-settings",
+  "cls": "NEXT",
+  "doors": [
+   "instance"
+  ],
+  "scope": "instance"
+ },
+ {
+  "name": "snapshot",
+  "values": "both, park, close, never",
+  "default": "both",
+  "behaviour": "Which events ask the host's CaptureTrigger for a picture: park, close, both or neither. never also skips the evict call. A kept hidden panel is never captured.",
+  "enforced_by": "The park diff effect and the close and clearAll paths in useProvidePanels.ts (:131-137, :141-144, :206) read effective(p).snapshot; a spy asserts the call counts with a positive control.",
+  "exists_today": "Implicit: always asked (useProvidePanels.ts:134, :206).",
+  "on_configure": "NEXT. Read at the next park or close. Switching to never asks the host to evict this panel's stored picture once, from the commit's layout effect.",
+  "ownerEntry": "phonux-engine-permission-settings",
+  "cls": "NEXT",
+  "doors": [
+   "instance"
+  ],
+  "scope": "instance"
+ },
+ {
+  "name": "tuning.rowGap",
+  "values": "integer px 0 to 200 (workspace only)",
+  "default": "16 (GAP)",
+  "behaviour": "The space between adjacent slots and the row's padding: one number. It prices slot offsets, enter and exit travel, the shell's gap and padding, the window width, capacity, scroll targets and the max live width. Never per panel.",
+  "enforced_by": "One resolved value per render reaches PanelRow, PanelRowSlot, Workspace, workspaceShellStyle, computeRowNumbers, usePanelManager and useProvidePanels: ProvidedPanels.tuning (useSyncExternalStore), Workspace's tuning prop and its context. A reference count of GAP outside rowConstants.ts is 0.",
+  "exists_today": "Constant: GAP (PanelRowSlot.tsx:10) read at PanelRow.tsx:100, :102, PanelRowSlot.tsx:48, Workspace.tsx:50, :100-103, :116, usePanelManager.ts:115, :122, useProvidePanels.ts:106 and the app (LivePanel.tsx:84, useProvideSettings.ts:30).",
+  "on_configure": "NOW (configureTuning only). The whole row re-prices at this commit; in park mode a smaller capacity parks the fewest park panels through the reconcile effect; a scrolling row only re-prices and clamps scrollLeft. Slides in progress retarget. Unmeasured: stored. Busy while any panel has a token. Outside 0-200 throws.",
+  "ownerEntry": "phonux-engine-tuning-look-settings",
+  "cls": "NOW",
+  "doors": [
+   "tuning"
+  ],
+  "scope": "workspace"
+ },
+ {
+  "name": "tuning.dragToClose",
+  "values": "object: distanceFraction [0.05, 1], minDistancePx >= 8, flickMinDistancePx >= 8, flickVelocity >= 100, cancelVelocity <= -50, directionLockPx integer [2, 64], snapBack { stiffness [50, 2000], damping [5, 200] }; panel or workspace",
+  "default": "0.25, 80, 40, 700, -300, 8, { 520, 42 } (DRAG_CLOSE; DIRECTION_LOCK_PX)",
+  "behaviour": "The close rule shouldCloseOnRelease reads: a release closes past max(minDistancePx, distanceFraction x height), or past flickMinDistancePx at flickVelocity, and never while moving back up faster than cancelVelocity. directionLockPx is how far a gesture travels before it locks to an axis; snapBack is the spring of a release that does not close. Per panel (one grab bar judges its own release); the workspace value is the default.",
+  "enforced_by": "shouldCloseOnRelease(measure, params = DRAG_CLOSE) gains an optional parameter; DragToClose takes it, the lock and the spring from usePanelTuning() through the slot context (dragToClose.tsx:11, :27).",
+  "exists_today": "Constants: DRAG_CLOSE (dragToClose.tsx:14-28) and DIRECTION_LOCK_PX (:11).",
+  "on_configure": "NEXT. Panel door: configure(id, { tuning: { dragToClose } }); workspace door: configureTuning sets the default. Read at the next release; a drag in flight is judged by the values current at release. Leaves merge; null removes a panel leaf.",
+  "ownerEntry": "phonux-engine-tuning-look-settings",
+  "cls": "NEXT",
+  "doors": [
+   "instance",
+   "tuning"
+  ],
+  "scope": "panel or workspace"
+ },
+ {
+  "name": "tuning.slide",
+  "values": "object: durationSec [0, 10], ease (four numbers, x1 and x2 in [0,1]), closeExitSeconds [0, 5]; panel or workspace",
+  "default": "0.4, [0.2, 0, 0, 1], 0.18 (SLOT_TRANSITION, DRAG_CLOSE.exitSeconds)",
+  "behaviour": "The slot's enter and exit timing and easing, how long a close takes to leave, and the glide of a programmatic scroll. Per panel; the row's recentre glide uses the workspace value. slideToTransition returns SLOT_TRANSITION itself at the defaults; PANEL_TRANSITION stays the 0.1.0 constant.",
+  "enforced_by": "panelRowSlotMotion and PanelRowSlot take the resolved slide through slideToTransition; PanelSizeBox reads usePanelTuning; the scroller reads the target panel's slide; DragToClose reads closeExitSeconds from the slot context.",
+  "exists_today": "Constants: SLOT_TRANSITION (directionalTransition.ts:10-14), close exit 0.18 (dragToClose.tsx:26, PanelRowSlot.tsx:59).",
+  "on_configure": "NEXT. Panel and workspace doors. Read at the next enter, exit, close or scroll; animations running keep their timing. animated:false still wins.",
+  "ownerEntry": "phonux-engine-tuning-look-settings",
+  "cls": "NEXT",
+  "doors": [
+   "instance",
+   "tuning"
+  ],
+  "scope": "panel or workspace"
+ },
+ {
+  "name": "tuning.hopFraction",
+  "values": "number in (0, 1]; panel or workspace",
+  "default": "0.5",
+  "behaviour": "How far, as a fraction of the next neighbour's span (width plus gap), a horizontal drag must travel before the panel hops past it; 0.5 is today's half-span rule. In a scrolling row the offset it is applied to includes the scroll distance of an edge-scrolling drag (ReorderHandle.onDragEnd), so every crossed panel hops at release. Enforced through usePanelReorderSteps(), which binds the slot's neighbour widths, the resolved rowGap and this fraction.",
+  "enforced_by": "reorderStepsForOffset(offset, neighbors, gap, hopFraction = 0.5) (panelWindow.ts:270-281); usePanelReorderSteps wraps it for views (app: LivePanel.tsx:84).",
+  "exists_today": "Constant: span / 2 (panelWindow.ts:276).",
+  "on_configure": "NEXT. Panel and workspace doors. Read by the dragged panel's view at its next release. Outside (0, 1] throws.",
+  "ownerEntry": "phonux-engine-tuning-look-settings",
+  "cls": "NEXT",
+  "doors": [
+   "instance",
+   "tuning"
+  ],
+  "scope": "panel or workspace"
+ },
+ {
+  "name": "tuning.edgeScroll",
+  "values": "object: zonePx integer [8, 200], maxPxPerSec integer [100, 5000], reducedStepMs integer [100, 5000]; panel or workspace (a key derived from Q19; the numbers are owner-confirmed, Q21)",
+  "default": "48, 900, 500 (owner-confirmed, Q21; the numbers live in rowConstants.ts)",
+  "behaviour": "The numbers behind scrollOnDrag (mouse and pen drags; works under every rowGesture, 'off' included). zonePx: the band at each visible edge of the row's scroll container in which a held drag scrolls the row (a container narrower than two zones gives each side half; a pointer beyond the edge, even outside the window, counts as inside). Speed is maxPxPerSec x depth, depth = (zonePx - distance to the edge) / zonePx clamped to [0, 1], so 0 at the band's inner edge and full at the edge (linear; no acceleration over time); each frame moves speed x min(frame time, 50 ms) and the position is clamped to [0, max(0, rowMarginLeft + stripWidth - windowWidth)] computed from the row numbers, never from the DOM's scrollWidth (which the dragged box inflates); a pointer held still keeps scrolling until that end, where nothing moves. reducedStepMs: the dwell between one-panel-start jumps under reduced motion or animated false; each jump is clamped by the same bound. Per panel (the dragged panel's own values); the workspace value is the default.",
+  "enforced_by": "The pure edgeScrollSpeed and edgeScrollStep (edgeScroll.ts) and stepTarget take the claim's strip bound (setMaxScroll, from computeRowNumbers at drag start and on every commit) and read the merged values from the slot context (usePanelTuning); the resolver validates each leaf.",
+  "exists_today": "New.",
+  "on_configure": "NEXT. Panel door: configure(id, { tuning: { edgeScroll } }); workspace door: configureTuning sets the default. Read at the next drag start; a drag in flight keeps its numbers. Leaves merge; null removes a panel leaf.",
+  "ownerEntry": "phonux-edge-scroll-while-dragging",
+  "cls": "NEXT",
+  "doors": [
+   "instance",
+   "tuning"
+  ],
+  "scope": "panel or workspace"
+ },
+ {
+  "name": "tuning.saveQuietMs",
+  "values": "integer ms >= 0 (workspace only)",
+  "default": "500",
+  "behaviour": "How long the panel list must stay unchanged before it is saved; a change restarts it. Workspace-wide (one file, one timer).",
+  "enforced_by": "useWorkspacePersistence reads it from WorkspaceOptions.tuning or PanelsInput.tuning at each timer arm; WORKSPACE_SAVE_QUIET_MS stays exported as the default.",
+  "exists_today": "Constant: WORKSPACE_SAVE_QUIET_MS (useWorkspacePersistence.ts:14, :81).",
+  "on_configure": "NEXT (configureTuning only). A timer already armed keeps its deadline; the next arm uses the new value. Session-only.",
+  "ownerEntry": "phonux-engine-visibility-settings",
+  "cls": "NEXT",
+  "doors": [
+   "tuning"
+  ],
+  "scope": "workspace"
+ },
+ {
+  "name": "tuning.gestureLockMs",
+  "values": "integer ms >= 0 (workspace only)",
+  "default": "350",
+  "behaviour": "How long a wheel burst must be silent before another gesture step: one swipe is one step (rowGesture 'step'). Workspace-wide.",
+  "enforced_by": "useRowScrollGesture reads it at each armUnlock (useRowScrollGesture.ts:31) from a ref.",
+  "exists_today": "Constant: GESTURE_LOCK_MS 350 (useRowScrollGesture.ts:16, :31).",
+  "on_configure": "NEXT (configureTuning only). A lock already armed keeps its remaining time. Session-only.",
+  "ownerEntry": "phonux-engine-visibility-settings",
+  "cls": "NEXT",
+  "doors": [
+   "tuning"
+  ],
+  "scope": "workspace"
+ },
+ {
+  "name": "tuning.returnTieBreak",
+  "values": "latest-first, earliest-first, row-order (workspace only)",
+  "default": "latest-first",
+  "behaviour": "Park-mode residual default: order among engine-parked panels with equal returnPriority that fit when room opens: most recently parked first (today), oldest first, or row order. Workspace-wide because returnPriority is the per-panel lever.",
+  "enforced_by": "The two stack walks in usePanelManager (:393-403, :415-421).",
+  "exists_today": "Implicit: latest-first.",
+  "on_configure": "NEXT (configureTuning only). Read at the next stack walk; nothing returns now.",
+  "ownerEntry": "phonux-engine-visibility-settings",
+  "cls": "NEXT",
+  "doors": [
+   "tuning"
+  ],
+  "scope": "workspace"
+ },
+ {
+  "name": "tuning.dropTieBreak",
+  "values": "leftmost, rightmost (workspace only)",
+  "default": "leftmost",
+  "behaviour": "Park-mode residual default: which of equal-rank park panels a capacity drop or resize parks. Workspace-wide because evictionRank and evictionOrder are the per-panel levers.",
+  "enforced_by": "fewestParksThatSettle candidate order (usePanelManager.ts:455-486).",
+  "exists_today": "Implicit: leftmost.",
+  "on_configure": "NEXT (configureTuning only). Read at the next capacity drop or resize; nothing parks now.",
+  "ownerEntry": "phonux-engine-visibility-settings",
+  "cls": "NEXT",
+  "doors": [
+   "tuning"
+  ],
+  "scope": "workspace"
+ },
+ {
+  "name": "tuning.rowGesture",
+  "values": "step, free, off (workspace only; a design-derived key from Q15, not requested)",
+  "default": "step",
+  "behaviour": "What the row's wheel or arrow gesture does (6B). step: a swipe burst, Shift+wheel or ArrowLeft/ArrowRight scrolls to the next panel start (the base is the in-flight glide's target, so ten arrow repeats advance ten stops) or reveals the nearest hidden panel (revealOnScroll); the scrollbar is hidden. free: no library listener; the browser scrolls natively with a scrollbar. off: no listener and no native scroll; only code, History and edge scrolling (scrollOnDrag) scroll. Edge scrolling works under all three. Under step a step now scrolls by panel where 0.1.0 swapped a parked panel in (Q18: the swap is gone), and a hidden panel still comes back through revealOnScroll (Q1); at the strip's end with nothing hidden it does nothing. A glide stops on pointer-down or a scroll it did not write; the gesture's own consumed events never cancel it. One wheel listener on one container, so workspace-wide. While a drag holds the row the gesture does nothing (Q19). No scrollbar this release (Q18); a custom one is deferred (6B).",
+  "enforced_by": "useRowScrollGesture reads it from a ref: step installs the wheel (non-passive) and window keydown listeners with the 0.1.0 filters and calls gestureTarget and stepTarget; free and off install none; workspaceShellStyle sets the container's overflow from rowScroll and it: a legacy row hidden, step auto with the scrollbar hidden, free auto with the native bar, off hidden.",
+  "exists_today": "New. The gesture is always the swap (usePanelManager.ts:305-327; useRowScrollGesture.ts:55-56).",
+  "on_configure": "NEXT (configureTuning only). The listener set is re-read at the next render; a gesture in flight finishes; no panel moves. Session-only.",
+  "ownerEntry": "phonux-row-scroll-gesture-and-requests",
+  "cls": "NEXT",
+  "doors": [
+   "tuning"
+  ],
+  "scope": "workspace"
+ },
+ {
+  "name": "tuning.initialScroll",
+  "values": "start, end, root, { panel: PanelId } (workspace only; a design-derived key from Q15, not requested)",
+  "default": "start (the library default, a design default the owner did not rule on; phonux-app sets 'end', owner Q20: the newest closable panels in view at launch)",
+  "behaviour": "Where the strip is scrolled once per mount: start (scrollLeft 0), end (the far end), root (the root's left edge at the window start) or a named panel's left edge (a missing id means start). It runs when the restore has settled (no storage: the first measured commit; storage: after load() resolved and its panels were appended, status ready under a workspace) and the row is measured with at least one entry; no animation; skipped if the person already scrolled (a wheel, pointer-down or key on the container). Later restores never scroll.",
+  "enforced_by": "A once-per-mount layout effect in useProvidePanels, gated on restoreSettled from useWorkspacePersistence (status ready under a workspace), calls the pure scrollTargetFor with the target panel's left edge, clamped to the farthest legal scrollLeft from the row numbers; the default lives in rowConstants.ts.",
+  "exists_today": "New. The row is centred and never scrolled.",
+  "on_configure": "NEXT (configureTuning only). Read at the next mount; nothing scrolls now. Session-only.",
+  "ownerEntry": "phonux-row-scroll-gesture-and-requests",
+  "cls": "NEXT",
+  "doors": [
+   "tuning"
+  ],
+  "scope": "workspace"
+ }
+]
