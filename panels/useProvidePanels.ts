@@ -8,12 +8,12 @@
 
 import { useEffect, useRef, useState, type RefObject } from 'react';
 import type { CreatePanelOptions, JsonValue, PanelsAPI } from '../hostApi.js';
-import { computeMaxLiveWidth } from '../panelRowLayout.js';
+import { computeRowNumbers, type RowNumbers } from '../rowNumbers.js';
 import { summarisePanel } from '../panelRowEntry.js';
 import { panelWidthOf } from '../panelTiers.js';
 import { noopCaptureTrigger, type CaptureTrigger } from '../snapshots.js';
-import { LIBRARY_TUNING_DEFAULTS, effective } from '../panelSettings.js';
-import type { ResolvedWorkspaceTuning, SettingNote, WorkspaceTuning } from '../panelSettings.js';
+import { LIBRARY_TUNING_DEFAULTS, applyTemplate, effective, resolvePanelSettings } from '../panelSettings.js';
+import type { PanelSettings, ResolvedWorkspaceTuning, SettingNote, WorkspaceTuning } from '../panelSettings.js';
 import { resolveWorkspaceTuning } from '../panelTuning.js';
 import { appendPanel, reanchorPanel, type PanelWindow } from '../panelWindow.js';
 import { usePanelClosing } from './usePanelClosing.js';
@@ -85,6 +85,32 @@ export interface PanelsInput {
   onNote?: (note: SettingNote) => void;
   /** The workspace's tuning leaves; each one left out, or out of range, takes the library default. The engine reads `rowGap`, `saveQuietMs`, `gestureLockMs`, `returnTieBreak` and `dropTieBreak` here; the row reads `dragToClose`, `slide` and `hopFraction` through the Workspace given the same value. */
   tuning?: WorkspaceTuning;
+  /**
+   * The workspace's panel settings (every key except `tuning`). Given, a panel made by `create()` and a panel restored from
+   * `storage` is resolved against them and carries its settings: it scrolls instead of parking unless its `overflow` is
+   * 'park'. Absent: a panel is built as in 0.1.0, with no settings, and parks at capacity.
+   */
+  workspaceDefaults?: Omit<PanelSettings, 'tuning'>;
+}
+
+/** `entry`, just built by appendPanel, resolved against the workspace defaults and the options the host-bag `create` carried. */
+function withCreatedSettings(entry: PanelWindow, defaults: Omit<PanelSettings, 'tuning'>, options: CreatePanelOptions | undefined): PanelWindow {
+  const permanent = options?.permanent === true;
+  const host: PanelSettings = {
+    ...(options?.title !== undefined ? { title: options.title } : {}),
+    ...(!permanent && options?.listed !== undefined ? { listed: options.listed } : {}),
+    ...(options?.layer !== undefined ? { layer: options.layer } : {}),
+    ...(options?.anchoredEnter === true ? { enterFrom: 'anchor' as const } : {}),
+    ...(!permanent && options?.formFactor !== undefined ? { formFactor: options.formFactor } : {}),
+  };
+  // A view cannot set `parkable`, so a permanent column is the library's own ask, on the instance layer.
+  return applyTemplate(entry, resolvePanelSettings({ workspace: defaults, host, ...(permanent ? { instance: { parkable: false } } : {}) }).value, 'create');
+}
+
+/** A restored `entry` under the workspace defaults. Its live flag, anchor, tier, size and fixed-column status stay as it was saved. */
+function withRestoredSettings(entry: PanelWindow, defaults: Omit<PanelSettings, 'tuning'>): PanelWindow {
+  const host: PanelSettings = { listed: entry.listed, layer: entry.layer ?? 'base', formFactor: entry.formFactor ?? 'phone' };
+  return applyTemplate(entry, resolvePanelSettings({ workspace: defaults, host, instance: { parkable: entry.collapsible } }).value, 'reconfigure');
 }
 
 /** The four timing leaves of `tuning`, each at its library default when unset or unusable. */
@@ -112,10 +138,14 @@ export interface ProvidedPanels extends PanelsAPI {
   readonly entries: readonly PanelWindow[];
   /** How many always-rendered columns the row has: `PanelsInput.fixedViewCount` when passed, else `count(!collapsible)` over `entries`. Capacity is priced from it. */
   readonly fixedViewCount: number;
-  /** Each live collapsible panel's own width in row order, capped at `maxLiveWidth`: the row's centring margin reads the same array capacity is priced from. */
+  /** Each live collapsible panel's own width in row order, capped at `maxLiveWidth`: the row's centring margin reads the same array the park capacity is priced from. */
   readonly liveWidths: readonly number[];
   /** The widest one live panel can be in this row; `Infinity` until the row is measured (`containerWidth` 0). */
   readonly maxLiveWidth: number;
+  /** Whether the row scrolls: any drawn entry carries settings whose `overflow` is 'scroll'. Hand it to a Workspace's `rowScroll`. */
+  readonly rowScroll: boolean;
+  /** The row's one set of numbers, the same value the shell, the row and the capacity are priced from. Hand it to a Workspace's and a PanelRow's `rowNumbers`. */
+  readonly rowNumbers: RowNumbers;
   /** `PanelsInput.tuning` over the library defaults, leaf by leaf: the one value this render's capacity and widths were priced from. Hand it to a Workspace's `tuning`. */
   readonly tuning: ResolvedWorkspaceTuning;
   /** Ids being closed: each exits DOWN before it leaves `entries`. */
@@ -140,7 +170,8 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
   const tuning = resolveWorkspaceTuning(i.tuning);
   const fixedViewCount = i.fixedViewCount ?? panels.filter((p) => !p.collapsible && p.marker !== true).length;
   // Filters over the whole list, never an array position: a panel anchored left of History changes none of these.
-  const maxLiveWidth = computeMaxLiveWidth({ containerWidth: i.containerWidth, phoneWidth: i.phoneWidth, gap: tuning.rowGap, fixedItemCount: fixedViewCount });
+  const rowNumbers = computeRowNumbers({ entries: panels, phoneWidth: i.phoneWidth, containerWidth: i.containerWidth, gap: tuning.rowGap, fixedItemCount: fixedViewCount });
+  const { maxLiveWidth } = rowNumbers;
   const liveWidths = panels.filter((p) => p.collapsible && p.live).map((p) => panelWidthOf(p, i.phoneWidth, maxLiveWidth));
   const {
     revealPanelProactively,
@@ -165,7 +196,16 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
   // The row's wheel/arrow-key gesture is wired here, not in the host, so a host stays free of effects and refs.
   useRowScrollGesture(i.overflowContainerRef, scrollRow, timing.gestureLockMs);
 
-  useWorkspacePersistence({ storage: i.storage, panels, setPanels, rootId: i.rootId, freshId, defaultHostData: i.defaultHostData, saveQuietMs: timing.saveQuietMs });
+  useWorkspacePersistence({
+    storage: i.storage,
+    panels,
+    setPanels,
+    rootId: i.rootId,
+    freshId,
+    defaultHostData: i.defaultHostData,
+    saveQuietMs: timing.saveQuietMs,
+    decorateRestored: i.workspaceDefaults === undefined ? undefined : (p) => withRestoredSettings(p, i.workspaceDefaults!),
+  });
 
   // Diffs the one list instead of capturing per call site: usePanelManager parks from several sites with no single
   // "on park" hook, and a per-site call would silently miss any site not touched.
@@ -228,14 +268,15 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
       const hostData = i.defaultHostData?.();
       // "Panel N", not "about:blank": every panel needs a distinguishable title, for testing. options?.title
       // overrides it; the explicit `title:` below (after the spread) is what makes that override win either way.
-      revealPanelProactively(panels, (prev) =>
-        appendPanel(
+      revealPanelProactively(panels, (prev) => {
+        const next = appendPanel(
           prev,
           { url: 'about:blank', hostData, ...safeOptions, title: safeOptions?.title ?? `Panel ${id}` },
           id,
           i.rootId,
-        ),
-      );
+        );
+        return i.workspaceDefaults === undefined ? next : next.map((p) => (p.id === id ? withCreatedSettings(p, i.workspaceDefaults!, safeOptions) : p));
+      });
     },
     activate: handleActivatePanel,
     move: reorderPanel,
@@ -265,6 +306,8 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
     fixedViewCount,
     liveWidths,
     maxLiveWidth,
+    rowScroll: rowNumbers.rowScroll,
+    rowNumbers,
     tuning,
     closingIds: closing.closingIds,
     enteringViaAnchorIds,

@@ -3,7 +3,7 @@
  * function that operates on a `PanelWindow[]` array.
  */
 import type { FormFactor, JsonValue, PanelSize } from './hostApi.js';
-import { isPresent, type NeighborWidths } from './panelRowEntry.js';
+import { isPresent, type NeighborWidths, type PanelRowEntry } from './panelRowEntry.js';
 import { computeRowOrder, deriveAnchorsFromOrder } from './panelRowOrder.js';
 import type { PanelAnchor } from './panelRowOrder.js';
 import { effective } from './panelSettings.js';
@@ -161,6 +161,11 @@ export function appendPanel(panels: PanelWindow[], info: { url: string } & Appen
   return computeRowOrder([...panels, entry], rootId);
 }
 
+/** Whether the row may park `p` to make room: a collapsible entry whose `overflow` is 'park', which every hand-built collapsible entry reads as. Any other entry scrolls instead. @internal */
+export function parksForRoom(p: PanelWindow | PanelRowEntry): boolean {
+  return p.collapsible && effective(p).overflow === 'park';
+}
+
 /** The park-lever settings of `p`: its own when its `overflow` is 'park', the library defaults otherwise, because a panel the row never parks for room has no lever to pull. @internal */
 export function parkLevers(p: PanelWindow): Pick<ResolvedPanelSettings, 'evictionRank' | 'evictionOrder' | 'returnPriority' | 'capacityReturn'> {
   const s = effective(p);
@@ -168,7 +173,7 @@ export function parkLevers(p: PanelWindow): Pick<ResolvedPanelSettings, 'evictio
 }
 
 /**
- * The id of the live collapsible panel to park for room, or null with none live: among the lowest `evictionRank`,
+ * The id of the live panel to park for room (one whose `overflow` is 'park'), or null with none live: among the lowest `evictionRank`,
  * the one `order` picks by distance from `fromIndex` ('leftmost' and 'rightmost' ignore it); a tie goes to the lower
  * index. `exclude` exempts the panel being opened or restored, already live in `panels`, and any panel another
  * action in the same update must keep live.
@@ -182,7 +187,7 @@ export function farthestLiveCollapsibleId(
 ): string | null {
   const candidates: { id: string; index: number; rank: number }[] = [];
   panels.forEach((p, index) => {
-    if (p.collapsible && p.live && !exclude.has(p.id)) candidates.push({ id: p.id, index, rank: parkLevers(p).evictionRank });
+    if (p.live && parksForRoom(p) && !exclude.has(p.id)) candidates.push({ id: p.id, index, rank: parkLevers(p).evictionRank });
   });
   if (candidates.length === 0) return null;
   const lowest = Math.min(...candidates.map((c) => c.rank));
@@ -255,7 +260,7 @@ export function promoteToLive(panels: PanelWindow[], id: string, capacity: numbe
   const target = panels.find((p) => p.id === id);
   if (!target || target.live) return null;
   const ownIndex = panels.findIndex((p) => p.id === id);
-  const liveCountAfter = panels.filter((p) => p.collapsible && p.live).length + 1;
+  const liveCountAfter = panels.filter((p) => p.live && parksForRoom(p)).length + (parksForRoom(target) ? 1 : 0);
   let next = panels.map((p) => (p.id === id ? { ...p, live: true } : p));
   if (liveCountAfter > capacity) {
     // `panels` (pre-promotion): `id` itself still reads live:false there, so it is naturally excluded

@@ -174,8 +174,8 @@ export interface PanelsAPI {
    * Appends a live panel; zero-arg is the blank-web-panel default. `view` selects the rendered component
    * (registerView/resolveView) -- an unregistered key renders a placeholder, never a crash. No raw
    * `collapsible`/`locked` key: `permanent` (CreatePanelOptions) is the only door to a permanent column, and
-   * `locked` is never settable at all. At capacity, the live panel farthest from it is parked, as for any
-   * non-permanent panel.
+   * `locked` is never settable at all. A panel whose `overflow` setting is 'park' parks the live parkable panel
+   * farthest from it at capacity; any other panel scrolls the row instead of parking anything.
    */
   create(): void;
   /**
@@ -183,7 +183,7 @@ export interface PanelsAPI {
    * optional-arg signature would collide with a bare `onClick={panels.create}` reference.
    */
   create(options: CreatePanelOptions): void;
-  /** Make a panel live in place, without reordering the row. May park the live panel farthest from it. */
+  /** Make a panel live in place, without reordering the row. When its `overflow` is 'park', it may park the live parkable panel farthest from it. */
   activate(id: string): void;
   /**
    * Moves `id` one row-slot toward `direction`, swapping past whichever OTHER currently-shown panel sits there,
@@ -194,8 +194,8 @@ export interface PanelsAPI {
   move(id: string, direction: 'left' | 'right'): void;
   /**
    * Resizes `id` to `next`'s tier in place: it stays mounted and live, its content the same node, and the row
-   * reflows around it. If the row no longer fits, OTHER panels park, never this one -- also when one handler
-   * resizes, opens or activates several panels, unless the earlier of them already fill the row. No-op for an
+   * reflows around it. If the row no longer fits, OTHER panels whose `overflow` is 'park' park, never this one --
+   * also when one handler resizes, opens or activates several panels, unless the earlier of them already fill the row. No-op for an
    * unknown id, a permanent column (e.g. History), or a panel already at `next`. See DESIGN.md for the tiers.
    */
   setFormFactor(id: string, next: FormFactor): void;
@@ -209,7 +209,7 @@ export interface PanelsAPI {
   close(id: string): void;
   /** The views closed within the current undo window, oldest first; non-null exactly while it is open (10 s after the LAST close). Drives the "Closed N pages / Undo" toast. */
   readonly recentlyClosed: readonly PanelSummary[] | null;
-  /** Undo every close in `recentlyClosed`: each view returns at its old place (a live one comes back live, parking the live one farthest from it if the row is full) and its log entry is removed. Does nothing when the window is closed. */
+  /** Undo every close in `recentlyClosed`: each view returns at its old place (a live one comes back live, parking the live parkable one farthest from it if the row is full and its `overflow` is 'park') and its log entry is removed. Does nothing when the window is closed. */
   undoClose(): void;
   /** Forget every panel. Not logged and not undoable. */
   clearAll(): void;

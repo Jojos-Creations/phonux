@@ -16,6 +16,7 @@ import type { ResolvedPanelSettings, ResolvedPanelTuning, WorkspaceTuning } from
 import { PanelRowSlot } from './PanelRowSlot.js';
 import { WorkspaceTuningContext, lookTuningDiffers, resolveWorkspaceTuning, slotTuning, type SlotTuning } from './panelTuning.js';
 import { reorderStepsForOffset } from './panelWindow.js';
+import type { RowNumbers } from './rowNumbers.js';
 import { panelWidthOf } from './panelTiers.js';
 import { resolveView } from './viewRegistry.js';
 import { useViewState } from './viewState.js';
@@ -115,6 +116,7 @@ export function PanelRow({
   enterSideById = EMPTY_MAP,
   maxLiveWidth = Number.POSITIVE_INFINITY,
   tuning,
+  rowNumbers,
 }: {
   /** The raw one-list array (PanelRowEntry, not PanelSummary): `view` alone picks the component (resolveView
    * never returns nothing), independent of `layer` (stacking) and `anchoredEnter` (enter direction). */
@@ -135,6 +137,8 @@ export function PanelRow({
   maxLiveWidth?: number;
   /** The workspace tuning this row renders with. Omitted: the enclosing Workspace's, else the library defaults. A value that differs from the Workspace's warns once in development. */
   tuning?: WorkspaceTuning;
+  /** The row's numbers (ProvidedPanels.rowNumbers): every width and rest is read from them, and a park exits relative to its rest when `rowScroll` is true. Omitted: the row computes its own from `maxLiveWidth`, as before. */
+  rowNumbers?: RowNumbers;
 }): React.ReactElement {
   const { device, panels } = useHost();
   const inherited = React.useContext(WorkspaceTuningContext);
@@ -185,14 +189,16 @@ export function PanelRow({
   const rendered = entries.filter((p) => isPresent(p) || keepsMounted(p));
   // Every present entry's OWN width, in row order. An always-shown column needs no special case: setFormFactor
   // no-ops on a collapsible:false id, so panelWidthOf gives it `phoneWidth`.
-  const widths = present.map((p) => panelWidthOf(p, phoneWidth, maxLiveWidth));
+  const numberAt = (p: PanelRowEntry): number => (rowNumbers === undefined ? -1 : rowNumbers.ids.indexOf(p.id));
+  const widths = present.map((p) => rowNumbers?.widths[numberAt(p)] ?? panelWidthOf(p, phoneWidth, maxLiveWidth));
   // Each slot's rest x: every PRECEDING item's own width plus one gap, so a wider item pushes the rest right.
   const leftOffsets: number[] = [];
   let runningOffset = 0;
-  for (const width of widths) {
-    leftOffsets.push(runningOffset);
+  for (const [index, width] of widths.entries()) {
+    leftOffsets.push(rowNumbers?.leftOffsets[numberAt(present[index]!)] ?? runningOffset);
     runningOffset += width + gap;
   }
+  const rowScroll = rowNumbers?.rowScroll ?? false;
   const reservedWidth = Math.max(0, widths.reduce((sum, width) => sum + width + gap, 0) - gap);
   const widthById = new Map(present.map((p, index) => [p.id, widths[index]!]));
   // Nearest first on each side, an always-shown column included: movePanel swaps past one like any neighbour. The
@@ -261,6 +267,7 @@ export function PanelRow({
                 gap={gap}
                 slide={own.slide}
                 kept={kept}
+                rowScroll={rowScroll}
               >
                 {/* A resolved component -- built-in or third-party -- is written against PanelSummary only,
                     never the internal record. */}

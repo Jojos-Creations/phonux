@@ -60,6 +60,15 @@ export interface ClosedPageEntry {
 export function computeRowLayout(input: RowLayoutInput): RowLayoutResult;
 
 // @public
+export function computeRowNumbers(i: {
+    entries: readonly PanelRowEntry[];
+    phoneWidth: number;
+    containerWidth: number;
+    gap: number;
+    fixedItemCount?: number;
+}): RowNumbers;
+
+// @public
 export function createDefaultTheme(mode: 'light' | 'dark'): Theme;
 
 // @public
@@ -435,6 +444,7 @@ export function PanelRow(input: {
     enterSideById?: ReadonlyMap<string, 'left' | 'right'>;
     maxLiveWidth?: number;
     tuning?: WorkspaceTuning;
+    rowNumbers?: RowNumbers;
 }): React_2.ReactElement;
 
 // @public
@@ -518,6 +528,7 @@ export interface PanelsInput {
     rootId: string;
     storage?: WorkspaceStorage;
     tuning?: WorkspaceTuning;
+    workspaceDefaults?: Omit<PanelSettings, 'tuning'>;
 }
 
 // @public
@@ -706,6 +717,8 @@ export interface ProvidedPanels extends PanelsAPI {
     readonly fixedViewCount: number;
     readonly liveWidths: readonly number[];
     readonly maxLiveWidth: number;
+    readonly rowNumbers: RowNumbers;
+    readonly rowScroll: boolean;
     readonly tuning: ResolvedWorkspaceTuning;
 }
 
@@ -771,6 +784,7 @@ export interface RowLayoutInput {
     gap: number;
     liveWidths: readonly number[];
     phoneWidth: number;
+    reservedWidths?: readonly number[];
 }
 
 // @public
@@ -779,6 +793,20 @@ export interface RowLayoutResult {
     effectiveLiveCount: number;
     maxLiveThatFit: number;
     rowTotalWidth: number;
+}
+
+// @public
+export interface RowNumbers {
+    ids: readonly string[];
+    leftOffsets: readonly number[];
+    maxLiveWidth: number;
+    parkLiveWidths: readonly number[];
+    reservedWidths: readonly number[];
+    rowMarginLeft: number;
+    rowScroll: boolean;
+    stripWidth: number;
+    widths: readonly number[];
+    windowWidth: number;
 }
 
 // @public
@@ -1061,8 +1089,10 @@ export interface WorkspaceProps extends Omit<BoxProps, 'children'> {
     liveWidths: readonly number[];
     overflowContainerRef: RefObject<HTMLDivElement | null>;
     phoneWidth: number;
+    rowNumbers?: RowNumbers;
     rowRef: RefObject<HTMLDivElement | null>;
     rowResizeSettled: boolean;
+    rowScroll?: boolean;
     topPadding?: number;
     tuning?: WorkspaceTuning;
 }

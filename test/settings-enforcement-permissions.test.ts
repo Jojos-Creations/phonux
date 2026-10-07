@@ -550,7 +550,7 @@ test('reportClose false for every close: undoClose restores them and onPanelsRes
 
 /** Root plus three live panels, all under `layer`, in a container that holds three columns: the reconcile effect parks the leftmost one. */
 const parkingRow = (layer: PanelSettings, spy: Spy): ReturnType<typeof provide> =>
-  provide([rootEntry(), made('a', layer), made('b', layer), made('c', layer)], { capture: spy, containerWidth: 1300 });
+  provide([rootEntry(), made('a', { overflow: 'park', ...layer }), made('b', { overflow: 'park', ...layer }), made('c', { overflow: 'park', ...layer })], { capture: spy, containerWidth: 1300 });
 
 test('snapshot control: the row above really parks a panel, so the park scenarios below can be positive', () => {
   const spy = spyCapture();
