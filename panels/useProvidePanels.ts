@@ -6,14 +6,17 @@
  * and the row's numbers (fixedViewCount, liveWidths, maxLiveWidth) beside it.
  */
 
-import { useEffect, useRef, useState, type RefObject } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState, type RefObject } from 'react';
+import { useReducedMotionConfig } from 'motion/react';
 import type { CreatePanelOptions, JsonValue, PanelsAPI } from '../hostApi.js';
-import { computeRowNumbers, type RowNumbers } from '../rowNumbers.js';
-import { summarisePanel } from '../panelRowEntry.js';
+import { computeRowNumbers, maxScrollOf, type RowNumbers } from '../rowNumbers.js';
+import { rowScrollerFor } from '../rowScroller.js';
+import { gestureTarget, scrollTargetFor } from '../scrollTargets.js';
+import { isPresent, summarisePanel } from '../panelRowEntry.js';
 import { panelWidthOf } from '../panelTiers.js';
 import { noopCaptureTrigger, type CaptureTrigger } from '../snapshots.js';
 import { LIBRARY_TUNING_DEFAULTS, applyTemplate, effective, resolvePanelSettings } from '../panelSettings.js';
-import type { PanelSettings, ResolvedWorkspaceTuning, SettingNote, WorkspaceTuning } from '../panelSettings.js';
+import type { PanelSettings, ResolvedWorkspaceTuning, ScrollAlign, SettingNote, WorkspaceTuning } from '../panelSettings.js';
 import { resolveWorkspaceTuning } from '../panelTuning.js';
 import { appendPanel, reanchorPanel, type PanelWindow } from '../panelWindow.js';
 import { usePanelClosing } from './usePanelClosing.js';
@@ -127,6 +130,23 @@ function timingTuning(tuning: WorkspaceTuning | undefined): Required<Pick<Worksp
   };
 }
 
+/** A scroll the row owes after a commit; one is pending at a time and the last recorded wins. */
+type ScrollRequest = {
+  id: string;
+  kind: 'open' | 'move';
+  /** The alignment `scrollTo` asked for; null reads the panel's `scrollOnOpen`. */
+  align: ScrollAlign | null;
+  /** True for `scrollTo`: a panel whose `scrollOnOpen` is 'none' is still scrolled to, into view. */
+  forced: boolean;
+  /** True for a panel `create` just made: one that exists but is not shown was made hidden and is not waited for. */
+  fresh: boolean;
+  /** Commits this request has seen without its panel in the row. */
+  misses: number;
+};
+
+/** Commits a request for a panel not in the row waits before it is dropped. */
+const REQUEST_WAIT_COMMITS = 2;
+
 /**
  * PanelsAPI plus the inputs PanelRow and the workspace read: the raw list, the exit/enter animation sets and the
  * row's numbers. They stay OFF PanelsAPI on purpose: that interface is the narrow surface a third-party view is
@@ -148,6 +168,17 @@ export interface ProvidedPanels extends PanelsAPI {
   readonly rowNumbers: RowNumbers;
   /** `PanelsInput.tuning` over the library defaults, leaf by leaf: the one value this render's capacity and widths were priced from. Hand it to a Workspace's `tuning`. */
   readonly tuning: ResolvedWorkspaceTuning;
+  /**
+   * Asks the row to scroll to panel `id` after the next commit, at `align` (default: the panel's `scrollOnOpen`, else
+   * 'into-view'). True when the request was recorded; false, scrolling nothing, while a drag holds the row or when the
+   * row has no scroll container. A panel not yet in the row is waited for over two commits.
+   */
+  scrollTo(id: string, align?: ScrollAlign): boolean;
+  /**
+   * Tells the row panel `id` was just moved, placed or resized. When it was in view and its `scrollOnMove` is
+   * 'follow', the row scrolls the least distance that shows it whole again after the next commit.
+   */
+  followPanel(id: string): void;
   /** Ids being closed: each exits DOWN before it leaves `entries`. */
   readonly closingIds: ReadonlySet<string>;
   /** Ids (re)joining `live` by a reveal or an undo: each enters from its anchor's side. */
@@ -173,6 +204,41 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
   const rowNumbers = computeRowNumbers({ entries: panels, phoneWidth: i.phoneWidth, containerWidth: i.containerWidth, gap: tuning.rowGap, fixedItemCount: fixedViewCount });
   const { maxLiveWidth } = rowNumbers;
   const liveWidths = panels.filter((p) => p.collapsible && p.live).map((p) => panelWidthOf(p, i.phoneWidth, maxLiveWidth));
+  const reducedMotion = useReducedMotionConfig() === true;
+  const pendingScrollRef = useRef<ScrollRequest | null>(null);
+  const [, bumpScroll] = useState(0);
+  const scrollNote = (code: string, panelId: string, message: string): void => {
+    try {
+      i.onNote?.({ code, panelId, message });
+    } catch {
+      // A reporter that throws must not break the scroll that raised the note.
+    }
+  };
+  // The container's width as laid out; before layout the host's measurement stands in for it.
+  const windowOf = (el: HTMLElement): number => (el.clientWidth > 0 ? el.clientWidth : i.containerWidth);
+  const requestScroll = (request: Omit<ScrollRequest, 'misses'>): boolean => {
+    const el = i.overflowContainerRef.current;
+    if (el === null) return false;
+    if (rowScrollerFor(el).claimHeld()) {
+      scrollNote('scroll-dropped-during-drag', request.id, `A scroll to panel ${request.id} was dropped: a drag holds the row.`);
+      return false;
+    }
+    pendingScrollRef.current = { ...request, misses: 0 };
+    // A request on a panel that is already shown changes no state, so nothing else would commit for it to run in.
+    bumpScroll((n) => n + 1);
+    return true;
+  };
+  const followPanel = (id: string): void => {
+    const el = i.overflowContainerRef.current;
+    const entry = panels.find((p) => p.id === id);
+    const k = rowNumbers.ids.indexOf(id);
+    if (el === null || entry === undefined || k < 0 || effective(entry).scrollOnMove !== 'follow') return;
+    const left = tuning.rowGap + rowNumbers.rowMarginLeft + rowNumbers.leftOffsets[k]!;
+    const inView = left < el.scrollLeft + windowOf(el) - tuning.rowGap && left + rowNumbers.widths[k]! > el.scrollLeft + tuning.rowGap;
+    if (inView) requestScroll({ id, kind: 'move', align: null, forced: false, fresh: false });
+  };
+  const requestOpen = (id: string, over: Partial<Pick<ScrollRequest, 'align' | 'forced' | 'fresh'>> = {}): boolean => requestScroll({ id, kind: 'open', align: null, forced: false, fresh: false, ...over });
+
   const {
     revealPanelProactively,
     handleActivatePanel,
@@ -188,15 +254,54 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
     enterSideById,
     exitRightIds,
     releaseHold,
+    heldIds,
   } = usePanelManager(panels, setPanels, i.phoneWidth, i.containerWidth, fixedViewCount, i.rootId, {
     onNote: i.onNote,
     tuning: { rowGap: tuning.rowGap, returnTieBreak: timing.returnTieBreak, dropTieBreak: timing.dropTieBreak },
   });
 
-  // The row's wheel/arrow-key gesture is wired here, not in the host, so a host stays free of effects and refs.
-  useRowScrollGesture(i.overflowContainerRef, scrollRow, timing.gestureLockMs);
+  // A shown panel the page asked for, whether it was parked or already live out of view, is scrolled to once it is in.
+  const activatePanel = (id: string): void => {
+    const known = panels.some((p) => p.id === id);
+    handleActivatePanel(id);
+    if (known) requestOpen(id);
+  };
 
-  useWorkspacePersistence({
+  // One step of the gesture. A row with nothing to scroll toward keeps 0.1.0's swap: the parked panel beside the live range comes in.
+  const stepRow = (direction: 'left' | 'right'): void => {
+    const el = i.overflowContainerRef.current;
+    if (el === null) return;
+    const scroller = rowScrollerFor(el);
+    if (scroller.claimHeld()) return;
+    const maxScroll = maxScrollOf(rowNumbers);
+    if (!rowNumbers.rowScroll || maxScroll <= 0) {
+      scrollRow(direction);
+      return;
+    }
+    let liveBefore = 0;
+    const hidden = [];
+    for (const p of panels) {
+      if (isPresent(p)) liveBefore += 1;
+      else if (p.marker !== true) hidden.push({ id: p.id, liveBefore, held: heldIds.has(p.id), policy: effective(p).revealOnScroll });
+    }
+    const step = gestureTarget({
+      direction,
+      base: scroller.glideTarget() ?? scroller.scrollLeft(),
+      clientWidth: windowOf(el),
+      maxScroll,
+      liveStarts: rowNumbers.leftOffsets.map((offset) => rowNumbers.rowMarginLeft + offset),
+      liveWidths: rowNumbers.widths,
+      gap: tuning.rowGap,
+      hidden,
+    });
+    if (step.kind === 'show') activatePanel(step.id);
+    else if (step.kind === 'scroll') scroller.glideTo(step.to, { durationSec: tuning.slide.durationSec, instant: reducedMotion });
+  };
+
+  // The row's wheel/arrow-key gesture is wired here, not in the host, so a host stays free of effects and refs.
+  useRowScrollGesture(i.overflowContainerRef, stepRow, timing.gestureLockMs, tuning.rowGesture);
+
+  const { restoreSettled } = useWorkspacePersistence({
     storage: i.storage,
     panels,
     setPanels,
@@ -205,6 +310,87 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
     defaultHostData: i.defaultHostData,
     saveQuietMs: timing.saveQuietMs,
     decorateRestored: i.workspaceDefaults === undefined ? undefined : (p) => withRestoredSettings(p, i.workspaceDefaults!),
+  });
+
+  // A wheel or pointer-down on the row before the first scroll means the person already chose where to look.
+  const touchedRef = useRef(false);
+  useEffect(() => {
+    const touch = (e: Event): void => {
+      const el = i.overflowContainerRef.current;
+      if (el !== null && e.target instanceof Node && el.contains(e.target)) touchedRef.current = true;
+    };
+    window.addEventListener('wheel', touch, { capture: true, passive: true });
+    window.addEventListener('pointerdown', touch, true);
+    return () => {
+      window.removeEventListener('wheel', touch, true);
+      window.removeEventListener('pointerdown', touch, true);
+    };
+    // Mount only: the container ref object never changes.
+  }, []);
+
+  // Once per mount, at the first commit that is measured, has an entry and follows the restore.
+  const initialScrollDoneRef = useRef(false);
+  useLayoutEffect(() => {
+    const el = i.overflowContainerRef.current;
+    if (initialScrollDoneRef.current || !restoreSettled || el === null || i.containerWidth === 0 || rowNumbers.ids.length === 0) return;
+    initialScrollDoneRef.current = true;
+    const scroller = rowScrollerFor(el);
+    if (touchedRef.current || scroller.glideTarget() !== null || el.scrollLeft !== 0) return;
+    const where = tuning.initialScroll;
+    const maxScroll = maxScrollOf(rowNumbers);
+    let to = 0;
+    if (where === 'end') {
+      to = maxScroll;
+    } else if (where !== 'start') {
+      const k = rowNumbers.ids.indexOf(where === 'root' ? i.rootId : where.panel);
+      if (k >= 0) {
+        const left = tuning.rowGap + rowNumbers.rowMarginLeft + rowNumbers.leftOffsets[k]!;
+        to = scrollTargetFor({ left, width: rowNumbers.widths[k]!, scrollLeft: 0, clientWidth: windowOf(el), maxScroll, gap: tuning.rowGap, align: 'start' });
+      }
+    }
+    if (to !== 0) scroller.glideTo(to, { durationSec: 0, instant: true });
+  });
+
+  // Runs the pending request against this commit's numbers: the target margin is the one about to be drawn.
+  useLayoutEffect(() => {
+    const request = pendingScrollRef.current;
+    if (request === null) return;
+    const el = i.overflowContainerRef.current;
+    const entry = panels.find((p) => p.id === request.id);
+    const k = rowNumbers.ids.indexOf(request.id);
+    if (el === null || (k < 0 && request.fresh && entry !== undefined)) {
+      pendingScrollRef.current = null;
+      return;
+    }
+    if (k < 0 || entry === undefined) {
+      if (request.misses + 1 < REQUEST_WAIT_COMMITS) {
+        pendingScrollRef.current = { ...request, misses: request.misses + 1 };
+        bumpScroll((n) => n + 1);
+      } else {
+        pendingScrollRef.current = null;
+        scrollNote('scroll-request-dropped', request.id, `A scroll to panel ${request.id} was dropped: it was not in the row after ${REQUEST_WAIT_COMMITS} commits.`);
+      }
+      return;
+    }
+    pendingScrollRef.current = null;
+    const settings = effective(entry);
+    let align: ScrollAlign | null = 'into-view';
+    if (request.kind === 'open') align = request.align ?? (settings.scrollOnOpen !== 'none' ? settings.scrollOnOpen : request.forced ? 'into-view' : null);
+    if (align === null) return;
+    const scroller = rowScrollerFor(el);
+    const to = scrollTargetFor({
+      left: tuning.rowGap + rowNumbers.rowMarginLeft + rowNumbers.leftOffsets[k]!,
+      width: rowNumbers.widths[k]!,
+      scrollLeft: scroller.scrollLeft(),
+      clientWidth: windowOf(el),
+      maxScroll: maxScrollOf(rowNumbers),
+      gap: tuning.rowGap,
+      align,
+    });
+    if (Math.abs(to - scroller.scrollLeft()) < 0.5) return;
+    if (!scroller.glideTo(to, { durationSec: tuning.slide.durationSec, instant: reducedMotion || !settings.animated })) {
+      scrollNote('scroll-dropped-during-drag', request.id, `A scroll to panel ${request.id} was dropped: a drag holds the row.`);
+    }
   });
 
   // Diffs the one list instead of capturing per call site: usePanelManager parks from several sites with no single
@@ -243,6 +429,7 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
       clearEnterSide(id);
       if (side === undefined) markEnteringViaAnchor(id);
       else markEnterSide(id, side);
+      requestOpen(id);
     },
     // A closed-and-not-restored panel's picture must not outlive its undo window; usePanelClosing.ts alone
     // knows which ids the window's NATURAL elapse (never Undo) just finalized.
@@ -277,15 +464,22 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
         );
         return i.workspaceDefaults === undefined ? next : next.map((p) => (p.id === id ? withCreatedSettings(p, i.workspaceDefaults!, safeOptions) : p));
       });
+      requestOpen(id, { fresh: true });
     },
-    activate: handleActivatePanel,
+    activate: activatePanel,
     move: reorderPanel,
     setFormFactor: (id, next) => {
-      if (resizePanel(id, next)) i.onPanelResize?.();
+      if (resizePanel(id, next)) {
+        i.onPanelResize?.();
+        followPanel(id);
+      }
     },
     // No keep-live mark and no settle step: settles() reads only the live set's widths and count, never its
     // order, so a reorder cannot unsettle a row, and a DROP later in the handler may park this panel as any other.
-    reanchor: (id, anchor) => setPanels((prev) => reanchorPanel(prev, id, anchor, i.rootId)),
+    reanchor: (id, anchor) => {
+      setPanels((prev) => reanchorPanel(prev, id, anchor, i.rootId));
+      followPanel(id);
+    },
     close: (id: string) => {
       // A close the gate in usePanelClosing.ts will refuse (an unknown or locked id) takes no picture.
       const target = panels.find((p) => p.id === id);
@@ -309,6 +503,8 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
     rowScroll: rowNumbers.rowScroll,
     rowNumbers,
     tuning,
+    scrollTo: (id, align) => requestOpen(id, { align: align ?? null, forced: true }),
+    followPanel,
     closingIds: closing.closingIds,
     enteringViaAnchorIds,
     exitRightIds,

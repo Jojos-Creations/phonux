@@ -715,10 +715,12 @@ export interface ProvidedPanels extends PanelsAPI {
     readonly entries: readonly PanelWindow[];
     readonly exitRightIds: ReadonlySet<string>;
     readonly fixedViewCount: number;
+    followPanel(id: string): void;
     readonly liveWidths: readonly number[];
     readonly maxLiveWidth: number;
     readonly rowNumbers: RowNumbers;
     readonly rowScroll: boolean;
+    scrollTo(id: string, align?: ScrollAlign): boolean;
     readonly tuning: ResolvedWorkspaceTuning;
 }
 

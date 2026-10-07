@@ -24,7 +24,7 @@ export function useWorkspacePersistence(i: {
   saveQuietMs?: number;
   /** Applied to every restored panel after `defaultHostData`, so a host that resolves settings from workspace defaults can give a restored panel the same settings a new one gets. Read once, at mount. */
   decorateRestored?: (panel: PanelWindow) => PanelWindow;
-}): void {
+}): { restoreSettled: boolean } {
   const { panels, setPanels } = i;
   const saveQuietMsRef = useRef(i.saveQuietMs ?? SAVE_QUIET_MS);
   saveQuietMsRef.current = i.saveQuietMs ?? SAVE_QUIET_MS;
@@ -89,4 +89,7 @@ export function useWorkspacePersistence(i: {
     return () => clearTimeout(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps -- storage and rootId never change
   }, [panels, settled]);
+
+  // True at once without storage: there is nothing to wait for.
+  return { restoreSettled: storage === undefined || settled };
 }
