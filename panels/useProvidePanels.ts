@@ -480,6 +480,11 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
     });
   };
 
+  // Every commit rebinds, so the sink always reads the latest onNote.
+  useLayoutEffect(() => {
+    core?.bindNotes((note) => reportNotes(i.onNote, [note]));
+    return () => core?.bindNotes(undefined);
+  });
   const attachOwner = useRef({});
   useLayoutEffect(() => {
     if (core === undefined) return;

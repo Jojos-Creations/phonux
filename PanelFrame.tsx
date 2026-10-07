@@ -178,6 +178,8 @@ export interface PanelHeaderRowProps extends Omit<PanelHeaderProps, 'children' |
   /** Right-aligned, never truncated. Falsy renders a placeholder icon slot instead of nothing,
    * so a conditional like `isRunning && <IconButton .../>` still keeps the pill's full shape. */
   actions?: React.ReactNode;
+  /** Left of the title, never truncated. Nothing is drawn for it when it is omitted. */
+  leading?: React.ReactNode;
 }
 
 /** Deliberately narrow (mirrors JSX's own falsy-child rules, not a general emptiness check) so a
@@ -211,11 +213,12 @@ const PLACEHOLDER_ACTIONS = (
  * substitution lives HERE, not in each caller, so every caller gets it for free.
  * @public
  */
-export function PanelHeaderRow({ title, actions, sx, ...rest }: PanelHeaderRowProps) {
+export function PanelHeaderRow({ title, actions, leading, sx, ...rest }: PanelHeaderRowProps) {
   const resolvedTitle = isEmptyHeaderContent(title) ? PLACEHOLDER_TITLE : title;
   const resolvedActions = isEmptyHeaderContent(actions) ? PLACEHOLDER_ACTIONS : actions;
   return (
     <PanelHeader {...rest} sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 1, ...sx }}>
+      {leading}
       <Box sx={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 }}>{resolvedTitle}</Box>
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.25, flexShrink: 0 }}>{resolvedActions}</Box>
     </PanelHeader>
