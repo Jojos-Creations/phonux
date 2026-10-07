@@ -8,6 +8,7 @@ import { computeRowOrder, deriveAnchorsFromOrder } from './panelRowOrder.js';
 import type { PanelAnchor } from './panelRowOrder.js';
 import { effective } from './panelSettings.js';
 import type { AddPlacement, PanelSettings, ResolvedPanelSettings } from './panelSettings.js';
+import type { DeferredPin } from './panelTemplate.js';
 import { DEFAULT_PANEL_SIZE, TIER_SIZES } from './panelTiers.js';
 import { HOP_FRACTION } from './rowConstants.js';
 
@@ -67,6 +68,8 @@ export interface PanelWindow {
   applied?: { placeOnAdd: AddPlacement };
   /** True for an entry created from a declaration in code, which code re-declares at every launch. */
   declared?: true;
+  /** A pin change waiting for this entry to become live, applied inside whichever path makes it live. Session only: never saved. */
+  deferredPin?: DeferredPin;
   /** True only for the reserved '__root__' entry a row without a root keeps: it holds the anchor point, is never drawn and never counted as a column or a hop. */
   marker?: true;
 }

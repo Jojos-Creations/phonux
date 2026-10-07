@@ -13,7 +13,9 @@ import type { FormFactor } from '../hostApi.js';
 import { computeRowLayout } from '../panelRowLayout.js';
 import { computeRowNumbers } from '../rowNumbers.js';
 import { placePanel, reportNotes } from '../panelPlacement.js';
-import type { AddPlacement } from '../panelSettings.js';
+import { applyPinChange, landPanel, pinHalf, withoutDeferral, type PinApplied, type PinChange, type PinEnv } from '../panelPin.js';
+import { resetEntries, type ResetEnv } from '../panelReset.js';
+import type { AddPlacement, PanelSettingsResolution } from '../panelSettings.js';
 import { isPresent } from '../panelRowEntry.js';
 import { panelWidthOf } from '../panelTiers.js';
 import { effectiveMaxPanels } from '../panelCapacity.js';
@@ -38,7 +40,7 @@ import {
 
 export interface UsePanelManagerResult {
   revealPanelProactively: (panelsNow: PanelWindow[], apply: (prev: PanelWindow[]) => PanelWindow[]) => void;
-  handleActivatePanel: (id: string) => void;
+  handleActivatePanel: (id: string, pin?: PinChange) => void;
   /** Removes `id` from the collapse-order stack, so a closed panel (or one `undoClose` restores) leaves no stale entry for a later reveal. */
   forgetCollapsed: (id: string) => void;
   /**
@@ -55,6 +57,29 @@ export interface UsePanelManagerResult {
   markEnterSide: (id: string, side: 'left' | 'right') => void;
   /** Drops a stale `enterSideById`/`exitRightIds` entry from an earlier park of `id`; call it FIRST on every anchor-formula revive, or the stale side wins. */
   clearEnterSide: (id: string) => void;
+  /**
+   * `row` with `id` landed as a path that makes it live lands it: the pin change it waits with, or `pin` when given,
+   * applied through `applyPinChange` with `placeAs` as the path's own placement, else `placeAs` alone. A change that no
+   * longer applies is dropped with a note. `pinned` is true when a change was applied.
+   */
+  landPanel: (row: readonly PanelWindow[], id: string, placeAs: AddPlacement | 'in-place', pin?: PinChange) => { row: PanelWindow[]; notes: SettingNote[]; pinned: boolean };
+  /** What applying `change` to panel `id` would answer, from this render's list, changing nothing. */
+  previewPin: (id: string, change: PinChange) => PinApplied;
+  /** Saves what a person's pin of `id` by `change` records, in the update it is called in: the anchor when the half names a place, `parkable` when it names that. */
+  recordPin: (id: string, change: PinChange) => void;
+  /**
+   * Applies `change` to the live or parked panel `id` in one update. The refusal, or the outcome of this render's list,
+   * is answered at once; `record` true (a person's gesture) saves the anchor and the `parkable` the half names.
+   */
+  pinPanel: (id: string, change: PinChange, record: boolean) => PinApplied;
+  /** Stores `change` on the entry `id` to apply the next time it is live; `null` removes what is stored. */
+  deferPin: (id: string, change: PinChange | null) => void;
+  /**
+   * Resets the panels `ids` (in this order) to their cascade defaults in one update: overrides cleared, deferred pins
+   * dropped, tier and `parkable` re-resolved, each placed by its `placeOnAdd`; what no longer fits is parked, and the
+   * answer lists what the room it frees brings back. `changed` is false when nothing moved, resized or was cleared.
+   */
+  resetPanels: (ids: readonly string[]) => { changed: boolean; parked: string[]; returned: string[] };
   /**
    * The row gesture: 'right' brings the first parked panel after the rightmost live one and parks the LEFTMOST live
    * one ('left' mirrors), then parks more on that side until the row settles, never an acted-on panel. Does nothing,
@@ -127,6 +152,10 @@ export interface PanelManagerOptions {
   onNote?: (note: SettingNote) => void;
   /** Only `rowGap`, `returnTieBreak` and `dropTieBreak` are read here. */
   tuning?: WorkspaceTuning;
+  /** What the panel's settings resolve to over the layers the workspace holds with the person's `parkable` set; without it no pin change can be applied. */
+  resolveWith?: PinEnv['resolveWith'];
+  /** What the panel's settings resolve to over those layers with no person's layer at all; without it nothing can be reset. */
+  resolveDefaults?: (entry: PanelWindow) => PanelSettingsResolution;
   /** The developer's panel order, read by every placement whose value is `'order'`. */
   order?: () => readonly string[];
 }
@@ -381,6 +410,22 @@ export function usePanelManager(
   const noteHold = (p: PanelWindow): void => {
     if (!effective(p).listed) noteOnce(holdUnlistedNote(p.id));
   };
+  const pinEnv: PinEnv | undefined = options?.resolveWith === undefined ? undefined : { rootId, resolveWith: options.resolveWith, placing };
+  /** `row` with `id` landed by `placeAs`, or by its pending pin change, which a path that makes a panel live applies in its own update. */
+  const landOn = (row: readonly PanelWindow[], id: string, placeAs: AddPlacement | 'in-place', pin?: PinChange): { row: PanelWindow[]; notes: SettingNote[]; pinned: boolean } => {
+    const target = row.find((p) => p.id === id);
+    if (target === undefined) return { row: [...row], notes: [], pinned: false };
+    if (pinEnv !== undefined) return landPanel(row, id, pin, placeAs, pinEnv);
+    const placed = placePanel(row, id, placeAs, placing(target));
+    return { ...placed, pinned: false };
+  };
+  /** `row` with `id` landed and live, or null when `id` is unknown or already live: the one lift every path that shows a panel runs inside its update. */
+  const liftOn = (row: PanelWindow[], id: string, placeAs: AddPlacement | 'in-place', cap: number, keep?: ReadonlySet<string>, pin?: PinChange): PanelWindow[] | null => {
+    if (!row.some((p) => p.id === id && !p.live)) return null;
+    const landed = landOn(row, id, placeAs, pin);
+    if (landed.row.some((p) => p.id === id && p.live)) return landed.row;
+    return promoteToLive(landed.row, id, cap, keep);
+  };
 
   const wouldEmptyRow = (ids: readonly string[]): boolean => {
     const gone = new Set([...ids, ...inFlight(), ...gate.leaving()]);
@@ -473,7 +518,7 @@ export function usePanelManager(
    * Clicking ANY row -- live or parked alike -- activates it (promoteToLive's own doc
    * comment has the full "make/keep it live, preserve array order" spec).
    */
-  const handleActivatePanel = (id: string): void => {
+  const handleActivatePanel = (id: string, pin?: PinChange): void => {
     const target = panels.find((p) => p.id === id);
     if (!target || target.live) return;
     markKeepLive(id);
@@ -484,27 +529,26 @@ export function usePanelManager(
     clearEnterSide(id);
     // Re-placed before it goes live, in the same update; the updaters below place again over the latest list.
     const showAt = effective(target).placeOnShow;
-    const placed = placePanel(panels, id, showAt, placing(target));
-    const placeFirst = (row: PanelWindow[]): PanelWindow[] => placePanel(row, id, showAt, placing(target)).row;
-    const before = showAt === 'in-place' ? panels : placed.row;
-    const result = promoteToLive(before, id, capacity, keptIds());
+    const landed = landOn(panels, id, showAt, pin);
+    const before = showAt === 'in-place' && !landed.pinned ? panels : landed.row;
+    const result = before.some((p) => p.id === id && p.live) ? before : promoteToLive(before, id, capacity, keptIds());
     if (!result) return;
-    reportNotes(options?.onNote, placed.notes);
-    if (showAt !== 'in-place') setEnterSide(id, sideOfLiveRange(result, id));
+    reportNotes(options?.onNote, landed.notes);
+    if (showAt !== 'in-place' || landed.pinned) setEnterSide(id, sideOfLiveRange(result, id));
     forgetCollapsed(id);
     releaseHold(id);
     const demoted = result.find((p) => !p.live && before.find((prev) => prev.id === p.id)?.live);
     if (!demoted) {
       // An updater, not `result`: `result` is built from this render's array and would drop an update queued
       // earlier in the same handler.
-      setPanels((prev) => settledKeeping(promoteToLive(placeFirst(prev), id, Number.POSITIVE_INFINITY) ?? prev, keep));
+      setPanels((prev) => settledKeeping(liftOn(prev, id, showAt, Number.POSITIVE_INFINITY, undefined, pin) ?? prev, keep));
       return;
     }
     if (sideOfLiveRange(before, demoted.id) === 'right') markExitRight(demoted.id);
     recordPark([demoted.id], { kind: 'capacity' });
     // Applied in two functional updates, in this order: `id` goes live first (no demotion yet -- capacity
     // Infinity guarantees that for this call only), then the panel it displaces is parked.
-    setPanels((prev) => promoteToLive(placeFirst(prev), id, Number.POSITIVE_INFINITY) ?? prev);
+    setPanels((prev) => liftOn(prev, id, showAt, Number.POSITIVE_INFINITY, undefined, pin) ?? prev);
     setPanels((current) => settledKeeping(current.map((p) => (p.id === demoted.id ? { ...p, live: false } : p)), keep));
   };
 
@@ -514,8 +558,10 @@ export function usePanelManager(
     if (!reveal) return;
     const kept = keptIds();
     markKeepLive(reveal.id);
-    // A resize earlier in this handler is priced at its new tier, or the row committed below could overflow.
-    const sized = withPendingTiers(panels);
+    // A resize earlier in this handler is priced at its new tier, or the row committed below could overflow. A pin change the panel waits with lands first, so the gesture parks against the row it makes.
+    const waiting = reveal.deferredPin !== undefined;
+    const landed = waiting ? landOn(withPendingTiers(panels), reveal.id, 'in-place') : undefined;
+    const sized = landed?.row ?? withPendingTiers(panels);
     const live = sized.filter(isParkLive);
     const farFirst = (direction === 'right' ? live : [...live].reverse()).filter((p) => !kept.has(p.id));
     const toPark = new Set<string>();
@@ -525,13 +571,16 @@ export function usePanelManager(
       if (toPark.size > 0 && settles(rowAfter())) break;
       toPark.add(p.id);
     }
-    setEnterSide(reveal.id, direction);
+    const flip = (row: PanelWindow[]): PanelWindow[] => row.map((p) => (toPark.has(p.id) ? { ...p, live: false } : p.id === reveal.id ? { ...p, live: true } : p));
+    // The side a panel enters from is its landing slot's when a pin change moved it, the gesture's direction when nothing did.
+    setEnterSide(reveal.id, landed === undefined ? direction : sideOfLiveRange(flip(sized), reveal.id));
+    reportNotes(options?.onNote, landed?.notes ?? []);
     // A leftward gesture parks off the RIGHT edge: mark those BEFORE the setPanels below, in their own commit.
     if (direction === 'left' && toPark.size > 0) flushOwn(() => setExitRightIds((prev) => new Set([...prev, ...toPark])));
     recordPark([...toPark], { kind: 'capacity' });
     forgetCollapsed(reveal.id);
     releaseHold(reveal.id);
-    setPanels((prev) => prev.map((p) => (toPark.has(p.id) ? { ...p, live: false } : p.id === reveal.id ? { ...p, live: true } : p)));
+    setPanels((prev) => (waiting ? landOn(flip(prev), reveal.id, 'in-place').row : flip(prev)));
   };
 
   /** See `UsePanelManagerResult.reorderPanel`'s own doc comment. */
@@ -638,25 +687,23 @@ export function usePanelManager(
       }
       if (revealed.size === 0) return;
       collapseOrderRef.current = stack.filter((id) => !revealed.has(id) && !stale.has(id));
-      // Each returning panel is placed by its own `placeOnReturn`, in return order, in the update that makes it live.
-      const placements = [...revealed].flatMap((id) => {
-        const returning = panels.find((p) => p.id === id)!;
-        const value = effective(returning).placeOnReturn;
-        return value === 'in-place' ? [] : [{ id, value, at: placing(returning) }];
-      });
-      const placeAll = (row: PanelWindow[]): PanelWindow[] => placements.reduce((acc, { id, value, at }) => placePanel(acc, id, value, at).row, row);
+      // Each returning panel lands by its own `placeOnReturn`, or by the pin change it waits with, in return order, in the update that makes it live.
+      const returnAt = (id: string): AddPlacement | 'in-place' => effective(panels.find((p) => p.id === id)!).placeOnReturn;
+      const landAll = (row: PanelWindow[]): PanelWindow[] => [...revealed].reduce((acc, id) => landOn(acc, id, returnAt(id)).row, row);
       let landing = panels;
-      for (const { id, value, at } of placements) {
-        const result = placePanel(landing, id, value, at);
+      const moved = new Set<string>();
+      for (const id of revealed) {
+        const result = landOn(landing, id, returnAt(id));
         reportNotes(options?.onNote, result.notes);
+        if (returnAt(id) !== 'in-place' || result.pinned) moved.add(id);
         landing = result.row;
       }
       const landed = landing.map((p) => (revealed.has(p.id) ? { ...p, live: true } : p));
       for (const id of revealed) {
         releaseHold(id);
-        setEnterSide(id, sideOfLiveRange(placements.some((x) => x.id === id) ? landed : panels, id));
+        setEnterSide(id, sideOfLiveRange(moved.has(id) ? landed : panels, id));
       }
-      setPanels((current) => placeAll(current).map((p) => (revealed.has(p.id) ? { ...p, live: true } : p)));
+      setPanels((current) => landAll(current).map((p) => (revealed.has(p.id) ? { ...p, live: true } : p)));
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [capacity, panels]);
@@ -698,21 +745,95 @@ export function usePanelManager(
     clearEnterSide(revealId);
     const returning = panelsAfterClose.find((p) => p.id === revealId)!;
     const returnAt = effective(returning).placeOnReturn;
-    if (returnAt === 'in-place') {
+    if (returnAt === 'in-place' && returning.deferredPin === undefined) {
       // One of the two "reappearance" paths that enter from the anchor's side -- mark it BEFORE the setPanels
       // call below; no flushSync, since the mark only has to be in the commit that mounts the slot.
       markEnteringViaAnchor(revealId);
       setPanels((current) => promoteToLive(current, revealId, Number.POSITIVE_INFINITY) ?? current);
       return;
     }
-    const placed = placePanel(panelsAfterClose, revealId, returnAt, placing(returning));
+    const placed = landOn(panelsAfterClose, revealId, returnAt);
     reportNotes(options?.onNote, placed.notes);
     setEnterSide(revealId, sideOfLiveRange(placed.row, revealId));
-    setPanels((current) => promoteToLive(placePanel(current, revealId, returnAt, placing(returning)).row, revealId, Number.POSITIVE_INFINITY) ?? current);
+    setPanels((current) => liftOn(current, revealId, returnAt, Number.POSITIVE_INFINITY) ?? current);
+  };
+
+  /** See `UsePanelManagerResult.previewPin`'s own doc comment. */
+  const previewPin = (id: string, change: PinChange): PinApplied =>
+    pinEnv === undefined || !panels.some((p) => p.id === id) ? { ok: false, code: 'unknown-panel', message: `no panel '${id}' is in the row` } : applyPinChange(panels, id, change, pinEnv);
+
+  /** `row` with what a person's pin of `id` by `change` records: the anchor when the half names a place, `parkable` when it names that. */
+  const recordPinned = (row: PanelWindow[], id: string, change: PinChange): PanelWindow[] => {
+    const half = pinHalf(row.find((p) => p.id === id) ?? { settings: undefined }, change);
+    const anchored = half.placement === undefined ? row : recordOverride(row, 'anchor', row.map((p) => p.id), rootId);
+    return half.parkable === undefined ? anchored : recordOverride(anchored, 'parkable', [id], rootId);
+  };
+
+  /** See `UsePanelManagerResult.pinPanel`'s own doc comment. */
+  const pinPanel = (id: string, change: PinChange, record: boolean): PinApplied => {
+    const outcome = previewPin(id, change);
+    if (!outcome.ok) return outcome;
+    reportNotes(options?.onNote, outcome.notes);
+    if (outcome.row === panels) return outcome;
+    markKeepLive(id);
+    const keep = [...keptIds()];
+    setPanels((prev) => {
+      const applied = applyPinChange(prev, id, change, pinEnv!);
+      if (!applied.ok || applied.row === prev) return prev;
+      const settled = settledKeeping(applied.row, keep);
+      return record ? recordPinned(settled, id, change) : settled;
+    });
+    return outcome;
+  };
+
+  /** See `UsePanelManagerResult.recordPin`'s own doc comment. */
+  const recordPin = (id: string, change: PinChange): void => setPanels((prev) => recordPinned(prev, id, change));
+
+  /** See `UsePanelManagerResult.deferPin`'s own doc comment. */
+  const deferPin = (id: string, change: PinChange | null): void => {
+    setPanels((prev) => prev.map((p) => (p.id === id ? (change === null ? withoutDeferral(p) : { ...p, deferredPin: change }) : p)));
+  };
+
+  /** The ids of the parked panels on the collapse stack that `row` has room to bring back, in return order. */
+  const plannedReturns = (row: readonly PanelWindow[]): string[] => {
+    const priced = pricing(row);
+    const back = new Set<string>();
+    for (const id of returnOrder(collapseOrderRef.current, row)) {
+      const candidate = row.find((p) => p.id === id);
+      if (!candidate || candidate.live) continue;
+      if (heldBack(id, row.filter((p) => parksForRoom(p) && (p.live || back.has(p.id))))) continue;
+      if (priced.settles(row.filter((p) => parksForRoom(p) && (p.live || back.has(p.id) || p.id === id)))) back.add(id);
+    }
+    return [...back];
+  };
+
+  /** See `UsePanelManagerResult.resetPanels`'s own doc comment. */
+  const resetPanels = (ids: readonly string[]): { changed: boolean; parked: string[]; returned: string[] } => {
+    const none = { changed: false, parked: [], returned: [] };
+    if (options?.resolveDefaults === undefined) return none;
+    const env: ResetEnv = { rootId, resolveDefaults: options.resolveDefaults, placing };
+    const outcome = resetEntries(panels, ids, env);
+    if (outcome.row === panels) return none;
+    reportNotes(options?.onNote, outcome.notes);
+    for (const id of outcome.resized) markKeepLive(id);
+    const keep = [...keptIds()];
+    const settledRow = settledKeeping(outcome.row, keep);
+    const parked = settledRow.filter((p) => !p.live && outcome.row.find((q) => q.id === p.id)?.live).map((p) => p.id);
+    setPanels((prev) => {
+      const again = resetEntries(prev, ids, env);
+      return again.row === prev ? prev : settledKeeping(again.row, keep);
+    });
+    return { changed: outcome.changed, parked, returned: plannedReturns(settledRow).filter((id) => !parked.includes(id)) };
   };
 
   return {
     revealPanelProactively,
+    landPanel: landOn,
+    previewPin,
+    pinPanel,
+    recordPin,
+    deferPin,
+    resetPanels,
     handleActivatePanel,
     forgetCollapsed,
     revealMostRecentlyCollapsed,

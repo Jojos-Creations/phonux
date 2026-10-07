@@ -13,16 +13,17 @@ import { computeRowNumbers, maxScrollOf, type RowNumbers } from '../rowNumbers.j
 import { rowScrollerFor } from '../rowScroller.js';
 import { gestureTarget, scrollTargetFor } from '../scrollTargets.js';
 import { isPresent, summarisePanel } from '../panelRowEntry.js';
-import { panelWidthOf } from '../panelTiers.js';
+import { TIER_SIZES, panelWidthOf } from '../panelTiers.js';
 import { noopCaptureTrigger, type CaptureTrigger } from '../snapshots.js';
 import { PanelManagerError } from '../panelManagerError.js';
 import { accepted, refused, type PanelResult } from '../panelManager.js';
+import { decidePinChange, type PinChange, type PinStatus } from '../panelPin.js';
 import { LIBRARY_TUNING_DEFAULTS, applyTemplate, effective, panelKey, resolvePanelSettings } from '../panelSettings.js';
 import type { PanelSettings, PanelSettingsResolution, ResolvedPanelSettings, ResolvedWorkspaceTuning, ScrollAlign, SettingNote, WorkspaceTuning } from '../panelSettings.js';
 import type { PanelTemplate } from '../panelTemplate.js';
 import { reportNotes } from '../panelPlacement.js';
 import { resolveWorkspaceTuning } from '../panelTuning.js';
-import { appendPanel, recordOverride, reanchorPanel, type AnchorRequest, type PanelWindow } from '../panelWindow.js';
+import { appendPanel, clearOverrides, recordOverride, reanchorPanel, type AnchorRequest, type PanelWindow } from '../panelWindow.js';
 import { listTemplates } from '../viewRegistry.js';
 import { bindingOf, nextEngineId, type CreateRequest, type EngineOps, type WorkspaceHandle } from '../workspaceCore.js';
 import { conflictNotes, finishCreated } from '../workspacePlan.js';
@@ -369,11 +370,18 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
     holdPanel,
     wouldEmptyRow,
     placeAt,
+    landPanel,
+    previewPin,
+    pinPanel,
+    recordPin,
+    deferPin,
+    resetPanels,
     gate,
   } = usePanelManager(panels, setPanels, i.phoneWidth, i.containerWidth, fixedViewCount, rootId, {
     onNote: i.onNote,
     tuning: { rowGap: tuning.rowGap, returnTieBreak: timing.returnTieBreak, dropTieBreak: timing.dropTieBreak },
     ...(core?.order !== undefined ? { order: core.order } : {}),
+    ...(core !== undefined ? { resolveWith: core.resolveWith, resolveDefaults: core.resolveDefaults } : {}),
   });
 
   core?.observe(panels, heldIds);
@@ -441,11 +449,14 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
     if (template === undefined) return;
     // Built here, outside the updater below: React may run an updater twice and the host's builder is not required to be pure.
     const hostData = i.defaultHostData?.();
-    revealPanelProactively(panels, (prev) =>
+    const build = (prev: PanelWindow[]): PanelWindow[] =>
       prev.some((p) => panelKey(p) === req.id)
         ? prev
-        : appendFromTemplate(prev, { template, id: req.engineId, name: req.id, settings: req.settings, params: req.params, url: req.url, hostData, defaults: workspaceDefaults, rootId, order: core?.order, declared: req.declared === true }),
-    );
+        : appendFromTemplate(prev, { template, id: req.engineId, name: req.id, settings: req.settings, params: req.params, url: req.url, hostData, defaults: workspaceDefaults, rootId, order: core?.order, declared: req.declared === true });
+    // A pin change stored while the panel was closed lands as the panel is added: placement, then the `parkable` flip.
+    const withPin = (row: PanelWindow[]): PanelWindow[] => (req.deferredPin === undefined || !row.some((p) => p.id === req.engineId) ? row : landPanel(row, req.engineId, 'in-place', req.deferredPin).row);
+    if (req.deferredPin !== undefined && build(panels).some((p) => p.id === req.engineId)) reportNotes(i.onNote, landPanel(build(panels), req.engineId, 'in-place', req.deferredPin).notes);
+    revealPanelProactively(panels, (prev) => withPin(build(prev)));
     requestOpen(req.engineId, { fresh: true });
   };
 
@@ -595,7 +606,9 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
       : (p: PanelWindow): Reapplied => {
           if (p.settings === undefined || p.marker === true) return { panel: p, placeAs: effective(p).undoPlacement };
           const value = core.resolved(p);
-          return { panel: applyTemplate(p, value, 'reconfigure'), placeAs: value.undoPlacement };
+          // A pin change stored on the closed panel's record applies as the undo restores it.
+          const waiting = core.takeDeferredPin(panelKey(p));
+          return { panel: { ...applyTemplate(p, value, 'reconfigure'), ...(waiting !== undefined ? { deferredPin: waiting } : {}) }, placeAs: value.undoPlacement };
         };
 
   // After usePanelManager: undo makes room for a live view through its revealPanelProactively. `onAfterClose`
@@ -629,6 +642,7 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
     i.onNote,
     core?.order,
     reapply,
+    (row, id) => landPanel(row, id, 'in-place'),
   );
 
   /** `close` as a person's gesture and the manager's `close` verb both run it: the picture, then the close. True when the close was accepted. */
@@ -748,6 +762,62 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
       const to = align ?? (effective(target).scrollOnOpen === 'none' ? 'into-view' : (effective(target).scrollOnOpen as ScrollAlign));
       return accepted(requestOpen(engineId, { align: align ?? null, forced: true }) && wouldScroll(engineId, to));
     },
+    pin: (engineId, by, source) => {
+      const target = held(engineId);
+      if (!isEntry(target)) return target;
+      if (gate.busy([engineId], 'other')) return busy(target);
+      const change: PinChange = { by };
+      const status: PinStatus = target.live ? 'live' : heldIds.has(engineId) ? 'hidden' : 'parked';
+      const decision = decidePinChange(target, status, effective(target).pinningWhenNotLive, change);
+      const preview = previewPin(engineId, change);
+      if (decision.kind === 'refuse') return refused(decision.code!, `panel '${panelKey(target)}' is not live and its pinningWhenNotLive does not let ${by}() reshape the row`);
+      if (!preview.ok) return { ...refused(preview.code, preview.message), ...(preview.setting === undefined ? {} : { setting: preview.setting }) };
+      const token = gate.take([engineId], 'other')!;
+      try {
+        if (decision.kind === 'defer') {
+          // A call that leaves the panel reading as it does cancels what waits; any other replaces it.
+          const equal = !preview.changed;
+          const stored = target.deferredPin;
+          const next = equal ? undefined : change;
+          const moved = JSON.stringify(stored) !== JSON.stringify(next);
+          if (moved) deferPin(engineId, next ?? null);
+          return { ...accepted(moved), deferred: !equal };
+        }
+        if (decision.kind === 'show') {
+          handleActivatePanel(engineId, change);
+          if (source === 'person') recordPin(engineId, change);
+          scrollForShow(engineId);
+          return { ...accepted(true), shown: true };
+        }
+        const done = pinPanel(engineId, change, source === 'person');
+        const changed = done.ok && done.changed;
+        if (changed) followPanel(engineId);
+        return accepted(changed);
+      } finally {
+        gate.release(token);
+      }
+    },
+    reset: (engineIds, follow) => {
+      const named = engineIds.map((id) => held(id)).filter(isEntry);
+      if (gate.busy(panels.map((p) => p.id), 'other')) return refused('busy', 'a panel already has an operation in this turn');
+      const token = gate.take(engineIds, 'other')!;
+      const done = resetPanels(engineIds);
+      gate.release(token);
+      if (done.changed && follow && engineIds.length === 1) followPanel(engineIds[0]!);
+      const keyOf = (id: string): string => {
+        const p = panels.find((q) => q.id === id);
+        return p === undefined ? id : panelKey(p);
+      };
+      return { ...accepted(done.changed), panels: named.map(panelKey), parked: done.parked.map(keyOf), returned: done.returned.map(keyOf) };
+    },
+    inUndoWindow: (engineId) => closing.closedIds().includes(engineId),
+    resetClosed: (engineId) =>
+      closing.markReset(engineId, (panel) => {
+        if (core === undefined || panel.settings === undefined) return panel;
+        const value = core.resolveDefaults(panel).value;
+        const defaults = applyTemplate(panel, value, 'reconfigure');
+        return clearOverrides([{ ...defaults, ...(panel.formFactor === value.formFactor ? {} : { formFactor: value.formFactor, size: { ...TIER_SIZES[value.formFactor] } }), applied: { placeOnAdd: value.placeOnAdd } }], [panel.id])[0]!;
+      }),
     reopen: (req) => {
       // The closed views are tokened too: a raw undoClose in this turn restores the very key this call would add.
       const touched = [req.engineId, ...closing.closedIds()];

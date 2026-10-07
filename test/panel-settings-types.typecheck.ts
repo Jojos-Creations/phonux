@@ -173,6 +173,8 @@ export const viewHandle: ViewHandle = {
   place: () => done,
   setFormFactor: () => done,
   scrollTo: () => done,
+  pin: () => done,
+  unpin: () => done,
 };
 export const aTemplate: PanelTemplate = { id: 'notes', view: () => React.createElement('div'), settings: { overflow: 'park' } };
 export const defined: PanelTemplate<{ page: number }> = definePanel({ id: 'paged', view: () => null, params: { page: 1 } });
