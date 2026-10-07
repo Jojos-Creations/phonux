@@ -4,7 +4,7 @@
  * before the panel exists, while it is live and after the workspace detaches.
  */
 import type { JsonValue, FormFactor } from './hostApi.js';
-import type { PanelOpSource, PanelResult } from './panelManager.js';
+import type { PanelOpSource, PanelResult, PinResult, ResetResult } from './panelManager.js';
 import type { AddPlacement, PanelId, PanelSettingsResolution, ScrollAlign } from './panelSettings.js';
 import type { ListFilter, PanelReader, PanelReadHandle, PanelSnapshot, PanelState } from './panelTemplate.js';
 
@@ -35,6 +35,10 @@ export interface PanelHandle<P extends JsonValue = JsonValue> extends PanelReadH
   setFormFactor(next: FormFactor, source?: 'code' | 'person'): PanelResult;
   /** Scrolls the row to a live panel, to `align` or, left out, where the panel's `scrollOnOpen` says. */
   scrollTo(align?: ScrollAlign, source?: 'code' | 'person'): PanelResult;
+  /** Applies the pinned half of the panel's `pinning` in one commit: it is placed, then fixed when the half says so; a panel that is not live follows `pinningWhenNotLive`. */
+  pin(source?: 'code' | 'person'): PinResult;
+  /** Applies the unpinned half of the panel's `pinning` in one commit: the panel is freed, then placed, so a fixed pin can always be undone. */
+  unpin(source?: 'code' | 'person'): PinResult;
 }
 
 /** One operation a handle asks of its workspace. @internal */
@@ -43,7 +47,8 @@ export type PanelVerbCall =
   | { verb: 'move'; direction: 'left' | 'right' }
   | { verb: 'place'; value: AddPlacement | 'in-place' }
   | { verb: 'setFormFactor'; next: FormFactor }
-  | { verb: 'scrollTo'; align: ScrollAlign | undefined };
+  | { verb: 'scrollTo'; align: ScrollAlign | undefined }
+  | { verb: 'pin' | 'unpin' };
 
 /** What a handle or reader asks a workspace for. @internal */
 export interface ReadSource {
@@ -57,7 +62,9 @@ export interface ReadSource {
   /** The read-only handle of `id`, or undefined when the workspace knows no such panel. */
   readHandleOf(id: PanelId): PanelReadHandle | undefined;
   /** Runs one operation on `id` for `source`. */
-  operate(id: PanelId, call: PanelVerbCall, source: PanelOpSource): PanelResult;
+  operate(id: PanelId, call: PanelVerbCall, source: PanelOpSource): PinResult;
+  /** Resets one panel, or every panel but the root. */
+  resetLayout(target: PanelId | 'all'): ResetResult;
 }
 
 /** The read handle of panel `id` built from `templateId`: exactly the five read members. @internal */
@@ -71,7 +78,7 @@ export function makeHandle(source: ReadSource, id: PanelId, templateId: string):
   };
 }
 
-/** The handle of panel `id` built from `templateId`: the five read members and the nine operations. @internal */
+/** The handle of panel `id` built from `templateId`: the five read members and the eleven operations. @internal */
 export function makeViewHandle<P extends JsonValue = JsonValue>(source: ReadSource, id: PanelId, templateId: string): PanelHandle<P> {
   return {
     id,
@@ -88,6 +95,8 @@ export function makeViewHandle<P extends JsonValue = JsonValue>(source: ReadSour
     place: (value, src = 'code') => source.operate(id, { verb: 'place', value }, src),
     setFormFactor: (next, src = 'code') => source.operate(id, { verb: 'setFormFactor', next }, src),
     scrollTo: (align, src = 'code') => source.operate(id, { verb: 'scrollTo', align }, src),
+    pin: (src = 'code') => source.operate(id, { verb: 'pin' }, src),
+    unpin: (src = 'code') => source.operate(id, { verb: 'unpin' }, src),
   };
 }
 

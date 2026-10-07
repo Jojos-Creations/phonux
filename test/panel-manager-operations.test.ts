@@ -483,3 +483,13 @@ test('the owner example: a button in panel two toggles panel one through a closu
   act(() => button().click());
   assert.equal(one.getState().status, 'live', 'the second click shows it again');
 });
+
+test('a ViewHandle has exactly the sixteen sorted keys, pin and unpin among them', async () => {
+  const { createWorkspace } = await import('../index.js');
+  const { mountWorkspace } = await import('./support/workspace-row.js');
+  const w = createWorkspace({ templates: [markerTemplate('probe')] });
+  w.addPanel('probe');
+  const m = mountWorkspace(w);
+  const node = m.container.querySelector('[data-template="probe"]') as HTMLElement;
+  assert.deepEqual(node.dataset.handleKeys!.split(',').sort(), ['close', 'getSettings', 'getState', 'hide', 'id', 'move', 'open', 'pin', 'place', 'scrollTo', 'setFormFactor', 'show', 'subscribe', 'templateId', 'toggleVisibility', 'unpin']);
+});

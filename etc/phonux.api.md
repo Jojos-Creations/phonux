@@ -374,11 +374,13 @@ export interface PanelHandle<P extends JsonValue = JsonValue> extends PanelReadH
     hide(source?: 'code' | 'person'): PanelResult;
     move(direction: 'left' | 'right', source?: 'code' | 'person'): PanelResult;
     open(source?: 'code' | 'person'): PanelResult;
+    pin(source?: 'code' | 'person'): PinResult;
     place(p: AddPlacement | 'in-place', source?: 'code' | 'person'): PanelResult;
     scrollTo(align?: ScrollAlign, source?: 'code' | 'person'): PanelResult;
     setFormFactor(next: FormFactor, source?: 'code' | 'person'): PanelResult;
     show(source?: 'code' | 'person'): PanelResult;
     toggleVisibility(source?: 'code' | 'person'): PanelResult;
+    unpin(source?: 'code' | 'person'): PinResult;
 }
 
 // @public
@@ -406,6 +408,7 @@ export interface PanelManager {
     get<P extends JsonValue = JsonValue>(id: PanelId): PanelHandle<P> | undefined;
     getSnapshot(): PanelSnapshot;
     list(f?: ListFilter): readonly PanelHandle[];
+    resetLayout(target: PanelId | 'all'): ResetResult;
     subscribe(l: () => void): () => void;
 }
 
@@ -677,6 +680,7 @@ export interface PanelWindow {
     };
     collapsible: boolean;
     declared?: true;
+    deferredPin?: DeferredPin;
     formFactor?: FormFactor;
     hostData?: JsonValue;
     id: string;
@@ -762,6 +766,13 @@ export type PinningWhenNotLive = PinWhenNotLive | {
 };
 
 // @public
+export type PinResult = PanelResult & {
+    readonly shown?: boolean;
+    readonly deferred?: boolean;
+    readonly setting?: CatalogName;
+};
+
+// @public
 export type PinWhenNotLive = 'place-only' | 'refuse' | 'show' | 'apply-on-next-show';
 
 // @public
@@ -791,6 +802,13 @@ export interface ReorderHandle {
 
 // @public
 export function reorderStepsForOffset(offsetX: number, neighbors: NeighborWidths, gap: number, hopFraction?: number): number;
+
+// @public
+export type ResetResult = PanelResult & {
+    readonly panels?: readonly PanelId[];
+    readonly parked?: readonly PanelId[];
+    readonly returned?: readonly PanelId[];
+};
 
 // @public
 export type ResolvedPanelSettings = {

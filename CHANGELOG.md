@@ -4,6 +4,10 @@
 
 ### Added
 
+- `pin()` and `unpin()` on a panel handle apply the panel's pinning definition in one commit, `pinningWhenNotLive` and a
+  deferred pin decide what a parked, hidden or closed panel does, a person's pin is saved as `overrides.parkable`, and
+  `resetLayout(id | 'all')` on the manager clears overrides and deferred pins and re-places by default. The result types
+  `PinResult` and `ResetResult` are exported; `PanelWindow` gains the session-only `deferredPin`.
 - `PanelWindow` gains the optional `instance`, `overrides`, `applied` and `declared`, and `PanelsInput` gains
   `templates` and `declared`: a workspace file now remembers what a person moved or resized (`overrides`), the
   `placeOnAdd` that placed each panel (`applied`) and the layer a panel was made with (`instance`), so a changed default
