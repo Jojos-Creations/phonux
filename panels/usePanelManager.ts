@@ -6,13 +6,14 @@
  * regardless of which path did the parking, except a park that is held: that one stays parked until a person
  * shows it (`holdPanel`, `heldIds`).
  */
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useReducer, useRef, useState } from 'react';
 import type { Dispatch, SetStateAction } from 'react';
 import { flushSync } from 'react-dom';
 import type { FormFactor } from '../hostApi.js';
 import { computeRowLayout } from '../panelRowLayout.js';
 import { computeRowNumbers } from '../rowNumbers.js';
 import { placePanel, reportNotes } from '../panelPlacement.js';
+import type { AddPlacement } from '../panelSettings.js';
 import { isPresent } from '../panelRowEntry.js';
 import { panelWidthOf } from '../panelTiers.js';
 import { effectiveMaxPanels } from '../panelCapacity.js';
@@ -60,10 +61,14 @@ export interface UsePanelManagerResult {
    * with no `setPanels`, when nothing is parked on that side.
    */
   scrollRow: (direction: 'left' | 'right') => void;
-  /** Moves `id` one row-slot toward `direction`; see `movePanel` for the no-op contract. */
-  reorderPanel: (id: string, direction: 'left' | 'right') => void;
-  /** `setFormFactor` through setPanels; if the row no longer fits, the same update parks what the capacity drop would, keeping every acted-on panel live. False for a no-op. */
-  resizePanel: (id: string, next: FormFactor) => boolean;
+  /** Moves `id` one row-slot toward `direction`; see `movePanel` for the no-op contract. `record` false (a call from code) leaves the person's arrangement, `overrides`, as it was. True when the move changes this render's list. */
+  reorderPanel: (id: string, direction: 'left' | 'right', record?: boolean) => boolean;
+  /** `setFormFactor` through setPanels; if the row no longer fits, the same update parks what the capacity drop would, keeping every acted-on panel live. False for a no-op. `record` false leaves `overrides` as it was. */
+  resizePanel: (id: string, next: FormFactor, record?: boolean) => boolean;
+  /** Puts `id` where `value` says, keeping its live flag; the placement is the developer's own ask, so `placeable` is the caller's to check. `record` false leaves `overrides` as it was. True when the placement changes this render's list. */
+  placeAt: (id: string, value: AddPlacement | 'in-place', record?: boolean) => boolean;
+  /** The in-flight gate shared by the manager's operations and the raw mutators. */
+  gate: OperationGate;
   /** Explicit enter sides from `scrollRow` and the capacity rise; they win over `enteringViaAnchorIds`, which cannot say which side. */
   enterSideById: ReadonlyMap<string, 'left' | 'right'>;
   /** Ids parking with an exit to the RIGHT (every other park exits left). Set through `flushSync` BEFORE the parking `setPanels`: AnimatePresence reads `exit` from the last render before the child leaves. */
@@ -83,6 +88,34 @@ export interface UsePanelManagerResult {
   wouldEmptyRow: (ids: readonly string[]) => boolean;
   /** Records the hold of an id that is already parked, as a creation path does for a panel created parked. False for a live, fixed or unknown id. */
   markHeld: (id: string, kind: 'sticky' | 'until-room') => boolean;
+}
+
+/** What an in-flight operation does to the row, as far as the empty-row rule is concerned. */
+export type GateKind = 'hide' | 'close' | 'other';
+
+/**
+ * The turn's record of which panels an operation is already acting on: one token per accepted call, deleted by the
+ * commit that carries the call's `release`. A manager call that finds a token on its panel answers `busy`; a close is
+ * exclusive among manager calls in both directions. A raw mutator takes a 'raw' token and never refuses, except that it
+ * does nothing on a panel a manager call holds.
+ */
+export interface OperationGate {
+  /** True when a manager call on `ids` of this `kind` would answer busy. Takes nothing. */
+  busy: (ids: readonly string[], kind: GateKind) => boolean;
+  /** Takes a manager token on `ids`; undefined, taking nothing, when `busy`. */
+  take: (ids: readonly string[], kind: GateKind) => number | undefined;
+  /** Takes a raw token on `ids`; undefined, taking nothing, when a manager token holds one of them. */
+  takeRaw: (ids: readonly string[], kind: GateKind) => number | undefined;
+  /** Marks the call that took `token` as finished, forcing a commit so its token is deleted even when the engine ignored the call. */
+  release: (token: number) => void;
+  /** The ids a hide or a close is acting on this turn. */
+  leaving: () => ReadonlySet<string>;
+}
+
+interface Token {
+  token: number;
+  source: 'manager' | 'raw';
+  kind: GateKind;
 }
 
 /** What keeps a parked panel parked: 'sticky' until it is shown, or until the free slots exceed `freeAfterPark`. */
@@ -263,6 +296,39 @@ export function usePanelManager(
     inFlightRef.current.ids.add(id);
   };
 
+  /** Tokens live in refs: every closure of every render reads the same turn, however many commits a flushSync makes inside it. */
+  const seqRef = useRef(0);
+  const tokensRef = useRef<Map<string, Token>>(new Map());
+  const closeTokenRef = useRef(0);
+  const [published, release] = useReducer((a: number, b: number) => Math.max(a, b), 0);
+  // No dependency list: every commit deletes the tokens whose call finished before it was rendered.
+  useLayoutEffect(() => {
+    for (const [id, t] of tokensRef.current) if (t.token <= published) tokensRef.current.delete(id);
+    if (closeTokenRef.current <= published) closeTokenRef.current = 0;
+  });
+  const gate: OperationGate = {
+    busy: (ids, kind) => {
+      if (ids.some((id) => tokensRef.current.has(id))) return true;
+      if (kind === 'close') return [...tokensRef.current.values()].some((t) => t.source === 'manager');
+      return closeTokenRef.current !== 0;
+    },
+    take: (ids, kind) => {
+      if (gate.busy(ids, kind)) return undefined;
+      const token = ++seqRef.current;
+      for (const id of ids) tokensRef.current.set(id, { token, source: 'manager', kind });
+      if (kind === 'close') closeTokenRef.current = token;
+      return token;
+    },
+    takeRaw: (ids, kind) => {
+      if (ids.some((id) => tokensRef.current.get(id)?.source === 'manager')) return undefined;
+      const token = ++seqRef.current;
+      for (const id of ids) tokensRef.current.set(id, { token, source: 'raw', kind });
+      return token;
+    },
+    release,
+    leaving: () => new Set([...tokensRef.current].filter(([, t]) => t.kind !== 'other').map(([id]) => id)),
+  };
+
   /** Free slots a row leaves for `live` (its live collapsible panels): capacity priced from their own widths, less their count. Infinity while unmeasured. */
   const freeSlots = (live: readonly PanelWindow[]): number => capacityFor(live.map(widthOf)) - live.length;
   const liveParkable = (row: readonly PanelWindow[]): PanelWindow[] => row.filter(isParkLive);
@@ -317,7 +383,7 @@ export function usePanelManager(
   };
 
   const wouldEmptyRow = (ids: readonly string[]): boolean => {
-    const gone = new Set([...ids, ...inFlight()]);
+    const gone = new Set([...ids, ...inFlight(), ...gate.leaving()]);
     return !panels.some((p) => isPresent(p) && !(p.collapsible && gone.has(p.id)));
   };
 
@@ -469,16 +535,33 @@ export function usePanelManager(
   };
 
   /** See `UsePanelManagerResult.reorderPanel`'s own doc comment. */
-  const reorderPanel = (id: string, direction: 'left' | 'right'): void => {
+  const reorderPanel = (id: string, direction: 'left' | 'right', record = true): boolean => {
     setPanels((prev) => {
       const moved = movePanel(prev, id, direction, rootId);
       // A drag settles every panel's place for the person, not only the dragged one's.
-      return moved === prev ? prev : recordOverride(moved, 'anchor', moved.map((p) => p.id), rootId);
+      return moved === prev || !record ? moved : recordOverride(moved, 'anchor', moved.map((p) => p.id), rootId);
     });
+    return movePanel(panels, id, direction, rootId) !== panels;
+  };
+
+  /** See `UsePanelManagerResult.placeAt`'s own doc comment. */
+  const placeAt = (id: string, value: AddPlacement | 'in-place', record = true): boolean => {
+    const target = panels.find((p) => p.id === id);
+    if (target === undefined || value === 'in-place') return false;
+    const sameRow = (a: readonly PanelWindow[], b: readonly PanelWindow[]): boolean =>
+      a.length === b.length && a.every((p, k) => p.id === b[k]!.id && p.anchor?.panel === b[k]!.anchor?.panel && p.anchor?.position === b[k]!.anchor?.position && p.anchor?.priority === b[k]!.anchor?.priority);
+    const placed = placePanel(panels, id, value, placing(target));
+    reportNotes(options?.onNote, placed.notes);
+    setPanels((prev) => {
+      const next = placePanel(prev, id, value, placing(target)).row;
+      if (sameRow(prev, next)) return prev;
+      return record ? recordOverride(next, 'anchor', next.map((p) => p.id), rootId) : next;
+    });
+    return !sameRow(panels, placed.row);
   };
 
   /** See `UsePanelManagerResult.resizePanel`'s own doc comment. */
-  const resizePanel = (id: string, next: FormFactor): boolean => {
+  const resizePanel = (id: string, next: FormFactor, record = true): boolean => {
     if (setFormFactor(panels, id, next) === panels) return false;
     const wasLive = panels.find((p) => p.id === id)?.live === true;
     markKeepLive(id);
@@ -494,7 +577,8 @@ export function usePanelManager(
       // An earlier call in this same handler may have queued a park of it (its exit mark and stack entry are
       // dropped above): a resize never parks its own panel, so that park is cancelled before anything commits.
       const own = wasLive && resized.some((p) => p.id === id && !p.live) ? resized.map((p) => (p.id === id ? { ...p, live: true } : p)) : resized;
-      return recordOverride(settledKeeping(own, keep), 'formFactor', [id], rootId);
+      const settled = settledKeeping(own, keep);
+      return record ? recordOverride(settled, 'formFactor', [id], rootId) : settled;
     });
     return true;
   };
@@ -639,6 +723,8 @@ export function usePanelManager(
     scrollRow,
     reorderPanel,
     resizePanel,
+    placeAt,
+    gate,
     enterSideById: enterSideRef.current,
     exitRightIds,
     holdPanel,

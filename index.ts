@@ -151,7 +151,7 @@ export type {
 export { createWorkspace } from './workspaceCore.js';
 export type { WorkspaceHandle, WorkspaceOptions } from './workspaceCore.js';
 export type { PanelHandle } from './panelHandles.js';
-export type { PanelManager } from './panelManager.js';
+export type { PanelManager, PanelResult } from './panelManager.js';
 export { usePanelStates, usePanelState, useWorkspaceManager } from './panels/usePanelStates.js';
 
 export { PanelManagerError } from './panelManagerError.js';
