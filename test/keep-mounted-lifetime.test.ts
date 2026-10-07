@@ -114,18 +114,20 @@ async function parkedByCapacity(keep = true, park = true): Promise<{ provided: (
   return { provided: () => latest!, container: mounted.container, unmount: mounted.unmount };
 }
 
-test('lifetime: closing a hidden kept panel unmounts it with a zero-duration exit, where a live panel takes its close exit', async () => {
+test('lifetime: closing a hidden kept panel unmounts it within three frames', async () => {
   const row = await parkedByCapacity();
   assert.equal(present(row.container, 'a'), true, 'kept while hidden');
   act(() => row.provided().close('a'));
   await advanceFrames(48);
-  assert.equal(present(row.container, 'a'), false, 'gone within three frames');
+  assert.equal(present(row.container, 'a'), false);
   assert.deepEqual(countOf('a'), { mounts: 1, unmounts: 1 });
-  row.unmount();
+});
+
+test('lifetime: control, a live panel is still on its way out three frames after its close', async () => {
   const control = await parkedByCapacity(false, false);
   act(() => control.provided().close('a'));
   await advanceFrames(48);
-  assert.equal(present(control.container, 'a'), true, 'control: a live panel is still on its way out after three frames');
+  assert.equal(present(control.container, 'a'), true);
 });
 
 test('lifetime: clearAll unmounts a hidden kept panel', async () => {
@@ -136,7 +138,7 @@ test('lifetime: clearAll unmounts a hidden kept panel', async () => {
   assert.deepEqual(countOf('a'), { mounts: 1, unmounts: 1 });
 });
 
-test('lifetime: a re-render with keepMounted false on a hidden panel and the row unmounting each unmount it', async () => {
+test('lifetime: a re-render with keepMounted false unmounts a hidden panel', async () => {
   const at = (live: boolean, keep: boolean): React.ReactElement => rowOf([root(), entry('a', live, keep)]);
   const mounted = mount(at(true, true));
   await advanceFrames(1000);
@@ -146,19 +148,20 @@ test('lifetime: a re-render with keepMounted false on a hidden panel and the row
   mounted.rerender(at(false, false));
   await advanceFrames(1000);
   assert.deepEqual(countOf('a'), { mounts: 1, unmounts: 1 });
-  counts.clear();
-  const second = mount(at(true, true));
+});
+
+test('lifetime: the row unmounting unmounts a hidden kept panel', async () => {
+  const at = (live: boolean): React.ReactElement => rowOf([root(), entry('a', live, true)]);
+  const mounted = mount(at(true));
   await advanceFrames(1000);
-  second.rerender(at(false, true));
+  mounted.rerender(at(false));
   await advanceFrames(1000);
-  second.unmount();
+  mounted.unmount();
   assert.deepEqual(countOf('a'), { mounts: 1, unmounts: 1 });
 });
 
-test('lifetime: an undo remounts a closed kept view fresh with its viewState intact, and no kept state is saved', async () => {
+test('lifetime: an undo brings a closed kept panel back parked, and showing it remounts the view fresh', async () => {
   const row = await parkedByCapacity();
-  const saved = JSON.stringify(projectWorkspaceState(row.provided().entries, 'root'));
-  assert.equal(saved.includes('keepMounted'), false);
   act(() => row.provided().close('a'));
   await advanceFrames(1000);
   assert.deepEqual(countOf('a'), { mounts: 1, unmounts: 1 });
@@ -168,6 +171,20 @@ test('lifetime: an undo remounts a closed kept view fresh with its viewState int
   assert.equal(countOf('a').mounts, 1);
   act(() => row.provided().activate('a'));
   await advanceFrames(1000);
-  assert.equal(countOf('a').mounts, 2, 'a fresh mount');
-  assert.equal(stored, 9, 'the value set before the close');
+  assert.equal(countOf('a').mounts, 2);
+});
+
+test('lifetime: the viewState a closed kept view held is intact after an undo and a show', async () => {
+  const row = await parkedByCapacity();
+  act(() => row.provided().close('a'));
+  await advanceFrames(1000);
+  act(() => row.provided().undoClose());
+  act(() => row.provided().activate('a'));
+  await advanceFrames(1000);
+  assert.equal(stored, 9);
+});
+
+test('lifetime: nothing about a kept entry is saved', async () => {
+  const row = await parkedByCapacity();
+  assert.equal(JSON.stringify(projectWorkspaceState(row.provided().entries, 'root')).includes('keepMounted'), false);
 });

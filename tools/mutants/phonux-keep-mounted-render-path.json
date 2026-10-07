@@ -10,7 +10,7 @@
       "find": "...(hidden ? { display: 'none' } : {}),",
       "replace": "...(hidden ? { visibility: 'hidden' } : {}),",
       "expectRed": [
-        "hidden state: inert during the exit slide"
+        "hidden state: once the exit completes"
       ]
     },
     {
@@ -28,7 +28,7 @@
       "find": "inert={kept ? true : undefined}",
       "replace": "inert={hidden ? true : undefined}",
       "expectRed": [
-        "hidden state: inert during the exit slide"
+        "hidden state: during the exit slide the slot is inert"
       ]
     },
     {
@@ -46,7 +46,7 @@
       "find": "slotDriver.set(el.current, start);",
       "replace": "void start;",
       "expectRed": [
-        "parkExitTarget and enterStart"
+        "a revive from the other side sets x and opacity"
       ]
     },
     {
@@ -64,7 +64,7 @@
       "find": "if (!cancelled) setSettledEpoch(epoch);",
       "replace": "if (!cancelled) requestAnimationFrame(() => setSettledEpoch(epoch));",
       "expectRed": [
-        "fallbacks: animated false"
+        "fallback: animated false"
       ]
     },
     {

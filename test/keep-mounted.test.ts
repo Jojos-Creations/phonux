@@ -12,7 +12,8 @@ import { MotionConfig } from 'motion/react';
 import { CaptureRegistryProvider, LIBRARY_TUNING_DEFAULTS, Panel, PanelRow, registerView, resolvePanelSettings, useProvidePanels, usePanelHidden, usePanelNeighborWidths, useViewState } from '../index.js';
 import type { CaptureRegistry, PanelWindow, ProvidedPanels } from '../index.js';
 import { noopCaptureTrigger, type CaptureTrigger } from '../snapshots.js';
-import { enterStart, parkExitTarget, slotDriver } from '../PanelRowSlot.js';
+import { PANEL_TRANSITION } from '../index.js';
+import { enterStart, panelRowSlotMotion, parkExitTarget, slotDriver } from '../PanelRowSlot.js';
 import { differential } from './support/differential.js';
 import { advanceFrames, cleanup, mount, panelsInput, withHost } from './support/mount-harness.js';
 
@@ -102,19 +103,41 @@ async function threeCycles(keep: boolean): Promise<{ mounts: number; unmounts: n
   return out;
 }
 
-test('differential keepMounted: kept gives 1 mount and 0 unmounts over three cycles, not kept 3 mounts and 3 unmounts, and viewState survives in both', async () => {
-  const results = new Map<boolean, { mounts: number; unmounts: number; stored: number }>();
-  for (const keep of [true, false]) {
-    counts.clear();
-    results.set(keep, await threeCycles(keep));
+let cycleResults: Map<boolean, { mounts: number; unmounts: number; stored: number }> | undefined;
+async function cyclesBoth(): Promise<Map<boolean, { mounts: number; unmounts: number; stored: number }>> {
+  if (cycleResults === undefined) {
+    cycleResults = new Map();
+    for (const keep of [true, false]) {
+      counts.clear();
+      cycleResults.set(keep, await threeCycles(keep));
+    }
   }
-  assert.deepEqual(results.get(true), { mounts: 1, unmounts: 0, stored: 7 });
-  assert.deepEqual(results.get(false), { mounts: 3, unmounts: 3, stored: 7 });
+  return cycleResults;
+}
+
+test('differential keepMounted: the two values give different mount and unmount counts over the same three cycles', async () => {
+  const results = await cyclesBoth();
   // The shared recorder runs a scenario synchronously, so it is handed the two results already observed.
   differential('keepMounted', (run) => {
     run(true, () => results.get(true));
     run(false, () => results.get(false));
   });
+});
+
+test('keepMounted true: three show-and-park cycles from a parked start give 1 mount and 0 unmounts', async () => {
+  const kept = (await cyclesBoth()).get(true)!;
+  assert.deepEqual([kept.mounts, kept.unmounts], [1, 0]);
+});
+
+test('keepMounted false: the same three cycles give 3 mounts and 3 unmounts', async () => {
+  const unkept = (await cyclesBoth()).get(false)!;
+  assert.deepEqual([unkept.mounts, unkept.unmounts], [3, 3]);
+});
+
+test('viewState survives the three cycles whether the view is kept or not', async () => {
+  const results = await cyclesBoth();
+  assert.equal(results.get(true)!.stored, 7);
+  assert.equal(results.get(false)!.stored, 7);
 });
 
 test('latch (a): live then parked with keepMounted false unmounts; turning it on later changes nothing until the next show, whose park then keeps the view', async () => {
@@ -178,21 +201,39 @@ test('latch (d): reset-on-park flipped after a park drops no cell, and set befor
   assert.equal(stored, 0, 'the park under reset-on-park dropped the cell');
 });
 
-test('hidden state: inert during the exit slide, then display none, inert and aria-hidden once it completes, and none of the three at the revive commit', async () => {
+/** `a` live and settled, then parked; `frames` later, the row. */
+async function parkedFor(frames: number): Promise<{ mounted: ReturnType<typeof mount>; at: (live: boolean) => React.ReactElement }> {
   const at = (live: boolean): React.ReactElement => rowOf([root(), entry('a', live, true)]);
   const mounted = mount(at(true));
   await advanceFrames(1000);
   mounted.rerender(at(false));
-  await advanceFrames(100);
-  const during = slotOf(mounted.container, 'a');
-  assert.equal(during.hasAttribute('inert'), true, 'inert from the start of the exit');
-  assert.notEqual(during.style.display, 'none', 'still drawn while it slides');
-  assert.equal(during.getAttribute('aria-hidden'), null);
-  await advanceFrames(1000);
+  await advanceFrames(frames);
+  return { mounted, at };
+}
+
+test('hidden state: during the exit slide the slot is inert and still drawn', async () => {
+  const { mounted } = await parkedFor(100);
+  const slot = slotOf(mounted.container, 'a');
+  assert.equal(slot.hasAttribute('inert'), true);
+  assert.notEqual(slot.style.display, 'none');
+  assert.equal(slot.getAttribute('aria-hidden'), null);
+});
+
+test('hidden state: once the exit completes the slot is display none, inert and aria-hidden', async () => {
+  const { mounted } = await parkedFor(1000);
   assert.ok(isHidden(slotOf(mounted.container, 'a')));
+});
+
+test('hidden state: the revive commit has none of the three at its first layout effect', async () => {
+  const { mounted, at } = await parkedFor(1000);
   seen.layout.length = 0;
   mounted.rerender(at(true));
-  assert.deepEqual(seen.layout[0], { inert: false, ariaHidden: null, display: '' }, 'the revive commit already has none of the three');
+  assert.deepEqual(seen.layout[0], { inert: false, ariaHidden: null, display: '' });
+});
+
+test('hidden state: a revived slot ends with none of the three', async () => {
+  const { mounted, at } = await parkedFor(1000);
+  mounted.rerender(at(true));
   await advanceFrames(1000);
   const shown = slotOf(mounted.container, 'a');
   assert.equal(shown.hasAttribute('inert') || shown.hasAttribute('aria-hidden') || shown.style.display === 'none', false);
@@ -202,22 +243,33 @@ function Lone(): React.ReactElement {
   return React.createElement('span', null, String(usePanelHidden()));
 }
 
-test('usePanelHidden: false while live, scrolled out or exiting, true only when display is none, false outside a row', async () => {
-  const at = (live: boolean): React.ReactElement => rowOf([root(), entry('a', live, true)]);
-  const mounted = mount(at(true));
+test('usePanelHidden is false while the panel is live', async () => {
+  mount(rowOf([root(), entry('a', true, true)]));
   await advanceFrames(1000);
-  assert.equal(seen.hidden.at(-1), false, 'live');
-  mounted.rerender(at(false));
-  await advanceFrames(100);
-  assert.equal(seen.hidden.at(-1), false, 'exiting');
-  await advanceFrames(1000);
-  assert.equal(seen.hidden.at(-1), true, 'display none');
+  assert.equal(seen.hidden.at(-1), false);
+});
+
+test('usePanelHidden is false while the panel slides out', async () => {
+  await parkedFor(100);
+  assert.equal(seen.hidden.at(-1), false);
+});
+
+test('usePanelHidden is true once the slot is display none', async () => {
+  const { mounted } = await parkedFor(1000);
+  assert.equal(seen.hidden.at(-1), true);
   assert.equal(isHidden(slotOf(mounted.container, 'a')), true);
+});
+
+test('usePanelHidden is false again once the panel is shown', async () => {
+  const { mounted, at } = await parkedFor(1000);
   mounted.rerender(at(true));
   await advanceFrames(1000);
-  assert.equal(seen.hidden.at(-1), false, 'shown again');
+  assert.equal(seen.hidden.at(-1), false);
+});
+
+test('usePanelHidden is false outside a row', () => {
   const lone = mount(withHost(React.createElement(Lone)));
-  assert.equal(lone.container.textContent, 'false', 'outside a row');
+  assert.equal(lone.container.textContent, 'false');
 });
 
 /** `a` live under `settings` then parked, with no frame advanced after the park: whether its slot is hidden. */
@@ -232,11 +284,20 @@ async function hiddenWithoutFrames(settings: object, reduced = false): Promise<b
   return hidden;
 }
 
-test('fallbacks: animated false, a zero-duration slide and reduced motion each reach display none with no frame advanced, and a real slide does not', async () => {
-  assert.equal(await hiddenWithoutFrames({ animated: false }), true, 'animated false');
-  assert.equal(await hiddenWithoutFrames({ tuning: { slide: { ...LIBRARY_TUNING_DEFAULTS.slide, durationSec: 0 } } }), true, 'zero-duration slide');
-  assert.equal(await hiddenWithoutFrames({}, true), true, 'reduced motion');
-  assert.equal(await hiddenWithoutFrames({}), false, 'control: a real slide is not hidden before it ends');
+test('fallback: animated false reaches display none with no frame advanced', async () => {
+  assert.equal(await hiddenWithoutFrames({ animated: false }), true);
+});
+
+test('fallback: a zero-duration slide reaches display none with no frame advanced', async () => {
+  assert.equal(await hiddenWithoutFrames({ tuning: { slide: { ...LIBRARY_TUNING_DEFAULTS.slide, durationSec: 0 } } }), true);
+});
+
+test('fallback: reduced motion reaches display none with no frame advanced', async () => {
+  assert.equal(await hiddenWithoutFrames({}, true), true);
+});
+
+test('control: a real slide is not hidden before it ends', async () => {
+  assert.equal(await hiddenWithoutFrames({}), false);
 });
 
 test('fallback: a park whose target is where the slot already stands reaches display none with no frame advanced', async () => {
@@ -252,11 +313,29 @@ test('fallback: a park whose target is where the slot already stands reaches dis
   assert.equal(isHidden(slotOf(mounted.container, 'a')), true);
 });
 
-test('parkExitTarget and enterStart return the literal targets, and a revive from the other side jumps to its enter start before it animates', async () => {
+test('parkExitTarget returns the literal left and right targets of a kept park exit', () => {
   assert.deepEqual(parkExitTarget(406, 406, 'left', false), { x: -406, opacity: 0 });
   assert.deepEqual(parkExitTarget(406, 406, 'right', false), { x: 812, opacity: 0 });
+  assert.deepEqual(parkExitTarget(0, 390, 'right', false), { x: 390, opacity: 0 });
+});
+
+test('enterStart returns the literal enter start for left and right', () => {
   assert.deepEqual(enterStart(406, 406, 'left'), { x: 0, opacity: 0 });
   assert.deepEqual(enterStart(406, 406, 'right'), { x: 812, opacity: 0 });
+  assert.deepEqual(enterStart(0, 390, 'left'), { x: -390, opacity: 0 });
+});
+
+test('panelRowSlotMotion keeps its five-argument form and its default transition', () => {
+  const motion = panelRowSlotMotion(406, 390, 700, 'right', 'left');
+  assert.deepEqual(motion.exit, { x: -406, opacity: 0 });
+  assert.equal(motion.transition, PANEL_TRANSITION);
+});
+
+test('slotDriver.read answers nothing for an element no motion component owns', () => {
+  assert.equal(slotDriver.read(document.createElement('div')), undefined);
+});
+
+test('a revive from the other side sets x and opacity to the enter start before it animates', async () => {
   const calls: string[] = [];
   const { set, animate } = slotDriver;
   slotDriver.set = (el, values) => {
@@ -284,28 +363,44 @@ test('parkExitTarget and enterStart return the literal targets, and a revive fro
   }
 });
 
-test('layout independence: a kept entry between two live ones changes no slot position, row width or neighbour width against the same row unmounted', async () => {
-  const measure = async (keep: boolean): Promise<{ x: string[]; width: string; neighbours: string[] }> => {
-    neighbours.clear();
-    const at = (live: boolean): React.ReactElement => rowOf([root(), entry('p', true, false), entry('k', live, keep), entry('q', true, false)]);
-    const mounted = mount(at(true));
-    await advanceFrames(1000);
-    mounted.rerender(at(false));
-    await advanceFrames(1000);
-    const result = {
-      x: ['p', 'q'].map((id) => slotOf(mounted.container, id).style.transform),
-      width: getComputedStyle(mounted.container.firstElementChild!).width,
-      neighbours: ['p', 'q'].map((id) => neighbours.get(id)!),
-    };
-    assert.equal(mounted.container.querySelector('[data-slot="k"]') !== null, keep, 'the kept entry is mounted and the other is not');
-    mounted.unmount();
-    return result;
+/** The row root, p and q live, and a k between them parked after a live start; what it measures. */
+async function measureRow(keep: boolean): Promise<{ x: string[]; width: string; neighbours: string[]; kMounted: boolean }> {
+  neighbours.clear();
+  const at = (live: boolean): React.ReactElement => rowOf([root(), entry('p', true, false), entry('k', live, keep), entry('q', true, false)]);
+  const mounted = mount(at(true));
+  await advanceFrames(1000);
+  mounted.rerender(at(false));
+  await advanceFrames(1000);
+  const result = {
+    x: ['p', 'q'].map((id) => slotOf(mounted.container, id).style.transform),
+    width: getComputedStyle(mounted.container.firstElementChild!).width,
+    neighbours: ['p', 'q'].map((id) => neighbours.get(id)!),
+    kMounted: mounted.container.querySelector('[data-slot="k"]') !== null,
   };
-  const kept = await measure(true);
-  const unmounted = await measure(false);
-  assert.deepEqual(kept, unmounted);
+  mounted.unmount();
+  return result;
+}
+
+test('layout independence: the kept entry is mounted and the unkept one is not, in rows that otherwise agree', async () => {
+  assert.equal((await measureRow(true)).kMounted, true);
+  assert.equal((await measureRow(false)).kMounted, false);
+});
+
+test('layout independence: a kept entry between two live ones changes no slot position', async () => {
+  const kept = await measureRow(true);
+  assert.deepEqual(kept.x, (await measureRow(false)).x);
   assert.deepEqual(kept.x, ['translateX(406px)', 'translateX(812px)']);
+});
+
+test('layout independence: a kept entry changes no row width', async () => {
+  const kept = await measureRow(true);
+  assert.equal(kept.width, (await measureRow(false)).width);
   assert.equal(kept.width, '1202px');
+});
+
+test('layout independence: a kept entry changes no neighbour width a drag may cross', async () => {
+  const kept = await measureRow(true);
+  assert.deepEqual(kept.neighbours, (await measureRow(false)).neighbours);
   assert.deepEqual(kept.neighbours, ['{"left":[390],"right":[390]}', '{"left":[390,390],"right":[]}']);
 });
 
@@ -358,7 +453,8 @@ test('capacity: over 200 seeded sequences the live flags and liveWidths are iden
   for (let seed = 1; seed <= 200; seed += 1) assert.deepEqual(run(seed, true), run(seed, false), `seed ${seed}`);
 });
 
-test('capture: Panel registers while visible and unregisters while hidden, and the park capture is issued before the slot hides', async () => {
+/** A kept `a` that registers a picture, parked by capacity; what the registry and the trigger saw, in order. */
+async function captureRun(): Promise<{ events: string[]; hiddenAtCapture: boolean[]; activate: () => Promise<void> }> {
   const events: string[] = [];
   const registry: CaptureRegistry = {
     register(viewId) {
@@ -382,21 +478,40 @@ test('capture: Panel registers while visible and unregisters while hidden, and t
   const mounted = mount(React.createElement(CaptureRegistryProvider, { registry, children: withHost(React.createElement(Driver, { initial, containerWidth: 1000, capture: trigger, expose: (p) => (latest = p) })) }));
   container = mounted.container;
   await advanceFrames(1000);
-  assert.deepEqual(events, ['register a']);
   for (let i = 0; i < 6 && latest!.entries.find((p) => p.id === 'a')!.live; i += 1) {
     act(() => latest!.create());
     await advanceFrames(100);
   }
   assert.equal(latest!.entries.find((p) => p.id === 'a')!.live, false, 'a was parked by capacity');
   await advanceFrames(1000);
+  return {
+    events,
+    hiddenAtCapture,
+    activate: async () => {
+      act(() => latest!.activate('a'));
+      await advanceFrames(1000);
+    },
+  };
+}
+
+test('capture: Panel registers while visible and unregisters once its slot is hidden', async () => {
+  const { events } = await captureRun();
   assert.deepEqual(events, ['register a', 'capture a', 'unregister a']);
-  assert.deepEqual(hiddenAtCapture, [false]);
-  act(() => latest!.activate('a'));
-  await advanceFrames(1000);
-  assert.equal(events.at(-1), 'register a', 'registered again once shown');
 });
 
-test('C6 and fixed columns: reset-on-park beside keepMounted true unmounts at the park, and a fixed column never takes the kept path', async () => {
+test('capture: the trigger sees one capture at the park commit, before the slot is hidden', async () => {
+  const { events, hiddenAtCapture } = await captureRun();
+  assert.equal(events.filter((e) => e === 'capture a').length, 1);
+  assert.deepEqual(hiddenAtCapture, [false]);
+});
+
+test('capture: Panel registers again once its slot is shown', async () => {
+  const run = await captureRun();
+  await run.activate();
+  assert.equal(run.events.at(-1), 'register a');
+});
+
+test('C6: reset-on-park beside keepMounted true unmounts the view at the park', async () => {
   const at = (live: boolean): React.ReactElement => rowOf([root(), entry('a', live, true, {}, { viewState: 'reset-on-park' })]);
   const mounted = mount(at(true));
   await advanceFrames(1000);
@@ -404,13 +519,29 @@ test('C6 and fixed columns: reset-on-park beside keepMounted true unmounts at th
   await advanceFrames(1000);
   assert.equal(mounted.container.querySelector('[data-slot="a"]'), null);
   assert.deepEqual(countOf('a'), { mounts: 1, unmounts: 1 });
-  mounted.unmount();
+});
+
+test('C1: a fixed column never takes the kept path', async () => {
   const fixed = (live: boolean): React.ReactElement => rowOf([root(), entry('a', live, true, { collapsible: false })]);
   const column = mount(fixed(true));
   column.rerender(fixed(false));
   await advanceFrames(1000);
   assert.equal(column.container.querySelectorAll('[data-slot="a"]').length, 1, 'a fixed column stays drawn: a live flag never parks it');
   assert.equal(isHidden(slotOf(column.container, 'a')), false);
+});
+
+test('default path: an entry whose keepMounted is false renders the same markup as one with no settings', async () => {
+  const markup = async (over: Partial<PanelWindow>): Promise<string> => {
+    const at = (live: boolean): React.ReactElement => rowOf([root(), { ...entry('a', live, false), ...over }]);
+    const mounted = mount(at(true));
+    await advanceFrames(1000);
+    mounted.rerender(at(false));
+    await advanceFrames(1000);
+    const html = mounted.container.innerHTML.replace(/css-[a-z0-9]+/g, 'css-x');
+    mounted.unmount();
+    return html;
+  };
+  assert.equal(await markup({}), await markup({ settings: undefined }));
 });
 
 test('StrictMode: every mount of a kept view is matched by an unmount, so no effect or latch entry leaks past the row', async () => {
