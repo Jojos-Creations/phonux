@@ -54,6 +54,7 @@ export function panelRowSlotMotion(
   animated = true,
   gap: number = ROW_GAP,
   slide: SlideTuning = LIBRARY_TUNING_DEFAULTS.slide,
+  rowScroll = false,
 ): PanelRowSlotMotion {
   // This panel's OWN footprint (its width plus one gap) is how far it must travel to clear the row edge,
   // so the distance is per panel: a wider one travels further.
@@ -72,7 +73,7 @@ export function panelRowSlotMotion(
       ? { x: rest, y: phoneHeight, opacity: 0, transition: animated ? { duration: slide.closeExitSeconds, ease: 'easeIn' } : INSTANT_TRANSITION }
       : exitDirection === 'right'
         ? { x: rest + ownSpan, opacity: 0 }
-        : { x: -ownSpan, opacity: 0 };
+        : { ...parkExitTarget(rest, ownSpan, 'left', rowScroll) };
   return { initial, animate, exit, transition };
 }
 
@@ -83,12 +84,14 @@ interface SlotValues {
 }
 
 /**
- * Where a kept slot goes when its panel parks: off the edge it was hidden past, faded out. `rowScroll` is the row
- * shell's flag, taken so every caller passes it; the left target is the row's own origin whatever its value.
+ * Where a slot goes when its panel parks: off the edge it was hidden past, faded out. In a scrolling row the strip
+ * extends far past the window, so the exit is one span from the slot's own rest on either side; in a row that never
+ * scrolls the left edge is the row's own origin.
  * @internal
  */
 export function parkExitTarget(rest: number, ownSpan: number, side: 'left' | 'right', rowScroll: boolean): SlotValues {
-  return side === 'right' ? { x: rest + ownSpan, opacity: 0 } : { x: -ownSpan, opacity: 0 };
+  if (side === 'right') return { x: rest + ownSpan, opacity: 0 };
+  return { x: rowScroll ? rest - ownSpan : -ownSpan, opacity: 0 };
 }
 
 /**
@@ -146,6 +149,7 @@ export function PanelRowSlot({
   gap,
   slide,
   kept = false,
+  rowScroll = false,
   children,
 }: {
   /** This slot's own rest x position -- the caller's running sum of every PRECEDING present item's own width plus one gap. */
@@ -174,10 +178,12 @@ export function PanelRowSlot({
   slide?: SlideTuning;
   /** True while the panel is parked and its view stays mounted: the slot slides out, is hidden, and slides back in when shown. */
   kept?: boolean;
+  /** Whether the row scrolls: a park then exits relative to this slot's rest. Default false. */
+  rowScroll?: boolean;
   /** The panel rendered inside the slot. */
   children: React.ReactNode;
 }) {
-  const { initial, animate: animateTarget, exit, transition } = panelRowSlotMotion(leftOffset, width, phoneHeight, enterDirection, exitDirection, animated, gap, slide);
+  const { initial, animate: animateTarget, exit, transition } = panelRowSlotMotion(leftOffset, width, phoneHeight, enterDirection, exitDirection, animated, gap, slide, rowScroll);
   const el = React.useRef<HTMLDivElement>(null);
   const reducedMotion = useReducedMotionConfig();
   const ownSpan = width + (gap ?? ROW_GAP);
@@ -201,7 +207,7 @@ export function PanelRowSlot({
   React.useEffect(() => {
     if (!kept || el.current === null) return undefined;
     sideAtPark.current = parkSide;
-    const run = slotDriver.animate(el.current, parkExitTarget(leftOffset, ownSpan, parkSide, false), slideTransition);
+    const run = slotDriver.animate(el.current, parkExitTarget(leftOffset, ownSpan, parkSide, rowScroll), slideTransition);
     let cancelled = false;
     void run.finished.then(() => {
       if (!cancelled) setSettledEpoch(epoch);

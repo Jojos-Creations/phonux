@@ -63,7 +63,7 @@ const entry = (id: string, live: boolean, keep: boolean, over: Partial<PanelWind
   view: 'km-view',
   collapsible: true,
   listed: true,
-  settings: { ...base, keepMounted: keep, ...settings },
+  settings: { ...base, overflow: 'park', keepMounted: keep, ...settings },
   ...over,
 });
 const root = (): PanelWindow => ({ id: 'root', url: '', title: 'History', live: true, locked: true, view: 'km-root', collapsible: false, listed: false });

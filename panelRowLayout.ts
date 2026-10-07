@@ -22,6 +22,12 @@ export interface RowLayoutInput {
    * live panel known yet) still yields the full `phoneWidth`-based ceiling -- see `maxLiveThatFit`.
    */
   liveWidths: readonly number[];
+  /**
+   * The widths of everything in the row that never parks for room, in row order. When given, they stand in for
+   * `fixedItemCount` copies of `phoneWidth`, so a scroll panel beside the parkable ones takes its own width out of
+   * the budget. Absent: `fixedItemCount` phone-width items, every 0.1.0 number.
+   */
+  reservedWidths?: readonly number[];
 }
 
 /** How many live panels fit in one row, and where that row starts so it is centered. @public */
@@ -49,8 +55,8 @@ export interface RowLayoutResult {
  * `maxLiveThatFit` is the one "how many fit" answer, so a wider panel lowers the count instead of overflowing.
  * @public
  */
-export function computeRowLayout({ containerWidth, phoneWidth, gap, fixedItemCount, liveWidths }: RowLayoutInput): RowLayoutResult {
-  const { availableForRow, fixedWidth, usedBudget } = rowBudget({ containerWidth, phoneWidth, gap, fixedItemCount });
+export function computeRowLayout({ containerWidth, phoneWidth, gap, fixedItemCount, liveWidths, reservedWidths }: RowLayoutInput): RowLayoutResult {
+  const { availableForRow, fixedWidth, usedBudget } = rowBudget({ containerWidth, phoneWidth, gap, fixedItemCount, reservedWidths });
 
   // Stopping at the first width that does not fit answers "how many of THESE fit", which the host's overflow
   // enforcement reads. Only when all fit are phoneWidth slots added: without them an empty `liveWidths` would
@@ -75,9 +81,12 @@ export function computeRowLayout({ containerWidth, phoneWidth, gap, fixedItemCou
 }
 
 /** The row's width, the fixed items' share of it, and what is left for live panels (each counted with its own gap). */
-function rowBudget({ containerWidth, phoneWidth, gap, fixedItemCount }: Omit<RowLayoutInput, 'liveWidths'>) {
+function rowBudget({ containerWidth, phoneWidth, gap, fixedItemCount, reservedWidths }: Omit<RowLayoutInput, 'liveWidths'>) {
   const availableForRow = Math.max(0, containerWidth - 2 * gap);
-  const fixedWidth = fixedItemCount * phoneWidth + (fixedItemCount - 1) * gap;
+  const fixedWidth =
+    reservedWidths === undefined
+      ? fixedItemCount * phoneWidth + (fixedItemCount - 1) * gap
+      : reservedWidths.reduce((sum, width) => sum + width, 0) + (reservedWidths.length - 1) * gap;
   return { availableForRow, fixedWidth, usedBudget: availableForRow - fixedWidth };
 }
 

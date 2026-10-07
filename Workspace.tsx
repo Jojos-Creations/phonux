@@ -14,7 +14,8 @@ import { PANEL_TRANSITION } from './PanelRowSlot.js';
 import { slideToTransition } from './directionalTransition.js';
 import type { SlideTuning, WorkspaceTuning } from './panelSettings.js';
 import { WorkspaceTuningContext, resolveWorkspaceTuning } from './panelTuning.js';
-import { ROW_GAP } from './rowConstants.js';
+import { ROW_GAP, ROW_GESTURE } from './rowConstants.js';
+import type { RowNumbers } from './rowNumbers.js';
 import { OverlaySlot } from './windowOverlay.js';
 
 /** The pure half of the row shell's input: the two measured fields the host's row measurement produces,
@@ -35,6 +36,12 @@ export interface WorkspaceShellStyleInput {
   gap?: number;
   /** The slide the margin glides with. Default: the shared panel transition. */
   slide?: SlideTuning;
+  /** The row's numbers. Given: the margin and the overflow follow them; omitted: a row with no settings, as before. */
+  rowNumbers?: RowNumbers;
+  /** Whether the row scrolls, for a caller with no `rowNumbers`. Ignored when `rowNumbers` is given. Default false. */
+  rowScroll?: boolean;
+  /** What the row's own scroll input does. Default: the library's `rowGesture`. */
+  rowGesture?: 'step' | 'free' | 'off';
 }
 
 /** The values the row shell renders with, derived by `workspaceShellStyle`. @internal */
@@ -48,8 +55,10 @@ export interface WorkspaceShellStyle {
         /** Zero: the margin snaps with no animation. */
         duration: 0;
       };
-  /** The scroll container's horizontal overflow -- always 'hidden': the row hides its far panel instead of ever scrolling or growing past what fits. */
-  overflowX: 'hidden';
+  /** The scroll container's horizontal overflow: 'auto' for a scrolling row whose gesture is not 'off', else 'hidden'. */
+  overflowX: 'hidden' | 'auto';
+  /** True when the container scrolls but shows no scrollbar: a scrolling row whose gesture is 'step'. */
+  hideScrollbar: boolean;
 }
 
 /** Everything the markup needs from the measurement, computed synchronously while rendering (never through state or an effect).
@@ -57,17 +66,17 @@ export interface WorkspaceShellStyle {
 export function workspaceShellStyle(i: WorkspaceShellStyleInput): WorkspaceShellStyle {
   // Calculated from known widths, never measured off the DOM. `fixedColumnCount` and `liveWidths` must come
   // from the same array the row's JSX renders (see computeRowLayout's own doc comment for why).
-  const { computedRowMarginLeft } = computeRowLayout({
-    containerWidth: i.containerWidth,
-    phoneWidth: i.phoneWidth,
-    gap: i.gap ?? ROW_GAP,
-    fixedItemCount: i.fixedColumnCount,
-    liveWidths: i.liveWidths,
-  });
+  const marginLeft =
+    i.rowNumbers !== undefined
+      ? i.rowNumbers.rowMarginLeft
+      : computeRowLayout({ containerWidth: i.containerWidth, phoneWidth: i.phoneWidth, gap: i.gap ?? ROW_GAP, fixedItemCount: i.fixedColumnCount, liveWidths: i.liveWidths }).computedRowMarginLeft;
+  const scrolls = i.rowNumbers?.rowScroll ?? i.rowScroll ?? false;
+  const gesture = i.rowGesture ?? ROW_GESTURE;
   return {
-    marginLeft: computedRowMarginLeft,
+    marginLeft,
     transition: i.rowResizeSettled ? (i.slide === undefined ? PANEL_TRANSITION : slideToTransition(i.slide)) : { duration: 0 },
-    overflowX: 'hidden',
+    overflowX: scrolls && gesture !== 'off' ? 'auto' : 'hidden',
+    hideScrollbar: scrolls && gesture === 'step',
   };
 }
 
@@ -88,6 +97,10 @@ export interface WorkspaceProps extends Omit<BoxProps, 'children'> {
   fixedColumnCount: number;
   /** Each live panel's own width in px, in row order; a parked panel is not in the row. */
   liveWidths: readonly number[];
+  /** Whether the row scrolls (ProvidedPanels.rowScroll). Ignored when `rowNumbers` is given, which carries it. Default false. */
+  rowScroll?: boolean;
+  /** The row's numbers (ProvidedPanels.rowNumbers): the margin and the overflow follow them. Omitted: a row with no settings, centred from `liveWidths` and never scrolling. */
+  rowNumbers?: RowNumbers;
   /** Clearance above the row, in px. Defaults to the row gap; a host with its own chrome above the scroll container (e.g. a drag strip) passes more. */
   topPadding?: number;
   /** The row's look tuning; each leaf left out takes the library default. Hand the same value to useProvidePanels, which prices the row's capacity from its rowGap. */
@@ -106,10 +119,16 @@ export interface WorkspaceProps extends Omit<BoxProps, 'children'> {
  * @public
  */
 export function Workspace(props: WorkspaceProps): React.ReactElement {
-  const { overflowContainerRef, rowRef, containerWidth, rowResizeSettled, phoneWidth, fixedColumnCount, liveWidths, topPadding, tuning, beforeRow, children, ...rest } = props;
+  const { overflowContainerRef, rowRef, containerWidth, rowResizeSettled, phoneWidth, fixedColumnCount, liveWidths, rowScroll, rowNumbers, topPadding, tuning, beforeRow, children, ...rest } = props;
   const resolved = React.useMemo(() => resolveWorkspaceTuning(tuning), [tuning]);
   const gap = resolved.rowGap;
-  const style = workspaceShellStyle({ containerWidth, rowResizeSettled, phoneWidth, fixedColumnCount, liveWidths, gap, slide: resolved.slide });
+  const scrolls = rowNumbers?.rowScroll ?? rowScroll ?? false;
+  const style = workspaceShellStyle({ containerWidth, rowResizeSettled, phoneWidth, fixedColumnCount, liveWidths, gap, slide: resolved.slide, rowScroll, rowNumbers, rowGesture: resolved.rowGesture });
+  // A row that stops scrolling must not keep the offset it had: the margin that centres it assumes the strip starts at 0.
+  React.useLayoutEffect(() => {
+    const container = overflowContainerRef.current;
+    if (!scrolls && container !== null && container.scrollLeft !== 0) container.scrollLeft = 0;
+  }, [scrolls, overflowContainerRef]);
   return (
     <WorkspaceTuningContext.Provider value={resolved}>
       <Box
@@ -124,9 +143,9 @@ export function Workspace(props: WorkspaceProps): React.ReactElement {
           pb: `${gap}px`,
           pl: `${gap}px`,
           pr: `${gap}px`,
-          // Always hidden: the row hides its far panel instead of ever scrolling or growing past what fits.
           overflowX: style.overflowX,
           overflowY: 'auto',
+          ...(style.hideScrollbar ? { scrollbarWidth: 'none', '&::-webkit-scrollbar': { display: 'none' } } : {}),
         }}
       >
         {beforeRow}
@@ -136,7 +155,7 @@ export function Workspace(props: WorkspaceProps): React.ReactElement {
             move over time, so top/bottom/right stay plain 'auto'. */}
         <motion.div
           ref={rowRef}
-          style={{ display: 'flex', gap: `${gap}px`, marginTop: 'auto', marginBottom: 'auto', marginRight: 'auto' }}
+          style={{ display: 'flex', gap: `${gap}px`, marginTop: 'auto', marginBottom: 'auto', marginRight: 'auto', ...(scrolls ? { flexShrink: 0 } : {}) }}
           animate={{ marginLeft: style.marginLeft }}
           transition={style.transition}
         >

@@ -10,7 +10,8 @@ import { useEffect, useRef, useState } from 'react';
 import type { Dispatch, SetStateAction } from 'react';
 import { flushSync } from 'react-dom';
 import type { FormFactor } from '../hostApi.js';
-import { computeMaxLiveWidth, computeRowLayout } from '../panelRowLayout.js';
+import { computeRowLayout } from '../panelRowLayout.js';
+import { computeRowNumbers } from '../rowNumbers.js';
 import { placePanel, reportNotes } from '../panelPlacement.js';
 import { isPresent } from '../panelRowEntry.js';
 import { panelWidthOf } from '../panelTiers.js';
@@ -25,6 +26,7 @@ import {
   farthestLiveCollapsibleId,
   movePanel,
   parkLevers,
+  parksForRoom,
   promoteToLive,
   rightmostLiveIndex,
   setFormFactor,
@@ -96,6 +98,9 @@ export interface PanelManagerOptions {
 /** How a park is classified: a hide that took a hold, or a park the engine made for room. */
 type ParkCause = { kind: 'capacity' } | { kind: 'hide'; stickiness: 'sticky' | 'until-room'; liveAfter: readonly PanelWindow[] };
 
+/** Live and parkable for room: the panels whose count and widths the capacity governs. */
+const isParkLive = (p: PanelWindow): boolean => p.live && parksForRoom(p);
+
 export function usePanelManager(
   panels: PanelWindow[],
   setPanels: Dispatch<SetStateAction<PanelWindow[]>>,
@@ -109,25 +114,34 @@ export function usePanelManager(
   const returnTieBreak: NonNullable<WorkspaceTuning['returnTieBreak']> = options?.tuning?.returnTieBreak ?? RETURN_TIE_BREAK;
   const dropTieBreak: NonNullable<WorkspaceTuning['dropTieBreak']> = options?.tuning?.dropTieBreak ?? DROP_TIE_BREAK;
   const gap = options?.tuning?.rowGap ?? ROW_GAP;
-  /** The live-collapsible ceiling for a row whose live set has these widths (row order). */
-  const capacityFor = (liveWidths: readonly number[]): number => {
-    // `containerWidth === 0` means unmeasured (the first commit, and every jsdom test that never calls
-    // measure()): null means no cap and no reconcile, never "zero panels fit".
-    const fitCount =
-      containerWidth === 0
-        ? null
-        : fixedColumnCount + computeRowLayout({ containerWidth, phoneWidth, gap, fixedItemCount: fixedColumnCount, liveWidths }).maxLiveThatFit;
-    const effectiveMax = effectiveMaxPanels(fitCount, fixedColumnCount);
-    // Floor of 1 keeps the panel just opened on screen even at the narrowest legal width (effectiveMaxPanels
-    // already floors at fixedColumnCount + 1, so this bites only when the fixed columns alone reach effectiveMax).
-    return effectiveMax === Number.POSITIVE_INFINITY ? Number.POSITIVE_INFINITY : Math.max(1, effectiveMax - fixedColumnCount);
+  /**
+   * What prices `row`: the width each panel is drawn at, how many parkable panels with these widths may be live
+   * beside the row's reserved ones, and whether a live set settles. A scroll panel never parks, so its width comes off
+   * the budget instead of counting against the cap.
+   */
+  const pricing = (row: readonly PanelWindow[]) => {
+    const numbers = computeRowNumbers({ entries: row, phoneWidth, containerWidth, gap, fixedItemCount: fixedColumnCount });
+    // Only a row with a scroll panel prices its reserved widths one by one; any other keeps the fixed column count the host passed.
+    const reservedWidths = row.some((p) => isPresent(p) && !parksForRoom(p) && p.collapsible) ? numbers.reservedWidths : undefined;
+    const capacityFor = (liveWidths: readonly number[]): number => {
+      // `containerWidth === 0` means unmeasured (the first commit, and every jsdom test that never calls
+      // measure()): null means no cap and no reconcile, never "zero panels fit".
+      const fitCount =
+        containerWidth === 0
+          ? null
+          : fixedColumnCount + computeRowLayout({ containerWidth, phoneWidth, gap, fixedItemCount: fixedColumnCount, liveWidths, reservedWidths }).maxLiveThatFit;
+      const effectiveMax = effectiveMaxPanels(fitCount, fixedColumnCount);
+      // Floor of 1 keeps the panel just opened on screen even at the narrowest legal width (effectiveMaxPanels
+      // already floors at fixedColumnCount + 1, so this bites only when the fixed columns alone reach effectiveMax).
+      return effectiveMax === Number.POSITIVE_INFINITY ? Number.POSITIVE_INFINITY : Math.max(1, effectiveMax - fixedColumnCount);
+    };
+    const widthOf = (p: PanelWindow): number => panelWidthOf(p, phoneWidth, numbers.maxLiveWidth);
+    /** Whether `set` (live parkable panels, row order) can stay live as it is: the one test both reconcile branches settle against. */
+    const settles = (set: readonly PanelWindow[]): boolean => set.length <= capacityFor(set.map(widthOf));
+    return { widthOf, capacityFor, settles };
   };
-  // The same cap every other width reader passes, from the same row inputs.
-  const maxLiveWidth = computeMaxLiveWidth({ containerWidth, phoneWidth, gap, fixedItemCount: fixedColumnCount });
-  const widthOf = (p: PanelWindow): number => panelWidthOf(p, phoneWidth, maxLiveWidth);
-  /** Whether `set` (live collapsible panels, row order) can stay live as it is: the one test both reconcile branches settle against. */
-  const settles = (set: readonly PanelWindow[]): boolean => set.length <= capacityFor(set.map(widthOf));
-  const capacity = capacityFor(panels.filter((p) => p.collapsible && p.live).map(widthOf));
+  const { widthOf, capacityFor, settles } = pricing(panels);
+  const capacity = capacityFor(panels.filter(isParkLive).map(widthOf));
 
   /**
    * Parked ids in park order, most recent last. A ref, not state: only handlers and the reconcile effect below
@@ -154,9 +168,10 @@ export function usePanelManager(
   };
   /** `next`, plus in the same update whatever the reconcile's DROP would park, so no committed row overflows. */
   const settledKeeping = (next: PanelWindow[], keep: readonly string[]): PanelWindow[] => {
-    const live = next.filter((p) => p.collapsible && p.live);
-    if (settles(live)) return next;
-    const parked = new Set(fewestParksThatSettle(live, widthOf, settles, keep, dropTieBreak));
+    const live = next.filter(isParkLive);
+    const priced = pricing(next);
+    if (priced.settles(live)) return next;
+    const parked = new Set(fewestParksThatSettle(live, priced.widthOf, priced.settles, keep, dropTieBreak));
     return parked.size === 0 ? next : next.map((p) => (parked.has(p.id) ? { ...p, live: false } : p));
   };
   /** Nonzero inside this hook's own flushSync: a reconcile run there is mid-handler, before later actions land. */
@@ -247,7 +262,7 @@ export function usePanelManager(
 
   /** Free slots a row leaves for `live` (its live collapsible panels): capacity priced from their own widths, less their count. Infinity while unmeasured. */
   const freeSlots = (live: readonly PanelWindow[]): number => capacityFor(live.map(widthOf)) - live.length;
-  const liveParkable = (row: readonly PanelWindow[]): PanelWindow[] => row.filter((p) => p.collapsible && p.live);
+  const liveParkable = (row: readonly PanelWindow[]): PanelWindow[] => row.filter(isParkLive);
   /** Whether an 'until-room' hold still keeps `id` parked beside `base`, the live set it would join. */
   const heldBack = (id: string, base: readonly PanelWindow[]): boolean => {
     const hold = heldRef.current.get(id);
@@ -344,13 +359,15 @@ export function usePanelManager(
     if (targetId !== undefined) markKeepLive(targetId);
     const keep = [...keptIds()];
     const settledApply = (prev: PanelWindow[]): PanelWindow[] => settledKeeping(apply(prev), keep);
-    if (targetId === undefined || capacity === Number.POSITIVE_INFINITY) {
+    // The new panel may itself be a reserved one, which takes room from the parkable panels already live.
+    const capacityAfter = targetId === undefined ? capacity : pricing(afterInsert).capacityFor(panels.filter(isParkLive).map(widthOf));
+    if (targetId === undefined || capacityAfter === Number.POSITIVE_INFINITY) {
       setPanels(settledApply);
       return;
     }
     const targetIndex = afterInsert.findIndex((p) => p.id === targetId);
-    const liveCollapsibleCountAfter = afterInsert.filter((p) => p.collapsible && p.live).length;
-    const overCapacity = Math.max(0, liveCollapsibleCountAfter - capacity);
+    const liveParkableCountAfter = afterInsert.filter(isParkLive).length;
+    const overCapacity = Math.max(0, liveParkableCountAfter - capacityAfter);
     if (overCapacity === 0) {
       setPanels(settledApply);
       return;
@@ -430,10 +447,10 @@ export function usePanelManager(
     markKeepLive(reveal.id);
     // A resize earlier in this handler is priced at its new tier, or the row committed below could overflow.
     const sized = withPendingTiers(panels);
-    const live = sized.filter((p) => p.collapsible && p.live);
+    const live = sized.filter(isParkLive);
     const farFirst = (direction === 'right' ? live : [...live].reverse()).filter((p) => !kept.has(p.id));
     const toPark = new Set<string>();
-    const rowAfter = (): PanelWindow[] => sized.filter((p) => p.collapsible && (p.live || p.id === reveal.id) && !toPark.has(p.id));
+    const rowAfter = (): PanelWindow[] => sized.filter((p) => (isParkLive(p) || (p.id === reveal.id && parksForRoom(p))) && !toPark.has(p.id));
     // At least the one panel the gesture swaps out, then more only while the row with `reveal` would not settle.
     for (const p of farFirst) {
       if (toPark.size > 0 && settles(rowAfter())) break;
@@ -506,7 +523,7 @@ export function usePanelManager(
     }
     keepLiveRef.current = waiting;
     if (capacity === Number.POSITIVE_INFINITY) return;
-    const live = panels.filter((p) => p.collapsible && p.live);
+    const live = panels.filter(isParkLive);
     // An 'until-room' hold taken before the first measurement took no threshold; it takes the row's as measured now.
     for (const [id, hold] of heldRef.current) if (typeof hold === 'object' && hold.freeAfterPark === Number.POSITIVE_INFINITY) writeHold(id, { freeAfterPark: capacity - live.length });
     if (live.length > capacity) {
@@ -525,8 +542,8 @@ export function usePanelManager(
           stale.add(id); // closed, or already live some other way
           continue;
         }
-        if (heldBack(id, panels.filter((p) => p.collapsible && (p.live || revealed.has(p.id))))) continue;
-        if (settles(panels.filter((p) => p.collapsible && (p.live || revealed.has(p.id) || p.id === id)))) revealed.add(id);
+        if (heldBack(id, panels.filter((p) => parksForRoom(p) && (p.live || revealed.has(p.id))))) continue;
+        if (settles(panels.filter((p) => parksForRoom(p) && (p.live || revealed.has(p.id) || p.id === id)))) revealed.add(id);
       }
       if (revealed.size === 0) return;
       collapseOrderRef.current = stack.filter((id) => !revealed.has(id) && !stale.has(id));
@@ -580,7 +597,7 @@ export function usePanelManager(
         stale.add(id); // closed, or already live some other way
         continue;
       }
-      if (candidateId === null && !heldBack(id, liveParkable(sized)) && settles(sized.filter((p) => p.collapsible && (p.live || p.id === id)))) candidateId = id;
+      if (candidateId === null && !heldBack(id, liveParkable(sized)) && settles(sized.filter((p) => parksForRoom(p) && (p.live || p.id === id)))) candidateId = id;
     }
     collapseOrderRef.current = stack.filter((id) => id !== candidateId && !stale.has(id));
     if (candidateId === null) return;

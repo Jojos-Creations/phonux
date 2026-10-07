@@ -22,12 +22,14 @@ export function useWorkspacePersistence(i: {
   defaultHostData: (() => JsonValue) | undefined;
   /** How long the panel list must stay unchanged before it is saved; a change inside that time restarts it. Default SAVE_QUIET_MS. */
   saveQuietMs?: number;
+  /** Applied to every restored panel after `defaultHostData`, so a host that resolves settings from workspace defaults can give a restored panel the same settings a new one gets. Read once, at mount. */
+  decorateRestored?: (panel: PanelWindow) => PanelWindow;
 }): void {
   const { panels, setPanels } = i;
   const saveQuietMsRef = useRef(i.saveQuietMs ?? SAVE_QUIET_MS);
   saveQuietMsRef.current = i.saveQuietMs ?? SAVE_QUIET_MS;
   // Everything but the list itself is read once, at mount.
-  const { storage, rootId, freshId, defaultHostData } = useRef(i).current;
+  const { storage, rootId, freshId, defaultHostData, decorateRestored } = useRef(i).current;
   // State, not a ref: opening the gate must re-run the save effect, or a change committed while load() was
   // pending (with nothing to restore) would never be saved.
   const [settled, setSettled] = useState(false);
@@ -48,7 +50,8 @@ export function useWorkspacePersistence(i: {
             // Drawn here, never inside an updater: React may run an updater twice.
             restored = hydrateWorkspaceState(loaded, freshId, rootId).map((p) => {
               const hostData = defaultHostData?.();
-              return hostData === undefined ? p : { ...p, hostData };
+              const withHostData = hostData === undefined ? p : { ...p, hostData };
+              return decorateRestored === undefined ? withHostData : decorateRestored(withHostData);
             });
           } else {
             console.warn('Ignored the saved workspace: it is not a version 1 workspace file.');

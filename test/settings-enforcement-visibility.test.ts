@@ -734,12 +734,12 @@ test('evictionRank: a negative rank parks first, and rank outranks the demander 
   assert.deepEqual(e.parked(), ['b'], 'rightmost would have taken c, but b has the lowest rank');
 });
 
-test('evictionRank on a panel whose overflow is scroll is ignored: it counts as rank 0 beside park panels', () => {
+test('evictionRank on a panel whose overflow is scroll is ignored: it reads as rank 0, and the row never parks that panel for room', () => {
   assert.equal(parkLevers(made('s', { overflow: 'scroll', evictionRank: 9 })).evictionRank, 0);
   assert.equal(parkLevers(park('p', { evictionRank: 9 })).evictionRank, 9);
   const e = mountEngine(row(rootEntry(), park('a', { evictionRank: 5 }), made('b', { overflow: 'scroll', evictionRank: 9 }), park('c', { evictionRank: 5 })), W(3));
   e.open(park('d', { evictionRank: 5 }));
-  assert.deepEqual(e.parked(), ['b'], 'b reads as rank 0, below the 5 of the park panels');
+  assert.deepEqual(e.parked(), ['a'], 'b is scroll and stays live; the park panel farthest from d goes');
 });
 
 /** [a b c d] live around a parked p at index 4, every rank equal, p activated with `order`: the id it parks. */

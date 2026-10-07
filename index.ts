@@ -74,6 +74,8 @@ export type { NeighborWidths, PanelRowEntry } from './panelRowEntry.js';
 export { DEFAULT_PANEL_SIZE, TIER_SIZES, panelWidthOf } from './panelTiers.js';
 export { computeRowLayout } from './panelRowLayout.js';
 export type { RowLayoutInput, RowLayoutResult } from './panelRowLayout.js';
+export { computeRowNumbers } from './rowNumbers.js';
+export type { RowNumbers } from './rowNumbers.js';
 export { PanelRow, usePanelCapabilities, usePanelCloseEligible, usePanelHidden, usePanelNeighborWidths, usePanelPinned, usePanelReorderEligible, usePanelReorderSteps, usePanelTuning } from './PanelRow.js';
 export { slideToTransition } from './directionalTransition.js';
 export { GAP, PANEL_TRANSITION, PanelSizeBox } from './PanelRowSlot.js';
