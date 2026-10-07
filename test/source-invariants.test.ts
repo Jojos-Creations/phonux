@@ -210,9 +210,9 @@ test('source: a planted extra writer of locked, collapsible or key in a scratch 
 
 /** Functions that still read `.collapsible`: presence, parking and fixed-column bookkeeping. Permission decisions read effective(p). */
 const COLLAPSIBLE_READERS: Record<string, readonly string[]> = {
-  'panelWindow.ts': ['firstParkedAfter', 'lastParkedBefore', 'leftmostLiveIndex', 'parksForRoom', 'rightmostLiveIndex', 'sideOfLiveRange'],
+  'panelWindow.ts': ['firstParkedAfter', 'lastParkedBefore', 'leftmostLiveIndex', 'parksForRoom', 'recordOverride', 'rightmostLiveIndex', 'sideOfLiveRange'],
   'panels/usePanelManager.ts': ['holdPanel', 'markHeld', 'pricing', 'usePanelManager', 'wouldEmptyRow'],
-  'panels/useProvidePanels.ts': ['useProvidePanels', 'withRestoredSettings'],
+  'panels/useProvidePanels.ts': ['useProvidePanels'],
 };
 
 test('source: every read of `.collapsible` in panelWindow.ts, usePanelManager.ts and useProvidePanels.ts sits in a function on the allow-list', () => {

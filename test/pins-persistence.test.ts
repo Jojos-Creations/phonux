@@ -111,7 +111,7 @@ test('an unmount drops the last change: nothing flushes on the way out', async (
   assert.equal(m.saves.length, 0);
 });
 
-test('KNOWN-BAD: a throw inside the load success handler leaves the workspace unsettled and saving never resumes', async () => {
+test('a throw inside the load success handler takes the failed-load path: the workspace settles, and one later change saves once, as the literal projected file', async () => {
   mock.timers.enable({ apis: ['setTimeout'] });
   const planted = new Error('planted in the success handler');
   const seen: unknown[] = [];
@@ -132,11 +132,17 @@ test('KNOWN-BAD: a throw inside the load success handler leaves the workspace un
     await act(async () => {
       await new Promise<void>((resolve) => setImmediate(resolve));
     });
-    assert.equal(seen.length, 1, 'the throw surfaced as one unhandled rejection');
-    assert.equal(seen[0], planted);
-    act(() => m.latest().create({ view: 'pin-persistence' }));
+    assert.equal(seen.length, 0, 'the throw no longer surfaces as an unhandled rejection');
+    assert.equal(thrown, true, 'control: the planted throw did run');
+    assert.deepEqual(m.ids(), [ROOT], 'nothing from the file was applied');
+    act(() => m.latest().create({ view: 'pin-persistence', title: 'later' }));
     act(() => mock.timers.tick(QUIET_MS * 5));
-    assert.equal(m.saves.length, 0, 'nothing was saved: the workspace never settled');
+    assert.equal(m.saves.length, 1, 'saving resumed: the workspace settled');
+    const [only] = m.ids().slice(1);
+    assert.deepEqual(m.saves[0], {
+      version: 1,
+      panels: [{ id: only, view: 'pin-persistence', url: 'about:blank', title: 'later', live: true, anchor: { panel: ROOT, position: 'right', priority: 0 }, formFactor: 'phone', layer: 'base', listed: true }],
+    });
   } finally {
     process.removeAllListeners('unhandledRejection');
     for (const listener of listeners) process.on('unhandledRejection', listener);

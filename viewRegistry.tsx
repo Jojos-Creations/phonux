@@ -1,6 +1,8 @@
 /** Maps a panel's open-string `view` to the component that renders it. Why the fallback: DESIGN.md, "The panel-view registry". */
 import * as React from 'react';
 import type { JsonValue, PanelSummary } from './hostApi.js';
+import { PanelManagerError } from './panelManagerError.js';
+import type { PanelTemplate } from './panelTemplate.js';
 
 /** A View's own props: what it reads about the panel it renders inside. @public */
 export type ViewProps<P = JsonValue> = {
@@ -12,6 +14,7 @@ export type ViewProps<P = JsonValue> = {
 export type ViewComponent<P = JsonValue> = React.ComponentType<ViewProps<P>>;
 
 const registry = new Map<string, ViewComponent>();
+const templates = new Map<string, PanelTemplate>();
 /** One placeholder instance per unregistered key: AnimatePresence tracks a rendered element's own identity, so a fresh component type on every resolve would remount it on every render instead of once. */
 const placeholders = new Map<string, ViewComponent>();
 
@@ -23,6 +26,25 @@ const placeholders = new Map<string, ViewComponent>();
 export function registerView<P extends JsonValue>(key: string, Component: ViewComponent<P>): void {
   registry.set(key, Component as unknown as ViewComponent);
 }
+
+/**
+ * Registers a template so a workspace can build panels of it. A template whose id is already a `registerView` key
+ * throws `template-collision`; registering the same id again replaces it. Returns the function that removes it.
+ * @internal
+ */
+export function registerTemplate(t: PanelTemplate): () => void {
+  if (registry.has(t.id)) throw new PanelManagerError('template-collision', `template '${t.id}' collides with the view registered under the same key`);
+  templates.set(t.id, t);
+  return () => {
+    if (templates.get(t.id) === t) templates.delete(t.id);
+  };
+}
+
+/** The template registered under `id`, or undefined. @internal */
+export const getTemplate = (id: string): PanelTemplate | undefined => templates.get(id);
+
+/** Every registered template, in registration order. @internal */
+export const listTemplates = (): readonly PanelTemplate[] => [...templates.values()];
 
 function placeholderFor(key: string): ViewComponent {
   const cached = placeholders.get(key);
