@@ -148,5 +148,11 @@ export type {
   PanelReader,
 } from './panelTemplate.js';
 
+export { createWorkspace } from './workspaceCore.js';
+export type { WorkspaceHandle, WorkspaceOptions } from './workspaceCore.js';
+export type { PanelHandle } from './panelHandles.js';
+export type { PanelManager } from './panelManager.js';
+export { usePanelStates, usePanelState, useWorkspaceManager } from './panels/usePanelStates.js';
+
 export { PanelManagerError } from './panelManagerError.js';
 export type { PanelRefusal, PanelManagerErrorCode } from './panelManagerError.js';

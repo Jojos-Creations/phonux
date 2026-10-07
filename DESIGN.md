@@ -1310,6 +1310,17 @@ should stop it while `usePanelHidden()` is true.
 jsdom proves structure only: that the slot carries the attributes and the view stays mounted. Whether the browser lays out,
 paints or skips the hidden slot, and the timing of the slide, belong to the app's real-layout gate.
 
+## The workspace core is React-free, and a row only reads it
+
+`createWorkspace` keeps everything a workspace is outside React: the template registry, the declared panels, the options and the last committed list. `useProvidePanels({ workspace })` is its one consumer: it attaches in a layout effect that runs once, and it publishes the committed list and a few controls (`create`, `lateRegister`) in a layout effect that runs after every commit. Both are written after commit, never during render, so a handle read from an event handler sees what the screen shows.
+
+- **Intents, not calls.** `addPanel` before the row is ready records an intent; the restore replays the intents as declared panels when it settles, so a saved file and code agree on one list. After ready, the call goes straight to the controls the hook published. A first paint therefore never scrolls, and an `addPanel` after ready asks for the scroll of the panel's `scrollOnOpen`.
+- **A read-only surface.** Handles and the reader read through one internal source. Their members are fixed by a source test; the engine's controls live in a module-private map and no export name may match `/controls/`, so a view cannot reach a verb through them.
+- **Render-phase observation.** The core is told the list a render is about to draw (`observe`) so a handle read during the same render, before the layout effect publishes, answers from it instead of `pending`. Nothing is notified from there; the publish effect does that.
+- **Tombstones.** A declared `stay-closed` panel that leaves the list is added to the file's `dismissed`; a panel back in the list is removed. The restore skips a dismissed declared panel unless the template is no longer closable or no longer `stay-closed`, and then drops the tombstone and saves. The diff is on the list, so an unmount, which empties nothing, is never a mass close.
+- **Pin state.** `PanelState.pinned` is the pure `isPinned(entry, row, definition)`: a definition naming `parkable` in both halves reads the resolved `parkable`, one naming `row-start` against `row-end` or `after-fixed` reads the side of the root, and both are read when both are named. Nothing stores it, so a drag that re-anchors entries cannot change it.
+- **Errors.** A storage whose `save` throws or rejects reaches `onError`, or `console.error` when it is unset; the row and the next save are unaffected.
+
 ## Doc comments
 
 An export reachable from `index.ts` or `fakeHost.ts` is documented with TSDoc, the `/** */` syntax API Extractor already

@@ -40,6 +40,10 @@
 - `ProvidedPanels.scrollTo` and `followPanel`. `scrollTo(id, align?)` asks the row to scroll to a panel after the next
   commit, and a new panel, an activated panel, an undone close and a panel that was in view when it was moved, placed
   or resized are scrolled to through the same request, per their `scrollOnOpen` and `scrollOnMove`.
+- `createWorkspace(options?)`: a workspace made outside React from templates, an optional root, storage and settings, fed to a row through the new `PanelsInput.workspace`. `addPanel` declares a panel, before or after the row is ready, and returns a read-only `PanelHandle` (`id`, `templateId`, `getState`, `getSettings`, `subscribe`) valid before mount and after unmount. `workspace.panels` is a `PanelManager` (`get`, `list`, `getSnapshot`, `subscribe`) whose snapshot is reference-equal until something changes. `PanelRow` gains the optional `workspace` prop that lets a template's view receive its `handle` and `manager`.
+- `usePanelStates(filter?)`, `usePanelState(id)` and `useWorkspaceManager()`: the snapshot, one panel's state and the reader, for a view inside a row that has a workspace.
+- A declared panel whose `afterClose` is `stay-closed` is remembered when the person closes it and not created at the next launch; an undo forgets it.
+- `memoryWorkspaceStorage(initial?)` from `phonux/testing`: a `WorkspaceStorage` that keeps the file in memory.
 
 ### Changed
 

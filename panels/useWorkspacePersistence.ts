@@ -15,7 +15,7 @@ import type { PanelWindow } from '../panelWindow.js';
 import { listTemplates } from '../viewRegistry.js';
 import { reconcileWorkspace } from '../workspacePlan.js';
 import type { DeclaredPanel } from '../workspacePlan.js';
-import { projectWorkspaceState } from '../workspaceState.js';
+import { DISMISSED_LIMIT, projectWorkspaceState } from '../workspaceState.js';
 import type { WorkspaceState, WorkspaceStorage } from '../workspaceState.js';
 
 export { SAVE_QUIET_MS as WORKSPACE_SAVE_QUIET_MS };
@@ -29,40 +29,73 @@ export function useWorkspacePersistence(i: {
   defaultHostData: (() => JsonValue) | undefined;
   /** How long the panel list must stay unchanged before it is saved; a change inside that time restarts it. Default SAVE_QUIET_MS. */
   saveQuietMs?: number;
-  /** The templates a saved panel may be rebuilt from, over the registered ones. Read once, at mount. */
-  templates?: readonly PanelTemplate[];
-  /** The panels code declares; each is created unless the file has it or the person dismissed it. Read once, at mount. */
-  declared?: readonly DeclaredPanel[];
+  /** The templates a saved panel may be rebuilt from, over the registered ones. A list is read once, at mount; a function is called at each restore. */
+  templates?: readonly PanelTemplate[] | (() => readonly PanelTemplate[]);
+  /** The panels code declares; each is created unless the file has it or the person dismissed it. A list is read once, at mount; a function is called at each restore. */
+  declared?: readonly DeclaredPanel[] | (() => readonly DeclaredPanel[]);
   /** The workspace's panel settings, so a restored panel resolves as a new one does. Read once, at mount. */
   workspaceDefaults?: Omit<PanelSettings, 'tuning'>;
   /** Receives each note the restore raises; whatever it throws is swallowed. */
   onNote?: (note: SettingNote) => void;
-}): { restoreSettled: boolean } {
+  /** The developer's panel order, read by every placement the restore makes whose value is `'order'`. */
+  order?: () => readonly string[];
+  /** Receives an error a save raised, by throwing or rejecting. Unset: `console.error`. */
+  onError?: (e: unknown) => void;
+  /** True for a workspace: the declared panels are created at mount even with no storage, and the restore settles after them. Read once, at mount. */
+  replay?: boolean;
+}): {
+  restoreSettled: boolean;
+  /** Adds tombstones for keys that left the list, newest last, dropping the oldest past the cap. */
+  dismiss(keys: readonly string[]): void;
+  /** Removes the tombstones of keys that are back in the list. */
+  undismiss(keys: readonly string[]): void;
+  /** Whether `key` is a tombstone now. */
+  isDismissed(key: string): boolean;
+} {
   const { panels, setPanels } = i;
   const panelsRef = useRef(panels);
   panelsRef.current = panels;
   const saveQuietMsRef = useRef(i.saveQuietMs ?? SAVE_QUIET_MS);
   saveQuietMsRef.current = i.saveQuietMs ?? SAVE_QUIET_MS;
   // Everything but the list itself is read once, at mount.
-  const { storage, rootId, freshId, defaultHostData, workspaceDefaults, declared, onNote } = useRef(i).current;
+  const { storage, rootId, freshId, defaultHostData, workspaceDefaults, declared, onNote, replay } = useRef(i).current;
+  // The declared panels are replayed once per mount; StrictMode's second run of the effect finds them already made.
+  const replayed = useRef(false);
   const given = useRef(i.templates).current;
+  const onErrorRef = useRef(i.onError);
+  onErrorRef.current = i.onError;
+  const reportError = (e: unknown): void => {
+    if (onErrorRef.current === undefined) {
+      console.error(e);
+      return;
+    }
+    try {
+      onErrorRef.current(e);
+    } catch {
+      // A reporter that throws must not break the save that raised the error.
+    }
+  };
   // State, not a ref: opening the gate must re-run the save effect, or a change committed while load() was
   // pending (with nothing to restore) would never be saved.
   const [settled, setSettled] = useState(false);
   // The JSON last saved or restored; a projection equal to it is not saved again.
   const lastSaved = useRef<string | null>(null);
-  // The tombstones the file held, written back with every save; this hook never adds one.
+  // The tombstones the file held, written back with every save; `dismiss` and `undismiss` edit them.
   const dismissed = useRef<string[]>([]);
+  const tombstonesDropped = useRef(false);
 
   useEffect(() => {
-    if (storage === undefined) return;
     // StrictMode runs this effect twice; only the run that is not cancelled may apply its result.
     let cancelled = false;
     // The executor runs at once, so a load() that throws reads as a rejection: no saved state.
     const reconcile = (saved: unknown): PanelWindow[] => {
-      const templates = [...listTemplates().filter((t) => !(given ?? []).some((g) => g.id === t.id)), ...(given ?? [])];
+      const own = (typeof given === 'function' ? given() : given) ?? [];
+      const templates = [...listTemplates().filter((t) => !own.some((g) => g.id === t.id)), ...own];
       // Drawn here, never inside an updater: React may run an updater twice.
-      const result = reconcileWorkspace({ saved, templates, declared, workspaceDefaults, rootId, current: panelsRef.current, freshId });
+      const result = reconcileWorkspace({ saved, templates, declared: typeof declared === 'function' ? declared() : declared, workspaceDefaults, rootId, current: panelsRef.current, freshId, order: i.order });
+      const before = (saved as { dismissed?: unknown } | null)?.dismissed;
+      // A tombstone the restore dropped is still in the file; the baseline must not match it, or the file keeps it until some other change is saved.
+      tombstonesDropped.current = Array.isArray(before) && before.length !== result.dismissed.length;
       dismissed.current = result.dismissed;
       for (const note of result.notes) {
         if (note.code === 'workspace-ignored') console.warn(note.message);
@@ -80,7 +113,7 @@ export function useWorkspacePersistence(i: {
     const settle = (restored: PanelWindow[]): void => {
       // The baseline is what the restored list projects to, not the file: saved ids differ from fresh ones,
       // and comparing against the file would save at every launch.
-      lastSaved.current = JSON.stringify(projectWorkspaceState(restored, rootId, dismissed.current));
+      lastSaved.current = tombstonesDropped.current ? null : JSON.stringify(projectWorkspaceState(restored, rootId, dismissed.current));
       // Appended after what is already there, so a panel created while load() was pending survives.
       if (restored.length > 0) setPanels((prev) => computeRowOrder([...prev, ...restored], rootId));
       setSettled(true);
@@ -95,6 +128,13 @@ export function useWorkspacePersistence(i: {
       }
       settle(restored);
     };
+    if (storage === undefined) {
+      if (replay === true && !replayed.current) {
+        replayed.current = true;
+        fail();
+      }
+      return;
+    }
     // The executor runs at once, so a load() that throws reads as a rejection: no saved state.
     new Promise<WorkspaceState | null>((resolve) => resolve(storage.load())).then(
       (loaded) => {
@@ -127,12 +167,26 @@ export function useWorkspacePersistence(i: {
     // No flush on unmount or quit: a change in the last quiet period is lost, never a torn write.
     const timer = setTimeout(() => {
       lastSaved.current = json;
-      storage.save(state);
+      try {
+        const outcome = storage.save(state) as unknown;
+        if (typeof outcome === 'object' && outcome !== null && typeof (outcome as PromiseLike<unknown>).then === 'function') (outcome as PromiseLike<unknown>).then(undefined, reportError);
+      } catch (e) {
+        reportError(e);
+      }
     }, saveQuietMsRef.current);
     return () => clearTimeout(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps -- storage and rootId never change
   }, [panels, settled]);
 
   // True at once without storage: there is nothing to wait for.
-  return { restoreSettled: storage === undefined || settled };
+  return {
+    restoreSettled: (storage === undefined && replay !== true) || settled,
+    dismiss: (keys) => {
+      dismissed.current = [...dismissed.current.filter((k) => !keys.includes(k)), ...keys].slice(-DISMISSED_LIMIT);
+    },
+    undismiss: (keys) => {
+      if (dismissed.current.some((k) => keys.includes(k))) dismissed.current = dismissed.current.filter((k) => !keys.includes(k));
+    },
+    isDismissed: (key) => dismissed.current.includes(key),
+  };
 }

@@ -154,6 +154,8 @@ test("source: `locked` and `collapsible` are written only by applyTemplate, plus
       'panelWindow.ts appendPanel:locked',
       'panelWindow.ts createHistoryPanel:collapsible',
       'panelWindow.ts createHistoryPanel:locked',
+      // A template registered after the restore names the entries that were built without it, so lateRegister gives each its key.
+      'panels/useProvidePanels.ts lateRegister:key',
     ],
     'a writer of locked, collapsible or key outside the allowed functions',
   );
@@ -248,6 +250,28 @@ test('source: a planted `.collapsible` read in a new function is found, so the a
   assert.deepEqual(planted.map((s) => s.fn), ['newGuard']);
   assert.deepEqual(collapsibleReads('const f = ({ collapsible }: { collapsible: boolean }) => collapsible;', 'planted.ts').map((s) => s.fn), ['f'], 'a destructured read counts too');
   assert.deepEqual(collapsibleReads('function g(p: { collapsible: boolean }) { p.collapsible = true; }', 'planted.ts'), [], 'a write is not a read');
+});
+
+/** The member names of the object literal `export function NAME(...)` returns, read from the source text. */
+function returnedKeys(src: string, name: string): string[] {
+  const start = src.indexOf(`export function ${name}(`);
+  const body = src.slice(src.indexOf('return {', start) + 'return {'.length);
+  const literal = body.slice(0, body.indexOf('\n  };'));
+  return [...literal.matchAll(/^ {4}(\w+)[:(,]/gm)].map((m) => m[1]!);
+}
+
+test('source: the read handle has exactly id, templateId, getState, getSettings and subscribe, and the reader exactly get, list, getSnapshot and subscribe', () => {
+  const src = read('panelHandles.ts');
+  assert.deepEqual(returnedKeys(src, 'makeHandle'), ['id', 'templateId', 'getState', 'getSettings', 'subscribe']);
+  assert.deepEqual(returnedKeys(src, 'makeReader'), ['get', 'list', 'getSnapshot', 'subscribe']);
+});
+
+test('source: a planted member on the handle or the reader is found, so the shape pin can fail', () => {
+  const src = read('panelHandles.ts');
+  const widened = src.replace('    getState: () =>', '    hide: () => {},\n    getState: () =>').replace('    get: (id) =>', '    hide: () => {},\n    get: (id) =>');
+  assert.notEqual(widened, src, 'control: the plant applied');
+  assert.ok(returnedKeys(widened, 'makeHandle').includes('hide'));
+  assert.ok(returnedKeys(widened, 'makeReader').includes('hide'));
 });
 
 // ---------------------------------------------------------------------------

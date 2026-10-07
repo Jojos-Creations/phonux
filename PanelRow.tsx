@@ -11,6 +11,7 @@ import { useHost } from './hostApi.js';
 import { isPresent, summarisePanel, type NeighborWidths, type PanelRowEntry } from './panelRowEntry.js';
 import { anchorTargetOf, resolveEnterDirection, type EnterDirection } from './panelRowOrder.js';
 import { PanelHiddenContext, PanelSlotContext, type DragScroll } from './panelSlotContext.js';
+import { PanelViewContextValue } from './panelViewContext.js';
 import { LIBRARY_TUNING_DEFAULTS, effective, resolvePanelSettings } from './panelSettings.js';
 import type { ResolvedPanelSettings, ResolvedPanelTuning, WorkspaceTuning } from './panelSettings.js';
 import { PanelRowSlot } from './PanelRowSlot.js';
@@ -19,6 +20,7 @@ import { reorderStepsForOffset } from './panelWindow.js';
 import { maxScrollOf, type RowNumbers } from './rowNumbers.js';
 import { panelWidthOf } from './panelTiers.js';
 import { resolveView } from './viewRegistry.js';
+import { bindingOf, viewContextOf, type WorkspaceHandle } from './workspaceCore.js';
 import { useViewState } from './viewState.js';
 
 /** A 'raised' slot sits above a 'base' one: a LEFT-exiting park crosses a raised panel's footprint on the way out (a close exits DOWN and never does). */
@@ -28,6 +30,7 @@ const BASE_LAYER_Z_INDEX = 1;
 const EMPTY_SET: ReadonlySet<string> = new Set();
 const EMPTY_MAP: ReadonlyMap<string, 'left' | 'right'> = new Map();
 const NO_NEIGHBORS: NeighborWidths = { left: [], right: [] };
+const NO_SUBSCRIBE = (): (() => void) => () => {};
 
 /**
  * The side an entry slides in from. 'left' and 'right' are constants that beat every mark. Otherwise an explicit mark
@@ -117,6 +120,7 @@ export function PanelRow({
   maxLiveWidth = Number.POSITIVE_INFINITY,
   tuning,
   rowNumbers,
+  workspace,
 }: {
   /** The raw one-list array (PanelRowEntry, not PanelSummary): `view` alone picks the component (resolveView
    * never returns nothing), independent of `layer` (stacking) and `anchoredEnter` (enter direction). */
@@ -139,11 +143,15 @@ export function PanelRow({
   tuning?: WorkspaceTuning;
   /** The row's numbers (ProvidedPanels.rowNumbers): every width and rest is read from them, and a park exits relative to its rest when `rowScroll` is true. Omitted: the row computes its own from `maxLiveWidth`, as before. */
   rowNumbers?: RowNumbers;
+  /** The workspace this row renders. Given, each template view receives its own handle and the reader of every panel, and the row's tuning is the workspace's unless `tuning` is given. */
+  workspace?: WorkspaceHandle;
 }): React.ReactElement {
   const { device, panels } = useHost();
   const inherited = React.useContext(WorkspaceTuningContext);
   const given = tuning === undefined ? undefined : resolveWorkspaceTuning(tuning);
-  const workspaceTuning = given ?? inherited ?? LIBRARY_TUNING_DEFAULTS;
+  const binding = workspace === undefined ? undefined : bindingOf(workspace);
+  const fromWorkspace = React.useSyncExternalStore(binding?.subscribe ?? NO_SUBSCRIBE, () => binding?.tuning, () => binding?.tuning);
+  const workspaceTuning = given ?? fromWorkspace ?? inherited ?? LIBRARY_TUNING_DEFAULTS;
   const gap = workspaceTuning.rowGap;
   const disagrees = given !== undefined && inherited !== undefined && lookTuningDiffers(given, inherited);
   const warned = React.useRef(false);
@@ -223,9 +231,10 @@ export function PanelRow({
   // Per panel, and searched in `present`: each slot's own `index` below counts in that same array.
   const anchorIndexOf = (p: PanelRowEntry): number => present.findIndex((x) => x.id === anchorTargetOf(p, rootId));
   return (
-    // Always mounted: an exiting entry needs AnimatePresence to animate inside, and `initial={false}` must see
-    // what is present at app start to skip animating a restored session. `display: none` (not width 0) so an
-    // empty row consumes no flex `gap` from its siblings.
+    <PanelViewContextValue.Provider value={workspace === undefined ? undefined : viewContextOf(workspace)}>
+    {/* Always mounted: an exiting entry needs AnimatePresence to animate inside, and `initial={false}` must see
+    what is present at app start to skip animating a restored session. `display: none` (not width 0) so an
+    empty row consumes no flex `gap` from its siblings. */}
     <Box
       sx={{
         position: 'relative',
@@ -288,5 +297,6 @@ export function PanelRow({
         })}
       </AnimatePresence>
     </Box>
+    </PanelViewContextValue.Provider>
   );
 }

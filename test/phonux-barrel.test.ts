@@ -65,11 +65,15 @@ const VALUE_EXPORTS = [
   'mergePatch',
   'definePanel',
   'PanelManagerError',
+  'createWorkspace',
+  'usePanelStates',
+  'usePanelState',
+  'useWorkspaceManager',
   // Opt-in extras (never applied implicitly).
   'createDefaultTheme',
 ].sort();
 
-test('the phonux barrel exports exactly the 56 runtime values, no more, no fewer', () => {
+test('the phonux barrel exports exactly the 60 runtime values, no more, no fewer', () => {
   assert.deepEqual(Object.keys(phonux).sort(), VALUE_EXPORTS);
 });
 
@@ -90,4 +94,18 @@ test('the barrel exports nothing named for the row scroller: it stays internal',
   const names = Object.keys(phonux);
   assert.deepEqual(scrollerNames(names), []);
   assert.deepEqual(scrollerNames([...names, 'rowScrollerFor']), ['rowScrollerFor'], 'control: a scratch export with the name is found');
+});
+
+const engineControlNames = (names: readonly string[]): string[] => names.filter((name) => /controls/i.test(name));
+
+test('the barrel exports nothing named for the engine controls: they reach the workspace only through its core', () => {
+  const names = Object.keys(phonux);
+  assert.deepEqual(engineControlNames(names), []);
+  assert.deepEqual(engineControlNames([...names, 'getEngineControls']), ['getEngineControls'], 'control: a scratch export with the name is found');
+});
+
+test('the barrel exports no flush and no event stream: a workspace is read through snapshots and subscriptions', () => {
+  const names = Object.keys(phonux);
+  assert.deepEqual(names.filter((name) => /flush|PanelEvent/.test(name)), []);
+  assert.deepEqual([...names, 'flushPanels'].filter((name) => /flush|PanelEvent/.test(name)), ['flushPanels'], 'control: a scratch export with the name is found');
 });
