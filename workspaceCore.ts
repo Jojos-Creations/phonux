@@ -5,14 +5,15 @@
  * through the handles and the reader built over `ReadSource`; DESIGN.md, "The workspace core", says why.
  */
 import type { JsonValue } from './hostApi.js';
-import { makeHandle, makeReader, type PanelHandle, type ReadSource } from './panelHandles.js';
-import { makePanelManager, type PanelManager } from './panelManager.js';
+import type { FormFactor } from './hostApi.js';
+import { makeHandle, makeReader, makeViewHandle, type PanelHandle, type PanelVerbCall, type ReadSource } from './panelHandles.js';
+import { accepted, makePanelManager, refused, type PanelManager, type PanelOpSource, type PanelResult } from './panelManager.js';
 import { PanelManagerError } from './panelManagerError.js';
 import { isPinned } from './panelPin.js';
 import { applyTemplate, effective, panelKey, resolvePanelSettings, sameSettingsValue } from './panelSettings.js';
-import type { PanelId, PanelSettings, PanelSettingsResolution, ResolvedWorkspaceTuning, WorkspaceTuning } from './panelSettings.js';
+import type { AddPlacement, PanelId, PanelSettings, PanelSettingsResolution, ResolvedPanelSettings, ResolvedWorkspaceTuning, ScrollAlign, WorkspaceTuning } from './panelSettings.js';
 import { definePanel } from './panelTemplate.js';
-import type { PanelReader, PanelSnapshot, PanelState, PanelTemplate, WorkspaceStatus } from './panelTemplate.js';
+import type { PanelReader, PanelReadHandle, PanelSnapshot, PanelState, PanelTemplate, WorkspaceStatus } from './panelTemplate.js';
 import { resolveWorkspaceTuning } from './panelTuning.js';
 import { createHistoryPanel, type PanelWindow } from './panelWindow.js';
 import type { PanelViewContext } from './panelViewContext.js';
@@ -89,6 +90,27 @@ export interface EngineCommit {
   create(req: CreateRequest): void;
   /** Rebuilds the placeholder entries of a template registered after the restore, and creates the declared panels it was missing. */
   lateRegister(t: PanelTemplate): void;
+  /** The operations on the panels the engine holds, closed over this commit's list. */
+  ops: EngineOps;
+}
+
+/**
+ * What the workspace asks of the engine for a panel it holds, by engine id. Each answers as the handle verb it backs
+ * does, after taking its place in the turn's in-flight gate; the workspace has already refused every state a verb
+ * cannot take (pending, closed, not attached).
+ */
+export interface EngineOps {
+  show(engineId: string): PanelResult;
+  hide(engineId: string): PanelResult;
+  close(engineId: string): PanelResult;
+  /** Opening a panel the engine already holds changes nothing, but it still waits its turn behind a close. */
+  open(engineId: string): PanelResult;
+  move(engineId: string, direction: 'left' | 'right', source: PanelOpSource): PanelResult;
+  place(engineId: string, value: AddPlacement | 'in-place', source: PanelOpSource): PanelResult;
+  setFormFactor(engineId: string, next: FormFactor, source: PanelOpSource): PanelResult;
+  scrollTo(engineId: string, align: ScrollAlign | undefined): PanelResult;
+  /** Re-adds a closed panel, as `create` does; refuses `busy` when the turn's gate says so. */
+  reopen(req: CreateRequest): PanelResult;
 }
 
 /** One panel `addPanel` asks the engine to create after the workspace is ready. */
@@ -101,6 +123,8 @@ export interface CreateRequest {
   settings?: PanelSettings;
   params?: JsonValue;
   url?: string;
+  /** True for a panel code declares: it is saved without an instance layer because code gives it again. */
+  declared?: boolean;
 }
 
 /** What the provider hook reads from a workspace and writes back to it. */
@@ -116,6 +140,8 @@ export interface EngineBinding {
   reportError(e: unknown): void;
   /** The workspace's own templates. */
   templates(): readonly PanelTemplate[];
+  /** What `e` resolves to now, over the layers the workspace holds for it: the settings a closed entry is rebuilt with. */
+  resolved(e: PanelWindow): ResolvedPanelSettings;
   /** The intents recorded so far, as declarations. */
   declared(): readonly DeclaredPanel[];
   /** The entries the first paint starts with: the root or the marker. */
@@ -143,7 +169,20 @@ interface Rec {
   intent: boolean;
   /** True when `addPanel` refused it for lack of room. */
   closed: boolean;
+  /** The engine id the panel last left the row under, so reopening it reuses the identity a raw undo would restore. */
+  lastEngineId?: string | undefined;
+  /** True for a panel `addPanel` named itself (`template~suffix`): nothing can ask for it again once it closes. */
+  anonymous: boolean;
 }
+
+/** What a handle still answers for a panel that closed and left the snapshot. */
+interface Retired {
+  state: PanelState;
+  res: PanelSettingsResolution;
+}
+
+/** How many closed anonymous panels keep answering through a handle someone still holds. */
+const RETIRED_LIMIT = 256;
 
 const CORES = new WeakMap<WorkspaceHandle, Core>();
 
@@ -190,6 +229,10 @@ export function createWorkspace(o: WorkspaceOptions = {}): WorkspaceHandle {
   const listeners = new Set<() => void>();
   const panelListeners = new Map<PanelId, Set<() => void>>();
   const handles = new Map<PanelId, PanelHandle>();
+  const readHandles = new Map<PanelId, PanelReadHandle>();
+  const retired = new Map<PanelId, Retired>();
+  /** The last commit's entries by engine id, so the next commit can tell which panels left. */
+  let lastEntries = new Map<string, PanelWindow>();
   const resolutions = new WeakMap<object, { template: PanelTemplate | undefined; settings: PanelSettings | undefined; res: PanelSettingsResolution }>();
 
   let status: WorkspaceStatus = 'detached';
@@ -313,6 +356,7 @@ export function createWorkspace(o: WorkspaceOptions = {}): WorkspaceHandle {
     version += 1;
     snapshot = { version, status, panels: reused };
     for (const s of reused) if (previous.get(s.id) !== s) for (const l of [...(panelListeners.get(s.id) ?? [])]) l();
+    for (const id of previous.keys()) if (!states.has(id)) for (const l of [...(panelListeners.get(id) ?? [])]) l();
     for (const l of [...listeners]) l();
   };
 
@@ -330,7 +374,48 @@ export function createWorkspace(o: WorkspaceOptions = {}): WorkspaceHandle {
     if (entry !== undefined) return stateOfEntry(entry.entry, observed!.entries, observed!.held, entry.index);
     const r = records.get(id);
     if (r !== undefined) return stateOfRecord(r);
+    const gone = retired.get(id);
+    if (gone !== undefined) return gone.state;
     throw new PanelManagerError('invalid-options', `no panel '${id}' in this workspace`);
+  };
+
+  /** The panel's state if the workspace has ever known it, else undefined. */
+  const knownState = (id: PanelId): PanelState | undefined => {
+    try {
+      return stateById(id);
+    } catch {
+      return undefined;
+    }
+  };
+
+  /** Drops a panel nothing can ask for again from the snapshot; a handle someone holds keeps answering `closed`. */
+  const retire = (key: PanelId, e: PanelWindow): void => {
+    const last = states.get(key);
+    if (last !== undefined) {
+      const res = entryResolution(e);
+      retired.set(key, { state: { ...last, status: 'closed', held: false, engineId: null, index: null, pinned: false }, res });
+      for (const old of [...retired.keys()].slice(0, Math.max(0, retired.size - RETIRED_LIMIT))) {
+        retired.delete(old);
+        handles.delete(old);
+        readHandles.delete(old);
+      }
+    }
+    records.delete(key);
+  };
+
+  /** What closing `e` leaves behind: a record a later `open()` can use when code can name the panel again, nothing otherwise. */
+  const leave = (e: PanelWindow): void => {
+    const key = panelKey(e);
+    const rec = records.get(key);
+    const nameable = e.key !== undefined && !key.includes('~');
+    if (rec !== undefined ? !rec.anonymous : nameable) {
+      if (rec === undefined) {
+        records.set(key, { id: key, templateId: e.view, settings: e.instance, params: e.params, url: e.url === '' ? undefined : e.url, intent: false, closed: false, anonymous: false });
+      }
+      records.get(key)!.lastEngineId = e.id;
+      return;
+    }
+    retire(key, e);
   };
 
   const source: ReadSource = {
@@ -339,7 +424,11 @@ export function createWorkspace(o: WorkspaceOptions = {}): WorkspaceHandle {
       const e = committed?.entries.find((p) => panelKey(p) === id) ?? drawn(id)?.entry;
       if (e !== undefined) return entryResolution(e);
       const r = records.get(id);
-      if (r === undefined) throw new PanelManagerError('invalid-options', `no panel '${id}' in this workspace`);
+      if (r === undefined) {
+        const gone = retired.get(id);
+        if (gone !== undefined) return gone.res;
+        throw new PanelManagerError('invalid-options', `no panel '${id}' in this workspace`);
+      }
       return resolutionFor(r, r.id, r.templateId, r.settings, undefined, false);
     },
     subscribePanel: (id, l) => {
@@ -357,15 +446,26 @@ export function createWorkspace(o: WorkspaceOptions = {}): WorkspaceHandle {
       return () => void listeners.delete(l);
     },
     handleOf: (id) => {
-      const known = states.get(id) ?? (drawn(id) !== undefined ? stateById(id) : undefined) ?? (records.has(id) ? stateOfRecord(records.get(id)!) : undefined);
+      const known = knownState(id);
       if (known === undefined) return undefined;
       let handle = handles.get(id);
       if (handle === undefined) {
-        handle = makeHandle(source, id, known.templateId);
+        handle = makeViewHandle(source, id, known.templateId);
         handles.set(id, handle);
       }
       return handle;
     },
+    readHandleOf: (id) => {
+      const known = knownState(id);
+      if (known === undefined) return undefined;
+      let handle = readHandles.get(id);
+      if (handle === undefined) {
+        handle = makeHandle(source, id, known.templateId);
+        readHandles.set(id, handle);
+      }
+      return handle;
+    },
+    operate: (id, call, src) => operate(id, call, src),
   };
   const panels = makePanelManager(source);
   const reader = makeReader(source);
@@ -394,7 +494,7 @@ export function createWorkspace(o: WorkspaceOptions = {}): WorkspaceHandle {
   const instancesOf = (templateId: string): number => {
     const keys = new Set<PanelId>();
     for (const e of committed?.entries ?? []) if (e.view === templateId && e.marker !== true && e.id !== rootId) keys.add(panelKey(e));
-    for (const r of records.values()) if (r.templateId === templateId && !r.closed && (r.intent || inflight.has(r.id))) keys.add(r.id);
+    for (const r of records.values()) if (r.templateId === templateId && !r.closed && (inflight.has(r.id) || (r.intent && status !== 'ready'))) keys.add(r.id);
     return keys.size;
   };
 
@@ -438,13 +538,13 @@ export function createWorkspace(o: WorkspaceOptions = {}): WorkspaceHandle {
     if (owned !== undefined && owned !== t.id) throw new PanelManagerError('invalid-options', `panel id '${id}' already belongs to template '${owned}'`);
     if (existing !== undefined) return source.handleOf(id) as PanelHandle<P>;
     if (present !== undefined) {
-      records.set(id, { id, templateId: t.id, settings: options?.settings, params: options?.params, url: options?.url, intent: false, closed: false });
+      records.set(id, { id, templateId: t.id, settings: options?.settings, params: options?.params, url: options?.url, intent: false, closed: false, anonymous: id.includes('~') });
       return source.handleOf(id) as PanelHandle<P>;
     }
     reportConflicts(id, res);
     const count = instancesOf(t.id);
     const over = (!multiple && count > 0) || (res.value.maxInstances !== 'unlimited' && count >= res.value.maxInstances);
-    const rec: Rec = { id, templateId: t.id, settings: options?.settings, params: options?.params, url: options?.url, intent: !ready && !over, closed: over };
+    const rec: Rec = { id, templateId: t.id, settings: options?.settings, params: options?.params, url: options?.url, intent: !ready && !over, closed: over, anonymous: suffix !== undefined };
     records.set(id, rec);
     if (ready && !over) {
       inflight.add(id);
@@ -452,6 +552,95 @@ export function createWorkspace(o: WorkspaceOptions = {}): WorkspaceHandle {
     }
     if (!ready || over) refresh();
     return source.handleOf(id) as PanelHandle<P>;
+  };
+
+
+  /** The refusal for an operation a workspace in this state cannot take at all, or undefined when it is attached and ready. */
+  const lifecycleRefusal = (id: PanelId): PanelResult | undefined => {
+    if (status === 'disposed') return refused('disposed', `panel '${id}': the workspace was disposed`);
+    if (owner === undefined) return refused('not-attached', `panel '${id}': the workspace is not attached to a row`);
+    if (status !== 'ready' || commit === undefined) return refused('not-ready', `panel '${id}': the workspace has not finished loading`);
+    return undefined;
+  };
+
+  /** Adds a closed panel back through the engine, after the limits its settings set. */
+  const reopen = (id: PanelId): PanelResult => {
+    const rec = records.get(id);
+    const state = knownState(id);
+    if (rec === undefined || state === undefined || (rec.anonymous && !rec.closed)) return refused('is-closed', `panel '${id}' is closed and nothing can name it again`);
+    const template = templateOf(rec.templateId);
+    if (template === undefined) return refused('unknown-panel', `panel '${id}': template '${rec.templateId}' is not registered`);
+    const res = resolvePanelSettings({ ...(defaults !== undefined ? { workspace: defaults } : {}), template: template.settings, ...(rec.settings !== undefined ? { instance: rec.settings } : {}) }, { lenient: true });
+    const count = instancesOf(template.id);
+    const full = (!res.value.multiple && count > 0) || (res.value.maxInstances !== 'unlimited' && count >= res.value.maxInstances);
+    if (full) return refused('instance-limit', `panel '${id}': template '${template.id}' is at its limit of ${res.value.multiple ? res.value.maxInstances : 1}`);
+    const engineId = id.includes('~') ? id.slice(id.indexOf('~') + 1) : (rec.lastEngineId ?? newId());
+    const result = commit!.ops.reopen({
+      id,
+      templateId: template.id,
+      engineId,
+      declared: rec.intent,
+      ...(rec.settings !== undefined ? { settings: rec.settings } : {}),
+      ...(rec.params !== undefined ? { params: rec.params } : {}),
+      ...(rec.url !== undefined ? { url: rec.url } : {}),
+    });
+    if (!result.ok) return result;
+    rec.closed = false;
+    inflight.add(id);
+    refresh();
+    return result;
+  };
+
+  /** What a verb does to a panel that is closed: the settings that name it, or a refusal. */
+  const onClosed = (id: PanelId, state: PanelState, verb: PanelVerbCall['verb']): PanelResult => {
+    const rec = records.get(id);
+    const reopenable = rec !== undefined && (rec.closed || !rec.anonymous);
+    const closed = refused('is-closed', `panel '${id}' is closed`);
+    switch (verb) {
+      case 'close':
+        return accepted(false);
+      case 'open':
+        return reopenable ? reopen(id) : closed;
+      case 'show':
+        return reopenable && state.settings.showWhenClosed === 'reopen' ? reopen(id) : closed;
+      case 'toggleVisibility':
+        if (!reopenable) return closed;
+        return state.settings.toggleWhenClosed === 'reopen' ? reopen(id) : accepted(false);
+      default:
+        return closed;
+    }
+  };
+
+  /** Runs one operation: the refusals every state shares first, then the table of design 7.2 by the panel's state. */
+  const operate = (id: PanelId, call: PanelVerbCall, src: PanelOpSource): PanelResult => {
+    const unavailable = lifecycleRefusal(id);
+    if (unavailable !== undefined) return unavailable;
+    const state = knownState(id);
+    if (state === undefined) return call.verb === 'close' ? accepted(false) : refused('is-closed', `panel '${id}' is closed`);
+    if (state.status === 'pending') return refused('is-pending', `panel '${id}' is still being added`);
+    if (state.status === 'closed') return onClosed(id, state, call.verb);
+    const ops = commit!.ops;
+    const engineId = state.engineId!;
+    switch (call.verb) {
+      case 'show':
+        return ops.show(engineId);
+      case 'hide':
+        return ops.hide(engineId);
+      case 'toggleVisibility':
+        return state.status === 'live' ? ops.hide(engineId) : ops.show(engineId);
+      case 'close':
+        return ops.close(engineId);
+      case 'open':
+        return ops.open(engineId);
+      case 'move':
+        return state.status === 'live' ? ops.move(engineId, call.direction, src) : refused('not-live', `panel '${id}' is parked`);
+      case 'place':
+        return ops.place(engineId, call.value, src);
+      case 'setFormFactor':
+        return ops.setFormFactor(engineId, call.next, src);
+      case 'scrollTo':
+        return state.status === 'live' ? ops.scrollTo(engineId, call.align) : refused('not-live', `panel '${id}' is parked`);
+    }
   };
 
   for (const t of o.templates ?? []) registerOne(t);
@@ -467,6 +656,7 @@ export function createWorkspace(o: WorkspaceOptions = {}): WorkspaceHandle {
     newId,
     reportError,
     templates: () => [...templates.values()],
+    resolved: (e) => entryResolution(e).value,
     declared: () => [...records.values()].filter((r) => r.intent && !r.closed).map((r) => ({ id: r.id, templateId: r.templateId, ...(r.settings !== undefined ? { settings: r.settings } : {}), ...(r.params !== undefined ? { params: r.params } : {}), ...(r.url !== undefined ? { url: r.url } : {}) })),
     initialEntries: () => [rootEntry()],
     attach: (who) => {
@@ -476,6 +666,7 @@ export function createWorkspace(o: WorkspaceOptions = {}): WorkspaceHandle {
       committed = undefined;
       commit = undefined;
       observed = undefined;
+      lastEntries = new Map();
       inflight.clear();
       status = 'loading';
     },
@@ -494,6 +685,9 @@ export function createWorkspace(o: WorkspaceOptions = {}): WorkspaceHandle {
       if (status === 'disposed' || owner === undefined) return;
       committed = { entries: c.entries, held: c.held };
       commit = c;
+      const now = new Map(c.entries.filter((e) => e.marker !== true && e.id !== rootId).map((e) => [e.id, e]));
+      for (const [engineId, e] of lastEntries) if (!now.has(engineId)) leave(e);
+      lastEntries = now;
       inflight.clear();
       status = c.settled ? 'ready' : 'loading';
       refresh();

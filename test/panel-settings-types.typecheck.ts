@@ -161,6 +161,18 @@ export const reader: PanelReader = {
   getSnapshot: () => aSnapshot,
   subscribe: () => () => undefined,
 };
-export const viewHandle: ViewHandle = handle;
+const done = { ok: true, changed: false } as const;
+export const viewHandle: ViewHandle = {
+  ...handle,
+  show: () => done,
+  hide: () => done,
+  toggleVisibility: () => done,
+  close: () => done,
+  open: () => done,
+  move: () => done,
+  place: () => done,
+  setFormFactor: () => done,
+  scrollTo: () => done,
+};
 export const aTemplate: PanelTemplate = { id: 'notes', view: () => React.createElement('div'), settings: { overflow: 'park' } };
 export const defined: PanelTemplate<{ page: number }> = definePanel({ id: 'paged', view: () => null, params: { page: 1 } });
