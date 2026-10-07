@@ -945,6 +945,9 @@ export const usePanelCapabilities: () => Pick<ResolvedPanelSettings, "closable" 
 export const usePanelCloseEligible: () => boolean;
 
 // @public
+export const usePanelHidden: () => boolean;
+
+// @public
 export const usePanelNeighborWidths: () => NeighborWidths;
 
 // @public

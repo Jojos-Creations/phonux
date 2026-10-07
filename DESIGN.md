@@ -1163,6 +1163,39 @@ a closing panel always uses `closeExit`. `layer` sets the stacking, and `animate
 zero-duration transition on enter, exit and close, with the targets unchanged; the default transition is the shared
 `PANEL_TRANSITION` object itself.
 
+### Parked but mounted: `keepMounted`
+
+A parked entry whose `keepMounted` is true keeps its view mounted in the slot it had, so its state, DOM, canvas and
+media live on. Whether it does is decided once, by a latch at the commit that parks it, from the entry's setting then
+and its `viewState` (the same moment the `viewState` latch is read): a later change to turn it on waits for the next
+show and park, one made during the exit slide still unmounts that exit, and one that turns it off unmounts the view at
+once with a zero-duration exit. An entry that was never live in this row never mounts a kept view, so a restored or
+`startVisibility` parked panel renders nothing until it is first shown. A fixed column is never parked and `reset-on-park`
+resolves `keepMounted` to false (C1, C6), so neither takes this path.
+
+The kept slot is not a second kind of slot. `PanelRow` keeps the entry in the rendered list in array order, and computes
+everything else from `present` alone: the widths, rests, row width, capacity and the neighbours a drag may cross do not
+see it. It remembers the rest and width the entry last had so the slot can slide out from there and back in.
+
+The slot slides out and in with imperative moves on its own element, not with `animate`, `initial` or `exit`: dropping
+only `animate` would send the slot back to `initial`, so both are dropped while it is kept or reviving and the slide
+starts in a passive effect. Hidden follows the promise of the exit move, so `animated: false`, a zero-duration slide,
+reduced motion and a park target the slot already stands on all reach `display: none` without waiting for a frame. The
+slot is `inert` from the start of the exit, and `display: none` with `aria-hidden` once it ends. A revive lifts all three
+in its first commit and starts from its enter side when the exit left toward another side or position.
+
+`usePanelHidden()` is true only while the slot is `display: none`; it is false while live (in view or scrolled out), while
+exiting and outside a row. `Panel` unregisters from the capture registry while hidden, because a `display: none` root has
+no box to photograph: the host's park capture is issued at the park commit, before the exit ends, so it still sees the
+view.
+
+A kept view ends at a close, `clearAll`, a re-render with `keepMounted` false, or the row's own unmount. Nothing about it
+is saved. There is no cap on how many views are kept: each one holds its memory, and a view that does continuous work
+should stop it while `usePanelHidden()` is true.
+
+jsdom proves structure only: that the slot carries the attributes and the view stays mounted. Whether the browser lays out,
+paints or skips the hidden slot, and the timing of the slide, belong to the app's real-layout gate.
+
 ## Doc comments
 
 An export reachable from `index.ts` or `fakeHost.ts` is documented with TSDoc, the `/** */` syntax API Extractor already
