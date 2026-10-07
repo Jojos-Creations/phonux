@@ -517,7 +517,6 @@ export interface PanelsInput {
     resetHostDataOnRestore?: (hostData: JsonValue | undefined, panel: PanelWindow) => JsonValue | undefined;
     rootId: string;
     storage?: WorkspaceStorage;
-    storedMaxPanels: number | null;
     tuning?: WorkspaceTuning;
 }
 
@@ -838,10 +837,6 @@ export type SettingNote = {
 
 // @public
 export interface SettingsAPI {
-    readonly fitCount: number | null;
-    readonly maxPanelsOnScreen: number | null;
-    readonly minPanelsOnScreen: number;
-    setMaxPanelsOnScreen(n: number | null): Promise<void>;
     readonly settingsColumn: {
         readonly visible: boolean;
         show(): void;

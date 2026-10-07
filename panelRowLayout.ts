@@ -3,7 +3,7 @@
  * Zero DOM imports, so test/panel-layout.test.ts runs it under plain node.
  */
 
-/** One row's measurements: what computeRowLayout and computeMaxLiveWidth read. @public */
+/** One row's measurements: what computeRowLayout reads. @public */
 export interface RowLayoutInput {
   /** The row container's measured width. The caller measures it, so this function touches no DOM. */
   containerWidth: number;
@@ -11,7 +11,7 @@ export interface RowLayoutInput {
    * changes form factor), and it is also the width assumed for a hypothetical slot beyond `liveWidths` --
    * see `maxLiveThatFit`'s own doc comment. */
   phoneWidth: number;
-  /** The row's own gap between adjacent items (PanelRowSlot's `GAP`). */
+  /** The row's own gap between adjacent items (the exported `GAP`). */
   gap: number;
   /** How many always-rendered (non-collapsible) slots the row holds: a plain count, so this function stays
    * free of the caller's panel state. */
@@ -30,7 +30,7 @@ export interface RowLayoutResult {
    * How many live panels the row can show at most: those of `liveWidths` that fit in row order, plus, when all
    * of them fit, however many more `phoneWidth` slots fit in the budget left. With every entry exactly
    * `phoneWidth` this does not depend on `liveWidths.length`, so `[]` (nothing live yet) gives the same ceiling.
-   * The host's panel capacity and SettingsAPI's `fitCount` both derive from this.
+   * The host's panel capacity derives from this.
    */
   maxLiveThatFit: number;
   /** `liveWidths.length`, capped at `maxLiveThatFit`: the centering math's view of what renders. Which

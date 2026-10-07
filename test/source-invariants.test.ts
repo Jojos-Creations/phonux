@@ -249,16 +249,16 @@ test('source: useWorkspacePersistence reads saveQuietMs from a ref assigned on e
   assert.doesNotMatch(src, /SAVE_QUIET_MS = 500/, 'the module constant is gone');
 });
 
-test('source: usePanelManager takes its new inputs in one optional trailing options object, so the harness call with seven arguments still typechecks', () => {
+test('source: usePanelManager takes its new inputs in one optional trailing options object, so the harness call with six arguments still typechecks', () => {
   const sf = ts.createSourceFile('usePanelManager.ts', read('panels/usePanelManager.ts'), ts.ScriptTarget.Latest, true);
   let params: readonly ts.ParameterDeclaration[] | undefined;
   sf.forEachChild((node) => {
     if (ts.isFunctionDeclaration(node) && node.name?.text === 'usePanelManager') params = node.parameters;
   });
   assert.ok(params, 'usePanelManager was not found');
-  assert.deepEqual(params.map((p) => p.name.getText(sf)), ['panels', 'setPanels', 'storedMaxPanels', 'phoneWidth', 'containerWidth', 'fixedColumnCount', 'rootId', 'options']);
-  assert.ok(params[7]!.questionToken !== undefined, 'the options object is optional');
-  assert.ok(params.slice(0, 7).every((p) => p.questionToken === undefined), 'the seven positional parameters are unchanged');
+  assert.deepEqual(params.map((p) => p.name.getText(sf)), ['panels', 'setPanels', 'phoneWidth', 'containerWidth', 'fixedColumnCount', 'rootId', 'options']);
+  assert.ok(params[6]!.questionToken !== undefined, 'the options object is optional');
+  assert.ok(params.slice(0, 6).every((p) => p.questionToken === undefined), 'the six positional parameters are unchanged');
 });
 
 test('source: useProvidePanels drops the hold of a closed panel after forgetting it and before the reveal walk', () => {

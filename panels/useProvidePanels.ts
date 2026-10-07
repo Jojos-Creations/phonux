@@ -50,13 +50,11 @@ export interface PanelsInput {
   initialEntries?: readonly PanelWindow[];
   /** The id of the row's root entry, the one every anchor leads to -- threaded through to every panelWindow.ts call that needs it. */
   rootId: string;
-  /** The stored "max panels on screen" choice (`null` = follow the fit count) -- SettingsAPI's own value. */
-  storedMaxPanels: number | null;
   /** The phone frame's current width: the unit a default-sized panel is priced in. */
   phoneWidth: number;
   /** Overrides `count(!collapsible)` over the provider's own list, which is the default: a host that prices the row from a count it already holds passes it through so usePanelManager always agrees with it. */
   fixedViewCount?: number;
-  /** The host's measured row width (0 before the first measurement) -- usePanelManager derives the fit count and capacity from this, the same inputs SettingsAPI.fitCount uses. */
+  /** The host's measured row width (0 before the first measurement) -- usePanelManager derives the fit count and capacity from this. */
   containerWidth: number;
   /** The row's scroll container: the gesture's wheel listener attaches here. */
   overflowContainerRef: RefObject<HTMLDivElement | null>;
@@ -112,9 +110,9 @@ function timingTuning(tuning: WorkspaceTuning | undefined): Required<Pick<Worksp
 export interface ProvidedPanels extends PanelsAPI {
   /** The provider's one panel list, raw (not summarised): the row's input, never part of PanelsAPI. */
   readonly entries: readonly PanelWindow[];
-  /** How many always-rendered columns the row has: `PanelsInput.fixedViewCount` when passed, else `count(!collapsible)` over `entries`. Capacity and `SettingsAPI.fitCount` are priced from it. */
+  /** How many always-rendered columns the row has: `PanelsInput.fixedViewCount` when passed, else `count(!collapsible)` over `entries`. Capacity is priced from it. */
   readonly fixedViewCount: number;
-  /** Each live collapsible panel's own width in row order, capped at `maxLiveWidth`: the row's centring margin and `SettingsAPI.fitCount` read the same array capacity is priced from. */
+  /** Each live collapsible panel's own width in row order, capped at `maxLiveWidth`: the row's centring margin reads the same array capacity is priced from. */
   readonly liveWidths: readonly number[];
   /** The widest one live panel can be in this row; `Infinity` until the row is measured (`containerWidth` 0). */
   readonly maxLiveWidth: number;
@@ -159,7 +157,7 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
     enterSideById,
     exitRightIds,
     releaseHold,
-  } = usePanelManager(panels, setPanels, i.storedMaxPanels, i.phoneWidth, i.containerWidth, fixedViewCount, i.rootId, {
+  } = usePanelManager(panels, setPanels, i.phoneWidth, i.containerWidth, fixedViewCount, i.rootId, {
     onNote: i.onNote,
     tuning: { rowGap: tuning.rowGap, returnTieBreak: timing.returnTieBreak, dropTieBreak: timing.dropTieBreak },
   });

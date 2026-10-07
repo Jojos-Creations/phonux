@@ -83,7 +83,7 @@ function App(): React.JSX.Element {
   const fake = createFakeHost();
   const width = fake.device.size.width;
   const provided = useProvidePanels({
-    initialEntries: [ROOT], rootId: 'root', storedMaxPanels: null, phoneWidth: width, containerWidth: 1200, overflowContainerRef,
+    initialEntries: [ROOT], rootId: 'root', phoneWidth: width, containerWidth: 1200, overflowContainerRef,
   });
   return (
     <HostProvider host={{ ...fake, panels: provided }}>

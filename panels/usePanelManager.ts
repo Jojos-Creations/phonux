@@ -99,7 +99,6 @@ type ParkCause = { kind: 'capacity' } | { kind: 'hide'; stickiness: 'sticky' | '
 export function usePanelManager(
   panels: PanelWindow[],
   setPanels: Dispatch<SetStateAction<PanelWindow[]>>,
-  storedMaxPanels: number | null,
   phoneWidth: number,
   containerWidth: number,
   /** How many always-rendered, non-webview columns the row currently has (`count(!collapsible)` over the provider's own list, unless its host overrides it). */
@@ -118,7 +117,7 @@ export function usePanelManager(
       containerWidth === 0
         ? null
         : fixedColumnCount + computeRowLayout({ containerWidth, phoneWidth, gap, fixedItemCount: fixedColumnCount, liveWidths }).maxLiveThatFit;
-    const effectiveMax = effectiveMaxPanels(storedMaxPanels, fitCount, fixedColumnCount);
+    const effectiveMax = effectiveMaxPanels(fitCount, fixedColumnCount);
     // Floor of 1 keeps the panel just opened on screen even at the narrowest legal width (effectiveMaxPanels
     // already floors at fixedColumnCount + 1, so this bites only when the fixed columns alone reach effectiveMax).
     return effectiveMax === Number.POSITIVE_INFINITY ? Number.POSITIVE_INFINITY : Math.max(1, effectiveMax - fixedColumnCount);

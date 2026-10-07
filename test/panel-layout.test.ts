@@ -1,6 +1,6 @@
 /**
- * computeRowLayout is the one pure "how many fit" function usePanelManager's capacity and
- * SettingsAPI's fitCount both derive from: it must stay free of window-resize or DOM-overflow
+ * computeRowLayout is the one pure "how many fit" function usePanelManager's capacity
+ * derives from: it must stay free of window-resize or DOM-overflow
  * side effects so a wider panel lowers the count instead of the row ever growing the OS window.
  */
 import test from 'node:test';

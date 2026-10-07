@@ -261,7 +261,7 @@ A `'phone'` panel's width is ALWAYS the live phone width -- the model the user p
 never its stored `size`: that stored value is a placeholder, and reading it would freeze every phone panel at
 390 whatever the model. Only `'tablet'`/`'desktop'` use their stored `size.width`. One host helper
 (`panelWidthOf`) owns this rule and the fit cap, and every width sum reads through it: the row's capacity,
-`SettingsAPI.fitCount`, the row's centring margin, each slot's position and width, the size box, and the
+the row's centring margin, each slot's position and width, the size box, and the
 neighbour widths a drag crosses. A view follows the same rule: pass `panel.size` to
 `Panel`/`PanelFrame` only for a non-phone tier, and omit it for a phone one so the device size applies.
 
