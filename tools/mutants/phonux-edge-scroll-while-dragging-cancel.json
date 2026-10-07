@@ -1,0 +1,36 @@
+{
+  "tests": [
+    "test/edge-scroll-drag.test.ts",
+    "test/edge-scroll-cancel.test.ts"
+  ],
+  "mutants": [
+    {
+      "name": "the claim is never released at a pointercancel",
+      "file": "dragToClose.tsx",
+      "find": "const scrolled = edge.end();",
+      "replace": "const scrolled = cancelled ? 0 : edge.end();",
+      "expectRed": [
+        "the claim is free again after a release, a pointercancel, an unmount",
+        "a pointercancel mid-drag releases the claim"
+      ]
+    },
+    {
+      "name": "the loop runs while the axis lock is y",
+      "file": "dragToClose.tsx",
+      "find": "if (axisLock.current === 'x') edge.lock((event as PointerEvent).clientX);",
+      "replace": "edge.lock((event as PointerEvent).clientX);",
+      "expectRed": [
+        "a vertical-locked drag held at the edge scrolls nothing"
+      ]
+    },
+    {
+      "name": "the scroller is found by computed overflow, not by its mark",
+      "file": "dragToClose.tsx",
+      "find": "closestRowScroller(box.current)",
+      "replace": "((): HTMLElement | null => { for (let el = box.current?.parentElement ?? null; el; el = el.parentElement) { const overflowX = window.getComputedStyle(el).overflowX; if (overflowX === 'auto' || overflowX === 'scroll') return el; } return null; })()",
+      "expectRed": [
+        "native scrolls during the hold"
+      ]
+    }
+  ]
+}
