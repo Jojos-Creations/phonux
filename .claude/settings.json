@@ -27,7 +27,9 @@
   "permissions": {
     "allow": [
       "Bash(gh api --method PUT repos/Jojos-Creations/phonux/pulls/*/merge*)",
-      "Bash(gh api -X PUT repos/Jojos-Creations/phonux/pulls/*/merge*)"
+      "Bash(gh api -X PUT repos/Jojos-Creations/phonux/pulls/*/merge*)",
+      "Bash(gh api --method PUT repos/Jojos-Creations/phonux-app/pulls/*/merge*)",
+      "Bash(gh api -X PUT repos/Jojos-Creations/phonux-app/pulls/*/merge*)"
     ]
   }
 }
