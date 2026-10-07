@@ -142,7 +142,7 @@ test('held at the right edge for 100 frames the row scrolls 99 steps; held mid-w
   await frames(100);
   const distance = walked(99);
   assert.ok(Math.abs(m.container.scrollLeft - distance) < 1e-6, `scrollLeft ${m.container.scrollLeft}, expected ${distance} (99 x ${(EDGE.maxPxPerSec * FRAME_MS) / 1000})`);
-  assert.deepEqual(ends, [], 'nothing hops during the drag');
+  assert.equal(ends.length, 0, 'nothing hops during the drag');
   await liftAt(1000);
   await frames(30);
   assert.equal(ends.length, 1);
@@ -327,7 +327,7 @@ test('a vertical-locked drag held at the edge scrolls nothing and closes by the 
     assert.equal(m.container.scrollLeft, 0, `dy ${dy}`);
     await liftAt(1000, 100 + dy);
     await frames(60);
-    assert.deepEqual(ends, [], 'no reorder');
+    assert.equal(ends.length, 0, 'no reorder');
     assert.equal(closes.length, closed, `dy ${dy}`);
     cleanup();
   }
@@ -383,4 +383,84 @@ test('a DragToClose without reorder never scrolls, whatever its slot offers', as
   await frames(50);
   assert.equal(scroller.scrollLeft, 0);
   await liftAt(1000);
+});
+
+// ---------------------------------------------------------------------------
+// Idle: DragToClose installs no listener while no drag is held
+// ---------------------------------------------------------------------------
+
+/** Counts the pointer and scroll listeners live on window and document, through wrappers that are removed again by `stop`. */
+function trackListeners(): { count: () => number; types: () => string; stop: () => void } {
+  const live: Array<{ target: EventTarget; type: string; listener: unknown; capture: boolean }> = [];
+  const restores = [window, document].map((target) => {
+    const add = target.addEventListener.bind(target);
+    const remove = target.removeEventListener.bind(target);
+    const captureOf = (options: unknown): boolean => options === true || (typeof options === 'object' && options !== null && (options as { capture?: boolean }).capture === true);
+    target.addEventListener = ((type: string, listener: unknown, options?: unknown) => {
+      if (!live.some((l) => l.target === target && l.type === type && l.listener === listener && l.capture === captureOf(options))) live.push({ target, type, listener, capture: captureOf(options) });
+      return add(type, listener as EventListener, options as AddEventListenerOptions);
+    }) as typeof target.addEventListener;
+    target.removeEventListener = ((type: string, listener: unknown, options?: unknown) => {
+      const at = live.findIndex((l) => l.target === target && l.type === type && l.listener === listener && l.capture === captureOf(options));
+      if (at >= 0) live.splice(at, 1);
+      return remove(type, listener as EventListener, options as EventListenerOptions);
+    }) as typeof target.removeEventListener;
+    return () => {
+      target.addEventListener = add as typeof target.addEventListener;
+      target.removeEventListener = remove as typeof target.removeEventListener;
+    };
+  });
+  const wanted = (l: { type: string }): boolean => /^(pointer|mouse|touch|scroll|wheel)/.test(l.type);
+  return { count: () => live.filter(wanted).length, types: () => live.filter(wanted).map((l) => l.type).join(','), stop: () => restores.forEach((restore) => restore()) };
+}
+
+test('no listener is installed while no drag is held: the count after mounting, after a drag and after its release equals the count before', async () => {
+  const listeners = trackListeners();
+  try {
+    const before = listeners.count();
+    const alone = mount(
+      React.createElement(
+        'div',
+        { 'data-row-scroller': '' },
+        React.createElement(DragToClose, { reorder: { onDragEnd: () => undefined }, children: () => React.createElement('i') }),
+      ),
+    );
+    assert.equal(listeners.count(), before, `a mounted DragToClose adds none, saw ${listeners.types()}`);
+    alone.unmount();
+    const m = mountEdgeRow();
+    const idle = listeners.count();
+    await dragTo(m, 1000);
+    await frames(20);
+    assert.ok(listeners.count() > idle, 'a drag holds listeners (the control: the counter sees them)');
+    await liftAt(1000);
+    await frames(60);
+    assert.equal(listeners.count(), idle, 'the release gave every one back');
+    await press(handleOf(m, 's2'), 500);
+    await liftAt(500);
+    await frames(10);
+    assert.equal(listeners.count(), idle, 'a click that never became a drag gave them back too');
+  } finally {
+    listeners.stop();
+  }
+});
+
+test('the listener counter itself sees a listener a component adds on mount', () => {
+  const listeners = trackListeners();
+  try {
+    const before = listeners.count();
+    function Planted(): React.ReactElement {
+      React.useEffect(() => {
+        const noop = (): void => undefined;
+        window.addEventListener('pointermove', noop);
+        return () => window.removeEventListener('pointermove', noop);
+      }, []);
+      return React.createElement('i');
+    }
+    mount(React.createElement(Planted));
+    assert.equal(listeners.count(), before + 1);
+    cleanup();
+    assert.equal(listeners.count(), before);
+  } finally {
+    listeners.stop();
+  }
 });
