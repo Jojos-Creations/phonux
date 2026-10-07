@@ -129,7 +129,8 @@ function useEdgeScroll(box: React.RefObject<HTMLDivElement | null>, dragScroll: 
     if (h.stopped || slot === undefined || slot.mode !== 'edge') return;
     const dt = h.lastMs === null ? 0 : nowMs - h.lastMs;
     h.lastMs = nowMs;
-    h.claim.setMaxScroll(slot.maxScroll);
+    const bound = slot.maxScroll;
+    h.claim.setMaxScroll(bound);
     const rect = h.scrollerEl.getBoundingClientRect();
     const speed = edgeScrollSpeed({ pointerX: pointer.current.x, left: rect.left, right: rect.right, zonePx: slot.zonePx, maxPxPerSec: slot.maxPxPerSec });
     const at = h.scroller.scrollLeft();
@@ -137,11 +138,11 @@ function useEdgeScroll(box: React.RefObject<HTMLDivElement | null>, dragScroll: 
       h.waitedMs = speed === 0 ? 0 : h.waitedMs + dt;
       if (h.waitedMs >= slot.reducedStepMs) {
         h.waitedMs = 0;
-        const to = stepTarget(speed < 0 ? 'left' : 'right', at, slot.stops, slot.maxScroll);
+        const to = stepTarget(speed < 0 ? 'left' : 'right', at, slot.stops, bound);
         if (to !== null) h.claim.write(to);
       }
     } else if (speed !== 0) {
-      h.claim.write(at + edgeScrollStep({ speed, dtMs: dt, scrollLeft: at, maxScroll: slot.maxScroll }));
+      h.claim.write(at + edgeScrollStep({ speed, dtMs: dt, scrollLeft: at, maxScroll: bound }));
     }
     scrollX.set(h.scroller.scrollLeft() - h.startScroll);
     h.frame = requestAnimationFrame(tick);
