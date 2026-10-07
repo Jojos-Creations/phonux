@@ -10,7 +10,7 @@ import Box from '@mui/material/Box';
 import { useHost } from './hostApi.js';
 import { isPresent, summarisePanel, type NeighborWidths, type PanelRowEntry } from './panelRowEntry.js';
 import { anchorTargetOf, resolveEnterDirection, type EnterDirection } from './panelRowOrder.js';
-import { PanelSlotContext } from './panelSlotContext.js';
+import { PanelHiddenContext, PanelSlotContext } from './panelSlotContext.js';
 import { LIBRARY_TUNING_DEFAULTS, effective, resolvePanelSettings } from './panelSettings.js';
 import type { ResolvedPanelSettings, ResolvedPanelTuning, WorkspaceTuning } from './panelSettings.js';
 import { PanelRowSlot } from './PanelRowSlot.js';
@@ -92,6 +92,12 @@ export const usePanelReorderSteps = (): ((offsetX: number) => number) => {
   const slot = React.useContext(PanelSlotContext);
   return (offsetX) => reorderStepsForOffset(offsetX, slot?.neighborWidths ?? NO_NEIGHBORS, (slot?.tuning ?? OUTSIDE_ROW_TUNING).rowGap, (slot?.tuning ?? OUTSIDE_ROW_TUNING).hopFraction);
 };
+/**
+ * True while this panel is parked and its view is kept mounted but hidden (`keepMounted`): a view may pause its own
+ * work then. False while the panel is live, even scrolled out of view, while it slides out, and outside a row.
+ * @public
+ */
+export const usePanelHidden = (): boolean => React.useContext(PanelHiddenContext);
 /** Anchored left of the row's root, read from the anchor every render so a drag across the root changes it too. Unprovided: false.
  * @public */
 export const usePanelPinned = (): boolean => React.useContext(PanelSlotContext)?.pinned ?? false;
@@ -155,11 +161,28 @@ export function PanelRow({
   // The latch is computed from the previous commit's live flags, so it must be assigned before they are overwritten.
   React.useLayoutEffect(() => {
     releasedAtParkRef.current = new Map(entries.filter((p) => p.collapsible && !p.live).map((p) => [p.id, parkReleases(p)]));
+    keptAtParkRef.current = new Map(entries.filter(keepsMounted).map((p) => [p.id, true]));
     liveBeforeRef.current = new Map(entries.map((p) => [p.id, p.live]));
+    // A parked entry keeps the rest it slid out from, which is what its slot needs to slide back to.
+    const rests = new Map(restRef.current);
+    for (const [index, p] of present.entries()) rests.set(p.id, { leftOffset: leftOffsets[index]!, width: widths[index]! });
+    restRef.current = rests;
   });
+  // Whether a parked entry keeps its view mounted: latched at the commit that parks it, like the view state latch above.
+  // Dropping the setting later unmounts it at once; turning it on later reaches the next park only.
+  const keptAtParkRef = React.useRef<ReadonlyMap<string, boolean>>(new Map());
+  const restRef = React.useRef<ReadonlyMap<string, { leftOffset: number; width: number }>>(new Map());
+  const keepsMounted = (p: PanelRowEntry): boolean => {
+    if (!p.collapsible || p.live || p.marker === true) return false;
+    const settings = effective(p);
+    if (!settings.keepMounted || settings.viewState === 'reset-on-park') return false;
+    return liveBeforeRef.current.get(p.id) === true || keptAtParkRef.current.get(p.id) === true;
+  };
   // Ids never repeat, so a panel in neither list can never be shown again and its view state is released.
   useViewState.useRetainOnly([...entries.filter((p) => !parkReleases(p)), ...(panels.recentlyClosed ?? [])].map((p) => p.id));
   const present = entries.filter(isPresent);
+  // Layout, capacity and neighbours are computed over `present` alone: a kept entry occupies a slot but no width.
+  const rendered = entries.filter((p) => isPresent(p) || keepsMounted(p));
   // Every present entry's OWN width, in row order. An always-shown column needs no special case: setFormFactor
   // no-ops on a collapsible:false id, so panelWidthOf gives it `phoneWidth`.
   const widths = present.map((p) => panelWidthOf(p, phoneWidth, maxLiveWidth));
@@ -205,7 +228,10 @@ export function PanelRow({
       }}
     >
       <AnimatePresence initial={false}>
-        {present.map((p, index) => {
+        {rendered.map((p) => {
+          const presentIndex = present.indexOf(p);
+          const kept = presentIndex < 0;
+          const rest = kept ? restRef.current.get(p.id)! : { leftOffset: leftOffsets[presentIndex]!, width: widths[presentIndex]! };
           const Component = resolveView(p.view);
           const { closable, draggable, placeable, resizable, formFactors, enterFrom, exitTo, closeExit, animated, layer } = effective(p);
           const own = slotTuning(workspaceTuning, p.settings?.tuning);
@@ -225,22 +251,23 @@ export function PanelRow({
               }}
             >
               <PanelRowSlot
-                leftOffset={leftOffsets[index]!}
-                width={widths[index]!}
+                leftOffset={rest.leftOffset}
+                width={rest.width}
                 phoneHeight={phoneHeight}
-                enterDirection={enterDirectionOf(enterFrom, p.anchoredEnter ?? false, enterSideById.get(p.id), enteringViaAnchorIds.has(p.id), () => resolveEnterDirection(anchorIndexOf(p), index))}
+                enterDirection={enterDirectionOf(enterFrom, p.anchoredEnter ?? false, enterSideById.get(p.id), enteringViaAnchorIds.has(p.id), () => resolveEnterDirection(anchorIndexOf(p), presentIndex))}
                 exitDirection={closingIds.has(p.id) ? closeExit : exitTo !== 'auto' ? exitTo : exitRightIds.has(p.id) ? 'right' : 'left'}
                 zIndex={layer === 'raised' ? RAISED_LAYER_Z_INDEX : BASE_LAYER_Z_INDEX}
                 animated={animated}
                 gap={gap}
                 slide={own.slide}
+                kept={kept}
               >
                 {/* A resolved component -- built-in or third-party -- is written against PanelSummary only,
                     never the internal record. */}
                 {/* The ONE place useViewState's ambient panel id is set, so a view's own useViewState(key,
                     initial) call needs no id argument. */}
                 <useViewState.Provider value={p.id}>
-                  <Component panel={renderedSummary(p, widths[index]!)} />
+                  <Component panel={renderedSummary(p, rest.width)} />
                 </useViewState.Provider>
               </PanelRowSlot>
             </PanelSlotContext.Provider>

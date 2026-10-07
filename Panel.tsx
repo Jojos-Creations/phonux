@@ -10,6 +10,7 @@ import * as React from 'react';
 import Box, { type BoxProps } from '@mui/material/Box';
 import { PANEL_HEADER_GAP_PX, PanelHeaderRow, type PanelHeaderRowProps } from './PanelFrame.js';
 import { useHost, type PanelSize } from './hostApi.js';
+import { PanelHiddenContext } from './panelSlotContext.js';
 import { CaptureRegistryContext, type ViewId } from './snapshots.js';
 
 // One import path for a view author: the contracts, the provider and the hook.
@@ -57,8 +58,9 @@ export interface PanelProps extends Omit<BoxProps, 'children' | 'sx' | 'title'> 
   /** The panel's content, rendered inside the root box below the header. */
   children: React.ReactNode;
   /**
-   * Registers this Panel's own root element with the desktop's capture registry (see snapshots.ts's
-   * CaptureRegistryContext) so the host can later ask for a picture of it by id. Omitted: never registered.
+   * Registers this Panel's own root element with the capture registry a `CaptureRegistryProvider` supplies, so the
+   * host can later ask for a picture of it by id. Omitted: never registered. A panel parked with its view kept
+   * mounted is unregistered while hidden and registered again when shown.
    */
   viewId?: ViewId;
   /** 'never' opts a Panel with a viewId out of registration entirely -- default 'auto'. */
@@ -76,11 +78,13 @@ export function Panel({ title, actions, headerProps, grabProps, overlay, sx, chi
   const { device } = useHost();
   const registry = React.useContext(CaptureRegistryContext);
   const rootRef = React.useRef<HTMLDivElement | null>(null);
+  const hidden = React.useContext(PanelHiddenContext);
   React.useEffect(() => {
     // No registry (a bare <HostProvider>, as in most tests) or opted out: registering is a no-op, never a throw.
-    if (!registry || !viewId || capture === 'never' || !rootRef.current) return undefined;
+    // A hidden root is display:none and has no box to photograph, so it leaves the registry until it is shown.
+    if (!registry || !viewId || capture === 'never' || hidden || !rootRef.current) return undefined;
     return registry.register(viewId, rootRef.current, 'viewport');
-  }, [registry, viewId, capture]);
+  }, [registry, viewId, capture, hidden]);
   return (
     <Box sx={{ position: 'relative', width: size?.width ?? device.size.width, ...sx }} {...rest} ref={rootRef}>
       {title !== undefined && <PanelHeaderRow title={title} actions={actions} {...headerProps} />}

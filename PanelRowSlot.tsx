@@ -1,7 +1,7 @@
 import * as React from 'react';
-import { motion, type TargetAndTransition } from 'motion/react';
+import { animate, motion, useReducedMotionConfig, visualElementStore, type TargetAndTransition } from 'motion/react';
 import { SLOT_TRANSITION, directionalTransition, slideToTransition } from './directionalTransition.js';
-import { PanelSlotContext } from './panelSlotContext.js';
+import { PanelHiddenContext, PanelSlotContext } from './panelSlotContext.js';
 import { LIBRARY_TUNING_DEFAULTS } from './panelSettings.js';
 import type { SlideTuning } from './panelSettings.js';
 import { ROW_GAP } from './rowConstants.js';
@@ -33,6 +33,9 @@ export interface PanelRowSlotMotion {
 
 /** What an `animated: false` slot moves with: the same targets, no time taken. */
 const INSTANT_TRANSITION = { duration: 0 } as const;
+
+/** What a kept slot leaves with when its entry is dropped: at once, since a hidden slot has nothing left to slide. */
+const KEPT_EXIT: TargetAndTransition = { opacity: 0, transition: INSTANT_TRANSITION };
 
 type ExitDirection = 'down' | 'left' | 'right';
 
@@ -73,6 +76,61 @@ export function panelRowSlotMotion(
   return { initial, animate, exit, transition };
 }
 
+/** The `x` and `opacity` a kept slot moves between while it is parked and revived. */
+interface SlotValues {
+  readonly x: number;
+  readonly opacity: number;
+}
+
+/**
+ * Where a kept slot goes when its panel parks: off the edge it was hidden past, faded out. `rowScroll` is the row
+ * shell's flag, taken so every caller passes it; the left target is the row's own origin whatever its value.
+ * @internal
+ */
+export function parkExitTarget(rest: number, ownSpan: number, side: 'left' | 'right', rowScroll: boolean): SlotValues {
+  return side === 'right' ? { x: rest + ownSpan, opacity: 0 } : { x: -ownSpan, opacity: 0 };
+}
+
+/**
+ * Where a kept slot starts when its panel is shown again: one span beyond its rest on its enter side, faded out.
+ * @internal
+ */
+export function enterStart(rest: number, ownSpan: number, side: 'left' | 'right'): SlotValues {
+  return { x: side === 'left' ? rest - ownSpan : rest + ownSpan, opacity: 0 };
+}
+
+/** A running imperative slide: `finished` settles when it ends or is stopped. */
+interface SlotRun {
+  readonly finished: Promise<void>;
+  stop(): void;
+}
+
+/**
+ * The two imperative moves a kept slot makes on its own element. An object so a test can wrap them and read the
+ * order of the calls; `set` writes the motion values at once, which a zero-duration animation would not.
+ * @internal
+ */
+export const slotDriver = {
+  set(el: HTMLElement, values: SlotValues): void {
+    const visual = visualElementStore.get(el);
+    visual?.getValue('x')?.set(values.x);
+    visual?.getValue('opacity')?.set(values.opacity);
+  },
+  read(el: HTMLElement): SlotValues | undefined {
+    const visual = visualElementStore.get(el);
+    const x = visual?.getValue('x')?.get();
+    const opacity = visual?.getValue('opacity')?.get();
+    return typeof x === 'number' && typeof opacity === 'number' ? { x, opacity } : undefined;
+  },
+  animate(el: HTMLElement, values: SlotValues, transition: TargetAndTransition['transition']): SlotRun {
+    const at = slotDriver.read(el);
+    // Motion settles a slide whose target it already stands on only at the next frame; a kept slot must not wait for one.
+    if (at !== undefined && at.x === values.x && at.opacity === values.opacity) return { finished: Promise.resolve(), stop: () => {} };
+    const controls = animate(el, { x: values.x, opacity: values.opacity }, transition as never);
+    return { finished: new Promise<void>((resolve) => controls.then(() => resolve())), stop: () => controls.stop() };
+  },
+};
+
 /**
  * One entry's animated slot in the row: its position, width, enter/exit motion and stacking.
  * @internal
@@ -87,6 +145,7 @@ export function PanelRowSlot({
   animated = true,
   gap,
   slide,
+  kept = false,
   children,
 }: {
   /** This slot's own rest x position -- the caller's running sum of every PRECEDING present item's own width plus one gap. */
@@ -113,17 +172,76 @@ export function PanelRowSlot({
   /** The row's gap and this panel's slide; the library defaults when omitted. */
   gap?: number;
   slide?: SlideTuning;
+  /** True while the panel is parked and its view stays mounted: the slot slides out, is hidden, and slides back in when shown. */
+  kept?: boolean;
   /** The panel rendered inside the slot. */
   children: React.ReactNode;
 }) {
-  const { initial, animate, exit, transition } = panelRowSlotMotion(leftOffset, width, phoneHeight, enterDirection, exitDirection, animated, gap, slide);
+  const { initial, animate: animateTarget, exit, transition } = panelRowSlotMotion(leftOffset, width, phoneHeight, enterDirection, exitDirection, animated, gap, slide);
+  const el = React.useRef<HTMLDivElement>(null);
+  const reducedMotion = useReducedMotionConfig();
+  const ownSpan = width + (gap ?? ROW_GAP);
+  const parkSide = exitDirection === 'right' ? 'right' : 'left';
+  const slideTransition = animated && !reducedMotion ? transition : INSTANT_TRANSITION;
+  // `epoch` counts parks, so a finished exit from an earlier park can never hide the slot of a later one.
+  const [wasKept, setWasKept] = React.useState(kept);
+  const [epoch, setEpoch] = React.useState(0);
+  const [settledEpoch, setSettledEpoch] = React.useState(0);
+  const [reviving, setReviving] = React.useState(false);
+  if (kept !== wasKept) {
+    setWasKept(kept);
+    setReviving(!kept);
+    if (kept) setEpoch(epoch + 1);
+  }
+  const hidden = kept && epoch > 0 && settledEpoch === epoch;
+  const sideAtPark = React.useRef<'left' | 'right'>('left');
+  // The slides start in passive effects: motion's own pass over a changed `animate` prop runs in the child's passive
+  // effect, and one that ran after ours would stop the slide.
+  // Hidden follows the animation's own promise, never a timer or onAnimationComplete, so a zero-length slide still hides.
+  React.useEffect(() => {
+    if (!kept || el.current === null) return undefined;
+    sideAtPark.current = parkSide;
+    const run = slotDriver.animate(el.current, parkExitTarget(leftOffset, ownSpan, parkSide, false), slideTransition);
+    let cancelled = false;
+    void run.finished.then(() => {
+      if (!cancelled) setSettledEpoch(epoch);
+    });
+    return () => {
+      cancelled = true;
+      run.stop();
+    };
+  }, [kept, epoch]);
+  // The jump is a layout effect so the revived slot is never painted at its rest before it starts from its enter side.
+  React.useLayoutEffect(() => {
+    if (!reviving || el.current === null) return;
+    const start = enterStart(leftOffset, ownSpan, enterDirection);
+    const at = slotDriver.read(el.current);
+    // A park that left toward another side, or at another x, would otherwise slide in from the wrong place.
+    if (sideAtPark.current !== enterDirection || at === undefined || at.x !== start.x) slotDriver.set(el.current, start);
+  }, [reviving]);
+  React.useEffect(() => {
+    if (!reviving || el.current === null) return undefined;
+    const run = slotDriver.animate(el.current, { x: leftOffset, opacity: 1 }, slideTransition);
+    let cancelled = false;
+    void run.finished.then(() => {
+      if (!cancelled) setReviving(false);
+    });
+    return () => {
+      cancelled = true;
+      run.stop();
+    };
+  }, [reviving]);
   return (
     <motion.div
+      ref={el}
       // Enters from one own-width-plus-gap span beyond its destination, right or left per `enterDirection` above.
-      initial={initial}
-      animate={animate}
-      exit={exit}
+      // Dropping `animate` alone would send the slot back to `initial`; with both gone it stays where it is, for the imperative slide.
+      initial={kept || reviving ? undefined : initial}
+      animate={kept || reviving ? undefined : animateTarget}
+      exit={kept ? KEPT_EXIT : exit}
       transition={transition}
+      inert={kept ? true : undefined}
+      aria-hidden={hidden ? true : undefined}
       style={{
         position: 'absolute',
         top: 0,
@@ -132,9 +250,10 @@ export function PanelRowSlot({
         // Snaps, never animates: nothing paints the slot's own width (PanelSizeBox animates the visible resize).
         width,
         zIndex: zIndex ?? 0,
+        ...(hidden ? { display: 'none' } : {}),
       }}
     >
-      {children}
+      <PanelHiddenContext.Provider value={hidden}>{children}</PanelHiddenContext.Provider>
     </motion.div>
   );
 }
