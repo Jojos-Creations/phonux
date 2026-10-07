@@ -1,0 +1,80 @@
+{
+  "tests": [
+    "test/keep-mounted.test.ts",
+    "test/keep-mounted-lifetime.test.ts"
+  ],
+  "mutants": [
+    {
+      "name": "the hidden slot is hidden with visibility:hidden instead of display:none",
+      "file": "PanelRowSlot.tsx",
+      "find": "...(hidden ? { display: 'none' } : {}),",
+      "replace": "...(hidden ? { visibility: 'hidden' } : {}),",
+      "expectRed": [
+        "hidden state: once the exit completes"
+      ]
+    },
+    {
+      "name": "a parked entry that was never live is kept, so it mounts before its first show",
+      "file": "PanelRow.tsx",
+      "find": "return liveBeforeRef.current.get(p.id) === true || keptAtParkRef.current.get(p.id) === true;",
+      "replace": "return true;",
+      "expectRed": [
+        "lazy mount: a panel that arrives parked"
+      ]
+    },
+    {
+      "name": "the slot is not inert during the exit slide, only once hidden",
+      "file": "PanelRowSlot.tsx",
+      "find": "inert={kept ? true : undefined}",
+      "replace": "inert={hidden ? true : undefined}",
+      "expectRed": [
+        "hidden state: during the exit slide the slot is inert"
+      ]
+    },
+    {
+      "name": "a kept slot leaves with the close exit instead of at once",
+      "file": "PanelRowSlot.tsx",
+      "find": "exit={kept ? KEPT_EXIT : exit}",
+      "replace": "exit={exit}",
+      "expectRed": [
+        "lifetime: closing a hidden kept panel"
+      ]
+    },
+    {
+      "name": "the revive does not jump to its enter start",
+      "file": "PanelRowSlot.tsx",
+      "find": "slotDriver.set(el.current, start);",
+      "replace": "void start;",
+      "expectRed": [
+        "a revive from the other side sets x and opacity"
+      ]
+    },
+    {
+      "name": "the kept latch is replaced by the live setting, read at every render",
+      "file": "PanelRow.tsx",
+      "find": "return liveBeforeRef.current.get(p.id) === true || keptAtParkRef.current.get(p.id) === true;",
+      "replace": "return liveBeforeRef.current.has(p.id);",
+      "expectRed": [
+        "latch (a)"
+      ]
+    },
+    {
+      "name": "hidden is set a frame after the animation ends, as onAnimationComplete would, not from its promise",
+      "file": "PanelRowSlot.tsx",
+      "find": "if (!cancelled) setSettledEpoch(epoch);",
+      "replace": "if (!cancelled) requestAnimationFrame(() => setSettledEpoch(epoch));",
+      "expectRed": [
+        "fallback: animated false"
+      ]
+    },
+    {
+      "name": "Panel stays registered while hidden",
+      "file": "Panel.tsx",
+      "find": "capture === 'never' || hidden || !rootRef.current",
+      "replace": "capture === 'never' || !rootRef.current",
+      "expectRed": [
+        "capture: Panel registers while visible"
+      ]
+    }
+  ]
+}

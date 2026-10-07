@@ -269,3 +269,28 @@ test('source: useProvidePanels drops the hold of a closed panel after forgetting
 test('source: usePanelManager and PanelRow use no useMemo or useCallback', () => {
   for (const file of ['panels/usePanelManager.ts', 'PanelRow.tsx']) assert.equal(usesMemo(read(file)), false, `${file} must close over this render's values`);
 });
+
+test('source: a kept slot is hidden from its exit animation\'s promise, never from onAnimationComplete, and PanelRow reads keepMounted only through the latch', () => {
+  const slot = stripComments(read('PanelRowSlot.tsx'), 'PanelRowSlot.tsx');
+  assert.doesNotMatch(slot, /onAnimationComplete/, 'a callback fires only after a frame, which a zero-length slide never gets');
+  assert.match(slot, /run\.finished\.then\(/, 'the exit move is awaited through its promise');
+  const row = stripComments(read('PanelRow.tsx'), 'PanelRow.tsx');
+  assert.equal([...row.matchAll(/\.keepMounted/g)].length, 1, 'keepMounted is read in keepsMounted only, which the latch refs gate');
+});
+
+test('source: Panel registers with the capture registry only while it is not hidden', () => {
+  const panel = stripComments(read('Panel.tsx'), 'Panel.tsx');
+  assert.match(panel, /capture === 'never' \|\| hidden \|\|/);
+});
+
+test("source: Panel's doc comment for viewId names CaptureRegistryProvider, and no comment line names CaptureRegistryContext", () => {
+  const comments = read('Panel.tsx').split('\n').filter((l) => /^\s*(\/\*\*|\*|\/\/)/.test(l));
+  assert.equal(comments.filter((l) => l.includes('CaptureRegistryContext')).length, 0);
+  assert.ok(comments.some((l) => l.includes('CaptureRegistryProvider')), 'the doc names the exported way to supply a registry');
+  assert.match(read('Panel.tsx'), /React\.useContext\(CaptureRegistryContext\)/, 'the code still reads the context');
+});
+
+test('source: usePanelHidden is exported by name from the barrel and read from the slot context PanelRowSlot provides', () => {
+  assert.match(read('index.ts'), /\busePanelHidden\b/);
+  assert.match(stripComments(read('PanelRowSlot.tsx'), 'PanelRowSlot.tsx'), /PanelHiddenContext\.Provider/);
+});

@@ -24,9 +24,14 @@
   workspace tuning to hand to a `Workspace`.
 - `reorderStepsForOffset` takes an optional fourth argument, `hopFraction` (default 0.5).
 - `DragToClose`'s `onClose` is optional: without it a release past the close line snaps back.
+- `usePanelHidden()`: true while the panel a view sits in is parked with its view kept mounted and the slot is hidden, so
+  the view can pause its own work; false while live, while sliding out and outside a row.
 
 ### Changed
 
+- A parked entry whose `keepMounted` is true keeps its view mounted and hidden (`display: none`, `inert`,
+  `aria-hidden`) instead of unmounting it after the park exit, and `Panel` unregisters from the capture registry while
+  hidden.
 - An entry that carries `settings` is parked, returned and held by its `startVisibility`, `hideStickiness`,
   `hideWhenLast`, `capacityReturn`, `returnPriority`, `evictionRank` and `evictionOrder`, and releases its
   `useViewState` values at a park when its `viewState` is `reset-on-park`. The park levers act only on a panel whose

@@ -25,3 +25,9 @@ export interface PanelSlotValue {
 }
 
 export const PanelSlotContext = React.createContext<PanelSlotValue | undefined>(undefined);
+
+/**
+ * Whether the slot above is hidden: its view is parked, kept mounted and out of layout. Its own context, not a field
+ * of PanelSlotValue, because the slot decides it from its exit animation after PanelRow has built the slot value.
+ */
+export const PanelHiddenContext = React.createContext<boolean>(false);
