@@ -105,14 +105,6 @@ export interface PanelSummary<P = JsonValue> {
 
 /** Window-layout settings a view reads and changes. @public */
 export interface SettingsAPI {
-  /** The stored "max panels on screen" choice: `null` means "follow the fit count" (the default). Live: a view re-renders when it changes. */
-  readonly maxPanelsOnScreen: number | null;
-  /** How many panels (History plus web panels together) the window can currently show -- `null` while unmeasured (no cap yet). */
-  readonly fitCount: number | null;
-  /** The lowest legal `maxPanelsOnScreen` choice: every permanent column (`collapsible:false`) plus at least one web panel. Never below 2 (History alone already counts as one). */
-  readonly minPanelsOnScreen: number;
-  /** Clamped to [minPanelsOnScreen, fitCount] on read; `null` resets to "follow the fit count". Applies at once, then persists. Never rejects: with no desktop bridge the choice lasts this session only. */
-  setMaxPanelsOnScreen(n: number | null): Promise<void>;
   /** Settings' own sections render inside History's body when this is true (History's gear toggles it), rather than as a separate column. Starts false: a fresh session opens on History's own row list. `show()`/`hide()` last for the session. */
   readonly settingsColumn: { readonly visible: boolean; show(): void; hide(): void };
 }
@@ -164,7 +156,7 @@ export interface CreatePanelOptions {
   anchoredEnter?: boolean;
   /**
    * Makes the new entry a permanent column: `collapsible:false` (never parked by a row gesture or capacity,
-   * never a drag source, and counted in `minPanelsOnScreen`'s floor) and `listed:false`, forced regardless of
+   * never a drag source, and counted in the capacity floor) and `listed:false`, forced regardless of
    * any `listed` also passed -- a permanent column must supply its own close control (History's own
    * precedent), never the framework's History-row trash. `locked` stays false always: closing it through its
    * own control still works. Default false.

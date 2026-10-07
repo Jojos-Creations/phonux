@@ -153,10 +153,6 @@ export interface PhoneSize {
 
 // @public
 export interface SettingsAPI {
-    readonly fitCount: number | null;
-    readonly maxPanelsOnScreen: number | null;
-    readonly minPanelsOnScreen: number;
-    setMaxPanelsOnScreen(n: number | null): Promise<void>;
     readonly settingsColumn: {
         readonly visible: boolean;
         show(): void;

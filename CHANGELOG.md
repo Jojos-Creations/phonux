@@ -91,6 +91,10 @@
     orders the row and builds `PanelSummary` values; `computeRowLayout` stays.
   - `CaptureRegistryContext`: mount `CaptureRegistryProvider` instead.
   - `vendorLabelForUsbVendorId`: `PhoneDetectPrompt` renders the label; `PHONE_MODELS` and `findPhoneModel` stay.
+- `SettingsAPI.maxPanelsOnScreen`, `fitCount`, `minPanelsOnScreen` and `setMaxPanelsOnScreen`, and
+  `PanelsInput.storedMaxPanels` (also gone from `createFakeHost`). Breaking, and a design choice listed for
+  review in Jojos-Creations/phonux#2. `SettingsAPI` keeps `settingsColumn`. The app passes nothing in place of
+  `storedMaxPanels`; a view that needs the window width measures its own container.
 
 ## 0.1.0
 

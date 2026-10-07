@@ -32,26 +32,43 @@ export const panelsApi: PanelsAPI = {
   clearAll: (): void => undefined,
 };
 
-/** The settings member a 0.1.0 host built by hand: these five names and nothing else. */
+/** The settings member a host built by hand: `settingsColumn` and nothing else. */
 const settings: SettingsAPI = {
-  maxPanelsOnScreen: null,
-  fitCount: 4,
-  minPanelsOnScreen: 2,
-  setMaxPanelsOnScreen: async (n: number | null): Promise<void> => void n,
   settingsColumn: { visible: false, show: (): void => undefined, hide: (): void => undefined },
 };
 export const host: Host = { ...createFakeHost(), settings };
 
-/** The input a 0.1.0 app handed useProvidePanels, with the stored cap it still passed. */
+/** The input an app hands useProvidePanels. */
 export const panelsInput = (overflowContainerRef: React.RefObject<HTMLDivElement | null>): PanelsInput => ({
   initialEntries: [rootEntry],
   rootId: 'root',
-  storedMaxPanels: null,
   phoneWidth: 390,
   containerWidth: 0,
   overflowContainerRef,
   storage,
   onPanelsClosed: (entry: { id: string; title: string; url: string; closedAt: string }): void => void entry,
+});
+
+const settingsColumn = { visible: false, show: (): void => undefined, hide: (): void => undefined };
+
+/** The four settings members a 0.1.0 host wrote were removed on purpose: a host literal naming one must not compile, and the compiler reports only the first excess property, so each gets its own literal. */
+// @ts-expect-error maxPanelsOnScreen is gone
+export const retiredMaxPanelsOnScreen: Host = { ...createFakeHost(), settings: { settingsColumn, maxPanelsOnScreen: null } };
+// @ts-expect-error fitCount is gone
+export const retiredFitCount: Host = { ...createFakeHost(), settings: { settingsColumn, fitCount: 4 } };
+// @ts-expect-error minPanelsOnScreen is gone
+export const retiredMinPanelsOnScreen: Host = { ...createFakeHost(), settings: { settingsColumn, minPanelsOnScreen: 2 } };
+// @ts-expect-error setMaxPanelsOnScreen is gone
+export const retiredSetMaxPanelsOnScreen: Host = { ...createFakeHost(), settings: { settingsColumn, setMaxPanelsOnScreen: async (n: number | null): Promise<void> => void n } };
+
+/** The stored cap a 0.1.0 app passed to useProvidePanels was removed on purpose: an input naming it must not compile. */
+export const retiredStoredCap = (overflowContainerRef: React.RefObject<HTMLDivElement | null>): PanelsInput => ({
+  rootId: 'root',
+  // @ts-expect-error storedMaxPanels is gone
+  storedMaxPanels: null,
+  phoneWidth: 390,
+  containerWidth: 0,
+  overflowContainerRef,
 });
 
 registerView('compat-probe', ({ panel }) => React.createElement('span', null, panel.id));

@@ -1,0 +1,34 @@
+{
+  "tests": [
+    "test/pins-retire-max-panels.test.ts"
+  ],
+  "mutants": [
+    {
+      "name": "effectiveMaxPanels returns the fit count for a null fit count instead of Infinity",
+      "file": "panelCapacity.ts",
+      "find": "if (fitCount === null) return Number.POSITIVE_INFINITY;",
+      "replace": "if (fitCount === null) return fitCount as unknown as number;",
+      "expectRed": [
+        "pin P1 (flipped)"
+      ]
+    },
+    {
+      "name": "effectiveMaxPanels floors at a literal 2 instead of fixedColumnCount + 1",
+      "file": "panelCapacity.ts",
+      "find": "return Math.max(fixedColumnCount + 1, fitCount);",
+      "replace": "return Math.max(2, fitCount);",
+      "expectRed": [
+        "pin P1 (flipped)"
+      ]
+    },
+    {
+      "name": "the fake host's settings regains maxPanelsOnScreen",
+      "file": "fakeHost.ts",
+      "find": "  const settings: SettingsAPI = {\n    settingsColumn: {",
+      "replace": "  const settings: SettingsAPI = {\n    maxPanelsOnScreen: null,\n    settingsColumn: {",
+      "expectRed": [
+        "pin P2 (flipped)"
+      ]
+    }
+  ]
+}

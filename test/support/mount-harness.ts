@@ -94,12 +94,11 @@ export function panelsInput(over: Partial<PanelsInput> = {}): PanelsInput {
     phoneWidth: 390,
     containerWidth: 0,
     overflowContainerRef: { current: null },
-    storedMaxPanels: null,
     ...over,
   };
 }
 
-/** usePanelManager with the arguments a test cares about; the stored max-panels choice is always null. */
+/** usePanelManager with the arguments a test cares about. */
 export function usePanelManagerWith(a: {
   panels: PanelWindow[];
   setPanels: React.Dispatch<React.SetStateAction<PanelWindow[]>>;
@@ -108,5 +107,5 @@ export function usePanelManagerWith(a: {
   fixedColumnCount: number;
   rootId: string;
 }): UsePanelManagerResult {
-  return usePanelManager(a.panels, a.setPanels, null, a.phoneWidth, a.containerWidth, a.fixedColumnCount, a.rootId);
+  return usePanelManager(a.panels, a.setPanels, a.phoneWidth, a.containerWidth, a.fixedColumnCount, a.rootId);
 }
