@@ -13,6 +13,7 @@ import type { PanelSettings, PanelWindow, ProvidedPanels } from '../index.js';
 import { applyTemplate } from '../panelSettings.js';
 import { deriveAnchorsFromOrder } from '../panelRowOrder.js';
 import { appendPanel, createHistoryPanel } from '../panelWindow.js';
+import { rowScrollerFor } from '../rowScroller.js';
 import type { UsePanelManagerResult } from '../panels/usePanelManager.js';
 import { cleanup, mount, panelsInput, usePanelManagerWith } from './support/mount-harness.js';
 
@@ -132,9 +133,10 @@ test('PIN the container has one wheel listener and the window one keydown listen
   }
 });
 
-test('PIN a swipe on a row whose live panels run beyond the window reveals the parked panel instead of scrolling', () => {
+test('a swipe on a row whose live panels run beyond the window scrolls one panel instead of revealing the parked panel', () => {
   const p = provide(row(rootEntry(), made('s1'), made('s2'), made('s3'), park('p', { live: false })), 1000);
   assert.deepEqual(p.live(), ['s1', 's2', 's3']);
   p.wheel(100);
-  assert.deepEqual(p.live(), ['s1', 's2', 's3', 'p']);
+  assert.deepEqual(p.live(), ['s1', 's2', 's3'], 'the parked panel stays parked');
+  assert.equal(rowScrollerFor(p.container).glideTarget(), 406, 'the row glides to the next panel start');
 });
