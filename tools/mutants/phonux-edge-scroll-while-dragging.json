@@ -1,0 +1,73 @@
+{
+  "tests": [
+    "test/edge-scroll-pure.test.ts",
+    "test/edge-scroll-drag.test.ts"
+  ],
+  "mutants": [
+    {
+      "name": "the frame step has no 50 ms cap",
+      "file": "edgeScroll.ts",
+      "find": "const delta = (i.speed * Math.min(i.dtMs, MAX_FRAME_MS)) / 1000;",
+      "replace": "const delta = (i.speed * i.dtMs) / 1000;",
+      "expectRed": [
+        "edgeScrollStep: speed 900 for 500 ms is capped at 50 ms"
+      ]
+    },
+    {
+      "name": "the zone is measured from the window, not the container",
+      "file": "dragToClose.tsx",
+      "find": "left: rect.left, right: rect.right,",
+      "replace": "left: 0, right: window.innerWidth,",
+      "expectRed": [
+        "held at the right edge for 100 frames the row scrolls 99 steps"
+      ]
+    },
+    {
+      "name": "the released offset omits the scroll distance",
+      "file": "dragToClose.tsx",
+      "find": "reorder.onDragEnd(offset + scrolled)",
+      "replace": "reorder.onDragEnd(offset)",
+      "expectRed": [
+        "held at the right edge for 100 frames the row scrolls 99 steps"
+      ]
+    },
+    {
+      "name": "the drawn x omits the scroll distance",
+      "file": "dragToClose.tsx",
+      "find": "{ x, y, translate: scrollTranslate }",
+      "replace": "{ x, y }",
+      "expectRed": [
+        "the drawn position is the pointer offset plus the scroll distance at every frame"
+      ]
+    },
+    {
+      "name": "reduced motion jumps every frame",
+      "file": "dragToClose.tsx",
+      "find": "if (h.waitedMs >= slot.reducedStepMs) {",
+      "replace": "if (h.waitedMs >= 0) {",
+      "expectRed": [
+        "matchMedia reduce: no continuous scroll",
+        "animated false: no continuous scroll"
+      ]
+    },
+    {
+      "name": "the bound is scrollWidth minus clientWidth",
+      "file": "dragToClose.tsx",
+      "find": "const bound = slot.maxScroll;",
+      "replace": "const bound = h.scrollerEl.scrollWidth - h.scrollerEl.clientWidth;",
+      "expectRed": [
+        "the strip bounds the scroll"
+      ]
+    },
+    {
+      "name": "the scroll translation is not zeroed at release",
+      "file": "dragToClose.tsx",
+      "find": "scrollX.set(scrolled * progress);",
+      "replace": "",
+      "expectRed": [
+        "released, the box springs home as one",
+        "released with a scroll distance and no hop, the box still settles at rest"
+      ]
+    }
+  ]
+}

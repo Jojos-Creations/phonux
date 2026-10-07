@@ -10,13 +10,13 @@ import Box from '@mui/material/Box';
 import { useHost } from './hostApi.js';
 import { isPresent, summarisePanel, type NeighborWidths, type PanelRowEntry } from './panelRowEntry.js';
 import { anchorTargetOf, resolveEnterDirection, type EnterDirection } from './panelRowOrder.js';
-import { PanelHiddenContext, PanelSlotContext } from './panelSlotContext.js';
+import { PanelHiddenContext, PanelSlotContext, type DragScroll } from './panelSlotContext.js';
 import { LIBRARY_TUNING_DEFAULTS, effective, resolvePanelSettings } from './panelSettings.js';
 import type { ResolvedPanelSettings, ResolvedPanelTuning, WorkspaceTuning } from './panelSettings.js';
 import { PanelRowSlot } from './PanelRowSlot.js';
 import { WorkspaceTuningContext, lookTuningDiffers, resolveWorkspaceTuning, slotTuning, type SlotTuning } from './panelTuning.js';
 import { reorderStepsForOffset } from './panelWindow.js';
-import type { RowNumbers } from './rowNumbers.js';
+import { maxScrollOf, type RowNumbers } from './rowNumbers.js';
 import { panelWidthOf } from './panelTiers.js';
 import { resolveView } from './viewRegistry.js';
 import { useViewState } from './viewState.js';
@@ -200,6 +200,8 @@ export function PanelRow({
   }
   const rowScroll = rowNumbers?.rowScroll ?? false;
   const reservedWidth = Math.max(0, widths.reduce((sum, width) => sum + width + gap, 0) - gap);
+  const maxScroll = rowNumbers === undefined ? 0 : maxScrollOf(rowNumbers);
+  const stops = rowNumbers === undefined ? [] : rowNumbers.leftOffsets.map((offset) => rowNumbers.rowMarginLeft + offset);
   const widthById = new Map(present.map((p, index) => [p.id, widths[index]!]));
   // Nearest first on each side, an always-shown column included: movePanel swaps past one like any neighbour. The
   // walk is over every array slot and stops at the first entry that is not crossable, a parked one included,
@@ -239,8 +241,11 @@ export function PanelRow({
           const kept = presentIndex < 0;
           const rest = kept ? restRef.current.get(p.id)! : { leftOffset: leftOffsets[presentIndex]!, width: widths[presentIndex]! };
           const Component = resolveView(p.view);
-          const { closable, draggable, placeable, resizable, formFactors, enterFrom, exitTo, closeExit, animated, layer } = effective(p);
+          const { closable, draggable, placeable, resizable, formFactors, enterFrom, exitTo, closeExit, animated, layer, scrollOnDrag } = effective(p);
           const own = slotTuning(workspaceTuning, p.settings?.tuning);
+          const dragScroll: DragScroll | undefined = rowScroll
+            ? { mode: scrollOnDrag, zonePx: own.edgeScroll.zonePx, maxPxPerSec: own.edgeScroll.maxPxPerSec, reducedStepMs: own.edgeScroll.reducedStepMs, instant: !animated, maxScroll, stops }
+            : undefined;
           return (
             <PanelSlotContext.Provider
               key={p.id}
@@ -254,6 +259,7 @@ export function PanelRow({
                 neighborWidths: neighborWidthsAt(p),
                 pinned: anchorTargetOf(p, rootId) === rootId && p.anchor?.position === 'left',
                 tuning: own,
+                dragScroll,
               }}
             >
               <PanelRowSlot

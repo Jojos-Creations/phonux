@@ -818,6 +818,20 @@ horizontal never evaluates `shouldCloseOnRelease`, so residual vertical jitter c
 locked vertical, or one that never locks (a sub-threshold jiggle), runs the close logic unchanged. Without
 `reorder`, for a handle that only closes (History's bar, never a reorder source), `drag` stays `'y'`.
 
+**Edge scrolling.** A mouse or pen drag that locks horizontal in a scrolling row (the slot's `dragScroll`, built from
+the panel's `scrollOnDrag`, `tuning.edgeScroll` and `animated` and the row numbers) takes the row scroller's claim,
+found by its `data-row-scroller` mark and never by computed overflow, so a hidden-overflow container is found too. A
+`requestAnimationFrame` loop then scrolls it while the pointer rests inside a band of `zonePx` at either edge of that
+container (`edgeScrollSpeed`, a linear ramp to `maxPxPerSec`; `edgeScrollStep`, one frame capped at 50 ms), and the
+claim's bound is the row numbers' `maxScroll`, never `scrollWidth`, which the box's own transform inflates. Under
+reduced motion or `animated` false the row instead jumps to the next panel start every `reducedStepMs` the pointer
+stays in a band. The box is drawn at Motion's `x`, which the loop sets to the pointer offset, plus the scroll distance
+as the CSS `translate` property, which Motion's rewrites of `transform` never touch; the release reports the pointer
+offset plus the scroll distance, so the hop rule sees where the box really is, and one spring takes both home, since
+two springs over distances this different would land in different frames. The claim goes back before the hop is
+reported, so the scroll the hop causes is not dropped; a `pointercancel`, which a native pan sends, ends the hold with
+no hop. A touch drag never edge-scrolls: the handle is `touch-action: pan-x`, so a touch swipe is a native pan.
+
 **Alternatives to the gesture.** WCAG 2.5.7 asks for a single-pointer alternative: offer a button that calls
 the same `onClose`, as History's trash buttons do. The row's drag-to-reorder needs one too; `PanelsAPI.move`
 exists for it, but no such control is built.

@@ -82,6 +82,8 @@
   still comes back by the gesture, per its `revealOnScroll`. `free` and `off` install no wheel or key listener.
 - The strip is scrolled once per mount to `tuning.initialScroll` after the restore has settled, unless a wheel or
   pointer-down reached the row first.
+- Dragging a panel's grab bar to the window edge scrolls a scrolling row (mouse and pen); `scrollOnDrag` `none` and
+  `tuning.edgeScroll` turn it off or tune it.
 
 ### Removed
 

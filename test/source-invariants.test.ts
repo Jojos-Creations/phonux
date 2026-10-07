@@ -326,3 +326,42 @@ test('source: usePanelHidden is exported by name from the barrel and read from t
   assert.match(read('index.ts'), /\busePanelHidden\b/);
   assert.match(stripComments(read('PanelRowSlot.tsx'), 'PanelRowSlot.tsx'), /PanelHiddenContext\.Provider/);
 });
+
+/** What edge-scroll code must not contain, each a pattern over comment-stripped source. */
+const EDGE_SCROLL_BANS: ReadonlyArray<[string, RegExp]> = [
+  ['useMemo', /\buseMemo\b/],
+  ['useCallback', /\buseCallback\b/],
+  ['flushSync', /\bflushSync\b/],
+  ['a timer instead of requestAnimationFrame', /\b(?:setInterval|setTimeout)\b/],
+  ['an import of reorderStepsForOffset', /import[^;]*\breorderStepsForOffset\b/],
+];
+const edgeScrollViolations = (source: string): string[] => EDGE_SCROLL_BANS.filter(([, pattern]) => pattern.test(source)).map(([name]) => name);
+
+test('source: edge scrolling uses no memo hook, no flushSync, no timer and never the hop rule, and the bans see a planted violation', () => {
+  for (const file of ['edgeScroll.ts', 'dragToClose.tsx']) {
+    const source = stripComments(read(file), file);
+    assert.match(source, /export /, `${file} still exports, so the scan read the file`);
+    assert.deepEqual(edgeScrollViolations(source), [], `${file} must keep the pointer loop on requestAnimationFrame alone`);
+  }
+  assert.match(stripComments(read('dragToClose.tsx'), 'dragToClose.tsx'), /requestAnimationFrame\(/, 'the loop schedules through requestAnimationFrame');
+  const planted = [
+    "import { flushSync } from 'react-dom';",
+    "import { reorderStepsForOffset } from './panelWindow.js';",
+    'const a = useMemo(() => 1, []); const b = useCallback(() => 2, []);',
+    'setInterval(() => undefined, 16);',
+  ].join('\n');
+  assert.deepEqual(edgeScrollViolations(planted), ['useMemo', 'useCallback', 'flushSync', 'a timer instead of requestAnimationFrame', 'an import of reorderStepsForOffset']);
+  assert.deepEqual(edgeScrollViolations('// setInterval in a comment is stripped before the scan'), ['a timer instead of requestAnimationFrame'], 'the control: an unstripped comment trips the ban');
+  assert.deepEqual(edgeScrollViolations(stripComments('// setInterval in a comment is stripped before the scan\nconst ok = 1;', 'planted.ts')), []);
+});
+
+test("source: the edge-scroll loop reads the row's drag scroll and never `collapsible`", () => {
+  const source = stripComments(read('dragToClose.tsx'), 'dragToClose.tsx');
+  const start = source.indexOf('function useEdgeScroll');
+  const end = source.indexOf('function settleHome');
+  assert.ok(start >= 0 && end > start, 'the hook is found between its neighbours');
+  const hook = source.slice(start, end);
+  assert.match(hook, /dragScroll/);
+  assert.doesNotMatch(hook, /collapsible/);
+  assert.match('function useEdgeScroll() { return slot.collapsible; }', /collapsible/, 'the control: the same check sees a planted read');
+});
