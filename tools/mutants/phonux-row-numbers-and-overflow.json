@@ -1,0 +1,102 @@
+{
+  "tests": [
+    "test/row-numbers.test.ts",
+    "test/row-shell-overflow.test.ts",
+    "test/row-overflow-mount.test.ts",
+    "test/settings-enforcement-overflow.test.ts"
+  ],
+  "mutants": [
+    {
+      "name": "workspaceDefaults is ignored by create",
+      "file": "panels/useProvidePanels.ts",
+      "find": "return i.workspaceDefaults === undefined ? next : next.map((p) => (p.id === id ? withCreatedSettings(p, i.workspaceDefaults!, safeOptions) : p));",
+      "replace": "return next;",
+      "expectRed": [
+        "workspaceDefaults {}: a created entry carries its settings"
+      ]
+    },
+    {
+      "name": "overflow park is treated as scroll",
+      "file": "panelWindow.ts",
+      "find": "return p.collapsible && effective(p).overflow === 'park';",
+      "replace": "return false;",
+      "expectRed": [
+        "overflow differential",
+        "park capacity subtracts the reserved widths"
+      ]
+    },
+    {
+      "name": "reservedWidths is ignored in park capacity",
+      "file": "panels/usePanelManager.ts",
+      "find": "liveWidths, reservedWidths }).maxLiveThatFit",
+      "replace": "liveWidths }).maxLiveThatFit",
+      "expectRed": [
+        "at 1500 a scroll panel beside the root leaves room for one park panel"
+      ]
+    },
+    {
+      "name": "rowMarginLeft is taken from the capped computeRowLayout",
+      "file": "rowNumbers.ts",
+      "find": "rowMarginLeft = !measured || stripWidth > windowWidth ? 0 : (windowWidth - stripWidth) / 2;",
+      "replace": "rowMarginLeft = computeRowLayout({ containerWidth: i.containerWidth, phoneWidth: i.phoneWidth, gap: i.gap, fixedItemCount, liveWidths: widths.slice(fixedItemCount) }).computedRowMarginLeft;",
+      "expectRed": [
+        "the third scroll panel overflows the window"
+      ]
+    },
+    {
+      "name": "a row with no settings gets overflow auto",
+      "file": "Workspace.tsx",
+      "find": "overflowX: scrolls && gesture !== 'off' ? 'auto' : 'hidden',",
+      "replace": "overflowX: gesture !== 'off' ? 'auto' : 'hidden',",
+      "expectRed": [
+        "a row with no settings is hidden and shows no scrollbar rule"
+      ]
+    },
+    {
+      "name": "the marker is counted in computeRowNumbers",
+      "file": "rowNumbers.ts",
+      "find": "const present = i.entries.filter(isPresent);",
+      "replace": "const present = i.entries.filter((p) => isPresent(p) || p.marker === true);",
+      "expectRed": [
+        "the root-less marker is never drawn"
+      ]
+    },
+    {
+      "name": "the scrolling left exit uses minus the own span",
+      "file": "PanelRowSlot.tsx",
+      "find": "return { x: rowScroll ? rest - ownSpan : -ownSpan, opacity: 0 };",
+      "replace": "return { x: -ownSpan, opacity: 0 };",
+      "expectRed": [
+        "parkExitTarget: a scrolling row exits one span from the rest",
+        "a kept slot in a scrolling row leaves for its rest minus one span"
+      ]
+    },
+    {
+      "name": "useProvidePanels takes its cap from the 0.1.0 computeMaxLiveWidth",
+      "file": "panels/useProvidePanels.ts",
+      "find": "const { maxLiveWidth } = rowNumbers;",
+      "replace": "const maxLiveWidth = computeRowNumbers({ entries: [], phoneWidth: i.phoneWidth, containerWidth: i.containerWidth, gap: tuning.rowGap, fixedItemCount: fixedViewCount }).maxLiveWidth;",
+      "expectRed": [
+        "maxLiveWidth comes from computeRowNumbers at every gap"
+      ]
+    },
+    {
+      "name": "maxLiveWidth is applied to every tier",
+      "file": "rowNumbers.ts",
+      "find": "const widths = present.map((p) => panelWidthOf(p, i.phoneWidth, maxLiveWidth));",
+      "replace": "const widths = present.map((p) => ((p.formFactor ?? 'phone') === 'phone' ? i.phoneWidth : maxLiveWidth));",
+      "expectRed": [
+        "a tablet panel keeps its 768"
+      ]
+    },
+    {
+      "name": "maxLiveWidth is applied to no tier",
+      "file": "rowNumbers.ts",
+      "find": "const widths = present.map((p) => panelWidthOf(p, i.phoneWidth, maxLiveWidth));",
+      "replace": "const widths = present.map((p) => panelWidthOf(p, i.phoneWidth, Number.POSITIVE_INFINITY));",
+      "expectRed": [
+        "a desktop panel is clipped to the window"
+      ]
+    }
+  ]
+}

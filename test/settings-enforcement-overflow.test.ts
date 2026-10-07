@@ -218,6 +218,16 @@ test('a scroll panel beside the park panels takes its width out of the budget, a
   assert.deepEqual(p.parked(), [first]);
 });
 
+test('at 1500 a scroll panel beside the root leaves room for one park panel, where the root alone leaves room for two', () => {
+  const beside = provide({ initialEntries: [scrollRoot(), made('s')], containerWidth: 1500, workspaceDefaults: { overflow: 'park' } });
+  for (let i = 0; i < 3; i += 1) act(() => beside.now().create());
+  assert.equal(beside.live().length, 3, 'root, s and one park panel: (1468 - 796) / 406 = 1');
+  cleanup();
+  const alone = provide({ initialEntries: [scrollRoot()], containerWidth: 1500, workspaceDefaults: { overflow: 'park' } });
+  for (let i = 0; i < 3; i += 1) act(() => alone.now().create());
+  assert.equal(alone.live().length, 3, 'root and two park panels: (1468 - 390) / 406 = 2');
+});
+
 test('with no park panel to park, a crowded row overflows and scrolls: no refusal and no park', () => {
   const p = provide({ initialEntries: [scrollRoot()], containerWidth: 1000, workspaceDefaults: { overflow: 'scroll' } });
   for (let i = 0; i < 6; i += 1) act(() => p.now().create());

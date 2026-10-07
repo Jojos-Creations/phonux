@@ -26,6 +26,12 @@
 - `DragToClose`'s `onClose` is optional: without it a release past the close line snaps back.
 - `usePanelHidden()`: true while the panel a view sits in is parked with its view kept mounted and the slot is hidden, so
   the view can pause its own work; false while live, while sliding out and outside a row.
+- `computeRowNumbers` and the type `RowNumbers`: one pure result for a row's widths, resting offsets, margin, strip and
+  window, which the shell, the row and the capacity all read.
+- `PanelsInput.workspaceDefaults`: the workspace's panel settings. Given, a panel made by `create()` and a panel
+  restored from `storage` carries the settings they resolve to; without it entries are built as before.
+- `ProvidedPanels` gains `rowScroll` and `rowNumbers`, `Workspace` gains the optional `rowScroll` and `rowNumbers`
+  props, `PanelRow` gains the optional `rowNumbers` prop, and `RowLayoutInput` gains the optional `reservedWidths`.
 
 ### Changed
 
@@ -65,6 +71,10 @@
   resolved value instead of fixed constants.
 - `DragToClose` reads the slot's `closable` at the release and when its exit ends: a box locked in between springs
   back and does not call `onClose`.
+- An entry that carries settings scrolls instead of parking unless its `overflow` is `park`: the row lays out every
+  such entry, and a strip wider than the window scrolls, hiding its scrollbar under the default `rowGesture`.
+- Park exits start from the panel's rest in a scrolling row, one span to either side, instead of the row's origin.
+- A hand-built row is unchanged: its entries have no settings, park at capacity and keep their numbers.
 
 ### Removed
 
