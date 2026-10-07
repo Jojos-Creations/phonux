@@ -98,19 +98,19 @@ function withCreatedSettings(entry: PanelWindow, defaults: Omit<PanelSettings, '
   const permanent = options?.permanent === true;
   const host: PanelSettings = {
     ...(options?.title !== undefined ? { title: options.title } : {}),
-    ...(permanent ? { parkable: false } : {}),
     ...(!permanent && options?.listed !== undefined ? { listed: options.listed } : {}),
     ...(options?.layer !== undefined ? { layer: options.layer } : {}),
     ...(options?.anchoredEnter === true ? { enterFrom: 'anchor' as const } : {}),
     ...(!permanent && options?.formFactor !== undefined ? { formFactor: options.formFactor } : {}),
   };
-  return applyTemplate(entry, resolvePanelSettings({ workspace: defaults, host }).value, 'create');
+  // A view cannot set `parkable`, so a permanent column is the library's own ask, on the instance layer.
+  return applyTemplate(entry, resolvePanelSettings({ workspace: defaults, host, ...(permanent ? { instance: { parkable: false } } : {}) }).value, 'create');
 }
 
 /** A restored `entry` under the workspace defaults. Its live flag, anchor, tier, size and fixed-column status stay as it was saved. */
 function withRestoredSettings(entry: PanelWindow, defaults: Omit<PanelSettings, 'tuning'>): PanelWindow {
-  const host: PanelSettings = { parkable: entry.collapsible, listed: entry.listed, layer: entry.layer ?? 'base', formFactor: entry.formFactor ?? 'phone' };
-  return applyTemplate(entry, resolvePanelSettings({ workspace: defaults, host }).value, 'reconfigure');
+  const host: PanelSettings = { listed: entry.listed, layer: entry.layer ?? 'base', formFactor: entry.formFactor ?? 'phone' };
+  return applyTemplate(entry, resolvePanelSettings({ workspace: defaults, host, instance: { parkable: entry.collapsible } }).value, 'reconfigure');
 }
 
 /** The four timing leaves of `tuning`, each at its library default when unset or unusable. */
@@ -138,7 +138,7 @@ export interface ProvidedPanels extends PanelsAPI {
   readonly entries: readonly PanelWindow[];
   /** How many always-rendered columns the row has: `PanelsInput.fixedViewCount` when passed, else `count(!collapsible)` over `entries`. Capacity is priced from it. */
   readonly fixedViewCount: number;
-  /** Each live collapsible panel's own width in row order, capped at `maxLiveWidth`: the row's centring margin reads the same array capacity is priced from. */
+  /** Each live collapsible panel's own width in row order, capped at `maxLiveWidth`: the row's centring margin reads the same array the park capacity is priced from. */
   readonly liveWidths: readonly number[];
   /** The widest one live panel can be in this row; `Infinity` until the row is measured (`containerWidth` 0). */
   readonly maxLiveWidth: number;

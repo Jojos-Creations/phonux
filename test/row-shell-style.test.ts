@@ -1,7 +1,7 @@
 /**
  * workspaceShellStyle (Workspace.tsx): the PURE half of the row shell. It turns the measured
- * widths into the values Workspace's markup reads (there is no scrollbar: `overflowX` is always
- * 'hidden'). phonux-app's mount tests pin the same behaviour through the whole page in jsdom; these pin the function itself with plain
+ * widths into the values Workspace's markup reads (a legacy row, one with no settings, is `overflowX` 'hidden';
+ * a scrolling row follows its rowGesture, in test/row-shell-overflow.test.ts). phonux-app's mount tests pin the same behaviour through the whole page in jsdom; these pin the function itself with plain
  * data, so a wrong input (a hard-coded phone width, a parked panel counted as live) fails here by name. No
  * DOM, no React: the function is not a hook.
  */
@@ -24,7 +24,7 @@ const base: WorkspaceShellStyleInput = {
 const phones = (n: number): number[] => Array.from({ length: n }, () => 390);
 const withMeasurement = (measurement: Partial<Pick<WorkspaceShellStyleInput, 'containerWidth' | 'rowResizeSettled'>>): WorkspaceShellStyleInput => ({ ...base, ...measurement });
 
-test('workspaceShellStyle: overflowX is always "hidden" -- there is no scrollbar, whatever the inputs', () => {
+test('workspaceShellStyle: a legacy row (no settings) has overflowX "hidden", whatever the inputs', () => {
   assert.equal(workspaceShellStyle(base).overflowX, 'hidden');
   assert.equal(workspaceShellStyle({ ...base, liveWidths: phones(9) }).overflowX, 'hidden');
   assert.equal(workspaceShellStyle(withMeasurement({ containerWidth: 0 })).overflowX, 'hidden');

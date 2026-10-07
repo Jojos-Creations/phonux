@@ -249,7 +249,32 @@ narrows as the window does. Before the first measurement there is no cap.
 
 A panel at the cap fills the row beside the fixed columns, so nothing else fits beside it, which is also
 true of the same panel at its raw tier width. The capacity rules therefore park and reveal exactly the same
-panels either way; the cap changes how wide the panel is drawn, never which panels are live.
+panels either way, for the panels whose `overflow` is 'park'; the cap changes how wide the panel is drawn,
+never which panels are live.
+
+A row whose entries carry settings with `overflow: 'scroll'` (the library default for every panel built through
+the settings cascade) has no such cap on a fixed column's account: `computeRowNumbers` prices it from the window
+alone. The window is the container less one gap each side; a desktop panel is clipped to it (968 of 1200 at a
+container of 1000) and a tablet panel is not (768). Every drawn entry is laid out, and a strip wider than the
+window scrolls instead of parking anything. The shell, the row and the capacity all read that one result, so they
+cannot disagree: `ProvidedPanels.rowNumbers`.
+
+### Row numbers and overflow
+
+`computeRowNumbers` is the one place a row's widths, resting offsets, margin and strip width are derived. It
+reads `p.settings?.overflow`, never `effective(p).overflow`: a hand-built fixed History reads 'scroll' under
+`effective()`, and a row of hand-built entries must keep its 0.1.0 numbers (`computeMaxLiveWidth` and
+`computeRowLayout`'s margin). Within a scrolling row the margin is 0 once the strip is wider than the window and
+centres it otherwise; before the first measurement the window is unbounded and nothing scrolls.
+
+Only an entry whose `overflow` is 'park' is parked for room. Its capacity is `computeRowLayout` over the widths
+of the live park entries, with the widths of every other drawn entry (the fixed columns and the scroll panels)
+subtracted as `reservedWidths`; the existing floor of one park panel stands, so a crowded row overflows and
+scrolls instead of refusing a panel. A park exit in a scrolling row travels one span from the slot's own rest, not
+to the row's origin, because the strip extends far past the window.
+
+The container's horizontal overflow follows `tuning.rowGesture`: 'step' scrolls with the scrollbar hidden,
+'free' scrolls with it visible, 'off' hides the overflow. A row with no settings is always hidden.
 
 `PanelsAPI.panelList` reports each panel's stored tier `size`. The `panel` prop a resolved view receives
 carries the size it is drawn at, so a view that passes `panel.size` to `Panel`/`PanelFrame` stays inside

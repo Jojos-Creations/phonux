@@ -270,6 +270,30 @@ test('source: usePanelManager and PanelRow use no useMemo or useCallback', () =>
   for (const file of ['panels/usePanelManager.ts', 'PanelRow.tsx']) assert.equal(usesMemo(read(file)), false, `${file} must close over this render's values`);
 });
 
+/** Whether `source` imports flushSync from react-dom, comments and strings excluded. */
+const importsFlushSync = (source: string): boolean => /\bimport\b[^;]*\bflushSync\b/.test(stripComments(source, 'x.ts'));
+
+test('source: rowNumbers.ts imports no flushSync and uses no useMemo or useCallback, and a planted import is found', () => {
+  assert.equal(importsFlushSync("import { flushSync } from 'react-dom';"), true, 'the matcher must find a planted import');
+  assert.equal(importsFlushSync("// import { flushSync } from 'react-dom';"), false);
+  assert.equal(importsFlushSync(read('rowNumbers.ts')), false);
+  assert.equal(usesMemo(read('rowNumbers.ts')), false);
+});
+
+test('source: usePanelManager.ts and useProvidePanels.ts take maxLiveWidth from computeRowNumbers and never name computeMaxLiveWidth', () => {
+  for (const file of ['panels/usePanelManager.ts', 'panels/useProvidePanels.ts']) {
+    assert.doesNotMatch(read(file), /\bcomputeMaxLiveWidth\b/, `${file} names computeMaxLiveWidth, in code or in a comment`);
+    assert.match(read(file), /\bcomputeRowNumbers\b/, `${file} prices from computeRowNumbers`);
+  }
+});
+
+test('source: PanelRowSlot keeps its two motion elements, and PanelRow passes zIndex and enterDirection on lines of their own', () => {
+  assert.equal([...stripComments(read('PanelRowSlot.tsx'), 'PanelRowSlot.tsx').matchAll(/<motion\.div\b/g)].length, 2);
+  const lines = read('PanelRow.tsx').split('\n');
+  assert.ok(lines.find((l) => l.includes('zIndex={')), 'zIndex={ is findable by line');
+  assert.ok(lines.find((l) => l.includes('enterDirection={')), 'enterDirection={ is findable by line');
+});
+
 test('source: a kept slot is hidden from its exit animation\'s promise, never from onAnimationComplete, and PanelRow reads keepMounted only through the latch', () => {
   const slot = stripComments(read('PanelRowSlot.tsx'), 'PanelRowSlot.tsx');
   assert.doesNotMatch(slot, /onAnimationComplete/, 'a callback fires only after a frame, which a zero-length slide never gets');

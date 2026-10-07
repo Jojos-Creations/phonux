@@ -36,7 +36,7 @@ export interface RowLayoutResult {
    * How many live panels the row can show at most: those of `liveWidths` that fit in row order, plus, when all
    * of them fit, however many more `phoneWidth` slots fit in the budget left. With every entry exactly
    * `phoneWidth` this does not depend on `liveWidths.length`, so `[]` (nothing live yet) gives the same ceiling.
-   * The host's panel capacity derives from this.
+   * How many panels whose `overflow` is 'park' may be live at once derives from this; a scrolling row never parks for room.
    */
   maxLiveThatFit: number;
   /** `liveWidths.length`, capped at `maxLiveThatFit`: the centering math's view of what renders. Which
