@@ -1,0 +1,58 @@
+{
+  "tests": [
+    "test/row-scroller.test.ts",
+    "test/row-scroll-mount.test.ts",
+    "test/settings-enforcement-scroll.test.ts",
+    "test/scroll-targets.test.ts"
+  ],
+  "mutants": [
+    {
+      "name": "a claim is bounded by the DOM scrollWidth instead of setMaxScroll",
+      "file": "rowScroller.ts",
+      "find": "write(Math.min(max, Math.max(0, left)));",
+      "replace": "write(Math.min(el.scrollWidth, Math.max(0, left)));",
+      "expectRed": [
+        "a claim is bounded by setMaxScroll and never by the DOM"
+      ]
+    },
+    {
+      "name": "scrollOnOpen is ignored",
+      "file": "panels/useProvidePanels.ts",
+      "find": "settings.scrollOnOpen !== 'none' ? settings.scrollOnOpen : request.forced ? 'into-view' : null",
+      "replace": "'into-view'",
+      "expectRed": [
+        "scrollTo with no align reads the panel scrollOnOpen",
+        "differential scrollOnOpen"
+      ]
+    },
+    {
+      "name": "scrollOnMove is ignored",
+      "file": "panels/useProvidePanels.ts",
+      "find": "k < 0 || effective(entry).scrollOnMove !== 'follow') return;",
+      "replace": "k < 0) return;",
+      "expectRed": [
+        "scrollOnMove none records none",
+        "differential scrollOnMove"
+      ]
+    },
+    {
+      "name": "first paint scrolls to the last panel on restore",
+      "file": "panels/useProvidePanels.ts",
+      "find": "const pendingScrollRef = useRef<ScrollRequest | null>(null);",
+      "replace": "const pendingScrollRef = useRef<ScrollRequest | null>(i.initialEntries?.length ? { id: i.initialEntries[i.initialEntries.length - 1]!.id, kind: 'open', align: null, forced: false, fresh: false, misses: 0 } : null);",
+      "expectRed": [
+        "first paint and a restore record no request"
+      ]
+    },
+    {
+      "name": "initialScroll runs before the restore settles",
+      "file": "panels/useProvidePanels.ts",
+      "find": "if (initialScrollDoneRef.current || !restoreSettled || el === null",
+      "replace": "if (initialScrollDoneRef.current || el === null",
+      "expectRed": [
+        "initialScroll root waits for the restore",
+        "initialScroll end after the restore"
+      ]
+    }
+  ]
+}
