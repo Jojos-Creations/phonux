@@ -1,0 +1,83 @@
+{
+  "tests": [
+    "test/panel-manager-operations.test.ts",
+    "test/raw-mutator-gate.test.ts"
+  ],
+  "mutants": [
+    {
+      "name": "show() records no scroll request",
+      "file": "panels/useProvidePanels.ts",
+      "find": "const scrollForShow = (engineId: string): boolean => requestOpen(engineId);",
+      "replace": "const scrollForShow = (engineId: string): boolean => void engineId === undefined;",
+      "expectRed": [
+        "scrollOnOpen: open() and show() record one request and the row scrolls to the literal target"
+      ]
+    },
+    {
+      "name": "the busy gate never answers busy",
+      "file": "panels/usePanelManager.ts",
+      "find": "    busy: (ids, kind) => {\n      if (ids.some((id) => tokensRef.current.has(id))) return true;\n",
+      "replace": "    busy: (ids, kind) => {\n      if (Date.now() > 0) return false;\n",
+      "expectRed": [
+        "the busy contract gives identical literal rows",
+        "LIMIT:3 is prevented through the manager"
+      ]
+    },
+    {
+      "name": "close checks closable after the engine call",
+      "file": "panels/useProvidePanels.ts",
+      "find": "      if (target.locked || !effective(target).closable) return refused('not-closable', `panel '${panelKey(target)}' cannot be closed`);\n      const token = gate.take([engineId], 'close')!;\n      const changed = closeNow(engineId);\n",
+      "replace": "      const token = gate.take([engineId], 'close')!;\n      const changed = closeNow(engineId);\n      if (target.locked || !effective(target).closable) {\n        gate.release(token);\n        return refused('not-closable', `panel '${panelKey(target)}' cannot be closed`);\n      }\n",
+      "expectRed": [
+        "a refusal touches nothing"
+      ]
+    },
+    {
+      "name": "toggleWhenClosed values swapped",
+      "file": "workspaceCore.ts",
+      "find": "state.settings.toggleWhenClosed === 'reopen' ? reopen(id) : accepted(false)",
+      "replace": "state.settings.toggleWhenClosed === 'ignore' ? reopen(id) : accepted(false)",
+      "expectRed": [
+        "the settings matrix",
+        "toggleWhenClosed and showWhenClosed over the closed, live and parked states"
+      ]
+    },
+    {
+      "name": "hideWhenLast ignores the turn's in-flight set",
+      "file": "panels/usePanelManager.ts",
+      "find": "    const gone = new Set([...ids, ...inFlight(), ...gate.leaving()]);",
+      "replace": "    const gone = new Set([...ids]);",
+      "expectRed": [
+        "hideWhenLast counts what this turn already hides or closes"
+      ]
+    },
+    {
+      "name": "raw mutators take no token",
+      "file": "panels/useProvidePanels.ts",
+      "find": "      const token = gate.takeRaw(idsOf(...a), kind);\n      if (token === undefined) return;\n      fn(...a);\n      gate.release(token);\n",
+      "replace": "      void idsOf;\n      void kind;\n      fn(...a);\n",
+      "expectRed": [
+        "each raw mutator makes a handle call on the panel it touched busy in the same turn"
+      ]
+    },
+    {
+      "name": "close is not exclusive",
+      "file": "panels/usePanelManager.ts",
+      "find": "      if (kind === 'close') return [...tokensRef.current.values()].some((t) => t.source === 'manager');\n      return closeTokenRef.current !== 0;\n",
+      "replace": "      void kind;\n      return false;\n",
+      "expectRed": [
+        "the busy contract gives identical literal rows",
+        "LIMIT:3 is prevented through the manager"
+      ]
+    },
+    {
+      "name": "move() records no follow request",
+      "file": "panels/useProvidePanels.ts",
+      "find": "      const changed = reorderPanel(engineId, direction, source === 'person');\n      if (changed) followPanel(engineId);\n",
+      "replace": "      const changed = reorderPanel(engineId, direction, source === 'person');\n",
+      "expectRed": [
+        "scrollOnMove: an accepted move, place or setFormFactor"
+      ]
+    }
+  ]
+}

@@ -254,7 +254,8 @@ test('source: a planted `.collapsible` read in a new function is found, so the a
 
 /** The member names of the object literal `export function NAME(...)` returns, read from the source text. */
 function returnedKeys(src: string, name: string): string[] {
-  const start = src.indexOf(`export function ${name}(`);
+  const start = src.search(new RegExp(`export function ${name}[<(]`));
+  assert.ok(start >= 0, `${name} not found`);
   const body = src.slice(src.indexOf('return {', start) + 'return {'.length);
   const literal = body.slice(0, body.indexOf('\n  };'));
   return [...literal.matchAll(/^ {4}(\w+)[:(,]/gm)].map((m) => m[1]!);
@@ -264,6 +265,14 @@ test('source: the read handle has exactly id, templateId, getState, getSettings 
   const src = read('panelHandles.ts');
   assert.deepEqual(returnedKeys(src, 'makeHandle'), ['id', 'templateId', 'getState', 'getSettings', 'subscribe']);
   assert.deepEqual(returnedKeys(src, 'makeReader'), ['get', 'list', 'getSnapshot', 'subscribe']);
+});
+
+test('source: the handle a view receives has the five read members and the nine verbs, and no manager', () => {
+  const src = read('panelHandles.ts');
+  assert.deepEqual(returnedKeys(src, 'makeViewHandle'), ['id', 'templateId', 'getState', 'getSettings', 'subscribe', 'show', 'hide', 'toggleVisibility', 'close', 'open', 'move', 'place', 'setFormFactor', 'scrollTo']);
+  const widened = src.replace('    show: (src', '    manager: {},\n    show: (src');
+  assert.notEqual(widened, src, 'control: the plant applied');
+  assert.ok(returnedKeys(widened, 'makeViewHandle').includes('manager'), 'the pin sees a planted member');
 });
 
 test('source: a planted member on the handle or the reader is found, so the shape pin can fail', () => {

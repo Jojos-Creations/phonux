@@ -57,7 +57,7 @@ test('clearAll keeps an initialEntries entry seeded { locked: true, collapsible:
   assert.deepEqual(ids(provider.latest().entries), ['root', 'locked'], 'a locked parkable entry is not clearable, a plain one still is');
 });
 
-test('KNOWN-BAD:3 two closes before a re-render undo in the wrong order', () => {
+test('LIMIT:3 two closes before a re-render undo in the wrong order', () => {
   const provider = mountProvider([root(), entry('a'), entry('b'), entry('c')]);
   act(() => {
     const stale = provider.latest();
