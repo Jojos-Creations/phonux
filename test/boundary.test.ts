@@ -17,8 +17,8 @@ const ROOT = fileURLToPath(new URL('..', import.meta.url));
 const rootSources = (): string[] => readdirSync(ROOT).filter((f) => /[.]tsx?$/.test(f)).sort().map((f) => join(ROOT, f));
 const panelSources = (): string[] => readdirSync(join(ROOT, 'panels')).filter((f) => /[.]tsx?$/.test(f)).sort().map((f) => join(ROOT, 'panels', f));
 
-/** A floor under the scan (40 files): a wrong root or a moved folder scans fewer files and must fail, not pass. */
-const MIN_LIBRARY_FILES = 39;
+/** A floor under the scan (42 files): a wrong root or a moved folder scans fewer files and must fail, not pass. */
+const MIN_LIBRARY_FILES = 41;
 /** Files the scan must include by name, so a scan of the wrong directory cannot clear the floor. */
 const CORE = ['PhoneDetectPrompt.tsx', 'PanelFrame.tsx', 'Panel.tsx', 'fakeHost.ts', 'phoneModels.ts', 'hostApi.tsx'];
 

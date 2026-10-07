@@ -280,6 +280,42 @@ The container's horizontal overflow follows `tuning.rowGesture`: 'step' scrolls 
 carries the size it is drawn at, so a view that passes `panel.size` to `Panel`/`PanelFrame` stays inside
 its slot.
 
+### Scrolling to a panel
+
+`rowScroller.ts` holds one `RowScroller` per scroll container and it is the only writer of that container's
+`scrollLeft`: a glide (the slide duration, instant under `animated: false` and reduced motion), `stop`, and `claim()`,
+an exclusive writer whose bound comes from `setMaxScroll` and never from the DOM, because a dragged box that is a
+transformed descendant would grow `scrollWidth` and a DOM bound would never be reached. A glide stops at pointer-down
+and on a scroll it did not write (more than 1 px from the last value it wrote); the claim holder's writes count as the
+scroller's own. Workspace marks its container `data-row-scroller`, and `closestRowScroller` finds it from any
+descendant by that mark, not by computed overflow.
+
+A request to scroll to a panel (a create, an activate, an undo that restores a live panel, `scrollTo`, and
+`followPanel` from a moved or resized panel that was in view) is recorded in a handler and run in the layout effect of
+the commit that draws the panel, from that commit's row numbers: the target margin of the commit, clamped to
+`maxScrollOf`, never read back from the DOM. One request is pending at a time and the last wins. A request for a panel
+that is not in the row is kept for two commits and then dropped with the note `scroll-request-dropped`; one made while
+a drag holds the claim is dropped with `scroll-dropped-during-drag`. A panel created hidden, a restore, a first paint
+and an automatic return record nothing.
+
+With `rowGesture` `step` one swipe burst, Shift+wheel or arrow key asks for a step. On a scrolling row whose strip is
+wider than its window the step goes through `gestureTarget`: it shows the nearest hidden panel in the direction when
+its `revealOnScroll` allows and no live panel lies between the window's edge and its slot, and otherwise scrolls to
+the next panel start, from the in-flight glide's target. A row with nothing to scroll toward keeps the 0.1.0 swap
+(`scrollRow`). The gesture does nothing while a claim is held.
+
+`tuning.initialScroll` runs once per mount, in a layout effect gated on the restore having settled, on a measured row
+with an entry, with no animation, and not at all when a wheel, a pointer-down or a glide got there first.
+
+#### The seam for a custom scrollbar
+
+A custom scrollbar is deferred. Nothing here blocks it: it would read the strip from `computeRowNumbers`
+(`windowWidth` and `stripWidth`) and the position from `scrollLeft` through the same `RowScroller`, scroll by
+`claim()` the way edge scrolling does, and be switched on by a new workspace tuning key beside `rowGesture`. Three
+tested facts hold the seam: `rowScrollerFor` returns one object per element, `claim()` is exclusive, and a claim's
+writes keep the scroller's last-value bookkeeping so a glide never mistakes them for foreign scrolls. `RowScroller`
+stays internal until the scrollbar exists.
+
 ### The width source
 
 A `'phone'` panel's width is ALWAYS the live phone width -- the model the user picked, `device.size` -- and

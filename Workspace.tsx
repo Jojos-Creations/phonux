@@ -16,6 +16,7 @@ import type { SlideTuning, WorkspaceTuning } from './panelSettings.js';
 import { WorkspaceTuningContext, resolveWorkspaceTuning } from './panelTuning.js';
 import { ROW_GAP, ROW_GESTURE } from './rowConstants.js';
 import type { RowNumbers } from './rowNumbers.js';
+import { rowScrollerFor } from './rowScroller.js';
 import { OverlaySlot } from './windowOverlay.js';
 
 /** The pure half of the row shell's input: the two measured fields the host's row measurement produces,
@@ -127,13 +128,17 @@ export function Workspace(props: WorkspaceProps): React.ReactElement {
   // A row that stops scrolling must not keep the offset it had: the margin that centres it assumes the strip starts at 0.
   React.useLayoutEffect(() => {
     const container = overflowContainerRef.current;
-    if (!scrolls && container !== null && container.scrollLeft !== 0) container.scrollLeft = 0;
+    if (scrolls || container === null || container.scrollLeft === 0) return;
+    const scroller = rowScrollerFor(container);
+    scroller.stop();
+    scroller.glideTo(0, { durationSec: 0, instant: true });
   }, [scrolls, overflowContainerRef]);
   return (
     <WorkspaceTuningContext.Provider value={resolved}>
       <Box
         ref={overflowContainerRef}
         {...rest}
+        data-row-scroller=""
         sx={{
           position: 'relative',
           display: 'flex',

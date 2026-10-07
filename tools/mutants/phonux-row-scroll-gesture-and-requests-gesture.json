@@ -1,0 +1,55 @@
+{
+  "tests": [
+    "test/row-gesture.test.ts",
+    "test/scroll-targets.test.ts",
+    "test/row-scroller.test.ts"
+  ],
+  "mutants": [
+    {
+      "name": "the step gesture takes the nearest panel centre",
+      "file": "scrollTargets.ts",
+      "find": "const next = panelStarts.find((start) => start > base + SAME_STOP_PX);",
+      "replace": "const next = panelStarts.find((start) => start + 195 > base + SAME_STOP_PX);",
+      "expectRed": [
+        "stepTarget over eleven panel starts",
+        "stepTarget takes the next start, not the nearest panel centre"
+      ]
+    },
+    {
+      "name": "the gesture's own consumed events cancel its glide",
+      "file": "panels/useRowScrollGesture.ts",
+      "find": "      armUnlock();",
+      "replace": "      if (locked) container.dispatchEvent(new Event('pointerdown'));\n      armUnlock();",
+      "expectRed": [
+        "a wheel burst of 30 events scrolls exactly one stop"
+      ]
+    },
+    {
+      "name": "a claim is not exclusive",
+      "file": "rowScroller.ts",
+      "find": "if (claimed) return null;",
+      "replace": "",
+      "expectRed": [
+        "while a claim is held glideTo returns false and claim() returns null"
+      ]
+    },
+    {
+      "name": "the gesture is active while a claim is held",
+      "file": "panels/useProvidePanels.ts",
+      "find": "    if (scroller.claimHeld()) return;\n",
+      "replace": "",
+      "expectRed": [
+        "the gesture shows no hidden panel while a claim is held"
+      ]
+    },
+    {
+      "name": "into-view ignores the right padding",
+      "file": "scrollTargets.ts",
+      "find": "i.left + i.width - i.clientWidth + i.gap",
+      "replace": "i.left + i.width - i.clientWidth",
+      "expectRed": [
+        "scrollTargetFor: panel 8 from scrollLeft 0 gives 2670 into view"
+      ]
+    }
+  ]
+}

@@ -32,6 +32,9 @@
   restored from `storage` carries the settings they resolve to; without it entries are built as before.
 - `ProvidedPanels` gains `rowScroll` and `rowNumbers`, `Workspace` gains the optional `rowScroll` and `rowNumbers`
   props, `PanelRow` gains the optional `rowNumbers` prop, and `RowLayoutInput` gains the optional `reservedWidths`.
+- `ProvidedPanels.scrollTo` and `followPanel`. `scrollTo(id, align?)` asks the row to scroll to a panel after the next
+  commit, and a new panel, an activated panel, an undone close and a panel that was in view when it was moved, placed
+  or resized are scrolled to through the same request, per their `scrollOnOpen` and `scrollOnMove`.
 
 ### Changed
 
@@ -75,6 +78,10 @@
   such entry, and a strip wider than the window scrolls, hiding its scrollbar under the default `rowGesture`.
 - Park exits start from the panel's rest in a scrolling row, one span to either side, instead of the row's origin.
 - A hand-built row is unchanged: its entries have no settings, park at capacity and keep their numbers.
+- With `rowGesture` `step`, a swipe or arrow on a scrolling row scrolls one panel instead of swapping; a parked panel
+  still comes back by the gesture, per its `revealOnScroll`. `free` and `off` install no wheel or key listener.
+- The strip is scrolled once per mount to `tuning.initialScroll` after the restore has settled, unless a wheel or
+  pointer-down reached the row first.
 
 ### Removed
 

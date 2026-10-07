@@ -83,3 +83,11 @@ test('module identity: the context-bearing exports of the barrel are the very ob
   const second = (await import(secondInstance)) as { CaptureRegistryProvider: unknown };
   assert.ok(second.CaptureRegistryProvider !== undefined && second.CaptureRegistryProvider !== CaptureRegistryProvider, 'control: a second module instance must yield a distinct provider');
 });
+
+const scrollerNames = (names: readonly string[]): string[] => names.filter((name) => /scroller/i.test(name));
+
+test('the barrel exports nothing named for the row scroller: it stays internal', () => {
+  const names = Object.keys(phonux);
+  assert.deepEqual(scrollerNames(names), []);
+  assert.deepEqual(scrollerNames([...names, 'rowScrollerFor']), ['rowScrollerFor'], 'control: a scratch export with the name is found');
+});

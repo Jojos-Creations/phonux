@@ -237,7 +237,7 @@ test('source: useRowScrollGesture reads gestureLockMs from a ref assigned on eve
   const src = read('panels/useRowScrollGesture.ts');
   assert.match(src, /const gestureLockMsRef = useRef\(gestureLockMs\);\s*gestureLockMsRef\.current = gestureLockMs;/, 'the ref is created and assigned in the render body, like scrollRowRef');
   assert.match(src, /setTimeout\(\(\) => \{\s*locked = false;\s*\}, gestureLockMsRef\.current\);/, 'armUnlock arms the timer from the ref');
-  assert.match(src, /\}, \[overflowContainerRef\]\);/, 'the effect still depends on the container ref alone, so a new lock does not tear the listeners down');
+  assert.match(src, /\}, \[overflowContainerRef, mode\]\);/, 'the effect depends on the container ref and the gesture mode alone, so a new lock does not tear the listeners down');
   assert.doesNotMatch(src, /GESTURE_LOCK_MS = /, 'the module constant is gone');
   assert.match(src, /gestureLockMs: number = GESTURE_LOCK_MS/, 'the parameter defaults to the one constant');
 });
@@ -278,6 +278,14 @@ test('source: rowNumbers.ts imports no flushSync and uses no useMemo or useCallb
   assert.equal(importsFlushSync("// import { flushSync } from 'react-dom';"), false);
   assert.equal(importsFlushSync(read('rowNumbers.ts')), false);
   assert.equal(usesMemo(read('rowNumbers.ts')), false);
+});
+
+test('source: the scroll files import no flushSync and use no useMemo or useCallback, and a planted import is found', () => {
+  assert.equal(importsFlushSync("import { flushSync } from 'react-dom';"), true, 'the matcher must find a planted import');
+  for (const file of ['rowScroller.ts', 'scrollTargets.ts', 'panels/useRowScrollGesture.ts']) {
+    assert.equal(importsFlushSync(read(file)), false, `${file} must not flush a render from a pointer handler`);
+    assert.equal(usesMemo(read(file)), false, `${file} must close over this render's values`);
+  }
 });
 
 test('source: usePanelManager.ts and useProvidePanels.ts take maxLiveWidth from computeRowNumbers and never name computeMaxLiveWidth', () => {

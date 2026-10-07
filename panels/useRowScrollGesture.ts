@@ -1,13 +1,15 @@
 /**
- * The row's scroll gesture: a wheel swipe or an arrow key moves the row one step, bringing a parked panel back from
- * whichever side it sits on.
+ * The row's scroll gesture: a wheel swipe or an arrow key asks for one step in a direction. What a step does is the
+ * caller's: this hook only filters the input, keeps the burst lock and installs the listeners.
+ *
+ * Under `mode` 'free' and 'off' no listener is installed: the browser scrolls natively ('free') or nothing does.
  *
  * Native `addEventListener`, not React's `onWheel`: React's wheel listener is passive, so the `preventDefault()` that
  * keeps a horizontal swipe from also scrolling the page vertically would do nothing.
  *
- * `scrollRow` is read through a ref and never re-subscribed: it is a fresh closure every render (nothing here may be
+ * `onStep` is read through a ref and never re-subscribed: it is a fresh closure every render (nothing here may be
  * memoised), and tearing the listeners down would lose the momentum lock's timer on every re-render, including the
- * one `scrollRow` itself causes.
+ * one `onStep` itself causes.
  */
 import { useEffect, useRef } from 'react';
 import type { RefObject } from 'react';
@@ -21,17 +23,18 @@ import { GESTURE_LOCK_MS } from '../rowConstants.js';
  */
 export function useRowScrollGesture(
   overflowContainerRef: RefObject<HTMLDivElement | null>,
-  scrollRow: (direction: 'left' | 'right') => void,
+  onStep: (direction: 'left' | 'right') => void,
   gestureLockMs: number = GESTURE_LOCK_MS,
+  mode: 'step' | 'free' | 'off' = 'step',
 ): void {
-  const scrollRowRef = useRef(scrollRow);
-  scrollRowRef.current = scrollRow;
+  const onStepRef = useRef(onStep);
+  onStepRef.current = onStep;
   const gestureLockMsRef = useRef(gestureLockMs);
   gestureLockMsRef.current = gestureLockMs;
 
   useEffect(() => {
     const container = overflowContainerRef.current;
-    if (!container) return;
+    if (!container || mode !== 'step') return;
     let locked = false;
     let unlockTimer: ReturnType<typeof setTimeout> | null = null;
     const armUnlock = (): void => {
@@ -50,7 +53,7 @@ export function useRowScrollGesture(
       e.preventDefault();
       if (!locked) {
         locked = true;
-        scrollRowRef.current(amount > 0 ? 'right' : 'left');
+        onStepRef.current(amount > 0 ? 'right' : 'left');
       }
       armUnlock();
     };
@@ -60,7 +63,7 @@ export function useRowScrollGesture(
       const target = e.target as HTMLElement | null;
       const tag = target?.tagName;
       if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || target?.isContentEditable) return;
-      scrollRowRef.current(e.key === 'ArrowRight' ? 'right' : 'left');
+      onStepRef.current(e.key === 'ArrowRight' ? 'right' : 'left');
     };
     container.addEventListener('wheel', onWheel, { passive: false });
     window.addEventListener('keydown', onKeyDown);
@@ -70,7 +73,7 @@ export function useRowScrollGesture(
       if (unlockTimer) clearTimeout(unlockTimer);
     };
     // `overflowContainerRef` is a stable ref object (a useRef in the host's row shell): this effect attaches once,
-    // at mount, and reads the latest `scrollRow` through `scrollRowRef` instead of re-subscribing to it.
+    // at mount, and reads the latest `onStep` through `onStepRef` instead of re-subscribing to it.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [overflowContainerRef]);
+  }, [overflowContainerRef, mode]);
 }
