@@ -208,6 +208,27 @@ test('source: a planted extra writer of locked, collapsible or key in a scratch 
   }
 });
 
+const LIBRARY_FILES = [...readdirSync(ROOT), ...readdirSync(join(ROOT, 'panels')).map((f) => `panels/${f}`)].filter((f) => /[.]tsx?$/.test(f) && !f.endsWith('.d.ts')).sort();
+const OVERRIDES_WRITERS = ['clearOverrides', 'projectWorkspaceState', 'reconcileWorkspace', 'recordOverride'];
+
+test('source: `overrides` is written only inside recordOverride, clearOverrides, reconcileWorkspace and projectWorkspaceState', () => {
+  assert.ok(LIBRARY_FILES.length >= 40, 'the scan list is short');
+  const found = LIBRARY_FILES.flatMap((file) => writesOf(read(file), file, ['overrides']).map((site) => `${file} ${site.fn}`));
+  assert.deepEqual([...new Set(found.map((f) => f.split(' ')[1]))].sort(), OVERRIDES_WRITERS, 'a writer outside the four, or one of them gone');
+  assert.ok(found.length >= OVERRIDES_WRITERS.length, 'control: the scan found every writer');
+});
+
+test('source: a scratch copy of useProvidePanels.ts with a fifth writer of `overrides` is found', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'phonux-invariants-'));
+  try {
+    const copy = join(dir, 'useProvidePanels.ts');
+    writeFileSync(copy, `${read('panels/useProvidePanels.ts')}\nexport function plantedWriter(p: PanelWindow): PanelWindow {\n  return { ...p, overrides: {} };\n}\n`);
+    assert.deepEqual(sitesOf(writesOf(readFileSync(copy, 'utf8'), copy, ['overrides'])), ['plantedWriter:overrides']);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
 /** Functions that still read `.collapsible`: presence, parking and fixed-column bookkeeping. Permission decisions read effective(p). */
 const COLLAPSIBLE_READERS: Record<string, readonly string[]> = {
   'panelWindow.ts': ['firstParkedAfter', 'lastParkedBefore', 'leftmostLiveIndex', 'parksForRoom', 'recordOverride', 'rightmostLiveIndex', 'sideOfLiveRange'],

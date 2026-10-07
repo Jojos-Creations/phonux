@@ -14,12 +14,13 @@ import { applyTemplate, resolvePanelSettings } from '../panelSettings.js';
 import { definePanel } from '../panelTemplate.js';
 import type { PanelTemplate } from '../panelTemplate.js';
 import { appendPanel, createHistoryPanel, recordOverride } from '../panelWindow.js';
-import { computeRowOrder } from '../panelRowOrder.js';
+import { computeRowOrder, deriveAnchorsFromOrder } from '../panelRowOrder.js';
 import { placePanel } from '../panelPlacement.js';
 import { reconcileWorkspace } from '../workspacePlan.js';
 import { projectWorkspaceState } from '../workspaceState.js';
 import { differential, differentialsCovered } from './support/differential.js';
 import { cleanup, mount, panelsInput } from './support/mount-harness.js';
+import { made, mountRow, rootEntry } from './support/scroll-row.js';
 
 registerView('memory-view', ({ panel }) => React.createElement('i', null, panel.title));
 
@@ -525,4 +526,123 @@ test('S2 and S3: over 500 seeded sequences of Host-bag creates, restores and a p
   }
   console.log(`sequences run: ${sequences}`);
   assert.ok(sequences >= 500, `sequences run: ${sequences}`);
+});
+
+// ---------------------------------------------------------------------------
+// A 0.1.0 file, the file this build writes, malformed files, and restoreVisibility
+// ---------------------------------------------------------------------------
+
+interface Vendored {
+  projectWorkspaceState(panels: readonly PanelWindow[], rootId: string): WorkspaceState;
+  isWorkspaceState(value: unknown): boolean;
+}
+const vendored = (): Promise<Vendored> => import(new URL('./fixtures/compat-0.1.0/pkg/workspaceState.js', import.meta.url).href) as Promise<Vendored>;
+
+const deriveAnchors = (entries: PanelWindow[]): PanelWindow[] => deriveAnchorsFromOrder(entries, ROOT);
+const legacyPanel = (id: string, title: string): PanelWindow => appendPanel([], { url: `https://${id}.example`, title, view: 'memory-view' }, id, ROOT)[0]!;
+
+test('a file written by the vendored 0.1.0 projectWorkspaceState restores with one singleton, a tablet web panel at its tier and a dragged order', async () => {
+  const { projectWorkspaceState: legacyProject } = await vendored();
+  const solo = { ...legacyPanel('s', 'solo'), view: 'solo' };
+  const web = { ...legacyPanel('w', 'web'), formFactor: 'tablet' as const };
+  const other = legacyPanel('o', 'other');
+  const file = legacyProject(deriveAnchors([createHistoryPanel(ROOT), web, solo, other]), ROOT);
+  const mem = memory();
+  await mem.storage.save(file);
+  const l = await launch(mem, { workspaceDefaults: {}, templates: [tpl('solo')], declared: [{ id: 'solo', templateId: 'solo', settings: { title: 'solo' } }] });
+  assert.deepEqual(l.titles(), ['web', 'solo', 'other']);
+  assert.equal(l.latest().entries.filter((p) => p.view === 'solo').length, 1);
+  assert.equal(l.byTitle('web').formFactor, 'tablet');
+});
+
+test('a plain 0.1.0 file restores through the engine with no settings, templates or declarations, exactly as 0.1.0 hydrated it', async () => {
+  const { projectWorkspaceState: legacyProject } = await vendored();
+  const file = legacyProject(deriveAnchors([createHistoryPanel(ROOT), legacyPanel('a', 'a'), { ...legacyPanel('b', 'b'), formFactor: 'tablet' as const }]), ROOT);
+  const mem = memory();
+  await mem.storage.save(file);
+  const l = await launch(mem);
+  assert.deepEqual(l.titles(), ['a', 'b']);
+  assert.deepEqual(l.latest().entries.map((p) => [p.settings === undefined, p.key, p.overrides]), [[true, undefined, undefined], [true, undefined, undefined], [true, undefined, undefined]]);
+  assert.equal(l.byTitle('b').formFactor, 'tablet');
+});
+
+test('the file this build writes passes the vendored 0.1.0 isWorkspaceState', async () => {
+  const { isWorkspaceState: legacyGuard } = await vendored();
+  const mem = memory();
+  const l = await launch(mem, { workspaceDefaults: {}, templates: [tpl('m', { multiple: true })], declared: [{ id: 'decl', templateId: 'm' }] });
+  create(l, { title: 'anon' });
+  create(l, { view: 'm', title: 'host', formFactor: 'tablet' });
+  act(() => l.latest().move(idOf(l, 'host'), 'left'));
+  l.flush();
+  const file = mem.file()!;
+  assert.ok(file.panels.some((p) => p.overrides !== undefined && p.instance !== undefined), 'control: the file carries the new keys');
+  assert.equal(legacyGuard(file), true);
+});
+
+test('malformed overrides, dismissed, applied, a duplicate key and a 300-entry dismissed each end settled with the row intact', async () => {
+  const panel = (id: string, over: Record<string, unknown> = {}): Record<string, unknown> => ({ id, view: 'memory-view', url: `https://${id}.example`, title: id, live: true, anchor: { panel: ROOT, position: 'right', priority: Number(id.slice(1)) }, ...over });
+  const cases: Record<string, unknown>[] = [
+    { version: 1, panels: [panel('p0', { overrides: 'x' }), panel('p1')] },
+    { version: 1, dismissed: {}, panels: [panel('p0'), panel('p1')] },
+    { version: 1, panels: [panel('p0', { applied: 7 }), panel('p1')] },
+    { version: 1, panels: [panel('p0', { key: 'dup' }), panel('p1', { key: 'dup' })] },
+    { version: 1, dismissed: Array.from({ length: 300 }, (_, k) => `d${k}`), panels: [panel('p0'), panel('p1')] },
+  ];
+  for (const [k, file] of cases.entries()) {
+    const mem = memory();
+    await mem.storage.save(file as unknown as WorkspaceState);
+    const l = await launch(mem, { workspaceDefaults: {} });
+    assert.equal(l.titles().length >= 1, true, `case ${k}: the row is intact`);
+    create(l, { title: 'later' });
+    l.flush();
+    assert.ok(mem.file()!.panels.length >= 2, `case ${k}: settled, and the next save is not an empty workspace`);
+    assert.ok((mem.file()!.dismissed?.length ?? 0) <= 256, `case ${k}: dismissed is capped`);
+    l.unmount();
+    cleanup();
+  }
+});
+
+test('restoreVisibility saved, live and parked applied to a saved-live and a saved-parked panel: six literal cases', () => {
+  const cases: [PanelSettings['restoreVisibility'], boolean, boolean][] = [
+    ['saved', true, true],
+    ['saved', false, false],
+    ['live', true, true],
+    ['live', false, true],
+    ['parked', true, false],
+    ['parked', false, false],
+  ];
+  for (const [value, wasLive, expected] of cases) {
+    const saved: WorkspaceState = { version: 1, panels: [{ id: 'p', view: 't', url: '', live: wasLive, anchor: { panel: ROOT, position: 'right', priority: 0 }, overrides: {} }] };
+    const result = reconcileWorkspace({ saved, templates: [tpl('t', { restoreVisibility: value, parkable: true })], declared: undefined, rootId: ROOT, current: [], freshId: () => 'f1' });
+    assert.equal(result.entries[0]!.live, expected, `${value} over saved ${wasLive ? 'live' : 'parked'}`);
+  }
+});
+
+test('initialScroll through a throw planted in the load success handler: the row stays unscrolled and the workspace settles', async () => {
+  const row11 = deriveAnchorsFromOrder([rootEntry(), ...Array.from({ length: 10 }, (_, k) => made(`s${k + 1}`))], ROOT);
+  const file = projectWorkspaceState(row11, ROOT);
+  const saves: WorkspaceState[] = [];
+  let thrown = false;
+  const m = mountRow([rootEntry()], 1000, {
+    storage: { load: () => Promise.resolve(file), save: (state) => void saves.push(state) },
+    workspaceDefaults: {},
+    tuning: { initialScroll: 'root', saveQuietMs: QUIET_MS },
+    defaultHostData: () => {
+      if (!thrown) {
+        thrown = true;
+        throw new Error('planted in reconcile');
+      }
+      return null;
+    },
+  });
+  mock.timers.enable({ apis: ['setTimeout'] });
+  const warn = mock.method(console, 'warn', () => undefined);
+  await act(async () => {});
+  assert.equal(thrown, true, 'control: the planted throw ran');
+  assert.equal(m.latest().entries.length, 1, 'nothing from the file was applied');
+  assert.equal(m.container.scrollLeft, 0);
+  act(() => m.latest().create({ view: 'scroll-row-view', title: 'later' }));
+  act(() => mock.timers.tick(QUIET_MS + 50));
+  assert.equal(saves.length, 1, 'saving resumed: the workspace settled');
+  warn.mock.restore();
 });
