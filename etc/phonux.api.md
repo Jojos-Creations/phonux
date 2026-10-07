@@ -510,6 +510,13 @@ export type PanelSettingsResolution = {
 export interface PanelsInput {
     capture?: CaptureTrigger;
     containerWidth: number;
+    declared?: readonly {
+        id: string;
+        templateId: string;
+        settings?: PanelSettings;
+        params?: JsonValue;
+        url?: string;
+    }[];
     defaultHostData?: () => JsonValue;
     fixedViewCount?: number;
     initialEntries?: readonly PanelWindow[];
@@ -527,6 +534,7 @@ export interface PanelsInput {
     resetHostDataOnRestore?: (hostData: JsonValue | undefined, panel: PanelWindow) => JsonValue | undefined;
     rootId: string;
     storage?: WorkspaceStorage;
+    templates?: readonly PanelTemplate[];
     tuning?: WorkspaceTuning;
     workspaceDefaults?: Omit<PanelSettings, 'tuning'>;
 }
@@ -625,16 +633,26 @@ export function panelWidthOf(p: Pick<PanelRowEntry, 'formFactor' | 'size'>, phon
 export interface PanelWindow {
     anchor?: PanelAnchor;
     anchoredEnter?: boolean;
+    applied?: {
+        placeOnAdd: AddPlacement;
+    };
     collapsible: boolean;
+    declared?: true;
     formFactor?: FormFactor;
     hostData?: JsonValue;
     id: string;
+    instance?: PanelSettings;
     key?: string;
     layer?: 'base' | 'raised';
     listed: boolean;
     live: boolean;
     locked: boolean;
     marker?: true;
+    overrides?: {
+        anchor?: PanelAnchor;
+        formFactor?: FormFactor;
+        parkable?: boolean;
+    };
     params?: JsonValue;
     settings?: ResolvedPanelSettings;
     size?: PanelSize;
@@ -1080,6 +1098,23 @@ export type WorkspacePanelState = {
     formFactor?: FormFactor;
     permanent?: boolean;
     layer?: 'base' | 'raised';
+    key?: string;
+    instance?: {
+        [key: string]: JsonValue;
+    };
+    overrides?: {
+        anchor?: {
+            panel: string;
+            position: 'left' | 'right';
+            priority: number;
+        };
+        formFactor?: FormFactor;
+        parkable?: boolean;
+    };
+    applied?: {
+        placeOnAdd: AddPlacement;
+    };
+    closable?: false;
 };
 
 // @public
@@ -1103,6 +1138,8 @@ export interface WorkspaceProps extends Omit<BoxProps, 'children'> {
 export type WorkspaceState = {
     version: 1;
     panels: WorkspacePanelState[];
+    dismissed?: string[];
+    root?: string;
 };
 
 // @public

@@ -4,7 +4,6 @@
  */
 import { test, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
-import * as React from 'react';
 import { PanelManagerError } from '../panelManagerError.js';
 import { applyTemplate, resolvePanelSettings } from '../panelSettings.js';
 import type { PanelSettings } from '../panelSettings.js';
