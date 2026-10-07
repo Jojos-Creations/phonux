@@ -4,6 +4,11 @@
 
 ### Added
 
+- `PanelWindow` gains the optional `instance`, `overrides`, `applied` and `declared`, and `PanelsInput` gains
+  `templates` and `declared`: a workspace file now remembers what a person moved or resized (`overrides`), the
+  `placeOnAdd` that placed each panel (`applied`) and the layer a panel was made with (`instance`), so a changed default
+  moves only the panels nobody touched. The new keys are additive and a 0.1.0 file restores unchanged.
+- A Host-bag `create({ view })` naming a template obeys its `hostCreatable`, `multiple` and `maxInstances`; a restore is exempt.
 - TSDoc on every export of `phonux` and `phonux/testing` and on every member of the exported interfaces, so editors show
   what a prop or call means. `npm run check:api-report` now also fails on an `(undocumented)` line in `etc/`.
 - `PanelWindow` and `PanelRowEntry` gain the optional `marker`: an entry with `marker: true` holds the anchor point
@@ -38,6 +43,8 @@
 
 ### Changed
 
+- A throw inside the restore, once left the workspace unsettled with saving stopped for the session, now takes the
+  failed-load path: the workspace settles and the next change saves.
 - A parked entry whose `keepMounted` is true keeps its view mounted and hidden (`display: none`, `inert`,
   `aria-hidden`) instead of unmounting it after the park exit, and `Panel` unregisters from the capture registry while
   hidden.

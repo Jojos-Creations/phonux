@@ -7,7 +7,7 @@ import { isPresent, type NeighborWidths, type PanelRowEntry } from './panelRowEn
 import { computeRowOrder, deriveAnchorsFromOrder } from './panelRowOrder.js';
 import type { PanelAnchor } from './panelRowOrder.js';
 import { effective } from './panelSettings.js';
-import type { ResolvedPanelSettings } from './panelSettings.js';
+import type { AddPlacement, PanelSettings, ResolvedPanelSettings } from './panelSettings.js';
 import { DEFAULT_PANEL_SIZE, TIER_SIZES } from './panelTiers.js';
 import { HOP_FRACTION } from './rowConstants.js';
 
@@ -52,6 +52,21 @@ export interface PanelWindow {
   settings?: ResolvedPanelSettings;
   /** This entry's stable name, written once when it is created from settings; absent on a hand-built entry, whose `id` stands in. */
   key?: string;
+  /** The instance settings layer this entry was created under, saved for an entry code does not re-declare so a restore resolves it the same way. Only workspace code writes it. */
+  instance?: PanelSettings;
+  /** What the person changed about this entry: where it sits, its tier, whether it is parkable. Present, possibly empty, on an entry that owns only the keys it holds; absent on an entry restored from a 0.1.0 file, which owns its anchor and tier. Written only by `recordOverride`, `clearOverrides` and a restore. */
+  overrides?: {
+    /** Where the person put the entry. */
+    anchor?: PanelAnchor;
+    /** The tier the person chose. */
+    formFactor?: FormFactor;
+    /** Whether the person made the entry parkable. */
+    parkable?: boolean;
+  };
+  /** The `placeOnAdd` value that placed this entry; an untouched entry keeps its saved place only while its resolved `placeOnAdd` still equals it. */
+  applied?: { placeOnAdd: AddPlacement };
+  /** True for an entry created from a declaration in code, which code re-declares at every launch. */
+  declared?: true;
   /** True only for the reserved '__root__' entry a row without a root keeps: it holds the anchor point, is never drawn and never counted as a column or a hop. */
   marker?: true;
 }
@@ -347,6 +362,52 @@ export function setFormFactor(panels: PanelWindow[], id: string, next: FormFacto
   const allowed = effective(target);
   if (!allowed.resizable || !allowed.formFactors.includes(next) || (target.formFactor ?? 'phone') === next) return panels;
   return panels.map((p) => (p.id === id ? { ...p, formFactor: next, size: { ...TIER_SIZES[next] } } : p));
+}
+
+/** Whether `p` records the person's changes at all: it carries settings and its `rememberLayout` is not false. */
+const remembers = (p: PanelWindow, rootId: string): boolean => p.id !== rootId && p.marker !== true && p.settings !== undefined && effective(p).rememberLayout;
+
+/**
+ * Copies each listed entry's CURRENT `key` value (its anchor, its tier, or its `collapsible` as `parkable`) into its
+ * `overrides`, skipping the root, a marker, an entry with no settings and one whose `rememberLayout` is false. The
+ * SAME array when nothing changed, so no commit follows.
+ * @internal
+ */
+export function recordOverride(entries: readonly PanelWindow[], key: 'anchor' | 'formFactor' | 'parkable', ids: readonly string[], rootId: string): PanelWindow[] {
+  const wanted = new Set(ids);
+  const positional = new Map(deriveAnchorsFromOrder(entries, rootId).map((p) => [p.id, p.anchor]));
+  let changed = false;
+  const next = entries.map((p): PanelWindow => {
+    if (!wanted.has(p.id) || !remembers(p, rootId)) return p;
+    const from = p.anchor ?? positional.get(p.id);
+    if (key === 'anchor') {
+      const held = p.overrides?.anchor;
+      if (from === undefined || (held !== undefined && held.panel === from.panel && held.position === from.position && held.priority === from.priority)) return p;
+      changed = true;
+      return { ...p, overrides: { ...p.overrides, anchor: { panel: from.panel, position: from.position, priority: from.priority } } };
+    }
+    const value = key === 'formFactor' ? (p.formFactor ?? 'phone') : p.collapsible;
+    if (p.overrides?.[key] === value) return p;
+    changed = true;
+    return { ...p, overrides: { ...p.overrides, [key]: value } };
+  });
+  return changed ? next : (entries as PanelWindow[]);
+}
+
+/**
+ * Sets `overrides` to `{}` on each listed entry that carries settings. The SAME array only when every such entry
+ * already holds `{}`.
+ * @internal
+ */
+export function clearOverrides(entries: readonly PanelWindow[], ids: readonly string[]): PanelWindow[] {
+  const wanted = new Set(ids);
+  let changed = false;
+  const next = entries.map((p): PanelWindow => {
+    if (!wanted.has(p.id) || p.settings === undefined || (p.overrides !== undefined && Object.keys(p.overrides).length === 0)) return p;
+    changed = true;
+    return { ...p, overrides: {} };
+  });
+  return changed ? next : (entries as PanelWindow[]);
 }
 
 /**

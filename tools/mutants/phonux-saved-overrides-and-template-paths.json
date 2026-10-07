@@ -1,0 +1,62 @@
+{
+  "tests": [
+    "test/workspace-reconcile.test.ts",
+    "test/settings-enforcement-memory.test.ts"
+  ],
+  "mutants": [
+    {
+      "name": "reconcile treats overrides as always owned: an untouched entry keeps its saved anchor whatever the default says",
+      "file": "workspacePlan.ts",
+      "find": "if (owns && heldOverrides!.anchor !== undefined) {\n        anchor = heldOverrides!.anchor;",
+      "replace": "if (!legacy) {\n        anchor = heldOverrides!.anchor ?? anchor;",
+      "expectRed": [
+        "an untouched panel whose default changed follows the new default"
+      ]
+    },
+    {
+      "name": "the applied placeOnAdd is ignored, so an untouched entry is never re-placed",
+      "file": "workspacePlan.ts",
+      "find": "!sameSettingsValue(s.applied?.placeOnAdd, settings.placeOnAdd)",
+      "replace": "false",
+      "expectRed": [
+        "an untouched panel whose default changed follows the new default"
+      ]
+    },
+    {
+      "name": "the hostCreatable gate is removed from the Host-bag create",
+      "file": "panels/useProvidePanels.ts",
+      "find": "  if (!settings.hostCreatable) return false;\n",
+      "replace": "",
+      "expectRed": [
+        "hostCreatable false makes the Host-bag create a no-op"
+      ]
+    },
+    {
+      "name": "a saved closable false is ignored for a view no template rebuilds",
+      "file": "workspacePlan.ts",
+      "find": "template === undefined && s.closable === false ? { ...ask, closable: false } : ask;",
+      "replace": "ask;",
+      "expectRed": [
+        "a saved closable false restores locked"
+      ]
+    },
+    {
+      "name": "lenient mode is made strict, so one bad key discards the panel's settings",
+      "file": "workspacePlan.ts",
+      "find": "const first = resolvePanelSettings(layers, { lenient: true });",
+      "replace": "const first = resolvePanelSettings(layers, { lenient: false });",
+      "expectRed": [
+        "restores with the valid keys and notes"
+      ]
+    },
+    {
+      "name": "overrides.parkable is ignored when the stored overrides are applied",
+      "file": "workspacePlan.ts",
+      "find": "const heldOverrides = s.owned === undefined ? undefined : { ...s.owned,",
+      "replace": "const heldOverrides = s.owned === undefined ? undefined : { ...s.owned, parkable: undefined,",
+      "expectRed": [
+        "a hand-written overrides.parkable false restores"
+      ]
+    }
+  ]
+}

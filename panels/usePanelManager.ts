@@ -28,6 +28,7 @@ import {
   parkLevers,
   parksForRoom,
   promoteToLive,
+  recordOverride,
   rightmostLiveIndex,
   setFormFactor,
   sideOfLiveRange,
@@ -467,7 +468,11 @@ export function usePanelManager(
 
   /** See `UsePanelManagerResult.reorderPanel`'s own doc comment. */
   const reorderPanel = (id: string, direction: 'left' | 'right'): void => {
-    setPanels((prev) => movePanel(prev, id, direction, rootId));
+    setPanels((prev) => {
+      const moved = movePanel(prev, id, direction, rootId);
+      // A drag settles every panel's place for the person, not only the dragged one's.
+      return moved === prev ? prev : recordOverride(moved, 'anchor', moved.map((p) => p.id), rootId);
+    });
   };
 
   /** See `UsePanelManagerResult.resizePanel`'s own doc comment. */
@@ -487,7 +492,7 @@ export function usePanelManager(
       // An earlier call in this same handler may have queued a park of it (its exit mark and stack entry are
       // dropped above): a resize never parks its own panel, so that park is cancelled before anything commits.
       const own = wasLive && resized.some((p) => p.id === id && !p.live) ? resized.map((p) => (p.id === id ? { ...p, live: true } : p)) : resized;
-      return settledKeeping(own, keep);
+      return recordOverride(settledKeeping(own, keep), 'formFactor', [id], rootId);
     });
     return true;
   };

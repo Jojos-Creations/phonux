@@ -15,10 +15,14 @@ import { gestureTarget, scrollTargetFor } from '../scrollTargets.js';
 import { isPresent, summarisePanel } from '../panelRowEntry.js';
 import { panelWidthOf } from '../panelTiers.js';
 import { noopCaptureTrigger, type CaptureTrigger } from '../snapshots.js';
-import { LIBRARY_TUNING_DEFAULTS, applyTemplate, effective, resolvePanelSettings } from '../panelSettings.js';
-import type { PanelSettings, ResolvedWorkspaceTuning, ScrollAlign, SettingNote, WorkspaceTuning } from '../panelSettings.js';
+import { LIBRARY_TUNING_DEFAULTS, effective, resolvePanelSettings } from '../panelSettings.js';
+import type { PanelSettings, PanelSettingsResolution, ResolvedPanelSettings, ResolvedWorkspaceTuning, ScrollAlign, SettingNote, WorkspaceTuning } from '../panelSettings.js';
+import type { PanelTemplate } from '../panelTemplate.js';
+import { reportNotes } from '../panelPlacement.js';
 import { resolveWorkspaceTuning } from '../panelTuning.js';
-import { appendPanel, reanchorPanel, type PanelWindow } from '../panelWindow.js';
+import { appendPanel, recordOverride, reanchorPanel, type PanelWindow } from '../panelWindow.js';
+import { listTemplates } from '../viewRegistry.js';
+import { conflictNotes, finishCreated } from '../workspacePlan.js';
 import { usePanelClosing } from './usePanelClosing.js';
 import { usePanelManager } from './usePanelManager.js';
 import { useRowScrollGesture } from './useRowScrollGesture.js';
@@ -94,10 +98,21 @@ export interface PanelsInput {
    * 'park'. Absent: a panel is built as in 0.1.0, with no settings, and parks at capacity.
    */
   workspaceDefaults?: Omit<PanelSettings, 'tuning'>;
+  /** The panel templates a saved panel and a host-bag `create({ view })` may name, over the ones registered. A `create` naming one obeys its `hostCreatable`, `multiple` and `maxInstances`; a restore is exempt. */
+  templates?: readonly PanelTemplate[];
+  /** The panels code declares: each is created at launch unless the saved file already holds it or the person dismissed it, and is never saved with an instance layer because code gives it again. */
+  declared?: readonly { id: string; templateId: string; settings?: PanelSettings; params?: JsonValue; url?: string }[];
 }
 
-/** `entry`, just built by appendPanel, resolved against the workspace defaults and the options the host-bag `create` carried. */
-function withCreatedSettings(entry: PanelWindow, defaults: Omit<PanelSettings, 'tuning'>, options: CreatePanelOptions | undefined): PanelWindow {
+/** What a host-bag `create` resolved to before any panel exists: the cascade's answer and the layer to save. */
+interface CreatePlan {
+  resolution: PanelSettingsResolution;
+  /** The host and instance asks merged into the one layer the file keeps. */
+  instance: PanelSettings;
+}
+
+/** `options` resolved against the workspace defaults and, for a template view, the template's own layer. A permanent column is a plain view's own ask; a template's panel cannot ask it, which the resolver records as a conflict. */
+function planCreate(options: CreatePanelOptions | undefined, template: PanelTemplate | undefined, defaults: Omit<PanelSettings, 'tuning'>): CreatePlan {
   const permanent = options?.permanent === true;
   const host: PanelSettings = {
     ...(options?.title !== undefined ? { title: options.title } : {}),
@@ -105,15 +120,23 @@ function withCreatedSettings(entry: PanelWindow, defaults: Omit<PanelSettings, '
     ...(options?.layer !== undefined ? { layer: options.layer } : {}),
     ...(options?.anchoredEnter === true ? { enterFrom: 'anchor' as const } : {}),
     ...(!permanent && options?.formFactor !== undefined ? { formFactor: options.formFactor } : {}),
+    ...(permanent && template !== undefined ? { parkable: false } : {}),
   };
-  // A view cannot set `parkable`, so a permanent column is the library's own ask, on the instance layer.
-  return applyTemplate(entry, resolvePanelSettings({ workspace: defaults, host, ...(permanent ? { instance: { parkable: false } } : {}) }).value, 'create');
+  // A view cannot set `parkable`, so a permanent plain column is the library's own ask, on the instance layer.
+  const own: PanelSettings = permanent && template === undefined ? { parkable: false } : {};
+  const { parkable: _asked, ...saved } = host;
+  return {
+    resolution: resolvePanelSettings({ workspace: defaults, ...(template !== undefined ? { template: template.settings } : {}), host, instance: own }),
+    instance: { ...saved, ...own },
+  };
 }
 
-/** A restored `entry` under the workspace defaults. Its live flag, anchor, tier, size and fixed-column status stay as it was saved. */
-function withRestoredSettings(entry: PanelWindow, defaults: Omit<PanelSettings, 'tuning'>): PanelWindow {
-  const host: PanelSettings = { listed: entry.listed, layer: entry.layer ?? 'base', formFactor: entry.formFactor ?? 'phone' };
-  return applyTemplate(entry, resolvePanelSettings({ workspace: defaults, host, instance: { parkable: entry.collapsible } }).value, 'reconfigure');
+/** Whether a host-bag `create` of `template` may add another, given the entries as they stand: `hostCreatable`, `multiple` and `maxInstances`. */
+function mayCreate(settings: ResolvedPanelSettings, templateId: string, entries: readonly PanelWindow[]): boolean {
+  if (!settings.hostCreatable) return false;
+  const have = entries.filter((p) => p.view === templateId).length;
+  if (have > 0 && !settings.multiple) return false;
+  return settings.maxInstances === 'unlimited' || have < settings.maxInstances;
 }
 
 /** The four timing leaves of `tuning`, each at its library default when unset or unusable. */
@@ -309,7 +332,10 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
     freshId,
     defaultHostData: i.defaultHostData,
     saveQuietMs: timing.saveQuietMs,
-    decorateRestored: i.workspaceDefaults === undefined ? undefined : (p) => withRestoredSettings(p, i.workspaceDefaults!),
+    templates: i.templates,
+    declared: i.declared,
+    workspaceDefaults: i.workspaceDefaults,
+    onNote: i.onNote,
   });
 
   // A wheel or pointer-down on the row before the first scroll means the person already chose where to look.
@@ -455,15 +481,35 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
       const hostData = i.defaultHostData?.();
       // "Panel N", not "about:blank": every panel needs a distinguishable title, for testing. options?.title
       // overrides it; the explicit `title:` below (after the spread) is what makes that override win either way.
+      const template = safeOptions?.view === undefined ? undefined : [...listTemplates().filter((t) => !(i.templates ?? []).some((g) => g.id === t.id)), ...(i.templates ?? [])].find((t) => t.id === safeOptions.view);
+      const settingsOn = i.workspaceDefaults !== undefined || template !== undefined || (i.templates?.length ?? 0) > 0 || (i.declared?.length ?? 0) > 0;
+      const plan = settingsOn ? planCreate(safeOptions, template, i.workspaceDefaults ?? {}) : undefined;
+      const settings = plan?.resolution.value;
+      // The gate reads the list as the updater will: this render's copy, then React's.
+      if (template !== undefined && settings !== undefined && !mayCreate(settings, template.id, panels)) return;
       revealPanelProactively(panels, (prev) => {
+        if (template !== undefined && settings !== undefined && !mayCreate(settings, template.id, prev)) return prev;
         const next = appendPanel(
           prev,
-          { url: 'about:blank', hostData, ...safeOptions, title: safeOptions?.title ?? `Panel ${id}` },
+          {
+            url: 'about:blank',
+            hostData,
+            params: template?.params,
+            ...safeOptions,
+            ...(template !== undefined ? { permanent: undefined } : {}),
+            title: safeOptions?.title ?? `Panel ${id}`,
+          },
           id,
           i.rootId,
         );
-        return i.workspaceDefaults === undefined ? next : next.map((p) => (p.id === id ? withCreatedSettings(p, i.workspaceDefaults!, safeOptions) : p));
+        if (plan === undefined || settings === undefined) return next;
+        // A plain view's key is its id; a template's singleton is named by the template.
+        const name = template === undefined ? undefined : settings.multiple ? `${template.id}~${id}` : template.id;
+        return finishCreated({ row: next, id, settings, instance: plan.instance, name, callerPlaced: safeOptions?.anchor !== undefined, rootId: i.rootId });
       });
+      if (plan !== undefined) {
+        reportNotes(i.onNote, conflictNotes(id, plan.resolution.conflicts));
+      }
       requestOpen(id, { fresh: true });
     },
     activate: activatePanel,
@@ -477,7 +523,10 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
     // No keep-live mark and no settle step: settles() reads only the live set's widths and count, never its
     // order, so a reorder cannot unsettle a row, and a DROP later in the handler may park this panel as any other.
     reanchor: (id, anchor) => {
-      setPanels((prev) => reanchorPanel(prev, id, anchor, i.rootId));
+      setPanels((prev) => {
+        const next = reanchorPanel(prev, id, anchor, i.rootId);
+        return next === prev ? prev : recordOverride(next, 'anchor', next.map((p) => p.id), i.rootId);
+      });
       followPanel(id);
     },
     close: (id: string) => {

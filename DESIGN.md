@@ -714,6 +714,45 @@ array, so a restore that brings back more live panels than the current width hol
 ordinary resize does, with no separate fit-checking logic needed in hydrate. The parked flags are then saved like
 any other change.
 
+### What a panel remembers: overrides, applied, and the one reconcile
+
+An entry made under settings also saves `key` (the template id for a singleton, the declaration's id for a
+code-declared panel, `<template>~<id>` for a multiple template, the panel's id for an anonymous one), `instance`
+(the layer the panel was made with: a Host-bag create's asks, or a plain `permanent`; left out for a code-declared
+panel, whose declaration is the source of truth), `overrides` (`anchor`, `formFactor`, `parkable`: what a person did
+with a gesture), `applied` (the `placeOnAdd` that placed the entry last) and `closable: false` when the panel is
+locked. The file also carries `dismissed` (at most 256 keys of declared panels a person closed, the oldest dropped) and
+`root` (the root entry's `key`). All of them are additive, so a 0.1.0 reader ignores them and a 0.1.0 file restores
+unchanged.
+
+- **Ownership.** An entry with no `overrides` is a 0.1.0 entry and owns its anchor and tier as saved. With `overrides`
+  it owns each key present, applied as a user layer on top of the cascade. The gestures that write them
+  (`move`, `reanchor`, `setFormFactor`) call `recordOverride` in the same updater as the change; `clearOverrides`
+  empties them. Only those two and `reconcileWorkspace` write `overrides` on an entry, and `projectWorkspaceState`
+  builds the saved member.
+- **Gestures are gated, restoring is not.** A stored `formFactor` or `anchor` restores although the template now says
+  `resizable: false` or `draggable: false`. A tier outside `formFactors`, or `parkable: false` at a tier above phone,
+  is dropped with an `override-dropped` note and is absent from the next save.
+- **`applied`.** An entry with no override keeps its saved place only while the resolved `placeOnAdd` equals
+  `applied.placeOnAdd`; when the default changed it is placed again. `rememberLayout: false` records and applies
+  nothing and always places by `placeOnAdd`, but stored overrides stay in the file, dormant, so turning it back on
+  applies them.
+- **`persist: 'session'`** entries are not saved. Anchors that named one are rewritten from the order of what is saved,
+  so the neighbours keep their order.
+- **`restoreVisibility`** decides each restored `live`: `saved` keeps the file's flag, `live` and `parked` force it. A
+  fixed column is live whatever it says (C1).
+- **One pure reconcile.** `reconcileWorkspace` draws every fresh id first, then claims a saved entry for each
+  declaration (by key, else the first unkeyed entry of that template, so a 0.1.0 singleton is not made twice), resolves
+  each entry through the cascade with `lenient`, and returns the new entries, the notes and `dismissed`. A saved panel
+  with an unusable instance key restores with the valid ones and a note; a file it cannot read restores nothing and the
+  workspace still settles. It runs inside the load success handler, and a throw there takes the failed-load path.
+- **Creation paths.** A Host-bag `create({ view: templateId })` obeys `hostCreatable`, `multiple` and `maxInstances`;
+  a restore is exempt from all three. `permanent` on a template view is ignored with a `not-view-settable` note
+  naming the host layer's `parkable`, and keeps its 0.1.0 meaning for a plain view. Without `workspaceDefaults`,
+  `templates` or `declared` a create builds the 0.1.0 entry, with no settings.
+- **Declarations need storage.** Code-declared panels are made by the reconcile, which runs inside the persistence
+  hook, so a provider with no `storage` makes none.
+
 ### Versioning and failure
 
 - **Missing.** A missing file -- no saved data at all -- is treated the same as first launch: no saved state, nothing restored.
