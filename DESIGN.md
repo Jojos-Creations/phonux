@@ -1334,6 +1334,14 @@ A verb names a panel, never a row index, and resolves it on every call: a handle
 - **Source.** Every verb takes an internal last parameter, `'code'` (the default) or `'person'`. A person's `move`, `place` or `setFormFactor` records the override a gesture records; code leaves the person's arrangement alone.
 - **Scroll.** An accepted `move`, `place` or `setFormFactor` on a panel in view follows it per `scrollOnMove`; `show` of a parked, hidden or out-of-view live panel and `open` of a closed declared one record one `scrollOnOpen` request.
 
+### Pinning and reset
+
+- **Applying a half.** `pin` and `unpin` apply the panel's pinning definition in one commit, all or nothing. `pin` places (gated by `placeable` as the panel is now), then fixes; `unpin` frees first, then gates `placeable` on the freed panel, then places, so a fixed pin can always be unpinned. A fixing half needs the phone tier (`tier-not-allowed`) and no explicit setting the fix would override (`settings-conflict`, with the offending catalog name in `setting`). A fixed pin never needs room: there is no `no-room` refusal.
+- **Not live.** `pinningWhenNotLive` answers for a parked or hidden panel: `place-only` applies a placement-only half in place and answers `would-reshape-row` for a half naming `parkable`; `refuse` always answers `would-reshape-row`; `show` shows the panel and applies the half in one commit; `apply-on-next-show` stores the half on the entry. A closed declared panel stores it on its record instead.
+- **Deferred pins.** A stored half is applied inside the update of every path that makes the panel live: `show`, a History click, a Host-bag activate, the row gesture, an automatic return, an undo and `open`. It is re-checked there and dropped with the note `deferred-pin-dropped` when it no longer applies. A fixing half sets `live` so a fixed column is never parked. It is session only and never saved.
+- **The person's pin.** A person's pin records `overrides.anchor` (every id, when the half names a placement) and `overrides.parkable` (when it names `parkable`) through `recordOverride`; a code pin flips `parkable` for the session and records nothing.
+- **Reset.** `resetLayout` writes `overrides` only through `clearOverrides`, clears stored deferrals and re-places each named panel by its resolved `placeOnAdd`. `'all'` scrolls nothing; one id follows `scrollOnMove`.
+
 ## Doc comments
 
 An export reachable from `index.ts` or `fakeHost.ts` is documented with TSDoc, the `/** */` syntax API Extractor already

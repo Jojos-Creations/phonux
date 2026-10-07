@@ -29,6 +29,10 @@ const NO_OPS: EngineOps = {
   setFormFactor: () => ({ ok: false, code: 'is-closed', message: 'no engine' }),
   scrollTo: () => ({ ok: false, code: 'is-closed', message: 'no engine' }),
   reopen: () => ({ ok: false, code: 'is-closed', message: 'no engine' }),
+  pin: () => ({ ok: false, code: 'is-closed', message: 'no engine' }),
+  reset: () => ({ ok: false, code: 'is-closed', message: 'no engine' }),
+  inUndoWindow: () => false,
+  resetClosed: () => false,
 };
 
 afterEach(() => cleanup());
@@ -71,14 +75,14 @@ test('the two-template example with a root template: the root and two panels mou
   assert.equal(entries[0]!.view, 'history');
 });
 
-test('a template view receives its panel summary, the fourteen sorted keys of the operable handle (the read-only five and the nine verbs) and the four of the reader', () => {
+test('a template view receives its panel summary, the sixteen sorted keys of the operable handle (the read-only five and the eleven verbs) and the four of the reader', () => {
   const w = createWorkspace({ templates: [markerTemplate('probe')] });
   w.addPanel('probe');
   const m = mountWorkspace(w);
   const node = m.container.querySelector('[data-template="probe"]') as HTMLElement;
   assert.ok(node, 'the template view did not render');
   assert.equal(node.dataset.slot, m.latest().entries.find((p) => p.view === 'probe')!.id, 'panel is the row entry summary');
-  assert.deepEqual(node.dataset.handleKeys!.split(',').sort(), ['close', 'getSettings', 'getState', 'hide', 'id', 'move', 'open', 'place', 'scrollTo', 'setFormFactor', 'show', 'subscribe', 'templateId', 'toggleVisibility'], 'id, templateId, getState, getSettings, subscribe, show, hide, toggleVisibility, close, open, move, place, setFormFactor, scrollTo: 14 keys and no manager');
+  assert.deepEqual(node.dataset.handleKeys!.split(',').sort(), ['close', 'getSettings', 'getState', 'hide', 'id', 'move', 'open', 'pin', 'place', 'scrollTo', 'setFormFactor', 'show', 'subscribe', 'templateId', 'toggleVisibility', 'unpin'], 'id, templateId, getState, getSettings, subscribe, show, hide, toggleVisibility, close, open, move, place, setFormFactor, scrollTo, pin, unpin: 16 keys and no manager');
   assert.equal(node.dataset.managerKeys, 'get,list,getSnapshot,subscribe');
   assert.equal(node.dataset.handleId, 'probe');
 });

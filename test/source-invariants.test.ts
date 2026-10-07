@@ -267,9 +267,9 @@ test('source: the read handle has exactly id, templateId, getState, getSettings 
   assert.deepEqual(returnedKeys(src, 'makeReader'), ['get', 'list', 'getSnapshot', 'subscribe']);
 });
 
-test('source: the handle a view receives has the five read members and the nine verbs, and no manager', () => {
+test('source: the handle a view receives has the five read members and the eleven verbs, and no manager', () => {
   const src = read('panelHandles.ts');
-  assert.deepEqual(returnedKeys(src, 'makeViewHandle'), ['id', 'templateId', 'getState', 'getSettings', 'subscribe', 'show', 'hide', 'toggleVisibility', 'close', 'open', 'move', 'place', 'setFormFactor', 'scrollTo']);
+  assert.deepEqual(returnedKeys(src, 'makeViewHandle'), ['id', 'templateId', 'getState', 'getSettings', 'subscribe', 'show', 'hide', 'toggleVisibility', 'close', 'open', 'move', 'place', 'setFormFactor', 'scrollTo', 'pin', 'unpin']);
   const widened = src.replace('    show: (src', '    manager: {},\n    show: (src');
   assert.notEqual(widened, src, 'control: the plant applied');
   assert.ok(returnedKeys(widened, 'makeViewHandle').includes('manager'), 'the pin sees a planted member');
@@ -339,6 +339,13 @@ test('source: the scroll files import no flushSync and use no useMemo or useCall
   for (const file of ['rowScroller.ts', 'scrollTargets.ts', 'panels/useRowScrollGesture.ts']) {
     assert.equal(importsFlushSync(read(file)), false, `${file} must not flush a render from a pointer handler`);
     assert.equal(usesMemo(read(file)), false, `${file} must close over this render's values`);
+  }
+});
+
+test('source: the pin and reset files import no flushSync, and a planted import is found', () => {
+  assert.equal(importsFlushSync("import { flushSync } from 'react-dom';"), true, 'the matcher must find a planted import');
+  for (const file of ['panelPin.ts', 'panelReset.ts', 'panelManager.ts', 'panelHandles.ts']) {
+    assert.equal(importsFlushSync(read(file)), false, `${file} must not flush a render from a verb`);
   }
 });
 

@@ -1,0 +1,99 @@
+{
+  "tests": [
+    "test/panel-pin.test.ts",
+    "test/panel-pin-deferred.test.ts",
+    "test/panel-reset.test.ts"
+  ],
+  "mutants": [
+    {
+      "name": "isPinned reads a stored flag",
+      "file": "workspaceCore.ts",
+      "find": "pinned: isPinned(e, entries, res.value.pinning, rootId),",
+      "replace": "pinned: (e as { pinned?: boolean }).pinned === true,",
+      "expectRed": [
+        "PanelState.pinned follows the definition"
+      ]
+    },
+    {
+      "name": "unpin places before it frees",
+      "file": "panelPin.ts",
+      "find": "!effective(freed).placeable",
+      "replace": "!effective(entry).placeable",
+      "expectRed": [
+        "pin() then unpin() returns row order, listing and permissions to the start: the pair with row-start and row-end"
+      ]
+    },
+    {
+      "name": "pin applies parkable before the placement check",
+      "file": "panelPin.ts",
+      "find": "half.placement !== undefined && !effective(freed).placeable",
+      "replace": "half.placement !== undefined && !effective(fixedTo === undefined ? freed : reparked(entry, fixedTo)).placeable",
+      "expectRed": [
+        "pin() then unpin() returns row order, listing and permissions to the start: the pair with row-start and row-end"
+      ]
+    },
+    {
+      "name": "pin() records no follow request",
+      "file": "panels/useProvidePanels.ts",
+      "find": "        if (changed) followPanel(engineId);\n        return accepted(changed);",
+      "replace": "        return accepted(changed);",
+      "expectRed": [
+        "pin follows the person: the last panel in view at 3482"
+      ]
+    },
+    {
+      "name": "a deferred pin skipped by an automatic return",
+      "file": "panels/usePanelManager.ts",
+      "find": "liftOn(current, revealId, returnAt, Number.POSITIVE_INFINITY) ?? current",
+      "replace": "promoteToLive(current, revealId, Number.POSITIVE_INFINITY) ?? current",
+      "expectRed": [
+        "the automatic return applied inside the update that makes the panel live"
+      ]
+    },
+    {
+      "name": "deferredPin not cleared by a live pin",
+      "file": "panelPin.ts",
+      "find": "  next = next.map((p) => (p.id === id ? withoutDeferral(p) : p));\n  const changed",
+      "replace": "  const changed",
+      "expectRed": [
+        "a live pin clears a waiting deferral"
+      ]
+    },
+    {
+      "name": "reset leaves overrides.parkable in the file",
+      "file": "panelReset.ts",
+      "find": "clearOverrides(next, named)",
+      "replace": "clearOverrides(next, [])",
+      "expectRed": [
+        "(d) a person-pinned fixed column becomes parkable again"
+      ]
+    },
+    {
+      "name": "reset leaves deferredPin",
+      "file": "panelReset.ts",
+      "find": "const { deferredPin: _gone, ...bare } = reparked(entry, resolution);",
+      "replace": "const bare = reparked(entry, resolution);",
+      "expectRed": [
+        "a stored deferredPin is cleared by resetLayout"
+      ]
+    },
+    {
+      "name": "a code pin recorded as the person's",
+      "file": "panels/useProvidePanels.ts",
+      "find": "pinPanel(engineId, change, source === 'person')",
+      "replace": "pinPanel(engineId, change, true)",
+      "expectRed": [
+        "a person pin records overrides.parkable, a code pin records nothing"
+      ]
+    },
+    {
+      "name": "a deferred parkable:false applied through open() or undo leaves live false (live not normalised)",
+      "file": "panelPin.ts",
+      "find": "return resolution.value.parkable ? next : { ...next, live: true };",
+      "replace": "return next;",
+      "expectRed": [
+        "a deferred parkable:false applied through open() or undo leaves the panel live"
+      ]
+    }
+  ]
+}

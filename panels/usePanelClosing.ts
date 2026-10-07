@@ -21,6 +21,8 @@ interface ClosedView {
   index: number;
   logId: string;
   reported: boolean;
+  /** True once a reset marked it: an undo then restores it by its defaults, placed by its `placeOnAdd`. */
+  reset?: true;
 }
 
 /** What `undoClose` restores in place of the entry that closed: the entry as the workspace would build it now, and where it goes. */
@@ -35,6 +37,8 @@ export interface UsePanelClosingResult {
   closedIds: () => string[];
   /** Restores every view closed inside the window, last closed first, each at its old index; a live one comes back live. */
   undoClose: () => void;
+  /** Marks the view closed inside the window under `id` as reset: `reset` rewrites its entry to the cascade's defaults, and an undo places it by its `placeOnAdd`. False when no such view is in the window. */
+  markReset: (id: string, reset: (panel: PanelWindow) => PanelWindow) => boolean;
   /** The views closed inside the window, oldest first; non-null exactly while the window is open. */
   recentlyClosed: PanelWindow[] | null;
   /**
@@ -94,6 +98,8 @@ export function usePanelClosing(
    * closed and `undoPlacement` is the one it carries, which for an entry with no settings is 'old-slot'.
    */
   reapply?: (panel: PanelWindow) => Reapplied,
+  /** Lands a restored entry that carries a pin change it waited with: the change is applied in the update that restores it. */
+  settle?: (row: PanelWindow[], id: string) => { row: PanelWindow[]; notes: SettingNote[] },
 ): UsePanelClosingResult {
   const [closed, setClosed] = useState<ClosedView[]>([]);
   // Mirrors `closed` synchronously (never via an effect): the timer callback below fires from a closure
@@ -144,7 +150,9 @@ export function usePanelClosing(
       onWindowElapsed?.([found.closed]);
       return true;
     }
-    setClosedBoth([...closedRef.current, { panel: found.closed, index: found.index, logId, reported: settings.reportClose }]);
+    // A pin change the entry waited with dies with it; the one a closed panel waits with is on its record.
+    const { deferredPin: _dropped, ...closedPanel } = found.closed;
+    setClosedBoth([...closedRef.current, { panel: closedPanel, index: found.index, logId, reported: settings.reportClose }]);
     const now = Date.now();
     const end = Math.max(windowEnd.current ?? 0, now + settings.undoWindowMs);
     windowEnd.current = end;
@@ -180,15 +188,21 @@ export function usePanelClosing(
     // Last closed first: each index was taken from the array as it was when THAT view closed, so undoing in reverse re-creates it.
     let working = panels;
     const restoredIds = new Set<string>();
-    for (const { panel, index } of [...batch].reverse()) {
+    for (const { panel, index, reset } of [...batch].reverse()) {
       if (working.some((p) => p.id === panel.id || panelKey(p) === panelKey(panel))) continue;
-      const { panel: rebuilt, placeAs: placeAt } = reapply === undefined ? { panel, placeAs: effective(panel).undoPlacement } : reapply(panel);
+      const { panel: rebuilt, placeAs: ownPlacement } = reapply === undefined ? { panel, placeAs: effective(panel).undoPlacement } : reapply(panel);
+      const placeAt = reset === true ? effective(rebuilt).placeOnAdd : ownPlacement;
       // restorePanel is a pure spread and phonux never reads inside hostData, so the host's own reset runs
       // here, once per panel, and its result is what every call below restores.
       const restoringPanel = resetHostDataOnRestore ? withHostData(rebuilt, resetHostDataOnRestore(rebuilt.hostData, rebuilt)) : rebuilt;
       const at = { rootId, fallback: effective(rebuilt).placeFallback, ...(order !== undefined ? { order } : {}) };
-      const restoreInto = (row: PanelWindow[]): PanelWindow[] => restorePlaced(row, restoringPanel, index, placeAt, at).row;
-      const landed = restorePlaced(working, restoringPanel, index, placeAt, at);
+      const restoreInto = (row: PanelWindow[]): PanelWindow[] => {
+        const restored = restorePlaced(row, restoringPanel, index, placeAt, at).row;
+        return settle === undefined ? restored : settle(restored, panel.id).row;
+      };
+      const placedBack = restorePlaced(working, restoringPanel, index, placeAt, at);
+      const settledBack = settle === undefined ? undefined : settle(placedBack.row, panel.id);
+      const landed = { row: settledBack?.row ?? placedBack.row, notes: [...placedBack.notes, ...(settledBack?.notes ?? [])] };
       reportNotes(onNote, landed.notes);
       if (rebuilt.live) {
         // This restore is one of the two "reappearance" paths that enters from the anchor's side -- mark it
@@ -216,5 +230,11 @@ export function usePanelClosing(
     if (restoredLogIds.length > 0) onPanelsRestored?.(restoredLogIds);
   };
 
-  return { close, forgetClosed, closedIds: () => closedRef.current.map((e) => e.panel.id), undoClose, recentlyClosed: closed.length > 0 ? closed.map((e) => e.panel) : null, closingIds };
+  const markReset = (id: string, reset: (panel: PanelWindow) => PanelWindow): boolean => {
+    if (!closedRef.current.some((e) => e.panel.id === id)) return false;
+    setClosedBoth(closedRef.current.map((e) => (e.panel.id === id ? { ...e, panel: reset(e.panel), reset: true as const } : e)));
+    return true;
+  };
+
+  return { close, forgetClosed, closedIds: () => closedRef.current.map((e) => e.panel.id), undoClose, markReset, recentlyClosed: closed.length > 0 ? closed.map((e) => e.panel) : null, closingIds };
 }
