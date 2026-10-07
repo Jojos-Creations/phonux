@@ -6,7 +6,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { effectiveMaxPanels } from '../panelCapacity.js';
 
-test('effectiveMaxPanels: the full matrix the owner\'s spec names (fixedColumnCount 1: History alone, byte-identical to the pre-permanent-columns floor of 2)', () => {
+test('effectiveMaxPanels: the full matrix (fixedColumnCount 1: History alone, byte-identical to the pre-permanent-columns floor of 2)', () => {
   const cases: Array<[fitCount: number | null, expected: number]> = [
     [4, 4],
     [1, 2],
