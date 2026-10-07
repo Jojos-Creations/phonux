@@ -89,6 +89,9 @@ export interface CreatePanelOptions {
 }
 
 // @public
+export function createWorkspace(o?: WorkspaceOptions): WorkspaceHandle;
+
+// @public
 export const DEFAULT_PANEL_SIZE: PanelSize;
 
 // @public
@@ -363,6 +366,13 @@ export const panelFrameScrollSx: {
 };
 
 // @public
+export interface PanelHandle<P extends JsonValue = JsonValue> extends PanelReadHandle {
+    getState(): PanelState & {
+        readonly params: P | undefined;
+    };
+}
+
+// @public
 export function PanelHeader(input: PanelHeaderProps): React_2.JSX.Element;
 
 // @public
@@ -381,6 +391,14 @@ export interface PanelHeaderRowProps extends Omit<PanelHeaderProps, 'children' |
 
 // @public
 export type PanelId = string;
+
+// @public
+export interface PanelManager {
+    get<P extends JsonValue = JsonValue>(id: PanelId): PanelHandle<P> | undefined;
+    getSnapshot(): PanelSnapshot;
+    list(f?: ListFilter): readonly PanelHandle[];
+    subscribe(l: () => void): () => void;
+}
 
 // @public
 export class PanelManagerError extends Error {
@@ -445,6 +463,7 @@ export function PanelRow(input: {
     maxLiveWidth?: number;
     tuning?: WorkspaceTuning;
     rowNumbers?: RowNumbers;
+    workspace?: WorkspaceHandle;
 }): React_2.ReactElement;
 
 // @public
@@ -536,6 +555,7 @@ export interface PanelsInput {
     storage?: WorkspaceStorage;
     templates?: readonly PanelTemplate[];
     tuning?: WorkspaceTuning;
+    workspace?: WorkspaceHandle;
     workspaceDefaults?: Omit<PanelSettings, 'tuning'>;
 }
 
@@ -1003,6 +1023,12 @@ export const usePanelReorderEligible: () => boolean;
 export const usePanelReorderSteps: () => ((offsetX: number) => number);
 
 // @public
+export function usePanelState(id: PanelId): PanelState | undefined;
+
+// @public
+export function usePanelStates(f?: ListFilter): readonly PanelState[];
+
+// @public
 export const usePanelTuning: () => ResolvedPanelTuning & {
     readonly rowGap: number;
 };
@@ -1023,6 +1049,9 @@ export interface UseViewState {
 
 // @public
 export const useViewState: UseViewState;
+
+// @public
+export function useWorkspaceManager(): PanelReader | undefined;
 
 // @public
 export type ViewComponent<P = JsonValue> = React_2.ComponentType<ViewProps<P>>;
@@ -1080,6 +1109,35 @@ export interface WindowOverlayProps {
 
 // @public
 export function Workspace(props: WorkspaceProps): React_2.ReactElement;
+
+// @public
+export interface WorkspaceHandle {
+    addPanel<P extends JsonValue = JsonValue>(t: PanelTemplate<P> | string, o?: {
+        id?: PanelId;
+        settings?: PanelSettings;
+        params?: P;
+        url?: string;
+    }): PanelHandle<P>;
+    dispose(): void;
+    readonly panels: PanelManager;
+    registerTemplate(t: PanelTemplate): () => void;
+    readonly rootId: string;
+    readonly status: WorkspaceStatus;
+    readonly tuning: ResolvedWorkspaceTuning;
+}
+
+// @public
+export type WorkspaceOptions = {
+    storage?: WorkspaceStorage;
+    defaults?: Omit<PanelSettings, 'tuning'>;
+    root?: PanelTemplate;
+    templates?: readonly PanelTemplate[];
+    order?: () => readonly PanelId[];
+    tuning?: WorkspaceTuning;
+    conflicts?: 'warn' | 'throw' | 'off';
+    newId?: () => string;
+    onError?: (e: unknown) => void;
+};
 
 // @public
 export type WorkspacePanelState = {

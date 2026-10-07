@@ -3,6 +3,7 @@ import * as React from 'react';
 import type { JsonValue, PanelSummary } from './hostApi.js';
 import { PanelManagerError } from './panelManagerError.js';
 import type { PanelTemplate } from './panelTemplate.js';
+import { PanelViewContextValue } from './panelViewContext.js';
 
 /** A View's own props: what it reads about the panel it renders inside. @public */
 export type ViewProps<P = JsonValue> = {
@@ -17,6 +18,8 @@ const registry = new Map<string, ViewComponent>();
 const templates = new Map<string, PanelTemplate>();
 /** One placeholder instance per unregistered key: AnimatePresence tracks a rendered element's own identity, so a fresh component type on every resolve would remount it on every render instead of once. */
 const placeholders = new Map<string, ViewComponent>();
+/** One adapter per template object, for the same reason as the placeholders: a fresh component type on every resolve would remount the panel. */
+const adapters = new WeakMap<PanelTemplate, ViewComponent>();
 
 /**
  * Registers (or replaces) `key`'s component; this module registers nothing itself. Declare `P` with a `type`,
@@ -61,7 +64,33 @@ function placeholderFor(key: string): ViewComponent {
   return UnregisteredPanelPlaceholder;
 }
 
+/**
+ * The component that renders `t` inside a row: it reads the row's workspace from context and renders `t.view` with the
+ * panel, its own read handle and the reader of every panel. Outside a row that has a workspace there is no handle to
+ * give, so it renders the unregistered-view placeholder.
+ * @internal
+ */
+export function templateViewFor(t: PanelTemplate): ViewComponent {
+  const cached = adapters.get(t);
+  if (cached) return cached;
+  function TemplatePanelView({ panel }: { panel: PanelSummary }): React.JSX.Element {
+    const context = React.useContext(PanelViewContextValue);
+    const handle = context?.handleFor(panel.id);
+    if (context === undefined || context.manager === undefined || handle === undefined) {
+      const Fallback = placeholderFor(t.id);
+      return <Fallback panel={panel} />;
+    }
+    const View = t.view as React.ComponentType<{ panel: PanelSummary; handle: typeof handle; manager: NonNullable<typeof context.manager> }>;
+    return <View panel={panel} handle={handle} manager={context.manager} />;
+  }
+  adapters.set(t, TemplatePanelView);
+  return TemplatePanelView;
+}
+
 /** Never throws, never returns nothing: an unregistered key is a typo or a plugin missing THIS session, not a corrupt layout. @public */
 export function resolveView(key: string): ViewComponent {
-  return registry.get(key) ?? placeholderFor(key);
+  const plain = registry.get(key);
+  if (plain) return plain;
+  const template = templates.get(key);
+  return template ? templateViewFor(template) : placeholderFor(key);
 }

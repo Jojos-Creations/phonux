@@ -94,6 +94,8 @@ export interface PanelManagerOptions {
   onNote?: (note: SettingNote) => void;
   /** Only `rowGap`, `returnTieBreak` and `dropTieBreak` are read here. */
   tuning?: WorkspaceTuning;
+  /** The developer's panel order, read by every placement whose value is `'order'`. */
+  order?: () => readonly string[];
 }
 
 /** How a park is classified: a hide that took a hold, or a park the engine made for room. */
@@ -309,7 +311,7 @@ export function usePanelManager(
     }
   };
   /** What a placement of `p` resolves against: the row's root and the panel's own `placeFallback`. */
-  const placing = (p: PanelWindow) => ({ rootId, fallback: effective(p).placeFallback });
+  const placing = (p: PanelWindow) => ({ rootId, fallback: effective(p).placeFallback, ...(options?.order !== undefined ? { order: options.order } : {}) });
   const noteHold = (p: PanelWindow): void => {
     if (!effective(p).listed) noteOnce(holdUnlistedNote(p.id));
   };

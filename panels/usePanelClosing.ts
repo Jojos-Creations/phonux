@@ -80,6 +80,8 @@ export function usePanelClosing(
   resetHostDataOnRestore?: (hostData: JsonValue | undefined, panel: PanelWindow) => JsonValue | undefined,
   /** Receives each note an undo raises (a placement that fell back); whatever it throws is swallowed. */
   onNote?: (note: SettingNote) => void,
+  /** The developer's panel order, read by an undo whose `undoPlacement` is `'order'`. */
+  order?: () => readonly string[],
 ): UsePanelClosingResult {
   const [closed, setClosed] = useState<ClosedView[]>([]);
   // Mirrors `closed` synchronously (never via an effect): the timer callback below fires from a closure
@@ -160,7 +162,7 @@ export function usePanelClosing(
       // here, once per panel, and its result is what every call below restores.
       const restoringPanel = resetHostDataOnRestore ? withHostData(panel, resetHostDataOnRestore(panel.hostData, panel)) : panel;
       const placeAt = effective(panel).undoPlacement;
-      const at = { rootId, fallback: effective(panel).placeFallback };
+      const at = { rootId, fallback: effective(panel).placeFallback, ...(order !== undefined ? { order } : {}) };
       const restoreInto = (row: PanelWindow[]): PanelWindow[] => restorePlaced(row, restoringPanel, index, placeAt, at).row;
       const landed = restorePlaced(working, restoringPanel, index, placeAt, at);
       reportNotes(onNote, landed.notes);

@@ -1,0 +1,121 @@
+{
+  "tests": [
+    "test/workspace-attach.test.ts",
+    "test/workspace-lifecycle.test.ts",
+    "test/workspace-tombstones.test.ts",
+    "test/panel-pin-state.test.ts",
+    "test/source-invariants.test.ts"
+  ],
+  "mutants": [
+    {
+      "name": "addPanel after ready records no scroll request",
+      "file": "panels/useProvidePanels.ts",
+      "find": "requestOpen(req.engineId, { fresh: true });",
+      "replace": "void req;",
+      "expectRed": [
+        "addPanel after ready scrolls to the literal target"
+      ]
+    },
+    {
+      "name": "the attach effect never runs",
+      "file": "panels/useProvidePanels.ts",
+      "find": "core.attach(attachOwner.current);",
+      "replace": "void attachOwner;",
+      "expectRed": [
+        "the two-template example: two templates"
+      ]
+    },
+    {
+      "name": "isPinned reads a stored flag",
+      "file": "panelPin.ts",
+      "find": "  const { pinned, unpinned } = definition;\n",
+      "replace": "  if (Date.now() > 0) return (entry as { pinned?: boolean }).pinned === true;\n  const { pinned, unpinned } = definition;\n",
+      "expectRed": [
+        "PanelState.pinned is the pure isPinned",
+        "(B) row-start and row-end"
+      ]
+    },
+    {
+      "name": "the tombstone for an undone close is never removed",
+      "file": "panels/useProvidePanels.ts",
+      "find": "    undismiss([...keys]);\n",
+      "replace": "    void keys;\n",
+      "expectRed": [
+        "undoing a close removes its tombstone"
+      ]
+    },
+    {
+      "name": "the reporter throws under warn",
+      "file": "workspaceCore.ts",
+      "find": "console.warn(`panel '${id}': ${c.message}`);",
+      "replace": "throw new Error(c.message);",
+      "expectRed": [
+        "conflicts: a template forcing"
+      ]
+    },
+    {
+      "name": "the PanelReader is widened with hide",
+      "file": "panelHandles.ts",
+      "find": "    get: (id) => source.handleOf(id),",
+      "replace": "    hide: () => {},\n    get: (id) => source.handleOf(id),",
+      "expectRed": [
+        "the read handle has exactly id",
+        "a template view receives its panel summary"
+      ]
+    },
+    {
+      "name": "addPanel ignores newId",
+      "file": "workspaceCore.ts",
+      "find": "const suffix = options?.id === undefined && multiple ? newId() : undefined;",
+      "replace": "const suffix = options?.id === undefined && multiple ? nextEngineId() : undefined;",
+      "expectRed": [
+        "newId: an id-less addPanel"
+      ]
+    },
+    {
+      "name": "onError is never called",
+      "file": "workspaceCore.ts",
+      "find": "        o.onError(e);",
+      "replace": "        void e;",
+      "expectRed": [
+        "onError is called exactly once"
+      ]
+    },
+    {
+      "name": "the order option is not passed to resolvePlacement",
+      "file": "workspacePlan.ts",
+      "find": "const placed = placePanel(row, r.id, r.value, { fallback: r.fallback, rootId: i.rootId, ...(i.order !== undefined ? { order: i.order } : {}) });",
+      "replace": "const placed = placePanel(row, r.id, r.value, { fallback: r.fallback, rootId: i.rootId });",
+      "expectRed": [
+        "order: b with placeOnAdd order"
+      ]
+    },
+    {
+      "name": "the template adapter passes no handle",
+      "file": "viewRegistry.tsx",
+      "find": "<View panel={panel} handle={handle} manager={context.manager} />",
+      "replace": "<View panel={panel} handle={undefined as never} manager={context.manager} />",
+      "expectRed": [
+        "a template view receives its panel summary"
+      ]
+    },
+    {
+      "name": "isPinned reads the placement of an (A) half",
+      "file": "panelPin.ts",
+      "find": "  if (byParkable && effective(entry).parkable !== pinned.parkable) return false;\n",
+      "replace": "  if (byParkable && effective(entry).parkable !== pinned.parkable) return false;\n  if (byParkable && pinned.placement === 'row-start' && root !== undefined && !leftOfRoot(entry, row, root)) return false;\n",
+      "expectRed": [
+        "(A) with a named place in only one half"
+      ]
+    },
+    {
+      "name": "the root marker is created with marker false",
+      "file": "workspaceCore.ts",
+      "find": "listed: false, marker: true };",
+      "replace": "listed: false, marker: false };",
+      "expectRed": [
+        "a root-less workspace with two panels keeps one marker entry"
+      ]
+    }
+  ]
+}

@@ -36,6 +36,8 @@ export interface ReconcileInput {
   current: readonly PanelWindow[];
   /** Fresh ids for the new entries; every one is drawn before this returns. */
   freshId(): string;
+  /** The developer's panel order, read by every placement whose value is `'order'`. */
+  order?: () => readonly string[];
 }
 
 /** What `reconcileWorkspace` returns. */
@@ -196,16 +198,22 @@ export function reconcileWorkspace(i: ReconcileInput): ReconcileResult {
 
   const dismissed = file?.dismissed ?? [];
   const restoredKeys = new Set(built.map((p) => p.key));
+  const released = new Set<string>();
   for (const d of declared) {
-    if (restoredKeys.has(d.id) || have.has(d.id) || dismissed.includes(d.id)) continue;
+    if (restoredKeys.has(d.id) || have.has(d.id)) continue;
     const template = templateOf(d.templateId);
     if (template === undefined) {
-      notes.push({ code: 'unknown-template', key: d.templateId, message: `declared panel '${d.id}' names template '${d.templateId}', which is not registered; it was not created` });
+      if (!dismissed.includes(d.id)) notes.push({ code: 'unknown-template', key: d.templateId, message: `declared panel '${d.id}' names template '${d.templateId}', which is not registered; it was not created` });
       continue;
     }
-    const id = i.freshId();
     const resolution = resolvePanelSettings({ workspace, template: template.settings, instance: d.settings }, { lenient: true });
     const settings = resolution.value;
+    // A tombstone keeps a panel closed only while the panel can be closed and stays closed after it: a stale one never hides a locked or returning panel.
+    if (dismissed.includes(d.id)) {
+      if (settings.closable && settings.afterClose === 'stay-closed') continue;
+      released.add(d.id);
+    }
+    const id = i.freshId();
     for (const n of resolution.notes) notes.push({ ...n, panelId: id });
     const skeleton = appendPanel(
       [],
@@ -219,12 +227,12 @@ export function reconcileWorkspace(i: ReconcileInput): ReconcileResult {
 
   let row = computeRowOrder([...i.current, ...built], i.rootId);
   for (const r of replace) {
-    const placed = placePanel(row, r.id, r.value, { fallback: r.fallback, rootId: i.rootId });
+    const placed = placePanel(row, r.id, r.value, { fallback: r.fallback, rootId: i.rootId, ...(i.order !== undefined ? { order: i.order } : {}) });
     row = placed.row;
     notes.push(...placed.notes);
   }
   const added = new Set(built.map((p) => p.id));
-  return { entries: row.filter((p) => added.has(p.id)), notes, dismissed: dismissed.filter((k) => !restoredKeys.has(k)) };
+  return { entries: row.filter((p) => added.has(p.id)), notes, dismissed: dismissed.filter((k) => !restoredKeys.has(k) && !released.has(k)) };
 }
 
 /**
@@ -232,7 +240,7 @@ export function reconcileWorkspace(i: ReconcileInput): ReconcileResult {
  * empty `overrides` and the `placeOnAdd` that places it, and placed there unless the caller gave an anchor itself.
  * `name` is a template panel's key; absent, the entry's key is its id.
  */
-export function finishCreated(i: { row: PanelWindow[]; id: string; settings: ResolvedPanelSettings; instance: PanelSettings; name: string | undefined; callerPlaced: boolean; rootId: string }): PanelWindow[] {
+export function finishCreated(i: { row: PanelWindow[]; id: string; settings: ResolvedPanelSettings; instance: PanelSettings; name: string | undefined; callerPlaced: boolean; rootId: string; order?: () => readonly string[] }): PanelWindow[] {
   const made = i.row.find((p) => p.id === i.id)!;
   const built: PanelWindow = {
     ...applyTemplate(i.name === undefined ? made : { ...made, key: i.name }, i.settings, 'create'),
@@ -244,7 +252,7 @@ export function finishCreated(i: { row: PanelWindow[]; id: string; settings: Res
     [i.id],
   );
   if (i.callerPlaced || i.settings.placeOnAdd === 'row-end') return row;
-  return placePanel(row, i.id, i.settings.placeOnAdd, { fallback: i.settings.placeFallback, rootId: i.rootId }).row;
+  return placePanel(row, i.id, i.settings.placeOnAdd, { fallback: i.settings.placeFallback, rootId: i.rootId, ...(i.order !== undefined ? { order: i.order } : {}) }).row;
 }
 
 /** The notes a host-bag create's conflicts raise, one per setting the cascade overrode or refused. */

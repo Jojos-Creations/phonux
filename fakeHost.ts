@@ -18,11 +18,14 @@ import {
   type SettingsAPI,
 } from './hostApi.js';
 import type { SnapshotsAPI } from './snapshots.js';
+import type { WorkspaceState, WorkspaceStorage } from './workspaceState.js';
 
 // The ./testing entry point has to name every type FakeHost's own declaration reaches, not just Host.
 export type { Host, PhoneSize, DetectedPhone, ClosedPageEntry, JsonValue, FormFactor, PanelSize, PanelSummary, CreatePanelOptions, SettingsAPI, HistoryAPI, PanelsAPI, PhoneDeviceAPI } from './hostApi.js';
 export type { SnapshotsAPI, ViewId, ViewSnapshot } from './snapshots.js';
 export type { PhoneModel } from './phoneModels.js';
+export type { WorkspacePanelState, WorkspaceState, WorkspaceStorage } from './workspaceState.js';
+export type { AddPlacement, AnchorRequest, PanelId } from './panelSettings.js';
 
 /** One recorded call to a fake method, as listed in `FakeHost.calls`. @public */
 export interface FakeCall {
@@ -119,5 +122,21 @@ export function createFakeHost(overrides: FakeOverrides = {}): FakeHost {
     device: { ...device, ...overrides.device },
     snapshots: { ...snapshots, ...overrides.snapshots },
     calls,
+  };
+}
+
+/**
+ * A `WorkspaceStorage` that keeps the saved state in memory: `load` resolves a copy of what `save` last stored, or of
+ * `initial`, and `save` stores a copy, so a test never shares an object with the workspace.
+ * @param initial - The state `load` resolves until the first `save`; `null` for none.
+ * @public
+ */
+export function memoryWorkspaceStorage(initial: WorkspaceState | null = null): WorkspaceStorage {
+  let held: string | null = initial === null ? null : JSON.stringify(initial);
+  return {
+    load: async () => (held === null ? null : (JSON.parse(held) as WorkspaceState)),
+    save: (state) => {
+      held = JSON.stringify(state);
+    },
   };
 }

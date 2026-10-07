@@ -1,0 +1,87 @@
+/**
+ * A mounted provider, Workspace and PanelRow fed by one createWorkspace handle, for the tests that watch panels attach,
+ * restore and render. The container's width is the host's measurement; phone panels are 390 wide.
+ */
+import assert from 'node:assert/strict';
+import * as React from 'react';
+import { act } from 'react';
+import { PanelRow, Workspace, definePanel, useProvidePanels } from '../../index.js';
+import type { PanelsInput, PanelTemplate, ProvidedPanels, SettingNote, WorkspaceHandle } from '../../index.js';
+import { createFakeHost } from '../../fakeHost.js';
+import { rowScrollerFor } from '../../rowScroller.js';
+import { mount, panelsInput, withHost } from './mount-harness.js';
+
+const NONE: ReadonlySet<string> = new Set();
+
+/** A template whose view renders `<i data-slot={panel.id} data-keys={Object.keys(handle)}>` so a test can read what a view receives. */
+export const markerTemplate = (id: string, over: Partial<PanelTemplate> = {}): PanelTemplate =>
+  definePanel({
+    id,
+    view: ({ panel, handle, manager }) =>
+      React.createElement('i', {
+        'data-slot': panel.id,
+        'data-template': id,
+        'data-handle-keys': Object.keys(handle).join(','),
+        'data-manager-keys': Object.keys(manager).join(','),
+        'data-handle-id': handle.id,
+      }),
+    ...over,
+  });
+
+export interface MountedWorkspace {
+  latest: () => ProvidedPanels;
+  container: HTMLDivElement;
+  notes: SettingNote[];
+  /** The `data-slot` ids of the mounted views, in document order. */
+  slots: () => string[];
+  /** Every render's `ProvidedPanels` count; a test reads it to know a commit happened. */
+  renders: () => number;
+  rerender: (next: React.ReactNode) => void;
+  unmount: () => void;
+}
+
+/** `ws` mounted at a measured container `width`; `over` replaces any provider input. */
+export function mountWorkspace(ws: WorkspaceHandle, o: { width?: number; over?: Partial<PanelsInput>; strict?: boolean; withPanelRowWorkspace?: boolean } = {}): MountedWorkspace {
+  const width = o.width ?? 1000;
+  const ref = React.createRef<HTMLDivElement>();
+  const rowRef = React.createRef<HTMLDivElement>();
+  const notes: SettingNote[] = [];
+  let latest: ProvidedPanels | undefined;
+  let renders = 0;
+  function Probe(): React.ReactElement {
+    latest = useProvidePanels(panelsInput({ workspace: ws, rootId: ws.rootId, containerWidth: width, overflowContainerRef: ref, onNote: (n) => void notes.push(n), ...o.over }));
+    renders += 1;
+    const provided = latest;
+    return withHost(
+      React.createElement(
+        Workspace,
+        { overflowContainerRef: ref, rowRef, containerWidth: width, rowResizeSettled: true, phoneWidth: 390, fixedColumnCount: provided.fixedViewCount, liveWidths: provided.liveWidths, rowScroll: provided.rowScroll, rowNumbers: provided.rowNumbers, tuning: provided.tuning } as never,
+        React.createElement(PanelRow, { entries: provided.entries, rootId: ws.rootId, closingIds: NONE, enteringViaAnchorIds: NONE, rowNumbers: provided.rowNumbers, ...(o.withPanelRowWorkspace === false ? {} : { workspace: ws }) }),
+      ),
+      createFakeHost({ panels: provided }),
+    );
+  }
+  const tree = o.strict === true ? React.createElement(React.StrictMode, null, React.createElement(Probe)) : React.createElement(Probe);
+  const mounted = mount(tree);
+  const container = ref.current;
+  assert.ok(container, 'the Workspace never attached its scroll container');
+  return {
+    latest: () => latest!,
+    container,
+    notes,
+    slots: () => [...container.querySelectorAll('[data-slot]')].map((n) => (n as HTMLElement).dataset.slot!),
+    renders: () => renders,
+    rerender: (next) => mounted.rerender(next),
+    unmount: () => mounted.unmount(),
+  };
+}
+
+/** Lets pending promise continuations (a storage load) and their renders run. */
+export const flush = async (): Promise<void> => {
+  await act(async () => {
+    await Promise.resolve();
+    await Promise.resolve();
+  });
+};
+
+export { rowScrollerFor };

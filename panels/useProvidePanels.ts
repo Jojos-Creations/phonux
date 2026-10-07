@@ -6,7 +6,7 @@
  * and the row's numbers (fixedViewCount, liveWidths, maxLiveWidth) beside it.
  */
 
-import { useEffect, useLayoutEffect, useRef, useState, type RefObject } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore, type RefObject } from 'react';
 import { useReducedMotionConfig } from 'motion/react';
 import type { CreatePanelOptions, JsonValue, PanelsAPI } from '../hostApi.js';
 import { computeRowNumbers, maxScrollOf, type RowNumbers } from '../rowNumbers.js';
@@ -15,13 +15,15 @@ import { gestureTarget, scrollTargetFor } from '../scrollTargets.js';
 import { isPresent, summarisePanel } from '../panelRowEntry.js';
 import { panelWidthOf } from '../panelTiers.js';
 import { noopCaptureTrigger, type CaptureTrigger } from '../snapshots.js';
-import { LIBRARY_TUNING_DEFAULTS, effective, resolvePanelSettings } from '../panelSettings.js';
+import { PanelManagerError } from '../panelManagerError.js';
+import { LIBRARY_TUNING_DEFAULTS, applyTemplate, effective, panelKey, resolvePanelSettings } from '../panelSettings.js';
 import type { PanelSettings, PanelSettingsResolution, ResolvedPanelSettings, ResolvedWorkspaceTuning, ScrollAlign, SettingNote, WorkspaceTuning } from '../panelSettings.js';
 import type { PanelTemplate } from '../panelTemplate.js';
 import { reportNotes } from '../panelPlacement.js';
 import { resolveWorkspaceTuning } from '../panelTuning.js';
 import { appendPanel, recordOverride, reanchorPanel, type PanelWindow } from '../panelWindow.js';
 import { listTemplates } from '../viewRegistry.js';
+import { bindingOf, nextEngineId, type CreateRequest, type WorkspaceHandle } from '../workspaceCore.js';
 import { conflictNotes, finishCreated } from '../workspacePlan.js';
 import { usePanelClosing } from './usePanelClosing.js';
 import { usePanelManager } from './usePanelManager.js';
@@ -29,9 +31,7 @@ import { useRowScrollGesture } from './useRowScrollGesture.js';
 import { useWorkspacePersistence } from './useWorkspacePersistence.js';
 import type { WorkspaceStorage } from '../workspaceState.js';
 
-/** Ids for panels this app creates itself. A module counter, bumped only from event handlers and the restore callback (never from a state initialiser or updater), so StrictMode's double invocation cannot skip one. */
-let nextWindowId = 1;
-const freshId = (): string => String(nextWindowId++);
+const NO_SUBSCRIBE = (): (() => void) => () => {};
 
 /** Whether `p`'s `snapshot` setting asks the host's CaptureTrigger for a picture at `event`. */
 const asksForPicture = (p: PanelWindow, event: 'park' | 'close'): boolean => {
@@ -53,6 +53,8 @@ function isEventLike(value: unknown): boolean {
  * @public
  */
 export interface PanelsInput {
+  /** The workspace this hook feeds. Given, the workspace supplies the root, the storage, the templates, the declared panels, the defaults, the tuning and the ids, and `rootId` is ignored; `storage` and `initialEntries` beside it throw `invalid-options`. One workspace feeds one hook. */
+  workspace?: WorkspaceHandle;
   /** The list the provider starts with, read once on mount (the host seeds its always-shown columns here); the provider owns the list from then on. Default: empty. */
   initialEntries?: readonly PanelWindow[];
   /** The id of the row's root entry, the one every anchor leads to -- threaded through to every panelWindow.ts call that needs it. */
@@ -139,6 +141,50 @@ function mayCreate(settings: ResolvedPanelSettings, templateId: string, entries:
   return settings.maxInstances === 'unlimited' || have < settings.maxInstances;
 }
 
+/** `prev` with a panel of `a.template` appended and placed where its `placeOnAdd` says; `declared` marks one code declares again at every launch, which the file saves without an instance layer. */
+function appendFromTemplate(
+  prev: PanelWindow[],
+  a: {
+    template: PanelTemplate;
+    id: string;
+    name: string;
+    settings: PanelSettings | undefined;
+    params: JsonValue | undefined;
+    url: string | undefined;
+    hostData: JsonValue | undefined;
+    defaults: Omit<PanelSettings, 'tuning'> | undefined;
+    rootId: string;
+    order: (() => readonly string[]) | undefined;
+    declared: boolean;
+  },
+): PanelWindow[] {
+  const { value } = resolvePanelSettings({ ...(a.defaults !== undefined ? { workspace: a.defaults } : {}), template: a.template.settings, ...(a.settings !== undefined ? { instance: a.settings } : {}) }, { lenient: true });
+  const params = a.params ?? a.template.params;
+  const next = appendPanel(
+    prev,
+    {
+      url: a.url ?? '',
+      view: a.template.id,
+      ...(value.title !== undefined ? { title: value.title } : {}),
+      ...(params !== undefined ? { params } : {}),
+      ...(a.hostData !== undefined ? { hostData: a.hostData } : {}),
+      listed: value.listed,
+      layer: value.layer,
+      formFactor: value.formFactor,
+      permanent: !value.parkable,
+    },
+    a.id,
+    a.rootId,
+  );
+  const made = finishCreated({ row: next, id: a.id, settings: value, instance: a.settings ?? {}, name: a.name, callerPlaced: false, rootId: a.rootId, ...(a.order !== undefined ? { order: a.order } : {}) });
+  if (!a.declared) return made;
+  return made.map((p) => {
+    if (p.id !== a.id) return p;
+    const { instance: _saved, ...rest } = p;
+    return { ...rest, declared: true as const };
+  });
+}
+
 /** The four timing leaves of `tuning`, each at its library default when unset or unusable. */
 function timingTuning(tuning: WorkspaceTuning | undefined): Required<Pick<WorkspaceTuning, 'saveQuietMs' | 'gestureLockMs' | 'returnTieBreak' | 'dropTieBreak'>> {
   const ms = (value: number | undefined, fallback: number): number => (typeof value === 'number' && Number.isFinite(value) && value >= 0 ? value : fallback);
@@ -219,9 +265,28 @@ export interface ProvidedPanels extends PanelsAPI {
  */
 export function useProvidePanels(i: PanelsInput): ProvidedPanels {
   const capture = i.capture ?? noopCaptureTrigger;
-  const [panels, setPanels] = useState<PanelWindow[]>(() => [...(i.initialEntries ?? [])]);
-  const timing = timingTuning(i.tuning);
-  const tuning = resolveWorkspaceTuning(i.tuning);
+  // The first workspace given is the one this hook serves for its whole life; a later one is reported, never followed.
+  const boundWorkspace = useRef(i.workspace).current;
+  const core = boundWorkspace === undefined ? undefined : bindingOf(boundWorkspace);
+  if (core !== undefined && (i.storage !== undefined || i.initialEntries !== undefined)) {
+    throw new PanelManagerError('invalid-options', `useProvidePanels: ${i.storage !== undefined ? 'storage' : 'initialEntries'} beside workspace; give the storage or the root to createWorkspace instead`);
+  }
+  useEffect(() => {
+    if (i.workspace !== boundWorkspace) console.error('useProvidePanels: the workspace changed while mounted and the first one stays attached; give the component a key so a new workspace remounts it.');
+  }, [i.workspace, boundWorkspace]);
+  const rootId = core?.rootId ?? i.rootId;
+  const [panels, setPanels] = useState<PanelWindow[]>(() => (core !== undefined ? core.initialEntries() : [...(i.initialEntries ?? [])]));
+  const tuningInput = core?.tuningInput ?? i.tuning;
+  const timing = timingTuning(tuningInput);
+  const workspaceTuning = useSyncExternalStore(core?.subscribe ?? NO_SUBSCRIBE, () => core?.tuning, () => core?.tuning);
+  const tuning = workspaceTuning ?? resolveWorkspaceTuning(tuningInput);
+  const freshId = core?.newId ?? nextEngineId;
+  const workspaceDefaults = core?.defaults ?? i.workspaceDefaults;
+  const ownTemplates = (): readonly PanelTemplate[] => (core !== undefined ? core.templates() : (i.templates ?? []));
+  const templateList = (): PanelTemplate[] => {
+    const own = ownTemplates();
+    return [...listTemplates().filter((t) => !own.some((g) => g.id === t.id)), ...own];
+  };
   const fixedViewCount = i.fixedViewCount ?? panels.filter((p) => !p.collapsible && p.marker !== true).length;
   // Filters over the whole list, never an array position: a panel anchored left of History changes none of these.
   const rowNumbers = computeRowNumbers({ entries: panels, phoneWidth: i.phoneWidth, containerWidth: i.containerWidth, gap: tuning.rowGap, fixedItemCount: fixedViewCount });
@@ -278,10 +343,13 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
     exitRightIds,
     releaseHold,
     heldIds,
-  } = usePanelManager(panels, setPanels, i.phoneWidth, i.containerWidth, fixedViewCount, i.rootId, {
+  } = usePanelManager(panels, setPanels, i.phoneWidth, i.containerWidth, fixedViewCount, rootId, {
     onNote: i.onNote,
     tuning: { rowGap: tuning.rowGap, returnTieBreak: timing.returnTieBreak, dropTieBreak: timing.dropTieBreak },
+    ...(core?.order !== undefined ? { order: core.order } : {}),
   });
+
+  core?.observe(panels, heldIds);
 
   // A shown panel the page asked for, whether it was parked or already live out of view, is scrolled to once it is in.
   const activatePanel = (id: string): void => {
@@ -324,18 +392,78 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
   // The row's wheel/arrow-key gesture is wired here, not in the host, so a host stays free of effects and refs.
   useRowScrollGesture(i.overflowContainerRef, stepRow, timing.gestureLockMs, tuning.rowGesture);
 
-  const { restoreSettled } = useWorkspacePersistence({
-    storage: i.storage,
+  const { restoreSettled, dismiss, undismiss, isDismissed } = useWorkspacePersistence({
+    storage: core?.storage ?? i.storage,
     panels,
     setPanels,
-    rootId: i.rootId,
+    rootId,
     freshId,
     defaultHostData: i.defaultHostData,
     saveQuietMs: timing.saveQuietMs,
-    templates: i.templates,
-    declared: i.declared,
-    workspaceDefaults: i.workspaceDefaults,
+    templates: core !== undefined ? ownTemplates : i.templates,
+    declared: core !== undefined ? core.declared : i.declared,
+    workspaceDefaults,
     onNote: i.onNote,
+    order: core?.order,
+    onError: core?.reportError,
+    replay: core !== undefined,
+  });
+
+  const createFromWorkspace = (req: CreateRequest): void => {
+    const template = templateList().find((t) => t.id === req.templateId);
+    if (template === undefined) return;
+    // Built here, outside the updater below: React may run an updater twice and the host's builder is not required to be pure.
+    const hostData = i.defaultHostData?.();
+    revealPanelProactively(panels, (prev) =>
+      prev.some((p) => panelKey(p) === req.id)
+        ? prev
+        : appendFromTemplate(prev, { template, id: req.engineId, name: req.id, settings: req.settings, params: req.params, url: req.url, hostData, defaults: workspaceDefaults, rootId, order: core?.order, declared: false }),
+    );
+    requestOpen(req.engineId, { fresh: true });
+  };
+
+  // A template registered after the restore settled: its placeholder entries are rebuilt from it, and the panels code declared for it are created.
+  const lateRegister = (t: PanelTemplate): void => {
+    setPanels((prev) => {
+      let next = prev;
+      const rebuilt = prev.map((p) => {
+        if (p.view !== t.id || p.key !== undefined || p.marker === true || p.id === rootId) return p;
+        const { value } = resolvePanelSettings({ ...(workspaceDefaults !== undefined ? { workspace: workspaceDefaults } : {}), template: t.settings, ...(p.instance !== undefined ? { instance: p.instance } : {}) }, { lenient: true });
+        return { ...applyTemplate(p, value, 'reconfigure'), key: value.multiple ? `${t.id}~${p.id}` : t.id };
+      });
+      if (rebuilt.some((p, k) => p !== prev[k])) next = rebuilt;
+      for (const d of core?.declared() ?? []) {
+        if (d.templateId !== t.id || next.some((p) => panelKey(p) === d.id)) continue;
+        const resolved = resolvePanelSettings({ ...(workspaceDefaults !== undefined ? { workspace: workspaceDefaults } : {}), template: t.settings, ...(d.settings !== undefined ? { instance: d.settings } : {}) }, { lenient: true }).value;
+        if (isDismissed(d.id) && resolved.closable && resolved.afterClose === 'stay-closed') continue;
+        next = appendFromTemplate(next, { template: t, id: freshId(), name: d.id, settings: d.settings, params: d.params, url: d.url, hostData: i.defaultHostData?.(), defaults: workspaceDefaults, rootId, order: core?.order, declared: true });
+      }
+      return next;
+    });
+  };
+
+  const attachOwner = useRef({});
+  useLayoutEffect(() => {
+    if (core === undefined) return;
+    core.attach(attachOwner.current);
+    return () => core.detach(attachOwner.current);
+    // Mount only: the workspace this hook serves never changes.
+  }, []);
+  // A pointer to the newest committed controls, written after every commit and never during render.
+  useLayoutEffect(() => {
+    core?.publish({ entries: panels, held: heldIds, settled: restoreSettled, create: createFromWorkspace, lateRegister });
+  });
+
+  // A declared panel that left the list while its `afterClose` is 'stay-closed' is remembered; one that is back is forgotten. An unmount is not a close: nothing runs on cleanup.
+  const lastListRef = useRef<readonly PanelWindow[] | null>(null);
+  useLayoutEffect(() => {
+    if (!restoreSettled) return;
+    const before = lastListRef.current;
+    lastListRef.current = panels;
+    if (before === null || before === panels) return;
+    const keys = new Set(panels.map(panelKey));
+    dismiss(before.filter((p) => p.declared === true && !keys.has(panelKey(p)) && effective(p).afterClose === 'stay-closed').map(panelKey));
+    undismiss([...keys]);
   });
 
   // A wheel or pointer-down on the row before the first scroll means the person already chose where to look.
@@ -368,7 +496,7 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
     if (where === 'end') {
       to = maxScroll;
     } else if (where !== 'start') {
-      const k = rowNumbers.ids.indexOf(where === 'root' ? i.rootId : where.panel);
+      const k = rowNumbers.ids.indexOf(where === 'root' ? rootId : where.panel);
       if (k >= 0) {
         const left = tuning.rowGap + rowNumbers.rowMarginLeft + rowNumbers.leftOffsets[k]!;
         to = scrollTargetFor({ left, width: rowNumbers.widths[k]!, scrollLeft: 0, clientWidth: windowOf(el), maxScroll, gap: tuning.rowGap, align: 'start' });
@@ -443,7 +571,7 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
     panels,
     setPanels,
     revealPanelProactively,
-    i.rootId,
+    rootId,
     (id, remaining) => {
       forgetCollapsed(id);
       releaseHold(id);
@@ -466,6 +594,7 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
     i.onPanelsRestored,
     i.resetHostDataOnRestore,
     i.onNote,
+    core?.order,
   );
 
   const api: ProvidedPanels = {
@@ -481,9 +610,9 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
       const hostData = i.defaultHostData?.();
       // "Panel N", not "about:blank": every panel needs a distinguishable title, for testing. options?.title
       // overrides it; the explicit `title:` below (after the spread) is what makes that override win either way.
-      const template = safeOptions?.view === undefined ? undefined : [...listTemplates().filter((t) => !(i.templates ?? []).some((g) => g.id === t.id)), ...(i.templates ?? [])].find((t) => t.id === safeOptions.view);
-      const settingsOn = i.workspaceDefaults !== undefined || template !== undefined || (i.templates?.length ?? 0) > 0 || (i.declared?.length ?? 0) > 0;
-      const plan = settingsOn ? planCreate(safeOptions, template, i.workspaceDefaults ?? {}) : undefined;
+      const template = safeOptions?.view === undefined ? undefined : templateList().find((t) => t.id === safeOptions.view);
+      const settingsOn = core !== undefined || workspaceDefaults !== undefined || template !== undefined || (i.templates?.length ?? 0) > 0 || (i.declared?.length ?? 0) > 0;
+      const plan = settingsOn ? planCreate(safeOptions, template, workspaceDefaults ?? {}) : undefined;
       const settings = plan?.resolution.value;
       // The gate reads the list as the updater will: this render's copy, then React's.
       if (template !== undefined && settings !== undefined && !mayCreate(settings, template.id, panels)) return;
@@ -500,12 +629,12 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
             title: safeOptions?.title ?? `Panel ${id}`,
           },
           id,
-          i.rootId,
+          rootId,
         );
         if (plan === undefined || settings === undefined) return next;
         // A plain view's key is its id; a template's singleton is named by the template.
         const name = template === undefined ? undefined : settings.multiple ? `${template.id}~${id}` : template.id;
-        return finishCreated({ row: next, id, settings, instance: plan.instance, name, callerPlaced: safeOptions?.anchor !== undefined, rootId: i.rootId });
+        return finishCreated({ row: next, id, settings, instance: plan.instance, name, callerPlaced: safeOptions?.anchor !== undefined, rootId, ...(core?.order !== undefined ? { order: core.order } : {}) });
       });
       if (plan !== undefined) {
         reportNotes(i.onNote, conflictNotes(id, plan.resolution.conflicts));
@@ -524,8 +653,8 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
     // order, so a reorder cannot unsettle a row, and a DROP later in the handler may park this panel as any other.
     reanchor: (id, anchor) => {
       setPanels((prev) => {
-        const next = reanchorPanel(prev, id, anchor, i.rootId);
-        return next === prev ? prev : recordOverride(next, 'anchor', next.map((p) => p.id), i.rootId);
+        const next = reanchorPanel(prev, id, anchor, rootId);
+        return next === prev ? prev : recordOverride(next, 'anchor', next.map((p) => p.id), rootId);
       });
       followPanel(id);
     },

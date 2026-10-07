@@ -5,6 +5,24 @@
 ```ts
 
 // @public
+export type AddPlacement = 'row-start' | 'row-end' | 'parkable-start' | 'parkable-end' | 'after-fixed' | 'order' | {
+    before: PanelId;
+} | {
+    after: PanelId;
+} | {
+    anchor: AnchorRequest & {
+        panel: PanelId;
+    };
+};
+
+// @public
+export type AnchorRequest = {
+    panel?: PanelId;
+    position: 'left' | 'right';
+    priority?: number;
+};
+
+// @public
 export interface ClosedPageEntry {
     closedAt: string;
     id: string;
@@ -86,6 +104,12 @@ export interface Host {
 export type JsonValue = string | number | boolean | null | readonly JsonValue[] | {
     readonly [key: string]: JsonValue;
 };
+
+// @public
+export function memoryWorkspaceStorage(initial?: WorkspaceState | null): WorkspaceStorage;
+
+// @public
+export type PanelId = string;
 
 // @public
 export interface PanelsAPI {
@@ -179,6 +203,56 @@ export interface ViewSnapshot {
     readonly viewId: ViewId;
     readonly width: number;
 }
+
+// @public
+export type WorkspacePanelState = {
+    id: string;
+    view: string;
+    url: string;
+    title?: string;
+    params?: JsonValue;
+    listed?: boolean;
+    live: boolean;
+    anchor: {
+        panel: string;
+        position: 'left' | 'right';
+        priority: number;
+    };
+    formFactor?: FormFactor;
+    permanent?: boolean;
+    layer?: 'base' | 'raised';
+    key?: string;
+    instance?: {
+        [key: string]: JsonValue;
+    };
+    overrides?: {
+        anchor?: {
+            panel: string;
+            position: 'left' | 'right';
+            priority: number;
+        };
+        formFactor?: FormFactor;
+        parkable?: boolean;
+    };
+    applied?: {
+        placeOnAdd: AddPlacement;
+    };
+    closable?: false;
+};
+
+// @public
+export type WorkspaceState = {
+    version: 1;
+    panels: WorkspacePanelState[];
+    dismissed?: string[];
+    root?: string;
+};
+
+// @public
+export type WorkspaceStorage = {
+    load(): Promise<WorkspaceState | null>;
+    save(state: WorkspaceState): void;
+};
 
 // (No @packageDocumentation comment for this package)
 
