@@ -8,7 +8,10 @@ import assert from 'node:assert/strict';
 import { computeRowOrder } from '../panelRowOrder.js';
 import { DEFAULT_PANEL_SIZE, TIER_SIZES } from '../panelTiers.js';
 import { appendPanel, createHistoryPanel } from '../panelWindow.js';
-import { hydrateWorkspaceState, isWorkspaceState, projectWorkspaceState } from '../workspaceState.js';
+import { applyTemplate, resolvePanelSettings } from '../panelSettings.js';
+import type { PanelSettings } from '../panelSettings.js';
+import { DISMISSED_LIMIT, cleanDismissed, cleanSavedExtras, hydrateWorkspaceState, isWorkspaceState, projectWorkspaceState } from '../workspaceState.js';
+import type { Dropped } from '../workspaceState.js';
 import type { JsonValue, PanelWindow, WorkspacePanelState, WorkspaceState } from '../index.js';
 
 const ROOT = 'history';
@@ -287,4 +290,130 @@ test('W10 isWorkspaceState accepts a good file and extra keys, and rejects every
     assert.equal(isWorkspaceState(control), false, label);
   }
   for (const value of [null, undefined, 0, 1, 'text', true, [], [good()], () => good()]) assert.equal(isWorkspaceState(value), false, String(value));
+});
+
+/** A panel as a creation path builds it: appendPanel's skeleton resolved by `layer`, carrying settings and a key. */
+const made = (id: string, layer: PanelSettings = {}, over: Partial<PanelWindow> = {}): PanelWindow => {
+  const skeleton = appendPanel([], { url: `https://${id}.example`, title: id }, id, ROOT)[0]!;
+  return { ...applyTemplate({ ...skeleton, ...over }, resolvePanelSettings({ template: layer }).value, 'create') };
+};
+const rowOf = (...entries: PanelWindow[]): PanelWindow[] => computeRowOrder([createHistoryPanel(ROOT), ...entries], ROOT);
+
+test('W11 project writes key, instance, overrides, applied and closable for an entry that carries settings, and nothing for a hand-built one', () => {
+  const carrying = made('a', { closable: false }, { overrides: { formFactor: 'tablet' }, applied: { placeOnAdd: 'row-end' }, instance: { title: 'A' } });
+  const state = projectWorkspaceState(rowOf(carrying, panel('b')), ROOT);
+  const [a, b] = state.panels;
+  assert.deepEqual({ key: a!.key, instance: a!.instance, overrides: a!.overrides, applied: a!.applied, closable: a!.closable }, { key: 'a', instance: { title: 'A' }, overrides: { formFactor: 'tablet' }, applied: { placeOnAdd: 'row-end' }, closable: false });
+  for (const key of ['key', 'instance', 'overrides', 'applied', 'closable']) assert.equal(key in b!, false, `a hand-built entry has no ${key}`);
+});
+
+test('W12 project writes instance only for an entry code does not declare, and an empty one when it holds none', () => {
+  const [declared, anonymous] = projectWorkspaceState(rowOf(made('d', {}, { declared: true, instance: { title: 'ignored' } }), made('x')), ROOT).panels;
+  assert.equal('instance' in declared!, false);
+  assert.deepEqual(anonymous!.instance, {});
+});
+
+test('W13 project never writes deferredPin, hostData, size or settings, and drops a function a settings layer holds', () => {
+  const carrying = made('a', {}, { hostData: { secret: 1 }, instance: { title: 'T', headerButtons: { b: { onPress: () => undefined } } } as unknown as PanelSettings });
+  const entry = projectWorkspaceState(rowOf({ ...carrying, deferredPin: { by: 'pin' } } as PanelWindow), ROOT).panels[0]! as Record<string, unknown>;
+  for (const key of ['deferredPin', 'hostData', 'size', 'settings', 'locked', 'collapsible']) assert.equal(key in entry, false, key);
+  assert.equal(JSON.stringify(entry.instance), '{"title":"T","headerButtons":{"b":{}}}');
+});
+
+test('W14 project leaves out a persist:session panel and reads the anchors that named it off the order that remains', () => {
+  const session = made('s', { persist: 'session' });
+  const row = rowOf(session, made('a', {}, { anchor: { panel: 's', position: 'right', priority: 0 } }), made('b', {}, { anchor: { panel: 's', position: 'right', priority: 1 } }), made('c'));
+  assert.deepEqual(row.map((p) => p.id), [ROOT, 's', 'a', 'b', 'c'], 'control: the row is ordered through the session panel');
+  const state = projectWorkspaceState(row, ROOT);
+  assert.deepEqual(state.panels.map((p) => p.id), ['a', 'b', 'c']);
+  assert.deepEqual(state.panels.map((p) => p.anchor), [
+    { panel: ROOT, position: 'right', priority: 0 },
+    { panel: ROOT, position: 'right', priority: 1 },
+    { panel: ROOT, position: 'right', priority: 2 },
+  ]);
+});
+
+test('W15 project keeps an anchor that names a panel the row never held, as 0.1.0 did', () => {
+  const ghost: PanelWindow = panel('p', { anchor: { panel: 'ghost', position: 'left', priority: 3 } });
+  assert.deepEqual(projectWorkspaceState([createHistoryPanel(ROOT), ghost], ROOT).panels[0]!.anchor, { panel: 'ghost', position: 'left', priority: 3 });
+});
+
+test('W16 project rewrites an overrides.anchor that names an unsaved panel to the entry\'s own place in the order', () => {
+  const session = made('s', { persist: 'session' });
+  const owner = made('a', {}, { overrides: { anchor: { panel: 's', position: 'left', priority: 0 } } });
+  const state = projectWorkspaceState(rowOf(session, owner), ROOT);
+  assert.deepEqual(state.panels[0]!.overrides, { anchor: { panel: ROOT, position: 'right', priority: 0 } });
+});
+
+test('W17 project writes dismissed only when it holds a key, and root only when the root entry carries a key and settings', () => {
+  assert.equal('dismissed' in projectWorkspaceState([createHistoryPanel(ROOT)], ROOT), false);
+  assert.deepEqual(projectWorkspaceState([createHistoryPanel(ROOT)], ROOT, ['gone']).dismissed, ['gone']);
+  assert.equal('root' in projectWorkspaceState([createHistoryPanel(ROOT)], ROOT), false, 'a hand-built root names nothing');
+  const keyedRoot = applyTemplate(createHistoryPanel(ROOT), resolvePanelSettings({ template: { title: 'History' } }, { root: true }).value, 'create');
+  assert.equal(projectWorkspaceState([{ ...keyedRoot, key: 'history' }], ROOT).root, 'history');
+});
+
+test('W18 a file this build writes passes isWorkspaceState and survives JSON', () => {
+  const state = projectWorkspaceState(rowOf(made('a', {}, { overrides: {}, applied: { placeOnAdd: 'row-end' } }), made('b')), ROOT, ['x']);
+  assert.equal(isWorkspaceState(JSON.parse(JSON.stringify(state))), true);
+});
+
+test('W19 isWorkspaceState does not reject an entry for a malformed additive key', () => {
+  const entry = { ...saved('a'), key: 5, instance: [], overrides: 'x', applied: 7, closable: true };
+  assert.equal(isWorkspaceState({ version: 1, panels: [entry], dismissed: {} }), true);
+});
+
+const extras = (more: Record<string, unknown>, seen: Set<string> = new Set()): { out: ReturnType<typeof cleanSavedExtras>; dropped: Dropped[] } => {
+  const dropped: Dropped[] = [];
+  return { out: cleanSavedExtras({ ...saved('a'), ...more } as WorkspacePanelState, seen, dropped), dropped };
+};
+
+const malformed: { name: string; more: Record<string, unknown>; dropped: string; has: string }[] = [
+  { name: "overrides 'x'", more: { overrides: 'x' }, dropped: 'overrides', has: 'owned' },
+  { name: 'an overrides.anchor without a position', more: { overrides: { anchor: { panel: 'b', priority: 1 } } }, dropped: 'overrides.anchor', has: '' },
+  { name: 'an overrides.formFactor outside the tiers', more: { overrides: { formFactor: 'watch' } }, dropped: 'overrides.formFactor', has: '' },
+  { name: 'an overrides.parkable that is not a boolean', more: { overrides: { parkable: 'yes' } }, dropped: 'overrides.parkable', has: '' },
+  { name: 'an applied without placeOnAdd', more: { applied: {} }, dropped: 'applied', has: 'applied' },
+  { name: 'an empty key', more: { key: '' }, dropped: 'key', has: 'key' },
+  { name: 'an instance that is an array', more: { instance: [] }, dropped: 'instance', has: 'instance' },
+  { name: 'a closable that is true', more: { closable: true }, dropped: 'closable', has: 'closable' },
+];
+for (const { name, more, dropped, has } of malformed) {
+  test(`W20 cleanSavedExtras drops ${name} with a note and keeps the rest`, () => {
+    const { out, dropped: notes } = extras({ ...more, key: has === 'key' ? '' : 'k' });
+    assert.ok(notes.some((n) => n.key === dropped), `a note names ${dropped}`);
+    if (has === 'owned') assert.equal(out.owned, undefined);
+    else if (has !== '') assert.equal(has in out && (out as Record<string, unknown>)[has] !== undefined, false, `${has} is gone`);
+    if (has !== 'key') assert.equal(out.key, 'k', 'control: the well-formed key survived');
+  });
+}
+
+test('W21 cleanSavedExtras keeps a well-formed set whole, and drops the second entry that repeats a key', () => {
+  const whole = { key: 'k', instance: { title: 'T' }, overrides: { anchor: { panel: 'b', position: 'left', priority: 1 }, formFactor: 'tablet', parkable: false }, applied: { placeOnAdd: 'row-end' }, closable: false };
+  const seen = new Set<string>();
+  const first = extras(whole, seen);
+  assert.deepEqual(first.dropped, []);
+  assert.deepEqual(first.out, { key: 'k', instance: { title: 'T' }, owned: whole.overrides, applied: whole.applied, closable: false });
+  const second = extras({ key: 'k' }, seen);
+  assert.equal(second.out.key, undefined);
+  assert.equal(second.dropped.length, 1);
+});
+
+test('W22 cleanDismissed keeps strings only, once each, the newest 256, and reads a non-array as empty with a note', () => {
+  const dropped: Dropped[] = [];
+  assert.deepEqual(cleanDismissed(['a', 5, '', 'b', 'a'], dropped), ['b', 'a']);
+  const many = Array.from({ length: 300 }, (_, k) => `k${k}`);
+  const kept = cleanDismissed(many, dropped);
+  assert.equal(kept.length, DISMISSED_LIMIT);
+  assert.equal(kept[0], 'k44');
+  assert.equal(kept[255], 'k299');
+  assert.deepEqual(cleanDismissed({}, dropped), []);
+  assert.deepEqual(dropped.map((d) => d.key), ['dismissed']);
+  assert.deepEqual(cleanDismissed(undefined, dropped), []);
+});
+
+test('W23 hydrate locks an entry saved with closable false and leaves every other unlocked', () => {
+  const state = file(saved('a', { closable: false }), saved('b'));
+  const [a, b] = hydrateWorkspaceState(state, drawFrom(['1', '2']), ROOT);
+  assert.deepEqual([a!.locked, b!.locked], [true, false]);
 });

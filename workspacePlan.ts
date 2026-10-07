@@ -66,7 +66,8 @@ function keptInstance(instance: PanelSettings, resolution: PanelSettingsResoluti
     if (note.code !== 'invalid-saved-setting' || note.key === undefined || !note.message.startsWith('instance')) continue;
     if (note.key.startsWith('tuning.') && typeof copy.tuning === 'object' && copy.tuning !== null) {
       const { [note.key.slice('tuning.'.length)]: _gone, ...rest } = copy.tuning as Record<string, unknown>;
-      copy.tuning = rest;
+      if (Object.keys(rest).length === 0) delete copy.tuning;
+      else copy.tuning = rest;
     } else delete copy[note.key];
   }
   return copy as PanelSettings;
@@ -158,8 +159,10 @@ export function reconcileWorkspace(i: ReconcileInput): ReconcileResult {
         }
       : { workspace, ...(template !== undefined ? { template: template.settings } : {}), instance: plainAsk };
     const first = resolvePanelSettings(layers, { lenient: true });
-    const owns = !legacy && first.value.rememberLayout && Object.keys(s.owned!).length > 0;
-    const resolution = owns ? resolvePanelSettings({ ...layers, user: s.owned }, { lenient: true }) : first;
+    // The saved anchor names another saved entry; the live one names its fresh id.
+    const heldOverrides = s.owned === undefined ? undefined : { ...s.owned, ...(s.owned.anchor !== undefined ? { anchor: anchorOf(s.owned.anchor) } : {}) };
+    const owns = !legacy && first.value.rememberLayout && Object.keys(heldOverrides!).length > 0;
+    const resolution = owns ? resolvePanelSettings({ ...layers, user: heldOverrides }, { lenient: true }) : first;
     const settings = resolution.value;
     for (const n of resolution.notes) notes.push({ ...n, panelId: id });
 
@@ -169,12 +172,13 @@ export function reconcileWorkspace(i: ReconcileInput): ReconcileResult {
     let anchor = base.anchor;
     let applied: PanelWindow['applied'];
     if (!legacy) {
-      if (owns && s.owned!.anchor !== undefined) {
-        anchor = anchorOf(s.owned!.anchor);
+      if (owns && heldOverrides!.anchor !== undefined) {
+        anchor = heldOverrides!.anchor;
         applied = s.applied ?? { placeOnAdd: settings.placeOnAdd };
       } else {
         applied = { placeOnAdd: settings.placeOnAdd };
-        if (!sameSettingsValue(s.applied?.placeOnAdd, settings.placeOnAdd)) replace.push({ id, value: settings.placeOnAdd, fallback: settings.placeFallback });
+        // A panel that remembers nothing has no saved place worth keeping: the default places it again.
+        if (!settings.rememberLayout || !sameSettingsValue(s.applied?.placeOnAdd, settings.placeOnAdd)) replace.push({ id, value: settings.placeOnAdd, fallback: settings.placeFallback });
       }
     }
     built.push({
@@ -185,7 +189,7 @@ export function reconcileWorkspace(i: ReconcileInput): ReconcileResult {
       ...(anchor !== undefined ? { anchor } : {}),
       ...(key !== undefined ? { key } : {}),
       ...(claim !== undefined ? { declared: true as const } : { instance: keptInstance(plainAsk, resolution) }),
-      ...(legacy ? {} : { overrides: owns ? keptOverrides(s.owned!, resolution) : s.owned }),
+      ...(legacy ? {} : { overrides: owns ? keptOverrides(heldOverrides!, resolution) : heldOverrides }),
       ...(applied !== undefined ? { applied } : {}),
     });
   });
