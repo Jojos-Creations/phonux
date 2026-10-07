@@ -1,21 +1,49 @@
 /**
- * The read side of a panel: the handle a workspace hands out for one panel, and the reader a template's view
- * receives for all of them. Both are plain objects holding a source and an id, so they stay valid before the panel
- * exists, while it is live and after the workspace detaches. Only read members live here.
+ * The handles of a panel: the operable one a workspace hands out for it and to its own view, and the read-only one
+ * a template's reader returns for every panel. Both are plain objects holding a source and an id, so they stay valid
+ * before the panel exists, while it is live and after the workspace detaches.
  */
-import type { JsonValue } from './hostApi.js';
-import type { PanelId, PanelSettingsResolution } from './panelSettings.js';
+import type { JsonValue, FormFactor } from './hostApi.js';
+import type { PanelOpSource, PanelResult } from './panelManager.js';
+import type { AddPlacement, PanelId, PanelSettingsResolution, ScrollAlign } from './panelSettings.js';
 import type { ListFilter, PanelReader, PanelReadHandle, PanelSnapshot, PanelState } from './panelTemplate.js';
 
 /**
- * A handle on one panel: the five read members, keyed by the panel's id. It resolves the engine entry on every call, so
- * it is valid while the panel is pending, live, parked or closed.
+ * A handle on one panel: its five read members and the operations on it, keyed by the panel's id. It resolves the
+ * engine entry on every call, so it is valid while the panel is pending, live, parked or closed, and an operation
+ * that state cannot take answers a refusal and touches nothing.
  * @public
  */
 export interface PanelHandle<P extends JsonValue = JsonValue> extends PanelReadHandle {
   /** The panel's current state, with `params` typed by the template. */
   getState(): PanelState & { readonly params: P | undefined };
+  /** Brings the panel into view: a parked one comes back, a live one out of view is scrolled to, a closed one reopens when its `showWhenClosed` says so. */
+  show(source?: 'code' | 'person'): PanelResult;
+  /** Parks the panel and holds it parked as its `hideStickiness` says. */
+  hide(source?: 'code' | 'person'): PanelResult;
+  /** Hides a live panel, shows a parked one and, for a closed one, reopens it when its `toggleWhenClosed` says so. */
+  toggleVisibility(source?: 'code' | 'person'): PanelResult;
+  /** Closes the panel completely; the undo window of the row applies. */
+  close(source?: 'code' | 'person'): PanelResult;
+  /** Brings a closed declared panel back where its `placeOnAdd` says; a panel that is already open stays as it is. */
+  open(source?: 'code' | 'person'): PanelResult;
+  /** Moves a live panel one slot toward `direction`. */
+  move(direction: 'left' | 'right', source?: 'code' | 'person'): PanelResult;
+  /** Puts the panel where `p` says; a parked panel is placed and stays parked. */
+  place(p: AddPlacement | 'in-place', source?: 'code' | 'person'): PanelResult;
+  /** Gives the panel the tier `next`. */
+  setFormFactor(next: FormFactor, source?: 'code' | 'person'): PanelResult;
+  /** Scrolls the row to a live panel, to `align` or, left out, where the panel's `scrollOnOpen` says. */
+  scrollTo(align?: ScrollAlign, source?: 'code' | 'person'): PanelResult;
 }
+
+/** One operation a handle asks of its workspace. @internal */
+export type PanelVerbCall =
+  | { verb: 'show' | 'hide' | 'toggleVisibility' | 'close' | 'open' }
+  | { verb: 'move'; direction: 'left' | 'right' }
+  | { verb: 'place'; value: AddPlacement | 'in-place' }
+  | { verb: 'setFormFactor'; next: FormFactor }
+  | { verb: 'scrollTo'; align: ScrollAlign | undefined };
 
 /** What a handle or reader asks a workspace for. @internal */
 export interface ReadSource {
@@ -24,18 +52,42 @@ export interface ReadSource {
   subscribePanel(id: PanelId, l: () => void): () => void;
   getSnapshot(): PanelSnapshot;
   subscribe(l: () => void): () => void;
-  /** The handle of `id`, or undefined when the workspace knows no such panel. */
+  /** The operable handle of `id`, or undefined when the workspace knows no such panel. */
   handleOf(id: PanelId): PanelHandle | undefined;
+  /** The read-only handle of `id`, or undefined when the workspace knows no such panel. */
+  readHandleOf(id: PanelId): PanelReadHandle | undefined;
+  /** Runs one operation on `id` for `source`. */
+  operate(id: PanelId, call: PanelVerbCall, source: PanelOpSource): PanelResult;
 }
 
 /** The read handle of panel `id` built from `templateId`: exactly the five read members. @internal */
-export function makeHandle<P extends JsonValue = JsonValue>(source: ReadSource, id: PanelId, templateId: string): PanelHandle<P> {
+export function makeHandle(source: ReadSource, id: PanelId, templateId: string): PanelReadHandle {
+  return {
+    id,
+    templateId,
+    getState: () => source.stateOf(id),
+    getSettings: () => source.settingsOf(id),
+    subscribe: (l) => source.subscribePanel(id, l),
+  };
+}
+
+/** The handle of panel `id` built from `templateId`: the five read members and the nine operations. @internal */
+export function makeViewHandle<P extends JsonValue = JsonValue>(source: ReadSource, id: PanelId, templateId: string): PanelHandle<P> {
   return {
     id,
     templateId,
     getState: () => source.stateOf(id) as PanelState & { readonly params: P | undefined },
     getSettings: () => source.settingsOf(id),
     subscribe: (l) => source.subscribePanel(id, l),
+    show: (src = 'code') => source.operate(id, { verb: 'show' }, src),
+    hide: (src = 'code') => source.operate(id, { verb: 'hide' }, src),
+    toggleVisibility: (src = 'code') => source.operate(id, { verb: 'toggleVisibility' }, src),
+    close: (src = 'code') => source.operate(id, { verb: 'close' }, src),
+    open: (src = 'code') => source.operate(id, { verb: 'open' }, src),
+    move: (direction, src = 'code') => source.operate(id, { verb: 'move', direction }, src),
+    place: (value, src = 'code') => source.operate(id, { verb: 'place', value }, src),
+    setFormFactor: (next, src = 'code') => source.operate(id, { verb: 'setFormFactor', next }, src),
+    scrollTo: (align, src = 'code') => source.operate(id, { verb: 'scrollTo', align }, src),
   };
 }
 
@@ -49,7 +101,7 @@ export function filterStates(states: readonly PanelState[], f?: ListFilter): rea
 /** The reader a template's view receives: exactly get, list, getSnapshot and subscribe. @internal */
 export function makeReader(source: ReadSource): PanelReader {
   return {
-    get: (id) => source.handleOf(id),
+    get: (id) => source.readHandleOf(id),
     list: (f) => filterStates(source.getSnapshot().panels, f),
     getSnapshot: () => source.getSnapshot(),
     subscribe: (l) => source.subscribe(l),

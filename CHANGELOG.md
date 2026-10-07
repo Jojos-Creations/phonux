@@ -44,9 +44,24 @@
 - `usePanelStates(filter?)`, `usePanelState(id)` and `useWorkspaceManager()`: the snapshot, one panel's state and the reader, for a view inside a row that has a workspace.
 - A declared panel whose `afterClose` is `stay-closed` is remembered when the person closes it and not created at the next launch; an undo forgets it.
 - `memoryWorkspaceStorage(initial?)` from `phonux/testing`: a `WorkspaceStorage` that keeps the file in memory.
+- Panel handles gain `show`, `hide`, `toggleVisibility`, `close`, `open`, `move`, `place`, `setFormFactor` and
+  `scrollTo`, each returning a `PanelResult`: `{ ok: true, changed }`, or `{ ok: false, code, message }` with a
+  `PanelRefusal` code, and a refusal touches nothing. The view of a panel receives the same verbs for itself, with no manager.
+  `toggleWhenClosed`, `showWhenClosed` and `hideWhenLast` are enforced through them, `open()` re-adds a closed declared
+  panel at its `placeOnAdd`, and a closed anonymous instance answers `is-closed`.
+- `PanelResult` is exported as a type.
+- `undoClose` restores a closed panel through its current settings: `undoPlacement` decides where it lands, and a
+  workspace-less host keeps the 0.1.0 behaviour.
 
 ### Changed
 
+- Within one turn (one handler, timer, promise continuation or effect) a second operation on a panel the first one acts on
+  now answers `busy` through the handle, a close is exclusive among handle calls, and the raw `close`, `undoClose`,
+  `activate`, `move`, `reanchor` and `setFormFactor` of `ProvidedPanels` hold the same gate: a raw call on a panel a handle
+  call holds does nothing. Two raw calls on one panel, and `create` and `clearAll`, behave as before. Two closes through
+  the handles can no longer undo in the wrong order; the raw pair still can (the pin is `LIMIT:3`).
+- The view handle a template receives has fourteen members (`id`, `templateId`, `getState`, `getSettings`, `subscribe` and
+  the nine verbs), where it had five.
 - A throw inside the restore, once left the workspace unsettled with saving stopped for the session, now takes the
   failed-load path: the workspace settles and the next change saves.
 - A parked entry whose `keepMounted` is true keeps its view mounted and hidden (`display: none`, `inert`,

@@ -12,11 +12,24 @@ import { act } from 'react';
 import { PanelManagerError, createWorkspace, registerView, resolveView } from '../index.js';
 import type { PanelHandle, PanelSettings, WorkspaceHandle } from '../index.js';
 import { registerTemplate } from '../viewRegistry.js';
-import { bindingOf } from '../workspaceCore.js';
+import { bindingOf, type EngineOps } from '../workspaceCore.js';
 import type { PanelWindow } from '../panelWindow.js';
 import { cleanup, mount, withHost } from './support/mount-harness.js';
 import { flush, markerTemplate, mountWorkspace } from './support/workspace-row.js';
 import { memoryWorkspaceStorage } from '../fakeHost.js';
+
+/** Operations for a commit the test publishes by hand: no engine stands behind it, so every one refuses. */
+const NO_OPS: EngineOps = {
+  show: () => ({ ok: false, code: 'is-closed', message: 'no engine' }),
+  hide: () => ({ ok: false, code: 'is-closed', message: 'no engine' }),
+  close: () => ({ ok: false, code: 'is-closed', message: 'no engine' }),
+  open: () => ({ ok: false, code: 'is-closed', message: 'no engine' }),
+  move: () => ({ ok: false, code: 'is-closed', message: 'no engine' }),
+  place: () => ({ ok: false, code: 'is-closed', message: 'no engine' }),
+  setFormFactor: () => ({ ok: false, code: 'is-closed', message: 'no engine' }),
+  scrollTo: () => ({ ok: false, code: 'is-closed', message: 'no engine' }),
+  reopen: () => ({ ok: false, code: 'is-closed', message: 'no engine' }),
+};
 
 afterEach(() => cleanup());
 
@@ -58,14 +71,14 @@ test('the two-template example with a root template: the root and two panels mou
   assert.equal(entries[0]!.view, 'history');
 });
 
-test('a template view receives its panel summary, the read-only five on its handle and the four of the reader', () => {
+test('a template view receives its panel summary, the fourteen sorted keys of the operable handle (the read-only five and the nine verbs) and the four of the reader', () => {
   const w = createWorkspace({ templates: [markerTemplate('probe')] });
   w.addPanel('probe');
   const m = mountWorkspace(w);
   const node = m.container.querySelector('[data-template="probe"]') as HTMLElement;
   assert.ok(node, 'the template view did not render');
   assert.equal(node.dataset.slot, m.latest().entries.find((p) => p.view === 'probe')!.id, 'panel is the row entry summary');
-  assert.equal(node.dataset.handleKeys, 'id,templateId,getState,getSettings,subscribe');
+  assert.deepEqual(node.dataset.handleKeys!.split(',').sort(), ['close', 'getSettings', 'getState', 'hide', 'id', 'move', 'open', 'place', 'scrollTo', 'setFormFactor', 'show', 'subscribe', 'templateId', 'toggleVisibility'], 'id, templateId, getState, getSettings, subscribe, show, hide, toggleVisibility, close, open, move, place, setFormFactor, scrollTo: 14 keys and no manager');
   assert.equal(node.dataset.managerKeys, 'get,list,getSnapshot,subscribe');
   assert.equal(node.dataset.handleId, 'probe');
 });
@@ -216,6 +229,7 @@ test('held is true exactly for a parked panel with a hold', () => {
     settled: true,
     create: () => {},
     lateRegister: () => {},
+    ops: NO_OPS,
   });
   const by = Object.fromEntries(w.panels.getSnapshot().panels.map((p) => [p.id, p]));
   assert.equal(by.a!.held, false, 'a live panel is never held');
@@ -454,7 +468,7 @@ test('PanelState.pinned is the pure isPinned of the entry: left of the root true
   const entry = (id: string, anchor: PanelWindow['anchor']): PanelWindow => ({ id, url: '', title: id, live: true, locked: false, view: 'x', collapsible: true, listed: true, key: id, anchor });
   const left = entry('l', { panel: root.id, position: 'left', priority: 0 });
   const right = entry('r', { panel: root.id, position: 'right', priority: 0 });
-  binding.publish({ entries: [left, root, right], held: new Set(), settled: true, create: () => {}, lateRegister: () => {} });
+  binding.publish({ entries: [left, root, right], held: new Set(), settled: true, create: () => {}, lateRegister: () => {}, ops: NO_OPS });
   const by = Object.fromEntries(w.panels.getSnapshot().panels.map((p) => [p.id, p]));
   assert.equal(by.l!.pinned, true);
   assert.equal(by.r!.pinned, false);

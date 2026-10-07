@@ -367,9 +367,18 @@ export const panelFrameScrollSx: {
 
 // @public
 export interface PanelHandle<P extends JsonValue = JsonValue> extends PanelReadHandle {
+    close(source?: 'code' | 'person'): PanelResult;
     getState(): PanelState & {
         readonly params: P | undefined;
     };
+    hide(source?: 'code' | 'person'): PanelResult;
+    move(direction: 'left' | 'right', source?: 'code' | 'person'): PanelResult;
+    open(source?: 'code' | 'person'): PanelResult;
+    place(p: AddPlacement | 'in-place', source?: 'code' | 'person'): PanelResult;
+    scrollTo(align?: ScrollAlign, source?: 'code' | 'person'): PanelResult;
+    setFormFactor(next: FormFactor, source?: 'code' | 'person'): PanelResult;
+    show(source?: 'code' | 'person'): PanelResult;
+    toggleVisibility(source?: 'code' | 'person'): PanelResult;
 }
 
 // @public
@@ -451,6 +460,16 @@ export type PanelReadHandle = {
 
 // @public
 export type PanelRefusal = 'disposed' | 'not-attached' | 'not-ready' | 'is-pending' | 'is-closed' | 'not-live' | 'busy' | 'not-closable' | 'not-parkable' | 'not-draggable' | 'not-placeable' | 'not-resizable' | 'tier-not-allowed' | 'would-empty-row' | 'instance-limit' | 'unknown-panel' | 'wrong-scope' | 'would-reshape-row' | 'settings-conflict' | 'not-view-settable';
+
+// @public
+export type PanelResult = {
+    readonly ok: true;
+    readonly changed: boolean;
+} | {
+    readonly ok: false;
+    readonly code: PanelRefusal;
+    readonly message: string;
+};
 
 // @public
 export function PanelRow(input: {
@@ -1057,7 +1076,7 @@ export function useWorkspaceManager(): PanelReader | undefined;
 export type ViewComponent<P = JsonValue> = React_2.ComponentType<ViewProps<P>>;
 
 // @public
-export type ViewHandle<P extends JsonValue = JsonValue> = PanelReadHandle;
+export type ViewHandle<P extends JsonValue = JsonValue> = PanelHandle<P>;
 
 // @public
 export type ViewId = string;

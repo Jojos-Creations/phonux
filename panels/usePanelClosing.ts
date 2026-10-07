@@ -3,7 +3,7 @@ import { flushSync } from 'react-dom';
 import type { JsonValue } from '../hostApi.js';
 import { reportNotes, restorePlaced } from '../panelPlacement.js';
 import { effective, panelKey } from '../panelSettings.js';
-import type { SettingNote } from '../panelSettings.js';
+import type { AddPlacement, SettingNote } from '../panelSettings.js';
 import { closePanel, sideOfLiveRange, type PanelWindow } from '../panelWindow.js';
 import type { UsePanelManagerResult } from './usePanelManager.js';
 
@@ -23,9 +23,16 @@ interface ClosedView {
   reported: boolean;
 }
 
+/** What `undoClose` restores in place of the entry that closed: the entry as the workspace would build it now, and where it goes. */
+export type Reapplied = { panel: PanelWindow; placeAs: 'old-slot' | AddPlacement };
+
 export interface UsePanelClosingResult {
-  /** Closes a view completely and opens the undo window, or extends it to at least the panel's `undoWindowMs` from now (a panel with 0 is final at once). Unknown, locked or already-closed id: does nothing. */
-  close: (id: string) => void;
+  /** Closes a view completely and opens the undo window, or extends it to at least the panel's `undoWindowMs` from now (a panel with 0 is final at once). Unknown, locked or already-closed id: does nothing and answers false. */
+  close: (id: string) => boolean;
+  /** Drops the views closed inside the window whose key is `key`, so an undo has nothing to skip or report for them. True when one was dropped. */
+  forgetClosed: (key: string) => boolean;
+  /** The ids of the views closed inside the window now, even when no render has seen the close yet. */
+  closedIds: () => string[];
   /** Restores every view closed inside the window, last closed first, each at its old index; a live one comes back live. */
   undoClose: () => void;
   /** The views closed inside the window, oldest first; non-null exactly while the window is open. */
@@ -82,6 +89,11 @@ export function usePanelClosing(
   onNote?: (note: SettingNote) => void,
   /** The developer's panel order, read by an undo whose `undoPlacement` is `'order'`. */
   order?: () => readonly string[],
+  /**
+   * Rebuilds a closed entry at undo: the entry to restore and where to put it. Unset, the entry comes back as it
+   * closed and `undoPlacement` is the one it carries, which for an entry with no settings is 'old-slot'.
+   */
+  reapply?: (panel: PanelWindow) => Reapplied,
 ): UsePanelClosingResult {
   const [closed, setClosed] = useState<ClosedView[]>([]);
   // Mirrors `closed` synchronously (never via an effect): the timer callback below fires from a closure
@@ -112,10 +124,10 @@ export function usePanelClosing(
     claimed.current.clear();
   };
 
-  const close = (id: string) => {
+  const close = (id: string): boolean => {
     const found = closePanel(panels, id, rootId);
     // A locked entry's close is a no-op: the one lock gate, which every entry (History included) goes through.
-    if (!found || claimed.current.has(id) || found.closed.locked) return;
+    if (!found || claimed.current.has(id) || found.closed.locked) return false;
     claimed.current.add(id);
     const settings = effective(found.closed);
     // Commits ALONE, before the removal: AnimatePresence takes an exiting child's `exit` from its LAST props
@@ -130,7 +142,7 @@ export function usePanelClosing(
     if (settings.reportClose) onPanelsClosed?.({ id: logId, title: found.closed.title || found.closed.url || 'Untitled panel', url: found.closed.url, closedAt });
     if (settings.undoWindowMs === 0) {
       onWindowElapsed?.([found.closed]);
-      return;
+      return true;
     }
     setClosedBoth([...closedRef.current, { panel: found.closed, index: found.index, logId, reported: settings.reportClose }]);
     const now = Date.now();
@@ -145,6 +157,18 @@ export function usePanelClosing(
       setClosedBoth([]);
       onWindowElapsed?.(elapsed);
     }, end - now);
+    return true;
+  };
+
+  const forgetClosed = (key: string): boolean => {
+    const dropped = closedRef.current.filter((e) => panelKey(e.panel) === key);
+    if (dropped.length === 0) return false;
+    const kept = closedRef.current.filter((e) => panelKey(e.panel) !== key);
+    setClosedBoth(kept);
+    if (kept.length === 0) stopWindow();
+    // Nothing can undo these any more, so their pictures go as they do when the window elapses.
+    onWindowElapsed?.(dropped.map((e) => e.panel));
+    return true;
   };
 
   const undoClose = () => {
@@ -158,15 +182,15 @@ export function usePanelClosing(
     const restoredIds = new Set<string>();
     for (const { panel, index } of [...batch].reverse()) {
       if (working.some((p) => p.id === panel.id || panelKey(p) === panelKey(panel))) continue;
+      const { panel: rebuilt, placeAs: placeAt } = reapply === undefined ? { panel, placeAs: effective(panel).undoPlacement } : reapply(panel);
       // restorePanel is a pure spread and phonux never reads inside hostData, so the host's own reset runs
       // here, once per panel, and its result is what every call below restores.
-      const restoringPanel = resetHostDataOnRestore ? withHostData(panel, resetHostDataOnRestore(panel.hostData, panel)) : panel;
-      const placeAt = effective(panel).undoPlacement;
-      const at = { rootId, fallback: effective(panel).placeFallback, ...(order !== undefined ? { order } : {}) };
+      const restoringPanel = resetHostDataOnRestore ? withHostData(rebuilt, resetHostDataOnRestore(rebuilt.hostData, rebuilt)) : rebuilt;
+      const at = { rootId, fallback: effective(rebuilt).placeFallback, ...(order !== undefined ? { order } : {}) };
       const restoreInto = (row: PanelWindow[]): PanelWindow[] => restorePlaced(row, restoringPanel, index, placeAt, at).row;
       const landed = restorePlaced(working, restoringPanel, index, placeAt, at);
       reportNotes(onNote, landed.notes);
-      if (panel.live) {
+      if (rebuilt.live) {
         // This restore is one of the two "reappearance" paths that enters from the anchor's side -- mark it
         // BEFORE revealPanelProactively's own setPanels call, same ordering reasoning as usePanelManager.ts's
         // own markEnteringViaAnchor call site.
@@ -192,5 +216,5 @@ export function usePanelClosing(
     if (restoredLogIds.length > 0) onPanelsRestored?.(restoredLogIds);
   };
 
-  return { close, undoClose, recentlyClosed: closed.length > 0 ? closed.map((e) => e.panel) : null, closingIds };
+  return { close, forgetClosed, closedIds: () => closedRef.current.map((e) => e.panel.id), undoClose, recentlyClosed: closed.length > 0 ? closed.map((e) => e.panel) : null, closingIds };
 }
