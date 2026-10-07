@@ -269,3 +269,16 @@ test('source: useProvidePanels drops the hold of a closed panel after forgetting
 test('source: usePanelManager and PanelRow use no useMemo or useCallback', () => {
   for (const file of ['panels/usePanelManager.ts', 'PanelRow.tsx']) assert.equal(usesMemo(read(file)), false, `${file} must close over this render's values`);
 });
+
+test('source: a kept slot is hidden from its exit animation\'s promise, never from onAnimationComplete, and PanelRow reads keepMounted only through the latch', () => {
+  const slot = stripComments(read('PanelRowSlot.tsx'), 'PanelRowSlot.tsx');
+  assert.doesNotMatch(slot, /onAnimationComplete/, 'a callback fires only after a frame, which a zero-length slide never gets');
+  assert.match(slot, /run\.finished\.then\(/, 'the exit move is awaited through its promise');
+  const row = stripComments(read('PanelRow.tsx'), 'PanelRow.tsx');
+  assert.equal([...row.matchAll(/\.keepMounted/g)].length, 1, 'keepMounted is read in keepsMounted only, which the latch refs gate');
+});
+
+test('source: Panel registers with the capture registry only while it is not hidden', () => {
+  const panel = stripComments(read('Panel.tsx'), 'Panel.tsx');
+  assert.match(panel, /capture === 'never' \|\| hidden \|\|/);
+});
