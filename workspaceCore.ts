@@ -6,7 +6,7 @@
  */
 import type { JsonValue } from './hostApi.js';
 import type { FormFactor } from './hostApi.js';
-import { checkPatch, configured, planInstance, planTemplate, planTuning, reconfigured, unchanged, type ConfigureOutcome } from './panelConfigure.js';
+import { checkPatch, configured, ownLayer, planInstance, planTemplate, planTuning, reconfigured, unchanged, type ConfigureOutcome, type HostSplit } from './panelConfigure.js';
 import { makeHandle, makeOwnHandle, makeReader, makeViewHandle, type PanelHandle, type PanelVerbCall, type ReadSource } from './panelHandles.js';
 import { accepted, makePanelManager, refused, type ConfigureResult, type PanelManager, type PanelOpSource, type PanelResult, type PinResult, type ResetResult } from './panelManager.js';
 import { PanelManagerError } from './panelManagerError.js';
@@ -154,6 +154,8 @@ export interface EngineBinding {
   layerOf(e: PanelWindow): PanelSettings | undefined;
   /** The tuning leaves `e` resolves to under the workspace's current tuning; undefined for an entry that carries no settings. */
   panelTuning(e: PanelWindow): ResolvedPanelTuning | undefined;
+  /** Keeps what a view asked for at a Host-bag create of the panel drawn under `engineId` as its host layer for this session. */
+  hostAsked(engineId: string, host: PanelSettings): void;
   readonly order: (() => readonly PanelId[]) | undefined;
   readonly newId: () => string;
   /** Reports an error the hook swallowed: `onError`, else `console.error`. */
@@ -258,6 +260,8 @@ export function createWorkspace(o: WorkspaceOptions = {}): WorkspaceHandle {
   const templates = new Map<string, PanelTemplate>();
   const removers: Array<() => void> = [];
   const records = new Map<PanelId, Rec>();
+  /** What a view asked at a Host-bag create, by engine id. The file keeps those asks merged into the instance layer; this keeps them apart for the session so a `null` in a configure shows them again. */
+  const splits = new Map<string, HostSplit>();
   const inflight = new Set<PanelId>();
   const warned = new Set<string>();
   const listeners = new Set<() => void>();
@@ -271,7 +275,7 @@ export function createWorkspace(o: WorkspaceOptions = {}): WorkspaceHandle {
   const effectiveTemplates = new WeakMap<PanelTemplate, { over: PanelSettings; template: PanelTemplate }>();
   /** The last commit's entries by engine id, so the next commit can tell which panels left. */
   let lastEntries = new Map<string, PanelWindow>();
-  const resolutions = new WeakMap<object, { template: PanelTemplate | undefined; settings: PanelSettings | undefined; tuning: WorkspaceTuning | undefined; res: PanelSettingsResolution }>();
+  const resolutions = new WeakMap<object, { template: PanelTemplate | undefined; settings: PanelSettings | undefined; split: HostSplit | undefined; tuning: WorkspaceTuning | undefined; res: PanelSettingsResolution }>();
 
   let status: WorkspaceStatus = 'detached';
   let owner: object | undefined;
@@ -335,24 +339,26 @@ export function createWorkspace(o: WorkspaceOptions = {}): WorkspaceHandle {
     }
   };
 
-  const resolutionFor = (key: object, id: PanelId, templateId: string, settings: PanelSettings | undefined, user: PanelWindow['overrides'], isRoot: boolean): PanelSettingsResolution => {
+  const resolutionFor = (key: object, id: PanelId, templateId: string, settings: PanelSettings | undefined, user: PanelWindow['overrides'], isRoot: boolean, split: HostSplit | undefined): PanelSettingsResolution => {
     const template = templateOf(templateId);
     const cached = resolutions.get(key);
-    if (cached !== undefined && cached.template === template && cached.settings === settings && cached.tuning === tuningInput) return cached.res;
+    if (cached !== undefined && cached.template === template && cached.settings === settings && cached.split === split && cached.tuning === tuningInput) return cached.res;
+    const instance = ownLayer(settings, split);
     const res = resolve(
-      { ...(defaults !== undefined ? { workspace: defaults } : {}), ...(template?.settings !== undefined ? { template: template.settings } : {}), ...(settings !== undefined ? { instance: settings } : {}), ...(user !== undefined ? { user } : {}) },
+      { ...(defaults !== undefined ? { workspace: defaults } : {}), ...(template?.settings !== undefined ? { template: template.settings } : {}), ...(split !== undefined ? { host: split.host } : {}), ...(instance !== undefined ? { instance } : {}), ...(user !== undefined ? { user } : {}) },
       { lenient: true, root: isRoot },
     );
-    resolutions.set(key, { template, settings, tuning: tuningInput, res });
+    resolutions.set(key, { template, settings, split, tuning: tuningInput, res });
     return res;
   };
 
   /** The layers an entry resolves under, with `user` as the person's layer. */
   const resolveEntry = (e: PanelWindow, user: PanelWindow['overrides']): PanelSettingsResolution => {
     const template = templateOf(e.view);
-    const settings = instanceLayer(e);
+    const split = splits.get(e.id);
+    const settings = ownLayer(instanceLayer(e), split);
     return resolve(
-      { ...(defaults !== undefined ? { workspace: defaults } : {}), ...(template?.settings !== undefined ? { template: template.settings } : {}), ...(settings !== undefined ? { instance: settings } : {}), ...(user !== undefined ? { user } : {}) },
+      { ...(defaults !== undefined ? { workspace: defaults } : {}), ...(template?.settings !== undefined ? { template: template.settings } : {}), ...(split !== undefined ? { host: split.host } : {}), ...(settings !== undefined ? { instance: settings } : {}), ...(user !== undefined ? { user } : {}) },
       { lenient: true, root: e.id === rootId },
     );
   };
@@ -361,7 +367,7 @@ export function createWorkspace(o: WorkspaceOptions = {}): WorkspaceHandle {
     const id = panelKey(e);
     const rec = records.get(id);
     const settings = instanceLayer(e);
-    const res = resolutionFor(e, id, e.view, settings, e.overrides, e.id === rootId);
+    const res = resolutionFor(e, id, e.view, settings, e.overrides, e.id === rootId, splits.get(e.id));
     if (e.settings === undefined) return { ...res, value: effective(e) };
     // A pin from code flips `parkable` for the session without recording it, so the entry's own value outvotes the layers.
     return e.settings.parkable === res.value.parkable ? res : resolveEntry(e, { ...e.overrides, parkable: e.settings.parkable });
@@ -389,7 +395,7 @@ export function createWorkspace(o: WorkspaceOptions = {}): WorkspaceHandle {
 
   const stateOfRecord = (r: Rec): PanelState => {
     const template = templateOf(r.templateId);
-    const res = resolutionFor(r, r.id, r.templateId, r.settings, undefined, false);
+    const res = resolutionFor(r, r.id, r.templateId, r.settings, undefined, false, r.lastEngineId === undefined ? undefined : splits.get(r.lastEngineId));
     const pending = !r.closed && (inflight.has(r.id) || (r.intent && status !== 'ready'));
     return {
       id: r.id,
@@ -481,6 +487,7 @@ export function createWorkspace(o: WorkspaceOptions = {}): WorkspaceHandle {
       }
     }
     records.delete(key);
+    splits.delete(e.id);
   };
 
   /** What closing `e` leaves behind: a record a later `open()` can use when code can name the panel again, nothing otherwise. */
@@ -509,7 +516,7 @@ export function createWorkspace(o: WorkspaceOptions = {}): WorkspaceHandle {
         if (gone !== undefined) return gone.res;
         throw new PanelManagerError('invalid-options', `no panel '${id}' in this workspace`);
       }
-      return resolutionFor(r, r.id, r.templateId, r.settings, undefined, false);
+      return resolutionFor(r, r.id, r.templateId, r.settings, undefined, false, r.lastEngineId === undefined ? undefined : splits.get(r.lastEngineId));
     },
     subscribePanel: (id, l) => {
       let set = panelListeners.get(id);
@@ -823,27 +830,31 @@ export function createWorkspace(o: WorkspaceOptions = {}): WorkspaceHandle {
     if (state.status === 'closed') {
       const rec = records.get(id);
       if (rec === undefined || (rec.anonymous && !rec.closed)) return failed(refused('is-closed', `panel '${id}' is closed and nothing can name it again`));
-      const plan = planInstance({ ...input, base: rec.settings, template: templateOf(rec.templateId)?.settings, person: undefined, current: undefined, root: false, tier: undefined, status: 'closed' });
+      const plan = planInstance({ ...input, base: rec.settings, template: templateOf(rec.templateId)?.settings, split: rec.lastEngineId === undefined ? undefined : splits.get(rec.lastEngineId), person: undefined, current: undefined, root: false, tier: undefined, status: 'closed' });
       if (!plan.ok) return { ok: false, code: plan.code, message: `panel '${id}': ${plan.message}`, ...(plan.setting === undefined ? {} : { setting: plan.setting }) };
       if (!plan.changed) return unchanged();
       rec.settings = plan.layer;
+      if (rec.lastEngineId !== undefined && plan.split !== undefined) splits.set(rec.lastEngineId, plan.split);
       refresh();
       return configured(plan);
     }
     let layer: PanelSettings | undefined;
+    let split: HostSplit | undefined;
     // The update plans again when an earlier update of the turn rebuilt the entry, and by then the record already holds the new layer: the base must stay the one the call saw.
-    let base: { layer: PanelSettings | undefined } | undefined;
+    let base: { layer: PanelSettings | undefined; split: HostSplit | undefined } | undefined;
     const result = commit!.ops.configure(state.engineId!, (target, status): ConfigureOutcome => {
-      base ??= { layer: instanceLayer(target) };
-      const plan = planInstance({ ...input, base: base.layer, template: templateOf(target.view)?.settings, person: target.overrides, current: target.settings, root: target.id === rootId, tier: target.formFactor ?? 'phone', status });
+      base ??= { layer: instanceLayer(target), split: splits.get(target.id) };
+      const plan = planInstance({ ...input, base: base.layer, template: templateOf(target.view)?.settings, split: base.split, person: target.overrides, current: target.settings, root: target.id === rootId, tier: target.formFactor ?? 'phone', status });
       if (!plan.ok) return { done: { ok: false, code: plan.code, message: `panel '${id}': ${plan.message}`, ...(plan.setting === undefined ? {} : { setting: plan.setting }) } };
       if (!plan.changed) return { done: unchanged() };
       layer = plan.layer;
+      split = plan.split;
       return { done: configured(plan), next: reconfigured(target, plan, asked) };
     });
     if (result.ok && result.changed && layer !== undefined) {
       const rec = records.get(id);
       if (rec !== undefined) rec.settings = layer;
+      if (split !== undefined) splits.set(state.engineId!, split);
     }
     return result;
   };
@@ -910,6 +921,7 @@ export function createWorkspace(o: WorkspaceOptions = {}): WorkspaceHandle {
     },
     layerOf: instanceLayer,
     panelTuning: (e) => (e.settings === undefined ? undefined : entryResolution(e).value.tuning),
+    hostAsked: (engineId, host) => void splits.set(engineId, { host, touched: new Set() }),
     order: o.order,
     newId,
     reportError,
@@ -1014,6 +1026,7 @@ export function createWorkspace(o: WorkspaceOptions = {}): WorkspaceHandle {
       listeners.clear();
       panelListeners.clear();
       tuningListeners.clear();
+      splits.clear();
       templateOverrides.clear();
       for (const remove of removers.splice(0)) remove();
     },

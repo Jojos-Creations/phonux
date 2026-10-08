@@ -115,6 +115,7 @@ const TUNING_VALUES: Readonly<Record<string, readonly unknown[]>> = {
   edgeScroll: [{ zonePx: 60 }],
 };
 const KEYS = Object.keys(VALUES);
+const PERMISSIONS = ['closable', 'parkable', 'draggable', 'crossable', 'placeable', 'resizable', 'formFactors'] as const;
 const LEAVES = Object.keys(TUNING_VALUES);
 
 /** A patch of one to three keys, each a legal value or a null; now and then a tuning leaf. */
@@ -207,6 +208,7 @@ test('seeded random sequences with configure and resetLayout keep the invariants
   let shadowChecked = 0;
   let shadowedNames = 0;
   let crowdedChecked = 0;
+  let mirrorsChecked = 0;
   for (let seed = 1; seed <= SEQUENCES; seed += 1) {
     const rand = prng(seed);
     const settings: Record<string, PanelSettings> = {};
@@ -227,11 +229,16 @@ test('seeded random sequences with configure and resetLayout keep the invariants
       const renders = r.m.renders();
       const version = r.ws.panels.getSnapshot().version;
       const isConfigure = op === 'configure' || op === 'configureOutvoted';
-      const twin = rand() < 0.3;
-      const secondOp = pickFrom(rand, OPS);
+      const mode = rand();
+      // A second call on the same panel (busy), or on another one, whose update may rebuild the entry the first call planned against.
+      const twin = mode < 0.25;
+      const cross = !twin && mode < 0.5;
+      const multi = twin || cross;
+      const secondOp = cross && rand() < 0.6 ? pickFrom(rand, ['configure', 'configureOutvoted'] as const) : pickFrom(rand, OPS);
+      const second = cross ? r.h[pickFrom(rand, IDS.filter((x) => x !== first))]! : h;
       const calls = r.turn(() => {
         const one = run(r, h, op, rand);
-        return twin ? [one, run(r, h, secondOp, rand)] : [one];
+        return multi ? [one, run(r, second, secondOp, rand)] : [one];
       });
       steps += 1;
       const one = calls[0]!;
@@ -247,7 +254,7 @@ test('seeded random sequences with configure and resetLayout keep the invariants
         assert.equal(brief(one.answer), forcedCode, `${where(step)}: ${op} on ${first} must give ${forcedCode}`);
       }
       // A refusal leaves the list reference-equal with no commit (a single-call turn only).
-      if (!twin && !one.answer.ok) {
+      if (!multi && !one.answer.ok) {
         assert.equal(r.m.latest().entries, entries, `${where(step)}: refused ${op} (${brief(one.answer)}) changed entries`);
         assert.equal(r.m.renders(), renders, `${where(step)}: refused ${op} committed`);
         assert.equal(r.ws.panels.getSnapshot().version, version, `${where(step)}: refused ${op} moved the snapshot version`);
@@ -256,9 +263,9 @@ test('seeded random sequences with configure and resetLayout keep the invariants
       if (isConfigure) {
         if (one.answer.ok) configured += 1;
         // S6: the person's overrides survive any configure.
-        if (!twin) for (const p of r.m.latest().entries) if (overrides.has(p.id)) assert.equal(p.overrides, overrides.get(p.id), `${where(step)}: configure rewrote ${panelKey(p)}'s overrides`);
+        if (!multi) for (const p of r.m.latest().entries) if (overrides.has(p.id)) assert.equal(p.overrides, overrides.get(p.id), `${where(step)}: configure rewrote ${panelKey(p)}'s overrides`);
         // The result names exactly the patched keys the instance layer did not win.
-        if (one.answer.ok && one.patch !== undefined && !twin) {
+        if (one.answer.ok && one.patch !== undefined && !multi) {
           const res = one.answer as unknown as Extract<ConfigureResult, { ok: true }>;
           if (res.changed) {
             const source = h.getSettings().source;
@@ -275,6 +282,14 @@ test('seeded random sequences with configure and resetLayout keep the invariants
       if (twin && two !== undefined && op !== 'tuning' && op !== 'undo' && op !== 'resetAll' && op !== 'resetOne' && secondOp !== 'tuning' && secondOp !== 'undo' && secondOp !== 'resetAll' && secondOp !== 'resetOne' && op !== 'scrollTo' && secondOp !== 'scrollTo' && one.answer.ok && one.answer.changed && (before.status === 'live' || before.status === 'parked') && !(before.status === 'parked' && (secondOp === 'move' || secondOp === 'movePerson'))) {
         assert.equal(brief(two.answer), 'busy', `${where(step)}: ${op} then ${secondOp} on ${first}`);
         busyChecked += 1;
+      }
+      // S3: the entry the engine guards with and the settings the resolver reports agree on every permission, whatever the turn did to the entry.
+      for (const id of IDS) {
+        const entry = r.m.latest().entries.find((p) => panelKey(p) === id);
+        if (entry?.settings === undefined) continue;
+        const read = r.h[id]!.getSettings().value;
+        for (const key of PERMISSIONS) assert.deepEqual(entry.settings[key], read[key], `${where(step)}: ${id}.${key} on the entry and in getSettings()`);
+        mirrorsChecked += 1;
       }
       // S1: after a settled commit the live park panels fit the window beside the rest, except the floor of one.
       const fit = parkPanelsFit(r);
@@ -299,6 +314,6 @@ test('seeded random sequences with configure and resetLayout keep the invariants
   }
   console.log(`sequences run: ${sequences}`);
   assert.ok(sequences >= 500, `sequences run: ${sequences}`);
-  console.log(`checks fired: ${configured} configures, ${configureRefusals} refused, ${resets} resets, ${busyChecked} busy rows, ${shadowChecked} shadowed rows (${shadowedNames} naming a key), ${crowdedChecked} rows of two or more live park panels over ${steps} steps`);
-  assert.ok(configured > 300 && configureRefusals > 20 && resets > 100 && busyChecked > 20 && shadowChecked > 100 && shadowedNames > 10 && crowdedChecked > 500, `the checks fired: ${configured} configures, ${configureRefusals} refused, ${resets} resets, ${busyChecked} busy rows, ${shadowChecked} shadowed rows, ${shadowedNames} naming a key, ${crowdedChecked} crowded rows over ${steps} steps`);
+  console.log(`checks fired: ${configured} configures, ${configureRefusals} refused, ${resets} resets, ${busyChecked} busy rows, ${shadowChecked} shadowed rows (${shadowedNames} naming a key), ${crowdedChecked} rows of two or more live park panels, ${mirrorsChecked} entry-against-resolver comparisons over ${steps} steps`);
+  assert.ok(configured > 300 && configureRefusals > 20 && resets > 100 && busyChecked > 20 && shadowChecked > 100 && shadowedNames > 10 && crowdedChecked > 500 && mirrorsChecked > 10000, `the checks fired: ${configured} configures, ${configureRefusals} refused, ${resets} resets, ${busyChecked} busy rows, ${shadowChecked} shadowed rows, ${shadowedNames} naming a key, ${crowdedChecked} crowded rows, ${mirrorsChecked} mirror comparisons over ${steps} steps`);
 });

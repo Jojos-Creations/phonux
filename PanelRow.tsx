@@ -12,7 +12,7 @@ import { isPresent, summarisePanel, type NeighborWidths, type PanelRowEntry } fr
 import { anchorTargetOf, resolveEnterDirection, type EnterDirection } from './panelRowOrder.js';
 import { PanelHiddenContext, PanelSlotContext, type DragScroll } from './panelSlotContext.js';
 import { PanelViewContextValue } from './panelViewContext.js';
-import { headerButtonsOf } from './panelHeaderButtons.js';
+import { HEADER_ROW_ATTRIBUTE, headerButtonsOf } from './panelHeaderButtons.js';
 import { LIBRARY_TUNING_DEFAULTS, effective, resolvePanelSettings } from './panelSettings.js';
 import type { ResolvedPanelSettings, ResolvedPanelTuning, WorkspaceTuning } from './panelSettings.js';
 import { PanelRowSlot } from './PanelRowSlot.js';
@@ -32,6 +32,12 @@ const EMPTY_SET: ReadonlySet<string> = new Set();
 const EMPTY_MAP: ReadonlyMap<string, 'left' | 'right'> = new Map();
 const NO_NEIGHBORS: NeighborWidths = { left: [], right: [] };
 const NO_SUBSCRIBE = (): (() => void) => () => {};
+
+/** Whether keyboard focus sits in the header row that panel `panelId`'s declared header buttons mark: where a removed last button leaves it. */
+function focusInHeaderRow(panelId: string): boolean {
+  if (typeof document === 'undefined') return false;
+  return document.activeElement?.closest(`[${HEADER_ROW_ATTRIBUTE}]`)?.getAttribute(HEADER_ROW_ATTRIBUTE) === panelId;
+}
 
 /**
  * The side an entry slides in from. 'left' and 'right' are constants that beat every mark. Otherwise an explicit mark
@@ -254,6 +260,11 @@ export function PanelRow({
           const Component = resolveView(p.view);
           const { closable, draggable, placeable, resizable, formFactors, enterFrom, exitTo, closeExit, animated, layer, scrollOnDrag, headerButtons } = effective(p);
           const own = slotTuning(workspaceTuning, binding === undefined ? p.settings?.tuning : binding.panelTuning(p as PanelWindow));
+          const handle = viewContext?.handleFor(p.id);
+          const report = binding?.reportError ?? console.error;
+          const note = binding?.reportNote ?? (() => {});
+          // A panel whose last button was just removed while it held focus still gets the slot context for that one commit, so the hook that moves focus runs.
+          const headerButtonSlots = headerButtonsOf(headerButtons, handle, report, note) ?? (handle !== undefined && focusInHeaderRow(handle.id) ? { slots: {}, handle, report, note } : undefined);
           const dragScroll: DragScroll | undefined = rowScroll
             ? { mode: scrollOnDrag, zonePx: own.edgeScroll.zonePx, maxPxPerSec: own.edgeScroll.maxPxPerSec, reducedStepMs: own.edgeScroll.reducedStepMs, instant: !animated, maxScroll, stops }
             : undefined;
@@ -271,7 +282,7 @@ export function PanelRow({
                 pinned: anchorTargetOf(p, rootId) === rootId && p.anchor?.position === 'left',
                 tuning: own,
                 dragScroll,
-                headerButtonSlots: headerButtonsOf(headerButtons, viewContext?.handleFor(p.id), binding?.reportError ?? console.error, binding?.reportNote ?? (() => {})),
+                headerButtonSlots,
               }}
             >
               <PanelRowSlot
