@@ -200,7 +200,7 @@ test('after a failed save no timer retries by itself, however long the wait', as
   assert.equal(failing.saves.length, 2, 'control: a change is what retries');
 });
 
-test('saves that settle out of order: an older one never advances nor resets the baseline, and equal content in flight is not saved twice', async () => {
+test('saves that settle out of order: an older one never advances nor resets the baseline; content in flight is not saved twice, a return to the baseline is', async () => {
   mock.timers.enable({ apis: ['setTimeout'] });
 
   {
@@ -275,5 +275,21 @@ test('saves that settle out of order: an older one never advances nor resets the
     rig.commit(same);
     await tick();
     assert.equal(saves.length, 2, 'after the failure the same content retries');
+  }
+
+  {
+    const { storage, saves } = pendingStorage();
+    const rig = hookRig(storage);
+    await turn();
+    rig.commit(add('a'));
+    await tick();
+    saves[0]!.resolve();
+    await turn();
+    rig.commit(add('b'));
+    await tick();
+    rig.commit(without('b'));
+    await tick();
+    assert.equal(saves.length, 3, 'a change back to the baseline is saved while a save is in flight, because that save may land after it');
+    assert.equal(saves[2]!.state.panels.length, 1);
   }
 });
