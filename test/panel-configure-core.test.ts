@@ -7,7 +7,7 @@ import assert from 'node:assert/strict';
 import './support/jsdom-globals.js';
 import { act, createElement, useEffect, useLayoutEffect } from 'react';
 import { flushSync } from 'react-dom';
-import type { ConfigureResult, HeaderButton, PanelResult, PanelSettings, PanelSummary, Pinning } from '../index.js';
+import type { ConfigureResult, HeaderButton, PanelHandle, PanelResult, PanelSettings, PanelSummary, Pinning } from '../index.js';
 import { applyConfigure } from '../panelConfigure.js';
 import { panelKey, resolvePanelSettings } from '../panelSettings.js';
 import type { PanelWindow } from '../panelWindow.js';
@@ -727,17 +727,27 @@ test('null removes the key and the cascade\'s value and source come back: librar
   assert.deepEqual({ ...done(r.turn(() => r.h.b!.configure({ scrollOnOpen: null }))) }, { ok: true, changed: false, shown: false, now: [], later: [], shadowed: [], notes: [] }, 'a null for a key the layer never held changes nothing');
 });
 
-test('null on a key a view asked for at the Host-bag create (KNOWN-BAD: the host ask is merged into the instance layer, so null does not bring it back)', async () => {
+test('null on a key a view asked for at the Host-bag create brings the host\'s ask back with source host, for a template panel and a plain one', async () => {
   const r = await pinRig({ ids: ['a'], extra: [markerTemplate('m', { settings: { multiple: true, title: 'Template title' } })] });
-  act(() => void r.provided().create({ view: 'm', title: 'Host title' }));
+  act(() => void r.provided().create({ view: 'm', title: 'Host title', listed: false, formFactor: 'tablet' }));
+  act(() => void r.provided().create({ title: 'Plain host title' }));
   await r.settle();
-  const panel = r.ws.panels.list().find((h) => h.templateId === 'm')!;
-  assert.deepEqual([panel.getSettings().value.title, panel.getSettings().source.title], ['Host title', 'instance']);
-  done(r.turn(() => panel.configure({ title: 'Configured' })));
-  assert.deepEqual([panel.getSettings().value.title, panel.getSettings().source.title], ['Configured', 'instance']);
-  done(r.turn(() => panel.configure({ title: null })));
-  // The cascade (DESIGN.md, Layers and the cascade) lets the host's ask show through again with source 'host'; the ask is merged into the instance layer, so null falls through to the template.
-  assert.deepEqual([panel.getSettings().value.title, panel.getSettings().source.title], ['Template title', 'template']);
+  const templated = r.ws.panels.list().find((h) => h.templateId === 'm')!;
+  const plain = r.ws.panels.list().find((h) => h.templateId !== 'm' && h.templateId !== 'a' && h.id !== r.ws.rootId)!;
+  const read = (h: PanelHandle, key: 'title' | 'listed' | 'formFactor'): [unknown, string | undefined] => [h.getSettings().value[key], h.getSettings().source[key]];
+  assert.deepEqual([read(templated, 'title')[0], read(templated, 'listed')[0], read(templated, 'formFactor')[0], read(plain, 'title')[0]], ['Host title', false, 'tablet', 'Plain host title'], 'control: the asks took effect');
+  assert.deepEqual(read(templated, 'title'), ['Host title', 'host'], 'the ask reads as the host layer until a configure sets the key');
+  done(r.turn(() => templated.configure({ title: 'Configured', listed: true })));
+  assert.deepEqual([read(templated, 'title'), read(templated, 'listed')], [['Configured', 'instance'], [true, 'instance']]);
+  const back = done(r.turn(() => templated.configure({ title: null, listed: null, formFactor: 'phone' })));
+  assert.deepEqual([[...back.now], [...back.later], [...back.shadowed]], [['title', 'listed'], ['formFactor'], []]);
+  assert.deepEqual([read(templated, 'title'), read(templated, 'listed'), read(templated, 'formFactor')], [['Host title', 'host'], [false, 'host'], ['phone', 'instance']], 'null shows the host\'s ask again, source host');
+  done(r.turn(() => templated.configure({ formFactor: null })));
+  assert.deepEqual(read(templated, 'formFactor'), ['tablet', 'host']);
+  assert.equal(r.state(templated.id).title, 'Host title', 'and the panel\'s own title follows');
+  done(r.turn(() => plain.configure({ title: 'Configured' })));
+  done(r.turn(() => plain.configure({ title: null })));
+  assert.deepEqual(read(plain, 'title'), ['Plain host title', 'host']);
 });
 
 // ---------------------------------------------------------------------------
@@ -855,12 +865,35 @@ test('headerButtons row 2: replacing the only focused slot by a hidden one leave
   assert.equal(document.activeElement === row, true, 'the header row the button sat in');
 });
 
-test('headerButtons row 2b: removing the only declared slot leaves no header row to take focus, so focus is on body (the row carries tabindex only while a slot is declared)', async () => {
+test('headerButtons row 2b: removing the only declared slot while it holds focus leaves focus on that panel\'s header row, tabindex -1, never body', async () => {
+  const rig = await headerRig({ ids: ['a', 'c'], slots: { b: slotB() } });
+  const row = rig.row('a')!;
+  act(() => rig.buttons('a')[0]!.focus());
+  assert.deepEqual(focused(), { tag: 'BUTTON', tabindex: '0', label: 'B' });
+  const renders = rig.m.renders();
+  rig.turn(() => rig.h.a!.configure({ headerButtons: { b: false } }));
+  assert.equal(rig.m.renders() - renders, 1, 'one commit');
+  assert.deepEqual([labels(rig, 'a'), rig.row('a')], [[], null], 'no slot is declared any more, so the row carries no marker');
+  assert.deepEqual(focused(), { tag: 'DIV', tabindex: '-1', label: null });
+  assert.equal(document.activeElement === row, true, 'it is the header row the button sat in');
+  assert.deepEqual(labels(rig, 'c'), ['B'], 'the other panel keeps its slot');
+});
+
+test('headerButtons row 2c: a focus that is elsewhere is left alone when a panel loses its last slot', async () => {
+  const rig = await headerRig({ ids: ['a', 'c'], slots: { b: slotB() } });
+  act(() => rig.buttons('c')[0]!.focus());
+  rig.turn(() => rig.h.a!.configure({ headerButtons: { b: false } }));
+  assert.deepEqual(focused(), { tag: 'BUTTON', tabindex: '0', label: 'B' });
+  assert.equal(document.activeElement === rig.buttons('c')[0], true, 'still the other panel\'s button');
+});
+
+test('headerButtons row 2d: the same holds for a lone panel with one slot', async () => {
   const rig = await headerRig({ ids: ['a'], slots: { b: slotB() } });
+  const row = rig.row('a')!;
   act(() => rig.buttons('a')[0]!.focus());
   rig.turn(() => rig.h.a!.configure({ headerButtons: { b: false } }));
-  assert.deepEqual([labels(rig, 'a'), rig.row('a')], [[], null]);
-  assert.deepEqual(focused(), { tag: 'BODY', tabindex: null, label: null });
+  assert.deepEqual(focused(), { tag: 'DIV', tabindex: '-1', label: null });
+  assert.equal(document.activeElement === row, true);
 });
 
 test('headerButtons row 3: a slot configured onto a panel with none appears in the same commit, and a changed label shows at the commit', async () => {

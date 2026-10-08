@@ -230,3 +230,33 @@ test('a deferred pin is never in the file, and a configure of pinning keeps it o
   assert.equal(text.includes('"by"'), false);
   assert.equal(JSON.parse(text).panels.length > 0, true, 'control: the file was written');
 });
+
+test('a Host-bag ask comes back through null in the session, the file keeps it merged in the instance layer and the person\'s overrides alone, and the next launch reads it as the instance layer\'s own', async () => {
+  const store = memoryWorkspaceStorage();
+  const extra = [markerTemplate('m', { settings: { multiple: true, title: 'Template title' } })];
+  let r = await launch(store, { extra });
+  act(() => void r.provided().create({ view: 'm', title: 'Host title' }));
+  await r.settle();
+  let x = anonymous(r);
+  const read = (): [unknown, string | undefined] => [x.getSettings().value.title, x.getSettings().source.title];
+  r.turn(() => x.setFormFactor('tablet', 'person'));
+  await wait();
+  const savedPanel = async () => (await file(store)).panels.find((p) => p.view === 'm')!;
+  const before = JSON.stringify((await savedPanel()).overrides);
+  assert.equal((await savedPanel()).overrides!.formFactor, 'tablet', 'control: the person left an override');
+  ok(r.turn(() => x.configure({ title: 'Configured' })));
+  await wait();
+  assert.deepEqual([read(), (await savedPanel()).instance], [['Configured', 'instance'], { title: 'Configured' }]);
+  ok(r.turn(() => x.configure({ title: null })));
+  await wait();
+  assert.deepEqual([read(), (await savedPanel()).instance], [['Host title', 'host'], { title: 'Host title' }], 'the file still holds the ask');
+  assert.equal(JSON.stringify((await savedPanel()).overrides), before, 'and the person\'s overrides are as they were');
+  await quit(r);
+
+  r = await launch(store, { extra });
+  x = anonymous(r);
+  assert.deepEqual(read(), ['Host title', 'instance'], 'a new launch has only the merged layer');
+  ok(r.turn(() => x.configure({ title: 'Again' })));
+  ok(r.turn(() => x.configure({ title: null })));
+  assert.deepEqual(read(), ['Template title', 'template'], 'so null falls through to the template');
+});
