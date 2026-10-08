@@ -1,8 +1,8 @@
 /**
  * Keeps the panel list between launches through a host's `WorkspaceStorage`: one restore at mount, then a
- * debounced save of every committed change. The restore is `reconcileWorkspace`, called in the load's success
- * handler; a throw there takes the same path as a failed load, so the workspace always settles. With no storage
- * it does nothing: no state, no promise, no timer.
+ * debounced save of every committed change; a save that fails is saved again by the next change. The restore is
+ * `reconcileWorkspace`, called in the load's success handler; a throw there takes the same path as a failed load, so
+ * the workspace always settles. With no storage it does nothing: no state, no promise, no timer.
  */
 import { useEffect, useRef, useState } from 'react';
 import type { Dispatch, SetStateAction } from 'react';
@@ -90,7 +90,6 @@ export function useWorkspacePersistence(i: {
   useEffect(() => {
     // StrictMode runs this effect twice; only the run that is not cancelled may apply its result.
     let cancelled = false;
-    // The executor runs at once, so a load() that throws reads as a rejection: no saved state.
     const reconcile = (saved: unknown): PanelWindow[] => {
       const own = (typeof given === 'function' ? given() : given) ?? [];
       const templates = [...listTemplates().filter((t) => !own.some((g) => g.id === t.id)), ...own];
@@ -166,15 +165,17 @@ export function useWorkspacePersistence(i: {
     if (storage === undefined || !settled) return;
     const state = projectWorkspaceState(panels, rootId, dismissed.current);
     const json = JSON.stringify(state);
-    // A save still in flight may land after this one, so the file is not known to hold the baseline until it settles.
+    // A save in flight may land after this change, so a match with the baseline does not yet mean the file is right.
     if (json === lastSaved.current && inFlight.current === null) return;
     // No flush on unmount or quit: a change in the last quiet period is lost, never a torn write.
     const timer = setTimeout(() => {
       const flying = inFlight.current;
+      // Equal content is already on its way, or the file holds it now.
       if (json === flying?.json || (flying === null && json === lastSaved.current)) return;
       started.current += 1;
       const n = started.current;
       inFlight.current = { n, json };
+      // A thenable that settles twice, or throws after settling, is reported and applied once.
       let done = false;
       const settle = (failure: { e: unknown } | null): void => {
         if (done) return;
