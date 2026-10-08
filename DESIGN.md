@@ -1127,7 +1127,9 @@ any tuning key in the workspace defaults throws. A view's own door, the host lay
 hands the engine one update that replaces the entry; the call takes a manager token on the panel, so a second verb on it
 in the same turn answers `busy` and a close excludes every other call. `configureTemplate` stores an override layer for
 the three template keys that only future creations read, and `configureTuning` stores the workspace tuning input,
-re-pricing the row in one commit when `rowGap` moves. A tuning leaf set on a panel outranks the workspace's.
+re-pricing the row in one commit when `rowGap` moves. A tuning leaf set on a panel outranks the workspace's. A configure
+queued behind another call's update of the same entry in one turn applies to the entry that update left, planned from the
+layer the call saw; a panel the update removed stays removed.
 
 ### Pin definitions
 

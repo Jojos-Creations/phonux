@@ -829,8 +829,8 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
       setPanels((prev) => {
         const now = prev.find((p) => p.id === engineId);
         if (now === target) return applyConfigure(prev, target, outcome.next);
-        // Another update in the turn rebuilt the entry: it is planned again only if nothing the plan read has changed.
-        if (now === undefined || now.settings !== target.settings || now.collapsible !== target.collapsible || now.formFactor !== target.formFactor || now.overrides !== target.overrides || now.instance !== target.instance || now.live !== target.live || now.declared !== target.declared) return prev;
+        // Another update in the turn rebuilt the entry: the patch applies to what it left, and a panel it removed stays removed.
+        if (now === undefined) return prev;
         const again = plan(now, status);
         return 'next' in again ? applyConfigure(prev, now, again.next) : prev;
       });

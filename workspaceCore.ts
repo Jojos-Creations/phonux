@@ -831,8 +831,11 @@ export function createWorkspace(o: WorkspaceOptions = {}): WorkspaceHandle {
       return configured(plan);
     }
     let layer: PanelSettings | undefined;
+    // The update plans again when an earlier update of the turn rebuilt the entry, and by then the record already holds the new layer: the base must stay the one the call saw.
+    let base: { layer: PanelSettings | undefined } | undefined;
     const result = commit!.ops.configure(state.engineId!, (target, status): ConfigureOutcome => {
-      const plan = planInstance({ ...input, base: instanceLayer(target), template: templateOf(target.view)?.settings, person: target.overrides, current: target.settings, root: target.id === rootId, tier: target.formFactor ?? 'phone', status });
+      base ??= { layer: instanceLayer(target) };
+      const plan = planInstance({ ...input, base: base.layer, template: templateOf(target.view)?.settings, person: target.overrides, current: target.settings, root: target.id === rootId, tier: target.formFactor ?? 'phone', status });
       if (!plan.ok) return { done: { ok: false, code: plan.code, message: `panel '${id}': ${plan.message}`, ...(plan.setting === undefined ? {} : { setting: plan.setting }) } };
       if (!plan.changed) return { done: unchanged() };
       layer = plan.layer;
