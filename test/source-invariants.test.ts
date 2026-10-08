@@ -342,9 +342,9 @@ test('source: the scroll files import no flushSync and use no useMemo or useCall
   }
 });
 
-test('source: the pin and reset files import no flushSync, and a planted import is found', () => {
+test('source: the pin, reset and configure files import no flushSync, and a planted import is found', () => {
   assert.equal(importsFlushSync("import { flushSync } from 'react-dom';"), true, 'the matcher must find a planted import');
-  for (const file of ['panelPin.ts', 'panelReset.ts', 'panelManager.ts', 'panelHandles.ts']) {
+  for (const file of ['panelPin.ts', 'panelReset.ts', 'panelConfigure.ts', 'panelManager.ts', 'panelHandles.ts', 'workspaceCore.ts']) {
     assert.equal(importsFlushSync(read(file)), false, `${file} must not flush a render from a verb`);
   }
 });
