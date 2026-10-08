@@ -636,16 +636,17 @@ declare function hydrateWorkspaceState(state: WorkspaceState, freshId: () => str
 
 type WorkspaceStorage = {
   load(): Promise<WorkspaceState | null>;
-  save(state: WorkspaceState): void;
+  save(state: WorkspaceState): void | Promise<void>;
 };
 ```
 
 `projectWorkspaceState` and `hydrateWorkspaceState` are pure and phonux-owned, operating on `PanelWindow`, the
 panel model in `panelWindow.ts`; `rootId` is threaded through like every function there, because which entry is
 the root is the app's choice. `WorkspaceStorage` is phonux's own contract, not an implementation: the host
-supplies a real `load`/`save` pair. `save` is fire-and-forget and must not throw: phonux does not guard it, the
-same rule the provider's other host callbacks already state. The provider validates whatever `load()` resolves
-with, so a host may hand it unvalidated JSON.
+supplies a real `load`/`save` pair. `save` returns nothing or a promise, and phonux guards it: a throw or a rejection is
+reported once through `WorkspaceOptions.onError` (`console.error` when it is unset) and never rethrown out of the save
+timer, and the failed save is retried by the next change (see "Save timing"). The provider validates whatever `load()`
+resolves with, so a host may hand it unvalidated JSON.
 
 ### How hydrate builds the list
 
@@ -666,10 +667,19 @@ rewrite an anchor that names a later entry.
 ### Save timing
 
 Once the initial restore attempt has settled, phonux computes `projectWorkspaceState` on every committed panels
-change and compares its JSON with the last one saved (or, before any save, with the restore's baseline, see
-below); an equal projection is skipped. Otherwise it schedules `save()` 500 ms later (`WORKSPACE_SAVE_QUIET_MS`)
-and every further change restarts that wait, so a drag is one save and a change that puts the row back to what
-was saved saves nothing. The baseline advances when the timer fires.
+change and compares its JSON with the baseline: the JSON the file is known to hold, which is the restore's baseline
+(see below) until a save succeeds. An equal projection is skipped. Otherwise it schedules `save()` 500 ms later
+(`WORKSPACE_SAVE_QUIET_MS`) and every further change restarts that wait, so a drag is one save and a change that puts
+the row back to what was saved saves nothing.
+
+The baseline advances when a save succeeds, not when the timer fires. A `save` that returns nothing has succeeded at
+once; one that returns a promise has succeeded when it resolves. A throw or a rejection leaves the baseline where it was
+and is reported exactly once. Nothing retries on a timer of its own: the next committed change to the panels (a new
+`panels` array, including one whose projection equals the failed one) saves the full current state again.
+Overlapping saves follow three rules. A save that settles after a newer one has started neither advances nor resets the
+baseline, because it says nothing about what the file holds now. When the timer fires while a save of the same JSON is
+still in flight, no second save is made; if that save fails, the next change saves the same content again. And while a
+save is in flight, a change back to the baseline is still saved, because the save in flight may land after it.
 
 The gate is React state, not a ref: opening it must re-run the save effect, or a change committed while `load()`
 was pending and then found nothing to restore would never be saved. The hazard the gate exists for is real:
@@ -701,7 +711,7 @@ The baseline for the save comparison is the JSON of the projection of the list j
 the file's ids differ from the fresh ones whenever a panel was closed in an earlier session, and project writes
 runtime ids, so comparing against the file would save at every launch. When nothing was restored the baseline is
 the empty projection, so opening the app saves nothing while a panel created earlier than the restore is saved.
-`WorkspaceStorage.save(state): void` is called only from that debounced, settled-gated path, never from any other
+`WorkspaceStorage.save(state)` is called only from that debounced, settled-gated path, never from any other
 call site. The hook reads `storage`, `rootId`, `freshId` and `defaultHostData` at mount only.
 
 ### Restore behavior

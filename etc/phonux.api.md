@@ -1293,7 +1293,7 @@ export type WorkspaceStatus = 'detached' | 'loading' | 'ready' | 'disposed';
 // @public
 export type WorkspaceStorage = {
     load(): Promise<WorkspaceState | null>;
-    save(state: WorkspaceState): void;
+    save(state: WorkspaceState): void | Promise<void>;
 };
 
 // @public
