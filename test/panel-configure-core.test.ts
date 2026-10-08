@@ -1009,9 +1009,9 @@ test('configureTuning rowGap re-prices the row in one commit: the slots rest one
   const res = done(r.turn(() => r.ws.panels.configureTuning({ rowGap: 40 })));
   assert.deepEqual({ ...res }, { ok: true, changed: true, shown: false, now: ['tuning.rowGap'], later: [], shadowed: [], notes: [] });
   assert.equal(r.m.renders() - renders, 1, 'one commit');
+  assert.deepEqual([r.m.latest().tuning.rowGap, r.ws.tuning.rowGap, r.m.latest().rowNumbers.stripWidth], [40, 40, 4 * 390 + 3 * 40], 'priced in the commit of the call, not after it');
   await r.settle();
   assert.deepEqual(['root', 'a', 'b', 'c'].map(slotX), [0, 430, 860, 1290], 'after: 390 + 40 apart');
-  assert.deepEqual([r.m.latest().tuning.rowGap, r.ws.tuning.rowGap, r.m.latest().rowNumbers.stripWidth], [40, 40, 4 * 390 + 3 * 40]);
 });
 
 test('configureTuning rowGap in park mode: a smaller capacity parks the fewest park panels through the reconcile effect, then the live ones fit', async () => {
