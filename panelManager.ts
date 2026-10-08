@@ -1,6 +1,7 @@
 /**
- * The workspace's manager: read access to every panel by id, as handles, `resetLayout`, and the pieces every operation on
- * a handle is answered with.  */
+ * The workspace's manager: every panel by id as a handle, the three configure calls and `resetLayout`, and the pieces
+ * every operation on a handle is answered with.
+ */
 import type { JsonValue } from './hostApi.js';
 import { filterStates, type PanelHandle, type ReadSource } from './panelHandles.js';
 import type { PanelRefusal } from './panelManagerError.js';
