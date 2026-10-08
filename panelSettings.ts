@@ -1618,8 +1618,11 @@ const WORKSPACE_ONLY_TUNING = new Set<string>(PANEL_SETTINGS_CATALOG.filter((d) 
 const TEMPLATE_SCOPE_KEYS = new Set<string>(PANEL_SETTINGS_CATALOG.filter((d) => d.configure.doors.length === 1 && d.configure.doors[0] === 'template').map((d) => d.name));
 const VIEW_SETTABLE_KEYS = new Set<string>(PANEL_SETTINGS_CATALOG.filter((d) => d.viewSettable).map((d) => d.name));
 
-/** A view may place itself only by an explicit anchor and enter only from it, so those two keys are checked by value. */
-/** @internal */
+/**
+ * Whether a view may ask for `key` as `value`: a view may place itself only by an explicit anchor and enter only from it,
+ * so those two keys are checked by value.
+ * @internal
+ */
 export const viewMayAsk = (key: string, value: unknown): boolean => {
   if (!VIEW_SETTABLE_KEYS.has(key)) return false;
   if (key === 'placeOnAdd') return isPlain(value) && Object.keys(value).length === 1 && value.anchor !== undefined;

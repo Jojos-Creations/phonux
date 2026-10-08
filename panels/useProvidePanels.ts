@@ -114,6 +114,8 @@ interface CreatePlan {
   resolution: PanelSettingsResolution;
   /** The host and instance asks merged into the one layer the file keeps. */
   instance: PanelSettings;
+  /** What the view asked for, apart: the workspace keeps it under the instance layer for the session. */
+  host: PanelSettings;
 }
 
 /** `options` resolved against the workspace defaults and, for a template view, the template's own layer. A permanent column is a plain view's own ask; a template's panel cannot ask it, which the resolver records as a conflict. */
@@ -133,6 +135,7 @@ function planCreate(options: CreatePanelOptions | undefined, template: PanelTemp
   return {
     resolution: resolvePanelSettings({ workspace: defaults, ...(template !== undefined ? { template: template.settings } : {}), host, instance: own }),
     instance: { ...saved, ...own },
+    host: saved,
   };
 }
 
@@ -889,6 +892,7 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
       const settings = plan?.resolution.value;
       // The gate reads the list as the updater will: this render's copy, then React's.
       if (template !== undefined && settings !== undefined && !mayCreate(settings, template.id, panels)) return;
+      if (plan !== undefined && Object.keys(plan.host).length > 0) core?.hostAsked(id, plan.host);
       revealPanelProactively(panels, (prev) => {
         if (template !== undefined && settings !== undefined && !mayCreate(settings, template.id, prev)) return prev;
         const next = appendPanel(
