@@ -6,23 +6,33 @@
 import { test, afterEach, mock } from 'node:test';
 import assert from 'node:assert/strict';
 import './support/jsdom-globals.js';
-import { act } from 'react';
 import type { ConfigureResult } from '../index.js';
 import { advanceFrames, cleanup } from './support/mount-harness.js';
 import { drag } from './support/drag-gesture.js';
 import {
+  EDGE_WINDOW,
+  HALF_ZONE_POINTER,
+  LIBRARY_TUNING_DEFAULTS,
   dragRig,
   done,
+  heldScroll,
+  hold,
   letter,
+  lift,
   matrixRig,
   matrixTemplate,
   mockWindow,
+  pressAndMove,
   refusedWith,
+  soft,
   viewLog,
   type MatrixRig,
 } from './support/configure-matrix.js';
 
-afterEach(() => {
+afterEach(async () => {
+  // A test that left the pointer down must not leave motion's window listeners live for the next one.
+  window.dispatchEvent(new MouseEvent('pointerup', { bubbles: true }));
+  await advanceFrames(5 * 16);
   mock.timers.reset();
   mock.restoreAll();
   cleanup();
@@ -397,6 +407,212 @@ test('case B15: viewState reset-on-park to keep on a parked panel reaches the ne
   assert.equal(r.seen('b')?.['data-n'], '3', 'the next park keeps it');
 });
 
-void act;
-void mockWindow;
-void thrownCode;
+
+// ---------------------------------------------------------------------------
+// Edge scroll rows: scrollOnDrag and tuning.edgeScroll
+// ---------------------------------------------------------------------------
+
+const ZONE = LIBRARY_TUNING_DEFAULTS.edgeScroll.zonePx;
+const QUARTER = ZONE / 4;
+
+test('edge scroll 1: scrollOnDrag edge to none on a live panel: the next held drag at the window edge leaves scrollLeft alone and, set back to edge, scrolls again; configure scrolls nothing', async () => {
+  const r = await dragRig();
+  assert.equal(r.m.container.scrollLeft, 0);
+  assert.deepEqual(shape(r.turn(() => r.h.s1!.configure({ scrollOnDrag: 'none' }))), { now: [], later: ['scrollOnDrag'], shadowed: [] });
+  await r.settle();
+  assert.equal(r.m.container.scrollLeft, 0, 'nothing scrolls at configure');
+  assert.equal(await heldScroll(r, 's1', HALF_ZONE_POINTER), 0, 'edge to none: the held drag leaves the row where it is');
+  assert.equal(r.m.container.scrollLeft, 0);
+  assert.deepEqual(shape(r.turn(() => r.h.s1!.configure({ scrollOnDrag: 'edge' }))), { now: [], later: ['scrollOnDrag'], shadowed: [] });
+  assert.equal(r.m.container.scrollLeft, 0, 'nothing scrolls at configure this time either');
+  assert.equal((await heldScroll(r, 's1', HALF_ZONE_POINTER)) > 0, true, 'set back to edge, the same drag scrolls again');
+});
+
+test('edge scroll 2: a drag already in flight keeps the mode it began with, in both directions', async () => {
+  const s = soft();
+  await s.run('edge to none mid-drag: this drag keeps scrolling, the next one does not', async () => {
+    const r = await dragRig();
+    await pressAndMove(r, 's1', HALF_ZONE_POINTER);
+    const before = r.m.container.scrollLeft;
+    await hold(15);
+    const started = r.m.container.scrollLeft;
+    assert.equal(started > before, true, 'control: the drag scrolls the row');
+    done(r.turn(() => r.h.s1!.configure({ scrollOnDrag: 'none' })));
+    await hold(15);
+    const after = r.m.container.scrollLeft;
+    await lift(HALF_ZONE_POINTER);
+    assert.equal(after > started, true, `this drag keeps scrolling (${started} then ${after})`);
+    assert.equal(await heldScroll(r, 's1', HALF_ZONE_POINTER), 0, 'and the next drag reads none');
+  });
+  await s.run('none to edge mid-drag: this drag stays still, the next one scrolls', async () => {
+    const r = await dragRig({ settings: { s2: { scrollOnDrag: 'none' } } });
+    await pressAndMove(r, 's2', HALF_ZONE_POINTER);
+    const rest = r.m.container.scrollLeft;
+    done(r.turn(() => r.h.s2!.configure({ scrollOnDrag: 'edge' })));
+    await hold(30);
+    const after = r.m.container.scrollLeft;
+    await lift(HALF_ZONE_POINTER);
+    assert.equal(after, rest, 'this drag stays still');
+    assert.equal((await heldScroll(r, 's2', HALF_ZONE_POINTER)) > 0, true, 'and the next drag reads edge');
+  });
+  s.end();
+});
+
+test('edge scroll 3: tuning.edgeScroll zonePx from the default to a quarter of it through configure(id): half the default zone from the edge scrolls under the default and not after the change', async () => {
+  const r = await dragRig();
+  assert.equal(HALF_ZONE_POINTER, EDGE_WINDOW - ZONE / 2);
+  assert.equal((await heldScroll(r, 's1', HALF_ZONE_POINTER)) > 0, true, 'positive control: under the default zone the pointer is inside the band');
+  assert.deepEqual(shape(r.turn(() => r.h.s1!.configure({ tuning: { edgeScroll: { zonePx: QUARTER } } }))), { now: [], later: ['tuning.edgeScroll'], shadowed: [] });
+  const at = r.m.container.scrollLeft;
+  await r.settle();
+  assert.equal(r.m.container.scrollLeft, at, 'nothing scrolls at configure');
+  assert.equal(await heldScroll(r, 's1', HALF_ZONE_POINTER), 0, 'after the change the same pointer is outside a quarter-width band');
+  assert.equal(QUARTER, 12);
+});
+
+test('edge scroll 4: a drag in flight keeps the edge numbers it began with', async () => {
+  const r = await dragRig();
+  await pressAndMove(r, 's1', HALF_ZONE_POINTER);
+  const a = r.m.container.scrollLeft;
+  await hold(10);
+  const b = r.m.container.scrollLeft;
+  done(r.turn(() => r.h.s1!.configure({ tuning: { edgeScroll: { zonePx: QUARTER } } })));
+  await hold(10);
+  const c = r.m.container.scrollLeft;
+  assert.equal(b - a > 0, true, 'control: scrolling');
+  assert.equal(Math.abs(c - b - (b - a)) < 1e-6, true, `the pace after the change equals the pace before it (${b - a} then ${c - b})`);
+  await lift(HALF_ZONE_POINTER);
+});
+
+test('edge scroll 5: configureTuning sets the default zone for panels without a leaf, a panel leaf wins, and null removes the leaf', async () => {
+  const r = await dragRig();
+  assert.deepEqual({ ...done(r.turn(() => r.ws.panels.configureTuning({ edgeScroll: { zonePx: QUARTER } }))) }, { ok: true, changed: true, shown: false, now: [], later: ['tuning.edgeScroll'], shadowed: [], notes: [] });
+  assert.equal(await heldScroll(r, 's3', HALF_ZONE_POINTER), 0, 'a panel with no leaf reads the new workspace default');
+  done(r.turn(() => r.h.s1!.configure({ tuning: { edgeScroll: { zonePx: ZONE } } })));
+  assert.equal((await heldScroll(r, 's1', HALF_ZONE_POINTER)) > 0, true, "a panel's own leaf wins over the workspace default");
+  done(r.turn(() => r.h.s1!.configure({ tuning: { edgeScroll: null } } as never)));
+  assert.equal(r.h.s1!.getSettings().source['tuning.edgeScroll'], 'workspace', 'null removed the leaf');
+  assert.equal(await heldScroll(r, 's1', HALF_ZONE_POINTER), 0, 'so the panel reads the workspace default again');
+  done(r.turn(() => r.ws.panels.configureTuning({ edgeScroll: null } as never)));
+  assert.equal((await heldScroll(r, 's3', HALF_ZONE_POINTER)) > 0, true, 'null at the workspace puts the library default back');
+});
+
+test('edge scroll 6: a hidden panel and an engine-parked panel store both settings, and they apply when the panel is next dragged', async () => {
+  const hidden = await dragRig();
+  hidden.turn(() => hidden.h.s3!.hide());
+  await hidden.settle();
+  assert.deepEqual(shape(hidden.turn(() => hidden.h.s3!.configure({ scrollOnDrag: 'none', tuning: { edgeScroll: { zonePx: QUARTER } } }))), { now: [], later: ['scrollOnDrag', 'tuning.edgeScroll'], shadowed: [] });
+  assert.deepEqual([hidden.state('s3').status, hidden.state('s3').settings.scrollOnDrag, hidden.h.s3!.getSettings().value.tuning.edgeScroll.zonePx], ['parked', 'none', QUARTER], 'stored on the hidden panel');
+  hidden.turn(() => hidden.h.s3!.show());
+  await hidden.settle();
+  hidden.turn(() => hidden.h.s3!.configure({ scrollOnDrag: 'edge' }));
+  assert.equal(await heldScroll(hidden, 's3', HALF_ZONE_POINTER), 0, 'shown again, its quarter-width zone leaves the pointer outside the band');
+  const parked = await dragRig({ park: true });
+  const away = ['s1', 's2', 's3', 's4', 's5', 's6', 's7', 's8', 's9'].find((name) => parked.state(name).status === 'parked' && !parked.state(name).held);
+  assert.notEqual(away, undefined, 'the engine parked some panels for room');
+  assert.deepEqual(shape(parked.turn(() => parked.h[away!]!.configure({ scrollOnDrag: 'none', tuning: { edgeScroll: { zonePx: QUARTER } } }))), { now: [], later: ['scrollOnDrag', 'tuning.edgeScroll'], shadowed: [] });
+  assert.deepEqual([parked.state(away!).status, parked.state(away!).settings.scrollOnDrag], ['parked', 'none'], 'stored on the parked panel, which stays parked');
+});
+
+// ---------------------------------------------------------------------------
+// Root column
+// ---------------------------------------------------------------------------
+
+test('root column 1: closable, parkable, draggable and placeable true on the root are each a settings-conflict naming the key and rule C5, with no forcedBy', async () => {
+  const r = await matrixRig();
+  const entries = r.m.latest().entries;
+  const renders = r.m.renders();
+  let executed = 0;
+  for (const key of ['closable', 'parkable', 'draggable', 'placeable'] as const) {
+    const refusal = refusedWith(r.turn(() => r.ws.panels.configure(r.ws.rootId, { [key]: true } as never)), 'settings-conflict');
+    assert.equal(refusal.setting, key, `${key}: the result names the asked key`);
+    assert.match(refusal.message, /C5/, `${key}: the message names rule C5`);
+    assert.doesNotMatch(refusal.message, /because of/, `${key}: and names no forcing key`);
+    executed += 1;
+  }
+  assert.equal(executed, 4);
+  assert.deepEqual([r.m.latest().entries === entries, r.m.renders()], [true, renders], 'the root was not touched');
+});
+
+test('root column 2: resizable true on the root is a settings-conflict from rule C1, because of parkable', async () => {
+  const r = await matrixRig();
+  const refusal = refusedWith(r.turn(() => r.ws.panels.configure(r.ws.rootId, { resizable: true })), 'settings-conflict');
+  assert.equal(refusal.setting, 'resizable');
+  assert.match(refusal.message, /C1/);
+  assert.match(refusal.message, /because of parkable$/);
+});
+
+/** Values of pinningWhenNotLive, and what configure(parkable false) on a panel in each status answers under each (design 6A). */
+type Cell = { reply: 'would-reshape-row' | 'is-closed' | 'shown' | 'deferred' | 'stored'; fixed: boolean };
+const PIN_CELLS: readonly { value: unknown; parked: Cell; hidden: Cell; closed: Cell }[] = [
+  { value: 'place-only', parked: { reply: 'would-reshape-row', fixed: false }, hidden: { reply: 'would-reshape-row', fixed: false }, closed: { reply: 'is-closed', fixed: false } },
+  { value: 'refuse', parked: { reply: 'would-reshape-row', fixed: false }, hidden: { reply: 'would-reshape-row', fixed: false }, closed: { reply: 'is-closed', fixed: false } },
+  { value: 'show', parked: { reply: 'shown', fixed: true }, hidden: { reply: 'shown', fixed: true }, closed: { reply: 'is-closed', fixed: false } },
+  { value: 'apply-on-next-show', parked: { reply: 'deferred', fixed: false }, hidden: { reply: 'deferred', fixed: false }, closed: { reply: 'stored', fixed: false } },
+  { value: { parked: 'show', hidden: 'refuse', closed: 'apply-on-next-show' }, parked: { reply: 'shown', fixed: true }, hidden: { reply: 'would-reshape-row', fixed: false }, closed: { reply: 'stored', fixed: false } },
+  { value: { parked: 'apply-on-next-show', hidden: 'show', closed: 'refuse' }, parked: { reply: 'deferred', fixed: false }, hidden: { reply: 'shown', fixed: true }, closed: { reply: 'is-closed', fixed: false } },
+];
+
+test('root column 3: pinningWhenNotLive over its four values and the per-status object decides what configure(parkable false) answers on a parked, hidden, closed declared and undo-window panel', async () => {
+  const s = soft();
+  let executed = 0;
+  for (const cell of PIN_CELLS) {
+    const label = JSON.stringify(cell.value);
+    const settings = { a: { pinningWhenNotLive: cell.value } } as never;
+    const check = (name: string, expected: Cell, r: MatrixRig, res: ConfigureResult, id: string): void => {
+      if (expected.reply === 'would-reshape-row' || expected.reply === 'is-closed') {
+        refusedWith(res, expected.reply);
+        assert.equal(r.state(id).settings.parkable, true, `${name}: nothing changed`);
+        return;
+      }
+      const ok = done(res);
+      if (expected.reply === 'shown') {
+        assert.deepEqual([ok.shown, r.state(id).status, r.state(id).settings.parkable], [true, 'live', false], `${name}: the show path ran and the flip applied in the same commit`);
+      } else if (expected.reply === 'deferred') {
+        assert.deepEqual([ok.shown, r.state(id).status, r.state(id).deferredPin], [false, 'parked', { parkable: false }], `${name}: stored as deferredPin { parkable }`);
+      } else {
+        assert.equal(r.state(id).status, 'closed', `${name}: stays closed, the edit stored on the record`);
+      }
+    };
+    await s.run(`${label} on an engine-parked panel`, async () => {
+      executed += 1;
+      const r = await matrixRig({ ids: ['a', 'b', 'c'], park: true, width: 1000, settings });
+      await r.settle();
+      assert.deepEqual([r.state('a').status, r.state('a').held], ['parked', false]);
+      // The panel is a park panel, so the flip names overflow scroll too: a fixed column forces it, and a template ask of park would be a conflict.
+      check('K', cell.parked, r, r.turn(() => r.h.a!.configure({ parkable: false, overflow: 'scroll' })), 'a');
+      r.m.unmount();
+    });
+    await s.run(`${label} on a hidden panel`, async () => {
+      executed += 1;
+      const r = await matrixRig({ settings });
+      r.turn(() => r.h.a!.hide());
+      await r.settle();
+      assert.deepEqual([r.state('a').status, r.state('a').held], ['parked', true]);
+      check('H', cell.hidden, r, r.turn(() => r.h.a!.configure({ parkable: false })), 'a');
+      r.m.unmount();
+    });
+    await s.run(`${label} on a closed declared panel`, async () => {
+      executed += 1;
+      const r = await matrixRig({ settings });
+      try {
+        const w = mockWindow();
+        r.turn(() => r.h.a!.close());
+        w.pastWindow();
+        check('C', cell.closed, r, r.turn(() => r.h.a!.configure({ parkable: false })), 'a');
+      } finally {
+        mock.timers.reset();
+        r.m.unmount();
+      }
+    });
+    await s.run(`${label} on a panel in the undo window`, async () => {
+      executed += 1;
+      const r = await matrixRig({ settings });
+      r.turn(() => r.h.a!.close());
+      check('U', cell.closed, r, r.turn(() => r.h.a!.configure({ parkable: false })), 'a');
+      r.m.unmount();
+    });
+  }
+  assert.equal(executed, PIN_CELLS.length * 4, 'every value ran in each of the four statuses');
+  s.end();
+});
