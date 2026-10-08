@@ -30,8 +30,8 @@
     {
       "name": "the update plans again from the record the call already wrote instead of the layer the call saw",
       "file": "workspaceCore.ts",
-      "find": "base ??= { layer: instanceLayer(target) };",
-      "replace": "base = { layer: instanceLayer(target) };",
+      "find": "base ??= { layer: instanceLayer(target), split: splits.get(target.id) };",
+      "replace": "base = { layer: instanceLayer(target), split: splits.get(target.id) };",
       "expectRed": ["a state change planted between the call and the commit on a declared panel: the patch applies to the entry the other update left, and the resolver and the entry agree"]
     },
     {
@@ -86,8 +86,8 @@
     {
       "name": "the edit of a closed record is dropped",
       "file": "workspaceCore.ts",
-      "find": "rec.settings = plan.layer;\n      refresh();\n      return configured(plan);",
-      "replace": "refresh();\n      return configured(plan);",
+      "find": "rec.settings = plan.layer;\n      if (rec.lastEngineId",
+      "replace": "if (rec.lastEngineId",
       "expectRed": ["closed inside the window: closable false then undoClose gives locked true, and close() is refused not-closable", "closed past the window: the edit is stored on the record and open() uses it"]
     },
     {
