@@ -204,7 +204,6 @@ test('saves that settle out of order: an older one never advances nor resets the
   mock.timers.enable({ apis: ['setTimeout'] });
 
   {
-    // An older rejection after a newer success leaves the baseline at the newer.
     const { storage, saves } = pendingStorage();
     const heard: unknown[] = [];
     const rig = hookRig(storage, (e) => void heard.push(e));
@@ -222,11 +221,10 @@ test('saves that settle out of order: an older one never advances nor resets the
     assert.deepEqual(heard, [late], 'the older failure is still reported once');
     rig.commit(same);
     await tick();
-    assert.equal(saves.length, 2, 'the baseline stayed at the newer projection');
+    assert.equal(saves.length, 2, 'older rejection after a newer success: the baseline stayed at the newer projection');
   }
 
   {
-    // An older success after a newer success does not take the baseline back.
     const { storage, saves } = pendingStorage();
     const rig = hookRig(storage);
     await turn();
@@ -240,11 +238,10 @@ test('saves that settle out of order: an older one never advances nor resets the
     await turn();
     rig.commit(same);
     await tick();
-    assert.equal(saves.length, 2, 'the baseline stayed at the newer projection');
+    assert.equal(saves.length, 2, 'older success after a newer success: the baseline stayed at the newer projection');
   }
 
   {
-    // An older success after a newer failure leaves the baseline where it was: the older projection is not the baseline.
     const { storage, saves } = pendingStorage();
     const heard: unknown[] = [];
     const rig = hookRig(storage, (e) => void heard.push(e));
@@ -261,11 +258,10 @@ test('saves that settle out of order: an older one never advances nor resets the
     assert.deepEqual(heard, [newer]);
     rig.commit(without('b'));
     await tick();
-    assert.equal(saves.length, 3, 'the row is back to the older projection and it is saved again');
+    assert.equal(saves.length, 3, 'older success after a newer failure: the baseline stayed where it was, so the older projection is saved again');
   }
 
   {
-    // A change equal to the save still in flight is not saved a second time; once that save fails, the same change retries.
     const { storage, saves } = pendingStorage();
     const rig = hookRig(storage, () => {});
     await turn();
