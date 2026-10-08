@@ -745,6 +745,12 @@ test('matrix:capacityReturn', async () => {
   r.turn(() => r.ws.panels.get('c')!.close());
   await r.settle();
   assert.deepEqual([r.state('b').status, r.state('a').status], ['parked', 'live'], 'b was parked after it became manual, so it stays parked; a, parked before, still returns');
+  const held = await matrixRig({ ids: ['a', 'b'], park: true, width: 1300 });
+  await held.settle();
+  held.turn(() => held.h.a!.hide());
+  await held.settle();
+  done(held.turn(() => held.h.a!.configure({ capacityReturn: 'manual' })));
+  assert.deepEqual([held.state('a').status, held.state('a').held], ['parked', true], 'a panel already held stays held and nothing is revealed');
 });
 
 test('matrix:returnPriority', async () => {
@@ -1141,6 +1147,17 @@ test('matrix:enterFrom', async () => {
   };
   assert.equal(await startX(undefined), 812 + 406, 'control: b rests at 812 and enters from the right, one span beyond');
   assert.equal(await startX('left'), 812 - 406, 'the next enter starts one span before the rest');
+  const r = await matrixRig();
+  await r.settle();
+  r.turn(() => r.h.b!.hide());
+  await r.settle();
+  r.turn(() => r.h.b!.show());
+  const engine = r.entry('b').id;
+  await frames(2);
+  done(r.turn(() => r.h.b!.configure({ enterFrom: 'left' })));
+  await frames(3);
+  const x = axisOf(slotAt(r, engine), 'X');
+  assert.equal(x >= 812 && x < 1218, true, `a slide in progress keeps its start side: x ${x} is still between the rest and the right start`);
 });
 
 test('matrix:exitTo', async () => {
@@ -1163,6 +1180,15 @@ test('matrix:exitTo', async () => {
   };
   assert.equal((await exitX(undefined)) < 812, true, 'control: left leaves below the rest x of 812');
   assert.equal((await exitX('right')) > 812, true, 'the next park exits to the right');
+  const r = await matrixRig({ settings: { b: { exitTo: 'left' } } });
+  await r.settle();
+  const engine = r.entry('b').id;
+  r.turn(() => r.h.b!.hide());
+  await frames(2);
+  const before = axisOf(slotAt(r, engine), 'X');
+  done(r.turn(() => r.h.b!.configure({ exitTo: 'right' })));
+  await frames(3);
+  assert.equal(axisOf(slotAt(r, engine), 'X') < before, true, 'an exit in progress is unchanged: it keeps heading left');
 });
 
 test('matrix:closeExit', async () => {
@@ -1186,6 +1212,8 @@ test('matrix:closeExit', async () => {
   assert.deepEqual([left.x < 812, left.y], [true, 0], 'control: left slides sideways');
   const down = await exitOf('down');
   assert.deepEqual([down.x, down.y > 0], [812, true], 'the next close slides down');
+  const r = await matrixRig();
+  assert.deepEqual(r.turn(() => [letter(r.h.b!.close()), letter(r.h.b!.configure({ closeExit: 'down' }))]), ['T', 'busy'], 'a configure in the turn of a close is busy');
 });
 
 test('matrix:animated', async () => {
@@ -1206,6 +1234,14 @@ test('matrix:animated', async () => {
   };
   assert.equal(await stillSliding(false), true, 'control: an animated exit is still sliding after three frames');
   assert.equal(await stillSliding(true), false, 'the next exit of this panel has no duration');
+  const r = await matrixRig({ ids: ['a', 'b', 'c'] });
+  await r.settle();
+  const engine = r.entry('b').id;
+  r.turn(() => r.h.b!.hide());
+  await frames(2);
+  done(r.turn(() => r.h.b!.configure({ animated: false })));
+  await frames(3);
+  assert.equal(slotAt(r, engine) !== null, true, 'an animation running finishes as started: five frames in, it is still sliding');
 });
 
 test('matrix:formFactor', async () => {
@@ -1565,6 +1601,14 @@ test('matrix:tuning.slide', async () => {
   const r = await matrixRig();
   done(r.turn(() => r.ws.panels.configureTuning({ slide: { durationSec: 0.2 } })));
   assert.equal(r.h.a!.getSettings().value.tuning.slide.durationSec, 0.2, 'configureTuning sets the default for panels without a leaf');
+  const running = await matrixRig({ ids: ['a', 'b', 'c'] });
+  await running.settle();
+  const engine = running.entry('b').id;
+  running.turn(() => running.h.b!.hide());
+  await frames(2);
+  done(running.turn(() => running.h.b!.configure({ tuning: { slide: { durationSec: 0.05 } } })));
+  await frames(4);
+  assert.equal(slotAt(running, engine) !== null, true, 'an animation running keeps its timing: six frames in, the 0.4 s exit is still sliding');
 });
 
 test('matrix:tuning.hopFraction', async () => {
