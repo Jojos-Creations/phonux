@@ -7,6 +7,8 @@ import { test, afterEach, mock } from 'node:test';
 import assert from 'node:assert/strict';
 import './support/jsdom-globals.js';
 import type { ConfigureResult } from '../index.js';
+import { memoryWorkspaceStorage } from '../fakeHost.js';
+import { act } from 'react';
 import { advanceFrames, cleanup } from './support/mount-harness.js';
 import { drag } from './support/drag-gesture.js';
 import {
@@ -615,4 +617,129 @@ test('root column 3: pinningWhenNotLive over its four values and the per-status 
   }
   assert.equal(executed, PIN_CELLS.length * 4, 'every value ran in each of the four statuses');
   s.end();
+});
+
+// ---------------------------------------------------------------------------
+// Protected panels and the effects configure causes
+// ---------------------------------------------------------------------------
+
+test('protected 1: evictionRank skips an acted-on panel: the lowest rank is parked first, unless it is the panel the action opened or showed', async () => {
+  const c = matrixTemplate('c', { settings: { overflow: 'park', evictionRank: -9 } });
+  const opened = await matrixRig({ ids: ['a', 'b'], park: true, width: 1300, settings: { a: { evictionRank: 5 }, b: { evictionRank: 1 } }, extra: [c] });
+  await opened.settle();
+  assert.equal(opened.live().join(' '), 'root a b');
+  opened.turn(() => void opened.ws.addPanel('c'));
+  await opened.settle();
+  assert.equal(opened.live().join(' '), 'root a c', 'c has the lowest rank of all and is the panel just opened: b, the lowest of the rest, is parked');
+  const shown = await matrixRig({ ids: ['a', 'b', 'c', 'd'], park: true, width: 1700 });
+  await shown.settle();
+  assert.equal(shown.live().join(' '), 'root b c d');
+  assert.deepEqual(shape(shown.turn(() => shown.h.a!.configure({ evictionRank: -9 }))), { now: [], later: ['evictionRank'], shadowed: [] });
+  shown.turn(() => shown.h.a!.show());
+  await shown.settle();
+  assert.equal(shown.live().join(' '), 'root a b c', 'a, shown with the lowest rank, stays live; the farthest of the others, d, goes');
+});
+
+test('protected 2: evictionOrder skips an acted-on panel: the nearest victim is not a panel shown earlier in the same turn', async () => {
+  const r = await matrixRig({ ids: ['a', 'b', 'c', 'd', 'e', 'f'], park: true, width: 2100 });
+  await r.settle();
+  assert.equal(r.live().join(' '), 'root c d e f');
+  assert.deepEqual(shape(r.turn(() => r.h.b!.configure({ evictionOrder: 'nearest' }))), { now: [], later: ['evictionOrder'], shadowed: [] });
+  r.turn(() => {
+    r.h.a!.show();
+    r.h.b!.show();
+  });
+  await r.settle();
+  assert.equal(r.live().join(' '), 'root a b d e', 'b displaces the live panel nearest to it that was not acted on, c, never a');
+});
+
+test('protected 3: hideWhenLast counts this turn\'s accepted hides, and a fixed column counts as a panel that remains', async () => {
+  const r = await matrixRig({ ids: ['a', 'b'], root: false, settings: { a: { hideWhenLast: 'refuse' }, b: { hideWhenLast: 'refuse' } } });
+  const answers = r.turn(() => [letter(r.h.a!.hide()), letter(r.h.b!.hide())]);
+  assert.deepEqual(answers, ['T', 'would-empty-row'], 'the second hide would leave nothing once the first counts');
+  assert.deepEqual([r.state('a').status, r.state('b').status], ['parked', 'live']);
+  const fixed = await matrixRig({ ids: ['a', 'b'], root: false, settings: { a: { hideWhenLast: 'refuse', parkable: false }, b: { hideWhenLast: 'refuse' } } });
+  assert.equal(letter(fixed.turn(() => fixed.h.b!.hide())), 'T', 'a fixed column remains, so the hide is allowed');
+});
+
+test('protected 4: resetLayout tier growth in a park row parks the fewest park panels and lists them', async () => {
+  const r = await matrixRig({ ids: ['a', 'b', 'c'], park: true, width: 1700 });
+  await r.settle();
+  assert.equal(r.live().join(' '), 'root a b c');
+  done(r.turn(() => r.h.b!.configure({ formFactor: 'tablet' })));
+  assert.equal(r.live().join(' '), 'root a b c', 'configure resizes nothing');
+  const reset = r.turn(() => r.ws.panels.resetLayout('b'));
+  await r.settle();
+  assert.deepEqual({ ...reset }, { ok: true, changed: true, panels: ['b'], parked: ['a'], returned: [] }, 'a 768 px b leaves room for one more 390 px panel: the leftmost of the others goes');
+  assert.deepEqual([r.entry('b').formFactor, r.state('a').status, r.live().join(' ')], ['tablet', 'parked', 'root c b']);
+});
+
+test('protected 5: snapshot never evicts the stored picture once, from a layout effect, also under StrictMode\'s double updater', async () => {
+  const s = soft();
+  for (const strict of [false, true]) {
+    await s.run(strict ? 'StrictMode' : 'plain', async () => {
+      const r = await matrixRig({ strict });
+      await r.settle();
+      const engine = r.entry('b').id;
+      const before = r.capture.evicted.length;
+      done(r.turn(() => r.h.b!.configure({ snapshot: 'never' })));
+      assert.deepEqual(r.capture.evicted.slice(before), [engine], 'evicted exactly once, for this panel, by the end of the commit');
+      done(r.turn(() => r.h.b!.configure({ title: 'again' })));
+      assert.equal(r.capture.evicted.length - before, 1, 'and not again by a later commit');
+    });
+  }
+  s.end();
+});
+
+test('protected 6: keepMounted false unmounts in the effect, once, also under StrictMode', async () => {
+  for (const strict of [false, true]) {
+    const r = await matrixRig({ ids: ['a', 'b'], settings: { b: { keepMounted: true } }, strict });
+    await r.settle();
+    const engine = r.entry('b').id;
+    r.turn(() => r.h.b!.hide());
+    await r.settle();
+    assert.equal(r.seen('b')?.['data-hidden'], 'true');
+    const before = viewLog.unmounted(engine);
+    done(r.turn(() => r.h.b!.configure({ keepMounted: false })));
+    await frames(2);
+    assert.equal(viewLog.unmounted(engine) - before, 1, `strict ${strict}: one unmount, caused by the commit`);
+    assert.equal(r.seen('b'), null);
+    r.m.unmount();
+  }
+});
+
+test('protected 7: persist changes only the next projection: the call writes nothing, the next save leaves the panel out', async () => {
+  const saves: string[][] = [];
+  const store = memoryWorkspaceStorage();
+  const counting = { load: store.load, save: (state: Parameters<typeof store.save>[0]) => {
+    saves.push(state.panels.map((p) => p.key ?? p.id));
+    return store.save(state);
+  } };
+  const r = await matrixRig({ workspace: { storage: counting, tuning: { saveQuietMs: 5 } } });
+  await act(async () => void (await new Promise((resolve) => setTimeout(resolve, 80))));
+  const count = saves.length;
+  assert.equal(count > 0, true, 'the first save came');
+  assert.deepEqual(saves[count - 1], ['a', 'b', 'c']);
+  done(r.turn(() => r.h.b!.configure({ persist: 'session' })));
+  assert.equal(saves.length, count, 'configure itself saved nothing');
+  r.turn(() => r.h.a!.move('right', 'person'));
+  await act(async () => void (await new Promise((resolve) => setTimeout(resolve, 80))));
+  assert.equal(saves.length > count, true);
+  assert.deepEqual(saves[saves.length - 1], ['a', 'c'], 'the next projection leaves the session panel out');
+});
+
+test('protected 8: rowGap re-prices the row in the commit of the call and takes every panel\'s slot with it', async () => {
+  const r = await matrixRig();
+  await r.settle();
+  const x = (name: string): number => {
+    const match = /translateX\((-?[\d.]+)px\)/.exec(slotAt(r, r.entry(name).id)?.style.transform ?? '');
+    return match === null ? 0 : Number(match[1]);
+  };
+  assert.deepEqual(['a', 'b', 'c'].map(x), [406, 812, 1218]);
+  const renders = r.m.renders();
+  done(r.turn(() => r.ws.panels.configureTuning({ rowGap: 0 })));
+  assert.equal(r.m.renders() - renders, 1, 'one commit');
+  assert.equal(r.m.latest().rowNumbers.stripWidth, 4 * 390, 'priced at gap 0 in that commit');
+  await r.settle();
+  assert.deepEqual(['a', 'b', 'c'].map(x), [390, 780, 1170], 'every slot rests one panel width apart');
 });

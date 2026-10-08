@@ -306,6 +306,8 @@ export interface MatrixRigOptions {
   wired?: boolean;
   /** Every id's view: the data-attribute view, or a DragToClose with a grab bar. */
   view?: 'marker' | 'drag';
+  /** Render under React.StrictMode, which runs updaters and effects twice. */
+  strict?: boolean;
 }
 
 export interface MatrixRig {
@@ -337,7 +339,7 @@ export async function matrixRig(o: MatrixRigOptions = {}): Promise<MatrixRig> {
   });
   const h: Record<string, PanelHandle> = {};
   for (const id of ids) h[id] = ws.addPanel(id);
-  const m = o.wired === true ? mountWired(ws, o.width ?? 4000, { capture, ...(o.over ?? {}) }) : mountWorkspace(ws, { width: o.width ?? 4000, over: { capture, ...(o.over ?? {}) } });
+  const m = o.wired === true ? mountWired(ws, o.width ?? 4000, { capture, ...(o.over ?? {}) }) : mountWorkspace(ws, { width: o.width ?? 4000, over: { capture, ...(o.over ?? {}) }, ...(o.strict === true ? { strict: true } : {}) });
   await flush();
   const entries = (): readonly PanelWindow[] => m.latest().entries.filter((p) => p.marker !== true);
   const entry = (id: string): PanelWindow => {
