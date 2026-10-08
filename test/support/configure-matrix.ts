@@ -6,13 +6,16 @@
  * row's `on_configure` cell. Nothing in it is derived from the code under test.
  */
 import assert from 'node:assert/strict';
+import * as React from 'react';
 import { createElement, useEffect } from 'react';
 import { act } from 'react';
 import { mock } from 'node:test';
-import { PANEL_SETTINGS_CATALOG, createWorkspace, definePanel, useViewState, usePanelCapabilities, usePanelCloseEligible, usePanelHidden, usePanelNeighborWidths, usePanelPinned, usePanelReorderEligible } from '../../index.js';
+import { DragToClose, LIBRARY_TUNING_DEFAULTS, PANEL_SETTINGS_CATALOG, PanelRow, Workspace, createWorkspace, definePanel, useProvidePanels, useViewState, usePanelCapabilities, usePanelCloseEligible, usePanelHidden, usePanelNeighborWidths, usePanelPinned, usePanelReorderEligible, usePanelReorderSteps } from '../../index.js';
 import type { CaptureTrigger, ConfigureResult, PanelHandle, PanelResult, PanelSettings, PanelState, PanelTemplate, PanelWindow, PanelsInput, ProvidedPanels, WorkspaceHandle, WorkspaceOptions } from '../../index.js';
 import { panelKey } from '../../panelSettings.js';
-import { advanceFrames } from './mount-harness.js';
+import { createFakeHost } from '../../fakeHost.js';
+import { advanceFrames, mount, panelsInput, withHost } from './mount-harness.js';
+import { FRAME_MS } from './jsdom-globals.js';
 import { flush, mountWorkspace, type MountedWorkspace } from './workspace-row.js';
 
 // ---------------------------------------------------------------------------
@@ -178,6 +181,7 @@ export const matrixTemplate = (id: string, over: Partial<PanelTemplate> = {}): P
       const neighbors = usePanelNeighborWidths();
       const pinned = usePanelPinned();
       const hidden = usePanelHidden();
+      const steps = usePanelReorderSteps();
       const [n, setN] = useViewState('n', 0);
       useEffect(() => {
         stateSetters.set(panel.id, setN);
@@ -203,8 +207,29 @@ export const matrixTemplate = (id: string, over: Partial<PanelTemplate> = {}): P
         'data-pinned': String(pinned),
         'data-hidden': String(hidden),
         'data-n': String(n),
+        'data-steps': JSON.stringify([150, 250].map(steps)),
       });
     },
+    ...over,
+  });
+
+/** What the drag views report: each release's pointer offset and the hops the panel's own hop fraction asks for. */
+export const dragLog: { ends: { id: string; offset: number; hops: number }[] } = { ends: [] };
+
+function DragBox({ id, close }: { id: string; close: () => void }): React.ReactElement {
+  const steps = usePanelReorderSteps();
+  return createElement(DragToClose, {
+    onClose: close,
+    reorder: { onDragEnd: (offset: number) => void dragLog.ends.push({ id, offset, hops: steps(offset) }) },
+    children: (handle) => createElement('div', { 'data-handle': id, 'data-slot': id, onPointerDown: handle.onPointerDown }, 'grab'),
+  });
+}
+
+/** A template whose view is a DragToClose with a grab bar `data-handle=<engine id>`: close() closes the panel, a horizontal release is logged. */
+export const dragTemplate = (id: string, over: Partial<PanelTemplate> = {}): PanelTemplate =>
+  definePanel({
+    id,
+    view: ({ panel, handle }) => createElement(DragBox, { id: panel.id, close: () => void handle.close() }),
     ...over,
   });
 
@@ -216,6 +241,52 @@ export const captureSpy = (): CaptureSpy => {
   const spy: CaptureSpy = { captured: [], evicted: [], capture: (id) => void spy.captured.push(id), evict: (id) => void spy.evicted.push(id) };
   return spy;
 };
+
+/**
+ * `mountWorkspace` with the marks a real host passes the row on every render: the ids closing, the ids entering by an
+ * anchor, the ids exiting right and the enter side per id. Without them a close draws no exit and an enter has no side.
+ */
+function mountWired(ws: WorkspaceHandle, width: number, over: Partial<PanelsInput>): MountedWorkspace {
+  const ref = React.createRef<HTMLDivElement>();
+  const rowRef = React.createRef<HTMLDivElement>();
+  const notes: MountedWorkspace['notes'] = [];
+  let latest: ProvidedPanels | undefined;
+  let renders = 0;
+  function Probe(): React.ReactElement {
+    latest = useProvidePanels(panelsInput({ workspace: ws, rootId: ws.rootId, containerWidth: width, overflowContainerRef: ref, onNote: (n) => void notes.push(n), ...over }));
+    renders += 1;
+    const provided = latest;
+    return withHost(
+      React.createElement(
+        Workspace,
+        { overflowContainerRef: ref, rowRef, containerWidth: width, rowResizeSettled: true, phoneWidth: 390, fixedColumnCount: provided.fixedViewCount, liveWidths: provided.liveWidths, rowScroll: provided.rowScroll, rowNumbers: provided.rowNumbers, tuning: provided.tuning } as never,
+        React.createElement(PanelRow, {
+          entries: provided.entries,
+          rootId: ws.rootId,
+          closingIds: provided.closingIds,
+          enteringViaAnchorIds: provided.enteringViaAnchorIds,
+          exitRightIds: provided.exitRightIds,
+          enterSideById: provided.enterSideById,
+          rowNumbers: provided.rowNumbers,
+          workspace: ws,
+        }),
+      ),
+      createFakeHost({ panels: provided }),
+    );
+  }
+  const mounted = mount(React.createElement(Probe));
+  const container = ref.current;
+  assert.ok(container, 'the Workspace never attached its scroll container');
+  return {
+    latest: () => latest!,
+    container,
+    notes,
+    slots: () => [...container.querySelectorAll('[data-slot]')].map((n) => (n as HTMLElement).dataset.slot!),
+    renders: () => renders,
+    rerender: (next) => mounted.rerender(next),
+    unmount: () => mounted.unmount(),
+  };
+}
 
 export interface MatrixRigOptions {
   /** Panels added in order, each from its own template of that id; default a, b, c. */
@@ -231,6 +302,10 @@ export interface MatrixRigOptions {
   width?: number;
   workspace?: Partial<WorkspaceOptions>;
   over?: Partial<PanelsInput>;
+  /** Pass the row the host's closing, entering and exit marks. */
+  wired?: boolean;
+  /** Every id's view: the data-attribute view, or a DragToClose with a grab bar. */
+  view?: 'marker' | 'drag';
 }
 
 export interface MatrixRig {
@@ -257,12 +332,12 @@ export async function matrixRig(o: MatrixRigOptions = {}): Promise<MatrixRig> {
   const capture = captureSpy();
   const ws = createWorkspace({
     ...(o.root === false ? {} : { root: matrixTemplate('root', { settings: { title: 'History' } }) }),
-    templates: [...ids.map((id) => matrixTemplate(id, { settings: { ...(o.park === true ? { overflow: 'park' as const } : {}), ...(o.settings?.[id] ?? {}) } })), ...(o.extra ?? [])],
+    templates: [...ids.map((id) => (o.view === 'drag' ? dragTemplate : matrixTemplate)(id, { settings: { ...(o.park === true ? { overflow: 'park' as const } : {}), ...(o.settings?.[id] ?? {}) } })), ...(o.extra ?? [])],
     ...(o.workspace ?? {}),
   });
   const h: Record<string, PanelHandle> = {};
   for (const id of ids) h[id] = ws.addPanel(id);
-  const m = mountWorkspace(ws, { width: o.width ?? 4000, over: { capture, ...(o.over ?? {}) } });
+  const m = o.wired === true ? mountWired(ws, o.width ?? 4000, { capture, ...(o.over ?? {}) }) : mountWorkspace(ws, { width: o.width ?? 4000, over: { capture, ...(o.over ?? {}) } });
   await flush();
   const entries = (): readonly PanelWindow[] => m.latest().entries.filter((p) => p.marker !== true);
   const entry = (id: string): PanelWindow => {
@@ -423,3 +498,63 @@ export function soft(): { run: (label: string, fn: () => Promise<void> | void) =
     end: () => assert.deepEqual(failures, [], 'expectations that failed'),
   };
 }
+
+// ---------------------------------------------------------------------------
+// A row of ten drag views, for the cases that hold a pointer near the window's edge
+// ---------------------------------------------------------------------------
+
+/** The scroll container's width in these rows. */
+export const EDGE_WINDOW = 1000;
+
+/** A pointer event of the kind jsdom lacks: a MouseEvent of the pointer type name carrying the fields motion reads. */
+export function pointerEvent(type: 'pointerdown' | 'pointermove' | 'pointerup' | 'pointercancel', x: number, y = 100): Event {
+  const event = new MouseEvent(type, { bubbles: true, cancelable: true, clientX: x, clientY: y, screenX: x, screenY: y, button: 0, buttons: type === 'pointerup' || type === 'pointercancel' ? 0 : 1 });
+  for (const [key, value] of Object.entries({ pointerId: 1, pointerType: 'mouse', isPrimary: true })) Object.defineProperty(event, key, { value });
+  return event;
+}
+
+/** Ten drag panels s1 to s10 and the root in a 1000 px window: the strip is 4450 wide, so the farthest legal scrollLeft is 3482. */
+export async function dragRig(o: MatrixRigOptions = {}): Promise<MatrixRig> {
+  const ids = Array.from({ length: 10 }, (_, k) => `s${k + 1}`);
+  const r = await matrixRig({ ids, width: EDGE_WINDOW, view: 'drag', ...o });
+  Object.defineProperty(r.m.container, 'clientWidth', { value: EDGE_WINDOW, configurable: true });
+  r.m.container.getBoundingClientRect = () => ({ left: 0, right: EDGE_WINDOW, top: 0, bottom: 700, width: EDGE_WINDOW, height: 700, x: 0, y: 0, toJSON: () => ({}) });
+  await r.settle();
+  return r;
+}
+
+const grabBar = (r: MatrixRig, id: string): Element => {
+  const handle = r.m.container.querySelector(`[data-handle="${r.entry(id).id}"]`);
+  assert.ok(handle, `${id}'s grab bar rendered`);
+  return handle;
+};
+
+/** Presses `id`'s grab bar 40 px left of `x`, moves the pointer to `x` and lets the direction lock take. The pointer stays down. */
+export async function pressAndMove(r: MatrixRig, id: string, x: number): Promise<void> {
+  await act(async () => void grabBar(r, id).dispatchEvent(pointerEvent('pointerdown', x - 40)));
+  await act(async () => void window.dispatchEvent(pointerEvent('pointermove', x)));
+  await advanceFrames(FRAME_MS);
+}
+
+/** Releases the pointer at `x` and lets the box land. */
+export async function lift(x: number): Promise<void> {
+  await act(async () => void window.dispatchEvent(pointerEvent('pointerup', x)));
+  await advanceFrames(30 * FRAME_MS);
+}
+
+/** Holds the pointer for `n` frames. */
+export const hold = (n: number): Promise<void> => advanceFrames(n * FRAME_MS);
+
+/** The distance the row scrolls while the pointer is held at `x` for 50 frames, then the release. */
+export async function heldScroll(r: MatrixRig, id: string, x: number): Promise<number> {
+  const from = r.m.container.scrollLeft;
+  await pressAndMove(r, id, x);
+  await hold(50);
+  const gained = r.m.container.scrollLeft - from;
+  await lift(x);
+  return gained;
+}
+
+/** The pointer for the edge cases: half the default zone inside the right edge. */
+export const HALF_ZONE_POINTER = EDGE_WINDOW - LIBRARY_TUNING_DEFAULTS.edgeScroll.zonePx / 2;
+export { LIBRARY_TUNING_DEFAULTS };
