@@ -1416,7 +1416,8 @@ before the title, the view's own `actions` first among the end side, then the en
 small. A slot with only icon, label and onClick renders exactly the markup of such a button written by hand. A panel that declares
 none, or whose slots are all hidden, renders the markup it always did; the header row takes `tabindex="-1"` only while a slot is
 drawn, so focus has somewhere to go when the button that held it leaves. `Panel`'s `headerButtons={false}` keeps the cluster out of
-its header; a view with its own header calls `usePanelHeaderButtons()` for the list or renders `PanelHeaderButtons`.
+its header; a view with its own header calls `usePanelHeaderButtons()` for the list or renders `PanelHeaderButtons`. A view that
+draws its own pin as well as declaring a pin slot shows two buttons: the library does not merge them.
 
 ### Click and safety
 
