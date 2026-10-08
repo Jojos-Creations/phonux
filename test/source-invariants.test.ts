@@ -210,6 +210,96 @@ test('source: a planted extra writer of locked, collapsible or key in a scratch 
   }
 });
 
+/**
+ * The members of the object literal `applyTemplate` returns in its 'reconfigure' branch and in its 'create' branch. A
+ * spread of a name reads `...name`, and a member inside a conditional spread reads `?name`.
+ */
+function applyTemplateWrites(source: string): { reconfigure: string[]; create: string[] } {
+  const sf = ts.createSourceFile('panelSettings.ts', source, ts.ScriptTarget.Latest, true);
+  const out = { reconfigure: [] as string[], create: [] as string[] };
+  const named = (m: ts.ObjectLiteralElementLike): string[] => {
+    if (ts.isPropertyAssignment(m) || ts.isShorthandPropertyAssignment(m)) return [(m.name as ts.Identifier).text];
+    if (!ts.isSpreadAssignment(m)) return [];
+    if (ts.isIdentifier(m.expression)) return [`...${m.expression.text}`];
+    const inner = ts.isParenthesizedExpression(m.expression) ? m.expression.expression : m.expression;
+    if (!ts.isConditionalExpression(inner)) return [];
+    return [inner.whenTrue, inner.whenFalse].flatMap((arm) => (ts.isObjectLiteralExpression(arm) ? arm.properties.flatMap((q) => named(q).map((n) => `?${n}`)) : []));
+  };
+  const members = (literal: ts.ObjectLiteralExpression): string[] => literal.properties.flatMap(named);
+  const visit = (node: ts.Node): void => {
+    if (ts.isFunctionDeclaration(node) && node.name?.text === 'applyTemplate' && node.body !== undefined) {
+      for (const statement of node.body.statements) {
+        if (ts.isIfStatement(statement) && statement.expression.getText(sf).includes("'reconfigure'")) {
+          const inside: readonly ts.Statement[] = ts.isBlock(statement.thenStatement) ? statement.thenStatement.statements : [statement.thenStatement];
+          const ret = inside.find((q): q is ts.ReturnStatement => ts.isReturnStatement(q));
+          if (ret?.expression !== undefined && ts.isObjectLiteralExpression(ret.expression)) out.reconfigure = members(ret.expression);
+        } else if (ts.isReturnStatement(statement) && statement.expression !== undefined && ts.isObjectLiteralExpression(statement.expression)) {
+          out.create = members(statement.expression);
+        }
+      }
+    }
+    ts.forEachChild(node, visit);
+  };
+  visit(sf);
+  return out;
+}
+
+/** The entry fields a configure must never write itself: only applyTemplate's reconfigure branch (through `reparked`) may. */
+const ENTRY_FIELDS = ['locked', 'collapsible', 'listed', 'anchoredEnter', 'formFactor', 'size', 'anchor', 'hostData', 'overrides', 'applied', 'live', 'settings', 'title'];
+/** The files a configure passes through before and after the engine's update. */
+const CONFIGURE_FILES = ['panelConfigure.ts', 'panelPin.ts', 'panelManager.ts', 'panelHandles.ts', 'workspaceCore.ts'];
+const CONFIGURE_FUNCTIONS = ['configureOne', 'configureTemplateOne', 'configureTuningOne'];
+
+/** Every write of an entry field in the configure files, as `file function:field`, with workspaceCore.ts narrowed to its three configure functions. */
+function configureWriters(read: (file: string) => string): string[] {
+  return CONFIGURE_FILES.flatMap((file) =>
+    writesOf(read(file), file, ENTRY_FIELDS)
+      .filter((site) => file !== 'workspaceCore.ts' || CONFIGURE_FUNCTIONS.includes(site.fn))
+      .map((site) => `${file} ${site.fn}:${site.key}`),
+  ).sort();
+}
+
+test('source: a configure writes an entry only through applyTemplate\'s reconfigure branch, and a planted second writer is found', () => {
+  assert.deepEqual(applyTemplateWrites(read('panelSettings.ts')).reconfigure, ['...entry', 'locked', '?collapsible', 'listed', 'layer', 'anchoredEnter', '...title', 'settings'], 'the reconfigure branch writes the mirror fields, the parkable flip and the title, and no tier, size, anchor, hostData, key, overrides or applied');
+  const create = applyTemplateWrites(read('panelSettings.ts')).create;
+  for (const created of ['formFactor', 'size', 'key', 'live']) assert.ok(create.includes(created), `the create branch writes ${created}, so a reconfigure that wrote it would be a second writer`);
+  const both = writesOf(read('panelSettings.ts'), 'panelSettings.ts', ['locked', 'collapsible']).map((s) => `${s.fn}:${s.key}`).sort();
+  assert.deepEqual(both, ['applyTemplate:collapsible', 'applyTemplate:collapsible', 'applyTemplate:locked', 'applyTemplate:locked'], 'one write of each per mode, both inside applyTemplate');
+  // The configure path: reconfigured() hands the entry to reparked(), which calls applyTemplate in reconfigure mode, and nothing else builds one.
+  assert.match(stripComments(read('panelConfigure.ts'), 'panelConfigure.ts'), /reparked\(entry, plan\.resolution\)/);
+  assert.match(stripComments(read('panelPin.ts'), 'panelPin.ts'), /applyTemplate\(entry, resolution\.value, 'reconfigure'\)/);
+  for (const file of CONFIGURE_FILES) {
+    const calls = [...stripComments(read(file), file).matchAll(/\bapplyTemplate\(([^;]*?), '(create|reconfigure)'\)/g)].map((m) => m[2]);
+    assert.deepEqual(calls, file === 'panelPin.ts' ? ['reconfigure'] : file === 'workspaceCore.ts' ? ['create'] : [], `${file}: applyTemplate calls (workspaceCore's one is the root entry's creation)`);
+  }
+  assert.deepEqual(configureWriters(read), ['panelPin.ts reparked:live', 'workspaceCore.ts configureOne:settings', 'workspaceCore.ts configureOne:settings'], 'the only other writes: the fixed-column flip in reparked, and the record\'s own layer');
+
+  const dir = mkdtempSync(join(tmpdir(), 'phonux-invariants-'));
+  try {
+    const planted = (file: string, extra: string): string[] => {
+      const copy = join(dir, file);
+      writeFileSync(copy, `${read(file)}\n${extra}\n`);
+      const text = readFileSync(copy, 'utf8');
+      return configureWriters((f) => (f === file ? text : read(f)));
+    };
+    assert.deepEqual(
+      planted('panelConfigure.ts', 'export function plantedWriter(p: PanelWindow): PanelWindow {\n  const q = { ...p, locked: true, formFactor: \'tablet\' as const };\n  q.collapsible = false;\n  return q;\n}'),
+      ['panelConfigure.ts plantedWriter:collapsible', 'panelConfigure.ts plantedWriter:formFactor', 'panelConfigure.ts plantedWriter:locked', 'panelPin.ts reparked:live', 'workspaceCore.ts configureOne:settings', 'workspaceCore.ts configureOne:settings'],
+      'a second writer in panelConfigure.ts is found, all three of its writes',
+    );
+    assert.deepEqual(
+      planted('workspaceCore.ts', 'export function configureOne(p: PanelWindow): PanelWindow {\n  return { ...p, anchor: undefined };\n}').filter((site) => site.includes('anchor')),
+      ['workspaceCore.ts configureOne:anchor'],
+      'and so is one planted into a configure function of workspaceCore.ts',
+    );
+    const widened = read('panelSettings.ts').replace("listed: resolved.listed,\n      layer", "listed: resolved.listed,\n      formFactor: resolved.formFactor,\n      layer");
+    assert.notEqual(widened, read('panelSettings.ts'), 'the plant found its place');
+    assert.deepEqual(applyTemplateWrites(widened).reconfigure, ['...entry', 'locked', '?collapsible', 'listed', 'formFactor', 'layer', 'anchoredEnter', '...title', 'settings'], 'a formFactor write planted in the reconfigure branch is found');
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
 const LIBRARY_FILES = [...readdirSync(ROOT), ...readdirSync(join(ROOT, 'panels')).map((f) => `panels/${f}`)].filter((f) => /[.]tsx?$/.test(f) && !f.endsWith('.d.ts')).sort();
 const OVERRIDES_WRITERS = ['clearOverrides', 'projectWorkspaceState', 'reconcileWorkspace', 'recordOverride'];
 
@@ -346,6 +436,25 @@ test('source: the pin, reset and configure files import no flushSync, and a plan
   assert.equal(importsFlushSync("import { flushSync } from 'react-dom';"), true, 'the matcher must find a planted import');
   for (const file of ['panelPin.ts', 'panelReset.ts', 'panelConfigure.ts', 'panelManager.ts', 'panelHandles.ts', 'workspaceCore.ts']) {
     assert.equal(importsFlushSync(read(file)), false, `${file} must not flush a render from a verb`);
+  }
+});
+
+/** The files a configure passes through, and the two hooks that import flushSync today for the park exit and the close exit. */
+const FLUSH_SYNC_FREE = ['panelConfigure.ts', 'panelPin.ts', 'panelManager.ts', 'panelHandles.ts', 'workspaceCore.ts'];
+
+test('source: the five configure files import no flushSync, the two hooks that do are not among them, and a scratch copy of each with an import is found', () => {
+  assert.deepEqual(FLUSH_SYNC_FREE, CONFIGURE_FILES, 'the scan covers exactly the files a configure passes through');
+  for (const file of FLUSH_SYNC_FREE) assert.equal(importsFlushSync(read(file)), false, `${file} must not flush a render from a configure`);
+  for (const file of ['panels/usePanelManager.ts', 'panels/usePanelClosing.ts']) assert.equal(importsFlushSync(read(file)), true, `control: ${file} imports flushSync today, so the scan can see one in a real file`);
+  const dir = mkdtempSync(join(tmpdir(), 'phonux-invariants-'));
+  try {
+    for (const file of FLUSH_SYNC_FREE) {
+      const copy = join(dir, file);
+      writeFileSync(copy, `import { flushSync } from 'react-dom';\n${read(file)}`);
+      assert.equal(importsFlushSync(readFileSync(copy, 'utf8')), true, `a scratch copy of ${file} with the import is red`);
+    }
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
   }
 });
 
