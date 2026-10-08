@@ -4,7 +4,8 @@
  * restricting setting was bypassed, a refusal touched nothing, a second call on a panel the first one acted on is busy,
  * a configure rewrote none of the person's overrides, its result names exactly the patched keys the cascade did not
  * give to the instance layer, the live park panels fit the window beside the rest, and show() does what the panel's
- * settings say.
+ * settings say. A second test, with its own seeds, adds pin, unpin and scrollTo to the operations, checks the scroll
+ * bound after a glide, and runs a quarter of its sequences with every panel scroll, where nothing may be parked for room.
  */
 import { test, afterEach } from 'node:test';
 import assert from 'node:assert/strict';

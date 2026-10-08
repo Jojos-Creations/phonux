@@ -16,7 +16,6 @@ import { PANEL_SETTINGS_CATALOG } from '../index.js';
 const TEST_DIR = dirname(fileURLToPath(import.meta.url));
 const NAMES: readonly string[] = PANEL_SETTINGS_CATALOG.map((d) => d.name);
 
-/** The test files that hold the differentials, as the entries that own the settings named them. */
 const OWNING_BASENAMES = [
   'settings-enforcement-permissions',
   'settings-enforcement-visibility',
@@ -38,12 +37,9 @@ const OWNING_FILES: readonly string[] = OWNING_BASENAMES.map((b) => `${b}.test.t
 const TEST_FILES: readonly string[] = readdirSync(TEST_DIR).filter((n) => n.endsWith('.test.ts')).sort();
 const TEXT = new Map<string, string>(TEST_FILES.map((n) => [n, readFileSync(join(TEST_DIR, n), 'utf8')]));
 
-/** What a differential for `name` looks like in a test file. */
 const callOf = (name: string): string => ["differential('", name, "'"].join('');
-/** The probe title for `name`. */
 const probeOf = (name: string): string => ["test('matrix:", name, "'"].join('');
 
-/** The files among `texts` that hold the call for `name`, counting a file once per occurrence. */
 function holders(texts: ReadonlyMap<string, string>, name: string): string[] {
   const found: string[] = [];
   for (const [file, text] of texts) {

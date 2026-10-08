@@ -2,7 +2,7 @@
  * What the configure matrix reads: the class table as data, the rig every cell and probe mounts, the one helper each of
  * the 61 probes and 36 class cells goes through, and the catalog's names.
  *
- * The table is written by hand from design section 7.6 (the status letters and the defaults) and from each catalog
+ * The table is written by hand from the status letters and defaults of the configure design and from each catalog
  * row's `on_configure` cell. Nothing in it is derived from the code under test.
  */
 import assert from 'node:assert/strict';
@@ -18,15 +18,11 @@ import { advanceFrames, mount, panelsInput, withHost } from './mount-harness.js'
 import { FRAME_MS } from './jsdom-globals.js';
 import { flush, mountWorkspace, type MountedWorkspace } from './workspace-row.js';
 
-// ---------------------------------------------------------------------------
-// The class table
-// ---------------------------------------------------------------------------
-
 export const CLASSES = ['NOW', 'NEXT', 'STATE', 'SCOPE'] as const;
 export type Cls = (typeof CLASSES)[number];
 
 /**
- * The nine statuses of design 7.6: P pending, L live, K parked by the engine, H hidden (held), T the panel a turn's
+ * The nine statuses of the configure design: P pending, L live, K parked by the engine, H hidden (held), T the panel a turn's
  * action protects from being parked, C closed declared past the undo window, A closed anonymous, U closed inside the
  * undo window, F a second operation on the same panel in the same turn.
  */
@@ -117,10 +113,6 @@ export const CLASS_TABLE: Readonly<Record<Cls, Readonly<Record<Status, Cell>>>> 
   },
 };
 
-// ---------------------------------------------------------------------------
-// The catalog's names and the one counter every cell and probe goes through
-// ---------------------------------------------------------------------------
-
 export const CATALOG_NAMES: readonly string[] = PANEL_SETTINGS_CATALOG.map((d) => d.name);
 
 /** The ten catalog names whose instance-door call is wrong-scope: three template keys, seven workspace-only tuning keys. */
@@ -145,11 +137,6 @@ export function cell(cls: Cls, status: Status): void {
 }
 export const cellsExecuted = (): ReadonlySet<string> => cellsRun;
 
-// ---------------------------------------------------------------------------
-// The views, the rig, the statuses
-// ---------------------------------------------------------------------------
-
-/** Mounts and unmounts of each panel's view, by engine id. */
 const mounts = new Map<string, { mounted: number; unmounted: number }>();
 const stateSetters = new Map<string, (n: number) => void>();
 export const viewLog = {
@@ -159,7 +146,6 @@ export const viewLog = {
   },
   mounted: (id: string): number => mounts.get(id)?.mounted ?? 0,
   unmounted: (id: string): number => mounts.get(id)?.unmounted ?? 0,
-  /** Sets the view-state cell `n` of the mounted view of engine id `id`. */
   setState: (id: string, n: number): void => {
     const set = stateSetters.get(id);
     if (set === undefined) throw new Error(`no mounted view for engine id ${id}`);
@@ -213,7 +199,6 @@ export const matrixTemplate = (id: string, over: Partial<PanelTemplate> = {}): P
     ...over,
   });
 
-/** What the drag views report: each release's pointer offset and the hops the panel's own hop fraction asks for. */
 export const dragLog: { ends: { id: string; offset: number; hops: number }[] } = { ends: [] };
 
 function DragBox({ id, close }: { id: string; close: () => void }): React.ReactElement {
@@ -225,7 +210,7 @@ function DragBox({ id, close }: { id: string; close: () => void }): React.ReactE
   });
 }
 
-/** A template whose view is a DragToClose with a grab bar `data-handle=<engine id>`: close() closes the panel, a horizontal release is logged. */
+/** A view that is a DragToClose with a grab bar `data-handle=<engine id>`; a horizontal release is logged in dragLog. */
 export const dragTemplate = (id: string, over: Partial<PanelTemplate> = {}): PanelTemplate =>
   definePanel({
     id,
@@ -289,24 +274,16 @@ function mountWired(ws: WorkspaceHandle, width: number, over: Partial<PanelsInpu
 }
 
 export interface MatrixRigOptions {
-  /** Panels added in order, each from its own template of that id; default a, b, c. */
   ids?: readonly string[];
-  /** The template settings per id. */
   settings?: Record<string, PanelSettings>;
-  /** Every id gets overflow 'park', so a narrow row parks for room. */
   park?: boolean;
-  /** Templates beside the id ones, not added. */
   extra?: readonly PanelTemplate[];
-  /** A root named 'root'. Default true. */
   root?: boolean;
   width?: number;
   workspace?: Partial<WorkspaceOptions>;
   over?: Partial<PanelsInput>;
-  /** Pass the row the host's closing, entering and exit marks. */
   wired?: boolean;
-  /** Every id's view: the data-attribute view, or a DragToClose with a grab bar. */
   view?: 'marker' | 'drag';
-  /** Render under React.StrictMode, which runs updaters and effects twice. */
   strict?: boolean;
 }
 
@@ -316,16 +293,13 @@ export interface MatrixRig {
   h: Record<string, PanelHandle>;
   capture: CaptureSpy;
   turn: <T>(fn: () => T) => T;
-  /** The row in array order by name; a marker entry is left out. */
   order: () => string[];
   live: () => string[];
   entry: (id: string) => PanelWindow;
   state: (id: string) => PanelState;
   provided: () => ProvidedPanels;
   settle: () => Promise<void>;
-  /** The data attributes of panel `id`'s mounted view, or null when none is mounted. */
   seen: (id: string) => Record<string, string> | null;
-  /** The slot element holding panel `id`'s view. */
   slot: (id: string) => HTMLElement | null;
 }
 
@@ -391,7 +365,6 @@ export const refusedWith = (r: ConfigureResult, code: string): Refused => {
   return r as Refused;
 };
 
-/** The undo window a close opens, in ms. */
 export const UNDO_MS = 10000;
 
 /** Mocks setTimeout so a test can step past the undo window; the caller's afterEach resets it. */
@@ -402,9 +375,7 @@ export function mockWindow(): { pastWindow: () => void } {
 
 export interface Arranged {
   r: MatrixRig;
-  /** The panel the call is for (a panel added in the call's own turn when pending). */
   id: string;
-  /** configure(id, patch) the way the status needs it: after another operation in its turn, or on a panel added in its turn. */
   configure: (patch: Record<string, unknown>) => ConfigureResult;
 }
 
@@ -478,7 +449,6 @@ export async function arrange(status: Status, settings: PanelSettings = {}, work
   }
 }
 
-/** A template that draws nothing special: the singleton the pending status adds. */
 function markerless(id: string): PanelTemplate {
   return matrixTemplate(id);
 }
@@ -501,11 +471,6 @@ export function soft(): { run: (label: string, fn: () => Promise<void> | void) =
   };
 }
 
-// ---------------------------------------------------------------------------
-// A row of ten drag views, for the cases that hold a pointer near the window's edge
-// ---------------------------------------------------------------------------
-
-/** The scroll container's width in these rows. */
 export const EDGE_WINDOW = 1000;
 
 /** A pointer event of the kind jsdom lacks: a MouseEvent of the pointer type name carrying the fields motion reads. */
@@ -544,10 +509,8 @@ export async function lift(x: number): Promise<void> {
   await advanceFrames(30 * FRAME_MS);
 }
 
-/** Holds the pointer for `n` frames. */
 export const hold = (n: number): Promise<void> => advanceFrames(n * FRAME_MS);
 
-/** The distance the row scrolls while the pointer is held at `x` for 50 frames, then the release. */
 export async function heldScroll(r: MatrixRig, id: string, x: number): Promise<number> {
   const from = r.m.container.scrollLeft;
   await pressAndMove(r, id, x);
@@ -557,6 +520,5 @@ export async function heldScroll(r: MatrixRig, id: string, x: number): Promise<n
   return gained;
 }
 
-/** The pointer for the edge cases: half the default zone inside the right edge. */
 export const HALF_ZONE_POINTER = EDGE_WINDOW - LIBRARY_TUNING_DEFAULTS.edgeScroll.zonePx / 2;
 export { LIBRARY_TUNING_DEFAULTS };

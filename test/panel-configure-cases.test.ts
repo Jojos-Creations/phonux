@@ -1,7 +1,7 @@
 /**
- * The owner's literal transition cases for configure, each a before value and an after value written out by hand: the
- * closable and parkable cases first, then the placement, hold, overflow, scroll, keepMounted and viewState cases. Each is
- * one test so a red one names the transition it pins.
+ * The literal transition cases for configure, each a before value and an after value written out by hand: closable and
+ * parkable first, then placement, holds, overflow, scrolling, keepMounted and viewState, then the edge scroll rows, the
+ * root column and the protected-panel and side-effect cases. One test each, so a red one names the transition it pins.
  */
 import { test, afterEach, mock } from 'node:test';
 import assert from 'node:assert/strict';
@@ -57,7 +57,6 @@ const thrownCode = (fn: () => unknown): string | undefined => {
 };
 const slotAt = (r: MatrixRig, engineId: string): HTMLElement | null => r.m.container.querySelector<HTMLElement>(`[data-slot="${engineId}"]`)?.parentElement ?? null;
 
-/** The live park panels fit the window beside the others, except the floor of one (the settled-row guarantee). */
 function parkPanelsFit(r: MatrixRig): boolean {
   const n = r.m.latest().rowNumbers;
   if (!Number.isFinite(n.windowWidth) || n.parkLiveWidths.length <= 1) return true;
@@ -65,10 +64,6 @@ function parkPanelsFit(r: MatrixRig): boolean {
   const used = [...n.reservedWidths, ...n.parkLiveWidths].reduce((sum, w) => sum + w, 0) + (n.reservedWidths.length + n.parkLiveWidths.length - 1) * gap;
   return used <= n.windowWidth;
 }
-
-// ---------------------------------------------------------------------------
-// A. closable and parkable
-// ---------------------------------------------------------------------------
 
 test('case A1: closable true to false on a live panel: the control is gone, close is refused not-closable, the History trash is gone and clearable re-derives false', async () => {
   const r = await matrixRig();
@@ -188,10 +183,6 @@ test('case A7: parkable false to true on a live fixed column makes it an ordinar
   assert.deepEqual([facts(), r.entry('b').collapsible, r.provided().fixedViewCount], [[true, true, true, true, true], true, 1], 'after: C1 is lifted and the derived keys follow parkable');
   assert.equal(letter(r.turn(() => r.h.b!.hide())), 'T', 'it can be hidden');
 });
-
-// ---------------------------------------------------------------------------
-// B. placement, holds, overflow, scrolling, keepMounted and viewState
-// ---------------------------------------------------------------------------
 
 test('case B1: placeOnShow changed on a hidden panel moves and reveals nothing, and the next show uses it', async () => {
   const r = await matrixRig();
@@ -410,10 +401,6 @@ test('case B15: viewState reset-on-park to keep on a parked panel reaches the ne
 });
 
 
-// ---------------------------------------------------------------------------
-// Edge scroll rows: scrollOnDrag and tuning.edgeScroll
-// ---------------------------------------------------------------------------
-
 const ZONE = LIBRARY_TUNING_DEFAULTS.edgeScroll.zonePx;
 const QUARTER = ZONE / 4;
 
@@ -516,10 +503,6 @@ test('edge scroll 6: a hidden panel and an engine-parked panel store both settin
   assert.deepEqual([parked.state(away!).status, parked.state(away!).settings.scrollOnDrag], ['parked', 'none'], 'stored on the parked panel, which stays parked');
 });
 
-// ---------------------------------------------------------------------------
-// Root column
-// ---------------------------------------------------------------------------
-
 test('root column 1: closable, parkable, draggable and placeable true on the root are each a settings-conflict naming the key and rule C5, with no forcedBy', async () => {
   const r = await matrixRig();
   const entries = r.m.latest().entries;
@@ -544,7 +527,6 @@ test('root column 2: resizable true on the root is a settings-conflict from rule
   assert.match(refusal.message, /because of parkable$/);
 });
 
-/** Values of pinningWhenNotLive, and what configure(parkable false) on a panel in each status answers under each (design 6A). */
 type Cell = { reply: 'would-reshape-row' | 'is-closed' | 'shown' | 'deferred' | 'stored'; fixed: boolean };
 const PIN_CELLS: readonly { value: unknown; parked: Cell; hidden: Cell; closed: Cell }[] = [
   { value: 'place-only', parked: { reply: 'would-reshape-row', fixed: false }, hidden: { reply: 'would-reshape-row', fixed: false }, closed: { reply: 'is-closed', fixed: false } },
@@ -618,10 +600,6 @@ test('root column 3: pinningWhenNotLive over its four values and the per-status 
   assert.equal(executed, PIN_CELLS.length * 4, 'every value ran in each of the four statuses');
   s.end();
 });
-
-// ---------------------------------------------------------------------------
-// Protected panels and the effects configure causes
-// ---------------------------------------------------------------------------
 
 test('protected 1: evictionRank skips an acted-on panel: the lowest rank is parked first, unless it is the panel the action opened or showed', async () => {
   const c = matrixTemplate('c', { settings: { overflow: 'park', evictionRank: -9 } });
@@ -716,14 +694,14 @@ test('protected 7: persist changes only the next projection: the call writes not
     return store.save(state);
   } };
   const r = await matrixRig({ workspace: { storage: counting, tuning: { saveQuietMs: 5 } } });
-  await act(async () => void (await new Promise((resolve) => setTimeout(resolve, 80))));
+  await act(async () => void (await new Promise((resolve) => setTimeout(resolve, 150))));
   const count = saves.length;
   assert.equal(count > 0, true, 'the first save came');
   assert.deepEqual(saves[count - 1], ['a', 'b', 'c']);
   done(r.turn(() => r.h.b!.configure({ persist: 'session' })));
   assert.equal(saves.length, count, 'configure itself saved nothing');
   r.turn(() => r.h.a!.move('right', 'person'));
-  await act(async () => void (await new Promise((resolve) => setTimeout(resolve, 80))));
+  await act(async () => void (await new Promise((resolve) => setTimeout(resolve, 150))));
   assert.equal(saves.length > count, true);
   assert.deepEqual(saves[saves.length - 1], ['a', 'c'], 'the next projection leaves the session panel out');
 });

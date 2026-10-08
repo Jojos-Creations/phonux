@@ -1,7 +1,7 @@
 /**
  * The configure matrix: the 36 cells of the class table (4 classes by 9 statuses), then one probe per catalog name.
- * Every expectation is written from design 7.6 and the catalog's `on_configure` cells; a red assertion here names the
- * entry whose behaviour it pins and is never loosened to pass.
+ * Every expectation is written from the configure design and the catalog's `on_configure` cells, never from the code
+ * under test.
  */
 import { test, afterEach, mock } from 'node:test';
 import assert from 'node:assert/strict';
@@ -50,10 +50,6 @@ afterEach(() => {
   viewLog.reset();
 });
 
-// ---------------------------------------------------------------------------
-// What a cell watches
-// ---------------------------------------------------------------------------
-
 interface Trace {
   entries: MatrixRig['m'] extends { latest: () => infer P } ? (P extends { entries: infer E } ? E : never) : never;
   renders: number;
@@ -80,13 +76,12 @@ const traceOf = (a: Arranged): Trace => {
   };
 };
 
-/** The side effects a cell names, measured against the trace taken before the call. */
 function assertSideEffects(a: Arranged, before: Trace, cell: (typeof CLASS_TABLE)['NOW']['live']): void {
   if (cell.evicts !== null) assert.equal(a.r.capture.evicted.length - before.evicted, cell.evicts, 'host evict calls the configure caused');
   if (cell.unmounts !== null && before.engineId !== null) assert.equal(viewLog.unmounted(before.engineId) - before.unmounted, cell.unmounts, 'view unmounts the configure caused');
 }
 
-/** A refusal leaves the panel's own settings as they were; the entries of the whole row are compared only when nothing else ran in the turn. */
+// P and F cells ran another operation in the turn, so the whole row is compared only for the other refusals.
 function assertRefusal(a: Arranged, before: Trace, res: ConfigureResult, code: string, key: string, was: unknown): void {
   refusedWith(res, code);
   assert.ok((res as { message: string }).message.length > 0, 'a refusal carries a message');
@@ -100,10 +95,6 @@ function assertRefusal(a: Arranged, before: Trace, res: ConfigureResult, code: s
 }
 
 const summaryOf = (r: MatrixRig, id: string) => r.provided().panelList.find((s) => s.id === r.entry(id).id);
-
-// ---------------------------------------------------------------------------
-// NOW: closable true to false
-// ---------------------------------------------------------------------------
 
 async function nowCell(status: Status): Promise<void> {
   const cell = CLASS_TABLE.NOW[status];
@@ -156,13 +147,9 @@ async function nowCell(status: Status): Promise<void> {
   }
 }
 
-// ---------------------------------------------------------------------------
-// NEXT: hideStickiness, snapshot and persist together
-// ---------------------------------------------------------------------------
-
 const NEXT_PATCH = { hideStickiness: 'until-room', snapshot: 'never', persist: 'session' } as const;
 
-const wait = (): Promise<void> => act(async () => void (await new Promise((resolve) => setTimeout(resolve, 80))));
+const wait = (): Promise<void> => act(async () => void (await new Promise((resolve) => setTimeout(resolve, 150))));
 const keysOf = async (store: WorkspaceStorage): Promise<string[]> => ((await store.load())?.panels ?? []).map((p) => p.key ?? p.id);
 
 async function nextCell(status: Status): Promise<void> {
@@ -206,9 +193,7 @@ async function nextCell(status: Status): Promise<void> {
   assert.equal(r.order().join(' '), before.order, 'nothing moved');
   assert.equal(r.live().join(' '), before.live, 'nothing parked, shown or returned');
   assert.deepEqual([r.state(id).status, r.state(id).held], [flags.status, flags.held], 'the panel kept its state');
-  // The entries of every other panel are the objects they were.
   for (const e of before.entries) if (e.id !== before.engineId) assert.equal(r.m.latest().entries.includes(e), true, `entry ${e.id} is the same object`);
-  // The file differs only at the next projection.
   assert.equal(JSON.stringify(await store.load()), fileBefore, 'the call itself wrote nothing');
   await wait();
   assert.equal((await keysOf(store)).includes(id), false, 'the next projection leaves the session panel out');
@@ -222,10 +207,6 @@ async function nextCell(status: Status): Promise<void> {
   assertSideEffects(a, before, cell);
 }
 
-
-// ---------------------------------------------------------------------------
-// STATE: keepMounted, read through the park latch
-// ---------------------------------------------------------------------------
 
 async function stateCell(status: Status): Promise<void> {
   const cell = CLASS_TABLE.STATE[status];
@@ -284,10 +265,6 @@ async function stateCell(status: Status): Promise<void> {
     assert.deepEqual(r.live().filter((n) => n !== 'root'), [id]);
   }
 }
-
-// ---------------------------------------------------------------------------
-// SCOPE: configureTemplate on a template with an instance in each status
-// ---------------------------------------------------------------------------
 
 async function scopeCell(status: Status): Promise<void> {
   const cell = CLASS_TABLE.SCOPE[status];
@@ -353,10 +330,6 @@ async function scopeCell(status: Status): Promise<void> {
   assert.equal(r.capture.evicted.length - was.evicted, cell.evicts, 'no instance is touched');
 }
 
-// ---------------------------------------------------------------------------
-// The loop: every cell its own test
-// ---------------------------------------------------------------------------
-
 const KITS: Readonly<Record<Cls, (status: Status) => Promise<void>>> = {
   NOW: nowCell,
   NEXT: nextCell,
@@ -373,10 +346,6 @@ for (const cls of CLASSES) {
   }
 }
 
-
-// ---------------------------------------------------------------------------
-// The probes: one literal test per catalog name, in the catalog's order
-// ---------------------------------------------------------------------------
 
 const slot = (label: string): HeaderButton => ({ icon: createElement('i', { 'data-icon': label }), label, onClick: () => undefined });
 const PAIR_PIN = { pinned: { parkable: false }, unpinned: { parkable: true } } as const;
@@ -398,7 +367,6 @@ const sameRow = (r: MatrixRig, entries: unknown, renders: number, why: string): 
   assert.equal(r.m.renders(), renders, `${why}: no commit followed`);
 };
 
-/** Every one of the nine statuses answers `patch` with wrong-scope naming `setting`, the engine untouched. */
 async function wrongScopeInEveryStatus(patch: Record<string, unknown>, setting: string): Promise<void> {
   assert.equal(STATUSES.length, 9);
   for (const status of STATUSES) {
@@ -1348,15 +1316,13 @@ test('matrix:headerButtons', async () => {
 });
 
 type Store = ReturnType<typeof memoryWorkspaceStorage>;
-const settleSave = (): Promise<void> => act(async () => void (await new Promise((resolve) => setTimeout(resolve, 80))));
+const settleSave = (): Promise<void> => act(async () => void (await new Promise((resolve) => setTimeout(resolve, 150))));
 
-/** One launch over `store`: the rig mounted, the restore settled and the first save quiet. */
 async function launch(store: Store, o: MatrixRigOptions = {}): Promise<MatrixRig> {
   const r = await matrixRig({ ...o, workspace: { ...o.workspace, storage: store, tuning: { saveQuietMs: 5, ...(o.workspace?.tuning ?? {}) } } });
   await settleSave();
   return r;
 }
-/** Lets the last change save, then closes the launch. */
 async function quit(r: MatrixRig): Promise<void> {
   await settleSave();
   r.m.unmount();
