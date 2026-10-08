@@ -78,8 +78,11 @@ export function useWorkspacePersistence(i: {
   // State, not a ref: opening the gate must re-run the save effect, or a change committed while load() was
   // pending (with nothing to restore) would never be saved.
   const [settled, setSettled] = useState(false);
-  // The JSON last saved or restored; a projection equal to it is not saved again.
+  // The JSON the file is known to hold: restored, or saved and settled without error. A projection equal to it is not saved again.
   const lastSaved = useRef<string | null>(null);
+  // The newest save that has not settled; a change that projects to the same JSON is already on its way.
+  const inFlight = useRef<{ n: number; json: string } | null>(null);
+  const started = useRef(0);
   // The tombstones the file held, written back with every save; `dismiss` and `undismiss` edit them.
   const dismissed = useRef<string[]>([]);
   const tombstonesDropped = useRef(false);
@@ -163,15 +166,35 @@ export function useWorkspacePersistence(i: {
     if (storage === undefined || !settled) return;
     const state = projectWorkspaceState(panels, rootId, dismissed.current);
     const json = JSON.stringify(state);
-    if (json === lastSaved.current) return;
+    // A save still in flight may land after this one, so the file is not known to hold the baseline until it settles.
+    if (json === lastSaved.current && inFlight.current === null) return;
     // No flush on unmount or quit: a change in the last quiet period is lost, never a torn write.
     const timer = setTimeout(() => {
-      lastSaved.current = json;
+      const flying = inFlight.current;
+      if (json === flying?.json || (flying === null && json === lastSaved.current)) return;
+      started.current += 1;
+      const n = started.current;
+      inFlight.current = { n, json };
+      let done = false;
+      const settle = (failure: { e: unknown } | null): void => {
+        if (done) return;
+        done = true;
+        if (inFlight.current?.n === n) inFlight.current = null;
+        // A save that settles after a newer one started says nothing about what the file holds now.
+        if (failure === null) {
+          if (n === started.current) lastSaved.current = json;
+        } else reportError(failure.e);
+      };
       try {
         const outcome = storage.save(state) as unknown;
-        if (typeof outcome === 'object' && outcome !== null && typeof (outcome as PromiseLike<unknown>).then === 'function') (outcome as PromiseLike<unknown>).then(undefined, reportError);
+        if (typeof outcome === 'object' && outcome !== null && typeof (outcome as PromiseLike<unknown>).then === 'function') {
+          (outcome as PromiseLike<unknown>).then(
+            () => settle(null),
+            (e) => settle({ e }),
+          );
+        } else settle(null);
       } catch (e) {
-        reportError(e);
+        settle({ e });
       }
     }, saveQuietMsRef.current);
     return () => clearTimeout(timer);
