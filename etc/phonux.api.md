@@ -387,6 +387,27 @@ export interface PanelHandle<P extends JsonValue = JsonValue> extends PanelReadH
 export function PanelHeader(input: PanelHeaderProps): React_2.JSX.Element;
 
 // @public
+export interface PanelHeaderButtonItem {
+    readonly description: string | undefined;
+    readonly disabled: boolean;
+    readonly hidden: boolean;
+    readonly icon: React_2.ReactNode;
+    readonly id: string;
+    readonly label: string;
+    readonly order: number;
+    press(): void;
+    readonly pressed: boolean | undefined;
+    readonly side: 'start' | 'end';
+    readonly sx: HeaderButton['sx'];
+    readonly tooltip: string | undefined;
+}
+
+// @public
+export function PanelHeaderButtons(input: {
+    side?: 'start' | 'end';
+}): React_2.ReactElement | null;
+
+// @public
 export interface PanelHeaderProps extends Omit<BoxProps, 'children'> {
     children: React_2.ReactNode;
 }
@@ -397,6 +418,7 @@ export function PanelHeaderRow(input: PanelHeaderRowProps): React_2.JSX.Element;
 // @public
 export interface PanelHeaderRowProps extends Omit<PanelHeaderProps, 'children' | 'title'> {
     actions?: React_2.ReactNode;
+    leading?: React_2.ReactNode;
     title: React_2.ReactNode;
 }
 
@@ -434,6 +456,7 @@ export interface PanelProps extends Omit<BoxProps, 'children' | 'sx' | 'title'> 
     grabProps?: Omit<BoxProps, 'children'> & {
         [key: `data-${string}`]: string | boolean | undefined;
     };
+    headerButtons?: boolean;
     headerProps?: Omit<PanelHeaderRowProps, 'title' | 'actions'> & {
         [key: `data-${string}`]: string | boolean | undefined;
     };
@@ -1043,6 +1066,9 @@ export const usePanelCapabilities: () => Pick<ResolvedPanelSettings, "closable" 
 
 // @public
 export const usePanelCloseEligible: () => boolean;
+
+// @public
+export function usePanelHeaderButtons(): readonly PanelHeaderButtonItem[];
 
 // @public
 export const usePanelHidden: () => boolean;

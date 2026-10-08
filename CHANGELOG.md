@@ -4,6 +4,11 @@
 
 ### Added
 
+- `headerButtons`: a panel declares generic title-bar buttons as slots keyed by id with `icon`, `label`, `onClick`,
+  `side`, `order`, `pressed`, `description`, `tooltip`, `disabled`, `hidden` and `sx`. `Panel` draws them as MUI
+  IconButtons (`Panel`'s new `headerButtons` prop, `false` to leave them out; `PanelHeaderRow`'s new `leading` prop holds
+  the start side), `usePanelHeaderButtons()` lists them and `PanelHeaderButtons` draws them for a view with its own
+  header. A press is the person's gesture. A panel that declares none renders what it did.
 - `pin()` and `unpin()` on a panel handle apply the panel's pinning definition in one commit, `pinningWhenNotLive` and a
   deferred pin decide what a parked, hidden or closed panel does, a person's pin is saved as `overrides.parkable`, and
   `resetLayout(id | 'all')` on the manager clears overrides and deferred pins and re-places by default. The result types

@@ -320,8 +320,8 @@ test('source: useProvidePanels drops the hold of a closed panel after forgetting
   assert.match(src, /forgetCollapsed\(id\);\s*releaseHold\(id\);\s*revealMostRecentlyCollapsed\(remaining\);/);
 });
 
-test('source: usePanelManager and PanelRow use no useMemo or useCallback', () => {
-  for (const file of ['panels/usePanelManager.ts', 'PanelRow.tsx']) assert.equal(usesMemo(read(file)), false, `${file} must close over this render's values`);
+test('source: usePanelManager, PanelRow, Panel and panelHeaderButtons use no useMemo or useCallback', () => {
+  for (const file of ['panels/usePanelManager.ts', 'PanelRow.tsx', 'Panel.tsx', 'panelHeaderButtons.tsx']) assert.equal(usesMemo(read(file)), false, `${file} must close over this render's values`);
 });
 
 /** Whether `source` imports flushSync from react-dom, comments and strings excluded. */
@@ -425,4 +425,22 @@ test("source: the edge-scroll loop reads the row's drag scroll and never `collap
   assert.match(hook, /dragScroll/);
   assert.doesNotMatch(hook, /collapsible/);
   assert.match('function useEdgeScroll() { return slot.collapsible; }', /collapsible/, 'the control: the same check sees a planted read');
+});
+
+test('source: the header button cluster is built in Panel only, panelHeaderButtons imports no flushSync, and a planted import is found', () => {
+  assert.equal(importsFlushSync("import { flushSync } from 'react-dom';"), true, 'the matcher must find a planted import');
+  assert.equal(importsFlushSync(read('panelHeaderButtons.tsx')), false);
+  const builders = LIBRARY_FILES.filter((file) => file !== 'panelHeaderButtons.tsx' && /<PanelHeaderButtons\b|createElement\(PanelHeaderButtons\b/.test(stripComments(read(file), file)));
+  assert.deepEqual(builders, ['Panel.tsx'], 'the cluster is built in Panel only');
+  assert.equal(LIBRARY_FILES.filter((file) => /^panelHeaderButtons\.tsx$/.test(file)).length, 1, 'the new file sits flat in the root and is not named useProvide*');
+});
+
+test('source: PanelRow keeps its single-line zIndex and enterDirection props, and PanelRowSlot and the slot lines do not read collapsible', () => {
+  const lines = read('PanelRow.tsx').split('\n');
+  for (const prop of ['zIndex={', 'enterDirection={']) {
+    const line = lines.find((l) => l.trim().startsWith(prop));
+    assert.ok(line !== undefined, `${prop} stays on one line`);
+    assert.equal(/collapsible/.test(line), false, `${prop} does not read collapsible`);
+  }
+  assert.equal(/collapsible/.test(read('PanelRowSlot.tsx')), false);
 });

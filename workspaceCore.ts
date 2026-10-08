@@ -148,7 +148,7 @@ export interface EngineBinding {
   readonly newId: () => string;
   /** Reports an error the hook swallowed: `onError`, else `console.error`. */
   reportError(e: unknown): void;
-  /** Delivers a runtime note to the sink the attached hook bound; dropped when none is bound or the sink throws. */
+  /** Delivers a runtime note to the sink the attached hook bound, or holds it until one is bound; a sink that throws is ignored. */
   reportNote(note: SettingNote): void;
   /** The attached hook binds (or, with undefined, unbinds) where runtime notes go. */
   bindNotes(sink: ((note: SettingNote) => void) | undefined): void;
@@ -280,6 +280,7 @@ export function createWorkspace(o: WorkspaceOptions = {}): WorkspaceHandle {
   };
 
   let noteSink: ((note: SettingNote) => void) | undefined;
+  const notesBeforeSink: SettingNote[] = [];
 
   const reportConflicts = (id: PanelId, res: PanelSettingsResolution): void => {
     if (conflicts === 'off') return;
@@ -762,14 +763,20 @@ export function createWorkspace(o: WorkspaceOptions = {}): WorkspaceHandle {
     newId,
     reportError,
     reportNote: (note) => {
+      if (noteSink === undefined) {
+        notesBeforeSink.push(note);
+        return;
+      }
       try {
-        noteSink?.(note);
+        noteSink(note);
       } catch {
         // A reporter that throws must not break the slot that raised the note.
       }
     },
     bindNotes: (sink) => {
       noteSink = sink;
+      // A slot that fails in the first commit reports before the hook's layout effect has bound the sink.
+      for (const note of sink === undefined ? [] : notesBeforeSink.splice(0)) binding.reportNote(note);
     },
     templates: () => [...templates.values()],
     resolved: (e) => entryResolution(e).value,

@@ -1396,6 +1396,47 @@ into its trailing "Warnings were encountered" footer. Once such a report is comm
 regenerates the same text, matches it, and API Extractor exits 0. So the script also scans each committed
 report for an embedded warning or message id, and fails on any.
 
+## Pinning and header buttons
+
+A panel is pinned when its definition reads so from the row (see "Pin definitions"): `pin()` and `unpin()` on a handle apply the
+two halves of `pinning` in one commit, a person's pin is saved as an override and a code pin is not, and `resetLayout` clears
+overrides and deferred pins. The title bar's buttons are the other half of this surface, and they are generic: the library draws
+no built-in button.
+
+### Slots
+
+`headerButtons` is a map from a slot id to `{ icon, label, onClick, side, order, pressed, description, tooltip, disabled, hidden, sx }`
+or `false`. It cascades like any setting: a template's slot and an instance's slot both apply, `false` on a later layer removes that
+id, and a layer never holds `null` (a patch's `null` removes the instance's own slot, which gives the template's back). The
+validator in `panelSettings.ts` checks every field of a slot, so a bad slot throws `invalid-settings` naming its layer. A label
+function that returns an empty string is the one value it cannot judge; that slot is hidden at runtime.
+
+PanelRow puts the resolved slots and the panel's own handle in the slot context, and `Panel` draws them: buttons of `side: 'start'`
+before the title, the view's own `actions` first among the end side, then the end buttons, each a plain MUI IconButton of size
+small. A slot with only icon, label and onClick renders exactly the markup of such a button written by hand. A panel that declares
+none, or whose slots are all hidden, renders the markup it always did; the header row takes `tabindex="-1"` only while a slot is
+drawn, so focus has somewhere to go when the button that held it leaves. `Panel`'s `headerButtons={false}` keeps the cluster out of
+its header; a view with its own header calls `usePanelHeaderButtons()` for the list or renders `PanelHeaderButtons`.
+
+### Click and safety
+
+`onClick` receives the panel's own handle and a context with `announce`. The verbs it calls go through the manager's in-flight gate,
+so a second press in the same turn is answered `busy` by the verb. A verb called synchronously inside `onClick` is the person's
+gesture and records their override; the same verb after an `await`, and any call from code, records nothing. A refused verb returns
+its typed code to the function and the library draws nothing for it; `announce(text)` writes to a polite status region that exists
+from the first announce on and is the cluster's last child. A throwing `onClick` or a rejecting promise goes to
+`WorkspaceOptions.onError`, else `console.error`, and changes nothing. Each slot has its own error boundary: a throwing icon or label
+function, an icon element that throws while rendering, or an empty label hides only that slot and delivers one `header-button-error`
+note through `onNote`. A disabled slot stays focusable and its press does nothing. A slot of a panel that is exiting is inert and
+its press reaches no verb.
+
+### Focus
+
+After a press that reorders the panel the pressed button is focused again with `preventScroll`. When the button that held focus is
+hidden by a predicate, focus goes to the same panel's header row; when the press closes or parks its own panel, to the header row of
+the panel now at that index, else the previous one's. Focus is never left on `body`. Whether a real browser keeps focus across a
+DOM move is for the real-layout gate.
+
 ## History, releases and development
 
 The library began as a folder inside phonux-app and was extracted with `git filter-repo`, renaming every path the folder ever had,

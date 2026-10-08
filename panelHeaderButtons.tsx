@@ -51,7 +51,7 @@ interface Runtime {
   text: string | undefined;
   readonly listeners: Set<() => void>;
   /** The slot that held focus when it was pressed, and where its header row stood among all of them. */
-  pending: { id: string; index: number; row: HTMLElement | null } | undefined;
+  pending: { id: string; index: number; row: HTMLElement | null; done: boolean } | undefined;
   /** The header row of a focused slot that left the document without being pressed, or undefined. */
   lost: { row: HTMLElement | null } | undefined;
 }
@@ -103,11 +103,15 @@ interface Failure {
   readonly message: string;
 }
 
+/** The header rows of panels that are still staying; a leaving panel's row is inert and no focus target. */
 function headerRows(doc: Document): HTMLElement[] {
-  return [...doc.querySelectorAll<HTMLElement>(`[${HEADER_ROW_ATTRIBUTE}]`)];
+  return [...doc.querySelectorAll<HTMLElement>(`[${HEADER_ROW_ATTRIBUTE}]:not([inert])`)];
 }
 
-/** The header buttons the panel above declares, sorted start side first, then by order, then by id; empty outside a row slot. */
+/**
+ * The header buttons the panel above declares, sorted start side first, then by order, then by id; empty outside a row slot.
+ * @public
+ */
 export function usePanelHeaderButtons(): readonly PanelHeaderButtonItem[] {
   const given = React.useContext(PanelSlotContext)?.headerButtonSlots;
   const present = useIsPresent();
@@ -166,6 +170,13 @@ export function usePanelHeaderButtons(): readonly PanelHeaderButtonItem[] {
     }
   }, [failureKeys]);
 
+  // The row of a panel on its way out takes no more presses or focus; React does not own this attribute.
+  React.useEffect(() => {
+    if (present || handle === undefined) return;
+    const doc = typeof document === 'undefined' ? undefined : document;
+    for (const row of doc?.querySelectorAll(`[${HEADER_ROW_ATTRIBUTE}]`) ?? []) if (row.getAttribute(HEADER_ROW_ATTRIBUTE) === handle.id) row.setAttribute('inert', '');
+  }, [present]);
+
   // After a commit that moved or removed the button that had focus, focus goes back to it or, failing that, to a header row.
   React.useEffect(() => {
     if (given === undefined || handle === undefined || runtime === undefined) return;
@@ -181,24 +192,31 @@ export function usePanelHeaderButtons(): readonly PanelHeaderButtonItem[] {
       runtime.lost = undefined;
       return;
     }
-    runtime.pending = undefined;
-    runtime.lost = undefined;
     const rows = headerRows(doc);
     const own = rows.find((r) => r.getAttribute(HEADER_ROW_ATTRIBUTE) === handle.id);
-    if (!present) {
+    // The press that closes or parks its own panel commits its state after the render that first sees the press, so a pending press outlives the refocus below.
+    if (!present || (state !== undefined && state.status !== 'live')) {
+      runtime.pending = undefined;
+      runtime.lost = undefined;
       const others = rows.filter((r) => r !== own);
       const at = pending?.index ?? (own === undefined ? 0 : rows.indexOf(own));
       (others[at] ?? others[at - 1])?.focus({ preventScroll: true });
       return;
     }
+    runtime.lost = undefined;
+    if (pending !== undefined) {
+      if (pending.done) return;
+      pending.done = true;
+    }
     const button = pending === undefined ? undefined : runtime.buttons.get(pending.id);
-    if (button !== undefined && button.isConnected) {
-      if (active !== button) button.focus({ preventScroll: true });
+    // Called even when the button still holds focus: a browser drops focus from a node a reorder moves, a test DOM does not.
+    if (button?.isConnected) {
+      button.focus({ preventScroll: true });
       return;
     }
     // A row that carries no tabindex because every slot is now hidden still has to take the focus.
     const row = pending?.row ?? lostRow ?? own;
-    if (row !== null && row !== undefined && row.isConnected) {
+    if (row?.isConnected) {
       if (!row.hasAttribute('tabindex')) row.setAttribute('tabindex', '-1');
       row.focus({ preventScroll: true });
     }
@@ -221,7 +239,7 @@ function pressSlot(
   if (button !== undefined && button.ownerDocument.activeElement === button) {
     const rows = headerRows(button.ownerDocument);
     const own = button.closest(`[${HEADER_ROW_ATTRIBUTE}]`);
-    runtime.pending = { id, index: own === null ? 0 : rows.indexOf(own as HTMLElement), row: own as HTMLElement | null };
+    runtime.pending = { id, index: own === null ? 0 : rows.indexOf(own as HTMLElement), row: own as HTMLElement | null, done: false };
   }
   let inGesture = true;
   const handle = gestureHandle(given.handle, () => inGesture);
