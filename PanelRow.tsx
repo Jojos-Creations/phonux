@@ -17,7 +17,7 @@ import { LIBRARY_TUNING_DEFAULTS, effective, resolvePanelSettings } from './pane
 import type { ResolvedPanelSettings, ResolvedPanelTuning, WorkspaceTuning } from './panelSettings.js';
 import { PanelRowSlot } from './PanelRowSlot.js';
 import { WorkspaceTuningContext, lookTuningDiffers, resolveWorkspaceTuning, slotTuning, type SlotTuning } from './panelTuning.js';
-import { reorderStepsForOffset } from './panelWindow.js';
+import { reorderStepsForOffset, type PanelWindow } from './panelWindow.js';
 import { maxScrollOf, type RowNumbers } from './rowNumbers.js';
 import { panelWidthOf } from './panelTiers.js';
 import { resolveView } from './viewRegistry.js';
@@ -253,7 +253,7 @@ export function PanelRow({
           const rest = kept ? restRef.current.get(p.id)! : { leftOffset: leftOffsets[presentIndex]!, width: widths[presentIndex]! };
           const Component = resolveView(p.view);
           const { closable, draggable, placeable, resizable, formFactors, enterFrom, exitTo, closeExit, animated, layer, scrollOnDrag, headerButtons } = effective(p);
-          const own = slotTuning(workspaceTuning, p.settings?.tuning);
+          const own = slotTuning(workspaceTuning, binding === undefined ? p.settings?.tuning : binding.panelTuning(p as PanelWindow));
           const dragScroll: DragScroll | undefined = rowScroll
             ? { mode: scrollOnDrag, zonePx: own.edgeScroll.zonePx, maxPxPerSec: own.edgeScroll.maxPxPerSec, reducedStepMs: own.edgeScroll.reducedStepMs, instant: !animated, maxScroll, stops }
             : undefined;
