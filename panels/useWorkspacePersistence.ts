@@ -1,8 +1,8 @@
 /**
  * Keeps the panel list between launches through a host's `WorkspaceStorage`: one restore at mount, then a
- * debounced save of every committed change. The restore is `reconcileWorkspace`, called in the load's success
- * handler; a throw there takes the same path as a failed load, so the workspace always settles. With no storage
- * it does nothing: no state, no promise, no timer.
+ * debounced save of every committed change; a save that fails is saved again by the next change. The restore is
+ * `reconcileWorkspace`, called in the load's success handler; a throw there takes the same path as a failed load, so
+ * the workspace always settles. With no storage it does nothing: no state, no promise, no timer.
  */
 import { useEffect, useRef, useState } from 'react';
 import type { Dispatch, SetStateAction } from 'react';
@@ -78,8 +78,11 @@ export function useWorkspacePersistence(i: {
   // State, not a ref: opening the gate must re-run the save effect, or a change committed while load() was
   // pending (with nothing to restore) would never be saved.
   const [settled, setSettled] = useState(false);
-  // The JSON last saved or restored; a projection equal to it is not saved again.
+  // The JSON the file is known to hold: restored, or saved and settled without error. A projection equal to it is not saved again.
   const lastSaved = useRef<string | null>(null);
+  // The newest save that has not settled; a change that projects to the same JSON is already on its way.
+  const inFlight = useRef<{ n: number; json: string } | null>(null);
+  const started = useRef(0);
   // The tombstones the file held, written back with every save; `dismiss` and `undismiss` edit them.
   const dismissed = useRef<string[]>([]);
   const tombstonesDropped = useRef(false);
@@ -87,7 +90,6 @@ export function useWorkspacePersistence(i: {
   useEffect(() => {
     // StrictMode runs this effect twice; only the run that is not cancelled may apply its result.
     let cancelled = false;
-    // The executor runs at once, so a load() that throws reads as a rejection: no saved state.
     const reconcile = (saved: unknown): PanelWindow[] => {
       const own = (typeof given === 'function' ? given() : given) ?? [];
       const templates = [...listTemplates().filter((t) => !own.some((g) => g.id === t.id)), ...own];
@@ -163,15 +165,37 @@ export function useWorkspacePersistence(i: {
     if (storage === undefined || !settled) return;
     const state = projectWorkspaceState(panels, rootId, dismissed.current);
     const json = JSON.stringify(state);
-    if (json === lastSaved.current) return;
+    // A save in flight may land after this change, so a match with the baseline does not yet mean the file is right.
+    if (json === lastSaved.current && inFlight.current === null) return;
     // No flush on unmount or quit: a change in the last quiet period is lost, never a torn write.
     const timer = setTimeout(() => {
-      lastSaved.current = json;
+      const flying = inFlight.current;
+      // Equal content is already on its way, or the file holds it now.
+      if (json === flying?.json || (flying === null && json === lastSaved.current)) return;
+      started.current += 1;
+      const n = started.current;
+      inFlight.current = { n, json };
+      // A thenable that settles twice, or throws after settling, is reported and applied once.
+      let done = false;
+      const settle = (failure: { e: unknown } | null): void => {
+        if (done) return;
+        done = true;
+        if (inFlight.current?.n === n) inFlight.current = null;
+        // A save that settles after a newer one started says nothing about what the file holds now.
+        if (failure === null) {
+          if (n === started.current) lastSaved.current = json;
+        } else reportError(failure.e);
+      };
       try {
         const outcome = storage.save(state) as unknown;
-        if (typeof outcome === 'object' && outcome !== null && typeof (outcome as PromiseLike<unknown>).then === 'function') (outcome as PromiseLike<unknown>).then(undefined, reportError);
+        if (typeof outcome === 'object' && outcome !== null && typeof (outcome as PromiseLike<unknown>).then === 'function') {
+          (outcome as PromiseLike<unknown>).then(
+            () => settle(null),
+            (e) => settle({ e }),
+          );
+        } else settle(null);
       } catch (e) {
-        reportError(e);
+        settle({ e });
       }
     }, saveQuietMsRef.current);
     return () => clearTimeout(timer);

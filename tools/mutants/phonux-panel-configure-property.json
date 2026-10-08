@@ -1,0 +1,26 @@
+{
+  "tests": ["test/panel-configure-property.test.ts"],
+  "mutants": [
+    {
+      "name": "the result never lists a shadowed key",
+      "file": "panelConfigure.ts",
+      "find": "const shadowed = changed.filter((n) => patchValue(n) !== null && after.source[n] !== 'instance');",
+      "replace": "const shadowed: string[] = [];",
+      "expectRed": ["seeded random sequences with configure and resetLayout keep the invariants of 7.3 after every step"]
+    },
+    {
+      "name": "a configure rewrites the person's overrides",
+      "file": "panelConfigure.ts",
+      "find": "return plan.cancelsPin ? withoutDeferral(next) : next;",
+      "replace": "return { ...(plan.cancelsPin ? withoutDeferral(next) : next), overrides: { formFactor: 'phone' as const } };",
+      "expectRed": ["seeded random sequences with configure and resetLayout keep the invariants of 7.3 after every step"]
+    },
+    {
+      "name": "a refusal is answered after the row was committed",
+      "file": "panels/useProvidePanels.ts",
+      "find": "if (!('next' in outcome)) return outcome.done;",
+      "replace": "if (!('next' in outcome)) {\n        setPanels((prev) => [...prev]);\n        return outcome.done;\n      }",
+      "expectRed": ["seeded random sequences with configure and resetLayout keep the invariants of 7.3 after every step"]
+    }
+  ]
+}

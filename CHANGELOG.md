@@ -4,6 +4,12 @@
 
 ### Added
 
+- `configure(patch)` on a panel handle, `configure(id, patch)`, `configureTemplate(templateId, patch)` and
+  `configureTuning(patch)` on the manager change settings after a panel exists, each in one commit and each refusing
+  whole with a typed `ConfigureResult` (`wrong-scope`, `settings-conflict`, `tier-not-allowed`, `instance-limit`,
+  `busy`) or throwing `invalid-settings` for an unknown key or a bad value. A view's own handle takes only `title`,
+  `listed`, `layer`, `formFactor`, an anchor `placeOnAdd` and `enterFrom: 'anchor'`. The workspace's per-panel tuning
+  leaves now reach the panels that resolve their own settings.
 - `headerButtons`: a panel declares generic title-bar buttons as slots keyed by id with `icon`, `label`, `onClick`,
   `side`, `order`, `pressed`, `description`, `tooltip`, `disabled`, `hidden` and `sx`. `Panel` draws them as MUI
   IconButtons (`Panel`'s new `headerButtons` prop, `false` to leave them out; `PanelHeaderRow`'s new `leading` prop holds
@@ -119,6 +125,10 @@
   pointer-down reached the row first.
 - Dragging a panel's grab bar to the window edge scrolls a scrolling row (mouse and pen); `scrollOnDrag` `none` and
   `tuning.edgeScroll` turn it off or tune it.
+- `WorkspaceStorage.save` may return a promise as well as nothing. The saved baseline now advances only after a save
+  succeeds, so a save that throws or rejects is reported once (`onError`, else `console.error`) and the next change
+  saves again; the baseline used to move before the call, and a failed save was not retried until the state changed to
+  something else. A save that settles after a newer one started leaves the baseline alone, and no timer retries.
 
 ### Removed
 

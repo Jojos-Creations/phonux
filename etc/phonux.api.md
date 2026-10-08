@@ -69,6 +69,22 @@ export function computeRowNumbers(i: {
 }): RowNumbers;
 
 // @public
+export type ConfigureResult = {
+    readonly ok: true;
+    readonly changed: boolean;
+    readonly shown: boolean;
+    readonly now: readonly string[];
+    readonly later: readonly string[];
+    readonly shadowed: readonly string[];
+    readonly notes: readonly SettingNote[];
+} | {
+    readonly ok: false;
+    readonly code: PanelRefusal;
+    readonly message: string;
+    readonly setting?: string;
+};
+
+// @public
 export function createDefaultTheme(mode: 'light' | 'dark'): Theme;
 
 // @public
@@ -368,6 +384,7 @@ export const panelFrameScrollSx: {
 // @public
 export interface PanelHandle<P extends JsonValue = JsonValue> extends PanelReadHandle {
     close(source?: 'code' | 'person'): PanelResult;
+    configure(patch: InstancePatch): ConfigureResult;
     getState(): PanelState & {
         readonly params: P | undefined;
     };
@@ -427,6 +444,11 @@ export type PanelId = string;
 
 // @public
 export interface PanelManager {
+    configure(id: PanelId, patch: InstancePatch): ConfigureResult;
+    configureTemplate(templateId: string, patch: Pick<SettingsPatch, 'hostCreatable' | 'multiple' | 'maxInstances'>): ConfigureResult;
+    configureTuning(patch: {
+        [K in keyof WorkspaceTuning]?: WorkspaceTuning[K] | null;
+    }): ConfigureResult;
     get<P extends JsonValue = JsonValue>(id: PanelId): PanelHandle<P> | undefined;
     getSnapshot(): PanelSnapshot;
     list(f?: ListFilter): readonly PanelHandle[];
@@ -1120,7 +1142,9 @@ export function useWorkspaceManager(): PanelReader | undefined;
 export type ViewComponent<P = JsonValue> = React_2.ComponentType<ViewProps<P>>;
 
 // @public
-export type ViewHandle<P extends JsonValue = JsonValue> = PanelHandle<P>;
+export type ViewHandle<P extends JsonValue = JsonValue> = Omit<PanelHandle<P>, 'configure'> & {
+    configure(patch: ViewPatch): ConfigureResult;
+};
 
 // @public
 export type ViewId = string;
@@ -1269,7 +1293,7 @@ export type WorkspaceStatus = 'detached' | 'loading' | 'ready' | 'disposed';
 // @public
 export type WorkspaceStorage = {
     load(): Promise<WorkspaceState | null>;
-    save(state: WorkspaceState): void;
+    save(state: WorkspaceState): void | Promise<void>;
 };
 
 // @public
