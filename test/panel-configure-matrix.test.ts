@@ -731,6 +731,12 @@ test('matrix:hideStickiness', async () => {
   r.turn(() => r.h.c!.hide());
   await r.settle();
   assert.deepEqual([r.state('b').status, r.state('c').status], ['live', 'parked'], 'a second hide frees more slots than the first left: the until-room panel returns, the sticky one stays hidden');
+  const held = await matrixRig({ ids: ['a', 'b', 'c'], park: true, width: 1700 });
+  await held.settle();
+  held.turn(() => held.h.b!.hide());
+  await held.settle();
+  done(held.turn(() => held.h.b!.configure({ hideStickiness: 'until-room' })));
+  assert.deepEqual([held.state('b').status, held.state('b').held, held.live().join(' ')], ['parked', true, 'root a c'], 'a hidden panel keeps the hold it has and configure shows nothing');
 });
 
 test('matrix:hideWhenLast', async () => {

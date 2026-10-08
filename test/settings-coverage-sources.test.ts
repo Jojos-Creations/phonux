@@ -3,8 +3,8 @@
  * that file is one the owning entries wrote, and every name has a `matrix:NAME` probe. The search is over the text of
  * test/*.test.ts, so a differential renamed or deleted in a test file turns this red.
  *
- * The search literal is built by concatenation: neither this file nor the matrix file contains a literal
- * differential('NAME', so neither can satisfy the check for a name by itself.
+ * The search string is concatenated from its parts: neither this file nor the matrix file contains a literal
+ * differential call for a catalog name, so neither can satisfy the check for a name by itself.
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -39,9 +39,9 @@ const TEST_FILES: readonly string[] = readdirSync(TEST_DIR).filter((n) => n.ends
 const TEXT = new Map<string, string>(TEST_FILES.map((n) => [n, readFileSync(join(TEST_DIR, n), 'utf8')]));
 
 /** What a differential for `name` looks like in a test file. */
-const callOf = (name: string): string => "differential('" + name + "'";
+const callOf = (name: string): string => ["differential('", name, "'"].join('');
 /** The probe title for `name`. */
-const probeOf = (name: string): string => "test('matrix:" + name + "'";
+const probeOf = (name: string): string => ["test('matrix:", name, "'"].join('');
 
 /** The files among `texts` that hold the call for `name`, counting a file once per occurrence. */
 function holders(texts: ReadonlyMap<string, string>, name: string): string[] {
