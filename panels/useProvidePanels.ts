@@ -16,7 +16,8 @@ import { isPresent, summarisePanel } from '../panelRowEntry.js';
 import { TIER_SIZES, panelWidthOf } from '../panelTiers.js';
 import { noopCaptureTrigger, type CaptureTrigger } from '../snapshots.js';
 import { PanelManagerError } from '../panelManagerError.js';
-import { accepted, refused, type PanelResult } from '../panelManager.js';
+import { applyConfigure } from '../panelConfigure.js';
+import { accepted, refused, type ConfigureResult, type PanelResult } from '../panelManager.js';
 import { decidePinChange, type PinChange, type PinStatus } from '../panelPin.js';
 import { LIBRARY_TUNING_DEFAULTS, applyTemplate, effective, panelKey, resolvePanelSettings } from '../panelSettings.js';
 import type { PanelSettings, PanelSettingsResolution, ResolvedPanelSettings, ResolvedWorkspaceTuning, ScrollAlign, SettingNote, WorkspaceTuning } from '../panelSettings.js';
@@ -613,7 +614,8 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
           const value = core.resolved(p);
           // A pin change stored on the closed panel's record applies as the undo restores it.
           const waiting = core.takeDeferredPin(panelKey(p));
-          return { panel: { ...applyTemplate(p, value, 'reconfigure'), ...(waiting !== undefined ? { deferredPin: waiting } : {}) }, placeAs: value.undoPlacement };
+          const layer = p.declared === true ? undefined : core.layerOf(p);
+          return { panel: { ...applyTemplate(p, value, 'reconfigure'), ...(layer !== undefined ? { instance: layer } : {}), ...(waiting !== undefined ? { deferredPin: waiting } : {}) }, placeAs: value.undoPlacement };
         };
 
   // After usePanelManager: undo makes room for a live view through its revealPanelProactively. `onAfterClose`
@@ -815,6 +817,34 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
       };
       return { ...accepted(done.changed), panels: named.map(panelKey), parked: done.parked.map(keyOf), returned: done.returned.map(keyOf) };
     },
+    configure: (engineId, plan) => {
+      const target = held(engineId);
+      if (!isEntry(target)) return target as Extract<ConfigureResult, { ok: false }>;
+      if (gate.busy([engineId], 'other')) return busy(target) as Extract<ConfigureResult, { ok: false }>;
+      const status = target.live ? 'live' : heldIds.has(engineId) ? 'hidden' : 'parked';
+      const outcome = plan(target, status);
+      if (!('next' in outcome)) return outcome.done;
+      const token = gate.take([engineId], 'other')!;
+      reportNotes(i.onNote, [...outcome.done.notes]);
+      setPanels((prev) => {
+        const now = prev.find((p) => p.id === engineId);
+        if (now === target) return applyConfigure(prev, target, outcome.next);
+        // Another update in the turn rebuilt the entry: the patch applies to what it left, and a panel it removed stays removed.
+        if (now === undefined) return prev;
+        const again = plan(now, status);
+        return 'next' in again ? applyConfigure(prev, now, again.next) : prev;
+      });
+      gate.release(token);
+      return outcome.done;
+    },
+    reprice: (change) => {
+      const ids = panels.map((p) => p.id);
+      if (gate.busy(ids, 'other')) return refused('busy', 'a panel already has an operation in this turn');
+      const token = gate.take(ids, 'other')!;
+      change();
+      gate.release(token);
+      return accepted(true);
+    },
     inUndoWindow: (engineId) => closing.closedIds().includes(engineId),
     resetClosed: (engineId) =>
       closing.markReset(engineId, (panel) => {
@@ -919,11 +949,15 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
     // Drops every clearable panel: never History, a fixed column or a locked one. Its picture goes now, not at an
     // undo window: a dropped panel can never be shown again. The ids come from the updater's own list, because
     // this render's `panels` misses a panel created earlier in the same batch.
-    clearAll: () =>
+    clearAll: () => {
+      // A panel it removes answers `busy` to a manager call later in the turn; clearAll itself is never held back.
+      const token = gate.takeFree(panels.filter((p) => effective(p).clearable).map((p) => p.id), 'other');
       setPanels((prev) => {
         for (const p of prev) if (effective(p).clearable && effective(p).snapshot !== 'never') clearedIds.current.add(p.id);
         return prev.filter((p) => !effective(p).clearable);
-      }),
+      });
+      if (token !== undefined) gate.release(token);
+    },
     entries: panels,
     fixedViewCount,
     liveWidths,

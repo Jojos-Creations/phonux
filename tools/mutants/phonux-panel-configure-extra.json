@@ -1,0 +1,108 @@
+{
+  "tests": [
+    "test/panel-configure-core.test.ts",
+    "test/panel-configure-doors.test.ts",
+    "test/panel-configure-persistence.test.ts",
+    "test/source-invariants.test.ts"
+  ],
+  "mutants": [
+    {
+      "name": "a NEXT key is applied by moving the live panel to the end of the row",
+      "file": "panelConfigure.ts",
+      "find": "return at < 0 ? prev : prev.map((p, k) => (k === at ? next : p));",
+      "replace": "return at < 0 ? prev : [...prev.filter((p) => p !== target), next];",
+      "expectRed": ["class law: a NEXT key changes only that panel"]
+    },
+    {
+      "name": "a refusal is answered after the row was committed",
+      "file": "panels/useProvidePanels.ts",
+      "find": "if (!('next' in outcome)) return outcome.done;",
+      "replace": "if (!('next' in outcome)) {\n        setPanels((prev) => [...prev]);\n        return outcome.done;\n      }",
+      "expectRed": ["class law: a refusal (a forced-rule conflict) leaves the entries reference-equal, commits nothing and keeps the snapshot version", "class law: an equal patch is changed false and commits nothing"]
+    },
+    {
+      "name": "a two-key patch is applied key by key: the keys that do not conflict are kept",
+      "file": "panelConfigure.ts",
+      "find": "if (fresh !== undefined) return { ok: false, code: 'settings-conflict', message: fresh.message, setting: fresh.key };",
+      "replace": "if (fresh !== undefined) return { ok: true, changed: true, layer: mergePatch(base, Object.fromEntries(Object.entries(i.patch).filter(([k]) => k !== fresh.key && k !== 'closable'))), resolution: after, now: [], later: [], shadowed: [], notes: [], cancelsPin: false };",
+      "expectRed": ["class law: a two-key patch whose second key is refused applies neither"]
+    },
+    {
+      "name": "the update plans again from the record the call already wrote instead of the layer the call saw",
+      "file": "workspaceCore.ts",
+      "find": "base ??= { layer: instanceLayer(target) };",
+      "replace": "base = { layer: instanceLayer(target) };",
+      "expectRed": ["a state change planted between the call and the commit on a declared panel: the patch applies to the entry the other update left, and the resolver and the entry agree"]
+    },
+    {
+      "name": "reconfigure writes formFactor from the settings",
+      "file": "panelConfigure.ts",
+      "find": "let next = reparked(entry, plan.resolution);",
+      "replace": "let next: PanelWindow = { ...reparked(entry, plan.resolution), formFactor: plan.resolution.value.formFactor };",
+      "expectRed": ["writer: formFactor is a NEXT key, so the entry keeps its tier and size and the settings read the new one"]
+    },
+    {
+      "name": "configure forwards a template key to the template layer",
+      "file": "workspaceCore.ts",
+      "find": "const checked = checkPatch(caller, patch);\n    const unavailable = lifecycleRefusal(id);",
+      "replace": "const checked = checkPatch(caller, patch);\n    if ('refusal' in checked && checked.refusal.code === 'wrong-scope' && ['hostCreatable', 'multiple', 'maxInstances'].includes(checked.refusal.setting)) return configureTemplateOne(knownState(id)?.templateId ?? id, patch);\n    const unavailable = lifecycleRefusal(id);",
+      "expectRed": ["doors: configure answers wrong-scope for a template key (maxInstances)"]
+    },
+    {
+      "name": "a second writer of locked sits beside applyTemplate in panelConfigure.ts",
+      "file": "panelConfigure.ts",
+      "find": "return plan.cancelsPin ? withoutDeferral(next) : next;",
+      "replace": "return plan.cancelsPin ? withoutDeferral({ ...next, locked: !plan.resolution.value.closable }) : next;",
+      "expectRed": ["source: a configure writes an entry only through applyTemplate's reconfigure branch, and a planted second writer is found"]
+    },
+    {
+      "name": "panelConfigure.ts imports flushSync",
+      "file": "panelConfigure.ts",
+      "find": "import type { FormFactor } from './hostApi.js';",
+      "replace": "import type { FormFactor } from './hostApi.js';\nimport { flushSync } from 'react-dom';",
+      "expectRed": ["source: the five configure files import no flushSync, the two hooks that do are not among them, and a scratch copy of each with an import is found"]
+    },
+    {
+      "name": "a row-gap change is applied after the turn's commit instead of inside it",
+      "file": "panels/useProvidePanels.ts",
+      "find": "change();\n      gate.release(token);",
+      "replace": "queueMicrotask(change);\n      gate.release(token);",
+      "expectRed": ["configureTuning rowGap re-prices the row in one commit: the slots rest one new gap apart"]
+    },
+    {
+      "name": "configureTuning rowGap is not busy while a panel holds a token",
+      "file": "panels/useProvidePanels.ts",
+      "find": "if (gate.busy(ids, 'other')) return refused('busy', 'a panel already has an operation in this turn');",
+      "replace": "",
+      "expectRed": ["configureTuning rowGap is busy while any panel holds a token, and takes the whole row for the rest of the turn"]
+    },
+    {
+      "name": "configure of parkable leaves a deferred pin waiting",
+      "file": "panelConfigure.ts",
+      "find": "cancelsPin: asksParkable",
+      "replace": "cancelsPin: false",
+      "expectRed": ["deferredPin row 1: a parked panel holding { by: pin } then configure parkable true reads null, and the next show() applies no deferred pin"]
+    },
+    {
+      "name": "the edit of a closed record is dropped",
+      "file": "workspaceCore.ts",
+      "find": "rec.settings = plan.layer;\n      refresh();\n      return configured(plan);",
+      "replace": "refresh();\n      return configured(plan);",
+      "expectRed": ["closed inside the window: closable false then undoClose gives locked true, and close() is refused not-closable", "closed past the window: the edit is stored on the record and open() uses it"]
+    },
+    {
+      "name": "a configure rewrites the person's overrides",
+      "file": "panelConfigure.ts",
+      "find": "return plan.cancelsPin ? withoutDeferral(next) : next;",
+      "replace": "return { ...(plan.cancelsPin ? withoutDeferral(next) : next), overrides: {} };",
+      "expectRed": ["the file's overrides are unchanged by any configure, whatever its class and whatever it does to the live panel"]
+    },
+    {
+      "name": "the result never lists a shadowed key",
+      "file": "panelConfigure.ts",
+      "find": "const shadowed = changed.filter((n) => patchValue(n) !== null && after.source[n] !== 'instance');",
+      "replace": "const shadowed: string[] = [];",
+      "expectRed": ["a person pin outvotes a configured parkable: the result lists it as shadowed and the panel stays a fixed column", "a configure of formFactor or parkable while the person's override is restored reports it shadowed"]
+    }
+  ]
+}

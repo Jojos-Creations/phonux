@@ -6,20 +6,22 @@
  */
 import type { JsonValue } from './hostApi.js';
 import type { FormFactor } from './hostApi.js';
-import { makeHandle, makeReader, makeViewHandle, type PanelHandle, type PanelVerbCall, type ReadSource } from './panelHandles.js';
-import { accepted, makePanelManager, refused, type PanelManager, type PanelOpSource, type PanelResult, type PinResult, type ResetResult } from './panelManager.js';
+import { checkPatch, configured, planInstance, planTemplate, planTuning, reconfigured, unchanged, type ConfigureOutcome } from './panelConfigure.js';
+import { makeHandle, makeOwnHandle, makeReader, makeViewHandle, type PanelHandle, type PanelVerbCall, type ReadSource } from './panelHandles.js';
+import { accepted, makePanelManager, refused, type ConfigureResult, type PanelManager, type PanelOpSource, type PanelResult, type PinResult, type ResetResult } from './panelManager.js';
 import { PanelManagerError } from './panelManagerError.js';
 import { decidePinChange, isPinned, type PinStatus } from './panelPin.js';
-import { applyTemplate, effective, panelKey, resolvePanelSettings, sameSettingsValue } from './panelSettings.js';
-import type { AddPlacement, PanelId, PanelSettings, PanelSettingsResolution, ResolvedPanelSettings, ResolvedWorkspaceTuning, ScrollAlign, SettingNote, WorkspaceTuning } from './panelSettings.js';
+import { applyTemplate, effective, panelKey, resolvePanelSettings, resolveUnderTuning, sameSettingsValue } from './panelSettings.js';
+import type { AddPlacement, PanelId, PanelSettings, PanelSettingsResolution, ResolvedPanelSettings, ResolvedPanelTuning, ResolvedWorkspaceTuning, ScrollAlign, SettingNote, WorkspaceTuning } from './panelSettings.js';
 import { definePanel } from './panelTemplate.js';
-import type { DeferredPin, PanelReader, PanelReadHandle, PanelSnapshot, PanelState, PanelTemplate, WorkspaceStatus } from './panelTemplate.js';
+import type { DeferredPin, PanelReader, PanelReadHandle, PanelSnapshot, PanelState, PanelTemplate, ViewHandle, WorkspaceStatus } from './panelTemplate.js';
 import { resolveWorkspaceTuning } from './panelTuning.js';
 import { createHistoryPanel, type PanelWindow } from './panelWindow.js';
 import type { PanelViewContext } from './panelViewContext.js';
 import { getTemplate, registerTemplate as registerGlobalTemplate } from './viewRegistry.js';
 import type { DeclaredPanel } from './workspacePlan.js';
 import type { WorkspaceStorage } from './workspaceState.js';
+import type { SettingsPatch } from './settingsPatch.js';
 
 /** The id of the marker entry a workspace without a root keeps. */
 export const ROOT_MARKER_ID = '__root__';
@@ -62,7 +64,7 @@ export interface WorkspaceHandle {
   readonly rootId: string;
   /** Read access to every panel. */
   readonly panels: PanelManager;
-  /** The workspace's tuning, resolved over the library defaults. */
+  /** The workspace's tuning, resolved over the library defaults; `panels.configureTuning` changes it. */
   readonly tuning: ResolvedWorkspaceTuning;
   /** Where the workspace is in its life: `detached`, `loading`, `ready` or `disposed`. */
   readonly status: WorkspaceStatus;
@@ -119,6 +121,10 @@ export interface EngineOps {
   inUndoWindow(engineId: string): boolean;
   /** Marks the panel closed inside the undo window under `engineId` as reset, so an undo restores it by its defaults. False when it is not in the window. */
   resetClosed(engineId: string): boolean;
+  /** Applies a configure to the live, parked or held panel `engineId` in one update, after the turn's in-flight gate: `plan` is called with the entry and what it is, and answers the outcome. */
+  configure(engineId: string, plan: (target: PanelWindow, status: 'live' | 'parked' | 'hidden') => ConfigureOutcome): ConfigureResult;
+  /** Takes the whole row's place in the turn's in-flight gate, runs `change`, and releases; refuses `busy` when any panel already holds a token. */
+  reprice(change: () => void): PanelResult;
 }
 
 /** One panel `addPanel` asks the engine to create after the workspace is ready. */
@@ -144,6 +150,10 @@ export interface EngineBinding {
   readonly defaults: Omit<PanelSettings, 'tuning'> | undefined;
   readonly tuningInput: WorkspaceTuning | undefined;
   readonly tuning: ResolvedWorkspaceTuning;
+  /** The instance layer `e` resolves under now: the record's for a closed entry or one code declares, the entry's own otherwise. */
+  layerOf(e: PanelWindow): PanelSettings | undefined;
+  /** The tuning leaves `e` resolves to under the workspace's current tuning; undefined for an entry that carries no settings. */
+  panelTuning(e: PanelWindow): ResolvedPanelTuning | undefined;
   readonly order: (() => readonly PanelId[]) | undefined;
   readonly newId: () => string;
   /** Reports an error the hook swallowed: `onError`, else `console.error`. */
@@ -174,7 +184,7 @@ export interface EngineBinding {
   observe(entries: readonly PanelWindow[], held: { has(engineId: string): boolean }): void;
   /** Records a commit and publishes a new snapshot when it changed something. */
   publish(commit: EngineCommit): void;
-  /** Subscribes to tuning changes (none exist yet) for `useSyncExternalStore`. */
+  /** Subscribes to tuning changes for `useSyncExternalStore`. */
   subscribe(l: () => void): () => void;
 }
 
@@ -239,7 +249,9 @@ const sameState = (a: PanelState, b: PanelState): boolean =>
 export function createWorkspace(o: WorkspaceOptions = {}): WorkspaceHandle {
   const conflicts = o.conflicts ?? 'warn';
   const defaults = o.defaults;
-  const tuning = resolveWorkspaceTuning(o.tuning);
+  let tuningInput = o.tuning;
+  let tuning = resolveWorkspaceTuning(tuningInput);
+  const tuningListeners = new Set<() => void>();
   const root = o.root === undefined ? undefined : definePanel(o.root);
   const rootId = root?.id ?? ROOT_MARKER_ID;
   const newId = o.newId ?? nextEngineId;
@@ -253,9 +265,13 @@ export function createWorkspace(o: WorkspaceOptions = {}): WorkspaceHandle {
   const handles = new Map<PanelId, PanelHandle>();
   const readHandles = new Map<PanelId, PanelReadHandle>();
   const retired = new Map<PanelId, Retired>();
+  const viewHandles = new Map<PanelId, ViewHandle>();
+  /** What `configureTemplate` changed, per template id, for this session; the three template-scope keys only. */
+  const templateOverrides = new Map<string, PanelSettings>();
+  const effectiveTemplates = new WeakMap<PanelTemplate, { over: PanelSettings; template: PanelTemplate }>();
   /** The last commit's entries by engine id, so the next commit can tell which panels left. */
   let lastEntries = new Map<string, PanelWindow>();
-  const resolutions = new WeakMap<object, { template: PanelTemplate | undefined; settings: PanelSettings | undefined; res: PanelSettingsResolution }>();
+  const resolutions = new WeakMap<object, { template: PanelTemplate | undefined; settings: PanelSettings | undefined; tuning: WorkspaceTuning | undefined; res: PanelSettingsResolution }>();
 
   let status: WorkspaceStatus = 'detached';
   let owner: object | undefined;
@@ -266,7 +282,33 @@ export function createWorkspace(o: WorkspaceOptions = {}): WorkspaceHandle {
   let snapshot: PanelSnapshot = { version: 0, status, panels: [] };
   let states = new Map<PanelId, PanelState>();
 
-  const templateOf = (id: string): PanelTemplate | undefined => templates.get(id) ?? (root?.id === id ? root : getTemplate(id));
+  const registeredTemplate = (id: string): PanelTemplate | undefined => templates.get(id) ?? (root?.id === id ? root : getTemplate(id));
+
+  /** `t` with this session's `configureTemplate` changes laid over its settings; `t` itself when there are none. */
+  const withOverrides = (t: PanelTemplate): PanelTemplate => {
+    const over = templateOverrides.get(t.id);
+    if (over === undefined) return t;
+    const cached = effectiveTemplates.get(t);
+    if (cached !== undefined && cached.over === over) return cached.template;
+    const template: PanelTemplate = { ...t, settings: { ...t.settings, ...over } };
+    effectiveTemplates.set(t, { over, template });
+    return template;
+  };
+
+  const templateOf = (id: string): PanelTemplate | undefined => {
+    const found = registeredTemplate(id);
+    return found === undefined ? undefined : withOverrides(found);
+  };
+
+  /** Every resolve a workspace makes reads the workspace's per-panel tuning leaves as the layer under the template. */
+  const resolve = (layers: NonNullable<Parameters<typeof resolvePanelSettings>[0]>, options?: Parameters<typeof resolvePanelSettings>[1]): PanelSettingsResolution => resolveUnderTuning(layers, options ?? {}, tuningInput);
+
+  /** The instance layer `e` resolves under: for a closed entry and for one code declares, the record's, which a configure edits; otherwise the entry's own. */
+  const instanceLayer = (e: PanelWindow): PanelSettings | undefined => {
+    const rec = records.get(panelKey(e));
+    if (e.declared === true) return rec?.settings;
+    return rec !== undefined && e.id !== rootId && !lastEntries.has(e.id) ? rec.settings : e.instance;
+  };
 
   const reportError = (e: unknown): void => {
     if (o.onError === undefined) console.error(e);
@@ -296,20 +338,20 @@ export function createWorkspace(o: WorkspaceOptions = {}): WorkspaceHandle {
   const resolutionFor = (key: object, id: PanelId, templateId: string, settings: PanelSettings | undefined, user: PanelWindow['overrides'], isRoot: boolean): PanelSettingsResolution => {
     const template = templateOf(templateId);
     const cached = resolutions.get(key);
-    if (cached !== undefined && cached.template === template && cached.settings === settings) return cached.res;
-    const res = resolvePanelSettings(
+    if (cached !== undefined && cached.template === template && cached.settings === settings && cached.tuning === tuningInput) return cached.res;
+    const res = resolve(
       { ...(defaults !== undefined ? { workspace: defaults } : {}), ...(template?.settings !== undefined ? { template: template.settings } : {}), ...(settings !== undefined ? { instance: settings } : {}), ...(user !== undefined ? { user } : {}) },
       { lenient: true, root: isRoot },
     );
-    resolutions.set(key, { template, settings, res });
+    resolutions.set(key, { template, settings, tuning: tuningInput, res });
     return res;
   };
 
   /** The layers an entry resolves under, with `user` as the person's layer. */
   const resolveEntry = (e: PanelWindow, user: PanelWindow['overrides']): PanelSettingsResolution => {
     const template = templateOf(e.view);
-    const settings = e.declared === true ? records.get(panelKey(e))?.settings : e.instance;
-    return resolvePanelSettings(
+    const settings = instanceLayer(e);
+    return resolve(
       { ...(defaults !== undefined ? { workspace: defaults } : {}), ...(template?.settings !== undefined ? { template: template.settings } : {}), ...(settings !== undefined ? { instance: settings } : {}), ...(user !== undefined ? { user } : {}) },
       { lenient: true, root: e.id === rootId },
     );
@@ -318,7 +360,7 @@ export function createWorkspace(o: WorkspaceOptions = {}): WorkspaceHandle {
   const entryResolution = (e: PanelWindow): PanelSettingsResolution => {
     const id = panelKey(e);
     const rec = records.get(id);
-    const settings = e.declared === true ? rec?.settings : e.instance;
+    const settings = instanceLayer(e);
     const res = resolutionFor(e, id, e.view, settings, e.overrides, e.id === rootId);
     if (e.settings === undefined) return { ...res, value: effective(e) };
     // A pin from code flips `parkable` for the session without recording it, so the entry's own value outvotes the layers.
@@ -434,6 +476,7 @@ export function createWorkspace(o: WorkspaceOptions = {}): WorkspaceHandle {
       for (const old of [...retired.keys()].slice(0, Math.max(0, retired.size - RETIRED_LIMIT))) {
         retired.delete(old);
         handles.delete(old);
+        viewHandles.delete(old);
         readHandles.delete(old);
       }
     }
@@ -502,8 +545,21 @@ export function createWorkspace(o: WorkspaceOptions = {}): WorkspaceHandle {
       }
       return handle;
     },
+    viewHandleOf: (id) => {
+      const known = knownState(id);
+      if (known === undefined) return undefined;
+      let handle = viewHandles.get(id);
+      if (handle === undefined) {
+        handle = makeOwnHandle(source, id, known.templateId);
+        viewHandles.set(id, handle);
+      }
+      return handle;
+    },
     operate: (id, call, src) => operate(id, call, src),
     resetLayout: (target) => resetLayout(target),
+    configure: (id, patch, caller) => configureOne(id, patch, caller),
+    configureTemplate: (templateId, patch) => configureTemplateOne(templateId, patch),
+    configureTuning: (patch) => configureTuningOne(patch),
   };
   const panels = makePanelManager(source);
   const reader = makeReader(source);
@@ -525,7 +581,7 @@ export function createWorkspace(o: WorkspaceOptions = {}): WorkspaceHandle {
 
   const rootEntry = (): PanelWindow => {
     if (root === undefined) return { id: ROOT_MARKER_ID, url: '', title: '', live: true, locked: true, view: ROOT_MARKER_ID, collapsible: false, listed: false, marker: true };
-    const res = resolvePanelSettings({ ...(defaults !== undefined ? { workspace: defaults } : {}), template: root.settings }, { root: true });
+    const res = resolve({ ...(defaults !== undefined ? { workspace: defaults } : {}), template: root.settings }, { root: true });
     return applyTemplate({ ...createHistoryPanel(root.id), title: res.value.title ?? '', view: root.id, ...(root.params !== undefined ? { params: root.params } : {}), key: root.id }, res.value, 'create');
   };
 
@@ -552,19 +608,19 @@ export function createWorkspace(o: WorkspaceOptions = {}): WorkspaceHandle {
     if (status === 'disposed') throw new PanelManagerError('disposed', 'the workspace was disposed');
     let t: PanelTemplate;
     if (typeof given === 'string') {
-      const found = templateOf(given);
+      const found = registeredTemplate(given);
       if (found === undefined) throw new PanelManagerError('unknown-template', `no template '${given}' is registered`);
       t = found;
     } else {
       t = given as unknown as PanelTemplate;
       definePanel(t);
-      const known = templateOf(t.id);
+      const known = registeredTemplate(t.id);
       if (known === undefined) registerOne(t);
       else if (known !== t) throw new PanelManagerError('duplicate-template', `a different template '${t.id}' is already registered`);
     }
     if (options?.id !== undefined) validateExplicitId(options.id, t);
     // Validated here, not at settle, so a bad settings layer throws at the call that wrote it.
-    const res = resolvePanelSettings({ ...(defaults !== undefined ? { workspace: defaults } : {}), template: t.settings, ...(options?.settings !== undefined ? { instance: options.settings } : {}) });
+    const res = resolve({ ...(defaults !== undefined ? { workspace: defaults } : {}), template: withOverrides(t).settings, ...(options?.settings !== undefined ? { instance: options.settings } : {}) });
     const multiple = res.value.multiple;
     const ready = status === 'ready' && commit !== undefined;
     if (options?.id === undefined && multiple && !ready) throw new PanelManagerError('instance-id-required', `template '${t.id}' is multiple: before the workspace is ready each panel needs an explicit id`);
@@ -608,7 +664,7 @@ export function createWorkspace(o: WorkspaceOptions = {}): WorkspaceHandle {
     if (rec === undefined || state === undefined || (rec.anonymous && !rec.closed)) return refused('is-closed', `panel '${id}' is closed and nothing can name it again`);
     const template = templateOf(rec.templateId);
     if (template === undefined) return refused('unknown-panel', `panel '${id}': template '${rec.templateId}' is not registered`);
-    const res = resolvePanelSettings({ ...(defaults !== undefined ? { workspace: defaults } : {}), template: template.settings, ...(rec.settings !== undefined ? { instance: rec.settings } : {}) }, { lenient: true });
+    const res = resolve({ ...(defaults !== undefined ? { workspace: defaults } : {}), template: template.settings, ...(rec.settings !== undefined ? { instance: rec.settings } : {}) }, { lenient: true });
     const count = instancesOf(template.id);
     const full = (!res.value.multiple && count > 0) || (res.value.maxInstances !== 'unlimited' && count >= res.value.maxInstances);
     if (full) return refused('instance-limit', `panel '${id}': template '${template.id}' is at its limit of ${res.value.multiple ? res.value.maxInstances : 1}`);
@@ -750,6 +806,95 @@ export function createWorkspace(o: WorkspaceOptions = {}): WorkspaceHandle {
     return ops.reset([state.engineId!], true);
   };
 
+  /** A refusal `lifecycleRefusal` or a state check produced, as the failing arm of a `ConfigureResult`. */
+  const failed = (r: PanelResult): ConfigureResult => (r.ok ? unchanged() : r);
+
+  /** `configure(id, patch)` from the panel's own caller or from its view: the gate, the checks, then one update through the engine. */
+  const configureOne = (id: PanelId, patch: unknown, caller: 'panel' | 'view'): ConfigureResult => {
+    const checked = checkPatch(caller, patch);
+    const unavailable = lifecycleRefusal(id);
+    if (unavailable !== undefined) return failed(unavailable);
+    const state = knownState(id);
+    if (state === undefined) return failed(refused('unknown-panel', `no panel '${id}' in this workspace`));
+    if ('refusal' in checked) return { ok: false, ...checked.refusal };
+    if (state.status === 'pending') return failed(refused('is-pending', `panel '${id}' is still being added`));
+    const asked = patch as SettingsPatch;
+    const input = { call: caller, patch: asked, names: checked.names, workspace: defaults, tuning: tuningInput };
+    if (state.status === 'closed') {
+      const rec = records.get(id);
+      if (rec === undefined || (rec.anonymous && !rec.closed)) return failed(refused('is-closed', `panel '${id}' is closed and nothing can name it again`));
+      const plan = planInstance({ ...input, base: rec.settings, template: templateOf(rec.templateId)?.settings, person: undefined, current: undefined, root: false, tier: undefined, status: 'closed' });
+      if (!plan.ok) return { ok: false, code: plan.code, message: `panel '${id}': ${plan.message}`, ...(plan.setting === undefined ? {} : { setting: plan.setting }) };
+      if (!plan.changed) return unchanged();
+      rec.settings = plan.layer;
+      refresh();
+      return configured(plan);
+    }
+    let layer: PanelSettings | undefined;
+    // The update plans again when an earlier update of the turn rebuilt the entry, and by then the record already holds the new layer: the base must stay the one the call saw.
+    let base: { layer: PanelSettings | undefined } | undefined;
+    const result = commit!.ops.configure(state.engineId!, (target, status): ConfigureOutcome => {
+      base ??= { layer: instanceLayer(target) };
+      const plan = planInstance({ ...input, base: base.layer, template: templateOf(target.view)?.settings, person: target.overrides, current: target.settings, root: target.id === rootId, tier: target.formFactor ?? 'phone', status });
+      if (!plan.ok) return { done: { ok: false, code: plan.code, message: `panel '${id}': ${plan.message}`, ...(plan.setting === undefined ? {} : { setting: plan.setting }) } };
+      if (!plan.changed) return { done: unchanged() };
+      layer = plan.layer;
+      return { done: configured(plan), next: reconfigured(target, plan, asked) };
+    });
+    if (result.ok && result.changed && layer !== undefined) {
+      const rec = records.get(id);
+      if (rec !== undefined) rec.settings = layer;
+    }
+    return result;
+  };
+
+  /** `configureTemplate`: the three template-scope keys of one template, for panels made from now on. */
+  const configureTemplateOne = (templateId: string, patch: unknown): ConfigureResult => {
+    const checked = checkPatch('template', patch);
+    const template = registeredTemplate(templateId);
+    if (template === undefined) throw new PanelManagerError('unknown-template', `no template '${templateId}' is registered`);
+    const unavailable = lifecycleRefusal(templateId);
+    if (unavailable !== undefined) return failed(unavailable);
+    if ('refusal' in checked) return { ok: false, ...checked.refusal };
+    const before = templateOverrides.get(templateId);
+    const plan = planTemplate(before, patch as SettingsPatch);
+    if (!plan.changed) return unchanged();
+    const after = resolve({ ...(defaults !== undefined ? { workspace: defaults } : {}), template: { ...template.settings, ...plan.layer } }).value;
+    const cap = after.multiple ? after.maxInstances : 1;
+    const limited = checked.names.find((n) => n === 'multiple' || n === 'maxInstances');
+    if (limited !== undefined && cap !== 'unlimited' && cap < instancesOf(templateId)) {
+      return { ok: false, code: 'instance-limit', setting: limited, message: `template '${templateId}': ${instancesOf(templateId)} instances exist, more than ${cap} allows` };
+    }
+    if (Object.keys(plan.layer).length === 0) templateOverrides.delete(templateId);
+    else templateOverrides.set(templateId, plan.layer);
+    refresh();
+    const later = checked.names.filter((n) => !sameSettingsValue((before as Record<string, unknown> | undefined)?.[n], (plan.layer as Record<string, unknown>)[n]));
+    return { ok: true, changed: true, shown: false, now: [], later, shadowed: [], notes: [] };
+  };
+
+  /** `configureTuning`: the workspace's tuning keys, for this session. */
+  const configureTuningOne = (patch: unknown): ConfigureResult => {
+    const checked = checkPatch('tuning', patch);
+    const unavailable = lifecycleRefusal('workspace');
+    if (unavailable !== undefined) return failed(unavailable);
+    if ('refusal' in checked) return { ok: false, ...checked.refusal };
+    const plan = planTuning(tuningInput, patch as Record<string, unknown>);
+    if (!plan.changed) return unchanged();
+    const apply = (): void => {
+      tuningInput = plan.input;
+      tuning = resolveWorkspaceTuning(plan.input);
+      refresh();
+      for (const l of [...tuningListeners]) l();
+    };
+    if (plan.reprices) {
+      const done = commit!.ops.reprice(apply);
+      if (!done.ok) return failed(done);
+    } else {
+      apply();
+    }
+    return { ok: true, changed: true, shown: false, now: plan.now, later: plan.later, shadowed: [], notes: [] };
+  };
+
   for (const t of o.templates ?? []) registerOne(t);
   if (root !== undefined && !templates.has(root.id)) removers.push(registerGlobalTemplate(root));
 
@@ -757,8 +902,14 @@ export function createWorkspace(o: WorkspaceOptions = {}): WorkspaceHandle {
     rootId,
     storage: o.storage,
     defaults,
-    tuningInput: o.tuning,
-    tuning,
+    get tuningInput() {
+      return tuningInput;
+    },
+    get tuning() {
+      return tuning;
+    },
+    layerOf: instanceLayer,
+    panelTuning: (e) => (e.settings === undefined ? undefined : entryResolution(e).value.tuning),
     order: o.order,
     newId,
     reportError,
@@ -778,7 +929,7 @@ export function createWorkspace(o: WorkspaceOptions = {}): WorkspaceHandle {
       // A slot that fails in the first commit reports before the hook's layout effect has bound the sink.
       for (const note of sink === undefined ? [] : notesBeforeSink.splice(0)) binding.reportNote(note);
     },
-    templates: () => [...templates.values()],
+    templates: () => [...templates.values()].map(withOverrides),
     resolved: (e) => entryResolution(e).value,
     resolveWith: (e, parkable) => resolveEntry(e, { ...e.overrides, parkable }),
     resolveDefaults: (e) => resolveEntry(e, undefined),
@@ -823,13 +974,18 @@ export function createWorkspace(o: WorkspaceOptions = {}): WorkspaceHandle {
       status = c.settled ? 'ready' : 'loading';
       refresh();
     },
-    subscribe: () => () => {},
+    subscribe: (l) => {
+      tuningListeners.add(l);
+      return () => void tuningListeners.delete(l);
+    },
   };
 
   const handle: WorkspaceHandle = {
     rootId,
     panels,
-    tuning,
+    get tuning() {
+      return tuning;
+    },
     get status() {
       return status;
     },
@@ -845,7 +1001,7 @@ export function createWorkspace(o: WorkspaceOptions = {}): WorkspaceHandle {
           throw new PanelManagerError('invalid-settings', `template '${t.id}': ${c.message}`, { layer: c.layer, key: c.key });
         }
       }
-      if (status === 'ready') commit?.lateRegister(t);
+      if (status === 'ready') commit?.lateRegister(withOverrides(t));
       return remove;
     },
     dispose: () => {
@@ -857,6 +1013,8 @@ export function createWorkspace(o: WorkspaceOptions = {}): WorkspaceHandle {
       refresh();
       listeners.clear();
       panelListeners.clear();
+      tuningListeners.clear();
+      templateOverrides.clear();
       for (const remove of removers.splice(0)) remove();
     },
   };
@@ -864,7 +1022,7 @@ export function createWorkspace(o: WorkspaceOptions = {}): WorkspaceHandle {
   const view: PanelViewContext = {
     handleFor: (engineId) => {
       const e = (observed ?? committed)?.entries.find((p) => p.id === engineId);
-      return e === undefined || e.marker === true ? undefined : source.handleOf(panelKey(e));
+      return e === undefined || e.marker === true ? undefined : source.viewHandleOf(panelKey(e));
     },
     manager: reader,
   };
