@@ -1,0 +1,87 @@
+{
+  "tests": [
+    "test/header-buttons.test.ts",
+    "test/header-buttons-a11y.test.ts",
+    "test/header-buttons-person.test.ts",
+    "test/panel-header-golden.test.ts"
+  ],
+  "mutants": [
+    {
+      "name": "Panel always draws the cluster",
+      "file": "Panel.tsx",
+      "find": "const drawn = headerButtons && declared !== undefined && title !== undefined && buttons.some((b) => !b.hidden);",
+      "replace": "const drawn = headerButtons && title !== undefined;",
+      "expectRed": ["Panel golden: a title renders the header pill"]
+    },
+    {
+      "name": "Panel passes an empty fragment",
+      "file": "Panel.tsx",
+      "find": "          ) : actions}",
+      "replace": "          ) : <></>}",
+      "expectRed": ["Panel golden: a title renders the header pill"]
+    },
+    {
+      "name": "side ignored",
+      "file": "panelHeaderButtons.tsx",
+      "find": "(side === undefined || i.side === side)",
+      "replace": "true",
+      "expectRed": ["where drawn: the side setting changes which end the button sits at"]
+    },
+    {
+      "name": "order ignored",
+      "file": "panelHeaderButtons.tsx",
+      "find": "a.order - b.order || ",
+      "replace": "",
+      "expectRed": ["where drawn: two end buttons after the view action in one cluster"]
+    },
+    {
+      "name": "pressed from a stored flag",
+      "file": "panelHeaderButtons.tsx",
+      "find": "Boolean(slot.pressed(c))",
+      "replace": "false",
+      "expectRed": ["click: a pin slot by h.pin() then h.unpin()"]
+    },
+    {
+      "name": "the press not marked as the person",
+      "file": "panelHeaderButtons.tsx",
+      "find": "args[at] ?? (inGesture() ? 'person' : 'code')",
+      "replace": "args[at] ?? 'code'",
+      "expectRed": ["person: a press records the person's anchor"]
+    },
+    {
+      "name": "the focus call without preventScroll",
+      "file": "panelHeaderButtons.tsx",
+      "find": "      button.focus({ preventScroll: true });",
+      "replace": "      button.focus();",
+      "expectRed": ["after a pin press that reorders the slot"]
+    },
+    {
+      "name": "the refocus effect removed",
+      "file": "panelHeaderButtons.tsx",
+      "find": "    if (button?.isConnected) {\n      button.focus({ preventScroll: true });\n      return;\n    }",
+      "replace": "    if (button?.isConnected) {\n      return;\n    }",
+      "expectRed": ["after a pin press that reorders the slot"]
+    },
+    {
+      "name": "pin and unpin bypass the gesture-marked handle",
+      "file": "panelHeaderButtons.tsx",
+      "find": ", pin: 0, unpin: 0 }",
+      "replace": " }",
+      "expectRed": ["person: a press records the person's anchor"]
+    },
+    {
+      "name": "the exiting slot left interactive",
+      "file": "panelHeaderButtons.tsx",
+      "find": "if (!now.present || now.parked",
+      "replace": "if (now.parked",
+      "expectRed": ["safety: the slot of a panel that is leaving is inert"]
+    },
+    {
+      "name": "onClick errors rethrown",
+      "file": "panelHeaderButtons.tsx",
+      "find": "  } catch (e) {\n    given.report(e);\n  } finally {",
+      "replace": "  } catch (e) {\n    throw e;\n  } finally {",
+      "expectRed": ["safety: a throwing onClick and a rejecting promise"]
+    }
+  ]
+}

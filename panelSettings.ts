@@ -1395,12 +1395,35 @@ const formFactorsProblem: Check = (v) => {
 
 const maxInstancesProblem: Check = (v) => (v === 'unlimited' ? undefined : integer(1)(v) === undefined ? undefined : "expected an integer of at least 1 or 'unlimited'");
 
+const stringOrFunction = (v: unknown): boolean => typeof v === 'string' || typeof v === 'function';
+const booleanOrFunction = (v: unknown): boolean => typeof v === 'boolean' || typeof v === 'function';
+
+function headerButtonSlotProblem(slot: Plain): string | undefined {
+  if (!('icon' in slot) || slot.icon === undefined) return 'icon is required';
+  if (typeof slot.label === 'function') {
+    // A function label is judged when it runs: an empty result hides the slot at runtime.
+  } else if (typeof slot.label !== 'string' || slot.label === '') return 'label must be a non-empty string or a function';
+  if (typeof slot.onClick !== 'function') return 'onClick must be a function';
+  if (slot.side !== undefined && slot.side !== 'start' && slot.side !== 'end') return "side must be 'start' or 'end'";
+  if (slot.order !== undefined && (typeof slot.order !== 'number' || !Number.isFinite(slot.order))) return 'order must be a finite number';
+  if (slot.pressed !== undefined && typeof slot.pressed !== 'function') return 'pressed must be a function';
+  if (slot.description !== undefined && !stringOrFunction(slot.description)) return 'description must be a string or a function';
+  if (slot.tooltip !== undefined && !stringOrFunction(slot.tooltip)) return 'tooltip must be a string or a function';
+  if (slot.disabled !== undefined && !booleanOrFunction(slot.disabled)) return 'disabled must be a boolean or a function';
+  if (slot.hidden !== undefined && !booleanOrFunction(slot.hidden)) return 'hidden must be a boolean or a function';
+  if (slot.sx !== undefined && (typeof slot.sx !== 'function' && (typeof slot.sx !== 'object' || slot.sx === null))) return 'sx must be an object, an array or a function';
+  return undefined;
+}
+
 const headerButtonsProblem: Check = (v) => {
   if (!isPlain(v)) return 'expected a map of slot id to slot or false';
   for (const id of Object.keys(v)) {
     if (!SLOT_ID.test(id)) return `slot id '${id}' must be 1-32 characters of a-z, 0-9 and -`;
     const slot = v[id];
-    if (slot !== false && (typeof slot !== 'object' || slot === null || Array.isArray(slot))) return `slot '${id}' must be a slot object or false`;
+    if (slot === false) continue;
+    if (typeof slot !== 'object' || slot === null || Array.isArray(slot)) return `slot '${id}' must be a slot object or false`;
+    const problem = headerButtonSlotProblem(slot as Plain);
+    if (problem !== undefined) return `slot '${id}': ${problem}`;
   }
   return undefined;
 };

@@ -12,6 +12,7 @@ import { isPresent, summarisePanel, type NeighborWidths, type PanelRowEntry } fr
 import { anchorTargetOf, resolveEnterDirection, type EnterDirection } from './panelRowOrder.js';
 import { PanelHiddenContext, PanelSlotContext, type DragScroll } from './panelSlotContext.js';
 import { PanelViewContextValue } from './panelViewContext.js';
+import { headerButtonsOf } from './panelHeaderButtons.js';
 import { LIBRARY_TUNING_DEFAULTS, effective, resolvePanelSettings } from './panelSettings.js';
 import type { ResolvedPanelSettings, ResolvedPanelTuning, WorkspaceTuning } from './panelSettings.js';
 import { PanelRowSlot } from './PanelRowSlot.js';
@@ -230,8 +231,9 @@ export function PanelRow({
   };
   // Per panel, and searched in `present`: each slot's own `index` below counts in that same array.
   const anchorIndexOf = (p: PanelRowEntry): number => present.findIndex((x) => x.id === anchorTargetOf(p, rootId));
+  const viewContext = workspace === undefined ? undefined : viewContextOf(workspace);
   return (
-    <PanelViewContextValue.Provider value={workspace === undefined ? undefined : viewContextOf(workspace)}>
+    <PanelViewContextValue.Provider value={viewContext}>
     {/* Always mounted: an exiting entry needs AnimatePresence to animate inside, and `initial={false}` must see
     what is present at app start to skip animating a restored session. `display: none` (not width 0) so an
     empty row consumes no flex `gap` from its siblings. */}
@@ -250,7 +252,7 @@ export function PanelRow({
           const kept = presentIndex < 0;
           const rest = kept ? restRef.current.get(p.id)! : { leftOffset: leftOffsets[presentIndex]!, width: widths[presentIndex]! };
           const Component = resolveView(p.view);
-          const { closable, draggable, placeable, resizable, formFactors, enterFrom, exitTo, closeExit, animated, layer, scrollOnDrag } = effective(p);
+          const { closable, draggable, placeable, resizable, formFactors, enterFrom, exitTo, closeExit, animated, layer, scrollOnDrag, headerButtons } = effective(p);
           const own = slotTuning(workspaceTuning, p.settings?.tuning);
           const dragScroll: DragScroll | undefined = rowScroll
             ? { mode: scrollOnDrag, zonePx: own.edgeScroll.zonePx, maxPxPerSec: own.edgeScroll.maxPxPerSec, reducedStepMs: own.edgeScroll.reducedStepMs, instant: !animated, maxScroll, stops }
@@ -269,6 +271,7 @@ export function PanelRow({
                 pinned: anchorTargetOf(p, rootId) === rootId && p.anchor?.position === 'left',
                 tuning: own,
                 dragScroll,
+                headerButtonSlots: headerButtonsOf(headerButtons, viewContext?.handleFor(p.id), binding?.reportError ?? console.error, binding?.reportNote ?? (() => {})),
               }}
             >
               <PanelRowSlot

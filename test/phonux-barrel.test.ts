@@ -29,6 +29,7 @@ const VALUE_EXPORTS = [
   'panelFrameScrollSx',
   'panelFrameBareSx',
   'PanelHeader',
+  'PanelHeaderButtons',
   'PanelHeaderRow',
   'registerView',
   'resolveView',
@@ -51,6 +52,7 @@ const VALUE_EXPORTS = [
   'usePanelTuning',
   'usePanelCapabilities',
   'usePanelCloseEligible',
+  'usePanelHeaderButtons',
   'usePanelHidden',
   'usePanelNeighborWidths',
   'usePanelPinned',
@@ -73,7 +75,7 @@ const VALUE_EXPORTS = [
   'createDefaultTheme',
 ].sort();
 
-test('the phonux barrel exports exactly the 60 runtime values, no more, no fewer', () => {
+test('the phonux barrel exports exactly the 62 runtime values, no more, no fewer', () => {
   assert.deepEqual(Object.keys(phonux).sort(), VALUE_EXPORTS);
 });
 

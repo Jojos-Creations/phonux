@@ -10,7 +10,8 @@ import * as React from 'react';
 import Box, { type BoxProps } from '@mui/material/Box';
 import { PANEL_HEADER_GAP_PX, PanelHeaderRow, type PanelHeaderRowProps } from './PanelFrame.js';
 import { useHost, type PanelSize } from './hostApi.js';
-import { PanelHiddenContext } from './panelSlotContext.js';
+import { PanelHiddenContext, PanelSlotContext } from './panelSlotContext.js';
+import { HEADER_ROW_ATTRIBUTE, PanelHeaderButtons, usePanelHeaderButtons } from './panelHeaderButtons.js';
 import { CaptureRegistryContext, type ViewId } from './snapshots.js';
 
 // One import path for a view author: the contracts, the provider and the hook.
@@ -53,6 +54,11 @@ export interface PanelProps extends Omit<BoxProps, 'children' | 'sx' | 'title'> 
    * positioning context an `overlay` needs.
    */
   overlay?: React.ReactNode;
+  /**
+   * `false` keeps the header buttons the panel declares out of its header: a view that draws them itself with
+   * `usePanelHeaderButtons` or `PanelHeaderButtons` still can. Default: they are drawn with the title.
+   */
+  headerButtons?: boolean;
   /** Extra styles for the panel's root box, merged over the width and positioning it sets itself. */
   sx?: BoxProps['sx'];
   /** The panel's content, rendered inside the root box below the header. */
@@ -74,11 +80,21 @@ export interface PanelProps extends Omit<BoxProps, 'children' | 'sx' | 'title'> 
  * optional header pill above it, an optional grab bar and an optional overlay.
  * @public
  */
-export function Panel({ title, actions, headerProps, grabProps, overlay, sx, children, viewId, capture = 'auto', size, ...rest }: PanelProps) {
+export function Panel({ title, actions, headerProps, headerButtons = true, grabProps, overlay, sx, children, viewId, capture = 'auto', size, ...rest }: PanelProps) {
   const { device } = useHost();
   const registry = React.useContext(CaptureRegistryContext);
   const rootRef = React.useRef<HTMLDivElement | null>(null);
   const hidden = React.useContext(PanelHiddenContext);
+  const declared = React.useContext(PanelSlotContext)?.headerButtonSlots;
+  const buttons = usePanelHeaderButtons();
+  const drawn = headerButtons && declared !== undefined && title !== undefined && buttons.some((b) => !b.hidden);
+  const untitled = headerButtons && declared !== undefined && title === undefined && buttons.some((b) => !b.hidden);
+  const warned = React.useRef(false);
+  React.useEffect(() => {
+    if (!untitled || warned.current || typeof process === 'undefined' || process.env.NODE_ENV === 'production') return;
+    warned.current = true;
+    console.warn('Panel: header buttons are declared but the panel has no title, so no header row is drawn and they are not shown.');
+  }, [untitled]);
   React.useEffect(() => {
     // No registry (a bare <HostProvider>, as in most tests) or opted out: registering is a no-op, never a throw.
     // A hidden root is display:none and has no box to photograph, so it leaves the registry until it is shown.
@@ -87,7 +103,20 @@ export function Panel({ title, actions, headerProps, grabProps, overlay, sx, chi
   }, [registry, viewId, capture, hidden]);
   return (
     <Box sx={{ position: 'relative', width: size?.width ?? device.size.width, ...sx }} {...rest} ref={rootRef}>
-      {title !== undefined && <PanelHeaderRow title={title} actions={actions} {...headerProps} />}
+      {title !== undefined && (
+        <PanelHeaderRow
+          title={title}
+          actions={drawn ? (
+            <>
+              {actions}
+              <PanelHeaderButtons side="end" />
+            </>
+          ) : actions}
+          {...headerProps}
+          {...(drawn ? { tabIndex: -1, [HEADER_ROW_ATTRIBUTE]: declared.handle.id } : {})}
+          {...(drawn ? { leading: <PanelHeaderButtons side="start" /> } : {})}
+        />
+      )}
       {grabProps && (
         <Box
           data-panel-grab-bar=""

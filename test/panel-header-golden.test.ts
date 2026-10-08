@@ -13,6 +13,7 @@ import createCache from '@emotion/cache';
 import { CacheProvider } from '@emotion/react';
 import { HostProvider, Panel, type PanelProps } from '../index.js';
 import { createFakeHost } from '../fakeHost.js';
+import { staticPanel } from './support/static-panel.js';
 
 function render(props: Omit<PanelProps, 'children'>): string {
   const panel: ReactElement = createElement(Panel, { ...props, children: 'Body' });
@@ -40,4 +41,16 @@ test('Panel golden: a title with actions renders the actions in the right-hand c
 
 test('Panel golden: a title with grabProps adds the grab bar above the frame', () => {
   assert.equal(render({ title: 'Sessions', grabProps: { 'aria-label': 'Drag panel', 'data-grab': '' } }), golden('title-grab'));
+});
+
+const declared = (over: Record<string, unknown> = {}) => ({ pin: { icon: createElement('i', { 'data-icon': 'pin' }), label: 'Pin panel', onClick: () => undefined, ...over } });
+
+test('Panel golden: every declared slot hidden is the title golden, because Panel passes undefined and the placeholder renders', () => {
+  assert.equal(staticPanel({ slots: declared({ hidden: true }), props: { title: 'Sessions' } }), golden('title'));
+});
+
+test('Panel golden: a declared slot and a view passing falsy actions draw the cluster and no placeholder', () => {
+  const html = staticPanel({ slots: declared(), props: { title: 'Sessions', actions: false } });
+  assert.equal(html, golden('title-header-buttons'));
+  assert.equal(html.includes('data-header-placeholder-action'), false);
 });

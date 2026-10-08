@@ -4,7 +4,8 @@
  */
 import * as React from 'react';
 import type { NeighborWidths } from './panelRowEntry.js';
-import type { ResolvedPanelSettings, ResolvedPanelTuning } from './panelSettings.js';
+import type { ResolvedPanelSettings, ResolvedPanelTuning, SettingNote } from './panelSettings.js';
+import type { ViewHandle } from './panelTemplate.js';
 
 /**
  * What a drag of this panel needs to scroll the row at its edge. Absent outside a row and when the row does not
@@ -27,6 +28,14 @@ export interface DragScroll {
   readonly stops: readonly number[];
 }
 
+/** What a panel's header buttons need to draw and press: its resolved slots, its own handle and where errors and notes go. */
+export interface HeaderButtonsSlot {
+  readonly slots: ResolvedPanelSettings['headerButtons'];
+  readonly handle: ViewHandle;
+  readonly report: (e: unknown) => void;
+  readonly note: (note: SettingNote) => void;
+}
+
 /**
  * Per-slot facts a view cannot read itself: it only receives `PanelSummary`, which has no `collapsible`, `anchor`
  * or settings, on purpose (hostApi.tsx). No provider above (a view mounted directly, as in tests) is `undefined`,
@@ -45,6 +54,8 @@ export interface PanelSlotValue {
   readonly tuning: ResolvedPanelTuning & { readonly rowGap: number };
   /** Optional so a slot value built by hand (a test, a view mounted outside a row) needs none. */
   readonly dragScroll?: DragScroll | undefined;
+  /** The panel's declared header buttons; absent when none are declared or the row has no workspace. */
+  readonly headerButtonSlots?: HeaderButtonsSlot | undefined;
 }
 
 export const PanelSlotContext = React.createContext<PanelSlotValue | undefined>(undefined);
