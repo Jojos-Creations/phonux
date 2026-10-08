@@ -120,6 +120,8 @@ export type InstancePlan =
       notes: SettingNote[];
       /** True when the patch asked for `parkable`: a deferred pin is cancelled. */
       cancelsPin: boolean;
+      /** The Host-bag split after the patch; undefined for a panel no view created. */
+      split: HostSplit | undefined;
     };
 
 /** What `planInstance` reads. */
@@ -131,6 +133,8 @@ export interface InstanceInput {
   base: PanelSettings | undefined;
   workspace: PanelSettings | undefined;
   template: PanelSettings | undefined;
+  /** What a view asked for at the Host-bag create of this panel, when it did. */
+  split: HostSplit | undefined;
   /** The workspace's tuning input: the layer under the template for the four per-panel leaves. */
   tuning: WorkspaceTuning | undefined;
   /** The person's overrides; absent for a closed record. */
@@ -144,6 +148,26 @@ export interface InstanceInput {
 }
 
 const EMPTY: PanelSettings = Object.freeze({});
+
+/**
+ * What a view asked for at a Host-bag create, and which of those keys a configure has set since. The file keeps the asks
+ * merged into the instance layer; the resolver reads them as the host layer, under the instance layer, until a configure
+ * sets the key, so a `null` shows the ask again.
+ */
+export interface HostSplit {
+  readonly host: PanelSettings;
+  readonly touched: ReadonlySet<string>;
+}
+
+/** `merged` as the resolver's instance layer: without the keys only the view's ask holds, which the host layer carries. */
+export function ownLayer(merged: PanelSettings | undefined, split: HostSplit | undefined): PanelSettings | undefined {
+  if (merged === undefined || split === undefined) return merged;
+  const hostOnly = Object.keys(merged).filter((k) => k in split.host && !split.touched.has(k));
+  if (hostOnly.length === 0) return merged;
+  const own: Record<string, unknown> = { ...merged };
+  for (const k of hostOnly) delete own[k];
+  return own as PanelSettings;
+}
 
 const sameConflict = (a: SettingConflict, b: SettingConflict): boolean => a.key === b.key && a.kind === b.kind && a.rule === b.rule && a.forcedBy === b.forcedBy && a.layer === b.layer;
 const sameNote = (a: SettingNote, b: SettingNote): boolean => a.code === b.code && a.key === b.key && a.message === b.message;
@@ -164,22 +188,42 @@ function differs(before: PanelSettings, after: PanelSettings, name: string): boo
  */
 export function planInstance(i: InstanceInput): InstancePlan {
   const base = i.base ?? EMPTY;
-  const layer = mergePatch(base, i.patch);
+  const asked = i.patch as Record<string, unknown>;
+  let layer = mergePatch(base, i.patch);
   if (layer === base) return { ok: true, changed: false };
-  const asksParkable = (i.patch as Record<string, unknown>).parkable !== undefined;
-  const layers = (instance: PanelSettings, user: PanelUserLayer | undefined) => ({
+  let split = i.split;
+  if (split !== undefined) {
+    // A `null` on a key the view asked for puts its ask back into the merged layer the file keeps; any other value makes the key the instance layer's own.
+    const touched = new Set(split.touched);
+    const restored: Record<string, unknown> = { ...layer };
+    for (const key of Object.keys(split.host)) {
+      if (asked[key] === undefined) continue;
+      if (asked[key] === null) {
+        touched.delete(key);
+        restored[key] = (split.host as Record<string, unknown>)[key];
+      } else {
+        touched.add(key);
+      }
+    }
+    if (sameSettingsValue(restored, base)) return { ok: true, changed: false };
+    layer = restored as PanelSettings;
+    split = { host: split.host, touched };
+  }
+  const asksParkable = asked.parkable !== undefined;
+  const layers = (instance: PanelSettings, user: PanelUserLayer | undefined, of: HostSplit | undefined) => ({
     ...(i.workspace !== undefined ? { workspace: i.workspace } : {}),
     ...(i.template !== undefined ? { template: i.template } : {}),
-    instance,
+    ...(of !== undefined ? { host: of.host } : {}),
+    instance: ownLayer(instance, of) ?? instance,
     ...(user !== undefined ? { user } : {}),
   });
-  const resolve = (instance: PanelSettings, user: PanelUserLayer | undefined): PanelSettingsResolution => resolveUnderTuning(layers(instance, user), { root: i.root }, i.tuning);
-  const plain = resolve(base, i.person);
+  const resolve = (instance: PanelSettings, user: PanelUserLayer | undefined, of: HostSplit | undefined): PanelSettingsResolution => resolveUnderTuning(layers(instance, user, of), { root: i.root }, i.tuning);
+  const plain = resolve(base, i.person, i.split);
   // A pin from code flips `parkable` for the session without recording it; the flip outvotes the layers until a patch asks for `parkable` itself.
   const session = i.current !== undefined && i.current.parkable !== plain.value.parkable ? i.current.parkable : undefined;
   const userBefore = session === undefined ? i.person : { ...i.person, parkable: session };
-  const before = session === undefined ? plain : resolve(base, userBefore);
-  const after = resolve(layer, asksParkable ? i.person : userBefore);
+  const before = session === undefined ? plain : resolve(base, userBefore, i.split);
+  const after = resolve(layer, asksParkable ? i.person : userBefore, split);
 
   const fresh = after.conflicts.find((c) => !before.conflicts.some((b) => sameConflict(b, c)));
   if (fresh !== undefined) return { ok: false, code: 'settings-conflict', message: fresh.message, setting: fresh.key };
@@ -193,7 +237,7 @@ export function planInstance(i: InstanceInput): InstancePlan {
   const patchValue = (n: string): unknown => (n.startsWith('tuning.') ? (i.patch as { tuning?: Record<string, unknown> | null }).tuning?.[n.slice('tuning.'.length)] : (i.patch as Record<string, unknown>)[n]);
   const shadowed = changed.filter((n) => patchValue(n) !== null && after.source[n] !== 'instance');
   const notes = after.notes.filter((n) => !before.notes.some((b) => sameNote(b, n)));
-  return { ok: true, changed: true, layer, resolution: after, now, later, shadowed, notes, cancelsPin: asksParkable };
+  return { ok: true, changed: true, layer, resolution: after, now, later, shadowed, notes, cancelsPin: asksParkable, split };
 }
 
 /** The success a plan answers with. */
