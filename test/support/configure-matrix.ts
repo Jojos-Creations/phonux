@@ -9,7 +9,7 @@ import assert from 'node:assert/strict';
 import { createElement, useEffect } from 'react';
 import { act } from 'react';
 import { mock } from 'node:test';
-import { PANEL_SETTINGS_CATALOG, createWorkspace, definePanel, usePanelCapabilities, usePanelCloseEligible, usePanelHidden, usePanelNeighborWidths, usePanelPinned, usePanelReorderEligible } from '../../index.js';
+import { PANEL_SETTINGS_CATALOG, createWorkspace, definePanel, useViewState, usePanelCapabilities, usePanelCloseEligible, usePanelHidden, usePanelNeighborWidths, usePanelPinned, usePanelReorderEligible } from '../../index.js';
 import type { CaptureTrigger, ConfigureResult, PanelHandle, PanelResult, PanelSettings, PanelState, PanelTemplate, PanelWindow, PanelsInput, ProvidedPanels, WorkspaceHandle, WorkspaceOptions } from '../../index.js';
 import { panelKey } from '../../panelSettings.js';
 import { advanceFrames } from './mount-harness.js';
@@ -148,10 +148,20 @@ export const cellsExecuted = (): ReadonlySet<string> => cellsRun;
 
 /** Mounts and unmounts of each panel's view, by engine id. */
 const mounts = new Map<string, { mounted: number; unmounted: number }>();
+const stateSetters = new Map<string, (n: number) => void>();
 export const viewLog = {
-  reset: (): void => mounts.clear(),
+  reset: (): void => {
+    mounts.clear();
+    stateSetters.clear();
+  },
   mounted: (id: string): number => mounts.get(id)?.mounted ?? 0,
   unmounted: (id: string): number => mounts.get(id)?.unmounted ?? 0,
+  /** Sets the view-state cell `n` of the mounted view of engine id `id`. */
+  setState: (id: string, n: number): void => {
+    const set = stateSetters.get(id);
+    if (set === undefined) throw new Error(`no mounted view for engine id ${id}`);
+    act(() => set(n));
+  },
 };
 
 /**
@@ -168,6 +178,11 @@ export const matrixTemplate = (id: string, over: Partial<PanelTemplate> = {}): P
       const neighbors = usePanelNeighborWidths();
       const pinned = usePanelPinned();
       const hidden = usePanelHidden();
+      const [n, setN] = useViewState('n', 0);
+      useEffect(() => {
+        stateSetters.set(panel.id, setN);
+        return () => void stateSetters.delete(panel.id);
+      }, [panel.id, setN]);
       useEffect(() => {
         const entry = mounts.get(panel.id) ?? { mounted: 0, unmounted: 0 };
         entry.mounted += 1;
@@ -187,6 +202,7 @@ export const matrixTemplate = (id: string, over: Partial<PanelTemplate> = {}): P
         'data-neighbors': JSON.stringify(neighbors),
         'data-pinned': String(pinned),
         'data-hidden': String(hidden),
+        'data-n': String(n),
       });
     },
     ...over,
@@ -388,4 +404,22 @@ export async function arrange(status: Status, settings: PanelSettings = {}, work
 /** A template that draws nothing special: the singleton the pending status adds. */
 function markerless(id: string): PanelTemplate {
   return matrixTemplate(id);
+}
+
+/**
+ * Runs the status exceptions a probe lists one by one, so a red one does not hide the rest: every failed expectation is
+ * named, and `end()` fails the probe once with all of them.
+ */
+export function soft(): { run: (label: string, fn: () => Promise<void> | void) => Promise<void>; end: () => void } {
+  const failures: string[] = [];
+  return {
+    run: async (label, fn) => {
+      try {
+        await fn();
+      } catch (e) {
+        failures.push(`${label}: ${(e as Error).message.split('\n').slice(0, 4).join(' | ')}`);
+      }
+    },
+    end: () => assert.deepEqual(failures, [], 'expectations that failed'),
+  };
 }
