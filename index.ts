@@ -153,7 +153,7 @@ export type {
 export { createWorkspace } from './workspaceCore.js';
 export type { WorkspaceHandle, WorkspaceOptions } from './workspaceCore.js';
 export type { PanelHandle } from './panelHandles.js';
-export type { PanelManager, PanelResult, PinResult, ResetResult } from './panelManager.js';
+export type { ConfigureResult, PanelManager, PanelResult, PinResult, ResetResult } from './panelManager.js';
 export { usePanelStates, usePanelState, useWorkspaceManager } from './panels/usePanelStates.js';
 
 export { PanelManagerError } from './panelManagerError.js';

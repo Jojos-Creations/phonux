@@ -4,6 +4,12 @@
 
 ### Added
 
+- `configure(patch)` on a panel handle, `configure(id, patch)`, `configureTemplate(templateId, patch)` and
+  `configureTuning(patch)` on the manager change settings after a panel exists, each in one commit and each refusing
+  whole with a typed `ConfigureResult` (`wrong-scope`, `settings-conflict`, `tier-not-allowed`, `instance-limit`,
+  `busy`) or throwing `invalid-settings` for an unknown key or a bad value. A view's own handle takes only `title`,
+  `listed`, `layer`, `formFactor`, an anchor `placeOnAdd` and `enterFrom: 'anchor'`. The workspace's per-panel tuning
+  leaves now reach the panels that resolve their own settings.
 - `headerButtons`: a panel declares generic title-bar buttons as slots keyed by id with `icon`, `label`, `onClick`,
   `side`, `order`, `pressed`, `description`, `tooltip`, `disabled`, `hidden` and `sx`. `Panel` draws them as MUI
   IconButtons (`Panel`'s new `headerButtons` prop, `false` to leave them out; `PanelHeaderRow`'s new `leading` prop holds

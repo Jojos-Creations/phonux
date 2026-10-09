@@ -4,9 +4,10 @@
  * before the panel exists, while it is live and after the workspace detaches.
  */
 import type { JsonValue, FormFactor } from './hostApi.js';
-import type { PanelOpSource, PanelResult, PinResult, ResetResult } from './panelManager.js';
-import type { AddPlacement, PanelId, PanelSettingsResolution, ScrollAlign } from './panelSettings.js';
-import type { ListFilter, PanelReader, PanelReadHandle, PanelSnapshot, PanelState } from './panelTemplate.js';
+import type { ConfigureResult, PanelOpSource, PanelResult, PinResult, ResetResult } from './panelManager.js';
+import type { AddPlacement, PanelId, PanelSettingsResolution, ScrollAlign, WorkspaceTuning } from './panelSettings.js';
+import type { InstancePatch, SettingsPatch, ViewPatch } from './settingsPatch.js';
+import type { ListFilter, PanelReader, PanelReadHandle, PanelSnapshot, PanelState, ViewHandle } from './panelTemplate.js';
 
 /**
  * A handle on one panel: its five read members and the operations on it, keyed by the panel's id. It resolves the
@@ -39,6 +40,8 @@ export interface PanelHandle<P extends JsonValue = JsonValue> extends PanelReadH
   pin(source?: 'code' | 'person'): PinResult;
   /** Applies the unpinned half of the panel's `pinning` in one commit: the panel is freed, then placed, so a fixed pin can always be undone. */
   unpin(source?: 'code' | 'person'): PinResult;
+  /** Changes settings of this panel after it was added; `null` removes an instance value. All or nothing, in one update; the result says what acts now and what waits. */
+  configure(patch: InstancePatch): ConfigureResult;
 }
 
 /** One operation a handle asks of its workspace. @internal */
@@ -63,8 +66,16 @@ export interface ReadSource {
   readHandleOf(id: PanelId): PanelReadHandle | undefined;
   /** Runs one operation on `id` for `source`. */
   operate(id: PanelId, call: PanelVerbCall, source: PanelOpSource): PinResult;
+  /** The handle `id`'s own view receives: the operable one, whose `configure` takes only the keys a view may set. */
+  viewHandleOf(id: PanelId): ViewHandle | undefined;
   /** Resets one panel, or every panel but the root. */
   resetLayout(target: PanelId | 'all'): ResetResult;
+  /** Patches one panel's settings, for a panel's own caller or for its view. */
+  configure(id: PanelId, patch: InstancePatch | ViewPatch, caller: 'panel' | 'view'): ConfigureResult;
+  /** Patches the template-scope settings of a template. */
+  configureTemplate(templateId: string, patch: SettingsPatch): ConfigureResult;
+  /** Patches the workspace tuning. */
+  configureTuning(patch: { [K in keyof WorkspaceTuning]?: WorkspaceTuning[K] | null }): ConfigureResult;
 }
 
 /** The read handle of panel `id` built from `templateId`: exactly the five read members. @internal */
@@ -78,7 +89,7 @@ export function makeHandle(source: ReadSource, id: PanelId, templateId: string):
   };
 }
 
-/** The handle of panel `id` built from `templateId`: the five read members and the eleven operations. @internal */
+/** The handle of panel `id` built from `templateId`: the five read members and the twelve operations. @internal */
 export function makeViewHandle<P extends JsonValue = JsonValue>(source: ReadSource, id: PanelId, templateId: string): PanelHandle<P> {
   return {
     id,
@@ -97,7 +108,13 @@ export function makeViewHandle<P extends JsonValue = JsonValue>(source: ReadSour
     scrollTo: (align, src = 'code') => source.operate(id, { verb: 'scrollTo', align }, src),
     pin: (src = 'code') => source.operate(id, { verb: 'pin' }, src),
     unpin: (src = 'code') => source.operate(id, { verb: 'unpin' }, src),
+    configure: (patch) => source.configure(id, patch, 'panel'),
   };
+}
+
+/** The handle panel `id`'s own view receives: the operable handle with a `configure` that takes only what a view may set. @internal */
+export function makeOwnHandle<P extends JsonValue = JsonValue>(source: ReadSource, id: PanelId, templateId: string): ViewHandle<P> {
+  return { ...makeViewHandle<P>(source, id, templateId), configure: (patch: ViewPatch) => source.configure(id, patch, 'view') };
 }
 
 /** `states` kept by `f`: a field left out keeps everything on that field. @internal */
