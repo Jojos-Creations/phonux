@@ -870,6 +870,9 @@ offset plus the scroll distance, so the hop rule sees where the box really is, a
 two springs over distances this different would land in different frames. The claim goes back before the hop is
 reported, so the scroll the hop causes is not dropped; a `pointercancel`, which a native pan sends, ends the hold with
 no hop. A touch drag never edge-scrolls: the handle is `touch-action: pan-x`, so a touch swipe is a native pan.
+The hold keeps the mode and the three edge numbers (`zonePx`, `maxPxPerSec`, `reducedStepMs`) the drag locked with,
+so a `configure` made while the pointer is down reaches the next drag; the bound, the panel stops and `animated` are
+read again every frame, and the hold ends when the row stops scrolling.
 
 **Alternatives to the gesture.** WCAG 2.5.7 asks for a single-pointer alternative: offer a button that calls
 the same `onClose`, as History's trash buttons do. The row's drag-to-reorder needs one too; `PanelsAPI.move`
