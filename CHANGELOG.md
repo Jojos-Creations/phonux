@@ -10,6 +10,11 @@
   `busy`) or throwing `invalid-settings` for an unknown key or a bad value. A view's own handle takes only `title`,
   `listed`, `layer`, `formFactor`, an anchor `placeOnAdd` and `enterFrom: 'anchor'`. The workspace's per-panel tuning
   leaves now reach the panels that resolve their own settings.
+- `configureTemplate(id, { multiple: false })` answers `instance-limit` with the count while a declared panel of the
+  template is closed, a panel of it is inside the undo window, or an instance not named like the template is in the row;
+  `maxInstances` is lowered against the row's entries only.
+- `configureTemplate` naming `maxInstances` on a template that resolves to `multiple: false` still stores the limit and
+  answers one `max-instances-moot` note in `ConfigureResult.notes` and through `onNote`.
 - `headerButtons`: a panel declares generic title-bar buttons as slots keyed by id with `icon`, `label`, `onClick`,
   `side`, `order`, `pressed`, `description`, `tooltip`, `disabled`, `hidden` and `sx`. `Panel` draws them as MUI
   IconButtons (`Panel`'s new `headerButtons` prop, `false` to leave them out; `PanelHeaderRow`'s new `leading` prop holds
@@ -71,6 +76,9 @@
 - `PanelResult` is exported as a type.
 - `undoClose` restores a closed panel through its current settings: `undoPlacement` decides where it lands, and a
   workspace-less host keeps the 0.1.0 behaviour.
+- `configure({ snapshot: 'never' })` asks the host's `CaptureTrigger` to `evict` that panel's stored picture once, from the
+  commit's layout effect, for a live, parked, hidden or protected panel. A closed record or a panel inside its undo window
+  stores the edit and asks nothing at the call.
 
 ### Changed
 
@@ -128,7 +136,8 @@
 - The strip is scrolled once per mount to `tuning.initialScroll` after the restore has settled, unless a wheel or
   pointer-down reached the row first.
 - Dragging a panel's grab bar to the window edge scrolls a scrolling row (mouse and pen); `scrollOnDrag` `none` and
-  `tuning.edgeScroll` turn it off or tune it.
+  `tuning.edgeScroll` turn it off or tune it. A drag already in flight keeps the mode and the numbers it began with;
+  a configure of either reaches the next drag.
 
 ### Removed
 

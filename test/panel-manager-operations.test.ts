@@ -268,6 +268,14 @@ test('toggleWhenClosed and showWhenClosed over the closed, live and parked state
   const show = [await observe('showWhenClosed', 'refuse'), await observe('showWhenClosed', 'reopen')];
   assert.deepEqual(show[0], ['closed:is-closed:a c ~b', 'live:F:a b c', 'parked:T:a b c']);
   assert.deepEqual(show[1], ['closed:T:a c b', 'live:F:a b c', 'parked:T:a b c']);
+  differential('toggleWhenClosed', (run) => {
+    run('ignore', () => toggle[0]);
+    run('reopen', () => toggle[1]);
+  });
+  differential('showWhenClosed', (run) => {
+    run('refuse', () => show[0]);
+    run('reopen', () => show[1]);
+  });
 });
 
 test('a closed anonymous instance answers is-closed to show, toggle and open under both values', async () => {
