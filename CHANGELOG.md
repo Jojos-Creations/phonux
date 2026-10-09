@@ -13,6 +13,8 @@
 - `configureTemplate(id, { multiple: false })` answers `instance-limit` with the count while a declared panel of the
   template is closed, a panel of it is inside the undo window, or an instance not named like the template is in the row;
   `maxInstances` is lowered against the row's entries only.
+- `configureTemplate` naming `maxInstances` on a template that resolves to `multiple: false` still stores the limit and
+  answers one `max-instances-moot` note in `ConfigureResult.notes` and through `onNote`.
 - `headerButtons`: a panel declares generic title-bar buttons as slots keyed by id with `icon`, `label`, `onClick`,
   `side`, `order`, `pressed`, `description`, `tooltip`, `disabled`, `hidden` and `sx`. `Panel` draws them as MUI
   IconButtons (`Panel`'s new `headerButtons` prop, `false` to leave them out; `PanelHeaderRow`'s new `leading` prop holds
