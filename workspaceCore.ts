@@ -243,9 +243,9 @@ const sameState = (a: PanelState, b: PanelState): boolean =>
   JSON.stringify(a.deferredPin) === JSON.stringify(b.deferredPin) &&
   sameSettingsValue(a.settings, b.settings);
 
-/** `outcome` with the hold-unlisted note appended to its answer when the update leaves a held panel unlisted that was listed. */
+/** `outcome` with the hold-unlisted note appended to its answer when the update leaves a listed, held panel unlisted. */
 function withHoldNote(target: PanelWindow, status: 'live' | 'parked' | 'hidden', outcome: ConfigureOutcome): ConfigureOutcome {
-  // Decided on the returned outcome so the refuse, show and defer branches of a parkable flip need no edit of their own.
+  // Only the finished outcome says whether a flip of parkable was refused, showed the panel or left it held.
   if (!('next' in outcome) || outcome.done.shown || status !== 'hidden') return outcome;
   if (!effective(target).listed || effective(outcome.next).listed) return outcome;
   return { ...outcome, done: { ...outcome.done, notes: [...outcome.done.notes, holdUnlistedNote(target.id)] } };

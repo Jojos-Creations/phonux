@@ -18,7 +18,6 @@ afterEach(() => {
 
 type Done = Extract<ConfigureResult, { ok: true }>;
 
-/** The note a hold on an unlisted panel raises, for the panel the engine knows as `panelId`. */
 const note = (panelId: string): SettingNote => ({ code: 'hold-unlisted', panelId, key: 'listed', message: 'listed: a held hide of an unlisted panel can be shown by code only' });
 
 const answer = (changed: boolean, now: string[], notes: SettingNote[]): unknown => ({ ok: true, changed, shown: false, now, later: [], shadowed: [], notes });
