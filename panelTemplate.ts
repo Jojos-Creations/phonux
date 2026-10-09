@@ -9,6 +9,8 @@ import type { JsonValue, PanelSummary, FormFactor } from './hostApi.js';
 import { PanelManagerError } from './panelManagerError.js';
 import { resolvePanelSettings } from './panelSettings.js';
 import type { PanelHandle } from './panelHandles.js';
+import type { ConfigureResult } from './panelManager.js';
+import type { ViewPatch } from './settingsPatch.js';
 import type { PanelId, PanelSettings, PanelSettingsResolution, ResolvedPanelSettings } from './panelSettings.js';
 
 /** Where a panel is: waiting to be added, in the strip, parked or hidden, or closed. @public */
@@ -92,8 +94,11 @@ export type PanelReadHandle = {
   subscribe(l: () => void): () => void;
 };
 
-/** What a template's view receives as `handle`: the panel's own handle, its read members and its operations. @public */
-export type ViewHandle<P extends JsonValue = JsonValue> = PanelHandle<P>;
+/** What a template's view receives as `handle`: the panel's own handle, its read members and its operations; its `configure` takes only the keys a view may set. @public */
+export type ViewHandle<P extends JsonValue = JsonValue> = Omit<PanelHandle<P>, 'configure'> & {
+  /** Changes the settings a view may change on its own panel; any other key answers `not-view-settable`. */
+  configure(patch: ViewPatch): ConfigureResult;
+};
 
 /** What a template's view receives as `manager`: read-only access to every panel. @public */
 export type PanelReader = {
