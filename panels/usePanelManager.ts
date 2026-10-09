@@ -40,7 +40,11 @@ import {
 
 export interface UsePanelManagerResult {
   revealPanelProactively: (panelsNow: PanelWindow[], apply: (prev: PanelWindow[]) => PanelWindow[]) => void;
-  handleActivatePanel: (id: string, pin?: PinChange) => void;
+  /**
+   * Shows panel `id` the way a click on it does, landing it by `pin` when given. `from` is the row the landing is planned
+   * against, this render's list when omitted.
+   */
+  handleActivatePanel: (id: string, pin?: PinChange, from?: PanelWindow[]) => void;
   /** Removes `id` from the collapse-order stack, so a closed panel (or one `undoClose` restores) leaves no stale entry for a later reveal. */
   forgetCollapsed: (id: string) => void;
   /**
@@ -122,7 +126,7 @@ export type GateKind = 'hide' | 'close' | 'other';
  * The turn's record of which panels an operation is already acting on: one token per accepted call, deleted by the
  * commit that carries the call's `release`. A manager call that finds a token on its panel answers `busy`; a close is
  * exclusive among manager calls in both directions. A raw mutator takes a 'raw' token and never refuses, except that it
- * does nothing on a panel a manager call holds.
+ * does nothing on a panel a manager call holds. `clearAll` takes raw tokens on the panels it removes without ever refusing.
  */
 export interface OperationGate {
   /** True when a manager call on `ids` of this `kind` would answer busy. Takes nothing. */
@@ -131,6 +135,8 @@ export interface OperationGate {
   take: (ids: readonly string[], kind: GateKind) => number | undefined;
   /** Takes a raw token on `ids`; undefined, taking nothing, when a manager token holds one of them. */
   takeRaw: (ids: readonly string[], kind: GateKind) => number | undefined;
+  /** Takes a raw token on those of `ids` that hold no token yet, and never refuses: a call that is not allowed to be a no-op marks its panels for the rest of the turn this way. Undefined when every id already holds one. */
+  takeFree: (ids: readonly string[], kind: GateKind) => number | undefined;
   /** Marks the call that took `token` as finished, forcing a commit so its token is deleted even when the engine ignored the call. */
   release: (token: number) => void;
   /** The ids a hide or a close is acting on this turn. */
@@ -354,6 +360,10 @@ export function usePanelManager(
       for (const id of ids) tokensRef.current.set(id, { token, source: 'raw', kind });
       return token;
     },
+    takeFree: (ids, kind) => {
+      const free = ids.filter((id) => !tokensRef.current.has(id));
+      return free.length === 0 ? undefined : gate.takeRaw(free, kind);
+    },
     release,
     leaving: () => new Set([...tokensRef.current].filter(([, t]) => t.kind !== 'other').map(([id]) => id)),
   };
@@ -518,8 +528,8 @@ export function usePanelManager(
    * Clicking ANY row -- live or parked alike -- activates it (promoteToLive's own doc
    * comment has the full "make/keep it live, preserve array order" spec).
    */
-  const handleActivatePanel = (id: string, pin?: PinChange): void => {
-    const target = panels.find((p) => p.id === id);
+  const handleActivatePanel = (id: string, pin?: PinChange, from: PanelWindow[] = panels): void => {
+    const target = from.find((p) => p.id === id);
     if (!target || target.live) return;
     markKeepLive(id);
     const keep = [...keptIds()];
@@ -529,8 +539,8 @@ export function usePanelManager(
     clearEnterSide(id);
     // Re-placed before it goes live, in the same update; the updaters below place again over the latest list.
     const showAt = effective(target).placeOnShow;
-    const landed = landOn(panels, id, showAt, pin);
-    const before = showAt === 'in-place' && !landed.pinned ? panels : landed.row;
+    const landed = landOn(from, id, showAt, pin);
+    const before = showAt === 'in-place' && !landed.pinned ? from : landed.row;
     const result = before.some((p) => p.id === id && p.live) ? before : promoteToLive(before, id, capacity, keptIds());
     if (!result) return;
     reportNotes(options?.onNote, landed.notes);

@@ -1,0 +1,114 @@
+{
+  "tests": [
+    "test/panel-configure-parkable-pin.test.ts",
+    "test/panel-configure-core.test.ts",
+    "test/panel-configure-persistence.test.ts"
+  ],
+  "mutants": [
+    {
+      "name": "M1 the closed-record flip consults no pin decision",
+      "file": "workspaceCore.ts",
+      "find": "const decision = flip === undefined ? undefined : closedDecision(rec, state, flip);",
+      "replace": "const decision = undefined as PinDecision | undefined;",
+      "expectRed": [
+        "configure parkable false under the default and place-only is refused whole",
+        "the closed key of a per-status object decides a closed declared and an undo-window panel"
+      ]
+    },
+    {
+      "name": "M2 the parked or hidden flip consults no pin decision",
+      "file": "workspaceCore.ts",
+      "find": "const decision = flip === undefined ? undefined : decidePinChange(target, status, effective(target).pinningWhenNotLive, flip);",
+      "replace": "const decision = undefined as PinDecision | undefined;",
+      "expectRed": [
+        "configure parkable false under the default and place-only is refused whole",
+        "configure parkable false under show shows a parked or hidden panel and flips it in one commit",
+        "configure parkable false under apply-on-next-show stores a deferred pin on a parked or hidden panel"
+      ]
+    },
+    {
+      "name": "M3 the show decision starts no show path",
+      "file": "panels/useProvidePanels.ts",
+      "find": "if (outcome.show !== undefined) {",
+      "replace": "if (outcome.show !== undefined && false) {",
+      "expectRed": [
+        "configure parkable false under show shows a parked or hidden panel and flips it in one commit",
+        "a configure that shows a hidden panel asks the row for one scroll when it lands out of view"
+      ]
+    },
+    {
+      "name": "M4 the defer decision falls through and flips the panel",
+      "file": "workspaceCore.ts",
+      "find": "if (flip !== undefined && decision?.kind === 'defer') {",
+      "replace": "if (flip !== undefined && decision?.kind === 'defer' && false) {",
+      "expectRed": [
+        "configure parkable false under apply-on-next-show stores a deferred pin on a parked or hidden panel",
+        "a deferred flip does not hold back the rest of the patch"
+      ]
+    },
+    {
+      "name": "M5 pinningWhenNotLive is read from the settings after the patch instead of before",
+      "file": "workspaceCore.ts",
+      "find": "decidePinChange(target, status, effective(target).pinningWhenNotLive, flip)",
+      "replace": "decidePinChange(target, status, plan.resolution.value.pinningWhenNotLive, flip)",
+      "expectRed": [
+        "the pinningWhenNotLive in force before the patch decides a flip made beside a change to it"
+      ]
+    },
+    {
+      "name": "M6 a flip that changes nothing the panel reads is treated as a pin change",
+      "file": "panelConfigure.ts",
+      "find": "return patch.parkable === undefined || asks === reads ? undefined : { parkable: asks };",
+      "replace": "return patch.parkable === undefined ? undefined : { parkable: asks };",
+      "expectRed": [
+        "a flip that changes nothing the panel reads is not a pin change: parkable true on a hidden parkable panel",
+        "a flip the person's override outvotes is not a pin change"
+      ]
+    },
+    {
+      "name": "M7 a hidden panel is read as engine-parked where the configure op computes its status",
+      "file": "panels/useProvidePanels.ts",
+      "find": "const status = target.live ? 'live' : heldIds.has(engineId) ? 'hidden' : 'parked';",
+      "replace": "const status = target.live ? 'live' : 'parked';",
+      "expectRed": [
+        "a per-status object answers differently for a parked and a hidden panel in one row"
+      ]
+    },
+    {
+      "name": "M8 a deferred flip drops the rest of the patch from the entry",
+      "file": "panelConfigure.ts",
+      "find": "const settled = rest.changed ? reconfigured(entry, rest, patch) : entry;\n  return sameDeferral(entry.deferredPin, flip) ? settled",
+      "replace": "const settled = entry;\n  return sameDeferral(entry.deferredPin, flip) ? settled",
+      "expectRed": [
+        "a deferred flip does not hold back the rest of the patch"
+      ]
+    },
+    {
+      "name": "M9 the closed branch leaves a stored deferral alone when the patch names parkable and changes a layer value",
+      "file": "workspaceCore.ts",
+      "find": "else if (plan.cancelsPin) rec.deferredPin = undefined;",
+      "replace": "",
+      "expectRed": [
+        "a repeated deferred flip is changed false, and configure parkable true cancels it"
+      ]
+    },
+    {
+      "name": "M10 the engine branch does not cancel a deferral when the patch names parkable and changes no layer value",
+      "file": "workspaceCore.ts",
+      "find": "return asked.parkable !== undefined && target.deferredPin !== undefined ? { done: cancelled(), next: withoutDeferral(target) } : { done: unchanged() };",
+      "replace": "return { done: unchanged() };",
+      "expectRed": [
+        "a repeated deferred flip is changed false, and configure parkable true cancels it"
+      ]
+    },
+    {
+      "name": "M11 the closed branch does not cancel a deferral when the patch names parkable and changes no layer value",
+      "file": "workspaceCore.ts",
+      "find": "if (asked.parkable === undefined || rec.deferredPin === undefined) return unchanged();",
+      "replace": "if (asked.parkable === undefined || rec.deferredPin === undefined || true) return unchanged();",
+      "expectRed": [
+        "a repeated deferred flip is changed false, and configure parkable true cancels it"
+      ]
+    }
+  ]
+}

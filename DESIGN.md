@@ -1121,6 +1121,20 @@ A workspace-only leaf at the template layer throws, at the instance or host laye
 any tuning key in the workspace defaults throws. A view's own door, the host layer, accepts only `title`, `listed`,
 `layer`, `formFactor`, `placeOnAdd: { anchor }` and `enterFrom: 'anchor'`.
 
+### Configure
+
+`configure(id, patch)` plans against the panel's layers (`planInstance`), refuses whole before anything is written, and
+hands the engine one update that replaces the entry; the call takes a manager token on the panel, so a second verb on it
+in the same turn answers `busy` and a close excludes every other call. `configureTemplate` stores an override layer for
+the three template keys that only future creations read, and `configureTuning` stores the workspace tuning input,
+re-pricing the row in one commit when `rowGap` moves. A tuning leaf set on a panel outranks the workspace's. A configure
+queued behind another call's update of the same entry in one turn applies to the entry that update left, planned from the
+layer the call saw; a panel the update removed stays removed. What a view asked for at a Host-bag `create` is kept apart for
+the session as the panel's host layer, under the instance layer: `null` on a key the view asked for shows the ask again with
+source `host`, and the file keeps the ask merged into the instance layer, so a new launch reads it as the instance layer's own.
+
+A `configure` of `parkable` on a panel that is not live follows `pinningWhenNotLive` as `pin` does; see "Pinning and reset".
+
 ### Pin definitions
 
 A `pinning` definition is valid only if a drag cannot make it unreadable, because pinned is read from the panel and
@@ -1340,6 +1354,7 @@ A verb names a panel, never a row index, and resolves it on every call: a handle
 - **Not live.** `pinningWhenNotLive` answers for a parked or hidden panel: `place-only` applies a placement-only half in place and answers `would-reshape-row` for a half naming `parkable`; `refuse` always answers `would-reshape-row`; `show` shows the panel and applies the half in one commit; `apply-on-next-show` stores the half on the entry. A closed declared panel stores it on its record instead.
 - **Deferred pins.** A stored half is applied inside the update of every path that makes the panel live: `show`, a History click, a Host-bag activate, the row gesture, an automatic return, an undo and `open`. It is re-checked there and dropped with the note `deferred-pin-dropped` when it no longer applies. A fixing half sets `live` so a fixed column is never parked. It is session only and never saved.
 - **The person's pin.** A person's pin records `overrides.anchor` (every id, when the half names a placement) and `overrides.parkable` (when it names `parkable`) through `recordOverride`; a code pin flips `parkable` for the session and records nothing.
+- **Configure of parkable.** A `configure` that names `parkable` on a parked, hidden or closed panel goes through `decidePinChange` like `pin`, reading `pinningWhenNotLive` as it stood before the patch: `place-only` and `refuse` answer `would-reshape-row` (`is-closed` for a closed panel), `show` shows the panel and flips it in one commit with `shown: true`, `apply-on-next-show` stores the half as a deferred pin and lists `parkable` in `later`. A closed panel's stored half lives on its record, is never saved, and is applied by `open` or an undo. A flip that changes nothing the panel reads, as when the person's override outvotes it, is no pin change and is never refused or stored. A `configure` that names `parkable` cancels a stored half on a parked, hidden or closed panel alike, even when the patch changes no layer value. The rest of the patch is written with a stored flip, and a refused flip refuses the whole patch.
 - **Reset.** `resetLayout` writes `overrides` only through `clearOverrides`, clears stored deferrals and re-places each named panel by its resolved `placeOnAdd`. `'all'` scrolls nothing; one id follows `scrollOnMove`.
 
 ## Doc comments
@@ -1415,7 +1430,8 @@ PanelRow puts the resolved slots and the panel's own handle in the slot context,
 before the title, the view's own `actions` first among the end side, then the end buttons, each a plain MUI IconButton of size
 small. A slot with only icon, label and onClick renders exactly the markup of such a button written by hand. A panel that declares
 none, or whose slots are all hidden, renders the markup it always did; the header row takes `tabindex="-1"` only while a slot is
-drawn, so focus has somewhere to go when the button that held it leaves. `Panel`'s `headerButtons={false}` keeps the cluster out of
+drawn, so focus has somewhere to go when the button that held it leaves (the one row that holds focus when its last slot is removed
+takes it then). `Panel`'s `headerButtons={false}` keeps the cluster out of
 its header; a view with its own header calls `usePanelHeaderButtons()` for the list or renders `PanelHeaderButtons`. A view that
 draws its own pin as well as declaring a pin slot shows two buttons: the library does not merge them.
 
@@ -1434,7 +1450,7 @@ its press reaches no verb.
 ### Focus
 
 After a press that reorders the panel the pressed button is focused again with `preventScroll`. When the button that held focus is
-hidden by a predicate, focus goes to the same panel's header row; when the press closes or parks its own panel, to the header row of
+hidden by a predicate or its slot is removed, the panel's last one included, focus goes to the same panel's header row; when the press closes or parks its own panel, to the header row of
 the panel now at that index, else the previous one's. Focus is never left on `body`. Whether a real browser keeps focus across a
 DOM move is for the real-layout gate.
 
