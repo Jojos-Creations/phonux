@@ -1618,8 +1618,12 @@ const WORKSPACE_ONLY_TUNING = new Set<string>(PANEL_SETTINGS_CATALOG.filter((d) 
 const TEMPLATE_SCOPE_KEYS = new Set<string>(PANEL_SETTINGS_CATALOG.filter((d) => d.configure.doors.length === 1 && d.configure.doors[0] === 'template').map((d) => d.name));
 const VIEW_SETTABLE_KEYS = new Set<string>(PANEL_SETTINGS_CATALOG.filter((d) => d.viewSettable).map((d) => d.name));
 
-/** A view may place itself only by an explicit anchor and enter only from it, so those two keys are checked by value. */
-const viewMayAsk = (key: string, value: unknown): boolean => {
+/**
+ * Whether a view may ask for `key` as `value`: a view may place itself only by an explicit anchor and enter only from it,
+ * so those two keys are checked by value.
+ * @internal
+ */
+export const viewMayAsk = (key: string, value: unknown): boolean => {
   if (!VIEW_SETTABLE_KEYS.has(key)) return false;
   if (key === 'placeOnAdd') return isPlain(value) && Object.keys(value).length === 1 && value.anchor !== undefined;
   if (key === 'enterFrom') return value === 'anchor';
@@ -1777,7 +1781,7 @@ interface State {
 }
 
 /** Merges the accepted layers over the library defaults, lowest first; a later layer's value wins field by field. */
-function merge(accepted: Record<AskLayer, Accepted>, userParkable: boolean | undefined): State {
+function merge(accepted: Record<AskLayer, Accepted>, userParkable: boolean | undefined, workspaceTuning: WorkspaceTuning | undefined): State {
   const values: Plain = { ...LIBRARY_PANEL_DEFAULTS };
   const source: Record<string, SourceLayer> = {};
   for (const key of Object.keys(values)) if (values[key] !== undefined) source[key] = 'library';
@@ -1788,6 +1792,14 @@ function merge(accepted: Record<AskLayer, Accepted>, userParkable: boolean | und
     edgeScroll: { ...LIBRARY_TUNING_DEFAULTS.edgeScroll } as Plain,
   };
   for (const leaf of ['dragToClose', 'slide', 'hopFraction', 'edgeScroll']) source[`tuning.${leaf}`] = 'library';
+  for (const leaf of ['dragToClose', 'slide', 'hopFraction', 'edgeScroll'] as const) {
+    const given = workspaceTuning?.[leaf];
+    const kept = given === undefined ? undefined : checkTuningLeaf(leaf, given).accepted;
+    if (kept === undefined) continue;
+    if (leaf === 'hopFraction') tuning.hopFraction = kept as number;
+    else Object.assign(tuning[leaf], kept as Plain);
+    source[`tuning.${leaf}`] = 'workspace';
+  }
 
   for (const layer of ASK_LAYERS) {
     const { flat, tuning: leaves } = accepted[layer];
@@ -1892,13 +1904,22 @@ const forcedMessage = (d: Draft, applied: unknown): string => `${d.key}: the ${d
  * @public
  */
 export function resolvePanelSettings(layers: PanelSettingsLayers = {}, options: ResolveOptions = {}): PanelSettingsResolution {
+  return resolveUnderTuning(layers, options, undefined);
+}
+
+/**
+ * `resolvePanelSettings` with the workspace's four per-panel tuning leaves as the layer under the template: what a panel
+ * resolves to inside a workspace. Leaves the workspace does not set keep the library default.
+ * @internal
+ */
+export function resolveUnderTuning(layers: PanelSettingsLayers, options: ResolveOptions, workspaceTuning: WorkspaceTuning | undefined): PanelSettingsResolution {
   const root = options.root === true;
   const env: Env = { lenient: options.lenient === true, notes: [], pending: [] };
   const accepted = {} as Record<AskLayer, Accepted>;
   for (const layer of ASK_LAYERS) accepted[layer] = checkLayer(layer, layers[layer], env);
   const user = checkUser(layers.user, env);
 
-  let state = merge(accepted, undefined);
+  let state = merge(accepted, undefined, workspaceTuning);
   applyRules(state, root);
 
   // A person's fixed column needs the phone tier, so the tier is settled before their parkable joins as the top layer.
@@ -1911,7 +1932,7 @@ export function resolvePanelSettings(layers: PanelSettingsLayers = {}, options: 
     userParkable = undefined;
   }
   if (userParkable !== undefined) {
-    state = merge(accepted, userParkable);
+    state = merge(accepted, userParkable, workspaceTuning);
     applyRules(state, root);
   }
   if (user.formFactor !== undefined) {
