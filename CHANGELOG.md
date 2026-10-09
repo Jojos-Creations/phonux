@@ -67,6 +67,9 @@
 - `PanelResult` is exported as a type.
 - `undoClose` restores a closed panel through its current settings: `undoPlacement` decides where it lands, and a
   workspace-less host keeps the 0.1.0 behaviour.
+- `configure({ snapshot: 'never' })` asks the host's `CaptureTrigger` to `evict` that panel's stored picture once, from the
+  commit's layout effect, for a live, parked, hidden or protected panel. A closed record or a panel inside its undo window
+  stores the edit and asks nothing at the call.
 
 ### Changed
 
