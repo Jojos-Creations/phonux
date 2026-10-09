@@ -124,7 +124,8 @@
 - The strip is scrolled once per mount to `tuning.initialScroll` after the restore has settled, unless a wheel or
   pointer-down reached the row first.
 - Dragging a panel's grab bar to the window edge scrolls a scrolling row (mouse and pen); `scrollOnDrag` `none` and
-  `tuning.edgeScroll` turn it off or tune it.
+  `tuning.edgeScroll` turn it off or tune it. A drag already in flight keeps the mode and the numbers it began with;
+  a configure of either reaches the next drag.
 
 ### Removed
 

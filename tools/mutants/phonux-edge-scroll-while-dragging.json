@@ -43,7 +43,7 @@
     {
       "name": "reduced motion jumps every frame",
       "file": "dragToClose.tsx",
-      "find": "if (h.waitedMs >= slot.reducedStepMs) {",
+      "find": "if (h.waitedMs >= h.began.reducedStepMs) {",
       "replace": "if (h.waitedMs >= 0) {",
       "expectRed": [
         "matchMedia reduce: no continuous scroll",
