@@ -18,7 +18,6 @@ afterEach(() => {
   cleanup();
 });
 
-/** A rig with a multiple template named m beside the panel a. */
 const multiRig = (over: PanelSettings = {}): Promise<PinRig> => pinRig({ ids: ['a'], extra: [markerTemplate('m', { settings: { multiple: true, ...over } })] });
 
 const flip = (r: PinRig): ConfigureResult => r.turn(() => r.ws.panels.configureTemplate('m', { multiple: false }));
@@ -27,7 +26,6 @@ const windowed = (r: PinRig): number => (r.provided().recentlyClosed ?? []).leng
 
 const one = "template 'm': 1 instance exists, and a template that is not multiple allows only the one named 'm'";
 
-/** The flip answers instance-limit on multiple with `message`, and commits nothing: same row array, same render count, same snapshot version. */
 function refusedFlip(r: PinRig, message: string): void {
   const entries = r.m.latest().entries;
   const renders = r.m.renders();
