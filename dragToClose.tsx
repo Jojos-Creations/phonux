@@ -82,6 +82,8 @@ interface EdgeHold {
   scrollerEl: HTMLElement;
   claim: ScrollClaim;
   startScroll: number;
+  /** The slot's edge numbers when the drag locked: a configure made mid-drag must reach the next drag, not this one. */
+  began: { zonePx: number; maxPxPerSec: number; reducedStepMs: number };
   frame: number | null;
   /** The previous frame's timestamp; null until the first frame, whose dt is 0. */
   lastMs: number | null;
@@ -97,7 +99,8 @@ interface EdgeHold {
  * adds to the pointer offset. Reads only `dragScroll` from the slot, so what scrolls is decided by the row.
  */
 function useEdgeScroll(box: React.RefObject<HTMLDivElement | null>, dragScroll: DragScroll | undefined, reduceMotion: boolean, scrollX: MotionValue<number>) {
-  // The loop outlives the render that started it: it reads the latest slot facts and nothing else from the closure.
+  // The loop outlives the render that started it: the bound, the stops and `instant` come from the latest slot, while the
+  // mode and the three edge numbers stay with the hold, because a drag in flight keeps what it locked with.
   const latest = React.useRef({ dragScroll, reduceMotion });
   latest.current = { dragScroll, reduceMotion };
   const pressed = React.useRef<{ scrollerEl: HTMLElement; startScroll: number; downX: number } | null>(null);
@@ -126,17 +129,17 @@ function useEdgeScroll(box: React.RefObject<HTMLDivElement | null>, dragScroll: 
     const slot = latest.current.dragScroll;
     if (h === null) return;
     h.frame = null;
-    if (h.stopped || slot === undefined || slot.mode !== 'edge') return;
+    if (h.stopped || slot === undefined) return;
     const dt = h.lastMs === null ? 0 : nowMs - h.lastMs;
     h.lastMs = nowMs;
     const bound = slot.maxScroll;
     h.claim.setMaxScroll(bound);
     const rect = h.scrollerEl.getBoundingClientRect();
-    const speed = edgeScrollSpeed({ pointerX: pointer.current.x, left: rect.left, right: rect.right, zonePx: slot.zonePx, maxPxPerSec: slot.maxPxPerSec });
+    const speed = edgeScrollSpeed({ pointerX: pointer.current.x, left: rect.left, right: rect.right, zonePx: h.began.zonePx, maxPxPerSec: h.began.maxPxPerSec });
     const at = h.scroller.scrollLeft();
     if (slot.instant || latest.current.reduceMotion) {
       h.waitedMs = speed === 0 ? 0 : h.waitedMs + dt;
-      if (h.waitedMs >= slot.reducedStepMs) {
+      if (h.waitedMs >= h.began.reducedStepMs) {
         h.waitedMs = 0;
         const to = stepTarget(speed < 0 ? 'left' : 'right', at, slot.stops, bound);
         if (to !== null) h.claim.write(to);
@@ -166,10 +169,10 @@ function useEdgeScroll(box: React.RefObject<HTMLDivElement | null>, dragScroll: 
     },
     [],
   );
-  const edgeOn = dragScroll?.mode === 'edge';
+  const rowScrolls = dragScroll !== undefined;
   React.useEffect(() => {
-    if (!edgeOn) end();
-  }, [edgeOn]);
+    if (!rowScrolls) end();
+  }, [rowScrolls]);
 
   return {
     /** A press on the handle: where the pointer is and where the row is scrolled, which the release counts from. */
@@ -194,7 +197,7 @@ function useEdgeScroll(box: React.RefObject<HTMLDivElement | null>, dragScroll: 
       if (claim === null) return;
       claim.setMaxScroll(slot.maxScroll);
       pointer.current = { x: clientX, offset: clientX - p.downX };
-      hold.current = { scroller, scrollerEl: p.scrollerEl, claim, startScroll: p.startScroll, frame: null, lastMs: null, waitedMs: 0, stopped: false };
+      hold.current = { scroller, scrollerEl: p.scrollerEl, claim, startScroll: p.startScroll, began: { zonePx: slot.zonePx, maxPxPerSec: slot.maxPxPerSec, reducedStepMs: slot.reducedStepMs }, frame: null, lastMs: null, waitedMs: 0, stopped: false };
       hold.current.frame = requestAnimationFrame(tick);
     },
     /** Each pointer move: the box follows the pointer by `x` alone, and the scroll distance rides the second value. */
