@@ -592,12 +592,14 @@ export function createWorkspace(o: WorkspaceOptions = {}): WorkspaceHandle {
     return applyTemplate({ ...createHistoryPanel(root.id), title: res.value.title ?? '', view: root.id, ...(root.params !== undefined ? { params: root.params } : {}), key: root.id }, res.value, 'create');
   };
 
-  const instancesOf = (templateId: string): number => {
+  const instanceKeys = (templateId: string): Set<PanelId> => {
     const keys = new Set<PanelId>();
     for (const e of committed?.entries ?? []) if (e.view === templateId && e.marker !== true && e.id !== rootId) keys.add(panelKey(e));
     for (const r of records.values()) if (r.templateId === templateId && !r.closed && (inflight.has(r.id) || (r.intent && status !== 'ready'))) keys.add(r.id);
-    return keys.size;
+    return keys;
   };
+
+  const instancesOf = (templateId: string): number => instanceKeys(templateId).size;
 
   const validateExplicitId = (id: unknown, t: PanelTemplate): void => {
     if (typeof id !== 'string') throw new PanelManagerError('invalid-options', 'id must be a string');
@@ -859,6 +861,14 @@ export function createWorkspace(o: WorkspaceOptions = {}): WorkspaceHandle {
     return result;
   };
 
+  /** What `multiple: false` must fit: the row's instances and the closed ones that can come back. Only configure counts the closed ones; a reopen that did would count the record it reopens. */
+  const returningInstances = (templateId: string): PanelId[] => {
+    const keys = instanceKeys(templateId);
+    for (const r of closedRecords()) if (r.templateId === templateId && !r.closed) keys.add(r.id);
+    for (const [key, gone] of retired) if (gone.state.templateId === templateId && commit?.ops.inUndoWindow(key.slice(key.indexOf('~') + 1)) === true) keys.add(key);
+    return [...keys];
+  };
+
   /** `configureTemplate`: the three template-scope keys of one template, for panels made from now on. */
   const configureTemplateOne = (templateId: string, patch: unknown): ConfigureResult => {
     const checked = checkPatch('template', patch);
@@ -871,6 +881,13 @@ export function createWorkspace(o: WorkspaceOptions = {}): WorkspaceHandle {
     const plan = planTemplate(before, patch as SettingsPatch);
     if (!plan.changed) return unchanged();
     const after = resolve({ ...(defaults !== undefined ? { workspace: defaults } : {}), template: { ...template.settings, ...plan.layer } }).value;
+    const wasMultiple = resolve({ ...(defaults !== undefined ? { workspace: defaults } : {}), template: { ...template.settings, ...before } }).value.multiple;
+    if (checked.names.includes('multiple') && wasMultiple && !after.multiple) {
+      const counted = returningInstances(templateId);
+      if (counted.some((key) => key !== templateId)) {
+        return { ok: false, code: 'instance-limit', setting: 'multiple', message: `template '${templateId}': ${counted.length} ${counted.length === 1 ? 'instance exists' : 'instances exist'}, and a template that is not multiple allows only the one named '${templateId}'` };
+      }
+    }
     const cap = after.multiple ? after.maxInstances : 1;
     const limited = checked.names.find((n) => n === 'multiple' || n === 'maxInstances');
     if (limited !== undefined && cap !== 'unlimited' && cap < instancesOf(templateId)) {
