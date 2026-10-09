@@ -1,0 +1,45 @@
+{
+  "tests": [
+    "test/panel-configure-core.test.ts",
+    "test/panel-configure-persistence.test.ts"
+  ],
+  "mutants": [
+    {
+      "name": "the host's ask is read as the instance layer's own",
+      "file": "panelConfigure.ts",
+      "find": "const hostOnly = Object.keys(merged).filter((k) => k in split.host && !split.touched.has(k));",
+      "replace": "const hostOnly: string[] = [];",
+      "expectRed": [
+        "null on a key a view asked for at the Host-bag create brings the host's ask back with source host, for a template panel and a plain one"
+      ]
+    },
+    {
+      "name": "a null drops the host's ask from the layer the file keeps",
+      "file": "panelConfigure.ts",
+      "find": "restored[key] = (split.host as Record<string, unknown>)[key];",
+      "replace": "delete restored[key];",
+      "expectRed": [
+        "a Host-bag ask comes back through null in the session, the file keeps it merged in the instance layer and the person's overrides alone, and the next launch reads it as the instance layer's own"
+      ]
+    },
+    {
+      "name": "a key a configure set is still read as the host's",
+      "file": "panelConfigure.ts",
+      "find": "        touched.add(key);\n",
+      "replace": "",
+      "expectRed": [
+        "null on a key a view asked for at the Host-bag create brings the host's ask back with source host, for a template panel and a plain one"
+      ]
+    },
+    {
+      "name": "the slot context is not given to a panel whose focused last button is removed",
+      "file": "PanelRow.tsx",
+      "find": "(handle !== undefined && focusInHeaderRow(handle.id) ? { slots: {}, handle, report, note } : undefined)",
+      "replace": "undefined",
+      "expectRed": [
+        "headerButtons row 2b: removing the only declared slot while it holds focus leaves focus on that panel's header row, tabindex -1, never body",
+        "headerButtons row 2d: the same holds for a lone panel with one slot"
+      ]
+    }
+  ]
+}

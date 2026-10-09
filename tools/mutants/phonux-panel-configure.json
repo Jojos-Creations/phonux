@@ -1,0 +1,64 @@
+{
+  "tests": [
+    "test/panel-configure-core.test.ts",
+    "test/panel-configure-doors.test.ts"
+  ],
+  "mutants": [
+    {
+      "name": "a NEXT key is counted as acting now",
+      "file": "panelConfigure.ts",
+      "find": "const now = cls === 'NOW' || NOW_STATE.has(name);",
+      "replace": "const now = cls === 'NOW' || cls === 'NEXT' || NOW_STATE.has(name);",
+      "expectRed": ["class law: a NEXT key changes only that panel"]
+    },
+    {
+      "name": "the scope refusal is skipped and the keys are written",
+      "file": "workspaceCore.ts",
+      "find": "if ('refusal' in checked) return { ok: false, ...checked.refusal };\n    if (state.status === 'pending')",
+      "replace": "if (state.status === 'pending')",
+      "expectRed": ["doors: configure answers wrong-scope for a template key"]
+    },
+    {
+      "name": "the settings-conflict diff compares against an empty baseline",
+      "file": "panelConfigure.ts",
+      "find": "!before.conflicts.some((b) => sameConflict(b, c))",
+      "replace": "true",
+      "expectRed": ["a conflict that already existed before the call does not refuse"]
+    },
+    {
+      "name": "a two-key patch checks only its first key",
+      "file": "panelConfigure.ts",
+      "find": "for (const ask of asks) {",
+      "replace": "for (const ask of asks.slice(0, 1)) {",
+      "expectRed": ["class law: a two-key patch whose second key is refused applies neither"]
+    },
+    {
+      "name": "the busy gate is bypassed for a configure",
+      "file": "panels/useProvidePanels.ts",
+      "find": "if (gate.busy([engineId], 'other')) return busy(target) as Extract<ConfigureResult, { ok: false }>;",
+      "replace": "",
+      "expectRed": ["raw close then configure of closable is busy"]
+    },
+    {
+      "name": "reconfigure writes the live tier",
+      "file": "panelConfigure.ts",
+      "find": "let next = reparked(entry, plan.resolution);",
+      "replace": "let next = { ...reparked(entry, plan.resolution), formFactor: 'tablet' as const };",
+      "expectRed": ["writer: a parkable flip to false makes the panel live"]
+    },
+    {
+      "name": "configureTemplate checks its patch as a panel call",
+      "file": "workspaceCore.ts",
+      "find": "const checked = checkPatch('template', patch);",
+      "replace": "const checked = checkPatch('panel', patch);",
+      "expectRed": ["configureTemplate applies to future creations"]
+    },
+    {
+      "name": "a configure is not exclusive after a close",
+      "file": "panels/usePanelManager.ts",
+      "find": "return closeTokenRef.current !== 0;",
+      "replace": "return false;",
+      "expectRed": ["a configure after a close in the same turn is busy"]
+    }
+  ]
+}
