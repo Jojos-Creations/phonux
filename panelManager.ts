@@ -1,11 +1,12 @@
 /**
- * The workspace's manager: read access to every panel by id, as handles, `resetLayout`, and the pieces every operation on
- * a handle is answered with. The configure member is added to it by the entry that owns it.
+ * The workspace's manager: every panel by id as a handle, the three configure calls and `resetLayout`, and the pieces
+ * every operation on a handle is answered with.
  */
 import type { JsonValue } from './hostApi.js';
 import { filterStates, type PanelHandle, type ReadSource } from './panelHandles.js';
 import type { PanelRefusal } from './panelManagerError.js';
-import type { CatalogName, PanelId } from './panelSettings.js';
+import type { CatalogName, PanelId, SettingNote, WorkspaceTuning } from './panelSettings.js';
+import type { InstancePatch, SettingsPatch } from './settingsPatch.js';
 import type { ListFilter, PanelSnapshot } from './panelTemplate.js';
 
 /**
@@ -56,6 +57,41 @@ export type ResetResult = PanelResult & {
   readonly returned?: readonly PanelId[];
 };
 
+/**
+ * What `configure`, `configureTemplate` and `configureTuning` answer: on success whether anything was stored, the setting
+ * names that act in this commit (`now`), the ones that apply at the next use (`later`), the ones a person's override or a
+ * forced rule still outvotes (`shadowed`) and the runtime notes the change raised; on refusal the code, a sentence, and the
+ * catalog name of the key at fault where one is.
+ * @public
+ */
+export type ConfigureResult =
+  | {
+      /** The change was accepted. */
+      readonly ok: true;
+      /** True when a different value was stored; false for an equal or empty patch. */
+      readonly changed: boolean;
+      /** True when the change also showed a hidden panel; `configure` never does, so it is false. */
+      readonly shown: boolean;
+      /** The catalog names applied in this commit. */
+      readonly now: readonly string[];
+      /** The catalog names stored for the next time the panel or the workspace reads them. */
+      readonly later: readonly string[];
+      /** The catalog names the patch set that a person's override or a forced rule outvotes. */
+      readonly shadowed: readonly string[];
+      /** The notes the change raised. */
+      readonly notes: readonly SettingNote[];
+    }
+  | {
+      /** The change was refused and nothing changed. */
+      readonly ok: false;
+      /** Why it was refused. */
+      readonly code: PanelRefusal;
+      /** A sentence saying which panel and what stood in the way. */
+      readonly message: string;
+      /** The catalog name of the key at fault: for `settings-conflict` the conflict's key, for `wrong-scope` and `not-view-settable` the key asked. */
+      readonly setting?: string;
+    };
+
 /** Who an operation is for: code, which leaves the person's arrangement alone, or a person's own gesture, which records it. @internal */
 export type PanelOpSource = 'code' | 'person';
 
@@ -74,6 +110,12 @@ export interface PanelManager {
   get<P extends JsonValue = JsonValue>(id: PanelId): PanelHandle<P> | undefined;
   /** A handle for every panel `f` keeps; all panels when `f` is left out. */
   list(f?: ListFilter): readonly PanelHandle[];
+  /** Changes settings of one panel after it was added; `null` removes an instance value. All or nothing, in one update. */
+  configure(id: PanelId, patch: InstancePatch): ConfigureResult;
+  /** Changes the template-scope settings (`hostCreatable`, `multiple`, `maxInstances`) of a template for panels made from now on. Kept for this session only. */
+  configureTemplate(templateId: string, patch: Pick<SettingsPatch, 'hostCreatable' | 'multiple' | 'maxInstances'>): ConfigureResult;
+  /** Changes the workspace's tuning keys; a per-panel key sets the workspace default. Kept for this session only. */
+  configureTuning(patch: { [K in keyof WorkspaceTuning]?: WorkspaceTuning[K] | null }): ConfigureResult;
   /** Clears the person's overrides and any deferred pin of one panel, or of every panel but the root with 'all', and applies the cascade defaults now, in one update. */
   resetLayout(target: PanelId | 'all'): ResetResult;
   /** A readonly picture of the whole workspace, the same object until something changes. */
@@ -90,6 +132,9 @@ export function makePanelManager(source: ReadSource): PanelManager {
       filterStates(source.getSnapshot().panels, f)
         .map((s) => source.handleOf(s.id))
         .filter((h): h is PanelHandle => h !== undefined),
+    configure: (id, patch) => source.configure(id, patch, 'panel'),
+    configureTemplate: (templateId, patch) => source.configureTemplate(templateId, patch),
+    configureTuning: (patch) => source.configureTuning(patch),
     resetLayout: (target) => source.resetLayout(target),
     getSnapshot: () => source.getSnapshot(),
     subscribe: (l) => source.subscribe(l),

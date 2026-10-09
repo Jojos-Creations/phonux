@@ -1121,6 +1121,25 @@ A workspace-only leaf at the template layer throws, at the instance or host laye
 any tuning key in the workspace defaults throws. A view's own door, the host layer, accepts only `title`, `listed`,
 `layer`, `formFactor`, `placeOnAdd: { anchor }` and `enterFrom: 'anchor'`.
 
+### Configure
+
+`configure(id, patch)` plans against the panel's layers (`planInstance`), refuses whole before anything is written, and
+hands the engine one update that replaces the entry; the call takes a manager token on the panel, so a second verb on it
+in the same turn answers `busy` and a close excludes every other call. `configureTemplate` stores an override layer for
+the three template keys that only future creations read, and `configureTuning` stores the workspace tuning input,
+re-pricing the row in one commit when `rowGap` moves. A tuning leaf set on a panel outranks the workspace's. A configure
+queued behind another call's update of the same entry in one turn applies to the entry that update left, planned from the
+layer the call saw; a panel the update removed stays removed. What a view asked for at a Host-bag `create` is kept apart for
+the session as the panel's host layer, under the instance layer: `null` on a key the view asked for shows the ask again with
+source `host`, and the file keeps the ask merged into the instance layer, so a new launch reads it as the instance layer's own.
+
+`configureTemplate(id, { multiple: false })` counts the template's row entries, its declared panels that are closed (inside
+the undo window or past it) and its anonymous panels inside the undo window, and counts no panel of another template. It is
+accepted only when none exists or the only one is the instance named like the template; any other count answers
+`instance-limit` with that number and writes nothing. Lowering `maxInstances` counts row entries and panels still being
+added only, because a closed panel competes for a slot when it reopens and does not occupy one. The creation paths use that
+same count, so a reopen never counts the record it reopens.
+
 ### Pin definitions
 
 A `pinning` definition is valid only if a drag cannot make it unreadable, because pinned is read from the panel and
@@ -1415,7 +1434,8 @@ PanelRow puts the resolved slots and the panel's own handle in the slot context,
 before the title, the view's own `actions` first among the end side, then the end buttons, each a plain MUI IconButton of size
 small. A slot with only icon, label and onClick renders exactly the markup of such a button written by hand. A panel that declares
 none, or whose slots are all hidden, renders the markup it always did; the header row takes `tabindex="-1"` only while a slot is
-drawn, so focus has somewhere to go when the button that held it leaves. `Panel`'s `headerButtons={false}` keeps the cluster out of
+drawn, so focus has somewhere to go when the button that held it leaves (the one row that holds focus when its last slot is removed
+takes it then). `Panel`'s `headerButtons={false}` keeps the cluster out of
 its header; a view with its own header calls `usePanelHeaderButtons()` for the list or renders `PanelHeaderButtons`. A view that
 draws its own pin as well as declaring a pin slot shows two buttons: the library does not merge them.
 
@@ -1434,7 +1454,7 @@ its press reaches no verb.
 ### Focus
 
 After a press that reorders the panel the pressed button is focused again with `preventScroll`. When the button that held focus is
-hidden by a predicate, focus goes to the same panel's header row; when the press closes or parks its own panel, to the header row of
+hidden by a predicate or its slot is removed, the panel's last one included, focus goes to the same panel's header row; when the press closes or parks its own panel, to the header row of
 the panel now at that index, else the previous one's. Focus is never left on `body`. Whether a real browser keeps focus across a
 DOM move is for the real-layout gate.
 

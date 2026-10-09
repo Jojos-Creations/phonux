@@ -1,0 +1,79 @@
+{
+  "tests": ["test/configure-multiple-counts-closed.test.ts", "test/panel-configure-core.test.ts"],
+  "mutants": [
+    {
+      "name": "the declared closed records are left out of the configure counter",
+      "file": "workspaceCore.ts",
+      "find": "for (const r of closedRecords()) if (r.templateId === templateId && !r.closed) keys.add(r.id);",
+      "replace": "",
+      "expectRed": [
+        "multiple true to false is refused while declared panels sit in the undo window",
+        "multiple true to false is refused while a declared panel is closed past the window",
+        "multiple true to false with 2 instances is instance-limit and closes nothing, and a closed one still counts"
+      ]
+    },
+    {
+      "name": "the anonymous panels inside the undo window are left out of the configure counter",
+      "file": "workspaceCore.ts",
+      "find": "for (const [key, gone] of retired) if (gone.state.templateId === templateId && commit?.ops.inUndoWindow(key.slice(key.indexOf('~') + 1)) === true) keys.add(key);",
+      "replace": "",
+      "expectRed": ["multiple true to false is refused while an anonymous panel is in the undo window, and accepted once the window has passed"]
+    },
+    {
+      "name": "the instance named like the template is not an exception: any counted instance refuses the flip",
+      "file": "workspaceCore.ts",
+      "find": "counted.some((key) => key !== templateId)",
+      "replace": "counted.length > 0",
+      "expectRed": ["multiple true to false is accepted while the only instance is the singleton named like the template"]
+    },
+    {
+      "name": "one instance of any id is accepted: the flip is refused only above one",
+      "file": "workspaceCore.ts",
+      "find": "counted.some((key) => key !== templateId)",
+      "replace": "counted.length > 1",
+      "expectRed": ["multiple true to false is refused for one live instance whose id is not the template id"]
+    },
+    {
+      "name": "a record addPanel refused for room is counted as an instance",
+      "file": "workspaceCore.ts",
+      "find": "if (r.templateId === templateId && !r.closed) keys.add(r.id);",
+      "replace": "if (r.templateId === templateId) keys.add(r.id);",
+      "expectRed": ["a panel addPanel refused for room is not an existing instance"]
+    },
+    {
+      "name": "the maxInstances cap check counts with the configure counter",
+      "file": "workspaceCore.ts",
+      "find": "cap < instancesOf(templateId)",
+      "replace": "cap < returningInstances(templateId).length",
+      "expectRed": ["maxInstances: lowering below the live count is refused, and closed records alone do not refuse it"]
+    },
+    {
+      "name": "instancesOf is widened to the configure counter, so addPanel and reopen count closed records",
+      "file": "workspaceCore.ts",
+      "find": "instanceKeys(templateId).size",
+      "replace": "returningInstances(templateId).length",
+      "expectRed": ["closed records stay out of the creation count: at maxInstances 1 a closed panel does not block an addPanel, and its open() answers instance-limit while that one lives"]
+    },
+    {
+      "name": "the flip check runs when the template was not multiple before",
+      "file": "workspaceCore.ts",
+      "find": "wasMultiple && !after.multiple",
+      "replace": "!after.multiple",
+      "expectRed": ["multiple false to false with an instance named otherwise is accepted: nothing changes meaning"]
+    },
+    {
+      "name": "a closed declared panel of any template counts",
+      "file": "workspaceCore.ts",
+      "find": "if (r.templateId === templateId && !r.closed) keys.add(r.id);",
+      "replace": "if (!r.closed) keys.add(r.id);",
+      "expectRed": ["multiple true to false counts only this template: the closed and undo-window panels of another template do not refuse it"]
+    },
+    {
+      "name": "an undo-window panel of any template counts",
+      "file": "workspaceCore.ts",
+      "find": "gone.state.templateId === templateId && ",
+      "replace": "",
+      "expectRed": ["multiple true to false counts only this template: the closed and undo-window panels of another template do not refuse it"]
+    }
+  ]
+}
