@@ -1133,6 +1133,13 @@ layer the call saw; a panel the update removed stays removed. What a view asked 
 the session as the panel's host layer, under the instance layer: `null` on a key the view asked for shows the ask again with
 source `host`, and the file keeps the ask merged into the instance layer, so a new launch reads it as the instance layer's own.
 
+`configureTemplate(id, { multiple: false })` counts the template's row entries, its declared panels that are closed (inside
+the undo window or past it) and its anonymous panels inside the undo window, and counts no panel of another template. It is
+accepted only when none exists or the only one is the instance named like the template; any other count answers
+`instance-limit` with that number and writes nothing. Lowering `maxInstances` counts row entries and panels still being
+added only, because a closed panel competes for a slot when it reopens and does not occupy one. The creation paths use that
+same count, so a reopen never counts the record it reopens.
+
 ### Pin definitions
 
 A `pinning` definition is valid only if a drag cannot make it unreadable, because pinned is read from the panel and

@@ -10,6 +10,9 @@
   `busy`) or throwing `invalid-settings` for an unknown key or a bad value. A view's own handle takes only `title`,
   `listed`, `layer`, `formFactor`, an anchor `placeOnAdd` and `enterFrom: 'anchor'`. The workspace's per-panel tuning
   leaves now reach the panels that resolve their own settings.
+- `configureTemplate(id, { multiple: false })` answers `instance-limit` with the count while a declared panel of the
+  template is closed, a panel of it is inside the undo window, or an instance not named like the template is in the row;
+  `maxInstances` is lowered against the row's entries only.
 - `headerButtons`: a panel declares generic title-bar buttons as slots keyed by id with `icon`, `label`, `onClick`,
   `side`, `order`, `pressed`, `description`, `tooltip`, `disabled`, `hidden` and `sx`. `Panel` draws them as MUI
   IconButtons (`Panel`'s new `headerButtons` prop, `false` to leave them out; `PanelHeaderRow`'s new `leading` prop holds
