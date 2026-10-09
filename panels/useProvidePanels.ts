@@ -837,6 +837,10 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
         const again = plan(now, status);
         return 'next' in again ? applyConfigure(prev, now, again.next) : prev;
       });
+      if (outcome.show !== undefined) {
+        handleActivatePanel(engineId, outcome.show, applyConfigure(panels, target, outcome.next));
+        scrollForShow(engineId);
+      }
       gate.release(token);
       return outcome.done;
     },
