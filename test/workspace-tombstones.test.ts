@@ -8,38 +8,13 @@ import assert from 'node:assert/strict';
 import './support/jsdom-globals.js';
 import { act } from 'react';
 import { createWorkspace } from '../index.js';
-import type { PanelTemplate, WorkspaceHandle } from '../index.js';
 import { memoryWorkspaceStorage } from '../fakeHost.js';
 import { DISMISSED_LIMIT } from '../workspaceState.js';
 import { cleanup } from './support/mount-harness.js';
-import { differential, differentialsCovered } from './support/differential.js';
 import { flush, markerTemplate, mountWorkspace } from './support/workspace-row.js';
-import type { MountedWorkspace } from './support/workspace-row.js';
+import { engineId, launch, live, settle } from './support/workspace-launch.js';
 
 afterEach(() => cleanup());
-
-const QUICK = { tuning: { saveQuietMs: 5 } };
-const settle = async (): Promise<void> => {
-  await flush();
-  await act(async () => void (await new Promise((r) => setTimeout(r, 60))));
-};
-
-interface Launch {
-  ws: WorkspaceHandle;
-  m: MountedWorkspace;
-}
-
-/** One launch: a fresh workspace over `store` with `templates` all added, mounted and restored. */
-async function launch(store: ReturnType<typeof memoryWorkspaceStorage>, templates: PanelTemplate[]): Promise<Launch> {
-  const ws = createWorkspace({ templates, storage: store });
-  for (const t of templates) ws.addPanel(t, t.settings?.multiple === true ? { id: `${t.id}-1` } : undefined);
-  const m = mountWorkspace(ws, { over: QUICK });
-  await flush();
-  return { ws, m };
-}
-
-const engineId = (ws: WorkspaceHandle, id: string): string => ws.panels.get(id)!.getState().engineId!;
-const live = (ws: WorkspaceHandle): string[] => ws.panels.getSnapshot().panels.filter((p) => p.status === 'live').map((p) => p.id);
 
 test('stay-closed: a panel the person closed is not created at the next launch', async () => {
   const store = memoryWorkspaceStorage();
@@ -67,25 +42,6 @@ test('return-next-launch: a closed panel is created again at the next launch', a
   const second = await launch(store, [a]);
   assert.deepEqual(live(second.ws), ['ret-a']);
 });
-
-test('the afterClose differential: the same close, run under each value, differs at the next launch', async () => {
-  for (const value of ['stay-closed', 'return-next-launch'] as const) {
-    const store = memoryWorkspaceStorage();
-    const t = markerTemplate(`diff-${value}`, { settings: { afterClose: value } });
-    const first = await launch(store, [t]);
-    act(() => first.m.latest().close(engineId(first.ws, t.id)));
-    await settle();
-    first.m.unmount();
-    cleanup();
-    const second = await launch(store, [t]);
-    outcomes.push([value, live(second.ws).length]);
-  }
-  differential('afterClose', (run) => {
-    for (const [value, count] of outcomes) run(value, () => count);
-  });
-  assert.deepEqual(differentialsCovered().filter((n) => n === 'afterClose'), ['afterClose']);
-});
-const outcomes: Array<[string, number]> = [];
 
 test('clearAll counts as a close for the stay-closed panels it removes', async () => {
   const store = memoryWorkspaceStorage();

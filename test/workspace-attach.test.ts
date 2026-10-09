@@ -15,7 +15,9 @@ import { registerTemplate } from '../viewRegistry.js';
 import { bindingOf, type EngineOps } from '../workspaceCore.js';
 import type { PanelWindow } from '../panelWindow.js';
 import { cleanup, mount, withHost } from './support/mount-harness.js';
+import { differential, differentialsCovered } from './support/differential.js';
 import { flush, markerTemplate, mountWorkspace } from './support/workspace-row.js';
+import { engineId, launch, live, settle } from './support/workspace-launch.js';
 import { memoryWorkspaceStorage } from '../fakeHost.js';
 
 /** Operations for a commit the test publishes by hand: no engine stands behind it, so every one refuses. */
@@ -479,4 +481,23 @@ test('PanelState.pinned is the pure isPinned of the entry: left of the root true
   assert.equal(by.l!.pinned, true);
   assert.equal(by.r!.pinned, false);
   assert.equal(by.l!.deferredPin, null);
+});
+
+test('the afterClose differential: the same close, run under each value, differs at the next launch', async () => {
+  const outcomes: Array<[string, number]> = [];
+  for (const value of ['stay-closed', 'return-next-launch'] as const) {
+    const store = memoryWorkspaceStorage();
+    const t = markerTemplate(`diff-${value}`, { settings: { afterClose: value } });
+    const first = await launch(store, [t]);
+    act(() => first.m.latest().close(engineId(first.ws, t.id)));
+    await settle();
+    first.m.unmount();
+    cleanup();
+    const second = await launch(store, [t]);
+    outcomes.push([value, live(second.ws).length]);
+  }
+  differential('afterClose', (run) => {
+    for (const [value, count] of outcomes) run(value, () => count);
+  });
+  assert.deepEqual(differentialsCovered().filter((n) => n === 'afterClose'), ['afterClose']);
 });
