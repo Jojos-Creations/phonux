@@ -39,14 +39,13 @@ const refusedWith = (out: ConfigureResult, code: string): Refused => {
   assert.equal((out as Refused).code, code, (out as Refused).message);
   return out as Refused;
 };
-/** Everything a caller reads off an accepted result except the notes. */
 const shape = (out: ConfigureResult): unknown => {
   const d = done(out);
   return { ok: d.ok, changed: d.changed, shown: d.shown, now: [...d.now].sort(), later: [...d.later].sort(), shadowed: [...d.shadowed] };
 };
 const ANSWER = (changed: boolean, shown: boolean, now: string[], later: string[], shadowed: string[] = []): unknown => ({ ok: true, changed, shown, now: [...now].sort(), later: [...later].sort(), shadowed });
 
-/** Panel a in the status `cell` names, its template reading `when` (left out for the default); each cell has its own rig. */
+/** Panel a in the status `cell` names, reading `when` (left out for the default). Only K takes a park row: a bare flip on a park panel is a settings-conflict, which is answered before the pin decision. */
 async function cellRig(cell: Cell, when?: PinningWhenNotLive): Promise<PinRig> {
   const own: PanelSettings = when === undefined ? {} : { pinningWhenNotLive: when };
   if (cell === 'K') {
@@ -68,12 +67,10 @@ async function cellRig(cell: Cell, when?: PinningWhenNotLive): Promise<PinRig> {
   return r;
 }
 
-/** The panel is as the refusal found it: the status it had, parkable still true, nothing waiting. */
 function untouched(r: PinRig, cell: Cell, label: string): void {
   assert.deepEqual([r.state('a').status, r.state('a').settings.parkable, r.state('a').deferredPin], [STATUS_OF[cell], true, null], label);
 }
 
-/** The flip under `when` is refused whole on `cell`: the code, and no write of any kind. */
 async function expectRefusedWhole(cell: Cell, when: PinningWhenNotLive | undefined, label: string): Promise<void> {
   const r = await cellRig(cell, when);
   const entries = r.m.latest().entries;
@@ -124,7 +121,7 @@ test('configure parkable false under show shows a parked or hidden panel and fli
   }
 });
 
-/** Ten scroll panels at 1000 px that show on a flip; the spy counts what the row scroller is asked to glide to. */
+/** Ten scroll panels at 1000 px that show on a flip, with a spy on the row scroller's glideTo. */
 async function scrollRig(scrollOnOpen: 'into-view' | 'none'): Promise<{ r: PinRig; glides: () => number }> {
   const ids = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j'];
   const r = await pinRig({ ids, width: 1000, settings: Object.fromEntries(ids.map((id) => [id, { overflow: 'scroll', pinningWhenNotLive: 'show', scrollOnOpen } as PanelSettings])) });
@@ -180,7 +177,6 @@ test('configure parkable false under apply-on-next-show stores a deferred pin on
   }
 });
 
-/** Brings a closed panel back by the path its status allows: open() past the undo window, an undo inside it. */
 async function reopen(r: PinRig, cell: Cell): Promise<void> {
   if (cell === 'C') r.turn(() => r.h.a!.open());
   else r.turn(() => r.provided().undoClose());
