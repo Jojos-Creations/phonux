@@ -736,7 +736,7 @@ export function createWorkspace(o: WorkspaceOptions = {}): WorkspaceHandle {
     }
   };
 
-  /** Runs one operation: the refusals every state shares first, then the table of design 7.2 by the panel's state. */
+  /** Runs one operation: the refusals every state shares first, then the verb's table by the panel's state. */
   const operate = (id: PanelId, call: PanelVerbCall, src: PanelOpSource): PinResult => {
     const unavailable = lifecycleRefusal(id);
     if (unavailable !== undefined) return unavailable;
