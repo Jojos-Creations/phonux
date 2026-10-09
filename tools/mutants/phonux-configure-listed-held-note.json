@@ -1,0 +1,80 @@
+{
+  "tests": [
+    "test/panel-configure-listed-held-note.test.ts"
+  ],
+  "mutants": [
+    {
+      "name": "the held test is dropped, so a panel the engine parked is told too",
+      "file": "workspaceCore.ts",
+      "find": "outcome.done.shown || status !== 'hidden') return outcome;",
+      "replace": "outcome.done.shown) return outcome;",
+      "expectRed": [
+        "no note for a parked panel the engine parked, nor for a live one"
+      ]
+    },
+    {
+      "name": "the outcome that shows the panel is no longer left out, so a call that frees the panel raises the note",
+      "file": "workspaceCore.ts",
+      "find": "|| outcome.done.shown ||",
+      "replace": "||",
+      "expectRed": [
+        "no note when the same call frees the panel"
+      ]
+    },
+    {
+      "name": "the listing before the call is ignored, so an already unlisted held panel is told again",
+      "file": "workspaceCore.ts",
+      "find": "if (!effective(target).listed || effective(outcome.next).listed) return outcome;",
+      "replace": "if (effective(outcome.next).listed) return outcome;",
+      "expectRed": [
+        "no note when the held panel was already unlisted"
+      ]
+    },
+    {
+      "name": "the listing after the call is ignored, so any change to a held listed panel raises the note",
+      "file": "workspaceCore.ts",
+      "find": "if (!effective(target).listed || effective(outcome.next).listed) return outcome;",
+      "replace": "if (!effective(target).listed) return outcome;",
+      "expectRed": [
+        "each call that unlists a held panel answers its own note"
+      ]
+    },
+    {
+      "name": "the note is also reported through binding.reportNote, so onNote hears it twice",
+      "file": "workspaceCore.ts",
+      "find": "(target, status) => withHoldNote(target, status, planUpdate(target, status))",
+      "replace": "(target, status) => {\n      const out = withHoldNote(target, status, planUpdate(target, status));\n      if ('next' in out) for (const n of out.done.notes) if (n.code === 'hold-unlisted') binding.reportNote(n);\n      return out;\n    }",
+      "expectRed": [
+        "a listed false configure of a held panel answers one hold-unlisted note and reports it once",
+        "each call that unlists a held panel answers its own note"
+      ]
+    },
+    {
+      "name": "the row gesture is consulted, so only a panel whose revealOnScroll resolves to never is told",
+      "file": "workspaceCore.ts",
+      "find": "if (!effective(target).listed || effective(outcome.next).listed) return outcome;",
+      "replace": "if (!effective(target).listed || effective(outcome.next).listed || effective(target).revealOnScroll !== 'never') return outcome;",
+      "expectRed": [
+        "a listed false configure of a held panel answers one hold-unlisted note and reports it once"
+      ]
+    },
+    {
+      "name": "the note is built with the workspace key instead of the engine id",
+      "file": "workspaceCore.ts",
+      "find": "holdUnlistedNote(target.id)",
+      "replace": "holdUnlistedNote(panelKey(target))",
+      "expectRed": [
+        "a listed false configure of a held panel answers one hold-unlisted note and reports it once"
+      ]
+    },
+    {
+      "name": "the outcome that stores a waiting flip is left out, as when the note is decided only at the last return of the update",
+      "file": "workspaceCore.ts",
+      "find": "outcome.done.shown || status !== 'hidden'",
+      "replace": "outcome.done.shown || outcome.next.deferredPin !== undefined || status !== 'hidden'",
+      "expectRed": [
+        "a held panel that becomes unlisted while its parkable flip waits is told once"
+      ]
+    }
+  ]
+}
