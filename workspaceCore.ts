@@ -897,7 +897,9 @@ export function createWorkspace(o: WorkspaceOptions = {}): WorkspaceHandle {
     else templateOverrides.set(templateId, plan.layer);
     refresh();
     const later = checked.names.filter((n) => !sameSettingsValue((before as Record<string, unknown> | undefined)?.[n], (plan.layer as Record<string, unknown>)[n]));
-    return { ok: true, changed: true, shown: false, now: [], later, shadowed: [], notes: [] };
+    const notes: SettingNote[] = checked.names.includes('maxInstances') && !after.multiple ? [{ code: 'max-instances-moot', key: 'maxInstances', message: `maxInstances: template '${templateId}' is not multiple, so this limit has no effect until multiple is true` }] : [];
+    for (const note of notes) binding.reportNote(note);
+    return { ok: true, changed: true, shown: false, now: [], later, shadowed: [], notes };
   };
 
   /** `configureTuning`: the workspace's tuning keys, for this session. */
