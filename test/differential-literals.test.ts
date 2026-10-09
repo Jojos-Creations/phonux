@@ -36,7 +36,6 @@ function occurrences(text: string, search: string): number {
   return text.split(search).length - 1;
 }
 
-/** Each file that holds the name's literal call with its count, in file-name order. */
 function callsOf(texts: Texts, name: string): Array<[file: string, count: number]> {
   const search = searchFor(name);
   const found: Array<[string, number]> = [];
