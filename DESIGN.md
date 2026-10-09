@@ -1109,7 +1109,11 @@ not set, at the host layer, ignored).
 Notes never throw: `park-lever-inert` when a layer sets a park lever (`capacityReturn`, `returnPriority`,
 `evictionRank`, `evictionOrder`) on a panel that resolves to `overflow: 'scroll'`, `pin-unlists` when a pinned half
 names `parkable: false` and `listed` is unset, `override-dropped` when the person's tier is outside `formFactors` or
-a fixed column would not be on the phone tier, and `invalid-saved-setting` for each key a lenient resolve dropped.
+a fixed column would not be on the phone tier, `hold-unlisted` when a hold lands on an unlisted panel (a hide, or a panel
+added or restored parked; through `onNote`, once per panel) and when a `configure` call leaves a held panel unlisted
+(`{ listed: false }`, or a `null` that restores an unlisted derived value, also while a flip of `parkable` waits; in
+`ConfigureResult.notes` and through `onNote`, once per call, whatever the panel's `revealOnScroll`; none when the same
+call shows the panel or is refused), and `invalid-saved-setting` for each key a lenient resolve dropped.
 
 ### Who may set what
 

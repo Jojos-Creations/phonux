@@ -71,6 +71,10 @@
 - `PanelResult` is exported as a type.
 - `undoClose` restores a closed panel through its current settings: `undoPlacement` decides where it lands, and a
   workspace-less host keeps the 0.1.0 behaviour.
+- A `configure` call that leaves a held panel unlisted (`{ listed: false }`, or a `null` that restores an unlisted
+  derived value, also while a flip of `parkable` waits) raises the `hold-unlisted` note, in `ConfigureResult.notes` and
+  through `onNote`, once per call, whatever the panel's `revealOnScroll`; a call that shows the panel or is refused
+  whole raises none.
 
 ### Changed
 
