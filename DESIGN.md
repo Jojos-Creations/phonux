@@ -1133,6 +1133,8 @@ layer the call saw; a panel the update removed stays removed. What a view asked 
 the session as the panel's host layer, under the instance layer: `null` on a key the view asked for shows the ask again with
 source `host`, and the file keeps the ask merged into the instance layer, so a new launch reads it as the instance layer's own.
 
+A `configure` of `parkable` on a panel that is not live follows `pinningWhenNotLive` as `pin` does; see "Pinning and reset".
+
 ### Pin definitions
 
 A `pinning` definition is valid only if a drag cannot make it unreadable, because pinned is read from the panel and
@@ -1352,6 +1354,7 @@ A verb names a panel, never a row index, and resolves it on every call: a handle
 - **Not live.** `pinningWhenNotLive` answers for a parked or hidden panel: `place-only` applies a placement-only half in place and answers `would-reshape-row` for a half naming `parkable`; `refuse` always answers `would-reshape-row`; `show` shows the panel and applies the half in one commit; `apply-on-next-show` stores the half on the entry. A closed declared panel stores it on its record instead.
 - **Deferred pins.** A stored half is applied inside the update of every path that makes the panel live: `show`, a History click, a Host-bag activate, the row gesture, an automatic return, an undo and `open`. It is re-checked there and dropped with the note `deferred-pin-dropped` when it no longer applies. A fixing half sets `live` so a fixed column is never parked. It is session only and never saved.
 - **The person's pin.** A person's pin records `overrides.anchor` (every id, when the half names a placement) and `overrides.parkable` (when it names `parkable`) through `recordOverride`; a code pin flips `parkable` for the session and records nothing.
+- **Configure of parkable.** A `configure` that names `parkable` on a parked, hidden or closed panel goes through `decidePinChange` like `pin`, reading `pinningWhenNotLive` as it stood before the patch: `place-only` and `refuse` answer `would-reshape-row` (`is-closed` for a closed panel), `show` shows the panel and flips it in one commit with `shown: true`, `apply-on-next-show` stores the half as a deferred pin and lists `parkable` in `later`. A closed panel's stored half lives on its record, is never saved, and is applied by `open` or an undo. A flip that changes nothing the panel reads, as when the person's override outvotes it, is no pin change and is never refused or stored. A `configure` that names `parkable` cancels a stored half on a parked, hidden or closed panel alike, even when the patch changes no layer value. The rest of the patch is written with a stored flip, and a refused flip refuses the whole patch.
 - **Reset.** `resetLayout` writes `overrides` only through `clearOverrides`, clears stored deferrals and re-places each named panel by its resolved `placeOnAdd`. `'all'` scrolls nothing; one id follows `scrollOnMove`.
 
 ## Doc comments

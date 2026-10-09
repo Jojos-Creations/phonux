@@ -19,6 +19,10 @@
   deferred pin decide what a parked, hidden or closed panel does, a person's pin is saved as `overrides.parkable`, and
   `resetLayout(id | 'all')` on the manager clears overrides and deferred pins and re-places by default. The result types
   `PinResult` and `ResetResult` are exported; `PanelWindow` gains the session-only `deferredPin`.
+- A `configure` of `parkable` on a parked, hidden, closed or undo-window panel follows `pinningWhenNotLive` as `pin()` does:
+  it is refused (`would-reshape-row`, or `is-closed` for a closed panel), shows the panel and flips it in one commit
+  (`shown: true`), or waits as a deferred pin listed in `later`. A flip that changes nothing the panel reads is never
+  refused or deferred, and a `configure` that names `parkable` cancels a waiting flip.
 - `PanelWindow` gains the optional `instance`, `overrides`, `applied` and `declared`, and `PanelsInput` gains
   `templates` and `declared`: a workspace file now remembers what a person moved or resized (`overrides`), the
   `placeOnAdd` that placed each panel (`applied`) and the layer a panel was made with (`instance`), so a changed default

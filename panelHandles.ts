@@ -40,7 +40,7 @@ export interface PanelHandle<P extends JsonValue = JsonValue> extends PanelReadH
   pin(source?: 'code' | 'person'): PinResult;
   /** Applies the unpinned half of the panel's `pinning` in one commit: the panel is freed, then placed, so a fixed pin can always be undone. */
   unpin(source?: 'code' | 'person'): PinResult;
-  /** Changes settings of this panel after it was added; `null` removes an instance value. All or nothing, in one update; the result says what acts now and what waits. */
+  /** Changes settings of this panel after it was added; `null` removes an instance value. All or nothing, in one update; the result says what acts now and what waits. A flip of `parkable` on a panel that is not live follows `pinningWhenNotLive`: it may be refused with `would-reshape-row` or `is-closed`, show the panel, or wait and be listed in `later`. */
   configure(patch: InstancePatch): ConfigureResult;
 }
 
