@@ -357,7 +357,7 @@ test('a parkable flip to false needs the phone tier', async () => {
   assert.equal(r.entry('b').collapsible, true);
 });
 
-test('multiple true to false with 2 instances is instance-limit and closes nothing; with 1 it is ok', async () => {
+test('multiple true to false with 2 instances is instance-limit and closes nothing, and a closed one still counts', async () => {
   const r = await multiRig({});
   r.turn(() => void [r.ws.addPanel('m', { id: 'm1' }), r.ws.addPanel('m', { id: 'm2' })]);
   await r.settle();
@@ -368,7 +368,7 @@ test('multiple true to false with 2 instances is instance-limit and closes nothi
   assert.equal(live(), 2, 'nothing was closed');
   r.turn(() => r.ws.panels.get('m1')!.close());
   await r.settle();
-  assert.equal(done(r.turn(() => r.ws.panels.configureTemplate('m', { multiple: false }))).changed, true);
+  assert.match(refusedWith(r.turn(() => r.ws.panels.configureTemplate('m', { multiple: false })), 'instance-limit').message, /2 instances exist/);
 });
 
 test('maxInstances 5 to 1 with 3 live is instance-limit, and 1 to 5 is ok', async () => {

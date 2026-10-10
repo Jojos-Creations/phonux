@@ -1,0 +1,70 @@
+{
+  "tests": ["test/panel-configure-moot-note.test.ts"],
+  "mutants": [
+    {
+      "name": "the loop that reports the notes through binding.reportNote is removed",
+      "file": "workspaceCore.ts",
+      "find": "for (const note of notes) binding.reportNote(note);",
+      "replace": "",
+      "expectRed": [
+        "a maxInstances patch on a template that is not multiple answers one moot note and reports it once",
+        "each call that stores a patch naming the key answers its own note"
+      ]
+    },
+    {
+      "name": "the answer keeps notes: [] while the note is still reported",
+      "file": "workspaceCore.ts",
+      "find": "shadowed: [], notes };",
+      "replace": "shadowed: [], notes: [] };",
+      "expectRed": [
+        "a maxInstances patch on a template that is not multiple answers one moot note and reports it once",
+        "each call that stores a patch naming the key answers its own note"
+      ]
+    },
+    {
+      "name": "the resolved-multiple condition is dropped: a multiple template is told its limit is moot",
+      "file": "workspaceCore.ts",
+      "find": "checked.names.includes('maxInstances') && !after.multiple",
+      "replace": "checked.names.includes('maxInstances')",
+      "expectRed": ["no note when the template is multiple after the patch, or when the patch does not name maxInstances"]
+    },
+    {
+      "name": "the named-key condition is dropped: every change to a template that is not multiple carries the note",
+      "file": "workspaceCore.ts",
+      "find": "checked.names.includes('maxInstances') && !after.multiple",
+      "replace": "!after.multiple",
+      "expectRed": ["no note when the template is multiple after the patch, or when the patch does not name maxInstances"]
+    },
+    {
+      "name": "each note is reported twice",
+      "file": "workspaceCore.ts",
+      "find": "for (const note of notes) binding.reportNote(note);",
+      "replace": "for (const note of notes) { binding.reportNote(note); binding.reportNote(note); }",
+      "expectRed": [
+        "a maxInstances patch on a template that is not multiple answers one moot note and reports it once",
+        "each call that stores a patch naming the key answers its own note"
+      ]
+    },
+    {
+      "name": "the note is reported before any refusal can end the call",
+      "file": "workspaceCore.ts",
+      "find": "const after = resolve(",
+      "replace": "if (checked.names.includes('maxInstances')) binding.reportNote({ code: 'max-instances-moot', key: 'maxInstances', message: 'early' });\n    const after = resolve(",
+      "expectRed": ["a refused call raises no note"]
+    },
+    {
+      "name": "configure with an id accepts the template key maxInstances",
+      "file": "panelConfigure.ts",
+      "find": "if (d.configure.doors.includes(door)) return undefined;",
+      "replace": "if (d.configure.doors.includes(door) || name === 'maxInstances') return undefined;",
+      "expectRed": ["the key is a template key: configure, the panel handle and configureTuning refuse it and report nothing"]
+    },
+    {
+      "name": "the note's condition reads the settings this call changed instead of the settings the patch names",
+      "file": "workspaceCore.ts",
+      "find": "checked.names.includes('maxInstances') && !after.multiple",
+      "replace": "later.includes('maxInstances') && !after.multiple",
+      "expectRed": ["each call that stores a patch naming the key answers its own note"]
+    }
+  ]
+}
