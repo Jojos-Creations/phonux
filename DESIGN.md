@@ -880,6 +880,9 @@ offset plus the scroll distance, so the hop rule sees where the box really is, a
 two springs over distances this different would land in different frames. The claim goes back before the hop is
 reported, so the scroll the hop causes is not dropped; a `pointercancel`, which a native pan sends, ends the hold with
 no hop. A touch drag never edge-scrolls: the handle is `touch-action: pan-x`, so a touch swipe is a native pan.
+The hold keeps the mode and the three edge numbers (`zonePx`, `maxPxPerSec`, `reducedStepMs`) the drag locked with,
+so a `configure` made while the pointer is down reaches the next drag; the bound, the panel stops and `animated` are
+read again every frame, and the hold ends when the row stops scrolling.
 
 **Alternatives to the gesture.** WCAG 2.5.7 asks for a single-pointer alternative: offer a button that calls
 the same `onClose`, as History's trash buttons do. The row's drag-to-reorder needs one too; `PanelsAPI.move`
@@ -1014,9 +1017,12 @@ never gains a `snapshot` field for the same reason `PanelWindow`'s host-only fie
 it -- is declared in `snapshots.ts`, beside `CaptureRegistry`. phonux only says WHEN. A provider with no `capture`
 input uses `noopCaptureTrigger`, so phonux never captures by itself; a host that wants real pictures passes its own
 trigger. A panel's `snapshot` setting says which events ask: 'both' (the default), 'park', 'close' or 'never',
-and 'never' also skips the evict call. The two eviction paths differ in timing: `clearAll` evicts every dropped panel's picture at once, because
-a dropped panel can never be shown again, while a closed panel's picture waits for its undo window (Undo keeps it;
-the window's natural elapse evicts it). Known limit: a capture already in flight can still store its picture after
+and 'never' also skips the evict call. The three eviction paths differ in timing: `clearAll` evicts every dropped panel's picture at once, because
+a dropped panel can never be shown again; a closed panel's picture waits for its undo window (Undo keeps it;
+the window's natural elapse evicts it); and switching a panel's `snapshot` to 'never' through `configure` asks the host to evict its
+picture once, from the commit's layout effect and never from the configure updater (React may run it twice). A `configure` on a
+closed record asks nothing at the call, and the end of its undo window evicts the picture of a panel that closed reading a value
+other than 'never'. Known limit: a capture already in flight can still store its picture after
 an evict, because the store has no per-id generation, so a panel parked and then cleared within one engine call can
 end up with a picture nothing evicts.
 
@@ -1119,7 +1125,12 @@ not set, at the host layer, ignored).
 Notes never throw: `park-lever-inert` when a layer sets a park lever (`capacityReturn`, `returnPriority`,
 `evictionRank`, `evictionOrder`) on a panel that resolves to `overflow: 'scroll'`, `pin-unlists` when a pinned half
 names `parkable: false` and `listed` is unset, `override-dropped` when the person's tier is outside `formFactors` or
-a fixed column would not be on the phone tier, and `invalid-saved-setting` for each key a lenient resolve dropped.
+a fixed column would not be on the phone tier, `max-instances-moot` when `configureTemplate` names `maxInstances`
+on a template that resolves to `multiple: false`, `hold-unlisted` when a hold lands on an unlisted panel (a hide, or a
+panel added or restored parked; through `onNote`, once per panel) and when a `configure` call leaves a held panel
+unlisted (`{ listed: false }`, or a `null` that restores an unlisted derived value, also while a flip of `parkable`
+waits; in `ConfigureResult.notes` and through `onNote`, once per call, whatever the panel's `revealOnScroll`; none when
+the same call shows the panel or is refused), and `invalid-saved-setting` for each key a lenient resolve dropped.
 
 ### Who may set what
 
@@ -1142,6 +1153,19 @@ queued behind another call's update of the same entry in one turn applies to the
 layer the call saw; a panel the update removed stays removed. What a view asked for at a Host-bag `create` is kept apart for
 the session as the panel's host layer, under the instance layer: `null` on a key the view asked for shows the ask again with
 source `host`, and the file keeps the ask merged into the instance layer, so a new launch reads it as the instance layer's own.
+
+`configureTemplate` naming `maxInstances` on a template that resolves to `multiple: false` still stores the limit, which has
+no effect until `multiple` is true, and answers one `max-instances-moot` note in `ConfigureResult.notes` and through
+`onNote`, once per call. A refused call or a call that changes nothing answers none.
+
+`configureTemplate(id, { multiple: false })` counts the template's row entries, its declared panels that are closed (inside
+the undo window or past it) and its anonymous panels inside the undo window, and counts no panel of another template. It is
+accepted only when none exists or the only one is the instance named like the template; any other count answers
+`instance-limit` with that number and writes nothing. Lowering `maxInstances` counts row entries and panels still being
+added only, because a closed panel competes for a slot when it reopens and does not occupy one. The creation paths use that
+same count, so a reopen never counts the record it reopens.
+
+A `configure` of `parkable` on a panel that is not live follows `pinningWhenNotLive` as `pin` does; see "Pinning and reset".
 
 ### Pin definitions
 
@@ -1362,6 +1386,7 @@ A verb names a panel, never a row index, and resolves it on every call: a handle
 - **Not live.** `pinningWhenNotLive` answers for a parked or hidden panel: `place-only` applies a placement-only half in place and answers `would-reshape-row` for a half naming `parkable`; `refuse` always answers `would-reshape-row`; `show` shows the panel and applies the half in one commit; `apply-on-next-show` stores the half on the entry. A closed declared panel stores it on its record instead.
 - **Deferred pins.** A stored half is applied inside the update of every path that makes the panel live: `show`, a History click, a Host-bag activate, the row gesture, an automatic return, an undo and `open`. It is re-checked there and dropped with the note `deferred-pin-dropped` when it no longer applies. A fixing half sets `live` so a fixed column is never parked. It is session only and never saved.
 - **The person's pin.** A person's pin records `overrides.anchor` (every id, when the half names a placement) and `overrides.parkable` (when it names `parkable`) through `recordOverride`; a code pin flips `parkable` for the session and records nothing.
+- **Configure of parkable.** A `configure` that names `parkable` on a parked, hidden or closed panel goes through `decidePinChange` like `pin`, reading `pinningWhenNotLive` as it stood before the patch: `place-only` and `refuse` answer `would-reshape-row` (`is-closed` for a closed panel), `show` shows the panel and flips it in one commit with `shown: true`, `apply-on-next-show` stores the half as a deferred pin and lists `parkable` in `later`. A closed panel's stored half lives on its record, is never saved, and is applied by `open` or an undo. A flip that changes nothing the panel reads, as when the person's override outvotes it, is no pin change and is never refused or stored. A `configure` that names `parkable` cancels a stored half on a parked, hidden or closed panel alike, even when the patch changes no layer value. The rest of the patch is written with a stored flip, and a refused flip refuses the whole patch.
 - **Reset.** `resetLayout` writes `overrides` only through `clearOverrides`, clears stored deferrals and re-places each named panel by its resolved `placeOnAdd`. `'all'` scrolls nothing; one id follows `scrollOnMove`.
 
 ## Doc comments

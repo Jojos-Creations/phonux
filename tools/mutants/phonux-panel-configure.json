@@ -44,7 +44,7 @@
       "file": "panelConfigure.ts",
       "find": "let next = reparked(entry, plan.resolution);",
       "replace": "let next = { ...reparked(entry, plan.resolution), formFactor: 'tablet' as const };",
-      "expectRed": ["writer: a parkable flip to false makes the panel live"]
+      "expectRed": ["class law: a NOW key changes only the fields it names"]
     },
     {
       "name": "configureTemplate checks its patch as a panel call",

@@ -40,7 +40,11 @@ import {
 
 export interface UsePanelManagerResult {
   revealPanelProactively: (panelsNow: PanelWindow[], apply: (prev: PanelWindow[]) => PanelWindow[]) => void;
-  handleActivatePanel: (id: string, pin?: PinChange) => void;
+  /**
+   * Shows panel `id` the way a click on it does, landing it by `pin` when given. `from` is the row the landing is planned
+   * against, this render's list when omitted.
+   */
+  handleActivatePanel: (id: string, pin?: PinChange, from?: PanelWindow[]) => void;
   /** Removes `id` from the collapse-order stack, so a closed panel (or one `undoClose` restores) leaves no stale entry for a later reveal. */
   forgetCollapsed: (id: string) => void;
   /**
@@ -524,8 +528,8 @@ export function usePanelManager(
    * Clicking ANY row -- live or parked alike -- activates it (promoteToLive's own doc
    * comment has the full "make/keep it live, preserve array order" spec).
    */
-  const handleActivatePanel = (id: string, pin?: PinChange): void => {
-    const target = panels.find((p) => p.id === id);
+  const handleActivatePanel = (id: string, pin?: PinChange, from: PanelWindow[] = panels): void => {
+    const target = from.find((p) => p.id === id);
     if (!target || target.live) return;
     markKeepLive(id);
     const keep = [...keptIds()];
@@ -535,8 +539,8 @@ export function usePanelManager(
     clearEnterSide(id);
     // Re-placed before it goes live, in the same update; the updaters below place again over the latest list.
     const showAt = effective(target).placeOnShow;
-    const landed = landOn(panels, id, showAt, pin);
-    const before = showAt === 'in-place' && !landed.pinned ? panels : landed.row;
+    const landed = landOn(from, id, showAt, pin);
+    const before = showAt === 'in-place' && !landed.pinned ? from : landed.row;
     const result = before.some((p) => p.id === id && p.live) ? before : promoteToLive(before, id, capacity, keptIds());
     if (!result) return;
     reportNotes(options?.onNote, landed.notes);

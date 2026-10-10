@@ -1,0 +1,72 @@
+{
+  "tests": [
+    "test/edge-scroll-in-flight.test.ts",
+    "test/edge-scroll-cancel.test.ts"
+  ],
+  "mutants": [
+    {
+      "name": "the frame loop gives up when the live mode is not edge",
+      "file": "dragToClose.tsx",
+      "find": "if (h.stopped || slot === undefined) return;",
+      "replace": "if (h.stopped || slot === undefined || slot.mode !== 'edge') return;",
+      "expectRed": [
+        "scrollOnDrag edge to none mid-drag: this drag keeps scrolling"
+      ]
+    },
+    {
+      "name": "the zone is the live one, not the one the drag locked with",
+      "file": "dragToClose.tsx",
+      "find": "zonePx: h.began.zonePx",
+      "replace": "zonePx: slot.zonePx",
+      "expectRed": [
+        "tuning.edgeScroll zonePx 48 to 12 mid-drag"
+      ]
+    },
+    {
+      "name": "the top speed is the live one, not the one the drag locked with",
+      "file": "dragToClose.tsx",
+      "find": "maxPxPerSec: h.began.maxPxPerSec",
+      "replace": "maxPxPerSec: slot.maxPxPerSec",
+      "expectRed": [
+        "tuning.edgeScroll maxPxPerSec 900 to 450 mid-drag"
+      ]
+    },
+    {
+      "name": "the reduced-motion dwell is the live one, not the one the drag locked with",
+      "file": "dragToClose.tsx",
+      "find": "h.began.reducedStepMs) {",
+      "replace": "slot.reducedStepMs) {",
+      "expectRed": [
+        "tuning.edgeScroll reducedStepMs 500 to 250 mid-drag"
+      ]
+    },
+    {
+      "name": "the hold ends when the live mode is not edge, not when the row stops scrolling",
+      "file": "dragToClose.tsx",
+      "find": "const rowScrolls = dragScroll !== undefined;",
+      "replace": "const rowScrolls = dragScroll?.mode === 'edge';",
+      "expectRed": [
+        "scrollOnDrag edge to none mid-drag: this drag keeps scrolling"
+      ]
+    },
+    {
+      "name": "the lock takes the claim whatever the mode",
+      "file": "dragToClose.tsx",
+      "find": "if (p === null || slot === undefined || slot.mode !== 'edge') return;",
+      "replace": "if (p === null || slot === undefined) return;",
+      "expectRed": [
+        "scrollOnDrag none to edge mid-drag: this drag stays still",
+        "scrollOnDrag edge to none mid-drag: the next drag reads none"
+      ]
+    },
+    {
+      "name": "the row ceasing to scroll no longer ends the hold",
+      "file": "dragToClose.tsx",
+      "find": "if (!rowScrolls) end();",
+      "replace": "if (!rowScrolls) return;",
+      "expectRed": [
+        "the row ceasing to scroll mid-hold gives the claim back and the row stops where it is"
+      ]
+    }
+  ]
+}

@@ -272,7 +272,7 @@ test('source: a configure writes an entry only through applyTemplate\'s reconfig
     const calls = [...stripComments(read(file), file).matchAll(/\bapplyTemplate\(([^;]*?), '(create|reconfigure)'\)/g)].map((m) => m[2]);
     assert.deepEqual(calls, file === 'panelPin.ts' ? ['reconfigure'] : file === 'workspaceCore.ts' ? ['create'] : [], `${file}: applyTemplate calls (workspaceCore's one is the root entry's creation)`);
   }
-  assert.deepEqual(configureWriters(read), ['panelPin.ts reparked:live', 'workspaceCore.ts configureOne:settings', 'workspaceCore.ts configureOne:settings'], 'the only other writes: the fixed-column flip in reparked, and the record\'s own layer');
+  assert.deepEqual(configureWriters(read), ['panelPin.ts reparked:live', 'workspaceCore.ts configureOne:settings'], 'the only other writes: the fixed-column flip in reparked, and the record\'s own layer');
 
   const dir = mkdtempSync(join(tmpdir(), 'phonux-invariants-'));
   try {
@@ -284,7 +284,7 @@ test('source: a configure writes an entry only through applyTemplate\'s reconfig
     };
     assert.deepEqual(
       planted('panelConfigure.ts', 'export function plantedWriter(p: PanelWindow): PanelWindow {\n  const q = { ...p, locked: true, formFactor: \'tablet\' as const };\n  q.collapsible = false;\n  return q;\n}'),
-      ['panelConfigure.ts plantedWriter:collapsible', 'panelConfigure.ts plantedWriter:formFactor', 'panelConfigure.ts plantedWriter:locked', 'panelPin.ts reparked:live', 'workspaceCore.ts configureOne:settings', 'workspaceCore.ts configureOne:settings'],
+      ['panelConfigure.ts plantedWriter:collapsible', 'panelConfigure.ts plantedWriter:formFactor', 'panelConfigure.ts plantedWriter:locked', 'panelPin.ts reparked:live', 'workspaceCore.ts configureOne:settings'],
       'a second writer in panelConfigure.ts is found, all three of its writes',
     );
     assert.deepEqual(
