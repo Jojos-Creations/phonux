@@ -1,0 +1,53 @@
+{
+  "tests": [
+    "test/differential-literals.test.ts"
+  ],
+  "mutants": [
+    {
+      "name": "the toggleWhenClosed call is renamed, so no literal call carries the name",
+      "file": "test/panel-manager-operations.test.ts",
+      "find": "differential('toggleWhenClosed',",
+      "replace": "differential('toggleWhenClosed_',",
+      "expectRed": [
+        "every catalog name has exactly one literal differential call across the test files"
+      ]
+    },
+    {
+      "name": "the afterClose call in the attach file is renamed, so no literal call carries the name",
+      "file": "test/workspace-attach.test.ts",
+      "find": "differential('afterClose',",
+      "replace": "differential('afterClose_',",
+      "expectRed": [
+        "every catalog name has exactly one literal differential call across the test files"
+      ]
+    },
+    {
+      "name": "the showWhenClosed call is renamed to toggleWhenClosed, so one name has two calls and one has none",
+      "file": "test/panel-manager-operations.test.ts",
+      "find": "differential('showWhenClosed',",
+      "replace": "differential('toggleWhenClosed',",
+      "expectRed": [
+        "every catalog name has exactly one literal differential call across the test files"
+      ]
+    },
+    {
+      "name": "a second afterClose call sits in the tombstones file, which no owning entry names",
+      "file": "test/workspace-tombstones.test.ts",
+      "find": "import { DISMISSED_LIMIT } from '../workspaceState.js';",
+      "replace": "import { DISMISSED_LIMIT } from '../workspaceState.js';\nvoid \"differential('afterClose', 0)\";",
+      "expectRed": [
+        "every catalog name has exactly one literal differential call across the test files",
+        "the file holding each name's literal differential call is one an owning entry names"
+      ]
+    },
+    {
+      "name": "the search counts a file once however many calls it holds",
+      "file": "test/differential-literals.test.ts",
+      "find": "text.split(search).length - 1",
+      "replace": "text.includes(search) ? 1 : 0",
+      "expectRed": [
+        "the search finds a literal call, ignores a renamed one and counts a repeat"
+      ]
+    }
+  ]
+}

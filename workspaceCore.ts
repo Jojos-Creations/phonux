@@ -6,12 +6,12 @@
  */
 import type { JsonValue } from './hostApi.js';
 import type { FormFactor } from './hostApi.js';
-import { checkPatch, configured, ownLayer, planInstance, planTemplate, planTuning, reconfigured, unchanged, type ConfigureOutcome, type HostSplit } from './panelConfigure.js';
+import { askedFlip, cancelled, checkPatch, configured, deferredEntry, deferredResult, ownLayer, planInstance, planTemplate, planTuning, reconfigured, refusedFlip, refusedPlan, sameDeferral, shownEntry, shownResult, unchanged, withoutFlip, type ConfigureOutcome, type HostSplit, type InstancePlan } from './panelConfigure.js';
 import { makeHandle, makeOwnHandle, makeReader, makeViewHandle, type PanelHandle, type PanelVerbCall, type ReadSource } from './panelHandles.js';
 import { accepted, makePanelManager, refused, type ConfigureResult, type PanelManager, type PanelOpSource, type PanelResult, type PinResult, type ResetResult } from './panelManager.js';
 import { PanelManagerError } from './panelManagerError.js';
-import { decidePinChange, isPinned, type PinStatus } from './panelPin.js';
-import { applyTemplate, effective, panelKey, resolvePanelSettings, resolveUnderTuning, sameSettingsValue } from './panelSettings.js';
+import { decidePinChange, isPinned, withoutDeferral, type PinChange, type PinDecision, type PinStatus } from './panelPin.js';
+import { applyTemplate, effective, holdUnlistedNote, panelKey, resolvePanelSettings, resolveUnderTuning, sameSettingsValue } from './panelSettings.js';
 import type { AddPlacement, PanelId, PanelSettings, PanelSettingsResolution, ResolvedPanelSettings, ResolvedPanelTuning, ResolvedWorkspaceTuning, ScrollAlign, SettingNote, WorkspaceTuning } from './panelSettings.js';
 import { definePanel } from './panelTemplate.js';
 import type { DeferredPin, PanelReader, PanelReadHandle, PanelSnapshot, PanelState, PanelTemplate, ViewHandle, WorkspaceStatus } from './panelTemplate.js';
@@ -242,6 +242,14 @@ const sameState = (a: PanelState, b: PanelState): boolean =>
   JSON.stringify(a.params) === JSON.stringify(b.params) &&
   JSON.stringify(a.deferredPin) === JSON.stringify(b.deferredPin) &&
   sameSettingsValue(a.settings, b.settings);
+
+/** `outcome` with the hold-unlisted note appended to its answer when the update leaves a listed, held panel unlisted. */
+function withHoldNote(target: PanelWindow, status: 'live' | 'parked' | 'hidden', outcome: ConfigureOutcome): ConfigureOutcome {
+  // Only the finished outcome says whether a flip of parkable was refused, showed the panel or left it held.
+  if (!('next' in outcome) || outcome.done.shown || status !== 'hidden') return outcome;
+  if (!effective(target).listed || effective(outcome.next).listed) return outcome;
+  return { ...outcome, done: { ...outcome.done, notes: [...outcome.done.notes, holdUnlistedNote(target.id)] } };
+}
 
 /**
  * A workspace over `o`. Nothing renders until `useProvidePanels({ workspace })` attaches it; panels added before that
@@ -592,12 +600,14 @@ export function createWorkspace(o: WorkspaceOptions = {}): WorkspaceHandle {
     return applyTemplate({ ...createHistoryPanel(root.id), title: res.value.title ?? '', view: root.id, ...(root.params !== undefined ? { params: root.params } : {}), key: root.id }, res.value, 'create');
   };
 
-  const instancesOf = (templateId: string): number => {
+  const instanceKeys = (templateId: string): Set<PanelId> => {
     const keys = new Set<PanelId>();
     for (const e of committed?.entries ?? []) if (e.view === templateId && e.marker !== true && e.id !== rootId) keys.add(panelKey(e));
     for (const r of records.values()) if (r.templateId === templateId && !r.closed && (inflight.has(r.id) || (r.intent && status !== 'ready'))) keys.add(r.id);
-    return keys.size;
+    return keys;
   };
+
+  const instancesOf = (templateId: string): number => instanceKeys(templateId).size;
 
   const validateExplicitId = (id: unknown, t: PanelTemplate): void => {
     if (typeof id !== 'string') throw new PanelManagerError('invalid-options', 'id must be a string');
@@ -694,12 +704,18 @@ export function createWorkspace(o: WorkspaceOptions = {}): WorkspaceHandle {
     return result;
   };
 
+  /** What a closed panel with a record is to a pin change: inside the undo window, or past it. */
+  const closedStatus = (rec: Rec): PinStatus => (rec.lastEngineId !== undefined && commit!.ops.inUndoWindow(rec.lastEngineId) ? 'undo' : 'closed-declared');
+
+  /** What `change` does to the closed panel `state` with the record `rec`; a function of its own because configureOne must not name an entry field. */
+  const closedDecision = (rec: Rec, state: PanelState, change: PinChange): PinDecision => decidePinChange({ settings: state.settings }, closedStatus(rec), state.settings.pinningWhenNotLive, change);
+
   /** `pin()` or `unpin()` on a closed panel: refused, or stored on its record for `open()` or an undo to apply. A closed panel reads unpinned, so `unpin()` and a half that names nothing cancel what is stored. */
   const pinClosed = (id: PanelId, state: PanelState, verb: 'pin' | 'unpin'): PinResult => {
     const rec = records.get(id);
     const closed = refused('is-closed', `panel '${id}' is closed`);
     if (rec === undefined || (rec.anonymous && !rec.closed)) return closed;
-    const status: PinStatus = rec.lastEngineId !== undefined && commit!.ops.inUndoWindow(rec.lastEngineId) ? 'undo' : 'closed-declared';
+    const status = closedStatus(rec);
     const change = { by: verb } as const;
     if (decidePinChange({ settings: state.settings }, status, state.settings.pinningWhenNotLive, change).kind !== 'defer') return closed;
     const half = verb === 'pin' ? state.settings.pinning.pinned : state.settings.pinning.unpinned;
@@ -734,7 +750,7 @@ export function createWorkspace(o: WorkspaceOptions = {}): WorkspaceHandle {
     }
   };
 
-  /** Runs one operation: the refusals every state shares first, then the table of design 7.2 by the panel's state. */
+  /** Runs one operation: the refusals every state shares first, then the verb's table by the panel's state. */
   const operate = (id: PanelId, call: PanelVerbCall, src: PanelOpSource): PinResult => {
     const unavailable = lifecycleRefusal(id);
     if (unavailable !== undefined) return unavailable;
@@ -816,6 +832,13 @@ export function createWorkspace(o: WorkspaceOptions = {}): WorkspaceHandle {
   /** A refusal `lifecycleRefusal` or a state check produced, as the failing arm of a `ConfigureResult`. */
   const failed = (r: PanelResult): ConfigureResult => (r.ok ? unchanged() : r);
 
+  /** The instance layer, and the Host-bag split with it, that the panel `id` running as `engineId` resolves under from now on. */
+  const storeLayer = (id: PanelId, engineId: string, layer: PanelSettings, split: HostSplit | undefined): void => {
+    const rec = records.get(id);
+    if (rec !== undefined) rec.settings = layer;
+    if (split !== undefined) splits.set(engineId, split);
+  };
+
   /** `configure(id, patch)` from the panel's own caller or from its view: the gate, the checks, then one update through the engine. */
   const configureOne = (id: PanelId, patch: unknown, caller: 'panel' | 'view'): ConfigureResult => {
     const checked = checkPatch(caller, patch);
@@ -827,36 +850,81 @@ export function createWorkspace(o: WorkspaceOptions = {}): WorkspaceHandle {
     if (state.status === 'pending') return failed(refused('is-pending', `panel '${id}' is still being added`));
     const asked = patch as SettingsPatch;
     const input = { call: caller, patch: asked, names: checked.names, workspace: defaults, tuning: tuningInput };
+    const rest = withoutFlip(asked, checked.names);
     if (state.status === 'closed') {
       const rec = records.get(id);
       if (rec === undefined || (rec.anonymous && !rec.closed)) return failed(refused('is-closed', `panel '${id}' is closed and nothing can name it again`));
-      const plan = planInstance({ ...input, base: rec.settings, template: templateOf(rec.templateId)?.settings, split: rec.lastEngineId === undefined ? undefined : splits.get(rec.lastEngineId), person: undefined, current: undefined, root: false, tier: undefined, status: 'closed' });
-      if (!plan.ok) return { ok: false, code: plan.code, message: `panel '${id}': ${plan.message}`, ...(plan.setting === undefined ? {} : { setting: plan.setting }) };
-      if (!plan.changed) return unchanged();
-      rec.settings = plan.layer;
-      if (rec.lastEngineId !== undefined && plan.split !== undefined) splits.set(rec.lastEngineId, plan.split);
+      const planFor = (ask: typeof rest): InstancePlan => planInstance({ ...input, ...ask, base: rec.settings, template: templateOf(rec.templateId)?.settings, split: rec.lastEngineId === undefined ? undefined : splits.get(rec.lastEngineId), person: undefined, current: undefined, root: false, tier: undefined, status: 'closed' });
+      const plan = planFor(input);
+      if (!plan.ok) return refusedPlan(id, plan);
+      if (!plan.changed) {
+        if (asked.parkable === undefined || rec.deferredPin === undefined) return unchanged();
+        rec.deferredPin = undefined;
+        refresh();
+        return cancelled();
+      }
+      const flip = askedFlip(asked, plan, state.settings.parkable);
+      const decision = flip === undefined ? undefined : closedDecision(rec, state, flip);
+      if (decision?.kind === 'refuse') return refusedFlip(id, decision.code!);
+      const waits = decision?.kind === 'defer' ? flip : undefined;
+      const applied = waits === undefined ? plan : planFor(rest);
+      if (!applied.ok) return refusedPlan(id, applied);
+      if (applied.changed) {
+        rec.settings = applied.layer;
+        if (rec.lastEngineId !== undefined && applied.split !== undefined) splits.set(rec.lastEngineId, applied.split);
+      }
+      const stored = rec.deferredPin;
+      if (waits !== undefined) rec.deferredPin = waits;
+      else if (plan.cancelsPin) rec.deferredPin = undefined;
       refresh();
-      return configured(plan);
+      return waits === undefined ? configured(plan) : deferredResult(applied, !sameDeferral(stored, waits));
     }
     let layer: PanelSettings | undefined;
     let split: HostSplit | undefined;
     // The update plans again when an earlier update of the turn rebuilt the entry, and by then the record already holds the new layer: the base must stay the one the call saw.
     let base: { layer: PanelSettings | undefined; split: HostSplit | undefined } | undefined;
-    const result = commit!.ops.configure(state.engineId!, (target, status): ConfigureOutcome => {
+    const planUpdate = (target: PanelWindow, status: 'live' | 'parked' | 'hidden'): ConfigureOutcome => {
       base ??= { layer: instanceLayer(target), split: splits.get(target.id) };
-      const plan = planInstance({ ...input, base: base.layer, template: templateOf(target.view)?.settings, split: base.split, person: target.overrides, current: target.settings, root: target.id === rootId, tier: target.formFactor ?? 'phone', status });
-      if (!plan.ok) return { done: { ok: false, code: plan.code, message: `panel '${id}': ${plan.message}`, ...(plan.setting === undefined ? {} : { setting: plan.setting }) } };
-      if (!plan.changed) return { done: unchanged() };
+      const seen = base;
+      const planFor = (ask: typeof rest): InstancePlan => planInstance({ ...input, ...ask, base: seen.layer, template: templateOf(target.view)?.settings, split: seen.split, person: target.overrides, current: target.settings, root: target.id === rootId, tier: target.formFactor ?? 'phone', status });
+      const plan = planFor(input);
+      if (!plan.ok) return { done: refusedPlan(id, plan) };
+      if (!plan.changed) return asked.parkable !== undefined && target.deferredPin !== undefined ? { done: cancelled(), next: withoutDeferral(target) } : { done: unchanged() };
+      const flip = askedFlip(asked, plan, effective(target).parkable);
+      const decision = flip === undefined ? undefined : decidePinChange(target, status, effective(target).pinningWhenNotLive, flip);
+      if (flip !== undefined && decision?.kind === 'refuse') return { done: refusedFlip(id, decision.code!) };
+      if (flip !== undefined && decision?.kind === 'show') {
+        const others = planFor(rest);
+        if (!others.ok) return { done: refusedPlan(id, others) };
+        // The show path resolves the panel through its record, so the record holds the whole patch before the path starts.
+        storeLayer(id, target.id, plan.layer, plan.split);
+        return { done: shownResult(plan), next: shownEntry(target, others, rest.patch, plan), show: flip };
+      }
+      if (flip !== undefined && decision?.kind === 'defer') {
+        const others = planFor(rest);
+        if (!others.ok) return { done: refusedPlan(id, others) };
+        const next = deferredEntry(target, others, rest.patch, flip);
+        if (others.changed) {
+          layer = others.layer;
+          split = others.split;
+        }
+        return next === target ? { done: unchanged() } : { done: deferredResult(others, !sameDeferral(target.deferredPin, flip)), next };
+      }
       layer = plan.layer;
       split = plan.split;
       return { done: configured(plan), next: reconfigured(target, plan, asked) };
-    });
-    if (result.ok && result.changed && layer !== undefined) {
-      const rec = records.get(id);
-      if (rec !== undefined) rec.settings = layer;
-      if (split !== undefined) splits.set(state.engineId!, split);
-    }
+    };
+    const result = commit!.ops.configure(state.engineId!, (target, status) => withHoldNote(target, status, planUpdate(target, status)));
+    if (result.ok && result.changed && layer !== undefined) storeLayer(id, state.engineId!, layer, split);
     return result;
+  };
+
+  /** What `multiple: false` must fit: the row's instances and the closed ones that can come back. Only configure counts the closed ones; a reopen that did would count the record it reopens. */
+  const returningInstances = (templateId: string): PanelId[] => {
+    const keys = instanceKeys(templateId);
+    for (const r of closedRecords()) if (r.templateId === templateId && !r.closed) keys.add(r.id);
+    for (const [key, gone] of retired) if (gone.state.templateId === templateId && commit?.ops.inUndoWindow(key.slice(key.indexOf('~') + 1)) === true) keys.add(key);
+    return [...keys];
   };
 
   /** `configureTemplate`: the three template-scope keys of one template, for panels made from now on. */
@@ -871,6 +939,13 @@ export function createWorkspace(o: WorkspaceOptions = {}): WorkspaceHandle {
     const plan = planTemplate(before, patch as SettingsPatch);
     if (!plan.changed) return unchanged();
     const after = resolve({ ...(defaults !== undefined ? { workspace: defaults } : {}), template: { ...template.settings, ...plan.layer } }).value;
+    const wasMultiple = resolve({ ...(defaults !== undefined ? { workspace: defaults } : {}), template: { ...template.settings, ...before } }).value.multiple;
+    if (checked.names.includes('multiple') && wasMultiple && !after.multiple) {
+      const counted = returningInstances(templateId);
+      if (counted.some((key) => key !== templateId)) {
+        return { ok: false, code: 'instance-limit', setting: 'multiple', message: `template '${templateId}': ${counted.length} ${counted.length === 1 ? 'instance exists' : 'instances exist'}, and a template that is not multiple allows only the one named '${templateId}'` };
+      }
+    }
     const cap = after.multiple ? after.maxInstances : 1;
     const limited = checked.names.find((n) => n === 'multiple' || n === 'maxInstances');
     if (limited !== undefined && cap !== 'unlimited' && cap < instancesOf(templateId)) {
@@ -880,7 +955,9 @@ export function createWorkspace(o: WorkspaceOptions = {}): WorkspaceHandle {
     else templateOverrides.set(templateId, plan.layer);
     refresh();
     const later = checked.names.filter((n) => !sameSettingsValue((before as Record<string, unknown> | undefined)?.[n], (plan.layer as Record<string, unknown>)[n]));
-    return { ok: true, changed: true, shown: false, now: [], later, shadowed: [], notes: [] };
+    const notes: SettingNote[] = checked.names.includes('maxInstances') && !after.multiple ? [{ code: 'max-instances-moot', key: 'maxInstances', message: `maxInstances: template '${templateId}' is not multiple, so this limit has no effect until multiple is true` }] : [];
+    for (const note of notes) binding.reportNote(note);
+    return { ok: true, changed: true, shown: false, now: [], later, shadowed: [], notes };
   };
 
   /** `configureTuning`: the workspace's tuning keys, for this session. */

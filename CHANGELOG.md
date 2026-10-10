@@ -10,6 +10,11 @@
   `busy`) or throwing `invalid-settings` for an unknown key or a bad value. A view's own handle takes only `title`,
   `listed`, `layer`, `formFactor`, an anchor `placeOnAdd` and `enterFrom: 'anchor'`. The workspace's per-panel tuning
   leaves now reach the panels that resolve their own settings.
+- `configureTemplate(id, { multiple: false })` answers `instance-limit` with the count while a declared panel of the
+  template is closed, a panel of it is inside the undo window, or an instance not named like the template is in the row;
+  `maxInstances` is lowered against the row's entries only.
+- `configureTemplate` naming `maxInstances` on a template that resolves to `multiple: false` still stores the limit and
+  answers one `max-instances-moot` note in `ConfigureResult.notes` and through `onNote`.
 - `headerButtons`: a panel declares generic title-bar buttons as slots keyed by id with `icon`, `label`, `onClick`,
   `side`, `order`, `pressed`, `description`, `tooltip`, `disabled`, `hidden` and `sx`. `Panel` draws them as MUI
   IconButtons (`Panel`'s new `headerButtons` prop, `false` to leave them out; `PanelHeaderRow`'s new `leading` prop holds
@@ -19,6 +24,10 @@
   deferred pin decide what a parked, hidden or closed panel does, a person's pin is saved as `overrides.parkable`, and
   `resetLayout(id | 'all')` on the manager clears overrides and deferred pins and re-places by default. The result types
   `PinResult` and `ResetResult` are exported; `PanelWindow` gains the session-only `deferredPin`.
+- A `configure` of `parkable` on a parked, hidden, closed or undo-window panel follows `pinningWhenNotLive` as `pin()` does:
+  it is refused (`would-reshape-row`, or `is-closed` for a closed panel), shows the panel and flips it in one commit
+  (`shown: true`), or waits as a deferred pin listed in `later`. A flip that changes nothing the panel reads is never
+  refused or deferred, and a `configure` that names `parkable` cancels a waiting flip.
 - `PanelWindow` gains the optional `instance`, `overrides`, `applied` and `declared`, and `PanelsInput` gains
   `templates` and `declared`: a workspace file now remembers what a person moved or resized (`overrides`), the
   `placeOnAdd` that placed each panel (`applied`) and the layer a panel was made with (`instance`), so a changed default
@@ -67,6 +76,13 @@
 - `PanelResult` is exported as a type.
 - `undoClose` restores a closed panel through its current settings: `undoPlacement` decides where it lands, and a
   workspace-less host keeps the 0.1.0 behaviour.
+- `configure({ snapshot: 'never' })` asks the host's `CaptureTrigger` to `evict` that panel's stored picture once, from the
+  commit's layout effect, for a live, parked, hidden or protected panel. A closed record or a panel inside its undo window
+  stores the edit and asks nothing at the call.
+- A `configure` call that leaves a held panel unlisted (`{ listed: false }`, or a `null` that restores an unlisted
+  derived value, also while a flip of `parkable` waits) raises the `hold-unlisted` note, in `ConfigureResult.notes` and
+  through `onNote`, once per call, whatever the panel's `revealOnScroll`; a call that shows the panel or is refused
+  whole raises none.
 
 ### Changed
 
@@ -124,7 +140,8 @@
 - The strip is scrolled once per mount to `tuning.initialScroll` after the restore has settled, unless a wheel or
   pointer-down reached the row first.
 - Dragging a panel's grab bar to the window edge scrolls a scrolling row (mouse and pen); `scrollOnDrag` `none` and
-  `tuning.edgeScroll` turn it off or tune it.
+  `tuning.edgeScroll` turn it off or tune it. A drag already in flight keeps the mode and the numbers it began with;
+  a configure of either reaches the next drag.
 - `WorkspaceStorage.save` may return a promise as well as nothing. The saved baseline now advances only after a save
   succeeds, so a save that throws or rejects is reported once (`onError`, else `console.error`) and the next change
   saves again; the baseline used to move before the call, and a failed save was not retried until the state changed to
