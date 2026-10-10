@@ -314,7 +314,9 @@ async function scopeCell(status: Status): Promise<void> {
   if (status === 'same-turn') early = () => void singleton.hide();
   const was = { evicted: r.capture.evicted.length };
   const raise = (): ConfigureResult => r.ws.panels.configureTemplate('m', { hostCreatable: false });
-  const lower = (): ConfigureResult => r.ws.panels.configureTemplate('m', { maxInstances: 1 });
+  const closedCounts = status === 'closed-declared' || status === 'undo-window';
+  const lowered = closedCounts ? 'multiple' : 'maxInstances';
+  const lower = (): ConfigureResult => r.ws.panels.configureTemplate('m', closedCounts ? { multiple: false } : { maxInstances: 1 });
   const [high, low] = r.turn(() => {
     early?.();
     return [raise(), lower()] as const;
@@ -322,7 +324,7 @@ async function scopeCell(status: Status): Promise<void> {
   assert.deepEqual({ ...done(high) }, { ok: true, changed: true, shown: false, now: [], later: ['hostCreatable'], shadowed: [], notes: [] }, 'a template key that cannot strand an instance is stored, whatever the instance is doing (a template names no panel, so it is never busy)');
   if (cell.counted === true) {
     const refusal = refusedWith(low, 'instance-limit');
-    assert.equal(refusal.setting, 'maxInstances');
+    assert.equal(refusal.setting, lowered);
     assert.match(refusal.message, /2 instances/, 'the refusal counts the instances that exist');
   } else {
     assert.deepEqual({ ...done(low) }, { ok: true, changed: true, shown: false, now: [], later: ['maxInstances'], shadowed: [], notes: [] }, 'an instance that is gone does not count');
@@ -441,7 +443,7 @@ test('matrix:parkable', async () => {
   await s.run('K, H with apply-on-next-show: stored as deferredPin { parkable }, the panel stays hidden', async () => {
     r.turn(() => r.h.f!.hide());
     await r.settle();
-    assert.deepEqual(shape(r.turn(() => r.h.f!.configure({ parkable: false }))), { now: ['parkable'], later: [], shadowed: [] });
+    assert.deepEqual(shape(r.turn(() => r.h.f!.configure({ parkable: false }))), { now: [], later: ['parkable'], shadowed: [] });
     assert.deepEqual([r.state('f').deferredPin, r.state('f').status], [{ parkable: false }, 'parked']);
   });
   await s.run("a person's pin outvotes the flip: shadowed", () => {

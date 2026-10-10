@@ -462,6 +462,7 @@ test('edge scroll 3: tuning.edgeScroll zonePx from the default to a quarter of i
 test('edge scroll 4: a drag in flight keeps the edge numbers it began with', async () => {
   const r = await dragRig();
   await pressAndMove(r, 's1', HALF_ZONE_POINTER);
+  await hold(1);
   const a = r.m.container.scrollLeft;
   await hold(10);
   const b = r.m.container.scrollLeft;

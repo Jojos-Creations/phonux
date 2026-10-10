@@ -53,7 +53,10 @@ export interface Cell {
    * 'none': the call writes no file and the next projection is unchanged. null: not part of this class's rows.
    */
   projection: 'next-save' | 'none' | null;
-  /** SCOPE only: whether an instance in this status counts when configureTemplate lowers a limit. */
+  /**
+   * SCOPE only: whether an instance in this status counts when configureTemplate lowers a limit. Closed-declared and
+   * undo-window instances count for the `multiple` on-to-off check only; `maxInstances` counts row entries.
+   */
   counted?: boolean;
   /** Protected only: the acted-on panel stays live whatever the configured value says. */
   staysLive?: boolean;
@@ -99,7 +102,8 @@ export const CLASS_TABLE: Readonly<Record<Cls, Readonly<Record<Status, Cell>>>> 
     'undo-window': { outcome: { kind: 'stored-on-record' }, evicts: 0, unmounts: 0, projection: null },
     'same-turn': refused('busy'),
   },
-  // SCOPE: configureTemplate names no panel, so a panel's status only decides whether an instance counts against a lowered limit.
+  // SCOPE: configureTemplate names no panel, so a panel's status only decides whether an instance counts against a lowered
+  // limit: a closed record counts for `multiple: false`, never for `maxInstances`.
   SCOPE: {
     pending: refused('not-ready'),
     live: { outcome: { kind: 'stored' }, evicts: 0, unmounts: 0, projection: 'none', counted: true },
