@@ -405,7 +405,7 @@ resolves in a throwaway app outside this checkout, with the real peer set from t
 `npm run smoke -- --from <tarball path or registry spec>` runs the same checks on an already-packed or already-published
 artifact. The bare `--` is required: npm keeps a `--from` placed before it for itself, and the smoke refuses to run rather than
 check the local `dist/` in its place. `npm run release:check` confirms that `name@version` is still free on the registry, runs the build and the smoke, and prints
-the `npm publish` command for the maintainer to run with their own login; it never publishes. `npm publish --dry-run` is not
+the `npm publish` command for the maintainer to run with their own login (a prerelease version prints `npm publish --tag next`); it never publishes. `npm publish --dry-run` is not
 evidence, because it accepts a `private: true` manifest.
 
 ## `index.ts` splits values from types on purpose
@@ -1492,10 +1492,22 @@ The library began as a folder inside phonux-app and was extracted with `git filt
 so `git log --follow` on a source file runs back through its years inside the app. The first entry of `CHANGELOG.md` names the
 phonux-app commit the extraction was taken at.
 
-A release is `npm run release:check`, then the maintainer's own `npm publish` from `dist/`. Nothing in this repository publishes,
+A release is `npm run release:check`, then the maintainer's own `npm publish` from `dist/` (`npm publish --tag next` for a prerelease version). Nothing in this repository publishes,
 and a published version is never edited: a fix is a new version, and `CHANGELOG.md` says what changed. `.github/workflows/ci.yml`
 runs the typecheck, the tests, the build, the API report check and the smoke on a pull request into `release` and on dispatch;
 a pull request into `main` runs no cloud check.
+
+### Release candidate base
+
+`0.2.0-rc.1` is built from this commit of `main`; the diff since it touches only `package.json`, `package-lock.json`, `CHANGELOG.md`,
+`DESIGN.md`, `tools/`, `test/` and `etc/`.
+
+```text
+base: bb9db31a95f0943eb224536034dbce89c00d0786
+```
+
+No real browser has measured this tree. Every claim about real layout, scrolling or painting stays not run; the jsdom and unit
+suites are the only evidence behind this candidate.
 
 phonux-app installs the published package from the registry. To try a change there before publishing, install a copy of this
 checkout over it: `npm install --no-save --install-links <path to this checkout>` from the app leaves the app's `package.json`

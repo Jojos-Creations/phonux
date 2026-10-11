@@ -140,7 +140,7 @@ function removedBetween(oldNames, currentNames) {
 // The backtick-quoted names of the Unreleased section's Removed bullets: the first and the third, the two that name exports.
 function changelogRemovedNames() {
   const lines = readFileSync(join(REPO_ROOT, 'CHANGELOG.md'), 'utf8').split('\n');
-  const unreleased = lines.findIndex((l) => /^## Unreleased\s*$/.test(l));
+  const unreleased = lines.findIndex((l) => /^## (Unreleased|0\.2\.0-rc\.1)\s*$/.test(l));
   const removedAt = lines.findIndex((l, i) => i > unreleased && /^### Removed\s*$/.test(l));
   if (unreleased < 0 || removedAt < 0) fail('CHANGELOG.md has no Unreleased / Removed section');
   const bullets = [];

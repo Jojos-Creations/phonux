@@ -1,0 +1,16 @@
+{
+  "tests": [
+    "test/settings-coverage.test.ts"
+  ],
+  "mutants": [
+    {
+      "name": "the toggleWhenClosed differential call is renamed, so the global gate finds no call for the name",
+      "file": "test/panel-manager-operations.test.ts",
+      "find": "differential('toggleWhenClosed',",
+      "replace": "differential('toggleWhenClosed_',",
+      "expectRed": [
+        "release gate toggleWhenClosed: one differential call, a matrix probe, the DESIGN.md class word and a listed owner"
+      ]
+    }
+  ]
+}

@@ -9,6 +9,7 @@ import { readFileSync } from 'node:fs';
 import { join, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { resolvePhoneDir } from './phonux-paths.mjs';
+import { publishCommand } from './phonux-publish-command.mjs';
 
 const REPO_ROOT = fileURLToPath(new URL('..', import.meta.url));
 const PHONE_DIR = resolvePhoneDir(REPO_ROOT);
@@ -40,4 +41,4 @@ if (smoke.status !== 0) fail(`node tools/phonux-pack-smoke.mjs exited ${smoke.st
 const distDir = relative(process.cwd(), join(PHONE_DIR, 'dist')) || '.';
 console.log(`release:check OK -- ${spec} is free on the registry and the built package passed the publish gate.`);
 console.log('Publish it yourself (this script never does), with your npm account and 2FA code ready:');
-console.log(`  cd ${distDir} && npm publish`);
+console.log(`  ${publishCommand(version, distDir)}`);
