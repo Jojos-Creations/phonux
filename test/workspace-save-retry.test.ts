@@ -2,7 +2,7 @@
  * The persistence hook's last-saved baseline: it advances only when a save succeeds, so a save that rejects or throws
  * is reported once and saved again by the next change, never by a timer of its own.
  * Time is mocked over WORKSPACE_SAVE_QUIET_MS; the retry tests commit a new panels array through the hook itself,
- * because no workspace operation commits one whose projection stays equal.
+ * so they do not depend on which workspace operation produces one whose projection stays equal.
  */
 import { test, afterEach, mock } from 'node:test';
 import assert from 'node:assert/strict';
