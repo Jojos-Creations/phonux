@@ -46,7 +46,7 @@ Revision 7, final: revision 6 plus owner answers Q16-Q21, the rebase onto phonux
 - G1. `createWorkspace()` returns a React-free object; `addPanel()` works before or after React mounts and returns a handle that stays valid.
 - G2. Every engine behaviour that can differ between panels is a named setting (61 descriptors; section 4) with a documented default, one pure resolver (3.3), changeable after add (7.6); 3.7 lists the few fixed rules.
 - G3. A PanelManager is the only gateway for per-panel change; each operation is checked against resolved settings and state, then refused with a typed code or made a documented no-op, never corrupting the row.
-- G4. A read-only snapshot with stable ids (no events). G5. A breaking minor over 0.1.0 (section 10); testable without Electron except 8A's, 6B's and edge scrolling's rendering claims and real pixels (the app real-layout gate).
+- G4. A read-only snapshot with stable ids (no events). G5. A breaking minor over 0.1.0 (section 10); testable without a real browser or host app except 8A's, 6B's and edge scrolling's rendering claims and real pixels (the app real-layout gate).
 
 Dropped: History, AppState, multiple workspaces, a flush API, events, `PanelGroup`, `custom` header render items, a `<Workspace workspace>` shell, rename aliases, live `params` update, `layoutEpoch`, built-in pin/size/close controls, the shield (`evictable`), `no-room`, `stickyEdge` (3.7), rev 6's window-width wrapper (Q17).
 

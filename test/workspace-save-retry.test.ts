@@ -1,8 +1,8 @@
 /**
  * The persistence hook's last-saved baseline: it advances only when a save succeeds, so a save that rejects or throws
  * is reported once and saved again by the next change, never by a timer of its own.
- * Time is mocked over WORKSPACE_SAVE_QUIET_MS; the retry tests commit a new panels array through the hook itself,
- * so they do not depend on which workspace operation produces one whose projection stays equal.
+ * Time is mocked over WORKSPACE_SAVE_QUIET_MS; the equal-projection cases commit a new panels array through the hook
+ * itself: a workspace operation reaches an equal projection only in special cases (pin() on a parked panel).
  */
 import { test, afterEach, mock } from 'node:test';
 import assert from 'node:assert/strict';
@@ -291,5 +291,106 @@ test('saves that settle out of order: an older one never advances nor resets the
     await tick();
     assert.equal(saves.length, 3, 'a change back to the baseline is saved while a save is in flight, because that save may land after it');
     assert.equal(saves[2]!.state.panels.length, 1);
+  }
+});
+
+test('an older save that settles first does not clear the newer save in flight, so a return to the baseline is still saved', async () => {
+  mock.timers.enable({ apis: ['setTimeout'] });
+  const { storage, saves } = pendingStorage();
+  const rig = hookRig(storage);
+  await turn();
+  rig.commit(add('a'));
+  await tick();
+  saves[0]!.resolve();
+  await turn();
+  rig.commit(add('b'));
+  await tick();
+  rig.commit(add('c'));
+  await tick();
+  assert.equal(saves.length, 3, 'two newer saves are pending');
+  saves[1]!.resolve();
+  await turn();
+  rig.commit((panels) => panels.filter((p) => p.id !== 'b' && p.id !== 'c'));
+  await tick();
+  assert.equal(saves.length, 4, 'the return to the saved projection lands after the pending newer save, so it is saved too');
+  assert.equal(saves[3]!.state.panels.length, 1);
+});
+
+/** A bare thenable: the defined property keeps the literal `then` out of the object syntax a lint rule bans. */
+function thenableOf(run: (ok: () => void, bad: (e: unknown) => void) => void): Promise<void> {
+  return Object.defineProperty({}, 'then', { value: run }) as Promise<void>;
+}
+
+test('a thenable that settles twice or throws after settling is reported and applied once', async () => {
+  mock.timers.enable({ apis: ['setTimeout'] });
+  const late = new Error('late');
+  const settlingTwice = (first: 'resolve' | 'reject'): WorkspaceStorage & { saves: WorkspaceState[] } => {
+    const saves: WorkspaceState[] = [];
+    const thenable = thenableOf((ok, bad) => {
+      if (first === 'resolve') {
+        ok();
+        bad(late);
+      } else {
+        bad(late);
+        ok();
+      }
+    });
+    return { load: async () => null, save: (state) => {
+        saves.push(state);
+        return thenable;
+      },
+      saves,
+    };
+  };
+
+  {
+    const storage = settlingTwice('resolve');
+    const heard: unknown[] = [];
+    const rig = hookRig(storage, (e) => void heard.push(e));
+    await turn();
+    rig.commit(add('a'));
+    await tick();
+    assert.deepEqual(heard, [], 'a rejection after a resolve is not reported');
+    rig.commit(same);
+    await tick();
+    assert.equal(storage.saves.length, 1, 'and the baseline stays advanced');
+  }
+
+  {
+    const storage = settlingTwice('reject');
+    const heard: unknown[] = [];
+    const rig = hookRig(storage, (e) => void heard.push(e));
+    await turn();
+    rig.commit(add('a'));
+    await tick();
+    assert.deepEqual(heard, [late], 'a resolve after a rejection does not hide the failure');
+    rig.commit(same);
+    await tick();
+    assert.equal(storage.saves.length, 2, 'and the baseline stays where it was, so the same content retries');
+  }
+
+  {
+    const saves: WorkspaceState[] = [];
+    const heard: unknown[] = [];
+    const rig = hookRig(
+      {
+        load: async () => null,
+        save: (state) => {
+          saves.push(state);
+          return thenableOf((ok) => {
+            ok();
+            throw new Error('after settling');
+          });
+        },
+      },
+      (e) => void heard.push(e),
+    );
+    await turn();
+    rig.commit(add('a'));
+    await tick();
+    assert.deepEqual(heard, [], 'a throw after settling is not reported');
+    rig.commit(same);
+    await tick();
+    assert.equal(saves.length, 1);
   }
 });

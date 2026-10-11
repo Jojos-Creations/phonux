@@ -1,0 +1,44 @@
+{
+  "tests": [
+    "test/workspace-save-retry.test.ts",
+    "test/host-neutral.test.ts"
+  ],
+  "mutants": [
+    {
+      "name": "M1: the settle-once guard removed, so a second settle of the same save is applied",
+      "file": "panels/useWorkspacePersistence.ts",
+      "find": "        if (done) return;\n",
+      "replace": "",
+      "expectRed": [
+        "a thenable that settles twice or throws after settling"
+      ]
+    },
+    {
+      "name": "M2: the in-flight record cleared by whichever save settles first",
+      "file": "panels/useWorkspacePersistence.ts",
+      "find": "if (inFlight.current?.n === n) inFlight.current = null;",
+      "replace": "inFlight.current = null;",
+      "expectRed": [
+        "an older save that settles first does not clear the newer save in flight"
+      ]
+    },
+    {
+      "name": "M3: the closed-log title falls back to the url or a placeholder",
+      "file": "panels/usePanelClosing.ts",
+      "find": "title: found.closed.title ?? ''",
+      "replace": "title: found.closed.title || found.closed.url || 'Untitled panel'",
+      "expectRed": [
+        "a panel that has no title closes with an empty title"
+      ]
+    },
+    {
+      "name": "M4: a label key given as undefined replaces its default",
+      "file": "labels.ts",
+      "find": "if (value !== undefined) (out as unknown as Record<string, unknown>)[key] = value;",
+      "replace": "(out as unknown as Record<string, unknown>)[key] = value;",
+      "expectRed": [
+        "a label key given as undefined keeps its default"
+      ]
+    }
+  ]
+}
