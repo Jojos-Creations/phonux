@@ -33,7 +33,7 @@ async function press(handle: Element): Promise<void> {
 
 export async function release(dx: number, dy: number): Promise<void> {
   await act(async () => {
-    window.dispatchEvent(pointerEvent('pointerup', ORIGIN + dx, ORIGIN + dy));
+    document.dispatchEvent(pointerEvent('pointerup', ORIGIN + dx, ORIGIN + dy));
   });
 }
 
@@ -41,7 +41,7 @@ export async function drag(handle: Element, { dx, dy, steps = 5, hold = 8, keepD
   await press(handle);
   for (let step = 1; step <= steps; step += 1) {
     await act(async () => {
-      window.dispatchEvent(pointerEvent('pointermove', ORIGIN + (dx * step) / steps, ORIGIN + (dy * step) / steps));
+      document.dispatchEvent(pointerEvent('pointermove', ORIGIN + (dx * step) / steps, ORIGIN + (dy * step) / steps));
     });
     await advanceFrames(FRAME_MS);
   }

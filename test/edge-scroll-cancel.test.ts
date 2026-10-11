@@ -22,7 +22,7 @@ import { made, mountRow, rootEntry, row, type MountedRow } from './support/scrol
 
 afterEach(async () => {
   // A test that left the pointer down must not leave motion's window listeners live for the next one.
-  window.dispatchEvent(new MouseEvent('pointerup', { bubbles: true }));
+  document.dispatchEvent(new MouseEvent('pointerup', { bubbles: true }));
   await frames(5);
   cleanup();
 });
@@ -64,9 +64,9 @@ function pointer(type: 'pointerdown' | 'pointermove' | 'pointerup' | 'pointercan
   return event;
 }
 const press = (target: Element, x: number): Promise<void> => act(async () => void target.dispatchEvent(pointer('pointerdown', x)));
-const moveTo = (x: number, y = 100): Promise<void> => act(async () => void window.dispatchEvent(pointer('pointermove', x, y)));
-const liftAt = (x: number, y = 100): Promise<void> => act(async () => void window.dispatchEvent(pointer('pointerup', x, y)));
-const cancelAt = (x: number): Promise<void> => act(async () => void window.dispatchEvent(pointer('pointercancel', x)));
+const moveTo = (x: number, y = 100): Promise<void> => act(async () => void document.dispatchEvent(pointer('pointermove', x, y)));
+const liftAt = (x: number, y = 100): Promise<void> => act(async () => void document.dispatchEvent(pointer('pointerup', x, y)));
+const cancelAt = (x: number): Promise<void> => act(async () => void document.dispatchEvent(pointer('pointercancel', x)));
 const frames = (n: number): Promise<void> => advanceFrames(n * FRAME_MS);
 const handleOf = (m: MountedRow, id = 's1'): Element => {
   const handle = m.container.querySelector(`[data-handle="${id}"]`);
