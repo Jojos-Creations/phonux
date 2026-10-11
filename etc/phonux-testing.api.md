@@ -251,7 +251,7 @@ export type WorkspaceState = {
 // @public
 export type WorkspaceStorage = {
     load(): Promise<WorkspaceState | null>;
-    save(state: WorkspaceState): void;
+    save(state: WorkspaceState): void | Promise<void>;
 };
 
 // (No @packageDocumentation comment for this package)

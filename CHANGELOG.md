@@ -142,6 +142,10 @@
 - Dragging a panel's grab bar to the window edge scrolls a scrolling row (mouse and pen); `scrollOnDrag` `none` and
   `tuning.edgeScroll` turn it off or tune it. A drag already in flight keeps the mode and the numbers it began with;
   a configure of either reaches the next drag.
+- `WorkspaceStorage.save` may return a promise as well as nothing. The saved baseline now advances only after a save
+  succeeds, so a save that throws or rejects is reported once (`onError`, else `console.error`) and the next change
+  saves again; the baseline used to move before the call, and a failed save was not retried until the state changed to
+  something else. A save that settles after a newer one started leaves the baseline alone, and no timer retries.
 
 ### Removed
 

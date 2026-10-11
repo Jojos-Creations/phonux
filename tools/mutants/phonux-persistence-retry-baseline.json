@@ -1,0 +1,45 @@
+{
+  "tests": [
+    "test/workspace-save-retry.test.ts"
+  ],
+  "mutants": [
+    {
+      "name": "M1: the baseline assignment moved back before the save call",
+      "file": "panels/useWorkspacePersistence.ts",
+      "find": "      inFlight.current = { n, json };\n",
+      "replace": "      inFlight.current = { n, json };\n      lastSaved.current = json;\n",
+      "expectRed": [
+        "a rejected save keeps the baseline",
+        "a thrown save keeps the baseline"
+      ]
+    },
+    {
+      "name": "M2: the baseline never advanced",
+      "file": "panels/useWorkspacePersistence.ts",
+      "find": "if (n === started.current) lastSaved.current = json;",
+      "replace": "if (n === started.current) void json;",
+      "expectRed": [
+        "a save that resolves advances the baseline",
+        "a save that returns nothing advances the baseline at once"
+      ]
+    },
+    {
+      "name": "M3: the later-started check removed, so an older save that settles late moves the baseline",
+      "file": "panels/useWorkspacePersistence.ts",
+      "find": "if (n === started.current) lastSaved.current = json;",
+      "replace": "lastSaved.current = json;",
+      "expectRed": [
+        "saves that settle out of order"
+      ]
+    },
+    {
+      "name": "M4: a retry timer added after a failed save",
+      "file": "panels/useWorkspacePersistence.ts",
+      "find": "} else reportError(failure.e);",
+      "replace": "} else {\n          reportError(failure.e);\n          setTimeout(() => void Promise.resolve(storage.save(state)).catch(() => {}), saveQuietMsRef.current);\n        }",
+      "expectRed": [
+        "after a failed save no timer retries by itself"
+      ]
+    }
+  ]
+}

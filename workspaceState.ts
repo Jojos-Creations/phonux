@@ -75,14 +75,18 @@ export type WorkspaceState = {
 
 /**
  * What a host implements to keep the workspace between launches. `load` resolves the saved state, or `null` when
- * there is none. `save` is fire-and-forget and must not throw.
+ * there is none. `save` may return nothing or a promise; a rejection or a throw is reported, and the next change saves again.
  * @public
  */
 export type WorkspaceStorage = {
   /** Resolves the saved state, or `null` when there is none. */
   load(): Promise<WorkspaceState | null>;
-  /** Stores `state`; fire-and-forget, and must not throw. */
-  save(state: WorkspaceState): void;
+  /**
+   * Stores `state`. Returning nothing, or a promise that resolves, tells the workspace the state is saved. A throw or a
+   * rejection is reported once through `WorkspaceOptions.onError` (`console.error` when it is unset), and the next
+   * change to the panels saves the full current state again; nothing retries on a timer.
+   */
+  save(state: WorkspaceState): void | Promise<void>;
 };
 
 const FORM_FACTORS: readonly unknown[] = ['phone', 'tablet', 'desktop'];
