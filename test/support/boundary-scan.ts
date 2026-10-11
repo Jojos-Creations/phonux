@@ -7,7 +7,7 @@
  *
  * Our own views are written as if a third party wrote them: they reach the
  * app only through the public API surface, so they may not touch the IPC
- * bridge, `window.simplebrowser` or `localStorage`, and the UX-system folder
+ * bridge, an ambient host global (`electron`, `navigator.usb`...) or `localStorage`, and the UX-system folder
  * may not import the app. This file proves nothing about any particular tree;
  * each test points it at a real tree.
  *
@@ -614,15 +614,18 @@ const BRIDGE_CALL = /\bbridge\s*(?:\?\.\s*|!\s*)?(?:<[^()]*?>\s*)?\(|\bbridge\s*
 
 /**
  * What our own views and the UX-system folder must not contain. The first,
- * third and fourth are the acceptance grep's own `ipc/bridge|window.simplebrowser|localStorage`
- * check; the rest close the obvious ways round it. Rule names are the tokens a
+ * third to ninth are the host-neutrality list a non-browser host relies on; the rest close the obvious ways round it. Rule names are the tokens a
  * reader would grep for. All of them are 'code' rules: comments are exempt.
  *  - 'ipc/bridge'          any import of the bridge module (`import type` too).
  *  - 'bridge()'            a call to the accessor, so a re-export under another
  *                          module name cannot dodge the import rule (call
  *                          shapes: BRIDGE_CALL).
- *  - 'window.simplebrowser' the raw global, however it is reached: `window.`,
- *                          `globalThis.`, `window['simplebrowser']`, a cast.
+ *  - 'electron', 'chromium', 'webview', 'webContents', 'navigator.usb', 'about:'
+ *                          the ambient globals and product words a host-neutral
+ *                          library has no reason to name, however reached
+ *                          (`window.`, `globalThis.`, bracket access, a cast).
+ *                          Case-insensitive, whole words, so `Electron` and
+ *                          `WebView` match and `electronics` does not.
  *  - 'localStorage', 'sessionStorage'  ambient persistence; a view persists
  *                          through the settings API, never around it.
  *  - 'import.meta.glob'    a glob import pulls in a whole directory whose members
@@ -633,7 +636,12 @@ const BRIDGE_CALL = /\bbridge\s*(?:\?\.\s*|!\s*)?(?:<[^()]*?>\s*)?\(|\bbridge\s*
 export const PHONE_BOUNDARY_RULES: readonly TextRule[] = [
   { name: 'ipc/bridge', pattern: /ipc\/bridge/ },
   { name: 'bridge()', pattern: BRIDGE_CALL },
-  { name: 'window.simplebrowser', pattern: /\bsimplebrowser\b/ },
+  { name: 'electron', pattern: /\belectron\b/i },
+  { name: 'chromium', pattern: /\bchromium\b/i },
+  { name: 'webview', pattern: /\bwebview\b/i },
+  { name: 'webContents', pattern: /\bwebContents\b/i },
+  { name: 'navigator.usb', pattern: /\bnavigator\s*\.\s*usb\b|\bnavigator\s*\[\s*(['"`])usb\1\s*\]/ },
+  { name: 'about:', pattern: /\babout:/i },
   { name: 'localStorage', pattern: /\blocalStorage\b/ },
   { name: 'sessionStorage', pattern: /\bsessionStorage\b/ },
   { name: 'import.meta.glob', pattern: /\bimport\s*\.\s*meta\s*\.\s*glob/ },

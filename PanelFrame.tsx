@@ -9,7 +9,8 @@ import * as React from 'react';
 import Box, { type BoxProps } from '@mui/material/Box';
 import { type Theme } from '@mui/material/styles';
 import MoreHorizIcon from '@mui/icons-material/MoreHoriz';
-import { useHost, type PanelSize } from './hostApi.js';
+import { useHost, useOptionalHost, type PanelSize } from './hostApi.js';
+import { resolveLabels } from './labels.js';
 
 /** The props of `PanelFrame`: every `Box` prop except `children`, plus `expanded` and `size`. @public */
 export interface PanelFrameProps extends Omit<BoxProps, 'children'> {
@@ -189,9 +190,9 @@ function isEmptyHeaderContent(node: React.ReactNode): boolean {
 }
 
 /** A dimmed "Untitled" reads as "intentionally blank" rather than a loading glitch or missing data. */
-const PLACEHOLDER_TITLE = (
+const placeholderTitle = (text: string) => (
   <Box component="span" data-header-placeholder-title="" sx={{ color: 'text.disabled' }}>
-    Untitled
+    {text}
   </Box>
 );
 
@@ -214,7 +215,8 @@ const PLACEHOLDER_ACTIONS = (
  * @public
  */
 export function PanelHeaderRow({ title, actions, leading, sx, ...rest }: PanelHeaderRowProps) {
-  const resolvedTitle = isEmptyHeaderContent(title) ? PLACEHOLDER_TITLE : title;
+  const labels = resolveLabels(useOptionalHost()?.labels);
+  const resolvedTitle = isEmptyHeaderContent(title) ? placeholderTitle(labels.untitledHeader) : title;
   const resolvedActions = isEmptyHeaderContent(actions) ? PLACEHOLDER_ACTIONS : actions;
   return (
     <PanelHeader {...rest} sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 1, ...sx }}>

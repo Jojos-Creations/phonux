@@ -141,7 +141,7 @@ test('a throw inside the load success handler takes the failed-load path: the wo
     const [only] = m.ids().slice(1);
     assert.deepEqual(m.saves[0], {
       version: 1,
-      panels: [{ id: only, view: 'pin-persistence', url: 'about:blank', title: 'later', live: true, anchor: { panel: ROOT, position: 'right', priority: 0 }, formFactor: 'phone', layer: 'base', listed: true }],
+      panels: [{ id: only, view: 'pin-persistence', url: '', title: 'later', live: true, anchor: { panel: ROOT, position: 'right', priority: 0 }, formFactor: 'phone', layer: 'base', listed: true }],
     });
   } finally {
     process.removeAllListeners('unhandledRejection');

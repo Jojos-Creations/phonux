@@ -55,7 +55,7 @@ export interface PanelState {
   /** The panel's title, or undefined when none is set. */
   readonly title: string | undefined;
   /** The panel's URL; the empty string when it has none. */
-  readonly url: string;
+  readonly url?: string;
   /** The opaque, JSON-serializable params the panel was made with, or undefined when it has none. */
   readonly params: JsonValue | undefined;
   /** The panel's current tier. */

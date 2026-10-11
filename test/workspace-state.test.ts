@@ -261,7 +261,7 @@ test('W10 isWorkspaceState accepts a good file and extra keys, and rejects every
     ['no id', (s) => { delete s.panels[1].id; }],
     ['a numeric id', (s) => { s.panels[1].id = 2; }],
     ['no view', (s) => { delete s.panels[1].view; }],
-    ['no url', (s) => { delete s.panels[1].url; }],
+    ['a url that is not a string', (s) => { s.panels[1].url = 5; }],
     ['a numeric url', (s) => { s.panels[1].url = 5; }],
     ['no live', (s) => { delete s.panels[1].live; }],
     ['live as a string', (s) => { s.panels[1].live = 'false'; }],
@@ -289,6 +289,9 @@ test('W10 isWorkspaceState accepts a good file and extra keys, and rejects every
     corrupt(control);
     assert.equal(isWorkspaceState(control), false, label);
   }
+  const urlless = good();
+  delete urlless.panels[1].url;
+  assert.equal(isWorkspaceState(urlless), true, 'a panel with no url is a valid saved panel');
   for (const value of [null, undefined, 0, 1, 'text', true, [], [good()], () => good()]) assert.equal(isWorkspaceState(value), false, String(value));
 });
 

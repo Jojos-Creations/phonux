@@ -1,5 +1,25 @@
 # Changelog
 
+## Unreleased
+
+### Changed
+
+- A host that is not a browser can use the library without stubbing browser concepts. `url` is optional on
+  `PanelSummary`, `PanelState`, `ClosedPageEntry` and `WorkspacePanelState`, and a saved file whose panels lack one is
+  still loaded. `create()` no longer defaults it to a blank page: the url is the empty string, and the closed-log entry
+  carries the panel's own title (the empty string when it has none), so the host decides what an untitled entry shows.
+- `Host.history` and the `PhoneDeviceAPI` members `defaultSize`, `models`, `chooseModel`, `detectedPhone`,
+  `dismissDetectedPhone` and `resizeForDetectedPhone` are optional. A host holding only `device.size` and `panels`
+  (beside `settings`) renders `Panel` and `PanelRow`.
+- A `create()` without a `view` opens `PanelsInput.defaultView`; with none it opens a panel with no view, which renders
+  the unregistered-view placeholder. The zero-argument overload and the event guard are unchanged.
+
+### Added
+
+- `PhonuxLabels`: English defaults for the library's visible strings, replaced through `PanelsInput.labels` (the title of
+  a panel `create()` opens), `Host.labels` (the unregistered-view placeholder and the `PanelHeaderRow` empty title) and
+  `PhoneDetectPromptProps.labels` (its text and accessible names).
+
 ## 0.2.0-rc.1
 
 ### Breaking

@@ -1,0 +1,157 @@
+/**
+ * A host that is not a browser: no url on a panel, no history or phone members on the host, host-supplied labels
+ * and default view, and nothing ambient behind any of it.
+ */
+import { test, afterEach, mock } from 'node:test';
+import assert from 'node:assert/strict';
+import './support/jsdom-globals.js';
+import * as React from 'react';
+import { act } from 'react';
+import { renderToStaticMarkup } from 'react-dom/server';
+import {
+  HostProvider,
+  Panel,
+  PanelHeaderRow,
+  PanelRow,
+  PhoneDetectPrompt,
+  registerView,
+  useProvidePanels,
+  type Host,
+  type ProvidedPanels,
+  type WorkspaceState,
+  type WorkspaceStorage,
+} from '../index.js';
+import { createFakeHost } from '../fakeHost.js';
+import { DEFAULT_LABELS } from '../labels.js';
+import { computeRowNumbers } from '../index.js';
+import { createHistoryPanel } from '../panelWindow.js';
+import { resolveView } from '../viewRegistry.js';
+import { cleanup, mount, panelsInput, withHost } from './support/mount-harness.js';
+
+registerView('hn-view', ({ panel }) => React.createElement('i', { 'data-hn': panel.id }, panel.title));
+
+afterEach(() => {
+  mock.timers.reset();
+  cleanup();
+});
+
+const ROOT = 'root';
+const NONE: ReadonlySet<string> = new Set();
+
+function mountProvider(over: Parameters<typeof panelsInput>[0] = {}): { latest: () => ProvidedPanels; container: HTMLElement; host: () => Host } {
+  let latest: ProvidedPanels | undefined;
+  const hostOver = (): Partial<Host> => ({ ...(over.labels !== undefined ? { labels: over.labels } : {}) });
+  function Probe(): React.ReactElement {
+    latest = useProvidePanels(panelsInput({ initialEntries: [createHistoryPanel(ROOT)], ...over }));
+    const host: Host = { ...createFakeHost({ panels: latest }), ...hostOver() };
+    return withHost(React.createElement(PanelRow, { entries: latest.entries, rootId: ROOT, closingIds: NONE, enteringViaAnchorIds: NONE, rowNumbers: latest.rowNumbers }), host);
+  }
+  const mounted = mount(React.createElement(Probe));
+  return { latest: () => latest!, container: mounted.container, host: () => createFakeHost() };
+}
+
+test('create() with no url reports an empty url, in the entry and in the summary a view reads', () => {
+  const m = mountProvider();
+  act(() => m.latest().create({ view: 'hn-view' }));
+  const made = m.latest().entries.find((p) => p.id !== ROOT)!;
+  assert.equal(made.url, '');
+  assert.equal(m.latest().panelList.find((p) => p.id === made.id)!.url, '');
+});
+
+test('create() with no view and no default view renders the unregistered-view placeholder without throwing', () => {
+  const m = mountProvider();
+  act(() => m.latest().create());
+  const made = m.latest().entries.find((p) => p.id !== ROOT)!;
+  assert.equal(made.view, '');
+  assert.equal(m.container.querySelectorAll('[data-unregistered-panel-view]').length >= 1, true);
+});
+
+test('defaultView supplies the view of a create() without one, and an explicit view still wins', () => {
+  const m = mountProvider({ defaultView: 'hn-view' });
+  act(() => m.latest().create());
+  act(() => m.latest().create({ view: 'hn-other' }));
+  const made = m.latest().entries.filter((p) => p.id !== ROOT);
+  assert.deepEqual(made.map((p) => p.view), ['hn-view', 'hn-other']);
+  assert.equal(m.container.querySelectorAll('[data-hn]').length, 1);
+  assert.equal(m.container.querySelectorAll('[data-unregistered-panel-view="hn-other"]').length, 1);
+});
+
+test('a saved file whose panels have no url keeps every panel', async () => {
+  const file: WorkspaceState = {
+    version: 1,
+    panels: [1, 2, 3].map((n) => ({ id: `p${n}`, view: 'hn-view', live: true, anchor: { panel: ROOT, position: 'right' as const, priority: n } })) as unknown as WorkspaceState['panels'],
+  };
+  const storage: WorkspaceStorage = { load: () => Promise.resolve(file), save: () => {} };
+  const m = mountProvider({ storage });
+  await act(async () => {});
+  const restored = m.latest().entries.filter((p) => p.id !== ROOT);
+  assert.equal(restored.length, 3);
+  assert.deepEqual(restored.map((p) => p.url), ['', '', '']);
+});
+
+test('a closed panel with no title reports an empty title for the host to replace', () => {
+  const closed: { title: string; url: string }[] = [];
+  const m = mountProvider({ onPanelsClosed: (entry) => void closed.push({ title: entry.title, url: entry.url }) });
+  act(() => m.latest().create({ view: 'hn-view' }));
+  const id = m.latest().entries.find((p) => p.id !== ROOT)!.id;
+  act(() => m.latest().close(id));
+  assert.equal(closed.length, 1);
+  assert.deepEqual(closed[0], { title: DEFAULT_LABELS.panelTitle(id), url: '' });
+});
+
+test('a host holding only device.size and panels renders Panel and PanelRow', () => {
+  const full = createFakeHost();
+  const minimal = { settings: full.settings, panels: full.panels, device: { size: full.device.size } } satisfies Host;
+  const panel = mount(
+    React.createElement(HostProvider, { host: minimal, children: React.createElement(Panel, null, 'body-text') }),
+  );
+  assert.equal(panel.container.textContent?.includes('body-text'), true);
+  const entry = { ...createHistoryPanel(ROOT), view: 'hn-view', title: 'root' };
+  const rowNumbers = computeRowNumbers({ entries: [entry], phoneWidth: 390, containerWidth: 1000, gap: 16 });
+  const row = mount(
+    React.createElement(HostProvider, {
+      host: minimal,
+      children: React.createElement(PanelRow, { entries: [entry], rootId: ROOT, closingIds: NONE, enteringViaAnchorIds: NONE, rowNumbers }),
+    }),
+  );
+  assert.equal(row.container.querySelectorAll('[data-hn]').length, 1);
+});
+
+test('labels overrides replace each default string', () => {
+  const labels = {
+    panelTitle: (id: string) => `Fenster ${id}`,
+    untitledPanel: 'Ohne Titel',
+    untitledHeader: 'Namenlos',
+    historyTitle: 'Verlauf',
+    phoneConnected: 'Telefon verbunden',
+    phoneConnectedText: (vendor: string) => `${vendor} ist verbunden`,
+    phoneModel: 'Telefonmodell',
+    resize: 'Anpassen',
+    dismiss: 'Schliessen',
+  };
+  const m = mountProvider({ labels });
+  act(() => m.latest().create({ view: 'hn-view' }));
+  const id = m.latest().entries.find((p) => p.id !== ROOT)!.id;
+  assert.equal(m.latest().entries.find((p) => p.id === id)!.title, `Fenster ${id}`);
+  assert.equal(createHistoryPanel(ROOT, labels.historyTitle).title, 'Verlauf');
+
+  const host: Host = { ...createFakeHost(), labels };
+  const header = renderToStaticMarkup(React.createElement(HostProvider, { host, children: React.createElement(PanelHeaderRow, { title: '', actions: null }) }));
+  assert.equal(header.includes('Namenlos'), true);
+  const Untitled = resolveView('hn-nowhere');
+  const placeholder = renderToStaticMarkup(
+    React.createElement(HostProvider, { host, children: React.createElement(Untitled, { panel: { id: 'x', live: true, locked: false } }) }),
+  );
+  assert.equal(placeholder.includes('Ohne Titel'), true);
+
+  const prompt = renderToStaticMarkup(React.createElement(PhoneDetectPrompt, { detected: { vendorId: 0x04e8, productId: 1 }, onResize: () => {}, onDismiss: () => {}, labels }));
+  for (const text of ['Telefon verbunden', 'ist verbunden', 'Telefonmodell', 'Anpassen', 'Schliessen']) assert.equal(prompt.includes(text), true, text);
+});
+
+test('without labels every default string is the English text', () => {
+  const plain = renderToStaticMarkup(React.createElement(PhoneDetectPrompt, { detected: { vendorId: 0x04e8, productId: 1 }, onResize: () => {}, onDismiss: () => {} }));
+  for (const text of ['Phone connected', 'Phone model', 'Resize', 'Dismiss', ' connected']) assert.equal(plain.includes(text), true, text);
+  assert.equal(createHistoryPanel(ROOT).title, 'History');
+  const Untitled = resolveView('hn-nowhere');
+  assert.equal(renderToStaticMarkup(React.createElement(Untitled, { panel: { id: 'x', live: true, locked: false } })).includes('Untitled panel'), true);
+});

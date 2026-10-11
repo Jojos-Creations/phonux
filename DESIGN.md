@@ -6,7 +6,7 @@ third-party one. Nothing here may depend on the app that hosts it.
 ## Import boundary
 
 `hostApi.tsx`, and the rest of this folder, import only React, MUI, motion and itself -- never
-`localStorage`, the desktop IPC bridge, or any other app-internal module. A view written against these
+`localStorage`, any host-specific bridge, or any other app-internal module. A view written against these
 contracts must work under ANY host, not just this one.
 
 ## The provider is rebuilt every render
@@ -57,8 +57,8 @@ are about presence and parking, and test/source-invariants.test.ts lists the fun
 instead of a closed union, so a host or a third party can spawn any registered component by name.
 `resolveView` never returns nothing: an unregistered key -- a typo, or a plugin that failed to
 register -- renders a visible, inert placeholder naming the title and the key, rather than throwing (which
-would take the whole row down with it) or silently falling back to the built-in web panel (which would
-render a blank webview shell for what is actually broken, more confusing than an honest placeholder). `view`
+would take the whole row down with it) or silently falling back to some default view (which would
+render a blank shell for what is actually broken, more confusing than an honest placeholder). `view`
 is read ONLY at this one render-selection site; every overflow/collapse/close decision elsewhere reads
 `collapsible`/`listed`/`locked` instead, never `view`, so widening it to an open string cannot change any of
 those decisions.
@@ -86,8 +86,8 @@ anchor })` places the column like any panel). A permanent column is exempt from 
 park, `reanchor` and from being dragged, for free, by already being `collapsible:false`, the same way History
 already is. Other panels can still be dragged past it -- see `PanelsAPI.move`'s own section below.
 
-The "own control only" guarantee also has to hold for the built-in 'web' view, not just a custom one: `view`
-left at its default (or set explicitly to `'web'`) still resolves to the host's own panel component, which otherwise wraps
+The "own control only" guarantee also has to hold for the host's default view, not just a custom one: `view`
+left unset resolves to `PanelsInput.defaultView` (with none, the unregistered-view placeholder), a host's own panel component, which otherwise wraps
 EVERY panel in a framework drag-to-close handle unconditionally. That component reads
 `usePanelCloseEligible`, which is false for a column with `collapsible:false` and for an entry whose `closable`
 setting is false, through the same per-slot context (`panelSlotContext.ts`) that gives `usePanelReorderEligible`
@@ -900,7 +900,7 @@ stable` reserves the bar's strip permanently and the right padding is pre-shrunk
 (`SCROLLBAR_PX`, 8px), so the right side is (12 - 8) + 8 = 12px in both states, the bar flush against the
 border.
 
-**Why a classic scrollbar.** Chromium's default here is an overlay scrollbar: it floats over content,
+**Why a classic scrollbar.** The default here in WebKit and Blink engines is an overlay scrollbar: it floats over content,
 reserves no layout width (`offsetWidth === clientWidth` on a scroller with real overflowing content) and
 draws with its own built-in inset from the scroller's edge, which no padding or box-model change on this
 side can remove. Splitting the frame into an outer box (border, radius, size, `overflow: hidden` clipping, no
@@ -908,9 +908,9 @@ padding) and an inner scroll container (the padding, `flex: 1`, `minHeight: 0`) 
 its own. The explicit `::-webkit-scrollbar` rules force a classic scrollbar, which reserves real width
 (`offsetWidth - clientWidth` equals the declared `width`) and sits flush against the edge like a web page's
 own scrollbar. Those rules style only the element they are set on, so a nested scroller needs its own copy
-or it falls back to Chromium's default-width bar and breaks the arithmetic above.
+or it falls back to the engine's default-width bar and breaks the arithmetic above.
 
-**Never reserved twice.** A caller that scrolls one level deeper (an embedded web view, a transcript under a pinned
+**Never reserved twice.** A caller that scrolls one level deeper (an embedded document, a transcript under a pinned
 input bar) spreads `panelFrameBareSx`, which cancels both the padding and the gutter. Keeping either leaves a
 phantom gap outside the inner scrollbar and an uneven inset (28px on the right against 12px on the left).
 Its properties are longhands because MUI resolves `p`/`pr` and `overflow`/`overflowY` independently, so a
@@ -1037,7 +1037,7 @@ the same way `HostProvider` already mounts a second context for a concern that i
 bag. Close then `undoClose` inside the undo window keeps the value too: both keep the SAME panel id
 (`panelWindow.ts`'s close/restore, `usePanelClosing.ts`'s `undoClose`), and the id stays in
 `PanelsAPI.recentlyClosed` until then, so its cells are still held when the view remounts. It does not
-survive an app restart: a pure in-memory store, no desktop bridge, no local storage. Surviving a park is the
+survive an app restart: a pure in-memory store, no local storage. Surviving a park is the
 whole contract; surviving a restart is not part of it.
 
 A panel's state is released once nothing can show that panel again, as `OverlayStore.remove` releases an

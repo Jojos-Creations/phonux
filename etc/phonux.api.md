@@ -53,7 +53,7 @@ export interface ClosedPageEntry {
     closedAt: string;
     id: string;
     title: string;
-    url: string;
+    url?: string;
 }
 
 // @public
@@ -235,7 +235,8 @@ export interface HistoryAPI {
 // @public
 export interface Host {
     readonly device: PhoneDeviceAPI;
-    readonly history: HistoryAPI;
+    readonly history?: HistoryAPI;
+    readonly labels?: Partial<PhonuxLabels>;
     readonly panels: PanelsAPI;
     readonly settings: SettingsAPI;
     readonly snapshots?: SnapshotsAPI;
@@ -604,8 +605,10 @@ export interface PanelsInput {
         url?: string;
     }[];
     defaultHostData?: () => JsonValue;
+    defaultView?: string;
     fixedViewCount?: number;
     initialEntries?: readonly PanelWindow[];
+    labels?: Partial<PhonuxLabels>;
     onNote?: (note: SettingNote) => void;
     onPanelResize?: () => void;
     onPanelsClosed?: (entry: {
@@ -662,7 +665,7 @@ export interface PanelState {
     readonly status: PanelStatus;
     readonly templateId: string;
     readonly title: string | undefined;
-    readonly url: string;
+    readonly url?: string;
 }
 
 // @public
@@ -677,7 +680,7 @@ export interface PanelSummary<P = JsonValue> {
     readonly params?: P;
     readonly size?: PanelSize;
     readonly title?: string;
-    readonly url: string;
+    readonly url?: string;
 }
 
 // @public
@@ -761,18 +764,19 @@ export interface PhoneDetectPromptProps {
         vendorId: number;
         productId: number;
     } | null;
+    labels?: Partial<PhonuxLabels>;
     onDismiss: () => void;
     onResize: (modelId: string) => void;
 }
 
 // @public
 export interface PhoneDeviceAPI {
-    chooseModel(modelId: string): Promise<void>;
-    readonly defaultSize: PhoneSize;
-    readonly detectedPhone: DetectedPhone | null;
-    dismissDetectedPhone(): void;
-    readonly models: readonly PhoneModel[];
-    resizeForDetectedPhone(modelId: string): void;
+    chooseModel?(modelId: string): Promise<void>;
+    readonly defaultSize?: PhoneSize;
+    readonly detectedPhone?: DetectedPhone | null;
+    dismissDetectedPhone?(): void;
+    readonly models?: readonly PhoneModel[];
+    resizeForDetectedPhone?(modelId: string): void;
     readonly size: PhoneSize;
 }
 
@@ -789,6 +793,19 @@ export interface PhoneSize {
     height: number;
     modelId: string;
     width: number;
+}
+
+// @public
+export interface PhonuxLabels {
+    dismiss: string;
+    historyTitle: string;
+    panelTitle: (id: string) => string;
+    phoneConnected: string;
+    phoneConnectedText: (vendor: string) => string;
+    phoneModel: string;
+    resize: string;
+    untitledHeader: string;
+    untitledPanel: string;
 }
 
 // @public
@@ -1230,7 +1247,7 @@ export type WorkspaceOptions = {
 export type WorkspacePanelState = {
     id: string;
     view: string;
-    url: string;
+    url?: string;
     title?: string;
     params?: JsonValue;
     listed?: boolean;

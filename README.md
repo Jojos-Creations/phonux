@@ -2,7 +2,7 @@
 
 A phone-shaped view host for React: write a view against a small set of host
 APIs, register it, and render it inside one `<HostProvider>`. The host decides
-which views are live; a view never touches the desktop bridge, `localStorage`,
+which views are live; a view never touches `localStorage`,
 or anything else app-internal (see `DESIGN.md` in this folder for why).
 
 Install it from npm, together with the peer dependencies listed below:
@@ -69,7 +69,7 @@ import { createFakeHost } from 'phonux/testing';
 
 render(
   <HostProvider host={createFakeHost()}>
-    <MyView panel={{ id: '1', url: 'about:blank', live: true, locked: false }} />
+    <MyView panel={{ id: '1', live: true, locked: false }} />
   </HostProvider>,
 );
 ```

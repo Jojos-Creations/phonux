@@ -23,6 +23,8 @@ export type {
   Host,
 } from './hostApi.js';
 
+export type { PhonuxLabels } from './labels.js';
+
 export { useViewSnapshot, CaptureRegistryProvider, noopCaptureTrigger } from './snapshots.js';
 export type { ViewId, ViewSnapshot, SnapshotsAPI, CaptureRegistry, CaptureTrigger } from './snapshots.js';
 

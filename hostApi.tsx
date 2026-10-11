@@ -1,7 +1,7 @@
 /**
  * The public surface a view is written against: any component rendering a phone-shaped column
  * (Settings, History, a live panel, or a third party's) reads what it needs from `useHost()`,
- * renders a `<Panel>`, and never touches the desktop bridge, `localStorage` or any other app
+ * renders a `<Panel>`, and never touches `localStorage` or any other app
  * internal (see DESIGN.md). The host mounts ONE `<HostProvider>`; a test uses the same provider
  * with `fakeHost.ts`'s fakes. The provider value is REBUILT EVERY RENDER (see HostProvider).
  */
@@ -9,6 +9,7 @@
 import * as React from 'react';
 import type { PhoneModel } from './phoneModels.js';
 import type { SnapshotsAPI } from './snapshots.js';
+import type { PhonuxLabels } from './labels.js';
 import { OverlayProvider } from './windowOverlay.js';
 import { ViewStateProvider } from './viewState.js';
 
@@ -43,8 +44,8 @@ export interface ClosedPageEntry {
   id: string;
   /** The view's title when it was closed. */
   title: string;
-  /** The view's URL when it was closed. */
-  url: string;
+  /** The view's URL when it was closed; absent for a panel that had none. */
+  url?: string;
   /** ISO-8601, UTC. */
   closedAt: string;
 }
@@ -83,8 +84,8 @@ export interface PanelSize {
 export interface PanelSummary<P = JsonValue> {
   /** The panel's unique id, as `PanelsAPI` methods take it. */
   readonly id: string;
-  /** The URL the panel shows. */
-  readonly url: string;
+  /** The URL the panel shows; absent or empty for a host with no address concept. */
+  readonly url?: string;
   /** The panel's title, when it has one. */
   readonly title?: string;
   /** Mounted in the row now (false = parked, listed in History only). */
@@ -111,7 +112,7 @@ export interface SettingsAPI {
 
 /** The persisted Closed Pages log and the History column's own state. @public */
 export interface HistoryAPI {
-  /** The persisted Closed Pages log (every view ever closed, oldest first). NEVER rejects: any failure, including no desktop bridge, resolves to []. */
+  /** The persisted Closed Pages log (every view ever closed, oldest first). NEVER rejects: any failure, including a host with nothing to read, resolves to []. */
   loadClosedPages(): Promise<readonly ClosedPageEntry[]>;
   /** The Closed Pages overlay. `open()` (re)fetches through loadClosedPages(). */
   readonly closedPagesViewer: {
@@ -140,7 +141,7 @@ export interface HistoryAPI {
  * @public
  */
 export interface CreatePanelOptions {
-  /** Key of the registered view that renders the panel (see `registerView`). Default 'web'. */
+  /** Key of the registered view that renders the panel (see `registerView`). Default: `PanelsInput.defaultView`, else none, which renders the unregistered-view placeholder. */
   view?: string;
   /** The new panel's title. */
   title?: string;
@@ -171,7 +172,7 @@ export interface PanelsAPI {
   /** Every panel, live or parked, in array order. History lists them as given; the row shows the live ones. */
   readonly panelList: readonly PanelSummary[];
   /**
-   * Appends a live panel; zero-arg is the blank-web-panel default. `view` selects the rendered component
+   * Appends a live panel; zero-arg opens a panel of the host's default view. `view` selects the rendered component
    * (registerView/resolveView) -- an unregistered key renders a placeholder, never a crash. No raw
    * `collapsible`/`locked` key: `permanent` (CreatePanelOptions) is the only door to a permanent column, and
    * `locked` is never settable at all. A panel whose `overflow` setting is 'park' parks the live parkable panel
@@ -220,25 +221,25 @@ export interface PhoneDeviceAPI {
   /** The size every PanelFrame renders at. Live. */
   readonly size: PhoneSize;
   /** The built-in size (`modelId` 'default'), for a "Default (390 × 700)" choice. */
-  readonly defaultSize: PhoneSize;
+  readonly defaultSize?: PhoneSize;
   /** Selectable models. 'default' is not among them. */
-  readonly models: readonly PhoneModel[];
-  /** Applies at once, then persists. 'default' resets. Never rejects: with no desktop bridge the choice lasts this session only. */
-  chooseModel(modelId: string): Promise<void>;
+  readonly models?: readonly PhoneModel[];
+  /** Applies at once, then persists. 'default' resets. Never rejects: where nothing persists, the choice lasts this session only. */
+  chooseModel?(modelId: string): Promise<void>;
   /** Non-null exactly while the one-time "phone connected" notice should show. */
-  readonly detectedPhone: DetectedPhone | null;
+  readonly detectedPhone?: DetectedPhone | null;
   /** Hides the notice without changing the size. */
-  dismissDetectedPhone(): void;
+  dismissDetectedPhone?(): void;
   /** Resize to `modelId` and dismiss the notice. */
-  resizeForDetectedPhone(modelId: string): void;
+  resizeForDetectedPhone?(modelId: string): void;
 }
 
 /** Everything a view reaches through `useHost()`. @public */
 export interface Host {
   /** Window-layout settings. */
   readonly settings: SettingsAPI;
-  /** The Closed Pages log and History column. */
-  readonly history: HistoryAPI;
+  /** The Closed Pages log and History column. Optional: a host with no closed-page log leaves it out. */
+  readonly history?: HistoryAPI;
   /** The panel row. */
   readonly panels: PanelsAPI;
   /** The phone size and phone-detect notice. */
@@ -246,6 +247,8 @@ export interface Host {
   /** Optional, unlike every other member: without it useViewSnapshot (snapshots.ts) shows no picture instead
    * of throwing, so a host that does not capture need not supply a no-op. */
   readonly snapshots?: SnapshotsAPI;
+  /** Overrides of the library's visible strings (see `PhonuxLabels`); a key left out keeps its English default. */
+  readonly labels?: Partial<PhonuxLabels>;
 }
 
 // ---------------------------------------------------------------------------
@@ -281,6 +284,11 @@ export function HostProvider({ host, children }: { host: Host; children: React.R
       </OverlayProvider>
     </HostContext.Provider>
   );
+}
+
+/** The host a provider mounted, or null outside one: for the library's own components that can render without a host. @internal */
+export function useOptionalHost(): Host | null {
+  return React.useContext(HostContext);
 }
 
 /** The one hook a view uses to reach the rest of the app. Call API methods from event handlers; do not capture one in an effect with empty deps. @public */

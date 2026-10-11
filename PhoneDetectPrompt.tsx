@@ -7,6 +7,7 @@ import Typography from '@mui/material/Typography';
 import CloseIcon from '@mui/icons-material/Close';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import SmartphoneIcon from '@mui/icons-material/Smartphone';
+import { resolveLabels, type PhonuxLabels } from './labels.js';
 import { PHONE_MODELS, vendorLabelForUsbVendorId } from './phoneModels.js';
 
 /** The props of `PhoneDetectPrompt`. @public */
@@ -22,6 +23,8 @@ export interface PhoneDetectPromptProps {
   onResize: (modelId: string) => void;
   /** Called when the person dismisses the prompt. */
   onDismiss: () => void;
+  /** Overrides of the prompt's text and accessible names (see `PhonuxLabels`); a key left out keeps its English default. */
+  labels?: Partial<PhonuxLabels>;
 }
 
 /**
@@ -30,14 +33,15 @@ export interface PhoneDetectPromptProps {
  * places it. No Portal, because a static render (renderToStaticMarkup) has no `document` for one to target.
  * @public
  */
-export function PhoneDetectPrompt({ detected, onResize, onDismiss }: PhoneDetectPromptProps) {
+export function PhoneDetectPrompt({ detected, onResize, onDismiss, labels: given }: PhoneDetectPromptProps) {
+  const labels = resolveLabels(given);
   const [modelId, setModelId] = useState(PHONE_MODELS[0]?.id ?? 'default');
   if (!detected) return null;
   return (
     <Box
       data-phone-detect-prompt=""
       role="status"
-      aria-label="Phone connected"
+      aria-label={labels.phoneConnected}
       sx={{
         width: 'max-content',
         maxWidth: '90vw',
@@ -56,13 +60,13 @@ export function PhoneDetectPrompt({ detected, onResize, onDismiss }: PhoneDetect
     >
         <SmartphoneIcon fontSize="small" sx={{ color: 'primary.main', flexShrink: 0 }} />
         <Typography variant="caption" component="span" color="text.secondary" sx={{ fontWeight: 600, whiteSpace: 'nowrap' }}>
-          {`${vendorLabelForUsbVendorId(detected.vendorId)} connected`}
+          {labels.phoneConnectedText(vendorLabelForUsbVendorId(detected.vendorId))}
         </Typography>
         <Box sx={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
           <Box
             component="select"
             data-phone-detect-select=""
-            aria-label="Phone model"
+            aria-label={labels.phoneModel}
             value={modelId}
             onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setModelId(e.target.value)}
             sx={(theme) => ({
@@ -95,9 +99,9 @@ export function PhoneDetectPrompt({ detected, onResize, onDismiss }: PhoneDetect
           />
         </Box>
         <Button size="small" variant="contained" disableElevation onClick={() => onResize(modelId)} sx={{ flexShrink: 0 }}>
-          Resize
+          {labels.resize}
         </Button>
-        <IconButton size="small" aria-label="Dismiss" onClick={onDismiss} sx={{ flexShrink: 0, ml: -0.5 }}>
+        <IconButton size="small" aria-label={labels.dismiss} onClick={onDismiss} sx={{ flexShrink: 0, ml: -0.5 }}>
           <CloseIcon fontSize="small" />
         </IconButton>
     </Box>
