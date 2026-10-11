@@ -7,7 +7,7 @@ import type { FormFactor } from './hostApi.js';
 import type { ConfigureResult } from './panelManager.js';
 import { PanelManagerError } from './panelManagerError.js';
 import type { PanelRefusal } from './panelManagerError.js';
-import { reparked, withoutDeferral } from './panelPin.js';
+import { reparked, withoutDeferral, type PinChange } from './panelPin.js';
 import { PANEL_SETTINGS_CATALOG, checkTuningLeaf, resolveUnderTuning, sameSettingsValue, viewMayAsk } from './panelSettings.js';
 import type { PanelSettings, PanelSettingsResolution, PanelUserLayer, ResolvedPanelSettings, SettingConflict, SettingDescriptor, SettingNote, WorkspaceTuning } from './panelSettings.js';
 import { mergePatch, type SettingsPatch } from './settingsPatch.js';
@@ -248,6 +248,47 @@ export function configured(plan: Extract<InstancePlan, { changed: true }>): Extr
 /** The success of a call that changed nothing. */
 export const unchanged = (): Extract<ConfigureResult, { ok: true }> => ({ ok: true, changed: false, shown: false, now: [], later: [], shadowed: [], notes: [] });
 
+/** The refusal a plan carries, as the result for panel `name`. */
+export const refusedPlan = (name: string, plan: Extract<InstancePlan, { ok: false }>): Extract<ConfigureResult, { ok: false }> => ({
+  ok: false,
+  code: plan.code,
+  message: `panel '${name}': ${plan.message}`,
+  ...(plan.setting === undefined ? {} : { setting: plan.setting }),
+});
+
+/** The success of a call whose only effect was to cancel a flip of `parkable` waiting on the panel. */
+export const cancelled = (): Extract<ConfigureResult, { ok: true }> => ({ ok: true, changed: true, shown: false, now: [], later: [], shadowed: [], notes: [] });
+
+/** The success of a flip that showed the panel: `plan` answers as it would for a live one, with `shown` true. */
+export const shownResult = (plan: Extract<InstancePlan, { changed: true }>): Extract<ConfigureResult, { ok: true }> => ({ ...configured(plan), shown: true });
+
+/** The refusal of a flip of `parkable` that the panel's `pinningWhenNotLive` turns away. */
+export const refusedFlip = (name: string, code: PanelRefusal): Extract<ConfigureResult, { ok: false }> => ({ ok: false, code, message: `panel '${name}': its pinningWhenNotLive does not let configure change parkable while it is not live` });
+
+/**
+ * The flip of `parkable` that `plan` asks of a panel reading `reads` now, or undefined when the patch does not name
+ * `parkable` or leaves the panel reading what it did: already as asked, or outvoted by the person's override.
+ */
+export function askedFlip(patch: SettingsPatch, plan: Extract<InstancePlan, { changed: true }>, reads: boolean): PinChange | undefined {
+  const asks = plan.resolution.value.parkable;
+  return patch.parkable === undefined || asks === reads ? undefined : { parkable: asks };
+}
+
+/** `patch` and `names` without `parkable`: what a flip that waits or shows leaves for the ordinary write. */
+export function withoutFlip(patch: SettingsPatch, names: readonly string[]): { patch: SettingsPatch; names: string[] } {
+  const { parkable: _flip, ...rest } = patch;
+  return { patch: rest, names: names.filter((n) => n !== 'parkable') };
+}
+
+/** Whether `stored` is the very change `flip` asks for. */
+export const sameDeferral = (stored: PinChange | undefined, flip: PinChange): boolean => JSON.stringify(stored) === JSON.stringify(flip);
+
+/** What a flip that waits answers: the rest of the patch as `rest` plans it, and `parkable` among `later` when the flip is new. */
+export function deferredResult(rest: Extract<InstancePlan, { ok: true }>, fresh: boolean): Extract<ConfigureResult, { ok: true }> {
+  if (!rest.changed) return fresh ? { ...unchanged(), changed: true, later: ['parkable'] } : unchanged();
+  return { ok: true, changed: true, shown: false, now: rest.now, later: fresh ? [...rest.later, 'parkable'] : rest.later, shadowed: rest.shadowed, notes: rest.notes };
+}
+
 /**
  * `entry` carrying what `plan` resolved: the fields that mirror the settings follow, the instance layer is kept for an
  * entry code does not re-declare, a title the patch removed goes, and a panel that became a fixed column is live. The
@@ -263,14 +304,26 @@ export function reconfigured(entry: PanelWindow, plan: Extract<InstancePlan, { c
   return plan.cancelsPin ? withoutDeferral(next) : next;
 }
 
+/** `entry` with the rest of the patch written and `flip` waiting on it, or `entry` itself when that changes nothing. */
+export function deferredEntry(entry: PanelWindow, rest: Extract<InstancePlan, { ok: true }>, patch: SettingsPatch, flip: PinChange): PanelWindow {
+  const settled = rest.changed ? reconfigured(entry, rest, patch) : entry;
+  return sameDeferral(entry.deferredPin, flip) ? settled : { ...settled, deferredPin: flip };
+}
+
+/** `entry` as it is handed to the show path of a flip: the rest of the patch written, the whole patch's instance layer, and nothing left waiting. */
+export function shownEntry(entry: PanelWindow, rest: Extract<InstancePlan, { ok: true }>, patch: SettingsPatch, plan: Extract<InstancePlan, { changed: true }>): PanelWindow {
+  const settled = rest.changed ? reconfigured(entry, rest, patch) : entry;
+  return withoutDeferral(entry.declared === true ? settled : { ...settled, instance: plan.layer });
+}
+
 /** `prev` with `target` replaced by `next`, or `prev` itself when the row no longer holds `target`: something changed the entry between the call and the commit. */
 export function applyConfigure(prev: PanelWindow[], target: PanelWindow, next: PanelWindow): PanelWindow[] {
   const at = prev.indexOf(target);
   return at < 0 ? prev : prev.map((p, k) => (k === at ? next : p));
 }
 
-/** What the engine's `configure` op is handed by the workspace: an answer, and for a change the entry to write. */
-export type ConfigureOutcome = { done: ConfigureResult } | { done: Extract<ConfigureResult, { ok: true }>; next: PanelWindow };
+/** What the engine's `configure` op is handed by the workspace: an answer, and for a change the entry to write and, when the flip shows the panel, the change its show path applies. */
+export type ConfigureOutcome = { done: ConfigureResult } | { done: Extract<ConfigureResult, { ok: true }>; next: PanelWindow; show?: PinChange };
 
 /** What `planTuning` decided. */
 export type TuningPlan =

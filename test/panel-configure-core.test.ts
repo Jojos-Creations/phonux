@@ -220,8 +220,15 @@ for (const kind of ['a person-resized tablet panel', 'a dragged panel'] as const
   }
 }
 
-test('writer: a parkable flip to false makes the panel live and a fixed column, and writes nothing else of the tier', async () => {
-  const r = await pinRig();
+test('writer: a parkable flip to false on a hidden panel is refused under the default place-only, and under show it makes the panel live and a fixed column and writes nothing else of the tier', async () => {
+  const refused = await pinRig();
+  refused.turn(() => refused.h.c!.hide());
+  assert.equal(refused.entry('c').live, false, 'control: the panel is parked');
+  const kept = refused.m.latest().entries;
+  refusedWith(refused.turn(() => refused.h.c!.configure({ parkable: false })), 'would-reshape-row');
+  assert.equal(refused.m.latest().entries, kept, 'a refusal writes no entry');
+  cleanup();
+  const r = await pinRig({ settings: { c: { pinningWhenNotLive: 'show' } } });
   r.turn(() => r.h.c!.hide());
   assert.equal(r.entry('c').live, false, 'control: the panel is parked');
   const before = r.entry('c');

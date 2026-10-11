@@ -68,9 +68,9 @@ export type ConfigureResult =
   | {
       /** The change was accepted. */
       readonly ok: true;
-      /** True when a different value was stored; false for an equal or empty patch. */
+      /** True when a different value was stored or a waiting flip of `parkable` was cancelled; false for an equal or empty patch. */
       readonly changed: boolean;
-      /** True when the change also showed a hidden panel; `configure` never does, so it is false. */
+      /** True only when a flip of `parkable` showed a parked or hidden panel under `pinningWhenNotLive` 'show'; otherwise false. */
       readonly shown: boolean;
       /** The catalog names applied in this commit. */
       readonly now: readonly string[];
@@ -110,7 +110,7 @@ export interface PanelManager {
   get<P extends JsonValue = JsonValue>(id: PanelId): PanelHandle<P> | undefined;
   /** A handle for every panel `f` keeps; all panels when `f` is left out. */
   list(f?: ListFilter): readonly PanelHandle[];
-  /** Changes settings of one panel after it was added; `null` removes an instance value. All or nothing, in one update. */
+  /** Changes settings of one panel after it was added; `null` removes an instance value. All or nothing, in one update. A flip of `parkable` on a panel that is not live follows `pinningWhenNotLive`: it may be refused with `would-reshape-row` or `is-closed`, show the panel, or wait and be listed in `later`. */
   configure(id: PanelId, patch: InstancePatch): ConfigureResult;
   /** Changes the template-scope settings (`hostCreatable`, `multiple`, `maxInstances`) of a template for panels made from now on. Kept for this session only. */
   configureTemplate(templateId: string, patch: Pick<SettingsPatch, 'hostCreatable' | 'multiple' | 'maxInstances'>): ConfigureResult;

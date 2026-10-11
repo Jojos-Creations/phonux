@@ -86,7 +86,7 @@
     {
       "name": "the edit of a closed record is dropped",
       "file": "workspaceCore.ts",
-      "find": "rec.settings = plan.layer;\n      if (rec.lastEngineId",
+      "find": "rec.settings = applied.layer;\n        if (rec.lastEngineId",
       "replace": "if (rec.lastEngineId",
       "expectRed": ["closed inside the window: closable false then undoClose gives locked true, and close() is refused not-closable", "closed past the window: the edit is stored on the record and open() uses it"]
     },
