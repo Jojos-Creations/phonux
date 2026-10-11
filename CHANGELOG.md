@@ -20,6 +20,12 @@
   a panel `create()` opens), `Host.labels` (the unregistered-view placeholder and the `PanelHeaderRow` empty title) and
   `PhoneDetectPromptProps.labels` (its text and accessible names).
 
+### Fixed
+
+- A panel dragged past a neighbour under React 19.2's StrictMode no longer stays at its drag offset, overlapping the
+  panel beside it and leaving a gap: `DragToClose` keeps its release spring running when React runs its effect cleanup
+  and setup again, which React 19.2 does to a keyed child a reorder moves.
+
 ## 0.2.0-rc.1
 
 ### Breaking

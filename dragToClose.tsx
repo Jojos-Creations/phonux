@@ -298,13 +298,9 @@ export function DragToClose({
   const unlockScrollParents = () => {
     for (const [el, previous] of locked.current.splice(0)) el.style.overflowY = previous;
   };
-  React.useEffect(
-    () => () => {
-      running.current?.stop();
-      unlockScrollParents();
-    },
-    [],
-  );
+  // The cleanup leaves a running spring alone: React 19.2 re-runs it for a keyed child a reorder moves under StrictMode, and
+  // Activity runs it on a hide; a stopped release spring leaves the box at its drag offset.
+  React.useEffect(() => unlockScrollParents, []);
   // An undo while AnimatePresence still holds this box revives the SAME instance: parked, locked, refusing presses. A layout effect that
   // writes the DOM itself, not on Motion's next frame: the host scrolls a revived view into view in this same commit and must find it at rest.
   const isPresent = useIsPresent();
