@@ -1,6 +1,17 @@
 # Changelog
 
-## Unreleased
+## 0.2.0-rc.1
+
+### Breaking
+
+- Gone from `phonux`: the 22 deprecated aliases, ten values and three types, `SettingsAPI`'s four max-panels members and
+  `PanelsInput.storedMaxPanels`; the Removed list below names each one and what replaces it.
+- A panel built through a workspace now scrolls where 0.1.0 parked it at capacity, and its container's `overflow-x`,
+  centring margin and `maxLiveWidth` change with it. A hand-built entry keeps parking.
+- `ProvidedPanels` gains required members (`rowScroll`, `rowNumbers`, `tuning`, `scrollTo`, `followPanel`), so a typed
+  fake of it stops compiling.
+- `clearAll` keeps locked entries, `usePanelCloseEligible` is `collapsible && !locked`, `undoClose` consumes its batch
+  once and reports only the ids it restored, and a raw call on an id that holds a manager token does nothing.
 
 ### Added
 
@@ -83,6 +94,14 @@
   derived value, also while a flip of `parkable` waits) raises the `hold-unlisted` note, in `ConfigureResult.notes` and
   through `onNote`, once per call, whatever the panel's `revealOnScroll`; a call that shows the panel or is refused
   whole raises none.
+- New runtime values on `phonux`, 19 in all: `PANEL_SETTINGS_CATALOG`, `LIBRARY_PANEL_DEFAULTS`,
+  `LIBRARY_TUNING_DEFAULTS`, `resolvePanelSettings`, `mergePatch`, `definePanel`, `PanelManagerError`,
+  `usePanelCapabilities`, `usePanelTuning`, `usePanelReorderSteps`, `slideToTransition`, `usePanelHidden`,
+  `computeRowNumbers`, `createWorkspace`, `usePanelStates`, `usePanelState`, `useWorkspaceManager`,
+  `usePanelHeaderButtons` and `PanelHeaderButtons`; `memoryWorkspaceStorage` is on `phonux/testing`.
+- Saved workspace files keep `version: 1` and gain additive keys, written only for entries that carry `settings`: per
+  panel `key`, `instance`, `overrides` (`anchor`, `formFactor`, `parkable`), `applied` and `closable`, and at the top
+  `dismissed` (at most 256) and `root`. Settings themselves are never saved.
 
 ### Changed
 
@@ -148,6 +167,15 @@
   something else. A save that settles after a newer one started leaves the baseline alone, and no timer retries.
 - `WorkspaceStorage.save` is now typed `void | Promise<void>`, so a function whose body is an expression returning
   another value, such as `(s) => log.push(s)`, no longer compiles; give it a block body.
+- The step gesture on a scrolling row scrolls by panel where 0.1.0 swapped a parked panel in.
+- In a scrolling row `ReorderHandle.onDragEnd`'s offset includes the scroll distance the drag covered, so a hop count
+  computed from it matches what the person saw.
+- A row built through a workspace sets its container's `overflow-x` to auto when it scrolls, takes its centring margin
+  from the row numbers and reads `maxLiveWidth` from `computeRowNumbers`; a hand-built row keeps `overflow-x: hidden`.
+- A panel built through a workspace defaults to `overflow: 'scroll'`; set `overflow: 'park'` to keep 0.1.0's parking.
+  The `PanelsAPI` doc comments now say parking applies to panels whose `overflow` is `park`.
+- Going back to 0.1.0 costs the saved extras: 0.1.0 reads a `version: 1` file and writes only the keys it documents, so
+  the person's overrides, the applied placement and the dismissed list are lost at its next save.
 
 ### Removed
 

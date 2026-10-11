@@ -95,10 +95,10 @@ function missingMatchesRemoved(fixture: ExportsFixture, current: { root: Names; 
   );
 }
 
-/** The backtick-quoted names of the first and third top-level bullets of the Unreleased section's Removed list, one set per bullet. */
+/** The backtick-quoted names of the first and third top-level bullets of the release section's Removed list, one set per bullet. */
 function changelogRemovedBullets(): [Set<string>, Set<string>] {
   const lines = readText(fileURLToPath(new URL('../CHANGELOG.md', import.meta.url))).split('\n');
-  const unreleased = lines.findIndex((line) => /^## Unreleased\s*$/.test(line));
+  const unreleased = lines.findIndex((line) => /^## (Unreleased|0\.2\.0-rc\.1)\s*$/.test(line));
   const removedAt = lines.findIndex((line, i) => i > unreleased && /^### Removed\s*$/.test(line));
   assert.ok(unreleased >= 0 && removedAt >= 0, 'CHANGELOG.md has an Unreleased section with a Removed list');
   const bullets: string[][] = [];
