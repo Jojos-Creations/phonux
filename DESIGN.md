@@ -1115,7 +1115,8 @@ not set, at the host layer, ignored).
 Notes never throw: `park-lever-inert` when a layer sets a park lever (`capacityReturn`, `returnPriority`,
 `evictionRank`, `evictionOrder`) on a panel that resolves to `overflow: 'scroll'`, `pin-unlists` when a pinned half
 names `parkable: false` and `listed` is unset, `override-dropped` when the person's tier is outside `formFactors` or
-a fixed column would not be on the phone tier, and `invalid-saved-setting` for each key a lenient resolve dropped.
+a fixed column would not be on the phone tier, `max-instances-moot` when `configureTemplate` names `maxInstances`
+on a template that resolves to `multiple: false`, and `invalid-saved-setting` for each key a lenient resolve dropped.
 
 ### Who may set what
 
@@ -1138,6 +1139,10 @@ queued behind another call's update of the same entry in one turn applies to the
 layer the call saw; a panel the update removed stays removed. What a view asked for at a Host-bag `create` is kept apart for
 the session as the panel's host layer, under the instance layer: `null` on a key the view asked for shows the ask again with
 source `host`, and the file keeps the ask merged into the instance layer, so a new launch reads it as the instance layer's own.
+
+`configureTemplate` naming `maxInstances` on a template that resolves to `multiple: false` still stores the limit, which has
+no effect until `multiple` is true, and answers one `max-instances-moot` note in `ConfigureResult.notes` and through
+`onNote`, once per call. A refused call or a call that changes nothing answers none.
 
 `configureTemplate(id, { multiple: false })` counts the template's row entries, its declared panels that are closed (inside
 the undo window or past it) and its anonymous panels inside the undo window, and counts no panel of another template. It is
