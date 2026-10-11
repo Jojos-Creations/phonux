@@ -11,7 +11,7 @@ import { makeHandle, makeOwnHandle, makeReader, makeViewHandle, type PanelHandle
 import { accepted, makePanelManager, refused, type ConfigureResult, type PanelManager, type PanelOpSource, type PanelResult, type PinResult, type ResetResult } from './panelManager.js';
 import { PanelManagerError } from './panelManagerError.js';
 import { decidePinChange, isPinned, withoutDeferral, type PinChange, type PinDecision, type PinStatus } from './panelPin.js';
-import { applyTemplate, effective, panelKey, resolvePanelSettings, resolveUnderTuning, sameSettingsValue } from './panelSettings.js';
+import { applyTemplate, effective, holdUnlistedNote, panelKey, resolvePanelSettings, resolveUnderTuning, sameSettingsValue } from './panelSettings.js';
 import type { AddPlacement, PanelId, PanelSettings, PanelSettingsResolution, ResolvedPanelSettings, ResolvedPanelTuning, ResolvedWorkspaceTuning, ScrollAlign, SettingNote, WorkspaceTuning } from './panelSettings.js';
 import { definePanel } from './panelTemplate.js';
 import type { DeferredPin, PanelReader, PanelReadHandle, PanelSnapshot, PanelState, PanelTemplate, ViewHandle, WorkspaceStatus } from './panelTemplate.js';
@@ -242,6 +242,14 @@ const sameState = (a: PanelState, b: PanelState): boolean =>
   JSON.stringify(a.params) === JSON.stringify(b.params) &&
   JSON.stringify(a.deferredPin) === JSON.stringify(b.deferredPin) &&
   sameSettingsValue(a.settings, b.settings);
+
+/** `outcome` with the hold-unlisted note appended to its answer when the update leaves a listed, held panel unlisted. */
+function withHoldNote(target: PanelWindow, status: 'live' | 'parked' | 'hidden', outcome: ConfigureOutcome): ConfigureOutcome {
+  // Only the finished outcome says whether a flip of parkable was refused, showed the panel or left it held.
+  if (!('next' in outcome) || outcome.done.shown || status !== 'hidden') return outcome;
+  if (!effective(target).listed || effective(outcome.next).listed) return outcome;
+  return { ...outcome, done: { ...outcome.done, notes: [...outcome.done.notes, holdUnlistedNote(target.id)] } };
+}
 
 /**
  * A workspace over `o`. Nothing renders until `useProvidePanels({ workspace })` attaches it; panels added before that
@@ -875,7 +883,7 @@ export function createWorkspace(o: WorkspaceOptions = {}): WorkspaceHandle {
     let split: HostSplit | undefined;
     // The update plans again when an earlier update of the turn rebuilt the entry, and by then the record already holds the new layer: the base must stay the one the call saw.
     let base: { layer: PanelSettings | undefined; split: HostSplit | undefined } | undefined;
-    const result = commit!.ops.configure(state.engineId!, (target, status): ConfigureOutcome => {
+    const planUpdate = (target: PanelWindow, status: 'live' | 'parked' | 'hidden'): ConfigureOutcome => {
       base ??= { layer: instanceLayer(target), split: splits.get(target.id) };
       const seen = base;
       const planFor = (ask: typeof rest): InstancePlan => planInstance({ ...input, ...ask, base: seen.layer, template: templateOf(target.view)?.settings, split: seen.split, person: target.overrides, current: target.settings, root: target.id === rootId, tier: target.formFactor ?? 'phone', status });
@@ -905,7 +913,8 @@ export function createWorkspace(o: WorkspaceOptions = {}): WorkspaceHandle {
       layer = plan.layer;
       split = plan.split;
       return { done: configured(plan), next: reconfigured(target, plan, asked) };
-    });
+    };
+    const result = commit!.ops.configure(state.engineId!, (target, status) => withHoldNote(target, status, planUpdate(target, status)));
     if (result.ok && result.changed && layer !== undefined) storeLayer(id, state.engineId!, layer, split);
     return result;
   };

@@ -79,6 +79,10 @@
 - `configure({ snapshot: 'never' })` asks the host's `CaptureTrigger` to `evict` that panel's stored picture once, from the
   commit's layout effect, for a live, parked, hidden or protected panel. A closed record or a panel inside its undo window
   stores the edit and asks nothing at the call.
+- A `configure` call that leaves a held panel unlisted (`{ listed: false }`, or a `null` that restores an unlisted
+  derived value, also while a flip of `parkable` waits) raises the `hold-unlisted` note, in `ConfigureResult.notes` and
+  through `onNote`, once per call, whatever the panel's `revealOnScroll`; a call that shows the panel or is refused
+  whole raises none.
 
 ### Changed
 
