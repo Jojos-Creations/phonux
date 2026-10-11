@@ -16,7 +16,7 @@ import type { RefObject } from 'react';
 import { GESTURE_LOCK_MS } from '../rowConstants.js';
 
 /**
- * `gestureLockMs`: a trackpad swipe arrives as a burst of small wheel deltas with a momentum tail, and Chromium cannot
+ * `gestureLockMs`: a trackpad swipe arrives as a burst of small wheel deltas with a momentum tail, and a WebKit or Blink browser cannot
  * tell a momentum event from a fresh user one. Locking on the first event of a burst and unlocking only after this
  * long of silence (the default is not shorter: gaps inside a real momentum stream can exceed 150 ms) keeps one swipe
  * to one step.

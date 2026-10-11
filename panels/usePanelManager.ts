@@ -177,7 +177,7 @@ export function usePanelManager(
   setPanels: Dispatch<SetStateAction<PanelWindow[]>>,
   phoneWidth: number,
   containerWidth: number,
-  /** How many always-rendered, non-webview columns the row currently has (`count(!collapsible)` over the provider's own list, unless its host overrides it). */
+  /** How many always-rendered columns the row currently has (`count(!collapsible)` over the provider's own list, unless its host overrides it). */
   fixedColumnCount: number,
   rootId: string,
   options?: PanelManagerOptions,

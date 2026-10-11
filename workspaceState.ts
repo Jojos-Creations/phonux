@@ -20,8 +20,8 @@ export type WorkspacePanelState = {
   id: string;
   /** Key of the registered view that renders the panel. */
   view: string;
-  /** The URL the panel shows. */
-  url: string;
+  /** The URL the panel shows; a file without one restores a panel with none. */
+  url?: string;
   /** The panel's title, when it had one. */
   title?: string;
   /** Opaque per-panel data, as `CreatePanelOptions.params`. */
@@ -103,7 +103,7 @@ function isSavedPanel(value: unknown): value is WorkspacePanelState {
   return (
     typeof value.id === 'string' &&
     typeof value.view === 'string' &&
-    typeof value.url === 'string' &&
+    isOptional(value.url, 'string') &&
     typeof value.live === 'boolean' &&
     isOptional(value.title, 'string') &&
     isOptional(value.listed, 'boolean') &&
@@ -283,7 +283,7 @@ export function projectWorkspaceState(panels: readonly PanelWindow[], rootId: st
 export function entryFromSaved(s: WorkspacePanelState, id: string, anchor: PanelWindow['anchor'], rootId: string): PanelWindow {
   const entry = appendPanel(
     [],
-    { url: s.url, view: s.view, title: s.title, params: s.params, listed: s.listed, layer: s.layer, formFactor: s.formFactor, permanent: s.permanent },
+    { ...(s.url !== undefined ? { url: s.url } : {}), view: s.view, title: s.title, params: s.params, listed: s.listed, layer: s.layer, formFactor: s.formFactor, permanent: s.permanent },
     id,
     rootId,
   )[0]!;

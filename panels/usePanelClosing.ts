@@ -79,7 +79,7 @@ export function usePanelClosing(
    * ever undo.
    */
   onWindowElapsed?: (panels: PanelWindow[]) => void,
-  /** Called once per successful close with the log entry: `id` is the log id, `title` already falls back to the url, then 'Untitled panel'. */
+  /** Called once per successful close with the log entry: `id` is the log id, `title` is the panel's own, the empty string when it has none: the host decides what to show for that. */
   onPanelsClosed?: (entry: { id: string; title: string; url: string; closedAt: string }) => void,
   /** Called once per `undoClose` batch with the log ids of the closes it restores that were reported, in close order; not called when there are none. */
   onPanelsRestored?: (logIds: string[]) => void,
@@ -144,8 +144,7 @@ export function usePanelClosing(
     const logId = `${closedAt}#${id}`;
     setPanels((prev) => closePanel(prev, id, rootId)?.remaining ?? prev);
     onAfterClose?.(id, found.remaining);
-    // A url-less custom panel has nothing sensible to fall back to: 'Untitled panel', never an empty string.
-    if (settings.reportClose) onPanelsClosed?.({ id: logId, title: found.closed.title || found.closed.url || 'Untitled panel', url: found.closed.url, closedAt });
+    if (settings.reportClose) onPanelsClosed?.({ id: logId, title: found.closed.title ?? '', url: found.closed.url, closedAt });
     if (settings.undoWindowMs === 0) {
       onWindowElapsed?.([found.closed]);
       return true;

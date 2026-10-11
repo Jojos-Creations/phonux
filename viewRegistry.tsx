@@ -1,6 +1,7 @@
 /** Maps a panel's open-string `view` to the component that renders it. Why the fallback: DESIGN.md, "The panel-view registry". */
 import * as React from 'react';
-import type { JsonValue, PanelSummary } from './hostApi.js';
+import { useOptionalHost, type JsonValue, type PanelSummary } from './hostApi.js';
+import { resolveLabels } from './labels.js';
 import { PanelManagerError } from './panelManagerError.js';
 import type { PanelTemplate } from './panelTemplate.js';
 import { PanelViewContextValue } from './panelViewContext.js';
@@ -53,9 +54,10 @@ function placeholderFor(key: string): ViewComponent {
   const cached = placeholders.get(key);
   if (cached) return cached;
   function UnregisteredPanelPlaceholder({ panel }: { panel: PanelSummary }): React.JSX.Element {
+    const labels = resolveLabels(useOptionalHost()?.labels);
     return (
       <div data-unregistered-panel-view={key}>
-        <span>{panel.title ?? 'Untitled panel'}</span>
+        <span>{panel.title ?? labels.untitledPanel}</span>
         <span data-unregistered-panel-view-key="">{key}</span>
       </div>
     );

@@ -10,6 +10,7 @@ import { useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore, typ
 import { useReducedMotionConfig } from 'motion/react';
 import type { CreatePanelOptions, FormFactor, JsonValue, PanelsAPI } from '../hostApi.js';
 import { computeRowNumbers, maxScrollOf, type RowNumbers } from '../rowNumbers.js';
+import { resolveLabels, type PhonuxLabels } from '../labels.js';
 import { rowScrollerFor } from '../rowScroller.js';
 import { gestureTarget, scrollTargetFor } from '../scrollTargets.js';
 import { isPresent, summarisePanel } from '../panelRowEntry.js';
@@ -74,13 +75,17 @@ export interface PanelsInput {
   capture?: CaptureTrigger;
   /** Called when setFormFactor really resizes a panel, so the host can glide the row's margin with it. */
   onPanelResize?: () => void;
+  /** The view a `create()` without a `view` opens. Unset: such a panel has no view and renders the unregistered-view placeholder, which is also what an unregistered key renders. */
+  defaultView?: string;
+  /** Overrides of the library's visible strings that this hook writes into the panels it makes (see `PhonuxLabels`); a key left out keeps its English default. */
+  labels?: Partial<PhonuxLabels>;
   /** Called once per close with its closed-pages log entry; the host decides where that log lives. See usePanelClosing.ts. */
   onPanelsClosed?: (entry: {
     /** The log id, `<closedAt>#<panel id>`; the id `onPanelsRestored` reports back. */
     id: string;
-    /** The panel's title, else its URL, else 'Untitled panel'. */
+    /** The panel's own title; the empty string when it had none, which the host replaces with whatever it shows for an untitled entry. */
     title: string;
-    /** The panel's URL. */
+    /** The panel's URL; the empty string when it had none. */
     url: string;
     /** When the panel closed, as an ISO 8601 timestamp. */
     closedAt: string;
@@ -271,6 +276,7 @@ export interface ProvidedPanels extends PanelsAPI {
  */
 export function useProvidePanels(i: PanelsInput): ProvidedPanels {
   const capture = i.capture ?? noopCaptureTrigger;
+  const labels = resolveLabels(i.labels);
   // The first workspace given is the one this hook serves for its whole life; a later one is reported, never followed.
   const boundWorkspace = useRef(i.workspace).current;
   const core = boundWorkspace === undefined ? undefined : bindingOf(boundWorkspace);
@@ -899,9 +905,10 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
       const id = freshId();
       // Built here, outside the updater below: React may run an updater twice, and the host's builder is not required to be pure.
       const hostData = i.defaultHostData?.();
-      // "Panel N", not "about:blank": every panel needs a distinguishable title, for testing. options?.title
-      // overrides it; the explicit `title:` below (after the spread) is what makes that override win either way.
-      const template = safeOptions?.view === undefined ? undefined : templateList().find((t) => t.id === safeOptions.view);
+      // Every panel needs a distinguishable title, for testing. options?.title overrides it; the explicit `title:`
+      // below (after the spread) is what makes that override win either way.
+      const viewKey = safeOptions?.view ?? i.defaultView;
+      const template = viewKey === undefined ? undefined : templateList().find((t) => t.id === viewKey);
       const settingsOn = core !== undefined || workspaceDefaults !== undefined || template !== undefined || (i.templates?.length ?? 0) > 0 || (i.declared?.length ?? 0) > 0;
       const plan = settingsOn ? planCreate(safeOptions, template, workspaceDefaults ?? {}) : undefined;
       const settings = plan?.resolution.value;
@@ -913,12 +920,12 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
         const next = appendPanel(
           prev,
           {
-            url: 'about:blank',
             hostData,
             params: template?.params,
             ...safeOptions,
+            view: viewKey ?? '',
             ...(template !== undefined ? { permanent: undefined } : {}),
-            title: safeOptions?.title ?? `Panel ${id}`,
+            title: safeOptions?.title ?? labels.panelTitle(id),
           },
           id,
           rootId,

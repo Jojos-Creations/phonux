@@ -27,7 +27,7 @@ export interface ClosedPageEntry {
     closedAt: string;
     id: string;
     title: string;
-    url: string;
+    url?: string;
 }
 
 // @public
@@ -94,7 +94,8 @@ export interface HistoryAPI {
 // @public
 export interface Host {
     readonly device: PhoneDeviceAPI;
-    readonly history: HistoryAPI;
+    readonly history?: HistoryAPI;
+    readonly labels?: Partial<PhonuxLabels>;
     readonly panels: PanelsAPI;
     readonly settings: SettingsAPI;
     readonly snapshots?: SnapshotsAPI;
@@ -146,17 +147,17 @@ export interface PanelSummary<P = JsonValue> {
     readonly params?: P;
     readonly size?: PanelSize;
     readonly title?: string;
-    readonly url: string;
+    readonly url?: string;
 }
 
 // @public
 export interface PhoneDeviceAPI {
-    chooseModel(modelId: string): Promise<void>;
-    readonly defaultSize: PhoneSize;
-    readonly detectedPhone: DetectedPhone | null;
-    dismissDetectedPhone(): void;
-    readonly models: readonly PhoneModel[];
-    resizeForDetectedPhone(modelId: string): void;
+    chooseModel?(modelId: string): Promise<void>;
+    readonly defaultSize?: PhoneSize;
+    readonly detectedPhone?: DetectedPhone | null;
+    dismissDetectedPhone?(): void;
+    readonly models?: readonly PhoneModel[];
+    resizeForDetectedPhone?(modelId: string): void;
     readonly size: PhoneSize;
 }
 
@@ -173,6 +174,19 @@ export interface PhoneSize {
     height: number;
     modelId: string;
     width: number;
+}
+
+// @public
+export interface PhonuxLabels {
+    dismiss: string;
+    historyTitle: string;
+    panelTitle: (id: string) => string;
+    phoneConnected: string;
+    phoneConnectedText: (vendor: string) => string;
+    phoneModel: string;
+    resize: string;
+    untitledHeader: string;
+    untitledPanel: string;
 }
 
 // @public
@@ -208,7 +222,7 @@ export interface ViewSnapshot {
 export type WorkspacePanelState = {
     id: string;
     view: string;
-    url: string;
+    url?: string;
     title?: string;
     params?: JsonValue;
     listed?: boolean;

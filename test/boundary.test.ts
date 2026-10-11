@@ -40,14 +40,30 @@ const plant = (dir: string, name: string, lines: readonly string[]): string => {
   return file;
 };
 
-test('boundary: no library source touches the bridge, window.simplebrowser or web storage', () => {
+test('boundary: no library source touches the bridge, a host-specific global or web storage', () => {
   const files = [...rootSources(), ...panelSources()];
   for (const core of CORE) assert.ok(files.includes(join(ROOT, core)), `the scan never reached ${core}: it moved, or the directory is wrong`);
   assert.deepEqual(formatViolations(scanBoundary({ files, rules: PHONE_BOUNDARY_RULES, minFiles: MIN_LIBRARY_FILES }).violations, ROOT), []);
   withTempDir((dir) => {
-    const planted = plant(dir, 'Planted.ts', ['const b = bridge().phone;', 'window.simplebrowser?.x;', "localStorage.getItem('k');"]);
+    const planted = plant(dir, 'Planted.ts', [
+      'const b = bridge().phone;',
+      'window.electron?.x;',
+      "localStorage.getItem('k');",
+      'const c = window.Chromium;',
+      'document.createElement("webview");',
+      'tab.webContents.send(1);',
+      'navigator.usb.getDevices();',
+      "const u = 'about:blank';",
+      "navigator['usb'];",
+    ]);
     const hits = scanBoundary({ files: [planted], rules: PHONE_BOUNDARY_RULES, minFiles: 1 }).violations;
-    assert.deepEqual(hits.map((v) => v.line), [1, 2, 3], formatViolations(hits, dir).join('\n'));
+    assert.deepEqual(hits.map((v) => v.line), [1, 2, 3, 4, 5, 6, 7, 8, 9], formatViolations(hits, dir).join('\n'));
+    assert.deepEqual([...new Set(hits.map((v) => v.rule))].sort(), ['about:', 'bridge()', 'chromium', 'electron', 'localStorage', 'navigator.usb', 'webContents', 'webview']);
+    const rules = PHONE_BOUNDARY_RULES.map((r) => r.name);
+    for (const name of ['electron', 'chromium', 'webview', 'webContents', 'navigator.usb', 'about:']) assert.ok(rules.includes(name), `the rule list lost ${name}`);
+    assert.ok(!rules.includes('window.simplebrowser'), 'the product name is back in the rule list');
+    const lookalike = plant(dir, 'Lookalike.ts', ['const electronics = 1;', 'const aboutBlank = 2;']);
+    assert.deepEqual(scanBoundary({ files: [lookalike], rules: PHONE_BOUNDARY_RULES, minFiles: 1 }).violations, []);
   });
 });
 

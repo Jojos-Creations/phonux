@@ -2,6 +2,7 @@
  * The `PanelWindow` model -- one browsing panel in the unified row -- and every pure state-transition
  * function that operates on a `PanelWindow[]` array.
  */
+import { DEFAULT_LABELS } from './labels.js';
 import type { FormFactor, JsonValue, PanelSize } from './hostApi.js';
 import { isPresent, type NeighborWidths, type PanelRowEntry } from './panelRowEntry.js';
 import { computeRowOrder, deriveAnchorsFromOrder } from './panelRowOrder.js';
@@ -75,22 +76,22 @@ export interface PanelWindow {
 }
 
 /** History's own seeded entry: never collapsible (an always-shown column), never listed (it must not list itself), always live, locked by default (the host's close path honours `locked`); raised, so a left-exiting park slides under it; anchoredEnter, which against itself resolves 'right'; no anchor: it is the root every anchor leads to. Same default tier/size as every other entry: a permanent column carries a tier like any other. @internal */
-export function createHistoryPanel(rootId: string): PanelWindow {
+export function createHistoryPanel(rootId: string, title: string = DEFAULT_LABELS.historyTitle): PanelWindow {
   return {
-    id: rootId, url: '', title: 'History', live: true, locked: true,
+    id: rootId, url: '', title, live: true, locked: true,
     view: 'history', collapsible: false, listed: false, layer: 'raised', anchoredEnter: true,
     formFactor: 'phone', size: DEFAULT_PANEL_SIZE,
   };
 }
 
 /**
- * Per-call metadata create() may set beyond a bare url/source. No raw `collapsible`/`locked` key: `permanent`
+ * Per-call metadata create() may set beyond a bare url. No raw `collapsible`/`locked` key: `permanent`
  * is the only door to `collapsible:false` (see `appendPanel`'s own doc comment for what it forces), and
  * `locked` is never settable at all -- create() can never make an unclosable panel.
  * @internal
  */
 export interface AppendPanelOptions {
-  /** The view that renders the new panel, becoming `PanelWindow.view`. Default 'web'. */
+  /** The view that renders the new panel, becoming `PanelWindow.view`. Default 'web', the answer 0.1.0 gave; `useProvidePanels` always passes one. */
   view?: string;
   /** The new panel's title. */
   title?: string;
@@ -156,11 +157,11 @@ export function anchorPanel(panels: readonly PanelWindow[], id: string, request:
  * only on `locked`).
  * @internal
  */
-export function appendPanel(panels: PanelWindow[], info: { url: string } & AppendPanelOptions, id: string, rootId: string): PanelWindow[] {
+export function appendPanel(panels: PanelWindow[], info: { url?: string } & AppendPanelOptions, id: string, rootId: string): PanelWindow[] {
   const formFactor = info.permanent ? 'phone' : (info.formFactor ?? 'phone');
   const entry: PanelWindow = {
     id,
-    url: info.url,
+    url: info.url ?? '',
     ...(info.title !== undefined ? { title: info.title } : {}),
     ...(info.hostData !== undefined ? { hostData: info.hostData } : {}),
     live: true,
