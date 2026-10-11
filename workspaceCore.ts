@@ -290,6 +290,8 @@ export function createWorkspace(o: WorkspaceOptions = {}): WorkspaceHandle {
   let committed: { entries: readonly PanelWindow[]; held: { has(engineId: string): boolean } } | undefined;
   let commit: EngineCommit | undefined;
   let observed: { entries: readonly PanelWindow[]; held: { has(engineId: string): boolean } } | undefined;
+  // useSyncExternalStore needs getState to return the same object until the state changes, also for a panel drawn before its first commit.
+  const drawnStates = new Map<PanelId, PanelState>();
   let version = 0;
   let snapshot: PanelSnapshot = { version: 0, status, panels: [] };
   let states = new Map<PanelId, PanelState>();
@@ -446,6 +448,7 @@ export function createWorkspace(o: WorkspaceOptions = {}): WorkspaceHandle {
     if (unchanged) return;
     const previous = states;
     states = new Map(reused.map((s) => [s.id, s]));
+    drawnStates.clear();
     version += 1;
     snapshot = { version, status, panels: reused };
     for (const s of reused) if (previous.get(s.id) !== s) for (const l of [...(panelListeners.get(s.id) ?? [])]) l();
@@ -464,7 +467,13 @@ export function createWorkspace(o: WorkspaceOptions = {}): WorkspaceHandle {
     const known = states.get(id);
     if (known !== undefined) return known;
     const entry = drawn(id);
-    if (entry !== undefined) return stateOfEntry(entry.entry, observed!.entries, observed!.held, entry.index);
+    if (entry !== undefined) {
+      const fresh = stateOfEntry(entry.entry, observed!.entries, observed!.held, entry.index);
+      const before = drawnStates.get(id);
+      if (before !== undefined && sameState(before, fresh)) return before;
+      drawnStates.set(id, fresh);
+      return fresh;
+    }
     const r = records.get(id);
     if (r !== undefined) return stateOfRecord(r);
     const gone = retired.get(id);
