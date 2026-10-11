@@ -4,7 +4,8 @@
  * restricting setting was bypassed, a refusal touched nothing, a second call on a panel the first one acted on is busy,
  * a configure rewrote none of the person's overrides, its result names exactly the patched keys the cascade did not
  * give to the instance layer, the live park panels fit the window beside the rest, and show() does what the panel's
- * settings say.
+ * settings say. A second test, with its own seeds, adds pin, unpin and scrollTo to the operations, checks the scroll
+ * bound after a glide, and runs a quarter of its sequences with every panel scroll, where nothing may be parked for room.
  */
 import { test, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
@@ -316,4 +317,161 @@ test('seeded random sequences with configure and resetLayout keep the invariants
   assert.ok(sequences >= 500, `sequences run: ${sequences}`);
   console.log(`checks fired: ${configured} configures, ${configureRefusals} refused, ${resets} resets, ${busyChecked} busy rows, ${shadowChecked} shadowed rows (${shadowedNames} naming a key), ${crowdedChecked} rows of two or more live park panels, ${mirrorsChecked} entry-against-resolver comparisons over ${steps} steps`);
   assert.ok(configured > 300 && configureRefusals > 20 && resets > 100 && busyChecked > 20 && shadowChecked > 100 && shadowedNames > 10 && crowdedChecked > 500 && mirrorsChecked > 10000, `the checks fired: ${configured} configures, ${configureRefusals} refused, ${resets} resets, ${busyChecked} busy rows, ${shadowChecked} shadowed rows, ${shadowedNames} naming a key, ${crowdedChecked} crowded rows, ${mirrorsChecked} mirror comparisons over ${steps} steps`);
+});
+
+// ---------------------------------------------------------------------------
+// The final property: pin, unpin, scrollTo, resetLayout and the operations over random settings vectors
+// ---------------------------------------------------------------------------
+
+type MoreOp = Op | 'pin' | 'unpin' | 'pinPerson' | 'unpinPerson' | 'scrollToStart' | 'scrollToCenter';
+const MORE_OPS: readonly MoreOp[] = [...OPS, 'pin', 'pin', 'unpin', 'pinPerson', 'unpinPerson', 'scrollToStart', 'scrollToCenter', 'resetOne', 'move', 'place'];
+
+/** One call of `op`, the new ones first and the rest as the first property runs them. */
+function runMore(r: PinRig, h: PanelHandle, op: MoreOp, rand: () => number, scrollOnly: boolean): Call {
+  switch (op) {
+    case 'pin': return { answer: h.pin() };
+    case 'unpin': return { answer: h.unpin() };
+    case 'pinPerson': return { answer: h.pin('person') };
+    case 'unpinPerson': return { answer: h.unpin('person') };
+    case 'scrollToStart': return { answer: h.scrollTo('start') };
+    case 'scrollToCenter': return { answer: h.scrollTo('center') };
+    default: {
+      const call = run(r, h, op, rand);
+      // A scroll-only sequence never gives a panel a park policy, so a random patch loses its overflow key.
+      if (scrollOnly && call.patch !== undefined && 'overflow' in call.patch) return call;
+      return call;
+    }
+  }
+}
+
+/** The refusal a panel's own settings force for a pin or unpin on a live panel, or undefined when they allow it. */
+function forcedPin(h: PanelHandle, op: MoreOp): string | undefined {
+  const s = h.getState().settings;
+  if (op === 'pin' || op === 'pinPerson') return s.pinning.pinned.placement !== undefined && !s.placeable ? 'not-placeable' : undefined;
+  if (op === 'unpin' || op === 'unpinPerson') return s.pinning.unpinned.placement !== undefined && !s.placeable ? 'not-placeable' : undefined;
+  return undefined;
+}
+
+const REFUSALS = new Set(['disposed', 'not-attached', 'not-ready', 'is-pending', 'is-closed', 'not-live', 'busy', 'not-closable', 'not-parkable', 'not-draggable', 'not-placeable', 'not-resizable', 'tier-not-allowed', 'would-empty-row', 'instance-limit', 'unknown-panel', 'wrong-scope', 'would-reshape-row', 'settings-conflict', 'not-view-settable']);
+
+test('final property: over random settings vectors, pin, unpin, scrollTo, resetLayout, configure and the operations keep every guarantee of 7.3 after every step', async () => {
+  const MORE_SEQUENCES = 500;
+  let sequences = 0;
+  let scrollOnlySequences = 0;
+  let steps = 0;
+  let pinsAccepted = 0;
+  let unpinsAccepted = 0;
+  let scrollsAccepted = 0;
+  let placeableRefusals = 0;
+  let scrollBounds = 0;
+  let neverParkedChecks = 0;
+  let mirrorsChecked = 0;
+  for (let seed = 10001; seed < 10001 + MORE_SEQUENCES; seed += 1) {
+    const rand = prng(seed);
+    const scrollOnly = seed % 4 === 0;
+    const settings: Record<string, PanelSettings> = {};
+    for (const id of IDS) settings[id] = { ...settingsVector(rand), ...(scrollOnly ? { overflow: 'scroll' as const } : {}) } as PanelSettings;
+    const r = await pinRig({ ids: IDS, settings, width: pickFrom(rand, [1000, 1500, 2000, 2400]), workspace: { conflicts: 'off' } });
+    await r.settle();
+    if (scrollOnly) scrollOnlySequences += 1;
+    const where = (step: number): string => `seed ${seed} step ${step}${scrollOnly ? ' (scroll only)' : ''}`;
+    for (let step = 0; step < STEPS; step += 1) {
+      const first = pickFrom(rand, IDS);
+      const op = pickFrom(rand, MORE_OPS);
+      const h = r.h[first]!;
+      const before = h.getState();
+      const isPin = op === 'pin' || op === 'unpin' || op === 'pinPerson' || op === 'unpinPerson';
+      const forcedCode = isPin ? forcedPin(h, op) : forced(h, op as Op);
+      const entries = r.m.latest().entries;
+      const renders = r.m.renders();
+      const version = r.ws.panels.getSnapshot().version;
+      const twin = rand() < 0.2;
+      let secondOp: MoreOp = op;
+      const calls = r.turn(() => {
+        const one = runMore(r, h, op, rand, scrollOnly);
+        if (scrollOnly && one.patch !== undefined) delete one.patch.overflow;
+        if (!twin) return [one];
+        secondOp = pickFrom(rand, MORE_OPS);
+        return [one, runMore(r, h, secondOp, rand, scrollOnly)];
+      });
+      steps += 1;
+      const one = calls[0]!;
+      const two = calls[1];
+      // S1: ids and keys unique, one root.
+      const keys = r.ws.panels.getSnapshot().panels.map((p) => p.id);
+      assert.equal(new Set(keys).size, keys.length, `${where(step)}: keys unique`);
+      const now = r.m.latest().entries;
+      assert.equal(new Set(now.map((p) => p.id)).size, now.length, `${where(step)}: ids unique`);
+      assert.equal(now.filter((p) => p.id === 'root').length, 1, `${where(step)}: one root`);
+      // Every answer is a result or one of the typed refusals, never a throw or an untyped code.
+      for (const call of calls) assert.equal(call.answer.ok || REFUSALS.has((call.answer as { code: string }).code), true, `${where(step)}: ${op} answered ${brief(call.answer)}`);
+      // S2/S3: a restricting setting is never bypassed, for the operations and for pin and unpin.
+      if ((before.status === 'live' || before.status === 'parked') && forcedCode !== undefined && !twin) {
+        const expectation = before.status === 'parked' && (op === 'move' || op === 'movePerson') ? 'not-live' : forcedCode;
+        if (!(isPin && before.status !== 'live')) assert.equal(brief(one.answer), expectation, `${where(step)}: ${op} on ${first} must give ${expectation}`);
+        if (isPin) placeableRefusals += 1;
+      }
+      // A refusal leaves the list reference-equal with no commit (a single-call turn only).
+      if (!twin && !one.answer.ok) {
+        assert.equal(r.m.latest().entries, entries, `${where(step)}: refused ${op} (${brief(one.answer)}) changed entries`);
+        assert.equal(r.m.renders(), renders, `${where(step)}: refused ${op} committed`);
+        assert.equal(r.ws.panels.getSnapshot().version, version, `${where(step)}: refused ${op} moved the snapshot version`);
+      }
+      if ((op === 'pin' || op === 'pinPerson') && one.answer.ok && one.answer.changed) pinsAccepted += 1;
+      if ((op === 'unpin' || op === 'unpinPerson') && one.answer.ok && one.answer.changed) unpinsAccepted += 1;
+      if ((op === 'scrollToStart' || op === 'scrollToCenter' || op === 'scrollTo') && one.answer.ok && one.answer.changed) scrollsAccepted += 1;
+      // S5: a second call on a panel the first one acted on is busy (a pin or unpin takes a token like any other operation).
+      if (twin && two !== undefined && one.answer.ok && one.answer.changed && isPin && (before.status === 'live' || before.status === 'parked')) {
+        const second = two.answer;
+        const untoken = secondOp === 'scrollTo' || secondOp === 'scrollToStart' || secondOp === 'scrollToCenter' || secondOp === 'undo';
+        const moveOnParked = before.status === 'parked' && (secondOp === 'move' || secondOp === 'movePerson');
+        if (!untoken && !moveOnParked) assert.equal(brief(second), 'busy', `${where(step)}: ${secondOp} on ${first} after ${op} answered ${brief(second)}`);
+      }
+      // S3: the engine's entry and the resolver agree on every permission.
+      for (const id of IDS) {
+        const entry = r.m.latest().entries.find((p) => panelKey(p) === id);
+        if (entry?.settings === undefined) continue;
+        const read = r.h[id]!.getSettings().value;
+        for (const key of PERMISSIONS) assert.deepEqual(entry.settings[key], read[key], `${where(step)}: ${id}.${key} on the entry and in getSettings()`);
+        mirrorsChecked += 1;
+      }
+      // S1: after a settled commit the live park panels fit the window beside the rest, except the floor of one.
+      assert.equal(parkPanelsFit(r).fits, true, `${where(step)}: the live park panels fit the window`);
+      // The scroll bound: a glide ends inside [0, the farthest legal scroll], computed from the row numbers and never from the DOM.
+      if ((op === 'scrollToStart' || op === 'scrollToCenter' || op === 'scrollTo') && one.answer.ok && one.answer.changed && !twin) {
+        await advanceFrames(900);
+        const n = r.m.latest().rowNumbers;
+        if (Number.isFinite(n.windowWidth)) {
+          const farthest = Math.max(0, n.rowMarginLeft + n.stripWidth - n.windowWidth);
+          const at = r.m.container.scrollLeft;
+          assert.equal(at >= 0 && at <= farthest + 1e-6, true, `${where(step)}: scrollLeft ${at} after ${op} lies in [0, ${farthest}]`);
+          scrollBounds += 1;
+        }
+      }
+      // S11: with every panel scroll, no panel is ever parked for room; a parked panel is one a hide held.
+      if (scrollOnly) {
+        const forRoom = IDS.filter((id) => {
+          const s = r.h[id]!.getState();
+          return s.status === 'parked' && !s.held;
+        });
+        assert.deepEqual(forRoom, [], `${where(step)}: nothing was parked for room`);
+        neverParkedChecks += 1;
+      }
+      // S3: show() always works as the settings say.
+      if (step % 3 === 2) {
+        const target = r.h[pickFrom(rand, IDS)]!;
+        const state = target.getState();
+        const shown = r.turn(() => target.show());
+        if (state.status === 'parked') assert.equal(brief(shown), 'T', `${where(step)}: show() brings a parked panel back`);
+        if (state.status === 'live') assert.ok(shown.ok, `${where(step)}: show() on a live panel is accepted`);
+      }
+      if (step % 4 === 3) await advanceFrames(400);
+    }
+    sequences += 1;
+    cleanup();
+  }
+  console.log(`final property sequences run: ${sequences} (${scrollOnlySequences} scroll-only)`);
+  assert.ok(sequences >= 500, `sequences run: ${sequences}`);
+  console.log(`final property checks fired: ${pinsAccepted} pins, ${unpinsAccepted} unpins, ${scrollsAccepted} scrolls accepted, ${placeableRefusals} pin refusals checked, ${scrollBounds} scroll bounds, ${neverParkedChecks} never-parked rows, ${mirrorsChecked} mirror comparisons over ${steps} steps`);
+  assert.ok(pinsAccepted > 100 && unpinsAccepted > 50 && scrollsAccepted > 100 && scrollBounds > 50 && neverParkedChecks > 400 && mirrorsChecked > 10000 && scrollOnlySequences >= 100, `the checks fired: ${pinsAccepted} pins, ${unpinsAccepted} unpins, ${scrollsAccepted} scrolls, ${scrollBounds} bounds, ${neverParkedChecks} never-parked rows, ${mirrorsChecked} mirrors, ${scrollOnlySequences} scroll-only sequences`);
 });

@@ -1,0 +1,57 @@
+{
+  "tests": [
+    "test/panel-configure-matrix.test.ts",
+    "test/panel-configure-cases.test.ts",
+    "test/settings-coverage-sources.test.ts"
+  ],
+  "mutants": [
+    {
+      "name": "a NEXT setting applied by moving a panel: placeOnShow is applied at configure",
+      "file": "panels/useProvidePanels.ts",
+      "find": "if (now === target) return applyConfigure(prev, target, outcome.next);",
+      "replace": "if (now === target) return landPanel(applyConfigure(prev, target, outcome.next), engineId, outcome.next.settings?.placeOnShow ?? 'in-place').row;",
+      "expectRed": [
+        "matrix:placeOnShow",
+        "case B1:"
+      ]
+    },
+    {
+      "name": "hideStickiness re-evaluates a held panel and reveals it",
+      "file": "panels/useProvidePanels.ts",
+      "find": "reportNotes(i.onNote, [...outcome.done.notes]);",
+      "replace": "reportNotes(i.onNote, [...outcome.done.notes]);\n      if (outcome.done.later.includes('hideStickiness')) {\n        releaseHold(engineId);\n        setPanels((cur) => cur.map((p) => (p.id === engineId ? { ...p, live: true } : p)));\n      }",
+      "expectRed": [
+        "matrix:hideStickiness",
+        "case B3:"
+      ]
+    },
+    {
+      "name": "a flip of pinningWhenNotLive consumes the stored deferred pin",
+      "file": "panelConfigure.ts",
+      "find": "return plan.cancelsPin ? withoutDeferral(next) : next;",
+      "replace": "return plan.cancelsPin || plan.later.includes('pinningWhenNotLive') ? withoutDeferral(next) : next;",
+      "expectRed": [
+        "matrix:pinningWhenNotLive"
+      ]
+    },
+    {
+      "name": "overflow park to scroll parks the panel at configure",
+      "file": "panels/useProvidePanels.ts",
+      "find": "reportNotes(i.onNote, [...outcome.done.notes]);",
+      "replace": "reportNotes(i.onNote, [...outcome.done.notes]);\n      if (outcome.done.later.includes('overflow') && outcome.next.settings?.overflow === 'scroll') holdPanel(engineId, 'sticky');",
+      "expectRed": [
+        "matrix:overflow",
+        "case B6:"
+      ]
+    },
+    {
+      "name": "a differential call is renamed in a test file: the S7 sources test goes red",
+      "file": "test/settings-enforcement-permissions.test.ts",
+      "find": "differential('closable'",
+      "replace": "differential('closable_'",
+      "expectRed": [
+        "S7 sources: every catalog name has a differential call in exactly one test file"
+      ]
+    }
+  ]
+}
