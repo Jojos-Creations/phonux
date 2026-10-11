@@ -398,7 +398,7 @@ function DragToCloseBox({
     axisLock.current = null;
     samples.current = [];
     lockScrollParents();
-    // A keep-alive step in Motion's own frame loop, as its drag callbacks ran: the row scroll the edge loop adds is then drawn in
+    // A keep-alive step in Motion's own frame loop: the row scroll the edge loop adds is then drawn in
     // the frame that wrote it, not the one after, and the pointer offset is read once per frame.
     followStep.current = () => void follow();
     frame.update(followStep.current, true);
