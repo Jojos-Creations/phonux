@@ -137,7 +137,7 @@ function removedBetween(oldNames, currentNames) {
   return oldNames.filter((n) => !current.has(n)).sort();
 }
 
-// The backtick-quoted names of the Unreleased section's Removed bullets: the first and the third, the two that name exports.
+// The backtick-quoted names of the release section's Removed bullets: the first and the third, the two that name exports.
 function changelogRemovedNames() {
   const lines = readFileSync(join(REPO_ROOT, 'CHANGELOG.md'), 'utf8').split('\n');
   const unreleased = lines.findIndex((l) => /^## (Unreleased|0\.2\.0-rc\.1)\s*$/.test(l));
