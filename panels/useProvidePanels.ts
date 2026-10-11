@@ -600,6 +600,17 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
     prevLiveRef.current = new Map(panels.map((p) => [p.id, p.live]));
   }, [panels, capture]);
 
+  // A layout effect, never the configure updater: React may run an updater twice and the host's evict notifies other components.
+  const prevSnapshotRef = useRef<ReadonlyMap<string, ResolvedPanelSettings['snapshot']>>(new Map());
+  useLayoutEffect(() => {
+    const prev = prevSnapshotRef.current;
+    for (const p of panels) {
+      const was = prev.get(p.id);
+      if (was !== undefined && was !== 'never' && effective(p).snapshot === 'never') capture.evict(p.id);
+    }
+    prevSnapshotRef.current = new Map(panels.map((p) => [p.id, effective(p).snapshot]));
+  }, [panels, capture]);
+
   // clearAll only records ids here: React may run its updater during render, where evict would notify other components.
   const clearedIds = useRef(new Set<string>());
   useEffect(() => {
