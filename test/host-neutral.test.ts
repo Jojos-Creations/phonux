@@ -22,7 +22,7 @@ import {
   type WorkspaceStorage,
 } from '../index.js';
 import { createFakeHost } from '../fakeHost.js';
-import { DEFAULT_LABELS } from '../labels.js';
+import { DEFAULT_LABELS, resolveLabels, type PhonuxLabels } from '../labels.js';
 import { computeRowNumbers } from '../index.js';
 import { createHistoryPanel } from '../panelWindow.js';
 import { resolveView } from '../viewRegistry.js';
@@ -99,6 +99,14 @@ test('a closed panel with no title reports an empty title for the host to replac
   assert.deepEqual(closed[0], { title: DEFAULT_LABELS.panelTitle(id), url: '' });
 });
 
+test('a panel that has no title closes with an empty title, not a url or placeholder fallback', () => {
+  const closed: { title: string; url: string }[] = [];
+  const bare = { ...createHistoryPanel('bare'), title: '', locked: false, view: 'hn-view' };
+  const m = mountProvider({ initialEntries: [createHistoryPanel(ROOT), bare], onPanelsClosed: (entry) => void closed.push({ title: entry.title, url: entry.url }) });
+  act(() => m.latest().close('bare'));
+  assert.deepEqual(closed, [{ title: '', url: '' }]);
+});
+
 test('a host holding only device.size and panels renders Panel and PanelRow', () => {
   const full = createFakeHost();
   const minimal = { settings: full.settings, panels: full.panels, device: { size: full.device.size } } satisfies Host;
@@ -154,4 +162,12 @@ test('without labels every default string is the English text', () => {
   assert.equal(createHistoryPanel(ROOT).title, 'History');
   const Untitled = resolveView('hn-nowhere');
   assert.equal(renderToStaticMarkup(React.createElement(Untitled, { panel: { id: 'x', live: true, locked: false } })).includes('Untitled panel'), true);
+});
+
+test('a label key given as undefined keeps its default', () => {
+  const given = { historyTitle: undefined, resize: 'Größe' } as unknown as Partial<PhonuxLabels>;
+  const labels = resolveLabels(given);
+  assert.equal(labels.historyTitle, DEFAULT_LABELS.historyTitle);
+  assert.equal(labels.resize, 'Größe');
+  assert.equal(labels.panelTitle('x'), DEFAULT_LABELS.panelTitle('x'));
 });
