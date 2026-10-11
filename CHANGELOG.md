@@ -146,6 +146,8 @@
   succeeds, so a save that throws or rejects is reported once (`onError`, else `console.error`) and the next change
   saves again; the baseline used to move before the call, and a failed save was not retried until the state changed to
   something else. A save that settles after a newer one started leaves the baseline alone, and no timer retries.
+- `WorkspaceStorage.save` is now typed `void | Promise<void>`, so a function whose body is an expression returning
+  another value, such as `(s) => log.push(s)`, no longer compiles; give it a block body.
 
 ### Removed
 
