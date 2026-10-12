@@ -159,7 +159,7 @@ export type PinningWhenNotLive =
 /** Which layer a resolved value came from. A rule overrides the rest and 'derived' marks a value filled from another resolved field. @public */
 export type SourceLayer = 'library' | 'workspace' | 'template' | 'host' | 'instance' | 'user' | 'derived' | 'forced';
 
-/** The 49 settings whose value is one plain member; the catalog's other names are headerButtons and the eleven tuning leaves. @public */
+/** The 49 settings whose value is one plain member; the catalog's other names are headerButtons and the twelve tuning leaves. @public */
 export type SettingValues = {
   /** Whether the panel can be closed; false removes the drag-down close and makes `close()` answer not-closable. */
   closable: boolean;
@@ -334,8 +334,8 @@ export type WorkspaceTuning = PanelTuning & {
   initialScroll?: 'start' | 'end' | 'root' | { panel: PanelId };
   /**
    * The most unpinned parkable panels the row keeps live, an integer of 1 or more, or `null` for no cap. Panels beyond
-   * it park, the leftmost first; a pinned panel neither counts nor parks for it. In a row that scrolls, the window width
-   * no longer decides how many are live.
+   * it park the way they do when the window is full; a pinned panel neither counts nor parks for it. In a row that
+   * scrolls, the window width does not decide how many are live. No row the document shows holds more, the first included.
    */
   maxLivePanels?: number | null;
 };

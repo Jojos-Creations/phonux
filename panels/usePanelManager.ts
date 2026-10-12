@@ -189,9 +189,8 @@ export function usePanelManager(
   const gap = options?.tuning?.rowGap ?? ROW_GAP;
   const maxLive = options?.tuning?.maxLivePanels ?? null;
   /**
-   * What prices `row`: the width each panel is drawn at, how many parkable panels may be live beside the row's
-   * reserved ones, whether a live set settles, and which panels the cap leaves alone. A scroll panel never parks, so
-   * its width comes off the budget instead of counting against the capacity.
+   * What prices `row`: panel widths, how many parkable panels may be live, whether a live set settles, and which panels
+   * the cap leaves alone. A scroll panel never parks, so its width comes off the budget instead of counting.
    */
   const pricing = (row: readonly PanelWindow[]) => {
     const numbers = computeRowNumbers({ entries: row, phoneWidth, containerWidth, gap, fixedItemCount: fixedColumnCount });
@@ -213,9 +212,8 @@ export function usePanelManager(
       return effectiveMax === Number.POSITIVE_INFINITY ? Number.POSITIVE_INFINITY : Math.max(1, effectiveMax - fixedColumnCount);
     };
     /**
-     * How many panels `set` (live parkable panels, row order) may number: the window's fit, priced from `fitWidths`
-     * (`set`'s own widths unless a caller prices another set), and the cap plus the pinned panels of `set`, which it does
-     * not count. A scrolling row under a cap ignores the window: its strip scrolls past it.
+     * How many panels `set` (live parkable, row order) may number: the window's fit (priced from `fitWidths`, else `set`'s
+     * own), held under a cap to at most N plus the pinned panels of `set`. A scrolling row under a cap ignores the fit.
      */
     const capacityFor = (set: readonly PanelWindow[], fitWidths: readonly number[] = set.map(widthOf)): number => {
       if (maxLive === null) return fitCapacityFor(fitWidths);
@@ -261,6 +259,19 @@ export function usePanelManager(
     const parked = new Set(fewestParksThatSettle(live, priced.widthOf, priced.settles, [...keep, ...priced.pinned], dropTieBreak));
     return parked.size === 0 ? next : next.map((p) => (parked.has(p.id) ? { ...p, live: false } : p));
   };
+  /** Ids a render parked for the cap before its row was shown, in row order; the effect below records them once that row has committed. */
+  const capParkedRef = useRef<string[]>([]);
+  // A cap holds in every row that reaches the document: a row that lands over it (a restore, a seeded list, a lower N) is settled here and rendered again.
+  if (maxLive !== null) {
+    // The panels an action marked that have landed in this row, as the reconcile effect reads them: a settle keeps them.
+    const acted = [...keepLiveRef.current].filter(([, seen]) => seen !== panels).map(([id]) => id);
+    const settled = settledKeeping(panels, acted);
+    if (settled !== panels) {
+      const parked = panels.filter((p, k) => p.live && !settled[k]!.live).map((p) => p.id);
+      capParkedRef.current = [...capParkedRef.current.filter((id) => !parked.includes(id)), ...parked];
+      setPanels((current) => settledKeeping(current, acted));
+    }
+  }
   /** Nonzero inside this hook's own flushSync: a reconcile run there is mid-handler, before later actions land. */
   const flushingRef = useRef(0);
   const flushOwn = (update: () => void): void => {
@@ -680,8 +691,9 @@ export function usePanelManager(
    * measurement that just changed, not one this render was given. Both branches judge a candidate set by `settles`,
    * never `capacity` as a count: `capacity` prices every not-yet-live slot at `phoneWidth`, so WHICH panels park or
    * return decides whether the rest fits, and a set that does not settle re-triggers a branch next render. A DROP
-   * parks `fewestParksThatSettle` and exits 'left' (flushSync cannot mark a right exit first from a passive effect).
-   * A RISE reveals from the top of `collapseOrderRef`; one that doesn't settle stays on the stack for an OLDER, narrower one.
+   * parks `fewestParksThatSettle` and exits 'left' (flushSync cannot mark a right exit first from a passive effect), but
+   * finds nothing to drop while a cap is set: the render above has settled the row. A RISE reveals from the top of
+   * `collapseOrderRef`; one that doesn't settle stays on the stack for an OLDER, narrower one.
    */
   const committedRef = useRef(panels);
   useEffect(() => {
@@ -689,9 +701,13 @@ export function usePanelManager(
     // stack learns of any park not already on it from the commit itself.
     const before = committedRef.current;
     committedRef.current = panels;
-    // A panel added parked is held per its own setting; a hold whose panel is gone (clearAll wipes without a close) is dropped.
-    for (const p of panels) if (p.collapsible && !p.live && !before.some((q) => q.id === p.id)) markHeld(p.id, effective(p).hideStickiness);
+    const byCap = capParkedRef.current;
+    capParkedRef.current = [];
+    // A panel added parked is held per its own setting, unless the cap parked it before its row was shown; a hold whose panel is gone (clearAll wipes without a close) is dropped.
+    for (const p of panels) if (p.collapsible && !p.live && !before.some((q) => q.id === p.id) && !byCap.includes(p.id)) markHeld(p.id, effective(p).hideStickiness);
     for (const id of heldRef.current.keys()) if (!panels.some((p) => p.id === id)) releaseHold(id);
+    const capParked = byCap.filter((id) => panels.some((p) => p.id === id && p.collapsible && !p.live));
+    if (capParked.length > 0) recordPark(capParked, { kind: 'capacity' });
     const unrecorded = panels.filter(
       (p) => p.collapsible && !p.live && !collapseOrderRef.current.includes(p.id) && !heldRef.current.has(p.id) && before.some((q) => q.id === p.id && q.live),
     );
@@ -710,7 +726,7 @@ export function usePanelManager(
     // An 'until-room' hold taken before the first measurement took no threshold; it takes the row's as measured now.
     for (const [id, hold] of heldRef.current) if (typeof hold === 'object' && hold.freeAfterPark === Number.POSITIVE_INFINITY) writeHold(id, { freeAfterPark: capacity - live.length });
     if (live.length > capacity) {
-      const toPark = fewestParksThatSettle(live, widthOf, settles, [...keepIds, ...pinned], dropTieBreak);
+      const toPark = fewestParksThatSettle(live, widthOf, settles, keepIds, dropTieBreak);
       if (toPark.length === 0) return;
       recordPark(toPark, { kind: 'capacity' });
       const parkedSet = new Set(toPark);

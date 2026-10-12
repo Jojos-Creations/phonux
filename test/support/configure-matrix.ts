@@ -1,6 +1,6 @@
 /**
  * What the configure matrix reads: the class table as data, the rig every cell and probe mounts, the one helper each of
- * the 61 probes and 36 class cells goes through, and the catalog's names.
+ * the 62 probes and 36 class cells goes through, and the catalog's names.
  *
  * The table is written by hand from the status letters and defaults of the configure design and from each catalog
  * row's `on_configure` cell. Nothing in it is derived from the code under test.
