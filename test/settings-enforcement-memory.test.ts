@@ -139,7 +139,7 @@ test('an untouched panel whose default changed follows the new default, and one 
   assert.deepEqual(second.titles(), ['ta1', 'tb1', 'tb2']);
 });
 
-test('only the resized panel carries overrides.formFactor', async () => {
+test('only the resized panel carries overrides.slots', async () => {
   const mem = memory();
   const first = await launch(mem, { workspaceDefaults: {} });
   create(first, { title: 'x' });
@@ -147,8 +147,8 @@ test('only the resized panel carries overrides.formFactor', async () => {
   act(() => first.latest().setFormFactor(idOf(first, 'x'), 'tablet'));
   first.flush();
   const byTitle = Object.fromEntries(mem.file()!.panels.map((p) => [p.title, p.overrides]));
-  assert.equal(byTitle.x!.formFactor, 'tablet');
-  assert.equal('formFactor' in byTitle.y!, false);
+  assert.equal(byTitle.x!.slots, 2);
+  assert.equal('slots' in byTitle.y!, false);
 });
 
 test('an anonymous panel and a Host-bag panel of a template follow a changed workspace default their instance layer did not set', async () => {

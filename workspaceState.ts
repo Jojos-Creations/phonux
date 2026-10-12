@@ -6,7 +6,8 @@
 import type { FormFactor, JsonValue } from './hostApi.js';
 import { computeRowOrder, deriveAnchorsFromOrder } from './panelRowOrder.js';
 import type { AddPlacement } from './panelSettings.js';
-import { appendPanel, type PanelWindow } from './panelWindow.js';
+import { appendPanel, slotsOf, type PanelWindow } from './panelWindow.js';
+import { ALL_SLOTS, slotsOfTier, tierOfSlots } from './rowConstants.js';
 
 /**
  * One saved panel. `id` only names this panel inside its own file, so an `anchor` can point at another entry;
@@ -33,8 +34,10 @@ export type WorkspacePanelState = {
   // Inline, not PanelAnchor: an interface is not assignable to JsonValue.
   /** Where the panel sits: on `position`'s side of the entry with id `panel` (or the host's root column), ordered by `priority`. */
   anchor: { panel: string; position: 'left' | 'right'; priority: number };
-  /** The panel's tier. */
+  /** The panel's tier: the tier of its slots. */
   formFactor?: FormFactor;
+  /** The panel's slot count, written only when its tier does not already say it (3 slots is the desktop tier, which says "every visible slot"). */
+  slots?: number;
   /** Whether the panel is a permanent column, as `CreatePanelOptions.permanent`. */
   permanent?: boolean;
   /** The stacking tier of the panel's row slot, as `CreatePanelOptions.layer`. */
@@ -47,8 +50,10 @@ export type WorkspacePanelState = {
   overrides?: {
     /** Where the person put the panel; `panel` names another entry of this file. */
     anchor?: { panel: string; position: 'left' | 'right'; priority: number };
-    /** The tier the person chose. */
+    /** The tier the person chose; a file saved before slots holds this instead of `slots`. */
     formFactor?: FormFactor;
+    /** The slot count the person chose. */
+    slots?: number;
     /** Whether the person made the panel parkable. */
     parkable?: boolean;
   };
@@ -71,6 +76,8 @@ export type WorkspaceState = {
   dismissed?: string[];
   /** The key of the root panel, when it has one. */
   root?: string;
+  /** How many slots wide the root panel (History) was, when more than one. A file saved before slots has none. */
+  rootSlots?: number;
 };
 
 /**
@@ -95,6 +102,7 @@ const FORM_FACTORS: readonly unknown[] = ['phone', 'tablet', 'desktop'];
 export const DISMISSED_LIMIT = 256;
 
 const isRecord = (value: unknown): value is Record<string, unknown> => typeof value === 'object' && value !== null && !Array.isArray(value);
+const isSlotCount = (value: unknown): value is number => typeof value === 'number' && Number.isInteger(value) && value >= 1 && value <= ALL_SLOTS;
 const isOptional = (value: unknown, type: 'string' | 'boolean'): boolean => value === undefined || typeof value === type;
 
 function isSavedPanel(value: unknown): value is WorkspacePanelState {
@@ -109,6 +117,7 @@ function isSavedPanel(value: unknown): value is WorkspacePanelState {
     isOptional(value.listed, 'boolean') &&
     isOptional(value.permanent, 'boolean') &&
     (value.formFactor === undefined || FORM_FACTORS.includes(value.formFactor)) &&
+    (value.slots === undefined || isSlotCount(value.slots)) &&
     (value.layer === undefined || value.layer === 'base' || value.layer === 'raised') &&
     isRecord(anchor) &&
     typeof anchor.panel === 'string' &&
@@ -156,6 +165,10 @@ function cleanOverrides(value: unknown, dropped: Dropped[]): NonNullable<Workspa
   if (value.formFactor !== undefined) {
     if (FORM_FACTORS.includes(value.formFactor)) out.formFactor = value.formFactor as FormFactor;
     else dropped.push({ key: 'overrides.formFactor', message: 'overrides.formFactor: expected phone, tablet or desktop; dropped' });
+  }
+  if (value.slots !== undefined) {
+    if (isSlotCount(value.slots)) out.slots = value.slots;
+    else dropped.push({ key: 'overrides.slots', message: 'overrides.slots: expected an integer of at least 1; dropped' });
   }
   if (value.parkable !== undefined) {
     if (typeof value.parkable === 'boolean') out.parkable = value.parkable;
@@ -265,6 +278,7 @@ export function projectWorkspaceState(panels: readonly PanelWindow[], rootId: st
           live: p.live,
           anchor: { panel: anchor.panel, position: anchor.position, priority: anchor.priority },
           ...(p.formFactor !== undefined ? { formFactor: p.formFactor } : {}),
+          ...(p.slots !== undefined && p.slots !== slotsOfTier(p.formFactor ?? 'phone') ? { slots: p.slots } : {}),
           ...(!p.collapsible ? { permanent: true } : {}),
           ...(p.layer !== undefined ? { layer: p.layer } : {}),
           ...extras,
@@ -272,6 +286,7 @@ export function projectWorkspaceState(panels: readonly PanelWindow[], rootId: st
       }),
     ...(dismissed.length > 0 ? { dismissed: [...dismissed] } : {}),
     ...(root?.settings !== undefined && root.key !== undefined ? { root: root.key } : {}),
+    ...(root !== undefined && slotsOf(root) > 1 ? { rootSlots: slotsOf(root) } : {}),
   };
 }
 
@@ -287,7 +302,8 @@ export function entryFromSaved(s: WorkspacePanelState, id: string, anchor: Panel
     id,
     rootId,
   )[0]!;
-  return { ...entry, live: s.permanent === true ? true : s.live, ...(anchor === undefined ? {} : { anchor }) };
+  const slots = s.permanent === true ? undefined : s.slots;
+  return { ...entry, ...(slots === undefined ? {} : { slots, formFactor: tierOfSlots(slots) }), live: s.permanent === true ? true : s.live, ...(anchor === undefined ? {} : { anchor }) };
 }
 
 /**

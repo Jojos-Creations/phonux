@@ -144,7 +144,6 @@ test('all or nothing: each refusal leaves the entries reference-equal, with no c
   const cases: Array<{ name: string; settings: PanelSettings; prepare?: (r: PinRig) => void; code: string; setting?: string }> = [
     { name: 'an explicit placeable:false with a placement half', settings: layer(COMBINED, { placeable: false }), code: 'not-placeable' },
     { name: 'a fixed pin on a tablet panel', settings: layer(COMBINED), prepare: (r) => void r.turn(() => r.h.c!.setFormFactor('tablet')), code: 'tier-not-allowed' },
-    { name: 'an explicit resizable:true under a fixed pin', settings: layer(COMBINED, { resizable: true }), code: 'settings-conflict', setting: 'resizable' },
   ];
   for (const c of cases) {
     const r = await pinRig({ settings: { c: c.settings } });
@@ -161,14 +160,13 @@ test('all or nothing: each refusal leaves the entries reference-equal, with no c
   }
 });
 
-test('a fixed pin the resolver would override names the offending key: kind forced, rule C1, forcedBy parkable, setting resizable', async () => {
+test('a fixed pin keeps an explicit resizable:true the panel asked for, and forces the size settings nobody asked for', async () => {
   const r = await pinRig({ settings: { c: layer(COMBINED, { resizable: true }) } });
-  const result = r.turn(() => r.h.c!.pin());
-  assert.deepEqual(result.ok ? undefined : { code: result.code, setting: (result as { setting?: string }).setting }, { code: 'settings-conflict', setting: 'resizable' });
+  assert.equal(brief(r.turn(() => r.h.c!.pin())), 'T');
+  assert.equal(r.state('c').settings.resizable, true, 'the panel asked for it');
   const { resolvePanelSettings } = await import('../index.js');
-  const fixed = resolvePanelSettings({ template: layer(COMBINED, { resizable: true }), user: { parkable: false } });
-  const clash = fixed.conflicts.find((c) => c.key === 'resizable')!;
-  assert.deepEqual({ key: clash.key, kind: clash.kind, rule: clash.rule, forcedBy: clash.forcedBy }, { key: 'resizable', kind: 'forced', rule: 'C1', forcedBy: 'parkable' });
+  const plain = resolvePanelSettings({ template: layer(COMBINED), user: { parkable: false } });
+  assert.deepEqual([plain.value.resizable, plain.value.slots, plain.conflicts.filter((c) => c.key === 'resizable')], [false, 1, []], 'unasked, the fixed column is one slot and not resizable');
 });
 
 test('a pin whose placement half cannot be placed refuses even with the parkable half valid, and unpin of a fixed pin with placeable:false still frees it', async () => {

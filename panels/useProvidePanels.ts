@@ -19,14 +19,14 @@ import { TIER_SIZES, panelWidthOf } from '../panelTiers.js';
 import { noopCaptureTrigger, type CaptureTrigger } from '../snapshots.js';
 import { PanelManagerError } from '../panelManagerError.js';
 import { applyConfigure } from '../panelConfigure.js';
-import { accepted, refused, type ConfigureResult, type PanelResult } from '../panelManager.js';
+import { accepted, refused, type ConfigureResult, type PanelOpSource, type PanelResult } from '../panelManager.js';
 import { decidePinChange, type PinChange, type PinStatus } from '../panelPin.js';
 import { LIBRARY_TUNING_DEFAULTS, applyTemplate, effective, panelKey, resolvePanelSettings } from '../panelSettings.js';
 import type { PanelSettings, PanelSettingsResolution, ResolvedPanelSettings, ResolvedWorkspaceTuning, ScrollAlign, SettingNote, WorkspaceTuning } from '../panelSettings.js';
 import type { PanelTemplate } from '../panelTemplate.js';
 import { reportNotes } from '../panelPlacement.js';
 import { resolveWorkspaceTuning } from '../panelTuning.js';
-import { appendPanel, clearOverrides, recordOverride, reanchorPanel, type AnchorRequest, type PanelWindow } from '../panelWindow.js';
+import { appendPanel, clearOverrides, recordOverride, reanchorPanel, slotsOf, type AnchorRequest, type PanelWindow } from '../panelWindow.js';
 import { listTemplates } from '../viewRegistry.js';
 import { bindingOf, nextEngineId, type CreateRequest, type EngineOps, type WorkspaceHandle } from '../workspaceCore.js';
 import { conflictNotes, finishCreated } from '../workspacePlan.js';
@@ -235,6 +235,8 @@ const REQUEST_WAIT_COMMITS = 2;
  * @public
  */
 export interface ProvidedPanels extends PanelsAPI {
+  /** `PanelsAPI.setSlots`, always present on the library's own provider. */
+  setSlots(id: string, slots: number): void;
   /** The provider's one panel list, raw (not summarised): the row's input, never part of PanelsAPI. */
   readonly entries: readonly PanelWindow[];
   /** How many always-rendered columns the row has: `PanelsInput.fixedViewCount` when passed, else `count(!collapsible)` over `entries`. Capacity is priced from it. */
@@ -306,7 +308,7 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
   const { maxLiveWidth } = rowNumbers;
   const fitCount = rowFitCount({ containerWidth: i.containerWidth, phoneWidth: i.phoneWidth, gap: tuning.rowGap, fixedColumnCount: fixedViewCount, liveWidths: [] });
   const maxFitPanels = fitCount === null ? null : effectiveMaxPanels(fitCount, fixedViewCount);
-  const liveWidths = panels.filter((p) => p.collapsible && p.live).map((p) => panelWidthOf(p, i.phoneWidth, maxLiveWidth));
+  const liveWidths = panels.filter((p) => p.collapsible && p.live).map((p) => panelWidthOf(p, i.phoneWidth, maxLiveWidth, tuning.rowGap));
   const reducedMotion = useReducedMotionConfig() === true;
   const pendingScrollRef = useRef<ScrollRequest | null>(null);
   const [, bumpScroll] = useState(0);
@@ -721,6 +723,23 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
   const isEntry = (found: PanelWindow | PanelResult): found is PanelWindow => 'id' in found;
 
   /** The manager's verbs on a panel the engine holds, each gated and each refusing before it touches the row. */
+  /** A resize by tier or by slot count, after the in-flight gate and the panel's own permissions. */
+  const resizeOp = (engineId: string, next: FormFactor | number, source: PanelOpSource): PanelResult => {
+    const target = held(engineId);
+    if (!isEntry(target)) return target;
+    if (gate.busy([engineId], 'other')) return busy(target);
+    const settings = effective(target);
+    if (!settings.resizable) return refused('not-resizable', `panel '${panelKey(target)}' cannot be resized`);
+    if (typeof next === 'string' && !settings.formFactors.includes(next)) return refused('tier-not-allowed', `panel '${panelKey(target)}' does not allow the ${next} tier`);
+    const token = gate.take([engineId], 'other')!;
+    const changed = resizePanel(engineId, next, source === 'person');
+    if (changed) {
+      i.onPanelResize?.();
+      followPanel(engineId);
+    }
+    gate.release(token);
+    return accepted(changed);
+  };
   const ops: EngineOps = {
     show: (engineId) => {
       const target = held(engineId);
@@ -789,22 +808,8 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
       gate.release(token);
       return accepted(changed);
     },
-    setFormFactor: (engineId, next, source) => {
-      const target = held(engineId);
-      if (!isEntry(target)) return target;
-      if (gate.busy([engineId], 'other')) return busy(target);
-      const settings = effective(target);
-      if (!settings.resizable) return refused('not-resizable', `panel '${panelKey(target)}' cannot be resized`);
-      if (!settings.formFactors.includes(next)) return refused('tier-not-allowed', `panel '${panelKey(target)}' does not allow the ${next} tier`);
-      const token = gate.take([engineId], 'other')!;
-      const changed = resizePanel(engineId, next, source === 'person');
-      if (changed) {
-        i.onPanelResize?.();
-        followPanel(engineId);
-      }
-      gate.release(token);
-      return accepted(changed);
-    },
+    setFormFactor: (engineId, next, source) => resizeOp(engineId, next, source),
+    setSlots: (engineId, slots, source) => resizeOp(engineId, slots, source),
     scrollTo: (engineId, align) => {
       const target = held(engineId);
       if (!isEntry(target)) return target;
@@ -897,7 +902,7 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
         if (core === undefined || panel.settings === undefined) return panel;
         const value = core.resolveDefaults(panel).value;
         const defaults = applyTemplate(panel, value, 'reconfigure');
-        return clearOverrides([{ ...defaults, ...(panel.formFactor === value.formFactor ? {} : { formFactor: value.formFactor, size: { ...TIER_SIZES[value.formFactor] } }), applied: { placeOnAdd: value.placeOnAdd } }], [panel.id])[0]!;
+        return clearOverrides([{ ...defaults, ...(slotsOf(panel) === value.slots ? {} : { slots: value.slots, formFactor: value.formFactor, size: { ...TIER_SIZES[value.formFactor] } }), applied: { placeOnAdd: value.placeOnAdd } }], [panel.id])[0]!;
       }),
     reopen: (req) => {
       // The closed views are tokened too: a raw undoClose in this turn restores the very key this call would add.
@@ -974,6 +979,16 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
       'other',
       (id, next) => {
         if (resizePanel(id, next)) {
+          i.onPanelResize?.();
+          followPanel(id);
+        }
+      },
+    ),
+    setSlots: raw(
+      (id: string, _slots: number) => [id],
+      'other',
+      (id, slots) => {
+        if (resizePanel(id, slots)) {
           i.onPanelResize?.();
           followPanel(id);
         }

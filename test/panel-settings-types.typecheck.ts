@@ -39,6 +39,8 @@ export const SETTING_KEYS: Record<keyof SettingValues, true> = {
   crossable: true,
   placeable: true,
   resizable: true,
+  slots: true,
+  maxSlots: true,
   formFactors: true,
   clearable: true,
   hostCreatable: true,
@@ -87,8 +89,8 @@ export const CATALOG_NAMES_WITHOUT_TUNING: Record<NonTuningNames, true> = SETTIN
 export const SETTING_KEYS_AGAIN: Record<keyof SettingValues, true> = CATALOG_NAMES_WITHOUT_TUNING;
 
 // The user layer has exactly three keys.
-export type UserLayerKeys = Expect<Equal<keyof PanelUserLayer, 'formFactor' | 'anchor' | 'parkable'>>;
-export const USER_LAYER_KEYS: Record<keyof PanelUserLayer, true> = { formFactor: true, anchor: true, parkable: true };
+export type UserLayerKeys = Expect<Equal<keyof PanelUserLayer, 'formFactor' | 'slots' | 'anchor' | 'parkable'>>;
+export const USER_LAYER_KEYS: Record<keyof PanelUserLayer, true> = { formFactor: true, slots: true, anchor: true, parkable: true };
 export const aUserLayer: PanelUserLayer = { formFactor: 'tablet', anchor: { panel: 'notes', position: 'left', priority: 1 }, parkable: false };
 
 // Every field of SettingConflict, once per kind, with and without rule and forcedBy.
@@ -172,6 +174,7 @@ export const viewHandle: ViewHandle = {
   move: () => done,
   place: () => done,
   setFormFactor: () => done,
+  setSlots: () => done,
   scrollTo: () => done,
   pin: () => done,
   unpin: () => done,

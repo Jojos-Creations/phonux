@@ -230,7 +230,7 @@ test('a deferral that no longer passes its re-check is dropped with a note and t
   assert.deepEqual([r.state('a').status, deferral(r, 'a'), r.state('a').pinned], ['live', null, false]);
   const dropped: SettingNote[] = r.m.notes.filter((n) => n.code === 'deferred-pin-dropped');
   assert.equal(dropped.length, 1);
-  assert.match(dropped[0]!.message, /phone tier/);
+  assert.match(dropped[0]!.message, /wider than one slot/);
 });
 
 test('a closed record with a deferral drops it the same way when the tier no longer fits', async () => {

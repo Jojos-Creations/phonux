@@ -1,5 +1,5 @@
 /**
- * The catalog as data: the 64 names, who owns each, its class and doors, the exact defaults, the leaf-module rule, the
+ * The catalog as data: the 68 names, who owns each, its class and doors, the exact defaults, the leaf-module rule, the
  * differential recorder, and the table in DESIGN.md that must equal the descriptors row for row.
  */
 
@@ -28,6 +28,10 @@ const NAME_TABLE: Record<CatalogName, true> = {
   crossable: true,
   placeable: true,
   resizable: true,
+  slots: true,
+  maxSlots: true,
+  'tuning.heightPerSlot': true,
+  'tuning.rowAlign': true,
   formFactors: true,
   clearable: true,
   hostCreatable: true,
@@ -88,7 +92,7 @@ const NAME_TABLE: Record<CatalogName, true> = {
   'tuning.maxLivePanels': true,
 };
 const NAMES = Object.keys(NAME_TABLE) as CatalogName[];
-const DERIVED_KEYS = ['draggable', 'placeable', 'listed', 'clearable'] as const;
+const DERIVED_KEYS = ['draggable', 'placeable', 'listed', 'clearable', 'slots', 'maxSlots'] as const;
 
 /** The one assignment of every name to the entry that enforces it. */
 const OWNER_TABLE: ReadonlyArray<readonly [string, readonly CatalogName[]]> = [
@@ -106,6 +110,7 @@ const OWNER_TABLE: ReadonlyArray<readonly [string, readonly CatalogName[]]> = [
   ['phonux-pin-and-reset', ['pinning', 'pinningWhenNotLive']],
   ['phonux-header-buttons', ['headerButtons']],
   ['phonux-max-live-panels', ['tuning.maxLivePanels']],
+  ['phonux-slot-sizing-resizable-root-v3', ['slots', 'maxSlots', 'tuning.heightPerSlot', 'tuning.rowAlign']],
 ];
 
 /** Problems in a name-to-entry table: a name with no entry, a name given two entries, or a name outside the catalog. */
@@ -135,7 +140,7 @@ const SCROLL_DEFAULTS = {
 } as const;
 
 const TEMPLATE_KEYS: readonly CatalogName[] = ['hostCreatable', 'multiple', 'maxInstances'];
-const WORKSPACE_ONLY_KEYS: readonly CatalogName[] = ['tuning.rowGap', 'tuning.saveQuietMs', 'tuning.gestureLockMs', 'tuning.gestureQuietMs', 'tuning.returnTieBreak', 'tuning.dropTieBreak', 'tuning.rowGesture', 'tuning.initialScroll', 'tuning.maxLivePanels', 'tuning.chrome'];
+const WORKSPACE_ONLY_KEYS: readonly CatalogName[] = ['tuning.rowGap', 'tuning.saveQuietMs', 'tuning.gestureLockMs', 'tuning.gestureQuietMs', 'tuning.returnTieBreak', 'tuning.dropTieBreak', 'tuning.rowGesture', 'tuning.initialScroll', 'tuning.maxLivePanels', 'tuning.chrome', 'tuning.heightPerSlot', 'tuning.rowAlign'];
 const PER_PANEL_TUNING: readonly CatalogName[] = ['tuning.dragToClose', 'tuning.slide', 'tuning.hopFraction', 'tuning.edgeScroll'];
 const expectedDoors = (name: CatalogName): readonly string[] => {
   if (TEMPLATE_KEYS.includes(name)) return ['template'];
@@ -182,7 +187,7 @@ function parseDocRows(doc: string): DocRow[] {
 function docDriftProblems(doc: string): string[] {
   const problems: string[] = [];
   const rows = parseDocRows(doc);
-  if (rows.length !== 64) problems.push(`the table has ${rows.length} rows, not 63`);
+  if (rows.length !== 68) problems.push(`the table has ${rows.length} rows, not 68`);
   const byName = new Map(rows.map((r) => [r.name, r]));
   if (byName.size !== rows.length) problems.push('a name appears in two rows');
   for (const d of PANEL_SETTINGS_CATALOG) {
@@ -205,12 +210,12 @@ const DOC = read('DESIGN.md');
 // Completeness
 // ---------------------------------------------------------------------------
 
-test('catalog: the name set is non-empty and has 64 names, one descriptor each, in no repeated order slot', () => {
+test('catalog: the name set is non-empty and has 68 names, one descriptor each, in no repeated order slot', () => {
   assert.ok(NAMES.length > 0);
-  assert.equal(NAMES.length, 64, "the design's count is 64: a changed count must change the design");
-  assert.equal(PANEL_SETTINGS_CATALOG.length, 64);
+  assert.equal(NAMES.length, 68, "the design's count is 68: a changed count must change the design");
+  assert.equal(PANEL_SETTINGS_CATALOG.length, 68);
   assert.deepEqual([...PANEL_SETTINGS_CATALOG.map((d) => d.name)].sort(), [...NAMES].sort());
-  assert.equal(new Set(PANEL_SETTINGS_CATALOG.map((d) => d.name)).size, 64);
+  assert.equal(new Set(PANEL_SETTINGS_CATALOG.map((d) => d.name)).size, 68);
 });
 
 test('catalog: the name set equals the keys of the two defaults objects plus the derived keys and the rows of the DESIGN.md table', () => {
@@ -221,7 +226,7 @@ test('catalog: the name set equals the keys of the two defaults objects plus the
   ]);
   assert.deepEqual([...fromDefaults].sort(), [...NAMES].sort());
   assert.deepEqual(parseDocRows(DOC).map((r) => r.name).sort(), [...NAMES].sort());
-  assert.equal(fromDefaults.size, 64);
+  assert.equal(fromDefaults.size, 68);
 });
 
 test('catalog: PANEL_SETTINGS_CATALOG is frozen all the way down', () => {
@@ -231,11 +236,11 @@ test('catalog: PANEL_SETTINGS_CATALOG is frozen all the way down', () => {
   }
 });
 
-test('catalog: OWNER_ENTRY assigns each of the 64 names to exactly one of 14 ids', () => {
+test('catalog: OWNER_ENTRY assigns each of the 68 names to exactly one of 15 ids', () => {
   assert.deepEqual(ownerTableProblems(OWNER_TABLE), []);
-  assert.equal(OWNER_OF.size, 64);
-  assert.equal(new Set(OWNER_OF.values()).size, 14);
-  assert.deepEqual(OWNER_TABLE.map(([, names]) => names.length), [14, 13, 10, 5, 1, 1, 5, 2, 6, 1, 2, 2, 1, 1]);
+  assert.equal(OWNER_OF.size, 68);
+  assert.equal(new Set(OWNER_OF.values()).size, 15);
+  assert.deepEqual(OWNER_TABLE.map(([, names]) => names.length), [14, 13, 10, 5, 1, 1, 5, 2, 6, 1, 2, 2, 1, 1, 4]);
 });
 
 test('catalog: a scratch owner table with one name moved to a second id, or dropped, fails', () => {
@@ -246,24 +251,24 @@ test('catalog: a scratch owner table with one name moved to a second id, or drop
   assert.deepEqual(ownerTableProblems(OWNER_TABLE), [], 'control: the real table has no problem, so the two probes above could have passed');
 });
 
-test('catalog: the classes are NOW 13, NEXT 44, STATE 4 and SCOPE 3, and STATE and SCOPE name the expected keys', () => {
+test('catalog: the classes are NOW 15, NEXT 45, STATE 5 and SCOPE 3, and STATE and SCOPE name the expected keys', () => {
   const by = (cls: string) => PANEL_SETTINGS_CATALOG.filter((d) => d.configure.cls === cls).map((d) => d.name);
-  assert.equal(by('NOW').length, 13);
-  assert.equal(by('NEXT').length, 44);
-  assert.deepEqual(by('STATE').sort(), ['formFactors', 'keepMounted', 'parkable', 'viewState']);
+  assert.equal(by('NOW').length, 15);
+  assert.equal(by('NEXT').length, 45);
+  assert.deepEqual(by('STATE').sort(), ['formFactors', 'keepMounted', 'maxSlots', 'parkable', 'viewState']);
   assert.deepEqual(by('SCOPE').sort(), ['hostCreatable', 'maxInstances', 'multiple']);
 });
 
-test('catalog: the doors are template for 3 names, tuning for 9, instance and tuning for 4 and instance for the other 47', () => {
+test('catalog: the doors are template for 3 names, tuning for 10, instance and tuning for 4 and instance for the other 49', () => {
   const by = (doors: string) => PANEL_SETTINGS_CATALOG.filter((d) => d.configure.doors.join(',') === doors).map((d) => d.name);
   assert.deepEqual(by('template').sort(), [...TEMPLATE_KEYS].sort());
   assert.deepEqual(by('tuning').sort(), [...WORKSPACE_ONLY_KEYS].sort());
   assert.deepEqual(by('instance,tuning').sort(), [...PER_PANEL_TUNING].sort());
-  assert.equal(by('instance').length, 47);
+  assert.equal(by('instance').length, 49);
 });
 
-test('catalog: only title, listed, layer, formFactor, placeOnAdd and enterFrom are view-settable', () => {
-  assert.deepEqual(PANEL_SETTINGS_CATALOG.filter((d) => d.viewSettable).map((d) => d.name).sort(), ['enterFrom', 'formFactor', 'layer', 'listed', 'placeOnAdd', 'title']);
+test('catalog: only title, listed, layer, formFactor, slots, placeOnAdd and enterFrom are view-settable', () => {
+  assert.deepEqual(PANEL_SETTINGS_CATALOG.filter((d) => d.viewSettable).map((d) => d.name).sort(), ['enterFrom', 'formFactor', 'layer', 'listed', 'placeOnAdd', 'slots', 'title']);
 });
 
 for (const name of NAMES) {
@@ -288,9 +293,9 @@ for (const name of NAMES) {
 // Docs drift
 // ---------------------------------------------------------------------------
 
-test('docs drift: DESIGN.md has exactly 64 rows between the markers and every name, values, default and class word matches', () => {
+test('docs drift: DESIGN.md has exactly 68 rows between the markers and every name, values, default and class word matches', () => {
   assert.deepEqual(docDriftProblems(DOC), []);
-  assert.equal(parseDocRows(DOC).length, 64);
+  assert.equal(parseDocRows(DOC).length, 68);
 });
 
 test('docs drift: editing one default in a scratch copy of the doc is caught', () => {
@@ -307,9 +312,9 @@ test('docs drift: changing one class word in a scratch copy of the doc is caught
 
 test('docs drift: a scratch copy with a row dropped, or a row added, fails the count', () => {
   const dropped = DOC.replace(/\| `snapshot` \|[^\n]*\n/, '');
-  assert.ok(docDriftProblems(dropped).some((p) => p.includes('63 rows')));
+  assert.ok(docDriftProblems(dropped).some((p) => p.includes('67 rows')));
   const added = DOC.replace('<!-- catalog:end -->', '| `extra` | x | y | NOW. z |\n<!-- catalog:end -->');
-  assert.ok(docDriftProblems(added).some((p) => p.includes('65 rows')));
+  assert.ok(docDriftProblems(added).some((p) => p.includes('69 rows')));
 });
 
 // ---------------------------------------------------------------------------
@@ -332,6 +337,8 @@ test('defaults: LIBRARY_TUNING_DEFAULTS deep-equals the exact object, with the s
     initialScroll: SCROLL_DEFAULTS.tuning.initialScroll,
     chrome: { mode: 'always', fadeMs: 120, slideMs: 140, slidePx: 8, graceMs: 250 },
     maxLivePanels: null,
+    heightPerSlot: 48,
+    rowAlign: 'center',
   });
 });
 
@@ -361,6 +368,8 @@ const RESOLVED_DEFAULTS: { [K in Exclude<keyof ResolvedPanelSettings, 'title'>]:
   crossable: true,
   placeable: true,
   resizable: true,
+  slots: 1,
+  maxSlots: 64,
   formFactors: ['phone', 'tablet', 'desktop'],
   clearable: true,
   hostCreatable: true,
@@ -419,7 +428,7 @@ test('defaults: resolving no layers gives every key of ResolvedPanelSettings its
   assert.equal('title' in value, false, 'title has no default and is absent');
   assert.deepEqual(conflicts, []);
   assert.deepEqual(notes, []);
-  assert.equal(Object.keys(RESOLVED_DEFAULTS).length, 50);
+  assert.equal(Object.keys(RESOLVED_DEFAULTS).length, 52);
   for (const [key, layer] of Object.entries(source)) assert.equal(layer, (DERIVED_KEYS as readonly string[]).includes(key) ? 'derived' : 'library', `source of ${key}`);
 });
 
@@ -526,7 +535,7 @@ test('doors: every name of each key class is admitted by exactly the calls its c
       checked += 1;
     }
   }
-  assert.equal(checked, 64 * 3);
+  assert.equal(checked, 68 * 3);
 });
 
 // ---------------------------------------------------------------------------

@@ -4,6 +4,7 @@
  */
 import { DEFAULT_PHONE_SIZE, type FormFactor, type PanelSize } from './hostApi.js';
 import type { PanelRowEntry } from './panelRowEntry.js';
+import { ROW_GAP, fitSlots, slotWidth } from './rowConstants.js';
 
 /**
  * The size every panel starts at: the phone tier at the built-in phone size.
@@ -23,11 +24,23 @@ export const TIER_SIZES: Readonly<Record<FormFactor, PanelSize>> = Object.freeze
 });
 
 /**
- * A panel's own width in the row. A phone panel always takes the live `phoneWidth`, never its stored size, which
- * is only a placeholder. A tablet or desktop panel takes its stored width, capped at `maxLiveWidth` so it always
- * fits beside the row's fixed columns.
+ * The slots a panel is drawn at: its `slots` (at most its `maxSlots`) capped at what fits in `maxLiveWidth`; undefined for a
+ * hand-built entry that carries no slots, which keeps drawing at its tier's width.
+ * @internal
+ */
+export function drawnSlotsOf(p: Pick<PanelRowEntry, 'slots' | 'settings'>, phoneWidth: number, maxLiveWidth: number, gap: number = ROW_GAP): number | undefined {
+  if (p.slots === undefined) return undefined;
+  return Math.max(1, Math.min(p.slots, p.settings?.maxSlots ?? p.slots, fitSlots(maxLiveWidth, phoneWidth, gap)));
+}
+
+/**
+ * A panel's own width in the row. A panel with slots is that many phone widths with the row gap between them, no more
+ * than fit in `maxLiveWidth`. A hand-built entry without slots keeps the older rule: a phone panel takes the live
+ * `phoneWidth`, a tablet or desktop panel its stored width capped at `maxLiveWidth`.
  * @public
  */
-export function panelWidthOf(p: Pick<PanelRowEntry, 'formFactor' | 'size'>, phoneWidth: number, maxLiveWidth: number): number {
+export function panelWidthOf(p: Pick<PanelRowEntry, 'formFactor' | 'size' | 'slots' | 'settings'>, phoneWidth: number, maxLiveWidth: number, gap: number = ROW_GAP): number {
+  const drawn = drawnSlotsOf(p, phoneWidth, maxLiveWidth, gap);
+  if (drawn !== undefined) return slotWidth(drawn, phoneWidth, gap);
   return (p.formFactor ?? 'phone') === 'phone' ? phoneWidth : Math.min(p.size?.width ?? phoneWidth, maxLiveWidth);
 }
