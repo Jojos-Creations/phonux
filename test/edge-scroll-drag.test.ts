@@ -40,7 +40,7 @@ function reduceMotion(on: boolean): void {
 
 afterEach(async () => {
   // A test that left the pointer down must not leave motion's window listeners live for the next one.
-  window.dispatchEvent(new MouseEvent('pointerup', { bubbles: true }));
+  document.dispatchEvent(new MouseEvent('pointerup', { bubbles: true }));
   await frames(5);
   cleanup();
   reduceMotion(false);
@@ -101,8 +101,8 @@ function pointer(type: 'pointerdown' | 'pointermove' | 'pointerup' | 'pointercan
   return event;
 }
 const press = (target: Element, x: number): Promise<void> => act(async () => void target.dispatchEvent(pointer('pointerdown', x)));
-const moveTo = (x: number, y = 100): Promise<void> => act(async () => void window.dispatchEvent(pointer('pointermove', x, y)));
-const liftAt = (x: number, y = 100): Promise<void> => act(async () => void window.dispatchEvent(pointer('pointerup', x, y)));
+const moveTo = (x: number, y = 100): Promise<void> => act(async () => void document.dispatchEvent(pointer('pointermove', x, y)));
+const liftAt = (x: number, y = 100): Promise<void> => act(async () => void document.dispatchEvent(pointer('pointerup', x, y)));
 const frames = (n: number): Promise<void> => advanceFrames(n * FRAME_MS);
 const handleOf = (m: MountedRow, id: string): Element => {
   const handle = m.container.querySelector(`[data-handle="${id}"]`);
