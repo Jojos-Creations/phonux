@@ -901,6 +901,18 @@ While a drag is live every vertically scrolling ancestor is locked (`overflow-y:
 transformed box would add a scrollbar). The lock ends with the spring back (or a press that stops it) and
 when the box unmounts.
 
+**No selection while dragging.** From the press until the pointer lifts or is cancelled (and until the box unmounts), the
+document element's `user-select`, `-webkit-user-select` and `-webkit-user-drag` are `none`, and a capture `dragstart`
+listener cancels a native drag: `-webkit-user-drag` does not inherit, so a photo inside a panel would otherwise start one,
+and a native drag ends the pointer events this gesture runs on. Safari reads the prefixed `-webkit-user-select`, so all
+three go on the same element. The holds share one record per document (`holdDragSelection`): the first takes the inline
+values and priorities the host had, the last gives them back, so overlapping drags (two touches, a press landing on a
+spring still unlocking) cannot restore each other's `none`. The document is the handle's `ownerDocument`, so a panel
+rendered into another window works. The press itself clears nothing, so a click on a grab bar keeps what the person
+selected; dnd-kit clears the selection when it activates the drag. There is no setting to turn this off: a drag that
+highlights text and photos is never wanted, and no host has asked for one that does. If one does, it is a `tuning` leaf
+defaulting on. A hide and show in the middle of a drag (Activity) gives the hold back and takes it again.
+
 **Tuning and closability.** Inside a row the box reads its numbers from the slot it sits in: the close rule, the
 direction lock and the snap-back spring from the panel's `dragToClose`, and the exit's length from its
 `slide.closeExitSeconds`, which the slot's own down exit shares so a trash-button close and a drag close read as one
