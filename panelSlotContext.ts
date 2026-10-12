@@ -56,6 +56,11 @@ export interface PanelSlotValue {
   readonly dragScroll?: DragScroll | undefined;
   /** The panel's declared header buttons; absent when none are declared or the row has no workspace. */
   readonly headerButtonSlots?: HeaderButtonsSlot | undefined;
+  /**
+   * Tells the row how far this panel's horizontal drag has gone (the offset the release would report, px, +right/-left), or
+   * null once the drag has ended. The row turns it into hops with the hop rule and slides the panels in between aside. Absent outside a row.
+   */
+  readonly previewReorder?: ((offset: number | null) => void) | undefined;
 }
 
 export const PanelSlotContext = React.createContext<PanelSlotValue | undefined>(undefined);

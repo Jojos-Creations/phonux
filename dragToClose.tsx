@@ -333,6 +333,9 @@ function DragToCloseBox({
   const closeRef = React.useRef(onClose);
   closeRef.current = onClose;
   const slot = React.useContext(PanelSlotContext);
+  // Read by the frame step and the release, which outlive the render that started them.
+  const slotRef = React.useRef(slot);
+  slotRef.current = slot;
   const drag = slot?.tuning.dragToClose ?? OUTSIDE_ROW_DRAG;
   const edge = useEdgeScroll(box, reorder === undefined ? undefined : slot?.dragScroll, reduceMotion === true, x, scrollX);
   const exitSeconds = slot?.tuning.slide.closeExitSeconds ?? SLIDE_CLOSE_EXIT_SECONDS;
@@ -360,6 +363,22 @@ function DragToCloseBox({
   // The cleanup leaves a running spring alone: React 19.2 re-runs it for a keyed child a reorder moves under StrictMode, and
   // Activity runs it on a hide; a stopped release spring leaves the box at its drag offset.
   React.useEffect(() => unlockScrollParents, []);
+  // The row slides the neighbours aside while a horizontal drag is live; the preview ends with the drag and with the box.
+  // The row keeps the dragged slot raised from the first publish until null, so null follows the spring home that ends the drag.
+  const previewed = React.useRef<number | null | undefined>(null);
+  const preview = (offset: number | null) => {
+    if (previewed.current === offset) return;
+    previewed.current = offset;
+    slotRef.current?.previewReorder?.(offset);
+  };
+  // A cleanup that React 19.2 also runs for a keyed child a reorder moves: forget what was published so a live drag republishes on its next frame.
+  // A box that really unmounts needs no clear: the row ignores a dragged id it no longer renders.
+  React.useEffect(
+    () => () => {
+      previewed.current = undefined;
+    },
+    [],
+  );
   // An undo while AnimatePresence still holds this box revives the SAME instance: parked, locked, refusing presses. A layout effect that
   // writes the DOM itself, not on Motion's next frame: the host scrolls a revived view into view in this same commit and must find it at rest.
   const isPresent = useIsPresent();
@@ -370,6 +389,7 @@ function DragToCloseBox({
     if (!revived) return;
     closing.current = false;
     unlockScrollParents();
+    preview(null);
     y.jump(0); // also stops an exit that is still running: its end would call onClose for a box that is back
     x.jump(0);
     scrollX.jump(0);
@@ -380,7 +400,10 @@ function DragToCloseBox({
   const springHome = () => {
     const back = settleHome(x, scrollX, snapBack);
     running.current = back;
-    void back.then(unlockScrollParents);
+    void back.then(() => {
+      unlockScrollParents();
+      preview(null);
+    });
   };
   const engaged = React.useRef(false);
   const followStep = React.useRef<(() => void) | null>(null);
@@ -417,6 +440,12 @@ function DragToCloseBox({
       if (axisLock.current === 'x') edge.lock(pointer.current.x);
     }
     edge.track(pointer.current.x, x);
+    if (axisLock.current === 'x') {
+      const rowSlot = slotRef.current;
+      // The pointer offset plus the row's scroll distance is what the release hands the hop rule.
+      const total = (edge.held() ? edge.pointerOffset() : dx) + scrollX.get();
+      if (rowSlot?.draggable === true) preview(total);
+    }
     // The losing axis is held at zero on every move: a locked box moves on one axis only. Upward y is not followed.
     if (axisLock.current === 'x') {
       x.set(edge.cap(dx));
@@ -444,6 +473,7 @@ function DragToCloseBox({
 
   useDndMonitor({
     onDragCancel: () => {
+      if (previewed.current !== null) preview(0);
       stopFollowing();
       axisLock.current = null;
       edge.release();
@@ -464,9 +494,11 @@ function DragToCloseBox({
         const offset = held ? edge.pointerOffset() : dx;
         const scrolled = edge.end();
         if (!cancelled) reorder.onDragEnd(offset + scrolled);
+        preview(0);
         if (reduceMotion) {
           x.jump(0);
           scrollX.jump(0);
+          preview(null);
           return unlockScrollParents();
         }
         springHome();
@@ -506,7 +538,7 @@ function DragToCloseBox({
   const handle: DragHandleProps = {
     onPointerDown: (event) => {
       if (event.button !== 0 || (event.target as Element).closest(INTERACTIVE) || closing.current) return; // a press would stop the exit: onClose would never run
-      if (running.current) { running.current.stop(); running.current = null; unlockScrollParents(); } // stop() never settles the spring's promise, so its own unlock would not run
+      if (running.current) { running.current.stop(); running.current = null; unlockScrollParents(); preview(null); } // stop() never settles the spring's promise, so its own unlock would not run
       edge.press(event);
       pointer.current = { downX: event.clientX, downY: event.clientY, x: event.clientX, y: event.clientY };
       samples.current = [{ t: event.timeStamp, y: 0 }];
