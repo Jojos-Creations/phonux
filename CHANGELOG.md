@@ -4,6 +4,10 @@
 
 ### Added
 
+- `PanelsAPI.maxFitPanels`: how many phone-width panels, permanent columns such as History included, the window fits at the
+  current phone width and row gap, so a host can offer a cap relative to the window without repeating the row's arithmetic.
+  `null` until the row is measured; it never reads below the permanent columns plus one, as the row's own floor, and pinned
+  panels are not subtracted. Optional on the interface, so a 0.1.0 host still type-checks.
 - `tuning.maxLivePanels`: an integer of 1 or more that caps how many unpinned panels the row keeps live (`null`, the default,
   is no cap and changes nothing). The leftmost panels beyond it park, as a narrow window parks them, and in a scrolling row
   such as History's the window's width no longer decides: exactly N unpinned panels are live at any width. A pinned panel is

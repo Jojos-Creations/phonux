@@ -558,6 +558,7 @@ export interface PanelsAPI {
     close(id: string): void;
     create(): void;
     create(options: CreatePanelOptions): void;
+    readonly maxFitPanels?: number | null;
     move(id: string, direction: 'left' | 'right'): void;
     readonly panelList: readonly PanelSummary[];
     reanchor(id: string, anchor: {

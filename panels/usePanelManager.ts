@@ -10,7 +10,6 @@ import { useEffect, useLayoutEffect, useReducer, useRef, useState } from 'react'
 import type { Dispatch, SetStateAction } from 'react';
 import { flushSync } from 'react-dom';
 import type { FormFactor } from '../hostApi.js';
-import { computeRowLayout } from '../panelRowLayout.js';
 import { computeRowNumbers } from '../rowNumbers.js';
 import { placePanel, reportNotes } from '../panelPlacement.js';
 import { applyPinChange, landPanel, pinHalf, pinnedIds, withoutDeferral, type PinApplied, type PinChange, type PinEnv } from '../panelPin.js';
@@ -18,7 +17,7 @@ import { resetEntries, type ResetEnv } from '../panelReset.js';
 import type { AddPlacement, PanelSettingsResolution } from '../panelSettings.js';
 import { isPresent } from '../panelRowEntry.js';
 import { panelWidthOf } from '../panelTiers.js';
-import { effectiveMaxPanels } from '../panelCapacity.js';
+import { effectiveMaxPanels, rowFitCount } from '../panelCapacity.js';
 import { effective, holdUnlistedNote } from '../panelSettings.js';
 import type { SettingNote, WorkspaceTuning } from '../panelSettings.js';
 import { DROP_TIE_BREAK, RETURN_TIE_BREAK, ROW_GAP } from '../rowConstants.js';
@@ -202,10 +201,7 @@ export function usePanelManager(
     const fitCapacityFor = (liveWidths: readonly number[]): number => {
       // `containerWidth === 0` means unmeasured (the first commit, and every jsdom test that never calls
       // measure()): null means no cap and no reconcile, never "zero panels fit".
-      const fitCount =
-        containerWidth === 0
-          ? null
-          : fixedColumnCount + computeRowLayout({ containerWidth, phoneWidth, gap, fixedItemCount: fixedColumnCount, liveWidths, reservedWidths }).maxLiveThatFit;
+      const fitCount = rowFitCount({ containerWidth, phoneWidth, gap, fixedColumnCount, liveWidths, reservedWidths });
       const effectiveMax = effectiveMaxPanels(fitCount, fixedColumnCount);
       // Floor of 1 keeps the panel just opened on screen even at the narrowest legal width (effectiveMaxPanels
       // already floors at fixedColumnCount + 1, so this bites only when the fixed columns alone reach effectiveMax).
