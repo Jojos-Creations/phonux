@@ -266,14 +266,33 @@ cannot disagree: `ProvidedPanels.rowNumbers`.
 `computeRowNumbers` is the one place a row's widths, resting offsets, margin and strip width are derived. It
 reads `p.settings?.overflow`, never `effective(p).overflow`: a hand-built fixed History reads 'scroll' under
 `effective()`, and a row of hand-built entries must keep its 0.1.0 numbers (`computeMaxLiveWidth` and
-`computeRowLayout`'s margin). Within a scrolling row the margin is 0 once the strip is wider than the window and
-centres it otherwise; before the first measurement the window is unbounded and nothing scrolls.
+`computeRowLayout`'s margin). Within a scrolling row the margin is 0 once the strip is wider than the window (the first stop's
+margin in a stepping row, see below) and centres it otherwise; before the first measurement the window is unbounded and nothing scrolls.
 
 Only an entry whose `overflow` is 'park' is parked for room. Its capacity is `computeRowLayout` over the widths
 of the live park entries, with the widths of every other drawn entry (the fixed columns and the scroll panels)
 subtracted as `reservedWidths`; the existing floor of one park panel stands, so a crowded row overflows and
 scrolls instead of refusing a panel. A park exit in a scrolling row travels one span from the slot's own rest, not
 to the row's origin, because the strip extends far past the window.
+
+#### Whole-panel stops
+
+In a scrolling row with `rowGesture` `'step'` whose strip is wider than the window, `computeRowNumbers` (called with
+`wholePanels`) returns `stops`: the `scrollLeft` values at which the window shows only whole panels. From panel `i` the
+shown set is the greedy run of panels that fit the window, at least one, and the leftover width is split evenly as
+margin `m_i`. `rowMarginLeft` is the first set's margin, stop `i` is `rowMarginLeft + leftOffset_i - m_i`, the stops end at
+the first panel from which everything after it fits, and `endPad` (the last set's margin) is drawn after the strip as a
+spacer element, a sibling of the strip inside the scroll container so a drag's end cap still reads the strip's own edge.
+The strip's margin snaps instead of gliding while stops exist, or `scrollWidth` would lag `maxScrollOf`. A strip that fits
+the window keeps its centring and has no stops; `free` and `off` rows have none either, so their margin is 0 on overflow.
+
+Padding does not clip scrolled content, so a neighbour of the shown set would peek `m_i` px at each edge. Panels outside
+the stop's set are therefore hidden by a fade (`fadeAt`): the slot's CSS `filter` (never `opacity`, which its enter and exit
+own) goes from one stop's set to the next as the row travels, and a slot at `opacity(0)` is also `inert` and takes no
+pointer events, so Tab and find-in-page cannot scroll the row off a stop. Workspace writes it on scroll events and on every
+render. Steps, `scrollTo`, the initial scroll, a drag released after edge scrolling and the settle after a change of
+stops (a resize, a pin, a close, a reorder) all land on a stop; `scrollTo` with `align` `'start'` or `'center'` lands on
+the nearest stop that shows the panel, not at that alignment.
 
 The container's horizontal overflow follows `tuning.rowGesture`: 'step' scrolls with the scrollbar hidden,
 'free' scrolls with it visible, 'off' hides the overflow. A row with no settings is always hidden.
@@ -303,7 +322,7 @@ and an automatic return record nothing.
 With `rowGesture` `step` a sideways wheel, Shift+wheel or arrow key asks for a step. A wheel step starts a lock of `tuning.gestureLockMs` (60 ms; later events do not extend it); once it is over the next wheel event steps again unless it is decaying (smaller than the one before it, in the same direction), so a held wheel or a swipe that keeps its speed steps panel after panel, and a trackpad flick whose deltas fade is one step. 150 ms without a wheel event starts a fresh gesture. On a scrolling row whose strip is
 wider than its window the step goes through `gestureTarget`: it shows the nearest hidden panel in the direction when
 its `revealOnScroll` allows and no live panel lies between the window's edge and its slot, and otherwise scrolls to
-the next panel start, from the in-flight glide's target. A row with nothing to scroll toward keeps the 0.1.0 swap
+the next stop (the next panel start in a row without stops), from the in-flight glide's target. A row with nothing to scroll toward keeps the 0.1.0 swap
 (`scrollRow`). The gesture does nothing while a claim is held.
 
 `tuning.initialScroll` runs once per mount, in a layout effect gated on the restore having settled, on a measured row

@@ -196,7 +196,7 @@ function mountAlone(dragScroll: DragScroll | undefined) {
   scroller.getBoundingClientRect = () => RECT;
   return { mounted, ui, scroller, handle: mounted.container.querySelector('[data-handle]')! };
 }
-const EDGE_ON: DragScroll = { mode: 'edge', zonePx: EDGE.zonePx, maxPxPerSec: EDGE.maxPxPerSec, reducedStepMs: EDGE.reducedStepMs, instant: false, maxScroll: MAX_SCROLL, stops: [], settleSec: 0.4 };
+const EDGE_ON: DragScroll = { mode: 'edge', zonePx: EDGE.zonePx, maxPxPerSec: EDGE.maxPxPerSec, reducedStepMs: EDGE.reducedStepMs, instant: false, maxScroll: MAX_SCROLL, stops: [], settleStops: [], settleSec: 0.4 };
 
 test('the row ceasing to scroll mid-hold gives the claim back and the row stops where it is', async () => {
   ends.length = 0;

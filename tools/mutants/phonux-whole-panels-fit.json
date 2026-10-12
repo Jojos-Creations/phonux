@@ -1,0 +1,89 @@
+{
+  "tests": ["test/whole-panels.test.ts", "test/whole-panels-drag.test.ts"],
+  "mutants": [
+    {
+      "name": "the greedy fit stops at a panel that exactly fills the window",
+      "file": "rowNumbers.ts",
+      "find": "used + gap + widths[end]! <= windowWidth)",
+      "replace": "used + gap + widths[end]! < windowWidth)",
+      "expectRed": ["a window exactly two panels wide fits two, not one"]
+    },
+    {
+      "name": "the margin is the whole leftover on one side instead of half",
+      "file": "rowNumbers.ts",
+      "find": "Math.max(0, (windowWidth - used) / 2)",
+      "replace": "Math.max(0, windowWidth - used)",
+      "expectRed": ["six phone panels: two whole panels fit"]
+    },
+    {
+      "name": "the room after the strip is left out of the farthest legal scroll",
+      "file": "rowNumbers.ts",
+      "find": "n.rowMarginLeft + n.stripWidth + n.endPad - n.windowWidth",
+      "replace": "n.rowMarginLeft + n.stripWidth - n.windowWidth",
+      "expectRed": ["six phone panels: two whole panels fit"]
+    },
+    {
+      "name": "a scroll to a panel keeps the raw target instead of a stop that shows it",
+      "file": "rowNumbers.ts",
+      "find": "return best ?? target;",
+      "replace": "return target;",
+      "expectRed": ["snapToStop picks the nearest stop that shows the panel"]
+    },
+    {
+      "name": "the fade keeps a panel at the left end of a stop's span hidden",
+      "file": "rowNumbers.ts",
+      "find": "(k >= n.stopSpans[stop]!.first && k < n.stopSpans[stop]!.end ? 1 : 0)",
+      "replace": "(k > n.stopSpans[stop]!.first && k < n.stopSpans[stop]!.end ? 1 : 0)",
+      "expectRed": ["fadeAt: a panel leaving fades out"]
+    },
+    {
+      "name": "the settle after a stops change no longer moves the row",
+      "file": "panels/useProvidePanels.ts",
+      "find": "    scroller.glideTo(to, { durationSec: tuning.slide.durationSec, instant: reducedMotion });\n  }, [rowNumbers.stops.join(',')",
+      "replace": "  }, [rowNumbers.stops.join(',')",
+      "expectRed": ["a resize that changes how many fit brings a row resting past the new last stop back to a stop"]
+    },
+    {
+      "name": "a step lands on panel starts instead of stops",
+      "file": "scrollTargets.ts",
+      "find": "i.stops !== undefined && i.stops.length > 0 ? i.stops : i.liveStarts",
+      "replace": "i.liveStarts",
+      "expectRed": ["mounted at 1000: a wheel steps one stop"]
+    },
+    {
+      "name": "the drag-scroll stops handed to a drag stay panel starts",
+      "file": "PanelRow.tsx",
+      "find": "rowNumbers.stops.length > 0 ? rowNumbers.stops : rowNumbers.leftOffsets",
+      "replace": "rowNumbers.leftOffsets",
+      "expectRed": ["under reduced motion a held edge jumps stop by stop"]
+    },
+    {
+      "name": "a released drag no longer settles on a stop",
+      "file": "dragToClose.tsx",
+      "find": "if (Math.abs(to - at) >= 0.5) h.scroller.glideTo(",
+      "replace": "if (Math.abs(to - at) >= 1e9) h.scroller.glideTo(",
+      "expectRed": ["a drag held at the right edge and released settles the row on a stop"]
+    },
+    {
+      "name": "no panel is faded",
+      "file": "Workspace.tsx",
+      "find": "slot.style.filter = opacity >= 1 ? '' : `opacity(${opacity})`;",
+      "replace": "slot.style.filter = '';",
+      "expectRed": ["mounted at 1000: a wheel steps one stop"]
+    },
+    {
+      "name": "the room after the strip is not drawn",
+      "file": "Workspace.tsx",
+      "find": "rowNumbers.endPad > 0 ? <div",
+      "replace": "false ? <div",
+      "expectRed": ["trailing room is one spacer element"]
+    },
+    {
+      "name": "a faded-out panel stays tabbable",
+      "file": "Workspace.tsx",
+      "find": "slot.toggleAttribute('inert', opacity <= 0);",
+      "replace": "slot.toggleAttribute('inert', false);",
+      "expectRed": ["mounted at 1000: a wheel steps one stop"]
+    }
+  ]
+}

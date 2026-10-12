@@ -371,7 +371,7 @@ test('final property: over random settings vectors, pin, unpin, scrollTo, resetL
     const scrollOnly = seed % 4 === 0;
     const settings: Record<string, PanelSettings> = {};
     for (const id of IDS) settings[id] = { ...settingsVector(rand), ...(scrollOnly ? { overflow: 'scroll' as const } : {}) } as PanelSettings;
-    const r = await pinRig({ ids: IDS, settings, width: pickFrom(rand, [1000, 1500, 2000, 2400]), workspace: { conflicts: 'off' } });
+    const r = await pinRig({ ids: IDS, settings, width: pickFrom(rand, [1000, 1500, 2000, 2400]), workspace: { conflicts: 'off', tuning: { rowGesture: 'free' } } });
     await r.settle();
     if (scrollOnly) scrollOnlySequences += 1;
     const where = (step: number): string => `seed ${seed} step ${step}${scrollOnly ? ' (scroll only)' : ''}`;

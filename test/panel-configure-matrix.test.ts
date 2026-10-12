@@ -873,7 +873,7 @@ test('matrix:revealOnScroll', async () => {
 
 test('matrix:scrollOnOpen', async () => {
   probe('scrollOnOpen');
-  const r = await matrixRig({ ids: ['a', 'b', 'c', 'd', 'e'], width: 1000 });
+  const r = await matrixRig({ ids: ['a', 'b', 'c', 'd', 'e'], width: 1000, workspace: { tuning: { rowGesture: 'free' } } });
   await r.settle();
   assert.equal(r.m.container.scrollLeft, 0);
   assert.deepEqual(shape(r.turn(() => r.h.c!.configure({ scrollOnOpen: 'start' }))), { now: [], later: ['scrollOnOpen'], shadowed: [] });
@@ -888,7 +888,7 @@ test('matrix:scrollOnOpen', async () => {
   r.turn(() => r.h.c!.scrollTo());
   await r.settle();
   assert.equal(r.m.container.scrollLeft, 640, "none: scrollTo() falls back to into-view, c's right edge 1624 less the 984 visible");
-  const hidden = await matrixRig({ ids: ['a', 'b', 'c', 'd', 'e'], width: 1000 });
+  const hidden = await matrixRig({ ids: ['a', 'b', 'c', 'd', 'e'], width: 1000, workspace: { tuning: { rowGesture: 'free' } } });
   hidden.turn(() => hidden.h.c!.hide());
   await hidden.settle();
   done(hidden.turn(() => hidden.h.c!.configure({ scrollOnOpen: 'start' })));
@@ -901,7 +901,7 @@ test('matrix:scrollOnOpen', async () => {
 test('matrix:scrollOnMove', async () => {
   probe('scrollOnMove');
   const grown = async (none: boolean): Promise<number> => {
-    const r = await matrixRig({ ids: ['a', 'b', 'c', 'd', 'e'], width: 1000 });
+    const r = await matrixRig({ ids: ['a', 'b', 'c', 'd', 'e'], width: 1000, workspace: { tuning: { rowGesture: 'free' } } });
     await r.settle();
     if (none) {
       assert.deepEqual(shape(r.turn(() => r.h.a!.configure({ scrollOnMove: 'none' }))), { now: [], later: ['scrollOnMove'], shadowed: [] });
@@ -1762,7 +1762,7 @@ test('matrix:tuning.initialScroll', async () => {
   assert.deepEqual({ ...done(r.turn(() => r.ws.panels.configureTuning({ initialScroll: 'end' }))) }, { ok: true, changed: true, shown: false, now: [], later: ['tuning.initialScroll'], shadowed: [], notes: [] });
   await r.settle();
   assert.equal(r.m.container.scrollLeft, 0, 'nothing scrolls now');
-  const next = await matrixRig({ ids, width: 1000, workspace: { tuning: { initialScroll: 'end' } } });
+  const next = await matrixRig({ ids, width: 1000, workspace: { tuning: { initialScroll: 'end', rowGesture: 'free' } } });
   await next.settle();
   assert.equal(next.m.container.scrollLeft, 3482, 'a mount that reads end puts the strip at its farthest legal scroll: 4450 less the 968 window');
   assert.equal(r.ws.tuning.initialScroll, 'end', 'the workspace now holds it for its next mount');

@@ -166,9 +166,9 @@ function useEdgeScroll(box: React.RefObject<HTMLDivElement | null>, dragScroll: 
     const distance = h.scroller.scrollLeft() - h.startScroll;
     h.claim.release();
     const slot = latest.current.dragScroll;
-    if (slot !== undefined && slot.stops.length > 0) {
+    if (slot !== undefined && slot.settleStops.length > 0) {
       const at = h.scroller.scrollLeft();
-      const to = slot.stops.reduce((best, stop) => (Math.abs(stop - at) < Math.abs(best - at) ? stop : best));
+      const to = slot.settleStops.reduce((best, stop) => (Math.abs(stop - at) < Math.abs(best - at) ? stop : best));
       if (Math.abs(to - at) >= 0.5) h.scroller.glideTo(to, { durationSec: slot.settleSec, instant: slot.instant || latest.current.reduceMotion });
     }
     return distance;

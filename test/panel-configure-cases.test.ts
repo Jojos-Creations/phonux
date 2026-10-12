@@ -265,7 +265,7 @@ test('case B7: overflow scroll to park on a live panel parks nothing at configur
 
 test('case B8: scrollOnOpen none on a live panel: the next open does not scroll', async () => {
   const opened = async (none: boolean): Promise<number> => {
-    const r = await matrixRig({ ids: ['a', 'b', 'c', 'd', 'e'], width: 1000 });
+    const r = await matrixRig({ ids: ['a', 'b', 'c', 'd', 'e'], width: 1000, workspace: { tuning: { rowGesture: 'free' } } });
     await r.settle();
     if (none) {
       assert.deepEqual(shape(r.turn(() => r.h.c!.configure({ scrollOnOpen: 'none' }))), { now: [], later: ['scrollOnOpen'], shadowed: [] });

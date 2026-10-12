@@ -73,7 +73,7 @@ export type AddPlacement =
 /** What the row may do with a panel when the open panels do not all fit: scroll past it, or park it. @public */
 export type Overflow = 'scroll' | 'park';
 
-/** Where a scrolled-to panel lands in the window. @public */
+/** Where a scrolled-to panel lands in the window. A stepping row (`rowGesture` 'step') lands on the nearest stop that shows the panel whole instead, so 'start' and 'center' are then approximate. @public */
 export type ScrollAlign = 'into-view' | 'start' | 'center';
 
 /** Where the row scrolls a panel to on open, show or click: a `ScrollAlign`, or 'none' for no scroll. @public */

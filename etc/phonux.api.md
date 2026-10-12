@@ -66,6 +66,7 @@ export function computeRowNumbers(i: {
     containerWidth: number;
     gap: number;
     fixedItemCount?: number;
+    wholePanels?: boolean;
 }): RowNumbers;
 
 // @public
@@ -945,6 +946,7 @@ export interface RowLayoutResult {
 
 // @public
 export interface RowNumbers {
+    endPad: number;
     ids: readonly string[];
     leftOffsets: readonly number[];
     maxLiveWidth: number;
@@ -952,6 +954,11 @@ export interface RowNumbers {
     reservedWidths: readonly number[];
     rowMarginLeft: number;
     rowScroll: boolean;
+    stops: readonly number[];
+    stopSpans: readonly {
+        first: number;
+        end: number;
+    }[];
     stripWidth: number;
     widths: readonly number[];
     windowWidth: number;
