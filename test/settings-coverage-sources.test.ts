@@ -49,9 +49,9 @@ function holders(texts: ReadonlyMap<string, string>, name: string): string[] {
   return found;
 }
 
-test('S7 sources: the search runs over every test file and the catalog has 61 names', () => {
-  assert.equal(NAMES.length, 61);
-  assert.equal(new Set(NAMES).size, 61);
+test('S7 sources: the search runs over every test file and the catalog has 62 names', () => {
+  assert.equal(NAMES.length, 62);
+  assert.equal(new Set(NAMES).size, 62);
   assert.equal(TEST_FILES.length > 50, true, `found ${TEST_FILES.length} test files`);
   assert.deepEqual(
     OWNING_FILES.filter((f) => !TEXT.has(f)),

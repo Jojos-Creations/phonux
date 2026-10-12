@@ -1768,6 +1768,20 @@ test('matrix:tuning.initialScroll', async () => {
   assert.equal(r.ws.tuning.initialScroll, 'end', 'the workspace now holds it for its next mount');
 });
 
+test('matrix:tuning.chrome', async () => {
+  probe('tuning.chrome');
+  await wrongScopeInEveryStatus({ tuning: { chrome: { mode: 'hover-or-active' } } }, 'tuning.chrome');
+  const r = await matrixRig();
+  await r.settle();
+  assert.deepEqual({ ...r.ws.tuning.chrome }, { mode: 'always', fadeMs: 120, slideMs: 140, slidePx: 8, graceMs: 250 });
+  assert.deepEqual({ ...done(r.turn(() => r.ws.panels.configureTuning({ chrome: { fadeMs: 60 } }))) }, { ok: true, changed: true, shown: false, now: ['tuning.chrome'], later: [], shadowed: [], notes: [] });
+  assert.deepEqual({ ...r.ws.tuning.chrome }, { mode: 'always', fadeMs: 60, slideMs: 140, slidePx: 8, graceMs: 250 }, 'a one-member patch keeps the other members');
+  assert.equal(done(r.turn(() => r.ws.panels.configureTuning({ chrome: { fadeMs: 60 } }))).changed, false, 'an equal patch changes nothing');
+  assert.equal(thrownCode(() => r.ws.panels.configureTuning({ chrome: { slidePx: 201 } })), 'invalid-settings', 'outside 0 to 200 throws');
+  assert.equal(thrownCode(() => r.ws.panels.configureTuning({ chrome: { mode: 'sometimes' } as never })), 'invalid-settings');
+  assert.equal(r.ws.tuning.chrome.fadeMs, 60, 'a refused patch left the value');
+});
+
 test('the class table ran every cell: executed cells equal 4 classes by 9 statuses, 36', () => {
   assert.equal(CLASSES.length * STATUSES.length, 36);
   assert.equal(cellsExecuted().size, 36);
@@ -1775,11 +1789,11 @@ test('the class table ran every cell: executed cells equal 4 classes by 9 status
   assert.equal(Object.values(CLASS_TABLE).reduce((sum, row) => sum + Object.keys(row).length, 0), 36);
 });
 
-test('the probes ran every catalog name once: 61 executed, equal to the catalog and to the design copy of it', () => {
+test('the probes ran every catalog name once: 62 executed, equal to the catalog and to the design copy of it', () => {
   const design = JSON.parse(readFileSync(new URL('../design/0.2-rev7/DESIGN-phonux-0.2-rev7-catalog.json', import.meta.url), 'utf8')) as { name: string }[];
-  assert.equal(design.length, 61);
-  assert.equal(CATALOG_NAMES.length, 61);
-  assert.equal(probesExecuted().size, 61);
+  assert.equal(design.length, 62);
+  assert.equal(CATALOG_NAMES.length, 62);
+  assert.equal(probesExecuted().size, 62);
   assert.deepEqual([...probesExecuted()].sort(), [...CATALOG_NAMES].sort());
   assert.deepEqual([...probesExecuted()].sort(), design.map((d) => d.name).sort());
 });

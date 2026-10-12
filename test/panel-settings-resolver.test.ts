@@ -129,7 +129,7 @@ const ENUMERATED: Record<string, readonly unknown[]> = {
 };
 
 /** The names the enumeration table leaves to a test of their own. */
-const ELSEWHERE: readonly CatalogName[] = ['headerButtons', 'pinning', 'tuning.rowGap', 'tuning.dragToClose', 'tuning.slide', 'tuning.hopFraction', 'tuning.edgeScroll', 'tuning.saveQuietMs', 'tuning.gestureLockMs', 'tuning.returnTieBreak', 'tuning.dropTieBreak', 'tuning.rowGesture', 'tuning.initialScroll'];
+const ELSEWHERE: readonly CatalogName[] = ['headerButtons', 'pinning', 'tuning.rowGap', 'tuning.dragToClose', 'tuning.slide', 'tuning.hopFraction', 'tuning.edgeScroll', 'tuning.saveQuietMs', 'tuning.gestureLockMs', 'tuning.returnTieBreak', 'tuning.dropTieBreak', 'tuning.rowGesture', 'tuning.initialScroll', 'tuning.chrome'];
 
 type Probe = readonly [what: string, layers: PanelSettingsLayers, layer: string, key: string | undefined];
 const PROBES: readonly Probe[] = [
@@ -183,7 +183,7 @@ const PROBES: readonly Probe[] = [
   ['an instance layer that is a list', { instance: [] as unknown as PanelSettings }, 'instance', undefined],
 ];
 
-test('enumerations: the enumeration table and its companions cover every one of the 61 catalog names exactly once', () => {
+test('enumerations: the enumeration table and its companions cover every one of the 62 catalog names exactly once', () => {
   const covered = [...Object.keys(ENUMERATED), ...ELSEWHERE];
   assert.equal(new Set(covered).size, covered.length, 'a name is listed twice');
   assert.deepEqual([...covered].sort(), [...CATALOG_NAMES].sort());
@@ -788,9 +788,10 @@ const WORKSPACE_ONLY_ASKS: ReadonlyArray<readonly [leaf: string, value: unknown]
   ['dropTieBreak', 'rightmost'],
   ['rowGesture', 'free'],
   ['initialScroll', 'end'],
+  ['chrome', { mode: 'hover-or-active' }],
 ];
 
-test('scope: the seven workspace-only tuning keys are wrong-scope at the instance or host layer and throw at the template layer', () => {
+test('scope: the eight workspace-only tuning keys are wrong-scope at the instance or host layer and throw at the template layer', () => {
   let executed = 0;
   for (const [leaf, value] of WORKSPACE_ONLY_ASKS) {
     const tuning = { [leaf]: value };
@@ -802,8 +803,8 @@ test('scope: the seven workspace-only tuning keys are wrong-scope at the instanc
     refuses({ template: asSettings({ tuning }) }, 'template', `tuning.${leaf}`);
     executed += 1;
   }
-  assert.equal(executed, 21);
-  assert.equal(WORKSPACE_ONLY_ASKS.length, 7);
+  assert.equal(executed, 24);
+  assert.equal(WORKSPACE_ONLY_ASKS.length, 8);
 });
 
 test('scope: a wrong-scope ask beside valid keys leaves the valid keys applied', () => {

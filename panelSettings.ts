@@ -13,6 +13,7 @@ import type { PanelRowEntry } from './panelRowEntry.js';
 import type { PanelState, ViewHandle } from './panelTemplate.js';
 import type { PanelWindow } from './panelWindow.js';
 import {
+  CHROME,
   DIRECTION_LOCK_PX,
   DRAG_CLOSE_NUMBERS,
   DROP_TIE_BREAK,
@@ -304,6 +305,23 @@ export type EdgeScrollTuning = {
   reducedStepMs: number;
 };
 
+/**
+ * When a panel's header, grab bar and footer show, and the numbers a host's header icon row animates with. A workspace
+ * sets it; every panel reads the workspace's value. @public
+ */
+export type ChromeTuning = {
+  /** 'always' draws the chrome of every panel; 'hover-or-active' draws it fully only on a panel that is hovered, focused, active or being dragged. */
+  mode: 'always' | 'hover-or-active';
+  /** Milliseconds the chrome takes to fade in or out; 0 when animation is off. */
+  fadeMs: number;
+  /** Milliseconds a host's header icon row takes to slide in. The library draws no such row; it only carries the number. */
+  slideMs: number;
+  /** Pixels that icon row travels while it slides in. */
+  slidePx: number;
+  /** Milliseconds that icon row stays open after the pointer leaves the header. */
+  graceMs: number;
+};
+
 /** The tuning leaves a panel may set; each may also be set on the workspace. @public */
 export type PanelTuning = {
   /** Overrides for the drag-down close numbers. */
@@ -332,6 +350,8 @@ export type WorkspaceTuning = PanelTuning & {
   rowGesture?: 'step' | 'free' | 'off';
   /** Where the row starts scrolled: its 'start', its 'end', the 'root', or a given panel. */
   initialScroll?: 'start' | 'end' | 'root' | { panel: PanelId };
+  /** Overrides for the chrome numbers: when header, grab bar and footer show, and the fade and slide timing. */
+  chrome?: { [K in keyof ChromeTuning]?: ChromeTuning[K] };
 };
 
 /** The per-panel tuning leaves after resolving, every one present. @public */
@@ -362,6 +382,8 @@ export type ResolvedWorkspaceTuning = ResolvedPanelTuning & {
   rowGesture: 'step' | 'free' | 'off';
   /** Where the row starts scrolled: its 'start', its 'end', the 'root', or a given panel. */
   initialScroll: 'start' | 'end' | 'root' | { panel: PanelId };
+  /** The chrome numbers: when header, grab bar and footer show, and the fade and slide timing. */
+  chrome: ChromeTuning;
 };
 
 /** Deeply frozen; every key is present after a resolve except `title`. @public */
@@ -1221,6 +1243,17 @@ const CATALOG_ROWS: readonly SettingDescriptor[] = [
     ownerEntry: 'phonux-row-scroll-gesture-and-requests',
     configure: { cls: 'NEXT', doors: ['tuning'] },
   },
+  {
+    name: 'tuning.chrome',
+    group: 'tuning',
+    values: "object: mode 'always' or 'hover-or-active', fadeMs integer [0, 10000], slideMs integer [0, 10000], slidePx integer [0, 200], graceMs integer [0, 10000] (workspace only)",
+    default: "always, 120, 140, 8, 250 (CHROME)",
+    scope: 'workspace',
+    viewSettable: false,
+    exists: 'new',
+    ownerEntry: 'phonux-engine-tuning-look-settings',
+    configure: { cls: 'NOW', doors: ['tuning'] },
+  },
 ];
 
 /**
@@ -1326,6 +1359,7 @@ export const LIBRARY_TUNING_DEFAULTS: ResolvedWorkspaceTuning = freezeClone({
   dropTieBreak: DROP_TIE_BREAK as ResolvedWorkspaceTuning['dropTieBreak'],
   rowGesture: ROW_GESTURE as ResolvedWorkspaceTuning['rowGesture'],
   initialScroll: INITIAL_SCROLL as ResolvedWorkspaceTuning['initialScroll'],
+  chrome: { ...CHROME },
 });
 
 // ---------------------------------------------------------------------------
@@ -1540,7 +1574,7 @@ const SETTING_CHECKS: Record<SettingKey, Check> = {
 export type TuningLeaf = keyof WorkspaceTuning;
 
 /** Members of the three object-valued leaves, each with the check for its value. */
-const TUNING_MEMBER_CHECKS: Record<'dragToClose' | 'slide' | 'edgeScroll', Record<string, Check>> = {
+const TUNING_MEMBER_CHECKS: Record<'dragToClose' | 'slide' | 'edgeScroll' | 'chrome', Record<string, Check>> = {
   dragToClose: {
     distanceFraction: num(0.05, 1),
     minDistancePx: num(8, Infinity),
@@ -1567,6 +1601,13 @@ const TUNING_MEMBER_CHECKS: Record<'dragToClose' | 'slide' | 'edgeScroll', Recor
     zonePx: integer(8, 200),
     maxPxPerSec: integer(100, 5000),
     reducedStepMs: integer(100, 5000),
+  },
+  chrome: {
+    mode: oneOf('always', 'hover-or-active'),
+    fadeMs: integer(0, 10000),
+    slideMs: integer(0, 10000),
+    slidePx: integer(0, 200),
+    graceMs: integer(0, 10000),
   },
 };
 
