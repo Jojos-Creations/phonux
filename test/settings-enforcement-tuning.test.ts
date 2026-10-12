@@ -204,6 +204,8 @@ test('the library tuning defaults are exactly these numbers, by key name', () =>
     initialScroll: 'start',
     chrome: { mode: 'always', fadeMs: 120, slideMs: 140, slidePx: 8, graceMs: 250 },
     maxLivePanels: null,
+    heightPerSlot: 48,
+    rowAlign: 'center',
   });
 });
 

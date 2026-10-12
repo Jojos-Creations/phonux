@@ -32,8 +32,10 @@ export interface PanelHandle<P extends JsonValue = JsonValue> extends PanelReadH
   move(direction: 'left' | 'right', source?: 'code' | 'person'): PanelResult;
   /** Puts the panel where `p` says; a parked panel is placed and stays parked. */
   place(p: AddPlacement | 'in-place', source?: 'code' | 'person'): PanelResult;
-  /** Gives the panel the tier `next`. */
+  /** Gives the panel the tier `next`, read as its slot count: phone 1, tablet 2, desktop every visible slot (clamped to `maxSlots`). Deprecated for `setSlots`. */
   setFormFactor(next: FormFactor, source?: 'code' | 'person'): PanelResult;
+  /** Makes the panel `slots` phone widths wide, clamped to 1 and its `maxSlots`; the row draws at most the slots that fit. */
+  setSlots(slots: number, source?: 'code' | 'person'): PanelResult;
   /** Scrolls the row to a live panel, to `align` or, left out, where the panel's `scrollOnOpen` says. */
   scrollTo(align?: ScrollAlign, source?: 'code' | 'person'): PanelResult;
   /** Applies the pinned half of the panel's `pinning` in one commit: it is placed, then fixed when the half says so; a panel that is not live follows `pinningWhenNotLive`. */
@@ -50,6 +52,7 @@ export type PanelVerbCall =
   | { verb: 'move'; direction: 'left' | 'right' }
   | { verb: 'place'; value: AddPlacement | 'in-place' }
   | { verb: 'setFormFactor'; next: FormFactor }
+  | { verb: 'setSlots'; slots: number }
   | { verb: 'scrollTo'; align: ScrollAlign | undefined }
   | { verb: 'pin' | 'unpin' };
 
@@ -105,6 +108,7 @@ export function makeViewHandle<P extends JsonValue = JsonValue>(source: ReadSour
     move: (direction, src = 'code') => source.operate(id, { verb: 'move', direction }, src),
     place: (value, src = 'code') => source.operate(id, { verb: 'place', value }, src),
     setFormFactor: (next, src = 'code') => source.operate(id, { verb: 'setFormFactor', next }, src),
+    setSlots: (slots, src = 'code') => source.operate(id, { verb: 'setSlots', slots }, src),
     scrollTo: (align, src = 'code') => source.operate(id, { verb: 'scrollTo', align }, src),
     pin: (src = 'code') => source.operate(id, { verb: 'pin' }, src),
     unpin: (src = 'code') => source.operate(id, { verb: 'unpin' }, src),

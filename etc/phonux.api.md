@@ -279,7 +279,7 @@ export const LIBRARY_TUNING_DEFAULTS: ResolvedWorkspaceTuning;
 
 // @public
 export type LibraryPanelDefaults = {
-    readonly [K in Exclude<keyof SettingValues, 'draggable' | 'placeable' | 'listed' | 'clearable' | 'title'>]: SettingValues[K];
+    readonly [K in Exclude<keyof SettingValues, 'draggable' | 'placeable' | 'listed' | 'clearable' | 'title' | 'slots' | 'maxSlots'>]: SettingValues[K];
 } & {
     readonly headerButtons: {
         readonly [id: string]: HeaderButton;
@@ -410,6 +410,7 @@ export interface PanelHandle<P extends JsonValue = JsonValue> extends PanelReadH
     place(p: AddPlacement | 'in-place', source?: 'code' | 'person'): PanelResult;
     scrollTo(align?: ScrollAlign, source?: 'code' | 'person'): PanelResult;
     setFormFactor(next: FormFactor, source?: 'code' | 'person'): PanelResult;
+    setSlots(slots: number, source?: 'code' | 'person'): PanelResult;
     show(source?: 'code' | 'person'): PanelResult;
     toggleVisibility(source?: 'code' | 'person'): PanelResult;
     unpin(source?: 'code' | 'person'): PinResult;
@@ -576,6 +577,7 @@ export interface PanelsAPI {
     }): void;
     readonly recentlyClosed: readonly PanelSummary[] | null;
     setFormFactor(id: string, next: FormFactor): void;
+    setSlots?(id: string, slots: number): void;
     undoClose(): void;
 }
 
@@ -687,12 +689,15 @@ export type PanelStatus = 'pending' | 'live' | 'parked' | 'closed';
 
 // @public
 export interface PanelSummary<P = JsonValue> {
+    readonly drawnSlots?: number;
     readonly formFactor?: FormFactor;
     readonly id: string;
     readonly live: boolean;
     readonly locked: boolean;
+    readonly maxSlots?: number;
     readonly params?: P;
     readonly size?: PanelSize;
+    readonly slots?: number;
     readonly title?: string;
     readonly url?: string;
 }
@@ -731,12 +736,13 @@ export type PanelTuning = {
 // @public
 export type PanelUserLayer = {
     formFactor?: FormFactor;
+    slots?: number;
     anchor?: AnchorRequest;
     parkable?: boolean;
 };
 
 // @public
-export function panelWidthOf(p: Pick<PanelRowEntry, 'formFactor' | 'size'>, phoneWidth: number, maxLiveWidth: number): number;
+export function panelWidthOf(p: Pick<PanelRowEntry, 'formFactor' | 'size' | 'slots' | 'settings'>, phoneWidth: number, maxLiveWidth: number, gap?: number): number;
 
 // @public
 export interface PanelWindow {
@@ -761,11 +767,13 @@ export interface PanelWindow {
     overrides?: {
         anchor?: PanelAnchor;
         formFactor?: FormFactor;
+        slots?: number;
         parkable?: boolean;
     };
     params?: JsonValue;
     settings?: ResolvedPanelSettings;
     size?: PanelSize;
+    slots?: number;
     title?: string;
     url: string;
     view: string;
@@ -874,6 +882,7 @@ export interface ProvidedPanels extends PanelsAPI {
     readonly rowNumbers: RowNumbers;
     readonly rowScroll: boolean;
     scrollTo(id: string, align?: ScrollAlign): boolean;
+    setSlots(id: string, slots: number): void;
     readonly tuning: ResolvedWorkspaceTuning;
 }
 
@@ -927,6 +936,8 @@ export type ResolvedWorkspaceTuning = ResolvedPanelTuning & {
     };
     chrome: ChromeTuning;
     maxLivePanels: number | null;
+    heightPerSlot: number;
+    rowAlign: 'top' | 'center' | 'bottom';
 };
 
 // @public
@@ -1091,6 +1102,8 @@ export type SettingValues = {
     closeExit: 'down' | 'left' | 'right';
     animated: boolean;
     formFactor: FormFactor;
+    slots: number;
+    maxSlots: number;
     title: string;
     pinning: Pinning;
     pinningWhenNotLive: PinningWhenNotLive;
@@ -1299,6 +1312,7 @@ export type WorkspacePanelState = {
         priority: number;
     };
     formFactor?: FormFactor;
+    slots?: number;
     permanent?: boolean;
     layer?: 'base' | 'raised';
     key?: string;
@@ -1312,6 +1326,7 @@ export type WorkspacePanelState = {
             priority: number;
         };
         formFactor?: FormFactor;
+        slots?: number;
         parkable?: boolean;
     };
     applied?: {
@@ -1343,6 +1358,7 @@ export type WorkspaceState = {
     panels: WorkspacePanelState[];
     dismissed?: string[];
     root?: string;
+    rootSlots?: number;
 };
 
 // @public
@@ -1369,6 +1385,8 @@ export type WorkspaceTuning = PanelTuning & {
         [K in keyof ChromeTuning]?: ChromeTuning[K];
     };
     maxLivePanels?: number | null;
+    heightPerSlot?: number;
+    rowAlign?: 'top' | 'center' | 'bottom';
 };
 
 // (No @packageDocumentation comment for this package)

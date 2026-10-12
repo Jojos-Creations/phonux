@@ -142,6 +142,8 @@ export function PanelRowSlot({
   leftOffset,
   width,
   phoneHeight,
+  top,
+  height,
   enterDirection,
   exitDirection,
   zIndex,
@@ -161,6 +163,9 @@ export function PanelRowSlot({
   width: number;
   /** The height in px a closing slot drops by. */
   phoneHeight: number;
+  /** Where the slot's top edge sits in the row box, and its own height: a panel shorter than the row is aligned inside it. Omitted: the slot fills the row's height. */
+  top?: number;
+  height?: number;
   /** Computed by the caller (panelRowOrder.ts's `resolveEnterDirection`, or an explicit gesture side).
    * Must be correct on this component's FIRST render after the item (re)appears -- AnimatePresence
    * has no later render of a fresh mount to fix a wrong guess. */
@@ -299,8 +304,8 @@ export function PanelRowSlot({
       onFocusCapture={onActivate}
       style={{
         position: 'absolute',
-        top: 0,
-        bottom: 0,
+        top: top ?? 0,
+        ...(height === undefined ? { bottom: 0 } : { height }),
         left: 0,
         // Snaps, never animates: nothing paints the slot's own width (PanelSizeBox animates the visible resize).
         width,

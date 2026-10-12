@@ -680,7 +680,7 @@ test("create over the library defaults equals appendPanel's literals", () => {
   const created = applyTemplate(skeleton, resolvePanelSettings().value, 'create');
   const { settings, key, ...rest } = created;
   assert.ok(settings !== undefined && key === 'a');
-  assert.deepEqual(rest, skeleton, 'every field appendPanel wrote is what create writes over the defaults');
+  assert.deepEqual(rest, { ...skeleton, slots: 1 }, 'every field appendPanel wrote is what create writes over the defaults, and the slot count the settings resolve to');
   assert.deepEqual([created.locked, created.collapsible, created.listed, created.layer, created.anchoredEnter, created.formFactor], [false, true, true, 'base', false, 'phone']);
 });
 
