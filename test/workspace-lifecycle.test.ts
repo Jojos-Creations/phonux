@@ -229,7 +229,7 @@ const FILLER = ['f1', 'f2', 'f3', 'f4', 'f5'];
 /** Where the row rests after `addPanel` of a template asking `scrollOnOpen`, with five panels already there and a 1000 wide window. */
 async function addedAt(scrollOnOpen: PanelSettings['scrollOnOpen'] | undefined): Promise<{ at: number; mountedAt: number; notes: string[] }> {
   const t = markerTemplate('scr', { settings: { placeOnAdd: { after: 'f2' }, ...(scrollOnOpen === undefined ? {} : { scrollOnOpen }) } });
-  const w = createWorkspace({ templates: [t, ...FILLER.map((id) => markerTemplate(id, { settings: { scrollOnOpen: 'none' } }))] });
+  const w = createWorkspace({ templates: [t, ...FILLER.map((id) => markerTemplate(id, { settings: { scrollOnOpen: 'none' } }))], tuning: { rowGesture: 'free' } });
   for (const id of FILLER) w.addPanel(id);
   const m = mountWorkspace(w);
   await flush();

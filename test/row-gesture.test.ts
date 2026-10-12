@@ -1,8 +1,9 @@
 /**
  * The step gesture on a scrolling row: one stepTarget per burst, the arrow keys, the claim and the revealOnScroll
  * rule. The lock and unlock timers are setTimeout, so lock cases run under mock timers; glides run on the virtual
- * frame clock (16 ms a frame). Rows are eleven panels at 1000 (maxScroll 3482), or a 430 px window that shows one
- * phone panel at a time (window 398, so a row of n panels has maxScroll 406n - 414).
+ * frame clock (16 ms a frame). Rows are eleven panels at 1000 (two panels fit the window, so the last stop shows the last
+ * two), or a 430 px window that shows one phone panel at a time (window 398, a stop at every panel start). Expected
+ * positions come from computeRowNumbers on the test's own row.
  */
 import { test, afterEach, mock } from 'node:test';
 import assert from 'node:assert/strict';
@@ -10,6 +11,7 @@ import './support/jsdom-globals.js';
 import { act } from 'react';
 import type { PanelWindow } from '../index.js';
 import { advanceFrames, cleanup } from './support/mount-harness.js';
+import { computeRowNumbers, maxScrollOf, type RowNumbers } from '../rowNumbers.js';
 import { made, mountRow, panelsOf, rootEntry, row, type MountedRow } from './support/scroll-row.js';
 
 afterEach(() => {
@@ -19,35 +21,47 @@ afterEach(() => {
 
 const eleven = (): PanelWindow[] => panelsOf(10);
 
+/** The helper mounts 'free' unless told otherwise; these tests are about the step gesture. */
+const stepRow = (entries: PanelWindow[], width: number, over: Parameters<typeof mountRow>[2] = {}): MountedRow =>
+  mountRow(entries, width, { ...over, tuning: { ...over.tuning, rowGesture: 'step' } });
+
+/** The row's numbers, computed from its entries rather than read back from the mounted row. */
+const numbersOf = (m: MountedRow, width: number): RowNumbers =>
+  computeRowNumbers({ entries: m.latest().entries, phoneWidth: 390, containerWidth: width, gap: m.latest().tuning.rowGap, wholePanels: true });
+const stopsOf = (m: MountedRow, width: number): number[] => [...numbersOf(m, width).stops];
+
 const tick = (ms: number): void => void act(() => mock.timers.tick(ms));
 
 test('a wheel burst of 30 events scrolls exactly one stop, and its later events do not cancel the glide it started', async () => {
-  const m = mountRow(eleven(), 1000);
+  const m = stepRow(eleven(), 1000);
+  const stops = stopsOf(m, 1000);
   mock.timers.enable({ apis: ['setTimeout'] });
   for (let n = 0; n < 30; n += 1) m.wheel({ deltaX: 50 });
-  assert.equal(m.scroller.glideTarget(), 406);
+  assert.equal(m.scroller.glideTarget(), stops[1]);
   await advanceFrames(500);
-  assert.equal(m.container.scrollLeft, 406);
+  assert.equal(m.container.scrollLeft, stops[1]);
 });
 
 test('a second wheel event inside the 60 ms lock does nothing, and one after it moves again from the glide target', async () => {
-  const m = mountRow(eleven(), 1000);
+  const m = stepRow(eleven(), 1000);
+  const stops = stopsOf(m, 1000);
   mock.timers.enable({ apis: ['setTimeout'] });
   m.wheel({ deltaX: 50 });
-  assert.equal(m.scroller.glideTarget(), 406);
+  assert.equal(m.scroller.glideTarget(), stops[1]);
   tick(59);
   m.wheel({ deltaX: 50 });
-  assert.equal(m.scroller.glideTarget(), 406, 'one ms short of the lock; later events do not extend it');
+  assert.equal(m.scroller.glideTarget(), stops[1], 'one ms short of the lock; later events do not extend it');
   tick(1);
   m.wheel({ deltaX: 50 });
-  assert.equal(m.scroller.glideTarget(), 812, 'the lock is over and the wheel is not slowing: the next step, from the in-flight target');
+  assert.equal(m.scroller.glideTarget(), stops[2], 'the lock is over and the wheel is not slowing: the next step, from the in-flight target');
   tick(60);
   m.wheel({ deltaX: -20 });
-  assert.equal(m.scroller.glideTarget(), 406, 'a reversal steps back even when smaller');
+  assert.equal(m.scroller.glideTarget(), stops[1], 'a reversal steps back even when smaller');
 });
 
 test('a wheel that keeps its speed steps one panel every 60 ms for as long as it keeps moving', () => {
-  const m = mountRow(eleven(), 1000);
+  const m = stepRow(eleven(), 1000);
+  const stops = stopsOf(m, 1000);
   mock.timers.enable({ apis: ['setTimeout'] });
   const targets: (number | null)[] = [];
   for (let n = 0; n < 6; n += 1) {
@@ -57,76 +71,84 @@ test('a wheel that keeps its speed steps one panel every 60 ms for as long as it
     m.wheel({ deltaX: 100 });
     tick(30);
   }
-  assert.deepEqual(targets, [406, 812, 1218, 1624, 2030, 2436]);
+  assert.deepEqual(targets, stops.slice(1, 7));
 });
 
 test('one swipe whose deltas fade away is one step, however long its tail', () => {
-  const m = mountRow(eleven(), 1000);
+  const m = stepRow(eleven(), 1000);
+  const stops = stopsOf(m, 1000);
   mock.timers.enable({ apis: ['setTimeout'] });
   for (let delta = 120; delta >= 4; delta = Math.floor(delta * 0.9)) {
     m.wheel({ deltaX: delta });
     tick(16);
   }
-  assert.equal(m.scroller.glideTarget(), 406);
+  assert.equal(m.scroller.glideTarget(), stops[1]);
 });
 
 test('after 150 ms without a wheel event the next one is a fresh gesture and steps', () => {
-  const m = mountRow(eleven(), 1000);
+  const m = stepRow(eleven(), 1000);
+  const stops = stopsOf(m, 1000);
   mock.timers.enable({ apis: ['setTimeout'] });
   m.wheel({ deltaX: 100 });
   tick(16);
   m.wheel({ deltaX: 40 });
   tick(100);
   m.wheel({ deltaX: 30 });
-  assert.equal(m.scroller.glideTarget(), 406, 'a fading tail 116 ms in is still the same gesture');
+  assert.equal(m.scroller.glideTarget(), stops[1], 'a fading tail 116 ms in is still the same gesture');
   tick(150);
   m.wheel({ deltaX: 10 });
-  assert.equal(m.scroller.glideTarget(), 812, 'the quiet ended it');
+  assert.equal(m.scroller.glideTarget(), stops[2], 'the quiet ended it');
 });
 
 test('a wheel that stops leaves the row where its last step put it', async () => {
-  const m = mountRow(eleven(), 1000);
+  const m = stepRow(eleven(), 1000);
+  const stops = stopsOf(m, 1000);
   mock.timers.enable({ apis: ['setTimeout'] });
   m.wheel({ deltaX: 100 });
   tick(60);
   m.wheel({ deltaX: 100 });
   tick(1000);
   await advanceFrames(500);
-  assert.equal(m.container.scrollLeft, 812);
+  assert.equal(m.container.scrollLeft, stops[2]);
 });
 
 test('Shift+deltaY acts as horizontal and prevents the default; a plain deltaY does neither', () => {
-  const m = mountRow(eleven(), 1000);
+  const m = stepRow(eleven(), 1000);
+  const stops = stopsOf(m, 1000);
   const plain = m.wheel({ deltaY: 100 });
   assert.equal(plain.defaultPrevented, false);
   assert.equal(m.scroller.glideTarget(), null);
   const shifted = m.wheel({ deltaY: 100, shiftKey: true });
   assert.equal(shifted.defaultPrevented, true);
-  assert.equal(m.scroller.glideTarget(), 406);
+  assert.equal(m.scroller.glideTarget(), stops[1]);
 });
 
 test('ten ArrowRight repeats advance ten stops from the in-flight target', () => {
-  const m = mountRow(panelsOf(13), 1000);
+  const m = stepRow(panelsOf(13), 1000);
+  const stops = stopsOf(m, 1000);
   const seen: (number | null)[] = [];
   for (let n = 0; n < 10; n += 1) {
     m.key('ArrowRight');
     seen.push(m.scroller.glideTarget());
   }
-  assert.deepEqual(seen, [406, 812, 1218, 1624, 2030, 2436, 2842, 3248, 3654, 4060]);
+  assert.deepEqual(seen, stops.slice(1, 11));
   m.key('ArrowLeft');
-  assert.equal(m.scroller.glideTarget(), 3654);
+  assert.equal(m.scroller.glideTarget(), stops[9]);
 });
 
 test('the last step clamps to the strip end', () => {
-  const m = mountRow(eleven(), 1000);
-  m.container.scrollLeft = 3248;
+  const m = stepRow(eleven(), 1000);
+  const stops = stopsOf(m, 1000);
+  m.container.scrollLeft = stops[stops.length - 2]!;
   m.key('ArrowRight');
-  assert.equal(m.scroller.glideTarget(), 3482);
+  // endPad makes the last stop the farthest legal scroll, so the clamp and the stop agree.
+  assert.equal(m.scroller.glideTarget(), maxScrollOf(numbersOf(m, 1000)));
+  assert.equal(m.scroller.glideTarget(), stops[stops.length - 1]);
 });
 
 test('at the strip end an arrow and a swipe do nothing', () => {
-  const m = mountRow(eleven(), 1000);
-  m.container.scrollLeft = 3482;
+  const m = stepRow(eleven(), 1000);
+  m.container.scrollLeft = maxScrollOf(numbersOf(m, 1000));
   m.key('ArrowRight');
   assert.equal(m.scroller.glideTarget(), null);
   m.wheel({ deltaX: 50 });
@@ -134,7 +156,7 @@ test('at the strip end an arrow and a swipe do nothing', () => {
 });
 
 test('arrows skip INPUT, TEXTAREA, SELECT and contentEditable targets and any modifier, and still step with a button focused', () => {
-  const m = mountRow(eleven(), 1000);
+  const m = stepRow(eleven(), 1000);
   const stepped = (): boolean => {
     const at = m.scroller.glideTarget();
     m.scroller.stop();
@@ -165,9 +187,9 @@ test('arrows skip INPUT, TEXTAREA, SELECT and contentEditable targets and any mo
 });
 
 test('a glide the gesture started stops at pointer-down in the container', () => {
-  const m = mountRow(eleven(), 1000);
+  const m = stepRow(eleven(), 1000);
   m.key('ArrowRight');
-  assert.equal(m.scroller.glideTarget(), 406);
+  assert.equal(m.scroller.glideTarget(), stopsOf(m, 1000)[1]);
   act(() => void m.container.dispatchEvent(new Event('pointerdown', { bubbles: true })));
   assert.equal(m.scroller.glideTarget(), null);
 });
@@ -197,20 +219,20 @@ test('free and off install no gesture listener; step installs two', () => {
 });
 
 test('the gesture does nothing while a claim is held, and steps again after the release', () => {
-  const m = mountRow(eleven(), 1000);
+  const m = stepRow(eleven(), 1000);
   const claim = m.scroller.claim()!;
-  claim.setMaxScroll(3482);
+  claim.setMaxScroll(maxScrollOf(numbersOf(m, 1000)));
   for (let n = 0; n < 3; n += 1) m.key('ArrowRight');
   m.wheel({ deltaX: 50 });
   assert.equal(m.scroller.glideTarget(), null);
   assert.equal(m.container.scrollLeft, 0);
   claim.release();
   m.key('ArrowRight');
-  assert.equal(m.scroller.glideTarget(), 406);
+  assert.equal(m.scroller.glideTarget(), stopsOf(m, 1000)[1]);
 });
 
 test('the gesture shows no hidden panel while a claim is held', () => {
-  const m = mountRow(row(rootEntry(), made('b', { overflow: 'park', revealOnScroll: 'any' }, { live: false }), made('c')), 430);
+  const m = stepRow(row(rootEntry(), made('b', { overflow: 'park', revealOnScroll: 'any' }, { live: false }), made('c')), 430);
   mock.timers.enable({ apis: ['setTimeout'] });
   const claim = m.scroller.claim()!;
   m.wheel({ deltaX: 50 });
@@ -232,15 +254,16 @@ const swipe = async (m: MountedRow, deltaX: number): Promise<void> => {
 
 test('a held panel after the last panel in view is reached only once no live panel lies between the window and it', async () => {
   for (const policy of ['edges', 'any', 'never'] as const) {
-    const m = mountRow(row(rootEntry(), made('c')), narrow, { workspaceDefaults: { startVisibility: 'parked', overflow: 'park', revealOnScroll: policy } });
+    const m = stepRow(row(rootEntry(), made('c')), narrow, { workspaceDefaults: { startVisibility: 'parked', overflow: 'park', revealOnScroll: policy } });
     mock.timers.enable({ apis: ['setTimeout'] });
     act(() => m.latest().create({ view: 'scroll-row-view' }));
     const heldId = m.latest().entries[m.latest().entries.length - 1]!.id;
     await advanceFrames(500);
+    const stops = stopsOf(m, narrow);
     assert.equal(m.container.scrollLeft, 0, `${policy}: a hidden create scrolls nothing`);
     assert.deepEqual(m.live(), ['c']);
     await swipe(m, 50);
-    assert.equal(m.container.scrollLeft, 398, `${policy}: c lies between the window and the held panel, so the swipe steps to it`);
+    assert.equal(m.container.scrollLeft, stops[1], `${policy}: c lies between the window and the held panel, so the swipe steps to it`);
     assert.ok(!m.live().includes(heldId), policy);
     await swipe(m, 50);
     if (policy === 'never') {
@@ -253,18 +276,19 @@ test('a held panel after the last panel in view is reached only once no live pan
   }
 });
 
-test('a swipe toward a held panel past three live panels steps over each and reveals it only from the last: 406, 812, 1210, then it shows', async () => {
-  const m = mountRow(row(rootEntry(), made('l1'), made('l2'), made('l3')), narrow, { workspaceDefaults: { startVisibility: 'parked', overflow: 'park' } });
+test('a swipe toward a held panel past three live panels steps over each and reveals it only from the last stop', async () => {
+  const m = stepRow(row(rootEntry(), made('l1'), made('l2'), made('l3')), narrow, { workspaceDefaults: { startVisibility: 'parked', overflow: 'park' } });
   mock.timers.enable({ apis: ['setTimeout'] });
   act(() => m.latest().create({ view: 'scroll-row-view' }));
   const heldId = m.latest().entries[m.latest().entries.length - 1]!.id;
-  const stops: number[] = [];
+  const stops = stopsOf(m, narrow);
+  const reached: number[] = [];
   for (let n = 0; n < 3; n += 1) {
     await swipe(m, 50);
-    stops.push(m.container.scrollLeft);
+    reached.push(m.container.scrollLeft);
     assert.ok(!m.live().includes(heldId), `step ${n}: not skipped to`);
   }
-  assert.deepEqual(stops, [406, 812, 1210]);
+  assert.deepEqual(reached, stops.slice(1));
   await swipe(m, 50);
   assert.ok(m.live().includes(heldId));
 });
@@ -272,12 +296,13 @@ test('a swipe toward a held panel past three live panels steps over each and rev
 test('an engine-parked panel between the live ones: edges and never step past it, any reaches it, in both directions', async () => {
   for (const [policy, reached] of [['edges', false], ['any', true], ['never', false]] as const) {
     for (const direction of ['right', 'left'] as const) {
-      const m = mountRow(row(rootEntry(), made('b', { overflow: 'park', revealOnScroll: policy }, { live: false }), made('c')), narrow);
+      const m = stepRow(row(rootEntry(), made('b', { overflow: 'park', revealOnScroll: policy }, { live: false }), made('c')), narrow);
       mock.timers.enable({ apis: ['setTimeout'] });
-      if (direction === 'left') m.container.scrollLeft = 398;
+      const stops = stopsOf(m, narrow);
+      if (direction === 'left') m.container.scrollLeft = stops[1]!;
       await swipe(m, direction === 'right' ? 50 : -50);
       assert.equal(m.live().includes('b'), reached, `${policy} ${direction}`);
-      if (!reached) assert.equal(m.container.scrollLeft, direction === 'right' ? 398 : 0, `${policy} ${direction}: it stepped instead`);
+      if (!reached) assert.equal(m.container.scrollLeft, direction === 'right' ? stops[1] : 0, `${policy} ${direction}: it stepped instead`);
       mock.timers.reset();
       cleanup();
     }

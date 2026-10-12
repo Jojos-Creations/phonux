@@ -15,7 +15,7 @@ import { slideToTransition } from './directionalTransition.js';
 import type { SlideTuning, WorkspaceTuning } from './panelSettings.js';
 import { WorkspaceTuningContext, resolveWorkspaceTuning } from './panelTuning.js';
 import { ROW_GAP, ROW_GESTURE } from './rowConstants.js';
-import type { RowNumbers } from './rowNumbers.js';
+import { fadeAt, type RowNumbers } from './rowNumbers.js';
 import { rowScrollerFor } from './rowScroller.js';
 import { OverlaySlot } from './windowOverlay.js';
 
@@ -75,7 +75,8 @@ export function workspaceShellStyle(i: WorkspaceShellStyleInput): WorkspaceShell
   const gesture = i.rowGesture ?? ROW_GESTURE;
   return {
     marginLeft,
-    transition: i.rowResizeSettled ? (i.slide === undefined ? PANEL_TRANSITION : slideToTransition(i.slide)) : { duration: 0 },
+    // The margin snaps while stops exist: a gliding margin would leave the scrollable width short of where a stop sits.
+    transition: i.rowResizeSettled && !(i.rowNumbers !== undefined && i.rowNumbers.stops.length > 0) ? (i.slide === undefined ? PANEL_TRANSITION : slideToTransition(i.slide)) : { duration: 0 },
     overflowX: scrolls && gesture !== 'off' ? 'auto' : 'hidden',
     hideScrollbar: scrolls && gesture === 'step',
   };
@@ -133,6 +134,28 @@ export function Workspace(props: WorkspaceProps): React.ReactElement {
     scroller.stop();
     scroller.glideTo(0, { durationSec: 0, instant: true });
   }, [scrolls, overflowContainerRef]);
+  // `filter`, not `opacity`: the slot's own opacity belongs to its enter and exit animation. Written straight to the
+  // element on every scroll event, since a state update per frame of a glide would re-render the whole row.
+  React.useLayoutEffect(() => {
+    const container = overflowContainerRef.current;
+    const strip = rowRef.current;
+    if (container === null || strip === null || rowNumbers === undefined) return;
+    const apply = (): void => {
+      if (rowScrollerFor(container).claimHeld()) return;
+      const opacities = fadeAt(rowNumbers, container.scrollLeft);
+      for (const slot of strip.querySelectorAll<HTMLElement>('[data-row-slot]')) {
+        const k = rowNumbers.leftOffsets.indexOf(Number(slot.dataset.rowSlot));
+        const opacity = k < 0 ? 1 : opacities[k]!;
+        slot.style.filter = opacity >= 1 ? '' : `opacity(${opacity})`;
+        slot.style.pointerEvents = opacity <= 0 ? 'none' : '';
+        // Inert too: Tab or find-in-page would otherwise scroll the row off its stop to reveal a faded panel.
+        slot.toggleAttribute('inert', opacity <= 0);
+      }
+    };
+    apply();
+    container.addEventListener('scroll', apply, { passive: true });
+    return () => container.removeEventListener('scroll', apply);
+  });
   return (
     <WorkspaceTuningContext.Provider value={resolved}>
       <Box
@@ -168,6 +191,8 @@ export function Workspace(props: WorkspaceProps): React.ReactElement {
           <OverlaySlot name="dialog" />
           {children}
         </motion.div>
+        {/* An element, not a margin: outside the strip so a drag's end cap stays at the last panel; WebKit may leave a flex item's end margin out of the scrollable width, which would clamp the last stop short. */}
+        {rowNumbers !== undefined && rowNumbers.endPad > 0 ? <div aria-hidden data-row-end-pad="" style={{ flex: `0 0 ${rowNumbers.endPad}px`, height: 0 }} /> : null}
       </Box>
 
       <OverlaySlot name="toast" />

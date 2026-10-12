@@ -1074,7 +1074,7 @@ test('configureTuning rowGap in park mode: a smaller capacity parks the fewest p
 
 test('configureTuning rowGap in a scrolling row only re-prices: nothing is parked, and the farthest legal scrollLeft moves with the strip', async () => {
   const ids = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j'];
-  const r = await pinRig({ ids, width: 1000 });
+  const r = await pinRig({ ids, width: 1000, workspace: { tuning: { rowGesture: 'free' } } });
   await r.settle();
   const numbers = () => {
     const n = r.m.latest().rowNumbers;

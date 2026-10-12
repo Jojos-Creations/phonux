@@ -343,7 +343,7 @@ test('differential tuning.saveQuietMs: the workspace is saved at the configured 
 function swipes(gestureLockMs: number): string[] {
   const container = document.createElement('div');
   document.body.appendChild(container);
-  const p = provide(row(rootEntry(), park('a'), park('b'), park('c', {}, { live: false })), { width: W(2), over: { overflowContainerRef: { current: container }, tuning: { gestureLockMs } } });
+  const p = provide(row(rootEntry(), park('a'), park('b'), park('c', {}, { live: false })), { width: W(2), over: { overflowContainerRef: { current: container }, tuning: { gestureLockMs, rowGesture: 'step' } } });
   mock.timers.enable({ apis: ['setTimeout'] });
   const wheel = (deltaX: number): void => void act(() => void container.dispatchEvent(new WheelEvent('wheel', { deltaX, cancelable: true, bubbles: true })));
   wheel(100);
@@ -1046,12 +1046,12 @@ test('gestureLockMs is read from a ref at each arm: changing it keeps the listen
     return original(...args);
   }) as typeof container.removeEventListener;
   const base = { overflowContainerRef: { current: container } };
-  const p = provide(row(rootEntry(), park('a'), park('b'), park('c', {}, { live: false })), { width: W(2), over: { ...base, tuning: { gestureLockMs: 100 } } });
+  const p = provide(row(rootEntry(), park('a'), park('b'), park('c', {}, { live: false })), { width: W(2), over: { ...base, tuning: { gestureLockMs: 100, rowGesture: 'step' } } });
   mock.timers.enable({ apis: ['setTimeout'] });
   const wheel = (deltaX: number): void => void act(() => void container.dispatchEvent(new WheelEvent('wheel', { deltaX, cancelable: true, bubbles: true })));
   wheel(100);
   assert.deepEqual(p.live(), ['b', 'c'], 'the first swipe acted');
-  p.setOver({ ...base, tuning: { gestureLockMs: 600 } });
+  p.setOver({ ...base, tuning: { gestureLockMs: 600, rowGesture: 'step' } });
   assert.equal(removed, 0, 'the new value did not tear the listeners down');
   act(() => mock.timers.tick(150));
   wheel(-100);
