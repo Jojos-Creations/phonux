@@ -11,6 +11,7 @@ import type { PanelSettings, PanelWindow } from '../index.js';
 import { applyTemplate } from '../panelSettings.js';
 import { appendPanel, createHistoryPanel } from '../panelWindow.js';
 import { computeRowNumbers, fadeAt, maxScrollOf, nearestStop, snapToStop } from '../rowNumbers.js';
+import { workspaceShellStyle } from '../Workspace.js';
 import { advanceFrames, cleanup } from './support/mount-harness.js';
 import { mountRow, panelsOf } from './support/scroll-row.js';
 
@@ -146,4 +147,31 @@ test('a resize that changes how many fit brings a row resting past the new last 
   await advanceFrames(600);
   assert.deepEqual(m.latest().rowNumbers.stops, [0, 406, 812, 1218], 'three fit at 1500, so the last stop is panel 3');
   assert.equal(m.container.scrollLeft, 1218);
+});
+
+test('mid-step the fade is continuous: halfway between two stops the leaving and arriving panels are half faded', async () => {
+  const m = mountRow(panelsOf(5), 1000, { tuning: { rowGesture: 'step' } });
+  m.scroller.glideTo(203, { durationSec: 0, instant: true });
+  act(() => void m.container.dispatchEvent(new Event('scroll')));
+  assert.deepEqual(slotFilters(m.container), ['opacity(0.5)', '', 'opacity(0.5)', 'opacity(0)', 'opacity(0)', 'opacity(0)']);
+});
+
+test('while a drag holds the row the fade is left alone, and it catches up after the release', () => {
+  const m = mountRow(panelsOf(5), 1000, { tuning: { rowGesture: 'step' } });
+  const before = slotFilters(m.container);
+  const claim = m.scroller.claim();
+  assert.ok(claim, 'the scroller gave its claim');
+  claim.setMaxScroll(1624);
+  claim.write(406);
+  act(() => void m.container.dispatchEvent(new Event('scroll')));
+  assert.deepEqual(slotFilters(m.container), before, 'positive control: the row moved, the fade did not');
+  claim.release();
+  act(() => void m.container.dispatchEvent(new Event('scroll')));
+  assert.deepEqual(slotFilters(m.container), ['opacity(0)', '', '', 'opacity(0)', 'opacity(0)', 'opacity(0)']);
+});
+
+test('the strip margin snaps while stops exist and glides otherwise', () => {
+  const style = (entries: PanelWindow[]) => workspaceShellStyle({ containerWidth: 1000, rowResizeSettled: true, phoneWidth: 390, fixedColumnCount: 1, liveWidths: [], rowNumbers: numbers(entries) });
+  assert.deepEqual(style(six()).transition, { duration: 0 });
+  assert.notDeepEqual(style([root(), made('a')]).transition, { duration: 0 }, 'a strip that fits has no stops and keeps the glide');
 });
