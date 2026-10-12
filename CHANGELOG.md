@@ -22,6 +22,11 @@
 - A `create()` without a `view` opens `PanelsInput.defaultView`; with none it opens a panel with no view, which renders
   the unregistered-view placeholder. The zero-argument overload and the event guard are unchanged.
 
+### Fixed
+
+- Pinning a panel under React 19.2 StrictMode left the panel it moved past (History) stuck at its old place, under the
+  pinned one, until a reload: a slot that a reorder moves now restarts its slide to its new rest.
+
 ### Added
 
 - `PanelTemplate.footer`: a component, given the same props as `view`, that every panel made from the template shows at the
