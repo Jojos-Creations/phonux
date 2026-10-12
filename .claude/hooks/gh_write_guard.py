@@ -87,8 +87,28 @@ TWO INDEPENDENT LAYERS
    direct child of ~/git (git worktrees are not found), the {owner}/{repo}
    placeholder from any cwd, and the repositories/ID alias in every mode
    (its target cannot be resolved). Reads never reach the rule.
-   Bypasses left open, outside this guard's reach:
-   agent-ready-template#21 (bash -c, wrappers, curl, Python HTTP).
+   WHERE THE CALL IS FOUND. A gh or queue call is read wherever the shell
+   would run it: past subshells, braces, if/while/for/case, `!`, function
+   bodies, `$( )`, backticks, `${ }` and bare `<( )`/`>( )` (a double-quoted
+   process substitution is inert and is not scanned), leading expansions and
+   redirections, VAR= assignments, wrappers (`env`, `nohup`, `time`,
+   `timeout`, `xargs`, ...), `bash -c` strings, `eval`, `find -exec`, `python3`
+   with its options, `-m` or a globbed script word, and a quoted spelling of
+   the command word. A curl, wget, httpie, python or node line that itself
+   names a protected GitHub endpoint with a write marker is read as the
+   `gh api` write it makes. After `queue ship`, a word the shell may rewrite
+   (an expansion or a glob) could be `--confirm`, so it is read as one.
+   Anything this scanner cannot read raises and takes the fail-closed path
+   below.
+   Bypasses left open include (a sample, not the whole open set):
+   command-word variable, glued expansion, gh alias, pipe into sh,
+   source or script file, python -c subprocess, IFS splitting,
+   gh api pulls or issues, cd into another repository,
+   brace-expanded command word, wrapper outside the table,
+   script held in a variable, arguments on stdin, trap or here-string,
+   ANSI-C-quoted command word.
+   Only a sandbox network allowlist truly limits HTTP clients, so that rule
+   is a speed bump.
 
    A repo whose marker reads "yaml" or "none" is not on this pipeline yet;
    seat rules do not apply there at all (the OLD pipeline's own tools and
@@ -125,12 +145,15 @@ No `gh` or `queue` invocation anywhere in the command text: allow silently,
 zero output, no matter what else went wrong parsing the rest of the line --
 this hook has nothing to say about a command it was never asked to guard.
 A `gh` or `queue` invocation IS present and something throws while working
-out whether it is a write this hook must gate (a shlex quoting error is the
-one demonstrated shape, but the guard is deliberately this hook's own
-try/except, not a promise that only that one throws) -- deny, worded as a
-parse failure, never a guess at what the write would have done.
+out whether it is a write this hook must gate (an unterminated quote, an
+unclosed substitution and nesting past the depth limit are the demonstrated
+shapes, but the guard is deliberately this hook's own try/except, not a
+promise that only those throw) -- deny, worded as a parse failure, never a
+guess at what the write would have done. The hint that decides this reads
+the text without its quote and backslash characters.
 """
 
+import fnmatch
 import json
 import os
 import re
@@ -141,135 +164,699 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import pipeline_marker as pm  # noqa: E402  (see module docstring, WHY NO SUBPROCESS)
 
 # ---------------------------------------------------------------------------
-# Tokenizing: split on unquoted shell control operators, then shlex each
-# simple command. Deliberately NOT cargo_scratch_guard.py's fuller version
-# (subshells, command substitution, dead-command elision) -- this hook only
-# needs "is a `gh`/`queue` invocation present in this simple command", not
-# cargo_scratch_guard's much narrower "is this ONE sanctioned script the
-# thing that actually runs". A shlex.split() ValueError (unterminated quote)
-# is left to propagate to main()'s own try/except, on purpose: that is this
-# hook's one demonstrated "parsing throws" shape, and the fail-closed rule
-# above depends on it actually throwing rather than being swallowed here.
+# Finding the invocations. One quote-correct pass turns the command text into
+# simple commands of words; a second step reads each command word through the
+# shell's own prefixes (assignments, reserved words, wrappers, shells, find,
+# python, HTTP clients). A body the shell would run (a substitution, a
+# `-c` string, an eval) is scanned as command text, to a depth of _MAX_DEPTH.
+# A construct this scanner cannot read raises, and main()'s own fail-closed
+# rule then decides: a raise is only ever swallowed where no gh or queue
+# write is in sight.
+#
+# The nine tables below are read at call time, never baked into regexes.
 # ---------------------------------------------------------------------------
-import shlex  # noqa: E402
+_MAX_DEPTH = 8
+_BRACE_CAP = 32  # a word that expands to more results than this counts as a match
 
-# A lone "&" (checked after "&&") backgrounds the left side, so what follows is
-# a separate command. A "&" inside a redirection (`2>&1`, `<&0`, `&>f`, `&>>f`)
-# is not a separator: the shell keeps the arguments after it on the same
-# command, and splitting there would cut them off from the gh/queue call.
-_CONTROL_OPERATORS = ("&&", "||", ";", "|", "\n", "&")
+# Words that are not themselves the command; the next word is.
+_SKIP_WORDS = ("!", "{", "if", "then", "elif", "else", "while", "until", "do")
 
-
-def _amp_is_redirection(text, i):
-    return (i > 0 and text[i - 1] in "<>") or text[i + 1:i + 2] == ">"
-
-
-def _split_simple_commands(text):
-    out = []
-    buf = []
-    quote = None
-    i = 0
-    n = len(text)
-    while i < n:
-        ch = text[i]
-        if quote:
-            buf.append(ch)
-            if ch == quote and text[i - 1] != "\\":
-                quote = None
-            i += 1
-            continue
-        if ch in ("'", '"'):
-            quote = ch
-            buf.append(ch)
-            i += 1
-            continue
-        matched = None
-        for op in _CONTROL_OPERATORS:
-            if text.startswith(op, i):
-                if op == "&" and _amp_is_redirection(text, i):
-                    continue
-                matched = op
-                break
-        if matched:
-            cmd = "".join(buf).strip()
-            if cmd:
-                out.append(cmd)
-            buf = []
-            i += len(matched)
-            continue
-        buf.append(ch)
-        i += 1
-    cmd = "".join(buf).strip()
-    if cmd:
-        out.append(cmd)
-    return out
+# Wrapper name -> (options that take a value, positional words before the command).
+_WRAPPERS = {
+    "env": (("-u", "-S"), 0),
+    "command": ((), 0),
+    "builtin": ((), 0),
+    "nohup": ((), 0),
+    "time": ((), 0),
+    "timeout": (("-s", "-k"), 1),
+    "exec": (("-a",), 0),
+    "xargs": (("-I", "-n", "-P", "-L", "-s", "-E"), 0),
+    "nice": (("-n",), 0),
+    "stdbuf": (("-i", "-o", "-e"), 0),
+    "repeat": ((), 1),
+    "setsid": ((), 0),
+    "ionice": (("-c", "-n"), 0),
+    "doas": (("-u",), 0),
+    "sudo": (("-u", "-g", "--user", "--group"), 0),
+    "noglob": ((), 0),
+}
+_SHELLS = ("sh", "bash", "zsh", "dash", "ksh", "ash", "mksh")
+_FIND_EXEC = ("-exec", "-execdir", "-ok", "-okdir")
+_PY_VALUE_OPTS = ("-W", "-X", "--check-hash-based-pycs")
+_HTTP_CLIENTS = ("curl", "wget", "http", "https", "node")
+_HTTP_METHODS = ("POST", "PUT", "PATCH", "DELETE")
+_HTTP_DATA_FLAGS = ("-d", "-F", "-T", "--data", "--data-raw", "--data-binary",
+                    "--data-urlencode", "--data-ascii", "--form", "--form-string", "--json",
+                    "--upload-file", "--post-data", "--post-file", "--body-data",
+                    "--body-file")
+# The endpoint families a client line may not write to, as they follow the host.
+_HTTP_PATHS = (r"repos/[^/\s'\"]+/[^/\s'\"]+/statuses",
+               r"repos/[^/\s'\"]+/[^/\s'\"]+/rulesets",
+               r"repos/[^/\s'\"]+/[^/\s'\"]+/branches/[^/\s'\"]+/protection",
+               r"orgs/[^/\s'\"]+/rulesets",
+               r"repositories/[^/\s'\"]+/statuses")
 
 
+class _Tok(str):
+    """One shell word with its quotes removed. `dyn`: the shell may rewrite it
+    (an expansion, a glob or brace pattern, an ANSI-C escape), so the text is
+    not what the command receives. `lead`: length of a leading unquoted
+    expansion, which vanishes when it expands to nothing; `tail_dyn`: more
+    than that one expansion is present."""
+    dyn = False
+    lead = None
+    tail_dyn = False
+
+
+_PLAIN_RE = re.compile(r"[^\s'\"\\$`;&|<>()#]+")
+_DYN_PLAIN_RE = re.compile(r"[*?\[]|\{[^}]*(?:,|\.\.)")
+_PAREN_SPECIAL_RE = re.compile(r"[\\'\"`()]")
+_BRACE_SPECIAL_RE = re.compile(r"[\\'\"`{}$]")
+_DQ_SPECIAL_RE = re.compile(r"[\\\"$`]")
+_NAME_RE = re.compile(r"[A-Za-z_][A-Za-z0-9_]*|[0-9@*#?$!\-]")
 _VAR_ASSIGN_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*=")
+_FD_RE = re.compile(r"^(?:[0-9]+|\{[A-Za-z_][A-Za-z0-9_]*\})$")
+_PY_RE = re.compile(r"^python(?:[0-9]+(?:\.[0-9]+)*[a-z]?)?$")
+_BRACE_GROUP_RE = re.compile(r"\{([^{}]*,[^{}]*)\}")
+_REDIRECTS = ("<<<", "<<-", ">>", ">&", ">|", "<&", "<>", "<<", "<", ">")
 
 
-def _skip_prefix(tokens):
-    """Index of the command word: past leading VAR=value assignments and
-    the `env`/`command` wrappers the plan names explicitly."""
-    i = 0
-    while i < len(tokens):
-        tok = tokens[i]
-        if _VAR_ASSIGN_RE.match(tok):
-            i += 1
-            continue
-        if tok == "env":
-            i += 1
-            while i < len(tokens) and _VAR_ASSIGN_RE.match(tokens[i]):
+class _DepthError(Exception):
+    pass
+
+
+def _find_backtick(text, j):
+    """Index of the backtick closing the one that opened just before `j`."""
+    n = len(text)
+    while j < n:
+        k = text.find("`", j)
+        if k < 0:
+            break
+        s = k
+        while s > j and text[s - 1] == "\\":
+            s -= 1
+        if (k - s) % 2 == 0:
+            return k
+        j = k + 1
+    raise ValueError("unterminated backtick")
+
+
+def _skip_dq(text, j):
+    """Index past the double quote that closes the one at `j`."""
+    n = len(text)
+    j += 1
+    while j < n:
+        m = _DQ_SPECIAL_RE.search(text, j)
+        if m is None:
+            break
+        k = m.start()
+        c = text[k]
+        if c == '"':
+            return k + 1
+        if c == "\\":
+            j = k + 2
+        elif c == "`":
+            j = _find_backtick(text, k + 1) + 1
+        elif text[k + 1:k + 2] == "(":
+            j = _match_paren(text, k + 1) + 1
+        else:
+            j = k + 1
+    raise ValueError("unterminated double quote")
+
+
+def _match_paren(text, i):
+    """Index of the parenthesis closing the one at `i`, past quoted text."""
+    depth = 0
+    j = i
+    while True:
+        m = _PAREN_SPECIAL_RE.search(text, j)
+        if m is None:
+            raise ValueError("unterminated parenthesis")
+        k = m.start()
+        c = text[k]
+        if c == "\\":
+            j = k + 2
+        elif c == "'":
+            e = text.find("'", k + 1)
+            if e < 0:
+                raise ValueError("unterminated single quote")
+            j = e + 1
+        elif c == '"':
+            j = _skip_dq(text, k)
+        elif c == "`":
+            j = _find_backtick(text, k + 1) + 1
+        else:
+            if c == "(":
+                depth += 1
+            else:
+                depth -= 1
+                if depth == 0:
+                    return k
+            j = k + 1
+
+
+def _match_brace(text, i):
+    """Index of the brace closing the one at `i`, past quoted text."""
+    depth = 0
+    j = i
+    while True:
+        m = _BRACE_SPECIAL_RE.search(text, j)
+        if m is None:
+            raise ValueError("unterminated brace")
+        k = m.start()
+        c = text[k]
+        if c == "\\":
+            j = k + 2
+        elif c == "'":
+            e = text.find("'", k + 1)
+            if e < 0:
+                raise ValueError("unterminated single quote")
+            j = e + 1
+        elif c == '"':
+            j = _skip_dq(text, k)
+        elif c == "`":
+            j = _find_backtick(text, k + 1) + 1
+        elif c == "$":
+            j = _match_paren(text, k + 1) + 1 if text[k + 1:k + 2] == "(" else k + 1
+        else:
+            if c == "{":
+                depth += 1
+            else:
+                depth -= 1
+                if depth == 0:
+                    return k
+            j = k + 1
+
+
+class _Lexer(object):
+    """Splits command text into simple commands, each a list of _Tok words.
+    Separators, subshell parentheses and redirections (with their targets)
+    never reach a command; every substitution body is scanned on the spot."""
+
+    def __init__(self, text, depth, out, comments):
+        self.text = text
+        self.depth = depth
+        self.out = out
+        self.comments = comments
+        self.cmds = []
+        self.words = []
+        self.parts = []
+        self.started = False
+        self.events = 0
+        self.lead = None
+        self.dyn = False
+        self.drop_next = False
+
+    def sub(self, body, comments=True):
+        _scan_text(body, self.depth + 1, self.out, comments)
+
+    def end_word(self, drop=False):
+        if not self.started:
+            return
+        value = "".join(self.parts)
+        if self.drop_next:
+            self.drop_next = False
+        elif not drop:
+            tok = _Tok(value)
+            if self.dyn:
+                tok.dyn = True
+            if self.lead is not None and self.lead <= len(value):
+                tok.lead = self.lead
+                tok.tail_dyn = self.events > 1
+            self.words.append(tok)
+        self.parts = []
+        self.started = False
+        self.events = 0
+        self.lead = None
+        self.dyn = False
+
+    def end_command(self):
+        self.end_word()
+        self.drop_next = False
+        if self.words:
+            self.cmds.append(self.words)
+            self.words = []
+
+    def add(self, s, dyn=False, expansion=False):
+        if expansion and not self.started:
+            self.lead = len(s)
+        self.started = True
+        self.parts.append(s)
+        if dyn:
+            self.dyn = True
+            self.events += 1
+
+    def dollar(self, i, in_dq):
+        """Read the expansion at text[i] == "$"; return the index after it."""
+        text = self.text
+        nx = text[i + 1:i + 2]
+        if nx == "(":
+            if text[i + 2:i + 3] == "(":
+                outer = _match_paren(text, i + 1)
+                try:
+                    inner = _match_paren(text, i + 2)
+                except ValueError:
+                    inner = -1
+                if inner == outer - 1:
+                    self.sub(text[i + 3:inner])
+                    self.add(text[i:outer + 1], True, True)
+                    return outer + 1
+            end = _match_paren(text, i + 1)
+            self.sub(text[i + 2:end])
+            self.add(text[i:end + 1], True, True)
+            return end + 1
+        if nx == "{":
+            end = _match_brace(text, i + 1)
+            body = text[i + 2:end]
+            if body[:1] in (" ", "\t", "\n", "|"):
+                self.sub(body)
+            else:
+                self.sub(body, comments=False)
+            self.add(text[i:end + 1], True, True)
+            return end + 1
+        if nx == "'" and not in_dq:
+            j = i + 2
+            while True:
+                k = text.find("'", j)
+                if k < 0:
+                    raise ValueError("unterminated ANSI-C quote")
+                s = k
+                while s > j and text[s - 1] == "\\":
+                    s -= 1
+                if (k - s) % 2 == 0:
+                    break
+                j = k + 1
+            body = text[i + 2:k]
+            if "\\" in body:
+                self.add(text[i:k + 1], True)
+            else:
+                self.add(body)
+            return k + 1
+        if nx == '"' and not in_dq:
+            return i + 1
+        m = _NAME_RE.match(text, i + 1)
+        if m is not None:
+            self.add(text[i:m.end()], True, True)
+            return m.end()
+        self.add("$")
+        return i + 1
+
+    def double_quote(self, i):
+        text = self.text
+        self.started = True
+        j = i + 1
+        while True:
+            m = _DQ_SPECIAL_RE.search(text, j)
+            if m is None:
+                raise ValueError("unterminated double quote")
+            k = m.start()
+            self.parts.append(text[j:k])
+            c = text[k]
+            if c == '"':
+                return k + 1
+            if c == "\\":
+                nx = text[k + 1:k + 2]
+                if nx == "":
+                    raise ValueError("unterminated double quote")
+                if nx in ('$', "`", '"', "\\"):
+                    self.parts.append(nx)
+                elif nx != "\n":
+                    self.parts.append("\\" + nx)
+                j = k + 2
+            elif c == "`":
+                end = _find_backtick(text, k + 1)
+                self.sub(_unescape_backtick(text[k + 1:end]))
+                self.add(text[k:end + 1], True)
+                j = end + 1
+            else:
+                j = self.dollar(k, True)
+
+    def run(self):
+        text = self.text
+        n = len(text)
+        i = 0
+        while i < n:
+            m = _PLAIN_RE.match(text, i)
+            if m is not None:
+                chunk = m.group()
+                self.add(chunk, _DYN_PLAIN_RE.search(chunk) is not None)
+                i = m.end()
+                continue
+            c = text[i]
+            if c in " \t\r\f\v":
+                self.end_word()
                 i += 1
+            elif c == "\n":
+                self.end_command()
+                i += 1
+            elif c == "'":
+                k = text.find("'", i + 1)
+                if k < 0:
+                    raise ValueError("unterminated single quote")
+                self.started = True
+                self.parts.append(text[i + 1:k])
+                i = k + 1
+            elif c == '"':
+                i = self.double_quote(i)
+            elif c == "\\":
+                nx = text[i + 1:i + 2]
+                if nx == "\n":
+                    pass
+                elif nx:
+                    self.add(nx)
+                else:
+                    self.add("\\")
+                i += 2
+            elif c == "$":
+                i = self.dollar(i, False)
+            elif c == "`":
+                end = _find_backtick(text, i + 1)
+                self.sub(_unescape_backtick(text[i + 1:end]))
+                self.add(text[i:end + 1], True, True)
+                i = end + 1
+            elif c == "#":
+                if self.started or not self.comments:
+                    self.add("#")
+                    i += 1
+                else:
+                    k = text.find("\n", i)
+                    i = n if k < 0 else k
+            elif c == ";":
+                self.end_command()
+                i += 1
+            elif c == "|":
+                self.end_command()
+                i += 2 if text[i + 1:i + 2] in ("|", "&") else 1
+            elif c == "&":
+                if text[i + 1:i + 2] == ">":
+                    self.end_word()
+                    self.drop_next = True
+                    i += 3 if text[i + 2:i + 3] == ">" else 2
+                else:
+                    self.end_command()
+                    i += 2 if text[i + 1:i + 2] == "&" else 1
+            elif c == "(" or c == ")":
+                self.end_command()
+                i += 1
+            else:  # "<" or ">"
+                if text[i + 1:i + 2] == "(":
+                    end = _match_paren(text, i + 1)
+                    self.sub(text[i + 2:end])
+                    self.add(text[i:end + 1], True)
+                    i = end + 1
+                    continue
+                if self.started and _FD_RE.match("".join(self.parts)):
+                    self.end_word(drop=True)
+                else:
+                    self.end_word()
+                for op in _REDIRECTS:
+                    if text.startswith(op, i):
+                        i += len(op)
+                        break
+                self.drop_next = True
+        self.end_command()
+        return self.cmds
+
+
+def _unescape_backtick(body):
+    return re.sub(r"\\([`\\$])", r"\1", body)
+
+
+def _scan_text(text, depth, out, comments=True):
+    if depth > _MAX_DEPTH:
+        raise _DepthError("command nesting deeper than %d" % _MAX_DEPTH)
+    for words in _Lexer(text, depth, out, comments).run():
+        _interpret(words, 0, len(words), depth, out)
+
+
+def _walk_opts(words, i, end, valopts):
+    """(index past the leading options, [(option, value)] for the value options)."""
+    vals = []
+    while i < end:
+        t = words[i]
+        if t == "--":
+            return i + 1, vals
+        if len(t) < 2 or t[0] != "-":
+            return i, vals
+        if t in valopts:
+            if i + 1 < end:
+                vals.append((str(t), str(words[i + 1])))
+            i += 2
             continue
-        if tok == "command":
+        if t[1] == "-":
+            name, eq, val = t.partition("=")
+            if name in valopts:
+                if eq:
+                    vals.append((name, val))
+                elif i + 1 < end:
+                    vals.append((name, str(words[i + 1])))
+                    i += 1
             i += 1
+            continue
+        took_next = False
+        for k in range(1, len(t)):
+            if "-" + t[k] in valopts:
+                if k + 1 < len(t):
+                    vals.append(("-" + t[k], str(t[k + 1:])))
+                elif i + 1 < end:
+                    vals.append(("-" + t[k], str(words[i + 1])))
+                    took_next = True
+                break
+        i += 2 if took_next else 1
+    return i, vals
+
+
+def _skip_wrapper(words, i, end, name, depth, out):
+    """Index of the word after a wrapper and its options, or None when the
+    wrapper does not run what follows (`command -v`) or the rest was scanned."""
+    valopts, positional = _WRAPPERS[name]
+    start = i + 1
+    j, vals = _walk_opts(words, start, end, valopts)
+    if name == "command":
+        for t in words[start:j]:
+            if t[:1] == "-" and t[1:2] != "-" and ("v" in t or "V" in t):
+                return None
+    if name == "env":
+        pieces = [v for opt, v in vals if opt == "-S"]
+        if pieces:
+            _scan_text(" ".join(pieces + [str(t) for t in words[j:end]]), depth + 1, out)
+            return None
+    return j + positional
+
+
+def _shell_script(words, i, end, depth, out):
+    """Scan the `-c` string of a shell, past its own options."""
+    j = i + 1
+    c_seen = False
+    while j < end:
+        t = words[j]
+        if t == "--":
+            j += 1
+            break
+        if len(t) > 1 and t[0] in "-+":
+            if t in ("-o", "+o", "-O", "+O", "--rcfile", "--init-file"):
+                j += 2
+                continue
+            if t[0] == "-" and t[1] != "-" and "c" in t[1:]:
+                c_seen = True
+            j += 1
             continue
         break
-    return i
+    if c_seen and j < end:
+        _scan_text(str(words[j]), depth + 1, out)
 
 
-def _classify_invocation(tokens):
-    """("gh", rest) | ("queue", rest) | None for one simple command's
-    tokens. `rest` is everything after the command word itself. Looks
-    through a `python3`/`python` interpreter (skipping ITS OWN flags) so
-    `python3 tools/queue/queue.py accept 5` is recognised the same as a
-    bare `queue accept 5` or a `tools/queue/queue.py accept 5` -- the three
-    shapes the plan names by name."""
-    i = _skip_prefix(tokens)
-    if i >= len(tokens):
-        return None
-    word = tokens[i]
-    base = os.path.basename(word)
-    if base in ("python3", "python"):
-        j = i + 1
-        while j < len(tokens) and tokens[j].startswith("-"):
+def _find_exec(words, i, end, depth, out):
+    terminator = None
+    for j in range(i + 1, end):
+        if words[j] not in _FIND_EXEC:
+            continue
+        if terminator is None:
+            terminator = [end] * (end + 1)
+            for k in range(end - 1, i, -1):
+                terminator[k] = k if words[k] in (";", "+") else terminator[k + 1]
+        _interpret(words, j + 1, terminator[j + 1], depth, out)
+
+
+def _brace_expand(word):
+    """The results of expanding the comma groups in `word`, or None when more
+    than _BRACE_CAP would be produced (counted as they appear, so a word of
+    forty groups never builds its product)."""
+    pending = [word]
+    done = []
+    while pending:
+        w = pending.pop()
+        m = _BRACE_GROUP_RE.search(w)
+        if m is None:
+            done.append(w)
+        else:
+            pending.extend(w[:m.start()] + alt + w[m.end():] for alt in m.group(1).split(","))
+        if len(pending) + len(done) > _BRACE_CAP:
+            return None
+    return done
+
+
+def _script_matches(word):
+    """True when `word` names (or may glob to) the queue tool's script."""
+    candidates = _brace_expand(word)
+    if candidates is None:
+        return True
+    for cand in candidates:
+        base = os.path.basename(cand)
+        if base in ("queue", "queue.py"):
+            return True
+        if any(ch in base for ch in "*?[") and (
+                fnmatch.fnmatchcase("queue.py", base) or fnmatch.fnmatchcase("queue", base)):
+            return True
+    return False
+
+
+def _python(words, i, end, depth, out):
+    _http(words, i, end, "python", out)
+    j = i + 1
+    while j < end:
+        t = words[j]
+        if t == "--":
             j += 1
-        if j < len(tokens):
-            i = j
-            word = tokens[j]
-            base = os.path.basename(word)
-    if base == "gh":
-        return ("gh", tokens[i + 1:])
-    if base in ("queue", "queue.py"):
-        return ("queue", tokens[i + 1:])
-    return None
+            break
+        if len(t) < 2 or t[0] != "-":
+            break
+        if t[1] == "-":
+            name, eq, _ = t.partition("=")
+            j += 2 if (name in _PY_VALUE_OPTS and not eq) else 1
+            continue
+        step = 1
+        for k in range(1, len(t)):
+            c = t[k]
+            if c == "c":
+                return  # python -c: its string is not scanned
+            if c == "m":
+                module = t[k + 1:] or (str(words[j + 1]) if j + 1 < end else "")
+                if module.rsplit(".", 1)[-1] == "queue":
+                    out.append(("queue", list(words[j + (1 if t[k + 1:] else 2):end])))
+                return
+            if "-" + c in _PY_VALUE_OPTS:
+                if k + 1 == len(t):
+                    step = 2
+                break
+        j += step
+    if j < end and _script_matches(str(words[j])):
+        out.append(("queue", list(words[j + 1:end])))
+
+
+def _http(words, i, end, base, out):
+    """Synthesise a `gh api` write when a client line itself names a protected
+    GitHub endpoint with a write marker."""
+    text = " ".join(words[i + 1:end])
+    pattern = r"api\.github\.com(?::[0-9]*)?/((?:%s)(?:[/?#][^\s'\"]*)?)" % "|".join(_HTTP_PATHS)
+    m = re.search(pattern, text, re.IGNORECASE)
+    if m is None:
+        return
+    if _http_write(words, i, end, base, text):
+        out.append(("gh", ["api", "-X", "POST", m.group(1)]))
+
+
+def _http_write(words, i, end, base, text):
+    if base not in ("curl", "wget"):
+        if re.search(r"\b(?:%s)\b" % "|".join(_HTTP_METHODS), text):
+            return True
+        if re.search(r"\.(?:post|put|patch|delete)\s*\(", text, re.IGNORECASE):
+            return True
+        return bool(re.search(r"(?:^|\s)[\w.\[\]-]+(?::=|=[^=]|@)", text)) \
+            and base in ("http", "https")
+    method = None
+    data = False
+    j = i + 1
+    while j < end:
+        t = words[j]
+        j += 1
+        if len(t) < 2 or t[0] != "-":
+            continue
+        if t[1] == "-":
+            name, eq, val = t.partition("=")
+            if name in ("--request", "--method"):
+                if eq:
+                    method = val
+                elif j < end:
+                    method = str(words[j])
+                    j += 1
+            elif name in _HTTP_DATA_FLAGS:
+                data = True
+            continue
+        for k in range(1, len(t)):
+            c = t[k]
+            if "-" + c in _HTTP_DATA_FLAGS:
+                data = True
+                break
+            if c == "X":
+                if k + 1 < len(t):
+                    method = t[k + 1:]
+                elif j < end:
+                    method = str(words[j])
+                    j += 1
+                break
+            if c in "AbcCDeEHKmoPQrtuUwxyYz":
+                if k + 1 == len(t):
+                    j += 1
+                break
+    if method is not None:
+        return method.lstrip("=").upper() in _HTTP_METHODS
+    return data
+
+
+def _interpret(words, i, end, depth, out):
+    """Find the gh or queue call a simple command (words[i:end]) runs, if any."""
+    while i < end:
+        w = words[i]
+        if w.lead is not None:
+            if w.lead >= len(w):
+                i += 1
+                continue
+            if w.tail_dyn:
+                return
+            v = str(w[w.lead:])
+        else:
+            v = str(w)
+            if _VAR_ASSIGN_RE.match(v):
+                i += 1
+                continue
+        if v in _SKIP_WORDS:
+            i += 1
+            continue
+        if v == "function":
+            i += 2
+            continue
+        base = os.path.basename(v)
+        if base in _WRAPPERS:
+            i = _skip_wrapper(words, i, end, base, depth, out)
+            if i is None:
+                return
+            continue
+        if base in _SHELLS:
+            _shell_script(words, i, end, depth, out)
+        elif base == "eval":
+            _scan_text(" ".join(words[i + 1:end]), depth + 1, out)
+        elif base == "find":
+            _find_exec(words, i, end, depth, out)
+        elif _PY_RE.match(base):
+            _python(words, i, end, depth, out)
+        elif base == "gh":
+            out.append(("gh", list(words[i + 1:end])))
+        elif base in ("queue", "queue.py"):
+            out.append(("queue", list(words[i + 1:end])))
+        elif base in _HTTP_CLIENTS:
+            _http(words, i, end, base, out)
+        return
 
 
 def find_invocations(command_text):
     """[("gh", rest_tokens), ("queue", rest_tokens), ...] for every simple
-    command in `command_text` that invokes `gh` or the `queue` tool. May
-    raise (shlex.split on an unterminated quote) -- left uncaught on
-    purpose, see the module docstring's FAIL CLOSED section."""
-    found = []
-    for simple in _split_simple_commands(command_text):
-        if "gh" not in simple and "queue" not in simple:
-            continue  # cheap reject before tokenizing
-        tokens = shlex.split(simple, posix=True)
-        classified = _classify_invocation(tokens)
-        if classified is not None:
-            found.append(classified)
-    return found
+    command in `command_text` that invokes `gh` or the `queue` tool, wherever
+    the shell would run it. May raise on text this scanner cannot read --
+    left uncaught on purpose, see the module docstring's FAIL CLOSED section."""
+    out = []
+    _scan_text(command_text, 0, out)
+    return out
 
 
 # ---------------------------------------------------------------------------
@@ -636,8 +1223,11 @@ def _parse_queue_argv(tokens):
 
 def _queue_confirm(args):
     """True when a token after the verb is `--confirm`, `--confirm=...`, or
-    an abbreviation argparse would accept as it (`--co` upward)."""
-    return any(_is_abbrev(tok.partition("=")[0], "--confirm", 4) for tok in args)
+    an abbreviation argparse would accept as it (`--co` upward), or when a
+    token the shell rewrites (an expansion, a glob, an ANSI-C escape) could
+    become one: that is read as `--confirm`, so only the verifier may run it."""
+    return any(getattr(tok, "dyn", False) or _is_abbrev(tok.partition("=")[0], "--confirm", 4)
+               for tok in args)
 
 
 # Characters that mean the shell would have rewritten the path this guard is
@@ -737,16 +1327,19 @@ def check_queue_seat(tokens, seat, cwd):
 # textual and cheap -- by construction this path never got as far as a real
 # tokenization, so it cannot rely on one.
 # ---------------------------------------------------------------------------
-_GH_OR_QUEUE_HINT_RE = re.compile(r"(^|[\s;&|/])(gh|queue|queue\.py)\b")  # "/" for tools/queue/queue.py
+_GH_OR_QUEUE_HINT_RE = re.compile(r"(?<![A-Za-z0-9_.-])(gh|queue|queue\.py)\b")
 _WRITE_VERB_HINT_RE = re.compile(
     r"\b(merge|review|edit|ready|create|update-branch|label|accept|implemented|"
     r"block|unblock|retire|ship|stub|research|audit-record|init|migrate|gate-pass|api)\b"
 )
+_QUOTE_CHARS_RE = re.compile(r"['\"\\]")
 
 
 def _looks_like_state_write(command_text):
-    return bool(_GH_OR_QUEUE_HINT_RE.search(command_text)
-                and _WRITE_VERB_HINT_RE.search(command_text))
+    # Quote and backslash characters are dropped first: a word the shell would
+    # read as gh (g''h, g\h) must hint the same as gh itself.
+    text = _QUOTE_CHARS_RE.sub("", command_text)
+    return bool(_GH_OR_QUEUE_HINT_RE.search(text) and _WRITE_VERB_HINT_RE.search(text))
 
 
 def deny(reason):
