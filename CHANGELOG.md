@@ -4,6 +4,11 @@
 
 ### Changed
 
+- A panel dragged sideways by its grab bar now reorders the row live: the panels the drop would cross slide aside, each by the
+  dragged panel's own width plus the row gap, as the pointer passes the same half-way points the release uses, and slide back
+  if the pointer returns. The dragged panel is drawn above them until its spring home ends. The order, anchors and saved
+  workspace still change only at the drop, by the same hop count, so a host's `usePanelReorderSteps` + `move` loop needs no change.
+
 - `npm run release:check` fails, before it asks the registry, when `package.json` and `package-lock.json` (the top-level
   `version` and `packages[""].version`) disagree on the version, or when the lockfile is missing. The message names both.
 

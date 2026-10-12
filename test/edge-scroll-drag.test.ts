@@ -487,3 +487,21 @@ test('the last panel dragged to the right edge is drawn no further than the row 
   await frames(30);
   assert.equal(ends[0]!.offset, 40 + MAX_SCROLL, 'the hop rule reads the pointer offset plus the scroll distance, not the drawn one');
 });
+
+test('held at the right edge the row previews exactly the hops the release then reports, scroll distance included', async () => {
+  const m = mountEdgeRow();
+  const slotX = (id: string): number => {
+    const slot = handleOf(m, id).closest<HTMLElement>('[data-drag-to-close]')!.parentElement!;
+    return Number(/translateX\((-?[\d.e+-]+)px\)/.exec(slot.style.transform)?.[1] ?? 0);
+  };
+  const ids = Array.from({ length: 9 }, (_, k) => `s${k + 2}`);
+  const rest = ids.map(slotX);
+  await dragTo(m, 1000);
+  await frames(100);
+  const shifted = ids.filter((id, k) => slotX(id) < rest[k]! - 1).length;
+  assert.ok(m.container.scrollLeft > 1000, 'control: the row scrolled');
+  assert.ok(shifted >= 4, `the preview counts the scroll distance, not only the ${1000 - 40} px of pointer travel (${shifted} shifted)`);
+  await liftAt(1000);
+  await frames(30);
+  assert.equal(ends[0]!.hops, shifted);
+});
