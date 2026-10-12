@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased
+
+### Changed
+
+- `npm run release:check` fails, before it asks the registry, when `package.json` and `package-lock.json` (the top-level
+  `version` and `packages[""].version`) disagree on the version, or when the lockfile is missing. The message names both.
+
 ## 0.2.0-rc.2
 
 ### Added

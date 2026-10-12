@@ -78,3 +78,92 @@ test('release:check prints the command through publishCommand, with no second co
   assert.match(check, /publishCommand\(version, distDir\)/);
   assert.equal(check.split('npm publish').length - 1, 0);
 });
+
+const LOCK_FILE = fileURLToPath(new URL('../tools/phonux-lockfile-version.mjs', import.meta.url));
+
+type LockfileVersionProblem = (packageDir: string) => string | null;
+
+/** Both files in a scratch directory, with `lock` as the lockfile's root `version` and `packages[""].version`. */
+function withPackage(manifest: string, lock: { root?: string; entry?: string } | null, run: (dir: string) => void): void {
+  const dir = mkdtempSync(join(tmpdir(), 'phonux-lock-'));
+  try {
+    writeFileSync(join(dir, 'package.json'), JSON.stringify({ name: 'phonux', version: manifest }));
+    if (lock) {
+      const packages = lock.entry === undefined ? {} : { '': { name: 'phonux', version: lock.entry } };
+      writeFileSync(join(dir, 'package-lock.json'), JSON.stringify({ name: 'phonux', version: lock.root, lockfileVersion: 3, packages }));
+    }
+    run(dir);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+}
+
+async function loadLock(file: string): Promise<LockfileVersionProblem> {
+  const mod = (await import(`${new URL(`file://${file}`).href}?load=${Math.random()}`)) as { lockfileVersionProblem: LockfileVersionProblem };
+  return mod.lockfileVersionProblem;
+}
+
+test('lockfileVersionProblem: no problem when package.json and both lockfile versions agree', async () => {
+  const check = await loadLock(LOCK_FILE);
+  withPackage('0.2.0-rc.3', { root: '0.2.0-rc.3', entry: '0.2.0-rc.3' }, (dir) => assert.equal(check(dir), null));
+});
+
+test('lockfileVersionProblem: names both versions when the lockfile root entry is behind', async () => {
+  const check = await loadLock(LOCK_FILE);
+  withPackage('0.2.0-rc.3', { root: '0.2.0-rc.3', entry: '0.2.0-rc.2' }, (dir) => {
+    const text = check(dir) ?? '';
+    assert.match(text, /0\.2\.0-rc\.3/);
+    assert.match(text, /packages\[""\]\.version is 0\.2\.0-rc\.2/);
+  });
+});
+
+test('lockfileVersionProblem: names both versions when the lockfile top-level version is behind', async () => {
+  const check = await loadLock(LOCK_FILE);
+  withPackage('0.2.0-rc.3', { root: '0.2.0-rc.2', entry: '0.2.0-rc.3' }, (dir) => {
+    const text = check(dir) ?? '';
+    assert.match(text, /package\.json says version 0\.2\.0-rc\.3/);
+    assert.match(text, /"version" is 0\.2\.0-rc\.2/);
+  });
+});
+
+test('lockfileVersionProblem: a package.json ahead of the lockfile is the same failure', async () => {
+  const check = await loadLock(LOCK_FILE);
+  withPackage('0.3.0', { root: '0.2.0', entry: '0.2.0' }, (dir) => assert.match(check(dir) ?? '', /0\.3\.0.*0\.2\.0/));
+});
+
+test('lockfileVersionProblem: a missing root entry or a missing lockfile fails rather than passing', async () => {
+  const check = await loadLock(LOCK_FILE);
+  withPackage('1.0.0', { root: '1.0.0' }, (dir) => assert.match(check(dir) ?? '', /packages\[""\]\.version is absent/));
+  withPackage('1.0.0', null, (dir) => assert.match(check(dir) ?? '', /package-lock\.json is missing/));
+});
+
+test('lockfileVersionProblem: a scratch copy that always returns null fails the disagreement case', async () => {
+  const scratch = mkdtempSync(join(tmpdir(), 'phonux-lock-copy-'));
+  try {
+    const source = readFileSync(LOCK_FILE, 'utf8');
+    const edited = source.replace('if (wrong.length === 0) return null;', 'return null;');
+    assert.notEqual(edited, source, 'the planted edit must change the text');
+    const copy = join(scratch, 'phonux-lockfile-version.mjs');
+    writeFileSync(copy, edited);
+    const real = await loadLock(LOCK_FILE);
+    const mutant = await loadLock(copy);
+    withPackage('0.2.0-rc.3', { root: '0.2.0-rc.2', entry: '0.2.0-rc.2' }, (dir) => {
+      assert.notEqual(real(dir), null);
+      assert.equal(mutant(dir), null);
+    });
+  } finally {
+    rmSync(scratch, { recursive: true, force: true });
+  }
+});
+
+test('lockfileVersionProblem: the file starts no process', () => {
+  assert.doesNotMatch(readFileSync(LOCK_FILE, 'utf8'), /child_process|spawn|execFile|exec\(/);
+});
+
+test('release:check runs the lockfile check before it asks the registry', () => {
+  const check = readFileSync(fileURLToPath(new URL('../tools/phonux-release-check.mjs', import.meta.url)), 'utf8');
+  const lockAt = check.indexOf('lockfileVersionProblem(PHONE_DIR)');
+  assert.ok(lockAt >= 0, 'release-check calls lockfileVersionProblem');
+  assert.ok(lockAt < check.indexOf("'view'"), 'before npm view');
+  assert.match(check, /if \(lockProblem\) fail\(lockProblem\)/);
+});
