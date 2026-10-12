@@ -25,6 +25,7 @@ const OWNING_FILES = [
   'panel-manager-operations',
   'panel-pin',
   'header-buttons',
+  'max-live-panels-count',
 ].map((base) => `${base}.test.ts`);
 
 type Texts = ReadonlyMap<string, string>;
@@ -56,7 +57,7 @@ function readTestFiles(): Texts {
 test('every catalog name has exactly one literal differential call across the test files', () => {
   const names = PANEL_SETTINGS_CATALOG.map((d) => d.name);
   const texts = readTestFiles();
-  assert.equal(names.length, 62, 'positive control: the whole catalog was read');
+  assert.equal(names.length, 63, 'positive control: the whole catalog was read');
   assert.ok(texts.size > 50, `positive control: the scan read the test files, it read ${texts.size}`);
   const offenders: string[] = [];
   for (const name of names) {
