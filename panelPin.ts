@@ -40,6 +40,17 @@ export function isPinned(entry: PanelWindow, row: readonly PanelWindow[], defini
   return true;
 }
 
+/**
+ * The ids of the entries of `row` that read as pinned, each under its own `pinning` (the library default for an entry
+ * with no settings). Parked entries are read like live ones.
+ * @internal
+ */
+export function pinnedIds(row: readonly PanelWindow[], rootId: string): ReadonlySet<string> {
+  const ids = new Set<string>();
+  for (const entry of row) if (isPinned(entry, row, definitionOf(entry), rootId)) ids.add(entry.id);
+  return ids;
+}
+
 /** A pin change: `pin()`, `unpin()`, or a bare `parkable` value a configure call asks for. @internal */
 export type PinChange = DeferredPin;
 

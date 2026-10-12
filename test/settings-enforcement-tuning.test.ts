@@ -184,6 +184,7 @@ test('the library tuning defaults are exactly these numbers, by key name', () =>
     dropTieBreak: 'leftmost',
     rowGesture: 'step',
     initialScroll: 'start',
+    maxLivePanels: null,
   });
 });
 
