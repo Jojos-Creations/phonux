@@ -9,7 +9,7 @@ import assert from 'node:assert/strict';
 import './support/jsdom-globals.js';
 import { advanceFrames, cleanup } from './support/mount-harness.js';
 import { drag } from './support/drag-gesture.js';
-import { capRig } from './support/cap-rig.js';
+import { capRig, liveRightOfRoot } from './support/cap-rig.js';
 import type { CapRig } from './support/cap-rig.js';
 
 afterEach(() => cleanup());
@@ -186,6 +186,23 @@ test('drag: placing a panel at the start of the unpinned panels parks another on
   assert.equal(result.ok, true);
   await r.settle();
   assert.equal(r.row(), 'root w1 w2* w3* w4* w5 w6 w7 w8');
+});
+
+test('drag: no committed row holds more than N unpinned live panels through a move, a place, a pin, an unpin and a drop across History', async () => {
+  const r = await capRig({ count: 9, cap: 5, width: 3000, grab: true, pinned: ['w1', 'w2'], record: true });
+  await advanceFrames(2000);
+  const accepted = [
+    r.turn(() => r.h.w1!.move('right', 'person')),
+    r.turn(() => r.h.w2!.place('after-fixed', 'person')),
+    r.turn(() => r.h.w6!.pin()),
+    r.turn(() => r.h.w6!.unpin()),
+  ].map((result) => result.ok);
+  await advanceFrames(3000);
+  await drag(grip(r, 'w7'), { dx: -420, dy: 0, steps: 12, hold: 8 });
+  await advanceFrames(3000);
+  assert.deepEqual(accepted, [true, true, true, true]);
+  assert.ok(r.commits.length >= 6, 'the probe saw the renders the calls and the drop caused');
+  assert.deepEqual(r.commits.filter((row) => liveRightOfRoot(row) > 5), [], 'no committed row held a sixth live unpinned panel');
 });
 
 // ---------------------------------------------------------------------------

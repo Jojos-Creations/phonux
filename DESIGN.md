@@ -284,10 +284,17 @@ panel, live or parked, is neither counted nor parked by the cap. The capacity of
 `min(fit, N + the pinned panels in the set)`, with `fit` the window's fit above, and a row with a scroll entry takes no
 `fit`: History is one, so there the window's width no longer decides how many panels are live, exactly N unpinned ones
 are, at 600 px as at 1920. That one capacity answers every question the window's fit answered, through the row's one
-`pricing`: the park at a commit, the park that an open, a `show`, a History click or an undo makes, the free slots an
-'until-room' hold waits for, and the returns a `resetLayout` reports. A row not yet measured parks the excess on its
-first commit, and a new value from `configureTuning` (class NOW) parks the excess on the next commit or, under
-`capacityReturn: 'auto'`, returns what a higher value has room for.
+`pricing`: the park that settles a row, the park that an open, a `show`, a History click or an undo makes, the free slots
+an 'until-room' hold waits for, and the returns a `resetLayout` reports.
+
+No row that reaches the document holds more unpinned live panels than the cap. A row that lands over it (the panels of a
+restore or of a replayed `addPanel`, a seeded `initialEntries`, a row after a lower value from `configureTuning`, class NOW)
+is settled in the render that would show it, which React then renders again, so the first committed row has the excess
+parked and a panel the cap parks is never mounted. While a cap is set that settle also takes the window's fit; without
+one the reconcile effect parks for the window one commit after the row lands, as before. The settle keeps the panels an
+action has just marked, as the effect does, and the effect records its parks once the row has committed, as it records
+any park for room: under `capacityReturn: 'manual'` each is held until shown, under 'auto' it goes on the stack and
+returns by `returnTieBreak`. A higher value, or `null`, returns what has room for it under 'auto' and nothing under 'manual'.
 
 What the cap parks is chosen as a window-fit park chooses, with the pinned panels added to those a park leaves alone:
 `evictionRank` first, then `evictionOrder` from the panel acted on. Opening, showing or undoing a panel parks the unpinned

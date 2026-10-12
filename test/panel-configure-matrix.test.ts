@@ -1840,7 +1840,7 @@ test('the class table ran every cell: executed cells equal 4 classes by 9 status
   assert.equal(Object.values(CLASS_TABLE).reduce((sum, row) => sum + Object.keys(row).length, 0), 36);
 });
 
-// The design copy is the record of rev 7 and stays as it was written; a key a later plan adds is listed here beside it.
+// The design copy is frozen; a catalog key added after it is listed here, never in the copy.
 const ADDED_AFTER_DESIGN: readonly string[] = ['tuning.maxLivePanels', 'tuning.chrome'];
 
 test('the probes ran every catalog name once: 64 executed, equal to the catalog and to the design copy of it plus the names added after it', () => {

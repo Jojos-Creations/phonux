@@ -59,8 +59,10 @@ test('with animation off the width is settled at once', () => {
   mock.timers.enable({ apis: ['setTimeout'] });
   const log: boolean[] = [];
   const m = mount(React.createElement(Probe, { width: 0, delayMs: 500, instant: true, log }));
+  const before = log.length;
   m.rerender(React.createElement(Probe, { width: 800, delayMs: 500, instant: true, log }));
   assert.equal(settledNow(log), true);
+  assert.equal(log.slice(before).every(Boolean), true, 'not even the render that sees the new width reads unsettled');
 });
 
 function workspaceAt(width: number, liveWidths: number[] = [], extra: Record<string, unknown> = {}, wrap: (ui: React.ReactElement) => React.ReactElement = (ui) => ui): React.ReactElement {

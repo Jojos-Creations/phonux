@@ -59,7 +59,7 @@ function isEventLike(value: unknown): boolean {
 export interface PanelsInput {
   /** The workspace this hook feeds. Given, the workspace supplies the root, the storage, the templates, the declared panels, the defaults, the tuning and the ids, and `rootId` is ignored; `storage` and `initialEntries` beside it throw `invalid-options`. One workspace feeds one hook. */
   workspace?: WorkspaceHandle;
-  /** The list the provider starts with, read once on mount (the host seeds its always-shown columns here); the provider owns the list from then on. Default: empty. */
+  /** The list the provider starts with, read once on mount (the host seeds its always-shown columns here); the provider owns the list from then on. With `tuning.maxLivePanels` set, the first render already has the excess live panels parked. Default: empty. */
   initialEntries?: readonly PanelWindow[];
   /** The id of the row's root entry, the one every anchor leads to -- threaded through to every panelWindow.ts call that needs it. */
   rootId: string;

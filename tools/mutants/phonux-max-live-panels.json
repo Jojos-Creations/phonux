@@ -22,7 +22,7 @@
       "find": "if (maxLive === null) return fitCapacityFor(fitWidths);",
       "replace": "if (maxLive === null || containerWidth === 0) return fitCapacityFor(fitWidths);",
       "expectRed": [
-        "unmeasured row: with N = 2 the leftmost two panels park on the first commit"
+        "unmeasured row: with N = 2 the leftmost two panels are parked when the row first shows them"
       ]
     },
     {
@@ -42,15 +42,6 @@
       "replace": "return maxLive + set.filter((p) => pinned.has(p.id)).length;",
       "expectRed": [
         "row that does not scroll: the live count is the smaller of the window fit and N"
-      ]
-    },
-    {
-      "name": "a cap-driven park at a commit may take a pinned panel",
-      "file": "panels/usePanelManager.ts",
-      "find": "fewestParksThatSettle(live, widthOf, settles, [...keepIds, ...pinned], dropTieBreak)",
-      "replace": "fewestParksThatSettle(live, widthOf, settles, keepIds, dropTieBreak)",
-      "expectRed": [
-        "pinned: a wide pinned panel is not parked in place of an unpinned one"
       ]
     },
     {
@@ -134,12 +125,13 @@
       ]
     },
     {
-      "name": "a new value of the cap parks nothing until the row changes",
+      "name": "a new value of the cap is not read after the mount",
       "file": "panels/usePanelManager.ts",
-      "find": "}, [capacity, panels]);",
-      "replace": "}, [panels]);",
+      "find": "const maxLive = options?.tuning?.maxLivePanels ?? null;",
+      "replace": "const maxLive = useRef(options?.tuning?.maxLivePanels ?? null).current;",
       "expectRed": [
-        "run time: a lower N parks the leftmost excess on the next commit"
+        "run time: a lower N parks the leftmost excess, with the same park as a narrower window",
+        "committed rows: a lower value of the cap is in the first row that renders it"
       ]
     },
     {
@@ -215,6 +207,52 @@
       "replace": "  maxLivePanels: 5,\n",
       "expectRed": [
         "scrolling row: N unpinned panels are live at 600, 1280 and 1920"
+      ]
+    },
+    {
+      "name": "a row that lands over the cap is not settled before it renders",
+      "file": "panels/usePanelManager.ts",
+      "find": "const settled = settledKeeping(panels, acted);",
+      "replace": "const settled = panels;",
+      "expectRed": [
+        "committed rows: panels added before the mount arrive with the leftmost two already parked",
+        "committed rows: the same under StrictMode",
+        "committed rows: two pinned panels arrive live",
+        "committed rows: hand-built entries arrive in the first commit with the excess parked",
+        "committed rows: a lower value of the cap is in the first row that renders it",
+        "unmeasured row: the first measure changes the live set by 0 and no committed row holds more than N",
+        "restore: a saved workspace with more live panels than N arrives with the extra ones parked",
+        "drag: no committed row holds more than N unpinned live panels"
+      ]
+    },
+    {
+      "name": "a panel just acted on can be parked by the settle its own action calls for",
+      "file": "panels/usePanelManager.ts",
+      "find": "const acted = [...keepLiveRef.current].filter(([, seen]) => seen !== panels).map(([id]) => id);",
+      "replace": "const acted: string[] = [];",
+      "expectRed": [
+        "drag: dropping a pinned panel right of History parks exactly one other",
+        "drag: moving a panel one place with the move verb across History",
+        "drag: placing a panel at the start of the unpinned panels"
+      ]
+    },
+    {
+      "name": "a park a render makes for the cap is not recorded",
+      "file": "panels/usePanelManager.ts",
+      "find": "capParkedRef.current = [...capParkedRef.current.filter((id) => !parked.includes(id)), ...parked];",
+      "replace": "void parked;",
+      "expectRed": [
+        "committed rows: the panels parked before the first row is shown are parks for room",
+        "committed rows: under auto a panel parked before the first row is shown reads as parked, not hidden"
+      ]
+    },
+    {
+      "name": "a panel the cap parks before its row is shown is held as one that arrived parked",
+      "file": "panels/usePanelManager.ts",
+      "find": "!before.some((q) => q.id === p.id) && !byCap.includes(p.id)) markHeld",
+      "replace": "!before.some((q) => q.id === p.id)) markHeld",
+      "expectRed": [
+        "committed rows: under auto a panel parked before the first row is shown reads as parked, not hidden"
       ]
     }
   ]

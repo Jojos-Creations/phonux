@@ -378,8 +378,8 @@ export type WorkspaceTuning = PanelTuning & {
   chrome?: { [K in keyof ChromeTuning]?: ChromeTuning[K] };
   /**
    * The most unpinned parkable panels the row keeps live, an integer of 1 or more, or `null` for no cap. Panels beyond
-   * it park, the leftmost first; a pinned panel neither counts nor parks for it. In a row that scrolls, the window width
-   * no longer decides how many are live.
+   * it park the way they do when the window is full; a pinned panel neither counts nor parks for it. In a row that
+   * scrolls, the window width does not decide how many are live. No row the document shows holds more, the first included.
    */
   maxLivePanels?: number | null;
 };

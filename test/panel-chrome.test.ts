@@ -10,7 +10,7 @@ import { act } from 'react';
 import { createPortal } from 'react-dom';
 import { MotionConfig } from 'motion/react';
 import { DragToClose, Panel, PanelFrame, registerView, useActivePanel, useHost, usePanelActive, usePanelDragging, usePanelTuning } from '../index.js';
-import { ACTIVE_ATTRIBUTE, CHROME_ATTRIBUTE, DRAGGING_ATTRIBUTE } from '../panelChrome.js';
+import { ACTIVE_ATTRIBUTE, CHROME_ATTRIBUTE, DRAGGING_ATTRIBUTE, createChromeStore } from '../panelChrome.js';
 import { PanelFooterContext } from '../panelFooter.js';
 import { advanceFrames, cleanup } from './support/mount-harness.js';
 import { drag, release } from './support/drag-gesture.js';
@@ -230,8 +230,9 @@ test('focus inside a hidden panel shows its chrome', async () => {
   const body = m.container.querySelector<HTMLElement>('[data-body="c3"]')!;
   act(() => body.focus());
   assert.equal(opacityOf(part(m, 'c3', 'header')), '1');
-  act(() => body.blur());
   act(() => setActive(null));
+  assert.equal(opacityOf(part(m, 'c3', 'header')), '1', 'focus alone keeps it with no active panel');
+  act(() => body.blur());
   assert.equal(opacityOf(part(m, 'c3', 'header')), '0');
 });
 
@@ -248,6 +249,27 @@ test('the fade takes fadeMs on the frame clock, and no time under Reduce Motion'
   await advanceFrames(2000);
   hover(rootOf(r, 'c1'), true);
   assert.equal(opacityOf(part(r, 'c1', 'header')), '1', 'no time under Reduce Motion');
+  const quick = mountRow(entries(2), 3000, { tuning: { chrome: { mode: 'hover-or-active', fadeMs: 100 } } });
+  await advanceFrames(2000);
+  hovered('c1', quick);
+  await advanceFrames(250);
+  assert.equal(opacityOf(part(quick, 'c1', 'header')), '1', 'a 100 ms fade is over well inside 250 ms');
+});
+
+test('the store wakes only the listeners of the panels whose mark changed', () => {
+  const store = createChromeStore();
+  const woke: string[] = [];
+  store.subscribePanel('a', () => woke.push('a'));
+  store.subscribePanel('b', () => woke.push('b'));
+  store.subscribePanel('c', () => woke.push('c'));
+  store.setActive('a');
+  assert.deepEqual(woke.splice(0), ['a']);
+  store.setActive('b');
+  assert.deepEqual(woke.splice(0).sort(), ['a', 'b']);
+  store.setDragging('c', true);
+  assert.deepEqual(woke.splice(0), ['c']);
+  store.setActive('b');
+  assert.deepEqual(woke, [], 'an unchanged mark wakes nobody');
 });
 
 test('fadeMs 0 and an unanimated panel also show at once', async () => {
