@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+### Changed
+
+- `npm run release:check` fails, before it asks the registry, when `package.json` and `package-lock.json` (the top-level
+  `version` and `packages[""].version`) disagree on the version, or when the lockfile is missing. The message names both.
+
 ### Fixed
 
 - Dragging a panel to the end of the strip no longer widens the row: the dragged box is drawn no further than the row's end, so the
