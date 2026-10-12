@@ -63,8 +63,11 @@ test('the panels a drag would cross slide aside by the dragged panel\'s span whi
   assert.equal(order(m), 'root,s1,s2,s3,s4,s5', 'the order only changes at the drop');
   assert.equal(zOf(m, 's2'), '3', 'the dragged slot is drawn over its neighbours');
   await release(SPAN * 0.5 + 10, 0);
-  await advanceFrames(3000);
+  await advanceFrames(32);
   assert.equal(order(m), 'root,s1,s3,s2,s4,s5');
+  assert.equal(xOf(m, 's3'), rest.s2, 'the neighbour already rests in its new place while the dragged box is still springing home');
+  assert.equal(xOf(m, 's4'), rest.s4, 'and the next panel was not shifted by a preview left over from the old order');
+  await advanceFrames(3000);
   assert.equal(xOf(m, 's3'), rest.s2, 'the crossed neighbour rests where the dragged panel was: it did not move at the drop');
   assert.equal(zOf(m, 's2'), '1', 'the raise ends with the spring home');
   assert.equal(reported[0]?.steps, 1);
@@ -126,6 +129,7 @@ test('nothing is previewed for a panel that is not draggable', async () => {
   await drag(handleOf(m, 's1'), { dx: SPAN, dy: 0, steps: 8, hold: 8, keepDown: true });
   await advanceFrames(1000);
   assert.equal(xOf(m, 's2'), before);
+  assert.equal(zOf(m, 's1'), '1', 'and nothing is raised');
   await release(SPAN, 0);
   await advanceFrames(2000);
 });
@@ -190,4 +194,9 @@ test('closing the dragged panel mid-drag leaves no neighbour shifted', async () 
   assert.equal(order(m), 'root,s2,s3,s4');
   assert.equal(xOf(m, 's2'), SPAN, 'the neighbours closed up to their own slots');
   assert.equal(xOf(m, 's3'), 2 * SPAN);
+  act(() => m.latest().undoClose());
+  await advanceFrames(3000);
+  assert.equal(order(m), 'root,s1,s2,s3,s4');
+  assert.equal(zOf(m, 's1'), '1', 'the revived panel is not still raised');
+  assert.equal(xOf(m, 's2'), 2 * SPAN, 'and no neighbour is still shifted for it');
 });
