@@ -125,6 +125,18 @@ export interface PanelTemplate<P extends JsonValue = JsonValue> {
     /** Read-only access to every panel. */
     manager: PanelReader;
   }>;
+  /**
+   * The component drawn at the bottom of every panel made from this template, inside the frame and below the content, which
+   * scrolls above it. It receives the same props as `view`. Declared on the template and not a setting, so no layer overrides it.
+   */
+  readonly footer?: React.ComponentType<{
+    /** What a footer may see of this panel. */
+    panel: PanelSummary<P>;
+    /** The panel's own read members and operations. */
+    handle: ViewHandle<P>;
+    /** Read-only access to every panel. */
+    manager: PanelReader;
+  }>;
   /** The template's settings layer, applied to every panel made from it. */
   readonly settings?: PanelSettings;
   /** The params a panel made from this template starts with. */
@@ -148,7 +160,7 @@ function templateIdProblem(id: unknown): string | undefined {
 const isComponent = (view: unknown): boolean => typeof view === 'function' || (typeof view === 'object' && view !== null && '$$typeof' in view);
 
 /**
- * Returns the template unchanged after checking it: a valid id, a component for `view`, and a settings layer the
+ * Returns the template unchanged after checking it: a valid id, a component for `view` and for `footer` when given, and a settings layer the
  * resolver accepts on its own. Throws PanelManagerError, 'invalid-template' or 'invalid-settings'.
  * @public
  */
@@ -157,6 +169,7 @@ export function definePanel<P extends JsonValue = JsonValue>(t: PanelTemplate<P>
   const idProblem = templateIdProblem(t.id);
   if (idProblem !== undefined) throw new PanelManagerError('invalid-template', `template id ${JSON.stringify(t.id)} ${idProblem}`);
   if (!isComponent(t.view)) throw new PanelManagerError('invalid-template', `template '${t.id}': view must be a React component`);
+  if (t.footer !== undefined && !isComponent(t.footer)) throw new PanelManagerError('invalid-template', `template '${t.id}': footer must be a React component`);
   resolvePanelSettings({ template: t.settings });
   return t;
 }

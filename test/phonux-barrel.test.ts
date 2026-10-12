@@ -30,6 +30,7 @@ const VALUE_EXPORTS = [
   'panelFrameBareSx',
   'PanelHeader',
   'PanelHeaderButtons',
+  'PanelFooter',
   'PanelHeaderRow',
   'registerView',
   'resolveView',

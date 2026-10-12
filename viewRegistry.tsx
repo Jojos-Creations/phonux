@@ -2,6 +2,7 @@
 import * as React from 'react';
 import { useOptionalHost, type JsonValue, type PanelSummary } from './hostApi.js';
 import { resolveLabels } from './labels.js';
+import { PanelFooterContext } from './panelFooter.js';
 import { PanelManagerError } from './panelManagerError.js';
 import type { PanelTemplate } from './panelTemplate.js';
 import { PanelViewContextValue } from './panelViewContext.js';
@@ -83,7 +84,10 @@ export function templateViewFor(t: PanelTemplate): ViewComponent {
       return <Fallback panel={panel} />;
     }
     const View = t.view as React.ComponentType<{ panel: PanelSummary; handle: typeof handle; manager: NonNullable<typeof context.manager> }>;
-    return <View panel={panel} handle={handle} manager={context.manager} />;
+    const view = <View panel={panel} handle={handle} manager={context.manager} />;
+    const Footer = t.footer as React.ComponentType<{ panel: PanelSummary; handle: typeof handle; manager: NonNullable<typeof context.manager> }> | undefined;
+    if (Footer === undefined) return view;
+    return <PanelFooterContext.Provider value={<Footer panel={panel} handle={handle} manager={context.manager} />}>{view}</PanelFooterContext.Provider>;
   }
   adapters.set(t, TemplatePanelView);
   return TemplatePanelView;
