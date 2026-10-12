@@ -99,7 +99,7 @@ interface EdgeHold {
  * requestAnimationFrame loop that scrolls it while the pointer rests in a band, and the scroll distance the release
  * adds to the pointer offset. Reads only `dragScroll` from the slot, so what scrolls is decided by the row.
  */
-function useEdgeScroll(box: React.RefObject<HTMLDivElement | null>, dragScroll: DragScroll | undefined, reduceMotion: boolean, scrollX: MotionValue<number>) {
+function useEdgeScroll(box: React.RefObject<HTMLDivElement | null>, dragScroll: DragScroll | undefined, reduceMotion: boolean, x: MotionValue<number>, scrollX: MotionValue<number>) {
   // The loop outlives the render that started it: the bound, the stops and `instant` come from the latest slot, while the
   // mode and the three edge numbers stay with the hold, because a drag in flight keeps what it locked with.
   const latest = React.useRef({ dragScroll, reduceMotion });
@@ -108,6 +108,9 @@ function useEdgeScroll(box: React.RefObject<HTMLDivElement | null>, dragScroll: 
   const hold = React.useRef<EdgeHold | null>(null);
   const pointer = React.useRef({ x: 0, offset: 0 });
   const cancelled = React.useRef(false);
+  // How far the box may be drawn right of its slot before it passes the row's end, in content px. A box drawn past the end
+  // adds to the scroll container's scrollable width; Infinity when nothing is measured.
+  const slack = React.useRef(Number.POSITIVE_INFINITY);
   // A capture listener on the window, registered at the press so it runs before motion's own: the loop must not take one
   // more step between the pointer lifting and the release reading the distance.
   const onLift = React.useRef((event: Event) => {
@@ -120,6 +123,8 @@ function useEdgeScroll(box: React.RefObject<HTMLDivElement | null>, dragScroll: 
     }
     unwatch();
   });
+  /** The drawn offset for a wanted pointer offset: the box and the row's scroll distance together never carry it past the row's end. */
+  const cap = (wanted: number): number => Math.min(wanted, slack.current - scrollX.get());
   function unwatch(): void {
     window.removeEventListener('pointerup', onLift.current, true);
     window.removeEventListener('pointercancel', onLift.current, true);
@@ -179,6 +184,7 @@ function useEdgeScroll(box: React.RefObject<HTMLDivElement | null>, dragScroll: 
     /** A press on the handle: where the pointer is and where the row is scrolled, which the release counts from. */
     press(event: React.PointerEvent<HTMLElement>): void {
       const scrollerEl = box.current === null ? null : closestRowScroller(box.current);
+      slack.current = Number.POSITIVE_INFINITY;
       // A touch swipe is a native pan that ends in pointercancel, so only a mouse or pen drags to the edge.
       pressed.current = scrollerEl === null || event.pointerType === 'touch' ? null : { scrollerEl, startScroll: rowScrollerFor(scrollerEl).scrollLeft(), downX: event.clientX };
       cancelled.current = false;
@@ -192,6 +198,10 @@ function useEdgeScroll(box: React.RefObject<HTMLDivElement | null>, dragScroll: 
     lock(clientX: number): void {
       const slot = latest.current.dragScroll;
       const p = pressed.current;
+      const rowEnd = p?.scrollerEl.querySelector(':scope > [data-row-strip]')?.getBoundingClientRect();
+      const own = box.current?.getBoundingClientRect();
+      // Rects and the translations drawn now are in the same screen px; both ends scroll together, so the gap holds as the row scrolls.
+      slack.current = rowEnd === undefined || own === undefined || rowEnd.width === 0 ? Number.POSITIVE_INFINITY : rowEnd.right - (own.right - x.get() - scrollX.get());
       if (p === null || slot === undefined || slot.mode !== 'edge') return;
       const scroller = rowScrollerFor(p.scrollerEl);
       const claim = scroller.claim();
@@ -207,6 +217,7 @@ function useEdgeScroll(box: React.RefObject<HTMLDivElement | null>, dragScroll: 
       pointer.current = { x: clientX, offset: clientX - (pressed.current?.downX ?? clientX) };
       x.set(pointer.current.offset);
     },
+    cap,
     held: (): boolean => hold.current !== null,
     /** The pointer's offset from where it went down, counted by the drag alone. */
     pointerOffset: (): number => pointer.current.offset,
@@ -323,7 +334,7 @@ function DragToCloseBox({
   closeRef.current = onClose;
   const slot = React.useContext(PanelSlotContext);
   const drag = slot?.tuning.dragToClose ?? OUTSIDE_ROW_DRAG;
-  const edge = useEdgeScroll(box, reorder === undefined ? undefined : slot?.dragScroll, reduceMotion === true, scrollX);
+  const edge = useEdgeScroll(box, reorder === undefined ? undefined : slot?.dragScroll, reduceMotion === true, x, scrollX);
   const exitSeconds = slot?.tuning.slide.closeExitSeconds ?? SLIDE_CLOSE_EXIT_SECONDS;
   // Read again when the exit ends: a lock that lands mid-exit must stop the close.
   const closableRef = React.useRef(true);
@@ -408,7 +419,7 @@ function DragToCloseBox({
     edge.track(pointer.current.x, x);
     // The losing axis is held at zero on every move: a locked box moves on one axis only. Upward y is not followed.
     if (axisLock.current === 'x') {
-      x.set(dx);
+      x.set(edge.cap(dx));
       y.set(0);
     } else {
       x.set(0);

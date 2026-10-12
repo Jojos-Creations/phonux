@@ -160,6 +160,7 @@ export function Workspace(props: WorkspaceProps): React.ReactElement {
             move over time, so top/bottom/right stay plain 'auto'. */}
         <motion.div
           ref={rowRef}
+          data-row-strip=""
           style={{ display: 'flex', gap: `${gap}px`, marginTop: 'auto', marginBottom: 'auto', marginRight: 'auto', ...(scrolls ? { flexShrink: 0 } : {}) }}
           animate={{ marginLeft: style.marginLeft }}
           transition={style.transition}

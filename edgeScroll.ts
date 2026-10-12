@@ -23,7 +23,7 @@ export function edgeScrollSpeed(i: { pointerX: number; left: number; right: numb
 
 /**
  * The delta one frame applies to `scrollLeft`: `speed` over `dtMs` (at most 50 ms), kept inside `[0, maxScroll]`.
- * `maxScroll` comes from the row numbers, never from `scrollWidth`, which a transformed descendant inflates.
+ * `maxScroll` comes from the row numbers, never from `scrollWidth`, which a transformed descendant can inflate.
  * @internal
  */
 export function edgeScrollStep(i: { speed: number; dtMs: number; scrollLeft: number; maxScroll: number }): number {

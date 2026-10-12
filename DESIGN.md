@@ -880,7 +880,9 @@ the panel's `scrollOnDrag`, `tuning.edgeScroll` and `animated` and the row numbe
 found by its `data-row-scroller` mark and never by computed overflow, so a hidden-overflow container is found too. A
 `requestAnimationFrame` loop then scrolls it while the pointer rests inside a band of `zonePx` at either edge of that
 container (`edgeScrollSpeed`, a linear ramp to `maxPxPerSec`; `edgeScrollStep`, one frame capped at 50 ms), and the
-claim's bound is the row numbers' `maxScroll`, never `scrollWidth`, which the box's own transform inflates. Under
+claim's bound is the row numbers' `maxScroll`, never `scrollWidth`, which a box drawn past the row's end would inflate. The
+box is therefore never drawn past it: its drawn offset is capped by how far it sits from the row's end (measured once when
+the drag locks), so the scrollable width, and the scrollbar a `free` row shows, stay as they were. Under
 reduced motion or `animated` false the row instead jumps to the next panel start every `reducedStepMs` the pointer
 stays in a band. The box is drawn at Motion's `x`, which the loop sets to the pointer offset, plus the scroll distance
 as the CSS `translate` property, which Motion's rewrites of `transform` never touch; the release reports the pointer
