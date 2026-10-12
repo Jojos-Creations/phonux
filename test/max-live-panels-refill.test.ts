@@ -6,10 +6,13 @@
 import { test, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
 import './support/jsdom-globals.js';
-import { createWorkspace } from '../index.js';
-import { cleanup } from './support/mount-harness.js';
+import * as React from 'react';
+import { act } from 'react';
+import { createWorkspace, useProvidePanels } from '../index.js';
+import type { PanelWindow, ProvidedPanels } from '../index.js';
+import { cleanup, mount, panelsInput } from './support/mount-harness.js';
 import { markerTemplate } from './support/workspace-row.js';
-import { capRig } from './support/cap-rig.js';
+import { capRig, rowOf } from './support/cap-rig.js';
 
 afterEach(cleanup);
 
@@ -102,4 +105,49 @@ test('returned panels land where they were and the panels already live keep thei
   await r.settle();
   assert.deepEqual(r.unpinnedLive().filter((n) => liveBefore.includes(n)), liveBefore);
   assert.equal(r.row().split(' ').indexOf('w2') < r.row().split(' ').indexOf('w3'), true, 'w2 returned in place, left of the live w3');
+});
+
+test('a close returns nothing, and a close after a raise returns nothing more', async () => {
+  const r = await capRig({ count: 5, width: 6000, cap: 2 });
+  assert.equal(r.row(), 'root w1* w2* w3* w4 w5');
+  r.turn(() => r.h.w4!.close());
+  await r.settle();
+  assert.deepEqual(r.parked(), ['w1', 'w2', 'w3'], 'a close alone returns nothing under manual');
+  raise(r, 3);
+  await r.settle();
+  assert.deepEqual(r.parked(), ['w1'], 'the raise to 3 fills the row to three (w5 plus w3, w2)');
+  r.turn(() => r.h.w5!.close());
+  await r.settle();
+  assert.deepEqual(r.parked(), ['w1'], 'and a later close returns nothing more: the raise is read once');
+});
+
+/** A hand-built row, which has no scroll entry and no settings: the walk a raise takes is the capacity-rise walk, bounded by the window. */
+function flatRow(width: number, cap: number): { row: () => string; raiseTo: (n: number) => void; seen: string[] } {
+  const entry = (id: string, over: Partial<PanelWindow> = {}): PanelWindow => ({ id, url: `https://${id}.example`, title: id, live: true, locked: false, view: 'web', collapsible: true, listed: true, ...over });
+  const entries = [entry('root', { url: '', title: 'History', locked: true, collapsible: false, listed: false }), ...['a', 'b', 'c', 'd', 'e', 'f'].map((id) => entry(id))];
+  let latest: ProvidedPanels | undefined;
+  const seen: string[] = [];
+  let setCap: (n: number) => void = () => undefined;
+  function Probe(): React.ReactElement {
+    const [n, set] = React.useState(cap);
+    setCap = set;
+    latest = useProvidePanels(panelsInput({ initialEntries: entries, containerWidth: width, tuning: { maxLivePanels: n } }));
+    seen.push(rowOf(latest.entries));
+    return React.createElement('output');
+  }
+  mount(React.createElement(Probe));
+  return { row: () => rowOf(latest!.entries), raiseTo: (n) => void act(() => setCap(n)), seen };
+}
+
+test('a row that does not scroll: a raise returns panels only up to what the window fits (3 at 1700 px), where the same raise in a scrolling row fills to the new value', async () => {
+  const flat = flatRow(1700, 1);
+  assert.equal(flat.row(), 'root a* b* c* d* e* f', 'a cap of 1 leaves one');
+  const before = flat.seen.length;
+  flat.raiseTo(9);
+  assert.equal(flat.row(), 'root a* b* c* d e f', 'the window fits three beside History, so only two come back');
+  assert.ok(flat.seen.slice(before).every((row) => row.split(' ').filter((w) => w !== 'root' && !w.endsWith('*')).length <= 3), 'no committed row held more than the window fits');
+  const scrolling = await capRig({ count: 6, width: 1700, cap: 1 });
+  raise(scrolling, 9);
+  await scrolling.settle();
+  assert.equal(scrolling.unpinnedLive().length, 6, 'control: a scrolling row ignores the window');
 });

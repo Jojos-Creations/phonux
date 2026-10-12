@@ -298,7 +298,7 @@ parked and a panel the cap parks is never mounted. While a cap is set that settl
 one the reconcile effect parks for the window one commit after the row lands, as before. The settle keeps the panels an
 action has just marked, as the effect does, and the effect records its parks once the row has committed, as it records
 any park for room: under `capacityReturn: 'manual'` each is held until shown or until `maxLivePanels` is raised (the capacity-parked ones are kept in park order beside the hold, so a raise tells them from a host hide), under 'auto' it goes on the stack and
-returns by `returnTieBreak`. A higher value, or `null`, returns what has room for it under 'auto' and nothing under 'manual'.
+returns by `returnTieBreak`. A higher value, or `null`, returns what has room for it under 'auto', and under 'manual' the panels the capacity parked, most recently parked first, up to the new value; never one the host hid.
 
 What the cap parks is chosen as a window-fit park chooses, with the pinned panels added to those a park leaves alone:
 `evictionRank` first, then `evictionOrder` from the panel acted on. Opening, showing or undoing a panel parks the unpinned
