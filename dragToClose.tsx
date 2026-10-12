@@ -11,7 +11,6 @@ import { edgeScrollSpeed, edgeScrollStep } from './edgeScroll.js';
 import { PanelSlotContext, type DragScroll } from './panelSlotContext.js';
 import { closestRowScroller, rowScrollerFor, type RowScroller, type ScrollClaim } from './rowScroller.js';
 import { stepTarget } from './scrollTargets.js';
-import { reorderStepsForOffset } from './panelWindow.js';
 import type { DragToCloseTuning } from './panelSettings.js';
 import { DIRECTION_LOCK_PX, DRAG_CLOSE_NUMBERS, SLIDE_CLOSE_EXIT_SECONDS, SNAP_BACK_SPRING } from './rowConstants.js';
 
@@ -367,10 +366,10 @@ function DragToCloseBox({
   // The row slides the neighbours aside while a horizontal drag is live; the preview ends with the drag and with the box.
   // The row keeps the dragged slot raised from the first publish until null, so null follows the spring home that ends the drag.
   const previewed = React.useRef<number | null | undefined>(null);
-  const preview = (steps: number | null) => {
-    if (previewed.current === steps) return;
-    previewed.current = steps;
-    slotRef.current?.previewReorder?.(steps);
+  const preview = (offset: number | null) => {
+    if (previewed.current === offset) return;
+    previewed.current = offset;
+    slotRef.current?.previewReorder?.(offset);
   };
   // A cleanup that React 19.2 also runs for a keyed child a reorder moves: forget what was published so a live drag republishes on its next frame.
   // A box that really unmounts needs no clear: the row ignores a dragged id it no longer renders.
@@ -445,7 +444,7 @@ function DragToCloseBox({
       const rowSlot = slotRef.current;
       // The pointer offset plus the row's scroll distance is what the release hands the hop rule.
       const total = (edge.held() ? edge.pointerOffset() : dx) + scrollX.get();
-      if (rowSlot?.draggable === true) preview(reorderStepsForOffset(total, rowSlot.neighborWidths, rowSlot.tuning.rowGap, rowSlot.tuning.hopFraction));
+      if (rowSlot?.draggable === true) preview(total);
     }
     // The losing axis is held at zero on every move: a locked box moves on one axis only. Upward y is not followed.
     if (axisLock.current === 'x') {

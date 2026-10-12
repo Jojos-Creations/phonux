@@ -305,7 +305,12 @@ export function PanelRow({
                 tuning: own,
                 dragScroll,
                 headerButtonSlots,
-                previewReorder: (steps) => setDragging((now) => (steps === null ? (now?.id === p.id ? null : now) : now?.id === p.id && now.steps === steps ? now : { id: p.id, steps })),
+                previewReorder: (offset) =>
+                  setDragging((now) => {
+                    if (offset === null) return now?.id === p.id ? null : now;
+                    const steps = reorderStepsForOffset(offset, neighborWidthsAt(p), gap, own.hopFraction);
+                    return now?.id === p.id && now.steps === steps ? now : { id: p.id, steps };
+                  }),
               }}
             >
               <PanelRowSlot

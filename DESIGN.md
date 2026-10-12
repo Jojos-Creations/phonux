@@ -877,19 +877,20 @@ horizontal never evaluates `shouldCloseOnRelease`, so residual vertical jitter c
 locked vertical, or one that never locks (a sub-threshold jiggle), runs the close logic unchanged. Without
 `reorder`, for a handle that only closes (History's bar, never a reorder source), only the vertical offset is followed.
 
-**Live reorder.** While a horizontal drag is held, the box publishes its hop count to the row (the slot's `previewReorder`),
-computed with `reorderStepsForOffset` over the release's own expression: the pointer offset (edge-held) or the drag offset,
-plus the row's scroll distance, never the drawn `x`, which `cap` may clamp. `PanelRow` keeps `{ id, steps }` as state and
-moves each panel the drop would cross by the DRAGGED panel's width plus the gap, left when dragged right and right when
-dragged left, as the `leftOffset` handed to its `PanelRowSlot` only: the row numbers, the rests a parked entry keeps and the
-order are untouched, so a refused or no-op drop leaves nothing to undo. The crossed ids and the widths `reorderStepsForOffset`
-reads come from one walk (`neighborsAt`), so the preview and the release cannot disagree. Nothing is published for a panel
-that is not `draggable`. The dragged slot is drawn at `zIndex` 3 from the first publish until the spring home ends (the box
-publishes `null` there, when a press stops the spring, on a revive and under reduced motion at the release). The release
-publishes 0 steps after `reorder.onDragEnd` returns, so the host's `move` calls and the cleared preview land in one React
-batch and the neighbours already rest where the new order puts them. This holds for a host that applies `move` synchronously
-(the `usePanelReorderSteps` + `move` loop of a row's view); a host that applies it later sees the neighbours slide back and
-forward once. A host with a different hop rule gets a preview that does not match its drop.
+**Live reorder.** While a horizontal drag is held, the box publishes its offset to the row (the slot's `previewReorder`): the
+release's own expression, the pointer offset (edge-held) or the drag offset, plus the row's scroll distance, never the drawn
+`x`, which `cap` may clamp. The box applies no hop rule itself; `PanelRow` turns the offset into hops with
+`reorderStepsForOffset`, keeps `{ id, steps }` as state (a frame that changes no hop count changes no state) and moves each
+panel the drop would cross by the DRAGGED panel's width plus the gap, left when dragged right and right when dragged left, as
+the `leftOffset` handed to its `PanelRowSlot` only: the row numbers, the rests a parked entry keeps and the order are untouched,
+so a refused or no-op drop leaves nothing to undo. The crossed ids and the widths `reorderStepsForOffset` reads come from one
+walk (`neighborsAt`), so the preview and the release cannot disagree. Nothing is published for a panel that is not `draggable`.
+The dragged slot is drawn at `zIndex` 3 from the first publish until the spring home ends (the box publishes `null` there, when
+a press stops the spring, on a revive and under reduced motion at the release). The release publishes offset 0 (no hops) after
+`reorder.onDragEnd` returns, so the host's `move` calls and the cleared preview land in one React batch and the neighbours
+already rest where the new order puts them. This holds for a host that applies `move` synchronously (the
+`usePanelReorderSteps` + `move` loop of a row's view); a host that applies it later sees the neighbours slide back and forward
+once. A host with a different hop rule gets a preview that does not match its drop.
 
 **Edge scrolling.** A mouse or pen drag that locks horizontal in a scrolling row (the slot's `dragScroll`, built from
 the panel's `scrollOnDrag`, `tuning.edgeScroll` and `animated` and the row numbers) takes the row scroller's claim,
