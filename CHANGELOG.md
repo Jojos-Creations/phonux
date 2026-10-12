@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+### Fixed
+
+- Adding a panel whose template declares `headerButtons` after the row is mounted no longer makes React log "The result of
+  getSnapshot should be cached": `getState()` returns the same object until the panel's state changes, also before its first commit.
+
 ### Changed
 
 - A host that is not a browser can use the library without stubbing browser concepts. `url` is optional on
@@ -21,6 +26,9 @@
 
 ### Added
 
+- `PanelTemplate.footer`: a component, given the same props as `view`, that every panel made from the template shows at the
+  bottom of its `PanelFrame`, inside the frame and below the scrolling content. `PanelFooter` draws it; `PanelFrame`
+  does by default and `footer={false}` leaves it out for a view that renders `PanelFooter` itself.
 - `PhonuxLabels`: English defaults for the library's visible strings, replaced through `PanelsInput.labels` (the title of
   a panel `create()` opens), `Host.labels` (the unregistered-view placeholder and the `PanelHeaderRow` empty title) and
   `PhoneDetectPromptProps.labels` (its text and accessible names).

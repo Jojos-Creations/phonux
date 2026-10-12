@@ -1486,6 +1486,18 @@ hidden by a predicate or its slot is removed, the panel's last one included, foc
 the panel now at that index, else the previous one's. Focus is never left on `body`. Whether a real browser keeps focus across a
 DOM move is for the real-layout gate.
 
+## Panel footer
+
+A template declares `footer`, a component given the same `panel`, `handle` and `manager` props as `view`, and every panel made
+from it shows the footer at the bottom of its `PanelFrame`: a box after the scroll box in the frame's column, which does not
+shrink, so content scrolls above it, and which the frame's rounded corner clips. It is a template field and not a setting:
+header buttons are settings because a person or an instance may change them, and a footer has no layer to cascade.
+
+The view adapter (`templateViewFor`) puts the footer element in a context, and `PanelFooter` reads it. A `PanelFrame` outside
+a template view, or of a template with no footer, draws nothing. A frame nested in another draws the footer in each; a view
+that wants one passes `footer={false}` to the inner frame. A footer that throws while rendering is hidden by its own boundary,
+which tells `console.error` once; the rest of the panel stays. A window-wide bottom bar is a different feature and is not built.
+
 ## History, releases and development
 
 The library began as a folder inside phonux-app and was extracted with `git filter-repo`, renaming every path the folder ever had,

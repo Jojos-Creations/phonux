@@ -11,6 +11,7 @@ import { type Theme } from '@mui/material/styles';
 import MoreHorizIcon from '@mui/icons-material/MoreHoriz';
 import { useHost, useOptionalHost, type PanelSize } from './hostApi.js';
 import { resolveLabels } from './labels.js';
+import { PanelFooter } from './panelFooter.js';
 
 /** The props of `PanelFrame`: every `Box` prop except `children`, plus `expanded` and `size`. @public */
 export interface PanelFrameProps extends Omit<BoxProps, 'children'> {
@@ -20,6 +21,8 @@ export interface PanelFrameProps extends Omit<BoxProps, 'children'> {
   expanded?: boolean;
   /** This panel's own size instead of the shared useHost().device.size. Omitted: width and height come from device.size, read live -- see DESIGN.md. `height: 'fill'` renders as `100%` rather than a pixel value. */
   size?: PanelSize;
+  /** `false` keeps the footer the panel's template declares out of this frame, for a view that draws `PanelFooter` itself. Default: drawn below the content. */
+  footer?: boolean;
 }
 
 /** The classic (non-overlay) scrollbar this app draws for itself, in px. */
@@ -85,7 +88,7 @@ export const panelFrameBareSx = {
  * @public
  */
 const PanelFrame = React.forwardRef<HTMLDivElement, PanelFrameProps>(function PanelFrame(
-  { children, expanded, size, sx, ...rest },
+  { children, expanded, size, footer = true, sx, ...rest },
   ref,
 ) {
   const deviceSize = useHost().device.size;
@@ -123,6 +126,7 @@ const PanelFrame = React.forwardRef<HTMLDivElement, PanelFrameProps>(function Pa
       >
         {children}
       </Box>
+      {footer && <PanelFooter />}
     </Box>
   );
 });

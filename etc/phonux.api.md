@@ -338,6 +338,9 @@ export interface PanelAnchor {
 export const panelCornerRadiusPx: (theme: Theme) => number;
 
 // @public
+export function PanelFooter(): React_2.ReactElement | null;
+
+// @public
 export const PanelFrame: React_2.ForwardRefExoticComponent<Omit<PanelFrameProps, "ref"> & React_2.RefAttributes<HTMLDivElement>>;
 
 // @public
@@ -355,6 +358,7 @@ export const panelFrameBareSx: {
 export interface PanelFrameProps extends Omit<BoxProps, 'children'> {
     children: React_2.ReactNode;
     expanded?: boolean;
+    footer?: boolean;
     size?: PanelSize;
 }
 
@@ -685,6 +689,11 @@ export interface PanelSummary<P = JsonValue> {
 
 // @public
 export interface PanelTemplate<P extends JsonValue = JsonValue> {
+    readonly footer?: React_2.ComponentType<{
+        panel: PanelSummary<P>;
+        handle: ViewHandle<P>;
+        manager: PanelReader;
+    }>;
     readonly id: string;
     readonly params?: P;
     readonly settings?: PanelSettings;
