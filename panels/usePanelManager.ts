@@ -13,7 +13,7 @@ import type { FormFactor } from '../hostApi.js';
 import { computeRowLayout } from '../panelRowLayout.js';
 import { computeRowNumbers } from '../rowNumbers.js';
 import { placePanel, reportNotes } from '../panelPlacement.js';
-import { applyPinChange, landPanel, pinHalf, withoutDeferral, type PinApplied, type PinChange, type PinEnv } from '../panelPin.js';
+import { applyPinChange, landPanel, pinHalf, pinnedIds, withoutDeferral, type PinApplied, type PinChange, type PinEnv } from '../panelPin.js';
 import { resetEntries, type ResetEnv } from '../panelReset.js';
 import type { AddPlacement, PanelSettingsResolution } from '../panelSettings.js';
 import { isPresent } from '../panelRowEntry.js';
@@ -87,7 +87,7 @@ export interface UsePanelManagerResult {
   /**
    * The row gesture: 'right' brings the first parked panel after the rightmost live one and parks the LEFTMOST live
    * one ('left' mirrors), then parks more on that side until the row settles, never an acted-on panel. Does nothing,
-   * with no `setPanels`, when nothing is parked on that side.
+   * with no `setPanels`, when nothing is parked on that side or when that panel's `revealOnScroll` is 'never'.
    */
   scrollRow: (direction: 'left' | 'right') => void;
   /** Moves `id` one row-slot toward `direction`; see `movePanel` for the no-op contract. `record` false (a call from code) leaves the person's arrangement, `overrides`, as it was. True when the move changes this render's list. */
@@ -156,7 +156,7 @@ export type Hold = 'sticky' | { readonly freeAfterPark: number };
 export interface PanelManagerOptions {
   /** Receives each note the engine raises; whatever it throws is swallowed. */
   onNote?: (note: SettingNote) => void;
-  /** Only `rowGap`, `returnTieBreak` and `dropTieBreak` are read here. */
+  /** Only `rowGap`, `returnTieBreak`, `dropTieBreak` and `maxLivePanels` are read here. */
   tuning?: WorkspaceTuning;
   /** What the panel's settings resolve to over the layers the workspace holds with the person's `parkable` set; without it no pin change can be applied. */
   resolveWith?: PinEnv['resolveWith'];
@@ -172,6 +172,8 @@ type ParkCause = { kind: 'capacity' } | { kind: 'hide'; stickiness: 'sticky' | '
 /** Live and parkable for room: the panels whose count and widths the capacity governs. */
 const isParkLive = (p: PanelWindow): boolean => p.live && parksForRoom(p);
 
+const NO_IDS: ReadonlySet<string> = new Set();
+
 export function usePanelManager(
   panels: PanelWindow[],
   setPanels: Dispatch<SetStateAction<PanelWindow[]>>,
@@ -185,16 +187,20 @@ export function usePanelManager(
   const returnTieBreak: NonNullable<WorkspaceTuning['returnTieBreak']> = options?.tuning?.returnTieBreak ?? RETURN_TIE_BREAK;
   const dropTieBreak: NonNullable<WorkspaceTuning['dropTieBreak']> = options?.tuning?.dropTieBreak ?? DROP_TIE_BREAK;
   const gap = options?.tuning?.rowGap ?? ROW_GAP;
+  const maxLive = options?.tuning?.maxLivePanels ?? null;
   /**
-   * What prices `row`: the width each panel is drawn at, how many parkable panels with these widths may be live
-   * beside the row's reserved ones, and whether a live set settles. A scroll panel never parks, so its width comes off
-   * the budget instead of counting against the cap.
+   * What prices `row`: the width each panel is drawn at, how many parkable panels may be live beside the row's
+   * reserved ones, whether a live set settles, and which panels the cap leaves alone. A scroll panel never parks, so
+   * its width comes off the budget instead of counting against the capacity.
    */
   const pricing = (row: readonly PanelWindow[]) => {
     const numbers = computeRowNumbers({ entries: row, phoneWidth, containerWidth, gap, fixedItemCount: fixedColumnCount });
     // Only a row with a scroll panel prices its reserved widths one by one; any other keeps the fixed column count the host passed.
     const reservedWidths = row.some((p) => isPresent(p) && !parksForRoom(p) && p.collapsible) ? numbers.reservedWidths : undefined;
-    const capacityFor = (liveWidths: readonly number[]): number => {
+    // Parked ones included, so a pinned panel that returns is still exempt. Empty without a cap: nothing then reads a pin.
+    const pinned = maxLive === null ? NO_IDS : pinnedIds(row, rootId);
+    const widthOf = (p: PanelWindow): number => panelWidthOf(p, phoneWidth, numbers.maxLiveWidth);
+    const fitCapacityFor = (liveWidths: readonly number[]): number => {
       // `containerWidth === 0` means unmeasured (the first commit, and every jsdom test that never calls
       // measure()): null means no cap and no reconcile, never "zero panels fit".
       const fitCount =
@@ -206,13 +212,22 @@ export function usePanelManager(
       // already floors at fixedColumnCount + 1, so this bites only when the fixed columns alone reach effectiveMax).
       return effectiveMax === Number.POSITIVE_INFINITY ? Number.POSITIVE_INFINITY : Math.max(1, effectiveMax - fixedColumnCount);
     };
-    const widthOf = (p: PanelWindow): number => panelWidthOf(p, phoneWidth, numbers.maxLiveWidth);
+    /**
+     * How many panels `set` (live parkable panels, row order) may number: the window's fit, priced from `fitWidths`
+     * (`set`'s own widths unless a caller prices another set), and the cap plus the pinned panels of `set`, which it does
+     * not count. A scrolling row under a cap ignores the window: its strip scrolls past it.
+     */
+    const capacityFor = (set: readonly PanelWindow[], fitWidths: readonly number[] = set.map(widthOf)): number => {
+      if (maxLive === null) return fitCapacityFor(fitWidths);
+      const fit = numbers.rowScroll ? Number.POSITIVE_INFINITY : fitCapacityFor(fitWidths);
+      return Math.min(fit, maxLive + set.filter((p) => pinned.has(p.id)).length);
+    };
     /** Whether `set` (live parkable panels, row order) can stay live as it is: the one test both reconcile branches settle against. */
-    const settles = (set: readonly PanelWindow[]): boolean => set.length <= capacityFor(set.map(widthOf));
-    return { widthOf, capacityFor, settles };
+    const settles = (set: readonly PanelWindow[]): boolean => set.length <= capacityFor(set);
+    return { widthOf, capacityFor, settles, pinned };
   };
-  const { widthOf, capacityFor, settles } = pricing(panels);
-  const capacity = capacityFor(panels.filter(isParkLive).map(widthOf));
+  const { widthOf, capacityFor, settles, pinned } = pricing(panels);
+  const capacity = capacityFor(panels.filter(isParkLive));
 
   /**
    * Parked ids in park order, most recent last. A ref, not state: only handlers and the reconcile effect below
@@ -229,7 +244,8 @@ export function usePanelManager(
   const markKeepLive = (id: string): void => {
     keepLiveRef.current = new Map(keepLiveRef.current).set(id, panels);
   };
-  const keptIds = (): ReadonlySet<string> => new Set(keepLiveRef.current.keys());
+  /** Every id a park must leave alone: those just acted on, and under a cap the pinned ones. */
+  const keptIds = (): ReadonlySet<string> => new Set([...keepLiveRef.current.keys(), ...pinned]);
   /** Tiers resizePanel queued on `seen` that have not reached `panels` yet, so a later action in the same handler can price them. */
   const pendingTiersRef = useRef<{ seen: PanelWindow[] | null; tiers: ReadonlyMap<string, FormFactor> }>({ seen: null, tiers: new Map() });
   /** `row` (read in this render) with those tiers applied. */
@@ -242,7 +258,7 @@ export function usePanelManager(
     const live = next.filter(isParkLive);
     const priced = pricing(next);
     if (priced.settles(live)) return next;
-    const parked = new Set(fewestParksThatSettle(live, priced.widthOf, priced.settles, keep, dropTieBreak));
+    const parked = new Set(fewestParksThatSettle(live, priced.widthOf, priced.settles, [...keep, ...priced.pinned], dropTieBreak));
     return parked.size === 0 ? next : next.map((p) => (parked.has(p.id) ? { ...p, live: false } : p));
   };
   /** Nonzero inside this hook's own flushSync: a reconcile run there is mid-handler, before later actions land. */
@@ -369,7 +385,7 @@ export function usePanelManager(
   };
 
   /** Free slots a row leaves for `live` (its live collapsible panels): capacity priced from their own widths, less their count. Infinity while unmeasured. */
-  const freeSlots = (live: readonly PanelWindow[]): number => capacityFor(live.map(widthOf)) - live.length;
+  const freeSlots = (live: readonly PanelWindow[]): number => capacityFor(live) - live.length;
   const liveParkable = (row: readonly PanelWindow[]): PanelWindow[] => row.filter(isParkLive);
   /** Whether an 'until-room' hold still keeps `id` parked beside `base`, the live set it would join. */
   const heldBack = (id: string, base: readonly PanelWindow[]): boolean => {
@@ -484,7 +500,7 @@ export function usePanelManager(
     const keep = [...keptIds()];
     const settledApply = (prev: PanelWindow[]): PanelWindow[] => settledKeeping(apply(prev), keep);
     // The new panel may itself be a reserved one, which takes room from the parkable panels already live.
-    const capacityAfter = targetId === undefined ? capacity : pricing(afterInsert).capacityFor(panels.filter(isParkLive).map(widthOf));
+    const capacityAfter = targetId === undefined ? capacity : pricing(afterInsert).capacityFor(afterInsert.filter(isParkLive), panels.filter(isParkLive).map(widthOf));
     if (targetId === undefined || capacityAfter === Number.POSITIVE_INFINITY) {
       setPanels(settledApply);
       return;
@@ -524,6 +540,14 @@ export function usePanelManager(
     setPanels((current) => settledKeeping(apply(current).map((p) => (parkedSet.has(p.id) ? { ...p, live: false } : p)), keep));
   };
 
+  /** The capacity `promoteToLive` judges `target` going live against in `row`: this render's, or under a cap the one that counts `target` if the cap counts it. */
+  const capacityShowing = (row: PanelWindow[], target: PanelWindow): number => {
+    if (maxLive === null) return capacity;
+    const priced = pricing(row);
+    const live = row.filter(isParkLive);
+    return priced.capacityFor(parksForRoom(target) ? [...live, target] : live, live.map(priced.widthOf));
+  };
+
   /**
    * Clicking ANY row -- live or parked alike -- activates it (promoteToLive's own doc
    * comment has the full "make/keep it live, preserve array order" spec).
@@ -541,7 +565,7 @@ export function usePanelManager(
     const showAt = effective(target).placeOnShow;
     const landed = landOn(from, id, showAt, pin);
     const before = showAt === 'in-place' && !landed.pinned ? from : landed.row;
-    const result = before.some((p) => p.id === id && p.live) ? before : promoteToLive(before, id, capacity, keptIds());
+    const result = before.some((p) => p.id === id && p.live) ? before : promoteToLive(before, id, capacityShowing(before, target), keptIds());
     if (!result) return;
     reportNotes(options?.onNote, landed.notes);
     if (showAt !== 'in-place' || landed.pinned) setEnterSide(id, sideOfLiveRange(result, id));
@@ -565,7 +589,7 @@ export function usePanelManager(
   /** See `UsePanelManagerResult.scrollRow`'s own doc comment. */
   const scrollRow = (direction: 'left' | 'right'): void => {
     const reveal = direction === 'right' ? firstParkedAfter(panels, rightmostLiveIndex(panels)) : lastParkedBefore(panels, leftmostLiveIndex(panels));
-    if (!reveal) return;
+    if (!reveal || effective(reveal).revealOnScroll === 'never') return;
     const kept = keptIds();
     markKeepLive(reveal.id);
     // A resize earlier in this handler is priced at its new tier, or the row committed below could overflow. A pin change the panel waits with lands first, so the gesture parks against the row it makes.
@@ -593,14 +617,21 @@ export function usePanelManager(
     setPanels((prev) => (waiting ? landOn(flip(prev), reveal.id, 'in-place').row : flip(prev)));
   };
 
+  /** Pinned follows position, so under a cap a move that changes the row can change whether `id` counts: the park it causes leaves `id` live, as a pin does. */
+  const keepMoved = (id: string, changes: boolean): void => {
+    if (changes && maxLive !== null) markKeepLive(id);
+  };
+
   /** See `UsePanelManagerResult.reorderPanel`'s own doc comment. */
   const reorderPanel = (id: string, direction: 'left' | 'right', record = true): boolean => {
+    const changes = movePanel(panels, id, direction, rootId) !== panels;
+    keepMoved(id, changes);
     setPanels((prev) => {
       const moved = movePanel(prev, id, direction, rootId);
       // A drag settles every panel's place for the person, not only the dragged one's.
       return moved === prev || !record ? moved : recordOverride(moved, 'anchor', moved.map((p) => p.id), rootId);
     });
-    return movePanel(panels, id, direction, rootId) !== panels;
+    return changes;
   };
 
   /** See `UsePanelManagerResult.placeAt`'s own doc comment. */
@@ -611,12 +642,14 @@ export function usePanelManager(
       a.length === b.length && a.every((p, k) => p.id === b[k]!.id && p.anchor?.panel === b[k]!.anchor?.panel && p.anchor?.position === b[k]!.anchor?.position && p.anchor?.priority === b[k]!.anchor?.priority);
     const placed = placePanel(panels, id, value, placing(target));
     reportNotes(options?.onNote, placed.notes);
+    const changes = !sameRow(panels, placed.row);
+    keepMoved(id, changes);
     setPanels((prev) => {
       const next = placePanel(prev, id, value, placing(target)).row;
       if (sameRow(prev, next)) return prev;
       return record ? recordOverride(next, 'anchor', next.map((p) => p.id), rootId) : next;
     });
-    return !sameRow(panels, placed.row);
+    return changes;
   };
 
   /** See `UsePanelManagerResult.resizePanel`'s own doc comment. */
@@ -677,7 +710,7 @@ export function usePanelManager(
     // An 'until-room' hold taken before the first measurement took no threshold; it takes the row's as measured now.
     for (const [id, hold] of heldRef.current) if (typeof hold === 'object' && hold.freeAfterPark === Number.POSITIVE_INFINITY) writeHold(id, { freeAfterPark: capacity - live.length });
     if (live.length > capacity) {
-      const toPark = fewestParksThatSettle(live, widthOf, settles, keepIds, dropTieBreak);
+      const toPark = fewestParksThatSettle(live, widthOf, settles, [...keepIds, ...pinned], dropTieBreak);
       if (toPark.length === 0) return;
       recordPark(toPark, { kind: 'capacity' });
       const parkedSet = new Set(toPark);

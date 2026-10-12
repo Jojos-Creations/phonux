@@ -938,6 +938,7 @@ export type ResolvedWorkspaceTuning = ResolvedPanelTuning & {
         panel: PanelId;
     };
     chrome: ChromeTuning;
+    maxLivePanels: number | null;
 };
 
 // @public
@@ -1389,6 +1390,7 @@ export type WorkspaceTuning = PanelTuning & {
     chrome?: {
         [K in keyof ChromeTuning]?: ChromeTuning[K];
     };
+    maxLivePanels?: number | null;
 };
 
 // (No @packageDocumentation comment for this package)

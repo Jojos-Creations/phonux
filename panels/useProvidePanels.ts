@@ -100,7 +100,7 @@ export interface PanelsInput {
   storage?: WorkspaceStorage;
   /** Called with each note the engine raises while it works (a runtime diagnostic, never an error): whatever it throws is swallowed. */
   onNote?: (note: SettingNote) => void;
-  /** The workspace's tuning leaves; each one left out, or out of range, takes the library default. The engine reads `rowGap`, `saveQuietMs`, `gestureLockMs`, `returnTieBreak` and `dropTieBreak` here; the row reads `dragToClose`, `slide` and `hopFraction` through the Workspace given the same value. */
+  /** The workspace's tuning leaves; each one left out, or out of range, takes the library default. The engine reads `rowGap`, `saveQuietMs`, `gestureLockMs`, `returnTieBreak`, `dropTieBreak` and `maxLivePanels` here; the row reads `dragToClose`, `slide` and `hopFraction` through the Workspace given the same value. */
   tuning?: WorkspaceTuning;
   /**
    * The workspace's panel settings (every key except `tuning`). Given, a panel made by `create()` and a panel restored from
@@ -390,7 +390,7 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
     gate,
   } = usePanelManager(panels, setPanels, i.phoneWidth, i.containerWidth, fixedViewCount, rootId, {
     onNote: i.onNote,
-    tuning: { rowGap: tuning.rowGap, returnTieBreak: timing.returnTieBreak, dropTieBreak: timing.dropTieBreak },
+    tuning: { rowGap: tuning.rowGap, returnTieBreak: timing.returnTieBreak, dropTieBreak: timing.dropTieBreak, maxLivePanels: tuning.maxLivePanels },
     ...(core?.order !== undefined ? { order: core.order } : {}),
     ...(core !== undefined ? { resolveWith: core.resolveWith, resolveDefaults: core.resolveDefaults } : {}),
   });

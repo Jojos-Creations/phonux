@@ -275,3 +275,48 @@ test('flipping the mode at run time keeps the header node and its focus', async 
   assert.equal(document.activeElement, button, 'focus stayed');
   assert.equal(header.style.opacity, '', 'always leaves no inline opacity');
 });
+
+test('a dragged panel keeps its chrome even when it is not the active one', async () => {
+  const m = mountRow(entries(3), 3000, hoverMode, reduced);
+  await advanceFrames(2000);
+  await drag(m.container.querySelector('[data-grab="c2"]')!, { dx: 0, dy: 24, steps: 6, hold: 8, keepDown: true });
+  act(() => setActive(null));
+  assert.equal(opacityOf(part(m, 'c2', 'header')), '1', 'the chrome stays while the drag holds');
+  assert.equal(opacityOf(part(m, 'c1', 'header')), '0');
+  await release(0, 24);
+  await advanceFrames(3000);
+  assert.equal(opacityOf(part(m, 'c2', 'header')), '0', 'and goes when the drag settles');
+});
+
+test('on a device that cannot hover (hover: none) the chrome is always shown', async () => {
+  const original = window.matchMedia;
+  Object.defineProperty(window, 'matchMedia', {
+    configurable: true,
+    value: (query: string) => ({ media: query, matches: query === '(hover: none)', addEventListener: () => undefined, removeEventListener: () => undefined }),
+  });
+  try {
+    const m = mountRow(entries(2), 3000, hoverMode, reduced);
+    await advanceFrames(2000);
+    for (const which of ['header', 'grab-bar', 'footer'] as const) assert.equal(opacityOf(part(m, 'c1', which)), '1', which);
+  } finally {
+    Object.defineProperty(window, 'matchMedia', { configurable: true, value: original });
+  }
+});
+
+test('focus moving into an iframe inside a panel makes that panel active (the page sees only its window blur)', async () => {
+  const m = mountRow(entries(3), 3000);
+  await advanceFrames(2000);
+  const frame = document.createElement('iframe');
+  m.container.querySelector('[data-body="c2"]')!.parentElement!.appendChild(frame);
+  // A browser fires no focus event on the iframe element in the page, so the test reports only what the page can see.
+  Object.defineProperty(document, 'activeElement', { configurable: true, get: () => frame });
+  try {
+    assert.equal(activeSeen, null, 'positive control: nothing is active yet');
+    act(() => void window.dispatchEvent(new Event('blur')));
+    assert.equal(activeSeen, 'c2');
+    assert.equal(rootOf(m, 'c2').hasAttribute(ACTIVE_ATTRIBUTE), true);
+    assert.equal(rootOf(m, 'c1').hasAttribute(ACTIVE_ATTRIBUTE), false);
+  } finally {
+    delete (document as unknown as Record<string, unknown>).activeElement;
+  }
+});

@@ -165,7 +165,7 @@ export type PinningWhenNotLive =
 /** Which layer a resolved value came from. A rule overrides the rest and 'derived' marks a value filled from another resolved field. @public */
 export type SourceLayer = 'library' | 'workspace' | 'template' | 'host' | 'instance' | 'user' | 'derived' | 'forced';
 
-/** The 49 settings whose value is one plain member; the catalog's other names are headerButtons and the thirteen tuning leaves. @public */
+/** The 49 settings whose value is one plain member; the catalog's other names are headerButtons and the fourteen tuning leaves. @public */
 export type SettingValues = {
   /** Whether the panel can be closed; false removes the drag-down close and makes `close()` answer not-closable. */
   closable: boolean;
@@ -356,7 +356,7 @@ export type PanelTuning = {
   edgeScroll?: { [K in keyof EdgeScrollTuning]?: EdgeScrollTuning[K] };
 };
 
-/** The per-panel leaves plus the nine that only the workspace sets. @public */
+/** The per-panel leaves plus the ten that only the workspace sets. @public */
 export type WorkspaceTuning = PanelTuning & {
   /** The gap between panels in px, an integer from 0 to 200. */
   rowGap?: number;
@@ -376,6 +376,12 @@ export type WorkspaceTuning = PanelTuning & {
   initialScroll?: 'start' | 'end' | 'root' | { panel: PanelId };
   /** Overrides for the chrome numbers: when header, grab bar and footer show, and the fade and slide timing. */
   chrome?: { [K in keyof ChromeTuning]?: ChromeTuning[K] };
+  /**
+   * The most unpinned parkable panels the row keeps live, an integer of 1 or more, or `null` for no cap. Panels beyond
+   * it park, the leftmost first; a pinned panel neither counts nor parks for it. In a row that scrolls, the window width
+   * no longer decides how many are live.
+   */
+  maxLivePanels?: number | null;
 };
 
 /** The per-panel tuning leaves after resolving, every one present. @public */
@@ -410,6 +416,8 @@ export type ResolvedWorkspaceTuning = ResolvedPanelTuning & {
   initialScroll: 'start' | 'end' | 'root' | { panel: PanelId };
   /** The chrome numbers: when header, grab bar and footer show, and the fade and slide timing. */
   chrome: ChromeTuning;
+  /** The most unpinned parkable panels the row keeps live, or `null` for no cap. */
+  maxLivePanels: number | null;
 };
 
 /** Deeply frozen; every key is present after a resolve except `title`. @public */
@@ -1291,6 +1299,17 @@ const CATALOG_ROWS: readonly SettingDescriptor[] = [
     ownerEntry: 'phonux-engine-tuning-look-settings',
     configure: { cls: 'NOW', doors: ['tuning'] },
   },
+  {
+    name: 'tuning.maxLivePanels',
+    group: 'tuning',
+    values: 'integer >= 1, or null for no cap (workspace only)',
+    default: 'null (no cap)',
+    scope: 'workspace',
+    viewSettable: false,
+    exists: 'new',
+    ownerEntry: 'phonux-max-live-panels',
+    configure: { cls: 'NOW', doors: ['tuning'] },
+  },
 ];
 
 /**
@@ -1400,6 +1419,7 @@ export const LIBRARY_TUNING_DEFAULTS: ResolvedWorkspaceTuning = freezeClone({
   rowGesture: ROW_GESTURE as ResolvedWorkspaceTuning['rowGesture'],
   initialScroll: INITIAL_SCROLL as ResolvedWorkspaceTuning['initialScroll'],
   chrome: { ...CHROME },
+  maxLivePanels: null,
 });
 
 // ---------------------------------------------------------------------------
@@ -1657,7 +1677,7 @@ const TUNING_MEMBER_CHECKS: Record<'dragToClose' | 'slide' | 'edgeScroll' | 'chr
   },
 };
 
-const TUNING_SCALAR_CHECKS: Record<'hopFraction' | 'rowGap' | 'saveQuietMs' | 'gestureLockMs' | 'gestureQuietMs' | 'returnTieBreak' | 'dropTieBreak' | 'rowGesture' | 'initialScroll', Check> = {
+const TUNING_SCALAR_CHECKS: Record<'hopFraction' | 'rowGap' | 'saveQuietMs' | 'gestureLockMs' | 'gestureQuietMs' | 'returnTieBreak' | 'dropTieBreak' | 'rowGesture' | 'initialScroll' | 'maxLivePanels', Check> = {
   hopFraction: num(0, 1, { minOpen: true }),
   rowGap: integer(0, 200),
   saveQuietMs: integer(0),
@@ -1671,6 +1691,7 @@ const TUNING_SCALAR_CHECKS: Record<'hopFraction' | 'rowGap' | 'saveQuietMs' | 'g
     if (isPlain(v) && Object.keys(v).length === 1 && nonEmptyString(v.panel)) return undefined;
     return "expected 'start', 'end', 'root' or { panel: a non-empty id }";
   },
+  maxLivePanels: (v) => (v === null ? undefined : integer(1)(v)),
 };
 
 const isObjectLeaf = (leaf: string): leaf is keyof typeof TUNING_MEMBER_CHECKS => Object.hasOwn(TUNING_MEMBER_CHECKS, leaf);

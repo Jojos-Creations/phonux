@@ -1809,6 +1809,30 @@ test('matrix:tuning.chrome', async () => {
   assert.equal(r.ws.tuning.chrome.fadeMs, 60, 'a refused patch left the value');
 });
 
+test('matrix:tuning.maxLivePanels', async () => {
+  probe('tuning.maxLivePanels');
+  await wrongScopeInEveryStatus({ tuning: { maxLivePanels: 2 } }, 'tuning.maxLivePanels');
+  const r = await matrixRig({ ids: ['a', 'b', 'c', 'd'], park: true, width: 4000 });
+  await r.settle();
+  assert.equal(r.live().join(' '), 'root a b c d', 'before: no cap, and the window holds every panel');
+  assert.deepEqual({ ...done(r.turn(() => r.ws.panels.configureTuning({ maxLivePanels: 2 }))) }, { ok: true, changed: true, shown: false, now: ['tuning.maxLivePanels'], later: [], shadowed: [], notes: [] });
+  await r.settle();
+  assert.equal(r.live().join(' '), 'root c d', 'the two leftmost park at this commit');
+  assert.equal(r.ws.tuning.maxLivePanels, 2);
+  for (const bad of [0, -1, 2.5, Number.NaN, Number.POSITIVE_INFINITY, '3', true]) {
+    assert.equal(thrownCode(() => r.ws.panels.configureTuning({ maxLivePanels: bad } as never)), 'invalid-settings', `${String(bad)} throws`);
+  }
+  assert.equal(r.ws.tuning.maxLivePanels, 2, 'a refused value changes nothing');
+  assert.equal(r.live().join(' '), 'root c d');
+  done(r.turn(() => r.ws.panels.configureTuning({ maxLivePanels: null })));
+  await r.settle();
+  assert.equal(r.ws.tuning.maxLivePanels, null);
+  assert.equal(r.live().join(' '), 'root a b c d', 'null removes the cap and, under capacityReturn auto, the parked pair returns');
+  const unmeasured = await matrixRig({ ids: ['a', 'b', 'c'], park: true, width: 0 });
+  done(unmeasured.turn(() => unmeasured.ws.panels.configureTuning({ maxLivePanels: 1 })));
+  assert.deepEqual([unmeasured.ws.tuning.maxLivePanels, unmeasured.live().join(' ')], [1, 'root c'], 'unmeasured: applies at once');
+});
+
 test('the class table ran every cell: executed cells equal 4 classes by 9 statuses, 36', () => {
   assert.equal(CLASSES.length * STATUSES.length, 36);
   assert.equal(cellsExecuted().size, 36);
@@ -1816,11 +1840,14 @@ test('the class table ran every cell: executed cells equal 4 classes by 9 status
   assert.equal(Object.values(CLASS_TABLE).reduce((sum, row) => sum + Object.keys(row).length, 0), 36);
 });
 
-test('the probes ran every catalog name once: 63 executed, equal to the catalog and to the design copy of it', () => {
+// The design copy is the record of rev 7 and stays as it was written; a key a later plan adds is listed here beside it.
+const ADDED_AFTER_DESIGN: readonly string[] = ['tuning.maxLivePanels', 'tuning.chrome'];
+
+test('the probes ran every catalog name once: 64 executed, equal to the catalog and to the design copy of it plus the names added after it', () => {
   const design = JSON.parse(readFileSync(new URL('../design/0.2-rev7/DESIGN-phonux-0.2-rev7-catalog.json', import.meta.url), 'utf8')) as { name: string }[];
-  assert.equal(design.length, 63);
-  assert.equal(CATALOG_NAMES.length, 63);
-  assert.equal(probesExecuted().size, 63);
+  assert.equal(design.length, 62);
+  assert.equal(CATALOG_NAMES.length, 64);
+  assert.equal(probesExecuted().size, 64);
   assert.deepEqual([...probesExecuted()].sort(), [...CATALOG_NAMES].sort());
-  assert.deepEqual([...probesExecuted()].sort(), design.map((d) => d.name).sort());
+  assert.deepEqual([...probesExecuted()].sort(), [...design.map((d) => d.name), ...ADDED_AFTER_DESIGN].sort());
 });

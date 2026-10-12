@@ -3,7 +3,7 @@
  * Workspace so two workspaces share nothing, kept out of the manager's snapshot and out of storage.
  */
 import * as React from 'react';
-import { animate, useReducedMotionConfig } from 'motion/react';
+import { animate, useReducedMotion, useReducedMotionConfig } from 'motion/react';
 import { LIBRARY_TUNING_DEFAULTS, type PanelId } from './panelSettings.js';
 import { PanelSlotContext } from './panelSlotContext.js';
 
@@ -159,7 +159,10 @@ export function useChromeVisibility(): { visible: boolean; handlers: ChromeRootH
 export function useChromeFade(visible: boolean): (node: HTMLElement | null) => void {
   const slot = React.useContext(PanelSlotContext);
   const { mode, fadeMs } = slot?.tuning.chrome ?? LIBRARY_TUNING_DEFAULTS.chrome;
-  const reduced = useReducedMotionConfig() === true;
+  // The system preference counts whatever the app's MotionConfig says, as it does for the row's own slides.
+  const configReduced = useReducedMotionConfig() === true;
+  const systemReduced = useReducedMotion() === true;
+  const reduced = configReduced || systemReduced;
   const instant = fadeMs === 0 || reduced || slot?.animated === false;
   const target = mode === 'always' || visible ? 1 : 0;
   const node = React.useRef<HTMLElement | null>(null);
