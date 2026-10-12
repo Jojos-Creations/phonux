@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+### Fixed
+
+- Adding a panel whose template declares `headerButtons` after the row is mounted no longer makes React log "The result of
+  getSnapshot should be cached": `getState()` returns the same object until the panel's state changes, also before its first commit.
+
 ### Changed
 
 - A host that is not a browser can use the library without stubbing browser concepts. `url` is optional on
