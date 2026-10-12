@@ -30,20 +30,69 @@ test('a wheel burst of 30 events scrolls exactly one stop, and its later events 
   assert.equal(m.container.scrollLeft, 406);
 });
 
-test('a second burst inside the lock does nothing, and one after it moves again from the glide target', async () => {
+test('a second wheel event inside the 60 ms lock does nothing, and one after it moves again from the glide target', async () => {
   const m = mountRow(eleven(), 1000);
   mock.timers.enable({ apis: ['setTimeout'] });
   m.wheel({ deltaX: 50 });
   assert.equal(m.scroller.glideTarget(), 406);
-  tick(349);
+  tick(59);
   m.wheel({ deltaX: 50 });
-  assert.equal(m.scroller.glideTarget(), 406, 'inside the lock, which each ignored event re-arms');
-  tick(350);
+  assert.equal(m.scroller.glideTarget(), 406, 'one ms short of the lock; later events do not extend it');
+  tick(1);
   m.wheel({ deltaX: 50 });
-  assert.equal(m.scroller.glideTarget(), 812, 'after the lock the base is the in-flight target');
-  tick(350);
-  m.wheel({ deltaX: -50 });
+  assert.equal(m.scroller.glideTarget(), 812, 'the lock is over and the wheel is not slowing: the next step, from the in-flight target');
+  tick(60);
+  m.wheel({ deltaX: -20 });
+  assert.equal(m.scroller.glideTarget(), 406, 'a reversal steps back even when smaller');
+});
+
+test('a wheel that keeps its speed steps one panel every 60 ms for as long as it keeps moving', () => {
+  const m = mountRow(eleven(), 1000);
+  mock.timers.enable({ apis: ['setTimeout'] });
+  const targets: (number | null)[] = [];
+  for (let n = 0; n < 6; n += 1) {
+    m.wheel({ deltaX: 100 });
+    targets.push(m.scroller.glideTarget());
+    tick(30);
+    m.wheel({ deltaX: 100 });
+    tick(30);
+  }
+  assert.deepEqual(targets, [406, 812, 1218, 1624, 2030, 2436]);
+});
+
+test('one swipe whose deltas fade away is one step, however long its tail', () => {
+  const m = mountRow(eleven(), 1000);
+  mock.timers.enable({ apis: ['setTimeout'] });
+  for (let delta = 120; delta >= 4; delta = Math.floor(delta * 0.9)) {
+    m.wheel({ deltaX: delta });
+    tick(16);
+  }
   assert.equal(m.scroller.glideTarget(), 406);
+});
+
+test('after 150 ms without a wheel event the next one is a fresh gesture and steps', () => {
+  const m = mountRow(eleven(), 1000);
+  mock.timers.enable({ apis: ['setTimeout'] });
+  m.wheel({ deltaX: 100 });
+  tick(16);
+  m.wheel({ deltaX: 40 });
+  tick(100);
+  m.wheel({ deltaX: 30 });
+  assert.equal(m.scroller.glideTarget(), 406, 'a fading tail 116 ms in is still the same gesture');
+  tick(150);
+  m.wheel({ deltaX: 10 });
+  assert.equal(m.scroller.glideTarget(), 812, 'the quiet ended it');
+});
+
+test('a wheel that stops leaves the row where its last step put it', async () => {
+  const m = mountRow(eleven(), 1000);
+  mock.timers.enable({ apis: ['setTimeout'] });
+  m.wheel({ deltaX: 100 });
+  tick(60);
+  m.wheel({ deltaX: 100 });
+  tick(1000);
+  await advanceFrames(500);
+  assert.equal(m.container.scrollLeft, 812);
 });
 
 test('Shift+deltaY acts as horizontal and prevents the default; a plain deltaY does neither', () => {

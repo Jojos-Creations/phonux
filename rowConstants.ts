@@ -39,8 +39,8 @@ export const HOP_FRACTION = 0.5;
 /** Quiet time before the workspace file is written. */
 export const SAVE_QUIET_MS = 500;
 
-/** After a row-scroll gesture, further wheel events inside this window are ignored. */
-export const GESTURE_LOCK_MS = 350;
+/** After a row-scroll step, further wheel events inside this window are ignored. */
+export const GESTURE_LOCK_MS = 60;
 
 /** Which of two equal-priority panels returns or lands first. */
 export const RETURN_TIE_BREAK = 'latest-first' as const;

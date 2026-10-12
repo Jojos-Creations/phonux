@@ -1170,7 +1170,7 @@ const CATALOG_ROWS: readonly SettingDescriptor[] = [
     name: 'tuning.gestureLockMs',
     group: 'tuning',
     values: 'integer ms >= 0 (workspace only)',
-    default: '350',
+    default: '60',
     scope: 'workspace',
     viewSettable: false,
     exists: 'today',

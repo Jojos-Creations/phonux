@@ -9,6 +9,9 @@
 
 ### Changed
 
+- The row's wheel gesture is snappy and continuous: `tuning.gestureLockMs` is now 60 ms (was 350) and starts at a step
+  instead of being re-armed by every wheel event, and after it a wheel that is not slowing steps again. A wheel or
+  swipe that keeps moving steps panel after panel; a trackpad flick whose deltas fade is still one step.
 - `DragToClose` takes its pointer gesture from `@dnd-kit/core` (a new regular dependency) instead of Motion's drag. Its props,
   `DragHandleProps`, `ReorderHandle`, `DRAG_CLOSE`, the close rule, the hop offset, pinning and edge scrolling are as before;
   Motion still draws the box and runs the release spring.
