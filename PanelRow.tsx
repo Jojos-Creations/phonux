@@ -266,6 +266,8 @@ export function PanelRow({
   React.useEffect(() => {
     if (draggedGone) setDragging(null);
   }, [draggedGone]);
+  const draggingNow = React.useRef(dragging);
+  draggingNow.current = dragging;
   const shiftById = new Map<string, number>();
   const draggedEntry = dragging === null ? undefined : present.find((x) => x.id === dragging.id);
   if (dragging !== null && draggedEntry !== undefined && dragging.steps !== 0 && effective(draggedEntry).draggable) {
@@ -324,6 +326,7 @@ export function PanelRow({
                 tuning: own,
                 dragScroll,
                 headerButtonSlots,
+                dragHops: () => draggingNow.current?.id === p.id && draggingNow.current.steps !== 0,
                 previewReorder: (offset) =>
                   setDragging((now) => {
                     if (offset === null) return now?.id === p.id ? null : now;
@@ -346,6 +349,7 @@ export function PanelRow({
                 rowScroll={rowScroll}
                 previewing={dragging !== null}
                 onActivate={() => chrome.setActive(p.id)}
+                dragged={dragging?.id === p.id}
               >
                 {/* A resolved component -- built-in or third-party -- is written against PanelSummary only,
                     never the internal record. */}
