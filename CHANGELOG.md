@@ -8,7 +8,9 @@
   dragged panel's own width plus the row gap, as the pointer passes the same half-way points the release uses, and slide back
   if the pointer returns. The dragged panel is drawn above them until its spring home ends. The order, anchors and saved
   workspace still change only at the drop, by the same hop count, so a host's `usePanelReorderSteps` + `move` loop needs no change.
-
+- With Reduce Motion on (the system setting, or the app's `MotionConfig`), the panels that make room during that drag snap to their
+  slots instead of sliding, and the dragged panel's own move to its new slot at the drop snaps too; enter, exit and park slides are
+  unchanged.
 - `npm run release:check` fails, before it asks the registry, when `package.json` and `package-lock.json` (the top-level
   `version` and `packages[""].version`) disagree on the version, or when the lockfile is missing. The message names both.
 

@@ -1,5 +1,5 @@
 import * as React from 'react';
-import { animate, motion, useIsPresent, useReducedMotionConfig, visualElementStore, type TargetAndTransition } from 'motion/react';
+import { animate, motion, useIsPresent, useReducedMotion, useReducedMotionConfig, visualElementStore, type TargetAndTransition } from 'motion/react';
 import { SLOT_TRANSITION, directionalTransition, slideToTransition } from './directionalTransition.js';
 import { PanelHiddenContext, PanelSlotContext } from './panelSlotContext.js';
 import { LIBRARY_TUNING_DEFAULTS } from './panelSettings.js';
@@ -150,6 +150,7 @@ export function PanelRowSlot({
   slide,
   kept = false,
   rowScroll = false,
+  previewing = false,
   children,
 }: {
   /** This slot's own rest x position -- the caller's running sum of every PRECEDING present item's own width plus one gap. */
@@ -180,12 +181,16 @@ export function PanelRowSlot({
   kept?: boolean;
   /** Whether the row scrolls: a park then exits relative to this slot's rest. Default false. */
   rowScroll?: boolean;
+  /** True while a sideways drag previews the reorder: under Reduce Motion the slot's own moves then snap, since a preview-time slide carries no information. */
+  previewing?: boolean;
   /** The panel rendered inside the slot. */
   children: React.ReactNode;
 }) {
   const { initial, animate: animateTarget, exit, transition } = panelRowSlotMotion(leftOffset, width, phoneHeight, enterDirection, exitDirection, animated, gap, slide, rowScroll);
   const el = React.useRef<HTMLDivElement>(null);
   const reducedMotion = useReducedMotionConfig();
+  // The drag box reads the system preference itself, so the neighbours that make room for it must too, whatever the app's MotionConfig says.
+  const systemReduced = useReducedMotion();
   const ownSpan = width + (gap ?? ROW_GAP);
   const parkSide = exitDirection === 'right' ? 'right' : 'left';
   const slideTransition = animated && !reducedMotion ? transition : INSTANT_TRANSITION;
@@ -257,7 +262,7 @@ export function PanelRowSlot({
       // Enters from one own-width-plus-gap span beyond its destination, right or left per `enterDirection` above.
       // Dropping `animate` alone would send the slot back to `initial`; with both gone it stays where it is, for the imperative slide.
       initial={kept || reviving ? undefined : initial}
-      animate={kept || reviving ? undefined : animateTarget}
+      animate={kept || reviving ? undefined : previewing && (reducedMotion || systemReduced) ? { ...animateTarget, transition: INSTANT_TRANSITION } : animateTarget}
       exit={kept ? KEPT_EXIT : exit}
       transition={transition}
       inert={kept ? true : undefined}

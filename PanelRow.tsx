@@ -325,6 +325,7 @@ export function PanelRow({
                 slide={own.slide}
                 kept={kept}
                 rowScroll={rowScroll}
+                previewing={dragging !== null}
               >
                 {/* A resolved component -- built-in or third-party -- is written against PanelSummary only,
                     never the internal record. */}

@@ -516,7 +516,8 @@ function DragToCloseBox({
         if (reduceMotion) {
           x.jump(0);
           scrollX.jump(0);
-          preview(null);
+          // One frame later, so the row judges the host's reorder with the preview still set and snaps the dragged slot too.
+          frame.postRender(() => preview(null));
           return unlockScrollParents();
         }
         springHome();
