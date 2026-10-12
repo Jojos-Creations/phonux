@@ -78,5 +78,8 @@ define('cancelAnimationFrame', cancelFrame);
 Object.defineProperty(globalThis.performance, 'now', { value: () => virtualNow, configurable: true, writable: true });
 Object.defineProperty(win.performance, 'now', { value: () => virtualNow, configurable: true, writable: true });
 
+// An event's timeStamp is read from the same virtual clock, so a gesture's speed counts the frames a test waits.
+Object.defineProperty(win.Event.prototype, 'timeStamp', { get: () => virtualNow, configurable: true });
+
 // Tells React that act() is in use, so a state update outside it warns instead of passing in silence.
 define('IS_REACT_ACT_ENVIRONMENT', true);

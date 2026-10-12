@@ -5,7 +5,8 @@
  */
 
 import * as React from 'react';
-import { animate, motion, useDragControls, useIsPresent, useMotionValue, useReducedMotion, useTransform, type MotionValue } from 'motion/react';
+import { DndContext, PointerSensor, useDndMonitor, useDraggable, useSensor, useSensors } from '@dnd-kit/core';
+import { animate, cancelFrame, frame, motion, useIsPresent, useMotionValue, useReducedMotion, useTransform, type MotionValue } from 'motion/react';
 import { edgeScrollSpeed, edgeScrollStep } from './edgeScroll.js';
 import { PanelSlotContext, type DragScroll } from './panelSlotContext.js';
 import { closestRowScroller, rowScrollerFor, type RowScroller, type ScrollClaim } from './rowScroller.js';
@@ -242,6 +243,31 @@ function settleHome(x: MotionValue<number>, scrollX: MotionValue<number>, spring
   });
 }
 
+/**
+ * The fastest the pointer travelled between two samples at least SEGMENT_MIN_MS apart, px/s (positive = down). The
+ * peak, not the average of the window: a flick is judged by how fast it moved, and its events arrive unevenly.
+ */
+function peakSpeed(samples: ReadonlyArray<{ t: number; y: number }>): number {
+  let peak = 0;
+  let from = 0;
+  for (let to = 1; to < samples.length; to += 1) {
+    const dt = samples[to]!.t - samples[from]!.t;
+    if (dt < SEGMENT_MIN_MS) continue;
+    peak = Math.max(peak, ((samples[to]!.y - samples[from]!.y) / dt) * 1000);
+    from = to;
+  }
+  return peak;
+}
+
+/** Samples closer together than this are one segment, so two events sharing a timestamp cannot make an infinite speed. */
+const SEGMENT_MIN_MS = 8;
+
+/** A pointer that lifts this long after its last move had stopped: no velocity, however fast it was going before. */
+const REST_MS = 50;
+
+/** How far back the release velocity looks, ms. */
+const VELOCITY_WINDOW_MS = 100;
+
 const INTERACTIVE = 'button, a, input, select, textarea, [role="button"]';
 
 /**
@@ -249,11 +275,7 @@ const INTERACTIVE = 'button, a, input, select, textarea, [role="button"]';
  * sideways. `onClose` must remove the view, because a close never unlocks the scroll ancestors.
  * @public
  */
-export function DragToClose({
-  onClose,
-  reorder,
-  children,
-}: {
+export function DragToClose(input: {
   /** Without it a release past the close line snaps back: the box has nothing to close. */
   onClose?: () => void;
   /** When set, the handle also drags horizontally and reports the total offset to `reorder.onDragEnd` on release. */
@@ -261,7 +283,33 @@ export function DragToClose({
   /** Render prop: receives the handle props to spread onto the grab bar, and returns the box's content. */
   children: (handle: DragHandleProps) => React.ReactNode;
 }): React.ReactElement {
-  const controls = useDragControls();
+  const slot = React.useContext(PanelSlotContext);
+  const lockPx = (slot?.tuning.dragToClose ?? OUTSIDE_ROW_DRAG).directionLockPx;
+  // The distance is the direction lock, a hair under it because the sensor wants to be passed and a lock is reached.
+  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: Math.max(0, lockPx - 0.01) } }));
+  // autoScroll off: dnd-kit would write scrollLeft itself, and the row's scroll claim is the one writer.
+  return (
+    <DndContext sensors={sensors} autoScroll={false}>
+      <DragToCloseBox {...input} />
+    </DndContext>
+  );
+}
+
+function DragToCloseBox({
+  onClose,
+  reorder,
+  children,
+}: {
+  onClose?: () => void;
+  reorder?: ReorderHandle;
+  children: (handle: DragHandleProps) => React.ReactNode;
+}): React.ReactElement {
+  const draggable = useDraggable({ id: React.useId() });
+  // Where the pointer went down and where it is: read from the events themselves, because dnd-kit reports a move only after its
+  // activation distance and a release right after the activating move would otherwise read no offset.
+  const pointer = React.useRef({ downX: 0, downY: 0, x: 0, y: 0 });
+  const samples = React.useRef<Array<{ t: number; y: number }>>([]);
+  const released = React.useRef(0);
   const y = useMotionValue(0);
   const x = useMotionValue(0);
   // The row's scroll distance since the pointer went down, drawn as the CSS `translate` property: motion rewrites `transform`, never this.
@@ -298,13 +346,9 @@ export function DragToClose({
   const unlockScrollParents = () => {
     for (const [el, previous] of locked.current.splice(0)) el.style.overflowY = previous;
   };
-  React.useEffect(
-    () => () => {
-      running.current?.stop();
-      unlockScrollParents();
-    },
-    [],
-  );
+  // The cleanup leaves a running spring alone: React 19.2 re-runs it for a keyed child a reorder moves under StrictMode, and
+  // Activity runs it on a hide; a stopped release spring leaves the box at its drag offset.
+  React.useEffect(() => unlockScrollParents, []);
   // An undo while AnimatePresence still holds this box revives the SAME instance: parked, locked, refusing presses. A layout effect that
   // writes the DOM itself, not on Motion's next frame: the host scrolls a revived view into view in this same commit and must find it at rest.
   const isPresent = useIsPresent();
@@ -321,12 +365,146 @@ export function DragToClose({
     if (box.current) box.current.style.transform = 'none';
   }, [isPresent]);
 
+  // Release springs the box home; a cancelled gesture takes the same road without reporting a hop or a close.
+  const springHome = () => {
+    const back = settleHome(x, scrollX, snapBack);
+    running.current = back;
+    void back.then(unlockScrollParents);
+  };
+  const engaged = React.useRef(false);
+  const followStep = React.useRef<(() => void) | null>(null);
+  const stopFollowing = () => {
+    engaged.current = false;
+    if (followStep.current !== null) cancelFrame(followStep.current);
+    followStep.current = null;
+  };
+  const latestMove = React.useRef<() => void>(() => undefined);
+  const trackPointer = React.useRef((event: Event) => {
+    const { clientX, clientY } = event as PointerEvent;
+    if (event.type !== 'pointercancel') {
+      pointer.current = { ...pointer.current, x: clientX, y: clientY };
+      if (event.type === 'pointerup') released.current = event.timeStamp;
+      else {
+        // Every move is a sample, stamped by the browser: a short flick is a few events, and a frame loop would see fewer.
+        const kept = samples.current;
+        kept.push({ t: event.timeStamp, y: clientY - pointer.current.downY });
+        while (kept.length > 2 && kept[0]!.t < event.timeStamp - VELOCITY_WINDOW_MS) kept.shift();
+      }
+    }
+    if (event.type === 'pointermove') return latestMove.current();
+    for (const type of ['pointermove', 'pointerup', 'pointercancel']) window.removeEventListener(type, trackPointer.current, true);
+  });
+
+  // The box follows the pointer on the locked axis; the lock is decided by the first offset past the direction lock.
+  const follow = (): { dx: number; dy: number } => {
+    // The frame step outlives the render that started it; a box that is gone ends it.
+    if (box.current === null || !box.current.isConnected) stopFollowing();
+    const dx = pointer.current.x - pointer.current.downX;
+    const dy = pointer.current.y - pointer.current.downY;
+    if (axisLock.current === null) {
+      axisLock.current = reorder !== undefined && Math.abs(dx) >= Math.abs(dy) ? 'x' : 'y';
+      if (axisLock.current === 'x') edge.lock(pointer.current.x);
+    }
+    edge.track(pointer.current.x, x);
+    // The losing axis is held at zero on every move: a locked box moves on one axis only. Upward y is not followed.
+    if (axisLock.current === 'x') {
+      x.set(dx);
+      y.set(0);
+    } else {
+      x.set(0);
+      y.set(Math.max(0, dy));
+    }
+    return { dx, dy };
+  };
+
+  // The gesture starts on the pointer's own events, in the frame the offset passes the direction lock, not when dnd-kit's
+  // context renders its start; dnd-kit decides when the press is a drag (and ends or cancels it), this decides what the box does.
+  latestMove.current = () => {
+    if (engaged.current) return;
+    if (Math.hypot(pointer.current.x - pointer.current.downX, pointer.current.y - pointer.current.downY) < drag.directionLockPx) return;
+    engaged.current = true;
+    axisLock.current = null;
+    lockScrollParents();
+    // A keep-alive step in Motion's own frame loop: the row scroll the edge loop adds is then drawn in
+    // the frame that wrote it, not the one after, and the pointer offset is read once per frame.
+    followStep.current = () => void follow();
+    frame.update(followStep.current, true);
+  };
+
+  useDndMonitor({
+    onDragCancel: () => {
+      stopFollowing();
+      axisLock.current = null;
+      edge.release();
+      edge.end();
+      springHome();
+    },
+    onDragEnd: () => {
+      if (engaged.current) follow(); // the last move may not have had its frame yet
+      stopFollowing();
+      const lockedAxis = axisLock.current;
+      axisLock.current = null;
+      const dx = pointer.current.x - pointer.current.downX;
+      const dy = pointer.current.y - pointer.current.downY;
+      const cancelled = reorder ? edge.release() : false;
+      if (reorder && lockedAxis === 'x') {
+        // The claim goes back before the hop is reported: the move the hop causes may ask the row to scroll, and a held claim would drop that request.
+        const held = edge.held();
+        const offset = held ? edge.pointerOffset() : dx;
+        const scrolled = edge.end();
+        if (!cancelled) reorder.onDragEnd(offset + scrolled);
+        if (reduceMotion) {
+          x.jump(0);
+          scrollX.jump(0);
+          return unlockScrollParents();
+        }
+        springHome();
+        return; // never a close: shouldCloseOnRelease is not even consulted for a horizontal-locked release
+      }
+      if (reorder) x.jump(0); // residual sub-threshold horizontal drift from a gesture that never locked (or locked vertical)
+      const rect = box.current?.getBoundingClientRect();
+      const height = rect?.height ?? 0;
+      const recent = samples.current;
+      const last = recent[recent.length - 1];
+      const rested = released.current - (last?.t ?? 0) > REST_MS;
+      const velocityY = rested ? 0 : peakSpeed(recent);
+      if (closeRef.current !== undefined && closableRef.current && shouldCloseOnRelease({ offsetY: Math.max(0, dy), velocityY, height }, drag)) {
+        if (reduceMotion) return closeRef.current();
+        const toBottom = Math.max(height, window.innerHeight - (rect?.top ?? 0));
+        const exit = animate(y, toBottom, { duration: exitSeconds, ease: 'easeIn' });
+        running.current = exit;
+        closing.current = true;
+        void exit.then(() => {
+          if (closeRef.current !== undefined && closableRef.current) return closeRef.current();
+          closing.current = false;
+          const back = animate(y, 0, snapBack);
+          running.current = back;
+          void back.then(unlockScrollParents);
+        });
+      } else if (reduceMotion) {
+        animate(y, 0, { duration: 0 }); // not y.set(0): a spring already running on y would win
+        unlockScrollParents();
+      } else {
+        const back = animate(y, 0, snapBack);
+        running.current = back;
+        void back.then(unlockScrollParents);
+      }
+    },
+  });
+
   const handle: DragHandleProps = {
     onPointerDown: (event) => {
       if (event.button !== 0 || (event.target as Element).closest(INTERACTIVE) || closing.current) return; // a press would stop the exit: onClose would never run
       if (running.current) { running.current.stop(); running.current = null; unlockScrollParents(); } // stop() never settles the spring's promise, so its own unlock would not run
       edge.press(event);
-      controls.start(event); // a real drag locks again in onDragStart
+      pointer.current = { downX: event.clientX, downY: event.clientY, x: event.clientX, y: event.clientY };
+      samples.current = [{ t: event.timeStamp, y: 0 }];
+      stopFollowing();
+      for (const type of ['pointermove', 'pointerup', 'pointercancel']) {
+        window.removeEventListener(type, trackPointer.current, true);
+        window.addEventListener(type, trackPointer.current, true);
+      }
+      draggable.listeners?.onPointerDown?.(event);
     },
     // pan-x: a horizontal swipe still scrolls the row; a vertical one is this gesture's.
     sx: { cursor: 'grab', touchAction: 'pan-x', userSelect: 'none', '&:active': { cursor: 'grabbing' } },
@@ -334,79 +512,12 @@ export function DragToClose({
 
   return (
     <motion.div
-      ref={box}
+      ref={(el: HTMLDivElement | null) => {
+        box.current = el;
+        draggable.setNodeRef(el);
+      }}
       data-drag-to-close=""
-      drag={reorder ? true : 'y'}
-      dragControls={controls}
-      dragListener={false}
-      dragMomentum={false}
-      dragConstraints={{ top: 0, bottom: 0 }}
-      dragElastic={{ top: 0, bottom: 1 }}
       style={reorder ? { x, y, translate: scrollTranslate } : { y }}
-      onDragStart={() => {
-        axisLock.current = null;
-        lockScrollParents();
-      }}
-      onDrag={
-        reorder
-          ? (event, info) => {
-              if (axisLock.current === null && (Math.abs(info.offset.x) >= drag.directionLockPx || Math.abs(info.offset.y) >= drag.directionLockPx)) {
-                axisLock.current = Math.abs(info.offset.x) >= Math.abs(info.offset.y) ? 'x' : 'y';
-                if (axisLock.current === 'x') edge.lock((event as PointerEvent).clientX);
-              }
-              edge.track((event as PointerEvent).clientX, x);
-              // Zero the losing axis every tick instead of toggling `drag`: Motion keeps reading the axis prop's
-              // value from before the gesture began.
-              if (axisLock.current === 'x') y.set(0);
-              else if (axisLock.current === 'y') x.set(0);
-            }
-          : undefined
-      }
-      onDragEnd={(_event, info) => {
-        const lockedAxis = axisLock.current;
-        axisLock.current = null;
-        const cancelled = reorder ? edge.release() : false;
-        if (reorder && lockedAxis === 'x') {
-          // The claim goes back before the hop is reported: the move the hop causes may ask the row to scroll, and a held claim would drop that request.
-          const held = edge.held();
-          const offset = held ? edge.pointerOffset() : info.offset.x;
-          const scrolled = edge.end();
-          if (!cancelled) reorder.onDragEnd(offset + scrolled);
-          if (reduceMotion) {
-            x.jump(0); // jump, not set: it also stops the inertia Motion itself just started on x
-            scrollX.jump(0);
-            return unlockScrollParents();
-          }
-          const back = settleHome(x, scrollX, snapBack);
-          running.current = back;
-          void back.then(unlockScrollParents);
-          return; // never a close: shouldCloseOnRelease is not even consulted for a horizontal-locked release
-        }
-        if (reorder) x.jump(0); // residual sub-threshold horizontal drift from a gesture that never locked (or locked vertical)
-        const rect = box.current?.getBoundingClientRect();
-        const height = rect?.height ?? 0;
-        if (closeRef.current !== undefined && closableRef.current && shouldCloseOnRelease({ offsetY: info.offset.y, velocityY: info.velocity.y, height }, drag)) {
-          if (reduceMotion) return closeRef.current();
-          const toBottom = Math.max(height, window.innerHeight - (rect?.top ?? 0));
-          const exit = animate(y, toBottom, { duration: exitSeconds, ease: 'easeIn' });
-          running.current = exit;
-          closing.current = true;
-          void exit.then(() => {
-            if (closeRef.current !== undefined && closableRef.current) return closeRef.current();
-            closing.current = false;
-            const back = animate(y, 0, snapBack);
-            running.current = back;
-            void back.then(unlockScrollParents);
-          });
-        } else if (reduceMotion) {
-          animate(y, 0, { duration: 0 }); // not y.set(0): Motion's own constraint return is animating y and would win
-          unlockScrollParents();
-        } else {
-          const back = animate(y, 0, snapBack);
-          running.current = back;
-          void back.then(unlockScrollParents);
-        }
-      }}
     >
       {children(handle)}
     </motion.div>

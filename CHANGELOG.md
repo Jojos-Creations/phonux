@@ -12,6 +12,9 @@
 - The row's wheel gesture is snappy and continuous: `tuning.gestureLockMs` is now 60 ms (was 350) and starts at a step
   instead of being re-armed by every wheel event, and after it a wheel that is not slowing steps again. A wheel or
   swipe that keeps moving steps panel after panel; a trackpad flick whose deltas fade is still one step.
+- `DragToClose` takes its pointer gesture from `@dnd-kit/core` (a new regular dependency) instead of Motion's drag. Its props,
+  `DragHandleProps`, `ReorderHandle`, `DRAG_CLOSE`, the close rule, the hop offset, pinning and edge scrolling are as before;
+  Motion still draws the box and runs the release spring.
 - A host that is not a browser can use the library without stubbing browser concepts. `url` is optional on
   `PanelSummary`, `PanelState`, `ClosedPageEntry` and `WorkspacePanelState`, and a saved file whose panels lack one is
   still loaded. `create()` no longer defaults it to a blank page: the url is the empty string, and the closed-log entry
@@ -35,6 +38,12 @@
 - `PhonuxLabels`: English defaults for the library's visible strings, replaced through `PanelsInput.labels` (the title of
   a panel `create()` opens), `Host.labels` (the unregistered-view placeholder and the `PanelHeaderRow` empty title) and
   `PhoneDetectPromptProps.labels` (its text and accessible names).
+
+### Fixed
+
+- A panel dragged past a neighbour under React 19.2's StrictMode no longer stays at its drag offset, overlapping the
+  panel beside it and leaving a gap: the box keeps its release spring running when React runs its effect cleanup and
+  setup again.
 
 ## 0.2.0-rc.1
 

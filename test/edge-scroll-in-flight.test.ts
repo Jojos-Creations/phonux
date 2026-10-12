@@ -17,7 +17,7 @@ import { markerTemplate, mountWorkspace, rowScrollerFor, type MountedWorkspace }
 
 afterEach(async () => {
   // A test that left the pointer down must not leave motion's window listeners live for the next one.
-  window.dispatchEvent(new MouseEvent('pointerup', { bubbles: true }));
+  document.dispatchEvent(new MouseEvent('pointerup', { bubbles: true }));
   await frames(5);
   cleanup();
 });
@@ -66,8 +66,8 @@ function pointer(type: 'pointerdown' | 'pointermove' | 'pointerup', x: number, y
   return event;
 }
 const press = (target: Element, x: number): Promise<void> => act(async () => void target.dispatchEvent(pointer('pointerdown', x)));
-const moveTo = (x: number): Promise<void> => act(async () => void window.dispatchEvent(pointer('pointermove', x)));
-const liftAt = (x: number): Promise<void> => act(async () => void window.dispatchEvent(pointer('pointerup', x)));
+const moveTo = (x: number): Promise<void> => act(async () => void document.dispatchEvent(pointer('pointermove', x)));
+const liftAt = (x: number): Promise<void> => act(async () => void document.dispatchEvent(pointer('pointerup', x)));
 const frames = (n: number): Promise<void> => advanceFrames(n * FRAME_MS);
 const handleOf = (r: Rig, id: string): Element => {
   const handle = r.m.container.querySelector(`[data-handle="${id}"]`);

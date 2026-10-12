@@ -503,13 +503,13 @@ const grabBar = (r: MatrixRig, id: string): Element => {
 /** Presses `id`'s grab bar 40 px left of `x`, moves the pointer to `x` and lets the direction lock take. The pointer stays down. */
 export async function pressAndMove(r: MatrixRig, id: string, x: number): Promise<void> {
   await act(async () => void grabBar(r, id).dispatchEvent(pointerEvent('pointerdown', x - 40)));
-  await act(async () => void window.dispatchEvent(pointerEvent('pointermove', x)));
+  await act(async () => void document.dispatchEvent(pointerEvent('pointermove', x)));
   await advanceFrames(FRAME_MS);
 }
 
 /** Releases the pointer at `x` and lets the box land. */
 export async function lift(x: number): Promise<void> {
-  await act(async () => void window.dispatchEvent(pointerEvent('pointerup', x)));
+  await act(async () => void document.dispatchEvent(pointerEvent('pointerup', x)));
   await advanceFrames(30 * FRAME_MS);
 }
 

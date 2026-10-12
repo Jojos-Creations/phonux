@@ -5,7 +5,7 @@ third-party one. Nothing here may depend on the app that hosts it.
 
 ## Import boundary
 
-`hostApi.tsx`, and the rest of this folder, import only React, MUI, motion and itself -- never
+`hostApi.tsx`, and the rest of this folder, import only React, MUI, motion, `@dnd-kit/core` and itself -- never
 `localStorage`, any host-specific bridge, or any other app-internal module. A view written against these
 contracts must work under ANY host, not just this one.
 
@@ -833,8 +833,9 @@ line snaps back. Its render prop hands out a handle for `Panel`'s `grabProps`:
 
 The handle is the grab bar and nothing else, so the body keeps its own scrolling and clicks. The box follows
 the pointer vertically and only downward. On release `shouldCloseOnRelease` decides: close (the box leaves
-downward, then the latest `onClose` runs) or snap back on a spring. Motion's drag machinery does the pointer
-work, with its events on `window`, so a drag survives leaving the handle.
+downward, then the latest `onClose` runs) or snap back on a spring. `@dnd-kit/core`'s pointer sensor, one
+`DndContext` per box with its auto-scroll off, decides when a press becomes a drag and when it ends or is cancelled,
+with its events on `document`, so a drag survives leaving the handle; Motion draws the box and runs the springs.
 
 **Coexistence.** `touch-action` is `pan-x` on the handle: a horizontal swipe still scrolls the row, a vertical
 one is the gesture's. A press on a button, link or field is left alone, and only the primary button grabs.
@@ -850,6 +851,10 @@ which only decides whether the view wraps a box at all) at the release and again
 release that finds `closable` false starts no exit; one that finds it turned false at the end of the exit does not
 call `onClose` and springs the box back to rest, unlocks the scroll ancestors and takes presses again.
 
+**Effects that run twice.** The box's effect cleanup never stops a running spring: React 19.2 runs a cleanup and its
+setup again for a keyed child that a reorder moves under StrictMode, and Activity runs it on a hide, and a stopped
+release spring leaves the box at its drag offset.
+
 **A close is final for the box.** A close never unlocks (the box is parked below the fold), so `onClose` must
 remove the view. Once a release has decided to close, the box takes no more presses: one would stop the exit
 and the close would never run. If the caller brings the box back while `AnimatePresence` still holds it (the
@@ -859,13 +864,16 @@ pending exit stopped.
 **Reduced motion.** No exit animation and no spring: a far drag calls `onClose` at once, and a short one (or a
 horizontal reorder release) puts the box back at once.
 
-**Reorder on the same handle.** With `reorder` set, the handle also drags horizontally. Both axes stay enabled
-for the whole gesture (`drag={true}`, never toggled: a ref-driven axis prop never re-renders, so Motion would
-keep reading the value from before the gesture began). The first `DIRECTION_LOCK_PX` of movement decides
-which axis wins, and the losing axis's own MotionValue is zeroed on every tick after that. A gesture locked
+**Reorder on the same handle.** With `reorder` set, the handle also drags horizontally. The box reads the pointer's
+own events, not the sensor's reports, because the sensor reports a move only after its activation distance and a
+release right after it would read no offset; a keep-alive step in Motion's frame loop applies the offset once per frame.
+The first `DIRECTION_LOCK_PX` of movement decides which axis wins, and the losing axis's own MotionValue is zeroed on
+every step after that. The sensor has no velocity, so the close rule's velocity is read from the last
+100 ms of those samples. A `pointercancel`, which a native pan sends, is the sensor's own cancel: the box springs
+home with no hop and no close. A gesture locked
 horizontal never evaluates `shouldCloseOnRelease`, so residual vertical jitter can never close the view; one
 locked vertical, or one that never locks (a sub-threshold jiggle), runs the close logic unchanged. Without
-`reorder`, for a handle that only closes (History's bar, never a reorder source), `drag` stays `'y'`.
+`reorder`, for a handle that only closes (History's bar, never a reorder source), only the vertical offset is followed.
 
 **Edge scrolling.** A mouse or pen drag that locks horizontal in a scrolling row (the slot's `dragScroll`, built from
 the panel's `scrollOnDrag`, `tuning.edgeScroll` and `animated` and the row numbers) takes the row scroller's claim,

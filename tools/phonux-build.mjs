@@ -91,6 +91,7 @@ const distPkg = {
   sideEffects: srcPkg.sideEffects,
   // A scoped name would otherwise publish as restricted; stating it keeps "public" true whichever name is chosen.
   publishConfig: { access: 'public' },
+  dependencies: srcPkg.dependencies,
   peerDependencies: srcPkg.peerDependencies,
   exports,
 };

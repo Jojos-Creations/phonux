@@ -19,7 +19,7 @@ import { made, mountRow, rootEntry, row } from './support/scroll-row.js';
 
 afterEach(async () => {
   // A test that left the pointer down must not leave motion's window listeners live for the next one.
-  window.dispatchEvent(new MouseEvent('pointerup', { bubbles: true }));
+  document.dispatchEvent(new MouseEvent('pointerup', { bubbles: true }));
   await advanceFrames(5 * FRAME_MS);
   cleanup();
 });
@@ -52,11 +52,11 @@ async function scrolledUnder(layer: PanelSettings): Promise<number> {
   const handle = m.container.querySelector('[data-handle="s1"]');
   assert.ok(handle, 'the grab bar rendered');
   await act(async () => void handle.dispatchEvent(pointer('pointerdown', POINTER - 40)));
-  await act(async () => void window.dispatchEvent(pointer('pointermove', POINTER)));
+  await act(async () => void document.dispatchEvent(pointer('pointermove', POINTER)));
   await advanceFrames(FRAME_MS);
   await advanceFrames(50 * FRAME_MS);
   const at = m.container.scrollLeft;
-  await act(async () => void window.dispatchEvent(pointer('pointerup', POINTER)));
+  await act(async () => void document.dispatchEvent(pointer('pointerup', POINTER)));
   await advanceFrames(30 * FRAME_MS);
   cleanup();
   return at;

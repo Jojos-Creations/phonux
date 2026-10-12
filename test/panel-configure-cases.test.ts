@@ -33,7 +33,7 @@ import {
 
 afterEach(async () => {
   // A test that left the pointer down must not leave motion's window listeners live for the next one.
-  window.dispatchEvent(new MouseEvent('pointerup', { bubbles: true }));
+  document.dispatchEvent(new MouseEvent('pointerup', { bubbles: true }));
   await advanceFrames(5 * 16);
   mock.timers.reset();
   mock.restoreAll();
@@ -119,7 +119,7 @@ test('case A3: closable false during a DragToClose exit: released at +epsilon an
     const rest = closed ? Number.NaN : y();
     await drag(handle(), { dx: 0, dy: 30, keepDown: true });
     const again = y();
-    window.dispatchEvent(new MouseEvent('pointerup', { bubbles: true }));
+    document.dispatchEvent(new MouseEvent('pointerup', { bubbles: true }));
     await frames(5);
     r.m.unmount();
     return { closed, rest, again };
