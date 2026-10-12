@@ -39,7 +39,7 @@
   used to swap a hidden panel in through the 0.1.0 `scrollRow` path whatever the setting said, and swaps in none now.
 - A plain press (no movement) on a grab bar while the box springs back after a drag no longer leaves the box a fraction of a pixel
   off its slot: the press stops the spring so it is not fought, and when it ends without becoming a drag the box now springs
-  the rest of the way home (a jump under reduced motion).
+  the rest of the way home.
 - Dragging a panel to the end of the strip no longer widens the row: the dragged box is drawn no further than the row's end, so the
   scroll container's scrollable width (and the scrollbar of a `free` row) holds still during the drag. The release still reports
   the pointer's real offset, so the hop count is unchanged.
