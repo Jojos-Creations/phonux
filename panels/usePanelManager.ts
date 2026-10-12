@@ -189,9 +189,8 @@ export function usePanelManager(
   const gap = options?.tuning?.rowGap ?? ROW_GAP;
   const maxLive = options?.tuning?.maxLivePanels ?? null;
   /**
-   * What prices `row`: the width each panel is drawn at, how many parkable panels may be live beside the row's
-   * reserved ones, whether a live set settles, and which panels the cap leaves alone. A scroll panel never parks, so
-   * its width comes off the budget instead of counting against the capacity.
+   * What prices `row`: panel widths, how many parkable panels may be live, whether a live set settles, and which panels
+   * the cap leaves alone. A scroll panel never parks, so its width comes off the budget instead of counting.
    */
   const pricing = (row: readonly PanelWindow[]) => {
     const numbers = computeRowNumbers({ entries: row, phoneWidth, containerWidth, gap, fixedItemCount: fixedColumnCount });
@@ -213,9 +212,8 @@ export function usePanelManager(
       return effectiveMax === Number.POSITIVE_INFINITY ? Number.POSITIVE_INFINITY : Math.max(1, effectiveMax - fixedColumnCount);
     };
     /**
-     * How many panels `set` (live parkable panels, row order) may number: the window's fit, priced from `fitWidths`
-     * (`set`'s own widths unless a caller prices another set), and the cap plus the pinned panels of `set`, which it does
-     * not count. A scrolling row under a cap ignores the window: its strip scrolls past it.
+     * How many panels `set` (live parkable, row order) may number: the window's fit (priced from `fitWidths`, else `set`'s
+     * own), held under a cap to at most N plus the pinned panels of `set`. A scrolling row under a cap ignores the fit.
      */
     const capacityFor = (set: readonly PanelWindow[], fitWidths: readonly number[] = set.map(widthOf)): number => {
       if (maxLive === null) return fitCapacityFor(fitWidths);
