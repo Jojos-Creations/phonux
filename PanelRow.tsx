@@ -27,6 +27,8 @@ import { useViewState } from './viewState.js';
 /** A 'raised' slot sits above a 'base' one: a LEFT-exiting park crosses a raised panel's footprint on the way out (a close exits DOWN and never does). */
 const RAISED_LAYER_Z_INDEX = 2;
 const BASE_LAYER_Z_INDEX = 1;
+/** Above every layer: the slot being dragged is drawn over the neighbours it slides past. */
+const DRAGGED_Z_INDEX = 3;
 
 const EMPTY_SET: ReadonlySet<string> = new Set();
 const EMPTY_MAP: ReadonlyMap<string, 'left' | 'right'> = new Map();
@@ -221,23 +223,43 @@ export function PanelRow({
   // Nearest first on each side, an always-shown column included: movePanel swaps past one like any neighbour. The
   // walk is over every array slot and stops at the first entry that is not crossable, a parked one included,
   // because that is where movePanel refuses the hop.
-  const neighborWidthsAt = (entry: PanelRowEntry): NeighborWidths => {
+  const neighborsAt = (entry: PanelRowEntry): { left: Array<{ id: string; width: number }>; right: Array<{ id: string; width: number }> } => {
     const at = entries.indexOf(entry);
-    const side = (step: 1 | -1): number[] => {
-      const out: number[] = [];
+    const side = (step: 1 | -1) => {
+      const out: Array<{ id: string; width: number }> = [];
       for (let i = at + step; i >= 0 && i < entries.length; i += step) {
         const next = entries[i]!;
         if (!effective(next).crossable) break;
         const width = widthById.get(next.id);
-        if (width !== undefined) out.push(width);
+        if (width !== undefined) out.push({ id: next.id, width });
       }
       return out;
     };
     return { left: side(-1), right: side(1) };
   };
+  const neighborWidthsAt = (entry: PanelRowEntry): NeighborWidths => {
+    const { left, right } = neighborsAt(entry);
+    return { left: left.map((n) => n.width), right: right.map((n) => n.width) };
+  };
   // Per panel, and searched in `present`: each slot's own `index` below counts in that same array.
   const anchorIndexOf = (p: PanelRowEntry): number => present.findIndex((x) => x.id === anchorTargetOf(p, rootId));
   const viewContext = workspace === undefined ? undefined : viewContextOf(workspace);
+  // A horizontal drag's live hop count. Only the slots' drawn positions follow it; the order changes at the drop.
+  const [dragging, setDragging] = React.useState<{ id: string; steps: number } | null>(null);
+  // A dragged panel that left the row (closed by other means) takes its preview with it.
+  const draggedGone = dragging !== null && !present.some((x) => x.id === dragging.id);
+  React.useEffect(() => {
+    if (draggedGone) setDragging(null);
+  }, [draggedGone]);
+  const shiftById = new Map<string, number>();
+  const draggedEntry = dragging === null ? undefined : present.find((x) => x.id === dragging.id);
+  if (dragging !== null && draggedEntry !== undefined && dragging.steps !== 0 && effective(draggedEntry).draggable) {
+    // Every panel the drag would cross moves by the dragged panel's own span, away from the side it is dragged toward.
+    const span = widthById.get(draggedEntry.id)! + gap;
+    const walk = neighborsAt(draggedEntry);
+    const forward = dragging.steps > 0;
+    for (const crossed of (forward ? walk.right : walk.left).slice(0, Math.abs(dragging.steps))) shiftById.set(crossed.id, forward ? -span : span);
+  }
   return (
     <PanelViewContextValue.Provider value={viewContext}>
     {/* Always mounted: an exiting entry needs AnimatePresence to animate inside, and `initial={false}` must see
@@ -283,15 +305,16 @@ export function PanelRow({
                 tuning: own,
                 dragScroll,
                 headerButtonSlots,
+                previewReorder: (steps) => setDragging((now) => (steps === null ? (now?.id === p.id ? null : now) : now?.id === p.id && now.steps === steps ? now : { id: p.id, steps })),
               }}
             >
               <PanelRowSlot
-                leftOffset={rest.leftOffset}
+                leftOffset={rest.leftOffset + (shiftById.get(p.id) ?? 0)}
                 width={rest.width}
                 phoneHeight={phoneHeight}
                 enterDirection={enterDirectionOf(enterFrom, p.anchoredEnter ?? false, enterSideById.get(p.id), enteringViaAnchorIds.has(p.id), () => resolveEnterDirection(anchorIndexOf(p), presentIndex))}
                 exitDirection={closingIds.has(p.id) ? closeExit : exitTo !== 'auto' ? exitTo : exitRightIds.has(p.id) ? 'right' : 'left'}
-                zIndex={layer === 'raised' ? RAISED_LAYER_Z_INDEX : BASE_LAYER_Z_INDEX}
+                zIndex={dragging?.id === p.id ? DRAGGED_Z_INDEX : layer === 'raised' ? RAISED_LAYER_Z_INDEX : BASE_LAYER_Z_INDEX}
                 animated={animated}
                 gap={gap}
                 slide={own.slide}
