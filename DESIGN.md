@@ -275,6 +275,39 @@ subtracted as `reservedWidths`; the existing floor of one park panel stands, so 
 scrolls instead of refusing a panel. A park exit in a scrolling row travels one span from the slot's own rest, not
 to the row's origin, because the strip extends far past the window.
 
+#### The live panel cap
+
+`tuning.maxLivePanels` (an integer of 1 or more; `null`, the default, is no cap and leaves everything above as it was)
+limits how many unpinned panels are live. A panel counts when its `overflow` is 'park' and it does not read as pinned
+(`pinnedIds`: left of the root under the default pinning, or by `parkable` under a definition that says so); a pinned
+panel, live or parked, is neither counted nor parked by the cap. The capacity of a set of live park panels becomes
+`min(fit, N + the pinned panels in the set)`, with `fit` the window's fit above, and a row with a scroll entry takes no
+`fit`: History is one, so there the window's width no longer decides how many panels are live, exactly N unpinned ones
+are, at 600 px as at 1920. That one capacity answers every question the window's fit answered, through the row's one
+`pricing`: the park that settles a row, the park that an open, a `show`, a History click or an undo makes, the free slots
+an 'until-room' hold waits for, and the returns a `resetLayout` reports.
+
+No row that reaches the document holds more unpinned live panels than the cap. A row that lands over it (the panels of a
+restore or of a replayed `addPanel`, a seeded `initialEntries`, a row after a lower value from `configureTuning`, class NOW)
+is settled in the render that would show it, which React then renders again, so the first committed row has the excess
+parked and a panel the cap parks is never mounted. While a cap is set that settle also takes the window's fit; without
+one the reconcile effect parks for the window one commit after the row lands, as before. The settle keeps the panels an
+action has just marked, as the effect does, and the effect records its parks once the row has committed, as it records
+any park for room: under `capacityReturn: 'manual'` each is held until shown, under 'auto' it goes on the stack and
+returns by `returnTieBreak`. A higher value, or `null`, returns what has room for it under 'auto' and nothing under 'manual'.
+
+What the cap parks is chosen as a window-fit park chooses, with the pinned panels added to those a park leaves alone:
+`evictionRank` first, then `evictionOrder` from the panel acted on. Opening, showing or undoing a panel parks the unpinned
+panel farthest from it and never a pinned one, nor the panel just opened, moved or unpinned. A pin change moves a panel
+across the root and so changes the count: pinning a live panel leaves one fewer unpinned panel live and returns nothing
+under 'manual' (under 'auto' the most recently parked comes back), and unpinning one parks exactly one other. A move, a
+place or a drop across the root does the same and, as a pin does, keeps the moved panel live. A parked pinned panel takes
+no slot: shown, it parks nobody, and it comes back by its own `capacityReturn`.
+
+The cap reveals nothing. With `revealOnScroll` 'never' a wheel step, Shift+wheel, arrow key or swipe only scrolls the
+strip, in a row that scrolls and in one whose strip fits (the `scrollRow` swap reads the setting too). A hidden panel comes
+back by `show`, a History click or an undo of its close, each of which parks one other to stay at N.
+
 #### Whole-panel stops
 
 In a scrolling row with `rowGesture` `'step'` whose strip is wider than the window, `computeRowNumbers` (called with
@@ -323,7 +356,7 @@ With `rowGesture` `step` a sideways wheel, Shift+wheel or arrow key asks for a s
 wider than its window the step goes through `gestureTarget`: it shows the nearest hidden panel in the direction when
 its `revealOnScroll` allows and no live panel lies between the window's edge and its slot, and otherwise scrolls to
 the next stop (the next panel start in a row without stops), from the in-flight glide's target. A row with nothing to scroll toward keeps the 0.1.0 swap
-(`scrollRow`). The gesture does nothing while a claim is held.
+(`scrollRow`), which swaps in no panel whose `revealOnScroll` is 'never'. The gesture does nothing while a claim is held.
 
 `tuning.initialScroll` runs once per mount, in a layout effect gated on the restore having settled, on a measured row
 with an entry, with no animation, and not at all when a wheel, a pointer-down or a glide got there first.
@@ -1185,9 +1218,9 @@ the same call shows the panel or is refused), and `invalid-saved-setting` for ea
 ### Who may set what
 
 The `doors` of a descriptor name the configure call that accepts the key: `instance` (`configure(id)`), `template`
-(`configureTemplate`: `hostCreatable`, `multiple`, `maxInstances`) and `tuning` (`configureTuning`). Seven tuning
+(`configureTemplate`: `hostCreatable`, `multiple`, `maxInstances`) and `tuning` (`configureTuning`). Eight tuning
 leaves are workspace-only (`rowGap`, `saveQuietMs`, `gestureLockMs`, `returnTieBreak`, `dropTieBreak`, `rowGesture`,
-`initialScroll`); four are per panel and also workspace-wide (`dragToClose`, `slide`, `hopFraction`, `edgeScroll`).
+`initialScroll`, `maxLivePanels`); four are per panel and also workspace-wide (`dragToClose`, `slide`, `hopFraction`, `edgeScroll`).
 A workspace-only leaf at the template layer throws, at the instance or host layer it is a `wrong-scope` conflict, and
 any tuning key in the workspace defaults throws. A view's own door, the host layer, accepts only `title`, `listed`,
 `layer`, `formFactor`, `placeOnAdd: { anchor }` and `enterFrom: 'anchor'`.
@@ -1320,6 +1353,7 @@ flip with a transition rule of its own) or SCOPE (a template-scope key).
 | `tuning.dropTieBreak` | leftmost, rightmost (workspace only) | leftmost | NEXT (configureTuning only). Read at the next capacity drop or resize; nothing parks now. |
 | `tuning.rowGesture` | step, free, off (workspace only; a design-derived key from Q15, not requested) | step | NEXT (configureTuning only). The listener set is re-read at the next render; a gesture in flight finishes; no panel moves. Session-only. |
 | `tuning.initialScroll` | start, end, root, { panel: PanelId } (workspace only; a design-derived key from Q15, not requested) | start (the library default, a design default the owner did not rule on; phonux-app sets 'end', owner Q20: the newest closable panels in view at launch) | NEXT (configureTuning only). Read at the next mount; nothing scrolls now. Session-only. |
+| `tuning.maxLivePanels` | integer >= 1, or null for no cap (workspace only) | null (no cap) | NOW (configureTuning only). A lower value parks the excess unpinned panels at this commit through the reconcile effect; a higher one or null returns none under `capacityReturn` manual and the most recently parked under auto. Unmeasured: applies. Outside integers of 1 or more throws; null removes the cap. Session-only. |
 <!-- catalog:end -->
 
 ## Placement, the root marker, key-aware undo and motion

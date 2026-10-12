@@ -2,6 +2,18 @@
 
 ## Unreleased
 
+### Added
+
+- `tuning.maxLivePanels`: an integer of 1 or more that caps how many unpinned panels the row keeps live (`null`, the default,
+  is no cap and changes nothing). The leftmost panels beyond it park, as a narrow window parks them, and in a scrolling row
+  such as History's the window's width no longer decides: exactly N unpinned panels are live at any width. A pinned panel is
+  neither counted nor parked by the cap. Opening, showing, undoing a close, pinning, unpinning, moving and dropping a panel
+  across History keep to it, and `configureTuning({ maxLivePanels })` applies at once. No row that reaches the document holds
+  more than N: the panels of a restore, a replayed `addPanel` or a seeded list arrive with the excess already parked, and a
+  panel the cap parks is never mounted. With `revealOnScroll` `'never'` on the panels, scrolling the row brings nothing back;
+  a hidden panel returns by `show`, a History click or an undo. This is a workspace setting the host chooses; the stored
+  per-person max-panels choice retired in 0.2.0-rc.1 (below) stays retired.
+
 ### Changed
 
 - A stepping row (`rowGesture` `'step'`, the default) now shows only whole panels: as many as fit the window, the leftover
@@ -23,6 +35,8 @@
 
 ### Fixed
 
+- `revealOnScroll` `'never'` now holds in a row whose strip fits its window: a wheel step, Shift+wheel or arrow key there
+  used to swap a hidden panel in through the 0.1.0 `scrollRow` path whatever the setting said, and swaps in none now.
 - A plain press (no movement) on a grab bar while the box springs back after a drag no longer leaves the box a fraction of a pixel
   off its slot: the press stops the spring so it is not fought, and when it ends without becoming a drag the box now springs
   the rest of the way home.
