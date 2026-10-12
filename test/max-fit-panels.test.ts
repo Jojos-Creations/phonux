@@ -51,3 +51,8 @@ test('the provider reports it, tracks a resize in the same render as the capacit
   wide.turn(() => wide.m.setWidth(1265));
   assert.equal(wide.provided().maxFitPanels, 2);
 });
+
+test('the provider applies the row floor: a 300 px window, below one phone panel, reports 2 with History alone, not the raw 1', async () => {
+  const r = await capRig({ count: 2, width: 300, tuning: { rowGap: 24 } });
+  assert.equal(r.provided().maxFitPanels, 2);
+});
