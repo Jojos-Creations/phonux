@@ -129,3 +129,65 @@ test('nothing is previewed for a panel that is not draggable', async () => {
   await release(SPAN, 0);
   await advanceFrames(2000);
 });
+
+test('the preview stops at a panel that cannot be crossed, as the hop rule does', async () => {
+  const m = mountRow(row(rootEntry(), made('s1'), made('s2', { crossable: false }), made('s3')), 3000);
+  await advanceFrames(2000);
+  const before = { s2: xOf(m, 's2'), s3: xOf(m, 's3') };
+  await drag(handleOf(m, 's1'), { dx: SPAN * 2 + 10, dy: 0, steps: 12, hold: 8, keepDown: true });
+  await advanceFrames(1000);
+  assert.equal(xOf(m, 's2'), before.s2);
+  assert.equal(xOf(m, 's3'), before.s3);
+  await release(SPAN * 2 + 10, 0);
+  await advanceFrames(2000);
+  assert.equal(order(m), 'root,s1,s2,s3');
+});
+
+test('a drag of two hops previews two neighbours and the release reports the same two hops', async () => {
+  reported.length = 0;
+  const m = mountRow(panelsOf(5), 3000);
+  await advanceFrames(2000);
+  const rest = { s2: xOf(m, 's2'), s3: xOf(m, 's3'), s4: xOf(m, 's4') };
+  await drag(handleOf(m, 's1'), { dx: SPAN * 1.5 + 10, dy: 0, steps: 12, hold: 8, keepDown: true });
+  await advanceFrames(1000);
+  assert.deepEqual([xOf(m, 's2'), xOf(m, 's3'), xOf(m, 's4')], [rest.s2 - SPAN, rest.s3 - SPAN, rest.s4]);
+  await release(SPAN * 1.5 + 10, 0);
+  await advanceFrames(3000);
+  assert.equal(reported[0]?.steps, 2);
+  assert.equal(order(m), 'root,s2,s3,s1,s4,s5');
+});
+
+test('a press on the handle during the spring home ends the raise', async () => {
+  const m = mountRow(panelsOf(3), 3000);
+  await advanceFrames(2000);
+  await drag(handleOf(m, 's1'), { dx: SPAN * 0.5 + 10, dy: 0, steps: 6, hold: 4 });
+  await advanceFrames(32);
+  assert.equal(zOf(m, 's1'), '3', 'the spring is in flight and the slot is still raised');
+  await act(async () => {
+    const event = new MouseEvent('pointerdown', { bubbles: true, cancelable: true, clientX: 100, clientY: 100, button: 0, buttons: 1 });
+    for (const [key, value] of Object.entries({ pointerId: 1, pointerType: 'mouse', isPrimary: true })) Object.defineProperty(event, key, { value });
+    handleOf(m, 's2').dispatchEvent(event);
+  });
+  await act(async () => {
+    const event = new MouseEvent('pointerdown', { bubbles: true, cancelable: true, clientX: 100, clientY: 100, button: 0, buttons: 1 });
+    for (const [key, value] of Object.entries({ pointerId: 2, pointerType: 'mouse', isPrimary: true })) Object.defineProperty(event, key, { value });
+    handleOf(m, 's1').dispatchEvent(event);
+  });
+  await release(0, 0);
+  await advanceFrames(2000);
+  assert.equal(zOf(m, 's1'), '1');
+});
+
+test('closing the dragged panel mid-drag leaves no neighbour shifted', async () => {
+  const m = mountRow(panelsOf(4), 3000);
+  await advanceFrames(2000);
+  await drag(handleOf(m, 's1'), { dx: SPAN * 0.5 + 10, dy: 0, steps: 8, hold: 4, keepDown: true });
+  await advanceFrames(1000);
+  act(() => m.latest().close('s1'));
+  await advanceFrames(3000);
+  await release(0, 0);
+  await advanceFrames(2000);
+  assert.equal(order(m), 'root,s2,s3,s4');
+  assert.equal(xOf(m, 's2'), SPAN, 'the neighbours closed up to their own slots');
+  assert.equal(xOf(m, 's3'), 2 * SPAN);
+});
