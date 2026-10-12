@@ -13,6 +13,7 @@ import {
   DragToClose,
   LIBRARY_TUNING_DEFAULTS,
   PANEL_TRANSITION,
+  Panel,
   PanelRow,
   PanelSizeBox,
   Workspace,
@@ -37,7 +38,7 @@ import { differential, differentialsCovered } from './support/differential.js';
 import { drag } from './support/drag-gesture.js';
 import { advanceFrames, cleanup, mount, panelsInput, withHost } from './support/mount-harness.js';
 
-const OWNED = ['tuning.rowGap', 'tuning.dragToClose', 'tuning.slide', 'tuning.hopFraction'];
+const OWNED = ['tuning.rowGap', 'tuning.dragToClose', 'tuning.slide', 'tuning.hopFraction', 'tuning.chrome'];
 const ROOT = 'root';
 
 interface Seen {
@@ -167,6 +168,23 @@ test('differential tuning.dragToClose: a 100 px drag closes under an 80 px minim
   assert.deepEqual(outputs, [true, false]);
 });
 
+registerView('tune-chrome', ({ panel }) => React.createElement(Panel, { title: panel.title, children: React.createElement('i', { 'data-slot': panel.id }) }));
+
+/** The inline opacity of a panel's header under a chrome mode, with nothing hovered or active. */
+function headerOpacityUnder(mode: 'always' | 'hover-or-active'): string {
+  const mounted = mount(rowOf([entry('a', { view: 'tune-chrome' })], { chrome: { mode, fadeMs: 0 } }));
+  const opacity = mounted.container.querySelector<HTMLElement>('[data-panel-chrome-part="header"]')!.style.opacity;
+  mounted.unmount();
+  return opacity;
+}
+
+test('differential tuning.chrome: an idle panel keeps its header drawn under always and transparent under hover-or-active', () => {
+  differential('tuning.chrome', (run) => {
+    run('always', () => headerOpacityUnder('always'));
+    run('hover-or-active', () => headerOpacityUnder('hover-or-active'));
+  });
+});
+
 // ---------------------------------------------------------------------------
 // Defaults
 // ---------------------------------------------------------------------------
@@ -184,6 +202,7 @@ test('the library tuning defaults are exactly these numbers, by key name', () =>
     dropTieBreak: 'leftmost',
     rowGesture: 'step',
     initialScroll: 'start',
+    chrome: { mode: 'always', fadeMs: 120, slideMs: 140, slidePx: 8, graceMs: 250 },
     maxLivePanels: null,
   });
 });
@@ -344,16 +363,17 @@ test('usePanelReorderSteps: outside a row there are no neighbours, so every offs
 // The cascade, the scope and the ranges
 // ---------------------------------------------------------------------------
 
-test('usePanelTuning: exactly the five keys, the library defaults outside a row and the workspace value inside one', () => {
+test('usePanelTuning: exactly the six keys, the library defaults outside a row and the workspace value inside one', () => {
   let outside: ReturnType<typeof usePanelTuning> | undefined;
   function Probe(): React.ReactElement {
     outside = usePanelTuning();
     return React.createElement('i');
   }
   mount(React.createElement(Probe));
-  assert.deepEqual(Object.keys(outside!), ['rowGap', 'dragToClose', 'slide', 'hopFraction', 'edgeScroll']);
+  assert.deepEqual(Object.keys(outside!), ['rowGap', 'chrome', 'dragToClose', 'slide', 'hopFraction', 'edgeScroll']);
   assert.deepEqual(outside, {
     rowGap: 16,
+    chrome: { mode: 'always', fadeMs: 120, slideMs: 140, slidePx: 8, graceMs: 250 },
     dragToClose: LIBRARY_TUNING_DEFAULTS.dragToClose,
     slide: LIBRARY_TUNING_DEFAULTS.slide,
     hopFraction: 0.5,
@@ -361,7 +381,7 @@ test('usePanelTuning: exactly the five keys, the library defaults outside a row 
   });
   const inRow = mount(rowOf([entry('a')], { rowGap: 24, hopFraction: 0.3, edgeScroll: { zonePx: 60 } }));
   const tuning = seenOf('a').tuning;
-  assert.deepEqual(Object.keys(tuning), ['rowGap', 'dragToClose', 'slide', 'hopFraction', 'edgeScroll']);
+  assert.deepEqual(Object.keys(tuning), ['rowGap', 'chrome', 'dragToClose', 'slide', 'hopFraction', 'edgeScroll']);
   assert.equal(tuning.rowGap, 24);
   assert.equal(tuning.hopFraction, 0.3);
   assert.deepEqual(tuning.edgeScroll, { zonePx: 60, maxPxPerSec: 900, reducedStepMs: 500 }, 'a leaf given in part keeps the default for the rest');

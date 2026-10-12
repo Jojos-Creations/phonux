@@ -365,6 +365,7 @@ function DragToCloseBox({
   };
   const unlockScrollParents = () => {
     for (const [el, previous] of locked.current.splice(0)) el.style.overflowY = previous;
+    slotRef.current?.setDragging?.(false);
   };
   // The cleanup leaves a running spring alone: React 19.2 re-runs it for a keyed child a reorder moves under StrictMode, and
   // Activity runs it on a hide; a stopped release spring leaves the box at its drag offset.
@@ -486,6 +487,7 @@ function DragToCloseBox({
     if (Math.hypot(pointer.current.x - pointer.current.downX, pointer.current.y - pointer.current.downY) < drag.directionLockPx) return;
     engaged.current = true;
     axisLock.current = null;
+    slotRef.current?.setDragging?.(true);
     lockScrollParents();
     // A keep-alive step in Motion's own frame loop: the row scroll the edge loop adds is then drawn in
     // the frame that wrote it, not the one after, and the pointer offset is read once per frame.

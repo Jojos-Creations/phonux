@@ -1218,9 +1218,9 @@ the same call shows the panel or is refused), and `invalid-saved-setting` for ea
 ### Who may set what
 
 The `doors` of a descriptor name the configure call that accepts the key: `instance` (`configure(id)`), `template`
-(`configureTemplate`: `hostCreatable`, `multiple`, `maxInstances`) and `tuning` (`configureTuning`). Eight tuning
+(`configureTemplate`: `hostCreatable`, `multiple`, `maxInstances`) and `tuning` (`configureTuning`). Nine tuning
 leaves are workspace-only (`rowGap`, `saveQuietMs`, `gestureLockMs`, `returnTieBreak`, `dropTieBreak`, `rowGesture`,
-`initialScroll`, `maxLivePanels`); four are per panel and also workspace-wide (`dragToClose`, `slide`, `hopFraction`, `edgeScroll`).
+`initialScroll`, `maxLivePanels`, `chrome`); four are per panel and also workspace-wide (`dragToClose`, `slide`, `hopFraction`, `edgeScroll`).
 A workspace-only leaf at the template layer throws, at the instance or host layer it is a `wrong-scope` conflict, and
 any tuning key in the workspace defaults throws. A view's own door, the host layer, accepts only `title`, `listed`,
 `layer`, `formFactor`, `placeOnAdd: { anchor }` and `enterFrom: 'anchor'`.
@@ -1353,6 +1353,7 @@ flip with a transition rule of its own) or SCOPE (a template-scope key).
 | `tuning.dropTieBreak` | leftmost, rightmost (workspace only) | leftmost | NEXT (configureTuning only). Read at the next capacity drop or resize; nothing parks now. |
 | `tuning.rowGesture` | step, free, off (workspace only; a design-derived key from Q15, not requested) | step | NEXT (configureTuning only). The listener set is re-read at the next render; a gesture in flight finishes; no panel moves. Session-only. |
 | `tuning.initialScroll` | start, end, root, { panel: PanelId } (workspace only; a design-derived key from Q15, not requested) | start (the library default, a design default the owner did not rule on; phonux-app sets 'end', owner Q20: the newest closable panels in view at launch) | NEXT (configureTuning only). Read at the next mount; nothing scrolls now. Session-only. |
+| `tuning.chrome` | object: mode 'always' or 'hover-or-active', fadeMs integer [0, 10000], slideMs integer [0, 10000], slidePx integer [0, 200], graceMs integer [0, 10000] (workspace only) | always, 120, 140, 8, 250 (CHROME) | NOW (configureTuning only). A member patch keeps the other members. The chrome shows or hides at this commit; a fade in progress retargets. The library reads `mode` and `fadeMs`; `slideMs`, `slidePx` and `graceMs` are for the host's own icon row. Session-only. |
 | `tuning.maxLivePanels` | integer >= 1, or null for no cap (workspace only) | null (no cap) | NOW (configureTuning only). A lower value parks the excess unpinned panels at this commit through the reconcile effect; a higher one or null returns none under `capacityReturn` manual and the most recently parked under auto. Unmeasured: applies. Outside integers of 1 or more throws; null removes the cap. Session-only. |
 <!-- catalog:end -->
 
@@ -1472,6 +1473,29 @@ A verb names a panel, never a row index, and resolves it on every call: a handle
 - **The person's pin.** A person's pin records `overrides.anchor` (every id, when the half names a placement) and `overrides.parkable` (when it names `parkable`) through `recordOverride`; a code pin flips `parkable` for the session and records nothing.
 - **Configure of parkable.** A `configure` that names `parkable` on a parked, hidden or closed panel goes through `decidePinChange` like `pin`, reading `pinningWhenNotLive` as it stood before the patch: `place-only` and `refuse` answer `would-reshape-row` (`is-closed` for a closed panel), `show` shows the panel and flips it in one commit with `shown: true`, `apply-on-next-show` stores the half as a deferred pin and lists `parkable` in `later`. A closed panel's stored half lives on its record, is never saved, and is applied by `open` or an undo. A flip that changes nothing the panel reads, as when the person's override outvotes it, is no pin change and is never refused or stored. A `configure` that names `parkable` cancels a stored half on a parked, hidden or closed panel alike, even when the patch changes no layer value. The rest of the patch is written with a stored flip, and a refused flip refuses the whole patch.
 - **Reset.** `resetLayout` writes `overrides` only through `clearOverrides`, clears stored deferrals and re-places each named panel by its resolved `placeOnAdd`. `'all'` scrolls nothing; one id follows `scrollOnMove`.
+
+## Panel chrome
+
+The active and dragging panel are ephemeral facts held by the Workspace in a small external store (`panelChrome.ts`), one per
+Workspace and never module-wide, so two workspaces share nothing. They are not in the manager's snapshot or in storage.
+Each panel subscribes to its own entry, so a press that moves the mark re-renders the panel that lost it and the one that
+gained it. `PanelRowSlot` activates its panel from React capture handlers (`onPointerDownCapture`, `onFocusCapture`), which
+follow the React tree and so count a portaled dialog the panel opened; a focused iframe fires neither, so the slot also
+listens for the window's `blur` and activates when the focused element is an iframe inside it. The row clears the mark of a
+panel that closes or parks.
+
+`Panel` writes `data-panel-active` and `data-panel-dragging` on its root box, and `data-panel-chrome-part="header"`,
+`"grab-bar"` or `"footer"` on the parts `tuning.chrome` fades. Hosts style from these names; a test pins them.
+
+The fade changes opacity only. `pointer-events`, `inert`, `visibility` and `display` stay as they are, so a hidden header
+keeps its space, receives the pointer that reveals it, and holds Tab focus. It runs through Motion's `animate`, which uses the
+Web Animations API and so is not stopped by a theme's `transition: none !important`. Mode `'always'` leaves no inline opacity.
+
+`PanelHeaderButtons` is a toolbar with a roving tab stop kept in its runtime: the stop follows focus, falls to the first
+enabled button when its holder is removed or disabled, and Arrow, Home and End skip disabled buttons.
+
+The Workspace derives the row's resize settle from `tuning.slide`: the row snaps while the width moves and glides once it has
+held for `RESIZE_SETTLE_SLIDES` (1.25) slide durations, at once under Reduce Motion. A `rowResizeSettled` the host supplies wins.
 
 ## Doc comments
 

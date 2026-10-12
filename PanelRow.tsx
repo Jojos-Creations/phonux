@@ -14,8 +14,9 @@ import { PanelHiddenContext, PanelSlotContext, type DragScroll } from './panelSl
 import { PanelViewContextValue } from './panelViewContext.js';
 import { HEADER_ROW_ATTRIBUTE, headerButtonsOf } from './panelHeaderButtons.js';
 import { LIBRARY_TUNING_DEFAULTS, effective, resolvePanelSettings } from './panelSettings.js';
-import type { ResolvedPanelSettings, ResolvedPanelTuning, WorkspaceTuning } from './panelSettings.js';
+import type { ChromeTuning, ResolvedPanelSettings, ResolvedPanelTuning, WorkspaceTuning } from './panelSettings.js';
 import { PanelRowSlot } from './PanelRowSlot.js';
+import { ChromeStoreContext, createChromeStore } from './panelChrome.js';
 import { WorkspaceTuningContext, lookTuningDiffers, resolveWorkspaceTuning, slotTuning, type SlotTuning } from './panelTuning.js';
 import { reorderStepsForOffset, type PanelWindow } from './panelWindow.js';
 import { maxScrollOf, type RowNumbers } from './rowNumbers.js';
@@ -91,11 +92,11 @@ export const usePanelCapabilities = (): Pick<ResolvedPanelSettings, 'closable' |
 export const usePanelNeighborWidths = (): NeighborWidths => React.useContext(PanelSlotContext)?.neighborWidths ?? NO_NEIGHBORS;
 const OUTSIDE_ROW_TUNING: SlotTuning = slotTuning(LIBRARY_TUNING_DEFAULTS, undefined);
 /**
- * This panel's look tuning: its own dragToClose, slide, hopFraction and edgeScroll, and the workspace's rowGap.
+ * This panel's look tuning: its own dragToClose, slide, hopFraction and edgeScroll, and the workspace's rowGap and chrome.
  * Outside a row: the library defaults.
  * @public
  */
-export const usePanelTuning = (): ResolvedPanelTuning & { readonly rowGap: number } => React.useContext(PanelSlotContext)?.tuning ?? OUTSIDE_ROW_TUNING;
+export const usePanelTuning = (): ResolvedPanelTuning & { readonly rowGap: number; readonly chrome: ChromeTuning } => React.useContext(PanelSlotContext)?.tuning ?? OUTSIDE_ROW_TUNING;
 /**
  * The hops a horizontal drag of this panel asks for: `steps(offsetX)` is reorderStepsForOffset over this slot's
  * neighbours, the row's gap and this panel's hop fraction. Outside a row there are no neighbours, so it is 0.
@@ -169,6 +170,9 @@ export function PanelRow({
     warned.current = true;
     console.warn('PanelRow: its tuning prop differs from the Workspace tuning above it; the row renders with its own, but the Workspace and the capacity still price the row with theirs.');
   }, [disagrees]);
+  const inheritedChrome = React.useContext(ChromeStoreContext);
+  const [ownChrome] = React.useState(createChromeStore);
+  const chrome = inheritedChrome ?? ownChrome;
   const phoneWidth = device.size.width;
   const phoneHeight = device.size.height;
   // The live flags of the previous commit, and per parked entry whether its park released its view state. The latch
@@ -202,6 +206,17 @@ export function PanelRow({
   // Ids never repeat, so a panel in neither list can never be shown again and its view state is released.
   useViewState.useRetainOnly([...entries.filter((p) => !parkReleases(p)), ...(panels.recentlyClosed ?? [])].map((p) => p.id));
   const present = entries.filter(isPresent);
+  // A panel this row showed and no longer shows (closed or parked) stops being the active or dragged one.
+  const presentBefore = React.useRef<ReadonlySet<string>>(new Set());
+  React.useEffect(() => {
+    const now = new Set(present.map((p) => p.id));
+    for (const id of presentBefore.current) {
+      if (now.has(id)) continue;
+      if (chrome.active() === id) chrome.setActive(null);
+      chrome.setDragging(id, false);
+    }
+    presentBefore.current = now;
+  });
   // Layout, capacity and neighbours are computed over `present` alone: a kept entry occupies a slot but no width.
   const rendered = entries.filter((p) => isPresent(p) || keepsMounted(p));
   // Every present entry's OWN width, in row order. An always-shown column needs no special case: setFormFactor
@@ -261,6 +276,7 @@ export function PanelRow({
     for (const crossed of (forward ? walk.right : walk.left).slice(0, Math.abs(dragging.steps))) shiftById.set(crossed.id, forward ? -span : span);
   }
   return (
+    <ChromeStoreContext.Provider value={chrome}>
     <PanelViewContextValue.Provider value={viewContext}>
     {/* Always mounted: an exiting entry needs AnimatePresence to animate inside, and `initial={false}` must see
     what is present at app start to skip animating a restored session. `display: none` (not width 0) so an
@@ -300,6 +316,9 @@ export function PanelRow({
                 placeable,
                 resizable,
                 formFactors,
+                id: p.id,
+                animated,
+                setDragging: (on) => chrome.setDragging(p.id, on),
                 neighborWidths: neighborWidthsAt(p),
                 pinned: anchorTargetOf(p, rootId) === rootId && p.anchor?.position === 'left',
                 tuning: own,
@@ -327,6 +346,7 @@ export function PanelRow({
                 kept={kept}
                 rowScroll={rowScroll}
                 previewing={dragging !== null}
+                onActivate={() => chrome.setActive(p.id)}
                 dragged={dragging?.id === p.id}
               >
                 {/* A resolved component -- built-in or third-party -- is written against PanelSummary only,
@@ -343,5 +363,6 @@ export function PanelRow({
       </AnimatePresence>
     </Box>
     </PanelViewContextValue.Provider>
+    </ChromeStoreContext.Provider>
   );
 }

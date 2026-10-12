@@ -50,6 +50,12 @@ export const DROP_TIE_BREAK = 'leftmost' as const;
 export const ROW_GESTURE = 'step' as const;
 export const INITIAL_SCROLL = 'start' as const;
 
+/** When a panel's header, grab bar and footer show, and the numbers a host's header icon row animates with. */
+export const CHROME = { mode: 'always', fadeMs: 120, slideMs: 140, slidePx: 8, graceMs: 250 } as const;
+
+/** How many slide durations the container width must hold still before the row's centring margin glides again. */
+export const RESIZE_SETTLE_SLIDES = 1.25;
+
 /** Scrolling the row while a dragged panel is held near the window's edge. */
 export const EDGE_SCROLL_ZONE_PX = 48;
 export const EDGE_SCROLL_MAX_PX_PER_SEC = 900;

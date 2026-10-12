@@ -49,6 +49,15 @@ export interface CaptureTrigger {
 export type CatalogName = Exclude<keyof PanelSettings, 'tuning'> | `tuning.${keyof WorkspaceTuning}`;
 
 // @public
+export type ChromeTuning = {
+    mode: 'always' | 'hover-or-active';
+    fadeMs: number;
+    slideMs: number;
+    slidePx: number;
+    graceMs: number;
+};
+
+// @public
 export interface ClosedPageEntry {
     closedAt: string;
     id: string;
@@ -809,11 +818,15 @@ export interface PhoneSize {
 export interface PhonuxLabels {
     dismiss: string;
     historyTitle: string;
+    lock: string;
     panelTitle: (id: string) => string;
     phoneConnected: string;
     phoneConnectedText: (vendor: string) => string;
     phoneModel: string;
+    pin: string;
     resize: string;
+    unlock: string;
+    unpin: string;
     untitledHeader: string;
     untitledPanel: string;
 }
@@ -912,6 +925,7 @@ export type ResolvedWorkspaceTuning = ResolvedPanelTuning & {
     initialScroll: 'start' | 'end' | 'root' | {
         panel: PanelId;
     };
+    chrome: ChromeTuning;
     maxLivePanels: number | null;
 };
 
@@ -1115,13 +1129,22 @@ export type SourceLayer = 'library' | 'workspace' | 'template' | 'host' | 'insta
 export const TIER_SIZES: Readonly<Record<FormFactor, PanelSize>>;
 
 // @public
+export function useActivePanel(): readonly [PanelId | null, (id: PanelId | null) => void];
+
+// @public
 export function useHost(): Host;
+
+// @public
+export function usePanelActive(): boolean;
 
 // @public
 export const usePanelCapabilities: () => Pick<ResolvedPanelSettings, "closable" | "draggable" | "placeable" | "resizable" | "formFactors">;
 
 // @public
 export const usePanelCloseEligible: () => boolean;
+
+// @public
+export function usePanelDragging(): boolean;
 
 // @public
 export function usePanelHeaderButtons(): readonly PanelHeaderButtonItem[];
@@ -1150,6 +1173,7 @@ export function usePanelStates(f?: ListFilter): readonly PanelState[];
 // @public
 export const usePanelTuning: () => ResolvedPanelTuning & {
     readonly rowGap: number;
+    readonly chrome: ChromeTuning;
 };
 
 // @public
@@ -1307,7 +1331,7 @@ export interface WorkspaceProps extends Omit<BoxProps, 'children'> {
     phoneWidth: number;
     rowNumbers?: RowNumbers;
     rowRef: RefObject<HTMLDivElement | null>;
-    rowResizeSettled: boolean;
+    rowResizeSettled?: boolean;
     rowScroll?: boolean;
     topPadding?: number;
     tuning?: WorkspaceTuning;
@@ -1340,6 +1364,9 @@ export type WorkspaceTuning = PanelTuning & {
     rowGesture?: 'step' | 'free' | 'off';
     initialScroll?: 'start' | 'end' | 'root' | {
         panel: PanelId;
+    };
+    chrome?: {
+        [K in keyof ChromeTuning]?: ChromeTuning[K];
     };
     maxLivePanels?: number | null;
 };

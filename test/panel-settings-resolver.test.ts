@@ -129,7 +129,7 @@ const ENUMERATED: Record<string, readonly unknown[]> = {
 };
 
 /** The names the enumeration table leaves to a test of their own. */
-const ELSEWHERE: readonly CatalogName[] = ['headerButtons', 'pinning', 'tuning.rowGap', 'tuning.dragToClose', 'tuning.slide', 'tuning.hopFraction', 'tuning.edgeScroll', 'tuning.saveQuietMs', 'tuning.gestureLockMs', 'tuning.returnTieBreak', 'tuning.dropTieBreak', 'tuning.rowGesture', 'tuning.initialScroll', 'tuning.maxLivePanels'];
+const ELSEWHERE: readonly CatalogName[] = ['headerButtons', 'pinning', 'tuning.rowGap', 'tuning.dragToClose', 'tuning.slide', 'tuning.hopFraction', 'tuning.edgeScroll', 'tuning.saveQuietMs', 'tuning.gestureLockMs', 'tuning.returnTieBreak', 'tuning.dropTieBreak', 'tuning.rowGesture', 'tuning.initialScroll', 'tuning.maxLivePanels', 'tuning.chrome'];
 
 type Probe = readonly [what: string, layers: PanelSettingsLayers, layer: string, key: string | undefined];
 const PROBES: readonly Probe[] = [
@@ -794,10 +794,11 @@ const WORKSPACE_ONLY_ASKS: ReadonlyArray<readonly [leaf: string, value: unknown]
   ['dropTieBreak', 'rightmost'],
   ['rowGesture', 'free'],
   ['initialScroll', 'end'],
+  ['chrome', { mode: 'hover-or-active' }],
   ['maxLivePanels', 3],
 ];
 
-test('scope: the eight workspace-only tuning keys are wrong-scope at the instance or host layer and throw at the template layer', () => {
+test('scope: the nine workspace-only tuning keys are wrong-scope at the instance or host layer and throw at the template layer', () => {
   let executed = 0;
   for (const [leaf, value] of WORKSPACE_ONLY_ASKS) {
     const tuning = { [leaf]: value };
@@ -809,8 +810,8 @@ test('scope: the eight workspace-only tuning keys are wrong-scope at the instanc
     refuses({ template: asSettings({ tuning }) }, 'template', `tuning.${leaf}`);
     executed += 1;
   }
-  assert.equal(executed, 24);
-  assert.equal(WORKSPACE_ONLY_ASKS.length, 8);
+  assert.equal(executed, 27);
+  assert.equal(WORKSPACE_ONLY_ASKS.length, 9);
 });
 
 test('scope: a wrong-scope ask beside valid keys leaves the valid keys applied', () => {
