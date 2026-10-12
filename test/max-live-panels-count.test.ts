@@ -107,14 +107,18 @@ test('null is a value of its own: a workspace takes it as no cap, and the instan
 const entry = (id: string, over: Partial<PanelWindow> = {}): PanelWindow => ({ id, url: `https://${id}.example`, title: id.toUpperCase(), live: true, locked: false, view: 'web', collapsible: true, listed: true, ...over });
 const historyEntry = (): PanelWindow => entry('root', { url: '', title: 'History', locked: true, collapsible: false, listed: false });
 
-/** Hand-built entries, which carry no settings and so give a row with no scroll entry. */
-function handBuilt(entries: PanelWindow[], width: number, tuning?: WorkspaceTuning): { now: () => ProvidedPanels; row: () => string } {
+/** Hand-built entries, which carry no settings and so give a row with no scroll entry. `rows` collects the row of every committed render. */
+function handBuilt(entries: PanelWindow[], width: number, tuning?: WorkspaceTuning, rows?: string[], strict = false): { now: () => ProvidedPanels; row: () => string } {
   let latest: ProvidedPanels | undefined;
   function Probe(): React.ReactElement {
     latest = useProvidePanels(panelsInput({ initialEntries: entries, containerWidth: width, ...(tuning === undefined ? {} : { tuning }) }));
+    const seen = latest;
+    React.useLayoutEffect(() => {
+      rows?.push(rowOf(seen.entries));
+    });
     return React.createElement('output');
   }
-  mount(React.createElement(Probe));
+  mount(strict ? React.createElement(React.StrictMode, null, React.createElement(Probe)) : React.createElement(Probe));
   return { now: () => latest!, row: () => rowOf(latest!.entries) };
 }
 const six = (): PanelWindow[] => [historyEntry(), entry('a'), entry('b'), entry('c'), entry('d'), entry('e'), entry('f')];
@@ -158,21 +162,21 @@ test('unmeasured row: with the key unset nothing parks, as before', async () => 
   assert.equal(r.row(), 'root w1 w2 w3 w4');
 });
 
-test('unmeasured row: with N = 2 the leftmost two panels park on the first commit', async () => {
+test('unmeasured row: with N = 2 the leftmost two panels are parked when the row first shows them', async () => {
   const r = await capRig({ count: 4, cap: 2, width: 0 });
   assert.equal(r.row(), 'root w1* w2* w3 w4');
 });
 
-test('unmeasured row: the first measure changes the live set by 0 and no committed row after the first commit holds more than N unpinned live panels', async () => {
+test('unmeasured row: the first measure changes the live set by 0 and no committed row holds more than N unpinned live panels', async () => {
   const r = await capRig({ count: 4, cap: 2, width: 0, record: true });
   assert.equal(r.row(), 'root w1* w2* w3 w4');
   const settledAt = r.commits.length;
   r.m.setWidth(1280);
   await r.settle();
   assert.equal(r.row(), 'root w1* w2* w3 w4', 'the measure moved no panel');
-  const after = r.commits.slice(settledAt);
-  assert.ok(after.length > 0, 'the probe saw the render the measure caused');
-  assert.deepEqual(after.filter((row) => liveRightOfRoot(row) > 2), [], 'no committed row held a third live panel');
+  assert.ok(r.commits.length > settledAt, 'the probe saw the render the measure caused');
+  assert.ok(r.commits.some((row) => row.includes('w1')), 'the probe saw the row that first holds the panels');
+  assert.deepEqual(r.commits.filter((row) => liveRightOfRoot(row) > 2), [], 'no committed row, the first included, held a third live panel');
 });
 
 test('unmeasured row: the render probe does see a row that holds more than N when there is one', async () => {
@@ -183,10 +187,91 @@ test('unmeasured row: the render probe does see a row that holds more than N whe
 });
 
 // ---------------------------------------------------------------------------
+// Committed rows
+// ---------------------------------------------------------------------------
+
+/** The first committed row that holds a panel besides History. */
+const firstWithPanels = (commits: readonly string[]): string | undefined => commits.find((row) => row !== 'root');
+
+test('committed rows: panels added before the mount arrive with the leftmost two already parked, and no row holds more than N', async () => {
+  const r = await capRig({ count: 7, cap: 5, record: true });
+  assert.equal(firstWithPanels(r.commits), 'root w1* w2* w3 w4 w5 w6 w7');
+  assert.deepEqual(r.commits.filter((row) => liveRightOfRoot(row) > 5), [], 'no committed row held a sixth live panel');
+  cleanup();
+  const control = await capRig({ count: 7, record: true });
+  assert.equal(liveRightOfRoot(firstWithPanels(control.commits)!), 7, 'control: with the key unset the probe sees the seven live panels');
+});
+
+test('committed rows: the same under StrictMode', async () => {
+  const r = await capRig({ count: 7, cap: 5, record: true, strict: true });
+  assert.equal(firstWithPanels(r.commits), 'root w1* w2* w3 w4 w5 w6 w7');
+  assert.deepEqual(r.commits.filter((row) => liveRightOfRoot(row) > 5), [], 'no committed row held a sixth live panel');
+  assert.equal(r.row(), 'root w1* w2* w3 w4 w5 w6 w7');
+});
+
+test('committed rows: two pinned panels arrive live and the leftmost two unpinned ones arrive parked', async () => {
+  const r = await capRig({ count: 9, cap: 5, pinned: ['w1', 'w2'], record: true });
+  assert.equal(firstWithPanels(r.commits), 'w1 w2 root w3* w4* w5 w6 w7 w8 w9');
+  assert.deepEqual(r.commits.filter((row) => liveRightOfRoot(row) > 5), [], 'no committed row held a sixth live unpinned panel');
+});
+
+test('committed rows: hand-built entries arrive in the first commit with the excess parked', () => {
+  const rows: string[] = [];
+  handBuilt(six(), 3000, { maxLivePanels: 3 }, rows);
+  assert.equal(rows[0], 'root a* b* c* d e f', 'the first committed row');
+  assert.deepEqual(rows.filter((row) => liveRightOfRoot(row) > 3), []);
+  cleanup();
+  const control: string[] = [];
+  handBuilt(six(), 3000, undefined, control);
+  assert.equal(control[0], 'root a b c d e f', 'control: with the key unset the first row holds all six');
+  cleanup();
+  const strict: string[] = [];
+  handBuilt(six(), 3000, { maxLivePanels: 3 }, strict, true);
+  assert.deepEqual(strict.filter((row) => liveRightOfRoot(row) > 3), [], 'under StrictMode too');
+});
+
+test('committed rows: a lower value of the cap is in the first row that renders it', async () => {
+  const r = await capRig({ count: 4, width: 4000, record: true });
+  const before = r.commits.length;
+  r.turn(() => r.ws.panels.configureTuning({ maxLivePanels: 2 }));
+  await r.settle();
+  const after = r.commits.slice(before);
+  assert.equal(after[0], 'root w1* w2* w3 w4');
+  assert.deepEqual(after.filter((row) => liveRightOfRoot(row) > 2), [], 'no committed row held a third live panel');
+});
+
+test('committed rows: the panels parked before the first row is shown are parks for room, so under auto the latest comes back first', async () => {
+  const r = await capRig({ count: 7, cap: 5, returns: 'auto', record: true });
+  assert.equal(firstWithPanels(r.commits), 'root w1* w2* w3 w4 w5 w6 w7');
+  r.turn(() => r.h.w7!.close());
+  await r.settle();
+  assert.equal(r.row(), 'root w1* w2 w3 w4 w5 w6', 'closing a live panel returned the latest parked, w2');
+  r.turn(() => r.h.w6!.close());
+  await r.settle();
+  assert.equal(r.row(), 'root w1 w2 w3 w4 w5', 'and the next closing returned the one parked before it');
+});
+
+test('committed rows: under auto a panel parked before the first row is shown reads as parked, not hidden', async () => {
+  const r = await capRig({ count: 7, cap: 5, returns: 'auto', own: { w1: { pinningWhenNotLive: { parked: 'place-only', hidden: 'refuse' } } } });
+  assert.equal(r.row(), 'root w1* w2* w3 w4 w5 w6 w7');
+  assert.equal(r.turn(() => r.h.w1!.pin()).ok, true, 'a pin change that a hidden panel refuses is placed for a parked one');
+});
+
+test('committed rows: under manual the panels parked before the first row is shown stay hidden until shown', async () => {
+  const r = await capRig({ count: 7, cap: 5, record: true });
+  r.turn(() => r.h.w7!.close());
+  await r.settle();
+  assert.equal(r.row(), 'root w1* w2* w3 w4 w5 w6', 'closing a live panel returned nothing');
+  r.turn(() => r.h.w1!.show());
+  await r.settle();
+  assert.equal(r.row(), 'root w1 w2* w3 w4 w5 w6', 'showing one brings back that one alone');
+});
+
+// ---------------------------------------------------------------------------
 // A new value at run time
 // ---------------------------------------------------------------------------
 
-test('run time: a lower N parks the leftmost excess on the next commit, with the same park as a narrower window', async () => {
+test('run time: a lower N parks the leftmost excess, with the same park as a narrower window', async () => {
   const r = await capRig({ count: 4, width: 4000 });
   assert.equal(r.row(), 'root w1 w2 w3 w4', 'before: no cap');
   const result = r.turn(() => r.ws.panels.configureTuning({ maxLivePanels: 2 }));

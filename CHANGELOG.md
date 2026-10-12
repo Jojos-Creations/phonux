@@ -8,9 +8,11 @@
   is no cap and changes nothing). The leftmost panels beyond it park, as a narrow window parks them, and in a scrolling row
   such as History's the window's width no longer decides: exactly N unpinned panels are live at any width. A pinned panel is
   neither counted nor parked by the cap. Opening, showing, undoing a close, pinning, unpinning, moving and dropping a panel
-  across History keep to it, and `configureTuning({ maxLivePanels })` applies at once. With `revealOnScroll` `'never'` on the
-  panels, scrolling the row brings nothing back; a hidden panel returns by `show`, a History click or an undo. This is a
-  workspace setting the host chooses; the stored per-person max-panels choice retired in 0.2.0-rc.1 (below) stays retired.
+  across History keep to it, and `configureTuning({ maxLivePanels })` applies at once. No row that reaches the document holds
+  more than N: the panels of a restore, a replayed `addPanel` or a seeded list arrive with the excess already parked, and a
+  panel the cap parks is never mounted. With `revealOnScroll` `'never'` on the panels, scrolling the row brings nothing back;
+  a hidden panel returns by `show`, a History click or an undo. This is a workspace setting the host chooses; the stored
+  per-person max-panels choice retired in 0.2.0-rc.1 (below) stays retired.
 
 ### Changed
 
