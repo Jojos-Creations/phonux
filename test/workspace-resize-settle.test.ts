@@ -17,10 +17,15 @@ afterEach(() => {
   cleanup();
 });
 
-test('the settle delay is 1.25 slide durations: 500 ms at the default, scaling with the slide, 0 for no slide', () => {
-  assert.equal(resizeSettleDelayMs(LIBRARY_TUNING_DEFAULTS.slide), 500);
-  assert.equal(resizeSettleDelayMs({ ...LIBRARY_TUNING_DEFAULTS.slide, durationSec: 0.8 }), 1000);
-  assert.equal(resizeSettleDelayMs({ ...LIBRARY_TUNING_DEFAULTS.slide, durationSec: 0 }), 0);
+const SLIDES = LIBRARY_TUNING_DEFAULTS.resizeSettleSlides;
+
+test('the settle delay is resizeSettleSlides slide durations: 500 ms at the defaults, scaling with the slide and the leaf, 0 for either at 0', () => {
+  assert.equal(SLIDES, 1.25);
+  assert.equal(resizeSettleDelayMs(LIBRARY_TUNING_DEFAULTS.slide, SLIDES), 500);
+  assert.equal(resizeSettleDelayMs({ ...LIBRARY_TUNING_DEFAULTS.slide, durationSec: 0.8 }, SLIDES), 1000);
+  assert.equal(resizeSettleDelayMs({ ...LIBRARY_TUNING_DEFAULTS.slide, durationSec: 0 }, SLIDES), 0);
+  assert.equal(resizeSettleDelayMs(LIBRARY_TUNING_DEFAULTS.slide, 0.5), 200);
+  assert.equal(resizeSettleDelayMs(LIBRARY_TUNING_DEFAULTS.slide, 0), 0);
 });
 
 function Probe({ width, delayMs, instant, log }: { width: number; delayMs: number; instant: boolean; log: boolean[] }): React.ReactElement {
@@ -149,4 +154,27 @@ test('a supplied rowResizeSettled wins, either way', async () => {
   mock.timers.enable({ apis: ['setTimeout', 'setInterval'] });
   assert.equal(await glidesWhenAPanelJoins(1000, () => undefined, { rowResizeSettled: false }), false, 'false keeps it snapping');
   assert.equal(await glidesWhenAPanelJoins(1000, () => undefined, { rowResizeSettled: true }), true, 'true glides');
+});
+
+test('tuning.resizeSettleSlides sets the wait: 2 slides of 0.4 s is 800 ms, one short still snaps and the full wait glides; 0 glides at once', async () => {
+  mock.timers.enable({ apis: ['setTimeout', 'setInterval'] });
+  const marginAfter = async (waitMs: number, tuning: Record<string, unknown>): Promise<'snapped' | 'glided'> => {
+    const extra = { tuning };
+    const m = mount(workspaceAt(1000, [], extra));
+    m.rerender(workspaceAt(1200, [], extra));
+    act(() => mock.timers.tick(waitMs));
+    await advanceFrames(2000);
+    const start = marginOf(m.container);
+    m.rerender(workspaceAt(1200, [390], extra));
+    await advanceFrames(32);
+    const mid = marginOf(m.container);
+    await advanceFrames(2000);
+    const end = marginOf(m.container);
+    m.unmount();
+    return mid !== start && mid !== end ? 'glided' : 'snapped';
+  };
+  assert.equal(await marginAfter(799, { resizeSettleSlides: 2 }), 'snapped', 'one ms short of 2 x 0.4 s');
+  assert.equal(await marginAfter(800, { resizeSettleSlides: 2 }), 'glided');
+  assert.equal(await marginAfter(499, {}), 'snapped', 'control: the default 1.25 still waits 500 ms');
+  assert.equal(await marginAfter(0, { resizeSettleSlides: 0 }), 'glided', '0 settles at once');
 });

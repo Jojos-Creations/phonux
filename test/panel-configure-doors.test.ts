@@ -18,7 +18,7 @@ afterEach(() => cleanup());
 
 type Refused = Extract<ConfigureResult, { ok: false }>;
 
-const WORKSPACE_ONLY = ['rowGap', 'saveQuietMs', 'gestureLockMs', 'gestureQuietMs', 'returnTieBreak', 'dropTieBreak', 'rowGesture', 'initialScroll', 'maxLivePanels', 'chrome'];
+const WORKSPACE_ONLY = ['rowGap', 'saveQuietMs', 'gestureLockMs', 'gestureQuietMs', 'resizeSettleSlides', 'returnTieBreak', 'dropTieBreak', 'rowGesture', 'initialScroll', 'maxLivePanels', 'chrome'];
 const PER_PANEL = ['dragToClose', 'slide', 'hopFraction', 'edgeScroll'];
 const TEMPLATE = ['hostCreatable', 'multiple', 'maxInstances'];
 
@@ -82,6 +82,7 @@ const VALUE: Record<string, unknown> = {
   saveQuietMs: 700,
   gestureLockMs: 400,
   gestureQuietMs: 300,
+  resizeSettleSlides: 2,
   returnTieBreak: 'row-order',
   dropTieBreak: 'rightmost',
   rowGesture: 'free',
@@ -158,10 +159,10 @@ test('doors: the table ran every row, calls by classes by one key each', () => {
 // The sweep: every catalog key through every call
 // ---------------------------------------------------------------------------
 
-test('doors: the catalog holds the plain keys, three template keys among them, and fourteen tuning leaves', () => {
+test('doors: the catalog holds the plain keys, three template keys among them, and fifteen tuning leaves', () => {
   assert.equal(flatKeys.length + leafKeys.length, names.length);
   assert.deepEqual(leafKeys.sort(), [...PER_PANEL, ...WORKSPACE_ONLY].sort());
-  assert.equal(leafKeys.length, 14);
+  assert.equal(leafKeys.length, 15);
   assert.deepEqual(PANEL_SETTINGS_CATALOG.filter((d) => d.configure.doors.length === 1 && d.configure.doors[0] === 'template').map((d) => d.name).sort(), [...TEMPLATE].sort());
 });
 

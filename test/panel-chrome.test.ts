@@ -8,7 +8,7 @@ import './support/jsdom-globals.js';
 import * as React from 'react';
 import { act } from 'react';
 import { createPortal } from 'react-dom';
-import { MotionConfig } from 'motion/react';
+import { MotionConfig, animate, cubicBezier } from 'motion/react';
 import { DragToClose, Panel, PanelFrame, registerView, useActivePanel, useHost, usePanelActive, usePanelDragging, usePanelTuning } from '../index.js';
 import { ACTIVE_ATTRIBUTE, CHROME_ATTRIBUTE, DRAGGING_ATTRIBUTE, createChromeStore } from '../panelChrome.js';
 import { PanelFooterContext } from '../panelFooter.js';
@@ -254,6 +254,43 @@ test('the fade takes fadeMs on the frame clock, and no time under Reduce Motion'
   hovered('c1', quick);
   await advanceFrames(250);
   assert.equal(opacityOf(part(quick, 'c1', 'header')), '1', 'a 100 ms fade is over well inside 250 ms');
+});
+
+/** The header's opacity a quarter, a half and three quarters of the way through a 1600 ms fade, on the frame clock. */
+async function fadeTrace(chrome: Record<string, unknown>): Promise<number[]> {
+  const m = mountRow(entries(2), 3000, { tuning: { chrome: { mode: 'hover-or-active', fadeMs: 1600, ...chrome } } });
+  await advanceFrames(2000);
+  hovered('c1', m);
+  const seen: number[] = [];
+  for (let k = 0; k < 3; k += 1) {
+    await advanceFrames(400);
+    seen.push(Number(opacityOf(part(m, 'c1', 'header'))));
+  }
+  cleanup();
+  return seen;
+}
+const along = (curve: (t: number) => number): number[] => [0.25, 0.5, 0.75].map(curve);
+const near = (got: number[], want: number[], what: string): void => got.forEach((v, i) => assert.ok(Math.abs(v - want[i]!) < 0.03, `${what}: ${got.join(', ')} is not ${want.join(', ')}`));
+
+test("chrome.fadeEase: the default fades along the curve Motion applies to a fade given only a duration, and each override along its own", async () => {
+  const bare = document.createElement('div');
+  document.body.appendChild(bare);
+  bare.style.opacity = '0';
+  const bareSeen: number[] = [];
+  animate(bare, { opacity: 1 }, { duration: 1.6 });
+  for (let k = 0; k < 3; k += 1) {
+    await advanceFrames(400);
+    bareSeen.push(Number(bare.style.opacity));
+  }
+  bare.remove();
+  const byDefault = await fadeTrace({});
+  near(byDefault, bareSeen, 'the default matches animate() with no ease');
+  near(byDefault, along(cubicBezier(0, 0, 0.58, 1)), "the default is Motion's easeOut");
+  near(await fadeTrace({ fadeEase: 'linear' }), [0.25, 0.5, 0.75], 'linear');
+  near(await fadeTrace({ fadeEase: 'easeIn' }), along(cubicBezier(0.42, 0, 1, 1)), 'easeIn');
+  near(await fadeTrace({ fadeEase: [0.25, 0.1, 0.25, 1] }), along(cubicBezier(0.25, 0.1, 0.25, 1)), 'a bezier tuple');
+  near(await fadeTrace({ fadeEase: [0.1, 0.25, 1, 0.25] }), along(cubicBezier(0.1, 0.25, 1, 0.25)), 'a tuple with its four numbers in another order');
+  assert.ok(byDefault[0]! - 0.25 > 0.08, 'control: the default is well ahead of linear at a quarter');
 });
 
 test('the store wakes only the listeners of the panels whose mark changed', () => {

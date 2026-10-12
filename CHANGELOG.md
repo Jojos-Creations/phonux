@@ -42,6 +42,13 @@
   not follow `slide.ease`. `ROW_LAYER_Z` exports the slots' stacking (base 1, raised 2, dragged 3), below every
   `OVERLAY_Z` layer. Nothing changes at the defaults.
 
+- Two more values that were literals are tuning leaves, each at the value the code always used: `tuning.resizeSettleSlides`
+  (1.25, a workspace-only number from 0 to 10 that multiplies `slide.durationSec` into the wait before the row's centring
+  margin glides again after a resize; 0 settles at once) and `tuning.chrome.fadeEase` (`'easeOut'`, the curve Motion applies
+  to a fade given only a duration; also `'easeIn'`, `'easeInOut'`, `'linear'` or a cubic bezier). `fadeEase` is a required member
+  of the resolved `ChromeTuning`, so a host that builds a whole `ChromeTuning` object (a test double, a fake) now has to give
+  it; a patch to `tuning.chrome` or a host that only reads the resolved value is unaffected. The `FadeEase` type is exported.
+
 ### Changed
 
 - **Default behaviour change.** The header buttons are now one Tab stop with roving focus, as a toolbar should be: Tab enters

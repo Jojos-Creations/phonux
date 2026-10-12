@@ -1,0 +1,86 @@
+{
+  "tests": [
+    "test/workspace-resize-settle.test.ts",
+    "test/panel-chrome.test.ts",
+    "test/panel-chrome-tuning.test.ts",
+    "test/panel-settings-resolver.test.ts",
+    "test/settings-enforcement-tuning.test.ts",
+    "test/panel-configure-matrix.test.ts",
+    "test/rowconstants-drift.test.ts"
+  ],
+  "mutants": [
+    {
+      "name": "the Workspace ignores resizeSettleSlides",
+      "file": "Workspace.tsx",
+      "find": "resizeSettleDelayMs(resolved.slide, resolved.resizeSettleSlides)",
+      "replace": "resizeSettleDelayMs(resolved.slide, 1.25)",
+      "expectRed": [
+        "differential tuning.resizeSettleSlides",
+        "tuning.resizeSettleSlides sets the wait"
+      ]
+    },
+    {
+      "name": "the settle delay ignores its slides argument",
+      "file": "Workspace.tsx",
+      "find": "slide.durationSec * slides * 1000",
+      "replace": "slide.durationSec * 1.25 * 1000",
+      "expectRed": [
+        "the settle delay is resizeSettleSlides slide durations"
+      ]
+    },
+    {
+      "name": "the default settle multiplier changes",
+      "file": "rowConstants.ts",
+      "find": "export const RESIZE_SETTLE_SLIDES = 1.25;",
+      "replace": "export const RESIZE_SETTLE_SLIDES = 1.5;",
+      "expectRed": [
+        "the settle delay is resizeSettleSlides slide durations"
+      ]
+    },
+    {
+      "name": "the fade drops its ease",
+      "file": "panelChrome.ts",
+      "find": "{ duration: fadeMs / 1000, ease: fadeEase }",
+      "replace": "{ duration: fadeMs / 1000 }",
+      "expectRed": [
+        "chrome.fadeEase: the default fades along the curve"
+      ]
+    },
+    {
+      "name": "the default fade ease changes",
+      "file": "rowConstants.ts",
+      "find": "fadeEase: 'easeOut'",
+      "replace": "fadeEase: 'linear'",
+      "expectRed": [
+        "chrome.fadeEase: the default fades along the curve"
+      ]
+    },
+    {
+      "name": "the settle ceiling widens",
+      "file": "panelSettings.ts",
+      "find": "resizeSettleSlides: num(0, 10),",
+      "replace": "resizeSettleSlides: num(0, 100),",
+      "expectRed": [
+        "ranges: every (value, outcome) row"
+      ]
+    },
+    {
+      "name": "the settle floor admits negatives",
+      "file": "panelSettings.ts",
+      "find": "resizeSettleSlides: num(0, 10),",
+      "replace": "resizeSettleSlides: num(-1, 10),",
+      "expectRed": [
+        "ranges: every (value, outcome) row"
+      ]
+    },
+    {
+      "name": "fadeEase accepts a name closeExitEase refuses",
+      "file": "panelSettings.ts",
+      "find": "fadeEase: (v) => (typeof v === 'string' ? oneOf('easeIn', 'easeOut', 'easeInOut', 'linear')(v)",
+      "replace": "fadeEase: (v) => (typeof v === 'string' ? oneOf('easeIn', 'easeOut', 'easeInOut', 'linear', 'cubic-out')(v)",
+      "expectRed": [
+        "chrome.fadeEase: the four names and a bezier tuple"
+      ]
+    }
+  ]
+}

@@ -56,9 +56,9 @@ function docClassWords(doc: string): Map<string, string> {
   return rows;
 }
 
-test('release gate: the catalog has 64 descriptors and the DESIGN.md table has 64 rows', () => {
-  assert.equal(PANEL_SETTINGS_CATALOG.length, 64);
-  assert.equal(docClassWords(DESIGN).size, 64);
+test('release gate: the catalog has 65 descriptors and the DESIGN.md table has 65 rows', () => {
+  assert.equal(PANEL_SETTINGS_CATALOG.length, 65);
+  assert.equal(docClassWords(DESIGN).size, 65);
 });
 
 for (const d of PANEL_SETTINGS_CATALOG) {
