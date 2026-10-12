@@ -72,11 +72,14 @@ const VALUE_EXPORTS = [
   'usePanelStates',
   'usePanelState',
   'useWorkspaceManager',
+  'useActivePanel',
+  'usePanelActive',
+  'usePanelDragging',
   // Opt-in extras (never applied implicitly).
   'createDefaultTheme',
 ].sort();
 
-test('the phonux barrel exports exactly the 62 runtime values, no more, no fewer', () => {
+test('the phonux barrel exports exactly the 65 runtime values, no more, no fewer', () => {
   assert.deepEqual(Object.keys(phonux).sort(), VALUE_EXPORTS);
 });
 

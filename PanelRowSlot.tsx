@@ -151,6 +151,7 @@ export function PanelRowSlot({
   kept = false,
   rowScroll = false,
   previewing = false,
+  onActivate,
   children,
 }: {
   /** This slot's own rest x position -- the caller's running sum of every PRECEDING present item's own width plus one gap. */
@@ -183,6 +184,8 @@ export function PanelRowSlot({
   rowScroll?: boolean;
   /** True while a sideways drag previews the reorder: under Reduce Motion the slot's own moves then snap, since a preview-time slide carries no information. */
   previewing?: boolean;
+  /** Called when a press or focus lands anywhere inside the slot, a portaled descendant included (React capture handlers follow the React tree). */
+  onActivate?: () => void;
   /** The panel rendered inside the slot. */
   children: React.ReactNode;
 }) {
@@ -278,6 +281,8 @@ export function PanelRowSlot({
       inert={kept ? true : undefined}
       aria-hidden={hidden ? true : undefined}
       data-row-slot={leftOffset}
+      onPointerDownCapture={onActivate}
+      onFocusCapture={onActivate}
       style={{
         position: 'absolute',
         top: 0,

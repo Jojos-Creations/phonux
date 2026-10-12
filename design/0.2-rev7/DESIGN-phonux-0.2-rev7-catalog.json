@@ -917,5 +917,20 @@
    "tuning"
   ],
   "scope": "workspace"
+ },
+ {
+  "name": "tuning.chrome",
+  "values": "object: mode 'always' or 'hover-or-active', fadeMs integer [0, 10000], slideMs integer [0, 10000], slidePx integer [0, 200], graceMs integer [0, 10000] (workspace only)",
+  "default": "always, 120, 140, 8, 250 (CHROME)",
+  "behaviour": "When a panel's header, grab bar and footer show, and the numbers a host's header icon row animates with. 'always' draws every panel's chrome. 'hover-or-active' draws it fully only on a panel that is hovered, holds focus, is the active panel or is being dragged, and on a device that cannot hover; otherwise it is transparent but stays hit-testable and focusable, its space reserved. The fade takes fadeMs and runs on Motion, not a CSS transition; it takes no time under Reduce Motion or an unanimated panel. slideMs, slidePx and graceMs are read by a host through usePanelTuning().chrome; the library draws no icon row.",
+  "enforced_by": "useChromeVisibility and useChromeFade in panelChrome.ts, used by Panel and PanelFooter; the numbers reach a view through the slot's tuning.",
+  "exists_today": "New. The chrome of every panel is always drawn.",
+  "on_configure": "NOW (configureTuning only). The chrome shows or hides at this commit; a fade in progress retargets. Session-only.",
+  "ownerEntry": "phonux-engine-tuning-look-settings",
+  "cls": "NOW",
+  "doors": [
+   "tuning"
+  ],
+  "scope": "workspace"
  }
 ]
