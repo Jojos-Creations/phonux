@@ -151,3 +151,21 @@ test('a row that does not scroll: a raise returns panels only up to what the win
   await scrolling.settle();
   assert.equal(scrolling.unpinnedLive().length, 6, 'control: a scrolling row ignores the window');
 });
+
+test('after a raise, scrolling the row and undoing a close bring back nothing more', async () => {
+  const r = await capRig({ count: 6, width: 1280, cap: 2 });
+  raise(r, 4);
+  await r.settle();
+  const after = r.row();
+  assert.equal(r.parked().length, 2, 'the raise to 4 leaves two parked');
+  for (const deltaX of [100, 100, -100, -100]) {
+    act(() => void r.m.container.dispatchEvent(new WheelEvent('wheel', { cancelable: true, bubbles: true, deltaX })));
+    await r.settle();
+  }
+  assert.equal(r.row(), after, 'scrolling returns nothing');
+  r.turn(() => r.h.w6!.close());
+  await r.settle();
+  r.turn(() => r.m.latest().undoClose());
+  await r.settle();
+  assert.deepEqual(r.parked(), ['w1', 'w2'], 'undoing the close returns that panel and nothing else');
+});
