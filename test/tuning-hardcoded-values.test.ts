@@ -6,6 +6,7 @@ import { test, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
 import './support/jsdom-globals.js';
 import * as React from 'react';
+import { cubicBezier } from 'motion/react';
 import { act } from 'react';
 import { DragToClose, LIBRARY_TUNING_DEFAULTS, OVERLAY_Z, ROW_LAYER_Z, resolvePanelSettings } from '../index.js';
 import type { SlideTuning } from '../index.js';
@@ -32,16 +33,12 @@ const slotValue = (tuning: Partial<SlotTuning>): PanelSlotValue => ({
   tuning: { ...slotTuning(LIBRARY_TUNING_DEFAULTS, undefined), ...tuning },
 });
 
-function mountBox(tuning: Partial<SlotTuning>, onClose: () => void = () => undefined) {
-  const mounted = mount(
-    React.createElement(PanelSlotContext.Provider, {
-      value: slotValue(tuning),
-      children: React.createElement(DragToClose, {
-        onClose,
-        children: (handle) => React.createElement('div', { 'data-handle': '', onPointerDown: handle.onPointerDown }, 'grab'),
-      }),
-    }),
-  );
+function mountBox(tuning: Partial<SlotTuning> | null, onClose: () => void = () => undefined) {
+  const box = React.createElement(DragToClose, {
+    onClose,
+    children: (handle) => React.createElement('div', { 'data-handle': '', onPointerDown: handle.onPointerDown }, 'grab'),
+  });
+  const mounted = mount(tuning === null ? box : React.createElement(PanelSlotContext.Provider, { value: slotValue(tuning), children: box }));
   const handle = mounted.container.querySelector<HTMLElement>('[data-handle]')!;
   return { handle, box: handle.closest<HTMLElement>('[data-drag-to-close]')! };
 }
@@ -58,7 +55,7 @@ function pointer(type: 'pointerdown' | 'pointermove' | 'pointerup', y: number, a
 }
 
 /** Presses, then moves to each `[ms after the press, y]` and lifts `liftAfter` ms after the last move; true when the box closed. */
-async function closesAfter(tuning: Partial<SlotTuning>, moves: ReadonlyArray<readonly [number, number]>, liftAfter: number): Promise<boolean> {
+async function closesAfter(tuning: Partial<SlotTuning> | null, moves: ReadonlyArray<readonly [number, number]>, liftAfter: number): Promise<boolean> {
   const closes: number[] = [];
   const { handle } = mountBox(tuning, () => closes.push(1));
   await act(async () => void handle.dispatchEvent(pointer('pointerdown', 0, performance.now())));
@@ -87,6 +84,17 @@ test('restMs: a 60 px flick lifted 80 ms after its last move has no velocity at 
   assert.equal(await closesAfter(drags(50), FLICK, 80), false, 'rested at the default');
   cleanup();
   assert.equal(await closesAfter(drags(120), FLICK, 80), true, 'not rested under 120 ms');
+});
+
+test('outside a row a DragToClose reads the library defaults: rested after 50 ms, a 100 ms velocity window', async () => {
+  assert.equal(await closesAfter(null, FLICK, 10), true, 'control: lifted 10 ms after the last move it is a flick');
+  cleanup();
+  assert.equal(await closesAfter(null, FLICK, 80), false, 'rested after the default 50 ms');
+  cleanup();
+  const fastThenSlow: ReadonlyArray<readonly [number, number]> = [[0, 0], [16, 50], [116, 55], [216, 60]];
+  assert.equal(await closesAfter(null, fastThenSlow, 10), false, 'the default 100 ms window has dropped the fast move');
+  cleanup();
+  assert.equal(await closesAfter(null, [[0, 0], [16, 50], [60, 55], [100, 60]], 10), true, 'control: inside the window the fast move still counts');
 });
 
 test('velocityWindowMs: a fast move followed by slow ones is a flick only while the window still reaches it', async () => {
@@ -154,6 +162,9 @@ test("glideEase: 'linear' and a bezier tuple glide along their own curves, apart
   assert.ok(Math.abs(a! - 400) < 0.5 && Math.abs(b! - 800) < 0.5, `linear gave ${a}, ${b}`);
   const [curved] = await glidePositions([0.2, 0, 0, 1]);
   assert.ok(curved! > 400 && Math.abs(curved! - 1600 * 0.578125) > 20, `the slide curve gave ${curved}, which is neither linear nor cubic-out`);
+  assert.ok(Math.abs(curved! - 1600 * cubicBezier(0.2, 0, 0, 1)(0.25)) < 0.5, `a quarter of the way along [0.2, 0, 0, 1] is Motion's value for it, not ${curved}`);
+  const [skewed] = await glidePositions([0, 0.2, 1, 0]);
+  assert.ok(Math.abs(skewed! - 1600 * cubicBezier(0, 0.2, 1, 0)(0.25)) < 0.5, `[0, 0.2, 1, 0] keeps its four numbers in order, got ${skewed}`);
 });
 
 test('ROW_LAYER_Z: base 1, raised 2, dragged 3, frozen, and every overlay sits above them', () => {

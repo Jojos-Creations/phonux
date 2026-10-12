@@ -124,6 +124,33 @@
       "expectRed": [
         "layer: a raised slot has z-index 2 and a base slot 1"
       ]
+    },
+    {
+      "name": "the bezier tuple's first two numbers swap",
+      "file": "rowScroller.ts",
+      "find": "cubicBezier(ease[0], ease[1], ease[2], ease[3])",
+      "replace": "cubicBezier(ease[1], ease[0], ease[2], ease[3])",
+      "expectRed": [
+        "glideEase: 'linear' and a bezier tuple glide along their own curves"
+      ]
+    },
+    {
+      "name": "outside a row the release rests after 5 ms",
+      "file": "dragToClose.tsx",
+      "find": "restMs: DRAG_REST_MS",
+      "replace": "restMs: 5",
+      "expectRed": [
+        "outside a row a DragToClose reads the library defaults"
+      ]
+    },
+    {
+      "name": "outside a row the velocity window is 1000 ms",
+      "file": "dragToClose.tsx",
+      "find": "velocityWindowMs: DRAG_VELOCITY_WINDOW_MS",
+      "replace": "velocityWindowMs: 1000",
+      "expectRed": [
+        "outside a row a DragToClose reads the library defaults"
+      ]
     }
   ]
 }
