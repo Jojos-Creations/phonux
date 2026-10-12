@@ -104,3 +104,24 @@ test('under reduced motion a held edge jumps stop by stop, to 406 and not to the
   assert.equal(m.container.scrollLeft % STOPS_STEP, 0, `at ${m.container.scrollLeft}`);
   assert.ok(m.container.scrollLeft >= STOPS_STEP, 'positive control: it jumped');
 });
+
+test('a released drag settles along slide.glideEase: a quarter of the way through a slow settle a linear one has covered about a quarter and the default most of it', async () => {
+  const settled = async (glideEase: 'cubic-out' | 'linear'): Promise<number> => {
+    const m = mountEdgeRow({ tuning: { slide: { durationSec: 1.6, glideEase } } });
+    await dragTo(m, 1000);
+    await frames(100);
+    const from = m.container.scrollLeft;
+    await liftAt(1000);
+    await frames(25);
+    const mid = m.container.scrollLeft;
+    await frames(150);
+    const to = m.container.scrollLeft;
+    assert.ok(Math.abs(to - from) > 20, `control: the settle moved the row, ${from} to ${to}`);
+    cleanup();
+    return (mid - from) / (to - from);
+  };
+  const linear = await settled('linear');
+  const cubic = await settled('cubic-out');
+  assert.ok(Math.abs(linear - 0.25) < 0.08, `linear covered ${linear}`);
+  assert.ok(cubic > 0.5, `cubic-out covered ${cubic}`);
+});

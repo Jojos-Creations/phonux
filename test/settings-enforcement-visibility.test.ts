@@ -36,6 +36,7 @@ const OWNED = [
   'viewState',
   'tuning.saveQuietMs',
   'tuning.gestureLockMs',
+  'tuning.gestureQuietMs',
   'tuning.returnTieBreak',
   'tuning.dropTieBreak',
 ];
@@ -362,6 +363,29 @@ test('differential tuning.gestureLockMs: a second swipe 300 ms after the first a
   });
 });
 
+/** Two same-direction swipes 120 ms apart, the second smaller: the live ids after both. The first starts a step; whether the second does too depends on whether 120 ms of silence ended the gesture. */
+function quietSwipes(gestureQuietMs: number): string[] {
+  const container = document.createElement('div');
+  document.body.appendChild(container);
+  const p = provide(row(rootEntry(), park('a'), park('b'), park('c', {}, { live: false }), park('d', {}, { live: false })), { width: W(2), over: { overflowContainerRef: { current: container }, tuning: { gestureQuietMs, rowGesture: 'step' } } });
+  mock.timers.enable({ apis: ['setTimeout'] });
+  const wheel = (deltaX: number): void => void act(() => void container.dispatchEvent(new WheelEvent('wheel', { deltaX, cancelable: true, bubbles: true })));
+  wheel(100);
+  act(() => mock.timers.tick(120));
+  wheel(50);
+  const seen = p.live();
+  mock.timers.reset();
+  container.remove();
+  return seen;
+}
+
+test('differential tuning.gestureQuietMs: a smaller swipe 120 ms after the first is a decaying tail under a 150 ms quiet time and a fresh gesture under 100 ms', () => {
+  differential('tuning.gestureQuietMs', (run) => {
+    run(150, () => quietSwipes(150));
+    run(100, () => quietSwipes(100));
+  });
+});
+
 /** Three panels parked one after another (z, then x, then y) beside two live ones, then room for exactly one: the id that returns. */
 function returnedWith(tieBreak: 'latest-first' | 'earliest-first' | 'row-order'): string[] {
   const p = provide(
@@ -396,7 +420,7 @@ test('differential tuning.dropTieBreak: a capacity drop among equal ranks parks 
   });
 });
 
-test('differential coverage: the names the differentials above completed are exactly the twelve this entry owns', () => {
+test('differential coverage: the names the differentials above completed are exactly the thirteen this entry owns', () => {
   assert.ok(differentialsCovered().length > 0, 'no differential completed, so the equality below would prove nothing');
   assert.deepEqual(differentialsCovered(), [...OWNED].sort());
 });

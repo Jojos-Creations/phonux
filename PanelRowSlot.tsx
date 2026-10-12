@@ -70,7 +70,7 @@ export function panelRowSlotMotion(
   // park, off the edge it was hidden past, so a close never looks like a park.
   const exit: TargetAndTransition =
     exitDirection === 'down'
-      ? { x: rest, y: phoneHeight, opacity: 0, transition: animated ? { duration: slide.closeExitSeconds, ease: 'easeIn' } : INSTANT_TRANSITION }
+      ? { x: rest, y: phoneHeight, opacity: 0, transition: animated ? { duration: slide.closeExitSeconds, ease: slide.closeExitEase } : INSTANT_TRANSITION }
       : exitDirection === 'right'
         ? { x: rest + ownSpan, opacity: 0 }
         : { ...parkExitTarget(rest, ownSpan, 'left', rowScroll) };

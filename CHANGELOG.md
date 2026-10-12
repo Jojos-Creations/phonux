@@ -34,6 +34,14 @@
   a hidden panel returns by `show`, a History click or an undo. This is a workspace setting the host chooses; the stored
   per-person max-panels choice retired in 0.2.0-rc.1 (below) stays retired.
 
+- Tuning leaves for values that were literals, each at the value the code always used: `tuning.gestureQuietMs` (150, the
+  silence that ends a row-scroll wheel gesture, beside `gestureLockMs`), `dragToClose.restMs` (50) and
+  `dragToClose.velocityWindowMs` (100), which decide the speed a drag release reads, `slide.closeExitEase` (`'easeIn'`, or
+  `'easeOut'`, `'easeInOut'`, `'linear'` or a cubic bezier) for the curve every close leaves along, and `slide.glideEase`
+  (`'cubic-out'`, today's curve, 1 - (1 - t)^3; also `'linear'` or a cubic bezier) for the row's own scroll glides, which do
+  not follow `slide.ease`. `ROW_LAYER_Z` exports the slots' stacking (base 1, raised 2, dragged 3), below every
+  `OVERLAY_Z` layer. Nothing changes at the defaults.
+
 ### Changed
 
 - **Default behaviour change.** The header buttons are now one Tab stop with roving focus, as a toolbar should be: Tab enters

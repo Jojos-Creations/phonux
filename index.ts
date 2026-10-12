@@ -42,6 +42,7 @@ export {
   OverlaySlot,
   OVERLAY_Z,
 } from './Panel.js';
+export { ROW_LAYER_Z } from './rowConstants.js';
 export type {
   PanelProps,
   DragHandleProps,
@@ -114,7 +115,10 @@ export type {
   SettingValues,
   PanelSettings,
   ResolvedPanelSettings,
+  BezierEase,
   ChromeTuning,
+  CloseExitEase,
+  GlideEase,
   DragToCloseTuning,
   SlideTuning,
   EdgeScrollTuning,

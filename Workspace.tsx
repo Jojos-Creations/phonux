@@ -161,7 +161,7 @@ export function Workspace(props: WorkspaceProps): React.ReactElement {
     if (scrolls || container === null || container.scrollLeft === 0) return;
     const scroller = rowScrollerFor(container);
     scroller.stop();
-    scroller.glideTo(0, { durationSec: 0, instant: true });
+    scroller.glideTo(0, { durationSec: 0, instant: true, ease: resolved.slide.glideEase });
   }, [scrolls, overflowContainerRef]);
   // `filter`, not `opacity`: the slot's own opacity belongs to its enter and exit animation. Written straight to the
   // element on every scroll event, since a state update per frame of a glide would re-render the whole row.

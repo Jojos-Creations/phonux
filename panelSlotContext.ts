@@ -4,7 +4,7 @@
  */
 import * as React from 'react';
 import type { NeighborWidths } from './panelRowEntry.js';
-import type { ChromeTuning, ResolvedPanelSettings, ResolvedPanelTuning, SettingNote } from './panelSettings.js';
+import type { ChromeTuning, GlideEase, ResolvedPanelSettings, ResolvedPanelTuning, SettingNote } from './panelSettings.js';
 import type { ViewHandle } from './panelTemplate.js';
 
 /**
@@ -30,6 +30,8 @@ export interface DragScroll {
   readonly settleStops: readonly number[];
   /** Seconds a released drag takes to glide to the nearest settle stop. */
   readonly settleSec: number;
+  /** The curve that glide travels along. */
+  readonly settleEase: GlideEase;
 }
 
 /** What a panel's header buttons need to draw and press: its resolved slots, its own handle and where errors and notes go. */
