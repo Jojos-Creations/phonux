@@ -517,9 +517,12 @@ function DragToCloseBox({
         const held = edge.held();
         const offset = held ? edge.pointerOffset() : dx;
         const scrolled = edge.end();
+        // Judged before the host hears of the drop: a host that renders the move synchronously must not change the answer.
+        const hopped = slotRef.current?.dragHops?.(offset + scrolled) ?? false;
         if (!cancelled) reorder.onDragEnd(offset + scrolled);
         preview(0);
-        if (reduceMotion) {
+        if (reduceMotion || hopped) {
+          // A box that lands in a new slot appears there at once: a spring from the old one would read as snapping back.
           x.jump(0);
           scrollX.jump(0);
           // One frame later, so the row judges the host's reorder with the preview still set and snaps the dragged slot too.

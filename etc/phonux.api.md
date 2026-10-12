@@ -912,6 +912,7 @@ export type ResolvedWorkspaceTuning = ResolvedPanelTuning & {
     initialScroll: 'start' | 'end' | 'root' | {
         panel: PanelId;
     };
+    maxLivePanels: number | null;
 };
 
 // @public
@@ -1340,6 +1341,7 @@ export type WorkspaceTuning = PanelTuning & {
     initialScroll?: 'start' | 'end' | 'root' | {
         panel: PanelId;
     };
+    maxLivePanels?: number | null;
 };
 
 // (No @packageDocumentation comment for this package)

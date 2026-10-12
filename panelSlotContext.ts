@@ -65,6 +65,8 @@ export interface PanelSlotValue {
    * null once the drag has ended. The row turns it into hops with the hop rule and slides the panels in between aside. Absent outside a row.
    */
   readonly previewReorder?: ((offset: number | null) => void) | undefined;
+  /** Whether a release at this offset (px, +right/-left) crosses at least one panel, by the same hop rule the release reports. Absent outside a row. */
+  readonly dragHops?: ((offset: number) => boolean) | undefined;
 }
 
 export const PanelSlotContext = React.createContext<PanelSlotValue | undefined>(undefined);

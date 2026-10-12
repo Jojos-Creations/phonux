@@ -1,0 +1,259 @@
+{
+  "tests": [
+    "test/max-live-panels-count.test.ts",
+    "test/max-live-panels-pinned.test.ts",
+    "test/max-live-panels-return.test.ts",
+    "test/panel-settings-catalog.test.ts",
+    "test/panel-settings-resolver.test.ts"
+  ],
+  "mutants": [
+    {
+      "name": "the cap is ignored in a row that scrolls",
+      "file": "panels/usePanelManager.ts",
+      "find": "const fit = numbers.rowScroll ? Number.POSITIVE_INFINITY : fitCapacityFor(fitWidths);",
+      "replace": "const fit = fitCapacityFor(fitWidths);",
+      "expectRed": [
+        "scrolling row: N unpinned panels are live at 600, 1280 and 1920"
+      ]
+    },
+    {
+      "name": "the cap is ignored until the row is measured",
+      "file": "panels/usePanelManager.ts",
+      "find": "if (maxLive === null) return fitCapacityFor(fitWidths);",
+      "replace": "if (maxLive === null || containerWidth === 0) return fitCapacityFor(fitWidths);",
+      "expectRed": [
+        "unmeasured row: with N = 2 the leftmost two panels are parked when the row first shows them"
+      ]
+    },
+    {
+      "name": "pinned panels count toward the cap",
+      "file": "panels/usePanelManager.ts",
+      "find": "return Math.min(fit, maxLive + set.filter((p) => pinned.has(p.id)).length);",
+      "replace": "return Math.min(fit, maxLive);",
+      "expectRed": [
+        "pinned: two pinned panels are live beside N unpinned ones",
+        "until-room hold: pinning a live panel opens a slot the hold counts"
+      ]
+    },
+    {
+      "name": "the window fit is dropped in a row that does not scroll",
+      "file": "panels/usePanelManager.ts",
+      "find": "return Math.min(fit, maxLive + set.filter((p) => pinned.has(p.id)).length);",
+      "replace": "return maxLive + set.filter((p) => pinned.has(p.id)).length;",
+      "expectRed": [
+        "row that does not scroll: the live count is the smaller of the window fit and N"
+      ]
+    },
+    {
+      "name": "the park that settles a changed row may take a pinned panel",
+      "file": "panels/usePanelManager.ts",
+      "find": "fewestParksThatSettle(live, priced.widthOf, priced.settles, [...keep, ...priced.pinned], dropTieBreak)",
+      "replace": "fewestParksThatSettle(live, priced.widthOf, priced.settles, keep, dropTieBreak)",
+      "expectRed": [
+        "layout reset: a wide panel that a reset moves back to the pinned start is not parked in place of an unpinned one"
+      ]
+    },
+    {
+      "name": "a park made for an open, a show or an undo may take a pinned panel",
+      "file": "panels/usePanelManager.ts",
+      "find": "new Set([...keepLiveRef.current.keys(), ...pinned])",
+      "replace": "new Set([...keepLiveRef.current.keys()])",
+      "expectRed": [
+        "pinned: opening a panel parks the leftmost live unpinned panel, never a pinned one",
+        "pinned: showing a hidden panel at the far right parks the farthest unpinned panel",
+        "pinned: a History click on a hidden panel at the far right parks the farthest unpinned panel",
+        "pinned: undoing the close of a live panel restores it and parks exactly one other"
+      ]
+    },
+    {
+      "name": "a History click leaves the displaced panel for the next reconcile to park",
+      "file": "panels/usePanelManager.ts",
+      "find": "promoteToLive(before, id, capacityShowing(before, target), keptIds())",
+      "replace": "promoteToLive(before, id, Number.POSITIVE_INFINITY, keptIds())",
+      "expectRed": [
+        "History click: clicking a hidden panel brings it back and parks exactly one other",
+        "pinned: a History click on a hidden panel at the far right parks the farthest unpinned panel"
+      ]
+    },
+    {
+      "name": "a shown pinned panel is counted against the cap",
+      "file": "panels/usePanelManager.ts",
+      "find": "return priced.capacityFor(parksForRoom(target) ? [...live, target] : live, live.map(priced.widthOf));",
+      "replace": "return capacity;",
+      "expectRed": [
+        "parked pinned: shown while N unpinned panels are live, it takes no slot"
+      ]
+    },
+    {
+      "name": "an opened pinned panel is counted against the cap",
+      "file": "panels/usePanelManager.ts",
+      "find": "pricing(afterInsert).capacityFor(afterInsert.filter(isParkLive), panels.filter(isParkLive).map(widthOf))",
+      "replace": "pricing(afterInsert).capacityFor(panels.filter(isParkLive))",
+      "expectRed": [
+        "pinned: opening a panel that lands pinned parks nothing, since it takes no slot"
+      ]
+    },
+    {
+      "name": "a moved or placed panel can be parked by the move itself",
+      "file": "panels/usePanelManager.ts",
+      "find": "if (changes && maxLive !== null) markKeepLive(id);",
+      "replace": "void changes;",
+      "expectRed": [
+        "drag: dropping a pinned panel right of History parks exactly one other",
+        "drag: moving a panel one place with the move verb across History",
+        "drag: placing a panel at the start of the unpinned panels"
+      ]
+    },
+    {
+      "name": "a wheel step in a row whose strip fits still swaps a hidden panel in under never",
+      "file": "panels/usePanelManager.ts",
+      "find": "if (!reveal || effective(reveal).revealOnScroll === 'never') return;",
+      "replace": "if (!reveal) return;",
+      "expectRed": [
+        "scrolling: in a row whose strip fits the window a wheel step swaps nothing"
+      ]
+    },
+    {
+      "name": "a wheel, Shift+wheel or arrow step reads every hidden panel as revealable",
+      "file": "panels/useProvidePanels.ts",
+      "find": "policy: effective(p).revealOnScroll }",
+      "replace": "policy: 'edges' }",
+      "expectRed": [
+        "scrolling: wheel steps move the strip end to end and reveal nothing",
+        "scrolling: Shift+wheel steps reveal nothing",
+        "scrolling: arrow keys step the strip and reveal nothing"
+      ]
+    },
+    {
+      "name": "a new value of the cap is not read after the mount",
+      "file": "panels/usePanelManager.ts",
+      "find": "const maxLive = options?.tuning?.maxLivePanels ?? null;",
+      "replace": "const maxLive = useRef(options?.tuning?.maxLivePanels ?? null).current;",
+      "expectRed": [
+        "run time: a lower N parks the leftmost excess, with the same park as a narrower window",
+        "committed rows: a lower value of the cap is in the first row that renders it"
+      ]
+    },
+    {
+      "name": "a reset plans its returns against the row as it stood",
+      "file": "panels/usePanelManager.ts",
+      "find": "if (priced.settles(row.filter((p) => parksForRoom(p) && (p.live || back.has(p.id) || p.id === id)))) back.add(id);",
+      "replace": "if (settles(row.filter((p) => parksForRoom(p) && (p.live || back.has(p.id) || p.id === id)))) back.add(id);",
+      "expectRed": [
+        "layout reset: a pinned panel reset to the end of the row parks exactly one other, and one reset into the pinned start frees a slot"
+      ]
+    },
+    {
+      "name": "no panel reads as pinned",
+      "file": "panelPin.ts",
+      "find": "for (const entry of row) if (isPinned(entry, row, definitionOf(entry), rootId)) ids.add(entry.id);",
+      "replace": "void rootId;",
+      "expectRed": [
+        "pinned: two pinned panels are live beside N unpinned ones"
+      ]
+    },
+    {
+      "name": "a parked pinned panel does not read as pinned",
+      "file": "panelPin.ts",
+      "find": "for (const entry of row) if (isPinned(entry, row, definitionOf(entry), rootId)) ids.add(entry.id);",
+      "replace": "for (const entry of row) if (entry.live && isPinned(entry, row, definitionOf(entry), rootId)) ids.add(entry.id);",
+      "expectRed": [
+        "parked pinned: shown while N unpinned panels are live, it takes no slot and parks none of them"
+      ]
+    },
+    {
+      "name": "the provider hands the engine no cap",
+      "file": "panels/useProvidePanels.ts",
+      "find": "maxLivePanels: tuning.maxLivePanels }",
+      "replace": "maxLivePanels: null }",
+      "expectRed": [
+        "scrolling row: N unpinned panels are live at 600, 1280 and 1920"
+      ]
+    },
+    {
+      "name": "a cap of 0 is accepted",
+      "file": "panelSettings.ts",
+      "find": "  maxLivePanels: (v) => (v === null ? undefined : integer(1)(v)),\n",
+      "replace": "  maxLivePanels: (v) => (v === null ? undefined : integer(0)(v)),\n",
+      "expectRed": [
+        "run time: a value that is not an integer of 1 or more is refused and changes nothing",
+        "a workspace made with a value that is not an integer of 1 or more starts with no cap"
+      ]
+    },
+    {
+      "name": "a fraction is accepted as the cap",
+      "file": "panelSettings.ts",
+      "find": "  maxLivePanels: (v) => (v === null ? undefined : integer(1)(v)),\n",
+      "replace": "  maxLivePanels: (v) => (v === null ? undefined : num(1)(v)),\n",
+      "expectRed": [
+        "run time: a value that is not an integer of 1 or more is refused and changes nothing",
+        "a workspace made with a value that is not an integer of 1 or more starts with no cap"
+      ]
+    },
+    {
+      "name": "null is refused as a value of the cap",
+      "file": "panelSettings.ts",
+      "find": "  maxLivePanels: (v) => (v === null ? undefined : integer(1)(v)),\n",
+      "replace": "  maxLivePanels: integer(1),\n",
+      "expectRed": [
+        "null is a value of its own",
+        "ranges: every (value, outcome) row is accepted or refused at the instance layer"
+      ]
+    },
+    {
+      "name": "the library default is a cap",
+      "file": "panelSettings.ts",
+      "find": "  maxLivePanels: null,\n",
+      "replace": "  maxLivePanels: 5,\n",
+      "expectRed": [
+        "scrolling row: N unpinned panels are live at 600, 1280 and 1920"
+      ]
+    },
+    {
+      "name": "a row that lands over the cap is not settled before it renders",
+      "file": "panels/usePanelManager.ts",
+      "find": "const settled = settledKeeping(panels, acted);",
+      "replace": "const settled = panels;",
+      "expectRed": [
+        "committed rows: panels added before the mount arrive with the leftmost two already parked",
+        "committed rows: the same under StrictMode",
+        "committed rows: two pinned panels arrive live",
+        "committed rows: hand-built entries arrive in the first commit with the excess parked",
+        "committed rows: a lower value of the cap is in the first row that renders it",
+        "unmeasured row: the first measure changes the live set by 0 and no committed row holds more than N",
+        "restore: a saved workspace with more live panels than N arrives with the extra ones parked",
+        "drag: no committed row holds more than N unpinned live panels"
+      ]
+    },
+    {
+      "name": "a panel just acted on can be parked by the settle its own action calls for",
+      "file": "panels/usePanelManager.ts",
+      "find": "const acted = [...keepLiveRef.current].filter(([, seen]) => seen !== panels).map(([id]) => id);",
+      "replace": "const acted: string[] = [];",
+      "expectRed": [
+        "drag: dropping a pinned panel right of History parks exactly one other",
+        "drag: moving a panel one place with the move verb across History",
+        "drag: placing a panel at the start of the unpinned panels"
+      ]
+    },
+    {
+      "name": "a park a render makes for the cap is not recorded",
+      "file": "panels/usePanelManager.ts",
+      "find": "capParkedRef.current = [...capParkedRef.current.filter((id) => !parked.includes(id)), ...parked];",
+      "replace": "void parked;",
+      "expectRed": [
+        "committed rows: the panels parked before the first row is shown are parks for room",
+        "committed rows: under auto a panel parked before the first row is shown reads as parked, not hidden"
+      ]
+    },
+    {
+      "name": "a panel the cap parks before its row is shown is held as one that arrived parked",
+      "file": "panels/usePanelManager.ts",
+      "find": "!before.some((q) => q.id === p.id) && !byCap.includes(p.id)) markHeld",
+      "replace": "!before.some((q) => q.id === p.id)) markHeld",
+      "expectRed": [
+        "committed rows: under auto a panel parked before the first row is shown reads as parked, not hidden"
+      ]
+    }
+  ]
+}
