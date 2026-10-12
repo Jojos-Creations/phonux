@@ -10,7 +10,7 @@ import './support/jsdom-globals.js';
 import { act } from 'react';
 import { memoryWorkspaceStorage } from '../fakeHost.js';
 import { advanceFrames, cleanup } from './support/mount-harness.js';
-import { capRig } from './support/cap-rig.js';
+import { capRig, liveRightOfRoot } from './support/cap-rig.js';
 import type { CapRig, CapRigOptions } from './support/cap-rig.js';
 
 let timersOn = false;
@@ -197,7 +197,7 @@ test('close: undoing a close restores the panel to its place and parks exactly o
 // A saved workspace
 // ---------------------------------------------------------------------------
 
-test('restore: a saved workspace with more live panels than N parks the extra ones on the first commit', async () => {
+test('restore: a saved workspace with more live panels than N arrives with the extra ones parked', async () => {
   const store = memoryWorkspaceStorage();
   const saver = await capRig({ count: 8, width: 4000, workspace: { storage: store }, tuning: { saveQuietMs: 5 } });
   assert.equal(saver.row(), 'root w1 w2 w3 w4 w5 w6 w7 w8', 'saved with every panel live');
@@ -208,6 +208,8 @@ test('restore: a saved workspace with more live panels than N parks the extra on
   const r = await capRig({ count: 8, cap: 5, width: 1280, workspace: { storage: store }, record: true });
   await r.settle();
   assert.equal(r.row(), BASE);
+  assert.equal(r.commits.find((row) => row !== 'root'), BASE, 'the row that first holds the restored panels already has the extra ones parked');
+  assert.deepEqual(r.commits.filter((row) => liveRightOfRoot(row) > 5), [], 'no committed row held a sixth live panel');
 });
 
 // ---------------------------------------------------------------------------
