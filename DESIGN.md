@@ -1519,11 +1519,11 @@ a pull request into `main` runs no cloud check.
 
 ### Release candidate base
 
-`0.2.0-rc.1` is built from this commit of `main`; the diff since it touches only `package.json`, `package-lock.json`, `CHANGELOG.md`,
-`DESIGN.md`, `tools/`, `test/` and `etc/`.
+`0.2.0-rc.2` is built from this commit of `main`; library source changed since `0.2.0-rc.1`, and the CHANGELOG section
+for `0.2.0-rc.2` lists what.
 
 ```text
-base: bb9db31a95f0943eb224536034dbce89c00d0786
+base: 370e0403440b27309556f5b0f8656140ef70fdb2
 ```
 
 No real browser has measured this tree. Every claim about real layout, scrolling or painting stays not run; the jsdom and unit

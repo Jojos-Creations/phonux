@@ -1,11 +1,15 @@
 # Changelog
 
-## Unreleased
+## 0.2.0-rc.2
 
-### Fixed
+### Added
 
-- Adding a panel whose template declares `headerButtons` after the row is mounted no longer makes React log "The result of
-  getSnapshot should be cached": `getState()` returns the same object until the panel's state changes, also before its first commit.
+- `PanelTemplate.footer`: a component, given the same props as `view`, that every panel made from the template shows at the
+  bottom of its `PanelFrame`, inside the frame and below the scrolling content. `PanelFooter` draws it; `PanelFrame`
+  does by default and `footer={false}` leaves it out for a view that renders `PanelFooter` itself.
+- `PhonuxLabels`: English defaults for the library's visible strings, replaced through `PanelsInput.labels` (the title of
+  a panel `create()` opens), `Host.labels` (the unregistered-view placeholder and the `PanelHeaderRow` empty title) and
+  `PhoneDetectPromptProps.labels` (its text and accessible names).
 
 ### Changed
 
@@ -27,20 +31,10 @@
 
 ### Fixed
 
+- Adding a panel whose template declares `headerButtons` after the row is mounted no longer makes React log "The result of
+  getSnapshot should be cached": `getState()` returns the same object until the panel's state changes, also before its first commit.
 - Pinning a panel under React 19.2 StrictMode left the panel it moved past (History) stuck at its old place, under the
   pinned one, until a reload: a slot that a reorder moves now restarts its slide to its new rest.
-
-### Added
-
-- `PanelTemplate.footer`: a component, given the same props as `view`, that every panel made from the template shows at the
-  bottom of its `PanelFrame`, inside the frame and below the scrolling content. `PanelFooter` draws it; `PanelFrame`
-  does by default and `footer={false}` leaves it out for a view that renders `PanelFooter` itself.
-- `PhonuxLabels`: English defaults for the library's visible strings, replaced through `PanelsInput.labels` (the title of
-  a panel `create()` opens), `Host.labels` (the unregistered-view placeholder and the `PanelHeaderRow` empty title) and
-  `PhoneDetectPromptProps.labels` (its text and accessible names).
-
-### Fixed
-
 - A panel dragged past a neighbour under React 19.2's StrictMode no longer stays at its drag offset, overlapping the
   panel beside it and leaving a gap: the box keeps its release spring running when React runs its effect cleanup and
   setup again.
