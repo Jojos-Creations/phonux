@@ -81,6 +81,15 @@
       "expectRed": [
         "chrome.fadeEase: the four names and a bezier tuple"
       ]
+    },
+    {
+      "name": "the settle delay floors instead of rounding",
+      "file": "Workspace.tsx",
+      "find": "Math.round(slide.durationSec * slides * 1000)",
+      "replace": "Math.floor(slide.durationSec * slides * 1000)",
+      "expectRed": [
+        "the settle delay is resizeSettleSlides slide durations"
+      ]
     }
   ]
 }

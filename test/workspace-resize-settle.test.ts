@@ -26,6 +26,9 @@ test('the settle delay is resizeSettleSlides slide durations: 500 ms at the defa
   assert.equal(resizeSettleDelayMs({ ...LIBRARY_TUNING_DEFAULTS.slide, durationSec: 0 }, SLIDES), 0);
   assert.equal(resizeSettleDelayMs(LIBRARY_TUNING_DEFAULTS.slide, 0.5), 200);
   assert.equal(resizeSettleDelayMs(LIBRARY_TUNING_DEFAULTS.slide, 0), 0);
+  const half = { ...LIBRARY_TUNING_DEFAULTS.slide, durationSec: 0.5 };
+  assert.equal(resizeSettleDelayMs(half, 0.0031), 2, '1.55 ms rounds up');
+  assert.equal(resizeSettleDelayMs(half, 0.0028), 1, '1.4 ms rounds down');
 });
 
 function Probe({ width, delayMs, instant, log }: { width: number; delayMs: number; instant: boolean; log: boolean[] }): React.ReactElement {
