@@ -1,5 +1,5 @@
 import * as React from 'react';
-import { animate, motion, useReducedMotionConfig, visualElementStore, type TargetAndTransition } from 'motion/react';
+import { animate, motion, useIsPresent, useReducedMotionConfig, visualElementStore, type TargetAndTransition } from 'motion/react';
 import { SLOT_TRANSITION, directionalTransition, slideToTransition } from './directionalTransition.js';
 import { PanelHiddenContext, PanelSlotContext } from './panelSlotContext.js';
 import { LIBRARY_TUNING_DEFAULTS } from './panelSettings.js';
@@ -237,6 +237,20 @@ export function PanelRowSlot({
       run.stop();
     };
   }, [reviving]);
+  // React 19.2 re-runs effect cleanup and setup for a keyed child a reorder moves, and Motion's cleanup stops the slide this
+  // slot was making toward its new rest; nothing then starts it again, so the slot stays where it was.
+  const restNow = React.useRef({ leftOffset, transition: slideTransition });
+  restNow.current = { leftOffset, transition: slideTransition };
+  const setUpBefore = React.useRef(false);
+  const present = useIsPresent();
+  React.useEffect(() => {
+    if (!setUpBefore.current) {
+      setUpBefore.current = true;
+      return;
+    }
+    if (el.current === null || kept || reviving || !present) return;
+    slotDriver.animate(el.current, { x: restNow.current.leftOffset, opacity: 1 }, restNow.current.transition);
+  }, []);
   return (
     <motion.div
       ref={el}
