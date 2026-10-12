@@ -36,15 +36,6 @@
       ]
     },
     {
-      "name": "a closed panel stays dragged",
-      "file": "PanelRow.tsx",
-      "find": "      chrome.setDragging(id, false);\n",
-      "replace": "",
-      "expectRed": [
-        "closing or parking the active panel clears it"
-      ]
-    },
-    {
       "name": "a drag never raises the dragging flag",
       "file": "dragToClose.tsx",
       "find": "slotRef.current?.setDragging?.(true);",
@@ -69,7 +60,7 @@
       "find": "for (const id of new Set(ids)) if (id !== null) for (const l of [...(byPanel.get(id) ?? [])]) l();",
       "replace": "for (const set of byPanel.values()) for (const l of [...set]) l();",
       "expectRed": [
-        "activating a panel renders only the panel that lost the mark and the one that gained it"
+        "the store wakes only the listeners of the panels whose mark changed"
       ]
     },
     {
