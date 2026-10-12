@@ -9,6 +9,7 @@ import { readFileSync } from 'node:fs';
 import { join, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { resolvePhoneDir } from './phonux-paths.mjs';
+import { lockfileVersionProblem } from './phonux-lockfile-version.mjs';
 import { publishCommand } from './phonux-publish-command.mjs';
 
 const REPO_ROOT = fileURLToPath(new URL('..', import.meta.url));
@@ -20,6 +21,9 @@ function fail(message) {
   console.error(`release:check FAILED: ${message}`);
   process.exit(1);
 }
+
+const lockProblem = lockfileVersionProblem(PHONE_DIR);
+if (lockProblem) fail(lockProblem);
 
 // Cheapest check first: a taken name@version makes the rest of the run pointless, and versions are never reusable.
 const view = spawnSync('npm', ['view', spec, 'version'], { encoding: 'utf8' });
