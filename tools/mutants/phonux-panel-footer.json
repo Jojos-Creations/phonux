@@ -1,0 +1,82 @@
+{
+  "tests": ["test/panel-footer.test.ts"],
+  "mutants": [
+    {
+      "name": "frame ignores footer={false}",
+      "file": "PanelFrame.tsx",
+      "find": "{footer && <PanelFooter />}",
+      "replace": "<PanelFooter />",
+      "expectRed": ["footer={false} on the frame draws none, and PanelFooter in a view draws it"]
+    },
+    {
+      "name": "frame never draws the footer",
+      "file": "PanelFrame.tsx",
+      "find": "{footer && <PanelFooter />}",
+      "replace": "{null}",
+      "expectRed": ["a footer is drawn inside the frame after the scroll box, with the props the view gets"]
+    },
+    {
+      "name": "footer drawn inside the scroll box",
+      "file": "PanelFrame.tsx",
+      "find": "        {children}\n      </Box>\n      {footer && <PanelFooter />}",
+      "replace": "        {children}\n        {footer && <PanelFooter />}\n      </Box>",
+      "expectRed": ["a footer is drawn inside the frame after the scroll box, with the props the view gets"]
+    },
+    {
+      "name": "footer box shrinks",
+      "file": "panelFooter.tsx",
+      "find": "flexShrink: 0, ",
+      "replace": "",
+      "expectRed": ["a footer is drawn inside the frame after the scroll box, with the props the view gets"]
+    },
+    {
+      "name": "adapter drops the footer",
+      "file": "viewRegistry.tsx",
+      "find": "    if (Footer === undefined) return view;",
+      "replace": "    return view;",
+      "expectRed": ["a footer is drawn inside the frame after the scroll box, with the props the view gets"]
+    },
+    {
+      "name": "adapter gives the footer no manager",
+      "file": "viewRegistry.tsx",
+      "find": "<Footer panel={panel} handle={handle} manager={context.manager} />",
+      "replace": "<Footer panel={panel} handle={handle} manager={{} as never} />",
+      "expectRed": ["a footer is drawn inside the frame after the scroll box, with the props the view gets"]
+    },
+    {
+      "name": "definePanel accepts any footer",
+      "file": "panelTemplate.ts",
+      "find": "if (t.footer !== undefined && !isComponent(t.footer))",
+      "replace": "if (false)",
+      "expectRed": ["definePanel accepts any component kind for footer and refuses anything else"]
+    },
+    {
+      "name": "definePanel refuses an undefined footer",
+      "file": "panelTemplate.ts",
+      "find": "if (t.footer !== undefined && !isComponent(t.footer))",
+      "replace": "if (!isComponent(t.footer))",
+      "expectRed": ["definePanel accepts any component kind for footer and refuses anything else"]
+    },
+    {
+      "name": "no boundary",
+      "file": "panelFooter.tsx",
+      "find": "return this.state.failed ? null : this.props.children;",
+      "replace": "return this.props.children;",
+      "expectRed": ["a footer that throws while rendering is hidden, the panel stays, and the console is told by us once"]
+    },
+    {
+      "name": "boundary stays silent",
+      "file": "panelFooter.tsx",
+      "find": "console.error(`PanelFooter:",
+      "replace": "void (`PanelFooter:",
+      "expectRed": ["a footer that throws while rendering is hidden, the panel stays, and the console is told by us once"]
+    },
+    {
+      "name": "footer drawn with no context",
+      "file": "panelFooter.tsx",
+      "find": "if (footer === null) return null;",
+      "replace": "if (footer === null) return <Box data-panel-footer=\"\" />;",
+      "expectRed": ["a template with no footer draws the frame it always did"]
+    }
+  ]
+}
