@@ -910,6 +910,10 @@ a press stops the spring, on a revive and under reduced motion at the release). 
 already rest where the new order puts them. This holds for a host that applies `move` synchronously (the
 `usePanelReorderSteps` + `move` loop of a row's view); a host that applies it later sees the neighbours slide back and forward
 once. A host with a different hop rule gets a preview that does not match its drop.
+Under Reduce Motion (the system setting, which the drag box reads itself, or the app's `MotionConfig`) the slot hands Motion an instant
+transition inside its animate target for as long as a preview is set, so the neighbours' shifts, their return and the dragged slot's move to
+its new rest snap; the release then clears the preview one frame after the host's move, so that move is still judged as part of the preview.
+Exit and park slides keep their own transitions.
 
 **Edge scrolling.** A mouse or pen drag that locks horizontal in a scrolling row (the slot's `dragScroll`, built from
 the panel's `scrollOnDrag`, `tuning.edgeScroll` and `animated` and the row numbers) takes the row scroller's claim,

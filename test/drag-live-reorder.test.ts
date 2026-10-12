@@ -200,3 +200,47 @@ test('closing the dragged panel mid-drag leaves no neighbour shifted', async () 
   assert.equal(zOf(m, 's1'), '1', 'the revived panel is not still raised');
   assert.equal(xOf(m, 's2'), 2 * SPAN, 'and no neighbour is still shifted for it');
 });
+
+test('without Reduce Motion the neighbour is still sliding two frames after the hop point', async () => {
+  const m = mountRow(panelsOf(4), 3000);
+  await advanceFrames(2000);
+  const rest = xOf(m, 's2');
+  await drag(handleOf(m, 's1'), { dx: SPAN * 0.5 + 10, dy: 0, steps: 6, hold: 0, keepDown: true });
+  await advanceFrames(16);
+  const mid = xOf(m, 's2');
+  assert.ok(mid < rest && mid > rest - SPAN, `mid-slide, not at ${mid}`);
+  await release(SPAN * 0.5 + 10, 0);
+  await advanceFrames(2000);
+});
+
+test('a cancel returns every neighbour to rest within the slide time, and the raise ends with the spring home', async () => {
+  const m = mountRow(panelsOf(4), 3000);
+  await advanceFrames(2000);
+  const rest = xOf(m, 's2');
+  await drag(handleOf(m, 's1'), { dx: SPAN * 0.5 + 10, dy: 0, steps: 6, hold: 4, keepDown: true });
+  await advanceFrames(1000);
+  assert.equal(xOf(m, 's2'), rest - SPAN);
+  await act(async () => {
+    const event = new MouseEvent('pointercancel', { bubbles: true, cancelable: true, clientX: 300, clientY: 100, button: 0 });
+    for (const [key, value] of Object.entries({ pointerId: 1, pointerType: 'touch', isPrimary: true })) Object.defineProperty(event, key, { value });
+    document.dispatchEvent(event);
+  });
+  await advanceFrames(16);
+  assert.equal(zOf(m, 's1'), '3', 'still raised while the box springs home');
+  await advanceFrames(450);
+  assert.equal(xOf(m, 's2'), rest, 'the neighbour is back by the end of its slide, not only when the box has settled');
+  await advanceFrames(3000);
+  assert.equal(zOf(m, 's1'), '1');
+});
+
+test('a drag that locks vertical previews nothing: no neighbour moves and the slot is never raised', async () => {
+  const m = mountRow(panelsOf(4), 3000);
+  await advanceFrames(2000);
+  const rest = xOf(m, 's2');
+  await drag(handleOf(m, 's1'), { dx: 20, dy: 60, steps: 6, hold: 4, keepDown: true });
+  await advanceFrames(1000);
+  assert.equal(xOf(m, 's2'), rest);
+  assert.equal(zOf(m, 's1'), '1');
+  await release(20, 60);
+  await advanceFrames(2000);
+});
