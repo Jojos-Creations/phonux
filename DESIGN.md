@@ -273,7 +273,7 @@ subtracted as `reservedWidths`; the existing floor of one park panel stands, so 
 scrolls instead of refusing a panel. A park exit in a scrolling row travels one span from the slot's own rest, not
 to the row's origin, because the strip extends far past the window.
 
-The container's horizontal overflow follows `tuning.rowGesture`: 'step' scrolls with the scrollbar hidden,
+The container's horizontal overflow follows `tuning.rowGesture`: 'step' and 'follow' scroll with the scrollbar hidden,
 'free' scrolls with it visible, 'off' hides the overflow. A row with no settings is always hidden.
 
 `PanelsAPI.panelList` reports each panel's stored tier `size`. The `panel` prop a resolved view receives
@@ -303,6 +303,12 @@ wider than its window the step goes through `gestureTarget`: it shows the neares
 its `revealOnScroll` allows and no live panel lies between the window's edge and its slot, and otherwise scrolls to
 the next panel start, from the in-flight glide's target. A row with nothing to scroll toward keeps the 0.1.0 swap
 (`scrollRow`). The gesture does nothing while a claim is held.
+
+`rowGesture` `follow` takes the same sideways inputs (deltaX, Shift+wheel) but moves the row with them: each wheel
+event writes `scrollLeft` by its delta through a claim, so a continuous swipe or a held wheel scrolls without a pause.
+When the wheel has been quiet for 120 ms the claim goes back and the row glides to the nearest panel start, or the
+strip end. A row that cannot scroll, a row with a hidden panel to reveal, and a row whose claim a drag holds take the
+`step` path instead. A plain vertical wheel is still left to the page. The arrow keys step as under `step`.
 
 `tuning.initialScroll` runs once per mount, in a layout effect gated on the restore having settled, on a measured row
 with an entry, with no animation, and not at all when a wheel, a pointer-down or a glide got there first.
@@ -1268,7 +1274,7 @@ flip with a transition rule of its own) or SCOPE (a template-scope key).
 | `tuning.gestureLockMs` | integer ms >= 0 (workspace only) | 350 | NEXT (configureTuning only). A lock already armed keeps its remaining time. Session-only. |
 | `tuning.returnTieBreak` | latest-first, earliest-first, row-order (workspace only) | latest-first | NEXT (configureTuning only). Read at the next stack walk; nothing returns now. |
 | `tuning.dropTieBreak` | leftmost, rightmost (workspace only) | leftmost | NEXT (configureTuning only). Read at the next capacity drop or resize; nothing parks now. |
-| `tuning.rowGesture` | step, free, off (workspace only; a design-derived key from Q15, not requested) | step | NEXT (configureTuning only). The listener set is re-read at the next render; a gesture in flight finishes; no panel moves. Session-only. |
+| `tuning.rowGesture` | step, follow, free, off (workspace only; a design-derived key from Q15, not requested) | step | NEXT (configureTuning only). The listener set is re-read at the next render; a gesture in flight finishes; no panel moves. Session-only. |
 | `tuning.initialScroll` | start, end, root, { panel: PanelId } (workspace only; a design-derived key from Q15, not requested) | start (the library default, a design default the owner did not rule on; phonux-app sets 'end', owner Q20: the newest closable panels in view at launch) | NEXT (configureTuning only). Read at the next mount; nothing scrolls now. Session-only. |
 <!-- catalog:end -->
 

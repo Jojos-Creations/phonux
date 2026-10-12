@@ -11,7 +11,7 @@ import { useReducedMotionConfig } from 'motion/react';
 import type { CreatePanelOptions, FormFactor, JsonValue, PanelsAPI } from '../hostApi.js';
 import { computeRowNumbers, maxScrollOf, type RowNumbers } from '../rowNumbers.js';
 import { resolveLabels, type PhonuxLabels } from '../labels.js';
-import { rowScrollerFor } from '../rowScroller.js';
+import { rowScrollerFor, type ScrollClaim } from '../rowScroller.js';
 import { gestureTarget, scrollTargetFor } from '../scrollTargets.js';
 import { isPresent, summarisePanel } from '../panelRowEntry.js';
 import { TIER_SIZES, panelWidthOf } from '../panelTiers.js';
@@ -31,7 +31,7 @@ import { bindingOf, nextEngineId, type CreateRequest, type EngineOps, type Works
 import { conflictNotes, finishCreated } from '../workspacePlan.js';
 import { usePanelClosing, type Reapplied } from './usePanelClosing.js';
 import { usePanelManager, type GateKind } from './usePanelManager.js';
-import { useRowScrollGesture } from './useRowScrollGesture.js';
+import { useRowScrollGesture, type RowFollow } from './useRowScrollGesture.js';
 import { useWorkspacePersistence } from './useWorkspacePersistence.js';
 import type { WorkspaceStorage } from '../workspaceState.js';
 
@@ -435,7 +435,34 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
   };
 
   // The row's wheel/arrow-key gesture is wired here, not in the host, so a host stays free of effects and refs.
-  useRowScrollGesture(i.overflowContainerRef, stepRow, timing.gestureLockMs, tuning.rowGesture);
+  const followClaim = useRef<ScrollClaim | null>(null);
+  useEffect(() => () => followClaim.current?.release(), []);
+  const follow: RowFollow = {
+    move: (deltaPx) => {
+      const el = i.overflowContainerRef.current;
+      const maxScroll = maxScrollOf(rowNumbers);
+      if (el === null || !rowNumbers.rowScroll || maxScroll <= 0 || panels.some((p) => !isPresent(p) && p.marker !== true)) return false;
+      const scroller = rowScrollerFor(el);
+      followClaim.current ??= scroller.claim();
+      const claim = followClaim.current;
+      if (claim === null) return false;
+      claim.setMaxScroll(maxScroll);
+      claim.write(scroller.scrollLeft() + deltaPx);
+      return true;
+    },
+    settle: () => {
+      const el = i.overflowContainerRef.current;
+      followClaim.current?.release();
+      followClaim.current = null;
+      if (el === null) return;
+      const scroller = rowScrollerFor(el);
+      const at = scroller.scrollLeft();
+      const stops = [...rowNumbers.leftOffsets.map((offset) => rowNumbers.rowMarginLeft + offset), maxScrollOf(rowNumbers)].filter((stop) => stop <= maxScrollOf(rowNumbers));
+      const nearest = stops.reduce((best, stop) => (Math.abs(stop - at) < Math.abs(best - at) ? stop : best), stops[0] ?? at);
+      scroller.glideTo(nearest, { durationSec: tuning.slide.durationSec, instant: reducedMotion });
+    },
+  };
+  useRowScrollGesture(i.overflowContainerRef, stepRow, timing.gestureLockMs, tuning.rowGesture, follow);
 
   const { restoreSettled, dismiss, undismiss, isDismissed } = useWorkspacePersistence({
     storage: core?.storage ?? i.storage,

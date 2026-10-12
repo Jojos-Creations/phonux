@@ -328,8 +328,8 @@ export type WorkspaceTuning = PanelTuning & {
   returnTieBreak?: 'latest-first' | 'earliest-first' | 'row-order';
   /** Which of two equally ranked panels is parked first when the row loses room: the leftmost or the rightmost. */
   dropTieBreak?: 'leftmost' | 'rightmost';
-  /** What the row's own scroll input does: 'step', 'free' or 'off'. */
-  rowGesture?: 'step' | 'free' | 'off';
+  /** What the row's own scroll input does: 'step', 'follow', 'free' or 'off'. */
+  rowGesture?: 'step' | 'follow' | 'free' | 'off';
   /** Where the row starts scrolled: its 'start', its 'end', the 'root', or a given panel. */
   initialScroll?: 'start' | 'end' | 'root' | { panel: PanelId };
 };
@@ -358,8 +358,8 @@ export type ResolvedWorkspaceTuning = ResolvedPanelTuning & {
   returnTieBreak: 'latest-first' | 'earliest-first' | 'row-order';
   /** Which of two equally ranked panels is parked first when the row loses room: the leftmost or the rightmost. */
   dropTieBreak: 'leftmost' | 'rightmost';
-  /** What the row's own scroll input does: 'step', 'free' or 'off'. */
-  rowGesture: 'step' | 'free' | 'off';
+  /** What the row's own scroll input does: 'step', 'follow', 'free' or 'off'. */
+  rowGesture: 'step' | 'follow' | 'free' | 'off';
   /** Where the row starts scrolled: its 'start', its 'end', the 'root', or a given panel. */
   initialScroll: 'start' | 'end' | 'root' | { panel: PanelId };
 };
@@ -1202,7 +1202,7 @@ const CATALOG_ROWS: readonly SettingDescriptor[] = [
   {
     name: 'tuning.rowGesture',
     group: 'tuning',
-    values: 'step, free, off (workspace only; a design-derived key from Q15, not requested)',
+    values: 'step, follow, free, off (workspace only; a design-derived key from Q15, not requested)',
     default: 'step',
     scope: 'workspace',
     viewSettable: false,
@@ -1577,7 +1577,7 @@ const TUNING_SCALAR_CHECKS: Record<'hopFraction' | 'rowGap' | 'saveQuietMs' | 'g
   gestureLockMs: integer(0),
   returnTieBreak: oneOf('latest-first', 'earliest-first', 'row-order'),
   dropTieBreak: oneOf('leftmost', 'rightmost'),
-  rowGesture: oneOf('step', 'free', 'off'),
+  rowGesture: oneOf('step', 'follow', 'free', 'off'),
   initialScroll: (v) => {
     if (v === 'start' || v === 'end' || v === 'root') return undefined;
     if (isPlain(v) && Object.keys(v).length === 1 && nonEmptyString(v.panel)) return undefined;

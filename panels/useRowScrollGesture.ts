@@ -2,6 +2,8 @@
  * The row's scroll gesture: a wheel swipe or an arrow key asks for one step in a direction. What a step does is the
  * caller's: this hook only filters the input, keeps the burst lock and installs the listeners.
  *
+ * Under 'follow' a row that can scroll follows the wheel and settles once it is quiet; any other row takes the 'step' path.
+ *
  * Under `mode` 'free' and 'off' no listener is installed: the browser scrolls natively ('free') or nothing does.
  *
  * Native `addEventListener`, not React's `onWheel`: React's wheel listener is passive, so the `preventDefault()` that
@@ -15,6 +17,15 @@ import { useEffect, useRef } from 'react';
 import type { RefObject } from 'react';
 import { GESTURE_LOCK_MS } from '../rowConstants.js';
 
+/** Under 'follow', how long the wheel must be quiet before the row settles on a panel. */
+const WHEEL_SETTLE_MS = 120;
+
+/** What 'follow' needs of the row: `move` follows a sideways wheel delta and says whether it took it; `settle` ends the follow. */
+export interface RowFollow {
+  move(deltaPx: number): boolean;
+  settle(): void;
+}
+
 /**
  * `gestureLockMs`: a trackpad swipe arrives as a burst of small wheel deltas with a momentum tail, and a WebKit or Blink browser cannot
  * tell a momentum event from a fresh user one. Locking on the first event of a burst and unlocking only after this
@@ -25,18 +36,22 @@ export function useRowScrollGesture(
   overflowContainerRef: RefObject<HTMLDivElement | null>,
   onStep: (direction: 'left' | 'right') => void,
   gestureLockMs: number = GESTURE_LOCK_MS,
-  mode: 'step' | 'free' | 'off' = 'step',
+  mode: 'step' | 'follow' | 'free' | 'off' = 'step',
+  follow?: RowFollow,
 ): void {
   const onStepRef = useRef(onStep);
   onStepRef.current = onStep;
   const gestureLockMsRef = useRef(gestureLockMs);
   gestureLockMsRef.current = gestureLockMs;
+  const followRef = useRef(follow);
+  followRef.current = follow;
 
   useEffect(() => {
     const container = overflowContainerRef.current;
-    if (!container || mode !== 'step') return;
+    if (!container || (mode !== 'step' && mode !== 'follow')) return;
     let locked = false;
     let unlockTimer: ReturnType<typeof setTimeout> | null = null;
+    let settleTimer: ReturnType<typeof setTimeout> | null = null;
     const armUnlock = (): void => {
       if (unlockTimer) clearTimeout(unlockTimer);
       unlockTimer = setTimeout(() => {
@@ -51,6 +66,11 @@ export function useRowScrollGesture(
       const amount = Math.abs(e.deltaX) > Math.abs(e.deltaY) ? e.deltaX : e.deltaY;
       if (amount === 0) return;
       e.preventDefault();
+      if (mode === 'follow' && followRef.current?.move(amount) === true) {
+        if (settleTimer) clearTimeout(settleTimer);
+        settleTimer = setTimeout(() => followRef.current?.settle(), WHEEL_SETTLE_MS);
+        return;
+      }
       if (!locked) {
         locked = true;
         onStepRef.current(amount > 0 ? 'right' : 'left');
@@ -71,6 +91,7 @@ export function useRowScrollGesture(
       container.removeEventListener('wheel', onWheel);
       window.removeEventListener('keydown', onKeyDown);
       if (unlockTimer) clearTimeout(unlockTimer);
+      if (settleTimer) clearTimeout(settleTimer);
     };
     // `overflowContainerRef` is a stable ref object (a useRef in the host's row shell): this effect attaches once,
     // at mount, and reads the latest `onStep` through `onStepRef` instead of re-subscribing to it.

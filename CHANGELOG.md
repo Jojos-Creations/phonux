@@ -21,6 +21,9 @@
 
 ### Added
 
+- `tuning.rowGesture: 'follow'`: a sideways wheel (deltaX or Shift+wheel) moves the row with it for as long as the wheel
+  keeps moving, and the row settles on the nearest panel start once the wheel has been quiet for 120 ms. `'step'` is
+  still the default and is unchanged.
 - `PhonuxLabels`: English defaults for the library's visible strings, replaced through `PanelsInput.labels` (the title of
   a panel `create()` opens), `Host.labels` (the unregistered-view placeholder and the `PanelHeaderRow` empty title) and
   `PhoneDetectPromptProps.labels` (its text and accessible names).

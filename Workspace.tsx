@@ -42,7 +42,7 @@ export interface WorkspaceShellStyleInput {
   /** Whether the row scrolls, for a caller with no `rowNumbers`. Ignored when `rowNumbers` is given. Default false. */
   rowScroll?: boolean;
   /** What the row's own scroll input does. Default: the library's `rowGesture`. */
-  rowGesture?: 'step' | 'free' | 'off';
+  rowGesture?: 'step' | 'follow' | 'free' | 'off';
 }
 
 /** The values the row shell renders with, derived by `workspaceShellStyle`. @internal */
@@ -58,7 +58,7 @@ export interface WorkspaceShellStyle {
       };
   /** The scroll container's horizontal overflow: 'auto' for a scrolling row whose gesture is not 'off', else 'hidden'. */
   overflowX: 'hidden' | 'auto';
-  /** True when the container scrolls but shows no scrollbar: a scrolling row whose gesture is 'step'. */
+  /** True when the container scrolls but shows no scrollbar: a scrolling row whose gesture is 'step' or 'follow'. */
   hideScrollbar: boolean;
 }
 
@@ -77,7 +77,7 @@ export function workspaceShellStyle(i: WorkspaceShellStyleInput): WorkspaceShell
     marginLeft,
     transition: i.rowResizeSettled ? (i.slide === undefined ? PANEL_TRANSITION : slideToTransition(i.slide)) : { duration: 0 },
     overflowX: scrolls && gesture !== 'off' ? 'auto' : 'hidden',
-    hideScrollbar: scrolls && gesture === 'step',
+    hideScrollbar: scrolls && (gesture === 'step' || gesture === 'follow'),
   };
 }
 

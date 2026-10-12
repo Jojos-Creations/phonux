@@ -898,7 +898,7 @@ export type ResolvedWorkspaceTuning = ResolvedPanelTuning & {
     gestureLockMs: number;
     returnTieBreak: 'latest-first' | 'earliest-first' | 'row-order';
     dropTieBreak: 'leftmost' | 'rightmost';
-    rowGesture: 'step' | 'free' | 'off';
+    rowGesture: 'step' | 'follow' | 'free' | 'off';
     initialScroll: 'start' | 'end' | 'root' | {
         panel: PanelId;
     };
@@ -1320,7 +1320,7 @@ export type WorkspaceTuning = PanelTuning & {
     gestureLockMs?: number;
     returnTieBreak?: 'latest-first' | 'earliest-first' | 'row-order';
     dropTieBreak?: 'leftmost' | 'rightmost';
-    rowGesture?: 'step' | 'free' | 'off';
+    rowGesture?: 'step' | 'follow' | 'free' | 'off';
     initialScroll?: 'start' | 'end' | 'root' | {
         panel: PanelId;
     };
