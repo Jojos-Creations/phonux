@@ -1001,10 +1001,10 @@ test('a remount restores a parked panel parked, with no hold carried over', asyn
 // Timing tuning
 // ---------------------------------------------------------------------------
 
-test('the timing defaults are 500 ms and 350 ms, and a tuning left out takes them', async () => {
+test('the timing defaults are 500 ms and 60 ms, and a tuning left out takes them', async () => {
   const { LIBRARY_TUNING_DEFAULTS } = await import('../panelSettings.js');
   assert.equal(LIBRARY_TUNING_DEFAULTS.saveQuietMs, 500);
-  assert.equal(LIBRARY_TUNING_DEFAULTS.gestureLockMs, 350);
+  assert.equal(LIBRARY_TUNING_DEFAULTS.gestureLockMs, 60);
   assert.equal(await savesAfter(499), 0, 'not saved at 499 ms');
   assert.equal(await savesAfter(500), 1, 'saved at 500 ms');
 });

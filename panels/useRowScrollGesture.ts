@@ -15,11 +15,15 @@ import { useEffect, useRef } from 'react';
 import type { RefObject } from 'react';
 import { GESTURE_LOCK_MS } from '../rowConstants.js';
 
+/** No wheel event for this long ends a gesture: the next event is fresh and steps whatever its size. */
+const GESTURE_QUIET_MS = 150;
+
 /**
- * `gestureLockMs`: a trackpad swipe arrives as a burst of small wheel deltas with a momentum tail, and a WebKit or Blink browser cannot
- * tell a momentum event from a fresh user one. Locking on the first event of a burst and unlocking only after this
- * long of silence (the default is not shorter: gaps inside a real momentum stream can exceed 150 ms) keeps one swipe
- * to one step.
+ * `gestureLockMs`: after a step, wheel events are ignored for this long (the lock is not re-armed by them). A trackpad
+ * swipe arrives as a burst of wheel deltas with a momentum tail, and a WebKit or Blink browser cannot tell a momentum
+ * event from a fresh user one; so once the lock is over, an event steps again only if it is not decaying (it is at
+ * least as large as the one before it, or it reverses direction). A swipe whose deltas fade away is one step; a wheel
+ * or swipe that keeps its speed steps again and again.
  */
 export function useRowScrollGesture(
   overflowContainerRef: RefObject<HTMLDivElement | null>,
@@ -36,13 +40,10 @@ export function useRowScrollGesture(
     const container = overflowContainerRef.current;
     if (!container || mode !== 'step') return;
     let locked = false;
+    let previous = 0;
+    let previousSign = 0;
     let unlockTimer: ReturnType<typeof setTimeout> | null = null;
-    const armUnlock = (): void => {
-      if (unlockTimer) clearTimeout(unlockTimer);
-      unlockTimer = setTimeout(() => {
-        locked = false;
-      }, gestureLockMsRef.current);
-    };
+    let quietTimer: ReturnType<typeof setTimeout> | null = null;
     const onWheel = (e: WheelEvent): void => {
       // A tilt wheel or two-finger swipe reports deltaX; Shift+wheel usually still reports deltaY, so treat
       // Shift+deltaY as a horizontal ask too. Plain vertical wheel is left to overflowY:'auto'.
@@ -51,11 +52,21 @@ export function useRowScrollGesture(
       const amount = Math.abs(e.deltaX) > Math.abs(e.deltaY) ? e.deltaX : e.deltaY;
       if (amount === 0) return;
       e.preventDefault();
-      if (!locked) {
-        locked = true;
-        onStepRef.current(amount > 0 ? 'right' : 'left');
-      }
-      armUnlock();
+      const magnitude = Math.abs(amount);
+      const sign = Math.sign(amount);
+      const holding = magnitude >= previous || sign !== previousSign;
+      previous = magnitude;
+      previousSign = sign;
+      if (quietTimer) clearTimeout(quietTimer);
+      quietTimer = setTimeout(() => {
+        previous = 0;
+      }, GESTURE_QUIET_MS);
+      if (locked || !holding) return;
+      locked = true;
+      unlockTimer = setTimeout(() => {
+        locked = false;
+      }, gestureLockMsRef.current);
+      onStepRef.current(sign > 0 ? 'right' : 'left');
     };
     const onKeyDown = (e: KeyboardEvent): void => {
       if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
@@ -71,6 +82,7 @@ export function useRowScrollGesture(
       container.removeEventListener('wheel', onWheel);
       window.removeEventListener('keydown', onKeyDown);
       if (unlockTimer) clearTimeout(unlockTimer);
+      if (quietTimer) clearTimeout(quietTimer);
     };
     // `overflowContainerRef` is a stable ref object (a useRef in the host's row shell): this effect attaches once,
     // at mount, and reads the latest `onStep` through `onStepRef` instead of re-subscribing to it.

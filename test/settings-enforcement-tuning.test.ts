@@ -179,7 +179,7 @@ test('the library tuning defaults are exactly these numbers, by key name', () =>
     hopFraction: 0.5,
     edgeScroll: { zonePx: 48, maxPxPerSec: 900, reducedStepMs: 500 },
     saveQuietMs: 500,
-    gestureLockMs: 350,
+    gestureLockMs: 60,
     returnTieBreak: 'latest-first',
     dropTieBreak: 'leftmost',
     rowGesture: 'step',

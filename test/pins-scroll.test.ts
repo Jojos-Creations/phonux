@@ -66,7 +66,7 @@ test('PIN with [A, B parked, C] and A, C live, scrollRow in both directions reve
   assert.deepEqual(liveIds(panelsNow), ['a', 'c']);
 });
 
-test('PIN a swipe on a row whose parked panel lies beyond the live range swaps: A parks, the next parked returns, once per burst under the 350 ms lock', () => {
+test('PIN a swipe on a row whose parked panel lies beyond the live range swaps: A parks, the next parked returns, once per burst under the 60 ms lock', () => {
   const p = provide(row(rootEntry(), park('a'), park('b'), park('c', { live: false })), W(2));
   mock.timers.enable({ apis: ['setTimeout'] });
   try {
@@ -74,10 +74,10 @@ test('PIN a swipe on a row whose parked panel lies beyond the live range swaps: 
     assert.deepEqual(p.live(), ['b', 'c']);
     p.wheel(-100);
     assert.deepEqual(p.live(), ['b', 'c'], 'a second swipe inside the lock does nothing');
-    act(() => mock.timers.tick(349));
+    act(() => mock.timers.tick(59));
     p.wheel(-100);
-    assert.deepEqual(p.live(), ['b', 'c'], 'one ms short of the lock, and each ignored event re-arms it');
-    act(() => mock.timers.tick(350));
+    assert.deepEqual(p.live(), ['b', 'c'], 'one ms short of the lock');
+    act(() => mock.timers.tick(1));
     p.wheel(-100);
     assert.deepEqual(p.live(), ['a', 'b'], 'after the lock the swipe swaps back');
   } finally {

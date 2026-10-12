@@ -1678,7 +1678,7 @@ test('matrix:tuning.gestureLockMs', async () => {
     const wheel = (deltaX: number): void => act(() => void r.m.container.dispatchEvent(new WheelEvent('wheel', { deltaX, cancelable: true, bubbles: true })));
     wheel(100);
     const first = scroller.glideTarget();
-    act(() => mock.timers.tick(300));
+    act(() => mock.timers.tick(30));
     wheel(-100);
     const second = scroller.glideTarget();
     mock.timers.reset();
@@ -1687,9 +1687,9 @@ test('matrix:tuning.gestureLockMs', async () => {
   };
   const [firstDefault, secondDefault] = await swipes(undefined);
   assert.equal(firstDefault !== null, true, 'control: the first swipe starts a glide');
-  assert.equal(secondDefault, firstDefault, 'under the default 350 ms lock a second swipe 300 ms later is ignored');
-  const [firstShort, secondShort] = await swipes(100);
-  assert.notEqual(secondShort, firstShort, 'under 100 ms the same second swipe acts');
+  assert.equal(secondDefault, firstDefault, 'under the default 60 ms lock a second swipe 30 ms later is ignored');
+  const [firstShort, secondShort] = await swipes(10);
+  assert.notEqual(secondShort, firstShort, 'under 10 ms the same second swipe acts');
 });
 
 test('matrix:tuning.returnTieBreak', async () => {
