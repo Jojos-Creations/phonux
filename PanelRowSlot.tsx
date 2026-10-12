@@ -194,6 +194,7 @@ export function PanelRowSlot({
   const ownSpan = width + (gap ?? ROW_GAP);
   const parkSide = exitDirection === 'right' ? 'right' : 'left';
   const slideTransition = animated && !reducedMotion ? transition : INSTANT_TRANSITION;
+  const snapping = previewing && (reducedMotion || systemReduced);
   // `epoch` counts parks, so a finished exit from an earlier park can never hide the slot of a later one.
   const [wasKept, setWasKept] = React.useState(kept);
   const [epoch, setEpoch] = React.useState(0);
@@ -244,10 +245,19 @@ export function PanelRowSlot({
   }, [reviving]);
   // React 19.2 re-runs effect cleanup and setup for a keyed child a reorder moves, and Motion's cleanup stops the slide this
   // slot was making toward its new rest; nothing then starts it again, so the slot stays where it was.
-  const restNow = React.useRef({ leftOffset, transition: slideTransition });
-  restNow.current = { leftOffset, transition: slideTransition };
+  // A drop under Reduce Motion lands here too: the moved slot's own slide is re-started with the preview's instant transition.
+  const restNow = React.useRef({ leftOffset, transition: snapping ? INSTANT_TRANSITION : slideTransition });
+  restNow.current = { leftOffset, transition: snapping ? INSTANT_TRANSITION : slideTransition };
   const setUpBefore = React.useRef(false);
   const present = useIsPresent();
+  // The drop's new rest lands in the commit that changes it, in the same frame as the dragged box's own offset going to 0: a snap that waited
+  // for Motion's next frame would draw the box a frame at the old slot.
+  const lastRest = React.useRef(leftOffset);
+  React.useLayoutEffect(() => {
+    const moved = lastRest.current !== leftOffset;
+    lastRest.current = leftOffset;
+    if (moved && snapping && el.current !== null && !kept && !reviving && present) slotDriver.set(el.current, { x: leftOffset, opacity: 1 });
+  });
   React.useEffect(() => {
     if (!setUpBefore.current) {
       setUpBefore.current = true;
@@ -262,7 +272,7 @@ export function PanelRowSlot({
       // Enters from one own-width-plus-gap span beyond its destination, right or left per `enterDirection` above.
       // Dropping `animate` alone would send the slot back to `initial`; with both gone it stays where it is, for the imperative slide.
       initial={kept || reviving ? undefined : initial}
-      animate={kept || reviving ? undefined : previewing && (reducedMotion || systemReduced) ? { ...animateTarget, transition: INSTANT_TRANSITION } : animateTarget}
+      animate={kept || reviving ? undefined : snapping ? { ...animateTarget, transition: INSTANT_TRANSITION } : animateTarget}
       exit={kept ? KEPT_EXIT : exit}
       transition={transition}
       inert={kept ? true : undefined}
