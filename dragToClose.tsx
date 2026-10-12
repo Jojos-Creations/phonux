@@ -411,6 +411,18 @@ function DragToCloseBox({
       preview(null);
     });
   };
+  // A press stopped a spring that had not reached rest: if the press never becomes a drag, nothing else returns the box.
+  const stoppedSpring = React.useRef(false);
+  const returnHome = () => {
+    stoppedSpring.current = false;
+    const vertical = animate(y, 0, snapBack);
+    const sideways = settleHome(x, scrollX, snapBack);
+    running.current = { stop: () => { vertical.stop(); sideways.stop(); } };
+    void Promise.all([vertical, sideways]).then(() => {
+      unlockScrollParents();
+      preview(null);
+    });
+  };
   const engaged = React.useRef(false);
   const followStep = React.useRef<(() => void) | null>(null);
   const stopFollowing = () => {
@@ -419,6 +431,8 @@ function DragToCloseBox({
     followStep.current = null;
   };
   const latestMove = React.useRef<() => void>(() => undefined);
+  const returnHomeRef = React.useRef<() => void>(() => undefined);
+  returnHomeRef.current = returnHome;
   const trackPointer = React.useRef((event: Event) => {
     const { clientX, clientY } = event as PointerEvent;
     if (event.type !== 'pointercancel') {
@@ -433,6 +447,8 @@ function DragToCloseBox({
     }
     if (event.type === 'pointermove') return latestMove.current();
     for (const type of ['pointermove', 'pointerup', 'pointercancel']) window.removeEventListener(type, trackPointer.current, true);
+    // This capture listener runs before dnd-kit's: a press that never engaged gets no onDragEnd, so it ends here.
+    if (stoppedSpring.current && !engaged.current) returnHomeRef.current();
   });
 
   // The box follows the pointer on the locked axis; the lock is decided by the first offset past the direction lock.
@@ -479,6 +495,7 @@ function DragToCloseBox({
 
   useDndMonitor({
     onDragCancel: () => {
+      stoppedSpring.current = false;
       if (previewed.current !== null) preview(0);
       stopFollowing();
       axisLock.current = null;
@@ -487,6 +504,7 @@ function DragToCloseBox({
       springHome();
     },
     onDragEnd: () => {
+      stoppedSpring.current = false;
       if (engaged.current) follow(); // the last move may not have had its frame yet
       stopFollowing();
       const lockedAxis = axisLock.current;
@@ -544,7 +562,8 @@ function DragToCloseBox({
   const handle: DragHandleProps = {
     onPointerDown: (event) => {
       if (event.button !== 0 || (event.target as Element).closest(INTERACTIVE) || closing.current) return; // a press would stop the exit: onClose would never run
-      if (running.current) { running.current.stop(); running.current = null; unlockScrollParents(); preview(null); } // stop() never settles the spring's promise, so its own unlock would not run
+      stoppedSpring.current = false;
+      if (running.current) { running.current.stop(); running.current = null; stoppedSpring.current = y.get() !== 0 || x.get() !== 0 || scrollX.get() !== 0; unlockScrollParents(); preview(null); } // stop() never settles the spring's promise, so its own unlock would not run
       edge.press(event);
       pointer.current = { downX: event.clientX, downY: event.clientY, x: event.clientX, y: event.clientY };
       samples.current = [{ t: event.timeStamp, y: 0 }];
