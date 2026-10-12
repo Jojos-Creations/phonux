@@ -33,7 +33,7 @@ test('a glide to 812 with durationSec 0.4 ends after 25 frames and not before, a
   for (const [seconds, frames] of [[0.4, 25], [0.8, 50]] as const) {
     const el = container();
     el.scrollLeft = 0;
-    assert.equal(rowScrollerFor(el).glideTo(812, { durationSec: seconds, instant: false }), true);
+    assert.equal(rowScrollerFor(el).glideTo(812, { durationSec: seconds, instant: false, ease: 'cubic-out' }), true);
     await advanceFrames((frames - 1) * 16);
     assert.ok(el.scrollLeft < 812, `${seconds}s: still on the way one frame early`);
     assert.ok(el.scrollLeft > 0, `${seconds}s: and moving`);
@@ -45,14 +45,14 @@ test('a glide to 812 with durationSec 0.4 ends after 25 frames and not before, a
 
 test('an instant glide moves at once', () => {
   const el = container();
-  rowScrollerFor(el).glideTo(500, { durationSec: 0.4, instant: true });
+  rowScrollerFor(el).glideTo(500, { durationSec: 0.4, instant: true, ease: 'cubic-out' });
   assert.equal(el.scrollLeft, 500);
   assert.equal(rowScrollerFor(el).glideTarget(), null);
 });
 
 test('a glide stops at pointer-down in the container and stays where it was', async () => {
   const el = container();
-  rowScrollerFor(el).glideTo(812, { durationSec: 0.4, instant: false });
+  rowScrollerFor(el).glideTo(812, { durationSec: 0.4, instant: false, ease: 'cubic-out' });
   await advanceFrames(160);
   const at = el.scrollLeft;
   assert.ok(at > 0 && at < 812);
@@ -64,7 +64,7 @@ test('a glide stops at pointer-down in the container and stays where it was', as
 
 test("a glide's own writes are not foreign: the scroll event after each frame leaves it running, and a 1 px foreign change does too", async () => {
   const el = container();
-  rowScrollerFor(el).glideTo(812, { durationSec: 0.4, instant: false });
+  rowScrollerFor(el).glideTo(812, { durationSec: 0.4, instant: false, ease: 'cubic-out' });
   for (let frame = 0; frame < 5; frame += 1) {
     await advanceFrames(16);
     scrolled(el);
@@ -79,7 +79,7 @@ test("a glide's own writes are not foreign: the scroll event after each frame le
 
 test('a 2 px foreign change stops the glide where the foreign write left it', async () => {
   const el = container();
-  rowScrollerFor(el).glideTo(812, { durationSec: 0.4, instant: false });
+  rowScrollerFor(el).glideTo(812, { durationSec: 0.4, instant: false, ease: 'cubic-out' });
   await advanceFrames(64);
   el.scrollLeft += 2;
   const at = el.scrollLeft;
@@ -92,10 +92,10 @@ test('a 2 px foreign change stops the glide where the foreign write left it', as
 test('a second glideTo retargets from the current value', async () => {
   const el = container();
   const scroller = rowScrollerFor(el);
-  scroller.glideTo(1000, { durationSec: 0.4, instant: false });
+  scroller.glideTo(1000, { durationSec: 0.4, instant: false, ease: 'cubic-out' });
   await advanceFrames(160);
   const mid = el.scrollLeft;
-  scroller.glideTo(0, { durationSec: 0.4, instant: false });
+  scroller.glideTo(0, { durationSec: 0.4, instant: false, ease: 'cubic-out' });
   assert.equal(scroller.glideTarget(), 0);
   await advanceFrames(16);
   assert.ok(el.scrollLeft < mid && el.scrollLeft > 0, 'it heads back from where it was, not from 1000');
@@ -109,10 +109,10 @@ test('while a claim is held glideTo returns false and claim() returns null; afte
   const claim = scroller.claim();
   assert.ok(claim !== null);
   assert.equal(scroller.claim(), null);
-  assert.equal(scroller.glideTo(100, { durationSec: 0, instant: true }), false);
+  assert.equal(scroller.glideTo(100, { durationSec: 0, instant: true, ease: 'cubic-out' }), false);
   assert.equal(el.scrollLeft, 0);
   claim.release();
-  assert.equal(scroller.glideTo(100, { durationSec: 0, instant: true }), true);
+  assert.equal(scroller.glideTo(100, { durationSec: 0, instant: true, ease: 'cubic-out' }), true);
   const again = scroller.claim();
   assert.ok(again !== null);
   again.release();
@@ -139,7 +139,7 @@ test("a claim holder's writes are the scroller's own: a glide started after the 
   claim.write(700);
   scrolled(el);
   claim.release();
-  scroller.glideTo(1500, { durationSec: 0.4, instant: false });
+  scroller.glideTo(1500, { durationSec: 0.4, instant: false, ease: 'cubic-out' });
   scrolled(el);
   assert.equal(scroller.glideTarget(), 1500, 'the last value written is the baseline the glide compares against');
   await advanceFrames(400);
@@ -177,7 +177,7 @@ test('the Workspace reset of a row that stops scrolling stops a glide in flight 
   const at = (rowScroll: boolean): React.ReactElement =>
     withHost(React.createElement(Workspace, { overflowContainerRef: ref, rowRef, containerWidth: 1000, rowResizeSettled: true, phoneWidth: 390, fixedColumnCount: 1, liveWidths: [], rowScroll, children: null }));
   const mounted = mount(at(true));
-  rowScrollerFor(ref.current!).glideTo(812, { durationSec: 0.4, instant: false });
+  rowScrollerFor(ref.current!).glideTo(812, { durationSec: 0.4, instant: false, ease: 'cubic-out' });
   await advanceFrames(160);
   assert.ok(ref.current!.scrollLeft > 0);
   mounted.rerender(at(false));

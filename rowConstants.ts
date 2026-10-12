@@ -42,6 +42,26 @@ export const SAVE_QUIET_MS = 500;
 /** After a row-scroll step, further wheel events inside this window are ignored. */
 export const GESTURE_LOCK_MS = 60;
 
+/** No wheel event for this long ends a row-scroll gesture: the next one is fresh and steps whatever its size. */
+export const GESTURE_QUIET_MS = 150;
+
+/** A pointer that lifts this long after its last move had stopped has no release velocity. */
+export const DRAG_REST_MS = 50;
+
+/** How far back a release looks for its velocity, ms. */
+export const DRAG_VELOCITY_WINDOW_MS = 100;
+
+/** The curve a closing panel leaves along, and the curve a row-scroll glide travels along ('cubic-out' is 1 - (1 - t)^3). */
+export const CLOSE_EXIT_EASE = 'easeIn' as const;
+export const GLIDE_EASE = 'cubic-out' as const;
+
+/**
+ * The z-index of a row's slots: a `raised` panel sits above a `base` one, so a park that exits left crosses its footprint
+ * on the way out, and the panel being dragged is drawn above both. Every `OVERLAY_Z` value is higher.
+ * @public
+ */
+export const ROW_LAYER_Z = Object.freeze({ BASE: 1, RAISED: 2, DRAGGED: 3 });
+
 /** Which of two equal-priority panels returns or lands first. */
 export const RETURN_TIE_BREAK = 'latest-first' as const;
 export const DROP_TIE_BREAK = 'leftmost' as const;

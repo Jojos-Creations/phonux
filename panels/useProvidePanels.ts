@@ -435,7 +435,7 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
       hidden,
     });
     if (step.kind === 'show') activatePanel(step.id);
-    else if (step.kind === 'scroll') scroller.glideTo(step.to, { durationSec: tuning.slide.durationSec, instant: reducedMotion });
+    else if (step.kind === 'scroll') scroller.glideTo(step.to, { durationSec: tuning.slide.durationSec, instant: reducedMotion, ease: tuning.slide.glideEase });
   };
 
   // The window, a pin, a close or a reorder moves the stops: a row left between two is brought to the nearest one.
@@ -448,11 +448,11 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
     const base = scroller.glideTarget() ?? scroller.scrollLeft();
     const to = nearestStop(rowNumbers, base);
     if (Math.abs(to - base) < 0.5) return;
-    scroller.glideTo(to, { durationSec: tuning.slide.durationSec, instant: reducedMotion });
+    scroller.glideTo(to, { durationSec: tuning.slide.durationSec, instant: reducedMotion, ease: tuning.slide.glideEase });
   }, [rowNumbers.stops.join(','), rowNumbers.rowMarginLeft, rowNumbers.endPad]);
 
   // The row's wheel/arrow-key gesture is wired here, not in the host, so a host stays free of effects and refs.
-  useRowScrollGesture(i.overflowContainerRef, stepRow, timing.gestureLockMs, tuning.rowGesture);
+  useRowScrollGesture(i.overflowContainerRef, stepRow, timing.gestureLockMs, tuning.rowGesture, tuning.gestureQuietMs);
 
   const { restoreSettled, dismiss, undismiss, isDismissed } = useWorkspacePersistence({
     storage: core?.storage ?? i.storage,
@@ -567,7 +567,7 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
         to = snapToStop(rowNumbers, k, scrollTargetFor({ left, width: rowNumbers.widths[k]!, scrollLeft: 0, clientWidth: windowOf(el), maxScroll, gap: tuning.rowGap, align: 'start' }));
       }
     }
-    if (to !== 0) scroller.glideTo(to, { durationSec: 0, instant: true });
+    if (to !== 0) scroller.glideTo(to, { durationSec: 0, instant: true, ease: tuning.slide.glideEase });
   });
 
   // Runs the pending request against this commit's numbers: the target margin is the one about to be drawn.
@@ -611,7 +611,7 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
       }),
     );
     if (Math.abs(to - scroller.scrollLeft()) < 0.5) return;
-    if (!scroller.glideTo(to, { durationSec: tuning.slide.durationSec, instant: reducedMotion || !settings.animated })) {
+    if (!scroller.glideTo(to, { durationSec: tuning.slide.durationSec, instant: reducedMotion || !settings.animated, ease: tuning.slide.glideEase })) {
       scrollNote('scroll-dropped-during-drag', request.id, `A scroll to panel ${request.id} was dropped: a drag holds the row.`);
     }
   });

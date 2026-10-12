@@ -192,12 +192,13 @@ test('differential tuning.chrome: an idle panel keeps its header drawn under alw
 test('the library tuning defaults are exactly these numbers, by key name', () => {
   assert.deepEqual(LIBRARY_TUNING_DEFAULTS, {
     rowGap: 16,
-    dragToClose: { distanceFraction: 0.25, minDistancePx: 80, flickMinDistancePx: 40, flickVelocity: 700, cancelVelocity: -300, directionLockPx: 8, snapBack: { stiffness: 520, damping: 42 } },
-    slide: { durationSec: 0.4, ease: [0.2, 0, 0, 1], closeExitSeconds: 0.18 },
+    dragToClose: { distanceFraction: 0.25, minDistancePx: 80, flickMinDistancePx: 40, flickVelocity: 700, cancelVelocity: -300, directionLockPx: 8, restMs: 50, velocityWindowMs: 100, snapBack: { stiffness: 520, damping: 42 } },
+    slide: { durationSec: 0.4, ease: [0.2, 0, 0, 1], closeExitSeconds: 0.18, closeExitEase: 'easeIn', glideEase: 'cubic-out' },
     hopFraction: 0.5,
     edgeScroll: { zonePx: 48, maxPxPerSec: 900, reducedStepMs: 500 },
     saveQuietMs: 500,
     gestureLockMs: 60,
+    gestureQuietMs: 150,
     returnTieBreak: 'latest-first',
     dropTieBreak: 'leftmost',
     rowGesture: 'step',
@@ -234,7 +235,7 @@ test('slideToTransition: each of the four ease numbers alone makes the transitio
 // ---------------------------------------------------------------------------
 
 test('slide: the slot enters and leaves over durationSec, the down exit takes closeExitSeconds, and animated false is still duration 0', () => {
-  const slow: SlideTuning = { durationSec: 0.8, ease: [0.2, 0, 0, 1], closeExitSeconds: 0.3 };
+  const slow: SlideTuning = { durationSec: 0.8, ease: [0.2, 0, 0, 1], closeExitSeconds: 0.3, closeExitEase: 'easeIn', glideEase: 'cubic-out' };
   const base = panelRowSlotMotion(0, 390, 700, 'right', 'down');
   assert.equal(base.transition.duration, 0.4);
   assert.equal((base.exit as { transition: { duration: number } }).transition.duration, 0.18);
@@ -248,7 +249,7 @@ test('slide: the slot enters and leaves over durationSec, the down exit takes cl
 
 test('slide: the shell glides with the resolved slide once settled, and snaps before', () => {
   const input = { containerWidth: 1300, phoneWidth: 390, fixedColumnCount: 1, liveWidths: [] };
-  const slide: SlideTuning = { durationSec: 0.8, ease: [0.2, 0, 0, 1], closeExitSeconds: 0.18 };
+  const slide: SlideTuning = { durationSec: 0.8, ease: [0.2, 0, 0, 1], closeExitSeconds: 0.18, closeExitEase: 'easeIn', glideEase: 'cubic-out' };
   assert.deepEqual(workspaceShellStyle({ ...input, rowResizeSettled: true, slide }).transition, { duration: 0.8, ease: [0.2, 0, 0, 1] });
   assert.equal(workspaceShellStyle({ ...input, rowResizeSettled: true }).transition, PANEL_TRANSITION);
   assert.deepEqual(workspaceShellStyle({ ...input, rowResizeSettled: false, slide }).transition, { duration: 0 });

@@ -1,5 +1,5 @@
 /**
- * The catalog as data: the 67 names, who owns each, its class and doors, the exact defaults, the leaf-module rule, the
+ * The catalog as data: the 68 names, who owns each, its class and doors, the exact defaults, the leaf-module rule, the
  * differential recorder, and the table in DESIGN.md that must equal the descriptors row for row.
  */
 
@@ -83,6 +83,7 @@ const NAME_TABLE: Record<CatalogName, true> = {
   'tuning.edgeScroll': true,
   'tuning.saveQuietMs': true,
   'tuning.gestureLockMs': true,
+  'tuning.gestureQuietMs': true,
   'tuning.returnTieBreak': true,
   'tuning.dropTieBreak': true,
   'tuning.rowGesture': true,
@@ -96,7 +97,7 @@ const DERIVED_KEYS = ['draggable', 'placeable', 'listed', 'clearable', 'slots', 
 /** The one assignment of every name to the entry that enforces it. */
 const OWNER_TABLE: ReadonlyArray<readonly [string, readonly CatalogName[]]> = [
   ['phonux-engine-permission-settings', ['closable', 'parkable', 'draggable', 'crossable', 'placeable', 'resizable', 'formFactors', 'clearable', 'listed', 'formFactor', 'title', 'undoWindowMs', 'reportClose', 'snapshot']],
-  ['phonux-engine-visibility-settings', ['startVisibility', 'hideStickiness', 'hideWhenLast', 'capacityReturn', 'returnPriority', 'evictionRank', 'evictionOrder', 'viewState', 'tuning.saveQuietMs', 'tuning.gestureLockMs', 'tuning.returnTieBreak', 'tuning.dropTieBreak']],
+  ['phonux-engine-visibility-settings', ['startVisibility', 'hideStickiness', 'hideWhenLast', 'capacityReturn', 'returnPriority', 'evictionRank', 'evictionOrder', 'viewState', 'tuning.saveQuietMs', 'tuning.gestureLockMs', 'tuning.gestureQuietMs', 'tuning.returnTieBreak', 'tuning.dropTieBreak']],
   ['phonux-engine-placement-and-motion-settings', ['placeOnAdd', 'placeOnShow', 'placeOnReturn', 'placeFallback', 'undoPlacement', 'layer', 'enterFrom', 'exitTo', 'closeExit', 'animated']],
   ['phonux-engine-tuning-look-settings', ['tuning.rowGap', 'tuning.dragToClose', 'tuning.slide', 'tuning.hopFraction', 'tuning.chrome']],
   ['phonux-keep-mounted-render-path', ['keepMounted']],
@@ -139,7 +140,7 @@ const SCROLL_DEFAULTS = {
 } as const;
 
 const TEMPLATE_KEYS: readonly CatalogName[] = ['hostCreatable', 'multiple', 'maxInstances'];
-const WORKSPACE_ONLY_KEYS: readonly CatalogName[] = ['tuning.rowGap', 'tuning.saveQuietMs', 'tuning.gestureLockMs', 'tuning.returnTieBreak', 'tuning.dropTieBreak', 'tuning.rowGesture', 'tuning.initialScroll', 'tuning.maxLivePanels', 'tuning.chrome', 'tuning.heightPerSlot', 'tuning.rowAlign'];
+const WORKSPACE_ONLY_KEYS: readonly CatalogName[] = ['tuning.rowGap', 'tuning.saveQuietMs', 'tuning.gestureLockMs', 'tuning.gestureQuietMs', 'tuning.returnTieBreak', 'tuning.dropTieBreak', 'tuning.rowGesture', 'tuning.initialScroll', 'tuning.maxLivePanels', 'tuning.chrome', 'tuning.heightPerSlot', 'tuning.rowAlign'];
 const PER_PANEL_TUNING: readonly CatalogName[] = ['tuning.dragToClose', 'tuning.slide', 'tuning.hopFraction', 'tuning.edgeScroll'];
 const expectedDoors = (name: CatalogName): readonly string[] => {
   if (TEMPLATE_KEYS.includes(name)) return ['template'];
@@ -186,7 +187,7 @@ function parseDocRows(doc: string): DocRow[] {
 function docDriftProblems(doc: string): string[] {
   const problems: string[] = [];
   const rows = parseDocRows(doc);
-  if (rows.length !== 67) problems.push(`the table has ${rows.length} rows, not 67`);
+  if (rows.length !== 68) problems.push(`the table has ${rows.length} rows, not 68`);
   const byName = new Map(rows.map((r) => [r.name, r]));
   if (byName.size !== rows.length) problems.push('a name appears in two rows');
   for (const d of PANEL_SETTINGS_CATALOG) {
@@ -209,12 +210,12 @@ const DOC = read('DESIGN.md');
 // Completeness
 // ---------------------------------------------------------------------------
 
-test('catalog: the name set is non-empty and has 67 names, one descriptor each, in no repeated order slot', () => {
+test('catalog: the name set is non-empty and has 68 names, one descriptor each, in no repeated order slot', () => {
   assert.ok(NAMES.length > 0);
-  assert.equal(NAMES.length, 67, "the design's count is 67: a changed count must change the design");
-  assert.equal(PANEL_SETTINGS_CATALOG.length, 67);
+  assert.equal(NAMES.length, 68, "the design's count is 68: a changed count must change the design");
+  assert.equal(PANEL_SETTINGS_CATALOG.length, 68);
   assert.deepEqual([...PANEL_SETTINGS_CATALOG.map((d) => d.name)].sort(), [...NAMES].sort());
-  assert.equal(new Set(PANEL_SETTINGS_CATALOG.map((d) => d.name)).size, 67);
+  assert.equal(new Set(PANEL_SETTINGS_CATALOG.map((d) => d.name)).size, 68);
 });
 
 test('catalog: the name set equals the keys of the two defaults objects plus the derived keys and the rows of the DESIGN.md table', () => {
@@ -225,7 +226,7 @@ test('catalog: the name set equals the keys of the two defaults objects plus the
   ]);
   assert.deepEqual([...fromDefaults].sort(), [...NAMES].sort());
   assert.deepEqual(parseDocRows(DOC).map((r) => r.name).sort(), [...NAMES].sort());
-  assert.equal(fromDefaults.size, 67);
+  assert.equal(fromDefaults.size, 68);
 });
 
 test('catalog: PANEL_SETTINGS_CATALOG is frozen all the way down', () => {
@@ -235,11 +236,11 @@ test('catalog: PANEL_SETTINGS_CATALOG is frozen all the way down', () => {
   }
 });
 
-test('catalog: OWNER_ENTRY assigns each of the 67 names to exactly one of 15 ids', () => {
+test('catalog: OWNER_ENTRY assigns each of the 68 names to exactly one of 15 ids', () => {
   assert.deepEqual(ownerTableProblems(OWNER_TABLE), []);
-  assert.equal(OWNER_OF.size, 67);
+  assert.equal(OWNER_OF.size, 68);
   assert.equal(new Set(OWNER_OF.values()).size, 15);
-  assert.deepEqual(OWNER_TABLE.map(([, names]) => names.length), [14, 12, 10, 5, 1, 1, 5, 2, 6, 1, 2, 2, 1, 1, 4]);
+  assert.deepEqual(OWNER_TABLE.map(([, names]) => names.length), [14, 13, 10, 5, 1, 1, 5, 2, 6, 1, 2, 2, 1, 1, 4]);
 });
 
 test('catalog: a scratch owner table with one name moved to a second id, or dropped, fails', () => {
@@ -250,15 +251,15 @@ test('catalog: a scratch owner table with one name moved to a second id, or drop
   assert.deepEqual(ownerTableProblems(OWNER_TABLE), [], 'control: the real table has no problem, so the two probes above could have passed');
 });
 
-test('catalog: the classes are NOW 15, NEXT 44, STATE 5 and SCOPE 3, and STATE and SCOPE name the expected keys', () => {
+test('catalog: the classes are NOW 15, NEXT 45, STATE 5 and SCOPE 3, and STATE and SCOPE name the expected keys', () => {
   const by = (cls: string) => PANEL_SETTINGS_CATALOG.filter((d) => d.configure.cls === cls).map((d) => d.name);
   assert.equal(by('NOW').length, 15);
-  assert.equal(by('NEXT').length, 44);
+  assert.equal(by('NEXT').length, 45);
   assert.deepEqual(by('STATE').sort(), ['formFactors', 'keepMounted', 'maxSlots', 'parkable', 'viewState']);
   assert.deepEqual(by('SCOPE').sort(), ['hostCreatable', 'maxInstances', 'multiple']);
 });
 
-test('catalog: the doors are template for 3 names, tuning for 10, instance and tuning for 4 and instance for the other 49', () => {
+test('catalog: the doors are template for 3 names, tuning for 11, instance and tuning for 4 and instance for the other 50', () => {
   const by = (doors: string) => PANEL_SETTINGS_CATALOG.filter((d) => d.configure.doors.join(',') === doors).map((d) => d.name);
   assert.deepEqual(by('template').sort(), [...TEMPLATE_KEYS].sort());
   assert.deepEqual(by('tuning').sort(), [...WORKSPACE_ONLY_KEYS].sort());
@@ -292,9 +293,9 @@ for (const name of NAMES) {
 // Docs drift
 // ---------------------------------------------------------------------------
 
-test('docs drift: DESIGN.md has exactly 67 rows between the markers and every name, values, default and class word matches', () => {
+test('docs drift: DESIGN.md has exactly 68 rows between the markers and every name, values, default and class word matches', () => {
   assert.deepEqual(docDriftProblems(DOC), []);
-  assert.equal(parseDocRows(DOC).length, 67);
+  assert.equal(parseDocRows(DOC).length, 68);
 });
 
 test('docs drift: editing one default in a scratch copy of the doc is caught', () => {
@@ -311,9 +312,9 @@ test('docs drift: changing one class word in a scratch copy of the doc is caught
 
 test('docs drift: a scratch copy with a row dropped, or a row added, fails the count', () => {
   const dropped = DOC.replace(/\| `snapshot` \|[^\n]*\n/, '');
-  assert.ok(docDriftProblems(dropped).some((p) => p.includes('66 rows')));
+  assert.ok(docDriftProblems(dropped).some((p) => p.includes('67 rows')));
   const added = DOC.replace('<!-- catalog:end -->', '| `extra` | x | y | NOW. z |\n<!-- catalog:end -->');
-  assert.ok(docDriftProblems(added).some((p) => p.includes('68 rows')));
+  assert.ok(docDriftProblems(added).some((p) => p.includes('69 rows')));
 });
 
 // ---------------------------------------------------------------------------
@@ -323,12 +324,13 @@ test('docs drift: a scratch copy with a row dropped, or a row added, fails the c
 test('defaults: LIBRARY_TUNING_DEFAULTS deep-equals the exact object, with the scrolling members from SCROLL_DEFAULTS', () => {
   assert.deepEqual(LIBRARY_TUNING_DEFAULTS, {
     rowGap: 16,
-    dragToClose: { distanceFraction: 0.25, minDistancePx: 80, flickMinDistancePx: 40, flickVelocity: 700, cancelVelocity: -300, directionLockPx: 8, snapBack: { stiffness: 520, damping: 42 } },
-    slide: { durationSec: 0.4, ease: [0.2, 0, 0, 1], closeExitSeconds: 0.18 },
+    dragToClose: { distanceFraction: 0.25, minDistancePx: 80, flickMinDistancePx: 40, flickVelocity: 700, cancelVelocity: -300, directionLockPx: 8, restMs: 50, velocityWindowMs: 100, snapBack: { stiffness: 520, damping: 42 } },
+    slide: { durationSec: 0.4, ease: [0.2, 0, 0, 1], closeExitSeconds: 0.18, closeExitEase: 'easeIn', glideEase: 'cubic-out' },
     hopFraction: 0.5,
     edgeScroll: SCROLL_DEFAULTS.tuning.edgeScroll,
     saveQuietMs: 500,
     gestureLockMs: 60,
+    gestureQuietMs: 150,
     returnTieBreak: 'latest-first',
     dropTieBreak: 'leftmost',
     rowGesture: 'step',
@@ -412,8 +414,8 @@ const RESOLVED_DEFAULTS: { [K in Exclude<keyof ResolvedPanelSettings, 'title'>]:
   reportClose: true,
   snapshot: 'both',
   tuning: {
-    dragToClose: { distanceFraction: 0.25, minDistancePx: 80, flickMinDistancePx: 40, flickVelocity: 700, cancelVelocity: -300, directionLockPx: 8, snapBack: { stiffness: 520, damping: 42 } },
-    slide: { durationSec: 0.4, ease: [0.2, 0, 0, 1], closeExitSeconds: 0.18 },
+    dragToClose: { distanceFraction: 0.25, minDistancePx: 80, flickMinDistancePx: 40, flickVelocity: 700, cancelVelocity: -300, directionLockPx: 8, restMs: 50, velocityWindowMs: 100, snapBack: { stiffness: 520, damping: 42 } },
+    slide: { durationSec: 0.4, ease: [0.2, 0, 0, 1], closeExitSeconds: 0.18, closeExitEase: 'easeIn', glideEase: 'cubic-out' },
     hopFraction: 0.5,
     edgeScroll: SCROLL_DEFAULTS.tuning.edgeScroll,
   },
@@ -533,7 +535,7 @@ test('doors: every name of each key class is admitted by exactly the calls its c
       checked += 1;
     }
   }
-  assert.equal(checked, 67 * 3);
+  assert.equal(checked, 68 * 3);
 });
 
 // ---------------------------------------------------------------------------

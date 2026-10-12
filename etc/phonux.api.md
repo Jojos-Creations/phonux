@@ -29,6 +29,9 @@ export type AnchorRequest = {
 };
 
 // @public
+export type BezierEase = readonly [number, number, number, number];
+
+// @public
 export interface CaptureRegistry {
     register(viewId: ViewId, el: HTMLElement, extent: 'viewport' | 'full'): () => void;
 }
@@ -64,6 +67,9 @@ export interface ClosedPageEntry {
     title: string;
     url?: string;
 }
+
+// @public
+export type CloseExitEase = 'easeIn' | 'easeOut' | 'easeInOut' | 'linear' | BezierEase;
 
 // @public
 export function computeRowLayout(input: RowLayoutInput): RowLayoutResult;
@@ -182,6 +188,8 @@ export type DragToCloseTuning = {
     flickVelocity: number;
     cancelVelocity: number;
     directionLockPx: number;
+    restMs: number;
+    velocityWindowMs: number;
     snapBack: {
         stiffness: number;
         damping: number;
@@ -203,6 +211,9 @@ export type FormFactor = 'phone' | 'tablet' | 'desktop';
 
 // @public
 export const GAP = 16;
+
+// @public
+export type GlideEase = 'cubic-out' | 'linear' | BezierEase;
 
 // @public
 export type HeaderButton = {
@@ -928,6 +939,7 @@ export type ResolvedWorkspaceTuning = ResolvedPanelTuning & {
     rowGap: number;
     saveQuietMs: number;
     gestureLockMs: number;
+    gestureQuietMs: number;
     returnTieBreak: 'latest-first' | 'earliest-first' | 'row-order';
     dropTieBreak: 'leftmost' | 'rightmost';
     rowGesture: 'step' | 'free' | 'off';
@@ -951,6 +963,13 @@ export function resolvePanelSettings(layers?: PanelSettingsLayers, options?: Res
 
 // @public
 export function resolveView(key: string): ViewComponent;
+
+// @public
+export const ROW_LAYER_Z: Readonly<{
+    BASE: 1;
+    RAISED: 2;
+    DRAGGED: 3;
+}>;
 
 // @public
 export interface RowLayoutInput {
@@ -1127,6 +1146,8 @@ export type SlideTuning = {
     durationSec: number;
     ease: readonly [number, number, number, number];
     closeExitSeconds: number;
+    closeExitEase: CloseExitEase;
+    glideEase: GlideEase;
 };
 
 // @public
@@ -1375,6 +1396,7 @@ export type WorkspaceTuning = PanelTuning & {
     rowGap?: number;
     saveQuietMs?: number;
     gestureLockMs?: number;
+    gestureQuietMs?: number;
     returnTieBreak?: 'latest-first' | 'earliest-first' | 'row-order';
     dropTieBreak?: 'leftmost' | 'rightmost';
     rowGesture?: 'step' | 'free' | 'off';
