@@ -243,10 +243,30 @@ function settleHome(x: MotionValue<number>, scrollX: MotionValue<number>, spring
   });
 }
 
+/**
+ * The fastest the pointer travelled between two samples at least SEGMENT_MIN_MS apart, px/s (positive = down). The
+ * peak, not the average of the window: a flick is judged by how fast it moved, and its events arrive unevenly.
+ */
+function peakSpeed(samples: ReadonlyArray<{ t: number; y: number }>): number {
+  let peak = 0;
+  let from = 0;
+  for (let to = 1; to < samples.length; to += 1) {
+    const dt = samples[to]!.t - samples[from]!.t;
+    if (dt < SEGMENT_MIN_MS) continue;
+    peak = Math.max(peak, ((samples[to]!.y - samples[from]!.y) / dt) * 1000);
+    from = to;
+  }
+  return peak;
+}
+
+/** Samples closer together than this are one segment, so two events sharing a timestamp cannot make an infinite speed. */
+const SEGMENT_MIN_MS = 8;
+
+/** A pointer that lifts this long after its last move had stopped: no velocity, however fast it was going before. */
+const REST_MS = 50;
+
 /** How far back the release velocity looks, ms. */
 const VELOCITY_WINDOW_MS = 100;
-/** The newest pointer samples kept for the release velocity. */
-const MAX_SAMPLES = 12;
 
 const INTERACTIVE = 'button, a, input, select, textarea, [role="button"]';
 
@@ -289,6 +309,7 @@ function DragToCloseBox({
   // activation distance and a release right after the activating move would otherwise read no offset.
   const pointer = React.useRef({ downX: 0, downY: 0, x: 0, y: 0 });
   const samples = React.useRef<Array<{ t: number; y: number }>>([]);
+  const released = React.useRef(0);
   const y = useMotionValue(0);
   const x = useMotionValue(0);
   // The row's scroll distance since the pointer went down, drawn as the CSS `translate` property: motion rewrites `transform`, never this.
@@ -360,7 +381,16 @@ function DragToCloseBox({
   const latestMove = React.useRef<() => void>(() => undefined);
   const trackPointer = React.useRef((event: Event) => {
     const { clientX, clientY } = event as PointerEvent;
-    if (event.type !== 'pointercancel') pointer.current = { ...pointer.current, x: clientX, y: clientY };
+    if (event.type !== 'pointercancel') {
+      pointer.current = { ...pointer.current, x: clientX, y: clientY };
+      if (event.type === 'pointerup') released.current = event.timeStamp;
+      else {
+        // Every move is a sample, stamped by the browser: a short flick is a few events, and a frame loop would see fewer.
+        const kept = samples.current;
+        kept.push({ t: event.timeStamp, y: clientY - pointer.current.downY });
+        while (kept.length > 2 && kept[0]!.t < event.timeStamp - VELOCITY_WINDOW_MS) kept.shift();
+      }
+    }
     if (event.type === 'pointermove') return latestMove.current();
     for (const type of ['pointermove', 'pointerup', 'pointercancel']) window.removeEventListener(type, trackPointer.current, true);
   });
@@ -371,8 +401,6 @@ function DragToCloseBox({
     if (box.current === null || !box.current.isConnected) stopFollowing();
     const dx = pointer.current.x - pointer.current.downX;
     const dy = pointer.current.y - pointer.current.downY;
-    samples.current.push({ t: performance.now(), y: dy });
-    if (samples.current.length > MAX_SAMPLES) samples.current.shift();
     if (axisLock.current === null) {
       axisLock.current = reorder !== undefined && Math.abs(dx) >= Math.abs(dy) ? 'x' : 'y';
       if (axisLock.current === 'x') edge.lock(pointer.current.x);
@@ -396,7 +424,6 @@ function DragToCloseBox({
     if (Math.hypot(pointer.current.x - pointer.current.downX, pointer.current.y - pointer.current.downY) < drag.directionLockPx) return;
     engaged.current = true;
     axisLock.current = null;
-    samples.current = [];
     lockScrollParents();
     // A keep-alive step in Motion's own frame loop: the row scroll the edge loop adds is then drawn in
     // the frame that wrote it, not the one after, and the pointer offset is read once per frame.
@@ -438,9 +465,9 @@ function DragToCloseBox({
       const rect = box.current?.getBoundingClientRect();
       const height = rect?.height ?? 0;
       const recent = samples.current;
-      const first = recent.find((sample) => performance.now() - sample.t <= VELOCITY_WINDOW_MS) ?? recent[recent.length - 1];
       const last = recent[recent.length - 1];
-      const velocityY = first !== undefined && last !== undefined && last.t > first.t ? ((last.y - first.y) / (last.t - first.t)) * 1000 : 0;
+      const rested = released.current - (last?.t ?? 0) > REST_MS;
+      const velocityY = rested ? 0 : peakSpeed(recent);
       if (closeRef.current !== undefined && closableRef.current && shouldCloseOnRelease({ offsetY: Math.max(0, dy), velocityY, height }, drag)) {
         if (reduceMotion) return closeRef.current();
         const toBottom = Math.max(height, window.innerHeight - (rect?.top ?? 0));
@@ -471,6 +498,7 @@ function DragToCloseBox({
       if (running.current) { running.current.stop(); running.current = null; unlockScrollParents(); } // stop() never settles the spring's promise, so its own unlock would not run
       edge.press(event);
       pointer.current = { downX: event.clientX, downY: event.clientY, x: event.clientX, y: event.clientY };
+      samples.current = [{ t: event.timeStamp, y: 0 }];
       stopFollowing();
       for (const type of ['pointermove', 'pointerup', 'pointercancel']) {
         window.removeEventListener(type, trackPointer.current, true);

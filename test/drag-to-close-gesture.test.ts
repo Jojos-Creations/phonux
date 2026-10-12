@@ -10,7 +10,7 @@ import * as React from 'react';
 import { act } from 'react';
 import { DragToClose } from '../index.js';
 import { advanceFrames, cleanup, mount } from './support/mount-harness.js';
-import { drag } from './support/drag-gesture.js';
+import { drag, flick } from './support/drag-gesture.js';
 
 afterEach(() => cleanup());
 
@@ -57,4 +57,15 @@ test('a pointercancel in a horizontal drag springs the box home and reports no h
   await advanceFrames(2000);
   assert.ok(Math.abs(translateX(box)) < 1, `the box is back at rest, not at ${Math.round(translateX(box))} px`);
   assert.deepEqual(hops, [], 'a cancelled gesture hops nowhere');
+});
+
+test('a flick of a few fast moves inside one frame still closes, and the same moves spread slowly do not', async () => {
+  const closes: number[] = [];
+  const { handle } = mountBox(() => closes.push(1));
+  await flick(handle, { dy: 60, moves: 3, gapMs: 10 });
+  await advanceFrames(2000);
+  assert.deepEqual(closes, [1], '60 px in 30 ms is 2000 px/s, under the 80 px minimum but a flick');
+  await flick(handle, { dy: 60, moves: 3, gapMs: 400 });
+  await advanceFrames(2000);
+  assert.deepEqual(closes, [1], '60 px over 1200 ms is under the 80 px minimum and no flick');
 });
