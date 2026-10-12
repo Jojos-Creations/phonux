@@ -1,0 +1,301 @@
+{
+  "tests": [
+    "test/panel-chrome.test.ts",
+    "test/header-buttons-roving.test.ts",
+    "test/workspace-resize-settle.test.ts",
+    "test/panel-chrome-tuning.test.ts",
+    "test/panel-chrome-drop.test.ts",
+    "test/panel-configure-matrix.test.ts"
+  ],
+  "mutants": [
+    {
+      "name": "a press inside a panel no longer activates it",
+      "file": "PanelRowSlot.tsx",
+      "find": "      onPointerDownCapture={onActivate}\n",
+      "replace": "      onPointerDownCapture={undefined}\n",
+      "expectRed": [
+        "a press or a focus inside a panel makes it the one active panel"
+      ]
+    },
+    {
+      "name": "a focus inside a panel no longer activates it",
+      "file": "PanelRowSlot.tsx",
+      "find": "      onFocusCapture={onActivate}\n",
+      "replace": "      onFocusCapture={undefined}\n",
+      "expectRed": [
+        "a press or a focus inside a panel makes it the one active panel"
+      ]
+    },
+    {
+      "name": "closing the active panel leaves it active",
+      "file": "PanelRow.tsx",
+      "find": "if (chrome.active() === id) chrome.setActive(null);",
+      "replace": "if (chrome.active() === id) chrome.setActive(id);",
+      "expectRed": [
+        "closing or parking the active panel clears it"
+      ]
+    },
+    {
+      "name": "a closed panel stays dragged",
+      "file": "PanelRow.tsx",
+      "find": "      chrome.setDragging(id, false);\n",
+      "replace": "",
+      "expectRed": [
+        "closing or parking the active panel clears it"
+      ]
+    },
+    {
+      "name": "a drag never raises the dragging flag",
+      "file": "dragToClose.tsx",
+      "find": "slotRef.current?.setDragging?.(true);",
+      "replace": "",
+      "expectRed": [
+        "usePanelDragging is true from the moment a drag engages"
+      ]
+    },
+    {
+      "name": "the dragging flag stays up after the drag",
+      "file": "dragToClose.tsx",
+      "find": "    slotRef.current?.setDragging?.(false);\n",
+      "replace": "",
+      "expectRed": [
+        "usePanelDragging is true from the moment a drag engages",
+        "a horizontal drop that hops ends the dragging flag"
+      ]
+    },
+    {
+      "name": "every listener wakes on any panel change",
+      "file": "panelChrome.ts",
+      "find": "for (const id of new Set(ids)) if (id !== null) for (const l of [...(byPanel.get(id) ?? [])]) l();",
+      "replace": "for (const set of byPanel.values()) for (const l of [...set]) l();",
+      "expectRed": [
+        "activating a panel renders only the panel that lost the mark and the one that gained it"
+      ]
+    },
+    {
+      "name": "hover no longer shows hidden chrome",
+      "file": "panelChrome.ts",
+      "find": "return { visible: mode === 'always' || hovered || focused || active || dragging || cannotHover, handlers };",
+      "replace": "return { visible: mode === 'always' || focused || active || dragging || cannotHover, handlers };",
+      "expectRed": [
+        "hover shows the chrome, leaving hides it, and a pressed panel keeps it"
+      ]
+    },
+    {
+      "name": "focus no longer shows hidden chrome",
+      "file": "panelChrome.ts",
+      "find": "return { visible: mode === 'always' || hovered || focused || active || dragging || cannotHover, handlers };",
+      "replace": "return { visible: mode === 'always' || hovered || active || dragging || cannotHover, handlers };",
+      "expectRed": [
+        "focus inside a hidden panel shows its chrome"
+      ]
+    },
+    {
+      "name": "a device that cannot hover hides chrome",
+      "file": "panelChrome.ts",
+      "find": "return { visible: mode === 'always' || hovered || focused || active || dragging || cannotHover, handlers };",
+      "replace": "return { visible: mode === 'always' || hovered || focused || active || dragging, handlers };",
+      "expectRed": [
+        "on a device that cannot hover"
+      ]
+    },
+    {
+      "name": "a dragged panel hides its chrome",
+      "file": "panelChrome.ts",
+      "find": "return { visible: mode === 'always' || hovered || focused || active || dragging || cannotHover, handlers };",
+      "replace": "return { visible: mode === 'always' || hovered || focused || active || cannotHover, handlers };",
+      "expectRed": [
+        "a dragged panel keeps its chrome"
+      ]
+    },
+    {
+      "name": "the fade ignores fadeMs",
+      "file": "panelChrome.ts",
+      "find": "animate(el, { opacity: target }, { duration: fadeMs / 1000 })",
+      "replace": "animate(el, { opacity: target }, { duration: 0.5 })",
+      "expectRed": [
+        "the fade takes fadeMs on the frame clock"
+      ]
+    },
+    {
+      "name": "reduced motion still animates the fade",
+      "file": "panelChrome.ts",
+      "find": "const instant = fadeMs === 0 || reduced || slot?.animated === false;",
+      "replace": "const instant = fadeMs === 0 || slot?.animated === false;",
+      "expectRed": [
+        "the fade takes fadeMs on the frame clock, and no time under Reduce Motion"
+      ]
+    },
+    {
+      "name": "fadeMs 0 still animates",
+      "file": "panelChrome.ts",
+      "find": "const instant = fadeMs === 0 || reduced || slot?.animated === false;",
+      "replace": "const instant = reduced || slot?.animated === false;",
+      "expectRed": [
+        "fadeMs 0 and an unanimated panel also show at once"
+      ]
+    },
+    {
+      "name": "an unanimated panel still fades",
+      "file": "panelChrome.ts",
+      "find": "const instant = fadeMs === 0 || reduced || slot?.animated === false;",
+      "replace": "const instant = fadeMs === 0 || reduced;",
+      "expectRed": [
+        "fadeMs 0 and an unanimated panel also show at once"
+      ]
+    },
+    {
+      "name": "mode always leaves an inline opacity",
+      "file": "panelChrome.ts",
+      "find": "if (latest.current.mode === 'always') el.style.removeProperty('opacity');",
+      "replace": "if (latest.current.mode === 'always') el.style.opacity = '1';",
+      "expectRed": [
+        "mode 'always' leaves no inline opacity"
+      ]
+    },
+    {
+      "name": "the fade stays inside Motion's reach only when pointer events are off",
+      "file": "panelChrome.ts",
+      "find": "else el.style.opacity = String(latest.current.target);",
+      "replace": "else { el.style.opacity = String(latest.current.target); el.style.pointerEvents = latest.current.target === 0 ? 'none' : ''; }",
+      "expectRed": [
+        "hides the chrome of a panel nobody is using, and keeps it hit-testable"
+      ]
+    },
+    {
+      "name": "the tab stop sits on every button",
+      "file": "panelHeaderButtons.tsx",
+      "find": "tabIndex={stop === undefined || stop === item.id ? 0 : -1}",
+      "replace": "tabIndex={0}",
+      "expectRed": [
+        "the row is a horizontal toolbar named by its title, and exactly one button is in the tab order"
+      ]
+    },
+    {
+      "name": "arrow keys do not move focus",
+      "file": "panelHeaderButtons.tsx",
+      "find": "pool[to]![1].focus({ preventScroll: true });",
+      "replace": "",
+      "expectRed": [
+        "Arrow keys, Home and End move focus"
+      ]
+    },
+    {
+      "name": "a modified key is taken by the toolbar",
+      "file": "panelHeaderButtons.tsx",
+      "find": "if (e.altKey || e.ctrlKey || e.metaKey || e.shiftKey) return;",
+      "replace": "",
+      "expectRed": [
+        "a key with a modifier, or any other key, is left to the browser"
+      ]
+    },
+    {
+      "name": "disabled buttons can hold the stop",
+      "file": "panelHeaderButtons.tsx",
+      "find": "const enabled = all.filter(([, el]) => !isDisabled(el));",
+      "replace": "const enabled = all;",
+      "expectRed": [
+        "disabled buttons are skipped by Arrow, Home and End and never hold the stop"
+      ]
+    },
+    {
+      "name": "focus no longer moves the stop",
+      "file": "panelHeaderButtons.tsx",
+      "find": "        runtime.current = item.id;\n        syncTabStop(runtime);\n",
+      "replace": "",
+      "expectRed": [
+        "Arrow keys, Home and End move focus across the start and end clusters, and the stop follows focus"
+      ]
+    },
+    {
+      "name": "a supplied rowResizeSettled is ignored",
+      "file": "Workspace.tsx",
+      "find": "const rowResizeSettled = given ?? derived;",
+      "replace": "const rowResizeSettled = derived;",
+      "expectRed": [
+        "a supplied rowResizeSettled wins, either way"
+      ]
+    },
+    {
+      "name": "the settle wait is one slide, not 1.25",
+      "file": "rowConstants.ts",
+      "find": "export const RESIZE_SETTLE_SLIDES = 1.25;",
+      "replace": "export const RESIZE_SETTLE_SLIDES = 1;",
+      "expectRed": [
+        "the settle delay is 1.25 slide durations"
+      ]
+    },
+    {
+      "name": "the settle wait does not restart on each change",
+      "file": "Workspace.tsx",
+      "find": "  }, [width, delayMs, instant]);\n  return instant || confirmed === width;",
+      "replace": "  }, [delayMs, instant]);\n  return instant || confirmed === width;",
+      "expectRed": [
+        "each change in a burst restarts the wait"
+      ]
+    },
+    {
+      "name": "Reduce Motion still waits for the settle",
+      "file": "Workspace.tsx",
+      "find": "  return instant || confirmed === width;",
+      "replace": "  return confirmed === width;",
+      "expectRed": [
+        "with animation off the width is settled at once"
+      ]
+    },
+    {
+      "name": "chrome.mode accepts anything",
+      "file": "panelSettings.ts",
+      "find": "    mode: oneOf('always', 'hover-or-active'),",
+      "replace": "    mode: oneOf('always', 'hover-or-active', 'sometimes'),",
+      "expectRed": [
+        "chrome.mode: 'always' and 'hover-or-active' are accepted, anything else refused"
+      ]
+    },
+    {
+      "name": "chrome.slidePx allows 201",
+      "file": "panelSettings.ts",
+      "find": "    slidePx: integer(0, 200),",
+      "replace": "    slidePx: integer(0, 201),",
+      "expectRed": [
+        "matrix:tuning.chrome"
+      ]
+    },
+    {
+      "name": "the unpin label has the pin wording",
+      "file": "labels.ts",
+      "find": "unpin: 'Unpin',",
+      "replace": "unpin: 'Pin',",
+      "expectRed": [
+        "the pin, unpin, lock and unlock labels default to English"
+      ]
+    },
+    {
+      "name": "the lock label has the unlock wording",
+      "file": "labels.ts",
+      "find": "lock: 'Lock',",
+      "replace": "lock: 'Unlock',",
+      "expectRed": [
+        "the pin, unpin, lock and unlock labels default to English"
+      ]
+    },
+    {
+      "name": "the default fade is not 120 ms",
+      "file": "rowConstants.ts",
+      "find": "export const CHROME = { mode: 'always', fadeMs: 120,",
+      "replace": "export const CHROME = { mode: 'always', fadeMs: 100,",
+      "expectRed": [
+        "the default is always, 120, 140, 8, 250 and is frozen"
+      ]
+    },
+    {
+      "name": "focus moving into an iframe no longer activates its panel",
+      "file": "PanelRowSlot.tsx",
+      "find": "window.addEventListener('blur', onWindowBlur);",
+      "replace": "",
+      "expectRed": [
+        "focus moving into an iframe inside a panel makes that panel active"
+      ]
+    }
+  ]
+}

@@ -197,6 +197,17 @@ export function PanelRowSlot({
   const reducedMotion = useReducedMotionConfig();
   // The drag box reads the system preference itself, so the neighbours that make room for it must too, whatever the app's MotionConfig says.
   const systemReduced = useReducedMotion();
+  // A press or key inside an iframe never reaches the page's own handlers; the page's window loses focus to the iframe element instead.
+  const activate = React.useRef(onActivate);
+  activate.current = onActivate;
+  React.useEffect(() => {
+    const onWindowBlur = (): void => {
+      const focused = document.activeElement;
+      if (focused instanceof HTMLIFrameElement && el.current?.contains(focused)) activate.current?.();
+    };
+    window.addEventListener('blur', onWindowBlur);
+    return () => window.removeEventListener('blur', onWindowBlur);
+  }, []);
   const ownSpan = width + (gap ?? ROW_GAP);
   const parkSide = exitDirection === 'right' ? 'right' : 'left';
   const slideTransition = animated && !reducedMotion ? transition : INSTANT_TRANSITION;

@@ -4,6 +4,26 @@
 
 ### Added
 
+- Panel chrome API, all through the panel API with defaults that reproduce today's look (chrome always drawn):
+  - `useActivePanel()` returns `[activeId | null, setActive]`, `usePanelActive()` and `usePanelDragging()` read one panel's
+    marks. A press or focus anywhere inside a panel (a portaled dialog it opened and a focused iframe included) makes it the
+    one active panel, until another is used or the panel closes or parks; the host may set it. The state is per Workspace,
+    never saved, and only the panels that gain or lose a mark render. `Panel` writes `data-panel-active` and
+    `data-panel-dragging` on its root so a host can style from them. A panel is dragging from the moment a drag engages on
+    either axis until it settles; a horizontal drop that hops ends it at the release.
+  - `tuning.chrome` `{ mode, fadeMs, slideMs, slidePx, graceMs }`, a workspace-only leaf, defaults `'always'`, 120, 140, 8, 250.
+    With `mode: 'hover-or-active'`, `Panel` fades its header, grab bar and footer out unless the panel is hovered, holds
+    focus, is active or is dragged, and always shows them on a device that cannot hover. The fade is opacity only, so a hidden
+    part keeps its space, stays hit-testable and stays in the tab order; it runs on Motion, so a theme's global
+    `transition: none` does not stop it, and takes no time with `fadeMs` 0, `animated: false` or Reduce Motion (the system
+    setting or the app's `MotionConfig`). `slideMs`, `slidePx` and `graceMs` are carried for the host's own icon row and
+    read through `usePanelTuning().chrome`; the library draws only the fade.
+  - `PanelHeaderButtons` is one roving-focus toolbar (see Changed).
+  - `Workspace` derives `rowResizeSettled` itself when the host gives none: the row glides again 1.25 slide durations
+    (500 ms at the default slide) after the width last changed, at once under Reduce Motion. A supplied `rowResizeSettled`
+    wins, as before.
+  - `PhonuxLabels` gains `pin`, `unpin`, `lock` and `unlock` (English defaults Pin, Unpin, Lock, Unlock).
+
 - `tuning.maxLivePanels`: an integer of 1 or more that caps how many unpinned panels the row keeps live (`null`, the default,
   is no cap and changes nothing). The leftmost panels beyond it park, as a narrow window parks them, and in a scrolling row
   such as History's the window's width no longer decides: exactly N unpinned panels are live at any width. A pinned panel is
@@ -13,6 +33,11 @@
   workspace setting the host chooses; the stored per-person max-panels choice retired in 0.2.0-rc.1 (below) stays retired.
 
 ### Changed
+
+- **Default behaviour change.** The header buttons are now one Tab stop with roving focus, as a toolbar should be: Tab enters
+  the row once, Arrow Left and Right, Home and End move along it, a disabled button is skipped and never holds the stop, and
+  the row carries `role="toolbar"`, `aria-orientation="horizontal"` and, for a string title, `aria-label`. Before, every button
+  was its own Tab stop. Tests that tabbed button by button, and the four header goldens, changed with it.
 
 - A stepping row (`rowGesture` `'step'`, the default) now shows only whole panels: as many as fit the window, the leftover
   width split evenly on both sides, and every step, `scrollTo`, drag release, pin, close and window resize lands on a stop
