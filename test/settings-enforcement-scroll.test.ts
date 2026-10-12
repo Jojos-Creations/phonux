@@ -21,7 +21,7 @@ const OWNED = ['revealOnScroll', 'scrollOnOpen', 'scrollOnMove', 'tuning.rowGest
 
 /** Whether the parked panel b sits live after one rightward swipe in a window that shows only the root (430 px). */
 async function revealedUnder(revealOnScroll: 'edges' | 'any' | 'never'): Promise<boolean> {
-  const m = mountRow(row(rootEntry(), made('b', { overflow: 'park', revealOnScroll }, { live: false }), made('c')), 430);
+  const m = mountRow(row(rootEntry(), made('b', { overflow: 'park', revealOnScroll }, { live: false }), made('c')), 430, { tuning: { rowGesture: 'step' } });
   m.wheel({ deltaX: 50 });
   await advanceFrames(500);
   const live = m.live().includes('b');

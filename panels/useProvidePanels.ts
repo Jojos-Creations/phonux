@@ -9,7 +9,7 @@
 import { useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore, type RefObject } from 'react';
 import { useReducedMotionConfig } from 'motion/react';
 import type { CreatePanelOptions, FormFactor, JsonValue, PanelsAPI } from '../hostApi.js';
-import { computeRowNumbers, maxScrollOf, type RowNumbers } from '../rowNumbers.js';
+import { computeRowNumbers, maxScrollOf, nearestStop, snapToStop, type RowNumbers } from '../rowNumbers.js';
 import { resolveLabels, type PhonuxLabels } from '../labels.js';
 import { rowScrollerFor } from '../rowScroller.js';
 import { gestureTarget, scrollTargetFor } from '../scrollTargets.js';
@@ -301,7 +301,7 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
   };
   const fixedViewCount = i.fixedViewCount ?? panels.filter((p) => !p.collapsible && p.marker !== true).length;
   // Filters over the whole list, never an array position: a panel anchored left of History changes none of these.
-  const rowNumbers = computeRowNumbers({ entries: panels, phoneWidth: i.phoneWidth, containerWidth: i.containerWidth, gap: tuning.rowGap, fixedItemCount: fixedViewCount });
+  const rowNumbers = computeRowNumbers({ entries: panels, phoneWidth: i.phoneWidth, containerWidth: i.containerWidth, gap: tuning.rowGap, fixedItemCount: fixedViewCount, wholePanels: tuning.rowGesture === 'step' });
   const { maxLiveWidth } = rowNumbers;
   const liveWidths = panels.filter((p) => p.collapsible && p.live).map((p) => panelWidthOf(p, i.phoneWidth, maxLiveWidth));
   const reducedMotion = useReducedMotionConfig() === true;
@@ -344,7 +344,7 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
     const el = i.overflowContainerRef.current;
     const k = rowNumbers.ids.indexOf(id);
     if (el === null || k < 0) return null;
-    return scrollTargetFor({
+    const raw = scrollTargetFor({
       left: tuning.rowGap + rowNumbers.rowMarginLeft + rowNumbers.leftOffsets[k]!,
       width: rowNumbers.widths[k]!,
       scrollLeft: rowScrollerFor(el).scrollLeft(),
@@ -353,6 +353,7 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
       gap: tuning.rowGap,
       align,
     });
+    return snapToStop(rowNumbers, k, raw);
   };
   /** Whether a scroll to `align` would move the container: false when it is already there or the row has nothing to scroll. */
   const wouldScroll = (id: string, align: ScrollAlign): boolean => {
@@ -427,12 +428,26 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
       maxScroll,
       liveStarts: rowNumbers.leftOffsets.map((offset) => rowNumbers.rowMarginLeft + offset),
       liveWidths: rowNumbers.widths,
+      stops: rowNumbers.stops,
       gap: tuning.rowGap,
       hidden,
     });
     if (step.kind === 'show') activatePanel(step.id);
     else if (step.kind === 'scroll') scroller.glideTo(step.to, { durationSec: tuning.slide.durationSec, instant: reducedMotion });
   };
+
+  // The window, a pin, a close or a reorder moves the stops: a row left between two is brought to the nearest one.
+  // The glide's own target is the base, so a settle never fights a step in flight. Never while a drag holds the row.
+  useLayoutEffect(() => {
+    const el = i.overflowContainerRef.current;
+    if (el === null || tuning.rowGesture !== 'step' || rowNumbers.stops.length === 0) return;
+    const scroller = rowScrollerFor(el);
+    if (scroller.claimHeld()) return;
+    const base = scroller.glideTarget() ?? scroller.scrollLeft();
+    const to = nearestStop(rowNumbers, base);
+    if (Math.abs(to - base) < 0.5) return;
+    scroller.glideTo(to, { durationSec: tuning.slide.durationSec, instant: reducedMotion });
+  }, [rowNumbers.stops.join(','), rowNumbers.rowMarginLeft, rowNumbers.endPad]);
 
   // The row's wheel/arrow-key gesture is wired here, not in the host, so a host stays free of effects and refs.
   useRowScrollGesture(i.overflowContainerRef, stepRow, timing.gestureLockMs, tuning.rowGesture);
@@ -547,7 +562,7 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
       const k = rowNumbers.ids.indexOf(where === 'root' ? rootId : where.panel);
       if (k >= 0) {
         const left = tuning.rowGap + rowNumbers.rowMarginLeft + rowNumbers.leftOffsets[k]!;
-        to = scrollTargetFor({ left, width: rowNumbers.widths[k]!, scrollLeft: 0, clientWidth: windowOf(el), maxScroll, gap: tuning.rowGap, align: 'start' });
+        to = snapToStop(rowNumbers, k, scrollTargetFor({ left, width: rowNumbers.widths[k]!, scrollLeft: 0, clientWidth: windowOf(el), maxScroll, gap: tuning.rowGap, align: 'start' }));
       }
     }
     if (to !== 0) scroller.glideTo(to, { durationSec: 0, instant: true });
@@ -580,15 +595,19 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
     if (request.kind === 'open') align = request.align ?? (settings.scrollOnOpen !== 'none' ? settings.scrollOnOpen : request.forced ? 'into-view' : null);
     if (align === null) return;
     const scroller = rowScrollerFor(el);
-    const to = scrollTargetFor({
-      left: tuning.rowGap + rowNumbers.rowMarginLeft + rowNumbers.leftOffsets[k]!,
-      width: rowNumbers.widths[k]!,
-      scrollLeft: scroller.scrollLeft(),
-      clientWidth: windowOf(el),
-      maxScroll: maxScrollOf(rowNumbers),
-      gap: tuning.rowGap,
-      align,
-    });
+    const to = snapToStop(
+      rowNumbers,
+      k,
+      scrollTargetFor({
+        left: tuning.rowGap + rowNumbers.rowMarginLeft + rowNumbers.leftOffsets[k]!,
+        width: rowNumbers.widths[k]!,
+        scrollLeft: scroller.scrollLeft(),
+        clientWidth: windowOf(el),
+        maxScroll: maxScrollOf(rowNumbers),
+        gap: tuning.rowGap,
+        align,
+      }),
+    );
     if (Math.abs(to - scroller.scrollLeft()) < 0.5) return;
     if (!scroller.glideTo(to, { durationSec: tuning.slide.durationSec, instant: reducedMotion || !settings.animated })) {
       scrollNote('scroll-dropped-during-drag', request.id, `A scroll to panel ${request.id} was dropped: a drag holds the row.`);

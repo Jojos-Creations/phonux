@@ -64,6 +64,8 @@ export function gestureTarget(i: {
   maxScroll: number;
   liveStarts: readonly number[];
   liveWidths: readonly number[];
+  /** Where whole panels are shown, ascending; the step lands on these. Absent or empty: the panel starts. */
+  stops?: readonly number[];
   gap: number;
   hidden: readonly HiddenCandidate[];
 }): { kind: 'show'; id: string } | { kind: 'scroll'; to: number } | { kind: 'none' } {
@@ -85,6 +87,6 @@ export function gestureTarget(i: {
     const reachable = nearest.held || nearest.policy === 'any' ? between <= 0 : between <= 0 && beyondWindow <= 0;
     if (reachable) return { kind: 'show', id: nearest.id };
   }
-  const to = stepTarget(i.direction, i.base, i.liveStarts, i.maxScroll);
+  const to = stepTarget(i.direction, i.base, i.stops !== undefined && i.stops.length > 0 ? i.stops : i.liveStarts, i.maxScroll);
   return to === null ? { kind: 'none' } : { kind: 'scroll', to };
 }

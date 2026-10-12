@@ -4,6 +4,13 @@
 
 ### Changed
 
+- A stepping row (`rowGesture` `'step'`, the default) now shows only whole panels: as many as fit the window, the leftover
+  width split evenly on both sides, and every step, `scrollTo`, drag release, pin, close and window resize lands on a stop
+  where the shown panels are whole, instead of stopping part-way through the first or last panel. The other panels fade
+  out, and fade in and out between stops as the row travels, so no neighbour peeks at an edge. `RowNumbers` gains `stops`,
+  `stopSpans` and `endPad`, and `computeRowNumbers` takes `wholePanels`; `free` and `off` rows are unchanged.
+  `scrollTo` with `align` `'start'` or `'center'` lands on the nearest stop that shows the panel.
+
 - A panel dragged sideways by its grab bar now reorders the row live: the panels the drop would cross slide aside, each by the
   dragged panel's own width plus the row gap, as the pointer passes the same half-way points the release uses, and slide back
   if the pointer returns. The dragged panel is drawn above them until its spring home ends. The order, anchors and saved
