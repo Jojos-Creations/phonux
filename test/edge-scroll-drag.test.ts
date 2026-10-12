@@ -464,3 +464,26 @@ test('the listener counter itself sees a listener a component adds on mount', ()
     listeners.stop();
   }
 });
+
+test('the last panel dragged to the right edge is drawn no further than the row end, so the scrollable width does not grow, and the hop rule still reads the pointer', async () => {
+  const m = mountEdgeRow();
+  const box = boxOf(m, 's10');
+  const ROW_END = 4466;
+  // jsdom lays nothing out: the row's end and the box's drawn right edge are stated here, in screen px, from the scroll position and the drawn offset.
+  const strip = m.container.querySelector('[data-row-strip]');
+  assert.ok(strip, 'the row carries its strip mark');
+  const rect = (right: number) => ({ left: right - 390, right, top: 0, bottom: 700, width: 390, height: 700, x: right - 390, y: 0, toJSON: () => ({}) });
+  strip.getBoundingClientRect = () => rect(ROW_END - m.container.scrollLeft) as DOMRect;
+  box.getBoundingClientRect = () => rect(ROW_END - m.container.scrollLeft + drawnX(box)) as DOMRect;
+  await dragTo(m, 1000, 's10');
+  let furthest = Number.NEGATIVE_INFINITY;
+  for (let frame = 0; frame < 400; frame += 1) {
+    await frames(1);
+    furthest = Math.max(furthest, drawnX(box));
+  }
+  assert.equal(m.container.scrollLeft, MAX_SCROLL, 'the loop reached the strip end');
+  assert.ok(furthest <= 0.5, `the box was drawn ${furthest} px past the row end`);
+  await liftAt(1000);
+  await frames(30);
+  assert.equal(ends[0]!.offset, 40 + MAX_SCROLL, 'the hop rule reads the pointer offset plus the scroll distance, not the drawn one');
+});

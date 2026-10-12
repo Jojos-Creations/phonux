@@ -7,6 +7,12 @@
 - `npm run release:check` fails, before it asks the registry, when `package.json` and `package-lock.json` (the top-level
   `version` and `packages[""].version`) disagree on the version, or when the lockfile is missing. The message names both.
 
+### Fixed
+
+- Dragging a panel to the end of the strip no longer widens the row: the dragged box is drawn no further than the row's end, so the
+  scroll container's scrollable width (and the scrollbar of a `free` row) holds still during the drag. The release still reports
+  the pointer's real offset, so the hop count is unchanged.
+
 ## 0.2.0-rc.2
 
 ### Added
