@@ -24,8 +24,10 @@ export interface DragScroll {
   readonly instant: boolean;
   /** The farthest legal `scrollLeft`, from the row numbers; the DOM is never asked, because a transformed descendant inflates `scrollWidth`. */
   readonly maxScroll: number;
-  /** The `scrollLeft` that puts each present panel's left edge at the window's, ascending: where a reduced-motion jump can land. */
+  /** The `scrollLeft` values the row rests at, ascending: where a reduced-motion jump can land and where a released drag settles. */
   readonly stops: readonly number[];
+  /** Seconds a released drag takes to glide to the nearest stop. */
+  readonly settleSec: number;
 }
 
 /** What a panel's header buttons need to draw and press: its resolved slots, its own handle and where errors and notes go. */

@@ -262,6 +262,7 @@ export function PanelRowSlot({
       transition={transition}
       inert={kept ? true : undefined}
       aria-hidden={hidden ? true : undefined}
+      data-row-slot={leftOffset}
       style={{
         position: 'absolute',
         top: 0,

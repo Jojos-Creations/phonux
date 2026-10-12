@@ -216,7 +216,7 @@ export function PanelRow({
   const rowScroll = rowNumbers?.rowScroll ?? false;
   const reservedWidth = Math.max(0, widths.reduce((sum, width) => sum + width + gap, 0) - gap);
   const maxScroll = rowNumbers === undefined ? 0 : maxScrollOf(rowNumbers);
-  const stops = rowNumbers === undefined ? [] : rowNumbers.leftOffsets.map((offset) => rowNumbers.rowMarginLeft + offset);
+  const stops = rowNumbers === undefined ? [] : rowNumbers.stops.length > 0 ? rowNumbers.stops : rowNumbers.leftOffsets.map((offset) => rowNumbers.rowMarginLeft + offset);
   const widthById = new Map(present.map((p, index) => [p.id, widths[index]!]));
   // Nearest first on each side, an always-shown column included: movePanel swaps past one like any neighbour. The
   // walk is over every array slot and stops at the first entry that is not crossable, a parked one included,
@@ -266,7 +266,7 @@ export function PanelRow({
           // A panel whose last button was just removed while it held focus still gets the slot context for that one commit, so the hook that moves focus runs.
           const headerButtonSlots = headerButtonsOf(headerButtons, handle, report, note) ?? (handle !== undefined && focusInHeaderRow(handle.id) ? { slots: {}, handle, report, note } : undefined);
           const dragScroll: DragScroll | undefined = rowScroll
-            ? { mode: scrollOnDrag, zonePx: own.edgeScroll.zonePx, maxPxPerSec: own.edgeScroll.maxPxPerSec, reducedStepMs: own.edgeScroll.reducedStepMs, instant: !animated, maxScroll, stops }
+            ? { mode: scrollOnDrag, zonePx: own.edgeScroll.zonePx, maxPxPerSec: own.edgeScroll.maxPxPerSec, reducedStepMs: own.edgeScroll.reducedStepMs, instant: !animated, maxScroll, stops, settleSec: own.slide.durationSec }
             : undefined;
           return (
             <PanelSlotContext.Provider
