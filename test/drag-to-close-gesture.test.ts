@@ -69,3 +69,22 @@ test('a flick of a few fast moves inside one frame still closes, and the same mo
   await advanceFrames(2000);
   assert.deepEqual(closes, [1], '60 px over 1200 ms is under the 80 px minimum and no flick');
 });
+
+// The speed of a flick is read between samples at least 8 ms apart: closer ones share a timestamp's worth of noise.
+async function closesFor(gapMs: number): Promise<number> {
+  const closes: number[] = [];
+  const { handle } = mountBox(() => closes.push(1));
+  await flick(handle, { dy: 60, moves: 2, gapMs });
+  await advanceFrames(2000);
+  return closes.length;
+}
+
+test('two moves on one timestamp make no speed: 60 px is under the 80 px minimum and is no flick', async () => {
+  assert.equal(await closesFor(0), 0);
+});
+
+test('the speed floor sits at 8 ms: moves 7 ms apart make no speed, moves 8 ms apart are a flick', async () => {
+  assert.equal(await closesFor(7), 0, '7 ms is under the floor, so the segment is skipped');
+  cleanup();
+  assert.equal(await closesFor(8), 1, '30 px in 8 ms is 3750 px/s');
+});

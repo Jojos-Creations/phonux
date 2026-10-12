@@ -1,0 +1,58 @@
+{
+  "tests": [
+    "test/drag-to-close-unlock.test.ts",
+    "test/drag-to-close-reduced-motion.test.ts",
+    "test/drag-to-close-gesture.test.ts"
+  ],
+  "mutants": [
+    {
+      "name": "the unmount cleanup no longer unlocks the scroll parents",
+      "file": "dragToClose.tsx",
+      "find": "React.useEffect(() => unlockScrollParents, []);",
+      "replace": "React.useEffect(() => undefined, []);",
+      "expectRed": ["an unmount in the middle of a drag gives the scroll parent its overflow back"]
+    },
+    {
+      "name": "a revive no longer unlocks the scroll parents",
+      "file": "dragToClose.tsx",
+      "find": "    closing.current = false;\n    unlockScrollParents();\n    y.jump(0);",
+      "replace": "    closing.current = false;\n    y.jump(0);",
+      "expectRed": ["a box AnimatePresence revives mid-exit gives the scroll parent its overflow back"]
+    },
+    {
+      "name": "a reduced-motion horizontal release no longer unlocks the scroll parents",
+      "file": "dragToClose.tsx",
+      "find": "return unlockScrollParents();",
+      "replace": "return;",
+      "expectRed": ["a horizontal release under reduced motion gives the scroll parent its overflow back at once"]
+    },
+    {
+      "name": "springHome no longer unlocks the scroll parents when the spring lands",
+      "file": "dragToClose.tsx",
+      "find": "running.current = back;\n    void back.then(unlockScrollParents);\n  };",
+      "replace": "running.current = back;\n  };",
+      "expectRed": ["a horizontal release springs the box home and the scroll parent gets its overflow back when it lands"]
+    },
+    {
+      "name": "the speed floor is lowered to 0, so two moves on one timestamp make an infinite speed",
+      "file": "dragToClose.tsx",
+      "find": "const SEGMENT_MIN_MS = 8;",
+      "replace": "const SEGMENT_MIN_MS = 0;",
+      "expectRed": ["two moves on one timestamp make no speed"]
+    },
+    {
+      "name": "the speed floor is lowered to 6 ms, so moves 7 ms apart make a speed",
+      "file": "dragToClose.tsx",
+      "find": "const SEGMENT_MIN_MS = 8;",
+      "replace": "const SEGMENT_MIN_MS = 6;",
+      "expectRed": ["the speed floor sits at 8 ms"]
+    },
+    {
+      "name": "the speed floor is raised to 10 ms, so moves 8 ms apart make no speed",
+      "file": "dragToClose.tsx",
+      "find": "const SEGMENT_MIN_MS = 8;",
+      "replace": "const SEGMENT_MIN_MS = 10;",
+      "expectRed": ["the speed floor sits at 8 ms"]
+    }
+  ]
+}
