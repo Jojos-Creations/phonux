@@ -9,7 +9,7 @@ import * as React from 'react';
 import { act } from 'react';
 import { DragToClose } from '../index.js';
 import { advanceFrames, cleanup, mount } from './support/mount-harness.js';
-import { drag, release } from './support/drag-gesture.js';
+import { drag } from './support/drag-gesture.js';
 
 afterEach(() => cleanup());
 
