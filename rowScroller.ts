@@ -3,6 +3,9 @@
  * strip from `computeRowNumbers` and writes through `claim()`, the way edge scrolling does.
  */
 
+import { cubicBezier } from 'motion/react';
+import type { GlideEase } from './panelSettings.js';
+
 /** The exclusive writer `claim()` hands one holder. */
 export interface ScrollClaim {
   /** Moves `scrollLeft` to `left`, clamped to `[0, the bound from setMaxScroll]`, and returns the delta applied. Applies nothing before the first `setMaxScroll`. */
@@ -18,7 +21,7 @@ export interface RowScroller {
   /** The container's current `scrollLeft`. */
   scrollLeft(): number;
   /** Moves to `target` over `durationSec`, or at once when `instant`. False, doing nothing, while a claim is held. */
-  glideTo(target: number, o: { durationSec: number; instant: boolean }): boolean;
+  glideTo(target: number, o: { durationSec: number; instant: boolean; ease: GlideEase }): boolean;
   /** Where the glide in flight ends; null when none is. */
   glideTarget(): number | null;
   /** Ends the glide in flight where it is. */
@@ -32,7 +35,12 @@ export interface RowScroller {
 // A scroll event this far from the last value written is somebody else's; browsers round a fractional write.
 const FOREIGN_SCROLL_PX = 1;
 
-const easeOut = (t: number): number => 1 - (1 - t) ** 3;
+// A bezier tuple is built once per glide, not per frame.
+function curveOf(ease: GlideEase): (t: number) => number {
+  if (ease === 'cubic-out') return (t) => 1 - (1 - t) ** 3;
+  if (ease === 'linear') return (t) => t;
+  return cubicBezier(ease[0], ease[1], ease[2], ease[3]);
+}
 
 const scrollers = new WeakMap<HTMLElement, RowScroller>();
 
@@ -52,7 +60,7 @@ export function closestRowScroller(from: Element): HTMLElement | null {
 
 function createRowScroller(el: HTMLElement): RowScroller {
   let claimed = false;
-  let glide: { from: number; to: number; startMs: number; durationMs: number } | null = null;
+  let glide: { from: number; to: number; startMs: number; durationMs: number; curve: (t: number) => number } | null = null;
   let frame: number | null = null;
   // Read back after every own write: the browser rounds and clamps, and the scroll event it fires later reports that value.
   let lastWritten = el.scrollLeft;
@@ -86,7 +94,7 @@ function createRowScroller(el: HTMLElement): RowScroller {
       write(to);
       return;
     }
-    write(glide.from + (glide.to - glide.from) * easeOut(Math.max(0, t)));
+    write(glide.from + (glide.to - glide.from) * glide.curve(Math.max(0, t)));
     frame = requestAnimationFrame(tick);
   }
 
@@ -104,7 +112,7 @@ function createRowScroller(el: HTMLElement): RowScroller {
         el.addEventListener('pointerdown', onPointerDown);
       }
       lastWritten = el.scrollLeft;
-      glide = { from: el.scrollLeft, to: target, startMs: performance.now(), durationMs: o.durationSec * 1000 };
+      glide = { from: el.scrollLeft, to: target, startMs: performance.now(), durationMs: o.durationSec * 1000, curve: curveOf(o.ease) };
       if (frame === null) frame = requestAnimationFrame(tick);
       return true;
     },

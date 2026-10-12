@@ -141,7 +141,7 @@ test('a window exactly two panels wide fits two, not one', () => {
 
 test('a resize that changes how many fit brings a row resting past the new last stop back to a stop', async () => {
   const m = mountRow(panelsOf(5), 1000, { tuning: { rowGesture: 'step' } });
-  m.scroller.glideTo(1624, { durationSec: 0, instant: true });
+  m.scroller.glideTo(1624, { durationSec: 0, instant: true, ease: 'cubic-out' });
   assert.equal(m.container.scrollLeft, 1624, 'the last stop at two fit');
   m.rerender(1500);
   await advanceFrames(600);
@@ -151,7 +151,7 @@ test('a resize that changes how many fit brings a row resting past the new last 
 
 test('mid-step the fade is continuous: halfway between two stops the leaving and arriving panels are half faded', async () => {
   const m = mountRow(panelsOf(5), 1000, { tuning: { rowGesture: 'step' } });
-  m.scroller.glideTo(203, { durationSec: 0, instant: true });
+  m.scroller.glideTo(203, { durationSec: 0, instant: true, ease: 'cubic-out' });
   act(() => void m.container.dispatchEvent(new Event('scroll')));
   assert.deepEqual(slotFilters(m.container), ['opacity(0.5)', '', 'opacity(0.5)', 'opacity(0)', 'opacity(0)', 'opacity(0)']);
 });

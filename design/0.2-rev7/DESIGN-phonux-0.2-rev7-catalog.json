@@ -766,9 +766,9 @@
  },
  {
   "name": "tuning.dragToClose",
-  "values": "object: distanceFraction [0.05, 1], minDistancePx >= 8, flickMinDistancePx >= 8, flickVelocity >= 100, cancelVelocity <= -50, directionLockPx integer [2, 64], snapBack { stiffness [50, 2000], damping [5, 200] }; panel or workspace",
-  "default": "0.25, 80, 40, 700, -300, 8, { 520, 42 } (DRAG_CLOSE; DIRECTION_LOCK_PX)",
-  "behaviour": "The close rule shouldCloseOnRelease reads: a release closes past max(minDistancePx, distanceFraction x height), or past flickMinDistancePx at flickVelocity, and never while moving back up faster than cancelVelocity. directionLockPx is how far a gesture travels before it locks to an axis; snapBack is the spring of a release that does not close. Per panel (one grab bar judges its own release); the workspace value is the default.",
+  "values": "object: distanceFraction [0.05, 1], minDistancePx >= 8, flickMinDistancePx >= 8, flickVelocity >= 100, cancelVelocity <= -50, directionLockPx integer [2, 64], restMs integer [1, 1000], velocityWindowMs integer [16, 1000], snapBack { stiffness [50, 2000], damping [5, 200] }; panel or workspace",
+  "default": "0.25, 80, 40, 700, -300, 8, 50, 100, { 520, 42 } (DRAG_CLOSE; DIRECTION_LOCK_PX; DRAG_REST_MS; DRAG_VELOCITY_WINDOW_MS)",
+  "behaviour": "The close rule shouldCloseOnRelease reads: a release closes past max(minDistancePx, distanceFraction x height), or past flickMinDistancePx at flickVelocity, and never while moving back up faster than cancelVelocity. directionLockPx is how far a gesture travels before it locks to an axis; snapBack is the spring of a release that does not close. Per panel (one grab bar judges its own release); the workspace value is the default. restMs is how long a pointer may lie still before the release for the lift to have no velocity; velocityWindowMs is how far back the release looks for its velocity.",
   "enforced_by": "shouldCloseOnRelease(measure, params = DRAG_CLOSE) gains an optional parameter; DragToClose takes it, the lock and the spring from usePanelTuning() through the slot context (dragToClose.tsx:11, :27).",
   "exists_today": "Constants: DRAG_CLOSE (dragToClose.tsx:14-28) and DIRECTION_LOCK_PX (:11).",
   "on_configure": "NEXT. Panel door: configure(id, { tuning: { dragToClose } }); workspace door: configureTuning sets the default. Read at the next release; a drag in flight is judged by the values current at release. Leaves merge; null removes a panel leaf.",
@@ -782,9 +782,9 @@
  },
  {
   "name": "tuning.slide",
-  "values": "object: durationSec [0, 10], ease (four numbers, x1 and x2 in [0,1]), closeExitSeconds [0, 5]; panel or workspace",
-  "default": "0.4, [0.2, 0, 0, 1], 0.18 (SLOT_TRANSITION, DRAG_CLOSE.exitSeconds)",
-  "behaviour": "The slot's enter and exit timing and easing, how long a close takes to leave, and the glide of a programmatic scroll. Per panel; the row's recentre glide uses the workspace value. slideToTransition returns SLOT_TRANSITION itself at the defaults; PANEL_TRANSITION stays the 0.1.0 constant.",
+  "values": "object: durationSec [0, 10], ease (four numbers, x1 and x2 in [0,1]), closeExitSeconds [0, 5], closeExitEase ('easeIn', 'easeOut', 'easeInOut', 'linear' or four numbers), glideEase ('cubic-out', 'linear' or four numbers); panel or workspace",
+  "default": "0.4, [0.2, 0, 0, 1], 0.18, 'easeIn', 'cubic-out' (SLOT_TRANSITION, DRAG_CLOSE.exitSeconds, CLOSE_EXIT_EASE, GLIDE_EASE)",
+  "behaviour": "The slot's enter and exit timing and easing, how long a close takes to leave, and the glide of a programmatic scroll. Per panel; the row's recentre glide uses the workspace value. slideToTransition returns SLOT_TRANSITION itself at the defaults; PANEL_TRANSITION stays the 0.1.0 constant. closeExitEase is the curve every close leaves along; glideEase is the curve a row scroll glides along, independent of ease.",
   "enforced_by": "panelRowSlotMotion and PanelRowSlot take the resolved slide through slideToTransition; PanelSizeBox reads usePanelTuning; the scroller reads the target panel's slide; DragToClose reads closeExitSeconds from the slot context.",
   "exists_today": "Constants: SLOT_TRANSITION (directionalTransition.ts:10-14), close exit 0.18 (dragToClose.tsx:26, PanelRowSlot.tsx:59).",
   "on_configure": "NEXT. Panel and workspace doors. Read at the next enter, exit, close or scroll; animations running keep their timing. animated:false still wins.",
@@ -851,6 +851,21 @@
   "enforced_by": "useRowScrollGesture reads it at each armUnlock (useRowScrollGesture.ts:31) from a ref.",
   "exists_today": "Constant: GESTURE_LOCK_MS 350 (useRowScrollGesture.ts:16, :31).",
   "on_configure": "NEXT (configureTuning only). A lock already armed keeps its remaining time. Session-only.",
+  "ownerEntry": "phonux-engine-visibility-settings",
+  "cls": "NEXT",
+  "doors": [
+   "tuning"
+  ],
+  "scope": "workspace"
+ },
+ {
+  "name": "tuning.gestureQuietMs",
+  "values": "integer ms >= 1 (workspace only)",
+  "default": "150",
+  "behaviour": "How long a row-scroll wheel burst must be silent for the next event to be a fresh gesture that steps whatever its size. Workspace-wide.",
+  "enforced_by": "useRowScrollGesture reads it at each wheel event from a ref.",
+  "exists_today": "Constant: GESTURE_QUIET_MS 150 (useRowScrollGesture.ts).",
+  "on_configure": "NEXT (configureTuning only). A quiet timer already running keeps its length. Session-only.",
   "ownerEntry": "phonux-engine-visibility-settings",
   "cls": "NEXT",
   "doors": [

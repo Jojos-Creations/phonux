@@ -13,10 +13,7 @@
  */
 import { useEffect, useRef } from 'react';
 import type { RefObject } from 'react';
-import { GESTURE_LOCK_MS } from '../rowConstants.js';
-
-/** No wheel event for this long ends a gesture: the next event is fresh and steps whatever its size. */
-const GESTURE_QUIET_MS = 150;
+import { GESTURE_LOCK_MS, GESTURE_QUIET_MS } from '../rowConstants.js';
 
 /**
  * `gestureLockMs`: after a step, wheel events are ignored for this long (the lock is not re-armed by them). A trackpad
@@ -24,17 +21,22 @@ const GESTURE_QUIET_MS = 150;
  * event from a fresh user one; so once the lock is over, an event steps again only if it is not decaying (it is at
  * least as large as the one before it, or it reverses direction). A swipe whose deltas fade away is one step; a wheel
  * or swipe that keeps its speed steps again and again.
+ *
+ * `gestureQuietMs`: no wheel event for this long ends a gesture, so the next event is fresh and steps whatever its size.
  */
 export function useRowScrollGesture(
   overflowContainerRef: RefObject<HTMLDivElement | null>,
   onStep: (direction: 'left' | 'right') => void,
   gestureLockMs: number = GESTURE_LOCK_MS,
   mode: 'step' | 'free' | 'off' = 'step',
+  gestureQuietMs: number = GESTURE_QUIET_MS,
 ): void {
   const onStepRef = useRef(onStep);
   onStepRef.current = onStep;
   const gestureLockMsRef = useRef(gestureLockMs);
   gestureLockMsRef.current = gestureLockMs;
+  const gestureQuietMsRef = useRef(gestureQuietMs);
+  gestureQuietMsRef.current = gestureQuietMs;
 
   useEffect(() => {
     const container = overflowContainerRef.current;
@@ -60,7 +62,7 @@ export function useRowScrollGesture(
       if (quietTimer) clearTimeout(quietTimer);
       quietTimer = setTimeout(() => {
         previous = 0;
-      }, GESTURE_QUIET_MS);
+      }, gestureQuietMsRef.current);
       if (locked || !holding) return;
       locked = true;
       unlockTimer = setTimeout(() => {

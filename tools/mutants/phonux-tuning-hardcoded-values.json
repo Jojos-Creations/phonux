@@ -1,0 +1,129 @@
+{
+  "tests": [
+    "test/tuning-hardcoded-values.test.ts",
+    "test/whole-panels-drag.test.ts",
+    "test/settings-enforcement-visibility.test.ts",
+    "test/rowconstants-drift.test.ts",
+    "test/drag-live-reorder.test.ts",
+    "test/settings-enforcement-motion.test.ts"
+  ],
+  "mutants": [
+    {
+      "name": "gestureQuietMs ignored by the wheel gesture",
+      "file": "panels/useRowScrollGesture.ts",
+      "find": "}, gestureQuietMsRef.current);",
+      "replace": "}, GESTURE_QUIET_MS);",
+      "expectRed": [
+        "differential tuning.gestureQuietMs"
+      ]
+    },
+    {
+      "name": "the provider no longer hands gestureQuietMs to the gesture",
+      "file": "panels/useProvidePanels.ts",
+      "find": "timing.gestureLockMs, tuning.rowGesture, tuning.gestureQuietMs);",
+      "replace": "timing.gestureLockMs, tuning.rowGesture);",
+      "expectRed": [
+        "differential tuning.gestureQuietMs"
+      ]
+    },
+    {
+      "name": "restMs ignored by the release",
+      "file": "dragToClose.tsx",
+      "find": "(slotRef.current?.tuning.dragToClose ?? OUTSIDE_ROW_DRAG).restMs",
+      "replace": "DRAG_REST_MS",
+      "expectRed": [
+        "restMs: a 60 px flick lifted 80 ms after its last move"
+      ]
+    },
+    {
+      "name": "velocityWindowMs ignored by the release",
+      "file": "dragToClose.tsx",
+      "find": "(slotRef.current?.tuning.dragToClose ?? OUTSIDE_ROW_DRAG).velocityWindowMs",
+      "replace": "DRAG_VELOCITY_WINDOW_MS",
+      "expectRed": [
+        "velocityWindowMs: a fast move followed by slow ones"
+      ]
+    },
+    {
+      "name": "the drag close ignores closeExitEase",
+      "file": "dragToClose.tsx",
+      "find": "{ duration: exitSeconds, ease: exitEase }",
+      "replace": "{ duration: exitSeconds, ease: 'easeIn' }",
+      "expectRed": [
+        "closeExitEase: a drag close leaves along the leaf"
+      ]
+    },
+    {
+      "name": "the slot's close exit ignores closeExitEase",
+      "file": "PanelRowSlot.tsx",
+      "find": "ease: slide.closeExitEase }",
+      "replace": "ease: 'easeIn' }",
+      "expectRed": [
+        "closeExitEase: a button close takes the same leaf as a drag close"
+      ]
+    },
+    {
+      "name": "the glide ignores glideEase",
+      "file": "rowScroller.ts",
+      "find": "curve: curveOf(o.ease)",
+      "replace": "curve: curveOf('cubic-out')",
+      "expectRed": [
+        "glideEase: 'linear' and a bezier tuple glide along their own curves"
+      ]
+    },
+    {
+      "name": "a wheel step drops the glideEase argument",
+      "file": "panels/useProvidePanels.ts",
+      "find": "scroller.glideTo(step.to, { durationSec: tuning.slide.durationSec, instant: reducedMotion, ease: tuning.slide.glideEase });",
+      "replace": "scroller.glideTo(step.to, { durationSec: tuning.slide.durationSec, instant: reducedMotion, ease: 'cubic-out' });",
+      "expectRed": [
+        "glideEase: a wheel step glides along the workspace's leaf"
+      ]
+    },
+    {
+      "name": "scrollTo drops the glideEase argument",
+      "file": "panels/useProvidePanels.ts",
+      "find": "instant: reducedMotion || !settings.animated, ease: tuning.slide.glideEase })",
+      "replace": "instant: reducedMotion || !settings.animated, ease: 'cubic-out' })",
+      "expectRed": [
+        "glideEase: scrollTo glides along the workspace's leaf"
+      ]
+    },
+    {
+      "name": "the settle after a resize drops the glideEase argument",
+      "file": "panels/useProvidePanels.ts",
+      "find": "scroller.glideTo(to, { durationSec: tuning.slide.durationSec, instant: reducedMotion, ease: tuning.slide.glideEase });\n  }, [rowNumbers.stops",
+      "replace": "scroller.glideTo(to, { durationSec: tuning.slide.durationSec, instant: reducedMotion, ease: 'cubic-out' });\n  }, [rowNumbers.stops",
+      "expectRed": [
+        "glideEase: the settle after a resize that moves the stops"
+      ]
+    },
+    {
+      "name": "a released drag's settle drops the glideEase argument",
+      "file": "dragToClose.tsx",
+      "find": "ease: slot.settleEase });",
+      "replace": "ease: 'cubic-out' });",
+      "expectRed": [
+        "a released drag settles along slide.glideEase"
+      ]
+    },
+    {
+      "name": "the dragged layer value changes",
+      "file": "rowConstants.ts",
+      "find": "{ BASE: 1, RAISED: 2, DRAGGED: 3 }",
+      "replace": "{ BASE: 1, RAISED: 2, DRAGGED: 2 }",
+      "expectRed": [
+        "ROW_LAYER_Z: base 1, raised 2, dragged 3"
+      ]
+    },
+    {
+      "name": "PanelRow draws a raised panel at the base layer",
+      "file": "PanelRow.tsx",
+      "find": "layer === 'raised' ? ROW_LAYER_Z.RAISED : ROW_LAYER_Z.BASE",
+      "replace": "layer === 'raised' ? ROW_LAYER_Z.BASE : ROW_LAYER_Z.BASE",
+      "expectRed": [
+        "layer: a raised slot has z-index 2 and a base slot 1"
+      ]
+    }
+  ]
+}

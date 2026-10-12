@@ -14,13 +14,18 @@ import type { PanelState, ViewHandle } from './panelTemplate.js';
 import type { PanelWindow } from './panelWindow.js';
 import {
   CHROME,
+  CLOSE_EXIT_EASE,
   DIRECTION_LOCK_PX,
   DRAG_CLOSE_NUMBERS,
+  DRAG_REST_MS,
+  DRAG_VELOCITY_WINDOW_MS,
   DROP_TIE_BREAK,
   EDGE_SCROLL_MAX_PX_PER_SEC,
   EDGE_SCROLL_REDUCED_STEP_MS,
   EDGE_SCROLL_ZONE_PX,
   GESTURE_LOCK_MS,
+  GESTURE_QUIET_MS,
+  GLIDE_EASE,
   HOP_FRACTION,
   INITIAL_SCROLL,
   RETURN_TIE_BREAK,
@@ -160,7 +165,7 @@ export type PinningWhenNotLive =
 /** Which layer a resolved value came from. A rule overrides the rest and 'derived' marks a value filled from another resolved field. @public */
 export type SourceLayer = 'library' | 'workspace' | 'template' | 'host' | 'instance' | 'user' | 'derived' | 'forced';
 
-/** The 49 settings whose value is one plain member; the catalog's other names are headerButtons and the eleven tuning leaves. @public */
+/** The 49 settings whose value is one plain member; the catalog's other names are headerButtons and the thirteen tuning leaves. @public */
 export type SettingValues = {
   /** Whether the panel can be closed; false removes the drag-down close and makes `close()` answer not-closable. */
   closable: boolean;
@@ -276,6 +281,10 @@ export type DragToCloseTuning = {
   cancelVelocity: number;
   /** The movement in px on either axis that decides whether a drag locks to the horizontal or the vertical. */
   directionLockPx: number;
+  /** Milliseconds a pointer may lie still before the release: a lift after that long has no velocity, so only distance can close. */
+  restMs: number;
+  /** Milliseconds the release looks back for its velocity. */
+  velocityWindowMs: number;
   /** The spring a released drag that does not close returns with. */
   snapBack: {
     /** The spring's stiffness. */
@@ -293,7 +302,20 @@ export type SlideTuning = {
   ease: readonly [number, number, number, number];
   /** Seconds a closing panel takes to leave. */
   closeExitSeconds: number;
+  /** The curve a closing panel leaves along, for a drag close and a button close alike: a Motion name or a cubic bezier. */
+  closeExitEase: CloseExitEase;
+  /** The curve a row scroll glides along: 'cubic-out' (today's), 'linear' or a cubic bezier. Independent of `ease`. */
+  glideEase: GlideEase;
 };
+
+/** A cubic bezier as its four numbers, x1 and x2 within [0, 1]. @public */
+export type BezierEase = readonly [number, number, number, number];
+
+/** The curve a closing panel leaves along. @public */
+export type CloseExitEase = 'easeIn' | 'easeOut' | 'easeInOut' | 'linear' | BezierEase;
+
+/** The curve a row scroll glides along; 'cubic-out' is 1 - (1 - t)^3. @public */
+export type GlideEase = 'cubic-out' | 'linear' | BezierEase;
 
 /** How the row scrolls while a dragged panel is held near the window's edge. @public */
 export type EdgeScrollTuning = {
@@ -334,7 +356,7 @@ export type PanelTuning = {
   edgeScroll?: { [K in keyof EdgeScrollTuning]?: EdgeScrollTuning[K] };
 };
 
-/** The per-panel leaves plus the seven that only the workspace sets. @public */
+/** The per-panel leaves plus the nine that only the workspace sets. @public */
 export type WorkspaceTuning = PanelTuning & {
   /** The gap between panels in px, an integer from 0 to 200. */
   rowGap?: number;
@@ -342,6 +364,8 @@ export type WorkspaceTuning = PanelTuning & {
   saveQuietMs?: number;
   /** Milliseconds after a row scroll gesture during which further wheel events are ignored. */
   gestureLockMs?: number;
+  /** Milliseconds without a wheel event that end a row scroll gesture, so the next event steps whatever its size. */
+  gestureQuietMs?: number;
   /** Which of two equally ranked parked panels returns first: the latest parked, the earliest parked, or the earlier in the row. */
   returnTieBreak?: 'latest-first' | 'earliest-first' | 'row-order';
   /** Which of two equally ranked panels is parked first when the row loses room: the leftmost or the rightmost. */
@@ -374,6 +398,8 @@ export type ResolvedWorkspaceTuning = ResolvedPanelTuning & {
   saveQuietMs: number;
   /** Milliseconds after a row scroll gesture during which further wheel events are ignored. */
   gestureLockMs: number;
+  /** Milliseconds without a wheel event that end a row scroll gesture, so the next event steps whatever its size. */
+  gestureQuietMs: number;
   /** Which of two equally ranked parked panels returns first: the latest parked, the earliest parked, or the earlier in the row. */
   returnTieBreak: 'latest-first' | 'earliest-first' | 'row-order';
   /** Which of two equally ranked panels is parked first when the row loses room: the leftmost or the rightmost. */
@@ -1136,8 +1162,8 @@ const CATALOG_ROWS: readonly SettingDescriptor[] = [
   {
     name: 'tuning.dragToClose',
     group: 'tuning',
-    values: 'object: distanceFraction [0.05, 1], minDistancePx >= 8, flickMinDistancePx >= 8, flickVelocity >= 100, cancelVelocity <= -50, directionLockPx integer [2, 64], snapBack { stiffness [50, 2000], damping [5, 200] }; panel or workspace',
-    default: '0.25, 80, 40, 700, -300, 8, { 520, 42 } (DRAG_CLOSE; DIRECTION_LOCK_PX)',
+    values: 'object: distanceFraction [0.05, 1], minDistancePx >= 8, flickMinDistancePx >= 8, flickVelocity >= 100, cancelVelocity <= -50, directionLockPx integer [2, 64], restMs integer [1, 1000], velocityWindowMs integer [16, 1000], snapBack { stiffness [50, 2000], damping [5, 200] }; panel or workspace',
+    default: '0.25, 80, 40, 700, -300, 8, 50, 100, { 520, 42 } (DRAG_CLOSE; DIRECTION_LOCK_PX; DRAG_REST_MS; DRAG_VELOCITY_WINDOW_MS)',
     scope: 'panel or workspace',
     viewSettable: false,
     exists: 'today',
@@ -1147,8 +1173,8 @@ const CATALOG_ROWS: readonly SettingDescriptor[] = [
   {
     name: 'tuning.slide',
     group: 'tuning',
-    values: 'object: durationSec [0, 10], ease (four numbers, x1 and x2 in [0,1]), closeExitSeconds [0, 5]; panel or workspace',
-    default: '0.4, [0.2, 0, 0, 1], 0.18 (SLOT_TRANSITION, DRAG_CLOSE.exitSeconds)',
+    values: "object: durationSec [0, 10], ease (four numbers, x1 and x2 in [0,1]), closeExitSeconds [0, 5], closeExitEase ('easeIn', 'easeOut', 'easeInOut', 'linear' or four numbers), glideEase ('cubic-out', 'linear' or four numbers); panel or workspace",
+    default: "0.4, [0.2, 0, 0, 1], 0.18, 'easeIn', 'cubic-out' (SLOT_TRANSITION, DRAG_CLOSE.exitSeconds, CLOSE_EXIT_EASE, GLIDE_EASE)",
     scope: 'panel or workspace',
     viewSettable: false,
     exists: 'today',
@@ -1193,6 +1219,17 @@ const CATALOG_ROWS: readonly SettingDescriptor[] = [
     group: 'tuning',
     values: 'integer ms >= 0 (workspace only)',
     default: '60',
+    scope: 'workspace',
+    viewSettable: false,
+    exists: 'today',
+    ownerEntry: 'phonux-engine-visibility-settings',
+    configure: { cls: 'NEXT', doors: ['tuning'] },
+  },
+  {
+    name: 'tuning.gestureQuietMs',
+    group: 'tuning',
+    values: 'integer ms >= 1 (workspace only)',
+    default: '150',
     scope: 'workspace',
     viewSettable: false,
     exists: 'today',
@@ -1348,13 +1385,16 @@ export const LIBRARY_TUNING_DEFAULTS: ResolvedWorkspaceTuning = freezeClone({
     flickVelocity: DRAG_CLOSE_NUMBERS.flickVelocity,
     cancelVelocity: DRAG_CLOSE_NUMBERS.cancelVelocity,
     directionLockPx: DIRECTION_LOCK_PX,
+    restMs: DRAG_REST_MS,
+    velocityWindowMs: DRAG_VELOCITY_WINDOW_MS,
     snapBack: { stiffness: SNAP_BACK_SPRING.stiffness, damping: SNAP_BACK_SPRING.damping },
   },
-  slide: { durationSec: SLIDE_DURATION_SEC, ease: [...SLIDE_EASE] as unknown as readonly [number, number, number, number], closeExitSeconds: SLIDE_CLOSE_EXIT_SECONDS },
+  slide: { durationSec: SLIDE_DURATION_SEC, ease: [...SLIDE_EASE] as unknown as readonly [number, number, number, number], closeExitSeconds: SLIDE_CLOSE_EXIT_SECONDS, closeExitEase: CLOSE_EXIT_EASE, glideEase: GLIDE_EASE },
   hopFraction: HOP_FRACTION,
   edgeScroll: { zonePx: EDGE_SCROLL_ZONE_PX, maxPxPerSec: EDGE_SCROLL_MAX_PX_PER_SEC, reducedStepMs: EDGE_SCROLL_REDUCED_STEP_MS },
   saveQuietMs: SAVE_QUIET_MS,
   gestureLockMs: GESTURE_LOCK_MS,
+  gestureQuietMs: GESTURE_QUIET_MS,
   returnTieBreak: RETURN_TIE_BREAK as ResolvedWorkspaceTuning['returnTieBreak'],
   dropTieBreak: DROP_TIE_BREAK as ResolvedWorkspaceTuning['dropTieBreak'],
   rowGesture: ROW_GESTURE as ResolvedWorkspaceTuning['rowGesture'],
@@ -1573,6 +1613,12 @@ const SETTING_CHECKS: Record<SettingKey, Check> = {
 
 export type TuningLeaf = keyof WorkspaceTuning;
 
+function bezierProblem(v: unknown): string | undefined {
+  if (!Array.isArray(v) || v.length !== 4 || !v.every(finite)) return 'expected four finite numbers';
+  const [x1, , x2] = v as number[];
+  return (x1 as number) < 0 || (x1 as number) > 1 || (x2 as number) < 0 || (x2 as number) > 1 ? 'the first and third numbers must be from 0 to 1' : undefined;
+}
+
 /** Members of the three object-valued leaves, each with the check for its value. */
 const TUNING_MEMBER_CHECKS: Record<'dragToClose' | 'slide' | 'edgeScroll' | 'chrome', Record<string, Check>> = {
   dragToClose: {
@@ -1582,6 +1628,8 @@ const TUNING_MEMBER_CHECKS: Record<'dragToClose' | 'slide' | 'edgeScroll' | 'chr
     flickVelocity: num(100, Infinity),
     cancelVelocity: num(-Infinity, -50),
     directionLockPx: integer(2, 64),
+    restMs: integer(1, 1000),
+    velocityWindowMs: integer(16, 1000),
     snapBack: (v) => {
       if (!isPlain(v)) return 'expected { stiffness, damping }';
       for (const key of Object.keys(v)) if (key !== 'stiffness' && key !== 'damping') return `unknown key '${key}'`;
@@ -1590,12 +1638,10 @@ const TUNING_MEMBER_CHECKS: Record<'dragToClose' | 'slide' | 'edgeScroll' | 'chr
   },
   slide: {
     durationSec: num(0, 10),
-    ease: (v) => {
-      if (!Array.isArray(v) || v.length !== 4 || !v.every(finite)) return 'expected four finite numbers';
-      const [x1, , x2] = v as number[];
-      return (x1 as number) < 0 || (x1 as number) > 1 || (x2 as number) < 0 || (x2 as number) > 1 ? 'the first and third numbers must be from 0 to 1' : undefined;
-    },
+    ease: bezierProblem,
     closeExitSeconds: num(0, 5),
+    closeExitEase: (v) => (typeof v === 'string' ? oneOf('easeIn', 'easeOut', 'easeInOut', 'linear')(v) : bezierProblem(v)),
+    glideEase: (v) => (typeof v === 'string' ? oneOf('cubic-out', 'linear')(v) : bezierProblem(v)),
   },
   edgeScroll: {
     zonePx: integer(8, 200),
@@ -1611,11 +1657,12 @@ const TUNING_MEMBER_CHECKS: Record<'dragToClose' | 'slide' | 'edgeScroll' | 'chr
   },
 };
 
-const TUNING_SCALAR_CHECKS: Record<'hopFraction' | 'rowGap' | 'saveQuietMs' | 'gestureLockMs' | 'returnTieBreak' | 'dropTieBreak' | 'rowGesture' | 'initialScroll', Check> = {
+const TUNING_SCALAR_CHECKS: Record<'hopFraction' | 'rowGap' | 'saveQuietMs' | 'gestureLockMs' | 'gestureQuietMs' | 'returnTieBreak' | 'dropTieBreak' | 'rowGesture' | 'initialScroll', Check> = {
   hopFraction: num(0, 1, { minOpen: true }),
   rowGap: integer(0, 200),
   saveQuietMs: integer(0),
   gestureLockMs: integer(0),
+  gestureQuietMs: integer(1),
   returnTieBreak: oneOf('latest-first', 'earliest-first', 'row-order'),
   dropTieBreak: oneOf('leftmost', 'rightmost'),
   rowGesture: oneOf('step', 'free', 'off'),

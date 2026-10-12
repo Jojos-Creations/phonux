@@ -55,9 +55,10 @@ test('rowConstants: the gesture lock is the literal 60 and the hop fraction is t
   assert.equal(rowConstants.HOP_FRACTION, 0.5);
   const gesture = readFileSync(`${ROOT}panels/useRowScrollGesture.ts`, 'utf8');
   const persistence = readFileSync(`${ROOT}panels/useWorkspacePersistence.ts`, 'utf8');
-  assert.match(gesture, /import \{ GESTURE_LOCK_MS \} from '\.\.\/rowConstants\.js';/, 'the gesture imports the one constant it defaults to');
+  assert.match(gesture, /import \{ GESTURE_LOCK_MS, GESTURE_QUIET_MS \} from '\.\.\/rowConstants\.js';/, 'the gesture imports the one constant it defaults to');
   assert.doesNotMatch(gesture, /GESTURE_LOCK_MS = /, 'no module constant of the gesture lock is left in the gesture file');
   assert.doesNotMatch(gesture, /\b60\b/, 'the number 60 is not written in the gesture file');
+  assert.doesNotMatch(gesture, /\b150\b/, 'the number 150 is not written in the gesture file');
   assert.match(persistence, /import \{ SAVE_QUIET_MS \} from '\.\.\/rowConstants\.js';/, 'the persistence hook imports the one constant it defaults to');
   assert.doesNotMatch(persistence, /SAVE_QUIET_MS = 500/, 'no module constant of the save delay is left in the persistence file');
   assert.doesNotMatch(persistence, /\b500\b/, 'the number 500 is not written in the persistence file');
@@ -91,6 +92,12 @@ test('rowConstants: every exported constant reaches LIBRARY_TUNING_DEFAULTS, so 
   assert.equal(t.hopFraction, rowConstants.HOP_FRACTION);
   assert.equal(t.saveQuietMs, rowConstants.SAVE_QUIET_MS);
   assert.equal(t.gestureLockMs, rowConstants.GESTURE_LOCK_MS);
+  assert.equal(t.gestureQuietMs, rowConstants.GESTURE_QUIET_MS);
+  assert.equal(t.dragToClose.restMs, rowConstants.DRAG_REST_MS);
+  assert.equal(t.dragToClose.velocityWindowMs, rowConstants.DRAG_VELOCITY_WINDOW_MS);
+  assert.equal(t.slide.closeExitEase, rowConstants.CLOSE_EXIT_EASE);
+  assert.equal(t.slide.glideEase, rowConstants.GLIDE_EASE);
+  assert.deepEqual({ ...rowConstants.ROW_LAYER_Z }, { BASE: 1, RAISED: 2, DRAGGED: 3 });
   assert.equal(t.returnTieBreak, rowConstants.RETURN_TIE_BREAK);
   assert.equal(t.dropTieBreak, rowConstants.DROP_TIE_BREAK);
   assert.equal(t.rowGesture, rowConstants.ROW_GESTURE);
@@ -98,7 +105,7 @@ test('rowConstants: every exported constant reaches LIBRARY_TUNING_DEFAULTS, so 
   assert.deepEqual({ ...t.edgeScroll }, { zonePx: rowConstants.EDGE_SCROLL_ZONE_PX, maxPxPerSec: rowConstants.EDGE_SCROLL_MAX_PX_PER_SEC, reducedStepMs: rowConstants.EDGE_SCROLL_REDUCED_STEP_MS });
   assert.deepEqual({ ...t.chrome }, { ...rowConstants.CHROME });
   assert.equal(rowConstants.RESIZE_SETTLE_SLIDES, 1.25);
-  assert.equal(Object.keys(rowConstants).length, 19, 'the module exports exactly the 19 constants this test compares');
+  assert.equal(Object.keys(rowConstants).length, 25, 'the module exports exactly the 25 constants this test compares');
 });
 
 test('rowConstants: no source file outside rowConstants.ts declares its own copy of the save delay or the gesture lock', () => {
