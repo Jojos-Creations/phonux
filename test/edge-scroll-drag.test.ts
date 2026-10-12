@@ -198,8 +198,8 @@ test('the strip bounds the scroll: a scrollWidth inflated by the box never lifts
   assert.equal(ends[0]!.offset, 40 + MAX_SCROLL);
 });
 
-test('released, the box springs home as one: both translations start returning in one frame and reach 0 in one frame', async () => {
-  const m = mountEdgeRow();
+test('released with nothing to hop over, the box springs home as one: both translations start returning in one frame and reach 0 in one frame', async () => {
+  const m = mountEdgeRow({ crossable: false });
   const box = boxOf(m);
   await dragTo(m, 1000);
   await frames(100);

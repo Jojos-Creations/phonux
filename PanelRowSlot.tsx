@@ -151,6 +151,7 @@ export function PanelRowSlot({
   kept = false,
   rowScroll = false,
   previewing = false,
+  dragged = false,
   children,
 }: {
   /** This slot's own rest x position -- the caller's running sum of every PRECEDING present item's own width plus one gap. */
@@ -183,6 +184,8 @@ export function PanelRowSlot({
   rowScroll?: boolean;
   /** True while a sideways drag previews the reorder: under Reduce Motion the slot's own moves then snap, since a preview-time slide carries no information. */
   previewing?: boolean;
+  /** True for the slot whose box is being dragged: its rest moving during the preview is the drop, which lands at once whatever the motion setting. */
+  dragged?: boolean;
   /** The panel rendered inside the slot. */
   children: React.ReactNode;
 }) {
@@ -194,7 +197,7 @@ export function PanelRowSlot({
   const ownSpan = width + (gap ?? ROW_GAP);
   const parkSide = exitDirection === 'right' ? 'right' : 'left';
   const slideTransition = animated && !reducedMotion ? transition : INSTANT_TRANSITION;
-  const snapping = previewing && (reducedMotion || systemReduced);
+  const snapping = previewing && (reducedMotion || systemReduced || dragged);
   // `epoch` counts parks, so a finished exit from an earlier park can never hide the slot of a later one.
   const [wasKept, setWasKept] = React.useState(kept);
   const [epoch, setEpoch] = React.useState(0);

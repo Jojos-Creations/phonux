@@ -35,6 +35,9 @@
 
 - `revealOnScroll` `'never'` now holds in a row whose strip fits its window: a wheel step, Shift+wheel or arrow key there
   used to swap a hidden panel in through the 0.1.0 `scrollRow` path whatever the setting said, and swaps in none now.
+- A panel dragged sideways and released over a new slot now appears in that slot at once, with Reduce Motion on or off: before, its slot
+  slid to the new place while the box sprang home, so it read as snapping back from the side it came from. A release that hops
+  nowhere still springs the box home. `PanelSlotValue` gains `dragHops`.
 - A plain press (no movement) on a grab bar while the box springs back after a drag no longer leaves the box a fraction of a pixel
   off its slot: the press stops the spring so it is not fought, and when it ends without becoming a drag the box now springs
   the rest of the way home (a jump under reduced motion).
