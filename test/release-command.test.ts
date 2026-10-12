@@ -137,6 +137,29 @@ test('lockfileVersionProblem: a missing root entry or a missing lockfile fails r
   withPackage('1.0.0', null, (dir) => assert.match(check(dir) ?? '', /package-lock\.json is missing/));
 });
 
+test('lockfileVersionProblem: a lockfile version that only starts with the manifest version is still a disagreement', async () => {
+  const check = await loadLock(LOCK_FILE);
+  withPackage('0.2.0-rc.1', { root: '0.2.0-rc.10', entry: '0.2.0-rc.10' }, (dir) => assert.match(check(dir) ?? '', /0\.2\.0-rc\.1\b.*0\.2\.0-rc\.10/));
+});
+
+test('lockfileVersionProblem: both lockfile entries wrong are joined with "and", one wrong names only that one', async () => {
+  const check = await loadLock(LOCK_FILE);
+  withPackage('0.2.0-rc.3', { root: '0.2.0-rc.2', entry: '0.2.0-rc.1' }, (dir) => {
+    const text = check(dir) ?? '';
+    assert.match(text, /"version" is 0\.2\.0-rc\.2 and package-lock\.json packages\[""\]\.version is 0\.2\.0-rc\.1/);
+  });
+  withPackage('0.2.0-rc.3', { root: '0.2.0-rc.3', entry: '0.2.0-rc.2' }, (dir) => {
+    const text = check(dir) ?? '';
+    assert.doesNotMatch(text, / and package-lock/);
+    assert.doesNotMatch(text, /"version" is/);
+  });
+});
+
+test('lockfileVersionProblem: a missing lockfile message names the manifest version', async () => {
+  const check = await loadLock(LOCK_FILE);
+  withPackage('0.2.0-rc.3', null, (dir) => assert.match(check(dir) ?? '', /package-lock\.json is missing next to package\.json \(version 0\.2\.0-rc\.3\)/));
+});
+
 test('lockfileVersionProblem: a scratch copy that always returns null fails the disagreement case', async () => {
   const scratch = mkdtempSync(join(tmpdir(), 'phonux-lock-copy-'));
   try {

@@ -42,8 +42,10 @@ export interface MountedRow {
   key: (name: string, init?: KeyboardEventInit, target?: EventTarget) => void;
 }
 
-/** `entries` mounted at a measured container `width`; `over` replaces any provider input. */
-/** `wrap` puts the mounted row inside a parent, such as StrictMode or a MotionConfig. */
+/**
+ * `entries` mounted at a measured container `width`; `over` replaces any provider input; `wrap` puts the mounted row inside a
+ * parent, such as StrictMode or a MotionConfig.
+ */
 export function mountRow(entries: PanelWindow[], width: number, over: Partial<PanelsInput> = {}, wrap: (row: React.ReactElement) => React.ReactElement = (row) => row): MountedRow {
   const ref = React.createRef<HTMLDivElement>();
   const rowRef = React.createRef<HTMLDivElement>();
