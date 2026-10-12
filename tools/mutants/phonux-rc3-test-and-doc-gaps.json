@@ -1,0 +1,17 @@
+{
+  "tests": [
+    "test/drag-to-close-unlock.test.ts",
+    "test/release-command.test.ts"
+  ],
+  "mutants": [
+    {
+      "name": "the press that stops the spring home no longer unlocks the scroll parents",
+      "file": "dragToClose.tsx",
+      "find": "stoppedSpring.current = y.get() !== 0 || x.get() !== 0 || scrollX.get() !== 0; unlockScrollParents(); preview(null); }",
+      "replace": "stoppedSpring.current = y.get() !== 0 || x.get() !== 0 || scrollX.get() !== 0; preview(null); }",
+      "expectRed": [
+        "a press that stops the spring home gives the scroll parent its overflow back at once"
+      ]
+    }
+  ]
+}

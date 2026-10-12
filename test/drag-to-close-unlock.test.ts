@@ -74,3 +74,18 @@ test('a horizontal release springs the box home and the scroll parent gets its o
   await advanceFrames(2000);
   assert.equal(scroller.style.overflowY, 'auto');
 });
+
+test('a press that stops the spring home gives the scroll parent its overflow back at once, before any release', async () => {
+  const mounted = mount(box(true));
+  const { handle, scroller } = parts(mounted.container);
+  await drag(handle, { dx: 200, dy: 0 });
+  await advanceFrames(10);
+  assert.equal(scroller.style.overflowY, 'hidden', 'control: still locked while the spring runs');
+  await act(async () => {
+    const down = new MouseEvent('pointerdown', { bubbles: true, cancelable: true, clientX: 100, clientY: 100, button: 0, buttons: 1 });
+    for (const [key, value] of Object.entries({ pointerId: 1, pointerType: 'mouse', isPrimary: true })) Object.defineProperty(down, key, { value });
+    handle.dispatchEvent(down);
+  });
+  // Asserted before the release: the return home that a release starts unlocks too and would hide a press that did not.
+  assert.equal(scroller.style.overflowY, 'auto');
+});
