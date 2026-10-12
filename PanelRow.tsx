@@ -305,6 +305,7 @@ export function PanelRow({
                 tuning: own,
                 dragScroll,
                 headerButtonSlots,
+                dragHops: (offset) => reorderStepsForOffset(offset, neighborWidthsAt(p), gap, own.hopFraction) !== 0,
                 previewReorder: (offset) =>
                   setDragging((now) => {
                     if (offset === null) return now?.id === p.id ? null : now;
@@ -326,6 +327,7 @@ export function PanelRow({
                 kept={kept}
                 rowScroll={rowScroll}
                 previewing={dragging !== null}
+                dragged={dragging?.id === p.id}
               >
                 {/* A resolved component -- built-in or third-party -- is written against PanelSummary only,
                     never the internal record. */}

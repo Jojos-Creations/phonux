@@ -164,7 +164,7 @@ test('a drag of two hops previews two neighbours and the release reports the sam
 test('a press on the handle during the spring home ends the raise', async () => {
   const m = mountRow(panelsOf(3), 3000);
   await advanceFrames(2000);
-  await drag(handleOf(m, 's1'), { dx: SPAN * 0.5 + 10, dy: 0, steps: 6, hold: 4 });
+  await drag(handleOf(m, 's1'), { dx: SPAN * 0.5 - 40, dy: 0, steps: 6, hold: 4 });
   await advanceFrames(32);
   assert.equal(zOf(m, 's1'), '3', 'the spring is in flight and the slot is still raised');
   await act(async () => {
