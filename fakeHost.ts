@@ -86,6 +86,7 @@ export function createFakeHost(overrides: FakeOverrides = {}): FakeHost {
 
   const panels: PanelsAPI = {
     panelList: [],
+    maxFitPanels: null,
     // Explicitly optional (not inferred from PanelsAPI's own overloaded `create`): an inferred-required
     // parameter would no longer satisfy the interface's zero-arg overload.
     create: (options?: CreatePanelOptions) => log('panels', 'create', options !== undefined ? [options] : []),

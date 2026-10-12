@@ -287,14 +287,18 @@ are, at 600 px as at 1920. That one capacity answers every question the window's
 `pricing`: the park that settles a row, the park that an open, a `show`, a History click or an undo makes, the free slots
 an 'until-room' hold waits for, and the returns a `resetLayout` reports.
 
+`PanelsAPI.maxFitPanels` is the window's phone-width ceiling: `effectiveMaxPanels` over `rowFitCount` with no live widths, the same
+`rowFitCount` the row's capacity calls, so the two cannot disagree. It is `null` while `containerWidth` is 0 and is not lowered by
+pinned panels or by a scrolling row. A host reads it to default a cap (`tuning.maxLivePanels`) that follows the window.
+
 No row that reaches the document holds more unpinned live panels than the cap. A row that lands over it (the panels of a
 restore or of a replayed `addPanel`, a seeded `initialEntries`, a row after a lower value from `configureTuning`, class NOW)
 is settled in the render that would show it, which React then renders again, so the first committed row has the excess
 parked and a panel the cap parks is never mounted. While a cap is set that settle also takes the window's fit; without
 one the reconcile effect parks for the window one commit after the row lands, as before. The settle keeps the panels an
 action has just marked, as the effect does, and the effect records its parks once the row has committed, as it records
-any park for room: under `capacityReturn: 'manual'` each is held until shown, under 'auto' it goes on the stack and
-returns by `returnTieBreak`. A higher value, or `null`, returns what has room for it under 'auto' and nothing under 'manual'.
+any park for room: under `capacityReturn: 'manual'` each is held until shown or until `maxLivePanels` is raised (the capacity-parked ones are kept in park order beside the hold, so a raise tells them from a host hide), under 'auto' it goes on the stack and
+returns by `returnTieBreak`. A higher value, or `null`, returns what has room for it under 'auto', and under 'manual' the panels the capacity parked, most recently parked first, up to the new value; never one the host hid.
 
 What the cap parks is chosen as a window-fit park chooses, with the pinned panels added to those a park leaves alone:
 `evictionRank` first, then `evictionOrder` from the panel acted on. Opening, showing or undoing a panel parks the unpinned
@@ -1360,7 +1364,7 @@ flip with a transition rule of its own) or SCOPE (a template-scope key).
 | `tuning.rowGesture` | step, free, off (workspace only; a design-derived key from Q15, not requested) | step | NEXT (configureTuning only). The listener set is re-read at the next render; a gesture in flight finishes; no panel moves. Session-only. |
 | `tuning.initialScroll` | start, end, root, { panel: PanelId } (workspace only; a design-derived key from Q15, not requested) | start (the library default, a design default the owner did not rule on; phonux-app sets 'end', owner Q20: the newest closable panels in view at launch) | NEXT (configureTuning only). Read at the next mount; nothing scrolls now. Session-only. |
 | `tuning.chrome` | object: mode 'always' or 'hover-or-active', fadeMs integer [0, 10000], slideMs integer [0, 10000], slidePx integer [0, 200], graceMs integer [0, 10000] (workspace only) | always, 120, 140, 8, 250 (CHROME) | NOW (configureTuning only). A member patch keeps the other members. The chrome shows or hides at this commit; a fade in progress retargets. The library reads `mode` and `fadeMs`; `slideMs`, `slidePx` and `graceMs` are for the host's own icon row. Session-only. |
-| `tuning.maxLivePanels` | integer >= 1, or null for no cap (workspace only) | null (no cap) | NOW (configureTuning only). A lower value parks the excess unpinned panels at this commit through the reconcile effect; a higher one or null returns none under `capacityReturn` manual and the most recently parked under auto. Unmeasured: applies. Outside integers of 1 or more throws; null removes the cap. Session-only. |
+| `tuning.maxLivePanels` | integer >= 1, or null for no cap (workspace only) | null (no cap) | NOW (configureTuning only). A lower value parks the excess unpinned panels at this commit through the reconcile effect; a higher one or null returns the most recently parked, under `capacityReturn` auto as under manual (manual returns only the panels the capacity parked, never one the host hid), up to the new value, in one commit. Unmeasured: applies. Outside integers of 1 or more throws; null removes the cap. Session-only. |
 <!-- catalog:end -->
 
 ## Placement, the root marker, key-aware undo and motion

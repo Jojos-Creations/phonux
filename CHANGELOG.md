@@ -24,6 +24,10 @@
     wins, as before.
   - `PhonuxLabels` gains `pin`, `unpin`, `lock` and `unlock` (English defaults Pin, Unpin, Lock, Unlock).
 
+- `PanelsAPI.maxFitPanels`: how many phone-width panels, permanent columns such as History included, the window fits at the
+  current phone width and row gap, so a host can offer a cap relative to the window without repeating the row's arithmetic.
+  `null` until the row is measured; it never reads below the permanent columns plus one, as the row's own floor, and pinned
+  panels are not subtracted. Optional on the interface, so a 0.1.0 host still type-checks.
 - `tuning.maxLivePanels`: an integer of 1 or more that caps how many unpinned panels the row keeps live (`null`, the default,
   is no cap and changes nothing). The leftmost panels beyond it park, as a narrow window parks them, and in a scrolling row
   such as History's the window's width no longer decides: exactly N unpinned panels are live at any width. A pinned panel is
@@ -31,7 +35,8 @@
   across History keep to it, and `configureTuning({ maxLivePanels })` applies at once. No row that reaches the document holds
   more than N: the panels of a restore, a replayed `addPanel` or a seeded list arrive with the excess already parked, and a
   panel the cap parks is never mounted. With `revealOnScroll` `'never'` on the panels, scrolling the row brings nothing back;
-  a hidden panel returns by `show`, a History click or an undo. This is a workspace setting the host chooses; the stored
+  a hidden panel returns by `show`, a History click or an undo. A raise of `maxLivePanels` through `configureTuning` brings back
+  only the most recently capacity-parked panels, in one commit, up to the new value; a panel the host hid is not among them. This is a workspace setting the host chooses; the stored
   per-person max-panels choice retired in 0.2.0-rc.1 (below) stays retired.
 
 - Tuning leaves for values that were literals, each at the value the code always used: `tuning.gestureQuietMs` (150, the

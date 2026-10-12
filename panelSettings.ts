@@ -380,6 +380,8 @@ export type WorkspaceTuning = PanelTuning & {
    * The most unpinned parkable panels the row keeps live, an integer of 1 or more, or `null` for no cap. Panels beyond
    * it park the way they do when the window is full; a pinned panel neither counts nor parks for it. In a row that
    * scrolls, the window width does not decide how many are live. No row the document shows holds more, the first included.
+   * Raising it (or setting `null`) through `configureTuning` brings back the most recently capacity-parked panels, up to the new
+   * value, in one commit; a panel the host hid stays hidden, and scrolling, closing, resizing or an equal or lower value return none.
    */
   maxLivePanels?: number | null;
 };
