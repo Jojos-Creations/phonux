@@ -225,6 +225,19 @@ test('released with nothing to hop over, the box springs home as one: both trans
   assert.ok(Math.abs(m.container.scrollLeft - walked(99)) < 1e-6, 'the row is not snapped back');
 });
 
+test('released after the edge scroll carried the drag over hops, the box is at rest the frame after the release: no spring', async () => {
+  const m = mountEdgeRow();
+  const box = boxOf(m);
+  await dragTo(m, 1000);
+  await frames(100);
+  assert.ok(drawnX(box) > 1000);
+  await liftAt(1000);
+  await frames(1);
+  assert.ok(ends[0]!.hops > 0, 'the release reports hops');
+  assert.equal(box.style.transform, 'none');
+  assert.ok(['', 'none', '0px 0px', '0px'].includes(box.style.translate), JSON.stringify(box.style.translate));
+});
+
 test('released with a scroll distance and no hop, the box still settles at rest', async () => {
   const m = mountEdgeRow();
   const box = boxOf(m);
