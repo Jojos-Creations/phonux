@@ -27,6 +27,7 @@ const OWNING_FILES = [
   'header-buttons',
   'max-live-panels-count',
   'slot-sizing',
+  'shrink-whole-panels-mounted',
   'default-frame',
 ].map((base) => `${base}.test.ts`);
 

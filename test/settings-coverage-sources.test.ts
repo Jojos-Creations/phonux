@@ -33,6 +33,7 @@ const OWNING_BASENAMES = [
   'header-buttons',
   'max-live-panels-count',
   'slot-sizing',
+  'shrink-whole-panels-mounted',
   'default-frame',
 ] as const;
 const OWNING_FILES: readonly string[] = OWNING_BASENAMES.map((b) => `${b}.test.ts`);

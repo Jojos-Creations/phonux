@@ -1,0 +1,170 @@
+{
+  "tests": [
+    "test/shrink-whole-panels.test.ts",
+    "test/shrink-whole-panels-mounted.test.ts"
+  ],
+  "mutants": [
+    {
+      "name": "'off' counted as visible",
+      "file": "rowNumbers.ts",
+      "find": "const shrinkable = i.shrink === 'visible' ?",
+      "replace": "const shrinkable = i.shrink !== undefined ?",
+      "expectRed": [
+        "'off' and 'hidden' never resize"
+      ]
+    },
+    {
+      "name": "'hidden' treated as visible",
+      "file": "rowNumbers.ts",
+      "find": "const shrinkable = i.shrink === 'visible' ?",
+      "replace": "const shrinkable = i.shrink !== 'off' ?",
+      "expectRed": [
+        "'off' and 'hidden' never resize"
+      ]
+    },
+    {
+      "name": "free slots rounded up",
+      "file": "rowNumbers.ts",
+      "find": "const free = Math.floor((windowWidth - used) / (phoneWidth + gap));",
+      "replace": "const free = Math.ceil((windowWidth - used) / (phoneWidth + gap));",
+      "expectRed": [
+        "every table row and lean matches the slot-grid reference"
+      ]
+    },
+    {
+      "name": "shrunk neighbour drawn at its own size",
+      "file": "rowNumbers.ts",
+      "find": "if (shrunk != null) drawnWidths[shrunk.index]",
+      "replace": "if (false as boolean) drawnWidths[shrunk!.index]",
+      "expectRed": [
+        "nothing is cut at rest"
+      ]
+    },
+    {
+      "name": "neighbour shrunk with nothing free",
+      "file": "rowNumbers.ts",
+      "find": "free >= 1 && groupEnd < widths.length",
+      "replace": "free >= 0 && groupEnd < widths.length",
+      "expectRed": [
+        "every table row and lean matches the slot-grid reference"
+      ]
+    },
+    {
+      "name": "lean ignored",
+      "file": "rowNumbers.ts",
+      "find": "const pick = lean === 'forward' ? forward : backwards[k]!;",
+      "replace": "const pick = forward;",
+      "expectRed": [
+        "a panel behind the group that does not fit the free slots"
+      ]
+    },
+    {
+      "name": "hidden cross-fades",
+      "file": "rowNumbers.ts",
+      "find": "  if (n.hideOutside) {\n    const at",
+      "replace": "  if (false as boolean) {\n    const at",
+      "expectRed": [
+        "'hidden' draws no panel part way"
+      ]
+    },
+    {
+      "name": "hold ignored while resizing",
+      "file": "PanelRow.tsx",
+      "find": "(held !== null && p.id !== resizingId ? held.get(p.id) : undefined)",
+      "replace": "(false as boolean ? held!.get(p.id) : undefined)",
+      "expectRed": [
+        "a panel marked as being resized holds the row and every other panel"
+      ]
+    },
+    {
+      "name": "a step does not move the position",
+      "file": "panels/useProvidePanels.ts",
+      "find": "        land({ first: going.stopFirsts[want]!, lean });\n        scroller.glideTo(going.stops[want]!,",
+      "replace": "        scroller.glideTo(going.stops[want]!,",
+      "expectRed": [
+        "reversing at a stop is one move"
+      ]
+    },
+    {
+      "name": "a reversal glides under Reduce Motion",
+      "file": "panels/useProvidePanels.ts",
+      "find": "scroller.glideTo(going.stops[want]!, { durationSec: tuning.slide.durationSec, instant: reducedMotion,",
+      "replace": "scroller.glideTo(going.stops[want]!, { durationSec: tuning.slide.durationSec, instant: false,",
+      "expectRed": [
+        "a reversal under Reduce Motion is a single-frame swap"
+      ]
+    },
+    {
+      "name": "the strip is no longer padded for the shortest drawn lean",
+      "file": "rowNumbers.ts",
+      "find": "endPad = Math.max(0, reach + shortest);",
+      "replace": "endPad = Math.max(0, reach);",
+      "expectRed": [
+        "a lean flip never clamps the scroll"
+      ]
+    },
+    {
+      "name": "fade maps slots by chosen offsets",
+      "file": "Workspace.tsx",
+      "find": "rowNumbers.ids.indexOf(slot.dataset.rowId ?? '')",
+      "replace": "rowNumbers.leftOffsets.indexOf(Number(slot.dataset.rowSlot))",
+      "expectRed": [
+        "hides every panel past the shrunk neighbour"
+      ]
+    },
+    {
+      "name": "hidden unions the stops it is resting between",
+      "file": "rowNumbers.ts",
+      "find": "const at = scrollLeft - n.stops[from]! < 0.5 ? from :",
+      "replace": "const at = false ? from :",
+      "expectRed": [
+        "shows only that stop's panels"
+      ]
+    },
+    {
+      "name": "the fade reads the stop from the scroll position",
+      "file": "rowNumbers.ts",
+      "find": "atStop: i.shrink === 'visible' && whole !== null ?",
+      "replace": "atStop: false ?",
+      "expectRed": [
+        "dims exactly what the logical stop hides"
+      ]
+    },
+    {
+      "name": "the hold also applies to the resized panel",
+      "file": "PanelRow.tsx",
+      "find": "(held !== null && p.id !== resizingId ? held.get(p.id) : undefined)",
+      "replace": "(held !== null ? held.get(p.id) : undefined)",
+      "expectRed": [
+        "holds the row and every other panel"
+      ]
+    },
+    {
+      "name": "the logical-stop fade snaps instead of cross-fading",
+      "file": "rowNumbers.ts",
+      "find": "const progress = Math.abs(scrollLeft - other) / Math.abs(at - other);",
+      "replace": "const progress = 1;",
+      "expectRed": [
+        "still cross-fades mid-glide"
+      ]
+    },
+    {
+      "name": "the last stop has no cap",
+      "file": "panels/useProvidePanels.ts",
+      "find": "maxScroll: stepping ? Math.min(maxScroll, going.stops[going.stops.length - 1]!) : maxScroll,",
+      "replace": "maxScroll,",
+      "expectRed": [
+        "a step right at the last stop moves nothing"
+      ]
+    },
+    {
+      "name": "an entry without slots is shrinkable",
+      "file": "rowNumbers.ts",
+      "find": "present.map((p) => p.slots !== undefined)",
+      "replace": "present.map(() => true)",
+      "expectRed": [
+        "a hand-built entry without slots keeps its own width"
+      ]
+    }
+  ]
+}

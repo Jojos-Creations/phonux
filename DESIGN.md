@@ -331,6 +331,33 @@ render. Steps, `scrollTo`, the initial scroll, a drag released after edge scroll
 stops (a resize, a pin, a close, a reorder) all land on a stop; `scrollTo` with `align` `'start'` or `'center'` lands on
 the nearest stop that shows the panel, not at that alignment.
 
+#### Whole panels only: `tuning.shrinkOutOfView`
+
+Panels are whole slots, so the panels a stop shows tile the slot grid and the window holds a whole number of slots N. The
+stop's group is the greedy run of whole panels; `F` is the slots it leaves free, `floor((window - group) / (phone + gap))`.
+With `'off'` (the default) nothing is resized, and the neighbour in the margin is hidden by the fade above. With `'visible'`
+the neighbour on the side the row is leaning toward is drawn at `F` slots when it has more, joins the shown panels and takes
+its room out of the margin; with `'hidden'` the room stays margin and, between two stops, a panel is whole or hidden and never
+part way (`'off'` keeps the cross-fade). Both leave `slots` alone: the shrunk size is a drawing, reported as `drawnSlots`.
+
+The lean is `'forward'` or `'backward'`: the direction of the last completed step from any input, forward at launch, kept through
+a resize, a cap change and a panel opening or closing, and never saved. Leaning backward, a panel behind the group is drawn at
+`F` slots only when it has more; one that already fits is not the neighbour, because the stop before already shows it whole.
+Where the leading side has no such panel the stop is its forward self. Groups and `F` come from the chosen, fit-capped widths, never from drawn ones, so the stops of a lean do
+not depend on where the row is. A stop is named by the panel its group starts at; leaning backward a stop whose view repeats the
+one before it, or lies left of it, is left out, and two stops may share a scroll position and differ in what they draw.
+`rowMarginLeft` and `endPad` are the least that let every stop of either lean sit at a scroll position inside the strip, so
+the lean never moves the strip; a first stop that is not 0 is where the row opens.
+
+A step in a direction picks that lean's next stop and sets the position in the same event as the glide, so the neighbour on the
+old side returns to its own size and the new leading one shrinks in one move; under Reduce Motion that is a single frame. A scroll
+nobody here steered (`scrollTo`, a History click, a free-scroll settle, an edge-scroll drag) is aimed at the lean its direction gives
+before it starts; a glide already in flight that crosses a lean is re-aimed at the new lean's position. Capacity (the cap, fit
+pricing, refill) reads chosen widths only, so a step never parks or returns a panel. `usePanelResizing()` marks a panel being
+resized by hand, and also marks it dragging; while it is marked every other panel keeps the width it had been drawn at, the row holds
+its scroll (a step is ignored and no settle runs), and the release settles onto the nearest stop once. The edge fade follows the logical
+stop, not the scroll position, since two stops can share one, and finds each slot by its panel id.
+
 The container's horizontal overflow follows `tuning.rowGesture`: 'step' scrolls with the scrollbar hidden,
 'free' scrolls with it visible, 'off' hides the overflow. A row with no settings is always hidden.
 
@@ -1270,9 +1297,9 @@ the same call shows the panel or is refused), and `invalid-saved-setting` for ea
 ### Who may set what
 
 The `doors` of a descriptor name the configure call that accepts the key: `instance` (`configure(id)`), `template`
-(`configureTemplate`: `hostCreatable`, `multiple`, `maxInstances`) and `tuning` (`configureTuning`). Thirteen tuning
+(`configureTemplate`: `hostCreatable`, `multiple`, `maxInstances`) and `tuning` (`configureTuning`). Fourteen tuning
 leaves are workspace-only (`rowGap`, `saveQuietMs`, `gestureLockMs`, `gestureQuietMs`, `resizeSettleSlides`, `returnTieBreak`, `dropTieBreak`, `rowGesture`,
-`initialScroll`, `maxLivePanels`, `chrome`, `heightPerSlot`, `rowAlign`); four are per panel and also workspace-wide (`dragToClose`, `slide`, `hopFraction`, `edgeScroll`).
+`initialScroll`, `maxLivePanels`, `chrome`, `heightPerSlot`, `rowAlign`, `shrinkOutOfView`); four are per panel and also workspace-wide (`dragToClose`, `slide`, `hopFraction`, `edgeScroll`).
 A workspace-only leaf at the template layer throws, at the instance or host layer it is a `wrong-scope` conflict, and
 any tuning key in the workspace defaults throws. A view's own door, the host layer, accepts only `title`, `listed`,
 `layer`, `formFactor`, `placeOnAdd: { anchor }` and `enterFrom: 'anchor'`.
@@ -1414,6 +1441,7 @@ flip with a transition rule of its own) or SCOPE (a template-scope key).
 | `tuning.maxLivePanels` | integer >= 1, or null for no cap (workspace only) | null (no cap) | NOW (configureTuning only). A lower value parks the excess unpinned panels at this commit through the reconcile effect; a higher one or null returns the most recently parked, under `capacityReturn` auto as under manual (manual returns only the panels the capacity parked, never one the host hid), up to the new value, in one commit. Unmeasured: applies. Outside integers of 1 or more throws; null removes the cap. Session-only. |
 | `tuning.heightPerSlot` | integer 0 to 2000, px added per slot beyond the first (workspace only) | 48 (HEIGHT_PER_SLOT) | NOW (configureTuning only). A panel is taller by this much for each slot it is wider than one, up to the room the row has; the row is as tall as its tallest panel. Unmeasured height: every panel stays at the phone height. Outside 0-2000 throws. |
 | `tuning.rowAlign` | top, center, bottom (workspace only) | center (ROW_ALIGN) | NOW (configureTuning only). Where a panel shorter than the row sits in it. Other values throw. |
+| `tuning.shrinkOutOfView` | off, visible, hidden (workspace only) | off (SHRINK_OUT_OF_VIEW) | NOW (configureTuning only). In a stepping row, what happens to the neighbour a stop's whole panels would leave cut off by the window edge; see "Whole panels only". Other values throw. |
 <!-- catalog:end -->
 
 ## Placement, the root marker, key-aware undo and motion

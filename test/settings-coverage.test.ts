@@ -36,6 +36,7 @@ const OWNER_IDS: readonly string[] = [
   'phonux-header-buttons',
   'phonux-max-live-panels',
   'phonux-slot-sizing-resizable-root-v3',
+  'phonux-shrink-whole-panels-v1',
   'phonux-default-frame-v3',
 ];
 

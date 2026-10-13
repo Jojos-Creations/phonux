@@ -70,6 +70,11 @@ A panel is a whole number of slots wide: one slot is the phone width, and each a
 `DRAGGING_ATTRIBUTE` and `CHROME_ATTRIBUTE`, and the part values as `CHROME_PARTS`, so a host imports them and repeats no string. `tuning.chrome` with `mode: 'hover-or-active'` fades
 those parts out for a panel nobody is using, along `fadeEase` (see DESIGN.md, "Panel chrome").
 
+`tuning.shrinkOutOfView` (`'off'`, `'visible'`, `'hidden'`) decides what a stepping row does with the neighbour its shown panels
+would leave cut off by the window edge: `'visible'` draws it smaller by whole slots to fill the free room, on the side the row
+is moving toward; `'hidden'` keeps the room as margin. A resize grabber calls the setter from `usePanelResizing()` so no other
+panel changes size under it (see DESIGN.md, "Whole panels only").
+
 ## Testing a view
 
 `phonux/testing` exports `createFakeHost()`: a recording fake of every host

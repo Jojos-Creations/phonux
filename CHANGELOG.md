@@ -35,6 +35,13 @@
 - `HostProvider` takes a `HostInput`: a `Host` whose `settings` and `device` may be left out (a hidden settings column and
   `DEFAULT_PHONE_SIZE`). `useHost()` still returns the resolved `Host`, the same default objects every render.
 - `createWorkspace`'s `mount` option: an element to render into, or `false`.
+- Whole panels only: new workspace tuning `shrinkOutOfView` (`'off'` default, `'visible'`, `'hidden'`) for a row that steps
+  (`rowGesture: 'step'`). With `'visible'` only the panels fully shown at a stop count as on screen, and the neighbour that
+  would be cut off by the window edge is drawn smaller by whole slots to fill the slots the shown panels leave free: the panel
+  after the group while the row has last gone toward the end, the one before it while it has gone toward the start. Nothing
+  else changes size, `slots` is never written, and `PanelSummary.drawnSlots` and `size` report what is drawn. With `'hidden'` the
+  room stays as margin and no panel is drawn part way, not even mid-glide; `'off'` is today's behaviour. New `usePanelResizing()`
+  returns `[resizing, setResizing]` for a resize grabber or any drag: while a panel is marked it reads as dragging, no other panel's drawn width changes, and the row does not scroll.
 - A header button has two forms, told apart by the `icon` key: with `icon` the label is only the accessible name (as before),
   without it the label is drawn as the button's text (`HeaderButtonIconForm`, `HeaderButtonTextForm`). `icon: undefined` is
   rejected as invalid settings. `usePanelHeaderButtons` items carry `form: 'icon' | 'text'` (`PanelHeaderButtonItem` is now

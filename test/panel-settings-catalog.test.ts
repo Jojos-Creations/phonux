@@ -32,6 +32,7 @@ const NAME_TABLE: Record<CatalogName, true> = {
   maxSlots: true,
   'tuning.heightPerSlot': true,
   'tuning.rowAlign': true,
+  'tuning.shrinkOutOfView': true,
   formFactors: true,
   clearable: true,
   hostCreatable: true,
@@ -113,6 +114,7 @@ const OWNER_TABLE: ReadonlyArray<readonly [string, readonly CatalogName[]]> = [
   ['phonux-header-buttons', ['headerButtons']],
   ['phonux-max-live-panels', ['tuning.maxLivePanels']],
   ['phonux-slot-sizing-resizable-root-v3', ['slots', 'maxSlots', 'tuning.heightPerSlot', 'tuning.rowAlign']],
+  ['phonux-shrink-whole-panels-v1', ['tuning.shrinkOutOfView']],
   ['phonux-default-frame-v3', ['frame']],
 ];
 
@@ -143,7 +145,7 @@ const SCROLL_DEFAULTS = {
 } as const;
 
 const TEMPLATE_KEYS: readonly CatalogName[] = ['hostCreatable', 'multiple', 'maxInstances'];
-const WORKSPACE_ONLY_KEYS: readonly CatalogName[] = ['tuning.rowGap', 'tuning.saveQuietMs', 'tuning.gestureLockMs', 'tuning.gestureQuietMs', 'tuning.resizeSettleSlides', 'tuning.returnTieBreak', 'tuning.dropTieBreak', 'tuning.rowGesture', 'tuning.initialScroll', 'tuning.maxLivePanels', 'tuning.chrome', 'tuning.heightPerSlot', 'tuning.rowAlign'];
+const WORKSPACE_ONLY_KEYS: readonly CatalogName[] = ['tuning.rowGap', 'tuning.saveQuietMs', 'tuning.gestureLockMs', 'tuning.gestureQuietMs', 'tuning.resizeSettleSlides', 'tuning.returnTieBreak', 'tuning.dropTieBreak', 'tuning.rowGesture', 'tuning.initialScroll', 'tuning.maxLivePanels', 'tuning.chrome', 'tuning.heightPerSlot', 'tuning.rowAlign', 'tuning.shrinkOutOfView'];
 const PER_PANEL_TUNING: readonly CatalogName[] = ['tuning.dragToClose', 'tuning.slide', 'tuning.hopFraction', 'tuning.edgeScroll'];
 const expectedDoors = (name: CatalogName): readonly string[] => {
   if (TEMPLATE_KEYS.includes(name)) return ['template'];
@@ -262,7 +264,7 @@ test('catalog: the classes are NOW 17, NEXT 45, STATE 5 and SCOPE 3, and STATE a
   assert.deepEqual(by('SCOPE').sort(), ['hostCreatable', 'maxInstances', 'multiple']);
 });
 
-test('catalog: the doors are template for 3 names, tuning for 13, instance and tuning for 4 and instance for the other 50', () => {
+test('catalog: the doors are template for 3 names, tuning for 14, instance and tuning for 4 and instance for the other 50', () => {
   const by = (doors: string) => PANEL_SETTINGS_CATALOG.filter((d) => d.configure.doors.join(',') === doors).map((d) => d.name);
   assert.deepEqual(by('template').sort(), [...TEMPLATE_KEYS].sort());
   assert.deepEqual(by('tuning').sort(), [...WORKSPACE_ONLY_KEYS].sort());
@@ -343,6 +345,7 @@ test('defaults: LIBRARY_TUNING_DEFAULTS deep-equals the exact object, with the s
     maxLivePanels: null,
     heightPerSlot: 48,
     rowAlign: 'center',
+    shrinkOutOfView: 'off',
   });
 });
 
