@@ -13,7 +13,7 @@ import { ALL_SLOTS, slotsOfTier, tierOfSlots } from './rowConstants.js';
  * One saved panel. `id` only names this panel inside its own file, so an `anchor` can point at another entry;
  * it is replaced on restore. Never saved: `hostData`, `size`, `locked`, `collapsible`, `anchoredEnter`, the settings
  * themselves and the host's root column. The keys from `key` on are written only for a panel that carries settings;
- * a file without them is a 0.1.0 file and restores unchanged.
+ * a file without them restores unchanged.
  * @public
  */
 export type WorkspacePanelState = {
@@ -291,7 +291,7 @@ export function projectWorkspaceState(panels: readonly PanelWindow[], rootId: st
 }
 
 /**
- * The 0.1.0 skeleton of one saved entry under `id`: appendPanel owns the creation rules (permanent forces listed
+ * The settings-free skeleton of one saved entry under `id`: appendPanel owns the creation rules (permanent forces listed
  * false and phone, size comes from the tier), and a permanent column is never parked, so one saved as parked is live.
  * `anchor` is the entry's saved anchor with its target already mapped.
  */

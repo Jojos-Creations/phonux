@@ -40,7 +40,7 @@ function focusInHeaderRow(panelId: string): boolean {
 
 /**
  * The side an entry slides in from. 'left' and 'right' are constants that beat every mark. Otherwise an explicit mark
- * from the engine wins, then the anchor formula for an entry that always uses it ('anchor', or the 0.1.0
+ * from the engine wins, then the anchor formula for an entry that always uses it ('anchor', or the
  * `anchoredEnter` flag) or is entering via an anchor, then the right.
  */
 export function enterDirectionOf(from: ResolvedPanelSettings['enterFrom'], anchoredEnter: boolean, mark: EnterDirection | undefined, viaAnchor: boolean, formula: () => EnterDirection): EnterDirection {
@@ -148,7 +148,7 @@ export function PanelRow({
   maxLiveWidth?: number;
   /** The workspace tuning this row renders with. Omitted: the enclosing Workspace's, else the library defaults. A value that differs from the Workspace's warns once in development. */
   tuning?: WorkspaceTuning;
-  /** The row's numbers (ProvidedPanels.rowNumbers): every width and rest is read from them, and a park exits relative to its rest when `rowScroll` is true. Omitted: the row computes its own from `maxLiveWidth`, as before. */
+  /** The row's numbers (ProvidedPanels.rowNumbers): every width and rest is read from them, and a park exits relative to its rest when `rowScroll` is true. Omitted: the row computes its own from `maxLiveWidth`. */
   rowNumbers?: RowNumbers;
   /** The workspace this row renders. Given, each template view receives its own handle and the reader of every panel, and the row's tuning is the workspace's unless `tuning` is given. */
   workspace?: WorkspaceHandle;
