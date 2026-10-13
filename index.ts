@@ -163,7 +163,7 @@ export type { WorkspaceHandle, WorkspaceOptions } from './workspaceCore.js';
 export type { PanelHandle } from './panelHandles.js';
 export type { ConfigureResult, PanelManager, PanelResult, PinResult, ResetResult } from './panelManager.js';
 export { usePanelStates, usePanelState, useWorkspaceManager } from './panels/usePanelStates.js';
-export { ACTIVE_ATTRIBUTE, CHROME_ATTRIBUTE, CHROME_PARTS, DRAGGING_ATTRIBUTE, useActivePanel, usePanelActive, usePanelDragging } from './panelChrome.js';
+export { ACTIVE_ATTRIBUTE, CHROME_ATTRIBUTE, CHROME_PARTS, DRAGGING_ATTRIBUTE, useActivePanel, usePanelActive, usePanelDragging, usePanelResizing } from './panelChrome.js';
 export type { ChromePart } from './panelChrome.js';
 
 export { PanelManagerError } from './panelManagerError.js';

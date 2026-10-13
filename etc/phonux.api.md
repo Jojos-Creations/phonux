@@ -99,6 +99,9 @@ export function computeRowNumbers(i: {
     gap: number;
     fixedItemCount?: number;
     wholePanels?: boolean;
+    shrink?: 'off' | 'visible' | 'hidden';
+    atFirst?: number;
+    lean?: 'forward' | 'backward';
 }): RowNumbers;
 
 // @public
@@ -974,6 +977,7 @@ export type ResolvedWorkspaceTuning = ResolvedPanelTuning & {
     maxLivePanels: number | null;
     heightPerSlot: number;
     rowAlign: 'top' | 'center' | 'bottom';
+    shrinkOutOfView: 'off' | 'visible' | 'hidden';
 };
 
 // @public
@@ -1015,7 +1019,11 @@ export interface RowLayoutResult {
 
 // @public
 export interface RowNumbers {
+    atStop: number;
+    drawnOffsets: readonly number[];
+    drawnWidths: readonly number[];
     endPad: number;
+    hideOutside: boolean;
     ids: readonly string[];
     leftOffsets: readonly number[];
     maxLiveWidth: number;
@@ -1023,7 +1031,12 @@ export interface RowNumbers {
     reservedWidths: readonly number[];
     rowMarginLeft: number;
     rowScroll: boolean;
+    stopFirsts: readonly number[];
     stops: readonly number[];
+    stopShrinks: readonly ({
+        index: number;
+        slots: number;
+    } | null)[];
     stopSpans: readonly {
         first: number;
         end: number;
@@ -1221,6 +1234,9 @@ export const usePanelReorderEligible: () => boolean;
 
 // @public
 export const usePanelReorderSteps: () => ((offsetX: number) => number);
+
+// @public
+export function usePanelResizing(): readonly [boolean, (on: boolean) => void];
 
 // @public
 export function usePanelState(id: PanelId): PanelState | undefined;
@@ -1434,6 +1450,7 @@ export type WorkspaceTuning = PanelTuning & {
     maxLivePanels?: number | null;
     heightPerSlot?: number;
     rowAlign?: 'top' | 'center' | 'bottom';
+    shrinkOutOfView?: 'off' | 'visible' | 'hidden';
 };
 
 // (No @packageDocumentation comment for this package)

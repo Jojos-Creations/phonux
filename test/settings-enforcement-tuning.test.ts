@@ -252,6 +252,7 @@ test('the library tuning defaults are exactly these numbers, by key name', () =>
     maxLivePanels: null,
     heightPerSlot: 48,
     rowAlign: 'center',
+    shrinkOutOfView: 'off',
   });
 });
 

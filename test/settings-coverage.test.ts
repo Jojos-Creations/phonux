@@ -1,6 +1,6 @@
 /**
  * The release gate over every catalog descriptor: each name has one differential call in test/*.test.ts, a matrix probe,
- * a DESIGN.md row whose class word is the descriptor's, and one of the 15 owning entries. Names are joined from parts so
+ * a DESIGN.md row whose class word is the descriptor's, and one of the 16 owning entries. Names are joined from parts so
  * this file holds no literal call for any name and cannot cover one itself.
  */
 import { test } from 'node:test';
@@ -36,6 +36,7 @@ const OWNER_IDS: readonly string[] = [
   'phonux-header-buttons',
   'phonux-max-live-panels',
   'phonux-slot-sizing-resizable-root-v3',
+  'phonux-shrink-whole-panels-v1',
 ];
 
 const callOf = (name: string): string => ["differential('", name, "'"].join('');
@@ -57,9 +58,9 @@ function docClassWords(doc: string): Map<string, string> {
   return rows;
 }
 
-test('release gate: the catalog has 69 descriptors and the DESIGN.md table has 69 rows', () => {
-  assert.equal(PANEL_SETTINGS_CATALOG.length, 69);
-  assert.equal(docClassWords(DESIGN).size, 69);
+test('release gate: the catalog has 70 descriptors and the DESIGN.md table has 70 rows', () => {
+  assert.equal(PANEL_SETTINGS_CATALOG.length, 70);
+  assert.equal(docClassWords(DESIGN).size, 70);
 });
 
 for (const d of PANEL_SETTINGS_CATALOG) {
@@ -68,12 +69,12 @@ for (const d of PANEL_SETTINGS_CATALOG) {
     assert.equal(holders.length, 1, `${d.name} has ${holders.length} differential calls (${holders.join(', ')})`);
     assert.equal(count(MATRIX, probeOf(d.name)), 1, `${d.name} needs one matrix probe`);
     assert.equal(docClassWords(DESIGN).get(d.name), d.configure.cls, `${d.name} class word in DESIGN.md`);
-    assert.ok(OWNER_IDS.includes(d.ownerEntry), `${d.name} owner ${d.ownerEntry} is not one of the 15 entries`);
+    assert.ok(OWNER_IDS.includes(d.ownerEntry), `${d.name} owner ${d.ownerEntry} is not one of the 16 entries`);
   });
 }
 
-test('release gate: the owners are exactly the 15 listed ids', () => {
-  assert.equal(OWNER_IDS.length, 15);
+test('release gate: the owners are exactly the 16 listed ids', () => {
+  assert.equal(OWNER_IDS.length, 16);
   assert.deepEqual([...new Set(PANEL_SETTINGS_CATALOG.map((d) => d.ownerEntry))].sort(), [...OWNER_IDS].sort());
 });
 
