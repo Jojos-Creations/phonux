@@ -264,3 +264,14 @@ test('setSlots above a panel maxSlots warns once, as a template asking too much 
     warn.mock.restore();
   }
 });
+
+test('a view is told fitSlots, the slots that fit the window at the row gap: 844 gives 2 at 16 and 1 at 24, 1280 gives 3, 1800 gives 4', () => {
+  const fitFor = (container: number, rowGap: number): number | undefined => {
+    const mounted = mount(rowOf([made('a')], { rowGap }, 0, container - 2 * rowGap));
+    const out = summaries.get('a')!.fitSlots;
+    mounted.unmount();
+    return out;
+  };
+  assert.deepEqual([844, 1280, 1800].map((c) => fitFor(c, 16)), [2, 3, 4]);
+  assert.deepEqual([844, 1280, 1800].map((c) => fitFor(c, 24)), [1, 3, 4]);
+});

@@ -143,6 +143,7 @@ export interface PanelSize {
 // @public
 export interface PanelSummary<P = JsonValue> {
     readonly drawnSlots?: number;
+    readonly fitSlots?: number;
     readonly formFactor?: FormFactor;
     readonly id: string;
     readonly live: boolean;

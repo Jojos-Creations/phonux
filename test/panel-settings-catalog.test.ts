@@ -260,7 +260,7 @@ test('catalog: the classes are NOW 16, NEXT 45, STATE 5 and SCOPE 3, and STATE a
   assert.deepEqual(by('SCOPE').sort(), ['hostCreatable', 'maxInstances', 'multiple']);
 });
 
-test('catalog: the doors are template for 3 names, tuning for 11, instance and tuning for 4 and instance for the other 50', () => {
+test('catalog: the doors are template for 3 names, tuning for 13, instance and tuning for 4 and instance for the other 49', () => {
   const by = (doors: string) => PANEL_SETTINGS_CATALOG.filter((d) => d.configure.doors.join(',') === doors).map((d) => d.name);
   assert.deepEqual(by('template').sort(), [...TEMPLATE_KEYS].sort());
   assert.deepEqual(by('tuning').sort(), [...WORKSPACE_ONLY_KEYS].sort());
