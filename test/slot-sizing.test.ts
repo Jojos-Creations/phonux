@@ -62,6 +62,16 @@ test('slotWidth is n phone widths with the gap between them, and fitSlots is the
   assert.deepEqual([[1800 - 32, 4], [1280 - 32, 3], [844 - 32, 2], [390, 1], [796, 2], [1202, 3], [795, 1], [Number.POSITIVE_INFINITY, 3]].map(([room, n]) => [fitSlots(room!, 390, 16), n]), [[4, 4], [3, 3], [2, 2], [1, 1], [2, 2], [3, 3], [1, 1], [3, 3]]);
 });
 
+test('at the app gap of 24 the edge padding is the rowGap tuning: slots are 804 and 1632 wide, and 844 fits 1, 1280 fits 3 and 1800 fits 4', () => {
+  assert.deepEqual([1, 2, 3, 4].map((n) => slotWidth(n, 390, 24)), [390, 804, 1218, 1632]);
+  // The window is the container less one gap each side: the same constant the row pads its container with.
+  assert.deepEqual([844, 1280, 1800].map((container) => fitSlots(container - 2 * 24, 390, 24)), [1, 3, 4]);
+  assert.deepEqual([844, 1280, 1800].map((container) => fitSlots(container - 2 * 16, 390, 16)), [2, 3, 4], 'at the library gap of 16, 844 fits 2');
+  const wide = mount(rowOf([made('a', { slots: 2, maxSlots: 2 }), made('b', { slots: 4, maxSlots: 4 })], { rowGap: 24 }, 0, 1800 - 2 * 24));
+  assert.equal(px(slotOf(wide.container, 'a').style.width), 804);
+  assert.equal(px(slotOf(wide.container, 'b').style.width), 1632);
+});
+
 test('slotHeight adds the per-slot amount, never below the phone height and never above the room', () => {
   assert.deepEqual([1, 2, 3].map((n) => slotHeight(n, 844, 48, 2000)), [844, 892, 940]);
   assert.equal(slotHeight(3, 844, 48, 900), 900, 'capped at the room');
