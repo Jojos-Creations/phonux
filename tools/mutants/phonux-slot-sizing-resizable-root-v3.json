@@ -3,7 +3,8 @@
     "test/slot-sizing.test.ts",
     "test/panel-configure-persistence.test.ts",
     "test/panel-settings-resolver.test.ts",
-    "test/panel-configure-property.test.ts"
+    "test/panel-configure-property.test.ts",
+    "panel-configure-matrix.test.ts"
   ],
   "mutants": [
     {
@@ -94,6 +95,42 @@
       "replace": "const reservedWidths = row.some",
       "expectRed": [
         "seeded random sequences with configure and resetLayout keep the invariants"
+      ]
+    },
+    {
+      "name": "drawnSlotsOf ignores the entry's own maxSlots",
+      "file": "panelTiers.ts",
+      "find": "Math.min(p.slots, p.settings?.maxSlots ?? p.slots, fitSlots(maxLiveWidth, phoneWidth, gap))",
+      "replace": "Math.min(p.slots, fitSlots(maxLiveWidth, phoneWidth, gap))",
+      "expectRed": [
+        "drawnSlotsOf holds a panel to its maxSlots"
+      ]
+    },
+    {
+      "name": "the window is the container less the gap, not the edge padding",
+      "file": "rowNumbers.ts",
+      "find": "const edge = i.edge ?? i.gap;",
+      "replace": "const edge = i.gap;",
+      "expectRed": [
+        "the edge padding is its own tuning"
+      ]
+    },
+    {
+      "name": "the Workspace pads with the row gap",
+      "file": "Workspace.tsx",
+      "find": "const edge = resolved.edgePadding;",
+      "replace": "const edge = resolved.rowGap;",
+      "expectRed": [
+        "differential tuning.edgePadding"
+      ]
+    },
+    {
+      "name": "setSlots above maxSlots is silent",
+      "file": "panels/useProvidePanels.ts",
+      "find": "if (typeof next === 'number' && next > settings.maxSlots) scrollNote(",
+      "replace": "if (typeof next === 'number' && next > settings.maxSlots + 1000) scrollNote(",
+      "expectRed": [
+        "matrix:maxSlots"
       ]
     }
   ]

@@ -12,7 +12,7 @@ import { parksForRoom } from './panelWindow.js';
 export interface RowNumbers {
   /** True when any drawn entry carries settings whose `overflow` is 'scroll': the row scrolls instead of parking for room. */
   rowScroll: boolean;
-  /** The width the strip is seen through: the container less one gap each side. `Infinity` before the row is measured. */
+  /** The width the strip is seen through: the container less the edge space each side. `Infinity` before the row is measured. */
   windowWidth: number;
   /** The width of every drawn entry plus one gap between each two. */
   stripWidth: number;
@@ -42,8 +42,8 @@ export interface RowNumbers {
 }
 
 /**
- * The numbers for one row. A row whose entries carry no `overflow: 'scroll'` settings gets the 0.1.0 numbers
- * (`computeMaxLiveWidth`, `computeRowLayout`'s margin). A scrolling row draws every entry, prices a tablet at its own
+ * The numbers for one row. A row whose entries carry no `overflow: 'scroll'` settings gets `computeMaxLiveWidth`'s
+ * capacity and `computeRowLayout`'s margin. A scrolling row draws every entry, prices a tablet at its own
  * width and a desktop panel at no more than the window, and centres only a strip that fits.
  * @public
  */
@@ -56,6 +56,8 @@ export function computeRowNumbers(i: {
   containerWidth: number;
   /** The row's gap in px. */
   gap: number;
+  /** The space between the row and the container's edge, each side. Default `gap`. */
+  edge?: number;
   /** How many fixed columns a hand-built row prices its capacity from. Default: the drawn entries that are not collapsible. */
   fixedItemCount?: number;
   /** True for a row whose gesture is 'step': the window then shows only whole panels, at the stops. Default false. */
@@ -66,9 +68,10 @@ export function computeRowNumbers(i: {
   // and would turn every hand-built row into a scrolling one.
   const rowScroll = present.some((p) => p.settings?.overflow === 'scroll');
   const measured = i.containerWidth !== 0;
-  const windowWidth = measured ? Math.max(0, i.containerWidth - 2 * i.gap) : Number.POSITIVE_INFINITY;
+  const edge = i.edge ?? i.gap;
+  const windowWidth = measured ? Math.max(0, i.containerWidth - 2 * edge) : Number.POSITIVE_INFINITY;
   const fixedItemCount = i.fixedItemCount ?? present.filter((p) => !p.collapsible).length;
-  const maxLiveWidth = rowScroll ? Math.max(i.phoneWidth, windowWidth) : computeMaxLiveWidth({ containerWidth: i.containerWidth, phoneWidth: i.phoneWidth, gap: i.gap, fixedItemCount });
+  const maxLiveWidth = rowScroll ? Math.max(i.phoneWidth, windowWidth) : computeMaxLiveWidth({ containerWidth: i.containerWidth, phoneWidth: i.phoneWidth, gap: i.gap, fixedItemCount, edge });
   const widths = present.map((p) => panelWidthOf(p, i.phoneWidth, maxLiveWidth, i.gap));
   const parks = present.map((p) => parksForRoom(p));
   const parkLiveWidths = widths.filter((_, k) => parks[k]);
@@ -85,7 +88,7 @@ export function computeRowNumbers(i: {
   if (whole !== null) {
     rowMarginLeft = whole.margins[0]!;
   } else if (!rowScroll) {
-    rowMarginLeft = computeRowLayout({ containerWidth: i.containerWidth, phoneWidth: i.phoneWidth, gap: i.gap, fixedItemCount, liveWidths: present.flatMap((p, k) => (p.collapsible ? [widths[k]!] : [])) }).computedRowMarginLeft;
+    rowMarginLeft = computeRowLayout({ containerWidth: i.containerWidth, phoneWidth: i.phoneWidth, gap: i.gap, edge, fixedItemCount, liveWidths: present.flatMap((p, k) => (p.collapsible ? [widths[k]!] : [])) }).computedRowMarginLeft;
   } else {
     rowMarginLeft = !measured || stripWidth > windowWidth ? 0 : (windowWidth - stripWidth) / 2;
   }

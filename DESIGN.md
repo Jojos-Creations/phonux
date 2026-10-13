@@ -422,7 +422,7 @@ handler can leave panels the resize parked unable to return to the row.
 An entry that carries `slots` is n whole slots wide, not a tier. A slot is one phone width, and the row gap sits between
 slots, so `n` slots are `n x phone + (n - 1) x gap` wide and every edge lands on the row's stop grid. The count drawn is
 `min(slots, maxSlots, fit)`, where `fit = floor((maxLive + gap) / (phone + gap))` and `maxLive` is the window (the
-container less one gap each side) or, in a parking row, what is left beside the fixed columns. The choice (`slots`) is
+container less `edgePadding` each side) or, in a parking row, what is left beside the fixed columns. The choice (`slots`) is
 never rewritten to the drawn count, so a window that grows gives the width back. A panel is also taller by `heightPerSlot`
 (48 px) for each slot past the first, up to the height the Workspace's scroll container leaves for the row, measured with
 a ResizeObserver; unmeasured (jsdom, or a container with no definite height) every panel keeps the phone height. The row
@@ -430,10 +430,12 @@ box is as tall as its tallest panel, and a shorter panel sits at `rowAlign` ('ce
 The slot-out motion of a closing panel drops by the row height. History keeps its own size and is centred like the rest.
 Unmeasured widths use `UNMEASURED_SLOTS` (3), close to the 1200 px a desktop panel was before slots.
 
-At 844, 1280 and 1800 px windows the fit is 2, 3 and 4 slots.
+`edgePadding` (24 px) is the space between the row and the container's edge on every side, separate from `rowGap`, the space
+between panels. At 844, 1280 and 1800 px containers the fit is 2, 3 and 4 slots at a row gap of 16 and 1, 3 and 4 at a row gap
+of 24, both with the 24 px padding; at 843 the gap-16 fit drops to 1.
 
 `formFactor` is a deprecated view of `slots`: one slot is `'phone'`, two `'tablet'`, three or more `'desktop'`. Asking for a
-tier asks for its count (`setFormFactor('desktop')` stores `ALL_SLOTS`, 64, which the fit and `maxSlots` clamp silently);
+tier asks for its count (`setFormFactor('desktop')` stores `ALL_SLOTS`, 64, which the fit and `maxSlots` clamp silently); `setSlots` above `maxSlots` also clamps, and raises a `slots-capped` note so a caller that meant more hears about it;
 asking for both in one layer lets `slots` win, and in different layers the later one. `setFormFactor` and the `formFactors`
 setting stay through 0.2.0-rc.3 and are removed in rc.4. An entry built without `slots` (a hand-built 0.1.0 entry) keeps
 the tier table above; `appendPanel` does not add one, and the settings cascade does.
@@ -1395,6 +1397,7 @@ flip with a transition rule of its own) or SCOPE (a template-scope key).
 | `tuning.chrome` | object: mode 'always' or 'hover-or-active', fadeMs integer [0, 10000], slideMs integer [0, 10000], slidePx integer [0, 200], graceMs integer [0, 10000] (workspace only) | always, 120, 140, 8, 250 (CHROME) | NOW (configureTuning only). A member patch keeps the other members. The chrome shows or hides at this commit; a fade in progress retargets. The library reads `mode` and `fadeMs`; `slideMs`, `slidePx` and `graceMs` are for the host's own icon row. Session-only. |
 | `tuning.maxLivePanels` | integer >= 1, or null for no cap (workspace only) | null (no cap) | NOW (configureTuning only). A lower value parks the excess unpinned panels at this commit through the reconcile effect; a higher one or null returns none under `capacityReturn` manual and the most recently parked under auto. Unmeasured: applies. Outside integers of 1 or more throws; null removes the cap. Session-only. |
 | `tuning.heightPerSlot` | integer 0 to 2000, px added per slot beyond the first (workspace only) | 48 (HEIGHT_PER_SLOT) | NOW (configureTuning only). A panel is taller by this much for each slot it is wider than one, up to the room the row has; the row is as tall as its tallest panel. Unmeasured height: every panel stays at the phone height. Outside 0-2000 throws. |
+| `tuning.edgePadding` | integer px 0 to 200 (workspace only) | 24 (EDGE_PADDING) | NOW (configureTuning only). The space between the row and the container's edge, on every side; the window the strip is seen through is the container less this each side. Separate from `rowGap`, the space between panels. The whole row re-prices at this commit. Outside 0-200 throws. |
 | `tuning.rowAlign` | top, center, bottom (workspace only) | center (ROW_ALIGN) | NOW (configureTuning only). Where a panel shorter than the row sits in it. Other values throw. |
 <!-- catalog:end -->
 

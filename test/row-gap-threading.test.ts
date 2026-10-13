@@ -54,7 +54,7 @@ const slotX = (container: HTMLElement, id: string): number => {
 function provided(rowGap: number, containerWidth: number, count = 0): { now: () => ProvidedPanels; live: () => number; unmount: () => void } {
   let latest: ProvidedPanels | undefined;
   function Probe(): React.ReactElement {
-    latest = useProvidePanels(panelsInput({ initialEntries: [fixedRoot()], containerWidth, tuning: { rowGap } }));
+    latest = useProvidePanels(panelsInput({ initialEntries: [fixedRoot()], containerWidth, tuning: { rowGap, edgePadding: rowGap } }));
     return React.createElement('output');
   }
   const mounted = mount(React.createElement(Probe));
@@ -85,7 +85,7 @@ test('the gap threads through every site at gaps 0, 16 and 40, from literal sums
   const maxLive: Record<number, number> = { 0: 2010, 16: 1962, 40: 1890 };
   for (const gap of GAPS) {
     // Site 1 and 2: three present entries of 390, 768 and 390.
-    const row = mount(rowOf([fixedRoot(), tablet('t'), entry('p')], { rowGap: gap }));
+    const row = mount(rowOf([fixedRoot(), tablet('t'), entry('p')], { rowGap: gap, edgePadding: gap }));
     assert.deepEqual([slotX(row.container, ROOT), slotX(row.container, 't'), slotX(row.container, 'p')], [0, 390 + gap, 390 + gap + 768 + gap], `offsets at gap ${gap}`);
     executed += 1;
     assert.equal(getComputedStyle(row.container.firstElementChild!).width, `${390 + 768 + 390 + 2 * gap}px`, `reserved width at gap ${gap}`);
@@ -107,7 +107,7 @@ test('the gap threads through every site at gaps 0, 16 and 40, from literal sums
           phoneWidth: 390,
           fixedColumnCount: 1,
           liveWidths: [768, 390],
-          tuning: { rowGap: gap },
+          tuning: { rowGap: gap, edgePadding: gap },
           children: React.createElement('i'),
         }),
       ),
@@ -227,11 +227,11 @@ test('a PanelRow inside a Workspace at rowGap 40 draws, pads and prices at 40, a
       }),
     );
   }
-  const mounted = mount(React.createElement(Host, { tuning: { rowGap: 40 } }));
+  const mounted = mount(React.createElement(Host, { tuning: { rowGap: 40, edgePadding: 40 } }));
   assert.ok(log.length > 0, 'the probe committed');
   for (const commit of log) assert.deepEqual(commit, { slotGap: 40, padding: 40, flexGap: 40, boxGap: 40, capacityGap: 40 });
   const before = log.length;
-  mounted.rerender(React.createElement(Host, { tuning: { rowGap: 16 } }));
+  mounted.rerender(React.createElement(Host, { tuning: { rowGap: 16, edgePadding: 16 } }));
   assert.ok(log.length > before, 'the change committed');
   const after = log.slice(before);
   for (const commit of after) assert.deepEqual(commit, { slotGap: 16, padding: 16, flexGap: 16, boxGap: 16, capacityGap: 16 });
@@ -317,7 +317,7 @@ test('the row gap reaches the slot that is entering: through a PanelRow at gap 4
 
 test('the Workspace hands its row gap to the shell margin: with live widths [768, 390] at gap 40 the shell sits 346 left', () => {
   const rowRef = NO_ROW_REF();
-  mount(inWorkspace({ rowGap: 40 }, undefined, [entry('a')], rowRef, [768, 390]));
+  mount(inWorkspace({ rowGap: 40, edgePadding: 40 }, undefined, [entry('a')], rowRef, [768, 390]));
   assert.deepEqual(motionProps(rowRef.current!, 'animate').animate, { marginLeft: 346 });
 });
 

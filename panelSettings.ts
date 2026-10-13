@@ -33,6 +33,7 @@ import {
   RETURN_TIE_BREAK,
   ROW_ALIGN,
   ROW_GAP,
+  EDGE_PADDING,
   ROW_GESTURE,
   SAVE_QUIET_MS,
   SLIDE_CLOSE_EXIT_SECONDS,
@@ -369,6 +370,8 @@ export type PanelTuning = {
 export type WorkspaceTuning = PanelTuning & {
   /** The gap between panels in px, an integer from 0 to 200. */
   rowGap?: number;
+  /** Pixels between the row and the container's edge on every side, an integer from 0 to 200. Separate from `rowGap`. */
+  edgePadding?: number;
   /** Milliseconds of quiet before the workspace is saved. */
   saveQuietMs?: number;
   /** Milliseconds after a row scroll gesture during which further wheel events are ignored. */
@@ -413,6 +416,8 @@ export type ResolvedPanelTuning = {
 export type ResolvedWorkspaceTuning = ResolvedPanelTuning & {
   /** The gap between panels in px, an integer from 0 to 200. */
   rowGap: number;
+  /** Pixels between the row and the container's edge on every side. */
+  edgePadding: number;
   /** Milliseconds of quiet before the workspace is saved. */
   saveQuietMs: number;
   /** Milliseconds after a row scroll gesture during which further wheel events are ignored. */
@@ -1209,6 +1214,17 @@ const CATALOG_ROWS: readonly SettingDescriptor[] = [
     configure: { cls: 'NOW', doors: ['tuning'] },
   },
   {
+    name: 'tuning.edgePadding',
+    group: 'tuning',
+    values: 'integer px 0 to 200 (workspace only)',
+    default: '24 (EDGE_PADDING)',
+    scope: 'workspace',
+    viewSettable: false,
+    exists: 'new',
+    ownerEntry: 'phonux-slot-sizing-resizable-root-v3',
+    configure: { cls: 'NOW', doors: ['tuning'] },
+  },
+  {
     name: 'tuning.dragToClose',
     group: 'tuning',
     values: 'object: distanceFraction [0.05, 1], minDistancePx >= 8, flickMinDistancePx >= 8, flickVelocity >= 100, cancelVelocity <= -50, directionLockPx integer [2, 64], restMs integer [1, 1000], velocityWindowMs integer [16, 1000], snapBack { stiffness [50, 2000], damping [5, 200] }; panel or workspace',
@@ -1460,6 +1476,7 @@ export const LIBRARY_PANEL_DEFAULTS: LibraryPanelDefaults = freezeClone({
  */
 export const LIBRARY_TUNING_DEFAULTS: ResolvedWorkspaceTuning = freezeClone({
   rowGap: ROW_GAP,
+  edgePadding: EDGE_PADDING,
   dragToClose: {
     distanceFraction: DRAG_CLOSE_NUMBERS.distanceFraction,
     minDistancePx: DRAG_CLOSE_NUMBERS.minDistancePx,
@@ -1744,9 +1761,10 @@ const TUNING_MEMBER_CHECKS: Record<'dragToClose' | 'slide' | 'edgeScroll' | 'chr
   },
 };
 
-const TUNING_SCALAR_CHECKS: Record<'hopFraction' | 'rowGap' | 'saveQuietMs' | 'gestureLockMs' | 'gestureQuietMs' | 'returnTieBreak' | 'dropTieBreak' | 'rowGesture' | 'initialScroll' | 'maxLivePanels' | 'heightPerSlot' | 'rowAlign', Check> = {
+const TUNING_SCALAR_CHECKS: Record<'hopFraction' | 'rowGap' | 'edgePadding' | 'saveQuietMs' | 'gestureLockMs' | 'gestureQuietMs' | 'returnTieBreak' | 'dropTieBreak' | 'rowGesture' | 'initialScroll' | 'maxLivePanels' | 'heightPerSlot' | 'rowAlign', Check> = {
   hopFraction: num(0, 1, { minOpen: true }),
   rowGap: integer(0, 200),
+  edgePadding: integer(0, 200),
   saveQuietMs: integer(0),
   gestureLockMs: integer(0),
   gestureQuietMs: integer(1),
@@ -2040,7 +2058,7 @@ function applyRules(s: State, root: boolean): void {
   fill(s, 'clearable', parkable && s.values.closable === true);
 
   if (s.values.parkable === false) {
-    // The size settings are one group: if the panel's own template, host or instance asked for any of them (History is resizable when the app says so), all stand; otherwise they are forced to one phone slot.
+    // The size settings are one group: if the panel's own template, host or instance asked for any of them, all stand; otherwise they are forced to one phone slot.
     const fixedSize = [['resizable', false], ['formFactors', ['phone']], ['formFactor', 'phone'], ['slots', 1], ['maxSlots', 1]] as const;
     const askedForThisPanel = fixedSize.some(([key, applied]) => (s.source[key] === 'template' || s.source[key] === 'host' || s.source[key] === 'instance') && !sameSettingsValue(s.values[key], applied));
     if (!askedForThisPanel) for (const [key, applied] of fixedSize) force(s, key, applied, 'C1', 'parkable');

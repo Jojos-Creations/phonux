@@ -80,6 +80,7 @@ export function computeRowNumbers(i: {
     phoneWidth: number;
     containerWidth: number;
     gap: number;
+    edge?: number;
     fixedItemCount?: number;
     wholePanels?: boolean;
 }): RowNumbers;
@@ -937,6 +938,7 @@ export type ResolvedPanelTuning = {
 // @public
 export type ResolvedWorkspaceTuning = ResolvedPanelTuning & {
     rowGap: number;
+    edgePadding: number;
     saveQuietMs: number;
     gestureLockMs: number;
     gestureQuietMs: number;
@@ -974,6 +976,7 @@ export const ROW_LAYER_Z: Readonly<{
 // @public
 export interface RowLayoutInput {
     containerWidth: number;
+    edge?: number;
     fixedItemCount: number;
     gap: number;
     liveWidths: readonly number[];
@@ -1394,6 +1397,7 @@ export type WorkspaceStorage = {
 // @public
 export type WorkspaceTuning = PanelTuning & {
     rowGap?: number;
+    edgePadding?: number;
     saveQuietMs?: number;
     gestureLockMs?: number;
     gestureQuietMs?: number;

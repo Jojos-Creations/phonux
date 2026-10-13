@@ -91,7 +91,7 @@ test('maxLiveWidth comes from computeRowNumbers at every gap: a desktop panel is
     let latest: ProvidedPanels | undefined;
     const entries = [scrollRoot(), scrollEntry('d', { formFactor: 'desktop' }), scrollEntry('a'), scrollEntry('b'), scrollEntry('c')];
     function Probe(): React.ReactElement {
-      latest = useProvidePanels(panelsInput({ initialEntries: entries, containerWidth: 1000, tuning: { rowGap: gap } }));
+      latest = useProvidePanels(panelsInput({ initialEntries: entries, containerWidth: 1000, tuning: { rowGap: gap, edgePadding: gap } }));
       return React.createElement('output');
     }
     const mounted = mount(React.createElement(Probe));

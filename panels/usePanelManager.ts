@@ -156,7 +156,7 @@ export type Hold = 'sticky' | { readonly freeAfterPark: number };
 export interface PanelManagerOptions {
   /** Receives each note the engine raises; whatever it throws is swallowed. */
   onNote?: (note: SettingNote) => void;
-  /** Only `rowGap`, `returnTieBreak`, `dropTieBreak` and `maxLivePanels` are read here. */
+  /** Only `rowGap`, `edgePadding`, `returnTieBreak`, `dropTieBreak` and `maxLivePanels` are read here. */
   tuning?: WorkspaceTuning;
   /** What the panel's settings resolve to over the layers the workspace holds with the person's `parkable` set; without it no pin change can be applied. */
   resolveWith?: PinEnv['resolveWith'];
@@ -187,13 +187,14 @@ export function usePanelManager(
   const returnTieBreak: NonNullable<WorkspaceTuning['returnTieBreak']> = options?.tuning?.returnTieBreak ?? RETURN_TIE_BREAK;
   const dropTieBreak: NonNullable<WorkspaceTuning['dropTieBreak']> = options?.tuning?.dropTieBreak ?? DROP_TIE_BREAK;
   const gap = options?.tuning?.rowGap ?? ROW_GAP;
+  const edge = options?.tuning?.edgePadding ?? gap;
   const maxLive = options?.tuning?.maxLivePanels ?? null;
   /**
    * What prices `row`: panel widths, how many parkable panels may be live, whether a live set settles, and which panels
    * the cap leaves alone. A scroll panel never parks, so its width comes off the budget instead of counting.
    */
   const pricing = (row: readonly PanelWindow[]) => {
-    const numbers = computeRowNumbers({ entries: row, phoneWidth, containerWidth, gap, fixedItemCount: fixedColumnCount });
+    const numbers = computeRowNumbers({ entries: row, phoneWidth, containerWidth, gap, edge, fixedItemCount: fixedColumnCount });
     // Only a row with a scroll panel, or a fixed column wider than a phone, prices its reserved widths one by one; any other keeps the fixed column count the host passed.
     const widerThanPhone = row.some((p) => isPresent(p) && !p.collapsible && panelWidthOf(p, phoneWidth, numbers.maxLiveWidth, gap) !== phoneWidth);
     const reservedWidths = widerThanPhone || row.some((p) => isPresent(p) && !parksForRoom(p) && p.collapsible) ? numbers.reservedWidths : undefined;
@@ -206,7 +207,7 @@ export function usePanelManager(
       const fitCount =
         containerWidth === 0
           ? null
-          : fixedColumnCount + computeRowLayout({ containerWidth, phoneWidth, gap, fixedItemCount: fixedColumnCount, liveWidths, reservedWidths }).maxLiveThatFit;
+          : fixedColumnCount + computeRowLayout({ containerWidth, phoneWidth, gap, edge, fixedItemCount: fixedColumnCount, liveWidths, reservedWidths }).maxLiveThatFit;
       const effectiveMax = effectiveMaxPanels(fitCount, fixedColumnCount);
       // Floor of 1 keeps the panel just opened on screen even at the narrowest legal width (effectiveMaxPanels
       // already floors at fixedColumnCount + 1, so this bites only when the fixed columns alone reach effectiveMax).

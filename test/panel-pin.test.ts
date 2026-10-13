@@ -222,7 +222,7 @@ test('a fixed pin in an unmeasured row is accepted', async () => {
 async function followRig(scrollOnMove: string | undefined, from: number): Promise<{ r: PinRig; el: HTMLElement }> {
   const ids = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j'];
   const over: PanelSettings = { overflow: 'scroll', ...(scrollOnMove === undefined ? {} : ({ scrollOnMove } as unknown as PanelSettings)) };
-  const r = await pinRig({ ids, width: 1000, settings: Object.fromEntries(ids.map((id) => [id, over])), workspace: { tuning: { rowGesture: 'free' } } });
+  const r = await pinRig({ ids, width: 1000, settings: Object.fromEntries(ids.map((id) => [id, over])), workspace: { tuning: { rowGesture: 'free', edgePadding: 16 } } });
   await advanceFrames(900);
   r.m.container.scrollLeft = from;
   return { r, el: r.m.container };

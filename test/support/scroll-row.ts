@@ -52,7 +52,7 @@ export function mountRow(entries: PanelWindow[], width: number, over: Partial<Pa
   const notes: SettingNote[] = [];
   let latest: ProvidedPanels | undefined;
   function Probe({ containerWidth }: { containerWidth: number }): React.ReactElement {
-    latest = useProvidePanels(panelsInput({ initialEntries: entries, containerWidth, overflowContainerRef: ref, onNote: (n) => void notes.push(n), ...over, tuning: { rowGesture: 'free', ...over.tuning } }));
+    latest = useProvidePanels(panelsInput({ initialEntries: entries, containerWidth, overflowContainerRef: ref, onNote: (n) => void notes.push(n), ...over, tuning: { rowGesture: 'free', edgePadding: 16, ...over.tuning } }));
     const provided = latest;
     return withHost(
       React.createElement(

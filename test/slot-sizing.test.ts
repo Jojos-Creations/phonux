@@ -9,17 +9,22 @@ import './support/jsdom-globals.js';
 import * as React from 'react';
 import { PanelRow, registerView, resolvePanelSettings } from '../index.js';
 import type { PanelSummary, PanelWindow, WorkspaceTuning } from '../index.js';
-import { RowHeightContext } from '../panelTuning.js';
+import { drawnSlotsOf } from '../panelTiers.js';
+import { RowHeightContext, resolveWorkspaceTuning } from '../panelTuning.js';
 import { applyTemplate } from '../panelSettings.js';
 import { appendPanel, createHistoryPanel, setFormFactor, setSlots } from '../panelWindow.js';
 import { projectWorkspaceState } from '../workspaceState.js';
-import { ALL_SLOTS, fitSlots, slotHeight, slotWidth, slotsOfTier, tierOfSlots } from '../rowConstants.js';
+import { ALL_SLOTS, EDGE_PADDING, fitSlots, slotHeight, slotWidth, slotsOfTier, tierOfSlots } from '../rowConstants.js';
 import { differential, differentialsCovered } from './support/differential.js';
-import { cleanup, mount, withHost } from './support/mount-harness.js';
+import { computeRowNumbers } from '../rowNumbers.js';
+import { Workspace } from '../Workspace.js';
+import { advanceFrames, cleanup, mount, withHost } from './support/mount-harness.js';
+import { pinRig } from './support/pin-rig.js';
+import { markerTemplate } from './support/workspace-row.js';
 
 const ROOT = 'root';
 const NONE: ReadonlySet<string> = new Set();
-const OWNED = ['slots', 'maxSlots', 'tuning.heightPerSlot', 'tuning.rowAlign'];
+const OWNED = ['slots', 'maxSlots', 'tuning.heightPerSlot', 'tuning.rowAlign', 'tuning.edgePadding'];
 const summaries = new Map<string, PanelSummary>();
 
 registerView('slot-view', ({ panel }) => {
@@ -70,6 +75,50 @@ test('at the app gap of 24 the edge padding is the rowGap tuning: slots are 804 
   const wide = mount(rowOf([made('a', { slots: 2, maxSlots: 2 }), made('b', { slots: 4, maxSlots: 4 })], { rowGap: 24 }, 0, 1800 - 2 * 24));
   assert.equal(px(slotOf(wide.container, 'a').style.width), 804);
   assert.equal(px(slotOf(wide.container, 'b').style.width), 1632);
+});
+
+const fitAt = (container: number, gap: number, edge: number): number => fitSlots(computeRowNumbers({ entries: [made('a')], phoneWidth: 390, containerWidth: container, gap, edge }).windowWidth, 390, gap);
+
+test('the edge padding is its own tuning: the window is the container less it each side, whatever the row gap, and the default is 24', () => {
+  assert.equal(computeRowNumbers({ entries: [made('a')], phoneWidth: 390, containerWidth: 1000, gap: 16, edge: 24 }).windowWidth, 952);
+  assert.equal(computeRowNumbers({ entries: [made('a')], phoneWidth: 390, containerWidth: 1000, gap: 16 }).windowWidth, 968, 'without an edge the gap stands in, as 0.1.0 priced it');
+  assert.equal(EDGE_PADDING, 24);
+  // Fit per gap at an edge padding of 24 (the app's): the window at 844 is 796, exactly two slots at gap 16 and one short of two at gap 24.
+  assert.deepEqual([844, 1280, 1800].map((container) => fitAt(container, 16, 24)), [2, 3, 4]);
+  assert.deepEqual([844, 1280, 1800].map((container) => fitAt(container, 24, 24)), [1, 3, 4]);
+  assert.deepEqual([843, 844].map((container) => fitAt(container, 16, 24)), [1, 2], 'one pixel less than 844 loses the second slot');
+  assert.deepEqual([843, 844].map((container) => fitAt(container, 16, 16)), [2, 2], 'at 16 of padding the same pixel changes nothing');
+});
+
+test('the edge padding does not follow the row gap, and a refused value falls back to 24', () => {
+  assert.equal(resolveWorkspaceTuning({ rowGap: 40 }).edgePadding, 24);
+  assert.equal(resolveWorkspaceTuning({ rowGap: 40, edgePadding: 8 }).edgePadding, 8);
+  assert.equal(resolveWorkspaceTuning({ edgePadding: -1 }).edgePadding, 24);
+  assert.equal(resolveWorkspaceTuning(undefined).edgePadding, EDGE_PADDING);
+});
+
+test('differential tuning.edgePadding: a wider padding leaves the strip a narrower window and the container more padding', () => {
+  differential('tuning.edgePadding', (run) => {
+    for (const edgePadding of [16, 24]) {
+      run(edgePadding, () => {
+        const containerRef = { current: null as HTMLDivElement | null };
+        const rowRef = { current: null as HTMLDivElement | null };
+        const mounted = mount(withHost(React.createElement(Workspace, { overflowContainerRef: containerRef, rowRef, containerWidth: 1000, rowResizeSettled: true, phoneWidth: 390, fixedColumnCount: 1, liveWidths: [], tuning: { edgePadding }, children: React.createElement('i') })));
+        const style = getComputedStyle(containerRef.current!);
+        const out = [style.paddingTop, style.paddingLeft, style.paddingRight, style.paddingBottom, computeRowNumbers({ entries: [made('a')], phoneWidth: 390, containerWidth: 1000, gap: 16, edge: edgePadding }).windowWidth];
+        mounted.unmount();
+        return out;
+      });
+    }
+  });
+});
+
+test('drawnSlotsOf holds a panel to its maxSlots even when its slots say more, and to what fits when that is less', () => {
+  const entry = (slots: number | undefined, maxSlots: number | undefined) => ({ slots, settings: maxSlots === undefined ? undefined : { maxSlots } }) as never;
+  assert.equal(drawnSlotsOf(entry(4, 2), 390, 5000), 2, 'slots above the cap');
+  assert.equal(drawnSlotsOf(entry(4, 4), 390, slotWidth(3, 390, 16)), 3, 'a window that fits three');
+  assert.equal(drawnSlotsOf(entry(2, undefined), 390, 5000), 2, 'no cap on the entry');
+  assert.equal(drawnSlotsOf(entry(undefined, 2), 390, 5000), undefined, 'a hand-built entry keeps its tier');
 });
 
 test('slotHeight adds the per-slot amount, never below the phone height and never above the room', () => {
@@ -218,4 +267,38 @@ test('the root\'s slot count is saved as rootSlots only when it is more than one
 
 test('this file completed the differential of every name it owns', () => {
   assert.deepEqual(differentialsCovered(), [...OWNED].sort());
+});
+
+test('a closing panel leaves the row box at once: the row is as tall as the tallest panel that stays', () => {
+  const { height } = phone();
+  const tall = made('b', { slots: 3, maxSlots: 3 });
+  const room = height + 400;
+  const mounted = mount(rowOf([made('a'), tall], undefined, room, slotWidth(3, 390, 16)));
+  const withTall = boxHeight(mounted.container);
+  assert.ok(withTall > height, 'positive control: a three-slot panel makes the row taller than a phone');
+  mounted.rerender(rowOf([made('a')], undefined, room, slotWidth(3, 390, 16)));
+  assert.equal(boxHeight(mounted.container), height, 'with the tall panel gone the row box is a phone tall again, while the panel animates out');
+  mounted.unmount();
+});
+
+test('History resized while the row is scrolled to its end: the strip grows by the slot and the gap, nothing parks, and the position stays inside the new strip', async () => {
+  const ids = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h'];
+  const root = markerTemplate('root', { settings: { title: 'History', resizable: true, maxSlots: 3, formFactors: ['phone', 'tablet', 'desktop'] } });
+  const r = await pinRig({ ids, width: 1000, settings: Object.fromEntries(ids.map((id) => [id, { overflow: 'scroll' } as never])), workspace: { tuning: { rowGesture: 'free', edgePadding: 16 }, root } as never });
+  await r.settle();
+  const numbers = () => r.m.latest().rowNumbers;
+  const before = numbers();
+  const farthest = before.stripWidth - before.windowWidth;
+  r.m.container.scrollLeft = farthest;
+  const live = r.live();
+  assert.equal(before.widths[0], 390, 'positive control: History starts at one slot');
+  const res = r.turn(() => r.ws.panels.get('root')!.setSlots(2));
+  assert.deepEqual({ ...res }, { ok: true, changed: true });
+  await advanceFrames(900);
+  const after = numbers();
+  assert.equal(after.widths[0], slotWidth(2, 390, 16));
+  assert.equal(after.stripWidth - before.stripWidth, 390 + 16, 'one more phone width and its gap');
+  assert.deepEqual(r.live(), live, 'a scrolling row parks nothing');
+  assert.ok(r.m.container.scrollLeft <= after.stripWidth - after.windowWidth, 'the position is inside the new strip');
+  assert.equal(after.leftOffsets[after.leftOffsets.length - 1]! + after.widths[after.widths.length - 1]!, after.stripWidth, 'the last panel still ends the strip');
 });

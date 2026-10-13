@@ -9,6 +9,9 @@
  */
 export const ROW_GAP = 16;
 
+/** Space between the row and the container's edge on every side, in px; separate from the row gap. */
+export const EDGE_PADDING = 24;
+
 /** Seconds the box takes to leave the screen after a drag-down close; also the slide's close exit. */
 const CLOSE_EXIT_SECONDS = 0.18;
 
@@ -102,7 +105,7 @@ export const tierOfSlots = (slots: number): 'phone' | 'tablet' | 'desktop' => (s
 /** The widest `slots` slots are drawn: whole phone widths with the row gap between them, so edges sit on the stop grid. */
 export const slotWidth = (slots: number, phoneWidth: number, gap: number): number => slots * phoneWidth + (slots - 1) * gap;
 
-/** The slots a panel is drawn at while the row is unmeasured, close to the 1200 px a desktop panel was before slots. */
+/** The slots a panel is drawn at while the row is unmeasured. */
 export const UNMEASURED_SLOTS = 3;
 
 /** How many slots fit in `maxLiveWidth`; at least one, and `UNMEASURED_SLOTS` while the row is unmeasured (infinite). */
