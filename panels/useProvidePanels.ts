@@ -10,7 +10,7 @@ import { useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore, typ
 import { useReducedMotionConfig } from 'motion/react';
 import type { CreatePanelOptions, FormFactor, JsonValue, PanelsAPI } from '../hostApi.js';
 import { effectiveMaxPanels, rowFitCount } from '../panelCapacity.js';
-import { computeRowNumbers, maxScrollOf, nearestStop, nearestStopIndex, snapToStop, stopIndexOfFirst, type RowNumbers } from '../rowNumbers.js';
+import { computeRowNumbers, maxScrollOf, nearestStop, nearestStopIndex, snapToStop, snapToStopIndex, stopIndexOfFirst, type RowNumbers } from '../rowNumbers.js';
 import { resolveLabels, type PhonuxLabels } from '../labels.js';
 import { rowScrollerFor } from '../rowScroller.js';
 import { gestureTarget, scrollTargetFor } from '../scrollTargets.js';
@@ -317,7 +317,7 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
   const numbersRef = useRef(rowNumbers);
   numbersRef.current = rowNumbers;
   const followStops = tuning.shrinkOutOfView === 'visible';
-  // The slots move on the slide's ease; a glide that must land with them is on the same curve, or a panel wobbles for the length of the step.
+  // A glide that lands a stop moves with the slots on the slide's ease; a pure scroll keeps the scroll ease.
   const glideEase = followStops ? tuning.slide.ease : tuning.slide.glideEase;
   const layoutRef = useRef('');
   const restedRef = useRef(false);
@@ -416,7 +416,8 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
   const snapped = (k: number, raw: number): { to: number; landing: RowPosition | null } => {
     const to = snapToStop(rowNumbers, k, raw);
     if (!followStops || rowNumbers.stops.length === 0) return { to, landing: null };
-    return { to, landing: { first: rowNumbers.stopFirsts[nearestStopIndex(rowNumbers, to)]! } };
+    const stop = snapToStopIndex(rowNumbers, k, raw, stopIndexOfFirst(rowNumbers.stopFirsts, positionRef.current.first));
+    return { to, landing: stop < 0 ? null : { first: rowNumbers.stopFirsts[stop]! } };
   };
   /** Where the container would scroll to put panel `id` at `align`, or null when the row is not laid out for it. */
   const scrollTargetOf = (id: string, align: ScrollAlign): number | null => {
@@ -524,7 +525,7 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
     });
     if (step.kind === 'show') activatePanel(step.id);
     else if (step.kind === 'scroll') {
-      scroller.glideTo(step.to, { durationSec: tuning.slide.durationSec, instant: reducedMotion, ease: glideEase });
+      scroller.glideTo(step.to, { durationSec: tuning.slide.durationSec, instant: reducedMotion, ease: tuning.slide.glideEase });
     }
   };
 
@@ -541,7 +542,7 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
     const opening = !restedRef.current;
     restedRef.current = true;
     if (Math.abs(to - base) < 0.5) return;
-    scroller.glideTo(to, { durationSec: tuning.slide.durationSec, instant: reducedMotion || opening, ease: glideEase });
+    scroller.glideTo(to, { durationSec: tuning.slide.durationSec, instant: reducedMotion || opening, ease: tuning.slide.glideEase });
   }, [rowNumbers.stops.join(','), rowNumbers.rowMarginLeft, rowNumbers.endPad]);
 
   // The row's wheel/arrow-key gesture is wired here, not in the host, so a host stays free of effects and refs.
@@ -705,8 +706,9 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
       }),
     );
     const to = landed.to;
-    if (Math.abs(to - scroller.scrollLeft()) < 0.5) return;
+    // Two stops can share the position the row is at, so the stop it is on can be the wrong one with nothing to scroll.
     if (landed.landing !== null && !scroller.claimHeld()) land(landed.landing);
+    if (Math.abs(to - scroller.scrollLeft()) < 0.5) return;
     if (!scroller.glideTo(to, { durationSec: tuning.slide.durationSec, instant: reducedMotion || !settings.animated, ease: glideEase })) {
       scrollNote('scroll-dropped-during-drag', request.id, `A scroll to panel ${request.id} was dropped: a drag holds the row.`);
     }

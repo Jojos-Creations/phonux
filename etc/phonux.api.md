@@ -101,7 +101,6 @@ export function computeRowNumbers(i: {
     wholePanels?: boolean;
     shrink?: 'off' | 'visible' | 'hidden';
     atFirst?: number;
-    lean?: 'forward' | 'backward';
 }): RowNumbers;
 
 // @public
@@ -1031,10 +1030,10 @@ export interface RowNumbers {
     rowScroll: boolean;
     stopFirsts: readonly number[];
     stops: readonly number[];
-    stopShrinks: readonly ({
+    stopShrinks: readonly (readonly {
         index: number;
         slots: number;
-    } | null)[];
+    }[])[];
     stopSpans: readonly {
         first: number;
         end: number;

@@ -219,19 +219,27 @@ function slotWindowStops(widths: readonly number[], offsets: readonly number[], 
 }
 
 /**
- * The stop to rest at to show panel `index` whole: of the stops whose panels include it, the one nearest `target`.
- * `target` itself when the row has no stops. @internal
+ * The index in `n.stops` of the stop to rest at to show panel `index` whole: of the stops whose panels include it, drawn at its
+ * full width, the one nearest `target`. Of stops that share a position, `prefer` (the stop the row is on) when it is one, else the earliest. -1 when the row has no such stop. @internal
  */
-export function snapToStop(n: RowNumbers, index: number, target: number): number {
-  let best: number | null = null;
+export function snapToStopIndex(n: RowNumbers, index: number, target: number, prefer?: number): number {
+  let best = -1;
   for (const [k, span] of n.stopSpans.entries()) {
     if (index < span.first || index >= span.end) continue;
     // A panel the stop draws smaller is not shown whole by it.
     if (n.stopShrinks[k]!.some((shrunk) => shrunk.index === index)) continue;
-    const stop = n.stops[k]!;
-    if (best === null || Math.abs(stop - target) < Math.abs(best - target)) best = stop;
+    const nearer = best < 0 || Math.abs(n.stops[k]! - target) < Math.abs(n.stops[best]! - target);
+    if (nearer || (k === prefer && n.stops[k] === n.stops[best])) best = k;
   }
-  return best ?? target;
+  return best;
+}
+
+/**
+ * The stop to rest at to show panel `index` whole: where `snapToStopIndex` points, `target` itself when the row has none. @internal
+ */
+export function snapToStop(n: RowNumbers, index: number, target: number): number {
+  const k = snapToStopIndex(n, index, target);
+  return k < 0 ? target : n.stops[k]!;
 }
 
 /** The place in `n.stops` of the stop that group-start panel `first` names: the last one at or before it, or the first. @internal */
@@ -241,7 +249,7 @@ export function stopIndexOfFirst(firsts: readonly number[], first: number): numb
   return found;
 }
 
-/** The index in `n.stops` of the stop nearest `at`; 0 when the row has none. @internal */
+/** The index in `n.stops` of the stop nearest `at`, the earliest of stops that share a position; 0 when the row has none. @internal */
 export function nearestStopIndex(n: RowNumbers, at: number): number {
   let best = 0;
   for (const [k, stop] of n.stops.entries()) if (Math.abs(stop - at) < Math.abs(n.stops[best]! - at)) best = k;
