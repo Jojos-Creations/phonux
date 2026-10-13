@@ -49,12 +49,12 @@
   keeps the right edge still for a grabber on the left. End the drag with `setSlots(nearest)`, `setDrawnWidth(null)`, `setResizing(false)`. The
   row's centring margin now snaps under Reduce Motion instead of gliding.
 - Whole panels only: new workspace tuning `shrinkOutOfView` (`'off'` default, `'visible'`, `'hidden'`) for a row that steps
-  (`rowGesture: 'step'`). With `'visible'` only the panels fully shown at a stop count as on screen, and the neighbour that
-  would be cut off by the window edge is drawn smaller by whole slots to fill the slots the shown panels leave free: the panel
-  after the group while the row has last gone toward the end, the one before it while it has gone toward the start. Nothing
-  else changes size, `slots` is never written, and `PanelSummary.drawnSlots` and `size` report what is drawn. With `'hidden'` the
-  room stays as margin and no panel is drawn part way, not even mid-glide; `'off'` is today's behaviour. New `usePanelResizing()`
-  returns `[resizing, setResizing]` for a resize grabber or any drag: while a panel is marked it reads as dragging, no other panel's drawn width changes, and the row does not scroll.
+  (`rowGesture: 'step'`). With `'visible'` the row moves one slot at a time: every panel steps through every size on its way in (1,
+  2, ... its own width) and on its way out (its own width, ... 2, 1), drawn smaller where the window would cut it, never cropped, so
+  `[2, 2, 2, 2]` takes twice the steps and a panel's page lays out at each size. `slots` is never written; `PanelSummary.drawnSlots`
+  and `size` report what is drawn. With `'hidden'` the room stays as margin and no panel is drawn part way, not even mid-glide; `'off'`
+  is today's behaviour. New `usePanelResizing()` returns `[resizing, setResizing]` for a resize grabber or any drag: while a panel is
+  marked it reads as dragging, no other panel's drawn width changes, and the row does not scroll.
 - A header button has two forms, told apart by the `icon` key: with `icon` the label is only the accessible name (as before),
   without it the label is drawn as the button's text (`HeaderButtonIconForm`, `HeaderButtonTextForm`). `icon: undefined` is
   rejected as invalid settings. `usePanelHeaderButtons` items carry `form: 'icon' | 'text'` (`PanelHeaderButtonItem` is now
