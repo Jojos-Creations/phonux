@@ -73,7 +73,9 @@ those parts out for a panel nobody is using, along `fadeEase` (see DESIGN.md, "P
 `tuning.shrinkOutOfView` (`'off'`, `'visible'`, `'hidden'`) decides what a stepping row does with the neighbour its shown panels
 would leave cut off by the window edge: `'visible'` draws it smaller by whole slots to fill the free room, on the side the row
 is moving toward; `'hidden'` keeps the room as margin. A resize grabber calls the setter from `usePanelResizing()` so no other
-panel changes size under it (see DESIGN.md, "Whole panels only").
+panel changes size under it (see DESIGN.md, "Whole panels only"). The setter's third item, `setDrawnWidth(px, pin?)`, draws that
+panel `px` wide at once, so the grabber follows the pointer frame by frame (`pin: 'end'` keeps the right edge still for a grabber on the left);
+end a drag with `setSlots(nearest)`, `setDrawnWidth(null)` and `setResizing(false)`, in that order.
 
 ## Testing a view
 

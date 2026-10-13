@@ -35,6 +35,11 @@
 - `HostProvider` takes a `HostInput`: a `Host` whose `settings` and `device` may be left out (a hidden settings column and
   `DEFAULT_PHONE_SIZE`). `useHost()` still returns the resolved `Host`, the same default objects every render.
 - `createWorkspace`'s `mount` option: an element to render into, or `false`.
+- `usePanelResizing()` has a third item, `setDrawnWidth(px | null, pin?)`: while a panel is marked resizing, a host draws it `px`
+  wide with no glide so a grabber follows the pointer, and the panels after it, its height and its size box follow on the same frame.
+  It is held between one slot and what fits, never writes `slots` and never reaches the stop list, capacity or the live set. `pin: 'end'`
+  keeps the right edge still for a grabber on the left. End the drag with `setSlots(nearest)`, `setDrawnWidth(null)`, `setResizing(false)`. The
+  row's centring margin now snaps under Reduce Motion instead of gliding.
 - Whole panels only: new workspace tuning `shrinkOutOfView` (`'off'` default, `'visible'`, `'hidden'`) for a row that steps
   (`rowGesture: 'step'`). With `'visible'` only the panels fully shown at a stop count as on screen, and the neighbour that
   would be cut off by the window edge is drawn smaller by whole slots to fill the slots the shown panels leave free: the panel

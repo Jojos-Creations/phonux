@@ -52,6 +52,8 @@ export interface PanelSlotValue {
   readonly id?: string | undefined;
   /** The panel's `animated` setting: false takes the chrome fade, like every other animation, in no time. Optional like `id`. */
   readonly animated?: boolean | undefined;
+  /** True while a host holds a width on a panel of this row (`usePanelResizing`'s `setDrawnWidth`): the row's moves and its size boxes take no time then, so they follow a pointer. */
+  readonly tracking?: boolean | undefined;
   readonly collapsible: boolean;
   readonly closable: ResolvedPanelSettings['closable'];
   readonly draggable: ResolvedPanelSettings['draggable'];
