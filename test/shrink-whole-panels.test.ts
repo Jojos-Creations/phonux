@@ -237,15 +237,23 @@ test("'hidden' draws no panel part way: mid-glide a panel is whole or hidden, wh
   );
 });
 
-test('a hand-built entry without slots never changes size in any mode or lean', () => {
-  const plain = (id: string): PanelWindow => {
+test('a hand-built entry without slots keeps its own width in every mode and lean, where the same widths with slots would shrink', () => {
+  const widthByEntry = (id: string, width: number): PanelWindow => {
     const skeleton = appendPanel([], { url: `https://${id}.example`, title: id, view: 'v' }, id, ROOT)[0]!;
-    return { ...skeleton, collapsible: true, live: true, settings: { overflow: 'scroll' } as never };
+    const formFactor = width === PHONE ? 'phone' : width === slotWidth(2, PHONE, 16) ? 'tablet' : 'desktop';
+    return { ...skeleton, collapsible: true, live: true, formFactor, size: { formFactor, width, height: 700 }, settings: { overflow: 'scroll' } as never };
   };
-  const entries = [plain('a'), plain('b'), plain('c'), plain('d'), plain('e'), plain('f')];
-  for (const lean of ['forward', 'backward'] as const) {
-    const n = numbers(entries, 1800, 16, 'visible', lean);
-    assert.ok(n.stopShrinks.every((s) => s === null));
+  const widths = [PHONE, slotWidth(2, PHONE, 16), slotWidth(3, PHONE, 16), PHONE, slotWidth(2, PHONE, 16)];
+  const slotless = widths.map((w, k) => widthByEntry(`e${k}`, w));
+  const withSlots = row([1, 2, 3, 1, 2]);
+  const control = numbers(withSlots, 1800, 16, 'visible');
+  assert.ok(control.stopShrinks.some((s) => s !== null), 'the control: the same widths with slots shrink a neighbour');
+  for (const mode of ['off', 'visible', 'hidden'] as const) {
+    for (const lean of ['forward', 'backward'] as const) {
+      const n = numbers(slotless, 1800, 16, mode, lean);
+      assert.deepEqual(n.drawnWidths, widths, `${mode} ${lean}: every entry is drawn at its own width`);
+      assert.ok(n.stopShrinks.every((s) => s === null), `${mode} ${lean}: none is shrunk`);
+    }
   }
 });
 
