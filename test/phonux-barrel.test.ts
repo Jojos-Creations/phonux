@@ -18,7 +18,6 @@ const VALUE_EXPORTS = [
   'OVERLAY_Z',
   'PHONE_MODELS',
   'findPhoneModel',
-  'PhoneDetectPrompt',
   'HostMissingProviderError',
   'HostProvider',
   'useHost',
