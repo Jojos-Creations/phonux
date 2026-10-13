@@ -3,6 +3,8 @@
 This package is the seam between a host app and any view -- Settings, History, a live web panel, or a
 third-party one. Nothing here may depend on the app that hosts it.
 
+The panel-facing API is additive from here: breaking changes ship as a new API level, not by changing an existing one.
+
 ## Import boundary
 
 `hostApi.tsx`, and the rest of this folder, import only React, MUI, motion, `@dnd-kit/core` and itself -- never
@@ -1618,7 +1620,6 @@ What stays at module level, and why none of it is a workspace's data:
 - `nextEngineIdValue`: an id counter, so ids stay unique across workspaces.
 - `EMPTY_SET` and `EMPTY_MAP`: defaults for an omitted `PanelRow` prop, never written.
 
-
 ## Workspace options, wrap and update
 
 An auto-mounted workspace needs no hand-built `Host`: what an app hands `HostProvider`, `Workspace` and `useProvidePanels` is an
@@ -1666,7 +1667,6 @@ snaps the row's margin and a panel resize glides it, as the app's own shell did.
 | `useProvidePanels` `onPanelResize` | `panels.onPanelResize` | live |
 | theme, `CaptureRegistryProvider`, the app's own contexts | `wrap` | fixed at creation |
 | anything drawn beside the row (a window drag strip) | `wrap`, a sibling of `children` | fixed at creation |
-
 
 ## The default frame
 
@@ -1890,11 +1890,11 @@ a pull request into `main` runs no cloud check.
 
 ### Release candidate base
 
-`0.2.0-rc.2` is built from this commit of `main`; library source changed since `0.2.0-rc.1`, and the CHANGELOG section
-for `0.2.0-rc.2` lists what.
+`0.2.0-rc.3` is built from this commit of `main`; library source changed since `0.2.0-rc.1`, and the CHANGELOG sections
+for `0.2.0-rc.2` and `0.2.0-rc.3` list what.
 
 ```text
-base: 370e0403440b27309556f5b0f8656140ef70fdb2
+base: b1b9a6702574742dadf2a66cf934a8a07d5c678b
 ```
 
 No real browser has measured this tree. Every claim about real layout, scrolling or painting stays not run; the jsdom and unit
