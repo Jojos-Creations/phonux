@@ -80,7 +80,7 @@ export { slideToTransition } from './directionalTransition.js';
 export { GAP, PANEL_TRANSITION, PanelSizeBox } from './PanelRowSlot.js';
 export { PanelHeaderButtons, usePanelHeaderButtons } from './panelHeaderButtons.js';
 export { PanelFooter } from './panelFooter.js';
-export type { PanelHeaderButtonItem } from './panelHeaderButtons.js';
+export type { PanelHeaderButtonItem, PanelHeaderButtonItemBase, PanelHeaderIconItem, PanelHeaderTextItem } from './panelHeaderButtons.js';
 export { Workspace } from './Workspace.js';
 export type { WorkspaceProps } from './Workspace.js';
 export { useProvidePanels } from './panels/useProvidePanels.js';
@@ -104,6 +104,9 @@ export type {
   ScrollOnDrag,
   HeaderButtonContext,
   HeaderButton,
+  HeaderButtonBase,
+  HeaderButtonIconForm,
+  HeaderButtonTextForm,
   PinHalf,
   Pinning,
   PinWhenNotLive,

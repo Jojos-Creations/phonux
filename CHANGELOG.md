@@ -19,6 +19,11 @@
 
 ### Added
 
+- A header button has two forms, told apart by the `icon` key: with `icon` the label is only the accessible name (as before),
+  without it the label is drawn as the button's text (`HeaderButtonIconForm`, `HeaderButtonTextForm`). `icon: undefined` is
+  rejected as invalid settings. `usePanelHeaderButtons` items carry `form: 'icon' | 'text'` (`PanelHeaderButtonItem` is now
+  a union), with `icon` undefined in the text form. Text longer than 9em is clipped with an ellipsis and, with no `tooltip`
+  declared, shows in full as the tooltip.
 - Slot sizing: a panel is n whole slots wide, a slot being one phone width with the row gap between slots, and a little taller
   for each slot past the first. New per-panel settings `slots` (the choice; `formFactor` becomes its view: 1 phone, 2 tablet,
   3 or more desktop) and `maxSlots`; new workspace tuning `heightPerSlot` (default 48 px, held to the height the row has)
@@ -31,7 +36,6 @@
   (`resizable`, `formFactors`, `formFactor`, `slots`, `maxSlots` stand together), so History can be resizable. Unasked, a
   fixed column is still one phone slot, and a workspace default never unlocks one. A new `resizable-capped` note says a
   `resizable: true` cannot grow because `maxSlots` resolves to 1.
-
 - `ACTIVE_ATTRIBUTE`, `DRAGGING_ATTRIBUTE` and `CHROME_ATTRIBUTE` (the `data-panel-*` names `Panel` writes), and `CHROME_PARTS` with
   the `ChromePart` type (the values of `CHROME_ATTRIBUTE`: `header`, `grab-bar`, `footer`), are exported from the package
   entry so a host stops repeating the strings. The DOM is unchanged.
