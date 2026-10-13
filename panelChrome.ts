@@ -197,7 +197,7 @@ export function usePanelDragging(): boolean {
  * dragging (`usePanelDragging`) for the same span, so a drag of any kind that a host runs shows the chrome a drag shows.
  *
  * `setDrawnWidth(px)` draws the panel `px` wide at once, with no glide, so it follows a pointer frame by frame: its size
- * box, height, the panels after it and the row's reach follow, and `panel.size` reads it back. The width is held between
+ * box, the panels after it and the row's reach follow, and `panel.size` reads it back. The width is held between
  * one slot and the most slots that fit (and the panel's `maxSlots`); a value that is not a finite number is ignored. It never
  * changes the panel's stored `slots`, the panels the row keeps live or the row's stops. `pin` names the edge that stays
  * where it is: `'start'` (the default) keeps the left edge, so the right edge follows a grabber on the right; `'end'` keeps

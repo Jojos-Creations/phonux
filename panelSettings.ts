@@ -26,13 +26,11 @@ import {
   EDGE_SCROLL_REDUCED_STEP_MS,
   EDGE_SCROLL_ZONE_PX,
   GESTURE_LOCK_MS,
-  HEIGHT_PER_SLOT,
   GESTURE_QUIET_MS,
   GLIDE_EASE,
   HOP_FRACTION,
   INITIAL_SCROLL,
   RETURN_TIE_BREAK,
-  ROW_ALIGN,
   ROW_GAP,
   ROW_GESTURE,
   SAVE_QUIET_MS,
@@ -417,10 +415,6 @@ export type WorkspaceTuning = PanelTuning & {
    * value, in one commit; a panel the host hid stays hidden, and scrolling, closing, resizing or an equal or lower value return none.
    */
   maxLivePanels?: number | null;
-  /** Pixels a panel grows taller for each slot it is wider than one, an integer from 0 to 2000; the row's own height caps the result. */
-  heightPerSlot?: number;
-  /** Where a panel shorter than the row sits in it: 'top', 'center' or 'bottom'. */
-  rowAlign?: 'top' | 'center' | 'bottom';
   /**
    * What happens to the neighbour a stepping row would show cut off by the window edge: 'off' leaves every panel at its
    * size, 'visible' draws it smaller by whole slots so it fits the slots the shown panels leave free, 'hidden' keeps
@@ -465,10 +459,6 @@ export type ResolvedWorkspaceTuning = ResolvedPanelTuning & {
   chrome: ChromeTuning;
   /** The most unpinned parkable panels the row keeps live, or `null` for no cap. */
   maxLivePanels: number | null;
-  /** Pixels a panel grows taller for each slot beyond the first. */
-  heightPerSlot: number;
-  /** Where a panel shorter than the row sits in it. */
-  rowAlign: 'top' | 'center' | 'bottom';
   shrinkOutOfView: 'off' | 'visible' | 'hidden';
 };
 
@@ -1409,17 +1399,6 @@ const CATALOG_ROWS: readonly SettingDescriptor[] = [
     configure: { cls: 'NOW', doors: ['tuning'] },
   },
   {
-    name: 'tuning.heightPerSlot',
-    group: 'tuning',
-    values: 'integer 0 to 2000, px added per slot beyond the first (workspace only)',
-    default: '48 (HEIGHT_PER_SLOT)',
-    scope: 'workspace',
-    viewSettable: false,
-    exists: 'new',
-    ownerEntry: 'phonux-slot-sizing-resizable-root-v3',
-    configure: { cls: 'NOW', doors: ['tuning'] },
-  },
-  {
     name: 'tuning.shrinkOutOfView',
     group: 'tuning',
     values: 'off, visible, hidden (workspace only)',
@@ -1428,17 +1407,6 @@ const CATALOG_ROWS: readonly SettingDescriptor[] = [
     viewSettable: false,
     exists: 'new',
     ownerEntry: 'phonux-shrink-whole-panels-v1',
-    configure: { cls: 'NOW', doors: ['tuning'] },
-  },
-  {
-    name: 'tuning.rowAlign',
-    group: 'tuning',
-    values: 'top, center, bottom (workspace only)',
-    default: 'center (ROW_ALIGN)',
-    scope: 'workspace',
-    viewSettable: false,
-    exists: 'new',
-    ownerEntry: 'phonux-slot-sizing-resizable-root-v3',
     configure: { cls: 'NOW', doors: ['tuning'] },
   },
 ];
@@ -1553,8 +1521,6 @@ export const LIBRARY_TUNING_DEFAULTS: ResolvedWorkspaceTuning = freezeClone({
   initialScroll: INITIAL_SCROLL as ResolvedWorkspaceTuning['initialScroll'],
   chrome: { ...CHROME },
   maxLivePanels: null,
-  heightPerSlot: HEIGHT_PER_SLOT,
-  rowAlign: ROW_ALIGN as ResolvedWorkspaceTuning['rowAlign'],
   shrinkOutOfView: SHRINK_OUT_OF_VIEW as ResolvedWorkspaceTuning['shrinkOutOfView'],
 });
 
@@ -1817,7 +1783,7 @@ const TUNING_MEMBER_CHECKS: Record<'dragToClose' | 'slide' | 'edgeScroll' | 'chr
   },
 };
 
-const TUNING_SCALAR_CHECKS: Record<'hopFraction' | 'rowGap' | 'saveQuietMs' | 'gestureLockMs' | 'gestureQuietMs' | 'resizeSettleSlides' | 'returnTieBreak' | 'dropTieBreak' | 'rowGesture' | 'initialScroll' | 'maxLivePanels' | 'heightPerSlot' | 'rowAlign' | 'shrinkOutOfView', Check> = {
+const TUNING_SCALAR_CHECKS: Record<'hopFraction' | 'rowGap' | 'saveQuietMs' | 'gestureLockMs' | 'gestureQuietMs' | 'resizeSettleSlides' | 'returnTieBreak' | 'dropTieBreak' | 'rowGesture' | 'initialScroll' | 'maxLivePanels' | 'shrinkOutOfView', Check> = {
   hopFraction: num(0, 1, { minOpen: true }),
   rowGap: integer(0, 200),
   saveQuietMs: integer(0),
@@ -1833,8 +1799,6 @@ const TUNING_SCALAR_CHECKS: Record<'hopFraction' | 'rowGap' | 'saveQuietMs' | 'g
     return "expected 'start', 'end', 'root' or { panel: a non-empty id }";
   },
   maxLivePanels: (v) => (v === null ? undefined : integer(1)(v)),
-  heightPerSlot: integer(0, 2000),
-  rowAlign: oneOf('top', 'center', 'bottom'),
   shrinkOutOfView: oneOf('off', 'visible', 'hidden'),
 };
 

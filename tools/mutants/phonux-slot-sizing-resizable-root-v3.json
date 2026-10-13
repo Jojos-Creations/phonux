@@ -27,33 +27,6 @@
       ]
     },
     {
-      "name": "a panel is taller than the room the row has",
-      "file": "rowConstants.ts",
-      "find": "Math.min(phoneHeight + (slots - 1) * perSlot, available)",
-      "replace": "phoneHeight + (slots - 1) * perSlot",
-      "expectRed": [
-        "slotHeight adds the per-slot amount"
-      ]
-    },
-    {
-      "name": "the row box stays at the phone height",
-      "file": "PanelRow.tsx",
-      "find": "const rowHeight = Math.max(phoneHeight, ...heights);",
-      "replace": "const rowHeight = phoneHeight;",
-      "expectRed": [
-        "heights: the row is as tall as its tallest panel"
-      ]
-    },
-    {
-      "name": "a shorter panel is never centred",
-      "file": "PanelRow.tsx",
-      "find": "Math.round((rowHeight - height) / 2)",
-      "replace": "0",
-      "expectRed": [
-        "differential tuning.rowAlign"
-      ]
-    },
-    {
       "name": "a fixed column is forced even where its own layers asked for a size",
       "file": "panelSettings.ts",
       "find": "if (!askedForThisPanel) for (const [key, applied] of fixedSize)",
@@ -96,15 +69,6 @@
       "replace": "const reservedWidths = row.some",
       "expectRed": [
         "seeded random sequences with configure and resetLayout keep the invariants"
-      ]
-    },
-    {
-      "name": "a closing panel drops by the phone height, not the row height",
-      "file": "PanelRow.tsx",
-      "find": "phoneHeight={rowHeight}",
-      "replace": "phoneHeight={phoneHeight}",
-      "expectRed": [
-        "a panel closing out of a tall row leaves by the row bottom"
       ]
     },
     {
