@@ -323,6 +323,7 @@ export function PanelRowSlot({
  * `layout` and `exit` on one element). A layout animation sets the real size once and animates a transform
  * toward it, so the view never re-lays out mid-resize; `layout="size"` because the slot's `x` already animates
  * position. A view renders it inside its own slot, so a view that never resizes needs no wrapper.
+ * Under Reduce Motion, or for a panel whose `animated` setting is false, the resize snaps.
  * @public
  */
 export function PanelSizeBox({
@@ -337,9 +338,12 @@ export function PanelSizeBox({
   /** The content, laid out at the new size at once. */
   children: React.ReactNode;
 }) {
-  const slide = React.useContext(PanelSlotContext)?.tuning.slide;
+  const slot = React.useContext(PanelSlotContext);
+  const slide = slot?.tuning.slide;
+  // The system preference is read too: a theme's MotionConfig may not carry it, and a resize must snap under Reduce Motion either way.
+  const snaps = useReducedMotionConfig() === true || useReducedMotion() === true || slot?.animated === false;
   return (
-    <motion.div data-panel-size-box="" layout="size" transition={slide === undefined ? PANEL_TRANSITION : slideToTransition(slide)} style={{ width, height }}>
+    <motion.div data-panel-size-box="" layout="size" transition={snaps ? INSTANT_TRANSITION : slide === undefined ? PANEL_TRANSITION : slideToTransition(slide)} style={{ width, height }}>
       {children}
     </motion.div>
   );

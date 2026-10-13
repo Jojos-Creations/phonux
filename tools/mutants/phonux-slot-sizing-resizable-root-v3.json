@@ -4,7 +4,8 @@
     "test/panel-configure-persistence.test.ts",
     "test/panel-settings-resolver.test.ts",
     "test/panel-configure-property.test.ts",
-    "panel-configure-matrix.test.ts"
+    "test/panel-configure-matrix.test.ts",
+    "test/settings-enforcement-tuning.test.ts"
   ],
   "mutants": [
     {
@@ -131,6 +132,24 @@
       "replace": "if (typeof next === 'number' && next > settings.maxSlots + 1000) scrollNote(",
       "expectRed": [
         "matrix:maxSlots"
+      ]
+    },
+    {
+      "name": "PanelSizeBox ignores Reduce Motion",
+      "file": "PanelRowSlot.tsx",
+      "find": "const snaps = useReducedMotionConfig() === true || useReducedMotion() === true || slot?.animated === false;",
+      "replace": "const snaps = slot?.animated === false;",
+      "expectRed": [
+        "PanelSizeBox snaps under Reduce Motion"
+      ]
+    },
+    {
+      "name": "PanelSizeBox ignores animated false",
+      "file": "PanelRowSlot.tsx",
+      "find": "const snaps = useReducedMotionConfig() === true || useReducedMotion() === true || slot?.animated === false;",
+      "replace": "const snaps = useReducedMotionConfig() === true || useReducedMotion() === true;",
+      "expectRed": [
+        "PanelSizeBox snaps under Reduce Motion"
       ]
     }
   ]
