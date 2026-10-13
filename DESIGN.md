@@ -398,7 +398,8 @@ A request to scroll to a panel (a create, an activate, an undo that restores a l
 the commit that draws the panel, from that commit's row numbers: the target margin of the commit, clamped to
 `maxScrollOf`, never read back from the DOM. One request is pending at a time and the last wins. A request for a panel
 that is not in the row is kept for two commits and then dropped with the note `scroll-request-dropped`; one made while
-a drag holds the claim is dropped with `scroll-dropped-during-drag`. A panel created hidden, a restore, a first paint
+a drag holds the claim is dropped with `scroll-dropped-during-drag`, except while a panel is marked resizing: that claim
+asks for replay, so the last such request is kept and recorded again when the mark clears. A panel created hidden, a restore, a first paint
 and an automatic return record nothing.
 
 With `rowGesture` `step` a sideways wheel, Shift+wheel or arrow key asks for a step. A wheel step starts a lock of `tuning.gestureLockMs` (60 ms; later events do not extend it); once it is over the next wheel event steps again unless it is decaying (smaller than the one before it, in the same direction), so a held wheel or a swipe that keeps its speed steps panel after panel, and a trackpad flick whose deltas fade is one step. `tuning.gestureQuietMs` (150 ms) without a wheel event starts a fresh gesture. On a scrolling row whose strip is

@@ -19,6 +19,7 @@
 
 ### Added
 
+- `scrollTo` called while a panel is marked resizing is no longer dropped: the row keeps the last request and makes it when the mark clears, so a host can clear the mark and `scrollTo` in the same tick. A drag that is not a resize (an edge-scroll drag) still drops it with `scroll-dropped-during-drag`.
 - `usePanelResizing()` has a third item, `setDrawnWidth(px | null, pin?)`: while a panel is marked resizing, a host draws it `px`
   wide with no glide so a grabber follows the pointer, and the panels after it, its height and its size box follow on the same frame.
   It is held between one slot and what fits, never writes `slots` and never reaches the stop list, capacity or the live set. `pin: 'end'`

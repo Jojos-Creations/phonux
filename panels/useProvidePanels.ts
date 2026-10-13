@@ -254,7 +254,9 @@ export interface ProvidedPanels extends PanelsAPI {
   /**
    * Asks the row to scroll to panel `id` after the next commit, at `align` (default: the panel's `scrollOnOpen`, else
    * 'into-view'). True when the request was recorded; false, scrolling nothing, while a drag holds the row or when the
-   * row has no scroll container. A panel not yet in the row is waited for over two commits.
+   * row has no scroll container. A panel not yet in the row is waited for over two commits. While a panel is marked
+   * resizing the request is kept, the last one only, and made when the mark clears, so a host may clear the mark and call
+   * `scrollTo` in one tick.
    */
   scrollTo(id: string, align?: ScrollAlign): boolean;
   /**
@@ -400,8 +402,9 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
     if (el === null) return false;
     const scroller = rowScrollerFor(el);
     if (scroller.claimHeld()) {
-      // The claim of a panel being resized by hand asks for replay: the host that clears the mark and scrolls in one tick gets its scroll.
-      if (scroller.deferUntilFree(() => void requestScroll(request))) return true;
+      // The claim of a panel being resized by hand asks for replay: a host that clears the mark and calls scrollTo in one tick gets its scroll.
+      // Only that call: the follow a resized panel asks for itself, and a create, stay dropped.
+      if (request.forced && scroller.deferUntilFree(() => void requestScroll(request))) return true;
       scrollNote('scroll-dropped-during-drag', request.id, `A scroll to panel ${request.id} was dropped: a drag holds the row.`);
       return false;
     }

@@ -89,3 +89,13 @@ test('a claim taken without replay still drops a scrollTo with the note', async 
   assert.equal(m.container.scrollLeft, 0, 'and it is not run later');
   assert.deepEqual(m.notes.map((n) => n.code), ['scroll-dropped-during-drag']);
 });
+
+test('only scrollTo is kept: a create while the mark holds the row is still dropped with the note and not run later', async () => {
+  const m = await mounted();
+  act(() => marks.get('s1')!(true));
+  act(() => void m.latest().create({ view: 'replay-view' }));
+  act(() => marks.get('s1')!(false));
+  await settle();
+  assert.equal(m.container.scrollLeft, 0, 'nothing is run at the release');
+  assert.deepEqual(m.notes.map((n) => n.code), ['scroll-dropped-during-drag']);
+});
