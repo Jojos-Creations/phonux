@@ -13,6 +13,12 @@
 - A workspace holds its own templates: the module-level template map is gone, so two workspaces on one page can define different
   templates under one id and no workspace sees another's. `resolveView(key)` resolves plain views only; a template renders
   through the row of the workspace that holds it.
+- The USB phone-detect prompt is gone, with nothing in its place. Removed from `phonux`: `PhoneDetectPrompt`,
+  `PhoneDetectPromptProps` and `DetectedPhone` (also from `phonux/testing`'s re-exports). Removed from
+  `PhoneDeviceAPI`: `detectedPhone`, `dismissDetectedPhone` and `resizeForDetectedPhone`, and from `createFakeHost`
+  their stubs. Removed from `PhonuxLabels`: `phoneConnected`, `phoneConnectedText`, `phoneModel`, `resize` and
+  `dismiss`, which only the prompt read. The phone size, `PHONE_MODELS`, `findPhoneModel` and `chooseModel` stay. A
+  host that rendered the prompt deletes it and its `detectedPhone` wiring.
 
 ### Changed
 
@@ -25,6 +31,11 @@
 - `HostProvider` takes a `HostInput`: a `Host` whose `settings` and `device` may be left out (a hidden settings column and
   `DEFAULT_PHONE_SIZE`). `useHost()` still returns the resolved `Host`, the same default objects every render.
 - `createWorkspace`'s `mount` option: an element to render into, or `false`.
+- A header button has two forms, told apart by the `icon` key: with `icon` the label is only the accessible name (as before),
+  without it the label is drawn as the button's text (`HeaderButtonIconForm`, `HeaderButtonTextForm`). `icon: undefined` is
+  rejected as invalid settings. `usePanelHeaderButtons` items carry `form: 'icon' | 'text'` (`PanelHeaderButtonItem` is now
+  a union), with `icon` undefined in the text form. Text longer than 9em is clipped with an ellipsis and, with no `tooltip`
+  declared, shows in full as the tooltip.
 - Slot sizing: a panel is n whole slots wide, a slot being one phone width with the row gap between slots, and a little taller
   for each slot past the first. New per-panel settings `slots` (the choice; `formFactor` becomes its view: 1 phone, 2 tablet,
   3 or more desktop) and `maxSlots`; new workspace tuning `heightPerSlot` (default 48 px, held to the height the row has)
@@ -37,7 +48,6 @@
   (`resizable`, `formFactors`, `formFactor`, `slots`, `maxSlots` stand together), so History can be resizable. Unasked, a
   fixed column is still one phone slot, and a workspace default never unlocks one. A new `resizable-capped` note says a
   `resizable: true` cannot grow because `maxSlots` resolves to 1.
-
 - `ACTIVE_ATTRIBUTE`, `DRAGGING_ATTRIBUTE` and `CHROME_ATTRIBUTE` (the `data-panel-*` names `Panel` writes), and `CHROME_PARTS` with
   the `ChromePart` type (the values of `CHROME_ATTRIBUTE`: `header`, `grab-bar`, `footer`), are exported from the package
   entry so a host stops repeating the strings. The DOM is unchanged.
@@ -381,7 +391,7 @@
   - `computeRowOrder`, `deriveAnchorsFromOrder`, `summarisePanel` and `computeMaxLiveWidth`: `useProvidePanels`
     orders the row and builds `PanelSummary` values; `computeRowLayout` stays.
   - `CaptureRegistryContext`: mount `CaptureRegistryProvider` instead.
-  - `vendorLabelForUsbVendorId`: `PhoneDetectPrompt` renders the label; `PHONE_MODELS` and `findPhoneModel` stay.
+  - `vendorLabelForUsbVendorId`: it only worded the phone-detect prompt, which is gone too (see Breaking under Unreleased); `PHONE_MODELS` and `findPhoneModel` stay.
 - `SettingsAPI.maxPanelsOnScreen`, `fitCount`, `minPanelsOnScreen` and `setMaxPanelsOnScreen`, and
   `PanelsInput.storedMaxPanels` (also gone from `createFakeHost`). Breaking, and a design choice listed for
   review in Jojos-Creations/phonux#2. `SettingsAPI` keeps `settingsColumn`. The app passes nothing in place of

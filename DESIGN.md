@@ -594,7 +594,7 @@ timing are in "Workspace state persistence: shape, ownership and timing" below.
 - **R1. Name by the hierarchy.** A `Panel` slot's own parts are named `Panel*`, what a developer writes is
   named `View*`, and the bag a `View` reaches the host through is named `Host*`.
 - **R2. Phone-only things keep "Phone".** A name keeps "Phone" when the thing it names is phone-specific no
-  matter how big its panel gets -- the phone-model catalog, USB phone detection, the phone size -- so the
+  matter how big its panel gets -- the phone-model catalog, the phone size -- so the
   prefix still means something once panels stop being phone-shaped.
 - **R3. Size-neutral names stay.** A name that already says nothing about phones is not renamed just because
   its folder is; renaming a name that was never phone-specific would buy nothing.
@@ -1388,7 +1388,7 @@ flip with a transition rule of its own) or SCOPE (a template-scope key).
 | `title` | string | none ('Panel N' for the bag) | NOW. L, T, K, H: the summary title changes at this commit (header pill, History row); the closed-pages log entry keeps the old title. U: undo rebuilds with it. null restores the cascade value. |
 | `pinning` | object { pinned: PinHalf, unpinned: PinHalf }; PinHalf = { placement?, parkable? }; valid only if readable after a drag (6A); empty = no pin | { pinned: { placement: 'row-start' }, unpinned: { placement: 'row-end' } } (0.1.0's one pin rule) | NOW. PanelState.pinned and a slot's pressed state re-read at this commit; nothing moves, parks, shows or scrolls. A deferred pin keeps its direction. An unreadable definition or in-place throws. |
 | `pinningWhenNotLive` | place-only, refuse, show, apply-on-next-show; or { parked?, hidden?, closed? } (closed: refuse or apply-on-next-show) | place-only | NEXT. Read by the next pin change. A stored deferred pin is neither applied nor dropped by a flip of this setting. C, U: the record's value governs. |
-| `headerButtons` | object: slot id (1-32 chars a-z0-9-) to HeaderButton or false; HeaderButton = { icon, label, onClick, side?, order?, pressed?, description?, tooltip?, disabled?, hidden?, sx? } (section 6) | {} (no button drawn) | NOW. L, T: a slot appears, changes or disappears at this commit; a focused button that leaves moves focus to the header row; a press already dispatched completes. K, H: stored, first drawn when it returns. null deletes the instance entry; false removes the slot. |
+| `headerButtons` | object: slot id (1-32 chars a-z0-9-) to HeaderButton or false; HeaderButton = { icon?, label, onClick, side?, order?, pressed?, description?, tooltip?, disabled?, hidden?, sx? } (section 6); with icon the label is the accessible name, without it the label is the text drawn | {} (no button drawn) | NOW. L, T: a slot appears, changes or disappears at this commit; a focused button that leaves moves focus to the header row; a press already dispatched completes. K, H: stored, first drawn when it returns. null deletes the instance entry; false removes the slot. |
 | `persist` | saved, session | saved | NEXT. Takes effect at the next save projection; no row effect. saved->session: the entry leaves the file; dependents get derived anchors; an explicit rememberLayout:true is settings-conflict. session->saved: written at the next save. |
 | `rememberLayout` | true, false | true (C3) | NEXT. true->false: gestures are not recorded and, at restore, stored overrides are not applied; nothing moves; the file keeps them. false->true: recording and applying resume. C3: true under persist:session is settings-conflict. |
 | `restoreVisibility` | saved, live, parked | saved (C1) | NEXT. Read only at the next launch's restore. C1: anything but live on a fixed column is settings-conflict. |
@@ -1616,7 +1616,7 @@ fails the check. A deprecated alias keeps `@deprecated` beside its tag. A tag ab
 Extractor reads only the declaration's own comment.
 `ViewStateProvider`, `PANEL_HEADER_GAP_PX`, `OverlayProvider`, `OverlayStore` (with its `Item` and `Entry`),
 `CaptureRegistryContext`, `PanelRowSlot`, `shouldCloseOnRelease` (with its `ReleaseMeasure`), `computeRowOrder`,
-`deriveAnchorsFromOrder`, `summarisePanel`, `computeMaxLiveWidth` and `vendorLabelForUsbVendorId` are exported
+`deriveAnchorsFromOrder`, `summarisePanel` and `computeMaxLiveWidth` are exported
 for this package's own files and tests but reached by no entry point, and are tagged `@internal` to say so.
 
 A public signature pins every type it names. Each one must be exported by the same entry point (otherwise
@@ -1640,7 +1640,7 @@ no built-in button.
 
 ### Slots
 
-`headerButtons` is a map from a slot id to `{ icon, label, onClick, side, order, pressed, description, tooltip, disabled, hidden, sx }`
+`headerButtons` is a map from a slot id to `{ icon?, label, onClick, side, order, pressed, description, tooltip, disabled, hidden, sx }`
 or `false`. It cascades like any setting: a template's slot and an instance's slot both apply, `false` on a later layer removes that
 id, and a layer never holds `null` (a patch's `null` removes the instance's own slot, which gives the template's back). The
 validator in `panelSettings.ts` checks every field of a slot, so a bad slot throws `invalid-settings` naming its layer. A label
@@ -1648,7 +1648,16 @@ function that returns an empty string is the one value it cannot judge; that slo
 
 PanelRow puts the resolved slots and the panel's own handle in the slot context, and `Panel` draws them: buttons of `side: 'start'`
 before the title, the view's own `actions` first among the end side, then the end buttons, each a plain MUI IconButton of size
-small. A slot with only icon, label and onClick renders exactly the markup of such a button written by hand. A panel that declares
+small. A slot with only icon, label and onClick renders exactly the markup of such a button written by hand.
+
+A slot has one of two forms, told apart by the `icon` key alone: with `icon` it is the icon form (the label is only the accessible
+name), without it the text form (the label is also the button's text, a plain MUI Button of size small that keeps the label's
+case). `icon: undefined` is neither form and the validator rejects it, so a forgotten icon is never silently a text button; an
+icon function that returns null is still the icon form and draws an empty button. A text button is at most 9em wide and clips
+longer text with an ellipsis; the title truncates before any button does. When no `tooltip` is declared, the full label becomes the
+tooltip only while the text is clipped. The text button is inside the header part, so it fades with `tuning.chrome` like an icon
+button, and there is no tuning leaf of its own. `usePanelHeaderButtons` lists the form as `form: 'icon' | 'text'`, and `icon` is
+undefined in the text form. A panel that declares
 none, or whose slots are all hidden, renders the markup it always did; the header row takes `tabindex="-1"` only while a slot is
 drawn, so focus has somewhere to go when the button that held it leaves (the one row that holds focus when its last slot is removed
 takes it then). `Panel`'s `headerButtons={false}` keeps the cluster out of

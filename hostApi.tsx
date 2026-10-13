@@ -30,14 +30,6 @@ export interface PhoneSize {
 /** The app's built-in size: upgrading must never silently resize anyone who has not chosen a model. @public */
 export const DEFAULT_PHONE_SIZE: PhoneSize = { modelId: 'default', width: 390, height: 700 };
 
-/** A phone-like USB device the app has just seen for the first time. @public */
-export interface DetectedPhone {
-  /** The device's USB vendor id. */
-  vendorId: number;
-  /** The device's USB product id. */
-  productId: number;
-}
-
 /** One entry of the persisted "Closed Pages" log. @public */
 export interface ClosedPageEntry {
   /** Id of the closed view. */
@@ -237,7 +229,7 @@ export interface PanelsAPI {
   clearAll(): void;
 }
 
-/** The phone size every panel renders at, and the USB phone-detect notice. @public */
+/** The phone size every panel renders at. @public */
 export interface PhoneDeviceAPI {
   /** The size every PanelFrame renders at. Live. */
   readonly size: PhoneSize;
@@ -247,12 +239,6 @@ export interface PhoneDeviceAPI {
   readonly models?: readonly PhoneModel[];
   /** Applies at once, then persists. 'default' resets. Never rejects: where nothing persists, the choice lasts this session only. */
   chooseModel?(modelId: string): Promise<void>;
-  /** Non-null exactly while the one-time "phone connected" notice should show. */
-  readonly detectedPhone?: DetectedPhone | null;
-  /** Hides the notice without changing the size. */
-  dismissDetectedPhone?(): void;
-  /** Resize to `modelId` and dismiss the notice. */
-  resizeForDetectedPhone?(modelId: string): void;
 }
 
 /** Everything a view reaches through `useHost()`. @public */
@@ -263,7 +249,7 @@ export interface Host {
   readonly history?: HistoryAPI;
   /** The panel row. */
   readonly panels: PanelsAPI;
-  /** The phone size and phone-detect notice. */
+  /** The phone size. */
   readonly device: PhoneDeviceAPI;
   /** Optional, unlike every other member: without it useViewSnapshot (snapshots.ts) shows no picture instead
    * of throwing, so a host that does not capture need not supply a no-op. */

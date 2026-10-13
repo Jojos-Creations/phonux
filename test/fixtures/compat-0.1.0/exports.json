@@ -163,6 +163,7 @@
         "PanelRowSlot",
         "PhoneAPIsMissingProviderError",
         "PhoneAPIsProvider",
+        "PhoneDetectPrompt",
         "PhoneFrame",
         "PhoneFrameHeader",
         "PhoneFrameHeaderRow",
@@ -181,11 +182,13 @@
         "vendorLabelForUsbVendorId"
       ],
       "types": [
+        "DetectedPhone",
         "DeviceAPI",
         "Entry",
         "Item",
         "PanelComponent",
         "PhoneAPIs",
+        "PhoneDetectPromptProps",
         "PhoneFrameHeaderProps",
         "PhoneFrameHeaderRowProps",
         "PhoneFrameProps",
@@ -198,6 +201,7 @@
         "createFakePhoneAPIs"
       ],
       "types": [
+        "DetectedPhone",
         "FakePhoneAPIs"
       ]
     }
