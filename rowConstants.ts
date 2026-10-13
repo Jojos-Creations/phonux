@@ -87,12 +87,6 @@ export const EDGE_SCROLL_REDUCED_STEP_MS = 500;
  */
 export const ALL_SLOTS = 64;
 
-/** Pixels a panel grows taller for each slot it is wider than one, before the row's own height caps it. */
-export const HEIGHT_PER_SLOT = 48;
-
-/** Where a panel shorter than the row sits in it: on the row's middle. */
-export const ROW_ALIGN = 'center' as const;
-
 /** Whether a stepping row resizes the neighbour its shown panels would leave cut off by the window edge: 'off' never does. */
 export const SHRINK_OUT_OF_VIEW = 'off' as const;
 
@@ -113,6 +107,3 @@ export function fitSlots(maxLiveWidth: number, phoneWidth: number, gap: number):
   if (!Number.isFinite(maxLiveWidth)) return UNMEASURED_SLOTS;
   return Math.max(1, Math.min(ALL_SLOTS, Math.floor((maxLiveWidth + gap) / (phoneWidth + gap))));
 }
-
-/** A panel `slots` wide is this tall: the phone height plus `perSlot` per added slot, never more than `available` (but never less than the phone height). */
-export const slotHeight = (slots: number, phoneHeight: number, perSlot: number, available: number): number => Math.max(phoneHeight, Math.min(phoneHeight + (slots - 1) * perSlot, available));

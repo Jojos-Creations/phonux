@@ -454,10 +454,7 @@ An entry that carries `slots` is n whole slots wide, not a tier. A slot is one p
 slots, so `n` slots are `n x phone + (n - 1) x gap` wide and every edge lands on the row's stop grid. The count drawn is
 `min(slots, maxSlots, fit)`, where `fit = floor((maxLive + gap) / (phone + gap))` and `maxLive` is the window (the
 container less one gap each side) or, in a parking row, what is left beside the fixed columns. The choice (`slots`) is
-never rewritten to the drawn count, so a window that grows gives the width back. A panel is also taller by `heightPerSlot`
-(48 px) for each slot past the first, up to the height the Workspace's scroll container leaves for the row, measured with
-a ResizeObserver; unmeasured (jsdom, or a container with no definite height) every panel keeps the phone height. The row
-box is as tall as its tallest panel, and a shorter panel sits at `rowAlign` ('center' by default, or 'top' or 'bottom').
+never rewritten to the drawn count, so a window that grows gives the width back. A panel keeps the phone height at any slot count.
 The slot-out motion of a closing panel drops by the row height. History keeps its own size and is centred like the rest.
 Unmeasured widths use `UNMEASURED_SLOTS` (3), close to the 1200 px a desktop panel was before slots.
 
@@ -1297,9 +1294,9 @@ the same call shows the panel or is refused), and `invalid-saved-setting` for ea
 ### Who may set what
 
 The `doors` of a descriptor name the configure call that accepts the key: `instance` (`configure(id)`), `template`
-(`configureTemplate`: `hostCreatable`, `multiple`, `maxInstances`) and `tuning` (`configureTuning`). Fourteen tuning
+(`configureTemplate`: `hostCreatable`, `multiple`, `maxInstances`) and `tuning` (`configureTuning`). Twelve tuning
 leaves are workspace-only (`rowGap`, `saveQuietMs`, `gestureLockMs`, `gestureQuietMs`, `resizeSettleSlides`, `returnTieBreak`, `dropTieBreak`, `rowGesture`,
-`initialScroll`, `maxLivePanels`, `chrome`, `heightPerSlot`, `rowAlign`, `shrinkOutOfView`); four are per panel and also workspace-wide (`dragToClose`, `slide`, `hopFraction`, `edgeScroll`).
+`initialScroll`, `maxLivePanels`, `chrome`, `shrinkOutOfView`); four are per panel and also workspace-wide (`dragToClose`, `slide`, `hopFraction`, `edgeScroll`).
 A workspace-only leaf at the template layer throws, at the instance or host layer it is a `wrong-scope` conflict, and
 any tuning key in the workspace defaults throws. A view's own door, the host layer, accepts only `title`, `listed`,
 `layer`, `formFactor`, `placeOnAdd: { anchor }` and `enterFrom: 'anchor'`.
@@ -1438,8 +1435,6 @@ flip with a transition rule of its own) or SCOPE (a template-scope key).
 | `tuning.initialScroll` | start, end, root, { panel: PanelId } (workspace only; a design-derived key from Q15, not requested) | start (the library default, a design default the owner did not rule on; phonux-app sets 'end', owner Q20: the newest closable panels in view at launch) | NEXT (configureTuning only). Read at the next mount; nothing scrolls now. Session-only. |
 | `tuning.chrome` | object: mode 'always' or 'hover-or-active', fadeMs integer [0, 10000], fadeEase ('easeIn', 'easeOut', 'easeInOut', 'linear' or four numbers, x1 and x2 in [0,1]), slideMs integer [0, 10000], slidePx integer [0, 200], graceMs integer [0, 10000] (workspace only) | always, 120, easeOut, 140, 8, 250 (CHROME) | NOW (configureTuning only). A member patch keeps the other members. The chrome shows or hides at this commit; a fade in progress retargets. The library reads `mode`, `fadeMs` and `fadeEase` (`easeOut` is the curve Motion applies to a fade given only a duration, measured in Chromium); `slideMs`, `slidePx` and `graceMs` are for the host's own icon row. Session-only. |
 | `tuning.maxLivePanels` | integer >= 1, or null for no cap (workspace only) | null (no cap) | NOW (configureTuning only). A lower value parks the excess unpinned panels at this commit through the reconcile effect; a higher one or null returns the most recently parked, under `capacityReturn` auto as under manual (manual returns only the panels the capacity parked, never one the host hid), up to the new value, in one commit. Unmeasured: applies. Outside integers of 1 or more throws; null removes the cap. Session-only. |
-| `tuning.heightPerSlot` | integer 0 to 2000, px added per slot beyond the first (workspace only) | 48 (HEIGHT_PER_SLOT) | NOW (configureTuning only). A panel is taller by this much for each slot it is wider than one, up to the room the row has; the row is as tall as its tallest panel. Unmeasured height: every panel stays at the phone height. Outside 0-2000 throws. |
-| `tuning.rowAlign` | top, center, bottom (workspace only) | center (ROW_ALIGN) | NOW (configureTuning only). Where a panel shorter than the row sits in it. Other values throw. |
 | `tuning.shrinkOutOfView` | off, visible, hidden (workspace only) | off (SHRINK_OUT_OF_VIEW) | NOW (configureTuning only). In a stepping row, what happens to the neighbour a stop's whole panels would leave cut off by the window edge; see "Whole panels only". Other values throw. |
 <!-- catalog:end -->
 

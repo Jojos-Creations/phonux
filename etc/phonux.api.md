@@ -975,8 +975,6 @@ export type ResolvedWorkspaceTuning = ResolvedPanelTuning & {
     };
     chrome: ChromeTuning;
     maxLivePanels: number | null;
-    heightPerSlot: number;
-    rowAlign: 'top' | 'center' | 'bottom';
     shrinkOutOfView: 'off' | 'visible' | 'hidden';
 };
 
@@ -1448,8 +1446,6 @@ export type WorkspaceTuning = PanelTuning & {
         [K in keyof ChromeTuning]?: ChromeTuning[K];
     };
     maxLivePanels?: number | null;
-    heightPerSlot?: number;
-    rowAlign?: 'top' | 'center' | 'bottom';
     shrinkOutOfView?: 'off' | 'visible' | 'hidden';
 };
 
