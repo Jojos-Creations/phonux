@@ -7,10 +7,12 @@
 import * as React from 'react';
 import { AnimatePresence } from 'motion/react';
 import Box from '@mui/material/Box';
+import { AutoMountContext } from './autoMountContext.js';
 import { useHost } from './hostApi.js';
 import { isPresent, summarisePanel, type NeighborWidths, type PanelRowEntry } from './panelRowEntry.js';
 import { anchorTargetOf, resolveEnterDirection, type EnterDirection } from './panelRowOrder.js';
 import { PanelHiddenContext, PanelSlotContext, type DragScroll } from './panelSlotContext.js';
+import type { PanelTemplate } from './panelTemplate.js';
 import { PanelViewContextValue } from './panelViewContext.js';
 import { HEADER_ROW_ATTRIBUTE, headerButtonsOf } from './panelHeaderButtons.js';
 import { LIBRARY_TUNING_DEFAULTS, effective, resolvePanelSettings } from './panelSettings.js';
@@ -23,7 +25,7 @@ import { maxScrollOf, type RowNumbers } from './rowNumbers.js';
 import { panelWidthOf } from './panelTiers.js';
 import { fitSlots, slotWidth } from './rowConstants.js';
 import { ROW_LAYER_Z } from './rowConstants.js';
-import { resolveView } from './viewRegistry.js';
+import { resolveViewIn } from './templateView.js';
 import { bindingOf, viewContextOf, type WorkspaceHandle } from './workspaceCore.js';
 import { useViewState } from './viewState.js';
 
@@ -157,6 +159,12 @@ export function PanelRow({
   const inherited = React.useContext(WorkspaceTuningContext);
   const given = tuning === undefined ? undefined : resolveWorkspaceTuning(tuning);
   const binding = workspace === undefined ? undefined : bindingOf(workspace);
+  const autoMountOf = React.useContext(AutoMountContext);
+  const handMounted = binding?.autoMounted === true && autoMountOf !== workspace;
+  React.useEffect(() => {
+    if (handMounted) binding?.warnHandMounted();
+  }, [handMounted, binding]);
+  const templateOf = (id: string): PanelTemplate | undefined => binding?.template(id);
   const fromWorkspace = React.useSyncExternalStore(binding?.subscribe ?? NO_SUBSCRIBE, () => binding?.tuning, () => binding?.tuning);
   const workspaceTuning = given ?? fromWorkspace ?? inherited ?? LIBRARY_TUNING_DEFAULTS;
   const gap = workspaceTuning.rowGap;
@@ -330,8 +338,8 @@ export function PanelRow({
           const presentIndex = present.indexOf(p);
           const kept = presentIndex < 0;
           const rest = kept ? restRef.current.get(p.id)! : { leftOffset: leftOffsets[presentIndex]!, width: widths[presentIndex]! };
-          const Component = resolveView(p.view);
-          const { closable, draggable, placeable, resizable, formFactors, enterFrom, exitTo, closeExit, animated, layer, scrollOnDrag, headerButtons } = effective(p);
+          const Component = resolveViewIn(templateOf, p.view);
+          const { closable, draggable, placeable, resizable, formFactors, enterFrom, exitTo, closeExit, animated, layer, scrollOnDrag, headerButtons, frame } = effective(p);
           const own = slotTuning(workspaceTuning, binding === undefined ? p.settings?.tuning : binding.panelTuning(p as PanelWindow));
           const handle = viewContext?.handleFor(p.id);
           const report = binding?.reportError ?? console.error;
@@ -351,6 +359,7 @@ export function PanelRow({
                 placeable,
                 resizable,
                 formFactors,
+                frame,
                 id: p.id,
                 animated,
                 tracking,

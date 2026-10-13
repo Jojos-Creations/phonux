@@ -12,6 +12,7 @@ import MoreHorizIcon from '@mui/icons-material/MoreHoriz';
 import { useHost, useOptionalHost, type PanelSize } from './hostApi.js';
 import { resolveLabels } from './labels.js';
 import { PanelFooter } from './panelFooter.js';
+import { useFrameClaim } from './panelFrameClaim.js';
 
 /** The props of `PanelFrame`: every `Box` prop except `children`, plus `expanded` and `size`. @public */
 export interface PanelFrameProps extends Omit<BoxProps, 'children'> {
@@ -91,6 +92,7 @@ const PanelFrame = React.forwardRef<HTMLDivElement, PanelFrameProps>(function Pa
   { children, expanded, size, footer = true, sx, ...rest },
   ref,
 ) {
+  useFrameClaim('frame');
   const deviceSize = useHost().device.size;
   const width = size?.width ?? deviceSize.width;
   const height = size?.height === 'fill' ? '100%' : (size?.height ?? deviceSize.height);

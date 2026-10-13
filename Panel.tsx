@@ -10,6 +10,7 @@ import * as React from 'react';
 import Box, { type BoxProps } from '@mui/material/Box';
 import { PANEL_HEADER_GAP_PX, PanelHeaderRow, type PanelHeaderRowProps } from './PanelFrame.js';
 import { useHost, type PanelSize } from './hostApi.js';
+import { useFrameClaim } from './panelFrameClaim.js';
 import { PanelHiddenContext, PanelSlotContext } from './panelSlotContext.js';
 import { HEADER_ROW_ATTRIBUTE, PanelHeaderButtons, usePanelHeaderButtons } from './panelHeaderButtons.js';
 import { CaptureRegistryContext, type ViewId } from './snapshots.js';
@@ -79,6 +80,7 @@ export interface PanelProps extends Omit<BoxProps, 'children' | 'sx' | 'title'> 
  */
 export function Panel({ title, actions, headerProps, headerButtons = true, grabProps, overlay, sx, children, viewId, capture = 'auto', size, ...rest }: PanelProps) {
   const { device } = useHost();
+  useFrameClaim('panel');
   const registry = React.useContext(CaptureRegistryContext);
   const rootRef = React.useRef<HTMLDivElement | null>(null);
   const hidden = React.useContext(PanelHiddenContext);

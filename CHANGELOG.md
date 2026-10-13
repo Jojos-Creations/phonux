@@ -4,6 +4,15 @@
 
 ### Breaking
 
+- `createWorkspace` renders itself. With a `document` it now creates a full-window element on `document.body` (or renders into the
+  `mount` element you give it), measures it and mounts `HostProvider`, `Workspace` and `PanelRow` for you, so `definePanel`,
+  `createWorkspace` and `addPanel` are a whole app. **Migration:** an app that renders the workspace itself passes
+  `mount: false` to `createWorkspace`; without it the workspace mounts a second root and the first `useProvidePanels` to
+  attach wins. A `PanelRow` given a workspace that also mounts itself warns once in development, naming `mount: false`.
+  Without a `document` (node, SSR) nothing is mounted. The components and `useProvidePanels` stay public for a custom flow.
+- A workspace holds its own templates: the module-level template map is gone, so two workspaces on one page can define different
+  templates under one id and no workspace sees another's. `resolveView(key)` resolves plain views only; a template renders
+  through the row of the workspace that holds it.
 - The USB phone-detect prompt is gone, with nothing in its place. Removed from `phonux`: `PhoneDetectPrompt`,
   `PhoneDetectPromptProps` and `DetectedPhone` (also from `phonux/testing`'s re-exports). Removed from
   `PhoneDeviceAPI`: `detectedPhone`, `dismissDetectedPhone` and `resizeForDetectedPhone`, and from `createFakeHost`
@@ -19,6 +28,21 @@
 
 ### Added
 
+- The README quickstart is the default start (`definePanel`, `createWorkspace`, `addPanel`) with the hand-built `HostProvider`,
+  `Workspace` and `PanelRow` row shown after it. Both blocks are read out of the README by marker, type-checked, and run in
+  `test/readme-quickstart.test.ts`; `npm run smoke` builds and runs the packed README's quickstart against the tarball.
+- `createWorkspace` takes what an app hands `HostProvider`, `Workspace` and `useProvidePanels` as options: `device`, `settings`,
+  `history`, `snapshots`, `labels`, `topInset` and `panels` (`useProvidePanels` inputs such as `onPanelsClosed`, `defaultView` and
+  `capture`), plus `wrap`, a component rendered around the row inside the host. `workspace.update(live)` gives the auto-mounted
+  host new values; it takes only those members, notifies readers only when data changed, and refuses `root`, `templates`,
+  `storage`, `mount` and `wrap` with `invalid-options`. Types: `WorkspaceLive`, `WorkspacePanelsInput`, `WorkspaceWrapProps`.
+- Default frame: a template's view that draws no `Panel` or `PanelFrame` is drawn inside the library's frame (header with the
+  panel's title, grab bar for the drag-down close and reorder, phone frame, template footer). A view that draws any part of a
+  frame itself is unchanged. New per-panel setting `frame` (`'auto'` default, `'none'` opts out). The first panel of a bare
+  template mounts its view twice, once bare and once framed. `PanelFooter` now counts as a part of a frame a view draws.
+- `HostProvider` takes a `HostInput`: a `Host` whose `settings` and `device` may be left out (a hidden settings column and
+  `DEFAULT_PHONE_SIZE`). `useHost()` still returns the resolved `Host`, the same default objects every render.
+- `createWorkspace`'s `mount` option: an element to render into, or `false`.
 - `usePanelResizing()` has a third item, `setDrawnWidth(px | null, pin?)`: while a panel is marked resizing, a host draws it `px`
   wide with no glide so a grabber follows the pointer, and the panels after it, its height and its size box follow on the same frame.
   It is held between one slot and what fits, never writes `slots` and never reaches the stop list, capacity or the live set. `pin: 'end'`

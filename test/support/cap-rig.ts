@@ -87,7 +87,7 @@ export const rowOf = (entries: readonly PanelWindow[]): string =>
 function grabbable(id: string, settings: PanelSettings) {
   return definePanel({
     id,
-    settings,
+    settings: { frame: 'none', ...settings },
     view: function Grab({ panel, handle }) {
       const stepsFor = usePanelReorderSteps();
       return React.createElement(DragToClose, {
@@ -112,6 +112,7 @@ export async function capRig(o: CapRigOptions = {}): Promise<CapRig> {
     return o.grab === true ? grabbable(id, own) : markerTemplate(id, { settings: own });
   };
   const ws = createWorkspace({
+    mount: false,
     root: markerTemplate(ROOT, { settings: { title: 'History' } }),
     templates: ids.map(template),
     tuning: { rowGesture: o.gesture ?? 'step', ...(o.cap === undefined ? {} : { maxLivePanels: o.cap }), ...o.tuning },

@@ -421,7 +421,7 @@ type FreeRig = Pick<Rig, 'ws' | 'h' | 'm' | 'turn'>;
 
 /** A mounted row in the free gesture: these tests pin literal panel-start targets, which the default step gesture would snap to whole-panel stops. */
 async function freeRig(o: { ids: readonly string[]; width: number; settings?: Record<string, PanelSettings> }): Promise<FreeRig> {
-  const ws = createWorkspace({ tuning: { rowGesture: 'free' }, templates: o.ids.map((id) => markerTemplate(id, o.settings?.[id] === undefined ? {} : { settings: o.settings[id] })) });
+  const ws = createWorkspace({ mount: false, tuning: { rowGesture: 'free' }, templates: o.ids.map((id) => markerTemplate(id, o.settings?.[id] === undefined ? {} : { settings: o.settings[id] })) });
   const h: Record<string, PanelHandle> = {};
   for (const id of o.ids) h[id] = ws.addPanel(id);
   const m = mountWorkspace(ws, { width: o.width });
@@ -518,7 +518,7 @@ test('the owner example: a button in panel two toggles panel one through a closu
 test('a ViewHandle has exactly the eighteen sorted keys, pin, unpin and configure among them', async () => {
   const { createWorkspace } = await import('../index.js');
   const { mountWorkspace } = await import('./support/workspace-row.js');
-  const w = createWorkspace({ templates: [markerTemplate('probe')] });
+  const w = createWorkspace({ mount: false, templates: [markerTemplate('probe')] });
   w.addPanel('probe');
   const m = mountWorkspace(w);
   const node = m.container.querySelector('[data-template="probe"]') as HTMLElement;

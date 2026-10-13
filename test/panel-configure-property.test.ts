@@ -78,6 +78,7 @@ const VALUES: Readonly<Record<string, readonly unknown[]>> = {
   scrollOnOpen: ['into-view', 'start', 'center', 'none'],
   scrollOnMove: ['follow', 'none'],
   scrollOnDrag: ['edge', 'none'],
+  frame: ['auto', 'none'],
   toggleWhenClosed: ['ignore', 'reopen'],
   showWhenClosed: ['refuse', 'reopen'],
   viewState: ['keep', 'reset-on-park'],

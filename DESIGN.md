@@ -11,7 +11,7 @@ contracts must work under ANY host, not just this one.
 
 ## The provider is rebuilt every render
 
-`HostProvider`'s `host` value is never memoised, on either side: the host's handlers close over
+`HostProvider`'s `host` value (a `HostInput`, defaults filled in) is never memoised, on either side: the host's handlers close over
 render-time state (the panel list, the column count), so a memoised bag would hand a view a stale closure.
 
 ## Testing without a host
@@ -53,7 +53,7 @@ are about presence and parking, and test/source-invariants.test.ts lists the fun
 
 ## The panel-view registry: never a crash, never a silent substitution
 
-`registerView`/`resolveView` (`viewRegistry.tsx`) let `PanelWindow.view` be an open string
+The legacy `registerView`/`resolveView` (`viewRegistry.tsx`) let `PanelWindow.view` be an open string
 instead of a closed union, so a host or a third party can spawn any registered component by name.
 `resolveView` never returns nothing: an unregistered key -- a typo, or a plugin that failed to
 register -- renders a visible, inert placeholder naming the title and the key, rather than throwing (which
@@ -1440,6 +1440,7 @@ flip with a transition rule of its own) or SCOPE (a template-scope key).
 | `pinning` | object { pinned: PinHalf, unpinned: PinHalf }; PinHalf = { placement?, parkable? }; valid only if readable after a drag (6A); empty = no pin | { pinned: { placement: 'row-start' }, unpinned: { placement: 'row-end' } } (0.1.0's one pin rule) | NOW. PanelState.pinned and a slot's pressed state re-read at this commit; nothing moves, parks, shows or scrolls. A deferred pin keeps its direction. An unreadable definition or in-place throws. |
 | `pinningWhenNotLive` | place-only, refuse, show, apply-on-next-show; or { parked?, hidden?, closed? } (closed: refuse or apply-on-next-show) | place-only | NEXT. Read by the next pin change. A stored deferred pin is neither applied nor dropped by a flip of this setting. C, U: the record's value governs. |
 | `headerButtons` | object: slot id (1-32 chars a-z0-9-) to HeaderButton or false; HeaderButton = { icon?, label, onClick, side?, order?, pressed?, description?, tooltip?, disabled?, hidden?, sx? } (section 6); with icon the label is the accessible name, without it the label is the text drawn | {} (no button drawn) | NOW. L, T: a slot appears, changes or disappears at this commit; a focused button that leaves moves focus to the header row; a press already dispatched completes. K, H: stored, first drawn when it returns. null deletes the instance entry; false removes the slot. |
+| `frame` | auto, none | auto | NOW. Read from the slot on every render. A template's view that draws no `Panel` or `PanelFrame` of its own is drawn inside the library's frame at 'auto'; 'none' never adds one. auto->none takes the library frame away and the view mounts again; none->auto draws it when the view claims no part of a frame. K, H: stored, read when it returns. A view that draws its own frame is unchanged either way. |
 | `persist` | saved, session | saved | NEXT. Takes effect at the next save projection; no row effect. saved->session: the entry leaves the file; dependents get derived anchors; an explicit rememberLayout:true is settings-conflict. session->saved: written at the next save. |
 | `rememberLayout` | true, false | true (C3) | NEXT. true->false: gestures are not recorded and, at restore, stored overrides are not applied; nothing moves; the file keeps them. false->true: recording and applying resume. C3: true under persist:session is settings-conflict. |
 | `restoreVisibility` | saved, live, parked | saved (C1) | NEXT. Read only at the next launch's restore. C1: anything but live on a fixed column is settings-conflict. |
@@ -1559,6 +1560,108 @@ paints or skips the hidden slot, and the timing of the slide, belong to the app'
 - **Tombstones.** A declared `stay-closed` panel that leaves the list is added to the file's `dismissed`; a panel back in the list is removed. The restore skips a dismissed declared panel unless the template is no longer closable or no longer `stay-closed`, and then drops the tombstone and saves. The diff is on the list, so an unmount, which empties nothing, is never a mass close.
 - **Pin state.** `PanelState.pinned` is the pure `isPinned(entry, row, definition)`: a definition naming `parkable` in both halves reads the resolved `parkable`, one naming `row-start` against `row-end` or `after-fixed` reads the side of the root, and both are read when both are named. Nothing stores it, so a drag that re-anchors entries cannot change it.
 - **Errors.** A storage whose `save` throws or rejects reaches `onError`, or `console.error` when it is unset; the row and the next save are unaffected.
+
+## Two layers: the workspace mounts itself, and the components stay public
+
+The default start is `definePanel`, `createWorkspace` and `addPanel`: the workspace creates its own full-window element (`position: fixed; inset: 0`, appended to `document.body`, removed by `dispose()`), measures it, calls `useProvidePanels` and renders `HostProvider`, `Workspace` and `PanelRow` itself. A custom flow writes out the same three components and the same hook, so there are two layers and one implementation: `autoMount.tsx` is built from the exported components and hooks and takes no `@internal` shortcut, and a test renders the same panels both ways and compares the DOM. The mount maps what `useProvidePanels` returns onto the props of the shell and the row in two small functions (`workspaceProps`, `rowProps`), so a prop the row gains has one place to be added.
+
+- **Turning it off.** `mount: false` is the migration for a caller that renders the workspace itself. A `document`-free run mounts nothing either. A `mount` element is rendered into a child of its own and is never emptied. The mount module is loaded by a dynamic `import()` from `workspaceCore.ts` only when a mount happens, so importing the workspace module never requests `react-dom/client`; a test proves it from a child process that records every module request. Mounting is therefore async by a microtask: `addPanel` before and after it behaves as before, and a failed load reaches `onError`.
+- **Said once.** A `PanelRow` given a workspace that also mounts itself warns once in development, naming `mount: false`.
+- **The theme.** The mount wraps the row in a `ThemeProvider` with `createDefaultTheme` (light or dark by `prefers-color-scheme`) and `CssBaseline`, because a row with no theme falls back to MUI's own. A caller who wants another theme mounts the three components.
+- **Defaults.** `HostProvider` takes a `HostInput`: a `Host` whose `settings` and `device` may be left out. The defaults are module constants (`DEFAULT_SETTINGS`, `DEFAULT_DEVICE`) so `useHost()` returns the same objects every render, and a host that names both is passed through as it is.
+- **Templates are per workspace.** A workspace holds its own templates and its row resolves a panel's template through them (`resolveViewIn`), so two workspaces on one page can define different templates under one id. The module-level template map is gone; `resolveView(key)` knows plain views only. A template id that is a legacy `registerView` key still throws `template-collision`.
+
+What stays at module level, and why none of it is a workspace's data:
+
+- `registry`: plain views by key. The legacy `registerView` is an app-wide call and a plain view is not a workspace's data.
+- `placeholders`: one placeholder component per unregistered key, so AnimatePresence sees one component type.
+- `adapters` (templateView.tsx): a WeakMap keyed by template object, one adapter component per template; the template itself is held by the workspace.
+- `BARE_TEMPLATES` (panelFrameBoundary.tsx): a WeakMap keyed by template object, whether that template's view was last found to draw no frame. It decides how to draw the next panel of the template, never what a workspace holds.
+- `CORES`: a WeakMap from a handle to its own core.
+- `nextEngineIdValue`: an id counter, so ids stay unique across workspaces.
+- `EMPTY_SET` and `EMPTY_MAP`: defaults for an omitted `PanelRow` prop, never written.
+
+
+## Workspace options, wrap and update
+
+An auto-mounted workspace needs no hand-built `Host`: what an app hands `HostProvider`, `Workspace` and `useProvidePanels` is an
+option on `createWorkspace`. The members of `WorkspaceLive` (`device`, `settings`, `history`, `snapshots`, `labels`, `topInset`,
+`panels`) are the starting values and the only ones `workspace.update(live)` can change; `root`, `templates`, `storage`, `mount`,
+`wrap` and the other options are fixed for the workspace's life, and `update` naming one throws `invalid-options` and applies
+nothing, not even the live members named beside it. The option names are the `Host` member names, so an option and the same value in
+a hand-built `Host` give the same view result; `settingsColumn` is `settings.settingsColumn`. `panels` is `Partial<PanelsInput>`
+minus what the mount measures (`phoneWidth`, `containerWidth`, `overflowContainerRef`) and what the workspace supplies (`workspace`,
+`rootId`, `storage`, `templates`, `declared`, `workspaceDefaults`, `tuning`, `initialEntries`) and `labels`, which is its own
+option, so there is no member list to keep in step with the hook. `topInset` is an option (the `Workspace` top padding), not a
+tuning leaf: the catalog holds 16 tuning leaves, counted from `PANEL_SETTINGS_CATALOG`, and a test pins the number.
+
+**`wrap`.** A component, `ComponentType<{ children, workspace }>`, rendered inside `HostProvider` and around `Workspace`. The theme,
+a `CaptureRegistryProvider` and the app's own contexts go in it, a hook in it may call `useHost()` and `workspace.update`, and
+anything drawn beside the row is a sibling of `children`. It is read once at creation, so it has one identity for the workspace's
+life and updates re-render it but never remount it. The order of an app's own hooks inside it is the app's.
+
+**`update`.** An app that builds its objects with fresh closures every render may call it from an effect on every render. The
+latest values are always stored, so a closure an app rebuilt is the one a later render hands on, but readers are told only when the
+data of a member changed: functions compare equal whatever their identity, a function against none does not, and objects and arrays
+compare by their members. The caller is not subscribed to its own push. Values given to `createWorkspace` are on the first paint; an
+update from a layout effect in `wrap` is applied in the task that rendered the row, before the browser paints. The callbacks of
+`panels` are live: the mount hands `useProvidePanels` a stand-in for each, which calls the latest one. The mount leaves
+`rowResizeSettled` to `Workspace`, which calls the width settled after `tuning.resizeSettleSlides` slide durations, so a window drag
+snaps the row's margin and a panel resize glides it, as the app's own shell did.
+
+| Passed today | Option | Fixed or live |
+| --- | --- | --- |
+| `HostProvider` `host.device` | `device` | live (`update`) |
+| `HostProvider` `host.settings` (the settings column) | `settings` | live |
+| `HostProvider` `host.history` | `history` | live |
+| `HostProvider` `host.snapshots` | `snapshots` | live |
+| `HostProvider` `host.labels`, `useProvidePanels` `labels` | `labels` | live |
+| `HostProvider` `host.panels` | the mount's own `useProvidePanels` result | mount-owned |
+| `Workspace` `topPadding` | `topInset` | live |
+| `Workspace` `phoneWidth` | `device.size.width` | live |
+| `Workspace` `overflowContainerRef`, `rowRef`, `containerWidth`, `rowResizeSettled` | none: the mount measures and `Workspace` settles | mount-owned |
+| `Workspace` `fixedColumnCount`, `liveWidths`, `rowScroll`, `rowNumbers`, `tuning` | none: taken from `useProvidePanels` | mount-owned |
+| `Workspace` `beforeRow` | none: its one user, the phone-detect notice, is gone; a custom flow keeps `Workspace` | missing setting (no consumer) |
+| `PanelRow`'s ten props | none: taken from `useProvidePanels` | mount-owned |
+| `useProvidePanels` `defaultView`, `defaultHostData` | `panels.defaultView`, `panels.defaultHostData` | live, read at each create |
+| `useProvidePanels` `capture` | `panels.capture` | live |
+| `useProvidePanels` `onPanelsClosed`, `onPanelsRestored`, `resetHostDataOnRestore` | `panels.*` | live (latest callback runs) |
+| `useProvidePanels` `onPanelResize` | `panels.onPanelResize` | live |
+| theme, `CaptureRegistryProvider`, the app's own contexts | `wrap` | fixed at creation |
+| anything drawn beside the row (a window drag strip) | `wrap`, a sibling of `children` | fixed at creation |
+
+
+## The default frame
+
+A template's view that draws no `Panel` and no `PanelFrame` is drawn inside the library's frame: the header with the panel's
+title (`labels.untitledPanel` when it has none), the grab bar of the drag-down close and the reorder drag, the phone frame and the
+template's footer, built from the exported `Panel`, `PanelFrame` and `DragToClose` and sized by the panel's slots like any other
+panel. A view that draws any part of a frame itself is left exactly as it was. The `frame` setting (`'auto'`, the default, or
+`'none'`) is the opt-out: `'none'` never adds a frame.
+
+**How the library knows.** The adapter that renders a template's view puts a boundary above it (`FrameBoundary`, no DOM). A
+`Panel`, a `PanelFrame` or a `PanelFooter` that mounts below claims the boundary in a layout effect, before paint. A boundary that
+heard no claim after the view's own layout effects draws the frame, and remembers the verdict for the template object, so the next
+panel of the same template is framed at once. One consequence is documented, not hidden: the first panel of a bare template mounts
+its view twice, once bare and once inside the frame, so a bare view must not do work in a mount effect that cannot be repeated.
+
+**The cases between.** Any claim means self-framed, as today: a view that draws only a `PanelFrame` (or only a `Panel`, or only
+`PanelFooter`) gets no library frame and no warning. A view that renders nothing first and a `Panel` later (lazy, or `null` while it
+loads) claims late; the boundary then takes the library frame back and the view mounts again without it, so state that decides
+whether the `Panel` renders belongs outside the view. React.lazy resolves from its cache on that second mount and is unaffected.
+Under StrictMode the claim is made and given back by the same effect pair, so the verdict is the same. A panel that parks and
+returns keeps the verdict; it is not probed again.
+
+**Rejected.** (a) An outer frame that every view sits in, with the inner `Panel` hiding itself when it finds one: a `Panel` the view
+configures (`grabProps`, `overlay`, `headerProps`, `sx`, its rest props) would have to hand every one of those up to the outer
+frame, and a prop missed is a view that changed. (b) An outer frame that is taken away when a claim arrives: every self-framed view
+would mount twice at launch, once inside a frame it does not want. The boundary instead leaves a self-framed view's tree as it was,
+and golden DOM recorded before the frame existed (test/golden/default-frame-self-framed.json) holds that, with mount and unmount
+counts of one and none.
+
+**Cost.** One setting: the catalog holds `frame` as NOW, instance scope, not view-settable. It is read from the slot on every
+render, so going from `'auto'` to `'none'` takes the library frame away and the view mounts again, and the other way draws it when
+the view claims no part of a frame.
 
 ## Operations on a handle
 

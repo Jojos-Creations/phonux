@@ -1,61 +1,105 @@
 # phonux
 
-A phone-shaped view host for React: write a view against a small set of host
-APIs, register it, and render it inside one `<HostProvider>`. The host decides
-which views are live; a view never touches `localStorage`,
-or anything else app-internal (see `DESIGN.md` in this folder for why).
+A phone-shaped view host for React: write each view as a component, give phonux a template for it, and it lays the panels
+out in a scrolling row of phone-sized columns, with a title bar, drag to reorder and drag to close. A view never touches
+`localStorage` or anything else app-internal (see `DESIGN.md` in this folder for why).
 
-Install it from npm, together with the peer dependencies listed below:
+## Install
 
-```sh
-npm install phonux
-```
-
-The package also ships `DESIGN.md`, which explains the design decisions behind
-the API.
-
-## Peer dependencies
-
-phonux does not bundle React, MUI, emotion or motion -- it expects the host
-app to already have them:
+While 0.2 is a release candidate, install the `next` tag, together with the peer dependencies:
 
 ```sh
+npm install phonux@next
 npm install react react-dom @mui/material @mui/icons-material @emotion/react @emotion/styled motion
 ```
 
+`@dnd-kit/core` is a dependency of phonux, not a peer: npm installs it for you. The package also ships `DESIGN.md`, which explains
+the design decisions behind the API.
+
 ## Quickstart
 
-A view reads what it needs from `useHost()` and renders a `<Panel>`:
-
+<!-- quickstart:start -->
 ```tsx
-import { Panel, PanelFrame, useHost, registerView, type ViewProps } from 'phonux';
+import { createWorkspace, definePanel } from 'phonux';
 
-function MyView({ panel }: ViewProps) {
-  const host = useHost();
-  return (
-    <Panel title={panel.title}>
-      <PanelFrame>{host.device.size.width}px wide</PanelFrame>
-    </Panel>
-  );
+function Notes() {
+  return <p>Hello from a phone-shaped panel.</p>;
 }
 
-registerView('my-view', MyView);
+const notes = definePanel({ id: 'notes', view: Notes, settings: { title: 'Notes' } });
+
+const workspace = createWorkspace({ templates: [notes] });
+workspace.addPanel('notes');
 ```
+<!-- quickstart:end -->
 
-The host mounts one `<HostProvider>`, near the app's root, with its own
-implementation of the host APIs:
+That is the whole app: `createWorkspace` renders itself into a full-window element, so there is no component to mount, no
+host to build and no width to track. A view returns bare content and phonux draws the panel around it (title bar, grab bar,
+drag to close, reorder). Nothing is saved between launches until you pass a `storage` option.
 
+Pass the app's own values as options (`device`, `settings`, `history`, `snapshots`, `labels`, `topInset`, `panels`), a `wrap`
+component for the app's providers, and `workspace.update(...)` to give a running workspace new values (see `DESIGN.md`,
+"Workspace options, wrap and update"). A title-bar button is a setting too: `headerButtons: { more: { label: 'More', onClick } }`
+draws the label as the button's text.
+
+## Building your own flow
+
+The default start is built on the components it exports, and they stay public. This is the same row written out by hand: create
+the workspace with `mount: false`, then render the row inside the app's own MUI `ThemeProvider`.
+
+<!-- advanced:start -->
 ```tsx
-import { HostProvider } from 'phonux';
+import * as React from 'react';
+import { HostProvider, PanelRow, Workspace, useProvidePanels, type WorkspaceHandle } from 'phonux';
 
-function App({ host }) {
+const PHONE_WIDTH = 390;
+
+export function Row({ workspace }: { workspace: WorkspaceHandle }) {
+  const ref = React.useRef<HTMLDivElement>(null);
+  const rowRef = React.useRef<HTMLDivElement>(null);
+  const [containerWidth, setContainerWidth] = React.useState(0);
+  React.useLayoutEffect(() => {
+    const el = ref.current!;
+    const read = () => setContainerWidth(el.clientWidth);
+    read();
+    const observer = new ResizeObserver(read);
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
+  const provided = useProvidePanels({ workspace, rootId: workspace.rootId, phoneWidth: PHONE_WIDTH, containerWidth, overflowContainerRef: ref });
   return (
-    <HostProvider host={host}>
-      {/* ...the row that resolves and renders registered views... */}
+    <HostProvider host={{ panels: provided }}>
+      <Workspace
+        overflowContainerRef={ref}
+        rowRef={rowRef}
+        containerWidth={containerWidth}
+        phoneWidth={PHONE_WIDTH}
+        fixedColumnCount={provided.fixedViewCount}
+        liveWidths={provided.liveWidths}
+        rowScroll={provided.rowScroll}
+        rowNumbers={provided.rowNumbers}
+        tuning={provided.tuning}
+      >
+        <PanelRow
+          entries={provided.entries}
+          rootId={workspace.rootId}
+          closingIds={provided.closingIds}
+          enteringViaAnchorIds={provided.enteringViaAnchorIds}
+          exitRightIds={provided.exitRightIds}
+          enterSideById={provided.enterSideById}
+          maxLiveWidth={provided.maxLiveWidth}
+          tuning={provided.tuning}
+          rowNumbers={provided.rowNumbers}
+          workspace={workspace}
+        />
+      </Workspace>
     </HostProvider>
   );
 }
 ```
+<!-- advanced:end -->
+
+The two layers draw the same DOM; the advanced one exists for flows the options do not reach, not as a second way to start.
 
 ## Panel sizing
 
@@ -86,10 +130,11 @@ API, so a view can be rendered with no real host behind it.
 import { render } from '@testing-library/react';
 import { HostProvider } from 'phonux';
 import { createFakeHost } from 'phonux/testing';
+import { Notes } from './Notes';
 
 render(
   <HostProvider host={createFakeHost()}>
-    <MyView panel={{ id: '1', live: true, locked: false }} />
+    <Notes />
   </HostProvider>,
 );
 ```

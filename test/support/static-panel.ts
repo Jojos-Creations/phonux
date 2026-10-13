@@ -16,7 +16,7 @@ import { slotTuning } from '../../panelTuning.js';
 let handleForStatic: PanelHandle | undefined;
 /** A handle of a workspace that is never mounted: enough for a static render that only reads its state. */
 export function staticHandle(): PanelHandle {
-  handleForStatic ??= createWorkspace({ templates: [definePanel({ id: 'a', view: () => null })] }).addPanel('a');
+  handleForStatic ??= createWorkspace({ mount: false, templates: [definePanel({ id: 'a', view: () => null })] }).addPanel('a');
   return handleForStatic;
 }
 

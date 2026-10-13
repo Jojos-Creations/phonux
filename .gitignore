@@ -3,3 +3,4 @@ dist/
 api-extractor-temp/
 *.tgz
 __pycache__/
+.readme-run-*/

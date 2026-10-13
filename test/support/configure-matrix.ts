@@ -201,6 +201,7 @@ export const matrixTemplate = (id: string, over: Partial<PanelTemplate> = {}): P
       });
     },
     ...over,
+    settings: { frame: 'none', ...over.settings },
   });
 
 export const dragLog: { ends: { id: string; offset: number; hops: number }[] } = { ends: [] };
@@ -220,6 +221,7 @@ export const dragTemplate = (id: string, over: Partial<PanelTemplate> = {}): Pan
     id,
     view: ({ panel, handle }) => createElement(DragBox, { id: panel.id, close: () => void handle.close() }),
     ...over,
+    settings: { frame: 'none', ...over.settings },
   });
 
 export interface CaptureSpy extends CaptureTrigger {
@@ -311,6 +313,7 @@ export async function matrixRig(o: MatrixRigOptions = {}): Promise<MatrixRig> {
   const ids = o.ids ?? ['a', 'b', 'c'];
   const capture = captureSpy();
   const ws = createWorkspace({
+    mount: false,
     ...(o.root === false ? {} : { root: matrixTemplate('root', { settings: { title: 'History' } }) }),
     templates: [...ids.map((id) => (o.view === 'drag' ? dragTemplate : matrixTemplate)(id, { settings: { ...(o.park === true ? { overflow: 'park' as const } : {}), ...(o.settings?.[id] ?? {}) } })), ...(o.extra ?? [])],
     ...(o.workspace ?? {}),

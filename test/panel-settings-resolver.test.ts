@@ -107,6 +107,7 @@ const ENUMERATED: Record<string, readonly unknown[]> = {
   scrollOnOpen: ['into-view', 'start', 'center', 'none'],
   scrollOnMove: ['follow', 'none'],
   scrollOnDrag: ['edge', 'none'],
+  frame: ['auto', 'none'],
   toggleWhenClosed: ['ignore', 'reopen'],
   showWhenClosed: ['refuse', 'reopen'],
   viewState: ['keep', 'reset-on-park'],
@@ -168,6 +169,7 @@ const PROBES: readonly Probe[] = [
   ["scrollOnOpen 'middle'", { template: asSettings({ scrollOnOpen: 'middle' }) }, 'template', 'scrollOnOpen'],
   ["scrollOnMove 'sometimes'", { template: asSettings({ scrollOnMove: 'sometimes' }) }, 'template', 'scrollOnMove'],
   ["scrollOnDrag 'always'", { template: asSettings({ scrollOnDrag: 'always' }) }, 'template', 'scrollOnDrag'],
+  ["frame 'always'", { template: asSettings({ frame: 'always' }) }, 'template', 'frame'],
   ['headerButtons given a number', { template: asSettings({ headerButtons: 5 }) }, 'template', 'headerButtons'],
   ['headerButtons given a list', { template: asSettings({ headerButtons: [slot('a')] }) }, 'template', 'headerButtons'],
   ['headerButtons holding a string for a slot', { template: asSettings({ headerButtons: { size: 'x' } }) }, 'template', 'headerButtons'],
@@ -186,7 +188,7 @@ const PROBES: readonly Probe[] = [
   ['an instance layer that is a list', { instance: [] as unknown as PanelSettings }, 'instance', undefined],
 ];
 
-test('enumerations: the enumeration table and its companions cover every one of the 69 catalog names exactly once', () => {
+test('enumerations: the enumeration table and its companions cover every one of the 71 catalog names exactly once', () => {
   const covered = [...Object.keys(ENUMERATED), ...ELSEWHERE];
   assert.equal(new Set(covered).size, covered.length, 'a name is listed twice');
   assert.deepEqual([...covered].sort(), [...CATALOG_NAMES].sort());

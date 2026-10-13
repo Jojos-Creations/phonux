@@ -23,7 +23,7 @@ const Body = ({ handle }: { handle: { id: string } }): React.ReactElement => h('
 function mountWith(over: Partial<PanelTemplate>, frameProps: { footer?: boolean } = {}) {
   const view = ({ handle }: { handle: { id: string } }): React.ReactElement => h(Panel, { title: 'T', children: h(PanelFrame, { ...frameProps, children: h(Body, { handle }) }) });
   const t = definePanel({ id: 'a', view, ...over });
-  const ws = createWorkspace({ root: markerTemplate('root', { settings: { title: 'History' } }), templates: [t] });
+  const ws = createWorkspace({ mount: false, root: markerTemplate('root', { settings: { title: 'History' } }), templates: [t] });
   ws.addPanel(t);
   return mountWorkspace(ws);
 }
@@ -58,7 +58,7 @@ test('footer={false} on the frame draws none, and PanelFooter in a view draws it
   off.unmount();
   const view = (): React.ReactElement => h('section', null, h(PanelFooter));
   const t = definePanel({ id: 'b', view, footer: Footer });
-  const ws = createWorkspace({ root: markerTemplate('root', { settings: { title: 'History' } }), templates: [t] });
+  const ws = createWorkspace({ mount: false, root: markerTemplate('root', { settings: { title: 'History' } }), templates: [t] });
   ws.addPanel(t);
   const own = mountWorkspace(ws);
   assert.equal(own.container.querySelectorAll('[data-panel-footer]').length, 1);
@@ -74,7 +74,7 @@ test('outside a template view PanelFooter and PanelFrame draw no footer and do n
 test('a PanelFrame nested in another inside a template view draws the footer in each frame', () => {
   const view = (): React.ReactElement => h(PanelFrame, { children: h(PanelFrame, { children: 'x' }) });
   const t = definePanel({ id: 'n', view, footer: Footer });
-  const ws = createWorkspace({ root: markerTemplate('root', { settings: { title: 'History' } }), templates: [t] });
+  const ws = createWorkspace({ mount: false, root: markerTemplate('root', { settings: { title: 'History' } }), templates: [t] });
   ws.addPanel(t);
   assert.equal(mountWorkspace(ws).container.querySelectorAll('[data-panel-footer]').length, 2);
 });
