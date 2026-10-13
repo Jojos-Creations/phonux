@@ -226,7 +226,8 @@ test('the auto-mounted workspace renders the same DOM as the hand-wired one, scr
 // ---------------------------------------------------------------------------
 
 test('the mount hands the row and the workspace shell each value useProvidePanels returned', async () => {
-  const ws = track(createWorkspace({ mount: false, templates: [scrolling('a')] }));
+  const ws = track(createWorkspace({ mount: false, root: scrolling('home'), templates: [scrolling('a')] }));
+  assert.equal(ws.rootId, 'home');
   ws.addPanel('a');
   let provided: ReturnType<typeof useProvidePanels> | undefined;
   function Probe(): null {
