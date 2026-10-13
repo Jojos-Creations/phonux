@@ -358,6 +358,24 @@ resized by hand, and also marks it dragging; while it is marked every other pane
 its scroll (a step is ignored and no settle runs), and the release settles onto the nearest stop once. The edge fade follows the logical
 stop, not the scroll position, since two stops can share one, and finds each slot by its panel id.
 
+`setDrawnWidth(px, pin?)`, the third item of `usePanelResizing()`, draws the marked panel at a width a host holds, so a grabber can
+make it follow a pointer while `slots` stays the person's choice. The width reaches the row through the chrome store and the
+PanelRow that draws it, and nowhere else: `PanelRow` replaces the panel's drawn width, the running offsets of the panels after it,
+its height and its size box; `rowNumbers`, the stop list, the chosen widths, capacity and the live set never read it, so a drag across
+the whole range parks nothing and the hold above (other panels, scroll, fade stop) is unchanged. It is held between one slot and the
+fewest of `maxSlots` and the slots that fit, and a value that is not a finite non-negative number is ignored. While one is set every slot
+moves and every size box resizes in no time (`tracking` in the slot context), the centring margin is the one the numbers give, which
+is unchanged for the whole drag, and calls within one animation frame draw once with the last value. The height is the slots the width
+rounds to, so it steps half a slot in, the point the release snaps to, and the panels around it realign on the same frame. `pin` names the
+edge that stays still: `'start'` leaves the left edge and the panels before it where they were, so the right edge follows a grabber on the
+right; `'end'` shifts the whole strip left by the growth, so the right edge and every panel after it stay where they were and the panels
+before make room, which is what a grabber on the left needs, with the row box (and so the scroll extent) as long as before. The release is
+`setSlots(nearest)`, then `setDrawnWidth(null)`, then `setResizing(false)`: the first fixes what the panel is, the second lets it
+glide from the held width to that one (a snap under Reduce Motion, which also snaps the centring margin), and the third lifts the hold,
+so the row settles once onto its nearest stop while the width and margin glide. Ending the mark, or the panel leaving the row, drops a
+width still set. The left edge is not kept still by the library through the release glide: the strip's new centring and stop decide where
+the right edge comes to rest.
+
 The container's horizontal overflow follows `tuning.rowGesture`: 'step' scrolls with the scrollbar hidden,
 'free' scrolls with it visible, 'off' hides the overflow. A row with no settings is always hidden.
 

@@ -23,7 +23,7 @@ import { RowHeightContext, WorkspaceTuningContext, lookTuningDiffers, resolveWor
 import { reorderStepsForOffset, type PanelWindow } from './panelWindow.js';
 import { maxScrollOf, type RowNumbers } from './rowNumbers.js';
 import { panelWidthOf } from './panelTiers.js';
-import { fitSlots, slotHeight } from './rowConstants.js';
+import { fitSlots, slotHeight, slotWidth } from './rowConstants.js';
 import { ROW_LAYER_Z } from './rowConstants.js';
 import { resolveViewIn } from './templateView.js';
 import { bindingOf, viewContextOf, type WorkspaceHandle } from './workspaceCore.js';
@@ -220,6 +220,8 @@ export function PanelRow({
       if (now.has(id)) continue;
       if (chrome.active() === id) chrome.setActive(null);
       chrome.setDragging(id, false);
+      // The row never keeps holding for a drag whose panel is gone.
+      if (chrome.resizing() === id) chrome.setResizing(id, false);
     }
     presentBefore.current = now;
   });
@@ -235,25 +237,47 @@ export function PanelRow({
   if (resizingId === null) heldWidthsRef.current = null;
   else if (heldWidthsRef.current === null) heldWidthsRef.current = drawnBeforeRef.current;
   const held = heldWidthsRef.current;
-  const widths = present.map((p) => (held !== null && p.id !== resizingId ? held.get(p.id) : undefined) ?? rowNumbers?.drawnWidths[numberAt(p)] ?? panelWidthOf(p, phoneWidth, maxLiveWidth, gap));
+  const baseWidths = present.map((p) => (held !== null && p.id !== resizingId ? held.get(p.id) : undefined) ?? rowNumbers?.drawnWidths[numberAt(p)] ?? panelWidthOf(p, phoneWidth, maxLiveWidth, gap));
+  // The width a host draws the resized panel at, held between one slot and the most that fit. It lives here and in the slot
+  // context only: the stops, capacity and the live set read the stored slots, so a drag across the whole range parks nothing.
+  const drawnNow = React.useSyncExternalStore(chrome.subscribeDrawn, chrome.drawn, () => null);
+  const drawnIndex = drawnNow === null ? -1 : present.findIndex((p) => p.id === drawnNow.id);
+  const drawnEntry = drawnIndex < 0 ? undefined : present[drawnIndex];
+  const mostSlots = drawnEntry === undefined ? 1 : Math.max(1, Math.min(effective(drawnEntry).maxSlots, fitSlots(maxLiveWidth, phoneWidth, gap)));
+  const wanted = drawnNow !== null && drawnEntry !== undefined;
+  // A size box that has just been told it is held (its layoutDependency) must not also meet the first width in the same commit, or its layout
+  // animation, which starts a frame late even when instant, would hold the old size for that frame. The width lands in the pass the layout effect asks for.
+  const [primed, setPrimed] = React.useState(false);
   React.useLayoutEffect(() => {
-    drawnBeforeRef.current = new Map(present.map((p, index) => [p.id, widths[index]!]));
+    if (primed !== wanted) setPrimed(wanted);
+  }, [primed, wanted]);
+  const drawnPx = !wanted || !primed ? undefined : Math.min(slotWidth(mostSlots, phoneWidth, gap), Math.max(phoneWidth, drawnNow.px));
+  // How much wider the override draws the panel than its stored slots do (negative when narrower).
+  const growth = drawnPx === undefined ? 0 : drawnPx - baseWidths[drawnIndex]!;
+  const tracking = wanted;
+  const widths = baseWidths.map((width, index) => (index === drawnIndex && drawnPx !== undefined ? drawnPx : width));
+  React.useLayoutEffect(() => {
+    drawnBeforeRef.current = new Map(present.map((p, index) => [p.id, baseWidths[index]!]));
   });
-  // Each slot's rest x: every PRECEDING item's own width plus one gap, so a wider item pushes the rest right.
+  // Each slot's rest x: every PRECEDING item's own width plus one gap, so a wider item pushes the rest right. Pinned at the end, the
+  // whole strip sits `growth` further left, so the panel's right edge and everything after it stay where they were.
+  const pinShift = tracking && drawnNow!.pin === 'end' ? growth : 0;
   const leftOffsets: number[] = [];
   let runningOffset = 0;
   for (const [index, width] of widths.entries()) {
-    leftOffsets.push((held === null ? rowNumbers?.drawnOffsets[numberAt(present[index]!)] : undefined) ?? runningOffset);
+    leftOffsets.push((held === null ? rowNumbers?.drawnOffsets[numberAt(present[index]!)] : undefined) ?? runningOffset - pinShift);
     runningOffset += width + gap;
   }
-  // A panel is as many slots wide as its width spans; each slot past the first adds `heightPerSlot`, up to the room the row has.
+  // A panel is as many slots wide as its width spans, a half slot rounding up; each slot past the first adds `heightPerSlot`, up to the room the row has.
+  // A stored width is a whole number of slots, so only the override is ever between two.
   const slotsOfWidth = (width: number): number => Math.max(1, Math.round((width + gap) / (phoneWidth + gap)));
   const heights = present.map((p, index) => (p.slots === undefined ? phoneHeight : slotHeight(slotsOfWidth(widths[index]!), phoneHeight, workspaceTuning.heightPerSlot, availableHeight)));
   const fitSlotsNow = fitSlots(maxLiveWidth, phoneWidth, gap);
   const rowHeight = Math.max(phoneHeight, ...heights);
   const alignedTop = (height: number): number => (workspaceTuning.rowAlign === 'top' ? 0 : workspaceTuning.rowAlign === 'bottom' ? rowHeight - height : Math.round((rowHeight - height) / 2));
   const rowScroll = rowNumbers?.rowScroll ?? false;
-  const reservedWidth = Math.max(0, widths.reduce((sum, width) => sum + width + gap, 0) - gap);
+  // While a width is held the row box is never shorter than it was: the browser would clamp the scroll to a shorter strip and move the row under the pointer.
+  const reservedWidth = Math.max(0, widths.reduce((sum, width) => sum + width + gap, 0) - gap - pinShift, tracking ? baseWidths.reduce((sum, width) => sum + width + gap, 0) - gap : 0);
   const maxScroll = rowNumbers === undefined ? 0 : maxScrollOf(rowNumbers);
   const stops = rowNumbers === undefined ? [] : rowNumbers.stops.length > 0 ? rowNumbers.stops : rowNumbers.leftOffsets.map((offset) => rowNumbers.rowMarginLeft + offset);
   const widthById = new Map(present.map((p, index) => [p.id, widths[index]!]));
@@ -341,6 +365,7 @@ export function PanelRow({
                 frame,
                 id: p.id,
                 animated,
+                tracking,
                 setDragging: (on) => chrome.setDragging(p.id, on),
                 neighborWidths: neighborWidthsAt(p),
                 pinned: anchorTargetOf(p, rootId) === rootId && p.anchor?.position === 'left',
@@ -367,6 +392,7 @@ export function PanelRow({
                 exitDirection={closingIds.has(p.id) ? closeExit : exitTo !== 'auto' ? exitTo : exitRightIds.has(p.id) ? 'right' : 'left'}
                 zIndex={dragging?.id === p.id ? ROW_LAYER_Z.DRAGGED : layer === 'raised' ? ROW_LAYER_Z.RAISED : ROW_LAYER_Z.BASE}
                 animated={animated}
+                tracking={tracking}
                 gap={gap}
                 slide={own.slide}
                 kept={kept}
