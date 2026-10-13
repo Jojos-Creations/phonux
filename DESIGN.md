@@ -320,6 +320,10 @@ shown set is the greedy run of panels that fit the window, at least one, and the
 margin `m_i`. `rowMarginLeft` is the first set's margin, stop `i` is `rowMarginLeft + leftOffset_i - m_i`, the stops end at
 the first panel from which everything after it fits, and `endPad` (the last set's margin) is drawn after the strip as a
 spacer element, a sibling of the strip inside the scroll container so a drag's end cap still reads the strip's own edge.
+The element is `endPad` plus the row gap wide on every scrolling row (`endPad` 0 included) and the container's right padding is 0
+there, because engines disagree on what the scrollable width counts: WebKit leaves a flex item's end margin out, and Firefox the
+container's end padding and any empty box (so the element has no `height: 0`). A non-empty element is counted by all three, and
+`maxScrollOf` is then the browser's range. A row that does not scroll keeps its padding to centre in.
 The strip's margin snaps instead of gliding while stops exist, or `scrollWidth` would lag `maxScrollOf`. A strip that fits
 the window keeps its centring and has no stops; `free` and `off` rows have none either, so their margin is 0 on overflow.
 
