@@ -311,6 +311,7 @@ export async function matrixRig(o: MatrixRigOptions = {}): Promise<MatrixRig> {
   const ids = o.ids ?? ['a', 'b', 'c'];
   const capture = captureSpy();
   const ws = createWorkspace({
+    mount: false,
     ...(o.root === false ? {} : { root: matrixTemplate('root', { settings: { title: 'History' } }) }),
     templates: [...ids.map((id) => (o.view === 'drag' ? dragTemplate : matrixTemplate)(id, { settings: { ...(o.park === true ? { overflow: 'park' as const } : {}), ...(o.settings?.[id] ?? {}) } })), ...(o.extra ?? [])],
     ...(o.workspace ?? {}),

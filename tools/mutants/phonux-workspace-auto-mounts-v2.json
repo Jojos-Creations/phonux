@@ -1,0 +1,162 @@
+{
+  "tests": [
+    "test/workspace-auto-mount.test.ts",
+    "test/workspace-reconcile.test.ts",
+    "test/workspace-attach.test.ts"
+  ],
+  "mutants": [
+    {
+      "name": "the row is handed an empty closingIds",
+      "file": "autoMount.tsx",
+      "find": "closingIds: provided.closingIds,",
+      "replace": "closingIds: new Set<string>(),",
+      "expectRed": [
+        "the mount hands the row and the workspace shell each value useProvidePanels returned"
+      ]
+    },
+    {
+      "name": "the row is handed no exitRightIds",
+      "file": "autoMount.tsx",
+      "find": "exitRightIds: provided.exitRightIds,",
+      "replace": "exitRightIds: new Set<string>(),",
+      "expectRed": [
+        "the mount hands the row and the workspace shell each value useProvidePanels returned"
+      ]
+    },
+    {
+      "name": "the row is handed the root of another workspace",
+      "file": "autoMount.tsx",
+      "find": "rootId: workspace.rootId, closingIds",
+      "replace": "rootId: '__root__', closingIds",
+      "expectRed": [
+        "the mount hands the row and the workspace shell each value useProvidePanels returned"
+      ]
+    },
+    {
+      "name": "the shell is handed no liveWidths",
+      "file": "autoMount.tsx",
+      "find": "liveWidths: provided.liveWidths,",
+      "replace": "liveWidths: [],",
+      "expectRed": [
+        "the mount hands the row and the workspace shell each value useProvidePanels returned"
+      ]
+    },
+    {
+      "name": "the default device is built on every render",
+      "file": "hostApi.tsx",
+      "find": "device: input.device ?? DEFAULT_DEVICE",
+      "replace": "device: input.device ?? { size: DEFAULT_PHONE_SIZE }",
+      "expectRed": [
+        "HostProvider given a host without device and settings still gives every reader a value, the same object each render"
+      ]
+    },
+    {
+      "name": "a complete host is copied instead of passed through",
+      "file": "hostApi.tsx",
+      "find": "if (input.settings !== undefined && input.device !== undefined) return input as Host;",
+      "replace": "",
+      "expectRed": [
+        "HostProvider hands a host that names both members through as it is"
+      ]
+    },
+    {
+      "name": "a mount that outlives a dispose is not undone",
+      "file": "workspaceCore.ts",
+      "find": "        if (status === 'disposed') return;\n        removers.push(",
+      "replace": "        removers.push(",
+      "expectRed": [
+        "dispose before the mount has loaded mounts nothing"
+      ]
+    },
+    {
+      "name": "a workspace mounts without a document",
+      "file": "workspaceCore.ts",
+      "find": "o.mount !== false && typeof document !== 'undefined'",
+      "replace": "o.mount !== false",
+      "expectRed": [
+        "importing the workspace module and creating a workspace with no document never requests react-dom/client"
+      ]
+    },
+    {
+      "name": "the observer is never disconnected",
+      "file": "autoMount.tsx",
+      "find": "return () => observer.disconnect();",
+      "replace": "return undefined;",
+      "expectRed": [
+        "under StrictMode the mount subscribes once per element and disposes every observer"
+      ]
+    },
+    {
+      "name": "the measured width is never read",
+      "file": "autoMount.tsx",
+      "find": "const read = (): void => setWidth(el.clientWidth);",
+      "replace": "const read = (): void => setWidth(0);",
+      "expectRed": [
+        "a resize of the window changes how many panels fit"
+      ]
+    },
+    {
+      "name": "the row resolves no template of its workspace",
+      "file": "PanelRow.tsx",
+      "find": "binding?.template(id);",
+      "replace": "undefined;",
+      "expectRed": [
+        "createWorkspace with a root and templates plus two addPanel calls renders the panels with no component imported"
+      ]
+    },
+    {
+      "name": "a plain view no longer wins over a template",
+      "file": "viewRegistry.tsx",
+      "find": "  if (plain) return plain;\n  const template = templateOf(key);",
+      "replace": "  if (plain && !templateOf(key)) return plain;\n  const template = templateOf(key);",
+      "expectRed": [
+        "registry: the view registered under a key wins over the template of a workspace that holds the same id"
+      ]
+    },
+    {
+      "name": "a supplied element is emptied",
+      "file": "autoMount.tsx",
+      "find": "outer.appendChild(inner);",
+      "replace": "outer.replaceChildren(inner);",
+      "expectRed": [
+        "a supplied element is rendered inside and never emptied"
+      ]
+    },
+    {
+      "name": "the element the workspace made is left behind",
+      "file": "autoMount.tsx",
+      "find": "if (owned) outer.remove();",
+      "replace": "",
+      "expectRed": [
+        "createWorkspace with a root and templates plus two addPanel calls renders the panels with no component imported"
+      ]
+    },
+    {
+      "name": "the double mount is warned about for every row",
+      "file": "workspaceCore.ts",
+      "find": "if (!autoMounted || warnedHandMount ||",
+      "replace": "if (!autoMounted ||",
+      "expectRed": [
+        "a hand-mounted row given a workspace that mounts itself warns once"
+      ]
+    },
+    {
+      "name": "the mount's own row is warned about",
+      "file": "PanelRow.tsx",
+      "find": "binding?.autoMounted === true && autoMountOf !== workspace;",
+      "replace": "binding?.autoMounted === true;",
+      "expectRed": [
+        "a hand-mounted row given a workspace that mounts itself warns once"
+      ]
+    },
+    {
+      "name": "a template id that is a plain view key is no longer refused",
+      "file": "workspaceCore.ts",
+      "find": "    assertTemplateIdFree(t.id);\n    templates.set(t.id, t);",
+      "replace": "    templates.set(t.id, t);",
+      "expectRed": [
+        "createWorkspace and registerTemplate on the handle throw template-collision over a plain view"
+      ]
+    }
+  ]
+}

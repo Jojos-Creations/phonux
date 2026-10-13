@@ -33,7 +33,7 @@ export interface RigOptions {
 
 export async function rig(o: RigOptions = {}): Promise<Rig> {
   const ids = o.ids ?? ['a', 'b', 'c'];
-  const ws = createWorkspace({ templates: [...ids.map((id) => markerTemplate(id, o.settings?.[id] === undefined ? {} : { settings: o.settings[id] })), ...(o.extra ?? [])] });
+  const ws = createWorkspace({ mount: false, templates: [...ids.map((id) => markerTemplate(id, o.settings?.[id] === undefined ? {} : { settings: o.settings[id] })), ...(o.extra ?? [])] });
   const h: Record<string, PanelHandle> = {};
   for (const id of ids) h[id] = ws.addPanel(id);
   const m = o.unmounted === true ? undefined : mountWorkspace(ws, { width: o.width ?? 4000 });

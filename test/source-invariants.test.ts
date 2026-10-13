@@ -20,11 +20,11 @@ function read(rel: string): string {
   return source;
 }
 
-test('source: `.view ===` and `.view !==` appear in neither PanelRow.tsx nor viewRegistry.tsx -- a view is resolved through resolveView(p.view), never compared', () => {
+test('source: `.view ===` and `.view !==` appear in neither PanelRow.tsx nor viewRegistry.tsx -- a view is resolved through resolveViewIn(templateOf, p.view), never compared', () => {
   for (const file of ['PanelRow.tsx', 'viewRegistry.tsx']) {
     assert.doesNotMatch(read(file), /\.view\s*===|\.view\s*!==/, `${file} must select a component by resolving \`view\`, never by comparing it`);
   }
-  assert.match(read('PanelRow.tsx'), /resolveView\(/, 'PanelRow.tsx does not call resolveView(: the invariant above is checking the wrong file');
+  assert.match(read('PanelRow.tsx'), /resolveViewIn\(/, 'PanelRow.tsx does not call resolveViewIn(: the invariant above is checking the wrong file');
 });
 
 test('source: `collapsible` is not an accepted key of CreatePanelOptions -- `permanent` is the only public door to a permanent column', () => {

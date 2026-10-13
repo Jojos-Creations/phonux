@@ -86,7 +86,7 @@ async function failedSaveIsRetried(mode: 'reject' | 'throw'): Promise<void> {
 
   const viaWorkspace = failingStorage(mode);
   const errors: unknown[] = [];
-  const w = createWorkspace({ storage: viaWorkspace.storage, templates: [t], onError: (e) => void errors.push(e) });
+  const w = createWorkspace({ mount: false, storage: viaWorkspace.storage, templates: [t], onError: (e) => void errors.push(e) });
   mountWorkspace(w);
   await turn();
   act(() => void w.addPanel(t, { id: 'a' }));
@@ -106,7 +106,7 @@ async function failedSaveIsRetried(mode: 'reject' | 'throw'): Promise<void> {
 
   const logged = mock.method(console, 'error', () => {});
   const unreported = failingStorage(mode);
-  const bare = createWorkspace({ storage: unreported.storage, templates: [t] });
+  const bare = createWorkspace({ mount: false, storage: unreported.storage, templates: [t] });
   mountWorkspace(bare);
   await turn();
   act(() => void bare.addPanel(t, { id: 'c' }));

@@ -87,15 +87,15 @@ test('scrolling row: a panel that scrolls instead of parking is neither counted 
 
 test('a workspace made with a value that is not an integer of 1 or more starts with no cap, as its other tuning leaves do', () => {
   for (const bad of [0, -1, 2.5, Number.NaN, Number.POSITIVE_INFINITY, '3', true]) {
-    const ws = createWorkspace({ root: markerTemplate('root'), templates: [], tuning: { maxLivePanels: bad as never } });
+    const ws = createWorkspace({ mount: false, root: markerTemplate('root'), templates: [], tuning: { maxLivePanels: bad as never } });
     assert.equal(ws.tuning.maxLivePanels, null, String(bad));
   }
-  assert.equal(createWorkspace({ root: markerTemplate('root'), templates: [], tuning: { maxLivePanels: 3 } }).tuning.maxLivePanels, 3);
-  assert.equal(createWorkspace({ root: markerTemplate('root'), templates: [] }).tuning.maxLivePanels, null, 'left out, there is none');
+  assert.equal(createWorkspace({ mount: false, root: markerTemplate('root'), templates: [], tuning: { maxLivePanels: 3 } }).tuning.maxLivePanels, 3);
+  assert.equal(createWorkspace({ mount: false, root: markerTemplate('root'), templates: [] }).tuning.maxLivePanels, null, 'left out, there is none');
 });
 
 test('null is a value of its own: a workspace takes it as no cap, and the instance layer reports it wrong-scope as it does any other value of this leaf', () => {
-  assert.equal(createWorkspace({ root: markerTemplate('root'), templates: [], tuning: { maxLivePanels: null } }).tuning.maxLivePanels, null);
+  assert.equal(createWorkspace({ mount: false, root: markerTemplate('root'), templates: [], tuning: { maxLivePanels: null } }).tuning.maxLivePanels, null);
   const asked = resolvePanelSettings({ instance: { tuning: { maxLivePanels: null } } as never });
   assert.deepEqual(asked.conflicts.map((c) => [c.key, c.kind]), [['tuning.maxLivePanels', 'wrong-scope']]);
 });

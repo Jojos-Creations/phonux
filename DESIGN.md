@@ -11,7 +11,7 @@ contracts must work under ANY host, not just this one.
 
 ## The provider is rebuilt every render
 
-`HostProvider`'s `host` value is never memoised, on either side: the host's handlers close over
+`HostProvider`'s `host` value (a `HostInput`, defaults filled in) is never memoised, on either side: the host's handlers close over
 render-time state (the panel list, the column count), so a memoised bag would hand a view a stale closure.
 
 ## Testing without a host
@@ -1550,6 +1550,25 @@ paints or skips the hidden slot, and the timing of the slide, belong to the app'
 - **Tombstones.** A declared `stay-closed` panel that leaves the list is added to the file's `dismissed`; a panel back in the list is removed. The restore skips a dismissed declared panel unless the template is no longer closable or no longer `stay-closed`, and then drops the tombstone and saves. The diff is on the list, so an unmount, which empties nothing, is never a mass close.
 - **Pin state.** `PanelState.pinned` is the pure `isPinned(entry, row, definition)`: a definition naming `parkable` in both halves reads the resolved `parkable`, one naming `row-start` against `row-end` or `after-fixed` reads the side of the root, and both are read when both are named. Nothing stores it, so a drag that re-anchors entries cannot change it.
 - **Errors.** A storage whose `save` throws or rejects reaches `onError`, or `console.error` when it is unset; the row and the next save are unaffected.
+
+## Two layers: the workspace mounts itself, and the components stay public
+
+The default start is `definePanel`, `createWorkspace` and `addPanel`: the workspace creates its own full-window element (`position: fixed; inset: 0`, appended to `document.body`, removed by `dispose()`), measures it, calls `useProvidePanels` and renders `HostProvider`, `Workspace` and `PanelRow` itself. A custom flow writes out the same three components and the same hook, so there are two layers and one implementation: `autoMount.tsx` is built from the exported components and hooks and takes no `@internal` shortcut, and a test renders the same panels both ways and compares the DOM. The mount maps what `useProvidePanels` returns onto the props of the shell and the row in two small functions (`workspaceProps`, `rowProps`), so a prop the row gains has one place to be added.
+
+- **Turning it off.** `mount: false` is the migration for a caller that renders the workspace itself. A `document`-free run mounts nothing either. A `mount` element is rendered into a child of its own and is never emptied. The mount module is loaded by a dynamic `import()` from `workspaceCore.ts` only when a mount happens, so importing the workspace module never requests `react-dom/client`; a test proves it from a child process that records every module request. Mounting is therefore async by a microtask: `addPanel` before and after it behaves as before, and a failed load reaches `onError`.
+- **Said once.** A `PanelRow` given a workspace that also mounts itself warns once in development, naming `mount: false`.
+- **The theme.** The mount wraps the row in a `ThemeProvider` with `createDefaultTheme` (light or dark by `prefers-color-scheme`) and `CssBaseline`, because a row with no theme falls back to MUI's own. A caller who wants another theme mounts the three components.
+- **Defaults.** `HostProvider` takes a `HostInput`: a `Host` whose `settings` and `device` may be left out. The defaults are module constants (`DEFAULT_SETTINGS`, `DEFAULT_DEVICE`) so `useHost()` returns the same objects every render, and a host that names both is passed through as it is.
+- **Templates are per workspace.** A workspace holds its own templates and its row resolves a panel's template through them (`resolveViewIn`), so two workspaces on one page can define different templates under one id. The module-level template map is gone; `resolveView(key)` knows plain views only. A template id that is a `registerView` key still throws `template-collision`.
+
+What stays at module level, and why none of it is a workspace's data:
+
+- `registry`: plain views by key. `registerView` is an app-wide call and a plain view is not a workspace's data.
+- `placeholders`: one placeholder component per unregistered key, so AnimatePresence sees one component type.
+- `adapters`: a WeakMap keyed by template object, one adapter component per template; the template itself is held by the workspace.
+- `CORES`: a WeakMap from a handle to its own core.
+- `nextEngineIdValue`: an id counter, so ids stay unique across workspaces.
+- `EMPTY_SET` and `EMPTY_MAP`: defaults for an omitted `PanelRow` prop, never written.
 
 ## Operations on a handle
 

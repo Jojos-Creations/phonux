@@ -4,6 +4,15 @@
 
 ### Breaking
 
+- `createWorkspace` renders itself. With a `document` it now creates a full-window element on `document.body` (or renders into the
+  `mount` element you give it), measures it and mounts `HostProvider`, `Workspace` and `PanelRow` for you, so `definePanel`,
+  `createWorkspace` and `addPanel` are a whole app. **Migration:** an app that renders the workspace itself passes
+  `mount: false` to `createWorkspace`; without it the workspace mounts a second root and the first `useProvidePanels` to
+  attach wins. A `PanelRow` given a workspace that also mounts itself warns once in development, naming `mount: false`.
+  Without a `document` (node, SSR) nothing is mounted. The components and `useProvidePanels` stay public for a custom flow.
+- A workspace holds its own templates: the module-level template map is gone, so two workspaces on one page can define different
+  templates under one id and no workspace sees another's. `resolveView(key)` resolves plain views only; a template renders
+  through the row of the workspace that holds it.
 - The USB phone-detect prompt is gone, with nothing in its place. Removed from `phonux`: `PhoneDetectPrompt`,
   `PhoneDetectPromptProps` and `DetectedPhone` (also from `phonux/testing`'s re-exports). Removed from
   `PhoneDeviceAPI`: `detectedPhone`, `dismissDetectedPhone` and `resizeForDetectedPhone`, and from `createFakeHost`
@@ -19,6 +28,9 @@
 
 ### Added
 
+- `HostProvider` takes a `HostInput`: a `Host` whose `settings` and `device` may be left out (a hidden settings column and
+  `DEFAULT_PHONE_SIZE`). `useHost()` still returns the resolved `Host`, the same default objects every render.
+- `createWorkspace`'s `mount` option: an element to render into, or `false`.
 - `usePanelResizing()` has a third item, `setDrawnWidth(px | null, pin?)`: while a panel is marked resizing, a host draws it `px`
   wide with no glide so a grabber follows the pointer, and the panels after it, its height and its size box follow on the same frame.
   It is held between one slot and what fits, never writes `slots` and never reaches the stop list, capacity or the live set. `pin: 'end'`
