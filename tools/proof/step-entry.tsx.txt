@@ -5,7 +5,7 @@
 import * as React from 'react';
 import { createRoot } from 'react-dom/client';
 import { MotionConfig } from 'motion/react';
-import { HostProvider, PanelRow, PanelSizeBox, Workspace, createWorkspace, definePanel, usePanelResizing, useProvidePanels } from 'LIB/index.js';
+import { HostProvider, Panel, PanelFrame, PanelRow, PanelSizeBox, Workspace, createWorkspace, definePanel, usePanelResizing, useProvidePanels } from 'LIB/index.js';
 import { createFakeHost } from 'LIB/fakeHost.js';
 
 const q = new URLSearchParams(location.search);
@@ -58,6 +58,13 @@ function View({ panel, name }: { panel: any; name: string }) {
   const bar = (side: 'left' | 'right') => (
     <div data-grab={`${name}:${side}`} onPointerDown={onDown(side)} onPointerMove={onMove} onPointerUp={onUp} style={{ position: 'absolute', [side]: 0, top: 0, bottom: 0, width: 24, background: '#c33', touchAction: 'none', cursor: 'ew-resize' }} />
   );
+  // `self`: a view that draws its own Panel and PanelFrame inside a PanelSizeBox, as an app's self-framed view does.
+  if (FRAME === 'self') return <PanelSizeBox width={panel.size.width} height={typeof panel.size.height === 'number' ? panel.size.height : 700}><Panel title={name}><PanelFrame>{name}</PanelFrame></Panel></PanelSizeBox>;
+  // `selfy`: the same, and the box is also lower while it is wider, so the glide scales y as well as x.
+  if (FRAME === 'selfy') {
+    const high = panel.size.width > 390 ? 500 : 700;
+    return <PanelSizeBox width={panel.size.width} height={high}><Panel title={name} sx={{ height: '100%' }}><PanelFrame size={{ formFactor: 'phone', width: panel.size.width, height: high }}>{name}</PanelFrame></Panel></PanelSizeBox>;
+  }
   if (FRAME === 'auto') return <div data-box={name} style={{ position: 'relative', width: '100%', height: '100%' }}>{name}</div>;
   return (
     <PanelSizeBox width={panel.size.width} height={typeof panel.size.height === 'number' ? panel.size.height : 700}>
@@ -72,8 +79,8 @@ function View({ panel, name }: { panel: any; name: string }) {
 
 const ids = SLOTS.map((_, k) => `p${k + 1}`);
 const ws = createWorkspace({
-  root: definePanel({ id: ROOT, view: ((props: any) => <View {...props} name={ROOT} />) as any, settings: { title: 'History', frame: FRAME } }),
-  templates: ids.map((id, k) => definePanel({ id, view: ((props: any) => <View {...props} name={id} />) as any, settings: { slots: SLOTS[k], maxSlots: 64, frame: FRAME } as any })),
+  root: definePanel({ id: ROOT, view: ((props: any) => <View {...props} name={ROOT} />) as any, settings: { title: 'History', frame: FRAME === 'self' || FRAME === 'selfy' ? 'none' : FRAME } }),
+  templates: ids.map((id, k) => definePanel({ id, view: ((props: any) => <View {...props} name={id} />) as any, settings: { slots: SLOTS[k], maxSlots: 64, frame: FRAME === 'self' || FRAME === 'selfy' ? 'none' : FRAME, ...(FRAME === 'auto' ? { title: id } : {}) } as any })),
   tuning: { rowGesture: GESTURE, shrinkOutOfView: MODE, rowGap: GAP } as any,
 });
 for (const id of ids) ws.addPanel(id);

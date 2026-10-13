@@ -180,6 +180,12 @@
   of the scroll container's right padding and a zero-height box. Firefox left the empty box out of the scrollable width, so the range
   ended one end pad short, the glide to the last stops was clamped, and the row stepped back instead of ending on the stop that
   draws the leaving panel at one slot. The row's layout in WebKit and Chromium is unchanged.
+- The size glide keeps the library's chrome true. While a panel eases to a new width the frame's corners, the header pill's ends and the
+  grab bar's pill stay circular arcs of the theme radius and the 1 px edge stays 1 px drawn, where the one scale squashed them for
+  about 0.4 s of every step. The frame's and the header pill's edge is now an inset shadow with no border, so the content keeps its
+  size; the header pill's horizontal padding is 13 px (12 and the 1 px the border held) and its vertical padding 1 px, and a
+  caller's own `px` or `py` on a `PanelHeader` no longer includes the edge. A view's own content and the header buttons are still
+  scaled by the box.
 
 ## 0.2.0-rc.2
 

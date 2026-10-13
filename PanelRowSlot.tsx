@@ -5,6 +5,7 @@ import { PanelHiddenContext, PanelSlotContext } from './panelSlotContext.js';
 import { LIBRARY_TUNING_DEFAULTS } from './panelSettings.js';
 import type { SlideTuning } from './panelSettings.js';
 import { ROW_GAP } from './rowConstants.js';
+import { writeGlide } from './sizeGlide.js';
 
 export { ROW_GAP as GAP } from './rowConstants.js';
 /** The timing/easing every panel slide uses. The SAME object as SLOT_TRANSITION, not a copy: a host animates
@@ -411,6 +412,7 @@ export function SizeBox({ width, height, children }: { width: number; height: nu
     const draw = (x: number, y: number): void => {
       scale.current = { x, y };
       node.style.transform = x === 1 && y === 1 ? '' : `scale(${x}, ${y})`;
+      writeGlide(node, x, y);
     };
     if (before === undefined || snaps) {
       draw(1, 1);
