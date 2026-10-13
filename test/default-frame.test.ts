@@ -87,6 +87,20 @@ test('a view that draws no frame is drawn inside the library frame: a titled hea
   assert.equal(slot.querySelectorAll('[data-drag-to-close]').length, 1);
 });
 
+test('a bare view and a self-framed view each have one header and one phone frame, and the root keeps its one', async () => {
+  const r = await rig([bareTemplate('bare'), albumPanel()], ['bare', 'album']);
+  await settle();
+  for (const id of ['bare', 'album']) {
+    const slot = bodiesOf(r.m, id)!.closest('[data-row-slot]')!;
+    assert.equal(slot.querySelectorAll('[data-panel-chrome-part="header"]').length, 1, `${id}: one header`);
+    assert.equal(slot.querySelectorAll('[data-phone-frame]').length, 1, `${id}: one frame`);
+  }
+  const rootSlot = r.m.container.querySelector('[data-slot="root"]')!.closest('[data-row-slot]')!;
+  assert.equal(rootSlot.querySelectorAll('[data-panel-chrome-part="header"]').length, 1, 'the root: one header, no library frame added');
+  assert.equal(rootSlot.querySelectorAll('[data-drag-to-close]').length, 0);
+  assert.equal(r.m.container.querySelectorAll('[data-panel-chrome-part="header"]').length, 3, 'three panels, three headers');
+});
+
 test('a bare view with no title shows the untitled label, and the title the panel carries once it has one', async () => {
   const t = bareTemplate('anon');
   const noTitle = definePanel({ id: 'anon', view: t.view });
