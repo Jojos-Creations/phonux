@@ -176,6 +176,10 @@
 - Dragging a panel to the end of the strip no longer widens the row: the dragged box is drawn no further than the row's end, so the
   scroll container's scrollable width (and the scrollbar of a `free` row) holds still during the drag. The release still reports
   the pointer's real offset, so the hop count is unchanged.
+- A stepping row now reaches its last stop in Firefox. The row's end space is one element, `endPad` plus the row gap wide, in place
+  of the scroll container's right padding and a zero-height box. Firefox left the empty box out of the scrollable width, so the range
+  ended one end pad short, the glide to the last stops was clamped, and the row stepped back instead of ending on the stop that
+  draws the leaving panel at one slot. The row's layout in WebKit and Chromium is unchanged.
 
 ## 0.2.0-rc.2
 

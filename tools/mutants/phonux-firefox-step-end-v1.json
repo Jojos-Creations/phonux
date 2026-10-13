@@ -1,0 +1,55 @@
+{
+  "tests": [
+    "test/scroll-end-element.test.ts",
+    "test/whole-panels.test.ts"
+  ],
+  "mutants": [
+    {
+      "name": "the padding stays on the container",
+      "file": "Workspace.tsx",
+      "find": "pr: scrolls ? 0 : `${gap}px`,",
+      "replace": "pr: `${gap}px`,",
+      "expectRed": [
+        "the end element is endPad plus the row gap and the padding right is 0",
+        "a Workspace told its row scrolls"
+      ]
+    },
+    {
+      "name": "no element when endPad is 0",
+      "file": "Workspace.tsx",
+      "find": "{scrolls ? <div aria-hidden data-row-end-pad",
+      "replace": "{rowNumbers !== undefined && rowNumbers.endPad > 0 ? <div aria-hidden data-row-end-pad",
+      "expectRed": [
+        "a row with an endPad of 0 still draws the element",
+        "a Workspace told its row scrolls"
+      ]
+    },
+    {
+      "name": "the element leaves the gap out",
+      "file": "Workspace.tsx",
+      "find": "`0 0 ${(rowNumbers?.endPad ?? 0) + gap}px`",
+      "replace": "`0 0 ${rowNumbers?.endPad ?? 0}px`",
+      "expectRed": [
+        "the end element is endPad plus the row gap and the padding right is 0"
+      ]
+    },
+    {
+      "name": "the element is an empty box again",
+      "file": "Workspace.tsx",
+      "find": "style={{ flex: `0 0 ${(rowNumbers?.endPad ?? 0) + gap}px` }} />",
+      "replace": "style={{ flex: `0 0 ${(rowNumbers?.endPad ?? 0) + gap}px`, height: 0 }} />",
+      "expectRed": [
+        "the end element has no height of its own"
+      ]
+    },
+    {
+      "name": "a row that does not scroll draws the element",
+      "file": "Workspace.tsx",
+      "find": "{scrolls ? <div aria-hidden data-row-end-pad",
+      "replace": "{true ? <div aria-hidden data-row-end-pad",
+      "expectRed": [
+        "a row that does not scroll keeps its padding right and draws no element"
+      ]
+    }
+  ]
+}

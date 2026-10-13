@@ -115,19 +115,19 @@ test('mounted at 1000: a wheel steps one stop, the shown panels are the stop\'s 
   assert.equal(slots()[1]!.style.pointerEvents, '');
 });
 
-test('mounted in free mode: no stops, no spacer, nothing faded and the margin is 0 once the strip overflows', () => {
+test('mounted in free mode: no stops, a spacer of the row gap alone, nothing faded and the margin is 0 once the strip overflows', () => {
   const m = mountRow(panelsOf(5), 1000, { tuning: { rowGesture: 'free' } });
   assert.equal(m.latest().rowNumbers.stops.length, 0);
   assert.equal(m.latest().rowNumbers.rowMarginLeft, 0);
-  assert.equal(m.container.querySelectorAll('[data-row-end-pad]').length, 0);
+  assert.equal(m.container.querySelector<HTMLElement>('[data-row-end-pad]')!.style.flex, '0 0 16px', 'the right edge space is the element, with no endPad to add');
   assert.ok(slotFilters(m.container).every((f) => f === ''));
 });
 
-test('mounted in step mode the trailing room is one spacer element of endPad px outside the strip', () => {
+test('mounted in step mode the trailing room is one spacer element of endPad plus the row gap, outside the strip', () => {
   const m = mountRow(panelsOf(5), 1000, { tuning: { rowGesture: 'step' } });
   const spacer = m.container.querySelector<HTMLElement>('[data-row-end-pad]');
   assert.ok(spacer, 'a spacer is drawn');
-  assert.equal(spacer.style.flex, '0 0 86px');
+  assert.equal(spacer.style.flex, '0 0 102px', '86 of endPad and the 16 of the right edge');
   assert.equal(spacer.parentElement, m.container, 'a child of the scroll container, not of the strip');
 });
 

@@ -111,7 +111,7 @@ test('computeRowNumbers: a fixedItemCount the host passes prices a hand-built ro
   assert.equal(price(2), 862 - 406, 'a second fixed column takes its width and gap out of the cap');
 });
 
-test('a mounted scrolling row: the container pads 16 each side and the eleven slots plus ten gaps sum to the strip', () => {
+test('a mounted scrolling row: the container pads 16 on the left, the end element is the right edge space, and the eleven slots plus ten gaps sum to the strip', () => {
   const entries = eleven().map((p) => ({ ...p, view: 'rn-view' }));
   const n = numbers(entries);
   const ref = { current: null };
@@ -119,7 +119,8 @@ test('a mounted scrolling row: the container pads 16 each side and the eleven sl
   const workspace = createElement(Workspace, { overflowContainerRef: ref, rowRef: ref, containerWidth: 1000, rowResizeSettled: true, phoneWidth: 390, fixedColumnCount: 6, liveWidths: [], rowNumbers: n, children: row });
   const markup = renderToStaticMarkup(createElement(CacheProvider, { value: createCache({ key: 'css' }), children: createElement(HostProvider, { host: createFakeHost(), children: workspace }) }));
   assert.match(markup, /padding-left:16px/);
-  assert.match(markup, /padding-right:16px/);
+  assert.match(markup, /padding-right:0px/, 'the right edge space is the end element, so every engine counts it');
+  assert.match(markup, new RegExp(`data-row-end-pad="" style="flex:0 0 ${n.endPad + GAP}px`), 'the end element is endPad plus the row gap');
   const slotWidths = [...markup.matchAll(/style="[^"]*?width:(\d+)px/g)].map((m) => Number(m[1]));
   assert.equal(slotWidths.length, 11);
   assert.equal(slotWidths.reduce((sum, w) => sum + w, 0) + 10 * GAP, n.stripWidth);
