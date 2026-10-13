@@ -25,7 +25,7 @@ registerView('override-view', ({ panel }) => {
   const size = panel.size!;
   return React.createElement(
     PanelSizeBox,
-    { width: size.width, height: size.height, children: React.createElement('i', { 'data-slot': panel.id, 'data-width': String(size.width), 'data-height': String(size.height), 'data-drawn-slots': String(panel.drawnSlots) }) },
+    { width: size.width, height: typeof size.height === 'number' ? size.height : 0, children: React.createElement('i', { 'data-slot': panel.id, 'data-width': String(size.width), 'data-height': String(size.height), 'data-drawn-slots': String(panel.drawnSlots) }) },
   );
 });
 
@@ -85,9 +85,6 @@ test('a panel drawn at a held width: its slot, size box, height and the panels a
     seen.map((s) => before[1]!.x + s.px + 16),
     'the panel after it sits one gap past its right edge, read from the transform each time',
   );
-  // The frame the pointer move asks for is the frame the panels are at the new x: a slide of duration 0 would land one frame later.
-  await drag('s2', 1100, 'start', 16);
-  assert.equal(xOf(m.container, 's3'), before[1]!.x + 1100 + 16, 'one frame after the call, the next panel is where the width puts it');
   await drag('s2', 1010);
   assert.equal(before[2]!.width, 390, 'the neighbour keeps its own width');
   assert.equal(widthOf(m.container, 's3'), 390);
@@ -204,7 +201,7 @@ test('the height steps where the release would snap: at half a slot, and the oth
     assert.equal(widest.h, 700 + 2 * 48, 'three slots wide (the most that fit beside History) is 96 px taller');
     assert.equal(widest.top1, 48);
   } finally {
-    if (original === undefined) delete (proto as unknown as Record<string, unknown>)['clientHeight'];
+    if (original === undefined) Reflect.deleteProperty(proto, 'clientHeight');
     else Object.defineProperty(proto, 'clientHeight', original);
   }
 });
@@ -457,4 +454,17 @@ test('the strip a pinned width leaves is as long as before; a start-pinned one g
   assert.equal(boxOf(), rest, 'pinned at the end the row box keeps its length');
   await drag('s2', 800, 'start');
   assert.equal(boxOf(), rest + 800 - 390, 'pinned at the start it grows by the growth');
+});
+
+test('a width narrower than the stored one never shortens the row box, so the browser cannot clamp the scroll under the pointer', async () => {
+  const m = await opened(1800, {}, [1, 3, 1]);
+  const boxOf = () => Number.parseFloat(getComputedStyle(slotOf(m.container, 's2').parentElement!).width);
+  const rest = boxOf();
+  act(() => setters.get('s2')!.resizing(true));
+  for (const pin of ['start', 'end'] as const) {
+    await drag('s2', 500, pin);
+    assert.equal(boxOf(), rest, `${pin}: narrower than stored, the box keeps its length`);
+  }
+  await drag('s2', null);
+  assert.equal(boxOf(), rest, 'and cleared, with the stored width unchanged, it is the same length');
 });

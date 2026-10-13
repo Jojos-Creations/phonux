@@ -284,7 +284,7 @@ export function PanelRowSlot({
   React.useLayoutEffect(() => {
     const moved = lastRest.current !== leftOffset;
     lastRest.current = leftOffset;
-    if (moved && snapping && el.current !== null && !kept && !reviving && present) slotDriver.set(el.current, { x: leftOffset, opacity: 1 });
+    if (moved && (snapping || tracking) && el.current !== null && !kept && !reviving && present) slotDriver.set(el.current, { x: leftOffset, opacity: 1 });
   });
   React.useEffect(() => {
     if (!setUpBefore.current) {
@@ -352,7 +352,7 @@ export function PanelSizeBox({
   const systemReduced = useReducedMotion() === true;
   const snaps = configReduced || systemReduced || slot?.animated === false || slot?.tracking === true;
   return (
-    <motion.div data-panel-size-box="" layout="size" transition={snaps ? INSTANT_TRANSITION : slide === undefined ? PANEL_TRANSITION : slideToTransition(slide)} style={{ width, height }}>
+    <motion.div data-panel-size-box="" layout="size" layoutDependency={slot?.tracking === true ? 'held' : undefined} transition={snaps ? INSTANT_TRANSITION : slide === undefined ? PANEL_TRANSITION : slideToTransition(slide)} style={{ width, height }}>
       {children}
     </motion.div>
   );

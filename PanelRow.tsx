@@ -236,10 +236,17 @@ export function PanelRow({
   const drawnIndex = drawnNow === null ? -1 : present.findIndex((p) => p.id === drawnNow.id);
   const drawnEntry = drawnIndex < 0 ? undefined : present[drawnIndex];
   const mostSlots = drawnEntry === undefined ? 1 : Math.max(1, Math.min(effective(drawnEntry).maxSlots, fitSlots(maxLiveWidth, phoneWidth, gap)));
-  const drawnPx = drawnNow === null || drawnEntry === undefined ? undefined : Math.min(slotWidth(mostSlots, phoneWidth, gap), Math.max(phoneWidth, drawnNow.px));
+  const wanted = drawnNow !== null && drawnEntry !== undefined;
+  // A size box that has just been told it is held (its layoutDependency) must not also meet the first width in the same commit, or its layout
+  // animation, which starts a frame late even when instant, would hold the old size for that frame. The width lands in the pass the layout effect asks for.
+  const [primed, setPrimed] = React.useState(false);
+  React.useLayoutEffect(() => {
+    if (primed !== wanted) setPrimed(wanted);
+  }, [primed, wanted]);
+  const drawnPx = !wanted || !primed ? undefined : Math.min(slotWidth(mostSlots, phoneWidth, gap), Math.max(phoneWidth, drawnNow.px));
   // How much wider the override draws the panel than its stored slots do (negative when narrower).
   const growth = drawnPx === undefined ? 0 : drawnPx - baseWidths[drawnIndex]!;
-  const tracking = drawnPx !== undefined;
+  const tracking = wanted;
   const widths = baseWidths.map((width, index) => (index === drawnIndex && drawnPx !== undefined ? drawnPx : width));
   React.useLayoutEffect(() => {
     drawnBeforeRef.current = new Map(present.map((p, index) => [p.id, baseWidths[index]!]));
@@ -261,7 +268,8 @@ export function PanelRow({
   const rowHeight = Math.max(phoneHeight, ...heights);
   const alignedTop = (height: number): number => (workspaceTuning.rowAlign === 'top' ? 0 : workspaceTuning.rowAlign === 'bottom' ? rowHeight - height : Math.round((rowHeight - height) / 2));
   const rowScroll = rowNumbers?.rowScroll ?? false;
-  const reservedWidth = Math.max(0, widths.reduce((sum, width) => sum + width + gap, 0) - gap - pinShift);
+  // While a width is held the row box is never shorter than it was: the browser would clamp the scroll to a shorter strip and move the row under the pointer.
+  const reservedWidth = Math.max(0, widths.reduce((sum, width) => sum + width + gap, 0) - gap - pinShift, tracking ? baseWidths.reduce((sum, width) => sum + width + gap, 0) - gap : 0);
   const maxScroll = rowNumbers === undefined ? 0 : maxScrollOf(rowNumbers);
   const stops = rowNumbers === undefined ? [] : rowNumbers.stops.length > 0 ? rowNumbers.stops : rowNumbers.leftOffsets.map((offset) => rowNumbers.rowMarginLeft + offset);
   const widthById = new Map(present.map((p, index) => [p.id, widths[index]!]));

@@ -60,8 +60,8 @@
     {
       "name": "the row box keeps growing when pinned at the end",
       "file": "PanelRow.tsx",
-      "find": "- gap - pinShift);",
-      "replace": "- gap);",
+      "find": "- gap - pinShift, tracking",
+      "replace": "- gap, tracking",
       "expectRed": [
         "the strip a pinned width leaves"
       ]
@@ -136,6 +136,15 @@
       "replace": "transition={style.transition}",
       "expectRed": [
         "under Reduce Motion the release is one frame"
+      ]
+    },
+    {
+      "name": "a narrower width shortens the row box",
+      "file": "PanelRow.tsx",
+      "find": ", tracking ? baseWidths.reduce((sum, width) => sum + width + gap, 0) - gap : 0);",
+      "replace": ", 0);",
+      "expectRed": [
+        "never shortens the row box"
       ]
     }
   ]
