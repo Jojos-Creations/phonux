@@ -208,7 +208,7 @@ export interface PanelsAPI {
   setFormFactor(id: string, next: FormFactor): void;
   /**
    * Sets `id` to `slots` phone-panel widths wide, clamped to 1 and the panel's `maxSlots`; the row draws it at most as wide as
-   * fits the window and a wider panel is a little taller (`tuning.heightPerSlot`). Otherwise as `setFormFactor`: no-op for an
+   * fits the window. Otherwise as `setFormFactor`: no-op for an
    * unknown id, a panel that is not resizable, or a panel already at that count; other panels park if the row no longer fits.
    * Optional so a host that does not implement slots still satisfies `PanelsAPI`; the library's own provider (`useProvidePanels`) always implements it.
    */

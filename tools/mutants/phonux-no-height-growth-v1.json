@@ -1,0 +1,36 @@
+{
+  "tests": [
+    "test/slot-sizing.test.ts",
+    "test/panel-configure-matrix.test.ts"
+  ],
+  "mutants": [
+    {
+      "name": "a panel grows 48 px for each slot past the first",
+      "file": "PanelRow.tsx",
+      "find": "height={kept || p.slots === undefined ? undefined : phoneHeight}",
+      "replace": "height={kept || p.slots === undefined ? undefined : phoneHeight + (slotsOfWidth(rest.width) - 1) * 48}",
+      "expectRed": [
+        "heights: panels of every slot count keep the phone height"
+      ]
+    },
+    {
+      "name": "the summary reports a taller height for wider panels",
+      "file": "PanelRow.tsx",
+      "find": "kept ? undefined : phoneHeight, kept ? undefined : slotsOfWidth",
+      "replace": "kept ? undefined : phoneHeight + (slotsOfWidth(rest.width) - 1) * 48, kept ? undefined : slotsOfWidth",
+      "expectRed": [
+        "heights: panels of every slot count keep the phone height"
+      ]
+    },
+    {
+      "name": "growth for the widest count only",
+      "file": "PanelRow.tsx",
+      "find": "height={kept || p.slots === undefined ? undefined : phoneHeight}",
+      "replace": "height={kept || p.slots === undefined ? undefined : phoneHeight + (slotsOfWidth(rest.width) > 2 ? 48 : 0)}",
+      "expectRed": [
+        "heights: panels of every slot count keep the phone height",
+        "setSlots and a shrunk neighbour keep the phone height"
+      ]
+    }
+  ]
+}
