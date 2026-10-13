@@ -381,5 +381,5 @@ test('History and a pinned panel follow the same rule as any panel with slots', 
   const shrunk = base.stopFirsts.flatMap((first, k) => numbers(pinned, 1800, 16, 'visible', first).stopShrinks[k]!);
   assert.ok(shrunk.some((s) => s.index === 0), 'a 3-slot panel left of History steps through its sizes');
   assert.ok(shrunk.every((s) => s.index !== 1), 'History is one slot and has no smaller size');
-  assert.equal(nearestStopIndex(base, base.stops[2]!), base.stops.findIndex((s) => s === base.stops[2]!), 'the earliest stop at a shared position');
+  assert.equal(nearestStopIndex(base, base.stops[2]!), base.stops.indexOf(base.stops[2]!), 'the earliest stop at a shared position');
 });
