@@ -1877,6 +1877,31 @@ a template view, or of a template with no footer, draws nothing. A frame nested 
 that wants one passes `footer={false}` to the inner frame. A footer that throws while rendering is hidden by its own boundary,
 which tells `console.error` once; the rest of the panel stays. A window-wide bottom bar is a different feature and is not built.
 
+## Panel API levels
+
+A template may declare `api`, the panel API level it was written against, so a panel can stay on the panel-facing API it was written for while the container (`createWorkspace`, `Workspace`, `PanelRow`) moves on. Leaving it out means the newest level, `PANEL_API`; the key is the one way to ask to stay on an older one. Level 1 is the panel-facing surface in `etc/phonux.api.md` at 0.2.0-rc.3.
+
+### What a level covers
+
+| Covered (the panel side) | Not covered (the container side) |
+| --- | --- |
+| The props a template's `view` and `footer` receive: `panel`, `handle`, `manager` | `createWorkspace`, `Workspace` and `PanelRow` props |
+| The slot context hooks a view calls (`usePanelPinned`, `usePanelTuning` and the rest) and `useViewState`, snapshots | Workspace tuning options and the theme |
+| Header button items, the chrome attribute and part names | The saved workspace format, which has its own `version` |
+| The template's own `settings` keys and `params` | Peer dependency ranges (React, MUI) |
+
+`api` is not saved: templates are registered each launch and the saved state names the template id, so no migration reads it.
+
+### How a level is served
+
+- One package serves every kept level. React and MUI are peer dependencies and the workspace, registry and contexts are module singletons, so a second installed copy could not share a workspace with the first; a security fix is therefore one ordinary release that every level receives, with no dist-tags or backport branches.
+- `panelApiLevel.ts` holds the level table: level to adapter, and which level is the newest. `templateViewFor` (`templateView.tsx`) is the one place a template's view and footer props are built; an older level's adapter turns the newest props into the ones that level promised. The shipped table has only level 1, so no adapter runs today. A test passes its own table to exercise a second level; the fake never enters the shipped table.
+- The check runs in `definePanel`, which `createWorkspace({ templates, root })` and `workspace.registerTemplate` call, so every door answers `invalid-template` the same way. `PanelTemplate` is an interface with an optional `api?: PanelApiLevel`; it becomes a union keyed on `api` when a second level exists, because a one-member union adds nothing.
+- Hooks and settings keys are import- and resolver-bound, so an adapter cannot intercept them. They are additive within a level: a renamed hook or setting key keeps its old name as a deprecated alias until its level is dropped, and a breaking change to one ships under a new name.
+- Keep the newest level and the one before it. A level is dropped only in a major release. A template on a level that is not the newest logs one development-mode warning per template id per page load (the set of warned ids lives at module level, so StrictMode's second render and a remounted workspace do not repeat it); production and a host with no `process` stay silent.
+- `PANEL_API` is exported from `index.ts` and not from `phonux/testing`.
+- `test/fixtures/panel-api-1` is a panel written against a frozen hand-copy of the level-1 members it uses. It is assigned to a real template, so it compiles only while the real props still provide those members, and `test/panel-api-level.test.ts` renders it in a workspace. A change that breaks it breaks level 1: add an adapter and a level, never edit the fixture.
+
 ## History, releases and development
 
 The library began as a folder inside phonux-app and was extracted with `git filter-repo`, renaming every path the folder ever had,
