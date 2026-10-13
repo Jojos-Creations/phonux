@@ -125,6 +125,13 @@ export const slotDriver = {
     const opacity = visual?.getValue('opacity')?.get();
     return typeof x === 'number' && typeof opacity === 'number' ? { x, opacity } : undefined;
   },
+  /**
+   * Starts the slide the element's `animate` prop already asks for, now. Motion starts it in a passive effect, a frame after
+   * the layout animation of the PanelSizeBox inside this slot, so a neighbour of a resizing panel trails the box and a gap opens.
+   */
+  startPending(el: HTMLElement): void {
+    (visualElementStore.get(el) as { animationState?: { animateChanges(): void } } | undefined)?.animationState?.animateChanges();
+  },
   animate(el: HTMLElement, values: SlotValues, transition: TargetAndTransition['transition']): SlotRun {
     const at = slotDriver.read(el);
     // Motion settles a slide whose target it already stands on only at the next frame; a kept slot must not wait for one.
@@ -285,6 +292,7 @@ export function PanelRowSlot({
     const moved = lastRest.current !== leftOffset;
     lastRest.current = leftOffset;
     if (moved && (snapping || tracking) && el.current !== null && !kept && !reviving && present) slotDriver.set(el.current, { x: leftOffset, opacity: 1 });
+    else if (moved && el.current !== null && !kept && !reviving && present) slotDriver.startPending(el.current);
   });
   React.useEffect(() => {
     if (!setUpBefore.current) {
