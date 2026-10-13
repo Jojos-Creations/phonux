@@ -19,7 +19,7 @@ test('adding a panel with headerButtons after mount logs no getSnapshot caching 
       settings: { headerButtons: { x: { icon: createElement('i'), label: 'X', onClick: () => undefined } } },
       view: ({ panel }) => createElement(Panel, { title: panel.id, children: null }),
     });
-    const ws = createWorkspace({ root: markerTemplate('root', { settings: { title: 'History' } }), templates: [template] });
+    const ws = createWorkspace({ mount: false, root: markerTemplate('root', { settings: { title: 'History' } }), templates: [template] });
     mountWorkspace(ws, { width: 4000 });
     await flush();
     act(() => {

@@ -17,7 +17,6 @@ export type ViewProps<P = JsonValue> = {
 export type ViewComponent<P = JsonValue> = React.ComponentType<ViewProps<P>>;
 
 const registry = new Map<string, ViewComponent>();
-const templates = new Map<string, PanelTemplate>();
 /** One placeholder instance per unregistered key: AnimatePresence tracks a rendered element's own identity, so a fresh component type on every resolve would remount it on every render instead of once. */
 const placeholders = new Map<string, ViewComponent>();
 /** One adapter per template object, for the same reason as the placeholders: a fresh component type on every resolve would remount the panel. */
@@ -32,24 +31,10 @@ export function registerView<P extends JsonValue>(key: string, Component: ViewCo
   registry.set(key, Component as unknown as ViewComponent);
 }
 
-/**
- * Registers a template so a workspace can build panels of it. A template whose id is already a `registerView` key
- * throws `template-collision`; registering the same id again replaces it. Returns the function that removes it.
- * @internal
- */
-export function registerTemplate(t: PanelTemplate): () => void {
-  if (registry.has(t.id)) throw new PanelManagerError('template-collision', `template '${t.id}' collides with the view registered under the same key`);
-  templates.set(t.id, t);
-  return () => {
-    if (templates.get(t.id) === t) templates.delete(t.id);
-  };
+/** Throws `template-collision` when a plain view is registered under `id`: the plain view would shadow the template. @internal */
+export function assertTemplateIdFree(id: string): void {
+  if (registry.has(id)) throw new PanelManagerError('template-collision', `template '${id}' collides with the view registered under the same key`);
 }
-
-/** The template registered under `id`, or undefined. @internal */
-export const getTemplate = (id: string): PanelTemplate | undefined => templates.get(id);
-
-/** Every registered template, in registration order. @internal */
-export const listTemplates = (): readonly PanelTemplate[] => [...templates.values()];
 
 function placeholderFor(key: string): ViewComponent {
   const cached = placeholders.get(key);
@@ -93,10 +78,15 @@ export function templateViewFor(t: PanelTemplate): ViewComponent {
   return TemplatePanelView;
 }
 
-/** Never throws, never returns nothing: an unregistered key is a typo or a plugin missing THIS session, not a corrupt layout. @public */
+/** The plain view registered under `key`, else the placeholder: a template is only known to the workspace that holds it, so see `resolveViewIn`. Never throws, never returns nothing. @public */
 export function resolveView(key: string): ViewComponent {
+  return registry.get(key) ?? placeholderFor(key);
+}
+
+/** `resolveView` for a row that has a workspace: a plain view wins, then the workspace's template for `key`, then the placeholder. @internal */
+export function resolveViewIn(templateOf: (id: string) => PanelTemplate | undefined, key: string): ViewComponent {
   const plain = registry.get(key);
   if (plain) return plain;
-  const template = templates.get(key);
+  const template = templateOf(key);
   return template ? templateViewFor(template) : placeholderFor(key);
 }

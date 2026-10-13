@@ -61,6 +61,7 @@ export const titledTemplate = (id: string, o: HeaderRigOptions, settings: PanelS
 export async function headerRig(o: HeaderRigOptions = {}): Promise<HeaderRig> {
   const ids = o.ids ?? ['a', 'b', 'c'];
   const ws = createWorkspace({
+    mount: false,
     root: markerTemplate('root', { settings: { title: 'History' } }),
     templates: ids.map((id) => titledTemplate(id, o, { ...(o.slots === undefined ? {} : { headerButtons: o.slots }), ...(o.settings?.[id] ?? {}) })),
     ...(o.workspace ?? {}),

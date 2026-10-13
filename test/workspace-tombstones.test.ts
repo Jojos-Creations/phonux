@@ -139,7 +139,7 @@ test('registerTemplate over a placeholder turns a saved closable false entry int
     version: 1,
     panels: [{ id: 'old1', view: 'late-lock', url: '', live: true, anchor: { panel: '__root__', position: 'right', priority: 0 }, closable: false }],
   });
-  const w = createWorkspace({ storage: store });
+  const w = createWorkspace({ mount: false, storage: store });
   const m = mountWorkspace(w);
   await flush();
   assert.equal(m.container.querySelector('[data-template="late-lock"]'), null, 'positive control: before registration it is a placeholder');
@@ -152,7 +152,7 @@ test('registerTemplate over a placeholder turns a saved closable false entry int
 });
 
 test('hostCreatable, multiple and maxInstances hold on late registration and an over-limit addPanel does not throw', async () => {
-  const w = createWorkspace();
+  const w = createWorkspace({ mount: false });
   const m = mountWorkspace(w);
   await flush();
   const t = markerTemplate('late-cap', { settings: { multiple: true, maxInstances: 1 } });

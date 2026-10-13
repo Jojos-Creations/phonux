@@ -276,15 +276,37 @@ export class HostMissingProviderError extends Error {
 const HostContext = React.createContext<Host | null>(null);
 
 /**
- * Mount once, at the host. `host` is passed straight through as the context
- * value: NEVER memoise it here or where it is built. The handlers behind it
- * close over render-time state (the panel list, the column count), so a
- * memoised bag hands views stale closures.
+ * What `HostProvider` takes: a `Host` whose `settings` and `device` may be left out. A host that never shows a settings
+ * column or picks a phone size says nothing about them; `useHost()` still returns the fully resolved `Host`.
  * @public
  */
-export function HostProvider({ host, children }: { host: Host; children: React.ReactNode }) {
+export type HostInput = Omit<Host, 'settings' | 'device'> & {
+  /** Window-layout settings. Left out: the settings column stays hidden and `show()`/`hide()` do nothing. */
+  readonly settings?: SettingsAPI;
+  /** The phone size. Left out: `DEFAULT_PHONE_SIZE`, with no model choice and no phone-detect notice. */
+  readonly device?: PhoneDeviceAPI;
+};
+
+// Module constants, not built per render: a reader memoised on `useHost().device` must see the same object every render.
+const DEFAULT_SETTINGS: SettingsAPI = { settingsColumn: { visible: false, show: () => {}, hide: () => {} } };
+const DEFAULT_DEVICE: PhoneDeviceAPI = { size: DEFAULT_PHONE_SIZE };
+
+/** `input` as the `Host` readers get: itself when it already names both members, else a copy with the defaults filled in. */
+function resolveHost(input: HostInput): Host {
+  if (input.settings !== undefined && input.device !== undefined) return input as Host;
+  return { ...input, settings: input.settings ?? DEFAULT_SETTINGS, device: input.device ?? DEFAULT_DEVICE };
+}
+
+/**
+ * Mount once, at the host. `host` is passed straight through as the context
+ * value (with the defaults of `HostInput` filled in): NEVER memoise it here or
+ * where it is built. The handlers behind it close over render-time state (the
+ * panel list, the column count), so a memoised bag hands views stale closures.
+ * @public
+ */
+export function HostProvider({ host, children }: { host: HostInput; children: React.ReactNode }) {
   return (
-    <HostContext.Provider value={host}>
+    <HostContext.Provider value={resolveHost(host)}>
       <OverlayProvider>
         <ViewStateProvider>{children}</ViewStateProvider>
       </OverlayProvider>

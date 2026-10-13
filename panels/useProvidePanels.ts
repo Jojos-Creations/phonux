@@ -27,7 +27,6 @@ import type { PanelTemplate } from '../panelTemplate.js';
 import { reportNotes } from '../panelPlacement.js';
 import { resolveWorkspaceTuning } from '../panelTuning.js';
 import { appendPanel, clearOverrides, recordOverride, reanchorPanel, type AnchorRequest, type PanelWindow } from '../panelWindow.js';
-import { listTemplates } from '../viewRegistry.js';
 import { bindingOf, nextEngineId, type CreateRequest, type EngineOps, type WorkspaceHandle } from '../workspaceCore.js';
 import { conflictNotes, finishCreated } from '../workspacePlan.js';
 import { usePanelClosing, type Reapplied } from './usePanelClosing.js';
@@ -296,10 +295,7 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
   const freshId = core?.newId ?? nextEngineId;
   const workspaceDefaults = core?.defaults ?? i.workspaceDefaults;
   const ownTemplates = (): readonly PanelTemplate[] => (core !== undefined ? core.templates() : (i.templates ?? []));
-  const templateList = (): PanelTemplate[] => {
-    const own = ownTemplates();
-    return [...listTemplates().filter((t) => !own.some((g) => g.id === t.id)), ...own];
-  };
+  const templateList = (): PanelTemplate[] => [...ownTemplates()];
   const fixedViewCount = i.fixedViewCount ?? panels.filter((p) => !p.collapsible && p.marker !== true).length;
   // Filters over the whole list, never an array position: a panel anchored left of History changes none of these.
   const rowNumbers = computeRowNumbers({ entries: panels, phoneWidth: i.phoneWidth, containerWidth: i.containerWidth, gap: tuning.rowGap, fixedItemCount: fixedViewCount, wholePanels: tuning.rowGesture === 'step' });

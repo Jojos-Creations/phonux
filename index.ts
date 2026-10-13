@@ -21,6 +21,7 @@ export type {
   PanelsAPI,
   PhoneDeviceAPI,
   Host,
+  HostInput,
 } from './hostApi.js';
 
 export type { PhonuxLabels } from './labels.js';
