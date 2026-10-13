@@ -1,0 +1,97 @@
+{
+  "tests": [
+    "test/shrink-by-slot.test.ts"
+  ],
+  "mutants": [
+    {
+      "name": "hidden is treated as visible",
+      "file": "rowNumbers.ts",
+      "find": "i.shrink!.mode === 'hidden' ? 1 : Math.max(1, chosen - steps[k]!)",
+      "replace": "Math.max(1, chosen - steps[k]!)",
+      "expectRed": [
+        "worked row, hidden: a panel in view keeps its slots"
+      ]
+    },
+    {
+      "name": "off is treated as on",
+      "file": "panels/useProvidePanels.ts",
+      "find": "...(shrinkMode === 'off' ? {} : { shrink: { mode: shrinkMode, stop: stopIndex } }),",
+      "replace": "...{ shrink: { mode: shrinkMode === 'off' ? 'visible' : shrinkMode, stop: stopIndex } },",
+      "expectRed": [
+        "mounted: off is the default"
+      ]
+    },
+    {
+      "name": "steps do not grow with the distance in panels",
+      "file": "rowNumbers.ts",
+      "find": "k < first ? first - k : k > last ? k - last : 0",
+      "replace": "k < first ? 1 : k > last ? 1 : 0",
+      "expectRed": [
+        "worked row, visible: steps count panels"
+      ]
+    },
+    {
+      "name": "a neighbour peeking into a margin counts as out of view",
+      "file": "rowNumbers.ts",
+      "find": "- Math.max(left, scrollLeft) > PEEK_EPS;",
+      "replace": "- Math.max(left, scrollLeft) > width - PEEK_EPS;",
+      "expectRed": [
+        "worked row, visible: steps count panels"
+      ]
+    },
+    {
+      "name": "a margin of 0 shows its neighbour",
+      "file": "rowNumbers.ts",
+      "find": "- Math.max(left, scrollLeft) > PEEK_EPS;",
+      "replace": "- Math.max(left, scrollLeft) >= 0;",
+      "expectRed": [
+        "a margin of 0 shows no neighbour"
+      ]
+    },
+    {
+      "name": "a stop rests where the chosen layout puts it",
+      "file": "rowNumbers.ts",
+      "find": "const stopTargets = shrinkStop < 0 || !targets ? stops :",
+      "replace": "const stopTargets = true ? stops :",
+      "expectRed": [
+        "worked row, visible: steps count panels"
+      ]
+    },
+    {
+      "name": "the cap is not applied before the steps",
+      "file": "rowNumbers.ts",
+      "find": "const drawnSlots: (number | undefined)[] = present.map((p) => drawnSlotsOf(p, i.phoneWidth, maxLiveWidth, i.gap));",
+      "replace": "const drawnSlots: (number | undefined)[] = present.map((p) => p.slots);",
+      "expectRed": [
+        "a panel stored as every slot that fits narrows at once"
+      ]
+    },
+    {
+      "name": "a panel can fall below one slot",
+      "file": "rowNumbers.ts",
+      "find": "Math.max(1, chosen - steps[k]!)",
+      "replace": "chosen - steps[k]!",
+      "expectRed": [
+        "the rule never lowers a panel below one slot"
+      ]
+    },
+    {
+      "name": "the row does not record the stop it is heading for",
+      "file": "panels/useProvidePanels.ts",
+      "find": "scroller.setStopIndex(k);\n    return scroller.glideTo(rowNumbers.stopTargets[k]!, o);",
+      "replace": "void k;\n    return scroller.glideTo(rowNumbers.stopTargets[k]!, o);",
+      "expectRed": [
+        "mounted: stepping away narrows the panels left behind"
+      ]
+    },
+    {
+      "name": "a step looks its target up among the stops of the layout it is leaving",
+      "file": "panels/useProvidePanels.ts",
+      "find": "ease: tuning.slide.glideEase }, true);",
+      "replace": "ease: tuning.slide.glideEase });",
+      "expectRed": [
+        "mounted: stepping away narrows the panels left behind"
+      ]
+    }
+  ]
+}

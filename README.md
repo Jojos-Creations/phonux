@@ -61,6 +61,8 @@ function App({ host }) {
 
 A panel is a whole number of slots wide: one slot is the phone width, and each added slot adds a phone width plus the row gap. Set the count with `slots` (and cap it with `maxSlots`); a person can change it by dragging, and a view can change it with `setSlots`. A panel is drawn at no more slots than fit the window, and its chosen count comes back when the window grows. Panels get `tuning.heightPerSlot` taller for each slot they gain, the row is as tall as its tallest panel, and `tuning.rowAlign` (`center`, `top` or `bottom`) places the shorter ones. `formFactor` still works as a view of `slots` (phone 1, tablet 2, desktop 3 or more) and is deprecated. See `DESIGN.md` "Slot sizing".
 
+In a row that steps (`rowGesture` `'step'`), `tuning.shrinkOutOfView` can narrow panels as the row scrolls away from them: `'visible'` takes one slot per panel between a panel and the nearest one in view (never below one slot), `'hidden'` draws a panel at one slot once none of it shows. The default is `'off'`; a person's `slots` is never changed, and `PanelSummary.drawnSlots` reports what is drawn. See `DESIGN.md` "Shrinking out of view".
+
 ## Panel chrome
 
 `useActivePanel()` returns the active panel's id and a setter (a press or focus anywhere inside a panel makes it active);
