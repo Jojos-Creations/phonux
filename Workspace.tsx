@@ -248,7 +248,7 @@ export function Workspace(props: WorkspaceProps): React.ReactElement {
           data-row-strip=""
           style={{ display: 'flex', gap: `${gap}px`, marginTop: 'auto', marginBottom: 'auto', marginRight: 'auto', ...(scrolls ? { flexShrink: 0 } : {}) }}
           animate={{ marginLeft: style.marginLeft }}
-          transition={style.transition}
+          transition={reduced ? { duration: 0 } : style.transition}
         >
           <OverlaySlot name="dialog" />
           {children}

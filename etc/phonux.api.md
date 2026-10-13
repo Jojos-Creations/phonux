@@ -1236,7 +1236,7 @@ export const usePanelReorderEligible: () => boolean;
 export const usePanelReorderSteps: () => ((offsetX: number) => number);
 
 // @public
-export function usePanelResizing(): readonly [boolean, (on: boolean) => void];
+export function usePanelResizing(): readonly [boolean, (on: boolean) => void, (px: number | null, pin?: 'start' | 'end') => void];
 
 // @public
 export function usePanelState(id: PanelId): PanelState | undefined;
