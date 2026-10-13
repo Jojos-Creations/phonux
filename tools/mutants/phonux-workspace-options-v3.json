@@ -63,7 +63,7 @@
       "find": "{...(values.topInset !== undefined ? { topPadding: values.topInset } : {})} ",
       "replace": "",
       "expectRed": [
-        "topInset is the clearance above the row, and it lowers the height a taller panel may have"
+        "topInset is the clearance above the row, and an update moves it"
       ]
     },
     {

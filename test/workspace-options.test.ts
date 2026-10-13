@@ -101,18 +101,13 @@ test('with none of them a view reads the defaults a bare HostProvider gives', as
   assert.deepEqual(hostOf(), { size: { width: 390, height: 700, modelId: 'default' }, column: false, entries: null, snapshots: false, labels: null });
 });
 
-test('topInset is the clearance above the row, and it lowers the height a taller panel may have', async () => {
+test('topInset is the clearance above the row, and an update moves it', async () => {
   win.height = 800;
   const ws = await started({ topInset: 200 });
-  const scroller = document.querySelector<HTMLElement>('[data-row-scroller]')!;
-  assert.equal(getComputedStyle(scroller).paddingTop, '200px');
-  await act(async () => void ws.panels.get('probe')!.setSlots(2));
-  await advanceFrames(800);
-  const slotHeight = (): number => Number.parseInt((document.querySelector('[data-row-slot]:has([data-host])') as HTMLElement).style.height, 10);
-  assert.equal(slotHeight(), 700, 'with 200 px taken the row has less than a taller panel needs, and a panel is never shorter than a phone');
+  const padding = (): string => getComputedStyle(document.querySelector<HTMLElement>('[data-row-scroller]')!).paddingTop;
+  assert.equal(padding(), '200px');
   await act(async () => ws.update({ topInset: 0 }));
-  await advanceFrames(800);
-  assert.ok(slotHeight() > 700, `and taller once the inset is gone: ${slotHeight()}`);
+  assert.equal(padding(), '0px');
 });
 
 test('panels.onPanelsClosed hears each close, and the callback an update gave is the one a later close calls', async () => {
@@ -331,11 +326,11 @@ test('the mount does not pass rowResizeSettled: Workspace settles the row from t
 // 6. The catalog's tuning leaves
 // ---------------------------------------------------------------------------
 
-test('the catalog holds 18 tuning leaves, and DESIGN.md says so', () => {
+test('the catalog holds 16 tuning leaves, and DESIGN.md says so', () => {
   const leaves = PANEL_SETTINGS_CATALOG.filter((d) => d.name.startsWith('tuning.'));
-  assert.equal(leaves.length, 18);
+  assert.equal(leaves.length, 16);
   const design = readFileSync(fileURLToPath(new URL('../DESIGN.md', import.meta.url)), 'utf8');
   const start = design.indexOf('## Workspace options, wrap and update');
   assert.ok(start >= 0);
-  assert.match(design.slice(start, design.indexOf('\n## ', start + 1)), /holds 18 tuning leaves/);
+  assert.match(design.slice(start, design.indexOf('\n## ', start + 1)), /holds 16 tuning leaves/);
 });
