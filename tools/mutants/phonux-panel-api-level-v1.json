@@ -69,6 +69,15 @@
       ]
     },
     {
+      "name": "the footer is handed the unadapted props",
+      "file": "templateView.tsx",
+      "find": "<Footer {...viewProps} />",
+      "replace": "<Footer {...props} />",
+      "expectRed": [
+        "an older level gets the props it promised, the newest gets today's"
+      ]
+    },
+    {
       "name": "the fixture view is handed a renamed manager prop",
       "file": "templateView.tsx",
       "find": "const props = { panel, handle, manager: context.manager };",

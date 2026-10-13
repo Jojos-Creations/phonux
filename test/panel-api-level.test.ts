@@ -10,6 +10,7 @@ import { PANEL_API, PanelManagerError, createWorkspace, definePanel } from '../i
 import type { PanelTemplate } from '../index.js';
 import { checkPanelApi, type LevelTable, type NewestViewProps } from '../panelApiLevel.js';
 import { templateViewFor } from '../templateView.js';
+import { PanelFooterContext } from '../panelFooter.js';
 import { PanelViewContextValue } from '../panelViewContext.js';
 import { cleanup, mount, withHost } from './support/mount-harness.js';
 import { markerTemplate, mountWorkspace } from './support/workspace-row.js';
@@ -79,23 +80,30 @@ test('the table decides: a level it serves is accepted, one it does not still th
 // The adapter
 // ---------------------------------------------------------------------------
 
-type Seen = { keys: string[]; panelId?: string; readerList?: number; managerList?: number };
+type Seen = { keys: string[]; footerKeys: string[]; panelId?: string };
 
-/** Renders a template's adapted view with a stub handle and manager, and reports the props its view received. */
+/** Renders a template's adapted view and footer with a stub handle and manager, and reports the props each received. */
 function renderAdapted(t: PanelTemplate, table: LevelTable, seen: Seen[]): void {
   const manager = { list: () => [], get: () => undefined, getSnapshot: () => ({ version: 0, status: 'ready', panels: [] }), subscribe: () => () => undefined };
   const handle = { id: 'p1', templateId: t.id };
+  const footerKeys: string[] = [];
   const probe: PanelTemplate = {
     id: t.id,
     ...(t.api === undefined ? {} : { api: t.api }),
     view: ((props: Record<string, unknown>) => {
-      seen.push({ keys: Object.keys(props).sort(), panelId: (props.panel as { id: string }).id });
-      return null;
+      seen.push({ keys: Object.keys(props).sort(), footerKeys: [], panelId: (props.panel as { id: string }).id });
+      // The footer is drawn by the frame from this context; reading it here is how a test sees the footer's props.
+      return React.useContext(PanelFooterContext);
     }) as unknown as PanelTemplate['view'],
+    footer: ((props: Record<string, unknown>) => {
+      footerKeys.push(...Object.keys(props).sort());
+      return null;
+    }) as unknown as PanelTemplate['footer'],
   };
   const Probed = templateViewFor(probe, table);
   const ctx = { handleFor: () => handle as never, manager: manager as never };
   mount(withHost(React.createElement(PanelViewContextValue.Provider, { value: ctx }, React.createElement(Probed, { panel: { id: 'p1', live: true, locked: false } }))));
+  if (seen[0] !== undefined) seen[0].footerKeys = [...new Set(footerKeys)].sort();
 }
 
 test('an older level gets the props it promised, the newest gets today\'s', () => {
@@ -103,9 +111,11 @@ test('an older level gets the props it promised, the newest gets today\'s', () =
   renderAdapted({ id: 'old-adapter', api: 1, view: View } as PanelTemplate, TWO_LEVELS, old);
   assert.deepEqual(old[0]?.keys, ['handle', 'panel', 'reader']);
   assert.equal(old[0]?.panelId, 'p1');
+  assert.deepEqual(old[0]?.footerKeys, ['handle', 'panel', 'reader'], 'the footer gets the adapted props too');
   const current: Seen[] = [];
   renderAdapted({ id: 'new-adapter', view: View }, TWO_LEVELS, current);
   assert.deepEqual(current[0]?.keys, ['handle', 'manager', 'panel']);
+  assert.deepEqual(current[0]?.footerKeys, ['handle', 'manager', 'panel']);
   const named: Seen[] = [];
   renderAdapted({ id: 'new-named', api: 2 as never, view: View }, TWO_LEVELS, named);
   assert.deepEqual(named[0]?.keys, ['handle', 'manager', 'panel']);
