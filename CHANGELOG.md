@@ -16,7 +16,7 @@
   after the group while the row has last gone toward the end, the one before it while it has gone toward the start. Nothing
   else changes size, `slots` is never written, and `PanelSummary.drawnSlots` and `size` report what is drawn. With `'hidden'` the
   room stays as margin and no panel is drawn part way, not even mid-glide; `'off'` is today's behaviour. New `usePanelResizing()`
-  returns `[resizing, setResizing]` for a resize grabber: while a panel is marked, no other panel's drawn width changes.
+  returns `[resizing, setResizing]` for a resize grabber or any drag: while a panel is marked it reads as dragging, no other panel's drawn width changes, and the row does not scroll.
 - Slot sizing: a panel is n whole slots wide, a slot being one phone width with the row gap between slots, and a little taller
   for each slot past the first. New per-panel settings `slots` (the choice; `formFactor` becomes its view: 1 phone, 2 tablet,
   3 or more desktop) and `maxSlots`; new workspace tuning `heightPerSlot` (default 48 px, held to the height the row has)

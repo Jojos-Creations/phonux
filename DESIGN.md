@@ -354,7 +354,9 @@ old side returns to its own size and the new leading one shrinks in one move; un
 nobody here steered (`scrollTo`, a History click, a free-scroll settle, an edge-scroll drag) is aimed at the lean its direction gives
 before it starts; a glide already in flight that crosses a lean is re-aimed at the new lean's position. Capacity (the cap, fit
 pricing, refill) reads chosen widths only, so a step never parks or returns a panel. `usePanelResizing()` marks a panel being
-resized by hand; while it is marked every other panel keeps the width it had been drawn at.
+resized by hand, and also marks it dragging; while it is marked every other panel keeps the width it had been drawn at, the row holds
+its scroll (a step is ignored and no settle runs), and the release settles onto the nearest stop once. The edge fade follows the logical
+stop, not the scroll position, since two stops can share one, and finds each slot by its panel id.
 
 The container's horizontal overflow follows `tuning.rowGesture`: 'step' scrolls with the scrollbar hidden,
 'free' scrolls with it visible, 'off' hides the overflow. A row with no settings is always hidden.
