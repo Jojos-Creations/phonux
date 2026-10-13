@@ -9,7 +9,6 @@ export {
 } from './hostApi.js';
 export type {
   PhoneSize,
-  DetectedPhone,
   ClosedPageEntry,
   JsonValue,
   FormFactor,
@@ -68,9 +67,6 @@ export type {
 
 export { PHONE_MODELS, findPhoneModel } from './phoneModels.js';
 export type { PhoneModel } from './phoneModels.js';
-
-export { PhoneDetectPrompt } from './PhoneDetectPrompt.js';
-export type { PhoneDetectPromptProps } from './PhoneDetectPrompt.js';
 
 export type { PanelAnchor } from './panelRowOrder.js';
 export type { NeighborWidths, PanelRowEntry } from './panelRowEntry.js';

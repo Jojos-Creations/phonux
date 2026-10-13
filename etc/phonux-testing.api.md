@@ -51,12 +51,6 @@ export interface CreatePanelOptions {
 }
 
 // @public
-export interface DetectedPhone {
-    productId: number;
-    vendorId: number;
-}
-
-// @public
 export interface FakeCall {
     api: keyof Host;
     args: unknown[];
@@ -160,10 +154,7 @@ export interface PanelSummary<P = JsonValue> {
 export interface PhoneDeviceAPI {
     chooseModel?(modelId: string): Promise<void>;
     readonly defaultSize?: PhoneSize;
-    readonly detectedPhone?: DetectedPhone | null;
-    dismissDetectedPhone?(): void;
     readonly models?: readonly PhoneModel[];
-    resizeForDetectedPhone?(modelId: string): void;
     readonly size: PhoneSize;
 }
 
@@ -184,15 +175,10 @@ export interface PhoneSize {
 
 // @public
 export interface PhonuxLabels {
-    dismiss: string;
     historyTitle: string;
     lock: string;
     panelTitle: (id: string) => string;
-    phoneConnected: string;
-    phoneConnectedText: (vendor: string) => string;
-    phoneModel: string;
     pin: string;
-    resize: string;
     unlock: string;
     unpin: string;
     untitledHeader: string;
