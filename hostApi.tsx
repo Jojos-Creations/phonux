@@ -102,6 +102,8 @@ export interface PanelSummary<P = JsonValue> {
   readonly maxSlots?: number;
   /** The slots the row draws the panel at now: `slots` capped at what fits the window. A summary a view receives from the row carries it. */
   readonly drawnSlots?: number;
+  /** The most slots that fit the window now, at the row's gap: what a resize control may offer, whatever `maxSlots` allows. A summary a view receives from the row carries it. */
+  readonly fitSlots?: number;
   /** This panel's own rendered size. Panel/PanelFrame do not read it: a view passes it to their separate `size` prop for a non-phone tier (a phone panel follows useHost().device.size instead). */
   readonly size?: PanelSize;
 }
@@ -178,6 +180,12 @@ export interface PanelsAPI {
   /** Every panel, live or parked, in array order. History lists them as given; the row shows the live ones. */
   readonly panelList: readonly PanelSummary[];
   /**
+   * How many panels, permanent columns such as History included, the window fits at the current phone width and row gap:
+   * the phone-width ceiling for a fresh row, at least one more than the permanent columns. Pinned panels are not subtracted
+   * and a scrolling row reports the same number. `null` until the row is measured, never 0; absent from a host that does not report it.
+   */
+  readonly maxFitPanels?: number | null;
+  /**
    * Appends a live panel; zero-arg opens a panel of the host's default view. `view` selects the rendered component
    * (registerView/resolveView) -- an unregistered key renders a placeholder, never a crash. No raw
    * `collapsible`/`locked` key: `permanent` (CreatePanelOptions) is the only door to a permanent column, and
@@ -210,7 +218,7 @@ export interface PanelsAPI {
    * Sets `id` to `slots` phone-panel widths wide, clamped to 1 and the panel's `maxSlots`; the row draws it at most as wide as
    * fits the window and a wider panel is a little taller (`tuning.heightPerSlot`). Otherwise as `setFormFactor`: no-op for an
    * unknown id, a panel that is not resizable, or a panel already at that count; other panels park if the row no longer fits.
-   * Optional so a host written before slots still satisfies `PanelsAPI`; the library's own provider (`useProvidePanels`) always implements it.
+   * Optional so a host that does not implement slots still satisfies `PanelsAPI`; the library's own provider (`useProvidePanels`) always implements it.
    */
   setSlots?(id: string, slots: number): void;
   /**

@@ -7,11 +7,40 @@ import { animate, useReducedMotion, useReducedMotionConfig } from 'motion/react'
 import { LIBRARY_TUNING_DEFAULTS, type PanelId } from './panelSettings.js';
 import { PanelSlotContext } from './panelSlotContext.js';
 
-/** The attributes the library writes on a panel's root box so a host can style from them. */
+/**
+ * The attribute the library writes, empty-valued, on the root box of the active panel and removes when another panel
+ * is used. A host styles from it, as `[data-panel-active]`.
+ * @public
+ */
 export const ACTIVE_ATTRIBUTE = 'data-panel-active';
+
+/**
+ * The attribute the library writes, empty-valued, on a panel's root box from the moment a drag of it engages until it
+ * settles. A host styles from it, as `[data-panel-dragging]`.
+ * @public
+ */
 export const DRAGGING_ATTRIBUTE = 'data-panel-dragging';
-/** Marks the header, grab bar and footer: the elements `tuning.chrome` fades. */
+
+/**
+ * The attribute that marks the header, grab bar and footer of a panel: the elements `tuning.chrome` fades. Its value is
+ * one of {@link CHROME_PARTS}. Other `data-panel-*` markers the library draws (`data-panel-grab-bar`,
+ * `data-panel-footer`, `data-panel-size-box`) are not a public contract.
+ * @public
+ */
 export const CHROME_ATTRIBUTE = 'data-panel-chrome-part';
+
+/**
+ * The values {@link CHROME_ATTRIBUTE} takes, one per part: `header`, `grabBar` (`'grab-bar'`) and `footer`. A panel
+ * carries at most one element of each.
+ * @public
+ */
+export const CHROME_PARTS = { header: 'header', grabBar: 'grab-bar', footer: 'footer' } as const;
+
+/**
+ * A value of {@link CHROME_ATTRIBUTE}: `'header'`, `'grab-bar'` or `'footer'`.
+ * @public
+ */
+export type ChromePart = (typeof CHROME_PARTS)[keyof typeof CHROME_PARTS];
 
 /** One workspace's active and dragging panel, with listeners per panel so a change wakes only the panels it concerns. */
 export interface ChromeStore {
@@ -200,11 +229,12 @@ export function useChromeVisibility(): { visible: boolean; handlers: ChromeRootH
  */
 export function useChromeFade(visible: boolean): (node: HTMLElement | null) => void {
   const slot = React.useContext(PanelSlotContext);
-  const { mode, fadeMs } = slot?.tuning.chrome ?? LIBRARY_TUNING_DEFAULTS.chrome;
+  const { mode, fadeMs, fadeEase } = slot?.tuning.chrome ?? LIBRARY_TUNING_DEFAULTS.chrome;
   // The system preference counts whatever the app's MotionConfig says, as it does for the row's own slides.
   const configReduced = useReducedMotionConfig() === true;
   const systemReduced = useReducedMotion() === true;
   const reduced = configReduced || systemReduced;
+  const easeKey = JSON.stringify(fadeEase);
   const instant = fadeMs === 0 || reduced || slot?.animated === false;
   const target = mode === 'always' || visible ? 1 : 0;
   const node = React.useRef<HTMLElement | null>(null);
@@ -226,12 +256,12 @@ export function useChromeFade(visible: boolean): (node: HTMLElement | null) => v
       settle(el);
       return;
     }
-    const controls = animate(el, { opacity: target }, { duration: fadeMs / 1000 });
+    const controls = animate(el, { opacity: target }, { duration: fadeMs / 1000, ease: fadeEase });
     run.current = controls;
     void controls.then(() => {
       if (run.current === controls) settle(el);
     });
-  }, [target, instant, fadeMs, mode]);
+  }, [target, instant, fadeMs, easeKey, mode]);
   React.useLayoutEffect(() => () => run.current?.stop(), []);
   return React.useCallback((el: HTMLElement | null) => {
     node.current = el;

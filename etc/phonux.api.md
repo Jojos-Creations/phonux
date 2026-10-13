@@ -11,6 +11,9 @@ import type { SxProps } from '@mui/material/styles';
 import { Theme } from '@mui/material/styles';
 
 // @public
+export const ACTIVE_ATTRIBUTE = "data-panel-active";
+
+// @public
 export type AddPlacement = 'row-start' | 'row-end' | 'parkable-start' | 'parkable-end' | 'after-fixed' | 'order' | {
     before: PanelId;
 } | {
@@ -52,9 +55,23 @@ export interface CaptureTrigger {
 export type CatalogName = Exclude<keyof PanelSettings, 'tuning'> | `tuning.${keyof WorkspaceTuning}`;
 
 // @public
+export const CHROME_ATTRIBUTE = "data-panel-chrome-part";
+
+// @public
+export const CHROME_PARTS: {
+    readonly header: "header";
+    readonly grabBar: "grab-bar";
+    readonly footer: "footer";
+};
+
+// @public
+export type ChromePart = (typeof CHROME_PARTS)[keyof typeof CHROME_PARTS];
+
+// @public
 export type ChromeTuning = {
     mode: 'always' | 'hover-or-active';
     fadeMs: number;
+    fadeEase: FadeEase;
     slideMs: number;
     slidePx: number;
     graceMs: number;
@@ -164,6 +181,9 @@ export const DRAG_CLOSE: {
 };
 
 // @public
+export const DRAGGING_ATTRIBUTE = "data-panel-dragging";
+
+// @public
 export interface DragHandleProps {
     onPointerDown: (event: React_2.PointerEvent<HTMLElement>) => void;
     sx: {
@@ -205,6 +225,9 @@ export type EdgeScrollTuning = {
     maxPxPerSec: number;
     reducedStepMs: number;
 };
+
+// @public
+export type FadeEase = 'easeIn' | 'easeOut' | 'easeInOut' | 'linear' | BezierEase;
 
 // @public
 export function findPhoneModel(id: string): PhoneModel | undefined;
@@ -582,6 +605,7 @@ export interface PanelsAPI {
     close(id: string): void;
     create(): void;
     create(options: CreatePanelOptions): void;
+    readonly maxFitPanels?: number | null;
     move(id: string, direction: 'left' | 'right'): void;
     readonly panelList: readonly PanelSummary[];
     reanchor(id: string, anchor: {
@@ -704,6 +728,7 @@ export type PanelStatus = 'pending' | 'live' | 'parked' | 'closed';
 // @public
 export interface PanelSummary<P = JsonValue> {
     readonly drawnSlots?: number;
+    readonly fitSlots?: number;
     readonly formFactor?: FormFactor;
     readonly id: string;
     readonly live: boolean;
@@ -943,6 +968,7 @@ export type ResolvedWorkspaceTuning = ResolvedPanelTuning & {
     saveQuietMs: number;
     gestureLockMs: number;
     gestureQuietMs: number;
+    resizeSettleSlides: number;
     returnTieBreak: 'latest-first' | 'earliest-first' | 'row-order';
     dropTieBreak: 'leftmost' | 'rightmost';
     rowGesture: 'step' | 'free' | 'off';
@@ -1412,6 +1438,7 @@ export type WorkspaceTuning = PanelTuning & {
     saveQuietMs?: number;
     gestureLockMs?: number;
     gestureQuietMs?: number;
+    resizeSettleSlides?: number;
     returnTieBreak?: 'latest-first' | 'earliest-first' | 'row-order';
     dropTieBreak?: 'leftmost' | 'rightmost';
     rowGesture?: 'step' | 'free' | 'off';

@@ -21,7 +21,7 @@ export interface PanelRowEntry<P = JsonValue> extends PanelSummary<P> {
   readonly layer?: 'base' | 'raised';
   /** Whether a reappearance enters from its anchor's side instead of from the right. Default false. */
   readonly anchoredEnter?: boolean;
-  /** The resolved settings this entry was made under; absent for a hand-built entry, which behaves as it did before settings existed. */
+  /** The resolved settings this entry was made under; absent for a hand-built entry. */
   readonly settings?: ResolvedPanelSettings;
   /** This entry's stable name, written once when it is created from settings; a hand-built entry has none and its `id` stands in. */
   readonly key?: string;

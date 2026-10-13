@@ -5,10 +5,11 @@
  * scope and range rules, and the interfaces a host calls. Entries are hand-built or made the way a creation path
  * makes them: appendPanel's skeleton, then applyTemplate over a resolved layer.
  */
-import { test, afterEach } from 'node:test';
+import { test, afterEach, mock } from 'node:test';
 import assert from 'node:assert/strict';
 import './support/jsdom-globals.js';
 import * as React from 'react';
+import { act } from 'react';
 import {
   DragToClose,
   LIBRARY_TUNING_DEFAULTS,
@@ -38,7 +39,7 @@ import { differential, differentialsCovered } from './support/differential.js';
 import { drag } from './support/drag-gesture.js';
 import { advanceFrames, cleanup, mount, panelsInput, withHost } from './support/mount-harness.js';
 
-const OWNED = ['tuning.rowGap', 'tuning.dragToClose', 'tuning.slide', 'tuning.hopFraction', 'tuning.chrome'];
+const OWNED = ['tuning.rowGap', 'tuning.dragToClose', 'tuning.slide', 'tuning.hopFraction', 'tuning.chrome', 'tuning.resizeSettleSlides'];
 const ROOT = 'root';
 
 interface Seen {
@@ -185,6 +186,48 @@ test('differential tuning.chrome: an idle panel keeps its header drawn under alw
   });
 });
 
+/** Whether the row's centring margin glides when a panel joins, `waitMs` after the width changed, under the given leaf. */
+async function glidesAfterResize(waitMs: number, resizeSettleSlides: number): Promise<boolean> {
+  mock.timers.enable({ apis: ['setTimeout', 'setInterval'] });
+  const at = (liveWidths: number[], width: number): React.ReactElement =>
+    withHost(
+      React.createElement(Workspace, {
+        overflowContainerRef: React.createRef<HTMLDivElement>(),
+        rowRef: React.createRef<HTMLDivElement>(),
+        containerWidth: width,
+        phoneWidth: 390,
+        fixedColumnCount: 1,
+        liveWidths,
+        tuning: { resizeSettleSlides },
+        children: React.createElement('i'),
+      } as never),
+    );
+  const margin = (m: ReturnType<typeof mount>): number => Number.parseFloat((m.container.querySelector('[data-row-strip]') as HTMLElement).style.marginLeft);
+  const m = mount(at([], 1000));
+  m.rerender(at([], 1200));
+  act(() => mock.timers.tick(waitMs));
+  await advanceFrames(2000);
+  const start = margin(m);
+  m.rerender(at([390], 1200));
+  await advanceFrames(32);
+  const mid = margin(m);
+  await advanceFrames(2000);
+  const end = margin(m);
+  m.unmount();
+  mock.timers.reset();
+  assert.notEqual(start, end, 'control: the margin does move when a panel joins');
+  return mid !== start && mid !== end;
+}
+
+test('differential tuning.resizeSettleSlides: 600 ms after a width change the row glides at 1 slide (400 ms) and still snaps at 2 (800 ms)', async () => {
+  const short = await glidesAfterResize(600, 1);
+  const long = await glidesAfterResize(600, 2);
+  differential('tuning.resizeSettleSlides', (run) => {
+    run(1, () => short);
+    run(2, () => long);
+  });
+});
+
 // ---------------------------------------------------------------------------
 // Defaults
 // ---------------------------------------------------------------------------
@@ -199,11 +242,12 @@ test('the library tuning defaults are exactly these numbers, by key name', () =>
     saveQuietMs: 500,
     gestureLockMs: 60,
     gestureQuietMs: 150,
+    resizeSettleSlides: 1.25,
     returnTieBreak: 'latest-first',
     dropTieBreak: 'leftmost',
     rowGesture: 'step',
     initialScroll: 'start',
-    chrome: { mode: 'always', fadeMs: 120, slideMs: 140, slidePx: 8, graceMs: 250 },
+    chrome: { mode: 'always', fadeMs: 120, fadeEase: 'easeOut', slideMs: 140, slidePx: 8, graceMs: 250 },
     maxLivePanels: null,
     heightPerSlot: 48,
     rowAlign: 'center',
@@ -377,7 +421,7 @@ test('usePanelTuning: exactly the six keys, the library defaults outside a row a
   assert.deepEqual(Object.keys(outside!), ['rowGap', 'chrome', 'dragToClose', 'slide', 'hopFraction', 'edgeScroll']);
   assert.deepEqual(outside, {
     rowGap: 16,
-    chrome: { mode: 'always', fadeMs: 120, slideMs: 140, slidePx: 8, graceMs: 250 },
+    chrome: { mode: 'always', fadeMs: 120, fadeEase: 'easeOut', slideMs: 140, slidePx: 8, graceMs: 250 },
     dragToClose: LIBRARY_TUNING_DEFAULTS.dragToClose,
     slide: LIBRARY_TUNING_DEFAULTS.slide,
     hopFraction: 0.5,

@@ -15,8 +15,8 @@
   for each slot past the first. New per-panel settings `slots` (the choice; `formFactor` becomes its view: 1 phone, 2 tablet,
   3 or more desktop) and `maxSlots`; new workspace tuning `heightPerSlot` (default 48 px, held to the height the row has)
   and `rowAlign` (`'center'` default, `'top'`, `'bottom'`). `PanelsAPI.setSlots(id, slots)` and a `setSlots` verb on the
-  handle resize by a count, clamped to `maxSlots` and to what fits the window; `PanelSummary` gains `slots`, `maxSlots` and
-  `drawnSlots`, and `size.height` is the drawn height. The row is as tall as its tallest panel and measures the height its
+  handle resize by a count, clamped to `maxSlots` and to what fits the window; `PanelSummary` gains `slots`, `maxSlots`,
+  `drawnSlots` and `fitSlots` (the most slots that fit the window), and `size.height` is the drawn height. The row is as tall as its tallest panel and measures the height its
   scroll container leaves; a shorter panel sits at `rowAlign`. A person's resize is saved as `overrides.slots`, and the
   panel's own count on the panel when it is not its tier's own; History's count is saved as `rootSlots`.
 - A fixed column (`parkable: false`, History) keeps the size settings its own template, host or instance asked for
@@ -24,6 +24,13 @@
   fixed column is still one phone slot, and a workspace default never unlocks one. A new `resizable-capped` note says a
   `resizable: true` cannot grow because `maxSlots` resolves to 1.
 
+- `ACTIVE_ATTRIBUTE`, `DRAGGING_ATTRIBUTE` and `CHROME_ATTRIBUTE` (the `data-panel-*` names `Panel` writes), and `CHROME_PARTS` with
+  the `ChromePart` type (the values of `CHROME_ATTRIBUTE`: `header`, `grab-bar`, `footer`), are exported from the package
+  entry so a host stops repeating the strings. The DOM is unchanged.
+- `PanelsAPI.maxFitPanels`: how many phone-width panels, permanent columns such as History included, the window fits at the
+  current phone width and row gap, so a host can offer a cap relative to the window without repeating the row's arithmetic.
+  `null` until the row is measured; it never reads below the permanent columns plus one, as the row's own floor, and pinned
+  panels are not subtracted. Optional on the interface, so a 0.1.0 host still type-checks.
 - Panel chrome API, all through the panel API with defaults that reproduce today's look (chrome always drawn):
   - `useActivePanel()` returns `[activeId | null, setActive]`, `usePanelActive()` and `usePanelDragging()` read one panel's
     marks. A press or focus anywhere inside a panel (a portaled dialog it opened and a focused iframe included) makes it the
@@ -51,7 +58,8 @@
   across History keep to it, and `configureTuning({ maxLivePanels })` applies at once. No row that reaches the document holds
   more than N: the panels of a restore, a replayed `addPanel` or a seeded list arrive with the excess already parked, and a
   panel the cap parks is never mounted. With `revealOnScroll` `'never'` on the panels, scrolling the row brings nothing back;
-  a hidden panel returns by `show`, a History click or an undo. This is a workspace setting the host chooses; the stored
+  a hidden panel returns by `show`, a History click or an undo. A raise of `maxLivePanels` through `configureTuning` brings back
+  only the most recently capacity-parked panels, in one commit, up to the new value; a panel the host hid is not among them. This is a workspace setting the host chooses; the stored
   per-person max-panels choice retired in 0.2.0-rc.1 (below) stays retired.
 
 - Tuning leaves for values that were literals, each at the value the code always used: `tuning.gestureQuietMs` (150, the
@@ -61,6 +69,13 @@
   (`'cubic-out'`, today's curve, 1 - (1 - t)^3; also `'linear'` or a cubic bezier) for the row's own scroll glides, which do
   not follow `slide.ease`. `ROW_LAYER_Z` exports the slots' stacking (base 1, raised 2, dragged 3), below every
   `OVERLAY_Z` layer. Nothing changes at the defaults.
+
+- Two more values that were literals are tuning leaves, each at the value the code always used: `tuning.resizeSettleSlides`
+  (1.25, a workspace-only number from 0 to 10 that multiplies `slide.durationSec` into the wait before the row's centring
+  margin glides again after a resize; 0 settles at once) and `tuning.chrome.fadeEase` (`'easeOut'`, the curve Motion applies
+  to a fade given only a duration; also `'easeIn'`, `'easeInOut'`, `'linear'` or a cubic bezier). `fadeEase` is a required member
+  of the resolved `ChromeTuning`, so a host that builds a whole `ChromeTuning` object (a test double, a fake) now has to give
+  it; a patch to `tuning.chrome` or a host that only reads the resolved value is unaffected. The `FadeEase` type is exported.
 
 ### Changed
 
@@ -95,6 +110,11 @@
 
 ### Fixed
 
+- While a panel is dragged by its grab bar, the page no longer selects or highlights text or photos across the other panels, and
+  a photo no longer starts a native image drag. `user-select`, `-webkit-user-select` and `-webkit-user-drag` are `none` on the
+  document element from the press until the release, a `pointercancel` or the unmount, and come back exactly as the host had
+  them, so overlapping drags are safe. A selection made before the drag is cleared once the drag begins, and a plain click on
+  the grab bar leaves it. There is no setting to turn it off.
 - `revealOnScroll` `'never'` now holds in a row whose strip fits its window: a wheel step, Shift+wheel or arrow key there
   used to swap a hidden panel in through the 0.1.0 `scrollRow` path whatever the setting said, and swaps in none now.
 - A panel dragged sideways and released over a new slot now appears in that slot at once, with Reduce Motion on or off: before, its slot

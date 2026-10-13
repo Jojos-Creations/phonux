@@ -9,6 +9,7 @@
 import { useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore, type RefObject } from 'react';
 import { useReducedMotionConfig } from 'motion/react';
 import type { CreatePanelOptions, FormFactor, JsonValue, PanelsAPI } from '../hostApi.js';
+import { effectiveMaxPanels, rowFitCount } from '../panelCapacity.js';
 import { computeRowNumbers, maxScrollOf, nearestStop, nearestStopIndex, snapToStop, stopIndexOfFirst, type RowNumbers } from '../rowNumbers.js';
 import { resolveLabels, type PhonuxLabels } from '../labels.js';
 import { rowScrollerFor } from '../rowScroller.js';
@@ -100,12 +101,12 @@ export interface PanelsInput {
   storage?: WorkspaceStorage;
   /** Called with each note the engine raises while it works (a runtime diagnostic, never an error): whatever it throws is swallowed. */
   onNote?: (note: SettingNote) => void;
-  /** The workspace's tuning leaves; each one left out, or out of range, takes the library default. The engine reads `rowGap`, `saveQuietMs`, `gestureLockMs`, `returnTieBreak`, `dropTieBreak` and `maxLivePanels` here; the row reads `dragToClose`, `slide` and `hopFraction` through the Workspace given the same value. */
+  /** The workspace's tuning leaves; each one left out, or out of range, takes the library default. The engine reads `rowGap`, `saveQuietMs`, `gestureLockMs`, `returnTieBreak`, `dropTieBreak` and `maxLivePanels` here; the row reads `dragToClose`, `slide` and `hopFraction`, and the Workspace reads `resizeSettleSlides` and `chrome` (`fadeEase` and the rest), through the Workspace given the same value. */
   tuning?: WorkspaceTuning;
   /**
    * The workspace's panel settings (every key except `tuning`). Given, a panel made by `create()` and a panel restored from
    * `storage` is resolved against them and carries its settings: it scrolls instead of parking unless its `overflow` is
-   * 'park'. Absent: a panel is built as in 0.1.0, with no settings, and parks at capacity.
+   * 'park'. Absent: a panel is built with no settings and parks at capacity.
    */
   workspaceDefaults?: Omit<PanelSettings, 'tuning'>;
   /** The panel templates a saved panel and a host-bag `create({ view })` may name, over the ones registered. A `create` naming one obeys its `hostCreatable`, `multiple` and `maxInstances`; a restore is exempt. */
@@ -368,8 +369,21 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
     return () => el.removeEventListener('scroll', sync);
   });
   const { maxLiveWidth } = rowNumbers;
+  const fitCount = rowFitCount({ containerWidth: i.containerWidth, phoneWidth: i.phoneWidth, gap: tuning.rowGap, fixedColumnCount: fixedViewCount, liveWidths: [] });
+  const maxFitPanels = fitCount === null ? null : effectiveMaxPanels(fitCount, fixedViewCount);
   const liveWidths = panels.filter((p) => p.collapsible && p.live).map((p) => panelWidthOf(p, i.phoneWidth, maxLiveWidth, tuning.rowGap));
   const reducedMotion = useReducedMotionConfig() === true;
+  const slotsWarnedRef = useRef(new Set<string>());
+  // A template that asks for more than its maxSlots warns once; a call to setSlots does the same instead of clamping silently.
+  const warnSlotsClamped = (target: PanelWindow, asked: number): void => {
+    const max = effective(target).maxSlots;
+    if (asked <= max) return;
+    const key = panelKey(target);
+    const warned = `${key}\u0000${asked}`;
+    if (slotsWarnedRef.current.has(warned)) return;
+    slotsWarnedRef.current.add(warned);
+    console.warn(`panel '${key}': setSlots(${asked}) is above its maxSlots (${max}); the panel is made ${max} wide`);
+  };
   const pendingScrollRef = useRef<ScrollRequest | null>(null);
   const [, bumpScroll] = useState(0);
   const scrollNote = (code: string, panelId: string, message: string): void => {
@@ -485,7 +499,7 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
     if (known) requestOpen(id);
   };
 
-  // One step of the gesture. A row with nothing to scroll toward keeps 0.1.0's swap: the parked panel beside the live range comes in.
+  // One step of the gesture. A row with nothing to scroll toward swaps: the parked panel beside the live range comes in.
   const stepRow = (direction: 'left' | 'right'): void => {
     const el = i.overflowContainerRef.current;
     if (el === null) return;
@@ -829,6 +843,7 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
     const settings = effective(target);
     if (!settings.resizable) return refused('not-resizable', `panel '${panelKey(target)}' cannot be resized`);
     if (typeof next === 'string' && !settings.formFactors.includes(next)) return refused('tier-not-allowed', `panel '${panelKey(target)}' does not allow the ${next} tier`);
+    if (typeof next === 'number' && source !== 'person') warnSlotsClamped(target, next);
     const token = gate.take([engineId], 'other')!;
     const changed = resizePanel(engineId, next, source === 'person');
     if (changed) {
@@ -1023,6 +1038,7 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
     // `listed` excludes History: it must not list itself (a host's history column renders every entry here as a
     // clickable row).
     panelList: panels.filter((p) => p.listed).map(summarisePanel),
+    maxFitPanels,
     create: (options?: CreatePanelOptions) => {
       // `options` is explicitly optional here (not left to infer from `create`'s own overloaded interface
       // member) -- an implementation inferred as requiring it would no longer satisfy the zero-arg overload.
@@ -1085,6 +1101,8 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
       (id: string, _slots: number) => [id],
       'other',
       (id, slots) => {
+        const target = panels.find((p) => p.id === id);
+        if (target !== undefined) warnSlotsClamped(target, slots);
         if (resizePanel(id, slots)) {
           i.onPanelResize?.();
           followPanel(id);

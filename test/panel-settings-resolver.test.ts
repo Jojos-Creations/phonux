@@ -132,7 +132,7 @@ const ENUMERATED: Record<string, readonly unknown[]> = {
 };
 
 /** The names the enumeration table leaves to a test of their own. */
-const ELSEWHERE: readonly CatalogName[] = ['headerButtons', 'pinning', 'tuning.rowGap', 'tuning.dragToClose', 'tuning.slide', 'tuning.hopFraction', 'tuning.edgeScroll', 'tuning.saveQuietMs', 'tuning.gestureLockMs', 'tuning.gestureQuietMs', 'tuning.returnTieBreak', 'tuning.dropTieBreak', 'tuning.rowGesture', 'tuning.initialScroll', 'tuning.maxLivePanels', 'tuning.chrome', 'tuning.heightPerSlot', 'tuning.rowAlign', 'tuning.shrinkOutOfView'];
+const ELSEWHERE: readonly CatalogName[] = ['headerButtons', 'pinning', 'tuning.rowGap', 'tuning.dragToClose', 'tuning.slide', 'tuning.hopFraction', 'tuning.edgeScroll', 'tuning.saveQuietMs', 'tuning.gestureLockMs', 'tuning.gestureQuietMs', 'tuning.resizeSettleSlides', 'tuning.returnTieBreak', 'tuning.dropTieBreak', 'tuning.rowGesture', 'tuning.initialScroll', 'tuning.maxLivePanels', 'tuning.chrome', 'tuning.heightPerSlot', 'tuning.rowAlign', 'tuning.shrinkOutOfView'];
 
 type Probe = readonly [what: string, layers: PanelSettingsLayers, layer: string, key: string | undefined];
 const PROBES: readonly Probe[] = [
@@ -344,6 +344,12 @@ const RANGES: readonly RangeRow[] = [
   ['gestureLockMs', 0, 'accept'],
   ['gestureQuietMs', 0, 'reject'],
   ['gestureQuietMs', 1, 'accept'],
+  ['resizeSettleSlides', -0.1, 'reject'],
+  ['resizeSettleSlides', 10.1, 'reject'],
+  ['resizeSettleSlides', Number.NaN, 'reject'],
+  ['resizeSettleSlides', Number.POSITIVE_INFINITY, 'reject'],
+  ['resizeSettleSlides', 0, 'accept'],
+  ['resizeSettleSlides', 10, 'accept'],
   ['maxLivePanels', 0, 'reject'],
   ['maxLivePanels', -1, 'reject'],
   ['maxLivePanels', 2.5, 'reject'],
@@ -364,7 +370,7 @@ const RANGES: readonly RangeRow[] = [
   ['edgeScroll.reducedStepMs', 5001, 'reject'],
 ];
 
-const WORKSPACE_ONLY_NUMBERS = ['rowGap', 'saveQuietMs', 'gestureLockMs', 'gestureQuietMs', 'maxLivePanels'];
+const WORKSPACE_ONLY_NUMBERS = ['rowGap', 'saveQuietMs', 'gestureLockMs', 'gestureQuietMs', 'resizeSettleSlides', 'maxLivePanels'];
 
 test('ranges: every (value, outcome) row is accepted or refused at the instance layer, and the executed rows equal the table length', () => {
   let executed = 0;
@@ -389,7 +395,7 @@ test('ranges: every (value, outcome) row is accepted or refused at the instance 
     executed += 1;
   }
   assert.equal(executed, RANGES.length);
-  assert.equal(RANGES.length, 97);
+  assert.equal(RANGES.length, 103);
 });
 
 test('ranges: a refusal of a tuning member names the dotted key, and the numbers of the library defaults are inside their own ranges', () => {

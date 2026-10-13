@@ -10,7 +10,6 @@ import { useEffect, useLayoutEffect, useReducer, useRef, useState } from 'react'
 import type { Dispatch, SetStateAction } from 'react';
 import { flushSync } from 'react-dom';
 import type { FormFactor } from '../hostApi.js';
-import { computeRowLayout } from '../panelRowLayout.js';
 import { computeRowNumbers } from '../rowNumbers.js';
 import { placePanel, reportNotes } from '../panelPlacement.js';
 import { applyPinChange, landPanel, pinHalf, pinnedIds, withoutDeferral, type PinApplied, type PinChange, type PinEnv } from '../panelPin.js';
@@ -18,7 +17,7 @@ import { resetEntries, type ResetEnv } from '../panelReset.js';
 import type { AddPlacement, PanelSettingsResolution } from '../panelSettings.js';
 import { isPresent } from '../panelRowEntry.js';
 import { panelWidthOf } from '../panelTiers.js';
-import { effectiveMaxPanels } from '../panelCapacity.js';
+import { effectiveMaxPanels, rowFitCount } from '../panelCapacity.js';
 import { effective, holdUnlistedNote } from '../panelSettings.js';
 import type { SettingNote, WorkspaceTuning } from '../panelSettings.js';
 import { DROP_TIE_BREAK, RETURN_TIE_BREAK, ROW_GAP } from '../rowConstants.js';
@@ -203,10 +202,7 @@ export function usePanelManager(
     const fitCapacityFor = (liveWidths: readonly number[]): number => {
       // `containerWidth === 0` means unmeasured (the first commit, and every jsdom test that never calls
       // measure()): null means no cap and no reconcile, never "zero panels fit".
-      const fitCount =
-        containerWidth === 0
-          ? null
-          : fixedColumnCount + computeRowLayout({ containerWidth, phoneWidth, gap, fixedItemCount: fixedColumnCount, liveWidths, reservedWidths }).maxLiveThatFit;
+      const fitCount = rowFitCount({ containerWidth, phoneWidth, gap, fixedColumnCount, liveWidths, reservedWidths });
       const effectiveMax = effectiveMaxPanels(fitCount, fixedColumnCount);
       // Floor of 1 keeps the panel just opened on screen even at the narrowest legal width (effectiveMaxPanels
       // already floors at fixedColumnCount + 1, so this bites only when the fixed columns alone reach effectiveMax).
@@ -334,6 +330,16 @@ export function usePanelManager(
   const forgetCollapsed = (id: string): void => {
     collapseOrderRef.current = collapseOrderRef.current.filter((x) => x !== id);
   };
+  /**
+   * The 'manual' panels the CAPACITY parked, most recent last. They are held 'sticky' and off the collapse stack, so
+   * this is the only record that tells them from a host hide; only a raise of `maxLivePanels` reads it. recordPark
+   * appends in the order it is given (the cap's choice, `dropTieBreak` included), a hide removes the id, and the
+   * reconcile effect drops any id that is live, closed or gone.
+   */
+  const capParkedOrderRef = useRef<string[]>([]);
+  const forgetCapParked = (id: string): void => {
+    capParkedOrderRef.current = capParkedOrderRef.current.filter((x) => x !== id);
+  };
 
   /** Session only, and a new Map per change so `heldIds` is a snapshot; the counter re-renders for a change no `setPanels` carries. */
   const heldRef = useRef<ReadonlyMap<string, Hold>>(new Map());
@@ -432,12 +438,14 @@ export function usePanelManager(
           writeHold(id, 'sticky');
           forgetCollapsed(id);
         }
+        forgetCapParked(id);
         continue;
       }
       const parked = panels.find((p) => p.id === id);
       if (parked !== undefined && parkLevers(parked).capacityReturn === 'manual') {
         writeHold(id, 'sticky');
         forgetCollapsed(id);
+        capParkedOrderRef.current = [...capParkedOrderRef.current.filter((x) => x !== id), id];
       } else {
         pushCollapsed([id]);
       }
@@ -697,7 +705,12 @@ export function usePanelManager(
    * `collapseOrderRef`; one that doesn't settle stays on the stack for an OLDER, narrower one.
    */
   const committedRef = useRef(panels);
+  // The value the previous committed render had: a raise is read against it, so a mount, a restore, a resize, an equal or lower value and StrictMode's second effect all read none.
+  const prevMaxLiveRef = useRef(maxLive);
   useEffect(() => {
+    const raised = prevMaxLiveRef.current !== null && (maxLive === null || maxLive > prevMaxLiveRef.current);
+    prevMaxLiveRef.current = maxLive;
+    capParkedOrderRef.current = capParkedOrderRef.current.filter((id) => panels.some((p) => p.id === id && p.collapsible && !p.live));
     // `settledKeeping` parks inside a state update, where no call-time code sees which panels it chose: the
     // stack learns of any park not already on it from the commit itself.
     const before = committedRef.current;
@@ -732,8 +745,9 @@ export function usePanelManager(
       recordPark(toPark, { kind: 'capacity' });
       const parkedSet = new Set(toPark);
       setPanels((current) => current.map((p) => (parkedSet.has(p.id) ? { ...p, live: false } : p)));
-    } else if (live.length < capacity && collapseOrderRef.current.length > 0) {
-      const stack = collapseOrderRef.current;
+    } else if (live.length < capacity && (collapseOrderRef.current.length > 0 || (raised && capParkedOrderRef.current.length > 0))) {
+      // A raise also walks the manual panels the cap parked; the walk and its bound are the ones a capacity rise uses.
+      const stack = raised ? [...collapseOrderRef.current, ...capParkedOrderRef.current] : collapseOrderRef.current;
       const revealed = new Set<string>();
       const stale = new Set<string>();
       for (const id of returnOrder(stack, panels)) {
@@ -746,7 +760,8 @@ export function usePanelManager(
         if (settles(panels.filter((p) => parksForRoom(p) && (p.live || revealed.has(p.id) || p.id === id)))) revealed.add(id);
       }
       if (revealed.size === 0) return;
-      collapseOrderRef.current = stack.filter((id) => !revealed.has(id) && !stale.has(id));
+      collapseOrderRef.current = collapseOrderRef.current.filter((id) => !revealed.has(id) && !stale.has(id));
+      capParkedOrderRef.current = capParkedOrderRef.current.filter((id) => !revealed.has(id) && !stale.has(id));
       // Each returning panel lands by its own `placeOnReturn`, or by the pin change it waits with, in return order, in the update that makes it live.
       const returnAt = (id: string): AddPlacement | 'in-place' => effective(panels.find((p) => p.id === id)!).placeOnReturn;
       const landAll = (row: PanelWindow[]): PanelWindow[] => [...revealed].reduce((acc, id) => landOn(acc, id, returnAt(id)).row, row);
@@ -766,7 +781,7 @@ export function usePanelManager(
       setPanels((current) => landAll(current).map((p) => (revealed.has(p.id) ? { ...p, live: true } : p)));
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [capacity, panels]);
+  }, [capacity, panels, maxLive]);
 
   /**
    * `stack` (park order, most recent last) in the order a return walk tries it: the tie-break first, then a stable

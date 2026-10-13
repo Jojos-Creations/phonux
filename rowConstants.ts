@@ -71,7 +71,7 @@ export const ROW_GESTURE = 'step' as const;
 export const INITIAL_SCROLL = 'start' as const;
 
 /** When a panel's header, grab bar and footer show, and the numbers a host's header icon row animates with. */
-export const CHROME = { mode: 'always', fadeMs: 120, slideMs: 140, slidePx: 8, graceMs: 250 } as const;
+export const CHROME = { mode: 'always', fadeMs: 120, fadeEase: 'easeOut', slideMs: 140, slidePx: 8, graceMs: 250 } as const;
 
 /** How many slide durations the container width must hold still before the row's centring margin glides again. */
 export const RESIZE_SETTLE_SLIDES = 1.25;
@@ -105,7 +105,7 @@ export const tierOfSlots = (slots: number): 'phone' | 'tablet' | 'desktop' => (s
 /** The widest `slots` slots are drawn: whole phone widths with the row gap between them, so edges sit on the stop grid. */
 export const slotWidth = (slots: number, phoneWidth: number, gap: number): number => slots * phoneWidth + (slots - 1) * gap;
 
-/** The slots a panel is drawn at while the row is unmeasured, close to the 1200 px a desktop panel was before slots. */
+/** The slots a panel is drawn at while the row is unmeasured. */
 export const UNMEASURED_SLOTS = 3;
 
 /** How many slots fit in `maxLiveWidth`; at least one, and `UNMEASURED_SLOTS` while the row is unmeasured (infinite). */
