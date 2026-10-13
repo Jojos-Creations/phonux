@@ -67,7 +67,7 @@ export function shouldCloseOnRelease({ offsetY, velocityY, height }: ReleaseMeas
 
 /** Spread onto Panel's `grabProps`. @public */
 export interface DragHandleProps {
-  /** Starts a drag from a primary-button press on the handle; a press on a button, link or field is ignored. */
+  /** Starts a drag from a primary-button press on the handle; a press on a button, link or field is ignored. Until the press ends, the page shows no text selection and starts no native image drag. */
   onPointerDown: (event: React.PointerEvent<HTMLElement>) => void;
   /** The handle's styles: a grab cursor, no text selection, and `touch-action: pan-x` so a horizontal swipe still scrolls the row. */
   sx: { cursor: 'grab'; touchAction: 'pan-x'; userSelect: 'none'; '&:active': { cursor: 'grabbing' } };
@@ -283,6 +283,53 @@ const SEGMENT_MIN_MS = 8;
 
 const INTERACTIVE = 'button, a, input, select, textarea, [role="button"]';
 
+/** The three properties a drag turns off on the document element; -webkit-user-select is what Safari reads. */
+const SELECTION_PROPERTIES = ['user-select', '-webkit-user-select', '-webkit-user-drag'] as const;
+
+interface SelectionHold {
+  holds: number;
+  /** Inline value and priority each property had when the first hold took it. */
+  before: Array<[string, string, string]>;
+  onDragStart: (event: Event) => void;
+}
+
+const selectionHolds = new WeakMap<Document, SelectionHold>();
+
+/**
+ * Turns text selection and native image drag off for `doc` until the returned release runs. Holds share one record per
+ * document: the first takes the document element's inline values and the last gives them back, so overlapping drags
+ * (two touches, a press landing on a spring still unlocking) cannot restore each other's `none`. The release is idempotent.
+ * -webkit-user-drag does not inherit, so the `dragstart` listener is what stops a photo inside a panel from starting a
+ * native drag, which would cancel the pointer events this drag runs on.
+ * @internal
+ */
+export function holdDragSelection(doc: Document): () => void {
+  let hold = selectionHolds.get(doc);
+  if (hold === undefined) {
+    const style = doc.documentElement.style;
+    hold = { holds: 0, before: SELECTION_PROPERTIES.map((name) => [name, style.getPropertyValue(name), style.getPropertyPriority(name)]), onDragStart: (event) => event.preventDefault() };
+    for (const name of SELECTION_PROPERTIES) style.setProperty(name, 'none');
+    doc.addEventListener('dragstart', hold.onDragStart, true);
+    selectionHolds.set(doc, hold);
+  }
+  hold.holds += 1;
+  const taken = hold;
+  let released = false;
+  return () => {
+    if (released) return;
+    released = true;
+    taken.holds -= 1;
+    if (taken.holds > 0) return;
+    const style = doc.documentElement.style;
+    for (const [name, value, priority] of taken.before) {
+      if (value === '') style.removeProperty(name);
+      else style.setProperty(name, value, priority);
+    }
+    doc.removeEventListener('dragstart', taken.onDragStart, true);
+    selectionHolds.delete(doc);
+  };
+}
+
 /**
  * A box whose grab handle, dragged down far enough, calls `onClose`; with `reorder`, the same handle also drags
  * sideways. `onClose` must remove the view, because a close never unlocks the scroll ancestors.
@@ -345,6 +392,18 @@ function DragToCloseBox({
   // Read again when the exit ends: a lock that lands mid-exit must stop the close.
   const closableRef = React.useRef(true);
   closableRef.current = slot?.closable ?? true;
+  // The document this box's press holds selection off for; null once the pointer is up. The unmount cleanup gives the hold back
+  // and a re-run of the effect takes it again while the pointer is still down, as it does for a keyed child a reorder moves.
+  const pressedDoc = React.useRef<Document | null>(null);
+  const selectionRelease = React.useRef<(() => void) | null>(null);
+  const giveBackSelection = () => {
+    selectionRelease.current?.();
+    selectionRelease.current = null;
+  };
+  React.useEffect(() => {
+    if (pressedDoc.current !== null && selectionRelease.current === null) selectionRelease.current = holdDragSelection(pressedDoc.current);
+    return giveBackSelection;
+  }, []);
   const closing = React.useRef(false); // a release has decided to close: the exit runs and takes no more presses
   // Set once the first `directionLockPx` decides; null until then, and always for a vertical-only handle.
   const axisLock = React.useRef<'x' | 'y' | null>(null);
@@ -444,6 +503,8 @@ function DragToCloseBox({
       }
     }
     if (event.type === 'pointermove') return latestMove.current();
+    pressedDoc.current = null;
+    giveBackSelection();
     for (const type of ['pointermove', 'pointerup', 'pointercancel']) window.removeEventListener(type, trackPointer.current, true);
     // This capture listener runs before dnd-kit's: a press that never engaged gets no onDragEnd, so it ends here.
     if (stoppedSpring.current && !engaged.current) returnHomeRef.current();
@@ -568,6 +629,12 @@ function DragToCloseBox({
       stoppedSpring.current = false;
       if (running.current) { running.current.stop(); running.current = null; stoppedSpring.current = y.get() !== 0 || x.get() !== 0 || scrollX.get() !== 0; unlockScrollParents(); preview(null); } // stop() never settles the spring's promise, so its own unlock would not run
       edge.press(event);
+      // Taken at the press so no selection can begin elsewhere during the gesture. An existing selection is left alone until dnd-kit
+      // activates (it clears the selection then), so a click on the grab bar does not wipe what the person selected. The new hold is taken before the old one is given back.
+      const previousRelease = selectionRelease.current;
+      pressedDoc.current = event.currentTarget.ownerDocument;
+      selectionRelease.current = holdDragSelection(pressedDoc.current);
+      previousRelease?.();
       pointer.current = { downX: event.clientX, downY: event.clientY, x: event.clientX, y: event.clientY };
       samples.current = [{ t: event.timeStamp, y: 0 }];
       stopFollowing();

@@ -1,0 +1,128 @@
+{
+  "tests": [
+    "test/drag-no-selection.test.ts"
+  ],
+  "mutants": [
+    {
+      "name": "a drag does not suppress selection",
+      "file": "dragToClose.tsx",
+      "find": "for (const name of SELECTION_PROPERTIES) style.setProperty(name, 'none');",
+      "replace": "",
+      "expectRed": [
+        "the document is switched off from the press until the release, then left as it was"
+      ]
+    },
+    {
+      "name": "a pointercancel does not give the document back",
+      "file": "dragToClose.tsx",
+      "find": "    pressedDoc.current = null;\n    giveBackSelection();",
+      "replace": "    pressedDoc.current = null;\n    if (event.type !== 'pointercancel') giveBackSelection();",
+      "expectRed": [
+        "a pointercancel gives the document back"
+      ]
+    },
+    {
+      "name": "an unmount does not give the document back",
+      "file": "dragToClose.tsx",
+      "find": "    return giveBackSelection;\n  }, []);",
+      "replace": "    return undefined;\n  }, []);",
+      "expectRed": [
+        "an unmount in the middle of a drag gives the document back"
+      ]
+    },
+    {
+      "name": "the first release restores whatever other holds remain",
+      "file": "dragToClose.tsx",
+      "find": "    if (taken.holds > 0) return;\n",
+      "replace": "",
+      "expectRed": [
+        "overlapping holds: the last one out restores, in either order, and a host value survives",
+        "two boxes pressed at once: unmounting either one leaves the other's drag suppressed"
+      ]
+    },
+    {
+      "name": "a release can be given back twice",
+      "file": "dragToClose.tsx",
+      "find": "    if (released) return;\n    released = true;\n",
+      "replace": "",
+      "expectRed": [
+        "a release is idempotent: giving back twice does not release another hold"
+      ]
+    },
+    {
+      "name": "no dragstart listener",
+      "file": "dragToClose.tsx",
+      "find": "    doc.addEventListener('dragstart', hold.onDragStart, true);\n",
+      "replace": "",
+      "expectRed": [
+        "a dragstart on a photo is cancelled while a drag is live and not after"
+      ]
+    },
+    {
+      "name": "the dragstart listener outlives the drag",
+      "file": "dragToClose.tsx",
+      "find": "    doc.removeEventListener('dragstart', taken.onDragStart, true);\n",
+      "replace": "",
+      "expectRed": [
+        "a dragstart on a photo is cancelled while a drag is live and not after"
+      ]
+    },
+    {
+      "name": "a host value is cleared instead of restored",
+      "file": "dragToClose.tsx",
+      "find": "      if (value === '') style.removeProperty(name);",
+      "replace": "      if (true) style.removeProperty(name);",
+      "expectRed": [
+        "a value the host set is back, with its priority, after a release",
+        "a pointercancel gives the document back"
+      ]
+    },
+    {
+      "name": "a host value comes back without its priority",
+      "file": "dragToClose.tsx",
+      "find": "      else style.setProperty(name, value, priority);",
+      "replace": "      else style.setProperty(name, value);",
+      "expectRed": [
+        "a value the host set is back, with its priority, after a release",
+        "overlapping holds: the last one out restores, in either order, and a host value survives"
+      ]
+    },
+    {
+      "name": "Safari's prefixed user-select is left out",
+      "file": "dragToClose.tsx",
+      "find": "['user-select', '-webkit-user-select', '-webkit-user-drag']",
+      "replace": "['user-select', '-webkit-user-drag']",
+      "expectRed": [
+        "the document is switched off from the press until the release, then left as it was"
+      ]
+    },
+    {
+      "name": "the global document is held, not the handle's own",
+      "file": "dragToClose.tsx",
+      "find": "  if (hold === undefined) {\n    const style = doc.documentElement.style;",
+      "replace": "  if (hold === undefined) {\n    const style = document.documentElement.style;",
+      "expectRed": [
+        "a hold is per document: another document is untouched"
+      ]
+    },
+    {
+      "name": "the hold is not taken at the press",
+      "file": "dragToClose.tsx",
+      "find": "      selectionRelease.current = holdDragSelection(pressedDoc.current);",
+      "replace": "      selectionRelease.current = null;",
+      "expectRed": [
+        "the document is switched off from the press until the release, then left as it was",
+        "a selection made before the drag is cleared when the drag engages, and a press that never moves leaves it"
+      ]
+    },
+    {
+      "name": "a hide and show does not take the hold again",
+      "file": "dragToClose.tsx",
+      "find": "    if (pressedDoc.current !== null && selectionRelease.current === null) selectionRelease.current = holdDragSelection(pressedDoc.current);\n",
+      "replace": "",
+      "expectRed": [
+        "a hide and show in the middle of a drag takes the hold again, and the release still gives the document back"
+      ]
+    }
+  ]
+}

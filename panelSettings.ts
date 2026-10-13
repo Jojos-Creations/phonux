@@ -15,6 +15,7 @@ import type { PanelWindow } from './panelWindow.js';
 import {
   ALL_SLOTS,
   CHROME,
+  RESIZE_SETTLE_SLIDES,
   CLOSE_EXIT_EASE,
   DIRECTION_LOCK_PX,
   DRAG_CLOSE_NUMBERS,
@@ -170,7 +171,7 @@ export type PinningWhenNotLive =
 /** Which layer a resolved value came from. A rule overrides the rest and 'derived' marks a value filled from another resolved field. @public */
 export type SourceLayer = 'library' | 'workspace' | 'template' | 'host' | 'instance' | 'user' | 'derived' | 'forced';
 
-/** The 49 settings whose value is one plain member; the catalog's other names are headerButtons and the fourteen tuning leaves. @public */
+/** The 49 settings whose value is one plain member; the catalog's other names are headerButtons and the fifteen tuning leaves. @public */
 export type SettingValues = {
   /** Whether the panel can be closed; false removes the drag-down close and makes `close()` answer not-closable. */
   closable: boolean;
@@ -323,6 +324,9 @@ export type BezierEase = readonly [number, number, number, number];
 /** The curve a closing panel leaves along. @public */
 export type CloseExitEase = 'easeIn' | 'easeOut' | 'easeInOut' | 'linear' | BezierEase;
 
+/** The curve of the chrome fade: a Motion ease name or a cubic bezier. @public */
+export type FadeEase = 'easeIn' | 'easeOut' | 'easeInOut' | 'linear' | BezierEase;
+
 /** The curve a row scroll glides along; 'cubic-out' is 1 - (1 - t)^3. @public */
 export type GlideEase = 'cubic-out' | 'linear' | BezierEase;
 
@@ -345,6 +349,8 @@ export type ChromeTuning = {
   mode: 'always' | 'hover-or-active';
   /** Milliseconds the chrome takes to fade in or out; 0 when animation is off. */
   fadeMs: number;
+  /** The curve of that fade: 'easeIn', 'easeOut', 'easeInOut', 'linear' or four cubic-bezier numbers. */
+  fadeEase: FadeEase;
   /** Milliseconds a host's header icon row takes to slide in. The library draws no such row; it only carries the number. */
   slideMs: number;
   /** Pixels that icon row travels while it slides in. */
@@ -365,7 +371,7 @@ export type PanelTuning = {
   edgeScroll?: { [K in keyof EdgeScrollTuning]?: EdgeScrollTuning[K] };
 };
 
-/** The per-panel leaves plus the ten that only the workspace sets. @public */
+/** The per-panel leaves plus the eleven that only the workspace sets. @public */
 export type WorkspaceTuning = PanelTuning & {
   /** The gap between panels in px, an integer from 0 to 200. */
   rowGap?: number;
@@ -375,6 +381,8 @@ export type WorkspaceTuning = PanelTuning & {
   gestureLockMs?: number;
   /** Milliseconds without a wheel event that end a row scroll gesture, so the next event steps whatever its size. */
   gestureQuietMs?: number;
+  /** How many `slide.durationSec` the container width must hold still before the row's centring margin glides again; 0 settles at once. */
+  resizeSettleSlides?: number;
   /** Which of two equally ranked parked panels returns first: the latest parked, the earliest parked, or the earlier in the row. */
   returnTieBreak?: 'latest-first' | 'earliest-first' | 'row-order';
   /** Which of two equally ranked panels is parked first when the row loses room: the leftmost or the rightmost. */
@@ -389,6 +397,8 @@ export type WorkspaceTuning = PanelTuning & {
    * The most unpinned parkable panels the row keeps live, an integer of 1 or more, or `null` for no cap. Panels beyond
    * it park the way they do when the window is full; a pinned panel neither counts nor parks for it. In a row that
    * scrolls, the window width does not decide how many are live. No row the document shows holds more, the first included.
+   * Raising it (or setting `null`) through `configureTuning` brings back the most recently capacity-parked panels, up to the new
+   * value, in one commit; a panel the host hid stays hidden, and scrolling, closing, resizing or an equal or lower value return none.
    */
   maxLivePanels?: number | null;
   /** Pixels a panel grows taller for each slot it is wider than one, an integer from 0 to 2000; the row's own height caps the result. */
@@ -419,6 +429,8 @@ export type ResolvedWorkspaceTuning = ResolvedPanelTuning & {
   gestureLockMs: number;
   /** Milliseconds without a wheel event that end a row scroll gesture, so the next event steps whatever its size. */
   gestureQuietMs: number;
+  /** How many `slide.durationSec` the container width must hold still before the row's centring margin glides again; 0 settles at once. */
+  resizeSettleSlides: number;
   /** Which of two equally ranked parked panels returns first: the latest parked, the earliest parked, or the earlier in the row. */
   returnTieBreak: 'latest-first' | 'earliest-first' | 'row-order';
   /** Which of two equally ranked panels is parked first when the row loses room: the leftmost or the rightmost. */
@@ -1286,6 +1298,17 @@ const CATALOG_ROWS: readonly SettingDescriptor[] = [
     configure: { cls: 'NEXT', doors: ['tuning'] },
   },
   {
+    name: 'tuning.resizeSettleSlides',
+    group: 'tuning',
+    values: 'number [0, 10], multiplies slide.durationSec (workspace only)',
+    default: '1.25',
+    scope: 'workspace',
+    viewSettable: false,
+    exists: 'today',
+    ownerEntry: 'phonux-engine-tuning-look-settings',
+    configure: { cls: 'NOW', doors: ['tuning'] },
+  },
+  {
     name: 'tuning.returnTieBreak',
     group: 'tuning',
     values: 'latest-first, earliest-first, row-order (workspace only)',
@@ -1332,8 +1355,8 @@ const CATALOG_ROWS: readonly SettingDescriptor[] = [
   {
     name: 'tuning.chrome',
     group: 'tuning',
-    values: "object: mode 'always' or 'hover-or-active', fadeMs integer [0, 10000], slideMs integer [0, 10000], slidePx integer [0, 200], graceMs integer [0, 10000] (workspace only)",
-    default: "always, 120, 140, 8, 250 (CHROME)",
+    values: "object: mode 'always' or 'hover-or-active', fadeMs integer [0, 10000], fadeEase ('easeIn', 'easeOut', 'easeInOut', 'linear' or four numbers, x1 and x2 in [0,1]), slideMs integer [0, 10000], slidePx integer [0, 200], graceMs integer [0, 10000] (workspace only)",
+    default: "always, 120, easeOut, 140, 8, 250 (CHROME)",
     scope: 'workspace',
     viewSettable: false,
     exists: 'new',
@@ -1477,6 +1500,7 @@ export const LIBRARY_TUNING_DEFAULTS: ResolvedWorkspaceTuning = freezeClone({
   saveQuietMs: SAVE_QUIET_MS,
   gestureLockMs: GESTURE_LOCK_MS,
   gestureQuietMs: GESTURE_QUIET_MS,
+  resizeSettleSlides: RESIZE_SETTLE_SLIDES,
   returnTieBreak: RETURN_TIE_BREAK as ResolvedWorkspaceTuning['returnTieBreak'],
   dropTieBreak: DROP_TIE_BREAK as ResolvedWorkspaceTuning['dropTieBreak'],
   rowGesture: ROW_GESTURE as ResolvedWorkspaceTuning['rowGesture'],
@@ -1738,18 +1762,20 @@ const TUNING_MEMBER_CHECKS: Record<'dragToClose' | 'slide' | 'edgeScroll' | 'chr
   chrome: {
     mode: oneOf('always', 'hover-or-active'),
     fadeMs: integer(0, 10000),
+    fadeEase: (v) => (typeof v === 'string' ? oneOf('easeIn', 'easeOut', 'easeInOut', 'linear')(v) : bezierProblem(v)),
     slideMs: integer(0, 10000),
     slidePx: integer(0, 200),
     graceMs: integer(0, 10000),
   },
 };
 
-const TUNING_SCALAR_CHECKS: Record<'hopFraction' | 'rowGap' | 'saveQuietMs' | 'gestureLockMs' | 'gestureQuietMs' | 'returnTieBreak' | 'dropTieBreak' | 'rowGesture' | 'initialScroll' | 'maxLivePanels' | 'heightPerSlot' | 'rowAlign', Check> = {
+const TUNING_SCALAR_CHECKS: Record<'hopFraction' | 'rowGap' | 'saveQuietMs' | 'gestureLockMs' | 'gestureQuietMs' | 'resizeSettleSlides' | 'returnTieBreak' | 'dropTieBreak' | 'rowGesture' | 'initialScroll' | 'maxLivePanels' | 'heightPerSlot' | 'rowAlign', Check> = {
   hopFraction: num(0, 1, { minOpen: true }),
   rowGap: integer(0, 200),
   saveQuietMs: integer(0),
   gestureLockMs: integer(0),
   gestureQuietMs: integer(1),
+  resizeSettleSlides: num(0, 10),
   returnTieBreak: oneOf('latest-first', 'earliest-first', 'row-order'),
   dropTieBreak: oneOf('leftmost', 'rightmost'),
   rowGesture: oneOf('step', 'free', 'off'),

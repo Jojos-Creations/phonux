@@ -13,7 +13,7 @@ import { resolveWorkspaceTuning, slotTuning } from '../panelTuning.js';
 const chrome = (value: unknown) => checkTuningLeaf('chrome', value);
 
 test('the default is always, 120, 140, 8, 250 and is frozen', () => {
-  assert.deepEqual({ ...LIBRARY_TUNING_DEFAULTS.chrome }, { mode: 'always', fadeMs: 120, slideMs: 140, slidePx: 8, graceMs: 250 });
+  assert.deepEqual({ ...LIBRARY_TUNING_DEFAULTS.chrome }, { mode: 'always', fadeMs: 120, fadeEase: 'easeOut', slideMs: 140, slidePx: 8, graceMs: 250 });
   assert.ok(Object.isFrozen(LIBRARY_TUNING_DEFAULTS.chrome));
 });
 
@@ -36,6 +36,16 @@ for (const [member, ceiling] of BOUNDS) {
   });
 }
 
+test('chrome.fadeEase: the four names and a bezier tuple are accepted, anything else refused with the dotted key', () => {
+  for (const ok of ['easeIn', 'easeOut', 'easeInOut', 'linear', [0.25, 0.1, 0.25, 1], [0, -1, 1, 2]]) assert.deepEqual(chrome({ fadeEase: ok }).problems, [], JSON.stringify(ok));
+  for (const bad of ['cubic-out', 'ease', '', 5, null, [0.25, 0.1, 0.25], [2, 0, 0, 1], [0, 0, -0.1, 1], [0, 0, 0, Number.NaN], [0, 0, 0, 1, 1]]) {
+    const checked = chrome({ fadeEase: bad });
+    assert.equal(checked.problems.length, 1, `${JSON.stringify(bad)} refused`);
+    assert.equal(checked.problems[0]!.key, 'tuning.chrome.fadeEase');
+    assert.equal(checked.accepted, undefined);
+  }
+});
+
 test("chrome.mode: 'always' and 'hover-or-active' are accepted, anything else refused", () => {
   assert.deepEqual(chrome({ mode: 'always' }).problems, []);
   assert.deepEqual(chrome({ mode: 'hover-or-active' }).problems, []);
@@ -52,9 +62,9 @@ test('an unknown member and a non-object are refused, and a bad member leaves it
 
 test('resolving a one-member chrome keeps the library value of the others, and a bad member keeps its default', () => {
   const resolved = resolveWorkspaceTuning({ chrome: { fadeMs: 60 } });
-  assert.deepEqual({ ...resolved.chrome }, { mode: 'always', fadeMs: 60, slideMs: 140, slidePx: 8, graceMs: 250 });
+  assert.deepEqual({ ...resolved.chrome }, { mode: 'always', fadeMs: 60, fadeEase: 'easeOut', slideMs: 140, slidePx: 8, graceMs: 250 });
   const refused = resolveWorkspaceTuning({ chrome: { mode: 'hover-or-active', slidePx: 999 } as never });
-  assert.deepEqual({ ...refused.chrome }, { mode: 'hover-or-active', fadeMs: 120, slideMs: 140, slidePx: 8, graceMs: 250 });
+  assert.deepEqual({ ...refused.chrome }, { mode: 'hover-or-active', fadeMs: 120, fadeEase: 'easeOut', slideMs: 140, slidePx: 8, graceMs: 250 });
 });
 
 test("every panel's tuning carries the workspace's chrome, whatever its own leaves say", () => {
