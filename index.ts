@@ -145,6 +145,8 @@ export type {
 export { mergePatch } from './settingsPatch.js';
 export type { SettingsPatch, InstancePatch, ViewPatch } from './settingsPatch.js';
 
+export { PANEL_API } from './panelApiLevel.js';
+export type { PanelApiLevel } from './panelApiLevel.js';
 export { definePanel } from './panelTemplate.js';
 export type {
   PanelTemplate,

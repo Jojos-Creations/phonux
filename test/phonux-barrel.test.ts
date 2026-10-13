@@ -66,6 +66,7 @@ const VALUE_EXPORTS = [
   'LIBRARY_TUNING_DEFAULTS',
   'resolvePanelSettings',
   'mergePatch',
+  'PANEL_API',
   'definePanel',
   'PanelManagerError',
   'createWorkspace',

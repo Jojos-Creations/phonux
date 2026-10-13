@@ -4,6 +4,7 @@
  */
 import * as React from 'react';
 import type { PanelSummary } from './hostApi.js';
+import { checkPanelApi, SHIPPED_LEVELS, warnIfOldLevel, type LevelTable } from './panelApiLevel.js';
 import { FrameBoundary } from './panelFrameBoundary.js';
 import { PanelFooterContext } from './panelFooter.js';
 import type { PanelTemplate } from './panelTemplate.js';
@@ -11,7 +12,7 @@ import { PanelViewContextValue } from './panelViewContext.js';
 import { placeholderFor, plainViewFor, type ViewComponent } from './viewRegistry.js';
 
 /** One adapter per template object, for the same reason as the placeholders: a fresh component type on every resolve would remount the panel. */
-const adapters = new WeakMap<PanelTemplate, ViewComponent>();
+const adapters = new WeakMap<LevelTable, WeakMap<PanelTemplate, ViewComponent>>();
 
 /**
  * The component that renders `t` inside a row: it reads the row's workspace from context and renders `t.view` with the
@@ -19,9 +20,15 @@ const adapters = new WeakMap<PanelTemplate, ViewComponent>();
  * give, so it renders the unregistered-view placeholder.
  * @internal
  */
-export function templateViewFor(t: PanelTemplate): ViewComponent {
-  const cached = adapters.get(t);
+export function templateViewFor(t: PanelTemplate, table: LevelTable = SHIPPED_LEVELS): ViewComponent {
+  const forTable = adapters.get(table) ?? new WeakMap<PanelTemplate, ViewComponent>();
+  adapters.set(table, forTable);
+  const cached = forTable.get(t);
   if (cached) return cached;
+  checkPanelApi(t.id, t.api, table);
+  const level = t.api ?? table.newest;
+  warnIfOldLevel(t.id, level, table);
+  const adapt = table.levels.get(level)?.adapt;
   function TemplatePanelView({ panel }: { panel: PanelSummary }): React.JSX.Element {
     const context = React.useContext(PanelViewContextValue);
     const handle = context?.handleFor(panel.id);
@@ -29,17 +36,19 @@ export function templateViewFor(t: PanelTemplate): ViewComponent {
       const Fallback = placeholderFor(t.id);
       return <Fallback panel={panel} />;
     }
-    const View = t.view as React.ComponentType<{ panel: PanelSummary; handle: typeof handle; manager: NonNullable<typeof context.manager> }>;
+    const props = { panel, handle, manager: context.manager };
+    const viewProps = adapt === undefined ? props : adapt(props);
+    const View = t.view as React.ComponentType<object>;
     const view = (
       <FrameBoundary template={t} panel={panel}>
-        <View panel={panel} handle={handle} manager={context.manager} />
+        <View {...viewProps} />
       </FrameBoundary>
     );
-    const Footer = t.footer as React.ComponentType<{ panel: PanelSummary; handle: typeof handle; manager: NonNullable<typeof context.manager> }> | undefined;
+    const Footer = t.footer as React.ComponentType<object> | undefined;
     if (Footer === undefined) return view;
-    return <PanelFooterContext.Provider value={<Footer panel={panel} handle={handle} manager={context.manager} />}>{view}</PanelFooterContext.Provider>;
+    return <PanelFooterContext.Provider value={<Footer {...viewProps} />}>{view}</PanelFooterContext.Provider>;
   }
-  adapters.set(t, TemplatePanelView);
+  forTable.set(t, TemplatePanelView);
   return TemplatePanelView;
 }
 

@@ -376,6 +376,9 @@ export type OverlaySlotName = 'dialog' | 'toast';
 export function Panel(input: PanelProps): React_2.JSX.Element;
 
 // @public
+export const PANEL_API: PanelApiLevel;
+
+// @public
 export const PANEL_CORNER_RADIUS_UNITS = 4;
 
 // @public
@@ -393,6 +396,9 @@ export interface PanelAnchor {
     position: 'left' | 'right';
     priority: number;
 }
+
+// @public
+export type PanelApiLevel = 1;
 
 // @public
 export const panelCornerRadiusPx: (theme: Theme) => number;
@@ -770,6 +776,7 @@ export interface PanelSummary<P = JsonValue> {
 
 // @public
 export interface PanelTemplate<P extends JsonValue = JsonValue> {
+    readonly api?: PanelApiLevel;
     readonly footer?: React_2.ComponentType<{
         panel: PanelSummary<P>;
         handle: ViewHandle<P>;
