@@ -1,0 +1,34 @@
+{
+  "tests": [
+    "test/license.test.ts"
+  ],
+  "mutants": [
+    {
+      "name": "the pinned canonical hash no longer matches the shipped text",
+      "file": "test/license.test.ts",
+      "find": "c0ea4a896d2c8c394b29f9427589996db826cd501c512279ff0ed3ef48fabbe5",
+      "replace": "c0ea4a896d2c8c394b29f9427589996db826cd501c512279ff0ed3ef48fabbe6",
+      "expectRed": [
+        "LICENSE is the Required Notice line over the unmodified canonical PolyForm Noncommercial 1.0.0 text"
+      ]
+    },
+    {
+      "name": "the expected SPDX id is not the one package.json carries",
+      "file": "test/license.test.ts",
+      "find": "const SPDX = 'PolyForm-Noncommercial-1.0.0';",
+      "replace": "const SPDX = 'MIT';",
+      "expectRed": [
+        "package.json and the package-lock.json root entry carry the SPDX id"
+      ]
+    },
+    {
+      "name": "the copyright notice line differs from the one LICENSE opens with",
+      "file": "test/license.test.ts",
+      "find": "Copyright (c) 2026 Jojos-Creations\\n\\n';",
+      "replace": "Copyright (c) 2025 Jojos-Creations\\n\\n';",
+      "expectRed": [
+        "LICENSE is the Required Notice line over the unmodified canonical PolyForm Noncommercial 1.0.0 text"
+      ]
+    }
+  ]
+}

@@ -277,7 +277,7 @@ try {
     if (stray.length) throw new Error(`unexpected files: ${stray.join(', ')}`);
     const missing = Object.values(packed.exports).flatMap((c) => Object.values(c)).filter((p) => !packedFiles.includes(p.replace(/^\.\//, '')));
     if (missing.length) throw new Error(`exports point at files not in the tarball: ${missing.join(', ')}`);
-    for (const doc of ['README.md', 'DESIGN.md']) if (!packedFiles.includes(doc)) throw new Error(`${doc} is not in the tarball`);
+    for (const doc of ['README.md', 'DESIGN.md', 'THIRD_PARTY_NOTICES.md', 'LICENSE']) if (!packedFiles.includes(doc)) throw new Error(`${doc} is not in the tarball`);
     // The packed README is the registry page: it must say how to install, and must not name this repo's
     // layout or link to a file the page cannot serve.
     const readme = run('tar', ['-xOzf', tarball, 'package/README.md'], root);
