@@ -254,8 +254,8 @@ export function Workspace(props: WorkspaceProps): React.ReactElement {
           <OverlaySlot name="dialog" />
           {children}
         </motion.div>
-        {/* Every engine counts a non-empty element in the scroll range; WebKit leaves a flex item's end margin out and Firefox the
-            end padding and any empty box, which clamps the last stop short. Outside the strip so a drag's end cap stays at the last panel. */}
+        {/* A non-empty element is in every engine's scroll range; WebKit leaves a flex item's end margin out and Firefox an empty box,
+            which clamps the last stop short. Outside the strip so a drag's end cap stays at the last panel. */}
         {scrolls ? <div aria-hidden data-row-end-pad="" style={{ flex: `0 0 ${(rowNumbers?.endPad ?? 0) + gap}px` }} /> : null}
       </Box>
       </RowHeightContext.Provider>
