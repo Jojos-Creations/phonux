@@ -106,7 +106,7 @@
     {
       "name": "fade maps slots by chosen offsets",
       "file": "Workspace.tsx",
-      "find": "rowNumbers.drawnOffsets.indexOf(Number(slot.dataset.rowSlot))",
+      "find": "rowNumbers.ids.indexOf(slot.dataset.rowId ?? '')",
       "replace": "rowNumbers.leftOffsets.indexOf(Number(slot.dataset.rowSlot))",
       "expectRed": [
         "hides every panel past the shrunk neighbour"
@@ -119,6 +119,42 @@
       "replace": "const at = false ? from :",
       "expectRed": [
         "shows only that stop's panels"
+      ]
+    },
+    {
+      "name": "the fade reads the stop from the scroll position",
+      "file": "rowNumbers.ts",
+      "find": "atStop: i.shrink === 'visible' && whole !== null ?",
+      "replace": "atStop: false ?",
+      "expectRed": [
+        "dims exactly what the logical stop hides"
+      ]
+    },
+    {
+      "name": "the hold also applies to the resized panel",
+      "file": "PanelRow.tsx",
+      "find": "(held !== null && p.id !== resizingId ? held.get(p.id) : undefined)",
+      "replace": "(held !== null ? held.get(p.id) : undefined)",
+      "expectRed": [
+        "holds the row and every other panel"
+      ]
+    },
+    {
+      "name": "the logical-stop fade snaps instead of cross-fading",
+      "file": "rowNumbers.ts",
+      "find": "const progress = Math.abs(scrollLeft - other) / Math.abs(at - other);",
+      "replace": "const progress = 1;",
+      "expectRed": [
+        "still cross-fades mid-glide"
+      ]
+    },
+    {
+      "name": "the last stop has no cap",
+      "file": "panels/useProvidePanels.ts",
+      "find": "maxScroll: stepping ? Math.min(maxScroll, going.stops[going.stops.length - 1]!) : maxScroll,",
+      "replace": "maxScroll,",
+      "expectRed": [
+        "a step right at the last stop moves nothing"
       ]
     }
   ]

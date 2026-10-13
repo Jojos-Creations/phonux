@@ -348,6 +348,7 @@ export function PanelRow({
               }}
             >
               <PanelRowSlot
+                panelId={p.id}
                 leftOffset={rest.leftOffset + (shiftById.get(p.id) ?? 0)}
                 width={rest.width}
                 phoneHeight={rowHeight}

@@ -57,6 +57,8 @@ export interface RowNumbers {
   drawnOffsets: readonly number[];
   /** True when 'hidden' shrinking is on: a panel outside the shown panels is never drawn part way. */
   hideOutside: boolean;
+  /** The index in `stops` of the stop the row is on, when it follows stops ('visible'), else -1. Two stops can share a scroll position, so a fade cannot read the stop from the scroll. */
+  atStop: number;
 }
 
 /**
@@ -131,7 +133,7 @@ export function computeRowNumbers(i: {
     drawnOffsets.push(drawnRunning);
     drawnRunning += width + i.gap;
   }
-  return { rowScroll, windowWidth, stripWidth, rowMarginLeft, ids: present.map((p) => p.id), widths, leftOffsets, maxLiveWidth, reservedWidths, parkLiveWidths, stops, stopSpans, endPad, stopShrinks, stopFirsts, drawnWidths, drawnOffsets, hideOutside: i.shrink === 'hidden' && whole !== null };
+  return { rowScroll, windowWidth, stripWidth, rowMarginLeft, ids: present.map((p) => p.id), widths, leftOffsets, maxLiveWidth, reservedWidths, parkLiveWidths, stops, stopSpans, endPad, stopShrinks, stopFirsts, drawnWidths, drawnOffsets, hideOutside: i.shrink === 'hidden' && whole !== null, atStop: i.shrink === 'visible' && whole !== null ? stopIndexOfFirst(stopFirsts, i.atFirst ?? 0) : -1 };
 }
 
 /**
@@ -253,6 +255,17 @@ export function fadeAt(n: RowNumbers, scrollLeft: number): number[] {
   const last = n.stops.length - 1;
   if (last < 0) return Array.from({ length: count }, () => 1);
   const shown = (stop: number, k: number): number => (k >= n.stopSpans[stop]!.first && k < n.stopSpans[stop]!.end ? 1 : 0);
+  if (n.atStop >= 0 && n.atStop <= last) {
+    const at = n.stops[n.atStop]!;
+    if (Math.abs(scrollLeft - at) < 0.5) return Array.from({ length: count }, (_, k) => shown(n.atStop, k));
+    // Between the stop the row is heading to and its neighbour on the side it is coming from.
+    const other = n.stops[scrollLeft < at ? n.atStop - 1 : n.atStop + 1];
+    if (other !== undefined && other !== at && scrollLeft > Math.min(at, other) && scrollLeft < Math.max(at, other)) {
+      const progress = Math.abs(scrollLeft - other) / Math.abs(at - other);
+      const from = scrollLeft < at ? n.atStop - 1 : n.atStop + 1;
+      return Array.from({ length: count }, (_, k) => shown(from, k) * (1 - progress) + shown(n.atStop, k) * progress);
+    }
+  }
   if (scrollLeft <= n.stops[0]!) return Array.from({ length: count }, (_, k) => shown(0, k));
   if (scrollLeft >= n.stops[last]!) return Array.from({ length: count }, (_, k) => shown(last, k));
   let from = 0;

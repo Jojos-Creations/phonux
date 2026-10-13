@@ -16,7 +16,7 @@ import type { SlideTuning, WorkspaceTuning } from './panelSettings.js';
 import { RowHeightContext, WorkspaceTuningContext, resolveWorkspaceTuning } from './panelTuning.js';
 import { ChromeStoreContext, createChromeStore } from './panelChrome.js';
 import { ROW_GAP, ROW_GESTURE } from './rowConstants.js';
-import { fadeAt, type RowNumbers } from './rowNumbers.js';
+import { fadeAt, nearestStop, type RowNumbers } from './rowNumbers.js';
 import { rowScrollerFor } from './rowScroller.js';
 import { OverlaySlot } from './windowOverlay.js';
 
@@ -153,6 +153,24 @@ export function Workspace(props: WorkspaceProps): React.ReactElement {
   const reduced = useReducedMotionConfig() === true;
   const derived = useResizeSettled(containerWidth, resizeSettleDelayMs(resolved.slide, resolved.resizeSettleSlides), reduced);
   const rowResizeSettled = given ?? derived;
+  // A panel being resized by hand holds the row where it is: its strip changes under the pointer, and a settle onto the
+  // nearest stop would scroll the row while the person drags. The release settles once.
+  const resizingId = React.useSyncExternalStore(chromeStore.subscribeResizing, chromeStore.resizing, () => null);
+  const numbersRef = React.useRef(rowNumbers);
+  numbersRef.current = rowNumbers;
+  React.useLayoutEffect(() => {
+    const container = overflowContainerRef.current;
+    if (resizingId === null || container === null) return undefined;
+    const scroller = rowScrollerFor(container);
+    const claim = scroller.claim();
+    return () => {
+      claim?.release();
+      const n = numbersRef.current;
+      if (claim === null || n === undefined || n.stops.length === 0) return;
+      const to = nearestStop(n, scroller.scrollLeft());
+      if (Math.abs(to - scroller.scrollLeft()) >= 0.5) scroller.glideTo(to, { durationSec: resolved.slide.durationSec, instant: reduced, ease: resolved.slide.glideEase });
+    };
+  }, [resizingId, overflowContainerRef]);
   const scrolls = rowNumbers?.rowScroll ?? rowScroll ?? false;
   const style = workspaceShellStyle({ containerWidth, rowResizeSettled, phoneWidth, fixedColumnCount, liveWidths, gap, slide: resolved.slide, rowScroll, rowNumbers, rowGesture: resolved.rowGesture });
   // The room the row has to grow into: the container's height less its padding. 0 (unmeasured) keeps every panel at the phone height.
@@ -186,7 +204,7 @@ export function Workspace(props: WorkspaceProps): React.ReactElement {
       if (rowScrollerFor(container).claimHeld()) return;
       const opacities = fadeAt(rowNumbers, container.scrollLeft);
       for (const slot of strip.querySelectorAll<HTMLElement>('[data-row-slot]')) {
-        const k = rowNumbers.drawnOffsets.indexOf(Number(slot.dataset.rowSlot));
+        const k = rowNumbers.ids.indexOf(slot.dataset.rowId ?? '');
         const opacity = k < 0 ? 1 : opacities[k]!;
         slot.style.filter = opacity >= 1 ? '' : `opacity(${opacity})`;
         slot.style.pointerEvents = opacity <= 0 ? 'none' : '';

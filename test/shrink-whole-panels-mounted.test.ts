@@ -141,7 +141,7 @@ test("'hidden' draws no panel part way mid-glide and nothing is resized, across 
   }
 });
 
-test('a panel marked as being resized holds every other panel at the width it had until the mark is cleared', async () => {
+test('a panel marked as being resized holds the row and every other panel at its width: a step during the drag is ignored', async () => {
   const m = await opened('visible');
   mock.timers.enable({ apis: ['setTimeout'] });
   const before = widthsOf(m.container);
@@ -150,7 +150,110 @@ test('a panel marked as being resized holds every other panel at the width it ha
   assert.equal(marked(), 'true', 'the mark is also the panel\'s dragging state');
   await step(m, 'right');
   assert.deepEqual(widthsOf(m.container), before, 'a step during the drag redraws nothing');
+  act(() => m.latest().setSlots(m.latest().entries.find((p) => p.id === 's1')!.id, 1));
+  const during = widthsOf(m.container);
+  assert.deepEqual(during.filter((_, k) => k !== 1), before.filter((_, k) => k !== 1), 'resizing one panel redraws no other');
+  assert.notEqual(during[1], before[1], 'the resized panel itself is drawn at its new size');
   act(() => resizeSetters.get('s1')!(false));
   assert.equal(marked(), 'false');
-  assert.deepEqual(widthsOf(m.container), [SLOT(1), SLOT(2), SLOT(2), SLOT(1), SLOT(3)], 'the release lets the stop it is on draw its own widths');
+  assert.notDeepEqual(widthsOf(m.container), before, 'the release lets the others draw their own widths');
+});
+
+/** Every slot's filter against the stop the row is logically on: shown panels carry none, the rest are dimmed to nothing and inert. */
+function fadeProblems(m: ReturnType<typeof mountRow>): string[] {
+  const n = m.latest().rowNumbers;
+  const span = n.stopSpans[n.atStop]!;
+  return slots(m.container).flatMap((el, k) => {
+    const shown = k >= span.first && k < span.end;
+    const dimmed = el.style.filter === 'opacity(0)' && el.hasAttribute('inert');
+    return shown === !dimmed ? [] : [`slot ${k} is ${shown ? 'shown but dimmed' : 'hidden but drawn'} at stop ${n.atStop}`];
+  });
+}
+const rowOf = (slotsOf: readonly number[], width: number) =>
+  mountRow(row(rootEntry(), ...slotsOf.map((n, k) => made(`s${k + 1}`, { slots: n, maxSlots: 64 }, { view: 'resizing-view' }))), width, { tuning: { rowGesture: 'step', shrinkOutOfView: 'visible' } });
+
+for (const [slotsOf, width] of [[[2, 1, 2, 1, 2, 1], 844], [[1, 3, 1, 3, 1, 3], 844], [[1, 2, 4, 1, 3], 1280], [[2, 4, 1, 3], 1800]] as const) {
+  test(`'visible' dims exactly what the logical stop hides at every rest, forward and back, where stops share a scroll position (${slotsOf.join(',')} at ${width})`, async () => {
+    const m = rowOf(slotsOf, width);
+    await advanceFrames(100);
+    scrolled(m);
+    mock.timers.enable({ apis: ['setTimeout'] });
+    assert.deepEqual(fadeProblems(m), [], 'at launch');
+    const walk: Array<'right' | 'left'> = [...slotsOf.map(() => 'right' as const), ...slotsOf.map(() => 'left' as const)];
+    for (const [i, direction] of walk.entries()) {
+      await step(m, direction);
+      assert.deepEqual(fadeProblems(m), [], `step ${i + 1} ${direction}`);
+    }
+  });
+}
+
+test("a panel shrunk by setSlots while held dims the panel it cut off the moment the hold is released", async () => {
+  const m = await opened('visible');
+  const id = m.latest().entries.find((p) => p.id === 's1')!.id;
+  const dimmedRight = (): boolean[] => {
+    const n = m.latest().rowNumbers;
+    const span = n.stopSpans[n.atStop]!;
+    return slots(m.container).map((el, k) => (k >= span.first && k < span.end ? el.style.filter === '' : el.style.filter === 'opacity(0)'));
+  };
+  act(() => resizeSetters.get('s1')!(true));
+  act(() => m.latest().setSlots(id, 1));
+  assert.deepEqual(dimmedRight(), dimmedRight().map(() => true), 'while held: every panel past the shown ones is dimmed and the shown ones are not');
+  act(() => resizeSetters.get('s1')!(false));
+  scrolled(m);
+  assert.deepEqual(dimmedRight(), dimmedRight().map(() => true), 'after the release too');
+});
+
+test('a panel marked as resizing holds the row: it does not settle onto a stop until the mark is cleared, then it does', async () => {
+  const m = await opened('off');
+  mock.timers.enable({ apis: ['setTimeout'] });
+  await step(m, 'right');
+  const at = m.container.scrollLeft;
+  const id = m.latest().entries.find((p) => p.id === 's1')!.id;
+  act(() => resizeSetters.get('s1')!(true));
+  act(() => m.latest().setSlots(id, 1));
+  await advanceFrames(600);
+  assert.equal(m.container.scrollLeft, at, 'the row did not move while the mark was set');
+  act(() => resizeSetters.get('s1')!(false));
+  await advanceFrames(600);
+  scrolled(m);
+  const stops = m.latest().rowNumbers.stops;
+  assert.ok(stops.some((stop) => Math.abs(stop - m.container.scrollLeft) < 1), 'after the release it rests on a stop');
+});
+
+test('the hold at each of three stops: the others keep their widths through a resize and the row stays where it is', async () => {
+  const m = await opened('visible');
+  mock.timers.enable({ apis: ['setTimeout'] });
+  for (const stop of [0, 1, 2]) {
+    if (stop > 0) await step(m, 'right');
+    const widths = widthsOf(m.container);
+    const left = m.container.scrollLeft;
+    act(() => resizeSetters.get('s2')!(true));
+    act(() => m.latest().setSlots('s2', stop + 1));
+    await advanceFrames(600);
+    assert.deepEqual(widthsOf(m.container).filter((_, k) => k !== 2), widths.filter((_, k) => k !== 2), `stop ${stop}: no other panel changed`);
+    assert.equal(m.container.scrollLeft, left, `stop ${stop}: the row did not scroll`);
+    act(() => resizeSetters.get('s2')!(false));
+    await advanceFrames(600);
+    scrolled(m);
+  }
+});
+
+test("'visible' still cross-fades mid-glide: the 'hidden' no-fade rule is its own", async () => {
+  const m = await opened('visible');
+  mock.timers.enable({ apis: ['setTimeout'] });
+  m.wheel({ deltaX: 50 });
+  await advanceFrames(8);
+  scrolled(m);
+  const partial = filtersOf(m.container).filter((f) => /opacity\(0\.\d+\)/.test(f));
+  assert.ok(partial.length > 0, `a panel is part way faded mid-glide: ${filtersOf(m.container).join(' | ')}`);
+});
+
+test('a step right at the last stop moves nothing: the strip is padded past it for the other lean but the row is not', async () => {
+  const m = await opened('visible');
+  mock.timers.enable({ apis: ['setTimeout'] });
+  for (let k = 0; k < 6; k++) await step(m, 'right');
+  const last = m.latest().rowNumbers.stops.at(-1)!;
+  assert.equal(m.container.scrollLeft, last);
+  await step(m, 'right');
+  assert.equal(m.container.scrollLeft, last);
 });

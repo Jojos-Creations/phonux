@@ -209,6 +209,18 @@ test("'hidden' at rest on a stop, to within the half pixel a browser rounds to, 
   }
 });
 
+test('a fade at rest follows the logical stop, so two stops that share a scroll position dim differently', () => {
+  for (const t of TABLES) {
+    const base = numbers(row(t.slots), t.container, t.gap, 'visible', 'backward');
+    for (const [k, first] of base.stopFirsts.entries()) {
+      const n = numbers(row(t.slots), t.container, t.gap, 'visible', 'backward', first);
+      const span = n.stopSpans[k]!;
+      const only = row(t.slots).map((_, i) => (i >= span.first && i < span.end ? 1 : 0));
+      assert.deepEqual(fadeAt(n, n.stops[k]!), only, `${t.slots.join(',')} @${t.container}/${t.gap} stop ${k}`);
+    }
+  }
+});
+
 test("'hidden' draws no panel part way: mid-glide a panel is whole or hidden, while 'off' keeps the cross-fade", () => {
   const entries = row([1, 2, 4, 1, 3]);
   const hidden = numbers(entries, 1800, 16, 'hidden');
