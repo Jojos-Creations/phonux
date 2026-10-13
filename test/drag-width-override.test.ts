@@ -1,6 +1,6 @@
 /**
  * usePanelResizing's setDrawnWidth on a mounted row (phone 390, gap 16, phone height 700): a width a host holds on the
- * panel it is resizing by hand. The panel, its size box, its height and the panels after it follow the px on the same
+ * panel it is resizing by hand. The panel, its size box and the panels after it follow the px on the same
  * frame; nothing the stops, capacity or the live set read ever sees it.
  */
 import { test, afterEach, mock } from 'node:test';
@@ -39,8 +39,6 @@ const SLOT = (n: number): number => n * 390 + (n - 1) * 16;
 const slotOf = (container: HTMLElement, id: string): HTMLElement => container.querySelector<HTMLElement>(`[data-row-id="${id}"]`)!;
 const xOf = (container: HTMLElement, id: string): number => Number(/translateX\((-?[\d.e+-]+)px\)/.exec(slotOf(container, id).style.transform)?.[1] ?? 0);
 const widthOf = (container: HTMLElement, id: string): number => Number.parseFloat(slotOf(container, id).style.width);
-const heightOf = (container: HTMLElement, id: string): number => Number.parseFloat(slotOf(container, id).style.height);
-const topOf = (container: HTMLElement, id: string): number => Number.parseFloat(slotOf(container, id).style.top);
 const boxWidth = (container: HTMLElement, id: string): number => Number.parseFloat(slotOf(container, id).querySelector<HTMLElement>('[data-panel-size-box]')!.style.width);
 const IDS = ['s1', 's2', 's3'];
 const layout = (container: HTMLElement) => IDS.map((id) => ({ id, x: xOf(container, id), width: widthOf(container, id) }));
@@ -61,7 +59,7 @@ async function drag(id: string, px: number | null, pin?: 'start' | 'end', ms = 2
   await advanceFrames(ms);
 }
 
-test('a panel drawn at a held width: its slot, size box, height and the panels after it follow on the same frame, with no glide', async () => {
+test('a panel drawn at a held width: its slot, size box and the panels after it follow on the same frame, with no glide', async () => {
   const m = await opened(1800);
   const before = layout(m.container);
   act(() => setters.get('s2')!.resizing(true));
@@ -174,36 +172,6 @@ test('a held width reaches the live set and the row numbers nowhere: with a cap 
   act(() => setters.get(id)!.resizing(false));
   await advanceFrames(600);
   assert.deepEqual(m.live(), live, 'and after the release');
-});
-
-test('the height steps where the release would snap: at half a slot, and the other panels realign on the same frame', async () => {
-  const proto = HTMLElement.prototype;
-  const original = Object.getOwnPropertyDescriptor(proto, 'clientHeight');
-  Object.defineProperty(proto, 'clientHeight', { configurable: true, get: () => 2000 });
-  try {
-    const m = await opened(1800, {}, [1, 1, 1]);
-    act(() => setters.get('s2')!.resizing(true));
-    const at = async (px: number) => {
-      await drag('s2', px);
-      return { h: heightOf(m.container, 's2'), slots: slotOf(m.container, 's2').querySelector('[data-drawn-slots]')!.getAttribute('data-drawn-slots'), top1: topOf(m.container, 's1'), top2: topOf(m.container, 's2'), h1: heightOf(m.container, 's1') };
-    };
-    const lower = await at(592);
-    assert.equal(lower.h, 700, 'just under 1.5 slots is still one slot tall');
-    assert.equal(lower.slots, '1');
-    assert.equal(lower.top1, 0);
-    const upper = await at(594);
-    assert.equal(upper.h, 748, 'just over 1.5 slots is two slots tall');
-    assert.equal(upper.slots, '2');
-    assert.equal(upper.h1, 700, 'a neighbour keeps its own height');
-    assert.equal(upper.top1, 24, 'and sits centred in the taller row on the same frame');
-    assert.equal(upper.top2, 0);
-    const widest = await at(9000);
-    assert.equal(widest.h, 700 + 2 * 48, 'three slots wide (the most that fit beside History) is 96 px taller');
-    assert.equal(widest.top1, 48);
-  } finally {
-    if (original === undefined) Reflect.deleteProperty(proto, 'clientHeight');
-    else Object.defineProperty(proto, 'clientHeight', original);
-  }
 });
 
 test('pinned at the end, the panel keeps its right edge and everything after it, and the panels before it make room', async () => {

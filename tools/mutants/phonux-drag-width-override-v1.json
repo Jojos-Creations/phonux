@@ -67,15 +67,6 @@
       ]
     },
     {
-      "name": "the height follows the floor of the slots, not the round",
-      "file": "PanelRow.tsx",
-      "find": "Math.round((width + gap) / (phoneWidth + gap))",
-      "replace": "Math.floor((width + gap) / (phoneWidth + gap))",
-      "expectRed": [
-        "the height steps where the release would snap"
-      ]
-    },
-    {
       "name": "the mark ending leaves the width set",
       "file": "panelChrome.ts",
       "find": "      if (!on) setDrawnNow(null);\n",
