@@ -93,6 +93,9 @@ export const HEIGHT_PER_SLOT = 48;
 /** Where a panel shorter than the row sits in it: on the row's middle. */
 export const ROW_ALIGN = 'center' as const;
 
+/** Whether a stepping row resizes the neighbour its shown panels would leave cut off by the window edge: 'off' never does. */
+export const SHRINK_OUT_OF_VIEW = 'off' as const;
+
 /** The slot count a tier stands for: phone one, tablet two, desktop every visible slot. */
 export const slotsOfTier = (tier: 'phone' | 'tablet' | 'desktop'): number => (tier === 'phone' ? 1 : tier === 'tablet' ? 2 : ALL_SLOTS);
 

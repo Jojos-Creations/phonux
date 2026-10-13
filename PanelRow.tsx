@@ -228,12 +228,22 @@ export function PanelRow({
   // Every present entry's OWN width, in row order. An always-shown column needs no special case: setFormFactor
   // no-ops on a collapsible:false id, so panelWidthOf gives it `phoneWidth`.
   const numberAt = (p: PanelRowEntry): number => (rowNumbers === undefined ? -1 : rowNumbers.ids.indexOf(p.id));
-  const widths = present.map((p) => rowNumbers?.widths[numberAt(p)] ?? panelWidthOf(p, phoneWidth, maxLiveWidth, gap));
+  // While a host resizes a panel by hand every other panel keeps the width it was last drawn at, so nothing moves under the grabber.
+  const resizingId = React.useSyncExternalStore(chrome.subscribeResizing, chrome.resizing, () => null);
+  const heldWidthsRef = React.useRef<ReadonlyMap<string, number> | null>(null);
+  const drawnBeforeRef = React.useRef<ReadonlyMap<string, number>>(new Map());
+  if (resizingId === null) heldWidthsRef.current = null;
+  else if (heldWidthsRef.current === null) heldWidthsRef.current = drawnBeforeRef.current;
+  const held = heldWidthsRef.current;
+  const widths = present.map((p) => (held !== null && p.id !== resizingId ? held.get(p.id) : undefined) ?? rowNumbers?.drawnWidths[numberAt(p)] ?? panelWidthOf(p, phoneWidth, maxLiveWidth, gap));
+  React.useLayoutEffect(() => {
+    drawnBeforeRef.current = new Map(present.map((p, index) => [p.id, widths[index]!]));
+  });
   // Each slot's rest x: every PRECEDING item's own width plus one gap, so a wider item pushes the rest right.
   const leftOffsets: number[] = [];
   let runningOffset = 0;
   for (const [index, width] of widths.entries()) {
-    leftOffsets.push(rowNumbers?.leftOffsets[numberAt(present[index]!)] ?? runningOffset);
+    leftOffsets.push((held === null ? rowNumbers?.drawnOffsets[numberAt(present[index]!)] : undefined) ?? runningOffset);
     runningOffset += width + gap;
   }
   // A panel is as many slots wide as its width spans; each slot past the first adds `heightPerSlot`, up to the room the row has.
@@ -346,6 +356,7 @@ export function PanelRow({
               }}
             >
               <PanelRowSlot
+                panelId={p.id}
                 leftOffset={rest.leftOffset + (shiftById.get(p.id) ?? 0)}
                 width={rest.width}
                 phoneHeight={rowHeight}

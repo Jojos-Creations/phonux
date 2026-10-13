@@ -1905,6 +1905,17 @@ test('matrix:tuning.rowAlign', async () => {
   assert.equal(r.ws.tuning.rowAlign, 'bottom', 'a refused value changes nothing');
 });
 
+test('matrix:tuning.shrinkOutOfView', async () => {
+  probe('tuning.shrinkOutOfView');
+  await wrongScopeInEveryStatus({ tuning: { shrinkOutOfView: 'visible' } }, 'tuning.shrinkOutOfView');
+  const r = await matrixRig();
+  assert.equal(r.ws.tuning.shrinkOutOfView, 'off', 'before: the library default');
+  assert.deepEqual({ ...done(r.turn(() => r.ws.panels.configureTuning({ shrinkOutOfView: 'visible' }))) }, { ok: true, changed: true, shown: false, now: ['tuning.shrinkOutOfView'], later: [], shadowed: [], notes: [] });
+  assert.equal(r.ws.tuning.shrinkOutOfView, 'visible');
+  for (const bad of ['on', 1, true]) assert.equal(thrownCode(() => r.ws.panels.configureTuning({ shrinkOutOfView: bad } as never)), 'invalid-settings', `${String(bad)} throws`);
+  assert.equal(r.ws.tuning.shrinkOutOfView, 'visible', 'a refused value changes nothing');
+});
+
 test('the class table ran every cell: executed cells equal 4 classes by 9 statuses, 36', () => {
   assert.equal(CLASSES.length * STATUSES.length, 36);
   assert.equal(cellsExecuted().size, 36);
@@ -1913,13 +1924,13 @@ test('the class table ran every cell: executed cells equal 4 classes by 9 status
 });
 
 // The design copy is frozen; a catalog key added after it is listed here, never in the copy.
-const ADDED_AFTER_DESIGN: readonly string[] = ['tuning.maxLivePanels', 'tuning.chrome', 'slots', 'maxSlots', 'tuning.heightPerSlot', 'tuning.rowAlign', 'tuning.resizeSettleSlides'];
+const ADDED_AFTER_DESIGN: readonly string[] = ['tuning.maxLivePanels', 'tuning.chrome', 'slots', 'maxSlots', 'tuning.heightPerSlot', 'tuning.rowAlign', 'tuning.resizeSettleSlides', 'tuning.shrinkOutOfView'];
 
-test('the probes ran every catalog name once: 69 executed, equal to the catalog and to the design copy of it plus the names added after it', () => {
+test('the probes ran every catalog name once: 70 executed, equal to the catalog and to the design copy of it plus the names added after it', () => {
   const design = JSON.parse(readFileSync(new URL('../design/0.2-rev7/DESIGN-phonux-0.2-rev7-catalog.json', import.meta.url), 'utf8')) as { name: string }[];
   assert.equal(design.length, 62);
-  assert.equal(CATALOG_NAMES.length, 69);
-  assert.equal(probesExecuted().size, 69);
+  assert.equal(CATALOG_NAMES.length, 70);
+  assert.equal(probesExecuted().size, 70);
   assert.deepEqual([...probesExecuted()].sort(), [...CATALOG_NAMES].sort());
   assert.deepEqual([...probesExecuted()].sort(), [...design.map((d) => d.name), ...ADDED_AFTER_DESIGN].sort());
 });
