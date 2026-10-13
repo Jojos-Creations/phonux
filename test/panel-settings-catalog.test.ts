@@ -313,7 +313,7 @@ test('docs drift: changing one class word in a scratch copy of the doc is caught
 
 test('docs drift: a scratch copy with a row dropped, or a row added, fails the count', () => {
   const dropped = DOC.replace(/\| `snapshot` \|[^\n]*\n/, '');
-  assert.ok(docDriftProblems(dropped).some((p) => p.includes('69 rows')));
+  assert.ok(docDriftProblems(dropped).some((p) => p.includes('68 rows')));
   const added = DOC.replace('<!-- catalog:end -->', '| `extra` | x | y | NOW. z |\n<!-- catalog:end -->');
   assert.ok(docDriftProblems(added).some((p) => p.includes('70 rows')));
 });
