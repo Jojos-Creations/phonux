@@ -129,7 +129,7 @@ const ENUMERATED: Record<string, readonly unknown[]> = {
 };
 
 /** The names the enumeration table leaves to a test of their own. */
-const ELSEWHERE: readonly CatalogName[] = ['headerButtons', 'pinning', 'tuning.rowGap', 'tuning.dragToClose', 'tuning.slide', 'tuning.hopFraction', 'tuning.edgeScroll', 'tuning.saveQuietMs', 'tuning.gestureLockMs', 'tuning.returnTieBreak', 'tuning.dropTieBreak', 'tuning.rowGesture', 'tuning.initialScroll', 'tuning.maxLivePanels'];
+const ELSEWHERE: readonly CatalogName[] = ['headerButtons', 'pinning', 'tuning.rowGap', 'tuning.dragToClose', 'tuning.slide', 'tuning.hopFraction', 'tuning.edgeScroll', 'tuning.saveQuietMs', 'tuning.gestureLockMs', 'tuning.gestureQuietMs', 'tuning.resizeSettleSlides', 'tuning.returnTieBreak', 'tuning.dropTieBreak', 'tuning.rowGesture', 'tuning.initialScroll', 'tuning.maxLivePanels', 'tuning.chrome'];
 
 type Probe = readonly [what: string, layers: PanelSettingsLayers, layer: string, key: string | undefined];
 const PROBES: readonly Probe[] = [
@@ -183,7 +183,7 @@ const PROBES: readonly Probe[] = [
   ['an instance layer that is a list', { instance: [] as unknown as PanelSettings }, 'instance', undefined],
 ];
 
-test('enumerations: the enumeration table and its companions cover every one of the 62 catalog names exactly once', () => {
+test('enumerations: the enumeration table and its companions cover every one of the 65 catalog names exactly once', () => {
   const covered = [...Object.keys(ENUMERATED), ...ELSEWHERE];
   assert.equal(new Set(covered).size, covered.length, 'a name is listed twice');
   assert.deepEqual([...covered].sort(), [...CATALOG_NAMES].sort());
@@ -303,6 +303,28 @@ const RANGES: readonly RangeRow[] = [
   ['slide.closeExitSeconds', 5, 'accept'],
   ['slide.closeExitSeconds', 6, 'reject'],
   ['slide.closeExitSeconds', -1, 'reject'],
+  ['slide.closeExitEase', 'easeIn', 'accept'],
+  ['slide.closeExitEase', 'easeOut', 'accept'],
+  ['slide.closeExitEase', 'easeInOut', 'accept'],
+  ['slide.closeExitEase', 'linear', 'accept'],
+  ['slide.closeExitEase', 'cubic-out', 'reject'],
+  ['slide.closeExitEase', [0.4, 0, 1, 1], 'accept'],
+  ['slide.closeExitEase', [1.01, 0, 1, 1], 'reject'],
+  ['slide.closeExitEase', [0.4, 0, 1], 'reject'],
+  ['slide.glideEase', 'cubic-out', 'accept'],
+  ['slide.glideEase', 'linear', 'accept'],
+  ['slide.glideEase', 'easeIn', 'reject'],
+  ['slide.glideEase', [0, 0, 0.58, 1], 'accept'],
+  ['slide.glideEase', [-0.01, 0, 0.58, 1], 'reject'],
+  ['dragToClose.restMs', 0, 'reject'],
+  ['dragToClose.restMs', 1, 'accept'],
+  ['dragToClose.restMs', 1000, 'accept'],
+  ['dragToClose.restMs', 1001, 'reject'],
+  ['dragToClose.restMs', 50.5, 'reject'],
+  ['dragToClose.velocityWindowMs', 15, 'reject'],
+  ['dragToClose.velocityWindowMs', 16, 'accept'],
+  ['dragToClose.velocityWindowMs', 1000, 'accept'],
+  ['dragToClose.velocityWindowMs', 1001, 'reject'],
   ['slide.ease', [0.2, 0, 1], 'reject'],
   ['slide.ease', [-0.01, 0, 0.5, 1], 'reject'],
   ['slide.ease', [0, 0, 0.5, 1], 'accept'],
@@ -317,6 +339,14 @@ const RANGES: readonly RangeRow[] = [
   ['saveQuietMs', 0, 'accept'],
   ['gestureLockMs', -1, 'reject'],
   ['gestureLockMs', 0, 'accept'],
+  ['gestureQuietMs', 0, 'reject'],
+  ['gestureQuietMs', 1, 'accept'],
+  ['resizeSettleSlides', -0.1, 'reject'],
+  ['resizeSettleSlides', 10.1, 'reject'],
+  ['resizeSettleSlides', Number.NaN, 'reject'],
+  ['resizeSettleSlides', Number.POSITIVE_INFINITY, 'reject'],
+  ['resizeSettleSlides', 0, 'accept'],
+  ['resizeSettleSlides', 10, 'accept'],
   ['maxLivePanels', 0, 'reject'],
   ['maxLivePanels', -1, 'reject'],
   ['maxLivePanels', 2.5, 'reject'],
@@ -337,7 +367,7 @@ const RANGES: readonly RangeRow[] = [
   ['edgeScroll.reducedStepMs', 5001, 'reject'],
 ];
 
-const WORKSPACE_ONLY_NUMBERS = ['rowGap', 'saveQuietMs', 'gestureLockMs', 'maxLivePanels'];
+const WORKSPACE_ONLY_NUMBERS = ['rowGap', 'saveQuietMs', 'gestureLockMs', 'gestureQuietMs', 'resizeSettleSlides', 'maxLivePanels'];
 
 test('ranges: every (value, outcome) row is accepted or refused at the instance layer, and the executed rows equal the table length', () => {
   let executed = 0;
@@ -362,7 +392,7 @@ test('ranges: every (value, outcome) row is accepted or refused at the instance 
     executed += 1;
   }
   assert.equal(executed, RANGES.length);
-  assert.equal(RANGES.length, 73);
+  assert.equal(RANGES.length, 103);
 });
 
 test('ranges: a refusal of a tuning member names the dotted key, and the numbers of the library defaults are inside their own ranges', () => {
@@ -456,7 +486,7 @@ test('cascade: tuning merges per leaf and per member, and the source names the w
     template: { tuning: { dragToClose: { distanceFraction: 0.3 }, slide: { durationSec: 0.5 }, hopFraction: 0.6 } },
     instance: { tuning: { dragToClose: { minDistancePx: 100 }, edgeScroll: { zonePx: 40 } } },
   });
-  assert.deepEqual({ ...res.value.tuning.dragToClose }, { distanceFraction: 0.3, minDistancePx: 100, flickMinDistancePx: 40, flickVelocity: 700, cancelVelocity: -300, directionLockPx: 8, snapBack: { stiffness: 520, damping: 42 } });
+  assert.deepEqual({ ...res.value.tuning.dragToClose }, { distanceFraction: 0.3, minDistancePx: 100, flickMinDistancePx: 40, flickVelocity: 700, cancelVelocity: -300, directionLockPx: 8, restMs: 50, velocityWindowMs: 100, snapBack: { stiffness: 520, damping: 42 } });
   assert.equal(res.value.tuning.slide.durationSec, 0.5);
   assert.equal(res.value.tuning.hopFraction, 0.6);
   assert.equal(res.value.tuning.edgeScroll.zonePx, 40);
@@ -794,10 +824,11 @@ const WORKSPACE_ONLY_ASKS: ReadonlyArray<readonly [leaf: string, value: unknown]
   ['dropTieBreak', 'rightmost'],
   ['rowGesture', 'free'],
   ['initialScroll', 'end'],
+  ['chrome', { mode: 'hover-or-active' }],
   ['maxLivePanels', 3],
 ];
 
-test('scope: the eight workspace-only tuning keys are wrong-scope at the instance or host layer and throw at the template layer', () => {
+test('scope: the nine workspace-only tuning keys are wrong-scope at the instance or host layer and throw at the template layer', () => {
   let executed = 0;
   for (const [leaf, value] of WORKSPACE_ONLY_ASKS) {
     const tuning = { [leaf]: value };
@@ -809,8 +840,8 @@ test('scope: the eight workspace-only tuning keys are wrong-scope at the instanc
     refuses({ template: asSettings({ tuning }) }, 'template', `tuning.${leaf}`);
     executed += 1;
   }
-  assert.equal(executed, 24);
-  assert.equal(WORKSPACE_ONLY_ASKS.length, 8);
+  assert.equal(executed, 27);
+  assert.equal(WORKSPACE_ONLY_ASKS.length, 9);
 });
 
 test('scope: a wrong-scope ask beside valid keys leaves the valid keys applied', () => {

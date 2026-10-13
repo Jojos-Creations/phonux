@@ -4,7 +4,7 @@
  */
 import * as React from 'react';
 import type { NeighborWidths } from './panelRowEntry.js';
-import type { ResolvedPanelSettings, ResolvedPanelTuning, SettingNote } from './panelSettings.js';
+import type { ChromeTuning, GlideEase, ResolvedPanelSettings, ResolvedPanelTuning, SettingNote } from './panelSettings.js';
 import type { ViewHandle } from './panelTemplate.js';
 
 /**
@@ -30,6 +30,8 @@ export interface DragScroll {
   readonly settleStops: readonly number[];
   /** Seconds a released drag takes to glide to the nearest settle stop. */
   readonly settleSec: number;
+  /** The curve that glide travels along. */
+  readonly settleEase: GlideEase;
 }
 
 /** What a panel's header buttons need to draw and press: its resolved slots, its own handle and where errors and notes go. */
@@ -46,6 +48,10 @@ export interface HeaderButtonsSlot {
  * deliberately not `false`: each hook resolves that case to its OWN default.
  */
 export interface PanelSlotValue {
+  /** The panel's id. Optional so a slot value built by hand (a test, a view mounted outside a row) needs none. */
+  readonly id?: string | undefined;
+  /** The panel's `animated` setting: false takes the chrome fade, like every other animation, in no time. Optional like `id`. */
+  readonly animated?: boolean | undefined;
   readonly collapsible: boolean;
   readonly closable: ResolvedPanelSettings['closable'];
   readonly draggable: ResolvedPanelSettings['draggable'];
@@ -55,11 +61,13 @@ export interface PanelSlotValue {
   readonly neighborWidths: NeighborWidths;
   readonly pinned: boolean;
   /** This panel's tuning: its own dragToClose, slide, hopFraction and edgeScroll, and the workspace's row gap. */
-  readonly tuning: ResolvedPanelTuning & { readonly rowGap: number };
+  readonly tuning: ResolvedPanelTuning & { readonly rowGap: number; readonly chrome: ChromeTuning };
   /** Optional so a slot value built by hand (a test, a view mounted outside a row) needs none. */
   readonly dragScroll?: DragScroll | undefined;
   /** The panel's declared header buttons; absent when none are declared or the row has no workspace. */
   readonly headerButtonSlots?: HeaderButtonsSlot | undefined;
+  /** Marks this panel as being dragged from the moment its drag engages until it settles. Absent outside a row. */
+  readonly setDragging?: ((on: boolean) => void) | undefined;
   /**
    * Tells the row how far this panel's horizontal drag has gone (the offset the release would report, px, +right/-left), or
    * null once the drag has ended. The row turns it into hops with the hop rule and slides the panels in between aside. Absent outside a row.

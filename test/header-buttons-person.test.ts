@@ -195,7 +195,9 @@ test('safety: a disabled slot stays focusable with aria-disabled and its press c
   const off = rig.buttons('a')[0]!;
   assert.equal(off.getAttribute('aria-disabled'), 'true');
   assert.equal(off.hasAttribute('disabled'), false);
-  assert.notEqual(off.getAttribute('tabindex'), '-1');
+  assert.equal(off.getAttribute('tabindex'), '-1', 'the one tab stop is the first enabled button');
+  act(() => off.focus());
+  assert.equal(off.ownerDocument.activeElement, off, 'a disabled button still takes focus');
   act(() => off.click());
   assert.deepEqual(calls, []);
   press(rig, 'a', 'On');

@@ -13,6 +13,7 @@ import { useHost, type PanelSize } from './hostApi.js';
 import { PanelHiddenContext, PanelSlotContext } from './panelSlotContext.js';
 import { HEADER_ROW_ATTRIBUTE, PanelHeaderButtons, usePanelHeaderButtons } from './panelHeaderButtons.js';
 import { CaptureRegistryContext, type ViewId } from './snapshots.js';
+import { ACTIVE_ATTRIBUTE, CHROME_ATTRIBUTE, DRAGGING_ATTRIBUTE, PanelChromeVisibleContext, useChromeFade, useChromeVisibility, usePanelActive, usePanelDragging } from './panelChrome.js';
 
 // One import path for a view author: the contracts, the provider and the hook.
 export { HostMissingProviderError, HostProvider, useHost } from './hostApi.js';
@@ -89,6 +90,11 @@ export function Panel({ title, actions, headerProps, headerButtons = true, grabP
   const buttons = usePanelHeaderButtons();
   const drawn = headerButtons && declared !== undefined && title !== undefined && buttons.some((b) => !b.hidden);
   const untitled = headerButtons && declared !== undefined && title === undefined && buttons.some((b) => !b.hidden);
+  const active = usePanelActive();
+  const dragging = usePanelDragging();
+  const { visible, handlers } = useChromeVisibility();
+  const fadeHeader = useChromeFade(visible);
+  const fadeGrab = useChromeFade(visible);
   const warned = React.useRef(false);
   React.useEffect(() => {
     if (!untitled || warned.current || typeof process === 'undefined' || process.env.NODE_ENV === 'production') return;
@@ -102,9 +108,34 @@ export function Panel({ title, actions, headerProps, headerButtons = true, grabP
     return registry.register(viewId, rootRef.current, 'viewport');
   }, [registry, viewId, capture, hidden]);
   return (
-    <Box sx={{ position: 'relative', width: size?.width ?? device.size.width, ...sx }} {...rest} ref={rootRef}>
+    <PanelChromeVisibleContext.Provider value={visible}>
+    <Box
+      sx={{ position: 'relative', width: size?.width ?? device.size.width, ...sx }}
+      {...rest}
+      {...(active ? { [ACTIVE_ATTRIBUTE]: '' } : {})}
+      {...(dragging ? { [DRAGGING_ATTRIBUTE]: '' } : {})}
+      onPointerEnter={(e: React.PointerEvent<HTMLDivElement>) => {
+        handlers.onPointerEnter(e);
+        rest.onPointerEnter?.(e);
+      }}
+      onPointerLeave={(e: React.PointerEvent<HTMLDivElement>) => {
+        handlers.onPointerLeave(e);
+        rest.onPointerLeave?.(e);
+      }}
+      onFocus={(e: React.FocusEvent<HTMLDivElement>) => {
+        handlers.onFocus(e);
+        rest.onFocus?.(e);
+      }}
+      onBlur={(e: React.FocusEvent<HTMLDivElement>) => {
+        handlers.onBlur(e);
+        rest.onBlur?.(e);
+      }}
+      ref={rootRef}
+    >
       {title !== undefined && (
         <PanelHeaderRow
+          ref={fadeHeader}
+          {...{ [CHROME_ATTRIBUTE]: 'header' }}
           title={title}
           actions={drawn ? (
             <>
@@ -113,13 +144,15 @@ export function Panel({ title, actions, headerProps, headerButtons = true, grabP
             </>
           ) : actions}
           {...headerProps}
-          {...(drawn ? { tabIndex: -1, [HEADER_ROW_ATTRIBUTE]: declared.handle.id } : {})}
+          {...(drawn ? { tabIndex: -1, role: 'toolbar', 'aria-orientation': 'horizontal' as const, ...(typeof title === 'string' ? { 'aria-label': title } : {}), [HEADER_ROW_ATTRIBUTE]: declared.handle.id } : {})}
           {...(drawn ? { leading: <PanelHeaderButtons side="start" /> } : {})}
         />
       )}
       {grabProps && (
         <Box
           data-panel-grab-bar=""
+          {...{ [CHROME_ATTRIBUTE]: 'grab-bar' }}
+          ref={fadeGrab}
           {...grabProps}
           sx={{
             position: 'absolute',
@@ -141,6 +174,7 @@ export function Panel({ title, actions, headerProps, headerButtons = true, grabP
       {children}
       {overlay}
     </Box>
+    </PanelChromeVisibleContext.Provider>
   );
 }
 

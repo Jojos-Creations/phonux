@@ -54,6 +54,11 @@ interface Runtime {
   pending: { id: string; index: number; row: HTMLElement | null; done: boolean } | undefined;
   /** The header row of a focused slot that left the document without being pressed, or undefined. */
   lost: { row: HTMLElement | null } | undefined;
+  /** The button focus last rested on, which keeps the tab stop while it stays enabled. */
+  current: string | undefined;
+  /** The one button in the tab order, or undefined until the first layout settles. */
+  stop: string | undefined;
+  readonly stopListeners: Set<() => void>;
 }
 
 const RUNTIMES = new WeakMap<object, Runtime>();
@@ -61,10 +66,43 @@ const RUNTIMES = new WeakMap<object, Runtime>();
 function runtimeOf(handle: object): Runtime {
   let runtime = RUNTIMES.get(handle);
   if (runtime === undefined) {
-    runtime = { noted: new Set(), buttons: new Map(), text: undefined, listeners: new Set(), pending: undefined, lost: undefined };
+    runtime = { noted: new Set(), buttons: new Map(), text: undefined, listeners: new Set(), pending: undefined, lost: undefined, current: undefined, stop: undefined, stopListeners: new Set() };
     RUNTIMES.set(handle, runtime);
   }
   return runtime;
+}
+
+/** The panel's buttons in document order, as [id, element]. */
+function orderedButtons(runtime: Runtime): [string, HTMLElement][] {
+  return [...runtime.buttons.entries()].sort(([, a], [, b]) => (a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING ? -1 : 1));
+}
+
+const isDisabled = (el: HTMLElement): boolean => el.getAttribute('aria-disabled') === 'true';
+
+/** The buttons arrow keys and the tab stop can rest on: the enabled ones, or all of them when none is. */
+function reachable(runtime: Runtime): [string, HTMLElement][] {
+  const all = orderedButtons(runtime);
+  const enabled = all.filter(([, el]) => !isDisabled(el));
+  return enabled.length > 0 ? enabled : all;
+}
+
+/** Puts the tab stop on the button focus last rested on, or on the first reachable one. */
+function syncTabStop(runtime: Runtime): void {
+  const pool = reachable(runtime);
+  const next = (pool.find(([id]) => id === runtime.current) ?? pool[0])?.[0];
+  if (next === runtime.stop) return;
+  runtime.stop = next;
+  for (const l of [...runtime.stopListeners]) l();
+}
+
+/** Arrow, Home and End move focus along the buttons; the row is one tab stop. */
+function rove(runtime: Runtime, from: string, key: string): boolean {
+  const pool = reachable(runtime);
+  const at = pool.findIndex(([id]) => id === from);
+  const to = key === 'Home' ? 0 : key === 'End' ? pool.length - 1 : key === 'ArrowRight' ? at + 1 : key === 'ArrowLeft' ? at - 1 : -1;
+  if (to < 0 || to >= pool.length || to === at) return key === 'Home' || key === 'End' || key === 'ArrowRight' || key === 'ArrowLeft';
+  pool[to]![1].focus({ preventScroll: true });
+  return true;
 }
 
 function announceTo(runtime: Runtime, text: string): void {
@@ -271,6 +309,14 @@ class SlotBoundary extends React.Component<{ id: string; onCaught: (id: string, 
 function SlotButton({ item, runtime }: { item: PanelHeaderButtonItem; runtime: Runtime }): React.ReactElement {
   const described = React.useId();
   const el = React.useRef<HTMLElement | null>(null);
+  const stop = React.useSyncExternalStore(
+    (l) => {
+      runtime.stopListeners.add(l);
+      return () => void runtime.stopListeners.delete(l);
+    },
+    () => runtime.stop,
+    () => undefined,
+  );
   React.useLayoutEffect(() => {
     const id = item.id;
     return () => {
@@ -285,6 +331,15 @@ function SlotButton({ item, runtime }: { item: PanelHeaderButtonItem; runtime: R
       size="small"
       aria-label={item.label}
       onClick={() => item.press()}
+      tabIndex={stop === undefined || stop === item.id ? 0 : -1}
+      onFocus={() => {
+        runtime.current = item.id;
+        syncTabStop(runtime);
+      }}
+      onKeyDown={(e) => {
+        if (e.altKey || e.ctrlKey || e.metaKey || e.shiftKey) return;
+        if (rove(runtime, item.id, e.key)) e.preventDefault();
+      }}
       sx={item.disabled ? [...(Array.isArray(color) ? color : [color]), { opacity: 0.38, cursor: 'default' }] : (color as never)}
       ref={(node: HTMLButtonElement | null) => {
         el.current = node;
@@ -330,6 +385,10 @@ export function PanelHeaderButtons({ side }: { side?: 'start' | 'end' }): React.
     () => runtime?.text,
     () => runtime?.text,
   );
+  // After every render of a cluster, so a button added, removed, disabled or enabled moves the one tab stop if it must.
+  React.useLayoutEffect(() => {
+    if (runtime !== undefined) syncTabStop(runtime);
+  });
   if (runtime === undefined || given === undefined || handle === undefined) return null;
   const shown = items.filter((i) => !i.hidden && (side === undefined || i.side === side));
   const status = side !== 'start' && text !== undefined ? (

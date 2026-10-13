@@ -12,7 +12,7 @@ import { PanelSlotContext, type DragScroll } from './panelSlotContext.js';
 import { closestRowScroller, rowScrollerFor, type RowScroller, type ScrollClaim } from './rowScroller.js';
 import { stepTarget } from './scrollTargets.js';
 import type { DragToCloseTuning } from './panelSettings.js';
-import { DIRECTION_LOCK_PX, DRAG_CLOSE_NUMBERS, SLIDE_CLOSE_EXIT_SECONDS, SNAP_BACK_SPRING } from './rowConstants.js';
+import { CLOSE_EXIT_EASE, DIRECTION_LOCK_PX, DRAG_CLOSE_NUMBERS, DRAG_REST_MS, DRAG_VELOCITY_WINDOW_MS, SLIDE_CLOSE_EXIT_SECONDS, SNAP_BACK_SPRING } from './rowConstants.js';
 
 /** The tunables, in one place. Distances in px, velocities in px/s, positive = downward. @public */
 export const DRAG_CLOSE = {
@@ -39,6 +39,8 @@ const OUTSIDE_ROW_DRAG: DragToCloseTuning = {
   flickVelocity: DRAG_CLOSE.flickVelocity,
   cancelVelocity: DRAG_CLOSE.cancelVelocity,
   directionLockPx: DIRECTION_LOCK_PX,
+  restMs: DRAG_REST_MS,
+  velocityWindowMs: DRAG_VELOCITY_WINDOW_MS,
   snapBack: { stiffness: DRAG_CLOSE.snapBack.stiffness, damping: DRAG_CLOSE.snapBack.damping },
 };
 
@@ -65,7 +67,7 @@ export function shouldCloseOnRelease({ offsetY, velocityY, height }: ReleaseMeas
 
 /** Spread onto Panel's `grabProps`. @public */
 export interface DragHandleProps {
-  /** Starts a drag from a primary-button press on the handle; a press on a button, link or field is ignored. */
+  /** Starts a drag from a primary-button press on the handle; a press on a button, link or field is ignored. Until the press ends, the page shows no text selection and starts no native image drag. */
   onPointerDown: (event: React.PointerEvent<HTMLElement>) => void;
   /** The handle's styles: a grab cursor, no text selection, and `touch-action: pan-x` so a horizontal swipe still scrolls the row. */
   sx: { cursor: 'grab'; touchAction: 'pan-x'; userSelect: 'none'; '&:active': { cursor: 'grabbing' } };
@@ -169,7 +171,7 @@ function useEdgeScroll(box: React.RefObject<HTMLDivElement | null>, dragScroll: 
     if (slot !== undefined && slot.settleStops.length > 0) {
       const at = h.scroller.scrollLeft();
       const to = slot.settleStops.reduce((best, stop) => (Math.abs(stop - at) < Math.abs(best - at) ? stop : best));
-      if (Math.abs(to - at) >= 0.5) h.scroller.glideTo(to, { durationSec: slot.settleSec, instant: slot.instant || latest.current.reduceMotion });
+      if (Math.abs(to - at) >= 0.5) h.scroller.glideTo(to, { durationSec: slot.settleSec, instant: slot.instant || latest.current.reduceMotion, ease: slot.settleEase });
     }
     return distance;
   };
@@ -279,13 +281,54 @@ function peakSpeed(samples: ReadonlyArray<{ t: number; y: number }>): number {
 /** Samples closer together than this are one segment, so two events sharing a timestamp cannot make an infinite speed. */
 const SEGMENT_MIN_MS = 8;
 
-/** A pointer that lifts this long after its last move had stopped: no velocity, however fast it was going before. */
-const REST_MS = 50;
-
-/** How far back the release velocity looks, ms. */
-const VELOCITY_WINDOW_MS = 100;
-
 const INTERACTIVE = 'button, a, input, select, textarea, [role="button"]';
+
+/** The three properties a drag turns off on the document element; -webkit-user-select is what Safari reads. */
+const SELECTION_PROPERTIES = ['user-select', '-webkit-user-select', '-webkit-user-drag'] as const;
+
+interface SelectionHold {
+  holds: number;
+  /** Inline value and priority each property had when the first hold took it. */
+  before: Array<[string, string, string]>;
+  onDragStart: (event: Event) => void;
+}
+
+const selectionHolds = new WeakMap<Document, SelectionHold>();
+
+/**
+ * Turns text selection and native image drag off for `doc` until the returned release runs. Holds share one record per
+ * document: the first takes the document element's inline values and the last gives them back, so overlapping drags
+ * (two touches, a press landing on a spring still unlocking) cannot restore each other's `none`. The release is idempotent.
+ * -webkit-user-drag does not inherit, so the `dragstart` listener is what stops a photo inside a panel from starting a
+ * native drag, which would cancel the pointer events this drag runs on.
+ * @internal
+ */
+export function holdDragSelection(doc: Document): () => void {
+  let hold = selectionHolds.get(doc);
+  if (hold === undefined) {
+    const style = doc.documentElement.style;
+    hold = { holds: 0, before: SELECTION_PROPERTIES.map((name) => [name, style.getPropertyValue(name), style.getPropertyPriority(name)]), onDragStart: (event) => event.preventDefault() };
+    for (const name of SELECTION_PROPERTIES) style.setProperty(name, 'none');
+    doc.addEventListener('dragstart', hold.onDragStart, true);
+    selectionHolds.set(doc, hold);
+  }
+  hold.holds += 1;
+  const taken = hold;
+  let released = false;
+  return () => {
+    if (released) return;
+    released = true;
+    taken.holds -= 1;
+    if (taken.holds > 0) return;
+    const style = doc.documentElement.style;
+    for (const [name, value, priority] of taken.before) {
+      if (value === '') style.removeProperty(name);
+      else style.setProperty(name, value, priority);
+    }
+    doc.removeEventListener('dragstart', taken.onDragStart, true);
+    selectionHolds.delete(doc);
+  };
+}
 
 /**
  * A box whose grab handle, dragged down far enough, calls `onClose`; with `reorder`, the same handle also drags
@@ -345,9 +388,22 @@ function DragToCloseBox({
   const drag = slot?.tuning.dragToClose ?? OUTSIDE_ROW_DRAG;
   const edge = useEdgeScroll(box, reorder === undefined ? undefined : slot?.dragScroll, reduceMotion === true, x, scrollX);
   const exitSeconds = slot?.tuning.slide.closeExitSeconds ?? SLIDE_CLOSE_EXIT_SECONDS;
+  const exitEase = slot?.tuning.slide.closeExitEase ?? CLOSE_EXIT_EASE;
   // Read again when the exit ends: a lock that lands mid-exit must stop the close.
   const closableRef = React.useRef(true);
   closableRef.current = slot?.closable ?? true;
+  // The document this box's press holds selection off for; null once the pointer is up. The unmount cleanup gives the hold back
+  // and a re-run of the effect takes it again while the pointer is still down, as it does for a keyed child a reorder moves.
+  const pressedDoc = React.useRef<Document | null>(null);
+  const selectionRelease = React.useRef<(() => void) | null>(null);
+  const giveBackSelection = () => {
+    selectionRelease.current?.();
+    selectionRelease.current = null;
+  };
+  React.useEffect(() => {
+    if (pressedDoc.current !== null && selectionRelease.current === null) selectionRelease.current = holdDragSelection(pressedDoc.current);
+    return giveBackSelection;
+  }, []);
   const closing = React.useRef(false); // a release has decided to close: the exit runs and takes no more presses
   // Set once the first `directionLockPx` decides; null until then, and always for a vertical-only handle.
   const axisLock = React.useRef<'x' | 'y' | null>(null);
@@ -365,6 +421,7 @@ function DragToCloseBox({
   };
   const unlockScrollParents = () => {
     for (const [el, previous] of locked.current.splice(0)) el.style.overflowY = previous;
+    slotRef.current?.setDragging?.(false);
   };
   // The cleanup leaves a running spring alone: React 19.2 re-runs it for a keyed child a reorder moves under StrictMode, and
   // Activity runs it on a hide; a stopped release spring leaves the box at its drag offset.
@@ -442,10 +499,12 @@ function DragToCloseBox({
         // Every move is a sample, stamped by the browser: a short flick is a few events, and a frame loop would see fewer.
         const kept = samples.current;
         kept.push({ t: event.timeStamp, y: clientY - pointer.current.downY });
-        while (kept.length > 2 && kept[0]!.t < event.timeStamp - VELOCITY_WINDOW_MS) kept.shift();
+        while (kept.length > 2 && kept[0]!.t < event.timeStamp - (slotRef.current?.tuning.dragToClose ?? OUTSIDE_ROW_DRAG).velocityWindowMs) kept.shift();
       }
     }
     if (event.type === 'pointermove') return latestMove.current();
+    pressedDoc.current = null;
+    giveBackSelection();
     for (const type of ['pointermove', 'pointerup', 'pointercancel']) window.removeEventListener(type, trackPointer.current, true);
     // This capture listener runs before dnd-kit's: a press that never engaged gets no onDragEnd, so it ends here.
     if (stoppedSpring.current && !engaged.current) returnHomeRef.current();
@@ -486,6 +545,7 @@ function DragToCloseBox({
     if (Math.hypot(pointer.current.x - pointer.current.downX, pointer.current.y - pointer.current.downY) < drag.directionLockPx) return;
     engaged.current = true;
     axisLock.current = null;
+    slotRef.current?.setDragging?.(true);
     lockScrollParents();
     // A keep-alive step in Motion's own frame loop: the row scroll the edge loop adds is then drawn in
     // the frame that wrote it, not the one after, and the pointer offset is read once per frame.
@@ -537,12 +597,12 @@ function DragToCloseBox({
       const height = rect?.height ?? 0;
       const recent = samples.current;
       const last = recent[recent.length - 1];
-      const rested = released.current - (last?.t ?? 0) > REST_MS;
+      const rested = released.current - (last?.t ?? 0) > (slotRef.current?.tuning.dragToClose ?? OUTSIDE_ROW_DRAG).restMs;
       const velocityY = rested ? 0 : peakSpeed(recent);
       if (closeRef.current !== undefined && closableRef.current && shouldCloseOnRelease({ offsetY: Math.max(0, dy), velocityY, height }, drag)) {
         if (reduceMotion) return closeRef.current();
         const toBottom = Math.max(height, window.innerHeight - (rect?.top ?? 0));
-        const exit = animate(y, toBottom, { duration: exitSeconds, ease: 'easeIn' });
+        const exit = animate(y, toBottom, { duration: exitSeconds, ease: exitEase });
         running.current = exit;
         closing.current = true;
         void exit.then(() => {
@@ -569,6 +629,12 @@ function DragToCloseBox({
       stoppedSpring.current = false;
       if (running.current) { running.current.stop(); running.current = null; stoppedSpring.current = y.get() !== 0 || x.get() !== 0 || scrollX.get() !== 0; unlockScrollParents(); preview(null); } // stop() never settles the spring's promise, so its own unlock would not run
       edge.press(event);
+      // Taken at the press so no selection can begin elsewhere during the gesture. An existing selection is left alone until dnd-kit
+      // activates (it clears the selection then), so a click on the grab bar does not wipe what the person selected. The new hold is taken before the old one is given back.
+      const previousRelease = selectionRelease.current;
+      pressedDoc.current = event.currentTarget.ownerDocument;
+      selectionRelease.current = holdDragSelection(pressedDoc.current);
+      previousRelease?.();
       pointer.current = { downX: event.clientX, downY: event.clientY, x: event.clientX, y: event.clientY };
       samples.current = [{ t: event.timeStamp, y: 0 }];
       stopFollowing();
