@@ -160,12 +160,6 @@ export type DeferredPin = {
 export function definePanel<P extends JsonValue = JsonValue>(t: PanelTemplate<P>): PanelTemplate<P>;
 
 // @public
-export interface DetectedPhone {
-    productId: number;
-    vendorId: number;
-}
-
-// @public
 export const DRAG_CLOSE: {
     readonly distanceFraction: 0.25;
     readonly minDistancePx: 80;
@@ -822,27 +816,10 @@ export interface PanelWindow {
 export const PHONE_MODELS: readonly PhoneModel[];
 
 // @public
-export function PhoneDetectPrompt(input: PhoneDetectPromptProps): React_2.JSX.Element | null;
-
-// @public
-export interface PhoneDetectPromptProps {
-    detected: {
-        vendorId: number;
-        productId: number;
-    } | null;
-    labels?: Partial<PhonuxLabels>;
-    onDismiss: () => void;
-    onResize: (modelId: string) => void;
-}
-
-// @public
 export interface PhoneDeviceAPI {
     chooseModel?(modelId: string): Promise<void>;
     readonly defaultSize?: PhoneSize;
-    readonly detectedPhone?: DetectedPhone | null;
-    dismissDetectedPhone?(): void;
     readonly models?: readonly PhoneModel[];
-    resizeForDetectedPhone?(modelId: string): void;
     readonly size: PhoneSize;
 }
 
@@ -863,15 +840,10 @@ export interface PhoneSize {
 
 // @public
 export interface PhonuxLabels {
-    dismiss: string;
     historyTitle: string;
     lock: string;
     panelTitle: (id: string) => string;
-    phoneConnected: string;
-    phoneConnectedText: (vendor: string) => string;
-    phoneModel: string;
     pin: string;
-    resize: string;
     unlock: string;
     unpin: string;
     untitledHeader: string;

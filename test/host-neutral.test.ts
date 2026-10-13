@@ -13,7 +13,6 @@ import {
   Panel,
   PanelHeaderRow,
   PanelRow,
-  PhoneDetectPrompt,
   registerView,
   useProvidePanels,
   type Host,
@@ -131,11 +130,6 @@ test('labels overrides replace each default string', () => {
     untitledPanel: 'Ohne Titel',
     untitledHeader: 'Namenlos',
     historyTitle: 'Verlauf',
-    phoneConnected: 'Telefon verbunden',
-    phoneConnectedText: (vendor: string) => `${vendor} ist verbunden`,
-    phoneModel: 'Telefonmodell',
-    resize: 'Anpassen',
-    dismiss: 'Schliessen',
   };
   const m = mountProvider({ labels });
   act(() => m.latest().create({ view: 'hn-view' }));
@@ -151,23 +145,18 @@ test('labels overrides replace each default string', () => {
     React.createElement(HostProvider, { host, children: React.createElement(Untitled, { panel: { id: 'x', live: true, locked: false } }) }),
   );
   assert.equal(placeholder.includes('Ohne Titel'), true);
-
-  const prompt = renderToStaticMarkup(React.createElement(PhoneDetectPrompt, { detected: { vendorId: 0x04e8, productId: 1 }, onResize: () => {}, onDismiss: () => {}, labels }));
-  for (const text of ['Telefon verbunden', 'ist verbunden', 'Telefonmodell', 'Anpassen', 'Schliessen']) assert.equal(prompt.includes(text), true, text);
 });
 
 test('without labels every default string is the English text', () => {
-  const plain = renderToStaticMarkup(React.createElement(PhoneDetectPrompt, { detected: { vendorId: 0x04e8, productId: 1 }, onResize: () => {}, onDismiss: () => {} }));
-  for (const text of ['Phone connected', 'Phone model', 'Resize', 'Dismiss', ' connected']) assert.equal(plain.includes(text), true, text);
   assert.equal(createHistoryPanel(ROOT).title, 'History');
   const Untitled = resolveView('hn-nowhere');
   assert.equal(renderToStaticMarkup(React.createElement(Untitled, { panel: { id: 'x', live: true, locked: false } })).includes('Untitled panel'), true);
 });
 
 test('a label key given as undefined keeps its default', () => {
-  const given = { historyTitle: undefined, resize: 'Größe' } as unknown as Partial<PhonuxLabels>;
+  const given = { historyTitle: undefined, untitledHeader: 'Namenlos' } as unknown as Partial<PhonuxLabels>;
   const labels = resolveLabels(given);
   assert.equal(labels.historyTitle, DEFAULT_LABELS.historyTitle);
-  assert.equal(labels.resize, 'Größe');
+  assert.equal(labels.untitledHeader, 'Namenlos');
   assert.equal(labels.panelTitle('x'), DEFAULT_LABELS.panelTitle('x'));
 });

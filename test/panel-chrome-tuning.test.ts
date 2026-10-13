@@ -78,5 +78,5 @@ test('the pin, unpin, lock and unlock labels default to English and a host overr
   assert.deepEqual([DEFAULT_LABELS.pin, DEFAULT_LABELS.unpin, DEFAULT_LABELS.lock, DEFAULT_LABELS.unlock], ['Pin', 'Unpin', 'Lock', 'Unlock']);
   const german = resolveLabels({ pin: 'Anheften', unpin: 'Lösen', lock: 'Sperren', unlock: 'Entsperren' });
   assert.deepEqual([german.pin, german.unpin, german.lock, german.unlock], ['Anheften', 'Lösen', 'Sperren', 'Entsperren']);
-  assert.equal(german.dismiss, 'Dismiss', 'a label not given keeps its default');
+  assert.equal(german.historyTitle, 'History', 'a label not given keeps its default');
 });

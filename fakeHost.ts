@@ -21,7 +21,7 @@ import type { SnapshotsAPI } from './snapshots.js';
 import type { WorkspaceState, WorkspaceStorage } from './workspaceState.js';
 
 // The ./testing entry point has to name every type FakeHost's own declaration reaches, not just Host.
-export type { Host, PhoneSize, DetectedPhone, ClosedPageEntry, JsonValue, FormFactor, PanelSize, PanelSummary, CreatePanelOptions, SettingsAPI, HistoryAPI, PanelsAPI, PhoneDeviceAPI } from './hostApi.js';
+export type { Host, PhoneSize, ClosedPageEntry, JsonValue, FormFactor, PanelSize, PanelSummary, CreatePanelOptions, SettingsAPI, HistoryAPI, PanelsAPI, PhoneDeviceAPI } from './hostApi.js';
 export type { PhonuxLabels } from './labels.js';
 export type { SnapshotsAPI, ViewId, ViewSnapshot } from './snapshots.js';
 export type { PhoneModel } from './phoneModels.js';
@@ -113,9 +113,6 @@ export function createFakeHost(overrides: FakeOverrides = {}): FakeHost {
     defaultSize: DEFAULT_PHONE_SIZE,
     models: PHONE_MODELS,
     chooseModel: async (modelId) => log('device', 'chooseModel', [modelId]),
-    detectedPhone: null,
-    dismissDetectedPhone: () => log('device', 'dismissDetectedPhone', []),
-    resizeForDetectedPhone: (modelId) => log('device', 'resizeForDetectedPhone', [modelId]),
   };
 
   return {

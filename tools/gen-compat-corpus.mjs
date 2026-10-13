@@ -153,6 +153,19 @@ function changelogRemovedNames() {
   return new Set([...text.matchAll(/`([^`]+)`/g)].map((m) => m[1]));
 }
 
+// The backtick-quoted names in the Unreleased section's Breaking bullets: removals made after the 0.2.0-rc.1 Removed list.
+function changelogBreakingNames() {
+  const lines = readFileSync(join(REPO_ROOT, 'CHANGELOG.md'), 'utf8').split('\n');
+  const unreleased = lines.findIndex((l) => /^## Unreleased\s*$/.test(l));
+  const breakingAt = lines.findIndex((l, i) => i > unreleased && /^### Breaking\s*$/.test(l));
+  if (unreleased < 0 || breakingAt < 0) return new Set();
+  const names = new Set();
+  for (let i = breakingAt + 1; i < lines.length && !/^#{1,3} /.test(lines[i]); i += 1) {
+    for (const m of lines[i].matchAll(/`([^`]+)`/g)) names.add(m[1]);
+  }
+  return names;
+}
+
 // ---- corpus ----------------------------------------------------------------------------------------------------
 
 function mulberry32(seed) {
@@ -389,9 +402,9 @@ async function main() {
       testing: { values: removedBetween(testing.values, currentTesting.values), types: removedBetween(testing.types, currentTesting.types) },
     };
     const allRemoved = [...removedSince010.root.values, ...removedSince010.root.types, ...removedSince010.testing.values, ...removedSince010.testing.types];
-    const documented = changelogRemovedNames();
+    const documented = new Set([...changelogRemovedNames(), ...changelogBreakingNames()]);
     const undocumented = allRemoved.filter((name) => !documented.has(name));
-    if (undocumented.length > 0) fail(`CHANGELOG.md's Removed bullets do not name: ${undocumented.join(', ')}`);
+    if (undocumented.length > 0) fail(`CHANGELOG.md's Removed and Breaking bullets do not name: ${undocumented.join(', ')}`);
     writeFileSync(join(stage, 'exports.json'), `${JSON.stringify({ root, testing, removedSince010 }, null, 2)}\n`);
 
     const cases = await buildCorpus(stage);
