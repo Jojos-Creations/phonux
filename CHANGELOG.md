@@ -22,6 +22,10 @@
 
 ### Changed
 
+- The default frame animates its size. A bare view's header, grab bar, phone frame and footer are drawn in one box that takes the new
+  size at once and eases to it over the slide, so a panel that steps through its sizes no longer jumps to each one while its
+  neighbours glide. `PanelSizeBox` is the same scale now instead of Motion's `layout="size"`: it starts in the commit, on the clock of
+  the slot's slide, so a neighbour stays one gap from it even when the commit takes longer than a frame. Self-framed views are unchanged.
 - Licence: phonux is now PolyForm Noncommercial 1.0.0 (SPDX `PolyForm-Noncommercial-1.0.0`), free for personal and other
   noncommercial use, with commercial use through a separate paid licence. 0.1.0 and 0.2.0-rc.2 stay MIT. The package now
   ships `THIRD_PARTY_NOTICES.md` for the MIT-licensed phone-model entries.
