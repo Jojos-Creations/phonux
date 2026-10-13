@@ -162,7 +162,7 @@ export function Workspace(props: WorkspaceProps): React.ReactElement {
     const container = overflowContainerRef.current;
     if (resizingId === null || container === null) return undefined;
     const scroller = rowScrollerFor(container);
-    const claim = scroller.claim();
+    const claim = scroller.claim({ replay: true });
     return () => {
       claim?.release();
       const n = numbersRef.current;

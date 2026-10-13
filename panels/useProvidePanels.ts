@@ -398,7 +398,10 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
   const requestScroll = (request: Omit<ScrollRequest, 'misses'>): boolean => {
     const el = i.overflowContainerRef.current;
     if (el === null) return false;
-    if (rowScrollerFor(el).claimHeld()) {
+    const scroller = rowScrollerFor(el);
+    if (scroller.claimHeld()) {
+      // The claim of a panel being resized by hand asks for replay: the host that clears the mark and scrolls in one tick gets its scroll.
+      if (scroller.deferUntilFree(() => void requestScroll(request))) return true;
       scrollNote('scroll-dropped-during-drag', request.id, `A scroll to panel ${request.id} was dropped: a drag holds the row.`);
       return false;
     }

@@ -1,0 +1,52 @@
+{
+  "tests": [
+    "test/scroll-replay.test.ts"
+  ],
+  "mutants": [
+    {
+      "name": "a request during the mark is dropped, not kept",
+      "file": "panels/useProvidePanels.ts",
+      "find": "if (scroller.deferUntilFree(",
+      "replace": "if (false && scroller.deferUntilFree(",
+      "expectRed": [
+        "is run once the mark has cleared"
+      ]
+    },
+    {
+      "name": "the first request is kept, not the last",
+      "file": "rowScroller.ts",
+      "find": "deferred = run;",
+      "replace": "deferred ??= run;",
+      "expectRed": [
+        "only the last runs"
+      ]
+    },
+    {
+      "name": "the kept request is never run",
+      "file": "rowScroller.ts",
+      "find": "run?.();",
+      "replace": "void run;",
+      "expectRed": [
+        "is run once the mark has cleared"
+      ]
+    },
+    {
+      "name": "the resize claim does not ask for replay",
+      "file": "Workspace.tsx",
+      "find": "scroller.claim({ replay: true })",
+      "replace": "scroller.claim()",
+      "expectRed": [
+        "is run once the mark has cleared"
+      ]
+    },
+    {
+      "name": "any claim keeps a request",
+      "file": "rowScroller.ts",
+      "find": "if (!claimed || !replayable) return false;",
+      "replace": "if (!claimed) return false;",
+      "expectRed": [
+        "still drops a scrollTo with the note"
+      ]
+    }
+  ]
+}

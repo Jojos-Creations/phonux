@@ -26,8 +26,16 @@ export interface RowScroller {
   glideTarget(): number | null;
   /** Ends the glide in flight where it is. */
   stop(): void;
-  /** The exclusive writer, or null while one is held. */
-  claim(): ScrollClaim | null;
+  /**
+   * The exclusive writer, or null while one is held. With `replay`, a request that arrives while the claim is held may be
+   * kept with `deferUntilFree` and run when it is given back.
+   */
+  claim(o?: { replay?: boolean }): ScrollClaim | null;
+  /**
+   * Keeps `run` for the release of a claim taken with `replay`, replacing one kept earlier, and returns true; false, keeping
+   * nothing, when no claim is held or the one held did not ask for replay.
+   */
+  deferUntilFree(run: () => void): boolean;
   /** True while a claim is held. Asked instead of probing with `claim()`, which would end a glide in flight. */
   claimHeld(): boolean;
 }
@@ -60,6 +68,8 @@ export function closestRowScroller(from: Element): HTMLElement | null {
 
 function createRowScroller(el: HTMLElement): RowScroller {
   let claimed = false;
+  let replayable = false;
+  let deferred: (() => void) | null = null;
   let glide: { from: number; to: number; startMs: number; durationMs: number; curve: (t: number) => number } | null = null;
   let frame: number | null = null;
   // Read back after every own write: the browser rounds and clamps, and the scroll event it fires later reports that value.
@@ -119,10 +129,17 @@ function createRowScroller(el: HTMLElement): RowScroller {
     glideTarget: () => (glide === null ? null : glide.to),
     claimHeld: () => claimed,
     stop,
-    claim() {
+    deferUntilFree(run) {
+      if (!claimed || !replayable) return false;
+      deferred = run;
+      return true;
+    },
+    claim(o) {
       if (claimed) return null;
       stop();
       claimed = true;
+      replayable = o?.replay === true;
+      deferred = null;
       let max: number | null = null;
       let released = false;
       return {
@@ -139,6 +156,10 @@ function createRowScroller(el: HTMLElement): RowScroller {
           if (released) return;
           released = true;
           claimed = false;
+          replayable = false;
+          const run = deferred;
+          deferred = null;
+          run?.();
         },
       };
     },
