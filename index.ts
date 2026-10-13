@@ -42,6 +42,7 @@ export {
   OverlaySlot,
   OVERLAY_Z,
 } from './Panel.js';
+export { ROW_LAYER_Z } from './rowConstants.js';
 export type {
   PanelProps,
   DragHandleProps,
@@ -114,6 +115,11 @@ export type {
   SettingValues,
   PanelSettings,
   ResolvedPanelSettings,
+  BezierEase,
+  ChromeTuning,
+  CloseExitEase,
+  FadeEase,
+  GlideEase,
   DragToCloseTuning,
   SlideTuning,
   EdgeScrollTuning,
@@ -158,6 +164,7 @@ export type { WorkspaceHandle, WorkspaceOptions } from './workspaceCore.js';
 export type { PanelHandle } from './panelHandles.js';
 export type { ConfigureResult, PanelManager, PanelResult, PinResult, ResetResult } from './panelManager.js';
 export { usePanelStates, usePanelState, useWorkspaceManager } from './panels/usePanelStates.js';
+export { useActivePanel, usePanelActive, usePanelDragging } from './panelChrome.js';
 
 export { PanelManagerError } from './panelManagerError.js';
 export type { PanelRefusal, PanelManagerErrorCode } from './panelManagerError.js';

@@ -8,6 +8,26 @@
   current phone width and row gap, so a host can offer a cap relative to the window without repeating the row's arithmetic.
   `null` until the row is measured; it never reads below the permanent columns plus one, as the row's own floor, and pinned
   panels are not subtracted. Optional on the interface, so a 0.1.0 host still type-checks.
+- Panel chrome API, all through the panel API with defaults that reproduce today's look (chrome always drawn):
+  - `useActivePanel()` returns `[activeId | null, setActive]`, `usePanelActive()` and `usePanelDragging()` read one panel's
+    marks. A press or focus anywhere inside a panel (a portaled dialog it opened and a focused iframe included) makes it the
+    one active panel, until another is used or the panel closes or parks; the host may set it. The state is per Workspace,
+    never saved, and only the panels that gain or lose a mark render. `Panel` writes `data-panel-active` and
+    `data-panel-dragging` on its root so a host can style from them. A panel is dragging from the moment a drag engages on
+    either axis until it settles; a horizontal drop that hops ends it at the release.
+  - `tuning.chrome` `{ mode, fadeMs, slideMs, slidePx, graceMs }`, a workspace-only leaf, defaults `'always'`, 120, 140, 8, 250.
+    With `mode: 'hover-or-active'`, `Panel` fades its header, grab bar and footer out unless the panel is hovered, holds
+    focus, is active or is dragged, and always shows them on a device that cannot hover. The fade is opacity only, so a hidden
+    part keeps its space, stays hit-testable and stays in the tab order; it runs on Motion, so a theme's global
+    `transition: none` does not stop it, and takes no time with `fadeMs` 0, `animated: false` or Reduce Motion (the system
+    setting or the app's `MotionConfig`). `slideMs`, `slidePx` and `graceMs` are carried for the host's own icon row and
+    read through `usePanelTuning().chrome`; the library draws only the fade.
+  - `PanelHeaderButtons` is one roving-focus toolbar (see Changed).
+  - `Workspace` derives `rowResizeSettled` itself when the host gives none: the row glides again 1.25 slide durations
+    (500 ms at the default slide) after the width last changed, at once under Reduce Motion. A supplied `rowResizeSettled`
+    wins, as before.
+  - `PhonuxLabels` gains `pin`, `unpin`, `lock` and `unlock` (English defaults Pin, Unpin, Lock, Unlock).
+
 - `tuning.maxLivePanels`: an integer of 1 or more that caps how many unpinned panels the row keeps live (`null`, the default,
   is no cap and changes nothing). The leftmost panels beyond it park, as a narrow window parks them, and in a scrolling row
   such as History's the window's width no longer decides: exactly N unpinned panels are live at any width. A pinned panel is
@@ -18,7 +38,27 @@
   a hidden panel returns by `show`, a History click or an undo. This is a workspace setting the host chooses; the stored
   per-person max-panels choice retired in 0.2.0-rc.1 (below) stays retired.
 
+- Tuning leaves for values that were literals, each at the value the code always used: `tuning.gestureQuietMs` (150, the
+  silence that ends a row-scroll wheel gesture, beside `gestureLockMs`), `dragToClose.restMs` (50) and
+  `dragToClose.velocityWindowMs` (100), which decide the speed a drag release reads, `slide.closeExitEase` (`'easeIn'`, or
+  `'easeOut'`, `'easeInOut'`, `'linear'` or a cubic bezier) for the curve every close leaves along, and `slide.glideEase`
+  (`'cubic-out'`, today's curve, 1 - (1 - t)^3; also `'linear'` or a cubic bezier) for the row's own scroll glides, which do
+  not follow `slide.ease`. `ROW_LAYER_Z` exports the slots' stacking (base 1, raised 2, dragged 3), below every
+  `OVERLAY_Z` layer. Nothing changes at the defaults.
+
+- Two more values that were literals are tuning leaves, each at the value the code always used: `tuning.resizeSettleSlides`
+  (1.25, a workspace-only number from 0 to 10 that multiplies `slide.durationSec` into the wait before the row's centring
+  margin glides again after a resize; 0 settles at once) and `tuning.chrome.fadeEase` (`'easeOut'`, the curve Motion applies
+  to a fade given only a duration; also `'easeIn'`, `'easeInOut'`, `'linear'` or a cubic bezier). `fadeEase` is a required member
+  of the resolved `ChromeTuning`, so a host that builds a whole `ChromeTuning` object (a test double, a fake) now has to give
+  it; a patch to `tuning.chrome` or a host that only reads the resolved value is unaffected. The `FadeEase` type is exported.
+
 ### Changed
+
+- **Default behaviour change.** The header buttons are now one Tab stop with roving focus, as a toolbar should be: Tab enters
+  the row once, Arrow Left and Right, Home and End move along it, a disabled button is skipped and never holds the stop, and
+  the row carries `role="toolbar"`, `aria-orientation="horizontal"` and, for a string title, `aria-label`. Before, every button
+  was its own Tab stop. Tests that tabbed button by button, and the four header goldens, changed with it.
 
 - A stepping row (`rowGesture` `'step'`, the default) now shows only whole panels: as many as fit the window, the leftover
   width split evenly on both sides, and every step, `scrollTo`, drag release, pin, close and window resize lands on a stop
@@ -39,6 +79,11 @@
 
 ### Fixed
 
+- While a panel is dragged by its grab bar, the page no longer selects or highlights text or photos across the other panels, and
+  a photo no longer starts a native image drag. `user-select`, `-webkit-user-select` and `-webkit-user-drag` are `none` on the
+  document element from the press until the release, a `pointercancel` or the unmount, and come back exactly as the host had
+  them, so overlapping drags are safe. A selection made before the drag is cleared once the drag begins, and a plain click on
+  the grab bar leaves it. There is no setting to turn it off.
 - `revealOnScroll` `'never'` now holds in a row whose strip fits its window: a wheel step, Shift+wheel or arrow key there
   used to swap a hidden panel in through the 0.1.0 `scrollRow` path whatever the setting said, and swaps in none now.
 - A panel dragged sideways and released over a new slot now appears in that slot at once, with Reduce Motion on or off: before, its slot

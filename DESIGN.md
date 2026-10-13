@@ -356,7 +356,7 @@ that is not in the row is kept for two commits and then dropped with the note `s
 a drag holds the claim is dropped with `scroll-dropped-during-drag`. A panel created hidden, a restore, a first paint
 and an automatic return record nothing.
 
-With `rowGesture` `step` a sideways wheel, Shift+wheel or arrow key asks for a step. A wheel step starts a lock of `tuning.gestureLockMs` (60 ms; later events do not extend it); once it is over the next wheel event steps again unless it is decaying (smaller than the one before it, in the same direction), so a held wheel or a swipe that keeps its speed steps panel after panel, and a trackpad flick whose deltas fade is one step. 150 ms without a wheel event starts a fresh gesture. On a scrolling row whose strip is
+With `rowGesture` `step` a sideways wheel, Shift+wheel or arrow key asks for a step. A wheel step starts a lock of `tuning.gestureLockMs` (60 ms; later events do not extend it); once it is over the next wheel event steps again unless it is decaying (smaller than the one before it, in the same direction), so a held wheel or a swipe that keeps its speed steps panel after panel, and a trackpad flick whose deltas fade is one step. `tuning.gestureQuietMs` (150 ms) without a wheel event starts a fresh gesture. On a scrolling row whose strip is
 wider than its window the step goes through `gestureTarget`: it shows the nearest hidden panel in the direction when
 its `revealOnScroll` allows and no live panel lies between the window's edge and its slot, and otherwise scrolls to
 the next stop (the next panel start in a row without stops), from the in-flight glide's target. A row with nothing to scroll toward keeps the 0.1.0 swap
@@ -901,10 +901,27 @@ While a drag is live every vertically scrolling ancestor is locked (`overflow-y:
 transformed box would add a scrollbar). The lock ends with the spring back (or a press that stops it) and
 when the box unmounts.
 
+**No selection while dragging.** From the press until the pointer lifts or is cancelled (and until the box unmounts), the
+document element's `user-select`, `-webkit-user-select` and `-webkit-user-drag` are `none`, and a capture `dragstart`
+listener cancels a native drag: `-webkit-user-drag` does not inherit, so a photo inside a panel would otherwise start one,
+and a native drag ends the pointer events this gesture runs on. Safari reads the prefixed `-webkit-user-select`, so all
+three go on the same element. The holds share one record per document (`holdDragSelection`): the first takes the inline
+values and priorities the host had, the last gives them back, so overlapping drags (two touches, a press landing on a
+spring still unlocking) cannot restore each other's `none`. The document is the handle's `ownerDocument`, so a panel
+rendered into another window works. The press itself clears nothing, so a click on a grab bar keeps what the person
+selected; dnd-kit clears the selection when it activates the drag. There is no setting to turn this off: a drag that
+highlights text and photos is never wanted, and no host has asked for one that does. If one does, it is a `tuning` leaf
+defaulting on. A hide and show in the middle of a drag (Activity) gives the hold back and takes it again.
+
 **Tuning and closability.** Inside a row the box reads its numbers from the slot it sits in: the close rule, the
 direction lock and the snap-back spring from the panel's `dragToClose`, and the exit's length from its
 `slide.closeExitSeconds`, which the slot's own down exit shares so a trash-button close and a drag close read as one
-motion. Outside a row it reads the library defaults. It also reads the slot's `closable` (alone: not `collapsible`,
+motion, along the curve of `slide.closeExitEase` (`'easeIn'`: a Motion name or a cubic bezier). The release judges
+speed from the moves of the last `dragToClose.velocityWindowMs` (100 ms), and a lift more than `dragToClose.restMs`
+(50 ms) after the last move has no speed. A row's own scroll glides (a step, `scrollTo`, the settle after a resize or a
+drag) travel along `slide.glideEase`, `'cubic-out'` by default (1 - (1 - t)^3, not `slide.ease`), so a host that wants
+one curve sets it equal to `ease`. The slots' stacking is the exported `ROW_LAYER_Z` (base 1, raised 2, dragged 3), below
+every `OVERLAY_Z` layer; layers are structure, so they are not tuning. Outside a row it reads the library defaults. It also reads the slot's `closable` (alone: not `collapsible`,
 which only decides whether the view wraps a box at all) at the release and again when the exit animation ends. A
 release that finds `closable` false starts no exit; one that finds it turned false at the end of the exit does not
 call `onClose` and springs the box back to rest, unlocks the scroll ancestors and takes presses again.
@@ -1222,9 +1239,9 @@ the same call shows the panel or is refused), and `invalid-saved-setting` for ea
 ### Who may set what
 
 The `doors` of a descriptor name the configure call that accepts the key: `instance` (`configure(id)`), `template`
-(`configureTemplate`: `hostCreatable`, `multiple`, `maxInstances`) and `tuning` (`configureTuning`). Eight tuning
-leaves are workspace-only (`rowGap`, `saveQuietMs`, `gestureLockMs`, `returnTieBreak`, `dropTieBreak`, `rowGesture`,
-`initialScroll`, `maxLivePanels`); four are per panel and also workspace-wide (`dragToClose`, `slide`, `hopFraction`, `edgeScroll`).
+(`configureTemplate`: `hostCreatable`, `multiple`, `maxInstances`) and `tuning` (`configureTuning`). Eleven tuning
+leaves are workspace-only (`rowGap`, `saveQuietMs`, `gestureLockMs`, `gestureQuietMs`, `resizeSettleSlides`, `returnTieBreak`, `dropTieBreak`, `rowGesture`,
+`initialScroll`, `maxLivePanels`, `chrome`); four are per panel and also workspace-wide (`dragToClose`, `slide`, `hopFraction`, `edgeScroll`).
 A workspace-only leaf at the template layer throws, at the instance or host layer it is a `wrong-scope` conflict, and
 any tuning key in the workspace defaults throws. A view's own door, the host layer, accepts only `title`, `listed`,
 `layer`, `formFactor`, `placeOnAdd: { anchor }` and `enterFrom: 'anchor'`.
@@ -1347,16 +1364,19 @@ flip with a transition rule of its own) or SCOPE (a template-scope key).
 | `reportClose` | true, false | true | NEXT. Read by the next close; log entries already reported stay. |
 | `snapshot` | both, park, close, never | both | NEXT. Read at the next park or close. Switching to never asks the host to evict this panel's stored picture once, from the commit's layout effect. |
 | `tuning.rowGap` | integer px 0 to 200 (workspace only) | 16 (GAP) | NOW (configureTuning only). The whole row re-prices at this commit; in park mode a smaller capacity parks the fewest park panels through the reconcile effect; a scrolling row only re-prices and clamps scrollLeft. Slides in progress retarget. Unmeasured: stored. Busy while any panel has a token. Outside 0-200 throws. |
-| `tuning.dragToClose` | object: distanceFraction [0.05, 1], minDistancePx >= 8, flickMinDistancePx >= 8, flickVelocity >= 100, cancelVelocity <= -50, directionLockPx integer [2, 64], snapBack { stiffness [50, 2000], damping [5, 200] }; panel or workspace | 0.25, 80, 40, 700, -300, 8, { 520, 42 } (DRAG_CLOSE; DIRECTION_LOCK_PX) | NEXT. Panel door: configure(id, { tuning: { dragToClose } }); workspace door: configureTuning sets the default. Read at the next release; a drag in flight is judged by the values current at release. Leaves merge; null removes a panel leaf. |
-| `tuning.slide` | object: durationSec [0, 10], ease (four numbers, x1 and x2 in [0,1]), closeExitSeconds [0, 5]; panel or workspace | 0.4, [0.2, 0, 0, 1], 0.18 (SLOT_TRANSITION, DRAG_CLOSE.exitSeconds) | NEXT. Panel and workspace doors. Read at the next enter, exit, close or scroll; animations running keep their timing. animated:false still wins. |
+| `tuning.dragToClose` | object: distanceFraction [0.05, 1], minDistancePx >= 8, flickMinDistancePx >= 8, flickVelocity >= 100, cancelVelocity <= -50, directionLockPx integer [2, 64], restMs integer [1, 1000], velocityWindowMs integer [16, 1000], snapBack { stiffness [50, 2000], damping [5, 200] }; panel or workspace | 0.25, 80, 40, 700, -300, 8, 50, 100, { 520, 42 } (DRAG_CLOSE; DIRECTION_LOCK_PX; DRAG_REST_MS; DRAG_VELOCITY_WINDOW_MS) | NEXT. Panel door: configure(id, { tuning: { dragToClose } }); workspace door: configureTuning sets the default. Read at the next release; a drag in flight is judged by the values current at release. Leaves merge; null removes a panel leaf. |
+| `tuning.slide` | object: durationSec [0, 10], ease (four numbers, x1 and x2 in [0,1]), closeExitSeconds [0, 5], closeExitEase ('easeIn', 'easeOut', 'easeInOut', 'linear' or four numbers), glideEase ('cubic-out', 'linear' or four numbers); panel or workspace | 0.4, [0.2, 0, 0, 1], 0.18, 'easeIn', 'cubic-out' (SLOT_TRANSITION, DRAG_CLOSE.exitSeconds, CLOSE_EXIT_EASE, GLIDE_EASE) | NEXT. Panel and workspace doors. Read at the next enter, exit, close or scroll; animations running keep their timing. animated:false still wins. |
 | `tuning.hopFraction` | number in (0, 1]; panel or workspace | 0.5 | NEXT. Panel and workspace doors. Read by the dragged panel's view at its next release. Outside (0, 1] throws. |
 | `tuning.edgeScroll` | object: zonePx integer [8, 200], maxPxPerSec integer [100, 5000], reducedStepMs integer [100, 5000]; panel or workspace (a key derived from Q19; the numbers are owner-confirmed, Q21) | 48, 900, 500 (owner-confirmed, Q21; the numbers live in rowConstants.ts) | NEXT. Panel door: configure(id, { tuning: { edgeScroll } }); workspace door: configureTuning sets the default. Read at the next drag start; a drag in flight keeps its numbers. Leaves merge; null removes a panel leaf. |
 | `tuning.saveQuietMs` | integer ms >= 0 (workspace only) | 500 | NEXT (configureTuning only). A timer already armed keeps its deadline; the next arm uses the new value. Session-only. |
 | `tuning.gestureLockMs` | integer ms >= 0 (workspace only) | 60 | NEXT (configureTuning only). A lock already armed keeps its remaining time. Session-only. |
+| `tuning.gestureQuietMs` | integer ms >= 1 (workspace only) | 150 | NEXT (configureTuning only). A quiet timer already running keeps its length; the next wheel event arms the new one. Session-only. |
+| `tuning.resizeSettleSlides` | number [0, 10], multiplies slide.durationSec (workspace only) | 1.25 | NOW (configureTuning only). 0 settles at once. A settle timer already running keeps its length; the next width change arms the new one. Session-only. |
 | `tuning.returnTieBreak` | latest-first, earliest-first, row-order (workspace only) | latest-first | NEXT (configureTuning only). Read at the next stack walk; nothing returns now. |
 | `tuning.dropTieBreak` | leftmost, rightmost (workspace only) | leftmost | NEXT (configureTuning only). Read at the next capacity drop or resize; nothing parks now. |
 | `tuning.rowGesture` | step, free, off (workspace only; a design-derived key from Q15, not requested) | step | NEXT (configureTuning only). The listener set is re-read at the next render; a gesture in flight finishes; no panel moves. Session-only. |
 | `tuning.initialScroll` | start, end, root, { panel: PanelId } (workspace only; a design-derived key from Q15, not requested) | start (the library default, a design default the owner did not rule on; phonux-app sets 'end', owner Q20: the newest closable panels in view at launch) | NEXT (configureTuning only). Read at the next mount; nothing scrolls now. Session-only. |
+| `tuning.chrome` | object: mode 'always' or 'hover-or-active', fadeMs integer [0, 10000], fadeEase ('easeIn', 'easeOut', 'easeInOut', 'linear' or four numbers, x1 and x2 in [0,1]), slideMs integer [0, 10000], slidePx integer [0, 200], graceMs integer [0, 10000] (workspace only) | always, 120, easeOut, 140, 8, 250 (CHROME) | NOW (configureTuning only). A member patch keeps the other members. The chrome shows or hides at this commit; a fade in progress retargets. The library reads `mode`, `fadeMs` and `fadeEase` (`easeOut` is the curve Motion applies to a fade given only a duration, measured in Chromium); `slideMs`, `slidePx` and `graceMs` are for the host's own icon row. Session-only. |
 | `tuning.maxLivePanels` | integer >= 1, or null for no cap (workspace only) | null (no cap) | NOW (configureTuning only). A lower value parks the excess unpinned panels at this commit through the reconcile effect; a higher one or null returns none under `capacityReturn` manual and the most recently parked under auto. Unmeasured: applies. Outside integers of 1 or more throws; null removes the cap. Session-only. |
 <!-- catalog:end -->
 
@@ -1476,6 +1496,29 @@ A verb names a panel, never a row index, and resolves it on every call: a handle
 - **The person's pin.** A person's pin records `overrides.anchor` (every id, when the half names a placement) and `overrides.parkable` (when it names `parkable`) through `recordOverride`; a code pin flips `parkable` for the session and records nothing.
 - **Configure of parkable.** A `configure` that names `parkable` on a parked, hidden or closed panel goes through `decidePinChange` like `pin`, reading `pinningWhenNotLive` as it stood before the patch: `place-only` and `refuse` answer `would-reshape-row` (`is-closed` for a closed panel), `show` shows the panel and flips it in one commit with `shown: true`, `apply-on-next-show` stores the half as a deferred pin and lists `parkable` in `later`. A closed panel's stored half lives on its record, is never saved, and is applied by `open` or an undo. A flip that changes nothing the panel reads, as when the person's override outvotes it, is no pin change and is never refused or stored. A `configure` that names `parkable` cancels a stored half on a parked, hidden or closed panel alike, even when the patch changes no layer value. The rest of the patch is written with a stored flip, and a refused flip refuses the whole patch.
 - **Reset.** `resetLayout` writes `overrides` only through `clearOverrides`, clears stored deferrals and re-places each named panel by its resolved `placeOnAdd`. `'all'` scrolls nothing; one id follows `scrollOnMove`.
+
+## Panel chrome
+
+The active and dragging panel are ephemeral facts held by the Workspace in a small external store (`panelChrome.ts`), one per
+Workspace and never module-wide, so two workspaces share nothing. They are not in the manager's snapshot or in storage.
+Each panel subscribes to its own entry, so a press that moves the mark re-renders the panel that lost it and the one that
+gained it. `PanelRowSlot` activates its panel from React capture handlers (`onPointerDownCapture`, `onFocusCapture`), which
+follow the React tree and so count a portaled dialog the panel opened; a focused iframe fires neither, so the slot also
+listens for the window's `blur` and activates when the focused element is an iframe inside it. The row clears the mark of a
+panel that closes or parks.
+
+`Panel` writes `data-panel-active` and `data-panel-dragging` on its root box, and `data-panel-chrome-part="header"`,
+`"grab-bar"` or `"footer"` on the parts `tuning.chrome` fades. Hosts style from these names; a test pins them.
+
+The fade changes opacity only. `pointer-events`, `inert`, `visibility` and `display` stay as they are, so a hidden header
+keeps its space, receives the pointer that reveals it, and holds Tab focus. It runs through Motion's `animate`, which uses the
+Web Animations API and so is not stopped by a theme's `transition: none !important`. Mode `'always'` leaves no inline opacity.
+
+`PanelHeaderButtons` is a toolbar with a roving tab stop kept in its runtime: the stop follows focus, falls to the first
+enabled button when its holder is removed or disabled, and Arrow, Home and End skip disabled buttons.
+
+The Workspace derives the row's resize settle from `tuning.slide`: the row snaps while the width moves and glides once it has
+held for `tuning.resizeSettleSlides` (1.25) slide durations, at once under Reduce Motion. A `rowResizeSettled` the host supplies wins.
 
 ## Doc comments
 

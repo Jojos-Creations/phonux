@@ -29,6 +29,9 @@ export type AnchorRequest = {
 };
 
 // @public
+export type BezierEase = readonly [number, number, number, number];
+
+// @public
 export interface CaptureRegistry {
     register(viewId: ViewId, el: HTMLElement, extent: 'viewport' | 'full'): () => void;
 }
@@ -49,12 +52,25 @@ export interface CaptureTrigger {
 export type CatalogName = Exclude<keyof PanelSettings, 'tuning'> | `tuning.${keyof WorkspaceTuning}`;
 
 // @public
+export type ChromeTuning = {
+    mode: 'always' | 'hover-or-active';
+    fadeMs: number;
+    fadeEase: FadeEase;
+    slideMs: number;
+    slidePx: number;
+    graceMs: number;
+};
+
+// @public
 export interface ClosedPageEntry {
     closedAt: string;
     id: string;
     title: string;
     url?: string;
 }
+
+// @public
+export type CloseExitEase = 'easeIn' | 'easeOut' | 'easeInOut' | 'linear' | BezierEase;
 
 // @public
 export function computeRowLayout(input: RowLayoutInput): RowLayoutResult;
@@ -173,6 +189,8 @@ export type DragToCloseTuning = {
     flickVelocity: number;
     cancelVelocity: number;
     directionLockPx: number;
+    restMs: number;
+    velocityWindowMs: number;
     snapBack: {
         stiffness: number;
         damping: number;
@@ -187,6 +205,9 @@ export type EdgeScrollTuning = {
 };
 
 // @public
+export type FadeEase = 'easeIn' | 'easeOut' | 'easeInOut' | 'linear' | BezierEase;
+
+// @public
 export function findPhoneModel(id: string): PhoneModel | undefined;
 
 // @public
@@ -194,6 +215,9 @@ export type FormFactor = 'phone' | 'tablet' | 'desktop';
 
 // @public
 export const GAP = 16;
+
+// @public
+export type GlideEase = 'cubic-out' | 'linear' | BezierEase;
 
 // @public
 export type HeaderButton = {
@@ -810,11 +834,15 @@ export interface PhoneSize {
 export interface PhonuxLabels {
     dismiss: string;
     historyTitle: string;
+    lock: string;
     panelTitle: (id: string) => string;
     phoneConnected: string;
     phoneConnectedText: (vendor: string) => string;
     phoneModel: string;
+    pin: string;
     resize: string;
+    unlock: string;
+    unpin: string;
     untitledHeader: string;
     untitledPanel: string;
 }
@@ -907,12 +935,15 @@ export type ResolvedWorkspaceTuning = ResolvedPanelTuning & {
     rowGap: number;
     saveQuietMs: number;
     gestureLockMs: number;
+    gestureQuietMs: number;
+    resizeSettleSlides: number;
     returnTieBreak: 'latest-first' | 'earliest-first' | 'row-order';
     dropTieBreak: 'leftmost' | 'rightmost';
     rowGesture: 'step' | 'free' | 'off';
     initialScroll: 'start' | 'end' | 'root' | {
         panel: PanelId;
     };
+    chrome: ChromeTuning;
     maxLivePanels: number | null;
 };
 
@@ -927,6 +958,13 @@ export function resolvePanelSettings(layers?: PanelSettingsLayers, options?: Res
 
 // @public
 export function resolveView(key: string): ViewComponent;
+
+// @public
+export const ROW_LAYER_Z: Readonly<{
+    BASE: 1;
+    RAISED: 2;
+    DRAGGED: 3;
+}>;
 
 // @public
 export interface RowLayoutInput {
@@ -1101,6 +1139,8 @@ export type SlideTuning = {
     durationSec: number;
     ease: readonly [number, number, number, number];
     closeExitSeconds: number;
+    closeExitEase: CloseExitEase;
+    glideEase: GlideEase;
 };
 
 // @public
@@ -1116,13 +1156,22 @@ export type SourceLayer = 'library' | 'workspace' | 'template' | 'host' | 'insta
 export const TIER_SIZES: Readonly<Record<FormFactor, PanelSize>>;
 
 // @public
+export function useActivePanel(): readonly [PanelId | null, (id: PanelId | null) => void];
+
+// @public
 export function useHost(): Host;
+
+// @public
+export function usePanelActive(): boolean;
 
 // @public
 export const usePanelCapabilities: () => Pick<ResolvedPanelSettings, "closable" | "draggable" | "placeable" | "resizable" | "formFactors">;
 
 // @public
 export const usePanelCloseEligible: () => boolean;
+
+// @public
+export function usePanelDragging(): boolean;
 
 // @public
 export function usePanelHeaderButtons(): readonly PanelHeaderButtonItem[];
@@ -1151,6 +1200,7 @@ export function usePanelStates(f?: ListFilter): readonly PanelState[];
 // @public
 export const usePanelTuning: () => ResolvedPanelTuning & {
     readonly rowGap: number;
+    readonly chrome: ChromeTuning;
 };
 
 // @public
@@ -1308,7 +1358,7 @@ export interface WorkspaceProps extends Omit<BoxProps, 'children'> {
     phoneWidth: number;
     rowNumbers?: RowNumbers;
     rowRef: RefObject<HTMLDivElement | null>;
-    rowResizeSettled: boolean;
+    rowResizeSettled?: boolean;
     rowScroll?: boolean;
     topPadding?: number;
     tuning?: WorkspaceTuning;
@@ -1336,11 +1386,16 @@ export type WorkspaceTuning = PanelTuning & {
     rowGap?: number;
     saveQuietMs?: number;
     gestureLockMs?: number;
+    gestureQuietMs?: number;
+    resizeSettleSlides?: number;
     returnTieBreak?: 'latest-first' | 'earliest-first' | 'row-order';
     dropTieBreak?: 'leftmost' | 'rightmost';
     rowGesture?: 'step' | 'free' | 'off';
     initialScroll?: 'start' | 'end' | 'root' | {
         panel: PanelId;
+    };
+    chrome?: {
+        [K in keyof ChromeTuning]?: ChromeTuning[K];
     };
     maxLivePanels?: number | null;
 };
