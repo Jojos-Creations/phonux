@@ -38,7 +38,7 @@ export interface WorkspaceShellStyleInput {
   gap?: number;
   /** The slide the margin glides with. Default: the shared panel transition. */
   slide?: SlideTuning;
-  /** The row's numbers. Given: the margin and the overflow follow them; omitted: a row with no settings, as before. */
+  /** The row's numbers. Given: the margin and the overflow follow them; omitted: a row with no settings. */
   rowNumbers?: RowNumbers;
   /** Whether the row scrolls, for a caller with no `rowNumbers`. Ignored when `rowNumbers` is given. Default false. */
   rowScroll?: boolean;

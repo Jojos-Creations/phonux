@@ -556,7 +556,7 @@ export type PanelSettingsLayers = {
 
 /** The person's own overrides: the only three things a person can change about a panel. @public */
 export type PanelUserLayer = {
-  /** The tier the person chose; read as a slot count when `slots` is absent (a file saved before slots). */
+  /** The tier the person chose; read as a slot count when `slots` is absent. */
   formFactor?: FormFactor;
   /** The slot count the person chose; wins over `formFactor`. */
   slots?: number;
@@ -2161,7 +2161,7 @@ export function resolveUnderTuning(layers: PanelSettingsLayers, options: Resolve
   let state = merge(accepted, undefined, workspaceTuning);
   applyRules(state, root);
 
-  // The person's size as a slot count: their slots, else their tier read as slots (a file saved before slots has only the tier).
+  // The person's size as a slot count: their slots, else their tier read as slots.
   const userTierFits = user.formFactor !== undefined && (state.values.formFactors as readonly FormFactor[]).includes(user.formFactor);
   const userSlotsFit = user.slots !== undefined && (state.values.formFactors as readonly FormFactor[]).includes(tierOfSlots(user.slots));
   const personSlots = user.slots !== undefined ? (userSlotsFit ? user.slots : undefined) : user.formFactor !== undefined && userTierFits ? slotsOfTier(user.formFactor) : undefined;

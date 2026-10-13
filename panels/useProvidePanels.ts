@@ -106,7 +106,7 @@ export interface PanelsInput {
   /**
    * The workspace's panel settings (every key except `tuning`). Given, a panel made by `create()` and a panel restored from
    * `storage` is resolved against them and carries its settings: it scrolls instead of parking unless its `overflow` is
-   * 'park'. Absent: a panel is built as in 0.1.0, with no settings, and parks at capacity.
+   * 'park'. Absent: a panel is built with no settings and parks at capacity.
    */
   workspaceDefaults?: Omit<PanelSettings, 'tuning'>;
   /** The panel templates a saved panel and a host-bag `create({ view })` may name, over the ones registered. A `create` naming one obeys its `hostCreatable`, `multiple` and `maxInstances`; a restore is exempt. */
@@ -420,7 +420,7 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
     if (known) requestOpen(id);
   };
 
-  // One step of the gesture. A row with nothing to scroll toward keeps 0.1.0's swap: the parked panel beside the live range comes in.
+  // One step of the gesture. A row with nothing to scroll toward swaps: the parked panel beside the live range comes in.
   const stepRow = (direction: 'left' | 'right'): void => {
     const el = i.overflowContainerRef.current;
     if (el === null) return;
