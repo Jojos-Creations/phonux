@@ -236,8 +236,10 @@ export const GAP = 16;
 export type GlideEase = 'cubic-out' | 'linear' | BezierEase;
 
 // @public
-export type HeaderButton = {
-    icon: React_2.ReactNode | ((c: HeaderButtonContext) => React_2.ReactNode);
+export type HeaderButton = HeaderButtonIconForm | HeaderButtonTextForm;
+
+// @public
+export type HeaderButtonBase = {
     label: string | ((c: HeaderButtonContext) => string);
     onClick: (handle: ViewHandle, c: HeaderButtonContext & {
         announce(text: string): void;
@@ -256,6 +258,16 @@ export type HeaderButton = {
 export type HeaderButtonContext = {
     state: PanelState;
     settings: ResolvedPanelSettings;
+};
+
+// @public
+export type HeaderButtonIconForm = HeaderButtonBase & {
+    icon: React_2.ReactNode | ((c: HeaderButtonContext) => React_2.ReactNode);
+};
+
+// @public
+export type HeaderButtonTextForm = HeaderButtonBase & {
+    icon?: never;
 };
 
 // @public
@@ -451,11 +463,13 @@ export interface PanelHandle<P extends JsonValue = JsonValue> extends PanelReadH
 export function PanelHeader(input: PanelHeaderProps): React_2.JSX.Element;
 
 // @public
-export interface PanelHeaderButtonItem {
+export type PanelHeaderButtonItem = PanelHeaderIconItem | PanelHeaderTextItem;
+
+// @public
+export interface PanelHeaderButtonItemBase {
     readonly description: string | undefined;
     readonly disabled: boolean;
     readonly hidden: boolean;
-    readonly icon: React_2.ReactNode;
     readonly id: string;
     readonly label: string;
     readonly order: number;
@@ -472,6 +486,12 @@ export function PanelHeaderButtons(input: {
 }): React_2.ReactElement | null;
 
 // @public
+export interface PanelHeaderIconItem extends PanelHeaderButtonItemBase {
+    readonly form: 'icon';
+    readonly icon: React_2.ReactNode;
+}
+
+// @public
 export interface PanelHeaderProps extends Omit<BoxProps, 'children'> {
     children: React_2.ReactNode;
 }
@@ -484,6 +504,12 @@ export interface PanelHeaderRowProps extends Omit<PanelHeaderProps, 'children' |
     actions?: React_2.ReactNode;
     leading?: React_2.ReactNode;
     title: React_2.ReactNode;
+}
+
+// @public
+export interface PanelHeaderTextItem extends PanelHeaderButtonItemBase {
+    readonly form: 'text';
+    readonly icon: undefined;
 }
 
 // @public

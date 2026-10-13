@@ -149,7 +149,7 @@ let executedInvalid = 0;
 const INVALID: readonly (readonly [string, string, unknown])[] = [
   ['an empty label', 'pin', { icon: 'i', label: '', onClick: () => undefined }],
   ['a missing onClick', 'pin', { icon: 'i', label: 'L' }],
-  ['a missing icon', 'pin', { label: 'L', onClick: () => undefined }],
+  ['an icon key set to undefined', 'pin', { icon: undefined, label: 'L', onClick: () => undefined }],
   ['an id of 33 characters', 'a'.repeat(33), { icon: 'i', label: 'L', onClick: () => undefined }],
   ['an uppercase id', 'Pin', { icon: 'i', label: 'L', onClick: () => undefined }],
   ["side 'middle'", 'pin', { icon: 'i', label: 'L', onClick: () => undefined, side: 'middle' }],
