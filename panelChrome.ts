@@ -235,7 +235,7 @@ export function usePanelResizing(): readonly [boolean, (on: boolean) => void, (p
         store.setDrawn(id, null, pin);
         return;
       }
-      if (typeof px !== 'number' || !Number.isFinite(px) || px < 0 || store.resizing() !== id) return;
+      if (!Number.isFinite(px) || px < 0) return;
       if (frame.current !== null) {
         frame.current.px = px;
         frame.current.pin = pin;

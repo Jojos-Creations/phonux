@@ -221,7 +221,7 @@ export function PanelRowSlot({
   }, []);
   const ownSpan = width + (gap ?? ROW_GAP);
   const parkSide = exitDirection === 'right' ? 'right' : 'left';
-  const slideTransition = animated && !reducedMotion && !tracking ? transition : INSTANT_TRANSITION;
+  const slideTransition = animated && !reducedMotion ? transition : INSTANT_TRANSITION;
   const snapping = previewing && (reducedMotion || systemReduced || dragged);
   // `epoch` counts parks, so a finished exit from an earlier park can never hide the slot of a later one.
   const [wasKept, setWasKept] = React.useState(kept);
@@ -284,7 +284,7 @@ export function PanelRowSlot({
   React.useLayoutEffect(() => {
     const moved = lastRest.current !== leftOffset;
     lastRest.current = leftOffset;
-    if (moved && (snapping || tracking) && el.current !== null && !kept && !reviving && present) slotDriver.set(el.current, { x: leftOffset, opacity: 1 });
+    if (moved && snapping && el.current !== null && !kept && !reviving && present) slotDriver.set(el.current, { x: leftOffset, opacity: 1 });
   });
   React.useEffect(() => {
     if (!setUpBefore.current) {
@@ -302,7 +302,7 @@ export function PanelRowSlot({
       initial={kept || reviving ? undefined : initial}
       animate={kept || reviving ? undefined : snapping || tracking ? { ...animateTarget, transition: INSTANT_TRANSITION } : animateTarget}
       exit={kept ? KEPT_EXIT : exit}
-      transition={tracking ? INSTANT_TRANSITION : transition}
+      transition={transition}
       inert={kept ? true : undefined}
       aria-hidden={hidden ? true : undefined}
       data-row-slot={leftOffset}

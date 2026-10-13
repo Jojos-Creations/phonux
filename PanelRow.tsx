@@ -262,8 +262,7 @@ export function PanelRow({
   const alignedTop = (height: number): number => (workspaceTuning.rowAlign === 'top' ? 0 : workspaceTuning.rowAlign === 'bottom' ? rowHeight - height : Math.round((rowHeight - height) / 2));
   const rowScroll = rowNumbers?.rowScroll ?? false;
   const reservedWidth = Math.max(0, widths.reduce((sum, width) => sum + width + gap, 0) - gap - pinShift);
-  // A panel drawn wider than its slots makes the strip longer than the numbers know; pinned at the end it does not.
-  const maxScroll = rowNumbers === undefined ? 0 : maxScrollOf(rowNumbers) + (pinShift === 0 ? Math.max(0, growth) : 0);
+  const maxScroll = rowNumbers === undefined ? 0 : maxScrollOf(rowNumbers);
   const stops = rowNumbers === undefined ? [] : rowNumbers.stops.length > 0 ? rowNumbers.stops : rowNumbers.leftOffsets.map((offset) => rowNumbers.rowMarginLeft + offset);
   const widthById = new Map(present.map((p, index) => [p.id, widths[index]!]));
   // Nearest first on each side, an always-shown column included: movePanel swaps past one like any neighbour. The
