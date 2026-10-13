@@ -75,6 +75,11 @@
 
 ### Fixed
 
+- While a panel is dragged by its grab bar, the page no longer selects or highlights text or photos across the other panels, and
+  a photo no longer starts a native image drag. `user-select`, `-webkit-user-select` and `-webkit-user-drag` are `none` on the
+  document element from the press until the release, a `pointercancel` or the unmount, and come back exactly as the host had
+  them, so overlapping drags are safe. A selection made before the drag is cleared once the drag begins, and a plain click on
+  the grab bar leaves it. There is no setting to turn it off.
 - `revealOnScroll` `'never'` now holds in a row whose strip fits its window: a wheel step, Shift+wheel or arrow key there
   used to swap a hidden panel in through the 0.1.0 `scrollRow` path whatever the setting said, and swaps in none now.
 - A panel dragged sideways and released over a new slot now appears in that slot at once, with Reduce Motion on or off: before, its slot
