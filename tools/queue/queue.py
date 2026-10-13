@@ -1560,9 +1560,53 @@ def cmd_stub(args, repo_root):
     return 0
 
 
+def _research_refuse(flag, value, reason):
+    sys.stderr.write("research: refusing %s %r: %s\n" % (flag, value, reason))
+    return 1
+
+
+def _research_list_value_problem(flag, values, line_format):
+    """The first (flag, value, reason) among `values` that cannot be written as a section line, else None.
+    Each value is checked as the line it will become, so the tool never writes what PLACEHOLDER_RE reads as unfilled."""
+    for index, value in enumerate(values, start=1):
+        if not value.strip():
+            return (flag, value, "the value is empty")
+        if "\n" in value or "\r" in value:
+            return (flag, value, "the value contains a newline; give one %s per option" % flag.lstrip("-"))
+        if PLACEHOLDER_RE.search(line_format(index, value)):
+            return (flag, value, "the value would be written as a placeholder line")
+    return None
+
+
 def cmd_research(args, repo_root):
-    issue = gh_json(["issue", "view", args.issue, "--json", "body"], cwd=repo_root)
+    touches = args.touches
+    evidence = args.evidence
+    for problem in (
+        _research_list_value_problem("--touches", touches or [], lambda i, v: "- %s" % v),
+        _research_list_value_problem("--evidence", evidence or [], lambda i, v: "%d. %s" % (i, v)),
+    ):
+        if problem is not None:
+            return _research_refuse(*problem)
+    wants_sections = touches is not None or evidence is not None
+    json_fields = "body,labels" if wants_sections else "body"
+    issue = gh_json(["issue", "view", args.issue, "--json", json_fields], cwd=repo_root)
     body = issue["body"]
+    if wants_sections:
+        flag = "--touches" if touches is not None else "--evidence"
+        if _has_label(_label_names(issue.get("labels")), LABEL_ACCEPTED):
+            return _research_refuse(flag, "", "issue #%d is accepted and frozen; its pull request is the record" % args.issue)
+        if ISSUE_MARKER not in body:
+            return _research_refuse(flag, "", "issue #%d body lacks the %s marker, so it is not a plan issue" % (args.issue, ISSUE_MARKER))
+        for given, key, name in ((touches, "touches", "--touches"), (evidence, "evidence_required", "--evidence")):
+            if given is not None and section_span(body, ISSUE_HEADINGS[key]) is None:
+                return _research_refuse(name, "", "issue #%d body lacks the %s heading" % (args.issue, ISSUE_HEADINGS[key]))
+    if touches is not None:
+        body = set_section(body, ISSUE_HEADINGS["touches"], "\n".join("- %s" % t for t in touches) + "\n\n")
+    if evidence is not None:
+        body = set_section(
+            body, ISSUE_HEADINGS["evidence_required"],
+            "\n".join("%d. %s" % (i, e) for i, e in enumerate(evidence, start=1)) + "\n\n",
+        )
     if args.local is not None:
         body = set_section(body, ISSUE_HEADINGS["local_insights"], args.local.rstrip() + "\n")
     if args.online is not None:
@@ -2689,7 +2733,16 @@ def cmd_init(args, repo_root):
     ))
 
     hooks_path = _read_hooks_path(repo_root)
-    if hooks_path != EXPECTED_HOOKS_PATH:
+    if hooks_path is not None and Path(hooks_path).is_absolute():
+        # The value is shared by every linked worktree, so rewriting it would
+        # move all of them; the per-command -c form leaves the shared setting alone.
+        print(
+            "WARNING: core.hooksPath is %s, not %s -- every worktree of this repo "
+            "runs the hooks of the checkout that path names, not its own "
+            "(to use this checkout's own hooks for one command: git -c core.hooksPath=%s commit)"
+            % (repr(hooks_path), EXPECTED_HOOKS_PATH, EXPECTED_HOOKS_PATH)
+        )
+    elif hooks_path != EXPECTED_HOOKS_PATH:
         print(
             "WARNING: core.hooksPath is %s, not %s -- this clone's git hooks do not run "
             "(fix: git config core.hooksPath %s)"
@@ -4235,13 +4288,17 @@ def build_parser():
     p.add_argument("--priority", type=int, choices=sorted(PRIORITY_LABEL_BY_NUMBER), default=DEFAULT_PRIORITY)
     p.add_argument("--successor-of", default=None)
 
-    p = sub.add_parser("research", help="append research to a plan issue")
+    p = sub.add_parser("research", help="write research, Touches and Evidence required on a plan issue")
     p.add_argument("issue", type=int)
     p.add_argument("--local", default=None)
     p.add_argument("--online", default=None)
     p.add_argument("--api-docs", default=None)
     p.add_argument("--prereq", type=int, action="append", default=None,
                     help="issue number this entry depends on (repeatable); writes Depends on: in ## Gates")
+    p.add_argument("--touches", action="append", default=None, metavar="GLOB",
+                    help="path or glob this entry touches (repeatable); replaces the whole ## Touches section, one '- GLOB' line each")
+    p.add_argument("--evidence", action="append", default=None, metavar="TEXT",
+                    help="one required evidence item (repeatable); replaces the whole ## Evidence required section as a numbered list from 1")
 
     p = sub.add_parser("audit-record", help="post a plan-audit verdict comment")
     p.add_argument("issue", type=int)

@@ -26,6 +26,7 @@ export const markerTemplate = (id: string, over: Partial<PanelTemplate> = {}): P
         'data-handle-id': handle.id,
       }),
     ...over,
+    settings: { frame: 'none', ...over.settings },
   });
 
 export interface MountedWorkspace {
@@ -40,29 +41,42 @@ export interface MountedWorkspace {
   unmount: () => void;
 }
 
-/** `ws` mounted at a measured container `width`; `over` replaces any provider input. */
-export function mountWorkspace(ws: WorkspaceHandle, o: { width?: number; over?: Partial<PanelsInput>; strict?: boolean; withPanelRowWorkspace?: boolean } = {}): MountedWorkspace {
+/** A `MountedWorkspace` whose container can be measured again. */
+export interface ResizableWorkspace extends MountedWorkspace {
+  /** Measures the container again at `width`, as a window resize does. */
+  setWidth: (width: number) => void;
+}
+
+/**
+ * `ws` mounted at a measured container `width`; `over` replaces any provider input. `onCommit` sees the row of every
+ * render that reached the document, from a layout effect, so a render React discarded is never recorded.
+ */
+export function mountWorkspace(ws: WorkspaceHandle, o: { width?: number; over?: Partial<PanelsInput>; strict?: boolean; withPanelRowWorkspace?: boolean; onCommit?: (provided: ProvidedPanels) => void; wrap?: (tree: React.ReactElement) => React.ReactElement } = {}): ResizableWorkspace {
   const width = o.width ?? 1000;
   const ref = React.createRef<HTMLDivElement>();
   const rowRef = React.createRef<HTMLDivElement>();
   const notes: SettingNote[] = [];
   let latest: ProvidedPanels | undefined;
   let renders = 0;
+  let measure: ((next: number) => void) | undefined;
   function Probe(): React.ReactElement {
-    latest = useProvidePanels(panelsInput({ workspace: ws, rootId: ws.rootId, containerWidth: width, overflowContainerRef: ref, onNote: (n) => void notes.push(n), ...o.over }));
+    const [containerWidth, setContainerWidth] = React.useState(width);
+    measure = setContainerWidth;
+    latest = useProvidePanels(panelsInput({ workspace: ws, rootId: ws.rootId, containerWidth, overflowContainerRef: ref, onNote: (n) => void notes.push(n), ...o.over }));
     renders += 1;
     const provided = latest;
+    React.useLayoutEffect(() => o.onCommit?.(provided));
     return withHost(
       React.createElement(
         Workspace,
-        { overflowContainerRef: ref, rowRef, containerWidth: width, rowResizeSettled: true, phoneWidth: 390, fixedColumnCount: provided.fixedViewCount, liveWidths: provided.liveWidths, rowScroll: provided.rowScroll, rowNumbers: provided.rowNumbers, tuning: provided.tuning } as never,
+        { overflowContainerRef: ref, rowRef, containerWidth, rowResizeSettled: true, phoneWidth: 390, fixedColumnCount: provided.fixedViewCount, liveWidths: provided.liveWidths, rowScroll: provided.rowScroll, rowNumbers: provided.rowNumbers, tuning: provided.tuning } as never,
         React.createElement(PanelRow, { entries: provided.entries, rootId: ws.rootId, closingIds: NONE, enteringViaAnchorIds: NONE, rowNumbers: provided.rowNumbers, ...(o.withPanelRowWorkspace === false ? {} : { workspace: ws }) }),
       ),
       createFakeHost({ panels: provided }),
     );
   }
   const tree = o.strict === true ? React.createElement(React.StrictMode, null, React.createElement(Probe)) : React.createElement(Probe);
-  const mounted = mount(tree);
+  const mounted = mount(o.wrap === undefined ? tree : o.wrap(tree));
   const container = ref.current;
   assert.ok(container, 'the Workspace never attached its scroll container');
   return {
@@ -71,6 +85,7 @@ export function mountWorkspace(ws: WorkspaceHandle, o: { width?: number; over?: 
     notes,
     slots: () => [...container.querySelectorAll('[data-slot]')].map((n) => (n as HTMLElement).dataset.slot!),
     renders: () => renders,
+    setWidth: (next) => void act(() => measure!(next)),
     rerender: (next) => mounted.rerender(next),
     unmount: () => mounted.unmount(),
   };

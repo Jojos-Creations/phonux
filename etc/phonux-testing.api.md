@@ -51,12 +51,6 @@ export interface CreatePanelOptions {
 }
 
 // @public
-export interface DetectedPhone {
-    productId: number;
-    vendorId: number;
-}
-
-// @public
 export interface FakeCall {
     api: keyof Host;
     args: unknown[];
@@ -119,6 +113,7 @@ export interface PanelsAPI {
     close(id: string): void;
     create(): void;
     create(options: CreatePanelOptions): void;
+    readonly maxFitPanels?: number | null;
     move(id: string, direction: 'left' | 'right'): void;
     readonly panelList: readonly PanelSummary[];
     reanchor(id: string, anchor: {
@@ -128,6 +123,7 @@ export interface PanelsAPI {
     }): void;
     readonly recentlyClosed: readonly PanelSummary[] | null;
     setFormFactor(id: string, next: FormFactor): void;
+    setSlots?(id: string, slots: number): void;
     undoClose(): void;
 }
 
@@ -140,12 +136,16 @@ export interface PanelSize {
 
 // @public
 export interface PanelSummary<P = JsonValue> {
+    readonly drawnSlots?: number;
+    readonly fitSlots?: number;
     readonly formFactor?: FormFactor;
     readonly id: string;
     readonly live: boolean;
     readonly locked: boolean;
+    readonly maxSlots?: number;
     readonly params?: P;
     readonly size?: PanelSize;
+    readonly slots?: number;
     readonly title?: string;
     readonly url?: string;
 }
@@ -154,10 +154,7 @@ export interface PanelSummary<P = JsonValue> {
 export interface PhoneDeviceAPI {
     chooseModel?(modelId: string): Promise<void>;
     readonly defaultSize?: PhoneSize;
-    readonly detectedPhone?: DetectedPhone | null;
-    dismissDetectedPhone?(): void;
     readonly models?: readonly PhoneModel[];
-    resizeForDetectedPhone?(modelId: string): void;
     readonly size: PhoneSize;
 }
 
@@ -178,13 +175,12 @@ export interface PhoneSize {
 
 // @public
 export interface PhonuxLabels {
-    dismiss: string;
     historyTitle: string;
+    lock: string;
     panelTitle: (id: string) => string;
-    phoneConnected: string;
-    phoneConnectedText: (vendor: string) => string;
-    phoneModel: string;
-    resize: string;
+    pin: string;
+    unlock: string;
+    unpin: string;
     untitledHeader: string;
     untitledPanel: string;
 }
@@ -233,6 +229,7 @@ export type WorkspacePanelState = {
         priority: number;
     };
     formFactor?: FormFactor;
+    slots?: number;
     permanent?: boolean;
     layer?: 'base' | 'raised';
     key?: string;
@@ -246,6 +243,7 @@ export type WorkspacePanelState = {
             priority: number;
         };
         formFactor?: FormFactor;
+        slots?: number;
         parkable?: boolean;
     };
     applied?: {
@@ -260,6 +258,7 @@ export type WorkspaceState = {
     panels: WorkspacePanelState[];
     dismissed?: string[];
     root?: string;
+    rootSlots?: number;
 };
 
 // @public

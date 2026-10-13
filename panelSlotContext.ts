@@ -4,7 +4,7 @@
  */
 import * as React from 'react';
 import type { NeighborWidths } from './panelRowEntry.js';
-import type { ResolvedPanelSettings, ResolvedPanelTuning, SettingNote } from './panelSettings.js';
+import type { ChromeTuning, GlideEase, ResolvedPanelSettings, ResolvedPanelTuning, SettingNote } from './panelSettings.js';
 import type { ViewHandle } from './panelTemplate.js';
 
 /**
@@ -24,8 +24,14 @@ export interface DragScroll {
   readonly instant: boolean;
   /** The farthest legal `scrollLeft`, from the row numbers; the DOM is never asked, because a transformed descendant inflates `scrollWidth`. */
   readonly maxScroll: number;
-  /** The `scrollLeft` that puts each present panel's left edge at the window's, ascending: where a reduced-motion jump can land. */
+  /** The `scrollLeft` values the row rests at, ascending: where a reduced-motion jump can land and where a released drag settles. */
   readonly stops: readonly number[];
+  /** The whole-panel stops a released drag settles on; empty when the row has none, so a release leaves the scroll where the drag put it. */
+  readonly settleStops: readonly number[];
+  /** Seconds a released drag takes to glide to the nearest settle stop. */
+  readonly settleSec: number;
+  /** The curve that glide travels along. */
+  readonly settleEase: GlideEase;
 }
 
 /** What a panel's header buttons need to draw and press: its resolved slots, its own handle and where errors and notes go. */
@@ -42,6 +48,12 @@ export interface HeaderButtonsSlot {
  * deliberately not `false`: each hook resolves that case to its OWN default.
  */
 export interface PanelSlotValue {
+  /** The panel's id. Optional so a slot value built by hand (a test, a view mounted outside a row) needs none. */
+  readonly id?: string | undefined;
+  /** The panel's `animated` setting: false takes the chrome fade, like every other animation, in no time. Optional like `id`. */
+  readonly animated?: boolean | undefined;
+  /** True while a host holds a width on a panel of this row (`usePanelResizing`'s `setDrawnWidth`): the row's moves and its size boxes take no time then, so they follow a pointer. */
+  readonly tracking?: boolean | undefined;
   readonly collapsible: boolean;
   readonly closable: ResolvedPanelSettings['closable'];
   readonly draggable: ResolvedPanelSettings['draggable'];
@@ -51,11 +63,22 @@ export interface PanelSlotValue {
   readonly neighborWidths: NeighborWidths;
   readonly pinned: boolean;
   /** This panel's tuning: its own dragToClose, slide, hopFraction and edgeScroll, and the workspace's row gap. */
-  readonly tuning: ResolvedPanelTuning & { readonly rowGap: number };
+  readonly tuning: ResolvedPanelTuning & { readonly rowGap: number; readonly chrome: ChromeTuning };
   /** Optional so a slot value built by hand (a test, a view mounted outside a row) needs none. */
   readonly dragScroll?: DragScroll | undefined;
+  /** The panel's `frame` setting: whether a view that draws no frame of its own gets the library's. Absent reads as 'auto'. */
+  readonly frame?: ResolvedPanelSettings['frame'] | undefined;
   /** The panel's declared header buttons; absent when none are declared or the row has no workspace. */
   readonly headerButtonSlots?: HeaderButtonsSlot | undefined;
+  /** Marks this panel as being dragged from the moment its drag engages until it settles. Absent outside a row. */
+  readonly setDragging?: ((on: boolean) => void) | undefined;
+  /**
+   * Tells the row how far this panel's horizontal drag has gone (the offset the release would report, px, +right/-left), or
+   * null once the drag has ended. The row turns it into hops with the hop rule and slides the panels in between aside. Absent outside a row.
+   */
+  readonly previewReorder?: ((offset: number | null) => void) | undefined;
+  /** Whether a release at this offset (px, +right/-left) crosses at least one panel, by the same hop rule the release reports. Absent outside a row. */
+  readonly dragHops?: ((offset: number) => boolean) | undefined;
 }
 
 export const PanelSlotContext = React.createContext<PanelSlotValue | undefined>(undefined);

@@ -42,14 +42,17 @@ export interface MountedRow {
   key: (name: string, init?: KeyboardEventInit, target?: EventTarget) => void;
 }
 
-/** `entries` mounted at a measured container `width`; `over` replaces any provider input. */
-export function mountRow(entries: PanelWindow[], width: number, over: Partial<PanelsInput> = {}): MountedRow {
+/**
+ * `entries` mounted at a measured container `width`; `over` replaces any provider input; `wrap` puts the mounted row inside a
+ * parent, such as StrictMode or a MotionConfig.
+ */
+export function mountRow(entries: PanelWindow[], width: number, over: Partial<PanelsInput> = {}, wrap: (row: React.ReactElement) => React.ReactElement = (row) => row): MountedRow {
   const ref = React.createRef<HTMLDivElement>();
   const rowRef = React.createRef<HTMLDivElement>();
   const notes: SettingNote[] = [];
   let latest: ProvidedPanels | undefined;
   function Probe({ containerWidth }: { containerWidth: number }): React.ReactElement {
-    latest = useProvidePanels(panelsInput({ initialEntries: entries, containerWidth, overflowContainerRef: ref, onNote: (n) => void notes.push(n), ...over }));
+    latest = useProvidePanels(panelsInput({ initialEntries: entries, containerWidth, overflowContainerRef: ref, onNote: (n) => void notes.push(n), ...over, tuning: { rowGesture: 'free', ...over.tuning } }));
     const provided = latest;
     return withHost(
       React.createElement(
@@ -60,7 +63,7 @@ export function mountRow(entries: PanelWindow[], width: number, over: Partial<Pa
       createFakeHost({ panels: provided }),
     );
   }
-  const mounted = mount(React.createElement(Probe, { containerWidth: width }));
+  const mounted = mount(wrap(React.createElement(Probe, { containerWidth: width })));
   const container = ref.current;
   assert.ok(container, 'the Workspace never attached its scroll container');
   return {
@@ -69,7 +72,7 @@ export function mountRow(entries: PanelWindow[], width: number, over: Partial<Pa
     notes,
     scroller: rowScrollerFor(container),
     live: () => latest!.entries.filter((p) => p.collapsible && p.live).map((p) => p.id),
-    rerender: (next) => mounted.rerender(React.createElement(Probe, { containerWidth: next })),
+    rerender: (next) => mounted.rerender(wrap(React.createElement(Probe, { containerWidth: next }))),
     wheel: (init) => {
       const event = new WheelEvent('wheel', { cancelable: true, bubbles: true, ...init });
       act(() => void container.dispatchEvent(event));

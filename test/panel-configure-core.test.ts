@@ -698,7 +698,7 @@ test('getSettings after a configure deep-equals the resolver over the patched la
       if (person) r.turn(() => r.h.b!.setFormFactor('tablet', 'person'));
       const user = person ? r.entry('b').overrides : undefined;
       done(r.turn(() => r.h.b!.configure(patch as never)));
-      const expected = resolvePanelSettings({ template: { scrollOnOpen: 'start' }, instance: patch as PanelSettings, ...(user === undefined ? {} : { user }) }, { lenient: true });
+      const expected = resolvePanelSettings({ template: { scrollOnOpen: 'start', frame: 'none' }, instance: patch as PanelSettings, ...(user === undefined ? {} : { user }) }, { lenient: true });
       assert.deepEqual(r.h.b!.getSettings(), expected, `${name}${person ? ' with the person\'s tier' : ''}`);
       const flat = Object.keys(patch).flatMap((k) => (k === 'tuning' ? Object.keys(patch.tuning as object).map((leaf) => `tuning.${leaf}`) : [k]));
       for (const key of flat) assert.equal(r.h.b!.getSettings().source[key], 'instance', `${name}: ${key} reads source instance`);
@@ -856,8 +856,8 @@ test('headerButtons row 1: removing the focused slot is NOW, the slot is gone in
   assert.deepEqual({ ...(res as Done) }, { ok: true, changed: true, shown: false, now: ['headerButtons'], later: [], shadowed: [], notes: [] });
   assert.equal(rig.m.renders() - renders, 1, 'one commit');
   assert.deepEqual(labels(rig, 'a'), ['Keep'], 'the slot is gone in that commit');
-  assert.deepEqual(focused(), { tag: 'DIV', tabindex: '-1', label: null });
-  assert.equal(document.activeElement === rig.row('a'), true, 'it is the panel\'s own header row');
+  assert.deepEqual(focused(), { tag: 'DIV', tabindex: '-1', label: rig.row('a')!.getAttribute('aria-label') });
+  assert.equal(document.activeElement === rig.row('a'), true, 'it is the panel\'s own header row, which is the toolbar and carries the title as its name');
   assert.equal(document.activeElement === document.body, false);
 });
 
@@ -1074,7 +1074,7 @@ test('configureTuning rowGap in park mode: a smaller capacity parks the fewest p
 
 test('configureTuning rowGap in a scrolling row only re-prices: nothing is parked, and the farthest legal scrollLeft moves with the strip', async () => {
   const ids = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j'];
-  const r = await pinRig({ ids, width: 1000 });
+  const r = await pinRig({ ids, width: 1000, workspace: { tuning: { rowGesture: 'free' } } });
   await r.settle();
   const numbers = () => {
     const n = r.m.latest().rowNumbers;

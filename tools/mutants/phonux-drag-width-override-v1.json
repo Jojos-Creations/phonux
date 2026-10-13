@@ -1,0 +1,142 @@
+{
+  "tests": [
+    "test/drag-width-override.test.ts"
+  ],
+  "mutants": [
+    {
+      "name": "a width for an unmarked panel is applied",
+      "file": "panelChrome.ts",
+      "find": "      if (resizing !== id) return;\n      setDrawnNow",
+      "replace": "      setDrawnNow",
+      "expectRed": [
+        "a width is ignored for a panel that is not marked resizing"
+      ]
+    },
+    {
+      "name": "the panels after the resized one are read from the stored slots",
+      "file": "PanelRow.tsx",
+      "find": "    runningOffset += width + gap;",
+      "replace": "    runningOffset += baseWidths[index]! + gap;",
+      "expectRed": [
+        "a panel drawn at a held width"
+      ]
+    },
+    {
+      "name": "no lower clamp",
+      "file": "PanelRow.tsx",
+      "find": "Math.max(phoneWidth, drawnNow.px)",
+      "replace": "drawnNow.px",
+      "expectRed": [
+        "the width is held to one slot"
+      ]
+    },
+    {
+      "name": "no upper clamp",
+      "file": "PanelRow.tsx",
+      "find": "Math.min(slotWidth(mostSlots, phoneWidth, gap), Math.max(phoneWidth, drawnNow.px))",
+      "replace": "Math.max(phoneWidth, drawnNow.px)",
+      "expectRed": [
+        "the width is held to one slot"
+      ]
+    },
+    {
+      "name": "the panel's own maxSlots is not a cap",
+      "file": "PanelRow.tsx",
+      "find": "Math.min(effective(drawnEntry).maxSlots, fitSlots(maxLiveWidth, phoneWidth, gap))",
+      "replace": "fitSlots(maxLiveWidth, phoneWidth, gap)",
+      "expectRed": [
+        "the panel's own maxSlots is the cap"
+      ]
+    },
+    {
+      "name": "a pinned end keeps the left edge",
+      "file": "PanelRow.tsx",
+      "find": "runningOffset - pinShift)",
+      "replace": "runningOffset)",
+      "expectRed": [
+        "pinned at the end"
+      ]
+    },
+    {
+      "name": "the row box keeps growing when pinned at the end",
+      "file": "PanelRow.tsx",
+      "find": "- gap - pinShift, tracking",
+      "replace": "- gap, tracking",
+      "expectRed": [
+        "the strip a pinned width leaves"
+      ]
+    },
+    {
+      "name": "the mark ending leaves the width set",
+      "file": "panelChrome.ts",
+      "find": "      if (!on) setDrawnNow(null);\n",
+      "replace": "",
+      "expectRed": [
+        "setResizing(false) with a width still held clears it"
+      ]
+    },
+    {
+      "name": "a panel that left the row keeps the hold",
+      "file": "PanelRow.tsx",
+      "find": "      if (chrome.resizing() === id) chrome.setResizing(id, false);\n",
+      "replace": "",
+      "expectRed": [
+        "the panel closing during the drag drops the hold"
+      ]
+    },
+    {
+      "name": "a width that is not a number is drawn",
+      "file": "panelChrome.ts",
+      "find": "if (!Number.isFinite(px) || px < 0) return;",
+      "replace": "if (px < 0) return;",
+      "expectRed": [
+        "a value that is not a finite number is ignored"
+      ]
+    },
+    {
+      "name": "a negative width is drawn",
+      "file": "panelChrome.ts",
+      "find": "if (!Number.isFinite(px) || px < 0) return;",
+      "replace": "if (!Number.isFinite(px)) return;",
+      "expectRed": [
+        "a value that is not a finite number is ignored"
+      ]
+    },
+    {
+      "name": "each call within a frame draws",
+      "file": "panelChrome.ts",
+      "find": "      if (frame.current !== null) {\n        frame.current.px = px;\n        frame.current.pin = pin;\n        return;\n      }\n",
+      "replace": "",
+      "expectRed": [
+        "one render per animation frame"
+      ]
+    },
+    {
+      "name": "the slots move with the slide while a width is held",
+      "file": "PanelRowSlot.tsx",
+      "find": "snapping || tracking ? { ...animateTarget",
+      "replace": "snapping ? { ...animateTarget",
+      "expectRed": [
+        "a panel drawn at a held width"
+      ]
+    },
+    {
+      "name": "the margin glides under Reduce Motion",
+      "file": "Workspace.tsx",
+      "find": "transition={reduced ? { duration: 0 } : style.transition}",
+      "replace": "transition={style.transition}",
+      "expectRed": [
+        "under Reduce Motion the release is one frame"
+      ]
+    },
+    {
+      "name": "a narrower width shortens the row box",
+      "file": "PanelRow.tsx",
+      "find": ", tracking ? baseWidths.reduce((sum, width) => sum + width + gap, 0) - gap : 0);",
+      "replace": ", 0);",
+      "expectRed": [
+        "never shortens the row box"
+      ]
+    }
+  ]
+}

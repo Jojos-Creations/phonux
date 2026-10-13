@@ -12,16 +12,14 @@ export interface PhonuxLabels {
   untitledHeader: string;
   /** The title `createHistoryPanel` gives the History root entry. Default `History`. */
   historyTitle: string;
-  /** The accessible name of the phone-detect prompt. Default `Phone connected`. */
-  phoneConnected: string;
-  /** The prompt's visible line, given the detected device's vendor name. Default `<vendor> connected`. */
-  phoneConnectedText: (vendor: string) => string;
-  /** The accessible name of the prompt's model picker. Default `Phone model`. */
-  phoneModel: string;
-  /** The prompt's resize button text. Default `Resize`. */
-  resize: string;
-  /** The accessible name of the prompt's dismiss button. Default `Dismiss`. */
-  dismiss: string;
+  /** The name of a pin button or action. Default `Pin`. */
+  pin: string;
+  /** The name of an unpin button or action. Default `Unpin`. */
+  unpin: string;
+  /** The name of a lock button or action, which makes a panel not closable. Default `Lock`. */
+  lock: string;
+  /** The name of an unlock button or action. Default `Unlock`. */
+  unlock: string;
 }
 
 /** The English text every label takes when a host overrides none. @public */
@@ -30,11 +28,10 @@ export const DEFAULT_LABELS: Readonly<PhonuxLabels> = {
   untitledPanel: 'Untitled panel',
   untitledHeader: 'Untitled',
   historyTitle: 'History',
-  phoneConnected: 'Phone connected',
-  phoneConnectedText: (vendor) => `${vendor} connected`,
-  phoneModel: 'Phone model',
-  resize: 'Resize',
-  dismiss: 'Dismiss',
+  pin: 'Pin',
+  unpin: 'Unpin',
+  lock: 'Lock',
+  unlock: 'Unlock',
 };
 
 /** `given` over the defaults, key by key; a key given as `undefined` keeps its default. @internal */

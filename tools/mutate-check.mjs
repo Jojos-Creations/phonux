@@ -17,9 +17,10 @@ const REPO_ROOT = fileURLToPath(new URL('..', import.meta.url));
 const RUN_TIMEOUT_MS = 10 * 60 * 1000;
 const SKIPPED_ENTRIES = new Set(['node_modules', '.git', 'dist', 'api-extractor-temp']);
 
-// The comments of a TypeScript source, as [start, end) ranges. Located by parsing: a `//` inside a string or JSX text
+// The comments of a TypeScript source, as [start, end) ranges; a Markdown file has none, so every match in it counts. Located by parsing: a `//` inside a string or JSX text
 // is not a comment, and a JSDoc node nested in a comment is part of that comment.
 export function commentRanges(text, fileName) {
+  if (fileName.endsWith('.md')) return [];
   const sf = ts.createSourceFile(fileName, text, ts.ScriptTarget.Latest, true);
   const found = new Map();
   const jsxText = [];
@@ -109,7 +110,7 @@ function validateSpec(spec) {
     const label = `mutants[${i}]`;
     if (typeof m.name !== 'string' || m.name.length === 0) problems.push(`${label}: name is required`);
     if (typeof m.file !== 'string' || m.file.length === 0 || isAbsolute(m.file) || m.file.split('/').includes('..')) problems.push(`${label}: file must be a path inside the repository`);
-    else if (!/\.(ts|tsx|mts|cts)$/.test(m.file)) problems.push(`${label}: only TypeScript files can be checked for comments`);
+    else if (!/\.(ts|tsx|mts|cts|md)$/.test(m.file)) problems.push(`${label}: only TypeScript and Markdown files can be mutated`);
     if (typeof m.find !== 'string' || m.find.length === 0) problems.push(`${label}: find is required`);
     if (typeof m.replace !== 'string') problems.push(`${label}: replace is required`);
     else if (m.replace === m.find) problems.push(`${label}: replace equals find, so nothing would change`);

@@ -13,23 +13,34 @@ import type { PanelRowEntry } from './panelRowEntry.js';
 import type { PanelState, ViewHandle } from './panelTemplate.js';
 import type { PanelWindow } from './panelWindow.js';
 import {
+  ALL_SLOTS,
+  CHROME,
+  RESIZE_SETTLE_SLIDES,
+  CLOSE_EXIT_EASE,
   DIRECTION_LOCK_PX,
   DRAG_CLOSE_NUMBERS,
+  DRAG_REST_MS,
+  DRAG_VELOCITY_WINDOW_MS,
   DROP_TIE_BREAK,
   EDGE_SCROLL_MAX_PX_PER_SEC,
   EDGE_SCROLL_REDUCED_STEP_MS,
   EDGE_SCROLL_ZONE_PX,
   GESTURE_LOCK_MS,
+  GESTURE_QUIET_MS,
+  GLIDE_EASE,
   HOP_FRACTION,
   INITIAL_SCROLL,
   RETURN_TIE_BREAK,
   ROW_GAP,
   ROW_GESTURE,
   SAVE_QUIET_MS,
+  SHRINK_OUT_OF_VIEW,
   SLIDE_CLOSE_EXIT_SECONDS,
   SLIDE_DURATION_SEC,
   SLIDE_EASE,
   SNAP_BACK_SPRING,
+  slotsOfTier,
+  tierOfSlots,
 } from './rowConstants.js';
 
 // ---------------------------------------------------------------------------
@@ -73,7 +84,7 @@ export type AddPlacement =
 /** What the row may do with a panel when the open panels do not all fit: scroll past it, or park it. @public */
 export type Overflow = 'scroll' | 'park';
 
-/** Where a scrolled-to panel lands in the window. @public */
+/** Where a scrolled-to panel lands in the window. A stepping row (`rowGesture` 'step') lands on the nearest stop that shows the panel whole instead, so 'start' and 'center' are then approximate. @public */
 export type ScrollAlign = 'into-view' | 'start' | 'center';
 
 /** Where the row scrolls a panel to on open, show or click: a `ScrollAlign`, or 'none' for no scroll. @public */
@@ -93,11 +104,9 @@ export type HeaderButtonContext = {
   settings: ResolvedPanelSettings;
 };
 
-/** One generic title-bar button slot. The label is the accessible name and is never empty. @public */
-export type HeaderButton = {
-  /** The button's icon, or a function that picks it from the panel's current state. */
-  icon: React.ReactNode | ((c: HeaderButtonContext) => React.ReactNode);
-  /** The button's accessible name, or a function that picks it; never empty. */
+/** What the icon form and the text form of a title-bar button share. The label is the accessible name and is never empty. @public */
+export type HeaderButtonBase = {
+  /** The button's accessible name, and its visible text in the text form; or a function that picks it; never empty. */
   label: string | ((c: HeaderButtonContext) => string);
   /** Called when the button is pressed, with the panel's handle and the context plus `announce`, which tells assistive technology a message. */
   onClick: (
@@ -124,6 +133,21 @@ export type HeaderButton = {
   /** Extra styles for the button. */
   sx?: SxProps<Theme>;
 };
+
+/** The icon form of a title-bar button: the `icon` key is present, and the label is its accessible name only. @public */
+export type HeaderButtonIconForm = HeaderButtonBase & {
+  /** The button's icon, or a function that picks it from the panel's current state. A function that returns null draws an empty button. */
+  icon: React.ReactNode | ((c: HeaderButtonContext) => React.ReactNode);
+};
+
+/** The text form of a title-bar button: no `icon` key, and the label is drawn as the button's text. @public */
+export type HeaderButtonTextForm = HeaderButtonBase & {
+  /** Leave `icon` out; its presence, even as undefined, is the icon form. */
+  icon?: never;
+};
+
+/** One generic title-bar button slot: the icon form or the text form, told apart by the `icon` key. @public */
+export type HeaderButton = HeaderButtonIconForm | HeaderButtonTextForm;
 
 /** One half of a pin definition: where the panel goes and, optionally, whether it is parkable in that state. @public */
 export type PinHalf = {
@@ -159,7 +183,7 @@ export type PinningWhenNotLive =
 /** Which layer a resolved value came from. A rule overrides the rest and 'derived' marks a value filled from another resolved field. @public */
 export type SourceLayer = 'library' | 'workspace' | 'template' | 'host' | 'instance' | 'user' | 'derived' | 'forced';
 
-/** The 49 settings whose value is one plain member; the catalog's other names are headerButtons and the eleven tuning leaves. @public */
+/** The 50 settings whose value is one plain member; the catalog's other names are headerButtons and the fifteen tuning leaves. @public */
 export type SettingValues = {
   /** Whether the panel can be closed; false removes the drag-down close and makes `close()` answer not-closable. */
   closable: boolean;
@@ -217,6 +241,8 @@ export type SettingValues = {
   viewState: 'keep' | 'reset-on-park';
   /** Whether parking hides the view instead of unmounting it. */
   keepMounted: boolean;
+  /** 'auto' draws the library's panel frame (header, grab bar, phone frame, footer) around a view that draws none of its own; 'none' never adds one. */
+  frame: 'auto' | 'none';
   /** Where the panel lands when it is added, and when the layout is reset. */
   placeOnAdd: AddPlacement;
   /** Where the panel lands when it is shown; 'in-place' leaves it where it is. */
@@ -237,8 +263,12 @@ export type SettingValues = {
   closeExit: 'down' | 'left' | 'right';
   /** Whether the panel's enter, exit, park and scroll are animated. */
   animated: boolean;
-  /** The tier a panel starts at; it never resizes a panel that already exists. */
+  /** The tier a panel starts at; it never resizes a panel that already exists. Reports the tier of `slots`: one slot phone, two tablet, more desktop. */
   formFactor: FormFactor;
+  /** How many phone-panel widths wide the panel is, an integer of 1 or more; the row draws at most the slots that fit. Derived from `formFactor` when no layer sets it, and it then wins over `formFactor`. */
+  slots: number;
+  /** The most slots the panel may take, an integer of 1 or more. Derived from the widest of `formFactors` when no layer sets it. */
+  maxSlots: number;
   /** The panel's title. */
   title: string;
   /** What `pin()` and `unpin()` do, and what the panel reads as pinned. */
@@ -275,6 +305,10 @@ export type DragToCloseTuning = {
   cancelVelocity: number;
   /** The movement in px on either axis that decides whether a drag locks to the horizontal or the vertical. */
   directionLockPx: number;
+  /** Milliseconds a pointer may lie still before the release: a lift after that long has no velocity, so only distance can close. */
+  restMs: number;
+  /** Milliseconds the release looks back for its velocity. */
+  velocityWindowMs: number;
   /** The spring a released drag that does not close returns with. */
   snapBack: {
     /** The spring's stiffness. */
@@ -292,7 +326,23 @@ export type SlideTuning = {
   ease: readonly [number, number, number, number];
   /** Seconds a closing panel takes to leave. */
   closeExitSeconds: number;
+  /** The curve a closing panel leaves along, for a drag close and a button close alike: a Motion name or a cubic bezier. */
+  closeExitEase: CloseExitEase;
+  /** The curve a row scroll glides along: 'cubic-out' (today's), 'linear' or a cubic bezier. Independent of `ease`. */
+  glideEase: GlideEase;
 };
+
+/** A cubic bezier as its four numbers, x1 and x2 within [0, 1]. @public */
+export type BezierEase = readonly [number, number, number, number];
+
+/** The curve a closing panel leaves along. @public */
+export type CloseExitEase = 'easeIn' | 'easeOut' | 'easeInOut' | 'linear' | BezierEase;
+
+/** The curve of the chrome fade: a Motion ease name or a cubic bezier. @public */
+export type FadeEase = 'easeIn' | 'easeOut' | 'easeInOut' | 'linear' | BezierEase;
+
+/** The curve a row scroll glides along; 'cubic-out' is 1 - (1 - t)^3. @public */
+export type GlideEase = 'cubic-out' | 'linear' | BezierEase;
 
 /** How the row scrolls while a dragged panel is held near the window's edge. @public */
 export type EdgeScrollTuning = {
@@ -302,6 +352,25 @@ export type EdgeScrollTuning = {
   maxPxPerSec: number;
   /** The interval in ms between scroll steps when reduced motion is requested. */
   reducedStepMs: number;
+};
+
+/**
+ * When a panel's header, grab bar and footer show, and the numbers a host's header icon row animates with. A workspace
+ * sets it; every panel reads the workspace's value. @public
+ */
+export type ChromeTuning = {
+  /** 'always' draws the chrome of every panel; 'hover-or-active' draws it fully only on a panel that is hovered, focused, active or being dragged. */
+  mode: 'always' | 'hover-or-active';
+  /** Milliseconds the chrome takes to fade in or out; 0 when animation is off. */
+  fadeMs: number;
+  /** The curve of that fade: 'easeIn', 'easeOut', 'easeInOut', 'linear' or four cubic-bezier numbers. */
+  fadeEase: FadeEase;
+  /** Milliseconds a host's header icon row takes to slide in. The library draws no such row; it only carries the number. */
+  slideMs: number;
+  /** Pixels that icon row travels while it slides in. */
+  slidePx: number;
+  /** Milliseconds that icon row stays open after the pointer leaves the header. */
+  graceMs: number;
 };
 
 /** The tuning leaves a panel may set; each may also be set on the workspace. @public */
@@ -316,7 +385,7 @@ export type PanelTuning = {
   edgeScroll?: { [K in keyof EdgeScrollTuning]?: EdgeScrollTuning[K] };
 };
 
-/** The per-panel leaves plus the seven that only the workspace sets. @public */
+/** The per-panel leaves plus the eleven that only the workspace sets. @public */
 export type WorkspaceTuning = PanelTuning & {
   /** The gap between panels in px, an integer from 0 to 200. */
   rowGap?: number;
@@ -324,6 +393,10 @@ export type WorkspaceTuning = PanelTuning & {
   saveQuietMs?: number;
   /** Milliseconds after a row scroll gesture during which further wheel events are ignored. */
   gestureLockMs?: number;
+  /** Milliseconds without a wheel event that end a row scroll gesture, so the next event steps whatever its size. */
+  gestureQuietMs?: number;
+  /** How many `slide.durationSec` the container width must hold still before the row's centring margin glides again; 0 settles at once. */
+  resizeSettleSlides?: number;
   /** Which of two equally ranked parked panels returns first: the latest parked, the earliest parked, or the earlier in the row. */
   returnTieBreak?: 'latest-first' | 'earliest-first' | 'row-order';
   /** Which of two equally ranked panels is parked first when the row loses room: the leftmost or the rightmost. */
@@ -332,6 +405,22 @@ export type WorkspaceTuning = PanelTuning & {
   rowGesture?: 'step' | 'free' | 'off';
   /** Where the row starts scrolled: its 'start', its 'end', the 'root', or a given panel. */
   initialScroll?: 'start' | 'end' | 'root' | { panel: PanelId };
+  /** Overrides for the chrome numbers: when header, grab bar and footer show, and the fade and slide timing. */
+  chrome?: { [K in keyof ChromeTuning]?: ChromeTuning[K] };
+  /**
+   * The most unpinned parkable panels the row keeps live, an integer of 1 or more, or `null` for no cap. Panels beyond
+   * it park the way they do when the window is full; a pinned panel neither counts nor parks for it. In a row that
+   * scrolls, the window width does not decide how many are live. No row the document shows holds more, the first included.
+   * Raising it (or setting `null`) through `configureTuning` brings back the most recently capacity-parked panels, up to the new
+   * value, in one commit; a panel the host hid stays hidden, and scrolling, closing, resizing or an equal or lower value return none.
+   */
+  maxLivePanels?: number | null;
+  /**
+   * What happens to the neighbour a stepping row would show cut off by the window edge: 'off' leaves every panel at its
+   * size, 'visible' draws it smaller by whole slots so it fits the slots the shown panels leave free, 'hidden' keeps
+   * the room as margin and never draws that neighbour, not even part way through a glide.
+   */
+  shrinkOutOfView?: 'off' | 'visible' | 'hidden';
 };
 
 /** The per-panel tuning leaves after resolving, every one present. @public */
@@ -354,6 +443,10 @@ export type ResolvedWorkspaceTuning = ResolvedPanelTuning & {
   saveQuietMs: number;
   /** Milliseconds after a row scroll gesture during which further wheel events are ignored. */
   gestureLockMs: number;
+  /** Milliseconds without a wheel event that end a row scroll gesture, so the next event steps whatever its size. */
+  gestureQuietMs: number;
+  /** How many `slide.durationSec` the container width must hold still before the row's centring margin glides again; 0 settles at once. */
+  resizeSettleSlides: number;
   /** Which of two equally ranked parked panels returns first: the latest parked, the earliest parked, or the earlier in the row. */
   returnTieBreak: 'latest-first' | 'earliest-first' | 'row-order';
   /** Which of two equally ranked panels is parked first when the row loses room: the leftmost or the rightmost. */
@@ -362,6 +455,11 @@ export type ResolvedWorkspaceTuning = ResolvedPanelTuning & {
   rowGesture: 'step' | 'free' | 'off';
   /** Where the row starts scrolled: its 'start', its 'end', the 'root', or a given panel. */
   initialScroll: 'start' | 'end' | 'root' | { panel: PanelId };
+  /** The chrome numbers: when header, grab bar and footer show, and the fade and slide timing. */
+  chrome: ChromeTuning;
+  /** The most unpinned parkable panels the row keeps live, or `null` for no cap. */
+  maxLivePanels: number | null;
+  shrinkOutOfView: 'off' | 'visible' | 'hidden';
 };
 
 /** Deeply frozen; every key is present after a resolve except `title`. @public */
@@ -471,8 +569,10 @@ export type PanelSettingsLayers = {
 
 /** The person's own overrides: the only three things a person can change about a panel. @public */
 export type PanelUserLayer = {
-  /** The tier the person chose. */
+  /** The tier the person chose; read as a slot count when `slots` is absent. */
   formFactor?: FormFactor;
+  /** The slot count the person chose; wins over `formFactor`. */
+  slots?: number;
   /** Where the person put the panel. */
   anchor?: AnchorRequest;
   /** Whether the person made the panel parkable. */
@@ -980,6 +1080,28 @@ const CATALOG_ROWS: readonly SettingDescriptor[] = [
     configure: { cls: 'NEXT', doors: ['instance'] },
   },
   {
+    name: 'slots',
+    group: 'identity',
+    values: 'integer >= 1',
+    default: 'derived: the slot count of formFactor (phone 1, tablet 2, desktop every visible slot)',
+    scope: 'instance',
+    viewSettable: true,
+    exists: 'new',
+    ownerEntry: 'phonux-slot-sizing-resizable-root-v3',
+    configure: { cls: 'NEXT', doors: ['instance'] },
+  },
+  {
+    name: 'maxSlots',
+    group: 'permissions',
+    values: 'integer >= 1',
+    default: 'derived: the widest slot count formFactors allows (C1)',
+    scope: 'instance',
+    viewSettable: false,
+    exists: 'new',
+    ownerEntry: 'phonux-slot-sizing-resizable-root-v3',
+    configure: { cls: 'STATE', doors: ['instance'] },
+  },
+  {
     name: 'title',
     group: 'identity',
     values: 'string',
@@ -1015,12 +1137,23 @@ const CATALOG_ROWS: readonly SettingDescriptor[] = [
   {
     name: 'headerButtons',
     group: 'header',
-    values: 'object: slot id (1-32 chars a-z0-9-) to HeaderButton or false; HeaderButton = { icon, label, onClick, side?, order?, pressed?, description?, tooltip?, disabled?, hidden?, sx? } (section 6)',
+    values: 'object: slot id (1-32 chars a-z0-9-) to HeaderButton or false; HeaderButton = { icon?, label, onClick, side?, order?, pressed?, description?, tooltip?, disabled?, hidden?, sx? } (section 6); with icon the label is the accessible name, without it the label is the text drawn',
     default: '{} (no button drawn)',
     scope: 'instance',
     viewSettable: false,
     exists: 'new',
     ownerEntry: 'phonux-header-buttons',
+    configure: { cls: 'NOW', doors: ['instance'] },
+  },
+  {
+    name: 'frame',
+    group: 'header',
+    values: 'auto, none',
+    default: 'auto',
+    scope: 'instance',
+    viewSettable: false,
+    exists: 'new',
+    ownerEntry: 'phonux-default-frame-v3',
     configure: { cls: 'NOW', doors: ['instance'] },
   },
   {
@@ -1114,8 +1247,8 @@ const CATALOG_ROWS: readonly SettingDescriptor[] = [
   {
     name: 'tuning.dragToClose',
     group: 'tuning',
-    values: 'object: distanceFraction [0.05, 1], minDistancePx >= 8, flickMinDistancePx >= 8, flickVelocity >= 100, cancelVelocity <= -50, directionLockPx integer [2, 64], snapBack { stiffness [50, 2000], damping [5, 200] }; panel or workspace',
-    default: '0.25, 80, 40, 700, -300, 8, { 520, 42 } (DRAG_CLOSE; DIRECTION_LOCK_PX)',
+    values: 'object: distanceFraction [0.05, 1], minDistancePx >= 8, flickMinDistancePx >= 8, flickVelocity >= 100, cancelVelocity <= -50, directionLockPx integer [2, 64], restMs integer [1, 1000], velocityWindowMs integer [16, 1000], snapBack { stiffness [50, 2000], damping [5, 200] }; panel or workspace',
+    default: '0.25, 80, 40, 700, -300, 8, 50, 100, { 520, 42 } (DRAG_CLOSE; DIRECTION_LOCK_PX; DRAG_REST_MS; DRAG_VELOCITY_WINDOW_MS)',
     scope: 'panel or workspace',
     viewSettable: false,
     exists: 'today',
@@ -1125,8 +1258,8 @@ const CATALOG_ROWS: readonly SettingDescriptor[] = [
   {
     name: 'tuning.slide',
     group: 'tuning',
-    values: 'object: durationSec [0, 10], ease (four numbers, x1 and x2 in [0,1]), closeExitSeconds [0, 5]; panel or workspace',
-    default: '0.4, [0.2, 0, 0, 1], 0.18 (SLOT_TRANSITION, DRAG_CLOSE.exitSeconds)',
+    values: "object: durationSec [0, 10], ease (four numbers, x1 and x2 in [0,1]), closeExitSeconds [0, 5], closeExitEase ('easeIn', 'easeOut', 'easeInOut', 'linear' or four numbers), glideEase ('cubic-out', 'linear' or four numbers); panel or workspace",
+    default: "0.4, [0.2, 0, 0, 1], 0.18, 'easeIn', 'cubic-out' (SLOT_TRANSITION, DRAG_CLOSE.exitSeconds, CLOSE_EXIT_EASE, GLIDE_EASE)",
     scope: 'panel or workspace',
     viewSettable: false,
     exists: 'today',
@@ -1178,6 +1311,28 @@ const CATALOG_ROWS: readonly SettingDescriptor[] = [
     configure: { cls: 'NEXT', doors: ['tuning'] },
   },
   {
+    name: 'tuning.gestureQuietMs',
+    group: 'tuning',
+    values: 'integer ms >= 1 (workspace only)',
+    default: '150',
+    scope: 'workspace',
+    viewSettable: false,
+    exists: 'today',
+    ownerEntry: 'phonux-engine-visibility-settings',
+    configure: { cls: 'NEXT', doors: ['tuning'] },
+  },
+  {
+    name: 'tuning.resizeSettleSlides',
+    group: 'tuning',
+    values: 'number [0, 10], multiplies slide.durationSec (workspace only)',
+    default: '1.25',
+    scope: 'workspace',
+    viewSettable: false,
+    exists: 'today',
+    ownerEntry: 'phonux-engine-tuning-look-settings',
+    configure: { cls: 'NOW', doors: ['tuning'] },
+  },
+  {
     name: 'tuning.returnTieBreak',
     group: 'tuning',
     values: 'latest-first, earliest-first, row-order (workspace only)',
@@ -1221,6 +1376,39 @@ const CATALOG_ROWS: readonly SettingDescriptor[] = [
     ownerEntry: 'phonux-row-scroll-gesture-and-requests',
     configure: { cls: 'NEXT', doors: ['tuning'] },
   },
+  {
+    name: 'tuning.chrome',
+    group: 'tuning',
+    values: "object: mode 'always' or 'hover-or-active', fadeMs integer [0, 10000], fadeEase ('easeIn', 'easeOut', 'easeInOut', 'linear' or four numbers, x1 and x2 in [0,1]), slideMs integer [0, 10000], slidePx integer [0, 200], graceMs integer [0, 10000] (workspace only)",
+    default: "always, 120, easeOut, 140, 8, 250 (CHROME)",
+    scope: 'workspace',
+    viewSettable: false,
+    exists: 'new',
+    ownerEntry: 'phonux-engine-tuning-look-settings',
+    configure: { cls: 'NOW', doors: ['tuning'] },
+  },
+  {
+    name: 'tuning.maxLivePanels',
+    group: 'tuning',
+    values: 'integer >= 1, or null for no cap (workspace only)',
+    default: 'null (no cap)',
+    scope: 'workspace',
+    viewSettable: false,
+    exists: 'new',
+    ownerEntry: 'phonux-max-live-panels',
+    configure: { cls: 'NOW', doors: ['tuning'] },
+  },
+  {
+    name: 'tuning.shrinkOutOfView',
+    group: 'tuning',
+    values: 'off, visible, hidden (workspace only)',
+    default: 'off (SHRINK_OUT_OF_VIEW)',
+    scope: 'workspace',
+    viewSettable: false,
+    exists: 'new',
+    ownerEntry: 'phonux-shrink-whole-panels-v1',
+    configure: { cls: 'NOW', doors: ['tuning'] },
+  },
 ];
 
 /**
@@ -1239,7 +1427,7 @@ type DerivedDefaultKey = (typeof DERIVED_DEFAULT_KEYS)[number];
 
 /** Every setting that has its own default. The four derived ones follow `parkable` and `closable`; `title` has none. @public */
 export type LibraryPanelDefaults = {
-  readonly [K in Exclude<keyof SettingValues, 'draggable' | 'placeable' | 'listed' | 'clearable' | 'title'>]: SettingValues[K];
+  readonly [K in Exclude<keyof SettingValues, 'draggable' | 'placeable' | 'listed' | 'clearable' | 'title' | 'slots' | 'maxSlots'>]: SettingValues[K];
 } & {
   /** No header buttons by default. */
   readonly headerButtons: { readonly [id: string]: HeaderButton };
@@ -1277,6 +1465,7 @@ export const LIBRARY_PANEL_DEFAULTS: LibraryPanelDefaults = freezeClone({
   showWhenClosed: 'refuse' as const,
   viewState: 'keep' as const,
   keepMounted: false,
+  frame: 'auto' as const,
   placeOnAdd: 'row-end' as AddPlacement,
   placeOnShow: 'in-place' as AddPlacement | 'in-place',
   placeOnReturn: 'in-place' as AddPlacement | 'in-place',
@@ -1315,17 +1504,24 @@ export const LIBRARY_TUNING_DEFAULTS: ResolvedWorkspaceTuning = freezeClone({
     flickVelocity: DRAG_CLOSE_NUMBERS.flickVelocity,
     cancelVelocity: DRAG_CLOSE_NUMBERS.cancelVelocity,
     directionLockPx: DIRECTION_LOCK_PX,
+    restMs: DRAG_REST_MS,
+    velocityWindowMs: DRAG_VELOCITY_WINDOW_MS,
     snapBack: { stiffness: SNAP_BACK_SPRING.stiffness, damping: SNAP_BACK_SPRING.damping },
   },
-  slide: { durationSec: SLIDE_DURATION_SEC, ease: [...SLIDE_EASE] as unknown as readonly [number, number, number, number], closeExitSeconds: SLIDE_CLOSE_EXIT_SECONDS },
+  slide: { durationSec: SLIDE_DURATION_SEC, ease: [...SLIDE_EASE] as unknown as readonly [number, number, number, number], closeExitSeconds: SLIDE_CLOSE_EXIT_SECONDS, closeExitEase: CLOSE_EXIT_EASE, glideEase: GLIDE_EASE },
   hopFraction: HOP_FRACTION,
   edgeScroll: { zonePx: EDGE_SCROLL_ZONE_PX, maxPxPerSec: EDGE_SCROLL_MAX_PX_PER_SEC, reducedStepMs: EDGE_SCROLL_REDUCED_STEP_MS },
   saveQuietMs: SAVE_QUIET_MS,
   gestureLockMs: GESTURE_LOCK_MS,
+  gestureQuietMs: GESTURE_QUIET_MS,
+  resizeSettleSlides: RESIZE_SETTLE_SLIDES,
   returnTieBreak: RETURN_TIE_BREAK as ResolvedWorkspaceTuning['returnTieBreak'],
   dropTieBreak: DROP_TIE_BREAK as ResolvedWorkspaceTuning['dropTieBreak'],
   rowGesture: ROW_GESTURE as ResolvedWorkspaceTuning['rowGesture'],
   initialScroll: INITIAL_SCROLL as ResolvedWorkspaceTuning['initialScroll'],
+  chrome: { ...CHROME },
+  maxLivePanels: null,
+  shrinkOutOfView: SHRINK_OUT_OF_VIEW as ResolvedWorkspaceTuning['shrinkOutOfView'],
 });
 
 // ---------------------------------------------------------------------------
@@ -1399,7 +1595,7 @@ const stringOrFunction = (v: unknown): boolean => typeof v === 'string' || typeo
 const booleanOrFunction = (v: unknown): boolean => typeof v === 'boolean' || typeof v === 'function';
 
 function headerButtonSlotProblem(slot: Plain): string | undefined {
-  if (!('icon' in slot) || slot.icon === undefined) return 'icon is required';
+  if ('icon' in slot && slot.icon === undefined) return 'icon must not be undefined; leave it out for a text button';
   if (typeof slot.label === 'function') {
     // A function label is judged when it runs: an empty result hides the slot at runtime.
   } else if (typeof slot.label !== 'string' || slot.label === '') return 'label must be a non-empty string or a function';
@@ -1513,6 +1709,7 @@ const SETTING_CHECKS: Record<SettingKey, Check> = {
   showWhenClosed: oneOf('refuse', 'reopen'),
   viewState: oneOf('keep', 'reset-on-park'),
   keepMounted: bool,
+  frame: oneOf('auto', 'none'),
   placeOnAdd: placementProblem,
   placeOnShow: placementOrInPlace,
   placeOnReturn: placementOrInPlace,
@@ -1524,6 +1721,8 @@ const SETTING_CHECKS: Record<SettingKey, Check> = {
   closeExit: oneOf('down', 'left', 'right'),
   animated: bool,
   formFactor: oneOf(...FORM_FACTORS),
+  slots: integer(1, ALL_SLOTS),
+  maxSlots: integer(1, ALL_SLOTS),
   title: text,
   pinning: pinningProblem,
   pinningWhenNotLive: pinningWhenNotLiveProblem,
@@ -1539,8 +1738,14 @@ const SETTING_CHECKS: Record<SettingKey, Check> = {
 
 export type TuningLeaf = keyof WorkspaceTuning;
 
+function bezierProblem(v: unknown): string | undefined {
+  if (!Array.isArray(v) || v.length !== 4 || !v.every(finite)) return 'expected four finite numbers';
+  const [x1, , x2] = v as number[];
+  return (x1 as number) < 0 || (x1 as number) > 1 || (x2 as number) < 0 || (x2 as number) > 1 ? 'the first and third numbers must be from 0 to 1' : undefined;
+}
+
 /** Members of the three object-valued leaves, each with the check for its value. */
-const TUNING_MEMBER_CHECKS: Record<'dragToClose' | 'slide' | 'edgeScroll', Record<string, Check>> = {
+const TUNING_MEMBER_CHECKS: Record<'dragToClose' | 'slide' | 'edgeScroll' | 'chrome', Record<string, Check>> = {
   dragToClose: {
     distanceFraction: num(0.05, 1),
     minDistancePx: num(8, Infinity),
@@ -1548,6 +1753,8 @@ const TUNING_MEMBER_CHECKS: Record<'dragToClose' | 'slide' | 'edgeScroll', Recor
     flickVelocity: num(100, Infinity),
     cancelVelocity: num(-Infinity, -50),
     directionLockPx: integer(2, 64),
+    restMs: integer(1, 1000),
+    velocityWindowMs: integer(16, 1000),
     snapBack: (v) => {
       if (!isPlain(v)) return 'expected { stiffness, damping }';
       for (const key of Object.keys(v)) if (key !== 'stiffness' && key !== 'damping') return `unknown key '${key}'`;
@@ -1556,25 +1763,33 @@ const TUNING_MEMBER_CHECKS: Record<'dragToClose' | 'slide' | 'edgeScroll', Recor
   },
   slide: {
     durationSec: num(0, 10),
-    ease: (v) => {
-      if (!Array.isArray(v) || v.length !== 4 || !v.every(finite)) return 'expected four finite numbers';
-      const [x1, , x2] = v as number[];
-      return (x1 as number) < 0 || (x1 as number) > 1 || (x2 as number) < 0 || (x2 as number) > 1 ? 'the first and third numbers must be from 0 to 1' : undefined;
-    },
+    ease: bezierProblem,
     closeExitSeconds: num(0, 5),
+    closeExitEase: (v) => (typeof v === 'string' ? oneOf('easeIn', 'easeOut', 'easeInOut', 'linear')(v) : bezierProblem(v)),
+    glideEase: (v) => (typeof v === 'string' ? oneOf('cubic-out', 'linear')(v) : bezierProblem(v)),
   },
   edgeScroll: {
     zonePx: integer(8, 200),
     maxPxPerSec: integer(100, 5000),
     reducedStepMs: integer(100, 5000),
   },
+  chrome: {
+    mode: oneOf('always', 'hover-or-active'),
+    fadeMs: integer(0, 10000),
+    fadeEase: (v) => (typeof v === 'string' ? oneOf('easeIn', 'easeOut', 'easeInOut', 'linear')(v) : bezierProblem(v)),
+    slideMs: integer(0, 10000),
+    slidePx: integer(0, 200),
+    graceMs: integer(0, 10000),
+  },
 };
 
-const TUNING_SCALAR_CHECKS: Record<'hopFraction' | 'rowGap' | 'saveQuietMs' | 'gestureLockMs' | 'returnTieBreak' | 'dropTieBreak' | 'rowGesture' | 'initialScroll', Check> = {
+const TUNING_SCALAR_CHECKS: Record<'hopFraction' | 'rowGap' | 'saveQuietMs' | 'gestureLockMs' | 'gestureQuietMs' | 'resizeSettleSlides' | 'returnTieBreak' | 'dropTieBreak' | 'rowGesture' | 'initialScroll' | 'maxLivePanels' | 'shrinkOutOfView', Check> = {
   hopFraction: num(0, 1, { minOpen: true }),
   rowGap: integer(0, 200),
   saveQuietMs: integer(0),
   gestureLockMs: integer(0),
+  gestureQuietMs: integer(1),
+  resizeSettleSlides: num(0, 10),
   returnTieBreak: oneOf('latest-first', 'earliest-first', 'row-order'),
   dropTieBreak: oneOf('leftmost', 'rightmost'),
   rowGesture: oneOf('step', 'free', 'off'),
@@ -1583,6 +1798,8 @@ const TUNING_SCALAR_CHECKS: Record<'hopFraction' | 'rowGap' | 'saveQuietMs' | 'g
     if (isPlain(v) && Object.keys(v).length === 1 && nonEmptyString(v.panel)) return undefined;
     return "expected 'start', 'end', 'root' or { panel: a non-empty id }";
   },
+  maxLivePanels: (v) => (v === null ? undefined : integer(1)(v)),
+  shrinkOutOfView: oneOf('off', 'visible', 'hidden'),
 };
 
 const isObjectLeaf = (leaf: string): leaf is keyof typeof TUNING_MEMBER_CHECKS => Object.hasOwn(TUNING_MEMBER_CHECKS, leaf);
@@ -1740,7 +1957,7 @@ function checkLayer(layer: AskLayer, raw: unknown, env: Env): Accepted {
 }
 
 function checkUser(raw: unknown, env: Env): PanelUserLayer {
-  const accepted: { formFactor?: FormFactor; anchor?: AnchorRequest; parkable?: boolean } = {};
+  const accepted: { formFactor?: FormFactor; slots?: number; anchor?: AnchorRequest; parkable?: boolean } = {};
   if (raw === undefined) return accepted;
   if (!isPlain(raw)) {
     reject('user', '', 'a settings layer must be an object', env.lenient, env.notes);
@@ -1751,6 +1968,7 @@ function checkUser(raw: unknown, env: Env): PanelUserLayer {
     if (value === undefined) continue;
     let problem: string | undefined;
     if (key === 'formFactor') problem = oneOf(...FORM_FACTORS)(value);
+    else if (key === 'slots') problem = integer(1, ALL_SLOTS)(value);
     else if (key === 'parkable') problem = bool(value);
     else if (key === 'anchor') problem = anchorProblem(value);
     else problem = 'unknown setting';
@@ -1759,6 +1977,7 @@ function checkUser(raw: unknown, env: Env): PanelUserLayer {
       continue;
     }
     if (key === 'formFactor') accepted.formFactor = value as FormFactor;
+    else if (key === 'slots') accepted.slots = value as number;
     else if (key === 'parkable') accepted.parkable = value as boolean;
     else accepted.anchor = { ...(value as AnchorRequest) };
   }
@@ -1860,9 +2079,10 @@ function applyRules(s: State, root: boolean): void {
   fill(s, 'clearable', parkable && s.values.closable === true);
 
   if (s.values.parkable === false) {
-    force(s, 'resizable', false, 'C1', 'parkable');
-    force(s, 'formFactors', ['phone'], 'C1', 'parkable');
-    force(s, 'formFactor', 'phone', 'C1', 'parkable');
+    // The size settings are one group: if the panel's own template, host or instance asked for any of them (History is resizable when the app says so), all stand; otherwise they are forced to one phone slot.
+    const fixedSize = [['resizable', false], ['formFactors', ['phone']], ['formFactor', 'phone'], ['slots', 1], ['maxSlots', 1]] as const;
+    const askedForThisPanel = fixedSize.some(([key, applied]) => (s.source[key] === 'template' || s.source[key] === 'host' || s.source[key] === 'instance') && !sameSettingsValue(s.values[key], applied));
+    if (!askedForThisPanel) for (const [key, applied] of fixedSize) force(s, key, applied, 'C1', 'parkable');
     force(s, 'overflow', 'scroll', 'C1', 'parkable');
     force(s, 'startVisibility', 'live', 'C1', 'parkable');
     force(s, 'restoreVisibility', 'live', 'C1', 'parkable');
@@ -1873,8 +2093,40 @@ function applyRules(s: State, root: boolean): void {
     force(s, 'rememberLayout', false, 'C3', 'persist');
     force(s, 'afterClose', 'return-next-launch', 'C3', 'persist');
   }
+  // A tier asked by a layer after the one that asked for slots is the later word, so the earlier slot count gives way.
+  const askRank = (key: string): number => ASK_LAYERS.indexOf(s.source[key] as AskLayer);
+  if (s.values.slots !== undefined && askRank('slots') >= 0 && askRank('formFactor') > askRank('slots')) {
+    s.values.slots = undefined;
+    delete s.source.slots;
+  }
   const tiers = s.values.formFactors as readonly FormFactor[];
-  if (!tiers.includes(s.values.formFactor as FormFactor)) force(s, 'formFactor', tiers[0], 'C4', 'formFactors');
+  if (s.values.slots === undefined && !tiers.includes(s.values.formFactor as FormFactor)) force(s, 'formFactor', tiers[0], 'C4', 'formFactors');
+  if (s.values.maxSlots === undefined) {
+    s.values.maxSlots = Math.max(...tiers.map(slotsOfTier));
+    s.source.maxSlots = 'derived';
+  }
+  const narrowest = Math.min(...tiers.map(slotsOfTier));
+  const broadest = Math.max(...tiers.map(slotsOfTier));
+  if ((s.values.maxSlots as number) < narrowest) force(s, 'maxSlots', narrowest, 'C4', 'formFactors');
+  else if ((s.values.maxSlots as number) > broadest) force(s, 'maxSlots', broadest, 'C4', 'formFactors');
+  const widest = s.values.maxSlots as number;
+  if (s.values.slots === undefined) {
+    const wanted = Math.min(slotsOfTier(s.values.formFactor as FormFactor), widest);
+    // A cap between two allowed tiers lands on the wider one that still fits under it.
+    const allowed = tiers.map(slotsOfTier).filter((n) => n <= wanted);
+    s.values.slots = tiers.includes(tierOfSlots(wanted)) ? wanted : Math.max(...allowed, narrowest);
+    s.source.slots = 'derived';
+  } else if ((s.values.slots as number) > widest) force(s, 'slots', widest, 'C4', 'maxSlots');
+  else if (!tiers.includes(tierOfSlots(s.values.slots as number))) force(s, 'slots', Math.min(slotsOfTier(tiers[0]!), widest), 'C4', 'formFactors');
+  // The tier a panel reports follows its slots, so the two never disagree; slots wins when both were asked for.
+  const reported = tierOfSlots(s.values.slots as number);
+  if (s.values.formFactor !== reported) {
+    if (askRank('formFactor') >= 0) force(s, 'formFactor', reported, 'C4', 'slots');
+    else {
+      s.values.formFactor = reported;
+      s.source.formFactor = 'derived';
+    }
+  }
   if (root) {
     force(s, 'draggable', false, 'C5');
     force(s, 'placeable', false, 'C5');
@@ -1922,10 +2174,12 @@ export function resolveUnderTuning(layers: PanelSettingsLayers, options: Resolve
   let state = merge(accepted, undefined, workspaceTuning);
   applyRules(state, root);
 
-  // A person's fixed column needs the phone tier, so the tier is settled before their parkable joins as the top layer.
-  let tier = state.values.formFactor as FormFactor;
+  // The person's size as a slot count: their slots, else their tier read as slots.
   const userTierFits = user.formFactor !== undefined && (state.values.formFactors as readonly FormFactor[]).includes(user.formFactor);
-  if (user.formFactor !== undefined && userTierFits) tier = user.formFactor;
+  const userSlotsFit = user.slots !== undefined && (state.values.formFactors as readonly FormFactor[]).includes(tierOfSlots(user.slots));
+  const personSlots = user.slots !== undefined ? (userSlotsFit ? user.slots : undefined) : user.formFactor !== undefined && userTierFits ? slotsOfTier(user.formFactor) : undefined;
+  // A person's fixed column needs the phone tier, so the tier is settled before their parkable joins as the top layer.
+  const tier = personSlots === undefined ? (state.values.formFactor as FormFactor) : tierOfSlots(Math.min(personSlots, state.values.maxSlots as number));
   let userParkable = user.parkable;
   if (userParkable === false && tier !== 'phone') {
     env.notes.push({ code: 'override-dropped', key: 'parkable', message: `user.parkable: a fixed column needs the phone tier and this panel resolves to ${tier}; dropped` });
@@ -1935,13 +2189,20 @@ export function resolveUnderTuning(layers: PanelSettingsLayers, options: Resolve
     state = merge(accepted, userParkable, workspaceTuning);
     applyRules(state, root);
   }
-  if (user.formFactor !== undefined) {
-    if ((state.values.formFactors as readonly FormFactor[]).includes(user.formFactor)) {
-      state.values.formFactor = user.formFactor;
-      state.source.formFactor = 'user';
-    } else {
-      env.notes.push({ code: 'override-dropped', key: 'formFactor', message: `user.formFactor: ${user.formFactor} is outside this panel's formFactors; dropped` });
-    }
+  if (user.formFactor !== undefined && user.slots === undefined && !userTierFits) {
+    env.notes.push({ code: 'override-dropped', key: 'formFactor', message: `user.formFactor: ${user.formFactor} is outside this panel's formFactors; dropped` });
+  }
+  if (user.slots !== undefined && !userSlotsFit) {
+    env.notes.push({ code: 'override-dropped', key: 'slots', message: `user.slots: ${user.slots} is outside this panel's formFactors; dropped` });
+  }
+  if (personSlots !== undefined) {
+    const chosen = Math.min(personSlots, state.values.maxSlots as number);
+    // The person's size outvotes what a rule made of the layers' asks, so those conflicts no longer describe the result.
+    state.drafts = state.drafts.filter((d) => d.key !== 'slots' && d.key !== 'formFactor');
+    state.values.slots = chosen;
+    state.source.slots = 'user';
+    state.values.formFactor = tierOfSlots(chosen);
+    state.source.formFactor = (user.formFactor ?? tierOfSlots(user.slots ?? chosen)) === state.values.formFactor ? 'user' : 'derived';
   }
 
   const resolved = state.values;
@@ -1957,6 +2218,10 @@ export function resolveUnderTuning(layers: PanelSettingsLayers, options: Resolve
   }
 
   const notes = env.notes;
+  const resizableAsked = state.source.resizable === 'template' || state.source.resizable === 'host' || state.source.resizable === 'instance';
+  if (resolved.resizable === true && resizableAsked && resolved.maxSlots === 1) {
+    notes.push({ code: 'resizable-capped', key: 'maxSlots', message: `maxSlots: resizable is set by the ${state.source.resizable} layer but maxSlots resolves to 1, so the panel cannot grow; set maxSlots (and formFactors) too` });
+  }
   const pinning = resolved.pinning as Pinning;
   if (pinning.pinned.parkable === false && state.source.listed === 'derived') {
     notes.push({ code: 'pin-unlists', key: 'pinning', message: 'pinning: the pinned half makes the panel a fixed column, which is unlisted unless listed is set' });
@@ -2016,6 +2281,8 @@ export function effective(p: PanelWindow | PanelRowEntry): ResolvedPanelSettings
     layer: p.layer ?? 'base',
     enterFrom: p.anchoredEnter === true ? 'anchor' : 'auto',
     formFactor: p.formFactor ?? 'phone',
+    slots: ('slots' in p ? p.slots : undefined) ?? slotsOfTier(p.formFactor ?? 'phone'),
+    maxSlots: parkable ? ALL_SLOTS : 1,
     ...(p.title !== undefined ? { title: p.title } : {}),
   };
   return Object.freeze(legacy);
@@ -2065,6 +2332,7 @@ export function applyTemplate(entry: PanelWindow, resolved: ResolvedPanelSetting
     layer: resolved.layer,
     anchoredEnter: resolved.enterFrom === 'anchor',
     formFactor: resolved.formFactor,
+    slots: resolved.slots,
     size: entry.size?.formFactor === resolved.formFactor ? entry.size : { ...TIER_SIZE_LITERALS[resolved.formFactor] },
     ...title,
     settings: resolved,

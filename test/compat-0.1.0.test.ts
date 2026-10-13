@@ -111,16 +111,29 @@ function changelogRemovedBullets(): [Set<string>, Set<string>] {
   return [names(bullets[0]), names(bullets[2])];
 }
 
-test('compat-0.1.0 fixture: 66 root values and 2 testing values in 0.1.0, 35 names since removed (23 root values, 10 root types, 1 testing value, 1 testing type)', () => {
+/** The backtick-quoted names in the Unreleased section's Breaking list. */
+function changelogBreakingNames(): Set<string> {
+  const lines = readText(fileURLToPath(new URL('../CHANGELOG.md', import.meta.url))).split('\n');
+  const unreleased = lines.findIndex((line) => /^## Unreleased\s*$/.test(line));
+  const breakingAt = lines.findIndex((line, i) => i > unreleased && /^### Breaking\s*$/.test(line));
+  assert.ok(unreleased >= 0 && breakingAt >= 0, 'CHANGELOG.md has an Unreleased section with a Breaking list');
+  const names = new Set<string>();
+  for (let i = breakingAt + 1; i < lines.length && !/^#{1,3} /.test(lines[i] ?? ''); i += 1) {
+    for (const m of (lines[i] ?? '').matchAll(/`([^`]+)`/g)) names.add(m[1] ?? '');
+  }
+  return names;
+}
+
+test('compat-0.1.0 fixture: 66 root values and 2 testing values in 0.1.0, 39 names since removed (24 root values, 12 root types, 1 testing value, 2 testing types)', () => {
   const fixture = exportsFixture();
   assert.equal(fixture.root.values.length, 66);
   assert.equal(fixture.testing.values.length, 2);
   const removed = fixture.removedSince010;
-  assert.equal(removed.root.values.length, 23);
-  assert.equal(removed.root.types.length, 10);
+  assert.equal(removed.root.values.length, 24);
+  assert.equal(removed.root.types.length, 12);
   assert.equal(removed.testing.values.length, 1);
-  assert.equal(removed.testing.types.length, 1);
-  assert.equal(removed.root.values.length + removed.root.types.length + removed.testing.values.length + removed.testing.types.length, 35);
+  assert.equal(removed.testing.types.length, 2);
+  assert.equal(removed.root.values.length + removed.root.types.length + removed.testing.values.length + removed.testing.types.length, 39);
   assert.ok(removed.root.values.every((name) => fixture.root.values.includes(name)), 'every removed root value was a 0.1.0 root value');
   assert.ok(removed.root.types.every((name) => fixture.root.types.includes(name)), 'every removed root type was a 0.1.0 root type');
   assert.ok(removed.testing.values.every((name) => fixture.testing.values.includes(name)), 'every removed testing value was a 0.1.0 testing value');
@@ -135,13 +148,15 @@ test('compat-0.1.0 current exports: the value list is Object.keys of each barrel
   assert.ok(current.root.types.length > 0 && current.testing.types.length > 0, 'the compiler listed type exports for both entry points');
 });
 
-test('compat-0.1.0 removal: the 0.1.0 names the barrels no longer export are exactly removedSince010, and the CHANGELOG Removed bullets name each one', () => {
+test('compat-0.1.0 removal: the 0.1.0 names the barrels no longer export are exactly removedSince010, and the CHANGELOG Removed and Breaking bullets name each one', () => {
   const fixture = exportsFixture();
   assert.ok(missingMatchesRemoved(fixture, currentExports()), 'fixture names missing now differ from removedSince010');
   const [aliases, hidden] = changelogRemovedBullets();
   const removed = [...fixture.removedSince010.root.values, ...fixture.removedSince010.root.types, ...fixture.removedSince010.testing.values, ...fixture.removedSince010.testing.types];
+  const breaking = changelogBreakingNames();
   for (const name of removed) {
-    assert.ok(aliases.has(name) !== hidden.has(name), `${name} is named by exactly one of the first and third Removed bullets`);
+    const named = [aliases, hidden, breaking].filter((set) => set.has(name)).length;
+    assert.equal(named, 1, `${name} is named by exactly one of the first and third Removed bullets and the Breaking list`);
   }
 });
 
@@ -213,7 +228,7 @@ test('compat-0.1.0 corpus: the 14 pure functions give the vendored 0.1.0 outputs
 
 const HIDDEN_VALUES = [
   'OverlayProvider', 'OverlayStore', 'PanelRowSlot', 'shouldCloseOnRelease', 'computeRowOrder',
-  'deriveAnchorsFromOrder', 'summarisePanel', 'computeMaxLiveWidth', 'CaptureRegistryContext', 'vendorLabelForUsbVendorId',
+  'deriveAnchorsFromOrder', 'summarisePanel', 'computeMaxLiveWidth', 'CaptureRegistryContext', 'vendorLabelForUsbVendorId', 'PhoneDetectPrompt',
 ];
 
 /** Hidden value names a source takes from the index module, by named import or through a namespace import. */

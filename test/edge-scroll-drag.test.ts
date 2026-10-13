@@ -198,8 +198,8 @@ test('the strip bounds the scroll: a scrollWidth inflated by the box never lifts
   assert.equal(ends[0]!.offset, 40 + MAX_SCROLL);
 });
 
-test('released, the box springs home as one: both translations start returning in one frame and reach 0 in one frame', async () => {
-  const m = mountEdgeRow();
+test('released with nothing to hop over, the box springs home as one: both translations start returning in one frame and reach 0 in one frame', async () => {
+  const m = mountEdgeRow({ crossable: false });
   const box = boxOf(m);
   await dragTo(m, 1000);
   await frames(100);
@@ -223,6 +223,19 @@ test('released, the box springs home as one: both translations start returning i
   assert.equal(box.style.transform, 'none');
   assert.ok(['', 'none', '0px 0px', '0px'].includes(box.style.translate), `translate settled at ${JSON.stringify(box.style.translate)}`);
   assert.ok(Math.abs(m.container.scrollLeft - walked(99)) < 1e-6, 'the row is not snapped back');
+});
+
+test('released after the edge scroll carried the drag over hops, the box is at rest the frame after the release: no spring', async () => {
+  const m = mountEdgeRow();
+  const box = boxOf(m);
+  await dragTo(m, 1000);
+  await frames(100);
+  assert.ok(drawnX(box) > 1000);
+  await liftAt(1000);
+  await frames(1);
+  assert.ok(ends[0]!.hops > 0, 'the release reports hops');
+  assert.equal(box.style.transform, 'none');
+  assert.ok(['', 'none', '0px 0px', '0px'].includes(box.style.translate), JSON.stringify(box.style.translate));
 });
 
 test('released with a scroll distance and no hop, the box still settles at rest', async () => {
@@ -361,7 +374,7 @@ const bareSlot = (): PanelSlotValue => ({
   neighborWidths: { left: [], right: [] },
   pinned: false,
   tuning: slotTuning(LIBRARY_TUNING_DEFAULTS, undefined),
-  dragScroll: { mode: 'edge', zonePx: EDGE.zonePx, maxPxPerSec: EDGE.maxPxPerSec, reducedStepMs: EDGE.reducedStepMs, instant: false, maxScroll: MAX_SCROLL, stops: [] },
+  dragScroll: { mode: 'edge', zonePx: EDGE.zonePx, maxPxPerSec: EDGE.maxPxPerSec, reducedStepMs: EDGE.reducedStepMs, instant: false, maxScroll: MAX_SCROLL, stops: [], settleStops: [], settleSec: 0.4, settleEase: 'cubic-out' },
 });
 
 test('a DragToClose without reorder never scrolls, whatever its slot offers', async () => {
@@ -486,4 +499,22 @@ test('the last panel dragged to the right edge is drawn no further than the row 
   await liftAt(1000);
   await frames(30);
   assert.equal(ends[0]!.offset, 40 + MAX_SCROLL, 'the hop rule reads the pointer offset plus the scroll distance, not the drawn one');
+});
+
+test('held at the right edge the row previews exactly the hops the release then reports, scroll distance included', async () => {
+  const m = mountEdgeRow();
+  const slotX = (id: string): number => {
+    const slot = handleOf(m, id).closest<HTMLElement>('[data-drag-to-close]')!.parentElement!;
+    return Number(/translateX\((-?[\d.e+-]+)px\)/.exec(slot.style.transform)?.[1] ?? 0);
+  };
+  const ids = Array.from({ length: 9 }, (_, k) => `s${k + 2}`);
+  const rest = ids.map(slotX);
+  await dragTo(m, 1000);
+  await frames(100);
+  const shifted = ids.filter((id, k) => slotX(id) < rest[k]! - 1).length;
+  assert.ok(m.container.scrollLeft > 1000, 'control: the row scrolled');
+  assert.ok(shifted >= 4, `the preview counts the scroll distance, not only the ${1000 - 40} px of pointer travel (${shifted} shifted)`);
+  await liftAt(1000);
+  await frames(30);
+  assert.equal(ends[0]!.hops, shifted);
 });

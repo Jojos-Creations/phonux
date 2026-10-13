@@ -1,23 +1,22 @@
 /**
  * The generic header buttons a panel declares in `headerButtons`: the hook that lists them, the component that draws
- * them as MUI IconButtons, and the press path that runs the developer's `onClick`.
+ * them as MUI IconButtons (icon form) or Buttons (text form), and the press path that runs the developer's `onClick`.
  */
 import * as React from 'react';
 import { useIsPresent } from 'motion/react';
+import Button from '@mui/material/Button';
 import IconButton from '@mui/material/IconButton';
 import Tooltip from '@mui/material/Tooltip';
 import type { HeaderButton, HeaderButtonContext } from './panelSettings.js';
 import type { ViewHandle } from './panelTemplate.js';
 import { PanelHiddenContext, PanelSlotContext, type HeaderButtonsSlot } from './panelSlotContext.js';
 
-/** One declared header button as `usePanelHeaderButtons` lists it, its functions already evaluated for the panel's current state. @public */
-export interface PanelHeaderButtonItem {
+/** What every listed header button has, whichever form it takes. @public */
+export interface PanelHeaderButtonItemBase {
   /** The slot id. */
   readonly id: string;
-  /** The accessible name. */
+  /** The accessible name; in the text form also the text drawn. */
   readonly label: string;
-  /** The icon to draw. */
-  readonly icon: React.ReactNode;
   /** Which end of the header row the button sits at. */
   readonly side: 'start' | 'end';
   /** The sort position among the buttons on the same side; ties break by id. */
@@ -38,6 +37,25 @@ export interface PanelHeaderButtonItem {
   press(): void;
 }
 
+/** A listed button of the icon form: `icon` is what the slot's icon resolved to, null included. @public */
+export interface PanelHeaderIconItem extends PanelHeaderButtonItemBase {
+  /** Marks the icon form. */
+  readonly form: 'icon';
+  /** The icon to draw. */
+  readonly icon: React.ReactNode;
+}
+
+/** A listed button of the text form: it draws its label as text and has no icon. @public */
+export interface PanelHeaderTextItem extends PanelHeaderButtonItemBase {
+  /** Marks the text form. */
+  readonly form: 'text';
+  /** Always undefined in the text form. */
+  readonly icon: undefined;
+}
+
+/** One declared header button as `usePanelHeaderButtons` lists it, its functions already evaluated for the panel's current state; `form` tells the two forms apart. @public */
+export type PanelHeaderButtonItem = PanelHeaderIconItem | PanelHeaderTextItem;
+
 const NONE: readonly PanelHeaderButtonItem[] = [];
 const NO_SUBSCRIBE = (): (() => void) => () => {};
 
@@ -54,6 +72,11 @@ interface Runtime {
   pending: { id: string; index: number; row: HTMLElement | null; done: boolean } | undefined;
   /** The header row of a focused slot that left the document without being pressed, or undefined. */
   lost: { row: HTMLElement | null } | undefined;
+  /** The button focus last rested on, which keeps the tab stop while it stays enabled. */
+  current: string | undefined;
+  /** The one button in the tab order, or undefined until the first layout settles. */
+  stop: string | undefined;
+  readonly stopListeners: Set<() => void>;
 }
 
 const RUNTIMES = new WeakMap<object, Runtime>();
@@ -61,10 +84,43 @@ const RUNTIMES = new WeakMap<object, Runtime>();
 function runtimeOf(handle: object): Runtime {
   let runtime = RUNTIMES.get(handle);
   if (runtime === undefined) {
-    runtime = { noted: new Set(), buttons: new Map(), text: undefined, listeners: new Set(), pending: undefined, lost: undefined };
+    runtime = { noted: new Set(), buttons: new Map(), text: undefined, listeners: new Set(), pending: undefined, lost: undefined, current: undefined, stop: undefined, stopListeners: new Set() };
     RUNTIMES.set(handle, runtime);
   }
   return runtime;
+}
+
+/** The panel's buttons in document order, as [id, element]. */
+function orderedButtons(runtime: Runtime): [string, HTMLElement][] {
+  return [...runtime.buttons.entries()].sort(([, a], [, b]) => (a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING ? -1 : 1));
+}
+
+const isDisabled = (el: HTMLElement): boolean => el.getAttribute('aria-disabled') === 'true';
+
+/** The buttons arrow keys and the tab stop can rest on: the enabled ones, or all of them when none is. */
+function reachable(runtime: Runtime): [string, HTMLElement][] {
+  const all = orderedButtons(runtime);
+  const enabled = all.filter(([, el]) => !isDisabled(el));
+  return enabled.length > 0 ? enabled : all;
+}
+
+/** Puts the tab stop on the button focus last rested on, or on the first reachable one. */
+function syncTabStop(runtime: Runtime): void {
+  const pool = reachable(runtime);
+  const next = (pool.find(([id]) => id === runtime.current) ?? pool[0])?.[0];
+  if (next === runtime.stop) return;
+  runtime.stop = next;
+  for (const l of [...runtime.stopListeners]) l();
+}
+
+/** Arrow, Home and End move focus along the buttons; the row is one tab stop. */
+function rove(runtime: Runtime, from: string, key: string): boolean {
+  const pool = reachable(runtime);
+  const at = pool.findIndex(([id]) => id === from);
+  const to = key === 'Home' ? 0 : key === 'End' ? pool.length - 1 : key === 'ArrowRight' ? at + 1 : key === 'ArrowLeft' ? at - 1 : -1;
+  if (to < 0 || to >= pool.length || to === at) return key === 'Home' || key === 'End' || key === 'ArrowRight' || key === 'ArrowLeft';
+  pool[to]![1].focus({ preventScroll: true });
+  return true;
 }
 
 function announceTo(runtime: Runtime, text: string): void {
@@ -73,7 +129,7 @@ function announceTo(runtime: Runtime, text: string): void {
 }
 
 /** Where a verb's `source` argument sits, so a call in the press can default it to the person. */
-const SOURCE_AT: Readonly<Record<string, number>> = { show: 0, hide: 0, toggleVisibility: 0, close: 0, open: 0, move: 1, place: 1, setFormFactor: 1, scrollTo: 1, pin: 0, unpin: 0 };
+const SOURCE_AT: Readonly<Record<string, number>> = { show: 0, hide: 0, toggleVisibility: 0, close: 0, open: 0, move: 1, place: 1, setFormFactor: 1, setSlots: 1, scrollTo: 1, pin: 0, unpin: 0 };
 
 /** The panel's handle with every verb defaulting to the person while `inGesture()` holds, and to code after. */
 function gestureHandle(base: ViewHandle, inGesture: () => boolean): ViewHandle {
@@ -134,11 +190,9 @@ export function usePanelHeaderButtons(): readonly PanelHeaderButtonItem[] {
         const hidden = Boolean(fieldOf(slot.hidden ?? false, c));
         const description = slot.description === undefined ? undefined : fieldOf(slot.description, c);
         const tooltip = slot.tooltip === undefined ? undefined : fieldOf(slot.tooltip, c);
-        const icon = typeof slot.icon === 'function' ? (slot.icon as (c: HeaderButtonContext) => React.ReactNode)(c) : slot.icon;
-        items.push({
+        const common = {
           id,
           label,
-          icon,
           side: slot.side ?? 'end',
           order: slot.order ?? 0,
           pressed,
@@ -148,7 +202,9 @@ export function usePanelHeaderButtons(): readonly PanelHeaderButtonItem[] {
           tooltip,
           sx: slot.sx,
           press: () => pressSlot(given, runtime, id, slot, c, { present, parked, disabled, hidden }),
-        });
+        };
+        if (slot.icon === undefined) items.push({ ...common, form: 'text', icon: undefined });
+        else items.push({ ...common, form: 'icon', icon: typeof slot.icon === 'function' ? (slot.icon as (c: HeaderButtonContext) => React.ReactNode)(c) : slot.icon });
       } catch (e) {
         failures.push({ id, message: `header button '${id}': ${e instanceof Error ? e.message : String(e)}` });
       }
@@ -271,6 +327,14 @@ class SlotBoundary extends React.Component<{ id: string; onCaught: (id: string, 
 function SlotButton({ item, runtime }: { item: PanelHeaderButtonItem; runtime: Runtime }): React.ReactElement {
   const described = React.useId();
   const el = React.useRef<HTMLElement | null>(null);
+  const stop = React.useSyncExternalStore(
+    (l) => {
+      runtime.stopListeners.add(l);
+      return () => void runtime.stopListeners.delete(l);
+    },
+    () => runtime.stop,
+    () => undefined,
+  );
   React.useLayoutEffect(() => {
     const id = item.id;
     return () => {
@@ -279,27 +343,61 @@ function SlotButton({ item, runtime }: { item: PanelHeaderButtonItem; runtime: R
       if (runtime.buttons.get(id) === node) runtime.buttons.delete(id);
     };
   }, [item.id]);
+  const text = item.form === 'text';
+  const label = React.useRef<HTMLSpanElement | null>(null);
+  const [clipped, setClipped] = React.useState(false);
+  // A truncated label has no other way to be read in full, so it becomes the tooltip when no tooltip is declared.
+  React.useLayoutEffect(() => {
+    const span = label.current;
+    if (!text || span === null) return undefined;
+    const measure = (): void => setClipped(span.scrollWidth > span.clientWidth);
+    measure();
+    if (typeof ResizeObserver === 'undefined') return undefined;
+    const observer = new ResizeObserver(measure);
+    observer.observe(span);
+    return () => observer.disconnect();
+  }, [text, item.label]);
   const color = item.sx === undefined ? { color: 'inherit' } : [{ color: 'inherit' }, ...(Array.isArray(item.sx) ? item.sx : [item.sx])];
-  const button = (
-    <IconButton
-      size="small"
-      aria-label={item.label}
-      onClick={() => item.press()}
-      sx={item.disabled ? [...(Array.isArray(color) ? color : [color]), { opacity: 0.38, cursor: 'default' }] : (color as never)}
-      ref={(node: HTMLButtonElement | null) => {
-        el.current = node;
-        if (node !== null) runtime.buttons.set(item.id, node);
-      }}
-      {...(item.pressed === undefined ? {} : { 'aria-pressed': item.pressed })}
-      {...(item.disabled ? { 'aria-disabled': true } : {})}
-      {...(item.description === undefined ? {} : { 'aria-describedby': described })}
-    >
-      {item.icon}
-    </IconButton>
+  const base = Array.isArray(color) ? color : [color];
+  const sx = text
+    ? [...base, { textTransform: 'none', minWidth: 0, minHeight: 24, maxWidth: '9em', fontSize: 'inherit' }, ...(item.disabled ? [{ opacity: 0.38, cursor: 'default' }] : [])]
+    : item.disabled
+      ? [...base, { opacity: 0.38, cursor: 'default' }]
+      : (color as never);
+  const shared = {
+    size: 'small' as const,
+    'aria-label': item.label,
+    onClick: () => item.press(),
+    tabIndex: stop === undefined || stop === item.id ? 0 : -1,
+    onFocus: () => {
+      runtime.current = item.id;
+      syncTabStop(runtime);
+    },
+    onKeyDown: (e: React.KeyboardEvent) => {
+      if (e.altKey || e.ctrlKey || e.metaKey || e.shiftKey) return;
+      if (rove(runtime, item.id, e.key)) e.preventDefault();
+    },
+    sx: sx as never,
+    ref: (node: HTMLButtonElement | null) => {
+      el.current = node;
+      if (node !== null) runtime.buttons.set(item.id, node);
+    },
+    ...(item.pressed === undefined ? {} : { 'aria-pressed': item.pressed }),
+    ...(item.disabled ? { 'aria-disabled': true } : {}),
+    ...(item.description === undefined ? {} : { 'aria-describedby': described }),
+  };
+  const button = text ? (
+    <Button {...shared} color="inherit">
+      <span ref={label} data-header-button-text="" style={{ display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+        {item.label}
+      </span>
+    </Button>
+  ) : (
+    <IconButton {...shared}>{item.icon}</IconButton>
   );
   return (
     <>
-      {item.tooltip === undefined ? button : <Tooltip title={item.tooltip}>{button}</Tooltip>}
+      {text ? <Tooltip title={item.tooltip ?? (clipped ? item.label : '')}>{button}</Tooltip> : item.tooltip === undefined ? button : <Tooltip title={item.tooltip}>{button}</Tooltip>}
       {item.description === undefined ? null : (
         <span hidden id={described}>
           {item.description}
@@ -330,6 +428,10 @@ export function PanelHeaderButtons({ side }: { side?: 'start' | 'end' }): React.
     () => runtime?.text,
     () => runtime?.text,
   );
+  // After every render of a cluster, so a button added, removed, disabled or enabled moves the one tab stop if it must.
+  React.useLayoutEffect(() => {
+    if (runtime !== undefined) syncTabStop(runtime);
+  });
   if (runtime === undefined || given === undefined || handle === undefined) return null;
   const shown = items.filter((i) => !i.hidden && (side === undefined || i.side === side));
   const status = side !== 'start' && text !== undefined ? (

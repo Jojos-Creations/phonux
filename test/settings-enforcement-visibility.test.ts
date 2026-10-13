@@ -36,6 +36,7 @@ const OWNED = [
   'viewState',
   'tuning.saveQuietMs',
   'tuning.gestureLockMs',
+  'tuning.gestureQuietMs',
   'tuning.returnTieBreak',
   'tuning.dropTieBreak',
 ];
@@ -343,7 +344,7 @@ test('differential tuning.saveQuietMs: the workspace is saved at the configured 
 function swipes(gestureLockMs: number): string[] {
   const container = document.createElement('div');
   document.body.appendChild(container);
-  const p = provide(row(rootEntry(), park('a'), park('b'), park('c', {}, { live: false })), { width: W(2), over: { overflowContainerRef: { current: container }, tuning: { gestureLockMs } } });
+  const p = provide(row(rootEntry(), park('a'), park('b'), park('c', {}, { live: false })), { width: W(2), over: { overflowContainerRef: { current: container }, tuning: { gestureLockMs, rowGesture: 'step' } } });
   mock.timers.enable({ apis: ['setTimeout'] });
   const wheel = (deltaX: number): void => void act(() => void container.dispatchEvent(new WheelEvent('wheel', { deltaX, cancelable: true, bubbles: true })));
   wheel(100);
@@ -359,6 +360,29 @@ test('differential tuning.gestureLockMs: a second swipe 300 ms after the first a
   differential('tuning.gestureLockMs', (run) => {
     run(100, () => swipes(100));
     run(600, () => swipes(600));
+  });
+});
+
+/** Two same-direction swipes 120 ms apart, the second smaller: the live ids after both. The first starts a step; whether the second does too depends on whether 120 ms of silence ended the gesture. */
+function quietSwipes(gestureQuietMs: number): string[] {
+  const container = document.createElement('div');
+  document.body.appendChild(container);
+  const p = provide(row(rootEntry(), park('a'), park('b'), park('c', {}, { live: false }), park('d', {}, { live: false })), { width: W(2), over: { overflowContainerRef: { current: container }, tuning: { gestureQuietMs, rowGesture: 'step' } } });
+  mock.timers.enable({ apis: ['setTimeout'] });
+  const wheel = (deltaX: number): void => void act(() => void container.dispatchEvent(new WheelEvent('wheel', { deltaX, cancelable: true, bubbles: true })));
+  wheel(100);
+  act(() => mock.timers.tick(120));
+  wheel(50);
+  const seen = p.live();
+  mock.timers.reset();
+  container.remove();
+  return seen;
+}
+
+test('differential tuning.gestureQuietMs: a smaller swipe 120 ms after the first is a decaying tail under a 150 ms quiet time and a fresh gesture under 100 ms', () => {
+  differential('tuning.gestureQuietMs', (run) => {
+    run(150, () => quietSwipes(150));
+    run(100, () => quietSwipes(100));
   });
 });
 
@@ -396,7 +420,7 @@ test('differential tuning.dropTieBreak: a capacity drop among equal ranks parks 
   });
 });
 
-test('differential coverage: the names the differentials above completed are exactly the twelve this entry owns', () => {
+test('differential coverage: the names the differentials above completed are exactly the thirteen this entry owns', () => {
   assert.ok(differentialsCovered().length > 0, 'no differential completed, so the equality below would prove nothing');
   assert.deepEqual(differentialsCovered(), [...OWNED].sort());
 });
@@ -1046,12 +1070,12 @@ test('gestureLockMs is read from a ref at each arm: changing it keeps the listen
     return original(...args);
   }) as typeof container.removeEventListener;
   const base = { overflowContainerRef: { current: container } };
-  const p = provide(row(rootEntry(), park('a'), park('b'), park('c', {}, { live: false })), { width: W(2), over: { ...base, tuning: { gestureLockMs: 100 } } });
+  const p = provide(row(rootEntry(), park('a'), park('b'), park('c', {}, { live: false })), { width: W(2), over: { ...base, tuning: { gestureLockMs: 100, rowGesture: 'step' } } });
   mock.timers.enable({ apis: ['setTimeout'] });
   const wheel = (deltaX: number): void => void act(() => void container.dispatchEvent(new WheelEvent('wheel', { deltaX, cancelable: true, bubbles: true })));
   wheel(100);
   assert.deepEqual(p.live(), ['b', 'c'], 'the first swipe acted');
-  p.setOver({ ...base, tuning: { gestureLockMs: 600 } });
+  p.setOver({ ...base, tuning: { gestureLockMs: 600, rowGesture: 'step' } });
   assert.equal(removed, 0, 'the new value did not tear the listeners down');
   act(() => mock.timers.tick(150));
   wheel(-100);

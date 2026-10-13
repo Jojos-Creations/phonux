@@ -111,10 +111,10 @@ test('person: a press records the person\'s anchor, parkable and form factor; a 
   press(rig, 'c', 'Pin');
   press(rig, 'd', 'Size');
   await wait();
-  const [saved, sized] = (await overridesOf(store)) as [{ anchor?: unknown; parkable?: boolean }, { formFactor?: string }];
+  const [saved, sized] = (await overridesOf(store)) as [{ anchor?: unknown; parkable?: boolean }, { slots?: number }];
   assert.ok(saved.anchor !== undefined, 'overrides.anchor');
   assert.equal(saved.parkable, false, 'overrides.parkable for a half naming parkable');
-  assert.equal(sized.formFactor, 'tablet', 'overrides.formFactor');
+  assert.equal(sized.slots, 2, 'overrides.slots');
 
   cleanup();
   const later = memoryWorkspaceStorage();
@@ -195,7 +195,9 @@ test('safety: a disabled slot stays focusable with aria-disabled and its press c
   const off = rig.buttons('a')[0]!;
   assert.equal(off.getAttribute('aria-disabled'), 'true');
   assert.equal(off.hasAttribute('disabled'), false);
-  assert.notEqual(off.getAttribute('tabindex'), '-1');
+  assert.equal(off.getAttribute('tabindex'), '-1', 'the one tab stop is the first enabled button');
+  act(() => off.focus());
+  assert.equal(off.ownerDocument.activeElement, off, 'a disabled button still takes focus');
   act(() => off.click());
   assert.deepEqual(calls, []);
   press(rig, 'a', 'On');

@@ -4,15 +4,18 @@
  */
 import * as React from 'react';
 import { LIBRARY_TUNING_DEFAULTS, checkTuningLeaf } from './panelSettings.js';
-import type { ResolvedPanelTuning, ResolvedWorkspaceTuning, WorkspaceTuning } from './panelSettings.js';
+import type { ChromeTuning, ResolvedPanelTuning, ResolvedWorkspaceTuning, WorkspaceTuning } from './panelSettings.js';
 
 /** The tuning a Workspace resolved; unset outside a Workspace. */
 export const WorkspaceTuningContext = React.createContext<ResolvedWorkspaceTuning | undefined>(undefined);
 
-/** A panel's tuning: the four per-panel leaves and the workspace's row gap. */
-export type SlotTuning = ResolvedPanelTuning & { readonly rowGap: number };
+/** The height in px the Workspace's scroll container leaves for the row (its padding taken out); 0 until measured, and always in an environment that does no layout. */
+export const RowHeightContext = React.createContext<number>(0);
 
-const OBJECT_LEAVES: ReadonlySet<string> = new Set(['dragToClose', 'slide', 'edgeScroll']);
+/** A panel's tuning: the four per-panel leaves and the workspace's row gap and chrome numbers. */
+export type SlotTuning = ResolvedPanelTuning & { readonly rowGap: number; readonly chrome: ChromeTuning };
+
+const OBJECT_LEAVES: ReadonlySet<string> = new Set(['dragToClose', 'slide', 'edgeScroll', 'chrome']);
 /** What this module resolved: handing one on to another resolve keeps its identity, so a context value does not change for nothing. */
 const RESOLVED = new WeakSet<object>([LIBRARY_TUNING_DEFAULTS]);
 
@@ -44,7 +47,7 @@ export function resolveWorkspaceTuning(tuning: WorkspaceTuning | undefined): Res
 /** One panel's tuning: its own leaves when it has resolved settings, else the workspace's; the row gap is always the workspace's. */
 export function slotTuning(workspace: ResolvedWorkspaceTuning, own: ResolvedPanelTuning | undefined): SlotTuning {
   const from = own ?? workspace;
-  return { rowGap: workspace.rowGap, dragToClose: from.dragToClose, slide: from.slide, hopFraction: from.hopFraction, edgeScroll: from.edgeScroll };
+  return { rowGap: workspace.rowGap, chrome: workspace.chrome, dragToClose: from.dragToClose, slide: from.slide, hopFraction: from.hopFraction, edgeScroll: from.edgeScroll };
 }
 
 /** Whether two workspace tunings differ in a leaf a row reads. */

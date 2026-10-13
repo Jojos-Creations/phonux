@@ -95,6 +95,8 @@ export function panelsInput(over: Partial<PanelsInput> = {}): PanelsInput {
     containerWidth: 0,
     overflowContainerRef: { current: null },
     ...over,
+    // Free, so the literal scroll targets these tests pin stay panel-start numbers; the whole-panel stops have their own tests.
+    tuning: { rowGesture: 'free', ...over.tuning },
   };
 }
 

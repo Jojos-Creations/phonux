@@ -1,10 +1,11 @@
 import * as React from 'react';
-import { animate, motion, useIsPresent, useReducedMotionConfig, visualElementStore, type TargetAndTransition } from 'motion/react';
+import { animate, motion, useIsPresent, useReducedMotion, useReducedMotionConfig, visualElementStore, type TargetAndTransition } from 'motion/react';
 import { SLOT_TRANSITION, directionalTransition, slideToTransition } from './directionalTransition.js';
 import { PanelHiddenContext, PanelSlotContext } from './panelSlotContext.js';
 import { LIBRARY_TUNING_DEFAULTS } from './panelSettings.js';
 import type { SlideTuning } from './panelSettings.js';
 import { ROW_GAP } from './rowConstants.js';
+import { writeGlide } from './sizeGlide.js';
 
 export { ROW_GAP as GAP } from './rowConstants.js';
 /** The timing/easing every panel slide uses. The SAME object as SLOT_TRANSITION, not a copy: a host animates
@@ -33,6 +34,21 @@ export interface PanelRowSlotMotion {
 
 /** What an `animated: false` slot moves with: the same targets, no time taken. */
 const INSTANT_TRANSITION = { duration: 0 } as const;
+
+let commitClock: number | undefined;
+/**
+ * The time a slide counts from: this task's commit. Motion counts from the moment the keyframes resolve when that is over 40 ms
+ * later, which would start the slot and the size box's scale at different moments.
+ */
+function slideStart(): number {
+  if (commitClock === undefined) {
+    commitClock = performance.now();
+    queueMicrotask(() => {
+      commitClock = undefined;
+    });
+  }
+  return commitClock;
+}
 
 /** What a kept slot leaves with when its entry is dropped: at once, since a hidden slot has nothing left to slide. */
 const KEPT_EXIT: TargetAndTransition = { opacity: 0, transition: INSTANT_TRANSITION };
@@ -70,7 +86,7 @@ export function panelRowSlotMotion(
   // park, off the edge it was hidden past, so a close never looks like a park.
   const exit: TargetAndTransition =
     exitDirection === 'down'
-      ? { x: rest, y: phoneHeight, opacity: 0, transition: animated ? { duration: slide.closeExitSeconds, ease: 'easeIn' } : INSTANT_TRANSITION }
+      ? { x: rest, y: phoneHeight, opacity: 0, transition: animated ? { duration: slide.closeExitSeconds, ease: slide.closeExitEase } : INSTANT_TRANSITION }
       : exitDirection === 'right'
         ? { x: rest + ownSpan, opacity: 0 }
         : { ...parkExitTarget(rest, ownSpan, 'left', rowScroll) };
@@ -125,6 +141,12 @@ export const slotDriver = {
     const opacity = visual?.getValue('opacity')?.get();
     return typeof x === 'number' && typeof opacity === 'number' ? { x, opacity } : undefined;
   },
+  /**
+   * Starts the slide the element's `animate` prop already asks for, now, in the commit: Motion would start it in a passive effect.
+   */
+  startPending(el: HTMLElement): void {
+    (visualElementStore.get(el) as { animationState?: { animateChanges(): void } } | undefined)?.animationState?.animateChanges();
+  },
   animate(el: HTMLElement, values: SlotValues, transition: TargetAndTransition['transition']): SlotRun {
     const at = slotDriver.read(el);
     // Motion settles a slide whose target it already stands on only at the next frame; a kept slot must not wait for one.
@@ -139,25 +161,37 @@ export const slotDriver = {
  * @internal
  */
 export function PanelRowSlot({
+  panelId,
   leftOffset,
   width,
   phoneHeight,
+  top,
+  height,
   enterDirection,
   exitDirection,
   zIndex,
   animated = true,
+  tracking = false,
   gap,
   slide,
   kept = false,
   rowScroll = false,
+  previewing = false,
+  onActivate,
+  dragged = false,
   children,
 }: {
+  /** The panel this slot draws; the row's edge fade finds the slot by it. */
+  panelId?: string;
   /** This slot's own rest x position -- the caller's running sum of every PRECEDING present item's own width plus one gap. */
   leftOffset: number;
   /** This panel's own width (`panelWidthOf`), also this slot's enter/exit travel distance (`panelRowSlotMotion`'s `ownSpan`). */
   width: number;
   /** The height in px a closing slot drops by. */
   phoneHeight: number;
+  /** Where the slot's top edge sits in the row box, and its own height: a panel shorter than the row is aligned inside it. Omitted: the slot fills the row's height. */
+  top?: number;
+  height?: number;
   /** Computed by the caller (panelRowOrder.ts's `resolveEnterDirection`, or an explicit gesture side).
    * Must be correct on this component's FIRST render after the item (re)appears -- AnimatePresence
    * has no later render of a fresh mount to fix a wrong guess. */
@@ -173,6 +207,8 @@ export function PanelRowSlot({
   zIndex?: number;
   /** False: the slot's enter and exit take no time. Default true. */
   animated?: boolean;
+  /** True while a host holds a width on a panel of the row: the slot's moves take no time, so a width that follows a pointer moves it the same frame. Default false. */
+  tracking?: boolean;
   /** The row's gap and this panel's slide; the library defaults when omitted. */
   gap?: number;
   slide?: SlideTuning;
@@ -180,15 +216,37 @@ export function PanelRowSlot({
   kept?: boolean;
   /** Whether the row scrolls: a park then exits relative to this slot's rest. Default false. */
   rowScroll?: boolean;
+  /** True while a sideways drag previews the reorder: under Reduce Motion the slot's own moves then snap, since a preview-time slide carries no information. */
+  previewing?: boolean;
+  /** Called when a press or focus lands anywhere inside the slot, a portaled descendant included (React capture handlers follow the React tree). */
+  onActivate?: () => void;
+  /** True for the slot whose box is being dragged: its rest moving during the preview is the drop, which lands at once whatever the motion setting. */
+  dragged?: boolean;
   /** The panel rendered inside the slot. */
   children: React.ReactNode;
 }) {
   const { initial, animate: animateTarget, exit, transition } = panelRowSlotMotion(leftOffset, width, phoneHeight, enterDirection, exitDirection, animated, gap, slide, rowScroll);
   const el = React.useRef<HTMLDivElement>(null);
+  // This slot's own copy of the transition, so the moment its slide counts from can be set for the one call that starts it.
+  const startable: { duration: number; ease?: unknown; startTime?: number } = React.useMemo(() => ({ ...transition }), [transition]);
   const reducedMotion = useReducedMotionConfig();
+  // The drag box reads the system preference itself, so the neighbours that make room for it must too, whatever the app's MotionConfig says.
+  const systemReduced = useReducedMotion();
+  // A press or key inside an iframe never reaches the page's own handlers; the page's window loses focus to the iframe element instead.
+  const activate = React.useRef(onActivate);
+  activate.current = onActivate;
+  React.useEffect(() => {
+    const onWindowBlur = (): void => {
+      const focused = document.activeElement;
+      if (focused instanceof HTMLIFrameElement && el.current?.contains(focused)) activate.current?.();
+    };
+    window.addEventListener('blur', onWindowBlur);
+    return () => window.removeEventListener('blur', onWindowBlur);
+  }, []);
   const ownSpan = width + (gap ?? ROW_GAP);
   const parkSide = exitDirection === 'right' ? 'right' : 'left';
   const slideTransition = animated && !reducedMotion ? transition : INSTANT_TRANSITION;
+  const snapping = previewing && (reducedMotion || systemReduced || dragged);
   // `epoch` counts parks, so a finished exit from an earlier park can never hide the slot of a later one.
   const [wasKept, setWasKept] = React.useState(kept);
   const [epoch, setEpoch] = React.useState(0);
@@ -239,10 +297,24 @@ export function PanelRowSlot({
   }, [reviving]);
   // React 19.2 re-runs effect cleanup and setup for a keyed child a reorder moves, and Motion's cleanup stops the slide this
   // slot was making toward its new rest; nothing then starts it again, so the slot stays where it was.
-  const restNow = React.useRef({ leftOffset, transition: slideTransition });
-  restNow.current = { leftOffset, transition: slideTransition };
+  // A drop under Reduce Motion lands here too: the moved slot's own slide is re-started with the preview's instant transition.
+  const restNow = React.useRef({ leftOffset, transition: snapping ? INSTANT_TRANSITION : slideTransition });
+  restNow.current = { leftOffset, transition: snapping ? INSTANT_TRANSITION : slideTransition };
   const setUpBefore = React.useRef(false);
   const present = useIsPresent();
+  // The drop's new rest lands in the commit that changes it, in the same frame as the dragged box's own offset going to 0: a snap that waited
+  // for Motion's next frame would draw the box a frame at the old slot.
+  const lastRest = React.useRef(leftOffset);
+  React.useLayoutEffect(() => {
+    const moved = lastRest.current !== leftOffset;
+    lastRest.current = leftOffset;
+    if (moved && (snapping || tracking) && el.current !== null && !kept && !reviving && present) slotDriver.set(el.current, { x: leftOffset, opacity: 1 });
+    else if (moved && el.current !== null && !kept && !reviving && present) {
+      startable.startTime = slideStart();
+      slotDriver.startPending(el.current);
+      delete startable.startTime;
+    }
+  });
   React.useEffect(() => {
     if (!setUpBefore.current) {
       setUpBefore.current = true;
@@ -257,15 +329,19 @@ export function PanelRowSlot({
       // Enters from one own-width-plus-gap span beyond its destination, right or left per `enterDirection` above.
       // Dropping `animate` alone would send the slot back to `initial`; with both gone it stays where it is, for the imperative slide.
       initial={kept || reviving ? undefined : initial}
-      animate={kept || reviving ? undefined : animateTarget}
+      animate={kept || reviving ? undefined : snapping || tracking ? { ...animateTarget, transition: INSTANT_TRANSITION } : animateTarget}
       exit={kept ? KEPT_EXIT : exit}
-      transition={transition}
+      transition={startable as typeof transition}
       inert={kept ? true : undefined}
       aria-hidden={hidden ? true : undefined}
+      data-row-slot={leftOffset}
+      data-row-id={panelId}
+      onPointerDownCapture={onActivate}
+      onFocusCapture={onActivate}
       style={{
         position: 'absolute',
-        top: 0,
-        bottom: 0,
+        top: top ?? 0,
+        ...(height === undefined ? { bottom: 0 } : { height }),
         left: 0,
         // Snaps, never animates: nothing paints the slot's own width (PanelSizeBox animates the visible resize).
         width,
@@ -279,10 +355,9 @@ export function PanelRowSlot({
 }
 
 /**
- * The element a resize animates: an INNER box, never the slot, which owns `exit` (Motion's docs warn against
- * `layout` and `exit` on one element). A layout animation sets the real size once and animates a transform
- * toward it, so the view never re-lays out mid-resize; `layout="size"` because the slot's `x` already animates
- * position. A view renders it inside its own slot, so a view that never resizes needs no wrapper.
+ * The box a resize animates. It takes its new size at once, so its content is laid out at that size, and is drawn at the old size
+ * and eased to the new one over the slide, in step with the neighbouring slots. A view renders it inside its own slot.
+ * Under Reduce Motion, or for a panel whose `animated` setting is false, the resize snaps.
  * @public
  */
 export function PanelSizeBox({
@@ -297,10 +372,68 @@ export function PanelSizeBox({
   /** The content, laid out at the new size at once. */
   children: React.ReactNode;
 }) {
-  const slide = React.useContext(PanelSlotContext)?.tuning.slide;
+  return <SizeBox width={width} height={height}>{children}</SizeBox>;
+}
+
+/** True below a `SizeBox`: a box inside another is a plain div, because two scales of one size would multiply. */
+const SizeBoxContext = React.createContext(false);
+
+/**
+ * `PanelSizeBox` with a height that may be the slot's own (`'100%'`, a panel that fills the row's height), which is the box the
+ * default frame draws around its whole panel. A box below another draws a plain div of the same size.
+ * @internal
+ */
+export function SizeBox({ width, height, children }: { width: number; height: number | '100%'; children: React.ReactNode }) {
+  const slot = React.useContext(PanelSlotContext);
+  const nested = React.useContext(SizeBoxContext);
+  const parked = React.useContext(PanelHiddenContext);
+  const slide = slot?.tuning.slide;
+  // The system preference too, because a theme's MotionConfig may not carry it.
+  const configReduced = useReducedMotionConfig() === true;
+  const systemReduced = useReducedMotion() === true;
+  const snaps = configReduced || systemReduced || slot?.animated === false || slot?.tracking === true || parked;
+  const box = React.useRef<HTMLDivElement>(null);
+  const seen = React.useRef<{ width: number; height: number | '100%' } | undefined>(undefined);
+  const scale = React.useRef({ x: 1, y: 1 });
+  const run = React.useRef<{ stop: () => void } | undefined>(undefined);
+  // Starts in the commit's layout effect, on the slot's slide clock (`slideStart`), so a commit that janks opens no gap to a neighbour.
+  React.useLayoutEffect(() => {
+    const node = box.current;
+    if (node === null || nested) return;
+    const before = seen.current;
+    seen.current = { width, height };
+    run.current?.stop();
+    run.current = undefined;
+    const draw = (x: number, y: number): void => {
+      scale.current = { x, y };
+      node.style.transform = x === 1 && y === 1 ? '' : `scale(${x}, ${y})`;
+      writeGlide(node, x, y);
+    };
+    if (before === undefined || snaps) {
+      draw(1, 1);
+      return;
+    }
+    // From where the box is drawn now, so a resize that lands mid-glide carries on from the size on screen.
+    const x0 = (before.width * scale.current.x) / width;
+    const y0 = typeof before.height === 'number' && typeof height === 'number' ? (before.height * scale.current.y) / height : 1;
+    if (Math.abs(x0 - 1) < 0.001 && Math.abs(y0 - 1) < 0.001) {
+      draw(1, 1);
+      return;
+    }
+    draw(x0, y0);
+    const transition = slide === undefined ? PANEL_TRANSITION : slideToTransition(slide);
+    run.current = animate(0, 1, {
+      ...transition,
+      startTime: slideStart(),
+      onUpdate: (p: number) => draw(x0 + (1 - x0) * p, y0 + (1 - y0) * p),
+      onComplete: () => draw(1, 1),
+    });
+  }, [width, height, snaps, nested]);
+  React.useEffect(() => () => run.current?.stop(), []);
+  if (nested) return <div data-panel-size-plain="" style={{ width, height }}>{children}</div>;
   return (
-    <motion.div data-panel-size-box="" layout="size" transition={slide === undefined ? PANEL_TRANSITION : slideToTransition(slide)} style={{ width, height }}>
-      {children}
-    </motion.div>
+    <div ref={box} data-panel-size-box="" style={{ width, height, transformOrigin: '0 0' }}>
+      <SizeBoxContext.Provider value>{children}</SizeBoxContext.Provider>
+    </div>
   );
 }

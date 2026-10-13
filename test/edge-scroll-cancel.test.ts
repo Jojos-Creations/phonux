@@ -100,7 +100,7 @@ function claimFree(m: MountedRow): boolean {
 
 test('a glide in flight stops at the pointer-down on the grab bar and writes nothing after', async () => {
   const m = mountCancelRow();
-  assert.equal(m.scroller.glideTo(2000, { durationSec: 1, instant: false }), true);
+  assert.equal(m.scroller.glideTo(2000, { durationSec: 1, instant: false, ease: 'cubic-out' }), true);
   await frames(10);
   const stopped = m.container.scrollLeft;
   assert.ok(stopped > 0 && stopped < 2000, `mid-glide at ${stopped}`);
@@ -196,7 +196,7 @@ function mountAlone(dragScroll: DragScroll | undefined) {
   scroller.getBoundingClientRect = () => RECT;
   return { mounted, ui, scroller, handle: mounted.container.querySelector('[data-handle]')! };
 }
-const EDGE_ON: DragScroll = { mode: 'edge', zonePx: EDGE.zonePx, maxPxPerSec: EDGE.maxPxPerSec, reducedStepMs: EDGE.reducedStepMs, instant: false, maxScroll: MAX_SCROLL, stops: [] };
+const EDGE_ON: DragScroll = { mode: 'edge', zonePx: EDGE.zonePx, maxPxPerSec: EDGE.maxPxPerSec, reducedStepMs: EDGE.reducedStepMs, instant: false, maxScroll: MAX_SCROLL, stops: [], settleStops: [], settleSec: 0.4, settleEase: 'cubic-out' };
 
 test('the row ceasing to scroll mid-hold gives the claim back and the row stops where it is', async () => {
   ends.length = 0;

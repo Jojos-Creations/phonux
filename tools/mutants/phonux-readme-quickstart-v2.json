@@ -1,0 +1,107 @@
+{
+  "tests": [
+    "test/readme-quickstart.test.ts"
+  ],
+  "mutants": [
+    {
+      "name": "the quickstart calls a removed export",
+      "file": "README.md",
+      "find": "const workspace = createWorkspace({ templates: [notes] });",
+      "replace": "const workspace = startWorkspace({ templates: [notes] });",
+      "expectRed": [
+        "the quickstart and the advanced block type-check against this checkout",
+        "the quickstart, run as written, draws a framed Notes panel with its title and its text"
+      ]
+    },
+    {
+      "name": "the advanced block calls a removed export",
+      "file": "README.md",
+      "find": "import { HostProvider, PanelRow, Workspace, useProvidePanels, type WorkspaceHandle } from 'phonux';",
+      "replace": "import { HostProvider, PanelRow, Workspace, useProvideRows, type WorkspaceHandle } from 'phonux';",
+      "expectRed": [
+        "the quickstart and the advanced block type-check against this checkout"
+      ]
+    },
+    {
+      "name": "the quickstart's closing fence is deleted",
+      "file": "README.md",
+      "find": "workspace.addPanel('notes');\n```\n<!-- quickstart:end -->",
+      "replace": "workspace.addPanel('notes');\n<!-- quickstart:end -->",
+      "expectRed": [
+        "the quickstart and the advanced block type-check against this checkout"
+      ]
+    },
+    {
+      "name": "the quickstart's start marker is changed",
+      "file": "README.md",
+      "find": "<!-- quickstart:start -->",
+      "replace": "<!-- quickstart:begin -->",
+      "expectRed": [
+        "the quickstart and the advanced block type-check against this checkout"
+      ]
+    },
+    {
+      "name": "the advanced block's end marker is changed",
+      "file": "README.md",
+      "find": "<!-- advanced:end -->",
+      "replace": "<!-- advanced:finish -->",
+      "expectRed": [
+        "the quickstart and the advanced block type-check against this checkout"
+      ]
+    },
+    {
+      "name": "the quickstart template loses its title",
+      "file": "README.md",
+      "find": "settings: { title: 'Notes' } });\n\nconst workspace",
+      "replace": "settings: {} });\n\nconst workspace",
+      "expectRed": [
+        "the quickstart, run as written, draws a framed Notes panel with its title and its text"
+      ]
+    },
+    {
+      "name": "the quickstart opens no panel",
+      "file": "README.md",
+      "find": "workspace.addPanel('notes');\n```",
+      "replace": "```",
+      "expectRed": [
+        "the quickstart, run as written, draws a framed Notes panel with its title and its text"
+      ]
+    },
+    {
+      "name": "the advanced row leaves out the live widths the shell needs",
+      "file": "README.md",
+      "find": "        liveWidths={provided.liveWidths}\n",
+      "replace": "",
+      "expectRed": [
+        "the quickstart and the advanced block type-check against this checkout"
+      ]
+    },
+    {
+      "name": "the advanced row is priced from a wrong phone width",
+      "file": "README.md",
+      "find": "const PHONE_WIDTH = 390;",
+      "replace": "const PHONE_WIDTH = 300;",
+      "expectRed": [
+        "the advanced block draws the same DOM as the quickstart"
+      ]
+    },
+    {
+      "name": "the README names registerView as a current way to start",
+      "file": "README.md",
+      "find": "## Building your own flow",
+      "replace": "## Building your own flow with registerView",
+      "expectRed": [
+        "registerView appears in README.md and DESIGN.md only on lines that call it the legacy path"
+      ]
+    },
+    {
+      "name": "DESIGN.md names registerView without calling it legacy",
+      "file": "DESIGN.md",
+      "find": "The legacy `registerView`/`resolveView`",
+      "replace": "The `registerView`/`resolveView`",
+      "expectRed": [
+        "registerView appears in README.md and DESIGN.md only on lines that call it the legacy path"
+      ]
+    }
+  ]
+}

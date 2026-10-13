@@ -50,7 +50,7 @@ async function mountRig(own: Record<string, PanelSettings> = {}): Promise<Rig> {
     const id = `s${k + 1}`;
     return definePanel({ id, view: () => React.createElement(EdgeBox, { id }), ...(own[id] === undefined ? {} : { settings: own[id] }) });
   });
-  const ws = createWorkspace({ root: markerTemplate('root', { settings: { title: 'History' } }), templates });
+  const ws = createWorkspace({ mount: false, root: markerTemplate('root', { settings: { title: 'History' } }), templates, tuning: { rowGesture: 'free' } });
   const h: Record<string, PanelHandle> = {};
   for (const template of templates) h[template.id] = ws.addPanel(template);
   const m = mountWorkspace(ws, { width: WINDOW });

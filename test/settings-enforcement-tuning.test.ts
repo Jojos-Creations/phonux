@@ -5,14 +5,17 @@
  * scope and range rules, and the interfaces a host calls. Entries are hand-built or made the way a creation path
  * makes them: appendPanel's skeleton, then applyTemplate over a resolved layer.
  */
-import { test, afterEach } from 'node:test';
+import { test, afterEach, mock } from 'node:test';
 import assert from 'node:assert/strict';
 import './support/jsdom-globals.js';
 import * as React from 'react';
+import { MotionConfig } from 'motion/react';
+import { act } from 'react';
 import {
   DragToClose,
   LIBRARY_TUNING_DEFAULTS,
   PANEL_TRANSITION,
+  Panel,
   PanelRow,
   PanelSizeBox,
   Workspace,
@@ -37,7 +40,7 @@ import { differential, differentialsCovered } from './support/differential.js';
 import { drag } from './support/drag-gesture.js';
 import { advanceFrames, cleanup, mount, panelsInput, withHost } from './support/mount-harness.js';
 
-const OWNED = ['tuning.rowGap', 'tuning.dragToClose', 'tuning.slide', 'tuning.hopFraction'];
+const OWNED = ['tuning.rowGap', 'tuning.dragToClose', 'tuning.slide', 'tuning.hopFraction', 'tuning.chrome', 'tuning.resizeSettleSlides'];
 const ROOT = 'root';
 
 interface Seen {
@@ -167,6 +170,65 @@ test('differential tuning.dragToClose: a 100 px drag closes under an 80 px minim
   assert.deepEqual(outputs, [true, false]);
 });
 
+registerView('tune-chrome', ({ panel }) => React.createElement(Panel, { title: panel.title, children: React.createElement('i', { 'data-slot': panel.id }) }));
+
+/** The inline opacity of a panel's header under a chrome mode, with nothing hovered or active. */
+function headerOpacityUnder(mode: 'always' | 'hover-or-active'): string {
+  const mounted = mount(rowOf([entry('a', { view: 'tune-chrome' })], { chrome: { mode, fadeMs: 0 } }));
+  const opacity = mounted.container.querySelector<HTMLElement>('[data-panel-chrome-part="header"]')!.style.opacity;
+  mounted.unmount();
+  return opacity;
+}
+
+test('differential tuning.chrome: an idle panel keeps its header drawn under always and transparent under hover-or-active', () => {
+  differential('tuning.chrome', (run) => {
+    run('always', () => headerOpacityUnder('always'));
+    run('hover-or-active', () => headerOpacityUnder('hover-or-active'));
+  });
+});
+
+/** Whether the row's centring margin glides when a panel joins, `waitMs` after the width changed, under the given leaf. */
+async function glidesAfterResize(waitMs: number, resizeSettleSlides: number): Promise<boolean> {
+  mock.timers.enable({ apis: ['setTimeout', 'setInterval'] });
+  const at = (liveWidths: number[], width: number): React.ReactElement =>
+    withHost(
+      React.createElement(Workspace, {
+        overflowContainerRef: React.createRef<HTMLDivElement>(),
+        rowRef: React.createRef<HTMLDivElement>(),
+        containerWidth: width,
+        phoneWidth: 390,
+        fixedColumnCount: 1,
+        liveWidths,
+        tuning: { resizeSettleSlides },
+        children: React.createElement('i'),
+      } as never),
+    );
+  const margin = (m: ReturnType<typeof mount>): number => Number.parseFloat((m.container.querySelector('[data-row-strip]') as HTMLElement).style.marginLeft);
+  const m = mount(at([], 1000));
+  m.rerender(at([], 1200));
+  act(() => mock.timers.tick(waitMs));
+  await advanceFrames(2000);
+  const start = margin(m);
+  m.rerender(at([390], 1200));
+  await advanceFrames(32);
+  const mid = margin(m);
+  await advanceFrames(2000);
+  const end = margin(m);
+  m.unmount();
+  mock.timers.reset();
+  assert.notEqual(start, end, 'control: the margin does move when a panel joins');
+  return mid !== start && mid !== end;
+}
+
+test('differential tuning.resizeSettleSlides: 600 ms after a width change the row glides at 1 slide (400 ms) and still snaps at 2 (800 ms)', async () => {
+  const short = await glidesAfterResize(600, 1);
+  const long = await glidesAfterResize(600, 2);
+  differential('tuning.resizeSettleSlides', (run) => {
+    run(1, () => short);
+    run(2, () => long);
+  });
+});
+
 // ---------------------------------------------------------------------------
 // Defaults
 // ---------------------------------------------------------------------------
@@ -174,16 +236,21 @@ test('differential tuning.dragToClose: a 100 px drag closes under an 80 px minim
 test('the library tuning defaults are exactly these numbers, by key name', () => {
   assert.deepEqual(LIBRARY_TUNING_DEFAULTS, {
     rowGap: 16,
-    dragToClose: { distanceFraction: 0.25, minDistancePx: 80, flickMinDistancePx: 40, flickVelocity: 700, cancelVelocity: -300, directionLockPx: 8, snapBack: { stiffness: 520, damping: 42 } },
-    slide: { durationSec: 0.4, ease: [0.2, 0, 0, 1], closeExitSeconds: 0.18 },
+    dragToClose: { distanceFraction: 0.25, minDistancePx: 80, flickMinDistancePx: 40, flickVelocity: 700, cancelVelocity: -300, directionLockPx: 8, restMs: 50, velocityWindowMs: 100, snapBack: { stiffness: 520, damping: 42 } },
+    slide: { durationSec: 0.4, ease: [0.2, 0, 0, 1], closeExitSeconds: 0.18, closeExitEase: 'easeIn', glideEase: 'cubic-out' },
     hopFraction: 0.5,
     edgeScroll: { zonePx: 48, maxPxPerSec: 900, reducedStepMs: 500 },
     saveQuietMs: 500,
     gestureLockMs: 60,
+    gestureQuietMs: 150,
+    resizeSettleSlides: 1.25,
     returnTieBreak: 'latest-first',
     dropTieBreak: 'leftmost',
     rowGesture: 'step',
     initialScroll: 'start',
+    chrome: { mode: 'always', fadeMs: 120, fadeEase: 'easeOut', slideMs: 140, slidePx: 8, graceMs: 250 },
+    maxLivePanels: null,
+    shrinkOutOfView: 'off',
   });
 });
 
@@ -212,7 +279,7 @@ test('slideToTransition: each of the four ease numbers alone makes the transitio
 // ---------------------------------------------------------------------------
 
 test('slide: the slot enters and leaves over durationSec, the down exit takes closeExitSeconds, and animated false is still duration 0', () => {
-  const slow: SlideTuning = { durationSec: 0.8, ease: [0.2, 0, 0, 1], closeExitSeconds: 0.3 };
+  const slow: SlideTuning = { durationSec: 0.8, ease: [0.2, 0, 0, 1], closeExitSeconds: 0.3, closeExitEase: 'easeIn', glideEase: 'cubic-out' };
   const base = panelRowSlotMotion(0, 390, 700, 'right', 'down');
   assert.equal(base.transition.duration, 0.4);
   assert.equal((base.exit as { transition: { duration: number } }).transition.duration, 0.18);
@@ -226,14 +293,14 @@ test('slide: the slot enters and leaves over durationSec, the down exit takes cl
 
 test('slide: the shell glides with the resolved slide once settled, and snaps before', () => {
   const input = { containerWidth: 1300, phoneWidth: 390, fixedColumnCount: 1, liveWidths: [] };
-  const slide: SlideTuning = { durationSec: 0.8, ease: [0.2, 0, 0, 1], closeExitSeconds: 0.18 };
+  const slide: SlideTuning = { durationSec: 0.8, ease: [0.2, 0, 0, 1], closeExitSeconds: 0.18, closeExitEase: 'easeIn', glideEase: 'cubic-out' };
   assert.deepEqual(workspaceShellStyle({ ...input, rowResizeSettled: true, slide }).transition, { duration: 0.8, ease: [0.2, 0, 0, 1] });
   assert.equal(workspaceShellStyle({ ...input, rowResizeSettled: true }).transition, PANEL_TRANSITION);
   assert.deepEqual(workspaceShellStyle({ ...input, rowResizeSettled: false, slide }).transition, { duration: 0 });
 });
 
 /** The props of the nearest motion component above `el` that carries `key`: a DOM node never holds them itself. */
-function motionPropsOf(el: Element, key = 'layout'): Record<string, unknown> {
+function motionPropsOf(el: Element, key: string): Record<string, unknown> {
   const fiberKey = Object.keys(el).find((k) => k.startsWith('__reactFiber$'));
   assert.ok(fiberKey, 'the node has a React fiber');
   for (let fiber = (el as unknown as Record<string, { return: unknown; memoizedProps?: Record<string, unknown> }>)[fiberKey]!; fiber; fiber = fiber.return as typeof fiber) {
@@ -242,17 +309,40 @@ function motionPropsOf(el: Element, key = 'layout'): Record<string, unknown> {
   assert.fail(`no motion component above the node carries ${key}`);
 }
 
-test("slide: PanelSizeBox's layout transition is the panel's resolved slide inside a slot and the shared one outside", () => {
-  registerView('tune-size', () => React.createElement(PanelSizeBox, { width: 390, height: 700, children: React.createElement('i') }));
-  const inRow = mount(rowOf([entry('a', { view: 'tune-size' })], { slide: { durationSec: 0.8 } }));
-  assert.deepEqual(motionPropsOf(inRow.container.querySelector('[data-panel-size-box]')!).transition, { duration: 0.8, ease: [0.2, 0, 0, 1] });
-  inRow.unmount();
-  const own = mount(rowOf([made('a', { slide: { durationSec: 0.6 } }, { view: 'tune-size' })], { slide: { durationSec: 0.8 } }));
-  assert.equal((motionPropsOf(own.container.querySelector('[data-panel-size-box]')!).transition as { duration: number }).duration, 0.6, "the panel's own slide beats the workspace's");
-  own.unmount();
-  const outside = mount(React.createElement(PanelSizeBox, { width: 390, height: 700, children: React.createElement('i') }));
-  assert.equal(motionPropsOf(outside.container.querySelector('[data-panel-size-box]')!).transition, PANEL_TRANSITION);
-  outside.unmount();
+/** The width the views that draw a PanelSizeBox below read; a test sets it before it renders again. */
+let boxWidth = 390;
+for (const name of ['tune-size', 'tune-size-own', 'snap-size', 'snap-size-r', 'snap-size-s']) registerView(name, () => React.createElement(PanelSizeBox, { width: boxWidth, height: 700, children: React.createElement('i') }));
+
+/** How long, in ms, the PanelSizeBox in what `render` draws takes to reach its new width after `boxWidth` grows from 390 to 780. */
+async function sizeGlideMs(render: () => React.ReactElement): Promise<number> {
+  boxWidth = 390;
+  const mounted = mount(render());
+  boxWidth = 780;
+  mounted.rerender(render());
+  const box = mounted.container.querySelector<HTMLElement>('[data-panel-size-box]')!;
+  let frames = 0;
+  while (box.style.transform !== '' && frames < 200) {
+    await advanceFrames(16);
+    frames += 1;
+  }
+  mounted.unmount();
+  boxWidth = 390;
+  return frames * 16;
+}
+
+test("slide: PanelSizeBox's glide is the panel's resolved slide inside a slot and the shared one outside", async () => {
+  const near = (actual: number, seconds: number, what: string): void => assert.ok(Math.abs(actual - seconds * 1000) <= 48, `${what}: ${actual} ms for ${seconds} s`);
+  near(await sizeGlideMs(() => rowOf([entry('a', { view: 'tune-size' })], { slide: { durationSec: 0.8 } })), 0.8, "the workspace's slide");
+  near(await sizeGlideMs(() => rowOf([made('a', { slide: { durationSec: 0.6 } }, { view: 'tune-size-own' })], { slide: { durationSec: 0.8 } })), 0.6, "the panel's own slide beats the workspace's");
+  near(await sizeGlideMs(() => React.createElement(PanelSizeBox, { width: boxWidth, height: 700, children: React.createElement('i') })), PANEL_TRANSITION.duration, 'outside a slot, the shared transition');
+});
+
+test('PanelSizeBox snaps under Reduce Motion and for a panel that is not animated, and glides otherwise', async () => {
+  const slide = { slide: { durationSec: 0.8 } };
+  assert.ok((await sizeGlideMs(() => rowOf([entry('a', { view: 'snap-size' })], slide))) > 500, 'positive control: the resize glides');
+  assert.equal(await sizeGlideMs(() => React.createElement(MotionConfig, { reducedMotion: 'always' }, rowOf([entry('a', { view: 'snap-size-r' })], slide))), 0, 'Reduce Motion snaps');
+  const still = applyTemplate({ ...appendPanel([], { url: 'https://a.example', title: 'a', view: 'snap-size-s' }, 'a', ROOT)[0]! }, resolvePanelSettings({ template: { overflow: 'park', animated: false } }).value, 'create');
+  assert.equal(await sizeGlideMs(() => rowOf([still], slide)), 0, 'a panel that is not animated snaps');
 });
 
 /** A Workspace over one PanelRow: `workspace` is the Workspace's tuning, `row` the PanelRow's own prop. */
@@ -343,16 +433,17 @@ test('usePanelReorderSteps: outside a row there are no neighbours, so every offs
 // The cascade, the scope and the ranges
 // ---------------------------------------------------------------------------
 
-test('usePanelTuning: exactly the five keys, the library defaults outside a row and the workspace value inside one', () => {
+test('usePanelTuning: exactly the six keys, the library defaults outside a row and the workspace value inside one', () => {
   let outside: ReturnType<typeof usePanelTuning> | undefined;
   function Probe(): React.ReactElement {
     outside = usePanelTuning();
     return React.createElement('i');
   }
   mount(React.createElement(Probe));
-  assert.deepEqual(Object.keys(outside!), ['rowGap', 'dragToClose', 'slide', 'hopFraction', 'edgeScroll']);
+  assert.deepEqual(Object.keys(outside!), ['rowGap', 'chrome', 'dragToClose', 'slide', 'hopFraction', 'edgeScroll']);
   assert.deepEqual(outside, {
     rowGap: 16,
+    chrome: { mode: 'always', fadeMs: 120, fadeEase: 'easeOut', slideMs: 140, slidePx: 8, graceMs: 250 },
     dragToClose: LIBRARY_TUNING_DEFAULTS.dragToClose,
     slide: LIBRARY_TUNING_DEFAULTS.slide,
     hopFraction: 0.5,
@@ -360,7 +451,7 @@ test('usePanelTuning: exactly the five keys, the library defaults outside a row 
   });
   const inRow = mount(rowOf([entry('a')], { rowGap: 24, hopFraction: 0.3, edgeScroll: { zonePx: 60 } }));
   const tuning = seenOf('a').tuning;
-  assert.deepEqual(Object.keys(tuning), ['rowGap', 'dragToClose', 'slide', 'hopFraction', 'edgeScroll']);
+  assert.deepEqual(Object.keys(tuning), ['rowGap', 'chrome', 'dragToClose', 'slide', 'hopFraction', 'edgeScroll']);
   assert.equal(tuning.rowGap, 24);
   assert.equal(tuning.hopFraction, 0.3);
   assert.deepEqual(tuning.edgeScroll, { zonePx: 60, maxPxPerSec: 900, reducedStepMs: 500 }, 'a leaf given in part keeps the default for the rest');
