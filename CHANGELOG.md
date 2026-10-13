@@ -14,7 +14,7 @@
 - Slot sizing: a panel is n whole slots wide, a slot being one phone width with the row gap between slots, and a little taller
   for each slot past the first. New per-panel settings `slots` (the choice; `formFactor` becomes its view: 1 phone, 2 tablet,
   3 or more desktop) and `maxSlots`; new workspace tuning `heightPerSlot` (default 48 px, held to the height the row has)
-  and `rowAlign` (`'center'` default, `'top'`, `'bottom'`). `PanelsAPI.setSlots(id, slots)` and a `setSlots` verb on the
+  and `rowAlign` (`'center'` default, `'top'`, `'bottom'`). `PanelSizeBox` snaps its resize under Reduce Motion and for a panel with `animated: false`. `PanelsAPI.setSlots(id, slots)` and a `setSlots` verb on the
   handle resize by a count, clamped to `maxSlots` and to what fits the window; `PanelSummary` gains `slots`, `maxSlots`,
   `drawnSlots` and `fitSlots` (the most slots that fit the window), and `size.height` is the drawn height. The row is as tall as its tallest panel and measures the height its
   scroll container leaves; a shorter panel sits at `rowAlign`. A person's resize is saved as `overrides.slots`, and the

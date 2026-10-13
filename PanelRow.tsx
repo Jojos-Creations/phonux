@@ -40,7 +40,7 @@ function focusInHeaderRow(panelId: string): boolean {
 
 /**
  * The side an entry slides in from. 'left' and 'right' are constants that beat every mark. Otherwise an explicit mark
- * from the engine wins, then the anchor formula for an entry that always uses it ('anchor', or the 0.1.0
+ * from the engine wins, then the anchor formula for an entry that always uses it ('anchor', or the
  * `anchoredEnter` flag) or is entering via an anchor, then the right.
  */
 export function enterDirectionOf(from: ResolvedPanelSettings['enterFrom'], anchoredEnter: boolean, mark: EnterDirection | undefined, viaAnchor: boolean, formula: () => EnterDirection): EnterDirection {
