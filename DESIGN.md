@@ -466,7 +466,7 @@ edge or a pill drawn the usual way would be squashed with it: a quarter circle b
 for the 0.4 s. The box writes its scale as three custom properties (`--phonux-size-x`, `--phonux-size-y`, `--phonux-size-glide`,
 in `sizeGlide.ts`) from the draw that sets the transform, and removes all three at rest, when it snaps (Reduce Motion,
 `animated: false`, parked, held at a drawn width) and when it is nested, so a frame or header outside any box reads every
-fallback (1 and 0) and draws as it always did. `PanelFrame`, `PanelHeader`, the grab bar's pill and the scrollbar thumb read them:
+fallback (1 and 0) and draws as it always did. `PanelFrame`, `PanelHeader` and the grab bar's pill read them:
 the corner radius is `r / x` by `r / y`, which draws `r` on each axis, and a radius too big for a side is cut by the browser on
 every corner alike, so a header pill that gets lower becomes a smaller true pill. The 1 px edge of the frame and the header pill is
 an inset shadow, not a border: the browser rounds a border's width to whole device pixels, so `1px / x` would draw as a step
@@ -474,8 +474,8 @@ function, and a new border width would re-lay out the content that the box promi
 the shadow is the one ring a border was; while the box eases it is four bands, each `1px / scale` wide on its own axis, so the edge
 is 1 px drawn (about 0.7 px on the diagonal of a corner). The properties inherit, so each frame of a glide the browser resolves
 the box's whole subtree again for them; the trace at four times slower CPU keeps overlap 0 and gap equal to the row gap.
-What is counted is the chrome the library draws. A view's own content (an avatar, a card, an image, text) and the header
-buttons, which stay plain MUI buttons, are still scaled by the box and squash for the 0.4 s, as they did under `layout="size"`;
+What is counted is the chrome the library draws. A view's own content (an avatar, a card, an image, text), the scrollbar thumb
+(`panelFrameScrollSx` is an exported value, whose type this would change) and the header buttons, which stay plain MUI buttons, are still scaled by the box and squash for the 0.4 s, as they did under `layout="size"`;
 undistorted content would be a clip-reveal in place of a scale, a different design.
 
 The size box follows any change of the panel's width, not only a tier change. Choosing a different phone

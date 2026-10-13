@@ -61,7 +61,7 @@ export const panelFrameScrollSx = {
   '&::-webkit-scrollbar-track': { background: 'transparent' },
   '&::-webkit-scrollbar-thumb': {
     background: 'rgba(255, 255, 255, 0.25)',
-    borderRadius: glideCorner(SCROLLBAR_PX / 2),
+    borderRadius: SCROLLBAR_PX / 2,
   },
   '&::-webkit-scrollbar-thumb:hover': { background: 'rgba(255, 255, 255, 0.4)' },
 } as const;
