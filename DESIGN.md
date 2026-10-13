@@ -387,9 +387,19 @@ right; `'end'` shifts the whole strip left by the growth, so the right edge and 
 before make room, which is what a grabber on the left needs, with the row box (and so the scroll extent) as long as before. The release is
 `setSlots(nearest)`, then `setDrawnWidth(null)`, then `setResizing(false)`: the first fixes what the panel is, the second lets it
 glide from the held width to that one (a snap under Reduce Motion, which also snaps the centring margin), and the third lifts the hold,
-so the row settles once onto its nearest stop while the width and margin glide. Ending the mark, or the panel leaving the row, drops a
-width still set. The left edge is not kept still by the library through the release glide: the strip's new centring and stop decide where
-the right edge comes to rest.
+so the row settles once onto a stop while the width and margin glide. Ending the mark, or the panel leaving the row, drops a
+width still set.
+
+The settle holds the edge `pin` named. When the mark begins the Workspace reads that panel's rect from the element, after its claim has
+stopped any scroll glide, so a centring margin still gliding or a panel drawn shrunk counts as drawn; the numbers can be ahead of it.
+The pin is latched while a width is drawn, because the host clears the width before it ends the mark. At the release the row lands on the
+stop nearest the scroll that puts the pinned edge back where it was read: the right edge for `'end'` (a grabber on the left), the left edge
+for `'start'`, one rule for both. With no width drawn, or a panel that is not in the row, it is the stop nearest the scroll it has, as
+before. The target needs numbers that carry the new slot count: when `setSlots` comes before the mark ends, as in the order above, they
+already do; when it comes in a later commit the settle waits for the commit in which the panel's width changes, and runs on the next
+frame at the latest if none does. The edge comes to rest on a stop, so it is held exactly only where a stop is at that scroll; otherwise it
+rests within half the gap between the two stops around it. Under 'visible' a pinned edge that was beyond the window (the panel was cut off) is not held: a stop that draws the widened panel smaller does not count, so the row lands on the nearest stop that draws it whole. A row whose panels all fit has no stops and nothing scrolls. Under 'visible', the stop number the fade
+and the steps use is the stop the row rests on.
 
 The container's horizontal overflow follows `tuning.rowGesture`: 'step' scrolls with the scrollbar hidden,
 'free' scrolls with it visible, 'off' hides the overflow. A row with no settings is always hidden.
@@ -1678,6 +1688,8 @@ loads) claims late; the boundary then takes the library frame back and the view 
 whether the `Panel` renders belongs outside the view. React.lazy resolves from its cache on that second mount and is unaffected.
 Under StrictMode the claim is made and given back by the same effect pair, so the verdict is the same. A panel that parks and
 returns keeps the verdict; it is not probed again.
+
+**Who gets the grab bar.** The frame follows `PanelRow`'s own rule: a panel that cannot be closed (`closable: false`, or not parkable) gets the header and the phone frame but no grab bar and no `DragToClose`, and a panel that cannot be dragged (`draggable: false`) keeps the grab bar and the drag-down close but not the reorder. The grab bar carries both gestures, so a panel with `closable: false` and `draggable: true` has no reorder handle in the default frame, as the root has none; a view that wants one draws its own `Panel` with `grabProps`.
 
 **Rejected.** (a) An outer frame that every view sits in, with the inner `Panel` hiding itself when it finds one: a `Panel` the view
 configures (`grabProps`, `overlay`, `headerProps`, `sx`, its rest props) would have to hand every one of those up to the outer
