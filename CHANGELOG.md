@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+### Breaking
+
+- The USB phone-detect prompt is gone, with nothing in its place. Removed from `phonux`: `PhoneDetectPrompt`,
+  `PhoneDetectPromptProps` and `DetectedPhone` (also from `phonux/testing`'s re-exports). Removed from
+  `PhoneDeviceAPI`: `detectedPhone`, `dismissDetectedPhone` and `resizeForDetectedPhone`, and from `createFakeHost`
+  their stubs. Removed from `PhonuxLabels`: `phoneConnected`, `phoneConnectedText`, `phoneModel`, `resize` and
+  `dismiss`, which only the prompt read. The phone size, `PHONE_MODELS`, `findPhoneModel` and `chooseModel` stay. A
+  host that rendered the prompt deletes it and its `detectedPhone` wiring.
+
 ### Changed
 
 - Licence: phonux is now PolyForm Noncommercial 1.0.0 (SPDX `PolyForm-Noncommercial-1.0.0`), free for personal and other
@@ -366,7 +375,7 @@
   - `computeRowOrder`, `deriveAnchorsFromOrder`, `summarisePanel` and `computeMaxLiveWidth`: `useProvidePanels`
     orders the row and builds `PanelSummary` values; `computeRowLayout` stays.
   - `CaptureRegistryContext`: mount `CaptureRegistryProvider` instead.
-  - `vendorLabelForUsbVendorId`: `PhoneDetectPrompt` renders the label; `PHONE_MODELS` and `findPhoneModel` stay.
+  - `vendorLabelForUsbVendorId`: it only worded the phone-detect prompt, which is gone too (see Breaking under Unreleased); `PHONE_MODELS` and `findPhoneModel` stay.
 - `SettingsAPI.maxPanelsOnScreen`, `fitCount`, `minPanelsOnScreen` and `setMaxPanelsOnScreen`, and
   `PanelsInput.storedMaxPanels` (also gone from `createFakeHost`). Breaking, and a design choice listed for
   review in Jojos-Creations/phonux#2. `SettingsAPI` keeps `settingsColumn`. The app passes nothing in place of

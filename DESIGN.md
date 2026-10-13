@@ -594,7 +594,7 @@ timing are in "Workspace state persistence: shape, ownership and timing" below.
 - **R1. Name by the hierarchy.** A `Panel` slot's own parts are named `Panel*`, what a developer writes is
   named `View*`, and the bag a `View` reaches the host through is named `Host*`.
 - **R2. Phone-only things keep "Phone".** A name keeps "Phone" when the thing it names is phone-specific no
-  matter how big its panel gets -- the phone-model catalog, USB phone detection, the phone size -- so the
+  matter how big its panel gets -- the phone-model catalog, the phone size -- so the
   prefix still means something once panels stop being phone-shaped.
 - **R3. Size-neutral names stay.** A name that already says nothing about phones is not renamed just because
   its folder is; renaming a name that was never phone-specific would buy nothing.
@@ -1597,7 +1597,7 @@ fails the check. A deprecated alias keeps `@deprecated` beside its tag. A tag ab
 Extractor reads only the declaration's own comment.
 `ViewStateProvider`, `PANEL_HEADER_GAP_PX`, `OverlayProvider`, `OverlayStore` (with its `Item` and `Entry`),
 `CaptureRegistryContext`, `PanelRowSlot`, `shouldCloseOnRelease` (with its `ReleaseMeasure`), `computeRowOrder`,
-`deriveAnchorsFromOrder`, `summarisePanel`, `computeMaxLiveWidth` and `vendorLabelForUsbVendorId` are exported
+`deriveAnchorsFromOrder`, `summarisePanel` and `computeMaxLiveWidth` are exported
 for this package's own files and tests but reached by no entry point, and are tagged `@internal` to say so.
 
 A public signature pins every type it names. Each one must be exported by the same entry point (otherwise
