@@ -244,13 +244,7 @@ export function PanelRow({
   const drawnEntry = drawnIndex < 0 ? undefined : present[drawnIndex];
   const mostSlots = drawnEntry === undefined ? 1 : Math.max(1, Math.min(effective(drawnEntry).maxSlots, fitSlots(maxLiveWidth, phoneWidth, gap)));
   const wanted = drawnNow !== null && drawnEntry !== undefined;
-  // A size box that has just been told it is held (its layoutDependency) must not also meet the first width in the same commit, or its layout
-  // animation, which starts a frame late even when instant, would hold the old size for that frame. The width lands in the pass the layout effect asks for.
-  const [primed, setPrimed] = React.useState(false);
-  React.useLayoutEffect(() => {
-    if (primed !== wanted) setPrimed(wanted);
-  }, [primed, wanted]);
-  const drawnPx = !wanted || !primed ? undefined : Math.min(slotWidth(mostSlots, phoneWidth, gap), Math.max(phoneWidth, drawnNow.px));
+  const drawnPx = !wanted ? undefined : Math.min(slotWidth(mostSlots, phoneWidth, gap), Math.max(phoneWidth, drawnNow.px));
   // How much wider the override draws the panel than its stored slots do (negative when narrower).
   const growth = drawnPx === undefined ? 0 : drawnPx - baseWidths[drawnIndex]!;
   const tracking = wanted;

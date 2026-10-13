@@ -442,9 +442,15 @@ neighbour widths a drag crosses. A view follows the same rule: pass `panel.size`
 
 The row's slot (`PanelRowSlot`) owns the enter/exit animation, so the resize never lives on the slot
 itself: Motion's docs warn against `layout` and `exit` on one element. It lives on an inner size box
-(`PanelSizeBox`) that the built-in web view renders inside its slot, under its drag box. That box is Motion
-`layout="size"`, a transform-based resize over the same 0.4 s transition the slots slide with; `"size"`
-because the slot's own `x` already animates position. It is the panel's own width and the row's own height,
+(`PanelSizeBox`) that the built-in web view renders inside its slot, under its drag box. That box takes its new
+size at once and draws it with a scale transform from the old size to 1, over the same 0.4 s transition the slots
+slide with, from the left edge because the slot's own `x` already animates position. It is not Motion's
+`layout="size"`: that animation starts in the frame after the commit while the slot's slide starts in the commit,
+so a commit that janks (the default frame's MUI render does) would draw the box and its neighbour from different
+moments. The box starts its scale in the commit's layout effect, and both it and the slot's slide are given that same
+commit's time as their `startTime` (`slideStart()`), because Motion otherwise starts a slide from the moment its
+keyframes resolve when that is over 40 ms after the commit; so a neighbour of a growing panel stays one gap from it
+at any frame rate. It is the panel's own width and the row's own height,
 so a `'fill'` view's percentage height resolves inside it. A column that is not collapsible (History, a
 permanent column) never changes tier and renders no size box. A third-party view may change tier too: its
 slot, position and the row's capacity follow, but its content snaps to the new size, since only the built-in
@@ -1658,6 +1664,15 @@ frame, and a prop missed is a view that changed. (b) An outer frame that is take
 would mount twice at launch, once inside a frame it does not want. The boundary instead leaves a self-framed view's tree as it was,
 and golden DOM recorded before the frame existed (test/golden/default-frame-self-framed.json) holds that, with mount and unmount
 counts of one and none.
+
+**Size.** The frame animates its size like a `PanelSizeBox` view: `DefaultFrame` draws one box (`SizeBox`) around the whole
+`Panel`, so the header and the grab bar above the phone frame, the frame and the footer inside it are all drawn at the box's
+scale and their edges stay on the frame's at every frame. The box is the panel's width and height (the device size for a phone,
+`panel.size` otherwise, `'100%'` of the row for a `'fill'` height); at rest it has no transform, so the frame's rect is what it was
+before the box existed. A box below another draws a plain `div` of the same size (`SizeBoxContext`), because two scales of one size
+would multiply, so a bare view that draws its own `PanelSizeBox` is unchanged. Nothing is eased from a size the box never had: a
+first mount, the frame drawn again after a late claim, a parked panel that returns and a snap (Reduce Motion, `animated: false`, a
+held width) all draw at the new size at once. Rejected: one box per part, which lets a part trail the frame by a frame.
 
 **Cost.** One setting: the catalog holds `frame` as NOW, instance scope, not view-settable. It is read from the slot on every
 render, so going from `'auto'` to `'none'` takes the library frame away and the view mounts again, and the other way draws it when
