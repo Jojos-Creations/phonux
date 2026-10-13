@@ -856,8 +856,8 @@ test('headerButtons row 1: removing the focused slot is NOW, the slot is gone in
   assert.deepEqual({ ...(res as Done) }, { ok: true, changed: true, shown: false, now: ['headerButtons'], later: [], shadowed: [], notes: [] });
   assert.equal(rig.m.renders() - renders, 1, 'one commit');
   assert.deepEqual(labels(rig, 'a'), ['Keep'], 'the slot is gone in that commit');
-  assert.deepEqual(focused(), { tag: 'DIV', tabindex: '-1', label: null });
-  assert.equal(document.activeElement === rig.row('a'), true, 'it is the panel\'s own header row');
+  assert.deepEqual(focused(), { tag: 'DIV', tabindex: '-1', label: rig.row('a')!.getAttribute('aria-label') });
+  assert.equal(document.activeElement === rig.row('a'), true, 'it is the panel\'s own header row, which is the toolbar and carries the title as its name');
   assert.equal(document.activeElement === document.body, false);
 });
 

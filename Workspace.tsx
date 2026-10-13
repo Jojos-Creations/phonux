@@ -7,13 +7,14 @@
 
 import * as React from 'react';
 import { type RefObject } from 'react';
-import { motion } from 'motion/react';
+import { motion, useReducedMotionConfig } from 'motion/react';
 import Box, { type BoxProps } from '@mui/material/Box';
 import { computeRowLayout } from './panelRowLayout.js';
 import { PANEL_TRANSITION } from './PanelRowSlot.js';
 import { slideToTransition } from './directionalTransition.js';
 import type { SlideTuning, WorkspaceTuning } from './panelSettings.js';
 import { WorkspaceTuningContext, resolveWorkspaceTuning } from './panelTuning.js';
+import { ChromeStoreContext, createChromeStore } from './panelChrome.js';
 import { ROW_GAP, ROW_GESTURE } from './rowConstants.js';
 import { fadeAt, type RowNumbers } from './rowNumbers.js';
 import { rowScrollerFor } from './rowScroller.js';
@@ -82,6 +83,26 @@ export function workspaceShellStyle(i: WorkspaceShellStyleInput): WorkspaceShell
   };
 }
 
+/** How long the container width must hold still before the row's margin glides again: `slides` slide durations. @internal */
+export function resizeSettleDelayMs(slide: SlideTuning, slides: number): number {
+  return Math.round(slide.durationSec * slides * 1000);
+}
+
+/**
+ * Whether `width` has held still for `delayMs`; true at once when `instant`. The width a timer last confirmed is state, so a
+ * width change reads unsettled in the very render that sees it.
+ * @internal
+ */
+export function useResizeSettled(width: number, delayMs: number, instant: boolean): boolean {
+  const [confirmed, setConfirmed] = React.useState(width);
+  React.useEffect(() => {
+    if (instant) return setConfirmed(width);
+    const timer = setTimeout(() => setConfirmed(width), delayMs);
+    return () => clearTimeout(timer);
+  }, [width, delayMs, instant]);
+  return instant || confirmed === width;
+}
+
 /** The props of `Workspace`: every `Box` prop except `children`, plus the row's refs and the host's measurements. @public */
 export interface WorkspaceProps extends Omit<BoxProps, 'children'> {
   /** Attach to the scroll container: the caller's ResizeObserver measures it. */
@@ -91,8 +112,12 @@ export interface WorkspaceProps extends Omit<BoxProps, 'children'> {
   rowRef: RefObject<HTMLDivElement | null>;
   /** The scroll container's measured width in px; 0 before the first measurement. */
   containerWidth: number;
-  /** Whether the container width has held still: the row's centring margin glides once it has, and snaps otherwise. */
-  rowResizeSettled: boolean;
+  /**
+   * Whether the container width has held still: the row's centring margin glides once it has, and snaps otherwise.
+   * Omitted: the Workspace decides, calling the width settled once it has held for `tuning.resizeSettleSlides` slide durations (1.25 by default)
+   * (`tuning.slide.durationSec`), and at once while animation is off (Reduce Motion).
+   */
+  rowResizeSettled?: boolean;
   /** The width in px every fixed column renders at. */
   phoneWidth: number;
   /** The number of always-present columns the row renders. */
@@ -121,9 +146,13 @@ export interface WorkspaceProps extends Omit<BoxProps, 'children'> {
  * @public
  */
 export function Workspace(props: WorkspaceProps): React.ReactElement {
-  const { overflowContainerRef, rowRef, containerWidth, rowResizeSettled, phoneWidth, fixedColumnCount, liveWidths, rowScroll, rowNumbers, topPadding, tuning, beforeRow, children, ...rest } = props;
+  const { overflowContainerRef, rowRef, containerWidth, rowResizeSettled: given, phoneWidth, fixedColumnCount, liveWidths, rowScroll, rowNumbers, topPadding, tuning, beforeRow, children, ...rest } = props;
   const resolved = React.useMemo(() => resolveWorkspaceTuning(tuning), [tuning]);
   const gap = resolved.rowGap;
+  const [chromeStore] = React.useState(createChromeStore);
+  const reduced = useReducedMotionConfig() === true;
+  const derived = useResizeSettled(containerWidth, resizeSettleDelayMs(resolved.slide, resolved.resizeSettleSlides), reduced);
+  const rowResizeSettled = given ?? derived;
   const scrolls = rowNumbers?.rowScroll ?? rowScroll ?? false;
   const style = workspaceShellStyle({ containerWidth, rowResizeSettled, phoneWidth, fixedColumnCount, liveWidths, gap, slide: resolved.slide, rowScroll, rowNumbers, rowGesture: resolved.rowGesture });
   // A row that stops scrolling must not keep the offset it had: the margin that centres it assumes the strip starts at 0.
@@ -132,7 +161,7 @@ export function Workspace(props: WorkspaceProps): React.ReactElement {
     if (scrolls || container === null || container.scrollLeft === 0) return;
     const scroller = rowScrollerFor(container);
     scroller.stop();
-    scroller.glideTo(0, { durationSec: 0, instant: true });
+    scroller.glideTo(0, { durationSec: 0, instant: true, ease: resolved.slide.glideEase });
   }, [scrolls, overflowContainerRef]);
   // `filter`, not `opacity`: the slot's own opacity belongs to its enter and exit animation. Written straight to the
   // element on every scroll event, since a state update per frame of a glide would re-render the whole row.
@@ -158,6 +187,7 @@ export function Workspace(props: WorkspaceProps): React.ReactElement {
   });
   return (
     <WorkspaceTuningContext.Provider value={resolved}>
+      <ChromeStoreContext.Provider value={chromeStore}>
       <Box
         ref={overflowContainerRef}
         {...rest}
@@ -196,6 +226,7 @@ export function Workspace(props: WorkspaceProps): React.ReactElement {
       </Box>
 
       <OverlaySlot name="toast" />
+      </ChromeStoreContext.Provider>
     </WorkspaceTuningContext.Provider>
   );
 }

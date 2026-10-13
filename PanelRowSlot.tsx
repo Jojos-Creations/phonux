@@ -70,7 +70,7 @@ export function panelRowSlotMotion(
   // park, off the edge it was hidden past, so a close never looks like a park.
   const exit: TargetAndTransition =
     exitDirection === 'down'
-      ? { x: rest, y: phoneHeight, opacity: 0, transition: animated ? { duration: slide.closeExitSeconds, ease: 'easeIn' } : INSTANT_TRANSITION }
+      ? { x: rest, y: phoneHeight, opacity: 0, transition: animated ? { duration: slide.closeExitSeconds, ease: slide.closeExitEase } : INSTANT_TRANSITION }
       : exitDirection === 'right'
         ? { x: rest + ownSpan, opacity: 0 }
         : { ...parkExitTarget(rest, ownSpan, 'left', rowScroll) };
@@ -151,6 +151,7 @@ export function PanelRowSlot({
   kept = false,
   rowScroll = false,
   previewing = false,
+  onActivate,
   dragged = false,
   children,
 }: {
@@ -184,6 +185,8 @@ export function PanelRowSlot({
   rowScroll?: boolean;
   /** True while a sideways drag previews the reorder: under Reduce Motion the slot's own moves then snap, since a preview-time slide carries no information. */
   previewing?: boolean;
+  /** Called when a press or focus lands anywhere inside the slot, a portaled descendant included (React capture handlers follow the React tree). */
+  onActivate?: () => void;
   /** True for the slot whose box is being dragged: its rest moving during the preview is the drop, which lands at once whatever the motion setting. */
   dragged?: boolean;
   /** The panel rendered inside the slot. */
@@ -194,6 +197,17 @@ export function PanelRowSlot({
   const reducedMotion = useReducedMotionConfig();
   // The drag box reads the system preference itself, so the neighbours that make room for it must too, whatever the app's MotionConfig says.
   const systemReduced = useReducedMotion();
+  // A press or key inside an iframe never reaches the page's own handlers; the page's window loses focus to the iframe element instead.
+  const activate = React.useRef(onActivate);
+  activate.current = onActivate;
+  React.useEffect(() => {
+    const onWindowBlur = (): void => {
+      const focused = document.activeElement;
+      if (focused instanceof HTMLIFrameElement && el.current?.contains(focused)) activate.current?.();
+    };
+    window.addEventListener('blur', onWindowBlur);
+    return () => window.removeEventListener('blur', onWindowBlur);
+  }, []);
   const ownSpan = width + (gap ?? ROW_GAP);
   const parkSide = exitDirection === 'right' ? 'right' : 'left';
   const slideTransition = animated && !reducedMotion ? transition : INSTANT_TRANSITION;
@@ -281,6 +295,8 @@ export function PanelRowSlot({
       inert={kept ? true : undefined}
       aria-hidden={hidden ? true : undefined}
       data-row-slot={leftOffset}
+      onPointerDownCapture={onActivate}
+      onFocusCapture={onActivate}
       style={{
         position: 'absolute',
         top: 0,

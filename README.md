@@ -57,6 +57,14 @@ function App({ host }) {
 }
 ```
 
+## Panel chrome
+
+`useActivePanel()` returns the active panel's id and a setter (a press or focus anywhere inside a panel makes it active);
+`usePanelActive()` and `usePanelDragging()` report one panel. `Panel` writes the same facts on its root box as
+`data-panel-active` and `data-panel-dragging`, and marks its header, grab bar and footer with `data-panel-chrome-part`
+(`header`, `grab-bar` or `footer`), so a host can style from them. `tuning.chrome` with `mode: 'hover-or-active'` fades
+those parts out for a panel nobody is using, along `fadeEase` (see DESIGN.md, "Panel chrome").
+
 ## Testing a view
 
 `phonux/testing` exports `createFakeHost()`: a recording fake of every host

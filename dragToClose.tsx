@@ -12,7 +12,7 @@ import { PanelSlotContext, type DragScroll } from './panelSlotContext.js';
 import { closestRowScroller, rowScrollerFor, type RowScroller, type ScrollClaim } from './rowScroller.js';
 import { stepTarget } from './scrollTargets.js';
 import type { DragToCloseTuning } from './panelSettings.js';
-import { DIRECTION_LOCK_PX, DRAG_CLOSE_NUMBERS, SLIDE_CLOSE_EXIT_SECONDS, SNAP_BACK_SPRING } from './rowConstants.js';
+import { CLOSE_EXIT_EASE, DIRECTION_LOCK_PX, DRAG_CLOSE_NUMBERS, DRAG_REST_MS, DRAG_VELOCITY_WINDOW_MS, SLIDE_CLOSE_EXIT_SECONDS, SNAP_BACK_SPRING } from './rowConstants.js';
 
 /** The tunables, in one place. Distances in px, velocities in px/s, positive = downward. @public */
 export const DRAG_CLOSE = {
@@ -39,6 +39,8 @@ const OUTSIDE_ROW_DRAG: DragToCloseTuning = {
   flickVelocity: DRAG_CLOSE.flickVelocity,
   cancelVelocity: DRAG_CLOSE.cancelVelocity,
   directionLockPx: DIRECTION_LOCK_PX,
+  restMs: DRAG_REST_MS,
+  velocityWindowMs: DRAG_VELOCITY_WINDOW_MS,
   snapBack: { stiffness: DRAG_CLOSE.snapBack.stiffness, damping: DRAG_CLOSE.snapBack.damping },
 };
 
@@ -169,7 +171,7 @@ function useEdgeScroll(box: React.RefObject<HTMLDivElement | null>, dragScroll: 
     if (slot !== undefined && slot.settleStops.length > 0) {
       const at = h.scroller.scrollLeft();
       const to = slot.settleStops.reduce((best, stop) => (Math.abs(stop - at) < Math.abs(best - at) ? stop : best));
-      if (Math.abs(to - at) >= 0.5) h.scroller.glideTo(to, { durationSec: slot.settleSec, instant: slot.instant || latest.current.reduceMotion });
+      if (Math.abs(to - at) >= 0.5) h.scroller.glideTo(to, { durationSec: slot.settleSec, instant: slot.instant || latest.current.reduceMotion, ease: slot.settleEase });
     }
     return distance;
   };
@@ -279,12 +281,6 @@ function peakSpeed(samples: ReadonlyArray<{ t: number; y: number }>): number {
 /** Samples closer together than this are one segment, so two events sharing a timestamp cannot make an infinite speed. */
 const SEGMENT_MIN_MS = 8;
 
-/** A pointer that lifts this long after its last move had stopped: no velocity, however fast it was going before. */
-const REST_MS = 50;
-
-/** How far back the release velocity looks, ms. */
-const VELOCITY_WINDOW_MS = 100;
-
 const INTERACTIVE = 'button, a, input, select, textarea, [role="button"]';
 
 /** The three properties a drag turns off on the document element; -webkit-user-select is what Safari reads. */
@@ -392,6 +388,7 @@ function DragToCloseBox({
   const drag = slot?.tuning.dragToClose ?? OUTSIDE_ROW_DRAG;
   const edge = useEdgeScroll(box, reorder === undefined ? undefined : slot?.dragScroll, reduceMotion === true, x, scrollX);
   const exitSeconds = slot?.tuning.slide.closeExitSeconds ?? SLIDE_CLOSE_EXIT_SECONDS;
+  const exitEase = slot?.tuning.slide.closeExitEase ?? CLOSE_EXIT_EASE;
   // Read again when the exit ends: a lock that lands mid-exit must stop the close.
   const closableRef = React.useRef(true);
   closableRef.current = slot?.closable ?? true;
@@ -424,6 +421,7 @@ function DragToCloseBox({
   };
   const unlockScrollParents = () => {
     for (const [el, previous] of locked.current.splice(0)) el.style.overflowY = previous;
+    slotRef.current?.setDragging?.(false);
   };
   // The cleanup leaves a running spring alone: React 19.2 re-runs it for a keyed child a reorder moves under StrictMode, and
   // Activity runs it on a hide; a stopped release spring leaves the box at its drag offset.
@@ -501,7 +499,7 @@ function DragToCloseBox({
         // Every move is a sample, stamped by the browser: a short flick is a few events, and a frame loop would see fewer.
         const kept = samples.current;
         kept.push({ t: event.timeStamp, y: clientY - pointer.current.downY });
-        while (kept.length > 2 && kept[0]!.t < event.timeStamp - VELOCITY_WINDOW_MS) kept.shift();
+        while (kept.length > 2 && kept[0]!.t < event.timeStamp - (slotRef.current?.tuning.dragToClose ?? OUTSIDE_ROW_DRAG).velocityWindowMs) kept.shift();
       }
     }
     if (event.type === 'pointermove') return latestMove.current();
@@ -547,6 +545,7 @@ function DragToCloseBox({
     if (Math.hypot(pointer.current.x - pointer.current.downX, pointer.current.y - pointer.current.downY) < drag.directionLockPx) return;
     engaged.current = true;
     axisLock.current = null;
+    slotRef.current?.setDragging?.(true);
     lockScrollParents();
     // A keep-alive step in Motion's own frame loop: the row scroll the edge loop adds is then drawn in
     // the frame that wrote it, not the one after, and the pointer offset is read once per frame.
@@ -598,12 +597,12 @@ function DragToCloseBox({
       const height = rect?.height ?? 0;
       const recent = samples.current;
       const last = recent[recent.length - 1];
-      const rested = released.current - (last?.t ?? 0) > REST_MS;
+      const rested = released.current - (last?.t ?? 0) > (slotRef.current?.tuning.dragToClose ?? OUTSIDE_ROW_DRAG).restMs;
       const velocityY = rested ? 0 : peakSpeed(recent);
       if (closeRef.current !== undefined && closableRef.current && shouldCloseOnRelease({ offsetY: Math.max(0, dy), velocityY, height }, drag)) {
         if (reduceMotion) return closeRef.current();
         const toBottom = Math.max(height, window.innerHeight - (rect?.top ?? 0));
-        const exit = animate(y, toBottom, { duration: exitSeconds, ease: 'easeIn' });
+        const exit = animate(y, toBottom, { duration: exitSeconds, ease: exitEase });
         running.current = exit;
         closing.current = true;
         void exit.then(() => {

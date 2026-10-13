@@ -180,11 +180,15 @@ export interface PhoneSize {
 export interface PhonuxLabels {
     dismiss: string;
     historyTitle: string;
+    lock: string;
     panelTitle: (id: string) => string;
     phoneConnected: string;
     phoneConnectedText: (vendor: string) => string;
     phoneModel: string;
+    pin: string;
     resize: string;
+    unlock: string;
+    unpin: string;
     untitledHeader: string;
     untitledPanel: string;
 }
