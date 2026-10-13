@@ -1679,6 +1679,8 @@ whether the `Panel` renders belongs outside the view. React.lazy resolves from i
 Under StrictMode the claim is made and given back by the same effect pair, so the verdict is the same. A panel that parks and
 returns keeps the verdict; it is not probed again.
 
+**Who gets the grab bar.** The frame follows `PanelRow`'s own rule: a panel that cannot be closed (`closable: false`, or not parkable) gets the header and the phone frame but no grab bar and no `DragToClose`, and a panel that cannot be dragged (`draggable: false`) keeps the grab bar and the drag-down close but not the reorder. The grab bar carries both gestures, so a panel with `closable: false` and `draggable: true` has no reorder handle in the default frame, as the root has none; a view that wants one draws its own `Panel` with `grabProps`.
+
 **Rejected.** (a) An outer frame that every view sits in, with the inner `Panel` hiding itself when it finds one: a `Panel` the view
 configures (`grabProps`, `overlay`, `headerProps`, `sx`, its rest props) would have to hand every one of those up to the outer
 frame, and a prop missed is a view that changed. (b) An outer frame that is taken away when a claim arrives: every self-framed view
