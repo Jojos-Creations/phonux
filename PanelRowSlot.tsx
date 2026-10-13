@@ -353,15 +353,29 @@ export function PanelSizeBox({
   /** The content, laid out at the new size at once. */
   children: React.ReactNode;
 }) {
+  return <SizeBox width={width} height={height}>{children}</SizeBox>;
+}
+
+/** True below a `SizeBox`: a box inside another is a plain div, because two layout animations of one size would multiply their scales. */
+const SizeBoxContext = React.createContext(false);
+
+/**
+ * `PanelSizeBox` with a height that may be the slot's own (`'100%'`, a panel that fills the row's height), which is the box the
+ * default frame draws around its whole panel. A box below another draws a plain div of the same size.
+ * @internal
+ */
+export function SizeBox({ width, height, children }: { width: number; height: number | '100%'; children: React.ReactNode }) {
   const slot = React.useContext(PanelSlotContext);
+  const nested = React.useContext(SizeBoxContext);
   const slide = slot?.tuning.slide;
   // The system preference is read too: a theme's MotionConfig may not carry it, and a resize must snap under Reduce Motion either way.
   const configReduced = useReducedMotionConfig() === true;
   const systemReduced = useReducedMotion() === true;
   const snaps = configReduced || systemReduced || slot?.animated === false || slot?.tracking === true;
+  if (nested) return <div data-panel-size-plain="" style={{ width, height }}>{children}</div>;
   return (
     <motion.div data-panel-size-box="" layout="size" layoutDependency={slot?.tracking === true ? 'held' : undefined} transition={snaps ? INSTANT_TRANSITION : slide === undefined ? PANEL_TRANSITION : slideToTransition(slide)} style={{ width, height }}>
-      {children}
+      <SizeBoxContext.Provider value>{children}</SizeBoxContext.Provider>
     </motion.div>
   );
 }
