@@ -36,6 +36,7 @@ const OWNER_IDS: readonly string[] = [
   'phonux-header-buttons',
   'phonux-max-live-panels',
   'phonux-slot-sizing-resizable-root-v3',
+  'phonux-shrink-by-slot-v4',
 ];
 
 const callOf = (name: string): string => ["differential('", name, "'"].join('');
@@ -57,9 +58,9 @@ function docClassWords(doc: string): Map<string, string> {
   return rows;
 }
 
-test('release gate: the catalog has 68 descriptors and the DESIGN.md table has 68 rows', () => {
-  assert.equal(PANEL_SETTINGS_CATALOG.length, 68);
-  assert.equal(docClassWords(DESIGN).size, 68);
+test('release gate: the catalog has 69 descriptors and the DESIGN.md table has 69 rows', () => {
+  assert.equal(PANEL_SETTINGS_CATALOG.length, 69);
+  assert.equal(docClassWords(DESIGN).size, 69);
 });
 
 for (const d of PANEL_SETTINGS_CATALOG) {
@@ -72,8 +73,8 @@ for (const d of PANEL_SETTINGS_CATALOG) {
   });
 }
 
-test('release gate: the owners are exactly the 15 listed ids', () => {
-  assert.equal(OWNER_IDS.length, 15);
+test('release gate: the owners are exactly the 16 listed ids', () => {
+  assert.equal(OWNER_IDS.length, 16);
   assert.deepEqual([...new Set(PANEL_SETTINGS_CATALOG.map((d) => d.ownerEntry))].sort(), [...OWNER_IDS].sort());
 });
 

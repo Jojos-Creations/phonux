@@ -4,6 +4,10 @@
 
 ### Added
 
+- Shrinking out of view: workspace tuning `shrinkOutOfView` (`'off'` default, `'visible'`, `'hidden'`) narrows panels as a stepping
+  row scrolls away from them. `'visible'` takes one slot per panel between a panel and the nearest one in view, never below
+  one slot; `'hidden'` draws a panel at one slot once none of it is in view. A person's `slots` is never changed, and
+  `PanelSummary.drawnSlots` reports the drawn count. `RowNumbers` gains `drawnSlots`, `shrinkStop` and `stopTargets`.
 - Slot sizing: a panel is n whole slots wide, a slot being one phone width with the row gap between slots, and a little taller
   for each slot past the first. New per-panel settings `slots` (the choice; `formFactor` becomes its view: 1 phone, 2 tablet,
   3 or more desktop) and `maxSlots`; new workspace tuning `heightPerSlot` (default 48 px, held to the height the row has)

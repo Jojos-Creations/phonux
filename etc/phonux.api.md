@@ -82,7 +82,11 @@ export function computeRowNumbers(i: {
     gap: number;
     fixedItemCount?: number;
     wholePanels?: boolean;
-}): RowNumbers;
+    shrink?: {
+        mode: 'visible' | 'hidden';
+        stop: number;
+    };
+}, targets?: boolean): RowNumbers;
 
 // @public
 export type ConfigureResult = {
@@ -950,6 +954,7 @@ export type ResolvedWorkspaceTuning = ResolvedPanelTuning & {
     maxLivePanels: number | null;
     heightPerSlot: number;
     rowAlign: 'top' | 'center' | 'bottom';
+    shrinkOutOfView: 'off' | 'visible' | 'hidden';
 };
 
 // @public
@@ -991,6 +996,7 @@ export interface RowLayoutResult {
 
 // @public
 export interface RowNumbers {
+    drawnSlots: readonly (number | undefined)[];
     endPad: number;
     ids: readonly string[];
     leftOffsets: readonly number[];
@@ -999,11 +1005,13 @@ export interface RowNumbers {
     reservedWidths: readonly number[];
     rowMarginLeft: number;
     rowScroll: boolean;
+    shrinkStop: number;
     stops: readonly number[];
     stopSpans: readonly {
         first: number;
         end: number;
     }[];
+    stopTargets: readonly number[];
     stripWidth: number;
     widths: readonly number[];
     windowWidth: number;
@@ -1409,6 +1417,7 @@ export type WorkspaceTuning = PanelTuning & {
     maxLivePanels?: number | null;
     heightPerSlot?: number;
     rowAlign?: 'top' | 'center' | 'bottom';
+    shrinkOutOfView?: 'off' | 'visible' | 'hidden';
 };
 
 // (No @packageDocumentation comment for this package)

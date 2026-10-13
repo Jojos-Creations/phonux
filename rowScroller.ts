@@ -30,6 +30,15 @@ export interface RowScroller {
   claim(): ScrollClaim | null;
   /** True while a claim is held. Asked instead of probing with `claim()`, which would end a glide in flight. */
   claimHeld(): boolean;
+  /**
+   * The index of the stop the row rests at or is gliding to. Set by whoever starts a scroll to a stop and never read back
+   * from `scrollLeft`, which mid-glide is nowhere in particular. 0 until set.
+   */
+  stopIndex(): number;
+  /** Records the stop the row is heading to and wakes the listeners when it changed. */
+  setStopIndex(index: number): void;
+  /** Calls `listener` after `setStopIndex` changes the stop; returns the unsubscribe. */
+  subscribeStop(listener: () => void): () => void;
 }
 
 // A scroll event this far from the last value written is somebody else's; browsers round a fractional write.
@@ -64,6 +73,8 @@ function createRowScroller(el: HTMLElement): RowScroller {
   let frame: number | null = null;
   // Read back after every own write: the browser rounds and clamps, and the scroll event it fires later reports that value.
   let lastWritten = el.scrollLeft;
+  let stopIndex = 0;
+  const stopListeners = new Set<() => void>();
 
   const write = (left: number): void => {
     el.scrollLeft = left;
@@ -118,6 +129,16 @@ function createRowScroller(el: HTMLElement): RowScroller {
     },
     glideTarget: () => (glide === null ? null : glide.to),
     claimHeld: () => claimed,
+    stopIndex: () => stopIndex,
+    setStopIndex(index) {
+      if (index === stopIndex) return;
+      stopIndex = index;
+      for (const listener of [...stopListeners]) listener();
+    },
+    subscribeStop(listener) {
+      stopListeners.add(listener);
+      return () => void stopListeners.delete(listener);
+    },
     stop,
     claim() {
       if (claimed) return null;

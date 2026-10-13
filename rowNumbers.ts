@@ -5,7 +5,8 @@
  */
 import { computeMaxLiveWidth, computeRowLayout } from './panelRowLayout.js';
 import { isPresent, type PanelRowEntry } from './panelRowEntry.js';
-import { panelWidthOf } from './panelTiers.js';
+import { drawnSlotsOf, panelWidthOf } from './panelTiers.js';
+import { slotWidth } from './rowConstants.js';
 import { parksForRoom } from './panelWindow.js';
 
 /** What `computeRowNumbers` returns: one row's measurements, derived from its entries and never stored. @public */
@@ -39,6 +40,19 @@ export interface RowNumbers {
   stopSpans: readonly { first: number; end: number }[];
   /** Room after the strip so the last stop can leave an even margin at both edges; 0 when there are no stops. */
   endPad: number;
+  /**
+   * The slots each drawn entry is drawn at, in the order of `ids`: its chosen count capped at what fits, less what the
+   * shrink rule takes at the current stop. `undefined` for an entry that carries no slots, which the rule never touches.
+   */
+  drawnSlots: readonly (number | undefined)[];
+  /**
+   * For each stop, the `scrollLeft` it has once the row rests there: the shrink rule changes how wide the panels before it
+   * are, so this is the stop's position in the layout drawn AT that stop, which is where a scroll to it must end. Equal to
+   * `stops` when the shrink rule is off.
+   */
+  stopTargets: readonly number[];
+  /** The index into `stops` the shrink rule read, or -1 when it did not apply (mode 'off', no stops, a free or non-scrolling row). */
+  shrinkStop: number;
 }
 
 /**
@@ -60,7 +74,12 @@ export function computeRowNumbers(i: {
   fixedItemCount?: number;
   /** True for a row whose gesture is 'step': the window then shows only whole panels, at the stops. Default false. */
   wholePanels?: boolean;
-}): RowNumbers {
+  /**
+   * The shrink rule for a stepping row: `stop` is the row's logical stop index (a stop of the chosen-width layout, which
+   * does not change with the shrink). Omitted, or in a row with no stops: every entry is drawn at its chosen slots.
+   */
+  shrink?: { mode: 'visible' | 'hidden'; stop: number };
+}, targets = true): RowNumbers {
   const present = i.entries.filter(isPresent);
   // Reads the settings the entry carries, never effective(): a hand-built fixed History reads 'scroll' under effective()
   // and would turn every hand-built row into a scrolling one.
@@ -69,18 +88,40 @@ export function computeRowNumbers(i: {
   const windowWidth = measured ? Math.max(0, i.containerWidth - 2 * i.gap) : Number.POSITIVE_INFINITY;
   const fixedItemCount = i.fixedItemCount ?? present.filter((p) => !p.collapsible).length;
   const maxLiveWidth = rowScroll ? Math.max(i.phoneWidth, windowWidth) : computeMaxLiveWidth({ containerWidth: i.containerWidth, phoneWidth: i.phoneWidth, gap: i.gap, fixedItemCount });
-  const widths = present.map((p) => panelWidthOf(p, i.phoneWidth, maxLiveWidth, i.gap));
+  const chosenWidths = present.map((p) => panelWidthOf(p, i.phoneWidth, maxLiveWidth, i.gap));
+  let widths = chosenWidths;
   const parks = present.map((p) => parksForRoom(p));
-  const parkLiveWidths = widths.filter((_, k) => parks[k]);
-  const reservedWidths = widths.filter((_, k) => !parks[k]);
-  const stripWidth = widths.length === 0 ? 0 : widths.reduce((sum, width) => sum + width, 0) + (widths.length - 1) * i.gap;
-  const leftOffsets: number[] = [];
-  let running = 0;
-  for (const width of widths) {
-    leftOffsets.push(running);
-    running += width + i.gap;
+  // Capacity prices the chosen widths: a panel that is narrowed for being out of view still holds its place.
+  const parkLiveWidths = chosenWidths.filter((_, k) => parks[k]);
+  const reservedWidths = chosenWidths.filter((_, k) => !parks[k]);
+  const offsetsOf = (ws: readonly number[]): number[] => {
+    const out: number[] = [];
+    let at = 0;
+    for (const width of ws) {
+      out.push(at);
+      at += width + i.gap;
+    }
+    return out;
+  };
+  const stripOf = (ws: readonly number[]): number => (ws.length === 0 ? 0 : ws.reduce((sum, width) => sum + width, 0) + (ws.length - 1) * i.gap);
+  const chosenStrip = stripOf(chosenWidths);
+  // The stops, their groups and their margins come from the chosen widths alone, so scrolling never changes how many there are.
+  const whole = i.wholePanels === true && rowScroll && measured && chosenStrip > windowWidth ? wholePanelStops(chosenWidths, i.gap, windowWidth) : null;
+  const drawnSlots: (number | undefined)[] = present.map((p) => drawnSlotsOf(p, i.phoneWidth, maxLiveWidth, i.gap));
+  let shrinkStop = -1;
+  if (whole !== null && i.shrink !== undefined) {
+    shrinkStop = Math.min(whole.margins.length - 1, Math.max(0, Math.round(i.shrink.stop)));
+    const steps = stepsOutside(chosenWidths, whole.margins, shrinkStop, whole.starts, i.gap, windowWidth);
+    widths = chosenWidths.map((w, k) => {
+      const chosen = drawnSlots[k];
+      if (chosen === undefined) return w;
+      const drawn = steps[k] === 0 ? chosen : i.shrink!.mode === 'hidden' ? 1 : Math.max(1, chosen - steps[k]!);
+      drawnSlots[k] = drawn;
+      return slotWidth(drawn, i.phoneWidth, i.gap);
+    });
   }
-  const whole = i.wholePanels === true && rowScroll && measured && stripWidth > windowWidth ? wholePanelStops(widths, i.gap, windowWidth) : null;
+  const stripWidth = stripOf(widths);
+  const leftOffsets = offsetsOf(widths);
   let rowMarginLeft: number;
   if (whole !== null) {
     rowMarginLeft = whole.margins[0]!;
@@ -92,25 +133,57 @@ export function computeRowNumbers(i: {
   const stops = whole === null ? [] : whole.margins.map((margin, k) => rowMarginLeft + leftOffsets[k]! - margin);
   const stopSpans = whole === null ? [] : whole.ends.map((end, first) => ({ first, end }));
   const endPad = whole === null ? 0 : whole.margins[whole.margins.length - 1]!;
-  return { rowScroll, windowWidth, stripWidth, rowMarginLeft, ids: present.map((p) => p.id), widths, leftOffsets, maxLiveWidth, reservedWidths, parkLiveWidths, stops, stopSpans, endPad };
+  const stopTargets = shrinkStop < 0 || !targets ? stops : stops.map((_, k) => computeRowNumbers({ ...i, shrink: { mode: i.shrink!.mode, stop: k } }, false).stops[k]!);
+  return { rowScroll, windowWidth, stripWidth, rowMarginLeft, ids: present.map((p) => p.id), widths, leftOffsets, maxLiveWidth, reservedWidths, parkLiveWidths, stops, stopSpans, endPad, drawnSlots, shrinkStop, stopTargets };
 }
 
 /**
  * Per start panel, the end of the whole panels that fit the window from it (at least one) and the even margin left over,
  * for every start up to the first one from which everything remaining fits: a later stop would only add blank room.
  */
-function wholePanelStops(widths: readonly number[], gap: number, windowWidth: number): { ends: number[]; margins: number[] } {
+function wholePanelStops(widths: readonly number[], gap: number, windowWidth: number): { ends: number[]; margins: number[]; starts: number[] } {
   const ends: number[] = [];
+  const starts: number[] = [];
   const margins: number[] = [];
   for (let first = 0; first < widths.length; first++) {
     let used = widths[first]!;
     let end = first + 1;
     while (end < widths.length && used + gap + widths[end]! <= windowWidth) used += gap + widths[end++]!;
+    starts.push(first);
     ends.push(end);
     margins.push(Math.max(0, (windowWidth - used) / 2));
     if (end === widths.length) break;
   }
-  return { ends, margins };
+  return { ends, margins, starts };
+}
+
+// A neighbour counts as in view when more than this many px of it are inside the container, so float noise in an even margin
+// of 0 cannot make a panel peek.
+const PEEK_EPS = 1e-6;
+
+/**
+ * For each panel, how many panels lie between it and the nearest panel in view at stop `stop`, read from the chosen
+ * widths. In view means more than 0 px of the panel lies inside the container, margins and the gap beside the strip
+ * included, so the stop's own panels and any neighbour that shows in a margin are 0 steps and a panel past them is 1.
+ */
+function stepsOutside(widths: readonly number[], margins: readonly number[], stop: number, starts: readonly number[], gap: number, windowWidth: number): number[] {
+  const offsets: number[] = [];
+  let at = 0;
+  for (const width of widths) {
+    offsets.push(at);
+    at += width + gap;
+  }
+  // The strip begins one gap in from the container's edge, after the first margin.
+  const stripLeft = gap + margins[0]!;
+  const scrollLeft = margins[0]! + offsets[starts[stop]!]! - margins[stop]!;
+  const containerWidth = windowWidth + 2 * gap;
+  const inView = widths.map((width, k) => {
+    const left = stripLeft + offsets[k]!;
+    return Math.min(left + width, scrollLeft + containerWidth) - Math.max(left, scrollLeft) > PEEK_EPS;
+  });
+  const first = inView.indexOf(true);
+  const last = inView.lastIndexOf(true);
+  return widths.map((_, k) => (first < 0 ? 0 : k < first ? first - k : k > last ? k - last : 0));
 }
 
 /**

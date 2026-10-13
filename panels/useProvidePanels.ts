@@ -20,6 +20,7 @@ import { PanelManagerError } from '../panelManagerError.js';
 import { applyConfigure } from '../panelConfigure.js';
 import { accepted, refused, type ConfigureResult, type PanelOpSource, type PanelResult } from '../panelManager.js';
 import { decidePinChange, type PinChange, type PinStatus } from '../panelPin.js';
+import type { GlideEase } from '../panelSettings.js';
 import { LIBRARY_TUNING_DEFAULTS, applyTemplate, effective, panelKey, resolvePanelSettings } from '../panelSettings.js';
 import type { PanelSettings, PanelSettingsResolution, ResolvedPanelSettings, ResolvedWorkspaceTuning, ScrollAlign, SettingNote, WorkspaceTuning } from '../panelSettings.js';
 import type { PanelTemplate } from '../panelTemplate.js';
@@ -303,7 +304,25 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
   };
   const fixedViewCount = i.fixedViewCount ?? panels.filter((p) => !p.collapsible && p.marker !== true).length;
   // Filters over the whole list, never an array position: a panel anchored left of History changes none of these.
-  const rowNumbers = computeRowNumbers({ entries: panels, phoneWidth: i.phoneWidth, containerWidth: i.containerWidth, gap: tuning.rowGap, fixedItemCount: fixedViewCount, wholePanels: tuning.rowGesture === 'step' });
+  // The stop the row rests at or glides to, kept by the row's scroller: the shrink rule reads it, never scrollLeft, which mid-glide is nowhere in particular.
+  const [stopIndex, setStopIndexState] = useState(0);
+  useLayoutEffect(() => {
+    const el = i.overflowContainerRef.current;
+    if (el === null) return undefined;
+    const scroller = rowScrollerFor(el);
+    setStopIndexState(scroller.stopIndex());
+    return scroller.subscribeStop(() => setStopIndexState(scroller.stopIndex()));
+  }, []);
+  const shrinkMode = tuning.rowGesture === 'step' ? tuning.shrinkOutOfView : 'off';
+  const rowNumbers = computeRowNumbers({
+    entries: panels,
+    phoneWidth: i.phoneWidth,
+    containerWidth: i.containerWidth,
+    gap: tuning.rowGap,
+    fixedItemCount: fixedViewCount,
+    wholePanels: tuning.rowGesture === 'step',
+    ...(shrinkMode === 'off' ? {} : { shrink: { mode: shrinkMode, stop: stopIndex } }),
+  });
   const { maxLiveWidth } = rowNumbers;
   const liveWidths = panels.filter((p) => p.collapsible && p.live).map((p) => panelWidthOf(p, i.phoneWidth, maxLiveWidth, tuning.rowGap));
   const reducedMotion = useReducedMotionConfig() === true;
@@ -356,6 +375,18 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
       align,
     });
     return snapToStop(rowNumbers, k, raw);
+  };
+  /**
+   * Scrolls to `to`. When the row shrinks panels out of view and `to` is one of its stops, the row heads for that stop: it is
+   * recorded as the current one and the glide ends where the stop lies once the panels have taken the sizes they have there.
+   * `to` is a stop of this commit's layout, or with `fromTargets` a stop's resting position in the layout drawn at it.
+   */
+  const glideToPosition = (scroller: ReturnType<typeof rowScrollerFor>, to: number, o: { durationSec: number; instant: boolean; ease: GlideEase }, fromTargets = false): boolean => {
+    const k = shrinkMode === 'off' ? -1 : (fromTargets ? rowNumbers.stopTargets : rowNumbers.stops).findIndex((stop) => Math.abs(stop - to) < 0.5);
+    if (k < 0) return scroller.glideTo(to, o);
+    if (scroller.claimHeld()) return false;
+    scroller.setStopIndex(k);
+    return scroller.glideTo(rowNumbers.stopTargets[k]!, o);
   };
   /** Whether a scroll to `align` would move the container: false when it is already there or the row has nothing to scroll. */
   const wouldScroll = (id: string, align: ScrollAlign): boolean => {
@@ -412,7 +443,9 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
     if (el === null) return;
     const scroller = rowScrollerFor(el);
     if (scroller.claimHeld()) return;
-    const maxScroll = maxScrollOf(rowNumbers);
+    // A step toward a stop lands where that stop lies once the panels have their sizes there, which this layout's strip may not reach.
+    const shrinking = rowNumbers.shrinkStop >= 0;
+    const maxScroll = shrinking ? Math.max(maxScrollOf(rowNumbers), ...rowNumbers.stopTargets) : maxScrollOf(rowNumbers);
     if (!rowNumbers.rowScroll || maxScroll <= 0) {
       scrollRow(direction);
       return;
@@ -430,12 +463,12 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
       maxScroll,
       liveStarts: rowNumbers.leftOffsets.map((offset) => rowNumbers.rowMarginLeft + offset),
       liveWidths: rowNumbers.widths,
-      stops: rowNumbers.stops,
+      stops: shrinking ? rowNumbers.stopTargets : rowNumbers.stops,
       gap: tuning.rowGap,
       hidden,
     });
     if (step.kind === 'show') activatePanel(step.id);
-    else if (step.kind === 'scroll') scroller.glideTo(step.to, { durationSec: tuning.slide.durationSec, instant: reducedMotion, ease: tuning.slide.glideEase });
+    else if (step.kind === 'scroll') glideToPosition(scroller, step.to, { durationSec: tuning.slide.durationSec, instant: reducedMotion, ease: tuning.slide.glideEase }, true);
   };
 
   // The window, a pin, a close or a reorder moves the stops: a row left between two is brought to the nearest one.
@@ -446,7 +479,9 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
     const scroller = rowScrollerFor(el);
     if (scroller.claimHeld()) return;
     const base = scroller.glideTarget() ?? scroller.scrollLeft();
-    const to = nearestStop(rowNumbers, base);
+    // With the shrink rule the stop is the logical one, clamped to the stops that exist: the panels before it changed size, so the nearest stop to where the row stood is no guide.
+    if (rowNumbers.shrinkStop >= 0) scroller.setStopIndex(rowNumbers.shrinkStop);
+    const to = rowNumbers.shrinkStop >= 0 ? rowNumbers.stops[rowNumbers.shrinkStop]! : nearestStop(rowNumbers, base);
     if (Math.abs(to - base) < 0.5) return;
     scroller.glideTo(to, { durationSec: tuning.slide.durationSec, instant: reducedMotion, ease: tuning.slide.glideEase });
   }, [rowNumbers.stops.join(','), rowNumbers.rowMarginLeft, rowNumbers.endPad]);
@@ -567,7 +602,7 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
         to = snapToStop(rowNumbers, k, scrollTargetFor({ left, width: rowNumbers.widths[k]!, scrollLeft: 0, clientWidth: windowOf(el), maxScroll, gap: tuning.rowGap, align: 'start' }));
       }
     }
-    if (to !== 0) scroller.glideTo(to, { durationSec: 0, instant: true, ease: tuning.slide.glideEase });
+    if (to !== 0) glideToPosition(scroller, to, { durationSec: 0, instant: true, ease: tuning.slide.glideEase });
   });
 
   // Runs the pending request against this commit's numbers: the target margin is the one about to be drawn.
@@ -611,7 +646,7 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
       }),
     );
     if (Math.abs(to - scroller.scrollLeft()) < 0.5) return;
-    if (!scroller.glideTo(to, { durationSec: tuning.slide.durationSec, instant: reducedMotion || !settings.animated, ease: tuning.slide.glideEase })) {
+    if (!glideToPosition(scroller, to, { durationSec: tuning.slide.durationSec, instant: reducedMotion || !settings.animated, ease: tuning.slide.glideEase })) {
       scrollNote('scroll-dropped-during-drag', request.id, `A scroll to panel ${request.id} was dropped: a drag holds the row.`);
     }
   });

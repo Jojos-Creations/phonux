@@ -32,6 +32,7 @@ import {
   INITIAL_SCROLL,
   RETURN_TIE_BREAK,
   ROW_ALIGN,
+  SHRINK_OUT_OF_VIEW,
   ROW_GAP,
   ROW_GESTURE,
   SAVE_QUIET_MS,
@@ -395,6 +396,11 @@ export type WorkspaceTuning = PanelTuning & {
   heightPerSlot?: number;
   /** Where a panel shorter than the row sits in it: 'top', 'center' or 'bottom'. */
   rowAlign?: 'top' | 'center' | 'bottom';
+  /**
+   * Whether a panel narrows as a stepping row scrolls away from it: 'off', 'visible' (one slot narrower per panel between
+   * it and the nearest panel in view, never below one slot) or 'hidden' (to one slot once none of it is in view).
+   */
+  shrinkOutOfView?: 'off' | 'visible' | 'hidden';
 };
 
 /** The per-panel tuning leaves after resolving, every one present. @public */
@@ -435,6 +441,8 @@ export type ResolvedWorkspaceTuning = ResolvedPanelTuning & {
   heightPerSlot: number;
   /** Where a panel shorter than the row sits in it. */
   rowAlign: 'top' | 'center' | 'bottom';
+  /** Whether panels narrow as the row scrolls away from them. */
+  shrinkOutOfView: 'off' | 'visible' | 'hidden';
 };
 
 /** Deeply frozen; every key is present after a resolve except `title`. @public */
@@ -1373,6 +1381,17 @@ const CATALOG_ROWS: readonly SettingDescriptor[] = [
     ownerEntry: 'phonux-slot-sizing-resizable-root-v3',
     configure: { cls: 'NOW', doors: ['tuning'] },
   },
+  {
+    name: 'tuning.shrinkOutOfView',
+    group: 'tuning',
+    values: 'off, visible, hidden (workspace only)',
+    default: 'off (SHRINK_OUT_OF_VIEW)',
+    scope: 'workspace',
+    viewSettable: false,
+    exists: 'new',
+    ownerEntry: 'phonux-shrink-by-slot-v4',
+    configure: { cls: 'NOW', doors: ['tuning'] },
+  },
 ];
 
 /**
@@ -1485,6 +1504,7 @@ export const LIBRARY_TUNING_DEFAULTS: ResolvedWorkspaceTuning = freezeClone({
   maxLivePanels: null,
   heightPerSlot: HEIGHT_PER_SLOT,
   rowAlign: ROW_ALIGN as ResolvedWorkspaceTuning['rowAlign'],
+  shrinkOutOfView: SHRINK_OUT_OF_VIEW as ResolvedWorkspaceTuning['shrinkOutOfView'],
 });
 
 // ---------------------------------------------------------------------------
@@ -1744,7 +1764,7 @@ const TUNING_MEMBER_CHECKS: Record<'dragToClose' | 'slide' | 'edgeScroll' | 'chr
   },
 };
 
-const TUNING_SCALAR_CHECKS: Record<'hopFraction' | 'rowGap' | 'saveQuietMs' | 'gestureLockMs' | 'gestureQuietMs' | 'returnTieBreak' | 'dropTieBreak' | 'rowGesture' | 'initialScroll' | 'maxLivePanels' | 'heightPerSlot' | 'rowAlign', Check> = {
+const TUNING_SCALAR_CHECKS: Record<'hopFraction' | 'rowGap' | 'saveQuietMs' | 'gestureLockMs' | 'gestureQuietMs' | 'returnTieBreak' | 'dropTieBreak' | 'rowGesture' | 'initialScroll' | 'maxLivePanels' | 'heightPerSlot' | 'rowAlign' | 'shrinkOutOfView', Check> = {
   hopFraction: num(0, 1, { minOpen: true }),
   rowGap: integer(0, 200),
   saveQuietMs: integer(0),
@@ -1761,6 +1781,7 @@ const TUNING_SCALAR_CHECKS: Record<'hopFraction' | 'rowGap' | 'saveQuietMs' | 'g
   maxLivePanels: (v) => (v === null ? undefined : integer(1)(v)),
   heightPerSlot: integer(0, 2000),
   rowAlign: oneOf('top', 'center', 'bottom'),
+  shrinkOutOfView: oneOf('off', 'visible', 'hidden'),
 };
 
 const isObjectLeaf = (leaf: string): leaf is keyof typeof TUNING_MEMBER_CHECKS => Object.hasOwn(TUNING_MEMBER_CHECKS, leaf);

@@ -448,6 +448,17 @@ when the app says so, and a pinned panel may be); otherwise they are forced to o
 default never unlocks a fixed column. A fixed column wider than a phone is priced into the capacity like any scroll panel.
 A `resizable: true` beside `maxSlots` 1 resolves, but notes `resizable-capped` (it cannot grow).
 
+### Shrinking out of view
+
+`tuning.shrinkOutOfView` is `'off'` (the library default), `'visible'` or `'hidden'`, and applies only to a scrolling row whose `rowGesture` is `'step'` and whose strip does not fit the window; elsewhere every panel is drawn at its slots. The row remembers one logical stop: the index into its stops that a step, a scroll to a panel, a History click or the settle after a drag set. It is never re-derived from `scrollLeft`, which mid-glide is nowhere in particular.
+
+The stops, their groups and their margins are computed from the chosen widths alone (a panel's `slots`, capped by `maxSlots` and by what fits), so there are as many stops, with the same groups and margins, whatever is shrunk. A panel is in view at a stop when more than 0 px of it lies inside the container at the chosen widths, margins and the gap beside the strip included: the stop's own panels, and a neighbour that shows in a margin (a margin of 0 shows none, 1 px shows one). A panel out of view is `steps` panels from the nearest in-view one, counted in panels and not stops, so the first panel past them is 1. Parked panels are not in the row and do not count; History and a pinned panel follow the same rule, and so does the active one, which keeps focus.
+
+- `'visible'`: drawn slots = `max(1, min(slots, maxSlots, fit) - steps)`. The cap comes first, so a panel stored as every slot that fits (`ALL_SLOTS`) narrows at once.
+- `'hidden'`: a panel in view keeps its chosen slots and one out of view is drawn at one slot. It reads the same in-view test as `'visible'`, so a neighbour that peeks into a margin never drops.
+
+`slots` is the person's choice and the rule never writes it; `PanelSummary.drawnSlots` and `size` report the drawn count. Height follows the drawn slots through `heightPerSlot`. A scroll to a stop ends where that stop lies in the layout drawn at it (`RowNumbers.stopTargets`), so the glide goes to the final layout; the view inside a panel lays out at its final width only, because the slot snaps its width and `PanelSizeBox` animates the visible change. Reduce Motion snaps.
+
 ## `params` is opaque and JSON-serializable by construction
 
 `PanelSummary.params`/`PanelsAPI.create({ params })` carry per-component data the registry and the row never
@@ -1396,6 +1407,7 @@ flip with a transition rule of its own) or SCOPE (a template-scope key).
 | `tuning.maxLivePanels` | integer >= 1, or null for no cap (workspace only) | null (no cap) | NOW (configureTuning only). A lower value parks the excess unpinned panels at this commit through the reconcile effect; a higher one or null returns none under `capacityReturn` manual and the most recently parked under auto. Unmeasured: applies. Outside integers of 1 or more throws; null removes the cap. Session-only. |
 | `tuning.heightPerSlot` | integer 0 to 2000, px added per slot beyond the first (workspace only) | 48 (HEIGHT_PER_SLOT) | NOW (configureTuning only). A panel is taller by this much for each slot it is wider than one, up to the room the row has; the row is as tall as its tallest panel. Unmeasured height: every panel stays at the phone height. Outside 0-2000 throws. |
 | `tuning.rowAlign` | top, center, bottom (workspace only) | center (ROW_ALIGN) | NOW (configureTuning only). Where a panel shorter than the row sits in it. Other values throw. |
+| `tuning.shrinkOutOfView` | off, visible, hidden (workspace only) | off (SHRINK_OUT_OF_VIEW) | NOW (configureTuning only). Whether panels narrow as a stepping row scrolls away from them; see "Shrinking out of view". Other values throw. |
 <!-- catalog:end -->
 
 ## Placement, the root marker, key-aware undo and motion

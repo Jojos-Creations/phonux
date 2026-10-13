@@ -28,6 +28,8 @@ export interface DragScroll {
   readonly stops: readonly number[];
   /** The whole-panel stops a released drag settles on; empty when the row has none, so a release leaves the scroll where the drag put it. */
   readonly settleStops: readonly number[];
+  /** Where each settle stop rests once the row is there, when that differs from the stop itself because panels narrow out of view; same order. Omitted: the stops. */
+  readonly settleTargets?: readonly number[];
   /** Seconds a released drag takes to glide to the nearest settle stop. */
   readonly settleSec: number;
   /** The curve that glide travels along. */
