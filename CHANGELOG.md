@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+### Changed
+
+- Licence: phonux is now PolyForm Noncommercial 1.0.0 (SPDX `PolyForm-Noncommercial-1.0.0`), free for personal and other
+  noncommercial use, with commercial use through a separate paid licence. 0.1.0 and 0.2.0-rc.2 stay MIT. The package now
+  ships `THIRD_PARTY_NOTICES.md` for the MIT-licensed phone-model entries.
+
 ### Added
 
 - `ACTIVE_ATTRIBUTE`, `DRAGGING_ATTRIBUTE` and `CHROME_ATTRIBUTE` (the `data-panel-*` names `Panel` writes), and `CHROME_PARTS` with
