@@ -12,11 +12,12 @@ import { AutoMountContext } from './autoMountContext.js';
 import { PanelRow } from './PanelRow.js';
 import { Workspace } from './Workspace.js';
 import { createDefaultTheme } from './defaultTheme.js';
-import { DEFAULT_PHONE_SIZE, HostProvider } from './hostApi.js';
+import { DEFAULT_PHONE_SIZE, HostProvider, type HostInput } from './hostApi.js';
 import { useProvidePanels } from './panels/useProvidePanels.js';
 import type { ProvidedPanels } from './panels/useProvidePanels.js';
 import type { WorkspaceProps } from './Workspace.js';
-import type { WorkspaceHandle } from './workspaceCore.js';
+import { bindingOf, type WorkspaceHandle } from './workspaceCore.js';
+import type { WorkspacePanelsInput } from './workspaceLive.js';
 
 /** The `Workspace` props the mount derives from what `useProvidePanels` returned: the same mapping a hand-wired flow writes out. @internal */
 export function workspaceProps(provided: ProvidedPanels): Pick<WorkspaceProps, 'fixedColumnCount' | 'liveWidths' | 'rowScroll' | 'rowNumbers' | 'tuning'> {
@@ -44,23 +45,64 @@ function useContainerWidth(ref: React.RefObject<HTMLDivElement | null>): number 
   return width;
 }
 
+/**
+ * The `panels` option as `useProvidePanels` takes it: each callback is a stand-in that calls the latest one the app gave, so
+ * a closure the app rebuilt (and `update` took without waking a reader) is the one a later close or restore runs.
+ */
+function panelsInputOf(workspace: WorkspaceHandle, stand: Map<string, unknown>): WorkspacePanelsInput {
+  const live = bindingOf(workspace).live;
+  const out: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(live.latest().panels ?? {})) {
+    if (typeof value !== 'function') {
+      out[key] = value;
+      continue;
+    }
+    if (!stand.has(key)) stand.set(key, (...args: unknown[]) => (live.latest().panels as Record<string, ((...a: unknown[]) => unknown) | undefined> | undefined)?.[key]?.(...args));
+    out[key] = stand.get(key);
+  }
+  return out as WorkspacePanelsInput;
+}
+
 /** What the default mount renders for `workspace`. @internal */
 export function AutoRoot({ workspace }: { workspace: WorkspaceHandle }): React.ReactElement {
+  const binding = bindingOf(workspace);
+  React.useSyncExternalStore(binding.live.subscribe, binding.live.version);
+  const values = binding.live.latest();
+  const stand = React.useRef(new Map<string, unknown>());
   const ref = React.useRef<HTMLDivElement>(null);
   const rowRef = React.useRef<HTMLDivElement>(null);
   const containerWidth = useContainerWidth(ref);
-  const provided = useProvidePanels({ workspace, rootId: workspace.rootId, phoneWidth: DEFAULT_PHONE_SIZE.width, containerWidth, overflowContainerRef: ref });
+  const phoneWidth = values.device?.size.width ?? DEFAULT_PHONE_SIZE.width;
+  const provided = useProvidePanels({
+    ...panelsInputOf(workspace, stand.current),
+    ...(values.labels !== undefined ? { labels: values.labels } : {}),
+    workspace,
+    rootId: workspace.rootId,
+    phoneWidth,
+    containerWidth,
+    overflowContainerRef: ref,
+  });
   const dark = useMediaQuery('(prefers-color-scheme: dark)');
   const theme = React.useMemo(() => createDefaultTheme(dark ? 'dark' : 'light'), [dark]);
+  const host: HostInput = {
+    panels: provided,
+    ...(values.device !== undefined ? { device: values.device } : {}),
+    ...(values.settings !== undefined ? { settings: values.settings } : {}),
+    ...(values.history !== undefined ? { history: values.history } : {}),
+    ...(values.snapshots !== undefined ? { snapshots: values.snapshots } : {}),
+    ...(values.labels !== undefined ? { labels: values.labels } : {}),
+  };
+  const Wrap = binding.wrap;
+  const row = (
+    <Workspace overflowContainerRef={ref} rowRef={rowRef} containerWidth={containerWidth} phoneWidth={phoneWidth} {...(values.topInset !== undefined ? { topPadding: values.topInset } : {})} {...workspaceProps(provided)}>
+      <PanelRow {...rowProps(provided, workspace)} />
+    </Workspace>
+  );
   return (
     <AutoMountContext.Provider value={workspace}>
       <ThemeProvider theme={theme}>
         <CssBaseline />
-        <HostProvider host={{ panels: provided }}>
-          <Workspace overflowContainerRef={ref} rowRef={rowRef} containerWidth={containerWidth} phoneWidth={DEFAULT_PHONE_SIZE.width} {...workspaceProps(provided)}>
-            <PanelRow {...rowProps(provided, workspace)} />
-          </Workspace>
-        </HostProvider>
+        <HostProvider host={host}>{Wrap === undefined ? row : <Wrap workspace={workspace}>{row}</Wrap>}</HostProvider>
       </ThemeProvider>
     </AutoMountContext.Provider>
   );

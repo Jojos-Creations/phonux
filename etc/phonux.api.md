@@ -5,7 +5,9 @@
 ```ts
 
 import { BoxProps } from '@mui/material/Box';
+import type { ComponentType } from 'react';
 import * as React_2 from 'react';
+import type { ReactNode } from 'react';
 import { RefObject } from 'react';
 import type { SxProps } from '@mui/material/styles';
 import { Theme } from '@mui/material/styles';
@@ -1350,10 +1352,22 @@ export interface WorkspaceHandle {
     readonly rootId: string;
     readonly status: WorkspaceStatus;
     readonly tuning: ResolvedWorkspaceTuning;
+    update(live: WorkspaceLive): void;
 }
 
 // @public
-export type WorkspaceOptions = {
+export type WorkspaceLive = {
+    device?: PhoneDeviceAPI;
+    settings?: SettingsAPI;
+    history?: HistoryAPI;
+    snapshots?: SnapshotsAPI;
+    labels?: Partial<PhonuxLabels>;
+    topInset?: number;
+    panels?: WorkspacePanelsInput;
+};
+
+// @public
+export type WorkspaceOptions = WorkspaceLive & {
     storage?: WorkspaceStorage;
     defaults?: Omit<PanelSettings, 'tuning'>;
     root?: PanelTemplate;
@@ -1364,7 +1378,11 @@ export type WorkspaceOptions = {
     newId?: () => string;
     onError?: (e: unknown) => void;
     mount?: HTMLElement | false;
+    wrap?: ComponentType<WorkspaceWrapProps>;
 };
+
+// @public
+export type WorkspacePanelsInput = Partial<Omit<PanelsInput, 'workspace' | 'rootId' | 'phoneWidth' | 'containerWidth' | 'overflowContainerRef' | 'initialEntries' | 'storage' | 'templates' | 'declared' | 'workspaceDefaults' | 'tuning' | 'labels'>>;
 
 // @public
 export type WorkspacePanelState = {
@@ -1460,6 +1478,12 @@ export type WorkspaceTuning = PanelTuning & {
     rowAlign?: 'top' | 'center' | 'bottom';
     shrinkOutOfView?: 'off' | 'visible' | 'hidden';
 };
+
+// @public
+export interface WorkspaceWrapProps {
+    children: ReactNode;
+    workspace: WorkspaceHandle;
+}
 
 // (No @packageDocumentation comment for this package)
 

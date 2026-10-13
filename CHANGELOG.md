@@ -28,6 +28,11 @@
 
 ### Added
 
+- `createWorkspace` takes what an app hands `HostProvider`, `Workspace` and `useProvidePanels` as options: `device`, `settings`,
+  `history`, `snapshots`, `labels`, `topInset` and `panels` (`useProvidePanels` inputs such as `onPanelsClosed`, `defaultView` and
+  `capture`), plus `wrap`, a component rendered around the row inside the host. `workspace.update(live)` gives the auto-mounted
+  host new values; it takes only those members, notifies readers only when data changed, and refuses `root`, `templates`,
+  `storage`, `mount` and `wrap` with `invalid-options`. Types: `WorkspaceLive`, `WorkspacePanelsInput`, `WorkspaceWrapProps`.
 - Default frame: a template's view that draws no `Panel` or `PanelFrame` is drawn inside the library's frame (header with the
   panel's title, grab bar for the drag-down close and reorder, phone frame, template footer). A view that draws any part of a
   frame itself is unchanged. New per-panel setting `frame` (`'auto'` default, `'none'` opts out). The first panel of a bare

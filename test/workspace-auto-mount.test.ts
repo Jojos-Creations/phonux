@@ -3,7 +3,7 @@
  * (HostProvider, Workspace, PanelRow) renders the same DOM, a second workspace on the page stays independent, and a caller that
  * turns the mount off never loads react-dom/client.
  */
-import { test, afterEach } from 'node:test';
+import { afterEach, test } from 'node:test';
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
@@ -21,89 +21,16 @@ import { memoryWorkspaceStorage } from '../fakeHost.js';
 import { AutoRoot, rowProps, workspaceProps } from '../autoMount.js';
 import { createDefaultTheme } from '../defaultTheme.js';
 import { HostProvider } from '../hostApi.js';
-import { advanceFrames, cleanup, mount } from './support/mount-harness.js';
+import { advanceFrames, mount } from './support/mount-harness.js';
+import { rigCleanup, observers, resize, slots, track, until, win } from './support/auto-rig.js';
+
+afterEach(rigCleanup);
 
 const ROOT_DIR = fileURLToPath(new URL('..', import.meta.url));
 
 /** A template whose view draws one marker node: `data-slot` is the panel's key, `data-template` the template's own tag. */
 const tpl = (id: string, over: Partial<PanelTemplate> = {}, tag: string = id): PanelTemplate =>
   definePanel({ id, view: ({ handle }) => React.createElement('i', { 'data-slot': handle.id, 'data-template': tag }), ...over });
-
-// ---------------------------------------------------------------------------
-// A measurable window: jsdom lays nothing out, so the row scroller's width and the observer are stubbed.
-// ---------------------------------------------------------------------------
-
-let windowWidth = 0;
-const observers = new Set<StubObserver>();
-class StubObserver {
-  readonly targets = new Set<Element>();
-  constructor(readonly callback: () => void) {
-    observers.add(this);
-  }
-  observe(el: Element): void {
-    this.targets.add(el);
-  }
-  unobserve(el: Element): void {
-    this.targets.delete(el);
-  }
-  disconnect(): void {
-    this.targets.clear();
-    observers.delete(this);
-  }
-}
-const proto = HTMLElement.prototype;
-const original = Object.getOwnPropertyDescriptor(Element.prototype, 'clientWidth');
-Object.defineProperty(proto, 'clientWidth', {
-  configurable: true,
-  get(this: HTMLElement) {
-    return this.hasAttribute('data-row-scroller') ? windowWidth : 0;
-  },
-});
-const originalObserver = (globalThis as { ResizeObserver?: unknown }).ResizeObserver;
-(globalThis as { ResizeObserver?: unknown }).ResizeObserver = StubObserver;
-
-/** Sets the window's width and tells every live observer, as the browser does after a layout. */
-const resize = (width: number): Promise<void> =>
-  act(async () => {
-    windowWidth = width;
-    for (const o of [...observers]) o.callback();
-  });
-
-/** Waits (in turns of the event loop) until `check` holds. The mount renders from a promise continuation no act() scope covers, so act is off meanwhile and React flushes on its own. */
-async function until(what: string, check: () => boolean): Promise<void> {
-  const env = globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean };
-  const before = env.IS_REACT_ACT_ENVIRONMENT;
-  env.IS_REACT_ACT_ENVIRONMENT = false;
-  try {
-    for (let turn = 0; turn < 400; turn += 1) {
-      if (check()) return;
-      await new Promise((r) => setTimeout(r, 5));
-    }
-    assert.fail(`timed out waiting for ${what}`);
-  } finally {
-    env.IS_REACT_ACT_ENVIRONMENT = before;
-  }
-}
-
-const slots = (root: ParentNode): string[] => [...root.querySelectorAll('[data-slot]')].map((n) => (n as HTMLElement).dataset.slot!);
-const workspaces: WorkspaceHandle[] = [];
-const track = (ws: WorkspaceHandle): WorkspaceHandle => {
-  workspaces.push(ws);
-  return ws;
-};
-
-afterEach(() => {
-  cleanup();
-  for (const ws of workspaces.splice(0)) act(() => ws.dispose());
-  windowWidth = 0;
-  observers.clear();
-  document.body.replaceChildren();
-});
-
-process.on('exit', () => {
-  if (original !== undefined) Object.defineProperty(Element.prototype, 'clientWidth', original);
-  (globalThis as { ResizeObserver?: unknown }).ResizeObserver = originalObserver;
-});
 
 // ---------------------------------------------------------------------------
 // 1. The default start imports no component
@@ -191,7 +118,7 @@ const sharedIds = (): (() => string) => {
 };
 
 test('the auto-mounted workspace renders the same DOM as the hand-wired one, scrolling and after a close', async () => {
-  windowWidth = 700;
+  win.width = 700;
   const ids = ['root', 'a', 'b', 'c', 'd'].map((id) => scrolling(id));
   const make = (target: HTMLElement | false): WorkspaceHandle => {
     const ws = track(createWorkspace({ mount: target, root: ids[0]!, templates: ids.slice(1), newId: sharedIds() }));
@@ -306,7 +233,7 @@ test('a resize of the window changes how many panels fit', async () => {
   }
   const ws = track(createWorkspace({ root: definePanel({ id: 'root', view: Fit }), templates: [] }));
   const fit = (): string | undefined => (document.querySelector('[data-fit]') as HTMLElement | null)?.dataset.fit;
-  windowWidth = 1000;
+  win.width = 1000;
   await until('the first measurement', () => fit() !== undefined && fit() !== 'null');
   const narrow = Number(fit());
   await resize(2400);
@@ -392,7 +319,7 @@ test('two workspaces whose templates share an id each render and restore their o
 // ---------------------------------------------------------------------------
 
 test('under StrictMode the mount subscribes once per element and disposes every observer', async () => {
-  windowWidth = 900;
+  win.width = 900;
   const ws = track(createWorkspace({ mount: false, root: tpl('root'), templates: [tpl('a')] }));
   ws.addPanel('a');
   const target = document.createElement('div');

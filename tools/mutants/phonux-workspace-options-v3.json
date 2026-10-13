@@ -1,0 +1,151 @@
+{
+  "tests": [
+    "test/workspace-options.test.ts"
+  ],
+  "mutants": [
+    {
+      "name": "device is not passed to the host",
+      "file": "autoMount.tsx",
+      "find": "...(values.device !== undefined ? { device: values.device } : {}),",
+      "replace": "",
+      "expectRed": [
+        "device reaches the view, and the row is priced from its width"
+      ]
+    },
+    {
+      "name": "the row is priced from the default phone width",
+      "file": "autoMount.tsx",
+      "find": "const phoneWidth = values.device?.size.width ?? DEFAULT_PHONE_SIZE.width;",
+      "replace": "const phoneWidth = DEFAULT_PHONE_SIZE.width;",
+      "expectRed": [
+        "device reaches the view, and the row is priced from its width"
+      ]
+    },
+    {
+      "name": "settings is not passed to the host",
+      "file": "autoMount.tsx",
+      "find": "...(values.settings !== undefined ? { settings: values.settings } : {}),",
+      "replace": "",
+      "expectRed": [
+        "settings reaches the view as the settings column"
+      ]
+    },
+    {
+      "name": "history is not passed to the host",
+      "file": "autoMount.tsx",
+      "find": "...(values.history !== undefined ? { history: values.history } : {}),",
+      "replace": "",
+      "expectRed": [
+        "history reaches the view"
+      ]
+    },
+    {
+      "name": "snapshots are not passed to the host",
+      "file": "autoMount.tsx",
+      "find": "...(values.snapshots !== undefined ? { snapshots: values.snapshots } : {}),",
+      "replace": "",
+      "expectRed": [
+        "snapshots reach the view"
+      ]
+    },
+    {
+      "name": "labels are not passed to the host",
+      "file": "autoMount.tsx",
+      "find": "    ...(values.labels !== undefined ? { labels: values.labels } : {}),\n  };",
+      "replace": "  };",
+      "expectRed": [
+        "labels reach the view"
+      ]
+    },
+    {
+      "name": "topInset is not passed to Workspace",
+      "file": "autoMount.tsx",
+      "find": "{...(values.topInset !== undefined ? { topPadding: values.topInset } : {})} ",
+      "replace": "",
+      "expectRed": [
+        "topInset is the clearance above the row, and it lowers the height a taller panel may have"
+      ]
+    },
+    {
+      "name": "a callback the app gave later is not the one called",
+      "file": "autoMount.tsx",
+      "find": "(...args: unknown[]) => (live.latest().panels as Record<string, ((...a: unknown[]) => unknown) | undefined> | undefined)?.[key]?.(...args)",
+      "replace": "(...args: unknown[]) => (value as (...a: unknown[]) => unknown)(...args)",
+      "expectRed": [
+        "panels.onPanelsClosed hears each close, and the callback an update gave is the one a later close calls"
+      ]
+    },
+    {
+      "name": "wrap is not rendered",
+      "file": "autoMount.tsx",
+      "find": "{Wrap === undefined ? row : <Wrap workspace={workspace}>{row}</Wrap>}",
+      "replace": "{row}",
+      "expectRed": [
+        "wrap renders inside the host and around the row, with the workspace, and keeps one identity"
+      ]
+    },
+    {
+      "name": "wrap is rendered outside the host",
+      "file": "autoMount.tsx",
+      "find": "<HostProvider host={host}>{Wrap === undefined ? row : <Wrap workspace={workspace}>{row}</Wrap>}</HostProvider>",
+      "replace": "{Wrap === undefined ? <HostProvider host={host}>{row}</HostProvider> : <Wrap workspace={workspace}><HostProvider host={host}>{row}</HostProvider></Wrap>}",
+      "expectRed": [
+        "wrap renders inside the host and around the row, with the workspace, and keeps one identity"
+      ]
+    },
+    {
+      "name": "a function-only change wakes the readers",
+      "file": "workspaceLive.ts",
+      "find": "  if (typeof a === 'function' && typeof b === 'function') return true;\n",
+      "replace": "",
+      "expectRed": [
+        "a hook that hands update fresh objects with fresh closures every render, from an effect, does not loop"
+      ]
+    },
+    {
+      "name": "a changed value does not wake the readers",
+      "file": "workspaceLive.ts",
+      "find": "        if (!sameLiveData(next[key], value)) changed = true;",
+      "replace": "",
+      "expectRed": [
+        "a hook in wrap that calls update with new device, settings, history and snapshot values re-renders every reader with them"
+      ]
+    },
+    {
+      "name": "update replaces what it did not name",
+      "file": "workspaceLive.ts",
+      "find": "const next: Record<string, unknown> = { ...latest };",
+      "replace": "const next: Record<string, unknown> = {};",
+      "expectRed": [
+        "an update changes nothing it did not name"
+      ]
+    },
+    {
+      "name": "update accepts root",
+      "file": "workspaceLive.ts",
+      "find": "const LIVE_KEYS: readonly string[] = ['device', 'settings', 'history', 'snapshots', 'labels', 'topInset', 'panels'];",
+      "replace": "const LIVE_KEYS: readonly string[] = ['device', 'settings', 'history', 'snapshots', 'labels', 'topInset', 'panels', 'root', 'templates', 'storage', 'mount', 'wrap', 'tuning', 'nonsense'];",
+      "expectRed": [
+        "update refuses root, templates, storage, mount and wrap with invalid-options and changes nothing"
+      ]
+    },
+    {
+      "name": "update after dispose is silent",
+      "file": "workspaceCore.ts",
+      "find": "      if (status === 'disposed') throw new PanelManagerError('disposed', 'the workspace was disposed');\n      const refusedKeys",
+      "replace": "      const refusedKeys",
+      "expectRed": [
+        "update after dispose throws disposed"
+      ]
+    },
+    {
+      "name": "the mount passes rowResizeSettled",
+      "file": "autoMount.tsx",
+      "find": "containerWidth={containerWidth} phoneWidth={phoneWidth}",
+      "replace": "containerWidth={containerWidth} rowResizeSettled phoneWidth={phoneWidth}",
+      "expectRed": [
+        "the mount does not pass rowResizeSettled: Workspace settles the row from tuning.resizeSettleSlides, as the app's own shell did"
+      ]
+    }
+  ]
+}
