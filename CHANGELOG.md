@@ -4,6 +4,10 @@
 
 ### Added
 
+- `PanelsAPI.maxFitPanels`: how many phone-width panels, permanent columns such as History included, the window fits at the
+  current phone width and row gap, so a host can offer a cap relative to the window without repeating the row's arithmetic.
+  `null` until the row is measured; it never reads below the permanent columns plus one, as the row's own floor, and pinned
+  panels are not subtracted. Optional on the interface, so a 0.1.0 host still type-checks.
 - Panel chrome API, all through the panel API with defaults that reproduce today's look (chrome always drawn):
   - `useActivePanel()` returns `[activeId | null, setActive]`, `usePanelActive()` and `usePanelDragging()` read one panel's
     marks. A press or focus anywhere inside a panel (a portaled dialog it opened and a focused iframe included) makes it the

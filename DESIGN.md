@@ -287,6 +287,10 @@ are, at 600 px as at 1920. That one capacity answers every question the window's
 `pricing`: the park that settles a row, the park that an open, a `show`, a History click or an undo makes, the free slots
 an 'until-room' hold waits for, and the returns a `resetLayout` reports.
 
+`PanelsAPI.maxFitPanels` is the window's phone-width ceiling: `effectiveMaxPanels` over `rowFitCount` with no live widths, the same
+`rowFitCount` the row's capacity calls, so the two cannot disagree. It is `null` while `containerWidth` is 0 and is not lowered by
+pinned panels or by a scrolling row. A host reads it to default a cap (`tuning.maxLivePanels`) that follows the window.
+
 No row that reaches the document holds more unpinned live panels than the cap. A row that lands over it (the panels of a
 restore or of a replayed `addPanel`, a seeded `initialEntries`, a row after a lower value from `configureTuning`, class NOW)
 is settled in the render that would show it, which React then renders again, so the first committed row has the excess
