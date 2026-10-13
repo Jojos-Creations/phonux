@@ -287,13 +287,19 @@ export interface Host {
 }
 
 // @public
+export type HostInput = Omit<Host, 'settings' | 'device'> & {
+    readonly settings?: SettingsAPI;
+    readonly device?: PhoneDeviceAPI;
+};
+
+// @public
 export class HostMissingProviderError extends Error {
     constructor(hook?: string);
 }
 
 // @public
 export function HostProvider(input: {
-    host: Host;
+    host: HostInput;
     children: React_2.ReactNode;
 }): React_2.JSX.Element;
 
@@ -1328,6 +1334,7 @@ export type WorkspaceOptions = {
     conflicts?: 'warn' | 'throw' | 'off';
     newId?: () => string;
     onError?: (e: unknown) => void;
+    mount?: HTMLElement | false;
 };
 
 // @public
