@@ -186,7 +186,7 @@ export function Workspace(props: WorkspaceProps): React.ReactElement {
       if (rowScrollerFor(container).claimHeld()) return;
       const opacities = fadeAt(rowNumbers, container.scrollLeft);
       for (const slot of strip.querySelectorAll<HTMLElement>('[data-row-slot]')) {
-        const k = rowNumbers.leftOffsets.indexOf(Number(slot.dataset.rowSlot));
+        const k = rowNumbers.drawnOffsets.indexOf(Number(slot.dataset.rowSlot));
         const opacity = k < 0 ? 1 : opacities[k]!;
         slot.style.filter = opacity >= 1 ? '' : `opacity(${opacity})`;
         slot.style.pointerEvents = opacity <= 0 ? 'none' : '';

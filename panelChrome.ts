@@ -19,6 +19,11 @@ export interface ChromeStore {
   dragging(): PanelId | null;
   setActive(id: PanelId | null): void;
   setDragging(id: PanelId, on: boolean): void;
+  /** The panel a host is resizing by hand right now. */
+  resizing(): PanelId | null;
+  setResizing(id: PanelId, on: boolean): void;
+  /** Wakes `listener` when the resized panel changes. */
+  subscribeResizing(listener: () => void): () => void;
   /** Wakes `listener` when `id` gains or loses the active or dragging mark. */
   subscribePanel(id: PanelId, listener: () => void): () => void;
   /** Wakes `listener` when the active panel changes. */
@@ -28,6 +33,8 @@ export interface ChromeStore {
 export function createChromeStore(): ChromeStore {
   let active: PanelId | null = null;
   let dragging: PanelId | null = null;
+  let resizing: PanelId | null = null;
+  const resizingListeners = new Set<() => void>();
   const activeListeners = new Set<() => void>();
   const byPanel = new Map<PanelId, Set<() => void>>();
   const wake = (ids: readonly (PanelId | null)[], activeChanged: boolean): void => {
@@ -48,6 +55,18 @@ export function createChromeStore(): ChromeStore {
       const before = dragging;
       dragging = on ? id : null;
       wake([before, dragging], false);
+    },
+    resizing: () => resizing,
+    setResizing(id, on) {
+      if (on ? resizing === id : resizing !== id) return;
+      const before = resizing;
+      resizing = on ? id : null;
+      wake([before, resizing], false);
+      for (const l of [...resizingListeners]) l();
+    },
+    subscribeResizing(listener) {
+      resizingListeners.add(listener);
+      return () => void resizingListeners.delete(listener);
     },
     subscribePanel(id, listener) {
       const set = byPanel.get(id) ?? new Set<() => void>();
@@ -104,6 +123,29 @@ export function usePanelActive(): boolean {
  */
 export function usePanelDragging(): boolean {
   return usePanelMark((store, id) => store.dragging() === id);
+}
+
+/**
+ * Whether this panel is being resized by hand, and a setter for a host's resize grabber to call: true when a drag begins,
+ * false when it ends. While it is true no other panel's drawn size changes, so a grabber that reads `panel.size` at the
+ * start of its drag, and a neighbour that was drawn smaller to fill the window, stay where they were until the release.
+ * It also marks the panel as dragging (`usePanelDragging`) for the same span, so a drag of any kind that a host runs
+ * shows the chrome a drag shows. Outside a row the value is false and the setter does nothing.
+ * @public
+ */
+export function usePanelResizing(): readonly [boolean, (on: boolean) => void] {
+  const store = React.useContext(ChromeStoreContext);
+  const id = React.useContext(PanelSlotContext)?.id;
+  const resizing = usePanelMark((s, panel) => s.resizing() === panel);
+  const set = React.useCallback(
+    (on: boolean) => {
+      if (store === undefined || id === undefined) return;
+      store.setResizing(id, on);
+      store.setDragging(id, on);
+    },
+    [store, id],
+  );
+  return React.useMemo(() => [resizing, set] as const, [resizing, set]);
 }
 
 /** Whether the panel above shows its chrome in full; provided by `Panel`, true for a part drawn without one. */

@@ -57,6 +57,7 @@ const VALUE_EXPORTS = [
   'usePanelHidden',
   'usePanelNeighborWidths',
   'usePanelPinned',
+  'usePanelResizing',
   'Workspace',
   'useProvidePanels',
   'reorderStepsForOffset',
@@ -80,7 +81,7 @@ const VALUE_EXPORTS = [
   'ROW_LAYER_Z',
 ].sort();
 
-test('the phonux barrel exports exactly the 66 runtime values, no more, no fewer', () => {
+test('the phonux barrel exports exactly the 67 runtime values, no more, no fewer', () => {
   assert.deepEqual(Object.keys(phonux).sort(), VALUE_EXPORTS);
 });
 
