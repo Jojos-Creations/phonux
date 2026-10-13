@@ -86,10 +86,12 @@ test('the package entry exports the names a mounted workspace renders: the marks
   assert.equal(panel.hasAttribute(ACTIVE_ATTRIBUTE), false);
   press(m.container.querySelector('[data-body="c1"]')!);
   assert.equal(panel.hasAttribute(ACTIVE_ATTRIBUTE), true, 'the active mark is written under the exported name');
+  assert.equal(panel.getAttribute(ACTIVE_ATTRIBUTE), '', 'and it is empty-valued');
   press(m.container.querySelector('[data-body="c2"]')!);
   assert.equal(panel.hasAttribute(ACTIVE_ATTRIBUTE), false, 'and removed when another panel is used');
   await drag(m.container.querySelector('[data-grab="c1"]')!, { dx: 0, dy: 24, steps: 6, hold: 8, keepDown: true });
   assert.equal(rootOf(m, 'c1').hasAttribute(DRAGGING_ATTRIBUTE), true, 'the dragging mark is written under the exported name');
+  assert.equal(rootOf(m, 'c1').getAttribute(DRAGGING_ATTRIBUTE), '', 'and it is empty-valued');
   await release(0, 24);
   await advanceFrames(3000);
   assert.equal(rootOf(m, 'c1').hasAttribute(DRAGGING_ATTRIBUTE), false);

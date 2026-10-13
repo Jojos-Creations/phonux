@@ -92,6 +92,24 @@
       "expectRed": [
         "the package entry exports the names a mounted workspace renders: the marks, and one element per chrome part"
       ]
+    },
+    {
+      "name": "the active mark gets a value",
+      "file": "Panel.tsx",
+      "find": "{ [ACTIVE_ATTRIBUTE]: '' }",
+      "replace": "{ [ACTIVE_ATTRIBUTE]: 'x' }",
+      "expectRed": [
+        "the package entry exports the names a mounted workspace renders: the marks, and one element per chrome part"
+      ]
+    },
+    {
+      "name": "the dragging mark gets a value",
+      "file": "Panel.tsx",
+      "find": "{ [DRAGGING_ATTRIBUTE]: '' }",
+      "replace": "{ [DRAGGING_ATTRIBUTE]: 'x' }",
+      "expectRed": [
+        "the package entry exports the names a mounted workspace renders: the marks, and one element per chrome part"
+      ]
     }
   ]
 }
