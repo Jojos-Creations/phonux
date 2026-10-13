@@ -1543,7 +1543,10 @@ listens for the window's `blur` and activates when the focused element is an ifr
 panel that closes or parks.
 
 `Panel` writes `data-panel-active` and `data-panel-dragging` on its root box, and `data-panel-chrome-part="header"`,
-`"grab-bar"` or `"footer"` on the parts `tuning.chrome` fades. Hosts style from these names; a test pins them.
+`"grab-bar"` or `"footer"` on the parts `tuning.chrome` fades. Hosts style from these names, so `index.ts` exports them
+(`ACTIVE_ATTRIBUTE`, `DRAGGING_ATTRIBUTE`, `CHROME_ATTRIBUTE`, and `CHROME_PARTS` for the part values) and the components write
+their values from the same constants; a test pins them. `data-panel-grab-bar`, `data-panel-footer` and `data-panel-size-box`
+are not a public contract.
 
 The fade changes opacity only. `pointer-events`, `inert`, `visibility` and `display` stay as they are, so a hidden header
 keeps its space, receives the pointer that reveals it, and holds Tab focus. It runs through Motion's `animate`, which uses the

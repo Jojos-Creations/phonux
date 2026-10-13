@@ -11,6 +11,9 @@ import type { SxProps } from '@mui/material/styles';
 import { Theme } from '@mui/material/styles';
 
 // @public
+export const ACTIVE_ATTRIBUTE = "data-panel-active";
+
+// @public
 export type AddPlacement = 'row-start' | 'row-end' | 'parkable-start' | 'parkable-end' | 'after-fixed' | 'order' | {
     before: PanelId;
 } | {
@@ -50,6 +53,19 @@ export interface CaptureTrigger {
 
 // @public
 export type CatalogName = Exclude<keyof PanelSettings, 'tuning'> | `tuning.${keyof WorkspaceTuning}`;
+
+// @public
+export const CHROME_ATTRIBUTE = "data-panel-chrome-part";
+
+// @public
+export const CHROME_PARTS: {
+    readonly header: "header";
+    readonly grabBar: "grab-bar";
+    readonly footer: "footer";
+};
+
+// @public
+export type ChromePart = (typeof CHROME_PARTS)[keyof typeof CHROME_PARTS];
 
 // @public
 export type ChromeTuning = {
@@ -160,6 +176,9 @@ export const DRAG_CLOSE: {
         readonly damping: 42;
     };
 };
+
+// @public
+export const DRAGGING_ATTRIBUTE = "data-panel-dragging";
 
 // @public
 export interface DragHandleProps {

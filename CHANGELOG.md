@@ -8,8 +8,8 @@
   for each slot past the first. New per-panel settings `slots` (the choice; `formFactor` becomes its view: 1 phone, 2 tablet,
   3 or more desktop) and `maxSlots`; new workspace tuning `heightPerSlot` (default 48 px, held to the height the row has)
   and `rowAlign` (`'center'` default, `'top'`, `'bottom'`). `PanelsAPI.setSlots(id, slots)` and a `setSlots` verb on the
-  handle resize by a count, clamped to `maxSlots` and to what fits the window; `PanelSummary` gains `slots`, `maxSlots` and
-  `drawnSlots`, and `size.height` is the drawn height. The row is as tall as its tallest panel and measures the height its
+  handle resize by a count, clamped to `maxSlots` and to what fits the window; `PanelSummary` gains `slots`, `maxSlots`,
+  `drawnSlots` and `fitSlots` (the most slots that fit the window), and `size.height` is the drawn height. The row is as tall as its tallest panel and measures the height its
   scroll container leaves; a shorter panel sits at `rowAlign`. A person's resize is saved as `overrides.slots`, and the
   panel's own count on the panel when it is not its tier's own; History's count is saved as `rootSlots`.
 - A fixed column (`parkable: false`, History) keeps the size settings its own template, host or instance asked for
@@ -17,6 +17,9 @@
   fixed column is still one phone slot, and a workspace default never unlocks one. A new `resizable-capped` note says a
   `resizable: true` cannot grow because `maxSlots` resolves to 1.
 
+- `ACTIVE_ATTRIBUTE`, `DRAGGING_ATTRIBUTE` and `CHROME_ATTRIBUTE` (the `data-panel-*` names `Panel` writes), and `CHROME_PARTS` with
+  the `ChromePart` type (the values of `CHROME_ATTRIBUTE`: `header`, `grab-bar`, `footer`), are exported from the package
+  entry so a host stops repeating the strings. The DOM is unchanged.
 - `PanelsAPI.maxFitPanels`: how many phone-width panels, permanent columns such as History included, the window fits at the
   current phone width and row gap, so a host can offer a cap relative to the window without repeating the row's arithmetic.
   `null` until the row is measured; it never reads below the permanent columns plus one, as the row's own floor, and pinned
