@@ -1,0 +1,99 @@
+{
+  "tests": [
+    "test/pinned-edge-release.test.ts",
+    "test/drag-width-override.test.ts"
+  ],
+  "mutants": [
+    {
+      "name": "the edge is read from the numbers at the start, not from the element",
+      "file": "Workspace.tsx",
+      "find": "const edges = rect === undefined || left === null ? null : { start: left, end: left + rect.width };",
+      "replace": "const edges = (() => { const n0 = numbersRef.current; const k = n0.ids.indexOf(resizingId); return k < 0 ? null : { start: n0.rowMarginLeft + n0.leftOffsets[k]! - scroller.scrollLeft(), end: n0.rowMarginLeft + n0.leftOffsets[k]! + n0.widths[k]! - scroller.scrollLeft() }; })();",
+      "expectRed": [
+        "the edge held is the one the element reports"
+      ]
+    },
+    {
+      "name": "the container's padding is not taken off the element's left",
+      "file": "Workspace.tsx",
+      "find": "const pad = Number.parseFloat(getComputedStyle(container).paddingLeft) || 0;",
+      "replace": "const pad = 0;",
+      "expectRed": [
+        "a mark that begins while the row is gliding"
+      ]
+    },
+    {
+      "name": "the pin is read at the release, after the host has cleared the width",
+      "file": "Workspace.tsx",
+      "find": "if (drawn !== null) pin = drawn.pin;",
+      "replace": "pin = drawn === null ? null : drawn.pin;",
+      "expectRed": [
+        "the case table"
+      ]
+    },
+    {
+      "name": "the target is computed at the release, before the new slot count reaches the numbers",
+      "file": "Workspace.tsx",
+      "find": "if (width(numbersRef.current) !== width(began) || pin === null) return run();",
+      "replace": "return run();",
+      "expectRed": [
+        "setSlots in an act of its own"
+      ]
+    },
+    {
+      "name": "the row lands on the stop nearest the scroll it had",
+      "file": "Workspace.tsx",
+      "find": "const held = pin === null || edges === null ? scroller.scrollLeft() : scrollHoldingEdge(n, n.ids.indexOf(resizingId), pin, edges[pin], scroller.scrollLeft());",
+      "replace": "const held = scroller.scrollLeft();",
+      "expectRed": [
+        "the case table"
+      ]
+    },
+    {
+      "name": "a start pin holds the right edge too",
+      "file": "rowNumbers.ts",
+      "find": "return (pin === 'end' ? left + n.widths[k]! : left) - edge;",
+      "replace": "return left + n.widths[k]! - edge;",
+      "expectRed": [
+        "pinned at the start"
+      ]
+    },
+    {
+      "name": "an end pin holds the left edge",
+      "file": "rowNumbers.ts",
+      "find": "return (pin === 'end' ? left + n.widths[k]! : left) - edge;",
+      "replace": "return left - edge;",
+      "expectRed": [
+        "the case table"
+      ]
+    },
+    {
+      "name": "the width is not compared: a release that grew nothing runs at once",
+      "file": "Workspace.tsx",
+      "find": "const pending = { run, grown: () => width(numbersRef.current) !== width(began) };",
+      "replace": "const pending = { run, grown: () => true };",
+      "expectRed": [
+        "setSlots in an act of its own"
+      ]
+    },
+    {
+      "name": "the deferred settle never runs on a frame",
+      "file": "Workspace.tsx",
+      "find": "requestAnimationFrame(() => settle.current === pending && run());",
+      "replace": "void pending;",
+      "expectRed": [
+        "a release that never changes the slot count"
+      ]
+    },
+    {
+      "name": "the claim is never released",
+      "file": "Workspace.tsx",
+      "find": "        claim?.release();\n        const n = numbersRef.current;",
+      "replace": "        const n = numbersRef.current;",
+      "expectRed": [
+        "the case table",
+        "the release"
+      ]
+    }
+  ]
+}

@@ -263,6 +263,17 @@ export function nearestStop(n: RowNumbers, at: number): number {
   return best;
 }
 
+/**
+ * The `scrollLeft` that puts the pinned edge of entry `k` back at `edge` px from the window's left, with `n`'s margin, offset and
+ * width: its right edge when the width was pinned at its end (a left grabber), its left edge when pinned at its start. `at` itself
+ * when the entry is not in `n`. @internal
+ */
+export function scrollHoldingEdge(n: RowNumbers, k: number, pin: 'start' | 'end', edge: number, at: number): number {
+  if (k < 0 || k >= n.ids.length) return at;
+  const left = n.rowMarginLeft + n.leftOffsets[k]!;
+  return (pin === 'end' ? left + n.widths[k]! : left) - edge;
+}
+
 /** The farthest legal `scrollLeft` for `n`, from its numbers and never read back from the DOM; 0 while unmeasured. @internal */
 export function maxScrollOf(n: RowNumbers): number {
   return Number.isFinite(n.windowWidth) ? Math.max(0, n.rowMarginLeft + n.stripWidth + n.endPad - n.windowWidth) : 0;

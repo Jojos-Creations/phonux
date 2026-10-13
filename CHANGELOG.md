@@ -160,6 +160,13 @@
 
 ### Fixed
 
+- Widening a panel from its left grabber keeps its right edge where it was. A width drawn with `setDrawnWidth(px, 'end')` holds the
+  right edge during the drag, but the release settled onto the stop nearest the scroll the row had, so the edge jumped by a stop
+  spacing (609 px at 390 px phones and a 16 px gap) under `shrinkOutOfView` 'off' and 'hidden', and under 'visible' the row stayed on a
+  stop that drew the widened panel shrunk to one slot. The Workspace now reads the panel's rect from the element when
+  `setResizing(true)` is called and, at the release, lands on the stop nearest the scroll that puts that edge back (the left edge for a
+  width pinned at `'start'`). The edge rests within half the gap between neighbouring stops of where it began, and exactly where a stop
+  is at that scroll. No new option, and a host that ends the mark without a drawn width settles as before.
 - While a panel is dragged by its grab bar, the page no longer selects or highlights text or photos across the other panels, and
   a photo no longer starts a native image drag. `user-select`, `-webkit-user-select` and `-webkit-user-drag` are `none` on the
   document element from the press until the release, a `pointercancel` or the unmount, and come back exactly as the host had

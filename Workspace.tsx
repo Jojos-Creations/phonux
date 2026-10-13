@@ -14,9 +14,9 @@ import { PANEL_TRANSITION } from './PanelRowSlot.js';
 import { slideToTransition } from './directionalTransition.js';
 import type { SlideTuning, WorkspaceTuning } from './panelSettings.js';
 import { RowHeightContext, WorkspaceTuningContext, resolveWorkspaceTuning } from './panelTuning.js';
-import { ChromeStoreContext, createChromeStore } from './panelChrome.js';
+import { ChromeStoreContext, createChromeStore, type DrawnPin } from './panelChrome.js';
 import { ROW_GAP, ROW_GESTURE } from './rowConstants.js';
-import { fadeAt, nearestStop, type RowNumbers } from './rowNumbers.js';
+import { fadeAt, nearestStop, scrollHoldingEdge, type RowNumbers } from './rowNumbers.js';
 import { rowScrollerFor } from './rowScroller.js';
 import { OverlaySlot } from './windowOverlay.js';
 
@@ -158,19 +158,49 @@ export function Workspace(props: WorkspaceProps): React.ReactElement {
   const resizingId = React.useSyncExternalStore(chromeStore.subscribeResizing, chromeStore.resizing, () => null);
   const numbersRef = React.useRef(rowNumbers);
   numbersRef.current = rowNumbers;
+  // The release settles after the numbers carry the new slot count: it waits for them, or one frame, while the claim is held.
+  const settle = React.useRef<{ run: () => void; grown: () => boolean } | null>(null);
   React.useLayoutEffect(() => {
     const container = overflowContainerRef.current;
     if (resizingId === null || container === null) return undefined;
     const scroller = rowScrollerFor(container);
     const claim = scroller.claim();
+    // Where the panel's edges are in the window now, read from the element once the claim has stopped any glide: the numbers
+    // can be ahead of what is drawn (a margin or a slide still gliding, a panel drawn shrunk).
+    const slot = container.querySelector<HTMLElement>(`[data-row-id="${resizingId}"]`);
+    const rect = slot?.getBoundingClientRect();
+    const pad = Number.parseFloat(getComputedStyle(container).paddingLeft) || 0;
+    const left = rect === undefined || rect.width === 0 ? null : rect.left - container.getBoundingClientRect().left - pad;
+    const edges = rect === undefined || left === null ? null : { start: left, end: left + rect.width };
+    const began = numbersRef.current;
+    const width = (n: RowNumbers | undefined): number | undefined => n?.widths[n.ids.indexOf(resizingId)];
+    // The pin is latched while it is drawn: the host clears the width before it ends the mark.
+    let pin: DrawnPin | null = null;
+    const unsubscribe = chromeStore.subscribeDrawn(() => {
+      const drawn = chromeStore.drawn();
+      if (drawn !== null) pin = drawn.pin;
+    });
     return () => {
-      claim?.release();
-      const n = numbersRef.current;
-      if (claim === null || n === undefined || n.stops.length === 0) return;
-      const to = nearestStop(n, scroller.scrollLeft());
-      if (Math.abs(to - scroller.scrollLeft()) >= 0.5) scroller.glideTo(to, { durationSec: resolved.slide.durationSec, instant: reduced, ease: resolved.shrinkOutOfView === 'visible' ? resolved.slide.ease : resolved.slide.glideEase });
+      unsubscribe();
+      const run = (): void => {
+        settle.current = null;
+        claim?.release();
+        const n = numbersRef.current;
+        if (claim === null || n === undefined || n.stops.length === 0) return;
+        const held = pin === null || edges === null ? scroller.scrollLeft() : scrollHoldingEdge(n, n.ids.indexOf(resizingId), pin, edges[pin], scroller.scrollLeft());
+        const to = nearestStop(n, held);
+        if (Math.abs(to - scroller.scrollLeft()) >= 0.5) scroller.glideTo(to, { durationSec: resolved.slide.durationSec, instant: reduced, ease: resolved.shrinkOutOfView === 'visible' ? resolved.slide.ease : resolved.slide.glideEase });
+      };
+      if (width(numbersRef.current) !== width(began) || pin === null) return run();
+      const pending = { run, grown: () => width(numbersRef.current) !== width(began) };
+      settle.current = pending;
+      requestAnimationFrame(() => settle.current === pending && run());
     };
   }, [resizingId, overflowContainerRef]);
+  React.useLayoutEffect(() => {
+    if (resizingId === null && settle.current?.grown() === true) settle.current.run();
+  }, [rowNumbers, resizingId]);
+  React.useLayoutEffect(() => () => void settle.current?.run(), []);
   const scrolls = rowNumbers?.rowScroll ?? rowScroll ?? false;
   const style = workspaceShellStyle({ containerWidth, rowResizeSettled, phoneWidth, fixedColumnCount, liveWidths, gap, slide: resolved.slide, rowScroll, rowNumbers, rowGesture: resolved.rowGesture });
   // The room the row has to grow into: the container's height less its padding. 0 (unmeasured) keeps every panel at the phone height.
