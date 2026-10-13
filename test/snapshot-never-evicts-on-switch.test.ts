@@ -56,6 +56,7 @@ interface Rig {
 async function build(ids: readonly string[], o: { width: number; park?: boolean; strict?: boolean }): Promise<Rig> {
   const spy = spyOf();
   const ws = createWorkspace({
+    mount: false,
     root: markerTemplate('root', { settings: { title: 'History' } }),
     templates: ids.map((id) => markerTemplate(id, o.park === true ? { settings: { overflow: 'park' } } : {})),
   });
@@ -171,6 +172,7 @@ test('a panel in its undo window stores the switch and asks nothing, at the call
 test('the ask is made by the commit that applies the switch: a child sees it before its own passive effect runs', async () => {
   const spy = spyOf();
   const ws = createWorkspace({
+    mount: false,
     root: markerTemplate('root', { settings: { title: 'History' } }),
     templates: ['a', 'b', 'c'].map((id) => markerTemplate(id)),
   });

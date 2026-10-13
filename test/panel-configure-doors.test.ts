@@ -18,7 +18,7 @@ afterEach(() => cleanup());
 
 type Refused = Extract<ConfigureResult, { ok: false }>;
 
-const WORKSPACE_ONLY = ['rowGap', 'saveQuietMs', 'gestureLockMs', 'returnTieBreak', 'dropTieBreak', 'rowGesture', 'initialScroll', 'maxLivePanels', 'chrome'];
+const WORKSPACE_ONLY = ['rowGap', 'saveQuietMs', 'gestureLockMs', 'gestureQuietMs', 'resizeSettleSlides', 'returnTieBreak', 'dropTieBreak', 'rowGesture', 'initialScroll', 'maxLivePanels', 'chrome', 'shrinkOutOfView'];
 const PER_PANEL = ['dragToClose', 'slide', 'hopFraction', 'edgeScroll'];
 const TEMPLATE = ['hostCreatable', 'multiple', 'maxInstances'];
 
@@ -48,6 +48,7 @@ const VALUE: Record<string, unknown> = {
   scrollOnOpen: 'center',
   scrollOnMove: 'none',
   scrollOnDrag: 'none',
+  frame: 'none',
   toggleWhenClosed: 'reopen',
   showWhenClosed: 'reopen',
   viewState: 'reset-on-park',
@@ -81,12 +82,17 @@ const VALUE: Record<string, unknown> = {
   edgeScroll: { zonePx: 60 },
   saveQuietMs: 700,
   gestureLockMs: 400,
+  gestureQuietMs: 300,
+  resizeSettleSlides: 2,
   returnTieBreak: 'row-order',
   dropTieBreak: 'rightmost',
   rowGesture: 'free',
   initialScroll: 'end',
   chrome: { mode: 'hover-or-active', fadeMs: 80 },
   maxLivePanels: 3,
+  shrinkOutOfView: 'visible',
+  slots: 2,
+  maxSlots: 3,
 };
 
 const names = PANEL_SETTINGS_CATALOG.map((d) => d.name);
@@ -157,10 +163,10 @@ test('doors: the table ran every row, calls by classes by one key each', () => {
 // The sweep: every catalog key through every call
 // ---------------------------------------------------------------------------
 
-test('doors: the catalog holds the plain keys, three template keys among them, and thirteen tuning leaves', () => {
+test('doors: the catalog holds the plain keys, three template keys among them, and sixteen tuning leaves', () => {
   assert.equal(flatKeys.length + leafKeys.length, names.length);
   assert.deepEqual(leafKeys.sort(), [...PER_PANEL, ...WORKSPACE_ONLY].sort());
-  assert.equal(leafKeys.length, 13);
+  assert.equal(leafKeys.length, 16);
   assert.deepEqual(PANEL_SETTINGS_CATALOG.filter((d) => d.configure.doors.length === 1 && d.configure.doors[0] === 'template').map((d) => d.name).sort(), [...TEMPLATE].sort());
 });
 
@@ -288,6 +294,7 @@ const VIEW_ACCEPTS: readonly [string, unknown][] = [
   ['listed', false],
   ['layer', 'raised'],
   ['formFactor', 'tablet'],
+  ['slots', 2],
   ['placeOnAdd', { anchor: { panel: 'root', position: 'left' } }],
   ['enterFrom', 'anchor'],
 ];

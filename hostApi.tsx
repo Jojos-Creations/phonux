@@ -30,14 +30,6 @@ export interface PhoneSize {
 /** The app's built-in size: upgrading must never silently resize anyone who has not chosen a model. @public */
 export const DEFAULT_PHONE_SIZE: PhoneSize = { modelId: 'default', width: 390, height: 700 };
 
-/** A phone-like USB device the app has just seen for the first time. @public */
-export interface DetectedPhone {
-  /** The device's USB vendor id. */
-  vendorId: number;
-  /** The device's USB product id. */
-  productId: number;
-}
-
 /** One entry of the persisted "Closed Pages" log. @public */
 export interface ClosedPageEntry {
   /** Id of the closed view. */
@@ -94,8 +86,16 @@ export interface PanelSummary<P = JsonValue> {
   readonly locked: boolean;
   /** Opaque per-panel data a create() caller supplied; undefined for built-ins. */
   readonly params?: P;
-  /** This panel's own visual tier. */
+  /** This panel's own visual tier: the tier of its `slots` (one slot phone, two tablet, more desktop). */
   readonly formFactor?: FormFactor;
+  /** How many phone-panel widths wide the panel is set to; the row draws it at most as wide as the slots that fit (`drawnSlots`). */
+  readonly slots?: number;
+  /** The most slots the panel may take. */
+  readonly maxSlots?: number;
+  /** The slots the row draws the panel at now: `slots` capped at what fits the window. A summary a view receives from the row carries it. */
+  readonly drawnSlots?: number;
+  /** The most slots that fit the window now, at the row's gap: what a resize control may offer, whatever `maxSlots` allows. A summary a view receives from the row carries it. */
+  readonly fitSlots?: number;
   /** This panel's own rendered size. Panel/PanelFrame do not read it: a view passes it to their separate `size` prop for a non-phone tier (a phone panel follows useHost().device.size instead). */
   readonly size?: PanelSize;
 }
@@ -172,6 +172,12 @@ export interface PanelsAPI {
   /** Every panel, live or parked, in array order. History lists them as given; the row shows the live ones. */
   readonly panelList: readonly PanelSummary[];
   /**
+   * How many panels, permanent columns such as History included, the window fits at the current phone width and row gap:
+   * the phone-width ceiling for a fresh row, at least one more than the permanent columns. Pinned panels are not subtracted
+   * and a scrolling row reports the same number. `null` until the row is measured, never 0; absent from a host that does not report it.
+   */
+  readonly maxFitPanels?: number | null;
+  /**
    * Appends a live panel; zero-arg opens a panel of the host's default view. `view` selects the rendered component
    * (registerView/resolveView) -- an unregistered key renders a placeholder, never a crash. No raw
    * `collapsible`/`locked` key: `permanent` (CreatePanelOptions) is the only door to a permanent column, and
@@ -201,6 +207,13 @@ export interface PanelsAPI {
    */
   setFormFactor(id: string, next: FormFactor): void;
   /**
+   * Sets `id` to `slots` phone-panel widths wide, clamped to 1 and the panel's `maxSlots`; the row draws it at most as wide as
+   * fits the window. Otherwise as `setFormFactor`: no-op for an
+   * unknown id, a panel that is not resizable, or a panel already at that count; other panels park if the row no longer fits.
+   * Optional so a host that does not implement slots still satisfies `PanelsAPI`; the library's own provider (`useProvidePanels`) always implements it.
+   */
+  setSlots?(id: string, slots: number): void;
+  /**
    * Re-places `id`, live or parked, by `anchor` (defaults as for CreatePanelOptions.anchor) and reorders the row
    * to match. On its own it never parks or reveals: which panels fit depends on their widths, never their order.
    * No-op for an unknown id or a permanent column (e.g. History). See DESIGN.md for the anchor model.
@@ -216,7 +229,7 @@ export interface PanelsAPI {
   clearAll(): void;
 }
 
-/** The phone size every panel renders at, and the USB phone-detect notice. @public */
+/** The phone size every panel renders at. @public */
 export interface PhoneDeviceAPI {
   /** The size every PanelFrame renders at. Live. */
   readonly size: PhoneSize;
@@ -226,12 +239,6 @@ export interface PhoneDeviceAPI {
   readonly models?: readonly PhoneModel[];
   /** Applies at once, then persists. 'default' resets. Never rejects: where nothing persists, the choice lasts this session only. */
   chooseModel?(modelId: string): Promise<void>;
-  /** Non-null exactly while the one-time "phone connected" notice should show. */
-  readonly detectedPhone?: DetectedPhone | null;
-  /** Hides the notice without changing the size. */
-  dismissDetectedPhone?(): void;
-  /** Resize to `modelId` and dismiss the notice. */
-  resizeForDetectedPhone?(modelId: string): void;
 }
 
 /** Everything a view reaches through `useHost()`. @public */
@@ -242,7 +249,7 @@ export interface Host {
   readonly history?: HistoryAPI;
   /** The panel row. */
   readonly panels: PanelsAPI;
-  /** The phone size and phone-detect notice. */
+  /** The phone size. */
   readonly device: PhoneDeviceAPI;
   /** Optional, unlike every other member: without it useViewSnapshot (snapshots.ts) shows no picture instead
    * of throwing, so a host that does not capture need not supply a no-op. */
@@ -270,15 +277,37 @@ export class HostMissingProviderError extends Error {
 const HostContext = React.createContext<Host | null>(null);
 
 /**
- * Mount once, at the host. `host` is passed straight through as the context
- * value: NEVER memoise it here or where it is built. The handlers behind it
- * close over render-time state (the panel list, the column count), so a
- * memoised bag hands views stale closures.
+ * What `HostProvider` takes: a `Host` whose `settings` and `device` may be left out. A host that never shows a settings
+ * column or picks a phone size says nothing about them; `useHost()` still returns the fully resolved `Host`.
  * @public
  */
-export function HostProvider({ host, children }: { host: Host; children: React.ReactNode }) {
+export type HostInput = Omit<Host, 'settings' | 'device'> & {
+  /** Window-layout settings. Left out: the settings column stays hidden and `show()`/`hide()` do nothing. */
+  readonly settings?: SettingsAPI;
+  /** The phone size. Left out: `DEFAULT_PHONE_SIZE`, with no model choice and no phone-detect notice. */
+  readonly device?: PhoneDeviceAPI;
+};
+
+// Module constants, not built per render: a reader memoised on `useHost().device` must see the same object every render.
+const DEFAULT_SETTINGS: SettingsAPI = { settingsColumn: { visible: false, show: () => {}, hide: () => {} } };
+const DEFAULT_DEVICE: PhoneDeviceAPI = { size: DEFAULT_PHONE_SIZE };
+
+/** `input` as the `Host` readers get: itself when it already names both members, else a copy with the defaults filled in. */
+function resolveHost(input: HostInput): Host {
+  if (input.settings !== undefined && input.device !== undefined) return input as Host;
+  return { ...input, settings: input.settings ?? DEFAULT_SETTINGS, device: input.device ?? DEFAULT_DEVICE };
+}
+
+/**
+ * Mount once, at the host. `host` is passed straight through as the context
+ * value (with the defaults of `HostInput` filled in): NEVER memoise it here or
+ * where it is built. The handlers behind it close over render-time state (the
+ * panel list, the column count), so a memoised bag hands views stale closures.
+ * @public
+ */
+export function HostProvider({ host, children }: { host: HostInput; children: React.ReactNode }) {
   return (
-    <HostContext.Provider value={host}>
+    <HostContext.Provider value={resolveHost(host)}>
       <OverlayProvider>
         <ViewStateProvider>{children}</ViewStateProvider>
       </OverlayProvider>

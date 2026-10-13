@@ -18,7 +18,6 @@ const VALUE_EXPORTS = [
   'OVERLAY_Z',
   'PHONE_MODELS',
   'findPhoneModel',
-  'PhoneDetectPrompt',
   'HostMissingProviderError',
   'HostProvider',
   'useHost',
@@ -57,6 +56,7 @@ const VALUE_EXPORTS = [
   'usePanelHidden',
   'usePanelNeighborWidths',
   'usePanelPinned',
+  'usePanelResizing',
   'Workspace',
   'useProvidePanels',
   'reorderStepsForOffset',
@@ -77,9 +77,15 @@ const VALUE_EXPORTS = [
   'usePanelDragging',
   // Opt-in extras (never applied implicitly).
   'createDefaultTheme',
+  'ROW_LAYER_Z',
+  // The names Panel writes on the DOM, for a host to style from.
+  'ACTIVE_ATTRIBUTE',
+  'CHROME_ATTRIBUTE',
+  'CHROME_PARTS',
+  'DRAGGING_ATTRIBUTE',
 ].sort();
 
-test('the phonux barrel exports exactly the 65 runtime values, no more, no fewer', () => {
+test('the phonux barrel exports exactly the 71 runtime values, no more, no fewer', () => {
   assert.deepEqual(Object.keys(phonux).sort(), VALUE_EXPORTS);
 });
 

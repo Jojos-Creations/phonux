@@ -8,14 +8,16 @@
 
 import * as React from 'react';
 import Box, { type BoxProps } from '@mui/material/Box';
+import { type Theme } from '@mui/material/styles';
 import { PANEL_HEADER_GAP_PX, PanelHeaderRow, type PanelHeaderRowProps } from './PanelFrame.js';
 import { useHost, type PanelSize } from './hostApi.js';
+import { useFrameClaim } from './panelFrameClaim.js';
 import { PanelHiddenContext, PanelSlotContext } from './panelSlotContext.js';
 import { HEADER_ROW_ATTRIBUTE, PanelHeaderButtons, usePanelHeaderButtons } from './panelHeaderButtons.js';
+import { glideCorner } from './sizeGlide.js';
 import { CaptureRegistryContext, type ViewId } from './snapshots.js';
-import { ACTIVE_ATTRIBUTE, CHROME_ATTRIBUTE, DRAGGING_ATTRIBUTE, PanelChromeVisibleContext, useChromeFade, useChromeVisibility, usePanelActive, usePanelDragging } from './panelChrome.js';
+import { ACTIVE_ATTRIBUTE, CHROME_ATTRIBUTE, CHROME_PARTS, DRAGGING_ATTRIBUTE, PanelChromeVisibleContext, useChromeFade, useChromeVisibility, usePanelActive, usePanelDragging } from './panelChrome.js';
 
-// One import path for a view author: the contracts, the provider and the hook.
 export { HostMissingProviderError, HostProvider, useHost } from './hostApi.js';
 export type { Host } from './hostApi.js';
 export { DRAG_CLOSE, DragToClose, type DragHandleProps, type ReorderHandle } from './dragToClose.js';
@@ -33,13 +35,10 @@ export interface PanelProps extends Omit<BoxProps, 'children' | 'sx' | 'title'> 
   /** Content shown in the header row beside the title. Has no effect when `title` is omitted. */
   actions?: React.ReactNode;
   /**
-   * Extra PanelHeaderRow props beyond title/actions -- the drag handle
-   * of a DragToClose view (`onPointerDown`, `sx`), `data-*` attributes, etc. The `data-${string}` index signature is
-   * needed because TS's "data-* is always valid" leniency only applies to
-   * attributes written directly on a JSX element -- it does not extend to a
-   * plain object literal like this one being checked against
-   * PanelHeaderRowProps before it ever reaches JSX.
+   * Extra PanelHeaderRow props beyond title/actions: the drag handle of a DragToClose view (`onPointerDown`, `sx`),
+   * `data-*` attributes, etc.
    */
+  // TypeScript lets `data-*` through only on JSX attributes, not on an object literal checked against these props.
   headerProps?: Omit<PanelHeaderRowProps, 'title' | 'actions'> & { [key: `data-${string}`]: string | boolean | undefined };
   /**
    * The grab handle for dragging this Panel (DragToClose's `onPointerDown`/`sx`), rendered as its OWN
@@ -83,6 +82,7 @@ export interface PanelProps extends Omit<BoxProps, 'children' | 'sx' | 'title'> 
  */
 export function Panel({ title, actions, headerProps, headerButtons = true, grabProps, overlay, sx, children, viewId, capture = 'auto', size, ...rest }: PanelProps) {
   const { device } = useHost();
+  useFrameClaim('panel');
   const registry = React.useContext(CaptureRegistryContext);
   const rootRef = React.useRef<HTMLDivElement | null>(null);
   const hidden = React.useContext(PanelHiddenContext);
@@ -135,7 +135,7 @@ export function Panel({ title, actions, headerProps, headerButtons = true, grabP
       {title !== undefined && (
         <PanelHeaderRow
           ref={fadeHeader}
-          {...{ [CHROME_ATTRIBUTE]: 'header' }}
+          {...{ [CHROME_ATTRIBUTE]: CHROME_PARTS.header }}
           title={title}
           actions={drawn ? (
             <>
@@ -151,7 +151,7 @@ export function Panel({ title, actions, headerProps, headerButtons = true, grabP
       {grabProps && (
         <Box
           data-panel-grab-bar=""
-          {...{ [CHROME_ATTRIBUTE]: 'grab-bar' }}
+          {...{ [CHROME_ATTRIBUTE]: CHROME_PARTS.grabBar }}
           ref={fadeGrab}
           {...grabProps}
           sx={{
@@ -168,7 +168,7 @@ export function Panel({ title, actions, headerProps, headerButtons = true, grabP
         >
           {/* Decorative only -- the clickable area is the whole strip above, sized to WCAG 2.5.8's 24px
               minimum even though this drawn pill is thinner. */}
-          <Box aria-hidden="true" sx={{ width: 32, height: 4, borderRadius: 2, bgcolor: 'divider' }} />
+          <Box aria-hidden="true" sx={{ width: 32, height: 4, borderRadius: (theme: Theme) => glideCorner(2 * Number(theme.shape.borderRadius)), bgcolor: 'divider' }} />
         </Box>
       )}
       {children}

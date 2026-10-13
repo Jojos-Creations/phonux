@@ -2,7 +2,7 @@
  * A workspace whose views draw a titled Panel, mounted in a measured row, for the tests of the header buttons. Panels
  * a, b and c sit right of a root named 'root'; `slots` is the template layer every one of them inherits.
  */
-import { act, createElement, type ReactNode } from 'react';
+import { act, createElement, type ReactElement, type ReactNode } from 'react';
 import { Panel, createWorkspace, definePanel } from '../../index.js';
 import type { HeaderButton, PanelHandle, PanelsInput, PanelState, PanelWindow, PanelSettings, PanelTemplate, WorkspaceHandle, WorkspaceOptions } from '../../index.js';
 import { panelKey } from '../../panelSettings.js';
@@ -29,6 +29,8 @@ export interface HeaderRigOptions {
   width?: number;
   /** Provider input overrides, e.g. a short saveQuietMs. */
   over?: Partial<PanelsInput>;
+  /** Wraps the mounted tree, e.g. in a MotionConfig. */
+  wrap?: (tree: ReactElement) => ReactElement;
 }
 
 export interface HeaderRig {
@@ -61,13 +63,14 @@ export const titledTemplate = (id: string, o: HeaderRigOptions, settings: PanelS
 export async function headerRig(o: HeaderRigOptions = {}): Promise<HeaderRig> {
   const ids = o.ids ?? ['a', 'b', 'c'];
   const ws = createWorkspace({
+    mount: false,
     root: markerTemplate('root', { settings: { title: 'History' } }),
     templates: ids.map((id) => titledTemplate(id, o, { ...(o.slots === undefined ? {} : { headerButtons: o.slots }), ...(o.settings?.[id] ?? {}) })),
     ...(o.workspace ?? {}),
   });
   const h: Record<string, PanelHandle> = {};
   for (const id of ids) h[id] = ws.addPanel(id);
-  const m = mountWorkspace(ws, { width: o.width ?? 4000, over: { ...(o.onNote === undefined ? {} : { onNote: o.onNote }), ...(o.over ?? {}) } });
+  const m = mountWorkspace(ws, { ...(o.wrap === undefined ? {} : { wrap: o.wrap }), width: o.width ?? 4000, over: { ...(o.onNote === undefined ? {} : { onNote: o.onNote }), ...(o.over ?? {}) } });
   await flush();
   return {
     ws,

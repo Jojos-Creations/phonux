@@ -56,20 +56,20 @@ test('computeRowNumbers: History, five pinned and five web panels, all scroll, a
   assert.equal(maxScrollOf(n), 3482, '4450 - 968');
 });
 
-test('computeRowNumbers: a tablet panel keeps its 768 beside the root, and the strip scrolls by what exceeds the window', () => {
+test('computeRowNumbers: a tablet panel is two slots, 796, beside the root, and the strip scrolls by what exceeds the window', () => {
   const n = numbers([scrollRoot(), made('t', { formFactor: 'tablet' })]);
-  assert.deepEqual(n.widths, [390, 768]);
+  assert.deepEqual(n.widths, [390, 796]);
   assert.deepEqual(n.leftOffsets, [0, 406]);
-  assert.equal(n.stripWidth, 1174);
+  assert.equal(n.stripWidth, 1202);
   assert.equal(n.rowMarginLeft, 0);
-  assert.equal(maxScrollOf(n), 206, '1174 - 968');
+  assert.equal(maxScrollOf(n), 234, '1202 - 968');
 });
 
-test('computeRowNumbers: a desktop panel is clipped to the window, 968 of its 1200', () => {
+test('computeRowNumbers: a desktop panel takes the slots that fit the window, two of them', () => {
   const n = numbers([scrollRoot(), made('d', { formFactor: 'desktop' })]);
-  assert.deepEqual(n.widths, [390, 968]);
-  assert.equal(n.stripWidth, 1374);
-  assert.equal(maxScrollOf(n), 406, '1374 - 968');
+  assert.deepEqual(n.widths, [390, 796]);
+  assert.equal(n.stripWidth, 1202);
+  assert.equal(maxScrollOf(n), 234, '1202 - 968');
 });
 
 test('computeRowNumbers: two scroll panels fit the window and are centred, with nothing to scroll', () => {
@@ -90,7 +90,7 @@ test('computeRowNumbers: unmeasured (container 0) has an unbounded window, no ma
   const n = numbers([scrollRoot(), made('a'), made('b'), made('d', { formFactor: 'desktop' })], 0);
   assert.equal(n.windowWidth, Number.POSITIVE_INFINITY);
   assert.equal(n.rowMarginLeft, 0);
-  assert.equal(n.widths[3], 1200, 'a desktop panel is at its own width until the row is measured');
+  assert.equal(n.widths[3], 1202, 'a desktop panel is three slots until the row is measured');
   assert.equal(maxScrollOf(n), 0);
 });
 
@@ -111,7 +111,7 @@ test('computeRowNumbers: a fixedItemCount the host passes prices a hand-built ro
   assert.equal(price(2), 862 - 406, 'a second fixed column takes its width and gap out of the cap');
 });
 
-test('a mounted scrolling row: the container pads 16 each side and the eleven slots plus ten gaps sum to the strip', () => {
+test('a mounted scrolling row: the container pads 16 on the left, the end element is the right edge space, and the eleven slots plus ten gaps sum to the strip', () => {
   const entries = eleven().map((p) => ({ ...p, view: 'rn-view' }));
   const n = numbers(entries);
   const ref = { current: null };
@@ -119,7 +119,8 @@ test('a mounted scrolling row: the container pads 16 each side and the eleven sl
   const workspace = createElement(Workspace, { overflowContainerRef: ref, rowRef: ref, containerWidth: 1000, rowResizeSettled: true, phoneWidth: 390, fixedColumnCount: 6, liveWidths: [], rowNumbers: n, children: row });
   const markup = renderToStaticMarkup(createElement(CacheProvider, { value: createCache({ key: 'css' }), children: createElement(HostProvider, { host: createFakeHost(), children: workspace }) }));
   assert.match(markup, /padding-left:16px/);
-  assert.match(markup, /padding-right:16px/);
+  assert.match(markup, /padding-right:0px/, 'the right edge space is the end element, so every engine counts it');
+  assert.match(markup, new RegExp(`data-row-end-pad="" style="flex:0 0 ${n.endPad + GAP}px`), 'the end element is endPad plus the row gap');
   const slotWidths = [...markup.matchAll(/style="[^"]*?width:(\d+)px/g)].map((m) => Number(m[1]));
   assert.equal(slotWidths.length, 11);
   assert.equal(slotWidths.reduce((sum, w) => sum + w, 0) + 10 * GAP, n.stripWidth);

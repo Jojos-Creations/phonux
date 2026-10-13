@@ -13,10 +13,10 @@ import { computeRowLayout } from './panelRowLayout.js';
 import { PANEL_TRANSITION } from './PanelRowSlot.js';
 import { slideToTransition } from './directionalTransition.js';
 import type { SlideTuning, WorkspaceTuning } from './panelSettings.js';
-import { WorkspaceTuningContext, resolveWorkspaceTuning } from './panelTuning.js';
+import { RowHeightContext, WorkspaceTuningContext, resolveWorkspaceTuning } from './panelTuning.js';
 import { ChromeStoreContext, createChromeStore } from './panelChrome.js';
-import { RESIZE_SETTLE_SLIDES, ROW_GAP, ROW_GESTURE } from './rowConstants.js';
-import { fadeAt, type RowNumbers } from './rowNumbers.js';
+import { ROW_GAP, ROW_GESTURE } from './rowConstants.js';
+import { fadeAt, nearestStop, type RowNumbers } from './rowNumbers.js';
 import { rowScrollerFor } from './rowScroller.js';
 import { OverlaySlot } from './windowOverlay.js';
 
@@ -38,7 +38,7 @@ export interface WorkspaceShellStyleInput {
   gap?: number;
   /** The slide the margin glides with. Default: the shared panel transition. */
   slide?: SlideTuning;
-  /** The row's numbers. Given: the margin and the overflow follow them; omitted: a row with no settings, as before. */
+  /** The row's numbers. Given: the margin and the overflow follow them; omitted: a row with no settings. */
   rowNumbers?: RowNumbers;
   /** Whether the row scrolls, for a caller with no `rowNumbers`. Ignored when `rowNumbers` is given. Default false. */
   rowScroll?: boolean;
@@ -83,9 +83,9 @@ export function workspaceShellStyle(i: WorkspaceShellStyleInput): WorkspaceShell
   };
 }
 
-/** How long the container width must hold still before the row's margin glides again: 1.25 slide durations. @internal */
-export function resizeSettleDelayMs(slide: SlideTuning): number {
-  return Math.round(slide.durationSec * RESIZE_SETTLE_SLIDES * 1000);
+/** How long the container width must hold still before the row's margin glides again: `slides` slide durations. @internal */
+export function resizeSettleDelayMs(slide: SlideTuning, slides: number): number {
+  return Math.round(slide.durationSec * slides * 1000);
 }
 
 /**
@@ -114,7 +114,7 @@ export interface WorkspaceProps extends Omit<BoxProps, 'children'> {
   containerWidth: number;
   /**
    * Whether the container width has held still: the row's centring margin glides once it has, and snaps otherwise.
-   * Omitted: the Workspace decides, calling the width settled once it has held for 1.25 slide durations
+   * Omitted: the Workspace decides, calling the width settled once it has held for `tuning.resizeSettleSlides` slide durations (1.25 by default)
    * (`tuning.slide.durationSec`), and at once while animation is off (Reduce Motion).
    */
   rowResizeSettled?: boolean;
@@ -151,17 +151,48 @@ export function Workspace(props: WorkspaceProps): React.ReactElement {
   const gap = resolved.rowGap;
   const [chromeStore] = React.useState(createChromeStore);
   const reduced = useReducedMotionConfig() === true;
-  const derived = useResizeSettled(containerWidth, resizeSettleDelayMs(resolved.slide), reduced);
+  const derived = useResizeSettled(containerWidth, resizeSettleDelayMs(resolved.slide, resolved.resizeSettleSlides), reduced);
   const rowResizeSettled = given ?? derived;
+  // A panel being resized by hand holds the row where it is: its strip changes under the pointer, and a settle onto the
+  // nearest stop would scroll the row while the person drags. The release settles once.
+  const resizingId = React.useSyncExternalStore(chromeStore.subscribeResizing, chromeStore.resizing, () => null);
+  const numbersRef = React.useRef(rowNumbers);
+  numbersRef.current = rowNumbers;
+  React.useLayoutEffect(() => {
+    const container = overflowContainerRef.current;
+    if (resizingId === null || container === null) return undefined;
+    const scroller = rowScrollerFor(container);
+    const claim = scroller.claim();
+    return () => {
+      claim?.release();
+      const n = numbersRef.current;
+      if (claim === null || n === undefined || n.stops.length === 0) return;
+      const to = nearestStop(n, scroller.scrollLeft());
+      if (Math.abs(to - scroller.scrollLeft()) >= 0.5) scroller.glideTo(to, { durationSec: resolved.slide.durationSec, instant: reduced, ease: resolved.shrinkOutOfView === 'visible' ? resolved.slide.ease : resolved.slide.glideEase });
+    };
+  }, [resizingId, overflowContainerRef]);
   const scrolls = rowNumbers?.rowScroll ?? rowScroll ?? false;
   const style = workspaceShellStyle({ containerWidth, rowResizeSettled, phoneWidth, fixedColumnCount, liveWidths, gap, slide: resolved.slide, rowScroll, rowNumbers, rowGesture: resolved.rowGesture });
+  // The room the row has to grow into: the container's height less its padding. 0 (unmeasured) keeps every panel at the phone height.
+  const [availableHeight, setAvailableHeight] = React.useState(0);
+  const topPad = topPadding ?? gap;
+  React.useLayoutEffect(() => {
+    const container = overflowContainerRef.current;
+    if (container === null) return undefined;
+    const measure = (): void => setAvailableHeight(Math.max(0, Math.round(container.clientHeight - topPad - gap)));
+    measure();
+    if (typeof ResizeObserver === 'undefined') return undefined;
+    const observer = new ResizeObserver(measure);
+    observer.observe(container);
+    return () => observer.disconnect();
+  }, [overflowContainerRef, topPad, gap]);
   // A row that stops scrolling must not keep the offset it had: the margin that centres it assumes the strip starts at 0.
   React.useLayoutEffect(() => {
     const container = overflowContainerRef.current;
     if (scrolls || container === null || container.scrollLeft === 0) return;
     const scroller = rowScrollerFor(container);
     scroller.stop();
-    scroller.glideTo(0, { durationSec: 0, instant: true });
+    scroller.glideTo(0, { durationSec: 0, instant: true, ease: resolved.slide.glideEase });
   }, [scrolls, overflowContainerRef]);
   // `filter`, not `opacity`: the slot's own opacity belongs to its enter and exit animation. Written straight to the
   // element on every scroll event, since a state update per frame of a glide would re-render the whole row.
@@ -173,7 +204,7 @@ export function Workspace(props: WorkspaceProps): React.ReactElement {
       if (rowScrollerFor(container).claimHeld()) return;
       const opacities = fadeAt(rowNumbers, container.scrollLeft);
       for (const slot of strip.querySelectorAll<HTMLElement>('[data-row-slot]')) {
-        const k = rowNumbers.leftOffsets.indexOf(Number(slot.dataset.rowSlot));
+        const k = rowNumbers.ids.indexOf(slot.dataset.rowId ?? '');
         const opacity = k < 0 ? 1 : opacities[k]!;
         slot.style.filter = opacity >= 1 ? '' : `opacity(${opacity})`;
         slot.style.pointerEvents = opacity <= 0 ? 'none' : '';
@@ -188,6 +219,7 @@ export function Workspace(props: WorkspaceProps): React.ReactElement {
   return (
     <WorkspaceTuningContext.Provider value={resolved}>
       <ChromeStoreContext.Provider value={chromeStore}>
+      <RowHeightContext.Provider value={availableHeight}>
       <Box
         ref={overflowContainerRef}
         {...rest}
@@ -200,7 +232,8 @@ export function Workspace(props: WorkspaceProps): React.ReactElement {
           pt: `${topPadding ?? gap}px`,
           pb: `${gap}px`,
           pl: `${gap}px`,
-          pr: `${gap}px`,
+          // A scrolling row's end space is the end element's (below); a row that does not scroll centres in this padding.
+          pr: scrolls ? 0 : `${gap}px`,
           overflowX: style.overflowX,
           overflowY: 'auto',
           ...(style.hideScrollbar ? { scrollbarWidth: 'none', '&::-webkit-scrollbar': { display: 'none' } } : {}),
@@ -216,14 +249,16 @@ export function Workspace(props: WorkspaceProps): React.ReactElement {
           data-row-strip=""
           style={{ display: 'flex', gap: `${gap}px`, marginTop: 'auto', marginBottom: 'auto', marginRight: 'auto', ...(scrolls ? { flexShrink: 0 } : {}) }}
           animate={{ marginLeft: style.marginLeft }}
-          transition={style.transition}
+          transition={reduced ? { duration: 0 } : style.transition}
         >
           <OverlaySlot name="dialog" />
           {children}
         </motion.div>
-        {/* An element, not a margin: outside the strip so a drag's end cap stays at the last panel; WebKit may leave a flex item's end margin out of the scrollable width, which would clamp the last stop short. */}
-        {rowNumbers !== undefined && rowNumbers.endPad > 0 ? <div aria-hidden data-row-end-pad="" style={{ flex: `0 0 ${rowNumbers.endPad}px`, height: 0 }} /> : null}
+        {/* A non-empty element is in every engine's scroll range; WebKit leaves a flex item's end margin out and Firefox an empty box,
+            which clamps the last stop short. Outside the strip so a drag's end cap stays at the last panel. */}
+        {scrolls ? <div aria-hidden data-row-end-pad="" style={{ flex: `0 0 ${(rowNumbers?.endPad ?? 0) + gap}px` }} /> : null}
       </Box>
+      </RowHeightContext.Provider>
 
       <OverlaySlot name="toast" />
       </ChromeStoreContext.Provider>

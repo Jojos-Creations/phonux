@@ -2,7 +2,7 @@
  * The restore and the creation helpers behind it, with no React: the template registry, the recorders of the person's
  * gestures, and reconcileWorkspace over literal saved files.
  */
-import { test, afterEach } from 'node:test';
+import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { PanelManagerError } from '../panelManagerError.js';
 import { applyTemplate, resolvePanelSettings } from '../panelSettings.js';
@@ -11,7 +11,8 @@ import { definePanel } from '../panelTemplate.js';
 import type { PanelTemplate } from '../panelTemplate.js';
 import { appendPanel, clearOverrides, createHistoryPanel, recordOverride, type PanelWindow } from '../panelWindow.js';
 import { computeRowOrder } from '../panelRowOrder.js';
-import { getTemplate, listTemplates, registerTemplate, registerView, resolveView } from '../viewRegistry.js';
+import { resolveViewIn } from '../templateView.js';
+import { assertTemplateIdFree, registerView, resolveView } from '../viewRegistry.js';
 import { reconcileWorkspace, type ReconcileInput } from '../workspacePlan.js';
 import { projectWorkspaceState, type WorkspacePanelState, type WorkspaceState } from '../workspaceState.js';
 
@@ -50,52 +51,27 @@ const made = (id: string, layer: PanelSettings = {}, over: Partial<PanelWindow> 
 const rowOf = (...entries: PanelWindow[]): PanelWindow[] => computeRowOrder([createHistoryPanel(ROOT), ...entries], ROOT);
 
 // ---------------------------------------------------------------------------
-// The template registry
+// The view registry
 // ---------------------------------------------------------------------------
 
-const registered: (() => void)[] = [];
-afterEach(() => {
-  for (const off of registered.splice(0)) off();
-});
-const register = (t: PanelTemplate): void => void registered.push(registerTemplate(t));
-
-test('registry: registerTemplate, getTemplate and listTemplates agree, and the returned function removes the template', () => {
-  const t = tpl('reg-a');
-  const off = registerTemplate(t);
-  assert.equal(getTemplate('reg-a'), t);
-  assert.ok(listTemplates().includes(t));
-  off();
-  assert.equal(getTemplate('reg-a'), undefined);
-  assert.equal(listTemplates().includes(t), false);
-});
-
-test('registry: removing an older registration does not remove the template that replaced it', () => {
-  const first = tpl('reg-b');
-  const second = tpl('reg-b');
-  const offFirst = registerTemplate(first);
-  register(second);
-  offFirst();
-  assert.equal(getTemplate('reg-b'), second);
-});
-
-test('registry: a template whose id is a registered view key throws template-collision', () => {
+test('registry: a template id that is a registered view key throws template-collision', () => {
   registerView('reg-c', View);
-  assert.throws(() => registerTemplate(tpl('reg-c')), (e) => e instanceof PanelManagerError && e.code === 'template-collision');
-  assert.equal(getTemplate('reg-c'), undefined, 'control: the refused template was not registered');
+  assert.throws(() => assertTemplateIdFree('reg-c'), (e) => e instanceof PanelManagerError && e.code === 'template-collision');
+  assert.doesNotThrow(() => assertTemplateIdFree('reg-c-free'), 'control: an id with no plain view is free');
 });
 
-test('registry: registerView over a template id leaves the template registered, and the view wins for rendering', () => {
+test('registry: the view registered under a key wins over the template of a workspace that holds the same id', () => {
   const t = tpl('history');
-  register(t);
   const Rendered = (): null => null;
   registerView('history', Rendered);
-  assert.equal(getTemplate('history'), t);
-  assert.equal(resolveView('history'), Rendered);
+  assert.equal(resolveViewIn((id) => (id === 'history' ? t : undefined), 'history'), Rendered);
 });
 
-test('registry: nothing is rendered here, so an unregistered view key still resolves to a placeholder', () => {
-  register(tpl('reg-d'));
-  assert.notEqual(resolveView('reg-d'), View);
+test('registry: a template resolves through the workspace that holds it only, and resolveView alone never sees one', () => {
+  const t = tpl('reg-d');
+  const found = resolveViewIn((id) => (id === 'reg-d' ? t : undefined), 'reg-d');
+  assert.notEqual(found, resolveView('reg-d'), 'control: the workspace resolve found the template view');
+  assert.equal(resolveViewIn(() => undefined, 'reg-d'), resolveView('reg-d'), 'a workspace without the template renders the placeholder');
   assert.equal(typeof resolveView('reg-d'), 'function');
 });
 
@@ -111,10 +87,10 @@ test('recordOverride anchor copies each listed entry\'s current anchor, and a se
   assert.equal(recordOverride(recorded, 'anchor', ['a', 'b'], ROOT), recorded);
 });
 
-test('recordOverride formFactor copies the tier of the listed id only', () => {
-  const row = rowOf(made('a', { formFactor: 'tablet' }), made('b', { formFactor: 'desktop' }));
-  const recorded = recordOverride(row, 'formFactor', ['a'], ROOT);
-  assert.deepEqual(recorded.map((p) => p.overrides), [undefined, { formFactor: 'tablet' }, undefined]);
+test('recordOverride slots copies the slot count of the listed id only', () => {
+  const row = rowOf(made('a', { formFactor: 'tablet', slots: 2 }), made('b', { formFactor: 'desktop', slots: 3 }));
+  const recorded = recordOverride(row, 'slots', ['a'], ROOT);
+  assert.deepEqual(recorded.map((p) => p.overrides), [undefined, { slots: 2 }, undefined]);
 });
 
 test('recordOverride parkable copies collapsible as parkable', () => {

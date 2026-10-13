@@ -87,15 +87,15 @@ test('scrolling row: a panel that scrolls instead of parking is neither counted 
 
 test('a workspace made with a value that is not an integer of 1 or more starts with no cap, as its other tuning leaves do', () => {
   for (const bad of [0, -1, 2.5, Number.NaN, Number.POSITIVE_INFINITY, '3', true]) {
-    const ws = createWorkspace({ root: markerTemplate('root'), templates: [], tuning: { maxLivePanels: bad as never } });
+    const ws = createWorkspace({ mount: false, root: markerTemplate('root'), templates: [], tuning: { maxLivePanels: bad as never } });
     assert.equal(ws.tuning.maxLivePanels, null, String(bad));
   }
-  assert.equal(createWorkspace({ root: markerTemplate('root'), templates: [], tuning: { maxLivePanels: 3 } }).tuning.maxLivePanels, 3);
-  assert.equal(createWorkspace({ root: markerTemplate('root'), templates: [] }).tuning.maxLivePanels, null, 'left out, there is none');
+  assert.equal(createWorkspace({ mount: false, root: markerTemplate('root'), templates: [], tuning: { maxLivePanels: 3 } }).tuning.maxLivePanels, 3);
+  assert.equal(createWorkspace({ mount: false, root: markerTemplate('root'), templates: [] }).tuning.maxLivePanels, null, 'left out, there is none');
 });
 
 test('null is a value of its own: a workspace takes it as no cap, and the instance layer reports it wrong-scope as it does any other value of this leaf', () => {
-  assert.equal(createWorkspace({ root: markerTemplate('root'), templates: [], tuning: { maxLivePanels: null } }).tuning.maxLivePanels, null);
+  assert.equal(createWorkspace({ mount: false, root: markerTemplate('root'), templates: [], tuning: { maxLivePanels: null } }).tuning.maxLivePanels, null);
   const asked = resolvePanelSettings({ instance: { tuning: { maxLivePanels: null } } as never });
   assert.deepEqual(asked.conflicts.map((c) => [c.key, c.kind]), [['tuning.maxLivePanels', 'wrong-scope']]);
 });
@@ -281,15 +281,15 @@ test('run time: a lower N parks the leftmost excess, with the same park as a nar
   assert.equal(r.ws.tuning.maxLivePanels, 2);
 });
 
-test('run time: under capacityReturn manual a higher N and null return no panel', async () => {
+test('run time: under capacityReturn manual a higher N returns the most recently parked panels up to it, and null returns them all', async () => {
   const r = await capRig({ count: 4, width: 4000, cap: 2 });
   assert.equal(r.row(), 'root w1* w2* w3 w4');
-  r.turn(() => r.ws.panels.configureTuning({ maxLivePanels: 4 }));
+  r.turn(() => r.ws.panels.configureTuning({ maxLivePanels: 3 }));
   await r.settle();
-  assert.equal(r.row(), 'root w1* w2* w3 w4', 'N = 4 leaves two free slots, and nothing fills them');
+  assert.equal(r.row(), 'root w1* w2 w3 w4', 'one slot opens, and w2, parked after w1, returns into it');
   r.turn(() => r.ws.panels.configureTuning({ maxLivePanels: null }));
   await r.settle();
-  assert.equal(r.row(), 'root w1* w2* w3 w4', 'no cap returns nothing either');
+  assert.equal(r.row(), 'root w1 w2 w3 w4', 'no cap returns the rest');
   assert.equal(r.ws.tuning.maxLivePanels, null);
 });
 

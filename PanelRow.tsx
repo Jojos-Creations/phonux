@@ -7,10 +7,12 @@
 import * as React from 'react';
 import { AnimatePresence } from 'motion/react';
 import Box from '@mui/material/Box';
+import { AutoMountContext } from './autoMountContext.js';
 import { useHost } from './hostApi.js';
 import { isPresent, summarisePanel, type NeighborWidths, type PanelRowEntry } from './panelRowEntry.js';
 import { anchorTargetOf, resolveEnterDirection, type EnterDirection } from './panelRowOrder.js';
 import { PanelHiddenContext, PanelSlotContext, type DragScroll } from './panelSlotContext.js';
+import type { PanelTemplate } from './panelTemplate.js';
 import { PanelViewContextValue } from './panelViewContext.js';
 import { HEADER_ROW_ATTRIBUTE, headerButtonsOf } from './panelHeaderButtons.js';
 import { LIBRARY_TUNING_DEFAULTS, effective, resolvePanelSettings } from './panelSettings.js';
@@ -21,15 +23,11 @@ import { WorkspaceTuningContext, lookTuningDiffers, resolveWorkspaceTuning, slot
 import { reorderStepsForOffset, type PanelWindow } from './panelWindow.js';
 import { maxScrollOf, type RowNumbers } from './rowNumbers.js';
 import { panelWidthOf } from './panelTiers.js';
-import { resolveView } from './viewRegistry.js';
+import { fitSlots, slotWidth } from './rowConstants.js';
+import { ROW_LAYER_Z } from './rowConstants.js';
+import { resolveViewIn } from './templateView.js';
 import { bindingOf, viewContextOf, type WorkspaceHandle } from './workspaceCore.js';
 import { useViewState } from './viewState.js';
-
-/** A 'raised' slot sits above a 'base' one: a LEFT-exiting park crosses a raised panel's footprint on the way out (a close exits DOWN and never does). */
-const RAISED_LAYER_Z_INDEX = 2;
-const BASE_LAYER_Z_INDEX = 1;
-/** Above every layer: the slot being dragged is drawn over the neighbours it slides past. */
-const DRAGGED_Z_INDEX = 3;
 
 const EMPTY_SET: ReadonlySet<string> = new Set();
 const EMPTY_MAP: ReadonlyMap<string, 'left' | 'right'> = new Map();
@@ -44,7 +42,7 @@ function focusInHeaderRow(panelId: string): boolean {
 
 /**
  * The side an entry slides in from. 'left' and 'right' are constants that beat every mark. Otherwise an explicit mark
- * from the engine wins, then the anchor formula for an entry that always uses it ('anchor', or the 0.1.0
+ * from the engine wins, then the anchor formula for an entry that always uses it ('anchor', or the
  * `anchoredEnter` flag) or is entering via an anchor, then the right.
  */
 export function enterDirectionOf(from: ResolvedPanelSettings['enterFrom'], anchoredEnter: boolean, mark: EnterDirection | undefined, viaAnchor: boolean, formula: () => EnterDirection): EnterDirection {
@@ -53,8 +51,9 @@ export function enterDirectionOf(from: ResolvedPanelSettings['enterFrom'], ancho
 }
 
 /** The view's summary with `size.width` at the width the row renders it, so a view passing `panel.size` to Panel stays inside its slot. */
-function renderedSummary(p: PanelRowEntry, width: number) {
+function renderedSummary(p: PanelRowEntry, width: number, height: number | undefined, drawnSlots: number | undefined, fitSlots: number | undefined) {
   const summary = summarisePanel(p);
+  if (p.slots !== undefined) return { ...summary, drawnSlots, fitSlots, size: summary.size && { ...summary.size, width, height: height ?? summary.size.height } };
   return summary.size && summary.size.width !== width && (p.formFactor ?? 'phone') !== 'phone' ? { ...summary, size: { ...summary.size, width } } : summary;
 }
 
@@ -151,7 +150,7 @@ export function PanelRow({
   maxLiveWidth?: number;
   /** The workspace tuning this row renders with. Omitted: the enclosing Workspace's, else the library defaults. A value that differs from the Workspace's warns once in development. */
   tuning?: WorkspaceTuning;
-  /** The row's numbers (ProvidedPanels.rowNumbers): every width and rest is read from them, and a park exits relative to its rest when `rowScroll` is true. Omitted: the row computes its own from `maxLiveWidth`, as before. */
+  /** The row's numbers (ProvidedPanels.rowNumbers): every width and rest is read from them, and a park exits relative to its rest when `rowScroll` is true. Omitted: the row computes its own from `maxLiveWidth`. */
   rowNumbers?: RowNumbers;
   /** The workspace this row renders. Given, each template view receives its own handle and the reader of every panel, and the row's tuning is the workspace's unless `tuning` is given. */
   workspace?: WorkspaceHandle;
@@ -160,6 +159,12 @@ export function PanelRow({
   const inherited = React.useContext(WorkspaceTuningContext);
   const given = tuning === undefined ? undefined : resolveWorkspaceTuning(tuning);
   const binding = workspace === undefined ? undefined : bindingOf(workspace);
+  const autoMountOf = React.useContext(AutoMountContext);
+  const handMounted = binding?.autoMounted === true && autoMountOf !== workspace;
+  React.useEffect(() => {
+    if (handMounted) binding?.warnHandMounted();
+  }, [handMounted, binding]);
+  const templateOf = (id: string): PanelTemplate | undefined => binding?.template(id);
   const fromWorkspace = React.useSyncExternalStore(binding?.subscribe ?? NO_SUBSCRIBE, () => binding?.tuning, () => binding?.tuning);
   const workspaceTuning = given ?? fromWorkspace ?? inherited ?? LIBRARY_TUNING_DEFAULTS;
   const gap = workspaceTuning.rowGap;
@@ -214,6 +219,8 @@ export function PanelRow({
       if (now.has(id)) continue;
       if (chrome.active() === id) chrome.setActive(null);
       chrome.setDragging(id, false);
+      // The row never keeps holding for a drag whose panel is gone.
+      if (chrome.resizing() === id) chrome.setResizing(id, false);
     }
     presentBefore.current = now;
   });
@@ -222,16 +229,46 @@ export function PanelRow({
   // Every present entry's OWN width, in row order. An always-shown column needs no special case: setFormFactor
   // no-ops on a collapsible:false id, so panelWidthOf gives it `phoneWidth`.
   const numberAt = (p: PanelRowEntry): number => (rowNumbers === undefined ? -1 : rowNumbers.ids.indexOf(p.id));
-  const widths = present.map((p) => rowNumbers?.widths[numberAt(p)] ?? panelWidthOf(p, phoneWidth, maxLiveWidth));
-  // Each slot's rest x: every PRECEDING item's own width plus one gap, so a wider item pushes the rest right.
+  // While a host resizes a panel by hand every other panel keeps the width it was last drawn at, so nothing moves under the grabber.
+  const resizingId = React.useSyncExternalStore(chrome.subscribeResizing, chrome.resizing, () => null);
+  const heldWidthsRef = React.useRef<ReadonlyMap<string, number> | null>(null);
+  const drawnBeforeRef = React.useRef<ReadonlyMap<string, number>>(new Map());
+  if (resizingId === null) heldWidthsRef.current = null;
+  else if (heldWidthsRef.current === null) heldWidthsRef.current = drawnBeforeRef.current;
+  const held = heldWidthsRef.current;
+  const baseWidths = present.map((p) => (held !== null && p.id !== resizingId ? held.get(p.id) : undefined) ?? rowNumbers?.drawnWidths[numberAt(p)] ?? panelWidthOf(p, phoneWidth, maxLiveWidth, gap));
+  // The width a host draws the resized panel at, held between one slot and the most that fit. It lives here and in the slot
+  // context only: the stops, capacity and the live set read the stored slots, so a drag across the whole range parks nothing.
+  const drawnNow = React.useSyncExternalStore(chrome.subscribeDrawn, chrome.drawn, () => null);
+  const drawnIndex = drawnNow === null ? -1 : present.findIndex((p) => p.id === drawnNow.id);
+  const drawnEntry = drawnIndex < 0 ? undefined : present[drawnIndex];
+  const mostSlots = drawnEntry === undefined ? 1 : Math.max(1, Math.min(effective(drawnEntry).maxSlots, fitSlots(maxLiveWidth, phoneWidth, gap)));
+  const wanted = drawnNow !== null && drawnEntry !== undefined;
+  const drawnPx = !wanted ? undefined : Math.min(slotWidth(mostSlots, phoneWidth, gap), Math.max(phoneWidth, drawnNow.px));
+  // How much wider the override draws the panel than its stored slots do (negative when narrower).
+  const growth = drawnPx === undefined ? 0 : drawnPx - baseWidths[drawnIndex]!;
+  const tracking = wanted;
+  const widths = baseWidths.map((width, index) => (index === drawnIndex && drawnPx !== undefined ? drawnPx : width));
+  React.useLayoutEffect(() => {
+    drawnBeforeRef.current = new Map(present.map((p, index) => [p.id, baseWidths[index]!]));
+  });
+  // Each slot's rest x: every PRECEDING item's own width plus one gap, so a wider item pushes the rest right. Pinned at the end, the
+  // whole strip sits `growth` further left, so the panel's right edge and everything after it stay where they were.
+  const pinShift = tracking && drawnNow!.pin === 'end' ? growth : 0;
   const leftOffsets: number[] = [];
   let runningOffset = 0;
   for (const [index, width] of widths.entries()) {
-    leftOffsets.push(rowNumbers?.leftOffsets[numberAt(present[index]!)] ?? runningOffset);
+    leftOffsets.push((held === null ? rowNumbers?.drawnOffsets[numberAt(present[index]!)] : undefined) ?? runningOffset - pinShift);
     runningOffset += width + gap;
   }
+  // A panel is as many slots wide as its width spans, a half slot rounding up.
+  // A stored width is a whole number of slots, so only the override is ever between two.
+  const slotsOfWidth = (width: number): number => Math.max(1, Math.round((width + gap) / (phoneWidth + gap)));
+  const fitSlotsNow = fitSlots(maxLiveWidth, phoneWidth, gap);
+  const rowHeight = phoneHeight;
   const rowScroll = rowNumbers?.rowScroll ?? false;
-  const reservedWidth = Math.max(0, widths.reduce((sum, width) => sum + width + gap, 0) - gap);
+  // While a width is held the row box is never shorter than it was: the browser would clamp the scroll to a shorter strip and move the row under the pointer.
+  const reservedWidth = Math.max(0, widths.reduce((sum, width) => sum + width + gap, 0) - gap - pinShift, tracking ? baseWidths.reduce((sum, width) => sum + width + gap, 0) - gap : 0);
   const maxScroll = rowNumbers === undefined ? 0 : maxScrollOf(rowNumbers);
   const stops = rowNumbers === undefined ? [] : rowNumbers.stops.length > 0 ? rowNumbers.stops : rowNumbers.leftOffsets.map((offset) => rowNumbers.rowMarginLeft + offset);
   const widthById = new Map(present.map((p, index) => [p.id, widths[index]!]));
@@ -285,7 +322,7 @@ export function PanelRow({
       sx={{
         position: 'relative',
         flexShrink: 0,
-        height: phoneHeight,
+        height: rowHeight,
         display: present.length > 0 ? 'block' : 'none',
         width: reservedWidth,
       }}
@@ -295,8 +332,8 @@ export function PanelRow({
           const presentIndex = present.indexOf(p);
           const kept = presentIndex < 0;
           const rest = kept ? restRef.current.get(p.id)! : { leftOffset: leftOffsets[presentIndex]!, width: widths[presentIndex]! };
-          const Component = resolveView(p.view);
-          const { closable, draggable, placeable, resizable, formFactors, enterFrom, exitTo, closeExit, animated, layer, scrollOnDrag, headerButtons } = effective(p);
+          const Component = resolveViewIn(templateOf, p.view);
+          const { closable, draggable, placeable, resizable, formFactors, enterFrom, exitTo, closeExit, animated, layer, scrollOnDrag, headerButtons, frame } = effective(p);
           const own = slotTuning(workspaceTuning, binding === undefined ? p.settings?.tuning : binding.panelTuning(p as PanelWindow));
           const handle = viewContext?.handleFor(p.id);
           const report = binding?.reportError ?? console.error;
@@ -304,7 +341,7 @@ export function PanelRow({
           // A panel whose last button was just removed while it held focus still gets the slot context for that one commit, so the hook that moves focus runs.
           const headerButtonSlots = headerButtonsOf(headerButtons, handle, report, note) ?? (handle !== undefined && focusInHeaderRow(handle.id) ? { slots: {}, handle, report, note } : undefined);
           const dragScroll: DragScroll | undefined = rowScroll
-            ? { mode: scrollOnDrag, zonePx: own.edgeScroll.zonePx, maxPxPerSec: own.edgeScroll.maxPxPerSec, reducedStepMs: own.edgeScroll.reducedStepMs, instant: !animated, maxScroll, stops, settleStops: rowNumbers === undefined ? [] : rowNumbers.stops, settleSec: own.slide.durationSec }
+            ? { mode: scrollOnDrag, zonePx: own.edgeScroll.zonePx, maxPxPerSec: own.edgeScroll.maxPxPerSec, reducedStepMs: own.edgeScroll.reducedStepMs, instant: !animated, maxScroll, stops, settleStops: rowNumbers === undefined ? [] : rowNumbers.stops, settleSec: own.slide.durationSec, settleEase: own.slide.glideEase }
             : undefined;
           return (
             <PanelSlotContext.Provider
@@ -316,8 +353,10 @@ export function PanelRow({
                 placeable,
                 resizable,
                 formFactors,
+                frame,
                 id: p.id,
                 animated,
+                tracking,
                 setDragging: (on) => chrome.setDragging(p.id, on),
                 neighborWidths: neighborWidthsAt(p),
                 pinned: anchorTargetOf(p, rootId) === rootId && p.anchor?.position === 'left',
@@ -334,13 +373,16 @@ export function PanelRow({
               }}
             >
               <PanelRowSlot
+                panelId={p.id}
                 leftOffset={rest.leftOffset + (shiftById.get(p.id) ?? 0)}
                 width={rest.width}
-                phoneHeight={phoneHeight}
+                phoneHeight={rowHeight}
+                height={kept || p.slots === undefined ? undefined : phoneHeight}
                 enterDirection={enterDirectionOf(enterFrom, p.anchoredEnter ?? false, enterSideById.get(p.id), enteringViaAnchorIds.has(p.id), () => resolveEnterDirection(anchorIndexOf(p), presentIndex))}
                 exitDirection={closingIds.has(p.id) ? closeExit : exitTo !== 'auto' ? exitTo : exitRightIds.has(p.id) ? 'right' : 'left'}
-                zIndex={dragging?.id === p.id ? DRAGGED_Z_INDEX : layer === 'raised' ? RAISED_LAYER_Z_INDEX : BASE_LAYER_Z_INDEX}
+                zIndex={dragging?.id === p.id ? ROW_LAYER_Z.DRAGGED : layer === 'raised' ? ROW_LAYER_Z.RAISED : ROW_LAYER_Z.BASE}
                 animated={animated}
+                tracking={tracking}
                 gap={gap}
                 slide={own.slide}
                 kept={kept}
@@ -354,7 +396,7 @@ export function PanelRow({
                 {/* The ONE place useViewState's ambient panel id is set, so a view's own useViewState(key,
                     initial) call needs no id argument. */}
                 <useViewState.Provider value={p.id}>
-                  <Component panel={renderedSummary(p, rest.width)} />
+                  <Component panel={renderedSummary(p, rest.width, kept ? undefined : phoneHeight, kept ? undefined : slotsOfWidth(rest.width), kept ? undefined : fitSlotsNow)} />
                 </useViewState.Provider>
               </PanelRowSlot>
             </PanelSlotContext.Provider>

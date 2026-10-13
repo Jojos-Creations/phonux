@@ -2,8 +2,85 @@
 
 ## Unreleased
 
+### Breaking
+
+- `createWorkspace` renders itself. With a `document` it now creates a full-window element on `document.body` (or renders into the
+  `mount` element you give it), measures it and mounts `HostProvider`, `Workspace` and `PanelRow` for you, so `definePanel`,
+  `createWorkspace` and `addPanel` are a whole app. **Migration:** an app that renders the workspace itself passes
+  `mount: false` to `createWorkspace`; without it the workspace mounts a second root and the first `useProvidePanels` to
+  attach wins. A `PanelRow` given a workspace that also mounts itself warns once in development, naming `mount: false`.
+  Without a `document` (node, SSR) nothing is mounted. The components and `useProvidePanels` stay public for a custom flow.
+- A workspace holds its own templates: the module-level template map is gone, so two workspaces on one page can define different
+  templates under one id and no workspace sees another's. `resolveView(key)` resolves plain views only; a template renders
+  through the row of the workspace that holds it.
+- The USB phone-detect prompt is gone, with nothing in its place. Removed from `phonux`: `PhoneDetectPrompt`,
+  `PhoneDetectPromptProps` and `DetectedPhone` (also from `phonux/testing`'s re-exports). Removed from
+  `PhoneDeviceAPI`: `detectedPhone`, `dismissDetectedPhone` and `resizeForDetectedPhone`, and from `createFakeHost`
+  their stubs. Removed from `PhonuxLabels`: `phoneConnected`, `phoneConnectedText`, `phoneModel`, `resize` and
+  `dismiss`, which only the prompt read. The phone size, `PHONE_MODELS`, `findPhoneModel` and `chooseModel` stay. A
+  host that rendered the prompt deletes it and its `detectedPhone` wiring.
+
+### Changed
+
+- The default frame animates its size. A bare view's header, grab bar, phone frame and footer are drawn in one box that takes the new
+  size at once and eases to it over the slide, so a panel that steps through its sizes no longer jumps to each one while its
+  neighbours glide. `PanelSizeBox` is the same scale now instead of Motion's `layout="size"`: it starts in the commit, on the clock of
+  the slot's slide, so a neighbour stays one gap from it even when the commit takes longer than a frame. Self-framed views are unchanged.
+- Licence: phonux is now PolyForm Noncommercial 1.0.0 (SPDX `PolyForm-Noncommercial-1.0.0`), free for personal and other
+  noncommercial use, with commercial use through a separate paid licence. 0.1.0 and 0.2.0-rc.2 stay MIT. The package now
+  ships `THIRD_PARTY_NOTICES.md` for the MIT-licensed phone-model entries.
+
 ### Added
 
+- The README quickstart is the default start (`definePanel`, `createWorkspace`, `addPanel`) with the hand-built `HostProvider`,
+  `Workspace` and `PanelRow` row shown after it. Both blocks are read out of the README by marker, type-checked, and run in
+  `test/readme-quickstart.test.ts`; `npm run smoke` builds and runs the packed README's quickstart against the tarball.
+- `createWorkspace` takes what an app hands `HostProvider`, `Workspace` and `useProvidePanels` as options: `device`, `settings`,
+  `history`, `snapshots`, `labels`, `topInset` and `panels` (`useProvidePanels` inputs such as `onPanelsClosed`, `defaultView` and
+  `capture`), plus `wrap`, a component rendered around the row inside the host. `workspace.update(live)` gives the auto-mounted
+  host new values; it takes only those members, notifies readers only when data changed, and refuses `root`, `templates`,
+  `storage`, `mount` and `wrap` with `invalid-options`. Types: `WorkspaceLive`, `WorkspacePanelsInput`, `WorkspaceWrapProps`.
+- Default frame: a template's view that draws no `Panel` or `PanelFrame` is drawn inside the library's frame (header with the
+  panel's title, grab bar for the drag-down close and reorder, phone frame, template footer). A view that draws any part of a
+  frame itself is unchanged. New per-panel setting `frame` (`'auto'` default, `'none'` opts out). The first panel of a bare
+  template mounts its view twice, once bare and once framed. `PanelFooter` now counts as a part of a frame a view draws.
+- `HostProvider` takes a `HostInput`: a `Host` whose `settings` and `device` may be left out (a hidden settings column and
+  `DEFAULT_PHONE_SIZE`). `useHost()` still returns the resolved `Host`, the same default objects every render.
+- `createWorkspace`'s `mount` option: an element to render into, or `false`.
+- `usePanelResizing()` has a third item, `setDrawnWidth(px | null, pin?)`: while a panel is marked resizing, a host draws it `px`
+  wide with no glide so a grabber follows the pointer, and the panels after it, its height and its size box follow on the same frame.
+  It is held between one slot and what fits, never writes `slots` and never reaches the stop list, capacity or the live set. `pin: 'end'`
+  keeps the right edge still for a grabber on the left. End the drag with `setSlots(nearest)`, `setDrawnWidth(null)`, `setResizing(false)`. The
+  row's centring margin now snaps under Reduce Motion instead of gliding.
+- Whole panels only: new workspace tuning `shrinkOutOfView` (`'off'` default, `'visible'`, `'hidden'`) for a row that steps
+  (`rowGesture: 'step'`). With `'visible'` the row moves one slot at a time: every panel steps through every size on its way in (1,
+  2, ... its own width) and on its way out (its own width, ... 2, 1), drawn smaller where the window would cut it, never cropped, so
+  `[2, 2, 2, 2]` takes twice the steps and a panel's page lays out at each size. `slots` is never written; `PanelSummary.drawnSlots`
+  and `size` report what is drawn. With `'hidden'` the room stays as margin and no panel is drawn part way, not even mid-glide; `'off'`
+  is today's behaviour. New `usePanelResizing()` returns `[resizing, setResizing]` for a resize grabber or any drag: while a panel is
+  marked it reads as dragging, no other panel's drawn width changes, and the row does not scroll.
+- A header button has two forms, told apart by the `icon` key: with `icon` the label is only the accessible name (as before),
+  without it the label is drawn as the button's text (`HeaderButtonIconForm`, `HeaderButtonTextForm`). `icon: undefined` is
+  rejected as invalid settings. `usePanelHeaderButtons` items carry `form: 'icon' | 'text'` (`PanelHeaderButtonItem` is now
+  a union), with `icon` undefined in the text form. Text longer than 9em is clipped with an ellipsis and, with no `tooltip`
+  declared, shows in full as the tooltip.
+- Slot sizing: a panel is n whole slots wide, a slot being one phone width with the row gap between slots; its height
+  stays the phone height. New per-panel settings `slots` (the choice; `formFactor` becomes its view: 1 phone, 2 tablet,
+  3 or more desktop) and `maxSlots`. `PanelSizeBox` snaps its resize under Reduce Motion and for a panel with `animated: false`. `PanelsAPI.setSlots(id, slots)` and a `setSlots` verb on the
+  handle resize by a count, clamped to `maxSlots` and to what fits the window; `PanelSummary` gains `slots`, `maxSlots`,
+  `drawnSlots` and `fitSlots` (the most slots that fit the window), and `size.height` is the drawn height. A person's resize is saved as `overrides.slots`, and the
+  panel's own count on the panel when it is not its tier's own; History's count is saved as `rootSlots`.
+- A fixed column (`parkable: false`, History) keeps the size settings its own template, host or instance asked for
+  (`resizable`, `formFactors`, `formFactor`, `slots`, `maxSlots` stand together), so History can be resizable. Unasked, a
+  fixed column is still one phone slot, and a workspace default never unlocks one. A new `resizable-capped` note says a
+  `resizable: true` cannot grow because `maxSlots` resolves to 1.
+- `ACTIVE_ATTRIBUTE`, `DRAGGING_ATTRIBUTE` and `CHROME_ATTRIBUTE` (the `data-panel-*` names `Panel` writes), and `CHROME_PARTS` with
+  the `ChromePart` type (the values of `CHROME_ATTRIBUTE`: `header`, `grab-bar`, `footer`), are exported from the package
+  entry so a host stops repeating the strings. The DOM is unchanged.
+- `PanelsAPI.maxFitPanels`: how many phone-width panels, permanent columns such as History included, the window fits at the
+  current phone width and row gap, so a host can offer a cap relative to the window without repeating the row's arithmetic.
+  `null` until the row is measured; it never reads below the permanent columns plus one, as the row's own floor, and pinned
+  panels are not subtracted. Optional on the interface, so a 0.1.0 host still type-checks.
 - Panel chrome API, all through the panel API with defaults that reproduce today's look (chrome always drawn):
   - `useActivePanel()` returns `[activeId | null, setActive]`, `usePanelActive()` and `usePanelDragging()` read one panel's
     marks. A press or focus anywhere inside a panel (a portaled dialog it opened and a focused iframe included) makes it the
@@ -31,11 +108,34 @@
   across History keep to it, and `configureTuning({ maxLivePanels })` applies at once. No row that reaches the document holds
   more than N: the panels of a restore, a replayed `addPanel` or a seeded list arrive with the excess already parked, and a
   panel the cap parks is never mounted. With `revealOnScroll` `'never'` on the panels, scrolling the row brings nothing back;
-  a hidden panel returns by `show`, a History click or an undo. This is a workspace setting the host chooses; the stored
+  a hidden panel returns by `show`, a History click or an undo. A raise of `maxLivePanels` through `configureTuning` brings back
+  only the most recently capacity-parked panels, in one commit, up to the new value; a panel the host hid is not among them. This is a workspace setting the host chooses; the stored
   per-person max-panels choice retired in 0.2.0-rc.1 (below) stays retired.
+
+- Tuning leaves for values that were literals, each at the value the code always used: `tuning.gestureQuietMs` (150, the
+  silence that ends a row-scroll wheel gesture, beside `gestureLockMs`), `dragToClose.restMs` (50) and
+  `dragToClose.velocityWindowMs` (100), which decide the speed a drag release reads, `slide.closeExitEase` (`'easeIn'`, or
+  `'easeOut'`, `'easeInOut'`, `'linear'` or a cubic bezier) for the curve every close leaves along, and `slide.glideEase`
+  (`'cubic-out'`, today's curve, 1 - (1 - t)^3; also `'linear'` or a cubic bezier) for the row's own scroll glides, which do
+  not follow `slide.ease`. `ROW_LAYER_Z` exports the slots' stacking (base 1, raised 2, dragged 3), below every
+  `OVERLAY_Z` layer. Nothing changes at the defaults.
+
+- Two more values that were literals are tuning leaves, each at the value the code always used: `tuning.resizeSettleSlides`
+  (1.25, a workspace-only number from 0 to 10 that multiplies `slide.durationSec` into the wait before the row's centring
+  margin glides again after a resize; 0 settles at once) and `tuning.chrome.fadeEase` (`'easeOut'`, the curve Motion applies
+  to a fade given only a duration; also `'easeIn'`, `'easeInOut'`, `'linear'` or a cubic bezier). `fadeEase` is a required member
+  of the resolved `ChromeTuning`, so a host that builds a whole `ChromeTuning` object (a test double, a fake) now has to give
+  it; a patch to `tuning.chrome` or a host that only reads the resolved value is unaffected. The `FadeEase` type is exported.
 
 ### Changed
 
+- **Default behaviour change.** A resized panel is now whole slots wide: a tablet is two slots (796 at a 390 phone and a 16 px
+  gap, was 768) and a desktop panel is every slot the window fits (two at a 1000 px container, was a 968 px clip), so a
+  panel's edges land on the row's stops. An unmeasured row draws a desktop panel three slots wide (was 1200 px). A hand-built
+  entry with no `slots` keeps the old tier widths.
+- `PanelsAPI.setFormFactor`, the `formFactor` setting and `formFactors` are deprecated in favour of `setSlots`, `slots` and
+  `maxSlots`. They keep working through 0.2.0-rc.3 and are removed in rc.4. A person's resize is now saved as
+  `overrides.slots`; a file holding only `overrides.formFactor` still reads as that tier's count.
 - **Default behaviour change.** The header buttons are now one Tab stop with roving focus, as a toolbar should be: Tab enters
   the row once, Arrow Left and Right, Home and End move along it, a disabled button is skipped and never holds the stop, and
   the row carries `role="toolbar"`, `aria-orientation="horizontal"` and, for a string title, `aria-label`. Before, every button
@@ -60,6 +160,11 @@
 
 ### Fixed
 
+- While a panel is dragged by its grab bar, the page no longer selects or highlights text or photos across the other panels, and
+  a photo no longer starts a native image drag. `user-select`, `-webkit-user-select` and `-webkit-user-drag` are `none` on the
+  document element from the press until the release, a `pointercancel` or the unmount, and come back exactly as the host had
+  them, so overlapping drags are safe. A selection made before the drag is cleared once the drag begins, and a plain click on
+  the grab bar leaves it. There is no setting to turn it off.
 - `revealOnScroll` `'never'` now holds in a row whose strip fits its window: a wheel step, Shift+wheel or arrow key there
   used to swap a hidden panel in through the 0.1.0 `scrollRow` path whatever the setting said, and swaps in none now.
 - A panel dragged sideways and released over a new slot now appears in that slot at once, with Reduce Motion on or off: before, its slot
@@ -71,6 +176,16 @@
 - Dragging a panel to the end of the strip no longer widens the row: the dragged box is drawn no further than the row's end, so the
   scroll container's scrollable width (and the scrollbar of a `free` row) holds still during the drag. The release still reports
   the pointer's real offset, so the hop count is unchanged.
+- A stepping row now reaches its last stop in Firefox. The row's end space is one element, `endPad` plus the row gap wide, in place
+  of the scroll container's right padding and a zero-height box. Firefox left the empty box out of the scrollable width, so the range
+  ended one end pad short, the glide to the last stops was clamped, and the row stepped back instead of ending on the stop that
+  draws the leaving panel at one slot. The row's layout in WebKit and Chromium is unchanged.
+- The size glide keeps the library's chrome true. While a panel eases to a new width the frame's corners, the header pill's ends and the
+  grab bar's pill stay circular arcs of the theme radius and the 1 px edge stays 1 px drawn, where the one scale squashed them for
+  about 0.4 s of every step. The frame's and the header pill's edge is now an inset shadow with no border, so the content keeps its
+  size; the header pill's horizontal padding is 13 px (12 and the 1 px the border held) and its vertical padding 1 px, and a
+  caller's own `px` or `py` on a `PanelHeader` no longer includes the edge. A view's own content and the header buttons are still
+  scaled by the box.
 
 ## 0.2.0-rc.2
 
@@ -312,7 +427,7 @@
   - `computeRowOrder`, `deriveAnchorsFromOrder`, `summarisePanel` and `computeMaxLiveWidth`: `useProvidePanels`
     orders the row and builds `PanelSummary` values; `computeRowLayout` stays.
   - `CaptureRegistryContext`: mount `CaptureRegistryProvider` instead.
-  - `vendorLabelForUsbVendorId`: `PhoneDetectPrompt` renders the label; `PHONE_MODELS` and `findPhoneModel` stay.
+  - `vendorLabelForUsbVendorId`: it only worded the phone-detect prompt, which is gone too (see Breaking under Unreleased); `PHONE_MODELS` and `findPhoneModel` stay.
 - `SettingsAPI.maxPanelsOnScreen`, `fitCount`, `minPanelsOnScreen` and `setMaxPanelsOnScreen`, and
   `PanelsInput.storedMaxPanels` (also gone from `createFakeHost`). Breaking, and a design choice listed for
   review in Jojos-Creations/phonux#2. `SettingsAPI` keeps `settingsColumn`. The app passes nothing in place of

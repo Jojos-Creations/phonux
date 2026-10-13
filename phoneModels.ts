@@ -1,6 +1,5 @@
 /**
- * A known phone model and its CSS-pixel frame size, as PHONE_MODELS lists them for the Settings dropdown and
- * the USB-detect prompt.
+ * A known phone model and its CSS-pixel frame size, as PHONE_MODELS lists them for the Settings dropdown.
  * @public
  */
 
@@ -40,16 +39,4 @@ export const PHONE_MODELS: readonly PhoneModel[] = [
 /** The entry of `PHONE_MODELS` whose `id` is `id`, or undefined when there is none. @public */
 export function findPhoneModel(id: string): PhoneModel | undefined {
   return PHONE_MODELS.find((m) => m.id === id);
-}
-
-/**
- * A short, friendly noun phrase for a just-detected USB vendor id, for the connect prompt's copy. Never more
- * specific than "iPhone" or "Android phone": a bare USB vendor/product id cannot tell the exact model.
- * @internal
- */
-export function vendorLabelForUsbVendorId(vendorId: number): string {
-  if (vendorId === 0x05ac) return 'an iPhone';
-  const knownAndroidVendors = new Set([0x18d1, 0x04e8, 0x12d1, 0x2717, 0x2a70, 0x0bb4, 0x22b8, 0x1004, 0x0fce, 0x2ae5]);
-  if (knownAndroidVendors.has(vendorId)) return 'an Android phone';
-  return 'a phone';
 }

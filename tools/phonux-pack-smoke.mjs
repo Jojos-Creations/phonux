@@ -12,6 +12,7 @@ import { tmpdir } from 'node:os';
 import { join, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { resolvePhoneDir } from './phonux-paths.mjs';
+import { extractReadmeBlock } from './readme-blocks.mjs';
 
 const REPO_ROOT = fileURLToPath(new URL('..', import.meta.url));
 const PHONE_DIR = resolvePhoneDir(REPO_ROOT);
@@ -24,7 +25,7 @@ const srcPkg = JSON.parse(readFileSync(join(PHONE_DIR, 'package.json'), 'utf8'))
 const PEERS = srcPkg.peerDependencies;
 
 // A list that silently lost entries must not print a smaller "all passed".
-const MIN_CHECKS = 8;
+const MIN_CHECKS = 10;
 
 // npm keeps a `--from` placed before a bare `--` for itself (as npm_config_from, a spaced value forwarded as a stray
 // positional); that and anything but `--from <value>` is refused, or the local dist/ would be gated in its place.
@@ -158,6 +159,13 @@ if (!html.includes(MARKER)) throw new Error('renderToString output is missing "'
 console.log('checkSsr: Workspace + PanelRow rendered the registered view, ' + html.length + ' bytes of html');
 `;
 
+// The README's quickstart block, run as a reader copies it: it is exported for the check below, which needs the workspace it makes.
+const CHECK_README_MJS = `import { workspace, notes } from './readme-quickstart.node.mjs';
+if (workspace.panels.get('notes') === undefined) throw new Error('the README quickstart did not open a notes panel');
+if (notes.id !== 'notes') throw new Error('the README quickstart template is not the notes template');
+console.log('checkReadme: the quickstart opened its panel');
+`;
+
 const tsconfigFor = (resolution, include) => ({
   compilerOptions: {
     target: 'ES2022',
@@ -227,6 +235,7 @@ try {
   writeFileSync(join(appDir, 'package.json'), `${JSON.stringify({ name: 'phonux-smoke-app', private: true, type: 'module' }, null, 2)}\n`);
   writeFileSync(join(appDir, 'tsconfig.bundler.json'), `${JSON.stringify(tsconfigFor('bundler', ['consumer.tsx']), null, 2)}\n`);
   writeFileSync(join(appDir, 'tsconfig.nodenext.json'), `${JSON.stringify(tsconfigFor('nodenext', ['consumer.tsx']), null, 2)}\n`);
+  writeFileSync(join(appDir, 'tsconfig.readme.json'), `${JSON.stringify(tsconfigFor('bundler', ['readme-quickstart.tsx']), null, 2)}\n`);
   writeFileSync(join(appDir, 'tsconfig.negative.json'), `${JSON.stringify(tsconfigFor('bundler', ['negative.tsx']), null, 2)}\n`);
 
   // Only the tarball is a local path; every peer name below resolves through the real registry.
@@ -252,6 +261,10 @@ try {
   writeFileSync(join(appDir, 'checkExports.mjs'), CHECK_EXPORTS_MJS);
   writeFileSync(join(appDir, 'checkSsr.mjs'), CHECK_SSR_MJS);
   const esbuild = join(appDir, 'node_modules', '.bin', 'esbuild');
+  // The registry page is the packed README, so the block is read from it and not from the source tree.
+  const readmeBlock = extractReadmeBlock(run('tar', ['-xOzf', tarball, 'package/README.md'], root), 'quickstart');
+  writeFileSync(join(appDir, 'readme-quickstart.tsx'), `${readmeBlock}\nexport { notes, workspace };\n`);
+  writeFileSync(join(appDir, 'checkReadme.mjs'), CHECK_README_MJS);
 
   record('(1) the packed manifest is publishable', () => {
     // The manifest inside the tarball, not dist/package.json: what a registry would receive.
@@ -277,7 +290,7 @@ try {
     if (stray.length) throw new Error(`unexpected files: ${stray.join(', ')}`);
     const missing = Object.values(packed.exports).flatMap((c) => Object.values(c)).filter((p) => !packedFiles.includes(p.replace(/^\.\//, '')));
     if (missing.length) throw new Error(`exports point at files not in the tarball: ${missing.join(', ')}`);
-    for (const doc of ['README.md', 'DESIGN.md']) if (!packedFiles.includes(doc)) throw new Error(`${doc} is not in the tarball`);
+    for (const doc of ['README.md', 'DESIGN.md', 'THIRD_PARTY_NOTICES.md', 'LICENSE']) if (!packedFiles.includes(doc)) throw new Error(`${doc} is not in the tarball`);
     // The packed README is the registry page: it must say how to install, and must not name this repo's
     // layout or link to a file the page cannot serve.
     const readme = run('tar', ['-xOzf', tarball, 'package/README.md'], root);
@@ -326,6 +339,13 @@ try {
     const out = readFileSync(join(appDir, 'consumer.browser.js'), 'utf8');
     if (!out.includes('phonux-smoke-marker-9f3a1c')) throw new Error('bundle does not contain the consumer code');
     return `${out.length} bytes`;
+  });
+  record('(9) tsc accepts the README quickstart as written', () => {
+    run(TSC_BIN, ['-p', 'tsconfig.readme.json'], appDir);
+  });
+  record('(10) the README quickstart runs against the tarball', () => {
+    run(esbuild, ['readme-quickstart.tsx', '--bundle', '--format=esm', '--platform=node', '--packages=external', '--jsx=automatic', '--outfile=readme-quickstart.node.mjs', '--log-level=error'], appDir);
+    return run(process.execPath, ['checkReadme.mjs'], appDir).trim();
   });
 } catch (err) {
   hardError = err;

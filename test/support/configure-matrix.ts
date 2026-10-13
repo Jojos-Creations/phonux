@@ -119,8 +119,8 @@ export const CLASS_TABLE: Readonly<Record<Cls, Readonly<Record<Status, Cell>>>> 
 
 export const CATALOG_NAMES: readonly string[] = PANEL_SETTINGS_CATALOG.map((d) => d.name);
 
-/** The eleven catalog names whose instance-door call is wrong-scope: three template keys, eight workspace-only tuning keys. */
-export const WRONG_SCOPE_NAMES: readonly string[] = ['hostCreatable', 'multiple', 'maxInstances', 'tuning.rowGap', 'tuning.saveQuietMs', 'tuning.gestureLockMs', 'tuning.returnTieBreak', 'tuning.dropTieBreak', 'tuning.rowGesture', 'tuning.initialScroll', 'tuning.maxLivePanels'];
+/** The thirteen catalog names whose instance-door call is wrong-scope: three template keys, ten workspace-only tuning keys. */
+export const WRONG_SCOPE_NAMES: readonly string[] = ['hostCreatable', 'multiple', 'maxInstances', 'tuning.rowGap', 'tuning.saveQuietMs', 'tuning.gestureLockMs', 'tuning.gestureQuietMs', 'tuning.resizeSettleSlides', 'tuning.returnTieBreak', 'tuning.dropTieBreak', 'tuning.rowGesture', 'tuning.initialScroll', 'tuning.maxLivePanels'];
 
 const probesRun = new Set<string>();
 const cellsRun = new Set<string>();
@@ -201,6 +201,7 @@ export const matrixTemplate = (id: string, over: Partial<PanelTemplate> = {}): P
       });
     },
     ...over,
+    settings: { frame: 'none', ...over.settings },
   });
 
 export const dragLog: { ends: { id: string; offset: number; hops: number }[] } = { ends: [] };
@@ -220,6 +221,7 @@ export const dragTemplate = (id: string, over: Partial<PanelTemplate> = {}): Pan
     id,
     view: ({ panel, handle }) => createElement(DragBox, { id: panel.id, close: () => void handle.close() }),
     ...over,
+    settings: { frame: 'none', ...over.settings },
   });
 
 export interface CaptureSpy extends CaptureTrigger {
@@ -311,6 +313,7 @@ export async function matrixRig(o: MatrixRigOptions = {}): Promise<MatrixRig> {
   const ids = o.ids ?? ['a', 'b', 'c'];
   const capture = captureSpy();
   const ws = createWorkspace({
+    mount: false,
     ...(o.root === false ? {} : { root: matrixTemplate('root', { settings: { title: 'History' } }) }),
     templates: [...ids.map((id) => (o.view === 'drag' ? dragTemplate : matrixTemplate)(id, { settings: { ...(o.park === true ? { overflow: 'park' as const } : {}), ...(o.settings?.[id] ?? {}) } })), ...(o.extra ?? [])],
     ...(o.workspace ?? {}),

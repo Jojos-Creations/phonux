@@ -26,6 +26,7 @@ export const markerTemplate = (id: string, over: Partial<PanelTemplate> = {}): P
         'data-handle-id': handle.id,
       }),
     ...over,
+    settings: { frame: 'none', ...over.settings },
   });
 
 export interface MountedWorkspace {
@@ -50,7 +51,7 @@ export interface ResizableWorkspace extends MountedWorkspace {
  * `ws` mounted at a measured container `width`; `over` replaces any provider input. `onCommit` sees the row of every
  * render that reached the document, from a layout effect, so a render React discarded is never recorded.
  */
-export function mountWorkspace(ws: WorkspaceHandle, o: { width?: number; over?: Partial<PanelsInput>; strict?: boolean; withPanelRowWorkspace?: boolean; onCommit?: (provided: ProvidedPanels) => void } = {}): ResizableWorkspace {
+export function mountWorkspace(ws: WorkspaceHandle, o: { width?: number; over?: Partial<PanelsInput>; strict?: boolean; withPanelRowWorkspace?: boolean; onCommit?: (provided: ProvidedPanels) => void; wrap?: (tree: React.ReactElement) => React.ReactElement } = {}): ResizableWorkspace {
   const width = o.width ?? 1000;
   const ref = React.createRef<HTMLDivElement>();
   const rowRef = React.createRef<HTMLDivElement>();
@@ -75,7 +76,7 @@ export function mountWorkspace(ws: WorkspaceHandle, o: { width?: number; over?: 
     );
   }
   const tree = o.strict === true ? React.createElement(React.StrictMode, null, React.createElement(Probe)) : React.createElement(Probe);
-  const mounted = mount(tree);
+  const mounted = mount(o.wrap === undefined ? tree : o.wrap(tree));
   const container = ref.current;
   assert.ok(container, 'the Workspace never attached its scroll container');
   return {

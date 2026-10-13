@@ -141,7 +141,7 @@ test('case A4: closable true on the root is a settings-conflict naming closable 
   assert.equal(r.m.latest().entries === entries, true, 'the engine was not touched');
 });
 
-test('case A5: parkable true to false on a live phone panel: listed, draggable, placeable and clearable re-derive false at the commit unless named, the settled row fits, a resizable true is a conflict and a measured park row accepts it', async () => {
+test('case A5: parkable true to false on a live phone panel: listed, draggable, placeable and clearable re-derive false at the commit unless named, the settled row fits, a resizable true beside it stands and a measured park row accepts it', async () => {
   const r = await matrixRig({ ids: ['a', 'b', 'c'], settings: { a: { overflow: 'park' }, c: { overflow: 'park' } }, width: 1700 });
   await r.settle();
   assert.equal(r.live().join(' '), 'root a b c');
@@ -158,9 +158,8 @@ test('case A5: parkable true to false on a live phone panel: listed, draggable, 
   const named = await matrixRig();
   assert.deepEqual(shape(named.turn(() => named.h.b!.configure({ parkable: false, listed: true }))), { now: ['parkable', 'listed'], later: [], shadowed: [] });
   assert.deepEqual([named.state('b').settings.parkable, named.state('b').listed, named.state('b').settings.draggable], [false, true, false], 'a named key keeps its value');
-  const clash = refusedWith(named.turn(() => named.h.a!.configure({ parkable: false, resizable: true })), 'settings-conflict');
-  assert.equal(clash.setting, 'resizable');
-  assert.equal(named.state('a').settings.parkable, true, 'and the refused call changed nothing');
+  assert.deepEqual(shape(named.turn(() => named.h.a!.configure({ parkable: false, resizable: true }))), { now: ['parkable', 'resizable'], later: [], shadowed: [] });
+  assert.deepEqual([named.state('a').settings.parkable, named.state('a').settings.resizable], [false, true], 'a resizable true the panel asked for beside its fixed column stands');
 });
 
 test('case A6: parkable true to false on a tablet panel is tier-not-allowed and changes nothing', async () => {
@@ -520,12 +519,11 @@ test('root column 1: closable, parkable, draggable and placeable true on the roo
   assert.deepEqual([r.m.latest().entries === entries, r.m.renders()], [true, renders], 'the root was not touched');
 });
 
-test('root column 2: resizable true on the root is a settings-conflict from rule C1, because of parkable', async () => {
+test('root column 2: resizable true on the root stands, the size settings being asked for the root itself', async () => {
   const r = await matrixRig();
-  const refusal = refusedWith(r.turn(() => r.ws.panels.configure(r.ws.rootId, { resizable: true })), 'settings-conflict');
-  assert.equal(refusal.setting, 'resizable');
-  assert.match(refusal.message, /C1/);
-  assert.match(refusal.message, /because of parkable$/);
+  assert.equal(r.state(r.ws.rootId).settings.resizable, false, 'before: a fixed column is not resizable');
+  assert.equal(shape(r.turn(() => r.ws.panels.configure(r.ws.rootId, { resizable: true }))).now[0], 'resizable');
+  assert.equal(r.state(r.ws.rootId).settings.resizable, true);
 });
 
 type Cell = { reply: 'would-reshape-row' | 'is-closed' | 'shown' | 'deferred' | 'stored'; fixed: boolean };

@@ -10,7 +10,6 @@ import { useEffect, useLayoutEffect, useReducer, useRef, useState } from 'react'
 import type { Dispatch, SetStateAction } from 'react';
 import { flushSync } from 'react-dom';
 import type { FormFactor } from '../hostApi.js';
-import { computeRowLayout } from '../panelRowLayout.js';
 import { computeRowNumbers } from '../rowNumbers.js';
 import { placePanel, reportNotes } from '../panelPlacement.js';
 import { applyPinChange, landPanel, pinHalf, pinnedIds, withoutDeferral, type PinApplied, type PinChange, type PinEnv } from '../panelPin.js';
@@ -18,7 +17,7 @@ import { resetEntries, type ResetEnv } from '../panelReset.js';
 import type { AddPlacement, PanelSettingsResolution } from '../panelSettings.js';
 import { isPresent } from '../panelRowEntry.js';
 import { panelWidthOf } from '../panelTiers.js';
-import { effectiveMaxPanels } from '../panelCapacity.js';
+import { effectiveMaxPanels, rowFitCount } from '../panelCapacity.js';
 import { effective, holdUnlistedNote } from '../panelSettings.js';
 import type { SettingNote, WorkspaceTuning } from '../panelSettings.js';
 import { DROP_TIE_BREAK, RETURN_TIE_BREAK, ROW_GAP } from '../rowConstants.js';
@@ -33,7 +32,7 @@ import {
   promoteToLive,
   recordOverride,
   rightmostLiveIndex,
-  setFormFactor,
+  resizeTo,
   sideOfLiveRange,
   type PanelWindow,
 } from '../panelWindow.js';
@@ -93,7 +92,7 @@ export interface UsePanelManagerResult {
   /** Moves `id` one row-slot toward `direction`; see `movePanel` for the no-op contract. `record` false (a call from code) leaves the person's arrangement, `overrides`, as it was. True when the move changes this render's list. */
   reorderPanel: (id: string, direction: 'left' | 'right', record?: boolean) => boolean;
   /** `setFormFactor` through setPanels; if the row no longer fits, the same update parks what the capacity drop would, keeping every acted-on panel live. False for a no-op. `record` false leaves `overrides` as it was. */
-  resizePanel: (id: string, next: FormFactor, record?: boolean) => boolean;
+  resizePanel: (id: string, next: FormFactor | number, record?: boolean) => boolean;
   /** Puts `id` where `value` says, keeping its live flag; the placement is the developer's own ask, so `placeable` is the caller's to check. `record` false leaves `overrides` as it was. True when the placement changes this render's list. */
   placeAt: (id: string, value: AddPlacement | 'in-place', record?: boolean) => boolean;
   /** The in-flight gate shared by the manager's operations and the raw mutators. */
@@ -194,18 +193,16 @@ export function usePanelManager(
    */
   const pricing = (row: readonly PanelWindow[]) => {
     const numbers = computeRowNumbers({ entries: row, phoneWidth, containerWidth, gap, fixedItemCount: fixedColumnCount });
-    // Only a row with a scroll panel prices its reserved widths one by one; any other keeps the fixed column count the host passed.
-    const reservedWidths = row.some((p) => isPresent(p) && !parksForRoom(p) && p.collapsible) ? numbers.reservedWidths : undefined;
+    // Only a row with a scroll panel, or a fixed column wider than a phone, prices its reserved widths one by one; any other keeps the fixed column count the host passed.
+    const widerThanPhone = row.some((p) => isPresent(p) && !p.collapsible && panelWidthOf(p, phoneWidth, numbers.maxLiveWidth, gap) !== phoneWidth);
+    const reservedWidths = widerThanPhone || row.some((p) => isPresent(p) && !parksForRoom(p) && p.collapsible) ? numbers.reservedWidths : undefined;
     // Parked ones included, so a pinned panel that returns is still exempt. Empty without a cap: nothing then reads a pin.
     const pinned = maxLive === null ? NO_IDS : pinnedIds(row, rootId);
-    const widthOf = (p: PanelWindow): number => panelWidthOf(p, phoneWidth, numbers.maxLiveWidth);
+    const widthOf = (p: PanelWindow): number => panelWidthOf(p, phoneWidth, numbers.maxLiveWidth, gap);
     const fitCapacityFor = (liveWidths: readonly number[]): number => {
       // `containerWidth === 0` means unmeasured (the first commit, and every jsdom test that never calls
       // measure()): null means no cap and no reconcile, never "zero panels fit".
-      const fitCount =
-        containerWidth === 0
-          ? null
-          : fixedColumnCount + computeRowLayout({ containerWidth, phoneWidth, gap, fixedItemCount: fixedColumnCount, liveWidths, reservedWidths }).maxLiveThatFit;
+      const fitCount = rowFitCount({ containerWidth, phoneWidth, gap, fixedColumnCount, liveWidths, reservedWidths });
       const effectiveMax = effectiveMaxPanels(fitCount, fixedColumnCount);
       // Floor of 1 keeps the panel just opened on screen even at the narrowest legal width (effectiveMaxPanels
       // already floors at fixedColumnCount + 1, so this bites only when the fixed columns alone reach effectiveMax).
@@ -245,11 +242,11 @@ export function usePanelManager(
   /** Every id a park must leave alone: those just acted on, and under a cap the pinned ones. */
   const keptIds = (): ReadonlySet<string> => new Set([...keepLiveRef.current.keys(), ...pinned]);
   /** Tiers resizePanel queued on `seen` that have not reached `panels` yet, so a later action in the same handler can price them. */
-  const pendingTiersRef = useRef<{ seen: PanelWindow[] | null; tiers: ReadonlyMap<string, FormFactor> }>({ seen: null, tiers: new Map() });
+  const pendingTiersRef = useRef<{ seen: PanelWindow[] | null; tiers: ReadonlyMap<string, FormFactor | number> }>({ seen: null, tiers: new Map() });
   /** `row` (read in this render) with those tiers applied. */
   const withPendingTiers = (row: PanelWindow[]): PanelWindow[] => {
     const { seen, tiers } = pendingTiersRef.current;
-    return seen === panels ? [...tiers].reduce((acc, [id, tier]) => setFormFactor(acc, id, tier), row) : row;
+    return seen === panels ? [...tiers].reduce((acc, [id, tier]) => resizeTo(acc, id, tier), row) : row;
   };
   /** `next`, plus in the same update whatever the reconcile's DROP would park, so no committed row overflows. */
   const settledKeeping = (next: PanelWindow[], keep: readonly string[]): PanelWindow[] => {
@@ -332,6 +329,16 @@ export function usePanelManager(
   };
   const forgetCollapsed = (id: string): void => {
     collapseOrderRef.current = collapseOrderRef.current.filter((x) => x !== id);
+  };
+  /**
+   * The 'manual' panels the CAPACITY parked, most recent last. They are held 'sticky' and off the collapse stack, so
+   * this is the only record that tells them from a host hide; only a raise of `maxLivePanels` reads it. recordPark
+   * appends in the order it is given (the cap's choice, `dropTieBreak` included), a hide removes the id, and the
+   * reconcile effect drops any id that is live, closed or gone.
+   */
+  const capParkedOrderRef = useRef<string[]>([]);
+  const forgetCapParked = (id: string): void => {
+    capParkedOrderRef.current = capParkedOrderRef.current.filter((x) => x !== id);
   };
 
   /** Session only, and a new Map per change so `heldIds` is a snapshot; the counter re-renders for a change no `setPanels` carries. */
@@ -431,12 +438,14 @@ export function usePanelManager(
           writeHold(id, 'sticky');
           forgetCollapsed(id);
         }
+        forgetCapParked(id);
         continue;
       }
       const parked = panels.find((p) => p.id === id);
       if (parked !== undefined && parkLevers(parked).capacityReturn === 'manual') {
         writeHold(id, 'sticky');
         forgetCollapsed(id);
+        capParkedOrderRef.current = [...capParkedOrderRef.current.filter((x) => x !== id), id];
       } else {
         pushCollapsed([id]);
       }
@@ -664,8 +673,8 @@ export function usePanelManager(
   };
 
   /** See `UsePanelManagerResult.resizePanel`'s own doc comment. */
-  const resizePanel = (id: string, next: FormFactor, record = true): boolean => {
-    if (setFormFactor(panels, id, next) === panels) return false;
+  const resizePanel = (id: string, next: FormFactor | number, record = true): boolean => {
+    if (resizeTo(panels, id, next) === panels) return false;
     const wasLive = panels.find((p) => p.id === id)?.live === true;
     markKeepLive(id);
     const keep = [...keptIds()];
@@ -676,12 +685,12 @@ export function usePanelManager(
       forgetCollapsed(id);
     }
     setPanels((prev) => {
-      const resized = setFormFactor(prev, id, next);
+      const resized = resizeTo(prev, id, next);
       // An earlier call in this same handler may have queued a park of it (its exit mark and stack entry are
       // dropped above): a resize never parks its own panel, so that park is cancelled before anything commits.
       const own = wasLive && resized.some((p) => p.id === id && !p.live) ? resized.map((p) => (p.id === id ? { ...p, live: true } : p)) : resized;
       const settled = settledKeeping(own, keep);
-      return record ? recordOverride(settled, 'formFactor', [id], rootId) : settled;
+      return record ? recordOverride(settled, 'slots', [id], rootId) : settled;
     });
     return true;
   };
@@ -696,7 +705,12 @@ export function usePanelManager(
    * `collapseOrderRef`; one that doesn't settle stays on the stack for an OLDER, narrower one.
    */
   const committedRef = useRef(panels);
+  // The value the previous committed render had: a raise is read against it, so a mount, a restore, a resize, an equal or lower value and StrictMode's second effect all read none.
+  const prevMaxLiveRef = useRef(maxLive);
   useEffect(() => {
+    const raised = prevMaxLiveRef.current !== null && (maxLive === null || maxLive > prevMaxLiveRef.current);
+    prevMaxLiveRef.current = maxLive;
+    capParkedOrderRef.current = capParkedOrderRef.current.filter((id) => panels.some((p) => p.id === id && p.collapsible && !p.live));
     // `settledKeeping` parks inside a state update, where no call-time code sees which panels it chose: the
     // stack learns of any park not already on it from the commit itself.
     const before = committedRef.current;
@@ -731,8 +745,9 @@ export function usePanelManager(
       recordPark(toPark, { kind: 'capacity' });
       const parkedSet = new Set(toPark);
       setPanels((current) => current.map((p) => (parkedSet.has(p.id) ? { ...p, live: false } : p)));
-    } else if (live.length < capacity && collapseOrderRef.current.length > 0) {
-      const stack = collapseOrderRef.current;
+    } else if (live.length < capacity && (collapseOrderRef.current.length > 0 || (raised && capParkedOrderRef.current.length > 0))) {
+      // A raise also walks the manual panels the cap parked; the walk and its bound are the ones a capacity rise uses.
+      const stack = raised ? [...collapseOrderRef.current, ...capParkedOrderRef.current] : collapseOrderRef.current;
       const revealed = new Set<string>();
       const stale = new Set<string>();
       for (const id of returnOrder(stack, panels)) {
@@ -745,7 +760,8 @@ export function usePanelManager(
         if (settles(panels.filter((p) => parksForRoom(p) && (p.live || revealed.has(p.id) || p.id === id)))) revealed.add(id);
       }
       if (revealed.size === 0) return;
-      collapseOrderRef.current = stack.filter((id) => !revealed.has(id) && !stale.has(id));
+      collapseOrderRef.current = collapseOrderRef.current.filter((id) => !revealed.has(id) && !stale.has(id));
+      capParkedOrderRef.current = capParkedOrderRef.current.filter((id) => !revealed.has(id) && !stale.has(id));
       // Each returning panel lands by its own `placeOnReturn`, or by the pin change it waits with, in return order, in the update that makes it live.
       const returnAt = (id: string): AddPlacement | 'in-place' => effective(panels.find((p) => p.id === id)!).placeOnReturn;
       const landAll = (row: PanelWindow[]): PanelWindow[] => [...revealed].reduce((acc, id) => landOn(acc, id, returnAt(id)).row, row);
@@ -765,7 +781,7 @@ export function usePanelManager(
       setPanels((current) => landAll(current).map((p) => (revealed.has(p.id) ? { ...p, live: true } : p)));
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [capacity, panels]);
+  }, [capacity, panels, maxLive]);
 
   /**
    * `stack` (park order, most recent last) in the order a return walk tries it: the tie-break first, then a stable

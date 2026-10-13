@@ -4,6 +4,7 @@
  * engine to create the panel. The engine's controls reach this module through `publish` and are used only here,
  * through the handles and the reader built over `ReadSource`; DESIGN.md, "The workspace core", says why.
  */
+import type { ComponentType, ReactNode } from 'react';
 import type { JsonValue } from './hostApi.js';
 import type { FormFactor } from './hostApi.js';
 import { askedFlip, cancelled, checkPatch, configured, deferredEntry, deferredResult, ownLayer, planInstance, planTemplate, planTuning, reconfigured, refusedFlip, refusedPlan, sameDeferral, shownEntry, shownResult, unchanged, withoutFlip, type ConfigureOutcome, type HostSplit, type InstancePlan } from './panelConfigure.js';
@@ -16,12 +17,13 @@ import type { AddPlacement, PanelId, PanelSettings, PanelSettingsResolution, Res
 import { definePanel } from './panelTemplate.js';
 import type { DeferredPin, PanelReader, PanelReadHandle, PanelSnapshot, PanelState, PanelTemplate, ViewHandle, WorkspaceStatus } from './panelTemplate.js';
 import { resolveWorkspaceTuning } from './panelTuning.js';
-import { createHistoryPanel, type PanelWindow } from './panelWindow.js';
+import { createHistoryPanel, slotsOf, type PanelWindow } from './panelWindow.js';
 import type { PanelViewContext } from './panelViewContext.js';
-import { getTemplate, registerTemplate as registerGlobalTemplate } from './viewRegistry.js';
+import { assertTemplateIdFree } from './viewRegistry.js';
 import type { DeclaredPanel } from './workspacePlan.js';
 import type { WorkspaceStorage } from './workspaceState.js';
 import type { SettingsPatch } from './settingsPatch.js';
+import { createLiveStore, refusedLiveKeys, type LiveStore, type WorkspaceLive } from './workspaceLive.js';
 
 /** The id of the marker entry a workspace without a root keeps. */
 export const ROOT_MARKER_ID = '__root__';
@@ -30,11 +32,20 @@ let nextEngineIdValue = 1;
 /** The next id for an engine entry. A module counter, bumped only from handlers and the restore callback, never from a state initialiser. */
 export const nextEngineId = (): string => String(nextEngineIdValue++);
 
+/** What `wrap` renders: the workspace's row as `children`, and the workspace it belongs to. @public */
+export interface WorkspaceWrapProps {
+  /** The row, inside the host and the panels API. */
+  children: ReactNode;
+  /** The workspace being mounted: a hook in `wrap` reads it and calls `update` on it. */
+  workspace: WorkspaceHandle;
+}
+
 /**
- * What `createWorkspace` takes; every member is optional.
+ * What `createWorkspace` takes; every member is optional. The members of `WorkspaceLive` are its starting values and
+ * `workspace.update` changes them later; everything else is fixed for the workspace's life.
  * @public
  */
-export type WorkspaceOptions = {
+export type WorkspaceOptions = WorkspaceLive & {
   /** Where the workspace is kept between launches. Unset: nothing is loaded or saved. */
   storage?: WorkspaceStorage;
   /** The workspace's panel settings (every key except `tuning`), the layer under every template. */
@@ -53,6 +64,18 @@ export type WorkspaceOptions = {
   newId?: () => string;
   /** Receives an error the workspace swallows, such as a storage whose save fails. Unset: `console.error`. */
   onError?: (e: unknown) => void;
+  /**
+   * Where the workspace renders itself. Unset: a full-window element the workspace creates, appends to `document.body` and
+   * removes on `dispose()`. An element: rendered inside it, which is never emptied. `false`: nothing is mounted, for an app
+   * that renders the workspace through `HostProvider`, `Workspace` and `PanelRow` itself. Without a `document` nothing is mounted either.
+   */
+  mount?: HTMLElement | false;
+  /**
+   * A component rendered around the auto-mounted row, inside the host: the theme, the capture registry and the app's own
+   * contexts go here, and a hook in it may read `useHost()` and call `workspace.update`. Fixed at creation, so it keeps
+   * one identity for the workspace's life and never remounts. Ignored when `mount` is `false`.
+   */
+  wrap?: ComponentType<WorkspaceWrapProps>;
 };
 
 /**
@@ -74,7 +97,14 @@ export interface WorkspaceHandle {
    * template then needs an explicit `id`. A panel over its template's `maxInstances` comes back in status `closed`.
    */
   addPanel<P extends JsonValue = JsonValue>(t: PanelTemplate<P> | string, o?: { id?: PanelId; settings?: PanelSettings; params?: P; url?: string }): PanelHandle<P>;
-  /** Registers a template with this workspace and the view registry; returns the function that removes it. */
+  /**
+   * Gives the auto-mounted host new values: only the members of `WorkspaceLive` (`device`, `settings`, `history`, `snapshots`,
+   * `labels`, `topInset`, `panels`) may be named, and a member left out is not touched. Readers re-render when the data of a
+   * member changed, never for a changed closure alone, so a hook may call this from an effect on every render without a loop.
+   * Naming anything else (`root`, `templates`, `storage`, `mount`, `wrap`) throws `invalid-options` and changes nothing.
+   */
+  update(live: WorkspaceLive): void;
+  /** Registers a template with this workspace only; returns the function that removes it. */
   registerTemplate(t: PanelTemplate): () => void;
   /** Drops the workspace's listeners and intents; a later `addPanel` throws `disposed`. */
   dispose(): void;
@@ -110,6 +140,7 @@ export interface EngineOps {
   move(engineId: string, direction: 'left' | 'right', source: PanelOpSource): PanelResult;
   place(engineId: string, value: AddPlacement | 'in-place', source: PanelOpSource): PanelResult;
   setFormFactor(engineId: string, next: FormFactor, source: PanelOpSource): PanelResult;
+  setSlots(engineId: string, slots: number, source: PanelOpSource): PanelResult;
   scrollTo(engineId: string, align: ScrollAlign | undefined): PanelResult;
   /** Re-adds a closed panel, as `create` does; refuses `busy` when the turn's gate says so. */
   reopen(req: CreateRequest): PanelResult;
@@ -160,12 +191,22 @@ export interface EngineBinding {
   readonly newId: () => string;
   /** Reports an error the hook swallowed: `onError`, else `console.error`. */
   reportError(e: unknown): void;
+  /** Whether this workspace renders itself (see `WorkspaceOptions.mount`). */
+  readonly autoMounted: boolean;
+  /** The host values the auto mount reads (see `WorkspaceLive`). */
+  readonly live: LiveStore;
+  /** The component the auto mount renders around the row, if the app gave one. */
+  readonly wrap: ComponentType<WorkspaceWrapProps> | undefined;
+  /** A hand-mounted row was given this workspace; warns once in development when the workspace also mounts itself. */
+  warnHandMounted(): void;
   /** Delivers a runtime note to the sink the attached hook bound, or holds it until one is bound; a sink that throws is ignored. */
   reportNote(note: SettingNote): void;
   /** The attached hook binds (or, with undefined, unbinds) where runtime notes go. */
   bindNotes(sink: ((note: SettingNote) => void) | undefined): void;
-  /** The workspace's own templates. */
+  /** The workspace's own templates, the root's included. */
   templates(): readonly PanelTemplate[];
+  /** The template this workspace holds under `id`, or undefined: what its row renders a panel of `id` with. */
+  template(id: string): PanelTemplate | undefined;
   /** What `e` resolves to now, over the layers the workspace holds for it: the settings a closed entry is rebuilt with. */
   resolved(e: PanelWindow): ResolvedPanelSettings;
   /** What `e` resolves to over the layers the workspace holds for it with the person's `parkable` set to the given value. */
@@ -252,8 +293,8 @@ function withHoldNote(target: PanelWindow, status: 'live' | 'parked' | 'hidden',
 }
 
 /**
- * A workspace over `o`. Nothing renders until `useProvidePanels({ workspace })` attaches it; panels added before that
- * are recorded and created when the restore settles.
+ * A workspace over `o`. It renders itself (see `WorkspaceOptions.mount`) unless `mount: false` hands that to `useProvidePanels({ workspace })`
+ * in a tree the caller writes. Panels added before the row attaches are recorded and created when the restore settles.
  * @public
  */
 export function createWorkspace(o: WorkspaceOptions = {}): WorkspaceHandle {
@@ -296,7 +337,7 @@ export function createWorkspace(o: WorkspaceOptions = {}): WorkspaceHandle {
   let snapshot: PanelSnapshot = { version: 0, status, panels: [] };
   let states = new Map<PanelId, PanelState>();
 
-  const registeredTemplate = (id: string): PanelTemplate | undefined => templates.get(id) ?? (root?.id === id ? root : getTemplate(id));
+  const registeredTemplate = (id: string): PanelTemplate | undefined => templates.get(id) ?? (root?.id === id ? root : undefined);
 
   /** `t` with this session's `configureTemplate` changes laid over its settings; `t` itself when there are none. */
   const withOverrides = (t: PanelTemplate): PanelTemplate => {
@@ -334,6 +375,10 @@ export function createWorkspace(o: WorkspaceOptions = {}): WorkspaceHandle {
       }
     }
   };
+
+  const autoMounted = o.mount !== false && typeof document !== 'undefined';
+  const live = createLiveStore({ ...(o.device !== undefined ? { device: o.device } : {}), ...(o.settings !== undefined ? { settings: o.settings } : {}), ...(o.history !== undefined ? { history: o.history } : {}), ...(o.snapshots !== undefined ? { snapshots: o.snapshots } : {}), ...(o.labels !== undefined ? { labels: o.labels } : {}), ...(o.topInset !== undefined ? { topInset: o.topInset } : {}), ...(o.panels !== undefined ? { panels: o.panels } : {}) });
+  let warnedHandMount = false;
 
   let noteSink: ((note: SettingNote) => void) | undefined;
   const notesBeforeSink: SettingNote[] = [];
@@ -593,11 +638,10 @@ export function createWorkspace(o: WorkspaceOptions = {}): WorkspaceHandle {
     const existing = templates.get(t.id);
     if (existing !== undefined && existing !== t) throw new PanelManagerError('duplicate-template', `template '${t.id}' is already registered in this workspace`);
     if (existing === t) return () => {};
-    const unregisterGlobal = registerGlobalTemplate(t);
+    assertTemplateIdFree(t.id);
     templates.set(t.id, t);
     const remove = (): void => {
       if (templates.get(t.id) === t) templates.delete(t.id);
-      unregisterGlobal();
     };
     removers.push(remove);
     return remove;
@@ -786,6 +830,8 @@ export function createWorkspace(o: WorkspaceOptions = {}): WorkspaceHandle {
         return ops.place(engineId, call.value, src);
       case 'setFormFactor':
         return ops.setFormFactor(engineId, call.next, src);
+      case 'setSlots':
+        return ops.setSlots(engineId, call.slots, src);
       case 'scrollTo':
         return state.status === 'live' ? ops.scrollTo(engineId, call.align) : refused('not-live', `panel '${id}' is parked`);
       case 'pin':
@@ -895,7 +941,7 @@ export function createWorkspace(o: WorkspaceOptions = {}): WorkspaceHandle {
     const planUpdate = (target: PanelWindow, status: 'live' | 'parked' | 'hidden'): ConfigureOutcome => {
       base ??= { layer: instanceLayer(target), split: splits.get(target.id) };
       const seen = base;
-      const planFor = (ask: typeof rest): InstancePlan => planInstance({ ...input, ...ask, base: seen.layer, template: templateOf(target.view)?.settings, split: seen.split, person: target.overrides, current: target.settings, root: target.id === rootId, tier: target.formFactor ?? 'phone', status });
+      const planFor = (ask: typeof rest): InstancePlan => planInstance({ ...input, ...ask, base: seen.layer, template: templateOf(target.view)?.settings, split: seen.split, person: target.overrides, current: target.settings, root: target.id === rootId, tier: target.formFactor ?? 'phone', slots: slotsOf(target), status });
       const plan = planFor(input);
       if (!plan.ok) return { done: refusedPlan(id, plan) };
       if (!plan.changed) return asked.parkable !== undefined && target.deferredPin !== undefined ? { done: cancelled(), next: withoutDeferral(target) } : { done: unchanged() };
@@ -993,7 +1039,7 @@ export function createWorkspace(o: WorkspaceOptions = {}): WorkspaceHandle {
   };
 
   for (const t of o.templates ?? []) registerOne(t);
-  if (root !== undefined && !templates.has(root.id)) removers.push(registerGlobalTemplate(root));
+  if (root !== undefined && !templates.has(root.id)) assertTemplateIdFree(root.id);
 
   const binding: EngineBinding = {
     rootId,
@@ -1011,6 +1057,14 @@ export function createWorkspace(o: WorkspaceOptions = {}): WorkspaceHandle {
     order: o.order,
     newId,
     reportError,
+    autoMounted,
+    live,
+    wrap: o.wrap,
+    warnHandMounted: () => {
+      if (!autoMounted || warnedHandMount || typeof process === 'undefined' || process.env.NODE_ENV === 'production') return;
+      warnedHandMount = true;
+      console.warn('phonux: a PanelRow was given a workspace that also renders itself, so its panels mount twice. Pass `mount: false` to createWorkspace when you render the workspace yourself.');
+    },
     reportNote: (note) => {
       if (noteSink === undefined) {
         notesBeforeSink.push(note);
@@ -1027,7 +1081,8 @@ export function createWorkspace(o: WorkspaceOptions = {}): WorkspaceHandle {
       // A slot that fails in the first commit reports before the hook's layout effect has bound the sink.
       for (const note of sink === undefined ? [] : notesBeforeSink.splice(0)) binding.reportNote(note);
     },
-    templates: () => [...templates.values()].map(withOverrides),
+    templates: () => [...(root !== undefined && !templates.has(root.id) ? [root] : []), ...templates.values()].map(withOverrides),
+    template: registeredTemplate,
     resolved: (e) => entryResolution(e).value,
     resolveWith: (e, parkable) => resolveEntry(e, { ...e.overrides, parkable }),
     resolveDefaults: (e) => resolveEntry(e, undefined),
@@ -1088,6 +1143,12 @@ export function createWorkspace(o: WorkspaceOptions = {}): WorkspaceHandle {
       return status;
     },
     addPanel,
+    update: (change) => {
+      if (status === 'disposed') throw new PanelManagerError('disposed', 'the workspace was disposed');
+      const refusedKeys = refusedLiveKeys(change);
+      if (refusedKeys.length > 0) throw new PanelManagerError('invalid-options', `update cannot change ${refusedKeys.join(', ')}: only device, settings, history, snapshots, labels, topInset and panels are live`);
+      live.update(change);
+    },
     registerTemplate: (t) => {
       if (status === 'disposed') throw new PanelManagerError('disposed', 'the workspace was disposed');
       const remove = registerOne(t);
@@ -1112,6 +1173,7 @@ export function createWorkspace(o: WorkspaceOptions = {}): WorkspaceHandle {
       listeners.clear();
       panelListeners.clear();
       tuningListeners.clear();
+      live.clear();
       splits.clear();
       templateOverrides.clear();
       for (const remove of removers.splice(0)) remove();
@@ -1126,6 +1188,15 @@ export function createWorkspace(o: WorkspaceOptions = {}): WorkspaceHandle {
     manager: reader,
   };
   CORES.set(handle, { binding, view, reader, handle });
+  if (autoMounted) {
+    // Loaded on demand so a workspace that never mounts keeps `react-dom/client` off its import path; a mount that outlives a dispose is undone at once.
+    void import('./autoMount.js')
+      .then((m) => {
+        if (status === 'disposed') return;
+        removers.push(m.mountWorkspace(handle, o.mount === false ? undefined : o.mount, reportError));
+      })
+      .catch(reportError);
+  }
   return handle;
 }
 

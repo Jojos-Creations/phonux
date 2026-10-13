@@ -11,8 +11,7 @@ import { computeRowOrder } from '../panelRowOrder.js';
 import type { PanelSettings, SettingNote } from '../panelSettings.js';
 import type { PanelTemplate } from '../panelTemplate.js';
 import { SAVE_QUIET_MS } from '../rowConstants.js';
-import type { PanelWindow } from '../panelWindow.js';
-import { listTemplates } from '../viewRegistry.js';
+import { setSlots, type PanelWindow } from '../panelWindow.js';
 import { reconcileWorkspace } from '../workspacePlan.js';
 import type { DeclaredPanel } from '../workspacePlan.js';
 import { DISMISSED_LIMIT, projectWorkspaceState } from '../workspaceState.js';
@@ -91,8 +90,7 @@ export function useWorkspacePersistence(i: {
     // StrictMode runs this effect twice; only the run that is not cancelled may apply its result.
     let cancelled = false;
     const reconcile = (saved: unknown): PanelWindow[] => {
-      const own = (typeof given === 'function' ? given() : given) ?? [];
-      const templates = [...listTemplates().filter((t) => !own.some((g) => g.id === t.id)), ...own];
+      const templates = (typeof given === 'function' ? given() : given) ?? [];
       // Drawn here, never inside an updater: React may run an updater twice.
       const result = reconcileWorkspace({ saved, templates, declared: typeof declared === 'function' ? declared() : declared, workspaceDefaults, rootId, current: panelsRef.current, freshId, order: i.order });
       const before = (saved as { dismissed?: unknown } | null)?.dismissed;
@@ -112,12 +110,17 @@ export function useWorkspacePersistence(i: {
         return hostData === undefined ? p : { ...p, hostData };
       });
     };
-    const settle = (restored: PanelWindow[]): void => {
+    const settle = (restored: PanelWindow[], rootSlots?: number): void => {
       // The baseline is what the restored list projects to, not the file: saved ids differ from fresh ones,
       // and comparing against the file would save at every launch.
       lastSaved.current = tombstonesDropped.current ? null : JSON.stringify(projectWorkspaceState(restored, rootId, dismissed.current));
-      // Appended after what is already there, so a panel created while load() was pending survives.
-      if (restored.length > 0) setPanels((prev) => computeRowOrder([...prev, ...restored], rootId));
+      // Appended after what is already there, so a panel created while load() was pending survives. The root's saved size goes through setSlots, so a root that cannot resize ignores it.
+      if (restored.length > 0 || rootSlots !== undefined) {
+        setPanels((prev) => {
+          const added = restored.length > 0 ? computeRowOrder([...prev, ...restored], rootId) : prev;
+          return rootSlots === undefined ? added : setSlots(added, rootId, rootSlots);
+        });
+      }
       setSettled(true);
     };
     // A failed load, or a restore that threw, still gets the panels code declares; a restore that cannot even do that restores nothing.
@@ -148,7 +151,8 @@ export function useWorkspacePersistence(i: {
           fail();
           return;
         }
-        settle(restored);
+        const saved = (loaded as { rootSlots?: unknown } | null)?.rootSlots;
+        settle(restored, typeof saved === 'number' && Number.isInteger(saved) && saved >= 1 ? saved : undefined);
       },
       () => {
         if (cancelled) return;
