@@ -1,0 +1,97 @@
+{
+  "tests": [
+    "test/panel-chrome.test.ts"
+  ],
+  "mutants": [
+    {
+      "name": "the active attribute string changes",
+      "file": "panelChrome.ts",
+      "find": "ACTIVE_ATTRIBUTE = 'data-panel-active'",
+      "replace": "ACTIVE_ATTRIBUTE = 'data-active'",
+      "expectRed": [
+        "the attribute names a host styles from are pinned"
+      ]
+    },
+    {
+      "name": "the dragging attribute string changes",
+      "file": "panelChrome.ts",
+      "find": "DRAGGING_ATTRIBUTE = 'data-panel-dragging'",
+      "replace": "DRAGGING_ATTRIBUTE = 'data-dragging'",
+      "expectRed": [
+        "the attribute names a host styles from are pinned"
+      ]
+    },
+    {
+      "name": "the chrome attribute string changes",
+      "file": "panelChrome.ts",
+      "find": "CHROME_ATTRIBUTE = 'data-panel-chrome-part'",
+      "replace": "CHROME_ATTRIBUTE = 'data-chrome-part'",
+      "expectRed": [
+        "the attribute names a host styles from are pinned"
+      ]
+    },
+    {
+      "name": "the header part value changes",
+      "file": "panelChrome.ts",
+      "find": "header: 'header'",
+      "replace": "header: 'head'",
+      "expectRed": [
+        "the package entry exports the names a mounted workspace renders: the marks, and one element per chrome part"
+      ]
+    },
+    {
+      "name": "the grab bar part value changes",
+      "file": "panelChrome.ts",
+      "find": "grabBar: 'grab-bar'",
+      "replace": "grabBar: 'grab'",
+      "expectRed": [
+        "the package entry exports the names a mounted workspace renders: the marks, and one element per chrome part"
+      ]
+    },
+    {
+      "name": "the footer part value changes",
+      "file": "panelChrome.ts",
+      "find": "footer: 'footer'",
+      "replace": "footer: 'foot'",
+      "expectRed": [
+        "the package entry exports the names a mounted workspace renders: the marks, and one element per chrome part"
+      ]
+    },
+    {
+      "name": "index.ts stops exporting CHROME_PARTS",
+      "file": "index.ts",
+      "find": "CHROME_ATTRIBUTE, CHROME_PARTS, DRAGGING_ATTRIBUTE",
+      "replace": "CHROME_ATTRIBUTE, DRAGGING_ATTRIBUTE",
+      "expectRed": [
+        "the package entry exports the names a mounted workspace renders: the marks, and one element per chrome part"
+      ]
+    },
+    {
+      "name": "Panel writes a header literal the object does not hold",
+      "file": "Panel.tsx",
+      "find": "[CHROME_ATTRIBUTE]: CHROME_PARTS.header",
+      "replace": "[CHROME_ATTRIBUTE]: 'head'",
+      "expectRed": [
+        "the package entry exports the names a mounted workspace renders: the marks, and one element per chrome part"
+      ]
+    },
+    {
+      "name": "Panel writes a grab bar literal the object does not hold",
+      "file": "Panel.tsx",
+      "find": "[CHROME_ATTRIBUTE]: CHROME_PARTS.grabBar",
+      "replace": "[CHROME_ATTRIBUTE]: 'grab'",
+      "expectRed": [
+        "the package entry exports the names a mounted workspace renders: the marks, and one element per chrome part"
+      ]
+    },
+    {
+      "name": "the footer writes a literal the object does not hold",
+      "file": "panelFooter.tsx",
+      "find": "[CHROME_ATTRIBUTE]: CHROME_PARTS.footer",
+      "replace": "[CHROME_ATTRIBUTE]: 'foot'",
+      "expectRed": [
+        "the package entry exports the names a mounted workspace renders: the marks, and one element per chrome part"
+      ]
+    }
+  ]
+}

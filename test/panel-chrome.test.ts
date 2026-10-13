@@ -9,8 +9,12 @@ import * as React from 'react';
 import { act } from 'react';
 import { createPortal } from 'react-dom';
 import { MotionConfig, animate, cubicBezier } from 'motion/react';
+import * as entry from '../index.js';
 import { DragToClose, Panel, PanelFrame, registerView, useActivePanel, useHost, usePanelActive, usePanelDragging, usePanelTuning } from '../index.js';
-import { ACTIVE_ATTRIBUTE, CHROME_ATTRIBUTE, DRAGGING_ATTRIBUTE, createChromeStore } from '../panelChrome.js';
+import { createChromeStore } from '../panelChrome.js';
+
+// Read off the package entry, so a name the entry stops exporting fails a test and does not break the file's load.
+const { ACTIVE_ATTRIBUTE, CHROME_ATTRIBUTE, CHROME_PARTS, DRAGGING_ATTRIBUTE } = entry;
 import { PanelFooterContext } from '../panelFooter.js';
 import { advanceFrames, cleanup } from './support/mount-harness.js';
 import { drag, release } from './support/drag-gesture.js';
@@ -72,6 +76,27 @@ test('the attribute names a host styles from are pinned', () => {
   assert.equal(ACTIVE_ATTRIBUTE, 'data-panel-active');
   assert.equal(DRAGGING_ATTRIBUTE, 'data-panel-dragging');
   assert.equal(CHROME_ATTRIBUTE, 'data-panel-chrome-part');
+});
+
+test('the package entry exports the names a mounted workspace renders: the marks, and one element per chrome part', async () => {
+  assert.deepEqual(CHROME_PARTS, { header: 'header', grabBar: 'grab-bar', footer: 'footer' });
+  const m = mountRow(entries(2), 3000);
+  await advanceFrames(2000);
+  const panel = rootOf(m, 'c1');
+  assert.equal(panel.hasAttribute(ACTIVE_ATTRIBUTE), false);
+  press(m.container.querySelector('[data-body="c1"]')!);
+  assert.equal(panel.hasAttribute(ACTIVE_ATTRIBUTE), true, 'the active mark is written under the exported name');
+  press(m.container.querySelector('[data-body="c2"]')!);
+  assert.equal(panel.hasAttribute(ACTIVE_ATTRIBUTE), false, 'and removed when another panel is used');
+  await drag(m.container.querySelector('[data-grab="c1"]')!, { dx: 0, dy: 24, steps: 6, hold: 8, keepDown: true });
+  assert.equal(rootOf(m, 'c1').hasAttribute(DRAGGING_ATTRIBUTE), true, 'the dragging mark is written under the exported name');
+  await release(0, 24);
+  await advanceFrames(3000);
+  assert.equal(rootOf(m, 'c1').hasAttribute(DRAGGING_ATTRIBUTE), false);
+  for (const value of Object.values(CHROME_PARTS)) {
+    assert.equal(panel.querySelectorAll(`[${CHROME_ATTRIBUTE}="${value}"]`).length, 1, `one ${value}`);
+  }
+  assert.equal(panel.querySelectorAll(`[${CHROME_ATTRIBUTE}]`).length, Object.keys(CHROME_PARTS).length, 'no part carries a value the object lacks');
 });
 
 test('a press or a focus inside a panel makes it the one active panel, until another is used', async () => {

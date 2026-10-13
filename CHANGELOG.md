@@ -4,6 +4,9 @@
 
 ### Added
 
+- `ACTIVE_ATTRIBUTE`, `DRAGGING_ATTRIBUTE` and `CHROME_ATTRIBUTE` (the `data-panel-*` names `Panel` writes), and `CHROME_PARTS` with
+  the `ChromePart` type (the values of `CHROME_ATTRIBUTE`: `header`, `grab-bar`, `footer`), are exported from the package
+  entry so a host stops repeating the strings. The DOM is unchanged.
 - `PanelsAPI.maxFitPanels`: how many phone-width panels, permanent columns such as History included, the window fits at the
   current phone width and row gap, so a host can offer a cap relative to the window without repeating the row's arithmetic.
   `null` until the row is measured; it never reads below the permanent columns plus one, as the row's own floor, and pinned
