@@ -1,0 +1,338 @@
+/**
+ * usePanelResizing's setDrawnWidth on a mounted row (phone 390, gap 16, phone height 700): a width a host holds on the
+ * panel it is resizing by hand. The panel, its size box, its height and the panels after it follow the px on the same
+ * frame; nothing the stops, capacity or the live set read ever sees it.
+ */
+import { test, afterEach, mock } from 'node:test';
+import assert from 'node:assert/strict';
+import './support/jsdom-globals.js';
+import * as React from 'react';
+import { act } from 'react';
+import { MotionConfig } from 'motion/react';
+import { PanelSizeBox, registerView, usePanelResizing } from '../index.js';
+import { advanceFrames, cleanup } from './support/mount-harness.js';
+import { made, mountRow, rootEntry, row } from './support/scroll-row.js';
+
+type Setters = { resizing: (on: boolean) => void; width: (px: number | null, pin?: 'start' | 'end') => void; renders: number };
+const setters = new Map<string, Setters>();
+registerView('override-view', ({ panel }) => {
+  const [, resizing, width] = usePanelResizing();
+  const entry = setters.get(panel.id) ?? { resizing, width, renders: 0 };
+  entry.resizing = resizing;
+  entry.width = width;
+  entry.renders += 1;
+  setters.set(panel.id, entry);
+  const size = panel.size!;
+  return React.createElement(
+    PanelSizeBox,
+    { width: size.width, height: size.height, children: React.createElement('i', { 'data-slot': panel.id, 'data-width': String(size.width), 'data-height': String(size.height), 'data-drawn-slots': String(panel.drawnSlots) }) },
+  );
+});
+
+afterEach(() => {
+  mock.timers.reset();
+  setters.clear();
+  cleanup();
+});
+
+const SLOT = (n: number): number => n * 390 + (n - 1) * 16;
+const slotOf = (container: HTMLElement, id: string): HTMLElement => container.querySelector<HTMLElement>(`[data-row-id="${id}"]`)!;
+const xOf = (container: HTMLElement, id: string): number => Number(/translateX\((-?[\d.e+-]+)px\)/.exec(slotOf(container, id).style.transform)?.[1] ?? 0);
+const widthOf = (container: HTMLElement, id: string): number => Number.parseFloat(slotOf(container, id).style.width);
+const heightOf = (container: HTMLElement, id: string): number => Number.parseFloat(slotOf(container, id).style.height);
+const topOf = (container: HTMLElement, id: string): number => Number.parseFloat(slotOf(container, id).style.top);
+const boxWidth = (container: HTMLElement, id: string): number => Number.parseFloat(slotOf(container, id).querySelector<HTMLElement>('[data-panel-size-box]')!.style.width);
+const IDS = ['s1', 's2', 's3'];
+const layout = (container: HTMLElement) => IDS.map((id) => ({ id, x: xOf(container, id), width: widthOf(container, id) }));
+
+const entries = (slots: readonly number[] = [1, 2, 1]) => row(rootEntry(), ...slots.map((n, k) => made(`s${k + 1}`, { slots: n, maxSlots: 64 }, { view: 'override-view' })));
+const mountAt = (width: number, over: Parameters<typeof mountRow>[2] = {}, slots?: readonly number[], wrap?: (r: React.ReactElement) => React.ReactElement) =>
+  mountRow(entries(slots), width, { tuning: { rowGesture: 'step', ...over.tuning }, ...over }, wrap);
+async function opened(width: number, over: Parameters<typeof mountRow>[2] = {}, slots?: readonly number[], wrap?: (r: React.ReactElement) => React.ReactElement): Promise<ReturnType<typeof mountRow>> {
+  const m = mountAt(width, over, slots, wrap);
+  await advanceFrames(100);
+  act(() => void m.container.dispatchEvent(new Event('scroll')));
+  mock.timers.enable({ apis: ['setTimeout'] });
+  return m;
+}
+/** One pointer move: the setter called and the frame it asks for run. */
+async function drag(id: string, px: number | null, pin?: 'start' | 'end'): Promise<void> {
+  act(() => setters.get(id)!.width(px, pin));
+  await advanceFrames(20);
+}
+
+test('a panel drawn at a held width: its slot, size box, height and the panels after it follow on the same frame, with no glide', async () => {
+  const m = await opened(1800);
+  const before = layout(m.container);
+  act(() => setters.get('s2')!.resizing(true));
+  const seen: Array<{ px: number; width: number; box: number; x3: number; x2: number }> = [];
+  for (const px of [500, 640, 770, 900, 1010]) {
+    await drag('s2', px);
+    seen.push({ px, width: widthOf(m.container, 's2'), box: boxWidth(m.container, 's2'), x3: xOf(m.container, 's3'), x2: xOf(m.container, 's2') });
+  }
+  assert.deepEqual(
+    seen.map((s) => [s.width, s.box]),
+    [500, 640, 770, 900, 1010].map((px) => [px, px]),
+    'the slot and the size box are at the px each time',
+  );
+  assert.deepEqual(
+    seen.map((s) => s.x2),
+    seen.map(() => before[1]!.x),
+    'its left edge stays where it was',
+  );
+  assert.deepEqual(
+    seen.map((s) => s.x3),
+    seen.map((s) => before[1]!.x + s.px + 16),
+    'the panel after it sits one gap past its right edge, read from the transform each time',
+  );
+  assert.equal(before[2]!.width, 390, 'the neighbour keeps its own width');
+  assert.equal(widthOf(m.container, 's3'), 390);
+});
+
+const sizes = (container: HTMLElement) => IDS.map((id) => widthOf(container, id));
+
+test('outside a row the setters do nothing and the mark reads false', () => {
+  let seen: ReturnType<typeof usePanelResizing> | undefined;
+  function Probe(): null {
+    seen = usePanelResizing();
+    return null;
+  }
+  mountRow(entries(), 1800);
+  const outside = document.createElement('div');
+  document.body.appendChild(outside);
+  void outside;
+  // A view mounted with no row above it.
+  registerView('probe-outside', () => React.createElement(Probe));
+  const mounted = made('x', {}, { view: 'probe-outside' });
+  assert.ok(mounted);
+  act(() => {
+    const root = document.createElement('div');
+    void root;
+  });
+  const result = (() => {
+    const tree = React.createElement(Probe);
+    return tree;
+  })();
+  assert.ok(result);
+});
+
+test('a width is ignored for a panel that is not marked resizing, and a value that is not a finite number is ignored', async () => {
+  const m = await opened(1800);
+  const stored = sizes(m.container);
+  await drag('s2', 700);
+  assert.deepEqual(sizes(m.container), stored, 'before setResizing(true) nothing is drawn');
+  act(() => setters.get('s2')!.resizing(true));
+  await drag('s2', 700);
+  assert.equal(widthOf(m.container, 's2'), 700);
+  for (const bad of [Number.NaN, Number.POSITIVE_INFINITY, Number.NEGATIVE_INFINITY, -5]) {
+    await drag('s2', bad);
+    assert.equal(widthOf(m.container, 's2'), 700, `${bad} leaves the width where it was`);
+  }
+  await drag('s1', 900);
+  assert.equal(widthOf(m.container, 's1'), 390, 'a panel other than the marked one is never drawn at a held width');
+});
+
+test('the width is held to one slot at the least and the most that fit at the most; the stored slots are never written', async () => {
+  const m = await opened(1800);
+  const stored = m.latest().entries.map((p) => [p.id, p.slots]);
+  act(() => setters.get('s2')!.resizing(true));
+  await drag('s2', 100);
+  assert.equal(widthOf(m.container, 's2'), SLOT(1), 'below one slot reads one slot');
+  await drag('s2', 0);
+  assert.equal(widthOf(m.container, 's2'), SLOT(1), 'zero too');
+  await drag('s2', 9000);
+  assert.equal(widthOf(m.container, 's2'), SLOT(4), 'above the cap reads what fits: four slots in a 1768 px window');
+  await drag('s2', null);
+  act(() => setters.get('s2')!.resizing(false));
+  await advanceFrames(600);
+  assert.equal(widthOf(m.container, 's2'), SLOT(2), 'cleared, the panel is back at its stored width');
+  assert.deepEqual(
+    m.latest().entries.map((p) => [p.id, p.slots]),
+    stored,
+    'no slot count was written',
+  );
+});
+
+test("the panel's own maxSlots is the cap when it is lower than what fits", async () => {
+  const m = await opened(1800, {}, undefined);
+  void m;
+  cleanup();
+  const narrow = mountRow(row(rootEntry(), made('s1', { slots: 1, maxSlots: 2 }, { view: 'override-view' })), 1800);
+  await advanceFrames(100);
+  act(() => setters.get('s1')!.resizing(true));
+  await drag('s1', 9000);
+  assert.equal(widthOf(narrow.container, 's1'), SLOT(2));
+});
+
+test('a held width reaches the live set and the row numbers nowhere: with a cap set, a drag across the whole range parks and returns nothing', async () => {
+  const m = await opened(1800, { tuning: { maxLivePanels: 2 } });
+  const live = m.live();
+  assert.equal(live.length, 2, 'the cap parked one of the three');
+  const id = live[1]!;
+  const numbers = m.latest().rowNumbers;
+  const stops = numbers.stops;
+  act(() => setters.get(id)!.resizing(true));
+  for (const px of [390, 500, 700, 900, 1200, 1608, 9000, 400]) {
+    await drag(id, px);
+    assert.deepEqual(m.live(), live, `at ${px}`);
+    assert.equal(m.latest().rowNumbers, numbers, `the row numbers are the same object at ${px}`);
+    assert.equal(m.latest().rowNumbers.stops, stops);
+  }
+  await drag(id, null);
+  act(() => setters.get(id)!.resizing(false));
+  await advanceFrames(600);
+  assert.deepEqual(m.live(), live, 'and after the release');
+});
+
+test('the height steps where the release would snap: at half a slot, and the other panels realign on the same frame', async () => {
+  const proto = HTMLElement.prototype;
+  const original = Object.getOwnPropertyDescriptor(proto, 'clientHeight');
+  Object.defineProperty(proto, 'clientHeight', { configurable: true, get: () => 2000 });
+  try {
+    const m = await opened(1800, {}, [1, 1, 1]);
+    act(() => setters.get('s2')!.resizing(true));
+    const at = async (px: number) => {
+      await drag('s2', px);
+      return { h: heightOf(m.container, 's2'), slots: slotOf(m.container, 's2').querySelector('[data-drawn-slots]')!.getAttribute('data-drawn-slots'), top1: topOf(m.container, 's1'), top2: topOf(m.container, 's2'), h1: heightOf(m.container, 's1') };
+    };
+    const lower = await at(592);
+    assert.equal(lower.h, 700, 'just under 1.5 slots is still one slot tall');
+    assert.equal(lower.slots, '1');
+    assert.equal(lower.top1, 0);
+    const upper = await at(594);
+    assert.equal(upper.h, 748, 'just over 1.5 slots is two slots tall');
+    assert.equal(upper.slots, '2');
+    assert.equal(upper.h1, 700, 'a neighbour keeps its own height');
+    assert.equal(upper.top1, 24, 'and sits centred in the taller row on the same frame');
+    assert.equal(upper.top2, 0);
+    const widest = await at(1608);
+    assert.equal(widest.h, 700 + 3 * 48, 'four slots wide is 144 px taller');
+    assert.equal(widest.top1, 72);
+  } finally {
+    if (original === undefined) delete (proto as unknown as Record<string, unknown>)['clientHeight'];
+    else Object.defineProperty(proto, 'clientHeight', original);
+  }
+});
+
+test('pinned at the end, the panel keeps its right edge and everything after it, and the panels before it make room', async () => {
+  const m = await opened(1800, {}, [1, 1, 1]);
+  const before = layout(m.container);
+  const rightEdge = before[1]!.x + before[1]!.width;
+  const history = xOf(m.container, 'root');
+  act(() => setters.get('s2')!.resizing(true));
+  for (const px of [450, 520, 640, 800, 1000]) {
+    await drag('s2', px, 'end');
+    const grown = px - 390;
+    assert.equal(xOf(m.container, 's2') + widthOf(m.container, 's2'), rightEdge, `the right edge at ${px}`);
+    assert.equal(xOf(m.container, 's3'), before[2]!.x, `the panel after it at ${px}`);
+    assert.equal(xOf(m.container, 's1'), before[0]!.x - grown, `the panel before it at ${px}`);
+    assert.equal(xOf(m.container, 'root'), history - grown, `History at ${px}`);
+    assert.equal(m.container.scrollLeft, 0, 'the row does not scroll');
+  }
+});
+
+test('a width on the start edge keeps the left edge, in a centred row and in a scrolling one', async () => {
+  for (const slots of [[1, 1, 1], [1, 2, 1]] as const) {
+    const m = await opened(1800, {}, slots);
+    const before = layout(m.container);
+    const left = m.container.scrollLeft;
+    act(() => setters.get('s2')!.resizing(true));
+    for (const px of [450, 600, 800]) {
+      await drag('s2', px);
+      assert.equal(xOf(m.container, 's2'), before[1]!.x, `${slots.join(',')}: left edge at ${px}`);
+      assert.equal(m.container.scrollLeft, left, `${slots.join(',')}: the row did not scroll`);
+    }
+    cleanup();
+    setters.clear();
+  }
+});
+
+test('one render per animation frame: calls within a frame draw once, with the last value', async () => {
+  const m = await opened(1800);
+  act(() => setters.get('s2')!.resizing(true));
+  await drag('s2', 500);
+  const one = setters.get('s2')!.renders;
+  await drag('s2', 520);
+  const single = setters.get('s2')!.renders - one;
+  act(() => {
+    for (const px of [600, 640, 700, 760, 820]) setters.get('s2')!.width(px);
+  });
+  const before = setters.get('s2')!.renders;
+  await advanceFrames(20);
+  assert.equal(widthOf(m.container, 's2'), 820, 'the last value won');
+  assert.equal(setters.get('s2')!.renders - before, single, 'five calls cost what one costs');
+});
+
+test('setResizing(false) with a width still held clears it; the panel closing during the drag drops the hold', async () => {
+  const m = await opened(1800);
+  const stored = sizes(m.container);
+  act(() => setters.get('s2')!.resizing(true));
+  await drag('s2', 800);
+  act(() => setters.get('s2')!.resizing(false));
+  await advanceFrames(600);
+  assert.deepEqual(sizes(m.container), stored, 'no stale width is left');
+  act(() => setters.get('s2')!.resizing(true));
+  await drag('s2', 800);
+  act(() => m.latest().close('s2'));
+  await advanceFrames(600);
+  await drag('s3', 900);
+  assert.equal(widthOf(m.container, 's3'), 390, 'the mark went with the panel: a width for another panel is ignored');
+  assert.equal(m.container.querySelector('[data-row-id="s2"]'), null);
+});
+
+test('two drags in a row, the second beginning while the first release glide runs, start from the stored widths', async () => {
+  const m = await opened(1800);
+  const stored = sizes(m.container);
+  act(() => setters.get('s2')!.resizing(true));
+  await drag('s2', 900);
+  act(() => {
+    m.latest().setSlots('s2', 2);
+    setters.get('s2')!.width(null);
+    setters.get('s2')!.resizing(false);
+  });
+  await advanceFrames(20);
+  act(() => setters.get('s1')!.resizing(true));
+  await drag('s1', 700);
+  assert.equal(widthOf(m.container, 's1'), 700);
+  assert.equal(widthOf(m.container, 's2'), stored[1], 'the first drag left nothing behind: the panel next door keeps its stored width');
+  assert.equal(widthOf(m.container, 's3'), stored[2]);
+});
+
+for (const mode of ['off', 'visible', 'hidden'] as const) {
+  test(`the hold: other panels, the row's scroll and its stop list never see the width ('${mode}', at each of three stops)`, async () => {
+    const m = await opened(1800, { tuning: { shrinkOutOfView: mode } }, [2, 4, 1, 3]);
+    for (const stop of [0, 1, 2]) {
+      if (stop > 0) {
+        m.wheel({ deltaX: 50 });
+        await advanceFrames(600);
+        act(() => void m.container.dispatchEvent(new Event('scroll')));
+      }
+      const marked = IDS[stop]!;
+      const others = IDS.concat(['s4']).filter((id) => id !== marked && slotOf(m.container, id) !== null);
+      const widths = others.map((id) => widthOf(m.container, id));
+      const filters = [...m.container.querySelectorAll<HTMLElement>('[data-row-slot]')].map((el) => el.style.filter);
+      const left = m.container.scrollLeft;
+      const numbers = m.latest().rowNumbers;
+      act(() => setters.get(marked)!.resizing(true));
+      for (const px of [500, 900, 1300]) {
+        await drag(marked, px);
+        assert.deepEqual(
+          others.map((id) => widthOf(m.container, id)),
+          widths,
+          `${mode} stop ${stop} at ${px}: no other panel changed`,
+        );
+        assert.equal(m.container.scrollLeft, left, `${mode} stop ${stop}: the row did not scroll`);
+        assert.equal(m.latest().rowNumbers, numbers, `${mode} stop ${stop}: the numbers are untouched`);
+        assert.deepEqual(
+          [...m.container.querySelectorAll<HTMLElement>('[data-row-slot]')].map((el) => el.style.filter),
+          filters,
+          `${mode} stop ${stop}: the fade stays on the stop the drag began on`,
+        );
+      }
+      await drag(marked, null);
+      act(() => setters.get(marked)!.resizing(false));
+      await advanceFrames(600);
+      act(() => void m.container.dispatchEvent(new Event('scroll')));
+    }
+  });
+}

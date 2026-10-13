@@ -42,6 +42,16 @@ export const CHROME_PARTS = { header: 'header', grabBar: 'grab-bar', footer: 'fo
  */
 export type ChromePart = (typeof CHROME_PARTS)[keyof typeof CHROME_PARTS];
 
+/** Which edge of a panel a drawn width keeps where it is: the left one, or the right one. */
+export type DrawnPin = 'start' | 'end';
+
+/** The width a host holds a hand-resized panel at, in px, and the edge that stays still. */
+export interface DrawnWidth {
+  readonly id: PanelId;
+  readonly px: number;
+  readonly pin: DrawnPin;
+}
+
 /** One workspace's active and dragging panel, with listeners per panel so a change wakes only the panels it concerns. */
 export interface ChromeStore {
   active(): PanelId | null;
@@ -53,6 +63,12 @@ export interface ChromeStore {
   setResizing(id: PanelId, on: boolean): void;
   /** Wakes `listener` when the resized panel changes. */
   subscribeResizing(listener: () => void): () => void;
+  /** The width a host holds the resized panel at, with the edge it keeps still; null when none is set. The same object until it changes. */
+  drawn(): DrawnWidth | null;
+  /** Sets or clears the drawn width of `id`; ignored unless `id` is the panel being resized by hand. */
+  setDrawn(id: PanelId, px: number | null, pin: DrawnPin): void;
+  /** Wakes `listener` when the drawn width is set, changes or clears. */
+  subscribeDrawn(listener: () => void): () => void;
   /** Wakes `listener` when `id` gains or loses the active or dragging mark. */
   subscribePanel(id: PanelId, listener: () => void): () => void;
   /** Wakes `listener` when the active panel changes. */
@@ -63,7 +79,14 @@ export function createChromeStore(): ChromeStore {
   let active: PanelId | null = null;
   let dragging: PanelId | null = null;
   let resizing: PanelId | null = null;
+  let drawn: DrawnWidth | null = null;
   const resizingListeners = new Set<() => void>();
+  const drawnListeners = new Set<() => void>();
+  const setDrawnNow = (next: DrawnWidth | null): void => {
+    if (next === drawn || (next !== null && drawn !== null && next.id === drawn.id && next.px === drawn.px && next.pin === drawn.pin)) return;
+    drawn = next;
+    for (const l of [...drawnListeners]) l();
+  };
   const activeListeners = new Set<() => void>();
   const byPanel = new Map<PanelId, Set<() => void>>();
   const wake = (ids: readonly (PanelId | null)[], activeChanged: boolean): void => {
@@ -90,8 +113,19 @@ export function createChromeStore(): ChromeStore {
       if (on ? resizing === id : resizing !== id) return;
       const before = resizing;
       resizing = on ? id : null;
+      // The mark ending takes a width still held with it, so the row is never left drawing a width nobody is dragging.
+      if (!on) setDrawnNow(null);
       wake([before, resizing], false);
       for (const l of [...resizingListeners]) l();
+    },
+    drawn: () => drawn,
+    setDrawn(id, px, pin) {
+      if (resizing !== id) return;
+      setDrawnNow(px === null ? null : { id, px, pin });
+    },
+    subscribeDrawn(listener) {
+      drawnListeners.add(listener);
+      return () => void drawnListeners.delete(listener);
     },
     subscribeResizing(listener) {
       resizingListeners.add(listener);
@@ -155,14 +189,28 @@ export function usePanelDragging(): boolean {
 }
 
 /**
- * Whether this panel is being resized by hand, and a setter for a host's resize grabber to call: true when a drag begins,
- * false when it ends. While it is true no other panel's drawn size changes, so a grabber that reads `panel.size` at the
- * start of its drag, and a neighbour that was drawn smaller to fill the window, stay where they were until the release.
- * It also marks the panel as dragging (`usePanelDragging`) for the same span, so a drag of any kind that a host runs
- * shows the chrome a drag shows. Outside a row the value is false and the setter does nothing.
+ * Whether this panel is being resized by hand, and two setters for a host's resize grabber to call.
+ *
+ * `setResizing(true)` when a drag begins and `setResizing(false)` when it ends. While it is true no other panel's drawn
+ * size changes, so a grabber that reads `panel.size` at the start of its drag, and a neighbour that was drawn smaller to
+ * fill the window, stay where they were until the release, and the row does not scroll. It also marks the panel as
+ * dragging (`usePanelDragging`) for the same span, so a drag of any kind that a host runs shows the chrome a drag shows.
+ *
+ * `setDrawnWidth(px)` draws the panel `px` wide at once, with no glide, so it follows a pointer frame by frame: its size
+ * box, height, the panels after it and the row's reach follow, and `panel.size` reads it back. The width is held between
+ * one slot and the most slots that fit (and the panel's `maxSlots`); a value that is not a finite number is ignored. It never
+ * changes the panel's stored `slots`, the panels the row keeps live or the row's stops. `pin` names the edge that stays
+ * where it is: `'start'` (the default) keeps the left edge, so the right edge follows a grabber on the right; `'end'` keeps
+ * the right edge, so the left edge follows a grabber on the left, and the panels before it make room. It does nothing unless
+ * `setResizing(true)` came first, and calls within one animation frame draw once, with the last value. `setDrawnWidth(null)`
+ * lets the panel glide to the width its stored `slots` give (at once under Reduce Motion), so a host ends a drag with
+ * `setSlots(nearest)`, then `setDrawnWidth(null)`, then `setResizing(false)`, which settles the row once onto its nearest stop.
+ * `setResizing(false)` clears a width still set. The panel closing, parking or unmounting during a drag ends the mark.
+ *
+ * Outside a row the value is false and the setters do nothing.
  * @public
  */
-export function usePanelResizing(): readonly [boolean, (on: boolean) => void] {
+export function usePanelResizing(): readonly [boolean, (on: boolean) => void, (px: number | null, pin?: 'start' | 'end') => void] {
   const store = React.useContext(ChromeStoreContext);
   const id = React.useContext(PanelSlotContext)?.id;
   const resizing = usePanelMark((s, panel) => s.resizing() === panel);
@@ -174,7 +222,36 @@ export function usePanelResizing(): readonly [boolean, (on: boolean) => void] {
     },
     [store, id],
   );
-  return React.useMemo(() => [resizing, set] as const, [resizing, set]);
+  const frame = React.useRef<{ handle: number; px: number; pin: 'start' | 'end' } | null>(null);
+  const cancelFrame = (): void => {
+    if (frame.current !== null) cancelAnimationFrame(frame.current.handle);
+    frame.current = null;
+  };
+  const setDrawnWidth = React.useCallback(
+    (px: number | null, pin: 'start' | 'end' = 'start') => {
+      if (store === undefined || id === undefined) return;
+      if (px === null) {
+        cancelFrame();
+        store.setDrawn(id, null, pin);
+        return;
+      }
+      if (typeof px !== 'number' || !Number.isFinite(px) || px < 0 || store.resizing() !== id) return;
+      if (frame.current !== null) {
+        frame.current.px = px;
+        frame.current.pin = pin;
+        return;
+      }
+      const pending = { handle: 0, px, pin };
+      frame.current = pending;
+      pending.handle = requestAnimationFrame(() => {
+        if (frame.current === pending) frame.current = null;
+        store.setDrawn(id, pending.px, pending.pin);
+      });
+    },
+    [store, id],
+  );
+  React.useEffect(() => cancelFrame, [store, id]);
+  return React.useMemo(() => [resizing, set, setDrawnWidth] as const, [resizing, set, setDrawnWidth]);
 }
 
 /** Whether the panel above shows its chrome in full; provided by `Panel`, true for a part drawn without one. */

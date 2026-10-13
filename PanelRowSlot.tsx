@@ -149,6 +149,7 @@ export function PanelRowSlot({
   exitDirection,
   zIndex,
   animated = true,
+  tracking = false,
   gap,
   slide,
   kept = false,
@@ -184,6 +185,8 @@ export function PanelRowSlot({
   zIndex?: number;
   /** False: the slot's enter and exit take no time. Default true. */
   animated?: boolean;
+  /** True while a host holds a width on a panel of the row: the slot's moves take no time, so a width that follows a pointer moves it the same frame. Default false. */
+  tracking?: boolean;
   /** The row's gap and this panel's slide; the library defaults when omitted. */
   gap?: number;
   slide?: SlideTuning;
@@ -218,7 +221,7 @@ export function PanelRowSlot({
   }, []);
   const ownSpan = width + (gap ?? ROW_GAP);
   const parkSide = exitDirection === 'right' ? 'right' : 'left';
-  const slideTransition = animated && !reducedMotion ? transition : INSTANT_TRANSITION;
+  const slideTransition = animated && !reducedMotion && !tracking ? transition : INSTANT_TRANSITION;
   const snapping = previewing && (reducedMotion || systemReduced || dragged);
   // `epoch` counts parks, so a finished exit from an earlier park can never hide the slot of a later one.
   const [wasKept, setWasKept] = React.useState(kept);
@@ -281,7 +284,7 @@ export function PanelRowSlot({
   React.useLayoutEffect(() => {
     const moved = lastRest.current !== leftOffset;
     lastRest.current = leftOffset;
-    if (moved && snapping && el.current !== null && !kept && !reviving && present) slotDriver.set(el.current, { x: leftOffset, opacity: 1 });
+    if (moved && (snapping || tracking) && el.current !== null && !kept && !reviving && present) slotDriver.set(el.current, { x: leftOffset, opacity: 1 });
   });
   React.useEffect(() => {
     if (!setUpBefore.current) {
@@ -297,9 +300,9 @@ export function PanelRowSlot({
       // Enters from one own-width-plus-gap span beyond its destination, right or left per `enterDirection` above.
       // Dropping `animate` alone would send the slot back to `initial`; with both gone it stays where it is, for the imperative slide.
       initial={kept || reviving ? undefined : initial}
-      animate={kept || reviving ? undefined : snapping ? { ...animateTarget, transition: INSTANT_TRANSITION } : animateTarget}
+      animate={kept || reviving ? undefined : snapping || tracking ? { ...animateTarget, transition: INSTANT_TRANSITION } : animateTarget}
       exit={kept ? KEPT_EXIT : exit}
-      transition={transition}
+      transition={tracking ? INSTANT_TRANSITION : transition}
       inert={kept ? true : undefined}
       aria-hidden={hidden ? true : undefined}
       data-row-slot={leftOffset}
@@ -347,7 +350,7 @@ export function PanelSizeBox({
   // The system preference is read too: a theme's MotionConfig may not carry it, and a resize must snap under Reduce Motion either way.
   const configReduced = useReducedMotionConfig() === true;
   const systemReduced = useReducedMotion() === true;
-  const snaps = configReduced || systemReduced || slot?.animated === false;
+  const snaps = configReduced || systemReduced || slot?.animated === false || slot?.tracking === true;
   return (
     <motion.div data-panel-size-box="" layout="size" transition={snaps ? INSTANT_TRANSITION : slide === undefined ? PANEL_TRANSITION : slideToTransition(slide)} style={{ width, height }}>
       {children}
