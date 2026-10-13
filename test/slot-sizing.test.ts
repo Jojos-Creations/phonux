@@ -14,7 +14,7 @@ import { RowHeightContext } from '../panelTuning.js';
 import { applyTemplate } from '../panelSettings.js';
 import { appendPanel, createHistoryPanel, setFormFactor, setSlots } from '../panelWindow.js';
 import { projectWorkspaceState } from '../workspaceState.js';
-import { ALL_SLOTS, fitSlots, slotHeight, slotWidth, slotsOfTier, tierOfSlots } from '../rowConstants.js';
+import { ALL_SLOTS, fitSlots, slotWidth, slotsOfTier, tierOfSlots } from '../rowConstants.js';
 import { differential, differentialsCovered } from './support/differential.js';
 import { advanceFrames, cleanup, mount, withHost } from './support/mount-harness.js';
 import { drawnSlotsOf } from '../panelTiers.js';
@@ -22,7 +22,7 @@ import { made as scrollMade, mountRow, rootEntry, row } from './support/scroll-r
 
 const ROOT = 'root';
 const NONE: ReadonlySet<string> = new Set();
-const OWNED = ['slots', 'maxSlots', 'tuning.heightPerSlot', 'tuning.rowAlign'];
+const OWNED = ['slots', 'maxSlots'];
 const summaries = new Map<string, PanelSummary>();
 
 registerView('slot-view', ({ panel }) => {
@@ -75,13 +75,6 @@ test('at the app gap of 24 the edge padding is the rowGap tuning: slots are 804 
   assert.equal(px(slotOf(wide.container, 'b').style.width), 1632);
 });
 
-test('slotHeight adds the per-slot amount, never below the phone height and never above the room', () => {
-  assert.deepEqual([1, 2, 3].map((n) => slotHeight(n, 844, 48, 2000)), [844, 892, 940]);
-  assert.equal(slotHeight(3, 844, 48, 900), 900, 'capped at the room');
-  assert.equal(slotHeight(3, 844, 48, 0), 844, 'unmeasured: the phone height');
-  assert.equal(slotHeight(3, 844, 48, 500), 844, 'a room shorter than the phone never shrinks it');
-});
-
 test('a tier is the slot count it stands for, and a slot count reports the tier it falls in', () => {
   assert.deepEqual((['phone', 'tablet', 'desktop'] as const).map(slotsOfTier), [1, 2, ALL_SLOTS]);
   assert.deepEqual([1, 2, 3, 9].map(tierOfSlots), ['phone', 'tablet', 'desktop', 'desktop']);
@@ -123,48 +116,37 @@ test('widths follow the window: three slots asked in a window that fits two draw
   mounted.unmount();
 });
 
-test('differential tuning.heightPerSlot: a two-slot panel is taller by the per-slot amount', () => {
+test('heights: panels of every slot count keep the phone height, measured room or not, and a view is told it', () => {
   const { height } = phone();
-  differential('tuning.heightPerSlot', (run) => {
-    for (const heightPerSlot of [0, 48]) {
-      run(heightPerSlot, () => {
-        const mounted = mount(rowOf([made('a', { slots: 2, maxSlots: 3 })], { heightPerSlot }, height + 400));
-        const out = px(slotOf(mounted.container, 'a').style.height);
-        mounted.unmount();
-        return out;
-      });
-    }
-  });
-});
-
-test('heights: the row is as tall as its tallest panel, capped at the measured room, and a view is told its drawn height', () => {
-  const { height } = phone();
-  const entries = [made('a'), made('b', { slots: 2, maxSlots: 3 }), made('c', { slots: 3, maxSlots: 3 })];
-  const room = mount(rowOf(entries, undefined, height + 400));
-  assert.deepEqual(['a', 'b', 'c'].map((id) => px(slotOf(room.container, id).style.height)), [height, height + 48, height + 96]);
-  assert.equal(boxHeight(room.container), height + 96, 'the row box grows to the tallest panel');
-  assert.deepEqual(['a', 'b', 'c'].map((id) => summaries.get(id)!.size?.height), [height, height + 48, height + 96], 'the summary carries the drawn height');
-  room.unmount();
-  const tight = mount(rowOf(entries, undefined, height + 60));
-  assert.equal(px(slotOf(tight.container, 'c').style.height), height + 60, 'capped at the room');
-  tight.unmount();
-  const unmeasured = mount(rowOf(entries, undefined, 0));
-  assert.deepEqual(['a', 'b', 'c'].map((id) => px(slotOf(unmeasured.container, id).style.height)), [height, height, height], 'unmeasured: every panel keeps the phone height');
-  unmeasured.unmount();
-});
-
-test('differential tuning.rowAlign: a shorter panel sits at the top, the middle or the bottom of the row box', () => {
-  const { height } = phone();
-  const topOf = (rowAlign: 'top' | 'center' | 'bottom'): number => {
-    const mounted = mount(rowOf([made('a'), made('b', { slots: 3, maxSlots: 3 })], { rowAlign }, height + 400));
-    const out = px(slotOf(mounted.container, 'a').style.top);
+  const counts = [1, 2, 3, ALL_SLOTS];
+  const entries = counts.map((n) => made(`n${n}`, { slots: n, maxSlots: ALL_SLOTS }));
+  for (const room of [height + 400, 0]) {
+    const mounted = mount(rowOf(entries, undefined, room));
+    assert.deepEqual(counts.map((n) => px(slotOf(mounted.container, `n${n}`).style.height)), counts.map(() => height));
+    assert.equal(boxHeight(mounted.container), height, 'the row box is the phone height');
+    assert.deepEqual(counts.map((n) => summaries.get(`n${n}`)!.size?.height), counts.map(() => height), 'the summary carries the drawn height');
     mounted.unmount();
-    return out;
-  };
-  assert.deepEqual(['top', 'center', 'bottom'].map((a) => topOf(a as 'top')), [0, 48, 96], 'the phone panel beside a three-slot one: 0, half and all of the 96 px difference');
-  differential('tuning.rowAlign', (run) => {
-    for (const rowAlign of ['top', 'bottom'] as const) run(rowAlign, () => topOf(rowAlign));
-  });
+  }
+});
+
+test('setSlots and a shrunk neighbour keep the phone height in a row that has room to grow', async () => {
+  const proto = HTMLElement.prototype;
+  const original = Object.getOwnPropertyDescriptor(proto, 'clientHeight');
+  Object.defineProperty(proto, 'clientHeight', { configurable: true, get: () => 2000 });
+  try {
+    const m = mountRow(row(rootEntry(), ...[2, 4, 1, 3].map((n, k) => scrollMade(`s${k + 1}`, { slots: n, maxSlots: ALL_SLOTS }))), 1800, { tuning: { rowGesture: 'step', shrinkOutOfView: 'visible' } });
+    await advanceFrames(100);
+    const heights = (): number[] => [...m.container.querySelectorAll<HTMLElement>('[data-row-slot]')].map((el) => px(el.style.height)).filter((h) => !Number.isNaN(h));
+    const { height } = phone();
+    for (const n of [1, 2, 3, ALL_SLOTS]) {
+      act(() => void m.latest().setSlots('s2', n));
+      await advanceFrames(400);
+      assert.ok(heights().length > 0 && heights().every((h) => h === height), `setSlots(${n}): every drawn panel is ${height} tall (${heights().join(',')})`);
+    }
+  } finally {
+    if (original === undefined) delete (proto as unknown as Record<string, unknown>)['clientHeight'];
+    else Object.defineProperty(proto, 'clientHeight', original);
+  }
 });
 
 test('a hand-built entry without slots keeps the phone height and the older width rule', () => {
@@ -228,26 +210,6 @@ test('drawnSlotsOf holds an entry to its own maxSlots even if its slots were sto
   assert.equal(drawnSlotsOf(entry(4, 2), 390, 1608, 16), 2, 'capped at maxSlots although four fit');
   assert.equal(drawnSlotsOf(entry(4, 4), 390, 796, 16), 2, 'and at what fits');
   assert.equal(drawnSlotsOf({ slots: undefined, settings: undefined }, 390, 1608, 16), undefined, 'a hand-built entry has no slot count');
-});
-
-test('a panel closing out of a tall row leaves by the row bottom, not the phone height', async () => {
-  const { height } = phone();
-  const rowBottom = height + 96;
-  const closing = new Set(['b']);
-  const ui = (entries: PanelWindow[]): React.ReactElement =>
-    React.createElement(RowHeightContext.Provider, { value: height + 400 }, withHost(React.createElement(PanelRow, { entries, rootId: ROOT, closingIds: closing, enteringViaAnchorIds: NONE })));
-  const mounted = mount(ui([made('a'), made('b', { slots: 3, maxSlots: 3 })]));
-  mounted.rerender(ui([made('a')]));
-  let y = 0;
-  for (let frame = 0; frame < 120; frame += 1) {
-    await advanceFrames(16);
-    const slot = mounted.container.querySelector('[data-slot="b"]')?.parentElement;
-    if (!slot) break;
-    y = Number(/translateY\((-?[\d.e+-]+)px\)/.exec(slot.style.transform)?.[1] ?? y);
-  }
-  mounted.unmount();
-  assert.ok(y > height, `the slot dropped past the phone height (${y})`);
-  assert.ok(y <= rowBottom, `and no further than the row bottom (${y})`);
 });
 
 test('setSlots above a panel maxSlots warns once, as a template asking too much does, and still clamps', () => {
