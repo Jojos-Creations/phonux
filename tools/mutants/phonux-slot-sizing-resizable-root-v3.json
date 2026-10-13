@@ -4,6 +4,7 @@
     "test/panel-configure-persistence.test.ts",
     "test/panel-settings-resolver.test.ts",
     "test/panel-configure-property.test.ts",
+    "test/slot-sizing-history-scrolled.test.ts",
     "test/panel-configure-matrix.test.ts",
     "test/settings-enforcement-tuning.test.ts"
   ],
@@ -99,12 +100,48 @@
       ]
     },
     {
-      "name": "drawnSlotsOf ignores the entry's own maxSlots",
-      "file": "panelTiers.ts",
-      "find": "Math.min(p.slots, p.settings?.maxSlots ?? p.slots, fitSlots(maxLiveWidth, phoneWidth, gap))",
-      "replace": "Math.min(p.slots, fitSlots(maxLiveWidth, phoneWidth, gap))",
+      "name": "a closing panel drops by the phone height, not the row height",
+      "file": "PanelRow.tsx",
+      "find": "phoneHeight={rowHeight}",
+      "replace": "phoneHeight={phoneHeight}",
       "expectRed": [
-        "drawnSlotsOf holds a panel to its maxSlots"
+        "a panel closing out of a tall row leaves by the row bottom"
+      ]
+    },
+    {
+      "name": "drawnSlotsOf stops holding an entry to its maxSlots",
+      "file": "panelTiers.ts",
+      "find": "Math.min(p.slots, p.settings?.maxSlots ?? p.slots, fitSlots(",
+      "replace": "Math.min(p.slots, fitSlots(",
+      "expectRed": [
+        "drawnSlotsOf holds an entry to its own maxSlots"
+      ]
+    },
+    {
+      "name": "setSlots above maxSlots clamps without a warning",
+      "file": "panels/useProvidePanels.ts",
+      "find": "if (asked <= max) return;",
+      "replace": "return;",
+      "expectRed": [
+        "setSlots above a panel maxSlots warns once"
+      ]
+    },
+    {
+      "name": "a resized panel scrolled out of view pulls the row to it",
+      "file": "panels/useProvidePanels.ts",
+      "find": "if (inView) requestScroll({ id, kind: 'move'",
+      "replace": "if (inView || !inView) requestScroll({ id, kind: 'move'",
+      "expectRed": [
+        "History grows while the row is scrolled to its end"
+      ]
+    },
+    {
+      "name": "the summary's fitSlots forgets the row gap",
+      "file": "PanelRow.tsx",
+      "find": "const fitSlotsNow = fitSlots(maxLiveWidth, phoneWidth, gap);",
+      "replace": "const fitSlotsNow = fitSlots(maxLiveWidth, phoneWidth, 0);",
+      "expectRed": [
+        "a view is told fitSlots"
       ]
     },
     {
@@ -123,15 +160,6 @@
       "replace": "const edge = resolved.rowGap;",
       "expectRed": [
         "differential tuning.edgePadding"
-      ]
-    },
-    {
-      "name": "setSlots above maxSlots is silent",
-      "file": "panels/useProvidePanels.ts",
-      "find": "if (typeof next === 'number' && next > settings.maxSlots) scrollNote(",
-      "replace": "if (typeof next === 'number' && next > settings.maxSlots + 1000) scrollNote(",
-      "expectRed": [
-        "matrix:maxSlots"
       ]
     },
     {

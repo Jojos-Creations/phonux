@@ -277,7 +277,7 @@ test('JSON.parse of the saved file has no entry for a persist:session panel; a d
 });
 
 // ---------------------------------------------------------------------------
-// Creation paths (S2): restore and the Host-bag create naming a template
+// Creation paths: restore and the Host-bag create naming a template
 // ---------------------------------------------------------------------------
 
 test('closable false yields locked entries on the create path and on restore', async () => {
@@ -470,7 +470,7 @@ test('every name this file owns has a completed differential', () => {
 });
 
 // ---------------------------------------------------------------------------
-// S2 and S3: random settings vectors over Host-bag creates and restores
+// Random settings vectors over Host-bag creates and restores
 // ---------------------------------------------------------------------------
 
 function seeded(seed: number): () => number {

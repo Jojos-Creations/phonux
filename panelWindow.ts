@@ -53,13 +53,13 @@ export interface PanelWindow {
   size?: PanelSize;
   /** How many phone-panel widths wide this entry is set to; `formFactor` is its tier. Absent on a hand-built entry, which reads its slots from its tier. */
   slots?: number;
-  /** The resolved settings this entry was created under, whose mirror fields (`locked`, `collapsible`, `listed`, `layer`, `anchoredEnter`, `formFactor`, `slots`) were written from them. Absent for a hand-built entry, which behaves as it did before settings existed. */
+  /** The resolved settings this entry was created under, whose mirror fields (`locked`, `collapsible`, `listed`, `layer`, `anchoredEnter`, `formFactor`, `slots`) were written from them. Absent for a hand-built entry. */
   settings?: ResolvedPanelSettings;
   /** This entry's stable name, written once when it is created from settings; absent on a hand-built entry, whose `id` stands in. */
   key?: string;
   /** The instance settings layer this entry was created under, saved for an entry code does not re-declare so a restore resolves it the same way. Only workspace code writes it. */
   instance?: PanelSettings;
-  /** What the person changed about this entry: where it sits, its tier, whether it is parkable. Present, possibly empty, on an entry that owns only the keys it holds; absent on an entry restored from a 0.1.0 file, which owns its anchor and tier. Written only by `recordOverride`, `clearOverrides` and a restore. */
+  /** What the person changed about this entry: where it sits, its tier, whether it is parkable. Present, possibly empty, on an entry that owns only the keys it holds; absent on an entry restored from an older file, which owns its anchor and tier. Written only by `recordOverride`, `clearOverrides` and a restore. */
   overrides?: {
     /** Where the person put the entry. */
     anchor?: PanelAnchor;
@@ -96,7 +96,7 @@ export function createHistoryPanel(rootId: string, title: string = DEFAULT_LABEL
  * @internal
  */
 export interface AppendPanelOptions {
-  /** The view that renders the new panel, becoming `PanelWindow.view`. Default 'web', the answer 0.1.0 gave; `useProvidePanels` always passes one. */
+  /** The view that renders the new panel, becoming `PanelWindow.view`. Default 'web'; `useProvidePanels` always passes one. */
   view?: string;
   /** The new panel's title. */
   title?: string;
@@ -387,7 +387,7 @@ export const resizeTo = (panels: PanelWindow[], id: string, next: Resize): Panel
 /**
  * The deprecated tier view of `setSlots`: `id` at `next`'s slot count (phone 1, tablet 2, desktop every visible slot,
  * clamped silently to its `maxSlots`). The SAME array for every no-op `setSlots` has, and when `formFactors` lacks `next`.
- * An entry with no slot count (hand-built) changes its tier and `size` only, as before slots existed.
+ * An entry with no slot count (hand-built) changes its tier and `size` only.
  * @internal
  */
 export function setFormFactor(panels: PanelWindow[], id: string, next: FormFactor): PanelWindow[] {
@@ -396,7 +396,7 @@ export function setFormFactor(panels: PanelWindow[], id: string, next: FormFacto
   const allowed = effective(target);
   if (!allowed.formFactors.includes(next)) return panels;
   if (target.slots !== undefined) return setSlots(panels, id, slotsOfTier(next));
-  // A hand-built entry has no slot count: it keeps the tier rule it always had.
+  // A hand-built entry has no slot count: only its tier and size change.
   if (!allowed.resizable || (target.formFactor ?? 'phone') === next) return panels;
   return panels.map((p) => (p.id === id ? { ...p, formFactor: next, size: { ...TIER_SIZES[next] } } : p));
 }

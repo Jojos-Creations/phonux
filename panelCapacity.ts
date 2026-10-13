@@ -3,6 +3,8 @@
  * Pure and free of device state, so it is testable without a window.
  */
 
+import { computeRowLayout, type RowLayoutInput } from './panelRowLayout.js';
+
 /**
  * The live cap on how many panels (every permanent column plus web panels together) may be live at once,
  * from the current fit count and how many permanent columns (`collapsible:false`, e.g. History) are seated
@@ -15,4 +17,16 @@
 export function effectiveMaxPanels(fitCount: number | null, fixedColumnCount: number): number {
   if (fitCount === null) return Number.POSITIVE_INFINITY;
   return Math.max(fixedColumnCount + 1, fitCount);
+}
+
+/**
+ * How many panels, permanent columns included, the row's window fits for these live widths: `fixedColumnCount` plus
+ * `computeRowLayout`'s `maxLiveThatFit`. `null` while the row is unmeasured (`containerWidth === 0`), never 0.
+ * The one fit computation: the row's capacity and `PanelsAPI.maxFitPanels` both call it, so they cannot disagree.
+ * @internal
+ */
+export function rowFitCount(i: Pick<RowLayoutInput, 'containerWidth' | 'phoneWidth' | 'gap' | 'edge' | 'liveWidths' | 'reservedWidths'> & { fixedColumnCount: number }): number | null {
+  if (i.containerWidth === 0) return null;
+  const { fixedColumnCount, ...layout } = i;
+  return fixedColumnCount + computeRowLayout({ ...layout, fixedItemCount: fixedColumnCount }).maxLiveThatFit;
 }

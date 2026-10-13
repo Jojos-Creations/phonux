@@ -21,7 +21,7 @@ import { RowHeightContext, WorkspaceTuningContext, lookTuningDiffers, resolveWor
 import { reorderStepsForOffset, type PanelWindow } from './panelWindow.js';
 import { maxScrollOf, type RowNumbers } from './rowNumbers.js';
 import { panelWidthOf } from './panelTiers.js';
-import { slotHeight } from './rowConstants.js';
+import { fitSlots, slotHeight } from './rowConstants.js';
 import { ROW_LAYER_Z } from './rowConstants.js';
 import { resolveView } from './viewRegistry.js';
 import { bindingOf, viewContextOf, type WorkspaceHandle } from './workspaceCore.js';
@@ -49,9 +49,9 @@ export function enterDirectionOf(from: ResolvedPanelSettings['enterFrom'], ancho
 }
 
 /** The view's summary with `size.width` at the width the row renders it, so a view passing `panel.size` to Panel stays inside its slot. */
-function renderedSummary(p: PanelRowEntry, width: number, height: number | undefined, drawnSlots: number | undefined) {
+function renderedSummary(p: PanelRowEntry, width: number, height: number | undefined, drawnSlots: number | undefined, fitSlots: number | undefined) {
   const summary = summarisePanel(p);
-  if (p.slots !== undefined) return { ...summary, drawnSlots, size: summary.size && { ...summary.size, width, height: height ?? summary.size.height } };
+  if (p.slots !== undefined) return { ...summary, drawnSlots, fitSlots, size: summary.size && { ...summary.size, width, height: height ?? summary.size.height } };
   return summary.size && summary.size.width !== width && (p.formFactor ?? 'phone') !== 'phone' ? { ...summary, size: { ...summary.size, width } } : summary;
 }
 
@@ -231,6 +231,7 @@ export function PanelRow({
   // A panel is as many slots wide as its width spans; each slot past the first adds `heightPerSlot`, up to the room the row has.
   const slotsOfWidth = (width: number): number => Math.max(1, Math.round((width + gap) / (phoneWidth + gap)));
   const heights = present.map((p, index) => (p.slots === undefined ? phoneHeight : slotHeight(slotsOfWidth(widths[index]!), phoneHeight, workspaceTuning.heightPerSlot, availableHeight)));
+  const fitSlotsNow = fitSlots(maxLiveWidth, phoneWidth, gap);
   const rowHeight = Math.max(phoneHeight, ...heights);
   const alignedTop = (height: number): number => (workspaceTuning.rowAlign === 'top' ? 0 : workspaceTuning.rowAlign === 'bottom' ? rowHeight - height : Math.round((rowHeight - height) / 2));
   const rowScroll = rowNumbers?.rowScroll ?? false;
@@ -359,7 +360,7 @@ export function PanelRow({
                 {/* The ONE place useViewState's ambient panel id is set, so a view's own useViewState(key,
                     initial) call needs no id argument. */}
                 <useViewState.Provider value={p.id}>
-                  <Component panel={renderedSummary(p, rest.width, kept ? undefined : heights[presentIndex], kept ? undefined : slotsOfWidth(rest.width))} />
+                  <Component panel={renderedSummary(p, rest.width, kept ? undefined : heights[presentIndex], kept ? undefined : slotsOfWidth(rest.width), kept ? undefined : fitSlotsNow)} />
                 </useViewState.Provider>
               </PanelRowSlot>
             </PanelSlotContext.Provider>

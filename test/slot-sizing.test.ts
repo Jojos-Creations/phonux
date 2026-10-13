@@ -3,10 +3,11 @@
  * mounted PanelRow for the widths, the heights, the alignment and the summary a view reads, one differential per
  * setting this entry owns, and the resolver rules for slots against formFactor.
  */
-import { test, afterEach } from 'node:test';
+import { test, afterEach, mock } from 'node:test';
 import assert from 'node:assert/strict';
 import './support/jsdom-globals.js';
 import * as React from 'react';
+import { act } from 'react';
 import { PanelRow, registerView, resolvePanelSettings } from '../index.js';
 import type { PanelSummary, PanelWindow, WorkspaceTuning } from '../index.js';
 import { drawnSlotsOf } from '../panelTiers.js';
@@ -18,9 +19,10 @@ import { ALL_SLOTS, EDGE_PADDING, fitSlots, slotHeight, slotWidth, slotsOfTier, 
 import { differential, differentialsCovered } from './support/differential.js';
 import { computeRowNumbers } from '../rowNumbers.js';
 import { Workspace } from '../Workspace.js';
-import { advanceFrames, cleanup, mount, withHost } from './support/mount-harness.js';
 import { pinRig } from './support/pin-rig.js';
 import { markerTemplate } from './support/workspace-row.js';
+import { advanceFrames, cleanup, mount, withHost } from './support/mount-harness.js';
+import { made as scrollMade, mountRow, rootEntry, row } from './support/scroll-row.js';
 
 const ROOT = 'root';
 const NONE: ReadonlySet<string> = new Set();
@@ -269,36 +271,55 @@ test('this file completed the differential of every name it owns', () => {
   assert.deepEqual(differentialsCovered(), [...OWNED].sort());
 });
 
-test('a closing panel leaves the row box at once: the row is as tall as the tallest panel that stays', () => {
-  const { height } = phone();
-  const tall = made('b', { slots: 3, maxSlots: 3 });
-  const room = height + 400;
-  const mounted = mount(rowOf([made('a'), tall], undefined, room, slotWidth(3, 390, 16)));
-  const withTall = boxHeight(mounted.container);
-  assert.ok(withTall > height, 'positive control: a three-slot panel makes the row taller than a phone');
-  mounted.rerender(rowOf([made('a')], undefined, room, slotWidth(3, 390, 16)));
-  assert.equal(boxHeight(mounted.container), height, 'with the tall panel gone the row box is a phone tall again, while the panel animates out');
-  mounted.unmount();
+test('drawnSlotsOf holds an entry to its own maxSlots even if its slots were stored above it', () => {
+  const entry = (slots: number, maxSlots: number): Parameters<typeof drawnSlotsOf>[0] => ({ slots, settings: { maxSlots } as never });
+  assert.equal(drawnSlotsOf(entry(4, 2), 390, 1608, 16), 2, 'capped at maxSlots although four fit');
+  assert.equal(drawnSlotsOf(entry(4, 4), 390, 796, 16), 2, 'and at what fits');
+  assert.equal(drawnSlotsOf({ slots: undefined, settings: undefined }, 390, 1608, 16), undefined, 'a hand-built entry has no slot count');
 });
 
-test('History resized while the row is scrolled to its end: the strip grows by the slot and the gap, nothing parks, and the position stays inside the new strip', async () => {
-  const ids = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h'];
-  const root = markerTemplate('root', { settings: { title: 'History', resizable: true, maxSlots: 3, formFactors: ['phone', 'tablet', 'desktop'] } });
-  const r = await pinRig({ ids, width: 1000, settings: Object.fromEntries(ids.map((id) => [id, { overflow: 'scroll' } as never])), workspace: { tuning: { rowGesture: 'free', edgePadding: 16 }, root } as never });
-  await r.settle();
-  const numbers = () => r.m.latest().rowNumbers;
-  const before = numbers();
-  const farthest = before.stripWidth - before.windowWidth;
-  r.m.container.scrollLeft = farthest;
-  const live = r.live();
-  assert.equal(before.widths[0], 390, 'positive control: History starts at one slot');
-  const res = r.turn(() => r.ws.panels.get('root')!.setSlots(2));
-  assert.deepEqual({ ...res }, { ok: true, changed: true });
-  await advanceFrames(900);
-  const after = numbers();
-  assert.equal(after.widths[0], slotWidth(2, 390, 16));
-  assert.equal(after.stripWidth - before.stripWidth, 390 + 16, 'one more phone width and its gap');
-  assert.deepEqual(r.live(), live, 'a scrolling row parks nothing');
-  assert.ok(r.m.container.scrollLeft <= after.stripWidth - after.windowWidth, 'the position is inside the new strip');
-  assert.equal(after.leftOffsets[after.leftOffsets.length - 1]! + after.widths[after.widths.length - 1]!, after.stripWidth, 'the last panel still ends the strip');
+test('a panel closing out of a tall row leaves by the row bottom, not the phone height', async () => {
+  const { height } = phone();
+  const rowBottom = height + 96;
+  const closing = new Set(['b']);
+  const ui = (entries: PanelWindow[]): React.ReactElement =>
+    React.createElement(RowHeightContext.Provider, { value: height + 400 }, withHost(React.createElement(PanelRow, { entries, rootId: ROOT, closingIds: closing, enteringViaAnchorIds: NONE })));
+  const mounted = mount(ui([made('a'), made('b', { slots: 3, maxSlots: 3 })]));
+  mounted.rerender(ui([made('a')]));
+  let y = 0;
+  for (let frame = 0; frame < 120; frame += 1) {
+    await advanceFrames(16);
+    const slot = mounted.container.querySelector('[data-slot="b"]')?.parentElement;
+    if (!slot) break;
+    y = Number(/translateY\((-?[\d.e+-]+)px\)/.exec(slot.style.transform)?.[1] ?? y);
+  }
+  mounted.unmount();
+  assert.ok(y > height, `the slot dropped past the phone height (${y})`);
+  assert.ok(y <= rowBottom, `and no further than the row bottom (${y})`);
+});
+
+test('setSlots above a panel maxSlots warns once, as a template asking too much does, and still clamps', () => {
+  const warn = mock.method(console, 'warn', () => undefined);
+  try {
+    const m = mountRow(row(rootEntry(), scrollMade('a', { slots: 1, maxSlots: 2, formFactors: ['phone', 'tablet'] })), 1000);
+    act(() => void m.latest().setSlots('a', 5));
+    act(() => void m.latest().setSlots('a', 5));
+    assert.equal(m.latest().entries.find((p) => p.id === 'a')!.slots, 2, 'clamped to maxSlots');
+    const warnings = warn.mock.calls.map((c) => String(c.arguments[0])).filter((t) => t.includes('maxSlots'));
+    assert.equal(warnings.length, 1, 'one warning for the same ask');
+    assert.match(warnings[0]!, /'a'.*setSlots\(5\).*maxSlots \(2\)/);
+  } finally {
+    warn.mock.restore();
+  }
+});
+
+test('a view is told fitSlots, the slots that fit the window at the row gap: 844 gives 2 at 16 and 1 at 24, 1280 gives 3, 1800 gives 4', () => {
+  const fitFor = (container: number, rowGap: number): number | undefined => {
+    const mounted = mount(rowOf([made('a')], { rowGap }, 0, container - 2 * rowGap));
+    const out = summaries.get('a')!.fitSlots;
+    mounted.unmount();
+    return out;
+  };
+  assert.deepEqual([844, 1280, 1800].map((c) => fitFor(c, 16)), [2, 3, 4]);
+  assert.deepEqual([844, 1280, 1800].map((c) => fitFor(c, 24)), [1, 3, 4]);
 });
