@@ -93,6 +93,7 @@ export function createFakeHost(overrides: FakeOverrides = {}): FakeHost {
     activate: (id) => log('panels', 'activate', [id]),
     move: (id, direction) => log('panels', 'move', [id, direction]),
     setFormFactor: (id, next) => log('panels', 'setFormFactor', [id, next]),
+    setSlots: (id, slots) => log('panels', 'setSlots', [id, slots]),
     reanchor: (id, anchor) => log('panels', 'reanchor', [id, anchor]),
     close: (id) => log('panels', 'close', [id]),
     recentlyClosed: null,

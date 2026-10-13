@@ -129,6 +129,7 @@ export interface PanelsAPI {
     }): void;
     readonly recentlyClosed: readonly PanelSummary[] | null;
     setFormFactor(id: string, next: FormFactor): void;
+    setSlots?(id: string, slots: number): void;
     undoClose(): void;
 }
 
@@ -141,12 +142,16 @@ export interface PanelSize {
 
 // @public
 export interface PanelSummary<P = JsonValue> {
+    readonly drawnSlots?: number;
+    readonly fitSlots?: number;
     readonly formFactor?: FormFactor;
     readonly id: string;
     readonly live: boolean;
     readonly locked: boolean;
+    readonly maxSlots?: number;
     readonly params?: P;
     readonly size?: PanelSize;
+    readonly slots?: number;
     readonly title?: string;
     readonly url?: string;
 }
@@ -238,6 +243,7 @@ export type WorkspacePanelState = {
         priority: number;
     };
     formFactor?: FormFactor;
+    slots?: number;
     permanent?: boolean;
     layer?: 'base' | 'raised';
     key?: string;
@@ -251,6 +257,7 @@ export type WorkspacePanelState = {
             priority: number;
         };
         formFactor?: FormFactor;
+        slots?: number;
         parkable?: boolean;
     };
     applied?: {
@@ -265,6 +272,7 @@ export type WorkspaceState = {
     panels: WorkspacePanelState[];
     dismissed?: string[];
     root?: string;
+    rootSlots?: number;
 };
 
 // @public

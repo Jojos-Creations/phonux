@@ -57,6 +57,10 @@ function App({ host }) {
 }
 ```
 
+## Panel sizing
+
+A panel is a whole number of slots wide: one slot is the phone width, and each added slot adds a phone width plus the row gap. Set the count with `slots` (and cap it with `maxSlots`); a person can change it by dragging, and a view can change it with `setSlots`. A panel is drawn at no more slots than fit the window, and its chosen count comes back when the window grows. Panels get `tuning.heightPerSlot` taller for each slot they gain, the row is as tall as its tallest panel, and `tuning.rowAlign` (`center`, `top` or `bottom`) places the shorter ones. `formFactor` still works as a view of `slots` (phone 1, tablet 2, desktop 3 or more) and is deprecated. See `DESIGN.md` "Slot sizing".
+
 ## Panel chrome
 
 `useActivePanel()` returns the active panel's id and a setter (a press or focus anywhere inside a panel makes it active);

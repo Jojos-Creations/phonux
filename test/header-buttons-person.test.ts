@@ -111,10 +111,10 @@ test('person: a press records the person\'s anchor, parkable and form factor; a 
   press(rig, 'c', 'Pin');
   press(rig, 'd', 'Size');
   await wait();
-  const [saved, sized] = (await overridesOf(store)) as [{ anchor?: unknown; parkable?: boolean }, { formFactor?: string }];
+  const [saved, sized] = (await overridesOf(store)) as [{ anchor?: unknown; parkable?: boolean }, { slots?: number }];
   assert.ok(saved.anchor !== undefined, 'overrides.anchor');
   assert.equal(saved.parkable, false, 'overrides.parkable for a half naming parkable');
-  assert.equal(sized.formFactor, 'tablet', 'overrides.formFactor');
+  assert.equal(sized.slots, 2, 'overrides.slots');
 
   cleanup();
   const later = memoryWorkspaceStorage();

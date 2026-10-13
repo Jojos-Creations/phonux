@@ -80,3 +80,36 @@ export const RESIZE_SETTLE_SLIDES = 1.25;
 export const EDGE_SCROLL_ZONE_PX = 48;
 export const EDGE_SCROLL_MAX_PX_PER_SEC = 900;
 export const EDGE_SCROLL_REDUCED_STEP_MS = 500;
+
+/**
+ * The slot count `setFormFactor('desktop')` stores: finite, and larger than any window fits, so it keeps meaning
+ * "every visible slot" without a non-finite number ever being saved. The drawn count is always capped at the fit.
+ */
+export const ALL_SLOTS = 64;
+
+/** Pixels a panel grows taller for each slot it is wider than one, before the row's own height caps it. */
+export const HEIGHT_PER_SLOT = 48;
+
+/** Where a panel shorter than the row sits in it: on the row's middle. */
+export const ROW_ALIGN = 'center' as const;
+
+/** The slot count a tier stands for: phone one, tablet two, desktop every visible slot. */
+export const slotsOfTier = (tier: 'phone' | 'tablet' | 'desktop'): number => (tier === 'phone' ? 1 : tier === 'tablet' ? 2 : ALL_SLOTS);
+
+/** The tier a slot count reports: one slot phone, two tablet, three or more desktop. */
+export const tierOfSlots = (slots: number): 'phone' | 'tablet' | 'desktop' => (slots <= 1 ? 'phone' : slots === 2 ? 'tablet' : 'desktop');
+
+/** The widest `slots` slots are drawn: whole phone widths with the row gap between them, so edges sit on the stop grid. */
+export const slotWidth = (slots: number, phoneWidth: number, gap: number): number => slots * phoneWidth + (slots - 1) * gap;
+
+/** The slots a panel is drawn at while the row is unmeasured. */
+export const UNMEASURED_SLOTS = 3;
+
+/** How many slots fit in `maxLiveWidth`; at least one, and `UNMEASURED_SLOTS` while the row is unmeasured (infinite). */
+export function fitSlots(maxLiveWidth: number, phoneWidth: number, gap: number): number {
+  if (!Number.isFinite(maxLiveWidth)) return UNMEASURED_SLOTS;
+  return Math.max(1, Math.min(ALL_SLOTS, Math.floor((maxLiveWidth + gap) / (phoneWidth + gap))));
+}
+
+/** A panel `slots` wide is this tall: the phone height plus `perSlot` per added slot, never more than `available` (but never less than the phone height). */
+export const slotHeight = (slots: number, phoneHeight: number, perSlot: number, available: number): number => Math.max(phoneHeight, Math.min(phoneHeight + (slots - 1) * perSlot, available));
