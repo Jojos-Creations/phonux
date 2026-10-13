@@ -168,7 +168,7 @@ export function Workspace(props: WorkspaceProps): React.ReactElement {
       const n = numbersRef.current;
       if (claim === null || n === undefined || n.stops.length === 0) return;
       const to = nearestStop(n, scroller.scrollLeft());
-      if (Math.abs(to - scroller.scrollLeft()) >= 0.5) scroller.glideTo(to, { durationSec: resolved.slide.durationSec, instant: reduced, ease: resolved.slide.glideEase });
+      if (Math.abs(to - scroller.scrollLeft()) >= 0.5) scroller.glideTo(to, { durationSec: resolved.slide.durationSec, instant: reduced, ease: resolved.shrinkOutOfView === 'visible' ? resolved.slide.ease : resolved.slide.glideEase });
     };
   }, [resizingId, overflowContainerRef]);
   const scrolls = rowNumbers?.rowScroll ?? rowScroll ?? false;
