@@ -53,7 +53,7 @@ are about presence and parking, and test/source-invariants.test.ts lists the fun
 
 ## The panel-view registry: never a crash, never a silent substitution
 
-`registerView`/`resolveView` (`viewRegistry.tsx`) let `PanelWindow.view` be an open string
+The legacy `registerView`/`resolveView` (`viewRegistry.tsx`) let `PanelWindow.view` be an open string
 instead of a closed union, so a host or a third party can spawn any registered component by name.
 `resolveView` never returns nothing: an unregistered key -- a typo, or a plugin that failed to
 register -- renders a visible, inert placeholder naming the title and the key, rather than throwing (which
@@ -1560,11 +1560,11 @@ The default start is `definePanel`, `createWorkspace` and `addPanel`: the worksp
 - **Said once.** A `PanelRow` given a workspace that also mounts itself warns once in development, naming `mount: false`.
 - **The theme.** The mount wraps the row in a `ThemeProvider` with `createDefaultTheme` (light or dark by `prefers-color-scheme`) and `CssBaseline`, because a row with no theme falls back to MUI's own. A caller who wants another theme mounts the three components.
 - **Defaults.** `HostProvider` takes a `HostInput`: a `Host` whose `settings` and `device` may be left out. The defaults are module constants (`DEFAULT_SETTINGS`, `DEFAULT_DEVICE`) so `useHost()` returns the same objects every render, and a host that names both is passed through as it is.
-- **Templates are per workspace.** A workspace holds its own templates and its row resolves a panel's template through them (`resolveViewIn`), so two workspaces on one page can define different templates under one id. The module-level template map is gone; `resolveView(key)` knows plain views only. A template id that is a `registerView` key still throws `template-collision`.
+- **Templates are per workspace.** A workspace holds its own templates and its row resolves a panel's template through them (`resolveViewIn`), so two workspaces on one page can define different templates under one id. The module-level template map is gone; `resolveView(key)` knows plain views only. A template id that is a legacy `registerView` key still throws `template-collision`.
 
 What stays at module level, and why none of it is a workspace's data:
 
-- `registry`: plain views by key. `registerView` is an app-wide call and a plain view is not a workspace's data.
+- `registry`: plain views by key. The legacy `registerView` is an app-wide call and a plain view is not a workspace's data.
 - `placeholders`: one placeholder component per unregistered key, so AnimatePresence sees one component type.
 - `adapters` (templateView.tsx): a WeakMap keyed by template object, one adapter component per template; the template itself is held by the workspace.
 - `BARE_TEMPLATES` (panelFrameBoundary.tsx): a WeakMap keyed by template object, whether that template's view was last found to draw no frame. It decides how to draw the next panel of the template, never what a workspace holds.
