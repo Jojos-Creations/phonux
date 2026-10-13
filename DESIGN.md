@@ -287,14 +287,18 @@ are, at 600 px as at 1920. That one capacity answers every question the window's
 `pricing`: the park that settles a row, the park that an open, a `show`, a History click or an undo makes, the free slots
 an 'until-room' hold waits for, and the returns a `resetLayout` reports.
 
+`PanelsAPI.maxFitPanels` is the window's phone-width ceiling: `effectiveMaxPanels` over `rowFitCount` with no live widths, the same
+`rowFitCount` the row's capacity calls, so the two cannot disagree. It is `null` while `containerWidth` is 0 and is not lowered by
+pinned panels or by a scrolling row. A host reads it to default a cap (`tuning.maxLivePanels`) that follows the window.
+
 No row that reaches the document holds more unpinned live panels than the cap. A row that lands over it (the panels of a
 restore or of a replayed `addPanel`, a seeded `initialEntries`, a row after a lower value from `configureTuning`, class NOW)
 is settled in the render that would show it, which React then renders again, so the first committed row has the excess
 parked and a panel the cap parks is never mounted. While a cap is set that settle also takes the window's fit; without
 one the reconcile effect parks for the window one commit after the row lands, as before. The settle keeps the panels an
 action has just marked, as the effect does, and the effect records its parks once the row has committed, as it records
-any park for room: under `capacityReturn: 'manual'` each is held until shown, under 'auto' it goes on the stack and
-returns by `returnTieBreak`. A higher value, or `null`, returns what has room for it under 'auto' and nothing under 'manual'.
+any park for room: under `capacityReturn: 'manual'` each is held until shown or until `maxLivePanels` is raised (the capacity-parked ones are kept in park order beside the hold, so a raise tells them from a host hide), under 'auto' it goes on the stack and
+returns by `returnTieBreak`. A higher value, or `null`, returns what has room for it under 'auto', and under 'manual' the panels the capacity parked, most recently parked first, up to the new value; never one the host hid.
 
 What the cap parks is chosen as a window-fit park chooses, with the pinned panels added to those a park leaves alone:
 `evictionRank` first, then `evictionOrder` from the panel acted on. Opening, showing or undoing a panel parks the unpinned
@@ -928,6 +932,18 @@ While a drag is live every vertically scrolling ancestor is locked (`overflow-y:
 transformed box would add a scrollbar). The lock ends with the spring back (or a press that stops it) and
 when the box unmounts.
 
+**No selection while dragging.** From the press until the pointer lifts or is cancelled (and until the box unmounts), the
+document element's `user-select`, `-webkit-user-select` and `-webkit-user-drag` are `none`, and a capture `dragstart`
+listener cancels a native drag: `-webkit-user-drag` does not inherit, so a photo inside a panel would otherwise start one,
+and a native drag ends the pointer events this gesture runs on. Safari reads the prefixed `-webkit-user-select`, so all
+three go on the same element. The holds share one record per document (`holdDragSelection`): the first takes the inline
+values and priorities the host had, the last gives them back, so overlapping drags (two touches, a press landing on a
+spring still unlocking) cannot restore each other's `none`. The document is the handle's `ownerDocument`, so a panel
+rendered into another window works. The press itself clears nothing, so a click on a grab bar keeps what the person
+selected; dnd-kit clears the selection when it activates the drag. There is no setting to turn this off: a drag that
+highlights text and photos is never wanted, and no host has asked for one that does. If one does, it is a `tuning` leaf
+defaulting on. A hide and show in the middle of a drag (Activity) gives the hold back and takes it again.
+
 **Tuning and closability.** Inside a row the box reads its numbers from the slot it sits in: the close rule, the
 direction lock and the snap-back spring from the panel's `dragToClose`, and the exit's length from its
 `slide.closeExitSeconds`, which the slot's own down exit shares so a trash-button close and a drag close read as one
@@ -1254,8 +1270,8 @@ the same call shows the panel or is refused), and `invalid-saved-setting` for ea
 ### Who may set what
 
 The `doors` of a descriptor name the configure call that accepts the key: `instance` (`configure(id)`), `template`
-(`configureTemplate`: `hostCreatable`, `multiple`, `maxInstances`) and `tuning` (`configureTuning`). Ten tuning
-leaves are workspace-only (`rowGap`, `saveQuietMs`, `gestureLockMs`, `gestureQuietMs`, `returnTieBreak`, `dropTieBreak`, `rowGesture`,
+(`configureTemplate`: `hostCreatable`, `multiple`, `maxInstances`) and `tuning` (`configureTuning`). Eleven tuning
+leaves are workspace-only (`rowGap`, `saveQuietMs`, `gestureLockMs`, `gestureQuietMs`, `resizeSettleSlides`, `returnTieBreak`, `dropTieBreak`, `rowGesture`,
 `initialScroll`, `maxLivePanels`, `chrome`); four are per panel and also workspace-wide (`dragToClose`, `slide`, `hopFraction`, `edgeScroll`).
 A workspace-only leaf at the template layer throws, at the instance or host layer it is a `wrong-scope` conflict, and
 any tuning key in the workspace defaults throws. A view's own door, the host layer, accepts only `title`, `listed`,
@@ -1388,12 +1404,13 @@ flip with a transition rule of its own) or SCOPE (a template-scope key).
 | `tuning.saveQuietMs` | integer ms >= 0 (workspace only) | 500 | NEXT (configureTuning only). A timer already armed keeps its deadline; the next arm uses the new value. Session-only. |
 | `tuning.gestureLockMs` | integer ms >= 0 (workspace only) | 60 | NEXT (configureTuning only). A lock already armed keeps its remaining time. Session-only. |
 | `tuning.gestureQuietMs` | integer ms >= 1 (workspace only) | 150 | NEXT (configureTuning only). A quiet timer already running keeps its length; the next wheel event arms the new one. Session-only. |
+| `tuning.resizeSettleSlides` | number [0, 10], multiplies slide.durationSec (workspace only) | 1.25 | NOW (configureTuning only). 0 settles at once. A settle timer already running keeps its length; the next width change arms the new one. Session-only. |
 | `tuning.returnTieBreak` | latest-first, earliest-first, row-order (workspace only) | latest-first | NEXT (configureTuning only). Read at the next stack walk; nothing returns now. |
 | `tuning.dropTieBreak` | leftmost, rightmost (workspace only) | leftmost | NEXT (configureTuning only). Read at the next capacity drop or resize; nothing parks now. |
 | `tuning.rowGesture` | step, free, off (workspace only; a design-derived key from Q15, not requested) | step | NEXT (configureTuning only). The listener set is re-read at the next render; a gesture in flight finishes; no panel moves. Session-only. |
 | `tuning.initialScroll` | start, end, root, { panel: PanelId } (workspace only; a design-derived key from Q15, not requested) | start (the library default, a design default the owner did not rule on; phonux-app sets 'end', owner Q20: the newest closable panels in view at launch) | NEXT (configureTuning only). Read at the next mount; nothing scrolls now. Session-only. |
-| `tuning.chrome` | object: mode 'always' or 'hover-or-active', fadeMs integer [0, 10000], slideMs integer [0, 10000], slidePx integer [0, 200], graceMs integer [0, 10000] (workspace only) | always, 120, 140, 8, 250 (CHROME) | NOW (configureTuning only). A member patch keeps the other members. The chrome shows or hides at this commit; a fade in progress retargets. The library reads `mode` and `fadeMs`; `slideMs`, `slidePx` and `graceMs` are for the host's own icon row. Session-only. |
-| `tuning.maxLivePanels` | integer >= 1, or null for no cap (workspace only) | null (no cap) | NOW (configureTuning only). A lower value parks the excess unpinned panels at this commit through the reconcile effect; a higher one or null returns none under `capacityReturn` manual and the most recently parked under auto. Unmeasured: applies. Outside integers of 1 or more throws; null removes the cap. Session-only. |
+| `tuning.chrome` | object: mode 'always' or 'hover-or-active', fadeMs integer [0, 10000], fadeEase ('easeIn', 'easeOut', 'easeInOut', 'linear' or four numbers, x1 and x2 in [0,1]), slideMs integer [0, 10000], slidePx integer [0, 200], graceMs integer [0, 10000] (workspace only) | always, 120, easeOut, 140, 8, 250 (CHROME) | NOW (configureTuning only). A member patch keeps the other members. The chrome shows or hides at this commit; a fade in progress retargets. The library reads `mode`, `fadeMs` and `fadeEase` (`easeOut` is the curve Motion applies to a fade given only a duration, measured in Chromium); `slideMs`, `slidePx` and `graceMs` are for the host's own icon row. Session-only. |
+| `tuning.maxLivePanels` | integer >= 1, or null for no cap (workspace only) | null (no cap) | NOW (configureTuning only). A lower value parks the excess unpinned panels at this commit through the reconcile effect; a higher one or null returns the most recently parked, under `capacityReturn` auto as under manual (manual returns only the panels the capacity parked, never one the host hid), up to the new value, in one commit. Unmeasured: applies. Outside integers of 1 or more throws; null removes the cap. Session-only. |
 | `tuning.heightPerSlot` | integer 0 to 2000, px added per slot beyond the first (workspace only) | 48 (HEIGHT_PER_SLOT) | NOW (configureTuning only). A panel is taller by this much for each slot it is wider than one, up to the room the row has; the row is as tall as its tallest panel. Unmeasured height: every panel stays at the phone height. Outside 0-2000 throws. |
 | `tuning.rowAlign` | top, center, bottom (workspace only) | center (ROW_ALIGN) | NOW (configureTuning only). Where a panel shorter than the row sits in it. Other values throw. |
 <!-- catalog:end -->
@@ -1536,7 +1553,7 @@ Web Animations API and so is not stopped by a theme's `transition: none !importa
 enabled button when its holder is removed or disabled, and Arrow, Home and End skip disabled buttons.
 
 The Workspace derives the row's resize settle from `tuning.slide`: the row snaps while the width moves and glides once it has
-held for `RESIZE_SETTLE_SLIDES` (1.25) slide durations, at once under Reduce Motion. A `rowResizeSettled` the host supplies wins.
+held for `tuning.resizeSettleSlides` (1.25) slide durations, at once under Reduce Motion. A `rowResizeSettled` the host supplies wins.
 
 ## Doc comments
 

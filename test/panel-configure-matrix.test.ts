@@ -1802,13 +1802,35 @@ test('matrix:tuning.chrome', async () => {
   await wrongScopeInEveryStatus({ tuning: { chrome: { mode: 'hover-or-active' } } }, 'tuning.chrome');
   const r = await matrixRig();
   await r.settle();
-  assert.deepEqual({ ...r.ws.tuning.chrome }, { mode: 'always', fadeMs: 120, slideMs: 140, slidePx: 8, graceMs: 250 });
+  assert.deepEqual({ ...r.ws.tuning.chrome }, { mode: 'always', fadeMs: 120, fadeEase: 'easeOut', slideMs: 140, slidePx: 8, graceMs: 250 });
   assert.deepEqual({ ...done(r.turn(() => r.ws.panels.configureTuning({ chrome: { fadeMs: 60 } }))) }, { ok: true, changed: true, shown: false, now: ['tuning.chrome'], later: [], shadowed: [], notes: [] });
-  assert.deepEqual({ ...r.ws.tuning.chrome }, { mode: 'always', fadeMs: 60, slideMs: 140, slidePx: 8, graceMs: 250 }, 'a one-member patch keeps the other members');
+  assert.deepEqual({ ...r.ws.tuning.chrome }, { mode: 'always', fadeMs: 60, fadeEase: 'easeOut', slideMs: 140, slidePx: 8, graceMs: 250 }, 'a one-member patch keeps the other members');
   assert.equal(done(r.turn(() => r.ws.panels.configureTuning({ chrome: { fadeMs: 60 } }))).changed, false, 'an equal patch changes nothing');
   assert.equal(thrownCode(() => r.ws.panels.configureTuning({ chrome: { slidePx: 201 } })), 'invalid-settings', 'outside 0 to 200 throws');
   assert.equal(thrownCode(() => r.ws.panels.configureTuning({ chrome: { mode: 'sometimes' } as never })), 'invalid-settings');
   assert.equal(r.ws.tuning.chrome.fadeMs, 60, 'a refused patch left the value');
+  assert.deepEqual({ ...done(r.turn(() => r.ws.panels.configureTuning({ chrome: { fadeEase: 'linear' } }))) }, { ok: true, changed: true, shown: false, now: ['tuning.chrome'], later: [], shadowed: [], notes: [] } as never, 'fadeEase applies at once, like the other members');
+  assert.deepEqual({ ...r.ws.tuning.chrome }, { mode: 'always', fadeMs: 60, fadeEase: 'linear', slideMs: 140, slidePx: 8, graceMs: 250 }, 'a fadeEase-only patch keeps the other members');
+  assert.equal(thrownCode(() => r.ws.panels.configureTuning({ chrome: { fadeEase: 'cubic-out' } as never })), 'invalid-settings');
+  assert.equal(r.ws.tuning.chrome.fadeEase, 'linear', 'a refused patch left the value');
+});
+
+test('matrix:tuning.resizeSettleSlides', async () => {
+  probe('tuning.resizeSettleSlides');
+  await wrongScopeInEveryStatus({ tuning: { resizeSettleSlides: 2 } }, 'tuning.resizeSettleSlides');
+  const r = await matrixRig();
+  await r.settle();
+  assert.equal(r.ws.tuning.resizeSettleSlides, 1.25);
+  const result = done(r.turn(() => r.ws.panels.configureTuning({ resizeSettleSlides: 2 })));
+  assert.deepEqual([result.ok, result.changed, result.now], [true, true, ['tuning.resizeSettleSlides']], 'class NOW: applied at this commit');
+  assert.equal(r.ws.tuning.resizeSettleSlides, 2);
+  assert.equal(done(r.turn(() => r.ws.panels.configureTuning({ resizeSettleSlides: 2 }))).changed, false, 'an equal value changes nothing');
+  for (const bad of [-0.1, 10.1, Number.NaN, Number.POSITIVE_INFINITY, '2']) {
+    assert.equal(thrownCode(() => r.ws.panels.configureTuning({ resizeSettleSlides: bad } as never)), 'invalid-settings', `${String(bad)} throws`);
+  }
+  assert.equal(r.ws.tuning.resizeSettleSlides, 2, 'a refused value changed nothing');
+  done(r.turn(() => r.ws.panels.configureTuning({ resizeSettleSlides: 0 })));
+  assert.equal(r.ws.tuning.resizeSettleSlides, 0, '0 is accepted');
 });
 
 test('matrix:tuning.maxLivePanels', async () => {
@@ -1891,13 +1913,13 @@ test('the class table ran every cell: executed cells equal 4 classes by 9 status
 });
 
 // The design copy is frozen; a catalog key added after it is listed here, never in the copy.
-const ADDED_AFTER_DESIGN: readonly string[] = ['tuning.maxLivePanels', 'tuning.chrome', 'slots', 'maxSlots', 'tuning.heightPerSlot', 'tuning.rowAlign'];
+const ADDED_AFTER_DESIGN: readonly string[] = ['tuning.maxLivePanels', 'tuning.chrome', 'slots', 'maxSlots', 'tuning.heightPerSlot', 'tuning.rowAlign', 'tuning.resizeSettleSlides'];
 
-test('the probes ran every catalog name once: 68 executed, equal to the catalog and to the design copy of it plus the names added after it', () => {
+test('the probes ran every catalog name once: 69 executed, equal to the catalog and to the design copy of it plus the names added after it', () => {
   const design = JSON.parse(readFileSync(new URL('../design/0.2-rev7/DESIGN-phonux-0.2-rev7-catalog.json', import.meta.url), 'utf8')) as { name: string }[];
   assert.equal(design.length, 62);
-  assert.equal(CATALOG_NAMES.length, 68);
-  assert.equal(probesExecuted().size, 68);
+  assert.equal(CATALOG_NAMES.length, 69);
+  assert.equal(probesExecuted().size, 69);
   assert.deepEqual([...probesExecuted()].sort(), [...CATALOG_NAMES].sort());
   assert.deepEqual([...probesExecuted()].sort(), [...design.map((d) => d.name), ...ADDED_AFTER_DESIGN].sort());
 });

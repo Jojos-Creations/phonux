@@ -158,11 +158,12 @@ export function useChromeVisibility(): { visible: boolean; handlers: ChromeRootH
  */
 export function useChromeFade(visible: boolean): (node: HTMLElement | null) => void {
   const slot = React.useContext(PanelSlotContext);
-  const { mode, fadeMs } = slot?.tuning.chrome ?? LIBRARY_TUNING_DEFAULTS.chrome;
+  const { mode, fadeMs, fadeEase } = slot?.tuning.chrome ?? LIBRARY_TUNING_DEFAULTS.chrome;
   // The system preference counts whatever the app's MotionConfig says, as it does for the row's own slides.
   const configReduced = useReducedMotionConfig() === true;
   const systemReduced = useReducedMotion() === true;
   const reduced = configReduced || systemReduced;
+  const easeKey = JSON.stringify(fadeEase);
   const instant = fadeMs === 0 || reduced || slot?.animated === false;
   const target = mode === 'always' || visible ? 1 : 0;
   const node = React.useRef<HTMLElement | null>(null);
@@ -184,12 +185,12 @@ export function useChromeFade(visible: boolean): (node: HTMLElement | null) => v
       settle(el);
       return;
     }
-    const controls = animate(el, { opacity: target }, { duration: fadeMs / 1000 });
+    const controls = animate(el, { opacity: target }, { duration: fadeMs / 1000, ease: fadeEase });
     run.current = controls;
     void controls.then(() => {
       if (run.current === controls) settle(el);
     });
-  }, [target, instant, fadeMs, mode]);
+  }, [target, instant, fadeMs, easeKey, mode]);
   React.useLayoutEffect(() => () => run.current?.stop(), []);
   return React.useCallback((el: HTMLElement | null) => {
     node.current = el;

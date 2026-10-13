@@ -55,6 +55,7 @@ export type CatalogName = Exclude<keyof PanelSettings, 'tuning'> | `tuning.${key
 export type ChromeTuning = {
     mode: 'always' | 'hover-or-active';
     fadeMs: number;
+    fadeEase: FadeEase;
     slideMs: number;
     slidePx: number;
     graceMs: number;
@@ -202,6 +203,9 @@ export type EdgeScrollTuning = {
     maxPxPerSec: number;
     reducedStepMs: number;
 };
+
+// @public
+export type FadeEase = 'easeIn' | 'easeOut' | 'easeInOut' | 'linear' | BezierEase;
 
 // @public
 export function findPhoneModel(id: string): PhoneModel | undefined;
@@ -579,6 +583,7 @@ export interface PanelsAPI {
     close(id: string): void;
     create(): void;
     create(options: CreatePanelOptions): void;
+    readonly maxFitPanels?: number | null;
     move(id: string, direction: 'left' | 'right'): void;
     readonly panelList: readonly PanelSummary[];
     reanchor(id: string, anchor: {
@@ -940,6 +945,7 @@ export type ResolvedWorkspaceTuning = ResolvedPanelTuning & {
     saveQuietMs: number;
     gestureLockMs: number;
     gestureQuietMs: number;
+    resizeSettleSlides: number;
     returnTieBreak: 'latest-first' | 'earliest-first' | 'row-order';
     dropTieBreak: 'leftmost' | 'rightmost';
     rowGesture: 'step' | 'free' | 'off';
@@ -1397,6 +1403,7 @@ export type WorkspaceTuning = PanelTuning & {
     saveQuietMs?: number;
     gestureLockMs?: number;
     gestureQuietMs?: number;
+    resizeSettleSlides?: number;
     returnTieBreak?: 'latest-first' | 'earliest-first' | 'row-order';
     dropTieBreak?: 'leftmost' | 'rightmost';
     rowGesture?: 'step' | 'free' | 'off';
