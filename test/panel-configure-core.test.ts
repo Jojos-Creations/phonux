@@ -1056,7 +1056,7 @@ test('configureTuning rowGap re-prices the row in one commit: the slots rest one
 
 test('configureTuning rowGap in park mode: a smaller capacity parks the fewest park panels through the reconcile effect, then the live ones fit', async () => {
   const ids = ['a', 'b', 'c', 'd', 'e', 'f'];
-  const r = await pinRig({ ids, width: 1950, workspace: { tuning: { rowGap: 0, edgePadding: 0 } }, settings: Object.fromEntries(ids.map((id) => [id, { overflow: 'park' } as PanelSettings])) });
+  const r = await pinRig({ ids, width: 1950, workspace: { tuning: { rowGap: 0 } }, settings: Object.fromEntries(ids.map((id) => [id, { overflow: 'park' } as PanelSettings])) });
   await r.settle();
   const liveParkable = (): string[] => r.live().filter((id) => id !== 'root');
   assert.equal(liveParkable().length, 4, 'capacity at gap 0: (1950 - 390) / 390');
@@ -1074,7 +1074,7 @@ test('configureTuning rowGap in park mode: a smaller capacity parks the fewest p
 
 test('configureTuning rowGap in a scrolling row only re-prices: nothing is parked, and the farthest legal scrollLeft moves with the strip', async () => {
   const ids = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j'];
-  const r = await pinRig({ ids, width: 1000, workspace: { tuning: { rowGesture: 'free', edgePadding: 16 } } });
+  const r = await pinRig({ ids, width: 1000, workspace: { tuning: { rowGesture: 'free' } } });
   await r.settle();
   const numbers = () => {
     const n = r.m.latest().rowNumbers;
@@ -1083,7 +1083,7 @@ test('configureTuning rowGap in a scrolling row only re-prices: nothing is parke
   assert.deepEqual(numbers(), [4450, 968, 3482], 'eleven panels at gap 16: 11 x 390 + 10 x 16');
   const live = r.live();
   const renders = r.m.renders();
-  done(r.turn(() => r.ws.panels.configureTuning({ rowGap: 0, edgePadding: 0 })));
+  done(r.turn(() => r.ws.panels.configureTuning({ rowGap: 0 })));
   await r.settle();
   assert.deepEqual(numbers(), [4290, 1000, 3290], 'at gap 0: 11 x 390, a window of 1000');
   assert.deepEqual(r.live(), live, 'nothing was parked');

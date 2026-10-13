@@ -114,7 +114,7 @@ export async function capRig(o: CapRigOptions = {}): Promise<CapRig> {
   const ws = createWorkspace({
     root: markerTemplate(ROOT, { settings: { title: 'History' } }),
     templates: ids.map(template),
-    tuning: { rowGesture: o.gesture ?? 'step', edgePadding: 16, ...(o.cap === undefined ? {} : { maxLivePanels: o.cap }), ...o.tuning },
+    tuning: { rowGesture: o.gesture ?? 'step', ...(o.cap === undefined ? {} : { maxLivePanels: o.cap }), ...o.tuning },
     ...(o.workspace ?? {}),
   });
   const h: Record<string, PanelHandle> = {};

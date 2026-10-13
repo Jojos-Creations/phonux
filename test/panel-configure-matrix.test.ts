@@ -875,7 +875,7 @@ test('matrix:revealOnScroll', async () => {
 
 test('matrix:scrollOnOpen', async () => {
   probe('scrollOnOpen');
-  const r = await matrixRig({ ids: ['a', 'b', 'c', 'd', 'e'], width: 1000, workspace: { tuning: { rowGesture: 'free', edgePadding: 16 } } });
+  const r = await matrixRig({ ids: ['a', 'b', 'c', 'd', 'e'], width: 1000, workspace: { tuning: { rowGesture: 'free' } } });
   await r.settle();
   assert.equal(r.m.container.scrollLeft, 0);
   assert.deepEqual(shape(r.turn(() => r.h.c!.configure({ scrollOnOpen: 'start' }))), { now: [], later: ['scrollOnOpen'], shadowed: [] });
@@ -890,7 +890,7 @@ test('matrix:scrollOnOpen', async () => {
   r.turn(() => r.h.c!.scrollTo());
   await r.settle();
   assert.equal(r.m.container.scrollLeft, 640, "none: scrollTo() falls back to into-view, c's right edge 1624 less the 984 visible");
-  const hidden = await matrixRig({ ids: ['a', 'b', 'c', 'd', 'e'], width: 1000, workspace: { tuning: { rowGesture: 'free', edgePadding: 16 } } });
+  const hidden = await matrixRig({ ids: ['a', 'b', 'c', 'd', 'e'], width: 1000, workspace: { tuning: { rowGesture: 'free' } } });
   hidden.turn(() => hidden.h.c!.hide());
   await hidden.settle();
   done(hidden.turn(() => hidden.h.c!.configure({ scrollOnOpen: 'start' })));
@@ -903,7 +903,7 @@ test('matrix:scrollOnOpen', async () => {
 test('matrix:scrollOnMove', async () => {
   probe('scrollOnMove');
   const grown = async (none: boolean): Promise<number> => {
-    const r = await matrixRig({ ids: ['a', 'b', 'c', 'd', 'e'], width: 1000, workspace: { tuning: { rowGesture: 'free', edgePadding: 16 } } });
+    const r = await matrixRig({ ids: ['a', 'b', 'c', 'd', 'e'], width: 1000, workspace: { tuning: { rowGesture: 'free' } } });
     await r.settle();
     if (none) {
       assert.deepEqual(shape(r.turn(() => r.h.a!.configure({ scrollOnMove: 'none' }))), { now: [], later: ['scrollOnMove'], shadowed: [] });
@@ -1548,10 +1548,10 @@ test('matrix:tuning.rowGap', async () => {
   const taken = await matrixRig();
   assert.deepEqual(taken.turn(() => [letter(taken.h.a!.hide()), letter(taken.ws.panels.configureTuning({ rowGap: 30 }))]), ['T', 'busy'], 'busy while any panel has a token');
   assert.equal(thrownCode(() => r.ws.panels.configureTuning({ rowGap: 201 })), 'invalid-settings', 'outside 0 to 200 throws');
-  const parked = await matrixRig({ ids: ['a', 'b', 'c', 'd', 'e', 'f'], park: true, width: 1950, workspace: { tuning: { rowGap: 0, edgePadding: 0 } } });
+  const parked = await matrixRig({ ids: ['a', 'b', 'c', 'd', 'e', 'f'], park: true, width: 1950, workspace: { tuning: { rowGap: 0 } } });
   await parked.settle();
   assert.equal(parked.live().filter((n) => n !== 'root').length, 4, 'park mode at gap 0 holds four beside the root');
-  done(parked.turn(() => parked.ws.panels.configureTuning({ rowGap: 40, edgePadding: 40 })));
+  done(parked.turn(() => parked.ws.panels.configureTuning({ rowGap: 40 })));
   await parked.settle();
   assert.equal(parked.live().filter((n) => n !== 'root').length, 3, 'a smaller capacity parks the fewest park panels');
   const unmeasured = await matrixRig({ width: 0 });
@@ -1753,7 +1753,7 @@ test('matrix:tuning.dropTieBreak', async () => {
       assert.deepEqual({ ...done(r.turn(() => r.ws.panels.configureTuning({ dropTieBreak: tieBreak }))) }, { ok: true, changed: true, shown: false, now: [], later: ['tuning.dropTieBreak'], shadowed: [], notes: [] });
       assert.equal(r.live().join(' '), 'root a b c d', 'nothing parks now');
     }
-    done(r.turn(() => r.ws.panels.configureTuning({ rowGap: 150, edgePadding: 150 })));
+    done(r.turn(() => r.ws.panels.configureTuning({ rowGap: 150 })));
     await r.settle();
     const live = r.live().join(' ');
     r.m.unmount();
@@ -1785,13 +1785,13 @@ test('matrix:tuning.initialScroll', async () => {
   probe('tuning.initialScroll');
   await wrongScopeInEveryStatus({ tuning: { initialScroll: 'end' } }, 'tuning.initialScroll');
   const ids = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j'];
-  const r = await matrixRig({ ids, width: 1000, workspace: { tuning: { rowGesture: 'free', edgePadding: 16 } } });
+  const r = await matrixRig({ ids, width: 1000 });
   await r.settle();
   assert.equal(r.m.container.scrollLeft, 0, 'before: the strip starts at the left');
   assert.deepEqual({ ...done(r.turn(() => r.ws.panels.configureTuning({ initialScroll: 'end' }))) }, { ok: true, changed: true, shown: false, now: [], later: ['tuning.initialScroll'], shadowed: [], notes: [] });
   await r.settle();
   assert.equal(r.m.container.scrollLeft, 0, 'nothing scrolls now');
-  const next = await matrixRig({ ids, width: 1000, workspace: { tuning: { initialScroll: 'end', rowGesture: 'free', edgePadding: 16 } } });
+  const next = await matrixRig({ ids, width: 1000, workspace: { tuning: { initialScroll: 'end', rowGesture: 'free' } } });
   await next.settle();
   assert.equal(next.m.container.scrollLeft, 3482, 'a mount that reads end puts the strip at its farthest legal scroll: 4450 less the 968 window');
   assert.equal(r.ws.tuning.initialScroll, 'end', 'the workspace now holds it for its next mount');
@@ -1894,18 +1894,6 @@ test('matrix:tuning.heightPerSlot', async () => {
   assert.equal(r.ws.tuning.heightPerSlot, 20, 'a refused value changes nothing');
 });
 
-test('matrix:tuning.edgePadding', async () => {
-  probe('tuning.edgePadding');
-  await wrongScopeInEveryStatus({ tuning: { edgePadding: 8 } }, 'tuning.edgePadding');
-  const r = await matrixRig();
-  assert.equal(r.ws.tuning.edgePadding, 24, 'before: the library default');
-  assert.deepEqual({ ...done(r.turn(() => r.ws.panels.configureTuning({ edgePadding: 8 }))) }, { ok: true, changed: true, shown: false, now: ['tuning.edgePadding'], later: [], shadowed: [], notes: [] });
-  assert.equal(r.ws.tuning.edgePadding, 8);
-  assert.equal(done(r.turn(() => r.ws.panels.configureTuning({ edgePadding: 8 }))).changed, false, 'an equal value changes nothing');
-  for (const bad of [-1, 201, 1.5, Number.NaN, '24']) assert.equal(thrownCode(() => r.ws.panels.configureTuning({ edgePadding: bad } as never)), 'invalid-settings', `${String(bad)} throws`);
-  assert.equal(r.ws.tuning.edgePadding, 8, 'a refused value changes nothing');
-});
-
 test('matrix:tuning.rowAlign', async () => {
   probe('tuning.rowAlign');
   await wrongScopeInEveryStatus({ tuning: { rowAlign: 'top' } }, 'tuning.rowAlign');
@@ -1925,13 +1913,13 @@ test('the class table ran every cell: executed cells equal 4 classes by 9 status
 });
 
 // The design copy is frozen; a catalog key added after it is listed here, never in the copy.
-const ADDED_AFTER_DESIGN: readonly string[] = ['tuning.maxLivePanels', 'tuning.chrome', 'slots', 'maxSlots', 'tuning.heightPerSlot', 'tuning.rowAlign', 'tuning.resizeSettleSlides', 'tuning.edgePadding'];
+const ADDED_AFTER_DESIGN: readonly string[] = ['tuning.maxLivePanels', 'tuning.chrome', 'slots', 'maxSlots', 'tuning.heightPerSlot', 'tuning.rowAlign', 'tuning.resizeSettleSlides'];
 
-test('the probes ran every catalog name once: 70 executed, equal to the catalog and to the design copy of it plus the names added after it', () => {
+test('the probes ran every catalog name once: 69 executed, equal to the catalog and to the design copy of it plus the names added after it', () => {
   const design = JSON.parse(readFileSync(new URL('../design/0.2-rev7/DESIGN-phonux-0.2-rev7-catalog.json', import.meta.url), 'utf8')) as { name: string }[];
   assert.equal(design.length, 62);
-  assert.equal(CATALOG_NAMES.length, 70);
-  assert.equal(probesExecuted().size, 70);
+  assert.equal(CATALOG_NAMES.length, 69);
+  assert.equal(probesExecuted().size, 69);
   assert.deepEqual([...probesExecuted()].sort(), [...CATALOG_NAMES].sort());
   assert.deepEqual([...probesExecuted()].sort(), [...design.map((d) => d.name), ...ADDED_AFTER_DESIGN].sort());
 });

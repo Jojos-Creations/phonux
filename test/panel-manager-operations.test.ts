@@ -421,7 +421,7 @@ type FreeRig = Pick<Rig, 'ws' | 'h' | 'm' | 'turn'>;
 
 /** A mounted row in the free gesture: these tests pin literal panel-start targets, which the default step gesture would snap to whole-panel stops. */
 async function freeRig(o: { ids: readonly string[]; width: number; settings?: Record<string, PanelSettings> }): Promise<FreeRig> {
-  const ws = createWorkspace({ tuning: { rowGesture: 'free', edgePadding: 16 }, templates: o.ids.map((id) => markerTemplate(id, o.settings?.[id] === undefined ? {} : { settings: o.settings[id] })) });
+  const ws = createWorkspace({ tuning: { rowGesture: 'free' }, templates: o.ids.map((id) => markerTemplate(id, o.settings?.[id] === undefined ? {} : { settings: o.settings[id] })) });
   const h: Record<string, PanelHandle> = {};
   for (const id of o.ids) h[id] = ws.addPanel(id);
   const m = mountWorkspace(ws, { width: o.width });

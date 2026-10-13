@@ -36,8 +36,6 @@ export interface WorkspaceShellStyleInput {
   liveWidths: readonly number[];
   /** The row's gap. Default ROW_GAP. */
   gap?: number;
-  /** The space between the row and the container's edge. Default the gap. */
-  edge?: number;
   /** The slide the margin glides with. Default: the shared panel transition. */
   slide?: SlideTuning;
   /** The row's numbers. Given: the margin and the overflow follow them; omitted: a row with no settings. */
@@ -73,7 +71,7 @@ export function workspaceShellStyle(i: WorkspaceShellStyleInput): WorkspaceShell
   const marginLeft =
     i.rowNumbers !== undefined
       ? i.rowNumbers.rowMarginLeft
-      : computeRowLayout({ containerWidth: i.containerWidth, phoneWidth: i.phoneWidth, gap: i.gap ?? ROW_GAP, edge: i.edge, fixedItemCount: i.fixedColumnCount, liveWidths: i.liveWidths }).computedRowMarginLeft;
+      : computeRowLayout({ containerWidth: i.containerWidth, phoneWidth: i.phoneWidth, gap: i.gap ?? ROW_GAP, fixedItemCount: i.fixedColumnCount, liveWidths: i.liveWidths }).computedRowMarginLeft;
   const scrolls = i.rowNumbers?.rowScroll ?? i.rowScroll ?? false;
   const gesture = i.rowGesture ?? ROW_GESTURE;
   return {
@@ -130,7 +128,7 @@ export interface WorkspaceProps extends Omit<BoxProps, 'children'> {
   rowScroll?: boolean;
   /** The row's numbers (ProvidedPanels.rowNumbers): the margin and the overflow follow them. Omitted: a row with no settings, centred from `liveWidths` and never scrolling. */
   rowNumbers?: RowNumbers;
-  /** Clearance above the row, in px. Defaults to the edge padding; a host with its own chrome above the scroll container (e.g. a drag strip) passes more. */
+  /** Clearance above the row, in px. Defaults to the row gap; a host with its own chrome above the scroll container (e.g. a drag strip) passes more. */
   topPadding?: number;
   /** The row's look tuning; each leaf left out takes the library default. Hand the same value to useProvidePanels, which prices the row's capacity from its rowGap. */
   tuning?: WorkspaceTuning;
@@ -151,26 +149,25 @@ export function Workspace(props: WorkspaceProps): React.ReactElement {
   const { overflowContainerRef, rowRef, containerWidth, rowResizeSettled: given, phoneWidth, fixedColumnCount, liveWidths, rowScroll, rowNumbers, topPadding, tuning, beforeRow, children, ...rest } = props;
   const resolved = React.useMemo(() => resolveWorkspaceTuning(tuning), [tuning]);
   const gap = resolved.rowGap;
-  const edge = resolved.edgePadding;
   const [chromeStore] = React.useState(createChromeStore);
   const reduced = useReducedMotionConfig() === true;
   const derived = useResizeSettled(containerWidth, resizeSettleDelayMs(resolved.slide, resolved.resizeSettleSlides), reduced);
   const rowResizeSettled = given ?? derived;
   const scrolls = rowNumbers?.rowScroll ?? rowScroll ?? false;
-  const style = workspaceShellStyle({ containerWidth, rowResizeSettled, phoneWidth, fixedColumnCount, liveWidths, gap, edge, slide: resolved.slide, rowScroll, rowNumbers, rowGesture: resolved.rowGesture });
+  const style = workspaceShellStyle({ containerWidth, rowResizeSettled, phoneWidth, fixedColumnCount, liveWidths, gap, slide: resolved.slide, rowScroll, rowNumbers, rowGesture: resolved.rowGesture });
   // The room the row has to grow into: the container's height less its padding. 0 (unmeasured) keeps every panel at the phone height.
   const [availableHeight, setAvailableHeight] = React.useState(0);
-  const topPad = topPadding ?? edge;
+  const topPad = topPadding ?? gap;
   React.useLayoutEffect(() => {
     const container = overflowContainerRef.current;
     if (container === null) return undefined;
-    const measure = (): void => setAvailableHeight(Math.max(0, Math.round(container.clientHeight - topPad - edge)));
+    const measure = (): void => setAvailableHeight(Math.max(0, Math.round(container.clientHeight - topPad - gap)));
     measure();
     if (typeof ResizeObserver === 'undefined') return undefined;
     const observer = new ResizeObserver(measure);
     observer.observe(container);
     return () => observer.disconnect();
-  }, [overflowContainerRef, topPad, edge]);
+  }, [overflowContainerRef, topPad, gap]);
   // A row that stops scrolling must not keep the offset it had: the margin that centres it assumes the strip starts at 0.
   React.useLayoutEffect(() => {
     const container = overflowContainerRef.current;
@@ -214,10 +211,10 @@ export function Workspace(props: WorkspaceProps): React.ReactElement {
           display: 'flex',
           height: '100%',
           minHeight: 0,
-          pt: `${topPad}px`,
-          pb: `${edge}px`,
-          pl: `${edge}px`,
-          pr: `${edge}px`,
+          pt: `${topPadding ?? gap}px`,
+          pb: `${gap}px`,
+          pl: `${gap}px`,
+          pr: `${gap}px`,
           overflowX: style.overflowX,
           overflowY: 'auto',
           ...(style.hideScrollbar ? { scrollbarWidth: 'none', '&::-webkit-scrollbar': { display: 'none' } } : {}),

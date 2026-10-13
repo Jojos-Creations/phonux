@@ -5,7 +5,6 @@
     "test/panel-settings-resolver.test.ts",
     "test/panel-configure-property.test.ts",
     "test/slot-sizing-history-scrolled.test.ts",
-    "test/panel-configure-matrix.test.ts",
     "test/settings-enforcement-tuning.test.ts"
   ],
   "mutants": [
@@ -145,27 +144,9 @@
       ]
     },
     {
-      "name": "the window is the container less the gap, not the edge padding",
-      "file": "rowNumbers.ts",
-      "find": "const edge = i.edge ?? i.gap;",
-      "replace": "const edge = i.gap;",
-      "expectRed": [
-        "the edge padding is its own tuning"
-      ]
-    },
-    {
-      "name": "the Workspace pads with the row gap",
-      "file": "Workspace.tsx",
-      "find": "const edge = resolved.edgePadding;",
-      "replace": "const edge = resolved.rowGap;",
-      "expectRed": [
-        "differential tuning.edgePadding"
-      ]
-    },
-    {
       "name": "PanelSizeBox ignores Reduce Motion",
       "file": "PanelRowSlot.tsx",
-      "find": "const snaps = useReducedMotionConfig() === true || useReducedMotion() === true || slot?.animated === false;",
+      "find": "const snaps = configReduced || systemReduced || slot?.animated === false;",
       "replace": "const snaps = slot?.animated === false;",
       "expectRed": [
         "PanelSizeBox snaps under Reduce Motion"
@@ -174,8 +155,8 @@
     {
       "name": "PanelSizeBox ignores animated false",
       "file": "PanelRowSlot.tsx",
-      "find": "const snaps = useReducedMotionConfig() === true || useReducedMotion() === true || slot?.animated === false;",
-      "replace": "const snaps = useReducedMotionConfig() === true || useReducedMotion() === true;",
+      "find": "const snaps = configReduced || systemReduced || slot?.animated === false;",
+      "replace": "const snaps = configReduced || systemReduced;",
       "expectRed": [
         "PanelSizeBox snaps under Reduce Motion"
       ]

@@ -9,9 +9,6 @@
  */
 export const ROW_GAP = 16;
 
-/** Space between the row and the container's edge on every side, in px; separate from the row gap. */
-export const EDGE_PADDING = 24;
-
 /** Seconds the box takes to leave the screen after a drag-down close; also the slide's close exit. */
 const CLOSE_EXIT_SECONDS = 0.18;
 

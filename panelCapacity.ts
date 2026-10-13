@@ -25,7 +25,7 @@ export function effectiveMaxPanels(fitCount: number | null, fixedColumnCount: nu
  * The one fit computation: the row's capacity and `PanelsAPI.maxFitPanels` both call it, so they cannot disagree.
  * @internal
  */
-export function rowFitCount(i: Pick<RowLayoutInput, 'containerWidth' | 'phoneWidth' | 'gap' | 'edge' | 'liveWidths' | 'reservedWidths'> & { fixedColumnCount: number }): number | null {
+export function rowFitCount(i: Pick<RowLayoutInput, 'containerWidth' | 'phoneWidth' | 'gap' | 'liveWidths' | 'reservedWidths'> & { fixedColumnCount: number }): number | null {
   if (i.containerWidth === 0) return null;
   const { fixedColumnCount, ...layout } = i;
   return fixedColumnCount + computeRowLayout({ ...layout, fixedItemCount: fixedColumnCount }).maxLiveThatFit;

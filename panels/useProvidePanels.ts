@@ -101,7 +101,7 @@ export interface PanelsInput {
   storage?: WorkspaceStorage;
   /** Called with each note the engine raises while it works (a runtime diagnostic, never an error): whatever it throws is swallowed. */
   onNote?: (note: SettingNote) => void;
-  /** The workspace's tuning leaves; each one left out, or out of range, takes the library default. The engine reads `rowGap`, `edgePadding`, `saveQuietMs`, `gestureLockMs`, `returnTieBreak`, `dropTieBreak` and `maxLivePanels` here; the row reads `dragToClose`, `slide` and `hopFraction`, and the Workspace reads `resizeSettleSlides` and `chrome` (`fadeEase` and the rest), through the Workspace given the same value. */
+  /** The workspace's tuning leaves; each one left out, or out of range, takes the library default. The engine reads `rowGap`, `saveQuietMs`, `gestureLockMs`, `returnTieBreak`, `dropTieBreak` and `maxLivePanels` here; the row reads `dragToClose`, `slide` and `hopFraction`, and the Workspace reads `resizeSettleSlides` and `chrome` (`fadeEase` and the rest), through the Workspace given the same value. */
   tuning?: WorkspaceTuning;
   /**
    * The workspace's panel settings (every key except `tuning`). Given, a panel made by `create()` and a panel restored from
@@ -304,7 +304,7 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
   };
   const fixedViewCount = i.fixedViewCount ?? panels.filter((p) => !p.collapsible && p.marker !== true).length;
   // Filters over the whole list, never an array position: a panel anchored left of History changes none of these.
-  const rowNumbers = computeRowNumbers({ entries: panels, phoneWidth: i.phoneWidth, containerWidth: i.containerWidth, gap: tuning.rowGap, edge: tuning.edgePadding, fixedItemCount: fixedViewCount, wholePanels: tuning.rowGesture === 'step' });
+  const rowNumbers = computeRowNumbers({ entries: panels, phoneWidth: i.phoneWidth, containerWidth: i.containerWidth, gap: tuning.rowGap, fixedItemCount: fixedViewCount, wholePanels: tuning.rowGesture === 'step' });
   const { maxLiveWidth } = rowNumbers;
   const fitCount = rowFitCount({ containerWidth: i.containerWidth, phoneWidth: i.phoneWidth, gap: tuning.rowGap, fixedColumnCount: fixedViewCount, liveWidths: [] });
   const maxFitPanels = fitCount === null ? null : effectiveMaxPanels(fitCount, fixedViewCount);
@@ -349,8 +349,8 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
     const entry = panels.find((p) => p.id === id);
     const k = rowNumbers.ids.indexOf(id);
     if (el === null || entry === undefined || k < 0 || effective(entry).scrollOnMove !== 'follow') return;
-    const left = tuning.edgePadding + rowNumbers.rowMarginLeft + rowNumbers.leftOffsets[k]!;
-    const inView = left < el.scrollLeft + windowOf(el) - tuning.edgePadding && left + rowNumbers.widths[k]! > el.scrollLeft + tuning.edgePadding;
+    const left = tuning.rowGap + rowNumbers.rowMarginLeft + rowNumbers.leftOffsets[k]!;
+    const inView = left < el.scrollLeft + windowOf(el) - tuning.rowGap && left + rowNumbers.widths[k]! > el.scrollLeft + tuning.rowGap;
     if (inView) requestScroll({ id, kind: 'move', align: null, forced: false, fresh: false });
   };
   const requestOpen = (id: string, over: Partial<Pick<ScrollRequest, 'align' | 'forced' | 'fresh'>> = {}): boolean => requestScroll({ id, kind: 'open', align: null, forced: false, fresh: false, ...over });
@@ -361,12 +361,12 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
     const k = rowNumbers.ids.indexOf(id);
     if (el === null || k < 0) return null;
     const raw = scrollTargetFor({
-      left: tuning.edgePadding + rowNumbers.rowMarginLeft + rowNumbers.leftOffsets[k]!,
+      left: tuning.rowGap + rowNumbers.rowMarginLeft + rowNumbers.leftOffsets[k]!,
       width: rowNumbers.widths[k]!,
       scrollLeft: rowScrollerFor(el).scrollLeft(),
       clientWidth: windowOf(el),
       maxScroll: maxScrollOf(rowNumbers),
-      gap: tuning.edgePadding,
+      gap: tuning.rowGap,
       align,
     });
     return snapToStop(rowNumbers, k, raw);
@@ -406,7 +406,7 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
     gate,
   } = usePanelManager(panels, setPanels, i.phoneWidth, i.containerWidth, fixedViewCount, rootId, {
     onNote: i.onNote,
-    tuning: { rowGap: tuning.rowGap, edgePadding: tuning.edgePadding, returnTieBreak: timing.returnTieBreak, dropTieBreak: timing.dropTieBreak, maxLivePanels: tuning.maxLivePanels },
+    tuning: { rowGap: tuning.rowGap, returnTieBreak: timing.returnTieBreak, dropTieBreak: timing.dropTieBreak, maxLivePanels: tuning.maxLivePanels },
     ...(core?.order !== undefined ? { order: core.order } : {}),
     ...(core !== undefined ? { resolveWith: core.resolveWith, resolveDefaults: core.resolveDefaults } : {}),
   });
@@ -445,7 +445,7 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
       liveStarts: rowNumbers.leftOffsets.map((offset) => rowNumbers.rowMarginLeft + offset),
       liveWidths: rowNumbers.widths,
       stops: rowNumbers.stops,
-      gap: tuning.edgePadding,
+      gap: tuning.rowGap,
       hidden,
     });
     if (step.kind === 'show') activatePanel(step.id);
@@ -577,8 +577,8 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
     } else if (where !== 'start') {
       const k = rowNumbers.ids.indexOf(where === 'root' ? rootId : where.panel);
       if (k >= 0) {
-        const left = tuning.edgePadding + rowNumbers.rowMarginLeft + rowNumbers.leftOffsets[k]!;
-        to = snapToStop(rowNumbers, k, scrollTargetFor({ left, width: rowNumbers.widths[k]!, scrollLeft: 0, clientWidth: windowOf(el), maxScroll, gap: tuning.edgePadding, align: 'start' }));
+        const left = tuning.rowGap + rowNumbers.rowMarginLeft + rowNumbers.leftOffsets[k]!;
+        to = snapToStop(rowNumbers, k, scrollTargetFor({ left, width: rowNumbers.widths[k]!, scrollLeft: 0, clientWidth: windowOf(el), maxScroll, gap: tuning.rowGap, align: 'start' }));
       }
     }
     if (to !== 0) scroller.glideTo(to, { durationSec: 0, instant: true, ease: tuning.slide.glideEase });
@@ -615,12 +615,12 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
       rowNumbers,
       k,
       scrollTargetFor({
-        left: tuning.edgePadding + rowNumbers.rowMarginLeft + rowNumbers.leftOffsets[k]!,
+        left: tuning.rowGap + rowNumbers.rowMarginLeft + rowNumbers.leftOffsets[k]!,
         width: rowNumbers.widths[k]!,
         scrollLeft: scroller.scrollLeft(),
         clientWidth: windowOf(el),
         maxScroll: maxScrollOf(rowNumbers),
-        gap: tuning.edgePadding,
+        gap: tuning.rowGap,
         align,
       }),
     );

@@ -341,7 +341,9 @@ export function PanelSizeBox({
   const slot = React.useContext(PanelSlotContext);
   const slide = slot?.tuning.slide;
   // The system preference is read too: a theme's MotionConfig may not carry it, and a resize must snap under Reduce Motion either way.
-  const snaps = useReducedMotionConfig() === true || useReducedMotion() === true || slot?.animated === false;
+  const configReduced = useReducedMotionConfig() === true;
+  const systemReduced = useReducedMotion() === true;
+  const snaps = configReduced || systemReduced || slot?.animated === false;
   return (
     <motion.div data-panel-size-box="" layout="size" transition={snaps ? INSTANT_TRANSITION : slide === undefined ? PANEL_TRANSITION : slideToTransition(slide)} style={{ width, height }}>
       {children}
