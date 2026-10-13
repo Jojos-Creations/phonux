@@ -232,7 +232,8 @@ export function Workspace(props: WorkspaceProps): React.ReactElement {
           pt: `${topPadding ?? gap}px`,
           pb: `${gap}px`,
           pl: `${gap}px`,
-          pr: `${gap}px`,
+          // A scrolling row's right edge space is the end element's, so every engine counts it in the scroll range; a row that does not scroll keeps the padding to centre in.
+          pr: scrolls ? 0 : `${gap}px`,
           overflowX: style.overflowX,
           overflowY: 'auto',
           ...(style.hideScrollbar ? { scrollbarWidth: 'none', '&::-webkit-scrollbar': { display: 'none' } } : {}),
@@ -253,8 +254,10 @@ export function Workspace(props: WorkspaceProps): React.ReactElement {
           <OverlaySlot name="dialog" />
           {children}
         </motion.div>
-        {/* An element, not a margin: outside the strip so a drag's end cap stays at the last panel; WebKit may leave a flex item's end margin out of the scrollable width, which would clamp the last stop short. */}
-        {rowNumbers !== undefined && rowNumbers.endPad > 0 ? <div aria-hidden data-row-end-pad="" style={{ flex: `0 0 ${rowNumbers.endPad}px`, height: 0 }} /> : null}
+        {/* An element, not a margin or the padding: an engine may leave either out of the scrollable width (WebKit a flex item's end margin,
+            Firefox a flex container's end padding), which clamps the last stop short. No `height: 0`: Firefox leaves an empty box out of the
+            scrollable width, so it stretches to the row's height. Outside the strip so a drag's end cap stays at the last panel. */}
+        {scrolls ? <div aria-hidden data-row-end-pad="" style={{ flex: `0 0 ${(rowNumbers?.endPad ?? 0) + gap}px` }} /> : null}
       </Box>
       </RowHeightContext.Provider>
 
