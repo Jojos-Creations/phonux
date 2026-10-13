@@ -19,6 +19,12 @@
 
 ### Added
 
+- A saved panel now carries an optional `uid` (`WorkspacePanelState.uid`, `u_` and 32 hex characters), made once when the
+  panel is created and kept through save, restore, a copy of the file to another device and `undoClose`, so a later export,
+  import or sync can match panels. It is not the panel's key or id, and nothing a host holds changes. File version stays 1.
+  A file saved without uids restores unchanged and is written once with them. A library older than this one drops the
+  field on its next save, so the uids are made again.
+
 - Whole panels only: new workspace tuning `shrinkOutOfView` (`'off'` default, `'visible'`, `'hidden'`) for a row that steps
   (`rowGesture: 'step'`). With `'visible'` only the panels fully shown at a stop count as on screen, and the neighbour that
   would be cut off by the window edge is drawn smaller by whole slots to fill the slots the shown panels leave free: the panel

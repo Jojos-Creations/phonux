@@ -200,6 +200,16 @@ const REPLAY: Record<string, (args: unknown[]) => unknown> = {
   hydrateWorkspaceState: ([state, fresh, rootId]) => hydrateWorkspaceState(state as never, counter((fresh as { from: number }).from), rootId as string),
 };
 
+// 0.1.0 panels had no uid; the one field this library adds is stripped so the rest still has to match exactly.
+function withoutUid(output: unknown): unknown {
+  if (!Array.isArray(output)) return output;
+  return output.map((p) => {
+    if (typeof p !== 'object' || p === null || !('uid' in p)) return p;
+    const { uid: _uid, ...rest } = p as Record<string, unknown>;
+    return rest;
+  });
+}
+
 test('compat-0.1.0 corpus: the 14 pure functions give the vendored 0.1.0 outputs on every seeded input, and no panel they return carries a key property', () => {
   const corpus = JSON.parse(readText(fixturePath('corpus.json')), decodeNumber) as Corpus;
   assert.deepEqual(Object.keys(REPLAY).sort(), [...corpus.replayed].sort(), 'this test replays exactly the functions the generator lists');
@@ -208,7 +218,7 @@ test('compat-0.1.0 corpus: the 14 pure functions give the vendored 0.1.0 outputs
   for (const c of corpus.cases) {
     const replay = REPLAY[c.fn];
     assert.ok(replay, `the corpus names ${c.fn}, which this test does not replay`);
-    const actual = replay(structuredClone(c.args));
+    const actual = withoutUid(replay(structuredClone(c.args)));
     assert.deepStrictEqual(actual, c.out, `${c.fn} case ${replayed} no longer answers as 0.1.0 did`);
     if (['appendPanel', 'restorePanel', 'hydrateWorkspaceState'].includes(c.fn)) {
       for (const output of [c.out, actual]) {

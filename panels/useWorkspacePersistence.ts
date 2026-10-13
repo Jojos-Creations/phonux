@@ -86,6 +86,10 @@ export function useWorkspacePersistence(i: {
   // The tombstones the file held, written back with every save; `dismiss` and `undismiss` edit them.
   const dismissed = useRef<string[]>([]);
   const tombstonesDropped = useRef(false);
+  // The restore found a saved entry with no usable uid and minted one: the file lacks what the list holds.
+  const uidsMinted = useRef(false);
+  // Panels already in the row that take the uid the file holds for them.
+  const adoptedUids = useRef<Map<string, string>>(new Map());
 
   useEffect(() => {
     // StrictMode runs this effect twice; only the run that is not cancelled may apply its result.
@@ -99,6 +103,8 @@ export function useWorkspacePersistence(i: {
       // A tombstone the restore dropped is still in the file; the baseline must not match it, or the file keeps it until some other change is saved.
       tombstonesDropped.current = Array.isArray(before) && before.length !== result.dismissed.length;
       dismissed.current = result.dismissed;
+      uidsMinted.current = result.minted;
+      adoptedUids.current = new Map(result.adopted.map((a) => [a.id, a.uid]));
       for (const note of result.notes) {
         if (note.code === 'workspace-ignored') console.warn(note.message);
         try {
@@ -114,12 +120,14 @@ export function useWorkspacePersistence(i: {
     };
     const settle = (restored: PanelWindow[], rootSlots?: number): void => {
       // The baseline is what the restored list projects to, not the file: saved ids differ from fresh ones,
-      // and comparing against the file would save at every launch.
-      lastSaved.current = tombstonesDropped.current ? null : JSON.stringify(projectWorkspaceState(restored, rootId, dismissed.current));
+      // and comparing against the file would save at every launch. A null baseline makes the first save go out.
+      lastSaved.current = tombstonesDropped.current || uidsMinted.current ? null : JSON.stringify(projectWorkspaceState(restored, rootId, dismissed.current));
       // Appended after what is already there, so a panel created while load() was pending survives. The root's saved size goes through setSlots, so a root that cannot resize ignores it.
-      if (restored.length > 0 || rootSlots !== undefined) {
+      const adopt = adoptedUids.current;
+      if (restored.length > 0 || rootSlots !== undefined || adopt.size > 0) {
         setPanels((prev) => {
-          const added = restored.length > 0 ? computeRowOrder([...prev, ...restored], rootId) : prev;
+          const adoptedRow = adopt.size === 0 ? prev : prev.map((p) => (adopt.has(p.id) ? { ...p, uid: adopt.get(p.id)! } : p));
+          const added = restored.length > 0 ? computeRowOrder([...adoptedRow, ...restored], rootId) : adoptedRow;
           return rootSlots === undefined ? added : setSlots(added, rootId, rootSlots);
         });
       }

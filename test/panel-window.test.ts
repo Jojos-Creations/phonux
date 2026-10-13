@@ -45,7 +45,7 @@ test('appendPanel: appends a new LIVE extra panel carrying the hostData and url'
   const next = appendPanel([], { hostData: { sourceWebContentsId: 7, webContentsId: null }, url: 'https://example.com/new-tab' }, 'w1', ROOT_ID);
   assert.deepEqual(next, [
     {
-      id: 'w1', url: 'https://example.com/new-tab', hostData: { sourceWebContentsId: 7, webContentsId: null }, live: true, locked: false, view: 'web', collapsible: true, listed: true, anchor: { panel: ROOT_ID, position: 'right', priority: 0 }, layer: 'base', anchoredEnter: false,
+      id: 'w1', uid: next[0]!.uid, url: 'https://example.com/new-tab', hostData: { sourceWebContentsId: 7, webContentsId: null }, live: true, locked: false, view: 'web', collapsible: true, listed: true, anchor: { panel: ROOT_ID, position: 'right', priority: 0 }, layer: 'base', anchoredEnter: false,
       formFactor: 'phone', size: DEFAULT_PANEL_SIZE,
     },
   ]);
@@ -73,7 +73,7 @@ test('appendPanel: view/params/listed/layer/anchoredEnter from create()\'s optio
   );
   assert.deepEqual(next, [
     {
-      id: 'c1', url: 'about:blank', hostData: { sourceWebContentsId: -1, webContentsId: null }, live: true, locked: false, view: 'test-custom', collapsible: true, listed: false, params: { a: 1 }, anchor: { panel: ROOT_ID, position: 'right', priority: 0 }, layer: 'raised', anchoredEnter: true,
+      id: 'c1', uid: next[0]!.uid, url: 'about:blank', hostData: { sourceWebContentsId: -1, webContentsId: null }, live: true, locked: false, view: 'test-custom', collapsible: true, listed: false, params: { a: 1 }, anchor: { panel: ROOT_ID, position: 'right', priority: 0 }, layer: 'raised', anchoredEnter: true,
       formFactor: 'phone', size: DEFAULT_PANEL_SIZE,
     },
   ]);

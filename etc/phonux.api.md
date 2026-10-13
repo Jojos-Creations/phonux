@@ -834,6 +834,7 @@ export interface PanelWindow {
     size?: PanelSize;
     slots?: number;
     title?: string;
+    uid?: string;
     url: string;
     view: string;
 }
@@ -1376,6 +1377,7 @@ export type WorkspacePanelState = {
     slots?: number;
     permanent?: boolean;
     layer?: 'base' | 'raised';
+    uid?: string;
     key?: string;
     instance?: {
         [key: string]: JsonValue;

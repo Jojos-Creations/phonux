@@ -1,0 +1,89 @@
+{
+  "tests": [
+    "test/panel-uid.test.ts"
+  ],
+  "mutants": [
+    {
+      "name": "the file does not write the uid",
+      "file": "workspaceState.ts",
+      "find": "          ...(p.uid !== undefined ? { uid: p.uid } : {}),\n",
+      "replace": "",
+      "expectRed": [
+        "the file writes each saved panel's uid",
+        "a panel saved on one workspace comes back with the same uid"
+      ]
+    },
+    {
+      "name": "the restore makes a new uid instead of reading the saved one",
+      "file": "workspacePlan.ts",
+      "find": "s.uid ?? newUid())",
+      "replace": "newUid())",
+      "expectRed": [
+        "a saved uid survives the restore in both branches"
+      ]
+    },
+    {
+      "name": "the singleton claim reads the uid, so minting changes what it finds",
+      "file": "workspacePlan.ts",
+      "find": "s.key === undefined && s.view === d.templateId",
+      "replace": "s.key === undefined && s.uid !== undefined && s.view === d.templateId",
+      "expectRed": [
+        "a 0.1.0 singleton is still claimed once"
+      ]
+    },
+    {
+      "name": "no save follows a restore that minted",
+      "file": "panels/useWorkspacePersistence.ts",
+      "find": "tombstonesDropped.current || uidsMinted.current ? null :",
+      "replace": "tombstonesDropped.current ? null :",
+      "expectRed": [
+        "a file without uids is restored unchanged, then written once"
+      ]
+    },
+    {
+      "name": "a repeated uid is accepted",
+      "file": "workspaceState.ts",
+      "find": "if (seen.has(raw)) {",
+      "replace": "if (false) {",
+      "expectRed": [
+        "a repeated, empty, malformed or non-string uid is dropped"
+      ]
+    },
+    {
+      "name": "a malformed uid is accepted",
+      "file": "workspaceState.ts",
+      "find": "typeof raw !== 'string' || !PANEL_UID_FORM.test(raw)",
+      "replace": "typeof raw !== 'string'",
+      "expectRed": [
+        "a repeated, empty, malformed or non-string uid is dropped"
+      ]
+    },
+    {
+      "name": "the file's uid for a panel already in the row is ignored",
+      "file": "workspacePlan.ts",
+      "find": "adopted.push({ id: present.id, uid: s.uid });",
+      "replace": "void 0;",
+      "expectRed": [
+        "a panel already in the row takes the uid the file holds for it"
+      ]
+    },
+    {
+      "name": "the persistence hook does not apply the adopted uids",
+      "file": "panels/useWorkspacePersistence.ts",
+      "find": "const adopt = adoptedUids.current;",
+      "replace": "const adopt = new Map<string, string>();",
+      "expectRed": [
+        "a declared panel made before the restore takes the uid the file holds"
+      ]
+    },
+    {
+      "name": "appendPanel makes no uid",
+      "file": "panelWindow.ts",
+      "find": "    id,\n    uid,\n    url: info.url ?? '',",
+      "replace": "    id,\n    url: info.url ?? '',",
+      "expectRed": [
+        "appendPanel is the one place a uid is made"
+      ]
+    }
+  ]
+}

@@ -678,6 +678,7 @@ type WorkspacePanelState = {
   formFactor?: FormFactor;
   permanent?: boolean;
   layer?: 'base' | 'raised';
+  uid?: string;
 };
 ```
 
@@ -698,6 +699,20 @@ win, exactly as `appendPanel` would if both were passed to it. `live` is honored
 a permanent column (see "Permanent columns" below). `anchor` composes through the existing anchor-fallback logic
 when its `panel` is dangling or cyclic (see "How hydrate builds the list" below). `formFactor` defaults to
 `'phone'`. `permanent` and `layer` are covered in "Permanent columns" and "What's saved, and what's never" below.
+
+**`uid`.** Each saved entry also carries an optional `uid` so two copies of a file, on two devices, can match panels. It
+is opaque: `u_` and 32 lowercase hex characters (128 random bits, from `crypto.getRandomValues`, with `Math.random`
+where crypto is missing). It is not the panel's `key` and not its public id, is never matched as a name, and is never
+used as a handle; the runtime `id` above stays file-scoped. `appendPanel` is the one place a panel gets its uid (so a
+plain, a template, a declared and a restored panel all do), and a closed panel that `undoClose` brings back is the same
+entry, so it keeps it. A restore reads a saved uid back for each entry; a uid that is repeated, empty, not of that form
+or not a string is dropped with an `invalid-saved-setting` note and made again. A panel already in the row (a declared
+panel made at mount) takes the uid the file holds for it in place of the one it made. Version stays 1 and the field is
+optional: a file without it restores unchanged. Minting happens after the declarations claim saved entries, which
+read `key` and never `uid`, so a 0.1.0 singleton is still claimed once. A restore that had to make a uid, or found a
+present panel's entry without one, sets the save baseline to nothing so one save follows at once; a restore that made
+none writes nothing. A library older than this one reads the file, ignores `uid`, and its next save drops it, so the uids
+are made again at the next launch of a newer one and panels match only between devices on a version that writes them.
 
 ### What's saved, and what's never
 
