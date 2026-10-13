@@ -19,6 +19,11 @@
 
 ### Added
 
+- `usePanelResizing()` has a third item, `setDrawnWidth(px | null, pin?)`: while a panel is marked resizing, a host draws it `px`
+  wide with no glide so a grabber follows the pointer, and the panels after it, its height and its size box follow on the same frame.
+  It is held between one slot and what fits, never writes `slots` and never reaches the stop list, capacity or the live set. `pin: 'end'`
+  keeps the right edge still for a grabber on the left. End the drag with `setSlots(nearest)`, `setDrawnWidth(null)`, `setResizing(false)`. The
+  row's centring margin now snaps under Reduce Motion instead of gliding.
 - Whole panels only: new workspace tuning `shrinkOutOfView` (`'off'` default, `'visible'`, `'hidden'`) for a row that steps
   (`rowGesture: 'step'`). With `'visible'` only the panels fully shown at a stop count as on screen, and the neighbour that
   would be cut off by the window edge is drawn smaller by whole slots to fill the slots the shown panels leave free: the panel
@@ -33,7 +38,7 @@
   declared, shows in full as the tooltip.
 - Slot sizing: a panel is n whole slots wide, a slot being one phone width with the row gap between slots; its height
   stays the phone height. New per-panel settings `slots` (the choice; `formFactor` becomes its view: 1 phone, 2 tablet,
-  3 or more desktop) and `maxSlots`; new workspace tuning `rowAlign` (`'center'` default, `'top'`, `'bottom'`). `PanelSizeBox` snaps its resize under Reduce Motion and for a panel with `animated: false`. `PanelsAPI.setSlots(id, slots)` and a `setSlots` verb on the
+  3 or more desktop) and `maxSlots`. `PanelSizeBox` snaps its resize under Reduce Motion and for a panel with `animated: false`. `PanelsAPI.setSlots(id, slots)` and a `setSlots` verb on the
   handle resize by a count, clamped to `maxSlots` and to what fits the window; `PanelSummary` gains `slots`, `maxSlots`,
   `drawnSlots` and `fitSlots` (the most slots that fit the window), and `size.height` is the drawn height. A person's resize is saved as `overrides.slots`, and the
   panel's own count on the panel when it is not its tier's own; History's count is saved as `rootSlots`.
