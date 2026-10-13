@@ -100,11 +100,9 @@ export type HeaderButtonContext = {
   settings: ResolvedPanelSettings;
 };
 
-/** One generic title-bar button slot. The label is the accessible name and is never empty. @public */
-export type HeaderButton = {
-  /** The button's icon, or a function that picks it from the panel's current state. */
-  icon: React.ReactNode | ((c: HeaderButtonContext) => React.ReactNode);
-  /** The button's accessible name, or a function that picks it; never empty. */
+/** What the icon form and the text form of a title-bar button share. The label is the accessible name and is never empty. @public */
+export type HeaderButtonBase = {
+  /** The button's accessible name, and its visible text in the text form; or a function that picks it; never empty. */
   label: string | ((c: HeaderButtonContext) => string);
   /** Called when the button is pressed, with the panel's handle and the context plus `announce`, which tells assistive technology a message. */
   onClick: (
@@ -131,6 +129,21 @@ export type HeaderButton = {
   /** Extra styles for the button. */
   sx?: SxProps<Theme>;
 };
+
+/** The icon form of a title-bar button: the `icon` key is present, and the label is its accessible name only. @public */
+export type HeaderButtonIconForm = HeaderButtonBase & {
+  /** The button's icon, or a function that picks it from the panel's current state. A function that returns null draws an empty button. */
+  icon: React.ReactNode | ((c: HeaderButtonContext) => React.ReactNode);
+};
+
+/** The text form of a title-bar button: no `icon` key, and the label is drawn as the button's text. @public */
+export type HeaderButtonTextForm = HeaderButtonBase & {
+  /** Leave `icon` out; its presence, even as undefined, is the icon form. */
+  icon?: never;
+};
+
+/** One generic title-bar button slot: the icon form or the text form, told apart by the `icon` key. @public */
+export type HeaderButton = HeaderButtonIconForm | HeaderButtonTextForm;
 
 /** One half of a pin definition: where the panel goes and, optionally, whether it is parkable in that state. @public */
 export type PinHalf = {
@@ -1083,7 +1096,7 @@ const CATALOG_ROWS: readonly SettingDescriptor[] = [
   {
     name: 'headerButtons',
     group: 'header',
-    values: 'object: slot id (1-32 chars a-z0-9-) to HeaderButton or false; HeaderButton = { icon, label, onClick, side?, order?, pressed?, description?, tooltip?, disabled?, hidden?, sx? } (section 6)',
+    values: 'object: slot id (1-32 chars a-z0-9-) to HeaderButton or false; HeaderButton = { icon?, label, onClick, side?, order?, pressed?, description?, tooltip?, disabled?, hidden?, sx? } (section 6); with icon the label is the accessible name, without it the label is the text drawn',
     default: '{} (no button drawn)',
     scope: 'instance',
     viewSettable: false,
@@ -1517,7 +1530,7 @@ const stringOrFunction = (v: unknown): boolean => typeof v === 'string' || typeo
 const booleanOrFunction = (v: unknown): boolean => typeof v === 'boolean' || typeof v === 'function';
 
 function headerButtonSlotProblem(slot: Plain): string | undefined {
-  if (!('icon' in slot) || slot.icon === undefined) return 'icon is required';
+  if ('icon' in slot && slot.icon === undefined) return 'icon must not be undefined; leave it out for a text button';
   if (typeof slot.label === 'function') {
     // A function label is judged when it runs: an empty result hides the slot at runtime.
   } else if (typeof slot.label !== 'string' || slot.label === '') return 'label must be a non-empty string or a function';
