@@ -86,10 +86,10 @@ test('recordOverride anchor copies each listed entry\'s current anchor, and a se
   assert.equal(recordOverride(recorded, 'anchor', ['a', 'b'], ROOT), recorded);
 });
 
-test('recordOverride formFactor copies the tier of the listed id only', () => {
-  const row = rowOf(made('a', { formFactor: 'tablet' }), made('b', { formFactor: 'desktop' }));
-  const recorded = recordOverride(row, 'formFactor', ['a'], ROOT);
-  assert.deepEqual(recorded.map((p) => p.overrides), [undefined, { formFactor: 'tablet' }, undefined]);
+test('recordOverride slots copies the slot count of the listed id only', () => {
+  const row = rowOf(made('a', { formFactor: 'tablet', slots: 2 }), made('b', { formFactor: 'desktop', slots: 3 }));
+  const recorded = recordOverride(row, 'slots', ['a'], ROOT);
+  assert.deepEqual(recorded.map((p) => p.overrides), [undefined, { slots: 2 }, undefined]);
 });
 
 test('recordOverride parkable copies collapsible as parkable', () => {

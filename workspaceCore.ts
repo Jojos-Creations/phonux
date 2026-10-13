@@ -16,7 +16,7 @@ import type { AddPlacement, PanelId, PanelSettings, PanelSettingsResolution, Res
 import { definePanel } from './panelTemplate.js';
 import type { DeferredPin, PanelReader, PanelReadHandle, PanelSnapshot, PanelState, PanelTemplate, ViewHandle, WorkspaceStatus } from './panelTemplate.js';
 import { resolveWorkspaceTuning } from './panelTuning.js';
-import { createHistoryPanel, type PanelWindow } from './panelWindow.js';
+import { createHistoryPanel, slotsOf, type PanelWindow } from './panelWindow.js';
 import type { PanelViewContext } from './panelViewContext.js';
 import { assertTemplateIdFree } from './viewRegistry.js';
 import type { DeclaredPanel } from './workspacePlan.js';
@@ -116,6 +116,7 @@ export interface EngineOps {
   move(engineId: string, direction: 'left' | 'right', source: PanelOpSource): PanelResult;
   place(engineId: string, value: AddPlacement | 'in-place', source: PanelOpSource): PanelResult;
   setFormFactor(engineId: string, next: FormFactor, source: PanelOpSource): PanelResult;
+  setSlots(engineId: string, slots: number, source: PanelOpSource): PanelResult;
   scrollTo(engineId: string, align: ScrollAlign | undefined): PanelResult;
   /** Re-adds a closed panel, as `create` does; refuses `busy` when the turn's gate says so. */
   reopen(req: CreateRequest): PanelResult;
@@ -800,6 +801,8 @@ export function createWorkspace(o: WorkspaceOptions = {}): WorkspaceHandle {
         return ops.place(engineId, call.value, src);
       case 'setFormFactor':
         return ops.setFormFactor(engineId, call.next, src);
+      case 'setSlots':
+        return ops.setSlots(engineId, call.slots, src);
       case 'scrollTo':
         return state.status === 'live' ? ops.scrollTo(engineId, call.align) : refused('not-live', `panel '${id}' is parked`);
       case 'pin':
@@ -909,7 +912,7 @@ export function createWorkspace(o: WorkspaceOptions = {}): WorkspaceHandle {
     const planUpdate = (target: PanelWindow, status: 'live' | 'parked' | 'hidden'): ConfigureOutcome => {
       base ??= { layer: instanceLayer(target), split: splits.get(target.id) };
       const seen = base;
-      const planFor = (ask: typeof rest): InstancePlan => planInstance({ ...input, ...ask, base: seen.layer, template: templateOf(target.view)?.settings, split: seen.split, person: target.overrides, current: target.settings, root: target.id === rootId, tier: target.formFactor ?? 'phone', status });
+      const planFor = (ask: typeof rest): InstancePlan => planInstance({ ...input, ...ask, base: seen.layer, template: templateOf(target.view)?.settings, split: seen.split, person: target.overrides, current: target.settings, root: target.id === rootId, tier: target.formFactor ?? 'phone', slots: slotsOf(target), status });
       const plan = planFor(input);
       if (!plan.ok) return { done: refusedPlan(id, plan) };
       if (!plan.changed) return asked.parkable !== undefined && target.deferredPin !== undefined ? { done: cancelled(), next: withoutDeferral(target) } : { done: unchanged() };

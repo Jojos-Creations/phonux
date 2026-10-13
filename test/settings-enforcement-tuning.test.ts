@@ -9,6 +9,7 @@ import { test, afterEach, mock } from 'node:test';
 import assert from 'node:assert/strict';
 import './support/jsdom-globals.js';
 import * as React from 'react';
+import { MotionConfig } from 'motion/react';
 import { act } from 'react';
 import {
   DragToClose,
@@ -249,6 +250,8 @@ test('the library tuning defaults are exactly these numbers, by key name', () =>
     initialScroll: 'start',
     chrome: { mode: 'always', fadeMs: 120, fadeEase: 'easeOut', slideMs: 140, slidePx: 8, graceMs: 250 },
     maxLivePanels: null,
+    heightPerSlot: 48,
+    rowAlign: 'center',
   });
 });
 
@@ -318,6 +321,21 @@ test("slide: PanelSizeBox's layout transition is the panel's resolved slide insi
   const outside = mount(React.createElement(PanelSizeBox, { width: 390, height: 700, children: React.createElement('i') }));
   assert.equal(motionPropsOf(outside.container.querySelector('[data-panel-size-box]')!).transition, PANEL_TRANSITION);
   outside.unmount();
+});
+
+test('PanelSizeBox snaps under Reduce Motion and for a panel that is not animated, and glides otherwise', () => {
+  registerView('snap-size', () => React.createElement(PanelSizeBox, { width: 390, height: 700, children: React.createElement('i') }));
+  const transitionOf = (tree: React.ReactElement): unknown => {
+    const mounted = mount(tree);
+    const out = motionPropsOf(mounted.container.querySelector('[data-panel-size-box]')!).transition;
+    mounted.unmount();
+    return out;
+  };
+  const slide = { slide: { durationSec: 0.8 } };
+  assert.deepEqual(transitionOf(rowOf([entry('a', { view: 'snap-size' })], slide)), { duration: 0.8, ease: [0.2, 0, 0, 1] }, 'positive control: the resize glides');
+  assert.deepEqual(transitionOf(React.createElement(MotionConfig, { reducedMotion: 'always' }, rowOf([entry('a', { view: 'snap-size' })], slide))), { duration: 0 }, 'Reduce Motion snaps');
+  const still = applyTemplate({ ...appendPanel([], { url: 'https://a.example', title: 'a', view: 'snap-size' }, 'a', ROOT)[0]! }, resolvePanelSettings({ template: { overflow: 'park', animated: false } }).value, 'create');
+  assert.deepEqual(transitionOf(rowOf([still], slide)), { duration: 0 }, 'a panel that is not animated snaps');
 });
 
 /** A Workspace over one PanelRow: `workspace` is the Workspace's tuning, `row` the PanelRow's own prop. */

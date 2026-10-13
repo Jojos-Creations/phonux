@@ -8,7 +8,7 @@ import { placePanel, type PlacementOptions } from './panelPlacement.js';
 import { LIBRARY_PANEL_DEFAULTS, applyTemplate, effective, panelKey } from './panelSettings.js';
 import type { AddPlacement, CatalogName, PanelSettingsResolution, PinHalf, Pinning, PinningWhenNotLive, SettingNote } from './panelSettings.js';
 import type { DeferredPin } from './panelTemplate.js';
-import type { PanelWindow } from './panelWindow.js';
+import { slotsOf, type PanelWindow } from './panelWindow.js';
 
 /** The row's root: the marker when there is one, else the first entry that has no anchor. */
 function rootOf(row: readonly PanelWindow[]): PanelWindow | undefined {
@@ -157,7 +157,7 @@ export function applyPinChange(row: readonly PanelWindow[], id: string, change: 
   const freed = freedTo === undefined ? entry : reparked(entry, freedTo);
   if (half.placement !== undefined && !effective(freed).placeable) return refusal('not-placeable', `panel '${name}' cannot be placed`);
   if (fixedTo !== undefined) {
-    if ((entry.formFactor ?? 'phone') !== 'phone') return refusal('tier-not-allowed', `panel '${name}' is not at the phone tier, which a fixed column needs`);
+    if (slotsOf(entry) !== 1) return refusal('tier-not-allowed', `panel '${name}' is wider than one slot, which a fixed column needs`);
     const clash = fixedTo.conflicts.find((c) => c.kind === 'forced' && c.forcedBy === 'parkable');
     if (clash !== undefined) return refusal('settings-conflict', clash.message, clash.key as CatalogName);
   }

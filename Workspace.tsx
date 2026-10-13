@@ -13,7 +13,7 @@ import { computeRowLayout } from './panelRowLayout.js';
 import { PANEL_TRANSITION } from './PanelRowSlot.js';
 import { slideToTransition } from './directionalTransition.js';
 import type { SlideTuning, WorkspaceTuning } from './panelSettings.js';
-import { WorkspaceTuningContext, resolveWorkspaceTuning } from './panelTuning.js';
+import { RowHeightContext, WorkspaceTuningContext, resolveWorkspaceTuning } from './panelTuning.js';
 import { ChromeStoreContext, createChromeStore } from './panelChrome.js';
 import { ROW_GAP, ROW_GESTURE } from './rowConstants.js';
 import { fadeAt, type RowNumbers } from './rowNumbers.js';
@@ -38,7 +38,7 @@ export interface WorkspaceShellStyleInput {
   gap?: number;
   /** The slide the margin glides with. Default: the shared panel transition. */
   slide?: SlideTuning;
-  /** The row's numbers. Given: the margin and the overflow follow them; omitted: a row with no settings, as before. */
+  /** The row's numbers. Given: the margin and the overflow follow them; omitted: a row with no settings. */
   rowNumbers?: RowNumbers;
   /** Whether the row scrolls, for a caller with no `rowNumbers`. Ignored when `rowNumbers` is given. Default false. */
   rowScroll?: boolean;
@@ -155,6 +155,19 @@ export function Workspace(props: WorkspaceProps): React.ReactElement {
   const rowResizeSettled = given ?? derived;
   const scrolls = rowNumbers?.rowScroll ?? rowScroll ?? false;
   const style = workspaceShellStyle({ containerWidth, rowResizeSettled, phoneWidth, fixedColumnCount, liveWidths, gap, slide: resolved.slide, rowScroll, rowNumbers, rowGesture: resolved.rowGesture });
+  // The room the row has to grow into: the container's height less its padding. 0 (unmeasured) keeps every panel at the phone height.
+  const [availableHeight, setAvailableHeight] = React.useState(0);
+  const topPad = topPadding ?? gap;
+  React.useLayoutEffect(() => {
+    const container = overflowContainerRef.current;
+    if (container === null) return undefined;
+    const measure = (): void => setAvailableHeight(Math.max(0, Math.round(container.clientHeight - topPad - gap)));
+    measure();
+    if (typeof ResizeObserver === 'undefined') return undefined;
+    const observer = new ResizeObserver(measure);
+    observer.observe(container);
+    return () => observer.disconnect();
+  }, [overflowContainerRef, topPad, gap]);
   // A row that stops scrolling must not keep the offset it had: the margin that centres it assumes the strip starts at 0.
   React.useLayoutEffect(() => {
     const container = overflowContainerRef.current;
@@ -188,6 +201,7 @@ export function Workspace(props: WorkspaceProps): React.ReactElement {
   return (
     <WorkspaceTuningContext.Provider value={resolved}>
       <ChromeStoreContext.Provider value={chromeStore}>
+      <RowHeightContext.Provider value={availableHeight}>
       <Box
         ref={overflowContainerRef}
         {...rest}
@@ -224,6 +238,7 @@ export function Workspace(props: WorkspaceProps): React.ReactElement {
         {/* An element, not a margin: outside the strip so a drag's end cap stays at the last panel; WebKit may leave a flex item's end margin out of the scrollable width, which would clamp the last stop short. */}
         {rowNumbers !== undefined && rowNumbers.endPad > 0 ? <div aria-hidden data-row-end-pad="" style={{ flex: `0 0 ${rowNumbers.endPad}px`, height: 0 }} /> : null}
       </Box>
+      </RowHeightContext.Provider>
 
       <OverlaySlot name="toast" />
       </ChromeStoreContext.Provider>

@@ -13,6 +13,7 @@ import { applyTemplate } from '../panelSettings.js';
 import { computeMaxLiveWidth } from '../panelRowLayout.js';
 import { appendPanel, createHistoryPanel } from '../panelWindow.js';
 import { computeRowNumbers } from '../rowNumbers.js';
+import { fitSlots, slotWidth } from '../rowConstants.js';
 import { cleanup, mount, panelsInput, withHost } from './support/mount-harness.js';
 
 afterEach(() => cleanup());
@@ -82,7 +83,7 @@ test('a row that stops scrolling resets the container scrollLeft to 0 in the sam
   assert.equal(ref.current!.scrollLeft, 0);
 });
 
-test('maxLiveWidth comes from computeRowNumbers at every gap: a desktop panel is drawn at the window, not the 0.1.0 cap', () => {
+test('maxLiveWidth comes from computeRowNumbers at every gap: a desktop panel is drawn at the slots that fit the window, not the 0.1.0 cap', () => {
   const expected: Record<number, { rows: number; legacy: number }> = { 0: { rows: 1000, legacy: 610 }, 16: { rows: 968, legacy: 562 }, 40: { rows: 920, legacy: 490 } };
   let gaps = 0;
   for (const gap of [0, 16, 40]) {
@@ -98,8 +99,9 @@ test('maxLiveWidth comes from computeRowNumbers at every gap: a desktop panel is
     const legacy = computeMaxLiveWidth({ containerWidth: 1000, phoneWidth: 390, gap, fixedItemCount: 1 });
     assert.equal(numbers.maxLiveWidth, expected[gap]!.rows);
     assert.equal(legacy, expected[gap]!.legacy);
-    assert.equal(latest!.liveWidths[0], numbers.maxLiveWidth, `gap ${gap}: the desktop panel is priced at the row numbers' cap`);
-    assert.notEqual(latest!.liveWidths[0], legacy);
+    const fit = fitSlots(numbers.maxLiveWidth, 390, gap);
+    assert.equal(latest!.liveWidths[0], slotWidth(fit, 390, gap), `gap ${gap}: the desktop panel is priced at the slots that fit the row numbers' cap`);
+    assert.ok(latest!.liveWidths[0]! <= numbers.maxLiveWidth);
     assert.equal(latest!.maxLiveWidth, numbers.maxLiveWidth);
     mounted.unmount();
   }

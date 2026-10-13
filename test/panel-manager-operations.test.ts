@@ -411,7 +411,7 @@ test('source: a code call leaves every entry without overrides, a person call re
   assert.match(JSON.stringify(person.m!.latest().entries.find((p) => p.title === undefined || true && p.id === person.h.b!.getState().engineId)?.overrides), /"anchor"/, 'move records an anchor');
   person.turn(() => person.h.a!.setFormFactor('tablet', 'person'));
   const a = person.m!.latest().entries.find((p) => p.id === person.h.a!.getState().engineId);
-  assert.equal(a?.overrides?.formFactor, 'tablet', 'setFormFactor records the tier');
+  assert.equal(a?.overrides?.slots, 2, 'setFormFactor records the slot count');
   person.turn(() => person.h.c!.place('row-start', 'person'));
   const c = person.m!.latest().entries.find((p) => p.id === person.h.c!.getState().engineId);
   assert.equal(c?.overrides?.anchor?.position, 'left', 'place records the anchor');
@@ -475,7 +475,7 @@ test('scrollOnMove: an accepted move, place or setFormFactor on an in-view panel
   assert.deepEqual(await scrolled(all('none'), 0, none, (r) => r.h.b!.move('right')), { result: 'T', left: 0 });
   assert.deepEqual(await scrolled(all('follow'), 0, none, (r) => r.h.b!.place('row-end')), { result: 'T', left: 1452 });
   assert.deepEqual(await scrolled(all('none'), 0, none, (r) => r.h.b!.place('row-end')), { result: 'T', left: 0 });
-  assert.deepEqual(await scrolled(all('follow'), 0, none, (r) => r.h.c!.setFormFactor('tablet')), { result: 'T', left: 612 });
+  assert.deepEqual(await scrolled(all('follow'), 0, none, (r) => r.h.c!.setFormFactor('tablet')), { result: 'T', left: 640 });
   assert.deepEqual(await scrolled(all('none'), 0, none, (r) => r.h.c!.setFormFactor('tablet')), { result: 'T', left: 0 });
   assert.deepEqual(await scrolled(all('follow'), 0, none, (r) => r.h.e!.setFormFactor('tablet')), { result: 'T', left: 0 }, 'e is out of view: no request');
 });
@@ -515,12 +515,12 @@ test('the owner example: a button in panel two toggles panel one through a closu
   assert.equal(one.getState().status, 'live', 'the second click shows it again');
 });
 
-test('a ViewHandle has exactly the seventeen sorted keys, pin, unpin and configure among them', async () => {
+test('a ViewHandle has exactly the eighteen sorted keys, pin, unpin and configure among them', async () => {
   const { createWorkspace } = await import('../index.js');
   const { mountWorkspace } = await import('./support/workspace-row.js');
   const w = createWorkspace({ mount: false, templates: [markerTemplate('probe')] });
   w.addPanel('probe');
   const m = mountWorkspace(w);
   const node = m.container.querySelector('[data-template="probe"]') as HTMLElement;
-  assert.deepEqual(node.dataset.handleKeys!.split(',').sort(), ['close', 'configure', 'getSettings', 'getState', 'hide', 'id', 'move', 'open', 'pin', 'place', 'scrollTo', 'setFormFactor', 'show', 'subscribe', 'templateId', 'toggleVisibility', 'unpin']);
+  assert.deepEqual(node.dataset.handleKeys!.split(',').sort(), ['close', 'configure', 'getSettings', 'getState', 'hide', 'id', 'move', 'open', 'pin', 'place', 'scrollTo', 'setFormFactor', 'setSlots', 'show', 'subscribe', 'templateId', 'toggleVisibility', 'unpin']);
 });
