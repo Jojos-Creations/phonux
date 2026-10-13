@@ -28,6 +28,9 @@
 
 ### Added
 
+- The README quickstart is the default start (`definePanel`, `createWorkspace`, `addPanel`) with the hand-built `HostProvider`,
+  `Workspace` and `PanelRow` row shown after it. Both blocks are read out of the README by marker, type-checked, and run in
+  `test/readme-quickstart.test.ts`; `npm run smoke` builds and runs the packed README's quickstart against the tarball.
 - `createWorkspace` takes what an app hands `HostProvider`, `Workspace` and `useProvidePanels` as options: `device`, `settings`,
   `history`, `snapshots`, `labels`, `topInset` and `panels` (`useProvidePanels` inputs such as `onPanelsClosed`, `defaultView` and
   `capture`), plus `wrap`, a component rendered around the row inside the host. `workspace.update(live)` gives the auto-mounted
