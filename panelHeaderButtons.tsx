@@ -360,7 +360,7 @@ function SlotButton({ item, runtime }: { item: PanelHeaderButtonItem; runtime: R
   const color = item.sx === undefined ? { color: 'inherit' } : [{ color: 'inherit' }, ...(Array.isArray(item.sx) ? item.sx : [item.sx])];
   const base = Array.isArray(color) ? color : [color];
   const sx = text
-    ? [...base, { textTransform: 'none', minWidth: 0, minHeight: 24, maxWidth: '9em', fontSize: 'inherit', flexShrink: 0 }, ...(item.disabled ? [{ opacity: 0.38, cursor: 'default' }] : [])]
+    ? [...base, { textTransform: 'none', minWidth: 0, minHeight: 24, maxWidth: '9em', fontSize: 'inherit' }, ...(item.disabled ? [{ opacity: 0.38, cursor: 'default' }] : [])]
     : item.disabled
       ? [...base, { opacity: 0.38, cursor: 'default' }]
       : (color as never);
