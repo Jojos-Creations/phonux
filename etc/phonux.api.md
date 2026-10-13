@@ -1021,6 +1021,7 @@ export interface RowLayoutResult {
 
 // @public
 export interface RowNumbers {
+    atStop: number;
     drawnOffsets: readonly number[];
     drawnWidths: readonly number[];
     endPad: number;
