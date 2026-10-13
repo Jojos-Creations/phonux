@@ -15,7 +15,7 @@ import { slideToTransition } from './directionalTransition.js';
 import type { SlideTuning, WorkspaceTuning } from './panelSettings.js';
 import { WorkspaceTuningContext, resolveWorkspaceTuning } from './panelTuning.js';
 import { ChromeStoreContext, createChromeStore } from './panelChrome.js';
-import { RESIZE_SETTLE_SLIDES, ROW_GAP, ROW_GESTURE } from './rowConstants.js';
+import { ROW_GAP, ROW_GESTURE } from './rowConstants.js';
 import { fadeAt, type RowNumbers } from './rowNumbers.js';
 import { rowScrollerFor } from './rowScroller.js';
 import { OverlaySlot } from './windowOverlay.js';
@@ -83,9 +83,9 @@ export function workspaceShellStyle(i: WorkspaceShellStyleInput): WorkspaceShell
   };
 }
 
-/** How long the container width must hold still before the row's margin glides again: 1.25 slide durations. @internal */
-export function resizeSettleDelayMs(slide: SlideTuning): number {
-  return Math.round(slide.durationSec * RESIZE_SETTLE_SLIDES * 1000);
+/** How long the container width must hold still before the row's margin glides again: `slides` slide durations. @internal */
+export function resizeSettleDelayMs(slide: SlideTuning, slides: number): number {
+  return Math.round(slide.durationSec * slides * 1000);
 }
 
 /**
@@ -114,7 +114,7 @@ export interface WorkspaceProps extends Omit<BoxProps, 'children'> {
   containerWidth: number;
   /**
    * Whether the container width has held still: the row's centring margin glides once it has, and snaps otherwise.
-   * Omitted: the Workspace decides, calling the width settled once it has held for 1.25 slide durations
+   * Omitted: the Workspace decides, calling the width settled once it has held for `tuning.resizeSettleSlides` slide durations (1.25 by default)
    * (`tuning.slide.durationSec`), and at once while animation is off (Reduce Motion).
    */
   rowResizeSettled?: boolean;
@@ -151,7 +151,7 @@ export function Workspace(props: WorkspaceProps): React.ReactElement {
   const gap = resolved.rowGap;
   const [chromeStore] = React.useState(createChromeStore);
   const reduced = useReducedMotionConfig() === true;
-  const derived = useResizeSettled(containerWidth, resizeSettleDelayMs(resolved.slide), reduced);
+  const derived = useResizeSettled(containerWidth, resizeSettleDelayMs(resolved.slide, resolved.resizeSettleSlides), reduced);
   const rowResizeSettled = given ?? derived;
   const scrolls = rowNumbers?.rowScroll ?? rowScroll ?? false;
   const style = workspaceShellStyle({ containerWidth, rowResizeSettled, phoneWidth, fixedColumnCount, liveWidths, gap, slide: resolved.slide, rowScroll, rowNumbers, rowGesture: resolved.rowGesture });

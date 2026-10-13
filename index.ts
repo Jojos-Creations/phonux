@@ -118,6 +118,7 @@ export type {
   BezierEase,
   ChromeTuning,
   CloseExitEase,
+  FadeEase,
   GlideEase,
   DragToCloseTuning,
   SlideTuning,

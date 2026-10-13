@@ -100,7 +100,7 @@ export interface PanelsInput {
   storage?: WorkspaceStorage;
   /** Called with each note the engine raises while it works (a runtime diagnostic, never an error): whatever it throws is swallowed. */
   onNote?: (note: SettingNote) => void;
-  /** The workspace's tuning leaves; each one left out, or out of range, takes the library default. The engine reads `rowGap`, `saveQuietMs`, `gestureLockMs`, `returnTieBreak`, `dropTieBreak` and `maxLivePanels` here; the row reads `dragToClose`, `slide` and `hopFraction` through the Workspace given the same value. */
+  /** The workspace's tuning leaves; each one left out, or out of range, takes the library default. The engine reads `rowGap`, `saveQuietMs`, `gestureLockMs`, `returnTieBreak`, `dropTieBreak` and `maxLivePanels` here; the row reads `dragToClose`, `slide` and `hopFraction`, and the Workspace reads `resizeSettleSlides` and `chrome` (`fadeEase` and the rest), through the Workspace given the same value. */
   tuning?: WorkspaceTuning;
   /**
    * The workspace's panel settings (every key except `tuning`). Given, a panel made by `create()` and a panel restored from

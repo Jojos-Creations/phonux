@@ -71,7 +71,7 @@ export const ROW_GESTURE = 'step' as const;
 export const INITIAL_SCROLL = 'start' as const;
 
 /** When a panel's header, grab bar and footer show, and the numbers a host's header icon row animates with. */
-export const CHROME = { mode: 'always', fadeMs: 120, slideMs: 140, slidePx: 8, graceMs: 250 } as const;
+export const CHROME = { mode: 'always', fadeMs: 120, fadeEase: 'easeOut', slideMs: 140, slidePx: 8, graceMs: 250 } as const;
 
 /** How many slide durations the container width must hold still before the row's centring margin glides again. */
 export const RESIZE_SETTLE_SLIDES = 1.25;
