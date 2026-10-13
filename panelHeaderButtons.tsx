@@ -1,23 +1,22 @@
 /**
  * The generic header buttons a panel declares in `headerButtons`: the hook that lists them, the component that draws
- * them as MUI IconButtons, and the press path that runs the developer's `onClick`.
+ * them as MUI IconButtons (icon form) or Buttons (text form), and the press path that runs the developer's `onClick`.
  */
 import * as React from 'react';
 import { useIsPresent } from 'motion/react';
+import Button from '@mui/material/Button';
 import IconButton from '@mui/material/IconButton';
 import Tooltip from '@mui/material/Tooltip';
 import type { HeaderButton, HeaderButtonContext } from './panelSettings.js';
 import type { ViewHandle } from './panelTemplate.js';
 import { PanelHiddenContext, PanelSlotContext, type HeaderButtonsSlot } from './panelSlotContext.js';
 
-/** One declared header button as `usePanelHeaderButtons` lists it, its functions already evaluated for the panel's current state. @public */
-export interface PanelHeaderButtonItem {
+/** What every listed header button has, whichever form it takes. @public */
+export interface PanelHeaderButtonItemBase {
   /** The slot id. */
   readonly id: string;
-  /** The accessible name. */
+  /** The accessible name; in the text form also the text drawn. */
   readonly label: string;
-  /** The icon to draw. */
-  readonly icon: React.ReactNode;
   /** Which end of the header row the button sits at. */
   readonly side: 'start' | 'end';
   /** The sort position among the buttons on the same side; ties break by id. */
@@ -37,6 +36,25 @@ export interface PanelHeaderButtonItem {
   /** Runs the slot's `onClick` as the person's gesture; does nothing while disabled, hidden or while the panel is leaving. */
   press(): void;
 }
+
+/** A listed button of the icon form: `icon` is what the slot's icon resolved to, null included. @public */
+export interface PanelHeaderIconItem extends PanelHeaderButtonItemBase {
+  /** Marks the icon form. */
+  readonly form: 'icon';
+  /** The icon to draw. */
+  readonly icon: React.ReactNode;
+}
+
+/** A listed button of the text form: it draws its label as text and has no icon. @public */
+export interface PanelHeaderTextItem extends PanelHeaderButtonItemBase {
+  /** Marks the text form. */
+  readonly form: 'text';
+  /** Always undefined in the text form. */
+  readonly icon: undefined;
+}
+
+/** One declared header button as `usePanelHeaderButtons` lists it, its functions already evaluated for the panel's current state; `form` tells the two forms apart. @public */
+export type PanelHeaderButtonItem = PanelHeaderIconItem | PanelHeaderTextItem;
 
 const NONE: readonly PanelHeaderButtonItem[] = [];
 const NO_SUBSCRIBE = (): (() => void) => () => {};
@@ -172,11 +190,9 @@ export function usePanelHeaderButtons(): readonly PanelHeaderButtonItem[] {
         const hidden = Boolean(fieldOf(slot.hidden ?? false, c));
         const description = slot.description === undefined ? undefined : fieldOf(slot.description, c);
         const tooltip = slot.tooltip === undefined ? undefined : fieldOf(slot.tooltip, c);
-        const icon = typeof slot.icon === 'function' ? (slot.icon as (c: HeaderButtonContext) => React.ReactNode)(c) : slot.icon;
-        items.push({
+        const common = {
           id,
           label,
-          icon,
           side: slot.side ?? 'end',
           order: slot.order ?? 0,
           pressed,
@@ -186,7 +202,9 @@ export function usePanelHeaderButtons(): readonly PanelHeaderButtonItem[] {
           tooltip,
           sx: slot.sx,
           press: () => pressSlot(given, runtime, id, slot, c, { present, parked, disabled, hidden }),
-        });
+        };
+        if (slot.icon === undefined) items.push({ ...common, form: 'text', icon: undefined });
+        else items.push({ ...common, form: 'icon', icon: typeof slot.icon === 'function' ? (slot.icon as (c: HeaderButtonContext) => React.ReactNode)(c) : slot.icon });
       } catch (e) {
         failures.push({ id, message: `header button '${id}': ${e instanceof Error ? e.message : String(e)}` });
       }
@@ -325,36 +343,61 @@ function SlotButton({ item, runtime }: { item: PanelHeaderButtonItem; runtime: R
       if (runtime.buttons.get(id) === node) runtime.buttons.delete(id);
     };
   }, [item.id]);
+  const text = item.form === 'text';
+  const label = React.useRef<HTMLSpanElement | null>(null);
+  const [clipped, setClipped] = React.useState(false);
+  // A truncated label has no other way to be read in full, so it becomes the tooltip when no tooltip is declared.
+  React.useLayoutEffect(() => {
+    const span = label.current;
+    if (!text || span === null) return undefined;
+    const measure = (): void => setClipped(span.scrollWidth > span.clientWidth);
+    measure();
+    if (typeof ResizeObserver === 'undefined') return undefined;
+    const observer = new ResizeObserver(measure);
+    observer.observe(span);
+    return () => observer.disconnect();
+  }, [text, item.label]);
   const color = item.sx === undefined ? { color: 'inherit' } : [{ color: 'inherit' }, ...(Array.isArray(item.sx) ? item.sx : [item.sx])];
-  const button = (
-    <IconButton
-      size="small"
-      aria-label={item.label}
-      onClick={() => item.press()}
-      tabIndex={stop === undefined || stop === item.id ? 0 : -1}
-      onFocus={() => {
-        runtime.current = item.id;
-        syncTabStop(runtime);
-      }}
-      onKeyDown={(e) => {
-        if (e.altKey || e.ctrlKey || e.metaKey || e.shiftKey) return;
-        if (rove(runtime, item.id, e.key)) e.preventDefault();
-      }}
-      sx={item.disabled ? [...(Array.isArray(color) ? color : [color]), { opacity: 0.38, cursor: 'default' }] : (color as never)}
-      ref={(node: HTMLButtonElement | null) => {
-        el.current = node;
-        if (node !== null) runtime.buttons.set(item.id, node);
-      }}
-      {...(item.pressed === undefined ? {} : { 'aria-pressed': item.pressed })}
-      {...(item.disabled ? { 'aria-disabled': true } : {})}
-      {...(item.description === undefined ? {} : { 'aria-describedby': described })}
-    >
-      {item.icon}
-    </IconButton>
+  const base = Array.isArray(color) ? color : [color];
+  const sx = text
+    ? [...base, { textTransform: 'none', minWidth: 0, minHeight: 24, maxWidth: '9em', fontSize: 'inherit' }, ...(item.disabled ? [{ opacity: 0.38, cursor: 'default' }] : [])]
+    : item.disabled
+      ? [...base, { opacity: 0.38, cursor: 'default' }]
+      : (color as never);
+  const shared = {
+    size: 'small' as const,
+    'aria-label': item.label,
+    onClick: () => item.press(),
+    tabIndex: stop === undefined || stop === item.id ? 0 : -1,
+    onFocus: () => {
+      runtime.current = item.id;
+      syncTabStop(runtime);
+    },
+    onKeyDown: (e: React.KeyboardEvent) => {
+      if (e.altKey || e.ctrlKey || e.metaKey || e.shiftKey) return;
+      if (rove(runtime, item.id, e.key)) e.preventDefault();
+    },
+    sx: sx as never,
+    ref: (node: HTMLButtonElement | null) => {
+      el.current = node;
+      if (node !== null) runtime.buttons.set(item.id, node);
+    },
+    ...(item.pressed === undefined ? {} : { 'aria-pressed': item.pressed }),
+    ...(item.disabled ? { 'aria-disabled': true } : {}),
+    ...(item.description === undefined ? {} : { 'aria-describedby': described }),
+  };
+  const button = text ? (
+    <Button {...shared} color="inherit">
+      <span ref={label} data-header-button-text="" style={{ display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+        {item.label}
+      </span>
+    </Button>
+  ) : (
+    <IconButton {...shared}>{item.icon}</IconButton>
   );
   return (
     <>
-      {item.tooltip === undefined ? button : <Tooltip title={item.tooltip}>{button}</Tooltip>}
+      {text ? <Tooltip title={item.tooltip ?? (clipped ? item.label : '')}>{button}</Tooltip> : item.tooltip === undefined ? button : <Tooltip title={item.tooltip}>{button}</Tooltip>}
       {item.description === undefined ? null : (
         <span hidden id={described}>
           {item.description}

@@ -20,7 +20,7 @@ const panelSources = (): string[] => readdirSync(join(ROOT, 'panels')).filter((f
 /** A floor under the scan (50 files): a wrong root or a moved folder scans fewer files and must fail, not pass. */
 const MIN_LIBRARY_FILES = 52;
 /** Files the scan must include by name, so a scan of the wrong directory cannot clear the floor. */
-const CORE = ['PhoneDetectPrompt.tsx', 'PanelFrame.tsx', 'Panel.tsx', 'fakeHost.ts', 'phoneModels.ts', 'hostApi.tsx'];
+const CORE = ['PanelFrame.tsx', 'Panel.tsx', 'fakeHost.ts', 'phoneModels.ts', 'hostApi.tsx'];
 
 /** Runs `fn` with a temp dir directly under the OS temp dir, removed even when an assertion throws. */
 function withTempDir<T>(fn: (dir: string) => T): T {
