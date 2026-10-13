@@ -5,6 +5,7 @@ import { PanelHiddenContext, PanelSlotContext } from './panelSlotContext.js';
 import { LIBRARY_TUNING_DEFAULTS } from './panelSettings.js';
 import type { SlideTuning } from './panelSettings.js';
 import { ROW_GAP } from './rowConstants.js';
+import { writeGlide } from './sizeGlide.js';
 
 export { ROW_GAP as GAP } from './rowConstants.js';
 /** The timing/easing every panel slide uses. The SAME object as SLOT_TRANSITION, not a copy: a host animates
@@ -36,9 +37,8 @@ const INSTANT_TRANSITION = { duration: 0 } as const;
 
 let commitClock: number | undefined;
 /**
- * The time the slot's slide counts from, which is the time a JS animation started in this task counts from. Motion starts a slide
- * from the moment its keyframes resolve instead when that is over 40 ms after the commit, so a commit that janks would start the slot
- * and the size box's scale at different moments, and a neighbour of a growing panel would trail or overrun it.
+ * The time a slide counts from: this task's commit. Motion counts from the moment the keyframes resolve when that is over 40 ms
+ * later, which would start the slot and the size box's scale at different moments.
  */
 function slideStart(): number {
   if (commitClock === undefined) {
@@ -142,8 +142,7 @@ export const slotDriver = {
     return typeof x === 'number' && typeof opacity === 'number' ? { x, opacity } : undefined;
   },
   /**
-   * Starts the slide the element's `animate` prop already asks for, now. Motion starts it in a passive effect, a frame after
-   * the layout animation of the PanelSizeBox inside this slot, so a neighbour of a resizing panel trails the box and a gap opens.
+   * Starts the slide the element's `animate` prop already asks for, now, in the commit: Motion would start it in a passive effect.
    */
   startPending(el: HTMLElement): void {
     (visualElementStore.get(el) as { animationState?: { animateChanges(): void } } | undefined)?.animationState?.animateChanges();
@@ -356,10 +355,8 @@ export function PanelRowSlot({
 }
 
 /**
- * The element a resize animates: an INNER box, never the slot, which owns `exit` (Motion's docs warn against
- * `layout` and `exit` on one element). The box takes its new size at once and a scale transform draws it at the old size and
- * eases it to 1, so the view never re-lays out mid-resize and a neighbour's slide, which starts in the same commit, keeps
- * step with it. A view renders it inside its own slot, so a view that never resizes needs no wrapper.
+ * The box a resize animates. It takes its new size at once, so its content is laid out at that size, and is drawn at the old size
+ * and eased to the new one over the slide, in step with the neighbouring slots. A view renders it inside its own slot.
  * Under Reduce Motion, or for a panel whose `animated` setting is false, the resize snaps.
  * @public
  */
@@ -391,7 +388,7 @@ export function SizeBox({ width, height, children }: { width: number; height: nu
   const nested = React.useContext(SizeBoxContext);
   const parked = React.useContext(PanelHiddenContext);
   const slide = slot?.tuning.slide;
-  // The system preference is read too: a theme's MotionConfig may not carry it, and a resize must snap under Reduce Motion either way.
+  // The system preference too, because a theme's MotionConfig may not carry it.
   const configReduced = useReducedMotionConfig() === true;
   const systemReduced = useReducedMotion() === true;
   const snaps = configReduced || systemReduced || slot?.animated === false || slot?.tracking === true || parked;
@@ -399,8 +396,7 @@ export function SizeBox({ width, height, children }: { width: number; height: nu
   const seen = React.useRef<{ width: number; height: number | '100%' } | undefined>(undefined);
   const scale = React.useRef({ x: 1, y: 1 });
   const run = React.useRef<{ stop: () => void } | undefined>(undefined);
-  // The scale starts in the commit's layout effect, on the clock of the slot's slide (`slideStart`): Motion's layout animation
-  // would start in the next frame, and a commit that janks would open a gap between the box and its neighbour.
+  // Starts in the commit's layout effect, on the slot's slide clock (`slideStart`), so a commit that janks opens no gap to a neighbour.
   React.useLayoutEffect(() => {
     const node = box.current;
     if (node === null || nested) return;
@@ -411,6 +407,7 @@ export function SizeBox({ width, height, children }: { width: number; height: nu
     const draw = (x: number, y: number): void => {
       scale.current = { x, y };
       node.style.transform = x === 1 && y === 1 ? '' : `scale(${x}, ${y})`;
+      writeGlide(node, x, y);
     };
     if (before === undefined || snaps) {
       draw(1, 1);
