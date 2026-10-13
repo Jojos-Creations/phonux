@@ -11,7 +11,7 @@ import { fileURLToPath } from 'node:url';
 const ROOT = fileURLToPath(new URL('..', import.meta.url));
 
 /** Every module-level `let`, and every module-level binding made with `new Map/Set/WeakMap/WeakSet`, as `file:name`. */
-const FILES = ['autoMount.tsx', 'autoMountContext.ts', 'workspaceCore.ts', 'viewRegistry.tsx', 'templateView.tsx', 'panelFrameBoundary.tsx', 'hostApi.tsx', 'PanelRow.tsx', 'Workspace.tsx', 'panels/useProvidePanels.ts', 'panels/useWorkspacePersistence.ts', 'index.ts'];
+const FILES = ['autoMount.tsx', 'autoMountContext.ts', 'workspaceCore.ts', 'workspaceLive.ts', 'viewRegistry.tsx', 'templateView.tsx', 'panelFrameBoundary.tsx', 'hostApi.tsx', 'PanelRow.tsx', 'Workspace.tsx', 'panels/useProvidePanels.ts', 'panels/useWorkspacePersistence.ts', 'index.ts'];
 
 const ALLOWED: Record<string, string> = {
   'workspaceCore.ts:nextEngineIdValue': 'an id counter: ids stay unique across workspaces on purpose',

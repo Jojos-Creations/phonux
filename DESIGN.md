@@ -1573,6 +1573,55 @@ What stays at module level, and why none of it is a workspace's data:
 - `EMPTY_SET` and `EMPTY_MAP`: defaults for an omitted `PanelRow` prop, never written.
 
 
+## Workspace options, wrap and update
+
+An auto-mounted workspace needs no hand-built `Host`: what an app hands `HostProvider`, `Workspace` and `useProvidePanels` is an
+option on `createWorkspace`. The members of `WorkspaceLive` (`device`, `settings`, `history`, `snapshots`, `labels`, `topInset`,
+`panels`) are the starting values and the only ones `workspace.update(live)` can change; `root`, `templates`, `storage`, `mount`,
+`wrap` and the other options are fixed for the workspace's life, and `update` naming one throws `invalid-options` and applies
+nothing, not even the live members named beside it. The option names are the `Host` member names, so an option and the same value in
+a hand-built `Host` give the same view result; `settingsColumn` is `settings.settingsColumn`. `panels` is `Partial<PanelsInput>`
+minus what the mount measures (`phoneWidth`, `containerWidth`, `overflowContainerRef`) and what the workspace supplies (`workspace`,
+`rootId`, `storage`, `templates`, `declared`, `workspaceDefaults`, `tuning`, `initialEntries`) and `labels`, which is its own
+option, so there is no member list to keep in step with the hook. `topInset` is an option (the `Workspace` top padding), not a
+tuning leaf: the catalog holds 16 tuning leaves, counted from `PANEL_SETTINGS_CATALOG`, and a test pins the number.
+
+**`wrap`.** A component, `ComponentType<{ children, workspace }>`, rendered inside `HostProvider` and around `Workspace`. The theme,
+a `CaptureRegistryProvider` and the app's own contexts go in it, a hook in it may call `useHost()` and `workspace.update`, and
+anything drawn beside the row is a sibling of `children`. It is read once at creation, so it has one identity for the workspace's
+life and updates re-render it but never remount it. The order of an app's own hooks inside it is the app's.
+
+**`update`.** An app that builds its objects with fresh closures every render may call it from an effect on every render. The
+latest values are always stored, so a closure an app rebuilt is the one a later render hands on, but readers are told only when the
+data of a member changed: functions compare equal whatever their identity, a function against none does not, and objects and arrays
+compare by their members. The caller is not subscribed to its own push. Values given to `createWorkspace` are on the first paint; an
+update from a layout effect in `wrap` is applied in the task that rendered the row, before the browser paints. The callbacks of
+`panels` are live: the mount hands `useProvidePanels` a stand-in for each, which calls the latest one. The mount leaves
+`rowResizeSettled` to `Workspace`, which calls the width settled after `tuning.resizeSettleSlides` slide durations, so a window drag
+snaps the row's margin and a panel resize glides it, as the app's own shell did.
+
+| Passed today | Option | Fixed or live |
+| --- | --- | --- |
+| `HostProvider` `host.device` | `device` | live (`update`) |
+| `HostProvider` `host.settings` (the settings column) | `settings` | live |
+| `HostProvider` `host.history` | `history` | live |
+| `HostProvider` `host.snapshots` | `snapshots` | live |
+| `HostProvider` `host.labels`, `useProvidePanels` `labels` | `labels` | live |
+| `HostProvider` `host.panels` | the mount's own `useProvidePanels` result | mount-owned |
+| `Workspace` `topPadding` | `topInset` | live |
+| `Workspace` `phoneWidth` | `device.size.width` | live |
+| `Workspace` `overflowContainerRef`, `rowRef`, `containerWidth`, `rowResizeSettled` | none: the mount measures and `Workspace` settles | mount-owned |
+| `Workspace` `fixedColumnCount`, `liveWidths`, `rowScroll`, `rowNumbers`, `tuning` | none: taken from `useProvidePanels` | mount-owned |
+| `Workspace` `beforeRow` | none: its one user, the phone-detect notice, is gone; a custom flow keeps `Workspace` | missing setting (no consumer) |
+| `PanelRow`'s ten props | none: taken from `useProvidePanels` | mount-owned |
+| `useProvidePanels` `defaultView`, `defaultHostData` | `panels.defaultView`, `panels.defaultHostData` | live, read at each create |
+| `useProvidePanels` `capture` | `panels.capture` | live |
+| `useProvidePanels` `onPanelsClosed`, `onPanelsRestored`, `resetHostDataOnRestore` | `panels.*` | live (latest callback runs) |
+| `useProvidePanels` `onPanelResize` | `panels.onPanelResize` | live |
+| theme, `CaptureRegistryProvider`, the app's own contexts | `wrap` | fixed at creation |
+| anything drawn beside the row (a window drag strip) | `wrap`, a sibling of `children` | fixed at creation |
+
+
 ## The default frame
 
 A template's view that draws no `Panel` and no `PanelFrame` is drawn inside the library's frame: the header with the panel's

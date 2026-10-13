@@ -4,6 +4,7 @@
  * engine to create the panel. The engine's controls reach this module through `publish` and are used only here,
  * through the handles and the reader built over `ReadSource`; DESIGN.md, "The workspace core", says why.
  */
+import type { ComponentType, ReactNode } from 'react';
 import type { JsonValue } from './hostApi.js';
 import type { FormFactor } from './hostApi.js';
 import { askedFlip, cancelled, checkPatch, configured, deferredEntry, deferredResult, ownLayer, planInstance, planTemplate, planTuning, reconfigured, refusedFlip, refusedPlan, sameDeferral, shownEntry, shownResult, unchanged, withoutFlip, type ConfigureOutcome, type HostSplit, type InstancePlan } from './panelConfigure.js';
@@ -22,6 +23,7 @@ import { assertTemplateIdFree } from './viewRegistry.js';
 import type { DeclaredPanel } from './workspacePlan.js';
 import type { WorkspaceStorage } from './workspaceState.js';
 import type { SettingsPatch } from './settingsPatch.js';
+import { createLiveStore, refusedLiveKeys, type LiveStore, type WorkspaceLive } from './workspaceLive.js';
 
 /** The id of the marker entry a workspace without a root keeps. */
 export const ROOT_MARKER_ID = '__root__';
@@ -30,11 +32,20 @@ let nextEngineIdValue = 1;
 /** The next id for an engine entry. A module counter, bumped only from handlers and the restore callback, never from a state initialiser. */
 export const nextEngineId = (): string => String(nextEngineIdValue++);
 
+/** What `wrap` renders: the workspace's row as `children`, and the workspace it belongs to. @public */
+export interface WorkspaceWrapProps {
+  /** The row, inside the host and the panels API. */
+  children: ReactNode;
+  /** The workspace being mounted: a hook in `wrap` reads it and calls `update` on it. */
+  workspace: WorkspaceHandle;
+}
+
 /**
- * What `createWorkspace` takes; every member is optional.
+ * What `createWorkspace` takes; every member is optional. The members of `WorkspaceLive` are its starting values and
+ * `workspace.update` changes them later; everything else is fixed for the workspace's life.
  * @public
  */
-export type WorkspaceOptions = {
+export type WorkspaceOptions = WorkspaceLive & {
   /** Where the workspace is kept between launches. Unset: nothing is loaded or saved. */
   storage?: WorkspaceStorage;
   /** The workspace's panel settings (every key except `tuning`), the layer under every template. */
@@ -59,6 +70,12 @@ export type WorkspaceOptions = {
    * that renders the workspace through `HostProvider`, `Workspace` and `PanelRow` itself. Without a `document` nothing is mounted either.
    */
   mount?: HTMLElement | false;
+  /**
+   * A component rendered around the auto-mounted row, inside the host: the theme, the capture registry and the app's own
+   * contexts go here, and a hook in it may read `useHost()` and call `workspace.update`. Fixed at creation, so it keeps
+   * one identity for the workspace's life and never remounts. Ignored when `mount` is `false`.
+   */
+  wrap?: ComponentType<WorkspaceWrapProps>;
 };
 
 /**
@@ -80,6 +97,13 @@ export interface WorkspaceHandle {
    * template then needs an explicit `id`. A panel over its template's `maxInstances` comes back in status `closed`.
    */
   addPanel<P extends JsonValue = JsonValue>(t: PanelTemplate<P> | string, o?: { id?: PanelId; settings?: PanelSettings; params?: P; url?: string }): PanelHandle<P>;
+  /**
+   * Gives the auto-mounted host new values: only the members of `WorkspaceLive` (`device`, `settings`, `history`, `snapshots`,
+   * `labels`, `topInset`, `panels`) may be named, and a member left out is not touched. Readers re-render when the data of a
+   * member changed, never for a changed closure alone, so a hook may call this from an effect on every render without a loop.
+   * Naming anything else (`root`, `templates`, `storage`, `mount`, `wrap`) throws `invalid-options` and changes nothing.
+   */
+  update(live: WorkspaceLive): void;
   /** Registers a template with this workspace only; returns the function that removes it. */
   registerTemplate(t: PanelTemplate): () => void;
   /** Drops the workspace's listeners and intents; a later `addPanel` throws `disposed`. */
@@ -169,6 +193,10 @@ export interface EngineBinding {
   reportError(e: unknown): void;
   /** Whether this workspace renders itself (see `WorkspaceOptions.mount`). */
   readonly autoMounted: boolean;
+  /** The host values the auto mount reads (see `WorkspaceLive`). */
+  readonly live: LiveStore;
+  /** The component the auto mount renders around the row, if the app gave one. */
+  readonly wrap: ComponentType<WorkspaceWrapProps> | undefined;
   /** A hand-mounted row was given this workspace; warns once in development when the workspace also mounts itself. */
   warnHandMounted(): void;
   /** Delivers a runtime note to the sink the attached hook bound, or holds it until one is bound; a sink that throws is ignored. */
@@ -349,6 +377,7 @@ export function createWorkspace(o: WorkspaceOptions = {}): WorkspaceHandle {
   };
 
   const autoMounted = o.mount !== false && typeof document !== 'undefined';
+  const live = createLiveStore({ ...(o.device !== undefined ? { device: o.device } : {}), ...(o.settings !== undefined ? { settings: o.settings } : {}), ...(o.history !== undefined ? { history: o.history } : {}), ...(o.snapshots !== undefined ? { snapshots: o.snapshots } : {}), ...(o.labels !== undefined ? { labels: o.labels } : {}), ...(o.topInset !== undefined ? { topInset: o.topInset } : {}), ...(o.panels !== undefined ? { panels: o.panels } : {}) });
   let warnedHandMount = false;
 
   let noteSink: ((note: SettingNote) => void) | undefined;
@@ -1029,6 +1058,8 @@ export function createWorkspace(o: WorkspaceOptions = {}): WorkspaceHandle {
     newId,
     reportError,
     autoMounted,
+    live,
+    wrap: o.wrap,
     warnHandMounted: () => {
       if (!autoMounted || warnedHandMount || typeof process === 'undefined' || process.env.NODE_ENV === 'production') return;
       warnedHandMount = true;
@@ -1112,6 +1143,12 @@ export function createWorkspace(o: WorkspaceOptions = {}): WorkspaceHandle {
       return status;
     },
     addPanel,
+    update: (change) => {
+      if (status === 'disposed') throw new PanelManagerError('disposed', 'the workspace was disposed');
+      const refusedKeys = refusedLiveKeys(change);
+      if (refusedKeys.length > 0) throw new PanelManagerError('invalid-options', `update cannot change ${refusedKeys.join(', ')}: only device, settings, history, snapshots, labels, topInset and panels are live`);
+      live.update(change);
+    },
     registerTemplate: (t) => {
       if (status === 'disposed') throw new PanelManagerError('disposed', 'the workspace was disposed');
       const remove = registerOne(t);
@@ -1136,6 +1173,7 @@ export function createWorkspace(o: WorkspaceOptions = {}): WorkspaceHandle {
       listeners.clear();
       panelListeners.clear();
       tuningListeners.clear();
+      live.clear();
       splits.clear();
       templateOverrides.clear();
       for (const remove of removers.splice(0)) remove();
