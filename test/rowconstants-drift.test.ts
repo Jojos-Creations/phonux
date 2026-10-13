@@ -104,8 +104,12 @@ test('rowConstants: every exported constant reaches LIBRARY_TUNING_DEFAULTS, so 
   assert.equal(t.initialScroll, rowConstants.INITIAL_SCROLL);
   assert.deepEqual({ ...t.edgeScroll }, { zonePx: rowConstants.EDGE_SCROLL_ZONE_PX, maxPxPerSec: rowConstants.EDGE_SCROLL_MAX_PX_PER_SEC, reducedStepMs: rowConstants.EDGE_SCROLL_REDUCED_STEP_MS });
   assert.deepEqual({ ...t.chrome }, { ...rowConstants.CHROME });
+  assert.equal(t.heightPerSlot, rowConstants.HEIGHT_PER_SLOT);
+  assert.equal(t.rowAlign, rowConstants.ROW_ALIGN);
   assert.equal(rowConstants.RESIZE_SETTLE_SLIDES, 1.25);
-  assert.equal(Object.keys(rowConstants).length, 25, 'the module exports exactly the 25 constants this test compares');
+  assert.equal(rowConstants.ALL_SLOTS, 64);
+  assert.equal(rowConstants.UNMEASURED_SLOTS, 3);
+  assert.equal(Object.keys(rowConstants).length, 34, 'the module exports exactly the 25 constants this test compares, the 4 slot constants and the 5 slot helpers');
 });
 
 test('rowConstants: no source file outside rowConstants.ts declares its own copy of the save delay or the gesture lock', () => {

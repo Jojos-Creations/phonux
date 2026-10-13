@@ -357,9 +357,9 @@ test('source: the read handle has exactly id, templateId, getState, getSettings 
   assert.deepEqual(returnedKeys(src, 'makeReader'), ['get', 'list', 'getSnapshot', 'subscribe']);
 });
 
-test('source: the handle a view receives has the five read members and the twelve verbs, and no manager', () => {
+test('source: the handle a view receives has the five read members and the thirteen verbs, and no manager', () => {
   const src = read('panelHandles.ts');
-  assert.deepEqual(returnedKeys(src, 'makeViewHandle'), ['id', 'templateId', 'getState', 'getSettings', 'subscribe', 'show', 'hide', 'toggleVisibility', 'close', 'open', 'move', 'place', 'setFormFactor', 'scrollTo', 'pin', 'unpin', 'configure']);
+  assert.deepEqual(returnedKeys(src, 'makeViewHandle'), ['id', 'templateId', 'getState', 'getSettings', 'subscribe', 'show', 'hide', 'toggleVisibility', 'close', 'open', 'move', 'place', 'setFormFactor', 'setSlots', 'scrollTo', 'pin', 'unpin', 'configure']);
   const widened = src.replace('    show: (src', '    manager: {},\n    show: (src');
   assert.notEqual(widened, src, 'control: the plant applied');
   assert.ok(returnedKeys(widened, 'makeViewHandle').includes('manager'), 'the pin sees a planted member');

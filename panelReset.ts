@@ -7,7 +7,7 @@ import { reparked } from './panelPin.js';
 import { placePanel, type PlacementOptions } from './panelPlacement.js';
 import type { PanelSettingsResolution, SettingNote } from './panelSettings.js';
 import { TIER_SIZES } from './panelTiers.js';
-import { clearOverrides, type PanelWindow } from './panelWindow.js';
+import { clearOverrides, slotsOf, type PanelWindow } from './panelWindow.js';
 
 /** What a reset needs of the engine: the row's root, the cascade a panel resolves under without the person's layer, and where a placement lands. @internal */
 export interface ResetEnv {
@@ -53,14 +53,14 @@ export function resetEntries(row: readonly PanelWindow[], ids: readonly string[]
     const entry = next.find((p) => p.id === id)!;
     const resolution = env.resolveDefaults(entry);
     const value = resolution.value;
-    const tier = entry.formFactor ?? 'phone';
-    if (tier !== value.formFactor) resized.push(id);
+    const slots = slotsOf(entry);
+    if (slots !== value.slots) resized.push(id);
     if (entry.collapsible !== value.parkable) reparkable = true;
     if (entry.deferredPin !== undefined) dropped = true;
     const { deferredPin: _gone, ...bare } = reparked(entry, resolution);
     const reset: PanelWindow = {
       ...bare,
-      ...(tier === value.formFactor ? {} : { formFactor: value.formFactor, size: { ...TIER_SIZES[value.formFactor] } }),
+      ...(slots === value.slots ? {} : { slots: value.slots, formFactor: value.formFactor, size: { ...TIER_SIZES[value.formFactor] } }),
       applied: { placeOnAdd: value.placeOnAdd },
     };
     next = next.map((p) => (p.id === id ? reset : p));

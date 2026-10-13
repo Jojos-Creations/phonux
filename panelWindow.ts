@@ -11,6 +11,7 @@ import { effective } from './panelSettings.js';
 import type { AddPlacement, PanelSettings, ResolvedPanelSettings } from './panelSettings.js';
 import type { DeferredPin } from './panelTemplate.js';
 import { DEFAULT_PANEL_SIZE, TIER_SIZES } from './panelTiers.js';
+import { slotsOfTier, tierOfSlots } from './rowConstants.js';
 import { HOP_FRACTION } from './rowConstants.js';
 
 /**
@@ -50,18 +51,22 @@ export interface PanelWindow {
   formFactor?: FormFactor;
   /** This panel's own rendered size (a host's panel component passes it to Panel/PanelFrame for a non-phone tier). Optional for the same reason as `formFactor`. */
   size?: PanelSize;
-  /** The resolved settings this entry was created under, whose mirror fields (`locked`, `collapsible`, `listed`, `layer`, `anchoredEnter`, `formFactor`) were written from them. Absent for a hand-built entry, which behaves as it did before settings existed. */
+  /** How many phone-panel widths wide this entry is set to; `formFactor` is its tier. Absent on a hand-built entry, which reads its slots from its tier. */
+  slots?: number;
+  /** The resolved settings this entry was created under, whose mirror fields (`locked`, `collapsible`, `listed`, `layer`, `anchoredEnter`, `formFactor`, `slots`) were written from them. Absent for a hand-built entry. */
   settings?: ResolvedPanelSettings;
   /** This entry's stable name, written once when it is created from settings; absent on a hand-built entry, whose `id` stands in. */
   key?: string;
   /** The instance settings layer this entry was created under, saved for an entry code does not re-declare so a restore resolves it the same way. Only workspace code writes it. */
   instance?: PanelSettings;
-  /** What the person changed about this entry: where it sits, its tier, whether it is parkable. Present, possibly empty, on an entry that owns only the keys it holds; absent on an entry restored from a 0.1.0 file, which owns its anchor and tier. Written only by `recordOverride`, `clearOverrides` and a restore. */
+  /** What the person changed about this entry: where it sits, its tier, whether it is parkable. Present, possibly empty, on an entry that owns only the keys it holds; absent on an entry restored from an older file, which owns its anchor and tier. Written only by `recordOverride`, `clearOverrides` and a restore. */
   overrides?: {
     /** Where the person put the entry. */
     anchor?: PanelAnchor;
-    /** The tier the person chose. */
+    /** The tier the person chose; only a file saved before slots holds one. */
     formFactor?: FormFactor;
+    /** The slot count the person chose. */
+    slots?: number;
     /** Whether the person made the entry parkable. */
     parkable?: boolean;
   };
@@ -91,7 +96,7 @@ export function createHistoryPanel(rootId: string, title: string = DEFAULT_LABEL
  * @internal
  */
 export interface AppendPanelOptions {
-  /** The view that renders the new panel, becoming `PanelWindow.view`. Default 'web', the answer 0.1.0 gave; `useProvidePanels` always passes one. */
+  /** The view that renders the new panel, becoming `PanelWindow.view`. Default 'web'; `useProvidePanels` always passes one. */
   view?: string;
   /** The new panel's title. */
   title?: string;
@@ -353,18 +358,46 @@ export function reorderStepsForOffset(offsetX: number, neighbors: NeighborWidths
   return steps === 0 ? 0 : Math.sign(offsetX) * steps;
 }
 
+/** The slot count `p` stands at: its own, else the one its tier stands for. @internal */
+export const slotsOf = (p: Pick<PanelWindow, 'slots' | 'formFactor'>): number => p.slots ?? slotsOfTier(p.formFactor ?? 'phone');
+
 /**
- * `id` at `next`'s tier, its `size` REPLACED by a fresh copy of that tier's TIER_SIZES entry. Returns the SAME
- * array reference for every no-op: an unknown id, an entry whose `resizable` setting is false (History or a
- * permanent column by default) or whose `formFactors` lacks `next`, or a panel already at `next`. A parked panel
- * may change tier and stays parked.
+ * `id` at `slots` wide (clamped to 1 and its `maxSlots`), its tier following and its `size` REPLACED by a fresh copy of
+ * that tier's TIER_SIZES entry. Returns the SAME array reference for every no-op: an unknown id, an entry whose
+ * `resizable` setting is false (History or a permanent column by default), or a panel already at the clamped count. A
+ * parked panel may change size and stays parked.
+ * @internal
+ */
+export function setSlots(panels: PanelWindow[], id: string, slots: number): PanelWindow[] {
+  const target = panels.find((p) => p.id === id);
+  if (!target || !Number.isFinite(slots)) return panels;
+  const allowed = effective(target);
+  const next = Math.max(1, Math.min(Math.round(slots), allowed.maxSlots));
+  if (!allowed.resizable || slotsOf(target) === next) return panels;
+  const tier = tierOfSlots(next);
+  return panels.map((p) => (p.id === id ? { ...p, slots: next, formFactor: tier, size: { ...TIER_SIZES[tier] } } : p));
+}
+
+/** A resize a caller asks for: a tier (the deprecated view) or a slot count. @internal */
+export type Resize = FormFactor | number;
+
+/** `setFormFactor` for a tier, `setSlots` for a count. @internal */
+export const resizeTo = (panels: PanelWindow[], id: string, next: Resize): PanelWindow[] => (typeof next === 'number' ? setSlots(panels, id, next) : setFormFactor(panels, id, next));
+
+/**
+ * The deprecated tier view of `setSlots`: `id` at `next`'s slot count (phone 1, tablet 2, desktop every visible slot,
+ * clamped silently to its `maxSlots`). The SAME array for every no-op `setSlots` has, and when `formFactors` lacks `next`.
+ * An entry with no slot count (hand-built) changes its tier and `size` only.
  * @internal
  */
 export function setFormFactor(panels: PanelWindow[], id: string, next: FormFactor): PanelWindow[] {
   const target = panels.find((p) => p.id === id);
   if (!target) return panels;
   const allowed = effective(target);
-  if (!allowed.resizable || !allowed.formFactors.includes(next) || (target.formFactor ?? 'phone') === next) return panels;
+  if (!allowed.formFactors.includes(next)) return panels;
+  if (target.slots !== undefined) return setSlots(panels, id, slotsOfTier(next));
+  // A hand-built entry has no slot count: only its tier and size change.
+  if (!allowed.resizable || (target.formFactor ?? 'phone') === next) return panels;
   return panels.map((p) => (p.id === id ? { ...p, formFactor: next, size: { ...TIER_SIZES[next] } } : p));
 }
 
@@ -377,7 +410,7 @@ const remembers = (p: PanelWindow, rootId: string): boolean => p.id !== rootId &
  * SAME array when nothing changed, so no commit follows.
  * @internal
  */
-export function recordOverride(entries: readonly PanelWindow[], key: 'anchor' | 'formFactor' | 'parkable', ids: readonly string[], rootId: string): PanelWindow[] {
+export function recordOverride(entries: readonly PanelWindow[], key: 'anchor' | 'slots' | 'parkable', ids: readonly string[], rootId: string): PanelWindow[] {
   const wanted = new Set(ids);
   const positional = new Map(deriveAnchorsFromOrder(entries, rootId).map((p) => [p.id, p.anchor]));
   let changed = false;
@@ -390,7 +423,7 @@ export function recordOverride(entries: readonly PanelWindow[], key: 'anchor' | 
       changed = true;
       return { ...p, overrides: { ...p.overrides, anchor: { panel: from.panel, position: from.position, priority: from.priority } } };
     }
-    const value = key === 'formFactor' ? (p.formFactor ?? 'phone') : p.collapsible;
+    const value = key === 'slots' ? slotsOf(p) : p.collapsible;
     if (p.overrides?.[key] === value) return p;
     changed = true;
     return { ...p, overrides: { ...p.overrides, [key]: value } };
