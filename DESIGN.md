@@ -1610,7 +1610,6 @@ What stays at module level, and why none of it is a workspace's data:
 - `nextEngineIdValue`: an id counter, so ids stay unique across workspaces.
 - `EMPTY_SET` and `EMPTY_MAP`: defaults for an omitted `PanelRow` prop, never written.
 
-
 ## Workspace options, wrap and update
 
 An auto-mounted workspace needs no hand-built `Host`: what an app hands `HostProvider`, `Workspace` and `useProvidePanels` is an
@@ -1658,7 +1657,6 @@ snaps the row's margin and a panel resize glides it, as the app's own shell did.
 | `useProvidePanels` `onPanelResize` | `panels.onPanelResize` | live |
 | theme, `CaptureRegistryProvider`, the app's own contexts | `wrap` | fixed at creation |
 | anything drawn beside the row (a window drag strip) | `wrap`, a sibling of `children` | fixed at creation |
-
 
 ## The default frame
 
