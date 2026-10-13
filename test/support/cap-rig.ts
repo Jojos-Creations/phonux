@@ -87,7 +87,7 @@ export const rowOf = (entries: readonly PanelWindow[]): string =>
 function grabbable(id: string, settings: PanelSettings) {
   return definePanel({
     id,
-    settings,
+    settings: { frame: 'none', ...settings },
     view: function Grab({ panel, handle }) {
       const stepsFor = usePanelReorderSteps();
       return React.createElement(DragToClose, {

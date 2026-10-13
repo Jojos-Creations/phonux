@@ -22,6 +22,10 @@
 
 ### Added
 
+- Default frame: a template's view that draws no `Panel` or `PanelFrame` is drawn inside the library's frame (header with the
+  panel's title, grab bar for the drag-down close and reorder, phone frame, template footer). A view that draws any part of a
+  frame itself is unchanged. New per-panel setting `frame` (`'auto'` default, `'none'` opts out). The first panel of a bare
+  template mounts its view twice, once bare and once framed. `PanelFooter` now counts as a part of a frame a view draws.
 - `HostProvider` takes a `HostInput`: a `Host` whose `settings` and `device` may be left out (a hidden settings column and
   `DEFAULT_PHONE_SIZE`). `useHost()` still returns the resolved `Host`, the same default objects every render.
 - `createWorkspace`'s `mount` option: an element to render into, or `false`.

@@ -25,7 +25,7 @@ import { maxScrollOf, type RowNumbers } from './rowNumbers.js';
 import { panelWidthOf } from './panelTiers.js';
 import { fitSlots, slotHeight } from './rowConstants.js';
 import { ROW_LAYER_Z } from './rowConstants.js';
-import { resolveViewIn } from './viewRegistry.js';
+import { resolveViewIn } from './templateView.js';
 import { bindingOf, viewContextOf, type WorkspaceHandle } from './workspaceCore.js';
 import { useViewState } from './viewState.js';
 
@@ -308,7 +308,7 @@ export function PanelRow({
           const kept = presentIndex < 0;
           const rest = kept ? restRef.current.get(p.id)! : { leftOffset: leftOffsets[presentIndex]!, width: widths[presentIndex]! };
           const Component = resolveViewIn(templateOf, p.view);
-          const { closable, draggable, placeable, resizable, formFactors, enterFrom, exitTo, closeExit, animated, layer, scrollOnDrag, headerButtons } = effective(p);
+          const { closable, draggable, placeable, resizable, formFactors, enterFrom, exitTo, closeExit, animated, layer, scrollOnDrag, headerButtons, frame } = effective(p);
           const own = slotTuning(workspaceTuning, binding === undefined ? p.settings?.tuning : binding.panelTuning(p as PanelWindow));
           const handle = viewContext?.handleFor(p.id);
           const report = binding?.reportError ?? console.error;
@@ -328,6 +328,7 @@ export function PanelRow({
                 placeable,
                 resizable,
                 formFactors,
+                frame,
                 id: p.id,
                 animated,
                 setDragging: (on) => chrome.setDragging(p.id, on),

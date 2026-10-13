@@ -48,6 +48,7 @@ const VALUE: Record<string, unknown> = {
   scrollOnOpen: 'center',
   scrollOnMove: 'none',
   scrollOnDrag: 'none',
+  frame: 'none',
   toggleWhenClosed: 'reopen',
   showWhenClosed: 'reopen',
   viewState: 'reset-on-park',

@@ -4,6 +4,7 @@
  */
 import * as React from 'react';
 import Box from '@mui/material/Box';
+import { useFrameClaim } from './panelFrameClaim.js';
 import { CHROME_ATTRIBUTE, CHROME_PARTS, PanelChromeVisibleContext, useChromeFade } from './panelChrome.js';
 
 /** The footer element of the template view above, or null; provided by the view adapter, read by `PanelFooter`. @internal */
@@ -31,6 +32,8 @@ class FooterBoundary extends React.Component<{ children: React.ReactNode }, { fa
  * @public
  */
 export function PanelFooter(): React.ReactElement | null {
+  // A view that lays its footer out itself draws its own frame; the library frame would draw the footer a second time.
+  useFrameClaim('frame');
   const footer = React.useContext(PanelFooterContext);
   const fade = useChromeFade(React.useContext(PanelChromeVisibleContext));
   if (footer === null) return null;

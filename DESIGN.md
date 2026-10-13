@@ -1389,6 +1389,7 @@ flip with a transition rule of its own) or SCOPE (a template-scope key).
 | `pinning` | object { pinned: PinHalf, unpinned: PinHalf }; PinHalf = { placement?, parkable? }; valid only if readable after a drag (6A); empty = no pin | { pinned: { placement: 'row-start' }, unpinned: { placement: 'row-end' } } (0.1.0's one pin rule) | NOW. PanelState.pinned and a slot's pressed state re-read at this commit; nothing moves, parks, shows or scrolls. A deferred pin keeps its direction. An unreadable definition or in-place throws. |
 | `pinningWhenNotLive` | place-only, refuse, show, apply-on-next-show; or { parked?, hidden?, closed? } (closed: refuse or apply-on-next-show) | place-only | NEXT. Read by the next pin change. A stored deferred pin is neither applied nor dropped by a flip of this setting. C, U: the record's value governs. |
 | `headerButtons` | object: slot id (1-32 chars a-z0-9-) to HeaderButton or false; HeaderButton = { icon, label, onClick, side?, order?, pressed?, description?, tooltip?, disabled?, hidden?, sx? } (section 6) | {} (no button drawn) | NOW. L, T: a slot appears, changes or disappears at this commit; a focused button that leaves moves focus to the header row; a press already dispatched completes. K, H: stored, first drawn when it returns. null deletes the instance entry; false removes the slot. |
+| `frame` | auto, none | auto | NOW. Read from the slot on every render. A template's view that draws no `Panel` or `PanelFrame` of its own is drawn inside the library's frame at 'auto'; 'none' never adds one. auto->none takes the library frame away and the view mounts again; none->auto draws it when the view claims no part of a frame. K, H: stored, read when it returns. A view that draws its own frame is unchanged either way. |
 | `persist` | saved, session | saved | NEXT. Takes effect at the next save projection; no row effect. saved->session: the entry leaves the file; dependents get derived anchors; an explicit rememberLayout:true is settings-conflict. session->saved: written at the next save. |
 | `rememberLayout` | true, false | true (C3) | NEXT. true->false: gestures are not recorded and, at restore, stored overrides are not applied; nothing moves; the file keeps them. false->true: recording and applying resume. C3: true under persist:session is settings-conflict. |
 | `restoreVisibility` | saved, live, parked | saved (C1) | NEXT. Read only at the next launch's restore. C1: anything but live on a fixed column is settings-conflict. |
@@ -1524,10 +1525,44 @@ What stays at module level, and why none of it is a workspace's data:
 
 - `registry`: plain views by key. `registerView` is an app-wide call and a plain view is not a workspace's data.
 - `placeholders`: one placeholder component per unregistered key, so AnimatePresence sees one component type.
-- `adapters`: a WeakMap keyed by template object, one adapter component per template; the template itself is held by the workspace.
+- `adapters` (templateView.tsx): a WeakMap keyed by template object, one adapter component per template; the template itself is held by the workspace.
+- `BARE_TEMPLATES` (panelFrameBoundary.tsx): a WeakMap keyed by template object, whether that template's view was last found to draw no frame. It decides how to draw the next panel of the template, never what a workspace holds.
 - `CORES`: a WeakMap from a handle to its own core.
 - `nextEngineIdValue`: an id counter, so ids stay unique across workspaces.
 - `EMPTY_SET` and `EMPTY_MAP`: defaults for an omitted `PanelRow` prop, never written.
+
+
+## The default frame
+
+A template's view that draws no `Panel` and no `PanelFrame` is drawn inside the library's frame: the header with the panel's
+title (`labels.untitledPanel` when it has none), the grab bar of the drag-down close and the reorder drag, the phone frame and the
+template's footer, built from the exported `Panel`, `PanelFrame` and `DragToClose` and sized by the panel's slots like any other
+panel. A view that draws any part of a frame itself is left exactly as it was. The `frame` setting (`'auto'`, the default, or
+`'none'`) is the opt-out: `'none'` never adds a frame.
+
+**How the library knows.** The adapter that renders a template's view puts a boundary above it (`FrameBoundary`, no DOM). A
+`Panel`, a `PanelFrame` or a `PanelFooter` that mounts below claims the boundary in a layout effect, before paint. A boundary that
+heard no claim after the view's own layout effects draws the frame, and remembers the verdict for the template object, so the next
+panel of the same template is framed at once. One consequence is documented, not hidden: the first panel of a bare template mounts
+its view twice, once bare and once inside the frame, so a bare view must not do work in a mount effect that cannot be repeated.
+
+**The cases between.** Any claim means self-framed, as today: a view that draws only a `PanelFrame` (or only a `Panel`, or only
+`PanelFooter`) gets no library frame and no warning. A view that renders nothing first and a `Panel` later (lazy, or `null` while it
+loads) claims late; the boundary then takes the library frame back and the view mounts again without it, so state that decides
+whether the `Panel` renders belongs outside the view. React.lazy resolves from its cache on that second mount and is unaffected.
+Under StrictMode the claim is made and given back by the same effect pair, so the verdict is the same. A panel that parks and
+returns keeps the verdict; it is not probed again.
+
+**Rejected.** (a) An outer frame that every view sits in, with the inner `Panel` hiding itself when it finds one: a `Panel` the view
+configures (`grabProps`, `overlay`, `headerProps`, `sx`, its rest props) would have to hand every one of those up to the outer
+frame, and a prop missed is a view that changed. (b) An outer frame that is taken away when a claim arrives: every self-framed view
+would mount twice at launch, once inside a frame it does not want. The boundary instead leaves a self-framed view's tree as it was,
+and golden DOM recorded before the frame existed (test/golden/default-frame-self-framed.json) holds that, with mount and unmount
+counts of one and none.
+
+**Cost.** One setting: the catalog holds `frame` as NOW, instance scope, not view-settable. It is read from the slot on every
+render, so going from `'auto'` to `'none'` takes the library frame away and the view mounts again, and the other way draws it when
+the view claims no part of a frame.
 
 ## Operations on a handle
 
