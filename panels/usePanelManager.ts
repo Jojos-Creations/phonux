@@ -32,7 +32,7 @@ import {
   promoteToLive,
   recordOverride,
   rightmostLiveIndex,
-  setFormFactor,
+  resizeTo,
   sideOfLiveRange,
   type PanelWindow,
 } from '../panelWindow.js';
@@ -92,7 +92,7 @@ export interface UsePanelManagerResult {
   /** Moves `id` one row-slot toward `direction`; see `movePanel` for the no-op contract. `record` false (a call from code) leaves the person's arrangement, `overrides`, as it was. True when the move changes this render's list. */
   reorderPanel: (id: string, direction: 'left' | 'right', record?: boolean) => boolean;
   /** `setFormFactor` through setPanels; if the row no longer fits, the same update parks what the capacity drop would, keeping every acted-on panel live. False for a no-op. `record` false leaves `overrides` as it was. */
-  resizePanel: (id: string, next: FormFactor, record?: boolean) => boolean;
+  resizePanel: (id: string, next: FormFactor | number, record?: boolean) => boolean;
   /** Puts `id` where `value` says, keeping its live flag; the placement is the developer's own ask, so `placeable` is the caller's to check. `record` false leaves `overrides` as it was. True when the placement changes this render's list. */
   placeAt: (id: string, value: AddPlacement | 'in-place', record?: boolean) => boolean;
   /** The in-flight gate shared by the manager's operations and the raw mutators. */
@@ -193,11 +193,12 @@ export function usePanelManager(
    */
   const pricing = (row: readonly PanelWindow[]) => {
     const numbers = computeRowNumbers({ entries: row, phoneWidth, containerWidth, gap, fixedItemCount: fixedColumnCount });
-    // Only a row with a scroll panel prices its reserved widths one by one; any other keeps the fixed column count the host passed.
-    const reservedWidths = row.some((p) => isPresent(p) && !parksForRoom(p) && p.collapsible) ? numbers.reservedWidths : undefined;
+    // Only a row with a scroll panel, or a fixed column wider than a phone, prices its reserved widths one by one; any other keeps the fixed column count the host passed.
+    const widerThanPhone = row.some((p) => isPresent(p) && !p.collapsible && panelWidthOf(p, phoneWidth, numbers.maxLiveWidth, gap) !== phoneWidth);
+    const reservedWidths = widerThanPhone || row.some((p) => isPresent(p) && !parksForRoom(p) && p.collapsible) ? numbers.reservedWidths : undefined;
     // Parked ones included, so a pinned panel that returns is still exempt. Empty without a cap: nothing then reads a pin.
     const pinned = maxLive === null ? NO_IDS : pinnedIds(row, rootId);
-    const widthOf = (p: PanelWindow): number => panelWidthOf(p, phoneWidth, numbers.maxLiveWidth);
+    const widthOf = (p: PanelWindow): number => panelWidthOf(p, phoneWidth, numbers.maxLiveWidth, gap);
     const fitCapacityFor = (liveWidths: readonly number[]): number => {
       // `containerWidth === 0` means unmeasured (the first commit, and every jsdom test that never calls
       // measure()): null means no cap and no reconcile, never "zero panels fit".
@@ -241,11 +242,11 @@ export function usePanelManager(
   /** Every id a park must leave alone: those just acted on, and under a cap the pinned ones. */
   const keptIds = (): ReadonlySet<string> => new Set([...keepLiveRef.current.keys(), ...pinned]);
   /** Tiers resizePanel queued on `seen` that have not reached `panels` yet, so a later action in the same handler can price them. */
-  const pendingTiersRef = useRef<{ seen: PanelWindow[] | null; tiers: ReadonlyMap<string, FormFactor> }>({ seen: null, tiers: new Map() });
+  const pendingTiersRef = useRef<{ seen: PanelWindow[] | null; tiers: ReadonlyMap<string, FormFactor | number> }>({ seen: null, tiers: new Map() });
   /** `row` (read in this render) with those tiers applied. */
   const withPendingTiers = (row: PanelWindow[]): PanelWindow[] => {
     const { seen, tiers } = pendingTiersRef.current;
-    return seen === panels ? [...tiers].reduce((acc, [id, tier]) => setFormFactor(acc, id, tier), row) : row;
+    return seen === panels ? [...tiers].reduce((acc, [id, tier]) => resizeTo(acc, id, tier), row) : row;
   };
   /** `next`, plus in the same update whatever the reconcile's DROP would park, so no committed row overflows. */
   const settledKeeping = (next: PanelWindow[], keep: readonly string[]): PanelWindow[] => {
@@ -672,8 +673,8 @@ export function usePanelManager(
   };
 
   /** See `UsePanelManagerResult.resizePanel`'s own doc comment. */
-  const resizePanel = (id: string, next: FormFactor, record = true): boolean => {
-    if (setFormFactor(panels, id, next) === panels) return false;
+  const resizePanel = (id: string, next: FormFactor | number, record = true): boolean => {
+    if (resizeTo(panels, id, next) === panels) return false;
     const wasLive = panels.find((p) => p.id === id)?.live === true;
     markKeepLive(id);
     const keep = [...keptIds()];
@@ -684,12 +685,12 @@ export function usePanelManager(
       forgetCollapsed(id);
     }
     setPanels((prev) => {
-      const resized = setFormFactor(prev, id, next);
+      const resized = resizeTo(prev, id, next);
       // An earlier call in this same handler may have queued a park of it (its exit mark and stack entry are
       // dropped above): a resize never parks its own panel, so that park is cancelled before anything commits.
       const own = wasLive && resized.some((p) => p.id === id && !p.live) ? resized.map((p) => (p.id === id ? { ...p, live: true } : p)) : resized;
       const settled = settledKeeping(own, keep);
-      return record ? recordOverride(settled, 'formFactor', [id], rootId) : settled;
+      return record ? recordOverride(settled, 'slots', [id], rootId) : settled;
     });
     return true;
   };

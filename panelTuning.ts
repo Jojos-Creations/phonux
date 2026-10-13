@@ -9,6 +9,9 @@ import type { ChromeTuning, ResolvedPanelTuning, ResolvedWorkspaceTuning, Worksp
 /** The tuning a Workspace resolved; unset outside a Workspace. */
 export const WorkspaceTuningContext = React.createContext<ResolvedWorkspaceTuning | undefined>(undefined);
 
+/** The height in px the Workspace's scroll container leaves for the row (its padding taken out); 0 until measured, and always in an environment that does no layout. */
+export const RowHeightContext = React.createContext<number>(0);
+
 /** A panel's tuning: the four per-panel leaves and the workspace's row gap and chrome numbers. */
 export type SlotTuning = ResolvedPanelTuning & { readonly rowGap: number; readonly chrome: ChromeTuning };
 

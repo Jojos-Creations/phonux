@@ -94,8 +94,16 @@ export interface PanelSummary<P = JsonValue> {
   readonly locked: boolean;
   /** Opaque per-panel data a create() caller supplied; undefined for built-ins. */
   readonly params?: P;
-  /** This panel's own visual tier. */
+  /** This panel's own visual tier: the tier of its `slots` (one slot phone, two tablet, more desktop). */
   readonly formFactor?: FormFactor;
+  /** How many phone-panel widths wide the panel is set to; the row draws it at most as wide as the slots that fit (`drawnSlots`). */
+  readonly slots?: number;
+  /** The most slots the panel may take. */
+  readonly maxSlots?: number;
+  /** The slots the row draws the panel at now: `slots` capped at what fits the window. A summary a view receives from the row carries it. */
+  readonly drawnSlots?: number;
+  /** The most slots that fit the window now, at the row's gap: what a resize control may offer, whatever `maxSlots` allows. A summary a view receives from the row carries it. */
+  readonly fitSlots?: number;
   /** This panel's own rendered size. Panel/PanelFrame do not read it: a view passes it to their separate `size` prop for a non-phone tier (a phone panel follows useHost().device.size instead). */
   readonly size?: PanelSize;
 }
@@ -206,6 +214,13 @@ export interface PanelsAPI {
    * unknown id, a permanent column (e.g. History), or a panel already at `next`. See DESIGN.md for the tiers.
    */
   setFormFactor(id: string, next: FormFactor): void;
+  /**
+   * Sets `id` to `slots` phone-panel widths wide, clamped to 1 and the panel's `maxSlots`; the row draws it at most as wide as
+   * fits the window and a wider panel is a little taller (`tuning.heightPerSlot`). Otherwise as `setFormFactor`: no-op for an
+   * unknown id, a panel that is not resizable, or a panel already at that count; other panels park if the row no longer fits.
+   * Optional so a host that does not implement slots still satisfies `PanelsAPI`; the library's own provider (`useProvidePanels`) always implements it.
+   */
+  setSlots?(id: string, slots: number): void;
   /**
    * Re-places `id`, live or parked, by `anchor` (defaults as for CreatePanelOptions.anchor) and reorders the row
    * to match. On its own it never parks or reveals: which panels fit depends on their widths, never their order.

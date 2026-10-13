@@ -18,6 +18,7 @@ afterEach(() => cleanup());
 type Store = ReturnType<typeof memoryWorkspaceStorage>;
 type Done = Extract<ConfigureResult, { ok: true }>;
 const quiet = { tuning: { saveQuietMs: 5 } };
+const brief = (res: { ok: boolean; changed?: boolean; code?: string }): string => (res.ok ? (res.changed ? 'T' : 'F') : res.code!);
 const wait = (): Promise<void> => act(async () => void (await new Promise((done) => setTimeout(done, 80))));
 const ANON = [markerTemplate('m', { settings: { multiple: true } })];
 
@@ -54,7 +55,7 @@ test('rememberLayout true, false, true over three launches: the dragged and the 
   assert.deepEqual([r.order().join(' '), r.entry('b').formFactor], ['root a c b', 'tablet']);
   await quit(r);
   const first = await overridesOf(store);
-  assert.deepEqual(first, { a: { anchor: right(0) }, c: { anchor: right(1) }, b: { anchor: right(2), formFactor: 'tablet' } });
+  assert.deepEqual(first, { a: { anchor: right(0) }, c: { anchor: right(1) }, b: { anchor: right(2), slots: 2 } });
 
   r = await launch(store);
   assert.deepEqual([r.order().join(' '), r.entry('b').formFactor], ['root a c b', 'tablet'], 'launch 2 applies them');
@@ -68,7 +69,7 @@ test('rememberLayout true, false, true over three launches: the dragged and the 
   r.turn(() => r.h.a!.move('right', 'person'));
   assert.equal(r.order().join(' '), 'root b a c');
   await quit(r);
-  assert.deepEqual(await overridesOf(store), { b: { anchor: right(0), formFactor: 'tablet' }, a: { anchor: right(1) }, c: { anchor: right(2) } }, 'true again records, and the resize the false stretch skipped never replaced the stored tablet');
+  assert.deepEqual(await overridesOf(store), { b: { anchor: right(0), slots: 2 }, a: { anchor: right(1) }, c: { anchor: right(2) } }, 'true again records, and the resize the false stretch skipped never replaced the stored tablet');
 
   r = await launch(store);
   assert.deepEqual([r.order().join(' '), r.entry('b').formFactor], ['root b a c', 'tablet'], 'launch 3 applies what was kept');
@@ -105,14 +106,14 @@ test('formFactors narrowed to exclude the person\'s saved tier drops the overrid
   assert.deepEqual({ ...r.turn(() => x.configure({ formFactors: ['phone'] })) }, { ok: false, code: 'tier-not-allowed', message: `panel '${x.id}': the panel is at the tablet tier, which these settings no longer allow` }, 'control: the live tier cannot be excluded');
   r.turn(() => x.setFormFactor('phone'));
   const narrowed = ok(r.turn(() => x.configure({ formFactors: ['phone'] })));
-  assert.deepEqual([...narrowed.notes], [{ code: 'override-dropped', key: 'formFactor', message: "user.formFactor: tablet is outside this panel's formFactors; dropped" }]);
+  assert.deepEqual([...narrowed.notes], [{ code: 'override-dropped', key: 'slots', message: "user.slots: 2 is outside this panel's formFactors; dropped" }]);
   assert.equal(x.getState().formFactor, 'phone');
   await quit(r);
-  assert.equal(JSON.stringify((await file(store)).panels.find((p) => p.view === 'm')!.overrides), '{"formFactor":"tablet"}', 'the file still holds what the person chose: configure never edits it');
+  assert.equal(JSON.stringify((await file(store)).panels.find((p) => p.view === 'm')!.overrides), '{"slots":2}', 'the file still holds what the person chose: configure never edits it');
 
   r = await launch(store, { extra: ANON });
   assert.equal(anonymous(r).getState().formFactor, 'phone');
-  assert.deepEqual(r.m.notes.filter((n) => n.code === 'override-dropped').map((n) => [n.key, n.message]), [['formFactor', "user.formFactor: tablet is outside this panel's formFactors; dropped"]]);
+  assert.deepEqual(r.m.notes.filter((n) => n.code === 'override-dropped').map((n) => [n.key, n.message]), [['slots', "user.slots: 2 is outside this panel's formFactors; dropped"]]);
 });
 
 test('persist saved to session: the live panel is untouched, rememberLayout true beside it is a settings-conflict, and a panel anchored to it is saved against the row without it', async () => {
@@ -179,7 +180,7 @@ test('the file\'s overrides are unchanged by any configure, whatever its class a
   r.turn(() => r.h.b!.pin('person'));
   await wait();
   const before = await overridesOf(store);
-  assert.deepEqual(before, { a: { anchor: right(0), formFactor: 'tablet' }, c: { anchor: right(1) }, b: { anchor: right(2), parkable: false } }, 'control: the person left an override on each panel');
+  assert.deepEqual(before, { a: { anchor: right(0), slots: 2 }, c: { anchor: right(1) }, b: { anchor: right(2), parkable: false } }, 'control: the person left an override on each panel');
   const patches: [string, Record<string, unknown>][] = [
     ['a', { closable: false, title: 'A' }],
     ['a', { formFactor: 'phone', formFactors: ['phone', 'tablet'] }],
@@ -243,7 +244,7 @@ test('a Host-bag ask comes back through null in the session, the file keeps it m
   await wait();
   const savedPanel = async () => (await file(store)).panels.find((p) => p.view === 'm')!;
   const before = JSON.stringify((await savedPanel()).overrides);
-  assert.equal((await savedPanel()).overrides!.formFactor, 'tablet', 'control: the person left an override');
+  assert.equal((await savedPanel()).overrides!.slots, 2, 'control: the person left an override');
   ok(r.turn(() => x.configure({ title: 'Configured' })));
   await wait();
   assert.deepEqual([read(), (await savedPanel()).instance], [['Configured', 'instance'], { title: 'Configured' }]);
@@ -259,4 +260,33 @@ test('a Host-bag ask comes back through null in the session, the file keeps it m
   ok(r.turn(() => x.configure({ title: 'Again' })));
   ok(r.turn(() => x.configure({ title: null })));
   assert.deepEqual(read(), ['Template title', 'template'], 'so null falls through to the template');
+});
+
+test('a panel resized to three slots is saved with its count and comes back that wide, its override and its tier following', async () => {
+  const store = memoryWorkspaceStorage();
+  let r = await launch(store);
+  assert.equal(brief(r.turn(() => r.h.b!.setSlots(3, 'person'))), 'T');
+  assert.deepEqual([r.entry('b').slots, r.entry('b').formFactor], [3, 'desktop']);
+  await quit(r);
+  const saved = (await file(store)).panels.find((p) => p.key === 'b')!;
+  assert.deepEqual([saved.slots, saved.overrides?.slots], [3, 3], 'a count that is not its tier\'s own is written on the panel and as the override');
+
+  r = await launch(store);
+  assert.deepEqual([r.entry('b').slots, r.entry('b').formFactor], [3, 'desktop'], 'launch 2 restores the count');
+  const tablet = await (async () => {
+    r.turn(() => r.h.b!.setSlots(2, 'person'));
+    await quit(r);
+    return (await file(store)).panels.find((p) => p.key === 'b')!;
+  })();
+  assert.equal(tablet.slots, undefined, 'a count that is its tier\'s own is not written on the panel');
+  assert.equal(tablet.overrides?.slots, 2);
+});
+
+test('a code resize is not an override: the file holds the count on the panel and no override', async () => {
+  const store = memoryWorkspaceStorage();
+  const r = await launch(store);
+  assert.equal(brief(r.turn(() => r.h.b!.setSlots(3))), 'T');
+  await quit(r);
+  const saved = (await file(store)).panels.find((p) => p.key === 'b')!;
+  assert.deepEqual([saved.slots, saved.overrides], [3, {}]);
 });

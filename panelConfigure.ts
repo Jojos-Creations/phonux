@@ -91,9 +91,9 @@ export function checkPatch(call: ConfigureCall, patch: unknown): { names: string
 }
 
 /** The settings whose configure class acts at this commit; `parkable` and `formFactors` are STATE keys that change what the panel is or may be at once. */
-const NOW_STATE: ReadonlySet<string> = new Set(['parkable', 'formFactors']);
+const NOW_STATE: ReadonlySet<string> = new Set(['parkable', 'formFactors', 'maxSlots']);
 /** What a parked or held panel shows or answers at once: its permissions, its listing and its title. The rest waits for it to be drawn. */
-const WHILE_PARKED: ReadonlySet<string> = new Set(['closable', 'draggable', 'crossable', 'placeable', 'resizable', 'listed', 'title', 'pinning', 'parkable', 'formFactors']);
+const WHILE_PARKED: ReadonlySet<string> = new Set(['closable', 'draggable', 'crossable', 'placeable', 'resizable', 'listed', 'title', 'pinning', 'parkable', 'formFactors', 'maxSlots']);
 
 /** Whether `name` acts at this commit on a panel in `status`. */
 export function actsNow(name: string, status: 'live' | 'parked' | 'hidden' | 'closed'): boolean {
@@ -144,6 +144,8 @@ export interface InstanceInput {
   root: boolean;
   /** The tier the entry is at; absent for a closed record. */
   tier: FormFactor | undefined;
+  /** The slot count the entry is at; absent for a closed record. */
+  slots?: number | undefined;
   status: 'live' | 'parked' | 'hidden' | 'closed';
 }
 
@@ -229,6 +231,10 @@ export function planInstance(i: InstanceInput): InstancePlan {
   if (fresh !== undefined) return { ok: false, code: 'settings-conflict', message: fresh.message, setting: fresh.key };
   if (i.tier !== undefined && before.value.formFactors.includes(i.tier) && !after.value.formFactors.includes(i.tier)) {
     return { ok: false, code: 'tier-not-allowed', message: `the panel is at the ${i.tier} tier, which these settings no longer allow` };
+  }
+
+  if (i.slots !== undefined && i.slots <= before.value.maxSlots && i.slots > after.value.maxSlots) {
+    return { ok: false, code: 'tier-not-allowed', message: `the panel is ${i.slots} slots wide, which these settings no longer allow` };
   }
 
   const changed = i.names.filter((n) => differs(base, layer, n));

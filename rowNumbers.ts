@@ -69,7 +69,7 @@ export function computeRowNumbers(i: {
   const windowWidth = measured ? Math.max(0, i.containerWidth - 2 * i.gap) : Number.POSITIVE_INFINITY;
   const fixedItemCount = i.fixedItemCount ?? present.filter((p) => !p.collapsible).length;
   const maxLiveWidth = rowScroll ? Math.max(i.phoneWidth, windowWidth) : computeMaxLiveWidth({ containerWidth: i.containerWidth, phoneWidth: i.phoneWidth, gap: i.gap, fixedItemCount });
-  const widths = present.map((p) => panelWidthOf(p, i.phoneWidth, maxLiveWidth));
+  const widths = present.map((p) => panelWidthOf(p, i.phoneWidth, maxLiveWidth, i.gap));
   const parks = present.map((p) => parksForRoom(p));
   const parkLiveWidths = widths.filter((_, k) => parks[k]);
   const reservedWidths = widths.filter((_, k) => !parks[k]);
