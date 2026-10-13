@@ -307,6 +307,17 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
   const { maxLiveWidth } = rowNumbers;
   const liveWidths = panels.filter((p) => p.collapsible && p.live).map((p) => panelWidthOf(p, i.phoneWidth, maxLiveWidth, tuning.rowGap));
   const reducedMotion = useReducedMotionConfig() === true;
+  const slotsWarnedRef = useRef(new Set<string>());
+  // A template that asks for more than its maxSlots warns once; a call to setSlots does the same instead of clamping silently.
+  const warnSlotsClamped = (target: PanelWindow, asked: number): void => {
+    const max = effective(target).maxSlots;
+    if (asked <= max) return;
+    const key = panelKey(target);
+    const warned = `${key}\u0000${asked}`;
+    if (slotsWarnedRef.current.has(warned)) return;
+    slotsWarnedRef.current.add(warned);
+    console.warn(`panel '${key}': setSlots(${asked}) is above its maxSlots (${max}); the panel is made ${max} wide`);
+  };
   const pendingScrollRef = useRef<ScrollRequest | null>(null);
   const [, bumpScroll] = useState(0);
   const scrollNote = (code: string, panelId: string, message: string): void => {
@@ -728,6 +739,7 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
     const settings = effective(target);
     if (!settings.resizable) return refused('not-resizable', `panel '${panelKey(target)}' cannot be resized`);
     if (typeof next === 'string' && !settings.formFactors.includes(next)) return refused('tier-not-allowed', `panel '${panelKey(target)}' does not allow the ${next} tier`);
+    if (typeof next === 'number' && source !== 'person') warnSlotsClamped(target, next);
     const token = gate.take([engineId], 'other')!;
     const changed = resizePanel(engineId, next, source === 'person');
     if (changed) {
@@ -984,6 +996,8 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
       (id: string, _slots: number) => [id],
       'other',
       (id, slots) => {
+        const target = panels.find((p) => p.id === id);
+        if (target !== undefined) warnSlotsClamped(target, slots);
         if (resizePanel(id, slots)) {
           i.onPanelResize?.();
           followPanel(id);

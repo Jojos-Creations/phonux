@@ -3,10 +3,11 @@
  * mounted PanelRow for the widths, the heights, the alignment and the summary a view reads, one differential per
  * setting this entry owns, and the resolver rules for slots against formFactor.
  */
-import { test, afterEach } from 'node:test';
+import { test, afterEach, mock } from 'node:test';
 import assert from 'node:assert/strict';
 import './support/jsdom-globals.js';
 import * as React from 'react';
+import { act } from 'react';
 import { PanelRow, registerView, resolvePanelSettings } from '../index.js';
 import type { PanelSummary, PanelWindow, WorkspaceTuning } from '../index.js';
 import { RowHeightContext } from '../panelTuning.js';
@@ -15,7 +16,9 @@ import { appendPanel, createHistoryPanel, setFormFactor, setSlots } from '../pan
 import { projectWorkspaceState } from '../workspaceState.js';
 import { ALL_SLOTS, fitSlots, slotHeight, slotWidth, slotsOfTier, tierOfSlots } from '../rowConstants.js';
 import { differential, differentialsCovered } from './support/differential.js';
-import { cleanup, mount, withHost } from './support/mount-harness.js';
+import { advanceFrames, cleanup, mount, withHost } from './support/mount-harness.js';
+import { drawnSlotsOf } from '../panelTiers.js';
+import { made as scrollMade, mountRow, rootEntry, row } from './support/scroll-row.js';
 
 const ROOT = 'root';
 const NONE: ReadonlySet<string> = new Set();
@@ -218,4 +221,46 @@ test('the root\'s slot count is saved as rootSlots only when it is more than one
 
 test('this file completed the differential of every name it owns', () => {
   assert.deepEqual(differentialsCovered(), [...OWNED].sort());
+});
+
+test('drawnSlotsOf holds an entry to its own maxSlots even if its slots were stored above it', () => {
+  const entry = (slots: number, maxSlots: number): Parameters<typeof drawnSlotsOf>[0] => ({ slots, settings: { maxSlots } as never });
+  assert.equal(drawnSlotsOf(entry(4, 2), 390, 1608, 16), 2, 'capped at maxSlots although four fit');
+  assert.equal(drawnSlotsOf(entry(4, 4), 390, 796, 16), 2, 'and at what fits');
+  assert.equal(drawnSlotsOf({ slots: undefined, settings: undefined }, 390, 1608, 16), undefined, 'a hand-built entry has no slot count');
+});
+
+test('a panel closing out of a tall row leaves by the row bottom, not the phone height', async () => {
+  const { height } = phone();
+  const rowBottom = height + 96;
+  const closing = new Set(['b']);
+  const ui = (entries: PanelWindow[]): React.ReactElement =>
+    React.createElement(RowHeightContext.Provider, { value: height + 400 }, withHost(React.createElement(PanelRow, { entries, rootId: ROOT, closingIds: closing, enteringViaAnchorIds: NONE })));
+  const mounted = mount(ui([made('a'), made('b', { slots: 3, maxSlots: 3 })]));
+  mounted.rerender(ui([made('a')]));
+  let y = 0;
+  for (let frame = 0; frame < 120; frame += 1) {
+    await advanceFrames(16);
+    const slot = mounted.container.querySelector('[data-slot="b"]')?.parentElement;
+    if (!slot) break;
+    y = Number(/translateY\((-?[\d.e+-]+)px\)/.exec(slot.style.transform)?.[1] ?? y);
+  }
+  mounted.unmount();
+  assert.ok(y > height, `the slot dropped past the phone height (${y})`);
+  assert.ok(y <= rowBottom, `and no further than the row bottom (${y})`);
+});
+
+test('setSlots above a panel maxSlots warns once, as a template asking too much does, and still clamps', () => {
+  const warn = mock.method(console, 'warn', () => undefined);
+  try {
+    const m = mountRow(row(rootEntry(), scrollMade('a', { slots: 1, maxSlots: 2, formFactors: ['phone', 'tablet'] })), 1000);
+    act(() => void m.latest().setSlots('a', 5));
+    act(() => void m.latest().setSlots('a', 5));
+    assert.equal(m.latest().entries.find((p) => p.id === 'a')!.slots, 2, 'clamped to maxSlots');
+    const warnings = warn.mock.calls.map((c) => String(c.arguments[0])).filter((t) => t.includes('maxSlots'));
+    assert.equal(warnings.length, 1, 'one warning for the same ask');
+    assert.match(warnings[0]!, /'a'.*setSlots\(5\).*maxSlots \(2\)/);
+  } finally {
+    warn.mock.restore();
+  }
 });
