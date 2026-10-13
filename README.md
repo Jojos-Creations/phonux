@@ -94,6 +94,12 @@ recorded, in order, on the returned host's `.calls`.
 See `DESIGN.md` in this folder for the reasoning behind the API shape, the
 panel-view registry, and what stays out of a view's reach on purpose.
 
+## License
+
+phonux is licensed under the [PolyForm Noncommercial License 1.0.0](https://polyformproject.org/licenses/noncommercial/1.0.0): personal and other noncommercial use is free. Commercial use needs a separate paid licence. For commercial licensing, contact Jojos-Creations on GitHub (https://github.com/Jojos-Creations).
+
+Versions 0.1.0 and 0.2.0-rc.2 were published under the MIT licence and stay MIT. From 0.2.0-rc.3 on, phonux is PolyForm Noncommercial. Third-party notices are in THIRD_PARTY_NOTICES.md in the package.
+
 ## Developing phonux
 
 `npm ci`, then `npm run typecheck`, `npm test`, `npm run build`, `npm run check:api-report` and `npm run smoke` (the smoke installs from the registry). DESIGN.md, shipped in the package, covers the design, the release flow and how to try a change in an app before publishing.

@@ -11,6 +11,12 @@
   `dismiss`, which only the prompt read. The phone size, `PHONE_MODELS`, `findPhoneModel` and `chooseModel` stay. A
   host that rendered the prompt deletes it and its `detectedPhone` wiring.
 
+### Changed
+
+- Licence: phonux is now PolyForm Noncommercial 1.0.0 (SPDX `PolyForm-Noncommercial-1.0.0`), free for personal and other
+  noncommercial use, with commercial use through a separate paid licence. 0.1.0 and 0.2.0-rc.2 stay MIT. The package now
+  ships `THIRD_PARTY_NOTICES.md` for the MIT-licensed phone-model entries.
+
 ### Added
 
 - Slot sizing: a panel is n whole slots wide, a slot being one phone width with the row gap between slots, and a little taller
