@@ -183,3 +183,129 @@ test('PanelHeaderButtons draws both forms in a custom header', async () => {
   const custom = rig.m.container.querySelector('[data-custom]')!;
   assert.deepEqual([...custom.querySelectorAll('button')].map((b) => b.textContent), ['', 'Save']);
 });
+
+/** Stubs the two widths the clipping test reads on a text button's label, and a ResizeObserver that hands its callback out. */
+function stubMeasure(): { widths: { scroll: number; client: number }; observers: (() => void)[]; restore: () => void } {
+  const proto = HTMLElement.prototype;
+  const widths = { scroll: 0, client: 0 };
+  const observers: (() => void)[] = [];
+  const own = (el: unknown): boolean => (el as HTMLElement).hasAttribute('data-header-button-text');
+  Object.defineProperty(proto, 'scrollWidth', { configurable: true, get() { return own(this) ? widths.scroll : 0; } });
+  Object.defineProperty(proto, 'clientWidth', { configurable: true, get() { return own(this) ? widths.client : 0; } });
+  const had = Object.getOwnPropertyDescriptor(globalThis, 'ResizeObserver');
+  class FakeObserver {
+    constructor(private readonly cb: () => void) {}
+    observe(): void {
+      observers.push(this.cb);
+    }
+    disconnect(): void {}
+    unobserve(): void {}
+  }
+  Object.defineProperty(globalThis, 'ResizeObserver', { configurable: true, writable: true, value: FakeObserver });
+  return {
+    widths,
+    observers,
+    restore: () => {
+      delete (proto as unknown as Record<string, unknown>).scrollWidth;
+      delete (proto as unknown as Record<string, unknown>).clientWidth;
+      if (had === undefined) delete (globalThis as Record<string, unknown>).ResizeObserver;
+      else Object.defineProperty(globalThis, 'ResizeObserver', had);
+    },
+  };
+}
+
+const hoverFirst = async (rig: Awaited<ReturnType<typeof headerRig>>): Promise<string | null | undefined> => {
+  act(() => void rig.buttons('a')[0]!.dispatchEvent(new MouseEvent('mouseover', { bubbles: true })));
+  await tipDelay();
+  return document.querySelector('[role="tooltip"]')?.textContent;
+};
+
+test('clipping: a label is clipped only when its text is wider than its box, so equal widths and unmeasured (0 and 0) get no tooltip', async () => {
+  const m = stubMeasure();
+  try {
+    m.widths.scroll = 100;
+    m.widths.client = 100;
+    assert.equal(await hoverFirst(await headerRig({ ids: ['a'], slots: { t: textSlot('Exact fit') } })), undefined, 'equal widths: not clipped');
+    cleanup();
+    m.widths.scroll = 101;
+    assert.equal(await hoverFirst(await headerRig({ ids: ['a'], slots: { t: textSlot('One pixel over') } })), 'One pixel over', 'one pixel wider: clipped');
+    cleanup();
+    m.widths.scroll = 0;
+    m.widths.client = 0;
+    assert.equal(await hoverFirst(await headerRig({ ids: ['a'], slots: { t: textSlot('Unmeasured') } })), undefined, 'no layout: not clipped');
+  } finally {
+    m.restore();
+  }
+});
+
+test('clipping: the box is measured again when it resizes, so a panel made narrower gains the tooltip and one made wider loses it', async () => {
+  const m = stubMeasure();
+  try {
+    m.widths.scroll = 100;
+    m.widths.client = 100;
+    const rig = await headerRig({ ids: ['a'], slots: { t: textSlot('Resizing label') } });
+    assert.ok(m.observers.length > 0, 'the label box is observed');
+    m.widths.client = 60;
+    act(() => void m.observers.forEach((cb) => cb()));
+    assert.equal(await hoverFirst(rig), 'Resizing label', 'narrower: clipped');
+    act(() => void rig.buttons('a')[0]!.dispatchEvent(new MouseEvent('mouseout', { bubbles: true })));
+    await tipDelay();
+    m.widths.client = 100;
+    act(() => void m.observers.forEach((cb) => cb()));
+    act(() => void rig.buttons('a')[0]!.dispatchEvent(new MouseEvent('mouseover', { bubbles: true })));
+    await tipDelay();
+    assert.equal(document.querySelector('[role="tooltip"]'), null, 'wider again: not clipped');
+  } finally {
+    m.restore();
+  }
+});
+
+test('clipping: a label function that returns longer text is measured again', async () => {
+  const m = stubMeasure();
+  let long = false;
+  try {
+    const rig = await headerRig({ ids: ['a'], slots: { t: textSlot('x', { label: () => (long ? 'A much longer label than before' : 'Short') }) } });
+    m.widths.client = 50;
+    m.widths.scroll = 40;
+    long = true;
+    m.widths.scroll = 120;
+    act(() => void rig.h.a!.hide());
+    act(() => void rig.h.a!.show());
+    assert.equal(rig.buttons('a')[0]!.textContent, 'A much longer label than before');
+    assert.equal(await hoverFirst(rig), 'A much longer label than before');
+  } finally {
+    m.restore();
+  }
+});
+
+test('a literal null icon is the icon form: accepted, listed as icon with a null icon, and drawn with no text', async () => {
+  assert.doesNotThrow(resolveWith({ n: { icon: null, label: 'Null glyph', onClick: () => undefined } }));
+  const seen: PanelHeaderButtonItem[][] = [];
+  function Custom(): ReactElement {
+    seen.push([...usePanelHeaderButtons()]);
+    return createElement('span');
+  }
+  const rig = await headerRig({ ids: ['a'], slots: { n: { icon: null, label: 'Null glyph', onClick: () => undefined } }, body: createElement(Custom) });
+  const item = seen[seen.length - 1]![0]!;
+  assert.equal(item.form, 'icon');
+  assert.equal(item.icon, null);
+  assert.equal(rig.buttons('a')[0]!.textContent, '');
+  assert.equal(rig.buttons('a')[0]!.getAttribute('aria-label'), 'Null glyph');
+});
+
+test('a disabled text button is dimmed and shows the default cursor, like a disabled icon button, and an enabled one is not', async () => {
+  const rig = await headerRig({ ids: ['a'], slots: { off: textSlot('Off', { disabled: true, order: 0 }), on: textSlot('On', { order: 1 }), ioff: iconSlot('Icon off', { disabled: true, order: 2 }) } });
+  const [off, on, ioff] = rig.buttons('a').map((b) => getComputedStyle(b));
+  assert.equal(off!.opacity, '0.38');
+  assert.equal(off!.cursor, 'default');
+  assert.notEqual(on!.opacity, '0.38');
+  assert.equal(ioff!.opacity, off!.opacity, 'both forms dim the same');
+});
+
+test('colour: a text button takes the header colour like an icon button, and a declared sx colour wins', async () => {
+  const rig = await headerRig({ ids: ['a'], slots: { t: textSlot('Plain', { order: 0 }), i: iconSlot('Icon', { order: 1 }), c: textSlot('Red', { order: 2, sx: { color: 'rgb(255, 0, 0)' } }) } });
+  const [plain, icon, red] = rig.buttons('a').map((b) => getComputedStyle(b).color);
+  assert.equal(plain, 'inherit');
+  assert.equal(plain, icon);
+  assert.equal(red, 'rgb(255, 0, 0)');
+});
