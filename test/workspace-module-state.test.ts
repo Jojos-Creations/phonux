@@ -11,14 +11,15 @@ import { fileURLToPath } from 'node:url';
 const ROOT = fileURLToPath(new URL('..', import.meta.url));
 
 /** Every module-level `let`, and every module-level binding made with `new Map/Set/WeakMap/WeakSet`, as `file:name`. */
-const FILES = ['autoMount.tsx', 'autoMountContext.ts', 'workspaceCore.ts', 'viewRegistry.tsx', 'hostApi.tsx', 'PanelRow.tsx', 'Workspace.tsx', 'panels/useProvidePanels.ts', 'panels/useWorkspacePersistence.ts', 'index.ts'];
+const FILES = ['autoMount.tsx', 'autoMountContext.ts', 'workspaceCore.ts', 'viewRegistry.tsx', 'templateView.tsx', 'panelFrameBoundary.tsx', 'hostApi.tsx', 'PanelRow.tsx', 'Workspace.tsx', 'panels/useProvidePanels.ts', 'panels/useWorkspacePersistence.ts', 'index.ts'];
 
 const ALLOWED: Record<string, string> = {
   'workspaceCore.ts:nextEngineIdValue': 'an id counter: ids stay unique across workspaces on purpose',
   'workspaceCore.ts:CORES': 'a WeakMap from a handle to its own core: it holds no state of its own',
   'viewRegistry.tsx:registry': 'plain views by key: registerView is an app-wide call and a plain view is no workspace\'s data',
   'viewRegistry.tsx:placeholders': 'one placeholder component per unregistered key',
-  'viewRegistry.tsx:adapters': 'a WeakMap keyed by template object: one adapter component per template, the template itself holds the workspace\'s view',
+  'templateView.tsx:adapters': 'a WeakMap keyed by template object: one adapter component per template, the template itself holds the workspace\'s view',
+  'panelFrameBoundary.tsx:BARE_TEMPLATES': 'a WeakMap from a template object to whether its view was last found bare: it says how to draw the template, never a workspace\'s data',
   'PanelRow.tsx:EMPTY_SET': 'a default for an omitted prop, never written',
   'PanelRow.tsx:EMPTY_MAP': 'a default for an omitted prop, never written',
 };

@@ -698,7 +698,7 @@ test('getSettings after a configure deep-equals the resolver over the patched la
       if (person) r.turn(() => r.h.b!.setFormFactor('tablet', 'person'));
       const user = person ? r.entry('b').overrides : undefined;
       done(r.turn(() => r.h.b!.configure(patch as never)));
-      const expected = resolvePanelSettings({ template: { scrollOnOpen: 'start' }, instance: patch as PanelSettings, ...(user === undefined ? {} : { user }) }, { lenient: true });
+      const expected = resolvePanelSettings({ template: { scrollOnOpen: 'start', frame: 'none' }, instance: patch as PanelSettings, ...(user === undefined ? {} : { user }) }, { lenient: true });
       assert.deepEqual(r.h.b!.getSettings(), expected, `${name}${person ? ' with the person\'s tier' : ''}`);
       const flat = Object.keys(patch).flatMap((k) => (k === 'tuning' ? Object.keys(patch.tuning as object).map((leaf) => `tuning.${leaf}`) : [k]));
       for (const key of flat) assert.equal(r.h.b!.getSettings().source[key], 'instance', `${name}: ${key} reads source instance`);

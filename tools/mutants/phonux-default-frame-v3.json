@@ -1,0 +1,136 @@
+{
+  "tests": [
+    "test/default-frame.test.ts",
+    "test/default-frame-golden.test.ts",
+    "test/panel-footer.test.ts",
+    "test/panel-settings-catalog.test.ts"
+  ],
+  "mutants": [
+    {
+      "name": "the library frame is never drawn",
+      "file": "panelFrameBoundary.tsx",
+      "find": "return bare ? <DefaultFrame",
+      "replace": "return false ? <DefaultFrame",
+      "expectRed": [
+        "a view that draws no frame is drawn inside the library frame: a titled header, a grab bar and a phone frame"
+      ]
+    },
+    {
+      "name": "the frame is drawn even when the view claimed one",
+      "file": "panelFrameBoundary.tsx",
+      "find": "const wants = frame === 'auto' && claimed.current === 0;",
+      "replace": "const wants = frame === 'auto';",
+      "expectRed": [
+        "a view that draws only a PanelFrame counts as self-framed: no library header, no second frame, one mount"
+      ]
+    },
+    {
+      "name": "the opt-out is ignored",
+      "file": "panelFrameBoundary.tsx",
+      "find": "const wants = frame === 'auto' && claimed.current === 0;",
+      "replace": "const wants = claimed.current === 0;",
+      "expectRed": [
+        "frame: 'none' draws a bare view as it is, mounted once with no frame"
+      ]
+    },
+    {
+      "name": "the verdict is not remembered for the template",
+      "file": "panelFrameBoundary.tsx",
+      "find": "if (frame === 'auto') BARE_TEMPLATES.set(template, wants);",
+      "replace": "",
+      "expectRed": [
+        "a bare view mounts again once when the frame is drawn around it; the next panel of the same template mounts once"
+      ]
+    },
+    {
+      "name": "a late claim does not release the library frame",
+      "file": "panelFrameBoundary.tsx",
+      "find": "          BARE_TEMPLATES.set(template, false);\n          setBare(false);\n",
+      "replace": "",
+      "expectRed": [
+        "a view that renders nothing at first and draws a Panel later releases the library frame"
+      ]
+    },
+    {
+      "name": "Panel does not claim",
+      "file": "Panel.tsx",
+      "find": "useFrameClaim('panel');",
+      "replace": "",
+      "expectRed": [
+        "a view that draws only a Panel, or a PanelFrame with its footer off, counts as self-framed too"
+      ]
+    },
+    {
+      "name": "PanelFrame does not claim",
+      "file": "PanelFrame.tsx",
+      "find": "useFrameClaim('frame');",
+      "replace": "",
+      "expectRed": [
+        "a view that draws only a Panel, or a PanelFrame with its footer off, counts as self-framed too"
+      ]
+    },
+    {
+      "name": "PanelFooter does not claim",
+      "file": "panelFooter.tsx",
+      "find": "  useFrameClaim('frame');\n",
+      "replace": "",
+      "expectRed": [
+        "footer={false} on the frame draws none, and PanelFooter in a view draws it"
+      ]
+    },
+    {
+      "name": "the library header has no fallback title",
+      "file": "defaultFrame.tsx",
+      "find": "const title = panel.title ?? labels.untitledPanel;",
+      "replace": "const title = panel.title;",
+      "expectRed": [
+        "a bare view with no title shows the untitled label, and the title the panel carries once it has one"
+      ]
+    },
+    {
+      "name": "the library frame has no drag-to-close",
+      "file": "defaultFrame.tsx",
+      "find": "if (!closeEligible) return",
+      "replace": "if (true) return",
+      "expectRed": [
+        "a real pointer drag down on the grab bar closes a bare panel"
+      ]
+    },
+    {
+      "name": "the library frame cannot reorder",
+      "file": "defaultFrame.tsx",
+      "find": "reorderEligible && slot !== undefined",
+      "replace": "false",
+      "expectRed": [
+        "a real pointer drag sideways on the grab bar moves a bare panel past its neighbour"
+      ]
+    },
+    {
+      "name": "the library frame ignores the slot size",
+      "file": "defaultFrame.tsx",
+      "find": "const size = (panel.formFactor ?? 'phone') !== 'phone' ? panel.size : undefined;",
+      "replace": "const size = undefined;",
+      "expectRed": [
+        "at two slots the library frame is as wide as its slot"
+      ]
+    },
+    {
+      "name": "the frame setting is not read from the slot",
+      "file": "PanelRow.tsx",
+      "find": "                frame,\n",
+      "replace": "",
+      "expectRed": [
+        "frame: 'none' draws a bare view as it is, mounted once with no frame"
+      ]
+    },
+    {
+      "name": "frame defaults to none",
+      "file": "panelSettings.ts",
+      "find": "frame: 'auto' as const,",
+      "replace": "frame: 'none' as const,",
+      "expectRed": [
+        "a view that draws no frame is drawn inside the library frame: a titled header, a grab bar and a phone frame"
+      ]
+    }
+  ]
+}

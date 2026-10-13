@@ -201,6 +201,7 @@ export const matrixTemplate = (id: string, over: Partial<PanelTemplate> = {}): P
       });
     },
     ...over,
+    settings: { frame: 'none', ...over.settings },
   });
 
 export const dragLog: { ends: { id: string; offset: number; hops: number }[] } = { ends: [] };
@@ -220,6 +221,7 @@ export const dragTemplate = (id: string, over: Partial<PanelTemplate> = {}): Pan
     id,
     view: ({ panel, handle }) => createElement(DragBox, { id: panel.id, close: () => void handle.close() }),
     ...over,
+    settings: { frame: 'none', ...over.settings },
   });
 
 export interface CaptureSpy extends CaptureTrigger {

@@ -1151,6 +1151,7 @@ export type SettingValues = {
     showWhenClosed: 'refuse' | 'reopen';
     viewState: 'keep' | 'reset-on-park';
     keepMounted: boolean;
+    frame: 'auto' | 'none';
     placeOnAdd: AddPlacement;
     placeOnShow: AddPlacement | 'in-place';
     placeOnReturn: AddPlacement | 'in-place';

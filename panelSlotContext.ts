@@ -66,6 +66,8 @@ export interface PanelSlotValue {
   readonly tuning: ResolvedPanelTuning & { readonly rowGap: number; readonly chrome: ChromeTuning };
   /** Optional so a slot value built by hand (a test, a view mounted outside a row) needs none. */
   readonly dragScroll?: DragScroll | undefined;
+  /** The panel's `frame` setting: whether a view that draws no frame of its own gets the library's. Absent reads as 'auto'. */
+  readonly frame?: ResolvedPanelSettings['frame'] | undefined;
   /** The panel's declared header buttons; absent when none are declared or the row has no workspace. */
   readonly headerButtonSlots?: HeaderButtonsSlot | undefined;
   /** Marks this panel as being dragged from the moment its drag engages until it settles. Absent outside a row. */

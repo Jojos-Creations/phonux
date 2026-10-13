@@ -20,8 +20,8 @@ function read(rel: string): string {
   return source;
 }
 
-test('source: `.view ===` and `.view !==` appear in neither PanelRow.tsx nor viewRegistry.tsx -- a view is resolved through resolveViewIn(templateOf, p.view), never compared', () => {
-  for (const file of ['PanelRow.tsx', 'viewRegistry.tsx']) {
+test('source: `.view ===` and `.view !==` appear in none of PanelRow.tsx, viewRegistry.tsx and templateView.tsx -- a view is resolved through resolveViewIn(templateOf, p.view), never compared', () => {
+  for (const file of ['PanelRow.tsx', 'viewRegistry.tsx', 'templateView.tsx']) {
     assert.doesNotMatch(read(file), /\.view\s*===|\.view\s*!==/, `${file} must select a component by resolving \`view\`, never by comparing it`);
   }
   assert.match(read('PanelRow.tsx'), /resolveViewIn\(/, 'PanelRow.tsx does not call resolveViewIn(: the invariant above is checking the wrong file');

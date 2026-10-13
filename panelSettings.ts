@@ -183,7 +183,7 @@ export type PinningWhenNotLive =
 /** Which layer a resolved value came from. A rule overrides the rest and 'derived' marks a value filled from another resolved field. @public */
 export type SourceLayer = 'library' | 'workspace' | 'template' | 'host' | 'instance' | 'user' | 'derived' | 'forced';
 
-/** The 49 settings whose value is one plain member; the catalog's other names are headerButtons and the fifteen tuning leaves. @public */
+/** The 50 settings whose value is one plain member; the catalog's other names are headerButtons and the fifteen tuning leaves. @public */
 export type SettingValues = {
   /** Whether the panel can be closed; false removes the drag-down close and makes `close()` answer not-closable. */
   closable: boolean;
@@ -241,6 +241,8 @@ export type SettingValues = {
   viewState: 'keep' | 'reset-on-park';
   /** Whether parking hides the view instead of unmounting it. */
   keepMounted: boolean;
+  /** 'auto' draws the library's panel frame (header, grab bar, phone frame, footer) around a view that draws none of its own; 'none' never adds one. */
+  frame: 'auto' | 'none';
   /** Where the panel lands when it is added, and when the layout is reset. */
   placeOnAdd: AddPlacement;
   /** Where the panel lands when it is shown; 'in-place' leaves it where it is. */
@@ -1144,6 +1146,17 @@ const CATALOG_ROWS: readonly SettingDescriptor[] = [
     configure: { cls: 'NOW', doors: ['instance'] },
   },
   {
+    name: 'frame',
+    group: 'header',
+    values: 'auto, none',
+    default: 'auto',
+    scope: 'instance',
+    viewSettable: false,
+    exists: 'new',
+    ownerEntry: 'phonux-default-frame-v3',
+    configure: { cls: 'NOW', doors: ['instance'] },
+  },
+  {
     name: 'persist',
     group: 'persistence',
     values: 'saved, session',
@@ -1452,6 +1465,7 @@ export const LIBRARY_PANEL_DEFAULTS: LibraryPanelDefaults = freezeClone({
   showWhenClosed: 'refuse' as const,
   viewState: 'keep' as const,
   keepMounted: false,
+  frame: 'auto' as const,
   placeOnAdd: 'row-end' as AddPlacement,
   placeOnShow: 'in-place' as AddPlacement | 'in-place',
   placeOnReturn: 'in-place' as AddPlacement | 'in-place',
@@ -1695,6 +1709,7 @@ const SETTING_CHECKS: Record<SettingKey, Check> = {
   showWhenClosed: oneOf('refuse', 'reopen'),
   viewState: oneOf('keep', 'reset-on-park'),
   keepMounted: bool,
+  frame: oneOf('auto', 'none'),
   placeOnAdd: placementProblem,
   placeOnShow: placementOrInPlace,
   placeOnReturn: placementOrInPlace,

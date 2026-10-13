@@ -11,7 +11,8 @@ import { definePanel } from '../panelTemplate.js';
 import type { PanelTemplate } from '../panelTemplate.js';
 import { appendPanel, clearOverrides, createHistoryPanel, recordOverride, type PanelWindow } from '../panelWindow.js';
 import { computeRowOrder } from '../panelRowOrder.js';
-import { assertTemplateIdFree, registerView, resolveView, resolveViewIn } from '../viewRegistry.js';
+import { resolveViewIn } from '../templateView.js';
+import { assertTemplateIdFree, registerView, resolveView } from '../viewRegistry.js';
 import { reconcileWorkspace, type ReconcileInput } from '../workspacePlan.js';
 import { projectWorkspaceState, type WorkspacePanelState, type WorkspaceState } from '../workspaceState.js';
 

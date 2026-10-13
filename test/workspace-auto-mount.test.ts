@@ -208,7 +208,8 @@ test('the auto-mounted workspace renders the same DOM as the hand-wired one, scr
   await until('both rows', () => slots(autoTarget).length === 5 && slots(handTarget).length === 5);
   await advanceFrames(800);
   // The mount draws into a div of its own inside the target; the hand-wired tree is the root's own content.
-  const html = (el: HTMLElement): string => (el === autoTarget ? (el.firstElementChild as HTMLElement).innerHTML : el.innerHTML);
+  // dnd-kit numbers its accessibility nodes from one counter, so two trees mounted in turn differ only in those numbers.
+  const html = (el: HTMLElement): string => (el === autoTarget ? (el.firstElementChild as HTMLElement).innerHTML : el.innerHTML).replace(/(Dnd(?:DescribedBy|LiveRegion))-\d+/g, '$1-N');
   assert.equal(getComputedStyle(autoTarget.querySelector('[data-row-scroller]')!).overflowX, 'auto', 'control: at 700 wide the row scrolls');
   assert.equal(html(autoTarget), html(handTarget), 'the rows render the same DOM at 700 wide');
   await act(async () => void auto.panels.get('b')!.close());

@@ -669,6 +669,24 @@ test('matrix:listed', async () => {
   assert.equal(quiet.notes.some((n) => n.key === 'listed') || r.m.notes.some((n) => n.key === 'listed'), true, 'false on a held panel the gesture cannot release is showable by code only, and a note says so, in the result or through onNote');
 });
 
+test('matrix:frame', async () => {
+  probe('frame');
+  const r = await matrixRig();
+  const headers = (id: string): number => r.m.container.querySelector(`[data-slot="${r.entry(id).id}"]`)!.closest('[data-row-slot]')!.querySelectorAll('[data-panel-chrome-part="header"]').length;
+  assert.equal(headers('b'), 0, 'before: the view draws no frame and the template says none');
+  assert.deepEqual(shape(r.turn(() => r.h.b!.configure({ frame: 'auto' }))), { now: ['frame'], later: [], shadowed: [] });
+  await r.settle();
+  assert.equal(headers('b'), 1, 'after: the library draws its frame around the view');
+  assert.equal(headers('c'), 0, 'a neighbour is untouched');
+  done(r.turn(() => r.h.b!.configure({ frame: 'none' })));
+  await r.settle();
+  assert.equal(headers('b'), 0, 'none takes it away again');
+  r.turn(() => r.h.c!.hide());
+  await r.settle();
+  const parked = done(r.turn(() => r.h.c!.configure({ frame: 'auto' })));
+  assert.equal(parked.changed, true, 'a parked panel stores it for when it returns');
+});
+
 test('matrix:startVisibility', async () => {
   probe('startVisibility');
   const r = await matrixRig();
@@ -1793,7 +1811,7 @@ test('matrix:tuning.initialScroll', async () => {
   assert.equal(r.m.container.scrollLeft, 0, 'nothing scrolls now');
   const next = await matrixRig({ ids, width: 1000, workspace: { tuning: { initialScroll: 'end', rowGesture: 'free' } } });
   await next.settle();
-  assert.equal(next.m.container.scrollLeft, 3482, 'a mount that reads end puts the strip at its farthest legal scroll: 4450 less the 968 window');
+  assert.equal(next.m.container.scrollLeft, 3482, 'a mount that reads end puts the strip at its farthest legal scroll: 4450 less the 969 window');
   assert.equal(r.ws.tuning.initialScroll, 'end', 'the workspace now holds it for its next mount');
 });
 
@@ -1908,13 +1926,13 @@ test('the class table ran every cell: executed cells equal 4 classes by 9 status
 });
 
 // The design copy is frozen; a catalog key added after it is listed here, never in the copy.
-const ADDED_AFTER_DESIGN: readonly string[] = ['tuning.maxLivePanels', 'tuning.chrome', 'slots', 'maxSlots', 'tuning.resizeSettleSlides', 'tuning.shrinkOutOfView'];
+const ADDED_AFTER_DESIGN: readonly string[] = ['tuning.maxLivePanels', 'tuning.chrome', 'slots', 'maxSlots', 'tuning.resizeSettleSlides', 'tuning.shrinkOutOfView', 'frame'];
 
-test('the probes ran every catalog name once: 68 executed, equal to the catalog and to the design copy of it plus the names added after it', () => {
+test('the probes ran every catalog name once: 69 executed, equal to the catalog and to the design copy of it plus the names added after it', () => {
   const design = JSON.parse(readFileSync(new URL('../design/0.2-rev7/DESIGN-phonux-0.2-rev7-catalog.json', import.meta.url), 'utf8')) as { name: string }[];
   assert.equal(design.length, 62);
-  assert.equal(CATALOG_NAMES.length, 68);
-  assert.equal(probesExecuted().size, 68);
+  assert.equal(CATALOG_NAMES.length, 69);
+  assert.equal(probesExecuted().size, 69);
   assert.deepEqual([...probesExecuted()].sort(), [...CATALOG_NAMES].sort());
   assert.deepEqual([...probesExecuted()].sort(), [...design.map((d) => d.name), ...ADDED_AFTER_DESIGN].sort());
 });

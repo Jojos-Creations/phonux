@@ -11,7 +11,7 @@ import * as React from 'react';
 import { act } from 'react';
 import { PanelManagerError, createWorkspace, registerView } from '../index.js';
 import type { PanelHandle, PanelSettings, WorkspaceHandle } from '../index.js';
-import { resolveViewIn } from '../viewRegistry.js';
+import { resolveViewIn } from '../templateView.js';
 import { bindingOf, type EngineOps } from '../workspaceCore.js';
 import type { PanelWindow } from '../panelWindow.js';
 import { cleanup, mount, withHost } from './support/mount-harness.js';

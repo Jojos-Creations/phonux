@@ -59,6 +59,7 @@ export const SETTING_KEYS: Record<keyof SettingValues, true> = {
   scrollOnOpen: true,
   scrollOnMove: true,
   scrollOnDrag: true,
+  frame: true,
   toggleWhenClosed: true,
   showWhenClosed: true,
   viewState: true,
