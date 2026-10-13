@@ -300,7 +300,7 @@ test('slide: the shell glides with the resolved slide once settled, and snaps be
 });
 
 /** The props of the nearest motion component above `el` that carries `key`: a DOM node never holds them itself. */
-function motionPropsOf(el: Element, key = 'layout'): Record<string, unknown> {
+function motionPropsOf(el: Element, key: string): Record<string, unknown> {
   const fiberKey = Object.keys(el).find((k) => k.startsWith('__reactFiber$'));
   assert.ok(fiberKey, 'the node has a React fiber');
   for (let fiber = (el as unknown as Record<string, { return: unknown; memoizedProps?: Record<string, unknown> }>)[fiberKey]!; fiber; fiber = fiber.return as typeof fiber) {
@@ -309,32 +309,40 @@ function motionPropsOf(el: Element, key = 'layout'): Record<string, unknown> {
   assert.fail(`no motion component above the node carries ${key}`);
 }
 
-test("slide: PanelSizeBox's layout transition is the panel's resolved slide inside a slot and the shared one outside", () => {
-  registerView('tune-size', () => React.createElement(PanelSizeBox, { width: 390, height: 700, children: React.createElement('i') }));
-  const inRow = mount(rowOf([entry('a', { view: 'tune-size' })], { slide: { durationSec: 0.8 } }));
-  assert.deepEqual(motionPropsOf(inRow.container.querySelector('[data-panel-size-box]')!).transition, { duration: 0.8, ease: [0.2, 0, 0, 1] });
-  inRow.unmount();
-  const own = mount(rowOf([made('a', { slide: { durationSec: 0.6 } }, { view: 'tune-size' })], { slide: { durationSec: 0.8 } }));
-  assert.equal((motionPropsOf(own.container.querySelector('[data-panel-size-box]')!).transition as { duration: number }).duration, 0.6, "the panel's own slide beats the workspace's");
-  own.unmount();
-  const outside = mount(React.createElement(PanelSizeBox, { width: 390, height: 700, children: React.createElement('i') }));
-  assert.equal(motionPropsOf(outside.container.querySelector('[data-panel-size-box]')!).transition, PANEL_TRANSITION);
-  outside.unmount();
+/** The width the views that draw a PanelSizeBox below read; a test sets it before it renders again. */
+let boxWidth = 390;
+for (const name of ['tune-size', 'tune-size-own', 'snap-size', 'snap-size-r', 'snap-size-s']) registerView(name, () => React.createElement(PanelSizeBox, { width: boxWidth, height: 700, children: React.createElement('i') }));
+
+/** How long, in ms, the PanelSizeBox in what `render` draws takes to reach its new width after `boxWidth` grows from 390 to 780. */
+async function sizeGlideMs(render: () => React.ReactElement): Promise<number> {
+  boxWidth = 390;
+  const mounted = mount(render());
+  boxWidth = 780;
+  mounted.rerender(render());
+  const box = mounted.container.querySelector<HTMLElement>('[data-panel-size-box]')!;
+  let frames = 0;
+  while (box.style.transform !== '' && frames < 200) {
+    await advanceFrames(16);
+    frames += 1;
+  }
+  mounted.unmount();
+  boxWidth = 390;
+  return frames * 16;
+}
+
+test("slide: PanelSizeBox's glide is the panel's resolved slide inside a slot and the shared one outside", async () => {
+  const near = (actual: number, seconds: number, what: string): void => assert.ok(Math.abs(actual - seconds * 1000) <= 48, `${what}: ${actual} ms for ${seconds} s`);
+  near(await sizeGlideMs(() => rowOf([entry('a', { view: 'tune-size' })], { slide: { durationSec: 0.8 } })), 0.8, "the workspace's slide");
+  near(await sizeGlideMs(() => rowOf([made('a', { slide: { durationSec: 0.6 } }, { view: 'tune-size-own' })], { slide: { durationSec: 0.8 } })), 0.6, "the panel's own slide beats the workspace's");
+  near(await sizeGlideMs(() => React.createElement(PanelSizeBox, { width: boxWidth, height: 700, children: React.createElement('i') })), PANEL_TRANSITION.duration, 'outside a slot, the shared transition');
 });
 
-test('PanelSizeBox snaps under Reduce Motion and for a panel that is not animated, and glides otherwise', () => {
-  registerView('snap-size', () => React.createElement(PanelSizeBox, { width: 390, height: 700, children: React.createElement('i') }));
-  const transitionOf = (tree: React.ReactElement): unknown => {
-    const mounted = mount(tree);
-    const out = motionPropsOf(mounted.container.querySelector('[data-panel-size-box]')!).transition;
-    mounted.unmount();
-    return out;
-  };
+test('PanelSizeBox snaps under Reduce Motion and for a panel that is not animated, and glides otherwise', async () => {
   const slide = { slide: { durationSec: 0.8 } };
-  assert.deepEqual(transitionOf(rowOf([entry('a', { view: 'snap-size' })], slide)), { duration: 0.8, ease: [0.2, 0, 0, 1] }, 'positive control: the resize glides');
-  assert.deepEqual(transitionOf(React.createElement(MotionConfig, { reducedMotion: 'always' }, rowOf([entry('a', { view: 'snap-size' })], slide))), { duration: 0 }, 'Reduce Motion snaps');
-  const still = applyTemplate({ ...appendPanel([], { url: 'https://a.example', title: 'a', view: 'snap-size' }, 'a', ROOT)[0]! }, resolvePanelSettings({ template: { overflow: 'park', animated: false } }).value, 'create');
-  assert.deepEqual(transitionOf(rowOf([still], slide)), { duration: 0 }, 'a panel that is not animated snaps');
+  assert.ok((await sizeGlideMs(() => rowOf([entry('a', { view: 'snap-size' })], slide))) > 500, 'positive control: the resize glides');
+  assert.equal(await sizeGlideMs(() => React.createElement(MotionConfig, { reducedMotion: 'always' }, rowOf([entry('a', { view: 'snap-size-r' })], slide))), 0, 'Reduce Motion snaps');
+  const still = applyTemplate({ ...appendPanel([], { url: 'https://a.example', title: 'a', view: 'snap-size-s' }, 'a', ROOT)[0]! }, resolvePanelSettings({ template: { overflow: 'park', animated: false } }).value, 'create');
+  assert.equal(await sizeGlideMs(() => rowOf([still], slide)), 0, 'a panel that is not animated snaps');
 });
 
 /** A Workspace over one PanelRow: `workspace` is the Workspace's tuning, `row` the PanelRow's own prop. */

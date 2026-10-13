@@ -34,6 +34,22 @@ export interface PanelRowSlotMotion {
 /** What an `animated: false` slot moves with: the same targets, no time taken. */
 const INSTANT_TRANSITION = { duration: 0 } as const;
 
+let commitClock: number | undefined;
+/**
+ * The time the slot's slide counts from, which is the time a JS animation started in this task counts from. Motion starts a slide
+ * from the moment its keyframes resolve instead when that is over 40 ms after the commit, so a commit that janks would start the slot
+ * and the size box's scale at different moments, and a neighbour of a growing panel would trail or overrun it.
+ */
+function slideStart(): number {
+  if (commitClock === undefined) {
+    commitClock = performance.now();
+    queueMicrotask(() => {
+      commitClock = undefined;
+    });
+  }
+  return commitClock;
+}
+
 /** What a kept slot leaves with when its entry is dropped: at once, since a hidden slot has nothing left to slide. */
 const KEPT_EXIT: TargetAndTransition = { opacity: 0, transition: INSTANT_TRANSITION };
 
@@ -212,6 +228,8 @@ export function PanelRowSlot({
 }) {
   const { initial, animate: animateTarget, exit, transition } = panelRowSlotMotion(leftOffset, width, phoneHeight, enterDirection, exitDirection, animated, gap, slide, rowScroll);
   const el = React.useRef<HTMLDivElement>(null);
+  // This slot's own copy of the transition, so the moment its slide counts from can be set for the one call that starts it.
+  const startable: { duration: number; ease?: unknown; startTime?: number } = React.useMemo(() => ({ ...transition }), [transition]);
   const reducedMotion = useReducedMotionConfig();
   // The drag box reads the system preference itself, so the neighbours that make room for it must too, whatever the app's MotionConfig says.
   const systemReduced = useReducedMotion();
@@ -292,7 +310,11 @@ export function PanelRowSlot({
     const moved = lastRest.current !== leftOffset;
     lastRest.current = leftOffset;
     if (moved && (snapping || tracking) && el.current !== null && !kept && !reviving && present) slotDriver.set(el.current, { x: leftOffset, opacity: 1 });
-    else if (moved && el.current !== null && !kept && !reviving && present) slotDriver.startPending(el.current);
+    else if (moved && el.current !== null && !kept && !reviving && present) {
+      startable.startTime = slideStart();
+      slotDriver.startPending(el.current);
+      delete startable.startTime;
+    }
   });
   React.useEffect(() => {
     if (!setUpBefore.current) {
@@ -310,7 +332,7 @@ export function PanelRowSlot({
       initial={kept || reviving ? undefined : initial}
       animate={kept || reviving ? undefined : snapping || tracking ? { ...animateTarget, transition: INSTANT_TRANSITION } : animateTarget}
       exit={kept ? KEPT_EXIT : exit}
-      transition={transition}
+      transition={startable as typeof transition}
       inert={kept ? true : undefined}
       aria-hidden={hidden ? true : undefined}
       data-row-slot={leftOffset}
@@ -335,9 +357,9 @@ export function PanelRowSlot({
 
 /**
  * The element a resize animates: an INNER box, never the slot, which owns `exit` (Motion's docs warn against
- * `layout` and `exit` on one element). A layout animation sets the real size once and animates a transform
- * toward it, so the view never re-lays out mid-resize; `layout="size"` because the slot's `x` already animates
- * position. A view renders it inside its own slot, so a view that never resizes needs no wrapper.
+ * `layout` and `exit` on one element). The box takes its new size at once and a scale transform draws it at the old size and
+ * eases it to 1, so the view never re-lays out mid-resize and a neighbour's slide, which starts in the same commit, keeps
+ * step with it. A view renders it inside its own slot, so a view that never resizes needs no wrapper.
  * Under Reduce Motion, or for a panel whose `animated` setting is false, the resize snaps.
  * @public
  */
@@ -356,7 +378,7 @@ export function PanelSizeBox({
   return <SizeBox width={width} height={height}>{children}</SizeBox>;
 }
 
-/** True below a `SizeBox`: a box inside another is a plain div, because two layout animations of one size would multiply their scales. */
+/** True below a `SizeBox`: a box inside another is a plain div, because two scales of one size would multiply. */
 const SizeBoxContext = React.createContext(false);
 
 /**
@@ -367,15 +389,54 @@ const SizeBoxContext = React.createContext(false);
 export function SizeBox({ width, height, children }: { width: number; height: number | '100%'; children: React.ReactNode }) {
   const slot = React.useContext(PanelSlotContext);
   const nested = React.useContext(SizeBoxContext);
+  const parked = React.useContext(PanelHiddenContext);
   const slide = slot?.tuning.slide;
   // The system preference is read too: a theme's MotionConfig may not carry it, and a resize must snap under Reduce Motion either way.
   const configReduced = useReducedMotionConfig() === true;
   const systemReduced = useReducedMotion() === true;
-  const snaps = configReduced || systemReduced || slot?.animated === false || slot?.tracking === true;
+  const snaps = configReduced || systemReduced || slot?.animated === false || slot?.tracking === true || parked;
+  const box = React.useRef<HTMLDivElement>(null);
+  const seen = React.useRef<{ width: number; height: number | '100%' } | undefined>(undefined);
+  const scale = React.useRef({ x: 1, y: 1 });
+  const run = React.useRef<{ stop: () => void } | undefined>(undefined);
+  // The scale starts in the commit's layout effect, on the clock of the slot's slide (`slideStart`): Motion's layout animation
+  // would start in the next frame, and a commit that janks would open a gap between the box and its neighbour.
+  React.useLayoutEffect(() => {
+    const node = box.current;
+    if (node === null || nested) return;
+    const before = seen.current;
+    seen.current = { width, height };
+    run.current?.stop();
+    run.current = undefined;
+    const draw = (x: number, y: number): void => {
+      scale.current = { x, y };
+      node.style.transform = x === 1 && y === 1 ? '' : `scale(${x}, ${y})`;
+    };
+    if (before === undefined || snaps) {
+      draw(1, 1);
+      return;
+    }
+    // From where the box is drawn now, so a resize that lands mid-glide carries on from the size on screen.
+    const x0 = (before.width * scale.current.x) / width;
+    const y0 = typeof before.height === 'number' && typeof height === 'number' ? (before.height * scale.current.y) / height : 1;
+    if (Math.abs(x0 - 1) < 0.001 && Math.abs(y0 - 1) < 0.001) {
+      draw(1, 1);
+      return;
+    }
+    draw(x0, y0);
+    const transition = slide === undefined ? PANEL_TRANSITION : slideToTransition(slide);
+    run.current = animate(0, 1, {
+      ...transition,
+      startTime: slideStart(),
+      onUpdate: (p: number) => draw(x0 + (1 - x0) * p, y0 + (1 - y0) * p),
+      onComplete: () => draw(1, 1),
+    });
+  }, [width, height, snaps, nested]);
+  React.useEffect(() => () => run.current?.stop(), []);
   if (nested) return <div data-panel-size-plain="" style={{ width, height }}>{children}</div>;
   return (
-    <motion.div data-panel-size-box="" layout="size" layoutDependency={slot?.tracking === true ? 'held' : undefined} transition={snaps ? INSTANT_TRANSITION : slide === undefined ? PANEL_TRANSITION : slideToTransition(slide)} style={{ width, height }}>
+    <div ref={box} data-panel-size-box="" style={{ width, height, transformOrigin: '0 0' }}>
       <SizeBoxContext.Provider value>{children}</SizeBoxContext.Provider>
-    </motion.div>
+    </div>
   );
 }
