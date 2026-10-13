@@ -53,10 +53,11 @@ export interface ReconcileResult {
 /** The keys of `overrides` the resolver did not drop. */
 function keptOverrides(held: NonNullable<WorkspacePanelState['overrides']>, resolution: PanelSettingsResolution): NonNullable<WorkspacePanelState['overrides']> {
   const gone = new Set(resolution.notes.filter((n) => n.code === 'override-dropped').map((n) => n.key));
-  const { anchor, formFactor, parkable } = held;
+  const { anchor, formFactor, slots, parkable } = held;
   return {
     ...(anchor !== undefined ? { anchor } : {}),
     ...(formFactor !== undefined && !gone.has('formFactor') ? { formFactor } : {}),
+    ...(slots !== undefined && !gone.has('slots') ? { slots } : {}),
     ...(parkable !== undefined && !gone.has('parkable') ? { parkable } : {}),
   };
 }
@@ -156,7 +157,7 @@ export function reconcileWorkspace(i: ReconcileInput): ReconcileResult {
       ? {
           workspace,
           ...(template !== undefined ? { template: template.settings } : {}),
-          host: { listed: base.listed, layer: base.layer ?? 'base', formFactor: base.formFactor ?? 'phone' },
+          host: { listed: base.listed, layer: base.layer ?? 'base', formFactor: base.formFactor ?? 'phone', ...(base.slots !== undefined ? { slots: base.slots } : {}) },
           instance: { ...plainAsk, parkable: base.collapsible },
         }
       : { workspace, ...(template !== undefined ? { template: template.settings } : {}), instance: plainAsk };
@@ -187,6 +188,7 @@ export function reconcileWorkspace(i: ReconcileInput): ReconcileResult {
       ...reconfigured,
       live,
       formFactor: tier,
+      slots: settings.slots,
       size: base.size?.formFactor === tier ? base.size : { ...TIER_SIZES[tier] },
       ...(anchor !== undefined ? { anchor } : {}),
       ...(key !== undefined ? { key } : {}),

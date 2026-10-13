@@ -9,6 +9,18 @@
   rejected as invalid settings. `usePanelHeaderButtons` items carry `form: 'icon' | 'text'` (`PanelHeaderButtonItem` is now
   a union), with `icon` undefined in the text form. Text longer than 9em is clipped with an ellipsis and, with no `tooltip`
   declared, shows in full as the tooltip.
+- Slot sizing: a panel is n whole slots wide, a slot being one phone width with the row gap between slots, and a little taller
+  for each slot past the first. New per-panel settings `slots` (the choice; `formFactor` becomes its view: 1 phone, 2 tablet,
+  3 or more desktop) and `maxSlots`; new workspace tuning `heightPerSlot` (default 48 px, held to the height the row has)
+  and `rowAlign` (`'center'` default, `'top'`, `'bottom'`). `PanelSizeBox` snaps its resize under Reduce Motion and for a panel with `animated: false`. `PanelsAPI.setSlots(id, slots)` and a `setSlots` verb on the
+  handle resize by a count, clamped to `maxSlots` and to what fits the window; `PanelSummary` gains `slots`, `maxSlots`,
+  `drawnSlots` and `fitSlots` (the most slots that fit the window), and `size.height` is the drawn height. The row is as tall as its tallest panel and measures the height its
+  scroll container leaves; a shorter panel sits at `rowAlign`. A person's resize is saved as `overrides.slots`, and the
+  panel's own count on the panel when it is not its tier's own; History's count is saved as `rootSlots`.
+- A fixed column (`parkable: false`, History) keeps the size settings its own template, host or instance asked for
+  (`resizable`, `formFactors`, `formFactor`, `slots`, `maxSlots` stand together), so History can be resizable. Unasked, a
+  fixed column is still one phone slot, and a workspace default never unlocks one. A new `resizable-capped` note says a
+  `resizable: true` cannot grow because `maxSlots` resolves to 1.
 - `ACTIVE_ATTRIBUTE`, `DRAGGING_ATTRIBUTE` and `CHROME_ATTRIBUTE` (the `data-panel-*` names `Panel` writes), and `CHROME_PARTS` with
   the `ChromePart` type (the values of `CHROME_ATTRIBUTE`: `header`, `grab-bar`, `footer`), are exported from the package
   entry so a host stops repeating the strings. The DOM is unchanged.
@@ -64,6 +76,13 @@
 
 ### Changed
 
+- **Default behaviour change.** A resized panel is now whole slots wide: a tablet is two slots (796 at a 390 phone and a 16 px
+  gap, was 768) and a desktop panel is every slot the window fits (two at a 1000 px container, was a 968 px clip), so a
+  panel's edges land on the row's stops. An unmeasured row draws a desktop panel three slots wide (was 1200 px). A hand-built
+  entry with no `slots` keeps the old tier widths.
+- `PanelsAPI.setFormFactor`, the `formFactor` setting and `formFactors` are deprecated in favour of `setSlots`, `slots` and
+  `maxSlots`. They keep working through 0.2.0-rc.3 and are removed in rc.4. A person's resize is now saved as
+  `overrides.slots`; a file holding only `overrides.formFactor` still reads as that tier's count.
 - **Default behaviour change.** The header buttons are now one Tab stop with roving focus, as a toolbar should be: Tab enters
   the row once, Arrow Left and Right, Home and End move along it, a disabled button is skipped and never holds the stop, and
   the row carries `role="toolbar"`, `aria-orientation="horizontal"` and, for a string title, `aria-label`. Before, every button

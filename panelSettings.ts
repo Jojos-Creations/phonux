@@ -13,6 +13,7 @@ import type { PanelRowEntry } from './panelRowEntry.js';
 import type { PanelState, ViewHandle } from './panelTemplate.js';
 import type { PanelWindow } from './panelWindow.js';
 import {
+  ALL_SLOTS,
   CHROME,
   RESIZE_SETTLE_SLIDES,
   CLOSE_EXIT_EASE,
@@ -25,11 +26,13 @@ import {
   EDGE_SCROLL_REDUCED_STEP_MS,
   EDGE_SCROLL_ZONE_PX,
   GESTURE_LOCK_MS,
+  HEIGHT_PER_SLOT,
   GESTURE_QUIET_MS,
   GLIDE_EASE,
   HOP_FRACTION,
   INITIAL_SCROLL,
   RETURN_TIE_BREAK,
+  ROW_ALIGN,
   ROW_GAP,
   ROW_GESTURE,
   SAVE_QUIET_MS,
@@ -37,6 +40,8 @@ import {
   SLIDE_DURATION_SEC,
   SLIDE_EASE,
   SNAP_BACK_SPRING,
+  slotsOfTier,
+  tierOfSlots,
 } from './rowConstants.js';
 
 // ---------------------------------------------------------------------------
@@ -257,8 +262,12 @@ export type SettingValues = {
   closeExit: 'down' | 'left' | 'right';
   /** Whether the panel's enter, exit, park and scroll are animated. */
   animated: boolean;
-  /** The tier a panel starts at; it never resizes a panel that already exists. */
+  /** The tier a panel starts at; it never resizes a panel that already exists. Reports the tier of `slots`: one slot phone, two tablet, more desktop. */
   formFactor: FormFactor;
+  /** How many phone-panel widths wide the panel is, an integer of 1 or more; the row draws at most the slots that fit. Derived from `formFactor` when no layer sets it, and it then wins over `formFactor`. */
+  slots: number;
+  /** The most slots the panel may take, an integer of 1 or more. Derived from the widest of `formFactors` when no layer sets it. */
+  maxSlots: number;
   /** The panel's title. */
   title: string;
   /** What `pin()` and `unpin()` do, and what the panel reads as pinned. */
@@ -405,6 +414,10 @@ export type WorkspaceTuning = PanelTuning & {
    * value, in one commit; a panel the host hid stays hidden, and scrolling, closing, resizing or an equal or lower value return none.
    */
   maxLivePanels?: number | null;
+  /** Pixels a panel grows taller for each slot it is wider than one, an integer from 0 to 2000; the row's own height caps the result. */
+  heightPerSlot?: number;
+  /** Where a panel shorter than the row sits in it: 'top', 'center' or 'bottom'. */
+  rowAlign?: 'top' | 'center' | 'bottom';
 };
 
 /** The per-panel tuning leaves after resolving, every one present. @public */
@@ -443,6 +456,10 @@ export type ResolvedWorkspaceTuning = ResolvedPanelTuning & {
   chrome: ChromeTuning;
   /** The most unpinned parkable panels the row keeps live, or `null` for no cap. */
   maxLivePanels: number | null;
+  /** Pixels a panel grows taller for each slot beyond the first. */
+  heightPerSlot: number;
+  /** Where a panel shorter than the row sits in it. */
+  rowAlign: 'top' | 'center' | 'bottom';
 };
 
 /** Deeply frozen; every key is present after a resolve except `title`. @public */
@@ -552,8 +569,10 @@ export type PanelSettingsLayers = {
 
 /** The person's own overrides: the only three things a person can change about a panel. @public */
 export type PanelUserLayer = {
-  /** The tier the person chose. */
+  /** The tier the person chose; read as a slot count when `slots` is absent. */
   formFactor?: FormFactor;
+  /** The slot count the person chose; wins over `formFactor`. */
+  slots?: number;
   /** Where the person put the panel. */
   anchor?: AnchorRequest;
   /** Whether the person made the panel parkable. */
@@ -1061,6 +1080,28 @@ const CATALOG_ROWS: readonly SettingDescriptor[] = [
     configure: { cls: 'NEXT', doors: ['instance'] },
   },
   {
+    name: 'slots',
+    group: 'identity',
+    values: 'integer >= 1',
+    default: 'derived: the slot count of formFactor (phone 1, tablet 2, desktop every visible slot)',
+    scope: 'instance',
+    viewSettable: true,
+    exists: 'new',
+    ownerEntry: 'phonux-slot-sizing-resizable-root-v3',
+    configure: { cls: 'NEXT', doors: ['instance'] },
+  },
+  {
+    name: 'maxSlots',
+    group: 'permissions',
+    values: 'integer >= 1',
+    default: 'derived: the widest slot count formFactors allows (C1)',
+    scope: 'instance',
+    viewSettable: false,
+    exists: 'new',
+    ownerEntry: 'phonux-slot-sizing-resizable-root-v3',
+    configure: { cls: 'STATE', doors: ['instance'] },
+  },
+  {
     name: 'title',
     group: 'identity',
     values: 'string',
@@ -1346,6 +1387,28 @@ const CATALOG_ROWS: readonly SettingDescriptor[] = [
     ownerEntry: 'phonux-max-live-panels',
     configure: { cls: 'NOW', doors: ['tuning'] },
   },
+  {
+    name: 'tuning.heightPerSlot',
+    group: 'tuning',
+    values: 'integer 0 to 2000, px added per slot beyond the first (workspace only)',
+    default: '48 (HEIGHT_PER_SLOT)',
+    scope: 'workspace',
+    viewSettable: false,
+    exists: 'new',
+    ownerEntry: 'phonux-slot-sizing-resizable-root-v3',
+    configure: { cls: 'NOW', doors: ['tuning'] },
+  },
+  {
+    name: 'tuning.rowAlign',
+    group: 'tuning',
+    values: 'top, center, bottom (workspace only)',
+    default: 'center (ROW_ALIGN)',
+    scope: 'workspace',
+    viewSettable: false,
+    exists: 'new',
+    ownerEntry: 'phonux-slot-sizing-resizable-root-v3',
+    configure: { cls: 'NOW', doors: ['tuning'] },
+  },
 ];
 
 /**
@@ -1364,7 +1427,7 @@ type DerivedDefaultKey = (typeof DERIVED_DEFAULT_KEYS)[number];
 
 /** Every setting that has its own default. The four derived ones follow `parkable` and `closable`; `title` has none. @public */
 export type LibraryPanelDefaults = {
-  readonly [K in Exclude<keyof SettingValues, 'draggable' | 'placeable' | 'listed' | 'clearable' | 'title'>]: SettingValues[K];
+  readonly [K in Exclude<keyof SettingValues, 'draggable' | 'placeable' | 'listed' | 'clearable' | 'title' | 'slots' | 'maxSlots'>]: SettingValues[K];
 } & {
   /** No header buttons by default. */
   readonly headerButtons: { readonly [id: string]: HeaderButton };
@@ -1457,6 +1520,8 @@ export const LIBRARY_TUNING_DEFAULTS: ResolvedWorkspaceTuning = freezeClone({
   initialScroll: INITIAL_SCROLL as ResolvedWorkspaceTuning['initialScroll'],
   chrome: { ...CHROME },
   maxLivePanels: null,
+  heightPerSlot: HEIGHT_PER_SLOT,
+  rowAlign: ROW_ALIGN as ResolvedWorkspaceTuning['rowAlign'],
 });
 
 // ---------------------------------------------------------------------------
@@ -1655,6 +1720,8 @@ const SETTING_CHECKS: Record<SettingKey, Check> = {
   closeExit: oneOf('down', 'left', 'right'),
   animated: bool,
   formFactor: oneOf(...FORM_FACTORS),
+  slots: integer(1, ALL_SLOTS),
+  maxSlots: integer(1, ALL_SLOTS),
   title: text,
   pinning: pinningProblem,
   pinningWhenNotLive: pinningWhenNotLiveProblem,
@@ -1715,7 +1782,7 @@ const TUNING_MEMBER_CHECKS: Record<'dragToClose' | 'slide' | 'edgeScroll' | 'chr
   },
 };
 
-const TUNING_SCALAR_CHECKS: Record<'hopFraction' | 'rowGap' | 'saveQuietMs' | 'gestureLockMs' | 'gestureQuietMs' | 'resizeSettleSlides' | 'returnTieBreak' | 'dropTieBreak' | 'rowGesture' | 'initialScroll' | 'maxLivePanels', Check> = {
+const TUNING_SCALAR_CHECKS: Record<'hopFraction' | 'rowGap' | 'saveQuietMs' | 'gestureLockMs' | 'gestureQuietMs' | 'resizeSettleSlides' | 'returnTieBreak' | 'dropTieBreak' | 'rowGesture' | 'initialScroll' | 'maxLivePanels' | 'heightPerSlot' | 'rowAlign', Check> = {
   hopFraction: num(0, 1, { minOpen: true }),
   rowGap: integer(0, 200),
   saveQuietMs: integer(0),
@@ -1731,6 +1798,8 @@ const TUNING_SCALAR_CHECKS: Record<'hopFraction' | 'rowGap' | 'saveQuietMs' | 'g
     return "expected 'start', 'end', 'root' or { panel: a non-empty id }";
   },
   maxLivePanels: (v) => (v === null ? undefined : integer(1)(v)),
+  heightPerSlot: integer(0, 2000),
+  rowAlign: oneOf('top', 'center', 'bottom'),
 };
 
 const isObjectLeaf = (leaf: string): leaf is keyof typeof TUNING_MEMBER_CHECKS => Object.hasOwn(TUNING_MEMBER_CHECKS, leaf);
@@ -1888,7 +1957,7 @@ function checkLayer(layer: AskLayer, raw: unknown, env: Env): Accepted {
 }
 
 function checkUser(raw: unknown, env: Env): PanelUserLayer {
-  const accepted: { formFactor?: FormFactor; anchor?: AnchorRequest; parkable?: boolean } = {};
+  const accepted: { formFactor?: FormFactor; slots?: number; anchor?: AnchorRequest; parkable?: boolean } = {};
   if (raw === undefined) return accepted;
   if (!isPlain(raw)) {
     reject('user', '', 'a settings layer must be an object', env.lenient, env.notes);
@@ -1899,6 +1968,7 @@ function checkUser(raw: unknown, env: Env): PanelUserLayer {
     if (value === undefined) continue;
     let problem: string | undefined;
     if (key === 'formFactor') problem = oneOf(...FORM_FACTORS)(value);
+    else if (key === 'slots') problem = integer(1, ALL_SLOTS)(value);
     else if (key === 'parkable') problem = bool(value);
     else if (key === 'anchor') problem = anchorProblem(value);
     else problem = 'unknown setting';
@@ -1907,6 +1977,7 @@ function checkUser(raw: unknown, env: Env): PanelUserLayer {
       continue;
     }
     if (key === 'formFactor') accepted.formFactor = value as FormFactor;
+    else if (key === 'slots') accepted.slots = value as number;
     else if (key === 'parkable') accepted.parkable = value as boolean;
     else accepted.anchor = { ...(value as AnchorRequest) };
   }
@@ -2008,9 +2079,10 @@ function applyRules(s: State, root: boolean): void {
   fill(s, 'clearable', parkable && s.values.closable === true);
 
   if (s.values.parkable === false) {
-    force(s, 'resizable', false, 'C1', 'parkable');
-    force(s, 'formFactors', ['phone'], 'C1', 'parkable');
-    force(s, 'formFactor', 'phone', 'C1', 'parkable');
+    // The size settings are one group: if the panel's own template, host or instance asked for any of them (History is resizable when the app says so), all stand; otherwise they are forced to one phone slot.
+    const fixedSize = [['resizable', false], ['formFactors', ['phone']], ['formFactor', 'phone'], ['slots', 1], ['maxSlots', 1]] as const;
+    const askedForThisPanel = fixedSize.some(([key, applied]) => (s.source[key] === 'template' || s.source[key] === 'host' || s.source[key] === 'instance') && !sameSettingsValue(s.values[key], applied));
+    if (!askedForThisPanel) for (const [key, applied] of fixedSize) force(s, key, applied, 'C1', 'parkable');
     force(s, 'overflow', 'scroll', 'C1', 'parkable');
     force(s, 'startVisibility', 'live', 'C1', 'parkable');
     force(s, 'restoreVisibility', 'live', 'C1', 'parkable');
@@ -2021,8 +2093,40 @@ function applyRules(s: State, root: boolean): void {
     force(s, 'rememberLayout', false, 'C3', 'persist');
     force(s, 'afterClose', 'return-next-launch', 'C3', 'persist');
   }
+  // A tier asked by a layer after the one that asked for slots is the later word, so the earlier slot count gives way.
+  const askRank = (key: string): number => ASK_LAYERS.indexOf(s.source[key] as AskLayer);
+  if (s.values.slots !== undefined && askRank('slots') >= 0 && askRank('formFactor') > askRank('slots')) {
+    s.values.slots = undefined;
+    delete s.source.slots;
+  }
   const tiers = s.values.formFactors as readonly FormFactor[];
-  if (!tiers.includes(s.values.formFactor as FormFactor)) force(s, 'formFactor', tiers[0], 'C4', 'formFactors');
+  if (s.values.slots === undefined && !tiers.includes(s.values.formFactor as FormFactor)) force(s, 'formFactor', tiers[0], 'C4', 'formFactors');
+  if (s.values.maxSlots === undefined) {
+    s.values.maxSlots = Math.max(...tiers.map(slotsOfTier));
+    s.source.maxSlots = 'derived';
+  }
+  const narrowest = Math.min(...tiers.map(slotsOfTier));
+  const broadest = Math.max(...tiers.map(slotsOfTier));
+  if ((s.values.maxSlots as number) < narrowest) force(s, 'maxSlots', narrowest, 'C4', 'formFactors');
+  else if ((s.values.maxSlots as number) > broadest) force(s, 'maxSlots', broadest, 'C4', 'formFactors');
+  const widest = s.values.maxSlots as number;
+  if (s.values.slots === undefined) {
+    const wanted = Math.min(slotsOfTier(s.values.formFactor as FormFactor), widest);
+    // A cap between two allowed tiers lands on the wider one that still fits under it.
+    const allowed = tiers.map(slotsOfTier).filter((n) => n <= wanted);
+    s.values.slots = tiers.includes(tierOfSlots(wanted)) ? wanted : Math.max(...allowed, narrowest);
+    s.source.slots = 'derived';
+  } else if ((s.values.slots as number) > widest) force(s, 'slots', widest, 'C4', 'maxSlots');
+  else if (!tiers.includes(tierOfSlots(s.values.slots as number))) force(s, 'slots', Math.min(slotsOfTier(tiers[0]!), widest), 'C4', 'formFactors');
+  // The tier a panel reports follows its slots, so the two never disagree; slots wins when both were asked for.
+  const reported = tierOfSlots(s.values.slots as number);
+  if (s.values.formFactor !== reported) {
+    if (askRank('formFactor') >= 0) force(s, 'formFactor', reported, 'C4', 'slots');
+    else {
+      s.values.formFactor = reported;
+      s.source.formFactor = 'derived';
+    }
+  }
   if (root) {
     force(s, 'draggable', false, 'C5');
     force(s, 'placeable', false, 'C5');
@@ -2070,10 +2174,12 @@ export function resolveUnderTuning(layers: PanelSettingsLayers, options: Resolve
   let state = merge(accepted, undefined, workspaceTuning);
   applyRules(state, root);
 
-  // A person's fixed column needs the phone tier, so the tier is settled before their parkable joins as the top layer.
-  let tier = state.values.formFactor as FormFactor;
+  // The person's size as a slot count: their slots, else their tier read as slots.
   const userTierFits = user.formFactor !== undefined && (state.values.formFactors as readonly FormFactor[]).includes(user.formFactor);
-  if (user.formFactor !== undefined && userTierFits) tier = user.formFactor;
+  const userSlotsFit = user.slots !== undefined && (state.values.formFactors as readonly FormFactor[]).includes(tierOfSlots(user.slots));
+  const personSlots = user.slots !== undefined ? (userSlotsFit ? user.slots : undefined) : user.formFactor !== undefined && userTierFits ? slotsOfTier(user.formFactor) : undefined;
+  // A person's fixed column needs the phone tier, so the tier is settled before their parkable joins as the top layer.
+  const tier = personSlots === undefined ? (state.values.formFactor as FormFactor) : tierOfSlots(Math.min(personSlots, state.values.maxSlots as number));
   let userParkable = user.parkable;
   if (userParkable === false && tier !== 'phone') {
     env.notes.push({ code: 'override-dropped', key: 'parkable', message: `user.parkable: a fixed column needs the phone tier and this panel resolves to ${tier}; dropped` });
@@ -2083,13 +2189,20 @@ export function resolveUnderTuning(layers: PanelSettingsLayers, options: Resolve
     state = merge(accepted, userParkable, workspaceTuning);
     applyRules(state, root);
   }
-  if (user.formFactor !== undefined) {
-    if ((state.values.formFactors as readonly FormFactor[]).includes(user.formFactor)) {
-      state.values.formFactor = user.formFactor;
-      state.source.formFactor = 'user';
-    } else {
-      env.notes.push({ code: 'override-dropped', key: 'formFactor', message: `user.formFactor: ${user.formFactor} is outside this panel's formFactors; dropped` });
-    }
+  if (user.formFactor !== undefined && user.slots === undefined && !userTierFits) {
+    env.notes.push({ code: 'override-dropped', key: 'formFactor', message: `user.formFactor: ${user.formFactor} is outside this panel's formFactors; dropped` });
+  }
+  if (user.slots !== undefined && !userSlotsFit) {
+    env.notes.push({ code: 'override-dropped', key: 'slots', message: `user.slots: ${user.slots} is outside this panel's formFactors; dropped` });
+  }
+  if (personSlots !== undefined) {
+    const chosen = Math.min(personSlots, state.values.maxSlots as number);
+    // The person's size outvotes what a rule made of the layers' asks, so those conflicts no longer describe the result.
+    state.drafts = state.drafts.filter((d) => d.key !== 'slots' && d.key !== 'formFactor');
+    state.values.slots = chosen;
+    state.source.slots = 'user';
+    state.values.formFactor = tierOfSlots(chosen);
+    state.source.formFactor = (user.formFactor ?? tierOfSlots(user.slots ?? chosen)) === state.values.formFactor ? 'user' : 'derived';
   }
 
   const resolved = state.values;
@@ -2105,6 +2218,10 @@ export function resolveUnderTuning(layers: PanelSettingsLayers, options: Resolve
   }
 
   const notes = env.notes;
+  const resizableAsked = state.source.resizable === 'template' || state.source.resizable === 'host' || state.source.resizable === 'instance';
+  if (resolved.resizable === true && resizableAsked && resolved.maxSlots === 1) {
+    notes.push({ code: 'resizable-capped', key: 'maxSlots', message: `maxSlots: resizable is set by the ${state.source.resizable} layer but maxSlots resolves to 1, so the panel cannot grow; set maxSlots (and formFactors) too` });
+  }
   const pinning = resolved.pinning as Pinning;
   if (pinning.pinned.parkable === false && state.source.listed === 'derived') {
     notes.push({ code: 'pin-unlists', key: 'pinning', message: 'pinning: the pinned half makes the panel a fixed column, which is unlisted unless listed is set' });
@@ -2164,6 +2281,8 @@ export function effective(p: PanelWindow | PanelRowEntry): ResolvedPanelSettings
     layer: p.layer ?? 'base',
     enterFrom: p.anchoredEnter === true ? 'anchor' : 'auto',
     formFactor: p.formFactor ?? 'phone',
+    slots: ('slots' in p ? p.slots : undefined) ?? slotsOfTier(p.formFactor ?? 'phone'),
+    maxSlots: parkable ? ALL_SLOTS : 1,
     ...(p.title !== undefined ? { title: p.title } : {}),
   };
   return Object.freeze(legacy);
@@ -2213,6 +2332,7 @@ export function applyTemplate(entry: PanelWindow, resolved: ResolvedPanelSetting
     layer: resolved.layer,
     anchoredEnter: resolved.enterFrom === 'anchor',
     formFactor: resolved.formFactor,
+    slots: resolved.slots,
     size: entry.size?.formFactor === resolved.formFactor ? entry.size : { ...TIER_SIZE_LITERALS[resolved.formFactor] },
     ...title,
     settings: resolved,

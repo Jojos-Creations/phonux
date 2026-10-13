@@ -256,8 +256,8 @@ never which panels are live.
 
 A row whose entries carry settings with `overflow: 'scroll'` (the library default for every panel built through
 the settings cascade) has no such cap on a fixed column's account: `computeRowNumbers` prices it from the window
-alone. The window is the container less one gap each side; a desktop panel is clipped to it (968 of 1200 at a
-container of 1000) and a tablet panel is not (768). Every drawn entry is laid out, and a strip wider than the
+alone. The window is the container less one gap each side; a panel is as many whole slots as fit it (see "Slot sizing":
+two slots, 796 of 968, at a container of 1000). Every drawn entry is laid out, and a strip wider than the
 window scrolls instead of parking anything. The shell, the row and the capacity all read that one result, so they
 cannot disagree: `ProvidedPanels.rowNumbers`.
 
@@ -420,6 +420,37 @@ one (see "The width source"). A third-party view can offer its own control the s
 `useHost().panels.setFormFactor(panel.id, next)`; its slot, its neighbours and the row's capacity follow,
 while its content snaps (see above). Keep such a handler to `setFormFactor` alone: a close in the same
 handler can leave panels the resize parked unable to return to the row.
+
+### Slot sizing
+
+An entry that carries `slots` is n whole slots wide, not a tier. A slot is one phone width, and the row gap sits between
+slots, so `n` slots are `n x phone + (n - 1) x gap` wide and every edge lands on the row's stop grid. The count drawn is
+`min(slots, maxSlots, fit)`, where `fit = floor((maxLive + gap) / (phone + gap))` and `maxLive` is the window (the
+container less one gap each side) or, in a parking row, what is left beside the fixed columns. The choice (`slots`) is
+never rewritten to the drawn count, so a window that grows gives the width back. A panel is also taller by `heightPerSlot`
+(48 px) for each slot past the first, up to the height the Workspace's scroll container leaves for the row, measured with
+a ResizeObserver; unmeasured (jsdom, or a container with no definite height) every panel keeps the phone height. The row
+box is as tall as its tallest panel, and a shorter panel sits at `rowAlign` ('center' by default, or 'top' or 'bottom').
+The slot-out motion of a closing panel drops by the row height. History keeps its own size and is centred like the rest.
+Unmeasured widths use `UNMEASURED_SLOTS` (3), close to the 1200 px a desktop panel was before slots.
+
+At 844, 1280 and 1800 px windows the fit is 2, 3 and 4 slots.
+
+`formFactor` is a deprecated view of `slots`: one slot is `'phone'`, two `'tablet'`, three or more `'desktop'`. Asking for a
+tier asks for its count (`setFormFactor('desktop')` stores `ALL_SLOTS`, 64, which the fit and `maxSlots` clamp silently);
+asking for both in one layer lets `slots` win, and in different layers the later one. `setFormFactor` and the `formFactors`
+setting stay through 0.2.0-rc.3 and are removed in rc.4. An entry built without `slots` (a hand-built 0.1.0 entry) keeps
+the tier table above; `appendPanel` does not add one, and the settings cascade does.
+
+`PanelsAPI.setSlots(id, slots)` and the handle verb resize by a count, clamped to `maxSlots` and refused with
+`not-resizable` as `setFormFactor` is. A person's resize is saved as `overrides.slots` and, on the panel, as `slots` when
+it differs from its tier's own count. History's count is saved as `rootSlots`.
+
+C1 is relaxed for the size settings as a group (`resizable`, `formFactors`, `formFactor`, `slots`, `maxSlots`): when the
+panel's own template, host or instance layer asked a fixed column for any of them, they all stand (History is resizable
+when the app says so, and a pinned panel may be); otherwise they are forced to one phone slot as before. A workspace
+default never unlocks a fixed column. A fixed column wider than a phone is priced into the capacity like any scroll panel.
+A `resizable: true` beside `maxSlots` 1 resolves, but notes `resizable-capped` (it cannot grow).
 
 ## `params` is opaque and JSON-serializable by construction
 
@@ -1212,7 +1243,7 @@ set them, and a value a layer sets is never forced.
 
 | Rule | When | Forces |
 | --- | --- | --- |
-| C1 | `parkable: false` (a fixed column) | `resizable: false`, `formFactors: ['phone']`, `formFactor: 'phone'`, `overflow: 'scroll'`, `startVisibility: 'live'`, `restoreVisibility: 'live'`, `keepMounted: false` |
+| C1 | `parkable: false` (a fixed column) | `resizable: false`, `formFactors: ['phone']`, `formFactor: 'phone'`, `slots: 1`, `maxSlots: 1` (all five stand when the panel's own template, host or instance asked for any of them), `overflow: 'scroll'`, `startVisibility: 'live'`, `restoreVisibility: 'live'`, `keepMounted: false` |
 | C2 | `closable: false` | `clearable: false` |
 | C3 | `persist: 'session'` | `rememberLayout: false`, `afterClose: 'return-next-launch'` |
 | C4 | `formFactor` not in `formFactors` | `formFactor` is the first allowed tier |
@@ -1239,9 +1270,9 @@ the same call shows the panel or is refused), and `invalid-saved-setting` for ea
 ### Who may set what
 
 The `doors` of a descriptor name the configure call that accepts the key: `instance` (`configure(id)`), `template`
-(`configureTemplate`: `hostCreatable`, `multiple`, `maxInstances`) and `tuning` (`configureTuning`). Eleven tuning
+(`configureTemplate`: `hostCreatable`, `multiple`, `maxInstances`) and `tuning` (`configureTuning`). Thirteen tuning
 leaves are workspace-only (`rowGap`, `saveQuietMs`, `gestureLockMs`, `gestureQuietMs`, `resizeSettleSlides`, `returnTieBreak`, `dropTieBreak`, `rowGesture`,
-`initialScroll`, `maxLivePanels`, `chrome`); four are per panel and also workspace-wide (`dragToClose`, `slide`, `hopFraction`, `edgeScroll`).
+`initialScroll`, `maxLivePanels`, `chrome`, `heightPerSlot`, `rowAlign`); four are per panel and also workspace-wide (`dragToClose`, `slide`, `hopFraction`, `edgeScroll`).
 A workspace-only leaf at the template layer throws, at the instance or host layer it is a `wrong-scope` conflict, and
 any tuning key in the workspace defaults throws. A view's own door, the host layer, accepts only `title`, `listed`,
 `layer`, `formFactor`, `placeOnAdd: { anchor }` and `enterFrom: 'anchor'`.
@@ -1318,7 +1349,9 @@ flip with a transition rule of its own) or SCOPE (a template-scope key).
 | `draggable` | true, false | derived: parkable | NOW. L, T: true->false removes the reorder grab and makes move() a same-array no-op from this commit; a drag in flight ends with no hops. K, H: stored. Root: true is settings-conflict. |
 | `crossable` | true, false | true | NOW. L, T: the next drag of any other panel sees it at once; a drag already released is judged by movePanel (changed:false). K, H: a non-crossable parked panel is a barrier for the next drag too. |
 | `placeable` | true, false | derived: parkable | NOW. L, T, K, H: false makes reanchor, place and a placement-bearing pin() refuse (not-placeable) from this commit. Row: nothing moves. Root: true is settings-conflict. |
-| `resizable` | true, false | true (C1) | NOW. L, T, K, H: true->false freezes the tier (setFormFactor refused); the tier and the person's saved tier are never changed or dropped by this call. C1: true on a fixed column is settings-conflict. |
+| `resizable` | true, false | true (C1) | NOW. L, T, K, H: true->false freezes the size (setSlots and setFormFactor refused); the size and the person's saved size are never changed or dropped by this call. C1: forced false on a fixed column unless the panel's own layers asked for a size. |
+| `slots` | integer >= 1 | derived: the slot count of formFactor (phone 1, tablet 2, desktop every visible slot) | NEXT. The panel is that many phone widths wide with the row gap between them, drawn at no more than `maxSlots` and no more than fit the window; the next layout pass draws it. A person's drag-resize writes it, and it is saved with the workspace. Clamped to `maxSlots` without a conflict. `formFactor` is its deprecated view: 1 phone, 2 tablet, 3 or more desktop. |
+| `maxSlots` | integer >= 1 | derived: the widest slot count formFactors allows (C1) | STATE. L, T, K, H: lowering below the panel's current slots needs the panel to be narrower first (tier-not-allowed); raising lets the panel be resized wider. C1: a fixed column is one slot. A host-set `resizable` with `maxSlots` 1 is kept and noted (resizable-capped). |
 | `formFactors` | non-empty subset of phone, tablet, desktop | all three (C1) | STATE. Widening: ok. Narrowing on L, T, K, H: ok only if the CURRENT tier stays inside, else tier-not-allowed; the tier is never changed by this call. A patch leaving the initial formFactor outside is settings-conflict. An empty set throws. |
 | `clearable` | true, false | derived: parkable and closable (C2) | NEXT. Read by the next clearAll. C2: clearable:true with closable:false is settings-conflict; null re-derives it. |
 | `hostCreatable` | true, false (template scope) | true | SCOPE (configureTemplate). Applies to the next Host-bag create naming the template; existing instances and code addPanel are untouched. configure(panelId) and configureTuning answer wrong-scope; an unknown template throws. Before ready: not-ready. |
@@ -1378,6 +1411,8 @@ flip with a transition rule of its own) or SCOPE (a template-scope key).
 | `tuning.initialScroll` | start, end, root, { panel: PanelId } (workspace only; a design-derived key from Q15, not requested) | start (the library default, a design default the owner did not rule on; phonux-app sets 'end', owner Q20: the newest closable panels in view at launch) | NEXT (configureTuning only). Read at the next mount; nothing scrolls now. Session-only. |
 | `tuning.chrome` | object: mode 'always' or 'hover-or-active', fadeMs integer [0, 10000], fadeEase ('easeIn', 'easeOut', 'easeInOut', 'linear' or four numbers, x1 and x2 in [0,1]), slideMs integer [0, 10000], slidePx integer [0, 200], graceMs integer [0, 10000] (workspace only) | always, 120, easeOut, 140, 8, 250 (CHROME) | NOW (configureTuning only). A member patch keeps the other members. The chrome shows or hides at this commit; a fade in progress retargets. The library reads `mode`, `fadeMs` and `fadeEase` (`easeOut` is the curve Motion applies to a fade given only a duration, measured in Chromium); `slideMs`, `slidePx` and `graceMs` are for the host's own icon row. Session-only. |
 | `tuning.maxLivePanels` | integer >= 1, or null for no cap (workspace only) | null (no cap) | NOW (configureTuning only). A lower value parks the excess unpinned panels at this commit through the reconcile effect; a higher one or null returns the most recently parked, under `capacityReturn` auto as under manual (manual returns only the panels the capacity parked, never one the host hid), up to the new value, in one commit. Unmeasured: applies. Outside integers of 1 or more throws; null removes the cap. Session-only. |
+| `tuning.heightPerSlot` | integer 0 to 2000, px added per slot beyond the first (workspace only) | 48 (HEIGHT_PER_SLOT) | NOW (configureTuning only). A panel is taller by this much for each slot it is wider than one, up to the room the row has; the row is as tall as its tallest panel. Unmeasured height: every panel stays at the phone height. Outside 0-2000 throws. |
+| `tuning.rowAlign` | top, center, bottom (workspace only) | center (ROW_ALIGN) | NOW (configureTuning only). Where a panel shorter than the row sits in it. Other values throw. |
 <!-- catalog:end -->
 
 ## Placement, the root marker, key-aware undo and motion
