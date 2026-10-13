@@ -73,7 +73,7 @@
       "find": "(held !== null && p.id !== resizingId ? held.get(p.id) : undefined)",
       "replace": "(false as boolean ? held!.get(p.id) : undefined)",
       "expectRed": [
-        "a panel marked as being resized holds every other panel"
+        "a panel marked as being resized holds the row and every other panel"
       ]
     },
     {
@@ -155,6 +155,15 @@
       "replace": "maxScroll,",
       "expectRed": [
         "a step right at the last stop moves nothing"
+      ]
+    },
+    {
+      "name": "an entry without slots is shrinkable",
+      "file": "rowNumbers.ts",
+      "find": "present.map((p) => p.slots !== undefined)",
+      "replace": "present.map(() => true)",
+      "expectRed": [
+        "a hand-built entry without slots keeps its own width"
       ]
     }
   ]
