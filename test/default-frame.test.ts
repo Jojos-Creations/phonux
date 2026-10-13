@@ -12,7 +12,7 @@ import { Panel, PanelFrame, createWorkspace, definePanel } from '../index.js';
 import type { PanelHandle, PanelSettings, PanelTemplate, WorkspaceHandle } from '../index.js';
 import { advanceFrames, cleanup } from './support/mount-harness.js';
 import { differential } from './support/differential.js';
-import { drag } from './support/drag-gesture.js';
+import { drag, release } from './support/drag-gesture.js';
 import { albumPanel, effects, frameOnlyPanel, restPanel, stableIds } from './support/frame-fixtures.js';
 import { flush, mountWorkspace, type ResizableWorkspace } from './support/workspace-row.js';
 
@@ -280,6 +280,74 @@ test('a real pointer drag sideways on the grab bar moves a bare panel past its n
   await drag(grab, { dx: 450, dy: 0 });
   await settle();
   assert.deepEqual(order(), ['two', 'one']);
+});
+
+/** The slot a bare view's panel is drawn in. */
+const slotOf = (r: Rig, id: string): HTMLElement => r.m.container.querySelector<HTMLElement>(`[data-body="${id}"]`)!.closest<HTMLElement>('[data-row-slot]')!;
+const bodyOrder = (r: Rig): string[] => [...r.m.container.querySelectorAll<HTMLElement>('[data-body]')].map((n) => n.dataset.body!);
+const grabOf = (r: Rig, id: string): HTMLElement | null => slotOf(r, id).querySelector<HTMLElement>('[data-panel-grab-bar]');
+
+/** A panel the settings forbid closing keeps the library header and frame, and gets no drag-to-close and no grab bar. */
+async function assertNoCloseHandle(r: Rig, id: string): Promise<void> {
+  const slot = slotOf(r, id);
+  assert.equal(slot.querySelector('[data-panel-grab-bar]') === null, true, `${id}: no grab bar`);
+  assert.equal(slot.querySelector('[data-drag-to-close]') === null, true, `${id}: no drag-to-close wrapper`);
+  assert.equal(slot.querySelectorAll('[data-panel-chrome-part="header"]').length, 1, `${id}: the library header is drawn`);
+  assert.equal(slot.querySelectorAll('[data-phone-frame]').length, 1, `${id}: the phone frame is drawn`);
+  await drag(slot.querySelector<HTMLElement>('[data-panel-chrome-part="header"]')!, { dx: 0, dy: 400 });
+  await settle();
+  await advanceFrames(2000);
+  assert.equal(r.m.container.querySelector(`[data-body="${id}"]`) === null, false, `${id}: a downward drag on its header leaves it open`);
+}
+
+test('a panel whose closable setting is false is framed with no grab bar and no drag-to-close, and a closable one beside it still closes', async () => {
+  const r = await rig([bareTemplate('fixed', { settings: { title: 'FIXED', multiple: true, closable: false } }), bareTemplate('plain')], ['fixed', 'plain']);
+  await settle();
+  await assertNoCloseHandle(r, 'fixed');
+  await drag(grabOf(r, 'plain')!, { dx: 0, dy: 400 });
+  await settle();
+  await advanceFrames(2000);
+  assert.equal(r.m.container.querySelector('[data-body="plain"]') === null, true, 'control: the closable panel closed by the same drag');
+});
+
+test('a permanent panel, one that is not parkable, gets no drag-to-close either', async () => {
+  const r = await rig([bareTemplate('perm', { settings: { title: 'PERM', multiple: true, parkable: false } }), bareTemplate('plain')], ['perm', 'plain']);
+  await settle();
+  await assertNoCloseHandle(r, 'perm');
+  assert.equal(grabOf(r, 'plain') !== null, true, 'control: the ordinary panel has its grab bar');
+});
+
+test('a panel whose draggable setting is false keeps the drag-down close but is not moved by a sideways drag', async () => {
+  const r = await rig([bareTemplate('one', { settings: { title: 'ONE', multiple: true, draggable: false } }), bareTemplate('two')], ['one', 'two']);
+  await settle();
+  assert.deepEqual(bodyOrder(r), ['one', 'two']);
+  assert.equal(grabOf(r, 'one') !== null, true, 'the grab bar is still drawn');
+  const wrapper = slotOf(r, 'one').querySelector<HTMLElement>('[data-drag-to-close]')!;
+  await drag(grabOf(r, 'one')!, { dx: 450, dy: 0, keepDown: true });
+  assert.doesNotMatch(wrapper.style.transform, /translateX/, 'the panel does not follow a sideways pointer');
+  await release(450, 0);
+  await settle();
+  assert.deepEqual(bodyOrder(r), ['one', 'two'], 'a sideways drag leaves the order');
+  const follower = slotOf(r, 'two').querySelector<HTMLElement>('[data-drag-to-close]')!;
+  await drag(grabOf(r, 'two')!, { dx: -450, dy: 0, keepDown: true });
+  assert.match(follower.style.transform, /translateX/, 'control: a draggable panel follows the same pointer');
+  await release(-450, 0);
+  await settle();
+  assert.deepEqual(bodyOrder(r), ['two', 'one'], 'control: the draggable panel beside it moves past it');
+  await drag(grabOf(r, 'one')!, { dx: 0, dy: 400 });
+  await settle();
+  await advanceFrames(2000);
+  assert.equal(r.m.container.querySelector('[data-body="one"]') === null, true, 'and a downward drag on the same grab bar still closes it');
+});
+
+test('a panel that cannot be closed but is draggable has no grab bar and so no reorder handle', async () => {
+  const r = await rig([bareTemplate('one', { settings: { title: 'ONE', multiple: true, closable: false, draggable: true } }), bareTemplate('two')], ['one', 'two']);
+  await settle();
+  assert.deepEqual(bodyOrder(r), ['one', 'two']);
+  assert.equal(grabOf(r, 'one') === null, true);
+  await drag(slotOf(r, 'one').querySelector<HTMLElement>('[data-panel-chrome-part="header"]')!, { dx: 450, dy: 0 });
+  await settle();
+  assert.deepEqual(bodyOrder(r), ['one', 'two']);
 });
 
 test('the close method removes a bare panel and its frame', async () => {

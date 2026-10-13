@@ -1,0 +1,71 @@
+{
+  "tests": [
+    "test/default-frame.test.ts"
+  ],
+  "mutants": [
+    {
+      "name": "closeEligible is always true",
+      "file": "defaultFrame.tsx",
+      "find": "const closeEligible = slot === undefined ? true : slot.collapsible && slot.closable;",
+      "replace": "const closeEligible = true;",
+      "expectRed": [
+        "a panel whose closable setting is false is framed with no grab bar and no drag-to-close, and a closable one beside it still closes",
+        "a permanent panel, one that is not parkable, gets no drag-to-close either"
+      ]
+    },
+    {
+      "name": "closeEligible ignores collapsible",
+      "file": "defaultFrame.tsx",
+      "find": "slot.collapsible && slot.closable",
+      "replace": "slot.closable",
+      "expectRed": [
+        "a permanent panel, one that is not parkable, gets no drag-to-close either"
+      ]
+    },
+    {
+      "name": "closeEligible ignores closable",
+      "file": "defaultFrame.tsx",
+      "find": "slot.collapsible && slot.closable",
+      "replace": "slot.collapsible",
+      "expectRed": [
+        "a panel whose closable setting is false is framed with no grab bar and no drag-to-close, and a closable one beside it still closes"
+      ]
+    },
+    {
+      "name": "reorderEligible is always true",
+      "file": "defaultFrame.tsx",
+      "find": "const reorderEligible = slot?.draggable ?? false;",
+      "replace": "const reorderEligible = true;",
+      "expectRed": [
+        "a panel whose draggable setting is false keeps the drag-down close but is not moved by a sideways drag"
+      ]
+    },
+    {
+      "name": "reorderEligible ignores the slot being present",
+      "file": "defaultFrame.tsx",
+      "find": "reorderEligible && slot !== undefined",
+      "replace": "slot !== undefined",
+      "expectRed": [
+        "a panel whose draggable setting is false keeps the drag-down close but is not moved by a sideways drag"
+      ]
+    },
+    {
+      "name": "a non-draggable panel loses the whole drag-to-close",
+      "file": "defaultFrame.tsx",
+      "find": "if (!closeEligible) return",
+      "replace": "if (!closeEligible || !reorderEligible) return",
+      "expectRed": [
+        "a panel whose draggable setting is false keeps the drag-down close but is not moved by a sideways drag"
+      ]
+    },
+    {
+      "name": "a non-closable draggable panel keeps its reorder handle",
+      "file": "defaultFrame.tsx",
+      "find": "if (!closeEligible) return boxed({ title, viewId: panel.id });",
+      "replace": "if (!closeEligible && !reorderEligible) return boxed({ title, viewId: panel.id });",
+      "expectRed": [
+        "a panel that cannot be closed but is draggable has no grab bar and so no reorder handle"
+      ]
+    }
+  ]
+}
