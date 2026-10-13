@@ -3,6 +3,8 @@
 This package is the seam between a host app and any view -- Settings, History, a live web panel, or a
 third-party one. Nothing here may depend on the app that hosts it.
 
+The panel-facing API is additive from here: breaking changes ship as a new API level, not by changing an existing one.
+
 ## Import boundary
 
 `hostApi.tsx`, and the rest of this folder, import only React, MUI, motion, `@dnd-kit/core` and itself -- never
@@ -1882,7 +1884,7 @@ a pull request into `main` runs no cloud check.
 for `0.2.0-rc.2` and `0.2.0-rc.3` list what.
 
 ```text
-base: 99449f2accd0cf10f27cc3063161f12aa9c91ae8
+base: d3e1996e6c748ffe1391d9fef98436e6de5a2582
 ```
 
 No real browser has measured this tree. Every claim about real layout, scrolling or painting stays not run; the jsdom and unit

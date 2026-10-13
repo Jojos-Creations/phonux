@@ -20,16 +20,6 @@
   `dismiss`, which only the prompt read. The phone size, `PHONE_MODELS`, `findPhoneModel` and `chooseModel` stay. A
   host that rendered the prompt deletes it and its `detectedPhone` wiring.
 
-### Changed
-
-- The default frame animates its size. A bare view's header, grab bar, phone frame and footer are drawn in one box that takes the new
-  size at once and eases to it over the slide, so a panel that steps through its sizes no longer jumps to each one while its
-  neighbours glide. `PanelSizeBox` is the same scale now instead of Motion's `layout="size"`: it starts in the commit, on the clock of
-  the slot's slide, so a neighbour stays one gap from it even when the commit takes longer than a frame. Self-framed views are unchanged.
-- Licence: phonux is now PolyForm Noncommercial 1.0.0 (SPDX `PolyForm-Noncommercial-1.0.0`), free for personal and other
-  noncommercial use, with commercial use through a separate paid licence. 0.1.0 and 0.2.0-rc.2 stay MIT. The package now
-  ships `THIRD_PARTY_NOTICES.md` for the MIT-licensed phone-model entries.
-
 ### Added
 
 - The README quickstart is the default start (`definePanel`, `createWorkspace`, `addPanel`) with the hand-built `HostProvider`,
@@ -129,6 +119,13 @@
 
 ### Changed
 
+- The default frame animates its size. A bare view's header, grab bar, phone frame and footer are drawn in one box that takes the new
+  size at once and eases to it over the slide, so a panel that steps through its sizes no longer jumps to each one while its
+  neighbours glide. `PanelSizeBox` is the same scale now instead of Motion's `layout="size"`: it starts in the commit, on the clock of
+  the slot's slide, so a neighbour stays one gap from it even when the commit takes longer than a frame. Self-framed views are unchanged.
+- Licence: phonux is now PolyForm Noncommercial 1.0.0 (SPDX `PolyForm-Noncommercial-1.0.0`), free for personal and other
+  noncommercial use, with commercial use through a separate paid licence. 0.1.0 and 0.2.0-rc.2 stay MIT. The package now
+  ships `THIRD_PARTY_NOTICES.md` for the MIT-licensed phone-model entries.
 - **Default behaviour change.** A resized panel is now whole slots wide: a tablet is two slots (796 at a 390 phone and a 16 px
   gap, was 768) and a desktop panel is every slot the window fits (two at a 1000 px container, was a 968 px clip), so a
   panel's edges land on the row's stops. An unmeasured row draws a desktop panel three slots wide (was 1200 px). A hand-built
