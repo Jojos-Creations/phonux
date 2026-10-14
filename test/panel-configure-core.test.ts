@@ -209,7 +209,7 @@ for (const kind of ['a person-resized two-slot panel', 'a dragged panel'] as con
   for (const [cls, key, patch] of WRITER_KEYS) {
     test(`writer: ${cls} key ${key} on ${kind} leaves the slots, size, anchor, live, hostData, key, overrides and applied as they were`, async () => {
       const r = await pinRig();
-      if (kind === 'a dragged panel') r.turn(() => r.h.c!.move('left', 'person'));
+      if (kind === 'a dragged panel') r.turn(() => r.h.c!.move(-1, 'person'));
       else r.turn(() => r.h.c!.setSlots(2, 'person'));
       const before = r.entry('c');
       assert.ok(before.overrides !== undefined && Object.keys(before.overrides).length > 0, 'control: the person left an override');
@@ -295,7 +295,7 @@ test('raw clearAll then configure of a removed id is busy', async () => {
 
 test('configure and manager calls on different panels combine in one turn', async () => {
   const r = await pinRig();
-  const out = r.turn(() => [r.h.a!.configure({ scrollOnOpen: 'center' }), r.h.b!.configure({ closable: false }), r.h.c!.move('left')]);
+  const out = r.turn(() => [r.h.a!.configure({ scrollOnOpen: 'center' }), r.h.b!.configure({ closable: false }), r.h.c!.move(-1)]);
   assert.deepEqual(out.map((o) => o.ok), [true, true, true]);
   assert.equal(r.h.a!.getSettings().value.scrollOnOpen, 'center');
   assert.equal(r.entry('b').locked, true);
@@ -472,7 +472,7 @@ test('closed inside the window: resetLayout then undo restores at the resolved p
   const r = await pinRig();
   assert.deepEqual({ ...done(r.turn(() => r.h.c!.configure({ placeOnAdd: 'row-start', slots: 2 }))) }, { ok: true, changed: true, shown: false, now: [], later: ['placeOnAdd', 'slots'], shadowed: [], notes: [] });
   r.turn(() => r.h.c!.setSlots(1, 'person'));
-  r.turn(() => r.h.c!.move('left', 'person'));
+  r.turn(() => r.h.c!.move(-1, 'person'));
   assert.deepEqual([r.order().join(' '), r.entry('c').slots ?? 1], ['root a c b', 1]);
   r.turn(() => r.h.c!.close());
   assert.deepEqual({ ...r.turn(() => r.ws.panels.resetLayout('c')) }, { ok: true, changed: true, panels: ['c'] });
@@ -948,11 +948,11 @@ const LOCK_A = { closable: false } as const;
 const BUSY_ROWS: readonly { name: string; calls: (r: PinRig) => Answer[]; results: string[]; order: string; locked: boolean | null }[] = [
   { name: 'configure A + hide A', calls: (r) => [r.h.a!.configure(LOCK_A), r.h.a!.hide()], results: ['T', 'busy'], order: 'root a b c', locked: true },
   { name: 'configure A + close A', calls: (r) => [r.h.a!.configure(LOCK_A), r.h.a!.close()], results: ['T', 'busy'], order: 'root a b c', locked: true },
-  { name: 'configure A + move A', calls: (r) => [r.h.a!.configure(LOCK_A), r.h.a!.move('right')], results: ['T', 'busy'], order: 'root a b c', locked: true },
+  { name: 'configure A + move A', calls: (r) => [r.h.a!.configure(LOCK_A), r.h.a!.move(1)], results: ['T', 'busy'], order: 'root a b c', locked: true },
   { name: 'configure A + setSlots A', calls: (r) => [r.h.a!.configure(LOCK_A), r.h.a!.setSlots(2)], results: ['T', 'busy'], order: 'root a b c', locked: true },
   { name: 'configure A + pin A', calls: (r) => [r.h.a!.configure(LOCK_A), r.h.a!.pin()], results: ['T', 'busy'], order: 'root a b c', locked: true },
   { name: 'hide A + configure A', calls: (r) => [r.h.a!.hide(), r.h.a!.configure(LOCK_A)], results: ['T', 'busy'], order: 'root a b c', locked: false },
-  { name: 'move A + configure A', calls: (r) => [r.h.a!.move('right'), r.h.a!.configure(LOCK_A)], results: ['T', 'busy'], order: 'root b a c', locked: false },
+  { name: 'move A + configure A', calls: (r) => [r.h.a!.move(1), r.h.a!.configure(LOCK_A)], results: ['T', 'busy'], order: 'root b a c', locked: false },
   { name: 'setSlots A + configure A maxSlots', calls: (r) => [r.h.a!.setSlots(2), r.h.a!.configure({ maxSlots: 1 })], results: ['T', 'busy'], order: 'root a b c', locked: false },
   { name: 'configure A + configure A', calls: (r) => [r.h.a!.configure(LOCK_A), r.h.a!.configure({ title: 'again' })], results: ['T', 'busy'], order: 'root a b c', locked: true },
   { name: 'configure A + configure B', calls: (r) => [r.h.a!.configure(LOCK_A), r.h.b!.configure({ closable: false })], results: ['T', 'T'], order: 'root a b c', locked: true },
