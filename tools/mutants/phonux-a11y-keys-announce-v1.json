@@ -159,6 +159,15 @@
       "expectRed": [
         "the grab strip is a button"
       ]
+    },
+    {
+      "name": "the strip never hears its handle's title change",
+      "file": "dragToClose.tsx",
+      "find": "slotHandle?.subscribe(l) ?? (() => {})",
+      "replace": "(() => {})",
+      "expectRed": [
+        "follows its handle's title"
+      ]
     }
   ]
 }

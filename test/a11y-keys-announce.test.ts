@@ -7,9 +7,12 @@ import assert from 'node:assert/strict';
 import './support/jsdom-globals.js';
 import * as React from 'react';
 import { act } from 'react';
-import { Panel, PanelFrame, createWorkspace, definePanel } from '../index.js';
+import { LIBRARY_TUNING_DEFAULTS, Panel, PanelFrame, createWorkspace, definePanel } from '../index.js';
 import type { PanelTemplate, WorkspaceHandle } from '../index.js';
 import { arrowKeyBelongsElsewhere } from '../arrowKeys.js';
+import { DragToClose } from '../dragToClose.js';
+import { PanelSlotContext, type PanelSlotValue } from '../panelSlotContext.js';
+import { slotTuning } from '../panelTuning.js';
 import { advanceFrames, cleanup } from './support/mount-harness.js';
 import { drag, release } from './support/drag-gesture.js';
 import { stableIds } from './support/frame-fixtures.js';
@@ -124,4 +127,27 @@ test('an arrow with a modifier on the strip does nothing and is not taken', asyn
   await settle();
   assert.deepEqual(order(m), ['one', 'two']);
   assert.equal(shifted.defaultPrevented, false);
+});
+
+test('the grab strip\'s name follows its handle\'s title when nothing renders the strip again', async () => {
+  // The handle announces a title change; no parent re-renders, so only a subscription can move the name.
+  let title: string | undefined;
+  const listeners = new Set<() => void>();
+  const handle = { getState: () => ({ title }), subscribe: (l: () => void) => (listeners.add(l), () => void listeners.delete(l)) } as unknown as NonNullable<PanelSlotValue['handle']>;
+  const host = document.createElement('div');
+  document.body.append(host);
+  const { createRoot } = await import('react-dom/client');
+  const root = createRoot(host);
+  await act(async () => root.render(React.createElement(PanelSlotContext.Provider, { value: { collapsible: true, closable: true, draggable: true, placeable: true, resizable: true, maxSlots: 4, neighborWidths: { left: [], right: [] }, pinned: false, tuning: slotTuning(LIBRARY_TUNING_DEFAULTS, undefined), handle } }, React.createElement(DragToClose, { onClose: () => undefined, children: ({ sx: _sx, ...h }) => React.createElement('div', { ...h, 'data-own-strip': '' }, 'strip') }))));
+  const label = (): string => host.querySelector('[data-own-strip]')!.getAttribute('aria-label')!;
+  assert.equal(label(), 'Move or close Untitled panel');
+  title = 'After';
+  await act(async () => void listeners.forEach((l) => l()));
+  assert.equal(label(), 'Move or close After');
+  title = undefined;
+  await act(async () => void listeners.forEach((l) => l()));
+  assert.equal(label(), 'Move or close Untitled panel', 'a title taken away is heard too');
+  await act(async () => root.unmount());
+  assert.equal(listeners.size, 0, 'and the strip lets go of the handle');
+  host.remove();
 });

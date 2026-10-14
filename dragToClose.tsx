@@ -409,7 +409,14 @@ function DragToCloseBox({
   const slot = React.useContext(PanelSlotContext);
   const labels = resolveLabels(useOptionalHost()?.labels);
   const announce = React.useContext(AnnounceContext);
-  const titleNow = (): string => slot?.handle?.getState().title ?? labels.untitledPanel;
+  const slotHandle = slot?.handle;
+  // The strip's name is drawn from this, so it must follow a title change that does not re-render this box.
+  const drawnTitle = React.useSyncExternalStore(
+    React.useCallback((l: () => void) => slotHandle?.subscribe(l) ?? (() => {}), [slotHandle]),
+    () => slotHandle?.getState().title,
+    () => slotHandle?.getState().title,
+  );
+  const titleNow = (): string => slotHandle?.getState().title ?? labels.untitledPanel;
   // Every close, by a drag or by Delete, says so; the panel is gone by the time anything could.
   const closeRef = React.useRef<(() => void) | undefined>(onClose);
   closeRef.current =
@@ -692,7 +699,7 @@ function DragToCloseBox({
       : {
           role: 'button' as const,
           tabIndex: 0 as const,
-          'aria-label': labels.grabStrip(titleNow()),
+          'aria-label': labels.grabStrip(drawnTitle ?? labels.untitledPanel),
           'aria-keyshortcuts': [reorder?.onStep === undefined ? '' : 'ArrowLeft ArrowRight', closeRef.current === undefined ? '' : 'Delete'].filter(Boolean).join(' '),
           onKeyDown: (event: React.KeyboardEvent<HTMLElement>) => {
             if (event.target !== event.currentTarget || event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return;

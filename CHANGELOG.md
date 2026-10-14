@@ -25,7 +25,7 @@
 
 - Names and keys for assistive technology. The row is a `region` named `labels.row` ("Panels") and each panel a `group` named with its title and
   place ("Notes, 2 of 4"). A drag says "Picked up Notes" and "Dropped Notes", not "draggable item" and an id. The grab strip of a panel that can
-  move or close is a focusable button: ArrowLeft and ArrowRight move the panel one slot, Delete closes it, and the Workspace's one polite live
+  move or close is a focusable button named for the panel, and the name follows a title change at once: ArrowLeft and ArrowRight move the panel one slot, Delete closes it, and the Workspace's one polite live
   region says what happened ("Moved Notes right", "Notes cannot move right", "Closed Notes"). `DragHandleProps` gains `role`, `tabIndex`,
   `aria-label`, `aria-keyshortcuts` and `onKeyDown`, and `ReorderHandle` gains `onStep`; `usePanelDragProps()` fills both. New `PhonuxLabels` keys:
   `row`, `panelPosition`, `grabStrip`, `pickedUp`, `dropped`, `dragCancelled`, `moved`, `cannotMove` and `closed`.
