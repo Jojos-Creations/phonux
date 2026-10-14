@@ -25,7 +25,7 @@ import { accepted, refused, type ConfigureResult, type PanelOpSource, type Panel
 import { decidePinChange, type PinChange, type PinStatus } from '../panelPin.js';
 import { LIBRARY_TUNING_DEFAULTS, applyTemplate, effective, panelKey, resolvePanelSettings } from '../panelSettings.js';
 import type { PanelSettings, PanelSettingsResolution, ResolvedPanelSettings, ResolvedWorkspaceTuning, ScrollAlign, SettingNote, WorkspaceTuning } from '../panelSettings.js';
-import type { PanelTemplate } from '../panelTemplate.js';
+import type { AnyPanelTemplate, PanelTemplate } from '../panelTemplate.js';
 import { reportNotes } from '../panelPlacement.js';
 import { resolveWorkspaceTuning } from '../panelTuning.js';
 import { appendPanel, clearOverrides, recordOverride, reanchorPanel, slotsOf, type AnchorRequest, type PanelWindow } from '../panelWindow.js';
@@ -111,7 +111,7 @@ export interface PanelsInput {
    */
   workspaceDefaults?: Omit<PanelSettings, 'tuning'>;
   /** The panel templates a saved panel and a host-bag `create({ view })` may name, over the ones registered. A `create` naming one obeys its `hostCreatable`, `multiple` and `maxInstances`; a restore is exempt. */
-  templates?: readonly PanelTemplate[];
+  templates?: readonly AnyPanelTemplate[];
   /** The panels code declares: each is created at launch unless the saved file already holds it or the person dismissed it, and is never saved with an instance layer because code gives it again. */
   declared?: readonly { id: string; templateId: string; settings?: PanelSettings; params?: JsonValue; url?: string }[];
 }
@@ -169,6 +169,8 @@ function appendFromTemplate(
     rootId: string;
     order: (() => readonly string[]) | undefined;
     declared: boolean;
+    /** The title a panel gets when no settings layer names one. */
+    fallbackTitle: string;
   },
 ): PanelWindow[] {
   const { value } = resolvePanelSettings({ ...(a.defaults !== undefined ? { workspace: a.defaults } : {}), template: a.template.settings, ...(a.settings !== undefined ? { instance: a.settings } : {}) }, { lenient: true });
@@ -178,7 +180,7 @@ function appendFromTemplate(
     {
       url: a.url ?? '',
       view: a.template.id,
-      ...(value.title !== undefined ? { title: value.title } : {}),
+      title: value.title ?? a.fallbackTitle,
       ...(params !== undefined ? { params } : {}),
       ...(a.hostData !== undefined ? { hostData: a.hostData } : {}),
       listed: value.listed,
@@ -561,6 +563,7 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
     workspaceDefaults,
     onNote: i.onNote,
     order: core?.order,
+    panelTitle: labels.panelTitle,
     onError: core?.reportError,
     replay: core !== undefined,
   });
@@ -573,7 +576,7 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
     const build = (prev: PanelWindow[]): PanelWindow[] =>
       prev.some((p) => panelKey(p) === req.id)
         ? prev
-        : appendFromTemplate(prev, { template, id: req.engineId, name: req.id, settings: req.settings, params: req.params, url: req.url, hostData, defaults: workspaceDefaults, rootId, order: core?.order, declared: req.declared === true });
+        : appendFromTemplate(prev, { template, id: req.engineId, name: req.id, settings: req.settings, params: req.params, url: req.url, hostData, defaults: workspaceDefaults, rootId, order: core?.order, declared: req.declared === true, fallbackTitle: labels.panelTitle(req.engineId) });
     // A pin change stored while the panel was closed lands as the panel is added: placement, then the `parkable` flip.
     const withPin = (row: PanelWindow[]): PanelWindow[] => (req.deferredPin === undefined || !row.some((p) => p.id === req.engineId) ? row : landPanel(row, req.engineId, 'in-place', req.deferredPin).row);
     if (req.deferredPin !== undefined && build(panels).some((p) => p.id === req.engineId)) reportNotes(i.onNote, landPanel(build(panels), req.engineId, 'in-place', req.deferredPin).notes);
@@ -595,7 +598,8 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
         if (d.templateId !== t.id || next.some((p) => panelKey(p) === d.id)) continue;
         const resolved = resolvePanelSettings({ ...(workspaceDefaults !== undefined ? { workspace: workspaceDefaults } : {}), template: t.settings, ...(d.settings !== undefined ? { instance: d.settings } : {}) }, { lenient: true }).value;
         if (isDismissed(d.id) && resolved.closable && resolved.afterClose === 'stay-closed') continue;
-        next = appendFromTemplate(next, { template: t, id: freshId(), name: d.id, settings: d.settings, params: d.params, url: d.url, hostData: i.defaultHostData?.(), defaults: workspaceDefaults, rootId, order: core?.order, declared: true });
+        const engineId = freshId();
+        next = appendFromTemplate(next, { template: t, id: engineId, name: d.id, settings: d.settings, params: d.params, url: d.url, hostData: i.defaultHostData?.(), defaults: workspaceDefaults, rootId, order: core?.order, declared: true, fallbackTitle: labels.panelTitle(engineId) });
       }
       return next;
     });

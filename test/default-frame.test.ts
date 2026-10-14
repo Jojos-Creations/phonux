@@ -101,11 +101,11 @@ test('a bare view and a self-framed view each have one header and one phone fram
   assert.equal(r.m.container.querySelectorAll('[data-panel-chrome-part="header"]').length, 3, 'three panels, three headers');
 });
 
-test('a bare view with no title shows the untitled label, and the title the panel carries once it has one', async () => {
+test('a bare view with no title of its own shows the default panel title', async () => {
   const t = bareTemplate('anon');
   const noTitle = definePanel({ id: 'anon', view: t.view });
   const r = await rig([noTitle], ['anon']);
-  assert.match(bodiesOf(r.m, 'anon')!.closest('[data-row-slot]')!.textContent ?? '', /Untitled panel/);
+  assert.match(bodiesOf(r.m, 'anon')!.closest('[data-row-slot]')!.textContent ?? '', /Panel \S+/);
 });
 
 test('a bare view mounts again once when the frame is drawn around it; the next panel of the same template mounts once', async () => {
