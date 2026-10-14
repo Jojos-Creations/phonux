@@ -47,7 +47,6 @@
 
 - `GAP` (16 whatever the gap is tuned to), `panelWidthOf`, `reorderStepsForOffset`, `computeRowLayout`, `computeRowNumbers` and `DRAG_CLOSE` carry `@deprecated`, each naming what to use
   (`usePanelTuning().rowGap`, `LIBRARY_TUNING_DEFAULTS`, `usePanelReorderSteps()`, `usePanelDragProps()` and `useProvidePanels(...).rowNumbers`). They keep working. `PANEL_TRANSITION` stays.
-- The row's counter id as a panel id. `PanelsAPI` verbs, `useActivePanel`'s setter and `tuning.initialScroll.panel` still accept the counter id a view held before keys were the only id, with one development warning per id naming the key; it stops resolving in a later release.
 - The row's counter id as a panel id. `PanelsAPI` verbs, `useActivePanel`'s setter and `tuning.initialScroll.panel` still accept the counter id a view held before keys were the only id, with one development warning per id naming the key; it stops resolving in 0.3.0.
 
 ### Added
