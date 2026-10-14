@@ -12,7 +12,7 @@ import { COLUMN_BOTTOM_BAND, createWorkspace, createWorkspaceColumn, definePanel
 import type { ColumnState, ColumnStorage, PanelTemplate, WorkspaceColumnHandle } from '../index.js';
 import { memoryWorkspaceStorage } from '../fakeHost.js';
 import { bindingOf } from '../workspaceCore.js';
-import { arrowKeyBelongsElsewhere } from '../WorkspaceColumn.js';
+import { arrowKeyBelongsElsewhere } from '../arrowKeys.js';
 import { rigCleanup, slots, until } from './support/auto-rig.js';
 
 const columns: WorkspaceColumnHandle[] = [];

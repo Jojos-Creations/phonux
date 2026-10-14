@@ -78,7 +78,7 @@ test('seeded random sequences keep S3 and S10 after every step', async () => {
           case 'show': return h.show();
           case 'close': return h.close();
           case 'open': return h.open();
-          case 'move': return h.move(pick('left', 'right') as 'left' | 'right');
+          case 'move': return h.move(pick(-1, 1));
           case 'resetOne': return r.ws.panels.resetLayout(id);
           case 'resetAll': return r.ws.panels.resetLayout('all');
           case 'setSlots': return h.setSlots(pick(1, 2) as 1 | 2);

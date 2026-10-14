@@ -5,8 +5,10 @@
 import * as React from 'react';
 import { animate, useReducedMotion, useReducedMotionConfig } from 'motion/react';
 import { LIBRARY_TUNING_DEFAULTS, type PanelId } from './panelSettings.js';
+import type { ReorderHandle } from './dragToClose.js';
 import { warnCounterId } from './panelIds.js';
 import { PanelSlotContext } from './panelSlotContext.js';
+import { reorderStepsForOffset } from './panelWindow.js';
 
 /**
  * The attribute the library writes, empty-valued, on the root box of the active panel and removes when another panel
@@ -31,14 +33,14 @@ export const DRAGGING_ATTRIBUTE = 'data-panel-dragging';
 export const CHROME_ATTRIBUTE = 'data-panel-chrome-part';
 
 /**
- * The values {@link CHROME_ATTRIBUTE} takes, one per part: `header`, `grabBar` (`'grab-bar'`) and `footer`. A panel
- * carries at most one element of each.
+ * The values {@link CHROME_ATTRIBUTE} takes, one per part: `header`, `grabBar` (`'grab-bar'`), `footer` and `resize`. A panel
+ * carries at most one element of each, except `resize`, which marks the grip on each side.
  * @public
  */
-export const CHROME_PARTS = { header: 'header', grabBar: 'grab-bar', footer: 'footer' } as const;
+export const CHROME_PARTS = { header: 'header', grabBar: 'grab-bar', footer: 'footer', resize: 'resize' } as const;
 
 /**
- * A value of {@link CHROME_ATTRIBUTE}: `'header'`, `'grab-bar'` or `'footer'`.
+ * A value of {@link CHROME_ATTRIBUTE}: `'header'`, `'grab-bar'`, `'footer'` or `'resize'`.
  * @public
  */
 export type ChromePart = (typeof CHROME_PARTS)[keyof typeof CHROME_PARTS];
@@ -366,4 +368,32 @@ export function useChromeFade(visible: boolean): (node: HTMLElement | null) => v
     node.current = el;
     if (el !== null) settle(el);
   }, []);
+}
+
+/**
+ * The `onClose` and `reorder` of the panel this hook is called in, to spread onto `DragToClose`: a close and a move
+ * through the panel's own handle, so both are gated and answer a `PanelResult`. A close is offered when the panel is
+ * closable and sits in a column that closes; a reorder when it is draggable, and a release crossing several
+ * neighbours is one `move`. The reorder's `onStep` is the same call for the grab strip's Arrow keys. Outside a row with a workspace there is no handle, so it returns neither.
+ * @public
+ */
+export function usePanelDragProps(): { onClose?: () => void; reorder?: ReorderHandle } {
+  const slot = React.useContext(PanelSlotContext);
+  const handle = slot?.handle;
+  if (slot === undefined || handle === undefined) return {};
+  const props: { onClose?: () => void; reorder?: ReorderHandle } = {};
+  if (slot.collapsible && slot.closable) props.onClose = () => void handle.close('person');
+  if (slot.draggable) {
+    props.reorder = {
+      onDragEnd: (offset) => {
+        const steps = reorderStepsForOffset(offset, slot.neighborWidths, slot.tuning.rowGap, slot.tuning.hopFraction);
+        if (steps !== 0) handle.move(steps, 'person');
+      },
+      onStep: (steps) => {
+        const answer = handle.move(steps, 'person');
+        return answer.ok && answer.changed;
+      },
+    };
+  }
+  return props;
 }

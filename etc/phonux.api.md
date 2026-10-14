@@ -34,6 +34,9 @@ export type AnchorRequest = {
 };
 
 // @public
+export type AnyPanelTemplate = PanelTemplate<any>;
+
+// @public
 export type BezierEase = readonly [number, number, number, number];
 
 // @public
@@ -64,6 +67,7 @@ export const CHROME_PARTS: {
     readonly header: "header";
     readonly grabBar: "grab-bar";
     readonly footer: "footer";
+    readonly resize: "resize";
 };
 
 // @public
@@ -129,10 +133,10 @@ export interface ColumnWorkspaceOptions {
     name?: string;
 }
 
-// @public
+// @public @deprecated
 export function computeRowLayout(input: RowLayoutInput): RowLayoutResult;
 
-// @public
+// @public @deprecated
 export function computeRowNumbers(i: {
     entries: readonly PanelRowEntry[];
     phoneWidth: number;
@@ -202,7 +206,7 @@ export type DeferredPin = {
 // @public
 export function definePanel<P extends JsonValue = JsonValue>(t: PanelTemplate<P>): PanelTemplate<P>;
 
-// @public
+// @public @deprecated
 export const DRAG_CLOSE: {
     readonly distanceFraction: 0.25;
     readonly minDistancePx: 80;
@@ -222,7 +226,11 @@ export const DRAGGING_ATTRIBUTE = "data-panel-dragging";
 
 // @public
 export interface DragHandleProps {
+    'aria-keyshortcuts'?: string;
+    'aria-label'?: string;
+    onKeyDown?: (event: React_2.KeyboardEvent<HTMLElement>) => void;
     onPointerDown: (event: React_2.PointerEvent<HTMLElement>) => void;
+    role?: 'button';
     sx: {
         cursor: 'grab';
         touchAction: 'pan-x';
@@ -230,7 +238,13 @@ export interface DragHandleProps {
         '&:active': {
             cursor: 'grabbing';
         };
+        '&:focus-visible': {
+            outline: '2px solid';
+            outlineColor: 'primary.main';
+            outlineOffset: -2;
+        };
     };
+    tabIndex?: 0;
 }
 
 // @public
@@ -269,7 +283,7 @@ export type FadeEase = 'easeIn' | 'easeOut' | 'easeInOut' | 'linear' | BezierEas
 // @public
 export function findPhoneModel(id: string): PhoneModel | undefined;
 
-// @public
+// @public @deprecated
 export const GAP = 16;
 
 // @public
@@ -389,6 +403,18 @@ export const MAX_WORKSPACE_NAME = 60;
 export function mergePatch(layer: PanelSettings, patch: SettingsPatch): PanelSettings;
 
 // @public
+export function minWorkspaceWidth(input: MinWorkspaceWidthInput): number;
+
+// @public
+export interface MinWorkspaceWidthInput {
+    fixedColumnCount: number;
+    gap?: number;
+    phoneSlots?: number;
+    phoneWidth: number;
+    tabletWidth?: number;
+}
+
+// @public
 export interface NeighborWidths {
     readonly left: readonly number[];
     readonly right: readonly number[];
@@ -502,7 +528,7 @@ export interface PanelHandle<P extends JsonValue = JsonValue> extends PanelReadH
         readonly params: P | undefined;
     };
     hide(source?: 'code' | 'person'): PanelResult;
-    move(direction: 'left' | 'right', source?: 'code' | 'person'): PanelResult;
+    move(by: number, source?: 'code' | 'person'): PanelResult;
     open(source?: 'code' | 'person'): PanelResult;
     pin(source?: 'code' | 'person'): PinResult;
     place(p: AddPlacement | 'in-place', source?: 'code' | 'person'): PanelResult;
@@ -595,7 +621,7 @@ export class PanelManagerError extends Error {
 }
 
 // @public
-export type PanelManagerErrorCode = 'invalid-template' | 'duplicate-template' | 'unknown-template' | 'template-collision' | 'root-mismatch' | 'invalid-options' | 'invalid-settings' | 'instance-id-required' | 'already-attached' | 'disposed';
+export type PanelManagerErrorCode = 'invalid-template' | 'duplicate-template' | 'unknown-template' | 'root-mismatch' | 'invalid-options' | 'invalid-settings' | 'instance-id-required' | 'already-attached' | 'disposed';
 
 // @public
 export interface PanelProps extends Omit<BoxProps, 'children' | 'sx' | 'title'> {
@@ -637,6 +663,9 @@ export type PanelReadHandle = {
 export type PanelRefusal = 'disposed' | 'not-attached' | 'not-ready' | 'is-pending' | 'is-closed' | 'not-live' | 'busy' | 'not-closable' | 'not-parkable' | 'not-draggable' | 'not-placeable' | 'not-resizable' | 'slots-above-max' | 'would-empty-row' | 'instance-limit' | 'unknown-panel' | 'wrong-scope' | 'would-reshape-row' | 'settings-conflict' | 'not-view-settable';
 
 // @public
+export function PanelResizeGrips(): React_2.ReactElement | null;
+
+// @public
 export type PanelResult = {
     readonly ok: true;
     readonly changed: boolean;
@@ -657,7 +686,7 @@ export function PanelRow(input: {
     maxLiveWidth?: number;
     tuning?: WorkspaceTuning;
     rowNumbers?: RowNumbers;
-    workspace?: WorkspaceHandle;
+    workspace: WorkspaceHandle;
 }): React_2.ReactElement;
 
 // @public
@@ -674,20 +703,28 @@ export interface PanelRowEntry<P = JsonValue> extends PanelSummary<P> {
 
 // @public
 export interface PanelsAPI {
+    // @deprecated
     activate(id: string): void;
     clearAll(): void;
+    // @deprecated
     close(id: string): void;
+    // @deprecated
     create(): void;
+    // @deprecated
     create(options: CreatePanelOptions): void;
     readonly maxFitPanels?: number | null;
+    readonly minWorkspaceWidth?: number;
+    // @deprecated
     move(id: string, direction: 'left' | 'right'): void;
     readonly panelList: readonly PanelSummary[];
+    // @deprecated
     reanchor(id: string, anchor: {
         panel?: string;
         position: 'left' | 'right';
         priority?: number;
     }): void;
     readonly recentlyClosed: readonly PanelSummary[] | null;
+    // @deprecated
     setSlots?(id: string, slots: number): void;
     undoClose(): void;
 }
@@ -724,17 +761,9 @@ export type PanelSettingsResolution = {
 export interface PanelsInput {
     capture?: CaptureTrigger;
     containerWidth: number;
-    declared?: readonly {
-        id: string;
-        templateId: string;
-        settings?: PanelSettings;
-        params?: JsonValue;
-        url?: string;
-    }[];
     defaultHostData?: () => JsonValue;
     defaultView?: string;
     fixedViewCount?: number;
-    initialEntries?: readonly PanelWindow[];
     labels?: Partial<PhonuxLabels>;
     onNote?: (note: SettingNote) => void;
     onPanelResize?: () => void;
@@ -748,12 +777,7 @@ export interface PanelsInput {
     overflowContainerRef: RefObject<HTMLDivElement | null>;
     phoneWidth: number;
     resetHostDataOnRestore?: (hostData: JsonValue | undefined, panel: PanelWindow) => JsonValue | undefined;
-    rootId: string;
-    storage?: WorkspaceStorage;
-    templates?: readonly PanelTemplate[];
-    tuning?: WorkspaceTuning;
-    workspace?: WorkspaceHandle;
-    workspaceDefaults?: Omit<PanelSettings, 'tuning'>;
+    workspace: WorkspaceHandle;
 }
 
 // @public
@@ -764,8 +788,8 @@ export interface PanelSize {
 
 // @public
 export function PanelSizeBox(input: {
-    width: number;
-    height: number;
+    width?: number;
+    height?: number;
     children: React_2.ReactNode;
 }): React_2.JSX.Element;
 
@@ -850,7 +874,7 @@ export type PanelUserLayer = {
     parkable?: boolean;
 };
 
-// @public
+// @public @deprecated
 export function panelWidthOf(p: Pick<PanelRowEntry, 'slots' | 'settings'>, phoneWidth: number, maxLiveWidth: number, gap?: number): number;
 
 // @public
@@ -915,12 +939,23 @@ export interface PhoneSize {
 
 // @public
 export interface PhonuxLabels {
+    cannotMove: (title: string, steps: number) => string;
+    closed: (title: string) => string;
+    dragCancelled: (title: string) => string;
+    dropped: (title: string) => string;
     goToWorkspace: (name: string) => string;
+    grabStrip: (title: string) => string;
     historyTitle: string;
     lock: string;
+    moved: (title: string, steps: number) => string;
     newWorkspace: string;
+    panelPosition: (title: string, place: number, total: number) => string;
     panelTitle: (id: string) => string;
+    pickedUp: (title: string) => string;
     pin: string;
+    resizeGrip: (side: 'left' | 'right') => string;
+    resizeGripValue: (slots: number, most: number) => string;
+    row: string;
     unlock: string;
     unpin: string;
     untitledHeader: string;
@@ -976,14 +1011,12 @@ export interface ProvidedPanels extends PanelsAPI {
 }
 
 // @public
-export function registerView<P extends JsonValue>(key: string, Component: ViewComponent<P>): void;
-
-// @public
 export interface ReorderHandle {
     onDragEnd: (offsetX: number) => void;
+    onStep?: (steps: number) => boolean;
 }
 
-// @public
+// @public @deprecated
 export function reorderStepsForOffset(offsetX: number, neighbors: NeighborWidths, gap: number, hopFraction?: number): number;
 
 // @public
@@ -1041,9 +1074,6 @@ export type ResolveOptions = {
 
 // @public
 export function resolvePanelSettings(layers?: PanelSettingsLayers, options?: ResolveOptions): PanelSettingsResolution;
-
-// @public
-export function resolveView(key: string): ViewComponent;
 
 // @public
 export const ROW_LAYER_Z: Readonly<{
@@ -1268,6 +1298,12 @@ export const usePanelCloseEligible: () => boolean;
 export function usePanelDragging(): boolean;
 
 // @public
+export function usePanelDragProps(): {
+    onClose?: () => void;
+    reorder?: ReorderHandle;
+};
+
+// @public
 export function usePanelHeaderButtons(): readonly PanelHeaderButtonItem[];
 
 // @public
@@ -1333,10 +1369,10 @@ export interface UseViewState {
 export const useViewState: UseViewState;
 
 // @public
-export function useWorkspaceManager(): PanelReader | undefined;
+export function useWorkspace(): ViewWorkspace | undefined;
 
 // @public
-export type ViewComponent<P = JsonValue> = React_2.ComponentType<ViewProps<P>>;
+export function useWorkspaceManager(): PanelReader | undefined;
 
 // @public
 export type ViewHandle<P extends JsonValue = JsonValue> = Omit<PanelHandle<P>, 'configure'> & {
@@ -1362,11 +1398,6 @@ export type ViewPatch = {
 };
 
 // @public
-export type ViewProps<P = JsonValue> = {
-    panel: PanelSummary<P>;
-};
-
-// @public
 export interface ViewSnapshot {
     readonly capturedAt: number;
     readonly extent: 'viewport' | 'full';
@@ -1380,6 +1411,13 @@ export interface ViewSnapshot {
 // @public
 export class ViewStateMissingProviderError extends Error {
     constructor(missing: 'host' | 'view id');
+}
+
+// @public
+export interface ViewWorkspace {
+    readonly panels: PanelManager & {
+        addPanel: WorkspaceHandle['addPanel'];
+    };
 }
 
 // @public
@@ -1401,6 +1439,7 @@ export function WorkspaceColumn(input: WorkspaceColumnProps): React_2.ReactEleme
 // @public
 export interface WorkspaceColumnHandle {
     addWorkspace(o?: ColumnWorkspaceOptions): WorkspaceHandle;
+    configureTuning(patch: Parameters<PanelManager['configureTuning']>[0]): ConfigureResult;
     readonly current: number;
     dispose(): void;
     scrollTo(target: WorkspaceHandle | number): void;
@@ -1428,7 +1467,7 @@ export interface WorkspaceHandle {
     readonly id: string;
     readonly name: string;
     readonly panels: PanelManager;
-    registerTemplate(t: PanelTemplate): () => void;
+    registerTemplate(t: AnyPanelTemplate): () => void;
     rename(name: string): string;
     readonly rootId: string;
     readonly status: WorkspaceStatus;
@@ -1454,19 +1493,20 @@ export type WorkspaceOptions = WorkspaceLive & {
     onRename?: (name: string) => void;
     storage?: WorkspaceStorage;
     defaults?: Omit<PanelSettings, 'tuning'>;
-    root?: PanelTemplate;
-    templates?: readonly PanelTemplate[];
+    root?: AnyPanelTemplate;
+    templates?: readonly AnyPanelTemplate[];
     order?: () => readonly PanelId[];
     tuning?: WorkspaceTuning;
     conflicts?: 'warn' | 'throw' | 'off';
     newId?: () => string;
     onError?: (e: unknown) => void;
     mount?: HTMLElement | false;
+    theme?: (mode: 'light' | 'dark') => Theme;
     wrap?: ComponentType<WorkspaceWrapProps>;
 };
 
 // @public
-export type WorkspacePanelsInput = Partial<Omit<PanelsInput, 'workspace' | 'rootId' | 'phoneWidth' | 'containerWidth' | 'overflowContainerRef' | 'initialEntries' | 'storage' | 'templates' | 'declared' | 'workspaceDefaults' | 'tuning' | 'labels'>>;
+export type WorkspacePanelsInput = Partial<Omit<PanelsInput, 'workspace' | 'phoneWidth' | 'containerWidth' | 'overflowContainerRef' | 'labels'>>;
 
 // @public
 export type WorkspacePanelState = {

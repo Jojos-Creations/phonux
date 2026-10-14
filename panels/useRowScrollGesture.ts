@@ -13,6 +13,7 @@
  */
 import { useEffect, useRef } from 'react';
 import type { RefObject } from 'react';
+import { arrowKeyBelongsElsewhere } from '../arrowKeys.js';
 import { GESTURE_LOCK_MS, GESTURE_QUIET_MS } from '../rowConstants.js';
 
 /** How far above the trough of a fading tail an event must rise to count as a new swipe; tail jitter such as 14, 12, 13 stays under it. */
@@ -86,13 +87,9 @@ export function useRowScrollGesture(
     };
     const onKeyDown = (e: KeyboardEvent): void => {
       if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
-      // A control that used the arrow (a resize grabber) has acted; the row must not also step.
-      if (e.defaultPrevented || e.altKey || e.ctrlKey || e.metaKey || e.shiftKey) return;
+      if (arrowKeyBelongsElsewhere(e, document)) return;
       // A workspace a column keeps off-screen is inert: its row must not step for a key meant for the one in view.
       if (container.closest('[inert]') !== null) return;
-      const target = e.target as HTMLElement | null;
-      const tag = target?.tagName;
-      if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || target?.isContentEditable) return;
       onStepRef.current(e.key === 'ArrowRight' ? 'right' : 'left');
     };
     container.addEventListener('wheel', onWheel, { passive: false });

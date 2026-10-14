@@ -52,30 +52,28 @@ import {
   PanelFrame,
   PanelRow,
   Workspace,
-  registerView,
+  createWorkspace,
+  definePanel,
   useHost,
   useProvidePanels,
-  type PanelWindow,
-  type ViewProps,
 } from 'phonux';
 import { createFakeHost } from 'phonux/testing';
 
 export const MARKER = 'phonux-smoke-marker-9f3a1c';
 
-function SmokeView({ panel }: ViewProps): React.JSX.Element {
-  const host = useHost();
-  return (
-    <Panel title={panel.title}>
-      <PanelFrame>{\`\${MARKER} width=\${host.device.size.width}\`}</PanelFrame>
-    </Panel>
-  );
-}
+const smoke = definePanel({
+  id: 'phonux-smoke-view',
+  view: function SmokeView({ panel }) {
+    const host = useHost();
+    return (
+      <Panel title={panel.title}>
+        <PanelFrame>{\`\${MARKER} width=\${host.device.size.width}\`}</PanelFrame>
+      </Panel>
+    );
+  },
+});
 
-registerView('phonux-smoke-view', SmokeView);
-
-const ROOT: PanelWindow = {
-  id: 'root', url: '', title: 'Root', live: true, locked: true, view: 'phonux-smoke-view', collapsible: false, listed: false,
-};
+const workspace = createWorkspace({ mount: false, root: smoke });
 
 // The composition an app writes: provider -> Host -> Workspace -> PanelRow, all from the published names.
 function App(): React.JSX.Element {
@@ -83,9 +81,7 @@ function App(): React.JSX.Element {
   const rowRef = React.useRef<HTMLDivElement | null>(null);
   const fake = createFakeHost();
   const width = fake.device.size.width;
-  const provided = useProvidePanels({
-    initialEntries: [ROOT], rootId: 'root', phoneWidth: width, containerWidth: 1200, overflowContainerRef,
-  });
+  const provided = useProvidePanels({ workspace, phoneWidth: width, containerWidth: 1200, overflowContainerRef });
   return (
     <HostProvider host={{ ...fake, panels: provided }}>
       <Workspace
@@ -99,7 +95,8 @@ function App(): React.JSX.Element {
       >
         <PanelRow
           entries={provided.entries}
-          rootId="root"
+          rootId={workspace.rootId}
+          workspace={workspace}
           closingIds={provided.closingIds}
           enteringViaAnchorIds={provided.enteringViaAnchorIds}
           exitRightIds={provided.exitRightIds}

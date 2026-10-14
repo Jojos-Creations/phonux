@@ -7,13 +7,14 @@ import assert from 'node:assert/strict';
 import './support/jsdom-globals.js';
 import * as React from 'react';
 import { act } from 'react';
-import { PanelRow, registerView, useProvidePanels, type PanelWindow, type ProvidedPanels } from '../index.js';
+import { useProvidePanels, type PanelWindow, type ProvidedPanels } from '../index.js';
 import { computeRowLayout } from '../panelRowLayout.js';
 import { computeRowOrder, deriveAnchorsFromOrder } from '../panelRowOrder.js';
 import { movePanel, reanchorPanel } from '../panelWindow.js';
 import type { UsePanelManagerResult } from '../panels/usePanelManager.js';
 import { hydrateWorkspaceState, type WorkspaceState } from '../workspaceState.js';
-import { advanceFrames, cleanup, mount, panelsInput, usePanelManagerWith, withHost } from './support/mount-harness.js';
+import { advanceFrames, cleanup, mount, usePanelManagerWith, withHost, useSeededInput, StaticRow } from './support/mount-harness.js';
+import { registerTestView } from './support/test-views.js';
 
 const entry = (id: string, over: Partial<PanelWindow> = {}): PanelWindow => ({
   id,
@@ -31,11 +32,11 @@ const ids = (panels: readonly PanelWindow[]): string[] => panels.map((p) => p.id
 const anchorsOf = (panels: readonly PanelWindow[]): Record<string, string> =>
   Object.fromEntries(panels.filter((p) => p.anchor !== undefined).map((p) => [p.id, `${p.anchor!.panel} ${p.anchor!.position} ${p.anchor!.priority}`]));
 
-registerView('pin-placement', ({ panel }) => React.createElement('i', { 'data-slot': panel.id }, panel.title));
+registerTestView('pin-placement', ({ panel }) => React.createElement('i', { 'data-slot': panel.id }, panel.title));
 
 const NONE: ReadonlySet<string> = new Set();
 const rowOf = (entries: PanelWindow[], rootId: string, entering: ReadonlySet<string> = NONE): React.ReactElement =>
-  withHost(React.createElement(PanelRow, { entries, rootId, closingIds: NONE, enteringViaAnchorIds: entering }));
+  withHost(React.createElement(StaticRow, { entries, rootId, closingIds: NONE, enteringViaAnchorIds: entering }));
 /** The slot's translateX in px right after a render, before any frame has run; a slot at x 0 carries no transform. */
 const slotX = (container: HTMLElement, id: string): number => {
   const slot = container.querySelector(`[data-slot="${id}"]`)?.parentElement;
@@ -70,10 +71,10 @@ function mountManager(initial: PanelWindow[], rootId: string, width = 0, fixedCo
   };
 }
 
-function mountProvider(initialEntries: PanelWindow[], over: Parameters<typeof panelsInput>[0] = {}): { latest: () => ProvidedPanels } {
+function mountProvider(initialEntries: PanelWindow[], over: Partial<Parameters<typeof useSeededInput>[0]> = {}): { latest: () => ProvidedPanels } {
   let latest: ProvidedPanels | undefined;
   function Probe(): React.ReactElement {
-    latest = useProvidePanels(panelsInput({ initialEntries, ...over }));
+    latest = useProvidePanels(useSeededInput({ initialEntries, ...over }));
     return React.createElement('output');
   }
   mount(React.createElement(Probe));

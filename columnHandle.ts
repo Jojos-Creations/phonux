@@ -4,8 +4,11 @@
  */
 import { createWorkspace, type WorkspaceHandle, type WorkspaceOptions } from './workspaceCore.js';
 import { PanelManagerError } from './panelManagerError.js';
+import { checkPatch, planTuning, unchanged } from './panelConfigure.js';
+import type { ConfigureResult, PanelManager } from './panelManager.js';
 import { cleanWorkspaceName } from './workspaceName.js';
 import { refusedLiveKeys, type WorkspaceLive } from './workspaceLive.js';
+import type { Theme } from '@mui/material/styles';
 import type { WorkspaceStorage } from './workspaceState.js';
 
 /** The saved list of a column: which workspaces exist, in order, under which name, and which one was current. @public */
@@ -39,7 +42,8 @@ export interface ColumnStorage {
 /**
  * What `createWorkspaceColumn` takes. The members of `WorkspaceOptions` that describe a workspace's content (`root`, `templates`,
  * `defaults`, `order`) are the content of every workspace in the column; `addWorkspace` cannot change them for one. `wrap`, `device`,
- * `tuning`, `labels` and the other shared members belong to the column and apply to every workspace in it.
+ * `tuning`, `labels` and the other shared members belong to the column and apply to every workspace in it. `theme` is drawn once for
+ * the whole column, and a workspace in it takes that theme.
  * @public
  */
 export type ColumnOptions = Omit<WorkspaceOptions, 'id' | 'name' | 'onRename' | 'storage' | 'mount'> & {
@@ -84,6 +88,14 @@ export interface WorkspaceColumnHandle {
   scrollTo(target: WorkspaceHandle | number): void;
   /** Moves to the workspace above or below; false at the end of the column. */
   step(direction: 'up' | 'down'): boolean;
+  /**
+   * `WorkspaceManager.configureTuning` for the whole column: the patch reaches every workspace in it, those added later start from it,
+   * and the column's own slide follows it. Kept for this session only. It works before the saved list has been read and refuses
+   * only after `dispose()`. Throws `invalid-settings` for a key or value the tuning does not accept, and answers `wrong-scope` for
+   * `tuning` itself, as the workspace's does. The answer is the column's own: a workspace disposed on its own keeps refusing and is not
+   * reported. A workspace's own `configureTuning` after this one wins for that workspace until the column changes the key again.
+   */
+  configureTuning(patch: Parameters<PanelManager['configureTuning']>[0]): ConfigureResult;
   /** Gives every workspace the new live values, and every workspace added later; the same members as `WorkspaceHandle.update`. */
   update(live: WorkspaceLive): void;
   /** Disposes every workspace and takes the column off the screen. */
@@ -107,6 +119,10 @@ interface ColumnCore {
   snapshot(): ColumnSnapshot;
   /** Whether the column renders itself (see `ColumnOptions.mount`). */
   readonly autoMounted: boolean;
+  /** The theme function every cell is drawn under, if the app gave one. */
+  readonly theme: ((mode: 'light' | 'dark') => Theme) | undefined;
+  /** Reports an error the column swallowed: `onError`, else `console.error`. */
+  reportError(e: unknown): void;
 }
 
 const CORES = new WeakMap<WorkspaceColumnHandle, ColumnCore>();
@@ -140,6 +156,7 @@ const isColumnState = (v: unknown): v is ColumnState => {
  */
 export function createWorkspaceColumn(o: ColumnOptions = {}): WorkspaceColumnHandle {
   const { storage, mount, ...shared } = o;
+  let tuningInput = o.tuning;
   let live: WorkspaceLive = {
     ...(o.device !== undefined ? { device: o.device } : {}),
     ...(o.settings !== undefined ? { settings: o.settings } : {}),
@@ -171,7 +188,7 @@ export function createWorkspaceColumn(o: ColumnOptions = {}): WorkspaceColumnHan
     snap = undefined;
     for (const l of [...listeners]) l();
   };
-  const snapshot = (): ColumnSnapshot => (snap ??= { status, workspaces: list, names: list.map((w) => w.name), current, labels: live.labels, topInset: live.topInset ?? 0, tuning: o.tuning });
+  const snapshot = (): ColumnSnapshot => (snap ??= { status, workspaces: list, names: list.map((w) => w.name), current, labels: live.labels, topInset: live.topInset ?? 0, tuning: tuningInput });
 
   const state = (): ColumnState => ({ version: 1, workspaces: list.map((w) => ({ id: w.id, name: w.name })), current: list[current]?.id ?? null });
   // Saves go one after another so a slow one cannot land after the one that followed it.
@@ -206,6 +223,7 @@ export function createWorkspaceColumn(o: ColumnOptions = {}): WorkspaceColumnHan
     const ws = createWorkspace({
       ...shared,
       ...live,
+      ...(tuningInput !== undefined ? { tuning: tuningInput } : {}),
       ...(panels !== undefined ? { storage: panels } : {}),
       id,
       name,
@@ -258,6 +276,17 @@ export function createWorkspaceColumn(o: ColumnOptions = {}): WorkspaceColumnHan
       commit();
       return true;
     },
+    configureTuning: (patch) => {
+      if (status === 'disposed') return { ok: false, code: 'disposed', message: 'the column was disposed' };
+      const checked = checkPatch('tuning', patch);
+      if ('refusal' in checked) return { ok: false, ...checked.refusal };
+      const plan = planTuning(tuningInput, patch as Record<string, unknown>);
+      if (!plan.changed) return unchanged();
+      tuningInput = plan.input;
+      for (const w of list) w.panels.configureTuning(patch);
+      changed();
+      return { ok: true, changed: true, shown: false, now: plan.now, later: plan.later, shadowed: [], notes: [] };
+    },
     update: (change) => {
       if (status === 'disposed') throw new PanelManagerError('disposed', 'the column was disposed');
       const refused = refusedLiveKeys(change);
@@ -284,6 +313,8 @@ export function createWorkspaceColumn(o: ColumnOptions = {}): WorkspaceColumnHan
     },
     snapshot,
     autoMounted: mount !== false && typeof document !== 'undefined',
+    theme: o.theme,
+    reportError,
   });
 
   if (storage !== undefined) {
