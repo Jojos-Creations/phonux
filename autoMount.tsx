@@ -13,10 +13,13 @@ import { PanelRow } from './PanelRow.js';
 import { Workspace } from './Workspace.js';
 import { createDefaultTheme } from './defaultTheme.js';
 import { DEFAULT_PHONE_SIZE, HostProvider, type HostInput } from './hostApi.js';
+import { usePhoneFit } from './usePhoneFit.js';
 import { useProvidePanels } from './panels/useProvidePanels.js';
 import type { ProvidedPanels } from './panels/useProvidePanels.js';
 import type { WorkspaceProps } from './Workspace.js';
 import { bindingOf, type WorkspaceHandle } from './workspaceCore.js';
+import { WorkspaceColumn } from './WorkspaceColumn.js';
+import type { WorkspaceColumnHandle } from './columnHandle.js';
 import type { WorkspacePanelsInput } from './workspaceLive.js';
 
 /** The `Workspace` props the mount derives from what `useProvidePanels` returned: the same mapping a hand-wired flow writes out. @internal */
@@ -64,7 +67,7 @@ function panelsInputOf(workspace: WorkspaceHandle, stand: Map<string, unknown>):
 }
 
 /** What the default mount renders for `workspace`. @internal */
-export function AutoRoot({ workspace }: { workspace: WorkspaceHandle }): React.ReactElement {
+export function AutoRoot({ workspace, columnTop = 0 }: { workspace: WorkspaceHandle; columnTop?: number }): React.ReactElement {
   const binding = bindingOf(workspace);
   React.useSyncExternalStore(binding.live.subscribe, binding.live.version);
   const values = binding.live.latest();
@@ -72,7 +75,11 @@ export function AutoRoot({ workspace }: { workspace: WorkspaceHandle }): React.R
   const ref = React.useRef<HTMLDivElement>(null);
   const rowRef = React.useRef<HTMLDivElement>(null);
   const containerWidth = useContainerWidth(ref);
-  const phoneWidth = values.device?.size.width ?? DEFAULT_PHONE_SIZE.width;
+  const preferred = values.device?.size ?? DEFAULT_PHONE_SIZE;
+  const tuning = React.useSyncExternalStore(binding.subscribe, () => binding.tuning, () => binding.tuning);
+  const topPadding = columnTop > 0 ? columnTop + (values.topInset ?? 0) + tuning.rowGap : values.topInset;
+  const phone = usePhoneFit(ref, containerWidth, preferred, tuning, topPadding);
+  const phoneWidth = phone.width;
   const provided = useProvidePanels({
     ...panelsInputOf(workspace, stand.current),
     ...(values.labels !== undefined ? { labels: values.labels } : {}),
@@ -94,7 +101,7 @@ export function AutoRoot({ workspace }: { workspace: WorkspaceHandle }): React.R
   };
   const Wrap = binding.wrap;
   const row = (
-    <Workspace overflowContainerRef={ref} rowRef={rowRef} containerWidth={containerWidth} phoneWidth={phoneWidth} {...(values.topInset !== undefined ? { topPadding: values.topInset } : {})} {...workspaceProps(provided)}>
+    <Workspace overflowContainerRef={ref} rowRef={rowRef} containerWidth={containerWidth} phoneWidth={phoneWidth} phoneHeight={phone.height} {...(topPadding !== undefined ? { topPadding } : {})} {...workspaceProps(provided)}>
       <PanelRow {...rowProps(provided, workspace)} />
     </Workspace>
   );
@@ -127,6 +134,40 @@ export function mountWorkspace(workspace: WorkspaceHandle, target: HTMLElement |
   outer.appendChild(inner);
   const root = createRoot(inner, { onUncaughtError: onError, onCaughtError: onError });
   root.render(<AutoRoot workspace={workspace} />);
+  return () => {
+    root.unmount();
+    inner.remove();
+    if (owned) outer.remove();
+  };
+}
+
+/** What a column renders itself with: the theme, and the column over a cell per workspace. @internal */
+export function ColumnRoot({ column }: { column: WorkspaceColumnHandle }): React.ReactElement {
+  const dark = useMediaQuery('(prefers-color-scheme: dark)');
+  const theme = React.useMemo(() => createDefaultTheme(dark ? 'dark' : 'light'), [dark]);
+  return (
+    <ThemeProvider theme={theme}>
+      <CssBaseline />
+      <WorkspaceColumn column={column} />
+    </ThemeProvider>
+  );
+}
+
+/** Renders `column` into `target` as `mountWorkspace` does a workspace, and returns the function that takes it away. @internal */
+export function mountColumn(column: WorkspaceColumnHandle, target: HTMLElement | undefined, onError: (e: unknown) => void): () => void {
+  const owned = target === undefined;
+  const outer = target ?? document.createElement('div');
+  if (owned) {
+    outer.style.position = 'fixed';
+    outer.style.inset = '0';
+    document.body.appendChild(outer);
+  }
+  const inner = document.createElement('div');
+  inner.style.width = '100%';
+  inner.style.height = '100%';
+  outer.appendChild(inner);
+  const root = createRoot(inner, { onUncaughtError: onError, onCaughtError: onError });
+  root.render(<ColumnRoot column={column} />);
   return () => {
     root.unmount();
     inner.remove();

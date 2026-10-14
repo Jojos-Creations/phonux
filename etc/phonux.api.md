@@ -91,6 +91,45 @@ export interface ClosedPageEntry {
 export type CloseExitEase = 'easeIn' | 'easeOut' | 'easeInOut' | 'linear' | BezierEase;
 
 // @public
+export const COLUMN_BOTTOM_BAND = 26;
+
+// @public
+export const COLUMN_TOP_BAND = 76;
+
+// @public
+export type ColumnOptions = Omit<WorkspaceOptions, 'id' | 'name' | 'onRename' | 'storage' | 'mount'> & {
+    storage?: ColumnStorage;
+    mount?: HTMLElement | false;
+};
+
+// @public
+export interface ColumnState {
+    current: string | null;
+    version: 1;
+    workspaces: {
+        id: string;
+        name: string;
+    }[];
+}
+
+// @public
+export type ColumnStatus = 'loading' | 'ready' | 'disposed';
+
+// @public
+export interface ColumnStorage {
+    load(): Promise<ColumnState | null>;
+    save(state: ColumnState): void | Promise<void>;
+    workspace?(id: string): WorkspaceStorage | undefined;
+}
+
+// @public
+export interface ColumnWorkspaceOptions {
+    id?: string;
+    index?: number;
+    name?: string;
+}
+
+// @public
 export function computeRowLayout(input: RowLayoutInput): RowLayoutResult;
 
 // @public
@@ -143,6 +182,9 @@ export interface CreatePanelOptions {
 
 // @public
 export function createWorkspace(o?: WorkspaceOptions): WorkspaceHandle;
+
+// @public
+export function createWorkspaceColumn(o?: ColumnOptions): WorkspaceColumnHandle;
 
 // @public
 export const DEFAULT_PANEL_SIZE: PanelSize;
@@ -342,6 +384,9 @@ export type ListFilter = {
     status?: PanelStatus | readonly PanelStatus[];
     listed?: boolean;
 };
+
+// @public
+export const MAX_WORKSPACE_NAME = 60;
 
 // @public
 export function mergePatch(layer: PanelSettings, patch: SettingsPatch): PanelSettings;
@@ -861,6 +906,7 @@ export interface PanelWindow {
     size?: PanelSize;
     slots?: number;
     title?: string;
+    uid?: string;
     url: string;
     view: string;
 }
@@ -893,14 +939,17 @@ export interface PhoneSize {
 
 // @public
 export interface PhonuxLabels {
+    goToWorkspace: (name: string) => string;
     historyTitle: string;
     lock: string;
+    newWorkspace: string;
     panelTitle: (id: string) => string;
     pin: string;
     unlock: string;
     unpin: string;
     untitledHeader: string;
     untitledPanel: string;
+    workspaceName: string;
 }
 
 // @public
@@ -1003,6 +1052,9 @@ export type ResolvedWorkspaceTuning = ResolvedPanelTuning & {
     chrome: ChromeTuning;
     maxLivePanels: number | null;
     shrinkOutOfView: 'off' | 'visible' | 'hidden';
+    phoneFit: 'off' | 'fit';
+    phoneFitMin: number;
+    phoneFitMax: number;
 };
 
 // @public
@@ -1056,6 +1108,7 @@ export interface RowNumbers {
     reservedWidths: readonly number[];
     rowMarginLeft: number;
     rowScroll: boolean;
+    showPartial: boolean;
     stopFirsts: readonly number[];
     stops: readonly number[];
     stopShrinks: readonly (readonly {
@@ -1277,6 +1330,21 @@ export const usePanelTuning: () => ResolvedPanelTuning & {
 };
 
 // @public
+export function usePhoneFit(containerRef: React_2.RefObject<HTMLDivElement | null>, containerWidth: number, preferred: {
+    readonly width: number;
+    readonly height: number;
+}, tuning: ResolvedWorkspaceTuning, topInset?: number): {
+    readonly width: number;
+    readonly height: number;
+};
+
+// @public
+export function usePhoneSize(): {
+    readonly width: number;
+    readonly height: number;
+};
+
+// @public
 export function useProvidePanels(i: PanelsInput): ProvidedPanels;
 
 // @public
@@ -1356,6 +1424,27 @@ export interface WindowOverlayProps {
 export function Workspace(props: WorkspaceProps): React_2.ReactElement;
 
 // @public
+export function WorkspaceColumn(input: WorkspaceColumnProps): React_2.ReactElement;
+
+// @public
+export interface WorkspaceColumnHandle {
+    addWorkspace(o?: ColumnWorkspaceOptions): WorkspaceHandle;
+    readonly current: number;
+    dispose(): void;
+    scrollTo(target: WorkspaceHandle | number): void;
+    readonly status: ColumnStatus;
+    step(direction: 'up' | 'down'): boolean;
+    update(live: WorkspaceLive): void;
+    readonly workspaces: readonly WorkspaceHandle[];
+}
+
+// @public
+export interface WorkspaceColumnProps {
+    children?: (workspace: WorkspaceHandle) => React_2.ReactNode;
+    column: WorkspaceColumnHandle;
+}
+
+// @public
 export interface WorkspaceHandle {
     addPanel<P extends JsonValue = JsonValue>(t: PanelTemplate<P> | string, o?: {
         id?: PanelId;
@@ -1364,8 +1453,11 @@ export interface WorkspaceHandle {
         url?: string;
     }): PanelHandle<P>;
     dispose(): void;
+    readonly id: string;
+    readonly name: string;
     readonly panels: PanelManager;
     registerTemplate(t: PanelTemplate): () => void;
+    rename(name: string): string;
     readonly rootId: string;
     readonly status: WorkspaceStatus;
     readonly tuning: ResolvedWorkspaceTuning;
@@ -1385,6 +1477,9 @@ export type WorkspaceLive = {
 
 // @public
 export type WorkspaceOptions = WorkspaceLive & {
+    id?: string;
+    name?: string;
+    onRename?: (name: string) => void;
     storage?: WorkspaceStorage;
     defaults?: Omit<PanelSettings, 'tuning'>;
     root?: PanelTemplate;
@@ -1419,6 +1514,7 @@ export type WorkspacePanelState = {
     slots?: number;
     permanent?: boolean;
     layer?: 'base' | 'raised';
+    uid?: string;
     key?: string;
     instance?: {
         [key: string]: JsonValue;
@@ -1447,6 +1543,7 @@ export interface WorkspaceProps extends Omit<BoxProps, 'children'> {
     fixedColumnCount: number;
     liveWidths: readonly number[];
     overflowContainerRef: RefObject<HTMLDivElement | null>;
+    phoneHeight?: number;
     phoneWidth: number;
     rowNumbers?: RowNumbers;
     rowRef: RefObject<HTMLDivElement | null>;
@@ -1492,6 +1589,9 @@ export type WorkspaceTuning = PanelTuning & {
     };
     maxLivePanels?: number | null;
     shrinkOutOfView?: 'off' | 'visible' | 'hidden';
+    phoneFit?: 'off' | 'fit';
+    phoneFitMin?: number;
+    phoneFitMax?: number;
 };
 
 // @public

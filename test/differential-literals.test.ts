@@ -28,6 +28,7 @@ const OWNING_FILES = [
   'max-live-panels-count',
   'slot-sizing',
   'shrink-whole-panels-mounted',
+  'phone-fit',
   'default-frame',
 ].map((base) => `${base}.test.ts`);
 
@@ -60,7 +61,7 @@ function readTestFiles(): Texts {
 test('every catalog name has exactly one literal differential call across the test files', () => {
   const names = PANEL_SETTINGS_CATALOG.map((d) => d.name);
   const texts = readTestFiles();
-  assert.equal(names.length, 69, 'positive control: the whole catalog was read');
+  assert.equal(names.length, 72, 'positive control: the whole catalog was read');
   assert.ok(texts.size > 50, `positive control: the scan read the test files, it read ${texts.size}`);
   const offenders: string[] = [];
   for (const name of names) {

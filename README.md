@@ -42,6 +42,26 @@ component for the app's providers, and `workspace.update(...)` to give a running
 "Workspace options, wrap and update"). A title-bar button is a setting too: `headerButtons: { more: { label: 'More', onClick } }`
 draws the label as the button's text.
 
+## Several workspaces
+
+A column of workspaces is one call per workspace, in the same style as the quickstart:
+
+```ts
+import { createWorkspaceColumn, definePanel } from 'phonux';
+
+const notes = definePanel({ id: 'notes', view: NotesView });
+const column = createWorkspaceColumn({ templates: [notes] });
+column.addWorkspace().addPanel('notes'); // "Workspace 1"
+column.addWorkspace({ name: 'Reading' }); // or give it a name
+```
+
+The column renders itself. ArrowUp and ArrowDown (when focus is not in a field or dialog) move between workspaces, a button at the top
+and bottom centre names the neighbour and moves there, and where there is none it reads "Create new workspace" and calls
+`addWorkspace`. Each workspace has an input above its panels for its name. `storage` keeps the list, the names and the current
+workspace; the column has one content (`root`, `templates`, `defaults`, `order`), `addWorkspace` takes only `id`, `name` and `index`, and a
+workspace's panels are kept by `storage.workspace(id)` (return `undefined` for none). Give the workspace you already have its old key with `addWorkspace({ id })`. An app that draws its own rows passes
+`mount: false` and renders `<WorkspaceColumn column={column}>{(workspace) => ...}</WorkspaceColumn>`.
+
 ## Building your own flow
 
 The default start is built on the components it exports, and they stay public. This is the same row written out by hand: create
@@ -116,7 +136,7 @@ those parts out for a panel nobody is using, along `fadeEase` (see DESIGN.md, "P
 
 `tuning.shrinkOutOfView` (`'off'`, `'visible'`, `'hidden'`) decides what a stepping row does with the panels its window would leave
 cut off by an edge: `'visible'` moves the row one slot at a time, so every panel steps through every size on its way in and out
-(1, 2, ... its own width, then its own width ... 2, 1) and is never cropped; `'hidden'` keeps whole panels and hides the rest; `'off'` leaves the margin. A resize grabber calls the setter from `usePanelResizing()` so no other
+(1, 2, ... its own width, then its own width ... 2, 1) and is never cropped; `'hidden'` keeps whole panels and hides the rest; `'off'` shows the neighbour at the window edge cut off, at its full size. A resize grabber calls the setter from `usePanelResizing()` so no other
 panel changes size under it (see DESIGN.md, "Whole panels only"). The setter's third item, `setDrawnWidth(px, pin?)`, draws that
 panel `px` wide at once, so the grabber follows the pointer frame by frame (`pin: 'end'` keeps the right edge still for a grabber on the left);
 end a drag with `setSlots(nearest)`, `setDrawnWidth(null)` and `setResizing(false)`, in that order.

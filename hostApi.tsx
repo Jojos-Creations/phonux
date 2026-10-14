@@ -179,8 +179,11 @@ export interface PanelsAPI {
   /**
    * The narrowest row container, in whole px, that shows every permanent column plus two phone slots, or plus one tablet
    * panel when that is wider: `minWorkspaceWidth` over the current phone width, row gap and permanent columns. A host
-   * reads it to set its window's minimum width. It does not depend on the window, so it is reported before the row is
-   * measured. Absent from a host that does not report it.
+   * reads it to set its window's minimum width. It never reads the container width, so it is reported before the row is
+   * measured. Unset while the phone width is not a positive finite number. Absent from a host that does not report it.
+   *
+   * It prices the phone at the width the row draws now, so it holds as a floor only where that width does not follow the
+   * window (`phoneFit` off): with `phoneFit` on the drawn phone moves with the window.
    */
   readonly minWorkspaceWidth?: number;
   /**

@@ -321,7 +321,7 @@ test('without workspaceDefaults the created entry is what appendPanel builds: no
   const p = provide({ initialEntries: [legacyRoot()], containerWidth: 1000 });
   act(() => p.now().create());
   const entry = p.now().entries[1]!;
-  const expected = appendPanel([legacyRoot()], { view: '', title: `Panel ${entry.id}` }, entry.id, ROOT)[1]!;
+  const expected = appendPanel([legacyRoot()], { view: '', title: `Panel ${entry.id}` }, entry.id, ROOT, entry.uid)[1]!;
   assert.deepEqual(entry, expected);
   assert.equal('settings' in entry || 'key' in entry, false);
   assert.equal(p.now().rowScroll, false);

@@ -48,30 +48,33 @@ test('a second wheel event inside the 60 ms lock does nothing, and one after it 
   mock.timers.enable({ apis: ['setTimeout'] });
   m.wheel({ deltaX: 50 });
   assert.equal(m.scroller.glideTarget(), stops[1]);
-  tick(59);
+  tick(20);
+  m.wheel({ deltaX: 30 });
+  tick(39);
   m.wheel({ deltaX: 50 });
-  assert.equal(m.scroller.glideTarget(), stops[1], 'one ms short of the lock; later events do not extend it');
+  assert.equal(m.scroller.glideTarget(), stops[1], 'one ms short of the lock the deltas have risen over the trough and still do not step; later events do not extend it');
   tick(1);
   m.wheel({ deltaX: 50 });
-  assert.equal(m.scroller.glideTarget(), stops[2], 'the lock is over and the wheel is not slowing: the next step, from the in-flight target');
+  assert.equal(m.scroller.glideTarget(), stops[2], 'the lock is over and the deltas rose 1.5 times over the trough: the next step, from the in-flight target');
   tick(60);
   m.wheel({ deltaX: -20 });
   assert.equal(m.scroller.glideTarget(), stops[1], 'a reversal steps back even when smaller');
 });
 
-test('a wheel that keeps its speed steps one panel every 60 ms for as long as it keeps moving', () => {
+test('a plateau of equal deltas is one step, and mouse notches 200 ms apart each step', () => {
   const m = stepRow(eleven(), 1000);
   const stops = stopsOf(m, 1000);
   mock.timers.enable({ apis: ['setTimeout'] });
-  const targets: (number | null)[] = [];
-  for (let n = 0; n < 6; n += 1) {
+  for (let n = 0; n < 20; n += 1) {
     m.wheel({ deltaX: 100 });
-    targets.push(m.scroller.glideTarget());
-    tick(30);
-    m.wheel({ deltaX: 100 });
-    tick(30);
+    tick(16);
   }
-  assert.deepEqual(targets, stops.slice(1, 7));
+  assert.equal(m.scroller.glideTarget(), stops[1], 'a held plateau does not step again');
+  tick(200);
+  m.wheel({ deltaX: 100 });
+  tick(200);
+  m.wheel({ deltaX: 100 });
+  assert.equal(m.scroller.glideTarget(), stops[3], 'each notch after a quiet gap is a fresh gesture');
 });
 
 test('one swipe whose deltas fade away is one step, however long its tail', () => {
@@ -82,6 +85,65 @@ test('one swipe whose deltas fade away is one step, however long its tail', () =
     m.wheel({ deltaX: delta });
     tick(16);
   }
+  assert.equal(m.scroller.glideTarget(), stops[1]);
+});
+
+/** Feeds a whole trace of deltas (signed) one per `every` ms, as one wheel stream. */
+const feed = (m: MountedRow, trace: readonly number[], every = 16, over: { deltaMode?: number } = {}): void => {
+  for (const deltaX of trace) {
+    m.wheel({ deltaX, ...over });
+    tick(every);
+  }
+};
+const RAMP = [2, 4, 9, 18, 32, 50, 70, 88, 100, 104, 100, 92, 82, 72, 62, 52, 44, 36, 30, 24, 19, 15, 12, 9, 7, 5, 4, 3, 2, 1];
+
+test('a swipe whose deltas ramp up, peak and fade is one step, not one per rising event', () => {
+  const m = stepRow(eleven(), 1000);
+  const stops = stopsOf(m, 1000);
+  mock.timers.enable({ apis: ['setTimeout'] });
+  feed(m, RAMP);
+  assert.equal(m.scroller.glideTarget(), stops[1]);
+});
+
+test('jitter in a swipe tail (14, 12, 13, 11) under 1.5 times the trough does not step again', () => {
+  const m = stepRow(eleven(), 1000);
+  const stops = stopsOf(m, 1000);
+  mock.timers.enable({ apis: ['setTimeout'] });
+  feed(m, [100, 80, 60, 40, 30, 33, 36, 32, 14, 12, 13, 11, 12, 10, 11, 9, 10]);
+  assert.equal(m.scroller.glideTarget(), stops[1]);
+});
+
+test('a second swipe that starts in the first one tail (rises 1.5 times over the trough) steps again', () => {
+  const m = stepRow(eleven(), 1000);
+  const stops = stopsOf(m, 1000);
+  mock.timers.enable({ apis: ['setTimeout'] });
+  feed(m, [100, 70, 40, 20, 10, 20, 40, 80]);
+  assert.equal(m.scroller.glideTarget(), stops[2]);
+});
+
+test('a quantised tail (3, 2, 1, 1, 1, 2, 1) under the absolute floor does not step again', () => {
+  const m = stepRow(eleven(), 1000);
+  const stops = stopsOf(m, 1000);
+  mock.timers.enable({ apis: ['setTimeout'] });
+  feed(m, [4, 12, 40, 90, 100, 70, 45, 28, 17, 10, 6, 4, 3, 2, 1, 1, 1, 2, 1, 1, 2, 1]);
+  assert.equal(m.scroller.glideTarget(), stops[1]);
+});
+
+test('a swipe that reverses direction after the lock steps back', () => {
+  const m = stepRow(eleven(), 1000);
+  const stops = stopsOf(m, 1000);
+  mock.timers.enable({ apis: ['setTimeout'] });
+  feed(m, [100, 80, 60]);
+  assert.equal(m.scroller.glideTarget(), stops[1]);
+  feed(m, [-20, -40, -80]);
+  assert.equal(m.scroller.glideTarget(), stops[0]);
+});
+
+test('a Firefox line-mode swipe (deltaMode 1, whole lines) is one step', () => {
+  const m = stepRow(eleven(), 1000);
+  const stops = stopsOf(m, 1000);
+  mock.timers.enable({ apis: ['setTimeout'] });
+  feed(m, [1, 1, 2, 3, 3, 3, 2, 2, 1, 1, 1, 1], 16, { deltaMode: 1 });
   assert.equal(m.scroller.glideTarget(), stops[1]);
 });
 
@@ -105,7 +167,9 @@ test('a wheel that stops leaves the row where its last step put it', async () =>
   const stops = stopsOf(m, 1000);
   mock.timers.enable({ apis: ['setTimeout'] });
   m.wheel({ deltaX: 100 });
-  tick(60);
+  tick(30);
+  m.wheel({ deltaX: 40 });
+  tick(30);
   m.wheel({ deltaX: 100 });
   tick(1000);
   await advanceFrames(500);
@@ -184,6 +248,39 @@ test('arrows skip INPUT, TEXTAREA, SELECT and contentEditable targets and any mo
   button.focus();
   m.key('ArrowRight', {}, button);
   assert.equal(stepped(), true, 'a focused button');
+});
+
+test('an arrow a control already handled does not also step the row', () => {
+  const m = stepRow(eleven(), 1000);
+  const stops = stopsOf(m, 1000);
+  const control = document.body.appendChild(document.createElement('div'));
+  control.addEventListener('keydown', (e) => e.preventDefault());
+  m.key('ArrowRight', {}, control);
+  assert.equal(m.scroller.glideTarget(), null, 'the control used the key');
+  control.remove();
+  m.key('ArrowRight');
+  assert.equal(m.scroller.glideTarget(), stops[1], 'control: an unhandled press steps');
+});
+
+test('an arrow a control only stops from bubbling never reaches the row', () => {
+  const m = stepRow(eleven(), 1000);
+  const control = document.body.appendChild(document.createElement('div'));
+  control.addEventListener('keydown', (e) => e.stopPropagation());
+  m.key('ArrowRight', {}, control);
+  assert.equal(m.scroller.glideTarget(), null);
+  control.remove();
+});
+
+test('an arrow does not step a row inside an inert ancestor, and steps again once it is not', () => {
+  const m = stepRow(eleven(), 1000);
+  const stops = stopsOf(m, 1000);
+  const host = m.container.parentElement!;
+  host.setAttribute('inert', '');
+  m.key('ArrowRight');
+  assert.equal(m.scroller.glideTarget(), null, 'an inert row stays put');
+  host.removeAttribute('inert');
+  m.key('ArrowRight');
+  assert.equal(m.scroller.glideTarget(), stops[1]);
 });
 
 test('a glide the gesture started stops at pointer-down in the container', () => {

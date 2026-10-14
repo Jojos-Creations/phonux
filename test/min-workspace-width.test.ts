@@ -7,6 +7,8 @@ import { test, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
 import './support/jsdom-globals.js';
 import { createWorkspace, minWorkspaceWidth, TIER_SIZES } from '../index.js';
+import { fitPhone } from '../phoneFit.js';
+import { PHONE_FIT_MIN } from '../rowConstants.js';
 import { computeMaxLiveWidth, computeRowLayout } from '../panelRowLayout.js';
 import { computeRowNumbers } from '../rowNumbers.js';
 import { createFakeHost } from '../fakeHost.js';
@@ -57,7 +59,8 @@ test('the tablet defaults to the tier table width (768): no fixed column, phone 
 });
 
 test('a fractional phone width rounds the minimum up to a whole pixel, never down', () => {
-  assert.equal(minWorkspaceWidth({ phoneWidth: 390.25, fixedColumnCount: 1, gap: 16, tabletWidth: 0 }), 1235);
+  assert.equal(minWorkspaceWidth({ phoneWidth: 390.2, fixedColumnCount: 1, gap: 16, tabletWidth: 0 }), 1235);
+  assert.equal(minWorkspaceWidth({ phoneWidth: 390.8, fixedColumnCount: 1, gap: 16, tabletWidth: 0 }), 1236);
 });
 
 test('refuses a count that is not a whole number, or a phone slot count below one', () => {
@@ -138,9 +141,9 @@ test('the provider: History alone at the default gap gives 1234; phone 320 gives
   assert.equal((await liveRow({ fixed: 1, width: 1280, phoneWidth: 320 })).latest().minWorkspaceWidth, 1136);
 });
 
-// phoneFit (a phone width derived from the window) must keep this true: a minimum read from the width it bounds would
-// shrink with the window and never stop it.
-test('unmeasured and at every width the provider reports one number: it does not depend on the window it bounds', async () => {
+// The harness holds phoneWidth constant, so this pins only that the container width alone never moves the number. A phone
+// width derived from the window (phoneFit) is fed to the provider from outside it and is covered by the fit test below.
+test('unmeasured and at every container width the provider reports one number while the phone width is fed constant', async () => {
   const m = await liveRow({ fixed: 2, width: 0, rowGap: 24 });
   assert.equal(m.latest().maxFitPanels, null, 'control: the row is unmeasured');
   assert.equal(m.latest().minWorkspaceWidth, 1680);
@@ -149,4 +152,21 @@ test('unmeasured and at every width the provider reports one number: it does not
     await flush();
     assert.equal(m.latest().minWorkspaceWidth, 1680, `at ${width}`);
   }
+});
+
+test('a phone width that is not a positive finite number leaves it unset and does not take the row down', async () => {
+  for (const phoneWidth of [0, Number.NaN, -5, Number.POSITIVE_INFINITY]) {
+    const m = await liveRow({ fixed: 1, width: 1280, phoneWidth });
+    assert.equal(m.latest().minWorkspaceWidth, undefined, `phoneWidth ${phoneWidth}`);
+  }
+});
+
+test('pricing the minimum from the smallest phone the fit draws does not hold: at 1504 the fit draws 346, and 346 needs 1556', () => {
+  const preferred = { width: 390, height: 844 };
+  const smallest = Math.ceil(PHONE_FIT_MIN * preferred.width);
+  const floor = minWorkspaceWidth({ phoneWidth: smallest, fixedColumnCount: 2, gap: 24 });
+  assert.equal(floor, 1504);
+  const drawn = fitPhone({ windowWidth: floor, heightBudget: 0, rowCount: 1, preferred, gap: 24, edge: 24, min: PHONE_FIT_MIN, max: 1.13 });
+  assert.equal(drawn.width, 346, 'the window at that minimum draws a larger phone');
+  assert.ok(minWorkspaceWidth({ phoneWidth: drawn.width, fixedColumnCount: 2, gap: 24 }) > floor, 'and the two slots no longer fit beside the fixed columns');
 });

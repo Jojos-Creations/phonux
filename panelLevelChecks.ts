@@ -1,0 +1,122 @@
+/**
+ * Two checks that tie a template to its panel API level: the settings and header button members it uses against the level
+ * that introduced each, and the shape of the header button items its views read. Both are development diagnostics
+ * that log one console.error per template and never throw; a malformed value is the resolver's `invalid-settings`, not this.
+ */
+import { PANEL_API, memberProblems, reportOnce, type ShapeOf } from './panelApiLevel.js';
+import type { PanelApiLevel } from './panelApiLevel.js';
+import type { PanelHeaderIconItem, PanelHeaderTextItem } from './panelHeaderButtons.js';
+import type { CatalogName, HeaderButtonBase } from './panelSettings.js';
+
+/** The level that introduced each setting and each header button member; a level before it does not promise it. @internal */
+export interface LevelSince {
+  readonly settings: Readonly<Record<string, number | undefined>>;
+  readonly headerButton: Readonly<Record<string, number | undefined>>;
+}
+
+const SETTINGS_SINCE: Record<CatalogName, PanelApiLevel> = {
+  closable: 1, parkable: 1, draggable: 1, crossable: 1, placeable: 1, resizable: 1, formFactors: 1, clearable: 1, hostCreatable: 1, multiple: 1,
+  maxInstances: 1, listed: 1, startVisibility: 1, hideStickiness: 1, hideWhenLast: 1, capacityReturn: 1, returnPriority: 1, overflow: 1,
+  evictionRank: 1, evictionOrder: 1, revealOnScroll: 1, scrollOnOpen: 1, scrollOnMove: 1, scrollOnDrag: 1, toggleWhenClosed: 1, showWhenClosed: 1,
+  viewState: 1, keepMounted: 1, placeOnAdd: 1, placeOnShow: 1, placeOnReturn: 1, placeFallback: 1, undoPlacement: 1, layer: 1, enterFrom: 1,
+  exitTo: 1, closeExit: 1, animated: 1, formFactor: 1, slots: 1, maxSlots: 1, title: 1, pinning: 1, pinningWhenNotLive: 1, headerButtons: 1,
+  frame: 1, persist: 1, rememberLayout: 1, restoreVisibility: 1, afterClose: 1, undoWindowMs: 1, reportClose: 1, snapshot: 1,
+  'tuning.rowGap': 1, 'tuning.dragToClose': 1, 'tuning.slide': 1, 'tuning.hopFraction': 1, 'tuning.edgeScroll': 1, 'tuning.saveQuietMs': 1,
+  'tuning.gestureLockMs': 1, 'tuning.gestureQuietMs': 1, 'tuning.resizeSettleSlides': 1, 'tuning.returnTieBreak': 1, 'tuning.dropTieBreak': 1,
+  'tuning.rowGesture': 1, 'tuning.initialScroll': 1, 'tuning.chrome': 1, 'tuning.maxLivePanels': 1, 'tuning.shrinkOutOfView': 1, 'tuning.phoneFit': 1, 'tuning.phoneFitMin': 1, 'tuning.phoneFitMax': 1,
+};
+
+const HEADER_BUTTON_SINCE: Record<keyof HeaderButtonBase | 'icon', PanelApiLevel> = {
+  label: 1, onClick: 1, side: 1, order: 1, pressed: 1, description: 1, tooltip: 1, disabled: 1, hidden: 1, sx: 1, icon: 1,
+};
+
+/** The levels that introduced the shipped settings and header button members. @internal */
+export const SHIPPED_SINCE: LevelSince = { settings: SETTINGS_SINCE, headerButton: HEADER_BUTTON_SINCE };
+
+const isRecord = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v);
+
+/** The settings and header button members of `settings` that a template on `level` was written before; empty when it uses none. Unknown names are the resolver's to refuse. @internal */
+export function levelTieProblems(settings: unknown, level: number, since: LevelSince): string[] {
+  const problems: string[] = [];
+  if (!isRecord(settings)) return problems;
+  const note = (name: string, from: number | undefined, what: string): void => {
+    if (from !== undefined && from > level) problems.push(`${what} '${name}' was added in level ${from}`);
+  };
+  for (const key of Object.keys(settings)) {
+    if (key === 'tuning' && isRecord(settings.tuning)) {
+      for (const leaf of Object.keys(settings.tuning)) note(`tuning.${leaf}`, since.settings[`tuning.${leaf}`], 'setting');
+      continue;
+    }
+    note(key, since.settings[key], 'setting');
+    if (key !== 'headerButtons' || !isRecord(settings.headerButtons)) continue;
+    for (const slot of Object.values(settings.headerButtons)) {
+      if (!isRecord(slot)) continue;
+      for (const member of Object.keys(slot)) note(member, since.headerButton[member], 'header button member');
+    }
+  }
+  return problems;
+}
+
+/** Logs one console.error per template naming every setting or header button member newer than its level; called when the template is registered. @internal */
+export function reportLevelTieOnce(templateId: string, level: number | undefined, settings: unknown, since: LevelSince = SHIPPED_SINCE): void {
+  const at = level ?? PANEL_API;
+  reportOnce(`tie:${templateId}`, `phonux: template '${templateId}' is on panel API level ${at} but uses members of a newer level`, () => levelTieProblems(settings, at, since));
+}
+
+/** The header button item as a view reads it from `usePanelHeaderButtons`, one description per form. @internal */
+export const HEADER_ITEM_SHAPE: { readonly icon: ShapeOf<PanelHeaderIconItem>; readonly text: ShapeOf<PanelHeaderTextItem> } = {
+  icon: {
+    id: { kind: 'string' },
+    label: { kind: 'string' },
+    side: { kind: 'string' },
+    order: { kind: 'number' },
+    pressed: { kind: 'boolean', optional: true },
+    disabled: { kind: 'boolean' },
+    hidden: { kind: 'boolean' },
+    description: { kind: 'string', optional: true },
+    tooltip: { kind: 'string', optional: true },
+    sx: { kind: 'any', optional: true },
+    press: { kind: 'function' },
+    form: { kind: 'string' },
+    icon: { kind: 'any', optional: true },
+  },
+  text: {
+    id: { kind: 'string' },
+    label: { kind: 'string' },
+    side: { kind: 'string' },
+    order: { kind: 'number' },
+    pressed: { kind: 'boolean', optional: true },
+    disabled: { kind: 'boolean' },
+    hidden: { kind: 'boolean' },
+    description: { kind: 'string', optional: true },
+    tooltip: { kind: 'string', optional: true },
+    sx: { kind: 'any', optional: true },
+    press: { kind: 'function' },
+    form: { kind: 'string' },
+    icon: { kind: 'any', optional: true },
+  },
+};
+
+/** What differs between the listed items and the description of their form; an item is judged by its own `form`. @internal */
+export function itemProblems(items: readonly unknown[]): string[] {
+  const problems: string[] = [];
+  items.forEach((item, index) => {
+    if (!isRecord(item)) {
+      problems.push(`item ${index} is not an object`);
+      return;
+    }
+    const form = Object.getOwnPropertyDescriptor(item, 'form')?.value as unknown;
+    const label = `item '${typeof item.id === 'string' ? item.id : index}'`;
+    if (form !== 'icon' && form !== 'text') problems.push(`${label}.form should be 'icon' or 'text'`);
+    else problems.push(...memberProblems(item, HEADER_ITEM_SHAPE[form], label));
+    if (form === 'text' && Object.getOwnPropertyDescriptor(item, 'icon')?.value !== undefined) problems.push(`${label}.icon should be undefined in the text form`);
+  });
+  return problems;
+}
+
+/** Logs one console.error the first time a template's view lists header buttons that do not match their form; nothing is marked checked while the list is empty. @internal */
+export function reportItemShapeOnce(templateId: string, level: number | undefined, items: readonly unknown[]): void {
+  if (items.length === 0) return;
+  const at = level ?? PANEL_API;
+  reportOnce(`items:${templateId}`, `phonux: template '${templateId}' on panel API level ${at} listed header buttons that do not match that level`, () => itemProblems(items));
+}

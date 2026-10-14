@@ -1,5 +1,7 @@
 {
-  "tests": ["test/min-workspace-width.test.ts"],
+  "tests": [
+    "test/min-workspace-width.test.ts"
+  ],
   "mutants": [
     {
       "name": "one edge gap is dropped",
@@ -79,6 +81,24 @@
       "replace": "minWorkspaceWidth({ phoneWidth: i.containerWidth > 0 ? Math.min(i.phoneWidth, i.containerWidth / 5) : i.phoneWidth,",
       "expectRed": [
         "it does not depend on the window it bounds"
+      ]
+    },
+    {
+      "name": "a fraction rounds to nearest instead of up",
+      "file": "minWorkspaceWidth.ts",
+      "find": "return Math.ceil(gap",
+      "replace": "return Math.round(gap",
+      "expectRed": [
+        "a fractional phone width rounds the minimum up"
+      ]
+    },
+    {
+      "name": "the provider no longer guards a phone width that is not positive and finite",
+      "file": "panels/useProvidePanels.ts",
+      "find": "!(i.phoneWidth > 0) || !Number.isFinite(i.phoneWidth) ? undefined : ",
+      "replace": "",
+      "expectRed": [
+        "a phone width that is not a positive finite number"
       ]
     }
   ]

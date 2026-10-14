@@ -9,7 +9,8 @@ import * as React from 'react';
 import Box, { type BoxProps } from '@mui/material/Box';
 import { type Theme } from '@mui/material/styles';
 import MoreHorizIcon from '@mui/icons-material/MoreHoriz';
-import { useHost, useOptionalHost, type PanelSize } from './hostApi.js';
+import { useOptionalHost, type PanelSize } from './hostApi.js';
+import { usePhoneSize } from './phoneFit.js';
 import { resolveLabels } from './labels.js';
 import { PanelFooter } from './panelFooter.js';
 import { useFrameClaim } from './panelFrameClaim.js';
@@ -21,7 +22,7 @@ export interface PanelFrameProps extends Omit<BoxProps, 'children'> {
   children: React.ReactNode;
   /** Fill the available space instead of the fixed phone size (the tap-to-expand overlay). */
   expanded?: boolean;
-  /** This panel's own size instead of the shared useHost().device.size. Omitted: width and height come from device.size, read live -- see DESIGN.md. `height: 'fill'` renders as `100%` rather than a pixel value. */
+  /** This panel's own size instead of the shared phone size (`usePhoneSize()`). Omitted: width and height come from it, read live -- see DESIGN.md. `height: 'fill'` renders as `100%` rather than a pixel value. */
   size?: PanelSize;
   /** `false` keeps the footer the panel's template declares out of this frame, for a view that draws `PanelFooter` itself. Default: drawn below the content. */
   footer?: boolean;
@@ -94,7 +95,7 @@ const PanelFrame = React.forwardRef<HTMLDivElement, PanelFrameProps>(function Pa
   ref,
 ) {
   useFrameClaim('frame');
-  const deviceSize = useHost().device.size;
+  const deviceSize = usePhoneSize();
   const width = size?.width ?? deviceSize.width;
   const height = size?.height === 'fill' ? '100%' : (size?.height ?? deviceSize.height);
   return (
@@ -103,7 +104,7 @@ const PanelFrame = React.forwardRef<HTMLDivElement, PanelFrameProps>(function Pa
       data-phone-frame=""
       {...rest}
       sx={{
-        // border-box: row-layout width math elsewhere treats device.size as this box's real
+        // border-box: row-layout width math elsewhere treats the phone size as this box's real
         // rendered size; content-box would add border+padding on top, silently under-fitting.
         boxSizing: 'border-box',
         // The 1 px edge is an inset shadow, not a border, so the size glide can keep it 1 px drawn without moving the layout.

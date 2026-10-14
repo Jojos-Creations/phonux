@@ -23,6 +23,7 @@ import { assertTemplateIdFree } from './viewRegistry.js';
 import type { DeclaredPanel } from './workspacePlan.js';
 import type { WorkspaceStorage } from './workspaceState.js';
 import type { SettingsPatch } from './settingsPatch.js';
+import { cleanWorkspaceName, DEFAULT_WORKSPACE_NAME } from './workspaceName.js';
 import { createLiveStore, refusedLiveKeys, type LiveStore, type WorkspaceLive } from './workspaceLive.js';
 
 /** The id of the marker entry a workspace without a root keeps. */
@@ -31,6 +32,19 @@ export const ROOT_MARKER_ID = '__root__';
 let nextEngineIdValue = 1;
 /** The next id for an engine entry. A module counter, bumped only from handlers and the restore callback, never from a state initialiser. */
 export const nextEngineId = (): string => String(nextEngineIdValue++);
+
+/** Moves the counter past the number after the first `~` of every restored key, which `nextEngineId` restarted below at launch and would otherwise hand out again. The counter only rises, so calling this twice, or from two workspaces, is harmless. */
+export function seedEngineIdsPast(keys: Iterable<string | undefined>): void {
+  for (const key of keys) {
+    const cut = key?.indexOf('~') ?? -1;
+    if (key === undefined || cut < 0) continue;
+    const suffix = key.slice(cut + 1);
+    // Plain decimal only: a uuid, `007` or `1e3` is a name a custom `newId` made, not a count this counter handed out.
+    if (!/^[1-9][0-9]*$/.test(suffix)) continue;
+    const n = Number(suffix);
+    if (Number.isSafeInteger(n + 1)) nextEngineIdValue = Math.max(nextEngineIdValue, n + 1);
+  }
+}
 
 /** What `wrap` renders: the workspace's row as `children`, and the workspace it belongs to. @public */
 export interface WorkspaceWrapProps {
@@ -46,6 +60,12 @@ export interface WorkspaceWrapProps {
  * @public
  */
 export type WorkspaceOptions = WorkspaceLive & {
+  /** The workspace's stable id, the key a column stores its panels under. Unset: a counter id. */
+  id?: string;
+  /** The workspace's name, shown by a column. Unset: `'Workspace'`. Trimmed and cut to `MAX_WORKSPACE_NAME` characters; an empty one is ignored. */
+  name?: string;
+  /** Called with the new name after `workspace.rename` changed it, never for the name the workspace started with. */
+  onRename?: (name: string) => void;
   /** Where the workspace is kept between launches. Unset: nothing is loaded or saved. */
   storage?: WorkspaceStorage;
   /** The workspace's panel settings (every key except `tuning`), the layer under every template. */
@@ -83,6 +103,16 @@ export type WorkspaceOptions = WorkspaceLive & {
  * @public
  */
 export interface WorkspaceHandle {
+  /** The workspace's stable id: it never changes, whatever the name does. */
+  readonly id: string;
+  /** The workspace's current name. */
+  readonly name: string;
+  /**
+   * Renames the workspace and returns the name it now has. The name is trimmed and cut to `MAX_WORKSPACE_NAME` characters; a name
+   * empty after trimming changes nothing and the current name comes back. Two workspaces may share a name, because the id tells them apart.
+   * Throws `disposed` after `dispose()`.
+   */
+  rename(name: string): string;
   /** The id of the row's root entry: the root template's id, or `'__root__'` without one. */
   readonly rootId: string;
   /** Read access to every panel. */
@@ -1133,7 +1163,24 @@ export function createWorkspace(o: WorkspaceOptions = {}): WorkspaceHandle {
     },
   };
 
+  let name = cleanWorkspaceName(o.name) ?? DEFAULT_WORKSPACE_NAME;
   const handle: WorkspaceHandle = {
+    id: o.id ?? `workspace-${nextEngineId()}`,
+    get name() {
+      return name;
+    },
+    rename: (next) => {
+      if (status === 'disposed') throw new PanelManagerError('disposed', 'the workspace was disposed');
+      const clean = cleanWorkspaceName(next);
+      if (clean === undefined || clean === name) return name;
+      name = clean;
+      try {
+        o.onRename?.(name);
+      } catch (e) {
+        reportError(e);
+      }
+      return name;
+    },
     rootId,
     panels,
     get tuning() {

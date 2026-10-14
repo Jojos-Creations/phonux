@@ -59,6 +59,8 @@ export interface RowNumbers {
   hideOutside: boolean;
   /** The index in `stops` of the stop the row is on, when it follows stops ('visible'), else -1. Two stops can share a scroll position, so a fade cannot read the stop from the scroll. */
   atStop: number;
+  /** True when 'off' is on and the row steps: every panel stays drawn at its own size and the window edge cuts the neighbour of a stop. */
+  showPartial: boolean;
 }
 
 /**
@@ -131,7 +133,7 @@ export function computeRowNumbers(i: {
     drawnOffsets.push(drawnRunning);
     drawnRunning += width + i.gap;
   }
-  return { rowScroll, windowWidth, stripWidth, rowMarginLeft, ids: present.map((p) => p.id), widths, leftOffsets, maxLiveWidth, reservedWidths, parkLiveWidths, stops, stopSpans, endPad, stopShrinks, stopFirsts, drawnWidths, drawnOffsets, hideOutside: i.shrink === 'hidden' && whole !== null, atStop: stepsBySlot && whole !== null ? stopIndexOfFirst(stopFirsts, i.atFirst ?? 0) : -1 };
+  return { rowScroll, windowWidth, stripWidth, rowMarginLeft, ids: present.map((p) => p.id), widths, leftOffsets, maxLiveWidth, reservedWidths, parkLiveWidths, stops, stopSpans, endPad, stopShrinks, stopFirsts, drawnWidths, drawnOffsets, hideOutside: i.shrink === 'hidden' && whole !== null, showPartial: (i.shrink ?? 'off') === 'off' && whole !== null, atStop: stepsBySlot && whole !== null ? stopIndexOfFirst(stopFirsts, i.atFirst ?? 0) : -1 };
 }
 
 type Shrink = { index: number; slots: number };
@@ -282,12 +284,12 @@ export function maxScrollOf(n: RowNumbers): number {
 /**
  * How opaque each drawn entry is at `scrollLeft`: 1 for a panel shown whole at the stop on either side of the position,
  * fading from one stop's panels to the next's as the row travels between them, so a panel leaving fades out while the one
- * arriving fades in. All 1 when the row has no stops. @internal
+ * arriving fades in. All 1 when the row has no stops or shows partial panels. @internal
  */
 export function fadeAt(n: RowNumbers, scrollLeft: number): number[] {
   const count = n.ids.length;
   const last = n.stops.length - 1;
-  if (last < 0) return Array.from({ length: count }, () => 1);
+  if (last < 0 || n.showPartial) return Array.from({ length: count }, () => 1);
   const shown = (stop: number, k: number): number => (k >= n.stopSpans[stop]!.first && k < n.stopSpans[stop]!.end ? 1 : 0);
   if (n.atStop >= 0 && n.atStop <= last) {
     const at = n.stops[n.atStop]!;

@@ -21,6 +21,8 @@ const VALUE_EXPORTS = [
   'HostMissingProviderError',
   'HostProvider',
   'useHost',
+  'usePhoneFit',
+  'usePhoneSize',
   'Panel',
   'PanelFrame',
   'PANEL_CORNER_RADIUS_UNITS',
@@ -71,6 +73,11 @@ const VALUE_EXPORTS = [
   'definePanel',
   'PanelManagerError',
   'createWorkspace',
+  'createWorkspaceColumn',
+  'WorkspaceColumn',
+  'COLUMN_TOP_BAND',
+  'COLUMN_BOTTOM_BAND',
+  'MAX_WORKSPACE_NAME',
   'usePanelStates',
   'usePanelState',
   'useWorkspaceManager',
@@ -87,7 +94,7 @@ const VALUE_EXPORTS = [
   'DRAGGING_ATTRIBUTE',
 ].sort();
 
-test('the phonux barrel exports exactly the 72 runtime values, no more, no fewer', () => {
+test('the phonux barrel exports exactly the 79 runtime values, no more, no fewer', () => {
   assert.deepEqual(Object.keys(phonux).sort(), VALUE_EXPORTS);
 });
 
