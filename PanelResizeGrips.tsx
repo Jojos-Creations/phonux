@@ -11,7 +11,6 @@ import { resolveLabels } from './labels.js';
 import { CHROME_ATTRIBUTE, CHROME_PARTS, PanelChromeVisibleContext, useChromeFade, usePanelResizing } from './panelChrome.js';
 import { PanelSlotContext, type PanelSlotValue } from './panelSlotContext.js';
 import { usePhoneSize } from './phoneFit.js';
-import { slotWidth } from './rowConstants.js';
 
 /** The pointer-target size of a grip, WCAG 2.5.8's minimum. */
 const GRIP_PX = 24;
@@ -39,14 +38,13 @@ function Grip({ side, slot, handle }: { side: Side; slot: PanelSlotValue; handle
   const gap = slot.tuning.rowGap;
   const now = slot.slotRange?.now ?? 1;
   const most = slot.slotRange?.most ?? 1;
-  const widest = slotWidth(most, phone.width, gap);
   const nearest = (width: number): number => Math.max(1, Math.min(most, Math.round((width + gap) / (phone.width + gap))));
 
   const follow = (d: Drag, clientX: number): void => {
     const x = clientX === 0 && d.lastX > FIREFOX_EDGE_X ? d.lastX : clientX;
     d.lastX = x;
     const dx = x - d.startX;
-    d.width = Math.max(phone.width, Math.min(widest, d.startWidth + (side === 'right' ? dx : -dx)));
+    d.width = d.startWidth + (side === 'right' ? dx : -dx);
     setDrawnWidth(d.width, side === 'left' ? 'end' : 'start');
   };
   const finish = (d: Drag, settle: boolean): void => {

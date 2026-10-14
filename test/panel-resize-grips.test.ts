@@ -55,7 +55,7 @@ async function rig(settings: PanelSettings = {}, width = 4000): Promise<Rig> {
   const root = definePanel({ id: 'root', view: () => React.createElement(Panel, { title: 'History', children: React.createElement(PanelFrame, null, 'h') }) });
   const ws = createWorkspace({ mount: false, root, templates: [bare(settings)], tuning: { rowGap: GAP } });
   const handle = ws.addPanel('bare');
-  const m = mountWorkspace(ws, { width });
+  const m = mountWorkspace(ws, { width, withMaxLiveWidth: true });
   await flush();
   await advanceFrames(400);
   return { m, handle };
@@ -102,11 +102,12 @@ test('a default-frame panel with resizable true shows a grip on each side, named
 });
 
 test('resizable false, one slot of room, or maxSlots 1 draws no grip', async () => {
-  assert.equal(gripOf(await rig({ resizable: false }), 'left'), null, 'resizable false');
+  assert.equal(gripOf(await rig({ resizable: false }), 'left') === null, true, 'resizable false');
   cleanup();
-  assert.equal(gripOf(await rig({}, PHONE + 2 * GAP), 'right'), null, 'a window that fits one phone');
+  const narrow = await rig({}, PHONE + 2 * GAP);
+  assert.equal(gripOf(narrow, 'right')?.getAttribute('aria-valuemax') ?? null, null, 'a window that fits one phone');
   cleanup();
-  assert.equal(gripOf(await rig({ maxSlots: 1 }), 'right'), null, 'maxSlots 1');
+  assert.equal(gripOf(await rig({ maxSlots: 1 }), 'right') === null, true, 'maxSlots 1');
 });
 
 test('a drag on the right grip draws the panel as wide as the pointer pulls it, then settles on the nearest slot', async () => {
@@ -126,7 +127,7 @@ test('a drag on the right grip draws the panel as wide as the pointer pulls it, 
   assert.equal(r.m.container.querySelector('[data-panel-dragging]'), null, 'the mark is cleared');
 });
 
-test('a drag short of half a slot settles back on one slot, and a drag far past the room stops at the most that fit', async () => {
+test('a drag short of half a slot settles back on one slot, and a drag far past the room stops at the most that fit (the row holds the width there)', async () => {
   const r = await rig({}, 2000);
   const grip = gripOf(r, 'right')!;
   await fire(grip, 'pointerdown', 500);
@@ -136,7 +137,12 @@ test('a drag short of half a slot settles back on one slot, and a drag far past 
   assert.equal(slotsOf(r), 1);
   const most = Number(grip.getAttribute('aria-valuemax'));
   await fire(grip, 'pointerdown', 500);
+  await fire(grip, 'pointermove', 100);
+  await advanceFrames(FRAME_MS * 30);
+  assert.equal(Math.round(Number.parseFloat(boxOf(r).style.width)), PHONE, 'a pull inward never draws the panel under one phone');
   await fire(grip, 'pointermove', 5000);
+  await advanceFrames(FRAME_MS * 30);
+  assert.equal(Math.round(Number.parseFloat(boxOf(r).style.width)), widthOf(most), 'and a pull far out stops at the most that fit (the row holds the width there)');
   await fire(grip, 'pointerup', 5000);
   await advanceFrames(2000);
   assert.equal(slotsOf(r), most);
@@ -163,7 +169,7 @@ test('a move at clientX 0 after the pointer was well inside the window is ignore
   const r = await rig();
   const grip = gripOf(r, 'right')!;
   await fire(grip, 'pointerdown', 1000);
-  await fire(grip, 'pointermove', 1200);
+  await fire(grip, 'pointermove', 1260);
   await advanceFrames(FRAME_MS * 30);
   const seen = boxOf(r).style.width;
   await fire(grip, 'pointermove', 0);

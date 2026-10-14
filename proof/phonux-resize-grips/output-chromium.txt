@@ -1,0 +1,12 @@
+PASS a grip on each side, each a 24 px wide target :: 24 x 700
+PASS each grip is a separator with a spoken value
+PASS the width follows the pointer between two slots :: 490 vs 490
+PASS nothing is stored while the pointer is held
+PASS the release settles on the nearest slot :: slots 2
+PASS and the panel rests at two phones and a gap :: 804
+PASS the left grip keeps the right edge still while the panel widens :: edge 1809 -> 1809
+PASS and the release settles back on two slots
+PASS ArrowRight on the right grip grows by one slot :: slots 3
+PASS ArrowLeft on the right grip shrinks by one slot
+PASS under Reduce Motion the release snaps at once :: 804
+PASS no console errors

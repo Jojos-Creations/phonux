@@ -181,6 +181,8 @@ export interface PhonuxLabels {
     newWorkspace: string;
     panelTitle: (id: string) => string;
     pin: string;
+    resizeGrip: (side: 'left' | 'right') => string;
+    resizeGripValue: (slots: number, most: number) => string;
     unlock: string;
     unpin: string;
     untitledHeader: string;
