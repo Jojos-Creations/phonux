@@ -245,6 +245,7 @@ test('the fitted size landed by the measurement is drawn at once: no size slide 
   assert.ok(box, 'the panel is in a size box');
   assert.equal(document.querySelector<HTMLElement>('[data-phone]')?.dataset.phone, `330x${Math.round((330 / 390) * 700)}`, 'the fitted size landed');
   assert.equal(box.style.transform, '', 'the box is drawn at its new size in the measuring commit, not scaled toward it');
+  assert.equal(box.style.width, '330px', 'the box takes the fitted width on its first frame');
   await advanceFrames(400);
   assert.equal(box.style.transform, '', 'and it stays there');
 });

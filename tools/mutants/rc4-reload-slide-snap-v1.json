@@ -1,0 +1,25 @@
+{
+  "tests": [
+    "test/phone-fit.test.ts"
+  ],
+  "mutants": [
+    {
+      "name": "the row drops the landing flag from the slots' tracking",
+      "file": "PanelRow.tsx",
+      "find": "const slotTracking = tracking || landing;",
+      "replace": "const slotTracking = tracking;",
+      "expectRed": [
+        "the fitted size landed by the measurement"
+      ]
+    },
+    {
+      "name": "the landing flag is clear from the first render",
+      "file": "Workspace.tsx",
+      "find": "React.useState(containerWidth === 0);",
+      "replace": "React.useState(false);",
+      "expectRed": [
+        "the fitted size landed by the measurement"
+      ]
+    }
+  ]
+}
