@@ -28,7 +28,7 @@ const call = (h: PanelHandle, op: Op): PanelResult => {
     case 'toggle': return h.toggleVisibility();
     case 'close': return h.close();
     case 'open': return h.open();
-    case 'move': return h.move('right');
+    case 'move': return h.move(1);
     case 'place': return h.place('row-end');
     case 'setFormFactor': return h.setFormFactor('tablet');
     case 'scrollTo': return h.scrollTo();
@@ -117,7 +117,7 @@ test('a refusal touches nothing: entries reference-equal, no commit, the snapsho
   const cases: Array<{ name: string; settings: Record<string, PanelSettings>; setup?: (r: Rig) => void; run: (r: Rig) => PanelResult; code: string }> = [
     { name: 'not-closable', settings: { b: { closable: false } }, run: (r) => r.h.b!.close(), code: 'not-closable' },
     { name: 'not-parkable', settings: { b: { parkable: false } }, run: (r) => r.h.b!.hide(), code: 'not-parkable' },
-    { name: 'not-draggable', settings: { b: { draggable: false } }, run: (r) => r.h.b!.move('left'), code: 'not-draggable' },
+    { name: 'not-draggable', settings: { b: { draggable: false } }, run: (r) => r.h.b!.move(-1), code: 'not-draggable' },
     { name: 'not-placeable', settings: { b: { placeable: false } }, run: (r) => r.h.b!.place('row-start'), code: 'not-placeable' },
     { name: 'not-resizable', settings: { b: { resizable: false } }, run: (r) => r.h.b!.setFormFactor('tablet'), code: 'not-resizable' },
     { name: 'tier-not-allowed', settings: { b: { formFactors: ['phone'] } }, run: (r) => r.h.b!.setFormFactor('desktop'), code: 'tier-not-allowed' },
@@ -132,7 +132,7 @@ test('a refusal touches nothing: entries reference-equal, no commit, the snapsho
       code: 'would-empty-row',
     },
     { name: 'is-closed', settings: {}, setup: (r) => void r.turn(() => r.h.b!.close()), run: (r) => r.h.b!.hide(), code: 'is-closed' },
-    { name: 'not-live', settings: {}, setup: (r) => void r.turn(() => r.h.b!.hide()), run: (r) => r.h.b!.move('left'), code: 'not-live' },
+    { name: 'not-live', settings: {}, setup: (r) => void r.turn(() => r.h.b!.hide()), run: (r) => r.h.b!.move(-1), code: 'not-live' },
   ];
   for (const c of cases) {
     const r = await rig({ settings: c.settings });
@@ -214,8 +214,8 @@ type Observe = (value: never) => Promise<unknown>;
 const MATRIX: Array<[name: string, a: unknown, b: unknown, observe: Observe, expectA: unknown, expectB: unknown]> = [
   ['closable', true, false, async (v) => { const r = await rig({ settings: { b: { closable: v } } }); return [brief(r.turn(() => r.h.b!.close())), r.row()]; }, ['T', 'a c ~b'], ['not-closable', 'a b c']],
   ['parkable', true, false, async (v) => { const r = await rig({ settings: { b: { parkable: v } } }); return [brief(r.turn(() => r.h.b!.hide())), r.row()]; }, ['T', 'a b* c'], ['not-parkable', 'a b c']],
-  ['draggable', true, false, async (v) => { const r = await rig({ settings: { b: { draggable: v } } }); return [brief(r.turn(() => r.h.b!.move('right'))), r.row()]; }, ['T', 'a c b'], ['not-draggable', 'a b c']],
-  ['crossable', true, false, async (v) => { const r = await rig({ settings: { c: { crossable: v } } }); return [brief(r.turn(() => r.h.b!.move('right'))), r.row()]; }, ['T', 'a c b'], ['F', 'a b c']],
+  ['draggable', true, false, async (v) => { const r = await rig({ settings: { b: { draggable: v } } }); return [brief(r.turn(() => r.h.b!.move(1))), r.row()]; }, ['T', 'a c b'], ['not-draggable', 'a b c']],
+  ['crossable', true, false, async (v) => { const r = await rig({ settings: { c: { crossable: v } } }); return [brief(r.turn(() => r.h.b!.move(1))), r.row()]; }, ['T', 'a c b'], ['F', 'a b c']],
   ['placeable', true, false, async (v) => { const r = await rig({ settings: { b: { placeable: v } } }); return [brief(r.turn(() => r.h.b!.place('row-start'))), r.row()]; }, ['T', 'b a c'], ['not-placeable', 'a b c']],
   ['resizable', true, false, async (v) => { const r = await rig({ settings: { b: { resizable: v } } }); return [brief(r.turn(() => r.h.b!.setFormFactor('tablet'))), r.h.b!.getState().formFactor]; }, ['T', 'tablet'], ['not-resizable', 'phone']],
   ['formFactors', ['phone', 'desktop'], ['phone'], async (v) => { const r = await rig({ settings: { b: { formFactors: v } } }); return [brief(r.turn(() => r.h.b!.setFormFactor('desktop'))), r.h.b!.getState().formFactor]; }, ['T', 'desktop'], ['tier-not-allowed', 'phone']],
@@ -336,7 +336,7 @@ test('a manager verb other than close and open leaves the undo window as it was'
     () => r.h.b!.hide(),
     () => r.h.b!.show(),
     () => r.h.b!.toggleVisibility(),
-    () => r.h.b!.move('right'),
+    () => r.h.b!.move(1),
     () => r.h.b!.place('row-end'),
     () => r.h.b!.setFormFactor('tablet'),
     () => r.h.b!.scrollTo(),
@@ -401,13 +401,13 @@ test('source: a code call leaves every entry without overrides, a person call re
   const r = await rig();
   const untouched = overrides(r);
   r.turn(() => {
-    r.h.b!.move('right');
+    r.h.b!.move(1);
     r.h.a!.setFormFactor('tablet');
     r.h.c!.place('row-start');
   });
   assert.equal(overrides(r), untouched, 'code leaves the person\'s arrangement alone');
   const person = await rig();
-  person.turn(() => person.h.b!.move('left', 'person'));
+  person.turn(() => person.h.b!.move(-1, 'person'));
   assert.match(JSON.stringify(person.m!.latest().entries.find((p) => p.title === undefined || true && p.id === person.h.b!.getState().engineId)?.overrides), /"anchor"/, 'move records an anchor');
   person.turn(() => person.h.a!.setFormFactor('tablet', 'person'));
   const a = person.m!.latest().entries.find((p) => p.id === person.h.a!.getState().engineId);
@@ -471,8 +471,8 @@ test('scrollTo scrolls to the literal target of each align, reads scrollOnOpen w
 test('scrollOnMove: an accepted move, place or setFormFactor on an in-view panel follows it; out of view and none record nothing', async () => {
   const all = (scrollOnMove: string): Record<string, PanelSettings> => Object.fromEntries(['a', 'b', 'c', 'd', 'e', 'f'].map((id) => [id, { scrollOnMove } as PanelSettings]));
   const none = () => undefined;
-  assert.deepEqual(await scrolled(all('follow'), 0, none, (r) => r.h.b!.move('right')), { result: 'T', left: 234 }, 'b moves right past c and ends inside the window');
-  assert.deepEqual(await scrolled(all('none'), 0, none, (r) => r.h.b!.move('right')), { result: 'T', left: 0 });
+  assert.deepEqual(await scrolled(all('follow'), 0, none, (r) => r.h.b!.move(1)), { result: 'T', left: 234 }, 'b moves right past c and ends inside the window');
+  assert.deepEqual(await scrolled(all('none'), 0, none, (r) => r.h.b!.move(1)), { result: 'T', left: 0 });
   assert.deepEqual(await scrolled(all('follow'), 0, none, (r) => r.h.b!.place('row-end')), { result: 'T', left: 1452 });
   assert.deepEqual(await scrolled(all('none'), 0, none, (r) => r.h.b!.place('row-end')), { result: 'T', left: 0 });
   assert.deepEqual(await scrolled(all('follow'), 0, none, (r) => r.h.c!.setFormFactor('tablet')), { result: 'T', left: 640 });

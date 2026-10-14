@@ -112,9 +112,19 @@ export const usePanelReorderSteps = (): ((offsetX: number) => number) => {
  * @public
  */
 export const usePanelHidden = (): boolean => React.useContext(PanelHiddenContext);
-/** Anchored left of the row's root, read from the anchor every render so a drag across the root changes it too. Unprovided: false.
+/** What `PanelState.pinned` says for the panel (its `pinning` definition against the row), so a drag across the root changes it too; a row without a workspace reads left of the root. Unprovided: false.
  * @public */
-export const usePanelPinned = (): boolean => React.useContext(PanelSlotContext)?.pinned ?? false;
+export const usePanelPinned = (): boolean => {
+  const slot = React.useContext(PanelSlotContext);
+  const handle = slot?.handle;
+  const fallback = slot?.pinned ?? false;
+  return React.useSyncExternalStore(
+    handle === undefined ? NO_SUBSCRIPTION : handle.subscribe,
+    () => (handle === undefined ? fallback : handle.getState().pinned),
+    () => fallback,
+  );
+};
+const NO_SUBSCRIPTION = (): (() => void) => () => {};
 
 /**
  * The row: every present entry in its own animated slot, in the array's order, each rendered by its registered view.
@@ -361,6 +371,7 @@ export function PanelRow({
                 tracking,
                 setDragging: (on) => chrome.setDragging(p.id, on),
                 neighborWidths: neighborWidthsAt(p),
+                handle,
                 pinned: anchorTargetOf(p, rootId) === rootId && p.anchor?.position === 'left',
                 tuning: own,
                 dragScroll,

@@ -55,7 +55,7 @@ function run(h: PanelHandle, op: Op, rand: () => number): PanelResult {
     case 'toggleVisibility': return h.toggleVisibility();
     case 'close': return h.close();
     case 'open': return h.open();
-    case 'move': return h.move(rand() < 0.5 ? 'left' : 'right');
+    case 'move': return h.move(rand() < 0.5 ? -1 : 1);
     case 'place': return h.place((['row-start', 'row-end', 'after-fixed'] as const)[Math.floor(rand() * 3)]!);
     case 'setFormFactor': return h.setFormFactor((['phone', 'tablet', 'desktop'] as const)[Math.floor(rand() * 3)]!);
     case 'scrollTo': return h.scrollTo();

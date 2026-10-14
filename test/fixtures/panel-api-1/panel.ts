@@ -21,6 +21,9 @@ function View({ panel, handle, manager }: LevelOneProps): React.ReactElement {
       'data-fixture-gap': String(typeof tuning.rowGap),
       'data-fixture-count': String(count),
       onClick: () => setCount((c) => c + 1),
+      onDoubleClick: (e: React.MouseEvent<HTMLElement>) => {
+        e.currentTarget.dataset.fixtureMoved = String(handle.move(-3, 'person').ok);
+      },
     },
     panel.title ?? panel.id,
   );

@@ -53,6 +53,7 @@ const VALUE_EXPORTS = [
   'usePanelReorderSteps',
   'usePanelTuning',
   'usePanelCapabilities',
+  'usePanelDragProps',
   'usePanelCloseEligible',
   'usePanelHeaderButtons',
   'usePanelHidden',
@@ -93,7 +94,7 @@ const VALUE_EXPORTS = [
   'DRAGGING_ATTRIBUTE',
 ].sort();
 
-test('the phonux barrel exports exactly the 78 runtime values, no more, no fewer', () => {
+test('the phonux barrel exports exactly the 79 runtime values, no more, no fewer', () => {
   assert.deepEqual(Object.keys(phonux).sort(), VALUE_EXPORTS);
 });
 

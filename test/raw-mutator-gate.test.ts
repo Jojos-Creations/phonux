@@ -43,7 +43,7 @@ test('a panel the raw call did not touch is free for the handle in the same turn
   const raw = r.m!.latest();
   const answers = r.turn(() => {
     raw.setFormFactor(engineId(r, 'b'), 'tablet');
-    return [brief(r.h.a!.hide()), brief(r.h.c!.move('left'))];
+    return [brief(r.h.a!.hide()), brief(r.h.c!.move(-1))];
   });
   assert.deepEqual(answers, ['T', 'T']);
 });
