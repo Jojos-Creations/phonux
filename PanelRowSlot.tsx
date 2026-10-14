@@ -5,9 +5,16 @@ import { PanelSlotContext } from './panelSlotContext.js';
 import { LIBRARY_TUNING_DEFAULTS } from './panelSettings.js';
 import type { SlideTuning } from './panelSettings.js';
 import { ROW_GAP } from './rowConstants.js';
+import { HostMissingProviderError } from './hostApi.js';
+import { useOptionalPhoneSize } from './phoneFit.js';
 import { writeGlide } from './sizeGlide.js';
 
-export { ROW_GAP as GAP } from './rowConstants.js';
+/**
+ * The library's default row gap, 16 px; the gap a workspace draws with is its `tuning.rowGap`, which this does not follow.
+ * @public
+ * @deprecated Read the gap with `usePanelTuning().rowGap`, and the default with `LIBRARY_TUNING_DEFAULTS.rowGap`.
+ */
+export const GAP = ROW_GAP;
 /** The timing/easing every panel slide uses. The SAME object as SLOT_TRANSITION, not a copy: a host animates
  * its own row "the same as a panel" by this reference (test/row-shell-style.test.ts pins it).
  * @public */
@@ -274,15 +281,19 @@ export function PanelSizeBox({
   height,
   children,
 }: {
-  /** The box's width in px; a change animates. */
-  width: number;
-  /** The box's height in px; a change animates. */
-  height: number;
+  /** The box's width in px; a change animates. Omitted: the slot's drawn width inside a row, else the phone width. */
+  width?: number;
+  /** The box's height in px; a change animates. Omitted: the slot's drawn height inside a row, else the phone height. */
+  height?: number;
   /** The content, laid out at the new size at once. */
   children: React.ReactNode;
 }) {
   return <SizeBox width={width} height={height}>{children}</SizeBox>;
 }
+
+const missingHost = (): never => {
+  throw new HostMissingProviderError();
+};
 
 /** True below a `SizeBox`: a box inside another is a plain div, because two scales of one size would multiply. */
 const SizeBoxContext = React.createContext(false);
@@ -292,8 +303,12 @@ const SizeBoxContext = React.createContext(false);
  * default frame draws around its whole panel. A box below another draws a plain div of the same size.
  * @internal
  */
-export function SizeBox({ width, height, children }: { width: number; height: number | '100%'; children: React.ReactNode }) {
+export function SizeBox({ width: given, height: givenHeight, children }: { width?: number; height?: number | '100%'; children: React.ReactNode }) {
   const slot = React.useContext(PanelSlotContext);
+  // Read without throwing: a box given both sides needs no host.
+  const phone = useOptionalPhoneSize();
+  const width = given ?? slot?.drawn?.width ?? phone?.width ?? missingHost();
+  const height = givenHeight ?? slot?.drawn?.height ?? phone?.height ?? missingHost();
   const nested = React.useContext(SizeBoxContext);
   const slide = slot?.tuning.slide;
   // The system preference too, because a theme's MotionConfig may not carry it.

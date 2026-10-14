@@ -71,7 +71,7 @@ export interface PanelProps extends Omit<BoxProps, 'children' | 'sx' | 'title'> 
   viewId?: ViewId;
   /** 'never' opts a Panel with a viewId out of registration entirely -- default 'auto'. */
   capture?: 'auto' | 'never';
-  /** This panel's own size instead of the shared phone size (`usePhoneSize()`). Omitted: the width comes from it, read live -- see DESIGN.md. */
+  /** This panel's own size instead of the shared phone size (`usePhoneSize()`). Omitted: inside a row the width is the slot's drawn width, else the phone size's, read live -- see DESIGN.md. */
   size?: PanelSize;
 }
 
@@ -85,7 +85,8 @@ export function Panel({ title, actions, headerProps, headerButtons = true, grabP
   useFrameClaim('panel');
   const registry = React.useContext(CaptureRegistryContext);
   const rootRef = React.useRef<HTMLDivElement | null>(null);
-  const declared = React.useContext(PanelSlotContext)?.headerButtonSlots;
+  const slot = React.useContext(PanelSlotContext);
+  const declared = slot?.headerButtonSlots;
   const buttons = usePanelHeaderButtons();
   const drawn = headerButtons && declared !== undefined && title !== undefined && buttons.some((b) => !b.hidden);
   const untitled = headerButtons && declared !== undefined && title === undefined && buttons.some((b) => !b.hidden);
@@ -108,7 +109,7 @@ export function Panel({ title, actions, headerProps, headerButtons = true, grabP
   return (
     <PanelChromeVisibleContext.Provider value={visible}>
     <Box
-      sx={{ position: 'relative', width: size?.width ?? phoneSize.width, ...sx }}
+      sx={{ position: 'relative', width: size?.width ?? slot?.drawn?.width ?? phoneSize.width, ...sx }}
       {...rest}
       {...(active ? { [ACTIVE_ATTRIBUTE]: '' } : {})}
       {...(dragging ? { [DRAGGING_ATTRIBUTE]: '' } : {})}
