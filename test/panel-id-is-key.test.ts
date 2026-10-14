@@ -50,8 +50,6 @@ test('every PanelsAPI verb that names a panel takes its key', async () => {
   const m = mountRow(keyedRow(), 4000);
   act(() => m.latest().setSlots('web~3', 2));
   assert.equal(slotsOf(m, 's3'), 2, 'setSlots');
-  act(() => m.latest().setFormFactor('web~2', 'tablet'));
-  assert.equal(m.latest().entries.find((p) => p.id === 's2')!.formFactor, 'tablet', 'setFormFactor');
   const before = m.latest().entries.map((p) => p.id).join(',');
   act(() => m.latest().move('web~2', 'right'));
   assert.notEqual(m.latest().entries.map((p) => p.id).join(','), before, 'move');

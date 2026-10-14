@@ -20,15 +20,15 @@ const NONE: ReadonlySet<string> = new Set();
 
 const root: PanelWindow = {
   id: 'root', url: '', title: 'History', live: true, locked: true, view: 'golden-view', collapsible: false, listed: false,
-  layer: 'raised', anchoredEnter: true, formFactor: 'phone', size: { formFactor: 'phone', width: 390, height: 700 },
+  layer: 'raised', anchoredEnter: true, size: { width: 390, height: 700 },
 };
 const phone = (id: string, title: string, priority: number, live = true): PanelWindow => ({
   id, url: `https://${id}.example`, title, live, locked: false, view: 'golden-view', collapsible: true, listed: true,
   anchor: { panel: 'root', position: 'right', priority }, layer: 'base', anchoredEnter: false,
-  formFactor: 'phone', size: { formFactor: 'phone', width: 390, height: 700 },
+  size: { width: 390, height: 700 },
 });
-const tablet = (id: string, title: string, priority: number): PanelWindow => ({
-  ...phone(id, title, priority), formFactor: 'tablet', size: { formFactor: 'tablet', width: 768, height: 'fill' },
+const twoSlots = (id: string, title: string, priority: number): PanelWindow => ({
+  ...phone(id, title, priority), slots: 2, size: { width: 796, height: 'fill' },
 });
 
 function render(entries: PanelWindow[]): string {
@@ -47,8 +47,8 @@ test('PanelRow golden: the root alone', () => {
   assert.equal(render([root]), golden('root-only'));
 });
 
-test('PanelRow golden: the root, a phone panel and a tablet panel, both live', () => {
-  assert.equal(render([root, phone('a', 'Alpha', 0), tablet('b', 'Beta', 1)]), golden('root-two-live'));
+test('PanelRow golden: the root, a one-slot panel and a two-slot panel, both live', () => {
+  assert.equal(render([root, phone('a', 'Alpha', 0), twoSlots('b', 'Beta', 1)]), golden('root-two-live'));
 });
 
 test('PanelRow golden: the root, one live panel and one parked panel (the parked one renders nothing)', () => {
