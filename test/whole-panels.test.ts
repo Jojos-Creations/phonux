@@ -122,3 +122,29 @@ test('the strip margin snaps while stops exist and glides otherwise', () => {
   assert.deepEqual(style(six()).transition, { duration: 0 });
   assert.notDeepEqual(style([root(), made('a')]).transition, { duration: 0 }, 'a strip that fits has no stops and keeps the glide');
 });
+
+test('a panel as wide as the window gets a stop that keeps its right part beside the next whole panel', () => {
+  // Five slots fit (window 2014): the 5-slot panel fills it, and one step slides 406 so History shows on its right.
+  const n = computeRowNumbers({ entries: [made('wide', { slots: 5 }), root(), made('next', { slots: 5 })], phoneWidth: 390, containerWidth: 2046, gap: 16, wholePanels: true });
+  assert.deepEqual(n.widths, [2014, 390, 2014]);
+  assert.deepEqual(n.stops.slice(0, 2), [0, 406]);
+  assert.deepEqual(n.stopSpans.slice(0, 3), [{ first: 0, end: 1 }, { first: 0, end: 2 }, { first: 1, end: 2 }]);
+  assert.equal(n.stops[1]! + 2014, n.rowMarginLeft + n.leftOffsets[1]! + 390, 'the window ends at the History edge');
+});
+
+test('a panel as wide as the window slides one slot when no whole panel fits beside it', () => {
+  // The next panel is as wide as the window, so none fits in 2014 - 390: the stop slides a phone plus the gap and the image keeps four fifths of the window.
+  const n = computeRowNumbers({ entries: [made('wide', { slots: 5 }), made('next', { slots: 5 })], phoneWidth: 390, containerWidth: 2046, gap: 16, wholePanels: true });
+  assert.deepEqual(n.widths, [2014, 2014]);
+  assert.deepEqual(n.stops.slice(0, 2), [0, 406]);
+  assert.deepEqual(n.stopSpans.slice(0, 2), [{ first: 0, end: 1 }, { first: 0, end: 1 }]);
+  assert.equal(n.rowMarginLeft + 2014 - n.stops[1]!, 1608, 'the wide panel keeps 1608 of the window');
+});
+
+test('an image, a second window-wide panel, History and a next panel: the first step keeps the image beside the second panel', () => {
+  const n = computeRowNumbers({ entries: [made('image', { slots: 5 }), made('mid', { slots: 5 }), root(), made('next', { slots: 5 })], phoneWidth: 390, containerWidth: 2046, gap: 16, wholePanels: true });
+  assert.deepEqual(n.widths, [2014, 2014, 390, 2014]);
+  assert.deepEqual(n.stops.slice(0, 3), [0, 406, 2030], 'step 1 slides one slot; step 2 starts at the second panel');
+  assert.deepEqual(n.stopSpans[1], { first: 0, end: 1 });
+  assert.equal(n.rowMarginLeft + 2014 - n.stops[1]!, 1608, 'the image keeps 1608 of the window');
+});

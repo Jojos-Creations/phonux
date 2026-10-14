@@ -81,7 +81,7 @@ export function computeRowNumbers(i: {
     leftOffsets.push(running);
     running += width + i.gap;
   }
-  const whole = i.wholePanels === true && rowScroll && measured && stripWidth > windowWidth ? wholePanelStops(widths, leftOffsets, stripWidth, i.gap, windowWidth) : null;
+  const whole = i.wholePanels === true && rowScroll && measured && stripWidth > windowWidth ? wholePanelStops(widths, leftOffsets, stripWidth, i.gap, windowWidth, i.phoneWidth) : null;
   let rowMarginLeft: number;
   if (whole !== null) {
     rowMarginLeft = whole.rowMargin;
@@ -90,14 +90,14 @@ export function computeRowNumbers(i: {
   } else {
     rowMarginLeft = !measured || stripWidth > windowWidth ? 0 : (windowWidth - stripWidth) / 2;
   }
-  const stops = whole === null ? [] : whole.margins.map((margin, k) => rowMarginLeft + leftOffsets[whole.starts[k]!]! - margin);
+  const stops = whole === null ? [] : whole.margins.map((margin, k) => rowMarginLeft + leftOffsets[whole.starts[k]!]! - margin + whole.insets[k]!);
   const stopSpans = whole === null ? [] : whole.ends.map((end, k) => ({ first: whole.starts[k]!, end }));
   const endPad = whole === null ? 0 : whole.endPad;
   return { rowScroll, windowWidth, stripWidth, rowMarginLeft, ids: present.map((p) => p.id), widths, leftOffsets, maxLiveWidth, reservedWidths, parkLiveWidths, stops, stopSpans, endPad };
 }
 
-type Pick = { start: number; end: number; margin: number };
-type StopSet = { starts: number[]; ends: number[]; margins: number[]; rowMargin: number; endPad: number };
+type Pick = { start: number; end: number; margin: number; inset?: number };
+type StopSet = { starts: number[]; ends: number[]; margins: number[]; insets: number[]; rowMargin: number; endPad: number };
 
 /**
  * The row margin and end pad the picks need, and the picks that go forward: a stop whose scroll position lies left of the one
@@ -109,32 +109,42 @@ function settleStops(picks: readonly Pick[], offsets: readonly number[], stripWi
   let reach = Number.NEGATIVE_INFINITY;
   for (const pick of picks) {
     rowMargin = Math.max(rowMargin, pick.margin - offsets[pick.start]!);
-    reach = Math.max(reach, offsets[pick.start]! - pick.margin + windowWidth - stripWidth);
+    reach = Math.max(reach, offsets[pick.start]! - pick.margin + (pick.inset ?? 0) + windowWidth - stripWidth);
   }
   const endPad = Math.max(0, reach);
   const kept: Pick[] = [];
   let last = Number.NEGATIVE_INFINITY;
   for (const pick of picks) {
-    const at = rowMargin + offsets[pick.start]! - pick.margin;
+    const at = rowMargin + offsets[pick.start]! - pick.margin + (pick.inset ?? 0);
     if (at < last) continue;
     last = at;
     kept.push(pick);
   }
-  return { starts: kept.map((p) => p.start), ends: kept.map((p) => p.end), margins: kept.map((p) => p.margin), rowMargin, endPad };
+  return { starts: kept.map((p) => p.start), ends: kept.map((p) => p.end), margins: kept.map((p) => p.margin), insets: kept.map((p) => p.inset ?? 0), rowMargin, endPad };
 }
 
 /**
  * Per start panel, the end of the whole panels that fit the window from it (at least one) and the even margin left over,
  * for every start up to the first one from which everything remaining fits: a later stop would only add blank room.
- * Groups come from `widths` alone.
+ * Groups come from `widths` alone. A panel as wide as the window with a panel after it also gets a stop slid left, by the
+ * whole panels that fit beside its right part or, when none does, by one slot.
  */
-function wholePanelStops(widths: readonly number[], offsets: readonly number[], stripWidth: number, gap: number, windowWidth: number): StopSet {
+function wholePanelStops(widths: readonly number[], offsets: readonly number[], stripWidth: number, gap: number, windowWidth: number, phoneWidth: number): StopSet {
   const picks: Pick[] = [];
   for (let first = 0; first < widths.length; first++) {
     let used = widths[first]!;
     let end = first + 1;
     while (end < widths.length && used + gap + widths[end]! <= windowWidth) used += gap + widths[end++]!;
     picks.push({ start: first, end, margin: Math.max(0, (windowWidth - used) / 2) });
+    if (end === first + 1 && widths[first]! >= windowWidth) {
+      // The next stop starts at the panel after this one and would drop it whole; this stop slides it so a right part of at least a phone's width stays beside what follows.
+      let reachEnd = first + 1;
+      let beside = 0;
+      while (reachEnd < widths.length && beside + gap + widths[reachEnd]! <= windowWidth - phoneWidth) beside += gap + widths[reachEnd++]!;
+      if (reachEnd > first + 1) picks.push({ start: first, end: reachEnd, margin: 0, inset: widths[first]! + beside - windowWidth });
+      // No whole panel fits beside it, so slide one slot: the next panel's first slot comes in as a neighbour the window edge cuts.
+      else if (reachEnd < widths.length) picks.push({ start: first, end: first + 1, margin: 0, inset: phoneWidth + gap });
+    }
     if (end === widths.length) break;
   }
   return settleStops(picks, offsets, stripWidth, windowWidth);

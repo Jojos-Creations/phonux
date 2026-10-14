@@ -382,6 +382,8 @@ the greedy run of whole panels, and the window edge cuts the neighbour in the ma
 the Shrink (`'visible'`) and Hide (`'hidden'`) values of `tuning.shrinkOutOfView` are removed, and a row never resizes a panel to fit
 the window.
 
+A panel as wide as the window shows alone, and the next stop would start at the panel after it, dropping the wide one at the first step. So whenever a panel follows it, a stop is added after it that slides the panel left. The slide leaves the window ending at the edge of the whole panels that fit beside its right part (at least a phone's width of it stays); when no whole panel fits there, it slides one slot (phone width plus gap), so the panel keeps all but one slot of the window and the next panel's first slot comes in as the cut neighbour. The step after that starts at the next panel.
+
 `tuning.shrinkOutOfView` stays on `WorkspaceTuning` only so a settings file or an app that still names it is told. `'off'` is
 accepted without a word; `'visible'` and `'hidden'` log one `console.error` each (in development, through the same helper as the
 removed per-panel settings), name the value as removed, and act as `'off'`. The next rc refuses them with `invalid-settings`. The key
