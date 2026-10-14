@@ -10,13 +10,16 @@ import type { InstancePatch, SettingsPatch, ViewPatch } from './settingsPatch.js
 import type { ListFilter, PanelReader, PanelReadHandle, PanelSnapshot, PanelState, ViewHandle } from './panelTemplate.js';
 
 /**
- * A handle on one panel: its five read members and the operations on it, keyed by the panel's id. It resolves the
+ * A handle on one panel: its read members and the operations on it, keyed by the panel's id. It resolves the
  * engine entry on every call, so it is valid while the panel is pending, live, parked or closed, and an operation
  * that state cannot take answers a refusal and touches nothing.
  * @public
  */
 export interface PanelHandle<P extends JsonValue = JsonValue> extends PanelReadHandle {
-  /** The panel's current state, with `params` typed by the template. */
+  /**
+   * The panel's current state, with `params` typed by the template.
+   * @throws PanelManagerError with code `invalid-options` when the workspace knows no panel with this id.
+   */
   getState(): PanelState & { readonly params: P | undefined };
   /** Brings the panel into view: a parked one comes back, a live one out of view is scrolled to, a closed one reopens when its `showWhenClosed` says so. */
   show(source?: 'code' | 'person'): PanelResult;
@@ -43,7 +46,10 @@ export interface PanelHandle<P extends JsonValue = JsonValue> extends PanelReadH
   pin(source?: 'code' | 'person'): PinResult;
   /** Applies the unpinned half of the panel's `pinning` in one commit: the panel is freed, then placed, so a fixed pin can always be undone. */
   unpin(source?: 'code' | 'person'): PinResult;
-  /** Changes settings of this panel after it was added; `null` removes an instance value. All or nothing, in one update; the result says what acts now and what waits. A flip of `parkable` on a panel that is not live follows `pinningWhenNotLive`: it may be refused with `would-reshape-row` or `is-closed`, show the panel, or wait and be listed in `later`. */
+  /**
+   * Changes settings of this panel after it was added; `null` removes an instance value. All or nothing, in one update; the result says what acts now and what waits. A flip of `parkable` on a panel that is not live follows `pinningWhenNotLive`: it may be refused with `would-reshape-row` or `is-closed`, show the panel, or wait and be listed in `later`.
+   * @throws PanelManagerError with code `invalid-settings` when the patch is not an object or names an unknown key.
+   */
   configure(patch: InstancePatch): ConfigureResult;
 }
 
@@ -81,7 +87,7 @@ export interface ReadSource {
   configureTuning(patch: { [K in keyof WorkspaceTuning]?: WorkspaceTuning[K] | null }): ConfigureResult;
 }
 
-/** The read handle of panel `id` built from `templateId`: exactly the five read members. @internal */
+/** The read handle of panel `id` built from `templateId`: exactly the read members. @internal */
 export function makeHandle(source: ReadSource, id: PanelId, templateId: string): PanelReadHandle {
   return {
     id,
@@ -92,7 +98,7 @@ export function makeHandle(source: ReadSource, id: PanelId, templateId: string):
   };
 }
 
-/** The handle of panel `id` built from `templateId`: the five read members and the eleven operations. @internal */
+/** The handle of panel `id` built from `templateId`: the read members and every operation. @internal */
 export function makeViewHandle<P extends JsonValue = JsonValue>(source: ReadSource, id: PanelId, templateId: string): PanelHandle<P> {
   return {
     id,
