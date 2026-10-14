@@ -34,6 +34,9 @@ export type AnchorRequest = {
 };
 
 // @public
+export type AnyPanelTemplate = PanelTemplate<any>;
+
+// @public
 export type BezierEase = readonly [number, number, number, number];
 
 // @public
@@ -389,6 +392,18 @@ export const MAX_WORKSPACE_NAME = 60;
 export function mergePatch(layer: PanelSettings, patch: SettingsPatch): PanelSettings;
 
 // @public
+export function minWorkspaceWidth(input: MinWorkspaceWidthInput): number;
+
+// @public
+export interface MinWorkspaceWidthInput {
+    fixedColumnCount: number;
+    gap?: number;
+    phoneSlots?: number;
+    phoneWidth: number;
+    tabletWidth?: number;
+}
+
+// @public
 export interface NeighborWidths {
     readonly left: readonly number[];
     readonly right: readonly number[];
@@ -502,7 +517,7 @@ export interface PanelHandle<P extends JsonValue = JsonValue> extends PanelReadH
         readonly params: P | undefined;
     };
     hide(source?: 'code' | 'person'): PanelResult;
-    move(direction: 'left' | 'right', source?: 'code' | 'person'): PanelResult;
+    move(by: number, source?: 'code' | 'person'): PanelResult;
     open(source?: 'code' | 'person'): PanelResult;
     pin(source?: 'code' | 'person'): PinResult;
     place(p: AddPlacement | 'in-place', source?: 'code' | 'person'): PanelResult;
@@ -680,6 +695,7 @@ export interface PanelsAPI {
     create(): void;
     create(options: CreatePanelOptions): void;
     readonly maxFitPanels?: number | null;
+    readonly minWorkspaceWidth?: number;
     move(id: string, direction: 'left' | 'right'): void;
     readonly panelList: readonly PanelSummary[];
     reanchor(id: string, anchor: {
@@ -750,7 +766,7 @@ export interface PanelsInput {
     resetHostDataOnRestore?: (hostData: JsonValue | undefined, panel: PanelWindow) => JsonValue | undefined;
     rootId: string;
     storage?: WorkspaceStorage;
-    templates?: readonly PanelTemplate[];
+    templates?: readonly AnyPanelTemplate[];
     tuning?: WorkspaceTuning;
     workspace?: WorkspaceHandle;
     workspaceDefaults?: Omit<PanelSettings, 'tuning'>;
@@ -1268,6 +1284,12 @@ export const usePanelCloseEligible: () => boolean;
 export function usePanelDragging(): boolean;
 
 // @public
+export function usePanelDragProps(): {
+    onClose?: () => void;
+    reorder?: ReorderHandle;
+};
+
+// @public
 export function usePanelHeaderButtons(): readonly PanelHeaderButtonItem[];
 
 // @public
@@ -1429,7 +1451,7 @@ export interface WorkspaceHandle {
     readonly id: string;
     readonly name: string;
     readonly panels: PanelManager;
-    registerTemplate(t: PanelTemplate): () => void;
+    registerTemplate(t: AnyPanelTemplate): () => void;
     rename(name: string): string;
     readonly rootId: string;
     readonly status: WorkspaceStatus;
@@ -1455,8 +1477,8 @@ export type WorkspaceOptions = WorkspaceLive & {
     onRename?: (name: string) => void;
     storage?: WorkspaceStorage;
     defaults?: Omit<PanelSettings, 'tuning'>;
-    root?: PanelTemplate;
-    templates?: readonly PanelTemplate[];
+    root?: AnyPanelTemplate;
+    templates?: readonly AnyPanelTemplate[];
     order?: () => readonly PanelId[];
     tuning?: WorkspaceTuning;
     conflicts?: 'warn' | 'throw' | 'off';

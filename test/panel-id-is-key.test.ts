@@ -12,7 +12,7 @@ import { warnCounterId } from '../panelIds.js';
 import { advanceFrames, cleanup } from './support/mount-harness.js';
 import { matrixRig, matrixTemplate } from './support/configure-matrix.js';
 import { made, mountRow, panelsOf, rootEntry, row } from './support/scroll-row.js';
-import { flush, markerTemplate, mountWorkspace } from './support/workspace-row.js';
+import { flush, markerTemplate, mountWorkspace, rowEntries } from './support/workspace-row.js';
 
 afterEach(() => {
   mock.restoreAll();
@@ -136,4 +136,32 @@ test('the snapshot trigger is given a panel\'s key', async () => {
   r.turn(() => one.close());
   await r.settle();
   assert.ok(r.capture.captured.includes(one.id) && r.capture.captured.every((id) => id === one.id), 'a close asks under the key too');
+});
+
+test('useActivePanel\'s setter warns once for a counter id and names the release that removes it', async () => {
+  const warn = mock.method(console, 'warn', () => undefined);
+  const setters: Array<(id: string | null) => void> = [];
+  const many = definePanel({
+    id: 'many',
+    settings: { multiple: true, frame: 'none' },
+    view: () => {
+      const [, setActive] = useActivePanel();
+      setters.push(setActive);
+      return React.createElement('i');
+    },
+  });
+  const w = createWorkspace({ mount: false, templates: [many] });
+  const m = mountWorkspace(w);
+  await flush();
+  const first = w.addPanel(many);
+  await flush();
+  const counter = rowEntries.current.find((p) => (p.key ?? p.id) === first.id)?.id;
+  assert.ok(counter !== undefined && counter !== first.id, 'control: the counter id differs from the key');
+  assert.ok(first.id.includes('~'), 'control: the key is not the counter');
+  act(() => void setters[0]!(first.id));
+  assert.equal(warn.mock.callCount(), 0, 'a key does not warn');
+  act(() => void setters[0]!(counter));
+  act(() => void setters[0]!(counter));
+  assert.equal(warn.mock.callCount(), 1);
+  assert.match(String(warn.mock.calls[0]!.arguments[0]), /0\.3\.0/);
 });

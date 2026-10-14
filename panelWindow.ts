@@ -338,6 +338,23 @@ export function movePanel(panels: PanelWindow[], id: string, direction: 'left' |
 }
 
 /**
+ * `by` hops of `movePanel` in one go, negative to the left: it stops at the first hop that moves nothing (an edge, a
+ * `crossable: false` entry), keeping the hops already made. The SAME array when no hop moved, `by` is 0 or not a whole number.
+ * @internal
+ */
+export function movePanelBy(panels: PanelWindow[], id: string, by: number, rootId: string): PanelWindow[] {
+  if (!Number.isInteger(by) || by === 0) return panels;
+  const direction = by > 0 ? 'right' : 'left';
+  let row = panels;
+  for (let i = Math.abs(by); i > 0; i -= 1) {
+    const next = movePanel(row, id, direction, rootId);
+    if (next === row) break;
+    row = next;
+  }
+  return row;
+}
+
+/**
  * How many movePanel hops a horizontal drag of `offsetX` px asks for (+right/-left). A hop past a neighbour
  * moves the dragged panel by that NEIGHBOUR's span (its width plus `gap`), so each hop lands `hopFraction` (default
  * half) of the way across the next neighbour's span, counted from where the previous hop ended; the dragged panel's

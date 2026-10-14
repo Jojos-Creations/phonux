@@ -74,6 +74,8 @@ export type { PanelAnchor } from './panelRowOrder.js';
 export type { NeighborWidths, PanelRowEntry } from './panelRowEntry.js';
 export { DEFAULT_PANEL_SIZE, panelWidthOf } from './panelTiers.js';
 export { computeRowLayout } from './panelRowLayout.js';
+export { minWorkspaceWidth } from './minWorkspaceWidth.js';
+export type { MinWorkspaceWidthInput } from './minWorkspaceWidth.js';
 export type { RowLayoutInput, RowLayoutResult } from './panelRowLayout.js';
 export { computeRowNumbers } from './rowNumbers.js';
 export type { RowNumbers } from './rowNumbers.js';
@@ -151,6 +153,7 @@ export type { PanelApiLevel } from './panelApiLevel.js';
 export { definePanel } from './panelTemplate.js';
 export type {
   PanelTemplate,
+  AnyPanelTemplate,
   PanelStatus,
   DeferredPin,
   PanelState,
@@ -173,7 +176,7 @@ export type { WorkspaceLive, WorkspacePanelsInput } from './workspaceLive.js';
 export type { PanelHandle } from './panelHandles.js';
 export type { ConfigureResult, PanelManager, PanelResult, PinResult, ResetResult } from './panelManager.js';
 export { usePanelStates, usePanelState, useWorkspaceManager } from './panels/usePanelStates.js';
-export { ACTIVE_ATTRIBUTE, CHROME_ATTRIBUTE, CHROME_PARTS, DRAGGING_ATTRIBUTE, useActivePanel, usePanelActive, usePanelDragging, usePanelResizing } from './panelChrome.js';
+export { ACTIVE_ATTRIBUTE, CHROME_ATTRIBUTE, CHROME_PARTS, DRAGGING_ATTRIBUTE, useActivePanel, usePanelActive, usePanelDragProps, usePanelDragging, usePanelResizing } from './panelChrome.js';
 export type { ChromePart } from './panelChrome.js';
 
 export { PanelManagerError } from './panelManagerError.js';

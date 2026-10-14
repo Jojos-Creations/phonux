@@ -25,17 +25,23 @@
 
 - A view may lock its own panel: `handle.configure({ closable: false })` from the view makes the panel not closable at once, and `null` removes the lock. A view still cannot ask for `closable: true`, and the root still answers `settings-conflict` to it. The lock is saved as before. `ViewPatch` gains `closable`.
 - A panel has one public id, its key. A template panel's `panel.id` was the row's counter (`3`) while `handle.id`, `PanelState.id` and `usePanelState` used the key (`web~3`), so an id from one place failed silently in another. Now `panel.id`, `PanelSummary.id` (`panelList`, `recentlyClosed`), every `PanelsAPI` verb, `useActivePanel` (its value and its setter), the id the snapshot trigger is given and `tuning.initialScroll.panel` all use the key. A hand-built entry's key is its id, so a view that never used templates sees no change. **Migration:** a view that held `panel.id` and passed it to a handle, manager or `usePanelState` needs nothing; one that stored the counter id (saved, or in a `viewId` for pictures) stores the key instead.
+- `handle.move(by, source?)` takes a signed slot count in place of `'left'` or `'right'`: `handle.move(-3, 'person')` is one gated call that crosses up to three
+  slots to the left, stops at an end or a panel that cannot be crossed, and answers `changed: true` when at least one slot was crossed. A drag over several
+  neighbours is one call, where the loop of raw `panels.move` calls was needed before. Pass `1` or `-1` where `'right'` or `'left'` was passed.
+  `usePanelPinned()` now reads `PanelState.pinned`, so it agrees with `handle.getState().pinned` (and with `pin()` and `unpin()`).
 - `tuning.shrinkOutOfView: 'off'` (the default) now shows the neighbour of a stop cut off by the window edge, at its full size. Before, a stepping row faded that
   neighbour out, so Off looked like Hide at rest. A panel is inert only when the window does not reach it, and a click or focus in the cut-off neighbour
   settles the row onto a stop afterwards. `'visible'` and `'hidden'` are unchanged. `RowNumbers` gains `showPartial`.
 
 ### Deprecated
 
-- The row's counter id as a panel id. `PanelsAPI` verbs, `useActivePanel`'s setter and `tuning.initialScroll.panel` still accept the counter id a view held before keys were the only id, with one development warning per id naming the key; it stops resolving in a later release.
+- The row's counter id as a panel id. `PanelsAPI` verbs, `useActivePanel`'s setter and `tuning.initialScroll.panel` still accept the counter id a view held before keys were the only id, with one development warning per id naming the key; it stops resolving in 0.3.0.
 
 ### Added
 
 - `configureTuning` is accepted before the workspace is attached or loaded (only a disposed workspace refuses), and `column.configureTuning(patch)` applies one tuning change to every workspace in the column, including ones added or restored later.
+- `AnyPanelTemplate`: `WorkspaceOptions.templates`, `root` and `registerTemplate` take a template of any params, so a template made with `definePanel` for typed params needs no cast. `addPanel` still checks `params`.
+- `usePanelDragProps()` returns the `onClose` and `reorder` of the panel it is called in for `DragToClose`, both going through the panel's handle. The default frame uses it.
 - A column of workspaces, one above the other. `createWorkspaceColumn(options)` renders itself like `createWorkspace`, and
   `column.addWorkspace(options)` is the one call that creates a workspace, adds it and returns its `WorkspaceHandle`. ArrowUp and
   ArrowDown move between workspaces (never while focus is in a field, widget, editor or dialog, or during a keyboard drag, and never
@@ -49,6 +55,11 @@
   `usePhoneSize()` returns the size a panel is drawn at; `useHost().device.size` stays the preferred size. Off, nothing changes.
   A hand-wired flow calls `usePhoneFit(containerRef, containerWidth, preferred, tuning, topInset?)` and gives the size to `useProvidePanels`
   and, with the new `Workspace` prop `phoneHeight`, to `Workspace`.
+- `minWorkspaceWidth({ phoneWidth, fixedColumnCount, phoneSlots?, tabletWidth?, gap? })` (with the `MinWorkspaceWidthInput`
+  type) gives the narrowest row container that shows every fixed column plus two phone slots, or plus one tablet panel
+  (768) when that is wider, and `PanelsAPI.minWorkspaceWidth` reports it for the live row, from its phone width,
+  `tuning.rowGap` and fixed columns, before the row is measured too. A host sets its window minimum from it (Tauri
+  `setMinSize`). History alone at phone 390 and gap 16 is 1234; Profile and History at gap 24 is 1680.
 - A template may declare the panel API level it was written against: `definePanel({ id, view, api: 1 })`. Leaving `api` out
   means the newest level, `PANEL_API` (also new, with the `PanelApiLevel` type). A level is the package major version the
   panel was written for. Before 1.0.0 level 1 moves with the prereleases; at 1.0.0 it is frozen. A level the library does not serve throws `invalid-template` from `definePanel`, `createWorkspace` and

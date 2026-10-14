@@ -53,6 +53,9 @@ function View({ panel, handle, manager }: LevelOneProps): React.ReactElement {
       'data-fixture-active': String(active === null || typeof active === 'string'),
       'data-fixture-phone': `${typeof phone.width}:${typeof phone.height}`,
       onClick: () => setCount((c) => c + 1),
+      onDoubleClick: (e: React.MouseEvent<HTMLElement>) => {
+        e.currentTarget.dataset.fixtureMoved = String(handle.move(-3, 'person').ok);
+      },
     },
     panel.title ?? panel.id,
   );

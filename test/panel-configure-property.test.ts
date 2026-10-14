@@ -153,8 +153,8 @@ function run(r: PinRig, h: PanelHandle, op: Op, rand: () => number): Call {
     case 'toggleVisibility': return { answer: h.toggleVisibility() };
     case 'close': return { answer: h.close() };
     case 'open': return { answer: h.open() };
-    case 'move': return { answer: h.move(rand() < 0.5 ? 'left' : 'right') };
-    case 'movePerson': return { answer: h.move(rand() < 0.5 ? 'left' : 'right', 'person') };
+    case 'move': return { answer: h.move(rand() < 0.5 ? -1 : 1) };
+    case 'movePerson': return { answer: h.move(rand() < 0.5 ? -1 : 1, 'person') };
     case 'place': return { answer: h.place(pickFrom(rand, ['row-start', 'row-end', 'after-fixed'] as const)) };
     case 'setSlots': return { answer: h.setSlots(pickFrom(rand, [1, 2, 3] as const)) };
     case 'resizePerson': return { answer: h.setSlots(pickFrom(rand, [1, 2, 3] as const), 'person') };
