@@ -10,6 +10,8 @@ import * as React from 'react';
 import { act } from 'react';
 import { COLUMN_BOTTOM_BAND, createWorkspace, createWorkspaceColumn, definePanel, MAX_WORKSPACE_NAME } from '../index.js';
 import type { ColumnState, ColumnStorage, PanelTemplate, WorkspaceColumnHandle } from '../index.js';
+import { memoryWorkspaceStorage } from '../fakeHost.js';
+import { bindingOf } from '../workspaceCore.js';
 import { arrowKeyBelongsElsewhere } from '../WorkspaceColumn.js';
 import { rigCleanup, slots, until } from './support/auto-rig.js';
 
@@ -322,6 +324,16 @@ test('add and rebuild each ask storage.workspace for their own id; undefined mea
   const own = c.addWorkspace({ id: 'own' });
   assert.deepEqual(Object.keys(asked), ['kept', 'own']);
   assert.equal(own.id, 'own');
+});
+
+test('a workspace whose storage.workspace(id) returns undefined keeps no storage and borrows none from another workspace', () => {
+  const own = memoryWorkspaceStorage();
+  const storage: ColumnStorage = { load: async () => null, save: () => undefined, workspace: (id) => (id === 'kept' ? own : undefined) };
+  const c = make({ storage, mount: false });
+  const kept = c.addWorkspace({ id: 'kept' });
+  const bare = c.addWorkspace({ id: 'bare' });
+  assert.equal(bindingOf(kept).storage, own);
+  assert.equal(bindingOf(bare).storage, undefined);
 });
 
 test('addWorkspace takes exactly id, name and index', () => {
