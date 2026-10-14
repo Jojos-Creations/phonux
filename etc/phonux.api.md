@@ -134,10 +134,10 @@ export interface ColumnWorkspaceOptions {
     templates?: readonly PanelTemplate[];
 }
 
-// @public
+// @public @deprecated
 export function computeRowLayout(input: RowLayoutInput): RowLayoutResult;
 
-// @public
+// @public @deprecated
 export function computeRowNumbers(i: {
     entries: readonly PanelRowEntry[];
     phoneWidth: number;
@@ -207,7 +207,7 @@ export type DeferredPin = {
 // @public
 export function definePanel<P extends JsonValue = JsonValue>(t: PanelTemplate<P>): PanelTemplate<P>;
 
-// @public
+// @public @deprecated
 export const DRAG_CLOSE: {
     readonly distanceFraction: 0.25;
     readonly minDistancePx: 80;
@@ -277,7 +277,7 @@ export function findPhoneModel(id: string): PhoneModel | undefined;
 // @public
 export type FormFactor = 'phone' | 'tablet' | 'desktop';
 
-// @public
+// @public @deprecated
 export const GAP = 16;
 
 // @public
@@ -775,8 +775,8 @@ export interface PanelSize {
 
 // @public
 export function PanelSizeBox(input: {
-    width: number;
-    height: number;
+    width?: number;
+    height?: number;
     children: React_2.ReactNode;
 }): React_2.JSX.Element;
 
@@ -864,7 +864,7 @@ export type PanelUserLayer = {
     parkable?: boolean;
 };
 
-// @public
+// @public @deprecated
 export function panelWidthOf(p: Pick<PanelRowEntry, 'formFactor' | 'size' | 'slots' | 'settings'>, phoneWidth: number, maxLiveWidth: number, gap?: number): number;
 
 // @public
@@ -999,7 +999,7 @@ export interface ReorderHandle {
     onDragEnd: (offsetX: number) => void;
 }
 
-// @public
+// @public @deprecated
 export function reorderStepsForOffset(offsetX: number, neighbors: NeighborWidths, gap: number, hopFraction?: number): number;
 
 // @public

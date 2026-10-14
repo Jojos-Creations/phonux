@@ -54,6 +54,7 @@ export interface RowLayoutResult {
  * hand-mirrored copy of its conditions, or a drifted count silently mis-centers the row by half an item.
  * `maxLiveThatFit` is the one "how many fit" answer, so a wider panel lowers the count instead of overflowing.
  * @public
+ * @deprecated The row computes its own layout from its tuning; read it as `useProvidePanels(...).rowNumbers`.
  */
 export function computeRowLayout({ containerWidth, phoneWidth, gap, fixedItemCount, liveWidths, reservedWidths }: RowLayoutInput): RowLayoutResult {
   const { availableForRow, fixedWidth, usedBudget } = rowBudget({ containerWidth, phoneWidth, gap, fixedItemCount, reservedWidths });

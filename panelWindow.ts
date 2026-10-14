@@ -365,6 +365,7 @@ export function movePanelBy(panels: PanelWindow[], id: string, by: number, rootI
  * half) of the way across the next neighbour's span, counted from where the previous hop ended; the dragged panel's
  * own width never enters it. Exactly that fraction of a span is a hop either way, and this never returns -0.
  * @public
+ * @deprecated A view reads its hops with `usePanelReorderSteps()` or hands `DragToClose` `usePanelDragProps()`; both use the row's tuned gap and hop fraction.
  */
 export function reorderStepsForOffset(offsetX: number, neighbors: NeighborWidths, gap: number, hopFraction: number = HOP_FRACTION): number {
   const distance = Math.abs(offsetX);
