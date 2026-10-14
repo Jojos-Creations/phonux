@@ -23,7 +23,7 @@ export interface NewestViewProps {
 export type MemberKind = 'string' | 'number' | 'boolean' | 'function' | 'object' | 'any';
 
 /** One member a level promises; `optional` is required by the type exactly where the described type marks the member optional. @internal */
-export type MemberShape<T, K extends keyof T> = { readonly kind: MemberKind } & ({} extends Pick<T, K> ? { readonly optional: true } : { readonly optional?: false });
+export type MemberShape<T, K extends keyof T> = { readonly kind: MemberKind } & (Partial<Pick<T, K>> extends Pick<T, K> ? { readonly optional: true } : { readonly optional?: false });
 
 /** The members of `T` by name and kind; a member added to or removed from `T` fails to compile until this is updated. @internal */
 export type ShapeOf<T> = { readonly [K in keyof T]-?: MemberShape<T, K> };
