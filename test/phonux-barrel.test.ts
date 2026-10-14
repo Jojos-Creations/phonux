@@ -43,6 +43,7 @@ const VALUE_EXPORTS = [
   'DEFAULT_PANEL_SIZE',
   'panelWidthOf',
   'computeRowLayout',
+  'minWorkspaceWidth',
   'computeRowNumbers',
   'PanelRow',
   'PanelSizeBox',
