@@ -24,6 +24,22 @@ every call rather than simulating real behavior, since simulating real behavior 
 app's own logic -- exactly what this boundary exists to avoid. It has no test-runner dependency and
 imports only the contracts and the data-only phone model list.
 
+### A view test holds one panel
+
+`createFakePanel(state?)` is the one fake that holds state: the single panel state it was given, never changed. It exists because a
+view's props are a `ViewHandle` and a `PanelReader`, and building those by hand means casting. Its handle is typed as `ViewHandle`
+and its reader as `PanelReader`, so a member added to the real handle fails to compile in `fakeHost.ts` until the fake has it. An
+operation records a call (`api: 'handle'`) and answers an accepted result that changed nothing; a test that wants the effect of an
+operation uses a real workspace. The fake imports only `panelSettings.ts` to resolve the settings, never `workspaceCore.ts`, React or
+motion.
+
+### Named view props
+
+`PanelViewProps<P>` is what a template's `view` and `footer` receive: `panel`, `handle` and `manager`. The panel API level table
+(`NewestViewProps`) is that same type, so a member added to the props fails to compile until the level shape names it.
+`usePanelState(id)` listens to that one panel (`reader.get(id).subscribe`), reads its value from the snapshot, and until the panel
+exists listens to the workspace and switches to the panel once it appears.
+
 ## Behavior flags cross this boundary as data only
 
 The panel model (`PanelWindow`, `panelWindow.ts`) adds behavior flags (`collapsible`, `listed`, `view`, ...)

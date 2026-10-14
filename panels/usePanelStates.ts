@@ -2,7 +2,7 @@
  * The read side of a workspace for components: hooks over the reader a row gives its template views. They answer
  * from the nearest PanelRow that was given a workspace and nothing outside one.
  */
-import { useContext, useSyncExternalStore } from 'react';
+import { useContext, useMemo, useSyncExternalStore } from 'react';
 import { filterStates } from '../panelHandles.js';
 import type { PanelId } from '../panelSettings.js';
 import type { ListFilter, PanelReader, PanelSnapshot, PanelState } from '../panelTemplate.js';
@@ -35,11 +35,33 @@ export function usePanelStates(f?: ListFilter): readonly PanelState[] {
   return filterStates(useSnapshot().panels, f);
 }
 
+function subscribeToPanel(reader: PanelReader, id: PanelId): (l: () => void) => () => void {
+  return (l) => {
+    let off: () => void = () => {};
+    const own = reader.get(id);
+    if (own !== undefined) off = own.subscribe(l);
+    else {
+      off = reader.subscribe(() => {
+        const found = reader.get(id);
+        if (found === undefined) return;
+        off();
+        off = found.subscribe(l);
+        l();
+      });
+    }
+    return () => off();
+  };
+}
+
 /**
- * The state of the panel with this id, re-read when it changes, or undefined when the workspace knows none.
+ * The state of the panel with this id, re-read when it changes, or undefined when the workspace knows none. Only a
+ * change to this panel re-renders the caller; a panel added later is picked up when it appears.
  * @param id - The panel's id.
  * @public
  */
 export function usePanelState(id: PanelId): PanelState | undefined {
-  return useSnapshot().panels.find((p) => p.id === id);
+  const reader = useWorkspaceManager();
+  const subscribe = useMemo(() => (reader === undefined ? NO_SUBSCRIBE : subscribeToPanel(reader, id)), [reader, id]);
+  const read = (): PanelState | undefined => reader?.getSnapshot().panels.find((p) => p.id === id);
+  return useSyncExternalStore(subscribe, read, read);
 }

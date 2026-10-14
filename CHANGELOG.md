@@ -35,6 +35,9 @@
 
 ### Added
 
+- `PanelViewProps<P>` names the props a template's `view` and `footer` receive (`panel`, `handle`, `manager`); `PanelTemplate` uses it.
+  `phonux/testing` gains `createFakePanel(state?)`, a `ViewHandle` and `PanelReader` over one in-memory panel that record each operation
+  in `calls` and answer an accepted result, so a view test needs no cast. `usePanelState(id)` now re-reads only when that panel changes.
 - A column of workspaces, one above the other. `createWorkspaceColumn(options)` renders itself like `createWorkspace`, and
   `column.addWorkspace(options)` is the one call that creates a workspace, adds it and returns its `WorkspaceHandle`. ArrowUp and
   ArrowDown move between workspaces (never while focus is in a field, widget, editor or dialog, or during a keyboard drag, and never

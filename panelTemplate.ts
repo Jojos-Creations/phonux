@@ -112,6 +112,19 @@ export type PanelReader = {
   subscribe(l: () => void): () => void;
 };
 
+/**
+ * The props a template's `view` and `footer` receive. Not the legacy `ViewProps` of the view registry; that name is a different shape.
+ * @public
+ */
+export interface PanelViewProps<P extends JsonValue = JsonValue> {
+  /** What a view may see of this panel. */
+  panel: PanelSummary<P>;
+  /** The panel's own read members and operations; its `configure` takes only the keys a view may set. */
+  handle: ViewHandle<P>;
+  /** Read-only access to every panel. */
+  manager: PanelReader;
+}
+
 /** A panel kind: its id, the view that renders it, its settings layer and its initial params. @public */
 export interface PanelTemplate<P extends JsonValue = JsonValue> {
   /** 1-48 characters, no whitespace, no '~', no leading '_', not all digits, not 'all'; unique in a workspace. */
@@ -119,26 +132,12 @@ export interface PanelTemplate<P extends JsonValue = JsonValue> {
   /** The panel API level the template was written against; left out, it is the newest (`PANEL_API`). Any other value throws `invalid-template`. */
   readonly api?: PanelApiLevel;
   /** The component that renders the panel. It receives the panel's summary, its own read handle and a reader for every panel. */
-  readonly view: React.ComponentType<{
-    /** What a view may see of this panel. */
-    panel: PanelSummary<P>;
-    /** The panel's own read members. */
-    handle: ViewHandle<P>;
-    /** Read-only access to every panel. */
-    manager: PanelReader;
-  }>;
+  readonly view: React.ComponentType<PanelViewProps<P>>;
   /**
    * The component drawn at the bottom of every panel made from this template, inside the frame and below the content, which
    * scrolls above it. It receives the same props as `view`. Declared on the template and not a setting, so no layer overrides it.
    */
-  readonly footer?: React.ComponentType<{
-    /** What a footer may see of this panel. */
-    panel: PanelSummary<P>;
-    /** The panel's own read members and operations. */
-    handle: ViewHandle<P>;
-    /** Read-only access to every panel. */
-    manager: PanelReader;
-  }>;
+  readonly footer?: React.ComponentType<PanelViewProps<P>>;
   /** The template's settings layer, applied to every panel made from it. */
   readonly settings?: PanelSettings;
   /** The params a panel made from this template starts with. */

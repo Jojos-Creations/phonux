@@ -151,6 +151,7 @@ export type { PanelApiLevel } from './panelApiLevel.js';
 export { definePanel } from './panelTemplate.js';
 export type {
   PanelTemplate,
+  PanelViewProps,
   PanelStatus,
   DeferredPin,
   PanelState,
