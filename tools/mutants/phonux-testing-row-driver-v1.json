@@ -94,6 +94,51 @@
       "expectRed": [
         "the undocumented window.__panelsApiForTests hook is gone"
       ]
+    },
+    {
+      "name": "header reads the grab bar",
+      "file": "testingRow.ts",
+      "find": "header: partOf(root, 'header')",
+      "replace": "header: partOf(root, 'grab-bar')",
+      "expectRed": [
+        "panel(id).header and .grabBar are different parts"
+      ]
+    },
+    {
+      "name": "dispose leaves the document",
+      "file": "testingRow.ts",
+      "find": "      document.body.replaceChildren();\n    },\n  };",
+      "replace": "    },\n  };",
+      "expectRed": [
+        "dispose takes the workspace away"
+      ]
+    },
+    {
+      "name": "saved starts at the initial state",
+      "file": "fakeHost.ts",
+      "find": "  let lastSaved: string | null = null;",
+      "replace": "  let lastSaved: string | null = held;",
+      "expectRed": [
+        "a storage made with an initial state"
+      ]
+    },
+    {
+      "name": "setWidth ignores the height",
+      "file": "testingRow.ts",
+      "find": "      if (height !== undefined) windowSize.height = height;",
+      "replace": "      void height;",
+      "expectRed": [
+        "setWidth with a height"
+      ]
+    },
+    {
+      "name": "setWidth resets the height",
+      "file": "testingRow.ts",
+      "find": "      if (height !== undefined) windowSize.height = height;",
+      "replace": "      windowSize.height = height ?? 800;",
+      "expectRed": [
+        "setWidth with a height"
+      ]
     }
   ]
 }

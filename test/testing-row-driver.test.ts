@@ -148,3 +148,37 @@ function* walk(dir: string): Generator<string> {
     else if (/\.(tsx?|mjs)$/.test(entry.name) && full !== fileURLToPath(import.meta.url)) yield full;
   }
 }
+
+test('panel(id).header and .grabBar are different parts, each marked as what it is', async () => {
+  const rendered = await render(await threePanels());
+  const panel = rendered.panel('a')!;
+  assert.ok(panel.header && panel.grabBar);
+  assert.notEqual(panel.header, panel.grabBar);
+  assert.equal(panel.header.getAttribute('data-panel-chrome-part'), 'header');
+  assert.equal(panel.grabBar.getAttribute('data-panel-chrome-part'), 'grab-bar');
+});
+
+test('dispose takes the workspace away and empties the document', async () => {
+  const ws = await threePanels();
+  const rendered = await renderWorkspace(ws, { width: 1600 });
+  document.body.append(document.createElement('hr'));
+  assert.ok(document.body.childElementCount > 1, 'control: the row and a stray node are in the document');
+  await rendered.dispose();
+  assert.equal(document.body.childElementCount, 0);
+  assert.equal(ws.status, 'disposed');
+});
+
+test('a storage made with an initial state still reports saved as null until the first save', () => {
+  const storage = memoryWorkspaceStorage({ version: 1, panels: [] });
+  assert.equal(storage.saved, null);
+  storage.save({ version: 1, panels: [] });
+  assert.deepEqual(storage.saved, { version: 1, panels: [] });
+});
+
+test('setWidth with a height gives the scroller that height, and without one keeps it', async () => {
+  const rendered = await render(await threePanels(), 1600);
+  await rendered.setWidth(1500, 640);
+  assert.equal(rendered.scroller.clientHeight, 640);
+  await rendered.setWidth(1400);
+  assert.equal(rendered.scroller.clientHeight, 640);
+});
