@@ -52,6 +52,8 @@ export interface PanelSlotValue {
   readonly id?: string | undefined;
   /** The panel's `animated` setting: false takes the chrome fade, like every other animation, in no time. Optional like `id`. */
   readonly animated?: boolean | undefined;
+  /** True while a host holds a width on a panel of this row (`usePanelResizing`'s `setDrawnWidth`): the row's moves and its size boxes take no time then, so they follow a pointer. */
+  readonly tracking?: boolean | undefined;
   readonly collapsible: boolean;
   readonly closable: ResolvedPanelSettings['closable'];
   readonly draggable: ResolvedPanelSettings['draggable'];
@@ -64,6 +66,8 @@ export interface PanelSlotValue {
   readonly tuning: ResolvedPanelTuning & { readonly rowGap: number; readonly chrome: ChromeTuning };
   /** Optional so a slot value built by hand (a test, a view mounted outside a row) needs none. */
   readonly dragScroll?: DragScroll | undefined;
+  /** The panel's `frame` setting: whether a view that draws no frame of its own gets the library's. Absent reads as 'auto'. */
+  readonly frame?: ResolvedPanelSettings['frame'] | undefined;
   /** The panel's declared header buttons; absent when none are declared or the row has no workspace. */
   readonly headerButtonSlots?: HeaderButtonsSlot | undefined;
   /** Marks this panel as being dragged from the moment its drag engages until it settles. Absent outside a row. */

@@ -41,21 +41,21 @@ export interface RowNumbers {
   /** Room after the strip so the last stop can leave an even margin at both edges; 0 when there are no stops. */
   endPad: number;
   /**
-   * For each stop, the neighbour its group would leave cut off that 'visible' shrinking draws smaller: its index in
-   * `ids` and the slots it is drawn at; null where nothing shrinks. Always all null unless `shrink` is 'visible'. Same order as `stops`.
-   * It is the panel after the group when the row leans 'forward' and the one before it when it leans 'backward'.
+   * For each stop, the panels it draws smaller than their own width, each as its index in `ids` and the slots it is drawn at: the
+   * first panel when the window starts part way into it, the last when the window ends part way into it. Empty for a stop that
+   * draws every panel whole, and for every stop unless `shrink` is 'visible'. Same order as `stops`.
    */
-  stopShrinks: readonly ({ index: number; slots: number } | null)[];
+  stopShrinks: readonly (readonly { index: number; slots: number }[])[];
   /**
-   * For each stop, the index of the panel its group starts at. Stops are identified by it, not by their place in `stops`:
-   * leaning backward a stop that would repeat the view before it is left out, so the two leans' lists differ in length.
+   * For each stop, a number that names it and rises with it. A stepping row keeps the stop it is on by this number, not by its
+   * place in `stops`, because two stops can share a scroll position and differ only in what they draw.
    */
   stopFirsts: readonly number[];
-  /** The width each drawn entry is drawn at on the current stop (`atFirst`): `widths` with the shrunk neighbour narrowed. Every stop and offset above is read from `widths`, never from these. */
+  /** The width each drawn entry is drawn at on the current stop (`atFirst`): `widths` with that stop's shrunk panels narrowed. Every stop and offset above is read from `widths`, never from these. */
   drawnWidths: readonly number[];
   /** Each drawn entry's resting x on the current stop, from `drawnWidths`. */
   drawnOffsets: readonly number[];
-  /** True when 'hidden' shrinking is on: a panel outside the shown panels is never drawn part way. */
+  /** True when 'hidden' shrinking is on: a panel outside the stop's panels is never drawn part way. */
   hideOutside: boolean;
   /** The index in `stops` of the stop the row is on, when it follows stops ('visible'), else -1. Two stops can share a scroll position, so a fade cannot read the stop from the scroll. */
   atStop: number;
@@ -80,15 +80,10 @@ export function computeRowNumbers(i: {
   fixedItemCount?: number;
   /** True for a row whose gesture is 'step': the window then shows only whole panels, at the stops. Default false. */
   wholePanels?: boolean;
-  /** What the row does with the neighbour its shown panels would leave cut off (`tuning.shrinkOutOfView`). Default 'off'. */
+  /** What a stepping row does with the panels the window would leave cut off (`tuning.shrinkOutOfView`). Default 'off'. */
   shrink?: 'off' | 'visible' | 'hidden';
-  /** The stop the row is on, named by the panel its group starts at; the drawn widths are those of that stop. Default the first stop. */
+  /** The stop the row is on, as its `stopFirsts` number; the drawn widths are those of that stop. Default the first stop. */
   atFirst?: number;
-  /**
-   * The side the room the group leaves free goes to: 'forward' (the panel after the group, the default) or 'backward'
-   * (the one before it). Changes each stop's position and margin, never `rowMarginLeft` or `endPad`.
-   */
-  lean?: 'forward' | 'backward';
 }): RowNumbers {
   const present = i.entries.filter(isPresent);
   // Reads the settings the entry carries, never effective(): a hand-built fixed History reads 'scroll' under effective()
@@ -109,8 +104,12 @@ export function computeRowNumbers(i: {
     leftOffsets.push(running);
     running += width + i.gap;
   }
-  const shrinkable = i.shrink === 'visible' ? present.map((p) => p.slots !== undefined) : null;
-  const whole = i.wholePanels === true && rowScroll && measured && stripWidth > windowWidth ? wholePanelStops(widths, leftOffsets, stripWidth, i.gap, windowWidth, i.phoneWidth, shrinkable, i.lean ?? 'forward') : null;
+  const stepsBySlot = i.shrink === 'visible';
+  const whole = i.wholePanels === true && rowScroll && measured && stripWidth > windowWidth
+    ? stepsBySlot
+      ? slotWindowStops(widths, leftOffsets, stripWidth, i.gap, windowWidth, i.phoneWidth, present.map((p) => p.slots !== undefined))
+      : wholePanelStops(widths, leftOffsets, stripWidth, i.gap, windowWidth)
+    : null;
   let rowMarginLeft: number;
   if (whole !== null) {
     rowMarginLeft = whole.rowMargin;
@@ -125,98 +124,122 @@ export function computeRowNumbers(i: {
   const stopShrinks = whole === null ? [] : whole.shrinks;
   const stopFirsts = whole === null ? [] : whole.firsts;
   const drawnWidths = [...widths];
-  const shrunk = stopShrinks[stopIndexOfFirst(stopFirsts, i.atFirst ?? 0)];
-  if (shrunk != null) drawnWidths[shrunk.index] = slotWidth(shrunk.slots, i.phoneWidth, i.gap);
+  for (const shrunk of stopShrinks[stopIndexOfFirst(stopFirsts, i.atFirst ?? 0)] ?? []) drawnWidths[shrunk.index] = slotWidth(shrunk.slots, i.phoneWidth, i.gap);
   const drawnOffsets: number[] = [];
   let drawnRunning = 0;
   for (const width of drawnWidths) {
     drawnOffsets.push(drawnRunning);
     drawnRunning += width + i.gap;
   }
-  return { rowScroll, windowWidth, stripWidth, rowMarginLeft, ids: present.map((p) => p.id), widths, leftOffsets, maxLiveWidth, reservedWidths, parkLiveWidths, stops, stopSpans, endPad, stopShrinks, stopFirsts, drawnWidths, drawnOffsets, hideOutside: i.shrink === 'hidden' && whole !== null, atStop: i.shrink === 'visible' && whole !== null ? stopIndexOfFirst(stopFirsts, i.atFirst ?? 0) : -1 };
+  return { rowScroll, windowWidth, stripWidth, rowMarginLeft, ids: present.map((p) => p.id), widths, leftOffsets, maxLiveWidth, reservedWidths, parkLiveWidths, stops, stopSpans, endPad, stopShrinks, stopFirsts, drawnWidths, drawnOffsets, hideOutside: i.shrink === 'hidden' && whole !== null, atStop: stepsBySlot && whole !== null ? stopIndexOfFirst(stopFirsts, i.atFirst ?? 0) : -1 };
+}
+
+type Shrink = { index: number; slots: number };
+type Pick = { first: number; start: number; end: number; margin: number; shrinks: Shrink[] };
+type StopSet = { firsts: number[]; starts: number[]; ends: number[]; margins: number[]; shrinks: Shrink[][]; rowMargin: number; endPad: number };
+
+/**
+ * The row margin and end pad the picks need, and the picks that go forward: a stop whose scroll position lies left of the one
+ * before it is left out. The margin and pad are the least that let every stop sit at a scroll position inside the strip, and
+ * the strip, as drawn at ANY stop, reach every stop: the browser clamps the scroll the moment a stop draws it shorter than
+ * the position the row is on.
+ */
+function settleStops(picks: readonly Pick[], widths: readonly number[], offsets: readonly number[], stripWidth: number, windowWidth: number, phoneWidth: number, gap: number): StopSet {
+  let rowMargin = 0;
+  let reach = Number.NEGATIVE_INFINITY;
+  let shortest = 0;
+  for (const pick of picks) {
+    rowMargin = Math.max(rowMargin, pick.margin - offsets[pick.start]!);
+    reach = Math.max(reach, offsets[pick.start]! - pick.margin + windowWidth - stripWidth);
+    shortest = Math.max(shortest, pick.shrinks.reduce((sum, s) => sum + widths[s.index]! - slotWidth(s.slots, phoneWidth, gap), 0));
+  }
+  const endPad = Math.max(0, reach + shortest);
+  const kept: Pick[] = [];
+  let last = Number.NEGATIVE_INFINITY;
+  for (const pick of picks) {
+    const at = rowMargin + offsets[pick.start]! - pick.margin;
+    if (at < last) continue;
+    last = at;
+    kept.push(pick);
+  }
+  return { firsts: kept.map((p) => p.first), starts: kept.map((p) => p.start), ends: kept.map((p) => p.end), margins: kept.map((p) => p.margin), shrinks: kept.map((p) => p.shrinks), rowMargin, endPad };
 }
 
 /**
  * Per start panel, the end of the whole panels that fit the window from it (at least one) and the even margin left over,
  * for every start up to the first one from which everything remaining fits: a later stop would only add blank room.
- * Where `shrinkable` marks the neighbour on the `lean` side of the group, it is drawn at the whole slots the group leaves
- * free when that is fewer than it has, joins the shown panels, and takes its room out
- * of the margin; a stop with no such neighbour (the first stop leaning backward) shows what it shows leaning forward.
- * Groups come from `widths` alone. The row's left margin and end pad are the least that let every stop of either lean sit
- * at a scroll position inside the strip, so leaning one way or the other never moves the strip.
+ * Groups come from `widths` alone.
  */
-function wholePanelStops(
-  widths: readonly number[],
-  offsets: readonly number[],
-  stripWidth: number,
-  gap: number,
-  windowWidth: number,
-  phoneWidth: number,
-  shrinkable: readonly boolean[] | null,
-  lean: 'forward' | 'backward',
-): { firsts: number[]; starts: number[]; ends: number[]; margins: number[]; shrinks: ({ index: number; slots: number } | null)[]; rowMargin: number; endPad: number } {
-  type Pick = { first: number; start: number; end: number; margin: number; shrink: { index: number; slots: number } | null };
-  const picked: Pick[] = [];
-  const forwards: Pick[] = [];
-  const backwards: Pick[] = [];
-  let rowMargin = 0;
-  let endPad = 0;
+function wholePanelStops(widths: readonly number[], offsets: readonly number[], stripWidth: number, gap: number, windowWidth: number): StopSet {
+  const picks: Pick[] = [];
   for (let first = 0; first < widths.length; first++) {
     let used = widths[first]!;
     let end = first + 1;
     while (end < widths.length && used + gap + widths[end]! <= windowWidth) used += gap + widths[end++]!;
-    const free = Math.floor((windowWidth - used) / (phoneWidth + gap));
-    const groupEnd = end;
-    const evenMargin = (shown: number): number => Math.max(0, (windowWidth - shown) / 2);
-    let forward: Pick = { first, start: first, end, margin: evenMargin(used), shrink: null };
-    if (shrinkable?.[groupEnd] === true && free >= 1 && groupEnd < widths.length) {
-      forward = { first, start: first, end: groupEnd + 1, margin: evenMargin(used + gap + slotWidth(free, phoneWidth, gap)), shrink: { index: groupEnd, slots: free } };
-    }
-    // A neighbour behind the group that already fits is not drawn as the one the room goes to: the stop before shows it whole.
-    let backward = forward;
-    if (first > 0 && shrinkable?.[first - 1] === true && free >= 1 && widths[first - 1]! > slotWidth(free, phoneWidth, gap)) {
-      backward = { first, start: first - 1, end: groupEnd, margin: evenMargin(used + gap + slotWidth(free, phoneWidth, gap)), shrink: { index: first - 1, slots: free } };
-    }
-    forwards.push(forward);
-    backwards.push(backward);
-    if (groupEnd === widths.length) break;
+    picks.push({ first, start: first, end, margin: Math.max(0, (windowWidth - used) / 2), shrinks: [] });
+    if (end === widths.length) break;
   }
-  // A stop of either lean needs rowMargin + offset - margin >= 0, and the strip, as drawn at ANY stop, must reach every stop's
-  // position: the browser clamps the scroll the moment a lean flip draws the strip shorter than the position the row is on.
-  let reach = Number.NEGATIVE_INFINITY;
-  let shortest = 0;
-  for (const pick of [...forwards, ...backwards]) {
-    rowMargin = Math.max(rowMargin, pick.margin - offsets[pick.start]!);
-    reach = Math.max(reach, offsets[pick.start]! - pick.margin + windowWidth - stripWidth);
-    shortest = Math.max(shortest, pick.shrink === null ? 0 : widths[pick.shrink.index]! - slotWidth(pick.shrink.slots, phoneWidth, gap));
-  }
-  endPad = Math.max(0, reach + shortest);
-  // Leaning backward, a stop whose view repeats the one before it, or lies left of it, is left out: a step onto it would move nothing or go the wrong way.
-  let last = Number.NEGATIVE_INFINITY;
-  for (const [k, forward] of forwards.entries()) {
-    const pick = lean === 'forward' ? forward : backwards[k]!;
-    const at = rowMargin + offsets[pick.start]! - pick.margin;
-    const before = picked[picked.length - 1];
-    const repeats = before !== undefined && before.start === pick.start && before.end === pick.end && before.shrink?.index === pick.shrink?.index && before.shrink?.slots === pick.shrink?.slots;
-    if (at < last || repeats) continue;
-    last = at;
-    picked.push(pick);
-  }
-  return { firsts: picked.map((p) => p.first), starts: picked.map((p) => p.start), ends: picked.map((p) => p.end), margins: picked.map((p) => p.margin), shrinks: picked.map((p) => p.shrink), rowMargin, endPad };
+  return settleStops(picks, widths, offsets, stripWidth, windowWidth, 0, gap);
 }
 
 /**
- * The stop to rest at to show panel `index` whole: of the stops whose panels include it, the one nearest `target`.
- * `target` itself when the row has no stops. @internal
+ * The stops of a row that steps one slot at a time. The strip is a run of slot units: a panel that can be drawn smaller is as
+ * many units as its width holds slots, one that cannot (an entry without `slots`, or at a width that is no whole number of
+ * slots) is one unit as wide as itself. A stop is a window position: it starts at a unit and holds every unit that fits the
+ * window after it. The first and last panel the window meets are drawn at the units of them it holds, so a panel steps through
+ * every size on its way in (1, 2, ... its own) and on its way out (its own, ... 2, 1), then leaves the window. The window is
+ * centred by the room it leaves. The same stops are walked forward and back.
  */
-export function snapToStop(n: RowNumbers, index: number, target: number): number {
-  let best: number | null = null;
+function slotWindowStops(widths: readonly number[], offsets: readonly number[], stripWidth: number, gap: number, windowWidth: number, phoneWidth: number, shrinkable: readonly boolean[]): StopSet {
+  const units: { panel: number; at: number; of: number; width: number }[] = [];
+  for (const [panel, width] of widths.entries()) {
+    const slots = Math.round((width + gap) / (phoneWidth + gap));
+    const divides = shrinkable[panel] === true && slots >= 1 && Math.abs(slotWidth(slots, phoneWidth, gap) - width) < 0.5;
+    if (divides) for (let at = 0; at < slots; at++) units.push({ panel, at, of: slots, width: phoneWidth });
+    else units.push({ panel, at: 0, of: 1, width });
+  }
+  const picks: Pick[] = [];
+  for (let from = 0; from < units.length; from++) {
+    let used = units[from]!.width;
+    let to = from;
+    while (to + 1 < units.length && used + gap + units[to + 1]!.width <= windowWidth) used += gap + units[++to]!.width;
+    const first = units[from]!;
+    const lastUnit = units[to]!;
+    const shrinks: Shrink[] = [];
+    if (first.panel === lastUnit.panel) {
+      if (to - from + 1 < first.of) shrinks.push({ index: first.panel, slots: to - from + 1 });
+    } else {
+      if (first.at > 0) shrinks.push({ index: first.panel, slots: first.of - first.at });
+      if (lastUnit.at + 1 < lastUnit.of) shrinks.push({ index: lastUnit.panel, slots: lastUnit.at + 1 });
+    }
+    picks.push({ first: picks.length, start: first.panel, end: lastUnit.panel + 1, margin: Math.max(0, (windowWidth - used) / 2), shrinks });
+    if (to === units.length - 1) break;
+  }
+  return settleStops(picks, widths, offsets, stripWidth, windowWidth, phoneWidth, gap);
+}
+
+/**
+ * The index in `n.stops` of the stop to rest at to show panel `index` whole: of the stops whose panels include it, drawn at its
+ * full width, the one nearest `target`. Of stops that share a position, `prefer` (the stop the row is on) when it is one, else the earliest. -1 when the row has no such stop. @internal
+ */
+export function snapToStopIndex(n: RowNumbers, index: number, target: number, prefer?: number): number {
+  let best = -1;
   for (const [k, span] of n.stopSpans.entries()) {
     if (index < span.first || index >= span.end) continue;
-    const stop = n.stops[k]!;
-    if (best === null || Math.abs(stop - target) < Math.abs(best - target)) best = stop;
+    // A panel the stop draws smaller is not shown whole by it.
+    if (n.stopShrinks[k]!.some((shrunk) => shrunk.index === index)) continue;
+    const nearer = best < 0 || Math.abs(n.stops[k]! - target) < Math.abs(n.stops[best]! - target);
+    if (nearer || (k === prefer && n.stops[k] === n.stops[best])) best = k;
   }
-  return best ?? target;
+  return best;
+}
+
+/**
+ * The stop to rest at to show panel `index` whole: where `snapToStopIndex` points, `target` itself when the row has none. @internal
+ */
+export function snapToStop(n: RowNumbers, index: number, target: number): number {
+  const k = snapToStopIndex(n, index, target);
+  return k < 0 ? target : n.stops[k]!;
 }
 
 /** The place in `n.stops` of the stop that group-start panel `first` names: the last one at or before it, or the first. @internal */
@@ -226,7 +249,7 @@ export function stopIndexOfFirst(firsts: readonly number[], first: number): numb
   return found;
 }
 
-/** The index in `n.stops` of the stop nearest `at`; 0 when the row has none. @internal */
+/** The index in `n.stops` of the stop nearest `at`, the earliest of stops that share a position; 0 when the row has none. @internal */
 export function nearestStopIndex(n: RowNumbers, at: number): number {
   let best = 0;
   for (const [k, stop] of n.stops.entries()) if (Math.abs(stop - at) < Math.abs(n.stops[best]! - at)) best = k;
@@ -238,6 +261,17 @@ export function nearestStop(n: RowNumbers, at: number): number {
   let best = at;
   for (const [k, stop] of n.stops.entries()) if (k === 0 || Math.abs(stop - at) < Math.abs(best - at)) best = stop;
   return best;
+}
+
+/**
+ * The `scrollLeft` that puts the pinned edge of entry `k` back at `edge` px from the window's left, with `n`'s margin, offset and
+ * width: its right edge when the width was pinned at its end (a left grabber), its left edge when pinned at its start. `at` itself
+ * when the entry is not in `n`. @internal
+ */
+export function scrollHoldingEdge(n: RowNumbers, k: number, pin: 'start' | 'end', edge: number, at: number): number {
+  if (k < 0 || k >= n.ids.length) return at;
+  const left = n.rowMarginLeft + n.leftOffsets[k]!;
+  return (pin === 'end' ? left + n.widths[k]! : left) - edge;
 }
 
 /** The farthest legal `scrollLeft` for `n`, from its numbers and never read back from the DOM; 0 while unmeasured. @internal */

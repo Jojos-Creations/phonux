@@ -84,7 +84,7 @@ test('under StrictMode a raise returns once and the next render returns nothing 
 });
 
 test('a raise before the workspace has loaded is refused, so nothing is dropped into a half-restored row', () => {
-  const ws = createWorkspace({ root: markerTemplate('root'), templates: [markerTemplate('a')], tuning: { maxLivePanels: 2 } });
+  const ws = createWorkspace({ mount: false, root: markerTemplate('root'), templates: [markerTemplate('a')], tuning: { maxLivePanels: 2 } });
   const result = ws.panels.configureTuning({ maxLivePanels: 4 });
   assert.equal(result.ok, false);
   assert.equal(ws.tuning.maxLivePanels, 2);

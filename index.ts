@@ -20,6 +20,7 @@ export type {
   PanelsAPI,
   PhoneDeviceAPI,
   Host,
+  HostInput,
 } from './hostApi.js';
 
 export type { PhonuxLabels } from './labels.js';
@@ -144,6 +145,8 @@ export type {
 export { mergePatch } from './settingsPatch.js';
 export type { SettingsPatch, InstancePatch, ViewPatch } from './settingsPatch.js';
 
+export { PANEL_API } from './panelApiLevel.js';
+export type { PanelApiLevel } from './panelApiLevel.js';
 export { definePanel } from './panelTemplate.js';
 export type {
   PanelTemplate,
@@ -159,7 +162,8 @@ export type {
 } from './panelTemplate.js';
 
 export { createWorkspace } from './workspaceCore.js';
-export type { WorkspaceHandle, WorkspaceOptions } from './workspaceCore.js';
+export type { WorkspaceHandle, WorkspaceOptions, WorkspaceWrapProps } from './workspaceCore.js';
+export type { WorkspaceLive, WorkspacePanelsInput } from './workspaceLive.js';
 export type { PanelHandle } from './panelHandles.js';
 export type { ConfigureResult, PanelManager, PanelResult, PinResult, ResetResult } from './panelManager.js';
 export { usePanelStates, usePanelState, useWorkspaceManager } from './panels/usePanelStates.js';

@@ -1,0 +1,100 @@
+{
+  "tests": [
+    "test/default-frame-size.test.ts"
+  ],
+  "mutants": [
+    {
+      "name": "the default frame draws no box",
+      "file": "PanelRowSlot.tsx",
+      "find": "if (nested) return <div data-panel-size-plain",
+      "replace": "if (true as boolean) return <div data-panel-size-plain",
+      "expectRed": [
+        "a bare view is drawn inside one size box",
+        "a resize draws the box at the old size"
+      ]
+    },
+    {
+      "name": "the box never animates",
+      "file": "PanelRowSlot.tsx",
+      "find": "if (before === undefined || snaps) {",
+      "replace": "if (true as boolean) {",
+      "expectRed": [
+        "a resize draws the box at the old size",
+        "a resize that lands while the box is on its way carries on",
+        "run as one curve"
+      ]
+    },
+    {
+      "name": "a box below a box still scales",
+      "file": "PanelRowSlot.tsx",
+      "find": "const nested = React.useContext(SizeBoxContext);",
+      "replace": "const nested = false as boolean;",
+      "expectRed": [
+        "a PanelSizeBox below the default frame draws a plain div"
+      ]
+    },
+    {
+      "name": "a parked box eases",
+      "file": "PanelRowSlot.tsx",
+      "find": "slot?.tracking === true || parked;",
+      "replace": "slot?.tracking === true;",
+      "expectRed": [
+        "a box in a parked panel takes its size at once"
+      ]
+    },
+    {
+      "name": "Reduce Motion is ignored",
+      "file": "PanelRowSlot.tsx",
+      "find": "const snaps = configReduced || systemReduced || slot?.animated === false",
+      "replace": "const snaps = slot?.animated === false",
+      "expectRed": [
+        "under Reduce Motion, and for a panel that is not animated"
+      ]
+    },
+    {
+      "name": "animated false is ignored",
+      "file": "PanelRowSlot.tsx",
+      "find": "slot?.animated === false || slot?.tracking",
+      "replace": "slot?.tracking",
+      "expectRed": [
+        "under Reduce Motion, and for a panel that is not animated"
+      ]
+    },
+    {
+      "name": "a resize mid-glide starts from the old size, not the drawn one",
+      "file": "PanelRowSlot.tsx",
+      "find": "const x0 = (before.width * scale.current.x) / width;",
+      "replace": "const x0 = before.width / width;",
+      "expectRed": [
+        "a resize that lands while the box is on its way carries on"
+      ]
+    },
+    {
+      "name": "the slot counts from its own time",
+      "file": "PanelRowSlot.tsx",
+      "find": "      startable.startTime = slideStart();\n",
+      "replace": "",
+      "expectRed": [
+        "run as one curve"
+      ]
+    },
+    {
+      "name": "the box grows from the middle",
+      "file": "PanelRowSlot.tsx",
+      "find": "transformOrigin: '0 0'",
+      "replace": "transformOrigin: '50% 50%'",
+      "expectRed": [
+        "a bare view is drawn inside one size box"
+      ]
+    },
+    {
+      "name": "the box has no height of the phone",
+      "file": "defaultFrame.tsx",
+      "find": "(size?.height ?? device.size.height)",
+      "replace": "(size?.height ?? 0)",
+      "expectRed": [
+        "the box is as wide as the frame at a phone"
+      ]
+    }
+  ]
+}

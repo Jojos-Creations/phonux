@@ -8,10 +8,13 @@
 
 import * as React from 'react';
 import Box, { type BoxProps } from '@mui/material/Box';
+import { type Theme } from '@mui/material/styles';
 import { PANEL_HEADER_GAP_PX, PanelHeaderRow, type PanelHeaderRowProps } from './PanelFrame.js';
 import { useHost, type PanelSize } from './hostApi.js';
+import { useFrameClaim } from './panelFrameClaim.js';
 import { PanelHiddenContext, PanelSlotContext } from './panelSlotContext.js';
 import { HEADER_ROW_ATTRIBUTE, PanelHeaderButtons, usePanelHeaderButtons } from './panelHeaderButtons.js';
+import { glideCorner } from './sizeGlide.js';
 import { CaptureRegistryContext, type ViewId } from './snapshots.js';
 import { ACTIVE_ATTRIBUTE, CHROME_ATTRIBUTE, CHROME_PARTS, DRAGGING_ATTRIBUTE, PanelChromeVisibleContext, useChromeFade, useChromeVisibility, usePanelActive, usePanelDragging } from './panelChrome.js';
 
@@ -79,6 +82,7 @@ export interface PanelProps extends Omit<BoxProps, 'children' | 'sx' | 'title'> 
  */
 export function Panel({ title, actions, headerProps, headerButtons = true, grabProps, overlay, sx, children, viewId, capture = 'auto', size, ...rest }: PanelProps) {
   const { device } = useHost();
+  useFrameClaim('panel');
   const registry = React.useContext(CaptureRegistryContext);
   const rootRef = React.useRef<HTMLDivElement | null>(null);
   const hidden = React.useContext(PanelHiddenContext);
@@ -164,7 +168,7 @@ export function Panel({ title, actions, headerProps, headerButtons = true, grabP
         >
           {/* Decorative only -- the clickable area is the whole strip above, sized to WCAG 2.5.8's 24px
               minimum even though this drawn pill is thinner. */}
-          <Box aria-hidden="true" sx={{ width: 32, height: 4, borderRadius: 2, bgcolor: 'divider' }} />
+          <Box aria-hidden="true" sx={{ width: 32, height: 4, borderRadius: (theme: Theme) => glideCorner(2 * Number(theme.shape.borderRadius)), bgcolor: 'divider' }} />
         </Box>
       )}
       {children}

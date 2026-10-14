@@ -12,7 +12,6 @@ import type { PanelSettings, SettingNote } from '../panelSettings.js';
 import type { PanelTemplate } from '../panelTemplate.js';
 import { SAVE_QUIET_MS } from '../rowConstants.js';
 import { setSlots, type PanelWindow } from '../panelWindow.js';
-import { listTemplates } from '../viewRegistry.js';
 import { reconcileWorkspace } from '../workspacePlan.js';
 import type { DeclaredPanel } from '../workspacePlan.js';
 import { DISMISSED_LIMIT, projectWorkspaceState } from '../workspaceState.js';
@@ -95,8 +94,7 @@ export function useWorkspacePersistence(i: {
     // StrictMode runs this effect twice; only the run that is not cancelled may apply its result.
     let cancelled = false;
     const reconcile = (saved: unknown): PanelWindow[] => {
-      const own = (typeof given === 'function' ? given() : given) ?? [];
-      const templates = [...listTemplates().filter((t) => !own.some((g) => g.id === t.id)), ...own];
+      const templates = (typeof given === 'function' ? given() : given) ?? [];
       // Drawn here, never inside an updater: React may run an updater twice.
       const result = reconcileWorkspace({ saved, templates, declared: typeof declared === 'function' ? declared() : declared, workspaceDefaults, rootId, current: panelsRef.current, freshId, order: i.order });
       const before = (saved as { dismissed?: unknown } | null)?.dismissed;

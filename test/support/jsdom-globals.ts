@@ -35,6 +35,10 @@ function cancelFrame(handle: number): void {
 /** The one counter behind requestAnimationFrame, cancelAnimationFrame and performance.now. */
 export const frameClock = {
   now: (): number => virtualNow,
+  /** Moves the counter on with no frame run, as a task that blocks the main thread does. */
+  skip(ms: number): void {
+    virtualNow += ms;
+  },
   /** Callbacks waiting for the next frame. */
   pendingCount: (): number => pending.size,
   /**

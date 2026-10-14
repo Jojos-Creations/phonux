@@ -162,7 +162,7 @@ test('an anonymous open panel resets; the root answers changed:false; an unknown
 });
 
 test('before the workspace is attached every call is refused', () => {
-  const ws = createWorkspace({ templates: [markerTemplate('x')] });
+  const ws = createWorkspace({ mount: false, templates: [markerTemplate('x')] });
   ws.addPanel('x');
   assert.equal(brief(ws.panels.resetLayout('all')), 'not-attached');
   assert.equal(brief(ws.panels.resetLayout('x')), 'not-attached');
@@ -226,8 +226,8 @@ test('busy: resetLayout is refused in a turn where any panel holds a token, and 
 });
 
 test('all is rejected as a template id and as an instance id', () => {
-  assert.throws(() => createWorkspace({ templates: [markerTemplate('all')] }), /'all' is reserved/);
-  const ws = createWorkspace({ templates: [markerTemplate('x', { settings: { multiple: true } })] });
+  assert.throws(() => createWorkspace({ mount: false, templates: [markerTemplate('all')] }), /'all' is reserved/);
+  const ws = createWorkspace({ mount: false, templates: [markerTemplate('x', { settings: { multiple: true } })] });
   assert.throws(() => ws.addPanel('x', { id: 'all' }), /'all' is reserved/);
 });
 

@@ -114,7 +114,7 @@ function changelogRemovedBullets(): [Set<string>, Set<string>] {
 /** The backtick-quoted names in the Unreleased section's Breaking list. */
 function changelogBreakingNames(): Set<string> {
   const lines = readText(fileURLToPath(new URL('../CHANGELOG.md', import.meta.url))).split('\n');
-  const unreleased = lines.findIndex((line) => /^## Unreleased\s*$/.test(line));
+  const unreleased = lines.findIndex((line) => /^## (Unreleased|0\.2\.0-rc\.3)\s*$/.test(line));
   const breakingAt = lines.findIndex((line, i) => i > unreleased && /^### Breaking\s*$/.test(line));
   assert.ok(unreleased >= 0 && breakingAt >= 0, 'CHANGELOG.md has an Unreleased section with a Breaking list');
   const names = new Set<string>();

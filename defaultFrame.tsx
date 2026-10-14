@@ -1,0 +1,53 @@
+/**
+ * The frame the library draws around a template's view that draws none of its own: a header with the panel's title, the
+ * grab bar of the drag-down close, the phone frame and the template's footer. Built from the exported `Panel`, `PanelFrame`
+ * and `DragToClose`, so a bare view looks and behaves like one a developer wrote with them. DESIGN.md, "The default frame".
+ */
+import * as React from 'react';
+import { DragToClose } from './dragToClose.js';
+import { useHost, useOptionalHost, type PanelSummary } from './hostApi.js';
+import { resolveLabels } from './labels.js';
+import Panel, { type PanelProps } from './Panel.js';
+import PanelFrame from './PanelFrame.js';
+import { SizeBox } from './PanelRowSlot.js';
+import { PanelSlotContext } from './panelSlotContext.js';
+import { reorderStepsForOffset } from './panelWindow.js';
+
+export function DefaultFrame({ panel, children }: { panel: PanelSummary; children: React.ReactNode }): React.ReactElement {
+  const { panels, device } = useHost();
+  const labels = resolveLabels(useOptionalHost()?.labels);
+  const slot = React.useContext(PanelSlotContext);
+  const closeEligible = slot === undefined ? true : slot.collapsible && slot.closable;
+  const reorderEligible = slot?.draggable ?? false;
+  const size = (panel.formFactor ?? 'phone') !== 'phone' ? panel.size : undefined;
+  const title = panel.title ?? labels.untitledPanel;
+  const width = size?.width ?? device.size.width;
+  const height = size?.height === 'fill' ? '100%' : (size?.height ?? device.size.height);
+  const body = <PanelFrame {...(size !== undefined ? { size } : {})}>{children}</PanelFrame>;
+  // One box around the whole panel, so the frame, the header above it and the grab bar move together while the size animates.
+  const boxed = (panelProps: Omit<PanelProps, 'children'>): React.ReactElement => (
+    <SizeBox width={width} height={height}>
+      <Panel {...panelProps} sx={{ height: '100%' }} {...(size !== undefined ? { size } : {})}>
+        {body}
+      </Panel>
+    </SizeBox>
+  );
+  if (!closeEligible) return boxed({ title, viewId: panel.id });
+  return (
+    <DragToClose
+      onClose={() => panels.close(panel.id)}
+      reorder={
+        reorderEligible && slot !== undefined
+          ? {
+              onDragEnd: (offset) => {
+                const steps = reorderStepsForOffset(offset, slot.neighborWidths, slot.tuning.rowGap, slot.tuning.hopFraction);
+                for (let i = 0; i < Math.abs(steps); i += 1) panels.move(panel.id, steps > 0 ? 'right' : 'left');
+              },
+            }
+          : undefined
+      }
+    >
+      {(grab) => boxed({ title, viewId: panel.id, grabProps: { ...grab } })}
+    </DragToClose>
+  );
+}

@@ -1,0 +1,90 @@
+{
+  "tests": [
+    "test/panel-api-level.test.ts"
+  ],
+  "mutants": [
+    {
+      "name": "definePanel does not check the level",
+      "file": "panelTemplate.ts",
+      "find": "  checkPanelApi(t.id, t.api);\n",
+      "replace": "",
+      "expectRed": [
+        "definePanel refuses an api the library does not serve",
+        "every door that takes a template refuses an api the library does not serve"
+      ]
+    },
+    {
+      "name": "an omitted api is treated as unknown",
+      "file": "panelApiLevel.ts",
+      "find": "  if (api === undefined) return;\n",
+      "replace": "",
+      "expectRed": [
+        "PANEL_API is the newest level and a template may leave api out or name it"
+      ]
+    },
+    {
+      "name": "the adapter is skipped for an older level",
+      "file": "templateView.tsx",
+      "find": "const viewProps = adapt === undefined ? props : adapt(props);",
+      "replace": "const viewProps = props;",
+      "expectRed": [
+        "an older level gets the props it promised, the newest gets today's"
+      ]
+    },
+    {
+      "name": "the warning fires on the newest level too",
+      "file": "panelApiLevel.ts",
+      "find": "if (level === table.newest || typeof process",
+      "replace": "if (typeof process",
+      "expectRed": [
+        "a second template on the same older level warns for itself, and the newest level warns for nobody",
+        "the shipped table has no older level, so a template never warns today"
+      ]
+    },
+    {
+      "name": "the warning repeats for every template object",
+      "file": "panelApiLevel.ts",
+      "find": " || warned.has(templateId)) return;\n  warned.add(templateId);",
+      "replace": ") return;",
+      "expectRed": [
+        "a template on an older level warns once, by template id, naming the level, the newest and the release that drops it"
+      ]
+    },
+    {
+      "name": "the warning is not silent in production",
+      "file": "panelApiLevel.ts",
+      "find": " || process.env.NODE_ENV === 'production'",
+      "replace": "",
+      "expectRed": [
+        "production is silent"
+      ]
+    },
+    {
+      "name": "the adapter cache ignores the table",
+      "file": "templateView.tsx",
+      "find": "const forTable = adapters.get(table) ?? new WeakMap<PanelTemplate, ViewComponent>();\n  adapters.set(table, forTable);",
+      "replace": "const forTable = adapters.get(SHIPPED_LEVELS) ?? new WeakMap<PanelTemplate, ViewComponent>();\n  adapters.set(SHIPPED_LEVELS, forTable);",
+      "expectRed": [
+        "one adapter component per template object, so a rerender never remounts the panel"
+      ]
+    },
+    {
+      "name": "the footer is handed the unadapted props",
+      "file": "templateView.tsx",
+      "find": "<Footer {...viewProps} />",
+      "replace": "<Footer {...props} />",
+      "expectRed": [
+        "an older level gets the props it promised, the newest gets today's"
+      ]
+    },
+    {
+      "name": "the fixture view is handed a renamed manager prop",
+      "file": "templateView.tsx",
+      "find": "const props = { panel, handle, manager: context.manager };",
+      "replace": "const props = { panel, handle, reader: context.manager };",
+      "expectRed": [
+        "the frozen level-1 fixture panel renders in a workspace with everything it was written against"
+      ]
+    }
+  ]
+}

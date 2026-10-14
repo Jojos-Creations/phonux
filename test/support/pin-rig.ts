@@ -46,6 +46,7 @@ export interface PinRig {
 export async function pinRig(o: PinRigOptions = {}): Promise<PinRig> {
   const ids = o.ids ?? ['a', 'b', 'c'];
   const ws = createWorkspace({
+    mount: false,
     ...(o.root === false ? {} : { root: markerTemplate('root', { settings: { title: 'History' } }) }),
     templates: [...ids.map((id) => markerTemplate(id, o.settings?.[id] === undefined ? {} : { settings: o.settings[id] })), ...(o.extra ?? [])],
     ...(o.workspace ?? {}),

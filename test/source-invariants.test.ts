@@ -20,11 +20,11 @@ function read(rel: string): string {
   return source;
 }
 
-test('source: `.view ===` and `.view !==` appear in neither PanelRow.tsx nor viewRegistry.tsx -- a view is resolved through resolveView(p.view), never compared', () => {
-  for (const file of ['PanelRow.tsx', 'viewRegistry.tsx']) {
+test('source: `.view ===` and `.view !==` appear in none of PanelRow.tsx, viewRegistry.tsx and templateView.tsx -- a view is resolved through resolveViewIn(templateOf, p.view), never compared', () => {
+  for (const file of ['PanelRow.tsx', 'viewRegistry.tsx', 'templateView.tsx']) {
     assert.doesNotMatch(read(file), /\.view\s*===|\.view\s*!==/, `${file} must select a component by resolving \`view\`, never by comparing it`);
   }
-  assert.match(read('PanelRow.tsx'), /resolveView\(/, 'PanelRow.tsx does not call resolveView(: the invariant above is checking the wrong file');
+  assert.match(read('PanelRow.tsx'), /resolveViewIn\(/, 'PanelRow.tsx does not call resolveViewIn(: the invariant above is checking the wrong file');
 });
 
 test('source: `collapsible` is not an accepted key of CreatePanelOptions -- `permanent` is the only public door to a permanent column', () => {
@@ -60,15 +60,12 @@ test("source: PanelRow's zIndex and enterDirection do not read `collapsible` -- 
   assert.ok(enterLine.includes('enterFrom'), 'enterDirection must read enterFrom');
 });
 
-test('source: PanelRowSlot has one motion element that owns exit and one that owns layout, never the same', () => {
-  const source = read('PanelRowSlot.tsx');
+test('source: PanelRowSlot has one motion element, the slot, which owns exit, and the size box is not a layout animation', () => {
+  const source = stripComments(read('PanelRowSlot.tsx'), 'PanelRowSlot.tsx');
   const openings = [...source.matchAll(/<motion\.div\b[\s\S]*?>\s*\n/g)].map((m) => m[0]);
-  assert.equal(openings.length, 2, 'two motion elements: the slot and the size box');
-  const exitOwner = openings.filter((o) => /\bexit=\{/.test(o));
-  const layoutOwner = openings.filter((o) => /\blayout=/.test(o));
-  assert.equal(exitOwner.length, 1, 'exactly one element owns exit');
-  assert.equal(layoutOwner.length, 1, 'exactly one element owns layout');
-  assert.notEqual(exitOwner[0], layoutOwner[0], 'layout and exit never sit on the same element');
+  assert.equal(openings.length, 1, 'one motion element: the slot');
+  assert.match(openings[0]!, /\bexit=\{/, 'it owns exit');
+  assert.doesNotMatch(source, /\blayout=|layoutDependency/, "no layout animation: the size box's scale starts in the commit, on the slot's clock");
 });
 
 const usesMemo = (source: string): boolean => /\buse(Memo|Callback)\s*\(/.test(stripComments(source, "x.ts"));
@@ -465,8 +462,8 @@ test('source: usePanelManager.ts and useProvidePanels.ts take maxLiveWidth from 
   }
 });
 
-test('source: PanelRowSlot keeps its two motion elements, and PanelRow passes zIndex and enterDirection on lines of their own', () => {
-  assert.equal([...stripComments(read('PanelRowSlot.tsx'), 'PanelRowSlot.tsx').matchAll(/<motion\.div\b/g)].length, 2);
+test('source: PanelRowSlot keeps its one motion element, and PanelRow passes zIndex and enterDirection on lines of their own', () => {
+  assert.equal([...stripComments(read('PanelRowSlot.tsx'), 'PanelRowSlot.tsx').matchAll(/<motion\.div\b/g)].length, 1);
   const lines = read('PanelRow.tsx').split('\n');
   assert.ok(lines.find((l) => l.includes('zIndex={')), 'zIndex={ is findable by line');
   assert.ok(lines.find((l) => l.includes('enterDirection={')), 'enterDirection={ is findable by line');

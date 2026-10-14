@@ -6,6 +6,7 @@
 
 import type * as React from 'react';
 import type { JsonValue, PanelSummary, FormFactor } from './hostApi.js';
+import { checkPanelApi, type PanelApiLevel } from './panelApiLevel.js';
 import { PanelManagerError } from './panelManagerError.js';
 import { resolvePanelSettings } from './panelSettings.js';
 import type { PanelHandle } from './panelHandles.js';
@@ -116,6 +117,8 @@ export type PanelReader = {
 export interface PanelTemplate<P extends JsonValue = JsonValue> {
   /** 1-48 characters, no whitespace, no '~', no leading '_', not all digits, not 'all'; unique in a workspace. */
   readonly id: string;
+  /** The panel API level the template was written against; left out, it is the newest (`PANEL_API`). Any other value throws `invalid-template`. */
+  readonly api?: PanelApiLevel;
   /** The component that renders the panel. It receives the panel's summary, its own read handle and a reader for every panel. */
   readonly view: React.ComponentType<{
     /** What a view may see of this panel. */
@@ -160,7 +163,7 @@ function templateIdProblem(id: unknown): string | undefined {
 const isComponent = (view: unknown): boolean => typeof view === 'function' || (typeof view === 'object' && view !== null && '$$typeof' in view);
 
 /**
- * Returns the template unchanged after checking it: a valid id, a component for `view` and for `footer` when given, and a settings layer the
+ * Returns the template unchanged after checking it: a valid id, a component for `view` and for `footer` when given, an `api` the library serves, and a settings layer the
  * resolver accepts on its own. Throws PanelManagerError, 'invalid-template' or 'invalid-settings'.
  * @public
  */
@@ -170,6 +173,7 @@ export function definePanel<P extends JsonValue = JsonValue>(t: PanelTemplate<P>
   if (idProblem !== undefined) throw new PanelManagerError('invalid-template', `template id ${JSON.stringify(t.id)} ${idProblem}`);
   if (!isComponent(t.view)) throw new PanelManagerError('invalid-template', `template '${t.id}': view must be a React component`);
   if (t.footer !== undefined && !isComponent(t.footer)) throw new PanelManagerError('invalid-template', `template '${t.id}': footer must be a React component`);
+  checkPanelApi(t.id, t.api);
   resolvePanelSettings({ template: t.settings });
   return t;
 }

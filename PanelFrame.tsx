@@ -12,6 +12,8 @@ import MoreHorizIcon from '@mui/icons-material/MoreHoriz';
 import { useHost, useOptionalHost, type PanelSize } from './hostApi.js';
 import { resolveLabels } from './labels.js';
 import { PanelFooter } from './panelFooter.js';
+import { useFrameClaim } from './panelFrameClaim.js';
+import { glideCorner, glideEdge } from './sizeGlide.js';
 
 /** The props of `PanelFrame`: every `Box` prop except `children`, plus `expanded` and `size`. @public */
 export interface PanelFrameProps extends Omit<BoxProps, 'children'> {
@@ -91,6 +93,7 @@ const PanelFrame = React.forwardRef<HTMLDivElement, PanelFrameProps>(function Pa
   { children, expanded, size, footer = true, sx, ...rest },
   ref,
 ) {
+  useFrameClaim('frame');
   const deviceSize = useHost().device.size;
   const width = size?.width ?? deviceSize.width;
   const height = size?.height === 'fill' ? '100%' : (size?.height ?? deviceSize.height);
@@ -103,9 +106,10 @@ const PanelFrame = React.forwardRef<HTMLDivElement, PanelFrameProps>(function Pa
         // border-box: row-layout width math elsewhere treats device.size as this box's real
         // rendered size; content-box would add border+padding on top, silently under-fitting.
         boxSizing: 'border-box',
-        border: '1px solid',
-        borderColor: 'divider',
-        borderRadius: PANEL_CORNER_RADIUS_UNITS,
+        // The 1 px edge is an inset shadow, not a border, so the size glide can keep it 1 px drawn without moving the layout.
+        p: '1px',
+        boxShadow: (theme: Theme) => glideEdge(theme.palette.divider),
+        borderRadius: (theme: Theme) => glideCorner(panelCornerRadiusPx(theme)),
         bgcolor: 'background.paper',
         display: 'flex',
         flexDirection: 'column',
@@ -160,11 +164,12 @@ export function PanelHeader({ children, sx, ...rest }: PanelHeaderProps) {
         alignItems: 'center',
         // bgcolor + border: MUI Paper variant="outlined"'s look, shaped as a pill.
         bgcolor: 'background.paper',
-        border: '1px solid',
-        borderColor: 'divider',
-        borderRadius: PANEL_CORNER_RADIUS_UNITS,
-        // 12px, PanelFrame's own content inset, so a header's text lines up with the frame's content below.
-        px: 1.5,
+        // An inset shadow, not a border (see PanelFrame), so the padding gives the 1 px back.
+        boxShadow: (theme: Theme) => glideEdge(theme.palette.divider),
+        borderRadius: (theme: Theme) => glideCorner(panelCornerRadiusPx(theme)),
+        // PanelFrame's own content inset plus that 1 px, so a header's text lines up with the frame's content below.
+        px: `${CONTENT_INSET_PX + 1}px`,
+        py: '1px',
         fontSize: 13,
         color: 'common.white',
         ...sx,

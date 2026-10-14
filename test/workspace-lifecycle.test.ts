@@ -39,7 +39,7 @@ function countingStorage(inner = memoryWorkspaceStorage()): WorkspaceStorage & {
 
 test('StrictMode applies one load: each declared panel is created once and the loaded file is applied once', async () => {
   const storage = countingStorage();
-  const w = createWorkspace({ storage, templates: [markerTemplate('strict-a')] });
+  const w = createWorkspace({ mount: false, storage, templates: [markerTemplate('strict-a')] });
   w.addPanel('strict-a');
   const m = mountWorkspace(w, { strict: true });
   await flush();
@@ -50,7 +50,7 @@ test('StrictMode applies one load: each declared panel is created once and the l
 });
 
 test('without storage the workspace is ready on the first commit and creates its panels once under StrictMode', () => {
-  const w = createWorkspace({ templates: [markerTemplate('strict-b')] });
+  const w = createWorkspace({ mount: false, templates: [markerTemplate('strict-b')] });
   w.addPanel('strict-b');
   const m = mountWorkspace(w, { strict: true });
   assert.equal(w.status, 'ready');
@@ -60,7 +60,7 @@ test('without storage the workspace is ready on the first commit and creates its
 test('status is detached before mount, loading while the load is pending, ready after, and detached again after unmount', async () => {
   let release: (v: WorkspaceState | null) => void = () => {};
   const storage: WorkspaceStorage = { load: () => new Promise((r) => void (release = r)), save: () => {} };
-  const w = createWorkspace({ storage, templates: [markerTemplate('stat-a')] });
+  const w = createWorkspace({ mount: false, storage, templates: [markerTemplate('stat-a')] });
   assert.equal(w.status, 'detached');
   const m = mountWorkspace(w);
   assert.equal(w.status, 'loading');
@@ -76,7 +76,7 @@ test('status is detached before mount, loading while the load is pending, ready 
 test('a remount restores from storage; with no storage it starts from the declared panels again', async () => {
   const storage = memoryWorkspaceStorage();
   const t = markerTemplate('re-a', { settings: { multiple: true } });
-  const w = createWorkspace({ storage, templates: [t] });
+  const w = createWorkspace({ mount: false, storage, templates: [t] });
   w.addPanel(t, { id: 're-1' });
   const first = mountWorkspace(w, { over: QUICK });
   await flush();
@@ -87,7 +87,7 @@ test('a remount restores from storage; with no storage it starts from the declar
   const again = mountWorkspace(w, { over: QUICK });
   await flush();
   assert.deepEqual(again.slots().length, 2, 'both panels came back');
-  const bare = createWorkspace({ templates: [t] });
+  const bare = createWorkspace({ mount: false, templates: [t] });
   bare.addPanel(t, { id: 'b-1' });
   const m1 = mountWorkspace(bare);
   m1.unmount();
@@ -97,7 +97,7 @@ test('a remount restores from storage; with no storage it starts from the declar
 });
 
 test('a second useProvidePanels on a workspace that is attached throws already-attached', () => {
-  const w = createWorkspace({ templates: [markerTemplate('two-a')] });
+  const w = createWorkspace({ mount: false, templates: [markerTemplate('two-a')] });
   mountWorkspace(w);
   const quiet = console.error;
   console.error = () => {};
@@ -116,7 +116,7 @@ test('storage or initialEntries beside workspace throws invalid-options', () => 
   console.error = () => {};
   try {
     for (const over of [{ storage: memoryWorkspaceStorage() }, { initialEntries: [] }]) {
-      const w = createWorkspace();
+      const w = createWorkspace({ mount: false });
       assert.throws(
         () => mountWorkspace(w, { over }),
         (e: unknown) => e instanceof PanelManagerError && e.code === 'invalid-options',
@@ -140,7 +140,7 @@ test('a storage whose save throws or rejects reaches onError and the row keeps w
       },
     };
     const t = markerTemplate(`err-${mode}`, { settings: { multiple: true } });
-    const w = createWorkspace({ storage, templates: [t], onError: (e) => void errors.push(e) });
+    const w = createWorkspace({ mount: false, storage, templates: [t], onError: (e) => void errors.push(e) });
     mountWorkspace(w, { over: QUICK });
     await flush();
     act(() => void w.addPanel(t, { id: `e-${mode}` }));
@@ -158,7 +158,7 @@ test('with onError unset a failed save is logged with console.error', async () =
   try {
     const storage: WorkspaceStorage = { load: () => Promise.resolve(null), save: () => { throw new Error('disk'); } };
     const t = markerTemplate('err-default', { settings: { multiple: true } });
-    const w = createWorkspace({ storage, templates: [t] });
+    const w = createWorkspace({ mount: false, storage, templates: [t] });
     mountWorkspace(w, { over: QUICK });
     await flush();
     act(() => void w.addPanel(t, { id: 'ed-1' }));
@@ -172,7 +172,7 @@ test('with onError unset a failed save is logged with console.error', async () =
 test('newId draws the engine ids and the suffix of an anonymous instance', () => {
   let n = 0;
   const t = markerTemplate('nid', { settings: { multiple: true } });
-  const w = createWorkspace({ templates: [t], newId: () => `n${(n += 1)}` });
+  const w = createWorkspace({ mount: false, templates: [t], newId: () => `n${(n += 1)}` });
   mountWorkspace(w);
   let h: ReturnType<typeof w.addPanel> | undefined;
   act(() => void (h = w.addPanel(t)));
@@ -184,7 +184,7 @@ test('order is read by a placeOnAdd of order and is called with no argument', ()
   const calls: number[] = [];
   const a = markerTemplate('ord-a', { settings: { placeOnAdd: 'order' } });
   const b = markerTemplate('ord-b', { settings: { placeOnAdd: 'order' } });
-  const w = createWorkspace({ templates: [a, b], order: () => {
+  const w = createWorkspace({ mount: false, templates: [a, b], order: () => {
       calls.push(1);
       return ['ord-b', 'ord-a'];
     } });
@@ -198,7 +198,7 @@ test('order is read by a placeOnAdd of order and is called with no argument', ()
 test('a render before the load settles has live handles for what the row already shows', async () => {
   const storage = memoryWorkspaceStorage();
   const t = markerTemplate('first-a');
-  const w = createWorkspace({ storage, templates: [t] });
+  const w = createWorkspace({ mount: false, storage, templates: [t] });
   const h = w.addPanel(t);
   const m = mountWorkspace(w);
   assert.equal(h.getState().status === 'pending' || h.getState().status === 'live', true);
@@ -208,14 +208,14 @@ test('a render before the load settles has live handles for what the row already
 });
 
 test('panels added before mount arrive in call order', async () => {
-  const w = createWorkspace({ templates: [markerTemplate('o1'), markerTemplate('o2'), markerTemplate('o3')] });
+  const w = createWorkspace({ mount: false, templates: [markerTemplate('o1'), markerTemplate('o2'), markerTemplate('o3')] });
   for (const id of ['o2', 'o3', 'o1']) w.addPanel(id);
   mountWorkspace(w);
   assert.deepEqual(w.panels.getSnapshot().panels.map((p) => p.id), ['o2', 'o3', 'o1']);
 });
 
 test('a destroyed mount leaves the workspace usable by the next one', () => {
-  const w = createWorkspace({ templates: [markerTemplate('re-use')] });
+  const w = createWorkspace({ mount: false, templates: [markerTemplate('re-use')] });
   w.addPanel('re-use');
   const a = mountWorkspace(w);
   a.unmount();
@@ -229,7 +229,7 @@ const FILLER = ['f1', 'f2', 'f3', 'f4', 'f5'];
 /** Where the row rests after `addPanel` of a template asking `scrollOnOpen`, with five panels already there and a 1000 wide window. */
 async function addedAt(scrollOnOpen: PanelSettings['scrollOnOpen'] | undefined): Promise<{ at: number; mountedAt: number; notes: string[] }> {
   const t = markerTemplate('scr', { settings: { placeOnAdd: { after: 'f2' }, ...(scrollOnOpen === undefined ? {} : { scrollOnOpen }) } });
-  const w = createWorkspace({ templates: [t, ...FILLER.map((id) => markerTemplate(id, { settings: { scrollOnOpen: 'none' } }))], tuning: { rowGesture: 'free' } });
+  const w = createWorkspace({ mount: false, templates: [t, ...FILLER.map((id) => markerTemplate(id, { settings: { scrollOnOpen: 'none' } }))], tuning: { rowGesture: 'free' } });
   for (const id of FILLER) w.addPanel(id);
   const m = mountWorkspace(w);
   await flush();
@@ -268,7 +268,7 @@ test('scrollOnOpen none records no request: the row stays where it was', async (
 
 test('a request recorded while a drag holds the row is dropped with the note scroll-dropped-during-drag', async () => {
   const t = markerTemplate('held', { settings: { scrollOnOpen: 'start' } });
-  const w = createWorkspace({ templates: [t] });
+  const w = createWorkspace({ mount: false, templates: [t] });
   const m = mountWorkspace(w);
   await flush();
   const claim = rowScrollerFor(m.container).claim();
@@ -287,7 +287,7 @@ test('a request recorded while a drag holds the row is dropped with the note scr
 test('newId: an id-less addPanel after ready is note~k1 then note~k2 and every id drawn counts one call', () => {
   let n = 0;
   const t = markerTemplate('note-k', { settings: { multiple: true } });
-  const w = createWorkspace({ templates: [t], newId: () => `k${(n += 1)}` });
+  const w = createWorkspace({ mount: false, templates: [t], newId: () => `k${(n += 1)}` });
   mountWorkspace(w);
   const before = n;
   let a: ReturnType<typeof w.addPanel> | undefined;
@@ -304,7 +304,7 @@ test('newId: an id-less addPanel after ready is note~k1 then note~k2 and every i
 
 test('newId unset: the id is the template id, a tilde and a non-empty string, and 50 calls give 50 distinct ids', () => {
   const t = markerTemplate('dflt-id', { settings: { multiple: true } });
-  const w = createWorkspace({ templates: [t] });
+  const w = createWorkspace({ mount: false, templates: [t] });
   mountWorkspace(w);
   const ids = new Set<string>();
   for (let i = 0; i < 50; i++) {
@@ -331,7 +331,7 @@ test('onError is called exactly once per failed save with that error, and the ne
       },
     };
     const t = markerTemplate(`once-${mode}`, { settings: { multiple: true } });
-    const w = createWorkspace({ storage, templates: [t], onError: (e) => void errors.push(e) });
+    const w = createWorkspace({ mount: false, storage, templates: [t], onError: (e) => void errors.push(e) });
     mountWorkspace(w, { over: QUICK });
     await flush();
     act(() => void w.addPanel(t, { id: `o1-${mode}` }));
@@ -352,7 +352,7 @@ test('with onError unset a failed save reaches console.error exactly once', asyn
   try {
     const storage: WorkspaceStorage = { load: () => Promise.resolve(null), save: () => { throw new Error('disk'); } };
     const t = markerTemplate('once-default', { settings: { multiple: true } });
-    const w = createWorkspace({ storage, templates: [t] });
+    const w = createWorkspace({ mount: false, storage, templates: [t] });
     mountWorkspace(w, { over: QUICK });
     await flush();
     act(() => void w.addPanel(t, { id: 'od-1' }));
@@ -367,7 +367,7 @@ test('order: b with placeOnAdd order lands right of a, before c when its predece
   const place = (present: string[], order: (() => string[]) | undefined): string[] => {
     const tpl = (id: string) => markerTemplate(id, { settings: { placeOnAdd: id === 'b' ? 'order' : 'row-end', placeFallback: 'row-end' } });
     const templates = ['a', 'b', 'c'].map(tpl);
-    const w = createWorkspace({ templates, ...(order !== undefined ? { order } : {}) });
+    const w = createWorkspace({ mount: false, templates, ...(order !== undefined ? { order } : {}) });
     for (const id of present) w.addPanel(id);
     const m = mountWorkspace(w);
     const row = m.latest().entries.filter((p) => p.marker !== true).map((p) => p.view);
@@ -389,7 +389,7 @@ test("conflicts: a template forcing a rule warns once per panel and setting, thr
     console.warn = (...a: unknown[]) => void warned.push(a);
     let thrown = false;
     try {
-      const w = createWorkspace({ conflicts });
+      const w = createWorkspace({ mount: false, conflicts });
       try {
         w.addPanel(forcing(`cf-${conflicts}`));
         w.addPanel(`cf-${conflicts}`);
@@ -411,7 +411,7 @@ test("conflicts: a template forcing a rule warns once per panel and setting, thr
 test('tuning reaches the row as one value: rowGap 40 prices the offsets and ProvidedPanels.tuning, and workspace.tuning is the resolved object', () => {
   const a = markerTemplate('tn-a');
   const b = markerTemplate('tn-b');
-  const w = createWorkspace({ templates: [a, b], tuning: { rowGap: 40 } });
+  const w = createWorkspace({ mount: false, templates: [a, b], tuning: { rowGap: 40 } });
   w.addPanel(a);
   w.addPanel(b);
   const m = mountWorkspace(w, { over: { tuning: undefined } });
@@ -432,9 +432,9 @@ test('memoryWorkspaceStorage: a save then a load deep-equals and is a copy', asy
 });
 
 test('a workspace swapped while mounted logs the cure, keeps the first attached, and the new one answers not-attached', () => {
-  const first = createWorkspace({ templates: [markerTemplate('swap-a')] });
+  const first = createWorkspace({ mount: false, templates: [markerTemplate('swap-a')] });
   first.addPanel('swap-a');
-  const second = createWorkspace({ templates: [markerTemplate('swap-b')] });
+  const second = createWorkspace({ mount: false, templates: [markerTemplate('swap-b')] });
   const probe = second.addPanel('swap-b');
   const logged: string[] = [];
   const quiet = console.error;
@@ -463,7 +463,7 @@ test('the pre-mount drain raises no console.error, and a flushSync from a lifecy
   console.error = (...a: unknown[]) => void captured.push(String(a[0]));
   try {
     const t = markerTemplate('drain', { settings: { multiple: true } });
-    const w = createWorkspace({ templates: [t] });
+    const w = createWorkspace({ mount: false, templates: [t] });
     for (const id of ['d1', 'd2', 'd3']) w.addPanel(t, { id });
     mountWorkspace(w, { strict: true });
     assert.deepEqual(captured, []);

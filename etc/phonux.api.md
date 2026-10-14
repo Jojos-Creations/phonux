@@ -5,7 +5,9 @@
 ```ts
 
 import { BoxProps } from '@mui/material/Box';
+import type { ComponentType } from 'react';
 import * as React_2 from 'react';
+import type { ReactNode } from 'react';
 import { RefObject } from 'react';
 import type { SxProps } from '@mui/material/styles';
 import { Theme } from '@mui/material/styles';
@@ -101,7 +103,6 @@ export function computeRowNumbers(i: {
     wholePanels?: boolean;
     shrink?: 'off' | 'visible' | 'hidden';
     atFirst?: number;
-    lean?: 'forward' | 'backward';
 }): RowNumbers;
 
 // @public
@@ -296,13 +297,19 @@ export interface Host {
 }
 
 // @public
+export type HostInput = Omit<Host, 'settings' | 'device'> & {
+    readonly settings?: SettingsAPI;
+    readonly device?: PhoneDeviceAPI;
+};
+
+// @public
 export class HostMissingProviderError extends Error {
     constructor(hook?: string);
 }
 
 // @public
 export function HostProvider(input: {
-    host: Host;
+    host: HostInput;
     children: React_2.ReactNode;
 }): React_2.JSX.Element;
 
@@ -369,6 +376,9 @@ export type OverlaySlotName = 'dialog' | 'toast';
 export function Panel(input: PanelProps): React_2.JSX.Element;
 
 // @public
+export const PANEL_API: PanelApiLevel;
+
+// @public
 export const PANEL_CORNER_RADIUS_UNITS = 4;
 
 // @public
@@ -386,6 +396,9 @@ export interface PanelAnchor {
     position: 'left' | 'right';
     priority: number;
 }
+
+// @public
+export type PanelApiLevel = 1;
 
 // @public
 export const panelCornerRadiusPx: (theme: Theme) => number;
@@ -763,6 +776,7 @@ export interface PanelSummary<P = JsonValue> {
 
 // @public
 export interface PanelTemplate<P extends JsonValue = JsonValue> {
+    readonly api?: PanelApiLevel;
     readonly footer?: React_2.ComponentType<{
         panel: PanelSummary<P>;
         handle: ViewHandle<P>;
@@ -976,8 +990,6 @@ export type ResolvedWorkspaceTuning = ResolvedPanelTuning & {
     };
     chrome: ChromeTuning;
     maxLivePanels: number | null;
-    heightPerSlot: number;
-    rowAlign: 'top' | 'center' | 'bottom';
     shrinkOutOfView: 'off' | 'visible' | 'hidden';
 };
 
@@ -1034,10 +1046,10 @@ export interface RowNumbers {
     rowScroll: boolean;
     stopFirsts: readonly number[];
     stops: readonly number[];
-    stopShrinks: readonly ({
+    stopShrinks: readonly (readonly {
         index: number;
         slots: number;
-    } | null)[];
+    }[])[];
     stopSpans: readonly {
         first: number;
         end: number;
@@ -1148,6 +1160,7 @@ export type SettingValues = {
     showWhenClosed: 'refuse' | 'reopen';
     viewState: 'keep' | 'reset-on-park';
     keepMounted: boolean;
+    frame: 'auto' | 'none';
     placeOnAdd: AddPlacement;
     placeOnShow: AddPlacement | 'in-place';
     placeOnReturn: AddPlacement | 'in-place';
@@ -1237,7 +1250,7 @@ export const usePanelReorderEligible: () => boolean;
 export const usePanelReorderSteps: () => ((offsetX: number) => number);
 
 // @public
-export function usePanelResizing(): readonly [boolean, (on: boolean) => void];
+export function usePanelResizing(): readonly [boolean, (on: boolean) => void, (px: number | null, pin?: 'start' | 'end') => void];
 
 // @public
 export function usePanelState(id: PanelId): PanelState | undefined;
@@ -1344,10 +1357,22 @@ export interface WorkspaceHandle {
     readonly rootId: string;
     readonly status: WorkspaceStatus;
     readonly tuning: ResolvedWorkspaceTuning;
+    update(live: WorkspaceLive): void;
 }
 
 // @public
-export type WorkspaceOptions = {
+export type WorkspaceLive = {
+    device?: PhoneDeviceAPI;
+    settings?: SettingsAPI;
+    history?: HistoryAPI;
+    snapshots?: SnapshotsAPI;
+    labels?: Partial<PhonuxLabels>;
+    topInset?: number;
+    panels?: WorkspacePanelsInput;
+};
+
+// @public
+export type WorkspaceOptions = WorkspaceLive & {
     storage?: WorkspaceStorage;
     defaults?: Omit<PanelSettings, 'tuning'>;
     root?: PanelTemplate;
@@ -1357,7 +1382,12 @@ export type WorkspaceOptions = {
     conflicts?: 'warn' | 'throw' | 'off';
     newId?: () => string;
     onError?: (e: unknown) => void;
+    mount?: HTMLElement | false;
+    wrap?: ComponentType<WorkspaceWrapProps>;
 };
+
+// @public
+export type WorkspacePanelsInput = Partial<Omit<PanelsInput, 'workspace' | 'rootId' | 'phoneWidth' | 'containerWidth' | 'overflowContainerRef' | 'initialEntries' | 'storage' | 'templates' | 'declared' | 'workspaceDefaults' | 'tuning' | 'labels'>>;
 
 // @public
 export type WorkspacePanelState = {
@@ -1450,10 +1480,14 @@ export type WorkspaceTuning = PanelTuning & {
         [K in keyof ChromeTuning]?: ChromeTuning[K];
     };
     maxLivePanels?: number | null;
-    heightPerSlot?: number;
-    rowAlign?: 'top' | 'center' | 'bottom';
     shrinkOutOfView?: 'off' | 'visible' | 'hidden';
 };
+
+// @public
+export interface WorkspaceWrapProps {
+    children: ReactNode;
+    workspace: WorkspaceHandle;
+}
 
 // (No @packageDocumentation comment for this package)
 
