@@ -1,0 +1,10 @@
+{
+  "tests": ["test/use-workspace.test.ts", "test/panel-api-level.test.ts"],
+  "mutants": [
+    { "name": "useWorkspace finds nothing", "file": "panels/usePanelStates.ts", "find": "return useContext(PanelViewContextValue)?.workspace;", "replace": "return undefined;", "expectRed": ["calls useWorkspace() and closes, shows and creates", "frozen level-1 fixture panel renders"] },
+    { "name": "the workspace carries dispose", "file": "workspaceCore.ts", "find": "Object.freeze({ panels: Object.freeze({ ...handle.panels, addPanel }) })", "replace": "Object.freeze({ panels: Object.freeze({ ...handle.panels, addPanel }), dispose: handle.dispose })", "expectRed": ["none of dispose, update or rename"] },
+    { "name": "the manager lacks addPanel", "file": "workspaceCore.ts", "find": "Object.freeze({ ...handle.panels, addPanel })", "replace": "Object.freeze({ ...handle.panels })", "expectRed": ["calls useWorkspace() and closes, shows and creates", "none of dispose, update or rename"] },
+    { "name": "a new object on every render", "file": "panels/usePanelStates.ts", "find": "return useContext(PanelViewContextValue)?.workspace;", "replace": "const ws = useContext(PanelViewContextValue)?.workspace;\n  return ws === undefined ? undefined : { ...ws };", "expectRed": ["same object on every render"] },
+    { "name": "the row gives a view a workspace outside a PanelRow", "file": "panels/usePanelStates.ts", "find": "return useContext(PanelViewContextValue)?.workspace;", "replace": "return useContext(PanelViewContextValue)?.workspace ?? ({ panels: {} } as unknown as ViewWorkspace);", "expectRed": ["undefined outside a PanelRow"] }
+  ]
+}

@@ -7,11 +7,12 @@ import assert from 'node:assert/strict';
 import './support/jsdom-globals.js';
 import * as React from 'react';
 import { act } from 'react';
-import { DragToClose, registerView } from '../index.js';
+import { DragToClose } from '../index.js';
 import type { PanelSettings } from '../index.js';
 import { advanceFrames, cleanup } from './support/mount-harness.js';
 import { FRAME_MS } from './support/jsdom-globals.js';
 import { made, mountRow, rootEntry, row, type MountedRow } from './support/scroll-row.js';
+import { registerTestView } from './support/test-views.js';
 
 // jsdom has no matchMedia. Motion reads the query once and then follows its 'change' event, so the stub exists before
 // the first mount and a test flips it with `reduceMotion(true)` before mounting.
@@ -45,7 +46,7 @@ function EdgeBox({ id }: { id: string }): React.ReactElement {
     children: (handle) => React.createElement('div', { 'data-handle': id, onPointerDown: handle.onPointerDown }, 'grab'),
   });
 }
-registerView('whole-edge-view', ({ panel }) => React.createElement(EdgeBox, { id: panel.id }));
+registerTestView('whole-edge-view', ({ panel }) => React.createElement(EdgeBox, { id: panel.id }));
 
 const WINDOW = 1000;
 function mountEdgeRow(layer: PanelSettings = {}): MountedRow {

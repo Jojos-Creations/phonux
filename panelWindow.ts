@@ -33,7 +33,7 @@ export interface PanelWindow {
   live: boolean;
   /** Whether DragToClose's drag-down gesture may close this panel at all. Every panel created by `appendPanel` is unlocked. */
   locked: boolean;
-  /** Which component renders this entry (phonux's registry, resolveView) -- read ONLY by the row (PanelRow); every park/close site reads `collapsible`/`listed`/`locked` instead, never this. An open string, not a closed union: an unregistered value renders a placeholder, never a crash. */
+  /** Which component renders this entry (a template id) -- read ONLY by the row (PanelRow); every park/close site reads `collapsible`/`listed`/`locked` instead, never this. An open string, not a closed union: an unregistered value renders a placeholder, never a crash. */
   view: string;
   /** Capacity parks (an open, a revive, the row gesture, a capacity drop) may park this entry; `false` marks an always-shown column exempt from all of them. */
   collapsible: boolean;
@@ -335,6 +335,23 @@ export function movePanel(panels: PanelWindow[], id: string, direction: 'left' |
   const [entry] = next.splice(from, 1);
   next.splice(to, 0, entry!);
   return deriveAnchorsFromOrder(next, rootId);
+}
+
+/**
+ * `by` hops of `movePanel` in one go, negative to the left: it stops at the first hop that moves nothing (an edge, a
+ * `crossable: false` entry), keeping the hops already made. The SAME array when no hop moved, `by` is 0 or not a whole number.
+ * @internal
+ */
+export function movePanelBy(panels: PanelWindow[], id: string, by: number, rootId: string): PanelWindow[] {
+  if (!Number.isInteger(by) || by === 0) return panels;
+  const direction = by > 0 ? 'right' : 'left';
+  let row = panels;
+  for (let i = Math.abs(by); i > 0; i -= 1) {
+    const next = movePanel(row, id, direction, rootId);
+    if (next === row) break;
+    row = next;
+  }
+  return row;
 }
 
 /**

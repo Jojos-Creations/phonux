@@ -9,13 +9,14 @@ import './support/jsdom-globals.js';
 import * as React from 'react';
 import { act } from 'react';
 import { MotionConfig } from 'motion/react';
-import { CaptureRegistryProvider, LIBRARY_TUNING_DEFAULTS, Panel, PanelRow, registerView, resolvePanelSettings, useProvidePanels, usePanelHidden, usePanelNeighborWidths, useViewState } from '../index.js';
+import { CaptureRegistryProvider, LIBRARY_TUNING_DEFAULTS, Panel, PanelRow, resolvePanelSettings, useProvidePanels, usePanelHidden, usePanelNeighborWidths, useViewState } from '../index.js';
 import type { CaptureRegistry, PanelWindow, ProvidedPanels } from '../index.js';
 import { noopCaptureTrigger, type CaptureTrigger } from '../snapshots.js';
 import { PANEL_TRANSITION } from '../index.js';
 import { enterStart, panelRowSlotMotion, parkExitTarget, slotDriver } from '../PanelRowSlot.js';
 import { differential } from './support/differential.js';
-import { advanceFrames, cleanup, mount, panelsInput, withHost } from './support/mount-harness.js';
+import { advanceFrames, cleanup, mount, withHost, useSeededInput, StaticRow } from './support/mount-harness.js';
+import { registerTestView } from './support/test-views.js';
 
 const counts = new Map<string, { mounts: number; unmounts: number }>();
 const countOf = (id: string): { mounts: number; unmounts: number } => {
@@ -28,7 +29,7 @@ let stored = 0;
 let setStored: ((n: number) => void) | undefined;
 const neighbours = new Map<string, string>();
 
-registerView('km-view', ({ panel }) => {
+registerTestView('km-view', ({ panel }) => {
   React.useEffect(() => {
     countOf(panel.id).mounts += 1;
     return () => {
@@ -51,7 +52,7 @@ registerView('km-view', ({ panel }) => {
   if (panel.id === 'a') seen.hidden.push(hidden);
   return React.createElement('i', { 'data-slot': panel.id, ref });
 });
-registerView('km-root', () => React.createElement('b'));
+registerTestView('km-root', () => React.createElement('b'));
 
 const base = resolvePanelSettings().value;
 const entry = (id: string, live: boolean, keep: boolean, over: Partial<PanelWindow> = {}, settings: object = {}): PanelWindow => ({
@@ -64,12 +65,13 @@ const entry = (id: string, live: boolean, keep: boolean, over: Partial<PanelWind
   collapsible: true,
   listed: true,
   settings: { ...base, overflow: 'park', keepMounted: keep, ...settings },
+  instance: settings,
   ...over,
 });
 const root = (): PanelWindow => ({ id: 'root', url: '', title: 'History', live: true, locked: true, view: 'km-root', collapsible: false, listed: false });
 const NONE: ReadonlySet<string> = new Set();
 const rowOf = (entries: PanelWindow[], reduced = false): React.ReactElement => {
-  const row = React.createElement(PanelRow, { entries, rootId: 'root', closingIds: NONE, enteringViaAnchorIds: NONE });
+  const row = React.createElement(StaticRow, { entries, rootId: 'root', closingIds: NONE, enteringViaAnchorIds: NONE });
   return withHost(reduced ? React.createElement(MotionConfig, { reducedMotion: 'always' }, row) : row);
 };
 const slotOf = (container: HTMLElement, id: string): HTMLElement => {
@@ -406,9 +408,11 @@ test('layout independence: a kept entry changes no neighbour width a drag may cr
 
 /** `useProvidePanels` over a seeded list and a row of it: how a test drives capacity without a host. */
 function Driver(props: { initial: PanelWindow[]; capture?: CaptureTrigger; expose: (p: ProvidedPanels) => void; containerWidth: number }): React.ReactElement {
-  const provided = useProvidePanels(panelsInput({ initialEntries: props.initial, containerWidth: props.containerWidth, capture: props.capture }));
+  const input = useSeededInput({ initialEntries: props.initial, containerWidth: props.containerWidth, capture: props.capture, workspaceDefaults: { overflow: 'park' } });
+  const provided = useProvidePanels(input);
   props.expose(provided);
   return React.createElement(PanelRow, {
+    workspace: input.workspace,
     entries: provided.entries,
     rootId: 'root',
     closingIds: provided.closingIds,
@@ -462,7 +466,7 @@ async function captureRun(): Promise<{ events: string[]; hiddenAtCapture: boolea
       return () => events.push(`unregister ${viewId}`);
     },
   };
-  registerView('km-capture', ({ panel }) => React.createElement(Panel, { viewId: panel.id, children: React.createElement('i', { 'data-slot': panel.id }) }));
+  registerTestView('km-capture', ({ panel }) => React.createElement(Panel, { viewId: panel.id, children: React.createElement('i', { 'data-slot': panel.id }) }));
   const hiddenAtCapture: boolean[] = [];
   let container: HTMLElement | undefined;
   const trigger: CaptureTrigger = {

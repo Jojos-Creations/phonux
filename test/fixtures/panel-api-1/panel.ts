@@ -13,6 +13,7 @@ import {
   definePanel,
   useActivePanel,
   useHost,
+  useWorkspace,
   useWorkspaceManager,
   usePanelPinned,
   usePanelState,
@@ -32,6 +33,7 @@ function View({ panel, handle, manager }: LevelOneProps): React.ReactElement {
   const panelsApiAttrs = { 'data-fixture-host': String(useHost().panels.panelList.length) };
   // End PanelsAPI block.
   const manager2 = useWorkspaceManager();
+  const workspace = useWorkspace();
   const states = usePanelStates();
   const own = usePanelState(handle.id);
   const [active] = useActivePanel();
@@ -48,11 +50,15 @@ function View({ panel, handle, manager }: LevelOneProps): React.ReactElement {
       'data-fixture-count': String(count),
       ...panelsApiAttrs,
       'data-fixture-wsmanager': String(manager2?.list().length),
+      'data-fixture-workspace': String(workspace?.panels.get(handle.id)?.id === handle.id),
       'data-fixture-states': String(states.length),
       'data-fixture-own': String(own?.id === handle.id),
       'data-fixture-active': String(active === null || typeof active === 'string'),
       'data-fixture-phone': `${typeof phone.width}:${typeof phone.height}`,
       onClick: () => setCount((c) => c + 1),
+      onDoubleClick: (e: React.MouseEvent<HTMLElement>) => {
+        e.currentTarget.dataset.fixtureMoved = String(handle.move(-3, 'person').ok);
+      },
     },
     panel.title ?? panel.id,
   );

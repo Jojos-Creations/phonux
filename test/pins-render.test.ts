@@ -6,12 +6,12 @@ import { test, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
 import './support/jsdom-globals.js';
 import * as React from 'react';
-import { PanelRow, registerView } from '../index.js';
 import type { PanelWindow } from '../index.js';
-import { advanceFrames, cleanup, mount, withHost } from './support/mount-harness.js';
+import { advanceFrames, cleanup, mount, withHost, StaticRow } from './support/mount-harness.js';
+import { registerTestView } from './support/test-views.js';
 
 const counts = { mounts: 0, unmounts: 0 };
-registerView('pin-render-counter', () => {
+registerTestView('pin-render-counter', () => {
   React.useEffect(() => {
     counts.mounts += 1;
     return () => {
@@ -33,10 +33,10 @@ const entry = (id: string, over: Partial<PanelWindow> = {}): PanelWindow => ({
   ...over,
 });
 const root = (): PanelWindow => entry('root', { url: '', title: 'History', locked: true, collapsible: false, listed: false, view: 'pin-render-root' });
-registerView('pin-render-root', () => React.createElement('b'));
+registerTestView('pin-render-root', () => React.createElement('b'));
 
 const NONE: ReadonlySet<string> = new Set();
-const rowOf = (entries: PanelWindow[]): React.ReactElement => withHost(React.createElement(PanelRow, { entries, rootId: 'root', closingIds: NONE, enteringViaAnchorIds: NONE }));
+const rowOf = (entries: PanelWindow[]): React.ReactElement => withHost(React.createElement(StaticRow, { entries, rootId: 'root', closingIds: NONE, enteringViaAnchorIds: NONE }));
 
 afterEach(() => cleanup());
 
