@@ -122,7 +122,6 @@ test('the band, the cap and the whole pixels are each load-bearing', () => {
 const widths: number[] = [];
 const probe = definePanel({
   id: 'fit-probe',
-  settings: { frame: 'none' },
   view: ({ handle }) => {
     const size = usePhoneSize();
     widths.push(size.width);

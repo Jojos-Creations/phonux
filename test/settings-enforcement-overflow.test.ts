@@ -9,15 +9,14 @@ import { readFileSync } from 'node:fs';
 import './support/jsdom-globals.js';
 import * as React from 'react';
 import { act } from 'react';
-import { definePanel, resolvePanelSettings, useProvidePanels } from '../index.js';
+import { definePanel, useProvidePanels } from '../index.js';
 import type { PanelSettings, PanelWindow, ProvidedPanels } from '../index.js';
 import { computeRowLayout } from '../panelRowLayout.js';
-import { applyTemplate, effective } from '../panelSettings.js';
+import { applyTemplate, effective, resolvePanelSettings } from '../panelSettings.js';
 import { appendPanel, createHistoryPanel } from '../panelWindow.js';
-import { computeRowNumbers } from '../rowNumbers.js';
-import { panelRowSlotMotion, parkExitTarget, slotDriver } from '../PanelRowSlot.js';
+import { panelRowSlotMotion, parkExitTarget, } from '../PanelRowSlot.js';
 import { differential, differentialsCovered } from './support/differential.js';
-import { advanceFrames, cleanup, mount, withHost, useSeededInput, StaticRow, type SeedOptions, type SeededOver } from './support/mount-harness.js';
+import { cleanup, mount, useSeededInput, type SeedOptions, type SeededOver } from './support/mount-harness.js';
 import { registerTestView } from './support/test-views.js';
 
 const ROOT = 'root';
@@ -94,7 +93,7 @@ function sequence(seed: number, defaults: Omit<PanelSettings, 'tuning'>, steps: 
   const containerWidth = pick([600, 1000, 1500]);
   let latest: ProvidedPanels | undefined;
   function Probe(): React.ReactElement {
-    latest = useProvidePanels(useSeededInput({ initialEntries: [scrollRoot()], containerWidth, workspaceDefaults: defaults, templates: [definePanel({ id: 'ov-hid', view: () => null, settings: { startVisibility: 'parked', multiple: true, frame: 'none' } })] }));
+    latest = useProvidePanels(useSeededInput({ initialEntries: [scrollRoot()], containerWidth, workspaceDefaults: defaults, templates: [definePanel({ id: 'ov-hid', view: () => null, settings: { startVisibility: 'parked', multiple: true } })] }));
     return React.createElement('output');
   }
   const mounted = mount(React.createElement(Probe));
@@ -258,32 +257,8 @@ test('parkExitTarget: a scrolling row exits one span from the rest, a row that n
   assert.deepEqual(parkExitTarget(2030, 406, 'left', true), { x: 1624, opacity: 0 });
   assert.deepEqual(parkExitTarget(2030, 406, 'right', true), { x: 2436, opacity: 0 });
   assert.deepEqual(parkExitTarget(2030, 406, 'left', false), { x: -406, opacity: 0 });
-  assert.deepEqual(panelRowSlotMotion(2030, 390, 700, 'right', 'left', true, 16, undefined, true).exit, { x: 1624, opacity: 0 });
-  assert.deepEqual(panelRowSlotMotion(2030, 390, 700, 'right', 'left', true, 16, undefined, false).exit, { x: -406, opacity: 0 });
-});
-
-test('a kept slot in a scrolling row leaves for its rest minus one span, 1624 from a rest of 2030', async () => {
-  const keep = (id: string, live: boolean): PanelWindow => ({ ...made(id, id === 'a' ? { keepMounted: true } : {}), live });
-  const rowOf = (aLive: boolean): React.ReactElement => {
-    const entries = [scrollRoot(), keep('p1', true), keep('p2', true), keep('p3', true), keep('p4', true), keep('a', aLive)];
-    const rowNumbers = computeRowNumbers({ entries, phoneWidth: 390, containerWidth: 1000, gap: 16 });
-    return withHost(React.createElement(StaticRow, { entries, rootId: ROOT, closingIds: new Set<string>(), enteringViaAnchorIds: new Set<string>(), rowNumbers }));
-  };
-  const targets: number[] = [];
-  const { animate } = slotDriver;
-  slotDriver.animate = (el, values, transition) => {
-    targets.push(values.x);
-    return animate(el, values, transition);
-  };
-  try {
-    const mounted = mount(rowOf(true));
-    await advanceFrames(1000);
-    mounted.rerender(rowOf(false));
-    await advanceFrames(1000);
-  } finally {
-    slotDriver.animate = animate;
-  }
-  assert.deepEqual(targets, [1624]);
+  assert.deepEqual(panelRowSlotMotion(2030, 390, 700, 'right', 'left', 16, undefined, true).exit, { x: 1624, opacity: 0 });
+  assert.deepEqual(panelRowSlotMotion(2030, 390, 700, 'right', 'left', 16, undefined, false).exit, { x: -406, opacity: 0 });
 });
 
 // ---------------------------------------------------------------------------

@@ -1,6 +1,6 @@
 /**
  * What the configure matrix reads: the class table as data, the rig every cell and probe mounts, the one helper each of
- * the 62 probes and 36 class cells goes through, and the catalog's names.
+ * the catalog-name probes and 36 class cells goes through, and the catalog's names.
  *
  * The table is written by hand from the status letters and defaults of the configure design and from each catalog
  * row's `on_configure` cell. Nothing in it is derived from the code under test.
@@ -10,8 +10,9 @@ import * as React from 'react';
 import { createElement, useEffect } from 'react';
 import { act } from 'react';
 import { mock } from 'node:test';
-import { DragToClose, LIBRARY_TUNING_DEFAULTS, PANEL_SETTINGS_CATALOG, PanelRow, Workspace, createWorkspace, definePanel, useProvidePanels, useViewState, usePanelCapabilities, usePanelCloseEligible, usePanelHidden, usePanelNeighborWidths, usePanelPinned, usePanelReorderEligible, usePanelReorderSteps } from '../../index.js';
+import { DragToClose, LIBRARY_TUNING_DEFAULTS, PANEL_SETTINGS_CATALOG, PanelRow, Workspace, createWorkspace, definePanel, useProvidePanels, useViewState, usePanelCapabilities, usePanelCloseEligible, usePanelNeighborWidths, usePanelPinned, usePanelReorderEligible, usePanelReorderSteps } from '../../index.js';
 import type { CaptureTrigger, ConfigureResult, PanelHandle, PanelResult, PanelSettings, PanelState, PanelTemplate, PanelWindow, PanelsInput, ProvidedPanels, WorkspaceHandle, WorkspaceOptions } from '../../index.js';
+import { useFrameClaim } from '../../panelFrameClaim.js';
 import { panelKey } from '../../panelSettings.js';
 import { createFakeHost } from '../../fakeHost.js';
 import { advanceFrames, mount, panelsInput, withHost } from './mount-harness.js';
@@ -49,10 +50,9 @@ export interface Cell {
   /** View unmounts the configure causes, or null when the design does not say. */
   unmounts: number | null;
   /**
-   * 'next-save': the saved file differs only at the next projection, never at the call.
    * 'none': the call writes no file and the next projection is unchanged. null: not part of this class's rows.
    */
-  projection: 'next-save' | 'none' | null;
+  projection: 'none' | null;
   /**
    * SCOPE only: whether an instance in this status counts when configureTemplate lowers a limit. Closed-declared and
    * undo-window instances count for the `multiple` on-to-off check only; `maxInstances` counts row entries.
@@ -81,22 +81,22 @@ export const CLASS_TABLE: Readonly<Record<Cls, Readonly<Record<Status, Cell>>>> 
   // NEXT: stored; the first event that reads it comes later; nothing parks, shows, moves or scrolls at configure.
   NEXT: {
     pending: refused('is-pending'),
-    live: { outcome: { kind: 'stored' }, evicts: 1, unmounts: 0, projection: 'next-save' },
-    parked: { outcome: { kind: 'stored' }, evicts: 1, unmounts: 0, projection: 'next-save' },
-    hidden: { outcome: { kind: 'stored' }, evicts: 1, unmounts: 0, projection: 'next-save' },
-    protected: { outcome: { kind: 'stored' }, evicts: 1, unmounts: 0, projection: 'next-save', staysLive: true },
+    live: { outcome: { kind: 'stored' }, evicts: 0, unmounts: 0, projection: 'none' },
+    parked: { outcome: { kind: 'stored' }, evicts: 0, unmounts: 0, projection: 'none' },
+    hidden: { outcome: { kind: 'stored' }, evicts: 0, unmounts: 0, projection: 'none' },
+    protected: { outcome: { kind: 'stored' }, evicts: 0, unmounts: 0, projection: 'none', staysLive: true },
     'closed-declared': { outcome: { kind: 'stored-on-record' }, evicts: null, unmounts: 0, projection: null },
     'closed-anonymous': refused('is-closed'),
     'undo-window': { outcome: { kind: 'stored-on-record' }, evicts: null, unmounts: 0, projection: null },
     'same-turn': refused('busy'),
   },
-  // STATE: the park latches (8A) and the pin flip; keepMounted is read at the park commit, so a change reaches the next park only, except a hidden kept panel, which unmounts at this commit.
+  // STATE: a cap that applies at this commit to every panel still in the row, with no row effect.
   STATE: {
     pending: refused('is-pending'),
-    live: { outcome: { kind: 'stored' }, evicts: 0, unmounts: 0, projection: null },
-    parked: { outcome: { kind: 'stored' }, evicts: 0, unmounts: 0, projection: null },
-    hidden: { outcome: { kind: 'applied-now' }, evicts: 0, unmounts: 1, projection: null },
-    protected: { outcome: { kind: 'stored' }, evicts: 0, unmounts: 0, projection: null, staysLive: true },
+    live: { outcome: { kind: 'applied-now' }, evicts: 0, unmounts: 0, projection: null },
+    parked: { outcome: { kind: 'applied-now' }, evicts: 0, unmounts: 0, projection: null },
+    hidden: { outcome: { kind: 'applied-now' }, evicts: 0, unmounts: 0, projection: null },
+    protected: { outcome: { kind: 'applied-now' }, evicts: 0, unmounts: 0, projection: null, staysLive: true },
     'closed-declared': { outcome: { kind: 'stored-on-record' }, evicts: 0, unmounts: 0, projection: null },
     'closed-anonymous': refused('is-closed'),
     'undo-window': { outcome: { kind: 'stored-on-record' }, evicts: 0, unmounts: 0, projection: null },
@@ -169,12 +169,12 @@ export const matrixTemplate = (id: string, over: Partial<PanelTemplate> = {}): P
     id,
     view: ({ panel: summary }) => {
       const panel = { ...summary, id: engineOf.current(summary.id) };
+      useFrameClaim('frame');
       const caps = usePanelCapabilities();
       const closeEligible = usePanelCloseEligible();
       const reorderEligible = usePanelReorderEligible();
       const neighbors = usePanelNeighborWidths();
       const pinned = usePanelPinned();
-      const hidden = usePanelHidden();
       const steps = usePanelReorderSteps();
       const [n, setN] = useViewState('n', 0);
       useEffect(() => {
@@ -199,18 +199,18 @@ export const matrixTemplate = (id: string, over: Partial<PanelTemplate> = {}): P
         'data-caps': JSON.stringify({ closable: caps.closable, draggable: caps.draggable, placeable: caps.placeable, resizable: caps.resizable, maxSlots: caps.maxSlots }),
         'data-neighbors': JSON.stringify(neighbors),
         'data-pinned': String(pinned),
-        'data-hidden': String(hidden),
         'data-n': String(n),
         'data-steps': JSON.stringify([150, 250].map(steps)),
       });
     },
     ...over,
-    settings: { frame: 'none', ...over.settings },
+    settings: over.settings,
   });
 
 export const dragLog: { ends: { id: string; offset: number; hops: number }[] } = { ends: [] };
 
 function DragBox({ id, close }: { id: string; close: () => void }): React.ReactElement {
+  useFrameClaim('frame');
   const steps = usePanelReorderSteps();
   return createElement(DragToClose, {
     onClose: close,
@@ -225,7 +225,7 @@ export const dragTemplate = (id: string, over: Partial<PanelTemplate> = {}): Pan
     id,
     view: ({ panel, handle }) => createElement(DragBox, { id: engineOf.current(panel.id), close: () => void handle.close() }),
     ...over,
-    settings: { frame: 'none', ...over.settings },
+    settings: over.settings,
   });
 
 export interface CaptureSpy extends CaptureTrigger {

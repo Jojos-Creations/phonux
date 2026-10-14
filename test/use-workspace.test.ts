@@ -17,7 +17,6 @@ function rig() {
   const seen: { ws: ViewWorkspace | undefined; renders: ViewWorkspace[] } = { ws: undefined, renders: [] };
   const driver = definePanel({
     id: 'driver',
-    settings: { frame: 'none' },
     view: () => {
       const ws = useWorkspace();
       seen.ws = ws;

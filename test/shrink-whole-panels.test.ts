@@ -6,7 +6,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import './support/jsdom-globals.js';
-import { resolvePanelSettings } from '../index.js';
+import { resolvePanelSettings } from '../panelSettings.js';
 import type { PanelWindow } from '../index.js';
 import { applyTemplate } from '../panelSettings.js';
 import { appendPanel, createHistoryPanel } from '../panelWindow.js';

@@ -9,9 +9,9 @@ import assert from 'node:assert/strict';
 import './support/jsdom-globals.js';
 import * as React from 'react';
 import { act } from 'react';
-import { DragToClose, resolvePanelSettings, usePanelReorderSteps } from '../index.js';
+import { DragToClose, usePanelReorderSteps } from '../index.js';
 import type { DragHandleProps, PanelSettings } from '../index.js';
-import { LIBRARY_TUNING_DEFAULTS } from '../panelSettings.js';
+import { LIBRARY_TUNING_DEFAULTS, resolvePanelSettings } from '../panelSettings.js';
 import { PanelSlotContext, type DragScroll, type PanelSlotValue } from '../panelSlotContext.js';
 import { slotTuning } from '../panelTuning.js';
 import { edgeScrollStep } from '../edgeScroll.js';
@@ -197,7 +197,7 @@ function mountAlone(dragScroll: DragScroll | undefined) {
   scroller.getBoundingClientRect = () => RECT;
   return { mounted, ui, scroller, handle: mounted.container.querySelector('[data-handle]')! };
 }
-const EDGE_ON: DragScroll = { mode: 'edge', zonePx: EDGE.zonePx, maxPxPerSec: EDGE.maxPxPerSec, reducedStepMs: EDGE.reducedStepMs, instant: false, maxScroll: MAX_SCROLL, stops: [], settleStops: [], settleSec: 0.4, settleEase: 'cubic-out' };
+const EDGE_ON: DragScroll = { mode: 'edge', zonePx: EDGE.zonePx, maxPxPerSec: EDGE.maxPxPerSec, reducedStepMs: EDGE.reducedStepMs, maxScroll: MAX_SCROLL, stops: [], settleStops: [], settleSec: 0.4, settleEase: 'cubic-out' };
 
 test('the row ceasing to scroll mid-hold gives the claim back and the row stops where it is', async () => {
   ends.length = 0;

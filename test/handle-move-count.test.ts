@@ -48,7 +48,7 @@ test('a panel that cannot be dragged refuses a count with not-draggable', async 
 });
 
 test('usePanelPinned reads PanelState.pinned, before and after a pin and a drag across the root', async () => {
-  const seen = definePanel({ id: 'seen', view: ({ panel }) => React.createElement('u', { 'data-seen': panel.id, 'data-pinned': String(usePanelPinned()) }), settings: { frame: 'none' } });
+  const seen = definePanel({ id: 'seen', view: ({ panel }) => React.createElement('u', { 'data-seen': panel.id, 'data-pinned': String(usePanelPinned()) }) });
   const r = await pinRig({ ids: ['a'], extra: [seen] });
   const s = r.ws.addPanel('seen');
   await r.settle();
@@ -76,7 +76,7 @@ test('usePanelDragProps offers a close to a closable panel only, and a reorder t
       const props = usePanelDragProps();
       return React.createElement('u', { 'data-probe': '', 'data-close': String(props.onClose !== undefined), 'data-reorder': String(props.reorder !== undefined) });
     },
-    settings: { frame: 'none', multiple: true },
+    settings: { multiple: true },
   });
   const r = await pinRig({ ids: ['a'], extra: [probe] });
   const read = (): string[][] => [...r.m.container.querySelectorAll<HTMLElement>('[data-probe]')].map((n) => [n.dataset.close!, n.dataset.reorder!]);
@@ -134,4 +134,19 @@ test('the raw left and right words step one slot the right way', async () => {
   assert.equal(r.order().join(' '), 'root a c b');
   r.turn(() => raw.move(id, 'right'));
   assert.equal(r.order().join(' '), 'root a b c');
+});
+
+test('close takes no source: closing as the person or as code leaves the same row and the same saved arrangement', async () => {
+  const after: string[][][] = [];
+  for (const source of ['person', 'code'] as const) {
+    const r = await savedRow();
+    const two = r.ws.panels.list().find((h) => h.templateId === 'two')!;
+    act(() => void two.close(source));
+    await wait();
+    after.push([r.ws.panels.list().map((h) => `${h.templateId}:${h.getState().status}`), await r.anchors()]);
+    r.m.unmount();
+    cleanup();
+  }
+  assert.deepEqual(after[0], after[1]);
+  assert.notEqual(after[0]![0]!.find((x) => x.startsWith('two:')), 'two:live', 'control: the close took effect');
 });

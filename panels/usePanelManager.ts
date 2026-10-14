@@ -17,7 +17,7 @@ import type { AddPlacement, PanelSettingsResolution } from '../panelSettings.js'
 import { isPresent } from '../panelRowEntry.js';
 import { panelWidthOf } from '../panelTiers.js';
 import { effectiveMaxPanels, rowFitCount } from '../panelCapacity.js';
-import { effective, holdUnlistedNote } from '../panelSettings.js';
+import { FIXED, effective, holdUnlistedNote } from '../panelSettings.js';
 import type { SettingNote, WorkspaceTuning } from '../panelSettings.js';
 import { DROP_TIE_BREAK, RETURN_TIE_BREAK, ROW_GAP } from '../rowConstants.js';
 import {
@@ -451,7 +451,7 @@ export function usePanelManager(
     }
   };
   /** What a placement of `p` resolves against: the row's root and the panel's own `placeFallback`. */
-  const placing = (p: PanelWindow) => ({ rootId, fallback: effective(p).placeFallback, ...(options?.order !== undefined ? { order: options.order } : {}) });
+  const placing = (p: PanelWindow) => ({ rootId, fallback: FIXED.placeFallback, ...(options?.order !== undefined ? { order: options.order } : {}) });
   const noteHold = (p: PanelWindow): void => {
     if (!effective(p).listed) noteOnce(holdUnlistedNote(p.id));
   };
@@ -481,7 +481,7 @@ export function usePanelManager(
     const target = panels.find((p) => p.id === id);
     if (!target?.collapsible) return false;
     if ((!target.live && heldRef.current.has(id)) || inFlight().has(id)) return false;
-    if (effective(target).hideWhenLast === 'refuse' && wouldEmptyRow([id])) return false;
+    if (FIXED.hideWhenLast === 'refuse' && wouldEmptyRow([id])) return false;
     const liveAfter = liveParkable(panels).filter((p) => p.id !== id && !inFlight().has(p.id));
     noteHold(target);
     if (!target.live) {
@@ -763,7 +763,7 @@ export function usePanelManager(
       collapseOrderRef.current = collapseOrderRef.current.filter((id) => !revealed.has(id) && !stale.has(id));
       capParkedOrderRef.current = capParkedOrderRef.current.filter((id) => !revealed.has(id) && !stale.has(id));
       // Each returning panel lands by its own `placeOnReturn`, or by the pin change it waits with, in return order, in the update that makes it live.
-      const returnAt = (id: string): AddPlacement | 'in-place' => effective(panels.find((p) => p.id === id)!).placeOnReturn;
+      const returnAt = (id: string): AddPlacement | 'in-place' => FIXED.placeOnReturn;
       const landAll = (row: PanelWindow[]): PanelWindow[] => [...revealed].reduce((acc, id) => landOn(acc, id, returnAt(id)).row, row);
       let landing = panels;
       const moved = new Set<string>();
@@ -819,7 +819,7 @@ export function usePanelManager(
     // Clear before marking, as `clearEnterSide`'s contract requires: a stale explicit side would win over the anchor.
     clearEnterSide(revealId);
     const returning = panelsAfterClose.find((p) => p.id === revealId)!;
-    const returnAt = effective(returning).placeOnReturn;
+    const returnAt = FIXED.placeOnReturn;
     if (returnAt === 'in-place' && returning.deferredPin === undefined) {
       // One of the two "reappearance" paths that enter from the anchor's side -- mark it BEFORE the setPanels
       // call below; no flushSync, since the mark only has to be in the commit that mounts the slot.

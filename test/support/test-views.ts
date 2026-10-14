@@ -25,5 +25,5 @@ function Bare({ View, panel }: { View: View; panel: PanelSummary }): React.React
 /** A template for `key` and `id`: the remembered view, else `fallback`, drawn bare as a registered view was. */
 export function testViewTemplate(key: string, id: string, fallback: View): PanelTemplate {
   const View = views.get(key) ?? fallback;
-  return definePanel({ id, view: ({ panel }) => React.createElement(Bare, { View, panel }), settings: { frame: 'none', multiple: true } });
+  return definePanel({ id, view: ({ panel }) => React.createElement(Bare, { View, panel }), settings: { multiple: true } });
 }

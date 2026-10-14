@@ -333,29 +333,9 @@ test('W13 project never writes deferredPin, hostData, size or settings, and drop
   assert.equal(JSON.stringify(entry.instance), '{"title":"T","headerButtons":{"b":{}}}');
 });
 
-test('W14 project leaves out a persist:session panel and reads the anchors that named it off the order that remains', () => {
-  const session = made('s', { persist: 'session' });
-  const row = rowOf(session, made('a', {}, { anchor: { panel: 's', position: 'right', priority: 0 } }), made('b', {}, { anchor: { panel: 's', position: 'right', priority: 1 } }), made('c'));
-  assert.deepEqual(row.map((p) => p.id), [ROOT, 's', 'a', 'b', 'c'], 'control: the row is ordered through the session panel');
-  const state = projectWorkspaceState(row, ROOT);
-  assert.deepEqual(state.panels.map((p) => p.id), ['a', 'b', 'c']);
-  assert.deepEqual(state.panels.map((p) => p.anchor), [
-    { panel: ROOT, position: 'right', priority: 0 },
-    { panel: ROOT, position: 'right', priority: 1 },
-    { panel: ROOT, position: 'right', priority: 2 },
-  ]);
-});
-
 test('W15 project keeps an anchor that names a panel the row never held, as 0.1.0 did', () => {
   const ghost: PanelWindow = panel('p', { anchor: { panel: 'ghost', position: 'left', priority: 3 } });
   assert.deepEqual(projectWorkspaceState([createHistoryPanel(ROOT), ghost], ROOT).panels[0]!.anchor, { panel: 'ghost', position: 'left', priority: 3 });
-});
-
-test('W16 project rewrites an overrides.anchor that names an unsaved panel to the entry\'s own place in the order', () => {
-  const session = made('s', { persist: 'session' });
-  const owner = made('a', {}, { overrides: { anchor: { panel: 's', position: 'left', priority: 0 } } });
-  const state = projectWorkspaceState(rowOf(session, owner), ROOT);
-  assert.deepEqual(state.panels[0]!.overrides, { anchor: { panel: ROOT, position: 'right', priority: 0 } });
 });
 
 test('W17 project writes dismissed only when it holds a key, and root only when the root entry carries a key and settings', () => {

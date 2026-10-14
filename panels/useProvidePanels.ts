@@ -22,7 +22,7 @@ import { noopCaptureTrigger, type CaptureTrigger } from '../snapshots.js';
 import { applyConfigure } from '../panelConfigure.js';
 import { accepted, refused, type ConfigureResult, type PanelOpSource, type PanelResult } from '../panelManager.js';
 import { decidePinChange, type PinChange, type PinStatus } from '../panelPin.js';
-import { LIBRARY_TUNING_DEFAULTS, applyTemplate, effective, panelKey, resolvePanelSettings } from '../panelSettings.js';
+import { FIXED, LIBRARY_TUNING_DEFAULTS, applyTemplate, effective, panelKey, resolvePanelSettings } from '../panelSettings.js';
 import type { PanelSettings, PanelSettingsResolution, ResolvedPanelSettings, ResolvedWorkspaceTuning, ScrollAlign, SettingNote, WorkspaceTuning } from '../panelSettings.js';
 import type { PanelTemplate } from '../panelTemplate.js';
 import { reportNotes } from '../panelPlacement.js';
@@ -35,11 +35,8 @@ import { usePanelManager, type GateKind } from './usePanelManager.js';
 import { useRowScrollGesture } from './useRowScrollGesture.js';
 import { useWorkspacePersistence } from './useWorkspacePersistence.js';
 
-/** Whether `p`'s `snapshot` setting asks the host's CaptureTrigger for a picture at `event`. */
-const asksForPicture = (p: PanelWindow, event: 'park' | 'close'): boolean => {
-  const { snapshot } = effective(p);
-  return snapshot === 'both' || snapshot === event;
-};
+/** Whether the host's CaptureTrigger is asked for a picture at `event`: a panel is captured at both. */
+const asksForPicture = (event: 'park' | 'close'): boolean => FIXED.snapshot === 'both' || FIXED.snapshot === event;
 
 /**
  * Duck-typed (a `preventDefault` function): a bare `onClick={panels.create}` reference passes the click
@@ -687,7 +684,7 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
     // Two stops can share the position the row is at, so the stop it is on can be the wrong one with nothing to scroll.
     if (landed.landing !== null && !scroller.claimHeld()) land(landed.landing);
     if (Math.abs(to - scroller.scrollLeft()) < 0.5) return;
-    if (!scroller.glideTo(to, { durationSec: tuning.slide.durationSec, instant: reducedMotion || !settings.animated, ease: glideEase })) {
+    if (!scroller.glideTo(to, { durationSec: tuning.slide.durationSec, instant: reducedMotion, ease: glideEase })) {
       scrollNote('scroll-dropped-during-drag', request.id, `A scroll to panel ${request.id} was dropped: a drag holds the row.`);
     }
   });
@@ -698,20 +695,9 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
   useEffect(() => {
     const prev = prevLiveRef.current;
     for (const p of panels) {
-      if (prev.get(p.id) === true && !p.live && asksForPicture(p, 'park')) capture.capture(panelKey(p));
+      if (prev.get(p.id) === true && !p.live && asksForPicture('park')) capture.capture(panelKey(p));
     }
     prevLiveRef.current = new Map(panels.map((p) => [p.id, p.live]));
-  }, [panels, capture]);
-
-  // A layout effect, never the configure updater: React may run an updater twice and the host's evict notifies other components.
-  const prevSnapshotRef = useRef<ReadonlyMap<string, ResolvedPanelSettings['snapshot']>>(new Map());
-  useLayoutEffect(() => {
-    const prev = prevSnapshotRef.current;
-    for (const p of panels) {
-      const was = prev.get(p.id);
-      if (was !== undefined && was !== 'never' && effective(p).snapshot === 'never') capture.evict(panelKey(p));
-    }
-    prevSnapshotRef.current = new Map(panels.map((p) => [p.id, effective(p).snapshot]));
   }, [panels, capture]);
 
   // clearAll only records ids here: React may run its updater during render, where evict would notify other components.
@@ -724,12 +710,12 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
   // An undo restores the entry as its layers resolve now, so a template or default that changed while it was closed
   // applies; an entry built without settings has nothing to re-resolve.
   const reapply = (p: PanelWindow): Reapplied => {
-    if (p.settings === undefined || p.marker === true) return { panel: p, placeAs: effective(p).undoPlacement };
+    if (p.settings === undefined || p.marker === true) return { panel: p, placeAs: FIXED.undoPlacement };
     const value = core.resolved(p);
     // A pin change stored on the closed panel's record applies as the undo restores it.
     const waiting = core.takeDeferredPin(panelKey(p));
     const layer = p.declared === true ? undefined : core.layerOf(p);
-    return { panel: { ...applyTemplate(p, value, 'reconfigure'), ...(layer !== undefined ? { instance: layer } : {}), ...(waiting !== undefined ? { deferredPin: waiting } : {}) }, placeAs: value.undoPlacement };
+    return { panel: { ...applyTemplate(p, value, 'reconfigure'), ...(layer !== undefined ? { instance: layer } : {}), ...(waiting !== undefined ? { deferredPin: waiting } : {}) }, placeAs: FIXED.undoPlacement };
   };
 
   // After usePanelManager: undo makes room for a live view through its revealPanelProactively. `onAfterClose`
@@ -755,7 +741,7 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
     // A closed-and-not-restored panel's picture must not outlive its undo window; usePanelClosing.ts alone
     // knows which ids the window's NATURAL elapse (never Undo) just finalized.
     (closed) => {
-      for (const p of closed) if (effective(p).snapshot !== 'never') capture.evict(panelKey(p));
+      for (const p of closed) if (FIXED.snapshot !== 'never') capture.evict(panelKey(p));
     },
     i.onPanelsClosed,
     i.onPanelsRestored,
@@ -770,7 +756,7 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
   const closeNow = (id: string): boolean => {
     // A close the gate in usePanelClosing.ts will refuse (an unknown or locked id) takes no picture.
     const target = panels.find((p) => p.id === id);
-    if (target && !target.locked && asksForPicture(target, 'close')) capture.capture(panelKey(target));
+    if (target && !target.locked && asksForPicture('close')) capture.capture(panelKey(target));
     return closing.close(id);
   };
 
@@ -843,7 +829,7 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
       if (gate.busy([engineId], 'hide')) return busy(target);
       const settings = effective(target);
       if (!settings.parkable) return refused('not-parkable', `panel '${panelKey(target)}' is a fixed column and cannot be parked`);
-      if (target.live && settings.hideWhenLast === 'refuse' && wouldEmptyRow([engineId])) return refused('would-empty-row', `panel '${panelKey(target)}' is the last one the row shows`);
+      if (target.live && FIXED.hideWhenLast === 'refuse' && wouldEmptyRow([engineId])) return refused('would-empty-row', `panel '${panelKey(target)}' is the last one the row shows`);
       const token = gate.take([engineId], 'hide')!;
       const changed = holdPanel(engineId, settings.hideStickiness);
       gate.release(token);
@@ -1089,7 +1075,7 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
       // A panel it removes answers `busy` to a manager call later in the turn; clearAll itself is never held back.
       const token = gate.takeFree(panels.filter((p) => effective(p).clearable).map((p) => p.id), 'other');
       setPanels((prev) => {
-        for (const p of prev) if (effective(p).clearable && effective(p).snapshot !== 'never') clearedIds.current.add(panelKey(p));
+        for (const p of prev) if (effective(p).clearable && FIXED.snapshot !== 'never') clearedIds.current.add(panelKey(p));
         return prev.filter((p) => !effective(p).clearable);
       });
       if (token !== undefined) gate.release(token);

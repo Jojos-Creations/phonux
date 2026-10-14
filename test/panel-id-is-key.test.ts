@@ -100,7 +100,7 @@ test('useActivePanel reports and takes a key', async () => {
   const setters = new Map<string, (id: string | null) => void>();
   const many = definePanel({
     id: 'many',
-    settings: { multiple: true, frame: 'none' },
+    settings: { multiple: true },
     view: ({ handle }) => {
       const [active, setActive] = useActivePanel();
       const isActive = usePanelActive();
@@ -143,7 +143,7 @@ test('useActivePanel\'s setter warns once for a counter id and names the release
   const setters: Array<(id: string | null) => void> = [];
   const many = definePanel({
     id: 'many',
-    settings: { multiple: true, frame: 'none' },
+    settings: { multiple: true },
     view: () => {
       const [, setActive] = useActivePanel();
       setters.push(setActive);

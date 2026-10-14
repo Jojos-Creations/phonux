@@ -1,6 +1,6 @@
 /**
- * What the workspace remembers between launches and which settings govern it: persist, rememberLayout,
- * restoreVisibility, and the template-scope hostCreatable, multiple and maxInstances on every creation path. Each
+ * What the workspace remembers between launches and which settings govern it: restoreVisibility,
+ * and the template-scope hostCreatable, multiple and maxInstances on every creation path. Each
  * name has a differential; the rest drives two launches over one in-memory storage.
  */
 import { test, afterEach, mock } from 'node:test';
@@ -174,24 +174,21 @@ test('a Host-bag create naming slots keeps it through a save and a second mount'
   assert.equal(second.byTitle('wide').slots, 3);
 });
 
-test('rememberLayout false on a multiple template ignores the file\'s anchor and slots, where true applies them', async () => {
-  for (const remember of [true, false]) {
-    const mem = memory();
-    const templates = (rememberLayout: boolean): PanelTemplate[] => [tpl('tm', { multiple: true, placeOnAdd: 'row-start', rememberLayout })];
-    const first = await launch(mem, { templates: templates(true) });
-    create(first, { view: 'tm', title: 'a' });
-    create(first, { view: 'tm', title: 'b' });
-    assert.deepEqual(first.titles(), ['b', 'a']);
-    act(() => first.latest().move(idOf(first, 'a'), 'left'));
-    act(() => first.latest().setSlots(idOf(first, 'a'), 2));
-    assert.deepEqual(first.titles(), ['a', 'b']);
-    first.flush();
-    first.unmount();
-    const second = await launch(mem, { templates: templates(remember) });
-    assert.deepEqual(second.titles(), remember ? ['a', 'b'] : ['b', 'a'], `remember ${remember}: order`);
-    assert.equal(second.byTitle('a').slots, remember ? 2 : 1, `remember ${remember}: slots`);
-    cleanup();
-  }
+test('a multiple template restores the file\'s anchor and slots', async () => {
+  const mem = memory();
+  const templates = (): PanelTemplate[] => [tpl('tm', { multiple: true, placeOnAdd: 'row-start' })];
+  const first = await launch(mem, { templates: templates() });
+  create(first, { view: 'tm', title: 'a' });
+  create(first, { view: 'tm', title: 'b' });
+  assert.deepEqual(first.titles(), ['b', 'a']);
+  act(() => first.latest().move(idOf(first, 'a'), 'left'));
+  act(() => first.latest().setSlots(idOf(first, 'a'), 2));
+  assert.deepEqual(first.titles(), ['a', 'b']);
+  first.flush();
+  first.unmount();
+  const second = await launch(mem, { templates: templates() });
+  assert.deepEqual(second.titles(), ['a', 'b'], 'order');
+  assert.equal(second.byTitle('a').slots, 2, 'slots');
 });
 
 test('the file has no instance key for a code-declared panel and one for an anonymous, a multiple and a Host-bag panel', async () => {
@@ -220,20 +217,19 @@ test('a code placement through the engine-level placePanel is not recorded as an
   assert.equal(recordOverride(placed, 'anchor', [], ROOT), placed);
 });
 
-test('a drag marks every non-root remembering panel but not a panel whose rememberLayout is false', async () => {
+test('a drag marks every non-root panel', async () => {
   const mem = memory();
-  const first = await launch(mem, { workspaceDefaults: {}, templates: [tpl('keep', { multiple: true, rememberLayout: false })] });
+  const first = await launch(mem, { workspaceDefaults: {}, templates: [] });
   create(first, { title: 'x' });
   create(first, { title: 'y' });
-  create(first, { view: 'keep', title: 'k' });
   act(() => first.latest().move(idOf(first, 'y'), 'left'));
   assert.deepEqual(
     first.latest().entries.filter((p) => p.id !== ROOT).map((p) => [p.title, p.overrides?.anchor !== undefined]),
-    [['y', true], ['x', true], ['k', false]],
+    [['y', true], ['x', true]],
   );
 });
 
-test('a move marks the moved row\'s remembering panels, and a move that changes nothing returns the same list', async () => {
+test('a move marks the moved row\'s panels, and a move that changes nothing returns the same list', async () => {
   const first = await launch(memory(), { workspaceDefaults: {} });
   create(first, { title: 'x' });
   create(first, { title: 'y' });
@@ -257,24 +253,6 @@ test('restoreVisibility parked restores a saved-live panel parked and held', asy
   first.unmount();
   const second = await launch(mem, { templates: templates('parked'), declared: [{ id: 'tv', templateId: 'tv', settings: { title: 'tv' } }] });
   assert.equal(second.byTitle('tv').live, false);
-});
-
-// ---------------------------------------------------------------------------
-// persist
-// ---------------------------------------------------------------------------
-
-test('JSON.parse of the saved file has no entry for a persist:session panel; a declared one is recreated and a runtime one is gone', async () => {
-  const mem = memory();
-  const over = { templates: [tpl('sess', { persist: 'session', multiple: true })], declared: [{ id: 'decl', templateId: 'sess', settings: { title: 'declared' } }], workspaceDefaults: {} };
-  const first = await launch(mem, over);
-  create(first, { view: 'sess', title: 'runtime' });
-  create(first, { title: 'plain' });
-  assert.deepEqual(first.titles(), ['declared', 'runtime', 'plain']);
-  first.flush();
-  assert.deepEqual(mem.file()!.panels.map((p) => p.title), ['plain']);
-  first.unmount();
-  const second = await launch(mem, over);
-  assert.deepEqual([...second.titles()].sort(), ['declared', 'plain']);
 });
 
 // ---------------------------------------------------------------------------
@@ -386,28 +364,6 @@ test('a Host-bag create naming no template while templates exist still resolves 
 // The six differentials
 // ---------------------------------------------------------------------------
 
-const declaredPanel = (settings: PanelSettings): PanelWindow => {
-  const result = reconcileWorkspace({ saved: null, templates: [tpl('d', settings)], declared: [{ id: 'd', templateId: 'd' }], rootId: ROOT, current: [], freshId: (() => { let n = 0; return () => `f${++n}`; })() });
-  return result.entries[0]!;
-};
-
-test('differential persist: a saved panel is written to the file under saved and left out under session', () => {
-  differential('persist', (run) => {
-    for (const value of ['saved', 'session'] as const) run(value, () => projectWorkspaceState([createHistoryPanel(ROOT), declaredPanel({ persist: value })], ROOT).panels.length);
-  });
-});
-
-test('differential rememberLayout: a drag is recorded under true and not under false', () => {
-  differential('rememberLayout', (run) => {
-    for (const value of [true, false]) {
-      run(value, () => {
-        const row = computeRowOrder([createHistoryPanel(ROOT), declaredPanel({ rememberLayout: value })], ROOT);
-        return recordOverride(row, 'anchor', row.map((p) => p.id), ROOT).map((p) => p.overrides?.anchor !== undefined);
-      });
-    }
-  });
-});
-
 test('differential restoreVisibility: a panel saved parked is restored parked under saved and live under live', () => {
   differential('restoreVisibility', (run) => {
     for (const value of ['saved', 'live'] as const) {
@@ -458,7 +414,7 @@ test('differential maxInstances: three Host-bag creates leave three panels under
 });
 
 test('every name this file owns has a completed differential', () => {
-  assert.deepEqual(differentialsCovered().filter((n) => ['persist', 'rememberLayout', 'restoreVisibility', 'hostCreatable', 'multiple', 'maxInstances'].includes(n)), ['hostCreatable', 'maxInstances', 'multiple', 'persist', 'rememberLayout', 'restoreVisibility']);
+  assert.deepEqual(differentialsCovered().filter((n) => ['restoreVisibility', 'hostCreatable', 'multiple', 'maxInstances'].includes(n)), ['hostCreatable', 'maxInstances', 'multiple', 'restoreVisibility']);
 });
 
 // ---------------------------------------------------------------------------

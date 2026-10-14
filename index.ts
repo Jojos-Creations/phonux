@@ -76,7 +76,7 @@ export type { MinWorkspaceWidthInput } from './minWorkspaceWidth.js';
 export type { RowLayoutInput, RowLayoutResult } from './panelRowLayout.js';
 export { computeRowNumbers } from './rowNumbers.js';
 export type { RowNumbers } from './rowNumbers.js';
-export { PanelRow, usePanelCapabilities, usePanelCloseEligible, usePanelHidden, usePanelNeighborWidths, usePanelPinned, usePanelReorderEligible, usePanelReorderSteps, usePanelTuning } from './PanelRow.js';
+export { PanelRow, usePanelCapabilities, usePanelCloseEligible, usePanelNeighborWidths, usePanelPinned, usePanelReorderEligible, usePanelReorderSteps, usePanelTuning } from './PanelRow.js';
 export { slideToTransition } from './directionalTransition.js';
 export { GAP, PANEL_TRANSITION, PanelSizeBox } from './PanelRowSlot.js';
 export { PanelHeaderButtons, usePanelHeaderButtons } from './panelHeaderButtons.js';
@@ -93,7 +93,7 @@ export { createDefaultTheme } from './defaultTheme.js';
 
 export type { WorkspacePanelState, WorkspaceState, WorkspaceStorage } from './workspaceState.js';
 
-export { PANEL_SETTINGS_CATALOG, LIBRARY_PANEL_DEFAULTS, LIBRARY_TUNING_DEFAULTS, resolvePanelSettings } from './panelSettings.js';
+export { PANEL_SETTINGS_CATALOG, LIBRARY_PANEL_DEFAULTS, LIBRARY_TUNING_DEFAULTS } from './panelSettings.js';
 export type {
   PanelId,
   AnchorRequest,
@@ -136,13 +136,10 @@ export type {
   SettingDoor,
   SettingScope,
   LibraryPanelDefaults,
-  PanelSettingsLayers,
   PanelUserLayer,
-  ResolveOptions,
   PanelSettingsResolution,
 } from './panelSettings.js';
 
-export { mergePatch } from './settingsPatch.js';
 export type { SettingsPatch, InstancePatch, ViewPatch } from './settingsPatch.js';
 
 export { PANEL_API } from './panelApiLevel.js';
