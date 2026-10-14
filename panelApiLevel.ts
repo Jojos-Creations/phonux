@@ -6,10 +6,10 @@ import type { PanelSummary } from './hostApi.js';
 import { PanelManagerError } from './panelManagerError.js';
 import type { PanelReader, ViewHandle } from './panelTemplate.js';
 
-/** A panel API level a template may declare with `api`. @public */
+/** A panel API level a template may declare with `api`: the package major version its panel code was written for. @public */
 export type PanelApiLevel = 1;
 
-/** The newest panel API level; a template that leaves `api` out is on it. @public */
+/** The newest panel API level, equal to the package's major version from 1.0.0; a template that leaves `api` out is on it. @public */
 export const PANEL_API: PanelApiLevel = 1;
 
 /** What a template's view and footer are rendered with at the newest level. @internal */
@@ -31,16 +31,36 @@ export interface LevelEntry {
 export interface LevelTable {
   readonly newest: number;
   readonly levels: ReadonlyMap<number, LevelEntry>;
+  /** Levels that were served once, with the release that removed each; absent means none. */
+  readonly dropped?: ReadonlyMap<number, string>;
 }
 
 /** The levels this package serves. @internal */
-export const SHIPPED_LEVELS: LevelTable = { newest: PANEL_API, levels: new Map<number, LevelEntry>([[1, {}]]) };
+export const SHIPPED_LEVELS: LevelTable = { newest: PANEL_API, levels: new Map<number, LevelEntry>([[1, {}]]), dropped: new Map<number, string>() };
 
 /** Throws `invalid-template` when `api` is set to anything but a level `table` serves; an omitted `api` is the newest level. @internal */
 export function checkPanelApi(templateId: string, api: unknown, table: LevelTable = SHIPPED_LEVELS): void {
   if (api === undefined) return;
   if (typeof api === 'number' && table.levels.has(api)) return;
+  const droppedIn = typeof api === 'number' ? table.dropped?.get(api) : undefined;
+  if (droppedIn !== undefined) throw new PanelManagerError('invalid-template', `template '${templateId}': level ${api} was dropped in ${droppedIn}`);
   throw new PanelManagerError('invalid-template', `template '${templateId}': api must be one of ${[...table.levels.keys()].join(', ')}, got ${JSON.stringify(api)}`);
+}
+
+/** Why `table` is not a complete account of levels 1 to `newest` (each served or dropped, never both, none outside the range), or undefined when it is. @internal */
+export function levelCoverageProblem(table: LevelTable): string | undefined {
+  const dropped = table.dropped ?? new Map<number, string>();
+  for (const level of [...table.levels.keys(), ...dropped.keys()]) {
+    if (!Number.isInteger(level) || level < 1 || level > table.newest) return `level ${level} is outside 1 to ${table.newest}`;
+  }
+  if (!table.levels.has(table.newest)) return `the newest level ${table.newest} is not served`;
+  for (let level = 1; level <= table.newest; level += 1) {
+    const served = table.levels.has(level);
+    const gone = dropped.has(level);
+    if (served && gone) return `level ${level} is both served and dropped`;
+    if (!served && !gone) return `level ${level} is neither served nor dropped`;
+  }
+  return undefined;
 }
 
 const warned = new Set<string>();
