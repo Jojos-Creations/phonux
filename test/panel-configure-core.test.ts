@@ -188,7 +188,7 @@ test('class law: a clearAll queued after the call removes the panel and the conf
 });
 
 // ---------------------------------------------------------------------------
-// The writer: applyTemplate(reconfigure), three keys per class, on a resized panel and on a dragged one
+// The writer: applyTemplate(reconfigure), keys of each class, on a resized panel and on a dragged one
 // ---------------------------------------------------------------------------
 
 const UNTOUCHED = ['slots', 'size', 'anchor', 'live', 'hostData', 'key', 'overrides', 'applied'] as const;
@@ -199,9 +199,6 @@ const WRITER_KEYS: readonly [string, string, PanelSettings][] = [
   ['NOW', 'title', { title: 'Renamed' }],
   ['NEXT', 'scrollOnOpen', { scrollOnOpen: 'center' }],
   ['NEXT', 'hideStickiness', { hideStickiness: 'until-room' }],
-  ['NEXT', 'undoWindowMs', { undoWindowMs: 9000 }],
-  ['STATE', 'keepMounted', { keepMounted: true }],
-  ['STATE', 'viewState', { viewState: 'reset-on-park' }],
   ['STATE', 'maxSlots', { maxSlots: 2 }],
 ];
 
@@ -328,14 +325,6 @@ test('a forced-rule conflict on a named key refuses: closable false beside clear
   assert.match(res.message, /closable/);
 });
 
-test('a forced-rule conflict on an unnamed key refuses: reset-on-park beside keepMounted true names keepMounted, rule C6 by viewState', async () => {
-  const r = await pinRig({ settings: { b: { keepMounted: true } } });
-  const res = refusedWith(r.turn(() => r.h.b!.configure({ viewState: 'reset-on-park' })), 'settings-conflict');
-  assert.equal(res.setting, 'keepMounted');
-  assert.match(res.message, /C6/);
-  assert.match(res.message, /viewState/);
-});
-
 test('a conflict that already existed before the call does not refuse', async () => {
   const r = await pinRig({ settings: { b: { closable: false, clearable: true } } });
   assert.equal(r.h.b!.getSettings().conflicts.length, 1, 'control: the stack already conflicts');
@@ -453,21 +442,6 @@ test('closed inside the window: a title configured then undo restores the new ti
   assert.deepEqual([r.entry('b').title, r.state('b').title, r.order().join(' ')], ['Renamed', 'Renamed', 'root a b c']);
 });
 
-test('closed inside the window: an undoPlacement configured then undo places by it, and without it the panel returns to its old slot', async () => {
-  const control = await pinRig();
-  control.turn(() => control.h.a!.close());
-  control.turn(() => control.provided().undoClose());
-  await control.settle();
-  assert.equal(control.order().join(' '), 'root a b c', 'control: old-slot restores the recorded index');
-  cleanup();
-  const r = await pinRig();
-  r.turn(() => r.h.a!.close());
-  assert.deepEqual({ ...done(r.turn(() => r.h.a!.configure({ undoPlacement: 'row-end' }))) }, stored('undoPlacement'));
-  r.turn(() => r.provided().undoClose());
-  await r.settle();
-  assert.equal(r.order().join(' '), 'root b c a');
-});
-
 test('closed inside the window: resetLayout then undo restores at the resolved placeOnAdd and the resolved slots, not where the person left it', async () => {
   const r = await pinRig();
   assert.deepEqual({ ...done(r.turn(() => r.h.c!.configure({ placeOnAdd: 'row-start', slots: 2 }))) }, { ok: true, changed: true, shown: false, now: [], later: ['placeOnAdd', 'slots'], shadowed: [], notes: [] });
@@ -547,13 +521,13 @@ test('an anonymous closed instance answers is-closed to configure, inside the wi
 
 test('a configure that raises a runtime note carries it in the result and reports it once', async () => {
   const r = await pinRig();
-  const lever = done(r.turn(() => r.h.b!.configure({ evictionRank: 3 })));
-  assert.deepEqual([...lever.notes], [{ code: 'park-lever-inert', key: 'evictionRank', message: "evictionRank: only a panel whose overflow is 'park' is ever parked for room, so this has no effect here" }]);
+  const lever = done(r.turn(() => r.h.b!.configure({ capacityReturn: 'manual' })));
+  assert.deepEqual([...lever.notes], [{ code: 'park-lever-inert', key: 'capacityReturn', message: "capacityReturn: only a panel whose overflow is 'park' is ever parked for room, so this has no effect here" }]);
   assert.deepEqual(r.m.notes.map((n) => n.code), ['park-lever-inert']);
   const unlists = done(r.turn(() => r.h.c!.configure({ pinning: { pinned: { parkable: false }, unpinned: { parkable: true } } })));
   assert.deepEqual([...unlists.notes], [{ code: 'pin-unlists', key: 'pinning', message: 'pinning: the pinned half makes the panel a fixed column, which is unlisted unless listed is set' }]);
   assert.deepEqual(r.m.notes.map((n) => n.code), ['park-lever-inert', 'pin-unlists']);
-  const again = done(r.turn(() => r.h.b!.configure({ evictionRank: 3 })));
+  const again = done(r.turn(() => r.h.b!.configure({ capacityReturn: 'manual' })));
   assert.deepEqual([again.changed, [...again.notes]], [false, []]);
   assert.equal(r.m.notes.length, 2, 'an equal patch raises nothing more');
 });
@@ -646,9 +620,8 @@ const SAMPLE: readonly [Context, string, Record<string, unknown>, string[], stri
   ['live', 'live', { listed: false }, ['listed'], [], []],
   ['live', 'live', { layer: 'raised' }, ['layer'], [], []],
   ['live', 'live', { scrollOnOpen: 'center' }, [], ['scrollOnOpen'], []],
-  ['live', 'live', { hideStickiness: 'until-room', hideWhenLast: 'refuse' }, [], ['hideStickiness', 'hideWhenLast'], []],
+  ['live', 'live', { hideStickiness: 'until-room' }, [], ['hideStickiness'], []],
   ['live', 'live', { closable: false, scrollOnOpen: 'center' }, ['closable'], ['scrollOnOpen'], []],
-  ['live', 'live', { keepMounted: true }, [], ['keepMounted'], []],
   ['live', 'live', { maxSlots: 2 }, ['maxSlots'], [], []],
   ['live', 'live', { parkable: false }, ['parkable'], [], []],
   ['live', 'live', { tuning: { slide: { durationSec: 0.2 } } }, [], ['tuning.slide'], []],
@@ -662,8 +635,8 @@ const SAMPLE: readonly [Context, string, Record<string, unknown>, string[], stri
   ['person pin', 'live', { parkable: true }, ['parkable'], [], ['parkable']],
 ];
 
-test('the result of 20 patches over live, parked, hidden and person-shaped panels equals the literals written by hand', async () => {
-  assert.equal(SAMPLE.length, 20);
+test('the result of 19 patches over live, parked, hidden and person-shaped panels equals the literals written by hand', async () => {
+  assert.equal(SAMPLE.length, 19);
   let executed = 0;
   for (const [context, status, patch, now, later, shadowed] of SAMPLE) {
     const { r, id } = await contextRig(context);
@@ -673,7 +646,7 @@ test('the result of 20 patches over live, parked, hidden and person-shaped panel
     executed += 1;
     cleanup();
   }
-  assert.equal(executed, 20);
+  assert.equal(executed, 19);
 });
 
 test('a person pin outvotes a configured parkable: the result lists it as shadowed and the panel stays a fixed column', async () => {
@@ -689,8 +662,8 @@ test('getSettings after a configure deep-equals the resolver over the patched la
   const slot = { icon: 'i', label: 'X', onClick: () => undefined };
   const cases: [string, Record<string, unknown>][] = [
     ['a NOW key', { closable: false, title: 'Eve' }],
-    ['a NEXT key', { scrollOnOpen: 'center', hideWhenLast: 'refuse' }],
-    ['a STATE key', { maxSlots: 2, keepMounted: true }],
+    ['a NEXT key', { scrollOnOpen: 'center', hideStickiness: 'until-room' }],
+    ['a STATE key', { maxSlots: 2 }],
     ['a tuning leaf', { tuning: { hopFraction: 0.3, slide: { durationSec: 0.2 } } }],
     ['a slot', { headerButtons: { x: slot } }],
     ['a pinning definition', { pinning: { pinned: { placement: 'row-start' }, unpinned: { placement: 'row-end' } } }],
@@ -701,7 +674,7 @@ test('getSettings after a configure deep-equals the resolver over the patched la
       if (person) r.turn(() => r.h.b!.setSlots(2, 'person'));
       const user = person ? r.entry('b').overrides : undefined;
       done(r.turn(() => r.h.b!.configure(patch as never)));
-      const expected = resolvePanelSettings({ template: { scrollOnOpen: 'start', frame: 'none' }, instance: patch as PanelSettings, ...(user === undefined ? {} : { user }) }, { lenient: true });
+      const expected = resolvePanelSettings({ template: { scrollOnOpen: 'start' }, instance: patch as PanelSettings, ...(user === undefined ? {} : { user }) }, { lenient: true });
       assert.deepEqual(r.h.b!.getSettings(), expected, `${name}${person ? ' with the person\'s slots' : ''}`);
       const flat = Object.keys(patch).flatMap((k) => (k === 'tuning' ? Object.keys(patch.tuning as object).map((leaf) => `tuning.${leaf}`) : [k]));
       for (const key of flat) assert.equal(r.h.b!.getSettings().source[key], 'instance', `${name}: ${key} reads source instance`);
@@ -719,7 +692,7 @@ test('null removes the key and the cascade\'s value and source come back: librar
   const rows: [string, Record<string, unknown>, Record<string, unknown>, [unknown, string], [unknown, string], [unknown, string]][] = [
     ['scrollOnOpen', { scrollOnOpen: 'center' }, { scrollOnOpen: null }, ['start', 'template'], ['center', 'instance'], ['start', 'template']],
     ['hideStickiness', { hideStickiness: 'sticky' }, { hideStickiness: null }, ['until-room', 'workspace'], ['sticky', 'instance'], ['until-room', 'workspace']],
-    ['undoWindowMs', { undoWindowMs: 5000 }, { undoWindowMs: null }, [10000, 'library'], [5000, 'instance'], [10000, 'library']],
+    ['scrollOnMove', { scrollOnMove: 'none' }, { scrollOnMove: null }, ['follow', 'library'], ['none', 'instance'], ['follow', 'library']],
     ['tuning.hopFraction', { tuning: { hopFraction: 0.3 } }, { tuning: { hopFraction: null } }, [0.25, 'workspace'], [0.3, 'instance'], [0.25, 'workspace']],
   ];
   for (const [key, set, unset, was, during, back] of rows) {
@@ -1044,7 +1017,7 @@ test('configureTuning rowGap re-prices the row in one commit: the slots rest one
   const r = await pinRig();
   await r.settle();
   const slotX = (name: string): number => {
-    const transform = (r.m.container.querySelector(`[data-slot="${name}"]`)!.parentElement as HTMLElement).style.transform;
+    const transform = (r.m.container.querySelector(`[data-slot="${name}"]`)!.closest('[data-row-slot]') as HTMLElement).style.transform;
     return transform === 'none' ? 0 : Number(/translateX\((-?[\d.]+)px\)/.exec(transform)![1]);
   };
   assert.deepEqual(['root', 'a', 'b', 'c'].map(slotX), [0, 406, 812, 1218], 'before: 390 + 16 apart');

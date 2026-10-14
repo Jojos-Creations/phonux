@@ -336,15 +336,11 @@ test('the store wakes only the listeners of the panels whose mark changed', () =
   assert.deepEqual(woke, [], 'an unchanged mark wakes nobody');
 });
 
-test('fadeMs 0 and an unanimated panel also show at once', async () => {
+test('fadeMs 0 also shows the header at once', async () => {
   const m = mountRow(entries(2), 3000, { tuning: { chrome: { mode: 'hover-or-active', fadeMs: 0 } } });
   await advanceFrames(2000);
   hovered('c1', m);
   assert.equal(opacityOf(part(m, 'c1', 'header')), '1');
-  const u = mountRow(row(rootEntry(), made('c1', { animated: false }, { view: 'chrome-view' })), 3000, hoverMode);
-  await advanceFrames(2000);
-  hover(rootOf(u, 'c1'), true);
-  assert.equal(opacityOf(part(u, 'c1', 'header')), '1');
 });
 
 test('flipping the mode at run time keeps the header node and its focus', async () => {

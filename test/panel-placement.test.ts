@@ -1,5 +1,5 @@
 /**
- * Where a panel lands: placeOnAdd, placeOnShow, placeOnReturn, placeFallback and undoPlacement. First the pure
+ * Where a panel lands: placeOnAdd and placeOnShow, and the fixed rules for a return, a fallback and an undo. First the pure
  * resolver over literal rows (every expected id array is written out, none is derived from the code under test), then
  * the show, return and undo paths through the real provider. Rows are built the way a creation path builds them:
  * appendPanel's skeleton, then applyTemplate over a resolved layer.
@@ -9,7 +9,8 @@ import assert from 'node:assert/strict';
 import './support/jsdom-globals.js';
 import * as React from 'react';
 import { act } from 'react';
-import { PanelRow, registerView, resolvePanelSettings, useProvidePanels } from '../index.js';
+import { PanelRow, registerView, useProvidePanels } from '../index.js';
+import { resolvePanelSettings } from '../panelSettings.js';
 import type { PanelSettings, PanelWindow, PanelsInput, ProvidedPanels, ResolvedPanelSettings, SettingNote } from '../index.js';
 import { placePanel, reportNotes, resolvePlacement, restorePlaced, type NamedPlacement, type PlacementOptions } from '../panelPlacement.js';
 import { computeRowOrder, deriveAnchorsFromOrder } from '../panelRowOrder.js';
@@ -20,7 +21,7 @@ import { differential, differentialsCovered } from './support/differential.js';
 import { advanceFrames, cleanup, mount, panelsInput, withHost } from './support/mount-harness.js';
 
 const ROOT = 'H';
-const OWNED = ['placeOnAdd', 'placeOnShow', 'placeOnReturn', 'placeFallback', 'undoPlacement'];
+const OWNED = ['placeOnAdd', 'placeOnShow'];
 
 registerView('place-view', ({ panel }) => React.createElement('i', { 'data-slot': panel.id }, panel.title));
 
@@ -70,7 +71,7 @@ interface Row {
 const A_VARIANTS = [true, false] as const;
 const a = (live: boolean): PanelWindow => made('A', {}, { live });
 
-// placeFallback is 'row-start' throughout the table, so a value that fell back is visible against row-end's default.
+// The table's fallback is 'row-start', so a value that fell back is visible against the fixed 'row-end'.
 const FALLBACK: NamedPlacement = 'row-start';
 
 const ROWS: readonly Row[] = [
@@ -300,7 +301,7 @@ test('row-end is the 0.1.0 default { position: right } by computeRowOrder id seq
 
 const abc = (): PanelWindow[] => rowOf([fixed('H'), made('A'), made('B')]);
 
-test('a missing target, a self-naming target, an order with no list and an order of unknown ids all land at placeFallback with one note', () => {
+test('a missing target, a self-naming target, an order with no list and an order of unknown ids all land at the fallback with one note', () => {
   const cases: { name: string; value: AddPlacement; order?: () => readonly string[] }[] = [
     { name: 'missing before', value: { before: 'ghost' } },
     { name: 'missing after', value: { after: 'ghost' } },
@@ -364,7 +365,7 @@ test('restorePlaced: old-slot is restorePanel at the old index, any other value 
   assert.deepEqual(ids(restorePlaced(row, closed, 1, 'row-end', o).row), ['H', 'A', 'B', 'X']);
   assert.deepEqual(ids(restorePlaced(row, closed, 3, { after: 'H' }, o).row), ['H', 'X', 'A', 'B']);
   const missing = restorePlaced(row, closed, 3, { after: 'ghost' }, o);
-  assert.deepEqual(ids(missing.row), ['X', 'H', 'A', 'B'], 'a missing target uses placeFallback, row-start here');
+  assert.deepEqual(ids(missing.row), ['X', 'H', 'A', 'B'], 'a missing target uses the fallback, row-start here');
   assert.equal(missing.notes.length, 1);
   assert.equal(restorePlaced(row, closed, 1, 'row-end', o).row.find((p) => p.id === 'X')!.live, true);
   const parkedClosed = made('Y', {}, { live: false });
@@ -372,10 +373,8 @@ test('restorePlaced: old-slot is restorePanel at the old index, any other value 
   assert.deepEqual(ids(restorePlaced(row, row[1]!, 0, 'row-start', o).row), ['H', 'A', 'B'], 'an id already present: unchanged');
 });
 
-test('placeOnAdd in-place is refused by the resolver with invalid-settings, and placeFallback takes only the five named positions', () => {
+test('placeOnAdd in-place is refused by the resolver with invalid-settings', () => {
   assert.throws(() => resolvePanelSettings({ template: { placeOnAdd: 'in-place' as unknown as 'row-end' } }), (error: unknown) => (error as { code?: string }).code === 'invalid-settings');
-  assert.throws(() => resolvePanelSettings({ template: { placeFallback: 'order' as unknown as 'row-end' } }), (error: unknown) => (error as { code?: string }).code === 'invalid-settings');
-  assert.throws(() => resolvePanelSettings({ template: { placeFallback: { after: 'x' } as unknown as 'row-end' } }), (error: unknown) => (error as { code?: string }).code === 'invalid-settings');
 });
 
 // ---------------------------------------------------------------------------
@@ -388,20 +387,7 @@ test('differential placeOnAdd: the resolved setting decides where an appended pa
     for (const value of ['row-start', 'row-end'] as const) {
       run(value, () => {
         const settings = resolve({ placeOnAdd: value });
-        const { anchor } = resolvePlacement(row, ROOT, 'N', settings.placeOnAdd, { fallback: settings.placeFallback });
-        return ids(appendPanel(row, { url: 'https://n.example', ...(anchor === null ? {} : { anchor }) }, 'N', ROOT));
-      });
-    }
-  });
-});
-
-test('differential placeFallback: a missing target lands where the resolved placeFallback says', () => {
-  differential('placeFallback', (run) => {
-    const row = abc();
-    for (const value of ['row-start', 'row-end'] as const) {
-      run(value, () => {
-        const settings = resolve({ placeFallback: value });
-        const { anchor } = resolvePlacement(row, ROOT, 'N', { after: 'ghost' }, { fallback: settings.placeFallback });
+        const { anchor } = resolvePlacement(row, ROOT, 'N', settings.placeOnAdd, { fallback: 'row-end' });
         return ids(appendPanel(row, { url: 'https://n.example', ...(anchor === null ? {} : { anchor }) }, 'N', ROOT));
       });
     }
@@ -516,14 +502,14 @@ test('show: a parked panel is re-placed by placeOnShow in the update that makes 
   }
 });
 
-test('show: placeOnShow is read by the show path and placeOnReturn is not; a show with an unreachable target notes a fallback', () => {
+test('show: placeOnShow is read by the show path; a show with an unreachable target notes a fallback', () => {
   const notes: SettingNote[] = [];
-  const provider = provide([fixed(ROOT), made('A'), made('B', { placeOnShow: 'in-place', placeOnReturn: 'row-start' }, { live: false }), made('C', { placeOnShow: { after: 'ghost' }, placeFallback: 'row-start' }, { live: false })], { over: { onNote: (n) => notes.push(n) } });
+  const provider = provide([fixed(ROOT), made('A'), made('C', { placeOnShow: { after: 'ghost' } }, { live: false }), made('B', { placeOnShow: 'in-place' }, { live: false })], { over: { onNote: (n) => notes.push(n) } });
   act(() => provider.now().activate('B'));
-  assert.deepEqual(provider.ids(), ['H', 'A', 'B', 'C'], 'placeOnReturn row-start does not move a shown panel');
+  assert.deepEqual(provider.ids(), ['H', 'A', 'C', 'B'], 'in-place does not move a shown panel');
   assert.equal(notes.length, 0);
   act(() => provider.now().activate('C'));
-  assert.deepEqual(provider.ids(), ['C', 'H', 'A', 'B'], 'the missing target landed at placeFallback row-start');
+  assert.deepEqual(provider.ids(), ['H', 'A', 'B', 'C'], 'the missing target landed at the row end');
   assert.deepEqual(notes.map((n) => [n.code, n.panelId]), [['placement-fallback', 'C']]);
 });
 
@@ -536,55 +522,40 @@ test('show: a panel placed by placeOnShow is not recorded as a person override -
   assert.equal(after.settings!.placeOnShow, 'row-start');
 });
 
-test('return: automatic returns keep their slot under the default placeOnReturn, and a custom value re-places the returning panel in the same update that makes it live', () => {
-  const rise = (a: Partial<PanelSettings>, b: Partial<PanelSettings>) => {
-    const provider = provide([fixed(ROOT), made('A', a), made('B', b), made('C'), made('D')], { width: W(4) });
-    act(() => provider.setWidth(W(2)));
-    assert.deepEqual(provider.flags(), ['H', 'A~', 'B~', 'C', 'D'], 'control: the narrow row parked A and B');
-    act(() => provider.setWidth(W(4)));
-    return provider;
-  };
-  assert.deepEqual(rise({}, {}).flags(), ['H', 'A', 'B', 'C', 'D'], 'default: both return in their own slots');
-  // Return order is latest-first: B returns, and is placed, before A.
-  assert.deepEqual(rise({ placeOnReturn: 'row-end' }, { placeOnReturn: 'row-end' }).flags(), ['H', 'C', 'D', 'B', 'A']);
-  assert.deepEqual(rise({ placeOnReturn: 'row-start' }, { placeOnReturn: { after: 'D' } }).flags(), ['A', 'H', 'C', 'D', 'B']);
-  assert.deepEqual(rise({ placeOnReturn: { after: 'C' } }, { placeOnReturn: 'row-start' }).flags(), ['B', 'H', 'C', 'A', 'D']);
+test('return: automatic returns keep their slot', () => {
+  const provider = provide([fixed(ROOT), made('A'), made('B'), made('C'), made('D')], { width: W(4) });
+  act(() => provider.setWidth(W(2)));
+  assert.deepEqual(provider.flags(), ['H', 'A~', 'B~', 'C', 'D'], 'control: the narrow row parked A and B');
+  act(() => provider.setWidth(W(4)));
+  assert.deepEqual(provider.flags(), ['H', 'A', 'B', 'C', 'D'], 'both return in their own slots');
 });
 
-test('return: a panel returned by the reveal after a close is placed by placeOnReturn', () => {
-  const provider = provide([fixed(ROOT), made('A', { placeOnReturn: 'row-end' }), made('B'), made('C')], { width: W(2) });
+test('return: a panel returned by the reveal after a close keeps its slot', () => {
+  const provider = provide([fixed(ROOT), made('A'), made('B'), made('C')], { width: W(2) });
   assert.deepEqual(provider.flags(), ['H', 'A~', 'B', 'C'], 'control: the measured row parked the leftmost live panel for room');
   act(() => provider.now().close('B'));
-  assert.deepEqual(provider.flags(), ['H', 'C', 'A'], 'closing B made room: A returned live in the same update and was placed at the row end');
+  assert.deepEqual(provider.flags(), ['H', 'A', 'C'], 'closing B made room: A returned live in the same update, in its own slot');
 });
 
-test('undo: undoPlacement old-slot restores at the old index, row-end and { after: X } place the restored panel with its live flag kept, and a missing target uses placeFallback', () => {
-  const undone = (layer: PanelSettings, live = true) => {
-    const notes: SettingNote[] = [];
-    const provider = provide([fixed(ROOT), made('A'), made('X', layer, { live }), made('B'), made('C')], { over: { onNote: (n) => notes.push(n) } });
+test('undo: undoClose restores the panel at its old index, and a parked panel comes back parked', () => {
+  const undone = (live: boolean) => {
+    const provider = provide([fixed(ROOT), made('A'), made('X', {}, { live }), made('B'), made('C')]);
     act(() => provider.now().close('X'));
     assert.deepEqual(provider.ids(), ['H', 'A', 'B', 'C'], 'control: X closed');
     act(() => provider.now().undoClose());
-    return { provider, notes };
+    return provider;
   };
-  assert.deepEqual(undone({}).provider.ids(), ['H', 'A', 'X', 'B', 'C'], 'old-slot is today\'s restorePanel index');
-  assert.deepEqual(undone({ undoPlacement: 'row-end' }).provider.ids(), ['H', 'A', 'B', 'C', 'X']);
-  assert.deepEqual(undone({ undoPlacement: { after: 'C' } }).provider.ids(), ['H', 'A', 'B', 'C', 'X']);
-  assert.deepEqual(undone({ undoPlacement: { before: 'A' } }).provider.ids(), ['H', 'X', 'A', 'B', 'C']);
-  const parkedRestore = undone({ undoPlacement: 'row-end' }, false).provider;
-  assert.deepEqual(parkedRestore.flags(), ['H', 'A', 'B', 'C', 'X~'], 'a parked panel comes back parked, in the placed slot');
-  const missing = undone({ undoPlacement: { after: 'ghost' }, placeFallback: 'row-start' });
-  assert.deepEqual(missing.provider.ids(), ['X', 'H', 'A', 'B', 'C']);
-  assert.deepEqual(missing.notes.map((n) => n.code), ['placement-fallback']);
+  assert.deepEqual(undone(true).ids(), ['H', 'A', 'X', 'B', 'C']);
+  assert.deepEqual(undone(false).flags(), ['H', 'A', 'X~', 'B', 'C']);
 });
 
 test('undo: a restored live panel goes through the room-making rule -- the row is full, so the farthest live panel is parked', () => {
-  const provider = provide([fixed(ROOT), made('A'), made('B'), made('X', { undoPlacement: 'row-end' })], { width: W(2) });
+  const provider = provide([fixed(ROOT), made('A'), made('B'), made('X')], { width: W(2) });
   assert.deepEqual(provider.flags(), ['H', 'A~', 'B', 'X'], 'control: the measured row parked A');
   act(() => provider.now().close('X'));
   assert.deepEqual(provider.flags(), ['H', 'A', 'B'], 'closing X made room for A');
   act(() => provider.now().undoClose());
-  assert.deepEqual(provider.flags(), ['H', 'A~', 'B', 'X'], 'X is placed at the end and live, and A, the farthest from it, parks');
+  assert.deepEqual(provider.flags(), ['H', 'A~', 'B', 'X'], 'X returns at the end and live, and A, the farthest from it, parks');
 });
 
 test('differential placeOnShow: the resolved setting decides where activate lands a parked panel', () => {
@@ -593,36 +564,6 @@ test('differential placeOnShow: the resolved setting decides where activate land
       run(value, () => {
         const provider = provide([fixed(ROOT), made('A'), made('B', { placeOnShow: value }, { live: false })]);
         act(() => provider.now().activate('B'));
-        const out = provider.ids();
-        cleanup();
-        return out;
-      });
-    }
-  });
-});
-
-test('differential placeOnReturn: the resolved setting decides where a capacity rise puts the returning panel', () => {
-  differential('placeOnReturn', (run) => {
-    for (const value of ['in-place', 'row-end'] as const) {
-      run(value, () => {
-        const provider = provide([fixed(ROOT), made('A', { placeOnReturn: value }), made('B'), made('C')], { width: W(3) });
-        act(() => provider.setWidth(W(2)));
-        act(() => provider.setWidth(W(3)));
-        const out = provider.ids();
-        cleanup();
-        return out;
-      });
-    }
-  });
-});
-
-test('differential undoPlacement: the resolved setting decides where undoClose puts the restored panel', () => {
-  differential('undoPlacement', (run) => {
-    for (const value of ['old-slot', 'row-end'] as const) {
-      run(value, () => {
-        const provider = provide([fixed(ROOT), made('A'), made('X', { undoPlacement: value }), made('B')]);
-        act(() => provider.now().close('X'));
-        act(() => provider.now().undoClose());
         const out = provider.ids();
         cleanup();
         return out;
@@ -677,72 +618,15 @@ function provideRow(initialEntries: PanelWindow[], width = 0, notes: SettingNote
   };
 }
 
-test('enter side, capacity rise: a panel returned at the row end carries a right mark and starts right of its slot, though it left from the left', async () => {
-  const provider = provideRow([marker(), made('A', { placeOnReturn: 'row-end' }), made('B'), made('C'), made('D')], W0(4));
+test('enter side, capacity rise: panels returned in place enter from the side of their old slot', async () => {
+  const provider = provideRow([marker(), made('A'), made('B'), made('C'), made('D')], W0(4));
   act(() => provider.setWidth(W0(2)));
   assert.deepEqual(provider.flags(), [MARK, 'A~', 'B~', 'C', 'D'], 'control: the narrow row parked A and B');
   await provider.settle();
   act(() => provider.setWidth(W0(4)));
-  assert.deepEqual(provider.flags(), [MARK, 'B', 'C', 'D', 'A'], 'B returned in its slot and A at the row end');
-  assert.equal(provider.now().enterSideById.get('A'), 'right');
-  assert.equal(provider.now().enterSideById.get('A'), sideOfLiveRange([...provider.now().entries], 'A'), 'the side of the slot it landed in');
-  assert.equal(provider.now().enterSideById.get('B'), 'left', 'a panel that returns in place enters from the side of its old slot');
-  assert.equal(await provider.entersFrom('A'), 1);
-});
-
-test('enter side, capacity rise: a panel returned at the row start carries a left mark', async () => {
-  const provider = provideRow([marker(), made('A'), made('B', { placeOnReturn: 'row-start' }), made('C'), made('D')], W0(4));
-  act(() => provider.setWidth(W0(2)));
-  assert.deepEqual(provider.flags(), [MARK, 'A~', 'B~', 'C', 'D']);
-  await provider.settle();
-  act(() => provider.setWidth(W0(4)));
-  assert.deepEqual(provider.flags(), ['B', MARK, 'A', 'C', 'D'], 'the row-start placement sits left of the marker');
-  assert.equal(provider.now().enterSideById.get('B'), 'left');
+  assert.deepEqual(provider.flags(), [MARK, 'A', 'B', 'C', 'D']);
+  for (const id of ['A', 'B']) assert.equal(provider.now().enterSideById.get(id), 'left', id);
   assert.equal(await provider.entersFrom('B'), -1);
-});
-
-test('enter side, reveal after a close: the revealed panel carries the side of the slot it was placed in', async () => {
-  const provider = provideRow([marker(), made('A', { placeOnReturn: 'row-end' }), made('B'), made('C')], W0(2));
-  assert.deepEqual(provider.flags(), [MARK, 'A~', 'B', 'C'], 'control: A was parked for room');
-  await provider.settle();
-  act(() => provider.now().close('B'));
-  assert.deepEqual(provider.flags(), [MARK, 'C', 'A']);
-  assert.equal(provider.now().enterSideById.get('A'), 'right');
-  assert.equal(await provider.entersFrom('A'), 1);
-});
-
-test('enter side, undo: a restored panel carries the side of its placed slot, whatever its old slot was', async () => {
-  for (const [value, want, row] of [
-    ['row-end', 'right', ['H', 'A', 'B', 'X'] as const],
-    ['row-start', 'left', ['X', 'H', 'A', 'B'] as const],
-  ] as const) {
-    const provider = provideRow([marker(), made('A'), made('X', { undoPlacement: value }), made('B')]);
-    act(() => provider.now().close('X'));
-    await provider.settle();
-    act(() => provider.now().undoClose());
-    assert.deepEqual(provider.now().entries.map((p) => p.id).map((id) => (id === MARK ? 'H' : id)), row, `undoPlacement ${value}`);
-    assert.equal(provider.now().enterSideById.get('X'), want);
-    assert.equal(provider.now().enterSideById.get('X'), sideOfLiveRange([...provider.now().entries], 'X'));
-    assert.equal(await provider.entersFrom('X'), want === 'left' ? -1 : 1);
-    cleanup();
-  }
-});
-
-test('placement notes: a placeOnReturn whose target is missing is noted exactly once on the capacity-rise return and on the reveal after a close', () => {
-  const lost = { placeOnReturn: { after: 'ghost' }, placeFallback: 'row-start' } as const;
-  const rise = provide([fixed(ROOT), made('A', lost), made('B'), made('C'), made('D')], { width: W(4), over: { onNote: (n) => riseNotes.push(n) } });
-  const riseNotes: SettingNote[] = [];
-  act(() => rise.setWidth(W(2)));
-  act(() => rise.setWidth(W(4)));
-  assert.deepEqual(rise.flags(), ['A', 'H', 'B', 'C', 'D'], 'A returned at its placeFallback');
-  assert.deepEqual(riseNotes.map((n) => [n.code, n.panelId]), [['placement-fallback', 'A']]);
-  cleanup();
-  const revealNotes: SettingNote[] = [];
-  const reveal = provide([fixed(ROOT), made('A', lost), made('B'), made('C')], { width: W(2), over: { onNote: (n) => revealNotes.push(n) } });
-  assert.deepEqual(reveal.flags(), ['H', 'A~', 'B', 'C']);
-  act(() => reveal.now().close('B'));
-  assert.deepEqual(reveal.flags(), ['A', 'H', 'C']);
-  assert.deepEqual(revealNotes.map((n) => [n.code, n.panelId]), [['placement-fallback', 'A']]);
 });
 
 test('show: two activates in one handler each place over the row the other left, not over this render', () => {
@@ -770,24 +654,13 @@ test('show: an activate that makes room parks the farthest panel and places the 
 });
 
 test('reveal after a close: the placement runs over the row an earlier update in the same handler left', () => {
-  const provider = provide([fixed(ROOT), made('A', { placeOnReturn: 'row-end' }), made('B'), made('C'), made('D')], { width: W(3) });
+  const provider = provide([fixed(ROOT), made('A'), made('B'), made('C'), made('D')], { width: W(3) });
   assert.deepEqual(provider.flags(), ['H', 'A~', 'B', 'C', 'D']);
   act(() => {
     provider.now().move('D', 'left');
     provider.now().close('B');
   });
-  assert.deepEqual(provider.flags(), ['H', 'D', 'C', 'A']);
-});
-
-test('undo: two panels restored by one undoClose are each placed over the row the first left, with no fallback note', () => {
-  const notes: SettingNote[] = [];
-  const provider = provide([fixed(ROOT), made('A'), made('X', { undoPlacement: { after: 'Y' } }), made('Y', { undoPlacement: 'row-end' }), made('B')], { over: { onNote: (n) => notes.push(n) } });
-  act(() => provider.now().close('X'));
-  act(() => provider.now().close('Y'));
-  assert.deepEqual(provider.ids(), ['H', 'A', 'B']);
-  act(() => provider.now().undoClose());
-  assert.deepEqual(provider.ids(), ['H', 'A', 'B', 'Y', 'X'], 'Y, closed last, is restored first at the row end, and X lands after it');
-  assert.deepEqual(notes, [], 'X found Y, so nothing fell back');
+  assert.deepEqual(provider.flags(), ['H', 'A', 'D', 'C']);
 });
 
 // ---------------------------------------------------------------------------
@@ -810,7 +683,7 @@ for (const c of SIDE_CASES) {
   test(`enter side: with the root absent, a panel shown at ${c.name} carries the explicit mark of the side it landed on, and its slot starts there`, async () => {
     let provided: ProvidedPanels | undefined;
     function Probe(): React.ReactElement {
-      provided = useProvidePanels(panelsInput({ rootId: 'gone', initialEntries: [made('A'), made('C'), made('B', { placeOnShow: c.value, placeFallback: 'row-end' }, { live: false })] }));
+      provided = useProvidePanels(panelsInput({ rootId: 'gone', initialEntries: [made('A'), made('C'), made('B', { placeOnShow: c.value }, { live: false })] }));
       return React.createElement(PanelRow, {
         entries: provided.entries,
         rootId: 'gone',

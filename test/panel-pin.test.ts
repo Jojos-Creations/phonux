@@ -164,7 +164,7 @@ test('a fixed pin keeps an explicit resizable:true the panel asked for, and forc
   const r = await pinRig({ settings: { c: layer(COMBINED, { resizable: true }) } });
   assert.equal(brief(r.turn(() => r.h.c!.pin())), 'T');
   assert.equal(r.state('c').settings.resizable, true, 'the panel asked for it');
-  const { resolvePanelSettings } = await import('../index.js');
+  const { resolvePanelSettings } = await import('../panelSettings.js');
   const plain = resolvePanelSettings({ template: layer(COMBINED), user: { parkable: false } });
   assert.deepEqual([plain.value.resizable, plain.value.slots, plain.conflicts.filter((c) => c.key === 'resizable')], [false, 1, []], 'unasked, the fixed column is one slot and not resizable');
 });

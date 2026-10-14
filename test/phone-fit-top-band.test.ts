@@ -28,7 +28,7 @@ const GAP = 24;
 const PREFERRED = { width: 390, height: 700 };
 const probe = definePanel({
   id: 'probe',
-  settings: { frame: 'none' },
+  settings: {},
   view: ({ handle }) => {
     const size = usePhoneSize();
     return React.createElement('i', { 'data-slot': handle.id, 'data-phone': `${size.width}x${size.height}` });

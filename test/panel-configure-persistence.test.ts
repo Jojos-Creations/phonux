@@ -47,7 +47,7 @@ const right = (priority: number): AnchorRequest => ({ panel: 'root', position: '
 /** The anonymous instance of template m, wherever the launch put it. */
 const anonymous = (r: PinRig): PanelHandle => r.ws.panels.list().find((h) => h.templateId === 'm')!;
 
-test('rememberLayout true, false, true over three launches: the dragged and the resized panel keep their overrides and apply again', async () => {
+test('a dragged and a resized panel keep their overrides over three launches, and a later move is recorded beside them', async () => {
   const store = memoryWorkspaceStorage();
   let r = await launch(store);
   r.turn(() => r.h.c!.move(-1, 'person'));
@@ -59,20 +59,13 @@ test('rememberLayout true, false, true over three launches: the dragged and the 
 
   r = await launch(store);
   assert.deepEqual([r.order().join(' '), r.entry('b').slots], ['root a c b', 2], 'launch 2 applies them');
-  for (const id of ['b', 'c']) assert.deepEqual({ ...ok(r.turn(() => r.h[id]!.configure({ rememberLayout: false }))) }, { ok: true, changed: true, shown: false, now: [], later: ['rememberLayout'], shadowed: [], notes: [] });
-  r.turn(() => r.h.c!.move(1, 'person'));
-  r.turn(() => r.h.b!.setSlots(1, 'person'));
-  assert.deepEqual([r.order().join(' '), r.entry('b').slots], ['root a b c', 1], 'the session moves on');
-  await wait();
-  assert.deepEqual(await overridesOf(store), first, 'while rememberLayout is false nothing is recorded and the stored overrides ride through every save');
-  for (const id of ['b', 'c']) ok(r.turn(() => r.h[id]!.configure({ rememberLayout: true })));
   r.turn(() => r.h.a!.move(1, 'person'));
-  assert.equal(r.order().join(' '), 'root b a c');
+  assert.equal(r.order().join(' '), 'root c a b');
   await quit(r);
-  assert.deepEqual(await overridesOf(store), { b: { anchor: right(0), slots: 2 }, a: { anchor: right(1) }, c: { anchor: right(2) } }, 'true again records, and the resize the false stretch skipped never replaced the stored two slots');
+  assert.deepEqual(await overridesOf(store), { c: { anchor: right(0) }, a: { anchor: right(1) }, b: { anchor: right(2), slots: 2 } }, 'the move is recorded and the stored two slots ride through the save');
 
   r = await launch(store);
-  assert.deepEqual([r.order().join(' '), r.entry('b').slots], ['root b a c', 2], 'launch 3 applies what was kept');
+  assert.deepEqual([r.order().join(' '), r.entry('b').slots], ['root c a b', 2], 'launch 3 applies what was kept');
 });
 
 test('resizable false after the person resized to two slots: the count stays 2 in the session and, saved on an anonymous instance, in the next launch', async () => {
@@ -114,26 +107,6 @@ test('maxSlots lowered below the person\'s saved count clamps it without a note,
   r = await launch(store, { extra: ANON });
   assert.equal(anonymous(r).getState().settings.slots, 1);
   assert.deepEqual(r.m.notes.filter((n) => n.code === 'override-dropped').map((n) => [n.key, n.message]), []);
-});
-
-test('persist saved to session: the live panel is untouched, rememberLayout true beside it is a settings-conflict, and a panel anchored to it is saved against the row without it', async () => {
-  const store = memoryWorkspaceStorage();
-  const settings = { c: { placeOnAdd: { after: 'b' } } } as Record<string, PanelSettings>;
-  let r = await launch(store, { settings });
-  assert.equal(r.order().join(' '), 'root a b c');
-  assert.deepEqual(r.entry('c').anchor, { panel: r.entry('b').id, position: 'right', priority: 0 }, 'control: c hangs on b');
-  const conflict = r.turn(() => r.h.b!.configure({ persist: 'session', rememberLayout: true }));
-  assert.deepEqual({ ...conflict }, { ok: false, code: 'settings-conflict', message: "panel 'b': rememberLayout: the instance layer asked true, but C3 makes it false because of persist", setting: 'rememberLayout' });
-  const anchor = r.entry('b').anchor;
-  assert.deepEqual({ ...ok(r.turn(() => r.h.b!.configure({ persist: 'session' }))) }, { ok: true, changed: true, shown: false, now: [], later: ['persist'], shadowed: [], notes: [] });
-  assert.deepEqual([r.entry('b').anchor === anchor, r.order().join(' '), r.live().join(' ')], [true, 'root a b c', 'root a b c'], 'the live panel did not move');
-  r.turn(() => r.h.a!.move(1, 'person'));
-  await quit(r);
-  const saved = await file(store);
-  assert.deepEqual(saved.panels.map((p) => p.key), ['a', 'c'], 'the session panel is not in the file');
-  assert.deepEqual(saved.panels.map((p) => p.anchor), [right(1), right(2)], 'and c is anchored to the root by the row without b');
-  r = await launch(store, { settings });
-  assert.equal(r.order().join(' '), 'root a c b', 'launch 2: b is declared again, and nothing of the session came back from the file');
 });
 
 test('configure on an anonymous instance restores configured; the same patch on a declared panel does not, the declaration wins', async () => {
@@ -186,10 +159,8 @@ test('the file\'s overrides are unchanged by any configure, whatever its class a
     ['a', { slots: 1, maxSlots: 2 }],
     ['c', { scrollOnOpen: 'center', placeOnAdd: 'row-start', listed: false }],
     ['b', { parkable: true }],
-    ['b', { pinning: { pinned: { parkable: false }, unpinned: { parkable: true } }, keepMounted: false }],
+    ['b', { pinning: { pinned: { parkable: false }, unpinned: { parkable: true } } }],
     ['c', { tuning: { slide: { durationSec: 0.2 } }, headerButtons: { x: false } }],
-    ['a', { rememberLayout: false }],
-    ['a', { rememberLayout: null }],
   ];
   for (const [id, patch] of patches) ok(r.turn(() => r.h[id]!.configure(patch as never)));
   await quit(r);

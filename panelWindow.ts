@@ -7,9 +7,9 @@ import type { JsonValue, PanelSize } from './hostApi.js';
 import { isPresent, type NeighborWidths, type PanelRowEntry } from './panelRowEntry.js';
 import { computeRowOrder, deriveAnchorsFromOrder } from './panelRowOrder.js';
 import type { PanelAnchor } from './panelRowOrder.js';
-import { effective } from './panelSettings.js';
+import { FIXED, effective } from './panelSettings.js';
 import { newPanelUid } from './panelUid.js';
-import type { AddPlacement, PanelSettings, ResolvedPanelSettings } from './panelSettings.js';
+import type { AddPlacement, FixedBehaviour, PanelSettings, ResolvedPanelSettings } from './panelSettings.js';
 import type { DeferredPin } from './panelTemplate.js';
 import { DEFAULT_PANEL_SIZE, sizeOfSlots } from './panelTiers.js';
 import { HOP_FRACTION } from './rowConstants.js';
@@ -189,10 +189,10 @@ export function parksForRoom(p: PanelWindow | PanelRowEntry): boolean {
   return p.collapsible && effective(p).overflow === 'park';
 }
 
-/** The park-lever settings of `p`: its own when its `overflow` is 'park', the library defaults otherwise, because a panel the row never parks for room has no lever to pull. @internal */
-export function parkLevers(p: PanelWindow): Pick<ResolvedPanelSettings, 'evictionRank' | 'evictionOrder' | 'returnPriority' | 'capacityReturn'> {
+/** The park levers of `p`: its own `capacityReturn` when its `overflow` is 'park', 'auto' otherwise, because a panel the row never parks for room has no lever to pull. @internal */
+export function parkLevers(p: PanelWindow): Pick<FixedBehaviour, 'evictionRank' | 'evictionOrder' | 'returnPriority'> & Pick<ResolvedPanelSettings, 'capacityReturn'> {
   const s = effective(p);
-  return s.overflow === 'park' ? s : { evictionRank: 0, evictionOrder: 'farthest', returnPriority: 0, capacityReturn: 'auto' };
+  return { evictionRank: FIXED.evictionRank, evictionOrder: FIXED.evictionOrder, returnPriority: FIXED.returnPriority, capacityReturn: s.overflow === 'park' ? s.capacityReturn : 'auto' };
 }
 
 /**
@@ -206,7 +206,7 @@ export function farthestLiveCollapsibleId(
   panels: PanelWindow[],
   fromIndex: number,
   exclude: ReadonlySet<string> = new Set(),
-  order: ResolvedPanelSettings['evictionOrder'] = 'farthest',
+  order: FixedBehaviour['evictionOrder'] = 'farthest',
 ): string | null {
   const candidates: { id: string; index: number; rank: number }[] = [];
   panels.forEach((p, index) => {
@@ -392,8 +392,8 @@ export function setSlots(panels: PanelWindow[], id: string, slots: number): Pane
   return panels.map((p) => (p.id === id ? { ...p, slots: next, size: sizeOfSlots(next) } : p));
 }
 
-/** Whether `p` records the person's changes at all: it carries settings and its `rememberLayout` is not false. */
-const remembers = (p: PanelWindow, rootId: string): boolean => p.id !== rootId && p.marker !== true && p.settings !== undefined && effective(p).rememberLayout;
+/** Whether `p` records the person's changes at all: it carries settings. */
+const remembers = (p: PanelWindow, rootId: string): boolean => p.id !== rootId && p.marker !== true && p.settings !== undefined && FIXED.rememberLayout;
 
 /**
  * Copies each listed entry's CURRENT `key` value (its anchor, its slot count, or its `collapsible` as `parkable`) into its

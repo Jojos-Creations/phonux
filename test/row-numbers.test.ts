@@ -8,10 +8,10 @@ import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import createCache from '@emotion/cache';
 import { CacheProvider } from '@emotion/react';
-import { HostProvider, PanelRow, Workspace, registerView, resolvePanelSettings } from '../index.js';
+import { HostProvider, PanelRow, Workspace, registerView } from '../index.js';
 import type { PanelSettings, PanelWindow } from '../index.js';
 import { createFakeHost } from '../fakeHost.js';
-import { applyTemplate } from '../panelSettings.js';
+import { applyTemplate, resolvePanelSettings } from '../panelSettings.js';
 import { appendPanel, createHistoryPanel } from '../panelWindow.js';
 import { computeRowNumbers, maxScrollOf } from '../rowNumbers.js';
 

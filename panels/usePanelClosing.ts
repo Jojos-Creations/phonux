@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, type Dispatch, type SetStateAction } from 
 import { flushSync } from 'react-dom';
 import type { JsonValue } from '../hostApi.js';
 import { reportNotes, restorePlaced } from '../panelPlacement.js';
-import { effective, panelKey } from '../panelSettings.js';
+import { FIXED, effective, panelKey } from '../panelSettings.js';
 import type { AddPlacement, SettingNote } from '../panelSettings.js';
 import { closePanel, sideOfLiveRange, type PanelWindow } from '../panelWindow.js';
 import type { UsePanelManagerResult } from './usePanelManager.js';
@@ -144,16 +144,16 @@ export function usePanelClosing(
     const logId = `${closedAt}#${id}`;
     setPanels((prev) => closePanel(prev, id, rootId)?.remaining ?? prev);
     onAfterClose?.(id, found.remaining);
-    if (settings.reportClose) onPanelsClosed?.({ id: logId, title: found.closed.title ?? '', url: found.closed.url, closedAt });
-    if (settings.undoWindowMs === 0) {
+    if (FIXED.reportClose) onPanelsClosed?.({ id: logId, title: found.closed.title ?? '', url: found.closed.url, closedAt });
+    if (FIXED.undoWindowMs === 0) {
       onWindowElapsed?.([found.closed]);
       return true;
     }
     // A pin change the entry waited with dies with it; the one a closed panel waits with is on its record.
     const { deferredPin: _dropped, ...closedPanel } = found.closed;
-    setClosedBoth([...closedRef.current, { panel: closedPanel, index: found.index, logId, reported: settings.reportClose }]);
+    setClosedBoth([...closedRef.current, { panel: closedPanel, index: found.index, logId, reported: FIXED.reportClose }]);
     const now = Date.now();
-    const end = Math.max(windowEnd.current ?? 0, now + settings.undoWindowMs);
+    const end = Math.max(windowEnd.current ?? 0, now + FIXED.undoWindowMs);
     windowEnd.current = end;
     if (timer.current) clearTimeout(timer.current);
     timer.current = setTimeout(() => {
@@ -189,12 +189,12 @@ export function usePanelClosing(
     const restoredIds = new Set<string>();
     for (const { panel, index, reset } of [...batch].reverse()) {
       if (working.some((p) => p.id === panel.id || panelKey(p) === panelKey(panel))) continue;
-      const { panel: rebuilt, placeAs: ownPlacement } = reapply === undefined ? { panel, placeAs: effective(panel).undoPlacement } : reapply(panel);
+      const { panel: rebuilt, placeAs: ownPlacement } = reapply === undefined ? { panel, placeAs: FIXED.undoPlacement } : reapply(panel);
       const placeAt = reset === true ? effective(rebuilt).placeOnAdd : ownPlacement;
       // restorePanel is a pure spread and phonux never reads inside hostData, so the host's own reset runs
       // here, once per panel, and its result is what every call below restores.
       const restoringPanel = resetHostDataOnRestore ? withHostData(rebuilt, resetHostDataOnRestore(rebuilt.hostData, rebuilt)) : rebuilt;
-      const at = { rootId, fallback: effective(rebuilt).placeFallback, ...(order !== undefined ? { order } : {}) };
+      const at = { rootId, fallback: FIXED.placeFallback, ...(order !== undefined ? { order } : {}) };
       const restoreInto = (row: PanelWindow[]): PanelWindow[] => {
         const restored = restorePlaced(row, restoringPanel, index, placeAt, at).row;
         return settle === undefined ? restored : settle(restored, panel.id).row;

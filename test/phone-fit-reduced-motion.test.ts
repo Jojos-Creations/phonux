@@ -15,7 +15,7 @@ Object.defineProperty(window, 'matchMedia', {
 
 const probe = definePanel({
   id: 'fit-probe',
-  settings: { frame: 'none' },
+  settings: {},
   view: ({ handle }) => React.createElement('i', { 'data-slot': handle.id, 'data-phone': String(usePhoneSize().width) }),
 });
 

@@ -197,12 +197,6 @@ test('while a claim is held a scrollTo returns false, a create is dropped, and b
   assert.equal(m.container.scrollLeft, 1218);
 });
 
-test('instant under animated:false: the target is reached with no frame advanced', () => {
-  const m = mountRow({ entries: sixPanels({ scrollOnOpen: 'start', animated: false }) });
-  act(() => void m.latest().scrollTo('c'));
-  assert.equal(m.container.scrollLeft, 1218);
-});
-
 test('the glide takes tuning.slide.durationSec: 0.4 s is 25 frames and 0.8 s is 50', async () => {
   for (const [seconds, frames] of [[0.4, 25], [0.8, 50]] as const) {
     const m = mountRow({ entries: sixPanels({ scrollOnOpen: 'start' }), over: { tuning: { slide: { durationSec: seconds } } } });

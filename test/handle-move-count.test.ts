@@ -48,7 +48,7 @@ test('a panel that cannot be dragged refuses a count with not-draggable', async 
 });
 
 test('usePanelPinned reads PanelState.pinned, before and after a pin and a drag across the root', async () => {
-  const seen = definePanel({ id: 'seen', view: ({ panel }) => React.createElement('u', { 'data-seen': panel.id, 'data-pinned': String(usePanelPinned()) }), settings: { frame: 'none' } });
+  const seen = definePanel({ id: 'seen', view: ({ panel }) => React.createElement('u', { 'data-seen': panel.id, 'data-pinned': String(usePanelPinned()) }) });
   const r = await pinRig({ ids: ['a'], extra: [seen] });
   const s = r.ws.addPanel('seen');
   await r.settle();
@@ -76,7 +76,7 @@ test('usePanelDragProps offers a close to a closable panel only, and a reorder t
       const props = usePanelDragProps();
       return React.createElement('u', { 'data-probe': '', 'data-close': String(props.onClose !== undefined), 'data-reorder': String(props.reorder !== undefined) });
     },
-    settings: { frame: 'none', multiple: true },
+    settings: { multiple: true },
   });
   const r = await pinRig({ ids: ['a'], extra: [probe] });
   const read = (): string[][] => [...r.m.container.querySelectorAll<HTMLElement>('[data-probe]')].map((n) => [n.dataset.close!, n.dataset.reorder!]);

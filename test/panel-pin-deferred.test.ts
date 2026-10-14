@@ -311,16 +311,6 @@ test('a person pin that names a placement records overrides.anchor for every id;
   assert.equal(JSON.stringify(await overridesOf(pair)).includes('anchor'), false);
 });
 
-test('rememberLayout:false keeps a person pin out of the saved file', async () => {
-  const store = memoryWorkspaceStorage();
-  const r = await pinRig({ settings: { c: { pinning: FIX, rememberLayout: false } }, workspace: { storage: store }, over: quiet });
-  r.turn(() => r.h.c!.pin('person'));
-  await wait();
-  const saved = (await overridesOf(store)) as Array<{ parkable?: boolean }>;
-  assert.equal(saved.some((o) => o.parkable !== undefined), false);
-  assert.equal(r.facts('c').parkable, false, 'it still holds for the session');
-});
-
 // ---------------------------------------------------------------------------
 // Scroll: one request per show path
 // ---------------------------------------------------------------------------

@@ -9,15 +9,14 @@ import { readFileSync } from 'node:fs';
 import './support/jsdom-globals.js';
 import * as React from 'react';
 import { act } from 'react';
-import { PanelRow, registerView, resolvePanelSettings, useProvidePanels } from '../index.js';
+import { registerView, useProvidePanels } from '../index.js';
 import type { PanelSettings, PanelWindow, PanelsInput, ProvidedPanels } from '../index.js';
 import { computeRowLayout } from '../panelRowLayout.js';
-import { applyTemplate, effective } from '../panelSettings.js';
+import { applyTemplate, effective, resolvePanelSettings } from '../panelSettings.js';
 import { appendPanel, createHistoryPanel } from '../panelWindow.js';
-import { computeRowNumbers } from '../rowNumbers.js';
-import { panelRowSlotMotion, parkExitTarget, slotDriver } from '../PanelRowSlot.js';
+import { panelRowSlotMotion, parkExitTarget, } from '../PanelRowSlot.js';
 import { differential, differentialsCovered } from './support/differential.js';
-import { advanceFrames, cleanup, mount, panelsInput, withHost } from './support/mount-harness.js';
+import { cleanup, mount, panelsInput, } from './support/mount-harness.js';
 
 const ROOT = 'root';
 const OWNED = ['overflow'];
@@ -264,30 +263,6 @@ test('parkExitTarget: a scrolling row exits one span from the rest, a row that n
   assert.deepEqual(parkExitTarget(2030, 406, 'left', false), { x: -406, opacity: 0 });
   assert.deepEqual(panelRowSlotMotion(2030, 390, 700, 'right', 'left', true, 16, undefined, true).exit, { x: 1624, opacity: 0 });
   assert.deepEqual(panelRowSlotMotion(2030, 390, 700, 'right', 'left', true, 16, undefined, false).exit, { x: -406, opacity: 0 });
-});
-
-test('a kept slot in a scrolling row leaves for its rest minus one span, 1624 from a rest of 2030', async () => {
-  const keep = (id: string, live: boolean): PanelWindow => ({ ...made(id, id === 'a' ? { keepMounted: true } : {}), live });
-  const rowOf = (aLive: boolean): React.ReactElement => {
-    const entries = [scrollRoot(), keep('p1', true), keep('p2', true), keep('p3', true), keep('p4', true), keep('a', aLive)];
-    const rowNumbers = computeRowNumbers({ entries, phoneWidth: 390, containerWidth: 1000, gap: 16 });
-    return withHost(React.createElement(PanelRow, { entries, rootId: ROOT, closingIds: new Set<string>(), enteringViaAnchorIds: new Set<string>(), rowNumbers }));
-  };
-  const targets: number[] = [];
-  const { animate } = slotDriver;
-  slotDriver.animate = (el, values, transition) => {
-    targets.push(values.x);
-    return animate(el, values, transition);
-  };
-  try {
-    const mounted = mount(rowOf(true));
-    await advanceFrames(1000);
-    mounted.rerender(rowOf(false));
-    await advanceFrames(1000);
-  } finally {
-    slotDriver.animate = animate;
-  }
-  assert.deepEqual(targets, [1624]);
 });
 
 // ---------------------------------------------------------------------------
