@@ -8,7 +8,7 @@ import { test, afterEach, mock } from 'node:test';
 import assert from 'node:assert/strict';
 import './support/jsdom-globals.js';
 import { act } from 'react';
-import type { PanelSettings, PanelWindow, PanelsInput, ProvidedPanels } from '../index.js';
+import type { PanelSettings, PanelWindow, ProvidedPanels, WorkspaceTuning } from '../index.js';
 import { LIBRARY_PANEL_DEFAULTS, LIBRARY_TUNING_DEFAULTS } from '../panelSettings.js';
 import { rowScrollerFor } from '../rowScroller.js';
 import { scrollTargetFor } from '../scrollTargets.js';
@@ -21,7 +21,7 @@ afterEach(() => cleanup());
 /** The row [root a b c d e]: panel k starts at 16 + 406k. */
 const sixPanels = (layer: PanelSettings = {}): PanelWindow[] => row(rootEntry(), ...['a', 'b', 'c', 'd', 'e'].map((id) => made(id, layer)));
 
-const mountRow = (o: { entries?: PanelWindow[]; over?: Partial<PanelsInput>; width?: number }): MountedRow => mountScrollRow(o.entries ?? sixPanels(), o.width ?? 1000, o.over);
+const mountRow = (o: { entries?: PanelWindow[]; over?: Parameters<typeof mountScrollRow>[2]; width?: number }): MountedRow => mountScrollRow(o.entries ?? sixPanels(), o.width ?? 1000, o.over);
 
 /** Spies on the container's glideTo and returns the targets asked for since. */
 function glides(container: HTMLElement) {
@@ -263,10 +263,10 @@ function elevenPanels(): PanelWindow[] {
   const web = ['w1', 'w2', 'w3', 'w4', 'w5'].map((id) => made(id));
   return row(...pinned, rootEntry(), ...web);
 }
-const initial = (initialScroll: NonNullable<PanelsInput['tuning']>['initialScroll']): Partial<PanelsInput> => ({ tuning: { initialScroll } });
+const initial = (initialScroll: NonNullable<WorkspaceTuning['initialScroll']>): Parameters<typeof mountScrollRow>[2] => ({ tuning: { initialScroll } });
 
 test('initialScroll with no storage runs at the first measured commit, to literal values: start 0, root 2030, end 3482, a panel by id 3248', () => {
-  const expected: [NonNullable<PanelsInput['tuning']>['initialScroll'], number][] = [['start', 0], ['root', 2030], ['end', 3482], [{ panel: 'w3' }, 3248]];
+  const expected: [NonNullable<WorkspaceTuning['initialScroll']>, number][] = [['start', 0], ['root', 2030], ['end', 3482], [{ panel: 'w3' }, 3248]];
   for (const [value, at] of expected) {
     const m = mountRow({ entries: elevenPanels(), over: initial(value) });
     assert.equal(m.container.scrollLeft, at, JSON.stringify(value));
@@ -315,7 +315,7 @@ function deferredStorage(): { storage: WorkspaceStorage; resolve: () => void } {
   return { storage: { load: () => loaded, save: () => undefined }, resolve: () => release(savedState()) };
 }
 
-const deferredRow = (initialScroll: NonNullable<PanelsInput['tuning']>['initialScroll']) => {
+const deferredRow = (initialScroll: NonNullable<WorkspaceTuning['initialScroll']>) => {
   const { storage, resolve } = deferredStorage();
   const m = mountRow({ entries: [rootEntry()], over: { storage, workspaceDefaults: {}, tuning: { initialScroll } } });
   return { m, resolve };

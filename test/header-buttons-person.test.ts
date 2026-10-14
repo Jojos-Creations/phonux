@@ -114,7 +114,7 @@ test('click: a second press in one turn gets busy from the verb', async () => {
 test('person: a press records the person\'s anchor, parkable and form factor; a pin after an await and a pin from code record nothing', async () => {
   const pin = (extra: Partial<HeaderButton> = {}): HeaderButton => slot('Pin', { onClick: (h) => void h.pin(), ...extra });
   const store = memoryWorkspaceStorage();
-  const rig = await headerRig({ ids: ['c', 'd'], settings: { c: { pinning: FIX } }, workspace: { storage: store }, over: quiet, slots: { pin: pin(), size: slot('Size', { onClick: (h) => void cycle(h) }) } });
+  const rig = await headerRig({ ids: ['c', 'd'], settings: { c: { pinning: FIX } }, workspace: { storage: store, ...quiet }, slots: { pin: pin(), size: slot('Size', { onClick: (h) => void cycle(h) }) } });
   press(rig, 'c', 'Pin');
   press(rig, 'd', 'Size');
   await wait();
@@ -125,7 +125,7 @@ test('person: a press records the person\'s anchor, parkable and form factor; a 
 
   cleanup();
   const later = memoryWorkspaceStorage();
-  const after = await headerRig({ ids: ['c'], settings: { c: { pinning: FIX } }, workspace: { storage: later }, over: quiet, slots: { pin: slot('Pin', { onClick: async (h) => { await Promise.resolve(); h.pin(); } }) } });
+  const after = await headerRig({ ids: ['c'], settings: { c: { pinning: FIX } }, workspace: { storage: later, ...quiet }, slots: { pin: slot('Pin', { onClick: async (h) => { await Promise.resolve(); h.pin(); } }) } });
   press(after, 'c', 'Pin');
   await wait();
   assert.equal(after.state('c').pinned, true, 'the pin itself still ran');
@@ -133,7 +133,7 @@ test('person: a press records the person\'s anchor, parkable and form factor; a 
 
   cleanup();
   const code = memoryWorkspaceStorage();
-  const fromCode = await headerRig({ ids: ['c'], settings: { c: { pinning: FIX } }, workspace: { storage: code }, over: quiet, slots: { pin: pin() } });
+  const fromCode = await headerRig({ ids: ['c'], settings: { c: { pinning: FIX } }, workspace: { storage: code, ...quiet }, slots: { pin: pin() } });
   fromCode.turn(() => fromCode.h.c!.pin());
   await wait();
   assert.deepEqual(await overridesOf(code), [{}], 'handle.pin() from code');

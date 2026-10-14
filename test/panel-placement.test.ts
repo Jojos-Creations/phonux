@@ -9,7 +9,7 @@ import assert from 'node:assert/strict';
 import './support/jsdom-globals.js';
 import * as React from 'react';
 import { act } from 'react';
-import { PanelRow, registerView, useProvidePanels } from '../index.js';
+import { PanelRow, useProvidePanels } from '../index.js';
 import { resolvePanelSettings } from '../panelSettings.js';
 import type { PanelSettings, PanelWindow, PanelsInput, ProvidedPanels, ResolvedPanelSettings, SettingNote } from '../index.js';
 import { placePanel, reportNotes, resolvePlacement, restorePlaced, type NamedPlacement, type PlacementOptions } from '../panelPlacement.js';
@@ -18,12 +18,13 @@ import { applyTemplate } from '../panelSettings.js';
 import type { AddPlacement } from '../panelSettings.js';
 import { anchorPanel, appendPanel, createHistoryPanel, sideOfLiveRange, type AnchorRequest } from '../panelWindow.js';
 import { differential, differentialsCovered } from './support/differential.js';
-import { advanceFrames, cleanup, mount, panelsInput, withHost } from './support/mount-harness.js';
+import { advanceFrames, cleanup, mount, withHost, useSeededInput, type SeedOptions } from './support/mount-harness.js';
+import { registerTestView } from './support/test-views.js';
 
 const ROOT = 'H';
 const OWNED = ['placeOnAdd', 'placeOnShow'];
 
-registerView('place-view', ({ panel }) => React.createElement('i', { 'data-slot': panel.id }, panel.title));
+registerTestView('place-view', ({ panel }) => React.createElement('i', { 'data-slot': panel.id }, panel.title));
 
 const resolve = (layer: PanelSettings = {}): ResolvedPanelSettings => resolvePanelSettings({ template: layer }).value;
 const ids = (panels: readonly PanelWindow[]): string[] => panels.map((p) => p.id);
@@ -32,7 +33,7 @@ const liveFlags = (panels: readonly PanelWindow[]): string[] => panels.map((p) =
 /** A parkable panel as a creation path builds it: appendPanel's skeleton, then the 'create' writer over `layer`. */
 function made(id: string, layer: PanelSettings = {}, over: Partial<PanelWindow> = {}): PanelWindow {
   const skeleton = appendPanel([], { url: `https://${id}.example`, title: id, view: 'place-view' }, id, ROOT)[0]!;
-  return applyTemplate({ ...skeleton, ...over }, resolve({ overflow: 'park', ...layer }), 'create');
+  return { ...applyTemplate({ ...skeleton, ...over }, resolve({ overflow: 'park', ...layer }), 'create'), instance: { overflow: 'park', ...layer } };
 }
 /** A fixed column: never parked, anchored to nothing when it is the root. */
 const fixed = (id: string): PanelWindow => applyTemplate({ ...createHistoryPanel(id), title: id }, resolvePanelSettings({ template: { title: id } }, { root: true }).value, 'create');
@@ -463,13 +464,13 @@ test('{ anchor } keeps the priority it was given: a fractional priority lands be
 
 interface ProvideOptions {
   width?: number;
-  over?: Partial<PanelsInput>;
+  over?: Partial<Omit<PanelsInput, 'workspace'>> & SeedOptions;
 }
 /** useProvidePanels over `initialEntries`; `setWidth` re-renders the same provider at another row width. */
 function provide(initialEntries: PanelWindow[], options: ProvideOptions = {}) {
   let latest: ProvidedPanels | undefined;
   function Probe({ containerWidth }: { containerWidth: number }): React.ReactElement {
-    latest = useProvidePanels(panelsInput({ rootId: ROOT, initialEntries, containerWidth, ...options.over }));
+    latest = useProvidePanels(useSeededInput({ rootId: ROOT, initialEntries, containerWidth, ...options.over }));
     return React.createElement('output');
   }
   const mounted = mount(React.createElement(Probe, { containerWidth: options.width ?? 0 }));
@@ -585,8 +586,10 @@ const W0 = (n: number): number => 16 + 406 * n;
 function provideRow(initialEntries: PanelWindow[], width = 0, notes: SettingNote[] = []) {
   let latest: ProvidedPanels | undefined;
   function Probe({ containerWidth }: { containerWidth: number }): React.ReactElement {
-    latest = useProvidePanels(panelsInput({ rootId: MARK, initialEntries: rowOf(initialEntries, MARK), containerWidth, onNote: (n) => notes.push(n) }));
+    const input = useSeededInput({ rootId: MARK, initialEntries: rowOf(initialEntries, MARK), containerWidth, onNote: (n) => notes.push(n) });
+    latest = useProvidePanels(input);
     return React.createElement(PanelRow, {
+      workspace: input.workspace,
       entries: latest.entries,
       rootId: MARK,
       closingIds: latest.closingIds,
@@ -683,8 +686,10 @@ for (const c of SIDE_CASES) {
   test(`enter side: with the root absent, a panel shown at ${c.name} carries the explicit mark of the side it landed on, and its slot starts there`, async () => {
     let provided: ProvidedPanels | undefined;
     function Probe(): React.ReactElement {
-      provided = useProvidePanels(panelsInput({ rootId: 'gone', initialEntries: [made('A'), made('C'), made('B', { placeOnShow: c.value }, { live: false })] }));
+      const input = useSeededInput({ rootId: 'gone', initialEntries: [made('A'), made('C'), made('B', { placeOnShow: c.value }, { live: false })] });
+      provided = useProvidePanels(input);
       return React.createElement(PanelRow, {
+        workspace: input.workspace,
         entries: provided.entries,
         rootId: 'gone',
         closingIds: provided.closingIds,

@@ -8,7 +8,6 @@ import assert from 'node:assert/strict';
 import './support/jsdom-globals.js';
 import * as React from 'react';
 import { act } from 'react';
-import { PanelRow, registerView } from '../index.js';
 import { resolvePanelSettings } from '../panelSettings.js';
 import type { PanelSummary, PanelWindow, WorkspaceTuning } from '../index.js';
 import { RowHeightContext } from '../panelTuning.js';
@@ -17,16 +16,17 @@ import { appendPanel, createHistoryPanel, setSlots } from '../panelWindow.js';
 import { projectWorkspaceState } from '../workspaceState.js';
 import { ALL_SLOTS, fitSlots, slotWidth } from '../rowConstants.js';
 import { differential, differentialsCovered } from './support/differential.js';
-import { advanceFrames, cleanup, mount, withHost } from './support/mount-harness.js';
+import { advanceFrames, cleanup, mount, withHost, StaticRow } from './support/mount-harness.js';
 import { drawnSlotsOf } from '../panelTiers.js';
 import { made as scrollMade, mountRow, rootEntry, row } from './support/scroll-row.js';
+import { registerTestView } from './support/test-views.js';
 
 const ROOT = 'root';
 const NONE: ReadonlySet<string> = new Set();
 const OWNED = ['slots', 'maxSlots'];
 const summaries = new Map<string, PanelSummary>();
 
-registerView('slot-view', ({ panel }) => {
+registerTestView('slot-view', ({ panel }) => {
   summaries.set(panel.id, panel);
   return React.createElement('i', { 'data-slot': panel.id }, panel.title);
 });
@@ -43,7 +43,7 @@ function made(id: string, template: Record<string, unknown> = {}): PanelWindow {
 }
 
 const rowOf = (entries: PanelWindow[], tuning?: WorkspaceTuning, available = 0, maxLiveWidth = Number.POSITIVE_INFINITY): React.ReactElement =>
-  React.createElement(RowHeightContext.Provider, { value: available }, withHost(React.createElement(PanelRow, { entries, rootId: ROOT, closingIds: NONE, enteringViaAnchorIds: NONE, maxLiveWidth, ...(tuning === undefined ? {} : { tuning }) })));
+  React.createElement(RowHeightContext.Provider, { value: available }, withHost(React.createElement(StaticRow, { entries, rootId: ROOT, closingIds: NONE, enteringViaAnchorIds: NONE, maxLiveWidth, ...(tuning === undefined ? {} : { tuning }) })));
 
 const slotOf = (container: HTMLElement, id: string): HTMLElement => {
   const slot = container.querySelector(`[data-slot="${id}"]`)?.parentElement;
@@ -140,7 +140,7 @@ test('setSlots and a shrunk neighbour keep the phone height in a row that has ro
       assert.ok(heights().length > 0 && heights().every((h) => h === height), `setSlots(${n}): every drawn panel is ${height} tall (${heights().join(',')})`);
     }
   } finally {
-    if (original === undefined) delete (proto as unknown as Record<string, unknown>)['clientHeight'];
+    if (original === undefined) delete (proto as unknown as Record<string, unknown>).clientHeight;
     else Object.defineProperty(proto, 'clientHeight', original);
   }
 });

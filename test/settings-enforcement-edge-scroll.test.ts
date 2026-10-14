@@ -9,13 +9,14 @@ import assert from 'node:assert/strict';
 import './support/jsdom-globals.js';
 import * as React from 'react';
 import { act } from 'react';
-import { DragToClose, registerView } from '../index.js';
+import { DragToClose } from '../index.js';
 import type { PanelSettings } from '../index.js';
 import { LIBRARY_TUNING_DEFAULTS } from '../panelSettings.js';
 import { differential, differentialsCovered } from './support/differential.js';
 import { advanceFrames, cleanup } from './support/mount-harness.js';
 import { FRAME_MS } from './support/jsdom-globals.js';
 import { made, mountRow, rootEntry, row } from './support/scroll-row.js';
+import { registerTestView } from './support/test-views.js';
 
 afterEach(async () => {
   // A test that left the pointer down must not leave motion's window listeners live for the next one.
@@ -30,7 +31,7 @@ const WINDOW = 1000;
 /** Half the default zone inside the right edge: full-ramp speed halved under the defaults. */
 const POINTER = WINDOW - EDGE.zonePx / 2;
 
-registerView('enforce-edge-view', ({ panel }) =>
+registerTestView('enforce-edge-view', ({ panel }) =>
   React.createElement(DragToClose, {
     reorder: { onDragEnd: () => undefined },
     children: (handle) => React.createElement('div', { 'data-handle': panel.id, onPointerDown: handle.onPointerDown }, 'grab'),

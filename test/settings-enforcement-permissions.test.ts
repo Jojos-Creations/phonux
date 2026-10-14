@@ -11,8 +11,6 @@ import * as React from 'react';
 import { act } from 'react';
 import {
   LIBRARY_PANEL_DEFAULTS,
-  PanelRow,
-  registerView,
   usePanelCapabilities,
   usePanelCloseEligible,
   usePanelNeighborWidths,
@@ -26,7 +24,8 @@ import { appendPanel, closePanel, createHistoryPanel, movePanel, reanchorPanel, 
 import { sizeOfSlots } from '../panelTiers.js';
 import { hydrateWorkspaceState } from '../workspaceState.js';
 import { differential, differentialsCovered } from './support/differential.js';
-import { cleanup, mount, panelsInput, withHost } from './support/mount-harness.js';
+import { cleanup, mount, withHost, useSeededInput, StaticRow } from './support/mount-harness.js';
+import { registerTestView } from './support/test-views.js';
 
 const ROOT = 'root';
 const OWNED = ['closable', 'parkable', 'draggable', 'crossable', 'placeable', 'resizable', 'clearable', 'listed', 'title'];
@@ -61,7 +60,7 @@ const spyCapture = (): Spy => {
 function provide(initialEntries: PanelWindow[], over: Partial<PanelsInput> = {}): { now: () => ProvidedPanels; ids: () => string[] } {
   let latest: ProvidedPanels | undefined;
   function Probe(): React.ReactElement {
-    latest = useProvidePanels(panelsInput({ initialEntries, ...over }));
+    latest = useProvidePanels(useSeededInput({ initialEntries, ...over }));
     return React.createElement('output');
   }
   mount(React.createElement(Probe));
@@ -74,7 +73,7 @@ function provide(initialEntries: PanelWindow[], over: Partial<PanelsInput> = {})
 
 const NONE: ReadonlySet<string> = new Set();
 
-registerView('perm-probe', ({ panel }) => {
+registerTestView('perm-probe', ({ panel }) => {
   const widths = usePanelNeighborWidths();
   const caps = usePanelCapabilities();
   return React.createElement('i', {
@@ -90,7 +89,7 @@ registerView('perm-probe', ({ panel }) => {
 /** A PanelRow over `entries`, each rendered by the probe view; returns a reader of what slot `id` saw. */
 function mountRow(entries: PanelWindow[]): (id: string) => Record<string, string> {
   const probed = entries.map((p) => ({ ...p, view: 'perm-probe' }));
-  const mounted = mount(withHost(React.createElement(PanelRow, { entries: probed, rootId: ROOT, closingIds: NONE, enteringViaAnchorIds: NONE })));
+  const mounted = mount(withHost(React.createElement(StaticRow, { entries: probed, rootId: ROOT, closingIds: NONE, enteringViaAnchorIds: NONE })));
   return (id) => {
     const node = mounted.container.querySelector(`[data-probe="${id}"]`);
     assert.ok(node, `slot ${id} is not mounted`);

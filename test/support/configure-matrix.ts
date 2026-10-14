@@ -250,7 +250,7 @@ function mountWired(ws: WorkspaceHandle, width: number, over: Partial<PanelsInpu
   let latest: ProvidedPanels | undefined;
   let renders = 0;
   function Probe(): React.ReactElement {
-    latest = useProvidePanels(panelsInput({ workspace: ws, rootId: ws.rootId, containerWidth: width, overflowContainerRef: ref, onNote: (n) => void notes.push(n), ...over }));
+    latest = useProvidePanels(panelsInput({ workspace: ws, containerWidth: width, overflowContainerRef: ref, onNote: (n) => void notes.push(n), ...over }));
     rowEntries.current = latest.entries;
     renders += 1;
     const provided = latest;

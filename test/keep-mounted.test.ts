@@ -6,21 +6,22 @@ import { test, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
 import './support/jsdom-globals.js';
 import * as React from 'react';
-import { PanelRow, registerView, usePanelHidden } from '../index.js';
+import { usePanelHidden } from '../index.js';
 import type { PanelWindow } from '../index.js';
 import { resolvePanelSettings } from '../panelSettings.js';
 import { PANEL_TRANSITION } from '../index.js';
 import { enterStart, panelRowSlotMotion, parkExitTarget, slotDriver } from '../PanelRowSlot.js';
-import { advanceFrames, cleanup, mount, withHost } from './support/mount-harness.js';
+import { advanceFrames, cleanup, mount, withHost, StaticRow } from './support/mount-harness.js';
+import { registerTestView } from './support/test-views.js';
 
 const seen = { hidden: [] as boolean[] };
 
-registerView('km-view', ({ panel }) => {
+registerTestView('km-view', ({ panel }) => {
   const hidden = usePanelHidden();
   if (panel.id === 'a') seen.hidden.push(hidden);
   return React.createElement('i', { 'data-slot': panel.id });
 });
-registerView('km-root', () => React.createElement('b'));
+registerTestView('km-root', () => React.createElement('b'));
 
 const base = resolvePanelSettings().value;
 const entry = (id: string, live: boolean, over: Partial<PanelWindow> = {}): PanelWindow => ({
@@ -37,7 +38,7 @@ const entry = (id: string, live: boolean, over: Partial<PanelWindow> = {}): Pane
 });
 const root = (): PanelWindow => ({ id: 'root', url: '', title: 'History', live: true, locked: true, view: 'km-root', collapsible: false, listed: false });
 const NONE: ReadonlySet<string> = new Set();
-const rowOf = (entries: PanelWindow[]): React.ReactElement => withHost(React.createElement(PanelRow, { entries, rootId: 'root', closingIds: NONE, enteringViaAnchorIds: NONE }));
+const rowOf = (entries: PanelWindow[]): React.ReactElement => withHost(React.createElement(StaticRow, { entries, rootId: 'root', closingIds: NONE, enteringViaAnchorIds: NONE }));
 const slotOf = (container: HTMLElement, id: string): HTMLElement => {
   const view = container.querySelector(`[data-slot="${id}"]`);
   assert.ok(view, `the view of ${id} is mounted`);

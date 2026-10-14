@@ -8,20 +8,20 @@ import { test, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
 import './support/jsdom-globals.js';
 import * as React from 'react';
-import { PanelRow, registerView } from '../index.js';
 import type { PanelSettings, PanelWindow } from '../index.js';
 import { enterDirectionOf } from '../PanelRow.js';
 import { GAP, panelRowSlotMotion } from '../PanelRowSlot.js';
 import { applyTemplate, resolvePanelSettings } from '../panelSettings.js';
 import { appendPanel, createHistoryPanel } from '../panelWindow.js';
 import { differential, differentialsCovered } from './support/differential.js';
-import { advanceFrames, cleanup, mount, withHost } from './support/mount-harness.js';
+import { advanceFrames, cleanup, mount, withHost, StaticRow } from './support/mount-harness.js';
+import { registerTestView } from './support/test-views.js';
 
 const ROOT = 'root';
 const OWNED = ['layer', 'enterFrom'];
 const SPAN = 390 + GAP;
 
-registerView('motion-view', ({ panel }) => React.createElement('i', { 'data-slot': panel.id }, panel.title));
+registerTestView('motion-view', ({ panel }) => React.createElement('i', { 'data-slot': panel.id }, panel.title));
 
 const resolve = (layer: PanelSettings = {}) => resolvePanelSettings({ template: layer }).value;
 function made(id: string, layer: PanelSettings = {}, over: Partial<PanelWindow> = {}): PanelWindow {
@@ -40,7 +40,7 @@ interface Props {
 const NONE: ReadonlySet<string> = new Set();
 const row = (entries: PanelWindow[], p: Props = {}): React.ReactElement =>
   withHost(
-    React.createElement(PanelRow, {
+    React.createElement(StaticRow, {
       entries,
       rootId: ROOT,
       closingIds: p.closing ?? NONE,

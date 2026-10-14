@@ -8,8 +8,8 @@ import assert from 'node:assert/strict';
 import './support/jsdom-globals.js';
 import * as React from 'react';
 import { act } from 'react';
-import { registerView, useProvidePanels } from '../index.js';
-import type { PanelSettings, PanelWindow, PanelsInput, ProvidedPanels, SettingNote, WorkspaceState, WorkspaceStorage } from '../index.js';
+import { useProvidePanels } from '../index.js';
+import type { PanelSettings, PanelWindow, ProvidedPanels, SettingNote, WorkspaceState, WorkspaceStorage } from '../index.js';
 import { applyTemplate, resolvePanelSettings } from '../panelSettings.js';
 import { definePanel } from '../panelTemplate.js';
 import type { PanelTemplate } from '../panelTemplate.js';
@@ -19,10 +19,11 @@ import { placePanel } from '../panelPlacement.js';
 import { reconcileWorkspace } from '../workspacePlan.js';
 import { projectWorkspaceState } from '../workspaceState.js';
 import { differential, differentialsCovered } from './support/differential.js';
-import { cleanup, mount, panelsInput } from './support/mount-harness.js';
+import { cleanup, mount, useSeededInput, type SeededOver } from './support/mount-harness.js';
 import { made, mountRow, rootEntry } from './support/scroll-row.js';
+import { registerTestView } from './support/test-views.js';
 
-registerView('memory-view', ({ panel }) => React.createElement('i', null, panel.title));
+registerTestView('memory-view', ({ panel }) => React.createElement('i', null, panel.title));
 
 const ROOT = 'root';
 const QUIET_MS = 100;
@@ -70,13 +71,13 @@ interface Launch {
 }
 
 /** A provider over History alone, restored from `mem`; resolves once the load has settled. */
-async function launch(mem: Memory, over: Partial<PanelsInput> = {}): Promise<Launch> {
+async function launch(mem: Memory, over: Partial<SeededOver> = {}): Promise<Launch> {
   mock.timers.reset();
   mock.timers.enable({ apis: ['setTimeout'] });
   const notes: SettingNote[] = [];
   let latest: ProvidedPanels | undefined;
   function Probe(): React.ReactElement {
-    latest = useProvidePanels(panelsInput({ initialEntries: [createHistoryPanel(ROOT)], storage: mem.storage, tuning: { saveQuietMs: QUIET_MS }, onNote: (n) => void notes.push(n), ...over }));
+    latest = useProvidePanels(useSeededInput({ initialEntries: [createHistoryPanel(ROOT)], storage: mem.storage, tuning: { saveQuietMs: QUIET_MS }, onNote: (n) => void notes.push(n), ...over }));
     return React.createElement('output');
   }
   const mounted = mount(React.createElement(Probe));
@@ -352,15 +353,6 @@ test('a Host-bag create of a plain registerView view resolves through the cascad
   assert.equal(p.settings!.overflow, 'scroll');
 });
 
-test('with no workspaceDefaults, templates or declared a Host-bag create builds a legacy entry: no settings, parks at capacity', async () => {
-  const l = await launch(memory());
-  create(l, { view: 'memory-view', title: 'p' });
-  const p = l.byTitle('p');
-  assert.equal(p.settings, undefined);
-  assert.equal(p.key, undefined);
-  assert.equal(p.overrides, undefined);
-});
-
 test('a Host-bag create naming no template while templates exist still resolves through the cascade', async () => {
   const l = await launch(memory(), { templates: [tpl('other')] });
   create(l, { view: 'memory-view', title: 'p' });
@@ -449,7 +441,7 @@ test('S2 and S3: over 500 seeded sequences of Host-bag creates, restores and a p
       closable: random() < 0.7,
     };
     const mem = memory();
-    const over = (): Partial<PanelsInput> => ({ templates: [tpl('r', settings)], workspaceDefaults: {} });
+    const over = (): Partial<SeededOver> => ({ templates: [tpl('r', settings)], workspaceDefaults: {} });
     let l = await launch(mem, over());
     let plain = 0;
     let templated = 0;
@@ -511,7 +503,7 @@ test('a file written by the vendored 0.1.0 projectWorkspaceState restores with o
   assert.equal(l.byTitle('web').slots, 2);
 });
 
-test('a plain 0.1.0 file restores through the engine with no settings, templates or declarations, exactly as 0.1.0 hydrated it', async () => {
+test('a plain 0.1.0 file restores through a workspace with no templates or declarations: its panels keep their title, slots and no key', async () => {
   const { projectWorkspaceState: legacyProject } = await vendored();
   const tablet = { ...legacyPanel('b', 'b'), formFactor: 'tablet' as const };
   const file = legacyProject(deriveAnchors([createHistoryPanel(ROOT), legacyPanel('a', 'a'), tablet]), ROOT);
@@ -519,7 +511,7 @@ test('a plain 0.1.0 file restores through the engine with no settings, templates
   await mem.storage.save(file);
   const l = await launch(mem);
   assert.deepEqual(l.titles(), ['a', 'b']);
-  assert.deepEqual(l.latest().entries.map((p) => [p.settings === undefined, p.key, p.overrides]), [[true, undefined, undefined], [true, undefined, undefined], [true, undefined, undefined]]);
+  assert.deepEqual(l.latest().entries.map((p) => [p.key, p.overrides]), [[undefined, undefined], [undefined, undefined], [undefined, undefined]]);
   assert.equal(l.byTitle('b').slots, 2);
 });
 

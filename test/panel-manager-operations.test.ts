@@ -9,7 +9,7 @@ import * as React from 'react';
 import { act } from 'react';
 import { createWorkspace, definePanel, useProvidePanels } from '../index.js';
 import type { PanelHandle, PanelResult, PanelSettings, PanelWindow, ProvidedPanels } from '../index.js';
-import { advanceFrames, cleanup, mount, panelsInput } from './support/mount-harness.js';
+import { advanceFrames, cleanup, mount, useSeededInput } from './support/mount-harness.js';
 import { differential, differentialsCovered } from './support/differential.js';
 import { flush, markerTemplate, mountWorkspace } from './support/workspace-row.js';
 import { brief, fire, rig, TRIGGERS, type Rig } from './support/ops-rig.js';
@@ -352,7 +352,7 @@ test('without a workspace undoClose restores the closed entry at its old slot, u
   let latest!: ProvidedPanels;
   const entry = (id: string, over: Partial<PanelWindow> = {}): PanelWindow => ({ id, url: `https://${id}.example`, title: id, live: true, locked: false, view: 'web', collapsible: true, listed: true, ...over });
   function Probe(): React.ReactElement {
-    latest = useProvidePanels(panelsInput({ initialEntries: [entry('root', { url: '', locked: true, collapsible: false, listed: false }), entry('a'), entry('b'), entry('c')] }));
+    latest = useProvidePanels(useSeededInput({ initialEntries: [entry('root', { url: '', locked: true, collapsible: false, listed: false }), entry('a'), entry('b'), entry('c')] }));
     return React.createElement('output');
   }
   mount(React.createElement(Probe));

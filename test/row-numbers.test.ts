@@ -8,17 +8,19 @@ import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import createCache from '@emotion/cache';
 import { CacheProvider } from '@emotion/react';
-import { HostProvider, PanelRow, Workspace, registerView } from '../index.js';
+import { HostProvider, Workspace } from '../index.js';
 import type { PanelSettings, PanelWindow } from '../index.js';
 import { createFakeHost } from '../fakeHost.js';
 import { applyTemplate, resolvePanelSettings } from '../panelSettings.js';
 import { appendPanel, createHistoryPanel } from '../panelWindow.js';
 import { computeRowNumbers, maxScrollOf } from '../rowNumbers.js';
+import { StaticRow } from './support/seed-workspace.js';
+import { registerTestView } from './support/test-views.js';
 
 const ROOT = 'root';
 const GAP = 16;
 
-registerView('rn-view', ({ panel }) => createElement('i', { 'data-slot': panel.id }, panel.title));
+registerTestView('rn-view', ({ panel }) => createElement('i', { 'data-slot': panel.id }, panel.title));
 
 /** An entry as a creation path builds it: appendPanel's skeleton, then the 'create' writer over `layer`. */
 function made(id: string, layer: PanelSettings = {}): PanelWindow {
@@ -115,7 +117,7 @@ test('a mounted scrolling row: the container pads 16 on the left, the end elemen
   const entries = eleven().map((p) => ({ ...p, view: 'rn-view' }));
   const n = numbers(entries);
   const ref = { current: null };
-  const row = createElement(PanelRow, { entries, rootId: ROOT, closingIds: new Set<string>(), enteringViaAnchorIds: new Set<string>(), rowNumbers: n });
+  const row = createElement(StaticRow, { entries, rootId: ROOT, closingIds: new Set<string>(), enteringViaAnchorIds: new Set<string>(), rowNumbers: n });
   const workspace = createElement(Workspace, { overflowContainerRef: ref, rowRef: ref, containerWidth: 1000, rowResizeSettled: true, phoneWidth: 390, fixedColumnCount: 6, liveWidths: [], rowNumbers: n, children: row });
   const markup = renderToStaticMarkup(createElement(CacheProvider, { value: createCache({ key: 'css' }), children: createElement(HostProvider, { host: createFakeHost(), children: workspace }) }));
   assert.match(markup, /padding-left:16px/);
