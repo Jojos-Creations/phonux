@@ -96,7 +96,12 @@ setting is false, through the same per-slot context (`panelSlotContext.ts`) that
 its answer from `draggable`. It renders no DragToClose wrapper -- no grab bar at all -- when it reads false,
 exactly like History's own locked Panel today.
 
-## `size?` is additive: omitted means "read the shared device size, exactly as before this prop existed"
+## `size?` is additive: omitted means the slot's drawn size inside a row, else the shared device size
+
+Inside a row an omitted `size` on `Panel`, `PanelFrame` and `PanelSizeBox` is the size the row draws the slot at (`PanelSlotValue.drawn`: the slot's
+width, at the row's tuned gap, and the row's height), so a view computes no width of its own and a size box cannot come out
+a few px off its slot. Outside a row the rule below holds as written. The first paragraph describes the rule from before
+slots, when one panel was always one phone wide.
 
 `Panel`/`PanelFrame` (`Panel.tsx`/`PanelFrame.tsx`) each gain an optional `size?: PanelSize`
 (`PanelSize`, `hostApi.tsx`, beside `PanelSummary`). A caller that omits it -- every
@@ -1507,7 +1512,7 @@ developer's own and throw in both modes.
 `panelSettings.ts` imports no value except `rowConstants.ts` and `panelManagerError.ts`, so the table and the
 resolver load without React, Motion or any row code. `rowConstants.ts` is the one place each default number is
 written. `GAP`, `DRAG_CLOSE`, `SLOT_TRANSITION` and `WORKSPACE_SAVE_QUIET_MS` keep their names and values and read it
-(`GAP` is a re-export of `ROW_GAP`), and `test/rowconstants-drift.test.ts` asserts that no row file writes a second copy.
+(`GAP` is `ROW_GAP` under a deprecated name), and `test/rowconstants-drift.test.ts` asserts that no row file writes a second copy.
 
 ### One tuning value per render
 
