@@ -139,7 +139,7 @@ cut off by an edge: `'visible'` moves the row one slot at a time, so every panel
 (1, 2, ... its own width, then its own width ... 2, 1) and is never cropped; `'hidden'` keeps whole panels and hides the rest; `'off'` shows the neighbour at the window edge cut off, at its full size. A resize grabber calls the setter from `usePanelResizing()` so no other
 panel changes size under it (see DESIGN.md, "Whole panels only"). The setter's third item, `setDrawnWidth(px, pin?)`, draws that
 panel `px` wide at once, so the grabber follows the pointer frame by frame (`pin: 'end'` keeps the right edge still for a grabber on the left);
-end a drag with `setSlots(nearest)`, `setDrawnWidth(null)` and `setResizing(false)`, in that order. The default frame draws no resize grips. A view that wants them draws its own `Panel` and puts `<PanelResizeGrips />` in its `overlay`.
+end a drag with `setSlots(nearest)`, `setDrawnWidth(null)` and `setResizing(false)`, in that order.
 
 ## Testing a view
 

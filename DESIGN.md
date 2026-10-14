@@ -441,29 +441,6 @@ frame at the latest if none does. The edge comes to rest on a stop, so it is hel
 rests within half the gap between the two stops around it. Under 'visible' a pinned edge that was beyond the window (the panel was cut off) is not held: a stop that draws the widened panel smaller does not count, so the row lands on the nearest stop that draws it whole. A row whose panels all fit has no stops and nothing scrolls. Under 'visible', the stop number the fade
 and the steps use is the stop the row rests on.
 
-### The resize grips
-
-`PanelResizeGrips` is the library's own grabber: one on each side of a resizable panel, not drawn by the default frame, which
-leaves resizing to the view: a view that draws its own `Panel` puts it in `overlay`, and the default frame has no grips. It is built from `usePanelResizing()` and the slot context, with no new setting: it appears when
-the panel's `resizable` setting is true and at least two slots can be shown (`slotRange.most`, the fewest of `maxSlots` and the slots
-that fit), and the app's own grabber code goes away. The target is 24 px, centred on the gap between two panels, so it never covers a
-panel's controls; it is a `role="separator"` with `aria-valuenow`, `aria-valuemin`, `aria-valuemax` and a spoken `aria-valuetext`, is
-focusable, and ArrowLeft and ArrowRight step the panel one slot (the right grip grows on ArrowRight, the left grip on ArrowLeft), with
-`preventDefault` so the row does not also step.
-
-A press resizes only once the pointer has travelled 4 px; a shorter press is a click, which sets nothing and shows no drag mark. After a drag the grip swallows the one click the browser fires with the pointerup, so a click handler on the panel behind it never runs. A drag: the width follows the pointer, held between one slot and the most that fit (by `PanelRow`,
-which owns that clamp, so the grip does not repeat it), the left grip pins `'end'` and the right grip `'start'`, and the release is
-`handle.setSlots(nearest, 'person')`, `setDrawnWidth(null)`, `setResizing(false)` in that order, so the width glides from the held one to
-the slot width (a snap under Reduce Motion). A cancel or a lost pointer capture stores nothing and the width glides back. Firefox reports
-a pointer past the window edge as `clientX` 0; a move at 0 after the pointer was beyond 24 px is the last real position, not a position.
-
-The container's horizontal overflow follows `tuning.rowGesture`: 'step' scrolls with the scrollbar hidden,
-'free' scrolls with it visible, 'off' hides the overflow. A row with no settings is always hidden.
-
-`PanelsAPI.panelList` reports each panel's stored `slots` and `size`. The `panel` prop a resolved view receives
-carries the size it is drawn at, so a view that passes `panel.size` to `Panel`/`PanelFrame` stays inside
-its slot.
-
 ### Scrolling to a panel
 
 `rowScroller.ts` holds one `RowScroller` per scroll container and it is the only writer of that container's
