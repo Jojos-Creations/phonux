@@ -17,7 +17,7 @@ import { PhoneSizeContext, useRowHeightBudget } from './phoneFit.js';
 import { RowHeightContext, WorkspaceTuningContext, resolveWorkspaceTuning } from './panelTuning.js';
 import { ChromeStoreContext, createChromeStore, type DrawnPin } from './panelChrome.js';
 import { ROW_GAP, ROW_GESTURE } from './rowConstants.js';
-import { fadeAt, nearestStop, scrollHoldingEdge, type RowNumbers } from './rowNumbers.js';
+import { fadeAt, nearestStop, scrollHoldingEdge, snapToStop, type RowNumbers } from './rowNumbers.js';
 import { rowScrollerFor } from './rowScroller.js';
 import { OverlaySlot } from './windowOverlay.js';
 
@@ -230,18 +230,39 @@ export function Workspace(props: WorkspaceProps): React.ReactElement {
     const apply = (): void => {
       if (rowScrollerFor(container).claimHeld()) return;
       const opacities = fadeAt(rowNumbers, container.scrollLeft);
+      const view = container.getBoundingClientRect();
       for (const slot of strip.querySelectorAll<HTMLElement>('[data-row-slot]')) {
         const k = rowNumbers.ids.indexOf(slot.dataset.rowId ?? '');
         const opacity = k < 0 ? 1 : opacities[k]!;
+        // Showing partial keeps every panel opaque, so only one the window does not reach at all is out of reach of Tab.
+        const rect = slot.getBoundingClientRect();
+        const away = rowNumbers.showPartial ? rect.right <= view.left || rect.left >= view.right : opacity <= 0;
         slot.style.filter = opacity >= 1 ? '' : `opacity(${opacity})`;
-        slot.style.pointerEvents = opacity <= 0 ? 'none' : '';
+        slot.style.pointerEvents = away ? 'none' : '';
         // Inert too: Tab or find-in-page would otherwise scroll the row off its stop to reveal a faded panel.
-        slot.toggleAttribute('inert', opacity <= 0);
+        slot.toggleAttribute('inert', away);
       }
     };
     apply();
     container.addEventListener('scroll', apply, { passive: true });
-    return () => container.removeEventListener('scroll', apply);
+    // A click or focus in the cut-off neighbour makes the browser scroll it into view off a stop; the row settles back onto one.
+    const onFocus = (event: FocusEvent): void => {
+      const n = rowNumbers;
+      if (!n.showPartial) return;
+      const id = (event.target as Element | null)?.closest<HTMLElement>('[data-row-slot]')?.dataset.rowId;
+      const k = n.ids.indexOf(id ?? '');
+      requestAnimationFrame(() => {
+        const scroller = rowScrollerFor(container);
+        if (scroller.claimHeld() || n.stops.length === 0) return;
+        const to = k < 0 ? nearestStop(n, container.scrollLeft) : snapToStop(n, k, container.scrollLeft);
+        if (Math.abs(to - container.scrollLeft) >= 0.5) scroller.glideTo(to, { durationSec: resolved.slide.durationSec, instant: reduced, ease: resolved.slide.glideEase });
+      });
+    };
+    container.addEventListener('focusin', onFocus);
+    return () => {
+      container.removeEventListener('focusin', onFocus);
+      container.removeEventListener('scroll', apply);
+    };
   });
   return (
     <PhoneSizeContext.Provider value={phoneSize}>

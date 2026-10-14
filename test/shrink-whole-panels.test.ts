@@ -336,13 +336,13 @@ test("'hidden' at rest on a stop, to within the half pixel a browser rounds to, 
   }
 });
 
-test("'hidden' draws no panel part way: mid-glide a panel is whole or hidden, while 'off' keeps the cross-fade", () => {
+test("'hidden' draws no panel part way: mid-glide a panel is whole or hidden, while 'off' draws every panel whole", () => {
   const entries = row([1, 2, 4, 1, 3]);
   const hidden = numbers(entries, 1800, 16, 'hidden');
   const off = numbers(entries, 1800, 16, 'off');
   const mid = (hidden.stops[0]! + hidden.stops[1]!) / 2;
   for (const v of fadeAt(hidden, mid)) assert.ok(v === 0 || v === 1, `hidden: ${v}`);
-  assert.ok(fadeAt(off, mid).some((v) => v > 0 && v < 1), "'off' still cross-fades");
+  assert.ok(fadeAt(off, mid).every((v) => v === 1), "'off' fades nothing");
   const a = hidden.stopSpans[0]!;
   const b = hidden.stopSpans[1]!;
   assert.deepEqual(

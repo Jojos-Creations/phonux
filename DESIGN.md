@@ -340,8 +340,10 @@ the nearest stop that shows the panel, not at that alignment.
 #### Whole panels only: `tuning.shrinkOutOfView`
 
 Panels are whole slots, so the window holds a whole number of slots `u = floor((window + gap) / (phone + gap))`. With `'off'`
-(the default) a stop's panels are the greedy run of whole panels and the neighbour in the margin is hidden by the fade above;
-`'hidden'` has the same stops but, between two stops, a panel is whole or hidden and never part way. Neither resizes anything.
+(the default) a stop's panels are the greedy run of whole panels and the window edge cuts the neighbour in the margin, drawn at its own
+size: nothing fades or shrinks, and a panel is inert only when the window does not reach it at all. A click or focus in the cut-off
+neighbour makes the browser scroll, and the row then settles onto the nearest stop that shows that panel. `'hidden'` has the same
+stops but fades the neighbour out, and between two stops a panel is whole or hidden and never part way. Neither resizes anything.
 
 With `'visible'` the row moves one slot at a time. The strip is a run of slot units: a panel that can be drawn smaller is as many
 units as its width holds slots, an entry that cannot (no `slots`, or a width that is no whole number of slots) is one unit as wide
@@ -1583,7 +1585,7 @@ flip with a transition rule of its own) or SCOPE (a template-scope key).
 | `tuning.initialScroll` | start, end, root, { panel: PanelId } (workspace only; a design-derived key from Q15, not requested) | start (the library default, a design default the owner did not rule on; phonux-app sets 'end', owner Q20: the newest closable panels in view at launch) | NEXT (configureTuning only). Read at the next mount; nothing scrolls now. Session-only. |
 | `tuning.chrome` | object: mode 'always' or 'hover-or-active', fadeMs integer [0, 10000], fadeEase ('easeIn', 'easeOut', 'easeInOut', 'linear' or four numbers, x1 and x2 in [0,1]), slideMs integer [0, 10000], slidePx integer [0, 200], graceMs integer [0, 10000] (workspace only) | always, 120, easeOut, 140, 8, 250 (CHROME) | NOW (configureTuning only). A member patch keeps the other members. The chrome shows or hides at this commit; a fade in progress retargets. The library reads `mode`, `fadeMs` and `fadeEase` (`easeOut` is the curve Motion applies to a fade given only a duration, measured in Chromium); `slideMs`, `slidePx` and `graceMs` are for the host's own icon row. Session-only. |
 | `tuning.maxLivePanels` | integer >= 1, or null for no cap (workspace only) | null (no cap) | NOW (configureTuning only). A lower value parks the excess unpinned panels at this commit through the reconcile effect; a higher one or null returns the most recently parked, under `capacityReturn` auto as under manual (manual returns only the panels the capacity parked, never one the host hid), up to the new value, in one commit. Unmeasured: applies. Outside integers of 1 or more throws; null removes the cap. Session-only. |
-| `tuning.shrinkOutOfView` | off, visible, hidden (workspace only) | off (SHRINK_OUT_OF_VIEW) | NOW (configureTuning only). In a stepping row, what happens to the neighbour a stop's whole panels would leave cut off by the window edge; see "Whole panels only". Other values throw. |
+| `tuning.shrinkOutOfView` | off, visible, hidden (workspace only) | off (SHRINK_OUT_OF_VIEW) | NOW (configureTuning only). In a stepping row, what happens to the neighbour a stop's whole panels would leave cut off by the window edge (off shows it cut, at full size); see "Whole panels only". Other values throw. |
 | `tuning.phoneFit` | off, fit (workspace only) | off (PHONE_FIT) | NOW (configureTuning only). Whether the default mount fits the phone size to the window; see "Phone fit". Other values throw. |
 | `tuning.phoneFitMin` | number above 0 and up to 1 (workspace only) | 0.82 (PHONE_FIT_MIN) | NOW (configureTuning only). The smallest scale of the preferred phone size the fit gives; see "Phone fit". Other values throw. |
 | `tuning.phoneFitMax` | number from 1 to 4 (workspace only) | 1.13 (PHONE_FIT_MAX) | NOW (configureTuning only). The largest scale of the preferred phone size the fit gives; see "Phone fit". Other values throw. |
