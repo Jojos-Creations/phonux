@@ -72,7 +72,8 @@ export function useRowScrollGesture(
     };
     const onKeyDown = (e: KeyboardEvent): void => {
       if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
-      if (e.altKey || e.ctrlKey || e.metaKey || e.shiftKey) return;
+      // A control that used the arrow (a resize grabber) has acted; the row must not also step.
+      if (e.defaultPrevented || e.altKey || e.ctrlKey || e.metaKey || e.shiftKey) return;
       // A workspace a column keeps off-screen is inert: its row must not step for a key meant for the one in view.
       if (container.closest('[inert]') !== null) return;
       const target = e.target as HTMLElement | null;

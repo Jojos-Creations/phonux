@@ -25,6 +25,9 @@
 ### Fixed
 
 - After a reload, a panel made by `addPanel` or New view could take the key of a restored panel (`web~4`), because the counter behind default ids restarts at launch. `addPanel` then returned the restored panel and two rows could share one saved entry and one lock. A restore now moves the counter past every restored key. A workspace with its own `newId` is unchanged.
+- An arrow key a control already used no longer also steps the row. A resize grabber that narrowed a panel with ArrowLeft or ArrowRight
+  stepped the row the same way, so the leftmost panel left the window on each press (and, under Hide or Off, the resized panel could be faded).
+  The row now skips a keydown whose default was prevented, so a control that handles an arrow key calls `preventDefault()` on it; an arrow nothing handles steps as before.
 
 ## 0.2.0-rc.3
 

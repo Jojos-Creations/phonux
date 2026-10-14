@@ -186,6 +186,27 @@ test('arrows skip INPUT, TEXTAREA, SELECT and contentEditable targets and any mo
   assert.equal(stepped(), true, 'a focused button');
 });
 
+test('an arrow a control already handled does not also step the row', () => {
+  const m = stepRow(eleven(), 1000);
+  const stops = stopsOf(m, 1000);
+  const control = document.body.appendChild(document.createElement('div'));
+  control.addEventListener('keydown', (e) => e.preventDefault());
+  m.key('ArrowRight', {}, control);
+  assert.equal(m.scroller.glideTarget(), null, 'the control used the key');
+  control.remove();
+  m.key('ArrowRight');
+  assert.equal(m.scroller.glideTarget(), stops[1], 'control: an unhandled press steps');
+});
+
+test('an arrow a control only stops from bubbling never reaches the row', () => {
+  const m = stepRow(eleven(), 1000);
+  const control = document.body.appendChild(document.createElement('div'));
+  control.addEventListener('keydown', (e) => e.stopPropagation());
+  m.key('ArrowRight', {}, control);
+  assert.equal(m.scroller.glideTarget(), null);
+  control.remove();
+});
+
 test('an arrow does not step a row inside an inert ancestor, and steps again once it is not', () => {
   const m = stepRow(eleven(), 1000);
   const stops = stopsOf(m, 1000);
