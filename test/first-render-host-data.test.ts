@@ -16,10 +16,15 @@ afterEach(rigCleanup);
 
 /** One entry per render of the view: what `useHost().history` was in that pass. */
 const passes: string[] = [];
+/** The same passes for the other two seeds: the device width and whether the settings column is visible. */
+const sizes: number[] = [];
+const columns: boolean[] = [];
 const reader = definePanel({
   id: 'reader',
   view: ({ handle }) => {
-    const { history } = useHost();
+    const { history, device, settings } = useHost();
+    sizes.push(device.size.width);
+    columns.push(settings.settingsColumn.visible);
     const seen = history === undefined ? 'absent' : history.locked ? 'locked' : 'open';
     passes.push(seen);
     return React.createElement('i', { 'data-slot': handle.id }, seen);
@@ -37,12 +42,25 @@ test('a view that reads useHost().history on the first render of a workspace cre
 
 test('history, device and settings given to createWorkspace are on the very first render pass of a view', async () => {
   passes.length = 0;
+  sizes.length = 0;
+  columns.length = 0;
   const given = createFakeHost();
-  const ws = track(createWorkspace({ templates: [reader], history: { ...given.history!, locked: true }, device: given.device, settings: given.settings }));
+  const size = { width: 411, height: 731, modelId: 'test-phone' };
+  const ws = track(
+    createWorkspace({
+      templates: [reader],
+      history: { ...given.history!, locked: true },
+      device: { ...given.device, size },
+      settings: { settingsColumn: { ...given.settings.settingsColumn, visible: true } },
+    }),
+  );
   ws.addPanel('reader');
   await until('the panel', () => slots(document.body).length === 1);
   assert.equal(passes[0], 'locked', 'the first pass already had the value, not a later pass after an effect');
   assert.deepEqual([...new Set(passes)], ['locked']);
+  assert.equal(sizes[0], 411, 'the device seed is on the first pass');
+  assert.equal(columns[0], true, 'the settings seed is on the first pass');
+  assert.deepEqual([...new Set(sizes)], [411]);
 });
 
 test('a later workspace.update changes what the view reads', async () => {
