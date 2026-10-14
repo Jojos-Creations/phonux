@@ -171,7 +171,8 @@ function settleStops(picks: readonly Pick[], widths: readonly number[], offsets:
 /**
  * Per start panel, the end of the whole panels that fit the window from it (at least one) and the even margin left over,
  * for every start up to the first one from which everything remaining fits: a later stop would only add blank room.
- * Groups come from `widths` alone. A panel as wide as the window also gets a stop slid to its right edge.
+ * Groups come from `widths` alone. A panel as wide as the window with a panel after it also gets a stop slid left, by the
+ * whole panels that fit beside its right part or, when none does, by one slot.
  */
 function wholePanelStops(widths: readonly number[], offsets: readonly number[], stripWidth: number, gap: number, windowWidth: number, phoneWidth: number): StopSet {
   const picks: Pick[] = [];
@@ -181,11 +182,13 @@ function wholePanelStops(widths: readonly number[], offsets: readonly number[], 
     while (end < widths.length && used + gap + widths[end]! <= windowWidth) used += gap + widths[end++]!;
     picks.push({ first: picks.length, start: first, end, margin: Math.max(0, (windowWidth - used) / 2), shrinks: [] });
     if (end === first + 1 && widths[first]! >= windowWidth) {
-      // A panel as wide as the window would be jumped over whole by the next stop; this stop slides it so its right part stays beside the next whole panels, with at least a phone's width of it left.
+      // The next stop starts at the panel after this one and would drop it whole; this stop slides it so a right part of at least a phone's width stays beside what follows.
       let reachEnd = first + 1;
       let beside = 0;
       while (reachEnd < widths.length && beside + gap + widths[reachEnd]! <= windowWidth - phoneWidth) beside += gap + widths[reachEnd++]!;
       if (reachEnd > first + 1) picks.push({ first: picks.length, start: first, end: reachEnd, margin: 0, shrinks: [], inset: widths[first]! + beside - windowWidth });
+      // No whole panel fits beside it, so slide one slot: the next panel's first slot comes in as a neighbour the mode cuts or hides.
+      else if (reachEnd < widths.length) picks.push({ first: picks.length, start: first, end: first + 1, margin: 0, shrinks: [], inset: phoneWidth + gap });
     }
     if (end === widths.length) break;
   }
