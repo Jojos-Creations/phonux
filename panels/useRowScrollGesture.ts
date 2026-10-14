@@ -91,6 +91,5 @@ export function useRowScrollGesture(
     };
     // `overflowContainerRef` is a stable ref object (a useRef in the host's row shell): this effect attaches once,
     // at mount, and reads the latest `onStep` through `onStepRef` instead of re-subscribing to it.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [overflowContainerRef, mode]);
 }
