@@ -8,11 +8,12 @@ import assert from 'node:assert/strict';
 import './support/jsdom-globals.js';
 import * as React from 'react';
 import { MotionConfig } from 'motion/react';
-import { DragToClose, registerView, useHost, usePanelReorderSteps } from '../index.js';
+import { DragToClose, useHost, usePanelReorderSteps } from '../index.js';
 import type { WorkspaceWrapProps } from '../index.js';
 import { advanceFrames, cleanup } from './support/mount-harness.js';
 import { drag, release } from './support/drag-gesture.js';
 import { mountRow, panelsOf } from './support/scroll-row.js';
+import { registerTestView } from './support/test-views.js';
 
 afterEach(cleanup);
 
@@ -29,7 +30,7 @@ function View({ id }: { id: string }): React.ReactElement {
     children: (handle) => React.createElement('div', { 'data-grab': id, onPointerDown: handle.onPointerDown }, id),
   });
 }
-registerView('scroll-row-view', ({ panel }) => React.createElement(View, { id: panel.id }));
+registerTestView('scroll-row-view', ({ panel }) => React.createElement(View, { id: panel.id }));
 
 /** An app's wrap: reduced motion for everything under it. */
 const appWrap = ({ children }: WorkspaceWrapProps): React.ReactElement => React.createElement(MotionConfig, { reducedMotion: 'always' }, children);
