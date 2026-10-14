@@ -33,6 +33,19 @@ let nextEngineIdValue = 1;
 /** The next id for an engine entry. A module counter, bumped only from handlers and the restore callback, never from a state initialiser. */
 export const nextEngineId = (): string => String(nextEngineIdValue++);
 
+/** Moves the counter past the number after the first `~` of every restored key, which `nextEngineId` restarted below at launch and would otherwise hand out again. The counter only rises, so calling this twice, or from two workspaces, is harmless. */
+export function seedEngineIdsPast(keys: Iterable<string | undefined>): void {
+  for (const key of keys) {
+    const cut = key?.indexOf('~') ?? -1;
+    if (key === undefined || cut < 0) continue;
+    const suffix = key.slice(cut + 1);
+    // Plain decimal only: a uuid, `007` or `1e3` is a name a custom `newId` made, not a count this counter handed out.
+    if (!/^[1-9][0-9]*$/.test(suffix)) continue;
+    const n = Number(suffix);
+    if (Number.isSafeInteger(n + 1)) nextEngineIdValue = Math.max(nextEngineIdValue, n + 1);
+  }
+}
+
 /** What `wrap` renders: the workspace's row as `children`, and the workspace it belongs to. @public */
 export interface WorkspaceWrapProps {
   /** The row, inside the host and the panels API. */
