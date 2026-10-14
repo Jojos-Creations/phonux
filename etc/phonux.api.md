@@ -34,6 +34,9 @@ export type AnchorRequest = {
 };
 
 // @public
+export type AnyPanelTemplate = PanelTemplate<any>;
+
+// @public
 export type BezierEase = readonly [number, number, number, number];
 
 // @public
@@ -389,6 +392,18 @@ export const MAX_WORKSPACE_NAME = 60;
 export function mergePatch(layer: PanelSettings, patch: SettingsPatch): PanelSettings;
 
 // @public
+export function minWorkspaceWidth(input: MinWorkspaceWidthInput): number;
+
+// @public
+export interface MinWorkspaceWidthInput {
+    fixedColumnCount: number;
+    gap?: number;
+    phoneSlots?: number;
+    phoneWidth: number;
+    tabletWidth?: number;
+}
+
+// @public
 export interface NeighborWidths {
     readonly left: readonly number[];
     readonly right: readonly number[];
@@ -684,6 +699,7 @@ export interface PanelsAPI {
     // @deprecated
     create(options: CreatePanelOptions): void;
     readonly maxFitPanels?: number | null;
+    readonly minWorkspaceWidth?: number;
     // @deprecated
     move(id: string, direction: 'left' | 'right'): void;
     readonly panelList: readonly PanelSummary[];
@@ -757,7 +773,7 @@ export interface PanelsInput {
     resetHostDataOnRestore?: (hostData: JsonValue | undefined, panel: PanelWindow) => JsonValue | undefined;
     rootId: string;
     storage?: WorkspaceStorage;
-    templates?: readonly PanelTemplate[];
+    templates?: readonly AnyPanelTemplate[];
     tuning?: WorkspaceTuning;
     workspace?: WorkspaceHandle;
     workspaceDefaults?: Omit<PanelSettings, 'tuning'>;
@@ -1451,7 +1467,7 @@ export interface WorkspaceHandle {
     readonly id: string;
     readonly name: string;
     readonly panels: PanelManager;
-    registerTemplate(t: PanelTemplate): () => void;
+    registerTemplate(t: AnyPanelTemplate): () => void;
     rename(name: string): string;
     readonly rootId: string;
     readonly status: WorkspaceStatus;
@@ -1477,8 +1493,8 @@ export type WorkspaceOptions = WorkspaceLive & {
     onRename?: (name: string) => void;
     storage?: WorkspaceStorage;
     defaults?: Omit<PanelSettings, 'tuning'>;
-    root?: PanelTemplate;
-    templates?: readonly PanelTemplate[];
+    root?: AnyPanelTemplate;
+    templates?: readonly AnyPanelTemplate[];
     order?: () => readonly PanelId[];
     tuning?: WorkspaceTuning;
     conflicts?: 'warn' | 'throw' | 'off';

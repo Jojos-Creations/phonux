@@ -150,9 +150,8 @@ export interface CreatePanelOptions {
   /**
    * Makes the new entry a permanent column: `collapsible:false` (never parked by a row gesture or capacity,
    * never a drag source, and counted in the capacity floor) and `listed:false`, forced regardless of
-   * any `listed` also passed -- a permanent column must supply its own close control (History's own
-   * precedent), never the framework's History-row trash. `locked` stays false always: closing it through its
-   * own control still works. Default false.
+   * any `listed` also passed, so a permanent column supplies its own close control rather than the History row's
+   * trash. `locked` stays false always: closing it through its own control still works. Default false.
    */
   permanent?: boolean;
   /** How many phone-panel widths wide the new panel is (see `setSlots`), clamped to 1 and its `maxSlots`. Ignored with `permanent`: a permanent column is always one slot. Default 1. */
@@ -169,6 +168,16 @@ export interface PanelsAPI {
    * and a scrolling row reports the same number. `null` until the row is measured, never 0; absent from a host that does not report it.
    */
   readonly maxFitPanels?: number | null;
+  /**
+   * The narrowest row container, in whole px, that shows every permanent column plus two phone slots, or plus one tablet
+   * panel when that is wider: `minWorkspaceWidth` over the current phone width, row gap and permanent columns. A host
+   * reads it to set its window's minimum width. It never reads the container width, so it is reported before the row is
+   * measured. Unset while the phone width is not a positive finite number. Absent from a host that does not report it.
+   *
+   * It prices the phone at the width the row draws now, so it holds as a floor only where that width does not follow the
+   * window (`phoneFit` off): with `phoneFit` on the drawn phone moves with the window.
+   */
+  readonly minWorkspaceWidth?: number;
   /**
    * Appends a live panel; zero-arg opens a panel of the host's default view. `view` selects the rendered component
    * (registerView/resolveView) -- an unregistered key renders a placeholder, never a crash. No raw
