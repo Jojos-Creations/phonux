@@ -26,7 +26,7 @@ const made = (id: string, layer: PanelSettings = {}): PanelWindow => {
   return applyTemplate(skeleton, resolvePanelSettings({ template: layer }).value, 'create');
 };
 const root = (): PanelWindow => applyTemplate({ ...createHistoryPanel(ROOT), view: 'scroll-row-view' }, resolvePanelSettings({ template: { title: 'History' } }, { root: true }).value, 'create');
-const numbers = (entries: PanelWindow[], containerWidth = 1000, wholePanels = true) => computeRowNumbers({ entries, phoneWidth: 390, containerWidth, gap: 16, wholePanels });
+const numbers = (entries: PanelWindow[], containerWidth = 1000, wholePanels = true, shrink?: 'off' | 'visible' | 'hidden') => computeRowNumbers({ entries, phoneWidth: 390, containerWidth, gap: 16, wholePanels, shrink });
 const six = () => [root(), ...['a', 'b', 'c', 'd', 'e'].map((id) => made(id))];
 
 test('six phone panels: two whole panels fit, so five stops 406 apart, an 86 margin each side and 86 of room after the strip', () => {
@@ -74,14 +74,22 @@ test('unmeasured, and wholePanels false, give no stops: the 0.2.0 numbers', () =
   assert.equal(maxScrollOf(off), 234, '1202 - 968');
 });
 
-test('fadeAt: a panel leaving fades out as the one arriving fades in, and a stop shows exactly its panels', () => {
-  const n = numbers(six());
+test("fadeAt with 'hidden': a stop shows exactly its panels, and mid-travel a panel of either stop is whole", () => {
+  const n = numbers(six(), 1000, true, 'hidden');
   assert.deepEqual(fadeAt(n, 0), [1, 1, 0, 0, 0, 0]);
   assert.deepEqual(fadeAt(n, 406), [0, 1, 1, 0, 0, 0]);
-  assert.deepEqual(fadeAt(n, 203), [0.5, 1, 0.5, 0, 0, 0], 'halfway: panel 0 leaves, panel 2 arrives, panel 1 stays');
+  assert.deepEqual(fadeAt(n, 203), [1, 1, 1, 0, 0, 0], 'halfway: the panels of both stops are whole');
   assert.deepEqual(fadeAt(n, -50), [1, 1, 0, 0, 0, 0]);
   assert.deepEqual(fadeAt(n, 5000), [0, 0, 0, 0, 1, 1]);
   assert.deepEqual(fadeAt(numbers([root(), made('a')]), 0), [1, 1], 'no stops: nothing fades');
+});
+
+test("fadeAt with 'off' shows partial: every panel is opaque at a stop and between stops", () => {
+  const n = numbers(six());
+  assert.equal(n.showPartial, true);
+  for (const at of [0, 203, 406, 5000]) assert.deepEqual(fadeAt(n, at), [1, 1, 1, 1, 1, 1], `at ${at}`);
+  assert.equal(numbers(six(), 1000, true, 'hidden').showPartial, false);
+  assert.equal(numbers(six(), 1000, true, 'visible').showPartial, false);
 });
 
 test('snapToStop picks the nearest stop that shows the panel; nearestStop the nearest stop; both leave a row with no stops alone', () => {
@@ -98,8 +106,8 @@ test('snapToStop picks the nearest stop that shows the panel; nearestStop the ne
 
 const slotFilters = (container: HTMLElement): string[] => [...container.querySelectorAll<HTMLElement>('[data-row-slot]')].map((el) => el.style.filter);
 
-test('mounted at 1000: a wheel steps one stop, the shown panels are the stop\'s and the rest are faded out and inert', async () => {
-  const m = mountRow(panelsOf(5), 1000, { tuning: { rowGesture: 'step' } });
+test('mounted at 1000 with Hide: a wheel steps one stop, the shown panels are the stop\'s and the rest are faded out and inert', async () => {
+  const m = mountRow(panelsOf(5), 1000, { tuning: { rowGesture: 'step', shrinkOutOfView: 'hidden' } });
   mock.timers.enable({ apis: ['setTimeout'] });
   const slots = (): HTMLElement[] => [...m.container.querySelectorAll<HTMLElement>('[data-row-slot]')];
   assert.deepEqual(slotFilters(m.container), ['', '', 'opacity(0)', 'opacity(0)', 'opacity(0)', 'opacity(0)']);
@@ -149,15 +157,15 @@ test('a resize that changes how many fit brings a row resting past the new last 
   assert.equal(m.container.scrollLeft, 1218);
 });
 
-test('mid-step the fade is continuous: halfway between two stops the leaving and arriving panels are half faded', async () => {
-  const m = mountRow(panelsOf(5), 1000, { tuning: { rowGesture: 'step' } });
+test("mid-step with Hide the leaving and arriving panels are both whole, never half faded", async () => {
+  const m = mountRow(panelsOf(5), 1000, { tuning: { rowGesture: 'step', shrinkOutOfView: 'hidden' } });
   m.scroller.glideTo(203, { durationSec: 0, instant: true, ease: 'cubic-out' });
   act(() => void m.container.dispatchEvent(new Event('scroll')));
-  assert.deepEqual(slotFilters(m.container), ['opacity(0.5)', '', 'opacity(0.5)', 'opacity(0)', 'opacity(0)', 'opacity(0)']);
+  assert.deepEqual(slotFilters(m.container), ['', '', '', 'opacity(0)', 'opacity(0)', 'opacity(0)']);
 });
 
 test('while a drag holds the row the fade is left alone, and it catches up after the release', () => {
-  const m = mountRow(panelsOf(5), 1000, { tuning: { rowGesture: 'step' } });
+  const m = mountRow(panelsOf(5), 1000, { tuning: { rowGesture: 'step', shrinkOutOfView: 'hidden' } });
   const before = slotFilters(m.container);
   const claim = m.scroller.claim();
   assert.ok(claim, 'the scroller gave its claim');
