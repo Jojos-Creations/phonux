@@ -51,8 +51,18 @@ function View({ panel, name }: { panel: any; name: string }) {
     setDrawnWidth(null);
     setResizing(false);
   };
+  const onKey = (side: 'left' | 'right') => (e: React.KeyboardEvent<HTMLDivElement>) => {
+    const narrow = side === 'right' ? 'ArrowLeft' : 'ArrowRight';
+    const widen = side === 'right' ? 'ArrowRight' : 'ArrowLeft';
+    if (e.key !== narrow && e.key !== widen) return;
+    const now = Math.round((panel.size.width + GAP) / (PHONE + GAP));
+    latest.setSlots(panel.id, Math.max(1, Math.min(cap(), now + (e.key === widen ? 1 : -1))));
+    // What the app's grabber does after a key step: bring the panel back into view.
+    (window as any).__ws.panels.list().find((h: any) => h.getState().engineId === panel.id)?.scrollTo('into-view');
+    e.preventDefault();
+  };
   const bar = (side: 'left' | 'right') => (
-    <div data-grab={`${name}:${side}`} onPointerDown={onDown(side)} onPointerMove={onMove} onPointerUp={onUp} style={{ position: 'absolute', [side]: 0, top: 0, bottom: 0, width: 24, zIndex: 5, background: '#c33', touchAction: 'none', cursor: 'ew-resize' }} />
+    <div data-grab={`${name}:${side}`} tabIndex={0} onKeyDown={onKey(side)} onPointerDown={onDown(side)} onPointerMove={onMove} onPointerUp={onUp} style={{ position: 'absolute', [side]: 0, top: 0, bottom: 0, width: 24, zIndex: 5, background: '#c33', touchAction: 'none', cursor: 'ew-resize' }} />
   );
   return (
     <PanelSizeBox width={panel.size.width} height={typeof panel.size.height === 'number' ? panel.size.height : 700}>
@@ -73,6 +83,7 @@ const ws = createWorkspace({
   mount: false,
 });
 for (const id of ids) ws.addPanel(id);
+(window as any).__ws = ws;
 
 function App() {
   const ref = React.useRef<HTMLDivElement>(null);

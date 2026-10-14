@@ -22,6 +22,12 @@
   panel was written for. Before 1.0.0 level 1 moves with the prereleases; at 1.0.0 it is frozen. A level the library does not serve throws `invalid-template` from `definePanel`, `createWorkspace` and
   `registerTemplate`. Nothing changes for a template that sets nothing: there is one level today, and every level stays served until it is deprecated. In development the first render of a template logs one console.error when the props its level hands the view and footer lack a member the level promises or hold one of the wrong kind; `definePanel` and the header button items a view lists get the same treatment, and a setting or header button member newer than the template's level is reported the same way (nothing is newer with one level).
 
+### Fixed
+
+- An arrow key a control already used no longer also steps the row. A resize grabber that narrowed a panel with ArrowLeft or ArrowRight
+  stepped the row the same way, so the leftmost panel left the window on each press (and, under Hide or Off, the resized panel could be faded).
+  The row's key handler now skips a keydown whose default was prevented; an arrow nothing handles steps as before.
+
 ## 0.2.0-rc.3
 
 ### Breaking

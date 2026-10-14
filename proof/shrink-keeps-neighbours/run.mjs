@@ -20,9 +20,10 @@ const read = (pg) => pg.evaluate(() => {
   return { scrollLeft: c.scrollLeft, window: c.clientWidth, atStop: window.__g.provided().rowNumbers.atStop, stops: window.__g.stops(),
     slots: [...c.querySelectorAll('[data-row-slot]')].map((el) => { const r = el.getBoundingClientRect(); return { id: el.dataset.rowId, left: Math.round(r.left - box.left), width: Math.round(r.width), filter: el.style.filter || '' }; }) };
 });
-const line = (r) => `scroll ${r.scrollLeft} atStop ${r.atStop} :: ${r.slots.map((s) => `${s.id}@${s.left}+${s.width}${s.filter ? ' ' + s.filter : ''}`).join(' ')}`;
+const line = (r) => `scroll ${r.scrollLeft} atStop ${r.atStop} :: ${r.slots.map((s) => `${s.id}@${s.left}+${s.width}${s.filter ? ` ${s.filter}` : ''}`).join(' ')}`;
 
 for (const mode of ['visible', 'hidden', 'off']) {
+  for (const how of ['drag', 'keys']) {
   for (const width of [2240]) {
     const context = await browser.newContext({ viewport: { width: 2240, height: 800 } });
     const pg = await context.newPage();
@@ -30,26 +31,32 @@ for (const mode of ['visible', 'hidden', 'off']) {
     await pg.goto(`${base}?mode=${mode}&slots=${process.env.SLOTS ?? "1,1,3"}&phone=412&gap=24&control=${process.env.CONTROL ?? "none"}`);
     await pg.waitForSelector('[data-box="p1"]'); await pg.evaluate(() => { const l = [...document.querySelectorAll('[data-box]')].at(-1); l.setAttribute('data-box', 'pW'); const gs = l.querySelectorAll('[data-grab]'); gs.forEach((g) => g.setAttribute('data-grab', g.getAttribute('data-grab').replace(/^[^:]+/, 'pW'))); });
     await pg.waitForTimeout(1500);
-    for (let k = 0; k < 4; k++) { const r = await read(pg); if (r.atStop >= r.stops.length - 1) break; await pg.mouse.move(600, 300); await pg.mouse.wheel(50, 0); await pg.waitForTimeout(900); }
-    console.log(`-- ${mode} ${width}`);
+    for (let k = 0; k < 12; k++) { const r = await pg.evaluate(() => { const b = document.querySelector('[data-box="pW"]').getBoundingClientRect(); return b.right <= document.querySelector('[data-row-scroller]').getBoundingClientRect().right - 1; }); if (r) break; await pg.mouse.move(600, 300); await pg.mouse.wheel(50, 0); await pg.waitForTimeout(900); }
+    console.log(`-- ${mode} ${how} ${width}`);
     let prev = await read(pg);
     console.log('start ' + line(prev));
     const shown = (r) => new Set(r.slots.filter((s) => !s.filter.includes('opacity(0)') && s.left >= -1 && s.left + s.width <= r.window + 1).map((s) => s.id));
     for (const round of [1, 2]) {
-      const g = await pg.locator('[data-grab="pW:right"]').boundingBox();
-      const x0 = g.x + 3, y0 = g.y + g.height / 2;
-      await pg.mouse.move(x0, y0); await pg.mouse.down();
-      for (let i = 1; i <= 12; i++) { await pg.mouse.move(x0 - (436 * i) / 12, y0); await pg.waitForTimeout(16); }
-      await pg.mouse.up();
+      if (how === 'drag') {
+        const g = await pg.locator('[data-grab="pW:right"]').boundingBox();
+        const x0 = g.x + 3, y0 = g.y + g.height / 2;
+        await pg.mouse.move(x0, y0); await pg.mouse.down();
+        for (let i = 1; i <= 12; i++) { await pg.mouse.move(x0 - (436 * i) / 12, y0); await pg.waitForTimeout(16); }
+        await pg.mouse.up();
+      } else {
+        await pg.locator('[data-grab="pW:right"]').focus();
+        await pg.keyboard.press('ArrowLeft');
+      }
       await pg.waitForTimeout(1500);
       const r = await read(pg);
       console.log(`shrink ${round} ${line(r)}`);
       const before = shown(prev), after = shown(r);
       const lost = [...before].filter((id) => !after.has(id));
-      check(`${mode} ${width} shrink ${round}: no panel that was in view leaves it (lost: ${lost.join(',') || 'none'})`, lost.length === 0, line(r));
+      check(`${mode} ${how} ${width} shrink ${round}: no panel that was in view leaves it (lost: ${lost.join(',') || 'none'})`, lost.length === 0, line(r));
       prev = r;
     }
     await context.close();
+  }
   }
 }
 console.log(`${passed} passed, ${failed} failed`);
