@@ -8,6 +8,7 @@ import { isPresent, type NeighborWidths, type PanelRowEntry } from './panelRowEn
 import { computeRowOrder, deriveAnchorsFromOrder } from './panelRowOrder.js';
 import type { PanelAnchor } from './panelRowOrder.js';
 import { effective } from './panelSettings.js';
+import { newPanelUid } from './panelUid.js';
 import type { AddPlacement, PanelSettings, ResolvedPanelSettings } from './panelSettings.js';
 import type { DeferredPin } from './panelTemplate.js';
 import { DEFAULT_PANEL_SIZE, TIER_SIZES } from './panelTiers.js';
@@ -57,6 +58,8 @@ export interface PanelWindow {
   settings?: ResolvedPanelSettings;
   /** This entry's stable name, written once when it is created from settings; absent on a hand-built entry, whose `id` stands in. */
   key?: string;
+  /** The stable identity written to the workspace file, set once by `appendPanel`; never the panel's key or its public id. Absent on a hand-built entry. */
+  uid?: string;
   /** The instance settings layer this entry was created under, saved for an entry code does not re-declare so a restore resolves it the same way. Only workspace code writes it. */
   instance?: PanelSettings;
   /** What the person changed about this entry: where it sits, its tier, whether it is parkable. Present, possibly empty, on an entry that owns only the keys it holds; absent on an entry restored from an older file, which owns its anchor and tier. Written only by `recordOverride`, `clearOverrides` and a restore. */
@@ -162,10 +165,11 @@ export function anchorPanel(panels: readonly PanelWindow[], id: string, request:
  * only on `locked`).
  * @internal
  */
-export function appendPanel(panels: PanelWindow[], info: { url?: string } & AppendPanelOptions, id: string, rootId: string): PanelWindow[] {
+export function appendPanel(panels: PanelWindow[], info: { url?: string } & AppendPanelOptions, id: string, rootId: string, uid: string = newPanelUid()): PanelWindow[] {
   const formFactor = info.permanent ? 'phone' : (info.formFactor ?? 'phone');
   const entry: PanelWindow = {
     id,
+    uid,
     url: info.url ?? '',
     ...(info.title !== undefined ? { title: info.title } : {}),
     ...(info.hostData !== undefined ? { hostData: info.hostData } : {}),

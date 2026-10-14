@@ -773,6 +773,7 @@ type WorkspacePanelState = {
   formFactor?: FormFactor;
   permanent?: boolean;
   layer?: 'base' | 'raised';
+  uid?: string;
 };
 ```
 
@@ -793,6 +794,20 @@ win, exactly as `appendPanel` would if both were passed to it. `live` is honored
 a permanent column (see "Permanent columns" below). `anchor` composes through the existing anchor-fallback logic
 when its `panel` is dangling or cyclic (see "How hydrate builds the list" below). `formFactor` defaults to
 `'phone'`. `permanent` and `layer` are covered in "Permanent columns" and "What's saved, and what's never" below.
+
+**`uid`.** Each saved entry also carries an optional `uid` so two copies of a file, on two devices, can match panels. It
+is opaque: `u_` and 32 lowercase hex characters (128 random bits, from `crypto.getRandomValues`, with `Math.random`
+where crypto is missing). It is not the panel's `key` and not its public id, is never matched as a name, and is never
+used as a handle; the runtime `id` above stays file-scoped. `appendPanel` is the one place a panel gets its uid (so a
+plain, a template, a declared and a restored panel all do), and a closed panel that `undoClose` brings back is the same
+entry, so it keeps it. A restore reads a saved uid back for each entry; a uid that is repeated, empty, not of that form
+or not a string is dropped with an `invalid-saved-setting` note and made again. A panel already in the row (a declared
+panel made at mount) takes the uid the file holds for it in place of the one it made. Version stays 1 and the field is
+optional: a file without it restores unchanged. Minting happens after the declarations claim saved entries, which
+read `key` and never `uid`, so a 0.1.0 singleton is still claimed once. A restore that had to make a uid, or found a
+present panel's entry without one, sets the save baseline to nothing so one save follows at once; a restore that made
+none writes nothing. A library older than this one reads the file, ignores `uid`, and its next save drops it, so the uids
+are made again at the next launch of a newer one and panels match only between devices on a version that writes them.
 
 ### What's saved, and what's never
 
@@ -1932,8 +1947,9 @@ A template may declare `api`, the panel API level it was written against, so a p
 - One package serves every kept level. React and MUI are peer dependencies and the workspace, registry and contexts are module singletons, so a second installed copy could not share a workspace with the first; a security fix is therefore one ordinary release that every level receives, with no dist-tags or backport branches.
 - `panelApiLevel.ts` holds the level table: level to adapter, and which level is the newest. `templateViewFor` (`templateView.tsx`) is the one place a template's view and footer props are built; an older level's adapter turns the newest props into the ones that level promised. The shipped table has only level 1, so no adapter runs today. A test passes its own table to exercise a second level; the fake never enters the shipped table.
 - The check runs in `definePanel`, which `createWorkspace({ templates, root })` and `workspace.registerTemplate` call, so every door answers `invalid-template` the same way. `PanelTemplate` is an interface with an optional `api?: PanelApiLevel`; it becomes a union keyed on `api` when a second level exists, because a one-member union adds nothing.
-- Hooks and settings keys are import- and resolver-bound, so an adapter cannot intercept them. They are additive within a level: a renamed hook or setting key keeps its old name as a deprecated alias until its level is dropped, and a breaking change to one ships under a new name.
-- Keep the newest level and the one before it. A level is dropped only in a major release. A template on a level that is not the newest logs one development-mode warning per template id per page load (the set of warned ids lives at module level, so StrictMode's second render and a remounted workspace do not repeat it); production and a host with no `process` stay silent.
+- Hooks and settings keys are import- and resolver-bound, so an adapter cannot intercept them. They are additive within a level: a renamed hook or setting key keeps its old name as a deprecated alias for as long as its level is served, and a breaking change to one ships under a new name.
+- Every level stays served until the owner deprecates it, so each breaking panel change adds a level, an adapter and a fixture that stay. A level is served (no `droppedIn`), deprecated (`droppedIn` names the release that will remove it; the warning names that release and CHANGELOG lists it under Deprecated) or dropped (that release removes it and CHANGELOG lists it under Breaking).
+- A template on a level that is not the newest logs one development-mode warning per template id per page load; the warning names a removal release only for a deprecated level. The set of warned ids lives at module level, so StrictMode's second render and a remounted workspace do not repeat it; production and a host with no `process` stay silent.
 - `PANEL_API` is exported from `index.ts` and not from `phonux/testing`.
 - `test/fixtures/panel-api-1` is a panel written against a frozen hand-copy of the level-1 members it uses. It is assigned to a real template, so it compiles only while the real props still provide those members, and `test/panel-api-level.test.ts` renders it in a workspace. A change that breaks it breaks level 1: add an adapter and a level, never edit the fixture.
 

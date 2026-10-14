@@ -12,7 +12,7 @@
 - A template may declare the panel API level it was written against: `definePanel({ id, view, api: 1 })`. Leaving `api` out
   means the newest level, `PANEL_API` (also new, with the `PanelApiLevel` type). Level 1 is the panel-facing API of
   0.2.0-rc.3. A level the library does not serve throws `invalid-template` from `definePanel`, `createWorkspace` and
-  `registerTemplate`. Nothing changes for a template that sets nothing: there is one level today.
+  `registerTemplate`. Nothing changes for a template that sets nothing: there is one level today, and every level stays served until it is deprecated.
 
 ## 0.2.0-rc.3
 
@@ -36,6 +36,11 @@
 
 ### Added
 
+- A saved panel now carries an optional `uid` (`WorkspacePanelState.uid`, `u_` and 32 hex characters), made once when the
+  panel is created and kept through save, restore, a copy of the file to another device and `undoClose`, so a later export,
+  import or sync can match panels. It is not the panel's key or id, and nothing a host holds changes. File version stays 1.
+  A file saved without uids restores unchanged and is written once with them. A library older than this one drops the
+  field on its next save, so the uids are made again.
 - The README quickstart is the default start (`definePanel`, `createWorkspace`, `addPanel`) with the hand-built `HostProvider`,
   `Workspace` and `PanelRow` row shown after it. Both blocks are read out of the README by marker, type-checked, and run in
   `test/readme-quickstart.test.ts`; `npm run smoke` builds and runs the packed README's quickstart against the tarball.
