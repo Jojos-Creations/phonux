@@ -82,8 +82,8 @@ export const EDGE_SCROLL_MAX_PX_PER_SEC = 900;
 export const EDGE_SCROLL_REDUCED_STEP_MS = 500;
 
 /**
- * The slot count `setFormFactor('desktop')` stores: finite, and larger than any window fits, so it keeps meaning
- * "every visible slot" without a non-finite number ever being saved. The drawn count is always capped at the fit.
+ * The most slots a panel may be set to: finite, and larger than any window fits, so `maxSlots` can mean "every visible slot"
+ * without a non-finite number ever being saved. The drawn count is always capped at the fit.
  */
 export const ALL_SLOTS = 64;
 
@@ -96,12 +96,6 @@ export const PHONE_FIT = 'off' as const;
 /** The scale band the fit keeps the phone in, as fractions of the preferred size: 320 to 441 px on 390, inside real phone widths. */
 export const PHONE_FIT_MIN = 0.82;
 export const PHONE_FIT_MAX = 1.13;
-
-/** The slot count a tier stands for: phone one, tablet two, desktop every visible slot. */
-export const slotsOfTier = (tier: 'phone' | 'tablet' | 'desktop'): number => (tier === 'phone' ? 1 : tier === 'tablet' ? 2 : ALL_SLOTS);
-
-/** The tier a slot count reports: one slot phone, two tablet, three or more desktop. */
-export const tierOfSlots = (slots: number): 'phone' | 'tablet' | 'desktop' => (slots <= 1 ? 'phone' : slots === 2 ? 'tablet' : 'desktop');
 
 /** The widest `slots` slots are drawn: whole phone widths with the row gap between them, so edges sit on the stop grid. */
 export const slotWidth = (slots: number, phoneWidth: number, gap: number): number => slots * phoneWidth + (slots - 1) * gap;

@@ -1,0 +1,93 @@
+{
+  "tests": [
+    "test/workspace-state.test.ts",
+    "test/workspace-reconcile.test.ts",
+    "test/panel-configure-core.test.ts",
+    "test/panel-window.test.ts",
+    "test/view-patch-catalog.test.ts",
+    "test/panel-settings-resolver.test.ts"
+  ],
+  "mutants": [
+    {
+      "name": "an overrides.formFactor of an old file is ignored on read",
+      "file": "workspaceState.ts",
+      "find": "if (isTier(value.formFactor)) out.slots = TIER_SLOTS[value.formFactor];",
+      "replace": "if (isTier(value.formFactor)) void 0;",
+      "expectRed": [
+        "W26 cleanSavedExtras reads overrides.formFactor"
+      ]
+    },
+    {
+      "name": "a top-level formFactor of an old entry is ignored on restore",
+      "file": "workspaceState.ts",
+      "find": "slots: s.slots ?? savedTierSlots(s), permanent",
+      "replace": "slots: s.slots, permanent",
+      "expectRed": [
+        "W24 hydrate reads a top-level formFactor"
+      ]
+    },
+    {
+      "name": "desktop of an old file reads as one slot",
+      "file": "workspaceState.ts",
+      "find": "desktop: ALL_SLOTS }",
+      "replace": "desktop: 1 }",
+      "expectRed": [
+        "W24 hydrate reads a top-level formFactor"
+      ]
+    },
+    {
+      "name": "an old tier outvotes the slots key beside it",
+      "file": "workspaceState.ts",
+      "find": "slots: s.slots ?? savedTierSlots(s), permanent",
+      "replace": "slots: savedTierSlots(s) ?? s.slots, permanent",
+      "expectRed": [
+        "W24 hydrate reads a top-level formFactor"
+      ]
+    },
+    {
+      "name": "slots is written even when it is one",
+      "file": "workspaceState.ts",
+      "find": "p.slots !== undefined && p.slots !== 1 ?",
+      "replace": "p.slots !== undefined ?",
+      "expectRed": [
+        "W25 project never writes formFactor"
+      ]
+    },
+    {
+      "name": "the person's saved count is not held to maxSlots on restore",
+      "file": "panelSettings.ts",
+      "find": "state.values.slots = Math.min(user.slots, state.values.maxSlots as number);",
+      "replace": "state.values.slots = user.slots;",
+      "expectRed": [
+        "an overrides.slots above maxSlots restores at maxSlots"
+      ]
+    },
+    {
+      "name": "a slot count above maxSlots is no longer forced down",
+      "file": "panelSettings.ts",
+      "find": "if ((s.values.slots as number) > (s.values.maxSlots as number)) force(",
+      "replace": "if (false) force(",
+      "expectRed": [
+        "C4: slots above maxSlots become maxSlots"
+      ]
+    },
+    {
+      "name": "setSlots refuses a count above maxSlots instead of clamping it",
+      "file": "panelWindow.ts",
+      "find": "Math.max(1, Math.min(Math.round(slots), allowed.maxSlots))",
+      "replace": "(Math.round(slots) > allowed.maxSlots ? slotsOf(target) : Math.max(1, Math.round(slots)))",
+      "expectRed": [
+        "setSlots: clamps to 1 and to the panel's maxSlots"
+      ]
+    },
+    {
+      "name": "the ViewPatch key list gains a key the catalog does not mark viewSettable",
+      "file": "test/view-patch-catalog.test.ts",
+      "find": "  slots: true,\n  placeOnAdd: true,",
+      "replace": "  slots: true,\n  parkable: true,\n  placeOnAdd: true,",
+      "expectRed": [
+        "the ViewPatch keys are exactly the catalog names marked viewSettable"
+      ]
+    }
+  ]
+}

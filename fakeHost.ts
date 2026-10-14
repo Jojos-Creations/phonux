@@ -21,7 +21,7 @@ import type { SnapshotsAPI } from './snapshots.js';
 import type { WorkspaceState, WorkspaceStorage } from './workspaceState.js';
 
 // The ./testing entry point has to name every type FakeHost's own declaration reaches, not just Host.
-export type { Host, PhoneSize, ClosedPageEntry, JsonValue, FormFactor, PanelSize, PanelSummary, CreatePanelOptions, SettingsAPI, HistoryAPI, PanelsAPI, PhoneDeviceAPI } from './hostApi.js';
+export type { Host, PhoneSize, ClosedPageEntry, JsonValue, PanelSize, PanelSummary, CreatePanelOptions, SettingsAPI, HistoryAPI, PanelsAPI, PhoneDeviceAPI } from './hostApi.js';
 export type { PhonuxLabels } from './labels.js';
 export type { SnapshotsAPI, ViewId, ViewSnapshot } from './snapshots.js';
 export type { PhoneModel } from './phoneModels.js';
@@ -99,7 +99,6 @@ export function createFakeHost(overrides: FakeOverrides = {}): FakeHost {
     create: (options?: CreatePanelOptions) => log('panels', 'create', options !== undefined ? [options] : []),
     activate: (id) => log('panels', 'activate', [id]),
     move: (id, direction) => log('panels', 'move', [id, direction]),
-    setFormFactor: (id, next) => log('panels', 'setFormFactor', [id, next]),
     setSlots: (id, slots) => log('panels', 'setSlots', [id, slots]),
     reanchor: (id, anchor) => log('panels', 'reanchor', [id, anchor]),
     close: (id) => log('panels', 'close', [id]),
