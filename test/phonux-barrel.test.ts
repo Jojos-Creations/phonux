@@ -45,6 +45,7 @@ const VALUE_EXPORTS = [
   'computeRowNumbers',
   'PanelRow',
   'PanelSizeBox',
+  'PanelResizeGrips',
   'GAP',
   'PANEL_TRANSITION',
   'usePanelReorderEligible',

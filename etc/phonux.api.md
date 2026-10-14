@@ -67,6 +67,7 @@ export const CHROME_PARTS: {
     readonly header: "header";
     readonly grabBar: "grab-bar";
     readonly footer: "footer";
+    readonly resize: "resize";
 };
 
 // @public
@@ -225,7 +226,11 @@ export const DRAGGING_ATTRIBUTE = "data-panel-dragging";
 
 // @public
 export interface DragHandleProps {
+    'aria-keyshortcuts'?: string;
+    'aria-label'?: string;
+    onKeyDown?: (event: React_2.KeyboardEvent<HTMLElement>) => void;
     onPointerDown: (event: React_2.PointerEvent<HTMLElement>) => void;
+    role?: 'button';
     sx: {
         cursor: 'grab';
         touchAction: 'pan-x';
@@ -233,7 +238,13 @@ export interface DragHandleProps {
         '&:active': {
             cursor: 'grabbing';
         };
+        '&:focus-visible': {
+            outline: '2px solid';
+            outlineColor: 'primary.main';
+            outlineOffset: -2;
+        };
     };
+    tabIndex?: 0;
 }
 
 // @public
@@ -649,6 +660,9 @@ export type PanelReadHandle = {
 export type PanelRefusal = 'disposed' | 'not-attached' | 'not-ready' | 'is-pending' | 'is-closed' | 'not-live' | 'busy' | 'not-closable' | 'not-parkable' | 'not-draggable' | 'not-placeable' | 'not-resizable' | 'slots-above-max' | 'would-empty-row' | 'instance-limit' | 'unknown-panel' | 'wrong-scope' | 'would-reshape-row' | 'settings-conflict' | 'not-view-settable';
 
 // @public
+export function PanelResizeGrips(): React_2.ReactElement | null;
+
+// @public
 export type PanelResult = {
     readonly ok: true;
     readonly changed: boolean;
@@ -812,19 +826,11 @@ export interface PanelSummary<P = JsonValue> {
 // @public
 export interface PanelTemplate<P extends JsonValue = JsonValue> {
     readonly api?: PanelApiLevel;
-    readonly footer?: React_2.ComponentType<{
-        panel: PanelSummary<P>;
-        handle: ViewHandle<P>;
-        manager: PanelReader;
-    }>;
+    readonly footer?: React_2.ComponentType<PanelViewProps<P>>;
     readonly id: string;
     readonly params?: P;
     readonly settings?: PanelSettings;
-    readonly view: React_2.ComponentType<{
-        panel: PanelSummary<P>;
-        handle: ViewHandle<P>;
-        manager: PanelReader;
-    }>;
+    readonly view: React_2.ComponentType<PanelViewProps<P>>;
 }
 
 // @public
@@ -847,6 +853,13 @@ export type PanelUserLayer = {
     anchor?: AnchorRequest;
     parkable?: boolean;
 };
+
+// @public
+export interface PanelViewProps<P extends JsonValue = JsonValue> {
+    handle: ViewHandle<P>;
+    manager: PanelReader;
+    panel: PanelSummary<P>;
+}
 
 // @public @deprecated
 export function panelWidthOf(p: Pick<PanelRowEntry, 'slots' | 'settings'>, phoneWidth: number, maxLiveWidth: number, gap?: number): number;
@@ -913,12 +926,23 @@ export interface PhoneSize {
 
 // @public
 export interface PhonuxLabels {
+    cannotMove: (title: string, steps: number) => string;
+    closed: (title: string) => string;
+    dragCancelled: (title: string) => string;
+    dropped: (title: string) => string;
     goToWorkspace: (name: string) => string;
+    grabStrip: (title: string) => string;
     historyTitle: string;
     lock: string;
+    moved: (title: string, steps: number) => string;
     newWorkspace: string;
+    panelPosition: (title: string, place: number, total: number) => string;
     panelTitle: (id: string) => string;
+    pickedUp: (title: string) => string;
     pin: string;
+    resizeGrip: (side: 'left' | 'right') => string;
+    resizeGripValue: (slots: number, most: number) => string;
+    row: string;
     unlock: string;
     unpin: string;
     untitledHeader: string;
@@ -976,6 +1000,7 @@ export interface ProvidedPanels extends PanelsAPI {
 // @public
 export interface ReorderHandle {
     onDragEnd: (offsetX: number) => void;
+    onStep?: (steps: number) => boolean;
 }
 
 // @public @deprecated

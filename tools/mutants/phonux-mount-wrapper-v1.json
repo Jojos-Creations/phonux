@@ -1,0 +1,26 @@
+{
+  "tests": [
+    "test/mount-wrap.test.ts",
+    "test/mount-wrap-motion.test.ts"
+  ],
+  "mutants": [
+    {
+      "name": "the wrap is drawn outside the host",
+      "file": "autoMount.tsx",
+      "find": "<HostProvider host={host}>{Wrap === undefined ? row : <Wrap workspace={workspace}>{row}</Wrap>}</HostProvider>",
+      "replace": "{Wrap === undefined ? <HostProvider host={host}>{row}</HostProvider> : <Wrap workspace={workspace}><HostProvider host={host}>{row}</HostProvider></Wrap>}",
+      "expectRed": [
+        "StrictMode and a context"
+      ]
+    },
+    {
+      "name": "the wrap is drawn beside the row, not around it",
+      "file": "autoMount.tsx",
+      "find": "<HostProvider host={host}>{Wrap === undefined ? row : <Wrap workspace={workspace}>{row}</Wrap>}</HostProvider>",
+      "replace": "<HostProvider host={host}>{Wrap === undefined ? row : <><Wrap workspace={workspace}>{null}</Wrap>{row}</>}</HostProvider>",
+      "expectRed": [
+        "StrictMode and a context"
+      ]
+    }
+  ]
+}

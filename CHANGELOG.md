@@ -27,6 +27,7 @@
 
 ### Fixed
 
+- A closed panel's `useViewState` is kept for the undo window again. The row held the state by the row's own id while `recentlyClosed` carries the key, so a panel with a key unlike its row id came back from Undo with empty state; both sides now use the key.
 - A panel added with `addPanel` and no title of its own now gets `labels.panelTitle(id)`, the same default the Host-bag `create` gave, whether it is added before or after the workspace mounts.
 - A trackpad swipe on a stepping row is one step. Its deltas ramp up before they fade, and every rising event after the 60 ms
   lock used to step again, so one swipe ran through several stops and a wide panel skipped its 1, 2, 3 slot sizes. After a step
@@ -35,6 +36,14 @@
 
 ### Changed
 
+- Names and keys for assistive technology. The row is a `region` named `labels.row` ("Panels") and each panel a `group` named with its title and
+  place ("Notes, 2 of 4"). A drag says "Picked up Notes" and "Dropped Notes", not "draggable item" and an id. The grab strip of a panel that can
+  move or close is a focusable button named for the panel, and the name follows a title change at once: ArrowLeft and ArrowRight move the panel one slot, Delete closes it, and the Workspace's one polite live
+  region says what happened ("Moved Notes right", "Notes cannot move right", "Closed Notes"). `DragHandleProps` gains `role`, `tabIndex`,
+  `aria-label`, `aria-keyshortcuts` and `onKeyDown`, and `ReorderHandle` gains `onStep`; `usePanelDragProps()` fills both. New `PhonuxLabels` keys:
+  `row`, `panelPosition`, `grabStrip`, `pickedUp`, `dropped`, `dragCancelled`, `moved`, `cannotMove` and `closed`.
+- The row's arrow keys share the column's guard: a key now also stays with the row when focus is in a widget that uses the arrows (a slider, a
+  tab list, a listbox), a modal dialog is open, a drag is in progress or an IME is composing. A held key still repeats its step.
 - Inside a row, `Panel`, `PanelFrame` and `PanelSizeBox` take an omitted `size` from the slot's drawn size, which includes the row's tuned gap, so a two-slot
   panel's size box is as wide as its slot at any `tuning.rowGap`. `PanelSizeBox` accepts `width` and `height` as optional. Outside a row an omitted size is the phone size, as before.
 - A view may lock its own panel: `handle.configure({ closable: false })` from the view makes the panel not closable at once, and `null` removes the lock. A view still cannot ask for `closable: true`, and the root still answers `settings-conflict` to it. The lock is saved as before. `ViewPatch` gains `closable`.
@@ -56,6 +65,10 @@
 
 ### Added
 
+- `PanelViewProps<P>` names the props a template's `view` and `footer` receive (`panel`, `handle`, `manager`); `PanelTemplate` uses it.
+  `phonux/testing` gains `createFakePanel(state?)`, a `ViewHandle` and `PanelReader` over one in-memory panel that record each operation
+  in `calls` and answer an accepted result, so a view test needs no cast. `usePanelState(id)` now re-reads only when that panel changes.
+- `PanelResizeGrips`: a grip on each side of a resizable panel, drawn by the default frame, so an app no longer writes its own grabber. The width follows the pointer and the release settles on the nearest slot (a snap under Reduce Motion); the left grip keeps the right edge still; a press that travels under 4 px is a click and resizes nothing, and the click a browser fires after a drag stops at the grip; ArrowLeft and ArrowRight step one slot; each grip is a 24 px `separator` with `aria-valuenow`, `aria-valuemin`, `aria-valuemax` and `aria-valuetext`. It draws nothing when `resizable` is false or fewer than two slots fit. New `PhonuxLabels` keys `resizeGrip` and `resizeGripValue`, and `CHROME_PARTS.resize`. A view that draws its own `Panel` puts `<PanelResizeGrips />` in `overlay`.
 - `theme?: (mode: 'light' | 'dark') => Theme` on `createWorkspace` and `createWorkspaceColumn`: the mount draws that theme with one `CssBaseline` instead of `createDefaultTheme`. `mode` is the window's color scheme. The column draws it once and its cells draw none of their own, which also ends a second `CssBaseline` in a column. A `wrap` must not draw its own `ThemeProvider` or `CssBaseline`.
 - The contract for a value that is not there yet: `history`, `snapshots` and `labels` are optional on `Host`, the first frame of an auto-mounted workspace holds exactly what `createWorkspace` was given, and `workspace.update` carries the rest. `createFakeHost({ absent: ['history', 'snapshots'] })` renders the absent frame in a test.
 

@@ -11,6 +11,7 @@ import Panel, { type PanelProps } from './Panel.js';
 import PanelFrame from './PanelFrame.js';
 import { SizeBox } from './PanelRowSlot.js';
 import { usePanelDragProps } from './panelChrome.js';
+import { PanelResizeGrips } from './PanelResizeGrips.js';
 import { PanelSlotContext } from './panelSlotContext.js';
 
 export function DefaultFrame({ panel, children }: { panel: PanelSummary; children: React.ReactNode }): React.ReactElement {
@@ -24,7 +25,7 @@ export function DefaultFrame({ panel, children }: { panel: PanelSummary; childre
   // One box around the whole panel, so the frame, the header above it and the grab bar move together while the size animates.
   const boxed = (panelProps: Omit<PanelProps, 'children'>): React.ReactElement => (
     <SizeBox {...(size !== undefined ? { width: size.width, height: size.height === 'fill' ? '100%' : size.height } : {})}>
-      <Panel {...panelProps} sx={{ height: '100%' }} {...(size !== undefined ? { size } : {})}>
+      <Panel {...panelProps} overlay={<PanelResizeGrips />} sx={{ height: '100%' }} {...(size !== undefined ? { size } : {})}>
         {body}
       </Panel>
     </SizeBox>

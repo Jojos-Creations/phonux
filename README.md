@@ -38,7 +38,7 @@ host to build and no width to track. A view returns bare content and phonux draw
 drag to close, reorder). Nothing is saved between launches until you pass a `storage` option.
 
 Pass the app's own values as options (`device`, `settings`, `history`, `snapshots`, `labels`, `topInset`, `panels`; a view reads `history`, `snapshots` and `labels` with a fallback, because the first frame holds only what you passed), a `wrap`
-component for the app's providers, a `theme: (mode) => Theme` for its own MUI theme (the mount draws it with one `CssBaseline`; the `mode` is the window's color scheme), and `workspace.update(...)` to give a running workspace new values (see `DESIGN.md`,
+component for the app's providers (StrictMode, `MotionConfig` and contexts go in it), a `theme: (mode) => Theme` for its own MUI theme (the mount draws it with one `CssBaseline`; the `mode` is the window's color scheme), and `workspace.update(...)` to give a running workspace new values (see `DESIGN.md`,
 "Workspace options, wrap and update"). A title-bar button is a setting too: `headerButtons: { more: { label: 'More', onClick } }`
 draws the label as the button's text.
 
@@ -139,7 +139,7 @@ cut off by an edge: `'visible'` moves the row one slot at a time, so every panel
 (1, 2, ... its own width, then its own width ... 2, 1) and is never cropped; `'hidden'` keeps whole panels and hides the rest; `'off'` shows the neighbour at the window edge cut off, at its full size. A resize grabber calls the setter from `usePanelResizing()` so no other
 panel changes size under it (see DESIGN.md, "Whole panels only"). The setter's third item, `setDrawnWidth(px, pin?)`, draws that
 panel `px` wide at once, so the grabber follows the pointer frame by frame (`pin: 'end'` keeps the right edge still for a grabber on the left);
-end a drag with `setSlots(nearest)`, `setDrawnWidth(null)` and `setResizing(false)`, in that order.
+end a drag with `setSlots(nearest)`, `setDrawnWidth(null)` and `setResizing(false)`, in that order. The default frame already draws a grip on each side of a resizable panel (`PanelResizeGrips`); a view that draws its own `Panel` puts `<PanelResizeGrips />` in its `overlay`.
 
 ## Testing a view
 

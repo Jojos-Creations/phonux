@@ -9,6 +9,7 @@ import { AnimatePresence } from 'motion/react';
 import Box from '@mui/material/Box';
 import { AutoMountContext } from './autoMountContext.js';
 import { useHost } from './hostApi.js';
+import { resolveLabels } from './labels.js';
 import { usePhoneSize } from './phoneFit.js';
 import { isPresent, summarisePanel, type NeighborWidths, type PanelRowEntry } from './panelRowEntry.js';
 import { anchorTargetOf, resolveEnterDirection, type EnterDirection } from './panelRowOrder.js';
@@ -159,7 +160,8 @@ export function PanelRow({
   /** The workspace this row renders: each template view receives its own handle and the reader of every panel, and the row's tuning is the workspace's unless `tuning` is given. */
   workspace: WorkspaceHandle;
 }): React.ReactElement {
-  const { panels } = useHost();
+  const { panels, labels: givenLabels } = useHost();
+  const labels = resolveLabels(givenLabels);
   const phoneSize = usePhoneSize();
   const inherited = React.useContext(WorkspaceTuningContext);
   const given = tuning === undefined ? undefined : resolveWorkspaceTuning(tuning);
@@ -185,8 +187,8 @@ export function PanelRow({
   const chrome = inheritedChrome ?? ownChrome;
   const phoneWidth = phoneSize.width;
   const phoneHeight = phoneSize.height;
-  // Ids never repeat, so a panel in neither list can never be shown again and its view state is released.
-  useViewState.useRetainOnly([...entries, ...(panels.recentlyClosed ?? [])].map((p) => p.id));
+  // View state is held by the key, the id a recentlyClosed summary carries, so a closed panel's state survives until its undo window ends.
+  useViewState.useRetainOnly([...entries.map((p) => panelKey(p)), ...(panels.recentlyClosed ?? []).map((p) => p.id)]);
   const present = entries.filter(isPresent);
   chrome.setKeys(new Map(entries.map((p) => [p.id, panelKey(p)])));
   // A panel this row showed and no longer shows (closed or parked) stops being the active or dragged one.
@@ -333,6 +335,7 @@ export function PanelRow({
                 setDragging: (on) => chrome.setDragging(p.id, on),
                 neighborWidths: neighborWidthsAt(p),
                 drawn: { width: rest.width, height: phoneHeight },
+                slotRange: { now: slotsOfWidth(rest.width), most: Math.max(1, Math.min(effective(p).maxSlots, fitSlotsNow)) },
                 handle,
                 pinned: anchorTargetOf(p, rootId) === rootId && p.anchor?.position === 'left',
                 tuning: own,
@@ -349,6 +352,7 @@ export function PanelRow({
             >
               <PanelRowSlot
                 panelId={p.id}
+                label={labels.panelPosition(p.title || labels.untitledPanel, presentIndex + 1, present.length)}
                 leftOffset={rest.leftOffset + (shiftById.get(p.id) ?? 0)}
                 width={rest.width}
                 phoneHeight={rowHeight}
@@ -368,7 +372,7 @@ export function PanelRow({
                     never the internal record. */}
                 {/* The ONE place useViewState's ambient panel id is set, so a view's own useViewState(key,
                     initial) call needs no id argument. */}
-                <useViewState.Provider value={p.id}>
+                <useViewState.Provider value={panelKey(p)}>
                   <Component panel={renderedSummary(p, rest.width, phoneHeight, slotsOfWidth(rest.width), fitSlotsNow)} />
                 </useViewState.Provider>
               </PanelRowSlot>
