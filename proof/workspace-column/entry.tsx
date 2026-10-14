@@ -1,5 +1,4 @@
 // Three workspaces in a column, each with a few panels; the page exposes the column as window.column.
-import * as React from 'react';
 import { createWorkspaceColumn, definePanel } from 'LIB/index.js';
 
 const view = (tag: string) => ({ handle }: any) => (
@@ -7,7 +6,7 @@ const view = (tag: string) => ({ handle }: any) => (
 );
 const history = definePanel({ id: 'history', view: view('history') });
 const note = definePanel({ id: 'note', view: view('note'), multiple: true } as any);
-const column = createWorkspaceColumn({ root: history, templates: [note] });
+const column = createWorkspaceColumn({ root: history, templates: [note], topInset: Number(new URLSearchParams(location.search).get('inset') ?? 0) });
 for (let i = 0; i < 3; i++) {
   const ws = column.addWorkspace();
   ws.addPanel('note', { id: `note-${i + 1}a` });

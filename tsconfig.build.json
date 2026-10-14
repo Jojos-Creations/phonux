@@ -26,6 +26,7 @@
     "api-extractor-temp",
     "dist",
     "node_modules",
+    "proof",
     "test",
     "tools"
   ]
