@@ -25,7 +25,7 @@ import { accepted, refused, type ConfigureResult, type PanelOpSource, type Panel
 import { decidePinChange, type PinChange, type PinStatus } from '../panelPin.js';
 import { LIBRARY_TUNING_DEFAULTS, applyTemplate, effective, panelKey, resolvePanelSettings } from '../panelSettings.js';
 import type { PanelSettings, PanelSettingsResolution, ResolvedPanelSettings, ResolvedWorkspaceTuning, ScrollAlign, SettingNote, WorkspaceTuning } from '../panelSettings.js';
-import type { PanelTemplate } from '../panelTemplate.js';
+import type { AnyPanelTemplate, PanelTemplate } from '../panelTemplate.js';
 import { reportNotes } from '../panelPlacement.js';
 import { resolveWorkspaceTuning } from '../panelTuning.js';
 import { appendPanel, clearOverrides, recordOverride, reanchorPanel, slotsOf, type AnchorRequest, type PanelWindow } from '../panelWindow.js';
@@ -111,7 +111,7 @@ export interface PanelsInput {
    */
   workspaceDefaults?: Omit<PanelSettings, 'tuning'>;
   /** The panel templates a saved panel and a host-bag `create({ view })` may name, over the ones registered. A `create` naming one obeys its `hostCreatable`, `multiple` and `maxInstances`; a restore is exempt. */
-  templates?: readonly PanelTemplate[];
+  templates?: readonly AnyPanelTemplate[];
   /** The panels code declares: each is created at launch unless the saved file already holds it or the person dismissed it, and is never saved with an instance layer because code gives it again. */
   declared?: readonly { id: string; templateId: string; settings?: PanelSettings; params?: JsonValue; url?: string }[];
 }

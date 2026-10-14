@@ -106,7 +106,7 @@ export const refused = (code: PanelRefusal, message: string): PanelResult => ({ 
  * @public
  */
 export interface PanelManager {
-  /** The handle of the panel with this id, or undefined when the workspace knows none. */
+  /** The handle of the panel with this id, or undefined when the workspace knows none. `P` is an unchecked cast: nothing compares it with the panel's template. */
   get<P extends JsonValue = JsonValue>(id: PanelId): PanelHandle<P> | undefined;
   /** A handle for every panel `f` keeps; all panels when `f` is left out. */
   list(f?: ListFilter): readonly PanelHandle[];
