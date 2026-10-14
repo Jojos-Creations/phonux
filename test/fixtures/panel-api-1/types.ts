@@ -18,6 +18,7 @@ export interface LevelOneHandle {
   readonly templateId: string;
   getState(): { readonly id: string; readonly status: string; readonly templateId: string };
   subscribe(l: () => void): () => void;
+  move(by: number, source?: 'code' | 'person'): { readonly ok: boolean };
 }
 
 export interface LevelOneReader {

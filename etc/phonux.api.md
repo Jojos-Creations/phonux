@@ -34,6 +34,9 @@ export type AnchorRequest = {
 };
 
 // @public
+export type AnyPanelTemplate = PanelTemplate<any>;
+
+// @public
 export type BezierEase = readonly [number, number, number, number];
 
 // @public
@@ -389,6 +392,18 @@ export const MAX_WORKSPACE_NAME = 60;
 export function mergePatch(layer: PanelSettings, patch: SettingsPatch): PanelSettings;
 
 // @public
+export function minWorkspaceWidth(input: MinWorkspaceWidthInput): number;
+
+// @public
+export interface MinWorkspaceWidthInput {
+    fixedColumnCount: number;
+    gap?: number;
+    phoneSlots?: number;
+    phoneWidth: number;
+    tabletWidth?: number;
+}
+
+// @public
 export interface NeighborWidths {
     readonly left: readonly number[];
     readonly right: readonly number[];
@@ -502,7 +517,7 @@ export interface PanelHandle<P extends JsonValue = JsonValue> extends PanelReadH
         readonly params: P | undefined;
     };
     hide(source?: 'code' | 'person'): PanelResult;
-    move(direction: 'left' | 'right', source?: 'code' | 'person'): PanelResult;
+    move(by: number, source?: 'code' | 'person'): PanelResult;
     open(source?: 'code' | 'person'): PanelResult;
     pin(source?: 'code' | 'person'): PinResult;
     place(p: AddPlacement | 'in-place', source?: 'code' | 'person'): PanelResult;
@@ -674,20 +689,28 @@ export interface PanelRowEntry<P = JsonValue> extends PanelSummary<P> {
 
 // @public
 export interface PanelsAPI {
+    // @deprecated
     activate(id: string): void;
     clearAll(): void;
+    // @deprecated
     close(id: string): void;
+    // @deprecated
     create(): void;
+    // @deprecated
     create(options: CreatePanelOptions): void;
     readonly maxFitPanels?: number | null;
+    readonly minWorkspaceWidth?: number;
+    // @deprecated
     move(id: string, direction: 'left' | 'right'): void;
     readonly panelList: readonly PanelSummary[];
+    // @deprecated
     reanchor(id: string, anchor: {
         panel?: string;
         position: 'left' | 'right';
         priority?: number;
     }): void;
     readonly recentlyClosed: readonly PanelSummary[] | null;
+    // @deprecated
     setSlots?(id: string, slots: number): void;
     undoClose(): void;
 }
@@ -750,7 +773,7 @@ export interface PanelsInput {
     resetHostDataOnRestore?: (hostData: JsonValue | undefined, panel: PanelWindow) => JsonValue | undefined;
     rootId: string;
     storage?: WorkspaceStorage;
-    templates?: readonly PanelTemplate[];
+    templates?: readonly AnyPanelTemplate[];
     tuning?: WorkspaceTuning;
     workspace?: WorkspaceHandle;
     workspaceDefaults?: Omit<PanelSettings, 'tuning'>;
@@ -1268,6 +1291,12 @@ export const usePanelCloseEligible: () => boolean;
 export function usePanelDragging(): boolean;
 
 // @public
+export function usePanelDragProps(): {
+    onClose?: () => void;
+    reorder?: ReorderHandle;
+};
+
+// @public
 export function usePanelHeaderButtons(): readonly PanelHeaderButtonItem[];
 
 // @public
@@ -1333,6 +1362,9 @@ export interface UseViewState {
 export const useViewState: UseViewState;
 
 // @public
+export function useWorkspace(): ViewWorkspace | undefined;
+
+// @public
 export function useWorkspaceManager(): PanelReader | undefined;
 
 // @public
@@ -1351,6 +1383,7 @@ export type ViewPatch = {
     title?: string | null;
     listed?: boolean | null;
     layer?: 'base' | 'raised' | null;
+    closable?: false | null;
     slots?: number | null;
     placeOnAdd?: {
         anchor: AnchorRequest & {
@@ -1382,6 +1415,13 @@ export class ViewStateMissingProviderError extends Error {
 }
 
 // @public
+export interface ViewWorkspace {
+    readonly panels: PanelManager & {
+        addPanel: WorkspaceHandle['addPanel'];
+    };
+}
+
+// @public
 export function WindowOverlay(input: WindowOverlayProps): React_2.JSX.Element | null;
 
 // @public
@@ -1400,6 +1440,7 @@ export function WorkspaceColumn(input: WorkspaceColumnProps): React_2.ReactEleme
 // @public
 export interface WorkspaceColumnHandle {
     addWorkspace(o?: ColumnWorkspaceOptions): WorkspaceHandle;
+    configureTuning(patch: Parameters<PanelManager['configureTuning']>[0]): ConfigureResult;
     readonly current: number;
     dispose(): void;
     scrollTo(target: WorkspaceHandle | number): void;
@@ -1427,7 +1468,7 @@ export interface WorkspaceHandle {
     readonly id: string;
     readonly name: string;
     readonly panels: PanelManager;
-    registerTemplate(t: PanelTemplate): () => void;
+    registerTemplate(t: AnyPanelTemplate): () => void;
     rename(name: string): string;
     readonly rootId: string;
     readonly status: WorkspaceStatus;
@@ -1453,8 +1494,8 @@ export type WorkspaceOptions = WorkspaceLive & {
     onRename?: (name: string) => void;
     storage?: WorkspaceStorage;
     defaults?: Omit<PanelSettings, 'tuning'>;
-    root?: PanelTemplate;
-    templates?: readonly PanelTemplate[];
+    root?: AnyPanelTemplate;
+    templates?: readonly AnyPanelTemplate[];
     order?: () => readonly PanelId[];
     tuning?: WorkspaceTuning;
     conflicts?: 'warn' | 'throw' | 'off';

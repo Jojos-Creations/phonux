@@ -15,6 +15,7 @@ const VIEW_PATCH_KEYS = {
   title: true,
   listed: true,
   layer: true,
+  closable: true,
   slots: true,
   placeOnAdd: true,
   enterFrom: true,

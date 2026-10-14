@@ -666,7 +666,7 @@ const CATALOG_ROWS: readonly SettingDescriptor[] = [
     values: 'true, false',
     default: 'true (root: false)',
     scope: 'instance',
-    viewSettable: false,
+    viewSettable: true,
     exists: 'today',
     ownerEntry: 'phonux-engine-permission-settings',
     configure: { cls: 'NOW', doors: ['instance'] },
@@ -1862,6 +1862,7 @@ export const viewMayAsk = (key: string, value: unknown): boolean => {
   if (!VIEW_SETTABLE_KEYS.has(key)) return false;
   if (key === 'placeOnAdd') return isPlain(value) && Object.keys(value).length === 1 && value.anchor !== undefined;
   if (key === 'enterFrom') return value === 'anchor';
+  if (key === 'closable') return value === false;
   return true;
 };
 

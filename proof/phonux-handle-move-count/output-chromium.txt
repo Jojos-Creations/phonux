@@ -1,0 +1,6 @@
+PASS start order :: one,two,three,four
+PASS a real drag across two neighbours reorders in one release :: two,three,one,four
+PASS move(-3) crosses three slots as one accepted result :: true:true
+PASS move(-9) runs out at the row start (it crosses History, then stops) :: true:true
+PASS move(-9) at the row start changes nothing :: true:false
+PASS no console errors

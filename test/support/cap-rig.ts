@@ -94,7 +94,7 @@ function grabbable(id: string, settings: PanelSettings) {
         reorder: {
           onDragEnd: (offset: number) => {
             const steps = stepsFor(offset);
-            for (let k = 0; k < Math.abs(steps); k += 1) handle.move(steps > 0 ? 'right' : 'left', 'person');
+            for (let k = 0; k < Math.abs(steps); k += 1) handle.move(steps > 0 ? 1 : -1, 'person');
           },
         },
         children: (grip) => React.createElement('div', { 'data-grab': id, 'data-slot': panel.id, onPointerDown: grip.onPointerDown }, id),

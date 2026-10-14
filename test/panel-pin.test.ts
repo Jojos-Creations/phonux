@@ -99,10 +99,10 @@ for (const rooted of [true, false]) {
       const first = read();
       assert.equal(first[3], true, 'the pinned panel reads pinned');
       for (const [id, direction] of [['a', 'right'], ['b', 'left'], ['dock', 'right'], ['a', 'left']] as const) {
-        r.turn(() => r.h[id]!.move(direction));
+        r.turn(() => r.h[id]!.move(direction === 'left' ? -1 : 1));
         assert.deepEqual(read(), first, `after moving ${id} ${direction}: ${r.order().join(' ')}`);
       }
-      r.turn(() => r.h.a!.move('right', 'person'));
+      r.turn(() => r.h.a!.move(1, 'person'));
       assert.deepEqual(read(), first, 'a person drag too');
     });
   }
