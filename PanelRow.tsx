@@ -372,6 +372,7 @@ export function PanelRow({
                 setDragging: (on) => chrome.setDragging(p.id, on),
                 neighborWidths: neighborWidthsAt(p),
                 drawn: { width: rest.width, height: phoneHeight },
+                slotRange: { now: slotsOfWidth(rest.width), most: Math.max(1, Math.min(effective(p).maxSlots, fitSlotsNow)) },
                 handle,
                 pinned: anchorTargetOf(p, rootId) === rootId && p.anchor?.position === 'left',
                 tuning: own,

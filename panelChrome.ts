@@ -32,14 +32,14 @@ export const DRAGGING_ATTRIBUTE = 'data-panel-dragging';
 export const CHROME_ATTRIBUTE = 'data-panel-chrome-part';
 
 /**
- * The values {@link CHROME_ATTRIBUTE} takes, one per part: `header`, `grabBar` (`'grab-bar'`) and `footer`. A panel
- * carries at most one element of each.
+ * The values {@link CHROME_ATTRIBUTE} takes, one per part: `header`, `grabBar` (`'grab-bar'`), `footer` and `resize`. A panel
+ * carries at most one element of each, except `resize`, which marks the grip on each side.
  * @public
  */
-export const CHROME_PARTS = { header: 'header', grabBar: 'grab-bar', footer: 'footer' } as const;
+export const CHROME_PARTS = { header: 'header', grabBar: 'grab-bar', footer: 'footer', resize: 'resize' } as const;
 
 /**
- * A value of {@link CHROME_ATTRIBUTE}: `'header'`, `'grab-bar'` or `'footer'`.
+ * A value of {@link CHROME_ATTRIBUTE}: `'header'`, `'grab-bar'`, `'footer'` or `'resize'`.
  * @public
  */
 export type ChromePart = (typeof CHROME_PARTS)[keyof typeof CHROME_PARTS];
