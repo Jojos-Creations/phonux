@@ -35,8 +35,12 @@ const probed = definePanel({
   footer: () => React.createElement('b', { 'data-footer': React.useContext(Probe) }),
 });
 
-const providers = ({ children }: WorkspaceWrapProps): React.ReactElement =>
-  React.createElement(React.StrictMode, null, React.createElement(Probe.Provider, { value: 'wrapped' }, children));
+/** The wrap reads the host itself, so a mount that drew it outside the host would throw here. */
+const providers = ({ children }: WorkspaceWrapProps): React.ReactElement => {
+  const host = useHost();
+  assert.notEqual(host.panels, undefined, 'the wrap sits inside the host');
+  return React.createElement(React.StrictMode, null, React.createElement(Probe.Provider, { value: 'wrapped' }, children));
+};
 
 test('a wrap with StrictMode and a context puts both around a panel view and its footer, inside the host', async () => {
   const ws = track(createWorkspace({ templates: [probed], wrap: providers }));
