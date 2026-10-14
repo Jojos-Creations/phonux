@@ -226,7 +226,11 @@ export const DRAGGING_ATTRIBUTE = "data-panel-dragging";
 
 // @public
 export interface DragHandleProps {
+    'aria-keyshortcuts'?: string;
+    'aria-label'?: string;
+    onKeyDown?: (event: React_2.KeyboardEvent<HTMLElement>) => void;
     onPointerDown: (event: React_2.PointerEvent<HTMLElement>) => void;
+    role?: 'button';
     sx: {
         cursor: 'grab';
         touchAction: 'pan-x';
@@ -234,7 +238,13 @@ export interface DragHandleProps {
         '&:active': {
             cursor: 'grabbing';
         };
+        '&:focus-visible': {
+            outline: '2px solid';
+            outlineColor: 'primary.main';
+            outlineOffset: -2;
+        };
     };
+    tabIndex?: 0;
 }
 
 // @public
@@ -928,14 +938,23 @@ export interface PhoneSize {
 
 // @public
 export interface PhonuxLabels {
+    cannotMove: (title: string, steps: number) => string;
+    closed: (title: string) => string;
+    dragCancelled: (title: string) => string;
+    dropped: (title: string) => string;
     goToWorkspace: (name: string) => string;
+    grabStrip: (title: string) => string;
     historyTitle: string;
     lock: string;
+    moved: (title: string, steps: number) => string;
     newWorkspace: string;
+    panelPosition: (title: string, place: number, total: number) => string;
     panelTitle: (id: string) => string;
+    pickedUp: (title: string) => string;
     pin: string;
     resizeGrip: (side: 'left' | 'right') => string;
     resizeGripValue: (slots: number, most: number) => string;
+    row: string;
     unlock: string;
     unpin: string;
     untitledHeader: string;
@@ -993,6 +1012,7 @@ export interface ProvidedPanels extends PanelsAPI {
 // @public
 export interface ReorderHandle {
     onDragEnd: (offsetX: number) => void;
+    onStep?: (steps: number) => boolean;
 }
 
 // @public @deprecated
