@@ -133,7 +133,10 @@ test('the grab strip\'s name follows its handle\'s title when nothing renders th
   // The handle announces a title change; no parent re-renders, so only a subscription can move the name.
   let title: string | undefined;
   const listeners = new Set<() => void>();
-  const handle = { getState: () => ({ title }), subscribe: (l: () => void) => (listeners.add(l), () => void listeners.delete(l)) } as unknown as NonNullable<PanelSlotValue['handle']>;
+  const handle = { getState: () => ({ title }), subscribe: (l: () => void) => {
+      listeners.add(l);
+      return () => void listeners.delete(l);
+    } } as unknown as NonNullable<PanelSlotValue['handle']>;
   const host = document.createElement('div');
   document.body.append(host);
   const { createRoot } = await import('react-dom/client');
