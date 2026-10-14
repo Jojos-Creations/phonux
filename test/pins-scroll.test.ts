@@ -16,7 +16,7 @@ import { appendPanel, createHistoryPanel } from '../panelWindow.js';
 import { computeRowNumbers } from '../rowNumbers.js';
 import { rowScrollerFor } from '../rowScroller.js';
 import type { UsePanelManagerResult } from '../panels/usePanelManager.js';
-import { cleanup, mount, panelsInput, usePanelManagerWith } from './support/mount-harness.js';
+import { cleanup, mount, usePanelManagerWith, useSeededInput } from './support/mount-harness.js';
 
 afterEach(() => cleanup());
 
@@ -41,7 +41,7 @@ function provide(entries: PanelWindow[], width: number) {
   const ref = { current: container };
   let latest: ProvidedPanels | undefined;
   function Probe(): React.ReactElement {
-    latest = useProvidePanels(panelsInput({ initialEntries: entries, containerWidth: width, overflowContainerRef: ref, tuning: { rowGesture: 'step' } }));
+    latest = useProvidePanels(useSeededInput({ initialEntries: entries, containerWidth: width, overflowContainerRef: ref, tuning: { rowGesture: 'step' } }));
     return React.createElement('output');
   }
   mount(React.createElement(Probe));
@@ -109,7 +109,7 @@ test('PIN activate of a live panel is a same-array no-op', () => {
   assert.equal(panelsNow, before);
 });
 
-test('PIN the container has one wheel listener and the window one keydown listener', () => {
+test('PIN the container ends with one wheel listener and the window one keydown listener, counted as adds less removes', () => {
   const container = document.createElement('div');
   const counts = { wheel: 0, keydown: 0 };
   const onContainer = container.addEventListener.bind(container);
@@ -117,20 +117,31 @@ test('PIN the container has one wheel listener and the window one keydown listen
     if (type === 'wheel') counts.wheel += 1;
     return (onContainer as (...a: unknown[]) => void)(type, ...rest);
   }) as typeof container.addEventListener;
+  const offContainer = container.removeEventListener.bind(container);
+  container.removeEventListener = ((type: string, ...rest: unknown[]) => {
+    if (type === 'wheel') counts.wheel -= 1;
+    return (offContainer as (...a: unknown[]) => void)(type, ...rest);
+  }) as typeof container.removeEventListener;
   const onWindow = window.addEventListener.bind(window);
   const spy = mock.method(window, 'addEventListener', (type: string, ...rest: unknown[]) => {
     if (type === 'keydown') counts.keydown += 1;
     return (onWindow as (...a: unknown[]) => void)(type, ...rest);
   });
+  const offWindow = window.removeEventListener.bind(window);
+  const offSpy = mock.method(window, 'removeEventListener', (type: string, ...rest: unknown[]) => {
+    if (type === 'keydown') counts.keydown -= 1;
+    return (offWindow as (...a: unknown[]) => void)(type, ...rest);
+  });
   try {
     function Probe(): React.ReactElement {
-      useProvidePanels(panelsInput({ initialEntries: row(rootEntry(), park('a')), containerWidth: W(2), overflowContainerRef: { current: container }, tuning: { rowGesture: 'step' } }));
+      useProvidePanels(useSeededInput({ initialEntries: row(rootEntry(), park('a')), containerWidth: W(2), overflowContainerRef: { current: container }, tuning: { rowGesture: 'step' } }));
       return React.createElement('output');
     }
     mount(React.createElement(Probe));
     assert.deepEqual(counts, { wheel: 1, keydown: 1 });
   } finally {
     spy.mock.restore();
+    offSpy.mock.restore();
   }
 });
 

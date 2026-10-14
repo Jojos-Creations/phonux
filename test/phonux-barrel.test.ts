@@ -33,8 +33,6 @@ const VALUE_EXPORTS = [
   'PanelHeaderButtons',
   'PanelFooter',
   'PanelHeaderRow',
-  'registerView',
-  'resolveView',
   'useViewSnapshot',
   'CaptureRegistryProvider',
   'noopCaptureTrigger',

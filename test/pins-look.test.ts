@@ -9,15 +9,16 @@ import assert from 'node:assert/strict';
 import './support/jsdom-globals.js';
 import * as React from 'react';
 import { act } from 'react';
-import { PanelRow, Workspace, registerView, useProvidePanels, GAP, TIER_SIZES } from '../index.js';
+import { Workspace, useProvidePanels, GAP, TIER_SIZES } from '../index.js';
 import type { PanelWindow, ProvidedPanels } from '../index.js';
 import { DRAG_CLOSE } from '../dragToClose.js';
 import { computeRowLayout } from '../panelRowLayout.js';
 import { panelRowSlotMotion } from '../PanelRowSlot.js';
 import { reorderStepsForOffset } from '../panelWindow.js';
-import { cleanup, mount, panelsInput, withHost } from './support/mount-harness.js';
+import { cleanup, mount, withHost, useSeededInput, StaticRow } from './support/mount-harness.js';
+import { registerTestView } from './support/test-views.js';
 
-registerView('pin-look', ({ panel }) => React.createElement('i', { 'data-slot': panel.id }, panel.title));
+registerTestView('pin-look', ({ panel }) => React.createElement('i', { 'data-slot': panel.id }, panel.title));
 
 const entry = (id: string, over: Partial<PanelWindow> = {}): PanelWindow => ({
   id,
@@ -63,7 +64,7 @@ test('Workspace markup: a given topPadding replaces only the top padding', () =>
 });
 
 const NONE: ReadonlySet<string> = new Set();
-const rowOf = (entries: PanelWindow[]): React.ReactElement => withHost(React.createElement(PanelRow, { entries, rootId: 'root', closingIds: NONE, enteringViaAnchorIds: NONE }));
+const rowOf = (entries: PanelWindow[]): React.ReactElement => withHost(React.createElement(StaticRow, { entries, rootId: 'root', closingIds: NONE, enteringViaAnchorIds: NONE }));
 const slotX = (container: HTMLElement, id: string): number => {
   const slot = container.querySelector(`[data-slot="${id}"]`)?.parentElement;
   assert.ok(slot, `slot ${id} is mounted`);
@@ -98,7 +99,7 @@ test('panelRowSlotMotion: a slot enters one own width plus 16 beyond its rest, a
 function liveAfterBurst(containerWidth: number, count: number): number {
   let latest: ProvidedPanels | undefined;
   function Probe(): React.ReactElement {
-    latest = useProvidePanels(panelsInput({ initialEntries: [root()], containerWidth }));
+    latest = useProvidePanels(useSeededInput({ initialEntries: [root()], containerWidth, workspaceDefaults: { overflow: 'park' } }));
     return React.createElement('output');
   }
   const mounted = mount(React.createElement(Probe));

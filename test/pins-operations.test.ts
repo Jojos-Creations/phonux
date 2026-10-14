@@ -10,7 +10,7 @@ import { act } from 'react';
 import { useProvidePanels, type PanelWindow, type ProvidedPanels } from '../index.js';
 import { usePanelClosing } from '../panels/usePanelClosing.js';
 import { usePanelManager, type UsePanelManagerResult } from '../panels/usePanelManager.js';
-import { cleanup, mount, panelsInput } from './support/mount-harness.js';
+import { cleanup, mount, useSeededInput } from './support/mount-harness.js';
 
 const entry = (id: string, over: Partial<PanelWindow> = {}): PanelWindow => ({
   id,
@@ -32,7 +32,7 @@ afterEach(() => cleanup());
 function mountProvider(initialEntries: PanelWindow[]): { latest: () => ProvidedPanels } {
   let latest: ProvidedPanels | undefined;
   function Probe(): React.ReactElement {
-    latest = useProvidePanels(panelsInput({ initialEntries }));
+    latest = useProvidePanels(useSeededInput({ initialEntries }));
     return React.createElement('output');
   }
   mount(React.createElement(Probe));

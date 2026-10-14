@@ -107,33 +107,40 @@ function changelogRemovedBullets(): [Set<string>, Set<string>] {
     bullets[bullets.length - 1]?.push(lines[i] ?? '');
   }
   assert.ok(bullets.length >= 3, 'the Removed list has at least its three bullets');
-  const names = (bullet: string[] | undefined): Set<string> => new Set([...(bullet ?? []).join('\n').matchAll(/`([^`]+)`/g)].map((m) => m[1] ?? ''));
+  // A name after `->` is the replacement the bullet points to, not a name it removes.
+  const names = (bullet: string[] | undefined): Set<string> => new Set([...(bullet ?? []).join('\n').matchAll(/(->\s*)?`([^`]+)`/g)].filter((m) => m[1] === undefined).map((m) => m[2] ?? ''));
   return [names(bullets[0]), names(bullets[2])];
 }
 
-/** The backtick-quoted names in the Unreleased section's Breaking list. */
+/** The backtick-quoted names in every Breaking list from the Unreleased section down to 0.2.0-rc.3's. */
 function changelogBreakingNames(): Set<string> {
   const lines = readText(fileURLToPath(new URL('../CHANGELOG.md', import.meta.url))).split('\n');
   const unreleased = lines.findIndex((line) => /^## (Unreleased|0\.2\.0-rc\.3)\s*$/.test(line));
-  const breakingAt = lines.findIndex((line, i) => i > unreleased && /^### Breaking\s*$/.test(line));
-  assert.ok(unreleased >= 0 && breakingAt >= 0, 'CHANGELOG.md has an Unreleased section with a Breaking list');
+  const last = lines.findIndex((line) => /^## 0\.2\.0-rc\.3\s*$/.test(line));
+  assert.ok(unreleased >= 0 && last >= unreleased, 'CHANGELOG.md has an Unreleased section and a 0.2.0-rc.3 section');
   const names = new Set<string>();
-  for (let i = breakingAt + 1; i < lines.length && !/^#{1,3} /.test(lines[i] ?? ''); i += 1) {
-    for (const m of (lines[i] ?? '').matchAll(/`([^`]+)`/g)) names.add(m[1] ?? '');
+  let inBreaking = false;
+  let released = false;
+  for (let i = unreleased + 1; i < lines.length && !released; i += 1) {
+    const line = lines[i] ?? '';
+    if (/^## /.test(line)) released = i > last;
+    else if (/^### /.test(line)) inBreaking = /^### Breaking\s*$/.test(line);
+    else if (inBreaking) for (const m of line.matchAll(/`([^`]+)`/g)) names.add(m[1] ?? '');
   }
+  assert.ok(names.size > 0, 'a Breaking list names something');
   return names;
 }
 
-test('compat-0.1.0 fixture: 66 root values and 2 testing values in 0.1.0, 39 names since removed (24 root values, 12 root types, 1 testing value, 2 testing types)', () => {
+test('compat-0.1.0 fixture: 66 root values and 2 testing values in 0.1.0, 43 names since removed (26 root values, 14 root types, 1 testing value, 2 testing types)', () => {
   const fixture = exportsFixture();
   assert.equal(fixture.root.values.length, 66);
   assert.equal(fixture.testing.values.length, 2);
   const removed = fixture.removedSince010;
-  assert.equal(removed.root.values.length, 24);
-  assert.equal(removed.root.types.length, 12);
+  assert.equal(removed.root.values.length, 26);
+  assert.equal(removed.root.types.length, 14);
   assert.equal(removed.testing.values.length, 1);
   assert.equal(removed.testing.types.length, 2);
-  assert.equal(removed.root.values.length + removed.root.types.length + removed.testing.values.length + removed.testing.types.length, 39);
+  assert.equal(removed.root.values.length + removed.root.types.length + removed.testing.values.length + removed.testing.types.length, 43);
   assert.ok(removed.root.values.every((name) => fixture.root.values.includes(name)), 'every removed root value was a 0.1.0 root value');
   assert.ok(removed.root.types.every((name) => fixture.root.types.includes(name)), 'every removed root type was a 0.1.0 root type');
   assert.ok(removed.testing.values.every((name) => fixture.testing.values.includes(name)), 'every removed testing value was a 0.1.0 testing value');

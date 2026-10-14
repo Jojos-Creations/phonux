@@ -153,11 +153,9 @@ test('the advanced block draws the same DOM as the quickstart', async () => {
   await act(async () => root.unmount());
 });
 
-test('registerView appears in README.md and DESIGN.md only on lines that call it the legacy path', () => {
+test('registerView, the plain-view registry, is named by neither README.md nor DESIGN.md', () => {
   for (const file of ['README.md', 'DESIGN.md']) {
     const text = readFileSync(join(ROOT, file), 'utf8');
-    const lines = text.split('\n').filter((l) => l.includes('registerView'));
-    for (const line of lines) assert.match(line, /legacy/i, `${file}: ${line.slice(0, 100)}`);
-    if (file === 'DESIGN.md') assert.ok(lines.length >= 3, 'control: the legacy mentions were found');
+    assert.deepEqual(text.split('\n').filter((l) => l.includes('registerView')), [], `${file} still names registerView`);
   }
 });

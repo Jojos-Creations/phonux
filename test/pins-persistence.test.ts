@@ -7,11 +7,12 @@ import assert from 'node:assert/strict';
 import './support/jsdom-globals.js';
 import * as React from 'react';
 import { act } from 'react';
-import { registerView, useProvidePanels, type PanelWindow, type PanelsInput, type ProvidedPanels, type WorkspaceState, type WorkspaceStorage } from '../index.js';
+import { useProvidePanels, type PanelWindow, type PanelsInput, type ProvidedPanels, type WorkspaceState, type WorkspaceStorage } from '../index.js';
 import { createHistoryPanel } from '../panelWindow.js';
-import { cleanup, mount, panelsInput } from './support/mount-harness.js';
+import { cleanup, mount, useSeededInput } from './support/mount-harness.js';
+import { registerTestView } from './support/test-views.js';
 
-registerView('pin-persistence', ({ panel }) => React.createElement('i', null, panel.title));
+registerTestView('pin-persistence', ({ panel }) => React.createElement('i', null, panel.title));
 
 afterEach(() => {
   mock.timers.reset();
@@ -51,7 +52,7 @@ function mountProvider(load: () => Promise<WorkspaceState | null>, over: Partial
   };
   let latest: ProvidedPanels | undefined;
   function Probe(): React.ReactElement {
-    latest = useProvidePanels(panelsInput({ initialEntries: [createHistoryPanel(ROOT)], storage, tuning: { saveQuietMs: QUIET_MS }, ...over }));
+    latest = useProvidePanels(useSeededInput({ initialEntries: [createHistoryPanel(ROOT)], storage, tuning: { saveQuietMs: QUIET_MS }, ...over }));
     return React.createElement('output');
   }
   const mounted = mount(strict ? React.createElement(React.StrictMode, null, React.createElement(Probe)) : React.createElement(Probe));
@@ -141,7 +142,7 @@ test('a throw inside the load success handler takes the failed-load path: the wo
     const [only] = m.ids().slice(1);
     assert.deepEqual(m.saves[0], {
       version: 1,
-      panels: [{ id: only, uid: (m.saves[0] as { panels: { uid?: string }[] }).panels[0]!.uid, view: 'pin-persistence', url: '', title: 'later', live: true, anchor: { panel: ROOT, position: 'right', priority: 0 }, formFactor: 'phone', layer: 'base', listed: true }],
+      panels: [{ id: only, uid: (m.saves[0] as { panels: { uid?: string }[] }).panels[0]!.uid, view: 'pin-persistence', url: '', title: 'later', live: true, anchor: { panel: ROOT, position: 'right', priority: 0 }, formFactor: 'phone', layer: 'base', listed: true, key: only, instance: { title: 'later' }, applied: { placeOnAdd: 'row-end' }, overrides: {} }],
     });
   } finally {
     process.removeAllListeners('unhandledRejection');

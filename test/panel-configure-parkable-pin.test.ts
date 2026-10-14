@@ -359,7 +359,7 @@ const wait = (): Promise<void> => act(async () => void (await new Promise((resol
 test('a deferral configure stores is session only: the saved file holds none and a second launch starts without one', async () => {
   const store = memoryWorkspaceStorage();
   const S: PanelSettings = { pinningWhenNotLive: 'apply-on-next-show' };
-  const launch = (): Promise<PinRig> => pinRig({ settings: { a: S, b: S }, workspace: { storage: store }, over: { tuning: { saveQuietMs: 5 } } });
+  const launch = (): Promise<PinRig> => pinRig({ settings: { a: S, b: S }, workspace: { storage: store, tuning: { saveQuietMs: 5 } } });
   const r = await launch();
   r.turn(() => r.h.a!.hide());
   r.turn(() => r.h.b!.close());

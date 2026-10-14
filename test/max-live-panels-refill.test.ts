@@ -10,7 +10,7 @@ import * as React from 'react';
 import { act } from 'react';
 import { createWorkspace, useProvidePanels } from '../index.js';
 import type { PanelWindow, ProvidedPanels } from '../index.js';
-import { cleanup, mount, panelsInput } from './support/mount-harness.js';
+import { cleanup, mount, useSeededInput } from './support/mount-harness.js';
 import { markerTemplate } from './support/workspace-row.js';
 import { capRig, rowOf } from './support/cap-rig.js';
 
@@ -131,7 +131,7 @@ function flatRow(width: number, cap: number): { row: () => string; raiseTo: (n: 
   function Probe(): React.ReactElement {
     const [n, set] = React.useState(cap);
     setCap = set;
-    latest = useProvidePanels(panelsInput({ initialEntries: entries, containerWidth: width, tuning: { maxLivePanels: n } }));
+    latest = useProvidePanels(useSeededInput({ initialEntries: entries, containerWidth: width, workspaceDefaults: { overflow: 'park' }, tuning: { maxLivePanels: n } }));
     seen.push(rowOf(latest.entries));
     return React.createElement('output');
   }

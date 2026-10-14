@@ -4,7 +4,6 @@
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { PanelManagerError } from '../panelManagerError.js';
 import { applyTemplate, resolvePanelSettings } from '../panelSettings.js';
 import type { PanelSettings } from '../panelSettings.js';
 import { definePanel } from '../panelTemplate.js';
@@ -12,7 +11,7 @@ import type { PanelTemplate } from '../panelTemplate.js';
 import { appendPanel, clearOverrides, createHistoryPanel, recordOverride, type PanelWindow } from '../panelWindow.js';
 import { computeRowOrder } from '../panelRowOrder.js';
 import { resolveViewIn } from '../templateView.js';
-import { assertTemplateIdFree, registerView, resolveView } from '../viewRegistry.js';
+import { placeholderFor } from '../viewRegistry.js';
 import { reconcileWorkspace, type ReconcileInput } from '../workspacePlan.js';
 import { projectWorkspaceState, type WorkspacePanelState, type WorkspaceState } from '../workspaceState.js';
 
@@ -54,25 +53,13 @@ const rowOf = (...entries: PanelWindow[]): PanelWindow[] => computeRowOrder([cre
 // The view registry
 // ---------------------------------------------------------------------------
 
-test('registry: a template id that is a registered view key throws template-collision', () => {
-  registerView('reg-c', View);
-  assert.throws(() => assertTemplateIdFree('reg-c'), (e) => e instanceof PanelManagerError && e.code === 'template-collision');
-  assert.doesNotThrow(() => assertTemplateIdFree('reg-c-free'), 'control: an id with no plain view is free');
-});
-
-test('registry: the view registered under a key wins over the template of a workspace that holds the same id', () => {
-  const t = tpl('history');
-  const Rendered = (): null => null;
-  registerView('history', Rendered);
-  assert.equal(resolveViewIn((id) => (id === 'history' ? t : undefined), 'history'), Rendered);
-});
-
-test('registry: a template resolves through the workspace that holds it only, and resolveView alone never sees one', () => {
+test('registry: a template resolves through the workspace that holds it only, and any other key is the placeholder', () => {
   const t = tpl('reg-d');
   const found = resolveViewIn((id) => (id === 'reg-d' ? t : undefined), 'reg-d');
-  assert.notEqual(found, resolveView('reg-d'), 'control: the workspace resolve found the template view');
-  assert.equal(resolveViewIn(() => undefined, 'reg-d'), resolveView('reg-d'), 'a workspace without the template renders the placeholder');
-  assert.equal(typeof resolveView('reg-d'), 'function');
+  assert.notEqual(found, placeholderFor('reg-d'), 'control: the workspace resolve found the template view');
+  assert.equal(resolveViewIn(() => undefined, 'reg-d'), placeholderFor('reg-d'), 'a workspace without the template renders the placeholder');
+  assert.equal(resolveViewIn(() => undefined, 'reg-d'), resolveViewIn(() => undefined, 'reg-d'), 'one placeholder per key, so a row does not remount it');
+  assert.equal(typeof placeholderFor('reg-d'), 'function');
 });
 
 // ---------------------------------------------------------------------------

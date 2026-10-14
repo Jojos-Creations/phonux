@@ -11,8 +11,8 @@ import assert from 'node:assert/strict';
 import './support/jsdom-globals.js';
 import * as React from 'react';
 import { act } from 'react';
-import { PanelRow, registerView, resolvePanelSettings, useProvidePanels, useViewState } from '../index.js';
-import type { PanelSettings, PanelWindow, PanelsInput, ProvidedPanels, ResolvedPanelSettings, SettingNote } from '../index.js';
+import { resolvePanelSettings, useProvidePanels, useViewState } from '../index.js';
+import type { PanelSettings, PanelWindow, ProvidedPanels, ResolvedPanelSettings, SettingNote, WorkspaceTuning } from '../index.js';
 import { applyTemplate } from '../panelSettings.js';
 import { computeMaxLiveWidth, computeRowLayout } from '../panelRowLayout.js';
 import { deriveAnchorsFromOrder } from '../panelRowOrder.js';
@@ -22,7 +22,8 @@ import { fewestParksThatSettle, type UsePanelManagerResult } from '../panels/use
 import { usePanelClosing, type UsePanelClosingResult } from '../panels/usePanelClosing.js';
 import { projectWorkspaceState, type WorkspaceState, type WorkspaceStorage } from '../workspaceState.js';
 import { differential, differentialsCovered } from './support/differential.js';
-import { advanceFrames, cleanup, mount, panelsInput, usePanelManagerWith, withHost } from './support/mount-harness.js';
+import { advanceFrames, cleanup, mount, usePanelManagerWith, withHost, useSeededInput, StaticRow, type SeededOver } from './support/mount-harness.js';
+import { registerTestView } from './support/test-views.js';
 
 const ROOT = 'root';
 const OWNED = [
@@ -49,7 +50,7 @@ const resolve = (layer: PanelSettings = {}): ResolvedPanelSettings => resolvePan
 /** An entry as a creation path builds it: appendPanel's skeleton, then the 'create' writer over `layer`. */
 function made(id: string, layer: PanelSettings = {}, over: Partial<PanelWindow> = {}): PanelWindow {
   const skeleton = appendPanel([], { url: `https://${id}.example`, title: id.toUpperCase() }, id, ROOT)[0]!;
-  return applyTemplate({ ...skeleton, ...over }, resolve(layer), 'create');
+  return applyTemplate({ ...skeleton, instance: layer, ...over }, resolve(layer), 'create');
 }
 /** A panel the row may park for room. */
 const park = (id: string, layer: PanelSettings = {}, over: Partial<PanelWindow> = {}): PanelWindow => made(id, { overflow: 'park', ...layer }, over);
@@ -131,14 +132,14 @@ type Engine = ReturnType<typeof mountEngine>;
 
 interface ProvideOptions {
   width?: number;
-  over?: Partial<PanelsInput>;
+  over?: Partial<SeededOver>;
 }
 
 /** useProvidePanels over `initialEntries`; `setWidth` and `setOver` re-render the same provider with a new row width or new inputs. */
 function provide(initialEntries: PanelWindow[], options: ProvideOptions = {}) {
   let latest: ProvidedPanels | undefined;
-  function Probe({ containerWidth, over }: { containerWidth: number; over: Partial<PanelsInput> }): React.ReactElement {
-    latest = useProvidePanels(panelsInput({ initialEntries, containerWidth, ...over }));
+  function Probe({ containerWidth, over }: { containerWidth: number; over: Partial<SeededOver> }): React.ReactElement {
+    latest = useProvidePanels(useSeededInput({ initialEntries, containerWidth, ...over }));
     return React.createElement('output');
   }
   let width = options.width ?? 0;
@@ -157,7 +158,7 @@ function provide(initialEntries: PanelWindow[], options: ProvideOptions = {}) {
       width = next;
       mounted.rerender(React.createElement(Probe, { containerWidth: width, over }));
     },
-    setOver: (next: Partial<PanelsInput>) => {
+    setOver: (next: Partial<SeededOver>) => {
       over = next;
       mounted.rerender(React.createElement(Probe, { containerWidth: width, over }));
     },
@@ -178,14 +179,14 @@ function mulberry32(seed: number): Rng {
 const pick = <T>(rng: Rng, items: readonly T[]): T => items[Math.floor(rng() * items.length)] as T;
 
 const setters = new Map<string, (next: number) => void>();
-registerView('vis-vs', ({ panel }) => {
+registerTestView('vis-vs', ({ panel }) => {
   const [value, setValue] = useViewState('vis-count', 0);
   setters.set(panel.id, setValue);
   return React.createElement('i', { 'data-slot': panel.id }, String(value));
 });
 
 const NONE: ReadonlySet<string> = new Set();
-const viewRow = (entries: PanelWindow[]): React.ReactElement => withHost(React.createElement(PanelRow, { entries, rootId: ROOT, closingIds: NONE, enteringViaAnchorIds: NONE }));
+const viewRow = (entries: PanelWindow[]): React.ReactElement => withHost(React.createElement(StaticRow, { entries, rootId: ROOT, closingIds: NONE, enteringViaAnchorIds: NONE }));
 const slotText = (container: HTMLElement, id: string): string | null => container.querySelector(`[data-slot="${id}"]`)?.textContent ?? null;
 /** The retain effect releases from a real zero-delay timer; one macrotask lets it run. */
 const flushRetain = (): Promise<void> =>
@@ -318,7 +319,7 @@ test('differential viewState: the value set before a park survives the revive un
 });
 
 /** Mounts a provider with a storage, lets the load settle under mock timers, advances `ms` and counts the saves. */
-async function savesAfter(ms: number, tuning?: PanelsInput['tuning']): Promise<number> {
+async function savesAfter(ms: number, tuning?: WorkspaceTuning): Promise<number> {
   const saves: WorkspaceState[] = [];
   const storage: WorkspaceStorage = { load: async () => null, save: (state) => void saves.push(state) };
   mock.timers.enable({ apis: ['setTimeout'] });
@@ -1033,7 +1034,7 @@ test('the timing defaults are 500 ms and 60 ms, and a tuning left out takes them
   assert.equal(await savesAfter(500), 1, 'saved at 500 ms');
 });
 
-test('saveQuietMs from PanelsInput.tuning moves the save to the configured value, to the millisecond', async () => {
+test('saveQuietMs from the workspace tuning moves the save to the configured value, to the millisecond', async () => {
   assert.equal(await savesAfter(199, { saveQuietMs: 200 }), 0);
   assert.equal(await savesAfter(200, { saveQuietMs: 200 }), 1);
   assert.equal(await savesAfter(0, { saveQuietMs: 0 }), 1, 'zero is a valid quiet time');

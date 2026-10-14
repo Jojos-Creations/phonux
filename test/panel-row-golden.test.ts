@@ -11,10 +11,12 @@ import { createElement, type ReactElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import createCache from '@emotion/cache';
 import { CacheProvider } from '@emotion/react';
-import { HostProvider, PanelRow, registerView, type PanelWindow } from '../index.js';
+import { HostProvider, type PanelWindow } from '../index.js';
 import { createFakeHost } from '../fakeHost.js';
+import { StaticRow } from './support/seed-workspace.js';
+import { registerTestView } from './support/test-views.js';
 
-registerView('golden-view', ({ panel }) => createElement('span', { 'data-golden-view': panel.id }, panel.title));
+registerTestView('golden-view', ({ panel }) => createElement('span', { 'data-golden-view': panel.id }, panel.title));
 
 const NONE: ReadonlySet<string> = new Set();
 
@@ -32,7 +34,7 @@ const tablet = (id: string, title: string, priority: number): PanelWindow => ({
 });
 
 function render(entries: PanelWindow[]): string {
-  const row: ReactElement = createElement(PanelRow, { entries, rootId: 'root', closingIds: NONE, enteringViaAnchorIds: NONE });
+  const row: ReactElement = createElement(StaticRow, { entries, rootId: 'root', closingIds: NONE, enteringViaAnchorIds: NONE });
   const tree = createElement(CacheProvider, { value: createCache({ key: 'css' }), children: createElement(HostProvider, { host: createFakeHost(), children: row }) });
   return `${renderToStaticMarkup(tree).replace(/></g, '>\n<')}\n`;
 }

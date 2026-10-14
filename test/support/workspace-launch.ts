@@ -22,9 +22,9 @@ export interface Launch {
 
 /** One launch: a fresh workspace over `store` with `templates` all added, mounted and restored. */
 export async function launch(store: ReturnType<typeof memoryWorkspaceStorage>, templates: PanelTemplate[]): Promise<Launch> {
-  const ws = createWorkspace({ mount: false, templates, storage: store });
+  const ws = createWorkspace({ mount: false, templates, storage: store, ...QUICK });
   for (const t of templates) ws.addPanel(t, t.settings?.multiple === true ? { id: `${t.id}-1` } : undefined);
-  const m = mountWorkspace(ws, { over: QUICK });
+  const m = mountWorkspace(ws);
   await flush();
   return { ws, m };
 }
