@@ -251,6 +251,32 @@ two slots, 796 of 968, at a container of 1000). Every drawn entry is laid out, a
 window scrolls instead of parking anything. The shell, the row and the capacity all read that one result, so they
 cannot disagree: `ProvidedPanels.rowNumbers`.
 
+### The minimum workspace width
+
+A window must not shrink below every fixed column plus two phone slots, or plus one tablet panel when that is wider, so
+a panel opened beside another always has the two slots it needs. `minWorkspaceWidth` is that width, from the numbers the
+row's fit reads: `gap + F x (phone + gap) + max(N x phone + (N - 1) x gap, tablet) + gap`, with F the fixed columns, N
+the phone slots (2) and `tablet` the tier table's width (768). At that container width `computeRowLayout` fits exactly N
+phones beside the fixed columns, a scrolling row's strip is exactly its window, and `computeMaxLiveWidth` leaves a tablet
+uncapped; one pixel less breaks each, and the tests hold the function to all three. A two-slot panel is two phone slots
+wide, so the tablet branch only decides for a phone narrower than 376 px at the default gap.
+
+A fixed column is priced at one phone width, as `PanelsAPI.maxFitPanels` and the fit cap price it, so the three agree on
+the same row. `PanelsAPI.minWorkspaceWidth` is the provider's value for the live row (phone width, `tuning.rowGap`, the
+fixed columns seated now), on the channel a host already reads `maxFitPanels` from, so no hook or tuning key is added; a
+host that wants another N calls the function with its own count. It is the row container's width: a host whose window
+is wider than its row adds the difference before it sets its window minimum.
+
+The value never reads the container width, but it is priced from the phone width the provider is given. With `phoneFit` off that
+is the host's preferred size and the value is constant, so it is a floor. With `phoneFit` on the drawn phone follows the window,
+so the same value is not a floor, and neither is one priced from the smallest phone the fit draws (`phoneFitMin` x preferred): the
+window at that minimum draws a larger phone, and the guarantee breaks (Profile and History at gap 24 and phone 390 price to 1504
+from the 320 px smallest phone; there the fit draws 346 px, and two 346 px slots beside the fixed columns need 1556). What a floor
+under `phoneFit` must meet is this: at the reported minimum, with the phone the fit draws there, N phone slots fit beside the fixed
+columns and a tablet panel is uncapped. Holding that is the job of the plan that gives a host a floor under `phoneFit`; until it
+lands, a host with `phoneFit` on sets no window minimum from this value. A phone width that is not a positive finite number leaves
+`PanelsAPI.minWorkspaceWidth` unset, because the function throws on it and a number a host only reads must not take the row down.
+
 ### Row numbers and overflow
 
 `computeRowNumbers` is the one place a row's widths, resting offsets, margin and strip width are derived. It
