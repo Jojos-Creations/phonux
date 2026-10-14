@@ -2170,10 +2170,11 @@ export function resolveUnderTuning(layers: PanelSettingsLayers, options: Resolve
     state = merge(accepted, userParkable, workspaceTuning);
     applyRules(state, root);
   }
-  if (personSlots !== undefined) {
+  if (user.slots !== undefined) {
     // The person's size outvotes what a rule made of the layers' asks, so that conflict no longer describes the result.
     state.drafts = state.drafts.filter((d) => d.key !== 'slots');
-    state.values.slots = personSlots;
+    // Held to the maxSlots of the final merge: their own parkable may have lifted a fixed column's cap.
+    state.values.slots = Math.min(user.slots, state.values.maxSlots as number);
     state.source.slots = 'user';
   }
 
