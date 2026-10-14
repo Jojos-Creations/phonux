@@ -6,6 +6,7 @@ import { test, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
 import './support/jsdom-globals.js';
 import * as React from 'react';
+import { act } from 'react';
 import { PANEL_API, PanelManagerError, createWorkspace, definePanel } from '../index.js';
 import type { PanelTemplate } from '../index.js';
 import { NEWEST_SHAPE, SHIPPED_LEVELS, checkPanelApi, levelCoverageProblem, shapeMismatches, type LevelEntry, type LevelTable, type NewestViewProps, type PropsShape } from '../panelApiLevel.js';
@@ -250,6 +251,8 @@ test('the frozen level-1 fixture panel renders in a workspace with everything it
   assert.equal(view.dataset.fixturePinned, 'false');
   assert.equal(view.dataset.fixtureGap, 'number');
   assert.equal(view.dataset.fixtureCount, '0');
+  act(() => void view.dispatchEvent(new MouseEvent('dblclick', { bubbles: true })));
+  assert.equal(view.dataset.fixtureMoved, 'true', 'handle.move(-3) answers a PanelResult');
   const footers = [...m.container.querySelectorAll<HTMLElement>('[data-fixture-footer]')];
   assert.ok(footers.length >= 1, 'the fixture footer rendered');
   assert.equal(footers[0]!.textContent, '1');
@@ -417,7 +420,7 @@ test('optional members may be absent and a present one of the wrong kind is repo
 /** The members the frozen level-1 fixture reads, by prop and kind (test/fixtures/panel-api-1/types.ts). */
 const FIXTURE_READS: [string, string, string][] = [
   ['panel', 'id', 'string'], ['panel', 'title', 'string'], ['panel', 'live', 'boolean'], ['panel', 'params', 'any'],
-  ['handle', 'id', 'string'], ['handle', 'templateId', 'string'], ['handle', 'getState', 'function'], ['handle', 'subscribe', 'function'],
+  ['handle', 'id', 'string'], ['handle', 'templateId', 'string'], ['handle', 'getState', 'function'], ['handle', 'subscribe', 'function'], ['handle', 'move', 'function'],
   ['manager', 'list', 'function'], ['manager', 'getSnapshot', 'function'],
 ];
 

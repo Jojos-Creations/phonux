@@ -2,14 +2,33 @@
 
 ## Unreleased
 
+### Fixed
+
+- A trackpad swipe on a stepping row is one step. Its deltas ramp up before they fade, and every rising event after the 60 ms
+  lock used to step again, so one swipe ran through several stops and a wide panel skipped its 1, 2, 3 slot sizes. After a step
+  an event steps again only on a reversal, or when it is 1.5 times, and at least 4 units above, the smallest delta seen since the
+  deltas fell (a new swipe in the tail). A plateau of equal deltas no longer steps repeatedly: a held mouse wheel is one step per gesture.
+
 ### Changed
 
+- Inside a row, `Panel`, `PanelFrame` and `PanelSizeBox` take an omitted `size` from the slot's drawn size, which includes the row's tuned gap, so a two-slot
+  panel's size box is as wide as its slot at any `tuning.rowGap`. `PanelSizeBox` accepts `width` and `height` as optional. Outside a row an omitted size is the phone size, as before.
+- `handle.move(by, source?)` takes a signed slot count in place of `'left'` or `'right'`: `handle.move(-3, 'person')` is one gated call that crosses up to three
+  slots to the left, stops at an end or a panel that cannot be crossed, and answers `changed: true` when at least one slot was crossed. A drag over several
+  neighbours is one call, where the loop of raw `panels.move` calls was needed before. Pass `1` or `-1` where `'right'` or `'left'` was passed.
+  `usePanelPinned()` now reads `PanelState.pinned`, so it agrees with `handle.getState().pinned` (and with `pin()` and `unpin()`).
 - `tuning.shrinkOutOfView: 'off'` (the default) now shows the neighbour of a stop cut off by the window edge, at its full size. Before, a stepping row faded that
   neighbour out, so Off looked like Hide at rest. A panel is inert only when the window does not reach it, and a click or focus in the cut-off neighbour
   settles the row onto a stop afterwards. `'visible'` and `'hidden'` are unchanged. `RowNumbers` gains `showPartial`.
 
+### Deprecated
+
+- `GAP` (16 whatever the gap is tuned to), `panelWidthOf`, `reorderStepsForOffset`, `computeRowLayout`, `computeRowNumbers` and `DRAG_CLOSE` carry `@deprecated`, each naming what to use
+  (`usePanelTuning().rowGap`, `LIBRARY_TUNING_DEFAULTS`, `usePanelReorderSteps()`, `usePanelDragProps()` and `useProvidePanels(...).rowNumbers`). They keep working. `PANEL_TRANSITION` stays.
+
 ### Added
 
+- `usePanelDragProps()` returns the `onClose` and `reorder` of the panel it is called in for `DragToClose`, both going through the panel's handle. The default frame uses it.
 - A column of workspaces, one above the other. `createWorkspaceColumn(options)` renders itself like `createWorkspace`, and
   `column.addWorkspace(options)` is the one call that creates a workspace, adds it and returns its `WorkspaceHandle`. ArrowUp and
   ArrowDown move between workspaces (never while focus is in a field, widget, editor or dialog, or during a keyboard drag, and never
@@ -31,6 +50,9 @@
 ### Fixed
 
 - After a reload, a panel made by `addPanel` or New view could take the key of a restored panel (`web~4`), because the counter behind default ids restarts at launch. `addPanel` then returned the restored panel and two rows could share one saved entry and one lock. A restore now moves the counter past every restored key. A workspace with its own `newId` is unchanged.
+- An arrow key a control already used no longer also steps the row. A resize grabber that narrowed a panel with ArrowLeft or ArrowRight
+  stepped the row the same way, so the leftmost panel left the window on each press (and, under Hide or Off, the resized panel could be faded).
+  The row now skips a keydown whose default was prevented, so a control that handles an arrow key calls `preventDefault()` on it; an arrow nothing handles steps as before.
 
 ## 0.2.0-rc.3
 

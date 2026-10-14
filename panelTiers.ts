@@ -38,6 +38,7 @@ export function drawnSlotsOf(p: Pick<PanelRowEntry, 'slots' | 'settings'>, phone
  * than fit in `maxLiveWidth`. A hand-built entry without slots keeps the older rule: a phone panel takes the live
  * `phoneWidth`, a tablet or desktop panel its stored width capped at `maxLiveWidth`.
  * @public
+ * @deprecated Inside a row, `Panel`, `PanelFrame` and `PanelSizeBox` take the slot's drawn size when `size` is left out, and `PanelSummary.size.width` is that width.
  */
 export function panelWidthOf(p: Pick<PanelRowEntry, 'formFactor' | 'size' | 'slots' | 'settings'>, phoneWidth: number, maxLiveWidth: number, gap: number = ROW_GAP): number {
   const drawn = drawnSlotsOf(p, phoneWidth, maxLiveWidth, gap);

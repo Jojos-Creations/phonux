@@ -3,7 +3,7 @@
  * is the pure rule; the context and `usePhoneSize` carry its result to every reader of the phone size.
  */
 import * as React from 'react';
-import { useHost } from './hostApi.js';
+import { useHost, useOptionalHost } from './hostApi.js';
 import { ALL_SLOTS } from './rowConstants.js';
 
 /** A count change needs the new count's scale this far (a fraction of the band edge) inside the band. */
@@ -90,6 +90,13 @@ export function usePhoneSize(): { readonly width: number; readonly height: numbe
   const fitted = React.useContext(PhoneSizeContext);
   const { device } = useHost();
   return fitted ?? device.size;
+}
+
+/** `usePhoneSize` outside a `HostProvider`: undefined there, where `usePhoneSize` throws. @internal */
+export function useOptionalPhoneSize(): { readonly width: number; readonly height: number } | undefined {
+  const fitted = React.useContext(PhoneSizeContext);
+  const host = useOptionalHost();
+  return fitted ?? host?.device.size;
 }
 
 /** The height in px `container` leaves for the row once `topPad` and `gap` are taken out; 0 until measured and wherever nothing lays out. @internal */

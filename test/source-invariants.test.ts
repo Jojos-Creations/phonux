@@ -550,3 +550,10 @@ test('source: PanelRow keeps its single-line zIndex and enterDirection props, an
   }
   assert.equal(/collapsible/.test(read('PanelRowSlot.tsx')), false);
 });
+
+test("source: the default frame closes and moves through the panel's handle, never the Host bag's raw verbs", () => {
+  const source = stripComments(read('defaultFrame.tsx'), 'defaultFrame.tsx');
+  assert.match(source, /usePanelDragProps\(/, 'the frame reads its drag props from the hook');
+  assert.doesNotMatch(source, /useHost\(|panels\.(move|close)\(/, 'no raw verb');
+  assert.match('const { panels } = useHost(); panels.move(id, 1);', /useHost\(|panels\.(move|close)\(/, 'the control: the same check sees a planted raw call');
+});

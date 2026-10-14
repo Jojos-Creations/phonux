@@ -153,10 +153,10 @@ test('rowconstants: none of the held numbers is written outside a comment in Pan
   }
 });
 
-test('rowconstants: GAP is the one re-export line of ROW_GAP in PanelRowSlot.tsx and no file declares a gap number of its own', () => {
+test('rowconstants: GAP is the one alias line of ROW_GAP in PanelRowSlot.tsx and no file declares a gap number of its own', () => {
   const slot = readFileSync(`${ROOT}PanelRowSlot.tsx`, 'utf8');
-  assert.equal(slot.split('\n').filter((line) => line === "export { ROW_GAP as GAP } from './rowConstants.js';").length, 1);
-  assert.doesNotMatch(slot, /export const GAP/);
+  assert.equal(slot.split('\n').filter((line) => line === 'export const GAP = ROW_GAP;').length, 1);
+  assert.doesNotMatch(slot, /export const GAP = \d/);
   const offenders: string[] = [];
   const walk = (dir: string): void => {
     for (const entry of readdirSync(dir, { withFileTypes: true })) {

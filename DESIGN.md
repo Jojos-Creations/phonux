@@ -96,7 +96,12 @@ setting is false, through the same per-slot context (`panelSlotContext.ts`) that
 its answer from `draggable`. It renders no DragToClose wrapper -- no grab bar at all -- when it reads false,
 exactly like History's own locked Panel today.
 
-## `size?` is additive: omitted means "read the shared device size, exactly as before this prop existed"
+## `size?` is additive: omitted means the slot's drawn size inside a row, else the shared device size
+
+Inside a row an omitted `size` on `Panel`, `PanelFrame` and `PanelSizeBox` is the size the row draws the slot at (`PanelSlotValue.drawn`: the slot's
+width, at the row's tuned gap, and the row's height), so a view computes no width of its own and a size box cannot come out
+a few px off its slot. Outside a row the rule below holds as written. The first paragraph describes the rule from before
+slots, when one panel was always one phone wide.
 
 `Panel`/`PanelFrame` (`Panel.tsx`/`PanelFrame.tsx`) each gain an optional `size?: PanelSize`
 (`FormFactor`/`PanelSize`, `hostApi.tsx`, beside `PanelSummary`). A caller that omits it -- every
@@ -141,13 +146,13 @@ a drawn size: a phone panel never passes its stored `size` on, because its width
 
 ## `PanelsAPI.move` is directional (move-by-one), not "move to index"
 
-`move(id, 'left' | 'right')` swaps `id` past whichever OTHER shown panel currently sits toward that side,
+The handle's `move(by, source)` takes that step as a signed count, `by` slots in one gated call, so a drag crossing several neighbours is one call and one `PanelResult`; it stops at an end or at a panel that cannot be crossed, and is accepted unchanged at an end or for 0. The Host bag's `move(id, 'left' | 'right')` swaps `id` past whichever OTHER shown panel currently sits toward that side,
 rather than taking a raw target index. A raw index is meaningless across the `panelList`/internal-array
 split (`panelList` only ever lists panels, `collapsible: false` columns like History are never addressable
 targets) and would leak the internal array's own indexing into the public surface. The row's own
 drag-to-reorder gesture (the host's panel component) converts a pointer's cumulative offset into a step count and calls
-`move` that many times in the same direction -- the same primitive a future keyboard/single-pointer
-alternative (WCAG 2.5.7) would call once per key press. Panels can differ in width, so the step count is not
+`handle.move(steps)` once -- the same primitive a future keyboard/single-pointer
+alternative (WCAG 2.5.7) would call with 1 or -1 per key press. `usePanelDragProps()` hands `DragToClose` that close and that reorder for the panel it is called in; the default frame spreads it. Panels can differ in width, so the step count is not
 `offset / one slot`: a hop past a neighbour moves the dragged panel by that NEIGHBOUR's span (its width plus
 the gap), so each hop lands half-way across the next neighbour's span (`reorderStepsForOffset`, over the
 neighbour widths the row supplies per slot). With equal widths this is exactly one hop per slot.
@@ -428,11 +433,14 @@ that is not in the row is kept for two commits and then dropped with the note `s
 a drag holds the claim is dropped with `scroll-dropped-during-drag`. A panel created hidden, a restore, a first paint
 and an automatic return record nothing.
 
-With `rowGesture` `step` a sideways wheel, Shift+wheel or arrow key asks for a step. A wheel step starts a lock of `tuning.gestureLockMs` (60 ms; later events do not extend it); once it is over the next wheel event steps again unless it is decaying (smaller than the one before it, in the same direction), so a held wheel or a swipe that keeps its speed steps panel after panel, and a trackpad flick whose deltas fade is one step. `tuning.gestureQuietMs` (150 ms) without a wheel event starts a fresh gesture. On a scrolling row whose strip is
+With `rowGesture` `step` a sideways wheel, Shift+wheel or arrow key asks for a step. A wheel step starts a lock of `tuning.gestureLockMs` (60 ms; later events do not extend it); a swipe is one step. Per gesture the hook keeps the previous magnitude, its sign and a trough (the smallest magnitude seen since the last step, once the deltas have fallen; null until then). An event steps when the lock is over and it is the first of a gesture (nothing before it in `tuning.gestureQuietMs`), or it reverses direction (which also arms the next event, even one that arrives inside the lock), or the trough is set and the event is at least 1.5 times the trough and at least 4 delta units above it, a new swipe starting in the tail (the floor keeps a tail rounded to whole pixels, 1, 1, 2, 1, from stepping). Every step clears the trough. A ramp up, a plateau of equal deltas and jitter in a tail (14, 12, 13, 11) never step again, so a held mouse wheel is one step per gesture and each notch after a quiet gap is a fresh one; where a plateau and a mouse wheel cannot be told apart the swipe wins. The rule reads ratios only, so Firefox's whole-line deltas (`deltaMode` 1) take the same path. `tuning.gestureQuietMs` (150 ms) without a wheel event starts a fresh gesture. On a scrolling row whose strip is
 wider than its window the step goes through `gestureTarget`: it shows the nearest hidden panel in the direction when
 its `revealOnScroll` allows and no live panel lies between the window's edge and its slot, and otherwise scrolls to
 the next stop (the next panel start in a row without stops), from the in-flight glide's target. A row with nothing to scroll toward keeps the 0.1.0 swap
 (`scrollRow`), which swaps in no panel whose `revealOnScroll` is 'never'. The gesture does nothing while a claim is held.
+
+The row listens for the arrow keys on the window, so a control that uses an arrow key itself (a resize grabber, the header buttons'
+roving focus) must call `preventDefault()` on it: the row skips a keydown whose default was prevented, and a key nothing handles steps the row.
 
 `tuning.initialScroll` runs once per mount, in a layout effect gated on the restore having settled, on a measured row
 with an entry, with no animation, and not at all when a wheel, a pointer-down or a glide got there first.
@@ -1165,8 +1173,8 @@ walk (`neighborsAt`), so the preview and the release cannot disagree. Nothing is
 The dragged slot is drawn at `zIndex` 3 from the first publish until the spring home ends (the box publishes `null` there, when
 a press stops the spring, on a revive and under reduced motion at the release). The release publishes offset 0 (no hops) after
 `reorder.onDragEnd` returns, so the host's `move` calls and the cleared preview land in one React batch and the neighbours
-already rest where the new order puts them. This holds for a host that applies `move` synchronously (the
-`usePanelReorderSteps` + `move` loop of a row's view); a host that applies it later sees the neighbours slide back and forward
+already rest where the new order puts them. This holds for a host that applies `move` synchronously (a
+`handle.move(steps)` from a row's view, or a raw `move` loop); a host that applies it later sees the neighbours slide back and forward
 once. A host with a different hop rule gets a preview that does not match its drop.
 Under Reduce Motion (the system setting, which the drag box reads itself, or the app's `MotionConfig`) the slot hands Motion an instant
 transition inside its animate target for as long as a preview is set, so the neighbours' shifts, their return and the dragged slot's move to
@@ -1193,8 +1201,8 @@ so a `configure` made while the pointer is down reaches the next drag; the bound
 read again every frame, and the hold ends when the row stops scrolling.
 
 **Alternatives to the gesture.** WCAG 2.5.7 asks for a single-pointer alternative: offer a button that calls
-the same `onClose`, as History's trash buttons do. The row's drag-to-reorder needs one too; `PanelsAPI.move`
-exists for it, but no such control is built.
+the same `onClose`, as History's trash buttons do. The row's drag-to-reorder needs one too; `handle.move(1)` and `handle.move(-1)`
+exist for it, but no such control is built.
 
 ## PanelFrame's inset, scrollbar and header pill
 
@@ -1494,7 +1502,7 @@ developer's own and throw in both modes.
 `panelSettings.ts` imports no value except `rowConstants.ts` and `panelManagerError.ts`, so the table and the
 resolver load without React, Motion or any row code. `rowConstants.ts` is the one place each default number is
 written. `GAP`, `DRAG_CLOSE`, `SLOT_TRANSITION` and `WORKSPACE_SAVE_QUIET_MS` keep their names and values and read it
-(`GAP` is a re-export of `ROW_GAP`), and `test/rowconstants-drift.test.ts` asserts that no row file writes a second copy.
+(`GAP` is `ROW_GAP` under a deprecated name), and `test/rowconstants-drift.test.ts` asserts that no row file writes a second copy.
 
 ### One tuning value per render
 
