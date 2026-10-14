@@ -3,7 +3,6 @@ import * as React from 'react';
 const TABBABLE = 'a[href],button,input,select,textarea,summary,iframe,[tabindex],[contenteditable=""],[contenteditable="true"]';
 
 function tabbablesOf(slot: Element): HTMLElement[] {
-  if (slot.closest('[inert]') !== null) return [];
   return [...slot.querySelectorAll<HTMLElement>(TABBABLE)].filter(
     (el) => el.tabIndex >= 0 && !el.matches(':disabled') && el.getClientRects().length > 0 && getComputedStyle(el).visibility !== 'hidden' && el.closest('[inert]') === null,
   );

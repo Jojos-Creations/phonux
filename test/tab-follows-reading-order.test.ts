@@ -159,3 +159,27 @@ test('focus a script moves into the row is not redirected', async () => {
 test('focus a script moves into a reordered row is not redirected', async () => {
   assert.equal(await scriptedFocus(true), 's4-b');
 });
+
+test('a Tab the app handled itself does not steer a later script focus into the row', async () => {
+  const { m } = await reorderedRow(false, 's3', -900);
+  const outside = document.createElement('button');
+  m.container.before(outside);
+  try {
+    outside.focus();
+    const trap = (e: Event) => e.preventDefault();
+    outside.addEventListener('keydown', trap);
+    act(() => void outside.dispatchEvent(new KeyboardEvent('keydown', { key: 'Tab', bubbles: true, cancelable: true })));
+    await new Promise((r) => setTimeout(r, 5));
+    act(() => void m.container.querySelector<HTMLElement>('[data-stop="s4-b"]')!.focus());
+    assert.equal((document.activeElement as HTMLElement).dataset.stop, 's4-b');
+  } finally {
+    outside.remove();
+  }
+});
+
+test('Tab skips an inert panel and lands in the next panel drawn', async () => {
+  const { m, reading } = await reorderedRow(false, 's3', -900);
+  m.container.querySelector(`[data-row-slot][data-row-id="${reading[1]}"]`)!.setAttribute('inert', '');
+  m.container.querySelector<HTMLElement>(`[data-stop="${reading[0]}-b"]`)!.focus();
+  assert.equal(press(m, false), `${reading[2]}-a`);
+});
