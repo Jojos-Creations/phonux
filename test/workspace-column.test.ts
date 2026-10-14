@@ -313,15 +313,21 @@ test('a changed list is saved: an add, a rename and a move each', async () => {
   assert.deepEqual(last, { version: 1, workspaces: [{ id: 'one', name: 'First' }, { id: 'two', name: 'Workspace 2' }], current: 'two' });
 });
 
-test('a workspace rebuilt from the saved list takes its panel storage from storage.workspace(id), the one door', async () => {
+test('add and rebuild each ask storage.workspace for their own id; undefined means no storage', async () => {
   const asked: Record<string, string[]> = {};
   const storage = memoryColumnStorage({ version: 1, workspaces: [{ id: 'kept', name: 'Kept' }], current: 'kept' }, asked);
   const c = make({ storage, mount: false });
   await until('ready', () => c.status === 'ready');
   assert.deepEqual(Object.keys(asked), ['kept']);
-  // @ts-expect-error a workspace has no storage of its own: ColumnStorage.workspace(id) is the only door
-  c.addWorkspace({ id: 'own', storage: undefined });
+  const own = c.addWorkspace({ id: 'own' });
   assert.deepEqual(Object.keys(asked), ['kept', 'own']);
+  assert.equal(own.id, 'own');
+});
+
+test('addWorkspace takes exactly id, name and index', () => {
+  type Keys = keyof NonNullable<Parameters<WorkspaceColumnHandle['addWorkspace']>[0]>;
+  const exact: Record<Keys, true> = { id: true, name: true, index: true };
+  assert.deepEqual(Object.keys(exact).sort(), ['id', 'index', 'name']);
 });
 
 test('the panels of a workspace are stored under its id, not its name', async () => {

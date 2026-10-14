@@ -28,7 +28,11 @@ export interface ColumnStorage {
   load(): Promise<ColumnState | null>;
   /** Saves the list after it changed. A rejection is reported once through `onError`. */
   save(state: ColumnState): void | Promise<void>;
-  /** The panel storage of the workspace `id`; its key is the id, which never changes when the workspace is renamed. */
+  /**
+   * The panel storage of the workspace `id`, the one place a workspace's panels are kept; its key is the id, which never changes
+   * when the workspace is renamed. Asked for each workspace added and each one rebuilt from the saved list. Returning `undefined`
+   * gives that workspace no storage: its panels are not saved or restored.
+   */
   workspace?(id: string): WorkspaceStorage | undefined;
 }
 
