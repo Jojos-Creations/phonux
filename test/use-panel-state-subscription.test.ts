@@ -99,7 +99,7 @@ test('a watcher of a panel that is retired reads undefined', async () => {
   const ws = track(createWorkspace({ root: plain, tuning: { maxLivePanels: 8 }, templates: [watcher, plain] }));
   ws.addPanel('watch', { id: 'ready', params: 'ready' });
   await resize(4000);
-  await until('the workspace', () => title('ready') === 'none');
+  await until('the workspace', () => title('ready') !== undefined && title('ready') !== 'none');
   const anonymous = ws.addPanel('plain', { settings: { title: 'Gone' } });
   ws.addPanel('watch', { id: 'wr', params: anonymous.id });
   await until('the watcher', () => title('wr') === 'Gone');

@@ -53,7 +53,7 @@ test('every operation records one call with its arguments and answers an accepte
     handle.toggleVisibility(),
     handle.close(),
     handle.open(),
-    handle.move('left'),
+    handle.move(1),
     handle.place('in-place'),
     handle.setSlots(3),
     handle.scrollTo('start'),
