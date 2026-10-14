@@ -11,6 +11,7 @@ import type { ConfigureResult, PanelReader, ViewHandle } from '../index.js';
 import { PanelManagerError } from '../panelManagerError.js';
 import { panelKey } from '../panelSettings.js';
 import type { PanelWindow } from '../panelWindow.js';
+import { projectWorkspaceState } from '../workspaceState.js';
 import { cleanup } from './support/mount-harness.js';
 import { pinRig, type PinRig } from './support/pin-rig.js';
 
@@ -294,6 +295,7 @@ const VIEW_ACCEPTS: readonly [string, unknown][] = [
   ['title', 'From the view'],
   ['listed', false],
   ['layer', 'raised'],
+  ['closable', false],
   ['slots', 2],
   ['placeOnAdd', { anchor: { panel: 'root', position: 'left' } }],
   ['enterFrom', 'anchor'],
@@ -350,13 +352,38 @@ test('view: the PanelReader has no configure, and neither the handle nor the rea
   assert.equal(handle === (r.ws.panels.get('v') as unknown), false, 'the view\'s handle is not the manager\'s');
 });
 
-test('view: handle.configure({ closable: false }) leaves the panel closable', async () => {
+test('view: handle.configure({ closable: false }) locks its own panel and null unlocks it', async () => {
   const { r, seen } = await viewRig();
-  r.turn(() => seen.get('v')!.handle.configure({ closable: false } as never));
+  const handle = seen.get('v')!.handle;
+  assert.equal(r.turn(() => handle.configure({ closable: false })).ok, true);
+  assert.equal(r.ws.panels.get('v')!.getState().settings.closable, false);
+  assert.equal(r.entry('v').locked, true);
+  assert.equal((r.turn(() => handle.close()) as Refused).code, 'not-closable');
+  assert.equal(r.turn(() => handle.configure({ closable: null })).ok, true);
   assert.equal(r.ws.panels.get('v')!.getState().settings.closable, true);
   assert.equal(r.entry('v').locked, false);
-  assert.equal(r.turn(() => seen.get('v')!.handle.close()).ok, true);
+  assert.equal(r.turn(() => handle.close()).ok, true);
   assert.equal(r.ws.panels.get('v')!.getState().status, 'closed');
+});
+
+test('view: closable true is not view-settable, since a view may only lock its own panel', async () => {
+  const { r, seen } = await viewRig();
+  const res = r.turn(() => seen.get('v')!.handle.configure({ closable: true } as never)) as Refused;
+  assert.deepEqual([res.ok, res.code, res.setting], [false, 'not-view-settable', 'closable']);
+});
+
+test('view: a lock the view set is saved in the file as closable false', async () => {
+  const { r, seen } = await viewRig();
+  r.turn(() => seen.get('v')!.handle.configure({ closable: false }));
+  const saved = projectWorkspaceState([r.entry('v') as PanelWindow], 'root');
+  assert.equal(saved.panels[0]?.closable, false);
+  assert.deepEqual(saved.panels[0]?.instance, { closable: false });
+});
+
+test('the instance door still refuses closable true on the root with settings-conflict', async () => {
+  const { r } = await viewRig();
+  const res = r.turn(() => r.ws.panels.configure('root', { closable: true })) as Refused;
+  assert.deepEqual([res.ok, res.code], [false, 'settings-conflict']);
 });
 
 test('view: the handle carries the same keys as the manager\'s handle for the same panel, configure last', async () => {
