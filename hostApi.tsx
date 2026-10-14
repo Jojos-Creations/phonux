@@ -160,7 +160,7 @@ export interface CreatePanelOptions {
 
 /** The panel row: list, open, activate, move, resize, re-anchor and close panels. @public */
 export interface PanelsAPI {
-  /** Every panel, live or parked, in array order. History lists them as given; the row shows the live ones. */
+  /** Every listed panel, live or parked, in array order; a panel whose `listed` is false, such as History, is not here. History lists them as given; the row shows the live ones. */
   readonly panelList: readonly PanelSummary[];
   /**
    * How many panels, permanent columns such as History included, the window fits at the current phone width and row gap:
