@@ -96,7 +96,10 @@ test('exactly one CssBaseline is in the document with the option and without it'
 
 test('the theme function runs once per mode: toggling the color scheme twice calls it three times', async () => {
   const modes: string[] = [];
-  const ws = track(createWorkspace({ templates: [probe], theme: (m) => (modes.push(m), appTheme(m)) }));
+  const ws = track(createWorkspace({ templates: [probe], theme: (m) => {
+    modes.push(m);
+    return appTheme(m);
+  } }));
   ws.addPanel('probe');
   await shown();
   await setDark(true);
