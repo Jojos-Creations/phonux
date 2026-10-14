@@ -2,13 +2,16 @@
 
 import { panelKey } from './panelSettings.js';
 
+/** The release that stops resolving a counter id; the warning and the CHANGELOG name it. */
+export const COUNTER_ID_REMOVED_IN = '0.3.0';
+
 const warned = new Set<string>();
 
 /** Logs once per counter id that the id a caller gave is the old one and names the key to use; silent in production and where `process` is undefined. @internal */
 export function warnCounterId(counter: string, key: string): void {
   if (typeof process === 'undefined' || process.env.NODE_ENV === 'production' || warned.has(counter)) return;
   warned.add(counter);
-  console.warn(`phonux: '${counter}' is a panel's old counter id; the panel's id is its key '${key}', and the counter id stops resolving in a later release.`);
+  console.warn(`phonux: '${counter}' is a panel's old counter id; the panel's id is its key '${key}', and the counter id stops resolving in ${COUNTER_ID_REMOVED_IN}.`);
 }
 
 /** The entry whose key is `name`, else the entry whose counter id is `name` (with a development warning when that differs from its key); undefined when none. @internal */
