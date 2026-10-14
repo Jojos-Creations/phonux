@@ -48,7 +48,7 @@ import {
 // Declared types
 // ---------------------------------------------------------------------------
 
-/** A panel's id, which is its key and its only public id: a singleton's template id, an explicit instance's given id, or `${templateId}~${random}`; 'all' is reserved. @public */
+/** A panel's id, which is its key and its only public id: a singleton's template id, an explicit instance's given id, or `${templateId}~${suffix}` where the suffix comes from the workspace's `newId` (a counter unless a custom one is given). An explicit id follows the template-id rules and may not equal a registered template's id; 'all' is reserved. @public */
 export type PanelId = string;
 
 /** Where a panel asks to sit relative to another panel. @public */
@@ -184,7 +184,7 @@ export type PinningWhenNotLive =
 /** Which layer a resolved value came from. A rule overrides the rest and 'derived' marks a value filled from another resolved field. @public */
 export type SourceLayer = 'library' | 'workspace' | 'template' | 'host' | 'instance' | 'user' | 'derived' | 'forced';
 
-/** The 50 settings whose value is one plain member; the catalog's other names are headerButtons and the fifteen tuning leaves. @public */
+/** The settings whose value is one plain member; the catalog's other names are headerButtons and the tuning leaves. @public */
 export type SettingValues = {
   /** Whether the panel can be closed; false removes the drag-down close and makes `close()` answer not-closable. */
   closable: boolean;
@@ -382,7 +382,7 @@ export type PanelTuning = {
   edgeScroll?: { [K in keyof EdgeScrollTuning]?: EdgeScrollTuning[K] };
 };
 
-/** The per-panel leaves plus the eleven that only the workspace sets. @public */
+/** The per-panel leaves plus those only the workspace sets. @public */
 export type WorkspaceTuning = PanelTuning & {
   /** The gap between panels in px, an integer from 0 to 200. */
   rowGap?: number;
@@ -550,7 +550,7 @@ export interface SettingDescriptor {
   readonly default: string;
   /** Who may set the setting. */
   readonly scope: SettingScope;
-  /** Whether a view may set it, through the host layer. */
+  /** Whether a view may set it with `ViewHandle.configure`, which also checks the value the view asks for. */
   readonly viewSettable: boolean;
   /** Whether the setting names a behaviour that already existed ('today') or a new one ('new'). */
   readonly exists: 'today' | 'new';
@@ -579,7 +579,7 @@ export type PanelSettingsLayers = {
   user?: PanelUserLayer;
 };
 
-/** The person's own overrides: the only three things a person can change about a panel. @public */
+/** The person's own overrides: what a person can change about a panel. @public */
 export type PanelUserLayer = {
   /** The slot count the person chose. */
   slots?: number;
@@ -1855,7 +1855,7 @@ const VIEW_SETTABLE_KEYS = new Set<string>(PANEL_SETTINGS_CATALOG.filter((d) => 
 
 /**
  * Whether a view may ask for `key` as `value`: a view may place itself only by an explicit anchor and enter only from it,
- * so those two keys are checked by value.
+ * so those keys are checked by value.
  * @internal
  */
 export const viewMayAsk = (key: string, value: unknown): boolean => {
