@@ -62,6 +62,11 @@
 
 ### Added
 
+- A saved panel now carries an optional `uid` (`WorkspacePanelState.uid`, `u_` and 32 hex characters), made once when the
+  panel is created and kept through save, restore, a copy of the file to another device and `undoClose`, so a later export,
+  import or sync can match panels. It is not the panel's key or id, and nothing a host holds changes. File version stays 1.
+  A file saved without uids restores unchanged and is written once with them. A library older than this one drops the
+  field on its next save, so the uids are made again.
 - `PanelViewProps<P>` names the props a template's `view` and `footer` receive (`panel`, `handle`, `manager`); `PanelTemplate` uses it.
   `phonux/testing` gains `createFakePanel(state?)`, a `ViewHandle` and `PanelReader` over one in-memory panel that record each operation
   in `calls` and answer an accepted result, so a view test needs no cast. `usePanelState(id)` now re-reads only when that panel changes.
@@ -125,11 +130,6 @@
 
 ### Added
 
-- A saved panel now carries an optional `uid` (`WorkspacePanelState.uid`, `u_` and 32 hex characters), made once when the
-  panel is created and kept through save, restore, a copy of the file to another device and `undoClose`, so a later export,
-  import or sync can match panels. It is not the panel's key or id, and nothing a host holds changes. File version stays 1.
-  A file saved without uids restores unchanged and is written once with them. A library older than this one drops the
-  field on its next save, so the uids are made again.
 - The README quickstart is the default start (`definePanel`, `createWorkspace`, `addPanel`) with the hand-built `HostProvider`,
   `Workspace` and `PanelRow` row shown after it. Both blocks are read out of the README by marker, type-checked, and run in
   `test/readme-quickstart.test.ts`; `npm run smoke` builds and runs the packed README's quickstart against the tarball.
