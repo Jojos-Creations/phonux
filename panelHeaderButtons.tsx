@@ -131,7 +131,7 @@ function announceTo(runtime: Runtime, text: string): void {
 }
 
 /** Where a verb's `source` argument sits, so a call in the press can default it to the person. */
-const SOURCE_AT: Readonly<Record<string, number>> = { show: 0, hide: 0, toggleVisibility: 0, close: 0, open: 0, move: 1, place: 1, setFormFactor: 1, setSlots: 1, scrollTo: 1, pin: 0, unpin: 0 };
+const SOURCE_AT: Readonly<Record<string, number>> = { show: 0, hide: 0, toggleVisibility: 0, close: 0, open: 0, move: 1, place: 1, setSlots: 1, scrollTo: 1, pin: 0, unpin: 0 };
 
 /** The panel's handle with every verb defaulting to the person while `inGesture()` holds, and to code after. */
 function gestureHandle(base: ViewHandle, inGesture: () => boolean): ViewHandle {

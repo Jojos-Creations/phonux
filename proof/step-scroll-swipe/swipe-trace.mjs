@@ -8,7 +8,7 @@ const page = await ctx.newPage();
 page.on('pageerror', (e) => console.log('ERR', String(e)));
 await page.setViewportSize({ width: Number(width), height: 900 });
 await page.route('**/picsum.photos/**', (r) => r.fulfill({ contentType: 'image/svg+xml', body: '<svg xmlns="http://www.w3.org/2000/svg" width="10" height="10"/>' }));
-await page.goto(''+(process.env.URL??'http://127.0.0.1:5173/')+''); await page.waitForTimeout(3500);
+await page.goto(`${process.env.URL ?? 'http://127.0.0.1:5173/'}`); await page.waitForTimeout(3500);
 const pr = page.locator('[data-phone-detect-prompt] button[aria-label]'); if (await pr.count()) await pr.click();
 for (let i = 0; i < Number(n); i++) { await page.locator('button.MuiFab-root').first().click(); await page.waitForTimeout(450); }
 for (const g of grow.split(',')) { const [i, t] = g.split(':').map(Number); for (let k = 0; k < t; k++) { await page.evaluate((x) => document.querySelectorAll('[data-panel-grabber]')[x]?.click(), i); await page.waitForTimeout(600); } }

@@ -225,7 +225,7 @@ test('a deferral that no longer passes its re-check is dropped with a note and t
   r.turn(() => r.h.a!.hide());
   r.turn(() => r.h.a!.pin());
   assert.deepEqual(deferral(r, 'a'), { by: 'pin' });
-  r.turn(() => r.h.a!.setFormFactor('tablet'));
+  r.turn(() => r.h.a!.setSlots(2));
   r.turn(() => r.h.a!.show());
   assert.deepEqual([r.state('a').status, deferral(r, 'a'), r.state('a').pinned], ['live', null, false]);
   const dropped: SettingNote[] = r.m.notes.filter((n) => n.code === 'deferred-pin-dropped');
@@ -233,14 +233,14 @@ test('a deferral that no longer passes its re-check is dropped with a note and t
   assert.match(dropped[0]!.message, /wider than one slot/);
 });
 
-test('a closed record with a deferral drops it the same way when the tier no longer fits', async () => {
+test('a closed record with a deferral drops it the same way when the slot count no longer fits', async () => {
   const r = await pinRig({ ids: ['a', 'b'], settings: { b: { overflow: 'scroll', pinning: FIX, pinningWhenNotLive: 'apply-on-next-show' } } });
   r.turn(() => r.h.b!.close());
   await advanceFrames(9000);
   r.turn(() => r.h.b!.pin());
   r.turn(() => r.h.b!.open());
   await r.settle();
-  assert.deepEqual([r.state('b').status, deferral(r, 'b'), r.state('b').pinned], ['live', null, true], 'open() on a phone-tier panel applies it');
+  assert.deepEqual([r.state('b').status, deferral(r, 'b'), r.state('b').pinned], ['live', null, true], 'open() on a one-slot panel applies it');
 });
 
 // ---------------------------------------------------------------------------

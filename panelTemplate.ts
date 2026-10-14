@@ -5,7 +5,7 @@
  */
 
 import type * as React from 'react';
-import type { JsonValue, PanelSummary, FormFactor } from './hostApi.js';
+import type { JsonValue, PanelSummary } from './hostApi.js';
 import { reportLevelTieOnce } from './panelLevelChecks.js';
 import { checkPanelApi, type PanelApiLevel } from './panelApiLevel.js';
 import { PanelManagerError } from './panelManagerError.js';
@@ -60,8 +60,6 @@ export interface PanelState {
   readonly url?: string;
   /** The opaque, JSON-serializable params the panel was made with, or undefined when it has none. */
   readonly params: JsonValue | undefined;
-  /** The panel's current tier. */
-  readonly formFactor: FormFactor;
   /** Whether the panel appears in `PanelReader.list` and the panel list a view reads. */
   readonly listed: boolean;
   /** The panel's settings, resolved from every layer. */

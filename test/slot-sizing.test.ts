@@ -1,7 +1,7 @@
 /**
  * Slot sizing: a panel is n whole slots wide and a measured amount taller per slot. The pure arithmetic first, then a
  * mounted PanelRow for the widths, the heights, the alignment and the summary a view reads, one differential per
- * setting this entry owns, and the resolver rules for slots against formFactor.
+ * setting this entry owns, and the resolver rules for slots against maxSlots.
  */
 import { test, afterEach, mock } from 'node:test';
 import assert from 'node:assert/strict';
@@ -12,9 +12,9 @@ import { PanelRow, registerView, resolvePanelSettings } from '../index.js';
 import type { PanelSummary, PanelWindow, WorkspaceTuning } from '../index.js';
 import { RowHeightContext } from '../panelTuning.js';
 import { applyTemplate } from '../panelSettings.js';
-import { appendPanel, createHistoryPanel, setFormFactor, setSlots } from '../panelWindow.js';
+import { appendPanel, createHistoryPanel, setSlots } from '../panelWindow.js';
 import { projectWorkspaceState } from '../workspaceState.js';
-import { ALL_SLOTS, fitSlots, slotWidth, slotsOfTier, tierOfSlots } from '../rowConstants.js';
+import { ALL_SLOTS, fitSlots, slotWidth } from '../rowConstants.js';
 import { differential, differentialsCovered } from './support/differential.js';
 import { advanceFrames, cleanup, mount, withHost } from './support/mount-harness.js';
 import { drawnSlotsOf } from '../panelTiers.js';
@@ -75,16 +75,11 @@ test('at the app gap of 24 the edge padding is the rowGap tuning: slots are 804 
   assert.equal(px(slotOf(wide.container, 'b').style.width), 1632);
 });
 
-test('a tier is the slot count it stands for, and a slot count reports the tier it falls in', () => {
-  assert.deepEqual((['phone', 'tablet', 'desktop'] as const).map(slotsOfTier), [1, 2, ALL_SLOTS]);
-  assert.deepEqual([1, 2, 3, 9].map(tierOfSlots), ['phone', 'tablet', 'desktop', 'desktop']);
-});
-
 test('differential slots: a panel of two slots is one phone and a gap wider than a panel of one', () => {
   differential('slots', (run) => {
     for (const slots of [1, 2]) {
       run(slots, () => {
-        const mounted = mount(rowOf([made('a', { slots, maxSlots: 3, formFactors: ['phone', 'tablet', 'desktop'] })]));
+        const mounted = mount(rowOf([made('a', { slots, maxSlots: 3 })]));
         const width = px(slotOf(mounted.container, 'a').style.width);
         mounted.unmount();
         return width;
@@ -97,7 +92,7 @@ test('differential maxSlots: a panel asked for three slots is drawn at the cap',
   differential('maxSlots', (run) => {
     for (const maxSlots of [1, 3]) {
       run(maxSlots, () => {
-        const mounted = mount(rowOf([made('a', { slots: 3, maxSlots, formFactors: ['phone', 'tablet', 'desktop'] })]));
+        const mounted = mount(rowOf([made('a', { slots: 3, maxSlots })]));
         const width = px(slotOf(mounted.container, 'a').style.width);
         mounted.unmount();
         return width;
@@ -158,8 +153,8 @@ test('a hand-built entry without slots keeps the phone height and the older widt
   mounted.unmount();
 });
 
-test('setSlots clamps to maxSlots, needs a resizable panel and no-ops on an unchanged count; setFormFactor is slots by tier', () => {
-  const rows = [made('a', { slots: 1, maxSlots: 3, formFactors: ['phone', 'tablet', 'desktop'] })];
+test('setSlots clamps to maxSlots, needs a resizable panel and no-ops on an unchanged count', () => {
+  const rows = [made('a', { slots: 1, maxSlots: 3 })];
   const two = setSlots(rows, 'a', 2);
   assert.equal(two[0]!.slots, 2);
   assert.equal(setSlots(two, 'a', 2), two, 'unchanged: the same array');
@@ -167,17 +162,14 @@ test('setSlots clamps to maxSlots, needs a resizable panel and no-ops on an unch
   assert.equal(setSlots(two, 'a', 0)[0]!.slots, 1, 'clamped to one');
   const frozen = [made('f', { resizable: false })];
   assert.equal(setSlots(frozen, 'f', 2), frozen, 'a panel that is not resizable refuses');
-  assert.equal(setFormFactor(rows, 'a', 'tablet')[0]!.slots, 2, 'tablet is two slots');
-  assert.equal(setFormFactor(rows, 'a', 'desktop')[0]!.slots, 3, 'desktop is every slot the panel may take');
 });
 
-test('resolver: formFactor is the view of slots, and the later layer wins when both are asked', () => {
-  const both = resolvePanelSettings({ template: { slots: 3 } as never, instance: { formFactor: 'phone' } as never }).value;
-  assert.deepEqual([both.slots, both.formFactor], [1, 'phone'], 'the instance layer is after the template');
-  const earlier = resolvePanelSettings({ template: { formFactor: 'phone' } as never, instance: { slots: 3 } as never }).value;
-  assert.deepEqual([earlier.slots, earlier.formFactor], [3, 'desktop']);
-  const capped = resolvePanelSettings({ template: { slots: 5, maxSlots: 4 } as never }).value;
-  assert.equal(capped.slots, 4, 'slots is held to maxSlots');
+test('resolver: the later layer wins when both ask for slots, and slots above maxSlots are forced down to it', () => {
+  const later = resolvePanelSettings({ template: { slots: 3 } as never, instance: { slots: 1 } as never }).value;
+  assert.equal(later.slots, 1, 'the instance layer is after the template');
+  const capped = resolvePanelSettings({ template: { slots: 5, maxSlots: 4 } as never });
+  assert.equal(capped.value.slots, 4, 'slots is held to maxSlots');
+  assert.deepEqual(capped.conflicts.map((c) => [c.key, c.rule, c.forcedBy]), [['slots', 'C4', 'maxSlots']]);
 });
 
 test('resolver: a fixed column keeps the size settings its own layers asked for, and is forced to one slot otherwise', () => {
@@ -189,7 +181,7 @@ test('resolver: a fixed column keeps the size settings its own layers asked for,
 });
 
 test('resolver: resizable set with maxSlots at 1 is kept and noted', () => {
-  const res = resolvePanelSettings({ instance: { resizable: true, formFactors: ['phone'] } as never });
+  const res = resolvePanelSettings({ instance: { resizable: true, maxSlots: 1 } as never });
   assert.equal(res.value.resizable, true);
   assert.ok(res.notes.some((n) => n.code === 'resizable-capped'));
 });
@@ -215,7 +207,7 @@ test('drawnSlotsOf holds an entry to its own maxSlots even if its slots were sto
 test('setSlots above a panel maxSlots warns once, as a template asking too much does, and still clamps', () => {
   const warn = mock.method(console, 'warn', () => undefined);
   try {
-    const m = mountRow(row(rootEntry(), scrollMade('a', { slots: 1, maxSlots: 2, formFactors: ['phone', 'tablet'] })), 1000);
+    const m = mountRow(row(rootEntry(), scrollMade('a', { slots: 1, maxSlots: 2 })), 1000);
     act(() => void m.latest().setSlots('a', 5));
     act(() => void m.latest().setSlots('a', 5));
     assert.equal(m.latest().entries.find((p) => p.id === 'a')!.slots, 2, 'clamped to maxSlots');
