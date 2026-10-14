@@ -5,6 +5,9 @@
 ```ts
 
 // @public
+export type AbsentHostMember = 'history' | 'snapshots';
+
+// @public
 export type AddPlacement = 'row-start' | 'row-end' | 'parkable-start' | 'parkable-end' | 'after-fixed' | 'order' | {
     before: PanelId;
 } | {
@@ -65,6 +68,8 @@ export interface FakeHost extends Host {
 // @public
 export type FakeOverrides = {
     [K in keyof Host]?: Partial<Host[K]>;
+} & {
+    absent?: readonly AbsentHostMember[];
 };
 
 // @public

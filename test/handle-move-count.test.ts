@@ -94,9 +94,9 @@ async function savedRow(): Promise<{ m: ReturnType<typeof mountWorkspace>; ws: R
   const store = memoryWorkspaceStorage();
   const bare = (id: string) => definePanel({ id, settings: { title: id, multiple: true }, view: () => React.createElement('p', { 'data-body': id }) });
   const root = definePanel({ id: 'root', view: () => React.createElement(Panel, { title: 'History', children: React.createElement(PanelFrame, null) }) });
-  const ws = createWorkspace({ mount: false, root, templates: [bare('one'), bare('two'), bare('three')], storage: store });
+  const ws = createWorkspace({ mount: false, root, templates: [bare('one'), bare('two'), bare('three')], storage: store, tuning: { saveQuietMs: 5 } });
   for (const id of ['one', 'two', 'three']) ws.addPanel(id, { id: `${id}-1` });
-  const m = mountWorkspace(ws, { width: 1280, over: { tuning: { saveQuietMs: 5 } } });
+  const m = mountWorkspace(ws, { width: 1280 });
   await flush();
   await wait();
   const anchors = async (): Promise<string[]> => ((await store.load())!.panels.filter((p) => (p.overrides as { anchor?: unknown } | undefined)?.anchor !== undefined).map((p) => p.key!));

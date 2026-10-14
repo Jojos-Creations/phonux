@@ -13,6 +13,14 @@
   panel's slots, or pinning a panel wider than one slot into a fixed column. `CreatePanelOptions` and `ViewPatch` take `slots`.
   A saved file from an older library still loads: a top-level `formFactor` on an entry and `overrides.formFactor` read as that tier's slot count (`slots` wins when both are
   there). A file this version writes holds `slots` only for a panel wider than one slot and never a `formFactor`. `panelWidthOf` and the row price an entry with no `slots` as one phone width.
+- `registerView`, `resolveView`, `ViewComponent` and `ViewProps` are removed from `phonux`, and a row is always fed by a workspace.
+  A plain component becomes a template: `definePanel({ id, view })` with `createWorkspace({ templates })`, or
+  `workspace.registerTemplate`. A `view` key no template of the row's workspace answers to still renders the unregistered-view placeholder.
+  `PanelRow`'s `workspace` prop is required, and `PanelsInput.workspace` is required with it. `PanelsInput` loses the members only a row
+  without a workspace read: `rootId`, `initialEntries`, `storage`, `templates`, `declared`, `workspaceDefaults` and `tuning` now come from
+  `createWorkspace` (`root`, `storage`, `templates`, `addPanel`, `defaults`, `tuning`). The `template-collision` error code is gone with the
+  registry it guarded. The components (`PanelRow`, `Workspace`, `HostProvider`) stay public, always with a workspace. The deprecated Host-bag verbs
+  and `CreatePanelOptions` stay until their own removal.
 
 ### Fixed
 
@@ -54,6 +62,9 @@
 ### Added
 
 - `PanelResizeGrips`: a grip on each side of a resizable panel, drawn by the default frame, so an app no longer writes its own grabber. The width follows the pointer and the release settles on the nearest slot (a snap under Reduce Motion); the left grip keeps the right edge still; a press that travels under 4 px is a click and resizes nothing, and the click a browser fires after a drag stops at the grip; ArrowLeft and ArrowRight step one slot; each grip is a 24 px `separator` with `aria-valuenow`, `aria-valuemin`, `aria-valuemax` and `aria-valuetext`. It draws nothing when `resizable` is false or fewer than two slots fit. New `PhonuxLabels` keys `resizeGrip` and `resizeGripValue`, and `CHROME_PARTS.resize`. A view that draws its own `Panel` puts `<PanelResizeGrips />` in `overlay`.
+- `theme?: (mode: 'light' | 'dark') => Theme` on `createWorkspace` and `createWorkspaceColumn`: the mount draws that theme with one `CssBaseline` instead of `createDefaultTheme`. `mode` is the window's color scheme. The column draws it once and its cells draw none of their own, which also ends a second `CssBaseline` in a column. A `wrap` must not draw its own `ThemeProvider` or `CssBaseline`.
+- The contract for a value that is not there yet: `history`, `snapshots` and `labels` are optional on `Host`, the first frame of an auto-mounted workspace holds exactly what `createWorkspace` was given, and `workspace.update` carries the rest. `createFakeHost({ absent: ['history', 'snapshots'] })` renders the absent frame in a test.
+
 - `configureTuning` is accepted before the workspace is attached or loaded (only a disposed workspace refuses), and `column.configureTuning(patch)` applies one tuning change to every workspace in the column, including ones added or restored later.
 - `useWorkspace()` gives a view the manager of its workspace and `addPanel`, so a view such as History opens, closes, shows and creates other panels by key through the handles `panels.get(key)` returns. The type is `ViewWorkspace`: the panel manager plus `addPanel`, without `dispose`, `update` or `rename`, and the same object on every render. It is `undefined` outside a row that has a workspace. `useWorkspaceManager()` stays read-only.
 - `AnyPanelTemplate`: `WorkspaceOptions.templates`, `root` and `registerTemplate` take a template of any params, so a template made with `definePanel` for typed params needs no cast. `addPanel` still checks `params`.

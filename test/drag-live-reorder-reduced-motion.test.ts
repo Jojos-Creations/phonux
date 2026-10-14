@@ -8,10 +8,11 @@ import './support/jsdom-globals.js';
 import * as React from 'react';
 import { act } from 'react';
 import { MotionConfig } from 'motion/react';
-import { DragToClose, registerView, useHost, usePanelReorderSteps } from '../index.js';
+import { DragToClose, useHost, usePanelReorderSteps } from '../index.js';
 import { advanceFrames, cleanup } from './support/mount-harness.js';
 import { drag, release } from './support/drag-gesture.js';
 import { mountRow, panelsOf } from './support/scroll-row.js';
+import { registerTestView } from './support/test-views.js';
 
 afterEach(() => {
   cleanup();
@@ -44,7 +45,7 @@ function View({ id }: { id: string }): React.ReactElement {
     children: (handle) => React.createElement('div', { 'data-grab': id, onPointerDown: handle.onPointerDown }, id),
   });
 }
-registerView('scroll-row-view', ({ panel }) => React.createElement(View, { id: panel.id }));
+registerTestView('scroll-row-view', ({ panel }) => React.createElement(View, { id: panel.id }));
 
 const slotOf = (container: HTMLElement, id: string): HTMLElement => container.querySelector<HTMLElement>(`[data-grab="${id}"]`)!.closest<HTMLElement>('[data-drag-to-close]')!.parentElement!;
 const xOf = (container: HTMLElement, id: string): number => Math.round(Number(/translateX\((-?[\d.e+-]+)px\)/.exec(slotOf(container, id).style.transform)?.[1] ?? 0));

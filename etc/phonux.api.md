@@ -621,7 +621,7 @@ export class PanelManagerError extends Error {
 }
 
 // @public
-export type PanelManagerErrorCode = 'invalid-template' | 'duplicate-template' | 'unknown-template' | 'template-collision' | 'root-mismatch' | 'invalid-options' | 'invalid-settings' | 'instance-id-required' | 'already-attached' | 'disposed';
+export type PanelManagerErrorCode = 'invalid-template' | 'duplicate-template' | 'unknown-template' | 'root-mismatch' | 'invalid-options' | 'invalid-settings' | 'instance-id-required' | 'already-attached' | 'disposed';
 
 // @public
 export interface PanelProps extends Omit<BoxProps, 'children' | 'sx' | 'title'> {
@@ -686,7 +686,7 @@ export function PanelRow(input: {
     maxLiveWidth?: number;
     tuning?: WorkspaceTuning;
     rowNumbers?: RowNumbers;
-    workspace?: WorkspaceHandle;
+    workspace: WorkspaceHandle;
 }): React_2.ReactElement;
 
 // @public
@@ -761,17 +761,9 @@ export type PanelSettingsResolution = {
 export interface PanelsInput {
     capture?: CaptureTrigger;
     containerWidth: number;
-    declared?: readonly {
-        id: string;
-        templateId: string;
-        settings?: PanelSettings;
-        params?: JsonValue;
-        url?: string;
-    }[];
     defaultHostData?: () => JsonValue;
     defaultView?: string;
     fixedViewCount?: number;
-    initialEntries?: readonly PanelWindow[];
     labels?: Partial<PhonuxLabels>;
     onNote?: (note: SettingNote) => void;
     onPanelResize?: () => void;
@@ -785,12 +777,7 @@ export interface PanelsInput {
     overflowContainerRef: RefObject<HTMLDivElement | null>;
     phoneWidth: number;
     resetHostDataOnRestore?: (hostData: JsonValue | undefined, panel: PanelWindow) => JsonValue | undefined;
-    rootId: string;
-    storage?: WorkspaceStorage;
-    templates?: readonly AnyPanelTemplate[];
-    tuning?: WorkspaceTuning;
-    workspace?: WorkspaceHandle;
-    workspaceDefaults?: Omit<PanelSettings, 'tuning'>;
+    workspace: WorkspaceHandle;
 }
 
 // @public
@@ -1024,9 +1011,6 @@ export interface ProvidedPanels extends PanelsAPI {
 }
 
 // @public
-export function registerView<P extends JsonValue>(key: string, Component: ViewComponent<P>): void;
-
-// @public
 export interface ReorderHandle {
     onDragEnd: (offsetX: number) => void;
     onStep?: (steps: number) => boolean;
@@ -1090,9 +1074,6 @@ export type ResolveOptions = {
 
 // @public
 export function resolvePanelSettings(layers?: PanelSettingsLayers, options?: ResolveOptions): PanelSettingsResolution;
-
-// @public
-export function resolveView(key: string): ViewComponent;
 
 // @public
 export const ROW_LAYER_Z: Readonly<{
@@ -1394,9 +1375,6 @@ export function useWorkspace(): ViewWorkspace | undefined;
 export function useWorkspaceManager(): PanelReader | undefined;
 
 // @public
-export type ViewComponent<P = JsonValue> = React_2.ComponentType<ViewProps<P>>;
-
-// @public
 export type ViewHandle<P extends JsonValue = JsonValue> = Omit<PanelHandle<P>, 'configure'> & {
     configure(patch: ViewPatch): ConfigureResult;
 };
@@ -1417,11 +1395,6 @@ export type ViewPatch = {
         };
     } | null;
     enterFrom?: 'anchor' | null;
-};
-
-// @public
-export type ViewProps<P = JsonValue> = {
-    panel: PanelSummary<P>;
 };
 
 // @public
@@ -1528,11 +1501,12 @@ export type WorkspaceOptions = WorkspaceLive & {
     newId?: () => string;
     onError?: (e: unknown) => void;
     mount?: HTMLElement | false;
+    theme?: (mode: 'light' | 'dark') => Theme;
     wrap?: ComponentType<WorkspaceWrapProps>;
 };
 
 // @public
-export type WorkspacePanelsInput = Partial<Omit<PanelsInput, 'workspace' | 'rootId' | 'phoneWidth' | 'containerWidth' | 'overflowContainerRef' | 'initialEntries' | 'storage' | 'templates' | 'declared' | 'workspaceDefaults' | 'tuning' | 'labels'>>;
+export type WorkspacePanelsInput = Partial<Omit<PanelsInput, 'workspace' | 'phoneWidth' | 'containerWidth' | 'overflowContainerRef' | 'labels'>>;
 
 // @public
 export type WorkspacePanelState = {
