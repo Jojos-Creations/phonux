@@ -140,6 +140,16 @@ export interface WorkspaceHandle {
   dispose(): void;
 }
 
+/**
+ * What a view acts through on its workspace: the panel manager, which closes, shows and configures other panels by key, and
+ * `addPanel`. The workspace's own life (`dispose`, `update`, `rename`) is not here.
+ * @public
+ */
+export interface ViewWorkspace {
+  /** The workspace's panel manager with `addPanel`, which makes or finds a panel of a template and returns its handle. */
+  readonly panels: PanelManager & { addPanel: WorkspaceHandle['addPanel'] };
+}
+
 /** What the provider hook hands the workspace after every commit. */
 export interface EngineCommit {
   /** The committed panel list, root and marker included. */
@@ -1221,7 +1231,9 @@ export function createWorkspace(o: WorkspaceOptions = {}): WorkspaceHandle {
     },
   };
 
+  const workspace: ViewWorkspace = Object.freeze({ panels: Object.freeze({ ...handle.panels, addPanel }) });
   const view: PanelViewContext = {
+    workspace,
     handleFor: (name) => {
       const e = entryNamed((observed ?? committed)?.entries ?? [], name);
       return e === undefined || e.marker === true ? undefined : source.viewHandleOf(panelKey(e));

@@ -4,6 +4,7 @@
  */
 import * as React from 'react';
 import type { PanelReader, ViewHandle } from './panelTemplate.js';
+import type { ViewWorkspace } from './workspaceCore.js';
 
 /** The handle for a row entry and the reader for every panel; undefined outside a row that was given a workspace. */
 export interface PanelViewContext {
@@ -11,6 +12,8 @@ export interface PanelViewContext {
   handleFor(name: string): ViewHandle | undefined;
   /** Read-only access to every panel, or undefined when the row has no workspace. */
   manager: PanelReader | undefined;
+  /** What a view acts through on its workspace, or undefined when the row has none. */
+  workspace?: ViewWorkspace;
 }
 
 /** Provided by PanelRow from its `workspace` prop; absent for a row without one. */
