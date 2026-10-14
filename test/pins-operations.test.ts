@@ -39,31 +39,31 @@ function mountProvider(initialEntries: PanelWindow[]): { latest: () => ProvidedP
   return { latest: () => latest! };
 }
 
-test('PIN two raw setFormFactor calls on one id in one handler both apply in call order', () => {
+test('PIN two raw setSlots calls on one id in one handler both apply in call order', () => {
   const provider = mountProvider([root(), entry('a'), entry('b')]);
   act(() => {
     const stale = provider.latest();
-    stale.setFormFactor('a', 'tablet');
-    stale.setFormFactor('a', 'desktop');
+    stale.setSlots('a', 2);
+    stale.setSlots('a', 3);
   });
-  assert.equal(provider.latest().entries.find((p) => p.id === 'a')?.formFactor, 'desktop', 'the second call won: the first was applied before it');
+  assert.equal(provider.latest().entries.find((p) => p.id === 'a')?.slots, 3, 'the second call won: the first was applied before it');
   act(() => {
     const stale = provider.latest();
-    stale.setFormFactor('a', 'phone');
-    stale.setFormFactor('a', 'tablet');
+    stale.setSlots('a', 1);
+    stale.setSlots('a', 2);
   });
-  assert.equal(provider.latest().entries.find((p) => p.id === 'a')?.formFactor, 'tablet', 'the order reversed gives the other end');
+  assert.equal(provider.latest().entries.find((p) => p.id === 'a')?.slots, 2, 'the order reversed gives the other end');
 });
 
-test('PIN a raw close then a raw setFormFactor on one id: the close removes the panel and the resize changes nothing', () => {
+test('PIN a raw close then a raw setSlots on one id: the close removes the panel and the resize changes nothing', () => {
   const provider = mountProvider([root(), entry('a'), entry('b')]);
   act(() => {
     const stale = provider.latest();
     stale.close('a');
-    stale.setFormFactor('a', 'tablet');
+    stale.setSlots('a', 2);
   });
   assert.equal(row(provider.latest().entries), 'root b', 'literal result [H, B] for [H, A, B]');
-  assert.equal(provider.latest().entries.find((p) => p.id === 'b')?.formFactor, undefined, 'the resize did not land on a neighbour');
+  assert.equal(provider.latest().entries.find((p) => p.id === 'b')?.slots, undefined, 'the resize did not land on a neighbour');
 });
 
 /** What a probe renders with: the row after each render, so a test can tell when a commit happened. */

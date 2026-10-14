@@ -25,7 +25,7 @@ const slotValue = (closable: boolean, tuning: Partial<SlotTuning>): PanelSlotVal
   draggable: true,
   placeable: true,
   resizable: true,
-  formFactors: DEFAULT_SLOT.formFactors,
+  maxSlots: DEFAULT_SLOT.maxSlots,
   neighborWidths: { left: [], right: [] },
   pinned: false,
   tuning: { ...slotTuning(LIBRARY_TUNING_DEFAULTS, undefined), ...tuning },

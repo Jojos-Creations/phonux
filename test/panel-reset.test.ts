@@ -28,8 +28,8 @@ const park: PanelSettings = { overflow: 'park' };
 
 test('(a) declared A B C with placeOnAdd row-end, dragged to [C A B]: resetLayout(all) gives [A B C] and every override is empty', async () => {
   const r = await pinRig();
-  r.turn(() => r.h.c!.move('left', 'person'));
-  r.turn(() => r.h.c!.move('left', 'person'));
+  r.turn(() => r.h.c!.move(-1, 'person'));
+  r.turn(() => r.h.c!.move(-1, 'person'));
   assert.equal(r.order().join(' '), 'root c a b');
   const result = reset(r, 'all');
   assert.deepEqual(result, { ok: true, changed: true, panels: ['a', 'b', 'c'], parked: [], returned: [] });
@@ -39,8 +39,8 @@ test('(a) declared A B C with placeOnAdd row-end, dragged to [C A B]: resetLayou
 
 test('(b) one id re-places only that panel and clears only its overrides', async () => {
   const r = await pinRig();
-  r.turn(() => r.h.c!.move('left', 'person'));
-  r.turn(() => r.h.a!.move('right', 'person'));
+  r.turn(() => r.h.c!.move(-1, 'person'));
+  r.turn(() => r.h.a!.move(1, 'person'));
   const others = ['a', 'b'].map((id) => JSON.stringify(r.entry(id).overrides));
   const result = reset(r, 'c');
   assert.deepEqual([result.ok, result.ok && result.changed, result.ok ? (result as { panels?: string[] }).panels : undefined], [true, true, ['c']]);
@@ -49,22 +49,22 @@ test('(b) one id re-places only that panel and clears only its overrides', async
   assert.deepEqual(['a', 'b'].map((id) => JSON.stringify(r.entry(id).overrides)), others, 'the others keep what the person set');
 });
 
-test('(c) a tablet panel the person resized returns to its default tier', async () => {
+test('(c) a two-slot panel the person resized returns to its default slots', async () => {
   const r = await pinRig({ width: 4000 });
-  r.turn(() => r.h.b!.setFormFactor('tablet', 'person'));
-  assert.equal(r.entry('b').formFactor, 'tablet');
+  r.turn(() => r.h.b!.setSlots(2, 'person'));
+  assert.equal(r.entry('b').slots, 2);
   reset(r, 'b');
-  assert.equal(r.entry('b').formFactor, 'phone');
+  assert.equal(r.entry('b').slots, 1);
   assert.deepEqual(r.entry('b').overrides, {});
 });
 
-test('(c) a tier that no longer fits parks the fewest park panels and the result lists them', async () => {
+test('(c) a slot count that no longer fits parks the fewest park panels and the result lists them', async () => {
   const ids = ['a', 'b', 'c', 'd'];
-  const r = await pinRig({ ids, width: 1300, settings: Object.fromEntries(ids.map((id) => [id, { ...park, formFactor: id === 'c' ? 'tablet' : 'phone' } as PanelSettings])) });
+  const r = await pinRig({ ids, width: 1300, settings: Object.fromEntries(ids.map((id) => [id, { ...park, slots: id === 'c' ? 2 : 1 } as PanelSettings])) });
   await r.settle();
   r.turn(() => r.h.c!.show());
   await r.settle();
-  r.turn(() => r.h.c!.setFormFactor('phone', 'person'));
+  r.turn(() => r.h.c!.setSlots(1, 'person'));
   await r.settle();
   r.turn(() => r.h.b!.show());
   await r.settle();
@@ -72,14 +72,14 @@ test('(c) a tier that no longer fits parks the fewest park panels and the result
   assert.deepEqual(reset(r, 'c'), { ok: true, changed: true, panels: ['c'], parked: ['b'], returned: [] });
   await r.settle();
   assert.deepEqual(r.live(), ['root', 'c']);
-  assert.equal(r.entry('c').formFactor, 'tablet');
+  assert.equal(r.entry('c').slots, 2);
 });
 
 test('(c) a freed slot returns a stacked panel and the result lists it', async () => {
   const ids = ['a', 'b', 'c', 'd'];
   const r = await pinRig({ ids, width: 1300, settings: Object.fromEntries(ids.map((id) => [id, park])) });
   await r.settle();
-  r.turn(() => r.h.d!.setFormFactor('tablet', 'person'));
+  r.turn(() => r.h.d!.setSlots(2, 'person'));
   await r.settle();
   assert.deepEqual(r.live(), ['root', 'd']);
   assert.deepEqual(reset(r, 'd'), { ok: true, changed: true, panels: ['d'], parked: [], returned: ['c'] });
@@ -87,11 +87,11 @@ test('(c) a freed slot returns a stacked panel and the result lists it', async (
   assert.deepEqual(r.live(), ['root', 'c', 'd']);
 });
 
-test('(c) a scrolling row parks none when a tier grows', async () => {
+test('(c) a scrolling row parks none when a slot count grows', async () => {
   const ids = ['a', 'b', 'c', 'd'];
-  const r = await pinRig({ ids, width: 1300, settings: Object.fromEntries(ids.map((id) => [id, { overflow: 'scroll', formFactor: id === 'c' ? 'tablet' : 'phone' } as PanelSettings])) });
+  const r = await pinRig({ ids, width: 1300, settings: Object.fromEntries(ids.map((id) => [id, { overflow: 'scroll', slots: id === 'c' ? 2 : 1 } as PanelSettings])) });
   await r.settle();
-  r.turn(() => r.h.c!.setFormFactor('phone', 'person'));
+  r.turn(() => r.h.c!.setSlots(1, 'person'));
   const live = r.live();
   const result = reset(r, 'c') as { parked?: string[] };
   await r.settle();
@@ -135,7 +135,7 @@ test('(e) parked and hidden panels are re-placed and stay parked or held', async
 
 test('closed declared clears the overrides so open() places by default; an undo-window record is marked reset', async () => {
   const r = await pinRig();
-  r.turn(() => r.h.c!.move('left', 'person'));
+  r.turn(() => r.h.c!.move(-1, 'person'));
   r.turn(() => r.h.c!.close());
   await advanceFrames(9000);
   assert.equal(r.state('c').status, 'closed');
@@ -191,8 +191,8 @@ test('a stored deferredPin is cleared by resetLayout, for an open and a closed p
 
 test('a second call is changed:false, and a call that only clears a stored non-empty override is changed:true', async () => {
   const r = await pinRig();
-  r.turn(() => r.h.c!.move('left', 'person'));
-  r.turn(() => r.h.c!.move('right', 'person'));
+  r.turn(() => r.h.c!.move(-1, 'person'));
+  r.turn(() => r.h.c!.move(1, 'person'));
   assert.equal(r.order().join(' '), 'root a b c', 'the row is back where it started');
   assert.notDeepEqual(r.entry('c').overrides, {}, 'but the person\'s move is recorded');
   const first = reset(r, 'all');
@@ -204,8 +204,8 @@ test('a second call is changed:false, and a call that only clears a stored non-e
 test('the file holds overrides {} and applied.placeOnAdd for every named entry, and a second launch keeps the reset row', async () => {
   const store = memoryWorkspaceStorage();
   const r = await pinRig({ workspace: { storage: store }, over: quiet });
-  r.turn(() => r.h.c!.move('left', 'person'));
-  r.turn(() => r.h.c!.move('left', 'person'));
+  r.turn(() => r.h.c!.move(-1, 'person'));
+  r.turn(() => r.h.c!.move(-1, 'person'));
   reset(r, 'all');
   await wait();
   const saved = (await store.load())!.panels;
@@ -243,7 +243,7 @@ test('resetLayout(id) of an in-view panel follows its scrollOnMove and resetLayo
     return r;
   };
   const one = await make();
-  one.turn(() => one.h.j!.move('left', 'person'));
+  one.turn(() => one.h.j!.move(-1, 'person'));
   await one.settle();
   one.m.container.scrollLeft = 3482;
   reset(one, 'j');
@@ -252,7 +252,7 @@ test('resetLayout(id) of an in-view panel follows its scrollOnMove and resetLayo
   assert.ok(one.m.container.scrollLeft >= 3482, 'j went back to the end and the row followed it');
   cleanup();
   const all = await make();
-  all.turn(() => all.h.j!.move('left', 'person'));
+  all.turn(() => all.h.j!.move(-1, 'person'));
   await all.settle();
   all.m.container.scrollLeft = 1200;
   reset(all, 'all');

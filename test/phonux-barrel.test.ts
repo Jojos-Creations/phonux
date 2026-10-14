@@ -41,18 +41,19 @@ const VALUE_EXPORTS = [
   'useViewState',
   'ViewStateMissingProviderError',
   'DEFAULT_PANEL_SIZE',
-  'TIER_SIZES',
   'panelWidthOf',
   'computeRowLayout',
   'computeRowNumbers',
   'PanelRow',
   'PanelSizeBox',
+  'PanelResizeGrips',
   'GAP',
   'PANEL_TRANSITION',
   'usePanelReorderEligible',
   'usePanelReorderSteps',
   'usePanelTuning',
   'usePanelCapabilities',
+  'usePanelDragProps',
   'usePanelCloseEligible',
   'usePanelHeaderButtons',
   'usePanelHidden',
@@ -93,7 +94,7 @@ const VALUE_EXPORTS = [
   'DRAGGING_ATTRIBUTE',
 ].sort();
 
-test('the phonux barrel exports exactly the 78 runtime values, no more, no fewer', () => {
+test('the phonux barrel exports exactly the 80 runtime values, no more, no fewer', () => {
   assert.deepEqual(Object.keys(phonux).sort(), VALUE_EXPORTS);
 });
 

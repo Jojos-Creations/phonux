@@ -6,6 +6,7 @@ import { test, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
 import './support/jsdom-globals.js';
 import * as React from 'react';
+import { act } from 'react';
 import { PANEL_API, PanelManagerError, createWorkspace, definePanel } from '../index.js';
 import type { PanelTemplate } from '../index.js';
 import { NEWEST_SHAPE, SHIPPED_LEVELS, checkPanelApi, levelCoverageProblem, shapeMismatches, type LevelEntry, type LevelTable, type NewestViewProps, type PropsShape } from '../panelApiLevel.js';
@@ -14,7 +15,9 @@ import { PanelFooterContext } from '../panelFooter.js';
 import { PanelViewContextValue } from '../panelViewContext.js';
 import { cleanup, mount, withHost } from './support/mount-harness.js';
 import { flush, markerTemplate, mountWorkspace } from './support/workspace-row.js';
-import { levelOnePanel } from './fixtures/panel-api-1/panel.js';
+import { readFileSync } from 'node:fs';
+import { PANEL_SETTINGS_CATALOG } from '../panelSettings.js';
+import { levelOneFramedPanel, levelOnePanel } from './fixtures/panel-api-1/panel.js';
 
 afterEach(() => cleanup());
 
@@ -246,14 +249,42 @@ test('the frozen level-1 fixture panel renders in a workspace with everything it
   assert.equal(views.length, 1, 'the fixture view rendered');
   const view = views[0]!;
   assert.match(view.dataset.fixtureHandle!, /^[^:]+:fixture-level-1:(pending|live)$/);
+  assert.equal(view.dataset.fixtureView, view.dataset.fixtureHandle!.split(':')[0], 'panel.id is handle.id');
   assert.equal(view.dataset.fixtureManager, `${w.panels.getSnapshot().panels.map((p) => p.id).join(',')}|1`);
   assert.equal(view.dataset.fixturePinned, 'false');
   assert.equal(view.dataset.fixtureGap, 'number');
   assert.equal(view.dataset.fixtureCount, '0');
+  assert.equal(view.dataset.fixtureHost, '1', 'useHost().panels.panelList');
+  assert.equal(view.dataset.fixtureWsmanager, '1', 'useWorkspaceManager');
+  assert.equal(view.dataset.fixtureStates, '1', 'usePanelStates');
+  assert.equal(view.dataset.fixtureOwn, 'true', 'usePanelState(handle.id)');
+  assert.equal(view.dataset.fixtureActive, 'true', 'useActivePanel');
+  assert.equal(view.dataset.fixturePhone, 'number:number', 'usePhoneSize');
+  act(() => void view.dispatchEvent(new MouseEvent('dblclick', { bubbles: true })));
+  assert.equal(view.dataset.fixtureMoved, 'true', 'handle.move(-3) answers a PanelResult');
   const footers = [...m.container.querySelectorAll<HTMLElement>('[data-fixture-footer]')];
   assert.ok(footers.length >= 1, 'the fixture footer rendered');
   assert.equal(footers[0]!.textContent, '1');
   assert.ok(m.container.querySelector('[aria-label="Note"]'), 'the template\'s header button rendered');
+});
+
+test('the frozen level-1 framed fixture draws its own frame from the frame components', () => {
+  const w = createWorkspace({ mount: false, templates: [levelOneFramedPanel] });
+  w.addPanel(levelOneFramedPanel);
+  const m = mountWorkspace(w);
+  assert.ok(m.container.querySelector('[data-fixture-framed]'), 'the framed view rendered');
+  assert.equal(m.container.querySelector<HTMLElement>('[data-fixture-grab]')?.dataset.fixtureGrab, 'function', 'DragToClose hands its children the handle');
+  assert.ok(m.container.querySelector('[data-panel-size-box]'), 'PanelSizeBox drew its box');
+  assert.equal(m.container.querySelectorAll('[data-fixture-footer]').length, 1, 'PanelFooter drew the template footer');
+});
+
+test('DESIGN lists every workspace-scope tuning row as not covered by a level', () => {
+  const rows = PANEL_SETTINGS_CATALOG.filter((d) => d.scope === 'workspace').map((d) => d.name.replace(/^tuning\./, ''));
+  assert.equal(rows.length, 15);
+  const line = readFileSync(new URL('../DESIGN.md', import.meta.url), 'utf8').split('\n').find((l) => l.startsWith('| `useHost().panels`'));
+  assert.ok(line, 'the level table row naming the workspace-only options');
+  const notCovered = line.split('|')[2]!;
+  for (const name of rows) assert.ok(notCovered.includes(`\`${name}\``), `${name} is named in the not-covered column`);
 });
 
 // ---------------------------------------------------------------------------
@@ -417,7 +448,7 @@ test('optional members may be absent and a present one of the wrong kind is repo
 /** The members the frozen level-1 fixture reads, by prop and kind (test/fixtures/panel-api-1/types.ts). */
 const FIXTURE_READS: [string, string, string][] = [
   ['panel', 'id', 'string'], ['panel', 'title', 'string'], ['panel', 'live', 'boolean'], ['panel', 'params', 'any'],
-  ['handle', 'id', 'string'], ['handle', 'templateId', 'string'], ['handle', 'getState', 'function'], ['handle', 'subscribe', 'function'],
+  ['handle', 'id', 'string'], ['handle', 'templateId', 'string'], ['handle', 'getState', 'function'], ['handle', 'subscribe', 'function'], ['handle', 'move', 'function'],
   ['manager', 'list', 'function'], ['manager', 'getSnapshot', 'function'],
 ];
 

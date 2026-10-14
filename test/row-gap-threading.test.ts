@@ -1,6 +1,6 @@
 /**
  * The row gap reaches every site that prices or draws the row, from the one resolved value: literal arithmetic at
- * gaps 0, 16 and 40 over widths [390, 768, 390] with one fixed column, a seeded consistency property between the
+ * gaps 0, 16 and 40 over widths [390, two slots, 390] with one fixed column, a seeded consistency property between the
  * capacity and the layout budget, and the single-render rule for a PanelRow inside a Workspace. Every expected
  * number is written from its sum, never read back from the code under test.
  */
@@ -9,7 +9,7 @@ import assert from 'node:assert/strict';
 import './support/jsdom-globals.js';
 import * as React from 'react';
 import { act } from 'react';
-import { PanelRow, TIER_SIZES, Workspace, registerView, useProvidePanels, usePanelTuning } from '../index.js';
+import { PanelRow, Workspace, registerView, useProvidePanels, usePanelTuning } from '../index.js';
 import type { PanelWindow, ProvidedPanels, WorkspaceTuning } from '../index.js';
 import { computeMaxLiveWidth, computeRowLayout } from '../panelRowLayout.js';
 import { panelRowSlotMotion } from '../PanelRowSlot.js';
@@ -31,7 +31,7 @@ const entry = (id: string, over: Partial<PanelWindow> = {}): PanelWindow => ({
   ...over,
 });
 const fixedRoot = (): PanelWindow => entry(ROOT, { url: '', title: 'History', locked: true, collapsible: false, listed: false });
-const tablet = (id: string): PanelWindow => entry(id, { formFactor: 'tablet', size: { ...TIER_SIZES.tablet } });
+const twoSlots = (id: string): PanelWindow => entry(id, { slots: 2, size: { width: 796, height: 'fill' } });
 
 registerView('gap-view', ({ panel }) => React.createElement('i', { 'data-slot': panel.id }, panel.title));
 
@@ -84,11 +84,11 @@ test('the gap threads through every site at gaps 0, 16 and 40, from literal sums
   const margin: Record<number, number> = { 0: 426, 16: 394, 40: 346 };
   const maxLive: Record<number, number> = { 0: 2010, 16: 1962, 40: 1890 };
   for (const gap of GAPS) {
-    // Site 1 and 2: three present entries of 390, 768 and 390.
-    const row = mount(rowOf([fixedRoot(), tablet('t'), entry('p')], { rowGap: gap }));
-    assert.deepEqual([slotX(row.container, ROOT), slotX(row.container, 't'), slotX(row.container, 'p')], [0, 390 + gap, 390 + gap + 768 + gap], `offsets at gap ${gap}`);
+    // Site 1 and 2: three present entries of 390, two slots wide and 390.
+    const row = mount(rowOf([fixedRoot(), twoSlots('t'), entry('p')], { rowGap: gap }));
+    assert.deepEqual([slotX(row.container, ROOT), slotX(row.container, 't'), slotX(row.container, 'p')], [0, 390 + gap, 390 + gap + (780 + gap) + gap], `offsets at gap ${gap}`);
     executed += 1;
-    assert.equal(getComputedStyle(row.container.firstElementChild!).width, `${390 + 768 + 390 + 2 * gap}px`, `reserved width at gap ${gap}`);
+    assert.equal(getComputedStyle(row.container.firstElementChild!).width, `${390 + (780 + gap) + 390 + 2 * gap}px`, `reserved width at gap ${gap}`);
     executed += 1;
     row.unmount();
     // Site 3: the travel of a slot entering from the right is its own width plus the gap.

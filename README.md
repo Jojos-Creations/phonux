@@ -58,7 +58,8 @@ column.addWorkspace({ name: 'Reading' }); // or give it a name
 The column renders itself. ArrowUp and ArrowDown (when focus is not in a field or dialog) move between workspaces, a button at the top
 and bottom centre names the neighbour and moves there, and where there is none it reads "Create new workspace" and calls
 `addWorkspace`. Each workspace has an input above its panels for its name. `storage` keeps the list, the names and the current
-workspace; give the workspace you already have its old key with `addWorkspace({ id })`. An app that draws its own rows passes
+workspace; the column has one content (`root`, `templates`, `defaults`, `order`), `addWorkspace` takes only `id`, `name` and `index`, and a
+workspace's panels are kept by `storage.workspace(id)` (return `undefined` for none). Give the workspace you already have its old key with `addWorkspace({ id })`. An app that draws its own rows passes
 `mount: false` and renders `<WorkspaceColumn column={column}>{(workspace) => ...}</WorkspaceColumn>`.
 
 ## Building your own flow
@@ -122,7 +123,7 @@ The two layers draw the same DOM; the advanced one exists for flows the options 
 
 ## Panel sizing
 
-A panel is a whole number of slots wide: one slot is the phone width, and each added slot adds a phone width plus the row gap. Set the count with `slots` (and cap it with `maxSlots`); a person can change it by dragging, and a view can change it with `setSlots`. A panel is drawn at no more slots than fit the window, and its chosen count comes back when the window grows. A panel is the same height whatever its slot count. `formFactor` still works as a view of `slots` (phone 1, tablet 2, desktop 3 or more) and is deprecated. See `DESIGN.md` "Slot sizing".
+A panel is a whole number of slots wide: one slot is the phone width, and each added slot adds a phone width plus the row gap. Set the count with `slots` (and cap it with `maxSlots`); a person can change it by dragging, and a view can change it with `setSlots`. A panel is drawn at no more slots than fit the window, and its chosen count comes back when the window grows. A panel is the same height whatever its slot count. See `DESIGN.md` "Slot sizing".
 
 ## Panel chrome
 
@@ -138,7 +139,7 @@ cut off by an edge: `'visible'` moves the row one slot at a time, so every panel
 (1, 2, ... its own width, then its own width ... 2, 1) and is never cropped; `'hidden'` keeps whole panels and hides the rest; `'off'` shows the neighbour at the window edge cut off, at its full size. A resize grabber calls the setter from `usePanelResizing()` so no other
 panel changes size under it (see DESIGN.md, "Whole panels only"). The setter's third item, `setDrawnWidth(px, pin?)`, draws that
 panel `px` wide at once, so the grabber follows the pointer frame by frame (`pin: 'end'` keeps the right edge still for a grabber on the left);
-end a drag with `setSlots(nearest)`, `setDrawnWidth(null)` and `setResizing(false)`, in that order.
+end a drag with `setSlots(nearest)`, `setDrawnWidth(null)` and `setResizing(false)`, in that order. The default frame already draws a grip on each side of a resizable panel (`PanelResizeGrips`); a view that draws its own `Panel` puts `<PanelResizeGrips />` in its `overlay`.
 
 ## Testing a view
 

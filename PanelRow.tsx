@@ -16,7 +16,7 @@ import { PanelHiddenContext, PanelSlotContext, type DragScroll } from './panelSl
 import type { PanelTemplate } from './panelTemplate.js';
 import { PanelViewContextValue } from './panelViewContext.js';
 import { HEADER_ROW_ATTRIBUTE, headerButtonsOf } from './panelHeaderButtons.js';
-import { LIBRARY_TUNING_DEFAULTS, effective, resolvePanelSettings } from './panelSettings.js';
+import { LIBRARY_TUNING_DEFAULTS, effective, panelKey, resolvePanelSettings } from './panelSettings.js';
 import type { ChromeTuning, ResolvedPanelSettings, ResolvedPanelTuning, WorkspaceTuning } from './panelSettings.js';
 import { PanelRowSlot } from './PanelRowSlot.js';
 import { ChromeStoreContext, createChromeStore } from './panelChrome.js';
@@ -55,7 +55,7 @@ export function enterDirectionOf(from: ResolvedPanelSettings['enterFrom'], ancho
 function renderedSummary(p: PanelRowEntry, width: number, height: number | undefined, drawnSlots: number | undefined, fitSlots: number | undefined) {
   const summary = summarisePanel(p);
   if (p.slots !== undefined) return { ...summary, drawnSlots, fitSlots, size: summary.size && { ...summary.size, width, height: height ?? summary.size.height } };
-  return summary.size && summary.size.width !== width && (p.formFactor ?? 'phone') !== 'phone' ? { ...summary, size: { ...summary.size, width } } : summary;
+  return summary.size && summary.size.width !== width && (p.slots ?? 1) > 1 ? { ...summary, size: { ...summary.size, width } } : summary;
 }
 
 /** What a view mounted outside any row is told: the library defaults, which `resolvePanelSettings` fills in for the derived keys too. */
@@ -79,13 +79,13 @@ export const usePanelCloseEligible = (): boolean => {
   return slot === undefined ? true : slot.collapsible && slot.closable;
 };
 /**
- * What this panel's own settings let a person do with it: close, drag, re-anchor and resize it, and which tiers it
+ * What this panel's own settings let a person do with it: close, drag, re-anchor and resize it, and the most slots it
  * may take. Outside a row: the library defaults.
  * @public
  */
-export const usePanelCapabilities = (): Pick<ResolvedPanelSettings, 'closable' | 'draggable' | 'placeable' | 'resizable' | 'formFactors'> => {
+export const usePanelCapabilities = (): Pick<ResolvedPanelSettings, 'closable' | 'draggable' | 'placeable' | 'resizable' | 'maxSlots'> => {
   const slot = React.useContext(PanelSlotContext) ?? OUTSIDE_ROW;
-  return { closable: slot.closable, draggable: slot.draggable, placeable: slot.placeable, resizable: slot.resizable, formFactors: slot.formFactors };
+  return { closable: slot.closable, draggable: slot.draggable, placeable: slot.placeable, resizable: slot.resizable, maxSlots: slot.maxSlots };
 };
 /** The widths this entry's drag can cross (reorderStepsForOffset's input). Unprovided: none, so no hop.
  * @public */
@@ -112,9 +112,19 @@ export const usePanelReorderSteps = (): ((offsetX: number) => number) => {
  * @public
  */
 export const usePanelHidden = (): boolean => React.useContext(PanelHiddenContext);
-/** Anchored left of the row's root, read from the anchor every render so a drag across the root changes it too. Unprovided: false.
+/** What `PanelState.pinned` says for the panel (its `pinning` definition against the row), so a drag across the root changes it too; a row without a workspace reads left of the root. Unprovided: false.
  * @public */
-export const usePanelPinned = (): boolean => React.useContext(PanelSlotContext)?.pinned ?? false;
+export const usePanelPinned = (): boolean => {
+  const slot = React.useContext(PanelSlotContext);
+  const handle = slot?.handle;
+  const fallback = slot?.pinned ?? false;
+  return React.useSyncExternalStore(
+    handle === undefined ? NO_SUBSCRIPTION : handle.subscribe,
+    () => (handle === undefined ? fallback : handle.getState().pinned),
+    () => fallback,
+  );
+};
+const NO_SUBSCRIPTION = (): (() => void) => () => {};
 
 /**
  * The row: every present entry in its own animated slot, in the array's order, each rendered by its registered view.
@@ -213,6 +223,7 @@ export function PanelRow({
   // Ids never repeat, so a panel in neither list can never be shown again and its view state is released.
   useViewState.useRetainOnly([...entries.filter((p) => !parkReleases(p)), ...(panels.recentlyClosed ?? [])].map((p) => p.id));
   const present = entries.filter(isPresent);
+  chrome.setKeys(new Map(entries.map((p) => [p.id, panelKey(p)])));
   // A panel this row showed and no longer shows (closed or parked) stops being the active or dragged one.
   const presentBefore = React.useRef<ReadonlySet<string>>(new Set());
   React.useEffect(() => {
@@ -228,7 +239,7 @@ export function PanelRow({
   });
   // Layout, capacity and neighbours are computed over `present` alone: a kept entry occupies a slot but no width.
   const rendered = entries.filter((p) => isPresent(p) || keepsMounted(p));
-  // Every present entry's OWN width, in row order. An always-shown column needs no special case: setFormFactor
+  // Every present entry's OWN width, in row order. An always-shown column needs no special case: setSlots
   // no-ops on a collapsible:false id, so panelWidthOf gives it `phoneWidth`.
   const numberAt = (p: PanelRowEntry): number => (rowNumbers === undefined ? -1 : rowNumbers.ids.indexOf(p.id));
   // While a host resizes a panel by hand every other panel keeps the width it was last drawn at, so nothing moves under the grabber.
@@ -335,9 +346,9 @@ export function PanelRow({
           const kept = presentIndex < 0;
           const rest = kept ? restRef.current.get(p.id)! : { leftOffset: leftOffsets[presentIndex]!, width: widths[presentIndex]! };
           const Component = resolveViewIn(templateOf, p.view);
-          const { closable, draggable, placeable, resizable, formFactors, enterFrom, exitTo, closeExit, animated, layer, scrollOnDrag, headerButtons, frame } = effective(p);
+          const { closable, draggable, placeable, resizable, maxSlots, enterFrom, exitTo, closeExit, animated, layer, scrollOnDrag, headerButtons, frame } = effective(p);
           const own = slotTuning(workspaceTuning, binding === undefined ? p.settings?.tuning : binding.panelTuning(p as PanelWindow));
-          const handle = viewContext?.handleFor(p.id);
+          const handle = viewContext?.handleFor(panelKey(p));
           const report = binding?.reportError ?? console.error;
           const note = binding?.reportNote ?? (() => {});
           // A panel whose last button was just removed while it held focus still gets the slot context for that one commit, so the hook that moves focus runs.
@@ -354,13 +365,16 @@ export function PanelRow({
                 draggable,
                 placeable,
                 resizable,
-                formFactors,
+                maxSlots,
                 frame,
                 id: p.id,
                 animated,
                 tracking,
                 setDragging: (on) => chrome.setDragging(p.id, on),
                 neighborWidths: neighborWidthsAt(p),
+                drawn: { width: rest.width, height: phoneHeight },
+                slotRange: { now: slotsOfWidth(rest.width), most: Math.max(1, Math.min(effective(p).maxSlots, fitSlotsNow)) },
+                handle,
                 pinned: anchorTargetOf(p, rootId) === rootId && p.anchor?.position === 'left',
                 tuning: own,
                 dragScroll,

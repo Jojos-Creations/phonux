@@ -1,0 +1,17 @@
+{
+  "tests": ["test/panel-id-is-key.test.ts", "test/panel-api-level.test.ts"],
+  "mutants": [
+    { "name": "a summary carries the counter id", "file": "panelRowEntry.ts", "find": "id: key ?? id, url,", "replace": "id, url,", "expectRed": ["is given panel.id equal to handle.id", "list the panels by key"] },
+    { "name": "a verb takes only the counter id", "file": "panels/useProvidePanels.ts", "find": "const engineIdOf = (name: string): string => entryNamed(panels, name)?.id ?? name;", "replace": "const engineIdOf = (name: string): string => name;", "expectRed": ["every PanelsAPI verb that names a panel takes its key"] },
+    { "name": "the counter id stops resolving", "file": "panelIds.ts", "find": "  const byCounter = entries.find((e) => e.id === name);\n  if (byCounter !== undefined) warnCounterId(name, panelKey(byCounter as never));\n  return byCounter;", "replace": "  return undefined;", "expectRed": ["a counter id still resolves where an id is read"] },
+    { "name": "the counter warning repeats", "file": "panelIds.ts", "find": "|| warned.has(counter)) return;\n  warned.add(counter);", "replace": ") return;", "expectRed": ["one warning naming the key"] },
+    { "name": "the counter id is silent", "file": "panelIds.ts", "find": "console.warn(`phonux: '${counter}'", "replace": "void (`phonux: '${counter}'", "expectRed": ["one warning naming the key"] },
+    { "name": "the key is warned about", "file": "panelIds.ts", "find": "  const byKey = entries.find((e) => panelKey(e as never) === name);\n  if (byKey !== undefined) return byKey;", "replace": "  const byKey = entries.find((e) => panelKey(e as never) === name);\n  if (byKey !== undefined) { warnCounterId(name, name); return byKey; }", "expectRed": ["is not warned about"] },
+    { "name": "initialScroll takes only the counter id", "file": "panels/useProvidePanels.ts", "find": "rowNumbers.ids.indexOf(where === 'root' ? rootId : engineIdOf(where.panel));", "replace": "rowNumbers.ids.indexOf(where === 'root' ? rootId : where.panel);", "expectRed": ["tuning.initialScroll.panel takes a key"] },
+    { "name": "the snapshot trigger gets the counter id on a park", "file": "panels/useProvidePanels.ts", "find": "asksForPicture(p, 'park')) capture.capture(panelKey(p));", "replace": "asksForPicture(p, 'park')) capture.capture(p.id);", "expectRed": ["the snapshot trigger is given a panel's key"] },
+    { "name": "the snapshot trigger gets the counter id on a close", "file": "panels/useProvidePanels.ts", "find": "capture.capture(panelKey(target));", "replace": "capture.capture(target.id);", "expectRed": ["the snapshot trigger is given a panel's key"] },
+    { "name": "useActivePanel reports the counter id", "file": "panelChrome.ts", "find": "return active === null ? null : store!.keyOf(active); }", "replace": "return active; }", "expectRed": ["useActivePanel reports and takes a key"] },
+    { "name": "useActivePanel's setter passes the key through", "file": "panelChrome.ts", "find": "store?.setActive(key === null ? null : store.engineOf(key))", "replace": "store?.setActive(key)", "expectRed": ["useActivePanel reports and takes a key"] },
+    { "name": "the view handle is looked up by counter id", "file": "workspaceCore.ts", "find": "const e = entryNamed((observed ?? committed)?.entries ?? [], name);", "replace": "const e = (observed ?? committed)?.entries.find((p) => p.id === name);", "expectRed": ["is given panel.id equal to handle.id"] }
+  ]
+}
