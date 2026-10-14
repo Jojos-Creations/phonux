@@ -16,7 +16,7 @@
     {
       "name": "the old rule: any event at least as large as the one before steps",
       "file": "panels/useRowScrollGesture.ts",
-      "find": "const holding = fresh || (trough !== null && magnitude >= trough * RISE_FACTOR);",
+      "find": "const holding = fresh || (trough !== null && magnitude >= Math.max(trough * RISE_FACTOR, trough + RISE_FLOOR));",
       "replace": "const holding = fresh || magnitude >= previous;",
       "expectRed": [
         "ramp up, peak and fade is one step",
@@ -69,6 +69,24 @@
       "expectRed": [
         "after 150 ms without a wheel event",
         "mouse notches 200 ms apart"
+      ]
+    },
+    {
+      "name": "the lock is ignored",
+      "file": "panels/useRowScrollGesture.ts",
+      "find": "if (locked || !holding) return;",
+      "replace": "if (!holding) return;",
+      "expectRed": [
+        "a second wheel event inside the 60 ms lock"
+      ]
+    },
+    {
+      "name": "no absolute floor on the rise",
+      "file": "panels/useRowScrollGesture.ts",
+      "find": "Math.max(trough * RISE_FACTOR, trough + RISE_FLOOR)",
+      "replace": "trough * RISE_FACTOR",
+      "expectRed": [
+        "quantised tail"
       ]
     }
   ]

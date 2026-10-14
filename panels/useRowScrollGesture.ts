@@ -17,13 +17,15 @@ import { GESTURE_LOCK_MS, GESTURE_QUIET_MS } from '../rowConstants.js';
 
 /** How far above the trough of a fading tail an event must rise to count as a new swipe; tail jitter such as 14, 12, 13 stays under it. */
 const RISE_FACTOR = 1.5;
+/** The least the rise must also add to the trough, in delta units: a tail rounded to whole pixels (1, 1, 2, 1) is not a new swipe. */
+const RISE_FLOOR = 4;
 
 /**
  * `gestureLockMs`: after a step, wheel events are ignored for this long (the lock is not re-armed by them). A trackpad
  * swipe arrives as a burst of wheel deltas that ramps up, peaks and fades, with a momentum tail, and a WebKit or Blink
  * browser cannot tell a momentum event from a fresh user one. So one swipe is one step: after a step, an event steps again
  * only once the lock is over and either its direction reverses, or the deltas have fallen since the step (the trough is
- * the smallest magnitude seen since) and the event is at least `RISE_FACTOR` times the trough, a new swipe starting in the
+ * the smallest magnitude seen since) and the event is at least `RISE_FACTOR` times the trough and `RISE_FLOOR` above it, a new swipe starting in the
  * tail. A plateau of equal deltas, a ramp, and jitter in a tail never step again.
  *
  * `gestureQuietMs`: no wheel event for this long ends a gesture, so the next event is fresh and steps whatever its size.
@@ -67,7 +69,7 @@ export function useRowScrollGesture(
       if (reversed) trough = 0;
       else if (magnitude < previous) trough = trough === null ? magnitude : Math.min(trough, magnitude);
       const fresh = reversed || previous === 0;
-      const holding = fresh || (trough !== null && magnitude >= trough * RISE_FACTOR);
+      const holding = fresh || (trough !== null && magnitude >= Math.max(trough * RISE_FACTOR, trough + RISE_FLOOR));
       previous = magnitude;
       previousSign = sign;
       if (quietTimer) clearTimeout(quietTimer);

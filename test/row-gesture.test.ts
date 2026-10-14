@@ -48,9 +48,11 @@ test('a second wheel event inside the 60 ms lock does nothing, and one after it 
   mock.timers.enable({ apis: ['setTimeout'] });
   m.wheel({ deltaX: 50 });
   assert.equal(m.scroller.glideTarget(), stops[1]);
-  tick(59);
+  tick(20);
   m.wheel({ deltaX: 30 });
-  assert.equal(m.scroller.glideTarget(), stops[1], 'one ms short of the lock; later events do not extend it');
+  tick(39);
+  m.wheel({ deltaX: 50 });
+  assert.equal(m.scroller.glideTarget(), stops[1], 'one ms short of the lock the deltas have risen over the trough and still do not step; later events do not extend it');
   tick(1);
   m.wheel({ deltaX: 50 });
   assert.equal(m.scroller.glideTarget(), stops[2], 'the lock is over and the deltas rose 1.5 times over the trough: the next step, from the in-flight target');
@@ -107,7 +109,7 @@ test('jitter in a swipe tail (14, 12, 13, 11) under 1.5 times the trough does no
   const m = stepRow(eleven(), 1000);
   const stops = stopsOf(m, 1000);
   mock.timers.enable({ apis: ['setTimeout'] });
-  feed(m, [...RAMP.slice(0, 14), 14, 12, 13, 11, 12, 10, 11, 9, 10]);
+  feed(m, [100, 80, 60, 40, 30, 33, 36, 32, 14, 12, 13, 11, 12, 10, 11, 9, 10]);
   assert.equal(m.scroller.glideTarget(), stops[1]);
 });
 
@@ -117,6 +119,14 @@ test('a second swipe that starts in the first one tail (rises 1.5 times over the
   mock.timers.enable({ apis: ['setTimeout'] });
   feed(m, [100, 70, 40, 20, 10, 20, 40, 80]);
   assert.equal(m.scroller.glideTarget(), stops[2]);
+});
+
+test('a quantised tail (3, 2, 1, 1, 1, 2, 1) under the absolute floor does not step again', () => {
+  const m = stepRow(eleven(), 1000);
+  const stops = stopsOf(m, 1000);
+  mock.timers.enable({ apis: ['setTimeout'] });
+  feed(m, [4, 12, 40, 90, 100, 70, 45, 28, 17, 10, 6, 4, 3, 2, 1, 1, 1, 2, 1, 1, 2, 1]);
+  assert.equal(m.scroller.glideTarget(), stops[1]);
 });
 
 test('a swipe that reverses direction after the lock steps back', () => {
