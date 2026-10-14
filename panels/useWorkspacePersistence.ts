@@ -12,6 +12,7 @@ import type { PanelSettings, SettingNote } from '../panelSettings.js';
 import type { PanelTemplate } from '../panelTemplate.js';
 import { SAVE_QUIET_MS } from '../rowConstants.js';
 import { setSlots, type PanelWindow } from '../panelWindow.js';
+import { seedEngineIdsPast } from '../workspaceCore.js';
 import { reconcileWorkspace } from '../workspacePlan.js';
 import type { DeclaredPanel } from '../workspacePlan.js';
 import { DISMISSED_LIMIT, projectWorkspaceState } from '../workspaceState.js';
@@ -111,6 +112,7 @@ export function useWorkspacePersistence(i: {
           // A reporter that throws must not break the restore that raised the note.
         }
       }
+      seedEngineIdsPast(result.entries.map((p) => p.key));
       return result.entries.map((p) => {
         const hostData = defaultHostData?.();
         return hostData === undefined ? p : { ...p, hostData };
