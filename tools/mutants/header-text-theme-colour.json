@@ -1,0 +1,61 @@
+{
+  "tests": [
+    "test/panel-header-theme.test.ts"
+  ],
+  "mutants": [
+    {
+      "name": "header-text-back-to-white",
+      "file": "PanelFrame.tsx",
+      "find": "color: 'text.primary',",
+      "replace": "color: 'common.white',",
+      "expectRed": [
+        "light theme: the header text"
+      ]
+    },
+    {
+      "name": "header-text-secondary",
+      "file": "PanelFrame.tsx",
+      "find": "color: 'text.primary',",
+      "replace": "color: 'text.secondary',",
+      "expectRed": [
+        "the header text"
+      ]
+    },
+    {
+      "name": "thumb-back-to-white",
+      "file": "PanelFrame.tsx",
+      "find": "background: (theme: Theme) => alpha(theme.palette.text.primary, 0.25),",
+      "replace": "background: 'rgba(255, 255, 255, 0.25)',",
+      "expectRed": [
+        "light theme: the scrollbar thumb"
+      ]
+    },
+    {
+      "name": "hover-back-to-white",
+      "file": "PanelFrame.tsx",
+      "find": "{ background: (theme: Theme) => alpha(theme.palette.text.primary, 0.4) }",
+      "replace": "{ background: 'rgba(255, 255, 255, 0.4)' }",
+      "expectRed": [
+        "light theme: the scrollbar thumb"
+      ]
+    },
+    {
+      "name": "thumb-alpha-changed",
+      "file": "PanelFrame.tsx",
+      "find": "alpha(theme.palette.text.primary, 0.25)",
+      "replace": "alpha(theme.palette.text.primary, 0.5)",
+      "expectRed": [
+        "the scrollbar thumb"
+      ]
+    },
+    {
+      "name": "hover-alpha-changed",
+      "file": "PanelFrame.tsx",
+      "find": "alpha(theme.palette.text.primary, 0.4)",
+      "replace": "alpha(theme.palette.text.primary, 0.25)",
+      "expectRed": [
+        "the scrollbar thumb"
+      ]
+    }
+  ]
+}

@@ -7,7 +7,7 @@
 
 import * as React from 'react';
 import Box, { type BoxProps } from '@mui/material/Box';
-import { type Theme } from '@mui/material/styles';
+import { alpha, type Theme } from '@mui/material/styles';
 import MoreHorizIcon from '@mui/icons-material/MoreHoriz';
 import { useOptionalHost, type PanelSize } from './hostApi.js';
 import { usePhoneSize } from './phoneFit.js';
@@ -57,14 +57,14 @@ export const panelFrameScrollSx = {
   pl: `${CONTENT_INSET_PX}px`,
   pr: `${CONTENT_INSET_PX - SCROLLBAR_PX}px`,
   // Forces a classic (non-overlay) scrollbar: an overlay one reserves no layout width, which
-  // would break the padding math above. Track transparent, thumb a low-contrast fill.
+  // would break the padding math above. Track transparent, thumb the theme's text colour at low alpha, so it shows on a light theme as on a dark one.
   '&::-webkit-scrollbar': { width: SCROLLBAR_PX },
   '&::-webkit-scrollbar-track': { background: 'transparent' },
   '&::-webkit-scrollbar-thumb': {
-    background: 'rgba(255, 255, 255, 0.25)',
+    background: (theme: Theme) => alpha(theme.palette.text.primary, 0.25),
     borderRadius: SCROLLBAR_PX / 2,
   },
-  '&::-webkit-scrollbar-thumb:hover': { background: 'rgba(255, 255, 255, 0.4)' },
+  '&::-webkit-scrollbar-thumb:hover': { background: (theme: Theme) => alpha(theme.palette.text.primary, 0.4) },
 } as const;
 
 /**
@@ -172,7 +172,7 @@ export function PanelHeader({ children, sx, ...rest }: PanelHeaderProps) {
         px: `${CONTENT_INSET_PX + 1}px`,
         py: '1px',
         fontSize: 13,
-        color: 'common.white',
+        color: 'text.primary',
         ...sx,
       }}
     >

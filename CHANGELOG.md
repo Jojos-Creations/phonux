@@ -184,6 +184,8 @@
 
 ### Fixed
 
+- On a light theme (the default mount's choice on a light system) every panel title was white on a white pill and the scrollbar thumb was invisible. `PanelHeader` now draws its text in the theme's `text.primary`, and the thumb in `panelFrameScrollSx` is `text.primary` at 25 percent (40 percent on hover). A dark theme looks the same. The type of `panelFrameScrollSx` changes: its two thumb backgrounds are theme functions, which `sx` accepts as before.
+
 - Widening a panel from its left grabber keeps its right edge where it was. A width drawn with `setDrawnWidth(px, 'end')` holds the
   right edge during the drag, but the release settled onto the stop nearest the scroll the row had, so the edge jumped by a stop
   spacing (609 px at 390 px phones and a 16 px gap) under `shrinkOutOfView` 'off' and 'hidden', and under 'visible' the row stayed on a

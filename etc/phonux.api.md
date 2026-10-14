@@ -494,11 +494,11 @@ export const panelFrameScrollSx: {
         readonly background: "transparent";
     };
     readonly '&::-webkit-scrollbar-thumb': {
-        readonly background: "rgba(255, 255, 255, 0.25)";
+        readonly background: (theme: Theme) => string;
         readonly borderRadius: number;
     };
     readonly '&::-webkit-scrollbar-thumb:hover': {
-        readonly background: "rgba(255, 255, 255, 0.4)";
+        readonly background: (theme: Theme) => string;
     };
 };
 
