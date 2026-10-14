@@ -36,6 +36,8 @@
 
 ### Changed
 
+- The undocumented `window.__panelsApiForTests`, which the panels hook set in a test build, is gone. A test that needs the row uses `renderWorkspace` from
+  `phonux/testing/row`; a host's own tests expose the API they need themselves.
 - Names and keys for assistive technology. The row is a `region` named `labels.row` ("Panels") and each panel a `group` named with its title and
   place ("Notes, 2 of 4"). A drag says "Picked up Notes" and "Dropped Notes", not "draggable item" and an id. The grab strip of a panel that can
   move or close is a focusable button named for the panel, and the name follows a title change at once: ArrowLeft and ArrowRight move the panel one slot, Delete closes it, and the Workspace's one polite live
@@ -98,6 +100,12 @@
   means the newest level, `PANEL_API` (also new, with the `PanelApiLevel` type). A level is the package major version the
   panel was written for. Before 1.0.0 level 1 moves with the prereleases; at 1.0.0 it is frozen. A level the library does not serve throws `invalid-template` from `definePanel`, `createWorkspace` and
   `registerTemplate`. Nothing changes for a template that sets nothing: there is one level today, and every level stays served until it is deprecated. In development the first render of a template logs one console.error when the props its level hands the view and footer lack a member the level promises or hold one of the wrong kind; `definePanel` and the header button items a view lists get the same treatment, and a setting or header button member newer than the template's level is reported the same way (nothing is newer with one level).
+
+- `phonux/testing/row`: `renderWorkspace(workspace, { width })` renders a workspace with the real engine in a jsdom window on a virtual frame clock, and
+  returns a driver with `scroller`, `panel(id)` (its `root`, `header`, `grabBar` and `footer`), `frames(count)`, `setWidth(width)`, `drag`, `release`, `press` and
+  `dispose`. The entry also exports `frameClock` and `FRAME_MS`. Import it before `react`: it installs the jsdom window and the clock, so a test steps frames instead of
+  waiting on real time. `jsdom` is an optional peer dependency, needed only for this entry. `createFakeHost` is unchanged and still only records.
+- `memoryWorkspaceStorage` returns a `MemoryWorkspaceStorage`, with a readable `saved`: a copy of the state `save` stored last, null before the first save.
 
 ### Fixed
 

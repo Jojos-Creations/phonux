@@ -1095,15 +1095,5 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
     enterSideById,
   };
 
-  // Test-only hook: a host's end-to-end tests reach the API here, since no production UI calls create({ permanent })
-  // or reanchor(). Gated on MODE 'test', which only a host's test build sets. An effect with no deps array, not a
-  // render-body assignment: StrictMode double-invokes render bodies, and a test must always reach the LATEST closure.
-  useEffect(() => {
-    // Structural cast: the package builds without Vite's ambient types, so `import.meta.env` is untyped here.
-    const mode = (import.meta as unknown as { env?: { MODE?: string } }).env?.MODE;
-    if (typeof window === 'undefined' || mode !== 'test') return;
-    (window as unknown as { __panelsApiForTests?: ProvidedPanels }).__panelsApiForTests = api;
-  });
-
   return api;
 }

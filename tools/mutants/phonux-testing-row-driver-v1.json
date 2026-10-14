@@ -1,0 +1,144 @@
+{
+  "tests": [
+    "test/testing-row-driver.test.ts"
+  ],
+  "mutants": [
+    {
+      "name": "frames runs no frame",
+      "file": "testingRow.ts",
+      "find": "      frameClock.step(1);\n    });\n  }\n}\n\nasync function settle",
+      "replace": "      frameClock.step(0);\n    });\n  }\n}\n\nasync function settle",
+      "expectRed": [
+        "the entry exports the frame clock",
+        "a drag on a grab bar reorders"
+      ]
+    },
+    {
+      "name": "setWidth keeps the old width",
+      "file": "testingRow.ts",
+      "find": "      windowSize.width = width;\n      if (height",
+      "replace": "      if (height",
+      "expectRed": [
+        "setWidth gives the row a new window"
+      ]
+    },
+    {
+      "name": "drag never lets go",
+      "file": "testingRow.ts",
+      "find": "      if (keepDown) return;",
+      "replace": "      return;",
+      "expectRed": [
+        "a drag on a grab bar reorders"
+      ]
+    },
+    {
+      "name": "panel() draws no footer",
+      "file": "testingRow.ts",
+      "find": "footer: partOf(root, 'footer') }",
+      "replace": "footer: null }",
+      "expectRed": [
+        "panel(id) answers with the drawn parts"
+      ]
+    },
+    {
+      "name": "panel() answers for a panel that is not in the row",
+      "file": "testingRow.ts",
+      "find": "return root === null ? undefined : {",
+      "replace": "return root === null ? { root: document.body, header: null, grabBar: null, footer: null } : {",
+      "expectRed": [
+        "setWidth gives the row a new window",
+        "panel(id) answers with the drawn parts"
+      ]
+    },
+    {
+      "name": "press does not click",
+      "file": "testingRow.ts",
+      "find": "        (target as HTMLElement).click();",
+      "replace": "        void target;",
+      "expectRed": [
+        "press clicks a control"
+      ]
+    },
+    {
+      "name": "settle stops at the first frame",
+      "file": "testingRow.ts",
+      "find": "    if (frameClock.pendingCount() === 0) return;",
+      "replace": "    return;",
+      "expectRed": [
+        "a drag on a grab bar reorders"
+      ]
+    },
+    {
+      "name": "mount wait gives up silently",
+      "file": "testingRow.ts",
+      "find": "    throw new Error('the workspace never drew its row:",
+      "replace": "    return void ('the workspace never drew its row:",
+      "expectRed": [
+        "a workspace that does not render itself"
+      ]
+    },
+    {
+      "name": "saved is never set",
+      "file": "fakeHost.ts",
+      "find": "      lastSaved = held;",
+      "replace": "      void held;",
+      "expectRed": [
+        "memoryWorkspaceStorage.saved"
+      ]
+    },
+    {
+      "name": "the test global comes back",
+      "file": "panels/useProvidePanels.ts",
+      "find": "  return api;\n}",
+      "replace": "  (globalThis as { __panelsApiForTests?: unknown }).__panelsApiForTests = api;\n  return api;\n}",
+      "expectRed": [
+        "the undocumented window.__panelsApiForTests hook is gone"
+      ]
+    },
+    {
+      "name": "header reads the grab bar",
+      "file": "testingRow.ts",
+      "find": "header: partOf(root, 'header')",
+      "replace": "header: partOf(root, 'grab-bar')",
+      "expectRed": [
+        "panel(id).header and .grabBar are different parts"
+      ]
+    },
+    {
+      "name": "dispose leaves the document",
+      "file": "testingRow.ts",
+      "find": "      document.body.replaceChildren();\n    },\n  };",
+      "replace": "    },\n  };",
+      "expectRed": [
+        "dispose takes the workspace away"
+      ]
+    },
+    {
+      "name": "saved starts at the initial state",
+      "file": "fakeHost.ts",
+      "find": "  let lastSaved: string | null = null;",
+      "replace": "  let lastSaved: string | null = held;",
+      "expectRed": [
+        "a storage made with an initial state"
+      ]
+    },
+    {
+      "name": "setWidth ignores the height",
+      "file": "testingRow.ts",
+      "find": "      if (height !== undefined) windowSize.height = height;",
+      "replace": "      void height;",
+      "expectRed": [
+        "setWidth with a height"
+      ]
+    },
+    {
+      "name": "setWidth resets the height",
+      "file": "testingRow.ts",
+      "find": "      if (height !== undefined) windowSize.height = height;",
+      "replace": "      windowSize.height = height ?? 800;",
+      "expectRed": [
+        "setWidth with a height"
+      ]
+    }
+  ]
+}
