@@ -25,8 +25,8 @@
     {
       "name": "the shape check runs on every render",
       "file": "panelApiLevel.ts",
-      "find": "  if (shapeChecked.has(key)) return;\n  shapeChecked.add(key);\n",
-      "replace": "",
+      "find": " || reported.has(key)) return;\n  reported.add(key);\n",
+      "replace": ") return;\n",
       "expectRed": [
         "a level whose adapter hands back the wrong shape logs one error naming the template, the level and every member"
       ]
@@ -34,8 +34,8 @@
     {
       "name": "the shape check is not silent in production",
       "file": "panelApiLevel.ts",
-      "find": "  if (typeof process === 'undefined' || process.env.NODE_ENV === 'production') return;\n  const key",
-      "replace": "  if (typeof process === 'undefined') return;\n  const key",
+      "find": "  if (typeof process === 'undefined' || process.env.NODE_ENV === 'production' || reported.has(key)) return;",
+      "replace": "  if (typeof process === 'undefined' || reported.has(key)) return;",
       "expectRed": [
         "the shape check is silent in production, and a second template is checked for itself"
       ]

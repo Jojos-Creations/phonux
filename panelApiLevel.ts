@@ -22,8 +22,8 @@ export interface NewestViewProps {
 /** What a member's value is: its `typeof`, or `any` for a member that holds any JSON value. @internal */
 export type MemberKind = 'string' | 'number' | 'boolean' | 'function' | 'object' | 'any';
 
-/** One member a level promises; `optional` is required by the type exactly where the described type marks the member optional. @internal */
-export type MemberShape<T, K extends keyof T> = { readonly kind: MemberKind } & (Partial<Pick<T, K>> extends Pick<T, K> ? { readonly optional: true } : { readonly optional?: false });
+/** One member a level promises; `optional` is required by the type exactly where the described member may be absent or undefined. @internal */
+export type MemberShape<T, K extends keyof T> = { readonly kind: MemberKind } & (undefined extends T[K] ? { readonly optional: true } : { readonly optional?: false });
 
 /** The members of `T` by name and kind; a member added to or removed from `T` fails to compile until this is updated. @internal */
 export type ShapeOf<T> = { readonly [K in keyof T]-?: MemberShape<T, K> };
@@ -140,6 +140,20 @@ function kindOf(value: object, key: string): MemberKind | undefined {
   return undefined;
 }
 
+/** What differs between one object and the members described for it, as lines prefixed with `label`; empty when they match. Reads descriptors only. @internal */
+export function memberProblems(value: object, members: PropsShape[string], label: string): string[] {
+  const problems: string[] = [];
+  for (const [member, { kind, optional }] of Object.entries(members)) {
+    const found = kindOf(value, member);
+    if (found === undefined) {
+      if (optional !== true) problems.push(`${label}.${member} is missing`);
+    } else if (kind !== 'any' && found !== 'any' && found !== kind) {
+      problems.push(`${label}.${member} should be a ${kind}, got a ${found}`);
+    }
+  }
+  return problems;
+}
+
 /** What differs between `props` and `shape`, one line per missing or wrong member; empty when they match. Reads descriptors only, so it never runs a getter or a method. @internal */
 export function shapeMismatches(props: object, shape: PropsShape): string[] {
   const problems: string[] = [];
@@ -153,30 +167,26 @@ export function shapeMismatches(props: object, shape: PropsShape): string[] {
       problems.push(`${name} is null`);
       continue;
     }
-    for (const [member, { kind, optional }] of Object.entries(members)) {
-      const found = kindOf(value, member);
-      if (found === undefined) {
-        if (optional !== true) problems.push(`${name}.${member} is missing`);
-      } else if (kind !== 'any' && found !== 'any' && found !== kind) {
-        problems.push(`${name}.${member} should be a ${kind}, got a ${found}`);
-      }
-    }
+    problems.push(...memberProblems(value, members, name));
   }
   return problems;
 }
 
-const shapeChecked = new Set<string>();
+const reported = new Set<string>();
 
-/** Logs one console.error the first time a template at a level is rendered, listing every mismatch between `props` and `shape`; silent in production and never throws. @internal */
-export function reportShapeOnce(templateId: string, level: number, props: object, shape: PropsShape): void {
-  if (typeof process === 'undefined' || process.env.NODE_ENV === 'production') return;
-  const key = `${level}:${templateId}`;
-  if (shapeChecked.has(key)) return;
-  shapeChecked.add(key);
+/** Runs `check` the first time `key` is seen and logs its lines as one console.error under `heading`; silent in production and never throws. @internal */
+export function reportOnce(key: string, heading: string, check: () => string[]): void {
+  if (typeof process === 'undefined' || process.env.NODE_ENV === 'production' || reported.has(key)) return;
+  reported.add(key);
   try {
-    const problems = shapeMismatches(props, shape);
-    if (problems.length > 0) console.error(`phonux: template '${templateId}' on panel API level ${level} was handed props that do not match that level: ${problems.join('; ')}.`);
+    const problems = check();
+    if (problems.length > 0) console.error(`${heading}: ${problems.join('; ')}.`);
   } catch {
     // A check that cannot run must not stop the panel from rendering.
   }
+}
+
+/** Logs one console.error the first time a template at a level is rendered, listing every mismatch between `props` and `shape`. @internal */
+export function reportShapeOnce(templateId: string, level: number, props: object, shape: PropsShape): void {
+  reportOnce(`props:${level}:${templateId}`, `phonux: template '${templateId}' on panel API level ${level} was handed props that do not match that level`, () => shapeMismatches(props, shape));
 }

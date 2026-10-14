@@ -9,6 +9,8 @@ import IconButton from '@mui/material/IconButton';
 import Tooltip from '@mui/material/Tooltip';
 import type { HeaderButton, HeaderButtonContext } from './panelSettings.js';
 import type { ViewHandle } from './panelTemplate.js';
+import { PanelLevelContext } from './panelLevelContext.js';
+import { reportItemShapeOnce } from './panelLevelChecks.js';
 import { PanelHiddenContext, PanelSlotContext, type HeaderButtonsSlot } from './panelSlotContext.js';
 
 /** What every listed header button has, whichever form it takes. @public */
@@ -173,6 +175,7 @@ export function usePanelHeaderButtons(): readonly PanelHeaderButtonItem[] {
   const present = useIsPresent();
   const parked = React.useContext(PanelHiddenContext);
   const handle = given?.handle;
+  const level = React.useContext(PanelLevelContext);
   const runtime = handle === undefined ? undefined : runtimeOf(handle);
   const state = React.useSyncExternalStore(handle?.subscribe ?? NO_SUBSCRIBE, () => handle?.getState(), () => handle?.getState());
 
@@ -210,6 +213,7 @@ export function usePanelHeaderButtons(): readonly PanelHeaderButtonItem[] {
       }
     }
     items.sort((a, b) => (a.side === b.side ? a.order - b.order || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0) : a.side === 'start' ? -1 : 1));
+    reportItemShapeOnce(handle.templateId, level, items);
   }
 
   // A failure is told once; it is told again only after the slot has evaluated cleanly in between.
