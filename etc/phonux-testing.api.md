@@ -235,7 +235,12 @@ export type ListFilter = {
 };
 
 // @public
-export function memoryWorkspaceStorage(initial?: WorkspaceState | null): WorkspaceStorage;
+export interface MemoryWorkspaceStorage extends WorkspaceStorage {
+    readonly saved: WorkspaceState | null;
+}
+
+// @public
+export function memoryWorkspaceStorage(initial?: WorkspaceState | null): MemoryWorkspaceStorage;
 
 // @public
 export type Overflow = 'scroll' | 'park';

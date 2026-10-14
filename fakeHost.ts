@@ -148,18 +148,29 @@ export function createFakeHost(overrides: FakeOverrides = {}): FakeHost {
   };
 }
 
+/** A `WorkspaceStorage` held in memory, as `memoryWorkspaceStorage` makes it. @public */
+export interface MemoryWorkspaceStorage extends WorkspaceStorage {
+  /** A copy of the state `save` stored last; null until the first `save`. */
+  readonly saved: WorkspaceState | null;
+}
+
 /**
  * A `WorkspaceStorage` that keeps the saved state in memory: `load` resolves a copy of what `save` last stored, or of
  * `initial`, and `save` stores a copy, so a test never shares an object with the workspace.
  * @param initial - The state `load` resolves until the first `save`; `null` for none.
  * @public
  */
-export function memoryWorkspaceStorage(initial: WorkspaceState | null = null): WorkspaceStorage {
+export function memoryWorkspaceStorage(initial: WorkspaceState | null = null): MemoryWorkspaceStorage {
   let held: string | null = initial === null ? null : JSON.stringify(initial);
+  let lastSaved: string | null = null;
   return {
     load: async () => (held === null ? null : (JSON.parse(held) as WorkspaceState)),
     save: (state) => {
       held = JSON.stringify(state);
+      lastSaved = held;
+    },
+    get saved() {
+      return lastSaved === null ? null : (JSON.parse(lastSaved) as WorkspaceState);
     },
   };
 }

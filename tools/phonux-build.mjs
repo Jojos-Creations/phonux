@@ -93,6 +93,7 @@ const distPkg = {
   publishConfig: { access: 'public' },
   dependencies: srcPkg.dependencies,
   peerDependencies: srcPkg.peerDependencies,
+  ...(srcPkg.peerDependenciesMeta === undefined ? {} : { peerDependenciesMeta: srcPkg.peerDependenciesMeta }),
   exports,
 };
 
