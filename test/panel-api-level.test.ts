@@ -256,6 +256,7 @@ test('the frozen level-1 fixture panel renders in a workspace with everything it
   assert.equal(view.dataset.fixtureCount, '0');
   assert.equal(view.dataset.fixtureHost, '1', 'useHost().panels.panelList');
   assert.equal(view.dataset.fixtureWsmanager, '1', 'useWorkspaceManager');
+  assert.equal(view.dataset.fixtureWorkspace, 'true', 'useWorkspace().panels.get(handle.id)');
   assert.equal(view.dataset.fixtureStates, '1', 'usePanelStates');
   assert.equal(view.dataset.fixtureOwn, 'true', 'usePanelState(handle.id)');
   assert.equal(view.dataset.fixtureActive, 'true', 'useActivePanel');

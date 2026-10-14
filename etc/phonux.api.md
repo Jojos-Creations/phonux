@@ -1355,6 +1355,9 @@ export interface UseViewState {
 export const useViewState: UseViewState;
 
 // @public
+export function useWorkspace(): ViewWorkspace | undefined;
+
+// @public
 export function useWorkspaceManager(): PanelReader | undefined;
 
 // @public
@@ -1402,6 +1405,13 @@ export interface ViewSnapshot {
 // @public
 export class ViewStateMissingProviderError extends Error {
     constructor(missing: 'host' | 'view id');
+}
+
+// @public
+export interface ViewWorkspace {
+    readonly panels: PanelManager & {
+        addPanel: WorkspaceHandle['addPanel'];
+    };
 }
 
 // @public

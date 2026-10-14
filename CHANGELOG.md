@@ -16,6 +16,7 @@
 
 ### Fixed
 
+- A panel added with `addPanel` and no title of its own now gets `labels.panelTitle(id)`, the same default the Host-bag `create` gave, whether it is added before or after the workspace mounts.
 - A trackpad swipe on a stepping row is one step. Its deltas ramp up before they fade, and every rising event after the 60 ms
   lock used to step again, so one swipe ran through several stops and a wide panel skipped its 1, 2, 3 slot sizes. After a step
   an event steps again only on a reversal, or when it is 1.5 times, and at least 4 units above, the smallest delta seen since the
@@ -39,6 +40,7 @@
 
 ### Added
 
+- `useWorkspace()` gives a view the manager of its workspace and `addPanel`, so a view such as History opens, closes, shows and creates other panels by key through the handles `panels.get(key)` returns. The type is `ViewWorkspace`: the panel manager plus `addPanel`, without `dispose`, `update` or `rename`, and the same object on every render. It is `undefined` outside a row that has a workspace. `useWorkspaceManager()` stays read-only.
 - `AnyPanelTemplate`: `WorkspaceOptions.templates`, `root` and `registerTemplate` take a template of any params, so a template made with `definePanel` for typed params needs no cast. `addPanel` still checks `params`.
 - `usePanelDragProps()` returns the `onClose` and `reorder` of the panel it is called in for `DragToClose`, both going through the panel's handle. The default frame uses it.
 - A column of workspaces, one above the other. `createWorkspaceColumn(options)` renders itself like `createWorkspace`, and

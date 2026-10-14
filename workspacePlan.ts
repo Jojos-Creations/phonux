@@ -41,6 +41,8 @@ export interface ReconcileInput {
   newUid?: () => string;
   /** The developer's panel order, read by every placement whose value is `'order'`. */
   order?: () => readonly string[];
+  /** The title a declared panel gets when no settings layer names one, from its fresh id; left out, such a panel has the empty title. */
+  panelTitle?: (id: string) => string;
 }
 
 /** What `reconcileWorkspace` returns. */
@@ -236,7 +238,7 @@ export function reconcileWorkspace(i: ReconcileInput): ReconcileResult {
     for (const n of resolution.notes) notes.push({ ...n, panelId: id });
     const skeleton = appendPanel(
       [],
-      { url: d.url ?? '', view: template.id, title: settings.title, params: d.params ?? template.params, listed: settings.listed, layer: settings.layer, slots: settings.slots, permanent: !settings.parkable },
+      { url: d.url ?? '', view: template.id, title: settings.title ?? i.panelTitle?.(id) ?? '', params: d.params ?? template.params, listed: settings.listed, layer: settings.layer, slots: settings.slots, permanent: !settings.parkable },
       id,
       i.rootId,
       newUid(),
