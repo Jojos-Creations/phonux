@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+### Fixed
+
+- A trackpad swipe on a stepping row is one step. Its deltas ramp up before they fade, and every rising event after the 60 ms
+  lock used to step again, so one swipe ran through several stops and a wide panel skipped its 1, 2, 3 slot sizes. After a step
+  an event steps again only on a reversal, or when it is 1.5 times, and at least 4 units above, the smallest delta seen since the
+  deltas fell (a new swipe in the tail). A plateau of equal deltas no longer steps repeatedly: a held mouse wheel is one step per gesture.
+
 ### Changed
 
 - The undocumented `window.__panelsApiForTests`, which the panels hook set in a test build, is gone. A test that needs the row uses `renderWorkspace` from
