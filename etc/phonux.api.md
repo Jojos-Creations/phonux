@@ -347,6 +347,18 @@ export type ListFilter = {
 export function mergePatch(layer: PanelSettings, patch: SettingsPatch): PanelSettings;
 
 // @public
+export function minWorkspaceWidth(input: MinWorkspaceWidthInput): number;
+
+// @public
+export interface MinWorkspaceWidthInput {
+    fixedColumnCount: number;
+    gap?: number;
+    phoneSlots?: number;
+    phoneWidth: number;
+    tabletWidth?: number;
+}
+
+// @public
 export interface NeighborWidths {
     readonly left: readonly number[];
     readonly right: readonly number[];
@@ -639,6 +651,7 @@ export interface PanelsAPI {
     create(): void;
     create(options: CreatePanelOptions): void;
     readonly maxFitPanels?: number | null;
+    readonly minWorkspaceWidth?: number;
     move(id: string, direction: 'left' | 'right'): void;
     readonly panelList: readonly PanelSummary[];
     reanchor(id: string, anchor: {

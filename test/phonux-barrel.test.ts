@@ -42,6 +42,7 @@ const VALUE_EXPORTS = [
   'TIER_SIZES',
   'panelWidthOf',
   'computeRowLayout',
+  'minWorkspaceWidth',
   'computeRowNumbers',
   'PanelRow',
   'PanelSizeBox',
@@ -86,7 +87,7 @@ const VALUE_EXPORTS = [
   'DRAGGING_ATTRIBUTE',
 ].sort();
 
-test('the phonux barrel exports exactly the 71 runtime values, no more, no fewer', () => {
+test('the phonux barrel exports exactly the 72 runtime values, no more, no fewer', () => {
   assert.deepEqual(Object.keys(phonux).sort(), VALUE_EXPORTS);
 });
 

@@ -263,6 +263,26 @@ two slots, 796 of 968, at a container of 1000). Every drawn entry is laid out, a
 window scrolls instead of parking anything. The shell, the row and the capacity all read that one result, so they
 cannot disagree: `ProvidedPanels.rowNumbers`.
 
+### The minimum workspace width
+
+A window must not shrink below every fixed column plus two phone slots, or plus one tablet panel when that is wider, so
+a panel opened beside another always has the two slots it needs. `minWorkspaceWidth` is that width, from the numbers the
+row's fit reads: `gap + F x (phone + gap) + max(N x phone + (N - 1) x gap, tablet) + gap`, with F the fixed columns, N
+the phone slots (2) and `tablet` the tier table's width (768). At that container width `computeRowLayout` fits exactly N
+phones beside the fixed columns, a scrolling row's strip is exactly its window, and `computeMaxLiveWidth` leaves a tablet
+uncapped; one pixel less breaks each, and the tests hold the function to all three. A two-slot panel is two phone slots
+wide, so the tablet branch only decides for a phone narrower than 376 px at the default gap.
+
+A fixed column is priced at one phone width, as `PanelsAPI.maxFitPanels` and the fit cap price it, so the three agree on
+the same row. `PanelsAPI.minWorkspaceWidth` is the provider's value for the live row (phone width, `tuning.rowGap`, the
+fixed columns seated now), on the channel a host already reads `maxFitPanels` from, so no hook or tuning key is added; a
+host that wants another N calls the function with its own count. It is the row container's width: a host whose window
+is wider than its row adds the difference before it sets its window minimum.
+
+The value never reads the container width. A phone width derived from the window must keep that true by passing the
+smallest phone the fit will draw, never the width it draws now: a minimum priced from the width it bounds shrinks with
+the window and never stops it. The provider test that resizes from unmeasured to 3000 px pins it.
+
 ### Row numbers and overflow
 
 `computeRowNumbers` is the one place a row's widths, resting offsets, margin and strip width are derived. It

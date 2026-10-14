@@ -178,6 +178,13 @@ export interface PanelsAPI {
    */
   readonly maxFitPanels?: number | null;
   /**
+   * The narrowest row container, in whole px, that shows every permanent column plus two phone slots, or plus one tablet
+   * panel when that is wider: `minWorkspaceWidth` over the current phone width, row gap and permanent columns. A host
+   * reads it to set its window's minimum width. It does not depend on the window, so it is reported before the row is
+   * measured. Absent from a host that does not report it.
+   */
+  readonly minWorkspaceWidth?: number;
+  /**
    * Appends a live panel; zero-arg opens a panel of the host's default view. `view` selects the rendered component
    * (registerView/resolveView) -- an unregistered key renders a placeholder, never a crash. No raw
    * `collapsible`/`locked` key: `permanent` (CreatePanelOptions) is the only door to a permanent column, and
