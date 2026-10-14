@@ -125,7 +125,7 @@
     {
       "name": "the swallow is never cleared by a timer",
       "file": "PanelResizeGrips.tsx",
-      "find": "setTimeout(() => void (swallowClick.current = false), 0);",
+      "find": "      setTimeout(() => {\n        swallowClick.current = false;\n      }, 0);\n",
       "replace": "",
       "expectRed": [
         "the click a browser fires after a drag"
