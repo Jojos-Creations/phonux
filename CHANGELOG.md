@@ -27,6 +27,7 @@
 
 ### Fixed
 
+- The drag-to-close box and its release, close and edge scroll honour MotionConfig `reducedMotion: "always"` as well as the system's Reduce Motion query. `never` does not turn off the system query.
 - A closed panel's `useViewState` is kept for the undo window again. The row held the state by the row's own id while `recentlyClosed` carries the key, so a panel with a key unlike its row id came back from Undo with empty state; both sides now use the key.
 - A panel added with `addPanel` and no title of its own now gets `labels.panelTitle(id)`, the same default the Host-bag `create` gave, whether it is added before or after the workspace mounts.
 - A trackpad swipe on a stepping row is one step. Its deltas ramp up before they fade, and every rising event after the 60 ms
