@@ -141,11 +141,11 @@ export const filters: readonly ListFilter[] = [{}, { status: 'live' }, { status:
 
 export const viewPatches: readonly ViewPatch[] = [
   {},
-  { title: 'Inbox', listed: false, layer: 'raised', slots: 3, placeOnAdd: { anchor: { panel: 'row', position: 'right' } }, enterFrom: 'anchor' },
-  { title: null, listed: null, layer: null, slots: null, placeOnAdd: null, enterFrom: null },
+  { title: 'Inbox', listed: false, layer: 'raised', slots: 3, closable: false, placeOnAdd: { anchor: { panel: 'row', position: 'right' } }, enterFrom: 'anchor' },
+  { title: null, listed: null, layer: null, slots: null, closable: null, placeOnAdd: null, enterFrom: null },
 ];
-// @ts-expect-error closable is not a key a view may set
-export const viewClosable: ViewPatch = { closable: false };
+// @ts-expect-error a view may only lock its panel
+export const viewClosable: ViewPatch = { closable: true };
 // @ts-expect-error a view places itself only by an anchor
 export const viewPlacement: ViewPatch = { placeOnAdd: 'row-end' };
 

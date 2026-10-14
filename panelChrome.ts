@@ -5,6 +5,7 @@
 import * as React from 'react';
 import { animate, useReducedMotion, useReducedMotionConfig } from 'motion/react';
 import { LIBRARY_TUNING_DEFAULTS, type PanelId } from './panelSettings.js';
+import { warnCounterId } from './panelIds.js';
 import { PanelSlotContext } from './panelSlotContext.js';
 
 /**
@@ -157,7 +158,13 @@ export function createChromeStore(): ChromeStore {
       engines = new Map([...next].map(([engine, key]) => [key, engine]));
     },
     keyOf: (engine) => keys.get(engine) ?? engine,
-    engineOf: (key) => engines.get(key) ?? key,
+    engineOf: (key) => {
+      const engine = engines.get(key);
+      if (engine !== undefined) return engine;
+      const counterKey = keys.get(key);
+      if (counterKey !== undefined) warnCounterId(key, counterKey);
+      return key;
+    },
   };
 }
 

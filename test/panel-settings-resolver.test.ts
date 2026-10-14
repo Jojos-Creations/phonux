@@ -769,9 +769,9 @@ test('park levers: a lever on a panel whose overflow resolves to scroll yields p
 // Scope: not-view-settable and wrong-scope
 // ---------------------------------------------------------------------------
 
-test('host layer: closable false, keepMounted true, headerButtons, overflow and pinning are not-view-settable and change nothing', () => {
+test('host layer: closable true, keepMounted true, headerButtons, overflow and pinning are not-view-settable and change nothing', () => {
   const res = resolve({
-    host: asSettings({ closable: false, keepMounted: true, headerButtons: { size: slot('Size') }, overflow: 'park', pinning: { pinned: { placement: 'row-start' }, unpinned: { placement: 'row-end' } } }),
+    host: asSettings({ closable: true, keepMounted: true, headerButtons: { size: slot('Size') }, overflow: 'park', pinning: { pinned: { placement: 'row-start' }, unpinned: { placement: 'row-end' } } }),
   });
   assert.deepEqual(res.conflicts.map((c) => [c.key, c.layer, c.kind]).sort(), [
     ['closable', 'host', 'not-view-settable'],
@@ -781,8 +781,8 @@ test('host layer: closable false, keepMounted true, headerButtons, overflow and 
     ['pinning', 'host', 'not-view-settable'],
   ]);
   assert.deepEqual([res.value.closable, res.value.keepMounted, res.value.overflow, res.value.headerButtons, res.source.closable, res.source.overflow], [true, false, 'scroll', {}, 'library', 'library']);
-  const closable = res.conflicts.find((c) => c.key === 'closable') as SettingConflict;
-  assert.deepEqual([closable.asked, closable.applied], [false, true]);
+  const keep = res.conflicts.find((c) => c.key === 'keepMounted') as SettingConflict;
+  assert.deepEqual([keep.asked, keep.applied], [true, false]);
 });
 
 test('host layer: the keys a view may set are accepted: title, listed, layer, slots, placeOnAdd with an anchor and enterFrom anchor', () => {
