@@ -33,7 +33,7 @@ export interface PanelWindow {
   live: boolean;
   /** Whether DragToClose's drag-down gesture may close this panel at all. Every panel created by `appendPanel` is unlocked. */
   locked: boolean;
-  /** Which component renders this entry (phonux's registry, resolveView) -- read ONLY by the row (PanelRow); every park/close site reads `collapsible`/`listed`/`locked` instead, never this. An open string, not a closed union: an unregistered value renders a placeholder, never a crash. */
+  /** Which component renders this entry (a template id) -- read ONLY by the row (PanelRow); every park/close site reads `collapsible`/`listed`/`locked` instead, never this. An open string, not a closed union: an unregistered value renders a placeholder, never a crash. */
   view: string;
   /** Capacity parks (an open, a revive, the row gesture, a capacity drop) may park this entry; `false` marks an always-shown column exempt from all of them. */
   collapsible: boolean;
@@ -338,11 +338,29 @@ export function movePanel(panels: PanelWindow[], id: string, direction: 'left' |
 }
 
 /**
+ * `by` hops of `movePanel` in one go, negative to the left: it stops at the first hop that moves nothing (an edge, a
+ * `crossable: false` entry), keeping the hops already made. The SAME array when no hop moved, `by` is 0 or not a whole number.
+ * @internal
+ */
+export function movePanelBy(panels: PanelWindow[], id: string, by: number, rootId: string): PanelWindow[] {
+  if (!Number.isInteger(by) || by === 0) return panels;
+  const direction = by > 0 ? 'right' : 'left';
+  let row = panels;
+  for (let i = Math.abs(by); i > 0; i -= 1) {
+    const next = movePanel(row, id, direction, rootId);
+    if (next === row) break;
+    row = next;
+  }
+  return row;
+}
+
+/**
  * How many movePanel hops a horizontal drag of `offsetX` px asks for (+right/-left). A hop past a neighbour
  * moves the dragged panel by that NEIGHBOUR's span (its width plus `gap`), so each hop lands `hopFraction` (default
  * half) of the way across the next neighbour's span, counted from where the previous hop ended; the dragged panel's
  * own width never enters it. Exactly that fraction of a span is a hop either way, and this never returns -0.
  * @public
+ * @deprecated A view reads its hops with `usePanelReorderSteps()` or hands `DragToClose` `usePanelDragProps()`; both use the row's tuned gap and hop fraction.
  */
 export function reorderStepsForOffset(offsetX: number, neighbors: NeighborWidths, gap: number, hopFraction: number = HOP_FRACTION): number {
   const distance = Math.abs(offsetX);

@@ -7,11 +7,12 @@ import assert from 'node:assert/strict';
 import './support/jsdom-globals.js';
 import * as React from 'react';
 import { act } from 'react';
-import { PanelRow, registerView, resolvePanelSettings, useProvidePanels, useViewState } from '../index.js';
+import { PanelRow, resolvePanelSettings, useProvidePanels, useViewState } from '../index.js';
 import type { PanelWindow, ProvidedPanels } from '../index.js';
 import { projectWorkspaceState } from '../workspaceState.js';
 import { createFakeHost } from '../fakeHost.js';
-import { advanceFrames, cleanup, mount, panelsInput, withHost } from './support/mount-harness.js';
+import { advanceFrames, cleanup, mount, withHost, useSeededInput, StaticRow } from './support/mount-harness.js';
+import { registerTestView } from './support/test-views.js';
 
 const counts = new Map<string, { mounts: number; unmounts: number }>();
 const countOf = (id: string): { mounts: number; unmounts: number } => {
@@ -22,7 +23,7 @@ const countOf = (id: string): { mounts: number; unmounts: number } => {
 let stored = -1;
 let setStored: ((n: number) => void) | undefined;
 
-registerView('kl-view', ({ panel }) => {
+registerTestView('kl-view', ({ panel }) => {
   React.useEffect(() => {
     countOf(panel.id).mounts += 1;
     return () => {
@@ -36,7 +37,7 @@ registerView('kl-view', ({ panel }) => {
   }
   return React.createElement('i', { 'data-slot': panel.id });
 });
-registerView('kl-root', () => React.createElement('b'));
+registerTestView('kl-root', () => React.createElement('b'));
 
 const base = resolvePanelSettings().value;
 const entry = (id: string, live: boolean, keep: boolean, over: Partial<PanelWindow> = {}): PanelWindow => ({
@@ -53,7 +54,7 @@ const entry = (id: string, live: boolean, keep: boolean, over: Partial<PanelWind
 });
 const root = (): PanelWindow => ({ id: 'root', url: '', title: 'History', live: true, locked: true, view: 'kl-root', collapsible: false, listed: false });
 const NONE: ReadonlySet<string> = new Set();
-const rowOf = (entries: PanelWindow[]): React.ReactElement => withHost(React.createElement(PanelRow, { entries, rootId: 'root', closingIds: NONE, enteringViaAnchorIds: NONE }));
+const rowOf = (entries: PanelWindow[]): React.ReactElement => withHost(React.createElement(StaticRow, { entries, rootId: 'root', closingIds: NONE, enteringViaAnchorIds: NONE }));
 const present = (container: HTMLElement, id: string): boolean => container.querySelector(`[data-slot="${id}"]`) !== null;
 
 afterEach(() => {
@@ -89,9 +90,11 @@ test('lazy mount: a panel that parks in the same commit it would first have been
 async function parkedByCapacity(keep = true, park = true): Promise<{ provided: () => ProvidedPanels; container: HTMLElement; unmount: () => void }> {
   let latest: ProvidedPanels | undefined;
   function Driver(): React.ReactElement {
-    latest = useProvidePanels(panelsInput({ initialEntries: [root(), entry('a', true, keep)], containerWidth: 1000 }));
+    const input = useSeededInput({ initialEntries: [root(), entry('a', true, keep)], containerWidth: 1000, workspaceDefaults: { overflow: 'park' } });
+    latest = useProvidePanels(input);
     // The row reads the undo window from the host's panels, so the host is built from the provided ones.
     const row = React.createElement(PanelRow, {
+      workspace: input.workspace,
       entries: latest.entries,
       rootId: 'root',
       closingIds: latest.closingIds,

@@ -9,20 +9,21 @@ import { readFileSync } from 'node:fs';
 import './support/jsdom-globals.js';
 import * as React from 'react';
 import { act } from 'react';
-import { PanelRow, registerView, resolvePanelSettings, useProvidePanels } from '../index.js';
-import type { PanelSettings, PanelWindow, PanelsInput, ProvidedPanels } from '../index.js';
+import { definePanel, resolvePanelSettings, useProvidePanels } from '../index.js';
+import type { PanelSettings, PanelWindow, ProvidedPanels } from '../index.js';
 import { computeRowLayout } from '../panelRowLayout.js';
 import { applyTemplate, effective } from '../panelSettings.js';
 import { appendPanel, createHistoryPanel } from '../panelWindow.js';
 import { computeRowNumbers } from '../rowNumbers.js';
 import { panelRowSlotMotion, parkExitTarget, slotDriver } from '../PanelRowSlot.js';
 import { differential, differentialsCovered } from './support/differential.js';
-import { advanceFrames, cleanup, mount, panelsInput, withHost } from './support/mount-harness.js';
+import { advanceFrames, cleanup, mount, withHost, useSeededInput, StaticRow, type SeedOptions, type SeededOver } from './support/mount-harness.js';
+import { registerTestView } from './support/test-views.js';
 
 const ROOT = 'root';
 const OWNED = ['overflow'];
 
-registerView('ov-view', ({ panel }) => React.createElement('i', { 'data-slot': panel.id }, panel.title));
+registerTestView('ov-view', ({ panel }) => React.createElement('i', { 'data-slot': panel.id }, panel.title));
 
 afterEach(() => cleanup());
 
@@ -41,10 +42,10 @@ interface Provided {
   parked(): string[];
 }
 /** useProvidePanels mounted under `input`; every call below goes through the latest render's api, in its own act. */
-function provide(input: Partial<PanelsInput>): Provided {
+function provide(input: Partial<SeededOver>): Provided {
   let latest: ProvidedPanels | undefined;
   function Probe(): React.ReactElement {
-    latest = useProvidePanels(panelsInput(input));
+    latest = useProvidePanels(useSeededInput({ initialEntries: [], ...input }));
     return React.createElement('output');
   }
   mount(React.createElement(Probe));
@@ -91,12 +92,9 @@ function sequence(seed: number, defaults: Omit<PanelSettings, 'tuning'>, steps: 
   const rand = seeded(seed);
   const pick = <T,>(items: readonly T[]): T => items[Math.floor(rand() * items.length)]!;
   const containerWidth = pick([600, 1000, 1500]);
-  let setHidden: ((on: boolean) => void) | undefined;
   let latest: ProvidedPanels | undefined;
   function Probe(): React.ReactElement {
-    const [hidden, setHiddenState] = React.useState(false);
-    setHidden = setHiddenState;
-    latest = useProvidePanels(panelsInput({ initialEntries: [scrollRoot()], containerWidth, workspaceDefaults: { ...defaults, ...(hidden ? { startVisibility: 'parked' as const } : {}) } }));
+    latest = useProvidePanels(useSeededInput({ initialEntries: [scrollRoot()], containerWidth, workspaceDefaults: defaults, templates: [definePanel({ id: 'ov-hid', view: () => null, settings: { startVisibility: 'parked', multiple: true, frame: 'none' } })] }));
     return React.createElement('output');
   }
   const mounted = mount(React.createElement(Probe));
@@ -113,9 +111,7 @@ function sequence(seed: number, defaults: Omit<PanelSettings, 'tuning'>, steps: 
     if (op <= 1 || open.length === 0) {
       const before = new Set(latest!.entries.map((p) => p.id));
       const hide = op === 1 && open.length > 0;
-      if (hide) act(() => setHidden!(true));
-      act(() => latest!.create());
-      if (hide) act(() => setHidden!(false));
+      act(() => latest!.create(hide ? { view: 'ov-hid' } : {}));
       for (const p of latest!.entries) {
         if (before.has(p.id)) continue;
         created += 1;
@@ -271,7 +267,7 @@ test('a kept slot in a scrolling row leaves for its rest minus one span, 1624 fr
   const rowOf = (aLive: boolean): React.ReactElement => {
     const entries = [scrollRoot(), keep('p1', true), keep('p2', true), keep('p3', true), keep('p4', true), keep('a', aLive)];
     const rowNumbers = computeRowNumbers({ entries, phoneWidth: 390, containerWidth: 1000, gap: 16 });
-    return withHost(React.createElement(PanelRow, { entries, rootId: ROOT, closingIds: new Set<string>(), enteringViaAnchorIds: new Set<string>(), rowNumbers }));
+    return withHost(React.createElement(StaticRow, { entries, rootId: ROOT, closingIds: new Set<string>(), enteringViaAnchorIds: new Set<string>(), rowNumbers }));
   };
   const targets: number[] = [];
   const { animate } = slotDriver;
@@ -317,16 +313,6 @@ test("workspaceDefaults {overflow: 'park'}: the created entries park at capacity
   assert.equal(p.now().rowScroll, false);
 });
 
-test('without workspaceDefaults the created entry is what appendPanel builds: no settings, no key, and the row does not scroll', () => {
-  const p = provide({ initialEntries: [legacyRoot()], containerWidth: 1000 });
-  act(() => p.now().create());
-  const entry = p.now().entries[1]!;
-  const expected = appendPanel([legacyRoot()], { view: '', title: `Panel ${entry.id}` }, entry.id, ROOT, entry.uid)[1]!;
-  assert.deepEqual(entry, expected);
-  assert.equal('settings' in entry || 'key' in entry, false);
-  assert.equal(p.now().rowScroll, false);
-});
-
 test('workspaceDefaults on a restore: entries keep their saved live, anchor, slots, size and listed, and a permanent column stays a live fixed column', async () => {
   const saved = {
     version: 1 as const,
@@ -336,7 +322,7 @@ test('workspaceDefaults on a restore: entries keep their saved live, anchor, slo
       { id: 'h', view: 'ov-view', url: 'https://h.example', live: false, anchor: { panel: ROOT, position: 'right' as const, priority: 2 } },
     ],
   };
-  const restore = async (workspaceDefaults?: PanelsInput['workspaceDefaults']): Promise<readonly PanelWindow[]> => {
+  const restore = async (workspaceDefaults?: SeedOptions['workspaceDefaults']): Promise<readonly PanelWindow[]> => {
     const p = provide({ initialEntries: [legacyRoot()], containerWidth: 1500, storage: { load: () => Promise.resolve(saved), save: () => {} }, ...(workspaceDefaults === undefined ? {} : { workspaceDefaults }) });
     await act(async () => {});
     const entries = p.now().entries;
@@ -345,7 +331,6 @@ test('workspaceDefaults on a restore: entries keep their saved live, anchor, slo
   };
   const without = await restore();
   assert.equal(without.length, 4);
-  assert.ok(without.every((e) => e.settings === undefined), 'without workspaceDefaults the entries stay as hydrate builds them');
   const withDefaults = await restore({});
   assert.deepEqual(withDefaults.map((e) => e.id === ROOT || e.settings !== undefined), [true, true, true, true]);
   const [, wide, column, hidden] = withDefaults;

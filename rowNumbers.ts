@@ -68,6 +68,7 @@ export interface RowNumbers {
  * (`computeMaxLiveWidth`, `computeRowLayout`'s margin). A scrolling row draws every entry, prices a tablet at its own
  * width and a desktop panel at no more than the window, and centres only a strip that fits.
  * @public
+ * @deprecated The provider computes the row's numbers from its tuning; read them as `useProvidePanels(...).rowNumbers`.
  */
 export function computeRowNumbers(i: {
   /** The row's whole list; the entries `isPresent` drops (parked ones, the marker) are not drawn and are ignored. */

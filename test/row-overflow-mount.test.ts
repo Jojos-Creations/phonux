@@ -6,15 +6,16 @@ import assert from 'node:assert/strict';
 import './support/jsdom-globals.js';
 import * as React from 'react';
 import { act } from 'react';
-import { PanelRow, Workspace, registerView, resolvePanelSettings, useProvidePanels } from '../index.js';
-import type { PanelSettings, PanelWindow, ProvidedPanels } from '../index.js';
+import { PanelRow, Workspace, resolvePanelSettings, useProvidePanels } from '../index.js';
+import type { PanelSettings, PanelWindow, ProvidedPanels, WorkspaceHandle } from '../index.js';
 import { createFakeHost } from '../fakeHost.js';
 import { applyTemplate } from '../panelSettings.js';
 import { computeMaxLiveWidth } from '../panelRowLayout.js';
 import { appendPanel, createHistoryPanel } from '../panelWindow.js';
 import { computeRowNumbers } from '../rowNumbers.js';
 import { fitSlots, slotWidth } from '../rowConstants.js';
-import { cleanup, mount, panelsInput, withHost } from './support/mount-harness.js';
+import { cleanup, mount, withHost, useSeededInput } from './support/mount-harness.js';
+import { registerTestView } from './support/test-views.js';
 
 afterEach(() => cleanup());
 
@@ -23,7 +24,7 @@ const legacyRoot = (): PanelWindow => ({ id: 'root', url: '', title: 'History', 
 test('pin R4: a row of hand-built entries at container 1000 keeps History and the newest panel live', () => {
   let latest: ProvidedPanels | undefined;
   function Probe(): React.ReactElement {
-    latest = useProvidePanels(panelsInput({ initialEntries: [legacyRoot()], containerWidth: 1000 }));
+    latest = useProvidePanels(useSeededInput({ initialEntries: [legacyRoot()], containerWidth: 1000, workspaceDefaults: { overflow: 'park' } }));
     return React.createElement('output');
   }
   mount(React.createElement(Probe));
@@ -39,24 +40,25 @@ const scrollEntry = (id: string, over: PanelSettings = {}): PanelWindow => {
 };
 const scrollRoot = (): PanelWindow =>
   applyTemplate({ ...createHistoryPanel('root'), view: 'ro-view' }, resolvePanelSettings({ template: { title: 'History' } }, { root: true }).value, 'create');
-registerView('ro-view', ({ panel }) => React.createElement('i', { 'data-slot': panel.id }, panel.title));
+registerTestView('ro-view', ({ panel }) => React.createElement('i', { 'data-slot': panel.id }, panel.title));
 
 const NONE: ReadonlySet<string> = new Set();
-function Shell({ provided, containerWidth }: { provided: ProvidedPanels; containerWidth: number }): React.ReactElement {
+function Shell({ provided, containerWidth, workspace }: { provided: ProvidedPanels; containerWidth: number; workspace: WorkspaceHandle }): React.ReactElement {
   const ref = React.useRef<HTMLDivElement | null>(null);
   const rowRef = React.useRef<HTMLDivElement | null>(null);
   return React.createElement(
     Workspace,
     { overflowContainerRef: ref, rowRef, containerWidth, rowResizeSettled: true, phoneWidth: 390, fixedColumnCount: provided.fixedViewCount, liveWidths: provided.liveWidths, rowScroll: provided.rowScroll, rowNumbers: provided.rowNumbers, 'data-shell': '' } as never,
-    React.createElement(PanelRow, { entries: provided.entries, rootId: 'root', closingIds: NONE, enteringViaAnchorIds: NONE, rowNumbers: provided.rowNumbers }),
+    React.createElement(PanelRow, { entries: provided.entries, rootId: 'root', closingIds: NONE, enteringViaAnchorIds: NONE, rowNumbers: provided.rowNumbers, workspace }),
   );
 }
 
 test('a mount of 11 scroll panels at a measured container of 1000 renders every slot in a strip wider than its window, with overflow-x auto', () => {
   let latest: ProvidedPanels | undefined;
   function Probe(): React.ReactElement {
-    latest = useProvidePanels(panelsInput({ initialEntries: [scrollRoot()], containerWidth: 1000, workspaceDefaults: {} }));
-    return withHost(React.createElement(Shell, { provided: latest, containerWidth: 1000 }), createFakeHost({ panels: latest }));
+    const input = useSeededInput({ initialEntries: [scrollRoot()], containerWidth: 1000, workspaceDefaults: {} });
+    latest = useProvidePanels(input);
+    return withHost(React.createElement(Shell, { provided: latest, containerWidth: 1000, workspace: input.workspace }), createFakeHost({ panels: latest }));
   }
   const mounted = mount(React.createElement(Probe));
   for (let i = 0; i < 10; i += 1) act(() => latest!.create({ view: 'ro-view' }));
@@ -91,7 +93,7 @@ test('maxLiveWidth comes from computeRowNumbers at every gap: a 64-slot panel is
     let latest: ProvidedPanels | undefined;
     const entries = [scrollRoot(), scrollEntry('d', { slots: 64 }), scrollEntry('a'), scrollEntry('b'), scrollEntry('c')];
     function Probe(): React.ReactElement {
-      latest = useProvidePanels(panelsInput({ initialEntries: entries, containerWidth: 1000, tuning: { rowGap: gap } }));
+      latest = useProvidePanels(useSeededInput({ initialEntries: entries, containerWidth: 1000, tuning: { rowGap: gap } }));
       return React.createElement('output');
     }
     const mounted = mount(React.createElement(Probe));

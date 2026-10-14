@@ -33,8 +33,6 @@ const VALUE_EXPORTS = [
   'PanelHeaderButtons',
   'PanelFooter',
   'PanelHeaderRow',
-  'registerView',
-  'resolveView',
   'useViewSnapshot',
   'CaptureRegistryProvider',
   'noopCaptureTrigger',
@@ -43,15 +41,18 @@ const VALUE_EXPORTS = [
   'DEFAULT_PANEL_SIZE',
   'panelWidthOf',
   'computeRowLayout',
+  'minWorkspaceWidth',
   'computeRowNumbers',
   'PanelRow',
   'PanelSizeBox',
+  'PanelResizeGrips',
   'GAP',
   'PANEL_TRANSITION',
   'usePanelReorderEligible',
   'usePanelReorderSteps',
   'usePanelTuning',
   'usePanelCapabilities',
+  'usePanelDragProps',
   'usePanelCloseEligible',
   'usePanelHeaderButtons',
   'usePanelHidden',
@@ -78,6 +79,7 @@ const VALUE_EXPORTS = [
   'MAX_WORKSPACE_NAME',
   'usePanelStates',
   'usePanelState',
+  'useWorkspace',
   'useWorkspaceManager',
   'useActivePanel',
   'usePanelActive',
@@ -92,7 +94,7 @@ const VALUE_EXPORTS = [
   'DRAGGING_ATTRIBUTE',
 ].sort();
 
-test('the phonux barrel exports exactly the 78 runtime values, no more, no fewer', () => {
+test('the phonux barrel exports exactly the 80 runtime values, no more, no fewer', () => {
   assert.deepEqual(Object.keys(phonux).sort(), VALUE_EXPORTS);
 });
 

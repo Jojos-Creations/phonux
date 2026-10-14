@@ -54,8 +54,15 @@ export interface FakeCall {
   args: unknown[];
 }
 
-/** Replacement members, per API. @public */
-export type FakeOverrides = { [K in keyof Host]?: Partial<Host[K]> };
+/** The `Host` members a host may leave out, which `FakeOverrides.absent` can leave out of a fake. @public */
+export type AbsentHostMember = 'history' | 'snapshots';
+
+/**
+ * Replacement members, per API. `absent` leaves the named optional members out of the fake altogether, so a view test renders
+ * the frame in which a host has not supplied them yet; `createFakeHost` never supplies `labels`, so it is always absent.
+ * @public
+ */
+export type FakeOverrides = { [K in keyof Host]?: Partial<Host[K]> } & { absent?: readonly AbsentHostMember[] };
 
 /** A `Host` whose methods record their calls instead of acting. @public */
 export interface FakeHost extends Host {
@@ -66,7 +73,7 @@ export interface FakeHost extends Host {
 /**
  * Builds a recording `FakeHost` with inert defaults: `overrides` replaces whole members per API, and every
  * non-overridden method appends to `calls`.
- * @param overrides - Members to replace, per API; an overridden method no longer records.
+ * @param overrides - Members to replace, per API; an overridden method no longer records. `absent` names optional members to leave out.
  * @public
  */
 export function createFakeHost(overrides: FakeOverrides = {}): FakeHost {
@@ -130,12 +137,13 @@ export function createFakeHost(overrides: FakeOverrides = {}): FakeHost {
     chooseModel: async (modelId) => log('device', 'chooseModel', [modelId]),
   };
 
+  const absent = new Set<AbsentHostMember>(overrides.absent);
   return {
     settings: { ...settings, ...overrides.settings },
-    history: { ...history, ...overrides.history },
+    ...(absent.has('history') ? {} : { history: { ...history, ...overrides.history } }),
     panels: { ...panels, ...overrides.panels },
     device: { ...device, ...overrides.device },
-    snapshots: { ...snapshots, ...overrides.snapshots },
+    ...(absent.has('snapshots') ? {} : { snapshots: { ...snapshots, ...overrides.snapshots } }),
     calls,
   };
 }

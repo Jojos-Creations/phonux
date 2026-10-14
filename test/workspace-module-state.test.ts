@@ -16,7 +16,6 @@ const FILES = ['autoMount.tsx', 'autoMountContext.ts', 'workspaceCore.ts', 'work
 const ALLOWED: Record<string, string> = {
   'workspaceCore.ts:nextEngineIdValue': 'an id counter: ids stay unique across workspaces on purpose',
   'workspaceCore.ts:CORES': 'a WeakMap from a handle to its own core: it holds no state of its own',
-  'viewRegistry.tsx:registry': 'plain views by key: registerView is an app-wide call and a plain view is no workspace\'s data',
   'viewRegistry.tsx:placeholders': 'one placeholder component per unregistered key',
   'templateView.tsx:adapters': 'a WeakMap keyed by template object: one adapter component per template, the template itself holds the workspace\'s view',
   'panelFrameBoundary.tsx:BARE_TEMPLATES': 'a WeakMap from a template object to whether its view was last found bare: it says how to draw the template, never a workspace\'s data',

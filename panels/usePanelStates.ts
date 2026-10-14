@@ -7,6 +7,7 @@ import { filterStates } from '../panelHandles.js';
 import type { PanelId } from '../panelSettings.js';
 import type { ListFilter, PanelReader, PanelSnapshot, PanelState } from '../panelTemplate.js';
 import { PanelViewContextValue } from '../panelViewContext.js';
+import type { ViewWorkspace } from '../workspaceCore.js';
 
 const NO_SUBSCRIBE = (): (() => void) => () => {};
 const EMPTY_SNAPSHOT: PanelSnapshot = Object.freeze({ version: 0, status: 'detached', panels: Object.freeze([]) });
@@ -17,6 +18,17 @@ const EMPTY_SNAPSHOT: PanelSnapshot = Object.freeze({ version: 0, status: 'detac
  */
 export function useWorkspaceManager(): PanelReader | undefined {
   return useContext(PanelViewContextValue)?.manager;
+}
+
+/**
+ * The workspace of the PanelRow above, as a view acts on it: `panels.get(key)` returns the operable handle of any panel
+ * (close, show, hide, move, configure), `panels.addPanel` makes one, and the rest of the manager is there too. It is the same
+ * object on every render and undefined outside a PanelRow that has a workspace. The workspace's own `dispose`, `update` and
+ * `rename` are not part of it.
+ * @public
+ */
+export function useWorkspace(): ViewWorkspace | undefined {
+  return useContext(PanelViewContextValue)?.workspace;
 }
 
 function useSnapshot(): PanelSnapshot {

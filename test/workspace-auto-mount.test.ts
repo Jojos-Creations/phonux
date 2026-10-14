@@ -93,7 +93,7 @@ function HandWired({ workspace }: { workspace: WorkspaceHandle }): React.ReactEl
     observer.observe(el);
     return () => observer.disconnect();
   }, []);
-  const provided = useProvidePanels({ workspace, rootId: workspace.rootId, phoneWidth: 390, containerWidth, overflowContainerRef: ref });
+  const provided = useProvidePanels({ workspace, phoneWidth: 390, containerWidth, overflowContainerRef: ref });
   const row = React.createElement(PanelRow, {
     entries: provided.entries,
     rootId: workspace.rootId,
@@ -160,7 +160,7 @@ test('the mount hands the row and the workspace shell each value useProvidePanel
   let provided: ReturnType<typeof useProvidePanels> | undefined;
   function Probe(): null {
     const ref = React.useRef<HTMLDivElement>(null);
-    provided = useProvidePanels({ workspace: ws, rootId: ws.rootId, phoneWidth: 390, containerWidth: 700, overflowContainerRef: ref });
+    provided = useProvidePanels({ workspace: ws, phoneWidth: 390, containerWidth: 700, overflowContainerRef: ref });
     return null;
   }
   mount(React.createElement(Probe));
