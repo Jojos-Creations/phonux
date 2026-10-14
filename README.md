@@ -58,7 +58,8 @@ column.addWorkspace({ name: 'Reading' }); // or give it a name
 The column renders itself. ArrowUp and ArrowDown (when focus is not in a field or dialog) move between workspaces, a button at the top
 and bottom centre names the neighbour and moves there, and where there is none it reads "Create new workspace" and calls
 `addWorkspace`. Each workspace has an input above its panels for its name. `storage` keeps the list, the names and the current
-workspace; give the workspace you already have its old key with `addWorkspace({ id })`. An app that draws its own rows passes
+workspace; the column has one content (`root`, `templates`, `defaults`, `order`), `addWorkspace` takes only `id`, `name` and `index`, and a
+workspace's panels are kept by `storage.workspace(id)` (return `undefined` for none). Give the workspace you already have its old key with `addWorkspace({ id })`. An app that draws its own rows passes
 `mount: false` and renders `<WorkspaceColumn column={column}>{(workspace) => ...}</WorkspaceColumn>`.
 
 ## Building your own flow

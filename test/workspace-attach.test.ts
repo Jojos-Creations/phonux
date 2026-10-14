@@ -85,7 +85,7 @@ test('a template view receives its panel summary, the seventeen sorted keys of t
   const m = mountWorkspace(w);
   const node = m.container.querySelector('[data-template="probe"]') as HTMLElement;
   assert.ok(node, 'the template view did not render');
-  assert.equal(node.dataset.slot, m.latest().entries.find((p) => p.view === 'probe')!.id, 'panel is the row entry summary');
+  assert.equal(node.dataset.slot, m.latest().entries.find((p) => p.view === 'probe')!.key, 'panel is the row entry summary, and its id is the key');
   assert.deepEqual(node.dataset.handleKeys!.split(',').sort(), ['close', 'configure', 'getSettings', 'getState', 'hide', 'id', 'move', 'open', 'pin', 'place', 'scrollTo', 'setSlots', 'show', 'subscribe', 'templateId', 'toggleVisibility', 'unpin'], 'id, templateId, getState, getSettings, subscribe, show, hide, toggleVisibility, close, open, move, place, setSlots, scrollTo, pin, unpin, configure: 17 keys and no manager');
   assert.equal(node.dataset.managerKeys, 'get,list,getSnapshot,subscribe');
   assert.equal(node.dataset.handleId, 'probe');
