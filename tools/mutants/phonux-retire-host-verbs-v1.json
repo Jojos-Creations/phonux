@@ -1,0 +1,11 @@
+{
+  "tests": ["test/host-panels-verbs.test.ts"],
+  "mutants": [
+    { "name": "the row's own members leak through", "file": "hostPanels.ts", "find": "    panelList: provided.panelList,", "replace": "    ...provided,\n    panelList: provided.panelList,", "expectRed": ["none of the row's own"] },
+    { "name": "a verb never warns", "file": "hostPanels.ts", "find": "    warnDeprecatedVerb(verb, instead);\n    fn(...a);", "replace": "    fn(...a);", "expectRed": ["warns once"] },
+    { "name": "a verb warns every call", "file": "hostPanels.ts", "find": "|| warned.has(verb)) return;\n  warned.add(verb);", "replace": ") return;", "expectRed": ["warns once"] },
+    { "name": "close does nothing", "file": "hostPanels.ts", "find": "provided.close),", "replace": "() => undefined),", "expectRed": ["warns once"] },
+    { "name": "undoClose warns", "file": "hostPanels.ts", "find": "    undoClose: provided.undoClose,", "replace": "    undoClose: withWarning('undoClose', 'x', provided.undoClose),", "expectRed": ["do not warn"] },
+    { "name": "maxFitPanels dropped", "file": "hostPanels.ts", "find": "...(provided.maxFitPanels !== undefined ? { maxFitPanels: provided.maxFitPanels } : {}),", "replace": "", "expectRed": ["none of the row's own"] }
+  ]
+}

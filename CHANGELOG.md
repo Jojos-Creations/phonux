@@ -23,6 +23,7 @@
 ### Deprecated
 
 - The row's counter id as a panel id. `PanelsAPI` verbs, `useActivePanel`'s setter and `tuning.initialScroll.panel` still accept the counter id a view held before keys were the only id, with one development warning per id naming the key; it stops resolving in a later release.
+- `useHost().panels.create`, `activate`, `move`, `setFormFactor`, `setSlots`, `reanchor` and `close`. They keep working, with one development warning per verb naming the replacement on `useWorkspace()` (a panel's handle, or `addPanel` for create); they are removed in a later release. `panelList`, `maxFitPanels`, `recentlyClosed`, `undoClose` and `clearAll` stay. A view is now given only those `PanelsAPI` members as `useHost().panels`, not the row's own (`entries`, `rowNumbers`, `tuning` and the rest).
 
 ### Added
 

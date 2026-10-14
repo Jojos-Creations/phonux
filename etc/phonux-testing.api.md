@@ -108,21 +108,29 @@ export type PanelId = string;
 
 // @public
 export interface PanelsAPI {
+    // @deprecated
     activate(id: string): void;
     clearAll(): void;
+    // @deprecated
     close(id: string): void;
+    // @deprecated
     create(): void;
+    // @deprecated
     create(options: CreatePanelOptions): void;
     readonly maxFitPanels?: number | null;
+    // @deprecated
     move(id: string, direction: 'left' | 'right'): void;
     readonly panelList: readonly PanelSummary[];
+    // @deprecated
     reanchor(id: string, anchor: {
         panel?: string;
         position: 'left' | 'right';
         priority?: number;
     }): void;
     readonly recentlyClosed: readonly PanelSummary[] | null;
+    // @deprecated
     setFormFactor(id: string, next: FormFactor): void;
+    // @deprecated
     setSlots?(id: string, slots: number): void;
     undoClose(): void;
 }
