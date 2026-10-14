@@ -1456,7 +1456,10 @@ any tuning key in the workspace defaults throws. A view's own door, the host lay
 hands the engine one update that replaces the entry; the call takes a manager token on the panel, so a second verb on it
 in the same turn answers `busy` and a close excludes every other call. `configureTemplate` stores an override layer for
 the three template keys that only future creations read, and `configureTuning` stores the workspace tuning input,
-re-pricing the row in one commit when `rowGap` moves. A tuning leaf set on a panel outranks the workspace's. A configure
+re-pricing the row in one commit when `rowGap` moves. `configureTuning` needs no mounted row and no finished load: before
+the first load it writes the checked patch straight into the input and the resolved tuning together (there is no layout to re-price)
+and the load reads it; only a disposed workspace refuses. `column.configureTuning(patch)` does the same for the column: it keeps its
+own merged input, hands the patch to every workspace in it, and a workspace added or rebuilt later starts from that input. A tuning leaf set on a panel outranks the workspace's. A configure
 queued behind another call's update of the same entry in one turn applies to the entry that update left, planned from the
 layer the call saw; a panel the update removed stays removed. What a view asked for at a Host-bag `create` is kept apart for
 the session as the panel's host layer, under the instance layer: `null` on a key the view asked for shows the ask again with

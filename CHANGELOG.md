@@ -17,6 +17,7 @@
 
 ### Added
 
+- `configureTuning` is accepted before the workspace is attached or loaded (only a disposed workspace refuses), and `column.configureTuning(patch)` applies one tuning change to every workspace in the column, including ones added or restored later.
 - A column of workspaces, one above the other. `createWorkspaceColumn(options)` renders itself like `createWorkspace`, and
   `column.addWorkspace(options)` is the one call that creates a workspace, adds it and returns its `WorkspaceHandle`. ArrowUp and
   ArrowDown move between workspaces (never while focus is in a field, widget, editor or dialog, or during a keyboard drag, and never

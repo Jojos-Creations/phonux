@@ -1421,6 +1421,7 @@ export function WorkspaceColumn(input: WorkspaceColumnProps): React_2.ReactEleme
 // @public
 export interface WorkspaceColumnHandle {
     addWorkspace(o?: ColumnWorkspaceOptions): WorkspaceHandle;
+    configureTuning(patch: Parameters<PanelManager['configureTuning']>[0]): ConfigureResult;
     readonly current: number;
     dispose(): void;
     scrollTo(target: WorkspaceHandle | number): void;

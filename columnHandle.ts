@@ -4,6 +4,8 @@
  */
 import { createWorkspace, type WorkspaceHandle, type WorkspaceOptions } from './workspaceCore.js';
 import { PanelManagerError } from './panelManagerError.js';
+import { checkPatch, planTuning, unchanged } from './panelConfigure.js';
+import type { ConfigureResult, PanelManager } from './panelManager.js';
 import { cleanWorkspaceName } from './workspaceName.js';
 import { refusedLiveKeys, type WorkspaceLive } from './workspaceLive.js';
 import type { WorkspaceStorage } from './workspaceState.js';
@@ -93,6 +95,12 @@ export interface WorkspaceColumnHandle {
   scrollTo(target: WorkspaceHandle | number): void;
   /** Moves to the workspace above or below; false at the end of the column. */
   step(direction: 'up' | 'down'): boolean;
+  /**
+   * `WorkspaceManager.configureTuning` for the whole column: the patch reaches every workspace in it, those added later start from it,
+   * and the column's own slide follows it. Kept for this session only. It works before the saved list has been read and refuses
+   * only after `dispose()`. Throws `invalid-settings` for a key or value the tuning does not accept.
+   */
+  configureTuning(patch: Parameters<PanelManager['configureTuning']>[0]): ConfigureResult;
   /** Gives every workspace the new live values, and every workspace added later; the same members as `WorkspaceHandle.update`. */
   update(live: WorkspaceLive): void;
   /** Disposes every workspace and takes the column off the screen. */
@@ -149,6 +157,7 @@ const isColumnState = (v: unknown): v is ColumnState => {
  */
 export function createWorkspaceColumn(o: ColumnOptions = {}): WorkspaceColumnHandle {
   const { storage, mount, ...shared } = o;
+  let tuningInput = o.tuning;
   let live: WorkspaceLive = {
     ...(o.device !== undefined ? { device: o.device } : {}),
     ...(o.settings !== undefined ? { settings: o.settings } : {}),
@@ -180,7 +189,7 @@ export function createWorkspaceColumn(o: ColumnOptions = {}): WorkspaceColumnHan
     snap = undefined;
     for (const l of [...listeners]) l();
   };
-  const snapshot = (): ColumnSnapshot => (snap ??= { status, workspaces: list, names: list.map((w) => w.name), current, labels: live.labels, topInset: live.topInset ?? 0, tuning: o.tuning });
+  const snapshot = (): ColumnSnapshot => (snap ??= { status, workspaces: list, names: list.map((w) => w.name), current, labels: live.labels, topInset: live.topInset ?? 0, tuning: tuningInput });
 
   const state = (): ColumnState => ({ version: 1, workspaces: list.map((w) => ({ id: w.id, name: w.name })), current: list[current]?.id ?? null });
   // Saves go one after another so a slow one cannot land after the one that followed it.
@@ -215,6 +224,7 @@ export function createWorkspaceColumn(o: ColumnOptions = {}): WorkspaceColumnHan
     const ws = createWorkspace({
       ...shared,
       ...live,
+      ...(tuningInput !== undefined ? { tuning: tuningInput } : {}),
       ...(a.root !== undefined ? { root: a.root } : {}),
       ...(a.templates !== undefined ? { templates: a.templates } : {}),
       ...(a.defaults !== undefined ? { defaults: a.defaults } : {}),
@@ -270,6 +280,17 @@ export function createWorkspaceColumn(o: ColumnOptions = {}): WorkspaceColumnHan
       current = next;
       commit();
       return true;
+    },
+    configureTuning: (patch) => {
+      if (status === 'disposed') return { ok: false, code: 'disposed', message: 'the column was disposed' };
+      const checked = checkPatch('tuning', patch);
+      if ('refusal' in checked) return { ok: false, ...checked.refusal };
+      const plan = planTuning(tuningInput, patch as Record<string, unknown>);
+      if (!plan.changed) return unchanged();
+      tuningInput = plan.input;
+      for (const w of list) w.panels.configureTuning(patch);
+      changed();
+      return { ok: true, changed: true, shown: false, now: plan.now, later: plan.later, shadowed: [], notes: [] };
     },
     update: (change) => {
       if (status === 'disposed') throw new PanelManagerError('disposed', 'the column was disposed');
