@@ -30,7 +30,6 @@ const VALUE: Record<string, unknown> = {
   crossable: false,
   placeable: false,
   resizable: false,
-  formFactors: ['phone', 'tablet'],
   clearable: false,
   hostCreatable: false,
   multiple: false,
@@ -63,7 +62,6 @@ const VALUE: Record<string, unknown> = {
   exitTo: 'left',
   closeExit: 'left',
   animated: false,
-  formFactor: 'tablet',
   title: 'Renamed',
   pinning: { pinned: { placement: 'row-start' }, unpinned: { placement: 'row-end' } },
   pinningWhenNotLive: 'refuse',
@@ -178,7 +176,7 @@ for (const key of instanceKeys) {
     const r = await pinRig();
     const res = r.turn(() => r.ws.panels.configure('c', { [key]: VALUE[key] } as never));
     // A key that no valid arrangement of this row could take at once is refused whole with a typed code, never thrown.
-    assert.equal(res.ok || ['settings-conflict', 'tier-not-allowed'].includes((res as Refused).code), true, res.ok ? '' : `${(res as Refused).code}: ${(res as Refused).message}`);
+    assert.equal(res.ok || ['settings-conflict', 'slots-above-max'].includes((res as Refused).code), true, res.ok ? '' : `${(res as Refused).code}: ${(res as Refused).message}`);
     if (res.ok) assert.equal(r.h.c!.getSettings().source[key], 'instance');
   });
 }
@@ -296,7 +294,6 @@ const VIEW_ACCEPTS: readonly [string, unknown][] = [
   ['title', 'From the view'],
   ['listed', false],
   ['layer', 'raised'],
-  ['formFactor', 'tablet'],
   ['slots', 2],
   ['placeOnAdd', { anchor: { panel: 'root', position: 'left' } }],
   ['enterFrom', 'anchor'],

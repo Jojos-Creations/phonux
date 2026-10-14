@@ -20,7 +20,7 @@ export function DefaultFrame({ panel, children }: { panel: PanelSummary; childre
   const labels = resolveLabels(useOptionalHost()?.labels);
   const slot = React.useContext(PanelSlotContext);
   const closeEligible = slot === undefined ? true : slot.collapsible && slot.closable;
-  const size = (panel.formFactor ?? 'phone') !== 'phone' ? panel.size : undefined;
+  const size = (panel.slots ?? 1) > 1 ? panel.size : undefined;
   const title = panel.title ?? labels.untitledPanel;
   const width = size?.width ?? phoneSize.width;
   const height = size?.height === 'fill' ? '100%' : (size?.height ?? phoneSize.height);

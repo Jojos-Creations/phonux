@@ -62,10 +62,10 @@ test('differential scrollOnOpen: into-view and start put the same panel at diffe
   });
 });
 
-/** Where the row rests after panel s1, in view, becomes a tablet, under `scrollOnMove`. */
+/** Where the row rests after panel s1, in view, becomes two slots wide, under `scrollOnMove`. */
 async function movedTo(scrollOnMove: PanelSettings['scrollOnMove']): Promise<number> {
   const m = mountRow(panelsOf(5, { scrollOnMove }), 1000);
-  act(() => m.latest().setFormFactor('s1', 'tablet'));
+  act(() => m.latest().setSlots('s1', 2));
   await advanceFrames(900);
   const at = m.container.scrollLeft;
   cleanup();

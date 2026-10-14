@@ -1,5 +1,5 @@
 /**
- * panelWindow.ts's pure panel-array helpers, and the phonux row-order and tier functions they
+ * panelWindow.ts's pure panel-array helpers, and the phonux row-order and slot-width functions they
  * call. Closing a view removes it completely (closePanel) and undo puts it back (restorePanel).
  */
 
@@ -9,13 +9,13 @@ import {
   DEFAULT_PHONE_SIZE,
   GAP,
   panelWidthOf,
-  TIER_SIZES,
   type PanelAnchor,
   type PanelSize,
 } from '../index.js';
 import { computeMaxLiveWidth } from '../panelRowLayout.js';
 import { computeRowOrder, deriveAnchorsFromOrder } from '../panelRowOrder.js';
-import { summarisePanel } from '../panelRowEntry.js';
+import { summarisePanel, type PanelRowEntry } from '../panelRowEntry.js';
+import { sizeOfSlots } from '../panelTiers.js';
 import {
   type PanelWindow,
   appendPanel,
@@ -30,13 +30,13 @@ import {
   reorderStepsForOffset,
   restorePanel,
   rightmostLiveIndex,
-  setFormFactor,
+  setSlots,
   sideOfLiveRange,
 } from '../panelWindow.js';
 
-/** Every entry's default tier/size, rebuilt from DEFAULT_PHONE_SIZE rather than a 390/700 literal, so this file
+/** Every entry's default size, rebuilt from DEFAULT_PHONE_SIZE rather than a 390/700 literal, so this file
  * cannot drift from panelTiers.ts's DEFAULT_PANEL_SIZE derivation. */
-const DEFAULT_PANEL_SIZE: PanelSize = { formFactor: 'phone', width: DEFAULT_PHONE_SIZE.width, height: DEFAULT_PHONE_SIZE.height };
+const DEFAULT_PANEL_SIZE: PanelSize = { width: DEFAULT_PHONE_SIZE.width, height: DEFAULT_PHONE_SIZE.height };
 
 /** History's own seeded id. The production constant is host-owned, so this pure-function test keeps its own copy. */
 const ROOT_ID = 'history';
@@ -46,7 +46,7 @@ test('appendPanel: appends a new LIVE extra panel carrying the hostData and url'
   assert.deepEqual(next, [
     {
       id: 'w1', uid: next[0]!.uid, url: 'https://example.com/new-tab', hostData: { sourceWebContentsId: 7, webContentsId: null }, live: true, locked: false, view: 'web', collapsible: true, listed: true, anchor: { panel: ROOT_ID, position: 'right', priority: 0 }, layer: 'base', anchoredEnter: false,
-      formFactor: 'phone', size: DEFAULT_PANEL_SIZE,
+      slots: 1, size: DEFAULT_PANEL_SIZE,
     },
   ]);
 });
@@ -74,7 +74,7 @@ test('appendPanel: view/params/listed/layer/anchoredEnter from create()\'s optio
   assert.deepEqual(next, [
     {
       id: 'c1', uid: next[0]!.uid, url: 'about:blank', hostData: { sourceWebContentsId: -1, webContentsId: null }, live: true, locked: false, view: 'test-custom', collapsible: true, listed: false, params: { a: 1 }, anchor: { panel: ROOT_ID, position: 'right', priority: 0 }, layer: 'raised', anchoredEnter: true,
-      formFactor: 'phone', size: DEFAULT_PANEL_SIZE,
+      slots: 1, size: DEFAULT_PANEL_SIZE,
     },
   ]);
 });
@@ -94,47 +94,45 @@ test('appendPanel: permanent:true with `view` OMITTED (the single most obvious c
 });
 
 // ---------------------------------------------------------------------------
-// formFactor/size: the SAME default lands on every entry (a plain web panel, a permanent column, and
-// History alike); a permanent column differs only in whether its tier may change, never in carrying one.
-// summarisePanel forwards both fields into PanelSummary unchanged.
+// slots/size: the SAME default lands on a plain web panel and a permanent column alike; History carries the size
+// only. summarisePanel forwards both fields into PanelSummary unchanged.
 // ---------------------------------------------------------------------------
 
-test('appendPanel: formFactor/size default to "phone"/DEFAULT_PANEL_SIZE for a plain panel AND a permanent:true one alike -- the default applies uniformly regardless of collapsible', () => {
+test('appendPanel: slots/size default to 1/DEFAULT_PANEL_SIZE for a plain panel AND a permanent:true one alike -- the default applies uniformly regardless of collapsible', () => {
   const plain = appendPanel([], { hostData: { sourceWebContentsId: -1, webContentsId: null }, url: 'about:blank' }, 'w1', ROOT_ID)[0]!;
   const permanent = appendPanel([], { hostData: { sourceWebContentsId: -1, webContentsId: null }, url: 'about:blank', permanent: true }, 'p1', ROOT_ID)[0]!;
-  assert.deepEqual([plain.formFactor, plain.size], ['phone', DEFAULT_PANEL_SIZE]);
-  assert.deepEqual([permanent.formFactor, permanent.size], ['phone', DEFAULT_PANEL_SIZE], 'a permanent column gets the SAME default -- only setFormFactor\'s later eligibility differs, not the default itself');
+  assert.deepEqual([plain.slots, plain.size], [1, DEFAULT_PANEL_SIZE]);
+  assert.deepEqual([permanent.slots, permanent.size], [1, DEFAULT_PANEL_SIZE], 'a permanent column gets the SAME default -- only setSlots\'s later eligibility differs, not the default itself');
 });
 
-test('createHistoryPanel: formFactor/size default the same way as any other entry', () => {
+test('createHistoryPanel: size defaults the same way as any other entry, and it carries no slot count of its own', () => {
   const history = createHistoryPanel(ROOT_ID);
-  assert.deepEqual([history.formFactor, history.size], ['phone', DEFAULT_PANEL_SIZE]);
+  assert.deepEqual([history.slots, history.size], [undefined, DEFAULT_PANEL_SIZE]);
 });
 
-test('summarisePanel: forwards formFactor and size from PanelWindow into PanelSummary unchanged -- red if summarisePanel drops the fields', () => {
-  const tabletSize: PanelSize = { formFactor: 'tablet', width: 800, height: 1100 };
-  const [tablet] = appendPanel([], { hostData: { sourceWebContentsId: -1, webContentsId: null }, url: 'https://t.example' }, 't1', ROOT_ID).map((p) => ({ ...p, formFactor: 'tablet' as const, size: tabletSize }));
-  const summary = summarisePanel(tablet!);
-  assert.deepEqual([summary.formFactor, summary.size], ['tablet', tabletSize], 'a panel set to tablet reads tablet back through summarisePanel, not the "phone" it was created with');
+test('summarisePanel: forwards slots and size from PanelWindow into PanelSummary unchanged -- red if summarisePanel drops the fields', () => {
+  const [wide] = appendPanel([], { hostData: { sourceWebContentsId: -1, webContentsId: null }, url: 'https://t.example' }, 't1', ROOT_ID).map((p) => ({ ...p, slots: 2, size: sizeOfSlots(2) }));
+  const summary = summarisePanel(wide!);
+  assert.deepEqual([summary.slots, summary.size], [2, sizeOfSlots(2)], 'a panel set to two slots reads two back through summarisePanel, not the 1 it was created with');
 });
 
-test('summarisePanel: round-trip through create -> panelList for the DEFAULT tier too (a panel created with no override reads "phone" back, not undefined)', () => {
+test('summarisePanel: round-trip through create -> panelList for the DEFAULT slot count too (a panel created with no override reads 1 back, not undefined)', () => {
   const created = appendPanel([], { hostData: { sourceWebContentsId: -1, webContentsId: null }, url: 'https://d.example' }, 'd1', ROOT_ID)[0]!;
   const summary = summarisePanel(created);
-  assert.deepEqual([summary.formFactor, summary.size], ['phone', DEFAULT_PANEL_SIZE]);
+  assert.deepEqual([summary.slots, summary.size], [1, DEFAULT_PANEL_SIZE]);
 });
 
-test('summarisePanel: every entry this file creates (History, a plain panel, a permanent column) summarises to exactly the PanelSummary keys -- formFactor/size included, no desktop-only field', () => {
+test('summarisePanel: every entry this file creates (a plain panel, a permanent column) summarises to exactly the PanelSummary keys -- slots/size included, no desktop-only field', () => {
   const entries = [
-    createHistoryPanel(ROOT_ID),
     appendPanel([], { hostData: { sourceWebContentsId: 3, webContentsId: null }, url: 'https://w.example', title: 'W', params: { a: 1 } }, 'w1', ROOT_ID)[0]!,
     appendPanel([], { hostData: { sourceWebContentsId: -1, webContentsId: null }, url: 'about:blank', permanent: true }, 'p1', ROOT_ID)[0]!,
   ];
-  const keys = ['formFactor', 'id', 'live', 'locked', 'params', 'size', 'title', 'url'];
-  assert.deepEqual(entries.map((p) => Object.keys(summarisePanel(p)).sort()), [keys, keys, keys]);
+  const keys = ['id', 'live', 'locked', 'params', 'size', 'slots', 'title', 'url'];
+  assert.deepEqual(entries.map((p) => Object.keys(summarisePanel(p)).sort()), [keys, keys]);
+  assert.deepEqual(Object.keys(summarisePanel(createHistoryPanel(ROOT_ID))).sort(), ['id', 'live', 'locked', 'params', 'size', 'title', 'url'], 'History carries a size but no slot count');
 });
 
-test('summarisePanel: a record that carries no formFactor/size summarises with those keys ABSENT, not present as undefined', () => {
+test('summarisePanel: a record that carries no slots/size summarises with those keys ABSENT, not present as undefined', () => {
   const bare: PanelWindow = { id: 'b1', url: 'https://b.example', hostData: { sourceWebContentsId: -1, webContentsId: null }, live: true, locked: false, view: 'web', collapsible: true, listed: true };
   assert.deepEqual(Object.keys(summarisePanel(bare)).sort(), ['id', 'live', 'locked', 'params', 'title', 'url']);
 });
@@ -437,117 +435,128 @@ test('reorderStepsForOffset: with equal neighbours an EXACT half-slot drag is on
 });
 
 test('reorderStepsForOffset: crossing a DIFFERENTLY-sized neighbour hops exactly once, at half of THAT neighbour\'s own span -- never at the dragged panel\'s own width', () => {
-  // A phone (390) dragged right past a tablet (768): the hop lands at (768 + 16) / 2 = 392, not at 406 / 2 = 203.
-  const phoneBesideTablet = { left: [], right: [768, 390] };
-  assert.equal(reorderStepsForOffset(391, phoneBesideTablet, GAP), 0, 'one px short of the tablet\'s own half-span: no hop (a divide-by-406 rule already hops at 203)');
-  assert.equal(reorderStepsForOffset(392, phoneBesideTablet, GAP), 1, 'exactly at half the tablet\'s span: one hop');
-  assert.equal(reorderStepsForOffset(700, phoneBesideTablet, GAP), 1, 'still one hop at 700 (a divide-by-406 rule says 2)');
-  assert.equal(reorderStepsForOffset(784 + 203, phoneBesideTablet, GAP), 2, 'the second hop lands half-way across the NEXT neighbour (the phone), after the tablet\'s whole span');
-  // A tablet (768) dragged left past a phone (390): the hop lands at 203, not at (768 + 16) / 2 = 392.
-  const tabletBesidePhone = { left: [390], right: [] };
-  assert.equal(reorderStepsForOffset(-202, tabletBesidePhone, GAP), 0);
-  assert.equal(reorderStepsForOffset(-203, tabletBesidePhone, GAP), -1, 'half the PHONE neighbour\'s span: one hop (a divide-by-own-784 rule rounds 203/784 to 0)');
-  assert.equal(reorderStepsForOffset(203, tabletBesidePhone, GAP), 0, 'nothing to its right: no hop, however far');
+  // A phone (390) dragged right past a wide panel (768): the hop lands at (768 + 16) / 2 = 392, not at 406 / 2 = 203.
+  const phoneBesideWide = { left: [], right: [768, 390] };
+  assert.equal(reorderStepsForOffset(391, phoneBesideWide, GAP), 0, 'one px short of the wide panel\'s own half-span: no hop (a divide-by-406 rule already hops at 203)');
+  assert.equal(reorderStepsForOffset(392, phoneBesideWide, GAP), 1, 'exactly at half the wide panel\'s span: one hop');
+  assert.equal(reorderStepsForOffset(700, phoneBesideWide, GAP), 1, 'still one hop at 700 (a divide-by-406 rule says 2)');
+  assert.equal(reorderStepsForOffset(784 + 203, phoneBesideWide, GAP), 2, 'the second hop lands half-way across the NEXT neighbour (the phone), after the wide panel\'s whole span');
+  // A wide panel (768) dragged left past a phone (390): the hop lands at 203, not at (768 + 16) / 2 = 392.
+  const wideBesidePhone = { left: [390], right: [] };
+  assert.equal(reorderStepsForOffset(-202, wideBesidePhone, GAP), 0);
+  assert.equal(reorderStepsForOffset(-203, wideBesidePhone, GAP), -1, 'half the PHONE neighbour\'s span: one hop (a divide-by-own-784 rule rounds 203/784 to 0)');
+  assert.equal(reorderStepsForOffset(203, wideBesidePhone, GAP), 0, 'nothing to its right: no hop, however far');
 });
 
-test('panelWidthOf: a "phone" panel (explicit or omitted formFactor) ALWAYS uses the live phoneWidth argument, never its own stored size', () => {
-  const phonePanel = createHistoryPanel(ROOT_ID); // formFactor 'phone', size DEFAULT_PANEL_SIZE (390x700)
+test('panelWidthOf: a one-slot panel, or an entry carrying no slots, ALWAYS uses the live phoneWidth argument, never its own stored size', () => {
+  const phonePanel = createHistoryPanel(ROOT_ID); // no slots, size DEFAULT_PANEL_SIZE (390x700)
   assert.equal(panelWidthOf(phonePanel, 430, Number.POSITIVE_INFINITY), 430, 'the LIVE phoneWidth (430), not the stored 390 placeholder');
-  const omitted: PanelWindow = { ...phonePanel, formFactor: undefined };
-  assert.equal(panelWidthOf(omitted, 430, Number.POSITIVE_INFINITY), 430, 'an omitted formFactor defaults to "phone", same as explicit');
+  assert.equal(panelWidthOf({ ...phonePanel, slots: 1 }, 430, Number.POSITIVE_INFINITY), 430, 'an explicit one slot is the same width as an omitted count');
 });
 
-test('panelWidthOf: a "tablet"/"desktop" panel uses its OWN stored size.width, never the live phoneWidth argument', () => {
-  const tablet: PanelWindow = { ...createHistoryPanel(ROOT_ID), formFactor: 'tablet', size: { formFactor: 'tablet', width: 820, height: 1180 } };
-  assert.equal(panelWidthOf(tablet, 430, Number.POSITIVE_INFINITY), 820, 'reads its own stored size.width, ignoring the live phoneWidth entirely');
-  const desktop: PanelWindow = { ...createHistoryPanel(ROOT_ID), formFactor: 'desktop', size: { formFactor: 'desktop', width: 1200, height: 800 } };
-  assert.equal(panelWidthOf(desktop, 430, Number.POSITIVE_INFINITY), 1200);
+test('panelWidthOf: a multi-slot panel is that many LIVE phone widths with the row gap between them, never its own stored size.width', () => {
+  const two: PanelWindow = { ...createHistoryPanel(ROOT_ID), slots: 2, size: { width: 820, height: 1180 } };
+  assert.equal(panelWidthOf(two, 430, Number.POSITIVE_INFINITY), 2 * 430 + GAP, 'two live phone widths and a gap, ignoring the stored 820 entirely');
+  const three: PanelWindow = { ...createHistoryPanel(ROOT_ID), slots: 3, size: { width: 1200, height: 800 } };
+  assert.equal(panelWidthOf(three, 430, Number.POSITIVE_INFINITY), 3 * 430 + 2 * GAP);
 });
 
-test('panelWidthOf: a "tablet"/"desktop" panel with no stored size falls back to the live phoneWidth, never a second hardcoded literal', () => {
-  const noSize: PanelWindow = { ...createHistoryPanel(ROOT_ID), formFactor: 'desktop', size: undefined };
-  assert.equal(panelWidthOf(noSize, 430, Number.POSITIVE_INFINITY), 430, 'size?.width ?? phoneWidth: a missing size means the live phoneWidth, not a hardcoded fallback');
+test('panelWidthOf: a multi-slot panel with no stored size still reads its width from the live phoneWidth', () => {
+  const noSize: PanelWindow = { ...createHistoryPanel(ROOT_ID), slots: 2, size: undefined };
+  assert.equal(panelWidthOf(noSize, 430, Number.POSITIVE_INFINITY), 2 * 430 + GAP, 'a missing size changes nothing: the width is slots and phoneWidth');
 });
 
-test('panelWidthOf caps a tablet/desktop panel at maxLiveWidth, the widest one live panel can be: the tier width is a maximum. History alone, phone 390: 842 at the default 1280 window (never 1200), exactly 1200 at 1920, and a tablet is capped at the 844 minimum', () => {
-  const [desktop] = setFormFactor(appendPanel([], { hostData: { sourceWebContentsId: -1, webContentsId: null }, url: 'about:blank' }, 'd', ROOT_ID), 'd', 'desktop');
-  const [tablet] = setFormFactor(appendPanel([], { hostData: { sourceWebContentsId: -1, webContentsId: null }, url: 'about:blank' }, 't', ROOT_ID), 't', 'tablet');
+test('panelWidthOf caps a multi-slot panel at the whole slots that fit in maxLiveWidth. History alone, phone 390: two slots (796) at the default 1280 window, three (1202) at 1920 for any larger count, and one slot at the 844 minimum', () => {
+  const [two] = setSlots(appendPanel([], { hostData: { sourceWebContentsId: -1, webContentsId: null }, url: 'about:blank' }, 'd', ROOT_ID), 'd', 2);
+  const [all] = setSlots(appendPanel([], { hostData: { sourceWebContentsId: -1, webContentsId: null }, url: 'about:blank' }, 't', ROOT_ID), 't', 64);
   const cap = (containerWidth: number) => computeMaxLiveWidth({ containerWidth, phoneWidth: 390, gap: GAP, fixedItemCount: 1 });
   assert.equal(cap(1280), 842, 'precondition: the budget beside History in the default window');
-  assert.equal(panelWidthOf(desktop!, 390, cap(1280)), 842, 'a desktop panel in the default window is the budget, never its 1200 tier width');
-  assert.equal(panelWidthOf(tablet!, 390, cap(1280)), 768, 'a tablet fits under that cap: its own tier width');
-  assert.equal(panelWidthOf(desktop!, 390, cap(1920)), 1200, 'at 1920 the cap (1482) does not bind: exactly the tier width');
+  assert.equal(panelWidthOf(all!, 390, cap(1280)), 796, 'a 64-slot panel in the default window is the two whole slots that fit, never the full budget');
+  assert.equal(panelWidthOf(two!, 390, cap(1280)), 796, 'two slots fit under that cap: their own width');
+  assert.equal(cap(1920), 1482, 'precondition: the budget beside History at 1920');
+  assert.equal(panelWidthOf(all!, 390, cap(1920)), 1202, 'at 1920 three whole slots fit');
+  assert.equal(panelWidthOf(two!, 390, cap(1920)), 796, 'two slots stay two slots however much room there is');
   assert.equal(cap(844), 406, 'precondition: the budget at the window minimum');
-  assert.equal(panelWidthOf(tablet!, 390, cap(844)), 406, 'a tablet at the window minimum is capped too');
-  assert.equal(panelWidthOf(desktop!, 390, cap(844)), 406);
-  assert.equal(panelWidthOf(desktop!, 390, Number.POSITIVE_INFINITY), 1200, 'unmeasured (no cap): the tier width');
+  assert.equal(panelWidthOf(two!, 390, cap(844)), 390, 'two slots at the window minimum are capped to one');
+  assert.equal(panelWidthOf(all!, 390, cap(844)), 390);
+  assert.equal(panelWidthOf(all!, 390, Number.POSITIVE_INFINITY), 1202, 'unmeasured (no cap): the three slots an unmeasured row draws');
 });
 
-test('panelWidthOf never caps a phone panel: it is always the live phone width, whatever maxLiveWidth says', () => {
+test('panelWidthOf caps a multi-slot panel at its own maxSlots too', () => {
+  const [wide] = setSlots(appendPanel([], { hostData: { sourceWebContentsId: -1, webContentsId: null }, url: 'about:blank' }, 'w', ROOT_ID), 'w', 3);
+  assert.equal(panelWidthOf({ ...wide!, settings: { maxSlots: 2 } as unknown as PanelRowEntry['settings'] }, 390, Number.POSITIVE_INFINITY), 796);
+});
+
+test('panelWidthOf never caps a one-slot panel: it is always the live phone width, whatever maxLiveWidth says', () => {
   const phone = createHistoryPanel(ROOT_ID);
-  assert.equal(panelWidthOf(phone, 430, 300), 430, 'a cap below the phone width leaves a phone panel alone');
-  assert.equal(panelWidthOf({ ...phone, formFactor: undefined }, 390, 100), 390);
+  assert.equal(panelWidthOf(phone, 430, 300), 430, 'a cap below the phone width leaves a one-slot panel alone');
+  assert.equal(panelWidthOf({ ...phone, slots: undefined }, 390, 100), 390);
 });
 
 // ---------------------------------------------------------------------------
-// setFormFactor: one panel's own tier and size, replaced in place.
+// setSlots: one panel's own slot count and size, replaced in place.
 // ---------------------------------------------------------------------------
 
 const webEntry = (id: string, more: Partial<PanelWindow> = {}): PanelWindow => ({ ...appendPanel([], { hostData: { sourceWebContentsId: -1, webContentsId: null }, url: `https://${id}.example` }, id, ROOT_ID)[0]!, ...more });
 
-test('setFormFactor: changes ONLY the named panel\'s tier and size, grow and shrink alike; every other entry is the same object, in the same place', () => {
+test('setSlots: changes ONLY the named panel\'s slot count and size, grow and shrink alike; every other entry is the same object, in the same place', () => {
   const start = [createHistoryPanel(ROOT_ID), webEntry('a'), webEntry('b'), webEntry('c', { live: false })];
-  const grown = setFormFactor(start, 'b', 'desktop');
+  const grown = setSlots(start, 'b', 64);
   assert.deepEqual(grown.map((p) => p.id), ['history', 'a', 'b', 'c'], 'order unchanged');
-  assert.deepEqual([grown[2]!.formFactor, grown[2]!.size], ['desktop', { formFactor: 'desktop', width: 1200, height: 'fill' }]);
+  assert.deepEqual([grown[2]!.slots, grown[2]!.size], [64, { width: 64 * 390 + 63 * 16, height: 'fill' }]);
   assert.equal(grown[2]!.live, true, 'still live: a resize is never a park');
   for (const i of [0, 1, 3]) assert.equal(grown[i], start[i], `entry ${start[i]!.id} is untouched (same object)`);
-  const shrunk = setFormFactor(grown, 'b', 'tablet');
-  assert.deepEqual([shrunk[2]!.formFactor, shrunk[2]!.size], ['tablet', { formFactor: 'tablet', width: 768, height: 'fill' }]);
-  const back = setFormFactor(shrunk, 'b', 'phone');
-  assert.deepEqual([back[2]!.formFactor, back[2]!.size], ['phone', DEFAULT_PANEL_SIZE], 'back to phone: the phone placeholder size again');
+  const shrunk = setSlots(grown, 'b', 2);
+  assert.deepEqual([shrunk[2]!.slots, shrunk[2]!.size], [2, { width: 796, height: 'fill' }]);
+  const back = setSlots(shrunk, 'b', 1);
+  assert.deepEqual([back[2]!.slots, back[2]!.size], [1, DEFAULT_PANEL_SIZE], 'back to one slot: the phone placeholder size again');
   for (const i of [0, 1, 3]) assert.equal(back[i], start[i], `entry ${start[i]!.id} is still the same object after three resizes`);
 });
 
-test('setFormFactor: REPLACES size with a fresh object every time -- the shared default and the tier table are never mutated', () => {
+test('setSlots: REPLACES size with a fresh object every time -- the shared default is never mutated', () => {
   const history = createHistoryPanel(ROOT_ID);
   const shared = history.size!; // the one DEFAULT_PANEL_SIZE object every entry is created with
   const start = [history, webEntry('a')];
   assert.equal(start[1]!.size, shared, 'precondition: a new panel references the shared default object');
-  const tablet = setFormFactor(start, 'a', 'tablet');
-  assert.notEqual(tablet[1]!.size, shared);
-  assert.notEqual(tablet[1]!.size, TIER_SIZES.tablet, 'a copy of the table entry, not the entry itself');
-  const phone = setFormFactor(tablet, 'a', 'phone');
-  assert.notEqual(phone[1]!.size, shared, 'even back to phone: a copy, never the shared object');
-  assert.notEqual(phone[1]!.size, tablet[1]!.size);
-  assert.deepEqual(shared, DEFAULT_PANEL_SIZE, 'the shared default still reads 390x700 phone');
-  assert.deepEqual(TIER_SIZES.tablet, { formFactor: 'tablet', width: 768, height: 'fill' });
-  assert.ok(Object.isFrozen(shared) && Object.isFrozen(TIER_SIZES.tablet) && Object.isFrozen(TIER_SIZES.desktop), 'the shared objects are frozen, so a mutation throws instead of resizing every panel at once');
+  const two = setSlots(start, 'a', 2);
+  assert.notEqual(two[1]!.size, shared);
+  const one = setSlots(two, 'a', 1);
+  assert.deepEqual(one[1]!.size, shared, 'back to one slot: the shared default size again');
+  assert.notEqual(one[1]!.size, two[1]!.size);
+  assert.deepEqual(shared, DEFAULT_PANEL_SIZE, 'the shared default still reads 390x700');
+  assert.ok(Object.isFrozen(shared), 'the shared object is frozen, so a mutation throws instead of resizing every panel at once');
 });
 
-test('setFormFactor: a no-op (the SAME array back) for History, a permanent column, an unknown id, and a panel already at that tier', () => {
+test('setSlots: clamps to 1 and to the panel\'s maxSlots, rounding a fraction', () => {
+  const start = [createHistoryPanel(ROOT_ID), webEntry('a')];
+  assert.equal(setSlots(start, 'a', 0), start, 'zero clamps to the one slot it already has');
+  assert.equal(setSlots(start, 'a', 2.4)[1]!.slots, 2, '2.4 rounds to 2');
+  assert.equal(setSlots(start, 'a', 1000)[1]!.slots, 64, 'past the library cap: ALL_SLOTS');
+  assert.equal(setSlots(start, 'a', Number.NaN), start, 'a non-number is a no-op');
+});
+
+test('setSlots: a no-op (the SAME array back) for History, a permanent column, an unknown id, and a panel already at that count', () => {
   const permanent = appendPanel([], { hostData: { sourceWebContentsId: -1, webContentsId: null }, url: 'about:blank', permanent: true }, 'perm', ROOT_ID)[0]!;
   const start = [createHistoryPanel(ROOT_ID), permanent, webEntry('a')];
-  assert.equal(setFormFactor(start, 'history', 'desktop'), start, 'History (collapsible:false) never changes tier');
-  assert.equal(setFormFactor(start, 'perm', 'tablet'), start, 'nor does a permanent column');
-  assert.equal(setFormFactor(start, 'nope', 'tablet'), start, 'an unknown id');
-  assert.equal(setFormFactor(start, 'a', 'phone'), start, 'already phone');
-  const tablet = setFormFactor(start, 'a', 'tablet');
-  assert.equal(setFormFactor(tablet, 'a', 'tablet'), tablet, 'already tablet');
+  assert.equal(setSlots(start, 'history', 64), start, 'History (collapsible:false) never changes size');
+  assert.equal(setSlots(start, 'perm', 2), start, 'nor does a permanent column');
+  assert.equal(setSlots(start, 'nope', 2), start, 'an unknown id');
+  assert.equal(setSlots(start, 'a', 1), start, 'already one slot');
+  const two = setSlots(start, 'a', 2);
+  assert.equal(setSlots(two, 'a', 2), two, 'already two slots');
 });
 
-test('setFormFactor: a PARKED panel may change tier and stays parked', () => {
+test('setSlots: a PARKED panel may change slots and stays parked', () => {
   const start = [createHistoryPanel(ROOT_ID), webEntry('a', { live: false })];
-  const next = setFormFactor(start, 'a', 'tablet');
-  assert.deepEqual([next[1]!.formFactor, next[1]!.live], ['tablet', false]);
+  const next = setSlots(start, 'a', 2);
+  assert.deepEqual([next[1]!.slots, next[1]!.live], [2, false]);
 });
 
-test('appendPanel: formFactor lands on a new panel with that tier\'s size; a permanent column ignores it and stays phone', () => {
-  const tablet = appendPanel([], { hostData: { sourceWebContentsId: -1, webContentsId: null }, url: 'about:blank', formFactor: 'tablet' }, 't1', ROOT_ID)[0]!;
-  assert.deepEqual([tablet.formFactor, tablet.size], ['tablet', { formFactor: 'tablet', width: 768, height: 'fill' }]);
-  assert.notEqual(tablet.size, TIER_SIZES.tablet, 'a copy, not the shared table entry');
-  const permanent = appendPanel([], { hostData: { sourceWebContentsId: -1, webContentsId: null }, url: 'about:blank', permanent: true, formFactor: 'desktop' }, 'p1', ROOT_ID)[0]!;
-  assert.deepEqual([permanent.formFactor, permanent.size], ['phone', DEFAULT_PANEL_SIZE], 'a permanent column is always phone');
+test('appendPanel: slots lands on a new panel with that count\'s size; a permanent column ignores it and stays one slot', () => {
+  const two = appendPanel([], { hostData: { sourceWebContentsId: -1, webContentsId: null }, url: 'about:blank', slots: 2 }, 't1', ROOT_ID)[0]!;
+  assert.deepEqual([two.slots, two.size], [2, { width: 796, height: 'fill' }]);
+  const permanent = appendPanel([], { hostData: { sourceWebContentsId: -1, webContentsId: null }, url: 'about:blank', permanent: true, slots: 64 }, 'p1', ROOT_ID)[0]!;
+  assert.deepEqual([permanent.slots, permanent.size], [1, DEFAULT_PANEL_SIZE], 'a permanent column is always one slot');
 });
 
 // ---------------------------------------------------------------------------
@@ -666,14 +675,14 @@ test('reanchorPanel: applies the anchor and reorders; panel defaults to History,
   assert.equal(reanchorPanel(row, 'perm', { position: 'left' }, ROOT_ID), row, 'a permanent column');
 });
 
-test('a desktop-tier panel keeps its formFactor, size, hostData and params byte-identical (the same objects) while a DIFFERENT panel moves, reanchors or closes around it -- red if any rebuild reconstructs records instead of spreading them', () => {
-  const size = { formFactor: 'desktop' as const, width: 1200, height: 'fill' as const };
+test('a 64-slot panel keeps its slots, size, hostData and params byte-identical (the same objects) while a DIFFERENT panel moves, reanchors or closes around it -- red if any rebuild reconstructs records instead of spreading them', () => {
+  const size = sizeOfSlots(64);
   const params = { notes: ['kept'], depth: { n: 1 } };
-  const wide = anchored('wide', right(1), { formFactor: 'desktop', size, hostData: { webContentsId: 42 }, params });
+  const wide = anchored('wide', right(1), { slots: 64, size, hostData: { webContentsId: 42 }, params });
   const row = [createHistoryPanel(ROOT_ID), anchored('a', right(0)), wide, anchored('b', right(2)), anchored('q', right(0, 'b'))];
   const check = (panels: readonly PanelWindow[], what: string, rebuilt: boolean): void => {
     const w = panels.find((p) => p.id === 'wide')!;
-    assert.deepEqual([w.formFactor, (w.hostData as { webContentsId: number } | undefined)?.webContentsId], ['desktop', 42], what);
+    assert.deepEqual([w.slots, (w.hostData as { webContentsId: number } | undefined)?.webContentsId], [64, 42], what);
     assert.equal(w.hostData, wide.hostData, `${what}: the same hostData object`);
     assert.equal(w.size, size, `${what}: the same size object`);
     assert.equal(w.params, params, `${what}: the same params object`);

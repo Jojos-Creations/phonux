@@ -72,7 +72,7 @@ test('a PanelSizeBox below the default frame draws a plain div, so the two never
   assert.equal(slot.querySelector<HTMLElement>('[data-panel-size-plain]')!.style.width, '100px');
 });
 
-test('the box is as wide as the frame at a phone, at two slots and at a tablet, and as high as the phone or as the row for fill', async () => {
+test('the box is as wide as the frame at a phone, at two slots and at three slots, and as high as the phone or as the row for fill', async () => {
   const r = await rig([bareTemplate('bare')], ['bare']);
   const dims = (): [string, string] => [boxOf(r.m, 'bare').style.width, boxOf(r.m, 'bare').style.height];
   const frameStyle = (): [string, string] => {
@@ -88,12 +88,12 @@ test('the box is as wide as the frame at a phone, at two slots and at a tablet, 
   assert.equal(dims()[0], slotOf(r.m, 'bare').style.width, 'two slots: the width of the slot');
   assert.equal(dims()[0], frameStyle()[0], 'and of the frame');
   assert.equal(dims()[1], phoneHeight, 'the height does not grow');
-  await act(async () => void r.handles[0]!.setFormFactor('tablet'));
+  await act(async () => void r.handles[0]!.setSlots(3));
   await advanceFrames(800);
-  assert.equal(r.handles[0]!.getState().formFactor, 'tablet');
-  assert.equal(dims()[0], frameStyle()[0], 'a tablet: the frame is as wide as the box');
+  assert.equal(dims()[0], `${3 * 390 + 2 * 16}px`, 'three slots wide');
+  assert.equal(dims()[0], frameStyle()[0], 'three slots: the frame is as wide as the box');
   assert.notEqual(dims()[0], '390px', 'which is its own width, not the phone');
-  assert.match(dims()[1], /^(\d+px|100%)$/, "and as high as the tablet, or as the row's own height for fill");
+  assert.match(dims()[1], /^(\d+px|100%)$/, "and as high as the phone, or as the row's own height for fill");
 });
 
 test('a resize draws the box at the old size and eases it to the new one over the slide, with the content laid out at the new size at once', async () => {

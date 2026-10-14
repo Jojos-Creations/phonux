@@ -39,8 +39,8 @@ const DEFINITIONS: readonly (Pinning | undefined)[] = [
 ];
 const WHEN: readonly PinningWhenNotLive[] = ['place-only', 'refuse', 'show', 'apply-on-next-show', { hidden: 'refuse', parked: 'place-only' }];
 
-type Op = 'pin' | 'unpin' | 'pinPerson' | 'hide' | 'show' | 'close' | 'open' | 'move' | 'resetOne' | 'resetAll' | 'setFormFactor';
-const OPS: readonly Op[] = ['pin', 'unpin', 'pinPerson', 'hide', 'show', 'close', 'open', 'move', 'resetOne', 'resetAll', 'setFormFactor'];
+type Op = 'pin' | 'unpin' | 'pinPerson' | 'hide' | 'show' | 'close' | 'open' | 'move' | 'resetOne' | 'resetAll' | 'setSlots';
+const OPS: readonly Op[] = ['pin', 'unpin', 'pinPerson', 'hide', 'show', 'close', 'open', 'move', 'resetOne', 'resetAll', 'setSlots'];
 
 test('seeded random sequences keep S3 and S10 after every step', async () => {
   let sequences = 0;
@@ -81,7 +81,7 @@ test('seeded random sequences keep S3 and S10 after every step', async () => {
           case 'move': return h.move(pick(-1, 1));
           case 'resetOne': return r.ws.panels.resetLayout(id);
           case 'resetAll': return r.ws.panels.resetLayout('all');
-          case 'setFormFactor': return h.setFormFactor(pick('phone', 'tablet') as 'phone' | 'tablet');
+          case 'setSlots': return h.setSlots(pick(1, 2) as 1 | 2);
         }
       });
       steps += 1;
