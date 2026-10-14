@@ -135,3 +135,18 @@ test('the raw left and right words step one slot the right way', async () => {
   r.turn(() => raw.move(id, 'right'));
   assert.equal(r.order().join(' '), 'root a b c');
 });
+
+test('close takes no source: closing as the person or as code leaves the same row and the same saved arrangement', async () => {
+  const after: string[][][] = [];
+  for (const source of ['person', 'code'] as const) {
+    const r = await savedRow();
+    const two = r.ws.panels.list().find((h) => h.templateId === 'two')!;
+    act(() => void two.close(source));
+    await wait();
+    after.push([r.ws.panels.list().map((h) => `${h.templateId}:${h.getState().status}`), await r.anchors()]);
+    r.m.unmount();
+    cleanup();
+  }
+  assert.deepEqual(after[0], after[1]);
+  assert.notEqual(after[0]![0]!.find((x) => x.startsWith('two:')), 'two:live', 'control: the close took effect');
+});
