@@ -290,6 +290,9 @@ export function PanelRow({
     const forward = dragging.steps > 0;
     for (const crossed of (forward ? walk.right : walk.left).slice(0, Math.abs(dragging.steps))) shiftById.set(crossed.id, forward ? -span : span);
   }
+  // React re-inserts the nodes a reorder leaves behind the ones that stay: a panel dragged left would re-insert every panel it crosses, so while
+  // it is dragged its node comes first and the drop re-inserts only that node, as a drop to the right does.
+  const drawOrder = draggedEntry === undefined ? present : [draggedEntry, ...present.filter((x) => x !== draggedEntry)];
   return (
     <ChromeStoreContext.Provider value={chrome}>
     <PanelViewContextValue.Provider value={viewContext}>
@@ -306,7 +309,8 @@ export function PanelRow({
       }}
     >
       <AnimatePresence initial={false}>
-        {present.map((p, presentIndex) => {
+        {drawOrder.map((p) => {
+          const presentIndex = present.indexOf(p);
           const rest = { leftOffset: leftOffsets[presentIndex]!, width: widths[presentIndex]! };
           const Component = resolveViewIn(templateOf, p.view);
           const { closable, draggable, placeable, resizable, maxSlots, enterFrom, layer, headerButtons } = effective(p);
