@@ -43,32 +43,60 @@ test('a view is given the PanelsAPI members and none of the row\'s own', async (
   assert.equal(typeof seen.panels!.maxFitPanels, 'number', 'maxFitPanels is a number once the row is measured');
 });
 
-test('each per-panel verb still works and warns once, naming what replaces it', async () => {
+const REPLACEMENTS: Record<string, RegExp> = {
+  activate: /useWorkspace\(\)\.panels\.get\(key\)\?\.show\(\)/,
+  move: /useWorkspace\(\)\.panels\.get\(key\)\?\.move\(count\)/,
+  setSlots: /useWorkspace\(\)\.panels\.get\(key\)\?\.setSlots\(slots\)/,
+  reanchor: /useWorkspace\(\)\.panels\.get\(key\)\?\.place\(anchor\)/,
+  close: /useWorkspace\(\)\.panels\.get\(key\)\?\.close\(\)/,
+  create: /useWorkspace\(\)\.panels\.addPanel\(template\)/,
+};
+
+test('each per-panel verb still does its work, and warns once naming what replaces it', async () => {
   const warn = mock.method(console, 'warn', () => undefined);
   const { ws, seen, first, second } = await rig();
   const panels = (): PanelsAPI => seen.panels!;
-  const warnings = (): string[] => warn.mock.calls.map((c) => String(c.arguments[0]));
-  const verbs = ['activate', 'move', 'setSlots', 'reanchor', 'close', 'create'];
-
-  act(() => panels().setSlots!(first.id, 2));
-  act(() => panels().setSlots!(first.id, 1));
   const order = (): string => ws.panels.list().map((h) => h.id).join(',');
-  const before = order();
+  const slotsOf = (id: string): number | undefined => panels().panelList.find((p) => p.id === id)?.slots;
+
+  assert.notEqual(slotsOf(first.id), 2, 'control: the panel starts narrower');
+  act(() => panels().setSlots!(first.id, 2));
+  await until('the panel is two slots wide', () => slotsOf(first.id) === 2);
+
+  const beforeMove = order();
   act(() => panels().move(first.id, 'right'));
-  assert.notEqual(order(), before, 'move');
+  assert.notEqual(order(), beforeMove, 'move');
+
+  const beforeAnchor = order();
   act(() => panels().reanchor(second.id, { position: 'left' }));
+  assert.notEqual(order(), beforeAnchor, 'reanchor');
+
+  const before = ws.panels.list().length;
   act(() => panels().create({ view: 'other', title: 'made' }));
-  act(() => panels().create());
+  await until('the created panel', () => ws.panels.list().length === before + 1);
+  assert.ok(panels().panelList.some((p) => p.title === 'made'), 'create');
+
   act(() => ws.panels.get(second.id)!.hide());
   await until('parked', () => ws.panels.get(second.id)!.getState().status === 'parked');
   act(() => panels().activate(second.id));
   await until('live again', () => ws.panels.get(second.id)!.getState().status === 'live');
+
   act(() => panels().close(first.id));
   await until('closed', () => ws.panels.get(first.id)!.getState().status === 'closed');
-  act(() => panels().close(first.id));
 
-  for (const verb of verbs) assert.equal(warnings().filter((w) => w.includes(`panels.${verb} is deprecated`)).length, 1, `${verb}: one warning, however often it is called`);
-  assert.match(warnings().find((w) => w.includes('panels.close'))!, /useWorkspace\(\)\.panels\.get\(key\)\?\.close\(\)/);
+  // The warning is once per process, so a second round proves it is not once per call.
+  act(() => panels().setSlots!(first.id, 1));
+  act(() => panels().move(second.id, 'right'));
+  act(() => panels().reanchor(second.id, { position: 'left' }));
+  act(() => panels().create({ view: 'other' }));
+  act(() => panels().activate(second.id));
+  act(() => panels().close(second.id));
+  const warnings = warn.mock.calls.map((c) => String(c.arguments[0]));
+  for (const [verb, replacement] of Object.entries(REPLACEMENTS)) {
+    const own = warnings.filter((w) => w.includes(`panels.${verb} is deprecated`));
+    assert.equal(own.length, 1, `${verb}: one warning, however often it is called`);
+    assert.match(own[0]!, replacement, `${verb}: names its replacement`);
+  }
 });
 
 test('the read members, undoClose and clearAll do not warn', async () => {
