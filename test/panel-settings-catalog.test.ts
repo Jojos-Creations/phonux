@@ -272,8 +272,8 @@ test('catalog: the doors are template for 3 names, tuning for 17, instance and t
   assert.equal(by('instance').length, 48);
 });
 
-test('catalog: only title, listed, layer, slots, placeOnAdd and enterFrom are view-settable', () => {
-  assert.deepEqual(PANEL_SETTINGS_CATALOG.filter((d) => d.viewSettable).map((d) => d.name).sort(), ['enterFrom', 'layer', 'listed', 'placeOnAdd', 'slots', 'title']);
+test('catalog: only title, listed, layer, slots, closable, placeOnAdd and enterFrom are view-settable', () => {
+  assert.deepEqual(PANEL_SETTINGS_CATALOG.filter((d) => d.viewSettable).map((d) => d.name).sort(), ['closable', 'enterFrom', 'layer', 'listed', 'placeOnAdd', 'slots', 'title']);
 });
 
 for (const name of NAMES) {

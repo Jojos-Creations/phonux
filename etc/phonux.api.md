@@ -1383,6 +1383,7 @@ export type ViewPatch = {
     title?: string | null;
     listed?: boolean | null;
     layer?: 'base' | 'raised' | null;
+    closable?: false | null;
     slots?: number | null;
     placeOnAdd?: {
         anchor: AnchorRequest & {
