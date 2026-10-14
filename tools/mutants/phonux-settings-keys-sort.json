@@ -1,0 +1,71 @@
+{
+  "tests": [
+    "test/removed-settings.test.ts",
+    "test/phonux-barrel.test.ts"
+  ],
+  "mutants": [
+    {
+      "name": "a removed key in a template is refused as unknown",
+      "file": "panelSettings.ts",
+      "find": "    if (Object.hasOwn(FIXED, key)) {\n      if (lenientLayer)",
+      "replace": "    if (false) {\n      if (lenientLayer)",
+      "expectRed": [
+        "a template that names a removed setting is ignored, told once per key in development, and does not throw"
+      ]
+    },
+    {
+      "name": "a removed key in a template is not reported",
+      "file": "panelSettings.ts",
+      "find": "      else reportRemovedKey(layer, key);",
+      "replace": "      else void 0;",
+      "expectRed": [
+        "a template that names a removed setting is ignored, told once per key in development, and does not throw"
+      ]
+    },
+    {
+      "name": "a removed key is reported on every resolve, not once",
+      "file": "panelSettings.ts",
+      "find": "reportOnce(`removed:${key}`,",
+      "replace": "reportOnce(`removed:${key}:${Math.random()}`,",
+      "expectRed": [
+        "a template that names a removed setting is ignored, told once per key in development, and does not throw"
+      ]
+    },
+    {
+      "name": "a saved file with a removed key is refused outright",
+      "file": "panelSettings.ts",
+      "find": "if (lenientLayer) reject(layer, key, 'a setting this version no longer has', true, env.notes);",
+      "replace": "if (lenientLayer) reject(layer, key, 'a setting this version no longer has', false, env.notes);",
+      "expectRed": [
+        "a saved instance layer holding a removed setting loads, drops it with a note, and keeps every other value"
+      ]
+    },
+    {
+      "name": "a fixed behaviour moves off its 0.1.0 default",
+      "file": "panelSettings.ts",
+      "find": "  undoWindowMs: 10000,",
+      "replace": "  undoWindowMs: 5000,",
+      "expectRed": [
+        "the fixed behaviour of every removed setting is its 0.1.0 default"
+      ]
+    },
+    {
+      "name": "resolvePanelSettings returns to the barrel",
+      "file": "index.ts",
+      "find": "export { PANEL_SETTINGS_CATALOG, LIBRARY_PANEL_DEFAULTS",
+      "replace": "export { resolvePanelSettings } from './panelSettings.js';\nexport { PANEL_SETTINGS_CATALOG, LIBRARY_PANEL_DEFAULTS",
+      "expectRed": [
+        "resolvePanelSettings, mergePatch, PanelSettingsLayers and ResolveOptions are not on the package barrel"
+      ]
+    },
+    {
+      "name": "a kept setting is refused as removed",
+      "file": "panelSettings.ts",
+      "find": "    if (Object.hasOwn(FIXED, key)) {\n      if (lenientLayer)",
+      "replace": "    if (Object.hasOwn(FIXED, key) || key === 'listed') {\n      if (lenientLayer)",
+      "expectRed": [
+        "a template that sets a kept setting still takes effect"
+      ]
+    }
+  ]
+}

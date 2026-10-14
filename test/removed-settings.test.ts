@@ -73,6 +73,10 @@ test('every kept setting still resolves at its default; title has none', () => {
   assert.equal(base.conflicts.length, 0);
 });
 
+test('a template that sets a kept setting still takes effect', () => {
+  assert.equal(resolvePanelSettings({ template: { listed: false } }).value.listed, false);
+});
+
 test('a template that names a removed setting is ignored, told once per key in development, and does not throw', () => {
   const { result, errors } = silenceConsole(() => {
     const first = resolvePanelSettings({ template: { animated: false, undoWindowMs: 0, snapshot: 'never' } as unknown as PanelSettings });
