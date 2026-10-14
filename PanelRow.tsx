@@ -219,8 +219,8 @@ export function PanelRow({
     if (!settings.keepMounted || settings.viewState === 'reset-on-park') return false;
     return liveBeforeRef.current.get(p.id) === true || keptAtParkRef.current.get(p.id) === true;
   };
-  // Ids never repeat, so a panel in neither list can never be shown again and its view state is released.
-  useViewState.useRetainOnly([...entries.filter((p) => !parkReleases(p)), ...(panels.recentlyClosed ?? [])].map((p) => p.id));
+  // View state is held by the key, the id a recentlyClosed summary carries, so a closed panel's state survives until its undo window ends.
+  useViewState.useRetainOnly([...entries.filter((p) => !parkReleases(p)).map((p) => panelKey(p)), ...(panels.recentlyClosed ?? []).map((p) => p.id)]);
   const present = entries.filter(isPresent);
   chrome.setKeys(new Map(entries.map((p) => [p.id, panelKey(p)])));
   // A panel this row showed and no longer shows (closed or parked) stops being the active or dragged one.
@@ -410,7 +410,7 @@ export function PanelRow({
                     never the internal record. */}
                 {/* The ONE place useViewState's ambient panel id is set, so a view's own useViewState(key,
                     initial) call needs no id argument. */}
-                <useViewState.Provider value={p.id}>
+                <useViewState.Provider value={panelKey(p)}>
                   <Component panel={renderedSummary(p, rest.width, kept ? undefined : phoneHeight, kept ? undefined : slotsOfWidth(rest.width), kept ? undefined : fitSlotsNow)} />
                 </useViewState.Provider>
               </PanelRowSlot>
