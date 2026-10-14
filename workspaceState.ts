@@ -20,7 +20,7 @@ import { ALL_SLOTS, slotsOfTier, tierOfSlots } from './rowConstants.js';
 export type WorkspacePanelState = {
   /** Names this panel within its own file; other entries' `anchor.panel` may point at it. */
   id: string;
-  /** Key of the registered view that renders the panel. */
+  /** Id of the template that renders the panel. */
   view: string;
   /** The URL the panel shows; a file without one restores a panel with none. */
   url?: string;

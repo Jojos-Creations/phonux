@@ -34,7 +34,7 @@ export interface PanelWindow {
   live: boolean;
   /** Whether DragToClose's drag-down gesture may close this panel at all. Every panel created by `appendPanel` is unlocked. */
   locked: boolean;
-  /** Which component renders this entry (phonux's registry, resolveView) -- read ONLY by the row (PanelRow); every park/close site reads `collapsible`/`listed`/`locked` instead, never this. An open string, not a closed union: an unregistered value renders a placeholder, never a crash. */
+  /** Which component renders this entry (a template id) -- read ONLY by the row (PanelRow); every park/close site reads `collapsible`/`listed`/`locked` instead, never this. An open string, not a closed union: an unregistered value renders a placeholder, never a crash. */
   view: string;
   /** Capacity parks (an open, a revive, the row gesture, a capacity drop) may park this entry; `false` marks an always-shown column exempt from all of them. */
   collapsible: boolean;

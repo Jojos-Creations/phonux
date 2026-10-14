@@ -11,7 +11,7 @@ import type { ResolvedPanelSettings } from './panelSettings.js';
  * @public
  */
 export interface PanelRowEntry<P = JsonValue> extends PanelSummary<P> {
-  /** The registered view that renders this entry. An unregistered name renders a placeholder, never a crash. */
+  /** The id of the template that renders this entry. A name no template answers to renders a placeholder, never a crash. */
   readonly view: string;
   /** False for an always-shown column: the row never parks it and it is never a drag source. */
   readonly collapsible: boolean;

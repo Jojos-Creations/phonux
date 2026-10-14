@@ -31,9 +31,6 @@ export type { ViewId, ViewSnapshot, SnapshotsAPI, CaptureRegistry, CaptureTrigge
 export { useViewState, ViewStateMissingProviderError } from './viewState.js';
 export type { UseViewState } from './viewState.js';
 
-export { registerView, resolveView } from './viewRegistry.js';
-export type { ViewComponent, ViewProps } from './viewRegistry.js';
-
 export {
   Panel,
   DRAG_CLOSE,

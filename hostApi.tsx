@@ -141,7 +141,7 @@ export interface HistoryAPI {
  * @public
  */
 export interface CreatePanelOptions {
-  /** Key of the registered view that renders the panel (see `registerView`). Default: `PanelsInput.defaultView`, else none, which renders the unregistered-view placeholder. */
+  /** Id of the template that renders the panel. Default: `PanelsInput.defaultView`, else none, which renders the unregistered-view placeholder. */
   view?: string;
   /** The new panel's title. */
   title?: string;
@@ -178,8 +178,8 @@ export interface PanelsAPI {
    */
   readonly maxFitPanels?: number | null;
   /**
-   * Appends a live panel; zero-arg opens a panel of the host's default view. `view` selects the rendered component
-   * (registerView/resolveView) -- an unregistered key renders a placeholder, never a crash. No raw
+   * Appends a live panel; zero-arg opens a panel of the host's default view. `view` names the template that renders
+   * the panel -- an unknown key renders a placeholder, never a crash. No raw
    * `collapsible`/`locked` key: `permanent` (CreatePanelOptions) is the only door to a permanent column, and
    * `locked` is never settable at all. A panel whose `overflow` setting is 'park' parks the live parkable panel
    * farthest from it at capacity; any other panel scrolls the row instead of parking anything.

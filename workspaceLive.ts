@@ -10,11 +10,10 @@ import type { SnapshotsAPI } from './snapshots.js';
 
 /**
  * What the `panels` option takes: every `useProvidePanels` input except the ones the mount measures
- * (`phoneWidth`, `containerWidth`, `overflowContainerRef`), the ones the workspace supplies (`workspace`, `rootId`,
- * `storage`, `templates`, `declared`, `workspaceDefaults`, `tuning`, `initialEntries`) and `labels`, which is its own option.
+ * (`phoneWidth`, `containerWidth`, `overflowContainerRef`), the workspace itself (`workspace`) and `labels`, which is its own option.
  * @public
  */
-export type WorkspacePanelsInput = Partial<Omit<PanelsInput, 'workspace' | 'rootId' | 'phoneWidth' | 'containerWidth' | 'overflowContainerRef' | 'initialEntries' | 'storage' | 'templates' | 'declared' | 'workspaceDefaults' | 'tuning' | 'labels'>>;
+export type WorkspacePanelsInput = Partial<Omit<PanelsInput, 'workspace' | 'phoneWidth' | 'containerWidth' | 'overflowContainerRef' | 'labels'>>;
 
 /**
  * What an app hands the host and can hand it again with `workspace.update`: the phone size, the settings column, the closed-page
