@@ -81,6 +81,13 @@ export function fitPhone(i: PhoneFitInput): PhoneFit {
 export const PhoneSizeContext = React.createContext<{ readonly width: number; readonly height: number } | undefined>(undefined);
 
 /**
+ * True in the commit that first measures the row's container, and in every commit before it. The fitted size lands in that
+ * commit, so the slots moved to it snap there: a slide from the preferred size would be a move nobody asked for.
+ * @internal
+ */
+export const LandingContext = React.createContext(false);
+
+/**
  * The phone size a panel is drawn at: the width and height of one slot. With the workspace's `phoneFit` on it is the host's
  * preferred size scaled to the window; otherwise it is `useHost().device.size`, which stays the person's preference. Read this,
  * not `device.size`, for any layout that must agree with the panel's width.
