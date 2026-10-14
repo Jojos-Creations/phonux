@@ -1,12 +1,12 @@
 /**
- * What a reset does to a row: for each named panel, the person's overrides and any deferred pin go, its tier and
+ * What a reset does to a row: for each named panel, the person's overrides and any deferred pin go, its slot count and
  * `parkable` are the cascade's again, and it is placed by its `placeOnAdd`. Pure: parking what no longer fits is the
  * engine's, because it needs the row's measure.
  */
 import { reparked } from './panelPin.js';
 import { placePanel, type PlacementOptions } from './panelPlacement.js';
 import type { PanelSettingsResolution, SettingNote } from './panelSettings.js';
-import { TIER_SIZES } from './panelTiers.js';
+import { sizeOfSlots } from './panelTiers.js';
 import { clearOverrides, slotsOf, type PanelWindow } from './panelWindow.js';
 
 /** What a reset needs of the engine: the row's root, the cascade a panel resolves under without the person's layer, and where a placement lands. @internal */
@@ -25,7 +25,7 @@ export interface ResetOutcome {
   row: PanelWindow[];
   /** False when nothing moved, resized or was cleared. */
   changed: boolean;
-  /** The ids whose tier was reset. */
+  /** The ids whose slot count was reset. */
   resized: string[];
   /** The notes the placements raised. */
   notes: SettingNote[];
@@ -60,7 +60,7 @@ export function resetEntries(row: readonly PanelWindow[], ids: readonly string[]
     const { deferredPin: _gone, ...bare } = reparked(entry, resolution);
     const reset: PanelWindow = {
       ...bare,
-      ...(slots === value.slots ? {} : { slots: value.slots, formFactor: value.formFactor, size: { ...TIER_SIZES[value.formFactor] } }),
+      ...(slots === value.slots ? {} : { slots: value.slots, size: sizeOfSlots(value.slots) }),
       applied: { placeOnAdd: value.placeOnAdd },
     };
     next = next.map((p) => (p.id === id ? reset : p));

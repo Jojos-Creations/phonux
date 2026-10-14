@@ -111,7 +111,7 @@ test('rowConstants: every exported constant reaches LIBRARY_TUNING_DEFAULTS, so 
   assert.equal(rowConstants.RESIZE_SETTLE_SLIDES, 1.25);
   assert.equal(rowConstants.ALL_SLOTS, 64);
   assert.equal(rowConstants.UNMEASURED_SLOTS, 3);
-  assert.equal(Object.keys(rowConstants).length, 35, 'the module exports exactly the 27 constants this test compares, the 4 slot constants and the 4 slot helpers');
+  assert.equal(Object.keys(rowConstants).length, 33, 'the module exports exactly the 27 constants this test compares, the 4 slot constants and the 2 slot helpers');
 });
 
 test('rowConstants: no source file outside rowConstants.ts declares its own copy of the save delay or the gesture lock', () => {

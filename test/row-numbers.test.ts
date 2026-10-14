@@ -56,8 +56,8 @@ test('computeRowNumbers: History, five pinned and five web panels, all scroll, a
   assert.equal(maxScrollOf(n), 3482, '4450 - 968');
 });
 
-test('computeRowNumbers: a tablet panel is two slots, 796, beside the root, and the strip scrolls by what exceeds the window', () => {
-  const n = numbers([scrollRoot(), made('t', { formFactor: 'tablet' })]);
+test('computeRowNumbers: a two-slot panel is 796, beside the root, and the strip scrolls by what exceeds the window', () => {
+  const n = numbers([scrollRoot(), made('t', { slots: 2 })]);
   assert.deepEqual(n.widths, [390, 796]);
   assert.deepEqual(n.leftOffsets, [0, 406]);
   assert.equal(n.stripWidth, 1202);
@@ -65,8 +65,8 @@ test('computeRowNumbers: a tablet panel is two slots, 796, beside the root, and 
   assert.equal(maxScrollOf(n), 234, '1202 - 968');
 });
 
-test('computeRowNumbers: a desktop panel takes the slots that fit the window, two of them', () => {
-  const n = numbers([scrollRoot(), made('d', { formFactor: 'desktop' })]);
+test('computeRowNumbers: a 64-slot panel takes the slots that fit the window, two of them', () => {
+  const n = numbers([scrollRoot(), made('d', { slots: 64 })]);
   assert.deepEqual(n.widths, [390, 796]);
   assert.equal(n.stripWidth, 1202);
   assert.equal(maxScrollOf(n), 234, '1202 - 968');
@@ -87,10 +87,10 @@ test('computeRowNumbers: the third scroll panel overflows the window, so the mar
 });
 
 test('computeRowNumbers: unmeasured (container 0) has an unbounded window, no margin and nothing to scroll', () => {
-  const n = numbers([scrollRoot(), made('a'), made('b'), made('d', { formFactor: 'desktop' })], 0);
+  const n = numbers([scrollRoot(), made('a'), made('b'), made('d', { slots: 64 })], 0);
   assert.equal(n.windowWidth, Number.POSITIVE_INFINITY);
   assert.equal(n.rowMarginLeft, 0);
-  assert.equal(n.widths[3], 1202, 'a desktop panel is three slots until the row is measured');
+  assert.equal(n.widths[3], 1202, 'a 64-slot panel is three slots until the row is measured');
   assert.equal(maxScrollOf(n), 0);
 });
 
