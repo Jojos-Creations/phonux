@@ -28,8 +28,11 @@ export interface PanelHandle<P extends JsonValue = JsonValue> extends PanelReadH
   close(source?: 'code' | 'person'): PanelResult;
   /** Brings a closed declared panel back where its `placeOnAdd` says; a panel that is already open stays as it is. */
   open(source?: 'code' | 'person'): PanelResult;
-  /** Moves a live panel one slot toward `direction`. */
-  move(direction: 'left' | 'right', source?: 'code' | 'person'): PanelResult;
+  /**
+   * Moves a live panel `by` slots, negative to the left, in one gated call. It stops at the row's end or at a panel it
+   * cannot cross; the result is accepted with `changed` true when at least one slot was crossed, and false at an end or for 0.
+   */
+  move(by: number, source?: 'code' | 'person'): PanelResult;
   /** Puts the panel where `p` says; a parked panel is placed and stays parked. */
   place(p: AddPlacement | 'in-place', source?: 'code' | 'person'): PanelResult;
   /** Makes the panel `slots` phone widths wide, clamped to 1 and its `maxSlots`; the row draws at most the slots that fit. */
@@ -47,7 +50,7 @@ export interface PanelHandle<P extends JsonValue = JsonValue> extends PanelReadH
 /** One operation a handle asks of its workspace. @internal */
 export type PanelVerbCall =
   | { verb: 'show' | 'hide' | 'toggleVisibility' | 'close' | 'open' }
-  | { verb: 'move'; direction: 'left' | 'right' }
+  | { verb: 'move'; by: number }
   | { verb: 'place'; value: AddPlacement | 'in-place' }
   | { verb: 'setSlots'; slots: number }
   | { verb: 'scrollTo'; align: ScrollAlign | undefined }
@@ -102,7 +105,7 @@ export function makeViewHandle<P extends JsonValue = JsonValue>(source: ReadSour
     toggleVisibility: (src = 'code') => source.operate(id, { verb: 'toggleVisibility' }, src),
     close: (src = 'code') => source.operate(id, { verb: 'close' }, src),
     open: (src = 'code') => source.operate(id, { verb: 'open' }, src),
-    move: (direction, src = 'code') => source.operate(id, { verb: 'move', direction }, src),
+    move: (by, src = 'code') => source.operate(id, { verb: 'move', by }, src),
     place: (value, src = 'code') => source.operate(id, { verb: 'place', value }, src),
     setSlots: (slots, src = 'code') => source.operate(id, { verb: 'setSlots', slots }, src),
     scrollTo: (align, src = 'code') => source.operate(id, { verb: 'scrollTo', align }, src),

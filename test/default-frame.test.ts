@@ -101,11 +101,11 @@ test('a bare view and a self-framed view each have one header and one phone fram
   assert.equal(r.m.container.querySelectorAll('[data-panel-chrome-part="header"]').length, 3, 'three panels, three headers');
 });
 
-test('a bare view with no title shows the untitled label, and the title the panel carries once it has one', async () => {
+test('a bare view with no title of its own shows the default panel title', async () => {
   const t = bareTemplate('anon');
   const noTitle = definePanel({ id: 'anon', view: t.view });
   const r = await rig([noTitle], ['anon']);
-  assert.match(bodiesOf(r.m, 'anon')!.closest('[data-row-slot]')!.textContent ?? '', /Untitled panel/);
+  assert.match(bodiesOf(r.m, 'anon')!.closest('[data-row-slot]')!.textContent ?? '', /Panel \S+/);
 });
 
 test('a bare view mounts again once when the frame is drawn around it; the next panel of the same template mounts once', async () => {
@@ -280,6 +280,16 @@ test('a real pointer drag sideways on the grab bar moves a bare panel past its n
   await drag(grab, { dx: 450, dy: 0 });
   await settle();
   assert.deepEqual(order(), ['two', 'one']);
+});
+
+test('a drag across two neighbours moves the panel two slots in one release', async () => {
+  const r = await rig([bareTemplate('one'), bareTemplate('two'), bareTemplate('three')], ['one', 'two', 'three']);
+  await settle();
+  const order = (): string[] => [...r.m.container.querySelectorAll<HTMLElement>('[data-body]')].map((n) => n.dataset.body!);
+  const grab = r.m.container.querySelector<HTMLElement>('[data-body="one"]')!.closest('[data-row-slot]')!.querySelector<HTMLElement>('[data-panel-grab-bar]')!;
+  await drag(grab, { dx: 900, dy: 0 });
+  await settle();
+  assert.deepEqual(order(), ['two', 'three', 'one']);
 });
 
 /** The slot a bare view's panel is drawn in. */
