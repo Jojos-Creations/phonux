@@ -8,6 +8,7 @@ import { checkPatch, planTuning, unchanged } from './panelConfigure.js';
 import type { ConfigureResult, PanelManager } from './panelManager.js';
 import { cleanWorkspaceName } from './workspaceName.js';
 import { refusedLiveKeys, type WorkspaceLive } from './workspaceLive.js';
+import type { Theme } from '@mui/material/styles';
 import type { WorkspaceStorage } from './workspaceState.js';
 
 /** The saved list of a column: which workspaces exist, in order, under which name, and which one was current. @public */
@@ -41,7 +42,8 @@ export interface ColumnStorage {
 /**
  * What `createWorkspaceColumn` takes. The members of `WorkspaceOptions` that describe a workspace's content (`root`, `templates`,
  * `defaults`, `order`) are the content of every workspace in the column; `addWorkspace` cannot change them for one. `wrap`, `device`,
- * `tuning`, `labels` and the other shared members belong to the column and apply to every workspace in it.
+ * `tuning`, `labels` and the other shared members belong to the column and apply to every workspace in it. `theme` is drawn once for
+ * the whole column, and a workspace in it takes that theme.
  * @public
  */
 export type ColumnOptions = Omit<WorkspaceOptions, 'id' | 'name' | 'onRename' | 'storage' | 'mount'> & {
@@ -117,6 +119,10 @@ interface ColumnCore {
   snapshot(): ColumnSnapshot;
   /** Whether the column renders itself (see `ColumnOptions.mount`). */
   readonly autoMounted: boolean;
+  /** The theme function every cell is drawn under, if the app gave one. */
+  readonly theme: ((mode: 'light' | 'dark') => Theme) | undefined;
+  /** Reports an error the column swallowed: `onError`, else `console.error`. */
+  reportError(e: unknown): void;
 }
 
 const CORES = new WeakMap<WorkspaceColumnHandle, ColumnCore>();
@@ -307,6 +313,8 @@ export function createWorkspaceColumn(o: ColumnOptions = {}): WorkspaceColumnHan
     },
     snapshot,
     autoMounted: mount !== false && typeof document !== 'undefined',
+    theme: o.theme,
+    reportError,
   });
 
   if (storage !== undefined) {

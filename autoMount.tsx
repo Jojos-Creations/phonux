@@ -7,7 +7,7 @@ import * as React from 'react';
 import { createRoot } from 'react-dom/client';
 import CssBaseline from '@mui/material/CssBaseline';
 import useMediaQuery from '@mui/material/useMediaQuery';
-import { ThemeProvider } from '@mui/material/styles';
+import { ThemeProvider, type Theme } from '@mui/material/styles';
 import { AutoMountContext } from './autoMountContext.js';
 import { PanelRow } from './PanelRow.js';
 import { Workspace } from './Workspace.js';
@@ -19,6 +19,7 @@ import { useProvidePanels } from './panels/useProvidePanels.js';
 import type { ProvidedPanels } from './panels/useProvidePanels.js';
 import type { WorkspaceProps } from './Workspace.js';
 import { bindingOf, type WorkspaceHandle } from './workspaceCore.js';
+import { columnCoreOf } from './columnHandle.js';
 import { WorkspaceColumn } from './WorkspaceColumn.js';
 import type { WorkspaceColumnHandle } from './columnHandle.js';
 import type { WorkspacePanelsInput } from './workspaceLive.js';
@@ -68,7 +69,34 @@ function panelsInputOf(workspace: WorkspaceHandle, stand: Map<string, unknown>):
 }
 
 /** What the default mount renders for `workspace`. @internal */
-export function AutoRoot({ workspace, columnTop = 0 }: { workspace: WorkspaceHandle; columnTop?: number }): React.ReactElement {
+type ThemeFor = (mode: 'light' | 'dark') => Theme;
+
+const isTheme = (t: unknown): t is Theme => typeof t === 'object' && t !== null && typeof (t as Theme).spacing === 'function' && typeof (t as Theme).palette === 'object';
+
+/** The theme for the window's color scheme: `make` once per mode, else the default; a throw or a non-theme is reported once and the default is drawn. */
+function useMountTheme(make: ThemeFor | undefined, onError: (e: unknown) => void): Theme {
+  const dark = useMediaQuery('(prefers-color-scheme: dark)');
+  const mode = dark ? 'dark' : 'light';
+  const made = React.useMemo((): { theme: Theme; error?: unknown } => {
+    if (make === undefined) return { theme: createDefaultTheme(mode) };
+    try {
+      const theme = make(mode);
+      if (isTheme(theme)) return { theme };
+      return { theme: createDefaultTheme(mode), error: new TypeError('phonux: the theme option must return a MUI Theme') };
+    } catch (error) {
+      return { theme: createDefaultTheme(mode), error };
+    }
+  }, [make, mode]);
+  const reported = React.useRef<unknown>(undefined);
+  React.useEffect(() => {
+    if (made.error === undefined || reported.current === made) return;
+    reported.current = made;
+    onError(made.error);
+  }, [made, onError]);
+  return made.theme;
+}
+
+export function AutoRoot({ workspace, columnTop = 0, themed = true }: { workspace: WorkspaceHandle; columnTop?: number; themed?: boolean }): React.ReactElement {
   const binding = bindingOf(workspace);
   React.useSyncExternalStore(binding.live.subscribe, binding.live.version);
   const values = binding.live.latest();
@@ -89,8 +117,7 @@ export function AutoRoot({ workspace, columnTop = 0 }: { workspace: WorkspaceHan
     containerWidth,
     overflowContainerRef: ref,
   });
-  const dark = useMediaQuery('(prefers-color-scheme: dark)');
-  const theme = React.useMemo(() => createDefaultTheme(dark ? 'dark' : 'light'), [dark]);
+  const theme = useMountTheme(binding.theme, binding.reportError);
   const host: HostInput = {
     panels: hostPanelsOf(provided),
     ...(values.device !== undefined ? { device: values.device } : {}),
@@ -105,12 +132,17 @@ export function AutoRoot({ workspace, columnTop = 0 }: { workspace: WorkspaceHan
       <PanelRow {...rowProps(provided, workspace)} />
     </Workspace>
   );
+  const hosted = <HostProvider host={host}>{Wrap === undefined ? row : <Wrap workspace={workspace}>{row}</Wrap>}</HostProvider>;
   return (
     <AutoMountContext.Provider value={workspace}>
-      <ThemeProvider theme={theme}>
-        <CssBaseline />
-        <HostProvider host={host}>{Wrap === undefined ? row : <Wrap workspace={workspace}>{row}</Wrap>}</HostProvider>
-      </ThemeProvider>
+      {themed ? (
+        <ThemeProvider theme={theme}>
+          <CssBaseline />
+          {hosted}
+        </ThemeProvider>
+      ) : (
+        hosted
+      )}
     </AutoMountContext.Provider>
   );
 }
@@ -143,8 +175,8 @@ export function mountWorkspace(workspace: WorkspaceHandle, target: HTMLElement |
 
 /** What a column renders itself with: the theme, and the column over a cell per workspace. @internal */
 export function ColumnRoot({ column }: { column: WorkspaceColumnHandle }): React.ReactElement {
-  const dark = useMediaQuery('(prefers-color-scheme: dark)');
-  const theme = React.useMemo(() => createDefaultTheme(dark ? 'dark' : 'light'), [dark]);
+  const core = columnCoreOf(column);
+  const theme = useMountTheme(core.theme, core.reportError);
   return (
     <ThemeProvider theme={theme}>
       <CssBaseline />

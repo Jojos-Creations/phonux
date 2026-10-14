@@ -53,6 +53,7 @@
 
 ### Added
 
+- `theme?: (mode: 'light' | 'dark') => Theme` on `createWorkspace` and `createWorkspaceColumn`: the mount draws that theme with one `CssBaseline` instead of `createDefaultTheme`. `mode` is the window's color scheme. The column draws it once and its cells draw none of their own, which also ends a second `CssBaseline` in a column. A `wrap` must not draw its own `ThemeProvider` or `CssBaseline`.
 - The contract for a value that is not there yet: `history`, `snapshots` and `labels` are optional on `Host`, the first frame of an auto-mounted workspace holds exactly what `createWorkspace` was given, and `workspace.update` carries the rest. `createFakeHost({ absent: ['history', 'snapshots'] })` renders the absent frame in a test.
 
 - `configureTuning` is accepted before the workspace is attached or loaded (only a disposed workspace refuses), and `column.configureTuning(patch)` applies one tuning change to every workspace in the column, including ones added or restored later.
