@@ -514,7 +514,7 @@ export interface PanelHandle<P extends JsonValue = JsonValue> extends PanelReadH
         readonly params: P | undefined;
     };
     hide(source?: 'code' | 'person'): PanelResult;
-    move(direction: 'left' | 'right', source?: 'code' | 'person'): PanelResult;
+    move(by: number, source?: 'code' | 'person'): PanelResult;
     open(source?: 'code' | 'person'): PanelResult;
     pin(source?: 'code' | 'person'): PinResult;
     place(p: AddPlacement | 'in-place', source?: 'code' | 'person'): PanelResult;
@@ -1279,6 +1279,12 @@ export const usePanelCloseEligible: () => boolean;
 
 // @public
 export function usePanelDragging(): boolean;
+
+// @public
+export function usePanelDragProps(): {
+    onClose?: () => void;
+    reorder?: ReorderHandle;
+};
 
 // @public
 export function usePanelHeaderButtons(): readonly PanelHeaderButtonItem[];

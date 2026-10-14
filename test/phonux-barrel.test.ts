@@ -53,6 +53,7 @@ const VALUE_EXPORTS = [
   'usePanelReorderSteps',
   'usePanelTuning',
   'usePanelCapabilities',
+  'usePanelDragProps',
   'usePanelCloseEligible',
   'usePanelHeaderButtons',
   'usePanelHidden',

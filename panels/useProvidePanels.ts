@@ -889,13 +889,13 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
       if (!isEntry(target)) return target;
       return gate.busy([engineId], 'other') ? busy(target) : accepted(false);
     },
-    move: (engineId, direction, source) => {
+    move: (engineId, by, source) => {
       const target = held(engineId);
       if (!isEntry(target)) return target;
       if (gate.busy([engineId], 'other')) return busy(target);
       if (!effective(target).draggable) return refused('not-draggable', `panel '${panelKey(target)}' cannot be moved`);
       const token = gate.take([engineId], 'other')!;
-      const changed = reorderPanel(engineId, direction, source === 'person');
+      const changed = reorderPanel(engineId, by, source === 'person');
       if (changed) followPanel(engineId);
       gate.release(token);
       return accepted(changed);

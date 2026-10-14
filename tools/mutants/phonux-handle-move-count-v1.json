@@ -1,0 +1,136 @@
+{
+  "tests": [
+    "test/handle-move-count.test.ts",
+    "test/default-frame.test.ts",
+    "test/source-invariants.test.ts",
+    "test/panel-api-level.test.ts"
+  ],
+  "mutants": [
+    {
+      "name": "a count stops being clamped: the first hop that moves nothing abandons the whole move",
+      "file": "panelWindow.ts",
+      "find": "if (next === row) break;",
+      "replace": "if (next === row) return panels;",
+      "expectRed": [
+        "a count past the end clamps there"
+      ]
+    },
+    {
+      "name": "the count is ignored: always one hop",
+      "file": "panelWindow.ts",
+      "find": "for (let i = Math.abs(by); i > 0; i -= 1) {",
+      "replace": "for (let i = 1; i > 0; i -= 1) {",
+      "expectRed": [
+        "move(-3) crosses three slots"
+      ]
+    },
+    {
+      "name": "a negative count moves right",
+      "file": "panelWindow.ts",
+      "find": "const direction = by > 0 ? 'right' : 'left';",
+      "replace": "const direction = 'right';",
+      "expectRed": [
+        "move(-3) crosses three slots"
+      ]
+    },
+    {
+      "name": "a move reports a change even when nothing moved",
+      "file": "panels/usePanelManager.ts",
+      "find": "const changes = movePanelBy(panels, id, count, rootId) !== panels;",
+      "replace": "const changes = true;",
+      "expectRed": [
+        "a count past the end clamps there"
+      ]
+    },
+    {
+      "name": "the handle drops the count",
+      "file": "panelHandles.ts",
+      "find": "move: (by, src = 'code') => source.operate(id, { verb: 'move', by }, src)",
+      "replace": "move: (by, src = 'code') => source.operate(id, { verb: 'move', by: Math.sign(by) }, src)",
+      "expectRed": [
+        "move(-3) crosses three slots"
+      ]
+    },
+    {
+      "name": "usePanelPinned stops reading the panel state",
+      "file": "PanelRow.tsx",
+      "find": "() => (handle === undefined ? fallback : handle.getState().pinned),",
+      "replace": "() => fallback,",
+      "expectRed": [
+        "usePanelPinned reads PanelState.pinned"
+      ]
+    },
+    {
+      "name": "the default frame passes no drag props",
+      "file": "defaultFrame.tsx",
+      "find": "<DragToClose {...dragProps}>",
+      "replace": "<DragToClose>",
+      "expectRed": [
+        "a drag across two neighbours moves the panel two slots"
+      ]
+    },
+    {
+      "name": "the drag hook offers a close to a panel that cannot close",
+      "file": "panelChrome.ts",
+      "find": "if (slot.collapsible && slot.closable) props.onClose",
+      "replace": "if (slot.collapsible) props.onClose",
+      "expectRed": [
+        "usePanelDragProps offers a close to a closable panel only"
+      ]
+    },
+    {
+      "name": "the drag hook reports one hop per release",
+      "file": "panelChrome.ts",
+      "find": "if (steps !== 0) handle.move(steps, 'person');",
+      "replace": "if (steps !== 0) handle.move(Math.sign(steps), 'person');",
+      "expectRed": [
+        "a drag across two neighbours moves the panel two slots"
+      ]
+    },
+    {
+      "name": "the default frame goes back to the raw Host verbs",
+      "file": "defaultFrame.tsx",
+      "find": "const dragProps = usePanelDragProps();",
+      "replace": "const dragProps = usePanelDragProps(); useHost().panels.move(panel.id, 'right');",
+      "expectRed": [
+        "the default frame closes and moves through the panel's handle"
+      ]
+    },
+    {
+      "name": "a drag release stops recording the person's arrangement",
+      "file": "panelChrome.ts",
+      "find": "handle.move(steps, 'person')",
+      "replace": "handle.move(steps, 'code')",
+      "expectRed": [
+        "a real drag release records"
+      ]
+    },
+    {
+      "name": "the handle ignores the source and never records",
+      "file": "panels/useProvidePanels.ts",
+      "find": "reorderPanel(engineId, by, source === 'person')",
+      "replace": "reorderPanel(engineId, by, false)",
+      "expectRed": [
+        "a real drag release records"
+      ]
+    },
+    {
+      "name": "a fractional count is truncated and moves",
+      "file": "panelWindow.ts",
+      "find": "if (!Number.isInteger(by) || by === 0) return panels;",
+      "replace": "if (Number.isNaN(by) || Math.trunc(by) === 0) return panels;",
+      "expectRed": [
+        "a fractional or non-finite count"
+      ]
+    },
+    {
+      "name": "the raw left word moves right",
+      "file": "panels/usePanelManager.ts",
+      "find": "by === 'left' ? -1 :",
+      "replace": "by === 'left' ? 1 :",
+      "expectRed": [
+        "the raw left and right words"
+      ]
+    }
+  ]
+}

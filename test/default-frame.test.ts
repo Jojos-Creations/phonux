@@ -282,6 +282,16 @@ test('a real pointer drag sideways on the grab bar moves a bare panel past its n
   assert.deepEqual(order(), ['two', 'one']);
 });
 
+test('a drag across two neighbours moves the panel two slots in one release', async () => {
+  const r = await rig([bareTemplate('one'), bareTemplate('two'), bareTemplate('three')], ['one', 'two', 'three']);
+  await settle();
+  const order = (): string[] => [...r.m.container.querySelectorAll<HTMLElement>('[data-body]')].map((n) => n.dataset.body!);
+  const grab = r.m.container.querySelector<HTMLElement>('[data-body="one"]')!.closest('[data-row-slot]')!.querySelector<HTMLElement>('[data-panel-grab-bar]')!;
+  await drag(grab, { dx: 900, dy: 0 });
+  await settle();
+  assert.deepEqual(order(), ['two', 'three', 'one']);
+});
+
 /** The slot a bare view's panel is drawn in. */
 const slotOf = (r: Rig, id: string): HTMLElement => r.m.container.querySelector<HTMLElement>(`[data-body="${id}"]`)!.closest<HTMLElement>('[data-row-slot]')!;
 const bodyOrder = (r: Rig): string[] => [...r.m.container.querySelectorAll<HTMLElement>('[data-body]')].map((n) => n.dataset.body!);
