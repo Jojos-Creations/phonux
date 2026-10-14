@@ -11,7 +11,6 @@ export type {
   PhoneSize,
   ClosedPageEntry,
   JsonValue,
-  FormFactor,
   PanelSize,
   PanelSummary,
   CreatePanelOptions,
@@ -73,7 +72,7 @@ export { usePhoneFit } from './usePhoneFit.js';
 
 export type { PanelAnchor } from './panelRowOrder.js';
 export type { NeighborWidths, PanelRowEntry } from './panelRowEntry.js';
-export { DEFAULT_PANEL_SIZE, TIER_SIZES, panelWidthOf } from './panelTiers.js';
+export { DEFAULT_PANEL_SIZE, panelWidthOf } from './panelTiers.js';
 export { computeRowLayout } from './panelRowLayout.js';
 export { minWorkspaceWidth } from './minWorkspaceWidth.js';
 export type { MinWorkspaceWidthInput } from './minWorkspaceWidth.js';

@@ -37,7 +37,7 @@ test('pinned: the tie-break between unpinned panels leaves the pinned ones alone
 });
 
 test('pinned: a wide pinned panel is not parked in place of an unpinned one', async () => {
-  const r = await capRig({ count: 8, cap: 5, width: 2500, pinned: ['w1'], own: { w1: { formFactor: 'desktop' } } });
+  const r = await capRig({ count: 8, cap: 5, width: 2500, pinned: ['w1'], own: { w1: { slots: 64 } } });
   assert.equal(r.row(), 'w1 root w2* w3* w4 w5 w6 w7 w8', 'two unpinned panels park, exactly as many as exceed N');
 });
 
@@ -295,7 +295,7 @@ test('layout reset: a pinned panel reset to the end of the row parks exactly one
 });
 
 test('layout reset: a wide panel that a reset moves back to the pinned start is not parked in place of an unpinned one', async () => {
-  const r = await capRig({ count: 9, cap: 5, width: 2500, pinned: ['w1'], own: { w1: { formFactor: 'desktop' } } });
+  const r = await capRig({ count: 9, cap: 5, width: 2500, pinned: ['w1'], own: { w1: { slots: 64 } } });
   r.turn(() => r.h.w1!.move('right', 'person'));
   r.turn(() => r.h.w8!.pin('person'));
   r.turn(() => r.h.w9!.pin('person'));

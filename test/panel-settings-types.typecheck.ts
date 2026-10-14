@@ -41,7 +41,6 @@ export const SETTING_KEYS: Record<keyof SettingValues, true> = {
   resizable: true,
   slots: true,
   maxSlots: true,
-  formFactors: true,
   clearable: true,
   hostCreatable: true,
   multiple: true,
@@ -74,7 +73,6 @@ export const SETTING_KEYS: Record<keyof SettingValues, true> = {
   exitTo: true,
   closeExit: true,
   animated: true,
-  formFactor: true,
   title: true,
   pinning: true,
   pinningWhenNotLive: true,
@@ -90,9 +88,9 @@ export const CATALOG_NAMES_WITHOUT_TUNING: Record<NonTuningNames, true> = SETTIN
 export const SETTING_KEYS_AGAIN: Record<keyof SettingValues, true> = CATALOG_NAMES_WITHOUT_TUNING;
 
 // The user layer has exactly three keys.
-export type UserLayerKeys = Expect<Equal<keyof PanelUserLayer, 'formFactor' | 'slots' | 'anchor' | 'parkable'>>;
-export const USER_LAYER_KEYS: Record<keyof PanelUserLayer, true> = { formFactor: true, slots: true, anchor: true, parkable: true };
-export const aUserLayer: PanelUserLayer = { formFactor: 'tablet', anchor: { panel: 'notes', position: 'left', priority: 1 }, parkable: false };
+export type UserLayerKeys = Expect<Equal<keyof PanelUserLayer, 'slots' | 'anchor' | 'parkable'>>;
+export const USER_LAYER_KEYS: Record<keyof PanelUserLayer, true> = { slots: true, anchor: true, parkable: true };
+export const aUserLayer: PanelUserLayer = { slots: 2, anchor: { panel: 'notes', position: 'left', priority: 1 }, parkable: false };
 
 // Every field of SettingConflict, once per kind, with and without rule and forcedBy.
 export type ConflictKeys = Expect<Equal<keyof SettingConflict, 'key' | 'layer' | 'kind' | 'asked' | 'applied' | 'rule' | 'forcedBy' | 'message'>>;
@@ -129,7 +127,6 @@ export const aState: PanelState = {
   title: undefined,
   url: 'https://example.test',
   params: { page: 1 },
-  formFactor: 'phone',
   listed: true,
   settings: resolved,
   pinned: false,
@@ -144,11 +141,11 @@ export const filters: readonly ListFilter[] = [{}, { status: 'live' }, { status:
 
 export const viewPatches: readonly ViewPatch[] = [
   {},
-  { title: 'Inbox', listed: false, layer: 'raised', formFactor: 'desktop', placeOnAdd: { anchor: { panel: 'row', position: 'right' } }, enterFrom: 'anchor' },
-  { title: null, listed: null, layer: null, formFactor: null, placeOnAdd: null, enterFrom: null },
+  { title: 'Inbox', listed: false, layer: 'raised', slots: 3, closable: false, placeOnAdd: { anchor: { panel: 'row', position: 'right' } }, enterFrom: 'anchor' },
+  { title: null, listed: null, layer: null, slots: null, closable: null, placeOnAdd: null, enterFrom: null },
 ];
-// @ts-expect-error closable is not a key a view may set
-export const viewClosable: ViewPatch = { closable: false };
+// @ts-expect-error a view may only lock its panel
+export const viewClosable: ViewPatch = { closable: true };
 // @ts-expect-error a view places itself only by an anchor
 export const viewPlacement: ViewPatch = { placeOnAdd: 'row-end' };
 
@@ -174,7 +171,6 @@ export const viewHandle: ViewHandle = {
   open: () => done,
   move: () => done,
   place: () => done,
-  setFormFactor: () => done,
   setSlots: () => done,
   scrollTo: () => done,
   pin: () => done,

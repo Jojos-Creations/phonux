@@ -6,8 +6,9 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { computeRowOrder } from '../panelRowOrder.js';
-import { DEFAULT_PANEL_SIZE, TIER_SIZES } from '../panelTiers.js';
-import { appendPanel, createHistoryPanel } from '../panelWindow.js';
+import { DEFAULT_PANEL_SIZE, sizeOfSlots } from '../panelTiers.js';
+import { appendPanel, createHistoryPanel, slotsOf } from '../panelWindow.js';
+import { ALL_SLOTS } from '../rowConstants.js';
 import { applyTemplate, resolvePanelSettings } from '../panelSettings.js';
 import type { PanelSettings } from '../panelSettings.js';
 import { DISMISSED_LIMIT, cleanDismissed, cleanSavedExtras, hydrateWorkspaceState, isWorkspaceState, projectWorkspaceState } from '../workspaceState.js';
@@ -61,14 +62,14 @@ test('W1 project saves exactly the documented keys, never hostData, size, locked
     anchor: { panel: ROOT, position: 'right', priority: 0 },
     layer: 'raised',
     anchoredEnter: true,
-    formFactor: 'tablet',
-    size: { ...TIER_SIZES.tablet },
+    slots: 2,
+    size: sizeOfSlots(2),
   });
   const state = projectWorkspaceState([root, full], ROOT);
   assert.equal(state.version, 1);
   assert.deepEqual(state.panels.map((p) => p.id), ['7'], 'control: the panel is saved and the root is not');
   const entry = state.panels[0]!;
-  assert.deepEqual(Object.keys(entry).sort(), ['anchor', 'formFactor', 'id', 'layer', 'listed', 'live', 'params', 'title', 'url', 'view']);
+  assert.deepEqual(Object.keys(entry).sort(), ['anchor', 'id', 'layer', 'listed', 'live', 'params', 'slots', 'title', 'url', 'view']);
   for (const key of ['hostData', 'size', 'locked', 'collapsible', 'anchoredEnter', 'permanent']) assert.equal(key in entry, false, key);
   assert.deepEqual(entry, {
     id: '7',
@@ -79,7 +80,7 @@ test('W1 project saves exactly the documented keys, never hostData, size, locked
     listed: true,
     live: true,
     anchor: { panel: ROOT, position: 'right', priority: 0 },
-    formFactor: 'tablet',
+    slots: 2,
     layer: 'raised',
   });
   assert.equal(JSON.stringify(state).includes('secret'), false, 'the root is not in the file, hostData included');
@@ -87,18 +88,19 @@ test('W1 project saves exactly the documented keys, never hostData, size, locked
 
 test('W2 project derives permanent from collapsible and emits an optional key only when it is defined', () => {
   const bare = { id: 'bare', url: 'https://bare.example', live: false, locked: false, view: 'web', collapsible: true } as PanelWindow;
-  const undefinedKeys = panel('undef', { title: undefined, params: undefined, layer: undefined, formFactor: undefined });
-  const rail = panel('rail', { collapsible: false, listed: false, title: 'Rail', formFactor: 'phone' });
-  const rich = panel('rich', { title: '', params: null, listed: false, layer: 'raised', formFactor: 'desktop' });
+  const undefinedKeys = panel('undef', { title: undefined, params: undefined, layer: undefined, slots: undefined });
+  const rail = panel('rail', { collapsible: false, listed: false, title: 'Rail', slots: 1 });
+  const rich = panel('rich', { title: '', params: null, listed: false, layer: 'raised', slots: ALL_SLOTS });
   const [b, u, r, c] = projectWorkspaceState([createHistoryPanel(ROOT), bare, undefinedKeys, rail, rich], ROOT).panels;
-  assert.deepEqual(Object.keys(b!).sort(), ['anchor', 'id', 'live', 'url', 'view'], 'a record without listed, title, params, layer or formFactor saves none of those keys');
+  assert.deepEqual(Object.keys(b!).sort(), ['anchor', 'id', 'live', 'url', 'view'], 'a record without listed, title, params, layer or slots saves none of those keys');
   assert.equal(b!.live, false);
   assert.deepEqual(Object.keys(u!).sort(), ['anchor', 'id', 'listed', 'live', 'url', 'view'], 'keys that are present but undefined are not emitted');
   assert.equal(r!.permanent, true, 'collapsible false is saved as permanent');
-  assert.deepEqual(Object.keys(r!).sort(), ['anchor', 'formFactor', 'id', 'listed', 'live', 'permanent', 'title', 'url', 'view']);
+  assert.deepEqual(Object.keys(r!).sort(), ['anchor', 'id', 'listed', 'live', 'permanent', 'title', 'url', 'view']);
+  assert.equal('slots' in r!, false, 'one slot is the default and is not written');
   assert.equal('permanent' in u!, false, 'a collapsible panel never carries permanent');
   assert.equal('permanent' in c!, false);
-  assert.deepEqual([c!.title, c!.params, c!.listed, c!.layer, c!.formFactor], ['', null, false, 'raised', 'desktop'], 'defined values are emitted as they are, falsy ones included');
+  assert.deepEqual([c!.title, c!.params, c!.listed, c!.layer, c!.slots], ['', null, false, 'raised', ALL_SLOTS], 'defined values are emitted as they are, falsy ones included');
   for (const entry of [b!, u!, r!, c!]) {
     for (const [key, value] of Object.entries({ ...entry, ...entry.anchor })) assert.notEqual(value, undefined, `${entry.id}.${key} holds undefined`);
   }
@@ -173,19 +175,18 @@ test('W6 hydrate resolves a self-anchor and a cycle without throwing, each panel
   assert.equal(out[0]!.url, 'https://d.example', 'control: the well-formed left entry still sits left of the root');
 });
 
-test('W7 hydrate applies appendPanel\'s creation rules: permanent wins over listed, tier and live, sizes come from the tier, an unknown view is kept', () => {
+test('W7 hydrate applies appendPanel\'s creation rules: permanent wins over listed, slots and live, sizes come from the slots, an unknown view is kept', () => {
   const freshId = drawFrom(['21', '22', '23', '24']);
   const state = file(
-    saved('p', { url: 'https://p.example', permanent: true, listed: true, formFactor: 'desktop', live: false, anchor: { panel: ROOT, position: 'right', priority: 0 } }),
-    saved('t', { url: 'https://t.example', formFactor: 'tablet', live: false, anchor: { panel: ROOT, position: 'right', priority: 1 } }),
+    saved('p', { url: 'https://p.example', permanent: true, listed: true, slots: ALL_SLOTS, live: false, anchor: { panel: ROOT, position: 'right', priority: 0 } }),
+    saved('t', { url: 'https://t.example', slots: 2, live: false, anchor: { panel: ROOT, position: 'right', priority: 1 } }),
     saved('m', { url: 'https://m.example', view: 'mystery-view', anchor: { panel: ROOT, position: 'right', priority: 2 } }),
     saved('l', { url: 'https://l.example', listed: false, layer: 'raised', title: 'Kept', params: { n: 1 }, anchor: { panel: ROOT, position: 'right', priority: 3 } }),
   );
   const [p, t, m, l] = hydrateWorkspaceState(state, freshId, ROOT) as [PanelWindow, PanelWindow, PanelWindow, PanelWindow];
-  assert.deepEqual([p.collapsible, p.listed, p.formFactor, p.live, p.size], [false, false, 'phone', true, DEFAULT_PANEL_SIZE], 'permanent: not collapsible, not listed, phone, and shown though saved parked');
-  assert.deepEqual([t.collapsible, t.formFactor, t.live, t.size], [true, 'tablet', false, TIER_SIZES.tablet], 'a collapsible tablet keeps its tier, its size and its parked flag');
-  assert.notEqual(t.size, TIER_SIZES.tablet, 'the size is a copy of the tier table entry');
-  assert.deepEqual([m.view, m.listed, m.formFactor, m.layer], ['mystery-view', true, 'phone', 'base'], 'an unknown view key survives, and every default comes from appendPanel');
+  assert.deepEqual([p.collapsible, p.listed, p.slots, p.live, p.size], [false, false, 1, true, DEFAULT_PANEL_SIZE], 'permanent: not collapsible, not listed, one slot, and shown though saved parked');
+  assert.deepEqual([t.collapsible, t.slots, t.live, t.size], [true, 2, false, sizeOfSlots(2)], 'a collapsible two-slot panel keeps its slots, its size and its parked flag');
+  assert.deepEqual([m.view, m.listed, m.slots, m.layer], ['mystery-view', true, 1, 'base'], 'an unknown view key survives, and every default comes from appendPanel');
   assert.deepEqual([l.listed, l.layer, l.title, l.params], [false, 'raised', 'Kept', { n: 1 }]);
   for (const entry of [p, t, m, l]) {
     assert.deepEqual([entry.locked, entry.anchoredEnter, 'hostData' in entry], [false, false, false], 'hostData is left for the provider');
@@ -209,12 +210,12 @@ test('W9 project then hydrate round-trips a mixed row: the same panels in the sa
   const id = (): string => `orig-${++n}`;
   let row: PanelWindow[] = [{ ...createHistoryPanel(ROOT), hostData: { h: 1 } }];
   row = appendPanel(row, { url: 'https://one.example', title: 'one', hostData: { h: 2 } }, id(), ROOT);
-  row = appendPanel(row, { url: 'https://two.example', title: 'two', view: 'note', params: { a: [1, { b: null }] }, formFactor: 'tablet' }, id(), ROOT);
+  row = appendPanel(row, { url: 'https://two.example', title: 'two', view: 'note', params: { a: [1, { b: null }] }, slots: 2 }, id(), ROOT);
   row = appendPanel(row, { url: 'https://rail.example', title: 'rail', permanent: true, anchor: { position: 'left' } }, id(), ROOT);
   row = appendPanel(row, { url: 'https://three.example', title: 'three', listed: false, layer: 'raised', anchor: { position: 'left' } }, id(), ROOT);
-  row = appendPanel(row, { url: 'https://four.example', title: 'four', formFactor: 'desktop', anchor: { position: 'right', priority: -1 } }, id(), ROOT);
+  row = appendPanel(row, { url: 'https://four.example', title: 'four', slots: ALL_SLOTS, anchor: { position: 'right', priority: -1 } }, id(), ROOT);
   row = row.map((p) => (p.title === 'one' || p.title === 'four' ? { ...p, live: false } : p));
-  assert.ok(new Set(row.map((p) => p.live)).size === 2 && new Set(row.map((p) => p.formFactor)).size === 3, 'control: the row is mixed in live flag and tier');
+  assert.ok(new Set(row.map((p) => p.live)).size === 2 && new Set(row.map(slotsOf)).size === 3, 'control: the row is mixed in live flag and slots');
 
   const state = JSON.parse(JSON.stringify(projectWorkspaceState(row, ROOT))) as WorkspaceState;
   const restored = computeRowOrder([createHistoryPanel(ROOT), ...hydrateWorkspaceState(state, drawFrom(['a', 'b', 'c', 'd', 'e']), ROOT)], ROOT);
@@ -237,7 +238,7 @@ test('W10 isWorkspaceState accepts a good file and extra keys, and rejects every
     version: 1,
     panels: [
       { id: 'a', view: 'web', url: 'https://a.example', live: true, anchor: { panel: ROOT, position: 'right', priority: 0 } },
-      { id: 'b', view: 'web', url: 'https://b.example', live: false, title: 'B', listed: false, permanent: false, layer: 'raised', formFactor: 'desktop', params: { deep: [1, null] }, anchor: { panel: 'a', position: 'left', priority: -1 } },
+      { id: 'b', view: 'web', url: 'https://b.example', live: false, title: 'B', listed: false, permanent: false, layer: 'raised', slots: 3, params: { deep: [1, null] }, anchor: { panel: 'a', position: 'left', priority: -1 } },
     ],
   });
   assert.equal(isWorkspaceState(good()), true);
@@ -272,6 +273,10 @@ test('W10 isWorkspaceState accepts a good file and extra keys, and rejects every
     ['an unknown layer', (s) => { s.panels[1].layer = 'front'; }],
     ['an unknown formFactor', (s) => { s.panels[1].formFactor = 'watch'; }],
     ['a numeric formFactor', (s) => { s.panels[1].formFactor = 1; }],
+    ['zero slots', (s) => { s.panels[1].slots = 0; }],
+    ['slots past the library cap', (s) => { s.panels[1].slots = ALL_SLOTS + 1; }],
+    ['a fractional slots', (s) => { s.panels[1].slots = 1.5; }],
+    ['slots as a string', (s) => { s.panels[1].slots = '2'; }],
     ['no anchor', (s) => { delete s.panels[1].anchor; }],
     ['a string anchor', (s) => { s.panels[1].anchor = 'a'; }],
     ['a null anchor', (s) => { s.panels[1].anchor = null; }],
@@ -289,6 +294,11 @@ test('W10 isWorkspaceState accepts a good file and extra keys, and rejects every
     corrupt(control);
     assert.equal(isWorkspaceState(control), false, label);
   }
+  for (const tier of ['phone', 'tablet', 'desktop']) {
+    const old = good();
+    old.panels[1].formFactor = tier;
+    assert.equal(isWorkspaceState(old), true, `a file with formFactor ${tier}, as one saved before slots holds, is still accepted`);
+  }
   const urlless = good();
   delete urlless.panels[1].url;
   assert.equal(isWorkspaceState(urlless), true, 'a panel with no url is a valid saved panel');
@@ -303,10 +313,10 @@ const made = (id: string, layer: PanelSettings = {}, over: Partial<PanelWindow> 
 const rowOf = (...entries: PanelWindow[]): PanelWindow[] => computeRowOrder([createHistoryPanel(ROOT), ...entries], ROOT);
 
 test('W11 project writes key, instance, overrides, applied and closable for an entry that carries settings, and nothing for a hand-built one', () => {
-  const carrying = made('a', { closable: false }, { overrides: { formFactor: 'tablet' }, applied: { placeOnAdd: 'row-end' }, instance: { title: 'A' } });
+  const carrying = made('a', { closable: false }, { overrides: { slots: 2 }, applied: { placeOnAdd: 'row-end' }, instance: { title: 'A' } });
   const state = projectWorkspaceState(rowOf(carrying, panel('b')), ROOT);
   const [a, b] = state.panels;
-  assert.deepEqual({ key: a!.key, instance: a!.instance, overrides: a!.overrides, applied: a!.applied, closable: a!.closable }, { key: 'a', instance: { title: 'A' }, overrides: { formFactor: 'tablet' }, applied: { placeOnAdd: 'row-end' }, closable: false });
+  assert.deepEqual({ key: a!.key, instance: a!.instance, overrides: a!.overrides, applied: a!.applied, closable: a!.closable }, { key: 'a', instance: { title: 'A' }, overrides: { slots: 2 }, applied: { placeOnAdd: 'row-end' }, closable: false });
   for (const key of ['key', 'instance', 'overrides', 'applied', 'closable']) assert.equal(key in b!, false, `a hand-built entry has no ${key}`);
 });
 
@@ -374,7 +384,8 @@ const extras = (more: Record<string, unknown>, seen: Set<string> = new Set()): {
 const malformed: { name: string; more: Record<string, unknown>; dropped: string; has: string }[] = [
   { name: "overrides 'x'", more: { overrides: 'x' }, dropped: 'overrides', has: 'owned' },
   { name: 'an overrides.anchor without a position', more: { overrides: { anchor: { panel: 'b', priority: 1 } } }, dropped: 'overrides.anchor', has: '' },
-  { name: 'an overrides.formFactor outside the tiers', more: { overrides: { formFactor: 'watch' } }, dropped: 'overrides.formFactor', has: '' },
+  { name: 'an overrides.formFactor outside the tiers of an old file', more: { overrides: { formFactor: 'watch' } }, dropped: 'overrides.formFactor', has: '' },
+  { name: 'an overrides.slots below one', more: { overrides: { slots: 0 } }, dropped: 'overrides.slots', has: '' },
   { name: 'an overrides.parkable that is not a boolean', more: { overrides: { parkable: 'yes' } }, dropped: 'overrides.parkable', has: '' },
   { name: 'an applied without placeOnAdd', more: { applied: {} }, dropped: 'applied', has: 'applied' },
   { name: 'an empty key', more: { key: '' }, dropped: 'key', has: 'key' },
@@ -392,7 +403,7 @@ for (const { name, more, dropped, has } of malformed) {
 }
 
 test('W21 cleanSavedExtras keeps a well-formed set whole, and drops the second entry that repeats a key', () => {
-  const whole = { key: 'k', instance: { title: 'T' }, overrides: { anchor: { panel: 'b', position: 'left', priority: 1 }, formFactor: 'tablet', parkable: false }, applied: { placeOnAdd: 'row-end' }, closable: false };
+  const whole = { key: 'k', instance: { title: 'T' }, overrides: { anchor: { panel: 'b', position: 'left', priority: 1 }, slots: 2, parkable: false }, applied: { placeOnAdd: 'row-end' }, closable: false };
   const seen = new Set<string>();
   const first = extras(whole, seen);
   assert.deepEqual(first.dropped, []);
@@ -419,4 +430,40 @@ test('W23 hydrate locks an entry saved with closable false and leaves every othe
   const state = file(saved('a', { closable: false }), saved('b'));
   const [a, b] = hydrateWorkspaceState(state, drawFrom(['1', '2']), ROOT);
   assert.deepEqual([a!.locked, b!.locked], [true, false]);
+});
+
+test('W24 hydrate reads a top-level formFactor of a file saved before slots as the slot count, and a slots key wins over it', () => {
+  const old = (id: string, more: Record<string, unknown>): WorkspacePanelState => saved(id, more as Partial<WorkspacePanelState>);
+  const state = file(
+    old('p', { formFactor: 'phone', anchor: { panel: ROOT, position: 'right', priority: 0 } }),
+    old('t', { formFactor: 'tablet', anchor: { panel: ROOT, position: 'right', priority: 1 } }),
+    old('d', { formFactor: 'desktop', anchor: { panel: ROOT, position: 'right', priority: 2 } }),
+    old('both', { formFactor: 'desktop', slots: 3, anchor: { panel: ROOT, position: 'right', priority: 3 } }),
+    old('rail', { formFactor: 'desktop', permanent: true, anchor: { panel: ROOT, position: 'right', priority: 4 } }),
+  );
+  assert.equal(isWorkspaceState(state), true, 'control: the old file passes the guard');
+  const out = hydrateWorkspaceState(state, drawFrom(['1', '2', '3', '4', '5']), ROOT);
+  assert.deepEqual(out.map((e) => e.slots), [1, 2, ALL_SLOTS, 3, 1], 'phone 1, tablet 2, desktop every slot, slots over formFactor, a permanent column one');
+  assert.deepEqual(out.map((e) => e.size), [DEFAULT_PANEL_SIZE, sizeOfSlots(2), sizeOfSlots(ALL_SLOTS), sizeOfSlots(3), DEFAULT_PANEL_SIZE]);
+});
+
+test('W25 project never writes formFactor and writes slots only when it is not one', () => {
+  const row = [createHistoryPanel(ROOT), panel('one', { slots: 1 }), panel('two', { slots: 2 }), panel('none'), panel('all', { slots: ALL_SLOTS })];
+  const entries = projectWorkspaceState(row, ROOT).panels;
+  assert.deepEqual(entries.map((e) => e.slots), [undefined, 2, undefined, ALL_SLOTS]);
+  for (const entry of entries) assert.equal('formFactor' in entry, false, `${entry.id} has no formFactor`);
+  assert.equal(JSON.stringify(entries).includes('formFactor'), false);
+});
+
+test('W26 cleanSavedExtras reads overrides.formFactor of a file saved before slots as a slot count, and overrides.slots wins over it', () => {
+  const tiers: Array<[string, number]> = [['phone', 1], ['tablet', 2], ['desktop', ALL_SLOTS]];
+  for (const [tier, slots] of tiers) {
+    const { out, dropped } = extras({ overrides: { formFactor: tier } });
+    assert.deepEqual(out.owned, { slots }, `${tier} is ${slots} slots`);
+    assert.deepEqual(dropped, []);
+  }
+  assert.deepEqual(extras({ overrides: { formFactor: 'desktop', slots: 3 } }).out.owned, { slots: 3 }, 'slots wins when both are present');
+  const bad = extras({ overrides: { formFactor: 'watch' } });
+  assert.deepEqual(bad.dropped.map((d) => d.message), ['overrides.formFactor: expected phone, tablet or desktop; dropped']);
+  assert.equal(bad.out.owned?.slots, undefined);
 });
