@@ -1,0 +1,36 @@
+{
+  "tests": [
+    "test/panel-configure-doors.test.ts",
+    "test/view-patch-catalog.test.ts"
+  ],
+  "mutants": [
+    {
+      "name": "a view may ask closable true",
+      "file": "panelSettings.ts",
+      "find": "if (key === 'closable') return value === false;",
+      "replace": "if (key === 'closable') return true;",
+      "expectRed": [
+        "view: closable true is not view-settable"
+      ]
+    },
+    {
+      "name": "closable is closed to a view again",
+      "file": "panelSettings.ts",
+      "find": "    default: 'true (root: false)',\n    scope: 'instance',\n    viewSettable: true,",
+      "replace": "    default: 'true (root: false)',\n    scope: 'instance',\n    viewSettable: false,",
+      "expectRed": [
+        "view: handle.configure({ closable: false }) locks its own panel",
+        "the ViewPatch keys are exactly the catalog names marked viewSettable"
+      ]
+    },
+    {
+      "name": "the lock a view set is not written to the saved file",
+      "file": "workspaceState.ts",
+      "find": "if (p.locked) extras.closable = false;",
+      "replace": "if (p.locked) void 0;",
+      "expectRed": [
+        "view: a lock the view set is saved in the file as closable false"
+      ]
+    }
+  ]
+}

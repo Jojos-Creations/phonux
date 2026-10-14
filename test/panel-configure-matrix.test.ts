@@ -428,8 +428,8 @@ test('matrix:parkable', async () => {
   assert.equal(letter(r.turn(() => r.h.b!.hide())), 'not-parkable');
   done(r.turn(() => r.h.b!.configure({ parkable: true })));
   assert.deepEqual([facts('b'), r.entry('b').collapsible], [[true, true, true, true, true], true], 'false to true lifts C1');
-  r.turn(() => r.h.c!.setFormFactor('tablet', 'person'));
-  assert.equal(refusedWith(r.turn(() => r.h.c!.configure({ parkable: false })), 'tier-not-allowed').ok, false, 'a tablet panel cannot become a fixed column');
+  r.turn(() => r.h.c!.setSlots(2, 'person'));
+  assert.equal(refusedWith(r.turn(() => r.h.c!.configure({ parkable: false })), 'slots-above-max').ok, false, 'a two-slot panel cannot become a fixed column');
   assert.deepEqual(shape(r.turn(() => r.h.a!.configure({ parkable: false, resizable: true }))), { now: ['parkable', 'resizable'], later: [], shadowed: [] }, 'resizable true beside a fixed column stands: the panel asked for its size itself');
   assert.equal(r.state('a').settings.resizable, true);
   const s = soft();
@@ -520,40 +520,20 @@ test('matrix:placeable', async () => {
 test('matrix:resizable', async () => {
   probe('resizable');
   const r = await matrixRig();
-  r.turn(() => r.h.b!.setFormFactor('tablet', 'person'));
-  const savedTier = r.entry('b').overrides?.slots;
-  assert.deepEqual([r.entry('b').formFactor, savedTier], ['tablet', 2], 'before: the person chose tablet, two slots');
+  r.turn(() => r.h.b!.setSlots(2, 'person'));
+  assert.deepEqual([r.entry('b').slots, r.entry('b').overrides?.slots], [2, 2], 'before: the person chose two slots');
   assert.deepEqual(shape(r.turn(() => r.h.b!.configure({ resizable: false }))), { now: ['resizable'], later: [], shadowed: [] });
-  assert.equal(letter(r.turn(() => r.h.b!.setFormFactor('phone'))), 'not-resizable', 'after: setFormFactor is refused');
-  assert.deepEqual([r.entry('b').formFactor, r.entry('b').overrides?.slots], ['tablet', 2], "the tier and the person's saved size are never changed or dropped");
-  assert.equal(letter(r.turn(() => r.h.a!.setFormFactor('tablet'))), 'T', 'a neighbour still resizes');
+  assert.equal(letter(r.turn(() => r.h.b!.setSlots(1))), 'not-resizable', 'after: setSlots is refused');
+  assert.deepEqual([r.entry('b').slots, r.entry('b').overrides?.slots], [2, 2], "the slots and the person's saved size are never changed or dropped");
+  assert.equal(letter(r.turn(() => r.h.a!.setSlots(2))), 'T', 'a neighbour still resizes');
   r.turn(() => r.h.c!.hide());
   await r.settle();
   done(r.turn(() => r.h.c!.configure({ resizable: false })));
-  assert.equal(letter(r.turn(() => r.h.c!.setFormFactor('tablet'))), 'not-resizable', 'a hidden panel refuses too');
+  assert.equal(letter(r.turn(() => r.h.c!.setSlots(2))), 'not-resizable', 'a hidden panel refuses too');
   const fixed = await matrixRig();
   done(fixed.turn(() => fixed.h.a!.configure({ parkable: false })));
   assert.equal(shape(fixed.turn(() => fixed.h.a!.configure({ resizable: true }))).now[0], 'resizable', 'C1: true asked for the fixed column itself stands');
   assert.equal(fixed.state('a').settings.resizable, true);
-});
-
-test('matrix:formFactors', async () => {
-  probe('formFactors');
-  const r = await matrixRig();
-  assert.deepEqual([...r.state('b').settings.formFactors], ['phone', 'tablet', 'desktop'], 'before: all three tiers');
-  assert.deepEqual(shape(r.turn(() => r.h.b!.configure({ formFactors: ['phone', 'tablet'] }))), { now: ['formFactors'], later: [], shadowed: [] }, 'narrowing with the current tier inside is accepted');
-  assert.equal(letter(r.turn(() => r.h.b!.setFormFactor('desktop'))), 'tier-not-allowed');
-  assert.equal(letter(r.turn(() => r.h.b!.setFormFactor('tablet'))), 'T');
-  assert.equal(shape(r.turn(() => r.h.b!.configure({ formFactors: ['phone', 'tablet', 'desktop'] }))).now[0], 'formFactors', 'widening is accepted');
-  const entries = r.m.latest().entries;
-  const renders = r.m.renders();
-  refusedWith(r.turn(() => r.h.b!.configure({ formFactors: ['phone'] })), 'tier-not-allowed');
-  sameRow(r, entries, renders, 'narrowing below the current tier');
-  assert.equal(r.entry('b').formFactor, 'tablet', 'the tier is never changed by the call');
-  const conflict = refusedWith(r.turn(() => r.h.a!.configure({ formFactor: 'tablet', formFactors: ['phone'] })), 'settings-conflict');
-  assert.equal(conflict.setting, 'formFactor');
-  assert.match(conflict.message, /C4/);
-  assert.equal(thrownCode(() => r.h.a!.configure({ formFactors: [] })), 'invalid-settings', 'an empty set throws');
 });
 
 test('matrix:clearable', async () => {
@@ -928,7 +908,7 @@ test('matrix:scrollOnMove', async () => {
       await r.settle();
       assert.equal(r.m.container.scrollLeft, 0, 'nothing scrolls at configure');
     }
-    r.turn(() => r.h.a!.setFormFactor('tablet'));
+    r.turn(() => r.h.a!.setSlots(2));
     await r.settle();
     const at = r.m.container.scrollLeft;
     r.m.unmount();
@@ -1264,28 +1244,6 @@ test('matrix:animated', async () => {
   done(r.turn(() => r.h.b!.configure({ animated: false })));
   await frames(3);
   assert.equal(slotAt(r, engine) !== null, true, 'an animation running finishes as started: five frames in, it is still sliding');
-});
-
-test('matrix:formFactor', async () => {
-  probe('formFactor');
-  const r = await matrixRig();
-  assert.deepEqual([r.entry('b').formFactor, r.state('b').settings.formFactor], ['phone', 'phone']);
-  assert.deepEqual(shape(r.turn(() => r.h.b!.configure({ formFactor: 'tablet' }))), { now: [], later: ['formFactor'], shadowed: [] });
-  assert.deepEqual([r.entry('b').formFactor, r.state('b').formFactor, r.h.b!.getSettings().value.formFactor], ['phone', 'phone', 'tablet'], 'a live panel is never resized: only the default tier changes');
-  r.turn(() => r.h.b!.close());
-  r.turn(() => r.h.b!.open());
-  await r.settle();
-  assert.equal(r.entry('b').formFactor, 'tablet', 'the next open() uses the new default');
-  r.turn(() => r.h.c!.setFormFactor('desktop', 'person'));
-  const shadowed = shape(r.turn(() => r.h.c!.configure({ formFactor: 'tablet' })));
-  assert.deepEqual(shadowed, { now: [], later: ['formFactor'], shadowed: ['formFactor'] }, "the person's recorded tier wins");
-  assert.equal(r.entry('c').formFactor, 'desktop');
-  const conflict = refusedWith(r.turn(() => r.h.a!.configure({ formFactors: ['phone'], formFactor: 'tablet' })), 'settings-conflict');
-  assert.equal(conflict.setting, 'formFactor');
-  r.turn(() => r.h.a!.configure({ formFactor: 'tablet' }));
-  const reset = r.turn(() => r.ws.panels.resetLayout('a'));
-  assert.deepEqual([reset.ok && reset.changed, reset.ok && reset.panels], [true, ['a']], 'resetLayout reads it too');
-  assert.equal(r.entry('a').formFactor, 'tablet');
 });
 
 test('matrix:title', async () => {
@@ -1883,9 +1841,22 @@ test('matrix:slots', async () => {
   assert.equal(r.entry('b').slots, 1, 'configure only stores it: the drawn panel is unchanged');
   assert.equal(thrownCode(() => r.h.b!.configure({ slots: 0 })), 'invalid-settings', 'outside 1 or more throws');
   assert.equal(thrownCode(() => r.h.b!.configure({ slots: 2.5 } as never)), 'invalid-settings');
-  assert.equal(letter(r.turn(() => r.h.a!.setSlots(2))), 'T', 'the verb resizes by whole slots');
+  r.turn(() => r.h.b!.close());
+  r.turn(() => r.h.b!.open());
+  await r.settle();
+  assert.equal(r.entry('b').slots, 2, 'the next open() uses the new default');
+  r.turn(() => r.h.c!.setSlots(3, 'person'));
+  assert.deepEqual(shape(r.turn(() => r.h.c!.configure({ slots: 2 }))), { now: [], later: ['slots'], shadowed: ['slots'] }, "the person's recorded count wins");
+  assert.equal(r.entry('c').slots, 3);
+  const conflict = refusedWith(r.turn(() => r.h.a!.configure({ maxSlots: 1, slots: 2 })), 'settings-conflict');
+  assert.equal(conflict.setting, 'slots');
+  assert.match(conflict.message, /C4/);
+  r.turn(() => r.h.a!.configure({ slots: 2 }));
+  const reset = r.turn(() => r.ws.panels.resetLayout('a'));
+  assert.deepEqual([reset.ok && reset.changed, reset.ok && reset.panels], [true, ['a']], 'resetLayout reads it too');
   assert.equal(r.entry('a').slots, 2);
-  assert.equal(r.entry('a').formFactor, 'tablet', 'and formFactor reports the tier of the count');
+  assert.equal(letter(r.turn(() => r.h.a!.setSlots(3))), 'T', 'the verb resizes by whole slots');
+  assert.equal(r.entry('a').slots, 3);
 });
 
 test('matrix:maxSlots', async () => {
@@ -1893,7 +1864,10 @@ test('matrix:maxSlots', async () => {
   const r = await matrixRig();
   assert.equal(letter(r.turn(() => r.h.b!.setSlots(3))), 'T', 'before: any count up to the window');
   assert.deepEqual(shape(r.turn(() => r.h.b!.configure({ maxSlots: 4 }))), { now: ['maxSlots'], later: [], shadowed: [] }, 'raising is accepted');
-  refusedWith(r.turn(() => r.h.b!.configure({ maxSlots: 2 })), 'tier-not-allowed');
+  const entries = r.m.latest().entries;
+  const renders = r.m.renders();
+  refusedWith(r.turn(() => r.h.b!.configure({ maxSlots: 2 })), 'slots-above-max');
+  sameRow(r, entries, renders, 'lowering below the current slots');
   assert.equal(r.entry('b').slots, 3, 'a refusal never changes the panel');
   assert.equal(letter(r.turn(() => r.h.a!.setSlots(9))), 'T', 'a neighbour keeps its own cap');
   assert.equal(r.entry('b').settings?.maxSlots, 4);
@@ -1958,14 +1932,15 @@ test('the class table ran every cell: executed cells equal 4 classes by 9 status
   assert.equal(Object.values(CLASS_TABLE).reduce((sum, row) => sum + Object.keys(row).length, 0), 36);
 });
 
-// The design copy is frozen; a catalog key added after it is listed here, never in the copy.
+// The design copy is frozen; a catalog key added or removed after it is listed here, never in the copy.
+const REMOVED_AFTER_DESIGN: readonly string[] = ['formFactor', 'formFactors'];
 const ADDED_AFTER_DESIGN: readonly string[] = ['tuning.maxLivePanels', 'tuning.chrome', 'slots', 'maxSlots', 'tuning.resizeSettleSlides', 'tuning.shrinkOutOfView', 'frame', 'tuning.phoneFit', 'tuning.phoneFitMin', 'tuning.phoneFitMax'];
 
-test('the probes ran every catalog name once: 72 executed, equal to the catalog and to the design copy of it plus the names added after it', () => {
+test('the probes ran every catalog name once: 70 executed, equal to the catalog and to the design copy of it plus the names added after it', () => {
   const design = JSON.parse(readFileSync(new URL('../design/0.2-rev7/DESIGN-phonux-0.2-rev7-catalog.json', import.meta.url), 'utf8')) as { name: string }[];
   assert.equal(design.length, 62);
-  assert.equal(CATALOG_NAMES.length, 72);
-  assert.equal(probesExecuted().size, 72);
+  assert.equal(CATALOG_NAMES.length, 70);
+  assert.equal(probesExecuted().size, 70);
   assert.deepEqual([...probesExecuted()].sort(), [...CATALOG_NAMES].sort());
-  assert.deepEqual([...probesExecuted()].sort(), [...design.map((d) => d.name), ...ADDED_AFTER_DESIGN].sort());
+  assert.deepEqual([...probesExecuted()].sort(), [...design.map((d) => d.name).filter((name) => !REMOVED_AFTER_DESIGN.includes(name)), ...ADDED_AFTER_DESIGN].sort());
 });

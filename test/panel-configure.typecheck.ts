@@ -22,8 +22,10 @@ handle.configure({ maxInstances: 2 });
 manager.configureTemplate('t', { closable: false });
 // @ts-expect-error the tuning call takes only tuning keys
 manager.configureTuning({ closable: false });
-// @ts-expect-error a view may not ask for closable
 view.configure({ closable: false });
+view.configure({ closable: null });
+// @ts-expect-error a view may only lock its panel, never unlock it
+view.configure({ closable: true });
 // @ts-expect-error a view may place itself only by an anchor
 view.configure({ placeOnAdd: 'row-start' });
 const patch: InstancePatch = {};
