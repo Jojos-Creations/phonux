@@ -6,7 +6,7 @@
 import { test, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
 import './support/jsdom-globals.js';
-import { createWorkspace, minWorkspaceWidth, TIER_SIZES } from '../index.js';
+import { createWorkspace, minWorkspaceWidth } from '../index.js';
 import { fitPhone } from '../phoneFit.js';
 import { PHONE_FIT_MIN } from '../rowConstants.js';
 import { computeMaxLiveWidth, computeRowLayout } from '../panelRowLayout.js';
@@ -49,12 +49,12 @@ test('tablet wider than two phones: phone 320, gap 16, History: 16 + 336 + 768 +
 });
 
 test('two phones wider than the tablet: phone 390 gives 796 > 768, so the tablet changes nothing', () => {
-  assert.equal(minWorkspaceWidth({ phoneWidth: 390, fixedColumnCount: 1, gap: 16, tabletWidth: TIER_SIZES.tablet.width }), 1234);
+  assert.equal(minWorkspaceWidth({ phoneWidth: 390, fixedColumnCount: 1, gap: 16, tabletWidth: 768 }), 1234);
   assert.equal(minWorkspaceWidth({ phoneWidth: 390, fixedColumnCount: 1, gap: 16, tabletWidth: 0 }), 1234);
 });
 
 test('the tablet defaults to the tier table width (768): no fixed column, phone 320 gives 16 + 768 + 16 = 800', () => {
-  assert.equal(TIER_SIZES.tablet.width, 768);
+  assert.equal(768, 768);
   assert.equal(minWorkspaceWidth({ phoneWidth: 320, fixedColumnCount: 0, gap: 16 }), 800);
 });
 

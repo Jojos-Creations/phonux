@@ -2,8 +2,10 @@
  * The narrowest row container that still shows every fixed column plus a minimum of panels beside them. Pure, from the
  * same numbers the row's fit reads, so a host can bound its window with it.
  */
-import { TIER_SIZES } from './panelTiers.js';
 import { ROW_GAP } from './rowConstants.js';
+
+/** The width of the tablet panel the minimum has always kept room for; the tier table that named it is gone. */
+const TABLET_WIDTH = 768;
 
 /** What `minWorkspaceWidth` reads. Every width is in px. @public */
 export interface MinWorkspaceWidthInput {
@@ -19,7 +21,7 @@ export interface MinWorkspaceWidthInput {
   /**
    * The width of one tablet panel that must fit beside the fixed columns in place of the phone slots, when it is wider.
    * 0 leaves the tablet out.
-   * @defaultValue `TIER_SIZES.tablet.width` (768)
+   * @defaultValue 768
    */
   tabletWidth?: number;
   /**
@@ -50,7 +52,7 @@ export interface MinWorkspaceWidthInput {
  * @public
  */
 export function minWorkspaceWidth(input: MinWorkspaceWidthInput): number {
-  const { phoneWidth, fixedColumnCount, phoneSlots = 2, tabletWidth = TIER_SIZES.tablet.width, gap = ROW_GAP } = input;
+  const { phoneWidth, fixedColumnCount, phoneSlots = 2, tabletWidth = TABLET_WIDTH, gap = ROW_GAP } = input;
   if (!(phoneWidth > 0) || !Number.isFinite(phoneWidth)) throw new RangeError(`minWorkspaceWidth: phoneWidth must be above 0, got ${phoneWidth}`);
   if (!Number.isInteger(fixedColumnCount) || fixedColumnCount < 0) throw new RangeError(`minWorkspaceWidth: fixedColumnCount must be a whole number of 0 or more, got ${fixedColumnCount}`);
   if (!Number.isInteger(phoneSlots) || phoneSlots < 1) throw new RangeError(`minWorkspaceWidth: phoneSlots must be a whole number of 1 or more, got ${phoneSlots}`);
