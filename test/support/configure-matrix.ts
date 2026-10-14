@@ -10,7 +10,7 @@ import * as React from 'react';
 import { createElement, useEffect } from 'react';
 import { act } from 'react';
 import { mock } from 'node:test';
-import { DragToClose, LIBRARY_TUNING_DEFAULTS, PANEL_SETTINGS_CATALOG, PanelRow, Workspace, createWorkspace, definePanel, useProvidePanels, useViewState, usePanelCapabilities, usePanelCloseEligible, usePanelHidden, usePanelNeighborWidths, usePanelPinned, usePanelReorderEligible, usePanelReorderSteps } from '../../index.js';
+import { DragToClose, LIBRARY_TUNING_DEFAULTS, PANEL_SETTINGS_CATALOG, PanelRow, Workspace, createWorkspace, definePanel, useProvidePanels, useViewState, usePanelCapabilities, usePanelCloseEligible, usePanelNeighborWidths, usePanelPinned, usePanelReorderEligible, usePanelReorderSteps } from '../../index.js';
 import type { CaptureTrigger, ConfigureResult, PanelHandle, PanelResult, PanelSettings, PanelState, PanelTemplate, PanelWindow, PanelsInput, ProvidedPanels, WorkspaceHandle, WorkspaceOptions } from '../../index.js';
 import { useFrameClaim } from '../../panelFrameClaim.js';
 import { panelKey } from '../../panelSettings.js';
@@ -175,7 +175,6 @@ export const matrixTemplate = (id: string, over: Partial<PanelTemplate> = {}): P
       const reorderEligible = usePanelReorderEligible();
       const neighbors = usePanelNeighborWidths();
       const pinned = usePanelPinned();
-      const hidden = usePanelHidden();
       const steps = usePanelReorderSteps();
       const [n, setN] = useViewState('n', 0);
       useEffect(() => {
@@ -200,7 +199,6 @@ export const matrixTemplate = (id: string, over: Partial<PanelTemplate> = {}): P
         'data-caps': JSON.stringify({ closable: caps.closable, draggable: caps.draggable, placeable: caps.placeable, resizable: caps.resizable, maxSlots: caps.maxSlots }),
         'data-neighbors': JSON.stringify(neighbors),
         'data-pinned': String(pinned),
-        'data-hidden': String(hidden),
         'data-n': String(n),
         'data-steps': JSON.stringify([150, 250].map(steps)),
       });

@@ -422,7 +422,7 @@ its slot.
 ### Scrolling to a panel
 
 `rowScroller.ts` holds one `RowScroller` per scroll container and it is the only writer of that container's
-`scrollLeft`: a glide (the slide duration, instant under `animated: false` and reduced motion), `stop`, and `claim()`,
+`scrollLeft`: a glide (the slide duration, instant under reduced motion), `stop`, and `claim()`,
 an exclusive writer whose bound comes from `setMaxScroll` and never from the DOM, because a dragged box that is a
 transformed descendant would grow `scrollWidth` and a DOM bound would never be reached. A glide stops at pointer-down
 and on a scroll it did not write (more than 1 px from the last value it wrote); the claim holder's writes count as the
@@ -492,7 +492,7 @@ While the box eases, the chrome the library draws stays true. The scale is not t
 edge or a pill drawn the usual way would be squashed with it: a quarter circle becomes an ellipse and the edge thins or thickens
 for the 0.4 s. The box writes its scale as three custom properties (`--phonux-size-x`, `--phonux-size-y`, `--phonux-size-glide`,
 in `sizeGlide.ts`) from the draw that sets the transform, and removes all three at rest, when it snaps (Reduce Motion,
-`animated: false`, parked, held at a drawn width) and when it is nested, so a frame or header outside any box reads every
+held at a drawn width) and when it is nested, so a frame or header outside any box reads every
 fallback (1 and 0) and draws as it always did. `PanelFrame`, `PanelHeader` and the grab bar's pill read them:
 the corner radius is `r / x` by `r / y`, which draws `r` on each axis, and a radius too big for a side is cut by the browser on
 every corner alike, so a header pill that gets lower becomes a smaller true pill. The 1 px edge of the frame and the header pill is
@@ -1595,7 +1595,7 @@ flip with a transition rule of its own) or SCOPE (a template-scope key).
 | `afterClose` | stay-closed, return-next-launch | stay-closed | NEXT. Read when the panel next leaves the list. An existing tombstone is neither added nor removed by the flip. |
 | `tuning.rowGap` | integer px 0 to 200 (workspace only) | 16 (GAP) | NOW (configureTuning only). The whole row re-prices at this commit; in park mode a smaller capacity parks the fewest park panels through the reconcile effect; a scrolling row only re-prices and clamps scrollLeft. Slides in progress retarget. Unmeasured: stored. Busy while any panel has a token. Outside 0-200 throws. |
 | `tuning.dragToClose` | object: distanceFraction [0.05, 1], minDistancePx >= 8, flickMinDistancePx >= 8, flickVelocity >= 100, cancelVelocity <= -50, directionLockPx integer [2, 64], restMs integer [1, 1000], velocityWindowMs integer [16, 1000], snapBack { stiffness [50, 2000], damping [5, 200] }; panel or workspace | 0.25, 80, 40, 700, -300, 8, 50, 100, { 520, 42 } (DRAG_CLOSE; DIRECTION_LOCK_PX; DRAG_REST_MS; DRAG_VELOCITY_WINDOW_MS) | NEXT. Panel door: configure(id, { tuning: { dragToClose } }); workspace door: configureTuning sets the default. Read at the next release; a drag in flight is judged by the values current at release. Leaves merge; null removes a panel leaf. |
-| `tuning.slide` | object: durationSec [0, 10], ease (four numbers, x1 and x2 in [0,1]), closeExitSeconds [0, 5], closeExitEase ('easeIn', 'easeOut', 'easeInOut', 'linear' or four numbers), glideEase ('cubic-out', 'linear' or four numbers); panel or workspace | 0.4, [0.2, 0, 0, 1], 0.18, 'easeIn', 'cubic-out' (SLOT_TRANSITION, DRAG_CLOSE.exitSeconds, CLOSE_EXIT_EASE, GLIDE_EASE) | NEXT. Panel and workspace doors. Read at the next enter, exit, close or scroll; animations running keep their timing. animated:false still wins. |
+| `tuning.slide` | object: durationSec [0, 10], ease (four numbers, x1 and x2 in [0,1]), closeExitSeconds [0, 5], closeExitEase ('easeIn', 'easeOut', 'easeInOut', 'linear' or four numbers), glideEase ('cubic-out', 'linear' or four numbers); panel or workspace | 0.4, [0.2, 0, 0, 1], 0.18, 'easeIn', 'cubic-out' (SLOT_TRANSITION, DRAG_CLOSE.exitSeconds, CLOSE_EXIT_EASE, GLIDE_EASE) | NEXT. Panel and workspace doors. Read at the next enter, exit, close or scroll; animations running keep their timing. |
 | `tuning.hopFraction` | number in (0, 1]; panel or workspace | 0.5 | NEXT. Panel and workspace doors. Read by the dragged panel's view at its next release. Outside (0, 1] throws. |
 | `tuning.edgeScroll` | object: zonePx integer [8, 200], maxPxPerSec integer [100, 5000], reducedStepMs integer [100, 5000]; panel or workspace (a key derived from Q19; the numbers are owner-confirmed, Q21) | 48, 900, 500 (owner-confirmed, Q21; the numbers live in rowConstants.ts) | NEXT. Panel door: configure(id, { tuning: { edgeScroll } }); workspace door: configureTuning sets the default. Read at the next drag start; a drag in flight keeps its numbers. Leaves merge; null removes a panel leaf. |
 | `tuning.saveQuietMs` | integer ms >= 0 (workspace only) | 500 | NEXT (configureTuning only). A timer already armed keeps its deadline; the next arm uses the new value. Session-only. |
@@ -1664,9 +1664,7 @@ leaves downward. `layer` sets the stacking. The transition is the shared `PANEL_
 
 ### A parked view unmounts
 
-A parked panel's view is unmounted and mounts again, fresh, when the panel is shown. `usePanelHidden()` is false for every
-panel a workspace draws. The kept-slot path in `PanelRow` and `PanelRowSlot` (a parked slot that stays mounted, `inert`
-and then `display: none`) has no setting that reaches it.
+A parked panel's view is unmounted and mounts again, fresh, when the panel is shown.
 
 ## The workspace core is React-free, and a row only reads it
 

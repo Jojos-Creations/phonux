@@ -11,7 +11,7 @@ import type { HeaderButton, HeaderButtonContext } from './panelSettings.js';
 import type { ViewHandle } from './panelTemplate.js';
 import { PanelLevelContext } from './panelLevelContext.js';
 import { reportItemShapeOnce } from './panelLevelChecks.js';
-import { PanelHiddenContext, PanelSlotContext, type HeaderButtonsSlot } from './panelSlotContext.js';
+import { PanelSlotContext, type HeaderButtonsSlot } from './panelSlotContext.js';
 
 /** What every listed header button has, whichever form it takes. @public */
 export interface PanelHeaderButtonItemBase {
@@ -173,7 +173,6 @@ function headerRows(doc: Document): HTMLElement[] {
 export function usePanelHeaderButtons(): readonly PanelHeaderButtonItem[] {
   const given = React.useContext(PanelSlotContext)?.headerButtonSlots;
   const present = useIsPresent();
-  const parked = React.useContext(PanelHiddenContext);
   const handle = given?.handle;
   const level = React.useContext(PanelLevelContext);
   const runtime = handle === undefined ? undefined : runtimeOf(handle);
@@ -204,7 +203,7 @@ export function usePanelHeaderButtons(): readonly PanelHeaderButtonItem[] {
           description,
           tooltip,
           sx: slot.sx,
-          press: () => pressSlot(given, runtime, id, slot, c, { present, parked, disabled, hidden }),
+          press: () => pressSlot(given, runtime, id, slot, c, { present, disabled, hidden }),
         };
         if (slot.icon === undefined) items.push({ ...common, form: 'text', icon: undefined });
         else items.push({ ...common, form: 'icon', icon: typeof slot.icon === 'function' ? (slot.icon as (c: HeaderButtonContext) => React.ReactNode)(c) : slot.icon });
@@ -292,9 +291,9 @@ function pressSlot(
   id: string,
   slot: HeaderButton,
   c: HeaderButtonContext,
-  now: { present: boolean; parked: boolean; disabled: boolean; hidden: boolean },
+  now: { present: boolean; disabled: boolean; hidden: boolean },
 ): void {
-  if (!now.present || now.parked || now.disabled || now.hidden) return;
+  if (!now.present || now.disabled || now.hidden) return;
   const button = runtime.buttons.get(id);
   if (button !== undefined && button.ownerDocument.activeElement === button) {
     const rows = headerRows(button.ownerDocument);

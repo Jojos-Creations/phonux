@@ -13,7 +13,7 @@ import { PANEL_HEADER_GAP_PX, PanelHeaderRow, type PanelHeaderRowProps } from '.
 import { type PanelSize } from './hostApi.js';
 import { usePhoneSize } from './phoneFit.js';
 import { useFrameClaim } from './panelFrameClaim.js';
-import { PanelHiddenContext, PanelSlotContext } from './panelSlotContext.js';
+import { PanelSlotContext } from './panelSlotContext.js';
 import { HEADER_ROW_ATTRIBUTE, PanelHeaderButtons, usePanelHeaderButtons } from './panelHeaderButtons.js';
 import { glideCorner } from './sizeGlide.js';
 import { CaptureRegistryContext, type ViewId } from './snapshots.js';
@@ -66,8 +66,7 @@ export interface PanelProps extends Omit<BoxProps, 'children' | 'sx' | 'title'> 
   children: React.ReactNode;
   /**
    * Registers this Panel's own root element with the capture registry a `CaptureRegistryProvider` supplies, so the
-   * host can later ask for a picture of it by id. Omitted: never registered. A panel parked with its view kept
-   * mounted is unregistered while hidden and registered again when shown.
+   * host can later ask for a picture of it by id. Omitted: never registered.
    */
   viewId?: ViewId;
   /** 'never' opts a Panel with a viewId out of registration entirely -- default 'auto'. */
@@ -86,7 +85,6 @@ export function Panel({ title, actions, headerProps, headerButtons = true, grabP
   useFrameClaim('panel');
   const registry = React.useContext(CaptureRegistryContext);
   const rootRef = React.useRef<HTMLDivElement | null>(null);
-  const hidden = React.useContext(PanelHiddenContext);
   const declared = React.useContext(PanelSlotContext)?.headerButtonSlots;
   const buttons = usePanelHeaderButtons();
   const drawn = headerButtons && declared !== undefined && title !== undefined && buttons.some((b) => !b.hidden);
@@ -104,10 +102,9 @@ export function Panel({ title, actions, headerProps, headerButtons = true, grabP
   }, [untitled]);
   React.useEffect(() => {
     // No registry (a bare <HostProvider>, as in most tests) or opted out: registering is a no-op, never a throw.
-    // A hidden root is display:none and has no box to photograph, so it leaves the registry until it is shown.
-    if (!registry || !viewId || capture === 'never' || hidden || !rootRef.current) return undefined;
+    if (!registry || !viewId || capture === 'never' || !rootRef.current) return undefined;
     return registry.register(viewId, rootRef.current, 'viewport');
-  }, [registry, viewId, capture, hidden]);
+  }, [registry, viewId, capture]);
   return (
     <PanelChromeVisibleContext.Provider value={visible}>
     <Box

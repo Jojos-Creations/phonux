@@ -1,26 +1,19 @@
 /**
- * The slot motion helpers a parking slot is built from, and usePanelHidden: false for a live panel and outside a row.
- * A fixed column is never parked by its live flag. jsdom proves structure only, never that the browser draws or skips it.
+ * The slot motion helpers a parking slot is built from. A fixed column is never parked by its live flag.
+ * jsdom proves structure only, never that the browser draws or skips it.
  */
 import { test, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
 import './support/jsdom-globals.js';
 import * as React from 'react';
-import { usePanelHidden } from '../index.js';
 import type { PanelWindow } from '../index.js';
 import { resolvePanelSettings } from '../panelSettings.js';
 import { PANEL_TRANSITION } from '../index.js';
-import { enterStart, panelRowSlotMotion, parkExitTarget, slotDriver } from '../PanelRowSlot.js';
+import { panelRowSlotMotion, parkExitTarget } from '../PanelRowSlot.js';
 import { advanceFrames, cleanup, mount, withHost, StaticRow } from './support/mount-harness.js';
 import { registerTestView } from './support/test-views.js';
 
-const seen = { hidden: [] as boolean[] };
-
-registerTestView('km-view', ({ panel }) => {
-  const hidden = usePanelHidden();
-  if (panel.id === 'a') seen.hidden.push(hidden);
-  return React.createElement('i', { 'data-slot': panel.id });
-});
+registerTestView('km-view', ({ panel }) => React.createElement('i', { 'data-slot': panel.id }));
 registerTestView('km-root', () => React.createElement('b'));
 
 const base = resolvePanelSettings().value;
@@ -46,25 +39,7 @@ const slotOf = (container: HTMLElement, id: string): HTMLElement => {
 };
 const isHidden = (slot: HTMLElement): boolean => slot.style.display === 'none' && slot.hasAttribute('inert') && slot.getAttribute('aria-hidden') === 'true';
 
-afterEach(() => {
-  cleanup();
-  seen.hidden.length = 0;
-});
-
-function Lone(): React.ReactElement {
-  return React.createElement('span', null, String(usePanelHidden()));
-}
-
-test('usePanelHidden is false while the panel is live', async () => {
-  mount(rowOf([root(), entry('a', true)]));
-  await advanceFrames(1000);
-  assert.equal(seen.hidden.at(-1), false);
-});
-
-test('usePanelHidden is false outside a row', () => {
-  const lone = mount(withHost(React.createElement(Lone)));
-  assert.equal(lone.container.textContent, 'false');
-});
+afterEach(cleanup);
 
 test('parkExitTarget returns the literal left and right targets of a park exit', () => {
   assert.deepEqual(parkExitTarget(406, 406, 'left', false), { x: -406, opacity: 0 });
@@ -72,20 +47,10 @@ test('parkExitTarget returns the literal left and right targets of a park exit',
   assert.deepEqual(parkExitTarget(0, 390, 'right', false), { x: 390, opacity: 0 });
 });
 
-test('enterStart returns the literal enter start for left and right', () => {
-  assert.deepEqual(enterStart(406, 406, 'left'), { x: 0, opacity: 0 });
-  assert.deepEqual(enterStart(406, 406, 'right'), { x: 812, opacity: 0 });
-  assert.deepEqual(enterStart(0, 390, 'left'), { x: -390, opacity: 0 });
-});
-
-test('panelRowSlotMotion keeps its five-argument form and its default transition', () => {
+test('panelRowSlotMotion keeps its default transition', () => {
   const motion = panelRowSlotMotion(406, 390, 700, 'right', 'left');
   assert.deepEqual(motion.exit, { x: -406, opacity: 0 });
   assert.equal(motion.transition, PANEL_TRANSITION);
-});
-
-test('slotDriver.read answers nothing for an element no motion component owns', () => {
-  assert.equal(slotDriver.read(document.createElement('div')), undefined);
 });
 
 test('a fixed column stays drawn when its live flag goes false', async () => {

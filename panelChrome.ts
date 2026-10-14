@@ -336,7 +336,7 @@ export function useChromeFade(visible: boolean): (node: HTMLElement | null) => v
   const systemReduced = useReducedMotion() === true;
   const reduced = configReduced || systemReduced;
   const easeKey = JSON.stringify(fadeEase);
-  const instant = fadeMs === 0 || reduced || slot?.animated === false;
+  const instant = fadeMs === 0 || reduced;
   const target = mode === 'always' || visible ? 1 : 0;
   const node = React.useRef<HTMLElement | null>(null);
   const run = React.useRef<{ stop(): void } | null>(null);
