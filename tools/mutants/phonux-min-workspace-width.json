@@ -80,7 +80,7 @@
       "find": "minWorkspaceWidth({ phoneWidth: i.phoneWidth,",
       "replace": "minWorkspaceWidth({ phoneWidth: i.containerWidth > 0 ? Math.min(i.phoneWidth, i.containerWidth / 5) : i.phoneWidth,",
       "expectRed": [
-        "it does not depend on the window it bounds"
+        "unmeasured and at every container width"
       ]
     },
     {

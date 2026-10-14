@@ -60,7 +60,7 @@ test('the tablet defaults to the tier table width (768): no fixed column, phone 
 
 test('a fractional phone width rounds the minimum up to a whole pixel, never down', () => {
   assert.equal(minWorkspaceWidth({ phoneWidth: 390.2, fixedColumnCount: 1, gap: 16, tabletWidth: 0 }), 1235);
-  assert.equal(minWorkspaceWidth({ phoneWidth: 390.8, fixedColumnCount: 1, gap: 16, tabletWidth: 0 }), 1236);
+  assert.equal(minWorkspaceWidth({ phoneWidth: 390.8, fixedColumnCount: 1, gap: 16, tabletWidth: 0 }), 1237);
 });
 
 test('refuses a count that is not a whole number, or a phone slot count below one', () => {
