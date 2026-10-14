@@ -758,7 +758,7 @@ export interface PanelsInput {
     resetHostDataOnRestore?: (hostData: JsonValue | undefined, panel: PanelWindow) => JsonValue | undefined;
     rootId: string;
     storage?: WorkspaceStorage;
-    templates?: readonly PanelTemplate[];
+    templates?: readonly AnyPanelTemplate[];
     tuning?: WorkspaceTuning;
     workspace?: WorkspaceHandle;
     workspaceDefaults?: Omit<PanelSettings, 'tuning'>;
