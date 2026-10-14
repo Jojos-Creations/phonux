@@ -5,8 +5,9 @@
 ### Fixed
 
 - A trackpad swipe on a stepping row is one step. Its deltas ramp up before they fade, and every rising event after the 60 ms
-  lock used to step again, so one swipe ran through several stops and a wide panel skipped its 1, 2, 3 slot sizes. Events that
-  rise before the deltas have first fallen no longer step; a wheel at constant speed and a new swipe in the tail still do.
+  lock used to step again, so one swipe ran through several stops and a wide panel skipped its 1, 2, 3 slot sizes. After a step
+  an event steps again only on a reversal, or when it is 1.5 times the smallest delta seen since the deltas fell (a new swipe in
+  the tail). A plateau of equal deltas no longer steps repeatedly: a held mouse wheel is one step per gesture.
 
 ### Added
 

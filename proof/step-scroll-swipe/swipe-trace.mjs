@@ -1,3 +1,4 @@
+// Drives the phonux-app web build (npx vite, port 5173; URL=... overrides) with a ramp-peak-fade wheel stream; run from any directory.
 import { chromium } from '/opt/node-tools/node_modules/playwright-core/index.mjs';
 const [width = '1800', mode = 'visible', n = '4', grow = '4:2'] = process.argv.slice(2);
 const browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium-1194/chrome-linux/chrome', args: ['--no-sandbox'] });
