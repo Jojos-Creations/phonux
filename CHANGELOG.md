@@ -5,8 +5,8 @@
 ### Added
 
 - A template may declare the panel API level it was written against: `definePanel({ id, view, api: 1 })`. Leaving `api` out
-  means the newest level, `PANEL_API` (also new, with the `PanelApiLevel` type). Level 1 is the panel-facing API of
-  0.2.0-rc.3. A level the library does not serve throws `invalid-template` from `definePanel`, `createWorkspace` and
+  means the newest level, `PANEL_API` (also new, with the `PanelApiLevel` type). A level is the package major version the
+  panel was written for. Before 1.0.0 level 1 moves with the prereleases; at 1.0.0 it is frozen. A level the library does not serve throws `invalid-template` from `definePanel`, `createWorkspace` and
   `registerTemplate`. Nothing changes for a template that sets nothing: there is one level today, and every level stays served until it is deprecated.
 
 ## 0.2.0-rc.3

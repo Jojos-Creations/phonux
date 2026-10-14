@@ -1,6 +1,6 @@
 /**
  * A panel written against panel API level 1: a view, a footer, template settings with a header button, and the slot hooks
- * and `useViewState` a view calls. It never changes to follow the library; a change that breaks it breaks level 1.
+ * and `useViewState` a view calls. Before 1.0.0 it is edited with level 1; from 1.0.0 it never changes to follow the library, and a change that breaks it needs a new level.
  */
 import * as React from 'react';
 import { definePanel, usePanelPinned, usePanelTuning, useViewState } from '../../../index.js';

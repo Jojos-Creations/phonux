@@ -25,6 +25,10 @@ function fail(message) {
 const lockProblem = lockfileVersionProblem(PHONE_DIR);
 if (lockProblem) fail(lockProblem);
 
+const levelCheck = spawnSync(join(REPO_ROOT, 'node_modules', '.bin', 'tsx'), [fileURLToPath(new URL('./phonux-api-level-version.ts', import.meta.url)), PHONE_DIR], { encoding: 'utf8' });
+if (levelCheck.error) fail(`could not run the panel API level check (${levelCheck.error.message}); this proved nothing`);
+if (levelCheck.status !== 0) fail(levelCheck.stderr.trim() || `the panel API level check exited ${levelCheck.status}`);
+
 // Cheapest check first: a taken name@version makes the rest of the run pointless, and versions are never reusable.
 const view = spawnSync('npm', ['view', spec, 'version'], { encoding: 'utf8' });
 if (view.error) fail(`could not run npm view for ${spec} (${view.error.message}); this proved nothing`);
