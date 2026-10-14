@@ -44,7 +44,7 @@ const saved = await page.evaluate(() => window.__saved());
 check('the lock is saved as closable false', saved.includes('"closable":false'), saved.slice(0, 300));
 
 await open(JSON.parse(saved));
-const after = await page.evaluate((k) => { const p = window.__ws.panels.get(k); return p && p.getSettings().value.closable; }, id);
+const after = await page.evaluate((k) => { const p = window.__ws.panels.get(k); return p?.getSettings().value.closable; }, id);
 check('the lock survives a reload from the saved file', after === false, String(after));
 
 const unlocked = await page.evaluate(async (k) => { const h = window.__handles.get(k); const ok = h.configure({ closable: null }).ok; await new Promise((r) => setTimeout(r, 200)); return [ok, window.__ws.panels.get(k).getSettings().value.closable]; }, id);
