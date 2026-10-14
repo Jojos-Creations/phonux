@@ -54,7 +54,7 @@ export function enterDirectionOf(from: ResolvedPanelSettings['enterFrom'], ancho
 function renderedSummary(p: PanelRowEntry, width: number, height: number | undefined, drawnSlots: number | undefined, fitSlots: number | undefined) {
   const summary = summarisePanel(p);
   if (p.slots !== undefined) return { ...summary, drawnSlots, fitSlots, size: summary.size && { ...summary.size, width, height: height ?? summary.size.height } };
-  return summary.size && summary.size.width !== width && (p.formFactor ?? 'phone') !== 'phone' ? { ...summary, size: { ...summary.size, width } } : summary;
+  return summary.size && summary.size.width !== width && (p.slots ?? 1) > 1 ? { ...summary, size: { ...summary.size, width } } : summary;
 }
 
 /** What a view mounted outside any row is told: the library defaults, which `resolvePanelSettings` fills in for the derived keys too. */
@@ -78,13 +78,13 @@ export const usePanelCloseEligible = (): boolean => {
   return slot === undefined ? true : slot.collapsible && slot.closable;
 };
 /**
- * What this panel's own settings let a person do with it: close, drag, re-anchor and resize it, and which tiers it
+ * What this panel's own settings let a person do with it: close, drag, re-anchor and resize it, and the most slots it
  * may take. Outside a row: the library defaults.
  * @public
  */
-export const usePanelCapabilities = (): Pick<ResolvedPanelSettings, 'closable' | 'draggable' | 'placeable' | 'resizable' | 'formFactors'> => {
+export const usePanelCapabilities = (): Pick<ResolvedPanelSettings, 'closable' | 'draggable' | 'placeable' | 'resizable' | 'maxSlots'> => {
   const slot = React.useContext(PanelSlotContext) ?? OUTSIDE_ROW;
-  return { closable: slot.closable, draggable: slot.draggable, placeable: slot.placeable, resizable: slot.resizable, formFactors: slot.formFactors };
+  return { closable: slot.closable, draggable: slot.draggable, placeable: slot.placeable, resizable: slot.resizable, maxSlots: slot.maxSlots };
 };
 /** The widths this entry's drag can cross (reorderStepsForOffset's input). Unprovided: none, so no hop.
  * @public */
@@ -238,7 +238,7 @@ export function PanelRow({
   });
   // Layout, capacity and neighbours are computed over `present` alone: a kept entry occupies a slot but no width.
   const rendered = entries.filter((p) => isPresent(p) || keepsMounted(p));
-  // Every present entry's OWN width, in row order. An always-shown column needs no special case: setFormFactor
+  // Every present entry's OWN width, in row order. An always-shown column needs no special case: setSlots
   // no-ops on a collapsible:false id, so panelWidthOf gives it `phoneWidth`.
   const numberAt = (p: PanelRowEntry): number => (rowNumbers === undefined ? -1 : rowNumbers.ids.indexOf(p.id));
   // While a host resizes a panel by hand every other panel keeps the width it was last drawn at, so nothing moves under the grabber.
@@ -345,7 +345,7 @@ export function PanelRow({
           const kept = presentIndex < 0;
           const rest = kept ? restRef.current.get(p.id)! : { leftOffset: leftOffsets[presentIndex]!, width: widths[presentIndex]! };
           const Component = resolveViewIn(templateOf, p.view);
-          const { closable, draggable, placeable, resizable, formFactors, enterFrom, exitTo, closeExit, animated, layer, scrollOnDrag, headerButtons, frame } = effective(p);
+          const { closable, draggable, placeable, resizable, maxSlots, enterFrom, exitTo, closeExit, animated, layer, scrollOnDrag, headerButtons, frame } = effective(p);
           const own = slotTuning(workspaceTuning, binding.panelTuning(p as PanelWindow));
           const handle = viewContext.handleFor(panelKey(p));
           const report = binding.reportError;
@@ -364,7 +364,7 @@ export function PanelRow({
                 draggable,
                 placeable,
                 resizable,
-                formFactors,
+                maxSlots,
                 frame,
                 id: p.id,
                 animated,

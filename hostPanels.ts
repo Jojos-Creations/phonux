@@ -38,7 +38,6 @@ export function hostPanelsOf(provided: ProvidedPanels): PanelsAPI {
     create: create as PanelsAPI['create'],
     activate: withWarning('activate', 'useWorkspace().panels.get(key)?.show()', provided.activate),
     move: withWarning('move', 'useWorkspace().panels.get(key)?.move(count)', provided.move),
-    setFormFactor: withWarning('setFormFactor', 'useWorkspace().panels.get(key)?.setFormFactor(next)', provided.setFormFactor),
     setSlots: withWarning('setSlots', 'useWorkspace().panels.get(key)?.setSlots(slots)', provided.setSlots),
     reanchor: withWarning('reanchor', 'useWorkspace().panels.get(key)?.place(anchor)', provided.reanchor),
     close: withWarning('close', 'useWorkspace().panels.get(key)?.close()', provided.close),

@@ -5,8 +5,12 @@ import { test, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
 import './support/jsdom-globals.js';
 import * as React from 'react';
-import { definePanel, usePanelDragProps, usePanelPinned } from '../index.js';
+import { act } from 'react';
+import { createWorkspace, definePanel, Panel, PanelFrame, usePanelDragProps, usePanelPinned } from '../index.js';
+import { memoryWorkspaceStorage } from '../fakeHost.js';
 import { cleanup } from './support/mount-harness.js';
+import { drag } from './support/drag-gesture.js';
+import { flush, mountWorkspace } from './support/workspace-row.js';
 import { pinRig } from './support/pin-rig.js';
 
 afterEach(cleanup);
@@ -81,4 +85,53 @@ test('usePanelDragProps offers a close to a closable panel only, and a reorder t
   r.ws.addPanel('probe', { settings: { draggable: false } });
   await r.settle();
   assert.deepEqual(read(), [['true', 'true'], ['false', 'true'], ['true', 'false']]);
+});
+
+const wait = (): Promise<void> => act(async () => void (await new Promise((done) => setTimeout(done, 80))));
+
+/** A default-frame row of three bare panels over a memory file; the file's anchors by panel key. */
+async function savedRow(): Promise<{ m: ReturnType<typeof mountWorkspace>; ws: ReturnType<typeof createWorkspace>; anchors: () => Promise<string[]> }> {
+  const store = memoryWorkspaceStorage();
+  const bare = (id: string) => definePanel({ id, settings: { title: id, multiple: true }, view: () => React.createElement('p', { 'data-body': id }) });
+  const root = definePanel({ id: 'root', view: () => React.createElement(Panel, { title: 'History', children: React.createElement(PanelFrame, null) }) });
+  const ws = createWorkspace({ mount: false, root, templates: [bare('one'), bare('two'), bare('three')], storage: store, tuning: { saveQuietMs: 5 } });
+  for (const id of ['one', 'two', 'three']) ws.addPanel(id, { id: `${id}-1` });
+  const m = mountWorkspace(ws, { width: 1280 });
+  await flush();
+  await wait();
+  const anchors = async (): Promise<string[]> => ((await store.load())!.panels.filter((p) => (p.overrides as { anchor?: unknown } | undefined)?.anchor !== undefined).map((p) => p.key!));
+  return { m, ws, anchors };
+}
+
+test('a real drag release records the person\'s arrangement in the saved file, and a code move does not', async () => {
+  const r = await savedRow();
+  assert.deepEqual(await r.anchors(), [], 'control: nothing recorded yet');
+  const grab = r.m.container.querySelector<HTMLElement>('[data-body="one"]')!.closest('[data-row-slot]')!.querySelector<HTMLElement>('[data-panel-grab-bar]')!;
+  await drag(grab, { dx: 450, dy: 0 });
+  await wait();
+  assert.notDeepEqual(await r.anchors(), [], 'the release saved the arrangement as the person\'s override');
+  r.m.unmount();
+  cleanup();
+  const code = await savedRow();
+  const one = code.ws.panels.list().find((h) => h.templateId === 'one')!;
+  act(() => void one.move(1));
+  await wait();
+  assert.deepEqual(await code.anchors(), [], 'a move by code leaves the file unrecorded');
+});
+
+test('a fractional or non-finite count changes nothing and answers unchanged', async () => {
+  const r = await pinRig();
+  assert.equal(letter(r.turn(() => r.h.a!.move(1.5))), 'F');
+  assert.equal(letter(r.turn(() => r.h.a!.move(Number.NaN, 'person'))), 'F');
+  assert.equal(r.order().join(' '), 'root a b c');
+});
+
+test('the raw left and right words step one slot the right way', async () => {
+  const r = await pinRig();
+  const raw = r.provided() as unknown as { move: (id: string, d: 'left' | 'right') => void };
+  const id = r.entry('c').id;
+  r.turn(() => raw.move(id, 'left'));
+  assert.equal(r.order().join(' '), 'root a c b');
+  r.turn(() => raw.move(id, 'right'));
+  assert.equal(r.order().join(' '), 'root a b c');
 });

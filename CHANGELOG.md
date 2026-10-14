@@ -4,6 +4,15 @@
 
 ### Breaking
 
+- The tier family is gone; a panel's width is its slot count. Removed: the `formFactor` and `formFactors` settings (a template that sets either
+  throws `invalid-settings`), both `setFormFactor` verbs (the handle's and `PanelsAPI`'s), `PanelSummary.formFactor`, `PanelState.formFactor`,
+  `PanelSize.formFactor`, `CreatePanelOptions.formFactor`, `ViewPatch.formFactor`, `PanelUserLayer.formFactor`, the `FormFactor` type, `TIER_SIZES`,
+  and `usePanelCapabilities().formFactors`. **Migration:** phone is `slots: 1`, tablet `slots: 2`, desktop every visible slot (`maxSlots` is the cap, default
+  every slot that fits); `setFormFactor(id, 'tablet')` is `setSlots(id, 2)`; `formFactors: ['phone']` is `maxSlots: 1`; `usePanelCapabilities()` returns `maxSlots`.
+  `slots` is now a plain default of 1 and `maxSlots` of every visible slot. The refusal code `tier-not-allowed` is `slots-above-max`: lowering `maxSlots` below the
+  panel's slots, or pinning a panel wider than one slot into a fixed column. `CreatePanelOptions` and `ViewPatch` take `slots`.
+  A saved file from an older library still loads: a top-level `formFactor` on an entry and `overrides.formFactor` read as that tier's slot count (`slots` wins when both are
+  there). A file this version writes holds `slots` only for a panel wider than one slot and never a `formFactor`. `panelWidthOf` and the row price an entry with no `slots` as one phone width.
 - `registerView`, `resolveView`, `ViewComponent` and `ViewProps` are removed from `phonux`, and a row is always fed by a workspace.
   A plain component becomes a template: `definePanel({ id, view })` with `createWorkspace({ templates })`, or
   `workspace.registerTemplate`. A `view` key no template of the row's workspace answers to still renders the unregistered-view placeholder.
@@ -15,6 +24,7 @@
 
 ### Fixed
 
+- A panel added with `addPanel` and no title of its own now gets `labels.panelTitle(id)`, the same default the Host-bag `create` gave, whether it is added before or after the workspace mounts.
 - A trackpad swipe on a stepping row is one step. Its deltas ramp up before they fade, and every rising event after the 60 ms
   lock used to step again, so one swipe ran through several stops and a wide panel skipped its 1, 2, 3 slot sizes. After a step
   an event steps again only on a reversal, or when it is 1.5 times, and at least 4 units above, the smallest delta seen since the
@@ -22,6 +32,7 @@
 
 ### Changed
 
+- A view may lock its own panel: `handle.configure({ closable: false })` from the view makes the panel not closable at once, and `null` removes the lock. A view still cannot ask for `closable: true`, and the root still answers `settings-conflict` to it. The lock is saved as before. `ViewPatch` gains `closable`.
 - A panel has one public id, its key. A template panel's `panel.id` was the row's counter (`3`) while `handle.id`, `PanelState.id` and `usePanelState` used the key (`web~3`), so an id from one place failed silently in another. Now `panel.id`, `PanelSummary.id` (`panelList`, `recentlyClosed`), every `PanelsAPI` verb, `useActivePanel` (its value and its setter), the id the snapshot trigger is given and `tuning.initialScroll.panel` all use the key. A hand-built entry's key is its id, so a view that never used templates sees no change. **Migration:** a view that held `panel.id` and passed it to a handle, manager or `usePanelState` needs nothing; one that stored the counter id (saved, or in a `viewId` for pictures) stores the key instead.
 - `handle.move(by, source?)` takes a signed slot count in place of `'left'` or `'right'`: `handle.move(-3, 'person')` is one gated call that crosses up to three
   slots to the left, stops at an end or a panel that cannot be crossed, and answers `changed: true` when at least one slot was crossed. A drag over several
@@ -33,13 +44,14 @@
 
 ### Deprecated
 
-- The row's counter id as a panel id. `PanelsAPI` verbs, `useActivePanel`'s setter and `tuning.initialScroll.panel` still accept the counter id a view held before keys were the only id, with one development warning per id naming the key; it stops resolving in a later release.
-- `useHost().panels.create`, `activate`, `move`, `setFormFactor`, `setSlots`, `reanchor` and `close`. They keep working, with one development warning per verb naming the replacement on `useWorkspace()` (a panel's handle, or `addPanel` for create); they are removed in a later release. `panelList`, `maxFitPanels`, `recentlyClosed`, `undoClose` and `clearAll` stay. A view is now given only those `PanelsAPI` members as `useHost().panels`, not the row's own (`entries`, `rowNumbers`, `tuning` and the rest).
+- The row's counter id as a panel id. `PanelsAPI` verbs, `useActivePanel`'s setter and `tuning.initialScroll.panel` still accept the counter id a view held before keys were the only id, with one development warning per id naming the key; it stops resolving in 0.3.0.
+- `useHost().panels.create`, `activate`, `move`, `setSlots`, `reanchor` and `close`. They keep working, with one development warning per verb naming the replacement on `useWorkspace()` (a panel's handle, or `addPanel` for create); they are removed in a later release. `panelList`, `maxFitPanels`, `recentlyClosed`, `undoClose` and `clearAll` stay. A view is now given only those `PanelsAPI` members as `useHost().panels`, not the row's own (`entries`, `rowNumbers`, `tuning` and the rest).
 
 ### Added
 
+- `configureTuning` is accepted before the workspace is attached or loaded (only a disposed workspace refuses), and `column.configureTuning(patch)` applies one tuning change to every workspace in the column, including ones added or restored later.
 - `useWorkspace()` gives a view the manager of its workspace and `addPanel`, so a view such as History opens, closes, shows and creates other panels by key through the handles `panels.get(key)` returns. The type is `ViewWorkspace`: the panel manager plus `addPanel`, without `dispose`, `update` or `rename`, and the same object on every render. It is `undefined` outside a row that has a workspace. `useWorkspaceManager()` stays read-only.
-
+- `AnyPanelTemplate`: `WorkspaceOptions.templates`, `root` and `registerTemplate` take a template of any params, so a template made with `definePanel` for typed params needs no cast. `addPanel` still checks `params`.
 - `usePanelDragProps()` returns the `onClose` and `reorder` of the panel it is called in for `DragToClose`, both going through the panel's handle. The default frame uses it.
 - A column of workspaces, one above the other. `createWorkspaceColumn(options)` renders itself like `createWorkspace`, and
   `column.addWorkspace(options)` is the one call that creates a workspace, adds it and returns its `WorkspaceHandle`. ArrowUp and
@@ -54,6 +66,11 @@
   `usePhoneSize()` returns the size a panel is drawn at; `useHost().device.size` stays the preferred size. Off, nothing changes.
   A hand-wired flow calls `usePhoneFit(containerRef, containerWidth, preferred, tuning, topInset?)` and gives the size to `useProvidePanels`
   and, with the new `Workspace` prop `phoneHeight`, to `Workspace`.
+- `minWorkspaceWidth({ phoneWidth, fixedColumnCount, phoneSlots?, tabletWidth?, gap? })` (with the `MinWorkspaceWidthInput`
+  type) gives the narrowest row container that shows every fixed column plus two phone slots, or plus one tablet panel
+  (768) when that is wider, and `PanelsAPI.minWorkspaceWidth` reports it for the live row, from its phone width,
+  `tuning.rowGap` and fixed columns, before the row is measured too. A host sets its window minimum from it (Tauri
+  `setMinSize`). History alone at phone 390 and gap 16 is 1234; Profile and History at gap 24 is 1680.
 - A template may declare the panel API level it was written against: `definePanel({ id, view, api: 1 })`. Leaving `api` out
   means the newest level, `PANEL_API` (also new, with the `PanelApiLevel` type). A level is the package major version the
   panel was written for. Before 1.0.0 level 1 moves with the prereleases; at 1.0.0 it is frozen. A level the library does not serve throws `invalid-template` from `definePanel`, `createWorkspace` and

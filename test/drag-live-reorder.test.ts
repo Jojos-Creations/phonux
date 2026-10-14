@@ -110,15 +110,15 @@ test('dragging left shifts the panels to the left of the dragged one the other w
 });
 
 test('a panel wider than its neighbours makes them move by ITS span, and a narrow one moves them by its own', async () => {
-  const wide = made('s1', { formFactors: ['phone', 'tablet'] });
+  const wide = made('s1', { maxSlots: 2 });
   const m = mountRow(row(rootEntry(), wide, made('s2'), made('s3')), 3000);
-  await act(async () => m.latest().setFormFactor?.('s1', 'tablet'));
+  await act(async () => m.latest().setSlots?.('s1', 2));
   await advanceFrames(2000);
-  const tabletSpan = m.latest().rowNumbers.widths[m.latest().rowNumbers.ids.indexOf('s1')]! + 16;
+  const wideSpan = m.latest().rowNumbers.widths[m.latest().rowNumbers.ids.indexOf('s1')]! + 16;
   const before = xOf(m, 's2');
   await drag(handleOf(m, 's1'), { dx: SPAN * 0.5 + 10, dy: 0, steps: 8, hold: 8, keepDown: true });
   await advanceFrames(1000);
-  assert.equal(xOf(m, 's2'), before - tabletSpan, 'the phone neighbour moves by the tablet panel\'s span');
+  assert.equal(xOf(m, 's2'), before - wideSpan, 'the phone neighbour moves by the two-slot panel\'s span');
   await release(SPAN * 0.5 + 10, 0);
   await advanceFrames(3000);
 });

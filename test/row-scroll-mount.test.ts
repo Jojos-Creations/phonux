@@ -225,12 +225,12 @@ const follow = async (layer: PanelSettings, from: number, run: (p: ProvidedPanel
   return m.container.scrollLeft;
 };
 
-test('setFormFactor on an in-view panel scrolls the least distance that shows it whole: b to tablet from 0 ends at 234', async () => {
-  assert.equal(await follow({ scrollOnMove: 'follow' }, 0, (p) => p.setFormFactor('a', 'tablet')), 234);
+test('setSlots on an in-view panel scrolls the least distance that shows it whole: a to two slots from 0 ends at 234', async () => {
+  assert.equal(await follow({ scrollOnMove: 'follow' }, 0, (p) => p.setSlots('a', 2)), 234);
 });
 
-test('setFormFactor on a panel out of view scrolls nothing', async () => {
-  assert.equal(await follow({ scrollOnMove: 'follow' }, 0, (p) => p.setFormFactor('e', 'tablet')), 0);
+test('setSlots on a panel out of view scrolls nothing', async () => {
+  assert.equal(await follow({ scrollOnMove: 'follow' }, 0, (p) => p.setSlots('e', 2)), 0);
 });
 
 test('reanchor of a panel in view to the left of the root follows it: c, half in view at 406, lands at the strip start and the row scrolls to 0', async () => {
@@ -238,9 +238,9 @@ test('reanchor of a panel in view to the left of the root follows it: c, half in
 });
 
 test('scrollOnMove none records none, and the default reads LIBRARY_PANEL_DEFAULTS', async () => {
-  assert.equal(await follow({ scrollOnMove: 'none' }, 0, (p) => p.setFormFactor('a', 'tablet')), 0);
+  assert.equal(await follow({ scrollOnMove: 'none' }, 0, (p) => p.setSlots('a', 2)), 0);
   const def = LIBRARY_PANEL_DEFAULTS.scrollOnMove;
-  assert.equal(await follow({}, 0, (p) => p.setFormFactor('a', 'tablet')), def === 'follow' ? 234 : 0);
+  assert.equal(await follow({}, 0, (p) => p.setSlots('a', 2)), def === 'follow' ? 234 : 0);
 });
 
 test('a drag release (move) records none', async () => {
@@ -250,13 +250,13 @@ test('a drag release (move) records none', async () => {
 test('while a claim is held a follow request is dropped with the note, and the one after the release runs', async () => {
   const m = mountRow({ entries: sixPanels({ scrollOnMove: 'follow' }) });
   const claim = rowScrollerFor(m.container).claim()!;
-  act(() => m.latest().setFormFactor('a', 'tablet'));
+  act(() => m.latest().setSlots('a', 2));
   await settle();
   assert.equal(m.container.scrollLeft, 0);
   assert.deepEqual(m.notes.map((n) => n.code), ['scroll-dropped-during-drag']);
   claim.release();
-  act(() => m.latest().setFormFactor('a', 'phone'));
-  act(() => m.latest().setFormFactor('a', 'tablet'));
+  act(() => m.latest().setSlots('a', 1));
+  act(() => m.latest().setSlots('a', 2));
   await settle();
   assert.equal(m.container.scrollLeft, 234);
 });

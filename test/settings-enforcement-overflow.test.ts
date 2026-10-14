@@ -10,7 +10,7 @@ import './support/jsdom-globals.js';
 import * as React from 'react';
 import { act } from 'react';
 import { definePanel, resolvePanelSettings, useProvidePanels } from '../index.js';
-import type { FormFactor, PanelSettings, PanelWindow, ProvidedPanels } from '../index.js';
+import type { PanelSettings, PanelWindow, ProvidedPanels } from '../index.js';
 import { computeRowLayout } from '../panelRowLayout.js';
 import { applyTemplate, effective } from '../panelSettings.js';
 import { appendPanel, createHistoryPanel } from '../panelWindow.js';
@@ -73,7 +73,7 @@ function seeded(seed: number): () => number {
     return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
   };
 }
-const TIERS: readonly FormFactor[] = ['phone', 'tablet', 'desktop'];
+const SLOT_COUNTS: readonly number[] = [1, 2, 3];
 
 interface Run {
   /** The ids that were open and not hidden but are parked, or hidden and live, after the last step. */
@@ -122,7 +122,7 @@ function sequence(seed: number, defaults: Omit<PanelSettings, 'tuning'>, steps: 
       hiddenIds.delete(id);
       act(() => latest!.activate(id));
     } else if (op === 3) {
-      act(() => latest!.setFormFactor(pick(open), pick(TIERS)));
+      act(() => latest!.setSlots(pick(open), pick(SLOT_COUNTS)));
     } else if (op === 4) {
       act(() => latest!.close(pick(open)));
     } else if (op === 5) {
@@ -313,11 +313,11 @@ test("workspaceDefaults {overflow: 'park'}: the created entries park at capacity
   assert.equal(p.now().rowScroll, false);
 });
 
-test('a restore: entries keep their saved live, anchor, tier, size and listed, and a permanent column stays a live fixed column', async () => {
+test('workspaceDefaults on a restore: entries keep their saved live, anchor, slots, size and listed, and a permanent column stays a live fixed column', async () => {
   const saved = {
     version: 1 as const,
     panels: [
-      { id: 'w', view: 'ov-view', url: 'https://w.example', live: true, anchor: { panel: ROOT, position: 'right' as const, priority: 0 }, formFactor: 'tablet' as const, layer: 'raised' as const, listed: false },
+      { id: 'w', view: 'ov-view', url: 'https://w.example', live: true, anchor: { panel: ROOT, position: 'right' as const, priority: 0 }, slots: 2, layer: 'raised' as const, listed: false },
       { id: 'c', view: 'ov-view', url: '', live: true, permanent: true, anchor: { panel: ROOT, position: 'right' as const, priority: 1 } },
       { id: 'h', view: 'ov-view', url: 'https://h.example', live: false, anchor: { panel: ROOT, position: 'right' as const, priority: 2 } },
     ],
@@ -334,7 +334,7 @@ test('a restore: entries keep their saved live, anchor, tier, size and listed, a
   const withDefaults = await restore({});
   assert.deepEqual(withDefaults.map((e) => e.id === ROOT || e.settings !== undefined), [true, true, true, true]);
   const [, wide, column, hidden] = withDefaults;
-  assert.deepEqual([wide!.live, wide!.formFactor, wide!.size?.width, wide!.listed, wide!.layer], [true, 'tablet', 768, false, 'raised']);
+  assert.deepEqual([wide!.live, wide!.slots, wide!.size?.width, wide!.listed, wide!.layer], [true, 2, 796, false, 'raised']);
   assert.deepEqual([column!.live, column!.collapsible, column!.settings?.parkable], [true, false, false]);
   assert.equal(hidden!.live, false, 'a panel saved parked stays parked');
   assert.deepEqual(withDefaults.map((e) => e.anchor), without.map((e) => e.anchor));
@@ -348,7 +348,7 @@ test('a restore: entries keep their saved live, anchor, tier, size and listed, a
 
 test("the four PanelsAPI comments that promised parking say it applies to a panel whose overflow is 'park'", () => {
   const source = readFileSync(new URL('../hostApi.tsx', import.meta.url), 'utf8');
-  const phrases = ['Appends a live panel', 'Make a panel live in place', "Resizes `id` to `next`'s tier", 'Undo every close in `recentlyClosed`'];
+  const phrases = ['Appends a live panel', 'Make a panel live in place', 'Sets `id` to `slots`', 'Undo every close in `recentlyClosed`'];
   for (const phrase of phrases) {
     const at = source.indexOf(phrase);
     assert.ok(at > 0, `${phrase} is in hostApi.tsx`);

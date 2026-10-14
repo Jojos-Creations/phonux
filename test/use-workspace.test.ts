@@ -84,3 +84,41 @@ test('useWorkspace is the same object on every render', async () => {
   assert.ok(seen.renders.every((r) => r === seen.renders[0]));
 });
 
+
+test('an unknown key gives undefined from panels.get, and a handle never reaches a panel of another workspace', async () => {
+  const { seen, w } = rig();
+  await flush();
+  const other = markerTemplate('target');
+  const w2 = createWorkspace({ mount: false, templates: [other] });
+  w2.addPanel(other);
+  assert.equal(seen.ws!.panels.get('no-such-panel'), undefined, 'unknown key');
+  assert.deepEqual(seen.ws!.panels.list().map((h) => h.id).sort(), ['driver', 'target'], 'control: this workspace lists its own panels');
+  act(() => void w2.panels.get('target')!.close());
+  await flush();
+  assert.equal(w.panels.get('target')!.getState().status, 'live', 'closing the other workspace\'s panel of the same key leaves this one alone');
+});
+
+test('the calling view is unchanged when it closes another panel', async () => {
+  const { seen, w } = rig();
+  await flush();
+  act(() => void seen.ws!.panels.get('target')!.close());
+  await flush();
+  assert.equal(w.panels.get('driver')!.getState().status, 'live');
+  assert.ok(seen.ws!.panels.get('driver'), 'it still reaches itself by key');
+});
+
+test('addPanel on a disposed workspace does not draw a panel', async () => {
+  const { seen, w, m } = rig();
+  await flush();
+  const ws = seen.ws!;
+  act(() => void w.dispose());
+  await flush();
+  let threw = false;
+  try {
+    act(() => void ws.panels.addPanel('extra'));
+  } catch {
+    threw = true;
+  }
+  await flush();
+  assert.equal(m.container.querySelector('[data-template="extra"]'), null, `no panel is drawn (addPanel ${threw ? 'threw' : 'returned'})`);
+});

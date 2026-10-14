@@ -3,12 +3,12 @@
  * that shape and back. DESIGN.md ("Workspace state persistence") holds the rules; this file holds no React and
  * no host code.
  */
-import type { FormFactor, JsonValue } from './hostApi.js';
+import type { JsonValue } from './hostApi.js';
 import { computeRowOrder, deriveAnchorsFromOrder } from './panelRowOrder.js';
 import type { AddPlacement } from './panelSettings.js';
 import { PANEL_UID_FORM } from './panelUid.js';
 import { appendPanel, slotsOf, type PanelWindow } from './panelWindow.js';
-import { ALL_SLOTS, slotsOfTier, tierOfSlots } from './rowConstants.js';
+import { ALL_SLOTS } from './rowConstants.js';
 
 /**
  * One saved panel. `id` only names this panel inside its own file, so an `anchor` can point at another entry;
@@ -35,9 +35,7 @@ export type WorkspacePanelState = {
   // Inline, not PanelAnchor: an interface is not assignable to JsonValue.
   /** Where the panel sits: on `position`'s side of the entry with id `panel` (or the host's root column), ordered by `priority`. */
   anchor: { panel: string; position: 'left' | 'right'; priority: number };
-  /** The panel's tier: the tier of its slots. */
-  formFactor?: FormFactor;
-  /** The panel's slot count, written only when its tier does not already say it (3 slots is the desktop tier, which says "every visible slot"). */
+  /** The panel's slot count, written only when it is more than one. */
   slots?: number;
   /** Whether the panel is a permanent column, as `CreatePanelOptions.permanent`. */
   permanent?: boolean;
@@ -49,12 +47,10 @@ export type WorkspacePanelState = {
   key?: string;
   /** The instance settings layer the panel was created under; absent for a panel code declares again at every launch. */
   instance?: { [key: string]: JsonValue };
-  /** What the person changed: where the panel sits, its tier, whether it is parkable. Present (possibly empty) means the panel owns only the keys it holds. */
+  /** What the person changed: where the panel sits, its slot count, whether it is parkable. Present (possibly empty) means the panel owns only the keys it holds. */
   overrides?: {
     /** Where the person put the panel; `panel` names another entry of this file. */
     anchor?: { panel: string; position: 'left' | 'right'; priority: number };
-    /** The tier the person chose; a file saved before slots holds this instead of `slots`. */
-    formFactor?: FormFactor;
     /** The slot count the person chose. */
     slots?: number;
     /** Whether the person made the panel parkable. */
@@ -99,7 +95,9 @@ export type WorkspaceStorage = {
   save(state: WorkspaceState): void | Promise<void>;
 };
 
-const FORM_FACTORS: readonly unknown[] = ['phone', 'tablet', 'desktop'];
+/** What a file saved before slots holds as a panel's tier, read as the slot count it stood for: desktop was every visible slot. */
+const TIER_SLOTS: Readonly<Record<string, number>> = { phone: 1, tablet: 2, desktop: ALL_SLOTS };
+const isTier = (value: unknown): value is string => typeof value === 'string' && Object.hasOwn(TIER_SLOTS, value);
 
 /** The most tombstones a file keeps; the oldest go first. */
 export const DISMISSED_LIMIT = 256;
@@ -119,7 +117,7 @@ function isSavedPanel(value: unknown): value is WorkspacePanelState {
     isOptional(value.title, 'string') &&
     isOptional(value.listed, 'boolean') &&
     isOptional(value.permanent, 'boolean') &&
-    (value.formFactor === undefined || FORM_FACTORS.includes(value.formFactor)) &&
+    (value.formFactor === undefined || isTier(value.formFactor)) &&
     (value.slots === undefined || isSlotCount(value.slots)) &&
     (value.layer === undefined || value.layer === 'base' || value.layer === 'raised') &&
     isRecord(anchor) &&
@@ -166,9 +164,10 @@ function cleanOverrides(value: unknown, dropped: Dropped[]): NonNullable<Workspa
     else out.anchor = anchor;
   }
   if (value.formFactor !== undefined) {
-    if (FORM_FACTORS.includes(value.formFactor)) out.formFactor = value.formFactor as FormFactor;
+    if (isTier(value.formFactor)) out.slots = TIER_SLOTS[value.formFactor];
     else dropped.push({ key: 'overrides.formFactor', message: 'overrides.formFactor: expected phone, tablet or desktop; dropped' });
   }
+  // A slot count outvotes the tier a file saved before slots holds.
   if (value.slots !== undefined) {
     if (isSlotCount(value.slots)) out.slots = value.slots;
     else dropped.push({ key: 'overrides.slots', message: 'overrides.slots: expected an integer of at least 1; dropped' });
@@ -300,8 +299,7 @@ export function projectWorkspaceState(panels: readonly PanelWindow[], rootId: st
           ...(p.listed !== undefined ? { listed: p.listed } : {}),
           live: p.live,
           anchor: { panel: anchor.panel, position: anchor.position, priority: anchor.priority },
-          ...(p.formFactor !== undefined ? { formFactor: p.formFactor } : {}),
-          ...(p.slots !== undefined && p.slots !== slotsOfTier(p.formFactor ?? 'phone') ? { slots: p.slots } : {}),
+          ...(p.slots !== undefined && p.slots !== 1 ? { slots: p.slots } : {}),
           ...(!p.collapsible ? { permanent: true } : {}),
           ...(p.layer !== undefined ? { layer: p.layer } : {}),
           ...extras,
@@ -313,21 +311,26 @@ export function projectWorkspaceState(panels: readonly PanelWindow[], rootId: st
   };
 }
 
+/** The slot count the tier of an entry saved before slots stood for, or undefined for an entry with no tier. */
+function savedTierSlots(s: WorkspacePanelState): number | undefined {
+  const tier = (s as { formFactor?: unknown }).formFactor;
+  return isTier(tier) ? TIER_SLOTS[tier] : undefined;
+}
+
 /**
  * The settings-free skeleton of one saved entry under `id`: appendPanel owns the creation rules (permanent forces listed
- * false and phone, size comes from the tier), and a permanent column is never parked, so one saved as parked is live.
+ * false and one slot, size comes from the slots), and a permanent column is never parked, so one saved as parked is live.
  * `anchor` is the entry's saved anchor with its target already mapped.
  */
 export function entryFromSaved(s: WorkspacePanelState, id: string, anchor: PanelWindow['anchor'], rootId: string, uid?: string): PanelWindow {
   const entry = appendPanel(
     [],
-    { ...(s.url !== undefined ? { url: s.url } : {}), view: s.view, title: s.title, params: s.params, listed: s.listed, layer: s.layer, formFactor: s.formFactor, permanent: s.permanent },
+    { ...(s.url !== undefined ? { url: s.url } : {}), view: s.view, title: s.title, params: s.params, listed: s.listed, layer: s.layer, slots: s.slots ?? savedTierSlots(s), permanent: s.permanent },
     id,
     rootId,
     ...(uid !== undefined ? [uid] : []),
   )[0]!;
-  const slots = s.permanent === true ? undefined : s.slots;
-  return { ...entry, ...(slots === undefined ? {} : { slots, formFactor: tierOfSlots(slots) }), live: s.permanent === true ? true : s.live, ...(anchor === undefined ? {} : { anchor }) };
+  return { ...entry, live: s.permanent === true ? true : s.live, ...(anchor === undefined ? {} : { anchor }) };
 }
 
 /**

@@ -142,7 +142,7 @@ test('a throw inside the load success handler takes the failed-load path: the wo
     const [only] = m.ids().slice(1);
     assert.deepEqual(m.saves[0], {
       version: 1,
-      panels: [{ id: only, uid: (m.saves[0] as { panels: { uid?: string }[] }).panels[0]!.uid, view: 'pin-persistence', url: '', title: 'later', live: true, anchor: { panel: ROOT, position: 'right', priority: 0 }, formFactor: 'phone', layer: 'base', listed: true, key: only, instance: { title: 'later' }, applied: { placeOnAdd: 'row-end' }, overrides: {} }],
+      panels: [{ id: only, uid: (m.saves[0] as { panels: { uid?: string }[] }).panels[0]!.uid, view: 'pin-persistence', url: '', title: 'later', live: true, anchor: { panel: ROOT, position: 'right', priority: 0 }, layer: 'base', listed: true, key: only, instance: { title: 'later' }, applied: { placeOnAdd: 'row-end' }, overrides: {} }],
     });
   } finally {
     process.removeAllListeners('unhandledRejection');

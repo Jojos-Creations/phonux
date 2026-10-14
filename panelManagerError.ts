@@ -21,7 +21,7 @@ export type PanelRefusal =
   | 'not-draggable'
   | 'not-placeable'
   | 'not-resizable'
-  | 'tier-not-allowed'
+  | 'slots-above-max'
   | 'would-empty-row'
   | 'instance-limit'
   | 'unknown-panel'

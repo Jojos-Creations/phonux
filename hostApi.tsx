@@ -49,18 +49,12 @@ export interface ClosedPageEntry {
  */
 export type JsonValue = string | number | boolean | null | readonly JsonValue[] | { readonly [key: string]: JsonValue };
 
-/** A panel's own visual tier: 'phone', 'tablet' or 'desktop'. The app gives every panel 'phone' by default. @public */
-export type FormFactor = 'phone' | 'tablet' | 'desktop';
-
 /**
- * A panel's own rendered size, carrying its tier alongside the pixels so a size value stays meaningful on its
- * own (e.g. passed to Panel/PanelFrame's optional `size` prop without also passing a separate formFactor).
- * `height: 'fill'` lets a tier fill its container's height instead of a fixed pixel value.
+ * A panel's own rendered size (e.g. passed to Panel/PanelFrame's optional `size` prop).
+ * `height: 'fill'` lets a panel wider than one slot fill its container's height instead of a fixed pixel value.
  * @public
  */
 export interface PanelSize {
-  /** The tier this size belongs to. */
-  formFactor: FormFactor;
   /** Width in CSS px. */
   width: number;
   /** Height in CSS px, or 'fill' to fill the container's height. */
@@ -69,7 +63,7 @@ export interface PanelSize {
 
 /**
  * What a view may know about a panel. The app's own panel record is structurally assignable to it.
- * `formFactor`/`size` are optional so a hand-built or third-party summary without them stays valid, even
+ * `slots`/`size` are optional so a hand-built or third-party summary without them stays valid, even
  * though every panel the app itself creates carries both -- see DESIGN.md.
  * @public
  */
@@ -86,8 +80,6 @@ export interface PanelSummary<P = JsonValue> {
   readonly locked: boolean;
   /** Opaque per-panel data a create() caller supplied; undefined for built-ins. */
   readonly params?: P;
-  /** This panel's own visual tier: the tier of its `slots` (one slot phone, two tablet, more desktop). */
-  readonly formFactor?: FormFactor;
   /** How many phone-panel widths wide the panel is set to; the row draws it at most as wide as the slots that fit (`drawnSlots`). */
   readonly slots?: number;
   /** The most slots the panel may take. */
@@ -158,13 +150,12 @@ export interface CreatePanelOptions {
   /**
    * Makes the new entry a permanent column: `collapsible:false` (never parked by a row gesture or capacity,
    * never a drag source, and counted in the capacity floor) and `listed:false`, forced regardless of
-   * any `listed` also passed -- a permanent column must supply its own close control (History's own
-   * precedent), never the framework's History-row trash. `locked` stays false always: closing it through its
-   * own control still works. Default false.
+   * any `listed` also passed, so a permanent column supplies its own close control rather than the History row's
+   * trash. `locked` stays false always: closing it through its own control still works. Default false.
    */
   permanent?: boolean;
-  /** The new panel's tier (see `setFormFactor`). Ignored with `permanent`: a permanent column is always 'phone'. Default 'phone'. */
-  formFactor?: FormFactor;
+  /** How many phone-panel widths wide the new panel is (see `setSlots`), clamped to 1 and its `maxSlots`. Ignored with `permanent`: a permanent column is always one slot. Default 1. */
+  slots?: number;
 }
 
 /** The panel row: list, open, activate, move, resize, re-anchor and close panels. @public */
@@ -177,6 +168,16 @@ export interface PanelsAPI {
    * and a scrolling row reports the same number. `null` until the row is measured, never 0; absent from a host that does not report it.
    */
   readonly maxFitPanels?: number | null;
+  /**
+   * The narrowest row container, in whole px, that shows every permanent column plus two phone slots, or plus one tablet
+   * panel when that is wider: `minWorkspaceWidth` over the current phone width, row gap and permanent columns. A host
+   * reads it to set its window's minimum width. It never reads the container width, so it is reported before the row is
+   * measured. Unset while the phone width is not a positive finite number. Absent from a host that does not report it.
+   *
+   * It prices the phone at the width the row draws now, so it holds as a floor only where that width does not follow the
+   * window (`phoneFit` off): with `phoneFit` on the drawn phone moves with the window.
+   */
+  readonly minWorkspaceWidth?: number;
   /**
    * Appends a live panel; zero-arg opens a panel of the host's default view. `view` names the template that renders
    * the panel -- an unknown key renders a placeholder, never a crash. No raw
@@ -206,17 +207,11 @@ export interface PanelsAPI {
    */
   move(id: string, direction: 'left' | 'right'): void;
   /**
-   * Resizes `id` to `next`'s tier in place: it stays mounted and live, its content the same node, and the row
-   * reflows around it. If the row no longer fits, OTHER panels whose `overflow` is 'park' park, never this one --
-   * also when one handler resizes, opens or activates several panels, unless the earlier of them already fill the row. No-op for an
-   * unknown id, a permanent column (e.g. History), or a panel already at `next`. See DESIGN.md for the tiers.
-   * @deprecated Use `useWorkspace().panels.get(key)?.setFormFactor(next)`. Still works, with one development warning; removed in a later release.
-   */
-  setFormFactor(id: string, next: FormFactor): void;
-  /**
    * Sets `id` to `slots` phone-panel widths wide, clamped to 1 and the panel's `maxSlots`; the row draws it at most as wide as
-   * fits the window. Otherwise as `setFormFactor`: no-op for an
-   * unknown id, a panel that is not resizable, or a panel already at that count; other panels park if the row no longer fits.
+   * fits the window. It stays mounted and live, its content the same node, and the row reflows around it. If the row no longer fits,
+   * OTHER panels whose `overflow` is 'park' park, never this one -- also when one handler resizes, opens or activates several panels,
+   * unless the earlier of them already fill the row. No-op for an unknown id, a permanent column (e.g. History), a panel that is not
+   * resizable or a panel already at that count. See DESIGN.md for the slots.
    * Optional so a host that does not implement slots still satisfies `PanelsAPI`; the library's own provider (`useProvidePanels`) always implements it.
    * @deprecated Use `useWorkspace().panels.get(key)?.setSlots(slots)`. Still works, with one development warning; removed in a later release.
    */

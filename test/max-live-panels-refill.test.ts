@@ -83,11 +83,12 @@ test('under StrictMode a raise returns once and the next render returns nothing 
   assert.equal(r.parked().length, 2);
 });
 
-test('a raise before the workspace has loaded is refused, so nothing is dropped into a half-restored row', () => {
+test('a raise before the workspace has loaded is stored for the load to read, and nothing is refilled without a row', () => {
   const ws = createWorkspace({ mount: false, root: markerTemplate('root'), templates: [markerTemplate('a')], tuning: { maxLivePanels: 2 } });
   const result = ws.panels.configureTuning({ maxLivePanels: 4 });
-  assert.equal(result.ok, false);
-  assert.equal(ws.tuning.maxLivePanels, 2);
+  assert.equal(result.ok, true);
+  assert.equal(ws.tuning.maxLivePanels, 4);
+  assert.equal(ws.status, 'detached');
 });
 
 test('pinned panels do not count: a raise returns up to the new value of unpinned panels', async () => {

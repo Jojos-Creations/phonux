@@ -5,7 +5,7 @@
  */
 
 import type * as React from 'react';
-import type { JsonValue, PanelSummary, FormFactor } from './hostApi.js';
+import type { JsonValue, PanelSummary } from './hostApi.js';
 import { reportLevelTieOnce } from './panelLevelChecks.js';
 import { checkPanelApi, type PanelApiLevel } from './panelApiLevel.js';
 import { PanelManagerError } from './panelManagerError.js';
@@ -60,8 +60,6 @@ export interface PanelState {
   readonly url?: string;
   /** The opaque, JSON-serializable params the panel was made with, or undefined when it has none. */
   readonly params: JsonValue | undefined;
-  /** The panel's current tier. */
-  readonly formFactor: FormFactor;
   /** Whether the panel appears in `PanelReader.list` and the panel list a view reads. */
   readonly listed: boolean;
   /** The panel's settings, resolved from every layer. */
@@ -162,6 +160,14 @@ function templateIdProblem(id: unknown): string | undefined {
 
 // A memo, forwardRef or lazy component is an object carrying $$typeof, not a function.
 const isComponent = (view: unknown): boolean => typeof view === 'function' || (typeof view === 'object' && view !== null && '$$typeof' in view);
+
+// `any`, not JsonValue: PanelTemplate<P> is invariant in P, so only `any` accepts a template of every params.
+/**
+ * A template of any params: what a workspace accepts in `templates`, `root` and `registerTemplate`, so a template made with
+ * `definePanel` for typed params needs no cast. `addPanel` still checks `params` against the template it is given.
+ * @public
+ */
+export type AnyPanelTemplate = PanelTemplate<any>;
 
 /**
  * Returns the template unchanged after checking it: a valid id, a component for `view` and for `footer` when given, an `api` the library serves, and a settings layer the

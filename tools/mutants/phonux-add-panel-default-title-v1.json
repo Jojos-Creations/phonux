@@ -1,0 +1,25 @@
+{
+  "tests": [
+    "test/add-panel-default-title.test.ts"
+  ],
+  "mutants": [
+    {
+      "name": "a panel added after the mount has no default title",
+      "file": "panels/useProvidePanels.ts",
+      "find": "declared: req.declared === true, fallbackTitle: labels.panelTitle(req.engineId) });",
+      "replace": "declared: req.declared === true, fallbackTitle: '' });",
+      "expectRed": [
+        "labels.panelTitle default"
+      ]
+    },
+    {
+      "name": "a panel added before the mount has no default title",
+      "file": "workspacePlan.ts",
+      "find": "title: settings.title ?? i.panelTitle?.(id) ?? ''",
+      "replace": "title: settings.title ?? ''",
+      "expectRed": [
+        "labels.panelTitle default"
+      ]
+    }
+  ]
+}

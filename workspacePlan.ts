@@ -10,7 +10,7 @@ import { computeRowOrder } from './panelRowOrder.js';
 import { applyTemplate, resolvePanelSettings, sameSettingsValue } from './panelSettings.js';
 import type { AddPlacement, PanelSettings, PanelSettingsLayers, PanelSettingsResolution, ResolvedPanelSettings, SettingNote } from './panelSettings.js';
 import type { PanelTemplate } from './panelTemplate.js';
-import { TIER_SIZES } from './panelTiers.js';
+import { sizeOfSlots } from './panelTiers.js';
 import { newPanelUid } from './panelUid.js';
 import { appendPanel, clearOverrides, type PanelWindow } from './panelWindow.js';
 import { cleanDismissed, cleanSavedExtras, cleanSavedUid, entryFromSaved, isWorkspaceState } from './workspaceState.js';
@@ -41,6 +41,8 @@ export interface ReconcileInput {
   newUid?: () => string;
   /** The developer's panel order, read by every placement whose value is `'order'`. */
   order?: () => readonly string[];
+  /** The title a declared panel gets when no settings layer names one, from its fresh id; left out, such a panel has the empty title. */
+  panelTitle?: (id: string) => string;
 }
 
 /** What `reconcileWorkspace` returns. */
@@ -60,10 +62,9 @@ export interface ReconcileResult {
 /** The keys of `overrides` the resolver did not drop. */
 function keptOverrides(held: NonNullable<WorkspacePanelState['overrides']>, resolution: PanelSettingsResolution): NonNullable<WorkspacePanelState['overrides']> {
   const gone = new Set(resolution.notes.filter((n) => n.code === 'override-dropped').map((n) => n.key));
-  const { anchor, formFactor, slots, parkable } = held;
+  const { anchor, slots, parkable } = held;
   return {
     ...(anchor !== undefined ? { anchor } : {}),
-    ...(formFactor !== undefined && !gone.has('formFactor') ? { formFactor } : {}),
     ...(slots !== undefined && !gone.has('slots') ? { slots } : {}),
     ...(parkable !== undefined && !gone.has('parkable') ? { parkable } : {}),
   };
@@ -88,7 +89,7 @@ function keptInstance(instance: PanelSettings, resolution: PanelSettingsResoluti
  * cascade (or of a plain view when the row has settings) and hydrates any other as 0.1.0 did; creates each
  * declared panel the file has no entry for unless its key is dismissed; lets `restoreVisibility` decide each `live`;
  * orders the row once. A saved entry owns what its `overrides` hold, and an entry without `overrides` (a 0.1.0 entry)
- * owns its anchor and tier. An untouched entry keeps its saved place only while its resolved `placeOnAdd` equals
+ * owns its anchor and slot count. An untouched entry keeps its saved place only while its resolved `placeOnAdd` equals
  * the one that placed it. Permission settings gate gestures, never a restore.
  */
 export function reconcileWorkspace(i: ReconcileInput): ReconcileResult {
@@ -177,7 +178,7 @@ export function reconcileWorkspace(i: ReconcileInput): ReconcileResult {
       ? {
           workspace,
           ...(template !== undefined ? { template: template.settings } : {}),
-          host: { listed: base.listed, layer: base.layer ?? 'base', formFactor: base.formFactor ?? 'phone', ...(base.slots !== undefined ? { slots: base.slots } : {}) },
+          host: { listed: base.listed, layer: base.layer ?? 'base', ...(base.slots !== undefined ? { slots: base.slots } : {}) },
           instance: { ...plainAsk, parkable: base.collapsible },
         }
       : { workspace, ...(template !== undefined ? { template: template.settings } : {}), instance: plainAsk };
@@ -189,7 +190,6 @@ export function reconcileWorkspace(i: ReconcileInput): ReconcileResult {
     const settings = resolution.value;
     for (const n of resolution.notes) notes.push({ ...n, panelId: id });
 
-    const tier = settings.formFactor;
     const reconfigured = applyTemplate(base, settings, 'reconfigure');
     const live = settings.restoreVisibility === 'saved' ? base.live : settings.restoreVisibility === 'live';
     let anchor = base.anchor;
@@ -207,9 +207,8 @@ export function reconcileWorkspace(i: ReconcileInput): ReconcileResult {
     built.push({
       ...reconfigured,
       live,
-      formFactor: tier,
       slots: settings.slots,
-      size: base.size?.formFactor === tier ? base.size : { ...TIER_SIZES[tier] },
+      size: sizeOfSlots(settings.slots),
       ...(anchor !== undefined ? { anchor } : {}),
       ...(key !== undefined ? { key } : {}),
       ...(claim !== undefined ? { declared: true as const } : { instance: keptInstance(plainAsk, resolution) }),
@@ -239,7 +238,7 @@ export function reconcileWorkspace(i: ReconcileInput): ReconcileResult {
     for (const n of resolution.notes) notes.push({ ...n, panelId: id });
     const skeleton = appendPanel(
       [],
-      { url: d.url ?? '', view: template.id, title: settings.title, params: d.params ?? template.params, listed: settings.listed, layer: settings.layer, formFactor: settings.formFactor, permanent: !settings.parkable },
+      { url: d.url ?? '', view: template.id, title: settings.title ?? i.panelTitle?.(id) ?? '', params: d.params ?? template.params, listed: settings.listed, layer: settings.layer, slots: settings.slots, permanent: !settings.parkable },
       id,
       i.rootId,
       newUid(),

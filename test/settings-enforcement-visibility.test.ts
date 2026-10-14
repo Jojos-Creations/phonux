@@ -124,7 +124,7 @@ function mountEngine(initial: PanelWindow[], width = 0) {
     wipe: () => call((v) => v.setPanels((prev) => prev.filter((p) => !p.collapsible))),
     activate: (id: string) => call((v) => v.manager.handleActivatePanel(id)),
     scroll: (direction: 'left' | 'right') => call((v) => v.manager.scrollRow(direction)),
-    resize: (id: string, tier: 'phone' | 'tablet' | 'desktop') => call((v) => v.manager.resizePanel(id, tier)),
+    resize: (id: string, slots: number) => call((v) => v.manager.resizePanel(id, slots)),
     setWidth: (next: number) => mounted.rerender(React.createElement(Probe, { containerWidth: next })),
   };
 }
@@ -1165,7 +1165,7 @@ function capacityOf(live: readonly PanelWindow[], containerWidth: number): numbe
 test('S1: over 500 seeded sequences on measured rows of park panels, the live parkable count never exceeds the capacity after a settled commit', () => {
   const stickiness = ['sticky', 'until-room'] as const;
   const orders = ['farthest', 'nearest', 'leftmost', 'rightmost'] as const;
-  const tiers = ['phone', 'phone', 'phone', 'tablet'] as const;
+  const slotCounts = [1, 1, 1, 2] as const;
   let sequences = 0;
   let checks = 0;
   let operations = 0;
@@ -1180,7 +1180,7 @@ test('S1: over 500 seeded sequences on measured rows of park panels, the live pa
         capacityReturn: rng() < 0.25 ? 'manual' : 'auto',
         hideStickiness: pick(rng, stickiness),
         startVisibility: rng() < 0.15 ? 'parked' : 'live',
-        formFactor: pick(rng, tiers),
+        slots: pick(rng, slotCounts),
       });
     let width = W(1 + Math.floor(rng() * 5));
     const e = mountEngine(row(rootEntry(), ...Array.from({ length: 2 + Math.floor(rng() * 4) }, fresh)), width);
@@ -1204,7 +1204,7 @@ test('S1: over 500 seeded sequences on measured rows of park panels, the live pa
         else if (op === 'activate') e.activate(target.id);
         else if (op === 'hold') e.hold(target.id, pick(rng, stickiness));
         else if (op === 'release') e.call((v) => v.manager.releaseHold(target.id));
-        else e.resize(target.id, pick(rng, ['phone', 'tablet', 'desktop'] as const));
+        else e.resize(target.id, pick(rng, [1, 2, 64] as const));
       }
       operations += 1;
       settled();
