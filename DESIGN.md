@@ -1879,7 +1879,17 @@ which tells `console.error` once; the rest of the panel stays. A window-wide bot
 
 ## Panel API levels
 
-A template may declare `api`, the panel API level it was written against, so a panel can stay on the panel-facing API it was written for while the container (`createWorkspace`, `Workspace`, `PanelRow`) moves on. Leaving it out means the newest level, `PANEL_API`; the key is the one way to ask to stay on an older one. Level 1 is the panel-facing surface in `etc/phonux.api.md` at 0.2.0-rc.3.
+A template may declare `api`, the panel API level it was written against, so a panel can stay on the panel-facing API it was written for while the container (`createWorkspace`, `Workspace`, `PanelRow`) moves on. Leaving it out means the newest level, `PANEL_API`; the key is the one way to ask to stay on an older one.
+
+### A level is the package's major version
+
+Level N means panel code written for phonux N.x. `PANEL_API` equals the package's major version from 1.0.0, so a minor or patch release never adds a level and the single number to remember is the major. Every level that is still served keeps receiving fixes and security updates through ordinary minor and patch releases of the one package.
+
+- A template with no `api` moves with each major: on upgrading from 2.x to 3.0 it receives level 3's props. `api: 2` is how a panel stays. The guarantee covers panel code only; a host that upgrades across a major still migrates the container API (`createWorkspace`, `Workspace`, `PanelRow`, tuning options and saved state), which a level does not cover.
+- A major that changes nothing for panels adds an entry with no adapter. A major that changes panels adds a level and rewrites the older levels' adapters from the new newest props, since an adapter always starts from the newest props. `PanelApiLevel` grows (`1 | 2`) with each major, and `PanelTemplate` becomes a union keyed on `api` at the first major that changes panel props.
+- Every level from 1 to `PANEL_API` is either served (in the table) or recorded as dropped with the release that dropped it, and nothing else; a dropped level answers `invalid-template` with that release.
+- Before 1.0.0 level 1 moves with the prereleases: no adapter is written for a 0.x change and `test/fixtures/panel-api-1` is edited with it. At the 1.0.0 release level 1 is frozen and the fixture rule below applies from then.
+- `npm run release:check` refuses a version whose major needs a level that `PANEL_API` does not name; a prerelease of N.0.0 already needs level N, and a 0.x version is exempt.
 
 ### What a level covers
 
@@ -1896,12 +1906,12 @@ A template may declare `api`, the panel API level it was written against, so a p
 
 - One package serves every kept level. React and MUI are peer dependencies and the workspace, registry and contexts are module singletons, so a second installed copy could not share a workspace with the first; a security fix is therefore one ordinary release that every level receives, with no dist-tags or backport branches.
 - `panelApiLevel.ts` holds the level table: level to adapter, and which level is the newest. `templateViewFor` (`templateView.tsx`) is the one place a template's view and footer props are built; an older level's adapter turns the newest props into the ones that level promised. The shipped table has only level 1, so no adapter runs today. A test passes its own table to exercise a second level; the fake never enters the shipped table.
-- The check runs in `definePanel`, which `createWorkspace({ templates, root })` and `workspace.registerTemplate` call, so every door answers `invalid-template` the same way. `PanelTemplate` is an interface with an optional `api?: PanelApiLevel`; it becomes a union keyed on `api` when a second level exists, because a one-member union adds nothing.
+- The check runs in `definePanel`, which `createWorkspace({ templates, root })` and `workspace.registerTemplate` call, so every door answers `invalid-template` the same way. `PanelTemplate` is an interface with an optional `api?: PanelApiLevel`; it becomes a union keyed on `api` when panel props first change in a major, because a one-member union adds nothing.
 - Hooks and settings keys are import- and resolver-bound, so an adapter cannot intercept them. They are additive within a level: a renamed hook or setting key keeps its old name as a deprecated alias for as long as its level is served, and a breaking change to one ships under a new name.
 - Every level stays served until the owner deprecates it, so each breaking panel change adds a level, an adapter and a fixture that stay. A level is served (no `droppedIn`), deprecated (`droppedIn` names the release that will remove it; the warning names that release and CHANGELOG lists it under Deprecated) or dropped (that release removes it and CHANGELOG lists it under Breaking).
 - A template on a level that is not the newest logs one development-mode warning per template id per page load; the warning names a removal release only for a deprecated level. The set of warned ids lives at module level, so StrictMode's second render and a remounted workspace do not repeat it; production and a host with no `process` stay silent.
 - `PANEL_API` is exported from `index.ts` and not from `phonux/testing`.
-- `test/fixtures/panel-api-1` is a panel written against a frozen hand-copy of the level-1 members it uses. It is assigned to a real template, so it compiles only while the real props still provide those members, and `test/panel-api-level.test.ts` renders it in a workspace. A change that breaks it breaks level 1: add an adapter and a level, never edit the fixture.
+- `test/fixtures/panel-api-1` is a panel written against a hand-copy of the level-1 members it uses. It is assigned to a real template, so it compiles only while the real props still provide those members, and `test/panel-api-level.test.ts` renders it in a workspace. From 1.0.0 a change that breaks it breaks level 1: add an adapter and a level, never edit the fixture. Before 1.0.0 it is edited with level 1.
 
 ## History, releases and development
 

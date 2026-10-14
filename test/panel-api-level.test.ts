@@ -8,7 +8,7 @@ import './support/jsdom-globals.js';
 import * as React from 'react';
 import { PANEL_API, PanelManagerError, createWorkspace, definePanel } from '../index.js';
 import type { PanelTemplate } from '../index.js';
-import { checkPanelApi, type LevelTable, type NewestViewProps } from '../panelApiLevel.js';
+import { SHIPPED_LEVELS, checkPanelApi, levelCoverageProblem, type LevelTable, type NewestViewProps } from '../panelApiLevel.js';
 import { templateViewFor } from '../templateView.js';
 import { PanelFooterContext } from '../panelFooter.js';
 import { PanelViewContextValue } from '../panelViewContext.js';
@@ -74,6 +74,25 @@ test('the table decides: a level it serves is accepted, one it does not still th
   checkPanelApi('x', 2, TWO_LEVELS);
   assert.equal(refusal(() => checkPanelApi('x', 3, TWO_LEVELS)).code, 'invalid-template');
   assert.equal(refusal(() => checkPanelApi('x', 2)).code, 'invalid-template', 'the shipped table has no level 2');
+});
+
+test('every level from 1 to the newest is served or recorded as dropped, and nothing else', () => {
+  assert.equal(levelCoverageProblem(SHIPPED_LEVELS), undefined);
+  const gone = new Map([[2, '4.0.0']]);
+  assert.equal(levelCoverageProblem({ newest: 3, levels: new Map([[1, {}], [3, {}]]), dropped: gone }), undefined, 'served plus dropped covers 1 to 3');
+  assert.match(levelCoverageProblem({ newest: 2, levels: new Map([[1, {}], [2, {}], [3, {}]]) })!, /level 3 is outside 1 to 2/);
+  assert.match(levelCoverageProblem({ newest: 3, levels: new Map([[1, {}], [3, {}]]) })!, /level 2 is neither served nor dropped/);
+  assert.match(levelCoverageProblem({ newest: 3, levels: new Map([[1, {}], [2, {}], [3, {}]]), dropped: gone })!, /level 2 is both served and dropped/);
+  assert.match(levelCoverageProblem({ newest: 2, levels: new Map([[1, {}]]), dropped: new Map([[2, '3.0.0']]) })!, /newest level 2 is not served/);
+});
+
+test('a dropped level answers with the release that dropped it, not the generic list', () => {
+  const table: LevelTable = { newest: 3, levels: new Map([[1, {}], [3, {}]]), dropped: new Map([[2, '4.0.0']]) };
+  const error = refusal(() => checkPanelApi('x', 2, table));
+  assert.equal(error.code, 'invalid-template');
+  assert.match(error.message, /level 2 was dropped in 4\.0\.0/);
+  assert.doesNotMatch(error.message, /must be one of/);
+  assert.match(refusal(() => checkPanelApi('x', 5, table)).message, /must be one of 1, 3/);
 });
 
 // ---------------------------------------------------------------------------
