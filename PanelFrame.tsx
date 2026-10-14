@@ -38,9 +38,8 @@ const CONTENT_INSET_PX = 12;
 export const PANEL_CORNER_RADIUS_UNITS = 4;
 /** That radius in px for `theme`; a header pill is twice this tall (exact semicircles). @public */
 export const panelCornerRadiusPx = (theme: Theme): number => PANEL_CORNER_RADIUS_UNITS * Number(theme.shape.borderRadius);
-/** The header pill's gap above the frame, in px -- also the grab bar's own height (Panel.tsx),
- * since the grab bar fills that whole strip. One constant so the two can't drift apart, and sized to WCAG
- * 2.5.8's 24px minimum pointer-target height even though the drawn pill inside it is thinner. @internal */
+/** The header pill's gap above the frame, in px -- also the grab handle's width and height (Panel.tsx), which is
+ * WCAG 2.5.8's 24px minimum pointer target. One constant so the two can't drift apart. @internal */
 export const PANEL_HEADER_GAP_PX = 24;
 
 /**
@@ -233,7 +232,8 @@ export function PanelHeaderRow({ title, actions, leading, sx, ...rest }: PanelHe
   return (
     <PanelHeader {...rest} sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 1, ...sx }}>
       {leading}
-      <Box sx={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 }}>{resolvedTitle}</Box>
+      {/* With a leading item, space-between would float the title to the middle; the auto margin keeps it beside that item. */}
+      <Box sx={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0, ...(isEmptyHeaderContent(leading) ? {} : { mr: 'auto' }) }}>{resolvedTitle}</Box>
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.25, flexShrink: 0 }}>{resolvedActions}</Box>
     </PanelHeader>
   );

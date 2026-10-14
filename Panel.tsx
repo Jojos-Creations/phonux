@@ -8,14 +8,13 @@
 
 import * as React from 'react';
 import Box, { type BoxProps } from '@mui/material/Box';
-import { type Theme } from '@mui/material/styles';
+import DragIndicatorIcon from '@mui/icons-material/DragIndicator';
 import { PANEL_HEADER_GAP_PX, PanelHeaderRow, type PanelHeaderRowProps } from './PanelFrame.js';
 import { type PanelSize } from './hostApi.js';
 import { usePhoneSize } from './phoneFit.js';
 import { useFrameClaim } from './panelFrameClaim.js';
 import { PanelSlotContext } from './panelSlotContext.js';
 import { HEADER_ROW_ATTRIBUTE, PanelHeaderButtons, usePanelHeaderButtons } from './panelHeaderButtons.js';
-import { glideCorner } from './sizeGlide.js';
 import { CaptureRegistryContext, type ViewId } from './snapshots.js';
 import { ACTIVE_ATTRIBUTE, CHROME_ATTRIBUTE, CHROME_PARTS, DRAGGING_ATTRIBUTE, PanelChromeVisibleContext, useChromeFade, useChromeVisibility, usePanelActive, usePanelDragging } from './panelChrome.js';
 
@@ -24,7 +23,7 @@ export type { Host } from './hostApi.js';
 export { DRAG_CLOSE, DragToClose, type DragHandleProps, type ReorderHandle } from './dragToClose.js';
 export { WindowOverlay, OverlaySlot, OVERLAY_Z, type OverlaySlotName, type WindowOverlayProps } from './windowOverlay.js';
 
-/** The props of `Panel`: every `Box` prop except `children`, `sx` and `title`, plus the header, grab bar, overlay and capture options. @public */
+/** The props of `Panel`: every `Box` prop except `children`, `sx` and `title`, plus the header, grab handle, overlay and capture options. @public */
 export interface PanelProps extends Omit<BoxProps, 'children' | 'sx' | 'title'> {
   /**
    * The header pill's title. Omitted entirely (not passed at all) renders
@@ -43,9 +42,10 @@ export interface PanelProps extends Omit<BoxProps, 'children' | 'sx' | 'title'> 
   headerProps?: Omit<PanelHeaderRowProps, 'title' | 'actions'> & { [key: `data-${string}`]: string | boolean | undefined };
   /**
    * The grab handle for dragging this Panel (DragToClose's `onPointerDown`/`sx`), rendered as its OWN
-   * element filling the gap between the header and the frame -- never spread onto `headerProps` -- so a
-   * click on the title text or an action icon in the header is never mistaken for a drag start. Omitted
-   * (the usual case for a locked view, e.g. History) renders no grab bar at all.
+   * element, a grip icon left of the title in the header row -- never spread onto `headerProps` -- so a
+   * click on the title text or an action icon in the header is never mistaken for a drag start. Without a
+   * `title` there is no header row, and the icon sits above the frame's top-left corner instead. Omitted
+   * (the usual case for a locked view, e.g. History) renders no grab handle at all.
    */
   grabProps?: Omit<BoxProps, 'children'> & { [key: `data-${string}`]: string | boolean | undefined };
   /**
@@ -77,7 +77,7 @@ export interface PanelProps extends Omit<BoxProps, 'children' | 'sx' | 'title'> 
 
 /**
  * The shell every column in the row renders through: a relatively positioned box the width of the panel, with an
- * optional header pill above it, an optional grab bar and an optional overlay.
+ * optional header pill above it, an optional grab handle and an optional overlay.
  * @public
  */
 export function Panel({ title, actions, headerProps, headerButtons = true, grabProps, overlay, sx, children, viewId, capture = 'auto', size, ...rest }: PanelProps) {
@@ -96,6 +96,23 @@ export function Panel({ title, actions, headerProps, headerButtons = true, grabP
   const fadeHeader = useChromeFade(visible);
   const fadeGrab = useChromeFade(visible);
   const warned = React.useRef(false);
+  // One element, either way: inside the header it fades with the header, so only the header-less one fades itself.
+  const grabHandleProps = {
+    'data-panel-grab-bar': '',
+    [CHROME_ATTRIBUTE]: CHROME_PARTS.grabBar,
+    ...grabProps,
+    sx: {
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      flexShrink: 0,
+      width: `${PANEL_HEADER_GAP_PX}px`,
+      height: `${PANEL_HEADER_GAP_PX}px`,
+      ...grabProps?.sx,
+    },
+  };
+  const grabIcon = <DragIndicatorIcon aria-hidden="true" fontSize="small" />;
+  const grabHandle = grabProps && title !== undefined ? <Box {...grabHandleProps}>{grabIcon}</Box> : undefined;
   React.useEffect(() => {
     if (!untitled || warned.current || typeof process === 'undefined' || process.env.NODE_ENV === 'production') return;
     warned.current = true;
@@ -144,30 +161,17 @@ export function Panel({ title, actions, headerProps, headerButtons = true, grabP
           ) : actions}
           {...headerProps}
           {...(drawn ? { tabIndex: -1, role: 'toolbar', 'aria-orientation': 'horizontal' as const, ...(typeof title === 'string' ? { 'aria-label': title } : {}), [HEADER_ROW_ATTRIBUTE]: declared.handle.id } : {})}
-          {...(drawn ? { leading: <PanelHeaderButtons side="start" /> } : {})}
+          leading={grabHandle || drawn ? (
+            <>
+              {grabHandle}
+              {drawn ? <PanelHeaderButtons side="start" /> : headerProps?.leading}
+            </>
+          ) : headerProps?.leading}
         />
       )}
-      {grabProps && (
-        <Box
-          data-panel-grab-bar=""
-          {...{ [CHROME_ATTRIBUTE]: CHROME_PARTS.grabBar }}
-          ref={fadeGrab}
-          {...grabProps}
-          sx={{
-            position: 'absolute',
-            bottom: '100%',
-            left: 0,
-            right: 0,
-            height: `${PANEL_HEADER_GAP_PX}px`,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            ...grabProps.sx,
-          }}
-        >
-          {/* Decorative only -- the clickable area is the whole strip above, sized to WCAG 2.5.8's 24px
-              minimum even though this drawn pill is thinner. */}
-          <Box aria-hidden="true" sx={{ width: 32, height: 4, borderRadius: (theme: Theme) => glideCorner(2 * Number(theme.shape.borderRadius)), bgcolor: 'divider' }} />
+      {grabProps && title === undefined && (
+        <Box {...grabHandleProps} ref={fadeGrab} sx={{ ...grabHandleProps.sx, position: 'absolute', bottom: '100%', left: 0 }}>
+          {grabIcon}
         </Box>
       )}
       {children}

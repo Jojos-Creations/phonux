@@ -49,7 +49,7 @@ test('every slot is a native button, the grab bar has no tabindex, and the tab o
   assert.equal(grab.hasAttribute('tabindex'), false);
   const order = [...row.querySelectorAll('button')].map((b) => b.getAttribute('aria-label') ?? 'Edit');
   assert.deepEqual(order, ['Menu', 'Edit', 'Size', 'Pin']);
-  const title = row.children[1]!;
+  const title = [...row.children].find((c) => c.tagName === 'DIV' && !c.hasAttribute('data-panel-grab-bar') && c.querySelector('button') === null)!;
   const menu = byLabel(rig, 'a', 'Menu');
   const edit = row.querySelector('[data-view-action]')!;
   assert.ok(menu.compareDocumentPosition(title) & Node.DOCUMENT_POSITION_FOLLOWING, 'the start slot is before the title');

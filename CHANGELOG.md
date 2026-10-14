@@ -36,6 +36,7 @@
 
 ### Changed
 
+- The grab handle is a grip icon left of the panel title in the header, and the bar below the header is gone; it is still the one focusable handle named by the title, with the same drag, reorder keys and Delete.
 - The undocumented `window.__panelsApiForTests`, which the panels hook set in a test build, is gone. A test that needs the row uses `renderWorkspace` from
   `phonux/testing/row`; a host's own tests expose the API they need themselves.
 - Names and keys for assistive technology. The row is a `region` named `labels.row` ("Panels") and each panel a `group` named with its title and
