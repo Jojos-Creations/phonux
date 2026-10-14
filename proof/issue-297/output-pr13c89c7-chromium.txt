@@ -1,0 +1,50 @@
+
+[chromium] layout=left mode=hidden   row order: image > History > next
+  start: image:2014px
+  step 1: image:1624px History:390px
+  step 2: image:812px History:390px next:812px
+  step 3: next:2014px
+  step 4: next:2014px
+  step 5: next:2014px
+
+[chromium] layout=left mode=visible   row order: image > History > next
+  start: image:2014px
+  step 1: image:1608px History:390px
+  step 2: image:1202px History:390px next:390px
+  step 3: image:796px History:390px next:796px
+  step 4: image:390px History:390px next:1202px
+  step 5: History:390px next:1608px
+
+[chromium] layout=left2 mode=hidden   row order: image > mid > History > next
+  start: image:2014px
+  step 1: mid:2014px
+  step 2: mid:1624px History:390px
+  step 3: mid:812px History:390px next:812px
+  step 4: next:2014px
+  step 5: next:2014px
+
+[chromium] layout=left2 mode=visible   row order: image > mid > History > next
+  start: image:2014px
+  step 1: image:1608px mid:390px
+  step 2: image:1202px mid:796px
+  step 3: image:796px mid:1202px
+  step 4: image:390px mid:1608px
+  step 5: mid:2014px
+
+[chromium] layout=right mode=hidden   row order: History > image > next
+  start: History:390px image:812px
+  step 1: image:2014px
+  step 2: next:2014px
+  step 3: next:2014px
+  step 4: next:2014px
+  step 5: next:2014px
+
+[chromium] layout=right mode=visible   row order: History > image > next
+  start: History:390px image:1608px
+  step 1: image:2014px
+  step 2: image:1608px next:390px
+  step 3: image:1202px next:796px
+  step 4: image:796px next:1202px
+  step 5: image:390px next:1608px
+
+no console errors
