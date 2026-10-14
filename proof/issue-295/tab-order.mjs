@@ -27,7 +27,7 @@ await page.mouse.up();
 await page.waitForTimeout(1500);
 const screenOrder = await page.evaluate(() => [...document.querySelectorAll('[data-row-slot]')].sort((a, b) => a.getBoundingClientRect().left - b.getBoundingClientRect().left).map((s) => s.dataset.rowId));
 await page.evaluate(() => { document.body.focus(); document.activeElement?.blur(); });
-await page.mouse.click(5, 5);
+await page.focus('#before');
 const visited = [];
 for (let i = 0; i < 40; i += 1) {
   await page.keyboard.press('Tab');

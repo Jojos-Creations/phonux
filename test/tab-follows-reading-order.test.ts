@@ -11,7 +11,7 @@ import { act } from 'react';
 import { DragToClose, useHost, usePanelReorderSteps } from '../index.js';
 import { advanceFrames, cleanup } from './support/mount-harness.js';
 import { drag, release } from './support/drag-gesture.js';
-import { mountRow, panelsOf, type MountedRow } from './support/scroll-row.js';
+import { made, mountRow, row, panelsOf, type MountedRow } from './support/scroll-row.js';
 import { registerTestView } from './support/test-views.js';
 
 afterEach(() => cleanup());
@@ -53,12 +53,12 @@ function press(m: MountedRow, shift: boolean): string {
   return (document.activeElement as HTMLElement).dataset.stop!;
 }
 
-async function reorderedRow(): Promise<{ m: MountedRow; reading: string[] }> {
-  const m = mountRow(panelsOf(5), 3000);
+async function reorderedRow(withRoot = true, grab = 's3', dx = -420): Promise<{ m: MountedRow; reading: string[] }> {
+  const m = mountRow(withRoot ? panelsOf(5) : row(...[1, 2, 3, 4, 5].map((k) => made(`s${k}`))), 3000);
   await advanceFrames(2000);
-  await drag(m.container.querySelector<HTMLElement>('[data-grab="s3"]')!, { dx: -420, dy: 0, steps: 12, hold: 8, keepDown: true });
+  await drag(m.container.querySelector<HTMLElement>(`[data-grab="${grab}"]`)!, { dx, dy: 0, steps: 12, hold: 8, keepDown: true });
   await advanceFrames(500);
-  await release(-420, 0);
+  await release(dx, 0);
   await advanceFrames(2000);
   const reading = m.latest().entries.map((p) => p.id);
   const domIds = [...m.container.querySelectorAll('[data-grab]')].map((el) => el.getAttribute('data-grab'));
@@ -82,4 +82,34 @@ test('Shift+Tab visits the panels in reverse drawn order after a reorder', async
   const visited = [last];
   for (let k = 0; k < reading.length * 2 - 1; k += 1) visited.push(press(m, true).split('-')[0]!);
   assert.deepEqual([...new Set(visited)], [...reading].reverse());
+});
+
+/** Tab from outside the row: the browser's default step lands on the DOM-first (Shift+Tab: DOM-last) tabbable element. */
+async function enterFrom(side: 'before' | 'after'): Promise<{ landed: string; reading: string[] }> {
+  const { m, reading } = await reorderedRow(false, 's3', side === 'before' ? -900 : 900);
+  const outside = document.createElement('button');
+  if (side === 'before') m.container.before(outside);
+  else m.container.after(outside);
+  try {
+    outside.focus();
+    const event = new KeyboardEvent('keydown', { key: 'Tab', shiftKey: side === 'after', bubbles: true, cancelable: true });
+    act(() => void outside.dispatchEvent(event));
+    const all = stops(m);
+    act(() => void all[side === 'before' ? 0 : all.length - 1]!.focus());
+    return { landed: (document.activeElement as HTMLElement).dataset.stop!.split('-')[0]!, reading };
+  } finally {
+    outside.remove();
+  }
+}
+
+test('Tab entering the row from before it lands in the panel drawn first', async () => {
+  const { landed, reading } = await enterFrom('before');
+  assert.equal(landed, reading[0]);
+  assert.notEqual(reading[0], 's1', 'the drawn-first panel is not the DOM-first one');
+});
+
+test('Shift+Tab entering the row from after it lands in the panel drawn last', async () => {
+  const { landed, reading } = await enterFrom('after');
+  assert.equal(landed, reading[reading.length - 1]);
+  assert.notEqual(reading[reading.length - 1], 's5', 'the drawn-last panel is not the DOM-last one');
 });
