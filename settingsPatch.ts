@@ -4,7 +4,6 @@
  * produces is validated when the whole stack is resolved again.
  */
 
-import type { FormFactor } from './hostApi.js';
 import { sameSettingsValue } from './panelSettings.js';
 import type { AnchorRequest, PanelId, PanelSettings } from './panelSettings.js';
 
@@ -19,7 +18,7 @@ export type ViewPatch = {
   title?: string | null;
   listed?: boolean | null;
   layer?: 'base' | 'raised' | null;
-  formFactor?: FormFactor | null;
+  slots?: number | null;
   placeOnAdd?: { anchor: AnchorRequest & { panel: PanelId } } | null;
   enterFrom?: 'anchor' | null;
 };

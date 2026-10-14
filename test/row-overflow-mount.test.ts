@@ -83,13 +83,13 @@ test('a row that stops scrolling resets the container scrollLeft to 0 in the sam
   assert.equal(ref.current!.scrollLeft, 0);
 });
 
-test('maxLiveWidth comes from computeRowNumbers at every gap: a desktop panel is drawn at the slots that fit the window, not the 0.1.0 cap', () => {
+test('maxLiveWidth comes from computeRowNumbers at every gap: a 64-slot panel is drawn at the slots that fit the window', () => {
   const expected: Record<number, { rows: number; legacy: number }> = { 0: { rows: 1000, legacy: 610 }, 16: { rows: 968, legacy: 562 }, 40: { rows: 920, legacy: 490 } };
   let gaps = 0;
   for (const gap of [0, 16, 40]) {
     gaps += 1;
     let latest: ProvidedPanels | undefined;
-    const entries = [scrollRoot(), scrollEntry('d', { formFactor: 'desktop' }), scrollEntry('a'), scrollEntry('b'), scrollEntry('c')];
+    const entries = [scrollRoot(), scrollEntry('d', { slots: 64 }), scrollEntry('a'), scrollEntry('b'), scrollEntry('c')];
     function Probe(): React.ReactElement {
       latest = useProvidePanels(panelsInput({ initialEntries: entries, containerWidth: 1000, tuning: { rowGap: gap } }));
       return React.createElement('output');
@@ -100,7 +100,7 @@ test('maxLiveWidth comes from computeRowNumbers at every gap: a desktop panel is
     assert.equal(numbers.maxLiveWidth, expected[gap]!.rows);
     assert.equal(legacy, expected[gap]!.legacy);
     const fit = fitSlots(numbers.maxLiveWidth, 390, gap);
-    assert.equal(latest!.liveWidths[0], slotWidth(fit, 390, gap), `gap ${gap}: the desktop panel is priced at the slots that fit the row numbers' cap`);
+    assert.equal(latest!.liveWidths[0], slotWidth(fit, 390, gap), `gap ${gap}: the 64-slot panel is priced at the slots that fit the row numbers' cap`);
     assert.ok(latest!.liveWidths[0]! <= numbers.maxLiveWidth);
     assert.equal(latest!.maxLiveWidth, numbers.maxLiveWidth);
     mounted.unmount();

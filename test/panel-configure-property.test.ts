@@ -46,7 +46,7 @@ function settingsVector(rand: () => number): PanelSettings {
     crossable: pick(true, true, false),
     placeable: pick(true, true, false),
     resizable: pick(true, true, false),
-    formFactors: pick(['phone', 'tablet', 'desktop'], ['phone'], ['phone', 'tablet']),
+    maxSlots: pick(64, 1, 2),
     hideWhenLast: pick('allow', 'refuse'),
     hideStickiness: pick('sticky', 'until-room'),
     showWhenClosed: pick('refuse', 'reopen'),
@@ -63,7 +63,7 @@ const VALUES: Readonly<Record<string, readonly unknown[]>> = {
   crossable: [true, false],
   placeable: [true, false],
   resizable: [true, false],
-  formFactors: [['phone'], ['phone', 'tablet'], ['phone', 'tablet', 'desktop'], ['tablet', 'desktop']],
+  maxSlots: [1, 2, 3, 64],
   clearable: [true, false],
   listed: [true, false],
   startVisibility: ['live', 'parked'],
@@ -93,7 +93,7 @@ const VALUES: Readonly<Record<string, readonly unknown[]>> = {
   exitTo: ['auto', 'left', 'right'],
   closeExit: ['down', 'left', 'right'],
   animated: [true, false],
-  formFactor: ['phone', 'tablet', 'desktop'],
+  slots: [1, 2, 3],
   title: ['Alpha', 'Beta'],
   pinning: [
     { pinned: { parkable: false }, unpinned: { parkable: true } },
@@ -117,7 +117,7 @@ const TUNING_VALUES: Readonly<Record<string, readonly unknown[]>> = {
   edgeScroll: [{ zonePx: 60 }],
 };
 const KEYS = Object.keys(VALUES);
-const PERMISSIONS = ['closable', 'parkable', 'draggable', 'crossable', 'placeable', 'resizable', 'formFactors'] as const;
+const PERMISSIONS = ['closable', 'parkable', 'draggable', 'crossable', 'placeable', 'resizable', 'maxSlots'] as const;
 const LEAVES = Object.keys(TUNING_VALUES);
 
 /** A patch of one to three keys, each a legal value or a null; now and then a tuning leaf. */
@@ -130,15 +130,15 @@ function randomPatch(rand: () => number): Record<string, unknown> {
       patch.tuning = { ...(patch.tuning as object | undefined), [leaf]: rand() < 0.25 ? null : pickFrom(rand, TUNING_VALUES[leaf]!) };
     } else {
       // The keys a person's override can outvote come up often enough for the shadowed list to be tested.
-      const key = n === 0 && rand() < 0.25 ? pickFrom(rand, ['formFactor', 'parkable']) : pickFrom(rand, KEYS);
+      const key = n === 0 && rand() < 0.25 ? pickFrom(rand, ['slots', 'parkable']) : pickFrom(rand, KEYS);
       patch[key] = rand() < 0.15 ? null : pickFrom(rand, VALUES[key]!);
     }
   }
   return patch;
 }
 
-type Op = 'show' | 'hide' | 'toggleVisibility' | 'close' | 'open' | 'move' | 'place' | 'setFormFactor' | 'scrollTo' | 'configure' | 'resetOne' | 'resetAll' | 'undo' | 'tuning' | 'movePerson' | 'resizePerson' | 'configureOutvoted';
-const OPS: readonly Op[] = ['show', 'hide', 'toggleVisibility', 'close', 'open', 'move', 'movePerson', 'place', 'setFormFactor', 'resizePerson', 'resizePerson', 'scrollTo', 'configure', 'configure', 'configure', 'configureOutvoted', 'configureOutvoted', 'resetOne', 'resetAll', 'undo', 'tuning'];
+type Op = 'show' | 'hide' | 'toggleVisibility' | 'close' | 'open' | 'move' | 'place' | 'setSlots' | 'scrollTo' | 'configure' | 'resetOne' | 'resetAll' | 'undo' | 'tuning' | 'movePerson' | 'resizePerson' | 'configureOutvoted';
+const OPS: readonly Op[] = ['show', 'hide', 'toggleVisibility', 'close', 'open', 'move', 'movePerson', 'place', 'setSlots', 'resizePerson', 'resizePerson', 'scrollTo', 'configure', 'configure', 'configure', 'configureOutvoted', 'configureOutvoted', 'resetOne', 'resetAll', 'undo', 'tuning'];
 
 /** What one call did, and the patch a configure carried. */
 interface Call {
@@ -156,8 +156,8 @@ function run(r: PinRig, h: PanelHandle, op: Op, rand: () => number): Call {
     case 'move': return { answer: h.move(rand() < 0.5 ? 'left' : 'right') };
     case 'movePerson': return { answer: h.move(rand() < 0.5 ? 'left' : 'right', 'person') };
     case 'place': return { answer: h.place(pickFrom(rand, ['row-start', 'row-end', 'after-fixed'] as const)) };
-    case 'setFormFactor': return { answer: h.setFormFactor(pickFrom(rand, ['phone', 'tablet', 'desktop'] as const)) };
-    case 'resizePerson': return { answer: h.setFormFactor(pickFrom(rand, ['phone', 'tablet', 'desktop'] as const), 'person') };
+    case 'setSlots': return { answer: h.setSlots(pickFrom(rand, [1, 2, 3] as const)) };
+    case 'resizePerson': return { answer: h.setSlots(pickFrom(rand, [1, 2, 3] as const), 'person') };
     case 'scrollTo': return { answer: h.scrollTo() };
     case 'configure': {
       const patch = randomPatch(rand);
@@ -165,7 +165,7 @@ function run(r: PinRig, h: PanelHandle, op: Op, rand: () => number): Call {
     }
     case 'configureOutvoted': {
       // The two keys a person's override can outvote.
-      const patch = rand() < 0.5 ? { formFactor: pickFrom(rand, ['phone', 'tablet', 'desktop'] as const) } : { parkable: rand() < 0.5 };
+      const patch = rand() < 0.5 ? { slots: pickFrom(rand, [1, 2, 3] as const) } : { parkable: rand() < 0.5 };
       return { answer: h.configure(patch as never) as Answer, patch };
     }
     case 'resetOne': return { answer: r.ws.panels.resetLayout(h.id) };
@@ -185,7 +185,7 @@ function forced(h: PanelHandle, op: Op): string | undefined {
   if (op === 'hide') return s.parkable ? undefined : 'not-parkable';
   if (op === 'move' || op === 'movePerson') return s.draggable ? undefined : 'not-draggable';
   if (op === 'place') return s.placeable ? undefined : 'not-placeable';
-  if (op === 'setFormFactor' || op === 'resizePerson') return s.resizable ? undefined : 'not-resizable';
+  if (op === 'setSlots' || op === 'resizePerson') return s.resizable ? undefined : 'not-resizable';
   return undefined;
 }
 
@@ -217,8 +217,8 @@ test('seeded random sequences with configure and resetLayout keep the invariants
     for (const id of IDS) settings[id] = settingsVector(rand);
     const r = await pinRig({ ids: IDS, settings, width: pickFrom(rand, [1000, 1500, 2000, 2400]), workspace: { conflicts: 'off' } });
     await r.settle();
-    // The person has already chosen a tier on some panels, so a configure of `formFactor` meets an override to be shadowed by.
-    for (const id of IDS) if (rand() < 0.5) r.turn(() => r.h[id]!.setFormFactor(pickFrom(rand, ['tablet', 'desktop'] as const), 'person'));
+    // The person has already chosen a slot count on some panels, so a configure of `slots` meets an override to be shadowed by.
+    for (const id of IDS) if (rand() < 0.5) r.turn(() => r.h[id]!.setSlots(pickFrom(rand, [2, 3] as const), 'person'));
     const where = (step: number): string => `seed ${seed} step ${step}`;
     for (let step = 0; step < STEPS; step += 1) {
       const first = pickFrom(rand, IDS);
@@ -353,7 +353,7 @@ function forcedPin(h: PanelHandle, op: MoreOp): string | undefined {
   return undefined;
 }
 
-const REFUSALS = new Set(['disposed', 'not-attached', 'not-ready', 'is-pending', 'is-closed', 'not-live', 'busy', 'not-closable', 'not-parkable', 'not-draggable', 'not-placeable', 'not-resizable', 'tier-not-allowed', 'would-empty-row', 'instance-limit', 'unknown-panel', 'wrong-scope', 'would-reshape-row', 'settings-conflict', 'not-view-settable']);
+const REFUSALS = new Set(['disposed', 'not-attached', 'not-ready', 'is-pending', 'is-closed', 'not-live', 'busy', 'not-closable', 'not-parkable', 'not-draggable', 'not-placeable', 'not-resizable', 'slots-above-max', 'would-empty-row', 'instance-limit', 'unknown-panel', 'wrong-scope', 'would-reshape-row', 'settings-conflict', 'not-view-settable']);
 
 test('final property: over random settings vectors, pin, unpin, scrollTo, resetLayout, configure and the operations keep every guarantee of 7.3 after every step', async () => {
   const MORE_SEQUENCES = 500;

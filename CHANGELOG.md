@@ -2,6 +2,18 @@
 
 ## Unreleased
 
+### Breaking
+
+- The tier family is gone; a panel's width is its slot count. Removed: the `formFactor` and `formFactors` settings (a template that sets either
+  throws `invalid-settings`), both `setFormFactor` verbs (the handle's and `PanelsAPI`'s), `PanelSummary.formFactor`, `PanelState.formFactor`,
+  `PanelSize.formFactor`, `CreatePanelOptions.formFactor`, `ViewPatch.formFactor`, `PanelUserLayer.formFactor`, the `FormFactor` type, `TIER_SIZES`,
+  and `usePanelCapabilities().formFactors`. **Migration:** phone is `slots: 1`, tablet `slots: 2`, desktop every visible slot (`maxSlots` is the cap, default
+  every slot that fits); `setFormFactor(id, 'tablet')` is `setSlots(id, 2)`; `formFactors: ['phone']` is `maxSlots: 1`; `usePanelCapabilities()` returns `maxSlots`.
+  `slots` is now a plain default of 1 and `maxSlots` of every visible slot. The refusal code `tier-not-allowed` is `slots-above-max`: lowering `maxSlots` below the
+  panel's slots, or pinning a panel wider than one slot into a fixed column. `CreatePanelOptions` and `ViewPatch` take `slots`.
+  A saved file from an older library still loads: a top-level `formFactor` on an entry and `overrides.formFactor` read as that tier's slot count (`slots` wins when both are
+  there). A file this version writes holds `slots` only for a panel wider than one slot and never a `formFactor`. `panelWidthOf` and the row price an entry with no `slots` as one phone width.
+
 ### Fixed
 
 - A trackpad swipe on a stepping row is one step. Its deltas ramp up before they fade, and every rising event after the 60 ms
