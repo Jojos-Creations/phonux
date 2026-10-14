@@ -347,3 +347,13 @@ test('update reaches every workspace and the ones added later', () => {
   assert.ok(a.id !== b.id);
   assert.throws(() => c.update({ storage: undefined } as never), { code: 'invalid-options' });
 });
+
+test('topInset clears chrome the app draws: the controls start below it', async () => {
+  const c = make({ topInset: 32 });
+  act(() => void c.addWorkspace());
+  await until('a cell', () => cells().length === 1);
+  const cell = cells()[0]!;
+  const top = (el: Element): string => getComputedStyle(el).top;
+  assert.equal(top(neighbour(cell, 'above')), '34px');
+  assert.equal(top(cell.querySelector('[data-workspace-name-input]')!.parentElement!), '54px');
+});

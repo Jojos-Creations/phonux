@@ -16,7 +16,7 @@ import { columnCoreOf, type WorkspaceColumnHandle } from './columnHandle.js';
 import type { WorkspaceHandle } from './workspaceCore.js';
 import { MAX_WORKSPACE_NAME } from './workspaceName.js';
 
-/** The room above a workspace's row for the name of the workspace above and the name input, in px. @public */
+/** The room above a workspace's row for the name of the workspace above and the name input, in px, below the column's `topInset`. @public */
 export const COLUMN_TOP_BAND = 76;
 /** The room below a workspace's row for the name of the workspace below, in px. @public */
 export const COLUMN_BOTTOM_BAND = 26;
@@ -45,7 +45,7 @@ export function arrowKeyBelongsElsewhere(e: KeyboardEvent, doc: Document): boole
   return doc.querySelector(`dialog[open],[aria-modal="true"],[${DRAGGING_ATTRIBUTE}]`) !== null;
 }
 
-function NameInput({ workspace, label }: { workspace: WorkspaceHandle; label: string }): React.ReactElement {
+function NameInput({ workspace, label, inset }: { workspace: WorkspaceHandle; label: string; inset: number }): React.ReactElement {
   const [draft, setDraft] = React.useState<string | null>(null);
   const commit = (): void => {
     if (draft !== null) workspace.rename(draft);
@@ -64,7 +64,7 @@ function NameInput({ workspace, label }: { workspace: WorkspaceHandle; label: st
         }
       }}
       inputProps={{ 'aria-label': label, maxLength: MAX_WORKSPACE_NAME, 'data-workspace-name-input': '', style: { textAlign: 'center', padding: 0, height: 24 } }}
-      sx={{ position: 'absolute', top: 22, left: '50%', transform: 'translateX(-50%)', width: 280, maxWidth: 'calc(100% - 32px)', height: 24, fontSize: 14, zIndex: 1 }}
+      sx={{ position: 'absolute', top: 22 + inset, left: '50%', transform: 'translateX(-50%)', width: 280, maxWidth: 'calc(100% - 32px)', height: 24, fontSize: 14, zIndex: 1 }}
     />
   );
 }
@@ -75,7 +75,7 @@ export interface WorkspaceColumnProps {
   column: WorkspaceColumnHandle;
   /**
    * What fills a workspace's cell: the app's own hand-wired row for that workspace. Omitted: the row the library mounts itself, as
-   * `createWorkspace` does. A returned row should put `COLUMN_TOP_BAND` above itself.
+   * `createWorkspace` does. A returned row puts the column's `topInset` plus `COLUMN_TOP_BAND` plus its row gap above its panels.
    */
   children?: (workspace: WorkspaceHandle) => React.ReactNode;
 }
@@ -148,11 +148,11 @@ export function WorkspaceColumn({ column, children }: WorkspaceColumnProps): Rea
                 size="small"
                 onClick={() => (above === undefined ? create(i) : column.scrollTo(above))}
                 aria-label={above === undefined ? labels.newWorkspace : labels.goToWorkspace(above.name)}
-                sx={{ position: 'absolute', top: 2, left: '50%', transform: 'translateX(-50%)', maxWidth: 'calc(100% - 32px)', height: 18, minHeight: 0, py: 0, zIndex: 1, textTransform: 'none', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', display: 'block' }}
+                sx={{ position: 'absolute', top: 2 + snap.topInset, left: '50%', transform: 'translateX(-50%)', maxWidth: 'calc(100% - 32px)', height: 18, minHeight: 0, py: 0, zIndex: 1, textTransform: 'none', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', display: 'block' }}
               >
                 {above === undefined ? labels.newWorkspace : above.name}
               </Button>
-              <NameInput workspace={ws} label={labels.workspaceName} />
+              <NameInput workspace={ws} label={labels.workspaceName} inset={snap.topInset} />
               {children === undefined ? (
                 <React.Suspense fallback={null}>
                   <DefaultCell workspace={ws} columnTop={COLUMN_TOP_BAND} />
@@ -174,7 +174,7 @@ export function WorkspaceColumn({ column, children }: WorkspaceColumnProps): Rea
         })}
       </div>
       {snap.workspaces.length === 0 ? (
-        <Button data-workspace-neighbour="empty" size="small" onClick={() => create(0)} sx={{ position: 'absolute', top: 4, left: '50%', transform: 'translateX(-50%)', textTransform: 'none' }}>
+        <Button data-workspace-neighbour="empty" size="small" onClick={() => create(0)} sx={{ position: 'absolute', top: 2 + snap.topInset, left: '50%', transform: 'translateX(-50%)', textTransform: 'none' }}>
           {labels.newWorkspace}
         </Button>
       ) : null}

@@ -96,7 +96,7 @@ export function AutoRoot({ workspace, columnTop = 0 }: { workspace: WorkspaceHan
   };
   const Wrap = binding.wrap;
   const row = (
-    <Workspace overflowContainerRef={ref} rowRef={rowRef} containerWidth={containerWidth} phoneWidth={phoneWidth} {...(values.topInset !== undefined || columnTop > 0 ? { topPadding: columnTop + (values.topInset ?? provided.tuning.rowGap) } : {})} {...workspaceProps(provided)}>
+    <Workspace overflowContainerRef={ref} rowRef={rowRef} containerWidth={containerWidth} phoneWidth={phoneWidth} {...(columnTop > 0 ? { topPadding: columnTop + (values.topInset ?? 0) + provided.tuning.rowGap } : values.topInset !== undefined ? { topPadding: values.topInset } : {})} {...workspaceProps(provided)}>
       <PanelRow {...rowProps(provided, workspace)} />
     </Workspace>
   );

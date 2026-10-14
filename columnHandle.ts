@@ -106,6 +106,8 @@ export interface ColumnSnapshot {
   names: readonly string[];
   current: number;
   labels: WorkspaceLive['labels'];
+  /** The clearance above the column's own controls: the `topInset` the column was given, 0 without one. */
+  topInset: number;
   tuning: WorkspaceOptions['tuning'];
 }
 
@@ -178,7 +180,7 @@ export function createWorkspaceColumn(o: ColumnOptions = {}): WorkspaceColumnHan
     snap = undefined;
     for (const l of [...listeners]) l();
   };
-  const snapshot = (): ColumnSnapshot => (snap ??= { status, workspaces: list, names: list.map((w) => w.name), current, labels: live.labels, tuning: o.tuning });
+  const snapshot = (): ColumnSnapshot => (snap ??= { status, workspaces: list, names: list.map((w) => w.name), current, labels: live.labels, topInset: live.topInset ?? 0, tuning: o.tuning });
 
   const state = (): ColumnState => ({ version: 1, workspaces: list.map((w) => ({ id: w.id, name: w.name })), current: list[current]?.id ?? null });
   // Saves go one after another so a slow one cannot land after the one that followed it.

@@ -711,8 +711,7 @@ radiogroup), the item is pressed under dnd-kit's keyboard drag, a panel is being
 **Mounted, inert, focus.** Every cell stays mounted, so panels keep their state, and the cells that are not current are `inert` and
 `aria-hidden`. When the current cell changes while focus was inside the one left, focus moves to the new cell (`tabIndex -1`), so the arrow keys keep working.
 
-**Vertical budget.** Each cell is as tall as the column. The row's top padding is `COLUMN_TOP_BAND` (76) plus `topInset`, or the row gap
-(16) when there is none: 92 px. A panel's header hangs 56 px above its 700 px body, so from the window's top edge down: the button naming the
+**Vertical budget.** Each cell is as tall as the column. The column's `topInset` is clearance for chrome the app draws over the window (0 by default): the controls start below it, and the row's top padding is `topInset` plus `COLUMN_TOP_BAND` (76) plus the row gap (16), 92 px with no inset. A panel's header hangs 56 px above its 700 px body, so from the window's top edge down: the button naming the
 workspace above at 2 to 20 px, the name input at 22 to 46 px, the headers from 48 px, the bodies, then the bottom button in the last
 4 to 26 px (`COLUMN_BOTTOM_BAND` is 26). The phone keeps its height. Measured in Chromium (`phonux-workspace-column-proof`):
 at 832 px high the headers start at 48, the bodies run 104 to 804 and the bottom button 806 to 828, so nothing overlaps and 832 is
