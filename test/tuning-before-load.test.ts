@@ -8,8 +8,9 @@ import './support/jsdom-globals.js';
 import * as React from 'react';
 import { act } from 'react';
 import { createWorkspace, createWorkspaceColumn, definePanel } from '../index.js';
+import { columnCoreOf } from '../columnHandle.js';
+import { rigCleanup, slots, until } from './support/auto-rig.js';
 import type { ColumnState, ColumnStorage, WorkspaceColumnHandle, WorkspaceHandle } from '../index.js';
-import { rigCleanup, until } from './support/auto-rig.js';
 
 const view = () => React.createElement('i');
 const tpl = definePanel({ id: 'a', view });
@@ -93,4 +94,60 @@ test('a disposed column refuses', () => {
   const r = c.configureTuning({ hopFraction: 0.25 });
   assert.equal(r.ok, false);
   assert.equal((r as { code: string }).code, 'disposed');
+});
+
+test('column.configureTuning moves the column\'s own tuning, which its slide reads', () => {
+  const c = column({ tuning: { rowGap: 20 } });
+  assert.equal(columnCoreOf(c).snapshot().tuning?.rowGap, 20);
+  assert.equal(c.configureTuning({ rowGap: 40 }).ok, true);
+  assert.equal(columnCoreOf(c).snapshot().tuning?.rowGap, 40);
+  c.configureTuning({ rowGap: null });
+  assert.equal(columnCoreOf(c).snapshot().tuning?.rowGap, undefined);
+});
+
+test('column.configureTuning refuses what the workspace refuses and changes nothing', () => {
+  const c = column();
+  const ws = c.addWorkspace();
+  assert.throws(() => c.configureTuning({ hopFraction: 'x' } as never), { code: 'invalid-settings' });
+  assert.throws(() => c.configureTuning({ nope: 1 } as never), { code: 'invalid-settings' });
+  const scope = c.configureTuning({ tuning: { rowGap: 3 } } as never);
+  assert.equal(scope.ok, false);
+  assert.equal((scope as { code: string }).code, 'wrong-scope');
+  assert.equal(ws.tuning.hopFraction, 0.5);
+  assert.equal(columnCoreOf(c).snapshot().tuning, undefined);
+  const same = c.configureTuning({}) as { ok: boolean; changed: boolean };
+  assert.deepEqual([same.ok, same.changed], [true, false]);
+});
+
+test('a workspace disposed on its own does not stop the column change, and is not reported', () => {
+  const c = column();
+  const gone = c.addWorkspace();
+  const kept = c.addWorkspace();
+  gone.dispose();
+  const result = c.configureTuning({ hopFraction: 0.25 });
+  assert.equal(result.ok, true);
+  assert.equal(kept.tuning.hopFraction, 0.25);
+});
+
+test('a workspace\'s own configureTuning after the column\'s wins for it until the column changes the key again', () => {
+  const c = column();
+  const one = c.addWorkspace();
+  const two = c.addWorkspace();
+  c.configureTuning({ rowGap: 40 });
+  one.panels.configureTuning({ rowGap: 30 });
+  assert.equal(one.tuning.rowGap, 30);
+  assert.equal(two.tuning.rowGap, 40);
+  c.configureTuning({ rowGap: 50 });
+  assert.equal(one.tuning.rowGap, 50);
+  assert.equal(two.tuning.rowGap, 50);
+});
+
+test('a value set before the row mounts is still there once the workspace is attached and loaded', async () => {
+  const shown = definePanel({ id: 'shown', view: ({ handle }) => React.createElement('i', { 'data-slot': handle.id }) });
+  const w = createWorkspace({ templates: [shown] });
+  live.push(w);
+  assert.equal(w.panels.configureTuning({ hopFraction: 0.25 }).ok, true);
+  w.addPanel('shown');
+  await until('mounted', () => w.status === 'ready' && slots(document.body).length === 1);
+  assert.equal(w.tuning.hopFraction, 0.25);
 });
