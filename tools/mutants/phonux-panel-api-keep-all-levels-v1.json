@@ -1,0 +1,34 @@
+{
+  "tests": [
+    "test/panel-api-level.test.ts"
+  ],
+  "mutants": [
+    {
+      "name": "the removal clause is always printed",
+      "file": "panelApiLevel.ts",
+      "find": "const removal = droppedIn === undefined ? '' : `, and level ${level} is deprecated and removed in ${droppedIn}`;",
+      "replace": "const removal = `, and level ${level} is deprecated and removed in ${droppedIn ?? 'a later release'}`;",
+      "expectRed": [
+        "a level with no removal release warns without naming one"
+      ]
+    },
+    {
+      "name": "a missing removal release prints undefined",
+      "file": "panelApiLevel.ts",
+      "find": "const removal = droppedIn === undefined ? '' : `, and level ${level} is deprecated and removed in ${droppedIn}`;",
+      "replace": "const removal = `, and level ${level} is deprecated and removed in ${droppedIn}`;",
+      "expectRed": [
+        "a level with no removal release warns without naming one"
+      ]
+    },
+    {
+      "name": "a deprecated level no longer names its release",
+      "file": "panelApiLevel.ts",
+      "find": "const removal = droppedIn === undefined ? '' : `, and level ${level} is deprecated and removed in ${droppedIn}`;",
+      "replace": "const removal = '';",
+      "expectRed": [
+        "a template on an older level warns once, by template id, naming the level, the newest and the release that drops it"
+      ]
+    }
+  ]
+}
