@@ -7,9 +7,11 @@ import { test, afterEach, mock } from 'node:test';
 import assert from 'node:assert/strict';
 import './support/jsdom-globals.js';
 import { act, createElement, type ReactElement } from 'react';
-import type { HeaderButton } from '../index.js';
+import type { HeaderButton, Pinning } from '../index.js';
 import { cleanup } from './support/mount-harness.js';
 import { headerRig, type HeaderRig } from './support/header-rig.js';
+
+const ROW_START: Pinning = { pinned: { placement: 'row-start' }, unpinned: { placement: 'row-end' } };
 
 afterEach(() => {
   mock.restoreAll();
@@ -84,21 +86,21 @@ test('a press with no focus on the button moves no focus', async () => {
 });
 
 test('a re-render without the focused slot moves focus to the same panel\'s header row, never body', async () => {
-  const hideWhenTablet = (c: { state: { formFactor: string } }): boolean => c.state.formFactor === 'tablet';
-  const rig = await headerRig({ ids: ['a'], slots: { tmp: slot('Tmp', { hidden: hideWhenTablet }), keep: slot('Keep') } });
+  const hideWhenPinned = (c: { state: { pinned: boolean } }): boolean => c.state.pinned;
+  const rig = await headerRig({ ids: ['a', 'b'], settings: { a: { pinning: ROW_START } }, slots: { tmp: slot('Tmp', { hidden: hideWhenPinned }), keep: slot('Keep') } });
   act(() => byLabel(rig, 'a', 'Tmp').focus());
   assert.ok(document.activeElement === byLabel(rig, 'a', 'Tmp'));
-  act(() => void rig.h.a!.setFormFactor('tablet'));
+  act(() => void rig.h.a!.pin());
   assert.equal(rig.buttons('a').length, 1);
   assert.ok(document.activeElement === rowOf(rig, 'a'));
   assert.equal(rowOf(rig, 'a').getAttribute('tabindex'), '-1');
 });
 
 test('when the only slot leaves, focus still lands on the header row, which takes tabindex -1', async () => {
-  const rig = await headerRig({ ids: ['a'], slots: { tmp: slot('Tmp', { hidden: (c) => c.state.formFactor === 'tablet' }) } });
+  const rig = await headerRig({ ids: ['a', 'b'], settings: { a: { pinning: ROW_START } }, slots: { tmp: slot('Tmp', { hidden: (c) => c.state.pinned }) } });
   const row = rowOf(rig, 'a');
   act(() => byLabel(rig, 'a', 'Tmp').focus());
-  act(() => void rig.h.a!.setFormFactor('tablet'));
+  act(() => void rig.h.a!.pin());
   assert.equal(rig.buttons('a').length, 0);
   assert.ok(document.activeElement === row);
   assert.equal(row.getAttribute('tabindex'), '-1');

@@ -24,13 +24,16 @@ export const panelsApi: PanelsAPI = {
   create: (options?: { view?: string }): void => void options,
   activate: (id: string): void => void id,
   move: (id: string, direction: 'left' | 'right'): void => void [id, direction],
-  setFormFactor: (id: string, next: 'phone' | 'tablet' | 'desktop'): void => void [id, next],
   reanchor: (id: string, anchor: { panel?: string; position: 'left' | 'right'; priority?: number }): void => void [id, anchor],
   close: (id: string): void => void id,
   recentlyClosed: null,
   undoClose: (): void => undefined,
   clearAll: (): void => undefined,
 };
+
+/** `setFormFactor` was removed on purpose, with the tiers: a host literal naming it must not compile. */
+// @ts-expect-error setFormFactor is gone
+export const retiredSetFormFactor: PanelsAPI = { ...panelsApi, setFormFactor: (id: string, next: 'phone' | 'tablet' | 'desktop'): void => void [id, next] };
 
 /** The settings member a host built by hand: `settingsColumn` and nothing else. */
 const settings: SettingsAPI = {

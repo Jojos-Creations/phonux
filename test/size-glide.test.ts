@@ -150,18 +150,18 @@ async function rig(templates: PanelTemplate[], add: string[]): Promise<{ ws: Wor
 
 const boxOf = (m: ResizableWorkspace, id: string): HTMLElement => m.container.querySelector(`[data-body="${id}"]`)!.closest<HTMLElement>('[data-row-slot]')!.querySelector<HTMLElement>('[data-panel-size-box]')!;
 
-const summary = (formFactor: 'phone' | 'tablet' | 'desktop', size: { width: number; height: number | 'fill' }): never => ({ id: 'p', title: 'P', formFactor, size: { formFactor, ...size } }) as never;
+const summary = (slots: number, size: { width: number; height: number | 'fill' }): never => ({ id: 'p', title: 'P', slots, size }) as never;
 const framed = (panel: never): React.ReactElement => React.createElement(HostProvider, { host: createFakeHost(), children: React.createElement(DefaultFrame, { panel, children: React.createElement('i') }) });
 
-test("a panel that fills the row's height is drawn at 100% and its box never scales on y, while it still eases on x, to a tablet and on to a desktop and back", async () => {
+test("a panel that fills the row's height is drawn at 100% and its box never scales on y, while it still eases on x, to two slots and on to a wider panel and back", async () => {
   mock.timers.enable({ apis: ['setTimeout'] });
-  const mounted = mount(framed(summary('phone', { width: 390, height: 700 })));
+  const mounted = mount(framed(summary(1, { width: 390, height: 700 })));
   const box = mounted.container.querySelector<HTMLElement>('[data-panel-size-box]')!;
   assert.equal(box.style.height, '700px', 'a phone has a pixel height');
   const steps: Array<[string, never, string]> = [
-    ['to a tablet', summary('tablet', { width: 768, height: 'fill' }), '100%'],
-    ['on to a desktop', summary('desktop', { width: 1200, height: 'fill' }), '100%'],
-    ['back to a phone', summary('phone', { width: 390, height: 700 }), '700px'],
+    ['to two slots', summary(2, { width: 768, height: 'fill' }), '100%'],
+    ['on to a wider panel', summary(3, { width: 1200, height: 'fill' }), '100%'],
+    ['back to one slot', summary(1, { width: 390, height: 700 }), '700px'],
   ];
   for (const [name, panel, height] of steps) {
     mounted.rerender(framed(panel));
