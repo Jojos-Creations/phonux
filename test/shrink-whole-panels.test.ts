@@ -11,7 +11,6 @@ import type { PanelWindow } from '../index.js';
 import { applyTemplate } from '../panelSettings.js';
 import { appendPanel, createHistoryPanel } from '../panelWindow.js';
 import { computeRowNumbers, fadeAt, maxScrollOf, nearestStopIndex, snapToStop, type RowNumbers } from '../rowNumbers.js';
-import { slotWidth } from '../rowConstants.js';
 
 const ROOT = 'root';
 const PHONE = 390;
@@ -25,8 +24,7 @@ const made = (id: string, slots: number): PanelWindow => {
 };
 const slotless = (id: string, width: number): PanelWindow => {
   const skeleton = appendPanel([], { url: `https://${id}.example`, title: id, view: 'v' }, id, ROOT)[0]!;
-  const formFactor = width === PHONE ? 'phone' : 'desktop';
-  return { ...skeleton, collapsible: true, live: true, formFactor, size: { formFactor, width, height: 700 }, settings: { overflow: 'scroll' } as never };
+  return { ...skeleton, collapsible: true, live: true, size: { width, height: 700 }, settings: { overflow: 'scroll' } as never };
 };
 const history = (): PanelWindow => applyTemplate({ ...createHistoryPanel(ROOT), view: 'v' }, resolvePanelSettings({ template: { title: 'History', overflow: 'scroll' } as never }, { root: true }).value, 'create');
 const row = (items: readonly Item[]): PanelWindow[] => items.map((it, k) => (typeof it === 'number' ? made(`p${k}`, it) : slotless(`p${k}`, it.width)));
@@ -96,7 +94,7 @@ function drawnBy(ref: Ref, items: readonly Item[], gap: number, stop: RefStop, p
 const TABLES: { gap: number; container: number; items: Item[] }[] = [];
 for (const [gap, containers] of [[16, [1800, 1280, 844]], [24, [1800, 1280, 844]]] as const) {
   for (const container of containers) {
-    for (const items of [[1, 4, 1, 2], [1, 1, 4, 1], [2, 4, 1, 1], [1, 2, 4, 1, 3], [6, 1, 2, 1, 64], [1, { width: 600 }, 2, 1], [{ width: 600 }, 3, 1, { width: 600 }]] as Item[][]) {
+    for (const items of [[1, 4, 1, 2], [1, 1, 4, 1], [2, 4, 1, 1], [1, 2, 4, 1, 3], [6, 1, 2, 1, 64], [1, { width: PHONE }, 2, 1], [{ width: PHONE }, 3, 1, { width: PHONE }]] as Item[][]) {
       TABLES.push({ gap, container, items });
     }
   }
@@ -352,8 +350,8 @@ test("'hidden' draws no panel part way: mid-glide a panel is whole or hidden, wh
   );
 });
 
-test('a hand-built entry without slots keeps its own width in every mode, where the same widths with slots step through sizes', () => {
-  const widths = [PHONE, slotWidth(2, PHONE, 16), slotWidth(3, PHONE, 16), PHONE, slotWidth(2, PHONE, 16)];
+test('a hand-built entry without slots stays one phone width in every mode, where the same slot counts step through sizes', () => {
+  const widths = [PHONE, PHONE, PHONE, PHONE, PHONE];
   const slotlessRow = widths.map((w, k) => slotless(`e${k}`, w));
   const control = walk([1, 2, 3, 1, 2], 1800, 16);
   assert.ok(control.some((n, k) => n.stopShrinks[k]!.length > 0), 'the control: the same widths with slots are drawn smaller on some stop');
@@ -361,7 +359,7 @@ test('a hand-built entry without slots keeps its own width in every mode, where 
     const base = numbers(slotlessRow, 1800, 16, mode);
     for (const [k, first] of base.stopFirsts.entries()) {
       const n = numbers(slotlessRow, 1800, 16, mode, first);
-      assert.deepEqual(n.drawnWidths, widths, `${mode} stop ${k}: every entry is drawn at its own width`);
+      assert.deepEqual(n.drawnWidths, widths, `${mode} stop ${k}: every entry is drawn at one phone width`);
       assert.ok(n.stopShrinks.every((s) => s.length === 0), mode);
     }
   }

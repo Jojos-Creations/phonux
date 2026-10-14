@@ -51,69 +51,69 @@ test('rememberLayout true, false, true over three launches: the dragged and the 
   const store = memoryWorkspaceStorage();
   let r = await launch(store);
   r.turn(() => r.h.c!.move(-1, 'person'));
-  r.turn(() => r.h.b!.setFormFactor('tablet', 'person'));
-  assert.deepEqual([r.order().join(' '), r.entry('b').formFactor], ['root a c b', 'tablet']);
+  r.turn(() => r.h.b!.setSlots(2, 'person'));
+  assert.deepEqual([r.order().join(' '), r.entry('b').slots], ['root a c b', 2]);
   await quit(r);
   const first = await overridesOf(store);
   assert.deepEqual(first, { a: { anchor: right(0) }, c: { anchor: right(1) }, b: { anchor: right(2), slots: 2 } });
 
   r = await launch(store);
-  assert.deepEqual([r.order().join(' '), r.entry('b').formFactor], ['root a c b', 'tablet'], 'launch 2 applies them');
+  assert.deepEqual([r.order().join(' '), r.entry('b').slots], ['root a c b', 2], 'launch 2 applies them');
   for (const id of ['b', 'c']) assert.deepEqual({ ...ok(r.turn(() => r.h[id]!.configure({ rememberLayout: false }))) }, { ok: true, changed: true, shown: false, now: [], later: ['rememberLayout'], shadowed: [], notes: [] });
   r.turn(() => r.h.c!.move(1, 'person'));
-  r.turn(() => r.h.b!.setFormFactor('phone', 'person'));
-  assert.deepEqual([r.order().join(' '), r.entry('b').formFactor], ['root a b c', 'phone'], 'the session moves on');
+  r.turn(() => r.h.b!.setSlots(1, 'person'));
+  assert.deepEqual([r.order().join(' '), r.entry('b').slots], ['root a b c', 1], 'the session moves on');
   await wait();
   assert.deepEqual(await overridesOf(store), first, 'while rememberLayout is false nothing is recorded and the stored overrides ride through every save');
   for (const id of ['b', 'c']) ok(r.turn(() => r.h[id]!.configure({ rememberLayout: true })));
   r.turn(() => r.h.a!.move(1, 'person'));
   assert.equal(r.order().join(' '), 'root b a c');
   await quit(r);
-  assert.deepEqual(await overridesOf(store), { b: { anchor: right(0), slots: 2 }, a: { anchor: right(1) }, c: { anchor: right(2) } }, 'true again records, and the resize the false stretch skipped never replaced the stored tablet');
+  assert.deepEqual(await overridesOf(store), { b: { anchor: right(0), slots: 2 }, a: { anchor: right(1) }, c: { anchor: right(2) } }, 'true again records, and the resize the false stretch skipped never replaced the stored two slots');
 
   r = await launch(store);
-  assert.deepEqual([r.order().join(' '), r.entry('b').formFactor], ['root b a c', 'tablet'], 'launch 3 applies what was kept');
+  assert.deepEqual([r.order().join(' '), r.entry('b').slots], ['root b a c', 2], 'launch 3 applies what was kept');
 });
 
-test('resizable false after the person resized to tablet: the tier stays tablet in the session and, saved on an anonymous instance, in the next launch', async () => {
+test('resizable false after the person resized to two slots: the count stays 2 in the session and, saved on an anonymous instance, in the next launch', async () => {
   const store = memoryWorkspaceStorage();
   let r = await launch(store, { extra: ANON });
-  const declared = r.turn(() => r.h.b!.setFormFactor('tablet', 'person'));
+  const declared = r.turn(() => r.h.b!.setSlots(2, 'person'));
   assert.equal(declared.ok, true);
   assert.deepEqual({ ...ok(r.turn(() => r.h.b!.configure({ resizable: false }))) }, { ok: true, changed: true, shown: false, now: ['resizable'], later: [], shadowed: [], notes: [] });
-  assert.deepEqual([r.entry('b').formFactor, r.state('b').formFactor], ['tablet', 'tablet'], 'a declared panel: configure writes no tier');
-  assert.deepEqual({ ...r.turn(() => r.h.b!.setFormFactor('phone', 'person')) }, { ok: false, code: 'not-resizable', message: "panel 'b' cannot be resized" });
+  assert.deepEqual([r.entry('b').slots, r.state('b').settings.slots], [2, 2], 'a declared panel: configure writes no slot count');
+  assert.deepEqual({ ...r.turn(() => r.h.b!.setSlots(1, 'person')) }, { ok: false, code: 'not-resizable', message: "panel 'b' cannot be resized" });
   const x = r.turn(() => r.ws.addPanel('m'));
   await r.settle();
-  r.turn(() => x.setFormFactor('tablet', 'person'));
+  r.turn(() => x.setSlots(2, 'person'));
   ok(r.turn(() => x.configure({ resizable: false })));
-  assert.deepEqual([x.getState().formFactor, x.getState().settings.resizable], ['tablet', false]);
+  assert.deepEqual([x.getState().settings.slots, x.getState().settings.resizable], [2, false]);
   await quit(r);
 
   r = await launch(store, { extra: ANON });
   const again = anonymous(r);
-  assert.deepEqual([again.getState().formFactor, again.getState().settings.resizable, again.getSettings().source.resizable], ['tablet', false, 'instance'], 'permissions gate gestures, not restoring');
-  assert.equal(r.turn(() => again.setFormFactor('phone', 'person')).ok, false);
-  assert.deepEqual([r.entry('b').formFactor, r.state('b').settings.resizable], ['tablet', true], 'the declared panel keeps the person\'s tier from the file and the declaration\'s own permission');
+  assert.deepEqual([again.getState().settings.slots, again.getState().settings.resizable, again.getSettings().source.resizable], [2, false, 'instance'], 'permissions gate gestures, not restoring');
+  assert.equal(r.turn(() => again.setSlots(1, 'person')).ok, false);
+  assert.deepEqual([r.entry('b').slots, r.state('b').settings.resizable], [2, true], 'the declared panel keeps the person\'s count from the file and the declaration\'s own permission');
 });
 
-test('formFactors narrowed to exclude the person\'s saved tier drops the override with a note, in the session and again at the next launch', async () => {
+test('maxSlots lowered below the person\'s saved count clamps it without a note, in the session and again at the next launch', async () => {
   const store = memoryWorkspaceStorage();
   let r = await launch(store, { extra: ANON });
   const x = r.turn(() => r.ws.addPanel('m'));
   await r.settle();
-  r.turn(() => x.setFormFactor('tablet', 'person'));
-  assert.deepEqual({ ...r.turn(() => x.configure({ formFactors: ['phone'] })) }, { ok: false, code: 'tier-not-allowed', message: `panel '${x.id}': the panel is at the tablet tier, which these settings no longer allow` }, 'control: the live tier cannot be excluded');
-  r.turn(() => x.setFormFactor('phone'));
-  const narrowed = ok(r.turn(() => x.configure({ formFactors: ['phone'] })));
-  assert.deepEqual([...narrowed.notes], [{ code: 'override-dropped', key: 'slots', message: "user.slots: 2 is outside this panel's formFactors; dropped" }]);
-  assert.equal(x.getState().formFactor, 'phone');
+  r.turn(() => x.setSlots(2, 'person'));
+  assert.deepEqual({ ...r.turn(() => x.configure({ maxSlots: 1 })) }, { ok: false, code: 'slots-above-max', message: `panel '${x.id}': the panel is 2 slots wide, which these settings no longer allow` }, 'control: the live count cannot be excluded');
+  r.turn(() => x.setSlots(1));
+  const narrowed = ok(r.turn(() => x.configure({ maxSlots: 1 })));
+  assert.deepEqual([...narrowed.notes], []);
+  assert.equal(x.getState().settings.slots, 1);
   await quit(r);
   assert.equal(JSON.stringify((await file(store)).panels.find((p) => p.view === 'm')!.overrides), '{"slots":2}', 'the file still holds what the person chose: configure never edits it');
 
   r = await launch(store, { extra: ANON });
-  assert.equal(anonymous(r).getState().formFactor, 'phone');
-  assert.deepEqual(r.m.notes.filter((n) => n.code === 'override-dropped').map((n) => [n.key, n.message]), [['slots', "user.slots: 2 is outside this panel's formFactors; dropped"]]);
+  assert.equal(anonymous(r).getState().settings.slots, 1);
+  assert.deepEqual(r.m.notes.filter((n) => n.code === 'override-dropped').map((n) => [n.key, n.message]), []);
 });
 
 test('persist saved to session: the live panel is untouched, rememberLayout true beside it is a settings-conflict, and a panel anchored to it is saved against the row without it', async () => {
@@ -176,14 +176,14 @@ test('the file\'s overrides are unchanged by any configure, whatever its class a
   const settings = { b: { pinning: { pinned: { parkable: false }, unpinned: { parkable: true } } satisfies Pinning } };
   let r = await launch(store, { settings });
   r.turn(() => r.h.c!.move(-1, 'person'));
-  r.turn(() => r.h.a!.setFormFactor('tablet', 'person'));
+  r.turn(() => r.h.a!.setSlots(2, 'person'));
   r.turn(() => r.h.b!.pin('person'));
   await wait();
   const before = await overridesOf(store);
   assert.deepEqual(before, { a: { anchor: right(0), slots: 2 }, c: { anchor: right(1) }, b: { anchor: right(2), parkable: false } }, 'control: the person left an override on each panel');
   const patches: [string, Record<string, unknown>][] = [
     ['a', { closable: false, title: 'A' }],
-    ['a', { formFactor: 'phone', formFactors: ['phone', 'tablet'] }],
+    ['a', { slots: 1, maxSlots: 2 }],
     ['c', { scrollOnOpen: 'center', placeOnAdd: 'row-start', listed: false }],
     ['b', { parkable: true }],
     ['b', { pinning: { pinned: { parkable: false }, unpinned: { parkable: true } }, keepMounted: false }],
@@ -195,23 +195,23 @@ test('the file\'s overrides are unchanged by any configure, whatever its class a
   await quit(r);
   assert.deepEqual(await overridesOf(store), before);
   r = await launch(store, { settings });
-  assert.deepEqual([r.order().join(' '), r.entry('a').formFactor, r.facts('b').parkable], ['root a c b', 'tablet', false], 'and the next launch applies them all');
+  assert.deepEqual([r.order().join(' '), r.entry('a').slots, r.facts('b').parkable], ['root a c b', 2, false], 'and the next launch applies them all');
 });
 
-test('a configure of formFactor or parkable while the person\'s override is restored reports it shadowed', async () => {
+test('a configure of slots or parkable while the person\'s override is restored reports it shadowed', async () => {
   const store = memoryWorkspaceStorage();
   const settings = { b: { pinning: { pinned: { parkable: false }, unpinned: { parkable: true } } satisfies Pinning } };
   let r = await launch(store, { settings });
-  r.turn(() => r.h.c!.setFormFactor('tablet', 'person'));
+  r.turn(() => r.h.c!.setSlots(2, 'person'));
   r.turn(() => r.h.b!.pin('person'));
   await quit(r);
   r = await launch(store, { settings });
-  assert.deepEqual([r.entry('c').formFactor, r.facts('b').parkable], ['tablet', false], 'control: both overrides came back');
-  const tier = ok(r.turn(() => r.h.c!.configure({ formFactor: 'phone' })));
-  assert.deepEqual([[...tier.now], [...tier.later], [...tier.shadowed]], [[], ['formFactor'], ['formFactor']]);
+  assert.deepEqual([r.entry('c').slots, r.facts('b').parkable], [2, false], 'control: both overrides came back');
+  const size = ok(r.turn(() => r.h.c!.configure({ slots: 1 })));
+  assert.deepEqual([[...size.now], [...size.later], [...size.shadowed]], [[], ['slots'], ['slots']]);
   const fixed = ok(r.turn(() => r.h.b!.configure({ parkable: true })));
   assert.deepEqual([[...fixed.now], [...fixed.later], [...fixed.shadowed]], [['parkable'], [], ['parkable']]);
-  assert.deepEqual([r.entry('c').formFactor, r.facts('b').parkable, r.h.c!.getSettings().source.formFactor, r.h.b!.getSettings().source.parkable], ['tablet', false, 'user', 'user']);
+  assert.deepEqual([r.entry('c').slots, r.facts('b').parkable, r.h.c!.getSettings().source.slots, r.h.b!.getSettings().source.parkable], [2, false, 'user', 'user']);
 });
 
 test('a deferred pin is never in the file, and a configure of pinning keeps it out too', async () => {
@@ -240,7 +240,7 @@ test('a Host-bag ask comes back through null in the session, the file keeps it m
   await r.settle();
   let x = anonymous(r);
   const read = (): [unknown, string | undefined] => [x.getSettings().value.title, x.getSettings().source.title];
-  r.turn(() => x.setFormFactor('tablet', 'person'));
+  r.turn(() => x.setSlots(2, 'person'));
   await wait();
   const savedPanel = async () => (await file(store)).panels.find((p) => p.view === 'm')!;
   const before = JSON.stringify((await savedPanel()).overrides);
@@ -262,24 +262,22 @@ test('a Host-bag ask comes back through null in the session, the file keeps it m
   assert.deepEqual(read(), ['Template title', 'template'], 'so null falls through to the template');
 });
 
-test('a panel resized to three slots is saved with its count and comes back that wide, its override and its tier following', async () => {
+test('a panel resized to three slots is saved with its count and comes back that wide, its override following', async () => {
   const store = memoryWorkspaceStorage();
   let r = await launch(store);
   assert.equal(brief(r.turn(() => r.h.b!.setSlots(3, 'person'))), 'T');
-  assert.deepEqual([r.entry('b').slots, r.entry('b').formFactor], [3, 'desktop']);
+  assert.deepEqual(r.entry('b').slots, 3);
   await quit(r);
   const saved = (await file(store)).panels.find((p) => p.key === 'b')!;
-  assert.deepEqual([saved.slots, saved.overrides?.slots], [3, 3], 'a count that is not its tier\'s own is written on the panel and as the override');
+  assert.deepEqual([saved.slots, saved.overrides?.slots], [3, 3], 'a count other than one is written on the panel and as the override');
 
   r = await launch(store);
-  assert.deepEqual([r.entry('b').slots, r.entry('b').formFactor], [3, 'desktop'], 'launch 2 restores the count');
-  const tablet = await (async () => {
-    r.turn(() => r.h.b!.setSlots(2, 'person'));
-    await quit(r);
-    return (await file(store)).panels.find((p) => p.key === 'b')!;
-  })();
-  assert.equal(tablet.slots, undefined, 'a count that is its tier\'s own is not written on the panel');
-  assert.equal(tablet.overrides?.slots, 2);
+  assert.deepEqual(r.entry('b').slots, 3, 'launch 2 restores the count');
+  r.turn(() => r.h.b!.setSlots(1, 'person'));
+  await quit(r);
+  const one = (await file(store)).panels.find((p) => p.key === 'b')!;
+  assert.equal(one.slots, undefined, 'one slot is the default and is not written on the panel');
+  assert.equal(one.overrides?.slots, 1);
 });
 
 test('a code resize is not an override: the file holds the count on the panel and no override', async () => {

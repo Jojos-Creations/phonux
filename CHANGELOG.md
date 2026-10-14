@@ -2,6 +2,18 @@
 
 ## Unreleased
 
+### Breaking
+
+- The tier family is gone; a panel's width is its slot count. Removed: the `formFactor` and `formFactors` settings (a template that sets either
+  throws `invalid-settings`), both `setFormFactor` verbs (the handle's and `PanelsAPI`'s), `PanelSummary.formFactor`, `PanelState.formFactor`,
+  `PanelSize.formFactor`, `CreatePanelOptions.formFactor`, `ViewPatch.formFactor`, `PanelUserLayer.formFactor`, the `FormFactor` type, `TIER_SIZES`,
+  and `usePanelCapabilities().formFactors`. **Migration:** phone is `slots: 1`, tablet `slots: 2`, desktop every visible slot (`maxSlots` is the cap, default
+  every slot that fits); `setFormFactor(id, 'tablet')` is `setSlots(id, 2)`; `formFactors: ['phone']` is `maxSlots: 1`; `usePanelCapabilities()` returns `maxSlots`.
+  `slots` is now a plain default of 1 and `maxSlots` of every visible slot. The refusal code `tier-not-allowed` is `slots-above-max`: lowering `maxSlots` below the
+  panel's slots, or pinning a panel wider than one slot into a fixed column. `CreatePanelOptions` and `ViewPatch` take `slots`.
+  A saved file from an older library still loads: a top-level `formFactor` on an entry and `overrides.formFactor` read as that tier's slot count (`slots` wins when both are
+  there). A file this version writes holds `slots` only for a panel wider than one slot and never a `formFactor`. `panelWidthOf` and the row price an entry with no `slots` as one phone width.
+
 ### Fixed
 
 - A trackpad swipe on a stepping row is one step. Its deltas ramp up before they fade, and every rising event after the 60 ms
@@ -36,7 +48,7 @@
   reads "Create new workspace" where there is none. Each workspace has a name input above its panels. A workspace now has an `id`
   that never changes, a `name` (default `Workspace <n>`) and `rename(name)`; `WorkspaceOptions` takes `id`, `name` and `onRename`.
   `ColumnStorage` keeps the list, the names and the current workspace, and the panels of each workspace under its id. New
-  `PhonuxLabels` keys: `newWorkspace`, `goToWorkspace` and `workspaceName`. `WorkspaceColumn` draws a column for an app that mounts itself.
+  `PhonuxLabels` keys: `newWorkspace`, `goToWorkspace` and `workspaceName`. `WorkspaceColumn` draws a column for an app that mounts itself. `addWorkspace` takes `id`, `name` and `index` only: the column has one content, and `ColumnStorage.workspace(id)` is the one door to a workspace's panels.
 - `tuning.phoneFit` (`'off'` by default, or `'fit'`) with `tuning.phoneFitMin` (0.82) and `tuning.phoneFitMax` (1.13): the default mount scales the
   phone (width and height together, whole pixels) so whole slots fill the window, within that band of the preferred size, and never cuts a panel at rest.
   `usePhoneSize()` returns the size a panel is drawn at; `useHost().device.size` stays the preferred size. Off, nothing changes.
@@ -50,6 +62,9 @@
 ### Fixed
 
 - After a reload, a panel made by `addPanel` or New view could take the key of a restored panel (`web~4`), because the counter behind default ids restarts at launch. `addPanel` then returned the restored panel and two rows could share one saved entry and one lock. A restore now moves the counter past every restored key. A workspace with its own `newId` is unchanged.
+- An arrow key a control already used no longer also steps the row. A resize grabber that narrowed a panel with ArrowLeft or ArrowRight
+  stepped the row the same way, so the leftmost panel left the window on each press (and, under Hide or Off, the resized panel could be faded).
+  The row now skips a keydown whose default was prevented, so a control that handles an arrow key calls `preventDefault()` on it; an arrow nothing handles steps as before.
 
 ## 0.2.0-rc.3
 
