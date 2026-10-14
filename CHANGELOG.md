@@ -17,6 +17,8 @@
 
 ### Added
 
+- The contract for a value that is not there yet: `history`, `snapshots` and `labels` are optional on `Host`, the first frame of an auto-mounted workspace holds exactly what `createWorkspace` was given, and `workspace.update` carries the rest. `createFakeHost({ absent: ['history', 'snapshots'] })` renders the absent frame in a test.
+
 - A column of workspaces, one above the other. `createWorkspaceColumn(options)` renders itself like `createWorkspace`, and
   `column.addWorkspace(options)` is the one call that creates a workspace, adds it and returns its `WorkspaceHandle`. ArrowUp and
   ArrowDown move between workspaces (never while focus is in a field, widget, editor or dialog, or during a keyboard drag, and never
