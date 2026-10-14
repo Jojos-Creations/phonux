@@ -19,7 +19,7 @@ export function DefaultFrame({ panel, children }: { panel: PanelSummary; childre
   const labels = resolveLabels(useOptionalHost()?.labels);
   const slot = React.useContext(PanelSlotContext);
   const closeEligible = slot === undefined ? true : slot.collapsible && slot.closable;
-  const size = (panel.formFactor ?? 'phone') !== 'phone' ? panel.size : undefined;
+  const size = (panel.slots ?? 1) > 1 ? panel.size : undefined;
   const title = panel.title ?? labels.untitledPanel;
   const body = <PanelFrame {...(size !== undefined ? { size } : {})}>{children}</PanelFrame>;
   // One box around the whole panel, so the frame, the header above it and the grab bar move together while the size animates.

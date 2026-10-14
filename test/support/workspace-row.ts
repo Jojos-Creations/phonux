@@ -9,11 +9,15 @@ import { PanelRow, Workspace, definePanel, useProvidePanels } from '../../index.
 import type { PanelsInput, PanelTemplate, ProvidedPanels, SettingNote, WorkspaceHandle } from '../../index.js';
 import { createFakeHost } from '../../fakeHost.js';
 import { rowScrollerFor } from '../../rowScroller.js';
+import type { PanelWindow } from '../../panelWindow.js';
 import { mount, panelsInput, withHost } from './mount-harness.js';
 
 const NONE: ReadonlySet<string> = new Set();
 
 /** A template whose view renders `<i data-slot={panel.id} data-keys={Object.keys(handle)}>` so a test can read what a view receives. */
+/** The entries the newest mounted row was given, so a view can name its panel by engine id. */
+export const rowEntries: { current: readonly PanelWindow[] } = { current: [] };
+
 export const markerTemplate = (id: string, over: Partial<PanelTemplate> = {}): PanelTemplate =>
   definePanel({
     id,
@@ -63,6 +67,7 @@ export function mountWorkspace(ws: WorkspaceHandle, o: { width?: number; over?: 
     const [containerWidth, setContainerWidth] = React.useState(width);
     measure = setContainerWidth;
     latest = useProvidePanels(panelsInput({ workspace: ws, rootId: ws.rootId, containerWidth, overflowContainerRef: ref, onNote: (n) => void notes.push(n), ...o.over }));
+    rowEntries.current = latest.entries;
     renders += 1;
     const provided = latest;
     React.useLayoutEffect(() => o.onCommit?.(provided));

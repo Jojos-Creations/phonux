@@ -59,7 +59,7 @@ export interface PanelSlotValue {
   readonly draggable: ResolvedPanelSettings['draggable'];
   readonly placeable: ResolvedPanelSettings['placeable'];
   readonly resizable: ResolvedPanelSettings['resizable'];
-  readonly formFactors: ResolvedPanelSettings['formFactors'];
+  readonly maxSlots: ResolvedPanelSettings['maxSlots'];
   readonly neighborWidths: NeighborWidths;
   readonly pinned: boolean;
   /** How many slots wide the panel is drawn now, and the most it can take: its `maxSlots` or the slots that fit, whichever is fewer. Absent outside a row. */
