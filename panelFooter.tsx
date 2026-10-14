@@ -5,7 +5,7 @@
 import * as React from 'react';
 import Box from '@mui/material/Box';
 import { useFrameClaim } from './panelFrameClaim.js';
-import { CHROME_ATTRIBUTE, CHROME_PARTS, PanelChromeVisibleContext, useChromeFade } from './panelChrome.js';
+import { CHROME_ATTRIBUTE, CHROME_PARTS, PanelChromeVisibleContext, useChromeFade, useChromePixels } from './panelChrome.js';
 
 /** The footer element of the template view above, or null; provided by the view adapter, read by `PanelFooter`. @internal */
 export const PanelFooterContext = React.createContext<React.ReactElement | null>(null);
@@ -36,10 +36,11 @@ export function PanelFooter(): React.ReactElement | null {
   useFrameClaim('frame');
   const footer = React.useContext(PanelFooterContext);
   const fade = useChromeFade(React.useContext(PanelChromeVisibleContext));
+  const chrome = useChromePixels();
   if (footer === null) return null;
   return (
     <FooterBoundary>
-      <Box data-panel-footer="" {...{ [CHROME_ATTRIBUTE]: CHROME_PARTS.footer }} ref={fade} sx={{ flexShrink: 0, boxSizing: 'border-box', borderTop: '1px solid', borderColor: 'divider', px: 1.5, py: 1 }}>
+      <Box data-panel-footer="" {...{ [CHROME_ATTRIBUTE]: CHROME_PARTS.footer }} ref={fade} sx={{ flexShrink: 0, boxSizing: 'border-box', borderTop: '1px solid', borderColor: 'divider', px: `${chrome.footerPadXPx}px`, py: `${chrome.footerPadYPx}px` }}>
         {footer}
       </Box>
     </FooterBoundary>

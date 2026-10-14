@@ -4,10 +4,11 @@
  */
 import * as React from 'react';
 import { animate, useReducedMotion, useReducedMotionConfig } from 'motion/react';
-import { LIBRARY_TUNING_DEFAULTS, type PanelId } from './panelSettings.js';
+import { type ChromeTuning, LIBRARY_TUNING_DEFAULTS, type PanelId } from './panelSettings.js';
 import type { ReorderHandle } from './dragToClose.js';
 import { warnCounterId } from './panelIds.js';
 import { PanelSlotContext } from './panelSlotContext.js';
+import { CHROME } from './rowConstants.js';
 import { reorderStepsForOffset } from './panelWindow.js';
 
 /**
@@ -397,3 +398,6 @@ export function usePanelDragProps(): { onClose?: () => void; reorder?: ReorderHa
   }
   return props;
 }
+
+/** The chrome's pixel values the row gives its panels: the workspace's `tuning.chrome`, or the library's defaults outside a row. */
+export const useChromePixels = (): ChromeTuning => React.useContext(PanelSlotContext)?.tuning.chrome ?? CHROME;

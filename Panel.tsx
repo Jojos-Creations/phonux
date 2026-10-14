@@ -9,7 +9,8 @@
 import * as React from 'react';
 import Box, { type BoxProps } from '@mui/material/Box';
 import { type Theme } from '@mui/material/styles';
-import { PANEL_HEADER_GAP_PX, PanelHeaderRow, type PanelHeaderRowProps } from './PanelFrame.js';
+import { PanelHeaderRow, type PanelHeaderRowProps } from './PanelFrame.js';
+import { useChromePixels } from './panelChrome.js';
 import { type PanelSize } from './hostApi.js';
 import { usePhoneSize } from './phoneFit.js';
 import { useFrameClaim } from './panelFrameClaim.js';
@@ -95,6 +96,7 @@ export function Panel({ title, actions, headerProps, headerButtons = true, grabP
   const { visible, handlers } = useChromeVisibility();
   const fadeHeader = useChromeFade(visible);
   const fadeGrab = useChromeFade(visible);
+  const chrome = useChromePixels();
   const warned = React.useRef(false);
   React.useEffect(() => {
     if (!untitled || warned.current || typeof process === 'undefined' || process.env.NODE_ENV === 'production') return;
@@ -158,7 +160,7 @@ export function Panel({ title, actions, headerProps, headerButtons = true, grabP
             bottom: '100%',
             left: 0,
             right: 0,
-            height: `${PANEL_HEADER_GAP_PX}px`,
+            height: `${chrome.headerGapPx}px`,
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
@@ -167,7 +169,7 @@ export function Panel({ title, actions, headerProps, headerButtons = true, grabP
         >
           {/* Decorative only -- the clickable area is the whole strip above, sized to WCAG 2.5.8's 24px
               minimum even though this drawn pill is thinner. */}
-          <Box aria-hidden="true" sx={{ width: 32, height: 4, borderRadius: (theme: Theme) => glideCorner(2 * Number(theme.shape.borderRadius)), bgcolor: 'divider' }} />
+          <Box aria-hidden="true" sx={{ width: chrome.grabPillWidthPx, height: chrome.grabPillHeightPx, borderRadius: (theme: Theme) => glideCorner(2 * Number(theme.shape.borderRadius)), bgcolor: 'divider' }} />
         </Box>
       )}
       {children}
