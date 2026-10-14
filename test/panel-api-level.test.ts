@@ -160,6 +160,16 @@ test('a template on an older level warns once, by template id, naming the level,
   assert.match(warnings[0]!, /3\.0\.0/);
 });
 
+test('a level with no removal release warns without naming one', () => {
+  const served: LevelTable = { newest: 2, levels: new Map([[1, {}], [2, {}]]) };
+  const { warnings } = capturingWarn(() => templateViewFor({ id: 'warned-served', api: 1 as never, view: View }, served));
+  assert.equal(warnings.length, 1);
+  assert.match(warnings[0]!, /'warned-served'/);
+  assert.match(warnings[0]!, /level 1/);
+  assert.match(warnings[0]!, /newest is 2/);
+  assert.doesNotMatch(warnings[0]!, /undefined|later release|removed|deprecated|stops/);
+});
+
 test('a second template on the same older level warns for itself, and the newest level warns for nobody', () => {
   const { warnings } = capturingWarn(() => {
     templateViewFor({ id: 'warned-b', api: 1 as never, view: View }, TWO_LEVELS);

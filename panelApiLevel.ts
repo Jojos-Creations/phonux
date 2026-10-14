@@ -23,7 +23,7 @@ export interface NewestViewProps {
 export interface LevelEntry {
   /** Absent when the level's props are the newest props. */
   readonly adapt?: (props: NewestViewProps) => object;
-  /** The release that stops serving the level, named in the warning; absent when none is set. */
+  /** The release that removes the level, set when the level is deprecated and named in the warning; absent while the level is served. */
   readonly droppedIn?: string;
 }
 
@@ -45,10 +45,11 @@ export function checkPanelApi(templateId: string, api: unknown, table: LevelTabl
 
 const warned = new Set<string>();
 
-/** Logs once per template id that it is on a level older than the newest; silent in production. @internal */
+/** Logs once per template id that it is on a level older than the newest, naming the removal release only for a deprecated level; silent in production. @internal */
 export function warnIfOldLevel(templateId: string, level: number, table: LevelTable): void {
   if (level === table.newest || typeof process === 'undefined' || process.env.NODE_ENV === 'production' || warned.has(templateId)) return;
   warned.add(templateId);
-  const dropped = table.levels.get(level)?.droppedIn ?? 'a later release';
-  console.warn(`phonux: template '${templateId}' is on panel API level ${level}; the newest is ${table.newest}, and level ${level} stops being served in ${dropped}.`);
+  const droppedIn = table.levels.get(level)?.droppedIn;
+  const removal = droppedIn === undefined ? '' : `, and level ${level} is deprecated and removed in ${droppedIn}`;
+  console.warn(`phonux: template '${templateId}' is on panel API level ${level}; the newest is ${table.newest}${removal}.`);
 }
