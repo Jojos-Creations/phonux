@@ -412,7 +412,7 @@ function DragToCloseBox({
   const slotHandle = slot?.handle;
   // The strip's name is drawn from this, so it must follow a title change that does not re-render this box.
   const drawnTitle = React.useSyncExternalStore(
-    React.useCallback((l: () => void) => slotHandle?.subscribe(l) ?? (() => {}), [slotHandle]),
+    (l: () => void) => slotHandle?.subscribe(l) ?? (() => {}),
     () => slotHandle?.getState().title,
     () => slotHandle?.getState().title,
   );
