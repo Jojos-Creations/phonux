@@ -74,7 +74,7 @@ export interface PanelSize {
  * @public
  */
 export interface PanelSummary<P = JsonValue> {
-  /** The panel's unique id, as `PanelsAPI` methods take it. */
+  /** The panel's id, which is its key: the id `PanelsAPI` methods take and the same one `ViewHandle.id` and `PanelState.id` carry. */
   readonly id: string;
   /** The URL the panel shows; absent or empty for a host with no address concept. */
   readonly url?: string;
