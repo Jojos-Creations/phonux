@@ -175,14 +175,17 @@ export interface PhoneSize {
 
 // @public
 export interface PhonuxLabels {
+    goToWorkspace: (name: string) => string;
     historyTitle: string;
     lock: string;
+    newWorkspace: string;
     panelTitle: (id: string) => string;
     pin: string;
     unlock: string;
     unpin: string;
     untitledHeader: string;
     untitledPanel: string;
+    workspaceName: string;
 }
 
 // @public

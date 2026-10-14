@@ -4,6 +4,14 @@
 
 ### Added
 
+- A column of workspaces, one above the other. `createWorkspaceColumn(options)` renders itself like `createWorkspace`, and
+  `column.addWorkspace(options)` is the one call that creates a workspace, adds it and returns its `WorkspaceHandle`. ArrowUp and
+  ArrowDown move between workspaces (never while focus is in a field, widget, editor or dialog, or during a keyboard drag, and never
+  with a modifier, a repeat or an IME composition); a button at the top and bottom centre names the neighbour and moves there, and
+  reads "Create new workspace" where there is none. Each workspace has a name input above its panels. A workspace now has an `id`
+  that never changes, a `name` (default `Workspace <n>`) and `rename(name)`; `WorkspaceOptions` takes `id`, `name` and `onRename`.
+  `ColumnStorage` keeps the list, the names and the current workspace, and the panels of each workspace under its id. New
+  `PhonuxLabels` keys: `newWorkspace`, `goToWorkspace` and `workspaceName`. `WorkspaceColumn` draws a column for an app that mounts itself.
 - A template may declare the panel API level it was written against: `definePanel({ id, view, api: 1 })`. Leaving `api` out
   means the newest level, `PANEL_API` (also new, with the `PanelApiLevel` type). Level 1 is the panel-facing API of
   0.2.0-rc.3. A level the library does not serve throws `invalid-template` from `definePanel`, `createWorkspace` and

@@ -20,6 +20,12 @@ export interface PhonuxLabels {
   lock: string;
   /** The name of an unlock button or action. Default `Unlock`. */
   unlock: string;
+  /** The text of the button that creates a workspace where the column has none above or below. Default `Create new workspace`. */
+  newWorkspace: string;
+  /** The accessible name of the button that moves to the workspace called `name`. Default `Go to <name>`. */
+  goToWorkspace: (name: string) => string;
+  /** The accessible name of the input that holds a workspace's name. Default `Workspace name`. */
+  workspaceName: string;
 }
 
 /** The English text every label takes when a host overrides none. @public */
@@ -32,6 +38,9 @@ export const DEFAULT_LABELS: Readonly<PhonuxLabels> = {
   unpin: 'Unpin',
   lock: 'Lock',
   unlock: 'Unlock',
+  newWorkspace: 'Create new workspace',
+  goToWorkspace: (name) => `Go to ${name}`,
+  workspaceName: 'Workspace name',
 };
 
 /** `given` over the defaults, key by key; a key given as `undefined` keeps its default. @internal */

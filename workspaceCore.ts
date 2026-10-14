@@ -23,6 +23,7 @@ import { assertTemplateIdFree } from './viewRegistry.js';
 import type { DeclaredPanel } from './workspacePlan.js';
 import type { WorkspaceStorage } from './workspaceState.js';
 import type { SettingsPatch } from './settingsPatch.js';
+import { cleanWorkspaceName, DEFAULT_WORKSPACE_NAME } from './workspaceName.js';
 import { createLiveStore, refusedLiveKeys, type LiveStore, type WorkspaceLive } from './workspaceLive.js';
 
 /** The id of the marker entry a workspace without a root keeps. */
@@ -46,6 +47,12 @@ export interface WorkspaceWrapProps {
  * @public
  */
 export type WorkspaceOptions = WorkspaceLive & {
+  /** The workspace's stable id, the key a column stores its panels under. Unset: a counter id. */
+  id?: string;
+  /** The workspace's name, shown by a column. Unset: `'Workspace'`. Trimmed and cut to `MAX_WORKSPACE_NAME` characters; an empty one is ignored. */
+  name?: string;
+  /** Called with the new name after `workspace.rename` changed it, never for the name the workspace started with. */
+  onRename?: (name: string) => void;
   /** Where the workspace is kept between launches. Unset: nothing is loaded or saved. */
   storage?: WorkspaceStorage;
   /** The workspace's panel settings (every key except `tuning`), the layer under every template. */
@@ -83,6 +90,16 @@ export type WorkspaceOptions = WorkspaceLive & {
  * @public
  */
 export interface WorkspaceHandle {
+  /** The workspace's stable id: it never changes, whatever the name does. */
+  readonly id: string;
+  /** The workspace's current name. */
+  readonly name: string;
+  /**
+   * Renames the workspace and returns the name it now has. The name is trimmed and cut to `MAX_WORKSPACE_NAME` characters; a name
+   * empty after trimming changes nothing and the current name comes back. Two workspaces may share a name, because the id tells them apart.
+   * Throws `disposed` after `dispose()`.
+   */
+  rename(name: string): string;
   /** The id of the row's root entry: the root template's id, or `'__root__'` without one. */
   readonly rootId: string;
   /** Read access to every panel. */
@@ -1133,7 +1150,24 @@ export function createWorkspace(o: WorkspaceOptions = {}): WorkspaceHandle {
     },
   };
 
+  let name = cleanWorkspaceName(o.name) ?? DEFAULT_WORKSPACE_NAME;
   const handle: WorkspaceHandle = {
+    id: o.id ?? `workspace-${nextEngineId()}`,
+    get name() {
+      return name;
+    },
+    rename: (next) => {
+      if (status === 'disposed') throw new PanelManagerError('disposed', 'the workspace was disposed');
+      const clean = cleanWorkspaceName(next);
+      if (clean === undefined || clean === name) return name;
+      name = clean;
+      try {
+        o.onRename?.(name);
+      } catch (e) {
+        reportError(e);
+      }
+      return name;
+    },
     rootId,
     panels,
     get tuning() {
