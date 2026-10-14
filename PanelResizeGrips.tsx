@@ -18,6 +18,9 @@ const GRIP_PX = 24;
 /** A move reported at x 0 once the pointer was well inside the window is Firefox's report of a pointer past the window edge, not a real position. */
 const FIREFOX_EDGE_X = GRIP_PX;
 
+/** How far the pointer must travel before a press on a grip is a resize; a click that jiggles less changes nothing. */
+const DRAG_START_PX = 4;
+
 type Side = 'left' | 'right';
 
 interface Drag {
@@ -26,6 +29,7 @@ interface Drag {
   startWidth: number;
   width: number;
   lastX: number;
+  moved: boolean;
   releaseSelection: () => void;
 }
 
@@ -35,6 +39,8 @@ function Grip({ side, slot, handle }: { side: Side; slot: PanelSlotValue; handle
   const labels = resolveLabels(useOptionalHost()?.labels);
   const fade = useChromeFade(React.useContext(PanelChromeVisibleContext));
   const drag = React.useRef<Drag | null>(null);
+  // The click a browser fires after a drag's pointerup lands on the grip; it must not reach the panel behind it.
+  const swallowClick = React.useRef(false);
   const gap = slot.tuning.rowGap;
   const now = slot.slotRange?.now ?? 1;
   const most = slot.slotRange?.most ?? 1;
@@ -44,14 +50,23 @@ function Grip({ side, slot, handle }: { side: Side; slot: PanelSlotValue; handle
     const x = clientX === 0 && d.lastX > FIREFOX_EDGE_X ? d.lastX : clientX;
     d.lastX = x;
     const dx = x - d.startX;
+    if (!d.moved) {
+      if (Math.abs(dx) < DRAG_START_PX) return;
+      d.moved = true;
+      setResizing(true);
+    }
     d.width = d.startWidth + (side === 'right' ? dx : -dx);
     setDrawnWidth(d.width, side === 'left' ? 'end' : 'start');
   };
   const finish = (d: Drag, settle: boolean): void => {
     drag.current = null;
-    if (settle) handle.setSlots(nearest(d.width), 'person');
-    setDrawnWidth(null);
-    setResizing(false);
+    if (d.moved) {
+      if (settle) handle.setSlots(nearest(d.width), 'person');
+      setDrawnWidth(null);
+      setResizing(false);
+      swallowClick.current = true;
+      setTimeout(() => void (swallowClick.current = false), 0);
+    }
     d.releaseSelection();
   };
   React.useEffect(() => () => {
@@ -80,8 +95,13 @@ function Grip({ side, slot, handle }: { side: Side; slot: PanelSlotValue; handle
       onPointerDown={(e: React.PointerEvent<HTMLElement>) => {
         if (e.button !== 0 || !e.isPrimary || drag.current !== null) return;
         e.currentTarget.setPointerCapture(e.pointerId);
-        drag.current = { pointerId: e.pointerId, startX: e.clientX, startWidth: slot.drawn?.width ?? phone.width, width: slot.drawn?.width ?? phone.width, lastX: e.clientX, releaseSelection: holdDragSelection(document) };
-        setResizing(true);
+        drag.current = { pointerId: e.pointerId, startX: e.clientX, startWidth: slot.drawn?.width ?? phone.width, width: slot.drawn?.width ?? phone.width, lastX: e.clientX, moved: false, releaseSelection: holdDragSelection(document) };
+      }}
+      onClickCapture={(e: React.MouseEvent<HTMLElement>) => {
+        if (!swallowClick.current) return;
+        swallowClick.current = false;
+        e.preventDefault();
+        e.stopPropagation();
       }}
       onPointerMove={(e: React.PointerEvent<HTMLElement>) => {
         const d = drag.current;

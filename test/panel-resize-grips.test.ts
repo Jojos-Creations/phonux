@@ -114,8 +114,8 @@ test('a drag on the right grip draws the panel as wide as the pointer pulls it, 
   const r = await rig();
   const grip = gripOf(r, 'right')!;
   await fire(grip, 'pointerdown', 1000);
-  assert.equal(r.m.container.querySelector('[data-panel-dragging]') !== null, true, 'the panel is marked while held');
   await fire(grip, 'pointermove', 1100);
+  assert.equal(r.m.container.querySelector('[data-panel-dragging]') !== null, true, 'the panel is marked while held');
   await advanceFrames(FRAME_MS * 30);
   assert.equal(Math.round(Number.parseFloat(boxOf(r).style.width)), PHONE + 100, 'the width follows the pointer between two slots');
   assert.equal(slotsOf(r), 1, 'and nothing is stored yet');
@@ -215,6 +215,68 @@ test('under Reduce Motion the release snaps to the settled width at once', async
   await advanceFrames(FRAME_MS * 3);
   assert.equal(boxOf(r).style.width, `${widthOf(2)}px`);
   assert.equal(boxOf(r).style.transform, '', 'with no scale easing it');
+});
+
+test('a press that travels under 4 px is a click: no resize starts and nothing is stored, and 4 px starts one', async () => {
+  const r = await rig();
+  const grip = gripOf(r, 'right')!;
+  await fire(grip, 'pointerdown', 1000);
+  await fire(grip, 'pointermove', 1003);
+  assert.equal(r.m.container.querySelector('[data-panel-dragging]') === null, true, '3 px does not mark the panel');
+  await fire(grip, 'pointermove', 1000 - 3);
+  await fire(grip, 'pointerup', 1003);
+  await advanceFrames(2000);
+  assert.equal(slotsOf(r), 1, 'the release stored nothing');
+  assert.equal(boxOf(r).style.width, `${widthOf(1)}px`, 'and the width never moved');
+  await fire(grip, 'pointerdown', 1000);
+  await fire(grip, 'pointermove', 1004);
+  assert.equal(r.m.container.querySelector('[data-panel-dragging]') !== null, true, '4 px starts the resize');
+  await fire(grip, 'pointercancel', 1004);
+});
+
+test('the click a browser fires after a drag is swallowed, and a plain click or a later click is not', async () => {
+  const r = await rig();
+  const grip = gripOf(r, 'right')!;
+  let reached = 0;
+  const count = (): void => void (reached += 1);
+  document.addEventListener('click', count);
+  try {
+    const clickEvent = (): MouseEvent => new MouseEvent('click', { bubbles: true, cancelable: true });
+    const click = async (): Promise<void> => void (await act(async () => void grip.dispatchEvent(clickEvent())));
+    await fire(grip, 'pointerdown', 1000);
+    await fire(grip, 'pointermove', 1200);
+    // A browser fires the click in the same task as the pointerup.
+    await act(async () => {
+      grip.dispatchEvent(pointer('pointerup', 1200));
+      grip.dispatchEvent(clickEvent());
+    });
+    assert.equal(reached, 0, 'the click after a drag stops at the grip');
+    await act(async () => void (await new Promise((done) => setTimeout(done, 5))));
+    await click();
+    assert.equal(reached, 1, 'a click on its own reaches the panel');
+    // A drag that fires no click (a touch drag does not) must not leave the swallow waiting for the next real click.
+    await fire(grip, 'pointerdown', 1000);
+    await fire(grip, 'pointermove', 1200);
+    await fire(grip, 'pointerup', 1200);
+    await act(async () => void (await new Promise((done) => setTimeout(done, 5))));
+    await click();
+    assert.equal(reached, 2, 'a swallow nobody used expires');
+    await fire(grip, 'pointerdown', 1000);
+    await fire(grip, 'pointerup', 1002);
+    await click();
+    assert.equal(reached, 3, 'a press that never became a drag leaves its click alone');
+  } finally {
+    document.removeEventListener('click', count);
+  }
+});
+
+test('each side has one 24 px wide tab stop, and a panel that cannot resize has none', async () => {
+  const r = await rig();
+  const stops = [...r.m.container.querySelectorAll<HTMLElement>('[data-panel-resize-grip]')].filter((g) => g.tabIndex === 0);
+  assert.deepEqual(stops.map((g) => g.dataset.panelResizeGrip), ['left', 'right']);
+  for (const g of stops) assert.equal(getComputedStyle(g).width, '24px', 'a pointer target of the WCAG 2.5.8 minimum, whatever the pointer');
+  cleanup();
+  assert.equal((await rig({ resizable: false })).m.container.querySelectorAll('[data-panel-resize-grip]').length, 0);
 });
 
 test('a hand-built Panel puts the grips in its overlay, and the grips add no settings key', async () => {
