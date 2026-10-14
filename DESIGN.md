@@ -427,7 +427,7 @@ panel's controls; it is a `role="separator"` with `aria-valuenow`, `aria-valuemi
 focusable, and ArrowLeft and ArrowRight step the panel one slot (the right grip grows on ArrowRight, the left grip on ArrowLeft), with
 `preventDefault` so the row does not also step.
 
-A drag: the width follows the pointer, held between one slot and the most that fit (by `PanelRow`,
+A press resizes only once the pointer has travelled 4 px; a shorter press is a click, which sets nothing and shows no drag mark. After a drag the grip swallows the one click the browser fires with the pointerup, so a click handler on the panel behind it never runs. A drag: the width follows the pointer, held between one slot and the most that fit (by `PanelRow`,
 which owns that clamp, so the grip does not repeat it), the left grip pins `'end'` and the right grip `'start'`, and the release is
 `handle.setSlots(nearest, 'person')`, `setDrawnWidth(null)`, `setResizing(false)` in that order, so the width glides from the held one to
 the slot width (a snap under Reduce Motion). A cancel or a lost pointer capture stores nothing and the width glides back. Firefox reports

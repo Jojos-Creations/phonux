@@ -94,6 +94,51 @@
       "expectRed": [
         "shows a grip on each side"
       ]
+    },
+    {
+      "name": "a press needs no travel to become a resize",
+      "file": "PanelResizeGrips.tsx",
+      "find": "if (Math.abs(dx) < DRAG_START_PX) return;",
+      "replace": "if (Math.abs(dx) < 0) return;",
+      "expectRed": [
+        "a press that travels under 4 px"
+      ]
+    },
+    {
+      "name": "the threshold is 5 px",
+      "file": "PanelResizeGrips.tsx",
+      "find": "const DRAG_START_PX = 4;",
+      "replace": "const DRAG_START_PX = 5;",
+      "expectRed": [
+        "a press that travels under 4 px"
+      ]
+    },
+    {
+      "name": "the click after a drag reaches the panel",
+      "file": "PanelResizeGrips.tsx",
+      "find": "if (!swallowClick.current) return;",
+      "replace": "return;",
+      "expectRed": [
+        "the click a browser fires after a drag"
+      ]
+    },
+    {
+      "name": "the swallow is never cleared by a timer",
+      "file": "PanelResizeGrips.tsx",
+      "find": "setTimeout(() => void (swallowClick.current = false), 0);",
+      "replace": "",
+      "expectRed": [
+        "the click a browser fires after a drag"
+      ]
+    },
+    {
+      "name": "a press that never moved still swallows its click",
+      "file": "PanelResizeGrips.tsx",
+      "find": "    if (d.moved) {\n      if (settle)",
+      "replace": "    swallowClick.current = true;\n    if (d.moved) {\n      if (settle)",
+      "expectRed": [
+        "the click a browser fires after a drag"
+      ]
     }
   ]
 }
