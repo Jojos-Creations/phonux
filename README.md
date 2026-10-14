@@ -42,6 +42,25 @@ component for the app's providers, and `workspace.update(...)` to give a running
 "Workspace options, wrap and update"). A title-bar button is a setting too: `headerButtons: { more: { label: 'More', onClick } }`
 draws the label as the button's text.
 
+## Several workspaces
+
+A column of workspaces is one call per workspace, in the same style as the quickstart:
+
+```ts
+import { createWorkspaceColumn, definePanel } from 'phonux';
+
+const notes = definePanel({ id: 'notes', view: NotesView });
+const column = createWorkspaceColumn({ templates: [notes] });
+column.addWorkspace().addPanel('notes'); // "Workspace 1"
+column.addWorkspace({ name: 'Reading' }); // or give it a name
+```
+
+The column renders itself. ArrowUp and ArrowDown (when focus is not in a field or dialog) move between workspaces, a button at the top
+and bottom centre names the neighbour and moves there, and where there is none it reads "Create new workspace" and calls
+`addWorkspace`. Each workspace has an input above its panels for its name. `storage` keeps the list, the names and the current
+workspace; give the workspace you already have its old key with `addWorkspace({ id })`. An app that draws its own rows passes
+`mount: false` and renders `<WorkspaceColumn column={column}>{(workspace) => ...}</WorkspaceColumn>`.
+
 ## Building your own flow
 
 The default start is built on the components it exports, and they stay public. This is the same row written out by hand: create

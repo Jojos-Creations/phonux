@@ -186,6 +186,18 @@ test('arrows skip INPUT, TEXTAREA, SELECT and contentEditable targets and any mo
   assert.equal(stepped(), true, 'a focused button');
 });
 
+test('an arrow does not step a row inside an inert ancestor, and steps again once it is not', () => {
+  const m = stepRow(eleven(), 1000);
+  const stops = stopsOf(m, 1000);
+  const host = m.container.parentElement!;
+  host.setAttribute('inert', '');
+  m.key('ArrowRight');
+  assert.equal(m.scroller.glideTarget(), null, 'an inert row stays put');
+  host.removeAttribute('inert');
+  m.key('ArrowRight');
+  assert.equal(m.scroller.glideTarget(), stops[1]);
+});
+
 test('a glide the gesture started stops at pointer-down in the container', () => {
   const m = stepRow(eleven(), 1000);
   m.key('ArrowRight');
