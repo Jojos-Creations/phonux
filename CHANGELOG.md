@@ -33,6 +33,14 @@
 
 ### Changed
 
+- Names and keys for assistive technology. The row is a `region` named `labels.row` ("Panels") and each panel a `group` named with its title and
+  place ("Notes, 2 of 4"). A drag says "Picked up Notes" and "Dropped Notes", not "draggable item" and an id. The grab strip of a panel that can
+  move or close is a focusable button named for the panel, and the name follows a title change at once: ArrowLeft and ArrowRight move the panel one slot, Delete closes it, and the Workspace's one polite live
+  region says what happened ("Moved Notes right", "Notes cannot move right", "Closed Notes"). `DragHandleProps` gains `role`, `tabIndex`,
+  `aria-label`, `aria-keyshortcuts` and `onKeyDown`, and `ReorderHandle` gains `onStep`; `usePanelDragProps()` fills both. New `PhonuxLabels` keys:
+  `row`, `panelPosition`, `grabStrip`, `pickedUp`, `dropped`, `dragCancelled`, `moved`, `cannotMove` and `closed`.
+- The row's arrow keys share the column's guard: a key now also stays with the row when focus is in a widget that uses the arrows (a slider, a
+  tab list, a listbox), a modal dialog is open, a drag is in progress or an IME is composing. A held key still repeats its step.
 - Inside a row, `Panel`, `PanelFrame` and `PanelSizeBox` take an omitted `size` from the slot's drawn size, which includes the row's tuned gap, so a two-slot
   panel's size box is as wide as its slot at any `tuning.rowGap`. `PanelSizeBox` accepts `width` and `height` as optional. Outside a row an omitted size is the phone size, as before.
 - A view may lock its own panel: `handle.configure({ closable: false })` from the view makes the panel not closable at once, and `null` removes the lock. A view still cannot ask for `closable: true`, and the root still answers `settings-conflict` to it. The lock is saved as before. `ViewPatch` gains `closable`.
