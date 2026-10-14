@@ -80,7 +80,7 @@ test('the attribute names a host styles from are pinned', () => {
 });
 
 test('the package entry exports the names a mounted workspace renders: the marks, and one element per chrome part', async () => {
-  assert.deepEqual(CHROME_PARTS, { header: 'header', grabBar: 'grab-bar', footer: 'footer', resize: 'resize' });
+  assert.deepEqual(CHROME_PARTS, { header: 'header', grabBar: 'grab-bar', footer: 'footer' });
   const m = mountRow(entries(2), 3000);
   await advanceFrames(2000);
   const panel = rootOf(m, 'c1');
@@ -96,8 +96,7 @@ test('the package entry exports the names a mounted workspace renders: the marks
   await release(0, 24);
   await advanceFrames(3000);
   assert.equal(rootOf(m, 'c1').hasAttribute(DRAGGING_ATTRIBUTE), false);
-  // The grips are drawn by PanelResizeGrips alone, which this panel does not put in its overlay (test/panel-resize-grips.test.ts).
-  const drawn = Object.values(CHROME_PARTS).filter((value) => value !== CHROME_PARTS.resize);
+  const drawn = Object.values(CHROME_PARTS);
   for (const value of drawn) {
     assert.equal(panel.querySelectorAll(`[${CHROME_ATTRIBUTE}="${value}"]`).length, 1, `one ${value}`);
   }
