@@ -23,6 +23,7 @@ import type { DeclaredPanel } from './workspacePlan.js';
 import type { WorkspaceStorage } from './workspaceState.js';
 import type { SettingsPatch } from './settingsPatch.js';
 import { cleanWorkspaceName, DEFAULT_WORKSPACE_NAME } from './workspaceName.js';
+import { entryNamed } from './panelIds.js';
 import { createLiveStore, refusedLiveKeys, type LiveStore, type WorkspaceLive } from './workspaceLive.js';
 
 /** The id of the marker entry a workspace without a root keeps. */
@@ -1221,8 +1222,8 @@ export function createWorkspace(o: WorkspaceOptions = {}): WorkspaceHandle {
   };
 
   const view: PanelViewContext = {
-    handleFor: (engineId) => {
-      const e = (observed ?? committed)?.entries.find((p) => p.id === engineId);
+    handleFor: (name) => {
+      const e = entryNamed((observed ?? committed)?.entries ?? [], name);
       return e === undefined || e.marker === true ? undefined : source.viewHandleOf(panelKey(e));
     },
     manager: reader,

@@ -46,7 +46,7 @@ const shape = (res: ConfigureResult): { now: string[]; later: string[]; shadowed
   return { now: [...d.now], later: [...d.later], shadowed: [...d.shadowed] };
 };
 const frames = (n: number): Promise<void> => advanceFrames(n * 16);
-const summaryOf = (r: MatrixRig, name: string) => r.provided().panelList.find((s) => s.id === r.entry(name).id);
+const summaryOf = (r: MatrixRig, name: string) => r.provided().panelList.find((s) => s.id === r.entry(name).key);
 const thrownCode = (fn: () => unknown): string | undefined => {
   try {
     fn();
@@ -331,7 +331,7 @@ test('case B11: keepMounted true to false on a hidden kept panel unmounts it in 
   r.turn(() => r.h.b!.hide());
   await r.settle();
   assert.deepEqual([r.seen('b')?.['data-hidden'], r.seen('b')?.['data-n']], ['true', '7'], 'the hidden panel is mounted and holds its state');
-  assert.deepEqual([...r.capture.captured], [engine], 'its park asked for a picture');
+  assert.deepEqual([...r.capture.captured], [r.entry('b').key], 'its park asked for a picture');
   assert.deepEqual(shape(r.turn(() => r.h.b!.configure({ keepMounted: false }))), { now: [], later: ['keepMounted'], shadowed: [] });
   await frames(2);
   assert.deepEqual([r.seen('b'), viewLog.unmounted(engine)], [null, 1], 'unmounted at once: two frames, far short of a slide');
@@ -657,7 +657,7 @@ test('protected 5: snapshot never evicts the stored picture once, from a layout 
     await s.run(strict ? 'StrictMode' : 'plain', async () => {
       const r = await matrixRig({ strict });
       await r.settle();
-      const engine = r.entry('b').id;
+      const engine = r.entry('b').key;
       const before = r.capture.evicted.length;
       done(r.turn(() => r.h.b!.configure({ snapshot: 'never' })));
       assert.deepEqual(r.capture.evicted.slice(before), [engine], 'evicted exactly once, for this panel, by the end of the commit');
