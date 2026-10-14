@@ -1482,6 +1482,7 @@ export type WorkspaceOptions = WorkspaceLive & {
     newId?: () => string;
     onError?: (e: unknown) => void;
     mount?: HTMLElement | false;
+    theme?: (mode: 'light' | 'dark') => Theme;
     wrap?: ComponentType<WorkspaceWrapProps>;
 };
 

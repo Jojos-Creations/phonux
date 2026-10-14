@@ -6,6 +6,7 @@ import { createWorkspace, type WorkspaceHandle, type WorkspaceOptions } from './
 import { PanelManagerError } from './panelManagerError.js';
 import { cleanWorkspaceName } from './workspaceName.js';
 import { refusedLiveKeys, type WorkspaceLive } from './workspaceLive.js';
+import type { Theme } from '@mui/material/styles';
 import type { WorkspaceStorage } from './workspaceState.js';
 import type { PanelId } from './panelSettings.js';
 import type { PanelTemplate } from './panelTemplate.js';
@@ -38,7 +39,8 @@ export interface ColumnStorage {
 /**
  * What `createWorkspaceColumn` takes. The members of `WorkspaceOptions` that describe a workspace's content (`root`, `templates`,
  * `defaults`, `order`) are the starting point of every workspace; `addWorkspace` may replace them for one. `wrap`, `device`,
- * `tuning`, `labels` and the other shared members belong to the column and apply to every workspace in it.
+ * `tuning`, `labels` and the other shared members belong to the column and apply to every workspace in it. `theme` is drawn once for
+ * the whole column, and a workspace in it takes that theme.
  * @public
  */
 export type ColumnOptions = Omit<WorkspaceOptions, 'id' | 'name' | 'onRename' | 'storage' | 'mount'> & {
@@ -116,6 +118,10 @@ interface ColumnCore {
   snapshot(): ColumnSnapshot;
   /** Whether the column renders itself (see `ColumnOptions.mount`). */
   readonly autoMounted: boolean;
+  /** The theme function every cell is drawn under, if the app gave one. */
+  readonly theme: ((mode: 'light' | 'dark') => Theme) | undefined;
+  /** Reports an error the column swallowed: `onError`, else `console.error`. */
+  reportError(e: unknown): void;
 }
 
 const CORES = new WeakMap<WorkspaceColumnHandle, ColumnCore>();
@@ -297,6 +303,8 @@ export function createWorkspaceColumn(o: ColumnOptions = {}): WorkspaceColumnHan
     },
     snapshot,
     autoMounted: mount !== false && typeof document !== 'undefined',
+    theme: o.theme,
+    reportError,
   });
 
   if (storage !== undefined) {

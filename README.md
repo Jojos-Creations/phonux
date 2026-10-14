@@ -38,7 +38,7 @@ host to build and no width to track. A view returns bare content and phonux draw
 drag to close, reorder). Nothing is saved between launches until you pass a `storage` option.
 
 Pass the app's own values as options (`device`, `settings`, `history`, `snapshots`, `labels`, `topInset`, `panels`), a `wrap`
-component for the app's providers, and `workspace.update(...)` to give a running workspace new values (see `DESIGN.md`,
+component for the app's providers, a `theme: (mode) => Theme` for its own MUI theme (the mount draws it with one `CssBaseline`; the `mode` is the window's color scheme), and `workspace.update(...)` to give a running workspace new values (see `DESIGN.md`,
 "Workspace options, wrap and update"). A title-bar button is a setting too: `headerButtons: { more: { label: 'More', onClick } }`
 draws the label as the button's text.
 

@@ -17,6 +17,7 @@
 
 ### Added
 
+- `theme?: (mode: 'light' | 'dark') => Theme` on `createWorkspace` and `createWorkspaceColumn`: the mount draws that theme with one `CssBaseline` instead of `createDefaultTheme`. `mode` is the window's color scheme. The column draws it once and its cells draw none of their own, which also ends a second `CssBaseline` in a column. A `wrap` must not draw its own `ThemeProvider` or `CssBaseline`.
 - A column of workspaces, one above the other. `createWorkspaceColumn(options)` renders itself like `createWorkspace`, and
   `column.addWorkspace(options)` is the one call that creates a workspace, adds it and returns its `WorkspaceHandle`. ArrowUp and
   ArrowDown move between workspaces (never while focus is in a field, widget, editor or dialog, or during a keyboard drag, and never
