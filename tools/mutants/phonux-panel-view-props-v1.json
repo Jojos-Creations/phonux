@@ -1,0 +1,40 @@
+{
+  "tests": ["test/create-fake-panel.test.ts", "test/use-panel-state-subscription.test.ts"],
+  "mutants": [
+    {
+      "name": "usePanelState back on the workspace subscribe",
+      "file": "panels/usePanelStates.ts",
+      "find": "(reader === undefined ? NO_SUBSCRIBE : subscribeToPanel(reader, id))",
+      "replace": "(reader === undefined ? NO_SUBSCRIBE : reader.subscribe)",
+      "expectRed": ["a change to panel b leaves the render count"]
+    },
+    {
+      "name": "no fallback for a panel not yet added",
+      "file": "panels/usePanelStates.ts",
+      "find": "    if (own !== undefined) off = own.subscribe(l);\n    else {",
+      "replace": "    if (own !== undefined) off = own.subscribe(l);\n    else if (own !== undefined) {",
+      "expectRed": ["a watcher mounted before the panel exists"]
+    },
+    {
+      "name": "usePanelState reads the handle's state instead of the snapshot's",
+      "file": "panels/usePanelStates.ts",
+      "find": "reader?.getSnapshot().panels.find((p) => p.id === id);",
+      "replace": "reader?.get(id)?.getState();",
+      "expectRed": ["a watcher of a panel that is retired"]
+    },
+    {
+      "name": "createFakePanel handle lacks one member",
+      "file": "fakeHost.ts",
+      "find": "    unpin: (...args) => answer('unpin', args, ACCEPTED_PIN),\n",
+      "replace": "",
+      "expectRed": ["createFakePanel compiles with no cast"]
+    },
+    {
+      "name": "PanelViewProps gains an optional member",
+      "file": "panelTemplate.ts",
+      "find": "  manager: PanelReader;\n}",
+      "replace": "  manager: PanelReader;\n  extra?: string;\n}",
+      "expectRed": ["the level shape table follows PanelViewProps"]
+    }
+  ]
+}

@@ -826,19 +826,11 @@ export interface PanelSummary<P = JsonValue> {
 // @public
 export interface PanelTemplate<P extends JsonValue = JsonValue> {
     readonly api?: PanelApiLevel;
-    readonly footer?: React_2.ComponentType<{
-        panel: PanelSummary<P>;
-        handle: ViewHandle<P>;
-        manager: PanelReader;
-    }>;
+    readonly footer?: React_2.ComponentType<PanelViewProps<P>>;
     readonly id: string;
     readonly params?: P;
     readonly settings?: PanelSettings;
-    readonly view: React_2.ComponentType<{
-        panel: PanelSummary<P>;
-        handle: ViewHandle<P>;
-        manager: PanelReader;
-    }>;
+    readonly view: React_2.ComponentType<PanelViewProps<P>>;
 }
 
 // @public
@@ -861,6 +853,13 @@ export type PanelUserLayer = {
     anchor?: AnchorRequest;
     parkable?: boolean;
 };
+
+// @public
+export interface PanelViewProps<P extends JsonValue = JsonValue> {
+    handle: ViewHandle<P>;
+    manager: PanelReader;
+    panel: PanelSummary<P>;
+}
 
 // @public @deprecated
 export function panelWidthOf(p: Pick<PanelRowEntry, 'slots' | 'settings'>, phoneWidth: number, maxLiveWidth: number, gap?: number): number;
