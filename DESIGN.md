@@ -443,8 +443,8 @@ and the steps use is the stop the row rests on.
 
 ### The resize grips
 
-`PanelResizeGrips` is the library's own grabber: one on each side of a resizable panel, drawn by the default frame (a view that draws
-its own `Panel` puts it in `overlay`). It is built from `usePanelResizing()` and the slot context, with no new setting: it appears when
+`PanelResizeGrips` is the library's own grabber: one on each side of a resizable panel, not drawn by the default frame, which
+leaves resizing to the view: a view that draws its own `Panel` puts it in `overlay`, and the default frame has no grips. It is built from `usePanelResizing()` and the slot context, with no new setting: it appears when
 the panel's `resizable` setting is true and at least two slots can be shown (`slotRange.most`, the fewest of `maxSlots` and the slots
 that fit), and the app's own grabber code goes away. The target is 24 px, centred on the gap between two panels, so it never covers a
 panel's controls; it is a `role="separator"` with `aria-valuenow`, `aria-valuemin`, `aria-valuemax` and a spoken `aria-valuetext`, is
