@@ -1,4 +1,5 @@
 // node tab-order.mjs <bundle.js> [chromium|webkit|firefox]
+// Two starts: from a bare document (the first Tab into the page) and from a button before the row.
 // DRAG_STEPS=60 drags the panel to the drawn-first place, where the first Tab into the row must land on it.
 // After a left drag, Tab must visit the panels in the order they are drawn on screen (WCAG 2.4.3 Focus Order).
 import { createServer } from 'node:http';
@@ -26,20 +27,24 @@ await page.waitForTimeout(200);
 await page.mouse.up();
 await page.waitForTimeout(1500);
 const screenOrder = await page.evaluate(() => [...document.querySelectorAll('[data-row-slot]')].sort((a, b) => a.getBoundingClientRect().left - b.getBoundingClientRect().left).map((s) => s.dataset.rowId));
-await page.evaluate(() => { document.body.focus(); document.activeElement?.blur(); });
-await page.focus('#before');
-const visited = [];
-for (let i = 0; i < 40; i += 1) {
-  await page.keyboard.press('Tab');
-  const id = await page.evaluate(() => document.activeElement?.closest?.('[data-row-slot]')?.dataset.rowId ?? null);
-  if (id !== null && visited[visited.length - 1] !== id) visited.push(id);
-}
-const unique = [...new Set(visited)];
 const tabbable = await page.evaluate(() => [...document.querySelectorAll('[data-row-slot]')].filter((s) => [...s.querySelectorAll('a[href],button,input,select,textarea,iframe,[tabindex]')].some((e) => e.tabIndex >= 0)).map((s) => s.dataset.rowId));
 const expected = screenOrder.filter((id) => tabbable.includes(id));
 console.log('on screen :', screenOrder.join(','));
-console.log('Tab visits:', unique.join(','));
-const ok = unique.join() === expected.join();
+let ok = true;
+for (const start of ['bare document', '#before']) {
+  await page.evaluate(() => document.activeElement?.blur());
+  if (start === '#before') await page.focus('#before');
+  else await page.mouse.click(5, 5);
+  const visited = [];
+  for (let i = 0; i < 120; i += 1) {
+    await page.keyboard.press('Tab');
+    const id = await page.evaluate(() => document.activeElement?.closest?.('[data-row-slot]')?.dataset.rowId ?? null);
+    if (id !== null && visited[visited.length - 1] !== id) visited.push(id);
+  }
+  const unique = [...new Set(visited)];
+  console.log(`Tab visits from ${start}:`, unique.join(','));
+  ok = ok && unique.join() === expected.join();
+}
 console.log(ok ? 'PASS Tab order follows the on-screen order' : 'FAIL Tab order differs from the on-screen order');
 await browser.close();
 srv.close();

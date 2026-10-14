@@ -20,7 +20,7 @@ import { HEADER_ROW_ATTRIBUTE, headerButtonsOf } from './panelHeaderButtons.js';
 import { FIXED, LIBRARY_TUNING_DEFAULTS, effective, panelKey, resolvePanelSettings } from './panelSettings.js';
 import type { ChromeTuning, ResolvedPanelSettings, ResolvedPanelTuning, WorkspaceTuning } from './panelSettings.js';
 import { PanelRowSlot } from './PanelRowSlot.js';
-import { steerEntry, steerTab } from './panelRowTabOrder.js';
+import { steerEntry, steerTab, useTabPress } from './panelRowTabOrder.js';
 import { ChromeStoreContext, createChromeStore } from './panelChrome.js';
 import { WorkspaceTuningContext, lookTuningDiffers, resolveWorkspaceTuning, slotTuning, type SlotTuning } from './panelTuning.js';
 import { reorderStepsForOffset, type PanelWindow } from './panelWindow.js';
@@ -178,7 +178,7 @@ export function PanelRow({
   const gap = workspaceTuning.rowGap;
   const disagrees = given !== undefined && inherited !== undefined && lookTuningDiffers(given, inherited);
   const warned = React.useRef(false);
-  const pointerFocus = React.useRef(false);
+  const tabPress = useTabPress();
   React.useEffect(() => {
     if (!disagrees || warned.current || typeof process === 'undefined' || process.env.NODE_ENV === 'production') return;
     warned.current = true;
@@ -305,14 +305,7 @@ export function PanelRow({
     empty row consumes no flex `gap` from its siblings. */}
     <Box
       onKeyDown={(event) => steerTab(event, event.currentTarget, present.map((p) => p.id))}
-      // The click's focus lands in this same task, after pointerdown; the flag must not outlive it or a later Tab would be ignored.
-      onPointerDownCapture={() => {
-        pointerFocus.current = true;
-        setTimeout(() => {
-          pointerFocus.current = false;
-        }, 0);
-      }}
-      onFocus={(event) => steerEntry(event, event.currentTarget, present.map((p) => p.id), pointerFocus.current)}
+      onFocus={(event) => steerEntry(event, event.currentTarget, present.map((p) => p.id), tabPress.current)}
       sx={{
         position: 'relative',
         flexShrink: 0,

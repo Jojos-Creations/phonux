@@ -8,5 +8,6 @@ Five panels each host an iframe that counts its loads. A real mouse drag moves t
 ## Tab order (tab-order.mjs)
 
 `node tab-order.mjs out.js chromium|webkit|firefox` drags the fourth panel left, then presses Tab and
-compares the panels visited with the order they are drawn in (WCAG 2.4.3 Focus Order). On main it
-passes; on the first fix head it fails (screen root,2,5,3,4,6; Tab 2,3,4,5,6).
+compares the panels visited with the order they are drawn in (WCAG 2.4.3 Focus Order), starting from a bare document and from a button before the row.
+
+`node focus-hijack.mjs out.js` focuses one panel's control from a script, with no Tab press, and prints the panel asked for and the panel focus landed in: they must be equal.

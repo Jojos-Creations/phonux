@@ -113,3 +113,49 @@ test('Shift+Tab entering the row from after it lands in the panel drawn last', a
   assert.equal(landed, reading[reading.length - 1]);
   assert.notEqual(reading[reading.length - 1], 's5', 'the drawn-last panel is not the DOM-last one');
 });
+
+/** Tab from nothing (the first Tab into the page, or from browser chrome): the focus change has no relatedTarget. */
+async function enterFromNothing(shift: boolean): Promise<{ landed: string; reading: string[] }> {
+  const { m, reading } = await reorderedRow(false, 's3', shift ? 900 : -900);
+  (document.activeElement as HTMLElement | null)?.blur();
+  const event = new KeyboardEvent('keydown', { key: 'Tab', shiftKey: shift, bubbles: true, cancelable: true });
+  act(() => void document.body.dispatchEvent(event));
+  const all = stops(m);
+  act(() => void all[shift ? all.length - 1 : 0]!.focus());
+  return { landed: (document.activeElement as HTMLElement).dataset.stop!.split('-')[0]!, reading };
+}
+
+test('Tab from nothing lands in the panel drawn first', async () => {
+  const { landed, reading } = await enterFromNothing(false);
+  assert.equal(landed, reading[0]);
+  assert.notEqual(reading[0], 's1', 'the drawn-first panel is not the DOM-first one');
+});
+
+test('Shift+Tab from nothing lands in the panel drawn last', async () => {
+  const { landed, reading } = await enterFromNothing(true);
+  assert.equal(landed, reading[reading.length - 1]);
+  assert.notEqual(reading[reading.length - 1], 's5', 'the drawn-last panel is not the DOM-last one');
+});
+
+/** Focus a script moves into the row from outside, with no Tab press, lands on the element it asked for. */
+async function scriptedFocus(reorder: boolean): Promise<string> {
+  const m = reorder ? (await reorderedRow(false, 's3', -900)).m : mountRow(row(...[1, 2, 3, 4, 5].map((k) => made(`s${k}`))), 3000);
+  if (!reorder) await advanceFrames(2000);
+  const outside = document.createElement('button');
+  m.container.before(outside);
+  try {
+    outside.focus();
+    act(() => void m.container.querySelector<HTMLElement>('[data-stop="s4-b"]')!.focus());
+    return (document.activeElement as HTMLElement).dataset.stop!;
+  } finally {
+    outside.remove();
+  }
+}
+
+test('focus a script moves into the row is not redirected', async () => {
+  assert.equal(await scriptedFocus(false), 's4-b');
+});
+
+test('focus a script moves into a reordered row is not redirected', async () => {
+  assert.equal(await scriptedFocus(true), 's4-b');
+});

@@ -4,7 +4,7 @@ import { createServer } from 'node:http';
 import { readFileSync } from 'node:fs';
 const pw = await import(process.env.PLAYWRIGHT_MODULE ?? '/opt/node22/lib/node_modules/playwright/index.mjs');
 const dir=new URL('./', import.meta.url).pathname;
-const srv = createServer((q,s)=>{const js=q.url.startsWith('/out.js');s.setHeader('content-type',js?'text/javascript':'text/html');s.end(js?readFileSync(process.argv[2]):readFileSync(dir+'index.html'));}).listen(0);
+const srv = createServer((q,s)=>{const js=q.url.startsWith('/out.js');s.setHeader('content-type',js?'text/javascript':'text/html');s.end(js?readFileSync(process.argv[2]):readFileSync(`${dir}index.html`));}).listen(0);
 const b = await pw.chromium.launch(); const page = await (await b.newContext({viewport:{width:2200,height:900}})).newPage();
 await page.goto(`http://localhost:${srv.address().port}/`); await page.waitForSelector('[data-frame="five"]'); await page.waitForTimeout(1200);
 await page.focus('#before');
