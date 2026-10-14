@@ -162,13 +162,13 @@ test('case A5: parkable true to false on a live phone panel: listed, draggable, 
   assert.deepEqual([named.state('a').settings.parkable, named.state('a').settings.resizable], [false, true], 'a resizable true the panel asked for beside its fixed column stands');
 });
 
-test('case A6: parkable true to false on a tablet panel is tier-not-allowed and changes nothing', async () => {
+test('case A6: parkable true to false on a two-slot panel is slots-above-max and changes nothing', async () => {
   const r = await matrixRig();
-  r.turn(() => r.h.b!.setFormFactor('tablet', 'person'));
+  r.turn(() => r.h.b!.setSlots(2, 'person'));
   const entries = r.m.latest().entries;
   const renders = r.m.renders();
-  refusedWith(r.turn(() => r.h.b!.configure({ parkable: false })), 'tier-not-allowed');
-  assert.deepEqual([r.m.latest().entries === entries, r.m.renders(), r.entry('b').collapsible, r.entry('b').formFactor], [true, renders, true, 'tablet']);
+  refusedWith(r.turn(() => r.h.b!.configure({ parkable: false })), 'slots-above-max');
+  assert.deepEqual([r.m.latest().entries === entries, r.m.renders(), r.entry('b').collapsible, r.entry('b').slots], [true, renders, true, 2]);
 });
 
 test('case A7: parkable false to true on a live fixed column makes it an ordinary panel again', async () => {
@@ -639,16 +639,16 @@ test('protected 3: hideWhenLast counts this turn\'s accepted hides, and a fixed 
   assert.equal(letter(fixed.turn(() => fixed.h.b!.hide())), 'T', 'a fixed column remains, so the hide is allowed');
 });
 
-test('protected 4: resetLayout tier growth in a park row parks the fewest park panels and lists them', async () => {
+test('protected 4: resetLayout slot growth in a park row parks the fewest park panels and lists them', async () => {
   const r = await matrixRig({ ids: ['a', 'b', 'c'], park: true, width: 1700 });
   await r.settle();
   assert.equal(r.live().join(' '), 'root a b c');
-  done(r.turn(() => r.h.b!.configure({ formFactor: 'tablet' })));
+  done(r.turn(() => r.h.b!.configure({ slots: 2 })));
   assert.equal(r.live().join(' '), 'root a b c', 'configure resizes nothing');
   const reset = r.turn(() => r.ws.panels.resetLayout('b'));
   await r.settle();
   assert.deepEqual({ ...reset }, { ok: true, changed: true, panels: ['b'], parked: ['a'], returned: [] }, 'a 768 px b leaves room for one more 390 px panel: the leftmost of the others goes');
-  assert.deepEqual([r.entry('b').formFactor, r.state('a').status, r.live().join(' ')], ['tablet', 'parked', 'root c b']);
+  assert.deepEqual([r.entry('b').slots, r.state('a').status, r.live().join(' ')], [2, 'parked', 'root c b']);
 });
 
 test('protected 5: snapshot never evicts the stored picture once, from a layout effect, also under StrictMode\'s double updater', async () => {

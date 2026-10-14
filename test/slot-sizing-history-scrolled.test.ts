@@ -17,7 +17,7 @@ import { ROOT, made, mountRow, row } from './support/scroll-row.js';
 afterEach(() => cleanup());
 
 const resizableRoot = () =>
-  applyTemplate({ ...createHistoryPanel(ROOT), view: 'scroll-row-view' }, resolvePanelSettings({ template: { title: 'History', resizable: true, maxSlots: 3, formFactors: ['phone', 'tablet', 'desktop'] } as never }, { root: true }).value, 'create');
+  applyTemplate({ ...createHistoryPanel(ROOT), view: 'scroll-row-view' }, resolvePanelSettings({ template: { title: 'History', resizable: true, maxSlots: 3 } as never }, { root: true }).value, 'create');
 
 test('History grows while the row is scrolled to its end: the offset is kept and the strip is longer by the added slots', async () => {
   const m = mountRow(row(resizableRoot(), ...['a', 'b', 'c', 'd', 'e'].map((id) => made(id))), 1000);

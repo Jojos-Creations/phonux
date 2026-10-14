@@ -192,7 +192,7 @@ export const matrixTemplate = (id: string, over: Partial<PanelTemplate> = {}): P
         'data-title': panel.title ?? '',
         'data-close': String(closeEligible),
         'data-reorder': String(reorderEligible),
-        'data-caps': JSON.stringify({ closable: caps.closable, draggable: caps.draggable, placeable: caps.placeable, resizable: caps.resizable, formFactors: caps.formFactors }),
+        'data-caps': JSON.stringify({ closable: caps.closable, draggable: caps.draggable, placeable: caps.placeable, resizable: caps.resizable, maxSlots: caps.maxSlots }),
         'data-neighbors': JSON.stringify(neighbors),
         'data-pinned': String(pinned),
         'data-hidden': String(hidden),
