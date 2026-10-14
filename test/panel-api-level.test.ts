@@ -248,6 +248,7 @@ test('the frozen level-1 fixture panel renders in a workspace with everything it
   assert.equal(views.length, 1, 'the fixture view rendered');
   const view = views[0]!;
   assert.match(view.dataset.fixtureHandle!, /^[^:]+:fixture-level-1:(pending|live)$/);
+  assert.equal(view.dataset.fixtureView, view.dataset.fixtureHandle!.split(':')[0], 'panel.id is handle.id');
   assert.equal(view.dataset.fixtureManager, `${w.panels.getSnapshot().panels.map((p) => p.id).join(',')}|1`);
   assert.equal(view.dataset.fixturePinned, 'false');
   assert.equal(view.dataset.fixtureGap, 'number');
