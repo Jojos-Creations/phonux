@@ -16,6 +16,7 @@
 
 ### Fixed
 
+- A panel added with `addPanel` and no title of its own now gets `labels.panelTitle(id)`, the same default the Host-bag `create` gave, whether it is added before or after the workspace mounts.
 - A trackpad swipe on a stepping row is one step. Its deltas ramp up before they fade, and every rising event after the 60 ms
   lock used to step again, so one swipe ran through several stops and a wide panel skipped its 1, 2, 3 slot sizes. After a step
   an event steps again only on a reversal, or when it is 1.5 times, and at least 4 units above, the smallest delta seen since the
