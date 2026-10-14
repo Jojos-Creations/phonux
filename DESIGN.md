@@ -383,6 +383,8 @@ size: nothing fades or shrinks, and a panel is inert only when the window does n
 neighbour makes the browser scroll, and the row then settles onto the nearest stop that shows that panel. `'hidden'` has the same
 stops but fades the neighbour out, and between two stops a panel is whole or hidden and never part way. Neither resizes anything.
 
+A panel as wide as the window shows alone, and the next stop would start at the panel after it, dropping the wide one at the first step. So whenever a panel follows it, a stop is added after it that slides the panel left. The slide leaves the window ending at the edge of the whole panels that fit beside its right part (at least a phone's width of it stays); when no whole panel fits there, it slides one slot (phone width plus gap), so the panel keeps all but one slot of the window and the next panel's first slot comes in as the cut or hidden neighbour. The step after that starts at the next panel.
+
 With `'visible'` the row moves one slot at a time. The strip is a run of slot units: a panel that can be drawn smaller is as many
 units as its width holds slots, an entry that cannot (no `slots`, or a width that is no whole number of slots) is one unit as wide
 as itself. A stop is a window of consecutive units, greedy by width, and a step moves its start by one unit, forward and back, so
@@ -1267,13 +1269,14 @@ Every view renders inside `PanelFrame` so each section reads as one phone silhou
 own border/radius/background declarations would drift from the others. The frame is the phone's size unless
 `size` or `expanded` says otherwise: a slot never grows to fill space.
 
-**Equal inset with or without a scrollbar.** Content sits `CONTENT_INSET_PX` (12px) from the border on all
-four sides whether or not a scrollbar is painted, with nothing measured at runtime: `scrollbar-gutter:
-stable` reserves the bar's strip permanently and the right padding is pre-shrunk by that strip
-(`SCROLLBAR_PX`, 8px), so the right side is (12 - 8) + 8 = 12px in both states, the bar flush against the
-border.
+**The view owns its content.** `PanelFrame` applies no padding, scrollbar or scroll behaviour to what it holds.
+Its inner box is a plain flex column styled only by its `sx` prop. A view that scrolls and wants the phone's
+standard inset spreads `panelFrameScrollSx` on its scroller: content sits 12px from the border on all four
+sides, with or without a bar, because `scrollbar-gutter: stable` reserves the strip and the right padding is
+pre-shrunk by it (`SCROLLBAR_PX`, 8px). Nothing is measured at runtime. The phone's look is the frame's border,
+radius and size; the inside is the developer's.
 
-**Why a classic scrollbar.** The default here in WebKit and Blink engines is an overlay scrollbar: it floats over content,
+**Why a classic scrollbar (for a view that opts in).** The default here in WebKit and Blink engines is an overlay scrollbar: it floats over content,
 reserves no layout width (`offsetWidth === clientWidth` on a scroller with real overflowing content) and
 draws with its own built-in inset from the scroller's edge, which no padding or box-model change on this
 side can remove. Splitting the frame into an outer box (border, radius, size, `overflow: hidden` clipping, no
@@ -1283,11 +1286,8 @@ its own. The explicit `::-webkit-scrollbar` rules force a classic scrollbar, whi
 own scrollbar. Those rules style only the element they are set on, so a nested scroller needs its own copy
 or it falls back to the engine's default-width bar and breaks the arithmetic above.
 
-**Never reserved twice.** A caller that scrolls one level deeper (an embedded document, a transcript under a pinned
-input bar) spreads `panelFrameBareSx`, which cancels both the padding and the gutter. Keeping either leaves a
-phantom gap outside the inner scrollbar and an uneven inset (28px on the right against 12px on the left).
-Its properties are longhands because MUI resolves `p`/`pr` and `overflow`/`overflowY` independently, so a
-shorthand spread over a longhand does not reliably win.
+**No reserved twice.** Because the frame adds no padding or gutter, there is nothing for a nested scroller to
+cancel. `panelFrameBareSx` is a deprecated empty object kept so existing imports compile.
 
 **border-box.** Row-layout width math treats `device.size` as the frame's real rendered size. Under
 content-box the border and padding land on top of it: a 390px phone rendered 416px wide by
@@ -1297,8 +1297,8 @@ content-box the border and padding land on top of it: a 390px phone rendered 416
 in one look: Paper `variant="outlined"`'s bgcolor and border, shaped as a pill; a radius
 equal to the phone's own corner radius and a height of twice it, so each end is an exact semicircle with the
 phone's curvature, both from the theme rather than a raw 24/48; and a fixed height, so wrapping content never
-changes the shape. Its horizontal padding equals the frame's content inset so header text lines up with the
-frame's own content. Internal layout is left to callers (`sx`), since one centers an ellipsis title and
+changes the shape. Its horizontal padding is 13px (the 1px edge plus the 12px inset the frame used to give content), so header
+text keeps the line it had before the frame stopped styling its content. Internal layout is left to callers (`sx`), since one centers an ellipsis title and
 another spaces out an icon row. `PanelHeaderRow` is the shared title-left/actions-right layout, so call sites
 stop re-implementing flex/ellipsis markup, and it substitutes placeholders for a falsy `title`/`actions` (a
 dimmed "Untitled", a dimmed "more" glyph) so the pill never blanks or changes shape. Its emptiness check

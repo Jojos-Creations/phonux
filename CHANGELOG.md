@@ -4,6 +4,7 @@
 
 ### Breaking
 
+- `PanelFrame` no longer styles the content it holds: the 12px inset, the scrollbar gutter and the `::-webkit-scrollbar` rules are gone, so the view owns its padding and scrolling. **Migration:** a view that scrolls and wants the standard inset spreads `panelFrameScrollSx` on its own scroller, with the scrollbar rules it already has. `panelFrameBareSx` is an empty deprecated object; delete the spread. `panelFrameScrollSx`, `panelFrameBareSx`, `PANEL_CORNER_RADIUS_UNITS` and `panelCornerRadiusPx` stay exported.
 - Nineteen per-panel settings are removed from `PanelSettings`, `ResolvedPanelSettings`, `ViewPatch`, `InstancePatch`, `SettingsPatch`, `LIBRARY_PANEL_DEFAULTS` and `PANEL_SETTINGS_CATALOG`, so the 1.0 freeze covers only settings a panel author can use: `hideWhenLast`, `returnPriority`, `evictionRank`, `evictionOrder`, `scrollOnDrag`, `viewState`, `keepMounted`, `frame`, `placeOnReturn`, `placeFallback`, `undoPlacement`, `exitTo`, `closeExit`, `animated`, `persist`, `rememberLayout`, `undoWindowMs`, `reportClose` and `snapshot`. Every panel behaves as each did at its default (DESIGN.md, "Settings this version removed"). **Migration:** delete the key from the template. A template that still sets one is told once in development (`console.error`, naming the key) and the value is ignored; the next rc refuses it with `invalid-settings`. A saved file that holds one in a panel's instance layer still loads: the key is dropped with an `invalid-saved-setting` note. Coupling rules C3 and C6 went with their settings; `SettingConflict.rule` is `'C1' | 'C2' | 'C4' | 'C5'`, and the `park-lever-inert` note covers only `capacityReturn`.
 - `usePanelHidden` is removed: a parked view always unmounts, so a view is never mounted and hidden. **Migration:** delete the call.
 - `resolvePanelSettings`, `mergePatch`, `PanelSettingsLayers` and `ResolveOptions` are no longer exported from the package; no 0.1.0 name was among them.
@@ -27,6 +28,8 @@
 
 ### Fixed
 
+- The drag-to-close box and its release, close and edge scroll honour MotionConfig `reducedMotion: "always"` as well as the system's Reduce Motion query. `never` does not turn off the system query.
+- A step from a panel as wide as the window now slides it to show its right part beside the next whole panel, instead of jumping to the next panel and dropping the wide one.
 - A closed panel's `useViewState` is kept for the undo window again. The row held the state by the row's own id while `recentlyClosed` carries the key, so a panel with a key unlike its row id came back from Undo with empty state; both sides now use the key.
 - A panel added with `addPanel` and no title of its own now gets `labels.panelTitle(id)`, the same default the Host-bag `create` gave, whether it is added before or after the workspace mounts.
 - A trackpad swipe on a stepping row is one step. Its deltas ramp up before they fade, and every rising event after the 60 ms
@@ -67,6 +70,7 @@
 
 ### Added
 
+- `PhonuxLabels.pinFailed` and `unpinFailed`: the text a host announces when a pin or unpin request is refused. Defaults `Could not pin this panel` and `Could not unpin this panel`.
 - A saved panel now carries an optional `uid` (`WorkspacePanelState.uid`, `u_` and 32 hex characters), made once when the
   panel is created and kept through save, restore, a copy of the file to another device and `undoClose`, so a later export,
   import or sync can match panels. It is not the panel's key or id, and nothing a host holds changes. File version stays 1.

@@ -474,16 +474,8 @@ export function PanelFooter(): React_2.ReactElement | null;
 // @public
 export const PanelFrame: React_2.ForwardRefExoticComponent<Omit<PanelFrameProps, "ref"> & React_2.RefAttributes<HTMLDivElement>>;
 
-// @public
-export const panelFrameBareSx: {
-    readonly pt: 0;
-    readonly pr: 0;
-    readonly pb: 0;
-    readonly pl: 0;
-    readonly overflowX: "hidden";
-    readonly overflowY: "hidden";
-    readonly scrollbarGutter: "auto";
-};
+// @public @deprecated
+export const panelFrameBareSx: {};
 
 // @public
 export interface PanelFrameProps extends Omit<BoxProps, 'children'> {
@@ -940,11 +932,13 @@ export interface PhonuxLabels {
     panelTitle: (id: string) => string;
     pickedUp: (title: string) => string;
     pin: string;
+    pinFailed: string;
     resizeGrip: (side: 'left' | 'right') => string;
     resizeGripValue: (slots: number, most: number) => string;
     row: string;
     unlock: string;
     unpin: string;
+    unpinFailed: string;
     untitledHeader: string;
     untitledPanel: string;
     workspaceName: string;

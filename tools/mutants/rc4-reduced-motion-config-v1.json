@@ -1,0 +1,27 @@
+{
+  "tests": [
+    "test/drag-to-close-motion-config-os-off.test.ts",
+    "test/drag-to-close-motion-config-os-on.test.ts",
+    "test/drag-to-close-reduced-motion.test.ts"
+  ],
+  "mutants": [
+    {
+      "name": "the release ignores MotionConfig always",
+      "file": "dragToClose.tsx",
+      "find": "const reduceMotion = systemReduced === true || configReduced === true;",
+      "replace": "const reduceMotion = systemReduced === true;",
+      "expectRed": [
+        "MotionConfig always with the system preference off"
+      ]
+    },
+    {
+      "name": "MotionConfig never beats the system preference",
+      "file": "dragToClose.tsx",
+      "find": "const reduceMotion = systemReduced === true || configReduced === true;",
+      "replace": "const reduceMotion = configReduced === false ? false : systemReduced === true || configReduced === true;",
+      "expectRed": [
+        "MotionConfig never with the system preference on"
+      ]
+    }
+  ]
+}
