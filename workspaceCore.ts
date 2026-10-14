@@ -1052,8 +1052,7 @@ export function createWorkspace(o: WorkspaceOptions = {}): WorkspaceHandle {
   /** `configureTuning`: the workspace's tuning keys, for this session. */
   const configureTuningOne = (patch: unknown): ConfigureResult => {
     const checked = checkPatch('tuning', patch);
-    const unavailable = lifecycleRefusal('workspace');
-    if (unavailable !== undefined) return failed(unavailable);
+    if (status === 'disposed') return failed(refused('disposed', 'the workspace was disposed'));
     if ('refusal' in checked) return { ok: false, ...checked.refusal };
     const plan = planTuning(tuningInput, patch as Record<string, unknown>);
     if (!plan.changed) return unchanged();
@@ -1063,8 +1062,9 @@ export function createWorkspace(o: WorkspaceOptions = {}): WorkspaceHandle {
       refresh();
       for (const l of [...tuningListeners]) l();
     };
-    if (plan.reprices) {
-      const done = commit!.ops.reprice(apply);
+    // Before the first load there is no layout to reprice: the patch lands in the input the load reads.
+    if (plan.reprices && commit !== undefined && status === 'ready') {
+      const done = commit.ops.reprice(apply);
       if (!done.ok) return failed(done);
     } else {
       apply();
