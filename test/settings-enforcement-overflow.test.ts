@@ -257,8 +257,8 @@ test('parkExitTarget: a scrolling row exits one span from the rest, a row that n
   assert.deepEqual(parkExitTarget(2030, 406, 'left', true), { x: 1624, opacity: 0 });
   assert.deepEqual(parkExitTarget(2030, 406, 'right', true), { x: 2436, opacity: 0 });
   assert.deepEqual(parkExitTarget(2030, 406, 'left', false), { x: -406, opacity: 0 });
-  assert.deepEqual(panelRowSlotMotion(2030, 390, 700, 'right', 'left', true, 16, undefined, true).exit, { x: 1624, opacity: 0 });
-  assert.deepEqual(panelRowSlotMotion(2030, 390, 700, 'right', 'left', true, 16, undefined, false).exit, { x: -406, opacity: 0 });
+  assert.deepEqual(panelRowSlotMotion(2030, 390, 700, 'right', 'left', 16, undefined, true).exit, { x: 1624, opacity: 0 });
+  assert.deepEqual(panelRowSlotMotion(2030, 390, 700, 'right', 'left', 16, undefined, false).exit, { x: -406, opacity: 0 });
 });
 
 // ---------------------------------------------------------------------------

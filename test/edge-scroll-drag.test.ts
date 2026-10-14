@@ -360,7 +360,7 @@ const bareSlot = (): PanelSlotValue => ({
   neighborWidths: { left: [], right: [] },
   pinned: false,
   tuning: slotTuning(LIBRARY_TUNING_DEFAULTS, undefined),
-  dragScroll: { mode: 'edge', zonePx: EDGE.zonePx, maxPxPerSec: EDGE.maxPxPerSec, reducedStepMs: EDGE.reducedStepMs, instant: false, maxScroll: MAX_SCROLL, stops: [], settleStops: [], settleSec: 0.4, settleEase: 'cubic-out' },
+  dragScroll: { mode: 'edge', zonePx: EDGE.zonePx, maxPxPerSec: EDGE.maxPxPerSec, reducedStepMs: EDGE.reducedStepMs, maxScroll: MAX_SCROLL, stops: [], settleStops: [], settleSec: 0.4, settleEase: 'cubic-out' },
 });
 
 test('a DragToClose without reorder never scrolls, whatever its slot offers', async () => {

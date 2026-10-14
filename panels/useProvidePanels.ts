@@ -684,7 +684,7 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
     // Two stops can share the position the row is at, so the stop it is on can be the wrong one with nothing to scroll.
     if (landed.landing !== null && !scroller.claimHeld()) land(landed.landing);
     if (Math.abs(to - scroller.scrollLeft()) < 0.5) return;
-    if (!scroller.glideTo(to, { durationSec: tuning.slide.durationSec, instant: reducedMotion || !FIXED.animated, ease: glideEase })) {
+    if (!scroller.glideTo(to, { durationSec: tuning.slide.durationSec, instant: reducedMotion, ease: glideEase })) {
       scrollNote('scroll-dropped-during-drag', request.id, `A scroll to panel ${request.id} was dropped: a drag holds the row.`);
     }
   });

@@ -1266,9 +1266,6 @@ export function usePanelDragProps(): {
 export function usePanelHeaderButtons(): readonly PanelHeaderButtonItem[];
 
 // @public
-export const usePanelHidden: () => boolean;
-
-// @public
 export const usePanelNeighborWidths: () => NeighborWidths;
 
 // @public
