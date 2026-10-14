@@ -383,6 +383,8 @@ size: nothing fades or shrinks, and a panel is inert only when the window does n
 neighbour makes the browser scroll, and the row then settles onto the nearest stop that shows that panel. `'hidden'` has the same
 stops but fades the neighbour out, and between two stops a panel is whole or hidden and never part way. Neither resizes anything.
 
+A panel as wide as the window shows alone, and the next stop would start at the panel after it, dropping the wide one at the first step. So whenever a panel follows it, a stop is added after it that slides the panel left. The slide leaves the window ending at the edge of the whole panels that fit beside its right part (at least a phone's width of it stays); when no whole panel fits there, it slides one slot (phone width plus gap), so the panel keeps all but one slot of the window and the next panel's first slot comes in as the cut or hidden neighbour. The step after that starts at the next panel.
+
 With `'visible'` the row moves one slot at a time. The strip is a run of slot units: a panel that can be drawn smaller is as many
 units as its width holds slots, an entry that cannot (no `slots`, or a width that is no whole number of slots) is one unit as wide
 as itself. A stop is a window of consecutive units, greedy by width, and a step moves its start by one unit, forward and back, so
