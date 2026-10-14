@@ -109,7 +109,8 @@ function changelogRemovedBullets(): [Set<string>, Set<string>] {
     bullets[bullets.length - 1]?.push(lines[i] ?? '');
   }
   assert.ok(bullets.length >= 3, 'the Removed list has at least its three bullets');
-  const names = (bullet: string[] | undefined): Set<string> => new Set([...(bullet ?? []).join('\n').matchAll(/`([^`]+)`/g)].map((m) => m[1] ?? ''));
+  // A name after `->` is the replacement the bullet points to, not a name it removes.
+  const names = (bullet: string[] | undefined): Set<string> => new Set([...(bullet ?? []).join('\n').matchAll(/(->\s*)?`([^`]+)`/g)].filter((m) => m[1] === undefined).map((m) => m[2] ?? ''));
   return [names(bullets[0]), names(bullets[2])];
 }
 
@@ -131,16 +132,16 @@ function changelogBreakingNames(): Set<string> {
   return names;
 }
 
-test('compat-0.1.0 fixture: 66 root values and 2 testing values in 0.1.0, 42 names since removed (25 root values, 13 root types, 1 testing value, 3 testing types)', () => {
+test('compat-0.1.0 fixture: 66 root values and 2 testing values in 0.1.0, 46 names since removed (27 root values, 15 root types, 1 testing value, 3 testing types)', () => {
   const fixture = exportsFixture();
   assert.equal(fixture.root.values.length, 66);
   assert.equal(fixture.testing.values.length, 2);
   const removed = fixture.removedSince010;
-  assert.equal(removed.root.values.length, 25);
-  assert.equal(removed.root.types.length, 13);
+  assert.equal(removed.root.values.length, 27);
+  assert.equal(removed.root.types.length, 15);
   assert.equal(removed.testing.values.length, 1);
   assert.equal(removed.testing.types.length, 3);
-  assert.equal(removed.root.values.length + removed.root.types.length + removed.testing.values.length + removed.testing.types.length, 42);
+  assert.equal(removed.root.values.length + removed.root.types.length + removed.testing.values.length + removed.testing.types.length, 46);
   assert.ok(removed.root.values.every((name) => fixture.root.values.includes(name)), 'every removed root value was a 0.1.0 root value');
   assert.ok(removed.root.types.every((name) => fixture.root.types.includes(name)), 'every removed root type was a 0.1.0 root type');
   assert.ok(removed.testing.values.every((name) => fixture.testing.values.includes(name)), 'every removed testing value was a 0.1.0 testing value');

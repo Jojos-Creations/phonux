@@ -86,7 +86,7 @@ export function Row({ workspace }: { workspace: WorkspaceHandle }) {
     observer.observe(el);
     return () => observer.disconnect();
   }, []);
-  const provided = useProvidePanels({ workspace, rootId: workspace.rootId, phoneWidth: PHONE_WIDTH, containerWidth, overflowContainerRef: ref });
+  const provided = useProvidePanels({ workspace, phoneWidth: PHONE_WIDTH, containerWidth, overflowContainerRef: ref });
   return (
     <HostProvider host={{ panels: provided }}>
       <Workspace

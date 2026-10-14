@@ -19,7 +19,6 @@ import type { DeferredPin, PanelReader, PanelReadHandle, PanelSnapshot, PanelSta
 import { resolveWorkspaceTuning } from './panelTuning.js';
 import { createHistoryPanel, slotsOf, type PanelWindow } from './panelWindow.js';
 import type { PanelViewContext } from './panelViewContext.js';
-import { assertTemplateIdFree } from './viewRegistry.js';
 import type { DeclaredPanel } from './workspacePlan.js';
 import type { WorkspaceStorage } from './workspaceState.js';
 import type { SettingsPatch } from './settingsPatch.js';
@@ -684,7 +683,6 @@ export function createWorkspace(o: WorkspaceOptions = {}): WorkspaceHandle {
     const existing = templates.get(t.id);
     if (existing !== undefined && existing !== t) throw new PanelManagerError('duplicate-template', `template '${t.id}' is already registered in this workspace`);
     if (existing === t) return () => {};
-    assertTemplateIdFree(t.id);
     templates.set(t.id, t);
     const remove = (): void => {
       if (templates.get(t.id) === t) templates.delete(t.id);
@@ -1083,7 +1081,6 @@ export function createWorkspace(o: WorkspaceOptions = {}): WorkspaceHandle {
   };
 
   for (const t of o.templates ?? []) registerOne(t);
-  if (root !== undefined && !templates.has(root.id)) assertTemplateIdFree(root.id);
 
   const binding: EngineBinding = {
     rootId,

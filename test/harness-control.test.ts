@@ -12,13 +12,14 @@ import { tmpdir } from 'node:os';
 import { dirname, isAbsolute, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import ts from 'typescript';
-import { PanelRow, registerView, useProvidePanels, type PanelWindow } from '../index.js';
+import { useProvidePanels, type PanelWindow } from '../index.js';
 import { FRAME_MS, frameClock } from './support/jsdom-globals.js';
-import { advanceFrames, cleanup, mount, panelsInput, usePanelManagerWith, withHost } from './support/mount-harness.js';
+import { advanceFrames, cleanup, mount, usePanelManagerWith, withHost, useSeededInput, StaticRow } from './support/mount-harness.js';
+import { registerTestView } from './support/test-views.js';
 
 const TEST_DIR = dirname(fileURLToPath(import.meta.url));
 
-registerView('harness-probe', ({ panel }) => React.createElement('div', { 'data-probe': panel.id }, panel.title));
+registerTestView('harness-probe', ({ panel }) => React.createElement('div', { 'data-probe': panel.id }, panel.title));
 
 const rootEntry: PanelWindow = { id: 'root', url: '', title: 'History', live: true, locked: true, view: 'harness-probe', collapsible: false, listed: false };
 const liveEntry: PanelWindow = {
@@ -35,7 +36,7 @@ const liveEntry: PanelWindow = {
 const NONE: ReadonlySet<string> = new Set();
 
 const row = (entries: PanelWindow[]): React.ReactElement =>
-  withHost(React.createElement(PanelRow, { entries, rootId: 'root', closingIds: NONE, enteringViaAnchorIds: NONE }));
+  withHost(React.createElement(StaticRow, { entries, rootId: 'root', closingIds: NONE, enteringViaAnchorIds: NONE }));
 const slotPresent = (container: HTMLElement): boolean => container.querySelector('[data-probe="a"]') !== null;
 /** The slot's current translateX in px: an exit toward the left only ever lowers it from the rest position. */
 const slotX = (container: HTMLElement): number => {
@@ -53,7 +54,7 @@ afterEach(() => {
 test('harness positive control: an effect runs under mount() and its marker node is in document.body', () => {
   const runs = { count: 0 };
   function Probe(): React.ReactElement {
-    const provided = useProvidePanels(panelsInput({ initialEntries: [rootEntry] }));
+    const provided = useProvidePanels(useSeededInput({ initialEntries: [rootEntry] }));
     const [panels, setPanels] = React.useState<PanelWindow[]>([rootEntry]);
     const manager = usePanelManagerWith({ panels, setPanels, phoneWidth: 390, containerWidth: 0, fixedColumnCount: 1, rootId: 'root' });
     React.useEffect(() => {

@@ -24,7 +24,7 @@ const ANON = [markerTemplate('m', { settings: { multiple: true } })];
 
 /** One launch over `store`: the rig mounted, the restore settled and the first save quiet. */
 async function launch(store: Store, o: PinRigOptions = {}): Promise<PinRig> {
-  const r = await pinRig({ ...o, workspace: { ...o.workspace, storage: store }, over: { ...quiet, ...o.over } });
+  const r = await pinRig({ ...o, workspace: { ...o.workspace, storage: store, ...quiet }, ...(o.over === undefined ? {} : { over: o.over }) });
   await wait();
   return r;
 }

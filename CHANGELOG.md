@@ -13,6 +13,14 @@
   panel's slots, or pinning a panel wider than one slot into a fixed column. `CreatePanelOptions` and `ViewPatch` take `slots`.
   A saved file from an older library still loads: a top-level `formFactor` on an entry and `overrides.formFactor` read as that tier's slot count (`slots` wins when both are
   there). A file this version writes holds `slots` only for a panel wider than one slot and never a `formFactor`. `panelWidthOf` and the row price an entry with no `slots` as one phone width.
+- `registerView`, `resolveView`, `ViewComponent` and `ViewProps` are removed from `phonux`, and a row is always fed by a workspace.
+  A plain component becomes a template: `definePanel({ id, view })` with `createWorkspace({ templates })`, or
+  `workspace.registerTemplate`. A `view` key no template of the row's workspace answers to still renders the unregistered-view placeholder.
+  `PanelRow`'s `workspace` prop is required, and `PanelsInput.workspace` is required with it. `PanelsInput` loses the members only a row
+  without a workspace read: `rootId`, `initialEntries`, `storage`, `templates`, `declared`, `workspaceDefaults` and `tuning` now come from
+  `createWorkspace` (`root`, `storage`, `templates`, `addPanel`, `defaults`, `tuning`). The `template-collision` error code is gone with the
+  registry it guarded. The components (`PanelRow`, `Workspace`, `HostProvider`) stay public, always with a workspace. The deprecated Host-bag verbs
+  and `CreatePanelOptions` stay until their own removal.
 
 ### Fixed
 
