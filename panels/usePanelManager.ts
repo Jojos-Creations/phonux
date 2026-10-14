@@ -25,7 +25,7 @@ import {
   lastParkedBefore,
   leftmostLiveIndex,
   farthestLiveCollapsibleId,
-  movePanel,
+  movePanelBy,
   parkLevers,
   parksForRoom,
   promoteToLive,
@@ -88,8 +88,8 @@ export interface UsePanelManagerResult {
    * with no `setPanels`, when nothing is parked on that side or when that panel's `revealOnScroll` is 'never'.
    */
   scrollRow: (direction: 'left' | 'right') => void;
-  /** Moves `id` one row-slot toward `direction`; see `movePanel` for the no-op contract. `record` false (a call from code) leaves the person's arrangement, `overrides`, as it was. True when the move changes this render's list. */
-  reorderPanel: (id: string, direction: 'left' | 'right', record?: boolean) => boolean;
+  /** Moves `id` `by` row-slots (negative: left; 'left' and 'right' are one slot); see `movePanel` for the no-op contract, and `movePanelBy` for a count that runs out at an edge. `record` false (a call from code) leaves the person's arrangement, `overrides`, as it was. True when the move changes this render's list. */
+  reorderPanel: (id: string, by: number | 'left' | 'right', record?: boolean) => boolean;
   /** `setSlots` through setPanels; if the row no longer fits, the same update parks what the capacity drop would, keeping every acted-on panel live. False for a no-op. `record` false leaves `overrides` as it was. */
   resizePanel: (id: string, slots: number, record?: boolean) => boolean;
   /** Puts `id` where `value` says, keeping its live flag; the placement is the developer's own ask, so `placeable` is the caller's to check. `record` false leaves `overrides` as it was. True when the placement changes this render's list. */
@@ -642,11 +642,12 @@ export function usePanelManager(
   };
 
   /** See `UsePanelManagerResult.reorderPanel`'s own doc comment. */
-  const reorderPanel = (id: string, direction: 'left' | 'right', record = true): boolean => {
-    const changes = movePanel(panels, id, direction, rootId) !== panels;
+  const reorderPanel = (id: string, by: number | 'left' | 'right', record = true): boolean => {
+    const count = by === 'left' ? -1 : by === 'right' ? 1 : by;
+    const changes = movePanelBy(panels, id, count, rootId) !== panels;
     keepMoved(id, changes);
     setPanels((prev) => {
-      const moved = movePanel(prev, id, direction, rootId);
+      const moved = movePanelBy(prev, id, count, rootId);
       // A drag settles every panel's place for the person, not only the dragged one's.
       return moved === prev || !record ? moved : recordOverride(moved, 'anchor', moved.map((p) => p.id), rootId);
     });
