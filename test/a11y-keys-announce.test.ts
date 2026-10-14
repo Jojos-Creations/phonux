@@ -38,7 +38,9 @@ async function rig(ids: string[], over: Record<string, Record<string, unknown>> 
   await advanceFrames(400);
   return m;
 }
-const order = (m: ResizableWorkspace): string[] => [...m.container.querySelectorAll<HTMLElement>('[data-body]')].map((n) => n.dataset.body!);
+/** Panels in the order they are drawn: the DOM keeps the order they opened, so position comes from the slot's offset. */
+const leftOf = (n: HTMLElement): number => Number(n.closest('[data-row-slot]')!.getAttribute('data-row-slot'));
+const order = (m: ResizableWorkspace): string[] => [...m.container.querySelectorAll<HTMLElement>('[data-body]')].sort((a, b) => leftOf(a) - leftOf(b)).map((n) => n.dataset.body!);
 const slotOf = (m: ResizableWorkspace, id: string): HTMLElement => m.container.querySelector<HTMLElement>(`[data-body="${id}"]`)!.closest<HTMLElement>('[data-row-slot]')!;
 const stripOf = (m: ResizableWorkspace, id: string): HTMLElement => slotOf(m, id).querySelector<HTMLElement>('[data-panel-grab-bar]')!;
 const announcer = (): string => document.querySelector('[data-workspace-announcer]')!.textContent ?? '';

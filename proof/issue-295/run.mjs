@@ -23,7 +23,8 @@ await page.waitForTimeout(1200);
 // Watch from the page: every slot node's DOM index, its left edge each animation frame, and the nodes React adds or removes.
 await page.evaluate(() => {
   const slots = () => [...document.querySelectorAll('[data-row-slot]')];
-  const w = (window).__watch = { moves: 0, frames: [], ids: slots().map((s) => s.dataset.rowId), nodes: slots(), run: true };
+  const w = { moves: 0, frames: [], ids: slots().map((s) => s.dataset.rowId), nodes: slots(), run: true };
+  window.__watch = w;
   new MutationObserver((list) => { for (const m of list) w.moves += m.addedNodes.length + m.removedNodes.length; }).observe(slots()[0].parentElement, { childList: true });
   const tick = () => {
     w.frames.push(Object.fromEntries(slots().map((s) => [s.dataset.rowId, Math.round(s.getBoundingClientRect().left)])));
