@@ -1989,6 +1989,8 @@ Level N means panel code written for phonux N.x. `PANEL_API` equals the package'
 | The frame components a view renders and their props: `PanelFrame`, `PanelHeader`, `PanelHeaderRow`, `PanelFooter`, `DragToClose`, `PanelSizeBox`, `WindowOverlay` | |
 | The view hooks: `usePanelStates`, `usePanelState`, `useWorkspaceManager`, `useActivePanel`, `usePhoneSize` | |
 
+The `useHost().panels` row is covered only until the Host-bag verbs are retired: when they are removed the row and the fixture's `PanelsAPI` block go with them.
+
 `api` is not saved: templates are registered each launch and the saved state names the template id, so no migration reads it.
 
 ### How a level is served
