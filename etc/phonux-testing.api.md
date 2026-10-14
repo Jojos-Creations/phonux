@@ -169,14 +169,23 @@ export interface PhoneSize {
 
 // @public
 export interface PhonuxLabels {
+    cannotMove: (title: string, steps: number) => string;
+    closed: (title: string) => string;
+    dragCancelled: (title: string) => string;
+    dropped: (title: string) => string;
     goToWorkspace: (name: string) => string;
+    grabStrip: (title: string) => string;
     historyTitle: string;
     lock: string;
+    moved: (title: string, steps: number) => string;
     newWorkspace: string;
+    panelPosition: (title: string, place: number, total: number) => string;
     panelTitle: (id: string) => string;
+    pickedUp: (title: string) => string;
     pin: string;
     resizeGrip: (side: 'left' | 'right') => string;
     resizeGripValue: (slots: number, most: number) => string;
+    row: string;
     unlock: string;
     unpin: string;
     untitledHeader: string;

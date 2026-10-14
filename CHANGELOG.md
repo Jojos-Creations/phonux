@@ -23,6 +23,14 @@
 
 ### Changed
 
+- Names and keys for assistive technology. The row is a `region` named `labels.row` ("Panels") and each panel a `group` named with its title and
+  place ("Notes, 2 of 4"). A drag says "Picked up Notes" and "Dropped Notes", not "draggable item" and an id. The grab strip of a panel that can
+  move or close is a focusable button: ArrowLeft and ArrowRight move the panel one slot, Delete closes it, and the Workspace's one polite live
+  region says what happened ("Moved Notes right", "Notes cannot move right", "Closed Notes"). `DragHandleProps` gains `role`, `tabIndex`,
+  `aria-label`, `aria-keyshortcuts` and `onKeyDown`, and `ReorderHandle` gains `onStep`; `usePanelDragProps()` fills both. New `PhonuxLabels` keys:
+  `row`, `panelPosition`, `grabStrip`, `pickedUp`, `dropped`, `dragCancelled`, `moved`, `cannotMove` and `closed`.
+- The row's arrow keys share the column's guard: a key now also stays with the row when focus is in a widget that uses the arrows (a slider, a
+  tab list, a listbox), a modal dialog is open, a drag is in progress or an IME is composing. A held key still repeats its step.
 - Inside a row, `Panel`, `PanelFrame` and `PanelSizeBox` take an omitted `size` from the slot's drawn size, which includes the row's tuned gap, so a two-slot
   panel's size box is as wide as its slot at any `tuning.rowGap`. `PanelSizeBox` accepts `width` and `height` as optional. Outside a row an omitted size is the phone size, as before.
 - A panel has one public id, its key. A template panel's `panel.id` was the row's counter (`3`) while `handle.id`, `PanelState.id` and `usePanelState` used the key (`web~3`), so an id from one place failed silently in another. Now `panel.id`, `PanelSummary.id` (`panelList`, `recentlyClosed`), every `PanelsAPI` verb, `useActivePanel` (its value and its setter), the id the snapshot trigger is given and `tuning.initialScroll.panel` all use the key. A hand-built entry's key is its id, so a view that never used templates sees no change. **Migration:** a view that held `panel.id` and passed it to a handle, manager or `usePanelState` needs nothing; one that stored the counter id (saved, or in a `viewId` for pictures) stores the key instead.

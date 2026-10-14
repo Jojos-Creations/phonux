@@ -7,6 +7,9 @@
 import * as React from 'react';
 import { DndContext, PointerSensor, useDndMonitor, useDraggable, useSensor, useSensors } from '@dnd-kit/core';
 import { animate, cancelFrame, frame, motion, useIsPresent, useMotionValue, useReducedMotion, useTransform, type MotionValue } from 'motion/react';
+import { AnnounceContext } from './announce.js';
+import { useOptionalHost } from './hostApi.js';
+import { resolveLabels } from './labels.js';
 import { edgeScrollSpeed, edgeScrollStep } from './edgeScroll.js';
 import { PanelSlotContext, type DragScroll } from './panelSlotContext.js';
 import { closestRowScroller, rowScrollerFor, type RowScroller, type ScrollClaim } from './rowScroller.js';
@@ -73,14 +76,26 @@ export function shouldCloseOnRelease({ offsetY, velocityY, height }: ReleaseMeas
 export interface DragHandleProps {
   /** Starts a drag from a primary-button press on the handle; a press on a button, link or field is ignored. Until the press ends, the page shows no text selection and starts no native image drag. */
   onPointerDown: (event: React.PointerEvent<HTMLElement>) => void;
-  /** The handle's styles: a grab cursor, no text selection, and `touch-action: pan-x` so a horizontal swipe still scrolls the row. */
-  sx: { cursor: 'grab'; touchAction: 'pan-x'; userSelect: 'none'; '&:active': { cursor: 'grabbing' } };
+  /** The handle's styles: a grab cursor, no text selection, and `touch-action: pan-x` so a horizontal swipe still scrolls the row. A keyboard focus ring is drawn when the handle takes keys. */
+  sx: { cursor: 'grab'; touchAction: 'pan-x'; userSelect: 'none'; '&:active': { cursor: 'grabbing' }; '&:focus-visible': { outline: '2px solid'; outlineColor: 'primary.main'; outlineOffset: -2 } };
+  /** `'button'` when the handle takes keys, which it does when `onClose` or `reorder.onStep` is set; absent otherwise. */
+  role?: 'button';
+  /** 0 when the handle takes keys; absent otherwise. */
+  tabIndex?: 0;
+  /** The handle's name when it takes keys, built from the panel's title inside a row. */
+  'aria-label'?: string;
+  /** The keys the handle takes, for assistive technology. */
+  'aria-keyshortcuts'?: string;
+  /** ArrowLeft and ArrowRight call `reorder.onStep(-1 | 1)` and Delete calls `onClose`, each said in the workspace's live region. Absent when the handle takes no keys. */
+  onKeyDown?: (event: React.KeyboardEvent<HTMLElement>) => void;
 }
 
 /** Hands the same handle's horizontal drag to the caller's own reorder (DESIGN.md, "`DragToClose`"). @public */
 export interface ReorderHandle {
   /** The gesture's own total horizontal offset (px, +right/-left from where the drag started), read once it has locked horizontal AND released. */
   onDragEnd: (offsetX: number) => void;
+  /** Moves the panel `steps` slots (-1 left, 1 right) for an ArrowLeft or ArrowRight on the handle; true when it moved. Without it the handle takes no Arrow keys. */
+  onStep?: (steps: number) => boolean;
 }
 
 /** A horizontal drag's hold on the row scroller: the claim, the pointer-down scroll it counts from, and the frame loop. */
@@ -351,9 +366,17 @@ export function DragToClose(input: {
   const lockPx = (slot?.tuning.dragToClose ?? OUTSIDE_ROW_DRAG).directionLockPx;
   // The distance is the direction lock, a hair under it because the sensor wants to be passed and a lock is reached.
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: Math.max(0, lockPx - 0.01) } }));
+  const labels = resolveLabels(useOptionalHost()?.labels);
+  // dnd-kit would name the drag 'draggable item' and a React id; inside a row it says the panel's title instead.
+  const handle = slot?.handle;
+  const titleNow = (): string => handle?.getState().title ?? labels.untitledPanel;
+  const announcements =
+    handle === undefined
+      ? undefined
+      : { onDragStart: () => labels.pickedUp(titleNow()), onDragOver: () => undefined, onDragEnd: () => labels.dropped(titleNow()), onDragCancel: () => labels.dragCancelled(titleNow()) };
   // autoScroll off: dnd-kit would write scrollLeft itself, and the row's scroll claim is the one writer.
   return (
-    <DndContext sensors={sensors} autoScroll={false}>
+    <DndContext sensors={sensors} autoScroll={false} {...(announcements === undefined ? {} : { accessibility: { announcements } })}>
       <DragToCloseBox {...input} />
     </DndContext>
   );
@@ -383,9 +406,21 @@ function DragToCloseBox({
   const reduceMotion = useReducedMotion();
   const running = React.useRef<{ stop: () => void } | null>(null);
   const locked = React.useRef<Array<[HTMLElement, string]>>([]);
-  const closeRef = React.useRef(onClose);
-  closeRef.current = onClose;
   const slot = React.useContext(PanelSlotContext);
+  const labels = resolveLabels(useOptionalHost()?.labels);
+  const announce = React.useContext(AnnounceContext);
+  const titleNow = (): string => slot?.handle?.getState().title ?? labels.untitledPanel;
+  // Every close, by a drag or by Delete, says so; the panel is gone by the time anything could.
+  const closeRef = React.useRef<(() => void) | undefined>(onClose);
+  closeRef.current =
+    onClose === undefined
+      ? undefined
+      : () => {
+          announce?.(labels.closed(titleNow()));
+          onClose();
+        };
+  const reorderRef = React.useRef(reorder);
+  reorderRef.current = reorder;
   // Read by the frame step and the release, which outlive the render that started them.
   const slotRef = React.useRef(slot);
   slotRef.current = slot;
@@ -629,7 +664,9 @@ function DragToCloseBox({
 
   const handle: DragHandleProps = {
     onPointerDown: (event) => {
-      if (event.button !== 0 || (event.target as Element).closest(INTERACTIVE) || closing.current) return; // a press would stop the exit: onClose would never run
+      // The handle may itself be a button (it takes keys), so only a control inside it is skipped.
+      const control = (event.target as Element).closest(INTERACTIVE);
+      if (event.button !== 0 || (control !== null && control !== event.currentTarget) || closing.current) return; // a press would stop the exit: onClose would never run
       stoppedSpring.current = false;
       if (running.current) { running.current.stop(); running.current = null; stoppedSpring.current = y.get() !== 0 || x.get() !== 0 || scrollX.get() !== 0; unlockScrollParents(); preview(null); } // stop() never settles the spring's promise, so its own unlock would not run
       edge.press(event);
@@ -649,7 +686,26 @@ function DragToCloseBox({
       draggable.listeners?.onPointerDown?.(event);
     },
     // pan-x: a horizontal swipe still scrolls the row; a vertical one is this gesture's.
-    sx: { cursor: 'grab', touchAction: 'pan-x', userSelect: 'none', '&:active': { cursor: 'grabbing' } },
+    sx: { cursor: 'grab', touchAction: 'pan-x', userSelect: 'none', '&:active': { cursor: 'grabbing' }, '&:focus-visible': { outline: '2px solid', outlineColor: 'primary.main', outlineOffset: -2 } },
+    ...(onClose === undefined && reorder?.onStep === undefined
+      ? {}
+      : {
+          role: 'button' as const,
+          tabIndex: 0 as const,
+          'aria-label': labels.grabStrip(titleNow()),
+          'aria-keyshortcuts': [reorder?.onStep === undefined ? '' : 'ArrowLeft ArrowRight', closeRef.current === undefined ? '' : 'Delete'].filter(Boolean).join(' '),
+          onKeyDown: (event: React.KeyboardEvent<HTMLElement>) => {
+            if (event.target !== event.currentTarget || event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return;
+            if ((event.key === 'ArrowLeft' || event.key === 'ArrowRight') && reorderRef.current?.onStep !== undefined) {
+              event.preventDefault();
+              const steps = event.key === 'ArrowLeft' ? -1 : 1;
+              announce?.(reorderRef.current.onStep(steps) ? labels.moved(titleNow(), steps) : labels.cannotMove(titleNow(), steps));
+            } else if (event.key === 'Delete' && closeRef.current !== undefined && closableRef.current) {
+              event.preventDefault();
+              closeRef.current();
+            }
+          },
+        }),
   };
 
   return (

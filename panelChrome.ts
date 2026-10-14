@@ -367,7 +367,7 @@ export function useChromeFade(visible: boolean): (node: HTMLElement | null) => v
  * The `onClose` and `reorder` of the panel this hook is called in, to spread onto `DragToClose`: a close and a move
  * through the panel's own handle, so both are gated and answer a `PanelResult`. A close is offered when the panel is
  * closable and sits in a column that closes; a reorder when it is draggable, and a release crossing several
- * neighbours is one `move`. Outside a row with a workspace there is no handle, so it returns neither.
+ * neighbours is one `move`. The reorder's `onStep` is the same call for the grab strip's Arrow keys. Outside a row with a workspace there is no handle, so it returns neither.
  * @public
  */
 export function usePanelDragProps(): { onClose?: () => void; reorder?: ReorderHandle } {
@@ -381,6 +381,10 @@ export function usePanelDragProps(): { onClose?: () => void; reorder?: ReorderHa
       onDragEnd: (offset) => {
         const steps = reorderStepsForOffset(offset, slot.neighborWidths, slot.tuning.rowGap, slot.tuning.hopFraction);
         if (steps !== 0) handle.move(steps, 'person');
+      },
+      onStep: (steps) => {
+        const answer = handle.move(steps, 'person');
+        return answer.ok && answer.changed;
       },
     };
   }

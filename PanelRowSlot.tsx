@@ -169,6 +169,7 @@ export const slotDriver = {
  */
 export function PanelRowSlot({
   panelId,
+  label,
   leftOffset,
   width,
   phoneHeight,
@@ -190,6 +191,8 @@ export function PanelRowSlot({
 }: {
   /** The panel this slot draws; the row's edge fade finds the slot by it. */
   panelId?: string;
+  /** The slot's accessible name, set on its group: the panel's title and its place among the panels drawn. */
+  label?: string;
   /** This slot's own rest x position -- the caller's running sum of every PRECEDING present item's own width plus one gap. */
   leftOffset: number;
   /** This panel's own width (`panelWidthOf`), also this slot's enter/exit travel distance (`panelRowSlotMotion`'s `ownSpan`). */
@@ -341,6 +344,7 @@ export function PanelRowSlot({
       transition={startable as typeof transition}
       inert={kept ? true : undefined}
       aria-hidden={hidden ? true : undefined}
+      {...(label === undefined ? {} : { role: 'group', 'aria-label': label })}
       data-row-slot={leftOffset}
       data-row-id={panelId}
       onPointerDownCapture={onActivate}
