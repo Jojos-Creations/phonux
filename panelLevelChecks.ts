@@ -23,7 +23,7 @@ const SETTINGS_SINCE: Record<CatalogName, PanelApiLevel> = {
   restoreVisibility: 1, afterClose: 1,
   'tuning.rowGap': 1, 'tuning.dragToClose': 1, 'tuning.slide': 1, 'tuning.hopFraction': 1, 'tuning.edgeScroll': 1, 'tuning.saveQuietMs': 1,
   'tuning.gestureLockMs': 1, 'tuning.gestureQuietMs': 1, 'tuning.resizeSettleSlides': 1, 'tuning.returnTieBreak': 1, 'tuning.dropTieBreak': 1,
-  'tuning.rowGesture': 1, 'tuning.initialScroll': 1, 'tuning.chrome': 1, 'tuning.maxLivePanels': 1, 'tuning.shrinkOutOfView': 1, 'tuning.phoneFit': 1, 'tuning.phoneFitMin': 1, 'tuning.phoneFitMax': 1,
+  'tuning.rowGesture': 1, 'tuning.initialScroll': 1, 'tuning.chrome': 1, 'tuning.maxLivePanels': 1, 'tuning.phoneFit': 1, 'tuning.phoneFitMin': 1, 'tuning.phoneFitMax': 1,
 };
 
 const HEADER_BUTTON_SINCE: Record<keyof HeaderButtonBase | 'icon', PanelApiLevel> = {

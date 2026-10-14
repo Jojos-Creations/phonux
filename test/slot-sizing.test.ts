@@ -125,12 +125,12 @@ test('heights: panels of every slot count keep the phone height, measured room o
   }
 });
 
-test('setSlots and a shrunk neighbour keep the phone height in a row that has room to grow', async () => {
+test('setSlots keeps the phone height in a row that has room to grow', async () => {
   const proto = HTMLElement.prototype;
   const original = Object.getOwnPropertyDescriptor(proto, 'clientHeight');
   Object.defineProperty(proto, 'clientHeight', { configurable: true, get: () => 2000 });
   try {
-    const m = mountRow(row(rootEntry(), ...[2, 4, 1, 3].map((n, k) => scrollMade(`s${k + 1}`, { slots: n, maxSlots: ALL_SLOTS }))), 1800, { tuning: { rowGesture: 'step', shrinkOutOfView: 'visible' } });
+    const m = mountRow(row(rootEntry(), ...[2, 4, 1, 3].map((n, k) => scrollMade(`s${k + 1}`, { slots: n, maxSlots: ALL_SLOTS }))), 1800, { tuning: { rowGesture: 'step' } });
     await advanceFrames(100);
     const heights = (): number[] => [...m.container.querySelectorAll<HTMLElement>('[data-row-slot]')].map((el) => px(el.style.height)).filter((h) => !Number.isNaN(h));
     const { height } = phone();

@@ -22,9 +22,7 @@ const element = (container: HTMLElement): HTMLElement | null => container.queryS
 const paddingRight = (container: HTMLElement): string => getComputedStyle(container).paddingRight;
 
 for (const [mode, tuning] of [
-  ['step with Shrink', { rowGesture: 'step', shrinkOutOfView: 'visible' }],
-  ['step with Hide', { rowGesture: 'step', shrinkOutOfView: 'hidden' }],
-  ['step with Off', { rowGesture: 'step', shrinkOutOfView: 'off' }],
+  ['step', { rowGesture: 'step' }],
   ['free', { rowGesture: 'free' }],
 ] as const) {
   test(`${mode}: the end element is endPad plus the row gap and the padding right is 0`, () => {

@@ -87,9 +87,6 @@ export const EDGE_SCROLL_REDUCED_STEP_MS = 500;
  */
 export const ALL_SLOTS = 64;
 
-/** Whether a stepping row resizes the neighbour its shown panels would leave cut off by the window edge: 'off' never does. */
-export const SHRINK_OUT_OF_VIEW = 'off' as const;
-
 /** Whether the default mount fits the phone size to the window: 'off' draws the host's preferred size as it is. */
 export const PHONE_FIT = 'off' as const;
 

@@ -19,7 +19,7 @@ afterEach(() => cleanup());
 
 type Refused = Extract<ConfigureResult, { ok: false }>;
 
-const WORKSPACE_ONLY = ['rowGap', 'saveQuietMs', 'gestureLockMs', 'gestureQuietMs', 'resizeSettleSlides', 'returnTieBreak', 'dropTieBreak', 'rowGesture', 'initialScroll', 'maxLivePanels', 'chrome', 'shrinkOutOfView', 'phoneFit', 'phoneFitMin', 'phoneFitMax'];
+const WORKSPACE_ONLY = ['rowGap', 'saveQuietMs', 'gestureLockMs', 'gestureQuietMs', 'resizeSettleSlides', 'returnTieBreak', 'dropTieBreak', 'rowGesture', 'initialScroll', 'maxLivePanels', 'chrome', 'phoneFit', 'phoneFitMin', 'phoneFitMax'];
 const PER_PANEL = ['dragToClose', 'slide', 'hopFraction', 'edgeScroll'];
 const TEMPLATE = ['hostCreatable', 'multiple', 'maxInstances'];
 
@@ -70,7 +70,6 @@ const VALUE: Record<string, unknown> = {
   initialScroll: 'end',
   chrome: { mode: 'hover-or-active', fadeMs: 80 },
   maxLivePanels: 3,
-  shrinkOutOfView: 'visible',
   phoneFit: 'fit',
   phoneFitMin: 0.9,
   phoneFitMax: 1.1,
@@ -146,10 +145,10 @@ test('doors: the table ran every row, calls by classes by one key each', () => {
 // The sweep: every catalog key through every call
 // ---------------------------------------------------------------------------
 
-test('doors: the catalog holds the plain keys, three template keys among them, and nineteen tuning leaves', () => {
+test('doors: the catalog holds the plain keys, three template keys among them, and eighteen tuning leaves', () => {
   assert.equal(flatKeys.length + leafKeys.length, names.length);
   assert.deepEqual(leafKeys.sort(), [...PER_PANEL, ...WORKSPACE_ONLY].sort());
-  assert.equal(leafKeys.length, 19);
+  assert.equal(leafKeys.length, 18);
   assert.deepEqual(PANEL_SETTINGS_CATALOG.filter((d) => d.configure.doors.length === 1 && d.configure.doors[0] === 'template').map((d) => d.name).sort(), [...TEMPLATE].sort());
 });
 

@@ -4,9 +4,11 @@
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { LIBRARY_PANEL_DEFAULTS, PANEL_SETTINGS_CATALOG } from '../index.js';
+import * as React from 'react';
+import { LIBRARY_PANEL_DEFAULTS, PANEL_SETTINGS_CATALOG, createWorkspace, definePanel } from '../index.js';
 import * as barrel from '../index.js';
 import { FIXED, resolvePanelSettings } from '../panelSettings.js';
+import { PanelManagerError } from '../panelManagerError.js';
 import type { PanelSettings } from '../index.js';
 
 /** The value each removed setting had as its default, written out so a changed constant fails here. */
@@ -117,4 +119,41 @@ test('a saved instance layer holding a removed setting loads, drops it with a no
 test('resolvePanelSettings, mergePatch, PanelSettingsLayers and ResolveOptions are not on the package barrel', () => {
   assert.equal('resolvePanelSettings' in barrel, false);
   assert.equal('mergePatch' in barrel, false);
+});
+
+test('tuning.shrinkOutOfView: Off is the only behaviour; visible and hidden warn once each, name the value as removed, and act as off', () => {
+  const view = () => React.createElement('i');
+  const templates = [definePanel({ id: 'a', view })];
+  const { errors } = silenceConsole(() => {
+    for (const value of ['off', 'visible', 'visible', 'hidden', 'hidden']) {
+      const ws = createWorkspace({ templates, mount: false, tuning: { rowGesture: 'step', shrinkOutOfView: value } as never });
+      assert.equal('shrinkOutOfView' in ws.tuning, false, `${value}: the resolved tuning has no such key`);
+      assert.equal(ws.tuning.rowGesture, 'step', `${value}: the other leaves still apply`);
+      ws.dispose();
+    }
+  });
+  assert.equal(errors.length, 2, `one warning per removed value: ${errors.join(' | ')}`);
+  for (const value of ['visible', 'hidden']) {
+    assert.equal(errors.filter((e) => e.includes(`'${value}' was removed`) && e.includes('shrinkOutOfView')).length, 1, `${value} is named once`);
+  }
+});
+
+test('tuning.shrinkOutOfView: configureTuning and a settings layer treat a removed value as off, change nothing, and still refuse a bad value', () => {
+  const view = () => React.createElement('i');
+  const ws = createWorkspace({ templates: [definePanel({ id: 'a', view })], mount: false });
+  try {
+    const { result } = silenceConsole(() => ws.panels.configureTuning({ shrinkOutOfView: 'hidden' } as never));
+    assert.equal(result.ok, true);
+    assert.equal((result as { changed?: boolean }).changed, false, 'a removed setting is not a change');
+    assert.equal('shrinkOutOfView' in ws.tuning, false);
+    for (const bad of ['on', 1, true]) {
+      assert.throws(() => ws.panels.configureTuning({ shrinkOutOfView: bad } as never), (e: unknown) => e instanceof PanelManagerError && e.code === 'invalid-settings', `${String(bad)} throws`);
+    }
+  } finally {
+    ws.dispose();
+  }
+  const plain = resolvePanelSettings({});
+  const layered = resolvePanelSettings({ instance: { tuning: { shrinkOutOfView: 'off' } } as unknown as PanelSettings }, { lenient: true });
+  assert.deepEqual(layered.value, plain.value);
+  assert.deepEqual(layered.notes, []);
 });

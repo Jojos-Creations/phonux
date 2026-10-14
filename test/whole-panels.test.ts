@@ -5,11 +5,10 @@
 import { test, afterEach, mock } from 'node:test';
 import assert from 'node:assert/strict';
 import './support/jsdom-globals.js';
-import { act } from 'react';
 import type { PanelSettings, PanelWindow } from '../index.js';
 import { applyTemplate, resolvePanelSettings } from '../panelSettings.js';
 import { appendPanel, createHistoryPanel } from '../panelWindow.js';
-import { computeRowNumbers, fadeAt, maxScrollOf, nearestStop, snapToStop } from '../rowNumbers.js';
+import { computeRowNumbers, maxScrollOf, nearestStop, snapToStop } from '../rowNumbers.js';
 import { workspaceShellStyle } from '../Workspace.js';
 import { advanceFrames, cleanup } from './support/mount-harness.js';
 import { mountRow, panelsOf } from './support/scroll-row.js';
@@ -25,7 +24,7 @@ const made = (id: string, layer: PanelSettings = {}): PanelWindow => {
   return applyTemplate(skeleton, resolvePanelSettings({ template: layer }).value, 'create');
 };
 const root = (): PanelWindow => applyTemplate({ ...createHistoryPanel(ROOT), view: 'scroll-row-view' }, resolvePanelSettings({ template: { title: 'History' } }, { root: true }).value, 'create');
-const numbers = (entries: PanelWindow[], containerWidth = 1000, wholePanels = true, shrink?: 'off' | 'visible' | 'hidden') => computeRowNumbers({ entries, phoneWidth: 390, containerWidth, gap: 16, wholePanels, shrink });
+const numbers = (entries: PanelWindow[], containerWidth = 1000, wholePanels = true) => computeRowNumbers({ entries, phoneWidth: 390, containerWidth, gap: 16, wholePanels });
 const six = () => [root(), ...['a', 'b', 'c', 'd', 'e'].map((id) => made(id))];
 
 test('six phone panels: two whole panels fit, so five stops 406 apart, an 86 margin each side and 86 of room after the strip', () => {
@@ -73,24 +72,6 @@ test('unmeasured, and wholePanels false, give no stops: the 0.2.0 numbers', () =
   assert.equal(maxScrollOf(off), 234, '1202 - 968');
 });
 
-test("fadeAt with 'hidden': a stop shows exactly its panels, and mid-travel a panel of either stop is whole", () => {
-  const n = numbers(six(), 1000, true, 'hidden');
-  assert.deepEqual(fadeAt(n, 0), [1, 1, 0, 0, 0, 0]);
-  assert.deepEqual(fadeAt(n, 406), [0, 1, 1, 0, 0, 0]);
-  assert.deepEqual(fadeAt(n, 203), [1, 1, 1, 0, 0, 0], 'halfway: the panels of both stops are whole');
-  assert.deepEqual(fadeAt(n, -50), [1, 1, 0, 0, 0, 0]);
-  assert.deepEqual(fadeAt(n, 5000), [0, 0, 0, 0, 1, 1]);
-  assert.deepEqual(fadeAt(numbers([root(), made('a')]), 0), [1, 1], 'no stops: nothing fades');
-});
-
-test("fadeAt with 'off' shows partial: every panel is opaque at a stop and between stops", () => {
-  const n = numbers(six());
-  assert.equal(n.showPartial, true);
-  for (const at of [0, 203, 406, 5000]) assert.deepEqual(fadeAt(n, at), [1, 1, 1, 1, 1, 1], `at ${at}`);
-  assert.equal(numbers(six(), 1000, true, 'hidden').showPartial, false);
-  assert.equal(numbers(six(), 1000, true, 'visible').showPartial, false);
-});
-
 test('snapToStop picks the nearest stop that shows the panel; nearestStop the nearest stop; both leave a row with no stops alone', () => {
   const n = numbers(six());
   assert.equal(snapToStop(n, 3, 100), 812, 'panel 3 is shown at stops 812 and 1218');
@@ -103,31 +84,11 @@ test('snapToStop picks the nearest stop that shows the panel; nearestStop the ne
   assert.equal(nearestStop(none, 33), 33);
 });
 
-const slotFilters = (container: HTMLElement): string[] => [...container.querySelectorAll<HTMLElement>('[data-row-slot]')].map((el) => el.style.filter);
-
-test('mounted at 1000 with Hide: a wheel steps one stop, the shown panels are the stop\'s and the rest are faded out and inert', async () => {
-  const m = mountRow(panelsOf(5), 1000, { tuning: { rowGesture: 'step', shrinkOutOfView: 'hidden' } });
-  mock.timers.enable({ apis: ['setTimeout'] });
-  const slots = (): HTMLElement[] => [...m.container.querySelectorAll<HTMLElement>('[data-row-slot]')];
-  assert.deepEqual(slotFilters(m.container), ['', '', 'opacity(0)', 'opacity(0)', 'opacity(0)', 'opacity(0)']);
-  assert.deepEqual(slots().map((el) => el.hasAttribute('inert')), [false, false, true, true, true, true]);
-  m.wheel({ deltaX: 50 });
-  assert.equal(m.scroller.glideTarget(), 406);
-  await advanceFrames(600);
-  assert.equal(m.container.scrollLeft, 406);
-  // jsdom writes scrollLeft without firing the scroll event a browser fires.
-  act(() => void m.container.dispatchEvent(new Event('scroll')));
-  assert.deepEqual(slotFilters(m.container), ['opacity(0)', '', '', 'opacity(0)', 'opacity(0)', 'opacity(0)']);
-  assert.equal(slots()[0]!.style.pointerEvents, 'none');
-  assert.equal(slots()[1]!.style.pointerEvents, '');
-});
-
-test('mounted in free mode: no stops, a spacer of the row gap alone, nothing faded and the margin is 0 once the strip overflows', () => {
+test('mounted in free mode: no stops, a spacer of the row gap alone and the margin is 0 once the strip overflows', () => {
   const m = mountRow(panelsOf(5), 1000, { tuning: { rowGesture: 'free' } });
   assert.equal(m.latest().rowNumbers.stops.length, 0);
   assert.equal(m.latest().rowNumbers.rowMarginLeft, 0);
   assert.equal(m.container.querySelector<HTMLElement>('[data-row-end-pad]')!.style.flex, '0 0 16px', 'the right edge space is the element, with no endPad to add');
-  assert.ok(slotFilters(m.container).every((f) => f === ''));
 });
 
 test('mounted in step mode the trailing room is one spacer element of endPad plus the row gap, outside the strip', () => {
@@ -154,27 +115,6 @@ test('a resize that changes how many fit brings a row resting past the new last 
   await advanceFrames(600);
   assert.deepEqual(m.latest().rowNumbers.stops, [0, 406, 812, 1218], 'three fit at 1500, so the last stop is panel 3');
   assert.equal(m.container.scrollLeft, 1218);
-});
-
-test("mid-step with Hide the leaving and arriving panels are both whole, never half faded", async () => {
-  const m = mountRow(panelsOf(5), 1000, { tuning: { rowGesture: 'step', shrinkOutOfView: 'hidden' } });
-  m.scroller.glideTo(203, { durationSec: 0, instant: true, ease: 'cubic-out' });
-  act(() => void m.container.dispatchEvent(new Event('scroll')));
-  assert.deepEqual(slotFilters(m.container), ['', '', '', 'opacity(0)', 'opacity(0)', 'opacity(0)']);
-});
-
-test('while a drag holds the row the fade is left alone, and it catches up after the release', () => {
-  const m = mountRow(panelsOf(5), 1000, { tuning: { rowGesture: 'step', shrinkOutOfView: 'hidden' } });
-  const before = slotFilters(m.container);
-  const claim = m.scroller.claim();
-  assert.ok(claim, 'the scroller gave its claim');
-  claim.setMaxScroll(1624);
-  claim.write(406);
-  act(() => void m.container.dispatchEvent(new Event('scroll')));
-  assert.deepEqual(slotFilters(m.container), before, 'positive control: the row moved, the fade did not');
-  claim.release();
-  act(() => void m.container.dispatchEvent(new Event('scroll')));
-  assert.deepEqual(slotFilters(m.container), ['opacity(0)', '', '', 'opacity(0)', 'opacity(0)', 'opacity(0)']);
 });
 
 test('the strip margin snaps while stops exist and glides otherwise', () => {
