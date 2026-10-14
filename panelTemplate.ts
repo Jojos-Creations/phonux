@@ -6,6 +6,7 @@
 
 import type * as React from 'react';
 import type { JsonValue, PanelSummary, FormFactor } from './hostApi.js';
+import { reportLevelTieOnce } from './panelLevelChecks.js';
 import { checkPanelApi, type PanelApiLevel } from './panelApiLevel.js';
 import { PanelManagerError } from './panelManagerError.js';
 import { resolvePanelSettings } from './panelSettings.js';
@@ -175,5 +176,6 @@ export function definePanel<P extends JsonValue = JsonValue>(t: PanelTemplate<P>
   if (t.footer !== undefined && !isComponent(t.footer)) throw new PanelManagerError('invalid-template', `template '${t.id}': footer must be a React component`);
   checkPanelApi(t.id, t.api);
   resolvePanelSettings({ template: t.settings });
+  reportLevelTieOnce(t.id, t.api, t.settings);
   return t;
 }

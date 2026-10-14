@@ -1,0 +1,110 @@
+{
+  "tests": [
+    "test/panel-api-level.test.ts"
+  ],
+  "mutants": [
+    {
+      "name": "the view loses a handle member before it renders",
+      "file": "templateView.tsx",
+      "find": "const viewProps = adapt === undefined ? props : adapt(props);",
+      "replace": "const viewProps = adapt === undefined ? { ...props, handle: { ...props.handle, show: undefined } } : adapt(props);",
+      "expectRed": [
+        "real props in many panel states have the shape the table describes"
+      ]
+    },
+    {
+      "name": "the shape check is skipped",
+      "file": "templateView.tsx",
+      "find": "    reportShapeOnce(t.id, level, viewProps, shape);\n",
+      "replace": "",
+      "expectRed": [
+        "a level whose adapter hands back the wrong shape logs one error naming the template, the level and every member",
+        "the shape check is silent in production, and a second template is checked for itself"
+      ]
+    },
+    {
+      "name": "the shape check runs on every render",
+      "file": "panelApiLevel.ts",
+      "find": " || reported.has(key)) return;\n  reported.add(key);\n",
+      "replace": ") return;\n",
+      "expectRed": [
+        "a level whose adapter hands back the wrong shape logs one error naming the template, the level and every member"
+      ]
+    },
+    {
+      "name": "the shape check is not silent in production",
+      "file": "panelApiLevel.ts",
+      "find": "  if (typeof process === 'undefined' || process.env.NODE_ENV === 'production' || reported.has(key)) return;",
+      "replace": "  if (typeof process === 'undefined' || reported.has(key)) return;",
+      "expectRed": [
+        "the shape check is silent in production, and a second template is checked for itself"
+      ]
+    },
+    {
+      "name": "an absent optional member is reported",
+      "file": "panelApiLevel.ts",
+      "find": "if (optional !== true) problems.push(",
+      "replace": "problems.push(",
+      "expectRed": [
+        "optional members may be absent and a present one of the wrong kind is reported",
+        "real props in many panel states have the shape the table describes"
+      ]
+    },
+    {
+      "name": "a member of the wrong kind is not reported",
+      "file": "panelApiLevel.ts",
+      "find": "} else if (kind !== 'any' && found !== 'any' && found !== kind) {",
+      "replace": "} else if (false) {",
+      "expectRed": [
+        "a level whose adapter hands back the wrong shape logs one error naming the template, the level and every member",
+        "optional members may be absent and a present one of the wrong kind is reported"
+      ]
+    },
+    {
+      "name": "the check runs a getter",
+      "file": "panelApiLevel.ts",
+      "find": "if (d.get !== undefined || d.set !== undefined) return 'any';",
+      "replace": "if (d.get !== undefined) d.get.call(value);\n    if (d.set !== undefined) return 'any';",
+      "expectRed": [
+        "the shape check never runs a getter or a method and never throws"
+      ]
+    },
+    {
+      "name": "the footer receives the newest props, not the level's",
+      "file": "templateView.tsx",
+      "find": "<Footer {...viewProps} />",
+      "replace": "<Footer {...props} />",
+      "expectRed": [
+        "raising a template's api from 1 to 2 to 3 changes exactly what its view and footer receive"
+      ]
+    },
+    {
+      "name": "level 1 still reads level 2's name",
+      "file": "test/panel-api-level.test.ts",
+      "find": "[name]: manager }),",
+      "replace": "[name]: level === 1 ? (manager as unknown as { reader?: unknown }).reader : manager }),",
+      "expectRed": [
+        "raising a template's api from 1 to 2 to 3 changes exactly what its view and footer receive",
+        "a correct level logs nothing, for any of its levels"
+      ]
+    },
+    {
+      "name": "level 1 keeps a member added after it",
+      "file": "test/panel-api-level.test.ts",
+      "find": "Object.entries(handle).filter(([key]) => key !== 'getSettings')",
+      "replace": "Object.entries(handle)",
+      "expectRed": [
+        "raising a template's api from 1 to 2 to 3 changes exactly what its view and footer receive"
+      ]
+    },
+    {
+      "name": "the real handle lacks a member the level promises",
+      "file": "panelHandles.ts",
+      "find": "    getState: () => source.stateOf(id) as PanelState & { readonly params: P | undefined },\n",
+      "replace": "",
+      "expectRed": [
+        "real props in many panel states have the shape the table describes"
+      ]
+    }
+  ]
+}

@@ -6,6 +6,7 @@
 import type { FormFactor, JsonValue } from './hostApi.js';
 import { computeRowOrder, deriveAnchorsFromOrder } from './panelRowOrder.js';
 import type { AddPlacement } from './panelSettings.js';
+import { PANEL_UID_FORM } from './panelUid.js';
 import { appendPanel, slotsOf, type PanelWindow } from './panelWindow.js';
 import { ALL_SLOTS, slotsOfTier, tierOfSlots } from './rowConstants.js';
 
@@ -42,6 +43,8 @@ export type WorkspacePanelState = {
   permanent?: boolean;
   /** The stacking tier of the panel's row slot, as `CreatePanelOptions.layer`. */
   layer?: 'base' | 'raised';
+  /** An opaque identity that survives save, restore and a copy of the file to another device, so two copies can match panels. Not a name code can ask for; a file or a library without it restores unchanged and mints one. */
+  uid?: string;
   /** The panel's stable name: a declared panel's id, a template's id for a singleton, or `templateId~suffix`. */
   key?: string;
   /** The instance settings layer the panel was created under; absent for a panel code declares again at every launch. */
@@ -181,6 +184,25 @@ function cleanOverrides(value: unknown, dropped: Dropped[]): NonNullable<Workspa
  * The additive keys of one saved entry, each kept only when well formed; what is not is reported in `dropped` and
  * the entry restores without it. `seen` holds the keys earlier entries claimed: a repeat is dropped.
  */
+/**
+ * The entry's `uid` when it is well formed and no earlier entry holds it; otherwise undefined, with a drop note for
+ * anything but an absent one. `seen` collects the uids kept so far.
+ */
+export function cleanSavedUid(entry: WorkspacePanelState, seen: Set<string>, dropped: Dropped[]): string | undefined {
+  const raw = (entry as Record<string, unknown>).uid;
+  if (raw === undefined) return undefined;
+  if (typeof raw !== 'string' || !PANEL_UID_FORM.test(raw)) {
+    dropped.push({ key: 'uid', message: 'uid: expected the form u_ and 32 hex characters; dropped' });
+    return undefined;
+  }
+  if (seen.has(raw)) {
+    dropped.push({ key: 'uid', message: `uid: '${raw}' repeats an earlier entry's uid; dropped` });
+    return undefined;
+  }
+  seen.add(raw);
+  return raw;
+}
+
 export function cleanSavedExtras(entry: WorkspacePanelState, seen: Set<string>, dropped: Dropped[]): SavedExtras {
   const raw = entry as Record<string, unknown>;
   const out: SavedExtras = {};
@@ -270,6 +292,7 @@ export function projectWorkspaceState(panels: readonly PanelWindow[], rootId: st
         }
         return {
           id: p.id,
+          ...(p.uid !== undefined ? { uid: p.uid } : {}),
           view: p.view,
           url: p.url,
           ...(p.title !== undefined ? { title: p.title } : {}),
@@ -295,12 +318,13 @@ export function projectWorkspaceState(panels: readonly PanelWindow[], rootId: st
  * false and phone, size comes from the tier), and a permanent column is never parked, so one saved as parked is live.
  * `anchor` is the entry's saved anchor with its target already mapped.
  */
-export function entryFromSaved(s: WorkspacePanelState, id: string, anchor: PanelWindow['anchor'], rootId: string): PanelWindow {
+export function entryFromSaved(s: WorkspacePanelState, id: string, anchor: PanelWindow['anchor'], rootId: string, uid?: string): PanelWindow {
   const entry = appendPanel(
     [],
     { ...(s.url !== undefined ? { url: s.url } : {}), view: s.view, title: s.title, params: s.params, listed: s.listed, layer: s.layer, formFactor: s.formFactor, permanent: s.permanent },
     id,
     rootId,
+    ...(uid !== undefined ? [uid] : []),
   )[0]!;
   const slots = s.permanent === true ? undefined : s.slots;
   return { ...entry, ...(slots === undefined ? {} : { slots, formFactor: tierOfSlots(slots) }), live: s.permanent === true ? true : s.live, ...(anchor === undefined ? {} : { anchor }) };
@@ -324,8 +348,9 @@ export function hydrateWorkspaceState(state: WorkspaceState, freshId: () => stri
     missing ??= freshId();
     return missing;
   };
+  const seenUids = new Set<string>();
   const built = state.panels.map((s, i) => {
-    const entry = entryFromSaved(s, fresh[i]!, { panel: targetOf(s.anchor.panel), position: s.anchor.position, priority: s.anchor.priority }, rootId);
+    const entry = entryFromSaved(s, fresh[i]!, { panel: targetOf(s.anchor.panel), position: s.anchor.position, priority: s.anchor.priority }, rootId, cleanSavedUid(s, seenUids, []));
     return s.closable === false ? { ...entry, locked: true } : entry;
   });
   // One pass over the whole set: placing entries one at a time would rewrite an anchor that names a later entry.

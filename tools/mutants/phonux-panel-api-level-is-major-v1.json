@@ -1,0 +1,72 @@
+{
+  "tests": [
+    "test/panel-api-level.test.ts",
+    "test/panel-api-level-version.test.ts"
+  ],
+  "mutants": [
+    {
+      "name": "a level above the newest is accepted by the coverage check",
+      "file": "panelApiLevel.ts",
+      "find": "level < 1 || level > table.newest",
+      "replace": "level < 1",
+      "expectRed": [
+        "every level from 1 to the newest is served or recorded as dropped, and nothing else"
+      ]
+    },
+    {
+      "name": "a skipped level is accepted by the coverage check",
+      "file": "panelApiLevel.ts",
+      "find": "    if (!served && !gone) return `level ${level} is neither served nor dropped`;\n",
+      "replace": "",
+      "expectRed": [
+        "every level from 1 to the newest is served or recorded as dropped, and nothing else"
+      ]
+    },
+    {
+      "name": "a dropped level left in the table is accepted by the coverage check",
+      "file": "panelApiLevel.ts",
+      "find": "    if (served && gone) return `level ${level} is both served and dropped`;\n",
+      "replace": "",
+      "expectRed": [
+        "every level from 1 to the newest is served or recorded as dropped, and nothing else"
+      ]
+    },
+    {
+      "name": "a dropped level answers with the generic list",
+      "file": "panelApiLevel.ts",
+      "find": "  if (droppedIn !== undefined) throw",
+      "replace": "  if (false) throw",
+      "expectRed": [
+        "a dropped level answers with the release that dropped it, not the generic list"
+      ]
+    },
+    {
+      "name": "a prerelease is read as the previous major",
+      "file": "tools/phonux-api-level-version.ts",
+      "find": "return major >= 1 ? major : null;",
+      "replace": "return major >= 1 ? (version.includes('-') ? major - 1 : major) : null;",
+      "expectRed": [
+        "a release needs the level of its major version, and a prerelease of N.0.0 already needs level N"
+      ]
+    },
+    {
+      "name": "the required level is off by one",
+      "file": "tools/phonux-api-level-version.ts",
+      "find": "return major >= 1 ? major : null;",
+      "replace": "return major >= 1 ? major + 1 : null;",
+      "expectRed": [
+        "a release needs the level of its major version, and a prerelease of N.0.0 already needs level N"
+      ]
+    },
+    {
+      "name": "a 0.x version is not exempt",
+      "file": "tools/phonux-api-level-version.ts",
+      "find": "return major >= 1 ? major : null;",
+      "replace": "return major;",
+      "expectRed": [
+        "a 0.x version is exempt: level 1 moves with the prereleases until 1.0.0",
+        "the real package agrees with its own PANEL_API"
+      ]
+    }
+  ]
+}
