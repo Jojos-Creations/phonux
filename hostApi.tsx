@@ -247,7 +247,12 @@ export interface PhoneDeviceAPI {
   chooseModel?(modelId: string): Promise<void>;
 }
 
-/** Everything a view reaches through `useHost()`. @public */
+/**
+ * Everything a view reaches through `useHost()`. `history`, `snapshots` and `labels` may be absent, so a view reads each with a
+ * fallback. The first frame of an auto-mounted workspace holds exactly the values given to `createWorkspace`; a value that arrives
+ * later is absent in that frame and appears after `workspace.update`.
+ * @public
+ */
 export interface Host {
   /** Window-layout settings. */
   readonly settings: SettingsAPI;

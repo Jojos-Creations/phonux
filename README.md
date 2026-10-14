@@ -37,7 +37,7 @@ That is the whole app: `createWorkspace` renders itself into a full-window eleme
 host to build and no width to track. A view returns bare content and phonux draws the panel around it (title bar, grab bar,
 drag to close, reorder). Nothing is saved between launches until you pass a `storage` option.
 
-Pass the app's own values as options (`device`, `settings`, `history`, `snapshots`, `labels`, `topInset`, `panels`), a `wrap`
+Pass the app's own values as options (`device`, `settings`, `history`, `snapshots`, `labels`, `topInset`, `panels`; a view reads `history`, `snapshots` and `labels` with a fallback, because the first frame holds only what you passed), a `wrap`
 component for the app's providers, and `workspace.update(...)` to give a running workspace new values (see `DESIGN.md`,
 "Workspace options, wrap and update"). A title-bar button is a setting too: `headerButtons: { more: { label: 'More', onClick } }`
 draws the label as the button's text.
