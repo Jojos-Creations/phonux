@@ -127,14 +127,9 @@ export interface ColumnStorage {
 
 // @public
 export interface ColumnWorkspaceOptions {
-    defaults?: Omit<PanelSettings, 'tuning'>;
     id?: string;
     index?: number;
     name?: string;
-    order?: () => readonly PanelId[];
-    root?: PanelTemplate;
-    storage?: WorkspaceStorage;
-    templates?: readonly PanelTemplate[];
 }
 
 // @public
