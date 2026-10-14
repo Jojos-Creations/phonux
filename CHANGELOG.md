@@ -2,6 +2,17 @@
 
 ## Unreleased
 
+### Breaking
+
+- `registerView`, `resolveView`, `ViewComponent` and `ViewProps` are removed from `phonux`, and a row is always fed by a workspace.
+  A plain component becomes a template: `definePanel({ id, view })` with `createWorkspace({ templates })`, or
+  `workspace.registerTemplate`. A `view` key no template of the row's workspace answers to still renders the unregistered-view placeholder.
+  `PanelRow`'s `workspace` prop is required, and `PanelsInput.workspace` is required with it. `PanelsInput` loses the members only a row
+  without a workspace read: `rootId`, `initialEntries`, `storage`, `templates`, `declared`, `workspaceDefaults` and `tuning` now come from
+  `createWorkspace` (`root`, `storage`, `templates`, `addPanel`, `defaults`, `tuning`). The `template-collision` error code is gone with the
+  registry it guarded. The components (`PanelRow`, `Workspace`, `HostProvider`) stay public, always with a workspace. The deprecated Host-bag verbs
+  and `CreatePanelOptions` stay until their own removal.
+
 ### Fixed
 
 - A trackpad swipe on a stepping row is one step. Its deltas ramp up before they fade, and every rising event after the 60 ms
