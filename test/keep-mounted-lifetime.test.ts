@@ -31,7 +31,7 @@ registerTestView('kl-view', ({ panel }) => {
     };
   }, []);
   const [value, setValue] = useViewState('n', 0);
-  if (panel.id === 'a') {
+  if (panel.id === 'a' || panel.id === 'web~a') {
     stored = value;
     setStored = setValue;
   }
@@ -87,10 +87,10 @@ test('lazy mount: a panel that parks in the same commit it would first have been
 });
 
 /** A root plus a kept `a` in a row driven by useProvidePanels, parked by capacity once two more panels open. */
-async function parkedByCapacity(keep = true, park = true): Promise<{ provided: () => ProvidedPanels; container: HTMLElement; unmount: () => void }> {
+async function parkedByCapacity(keep = true, park = true, key?: string): Promise<{ provided: () => ProvidedPanels; container: HTMLElement; unmount: () => void }> {
   let latest: ProvidedPanels | undefined;
   function Driver(): React.ReactElement {
-    const input = useSeededInput({ initialEntries: [root(), entry('a', true, keep)], containerWidth: 1000, workspaceDefaults: { overflow: 'park' } });
+    const input = useSeededInput({ initialEntries: [root(), entry('a', true, keep, key === undefined ? {} : { key })], containerWidth: 1000, workspaceDefaults: { overflow: 'park' } });
     latest = useProvidePanels(input);
     // The row reads the undo window from the host's panels, so the host is built from the provided ones.
     const row = React.createElement(PanelRow, {
@@ -185,6 +185,16 @@ test('lifetime: the viewState a closed kept view held is intact after an undo an
   act(() => row.provided().activate('a'));
   await advanceFrames(1000);
   assert.equal(stored, 9);
+});
+
+test('lifetime: the viewState of a panel whose key differs from its row id is intact after an undo and a show', async () => {
+  const row = await parkedByCapacity(true, true, 'web~a');
+  act(() => row.provided().close('web~a'));
+  await advanceFrames(1000);
+  act(() => row.provided().undoClose());
+  act(() => row.provided().activate('web~a'));
+  await advanceFrames(1000);
+  assert.equal(stored, 9, 'the state survived the undo window under the key');
 });
 
 test('lifetime: nothing about a kept entry is saved', async () => {
