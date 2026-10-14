@@ -8,7 +8,7 @@
 
 import { useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore, type RefObject } from 'react';
 import { useReducedMotionConfig } from 'motion/react';
-import type { CreatePanelOptions, FormFactor, JsonValue, PanelsAPI } from '../hostApi.js';
+import type { CreatePanelOptions, JsonValue, PanelsAPI } from '../hostApi.js';
 import { effectiveMaxPanels, rowFitCount } from '../panelCapacity.js';
 import { computeRowNumbers, maxScrollOf, nearestStop, nearestStopIndex, snapToStop, snapToStopIndex, stopIndexOfFirst, type RowNumbers } from '../rowNumbers.js';
 import { resolveLabels, type PhonuxLabels } from '../labels.js';
@@ -16,7 +16,7 @@ import { rowScrollerFor } from '../rowScroller.js';
 import { gestureTarget, scrollTargetFor } from '../scrollTargets.js';
 import { isPresent, summarisePanel } from '../panelRowEntry.js';
 import { entryNamed } from '../panelIds.js';
-import { TIER_SIZES, panelWidthOf } from '../panelTiers.js';
+import { panelWidthOf, sizeOfSlots } from '../panelTiers.js';
 import { noopCaptureTrigger, type CaptureTrigger } from '../snapshots.js';
 import { PanelManagerError } from '../panelManagerError.js';
 import { applyConfigure } from '../panelConfigure.js';
@@ -74,7 +74,7 @@ export interface PanelsInput {
   overflowContainerRef: RefObject<HTMLDivElement | null>;
   /** Defaults to phonux's `noopCaptureTrigger`: a host that wants real pictures passes its own. */
   capture?: CaptureTrigger;
-  /** Called when setFormFactor really resizes a panel, so the host can glide the row's margin with it. */
+  /** Called when setSlots really resizes a panel, so the host can glide the row's margin with it. */
   onPanelResize?: () => void;
   /** The view a `create()` without a `view` opens. Unset: such a panel has no view and renders the unregistered-view placeholder, which is also what an unregistered key renders. */
   defaultView?: string;
@@ -132,7 +132,7 @@ function planCreate(options: CreatePanelOptions | undefined, template: PanelTemp
     ...(!permanent && options?.listed !== undefined ? { listed: options.listed } : {}),
     ...(options?.layer !== undefined ? { layer: options.layer } : {}),
     ...(options?.anchoredEnter === true ? { enterFrom: 'anchor' as const } : {}),
-    ...(!permanent && options?.formFactor !== undefined ? { formFactor: options.formFactor } : {}),
+    ...(!permanent && options?.slots !== undefined ? { slots: options.slots } : {}),
     ...(permanent && template !== undefined ? { parkable: false } : {}),
   };
   // A view cannot set `parkable`, so a permanent plain column is the library's own ask, on the instance layer.
@@ -168,6 +168,8 @@ function appendFromTemplate(
     rootId: string;
     order: (() => readonly string[]) | undefined;
     declared: boolean;
+    /** The title a panel gets when no settings layer names one. */
+    fallbackTitle: string;
   },
 ): PanelWindow[] {
   const { value } = resolvePanelSettings({ ...(a.defaults !== undefined ? { workspace: a.defaults } : {}), template: a.template.settings, ...(a.settings !== undefined ? { instance: a.settings } : {}) }, { lenient: true });
@@ -177,12 +179,12 @@ function appendFromTemplate(
     {
       url: a.url ?? '',
       view: a.template.id,
-      ...(value.title !== undefined ? { title: value.title } : {}),
+      title: value.title ?? a.fallbackTitle,
       ...(params !== undefined ? { params } : {}),
       ...(a.hostData !== undefined ? { hostData: a.hostData } : {}),
       listed: value.listed,
       layer: value.layer,
-      formFactor: value.formFactor,
+      slots: value.slots,
       permanent: !value.parkable,
     },
     a.id,
@@ -558,6 +560,7 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
     workspaceDefaults,
     onNote: i.onNote,
     order: core?.order,
+    panelTitle: labels.panelTitle,
     onError: core?.reportError,
     replay: core !== undefined,
   });
@@ -570,7 +573,7 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
     const build = (prev: PanelWindow[]): PanelWindow[] =>
       prev.some((p) => panelKey(p) === req.id)
         ? prev
-        : appendFromTemplate(prev, { template, id: req.engineId, name: req.id, settings: req.settings, params: req.params, url: req.url, hostData, defaults: workspaceDefaults, rootId, order: core?.order, declared: req.declared === true });
+        : appendFromTemplate(prev, { template, id: req.engineId, name: req.id, settings: req.settings, params: req.params, url: req.url, hostData, defaults: workspaceDefaults, rootId, order: core?.order, declared: req.declared === true, fallbackTitle: labels.panelTitle(req.engineId) });
     // A pin change stored while the panel was closed lands as the panel is added: placement, then the `parkable` flip.
     const withPin = (row: PanelWindow[]): PanelWindow[] => (req.deferredPin === undefined || !row.some((p) => p.id === req.engineId) ? row : landPanel(row, req.engineId, 'in-place', req.deferredPin).row);
     if (req.deferredPin !== undefined && build(panels).some((p) => p.id === req.engineId)) reportNotes(i.onNote, landPanel(build(panels), req.engineId, 'in-place', req.deferredPin).notes);
@@ -592,7 +595,8 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
         if (d.templateId !== t.id || next.some((p) => panelKey(p) === d.id)) continue;
         const resolved = resolvePanelSettings({ ...(workspaceDefaults !== undefined ? { workspace: workspaceDefaults } : {}), template: t.settings, ...(d.settings !== undefined ? { instance: d.settings } : {}) }, { lenient: true }).value;
         if (isDismissed(d.id) && resolved.closable && resolved.afterClose === 'stay-closed') continue;
-        next = appendFromTemplate(next, { template: t, id: freshId(), name: d.id, settings: d.settings, params: d.params, url: d.url, hostData: i.defaultHostData?.(), defaults: workspaceDefaults, rootId, order: core?.order, declared: true });
+        const engineId = freshId();
+        next = appendFromTemplate(next, { template: t, id: engineId, name: d.id, settings: d.settings, params: d.params, url: d.url, hostData: i.defaultHostData?.(), defaults: workspaceDefaults, rootId, order: core?.order, declared: true, fallbackTitle: labels.panelTitle(engineId) });
       }
       return next;
     });
@@ -823,15 +827,14 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
   const isEntry = (found: PanelWindow | PanelResult): found is PanelWindow => 'id' in found;
 
   /** The manager's verbs on a panel the engine holds, each gated and each refusing before it touches the row. */
-  /** A resize by tier or by slot count, after the in-flight gate and the panel's own permissions. */
-  const resizeOp = (engineId: string, next: FormFactor | number, source: PanelOpSource): PanelResult => {
+  /** A resize to a slot count, after the in-flight gate and the panel's own permissions. */
+  const resizeOp = (engineId: string, next: number, source: PanelOpSource): PanelResult => {
     const target = held(engineId);
     if (!isEntry(target)) return target;
     if (gate.busy([engineId], 'other')) return busy(target);
     const settings = effective(target);
     if (!settings.resizable) return refused('not-resizable', `panel '${panelKey(target)}' cannot be resized`);
-    if (typeof next === 'string' && !settings.formFactors.includes(next)) return refused('tier-not-allowed', `panel '${panelKey(target)}' does not allow the ${next} tier`);
-    if (typeof next === 'number' && source !== 'person') warnSlotsClamped(target, next);
+    if (source !== 'person') warnSlotsClamped(target, next);
     const token = gate.take([engineId], 'other')!;
     const changed = resizePanel(engineId, next, source === 'person');
     if (changed) {
@@ -909,7 +912,6 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
       gate.release(token);
       return accepted(changed);
     },
-    setFormFactor: (engineId, next, source) => resizeOp(engineId, next, source),
     setSlots: (engineId, slots, source) => resizeOp(engineId, slots, source),
     scrollTo: (engineId, align) => {
       const target = held(engineId);
@@ -1003,7 +1005,7 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
         if (core === undefined || panel.settings === undefined) return panel;
         const value = core.resolveDefaults(panel).value;
         const defaults = applyTemplate(panel, value, 'reconfigure');
-        return clearOverrides([{ ...defaults, ...(slotsOf(panel) === value.slots ? {} : { slots: value.slots, formFactor: value.formFactor, size: { ...TIER_SIZES[value.formFactor] } }), applied: { placeOnAdd: value.placeOnAdd } }], [panel.id])[0]!;
+        return clearOverrides([{ ...defaults, ...(slotsOf(panel) === value.slots ? {} : { slots: value.slots, size: sizeOfSlots(value.slots) }), applied: { placeOnAdd: value.placeOnAdd } }], [panel.id])[0]!;
       }),
     reopen: (req) => {
       // The closed views are tokened too: a raw undoClose in this turn restores the very key this call would add.
@@ -1075,18 +1077,6 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
         (id: string, _direction: 'left' | 'right') => [id],
         'other',
         (id, direction) => void reorderPanel(id, direction),
-      ),
-    ),
-    setFormFactor: named(
-      raw(
-        (id: string, _next: FormFactor) => [id],
-        'other',
-        (id, next) => {
-          if (resizePanel(id, next)) {
-            i.onPanelResize?.();
-            followPanel(id);
-          }
-        },
       ),
     ),
     setSlots: named(

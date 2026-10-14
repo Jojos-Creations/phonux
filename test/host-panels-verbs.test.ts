@@ -38,7 +38,7 @@ async function rig() {
 
 test('a view is given the PanelsAPI members and none of the row\'s own', async () => {
   const { seen } = await rig();
-  assert.deepEqual(Object.keys(seen.panels!).sort(), ['activate', 'clearAll', 'close', 'create', 'maxFitPanels', 'move', 'panelList', 'reanchor', 'recentlyClosed', 'setFormFactor', 'setSlots', 'undoClose']);
+  assert.deepEqual(Object.keys(seen.panels!).sort(), ['activate', 'clearAll', 'close', 'create', 'maxFitPanels', 'move', 'panelList', 'reanchor', 'recentlyClosed', 'setSlots', 'undoClose']);
   for (const name of ['entries', 'rowNumbers', 'tuning', 'liveWidths', 'fixedViewCount', 'scrollTo', 'followPanel']) assert.equal(name in seen.panels!, false, name);
   assert.equal(typeof seen.panels!.maxFitPanels, 'number', 'maxFitPanels is a number once the row is measured');
 });
@@ -48,12 +48,10 @@ test('each per-panel verb still works and warns once, naming what replaces it', 
   const { ws, seen, first, second } = await rig();
   const panels = (): PanelsAPI => seen.panels!;
   const warnings = (): string[] => warn.mock.calls.map((c) => String(c.arguments[0]));
-  const verbs = ['activate', 'move', 'setFormFactor', 'setSlots', 'reanchor', 'close', 'create'];
+  const verbs = ['activate', 'move', 'setSlots', 'reanchor', 'close', 'create'];
 
   act(() => panels().setSlots!(first.id, 2));
   act(() => panels().setSlots!(first.id, 1));
-  act(() => panels().setFormFactor(first.id, 'tablet'));
-  assert.equal(ws.panels.get(first.id)!.getState().formFactor, 'tablet', 'setFormFactor');
   const order = (): string => ws.panels.list().map((h) => h.id).join(',');
   const before = order();
   act(() => panels().move(first.id, 'right'));

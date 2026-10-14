@@ -41,11 +41,11 @@ export interface CreatePanelOptions {
         priority?: number;
     };
     anchoredEnter?: boolean;
-    formFactor?: FormFactor;
     layer?: 'base' | 'raised';
     listed?: boolean;
     params?: JsonValue;
     permanent?: boolean;
+    slots?: number;
     title?: string;
     view?: string;
 }
@@ -66,9 +66,6 @@ export interface FakeHost extends Host {
 export type FakeOverrides = {
     [K in keyof Host]?: Partial<Host[K]>;
 };
-
-// @public
-export type FormFactor = 'phone' | 'tablet' | 'desktop';
 
 // @public
 export interface HistoryAPI {
@@ -129,15 +126,12 @@ export interface PanelsAPI {
     }): void;
     readonly recentlyClosed: readonly PanelSummary[] | null;
     // @deprecated
-    setFormFactor(id: string, next: FormFactor): void;
-    // @deprecated
     setSlots?(id: string, slots: number): void;
     undoClose(): void;
 }
 
 // @public
 export interface PanelSize {
-    formFactor: FormFactor;
     height: number | 'fill';
     width: number;
 }
@@ -146,7 +140,6 @@ export interface PanelSize {
 export interface PanelSummary<P = JsonValue> {
     readonly drawnSlots?: number;
     readonly fitSlots?: number;
-    readonly formFactor?: FormFactor;
     readonly id: string;
     readonly live: boolean;
     readonly locked: boolean;
@@ -239,7 +232,6 @@ export type WorkspacePanelState = {
         position: 'left' | 'right';
         priority: number;
     };
-    formFactor?: FormFactor;
     slots?: number;
     permanent?: boolean;
     layer?: 'base' | 'raised';
@@ -254,7 +246,6 @@ export type WorkspacePanelState = {
             position: 'left' | 'right';
             priority: number;
         };
-        formFactor?: FormFactor;
         slots?: number;
         parkable?: boolean;
     };

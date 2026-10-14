@@ -4,7 +4,7 @@
  */
 
 import { test } from 'node:test';
-import { ALL_SLOTS, tierOfSlots } from '../rowConstants.js';
+import { ALL_SLOTS } from '../rowConstants.js';
 import assert from 'node:assert/strict';
 import { isDeepStrictEqual } from 'node:util';
 import { PANEL_SETTINGS_CATALOG, PanelManagerError, mergePatch, resolvePanelSettings } from '../index.js';
@@ -70,8 +70,6 @@ const BOOL = [true, false] as const;
 const WORDS = ['row-start', 'row-end', 'parkable-start', 'parkable-end', 'after-fixed', 'order'] as const;
 const OBJECT_PLACEMENTS = [{ before: 'a' }, { after: 'a' }, { anchor: { panel: 'a', position: 'left' } }] as const;
 const PLACEMENTS = [...WORDS, ...OBJECT_PLACEMENTS] as const;
-const TIERS = ['phone', 'tablet', 'desktop'] as const;
-const SUBSETS = [['phone'], ['tablet'], ['desktop'], ['phone', 'tablet'], ['phone', 'desktop'], ['tablet', 'desktop'], ['phone', 'tablet', 'desktop']] as const;
 
 // ---------------------------------------------------------------------------
 // Enumerations and probes
@@ -93,7 +91,6 @@ const ENUMERATED: Record<string, readonly unknown[]> = {
   reportClose: BOOL,
   hostCreatable: BOOL,
   multiple: BOOL,
-  formFactors: SUBSETS,
   maxInstances: ['unlimited', 1, 2, 50],
   startVisibility: ['live', 'parked'],
   hideStickiness: ['sticky', 'until-room'],
@@ -120,7 +117,6 @@ const ENUMERATED: Record<string, readonly unknown[]> = {
   enterFrom: ['auto', 'left', 'right', 'anchor'],
   exitTo: ['auto', 'left', 'right'],
   closeExit: ['down', 'left', 'right'],
-  formFactor: TIERS,
   slots: [1, 2, 3, 64],
   maxSlots: [1, 2, 3, 64],
   persist: ['saved', 'session'],
@@ -139,15 +135,15 @@ type Probe = readonly [what: string, layers: PanelSettingsLayers, layer: string,
 const PROBES: readonly Probe[] = [
   ['boolean given a string', { template: asSettings({ closable: 'yes' }) }, 'template', 'closable'],
   ['boolean given null', { template: asSettings({ parkable: null }) }, 'template', 'parkable'],
-  ['list given a string', { template: asSettings({ formFactors: 'phone' }) }, 'template', 'formFactors'],
   ['number given a string', { template: asSettings({ returnPriority: '1' }) }, 'template', 'returnPriority'],
   ['number given NaN', { template: asSettings({ returnPriority: Number.NaN }) }, 'template', 'returnPriority'],
   ['title given a number', { template: asSettings({ title: 5 }) }, 'template', 'title'],
   ['pinning given a string', { template: asSettings({ pinning: 'row-start' }) }, 'template', 'pinning'],
   ['unknown member of overflow', { template: asSettings({ overflow: 'wrap' }) }, 'template', 'overflow'],
-  ['unknown tier', { template: asSettings({ formFactor: 'watch' }) }, 'template', 'formFactor'],
-  ['unknown tier in formFactors', { template: asSettings({ formFactors: ['phone', 'watch'] }) }, 'template', 'formFactors'],
-  ['empty formFactors', { template: asSettings({ formFactors: [] }) }, 'template', 'formFactors'],
+  ['slots given a string', { template: asSettings({ slots: '2' }) }, 'template', 'slots'],
+  ['zero slots', { template: asSettings({ slots: 0 }) }, 'template', 'slots'],
+  ['fractional maxSlots', { template: asSettings({ maxSlots: 1.5 }) }, 'template', 'maxSlots'],
+  ['a removed key, formFactor', { template: asSettings({ formFactor: 'tablet' }) }, 'template', 'formFactor'],
   ['in-place in placeOnAdd', { template: asSettings({ placeOnAdd: 'in-place' }) }, 'template', 'placeOnAdd'],
   ['in-place in placeFallback', { template: asSettings({ placeFallback: 'in-place' }) }, 'template', 'placeFallback'],
   ['in-place in undoPlacement', { template: asSettings({ undoPlacement: 'in-place' }) }, 'template', 'undoPlacement'],
@@ -415,12 +411,12 @@ test('ranges: a refusal of a tuning member names the dotted key, and the numbers
 type CascadeRow = readonly [what: string, layers: PanelSettingsLayers, key: string, value: unknown, source: SourceLayer];
 /** Eight rows, one per source word: the value asked at each layer and which layer wins. */
 const CASCADE_ORDER: readonly CascadeRow[] = [
-  ['no layer', {}, 'formFactor', 'phone', 'library'],
-  ['workspace', { workspace: { formFactor: 'tablet' } }, 'formFactor', 'tablet', 'workspace'],
-  ['template over workspace', { workspace: { formFactor: 'tablet' }, template: { formFactor: 'desktop' } }, 'formFactor', 'desktop', 'template'],
-  ['host over template', { workspace: { formFactor: 'tablet' }, template: { formFactor: 'desktop' }, host: { formFactor: 'tablet' } }, 'formFactor', 'tablet', 'host'],
-  ['instance over host', { workspace: { formFactor: 'tablet' }, template: { formFactor: 'desktop' }, host: { formFactor: 'tablet' }, instance: { formFactor: 'desktop' } }, 'formFactor', 'desktop', 'instance'],
-  ['user over instance', { template: { formFactor: 'desktop' }, instance: { formFactor: 'desktop' }, user: { formFactor: 'tablet' } }, 'formFactor', 'tablet', 'user'],
+  ['no layer', {}, 'slots', 1, 'library'],
+  ['workspace', { workspace: { slots: 2 } }, 'slots', 2, 'workspace'],
+  ['template over workspace', { workspace: { slots: 2 }, template: { slots: 3 } }, 'slots', 3, 'template'],
+  ['host over template', { workspace: { slots: 2 }, template: { slots: 3 }, host: { slots: 2 } }, 'slots', 2, 'host'],
+  ['instance over host', { workspace: { slots: 2 }, template: { slots: 3 }, host: { slots: 2 }, instance: { slots: 3 } }, 'slots', 3, 'instance'],
+  ['user over instance', { template: { slots: 3 }, instance: { slots: 3 }, user: { slots: 2 } }, 'slots', 2, 'user'],
   ['derived from parkable', { template: { parkable: false } }, 'listed', false, 'derived'],
   ['forced by a rule', { template: { parkable: false } }, 'resizable', false, 'forced'],
 ];
@@ -442,12 +438,12 @@ test('cascade: a later layer wins at every pair of layers, whichever way the val
   let executed = 0;
   for (let low = 0; low < order.length; low += 1) {
     for (let high = low + 1; high < order.length; high += 1) {
-      for (const [first, second] of [['tablet', 'desktop'], ['desktop', 'tablet']] as const) {
+      for (const [first, second] of [[2, 3], [3, 2]] as const) {
         const lowLayer = order[low] as (typeof order)[number];
         const highLayer = order[high] as (typeof order)[number];
-        const res = resolve({ [lowLayer]: { formFactor: first }, [highLayer]: { formFactor: second } });
-        assert.equal(res.value.formFactor, second, `${highLayer} over ${lowLayer}`);
-        assert.equal(res.source.formFactor, highLayer);
+        const res = resolve({ [lowLayer]: { slots: first }, [highLayer]: { slots: second } });
+        assert.equal(res.value.slots, second, `${highLayer} over ${lowLayer}`);
+        assert.equal(res.source.slots, highLayer);
         executed += 1;
       }
     }
@@ -466,13 +462,12 @@ test('cascade: undefined never overrides, at any layer', () => {
   assert.equal(tuned.value.tuning.hopFraction, 0.7);
 });
 
-test('cascade: placeOnAdd, placeOnShow, placeOnReturn, undoPlacement, formFactors, pinning and pinningWhenNotLive are replaced whole', () => {
+test('cascade: placeOnAdd, placeOnShow, placeOnReturn, undoPlacement, pinning and pinningWhenNotLive are replaced whole', () => {
   const rows: ReadonlyArray<readonly [string, unknown, unknown]> = [
     ['placeOnAdd', { before: 'a' }, { after: 'b' }],
     ['placeOnShow', { before: 'a' }, { anchor: { panel: 'b', position: 'right' } }],
     ['placeOnReturn', 'row-end', { after: 'c' }],
     ['undoPlacement', 'old-slot', { before: 'a' }],
-    ['formFactors', ['tablet', 'desktop'], ['phone']],
     ['pinning', { pinned: { placement: 'row-start', parkable: true }, unpinned: { placement: 'row-end', parkable: false } }, { pinned: { placement: 'row-start' }, unpinned: { placement: 'after-fixed' } }],
     ['pinningWhenNotLive', { parked: 'show', hidden: 'refuse' }, { closed: 'refuse' }],
   ];
@@ -483,7 +478,7 @@ test('cascade: placeOnAdd, placeOnShow, placeOnReturn, undoPlacement, formFactor
     const alone = resolve({ template: asSettings({ [key]: lower }) });
     assert.deepEqual((alone.value as unknown as Record<string, unknown>)[key], lower, `${key}: the lower layer alone`);
   }
-  assert.equal(rows.length, 7);
+  assert.equal(rows.length, 6);
 });
 
 test('cascade: tuning merges per leaf and per member, and the source names the winner of each leaf', () => {
@@ -527,10 +522,10 @@ test('cascade: the source map names the winner of each key, from every layer at 
     template: { layer: 'raised', closable: false },
     host: { title: 'From the view' },
     instance: { closable: true, evictionRank: 4 },
-    user: { formFactor: 'tablet' },
+    user: { slots: 2 },
   });
   assert.deepEqual(
-    [res.source.animated, res.source.layer, res.source.title, res.source.closable, res.source.evictionRank, res.source.formFactor, res.source.overflow],
+    [res.source.animated, res.source.layer, res.source.title, res.source.closable, res.source.evictionRank, res.source.slots, res.source.overflow],
     ['workspace', 'template', 'host', 'instance', 'instance', 'user', 'library'],
   );
 });
@@ -625,8 +620,8 @@ test('C1: a fixed column forces overflow, startVisibility, restoreVisibility and
 test('C1: a fixed column keeps the size settings its own template or instance asked for, and forces the workspace and library ones', () => {
   for (const layer of ['template', 'instance'] as const) {
     const res = resolve({ template: { parkable: false }, [layer]: asSettings({ resizable: true, maxSlots: 3, slots: 2 }) });
-    assert.deepEqual([res.value.resizable, res.value.maxSlots, res.value.slots, res.value.formFactor], [true, 3, 2, 'tablet'], layer);
-    assert.deepEqual(resolve({ template: { parkable: false }, [layer]: asSettings({ formFactor: 'tablet' }) }).value.formFactor, 'tablet', `${layer}: the tier is part of the same group`);
+    assert.deepEqual([res.value.resizable, res.value.maxSlots, res.value.slots], [true, 3, 2], layer);
+    assert.deepEqual(resolve({ template: { parkable: false }, [layer]: asSettings({ slots: 2 }) }).value.slots, 2, `${layer}: the slot count is part of the same group`);
     assert.deepEqual(resolve({ template: { parkable: false }, [layer]: asSettings({ resizable: true }) }).value.maxSlots, ALL_SLOTS, `${layer}: asking resizable alone leaves the rest at their defaults`);
     assert.deepEqual(res.conflicts.filter((c) => c.layer === layer && c.rule === 'C1'), [], `${layer}: no conflict for a size the panel itself asked`);
   }
@@ -645,8 +640,8 @@ test('C1: without the trigger the same asks stand, and a library or workspace co
   }
   const silent = resolve({ template: { parkable: false } });
   assert.deepEqual(silent.conflicts, []);
-  assert.deepEqual([silent.value.resizable, silent.value.formFactors, silent.value.formFactor, silent.value.overflow, silent.value.startVisibility, silent.value.restoreVisibility, silent.value.keepMounted], [false, ['phone'], 'phone', 'scroll', 'live', 'live', false]);
-  assert.deepEqual([silent.source.resizable, silent.source.formFactors, silent.source.restoreVisibility], ['forced', 'forced', 'forced'], 'a value the library gave is forced without a conflict');
+  assert.deepEqual([silent.value.resizable, silent.value.maxSlots, silent.value.slots, silent.value.overflow, silent.value.startVisibility, silent.value.restoreVisibility, silent.value.keepMounted], [false, 1, 1, 'scroll', 'live', 'live', false]);
+  assert.deepEqual([silent.source.resizable, silent.source.maxSlots, silent.source.restoreVisibility], ['forced', 'forced', 'forced'], 'a value the library gave is forced without a conflict');
   const workspaceAsk = resolve({ workspace: { overflow: 'park', keepMounted: true }, template: { parkable: false } });
   assert.deepEqual([workspaceAsk.value.overflow, workspaceAsk.value.keepMounted, workspaceAsk.conflicts], ['scroll', false, []]);
   const equalAsk = resolve({ template: { parkable: false, overflow: 'scroll', resizable: false } });
@@ -685,14 +680,12 @@ test('C3: a session panel forces rememberLayout false and afterClose return-next
   assert.deepEqual([saved.value.rememberLayout, saved.value.afterClose, saved.conflicts], [true, 'stay-closed', []]);
 });
 
-test('C4: a formFactor outside formFactors becomes the first allowed tier; one inside stands', () => {
-  const asked = resolve({ template: { formFactors: ['tablet', 'desktop'], formFactor: 'phone' } });
-  assert.equal(asked.value.formFactor, 'tablet');
-  assert.deepEqual(asked.conflicts.map((c) => [c.key, c.rule, c.forcedBy, c.asked, c.applied]), [['formFactor', 'C4', 'formFactors', 'phone', 'tablet']]);
-  const library = resolve({ template: { formFactors: ['desktop'] } });
-  assert.deepEqual([library.value.formFactor, library.source.formFactor, library.conflicts], ['desktop', 'forced', []]);
-  const inside = resolve({ template: { formFactors: ['phone', 'tablet'], formFactor: 'tablet' } });
-  assert.deepEqual([inside.value.formFactor, inside.source.formFactor, inside.conflicts], ['tablet', 'template', []]);
+test('C4: slots above maxSlots become maxSlots; slots inside it stand', () => {
+  const asked = resolve({ template: { maxSlots: 2, slots: 3 } });
+  assert.equal(asked.value.slots, 2);
+  assert.deepEqual(asked.conflicts.map((c) => [c.key, c.rule, c.forcedBy, c.asked, c.applied]), [['slots', 'C4', 'maxSlots', 3, 2]]);
+  const inside = resolve({ template: { maxSlots: 3, slots: 2 } });
+  assert.deepEqual([inside.value.slots, inside.source.slots, inside.conflicts], [2, 'template', []]);
 });
 
 test('C5: the root is never closable, parkable, clearable, draggable or placeable, and a layer that asked otherwise has a conflict without forcedBy', () => {
@@ -716,7 +709,7 @@ test('C5: the root is never closable, parkable, clearable, draggable or placeabl
 test('C5 feeds C1 and C2 for the root: a root asking overflow park or clearable true is also forced, naming parkable and closable', () => {
   const res = resolve({ template: { overflow: 'park', clearable: true } }, { root: true });
   assert.deepEqual(res.conflicts.map((c) => [c.key, c.rule, c.forcedBy]).sort(), [['clearable', 'C2', 'closable'], ['overflow', 'C1', 'parkable']]);
-  assert.deepEqual([res.value.overflow, res.value.clearable, res.value.resizable, res.value.formFactor], ['scroll', false, false, 'phone']);
+  assert.deepEqual([res.value.overflow, res.value.clearable, res.value.resizable, res.value.slots], ['scroll', false, false, 1]);
 });
 
 test('C6: reset-on-park forces keepMounted false with one conflict naming both keys; keep leaves keepMounted alone', () => {
@@ -743,7 +736,7 @@ test('conflicts: one per kind of rule, each carrying key, layer, kind, asked, ap
     ['C1', { template: { parkable: false, overflow: 'park' } }, {}, 'overflow', 'parkable'],
     ['C2', { template: { closable: false, clearable: true } }, {}, 'clearable', 'closable'],
     ['C3', { template: { persist: 'session', rememberLayout: true } }, {}, 'rememberLayout', 'persist'],
-    ['C4', { template: { formFactors: ['tablet'], formFactor: 'phone' } }, {}, 'formFactor', 'formFactors'],
+    ['C4', { template: { maxSlots: 1, slots: 2 } }, {}, 'slots', 'maxSlots'],
     ['C5', { template: { closable: true } }, { root: true }, 'closable', undefined],
     ['C6', { template: { viewState: 'reset-on-park', keepMounted: true } }, {}, 'keepMounted', 'viewState'],
   ];
@@ -776,9 +769,9 @@ test('park levers: a lever on a panel whose overflow resolves to scroll yields p
 // Scope: not-view-settable and wrong-scope
 // ---------------------------------------------------------------------------
 
-test('host layer: closable false, keepMounted true, headerButtons, overflow and pinning are not-view-settable and change nothing', () => {
+test('host layer: closable true, keepMounted true, headerButtons, overflow and pinning are not-view-settable and change nothing', () => {
   const res = resolve({
-    host: asSettings({ closable: false, keepMounted: true, headerButtons: { size: slot('Size') }, overflow: 'park', pinning: { pinned: { placement: 'row-start' }, unpinned: { placement: 'row-end' } } }),
+    host: asSettings({ closable: true, keepMounted: true, headerButtons: { size: slot('Size') }, overflow: 'park', pinning: { pinned: { placement: 'row-start' }, unpinned: { placement: 'row-end' } } }),
   });
   assert.deepEqual(res.conflicts.map((c) => [c.key, c.layer, c.kind]).sort(), [
     ['closable', 'host', 'not-view-settable'],
@@ -788,15 +781,15 @@ test('host layer: closable false, keepMounted true, headerButtons, overflow and 
     ['pinning', 'host', 'not-view-settable'],
   ]);
   assert.deepEqual([res.value.closable, res.value.keepMounted, res.value.overflow, res.value.headerButtons, res.source.closable, res.source.overflow], [true, false, 'scroll', {}, 'library', 'library']);
-  const closable = res.conflicts.find((c) => c.key === 'closable') as SettingConflict;
-  assert.deepEqual([closable.asked, closable.applied], [false, true]);
+  const keep = res.conflicts.find((c) => c.key === 'keepMounted') as SettingConflict;
+  assert.deepEqual([keep.asked, keep.applied], [true, false]);
 });
 
-test('host layer: the keys a view may set are accepted: title, listed, layer, formFactor, placeOnAdd with an anchor and enterFrom anchor', () => {
-  const host = { title: 'Mine', listed: false, layer: 'raised', formFactor: 'tablet', placeOnAdd: { anchor: { panel: 'p', position: 'left' } }, enterFrom: 'anchor' } as const;
+test('host layer: the keys a view may set are accepted: title, listed, layer, slots, placeOnAdd with an anchor and enterFrom anchor', () => {
+  const host = { title: 'Mine', listed: false, layer: 'raised', slots: 2, placeOnAdd: { anchor: { panel: 'p', position: 'left' } }, enterFrom: 'anchor' } as const;
   const res = resolve({ host });
   assert.deepEqual(res.conflicts, []);
-  assert.deepEqual([res.value.title, res.value.listed, res.value.layer, res.value.formFactor, res.value.placeOnAdd, res.value.enterFrom], ['Mine', false, 'raised', 'tablet', { anchor: { panel: 'p', position: 'left' } }, 'anchor']);
+  assert.deepEqual([res.value.title, res.value.listed, res.value.layer, res.value.slots, res.value.placeOnAdd, res.value.enterFrom], ['Mine', false, 'raised', 2, { anchor: { panel: 'p', position: 'left' } }, 'anchor']);
   for (const key of Object.keys(host)) assert.equal(res.source[key], 'host', key);
 });
 
@@ -867,17 +860,16 @@ test('scope: a wrong-scope ask beside valid keys leaves the valid keys applied',
 // The user layer
 // ---------------------------------------------------------------------------
 
-test('user layer: a tier outside formFactors is dropped with an override-dropped note and the resolved tier stands', () => {
-  const res = resolve({ template: { formFactors: ['phone', 'tablet'] }, user: { formFactor: 'desktop' } });
-  assert.deepEqual([res.value.formFactor, res.source.formFactor], ['phone', 'library']);
-  assert.deepEqual(res.notes.map((n) => [n.code, n.key]), [['override-dropped', 'formFactor']]);
-  const inside = resolve({ template: { formFactors: ['phone', 'tablet'] }, user: { formFactor: 'tablet' } });
-  assert.deepEqual([inside.value.formFactor, inside.source.formFactor, inside.notes], ['tablet', 'user', []]);
+test('user layer: a slot count above maxSlots is held at maxSlots without a note, and one inside stands', () => {
+  const res = resolve({ template: { maxSlots: 2 }, user: { slots: 3 } });
+  assert.deepEqual([res.value.slots, res.source.slots, res.notes], [2, 'user', []]);
+  const inside = resolve({ template: { maxSlots: 2 }, user: { slots: 2 } });
+  assert.deepEqual([inside.value.slots, inside.source.slots, inside.notes], [2, 'user', []]);
 });
 
-test('user layer: a tier on a resizable:false panel and an anchor on a panel that is neither draggable nor placeable are not dropped', () => {
-  const tier = resolve({ instance: { resizable: false }, user: { formFactor: 'tablet' } });
-  assert.deepEqual([tier.value.formFactor, tier.value.resizable, tier.source.formFactor, tier.notes], ['tablet', false, 'user', []]);
+test('user layer: a slot count on a resizable:false panel and an anchor on a panel that is neither draggable nor placeable are not dropped', () => {
+  const size = resolve({ instance: { resizable: false }, user: { slots: 2 } });
+  assert.deepEqual([size.value.slots, size.value.resizable, size.source.slots, size.notes], [2, false, 'user', []]);
   const anchor = { panel: 'notes', position: 'left', priority: 2 } as const;
   const res = resolve({ instance: { draggable: false, placeable: false }, user: { anchor } });
   assert.deepEqual(res.userAnchor, anchor);
@@ -889,7 +881,7 @@ test('user layer: a tier on a resizable:false panel and an anchor on a panel tha
 test('user layer: parkable false joins as the top layer, so C1 re-runs with source user and no conflict', () => {
   const res = resolve({ user: { parkable: false } });
   assert.deepEqual([res.value.parkable, res.source.parkable], [false, 'user']);
-  assert.deepEqual([res.value.resizable, res.value.overflow, res.value.formFactors, res.value.keepMounted], [false, 'scroll', ['phone'], false]);
+  assert.deepEqual([res.value.resizable, res.value.overflow, res.value.maxSlots, res.value.keepMounted], [false, 'scroll', 1, false]);
   assert.deepEqual([res.value.draggable, res.value.placeable, res.value.listed, res.value.clearable], [false, false, false, false]);
   assert.deepEqual(res.conflicts, []);
   assert.deepEqual(res.notes, []);
@@ -903,20 +895,21 @@ test("user layer: a template's own ask that the user's fixed column forces is st
   assert.equal(res.value.overflow, 'scroll');
 });
 
-test('user layer: parkable false is dropped with a note when the resolved tier is not phone, and kept when the user tier is phone', () => {
-  const tablet = resolve({ template: { formFactor: 'tablet' }, user: { parkable: false } });
-  assert.deepEqual([tablet.value.parkable, tablet.source.parkable, tablet.value.formFactor], [true, 'library', 'tablet']);
-  assert.deepEqual(tablet.notes.map((n) => [n.code, n.key]), [['override-dropped', 'parkable']]);
-  const userTablet = resolve({ user: { formFactor: 'tablet', parkable: false } });
-  assert.deepEqual([userTablet.value.parkable, userTablet.value.formFactor], [true, 'tablet']);
-  assert.deepEqual(userTablet.notes.map((n) => [n.code, n.key]), [['override-dropped', 'parkable']]);
-  const phone = resolve({ template: { formFactor: 'tablet' }, user: { formFactor: 'phone', parkable: false } });
-  assert.deepEqual([phone.value.parkable, phone.source.parkable, phone.value.formFactor, phone.source.formFactor, phone.notes], [false, 'user', 'phone', 'user', []]);
+test('user layer: parkable false is dropped with a note when the resolved panel is more than one slot, and kept when the user slot count is one', () => {
+  const wide = resolve({ template: { slots: 2 }, user: { parkable: false } });
+  assert.deepEqual([wide.value.parkable, wide.source.parkable, wide.value.slots], [true, 'library', 2]);
+  assert.deepEqual(wide.notes.map((n) => [n.code, n.key]), [['override-dropped', 'parkable']]);
+  const userWide = resolve({ user: { slots: 2, parkable: false } });
+  assert.deepEqual([userWide.value.parkable, userWide.value.slots], [true, 2]);
+  assert.deepEqual(userWide.notes.map((n) => [n.code, n.key]), [['override-dropped', 'parkable']]);
+  const one = resolve({ template: { slots: 2 }, user: { slots: 1, parkable: false } });
+  assert.deepEqual([one.value.parkable, one.source.parkable, one.value.slots, one.source.slots, one.notes], [false, 'user', 1, 'user', []]);
 });
 
-test('user layer: only formFactor, anchor and parkable are accepted; anything else, or a wrong type, throws unless lenient', () => {
+test('user layer: only slots, anchor and parkable are accepted; anything else, or a wrong type, throws unless lenient', () => {
   refuses({ user: { closable: false } as never }, 'user', 'closable');
-  refuses({ user: { formFactor: 'watch' } as never }, 'user', 'formFactor');
+  refuses({ user: { formFactor: 'tablet' } as never }, 'user', 'formFactor');
+  refuses({ user: { slots: 0 } as never }, 'user', 'slots');
   refuses({ user: { parkable: 'no' } as never }, 'user', 'parkable');
   refuses({ user: { anchor: { position: 'up' } } as never }, 'user', 'anchor');
   refuses({ user: 5 as never }, 'user', undefined);
@@ -927,11 +920,11 @@ test('user layer: only formFactor, anchor and parkable are accepted; anything el
 // ---------------------------------------------------------------------------
 
 const SAVED_INSTANCE = asSettings({ closable: false, bogus: 1, listed: 'yes', overflow: 'evictable', parkable: 'yes', tuning: { rowGap: 999, hopFraction: 0.7 } });
-const SAVED_USER = { formFactor: 'tablet', bogus: 1, parkable: 'yes', anchor: 5 } as unknown as PanelSettingsLayers['user'];
+const SAVED_USER = { slots: 2, bogus: 1, parkable: 'yes', anchor: 5 } as unknown as PanelSettingsLayers['user'];
 
 test('lenient: an instance and a user layer holding bad keys return the others intact with one invalid-saved-setting note per drop and never throw', () => {
   const res = resolve({ instance: SAVED_INSTANCE, user: SAVED_USER }, { lenient: true });
-  assert.deepEqual([res.value.closable, res.value.tuning.hopFraction, res.value.formFactor, res.value.listed, res.value.overflow, res.value.parkable], [false, 0.7, 'tablet', true, 'scroll', true]);
+  assert.deepEqual([res.value.closable, res.value.tuning.hopFraction, res.value.slots, res.value.listed, res.value.overflow, res.value.parkable], [false, 0.7, 2, true, 'scroll', true]);
   assert.ok(res.notes.every((n) => n.code === 'invalid-saved-setting'));
   const instanceNotes = res.notes.filter((n) => n.message.startsWith('instance.'));
   const userNotes = res.notes.filter((n) => n.message.startsWith('user.'));
@@ -1076,7 +1069,7 @@ function deepFreeze<T>(value: T): T {
 }
 
 /** Keys a stack asks for more often, so the coupling rules fire in most stacks. */
-const BOOSTED: Record<string, number> = { parkable: 0.3, closable: 0.25, persist: 0.25, viewState: 0.25, formFactors: 0.3, formFactor: 0.3, keepMounted: 0.3, overflow: 0.3, clearable: 0.2, rememberLayout: 0.2, afterClose: 0.2, resizable: 0.2, startVisibility: 0.2, restoreVisibility: 0.2 };
+const BOOSTED: Record<string, number> = { parkable: 0.3, closable: 0.25, persist: 0.25, viewState: 0.25, maxSlots: 0.3, slots: 0.3, keepMounted: 0.3, overflow: 0.3, clearable: 0.2, rememberLayout: 0.2, afterClose: 0.2, resizable: 0.2, startVisibility: 0.2, restoreVisibility: 0.2 };
 const SKEWED_FALSE = new Set(['parkable', 'closable']);
 const PIN_VALID = PIN_TABLE.filter((row) => row[2] === 'valid').map((row) => row[1]);
 const SLOT_IDS = ['size', 'pin', 'menu'] as const;
@@ -1090,7 +1083,7 @@ const TUNING_POOL: readonly Loose[] = [
   { hopFraction: 0.3 },
   { hopFraction: 0.6 },
 ];
-const VIEW_KEYS = ['title', 'listed', 'layer', 'formFactor', 'placeOnAdd', 'enterFrom'];
+const VIEW_KEYS = ['title', 'listed', 'layer', 'slots', 'placeOnAdd', 'enterFrom'];
 
 function randomHeaderButtons(rng: Rng): Loose {
   const map: Loose = {};
@@ -1135,7 +1128,7 @@ function randomStack(rng: Rng): { layers: PanelSettingsLayers; options: ResolveO
   }
   if (chance(rng, 0.5)) {
     const user: Loose = {};
-    if (chance(rng, 0.5)) user.formFactor = pick(rng, TIERS);
+    if (chance(rng, 0.5)) user.slots = pick(rng, [1, 2, 3, 64] as const);
     if (chance(rng, 0.4)) user.parkable = pick(rng, [false, false, true]);
     if (chance(rng, 0.3)) user.anchor = { panel: 'x', position: pick(rng, ['left', 'right'] as const) };
     layers.user = user as PanelSettingsLayers['user'];
@@ -1163,7 +1156,7 @@ function tuningInDomain(t: Loose): boolean {
 const PIN_DOMAIN = PIN_VALID.map((p) => ({ pinned: {}, unpinned: {}, ...(p as object) }));
 const NOTE_CODES = ['override-dropped', 'pin-unlists', 'park-lever-inert', 'resizable-capped'];
 
-const coverage = { stacks: 0, roots: 0, withConflicts: 0, withNotes: 0, userParkableApplied: 0, userTierApplied: 0, rules: new Set<string>(), kinds: new Set<string>(), noteCodes: new Set<string>() };
+const coverage = { stacks: 0, roots: 0, withConflicts: 0, withNotes: 0, userParkableApplied: 0, userSlotsApplied: 0, rules: new Set<string>(), kinds: new Set<string>(), noteCodes: new Set<string>() };
 
 function checkStack(layers: PanelSettingsLayers, options: ResolveOptions): void {
   const before = structuredCloneKeepingFunctions(layers);
@@ -1184,22 +1177,22 @@ function checkStack(layers: PanelSettingsLayers, options: ResolveOptions): void 
   if (v.parkable === false) {
     const asked = (key: string): boolean => ['template', 'host', 'instance'].includes(res.source[key] as string);
     assert.deepEqual([v.overflow, v.startVisibility, v.restoreVisibility, v.keepMounted], ['scroll', 'live', 'live', false], 'C1');
-    const fixed: Loose = { resizable: false, formFactors: ['phone'], formFactor: 'phone', slots: 1, maxSlots: 1 };
-    const askedValue = (key: string): unknown => ['instance', 'host', 'template'].map((name) => (layers[name as 'instance'] as Loose | undefined)?.[key]).find((x) => x !== undefined);
-    if (!Object.keys(fixed).some((key) => askedValue(key) !== undefined && !isDeepStrictEqual(askedValue(key), fixed[key]))) assert.deepEqual([v.resizable, v.formFactors, v.formFactor, v.slots, v.maxSlots], [false, ['phone'], 'phone', 1, 1], 'C1 size');
+    const fixed: Loose = { resizable: false, slots: 1, maxSlots: 1 };
+    const askedValue = (key: string): unknown => ['instance', 'host', 'template'].map((name) => (name === 'host' && !VIEW_KEYS.includes(key) ? undefined : (layers[name as 'instance'] as Loose | undefined)?.[key])).find((x) => x !== undefined);
+    if (!Object.keys(fixed).some((key) => askedValue(key) !== undefined && !isDeepStrictEqual(askedValue(key), fixed[key]))) assert.deepEqual([v.resizable, v.slots, v.maxSlots], [false, 1, 1], 'C1 size');
   }
   if (v.closable === false) assert.equal(v.clearable, false, 'C2');
   if (v.persist === 'session') assert.deepEqual([v.rememberLayout, v.afterClose], [false, 'return-next-launch'], 'C3');
-  assert.ok((v.formFactors as string[]).includes(v.formFactor as string), 'C4');
+  assert.ok((v.slots as number) <= (v.maxSlots as number), 'C4');
   if (options.root === true) assert.deepEqual([v.closable, v.parkable, v.draggable, v.placeable, v.clearable], [false, false, false, false, false], 'C5');
   if (v.viewState === 'reset-on-park') assert.equal(v.keepMounted, false, 'C6');
   for (const key of ['draggable', 'placeable', 'listed']) if (res.source[key] === 'derived') assert.equal(v[key], v.parkable, `${key} derived`);
   if (res.source.clearable === 'derived') assert.equal(v.clearable, v.parkable === true && v.closable === true, 'clearable derived');
 
-  for (const [key, layerName] of [['parkable', 'user'], ['formFactor', 'user']] as const) if (res.source[key] === layerName) {
+  for (const [key, layerName] of [['parkable', 'user'], ['slots', 'user']] as const) if (res.source[key] === layerName) {
     const person = layers.user as Loose;
-    assert.equal(v[key], key === 'formFactor' ? (person.formFactor ?? tierOfSlots(person.slots as number)) : person[key], `${key} from the user layer`);
-    coverage[key === 'parkable' ? 'userParkableApplied' : 'userTierApplied'] += 1;
+    assert.equal(v[key], key === 'slots' ? Math.min(person.slots as number, v.maxSlots as number) : person[key], `${key} from the user layer`);
+    coverage[key === 'parkable' ? 'userParkableApplied' : 'userSlotsApplied'] += 1;
   }
   for (const layerName of ['workspace', 'template', 'host', 'instance'] as const) {
     const layer = layers[layerName] as Loose | undefined;
@@ -1212,7 +1205,6 @@ function checkStack(layers: PanelSettingsLayers, options: ResolveOptions): void 
   if (instance !== undefined) {
     for (const key of Object.keys(instance)) {
       if (['hostCreatable', 'multiple', 'maxInstances', 'tuning', 'headerButtons', 'pinning'].includes(key)) continue;
-      if (key === 'formFactor' && res.source.slots === 'user') continue; // the person's slot count restates the tier
       assert.ok(['instance', 'forced', 'user'].includes(res.source[key] as string), `an instance ask of ${key} is beaten only by a rule or the person: ${String(res.source[key])}`);
     }
   }
@@ -1275,7 +1267,7 @@ test('property: the generator exercised every rule, every conflict kind, the roo
   assert.deepEqual([...coverage.kinds].sort(), ['forced', 'not-view-settable', 'wrong-scope']);
   assert.deepEqual([...coverage.noteCodes].sort(), ['override-dropped', 'park-lever-inert', 'pin-unlists', 'resizable-capped']);
   assert.ok(coverage.roots >= 100 && coverage.withConflicts >= 300 && coverage.withNotes >= 300, JSON.stringify({ ...coverage, rules: undefined, kinds: undefined, noteCodes: undefined }));
-  assert.ok(coverage.userParkableApplied >= 20 && coverage.userTierApplied >= 100, JSON.stringify({ ...coverage, rules: undefined, kinds: undefined, noteCodes: undefined }));
+  assert.ok(coverage.userParkableApplied >= 20 && coverage.userSlotsApplied >= 100, JSON.stringify({ ...coverage, rules: undefined, kinds: undefined, noteCodes: undefined }));
 });
 
 test('property: a fixed stack holding every layer is not mutated, even deeply frozen, and resolves the same twice', () => {
@@ -1284,7 +1276,7 @@ test('property: a fixed stack holding every layer is not mutated, even deeply fr
     template: { parkable: false, overflow: 'park', headerButtons: { size: slot('Size') }, tuning: { dragToClose: { minDistancePx: 100 } } },
     host: { title: 'T' },
     instance: { closable: false, headerButtons: { pin: slot('Pin') }, tuning: { hopFraction: 0.7 } },
-    user: { formFactor: 'phone', anchor: { panel: 'x', position: 'left' } },
+    user: { slots: 1, anchor: { panel: 'x', position: 'left' } },
   }) as PanelSettingsLayers;
   const first = resolve(layers);
   assert.deepEqual(resolve(layers), first);

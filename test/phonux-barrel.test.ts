@@ -41,7 +41,6 @@ const VALUE_EXPORTS = [
   'useViewState',
   'ViewStateMissingProviderError',
   'DEFAULT_PANEL_SIZE',
-  'TIER_SIZES',
   'panelWidthOf',
   'computeRowLayout',
   'computeRowNumbers',

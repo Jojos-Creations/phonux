@@ -59,7 +59,7 @@ export interface PanelSlotValue {
   readonly draggable: ResolvedPanelSettings['draggable'];
   readonly placeable: ResolvedPanelSettings['placeable'];
   readonly resizable: ResolvedPanelSettings['resizable'];
-  readonly formFactors: ResolvedPanelSettings['formFactors'];
+  readonly maxSlots: ResolvedPanelSettings['maxSlots'];
   readonly neighborWidths: NeighborWidths;
   readonly pinned: boolean;
   /** The panel's own handle, which `usePanelDragProps` closes and moves through and `usePanelPinned` reads. Absent in a row without a workspace. */
