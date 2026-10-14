@@ -29,6 +29,10 @@
   panel was written for. Before 1.0.0 level 1 moves with the prereleases; at 1.0.0 it is frozen. A level the library does not serve throws `invalid-template` from `definePanel`, `createWorkspace` and
   `registerTemplate`. Nothing changes for a template that sets nothing: there is one level today, and every level stays served until it is deprecated. In development the first render of a template logs one console.error when the props its level hands the view and footer lack a member the level promises or hold one of the wrong kind; `definePanel` and the header button items a view lists get the same treatment, and a setting or header button member newer than the template's level is reported the same way (nothing is newer with one level).
 
+### Fixed
+
+- After a reload, a panel made by `addPanel` or New view could take the key of a restored panel (`web~4`), because the counter behind default ids restarts at launch. `addPanel` then returned the restored panel and two rows could share one saved entry and one lock. A restore now moves the counter past every restored key. A workspace with its own `newId` is unchanged.
+
 ## 0.2.0-rc.3
 
 ### Breaking

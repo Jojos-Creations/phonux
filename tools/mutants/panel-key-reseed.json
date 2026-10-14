@@ -1,0 +1,13 @@
+{
+  "tests": ["test/restored-key-reseed.test.ts"],
+  "mutants": [
+    { "name": "restore-does-not-seed", "file": "panels/useWorkspacePersistence.ts", "find": "seedEngineIdsPast(result.entries.map((p) => p.key));", "replace": "void result;", "expectRed": ["new anonymous panels after a restore", "hand-wired hook restores"] },
+    { "name": "seeds-from-engine-ids-not-keys", "file": "panels/useWorkspacePersistence.ts", "find": "result.entries.map((p) => p.key)", "replace": "result.entries.map((p) => p.id)", "expectRed": ["new anonymous panels after a restore", "hand-wired hook restores"] },
+    { "name": "seed-lands-on-the-key", "file": "workspaceCore.ts", "find": "Math.max(nextEngineIdValue, n + 1)", "replace": "Math.max(nextEngineIdValue, n)", "expectRed": ["new anonymous panels after a restore", "moves the counter past"] },
+    { "name": "seed-can-lower-the-counter", "file": "workspaceCore.ts", "find": "nextEngineIdValue = Math.max(nextEngineIdValue, n + 1)", "replace": "nextEngineIdValue = n + 1", "expectRed": ["moves the counter past"] },
+    { "name": "reads-after-the-last-tilde", "file": "workspaceCore.ts", "find": "key?.indexOf('~')", "replace": "key?.lastIndexOf('~')", "expectRed": ["not a plain count"] },
+    { "name": "accepts-a-leading-zero", "file": "workspaceCore.ts", "find": "/^[1-9][0-9]*$/", "replace": "/^[0-9]+$/", "expectRed": ["not a plain count"] },
+    { "name": "accepts-any-number-text", "file": "workspaceCore.ts", "find": "if (!/^[1-9][0-9]*$/.test(suffix)) continue;", "replace": "if (suffix === '') continue;", "expectRed": ["not a plain count"] },
+    { "name": "accepts-an-unsafe-integer", "file": "workspaceCore.ts", "find": "if (Number.isSafeInteger(n + 1)) nextEngineIdValue", "replace": "if (n >= 0) nextEngineIdValue", "expectRed": ["not a plain count"] }
+  ]
+}

@@ -1,0 +1,54 @@
+{
+  "tests": [
+    "test/phone-fit-top-band.test.ts"
+  ],
+  "mutants": [
+    {
+      "name": "the fit ignores the column band",
+      "file": "autoMount.tsx",
+      "find": "usePhoneFit(ref, containerWidth, preferred, tuning, topPadding)",
+      "replace": "usePhoneFit(ref, containerWidth, preferred, tuning, (values.topInset ?? 0) + tuning.rowGap)",
+      "expectRed": [
+        "inside a column cell the band is in the fit's top padding: at 860 px the budget is 736 and 5 slots draw, where a fit that ignored the band (812) would draw 4",
+        "inside a column cell the topInset is in the fit's top padding: at 900 px 0 draws 4 slots and 32 draws 5"
+      ]
+    },
+    {
+      "name": "the fit loses the topInset",
+      "file": "autoMount.tsx",
+      "find": "usePhoneFit(ref, containerWidth, preferred, tuning, topPadding)",
+      "replace": "usePhoneFit(ref, containerWidth, preferred, tuning, columnTop + tuning.rowGap)",
+      "expectRed": [
+        "inside a column cell the topInset is in the fit's top padding: at 900 px 0 draws 4 slots and 32 draws 5"
+      ]
+    },
+    {
+      "name": "the fit gets topInset only",
+      "file": "autoMount.tsx",
+      "find": "usePhoneFit(ref, containerWidth, preferred, tuning, topPadding)",
+      "replace": "usePhoneFit(ref, containerWidth, preferred, tuning, values.topInset)",
+      "expectRed": [
+        "inside a column cell the band is in the fit's top padding: at 860 px the budget is 736 and 5 slots draw, where a fit that ignored the band (812) would draw 4",
+        "inside a column cell the topInset is in the fit's top padding: at 900 px 0 draws 4 slots and 32 draws 5"
+      ]
+    },
+    {
+      "name": "a bare Panel reads a fixed 390 x 700",
+      "file": "Panel.tsx",
+      "find": "const phoneSize = usePhoneSize();",
+      "replace": "const phoneSize = { width: 390, height: 700 };",
+      "expectRed": [
+        "a bare Panel outside a row slot is drawn at the width the Workspace published, not 390 or the device size 300"
+      ]
+    },
+    {
+      "name": "a bare PanelFrame reads a fixed 390 x 700",
+      "file": "PanelFrame.tsx",
+      "find": "const deviceSize = usePhoneSize();",
+      "replace": "const deviceSize = { width: 390, height: 700 };",
+      "expectRed": [
+        "a bare PanelFrame outside a row slot is drawn at the size the Workspace published, width and height"
+      ]
+    }
+  ]
+}
