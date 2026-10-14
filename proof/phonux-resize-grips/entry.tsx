@@ -1,9 +1,22 @@
 // The page exposes the workspace as window.__ws.
 import { createRoot } from 'react-dom/client';
-import { createWorkspace, definePanel } from 'LIB/index.js';
+import { createWorkspace, definePanel, Panel, PanelFrame, PanelResizeGrips, PanelSizeBox } from 'LIB/index.js';
 import { AutoRoot } from 'LIB/autoMount.js';
 
-const bare = definePanel({ id: 'bare', settings: { title: 'Bare', maxSlots: 4 }, view: () => <div data-body="bare">bare</div> });
+// The view draws its own Panel with the grips as its overlay: the default frame no longer draws them.
+const bare = definePanel({
+  id: 'bare',
+  settings: { title: 'Bare', maxSlots: 4 },
+  view: () => (
+    <PanelSizeBox>
+      <Panel title="Bare" overlay={<PanelResizeGrips />} sx={{ height: '100%' }}>
+        <PanelFrame>
+          <div data-body="bare">bare</div>
+        </PanelFrame>
+      </Panel>
+    </PanelSizeBox>
+  ),
+});
 const ws = createWorkspace({
   mount: false,
   root: definePanel({ id: 'root', settings: { title: 'History' }, view: () => <div /> }),
