@@ -1728,6 +1728,21 @@ a `CaptureRegistryProvider` and the app's own contexts go in it, a hook in it ma
 anything drawn beside the row is a sibling of `children`. It is read once at creation, so it has one identity for the workspace's
 life and updates re-render it but never remount it. The order of an app's own hooks inside it is the app's.
 
+Providers go here, not in a mounting wrapper: `wrap` is rendered around the row inside the host, so StrictMode, `MotionConfig` and
+the app's contexts placed in it reach every panel view, footer and the shell. What it cannot reach is the mount's own hooks
+(`usePhoneFit`, `useProvidePanels` and the live-store subscription run above it), so StrictMode's double render there is not
+exercised, and the theme is the `theme` option, never a `ThemeProvider` in `wrap`. A workspace in a column gets the column's `wrap`
+(the column passes it down) and renders it once per workspace.
+
+```tsx
+const wrap = ({ children }: WorkspaceWrapProps) => (
+  <React.StrictMode>
+    <MotionConfig reducedMotion="user">{children}</MotionConfig>
+  </React.StrictMode>
+);
+createWorkspace({ templates, theme: buildTheme, wrap });
+```
+
 **`update`.** An app that builds its objects with fresh closures every render may call it from an effect on every render. The
 latest values are always stored, so a closure an app rebuilt is the one a later render hands on, but readers are told only when the
 data of a member changed: functions compare equal whatever their identity, a function against none does not, and objects and arrays
