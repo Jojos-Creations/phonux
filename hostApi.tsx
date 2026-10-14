@@ -184,20 +184,26 @@ export interface PanelsAPI {
    * `collapsible`/`locked` key: `permanent` (CreatePanelOptions) is the only door to a permanent column, and
    * `locked` is never settable at all. A panel whose `overflow` setting is 'park' parks the live parkable panel
    * farthest from it at capacity; any other panel scrolls the row instead of parking anything.
+   * @deprecated Use `useWorkspace().panels.addPanel(template)`. Still works, with one development warning; removed in a later release.
    */
   create(): void;
   /**
    * Two overloads, not one `create(options?: CreatePanelOptions)` -- see DESIGN.md for why a single
    * optional-arg signature would collide with a bare `onClick={panels.create}` reference.
+   * @deprecated Use `useWorkspace().panels.addPanel(template)`. Still works, with one development warning; removed in a later release.
    */
   create(options: CreatePanelOptions): void;
-  /** Make a panel live in place, without reordering the row. When its `overflow` is 'park', it may park the live parkable panel farthest from it. */
+  /**
+   * Make a panel live in place, without reordering the row. When its `overflow` is 'park', it may park the live parkable panel farthest from it.
+   * @deprecated Use `useWorkspace().panels.get(key)?.show()`. Still works, with one development warning; removed in a later release.
+   */
   activate(id: string): void;
   /**
    * Moves `id` one row-slot toward `direction`, swapping past whichever OTHER currently-shown panel sits there,
    * History and any permanent column included -- the row's drag-to-reorder gesture calls this underneath. Every
    * panel is then re-anchored to History where it stands. No-op for an id that is unknown, parked, itself a
    * permanent column (e.g. History), or already at that edge of the row.
+   * @deprecated Use `useWorkspace().panels.get(key)?.move(count)`. Still works, with one development warning; removed in a later release.
    */
   move(id: string, direction: 'left' | 'right'): void;
   /**
@@ -207,15 +213,19 @@ export interface PanelsAPI {
    * unless the earlier of them already fill the row. No-op for an unknown id, a permanent column (e.g. History), a panel that is not
    * resizable or a panel already at that count. See DESIGN.md for the slots.
    * Optional so a host that does not implement slots still satisfies `PanelsAPI`; the library's own provider (`useProvidePanels`) always implements it.
+   * @deprecated Use `useWorkspace().panels.get(key)?.setSlots(slots)`. Still works, with one development warning; removed in a later release.
    */
   setSlots?(id: string, slots: number): void;
   /**
    * Re-places `id`, live or parked, by `anchor` (defaults as for CreatePanelOptions.anchor) and reorders the row
    * to match. On its own it never parks or reveals: which panels fit depends on their widths, never their order.
    * No-op for an unknown id or a permanent column (e.g. History). See DESIGN.md for the anchor model.
+   * @deprecated Use `useWorkspace().panels.get(key)?.place(anchor)`. Still works, with one development warning; removed in a later release.
    */
   reanchor(id: string, anchor: { panel?: string; position: 'left' | 'right'; priority?: number }): void;
-  /** Close a view completely, live or parked: it leaves the row and History at once, a closed event is appended to the persisted log (HistoryAPI), and it can be undone for 10 s (recentlyClosed, undoClose). Also accepts History's own fixed-panel id (HistoryAPI.close is the same mechanism, offered per-panel so a view need not know the id) -- an id not in `panelList` and not History's id, or a LOCKED fixed panel's id, does nothing. */
+  /** Close a view completely, live or parked: it leaves the row and History at once, a closed event is appended to the persisted log (HistoryAPI), and it can be undone for 10 s (recentlyClosed, undoClose). Also accepts History's own fixed-panel id (HistoryAPI.close is the same mechanism, offered per-panel so a view need not know the id) -- an id not in `panelList` and not History's id, or a LOCKED fixed panel's id, does nothing.
+   * @deprecated Use `useWorkspace().panels.get(key)?.close()`. Still works, with one development warning; removed in a later release.
+   */
   close(id: string): void;
   /** The views closed within the current undo window, oldest first; non-null exactly while it is open (10 s after the LAST close). Drives the "Closed N pages / Undo" toast. */
   readonly recentlyClosed: readonly PanelSummary[] | null;

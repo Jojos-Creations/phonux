@@ -16,6 +16,7 @@
 
 ### Fixed
 
+- A panel added with `addPanel` and no title of its own now gets `labels.panelTitle(id)`, the same default the Host-bag `create` gave, whether it is added before or after the workspace mounts.
 - A trackpad swipe on a stepping row is one step. Its deltas ramp up before they fade, and every rising event after the 60 ms
   lock used to step again, so one swipe ran through several stops and a wide panel skipped its 1, 2, 3 slot sizes. After a step
   an event steps again only on a reversal, or when it is 1.5 times, and at least 4 units above, the smallest delta seen since the
@@ -48,10 +49,14 @@
 - `GAP` (16 whatever the gap is tuned to), `panelWidthOf`, `reorderStepsForOffset`, `computeRowLayout`, `computeRowNumbers` and `DRAG_CLOSE` carry `@deprecated`, each naming what to use
   (`usePanelTuning().rowGap`, `LIBRARY_TUNING_DEFAULTS`, `usePanelReorderSteps()`, `usePanelDragProps()` and `useProvidePanels(...).rowNumbers`). They keep working. `PANEL_TRANSITION` stays.
 - The row's counter id as a panel id. `PanelsAPI` verbs, `useActivePanel`'s setter and `tuning.initialScroll.panel` still accept the counter id a view held before keys were the only id, with one development warning per id naming the key; it stops resolving in 0.3.0.
+- `useHost().panels.create`, `activate`, `move`, `setSlots`, `reanchor` and `close`. They keep working, with one development warning per verb naming the replacement on `useWorkspace()` (a panel's handle, or `addPanel` for create); they are removed in a later release. `panelList`, `maxFitPanels`, `recentlyClosed`, `undoClose` and `clearAll` stay. A view is now given only those `PanelsAPI` members as `useHost().panels`, not the row's own (`entries`, `rowNumbers`, `tuning` and the rest).
 
 ### Added
 
 - `PanelResizeGrips`: a grip on each side of a resizable panel, drawn by the default frame, so an app no longer writes its own grabber. The width follows the pointer and the release settles on the nearest slot (a snap under Reduce Motion); the left grip keeps the right edge still; a press that travels under 4 px is a click and resizes nothing, and the click a browser fires after a drag stops at the grip; ArrowLeft and ArrowRight step one slot; each grip is a 24 px `separator` with `aria-valuenow`, `aria-valuemin`, `aria-valuemax` and `aria-valuetext`. It draws nothing when `resizable` is false or fewer than two slots fit. New `PhonuxLabels` keys `resizeGrip` and `resizeGripValue`, and `CHROME_PARTS.resize`. A view that draws its own `Panel` puts `<PanelResizeGrips />` in `overlay`.
+- `configureTuning` is accepted before the workspace is attached or loaded (only a disposed workspace refuses), and `column.configureTuning(patch)` applies one tuning change to every workspace in the column, including ones added or restored later.
+- `useWorkspace()` gives a view the manager of its workspace and `addPanel`, so a view such as History opens, closes, shows and creates other panels by key through the handles `panels.get(key)` returns. The type is `ViewWorkspace`: the panel manager plus `addPanel`, without `dispose`, `update` or `rename`, and the same object on every render. It is `undefined` outside a row that has a workspace. `useWorkspaceManager()` stays read-only.
+- `AnyPanelTemplate`: `WorkspaceOptions.templates`, `root` and `registerTemplate` take a template of any params, so a template made with `definePanel` for typed params needs no cast. `addPanel` still checks `params`.
 - `usePanelDragProps()` returns the `onClose` and `reorder` of the panel it is called in for `DragToClose`, both going through the panel's handle. The default frame uses it.
 - A column of workspaces, one above the other. `createWorkspaceColumn(options)` renders itself like `createWorkspace`, and
   `column.addWorkspace(options)` is the one call that creates a workspace, adds it and returns its `WorkspaceHandle`. ArrowUp and

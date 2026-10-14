@@ -81,6 +81,7 @@ const VALUE_EXPORTS = [
   'MAX_WORKSPACE_NAME',
   'usePanelStates',
   'usePanelState',
+  'useWorkspace',
   'useWorkspaceManager',
   'useActivePanel',
   'usePanelActive',
