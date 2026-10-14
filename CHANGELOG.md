@@ -17,7 +17,7 @@
   reads "Create new workspace" where there is none. Each workspace has a name input above its panels. A workspace now has an `id`
   that never changes, a `name` (default `Workspace <n>`) and `rename(name)`; `WorkspaceOptions` takes `id`, `name` and `onRename`.
   `ColumnStorage` keeps the list, the names and the current workspace, and the panels of each workspace under its id. New
-  `PhonuxLabels` keys: `newWorkspace`, `goToWorkspace` and `workspaceName`. `WorkspaceColumn` draws a column for an app that mounts itself.
+  `PhonuxLabels` keys: `newWorkspace`, `goToWorkspace` and `workspaceName`. `WorkspaceColumn` draws a column for an app that mounts itself. `addWorkspace` takes `id`, `name` and `index` only: the column has one content, and `ColumnStorage.workspace(id)` is the one door to a workspace's panels.
 - `tuning.phoneFit` (`'off'` by default, or `'fit'`) with `tuning.phoneFitMin` (0.82) and `tuning.phoneFitMax` (1.13): the default mount scales the
   phone (width and height together, whole pixels) so whole slots fill the window, within that band of the preferred size, and never cuts a panel at rest.
   `usePhoneSize()` returns the size a panel is drawn at; `useHost().device.size` stays the preferred size. Off, nothing changes.
