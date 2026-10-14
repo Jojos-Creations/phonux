@@ -69,6 +69,7 @@
 
 ### Added
 
+- `PhonuxLabels.pinFailed` and `unpinFailed`: the text a host announces when a pin or unpin request is refused. Defaults `Could not pin this panel` and `Could not unpin this panel`.
 - A saved panel now carries an optional `uid` (`WorkspacePanelState.uid`, `u_` and 32 hex characters), made once when the
   panel is created and kept through save, restore, a copy of the file to another device and `undoClose`, so a later export,
   import or sync can match panels. It is not the panel's key or id, and nothing a host holds changes. File version stays 1.

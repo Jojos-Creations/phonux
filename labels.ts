@@ -16,6 +16,10 @@ export interface PhonuxLabels {
   pin: string;
   /** The name of an unpin button or action. Default `Unpin`. */
   unpin: string;
+  /** The text a host announces when a pin request is refused. Default `Could not pin this panel`. */
+  pinFailed: string;
+  /** The text a host announces when an unpin request is refused. Default `Could not unpin this panel`. */
+  unpinFailed: string;
   /** The name of a lock button or action, which makes a panel not closable. Default `Lock`. */
   lock: string;
   /** The name of an unlock button or action. Default `Unlock`. */
@@ -54,6 +58,8 @@ export const DEFAULT_LABELS: Readonly<PhonuxLabels> = {
   historyTitle: 'History',
   pin: 'Pin',
   unpin: 'Unpin',
+  pinFailed: 'Could not pin this panel',
+  unpinFailed: 'Could not unpin this panel',
   lock: 'Lock',
   unlock: 'Unlock',
   newWorkspace: 'Create new workspace',
