@@ -137,7 +137,7 @@ those parts out for a panel nobody is using, along `fadeEase` (see DESIGN.md, "P
 A stepping row shows the neighbour at the window edge cut off, at its full size. A resize grabber calls the setter from `usePanelResizing()` so no other
 panel changes size under it (see DESIGN.md, "Whole panels only"). The setter's third item, `setDrawnWidth(px, pin?)`, draws that
 panel `px` wide at once, so the grabber follows the pointer frame by frame (`pin: 'end'` keeps the right edge still for a grabber on the left);
-end a drag with `setSlots(nearest)`, `setDrawnWidth(null)` and `setResizing(false)`, in that order. The default frame already draws a grip on each side of a resizable panel (`PanelResizeGrips`); a view that draws its own `Panel` puts `<PanelResizeGrips />` in its `overlay`.
+end a drag with `setSlots(nearest)`, `setDrawnWidth(null)` and `setResizing(false)`, in that order.
 
 ## Testing a view
 
