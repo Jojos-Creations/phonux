@@ -51,13 +51,28 @@ async function mountTwoAtZero(): Promise<WorkspaceHandle> {
   return ws;
 }
 
-test('panels present at mount start no pending slide when the container is first measured', async () => {
+test('a slot the measuring commit moves is set at once, and no pending slide starts for it', async () => {
   await mountTwoAtZero();
-  const started = await recordStarts(async () => {
-    await resize(1400);
-    await advanceFrames(400);
-  });
-  assert.deepEqual(started.filter((el) => el.hasAttribute('data-row-slot')), [], 'the fitted size lands without a slide');
+  const moved = slotOf('probe-b');
+  const before = moved.dataset.rowSlot;
+  const sets: HTMLElement[] = [];
+  const set = slotDriver.set;
+  slotDriver.set = (el, values) => {
+    sets.push(el);
+    set(el, values);
+  };
+  let started: HTMLElement[] = [];
+  try {
+    started = await recordStarts(async () => {
+      await resize(1400);
+      await advanceFrames(400);
+    });
+  } finally {
+    slotDriver.set = set;
+  }
+  assert.notEqual(moved.dataset.rowSlot, before, 'the measuring commit moves the second slot');
+  assert.ok(sets.includes(moved), 'the moved slot is set at once in that commit');
+  assert.deepEqual(started.filter((el) => el.hasAttribute('data-row-slot')), [], 'no pending slide starts for it');
 });
 
 test('a move after the measurement still starts its slide', async () => {

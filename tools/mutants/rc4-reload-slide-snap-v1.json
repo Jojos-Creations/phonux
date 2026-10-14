@@ -1,15 +1,24 @@
 {
   "tests": [
-    "test/phone-fit.test.ts"
+    "test/landing-snap.test.ts"
   ],
   "mutants": [
     {
-      "name": "the row drops the landing flag from the slots' tracking",
+      "name": "the slots' move snap drops the landing flag",
+      "file": "PanelRow.tsx",
+      "find": "tracking={slotTracking}",
+      "replace": "tracking={tracking}",
+      "expectRed": [
+        "a slot the measuring commit moves is set at once"
+      ]
+    },
+    {
+      "name": "the row's tracking drops the landing OR",
       "file": "PanelRow.tsx",
       "find": "const slotTracking = tracking || landing;",
       "replace": "const slotTracking = tracking;",
       "expectRed": [
-        "the fitted size landed by the measurement"
+        "a slot the measuring commit moves is set at once"
       ]
     },
     {
@@ -18,7 +27,7 @@
       "find": "React.useState(containerWidth === 0);",
       "replace": "React.useState(false);",
       "expectRed": [
-        "the fitted size landed by the measurement"
+        "a slot the measuring commit moves is set at once"
       ]
     }
   ]
