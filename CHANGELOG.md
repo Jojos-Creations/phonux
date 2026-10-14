@@ -14,6 +14,13 @@
   A saved file from an older library still loads: a top-level `formFactor` on an entry and `overrides.formFactor` read as that tier's slot count (`slots` wins when both are
   there). A file this version writes holds `slots` only for a panel wider than one slot and never a `formFactor`. `panelWidthOf` and the row price an entry with no `slots` as one phone width.
 
+### Fixed
+
+- A trackpad swipe on a stepping row is one step. Its deltas ramp up before they fade, and every rising event after the 60 ms
+  lock used to step again, so one swipe ran through several stops and a wide panel skipped its 1, 2, 3 slot sizes. After a step
+  an event steps again only on a reversal, or when it is 1.5 times, and at least 4 units above, the smallest delta seen since the
+  deltas fell (a new swipe in the tail). A plateau of equal deltas no longer steps repeatedly: a held mouse wheel is one step per gesture.
+
 ### Changed
 
 - A view may lock its own panel: `handle.configure({ closable: false })` from the view makes the panel not closable at once, and `null` removes the lock. A view still cannot ask for `closable: true`, and the root still answers `settings-conflict` to it. The lock is saved as before. `ViewPatch` gains `closable`.
@@ -45,6 +52,9 @@
 ### Fixed
 
 - After a reload, a panel made by `addPanel` or New view could take the key of a restored panel (`web~4`), because the counter behind default ids restarts at launch. `addPanel` then returned the restored panel and two rows could share one saved entry and one lock. A restore now moves the counter past every restored key. A workspace with its own `newId` is unchanged.
+- An arrow key a control already used no longer also steps the row. A resize grabber that narrowed a panel with ArrowLeft or ArrowRight
+  stepped the row the same way, so the leftmost panel left the window on each press (and, under Hide or Off, the resized panel could be faded).
+  The row now skips a keydown whose default was prevented, so a control that handles an arrow key calls `preventDefault()` on it; an arrow nothing handles steps as before.
 
 ## 0.2.0-rc.3
 

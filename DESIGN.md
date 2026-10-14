@@ -411,11 +411,14 @@ that is not in the row is kept for two commits and then dropped with the note `s
 a drag holds the claim is dropped with `scroll-dropped-during-drag`. A panel created hidden, a restore, a first paint
 and an automatic return record nothing.
 
-With `rowGesture` `step` a sideways wheel, Shift+wheel or arrow key asks for a step. A wheel step starts a lock of `tuning.gestureLockMs` (60 ms; later events do not extend it); once it is over the next wheel event steps again unless it is decaying (smaller than the one before it, in the same direction), so a held wheel or a swipe that keeps its speed steps panel after panel, and a trackpad flick whose deltas fade is one step. `tuning.gestureQuietMs` (150 ms) without a wheel event starts a fresh gesture. On a scrolling row whose strip is
+With `rowGesture` `step` a sideways wheel, Shift+wheel or arrow key asks for a step. A wheel step starts a lock of `tuning.gestureLockMs` (60 ms; later events do not extend it); a swipe is one step. Per gesture the hook keeps the previous magnitude, its sign and a trough (the smallest magnitude seen since the last step, once the deltas have fallen; null until then). An event steps when the lock is over and it is the first of a gesture (nothing before it in `tuning.gestureQuietMs`), or it reverses direction (which also arms the next event, even one that arrives inside the lock), or the trough is set and the event is at least 1.5 times the trough and at least 4 delta units above it, a new swipe starting in the tail (the floor keeps a tail rounded to whole pixels, 1, 1, 2, 1, from stepping). Every step clears the trough. A ramp up, a plateau of equal deltas and jitter in a tail (14, 12, 13, 11) never step again, so a held mouse wheel is one step per gesture and each notch after a quiet gap is a fresh one; where a plateau and a mouse wheel cannot be told apart the swipe wins. The rule reads ratios only, so Firefox's whole-line deltas (`deltaMode` 1) take the same path. `tuning.gestureQuietMs` (150 ms) without a wheel event starts a fresh gesture. On a scrolling row whose strip is
 wider than its window the step goes through `gestureTarget`: it shows the nearest hidden panel in the direction when
 its `revealOnScroll` allows and no live panel lies between the window's edge and its slot, and otherwise scrolls to
 the next stop (the next panel start in a row without stops), from the in-flight glide's target. A row with nothing to scroll toward keeps the 0.1.0 swap
 (`scrollRow`), which swaps in no panel whose `revealOnScroll` is 'never'. The gesture does nothing while a claim is held.
+
+The row listens for the arrow keys on the window, so a control that uses an arrow key itself (a resize grabber, the header buttons'
+roving focus) must call `preventDefault()` on it: the row skips a keydown whose default was prevented, and a key nothing handles steps the row.
 
 `tuning.initialScroll` runs once per mount, in a layout effect gated on the restore having settled, on a measured row
 with an entry, with no animation, and not at all when a wheel, a pointer-down or a glide got there first.
