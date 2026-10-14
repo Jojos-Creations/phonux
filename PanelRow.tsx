@@ -9,6 +9,7 @@ import { AnimatePresence } from 'motion/react';
 import Box from '@mui/material/Box';
 import { AutoMountContext } from './autoMountContext.js';
 import { useHost } from './hostApi.js';
+import { resolveLabels } from './labels.js';
 import { usePhoneSize } from './phoneFit.js';
 import { isPresent, summarisePanel, type NeighborWidths, type PanelRowEntry } from './panelRowEntry.js';
 import { anchorTargetOf, resolveEnterDirection, type EnterDirection } from './panelRowOrder.js';
@@ -165,7 +166,8 @@ export function PanelRow({
   /** The workspace this row renders: each template view receives its own handle and the reader of every panel, and the row's tuning is the workspace's unless `tuning` is given. */
   workspace: WorkspaceHandle;
 }): React.ReactElement {
-  const { panels } = useHost();
+  const { panels, labels: givenLabels } = useHost();
+  const labels = resolveLabels(givenLabels);
   const phoneSize = usePhoneSize();
   const inherited = React.useContext(WorkspaceTuningContext);
   const given = tuning === undefined ? undefined : resolveWorkspaceTuning(tuning);
@@ -388,6 +390,7 @@ export function PanelRow({
             >
               <PanelRowSlot
                 panelId={p.id}
+                {...(kept ? {} : { label: labels.panelPosition(p.title || labels.untitledPanel, presentIndex + 1, present.length) })}
                 leftOffset={rest.leftOffset + (shiftById.get(p.id) ?? 0)}
                 width={rest.width}
                 phoneHeight={rowHeight}
