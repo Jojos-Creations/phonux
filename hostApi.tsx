@@ -158,9 +158,8 @@ export interface CreatePanelOptions {
   /**
    * Makes the new entry a permanent column: `collapsible:false` (never parked by a row gesture or capacity,
    * never a drag source, and counted in the capacity floor) and `listed:false`, forced regardless of
-   * any `listed` also passed -- a permanent column must supply its own close control (History's own
-   * precedent), never the framework's History-row trash. `locked` stays false always: closing it through its
-   * own control still works. Default false.
+   * any `listed` also passed, so a permanent column supplies its own close control rather than the History row's
+   * trash. `locked` stays false always: closing it through its own control still works. Default false.
    */
   permanent?: boolean;
   /** The new panel's tier (see `setFormFactor`). Ignored with `permanent`: a permanent column is always 'phone'. Default 'phone'. */
