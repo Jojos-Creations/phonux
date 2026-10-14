@@ -1,0 +1,33 @@
+{
+  "tests": ["test/any-panel-template.test.ts"],
+  "mutants": [
+    {
+      "name": "registerTemplate takes only JsonValue params",
+      "file": "workspaceCore.ts",
+      "find": "registerTemplate(t: AnyPanelTemplate): () => void;",
+      "replace": "registerTemplate(t: PanelTemplate): () => void;",
+      "expectRed": ["typed templates compile"]
+    },
+    {
+      "name": "WorkspaceOptions.templates takes only JsonValue params",
+      "file": "workspaceCore.ts",
+      "find": "templates?: readonly AnyPanelTemplate[];",
+      "replace": "templates?: readonly PanelTemplate[];",
+      "expectRed": ["typed templates compile"]
+    },
+    {
+      "name": "the hook's templates take only JsonValue params",
+      "file": "panels/useProvidePanels.ts",
+      "find": "templates?: readonly AnyPanelTemplate[];",
+      "replace": "templates?: readonly PanelTemplate[];",
+      "expectRed": ["typed templates compile"]
+    },
+    {
+      "name": "the alias is the JsonValue template again",
+      "file": "panelTemplate.ts",
+      "find": "export type AnyPanelTemplate = PanelTemplate<any>;",
+      "replace": "export type AnyPanelTemplate = PanelTemplate;",
+      "expectRed": ["typed templates compile"]
+    }
+  ]
+}

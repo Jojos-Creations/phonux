@@ -42,6 +42,7 @@
 
 - `useWorkspace()` gives a view the manager of its workspace and `addPanel`, so a view such as History opens, closes, shows and creates other panels by key through the handles `panels.get(key)` returns. The type is `ViewWorkspace`: the panel manager plus `addPanel`, without `dispose`, `update` or `rename`, and the same object on every render. It is `undefined` outside a row that has a workspace. `useWorkspaceManager()` stays read-only.
 
+- `AnyPanelTemplate`: `WorkspaceOptions.templates`, `root` and `registerTemplate` take a template of any params, so a template made with `definePanel` for typed params needs no cast. `addPanel` still checks `params`.
 - `usePanelDragProps()` returns the `onClose` and `reorder` of the panel it is called in for `DragToClose`, both going through the panel's handle. The default frame uses it.
 - A column of workspaces, one above the other. `createWorkspaceColumn(options)` renders itself like `createWorkspace`, and
   `column.addWorkspace(options)` is the one call that creates a workspace, adds it and returns its `WorkspaceHandle`. ArrowUp and
