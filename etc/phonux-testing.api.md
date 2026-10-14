@@ -232,6 +232,7 @@ export type WorkspacePanelState = {
     slots?: number;
     permanent?: boolean;
     layer?: 'base' | 'raised';
+    uid?: string;
     key?: string;
     instance?: {
         [key: string]: JsonValue;
