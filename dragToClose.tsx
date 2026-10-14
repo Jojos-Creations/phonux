@@ -6,7 +6,7 @@
 
 import * as React from 'react';
 import { DndContext, PointerSensor, useDndMonitor, useDraggable, useSensor, useSensors } from '@dnd-kit/core';
-import { animate, cancelFrame, frame, motion, useIsPresent, useMotionValue, useReducedMotion, useTransform, type MotionValue } from 'motion/react';
+import { animate, cancelFrame, frame, motion, useIsPresent, useMotionValue, useReducedMotion, useReducedMotionConfig, useTransform, type MotionValue } from 'motion/react';
 import { AnnounceContext } from './announce.js';
 import { useOptionalHost } from './hostApi.js';
 import { resolveLabels } from './labels.js';
@@ -403,7 +403,10 @@ function DragToCloseBox({
   const scrollX = useMotionValue(0);
   const scrollTranslate = useTransform(scrollX, (distance) => (distance === 0 ? 'none' : `${distance}px 0px`));
   const box = React.useRef<HTMLDivElement>(null);
-  const reduceMotion = useReducedMotion();
+  // The OS preference and the theme's MotionConfig both count: a MotionConfig 'always' must snap the drag box too.
+  const systemReduced = useReducedMotion();
+  const configReduced = useReducedMotionConfig();
+  const reduceMotion = systemReduced === true || configReduced === true;
   const running = React.useRef<{ stop: () => void } | null>(null);
   const locked = React.useRef<Array<[HTMLElement, string]>>([]);
   const slot = React.useContext(PanelSlotContext);
