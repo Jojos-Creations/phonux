@@ -3,10 +3,11 @@ import { test, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
 import './support/jsdom-globals.js';
 import * as React from 'react';
-import { DragToClose, registerView, useHost, usePanelDragging, usePanelReorderSteps } from '../index.js';
+import { DragToClose, useHost, usePanelDragging, usePanelReorderSteps } from '../index.js';
 import { advanceFrames, cleanup } from './support/mount-harness.js';
 import { drag, release } from './support/drag-gesture.js';
 import { mountRow, panelsOf } from './support/scroll-row.js';
+import { registerTestView } from './support/test-views.js';
 
 afterEach(() => cleanup());
 
@@ -19,7 +20,7 @@ function View({ id }: { id: string }): React.ReactElement {
     children: (handle) => React.createElement('div', { 'data-grab': id, 'data-flag': String(dragging), onPointerDown: handle.onPointerDown }, id),
   });
 }
-registerView('scroll-row-view', ({ panel }) => React.createElement(View, { id: panel.id }));
+registerTestView('scroll-row-view', ({ panel }) => React.createElement(View, { id: panel.id }));
 
 const flag = (container: HTMLElement, id: string): string | null => container.querySelector(`[data-grab="${id}"]`)!.getAttribute('data-flag');
 

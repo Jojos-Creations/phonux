@@ -9,9 +9,13 @@ import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { HostProvider, type Host } from '../../hostApi.js';
 import { createFakeHost } from '../../fakeHost.js';
-import type { PanelsInput } from '../../index.js';
+import type { JsonValue, PanelSettings, PanelsInput, WorkspaceHandle } from '../../index.js';
+import { seededWorkspace, type SeedOptions } from './seed-workspace.js';
+import { bindingOf } from '../../workspaceCore.js';
 import { usePanelManager, type UsePanelManagerResult } from '../../panels/usePanelManager.js';
 import type { PanelWindow } from '../../panelWindow.js';
+
+export { StaticRow, plainTemplate, seededWorkspace, type SeedOptions } from './seed-workspace.js';
 
 export interface Mounted {
   /** The element the tree is rendered into; it is a child of document.body until cleanup(). */
@@ -87,17 +91,40 @@ export async function advanceFrames(ms: number): Promise<void> {
   }
 }
 
-/** The input a test gives useProvidePanels; `over` replaces any default. */
-export function panelsInput(over: Partial<PanelsInput> = {}): PanelsInput {
+/** The input a test gives useProvidePanels; `over` replaces any default. The row's rules come from `workspace`. */
+export function panelsInput(over: Partial<PanelsInput> & { workspace: WorkspaceHandle }): PanelsInput {
   return {
-    rootId: 'root',
     phoneWidth: 390,
     containerWidth: 0,
     overflowContainerRef: { current: null },
     ...over,
-    // Free, so the literal scroll targets these tests pin stay panel-start numbers; the whole-panel stops have their own tests.
-    tuning: { rowGesture: 'free', ...over.tuning },
   };
+}
+
+/** What a probe over hand-built entries is given: the hook's own inputs and the workspace's. */
+export type SeededOver = Partial<Omit<PanelsInput, 'workspace'>> & SeedOptions & { initialEntries: readonly PanelWindow[]; declared?: readonly Declared[] };
+
+type Declared = { id: string; templateId: string; settings?: PanelSettings; params?: JsonValue; url?: string };
+
+/**
+ * `panelsInput` for a row that starts from `initialEntries`, called in the probe's render: the workspace is made once
+ * for the probe's life and the seed options go to `createWorkspace`.
+ */
+export function useSeededInput(over: SeededOver): PanelsInput {
+  const { initialEntries, declared, rootId, tuning, workspaceDefaults, templates, storage, ...hook } = over;
+  const [workspace] = React.useState(() => {
+    const ws = seededWorkspace(initialEntries, { ...(rootId !== undefined ? { rootId } : {}), ...(tuning !== undefined ? { tuning } : {}), ...(workspaceDefaults !== undefined ? { workspaceDefaults } : {}), ...(templates !== undefined ? { templates } : {}), ...(storage !== undefined ? { storage } : {}) });
+    for (const d of declared ?? []) ws.addPanel(d.templateId, { ...(d.id === d.templateId && !bindingOf(ws).template(d.templateId)?.settings?.multiple ? {} : { id: d.id }), ...(d.settings !== undefined ? { settings: d.settings } : {}), ...(d.params !== undefined ? { params: d.params } : {}), ...(d.url !== undefined ? { url: d.url } : {}) });
+    return ws;
+  });
+  // The workspace is made once, so a tuning the probe changes between renders reaches it as a session change, before the next paint.
+  const applied = React.useRef(tuning);
+  React.useLayoutEffect(() => {
+    if (tuning === undefined || applied.current === tuning) return;
+    applied.current = tuning;
+    workspace.panels.configureTuning(tuning);
+  });
+  return panelsInput({ workspace, ...hook });
 }
 
 /** usePanelManager with the arguments a test cares about. */

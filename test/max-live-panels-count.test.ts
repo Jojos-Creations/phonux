@@ -11,7 +11,7 @@ import * as React from 'react';
 import { createWorkspace, resolvePanelSettings, useProvidePanels } from '../index.js';
 import type { PanelWindow, ProvidedPanels, WorkspaceTuning } from '../index.js';
 import { differential, differentialsCovered } from './support/differential.js';
-import { cleanup, mount, panelsInput } from './support/mount-harness.js';
+import { cleanup, mount, useSeededInput } from './support/mount-harness.js';
 import { capRig, liveRightOfRoot, rowOf } from './support/cap-rig.js';
 import { markerTemplate } from './support/workspace-row.js';
 
@@ -111,7 +111,7 @@ const historyEntry = (): PanelWindow => entry('root', { url: '', title: 'History
 function handBuilt(entries: PanelWindow[], width: number, tuning?: WorkspaceTuning, rows?: string[], strict = false): { now: () => ProvidedPanels; row: () => string } {
   let latest: ProvidedPanels | undefined;
   function Probe(): React.ReactElement {
-    latest = useProvidePanels(panelsInput({ initialEntries: entries, containerWidth: width, ...(tuning === undefined ? {} : { tuning }) }));
+    latest = useProvidePanels(useSeededInput({ initialEntries: entries, containerWidth: width, ...(tuning === undefined ? {} : { tuning }) }));
     const seen = latest;
     React.useLayoutEffect(() => {
       rows?.push(rowOf(seen.entries));

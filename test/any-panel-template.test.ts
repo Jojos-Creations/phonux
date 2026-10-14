@@ -7,7 +7,7 @@ import assert from 'node:assert/strict';
 import { fileURLToPath } from 'node:url';
 import ts from 'typescript';
 
-test('typed templates compile into a workspace, a column, a registration and the hook, and addPanel still checks params', () => {
+test('typed templates compile into a workspace, a column and a registration, and addPanel still checks params', () => {
   const root = fileURLToPath(new URL('..', import.meta.url));
   const config = ts.readConfigFile(`${root}tsconfig.json`, ts.sys.readFile);
   const parsed = ts.parseJsonConfigFileContent(config.config, ts.sys, root);

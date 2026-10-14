@@ -9,7 +9,7 @@ import * as React from 'react';
 import { act } from 'react';
 import { useProvidePanels, type PanelWindow, type ProvidedPanels } from '../index.js';
 import { movePanel } from '../panelWindow.js';
-import { cleanup, mount, panelsInput } from './support/mount-harness.js';
+import { cleanup, mount, useSeededInput } from './support/mount-harness.js';
 
 const entry = (id: string, over: Partial<PanelWindow> = {}): PanelWindow => ({
   id,
@@ -29,7 +29,7 @@ const ids = (panels: readonly PanelWindow[]): string[] => panels.map((p) => p.id
 function mountProvider(initialEntries: PanelWindow[]): { latest: () => ProvidedPanels } {
   let latest: ProvidedPanels | undefined;
   function Probe(): React.ReactElement {
-    latest = useProvidePanels(panelsInput({ initialEntries }));
+    latest = useProvidePanels(useSeededInput({ initialEntries }));
     return React.createElement('output');
   }
   mount(React.createElement(Probe));

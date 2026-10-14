@@ -85,7 +85,6 @@ export function AutoRoot({ workspace, columnTop = 0 }: { workspace: WorkspaceHan
     ...panelsInputOf(workspace, stand.current),
     ...(values.labels !== undefined ? { labels: values.labels } : {}),
     workspace,
-    rootId: workspace.rootId,
     phoneWidth,
     containerWidth,
     overflowContainerRef: ref,

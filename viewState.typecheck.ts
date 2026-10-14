@@ -1,7 +1,7 @@
 /**
  * Compile-only proof of useViewState's types. Never imported by anything; `npm run typecheck` type-checks
  * it as a root file. `DraftParams` is declared with `type`, not `interface`,
- * for the same reason registerView.typecheck.ts gives.
+ * because an interface has no implicit index signature and so never satisfies `JsonValue`.
  *
  * JSON bound: widening either check in viewState.ts (the second overload's `T extends JsonValue`, or the
  * first overload's `[T] extends [JsonValue]` on `key`) and adding `useViewState('k', { fn: () => {} })` here

@@ -101,7 +101,7 @@ test('(c) a scrolling row parks none when a slot count grows', async () => {
 
 test('(d) a person-pinned fixed column becomes parkable again and its overrides are {} in the file', async () => {
   const store = memoryWorkspaceStorage();
-  const r = await pinRig({ settings: { c: { pinning: FIX } }, workspace: { storage: store }, over: quiet });
+  const r = await pinRig({ settings: { c: { pinning: FIX } }, workspace: { storage: store, ...quiet } });
   r.turn(() => r.h.c!.pin('person'));
   await wait();
   assert.equal(r.facts('c').parkable, false);
@@ -203,7 +203,7 @@ test('a second call is changed:false, and a call that only clears a stored non-e
 
 test('the file holds overrides {} and applied.placeOnAdd for every named entry, and a second launch keeps the reset row', async () => {
   const store = memoryWorkspaceStorage();
-  const r = await pinRig({ workspace: { storage: store }, over: quiet });
+  const r = await pinRig({ workspace: { storage: store, ...quiet } });
   r.turn(() => r.h.c!.move(-1, 'person'));
   r.turn(() => r.h.c!.move(-1, 'person'));
   reset(r, 'all');
@@ -213,7 +213,7 @@ test('the file holds overrides {} and applied.placeOnAdd for every named entry, 
   assert.ok(saved.every((p) => (p as { applied?: { placeOnAdd?: unknown } }).applied?.placeOnAdd !== undefined), 'applied.placeOnAdd on every entry');
   r.m.unmount();
   cleanup();
-  const second = await pinRig({ workspace: { storage: store }, over: quiet });
+  const second = await pinRig({ workspace: { storage: store, ...quiet } });
   await wait();
   assert.equal(second.order().join(' '), 'root a b c');
 });

@@ -176,7 +176,9 @@
         "phoneFrameBareSx",
         "phoneFrameScrollSx",
         "registerPanelView",
+        "registerView",
         "resolvePanelView",
+        "resolveView",
         "shouldCloseOnRelease",
         "summarisePanel",
         "usePhoneAPIs",
@@ -195,7 +197,9 @@
         "PhoneFrameHeaderRowProps",
         "PhoneFrameProps",
         "PhoneViewProps",
-        "ReleaseMeasure"
+        "ReleaseMeasure",
+        "ViewComponent",
+        "ViewProps"
       ]
     },
     "testing": {
