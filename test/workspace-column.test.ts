@@ -10,6 +10,8 @@ import * as React from 'react';
 import { act } from 'react';
 import { COLUMN_BOTTOM_BAND, createWorkspace, createWorkspaceColumn, definePanel, MAX_WORKSPACE_NAME } from '../index.js';
 import type { ColumnState, ColumnStorage, PanelTemplate, WorkspaceColumnHandle } from '../index.js';
+import { memoryWorkspaceStorage } from '../fakeHost.js';
+import { bindingOf } from '../workspaceCore.js';
 import { arrowKeyBelongsElsewhere } from '../WorkspaceColumn.js';
 import { rigCleanup, slots, until } from './support/auto-rig.js';
 
@@ -311,6 +313,33 @@ test('a changed list is saved: an add, a rename and a move each', async () => {
   await until('saved', () => storage.saved.length >= 4);
   const last = storage.saved.at(-1)!;
   assert.deepEqual(last, { version: 1, workspaces: [{ id: 'one', name: 'First' }, { id: 'two', name: 'Workspace 2' }], current: 'two' });
+});
+
+test('add and rebuild each ask storage.workspace for their own id; undefined means no storage', async () => {
+  const asked: Record<string, string[]> = {};
+  const storage = memoryColumnStorage({ version: 1, workspaces: [{ id: 'kept', name: 'Kept' }], current: 'kept' }, asked);
+  const c = make({ storage, mount: false });
+  await until('ready', () => c.status === 'ready');
+  assert.deepEqual(Object.keys(asked), ['kept']);
+  const own = c.addWorkspace({ id: 'own' });
+  assert.deepEqual(Object.keys(asked), ['kept', 'own']);
+  assert.equal(own.id, 'own');
+});
+
+test('a workspace whose storage.workspace(id) returns undefined keeps no storage and borrows none from another workspace', () => {
+  const own = memoryWorkspaceStorage();
+  const storage: ColumnStorage = { load: async () => null, save: () => undefined, workspace: (id) => (id === 'kept' ? own : undefined) };
+  const c = make({ storage, mount: false });
+  const kept = c.addWorkspace({ id: 'kept' });
+  const bare = c.addWorkspace({ id: 'bare' });
+  assert.equal(bindingOf(kept).storage, own);
+  assert.equal(bindingOf(bare).storage, undefined);
+});
+
+test('addWorkspace takes exactly id, name and index', () => {
+  type Keys = keyof NonNullable<Parameters<WorkspaceColumnHandle['addWorkspace']>[0]>;
+  const exact: Record<Keys, true> = { id: true, name: true, index: true };
+  assert.deepEqual(Object.keys(exact).sort(), ['id', 'index', 'name']);
 });
 
 test('the panels of a workspace are stored under its id, not its name', async () => {

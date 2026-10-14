@@ -731,7 +731,8 @@ draws its own rows passes `mount: false` to the column and a render function to 
 
 **Identity and names.** A workspace has a stable `id`, unrelated to its name. The id is the storage key: `ColumnStorage.workspace(id)`
 gives the panel storage of that workspace, so a rename never moves saved panels. An app that already has a workspace adopts it as
-the first one with `addWorkspace({ id })` and a `workspace(id)` that returns its existing storage for that id. `Workspace <n>` is
+the first one with `addWorkspace({ id })` and a `workspace(id)` that returns its existing storage for that id. `addWorkspace` takes
+no storage or content of its own: the list saves only ids and names, so a workspace rebuilt from it could not find them, and the column has one content. `Workspace <n>` is
 chosen at creation (the smallest number no name in the column uses) and stored, so a later delete or move never renumbers. The rename rules
 (`workspaceName.ts`): the name is trimmed and cut to `MAX_WORKSPACE_NAME` (60) characters; a name empty after trimming changes nothing and
 the input shows the old name again; Escape discards the draft; two workspaces may share a name. Deleting a workspace is out of scope.
