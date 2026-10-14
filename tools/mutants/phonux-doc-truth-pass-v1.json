@@ -1,0 +1,26 @@
+{
+  "tests": ["test/doc-truth.test.ts"],
+  "mutants": [
+    {
+      "name": "addPanel stops throwing for an unknown template",
+      "file": "workspaceCore.ts",
+      "find": "throw new PanelManagerError('unknown-template', `no template '${given}' is registered`);",
+      "replace": "throw new PanelManagerError('invalid-options', `no template '${given}' is registered`);",
+      "expectRed": ["the throwing paths the @throws tags name"]
+    },
+    {
+      "name": "rename after dispose stops throwing",
+      "file": "workspaceCore.ts",
+      "find": "    rename: (next) => {\n      if (status === 'disposed') throw new PanelManagerError('disposed', 'the workspace was disposed');",
+      "replace": "    rename: (next) => {",
+      "expectRed": ["the throwing paths the @throws tags name"]
+    },
+    {
+      "name": "a TSDoc block counts its members again",
+      "file": "hostApi.tsx",
+      "find": "export const DEFAULT_PHONE_SIZE: PhoneSize",
+      "replace": "/** The size has three read members. */\nexport const DEFAULT_PHONE_SIZE: PhoneSize",
+      "expectRed": ["no TSDoc block of the published source"]
+    }
+  ]
+}
