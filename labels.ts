@@ -16,6 +16,10 @@ export interface PhonuxLabels {
   pin: string;
   /** The name of an unpin button or action. Default `Unpin`. */
   unpin: string;
+  /** The text a host announces when a pin request is refused. Default `Could not pin this panel`. */
+  pinFailed: string;
+  /** The text a host announces when an unpin request is refused. Default `Could not unpin this panel`. */
+  unpinFailed: string;
   /** The name of a lock button or action, which makes a panel not closable. Default `Lock`. */
   lock: string;
   /** The name of an unlock button or action. Default `Unlock`. */
@@ -26,10 +30,6 @@ export interface PhonuxLabels {
   goToWorkspace: (name: string) => string;
   /** The accessible name of the input that holds a workspace's name. Default `Workspace name`. */
   workspaceName: string;
-  /** The accessible name of the grip on one side of a resizable panel. Default `Resize from the left edge` or `Resize from the right edge`. */
-  resizeGrip: (side: 'left' | 'right') => string;
-  /** The spoken value of a resize grip, given the slots the panel is wide and the most it can take. Default `<slots> of <most> slots wide`. */
-  resizeGripValue: (slots: number, most: number) => string;
   /** The accessible name of the row of panels, a region. Default `Panels`. */
   row: string;
   /** The accessible name of one panel's group: its title and its place among the panels drawn. Default `<title>, <place> of <total>`. */
@@ -58,13 +58,13 @@ export const DEFAULT_LABELS: Readonly<PhonuxLabels> = {
   historyTitle: 'History',
   pin: 'Pin',
   unpin: 'Unpin',
+  pinFailed: 'Could not pin this panel',
+  unpinFailed: 'Could not unpin this panel',
   lock: 'Lock',
   unlock: 'Unlock',
   newWorkspace: 'Create new workspace',
   goToWorkspace: (name) => `Go to ${name}`,
   workspaceName: 'Workspace name',
-  resizeGrip: (side) => `Resize from the ${side} edge`,
-  resizeGripValue: (slots, most) => `${slots} of ${most} slots wide`,
   row: 'Panels',
   panelPosition: (title, place, total) => `${title}, ${place} of ${total}`,
   grabStrip: (title) => `Move or close ${title}`,

@@ -452,11 +452,11 @@ export interface PhonuxLabels {
     panelTitle: (id: string) => string;
     pickedUp: (title: string) => string;
     pin: string;
-    resizeGrip: (side: 'left' | 'right') => string;
-    resizeGripValue: (slots: number, most: number) => string;
+    pinFailed: string;
     row: string;
     unlock: string;
     unpin: string;
+    unpinFailed: string;
     untitledHeader: string;
     untitledPanel: string;
     workspaceName: string;
