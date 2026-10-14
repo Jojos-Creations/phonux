@@ -32,7 +32,7 @@ export const DEFAULT_PHONE_SIZE: PhoneSize = { modelId: 'default', width: 390, h
 
 /** One entry of the persisted "Closed Pages" log. @public */
 export interface ClosedPageEntry {
-  /** Id of the closed view. */
+  /** The id of this close in the log: the close time and the panel's id, so a panel closed again has its own entry. */
   id: string;
   /** The view's title when it was closed. */
   title: string;
@@ -160,7 +160,7 @@ export interface CreatePanelOptions {
 
 /** The panel row: list, open, activate, move, resize, re-anchor and close panels. @public */
 export interface PanelsAPI {
-  /** Every panel, live or parked, in array order. History lists them as given; the row shows the live ones. */
+  /** Every listed panel, live or parked, in array order; a panel whose `listed` is false, such as History, is not here. History lists them as given; the row shows the live ones. */
   readonly panelList: readonly PanelSummary[];
   /**
    * How many panels, permanent columns such as History included, the window fits at the current phone width and row gap:
@@ -223,15 +223,15 @@ export interface PanelsAPI {
    * @deprecated Use `useWorkspace().panels.get(key)?.place(anchor)`. Still works, with one development warning; removed in a later release.
    */
   reanchor(id: string, anchor: { panel?: string; position: 'left' | 'right'; priority?: number }): void;
-  /** Close a view completely, live or parked: it leaves the row and History at once, a closed event is appended to the persisted log (HistoryAPI), and it can be undone for 10 s (recentlyClosed, undoClose). Also accepts History's own fixed-panel id (HistoryAPI.close is the same mechanism, offered per-panel so a view need not know the id) -- an id not in `panelList` and not History's id, or a LOCKED fixed panel's id, does nothing.
+  /** Close a view completely, live or parked: it leaves the row and History at once, a closed event is appended to the persisted log (HistoryAPI), and it can be undone while its undo window lasts (recentlyClosed, undoClose; the panel's `undoWindowMs` setting, where 0 means no undo). Also accepts History's own fixed-panel id (HistoryAPI.close is the same mechanism, offered per-panel so a view need not know the id) -- an id not in `panelList` and not History's id, or a LOCKED fixed panel's id, does nothing.
    * @deprecated Use `useWorkspace().panels.get(key)?.close()`. Still works, with one development warning; removed in a later release.
    */
   close(id: string): void;
-  /** The views closed within the current undo window, oldest first; non-null exactly while it is open (10 s after the LAST close). Drives the "Closed N pages / Undo" toast. */
+  /** The views closed within the current undo window, oldest first; non-null exactly while it is open, which is until the latest of each recent close's time plus that panel's `undoWindowMs`. Drives the "Closed N pages / Undo" toast. */
   readonly recentlyClosed: readonly PanelSummary[] | null;
   /** Undo every close in `recentlyClosed`: each view returns at its old place (a live one comes back live, parking the live parkable one farthest from it if the row is full and its `overflow` is 'park') and its log entry is removed. Does nothing when the window is closed. */
   undoClose(): void;
-  /** Forget every panel. Not logged and not undoable. */
+  /** Forgets every panel that is clearable; History, a fixed column and a locked panel stay. Not logged and not undoable. */
   clearAll(): void;
 }
 

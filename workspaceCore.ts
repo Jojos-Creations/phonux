@@ -117,12 +117,12 @@ export interface WorkspaceHandle {
   /**
    * Renames the workspace and returns the name it now has. The name is trimmed and cut to `MAX_WORKSPACE_NAME` characters; a name
    * empty after trimming changes nothing and the current name comes back. Two workspaces may share a name, because the id tells them apart.
-   * Throws `disposed` after `dispose()`.
+   * @throws PanelManagerError with code `disposed` after `dispose()`.
    */
   rename(name: string): string;
   /** The id of the row's root entry: the root template's id, or `'__root__'` without one. */
   readonly rootId: string;
-  /** Read access to every panel. */
+  /** Every panel by id, as operable handles, and the calls that configure the workspace. Use `PanelReader` for read-only access. */
   readonly panels: PanelManager;
   /** The workspace's tuning, resolved over the library defaults; `panels.configureTuning` changes it. */
   readonly tuning: ResolvedWorkspaceTuning;
@@ -132,16 +132,24 @@ export interface WorkspaceHandle {
    * Adds a panel of template `t` (or the registered template with that id) and returns its handle. A singleton is
    * get-or-create by id. Before the workspace is ready this records an intent replayed at every settle, and a `multiple`
    * template then needs an explicit `id`. A panel over its template's `maxInstances` comes back in status `closed`.
+   * @throws PanelManagerError with code `disposed`, `unknown-template` (a string no template answers to), `invalid-template`,
+   * `duplicate-template` (a different template already holds that id), `instance-id-required`, `invalid-options` (a bad or
+   * foreign `id`) or `invalid-settings` (a settings conflict, when the workspace is set to throw on one).
    */
   addPanel<P extends JsonValue = JsonValue>(t: PanelTemplate<P> | string, o?: { id?: PanelId; settings?: PanelSettings; params?: P; url?: string }): PanelHandle<P>;
   /**
    * Gives the auto-mounted host new values: only the members of `WorkspaceLive` (`device`, `settings`, `history`, `snapshots`,
    * `labels`, `topInset`, `panels`) may be named, and a member left out is not touched. Readers re-render when the data of a
    * member changed, never for a changed closure alone, so a hook may call this from an effect on every render without a loop.
-   * Naming anything else (`root`, `templates`, `storage`, `mount`, `wrap`) throws `invalid-options` and changes nothing.
+   * Naming anything else (`root`, `templates`, `storage`, `mount`, `wrap`) changes nothing.
+   * @throws PanelManagerError with code `disposed`, or `invalid-options` for a member that is not live.
    */
   update(live: WorkspaceLive): void;
-  /** Registers a template with this workspace only; returns the function that removes it. */
+  /**
+   * Registers a template with this workspace only; returns the function that removes it.
+   * @throws PanelManagerError with code `disposed`, `invalid-template`, `duplicate-template` (a different template holds the id)
+   * or `invalid-settings` (a settings conflict, when the workspace is set to throw on one).
+   */
   registerTemplate(t: AnyPanelTemplate): () => void;
   /** Drops the workspace's listeners and intents; a later `addPanel` throws `disposed`. */
   dispose(): void;

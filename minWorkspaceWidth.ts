@@ -20,7 +20,7 @@ export interface MinWorkspaceWidthInput {
   phoneSlots?: number;
   /**
    * The width of one tablet panel that must fit beside the fixed columns in place of the phone slots, when it is wider.
-   * 0 leaves the tablet out.
+   * A value of 0 omits the tablet.
    * @defaultValue 768
    */
   tabletWidth?: number;

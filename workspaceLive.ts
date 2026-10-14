@@ -46,7 +46,7 @@ export function refusedLiveKeys(input: object): string[] {
 }
 
 /**
- * Whether two values carry the same data: functions compare equal whatever their identity (an app that builds its objects
+ * Whether the values carry the same data: functions compare equal whatever their identity (an app that builds its objects
  * with fresh closures every render must not wake every reader every render), a function against no function does not,
  * and plain objects and arrays compare by their members, to a few levels.
  */

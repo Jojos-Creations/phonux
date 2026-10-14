@@ -80,15 +80,21 @@ export type PanelSnapshot = {
   readonly panels: readonly PanelState[];
 };
 
-/** The five read-only members every handle and view handle has. @public */
+/** The read-only members every handle and view handle has: id, template id, state, settings and subscribe. @public */
 export type PanelReadHandle = {
   /** The panel's id. */
   readonly id: PanelId;
   /** The id of the template the panel was made from. */
   readonly templateId: string;
-  /** The panel's current state. */
+  /**
+   * The panel's current state.
+   * @throws PanelManagerError with code `invalid-options` when the workspace knows no panel with this id.
+   */
   getState(): PanelState;
-  /** The panel's settings resolved from every layer, with the layer each value came from and any conflicts. */
+  /**
+   * The panel's settings resolved from every layer, with the layer each value came from and any conflicts.
+   * @throws PanelManagerError with code `invalid-options` when the workspace knows no panel with this id.
+   */
   getSettings(): PanelSettingsResolution;
   /** Calls `l` when the panel changes; returns a function that stops the calls. */
   subscribe(l: () => void): () => void;
@@ -131,7 +137,7 @@ export interface PanelTemplate<P extends JsonValue = JsonValue> {
   readonly id: string;
   /** The panel API level the template was written against; left out, it is the newest (`PANEL_API`). Any other value throws `invalid-template`. */
   readonly api?: PanelApiLevel;
-  /** The component that renders the panel. It receives the panel's summary, its own read handle and a reader for every panel. */
+  /** The component that renders the panel. It receives the panel's summary, its own `ViewHandle` (read members, operations on its own panel, and a `configure` that takes only `ViewPatch` keys) and a reader for every panel. */
   readonly view: React.ComponentType<PanelViewProps<P>>;
   /**
    * The component drawn at the bottom of every panel made from this template, inside the frame and below the content, which
@@ -170,7 +176,8 @@ export type AnyPanelTemplate = PanelTemplate<any>;
 
 /**
  * Returns the template unchanged after checking it: a valid id, a component for `view` and for `footer` when given, an `api` the library serves, and a settings layer the
- * resolver accepts on its own. Throws PanelManagerError, 'invalid-template' or 'invalid-settings'.
+ * resolver accepts on its own. 
+ * @throws PanelManagerError with code `invalid-template` or `invalid-settings`.
  * @public
  */
 export function definePanel<P extends JsonValue = JsonValue>(t: PanelTemplate<P>): PanelTemplate<P> {
