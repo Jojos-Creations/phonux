@@ -1100,6 +1100,7 @@ export interface RowNumbers {
     reservedWidths: readonly number[];
     rowMarginLeft: number;
     rowScroll: boolean;
+    showPartial: boolean;
     stopFirsts: readonly number[];
     stops: readonly number[];
     stopShrinks: readonly (readonly {
