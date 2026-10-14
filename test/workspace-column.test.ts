@@ -8,7 +8,7 @@ import assert from 'node:assert/strict';
 import './support/jsdom-globals.js';
 import * as React from 'react';
 import { act } from 'react';
-import { createWorkspace, createWorkspaceColumn, definePanel, MAX_WORKSPACE_NAME } from '../index.js';
+import { COLUMN_BOTTOM_BAND, createWorkspace, createWorkspaceColumn, definePanel, MAX_WORKSPACE_NAME } from '../index.js';
 import type { ColumnState, ColumnStorage, PanelTemplate, WorkspaceColumnHandle } from '../index.js';
 import { arrowKeyBelongsElsewhere } from '../WorkspaceColumn.js';
 import { rigCleanup, slots, until } from './support/auto-rig.js';
@@ -354,6 +354,24 @@ test('topInset clears chrome the app draws: the controls start below it', async 
   await until('a cell', () => cells().length === 1);
   const cell = cells()[0]!;
   const top = (el: Element): string => getComputedStyle(el).top;
-  assert.equal(top(neighbour(cell, 'above')), '34px');
-  assert.equal(top(cell.querySelector('[data-workspace-name-input]')!.parentElement!), '54px');
+  assert.equal(top(neighbour(cell, 'above')), '32px');
+  assert.equal(top(cell.querySelector('[data-workspace-name-input]')!.parentElement!), '56px');
+});
+
+test('each control the column draws is exactly 24 px high: the neighbour buttons, the empty-column button and the name input', async () => {
+  const c = await three();
+  const cell = cells()[0]!;
+  const high = (el: Element): number => Number.parseFloat(getComputedStyle(el).height);
+  assert.equal(high(neighbour(cell, 'above')), 24, 'top button');
+  assert.equal(high(neighbour(cell, 'below')), 24, 'bottom button');
+  assert.equal(high(cell.querySelector('[data-workspace-name-input]')!.parentElement!), 24, 'name input');
+  act(() => c.dispose());
+  const empty = make();
+  await until('the empty button', () => document.querySelector('[data-workspace-neighbour="empty"]') !== null);
+  assert.equal(high(document.querySelector('[data-workspace-neighbour="empty"]')!), 24, 'empty-column button');
+  act(() => empty.dispose());
+});
+
+test('the bottom band holds a 24 px button', () => {
+  assert.ok(COLUMN_BOTTOM_BAND >= 24);
 });
