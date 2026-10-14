@@ -16,7 +16,7 @@ import { PanelHiddenContext, PanelSlotContext, type DragScroll } from './panelSl
 import type { PanelTemplate } from './panelTemplate.js';
 import { PanelViewContextValue } from './panelViewContext.js';
 import { HEADER_ROW_ATTRIBUTE, headerButtonsOf } from './panelHeaderButtons.js';
-import { LIBRARY_TUNING_DEFAULTS, effective, resolvePanelSettings } from './panelSettings.js';
+import { LIBRARY_TUNING_DEFAULTS, effective, panelKey, resolvePanelSettings } from './panelSettings.js';
 import type { ChromeTuning, ResolvedPanelSettings, ResolvedPanelTuning, WorkspaceTuning } from './panelSettings.js';
 import { PanelRowSlot } from './PanelRowSlot.js';
 import { ChromeStoreContext, createChromeStore } from './panelChrome.js';
@@ -112,9 +112,19 @@ export const usePanelReorderSteps = (): ((offsetX: number) => number) => {
  * @public
  */
 export const usePanelHidden = (): boolean => React.useContext(PanelHiddenContext);
-/** Anchored left of the row's root, read from the anchor every render so a drag across the root changes it too. Unprovided: false.
+/** What `PanelState.pinned` says for the panel (its `pinning` definition against the row), so a drag across the root changes it too; a row without a workspace reads left of the root. Unprovided: false.
  * @public */
-export const usePanelPinned = (): boolean => React.useContext(PanelSlotContext)?.pinned ?? false;
+export const usePanelPinned = (): boolean => {
+  const slot = React.useContext(PanelSlotContext);
+  const handle = slot?.handle;
+  const fallback = slot?.pinned ?? false;
+  return React.useSyncExternalStore(
+    handle === undefined ? NO_SUBSCRIPTION : handle.subscribe,
+    () => (handle === undefined ? fallback : handle.getState().pinned),
+    () => fallback,
+  );
+};
+const NO_SUBSCRIPTION = (): (() => void) => () => {};
 
 /**
  * The row: every present entry in its own animated slot, in the array's order, each rendered by its registered view.
@@ -213,6 +223,7 @@ export function PanelRow({
   // Ids never repeat, so a panel in neither list can never be shown again and its view state is released.
   useViewState.useRetainOnly([...entries.filter((p) => !parkReleases(p)), ...(panels.recentlyClosed ?? [])].map((p) => p.id));
   const present = entries.filter(isPresent);
+  chrome.setKeys(new Map(entries.map((p) => [p.id, panelKey(p)])));
   // A panel this row showed and no longer shows (closed or parked) stops being the active or dragged one.
   const presentBefore = React.useRef<ReadonlySet<string>>(new Set());
   React.useEffect(() => {
@@ -337,7 +348,7 @@ export function PanelRow({
           const Component = resolveViewIn(templateOf, p.view);
           const { closable, draggable, placeable, resizable, formFactors, enterFrom, exitTo, closeExit, animated, layer, scrollOnDrag, headerButtons, frame } = effective(p);
           const own = slotTuning(workspaceTuning, binding === undefined ? p.settings?.tuning : binding.panelTuning(p as PanelWindow));
-          const handle = viewContext?.handleFor(p.id);
+          const handle = viewContext?.handleFor(panelKey(p));
           const report = binding?.reportError ?? console.error;
           const note = binding?.reportNote ?? (() => {});
           // A panel whose last button was just removed while it held focus still gets the slot context for that one commit, so the hook that moves focus runs.
@@ -361,6 +372,7 @@ export function PanelRow({
                 tracking,
                 setDragging: (on) => chrome.setDragging(p.id, on),
                 neighborWidths: neighborWidthsAt(p),
+                handle,
                 pinned: anchorTargetOf(p, rootId) === rootId && p.anchor?.position === 'left',
                 tuning: own,
                 dragScroll,

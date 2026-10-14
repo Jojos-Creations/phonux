@@ -510,7 +510,7 @@ export interface PanelHandle<P extends JsonValue = JsonValue> extends PanelReadH
         readonly params: P | undefined;
     };
     hide(source?: 'code' | 'person'): PanelResult;
-    move(direction: 'left' | 'right', source?: 'code' | 'person'): PanelResult;
+    move(by: number, source?: 'code' | 'person'): PanelResult;
     open(source?: 'code' | 'person'): PanelResult;
     pin(source?: 'code' | 'person'): PinResult;
     place(p: AddPlacement | 'in-place', source?: 'code' | 'person'): PanelResult;
@@ -1289,6 +1289,12 @@ export const usePanelCloseEligible: () => boolean;
 export function usePanelDragging(): boolean;
 
 // @public
+export function usePanelDragProps(): {
+    onClose?: () => void;
+    reorder?: ReorderHandle;
+};
+
+// @public
 export function usePanelHeaderButtons(): readonly PanelHeaderButtonItem[];
 
 // @public
@@ -1354,6 +1360,9 @@ export interface UseViewState {
 export const useViewState: UseViewState;
 
 // @public
+export function useWorkspace(): ViewWorkspace | undefined;
+
+// @public
 export function useWorkspaceManager(): PanelReader | undefined;
 
 // @public
@@ -1400,6 +1409,13 @@ export interface ViewSnapshot {
 // @public
 export class ViewStateMissingProviderError extends Error {
     constructor(missing: 'host' | 'view id');
+}
+
+// @public
+export interface ViewWorkspace {
+    readonly panels: PanelManager & {
+        addPanel: WorkspaceHandle['addPanel'];
+    };
 }
 
 // @public

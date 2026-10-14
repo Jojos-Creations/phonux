@@ -1,0 +1,13 @@
+{
+  "tests": ["test/panel-api-level.test.ts"],
+  "mutants": [
+    { "name": "useWorkspaceManager returns nothing", "file": "panels/usePanelStates.ts", "find": "return useContext(PanelViewContextValue)?.manager;", "replace": "return undefined;", "expectRed": ["frozen level-1 fixture panel renders"] },
+    { "name": "usePanelStates lists nothing", "file": "panels/usePanelStates.ts", "find": "return filterStates(useSnapshot().panels, f);", "replace": "return [];", "expectRed": ["frozen level-1 fixture panel renders"] },
+    { "name": "usePanelState finds nothing", "file": "panels/usePanelStates.ts", "find": "return useSnapshot().panels.find((p) => p.id === id);", "replace": "return undefined;", "expectRed": ["frozen level-1 fixture panel renders"] },
+    { "name": "useActivePanel reports undefined", "file": "panelChrome.ts", "find": "const id = React.useSyncExternalStore(store?.subscribeActive ?? NO_SUBSCRIBE, () => store?.active() ?? null, () => null);", "replace": "const id = undefined as unknown as PanelId | null;", "expectRed": ["frozen level-1 fixture panel renders"] },
+    { "name": "usePhoneSize reports no width", "file": "phoneFit.ts", "find": "return fitted ?? device.size;", "replace": "return { width: undefined as unknown as number, height: 0 };", "expectRed": ["frozen level-1 fixture panel renders"] },
+    { "name": "DragToClose hands its children nothing", "file": "dragToClose.tsx", "find": "{children(handle)}", "replace": "{children({} as DragHandleProps)}", "expectRed": ["framed fixture draws its own frame"] },
+    { "name": "PanelSizeBox draws no box", "file": "PanelRowSlot.tsx", "find": "return <SizeBox width={width} height={height}>{children}</SizeBox>;", "replace": "return <>{children}</>;", "expectRed": ["framed fixture draws its own frame"] },
+    { "name": "DESIGN drops a workspace-only row from the table", "file": "DESIGN.md", "find": "`phoneFitMin`, `phoneFitMax`): a host sets", "replace": "`phoneFitMin`): a host sets", "expectRed": ["DESIGN lists every workspace-scope tuning row"] }
+  ]
+}

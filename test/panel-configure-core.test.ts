@@ -206,7 +206,7 @@ for (const kind of ['a person-resized tablet panel', 'a dragged panel'] as const
   for (const [cls, key, patch] of WRITER_KEYS) {
     test(`writer: ${cls} key ${key} on ${kind} leaves the tier, size, anchor, live, hostData, key, overrides and applied as they were`, async () => {
       const r = await pinRig();
-      if (kind === 'a dragged panel') r.turn(() => r.h.c!.move('left', 'person'));
+      if (kind === 'a dragged panel') r.turn(() => r.h.c!.move(-1, 'person'));
       else r.turn(() => r.h.c!.setFormFactor('tablet', 'person'));
       const before = r.entry('c');
       assert.ok(before.overrides !== undefined && Object.keys(before.overrides).length > 0, 'control: the person left an override');
@@ -292,7 +292,7 @@ test('raw clearAll then configure of a removed id is busy', async () => {
 
 test('configure and manager calls on different panels combine in one turn', async () => {
   const r = await pinRig();
-  const out = r.turn(() => [r.h.a!.configure({ scrollOnOpen: 'center' }), r.h.b!.configure({ closable: false }), r.h.c!.move('left')]);
+  const out = r.turn(() => [r.h.a!.configure({ scrollOnOpen: 'center' }), r.h.b!.configure({ closable: false }), r.h.c!.move(-1)]);
   assert.deepEqual(out.map((o) => o.ok), [true, true, true]);
   assert.equal(r.h.a!.getSettings().value.scrollOnOpen, 'center');
   assert.equal(r.entry('b').locked, true);
@@ -425,7 +425,7 @@ const stored = (...later: string[]) => ({ ok: true, changed: true, shown: false,
 
 test('closed inside the window: closable false then undoClose gives locked true, and close() is refused not-closable', async () => {
   const r = await pinRig();
-  const id = r.entry('b').id;
+  const id = r.entry('b').key;
   r.turn(() => r.h.b!.close());
   const held = windowed(r);
   assert.deepEqual([r.state('b').status, held.map((p) => p.id), held[0]!.locked], ['closed', [id], false]);
@@ -469,7 +469,7 @@ test('closed inside the window: resetLayout then undo restores at the resolved p
   const r = await pinRig();
   assert.deepEqual({ ...done(r.turn(() => r.h.c!.configure({ placeOnAdd: 'row-start', formFactor: 'tablet' }))) }, { ok: true, changed: true, shown: false, now: [], later: ['placeOnAdd', 'formFactor'], shadowed: [], notes: [] });
   r.turn(() => r.h.c!.setFormFactor('phone', 'person'));
-  r.turn(() => r.h.c!.move('left', 'person'));
+  r.turn(() => r.h.c!.move(-1, 'person'));
   assert.deepEqual([r.order().join(' '), r.entry('c').formFactor], ['root a c b', 'phone']);
   r.turn(() => r.h.c!.close());
   assert.deepEqual({ ...r.turn(() => r.ws.panels.resetLayout('c')) }, { ok: true, changed: true, panels: ['c'] });
@@ -495,7 +495,7 @@ test('closed past the window: the edit is stored on the record and open() uses i
 
 test('the undo window\'s panel objects are the same before and after every configure of a closed panel, accepted, equal or refused', async () => {
   const r = await pinRig();
-  const ids = [r.entry('a').id, r.entry('c').id];
+  const ids = [r.entry('a').key, r.entry('c').key];
   r.turn(() => r.h.a!.close());
   r.turn(() => r.h.c!.close());
   const held = windowed(r);
@@ -945,11 +945,11 @@ const LOCK_A = { closable: false } as const;
 const BUSY_ROWS: readonly { name: string; calls: (r: PinRig) => Answer[]; results: string[]; order: string; locked: boolean | null }[] = [
   { name: 'configure A + hide A', calls: (r) => [r.h.a!.configure(LOCK_A), r.h.a!.hide()], results: ['T', 'busy'], order: 'root a b c', locked: true },
   { name: 'configure A + close A', calls: (r) => [r.h.a!.configure(LOCK_A), r.h.a!.close()], results: ['T', 'busy'], order: 'root a b c', locked: true },
-  { name: 'configure A + move A', calls: (r) => [r.h.a!.configure(LOCK_A), r.h.a!.move('right')], results: ['T', 'busy'], order: 'root a b c', locked: true },
+  { name: 'configure A + move A', calls: (r) => [r.h.a!.configure(LOCK_A), r.h.a!.move(1)], results: ['T', 'busy'], order: 'root a b c', locked: true },
   { name: 'configure A + setFormFactor A', calls: (r) => [r.h.a!.configure(LOCK_A), r.h.a!.setFormFactor('tablet')], results: ['T', 'busy'], order: 'root a b c', locked: true },
   { name: 'configure A + pin A', calls: (r) => [r.h.a!.configure(LOCK_A), r.h.a!.pin()], results: ['T', 'busy'], order: 'root a b c', locked: true },
   { name: 'hide A + configure A', calls: (r) => [r.h.a!.hide(), r.h.a!.configure(LOCK_A)], results: ['T', 'busy'], order: 'root a b c', locked: false },
-  { name: 'move A + configure A', calls: (r) => [r.h.a!.move('right'), r.h.a!.configure(LOCK_A)], results: ['T', 'busy'], order: 'root b a c', locked: false },
+  { name: 'move A + configure A', calls: (r) => [r.h.a!.move(1), r.h.a!.configure(LOCK_A)], results: ['T', 'busy'], order: 'root b a c', locked: false },
   { name: 'setFormFactor A + configure A formFactors', calls: (r) => [r.h.a!.setFormFactor('tablet'), r.h.a!.configure({ formFactors: ['phone'] })], results: ['T', 'busy'], order: 'root a b c', locked: false },
   { name: 'configure A + configure A', calls: (r) => [r.h.a!.configure(LOCK_A), r.h.a!.configure({ title: 'again' })], results: ['T', 'busy'], order: 'root a b c', locked: true },
   { name: 'configure A + configure B', calls: (r) => [r.h.a!.configure(LOCK_A), r.h.b!.configure({ closable: false })], results: ['T', 'T'], order: 'root a b c', locked: true },
@@ -1041,7 +1041,7 @@ test('configureTuning rowGap re-prices the row in one commit: the slots rest one
   const r = await pinRig();
   await r.settle();
   const slotX = (name: string): number => {
-    const transform = (r.m.container.querySelector(`[data-slot="${name === 'root' ? name : r.entry(name).id}"]`)!.parentElement as HTMLElement).style.transform;
+    const transform = (r.m.container.querySelector(`[data-slot="${name}"]`)!.parentElement as HTMLElement).style.transform;
     return transform === 'none' ? 0 : Number(/translateX\((-?[\d.]+)px\)/.exec(transform)![1]);
   };
   assert.deepEqual(['root', 'a', 'b', 'c'].map(slotX), [0, 406, 812, 1218], 'before: 390 + 16 apart');

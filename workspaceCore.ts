@@ -24,6 +24,7 @@ import type { DeclaredPanel } from './workspacePlan.js';
 import type { WorkspaceStorage } from './workspaceState.js';
 import type { SettingsPatch } from './settingsPatch.js';
 import { cleanWorkspaceName, DEFAULT_WORKSPACE_NAME } from './workspaceName.js';
+import { entryNamed } from './panelIds.js';
 import { createLiveStore, refusedLiveKeys, type LiveStore, type WorkspaceLive } from './workspaceLive.js';
 
 /** The id of the marker entry a workspace without a root keeps. */
@@ -140,6 +141,16 @@ export interface WorkspaceHandle {
   dispose(): void;
 }
 
+/**
+ * What a view acts through on its workspace: the panel manager, which closes, shows and configures other panels by key, and
+ * `addPanel`. The workspace's own life (`dispose`, `update`, `rename`) is not here.
+ * @public
+ */
+export interface ViewWorkspace {
+  /** The workspace's panel manager with `addPanel`, which makes or finds a panel of a template and returns its handle. */
+  readonly panels: PanelManager & { addPanel: WorkspaceHandle['addPanel'] };
+}
+
 /** What the provider hook hands the workspace after every commit. */
 export interface EngineCommit {
   /** The committed panel list, root and marker included. */
@@ -167,7 +178,7 @@ export interface EngineOps {
   close(engineId: string): PanelResult;
   /** Opening a panel the engine already holds changes nothing, but it still waits its turn behind a close. */
   open(engineId: string): PanelResult;
-  move(engineId: string, direction: 'left' | 'right', source: PanelOpSource): PanelResult;
+  move(engineId: string, by: number, source: PanelOpSource): PanelResult;
   place(engineId: string, value: AddPlacement | 'in-place', source: PanelOpSource): PanelResult;
   setFormFactor(engineId: string, next: FormFactor, source: PanelOpSource): PanelResult;
   setSlots(engineId: string, slots: number, source: PanelOpSource): PanelResult;
@@ -855,7 +866,7 @@ export function createWorkspace(o: WorkspaceOptions = {}): WorkspaceHandle {
       case 'open':
         return ops.open(engineId);
       case 'move':
-        return state.status === 'live' ? ops.move(engineId, call.direction, src) : refused('not-live', `panel '${id}' is parked`);
+        return state.status === 'live' ? ops.move(engineId, call.by, src) : refused('not-live', `panel '${id}' is parked`);
       case 'place':
         return ops.place(engineId, call.value, src);
       case 'setFormFactor':
@@ -1227,9 +1238,11 @@ export function createWorkspace(o: WorkspaceOptions = {}): WorkspaceHandle {
     },
   };
 
+  const workspace: ViewWorkspace = Object.freeze({ panels: Object.freeze({ ...handle.panels, addPanel }) });
   const view: PanelViewContext = {
-    handleFor: (engineId) => {
-      const e = (observed ?? committed)?.entries.find((p) => p.id === engineId);
+    workspace,
+    handleFor: (name) => {
+      const e = entryNamed((observed ?? committed)?.entries ?? [], name);
       return e === undefined || e.marker === true ? undefined : source.viewHandleOf(panelKey(e));
     },
     manager: reader,

@@ -94,7 +94,7 @@ function assertRefusal(a: Arranged, before: Trace, res: ConfigureResult, code: s
   }
 }
 
-const summaryOf = (r: MatrixRig, id: string) => r.provided().panelList.find((s) => s.id === r.entry(id).id);
+const summaryOf = (r: MatrixRig, id: string) => r.provided().panelList.find((s) => s.id === r.entry(id).key);
 
 async function nowCell(status: Status): Promise<void> {
   const cell = CLASS_TABLE.NOW[status];
@@ -469,7 +469,7 @@ test('matrix:draggable', async () => {
   assert.equal(r.seen('b')?.['data-reorder'], 'true', 'before: the reorder grab is offered');
   assert.deepEqual(shape(r.turn(() => r.h.b!.configure({ draggable: false }))), { now: ['draggable'], later: [], shadowed: [] });
   assert.equal(r.seen('b')?.['data-reorder'], 'false', 'after, in that commit: no reorder grab');
-  assert.equal(letter(r.turn(() => r.h.b!.move('right'))), 'not-draggable');
+  assert.equal(letter(r.turn(() => r.h.b!.move(1))), 'not-draggable');
   assert.equal(r.order().join(' '), 'root a b c', 'nothing moved');
   assert.equal(r.seen('a')?.['data-reorder'], 'true', 'a neighbour is untouched');
   r.turn(() => r.h.c!.hide());
@@ -488,7 +488,7 @@ test('matrix:crossable', async () => {
   assert.deepEqual(rightOfA(), [390, 390], "before: a's drag crosses b and c");
   assert.deepEqual(shape(r.turn(() => r.h.b!.configure({ crossable: false }))), { now: ['crossable'], later: [], shadowed: [] });
   assert.deepEqual(rightOfA(), [], "after, at once: a's drag sees b as a barrier");
-  assert.equal(letter(r.turn(() => r.h.a!.move('right'))), 'F', 'a move across it is judged by movePanel: accepted, nothing moves');
+  assert.equal(letter(r.turn(() => r.h.a!.move(1))), 'F', 'a move across it is judged by movePanel: accepted, nothing moves');
   assert.equal(r.order().join(' '), 'root a b c');
   done(r.turn(() => r.h.b!.configure({ crossable: true })));
   r.turn(() => r.h.b!.hide());
@@ -655,7 +655,7 @@ test('matrix:maxInstances', async () => {
 test('matrix:listed', async () => {
   probe('listed');
   const r = await matrixRig();
-  const before = { id: r.entry('b').id, order: r.order().join(' '), status: r.state('b').status };
+  const before = { id: r.entry('b').key!, order: r.order().join(' '), status: r.state('b').status };
   assert.equal(listedIds(r).includes(before.id), true, 'before: the panel is in panelList');
   assert.deepEqual(shape(r.turn(() => r.h.b!.configure({ listed: false }))), { now: ['listed'], later: [], shadowed: [] });
   assert.equal(listedIds(r).includes(before.id), false, 'after, in that commit: its History row is gone');
@@ -665,7 +665,7 @@ test('matrix:listed', async () => {
   r.turn(() => r.h.c!.hide());
   await r.settle();
   const quiet = done(r.turn(() => r.h.c!.configure({ listed: false })));
-  assert.equal(listedIds(r).includes(r.entry('c').id), false, 'a hidden panel leaves the list too');
+  assert.equal(listedIds(r).includes(r.entry('c').key!), false, 'a hidden panel leaves the list too');
   assert.equal(quiet.notes.some((n) => n.key === 'listed') || r.m.notes.some((n) => n.key === 'listed'), true, 'false on a held panel the gesture cannot release is showable by code only, and a note says so, in the result or through onNote');
 });
 
@@ -1320,7 +1320,7 @@ test('matrix:pinning', async () => {
   assert.equal(r.state('c').pinned, true, 'after, in that commit: PanelState.pinned is re-read from the new definition');
   assert.deepEqual([r.order().join(' '), r.live().join(' ')], [order, 'root a b c'], 'nothing moves, parks, shows or scrolls');
   assert.equal(r.m.renders() - renders, 1, 'one commit');
-  assert.equal(r.seen('c')?.['data-pinned'], 'false', 'usePanelPinned keeps its meaning: left of the root');
+  assert.equal(r.seen('c')?.['data-pinned'], 'true', 'usePanelPinned reads PanelState.pinned, so it follows the definition');
   assert.equal(thrownCode(() => r.h.c!.configure({ pinning: { pinned: { placement: 'row-end' }, unpinned: { placement: 'row-end' } } } as never)), 'invalid-settings', 'a definition that cannot be read after a drag throws');
   assert.equal(thrownCode(() => r.h.c!.configure({ pinning: { pinned: { placement: 'in-place' }, unpinned: { placement: 'row-end' } } } as never)), 'invalid-settings', 'in-place throws');
   assert.equal(r.state('c').pinned, true, 'a refused definition changed nothing');
@@ -1403,13 +1403,13 @@ test('matrix:persist', async () => {
   assert.deepEqual(shape(r.turn(() => r.h.b!.configure({ persist: 'session' }))), { now: [], later: ['persist'], shadowed: [] });
   assert.deepEqual([r.order().join(' '), r.live().join(' '), r.entry('b').anchor === entry.anchor], ['root a b c', 'root a b c', true], 'no row effect: the live panel is untouched');
   assert.equal(JSON.stringify(await store.load()), file, 'the call itself writes nothing');
-  r.turn(() => r.h.a!.move('right', 'person'));
+  r.turn(() => r.h.a!.move(1, 'person'));
   await settleSave();
   assert.deepEqual(await keysIn(store), ['a', 'c'], 'the next projection leaves the session panel out');
   const saved = await fileOf(store);
   assert.equal(saved.panels.find((p) => (p.key ?? p.id) === 'c')!.anchor?.panel, 'root', 'and a panel that hung on it gets a derived anchor');
   done(r.turn(() => r.h.b!.configure({ persist: 'saved' })));
-  r.turn(() => r.h.a!.move('left', 'person'));
+  r.turn(() => r.h.a!.move(-1, 'person'));
   await settleSave();
   assert.equal((await keysIn(store)).includes('b'), true, 'session to saved: written at the next save');
   await quit(r);
@@ -1424,7 +1424,7 @@ test('matrix:rememberLayout', async () => {
   const right = (priority: number) => ({ panel: 'root', position: 'right', priority });
   const overrides = async (): Promise<Record<string, unknown>> => Object.fromEntries((await fileOf(store)).panels.map((p) => [p.key ?? p.id, p.overrides]));
   let r = await launch(store);
-  r.turn(() => r.h.c!.move('left', 'person'));
+  r.turn(() => r.h.c!.move(-1, 'person'));
   await quit(r);
   const first = await overrides();
   assert.deepEqual(first, { a: { anchor: right(0) }, c: { anchor: right(1) }, b: { anchor: right(2) } }, 'launch 1: the person left a layout');
@@ -1432,7 +1432,7 @@ test('matrix:rememberLayout', async () => {
   assert.equal(r.order().join(' '), 'root a c b', 'launch 2 applies it');
   for (const name of ['b', 'c']) assert.deepEqual(shape(r.turn(() => r.h[name]!.configure({ rememberLayout: false }))), { now: [], later: ['rememberLayout'], shadowed: [] });
   assert.equal(r.order().join(' '), 'root a c b', 'nothing moves');
-  r.turn(() => r.h.c!.move('right', 'person'));
+  r.turn(() => r.h.c!.move(1, 'person'));
   assert.equal(r.order().join(' '), 'root a b c', 'the session moves on');
   await settleSave();
   assert.deepEqual(await overrides(), first, 'true to false: the gesture is not recorded and the file keeps every stored override');
@@ -1443,7 +1443,7 @@ test('matrix:rememberLayout', async () => {
   assert.deepEqual(await overrides(), first, 'and the file still carries them');
   r = await launch(store);
   assert.equal(r.order().join(' '), 'root a c b', 'false to true: applying resumes');
-  r.turn(() => r.h.b!.move('left', 'person'));
+  r.turn(() => r.h.b!.move(-1, 'person'));
   await quit(r);
   assert.deepEqual((await overrides()).b, { anchor: right(1) }, 'and recording resumes');
   const clash = await matrixRig();
@@ -1458,7 +1458,7 @@ test('matrix:restoreVisibility', async () => {
   let r = await launch(store);
   assert.deepEqual(shape(r.turn(() => r.h.b!.configure({ restoreVisibility: 'parked' }))), { now: [], later: ['restoreVisibility'], shadowed: [] });
   assert.equal(r.state('b').status, 'live', 'read only at the next launch: nothing changes now');
-  r.turn(() => r.h.a!.move('right', 'person'));
+  r.turn(() => r.h.a!.move(1, 'person'));
   await quit(r);
   r = await launch(store, { settings: { b: { restoreVisibility: 'parked' } } });
   assert.deepEqual([r.state('b').status, r.state('c').status], ['parked', 'live'], 'the next launch restores b parked and c as it was');
@@ -1521,7 +1521,7 @@ test('matrix:reportClose', async () => {
 test('matrix:snapshot', async () => {
   probe('snapshot');
   const r = await matrixRig();
-  const [b, c] = [r.entry('b').id, r.entry('c').id];
+  const [b, c] = [r.entry('b').key, r.entry('c').key];
   const s = soft();
   await s.run('switching to never asks the host to evict the stored picture once, from the commit', () => {
     assert.deepEqual(r.capture.evicted, [], 'before: nothing evicted');
@@ -1668,17 +1668,17 @@ test('matrix:tuning.saveQuietMs', async () => {
   tick(500);
   const base = saves.length;
   assert.equal(base > 0, true, 'the restore settled and its first save came after the default 500 ms');
-  r.turn(() => r.h.a!.move('right', 'person'));
+  r.turn(() => r.h.a!.move(1, 'person'));
   tick(499);
   assert.equal(saves.length, base, 'before: a change is not saved before the quiet time');
   tick(1);
   assert.equal(saves.length, base + 1, 'and is saved at it');
-  r.turn(() => r.h.a!.move('left', 'person'));
+  r.turn(() => r.h.a!.move(-1, 'person'));
   tick(300);
   assert.deepEqual({ ...done(r.turn(() => r.ws.panels.configureTuning({ saveQuietMs: 2000 }))) }, { ok: true, changed: true, shown: false, now: [], later: ['tuning.saveQuietMs'], shadowed: [], notes: [] });
   tick(200);
   assert.equal(saves.length, base + 2, 'a timer already armed keeps its deadline');
-  r.turn(() => r.h.a!.move('right', 'person'));
+  r.turn(() => r.h.a!.move(1, 'person'));
   tick(1999);
   assert.equal(saves.length, base + 2, 'the next arm uses the new value');
   tick(1);

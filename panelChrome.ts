@@ -5,7 +5,9 @@
 import * as React from 'react';
 import { animate, useReducedMotion, useReducedMotionConfig } from 'motion/react';
 import { LIBRARY_TUNING_DEFAULTS, type PanelId } from './panelSettings.js';
+import type { ReorderHandle } from './dragToClose.js';
 import { PanelSlotContext } from './panelSlotContext.js';
+import { reorderStepsForOffset } from './panelWindow.js';
 
 /**
  * The attribute the library writes, empty-valued, on the root box of the active panel and removes when another panel
@@ -73,6 +75,12 @@ export interface ChromeStore {
   subscribePanel(id: PanelId, listener: () => void): () => void;
   /** Wakes `listener` when the active panel changes. */
   subscribeActive(listener: () => void): () => void;
+  /** The row tells the store each panel's key, which is its public id; the store holds engine ids. */
+  setKeys(keys: ReadonlyMap<PanelId, string>): void;
+  /** The key a panel is public under, or `engine` itself when the row has not named it. */
+  keyOf(engine: PanelId): string;
+  /** The engine id of the panel public under `key`, or `key` itself when none is. */
+  engineOf(key: string): PanelId;
 }
 
 export function createChromeStore(): ChromeStore {
@@ -88,6 +96,8 @@ export function createChromeStore(): ChromeStore {
     for (const l of [...drawnListeners]) l();
   };
   const activeListeners = new Set<() => void>();
+  let keys: ReadonlyMap<PanelId, string> = new Map();
+  let engines: ReadonlyMap<string, PanelId> = new Map();
   const byPanel = new Map<PanelId, Set<() => void>>();
   const wake = (ids: readonly (PanelId | null)[], activeChanged: boolean): void => {
     for (const id of new Set(ids)) if (id !== null) for (const l of [...(byPanel.get(id) ?? [])]) l();
@@ -144,6 +154,12 @@ export function createChromeStore(): ChromeStore {
       activeListeners.add(listener);
       return () => void activeListeners.delete(listener);
     },
+    setKeys(next) {
+      keys = next;
+      engines = new Map([...next].map(([engine, key]) => [key, engine]));
+    },
+    keyOf: (engine) => keys.get(engine) ?? engine,
+    engineOf: (key) => engines.get(key) ?? key,
   };
 }
 
@@ -154,14 +170,15 @@ const NOOP_SET = (): void => {};
 const NO_SUBSCRIBE = (): (() => void) => () => {};
 
 /**
- * The id of the active panel and a setter for it: the panel the person last pressed or focused inside, until another
+ * The id (key) of the active panel and a setter that takes one: the panel the person last pressed or focused inside, until another
  * panel is used, or the one the host set. Outside a Workspace it is `[null, no-op]`.
  * @public
  */
 export function useActivePanel(): readonly [PanelId | null, (id: PanelId | null) => void] {
   const store = React.useContext(ChromeStoreContext);
-  const id = React.useSyncExternalStore(store?.subscribeActive ?? NO_SUBSCRIBE, () => store?.active() ?? null, () => null);
-  return React.useMemo(() => [id, store?.setActive ?? NOOP_SET] as const, [id, store]);
+  const id = React.useSyncExternalStore(store?.subscribeActive ?? NO_SUBSCRIBE, () => { const active = store?.active() ?? null; return active === null ? null : store!.keyOf(active); }, () => null);
+  const set = React.useCallback((key: PanelId | null) => store?.setActive(key === null ? null : store.engineOf(key)), [store]);
+  return React.useMemo(() => [id, store === undefined ? NOOP_SET : set] as const, [id, store, set]);
 }
 
 function usePanelMark(read: (store: ChromeStore, id: PanelId) => boolean): boolean {
@@ -344,4 +361,28 @@ export function useChromeFade(visible: boolean): (node: HTMLElement | null) => v
     node.current = el;
     if (el !== null) settle(el);
   }, []);
+}
+
+/**
+ * The `onClose` and `reorder` of the panel this hook is called in, to spread onto `DragToClose`: a close and a move
+ * through the panel's own handle, so both are gated and answer a `PanelResult`. A close is offered when the panel is
+ * closable and sits in a column that closes; a reorder when it is draggable, and a release crossing several
+ * neighbours is one `move`. Outside a row with a workspace there is no handle, so it returns neither.
+ * @public
+ */
+export function usePanelDragProps(): { onClose?: () => void; reorder?: ReorderHandle } {
+  const slot = React.useContext(PanelSlotContext);
+  const handle = slot?.handle;
+  if (slot === undefined || handle === undefined) return {};
+  const props: { onClose?: () => void; reorder?: ReorderHandle } = {};
+  if (slot.collapsible && slot.closable) props.onClose = () => void handle.close('person');
+  if (slot.draggable) {
+    props.reorder = {
+      onDragEnd: (offset) => {
+        const steps = reorderStepsForOffset(offset, slot.neighborWidths, slot.tuning.rowGap, slot.tuning.hopFraction);
+        if (steps !== 0) handle.move(steps, 'person');
+      },
+    };
+  }
+  return props;
 }
