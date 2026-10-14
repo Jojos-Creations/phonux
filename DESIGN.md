@@ -711,12 +711,13 @@ radiogroup), the item is pressed under dnd-kit's keyboard drag, a panel is being
 **Mounted, inert, focus.** Every cell stays mounted, so panels keep their state, and the cells that are not current are `inert` and
 `aria-hidden`. When the current cell changes while focus was inside the one left, focus moves to the new cell (`tabIndex -1`), so the arrow keys keep working.
 
-**Vertical budget.** Each cell is as tall as the column. The row's top padding is `COLUMN_TOP_BAND` (72) plus `topInset`, or the row gap
-(24) when there is none: 96 px. In the band the button naming the workspace above sits at 4 to 28 px and the name input at 36 to 68 px.
-The bottom button occupies the last 4 to 28 px (`COLUMN_BOTTOM_BAND` is 32). The phone keeps its height (700 by default). At a
-window 832 px high: 96 above the phone, 700 for it, 36 below, so the bottom button has 8 px to spare. At 1080: the row is centred in
-the 960 px between its paddings, 130 px above and below the phone, the phone's top at 226 px. Under 824 px the bottom button overlaps the row's bottom
-gap; the phone never shrinks for it.
+**Vertical budget.** Each cell is as tall as the column. The row's top padding is `COLUMN_TOP_BAND` (76) plus `topInset`, or the row gap
+(16) when there is none: 92 px. A panel's header hangs 56 px above its 700 px body, so from the window's top edge down: the button naming the
+workspace above at 2 to 20 px, the name input at 22 to 46 px, the headers from 48 px, the bodies, then the bottom button in the last
+4 to 26 px (`COLUMN_BOTTOM_BAND` is 26). The phone keeps its height. Measured in Chromium (`phonux-workspace-column-proof`):
+at 832 px high the headers start at 48, the bodies run 104 to 804 and the bottom button 806 to 828, so nothing overlaps and 832 is
+the least window height for that. At 1080 the row is centred in the 972 px between its paddings: headers at 172, bodies 228 to 928, bottom
+button 1054 to 1076. Under 832 the row sits at the top of its padding and the headers climb under the name input; the phone never shrinks for it.
 
 ## Naming rules R1-R4
 

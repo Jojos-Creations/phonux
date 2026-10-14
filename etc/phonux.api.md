@@ -91,10 +91,10 @@ export interface ClosedPageEntry {
 export type CloseExitEase = 'easeIn' | 'easeOut' | 'easeInOut' | 'linear' | BezierEase;
 
 // @public
-export const COLUMN_BOTTOM_BAND = 32;
+export const COLUMN_BOTTOM_BAND = 26;
 
 // @public
-export const COLUMN_TOP_BAND = 72;
+export const COLUMN_TOP_BAND = 76;
 
 // @public
 export type ColumnOptions = Omit<WorkspaceOptions, 'id' | 'name' | 'onRename' | 'storage' | 'mount'> & {
