@@ -24,6 +24,14 @@ every call rather than simulating real behavior, since simulating real behavior 
 app's own logic -- exactly what this boundary exists to avoid. It has no test-runner dependency and
 imports only the contracts and the data-only phone model list.
 
+`phonux/testing/row` (`testingRow.ts`) is a separate tool beside it, not a second fake. It renders a workspace with the real
+engine, because a test of a drag, a resize or a park decision has nothing to assert on a recording. Its price is what the fake
+refuses: it loads the engine, installs a jsdom window as the process globals (`jsdom` is an optional peer dependency) and
+replaces `requestAnimationFrame` and `performance.now` with one counter that moves only when a test steps it. That is why the
+entry must be imported before `react` and `motion`, and why it lives on its own subpath: a view test that only records never pays
+for it. Timers stay real: the save's quiet period, for one, waits on a real `setTimeout`, so a test of `memoryWorkspaceStorage.saved`
+sets `tuning.saveQuietMs` small. The driver reports one window size to every row scroller, so one process draws one window.
+
 ## Behavior flags cross this boundary as data only
 
 The panel model (`PanelWindow`, `panelWindow.ts`) adds behavior flags (`collapsible`, `listed`, `view`, ...)

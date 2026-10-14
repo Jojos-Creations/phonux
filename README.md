@@ -162,6 +162,24 @@ render(
 `{ panels: { panelList: [...] } }`); every call any fake receives is
 recorded, in order, on the returned host's `.calls`.
 
+To test a view inside a real row, `phonux/testing/row` renders a workspace with the real engine in a jsdom window and
+steps a virtual frame clock, so a drag or a resize needs no wait on real time. Import it before `react` (it installs the
+jsdom window and the clock, and `jsdom` is an optional peer dependency):
+
+```ts
+import { renderWorkspace } from 'phonux/testing/row';
+import { createWorkspace, definePanel } from 'phonux';
+
+const workspace = createWorkspace({ templates: [definePanel({ id: 'notes', view: Notes })] });
+workspace.addPanel('notes');
+const row = await renderWorkspace(workspace, { width: 1200 });
+await row.drag(row.panel('notes')!.grabBar!, { dx: 0, dy: 120 }); // closes the panel
+await row.setWidth(600);
+await row.dispose();
+```
+
+`row.panel(id)` returns the drawn `root`, `header`, `grabBar` and `footer` of the panel with that key.
+
 See `DESIGN.md` in this folder for the reasoning behind the API shape, the
 panel-view registry, and what stays out of a view's reach on purpose.
 
