@@ -354,6 +354,20 @@ test('topInset clears chrome the app draws: the controls start below it', async 
   await until('a cell', () => cells().length === 1);
   const cell = cells()[0]!;
   const top = (el: Element): string => getComputedStyle(el).top;
-  assert.equal(top(neighbour(cell, 'above')), '34px');
-  assert.equal(top(cell.querySelector('[data-workspace-name-input]')!.parentElement!), '54px');
+  assert.equal(top(neighbour(cell, 'above')), '32px');
+  assert.equal(top(cell.querySelector('[data-workspace-name-input]')!.parentElement!), '56px');
+});
+
+test('every control the column draws is at least 24 px high: both neighbour buttons, the empty-column button and the name input', async () => {
+  const c = await three();
+  const cell = cells()[0]!;
+  const high = (el: Element): number => Number.parseFloat(getComputedStyle(el).height);
+  assert.ok(high(neighbour(cell, 'above')) >= 24);
+  assert.ok(high(neighbour(cell, 'below')) >= 24);
+  assert.ok(high(cell.querySelector('[data-workspace-name-input]')!.parentElement!) >= 24);
+  act(() => c.dispose());
+  const empty = make();
+  await until('the empty button', () => document.querySelector('[data-workspace-neighbour="empty"]') !== null);
+  assert.ok(high(document.querySelector('[data-workspace-neighbour="empty"]')!) >= 24);
+  act(() => empty.dispose());
 });
