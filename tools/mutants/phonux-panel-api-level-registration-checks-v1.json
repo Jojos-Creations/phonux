@@ -1,0 +1,140 @@
+{
+  "tests": [
+    "test/panel-level-checks.test.ts",
+    "test/panel-api-level.test.ts"
+  ],
+  "mutants": [
+    {
+      "name": "the registration check is not run by definePanel",
+      "file": "panelTemplate.ts",
+      "find": "  reportLevelTieOnce(t.id, t.api, t.settings);\n",
+      "replace": "",
+      "expectRed": [
+        "every door that takes a template reports a member newer than its level, and none of them throws"
+      ]
+    },
+    {
+      "name": "a registration report repeats for the same template",
+      "file": "panelApiLevel.ts",
+      "find": " || reported.has(key)) return;\n  reported.add(key);\n",
+      "replace": ") return;\n",
+      "expectRed": [
+        "the report is one console.error per template naming the template, the level and every member",
+        "the item report is one console.error per template, skips an empty list, and is silent in production"
+      ]
+    },
+    {
+      "name": "a member of the template's own level is reported",
+      "file": "panelLevelChecks.ts",
+      "find": "from > level",
+      "replace": "from >= level",
+      "expectRed": [
+        "a template on level 1 is told which settings and header button members arrived with level 2",
+        "a template on level 2, a member of level 1, an alias and a name the table does not know all pass",
+        "the shipped description reports nothing for templates that use every kind of member today"
+      ]
+    },
+    {
+      "name": "every known member is reported",
+      "file": "panelLevelChecks.ts",
+      "find": "from !== undefined && from > level",
+      "replace": "from !== undefined",
+      "expectRed": [
+        "a template on level 2, a member of level 1, an alias and a name the table does not know all pass",
+        "every shipped setting and header button member is named with the level that introduced it, and with one level nothing is newer",
+        "the shipped description reports nothing for templates that use every kind of member today"
+      ]
+    },
+    {
+      "name": "a newer tuning leaf is not reported",
+      "file": "panelLevelChecks.ts",
+      "find": "      for (const leaf of Object.keys(settings.tuning)) note(`tuning.${leaf}`, since.settings[`tuning.${leaf}`], 'setting');\n",
+      "replace": "",
+      "expectRed": [
+        "a template on level 1 is told which settings and header button members arrived with level 2"
+      ]
+    },
+    {
+      "name": "a newer header button member is not reported",
+      "file": "panelLevelChecks.ts",
+      "find": "      for (const member of Object.keys(slot)) note(member, since.headerButton[member], 'header button member');\n",
+      "replace": "",
+      "expectRed": [
+        "a template on level 1 is told which settings and header button members arrived with level 2"
+      ]
+    },
+    {
+      "name": "a registration check that cannot run throws",
+      "file": "panelApiLevel.ts",
+      "find": "  } catch {\n",
+      "replace": "  } finally {\n",
+      "expectRed": [
+        "the check never throws, even for settings it cannot read"
+      ]
+    },
+    {
+      "name": "a registration report is not silent in production",
+      "file": "panelApiLevel.ts",
+      "find": "if (typeof process === 'undefined' || process.env.NODE_ENV === 'production' || reported.has(key)) return;\n  reported.add(key);\n  try {\n    const problems = check();",
+      "replace": "if (typeof process === 'undefined' || reported.has(key)) return;\n  reported.add(key);\n  try {\n    const problems = check();",
+      "expectRed": [
+        "an omitted level is the newest, so nothing is newer; production is silent",
+        "the item report is one console.error per template, skips an empty list, and is silent in production"
+      ]
+    },
+    {
+      "name": "an empty item list uses up the one report",
+      "file": "panelLevelChecks.ts",
+      "find": "  if (items.length === 0) return;\n",
+      "replace": "",
+      "expectRed": [
+        "the item report is one console.error per template, skips an empty list, and is silent in production"
+      ]
+    },
+    {
+      "name": "a text item may carry an icon",
+      "file": "panelLevelChecks.ts",
+      "find": "    if (form === 'text' && Object.getOwnPropertyDescriptor(item, 'icon')?.value !== undefined) problems.push(`${label}.icon should be undefined in the text form`);\n",
+      "replace": "",
+      "expectRed": [
+        "a member that is missing, of the wrong kind, or in the wrong form is reported with the item named"
+      ]
+    },
+    {
+      "name": "an item of an unknown form is judged as an icon item",
+      "file": "panelLevelChecks.ts",
+      "find": "    if (form !== 'icon' && form !== 'text') problems.push(`${label}.form should be 'icon' or 'text'`);\n    else problems.push(...memberProblems(item, HEADER_ITEM_SHAPE[form], label));",
+      "replace": "    problems.push(...memberProblems(item, HEADER_ITEM_SHAPE.icon, label));",
+      "expectRed": [
+        "a member that is missing, of the wrong kind, or in the wrong form is reported with the item named"
+      ]
+    },
+    {
+      "name": "the press member of an item is optional",
+      "file": "panelLevelChecks.ts",
+      "find": "    press: { kind: 'function' },\n    form: { kind: 'string' },\n    icon: { kind: 'any', optional: true },\n  },\n  text:",
+      "replace": "    press: { kind: 'function', optional: true },\n    form: { kind: 'string' },\n    icon: { kind: 'any', optional: true },\n  },\n  text:",
+      "expectRed": [
+        "a member that is missing, of the wrong kind, or in the wrong form is reported with the item named"
+      ]
+    },
+    {
+      "name": "the hook does not check the items it lists",
+      "file": "panelHeaderButtons.tsx",
+      "find": "    reportItemShapeOnce(handle.templateId, level, items);\n",
+      "replace": "",
+      "expectRed": [
+        "real header button items in every state have the shape the description gives"
+      ]
+    },
+    {
+      "name": "a view is not told its template's level",
+      "file": "templateView.tsx",
+      "find": "<PanelLevelContext.Provider value={level}>",
+      "replace": "<PanelLevelContext.Provider value={undefined}>",
+      "expectRed": [
+        "a view reads the level of its template from context"
+      ]
+    }
+  ]
+}

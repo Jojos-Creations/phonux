@@ -407,6 +407,8 @@ test('the shape check never runs a getter or a method and never throws', () => {
 test('optional members may be absent and a present one of the wrong kind is reported', () => {
   const base = { panel: { id: 'p', live: true, locked: false }, handle: FULL_HANDLE, manager: FULL_MANAGER };
   assert.deepEqual(shapeMismatches(base, NEWEST_SHAPE), []);
+  assert.deepEqual(shapeMismatches({ ...base, panel: null }, NEWEST_SHAPE), ['panel is null']);
+  assert.deepEqual(shapeMismatches({ ...base, handle: undefined }, NEWEST_SHAPE), ['handle is missing']);
   assert.deepEqual(shapeMismatches({ ...base, panel: { ...base.panel, url: 'u', title: 't', params: { a: 1 }, slots: 2, size: { width: 1 } } }, NEWEST_SHAPE), []);
   assert.deepEqual(shapeMismatches({ ...base, panel: { ...base.panel, slots: '2' } }, NEWEST_SHAPE), ['panel.slots should be a number, got a string']);
   assert.deepEqual(shapeMismatches({ ...base, panel: { ...base.panel, live: undefined } }, NEWEST_SHAPE), ['panel.live is missing']);

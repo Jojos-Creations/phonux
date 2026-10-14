@@ -4,6 +4,7 @@
  */
 import * as React from 'react';
 import type { PanelSummary } from './hostApi.js';
+import { PanelLevelContext } from './panelLevelContext.js';
 import { checkPanelApi, NEWEST_SHAPE, reportShapeOnce, SHIPPED_LEVELS, warnIfOldLevel, type LevelTable } from './panelApiLevel.js';
 import { FrameBoundary } from './panelFrameBoundary.js';
 import { PanelFooterContext } from './panelFooter.js';
@@ -48,8 +49,8 @@ export function templateViewFor(t: PanelTemplate, table: LevelTable = SHIPPED_LE
       </FrameBoundary>
     );
     const Footer = t.footer as React.ComponentType<object> | undefined;
-    if (Footer === undefined) return view;
-    return <PanelFooterContext.Provider value={<Footer {...viewProps} />}>{view}</PanelFooterContext.Provider>;
+    const body = Footer === undefined ? view : <PanelFooterContext.Provider value={<Footer {...viewProps} />}>{view}</PanelFooterContext.Provider>;
+    return <PanelLevelContext.Provider value={level}>{body}</PanelLevelContext.Provider>;
   }
   forTable.set(t, TemplatePanelView);
   return TemplatePanelView;
