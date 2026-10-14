@@ -19,12 +19,15 @@ page.on('console', (m) => { if (m.type() === 'error') errors.push(m.text().slice
 await page.addInitScript(() => {
   const seen = {};
   window.__seen = seen;
+  window.__frames = [];
   const tick = () => {
     for (const s of document.querySelectorAll('[data-row-slot]')) {
       const r = s.getBoundingClientRect();
       const key = `${Math.round(r.left)}x${Math.round(r.width)}`;
-      (seen[s.querySelector('[data-body]')?.dataset.body ?? 'none'] ??= new Set()).add(key);
-      if (s.querySelector('[data-body=one]')) (window.__frames ??= []).push(key);
+      const name = s.querySelector('[data-body]')?.dataset.body ?? 'none';
+      if (!seen[name]) seen[name] = new Set();
+      seen[name].add(key);
+      if (s.querySelector('[data-body=one]')) window.__frames.push(key);
     }
     requestAnimationFrame(tick);
   };
