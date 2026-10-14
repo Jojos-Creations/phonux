@@ -425,7 +425,7 @@ const stored = (...later: string[]) => ({ ok: true, changed: true, shown: false,
 
 test('closed inside the window: closable false then undoClose gives locked true, and close() is refused not-closable', async () => {
   const r = await pinRig();
-  const id = r.entry('b').id;
+  const id = r.entry('b').key;
   r.turn(() => r.h.b!.close());
   const held = windowed(r);
   assert.deepEqual([r.state('b').status, held.map((p) => p.id), held[0]!.locked], ['closed', [id], false]);
@@ -495,7 +495,7 @@ test('closed past the window: the edit is stored on the record and open() uses i
 
 test('the undo window\'s panel objects are the same before and after every configure of a closed panel, accepted, equal or refused', async () => {
   const r = await pinRig();
-  const ids = [r.entry('a').id, r.entry('c').id];
+  const ids = [r.entry('a').key, r.entry('c').key];
   r.turn(() => r.h.a!.close());
   r.turn(() => r.h.c!.close());
   const held = windowed(r);
@@ -1041,7 +1041,7 @@ test('configureTuning rowGap re-prices the row in one commit: the slots rest one
   const r = await pinRig();
   await r.settle();
   const slotX = (name: string): number => {
-    const transform = (r.m.container.querySelector(`[data-slot="${name === 'root' ? name : r.entry(name).id}"]`)!.parentElement as HTMLElement).style.transform;
+    const transform = (r.m.container.querySelector(`[data-slot="${name}"]`)!.parentElement as HTMLElement).style.transform;
     return transform === 'none' ? 0 : Number(/translateX\((-?[\d.]+)px\)/.exec(transform)![1]);
   };
   assert.deepEqual(['root', 'a', 'b', 'c'].map(slotX), [0, 406, 812, 1218], 'before: 390 + 16 apart');
