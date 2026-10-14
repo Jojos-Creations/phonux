@@ -15,7 +15,7 @@ import { decidePinChange, isPinned, withoutDeferral, type PinChange, type PinDec
 import { applyTemplate, effective, holdUnlistedNote, panelKey, resolvePanelSettings, resolveUnderTuning, sameSettingsValue } from './panelSettings.js';
 import type { AddPlacement, PanelId, PanelSettings, PanelSettingsResolution, ResolvedPanelSettings, ResolvedPanelTuning, ResolvedWorkspaceTuning, ScrollAlign, SettingNote, WorkspaceTuning } from './panelSettings.js';
 import { definePanel } from './panelTemplate.js';
-import type { DeferredPin, PanelReader, PanelReadHandle, PanelSnapshot, PanelState, PanelTemplate, ViewHandle, WorkspaceStatus } from './panelTemplate.js';
+import type { DeferredPin, PanelReader, PanelReadHandle, PanelSnapshot, PanelState, PanelTemplate, AnyPanelTemplate, ViewHandle, WorkspaceStatus } from './panelTemplate.js';
 import { resolveWorkspaceTuning } from './panelTuning.js';
 import { createHistoryPanel, slotsOf, type PanelWindow } from './panelWindow.js';
 import type { PanelViewContext } from './panelViewContext.js';
@@ -71,9 +71,9 @@ export type WorkspaceOptions = WorkspaceLive & {
   /** The workspace's panel settings (every key except `tuning`), the layer under every template. */
   defaults?: Omit<PanelSettings, 'tuning'>;
   /** The root panel's template. Unset: the row has an invisible marker entry as its root. */
-  root?: PanelTemplate;
+  root?: AnyPanelTemplate;
   /** The templates panels of this workspace may be made from. */
-  templates?: readonly PanelTemplate[];
+  templates?: readonly AnyPanelTemplate[];
   /** The developer's panel order, read by every placement whose value is `'order'`. */
   order?: () => readonly PanelId[];
   /** The workspace's tuning leaves; each one left out or out of range takes the library default. */
@@ -135,7 +135,7 @@ export interface WorkspaceHandle {
    */
   update(live: WorkspaceLive): void;
   /** Registers a template with this workspace only; returns the function that removes it. */
-  registerTemplate(t: PanelTemplate): () => void;
+  registerTemplate(t: AnyPanelTemplate): () => void;
   /** Drops the workspace's listeners and intents; a later `addPanel` throws `disposed`. */
   dispose(): void;
 }

@@ -164,6 +164,13 @@ function templateIdProblem(id: unknown): string | undefined {
 const isComponent = (view: unknown): boolean => typeof view === 'function' || (typeof view === 'object' && view !== null && '$$typeof' in view);
 
 /**
+ * A template of any params: what a workspace accepts in `templates`, `root` and `registerTemplate`, so a template made with
+ * `definePanel` for typed params needs no cast. `any`, because `PanelTemplate<P>` is invariant in `P`. `addPanel` still checks `params` against the template it is given.
+ * @public
+ */
+export type AnyPanelTemplate = PanelTemplate<any>;
+
+/**
  * Returns the template unchanged after checking it: a valid id, a component for `view` and for `footer` when given, an `api` the library serves, and a settings layer the
  * resolver accepts on its own. Throws PanelManagerError, 'invalid-template' or 'invalid-settings'.
  * @public

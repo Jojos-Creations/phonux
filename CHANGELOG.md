@@ -10,6 +10,7 @@
 
 ### Added
 
+- `AnyPanelTemplate`: `WorkspaceOptions.templates`, `root` and `registerTemplate` take a template of any params, so a template made with `definePanel` for typed params needs no cast. `addPanel` still checks `params`.
 - A column of workspaces, one above the other. `createWorkspaceColumn(options)` renders itself like `createWorkspace`, and
   `column.addWorkspace(options)` is the one call that creates a workspace, adds it and returns its `WorkspaceHandle`. ArrowUp and
   ArrowDown move between workspaces (never while focus is in a field, widget, editor or dialog, or during a keyboard drag, and never
