@@ -1733,6 +1733,31 @@ A verb names a panel, never a row index, and resolves it on every call: a handle
 - **Configure of parkable.** A `configure` that names `parkable` on a parked, hidden or closed panel goes through `decidePinChange` like `pin`, reading `pinningWhenNotLive` as it stood before the patch: `place-only` and `refuse` answer `would-reshape-row` (`is-closed` for a closed panel), `show` shows the panel and flips it in one commit with `shown: true`, `apply-on-next-show` stores the half as a deferred pin and lists `parkable` in `later`. A closed panel's stored half lives on its record, is never saved, and is applied by `open` or an undo. A flip that changes nothing the panel reads, as when the person's override outvotes it, is no pin change and is never refused or stored. A `configure` that names `parkable` cancels a stored half on a parked, hidden or closed panel alike, even when the patch changes no layer value. The rest of the patch is written with a stored flip, and a refused flip refuses the whole patch.
 - **Reset.** `resetLayout` writes `overrides` only through `clearOverrides`, clears stored deferrals and re-places each named panel by its resolved `placeOnAdd`. `'all'` scrolls nothing; one id follows `scrollOnMove`.
 
+### Opening beside a source
+
+`workspace.openBeside(t, sourceId, o, source)` lands a panel directly right of the panel that asked for it, which is how
+a host shows a player beside the list that started a track. It is one call because the steps it replaces cannot be
+issued in one turn from outside: a panel being added refuses every verb (`is-pending`) and a panel takes one operation
+per commit (`busy`), so `open`, `place`, `show` and a show of the source had to wait for a commit each.
+
+- **One door, on the workspace.** The panel may not exist yet, so the call finds or adds it as `addPanel` does (a singleton
+  by its template id, an instance by `o.id`, a new instance for a `multiple` template without one) and a handle verb could
+  not. It answers an `OpenBesideResult`: a `PanelResult`, the panel's handle, and `sourceParked`.
+- **The table.** A new panel is created with its placement already applied; a closed one is re-added the same way, under
+  the limits `open` checks; a parked or hidden one is placed and made live in the update that shows it, as `show` does
+  with `placeOnShow`; a live one is placed with `mode: 'move'` and only scrolled into view with `mode: 'stay'`. The
+  placement is `{ after: source }`, so a parked source still orders the row, and stays parked.
+- **Room.** The placement comes first, so the park is chosen against where the panel will stand. The source is passed to
+  the eviction search as a spare: it is skipped while any other live panel that parks for room is left, and taken only
+  when none is, so the panel opened always shows. The host never counts panels to guess room, and panels of unequal
+  width are priced by the row itself. A host that keeps its window at least as wide as the fixed columns and two phone
+  slots never sees the source park for a phone panel.
+- **The gate.** The call takes the turn's token on the panel and the source together (and on the closed views for a
+  re-add, as `open` does), so a second call on either in the same turn answers `busy`. A refusal touches nothing: an
+  add that is refused leaves no record behind.
+- **Source.** `'person'` records the placement as the person's anchor override on every path, as `place` does; code
+  leaves the person's arrangement alone.
+
 ## Panel chrome
 
 The active and dragging panel are ephemeral facts held by the Workspace in a small external store (`panelChrome.ts`), one per

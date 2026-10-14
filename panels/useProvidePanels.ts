@@ -24,10 +24,18 @@ import { decidePinChange, type PinChange, type PinStatus } from '../panelPin.js'
 import { LIBRARY_TUNING_DEFAULTS, applyTemplate, effective, panelKey, resolvePanelSettings } from '../panelSettings.js';
 import type { PanelSettings, PanelSettingsResolution, ResolvedPanelSettings, ResolvedWorkspaceTuning, ScrollAlign, SettingNote, WorkspaceTuning } from '../panelSettings.js';
 import type { PanelTemplate } from '../panelTemplate.js';
-import { reportNotes } from '../panelPlacement.js';
+import { placePanel, reportNotes } from '../panelPlacement.js';
 import { resolveWorkspaceTuning } from '../panelTuning.js';
 import { appendPanel, clearOverrides, recordOverride, reanchorPanel, slotsOf, type AnchorRequest, type PanelWindow } from '../panelWindow.js';
 import { bindingOf, nextEngineId, type CreateRequest, type EngineOps, type WorkspaceHandle } from '../workspaceCore.js';
+
+/** Where `openBeside` lands a panel it creates or reopens: right of `after`, parking a panel in `spare` only when nothing else can go. */
+interface BesideLanding {
+  after: string;
+  spare: ReadonlySet<string>;
+  /** True for a person's call, which records the placement as the person's own arrangement. */
+  record: boolean;
+}
 import { conflictNotes, finishCreated } from '../workspacePlan.js';
 import { usePanelClosing, type Reapplied } from './usePanelClosing.js';
 import { usePanelManager, type GateKind } from './usePanelManager.js';
@@ -561,9 +569,9 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
     replay: core !== undefined,
   });
 
-  const createFromWorkspace = (req: CreateRequest): void => {
+  const createFromWorkspace = (req: CreateRequest, beside?: BesideLanding): readonly string[] => {
     const template = templateList().find((t) => t.id === req.templateId);
-    if (template === undefined) return;
+    if (template === undefined) return [];
     // Built here, outside the updater below: React may run an updater twice and the host's builder is not required to be pure.
     const hostData = i.defaultHostData?.();
     const build = (prev: PanelWindow[]): PanelWindow[] =>
@@ -573,8 +581,16 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
     // A pin change stored while the panel was closed lands as the panel is added: placement, then the `parkable` flip.
     const withPin = (row: PanelWindow[]): PanelWindow[] => (req.deferredPin === undefined || !row.some((p) => p.id === req.engineId) ? row : landPanel(row, req.engineId, 'in-place', req.deferredPin).row);
     if (req.deferredPin !== undefined && build(panels).some((p) => p.id === req.engineId)) reportNotes(i.onNote, landPanel(build(panels), req.engineId, 'in-place', req.deferredPin).notes);
-    revealPanelProactively(panels, (prev) => withPin(build(prev)));
+    // Placed before the room is made, so the park is chosen against where the panel will stand.
+    const placed = (row: PanelWindow[]): PanelWindow[] => {
+      const entry = beside === undefined ? undefined : row.find((p) => p.id === req.engineId);
+      if (beside === undefined || entry === undefined) return row;
+      const next = placePanel(row, req.engineId, { after: beside.after }, { fallback: effective(entry).placeFallback, rootId, ...(core?.order !== undefined ? { order: core.order } : {}) }).row;
+      return beside.record ? recordOverride(next, 'anchor', next.map((p) => p.id), rootId) : next;
+    };
+    const parked = revealPanelProactively(panels, (prev) => withPin(placed(build(prev))), beside?.spare);
     requestOpen(req.engineId, { fresh: true });
+    return parked;
   };
 
   // A template registered after the restore settled: its placeholder entries are rebuilt from it, and the panels code declared for it are created.
@@ -813,7 +829,6 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
   const busy = (p: PanelWindow): PanelResult => refused('busy', `panel '${panelKey(p)}' already has an operation in this turn`);
   const isEntry = (found: PanelWindow | PanelResult): found is PanelWindow => 'id' in found;
 
-  /** The manager's verbs on a panel the engine holds, each gated and each refusing before it touches the row. */
   /** A resize by tier or by slot count, after the in-flight gate and the panel's own permissions. */
   const resizeOp = (engineId: string, next: FormFactor | number, source: PanelOpSource): PanelResult => {
     const target = held(engineId);
@@ -832,6 +847,7 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
     gate.release(token);
     return accepted(changed);
   };
+  /** The manager's verbs on a panel the engine holds, each gated and each refusing before it touches the row. */
   const ops: EngineOps = {
     show: (engineId) => {
       const target = held(engineId);
@@ -996,6 +1012,39 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
         const defaults = applyTemplate(panel, value, 'reconfigure');
         return clearOverrides([{ ...defaults, ...(slotsOf(panel) === value.slots ? {} : { slots: value.slots, formFactor: value.formFactor, size: { ...TIER_SIZES[value.formFactor] } }), applied: { placeOnAdd: value.placeOnAdd } }], [panel.id])[0]!;
       }),
+    beside: (target, sourceEngineId, mode, source) => {
+      const creating = typeof target !== 'string';
+      const engineId = creating ? target.engineId : target;
+      const from = held(sourceEngineId);
+      if (!isEntry(from)) return from;
+      // A reopen also tokens the closed views, as `reopen` does: a raw undoClose in this turn restores the very key it would add.
+      const touched = creating ? [engineId, sourceEngineId, ...closing.closedIds()] : [engineId, sourceEngineId];
+      const existing = creating ? undefined : held(engineId);
+      if (existing !== undefined && !isEntry(existing)) return existing;
+      if (gate.busy(touched, 'other')) return refused('busy', `panel '${existing === undefined ? (target as CreateRequest).id : panelKey(existing)}' or '${panelKey(from)}' already has an operation in this turn`);
+      if (existing?.live === true && mode === 'stay') return { ...ops.show(engineId), sourceParked: false };
+      if (existing !== undefined && !effective(existing).placeable) return refused('not-placeable', `panel '${panelKey(existing)}' cannot be placed`);
+      const landing: BesideLanding = { after: sourceEngineId, spare: from.live ? new Set([sourceEngineId]) : new Set(), record: source === 'person' };
+      const token = gate.take(touched, 'other')!;
+      try {
+        if (existing === undefined) {
+          closing.forgetClosed((target as CreateRequest).id);
+          const parked = createFromWorkspace(target as CreateRequest, landing);
+          return { ...accepted(true), sourceParked: parked.includes(sourceEngineId) };
+        }
+        if (existing.live) {
+          const changed = placeAt(engineId, { after: sourceEngineId }, landing.record);
+          if (changed) followPanel(engineId);
+          return { ...accepted(changed), sourceParked: false };
+        }
+        const parked = handleActivatePanel(engineId, undefined, panels, { placeAs: { after: sourceEngineId }, spare: landing.spare });
+        if (landing.record) setPanels((prev) => recordOverride(prev, 'anchor', prev.map((p) => p.id), rootId));
+        scrollForShow(engineId);
+        return { ...accepted(true), sourceParked: parked.includes(sourceEngineId) };
+      } finally {
+        gate.release(token);
+      }
+    },
     reopen: (req) => {
       // The closed views are tokened too: a raw undoClose in this turn restores the very key this call would add.
       const touched = [req.engineId, ...closing.closedIds()];

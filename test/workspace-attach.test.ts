@@ -32,6 +32,7 @@ const NO_OPS: EngineOps = {
   setSlots: () => ({ ok: false, code: 'is-closed', message: 'no engine' }),
   scrollTo: () => ({ ok: false, code: 'is-closed', message: 'no engine' }),
   reopen: () => ({ ok: false, code: 'is-closed', message: 'no engine' }),
+  beside: () => ({ ok: false, code: 'is-closed', message: 'no engine' }),
   pin: () => ({ ok: false, code: 'is-closed', message: 'no engine' }),
   reset: () => ({ ok: false, code: 'is-closed', message: 'no engine' }),
   inUndoWindow: () => false,

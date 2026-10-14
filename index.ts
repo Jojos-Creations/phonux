@@ -162,7 +162,7 @@ export type {
 } from './panelTemplate.js';
 
 export { createWorkspace } from './workspaceCore.js';
-export type { WorkspaceHandle, WorkspaceOptions, WorkspaceWrapProps } from './workspaceCore.js';
+export type { BesideMode, OpenBesideOptions, OpenBesideResult, WorkspaceHandle, WorkspaceOptions, WorkspaceWrapProps } from './workspaceCore.js';
 export type { WorkspaceLive, WorkspacePanelsInput } from './workspaceLive.js';
 export type { PanelHandle } from './panelHandles.js';
 export type { ConfigureResult, PanelManager, PanelResult, PinResult, ResetResult } from './panelManager.js';

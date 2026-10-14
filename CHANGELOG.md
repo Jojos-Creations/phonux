@@ -8,6 +8,13 @@
   means the newest level, `PANEL_API` (also new, with the `PanelApiLevel` type). Level 1 is the panel-facing API of
   0.2.0-rc.3. A level the library does not serve throws `invalid-template` from `definePanel`, `createWorkspace` and
   `registerTemplate`. Nothing changes for a template that sets nothing: there is one level today, and every level stays served until it is deprecated.
+- `workspace.openBeside(template, sourceId, { mode }, source)` opens a panel directly right of the panel that asked, in one
+  call: a new panel is added there, a closed one reopens there, a parked one is placed there and shown, and a live one
+  is moved there (`mode: 'move'`, the default) or left where it stands (`mode: 'stay'`). When the row must park a panel
+  for room it keeps the source on screen and parks another by the usual eviction order; only when nothing else can go
+  does the source park, and the answer says so in `sourceParked`. A host no longer chains `open`, `place` and `show`
+  from timers around the one-operation-per-panel rule, nor guesses whether there is room by counting panels. New types:
+  `BesideMode`, `OpenBesideOptions`, `OpenBesideResult`.
 
 ## 0.2.0-rc.3
 

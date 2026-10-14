@@ -104,11 +104,64 @@ export interface WorkspaceHandle {
    * Naming anything else (`root`, `templates`, `storage`, `mount`, `wrap`) throws `invalid-options` and changes nothing.
    */
   update(live: WorkspaceLive): void;
+  /**
+   * Opens a panel of template `t` directly right of the panel `sourceId`, or brings it back there, in one update: a new
+   * panel is added there, a closed one reopens there and a parked one is placed there and shown. A live one is placed
+   * there with `mode` `'move'`, and left where it stands with `'stay'`, only scrolled into view as `show()` would.
+   *
+   * @remarks
+   * When the row has to park a panel for room it keeps the source on screen and parks another by the usual eviction
+   * order; it parks the source only when nothing else can go (`sourceParked`), because the opened panel always shows.
+   * A row wide enough for its fixed columns and two phone panels always has room for both phone panels.
+   * The panel is found as `addPanel` finds it: a singleton by its template id, an instance by `o.id`, and a `multiple`
+   * template without `o.id` adds a new instance. Refusals touch nothing: `unknown-panel` for a source the workspace does
+   * not know, `is-closed` and `is-pending` for a source in that state, `is-pending` for a panel still being added,
+   * `instance-limit` for a panel its template has no room for, `not-placeable` for a panel that cannot be placed, and
+   * `busy` when the panel or the source already has an operation in this turn. The source itself is accepted with
+   * nothing to do. `source` `'person'` records the placement as the person's own arrangement, as `place` does.
+   * @example
+   * ```ts
+   * workspace.openBeside('now-playing', playedFromId, { mode: 'stay' }, 'person');
+   * ```
+   */
+  openBeside<P extends JsonValue = JsonValue>(t: PanelTemplate<P> | string, sourceId: PanelId, o?: OpenBesideOptions<P>, source?: 'code' | 'person'): OpenBesideResult<P>;
   /** Registers a template with this workspace only; returns the function that removes it. */
   registerTemplate(t: PanelTemplate): () => void;
   /** Drops the workspace's listeners and intents; a later `addPanel` throws `disposed`. */
   dispose(): void;
 }
+
+/**
+ * What `openBeside` does with a panel that is already live: `'move'` places it right of the source, `'stay'` leaves it
+ * where it stands.
+ * @public
+ */
+export type BesideMode = 'move' | 'stay';
+
+/** What `openBeside` takes besides the template and the source. @public */
+export interface OpenBesideOptions<P extends JsonValue = JsonValue> {
+  /** What a panel that is already live does. @defaultValue `'move'` */
+  mode?: BesideMode;
+  /** The panel's id, for an instance of a `multiple` template; as `addPanel`'s `id`. */
+  id?: PanelId;
+  /** The instance settings layer a panel added by this call is made with; as `addPanel`'s `settings`. */
+  settings?: PanelSettings;
+  /** The params a panel added by this call is made with. */
+  params?: P;
+  /** The URL a panel added by this call is made with. */
+  url?: string;
+}
+
+/**
+ * What `openBeside` answers: a `PanelResult`, the handle of the panel it resolved to, and whether it parked the source.
+ * @public
+ */
+export type OpenBesideResult<P extends JsonValue = JsonValue> = PanelResult & {
+  /** The panel the call resolved to; undefined when it was refused before one was known or added. */
+  readonly panel: PanelHandle<P> | undefined;
+  /** True when the row had no room for both and parked the source to show the panel. */
+  readonly sourceParked: boolean;
+};
 
 /** What the provider hook hands the workspace after every commit. */
 export interface EngineCommit {
@@ -144,6 +197,11 @@ export interface EngineOps {
   scrollTo(engineId: string, align: ScrollAlign | undefined): PanelResult;
   /** Re-adds a closed panel, as `create` does; refuses `busy` when the turn's gate says so. */
   reopen(req: CreateRequest): PanelResult;
+  /**
+   * Lands a panel right of `sourceEngineId` in one update, after the turn's gate on both: `target` is the engine id of a
+   * panel the engine holds, or the request that adds or re-adds one. `sourceParked` is true when the room it made parked the source.
+   */
+  beside(target: string | CreateRequest, sourceEngineId: string, mode: BesideMode, source: PanelOpSource): PanelResult & { readonly sourceParked?: boolean };
   /** Applies the half `by` names to a panel the engine holds, live, parked or hidden, as `pinningWhenNotLive` says. */
   pin(engineId: string, by: 'pin' | 'unpin', source: PanelOpSource): PinResult;
   /** Resets the panels the engine holds under these ids, in this order, in one update. `follow` scrolls to the one panel it names. */
@@ -674,7 +732,8 @@ export function createWorkspace(o: WorkspaceOptions = {}): WorkspaceHandle {
     if (problem !== undefined) throw new PanelManagerError('invalid-options', `panel id ${JSON.stringify(id)}: ${problem}`);
   };
 
-  const addPanel = <P extends JsonValue>(given: PanelTemplate<P> | string, options?: { id?: PanelId; settings?: PanelSettings; params?: P; url?: string }): PanelHandle<P> => {
+  /** The template `given` names, registering a template object this workspace does not hold yet; throws for one it cannot. */
+  const templateGiven = (given: PanelTemplate | string): PanelTemplate => {
     if (status === 'disposed') throw new PanelManagerError('disposed', 'the workspace was disposed');
     let t: PanelTemplate;
     if (typeof given === 'string') {
@@ -682,12 +741,17 @@ export function createWorkspace(o: WorkspaceOptions = {}): WorkspaceHandle {
       if (found === undefined) throw new PanelManagerError('unknown-template', `no template '${given}' is registered`);
       t = found;
     } else {
-      t = given as unknown as PanelTemplate;
+      t = given;
       definePanel(t);
       const known = registeredTemplate(t.id);
       if (known === undefined) registerOne(t);
       else if (known !== t) throw new PanelManagerError('duplicate-template', `a different template '${t.id}' is already registered`);
     }
+    return t;
+  };
+
+  const addPanel = <P extends JsonValue>(given: PanelTemplate<P> | string, options?: { id?: PanelId; settings?: PanelSettings; params?: P; url?: string }): PanelHandle<P> => {
+    const t = templateGiven(given as unknown as PanelTemplate);
     if (options?.id !== undefined) validateExplicitId(options.id, t);
     // Validated here, not at settle, so a bad settings layer throws at the call that wrote it.
     const res = resolve({ ...(defaults !== undefined ? { workspace: defaults } : {}), template: withOverrides(t).settings, ...(options?.settings !== undefined ? { instance: options.settings } : {}) });
@@ -727,8 +791,8 @@ export function createWorkspace(o: WorkspaceOptions = {}): WorkspaceHandle {
     return undefined;
   };
 
-  /** Adds a closed panel back through the engine, after the limits its settings set. */
-  const reopen = (id: PanelId): PanelResult => {
+  /** Adds a closed panel back through the engine, after the limits its settings set; `beside` lands it right of a source instead of where its `placeOnAdd` says. */
+  const reopen = (id: PanelId, beside?: { sourceEngineId: string; mode: BesideMode; src: PanelOpSource }): PanelResult & { readonly sourceParked?: boolean } => {
     const rec = records.get(id);
     const state = knownState(id);
     if (rec === undefined || state === undefined || (rec.anonymous && !rec.closed)) return refused('is-closed', `panel '${id}' is closed and nothing can name it again`);
@@ -739,7 +803,8 @@ export function createWorkspace(o: WorkspaceOptions = {}): WorkspaceHandle {
     const full = (!res.value.multiple && count > 0) || (res.value.maxInstances !== 'unlimited' && count >= res.value.maxInstances);
     if (full) return refused('instance-limit', `panel '${id}': template '${template.id}' is at its limit of ${res.value.multiple ? res.value.maxInstances : 1}`);
     const engineId = id.includes('~') ? id.slice(id.indexOf('~') + 1) : (rec.lastEngineId ?? newId());
-    const result = commit!.ops.reopen({
+    if (beside !== undefined && !res.value.placeable) return refused('not-placeable', `panel '${id}' cannot be placed`);
+    const req: CreateRequest = {
       id,
       templateId: template.id,
       engineId,
@@ -748,7 +813,8 @@ export function createWorkspace(o: WorkspaceOptions = {}): WorkspaceHandle {
       ...(rec.params !== undefined ? { params: rec.params } : {}),
       ...(rec.url !== undefined ? { url: rec.url } : {}),
       ...(rec.deferredPin !== undefined ? { deferredPin: rec.deferredPin } : {}),
-    });
+    };
+    const result = beside === undefined ? commit!.ops.reopen(req) : commit!.ops.beside(req, beside.sourceEngineId, beside.mode, beside.src);
     if (!result.ok) return result;
     rec.closed = false;
     rec.deferredPin = undefined;
@@ -838,6 +904,50 @@ export function createWorkspace(o: WorkspaceOptions = {}): WorkspaceHandle {
       case 'unpin':
         return ops.pin(engineId, call.verb, src);
     }
+  };
+
+  /** `openBeside`: the source's state first, then the panel as `addPanel` would find it, then one engine update. */
+  const openBeside = <P extends JsonValue>(given: PanelTemplate<P> | string, sourceId: PanelId, o: OpenBesideOptions<P> = {}, src: PanelOpSource = 'code'): OpenBesideResult<P> => {
+    const t = templateGiven(given as unknown as PanelTemplate);
+    if (o.id !== undefined) validateExplicitId(o.id, t);
+    const mode = o.mode ?? 'move';
+    const res = resolve({ ...(defaults !== undefined ? { workspace: defaults } : {}), template: withOverrides(t).settings, ...(o.settings !== undefined ? { instance: o.settings } : {}) });
+    const multiple = res.value.multiple;
+    const named = o.id ?? (multiple ? undefined : t.id);
+    const handle = (): PanelHandle<P> | undefined => (named === undefined ? undefined : (source.handleOf(named) as PanelHandle<P> | undefined));
+    const answer = (r: PanelResult & { readonly sourceParked?: boolean }, panel: PanelHandle<P> | undefined = handle()): OpenBesideResult<P> =>
+      r.ok ? { ok: true, changed: r.changed, panel, sourceParked: r.sourceParked === true } : { ok: false, code: r.code, message: r.message, panel, sourceParked: false };
+    const unavailable = lifecycleRefusal(named ?? t.id);
+    if (unavailable !== undefined) return answer(unavailable);
+    const from = knownState(sourceId);
+    if (from === undefined) return answer(refused('unknown-panel', `no panel '${sourceId}' in this workspace`));
+    if (from.status === 'pending') return answer(refused('is-pending', `panel '${sourceId}' is still being added`));
+    if (from.status === 'closed') return answer(refused('is-closed', `panel '${sourceId}' is closed`));
+    if (named === sourceId) return answer(accepted(false));
+    const state = named === undefined ? undefined : knownState(named);
+    if (state !== undefined && state.templateId !== t.id) throw new PanelManagerError('invalid-options', `panel id '${named}' already belongs to template '${state.templateId}'`);
+    const beside = { sourceEngineId: from.engineId!, mode, src };
+    if (state?.status === 'pending') return answer(refused('is-pending', `panel '${named}' is still being added`));
+    if (state?.status === 'closed') return answer(reopen(named!, beside));
+    if (state !== undefined) return answer(commit!.ops.beside(state.engineId!, beside.sourceEngineId, mode, src));
+    if (!res.value.placeable) return answer(refused('not-placeable', `panel '${named ?? t.id}' cannot be placed`));
+    const count = instancesOf(t.id);
+    if ((!multiple && count > 0) || (res.value.maxInstances !== 'unlimited' && count >= res.value.maxInstances)) {
+      return answer(refused('instance-limit', `template '${t.id}' is at its limit of ${multiple ? res.value.maxInstances : 1}`));
+    }
+    reportConflicts(named ?? t.id, res);
+    const suffix = named === undefined ? newId() : undefined;
+    const id = named ?? `${t.id}~${suffix}`;
+    const req: CreateRequest = { id, templateId: t.id, engineId: suffix ?? newId(), ...(o.settings !== undefined ? { settings: o.settings } : {}), ...(o.params !== undefined ? { params: o.params } : {}), ...(o.url !== undefined ? { url: o.url } : {}) };
+    records.set(id, { id, templateId: t.id, settings: o.settings, params: o.params, url: o.url, intent: false, closed: false, anonymous: suffix !== undefined });
+    const result = commit!.ops.beside(req, beside.sourceEngineId, mode, src);
+    if (!result.ok) {
+      records.delete(id);
+      return answer(result, undefined);
+    }
+    inflight.add(id);
+    refresh();
+    return answer(result, source.handleOf(id) as PanelHandle<P>);
   };
 
   /** The closed panels a reset can still reach: a record that can be named again. */
@@ -1143,6 +1253,7 @@ export function createWorkspace(o: WorkspaceOptions = {}): WorkspaceHandle {
       return status;
     },
     addPanel,
+    openBeside,
     update: (change) => {
       if (status === 'disposed') throw new PanelManagerError('disposed', 'the workspace was disposed');
       const refusedKeys = refusedLiveKeys(change);

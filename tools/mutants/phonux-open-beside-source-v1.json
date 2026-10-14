@@ -1,0 +1,117 @@
+{
+  "tests": [
+    "test/open-beside.test.ts"
+  ],
+  "mutants": [
+    {
+      "name": "a spare panel is parked like any other",
+      "file": "panelWindow.ts",
+      "find": "if (spare.size > 0) {",
+      "replace": "if (spare.size < 0) {",
+      "expectRed": [
+        "room for both: the source stays on screen and the row parks another panel instead",
+        "a parked panel is placed right of the source and shown, in both modes, keeping the source live"
+      ]
+    },
+    {
+      "name": "showing a parked panel ignores the spare",
+      "file": "panelWindow.ts",
+      "find": "parkLevers(target).evictionOrder, spare);",
+      "replace": "parkLevers(target).evictionOrder);",
+      "expectRed": [
+        "a parked panel is placed right of the source and shown, in both modes, keeping the source live"
+      ]
+    },
+    {
+      "name": "a created or reopened panel lands at its placeOnAdd",
+      "file": "panels/useProvidePanels.ts",
+      "find": "withPin(placed(build(prev)))",
+      "replace": "withPin(build(prev))",
+      "expectRed": [
+        "a new panel is added directly right of its source in one call, with no retry",
+        "a closed panel reopens right of the source, in both modes"
+      ]
+    },
+    {
+      "name": "a live panel is never moved",
+      "file": "panels/useProvidePanels.ts",
+      "find": "const changed = placeAt(engineId, { after: sourceEngineId }, landing.record);",
+      "replace": "const changed = false;",
+      "expectRed": [
+        "a live panel moves beside the source with mode 'move' (the default)"
+      ]
+    },
+    {
+      "name": "mode 'stay' moves a live panel too",
+      "file": "panels/useProvidePanels.ts",
+      "find": "if (existing?.live === true && mode === 'stay')",
+      "replace": "if (existing?.live === true && mode !== mode)",
+      "expectRed": [
+        "a live panel stays where it stands with mode 'stay'"
+      ]
+    },
+    {
+      "name": "the result never reports the source parked",
+      "file": "workspaceCore.ts",
+      "find": "sourceParked: r.sourceParked === true",
+      "replace": "sourceParked: false",
+      "expectRed": [
+        "no room for both: the opened panel wins, the source parks and the result says so"
+      ]
+    },
+    {
+      "name": "a new panel ignores its instance limit",
+      "file": "workspaceCore.ts",
+      "find": "return answer(refused('instance-limit',",
+      "replace": "if (o.id === '') return answer(refused('instance-limit',",
+      "expectRed": [
+        "a singleton under a second id, and a template at its instance limit, are refused and add nothing"
+      ]
+    },
+    {
+      "name": "an unknown source is not refused",
+      "file": "workspaceCore.ts",
+      "find": "if (from === undefined) return answer(refused('unknown-panel',",
+      "replace": "if (from === undefined && sourceId === '') return answer(refused('unknown-panel',",
+      "expectRed": [
+        "an unknown source is refused and adds nothing; an unknown template throws"
+      ]
+    },
+    {
+      "name": "an add does not take the source's place in the turn's gate",
+      "file": "panels/useProvidePanels.ts",
+      "find": "[engineId, sourceEngineId, ...closing.closedIds()]",
+      "replace": "[engineId, ...closing.closedIds()]",
+      "expectRed": [
+        "a source with an operation in this turn answers busy, and the panel is not added"
+      ]
+    },
+    {
+      "name": "a person's move is not recorded",
+      "file": "panels/useProvidePanels.ts",
+      "find": "placeAt(engineId, { after: sourceEngineId }, landing.record)",
+      "replace": "placeAt(engineId, { after: sourceEngineId }, false)",
+      "expectRed": [
+        "a person's call records the placement as the person's arrangement on every path; code leaves it alone"
+      ]
+    },
+    {
+      "name": "a person's add is not recorded",
+      "file": "panels/useProvidePanels.ts",
+      "find": "return beside.record ? recordOverride(next, 'anchor', next.map((p) => p.id), rootId) : next;",
+      "replace": "return next;",
+      "expectRed": [
+        "a person's call records the placement as the person's arrangement on every path; code leaves it alone"
+      ]
+    },
+    {
+      "name": "a person's show of a parked panel is not recorded",
+      "file": "panels/useProvidePanels.ts",
+      "find": "if (landing.record) setPanels(",
+      "replace": "if (landing.record && rootId === '') setPanels(",
+      "expectRed": [
+        "a person's call records the placement as the person's arrangement on every path; code leaves it alone"
+      ]
+    }
+  ]
+}

@@ -34,6 +34,9 @@ export type AnchorRequest = {
 };
 
 // @public
+export type BesideMode = 'move' | 'stay';
+
+// @public
 export type BezierEase = readonly [number, number, number, number];
 
 // @public
@@ -354,6 +357,21 @@ export interface NeighborWidths {
 
 // @public
 export const noopCaptureTrigger: CaptureTrigger;
+
+// @public
+export interface OpenBesideOptions<P extends JsonValue = JsonValue> {
+    id?: PanelId;
+    mode?: BesideMode;
+    params?: P;
+    settings?: PanelSettings;
+    url?: string;
+}
+
+// @public
+export type OpenBesideResult<P extends JsonValue = JsonValue> = PanelResult & {
+    readonly panel: PanelHandle<P> | undefined;
+    readonly sourceParked: boolean;
+};
 
 // @public
 export type Overflow = 'scroll' | 'park';
@@ -1351,6 +1369,7 @@ export interface WorkspaceHandle {
         url?: string;
     }): PanelHandle<P>;
     dispose(): void;
+    openBeside<P extends JsonValue = JsonValue>(t: PanelTemplate<P> | string, sourceId: PanelId, o?: OpenBesideOptions<P>, source?: 'code' | 'person'): OpenBesideResult<P>;
     readonly panels: PanelManager;
     registerTemplate(t: PanelTemplate): () => void;
     readonly rootId: string;

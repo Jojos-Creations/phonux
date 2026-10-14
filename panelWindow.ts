@@ -200,7 +200,7 @@ export function parkLevers(p: PanelWindow): Pick<ResolvedPanelSettings, 'evictio
  * The id of the live panel to park for room (one whose `overflow` is 'park'), or null with none live: among the lowest `evictionRank`,
  * the one `order` picks by distance from `fromIndex` ('leftmost' and 'rightmost' ignore it); a tie goes to the lower
  * index. `exclude` exempts the panel being opened or restored, already live in `panels`, and any panel another
- * action in the same update must keep live.
+ * action in the same update must keep live. `spare` is exempt only while another candidate is left.
  * @internal
  */
 export function farthestLiveCollapsibleId(
@@ -208,7 +208,12 @@ export function farthestLiveCollapsibleId(
   fromIndex: number,
   exclude: ReadonlySet<string> = new Set(),
   order: ResolvedPanelSettings['evictionOrder'] = 'farthest',
+  spare: ReadonlySet<string> = new Set(),
 ): string | null {
+  if (spare.size > 0) {
+    const other = farthestLiveCollapsibleId(panels, fromIndex, new Set([...exclude, ...spare]), order);
+    if (other !== null) return other;
+  }
   const candidates: { id: string; index: number; rank: number }[] = [];
   panels.forEach((p, index) => {
     if (p.live && parksForRoom(p) && !exclude.has(p.id)) candidates.push({ id: p.id, index, rank: parkLevers(p).evictionRank });
@@ -277,10 +282,10 @@ export function lastParkedBefore(panels: PanelWindow[], index: number): PanelWin
  * Returns `null` for an unknown id or one already live (a legitimate no-op, not an error). When promoting
  * `id` would exceed `capacity`, demotes exactly one OTHER live panel: whichever `farthestLiveCollapsibleId`
  * picks from `id`'s own index by `id`'s own `evictionOrder`. Never demotes a
- * `collapsible: false` entry or any id in `keep`.
+ * `collapsible: false` entry or any id in `keep`, and an id in `spare` only when no other panel can go.
  * @internal
  */
-export function promoteToLive(panels: PanelWindow[], id: string, capacity: number, keep: ReadonlySet<string> = new Set()): PanelWindow[] | null {
+export function promoteToLive(panels: PanelWindow[], id: string, capacity: number, keep: ReadonlySet<string> = new Set(), spare: ReadonlySet<string> = new Set()): PanelWindow[] | null {
   const target = panels.find((p) => p.id === id);
   if (!target || target.live) return null;
   const ownIndex = panels.findIndex((p) => p.id === id);
@@ -289,7 +294,7 @@ export function promoteToLive(panels: PanelWindow[], id: string, capacity: numbe
   if (liveCountAfter > capacity) {
     // `panels` (pre-promotion): `id` itself still reads live:false there, so it is naturally excluded
     // from the search without needing `keep`.
-    const demote = farthestLiveCollapsibleId(panels, ownIndex, keep, parkLevers(target).evictionOrder);
+    const demote = farthestLiveCollapsibleId(panels, ownIndex, keep, parkLevers(target).evictionOrder, spare);
     if (demote) {
       next = next.map((p) => (p.id === demote ? { ...p, live: false } : p));
     }
