@@ -699,7 +699,7 @@ test('protected 7: persist changes only the next projection: the call writes not
   assert.deepEqual(saves[count - 1], ['a', 'b', 'c']);
   done(r.turn(() => r.h.b!.configure({ persist: 'session' })));
   assert.equal(saves.length, count, 'configure itself saved nothing');
-  r.turn(() => r.h.a!.move('right', 'person'));
+  r.turn(() => r.h.a!.move(1, 'person'));
   await act(async () => void (await new Promise((resolve) => setTimeout(resolve, 150))));
   assert.equal(saves.length > count, true);
   assert.deepEqual(saves[saves.length - 1], ['a', 'c'], 'the next projection leaves the session panel out');

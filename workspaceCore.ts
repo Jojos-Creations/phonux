@@ -168,7 +168,7 @@ export interface EngineOps {
   close(engineId: string): PanelResult;
   /** Opening a panel the engine already holds changes nothing, but it still waits its turn behind a close. */
   open(engineId: string): PanelResult;
-  move(engineId: string, direction: 'left' | 'right', source: PanelOpSource): PanelResult;
+  move(engineId: string, by: number, source: PanelOpSource): PanelResult;
   place(engineId: string, value: AddPlacement | 'in-place', source: PanelOpSource): PanelResult;
   setFormFactor(engineId: string, next: FormFactor, source: PanelOpSource): PanelResult;
   setSlots(engineId: string, slots: number, source: PanelOpSource): PanelResult;
@@ -856,7 +856,7 @@ export function createWorkspace(o: WorkspaceOptions = {}): WorkspaceHandle {
       case 'open':
         return ops.open(engineId);
       case 'move':
-        return state.status === 'live' ? ops.move(engineId, call.direction, src) : refused('not-live', `panel '${id}' is parked`);
+        return state.status === 'live' ? ops.move(engineId, call.by, src) : refused('not-live', `panel '${id}' is parked`);
       case 'place':
         return ops.place(engineId, call.value, src);
       case 'setFormFactor':
