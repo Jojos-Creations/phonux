@@ -65,7 +65,9 @@ function Grip({ side, slot, handle }: { side: Side; slot: PanelSlotValue; handle
       setDrawnWidth(null);
       setResizing(false);
       swallowClick.current = true;
-      setTimeout(() => void (swallowClick.current = false), 0);
+      setTimeout(() => {
+        swallowClick.current = false;
+      }, 0);
     }
     d.releaseSelection();
   };
