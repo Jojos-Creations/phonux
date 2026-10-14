@@ -93,7 +93,7 @@ test('the gap threads through every site at gaps 0, 16 and 40, from literal sums
     executed += 1;
     row.unmount();
     // Site 3: the travel of a slot entering from the right is its own width plus the gap.
-    assert.deepEqual(panelRowSlotMotion(0, 390, 700, 'right', 'left', true, gap).initial, { x: 390 + gap, opacity: 0 }, `travel at gap ${gap}`);
+    assert.deepEqual(panelRowSlotMotion(0, 390, 700, 'right', 'left', gap).initial, { x: 390 + gap, opacity: 0 }, `travel at gap ${gap}`);
     executed += 1;
     // Site 4: the markup of the shell.
     const containerRef = { current: null } as React.RefObject<HTMLDivElement | null>;

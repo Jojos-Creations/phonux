@@ -64,8 +64,6 @@ test('workspaceShellStyle: a live panel wider than a phone centres by its OWN wi
   assert.equal(margin({ ...wide, liveWidths: [1200] }), (2068 - (390 + 1216)) / 2, 'a desktop panel alone');
 });
 
-test('panelRowSlotMotion: the default transition is the shared PANEL_TRANSITION by reference, and animated false is a zero-duration one', () => {
+test('panelRowSlotMotion: the default transition is the shared PANEL_TRANSITION by reference', () => {
   assert.equal(panelRowSlotMotion(0, 390, 700, 'right', 'left').transition, PANEL_TRANSITION);
-  assert.equal(panelRowSlotMotion(0, 390, 700, 'right', 'left', true).transition, PANEL_TRANSITION);
-  assert.deepEqual(panelRowSlotMotion(0, 390, 700, 'right', 'left', false).transition, { duration: 0 });
 });

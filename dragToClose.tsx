@@ -164,7 +164,7 @@ function useEdgeScroll(box: React.RefObject<HTMLDivElement | null>, dragScroll: 
     const rect = h.scrollerEl.getBoundingClientRect();
     const speed = edgeScrollSpeed({ pointerX: pointer.current.x, left: rect.left, right: rect.right, zonePx: h.began.zonePx, maxPxPerSec: h.began.maxPxPerSec });
     const at = h.scroller.scrollLeft();
-    if (slot.instant || latest.current.reduceMotion) {
+    if (latest.current.reduceMotion) {
       h.waitedMs = speed === 0 ? 0 : h.waitedMs + dt;
       if (h.waitedMs >= h.began.reducedStepMs) {
         h.waitedMs = 0;
@@ -190,7 +190,7 @@ function useEdgeScroll(box: React.RefObject<HTMLDivElement | null>, dragScroll: 
     if (slot !== undefined && slot.settleStops.length > 0) {
       const at = h.scroller.scrollLeft();
       const to = slot.settleStops.reduce((best, stop) => (Math.abs(stop - at) < Math.abs(best - at) ? stop : best));
-      if (Math.abs(to - at) >= 0.5) h.scroller.glideTo(to, { durationSec: slot.settleSec, instant: slot.instant || latest.current.reduceMotion, ease: slot.settleEase });
+      if (Math.abs(to - at) >= 0.5) h.scroller.glideTo(to, { durationSec: slot.settleSec, instant: latest.current.reduceMotion, ease: slot.settleEase });
     }
     return distance;
   };

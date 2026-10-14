@@ -20,8 +20,6 @@ export interface DragScroll {
   readonly maxPxPerSec: number;
   /** The interval in ms between jumps when motion is reduced. */
   readonly reducedStepMs: number;
-  /** True when the panel is not animated: the row jumps by panel instead of scrolling continuously. */
-  readonly instant: boolean;
   /** The farthest legal `scrollLeft`, from the row numbers; the DOM is never asked, because a transformed descendant inflates `scrollWidth`. */
   readonly maxScroll: number;
   /** The `scrollLeft` values the row rests at, ascending: where a reduced-motion jump can land and where a released drag settles. */
@@ -50,8 +48,6 @@ export interface HeaderButtonsSlot {
 export interface PanelSlotValue {
   /** The panel's id. Optional so a slot value built by hand (a test, a view mounted outside a row) needs none. */
   readonly id?: string | undefined;
-  /** False takes the chrome fade, like every other animation, in no time. Optional like `id`. */
-  readonly animated?: boolean | undefined;
   /** True while a host holds a width on a panel of this row (`usePanelResizing`'s `setDrawnWidth`): the row's moves and its size boxes take no time then, so they follow a pointer. */
   readonly tracking?: boolean | undefined;
   readonly collapsible: boolean;
@@ -86,9 +82,3 @@ export interface PanelSlotValue {
 }
 
 export const PanelSlotContext = React.createContext<PanelSlotValue | undefined>(undefined);
-
-/**
- * Whether the slot above is hidden: its view is parked, kept mounted and out of layout. Its own context, not a field
- * of PanelSlotValue, because the slot decides it from its exit animation after PanelRow has built the slot value.
- */
-export const PanelHiddenContext = React.createContext<boolean>(false);

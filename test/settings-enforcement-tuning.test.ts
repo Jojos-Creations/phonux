@@ -285,7 +285,7 @@ test('slide: the slot enters and leaves over durationSec, the down exit takes cl
   const base = panelRowSlotMotion(0, 390, 700, 'right', 'down');
   assert.equal(base.transition.duration, 0.4);
   assert.equal((base.exit as { transition: { duration: number } }).transition.duration, 0.18);
-  const tuned = panelRowSlotMotion(0, 390, 700, 'right', 'down', true, 16, slow);
+  const tuned = panelRowSlotMotion(0, 390, 700, 'right', 'down', 16, slow);
   assert.equal(tuned.transition.duration, 0.8);
   assert.equal((tuned.exit as { transition: { duration: number } }).transition.duration, 0.3);
 });
