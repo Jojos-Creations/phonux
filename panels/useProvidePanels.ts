@@ -8,14 +8,15 @@
 
 import { useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore, type RefObject } from 'react';
 import { useReducedMotionConfig } from 'motion/react';
-import type { CreatePanelOptions, FormFactor, JsonValue, PanelsAPI } from '../hostApi.js';
+import type { CreatePanelOptions, JsonValue, PanelsAPI } from '../hostApi.js';
 import { effectiveMaxPanels, rowFitCount } from '../panelCapacity.js';
 import { computeRowNumbers, maxScrollOf, nearestStop, nearestStopIndex, snapToStop, snapToStopIndex, stopIndexOfFirst, type RowNumbers } from '../rowNumbers.js';
 import { resolveLabels, type PhonuxLabels } from '../labels.js';
 import { rowScrollerFor } from '../rowScroller.js';
 import { gestureTarget, scrollTargetFor } from '../scrollTargets.js';
 import { isPresent, summarisePanel } from '../panelRowEntry.js';
-import { TIER_SIZES, panelWidthOf } from '../panelTiers.js';
+import { entryNamed } from '../panelIds.js';
+import { panelWidthOf, sizeOfSlots } from '../panelTiers.js';
 import { noopCaptureTrigger, type CaptureTrigger } from '../snapshots.js';
 import { PanelManagerError } from '../panelManagerError.js';
 import { applyConfigure } from '../panelConfigure.js';
@@ -73,7 +74,7 @@ export interface PanelsInput {
   overflowContainerRef: RefObject<HTMLDivElement | null>;
   /** Defaults to phonux's `noopCaptureTrigger`: a host that wants real pictures passes its own. */
   capture?: CaptureTrigger;
-  /** Called when setFormFactor really resizes a panel, so the host can glide the row's margin with it. */
+  /** Called when setSlots really resizes a panel, so the host can glide the row's margin with it. */
   onPanelResize?: () => void;
   /** The view a `create()` without a `view` opens. Unset: such a panel has no view and renders the unregistered-view placeholder, which is also what an unregistered key renders. */
   defaultView?: string;
@@ -131,7 +132,7 @@ function planCreate(options: CreatePanelOptions | undefined, template: PanelTemp
     ...(!permanent && options?.listed !== undefined ? { listed: options.listed } : {}),
     ...(options?.layer !== undefined ? { layer: options.layer } : {}),
     ...(options?.anchoredEnter === true ? { enterFrom: 'anchor' as const } : {}),
-    ...(!permanent && options?.formFactor !== undefined ? { formFactor: options.formFactor } : {}),
+    ...(!permanent && options?.slots !== undefined ? { slots: options.slots } : {}),
     ...(permanent && template !== undefined ? { parkable: false } : {}),
   };
   // A view cannot set `parkable`, so a permanent plain column is the library's own ask, on the instance layer.
@@ -181,7 +182,7 @@ function appendFromTemplate(
       ...(a.hostData !== undefined ? { hostData: a.hostData } : {}),
       listed: value.listed,
       layer: value.layer,
-      formFactor: value.formFactor,
+      slots: value.slots,
       permanent: !value.parkable,
     },
     a.id,
@@ -651,7 +652,7 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
     if (where === 'end') {
       to = maxScroll;
     } else if (where !== 'start') {
-      const k = rowNumbers.ids.indexOf(where === 'root' ? rootId : where.panel);
+      const k = rowNumbers.ids.indexOf(where === 'root' ? rootId : engineIdOf(where.panel));
       if (k >= 0) {
         const left = tuning.rowGap + rowNumbers.rowMarginLeft + rowNumbers.leftOffsets[k]!;
         const landed = snapped(k, scrollTargetFor({ left, width: rowNumbers.widths[k]!, scrollLeft: 0, clientWidth: windowOf(el), maxScroll, gap: tuning.rowGap, align: 'start' }));
@@ -716,7 +717,7 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
   useEffect(() => {
     const prev = prevLiveRef.current;
     for (const p of panels) {
-      if (prev.get(p.id) === true && !p.live && asksForPicture(p, 'park')) capture.capture(p.id);
+      if (prev.get(p.id) === true && !p.live && asksForPicture(p, 'park')) capture.capture(panelKey(p));
     }
     prevLiveRef.current = new Map(panels.map((p) => [p.id, p.live]));
   }, [panels, capture]);
@@ -727,7 +728,7 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
     const prev = prevSnapshotRef.current;
     for (const p of panels) {
       const was = prev.get(p.id);
-      if (was !== undefined && was !== 'never' && effective(p).snapshot === 'never') capture.evict(p.id);
+      if (was !== undefined && was !== 'never' && effective(p).snapshot === 'never') capture.evict(panelKey(p));
     }
     prevSnapshotRef.current = new Map(panels.map((p) => [p.id, effective(p).snapshot]));
   }, [panels, capture]);
@@ -776,7 +777,7 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
     // A closed-and-not-restored panel's picture must not outlive its undo window; usePanelClosing.ts alone
     // knows which ids the window's NATURAL elapse (never Undo) just finalized.
     (closed) => {
-      for (const p of closed) if (effective(p).snapshot !== 'never') capture.evict(p.id);
+      for (const p of closed) if (effective(p).snapshot !== 'never') capture.evict(panelKey(p));
     },
     i.onPanelsClosed,
     i.onPanelsRestored,
@@ -791,7 +792,7 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
   const closeNow = (id: string): boolean => {
     // A close the gate in usePanelClosing.ts will refuse (an unknown or locked id) takes no picture.
     const target = panels.find((p) => p.id === id);
-    if (target && !target.locked && asksForPicture(target, 'close')) capture.capture(id);
+    if (target && !target.locked && asksForPicture(target, 'close')) capture.capture(panelKey(target));
     return closing.close(id);
   };
 
@@ -805,6 +806,14 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
       gate.release(token);
     };
 
+  /** The engine id of the panel a caller names: its key, which is its public id, or a counter id from before the key was the only one. */
+  const engineIdOf = (name: string): string => entryNamed(panels, name)?.id ?? name;
+  /** A `PanelsAPI` verb that takes a panel's id: it is given the engine id of the panel the caller names. */
+  const named =
+    <R extends unknown[]>(fn: (id: string, ...rest: R) => void) =>
+    (id: string, ...rest: R): void =>
+      fn(engineIdOf(id), ...rest);
+
   /** The one scroll request a show records, whether the panel was parked or live out of view. */
   const scrollForShow = (engineId: string): boolean => requestOpen(engineId);
 
@@ -814,15 +823,14 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
   const isEntry = (found: PanelWindow | PanelResult): found is PanelWindow => 'id' in found;
 
   /** The manager's verbs on a panel the engine holds, each gated and each refusing before it touches the row. */
-  /** A resize by tier or by slot count, after the in-flight gate and the panel's own permissions. */
-  const resizeOp = (engineId: string, next: FormFactor | number, source: PanelOpSource): PanelResult => {
+  /** A resize to a slot count, after the in-flight gate and the panel's own permissions. */
+  const resizeOp = (engineId: string, next: number, source: PanelOpSource): PanelResult => {
     const target = held(engineId);
     if (!isEntry(target)) return target;
     if (gate.busy([engineId], 'other')) return busy(target);
     const settings = effective(target);
     if (!settings.resizable) return refused('not-resizable', `panel '${panelKey(target)}' cannot be resized`);
-    if (typeof next === 'string' && !settings.formFactors.includes(next)) return refused('tier-not-allowed', `panel '${panelKey(target)}' does not allow the ${next} tier`);
-    if (typeof next === 'number' && source !== 'person') warnSlotsClamped(target, next);
+    if (source !== 'person') warnSlotsClamped(target, next);
     const token = gate.take([engineId], 'other')!;
     const changed = resizePanel(engineId, next, source === 'person');
     if (changed) {
@@ -900,7 +908,6 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
       gate.release(token);
       return accepted(changed);
     },
-    setFormFactor: (engineId, next, source) => resizeOp(engineId, next, source),
     setSlots: (engineId, slots, source) => resizeOp(engineId, slots, source),
     scrollTo: (engineId, align) => {
       const target = held(engineId);
@@ -994,7 +1001,7 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
         if (core === undefined || panel.settings === undefined) return panel;
         const value = core.resolveDefaults(panel).value;
         const defaults = applyTemplate(panel, value, 'reconfigure');
-        return clearOverrides([{ ...defaults, ...(slotsOf(panel) === value.slots ? {} : { slots: value.slots, formFactor: value.formFactor, size: { ...TIER_SIZES[value.formFactor] } }), applied: { placeOnAdd: value.placeOnAdd } }], [panel.id])[0]!;
+        return clearOverrides([{ ...defaults, ...(slotsOf(panel) === value.slots ? {} : { slots: value.slots, size: sizeOfSlots(value.slots) }), applied: { placeOnAdd: value.placeOnAdd } }], [panel.id])[0]!;
       }),
     reopen: (req) => {
       // The closed views are tokened too: a raw undoClose in this turn restores the very key this call would add.
@@ -1060,48 +1067,44 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
       }
       requestOpen(id, { fresh: true });
     },
-    activate: raw((id: string) => [id], 'other', activatePanel),
-    move: raw(
-      (id: string, _direction: 'left' | 'right') => [id],
-      'other',
-      (id, direction) => void reorderPanel(id, direction),
+    activate: named(raw((id: string) => [id], 'other', activatePanel)),
+    move: named(
+      raw(
+        (id: string, _direction: 'left' | 'right') => [id],
+        'other',
+        (id, direction) => void reorderPanel(id, direction),
+      ),
     ),
-    setFormFactor: raw(
-      (id: string, _next: FormFactor) => [id],
-      'other',
-      (id, next) => {
-        if (resizePanel(id, next)) {
-          i.onPanelResize?.();
-          followPanel(id);
-        }
-      },
-    ),
-    setSlots: raw(
-      (id: string, _slots: number) => [id],
-      'other',
-      (id, slots) => {
-        const target = panels.find((p) => p.id === id);
-        if (target !== undefined) warnSlotsClamped(target, slots);
-        if (resizePanel(id, slots)) {
-          i.onPanelResize?.();
-          followPanel(id);
-        }
-      },
+    setSlots: named(
+      raw(
+        (id: string, _slots: number) => [id],
+        'other',
+        (id, slots) => {
+          const target = panels.find((p) => p.id === id);
+          if (target !== undefined) warnSlotsClamped(target, slots);
+          if (resizePanel(id, slots)) {
+            i.onPanelResize?.();
+            followPanel(id);
+          }
+        },
+      ),
     ),
     // No keep-live mark and no settle step: settles() reads only the live set's widths and count, never its
     // order, so a reorder cannot unsettle a row, and a DROP later in the handler may park this panel as any other.
-    reanchor: raw(
-      (id: string, _anchor: AnchorRequest) => [id],
-      'other',
-      (id, anchor) => {
-        setPanels((prev) => {
-          const next = reanchorPanel(prev, id, anchor, rootId);
-          return next === prev ? prev : recordOverride(next, 'anchor', next.map((p) => p.id), rootId);
-        });
-        followPanel(id);
-      },
+    reanchor: named(
+      raw(
+        (id: string, _anchor: AnchorRequest) => [id],
+        'other',
+        (id, anchor) => {
+          setPanels((prev) => {
+            const next = reanchorPanel(prev, id, anchor, rootId);
+            return next === prev ? prev : recordOverride(next, 'anchor', next.map((p) => p.id), rootId);
+          });
+          followPanel(id);
+        },
+      ),
     ),
-    close: raw((id: string) => [id], 'close', (id) => void closeNow(id)),
+    close: named(raw((id: string) => [id], 'close', (id) => void closeNow(id))),
     recentlyClosed: closing.recentlyClosed?.map(summarisePanel) ?? null,
     undoClose: raw(() => closing.closedIds(), 'other', closing.undoClose),
     // Drops every clearable panel: never History, a fixed column or a locked one. Its picture goes now, not at an
@@ -1111,7 +1114,7 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
       // A panel it removes answers `busy` to a manager call later in the turn; clearAll itself is never held back.
       const token = gate.takeFree(panels.filter((p) => effective(p).clearable).map((p) => p.id), 'other');
       setPanels((prev) => {
-        for (const p of prev) if (effective(p).clearable && effective(p).snapshot !== 'never') clearedIds.current.add(p.id);
+        for (const p of prev) if (effective(p).clearable && effective(p).snapshot !== 'never') clearedIds.current.add(panelKey(p));
         return prev.filter((p) => !effective(p).clearable);
       });
       if (token !== undefined) gate.release(token);
@@ -1123,8 +1126,8 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
     rowScroll: rowNumbers.rowScroll,
     rowNumbers,
     tuning,
-    scrollTo: (id, align) => requestOpen(id, { align: align ?? null, forced: true }),
-    followPanel,
+    scrollTo: (id, align) => requestOpen(engineIdOf(id), { align: align ?? null, forced: true }),
+    followPanel: (id) => followPanel(engineIdOf(id)),
     closingIds: closing.closingIds,
     enteringViaAnchorIds,
     exitRightIds,

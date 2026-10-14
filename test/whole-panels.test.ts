@@ -38,8 +38,8 @@ test('six phone panels: two whole panels fit, so five stops 406 apart, an 86 mar
   assert.equal(maxScrollOf(n), 1624, '86 + 2420 + 86 - 968, the last stop');
 });
 
-test('a tablet between two phones shows alone at its stop: stops 0, 609 and 1218, margins 289, 86 and 289', () => {
-  const n = numbers([root(), made('t', { formFactor: 'tablet' }), made('b')]);
+test('a two-slot panel between two phones shows alone at its stop: stops 0, 609 and 1218, margins 289, 86 and 289', () => {
+  const n = numbers([root(), made('t', { slots: 2 }), made('b')]);
   assert.deepEqual(n.widths, [390, 796, 390]);
   assert.equal(n.rowMarginLeft, 289);
   assert.deepEqual(n.stops, [0, 609, 1218], 'stop 1 is 289 + 406 - 86');
@@ -49,7 +49,7 @@ test('a tablet between two phones shows alone at its stop: stops 0, 609 and 1218
 });
 
 test('a panel as wide as two slots shows alone with an even margin, and the stop before it keeps the phone centred', () => {
-  const n = numbers([root(), made('d', { formFactor: 'desktop' })]);
+  const n = numbers([root(), made('d', { slots: 64 })]);
   assert.deepEqual(n.widths, [390, 796]);
   assert.deepEqual(n.stops, [0, 609], '289 + 406 - 86');
   assert.equal(n.endPad, 86);

@@ -7,9 +7,6 @@ import { PanelManagerError } from './panelManagerError.js';
 import { cleanWorkspaceName } from './workspaceName.js';
 import { refusedLiveKeys, type WorkspaceLive } from './workspaceLive.js';
 import type { WorkspaceStorage } from './workspaceState.js';
-import type { PanelId } from './panelSettings.js';
-import type { PanelTemplate } from './panelTemplate.js';
-import type { PanelSettings } from './panelSettings.js';
 
 /** The saved list of a column: which workspaces exist, in order, under which name, and which one was current. @public */
 export interface ColumnState {
@@ -31,13 +28,17 @@ export interface ColumnStorage {
   load(): Promise<ColumnState | null>;
   /** Saves the list after it changed. A rejection is reported once through `onError`. */
   save(state: ColumnState): void | Promise<void>;
-  /** The panel storage of the workspace `id`; its key is the id, which never changes when the workspace is renamed. */
+  /**
+   * The panel storage of the workspace `id`, the one place a workspace's panels are kept; its key is the id, which never changes
+   * when the workspace is renamed. Asked for each workspace added and each one rebuilt from the saved list. Returning `undefined`
+   * gives that workspace no storage: its panels are not saved or restored.
+   */
   workspace?(id: string): WorkspaceStorage | undefined;
 }
 
 /**
  * What `createWorkspaceColumn` takes. The members of `WorkspaceOptions` that describe a workspace's content (`root`, `templates`,
- * `defaults`, `order`) are the starting point of every workspace; `addWorkspace` may replace them for one. `wrap`, `device`,
+ * `defaults`, `order`) are the content of every workspace in the column; `addWorkspace` cannot change them for one. `wrap`, `device`,
  * `tuning`, `labels` and the other shared members belong to the column and apply to every workspace in it.
  * @public
  */
@@ -56,16 +57,6 @@ export interface ColumnWorkspaceOptions {
   name?: string;
   /** Where in the column the workspace goes, counting from the top. Unset: at the bottom. */
   index?: number;
-  /** This workspace's root template instead of the column's. */
-  root?: PanelTemplate;
-  /** This workspace's templates instead of the column's. */
-  templates?: readonly PanelTemplate[];
-  /** This workspace's panel settings instead of the column's. */
-  defaults?: Omit<PanelSettings, 'tuning'>;
-  /** This workspace's panel order instead of the column's. */
-  order?: () => readonly PanelId[];
-  /** This workspace's panel storage instead of the column storage's `workspace(id)`. */
-  storage?: WorkspaceStorage;
 }
 
 /** Where a column is in its life: `loading` until the saved list is read, then `ready`, then `disposed`. @public */
@@ -210,15 +201,11 @@ export function createWorkspaceColumn(o: ColumnOptions = {}): WorkspaceColumnHan
     for (let n = list.length + 1; ; n++) if (!ids.has(`workspace-${n}`)) return `workspace-${n}`;
   };
 
-  const make = (a: ColumnWorkspaceOptions, id: string, name: string): WorkspaceHandle => {
-    const panels = a.storage ?? storage?.workspace?.(id);
+  const make = (id: string, name: string): WorkspaceHandle => {
+    const panels = storage?.workspace?.(id);
     const ws = createWorkspace({
       ...shared,
       ...live,
-      ...(a.root !== undefined ? { root: a.root } : {}),
-      ...(a.templates !== undefined ? { templates: a.templates } : {}),
-      ...(a.defaults !== undefined ? { defaults: a.defaults } : {}),
-      ...(a.order !== undefined ? { order: a.order } : {}),
       ...(panels !== undefined ? { storage: panels } : {}),
       id,
       name,
@@ -252,7 +239,7 @@ export function createWorkspaceColumn(o: ColumnOptions = {}): WorkspaceColumnHan
       if (status === 'disposed') throw new PanelManagerError('disposed', 'the column was disposed');
       const id = a.id ?? freeId();
       if (list.some((w) => w.id === id)) throw new PanelManagerError('invalid-options', `the column already has a workspace '${id}'`);
-      const ws = make(a, id, cleanWorkspaceName(a.name) ?? freeName());
+      const ws = make(id, cleanWorkspaceName(a.name) ?? freeName());
       insert(ws, a.index);
       commit();
       return ws;
@@ -314,7 +301,7 @@ export function createWorkspaceColumn(o: ColumnOptions = {}): WorkspaceColumnHan
             const ordered: WorkspaceHandle[] = [];
             for (const s of saved.workspaces) {
               const have = byId.get(s.id);
-              if (have === undefined) ordered.push(make({}, s.id, cleanWorkspaceName(s.name) ?? freeName()));
+              if (have === undefined) ordered.push(make(s.id, cleanWorkspaceName(s.name) ?? freeName()));
               else {
                 have.rename(s.name);
                 ordered.push(have);

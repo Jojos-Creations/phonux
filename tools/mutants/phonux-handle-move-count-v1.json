@@ -95,6 +95,42 @@
       "expectRed": [
         "the default frame closes and moves through the panel's handle"
       ]
+    },
+    {
+      "name": "a drag release stops recording the person's arrangement",
+      "file": "panelChrome.ts",
+      "find": "handle.move(steps, 'person')",
+      "replace": "handle.move(steps, 'code')",
+      "expectRed": [
+        "a real drag release records"
+      ]
+    },
+    {
+      "name": "the handle ignores the source and never records",
+      "file": "panels/useProvidePanels.ts",
+      "find": "reorderPanel(engineId, by, source === 'person')",
+      "replace": "reorderPanel(engineId, by, false)",
+      "expectRed": [
+        "a real drag release records"
+      ]
+    },
+    {
+      "name": "a fractional count is truncated and moves",
+      "file": "panelWindow.ts",
+      "find": "if (!Number.isInteger(by) || by === 0) return panels;",
+      "replace": "if (Number.isNaN(by) || Math.trunc(by) === 0) return panels;",
+      "expectRed": [
+        "a fractional or non-finite count"
+      ]
+    },
+    {
+      "name": "the raw left word moves right",
+      "file": "panels/usePanelManager.ts",
+      "find": "by === 'left' ? -1 :",
+      "replace": "by === 'left' ? 1 :",
+      "expectRed": [
+        "the raw left and right words"
+      ]
     }
   ]
 }

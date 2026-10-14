@@ -242,7 +242,7 @@ function applyTemplateWrites(source: string): { reconfigure: string[]; create: s
 }
 
 /** The entry fields a configure must never write itself: only applyTemplate's reconfigure branch (through `reparked`) may. */
-const ENTRY_FIELDS = ['locked', 'collapsible', 'listed', 'anchoredEnter', 'formFactor', 'size', 'anchor', 'hostData', 'overrides', 'applied', 'live', 'settings', 'title'];
+const ENTRY_FIELDS = ['locked', 'collapsible', 'listed', 'anchoredEnter', 'size', 'anchor', 'hostData', 'overrides', 'applied', 'live', 'settings', 'title'];
 /** The files a configure passes through before and after the engine's update. */
 const CONFIGURE_FILES = ['panelConfigure.ts', 'panelPin.ts', 'panelManager.ts', 'panelHandles.ts', 'workspaceCore.ts'];
 const CONFIGURE_FUNCTIONS = ['configureOne', 'configureTemplateOne', 'configureTuningOne'];
@@ -257,9 +257,9 @@ function configureWriters(read: (file: string) => string): string[] {
 }
 
 test('source: a configure writes an entry only through applyTemplate\'s reconfigure branch, and a planted second writer is found', () => {
-  assert.deepEqual(applyTemplateWrites(read('panelSettings.ts')).reconfigure, ['...entry', 'locked', '?collapsible', 'listed', 'layer', 'anchoredEnter', '...title', 'settings'], 'the reconfigure branch writes the mirror fields, the parkable flip and the title, and no tier, size, anchor, hostData, key, overrides or applied');
+  assert.deepEqual(applyTemplateWrites(read('panelSettings.ts')).reconfigure, ['...entry', 'locked', '?collapsible', 'listed', 'layer', 'anchoredEnter', '...title', 'settings'], 'the reconfigure branch writes the mirror fields, the parkable flip and the title, and no slots, size, anchor, hostData, key, overrides or applied');
   const create = applyTemplateWrites(read('panelSettings.ts')).create;
-  for (const created of ['formFactor', 'size', 'key', 'live']) assert.ok(create.includes(created), `the create branch writes ${created}, so a reconfigure that wrote it would be a second writer`);
+  for (const created of ['slots', 'size', 'key', 'live']) assert.ok(create.includes(created), `the create branch writes ${created}, so a reconfigure that wrote it would be a second writer`);
   const both = writesOf(read('panelSettings.ts'), 'panelSettings.ts', ['locked', 'collapsible']).map((s) => `${s.fn}:${s.key}`).sort();
   assert.deepEqual(both, ['applyTemplate:collapsible', 'applyTemplate:collapsible', 'applyTemplate:locked', 'applyTemplate:locked'], 'one write of each per mode, both inside applyTemplate');
   // The configure path: reconfigured() hands the entry to reparked(), which calls applyTemplate in reconfigure mode, and nothing else builds one.
@@ -280,8 +280,8 @@ test('source: a configure writes an entry only through applyTemplate\'s reconfig
       return configureWriters((f) => (f === file ? text : read(f)));
     };
     assert.deepEqual(
-      planted('panelConfigure.ts', 'export function plantedWriter(p: PanelWindow): PanelWindow {\n  const q = { ...p, locked: true, formFactor: \'tablet\' as const };\n  q.collapsible = false;\n  return q;\n}'),
-      ['panelConfigure.ts plantedWriter:collapsible', 'panelConfigure.ts plantedWriter:formFactor', 'panelConfigure.ts plantedWriter:locked', 'panelPin.ts reparked:live', 'workspaceCore.ts configureOne:settings'],
+      planted('panelConfigure.ts', 'export function plantedWriter(p: PanelWindow): PanelWindow {\n  const q = { ...p, locked: true, size: undefined };\n  q.collapsible = false;\n  return q;\n}'),
+      ['panelConfigure.ts plantedWriter:collapsible', 'panelConfigure.ts plantedWriter:locked', 'panelConfigure.ts plantedWriter:size', 'panelPin.ts reparked:live', 'workspaceCore.ts configureOne:settings'],
       'a second writer in panelConfigure.ts is found, all three of its writes',
     );
     assert.deepEqual(
@@ -289,9 +289,9 @@ test('source: a configure writes an entry only through applyTemplate\'s reconfig
       ['workspaceCore.ts configureOne:anchor'],
       'and so is one planted into a configure function of workspaceCore.ts',
     );
-    const widened = read('panelSettings.ts').replace("listed: resolved.listed,\n      layer", "listed: resolved.listed,\n      formFactor: resolved.formFactor,\n      layer");
+    const widened = read('panelSettings.ts').replace("listed: resolved.listed,\n      layer", "listed: resolved.listed,\n      slots: resolved.slots,\n      layer");
     assert.notEqual(widened, read('panelSettings.ts'), 'the plant found its place');
-    assert.deepEqual(applyTemplateWrites(widened).reconfigure, ['...entry', 'locked', '?collapsible', 'listed', 'formFactor', 'layer', 'anchoredEnter', '...title', 'settings'], 'a formFactor write planted in the reconfigure branch is found');
+    assert.deepEqual(applyTemplateWrites(widened).reconfigure, ['...entry', 'locked', '?collapsible', 'listed', 'slots', 'layer', 'anchoredEnter', '...title', 'settings'], 'a slots write planted in the reconfigure branch is found');
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
@@ -354,9 +354,9 @@ test('source: the read handle has exactly id, templateId, getState, getSettings 
   assert.deepEqual(returnedKeys(src, 'makeReader'), ['get', 'list', 'getSnapshot', 'subscribe']);
 });
 
-test('source: the handle a view receives has the five read members and the thirteen verbs, and no manager', () => {
+test('source: the handle a view receives has the five read members and the twelve verbs, and no manager', () => {
   const src = read('panelHandles.ts');
-  assert.deepEqual(returnedKeys(src, 'makeViewHandle'), ['id', 'templateId', 'getState', 'getSettings', 'subscribe', 'show', 'hide', 'toggleVisibility', 'close', 'open', 'move', 'place', 'setFormFactor', 'setSlots', 'scrollTo', 'pin', 'unpin', 'configure']);
+  assert.deepEqual(returnedKeys(src, 'makeViewHandle'), ['id', 'templateId', 'getState', 'getSettings', 'subscribe', 'show', 'hide', 'toggleVisibility', 'close', 'open', 'move', 'place', 'setSlots', 'scrollTo', 'pin', 'unpin', 'configure']);
   const widened = src.replace('    show: (src', '    manager: {},\n    show: (src');
   assert.notEqual(widened, src, 'control: the plant applied');
   assert.ok(returnedKeys(widened, 'makeViewHandle').includes('manager'), 'the pin sees a planted member');

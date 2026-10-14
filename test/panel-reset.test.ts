@@ -49,22 +49,22 @@ test('(b) one id re-places only that panel and clears only its overrides', async
   assert.deepEqual(['a', 'b'].map((id) => JSON.stringify(r.entry(id).overrides)), others, 'the others keep what the person set');
 });
 
-test('(c) a tablet panel the person resized returns to its default tier', async () => {
+test('(c) a two-slot panel the person resized returns to its default slots', async () => {
   const r = await pinRig({ width: 4000 });
-  r.turn(() => r.h.b!.setFormFactor('tablet', 'person'));
-  assert.equal(r.entry('b').formFactor, 'tablet');
+  r.turn(() => r.h.b!.setSlots(2, 'person'));
+  assert.equal(r.entry('b').slots, 2);
   reset(r, 'b');
-  assert.equal(r.entry('b').formFactor, 'phone');
+  assert.equal(r.entry('b').slots, 1);
   assert.deepEqual(r.entry('b').overrides, {});
 });
 
-test('(c) a tier that no longer fits parks the fewest park panels and the result lists them', async () => {
+test('(c) a slot count that no longer fits parks the fewest park panels and the result lists them', async () => {
   const ids = ['a', 'b', 'c', 'd'];
-  const r = await pinRig({ ids, width: 1300, settings: Object.fromEntries(ids.map((id) => [id, { ...park, formFactor: id === 'c' ? 'tablet' : 'phone' } as PanelSettings])) });
+  const r = await pinRig({ ids, width: 1300, settings: Object.fromEntries(ids.map((id) => [id, { ...park, slots: id === 'c' ? 2 : 1 } as PanelSettings])) });
   await r.settle();
   r.turn(() => r.h.c!.show());
   await r.settle();
-  r.turn(() => r.h.c!.setFormFactor('phone', 'person'));
+  r.turn(() => r.h.c!.setSlots(1, 'person'));
   await r.settle();
   r.turn(() => r.h.b!.show());
   await r.settle();
@@ -72,14 +72,14 @@ test('(c) a tier that no longer fits parks the fewest park panels and the result
   assert.deepEqual(reset(r, 'c'), { ok: true, changed: true, panels: ['c'], parked: ['b'], returned: [] });
   await r.settle();
   assert.deepEqual(r.live(), ['root', 'c']);
-  assert.equal(r.entry('c').formFactor, 'tablet');
+  assert.equal(r.entry('c').slots, 2);
 });
 
 test('(c) a freed slot returns a stacked panel and the result lists it', async () => {
   const ids = ['a', 'b', 'c', 'd'];
   const r = await pinRig({ ids, width: 1300, settings: Object.fromEntries(ids.map((id) => [id, park])) });
   await r.settle();
-  r.turn(() => r.h.d!.setFormFactor('tablet', 'person'));
+  r.turn(() => r.h.d!.setSlots(2, 'person'));
   await r.settle();
   assert.deepEqual(r.live(), ['root', 'd']);
   assert.deepEqual(reset(r, 'd'), { ok: true, changed: true, panels: ['d'], parked: [], returned: ['c'] });
@@ -87,11 +87,11 @@ test('(c) a freed slot returns a stacked panel and the result lists it', async (
   assert.deepEqual(r.live(), ['root', 'c', 'd']);
 });
 
-test('(c) a scrolling row parks none when a tier grows', async () => {
+test('(c) a scrolling row parks none when a slot count grows', async () => {
   const ids = ['a', 'b', 'c', 'd'];
-  const r = await pinRig({ ids, width: 1300, settings: Object.fromEntries(ids.map((id) => [id, { overflow: 'scroll', formFactor: id === 'c' ? 'tablet' : 'phone' } as PanelSettings])) });
+  const r = await pinRig({ ids, width: 1300, settings: Object.fromEntries(ids.map((id) => [id, { overflow: 'scroll', slots: id === 'c' ? 2 : 1 } as PanelSettings])) });
   await r.settle();
-  r.turn(() => r.h.c!.setFormFactor('phone', 'person'));
+  r.turn(() => r.h.c!.setSlots(1, 'person'));
   const live = r.live();
   const result = reset(r, 'c') as { parked?: string[] };
   await r.settle();

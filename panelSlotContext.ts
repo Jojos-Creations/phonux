@@ -59,7 +59,7 @@ export interface PanelSlotValue {
   readonly draggable: ResolvedPanelSettings['draggable'];
   readonly placeable: ResolvedPanelSettings['placeable'];
   readonly resizable: ResolvedPanelSettings['resizable'];
-  readonly formFactors: ResolvedPanelSettings['formFactors'];
+  readonly maxSlots: ResolvedPanelSettings['maxSlots'];
   readonly neighborWidths: NeighborWidths;
   readonly pinned: boolean;
   /** The size the row draws this slot at, which an omitted `size` on `Panel`, `PanelFrame` and `PanelSizeBox` follows. Absent outside a row, where an omitted size is the phone size. */
