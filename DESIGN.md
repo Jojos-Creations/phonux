@@ -679,6 +679,45 @@ When a host passes `storage`, the provider restores that list once at mount and 
 settles; with none, nothing is loaded and nothing is saved. The shape, the ownership split and the save/restore
 timing are in "Workspace state persistence: shape, ownership and timing" below.
 
+## The workspace column
+
+`createWorkspaceColumn` (`columnHandle.ts`, React-free) holds the ordered list of workspaces, their names and the current one;
+`WorkspaceColumn` (`WorkspaceColumn.tsx`) draws it. A column is a handle like a workspace: `addWorkspace(options)` is the only way to
+add one (no controlled props, no second way), and the column creates every workspace with `mount: false` and renders it in a cell
+of its own, so the column owns `wrap`, `device`, `tuning`, `labels` and the other live members; `update` reaches all of them. An app that
+draws its own rows passes `mount: false` to the column and a render function to `WorkspaceColumn`.
+
+**Identity and names.** A workspace has a stable `id`, unrelated to its name. The id is the storage key: `ColumnStorage.workspace(id)`
+gives the panel storage of that workspace, so a rename never moves saved panels. An app that already has a workspace adopts it as
+the first one with `addWorkspace({ id })` and a `workspace(id)` that returns its existing storage for that id. `Workspace <n>` is
+chosen at creation (the smallest number no name in the column uses) and stored, so a later delete or move never renumbers. The rename rules
+(`workspaceName.ts`): the name is trimmed and cut to `MAX_WORKSPACE_NAME` (60) characters; a name empty after trimming changes nothing and
+the input shows the old name again; Escape discards the draft; two workspaces may share a name. Deleting a workspace is out of scope.
+
+**Saved list.** `ColumnState` is `{ version: 1, workspaces: [{ id, name }], current }`. It is read once; workspaces code added before it
+arrived keep their handle and take the saved name, the saved order wins, and any that the list does not know follow it. A record that
+fails the guard reads as nothing saved. Saves run one after another after each change to the list, a name or the current workspace.
+
+**Moving.** The column is moved only by `step`, `scrollTo`, the keys and the two buttons, never by a wheel or trackpad, so it cannot chain
+a scroll out of a panel. Its track slides by `translateY` with the workspace slide tuning and snaps under Reduce Motion (the system
+setting or an app `MotionConfig`). A button where there is no neighbour reads `labels.newWorkspace` and creates one on that side, then scrolls to it.
+ArrowDown at the last workspace does nothing: only a button creates.
+
+**Keys.** ArrowUp/ArrowDown act unless `arrowKeyBelongsElsewhere`: a handler already took the key (`defaultPrevented`), a modifier is
+held, the key repeats or an IME composes, the target or the focused element is an input, textarea, select, contenteditable or an element
+with a role that owns the arrows (textbox, searchbox, combobox, listbox, slider, spinbutton, menu, menubar, tablist, tree, grid,
+radiogroup), the item is pressed under dnd-kit's keyboard drag, a panel is being dragged, or a modal dialog is open. A web view swallows keys, so the buttons are the way out of one.
+
+**Mounted, inert, focus.** Every cell stays mounted, so panels keep their state, and the cells that are not current are `inert` and
+`aria-hidden`. When the current cell changes while focus was inside the one left, focus moves to the new cell (`tabIndex -1`), so the arrow keys keep working.
+
+**Vertical budget.** Each cell is as tall as the column. The column's `topInset` is clearance for chrome the app draws over the window (0 by default): the controls start below it, and the row's top padding is `topInset` plus `COLUMN_TOP_BAND` (76) plus the row gap (16), 92 px with no inset. A panel's header hangs 56 px above its 700 px body, so from the window's top edge down: the button naming the
+workspace above at 2 to 20 px, the name input at 22 to 46 px, the headers from 48 px, the bodies, then the bottom button in the last
+4 to 26 px (`COLUMN_BOTTOM_BAND` is 26). The phone keeps its height. Measured in Chromium (`phonux-workspace-column-proof`):
+at 832 px high the headers start at 48, the bodies run 104 to 804 and the bottom button 806 to 828, so nothing overlaps and 832 is
+the least window height for that. At 1080 the row is centred in the 972 px between its paddings: headers at 172, bodies 228 to 928, bottom
+button 1054 to 1076. Under 832 the row sits at the top of its padding and the headers climb under the name input; the phone never shrinks for it.
+
 ## Naming rules R1-R4
 
 - **R1. Name by the hierarchy.** A `Panel` slot's own parts are named `Panel*`, what a developer writes is

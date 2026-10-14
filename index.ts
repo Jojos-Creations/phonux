@@ -162,6 +162,11 @@ export type {
 } from './panelTemplate.js';
 
 export { createWorkspace } from './workspaceCore.js';
+export { MAX_WORKSPACE_NAME } from './workspaceName.js';
+export { createWorkspaceColumn } from './columnHandle.js';
+export type { ColumnOptions, ColumnState, ColumnStatus, ColumnStorage, ColumnWorkspaceOptions, WorkspaceColumnHandle } from './columnHandle.js';
+export { COLUMN_BOTTOM_BAND, COLUMN_TOP_BAND, WorkspaceColumn } from './WorkspaceColumn.js';
+export type { WorkspaceColumnProps } from './WorkspaceColumn.js';
 export type { WorkspaceHandle, WorkspaceOptions, WorkspaceWrapProps } from './workspaceCore.js';
 export type { WorkspaceLive, WorkspacePanelsInput } from './workspaceLive.js';
 export type { PanelHandle } from './panelHandles.js';
