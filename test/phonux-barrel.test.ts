@@ -21,6 +21,8 @@ const VALUE_EXPORTS = [
   'HostMissingProviderError',
   'HostProvider',
   'useHost',
+  'usePhoneFit',
+  'usePhoneSize',
   'Panel',
   'PanelFrame',
   'PANEL_CORNER_RADIUS_UNITS',
@@ -86,7 +88,7 @@ const VALUE_EXPORTS = [
   'DRAGGING_ATTRIBUTE',
 ].sort();
 
-test('the phonux barrel exports exactly the 71 runtime values, no more, no fewer', () => {
+test('the phonux barrel exports exactly the 73 runtime values, no more, no fewer', () => {
   assert.deepEqual(Object.keys(phonux).sort(), VALUE_EXPORTS);
 });
 

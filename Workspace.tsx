@@ -13,6 +13,7 @@ import { computeRowLayout } from './panelRowLayout.js';
 import { PANEL_TRANSITION } from './PanelRowSlot.js';
 import { slideToTransition } from './directionalTransition.js';
 import type { SlideTuning, WorkspaceTuning } from './panelSettings.js';
+import { PhoneSizeContext, useRowHeightBudget } from './phoneFit.js';
 import { RowHeightContext, WorkspaceTuningContext, resolveWorkspaceTuning } from './panelTuning.js';
 import { ChromeStoreContext, createChromeStore, type DrawnPin } from './panelChrome.js';
 import { ROW_GAP, ROW_GESTURE } from './rowConstants.js';
@@ -120,6 +121,11 @@ export interface WorkspaceProps extends Omit<BoxProps, 'children'> {
   rowResizeSettled?: boolean;
   /** The width in px every fixed column renders at. */
   phoneWidth: number;
+  /**
+   * The height in px of one phone slot. Given, the Workspace tells `usePhoneSize()` the size `phoneWidth` and this make, so a panel's
+   * frame and its slot agree with the width the row is priced at (pass both from `usePhoneFit`). Omitted: `useHost().device.size`.
+   */
+  phoneHeight?: number;
   /** The number of always-present columns the row renders. */
   fixedColumnCount: number;
   /** Each live panel's own width in px, in row order; a parked panel is not in the row. */
@@ -146,7 +152,7 @@ export interface WorkspaceProps extends Omit<BoxProps, 'children'> {
  * @public
  */
 export function Workspace(props: WorkspaceProps): React.ReactElement {
-  const { overflowContainerRef, rowRef, containerWidth, rowResizeSettled: given, phoneWidth, fixedColumnCount, liveWidths, rowScroll, rowNumbers, topPadding, tuning, beforeRow, children, ...rest } = props;
+  const { overflowContainerRef, rowRef, containerWidth, rowResizeSettled: given, phoneWidth, phoneHeight, fixedColumnCount, liveWidths, rowScroll, rowNumbers, topPadding, tuning, beforeRow, children, ...rest } = props;
   const resolved = React.useMemo(() => resolveWorkspaceTuning(tuning), [tuning]);
   const gap = resolved.rowGap;
   const [chromeStore] = React.useState(createChromeStore);
@@ -202,20 +208,11 @@ export function Workspace(props: WorkspaceProps): React.ReactElement {
   }, [rowNumbers, resizingId]);
   React.useLayoutEffect(() => () => void settle.current?.run(), []);
   const scrolls = rowNumbers?.rowScroll ?? rowScroll ?? false;
+  const phoneSize = React.useMemo(() => (phoneHeight === undefined ? undefined : { width: phoneWidth, height: phoneHeight }), [phoneWidth, phoneHeight]);
   const style = workspaceShellStyle({ containerWidth, rowResizeSettled, phoneWidth, fixedColumnCount, liveWidths, gap, slide: resolved.slide, rowScroll, rowNumbers, rowGesture: resolved.rowGesture });
-  // The room the row has to grow into: the container's height less its padding. 0 (unmeasured) keeps every panel at the phone height.
-  const [availableHeight, setAvailableHeight] = React.useState(0);
+  // The room the row has to grow into: the container's height less its padding. 0 (unmeasured) applies no height limit.
   const topPad = topPadding ?? gap;
-  React.useLayoutEffect(() => {
-    const container = overflowContainerRef.current;
-    if (container === null) return undefined;
-    const measure = (): void => setAvailableHeight(Math.max(0, Math.round(container.clientHeight - topPad - gap)));
-    measure();
-    if (typeof ResizeObserver === 'undefined') return undefined;
-    const observer = new ResizeObserver(measure);
-    observer.observe(container);
-    return () => observer.disconnect();
-  }, [overflowContainerRef, topPad, gap]);
+  const availableHeight = useRowHeightBudget(overflowContainerRef, topPad, gap);
   // A row that stops scrolling must not keep the offset it had: the margin that centres it assumes the strip starts at 0.
   React.useLayoutEffect(() => {
     const container = overflowContainerRef.current;
@@ -247,6 +244,7 @@ export function Workspace(props: WorkspaceProps): React.ReactElement {
     return () => container.removeEventListener('scroll', apply);
   });
   return (
+    <PhoneSizeContext.Provider value={phoneSize}>
     <WorkspaceTuningContext.Provider value={resolved}>
       <ChromeStoreContext.Provider value={chromeStore}>
       <RowHeightContext.Provider value={availableHeight}>
@@ -293,5 +291,6 @@ export function Workspace(props: WorkspaceProps): React.ReactElement {
       <OverlaySlot name="toast" />
       </ChromeStoreContext.Provider>
     </WorkspaceTuningContext.Provider>
+    </PhoneSizeContext.Provider>
   );
 }

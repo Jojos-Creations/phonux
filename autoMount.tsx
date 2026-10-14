@@ -13,6 +13,7 @@ import { PanelRow } from './PanelRow.js';
 import { Workspace } from './Workspace.js';
 import { createDefaultTheme } from './defaultTheme.js';
 import { DEFAULT_PHONE_SIZE, HostProvider, type HostInput } from './hostApi.js';
+import { usePhoneFit } from './usePhoneFit.js';
 import { useProvidePanels } from './panels/useProvidePanels.js';
 import type { ProvidedPanels } from './panels/useProvidePanels.js';
 import type { WorkspaceProps } from './Workspace.js';
@@ -72,7 +73,10 @@ export function AutoRoot({ workspace }: { workspace: WorkspaceHandle }): React.R
   const ref = React.useRef<HTMLDivElement>(null);
   const rowRef = React.useRef<HTMLDivElement>(null);
   const containerWidth = useContainerWidth(ref);
-  const phoneWidth = values.device?.size.width ?? DEFAULT_PHONE_SIZE.width;
+  const preferred = values.device?.size ?? DEFAULT_PHONE_SIZE;
+  const tuning = React.useSyncExternalStore(binding.subscribe, () => binding.tuning, () => binding.tuning);
+  const phone = usePhoneFit(ref, containerWidth, preferred, tuning, values.topInset);
+  const phoneWidth = phone.width;
   const provided = useProvidePanels({
     ...panelsInputOf(workspace, stand.current),
     ...(values.labels !== undefined ? { labels: values.labels } : {}),
@@ -94,7 +98,7 @@ export function AutoRoot({ workspace }: { workspace: WorkspaceHandle }): React.R
   };
   const Wrap = binding.wrap;
   const row = (
-    <Workspace overflowContainerRef={ref} rowRef={rowRef} containerWidth={containerWidth} phoneWidth={phoneWidth} {...(values.topInset !== undefined ? { topPadding: values.topInset } : {})} {...workspaceProps(provided)}>
+    <Workspace overflowContainerRef={ref} rowRef={rowRef} containerWidth={containerWidth} phoneWidth={phoneWidth} phoneHeight={phone.height} {...(values.topInset !== undefined ? { topPadding: values.topInset } : {})} {...workspaceProps(provided)}>
       <PanelRow {...rowProps(provided, workspace)} />
     </Workspace>
   );

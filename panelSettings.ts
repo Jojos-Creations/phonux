@@ -35,6 +35,9 @@ import {
   ROW_GESTURE,
   SAVE_QUIET_MS,
   SHRINK_OUT_OF_VIEW,
+  PHONE_FIT,
+  PHONE_FIT_MIN,
+  PHONE_FIT_MAX,
   SLIDE_CLOSE_EXIT_SECONDS,
   SLIDE_DURATION_SEC,
   SLIDE_EASE,
@@ -421,6 +424,15 @@ export type WorkspaceTuning = PanelTuning & {
    * the room as margin and never draws that neighbour, not even part way through a glide.
    */
   shrinkOutOfView?: 'off' | 'visible' | 'hidden';
+  /**
+   * Whether the default mount fits the phone size to the window: 'off' draws the host's preferred size as it is, 'fit'
+   * scales it (width and height together, whole pixels) so whole slots fill the window, within `phoneFitMin` to `phoneFitMax`.
+   */
+  phoneFit?: 'off' | 'fit';
+  /** The smallest scale the fit gives the phone, a number above 0 and up to 1, as a fraction of the preferred size. */
+  phoneFitMin?: number;
+  /** The largest scale the fit gives the phone, a number from 1 to 4, as a fraction of the preferred size. */
+  phoneFitMax?: number;
 };
 
 /** The per-panel tuning leaves after resolving, every one present. @public */
@@ -460,6 +472,12 @@ export type ResolvedWorkspaceTuning = ResolvedPanelTuning & {
   /** The most unpinned parkable panels the row keeps live, or `null` for no cap. */
   maxLivePanels: number | null;
   shrinkOutOfView: 'off' | 'visible' | 'hidden';
+  /** Whether the default mount fits the phone size to the window: 'off' or 'fit'. */
+  phoneFit: 'off' | 'fit';
+  /** The smallest scale of the preferred phone size the fit gives. */
+  phoneFitMin: number;
+  /** The largest scale of the preferred phone size the fit gives. */
+  phoneFitMax: number;
 };
 
 /** Deeply frozen; every key is present after a resolve except `title`. @public */
@@ -1409,6 +1427,39 @@ const CATALOG_ROWS: readonly SettingDescriptor[] = [
     ownerEntry: 'phonux-shrink-whole-panels-v1',
     configure: { cls: 'NOW', doors: ['tuning'] },
   },
+  {
+    name: 'tuning.phoneFit',
+    group: 'tuning',
+    values: 'off, fit (workspace only)',
+    default: 'off (PHONE_FIT)',
+    scope: 'workspace',
+    viewSettable: false,
+    exists: 'new',
+    ownerEntry: 'phonux-fit-phone-to-screen-v3',
+    configure: { cls: 'NOW', doors: ['tuning'] },
+  },
+  {
+    name: 'tuning.phoneFitMin',
+    group: 'tuning',
+    values: 'number above 0 and up to 1 (workspace only)',
+    default: '0.82 (PHONE_FIT_MIN)',
+    scope: 'workspace',
+    viewSettable: false,
+    exists: 'new',
+    ownerEntry: 'phonux-fit-phone-to-screen-v3',
+    configure: { cls: 'NOW', doors: ['tuning'] },
+  },
+  {
+    name: 'tuning.phoneFitMax',
+    group: 'tuning',
+    values: 'number from 1 to 4 (workspace only)',
+    default: '1.13 (PHONE_FIT_MAX)',
+    scope: 'workspace',
+    viewSettable: false,
+    exists: 'new',
+    ownerEntry: 'phonux-fit-phone-to-screen-v3',
+    configure: { cls: 'NOW', doors: ['tuning'] },
+  },
 ];
 
 /**
@@ -1522,6 +1573,9 @@ export const LIBRARY_TUNING_DEFAULTS: ResolvedWorkspaceTuning = freezeClone({
   chrome: { ...CHROME },
   maxLivePanels: null,
   shrinkOutOfView: SHRINK_OUT_OF_VIEW as ResolvedWorkspaceTuning['shrinkOutOfView'],
+  phoneFit: PHONE_FIT as ResolvedWorkspaceTuning['phoneFit'],
+  phoneFitMin: PHONE_FIT_MIN,
+  phoneFitMax: PHONE_FIT_MAX,
 });
 
 // ---------------------------------------------------------------------------
@@ -1783,7 +1837,7 @@ const TUNING_MEMBER_CHECKS: Record<'dragToClose' | 'slide' | 'edgeScroll' | 'chr
   },
 };
 
-const TUNING_SCALAR_CHECKS: Record<'hopFraction' | 'rowGap' | 'saveQuietMs' | 'gestureLockMs' | 'gestureQuietMs' | 'resizeSettleSlides' | 'returnTieBreak' | 'dropTieBreak' | 'rowGesture' | 'initialScroll' | 'maxLivePanels' | 'shrinkOutOfView', Check> = {
+const TUNING_SCALAR_CHECKS: Record<'hopFraction' | 'rowGap' | 'saveQuietMs' | 'gestureLockMs' | 'gestureQuietMs' | 'resizeSettleSlides' | 'returnTieBreak' | 'dropTieBreak' | 'rowGesture' | 'initialScroll' | 'maxLivePanels' | 'shrinkOutOfView' | 'phoneFit' | 'phoneFitMin' | 'phoneFitMax', Check> = {
   hopFraction: num(0, 1, { minOpen: true }),
   rowGap: integer(0, 200),
   saveQuietMs: integer(0),
@@ -1800,6 +1854,9 @@ const TUNING_SCALAR_CHECKS: Record<'hopFraction' | 'rowGap' | 'saveQuietMs' | 'g
   },
   maxLivePanels: (v) => (v === null ? undefined : integer(1)(v)),
   shrinkOutOfView: oneOf('off', 'visible', 'hidden'),
+  phoneFit: oneOf('off', 'fit'),
+  phoneFitMin: num(0, 1, { minOpen: true }),
+  phoneFitMax: num(1, 4),
 };
 
 const isObjectLeaf = (leaf: string): leaf is keyof typeof TUNING_MEMBER_CHECKS => Object.hasOwn(TUNING_MEMBER_CHECKS, leaf);

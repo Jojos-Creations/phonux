@@ -68,6 +68,8 @@ export type {
 
 export { PHONE_MODELS, findPhoneModel } from './phoneModels.js';
 export type { PhoneModel } from './phoneModels.js';
+export { usePhoneSize } from './phoneFit.js';
+export { usePhoneFit } from './usePhoneFit.js';
 
 export type { PanelAnchor } from './panelRowOrder.js';
 export type { NeighborWidths, PanelRowEntry } from './panelRowEntry.js';

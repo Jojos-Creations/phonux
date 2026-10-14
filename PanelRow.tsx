@@ -9,6 +9,7 @@ import { AnimatePresence } from 'motion/react';
 import Box from '@mui/material/Box';
 import { AutoMountContext } from './autoMountContext.js';
 import { useHost } from './hostApi.js';
+import { usePhoneSize } from './phoneFit.js';
 import { isPresent, summarisePanel, type NeighborWidths, type PanelRowEntry } from './panelRowEntry.js';
 import { anchorTargetOf, resolveEnterDirection, type EnterDirection } from './panelRowOrder.js';
 import { PanelHiddenContext, PanelSlotContext, type DragScroll } from './panelSlotContext.js';
@@ -155,7 +156,8 @@ export function PanelRow({
   /** The workspace this row renders. Given, each template view receives its own handle and the reader of every panel, and the row's tuning is the workspace's unless `tuning` is given. */
   workspace?: WorkspaceHandle;
 }): React.ReactElement {
-  const { device, panels } = useHost();
+  const { panels } = useHost();
+  const phoneSize = usePhoneSize();
   const inherited = React.useContext(WorkspaceTuningContext);
   const given = tuning === undefined ? undefined : resolveWorkspaceTuning(tuning);
   const binding = workspace === undefined ? undefined : bindingOf(workspace);
@@ -178,8 +180,8 @@ export function PanelRow({
   const inheritedChrome = React.useContext(ChromeStoreContext);
   const [ownChrome] = React.useState(createChromeStore);
   const chrome = inheritedChrome ?? ownChrome;
-  const phoneWidth = device.size.width;
-  const phoneHeight = device.size.height;
+  const phoneWidth = phoneSize.width;
+  const phoneHeight = phoneSize.height;
   // The live flags of the previous commit, and per parked entry whether its park released its view state. The latch
   // is read from the entry's setting at the commit that parks it, so changing the setting later reaches the next park only.
   const liveBeforeRef = React.useRef<ReadonlyMap<string, boolean>>(new Map());

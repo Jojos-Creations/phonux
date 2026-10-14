@@ -1918,6 +1918,39 @@ test('matrix:tuning.shrinkOutOfView', async () => {
   assert.equal(r.ws.tuning.shrinkOutOfView, 'visible', 'a refused value changes nothing');
 });
 
+test('matrix:tuning.phoneFit', async () => {
+  probe('tuning.phoneFit');
+  await wrongScopeInEveryStatus({ tuning: { phoneFit: 'fit' } }, 'tuning.phoneFit');
+  const r = await matrixRig();
+  assert.equal(r.ws.tuning.phoneFit, 'off', 'before: the library default');
+  assert.deepEqual({ ...done(r.turn(() => r.ws.panels.configureTuning({ phoneFit: 'fit' }))) }, { ok: true, changed: true, shown: false, now: ['tuning.phoneFit'], later: [], shadowed: [], notes: [] });
+  assert.equal(r.ws.tuning.phoneFit, 'fit');
+  for (const bad of ['on', 1, true]) assert.equal(thrownCode(() => r.ws.panels.configureTuning({ phoneFit: bad } as never)), 'invalid-settings', `${String(bad)} throws`);
+  assert.equal(r.ws.tuning.phoneFit, 'fit', 'a refused value changes nothing');
+});
+
+test('matrix:tuning.phoneFitMin', async () => {
+  probe('tuning.phoneFitMin');
+  await wrongScopeInEveryStatus({ tuning: { phoneFitMin: 0.9 } }, 'tuning.phoneFitMin');
+  const r = await matrixRig();
+  assert.equal(r.ws.tuning.phoneFitMin, 0.82, 'before: the library default');
+  assert.deepEqual({ ...done(r.turn(() => r.ws.panels.configureTuning({ phoneFitMin: 0.9 }))) }, { ok: true, changed: true, shown: false, now: ['tuning.phoneFitMin'], later: [], shadowed: [], notes: [] });
+  assert.equal(r.ws.tuning.phoneFitMin, 0.9);
+  for (const bad of [0, -1, 1.5, '0.9', Number.NaN]) assert.equal(thrownCode(() => r.ws.panels.configureTuning({ phoneFitMin: bad } as never)), 'invalid-settings', `${String(bad)} throws`);
+  assert.equal(r.ws.tuning.phoneFitMin, 0.9, 'a refused value changes nothing');
+});
+
+test('matrix:tuning.phoneFitMax', async () => {
+  probe('tuning.phoneFitMax');
+  await wrongScopeInEveryStatus({ tuning: { phoneFitMax: 1.2 } }, 'tuning.phoneFitMax');
+  const r = await matrixRig();
+  assert.equal(r.ws.tuning.phoneFitMax, 1.13, 'before: the library default');
+  assert.deepEqual({ ...done(r.turn(() => r.ws.panels.configureTuning({ phoneFitMax: 1.2 }))) }, { ok: true, changed: true, shown: false, now: ['tuning.phoneFitMax'], later: [], shadowed: [], notes: [] });
+  assert.equal(r.ws.tuning.phoneFitMax, 1.2);
+  for (const bad of [0.9, 4.5, '1.2', Number.NaN]) assert.equal(thrownCode(() => r.ws.panels.configureTuning({ phoneFitMax: bad } as never)), 'invalid-settings', `${String(bad)} throws`);
+  assert.equal(r.ws.tuning.phoneFitMax, 1.2, 'a refused value changes nothing');
+});
+
 test('the class table ran every cell: executed cells equal 4 classes by 9 statuses, 36', () => {
   assert.equal(CLASSES.length * STATUSES.length, 36);
   assert.equal(cellsExecuted().size, 36);
@@ -1926,13 +1959,13 @@ test('the class table ran every cell: executed cells equal 4 classes by 9 status
 });
 
 // The design copy is frozen; a catalog key added after it is listed here, never in the copy.
-const ADDED_AFTER_DESIGN: readonly string[] = ['tuning.maxLivePanels', 'tuning.chrome', 'slots', 'maxSlots', 'tuning.resizeSettleSlides', 'tuning.shrinkOutOfView', 'frame'];
+const ADDED_AFTER_DESIGN: readonly string[] = ['tuning.maxLivePanels', 'tuning.chrome', 'slots', 'maxSlots', 'tuning.resizeSettleSlides', 'tuning.shrinkOutOfView', 'frame', 'tuning.phoneFit', 'tuning.phoneFitMin', 'tuning.phoneFitMax'];
 
-test('the probes ran every catalog name once: 69 executed, equal to the catalog and to the design copy of it plus the names added after it', () => {
+test('the probes ran every catalog name once: 72 executed, equal to the catalog and to the design copy of it plus the names added after it', () => {
   const design = JSON.parse(readFileSync(new URL('../design/0.2-rev7/DESIGN-phonux-0.2-rev7-catalog.json', import.meta.url), 'utf8')) as { name: string }[];
   assert.equal(design.length, 62);
-  assert.equal(CATALOG_NAMES.length, 69);
-  assert.equal(probesExecuted().size, 69);
+  assert.equal(CATALOG_NAMES.length, 72);
+  assert.equal(probesExecuted().size, 72);
   assert.deepEqual([...probesExecuted()].sort(), [...CATALOG_NAMES].sort());
   assert.deepEqual([...probesExecuted()].sort(), [...design.map((d) => d.name), ...ADDED_AFTER_DESIGN].sort());
 });

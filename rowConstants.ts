@@ -90,6 +90,13 @@ export const ALL_SLOTS = 64;
 /** Whether a stepping row resizes the neighbour its shown panels would leave cut off by the window edge: 'off' never does. */
 export const SHRINK_OUT_OF_VIEW = 'off' as const;
 
+/** Whether the default mount fits the phone size to the window: 'off' draws the host's preferred size as it is. */
+export const PHONE_FIT = 'off' as const;
+
+/** The scale band the fit keeps the phone in, as fractions of the preferred size: 320 to 441 px on 390, inside real phone widths. */
+export const PHONE_FIT_MIN = 0.82;
+export const PHONE_FIT_MAX = 1.13;
+
 /** The slot count a tier stands for: phone one, tablet two, desktop every visible slot. */
 export const slotsOfTier = (tier: 'phone' | 'tablet' | 'desktop'): number => (tier === 'phone' ? 1 : tier === 'tablet' ? 2 : ALL_SLOTS);
 

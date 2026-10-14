@@ -542,6 +542,38 @@ when the app says so, and a pinned panel may be); otherwise they are forced to o
 default never unlocks a fixed column. A fixed column wider than a phone is priced into the capacity like any scroll panel.
 A `resizable: true` beside `maxSlots` 1 resolves, but notes `resizable-capped` (it cannot grow).
 
+### Phone fit
+
+`tuning.phoneFit: 'fit'` draws the phone at a size scaled from the host's preferred one so whole slots fill the window.
+`device.size` stays the person's preference (Settings reads it); `usePhoneSize()` returns the size in force and is what `Panel`,
+`PanelFrame`, `PanelRow` and the default frame read, so a frame, its size box and the row's slots agree. Off, the hook returns
+`device.size` and nothing is drawn differently.
+
+`usePhoneFit(containerRef, containerWidth, preferred, tuning, topInset?)` computes that size from the container the row scrolls in.
+The default mount calls it itself. A hand-wired flow calls it before `useProvidePanels` and gives the result to both
+`useProvidePanels` (`phoneWidth`) and `Workspace` (`phoneWidth` and `phoneHeight`); the Workspace publishes the pair to `usePhoneSize()`,
+so the capacity, the row numbers and the drawn widths price one phone width. A `Workspace` given no `phoneHeight` publishes nothing.
+
+`fitPhone` (`phoneFit.ts`, pure) takes the window width, the row's height budget (`RowHeightContext`'s value: the container
+less its padding), the preferred size, the gap, the edge space (the row gap) and the band `phoneFitMin` to `phoneFitMax`
+(0.82 to 1.13, 320 to 441 px on 390, inside the real phone range). With W the window less the edge space each side, N slots
+are `floor((W + gap) / N) - gap` px wide each (whole pixels, so the sums compare exactly) and the height follows the width at the preferred
+aspect. The height cap is the height budget over the preferred height, never above the band's top. Then, in order:
+
+1. the smallest N whose scale is inside the band and under the cap: the exact fill;
+2. else the most slots inside the band at the cap's scale, whole slots with the leftover centred as the row centres it;
+3. else the band's minimum wins, with as many slots as fit at it (at least one), and the row scrolls vertically. A phone below the minimum is
+   unreadable, and one slot would leave the window empty.
+
+No count ever cuts a panel at rest. Exact fill is not promised where the height cap binds. `rowCount` is a parameter of the function
+(each row gets an equal share of the height and all share one scale), not a tuning key: the plan that lays out two rows adds it.
+
+The count follows the window only once width and height have held still for the resize settle (`resizeSettleSlides` slide
+durations; at once under the OS Reduce Motion setting, which the mount reads itself because it sits above any `wrap`), so between settle events the previous count and widths hold and a webview is not re-laid out per
+frame. A change of count also needs margin: a step to more slots needs that count's scale at least 2 percent above the band's minimum, and a
+step back needs the larger phone at least 2 percent under the cap. The panel's size box glides the new size on the slide timing,
+as any size change does.
+
 ## `params` is opaque and JSON-serializable by construction
 
 `PanelSummary.params`/`PanelsAPI.create({ params })` carry per-component data the registry and the row never
@@ -1360,9 +1392,9 @@ the same call shows the panel or is refused), and `invalid-saved-setting` for ea
 ### Who may set what
 
 The `doors` of a descriptor name the configure call that accepts the key: `instance` (`configure(id)`), `template`
-(`configureTemplate`: `hostCreatable`, `multiple`, `maxInstances`) and `tuning` (`configureTuning`). Twelve tuning
+(`configureTemplate`: `hostCreatable`, `multiple`, `maxInstances`) and `tuning` (`configureTuning`). Fifteen tuning
 leaves are workspace-only (`rowGap`, `saveQuietMs`, `gestureLockMs`, `gestureQuietMs`, `resizeSettleSlides`, `returnTieBreak`, `dropTieBreak`, `rowGesture`,
-`initialScroll`, `maxLivePanels`, `chrome`, `shrinkOutOfView`); four are per panel and also workspace-wide (`dragToClose`, `slide`, `hopFraction`, `edgeScroll`).
+`initialScroll`, `maxLivePanels`, `chrome`, `shrinkOutOfView`, `phoneFit`, `phoneFitMin`, `phoneFitMax`); four are per panel and also workspace-wide (`dragToClose`, `slide`, `hopFraction`, `edgeScroll`).
 A workspace-only leaf at the template layer throws, at the instance or host layer it is a `wrong-scope` conflict, and
 any tuning key in the workspace defaults throws. A view's own door, the host layer, accepts only `title`, `listed`,
 `layer`, `formFactor`, `placeOnAdd: { anchor }` and `enterFrom: 'anchor'`.
@@ -1503,6 +1535,9 @@ flip with a transition rule of its own) or SCOPE (a template-scope key).
 | `tuning.chrome` | object: mode 'always' or 'hover-or-active', fadeMs integer [0, 10000], fadeEase ('easeIn', 'easeOut', 'easeInOut', 'linear' or four numbers, x1 and x2 in [0,1]), slideMs integer [0, 10000], slidePx integer [0, 200], graceMs integer [0, 10000] (workspace only) | always, 120, easeOut, 140, 8, 250 (CHROME) | NOW (configureTuning only). A member patch keeps the other members. The chrome shows or hides at this commit; a fade in progress retargets. The library reads `mode`, `fadeMs` and `fadeEase` (`easeOut` is the curve Motion applies to a fade given only a duration, measured in Chromium); `slideMs`, `slidePx` and `graceMs` are for the host's own icon row. Session-only. |
 | `tuning.maxLivePanels` | integer >= 1, or null for no cap (workspace only) | null (no cap) | NOW (configureTuning only). A lower value parks the excess unpinned panels at this commit through the reconcile effect; a higher one or null returns the most recently parked, under `capacityReturn` auto as under manual (manual returns only the panels the capacity parked, never one the host hid), up to the new value, in one commit. Unmeasured: applies. Outside integers of 1 or more throws; null removes the cap. Session-only. |
 | `tuning.shrinkOutOfView` | off, visible, hidden (workspace only) | off (SHRINK_OUT_OF_VIEW) | NOW (configureTuning only). In a stepping row, what happens to the neighbour a stop's whole panels would leave cut off by the window edge; see "Whole panels only". Other values throw. |
+| `tuning.phoneFit` | off, fit (workspace only) | off (PHONE_FIT) | NOW (configureTuning only). Whether the default mount fits the phone size to the window; see "Phone fit". Other values throw. |
+| `tuning.phoneFitMin` | number above 0 and up to 1 (workspace only) | 0.82 (PHONE_FIT_MIN) | NOW (configureTuning only). The smallest scale of the preferred phone size the fit gives; see "Phone fit". Other values throw. |
+| `tuning.phoneFitMax` | number from 1 to 4 (workspace only) | 1.13 (PHONE_FIT_MAX) | NOW (configureTuning only). The largest scale of the preferred phone size the fit gives; see "Phone fit". Other values throw. |
 <!-- catalog:end -->
 
 ## Placement, the root marker, key-aware undo and motion
@@ -1631,7 +1666,7 @@ a hand-built `Host` give the same view result; `settingsColumn` is `settings.set
 minus what the mount measures (`phoneWidth`, `containerWidth`, `overflowContainerRef`) and what the workspace supplies (`workspace`,
 `rootId`, `storage`, `templates`, `declared`, `workspaceDefaults`, `tuning`, `initialEntries`) and `labels`, which is its own
 option, so there is no member list to keep in step with the hook. `topInset` is an option (the `Workspace` top padding), not a
-tuning leaf: the catalog holds 16 tuning leaves, counted from `PANEL_SETTINGS_CATALOG`, and a test pins the number.
+tuning leaf: the catalog holds 19 tuning leaves, counted from `PANEL_SETTINGS_CATALOG`, and a test pins the number.
 
 **`wrap`.** A component, `ComponentType<{ children, workspace }>`, rendered inside `HostProvider` and around `Workspace`. The theme,
 a `CaptureRegistryProvider` and the app's own contexts go in it, a hook in it may call `useHost()` and `workspace.update`, and
