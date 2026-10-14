@@ -1,5 +1,5 @@
 /**
- * PanelResizeGrips: the default frame draws a grip on each side of a resizable panel; a drag draws the panel as wide as the
+ * PanelResizeGrips: a panel's overlay draws a grip on each side of a resizable panel; a drag draws the panel as wide as the
  * pointer pulls it, the release settles it on the nearest slot, Arrow keys step one slot, and none is drawn where the panel
  * cannot be resized or fewer than two slots fit.
  */
@@ -8,7 +8,7 @@ import assert from 'node:assert/strict';
 import './support/jsdom-globals.js';
 import * as React from 'react';
 import { act } from 'react';
-import { PANEL_SETTINGS_CATALOG, PanelResizeGrips, createWorkspace, definePanel, Panel, PanelFrame } from '../index.js';
+import { PANEL_SETTINGS_CATALOG, PanelResizeGrips, PanelSizeBox, createWorkspace, definePanel, Panel, PanelFrame } from '../index.js';
 import type { PanelHandle, PanelSettings } from '../index.js';
 import { useFrameClaim } from '../panelFrameClaim.js';
 import { advanceFrames, cleanup } from './support/mount-harness.js';
@@ -44,8 +44,14 @@ Object.defineProperty(Element.prototype, 'hasPointerCapture', { configurable: tr
 const PHONE = 390;
 const GAP = 24;
 
+// The grips are drawn by the view, not the default frame: a view that draws its own Panel gets no default frame, so this is the
+// same overlay and size box the default frame gave a panel.
 const bare = (settings: PanelSettings = {}) =>
-  definePanel({ id: 'bare', settings: { title: 'Bare', maxSlots: 4, ...settings }, view: () => React.createElement('p', { 'data-body': 'bare' }, 'bare') });
+  definePanel({
+    id: 'bare',
+    settings: { title: 'Bare', maxSlots: 4, ...settings },
+    view: () => React.createElement(PanelSizeBox, null, React.createElement(Panel, { title: 'Bare', overlay: React.createElement(PanelResizeGrips), sx: { height: '100%' }, children: React.createElement(PanelFrame, null, React.createElement('p', { 'data-body': 'bare' }, 'bare')) })),
+  });
 
 interface Rig {
   m: ResizableWorkspace;
@@ -84,7 +90,7 @@ const key = async (el: Element, k: string): Promise<boolean> => {
   return event.defaultPrevented;
 };
 
-test('a default-frame panel with resizable true shows a grip on each side, named and valued for a screen reader', async () => {
+test('a panel whose overlay is PanelResizeGrips with resizable true shows a grip on each side, named and valued for a screen reader', async () => {
   const r = await rig();
   for (const side of ['left', 'right'] as const) {
     const grip = gripOf(r, side)!;
