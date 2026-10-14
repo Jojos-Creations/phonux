@@ -34,6 +34,9 @@ export type AnchorRequest = {
 };
 
 // @public
+export type AnyPanelTemplate = PanelTemplate<any>;
+
+// @public
 export type BezierEase = readonly [number, number, number, number];
 
 // @public
@@ -686,21 +689,28 @@ export interface PanelRowEntry<P = JsonValue> extends PanelSummary<P> {
 
 // @public
 export interface PanelsAPI {
+    // @deprecated
     activate(id: string): void;
     clearAll(): void;
+    // @deprecated
     close(id: string): void;
+    // @deprecated
     create(): void;
+    // @deprecated
     create(options: CreatePanelOptions): void;
     readonly maxFitPanels?: number | null;
     readonly minWorkspaceWidth?: number;
+    // @deprecated
     move(id: string, direction: 'left' | 'right'): void;
     readonly panelList: readonly PanelSummary[];
+    // @deprecated
     reanchor(id: string, anchor: {
         panel?: string;
         position: 'left' | 'right';
         priority?: number;
     }): void;
     readonly recentlyClosed: readonly PanelSummary[] | null;
+    // @deprecated
     setSlots?(id: string, slots: number): void;
     undoClose(): void;
 }
@@ -763,7 +773,7 @@ export interface PanelsInput {
     resetHostDataOnRestore?: (hostData: JsonValue | undefined, panel: PanelWindow) => JsonValue | undefined;
     rootId: string;
     storage?: WorkspaceStorage;
-    templates?: readonly PanelTemplate[];
+    templates?: readonly AnyPanelTemplate[];
     tuning?: WorkspaceTuning;
     workspace?: WorkspaceHandle;
     workspaceDefaults?: Omit<PanelSettings, 'tuning'>;
@@ -1352,6 +1362,9 @@ export interface UseViewState {
 export const useViewState: UseViewState;
 
 // @public
+export function useWorkspace(): ViewWorkspace | undefined;
+
+// @public
 export function useWorkspaceManager(): PanelReader | undefined;
 
 // @public
@@ -1402,6 +1415,13 @@ export class ViewStateMissingProviderError extends Error {
 }
 
 // @public
+export interface ViewWorkspace {
+    readonly panels: PanelManager & {
+        addPanel: WorkspaceHandle['addPanel'];
+    };
+}
+
+// @public
 export function WindowOverlay(input: WindowOverlayProps): React_2.JSX.Element | null;
 
 // @public
@@ -1420,6 +1440,7 @@ export function WorkspaceColumn(input: WorkspaceColumnProps): React_2.ReactEleme
 // @public
 export interface WorkspaceColumnHandle {
     addWorkspace(o?: ColumnWorkspaceOptions): WorkspaceHandle;
+    configureTuning(patch: Parameters<PanelManager['configureTuning']>[0]): ConfigureResult;
     readonly current: number;
     dispose(): void;
     scrollTo(target: WorkspaceHandle | number): void;
@@ -1447,7 +1468,7 @@ export interface WorkspaceHandle {
     readonly id: string;
     readonly name: string;
     readonly panels: PanelManager;
-    registerTemplate(t: PanelTemplate): () => void;
+    registerTemplate(t: AnyPanelTemplate): () => void;
     rename(name: string): string;
     readonly rootId: string;
     readonly status: WorkspaceStatus;
@@ -1473,8 +1494,8 @@ export type WorkspaceOptions = WorkspaceLive & {
     onRename?: (name: string) => void;
     storage?: WorkspaceStorage;
     defaults?: Omit<PanelSettings, 'tuning'>;
-    root?: PanelTemplate;
-    templates?: readonly PanelTemplate[];
+    root?: AnyPanelTemplate;
+    templates?: readonly AnyPanelTemplate[];
     order?: () => readonly PanelId[];
     tuning?: WorkspaceTuning;
     conflicts?: 'warn' | 'throw' | 'off';
