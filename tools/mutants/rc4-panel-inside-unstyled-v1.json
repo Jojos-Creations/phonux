@@ -1,0 +1,12 @@
+{
+  "tests": ["test/panel-frame-unstyled.test.ts"],
+  "mutants": [
+    {
+      "name": "the frame spreads panelFrameScrollSx on its content again",
+      "file": "PanelFrame.tsx",
+      "find": "...sx,\n        }}\n      >\n        {children}",
+      "replace": "...panelFrameScrollSx,\n          ...sx,\n        }}\n      >\n        {children}",
+      "expectRed": ["the content it holds gets no inset and no scrollbar rule"]
+    }
+  ]
+}
