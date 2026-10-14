@@ -38,7 +38,6 @@ export type PanelManagerErrorCode =
   | 'invalid-template'
   | 'duplicate-template'
   | 'unknown-template'
-  | 'template-collision'
   | 'root-mismatch'
   | 'invalid-options'
   | 'invalid-settings'

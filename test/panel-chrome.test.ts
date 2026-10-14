@@ -10,7 +10,7 @@ import { act } from 'react';
 import { createPortal } from 'react-dom';
 import { MotionConfig, animate, cubicBezier } from 'motion/react';
 import * as entry from '../index.js';
-import { DragToClose, Panel, PanelFrame, registerView, useActivePanel, useHost, usePanelActive, usePanelDragging, usePanelTuning } from '../index.js';
+import { DragToClose, Panel, PanelFrame, useActivePanel, useHost, usePanelActive, usePanelDragging, usePanelTuning } from '../index.js';
 import { createChromeStore } from '../panelChrome.js';
 
 // Read off the package entry, so a name the entry stops exporting fails a test and does not break the file's load.
@@ -20,6 +20,7 @@ import { advanceFrames, cleanup } from './support/mount-harness.js';
 import { drag, release } from './support/drag-gesture.js';
 import { headerRig } from './support/header-rig.js';
 import { made, mountRow, rootEntry, row, type MountedRow } from './support/scroll-row.js';
+import { registerTestView } from './support/test-views.js';
 
 afterEach(() => cleanup());
 
@@ -61,7 +62,7 @@ function ChromeView({ id }: { id: string }): React.ReactElement {
       ),
   });
 }
-registerView('chrome-view', ({ panel }) => React.createElement(ChromeView, { id: panel.id }));
+registerTestView('chrome-view', ({ panel }) => React.createElement(ChromeView, { id: panel.id }));
 
 const entries = (count: number) => row(rootEntry(), ...Array.from({ length: count }, (_, k) => made(`c${k + 1}`, {}, { view: 'chrome-view' })));
 const rootOf = (m: MountedRow, id: string): HTMLElement => m.container.querySelector<HTMLElement>(`[data-panel-root="${id}"]`)!;

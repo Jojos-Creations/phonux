@@ -158,7 +158,7 @@ export function WorkspaceColumn({ column, children }: WorkspaceColumnProps): Rea
               <NameInput workspace={ws} label={labels.workspaceName} inset={snap.topInset} />
               {children === undefined ? (
                 <React.Suspense fallback={null}>
-                  <DefaultCell workspace={ws} columnTop={COLUMN_TOP_BAND} />
+                  <DefaultCell workspace={ws} columnTop={COLUMN_TOP_BAND} themed={false} />
                 </React.Suspense>
               ) : (
                 children(ws)

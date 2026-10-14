@@ -53,11 +53,11 @@ and a reader uses `p.key ?? p.id`. Every guard that decides a permission reads `
 (`clearable`), and the close path (`locked`, which `applyTemplate` writes). Reads of `.collapsible` that remain
 are about presence and parking, and test/source-invariants.test.ts lists the functions that make them.
 
-## The panel-view registry: never a crash, never a silent substitution
+## The panel-view lookup: never a crash, never a silent substitution
 
-The legacy `registerView`/`resolveView` (`viewRegistry.tsx`) let `PanelWindow.view` be an open string
-instead of a closed union, so a host or a third party can spawn any registered component by name.
-`resolveView` never returns nothing: an unregistered key -- a typo, or a plugin that failed to
+`PanelWindow.view` is an open string instead of a closed union: the id of a template the row's workspace holds
+(`resolveViewIn`, `templateView.tsx`). There is no app-wide registry of plain components; a plain component is a template,
+`definePanel({ id, view })`. The lookup never returns nothing: a key no template answers to -- a typo, or a plugin that failed to
 register -- renders a visible, inert placeholder naming the title and the key, rather than throwing (which
 would take the whole row down with it) or silently falling back to some default view (which would
 render a blank shell for what is actually broken, more confusing than an honest placeholder). `view`
@@ -623,7 +623,7 @@ function) as "no options", so a bare `onClick={panels.create}` reference behaves
 ## A resolved panel component only ever sees a `PanelSummary`
 
 `PanelRow.tsx` takes the row-only `PanelRowEntry` record (not `PanelSummary`) because it alone reads
-`anchor`/`layer`/`anchoredEnter`/`collapsible`, but every component it resolves through the registry --
+`anchor`/`layer`/`anchoredEnter`/`collapsible`, but every component it resolves through the workspace's templates --
 built-in or third-party -- is written against `ViewComponent<P>` `= ComponentType<{ panel: PanelSummary<P>
 }>`. It narrows through the same `summarisePanel()` projection `PanelsAPI.panelList`/`recentlyClosed` use
 (`panelRowEntry.ts`), so a view can never read a row-only or host-only field (`hostData`, `collapsible`,
@@ -1724,14 +1724,15 @@ The default start is `definePanel`, `createWorkspace` and `addPanel`: the worksp
 
 - **Turning it off.** `mount: false` is the migration for a caller that renders the workspace itself. A `document`-free run mounts nothing either. A `mount` element is rendered into a child of its own and is never emptied. The mount module is loaded by a dynamic `import()` from `workspaceCore.ts` only when a mount happens, so importing the workspace module never requests `react-dom/client`; a test proves it from a child process that records every module request. Mounting is therefore async by a microtask: `addPanel` before and after it behaves as before, and a failed load reaches `onError`.
 - **Said once.** A `PanelRow` given a workspace that also mounts itself warns once in development, naming `mount: false`.
-- **The theme.** The mount wraps the row in a `ThemeProvider` with `createDefaultTheme` (light or dark by `prefers-color-scheme`) and `CssBaseline`, because a row with no theme falls back to MUI's own. A caller who wants another theme mounts the three components.
+- **Always with a workspace.** The components (`PanelRow`, `Workspace`, `HostProvider`) and `useProvidePanels` stay public, but a row is always fed by a workspace: `PanelRow`'s `workspace` prop and `PanelsInput.workspace` are required, and a plain component is `definePanel({ id, view })`, not a registered view. A custom flow differs from the mount by who writes the tree, never by where the rules come from.
+- **The theme.** The mount draws one `ThemeProvider` and one `CssBaseline`, with `theme(mode)` when the app gave that option and `createDefaultTheme(mode)` when it did not. `mode` is the window's `prefers-color-scheme`, the only mode source: an app whose mode is chosen some other way needs a later option. The function runs once per mode change; a throw, or a value that is not a MUI theme, reaches `onError` once and the default theme is drawn. A `wrap` must not draw its own `ThemeProvider` or `CssBaseline`, which would reset twice. A column draws the theme once above every cell (`ColumnOptions.theme`); the cells a `WorkspaceColumn` renders with its default cell draw none of their own, and a workspace inside a column takes the column's theme.
+- **Absence.** `history`, `snapshots` and `labels` are optional on `Host`, and a view reads each with a fallback; no library view reads `history`. The first frame of an auto-mounted workspace holds exactly the values given to `createWorkspace`, so a caller that has them at creation passes them there, and one whose data arrives later renders that frame without it and calls `workspace.update` when it lands. There is no second door that defers the first paint. `createFakeHost({ absent: ['history', 'snapshots'] })` renders the absent frame in a view test.
 - **Defaults.** `HostProvider` takes a `HostInput`: a `Host` whose `settings` and `device` may be left out. The defaults are module constants (`DEFAULT_SETTINGS`, `DEFAULT_DEVICE`) so `useHost()` returns the same objects every render, and a host that names both is passed through as it is.
 - **Typed templates.** `templates`, `root`, `registerTemplate` and the hook's `templates` take `AnyPanelTemplate` (`PanelTemplate<any>`), because `PanelTemplate<P>` is invariant in `P` and a template made for typed params would otherwise need a cast. `addPanel` keeps `P`, so `params` stay checked where they are passed, and `PanelManager.get<P>` is an unchecked cast, not a second typed getter.
-- **Templates are per workspace.** A workspace holds its own templates and its row resolves a panel's template through them (`resolveViewIn`), so two workspaces on one page can define different templates under one id. The module-level template map is gone; `resolveView(key)` knows plain views only. A template id that is a legacy `registerView` key still throws `template-collision`.
+- **Templates are per workspace.** A workspace holds its own templates and its row resolves a panel's template through them (`resolveViewIn`), so two workspaces on one page can define different templates under one id. The module-level template map is gone, and so is the plain-view registry: a row is always fed by a workspace, so `resolveViewIn` resolves a key one way, the workspace's template for it, else the placeholder. `PanelRow` and `useProvidePanels` stay public but take a `workspace`, which supplies the root, storage, templates, declared panels, defaults and tuning that a hand-fed row used to be given piece by piece.
 
 What stays at module level, and why none of it is a workspace's data:
 
-- `registry`: plain views by key. The legacy `registerView` is an app-wide call and a plain view is not a workspace's data.
 - `placeholders`: one placeholder component per unregistered key, so AnimatePresence sees one component type.
 - `adapters` (templateView.tsx): a WeakMap keyed by template object, one adapter component per template; the template itself is held by the workspace.
 - `BARE_TEMPLATES` (panelFrameBoundary.tsx): a WeakMap keyed by template object, whether that template's view was last found to draw no frame. It decides how to draw the next panel of the template, never what a workspace holds.
@@ -1752,8 +1753,8 @@ minus what the mount measures (`phoneWidth`, `containerWidth`, `overflowContaine
 option, so there is no member list to keep in step with the hook. `topInset` is an option (the `Workspace` top padding), not a
 tuning leaf: the catalog holds 19 tuning leaves, counted from `PANEL_SETTINGS_CATALOG`, and a test pins the number.
 
-**`wrap`.** A component, `ComponentType<{ children, workspace }>`, rendered inside `HostProvider` and around `Workspace`. The theme,
-a `CaptureRegistryProvider` and the app's own contexts go in it, a hook in it may call `useHost()` and `workspace.update`, and
+**`wrap`.** A component, `ComponentType<{ children, workspace }>`, rendered inside `HostProvider` and around `Workspace`. A
+`CaptureRegistryProvider` and the app's own contexts go in it (the theme goes in the `theme` option), a hook in it may call `useHost()` and `workspace.update`, and
 anything drawn beside the row is a sibling of `children`. It is read once at creation, so it has one identity for the workspace's
 life and updates re-render it but never remount it. The order of an app's own hooks inside it is the app's.
 
@@ -1784,7 +1785,8 @@ snaps the row's margin and a panel resize glides it, as the app's own shell did.
 | `useProvidePanels` `capture` | `panels.capture` | live |
 | `useProvidePanels` `onPanelsClosed`, `onPanelsRestored`, `resetHostDataOnRestore` | `panels.*` | live (latest callback runs) |
 | `useProvidePanels` `onPanelResize` | `panels.onPanelResize` | live |
-| theme, `CaptureRegistryProvider`, the app's own contexts | `wrap` | fixed at creation |
+| theme | `theme` | fixed at creation |
+| `CaptureRegistryProvider`, the app's own contexts | `wrap` | fixed at creation |
 | anything drawn beside the row (a window drag strip) | `wrap`, a sibling of `children` | fixed at creation |
 
 ## The default frame
