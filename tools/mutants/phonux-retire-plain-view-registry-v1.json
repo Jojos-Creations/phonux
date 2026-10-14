@@ -1,0 +1,11 @@
+{
+  "tests": ["test/single-view-resolution.test.ts", "test/workspace-reconcile.test.ts"],
+  "mutants": [
+    { "name": "a template no longer wins", "file": "templateView.tsx", "find": "return template ? templateViewFor(template) : placeholderFor(key);", "replace": "return placeholderFor(key);", "expectRed": ["a template of the row's workspace draws its panel", "resolveViewIn answers a template"] },
+    { "name": "an unknown key renders nothing", "file": "templateView.tsx", "find": "return template ? templateViewFor(template) : placeholderFor(key);", "replace": "return template ? templateViewFor(template) : () => null;", "expectRed": ["draws the placeholder naming the key", "resolveViewIn answers a template"] },
+    { "name": "a placeholder per resolve", "file": "viewRegistry.tsx", "find": "  if (cached) return cached;\n", "replace": "", "expectRed": ["one placeholder of that key", "a template resolves through the workspace that holds it only"] },
+    { "name": "a row without a workspace is tolerated", "file": "PanelRow.tsx", "find": "const binding = bindingOf(workspace);", "replace": "const binding = workspace === undefined ? (undefined as never) : bindingOf(workspace);", "expectRed": ["a PanelRow without a workspace throws invalid-options"] },
+    { "name": "the hook feeds itself without a workspace", "file": "panels/useProvidePanels.ts", "find": "const core = bindingOf(boundWorkspace);", "replace": "const core = boundWorkspace === undefined ? (undefined as never) : bindingOf(boundWorkspace);", "expectRed": ["useProvidePanels without a workspace throws invalid-options"] },
+    { "name": "registerView comes back on the barrel", "file": "index.ts", "find": "export { default as PanelFrame } from './PanelFrame.js';", "replace": "export { placeholderFor as registerView } from './viewRegistry.js';\nexport { default as PanelFrame } from './PanelFrame.js';", "expectRed": ["the barrel has no registerView or resolveView"] }
+  ]
+}

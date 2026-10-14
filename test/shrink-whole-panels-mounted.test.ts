@@ -8,15 +8,16 @@ import './support/jsdom-globals.js';
 import * as React from 'react';
 import { act } from 'react';
 import { MotionConfig } from 'motion/react';
-import { registerView, usePanelDragging, usePanelResizing } from '../index.js';
+import { usePanelDragging, usePanelResizing } from '../index.js';
 import { advanceFrames, cleanup } from './support/mount-harness.js';
 import { differential } from './support/differential.js';
 import { computeRowNumbers } from '../rowNumbers.js';
 import { slotDriver } from '../PanelRowSlot.js';
 import { made, mountRow, rootEntry, row } from './support/scroll-row.js';
+import { registerTestView } from './support/test-views.js';
 
 const resizeSetters = new Map<string, (on: boolean) => void>();
-registerView('resizing-view', ({ panel }) => {
+registerTestView('resizing-view', ({ panel }) => {
   const [, set] = usePanelResizing();
   resizeSetters.set(panel.id, set);
   return React.createElement('i', { 'data-slot': panel.id, 'data-dragging': String(usePanelDragging()) }, panel.title);

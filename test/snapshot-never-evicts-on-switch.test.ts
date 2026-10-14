@@ -185,7 +185,7 @@ test('the ask is made by the commit that applies the switch: a child sees it bef
     return null;
   }
   function Probe(): React.ReactElement {
-    useProvidePanels(panelsInput({ workspace: ws, rootId: ws.rootId, containerWidth: 4000, capture: spy }));
+    useProvidePanels(panelsInput({ workspace: ws, containerWidth: 4000, capture: spy }));
     return React.createElement(Watcher);
   }
   mount(React.createElement(Probe));

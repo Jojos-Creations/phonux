@@ -16,11 +16,9 @@ import {
   LIBRARY_TUNING_DEFAULTS,
   PANEL_TRANSITION,
   Panel,
-  PanelRow,
   PanelSizeBox,
   Workspace,
   PanelManagerError,
-  registerView,
   reorderStepsForOffset,
   resolvePanelSettings,
   slideToTransition,
@@ -28,6 +26,7 @@ import {
   usePanelReorderSteps,
   usePanelTuning,
 } from '../index.js';
+import { createWorkspace } from '../index.js';
 import type { PanelSettings, PanelTuning, PanelWindow, ProvidedPanels, SlideTuning, WorkspaceTuning } from '../index.js';
 import { SLOT_TRANSITION } from '../directionalTransition.js';
 import { PanelSlotContext, type PanelSlotValue } from '../panelSlotContext.js';
@@ -38,7 +37,8 @@ import { workspaceShellStyle } from '../Workspace.js';
 import { appendPanel } from '../panelWindow.js';
 import { differential, differentialsCovered } from './support/differential.js';
 import { drag } from './support/drag-gesture.js';
-import { advanceFrames, cleanup, mount, panelsInput, withHost } from './support/mount-harness.js';
+import { advanceFrames, cleanup, mount, panelsInput, withHost, StaticRow } from './support/mount-harness.js';
+import { registerTestView } from './support/test-views.js';
 
 const OWNED = ['tuning.rowGap', 'tuning.dragToClose', 'tuning.slide', 'tuning.hopFraction', 'tuning.chrome', 'tuning.resizeSettleSlides'];
 const ROOT = 'root';
@@ -50,11 +50,11 @@ interface Seen {
 const seen = new Map<string, Seen>();
 const closed: string[] = [];
 
-registerView('tune-view', ({ panel }) => {
+registerTestView('tune-view', ({ panel }) => {
   seen.set(panel.id, { tuning: usePanelTuning(), steps: usePanelReorderSteps() });
   return React.createElement('i', { 'data-slot': panel.id }, panel.title);
 });
-registerView('tune-drag', ({ panel }) =>
+registerTestView('tune-drag', ({ panel }) =>
   React.createElement(DragToClose, {
     onClose: () => closed.push(panel.id),
     children: (handle) => React.createElement('div', { 'data-slot': panel.id, 'data-handle': '', onPointerDown: handle.onPointerDown }, panel.title),
@@ -81,11 +81,11 @@ const entry = (id: string, over: Partial<PanelWindow> = {}): PanelWindow => ({
 /** An entry as a creation path builds it, carrying resolved settings whose tuning is `tuning`. */
 function made(id: string, tuning: NonNullable<PanelSettings['tuning']> = {}, over: Partial<PanelWindow> = {}): PanelWindow {
   const skeleton = appendPanel([], { url: `https://${id}.example`, title: id, view: 'tune-view' }, id, ROOT)[0]!;
-  return applyTemplate({ ...skeleton, ...over }, resolvePanelSettings({ template: { overflow: 'park', tuning } }).value, 'create');
+  return applyTemplate({ ...skeleton, instance: { tuning }, ...over }, resolvePanelSettings({ template: { overflow: 'park', tuning } }).value, 'create');
 }
 const NONE: ReadonlySet<string> = new Set();
 const rowOf = (entries: PanelWindow[], tuning?: WorkspaceTuning): React.ReactElement =>
-  withHost(React.createElement(PanelRow, { entries, rootId: ROOT, closingIds: NONE, enteringViaAnchorIds: NONE, ...(tuning === undefined ? {} : { tuning }) }));
+  withHost(React.createElement(StaticRow, { entries, rootId: ROOT, closingIds: NONE, enteringViaAnchorIds: NONE, ...(tuning === undefined ? {} : { tuning }) }));
 const slotOf = (container: HTMLElement, id: string): HTMLElement => {
   const slot = container.querySelector(`[data-slot="${id}"]`)?.parentElement;
   assert.ok(slot, `slot ${id} is mounted`);
@@ -170,7 +170,7 @@ test('differential tuning.dragToClose: a 100 px drag closes under an 80 px minim
   assert.deepEqual(outputs, [true, false]);
 });
 
-registerView('tune-chrome', ({ panel }) => React.createElement(Panel, { title: panel.title, children: React.createElement('i', { 'data-slot': panel.id }) }));
+registerTestView('tune-chrome', ({ panel }) => React.createElement(Panel, { title: panel.title, children: React.createElement('i', { 'data-slot': panel.id }) }));
 
 /** The inline opacity of a panel's header under a chrome mode, with nothing hovered or active. */
 function headerOpacityUnder(mode: 'always' | 'hover-or-active'): string {
@@ -314,7 +314,7 @@ function motionPropsOf(el: Element, key: string): Record<string, unknown> {
 
 /** The width the views that draw a PanelSizeBox below read; a test sets it before it renders again. */
 let boxWidth = 390;
-for (const name of ['tune-size', 'tune-size-own', 'snap-size', 'snap-size-r', 'snap-size-s']) registerView(name, () => React.createElement(PanelSizeBox, { width: boxWidth, height: 700, children: React.createElement('i') }));
+for (const name of ['tune-size', 'tune-size-own', 'snap-size', 'snap-size-r', 'snap-size-s']) registerTestView(name, () => React.createElement(PanelSizeBox, { width: boxWidth, height: 700, children: React.createElement('i') }));
 
 /** How long, in ms, the PanelSizeBox in what `render` draws takes to reach its new width after `boxWidth` grows from 390 to 780. */
 async function sizeGlideMs(render: () => React.ReactElement): Promise<number> {
@@ -360,7 +360,7 @@ function inWorkspace(workspace: WorkspaceTuning, entries: PanelWindow[], rowRef:
       fixedColumnCount: 1,
       liveWidths,
       tuning: workspace,
-      children: React.createElement(PanelRow, { entries, rootId: ROOT, closingIds: NONE, enteringViaAnchorIds: NONE }),
+      children: React.createElement(StaticRow, { entries, rootId: ROOT, closingIds: NONE, enteringViaAnchorIds: NONE }),
     }),
   );
 }
@@ -579,7 +579,7 @@ for (const [path, value, accepted] of RANGES) {
 const WORKSPACE_RANGES: readonly [string, unknown, boolean][] = [['rowGap', 0, true], ['rowGap', 200, true], ['rowGap', -1, false], ['rowGap', 201, false], ['rowGap', 16.5, false], ...RANGES];
 
 for (const [path, value, accepted] of WORKSPACE_RANGES) {
-  test(`ranges: ${path} = ${JSON.stringify(value)} in PanelsInput.tuning, a Workspace or a PanelRow ${accepted ? 'is kept' : 'takes its default and nothing throws'}`, () => {
+  test(`ranges: ${path} = ${JSON.stringify(value)} in the workspace tuning, a Workspace or a PanelRow ${accepted ? 'is kept' : 'takes its default and nothing throws'}`, () => {
     const resolved = resolveWorkspaceTuning(layerWith(path, value).tuning as WorkspaceTuning);
     const [leaf, member] = path.split('.') as [keyof typeof LIBRARY_TUNING_DEFAULTS, string | undefined];
     const got = member === undefined ? resolved[leaf] : (resolved[leaf] as Record<string, unknown>)[member];
@@ -601,7 +601,7 @@ test('ranges: a refused member keeps its default beside an accepted sibling, and
 // Where the resolved value goes
 // ---------------------------------------------------------------------------
 
-test('Workspace provides its tuning to the rows below it, and ProvidedPanels.tuning is the PanelsInput tuning over the library defaults', () => {
+test('Workspace provides its tuning to the rows below it, and ProvidedPanels.tuning is the workspace tuning over the library defaults', () => {
   const containerRef = { current: null } as React.RefObject<HTMLDivElement | null>;
   const rowRef = { current: null } as React.RefObject<HTMLDivElement | null>;
   const mounted = mount(
@@ -615,7 +615,7 @@ test('Workspace provides its tuning to the rows below it, and ProvidedPanels.tun
         fixedColumnCount: 1,
         liveWidths: [],
         tuning: { rowGap: 32, hopFraction: 0.25 },
-        children: React.createElement(PanelRow, { entries: [entry('a')], rootId: ROOT, closingIds: NONE, enteringViaAnchorIds: NONE }),
+        children: React.createElement(StaticRow, { seed: { tuning: { rowGap: 32, hopFraction: 0.25 } }, entries: [entry('a')], rootId: ROOT, closingIds: NONE, enteringViaAnchorIds: NONE }),
       }),
     ),
   );
@@ -625,8 +625,9 @@ test('Workspace provides its tuning to the rows below it, and ProvidedPanels.tun
   mounted.unmount();
 
   let provided: ProvidedPanels | undefined;
+  const workspace = createWorkspace({ mount: false, tuning: { rowGap: 8, slide: { durationSec: 1 }, saveQuietMs: 900 } });
   function Probe(): React.ReactElement {
-    provided = useProvidePanels(panelsInput({ tuning: { rowGap: 8, slide: { durationSec: 1 }, saveQuietMs: 900 } }));
+    provided = useProvidePanels(panelsInput({ workspace }));
     return React.createElement('i');
   }
   mount(React.createElement(Probe));
@@ -640,7 +641,7 @@ test('Workspace provides its tuning to the rows below it, and ProvidedPanels.tun
 
 test('the slot context carries the tuning, edgeScroll included, to a view', () => {
   let slot: PanelSlotValue | undefined;
-  registerView('tune-ctx', () => {
+  registerTestView('tune-ctx', () => {
     slot = React.useContext(PanelSlotContext);
     return React.createElement('i');
   });
