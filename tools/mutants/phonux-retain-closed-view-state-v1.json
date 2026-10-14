@@ -1,5 +1,5 @@
 {
-  "tests": ["test/keep-mounted-lifetime.test.ts"],
+  "tests": ["test/closed-view-state-key.test.ts"],
   "mutants": [
     { "name": "the recently closed are retained by a different id than the live entries", "file": "PanelRow.tsx", "find": "...(panels.recentlyClosed ?? []).map((p) => p.id)]", "replace": "...(panels.recentlyClosed ?? []).map((p) => `~${p.id}`)]", "expectRed": ["whose key differs from its row id"] },
     { "name": "view state is held by the row id, not the key", "file": "PanelRow.tsx", "find": "<useViewState.Provider value={panelKey(p)}>", "replace": "<useViewState.Provider value={p.id}>", "expectRed": ["whose key differs from its row id"] }
