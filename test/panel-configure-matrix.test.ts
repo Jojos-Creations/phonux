@@ -94,7 +94,7 @@ function assertRefusal(a: Arranged, before: Trace, res: ConfigureResult, code: s
   }
 }
 
-const summaryOf = (r: MatrixRig, id: string) => r.provided().panelList.find((s) => s.id === r.entry(id).id);
+const summaryOf = (r: MatrixRig, id: string) => r.provided().panelList.find((s) => s.id === r.entry(id).key);
 
 async function nowCell(status: Status): Promise<void> {
   const cell = CLASS_TABLE.NOW[status];
@@ -655,7 +655,7 @@ test('matrix:maxInstances', async () => {
 test('matrix:listed', async () => {
   probe('listed');
   const r = await matrixRig();
-  const before = { id: r.entry('b').id, order: r.order().join(' '), status: r.state('b').status };
+  const before = { id: r.entry('b').key!, order: r.order().join(' '), status: r.state('b').status };
   assert.equal(listedIds(r).includes(before.id), true, 'before: the panel is in panelList');
   assert.deepEqual(shape(r.turn(() => r.h.b!.configure({ listed: false }))), { now: ['listed'], later: [], shadowed: [] });
   assert.equal(listedIds(r).includes(before.id), false, 'after, in that commit: its History row is gone');
@@ -665,7 +665,7 @@ test('matrix:listed', async () => {
   r.turn(() => r.h.c!.hide());
   await r.settle();
   const quiet = done(r.turn(() => r.h.c!.configure({ listed: false })));
-  assert.equal(listedIds(r).includes(r.entry('c').id), false, 'a hidden panel leaves the list too');
+  assert.equal(listedIds(r).includes(r.entry('c').key!), false, 'a hidden panel leaves the list too');
   assert.equal(quiet.notes.some((n) => n.key === 'listed') || r.m.notes.some((n) => n.key === 'listed'), true, 'false on a held panel the gesture cannot release is showable by code only, and a note says so, in the result or through onNote');
 });
 
@@ -1521,7 +1521,7 @@ test('matrix:reportClose', async () => {
 test('matrix:snapshot', async () => {
   probe('snapshot');
   const r = await matrixRig();
-  const [b, c] = [r.entry('b').id, r.entry('c').id];
+  const [b, c] = [r.entry('b').key, r.entry('c').key];
   const s = soft();
   await s.run('switching to never asks the host to evict the stored picture once, from the commit', () => {
     assert.deepEqual(r.capture.evicted, [], 'before: nothing evicted');

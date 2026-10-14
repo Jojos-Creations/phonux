@@ -50,7 +50,7 @@ import {
 // Declared types
 // ---------------------------------------------------------------------------
 
-/** A panel's id: a singleton's template id, an explicit instance's given id, or `${templateId}~${random}`; 'all' is reserved. @public */
+/** A panel's id, which is its key and its only public id: a singleton's template id, an explicit instance's given id, or `${templateId}~${random}`; 'all' is reserved. @public */
 export type PanelId = string;
 
 /** Where a panel asks to sit relative to another panel. @public */
