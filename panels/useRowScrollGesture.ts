@@ -18,9 +18,9 @@ import { GESTURE_LOCK_MS, GESTURE_QUIET_MS } from '../rowConstants.js';
 /**
  * `gestureLockMs`: after a step, wheel events are ignored for this long (the lock is not re-armed by them). A trackpad
  * swipe arrives as a burst of wheel deltas with a momentum tail, and a WebKit or Blink browser cannot tell a momentum
- * event from a fresh user one; so once the lock is over, an event steps again only if it is not decaying (it is at
- * least as large as the one before it, or it reverses direction). A swipe whose deltas fade away is one step; a wheel
- * or swipe that keeps its speed steps again and again.
+ * event from a fresh user one; so once the lock is over, an event steps again only if it is not decaying: it reverses
+ * direction, equals the one before it, or rises after the deltas have fallen once. A swipe's ramp up before its peak
+ * is not a new step. A swipe whose deltas rise and fade away is one step; a wheel that keeps its speed steps again and again.
  *
  * `gestureQuietMs`: no wheel event for this long ends a gesture, so the next event is fresh and steps whatever its size.
  */
@@ -44,6 +44,8 @@ export function useRowScrollGesture(
     let locked = false;
     let previous = 0;
     let previousSign = 0;
+    // False from a step until the deltas first fall: a swipe's ramp up is still the step it started.
+    let peaked = false;
     let unlockTimer: ReturnType<typeof setTimeout> | null = null;
     let quietTimer: ReturnType<typeof setTimeout> | null = null;
     const onWheel = (e: WheelEvent): void => {
@@ -56,15 +58,19 @@ export function useRowScrollGesture(
       e.preventDefault();
       const magnitude = Math.abs(amount);
       const sign = Math.sign(amount);
-      const holding = magnitude >= previous || sign !== previousSign;
+      const reversed = sign !== previousSign;
+      if (reversed || magnitude < previous) peaked = true;
+      const holding = reversed || previous === 0 || magnitude === previous || (magnitude > previous && peaked);
       previous = magnitude;
       previousSign = sign;
       if (quietTimer) clearTimeout(quietTimer);
       quietTimer = setTimeout(() => {
         previous = 0;
+        peaked = false;
       }, gestureQuietMsRef.current);
       if (locked || !holding) return;
       locked = true;
+      peaked = false;
       unlockTimer = setTimeout(() => {
         locked = false;
       }, gestureLockMsRef.current);

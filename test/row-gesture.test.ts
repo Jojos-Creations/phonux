@@ -85,6 +85,29 @@ test('one swipe whose deltas fade away is one step, however long its tail', () =
   assert.equal(m.scroller.glideTarget(), stops[1]);
 });
 
+test('a swipe whose deltas ramp up before they fade is one step, not one per rising event', () => {
+  const m = stepRow(eleven(), 1000);
+  const stops = stopsOf(m, 1000);
+  mock.timers.enable({ apis: ['setTimeout'] });
+  const ramp = [2, 4, 9, 18, 32, 50, 70, 88, 100, 104, 100, 92, 82, 72, 62, 52, 44, 36, 30, 24, 19, 15, 12, 9, 7, 5, 4, 3, 2, 1];
+  for (const delta of ramp) {
+    m.wheel({ deltaX: delta });
+    tick(16);
+  }
+  assert.equal(m.scroller.glideTarget(), stops[1]);
+});
+
+test('a second swipe that starts inside the first one tail steps again', () => {
+  const m = stepRow(eleven(), 1000);
+  const stops = stopsOf(m, 1000);
+  mock.timers.enable({ apis: ['setTimeout'] });
+  for (const delta of [100, 60, 30, 10, 40, 70]) {
+    m.wheel({ deltaX: delta });
+    tick(30);
+  }
+  assert.equal(m.scroller.glideTarget(), stops[2]);
+});
+
 test('after 150 ms without a wheel event the next one is a fresh gesture and steps', () => {
   const m = stepRow(eleven(), 1000);
   const stops = stopsOf(m, 1000);

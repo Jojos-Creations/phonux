@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+### Fixed
+
+- A trackpad swipe on a stepping row is one step. Its deltas ramp up before they fade, and every rising event after the 60 ms
+  lock used to step again, so one swipe ran through several stops and a wide panel skipped its 1, 2, 3 slot sizes. Events that
+  rise before the deltas have first fallen no longer step; a wheel at constant speed and a new swipe in the tail still do.
+
 ### Added
 
 - A column of workspaces, one above the other. `createWorkspaceColumn(options)` renders itself like `createWorkspace`, and
