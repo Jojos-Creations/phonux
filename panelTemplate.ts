@@ -137,7 +137,7 @@ export interface PanelTemplate<P extends JsonValue = JsonValue> {
   readonly id: string;
   /** The panel API level the template was written against; left out, it is the newest (`PANEL_API`). Any other value throws `invalid-template`. */
   readonly api?: PanelApiLevel;
-  /** The component that renders the panel. It receives the panel's summary, its own read handle and a reader for every panel. */
+  /** The component that renders the panel. It receives the panel's summary, its own `ViewHandle` (read members, operations on its own panel, and a `configure` that takes only `ViewPatch` keys) and a reader for every panel. */
   readonly view: React.ComponentType<PanelViewProps<P>>;
   /**
    * The component drawn at the bottom of every panel made from this template, inside the frame and below the content, which
