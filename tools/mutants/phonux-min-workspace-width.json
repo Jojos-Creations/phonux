@@ -1,5 +1,7 @@
 {
-  "tests": ["test/min-workspace-width.test.ts"],
+  "tests": [
+    "test/min-workspace-width.test.ts"
+  ],
   "mutants": [
     {
       "name": "one edge gap is dropped",
@@ -57,8 +59,8 @@
     {
       "name": "the provider ignores the row gap tuning",
       "file": "panels/useProvidePanels.ts",
-      "find": "fixedColumnCount: fixedViewCount, gap: tuning.rowGap });\n  const liveWidths",
-      "replace": "fixedColumnCount: fixedViewCount });\n  const liveWidths",
+      "find": "fixedColumnCount: fixedViewCount, gap: tuning.rowGap }) : undefined;",
+      "replace": "fixedColumnCount: fixedViewCount }) : undefined;",
       "expectRed": [
         "the provider reports it from the live fixed columns"
       ]
@@ -78,7 +80,44 @@
       "find": "minWorkspaceWidth({ phoneWidth: i.phoneWidth,",
       "replace": "minWorkspaceWidth({ phoneWidth: i.containerWidth > 0 ? Math.min(i.phoneWidth, i.containerWidth / 5) : i.phoneWidth,",
       "expectRed": [
-        "it does not depend on the window it bounds"
+        "the provider value follows the phone width it is given, and never the container width"
+      ]
+    },
+    {
+      "name": "the minimum rounds to the nearest pixel",
+      "file": "minWorkspaceWidth.ts",
+      "find": "return Math.ceil(gap + fixedColumnCount",
+      "replace": "return Math.round(gap + fixedColumnCount",
+      "expectRed": [
+        "a fractional phone width rounds the minimum up to a whole pixel, never to the nearest"
+      ]
+    },
+    {
+      "name": "the provider prices a phone width it cannot price",
+      "file": "panels/useProvidePanels.ts",
+      "find": "const minWidth = Number.isFinite(i.phoneWidth) && i.phoneWidth > 0 ? minWorkspaceWidth(",
+      "replace": "const minWidth = true ? minWorkspaceWidth(",
+      "expectRed": [
+        "a phone width of 0 or NaN leaves the value out and the row still renders"
+      ]
+    },
+    {
+      "name": "the provider reports nothing until the row is measured",
+      "file": "panels/useProvidePanels.ts",
+      "find": "    ...(minWidth === undefined ? {} : { minWorkspaceWidth: minWidth }),",
+      "replace": "    ...(minWidth === undefined || i.containerWidth === 0 ? {} : { minWorkspaceWidth: minWidth }),",
+      "expectRed": [
+        "unmeasured and at every container width the provider reports one number for one phone width"
+      ]
+    },
+    {
+      "name": "the invariant check ignores the tablet",
+      "file": "test/support/min-width-invariant.ts",
+      "find": "const tabletFits = tabletWidth === 0 || maxLiveWidth >= tabletWidth;",
+      "replace": "const tabletFits = true;",
+      "expectRed": [
+        "invariant: a minimum priced from a smaller phone than the row draws there fails the check",
+        "invariant, phone drawn at the size it was priced from"
       ]
     }
   ]

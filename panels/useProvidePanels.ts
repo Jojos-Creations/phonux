@@ -359,7 +359,8 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
   const { maxLiveWidth } = rowNumbers;
   const fitCount = rowFitCount({ containerWidth: i.containerWidth, phoneWidth: i.phoneWidth, gap: tuning.rowGap, fixedColumnCount: fixedViewCount, liveWidths: [] });
   const maxFitPanels = fitCount === null ? null : effectiveMaxPanels(fitCount, fixedViewCount);
-  const minWidth = minWorkspaceWidth({ phoneWidth: i.phoneWidth, fixedColumnCount: fixedViewCount, gap: tuning.rowGap });
+  // A number the host only reads must not take the row down: minWorkspaceWidth throws on a phone width it cannot price.
+  const minWidth = Number.isFinite(i.phoneWidth) && i.phoneWidth > 0 ? minWorkspaceWidth({ phoneWidth: i.phoneWidth, fixedColumnCount: fixedViewCount, gap: tuning.rowGap }) : undefined;
   const liveWidths = panels.filter((p) => p.collapsible && p.live).map((p) => panelWidthOf(p, i.phoneWidth, maxLiveWidth, tuning.rowGap));
   const reducedMotion = useReducedMotionConfig() === true;
   const slotsWarnedRef = useRef(new Set<string>());
@@ -1020,7 +1021,7 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
     // clickable row).
     panelList: panels.filter((p) => p.listed).map(summarisePanel),
     maxFitPanels,
-    minWorkspaceWidth: minWidth,
+    ...(minWidth === undefined ? {} : { minWorkspaceWidth: minWidth }),
     create: (options?: CreatePanelOptions) => {
       // `options` is explicitly optional here (not left to infer from `create`'s own overloaded interface
       // member) -- an implementation inferred as requiring it would no longer satisfy the zero-arg overload.

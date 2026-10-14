@@ -279,9 +279,23 @@ fixed columns seated now), on the channel a host already reads `maxFitPanels` fr
 host that wants another N calls the function with its own count. It is the row container's width: a host whose window
 is wider than its row adds the difference before it sets its window minimum.
 
-The value never reads the container width. A phone width derived from the window must keep that true by passing the
-smallest phone the fit will draw, never the width it draws now: a minimum priced from the width it bounds shrinks with
-the window and never stops it. The provider test that resizes from unmeasured to 3000 px pins it.
+The value never reads the container width, and it is only true for the phone the row draws at that width. Any change to
+how wide a phone is drawn must keep this invariant: at the reported minimum, with the phone the row draws there, N phone
+slots fit beside the fixed columns and a tablet panel is drawn uncapped. `checkMinWidth` in
+`test/support/min-width-invariant.ts` is that check; give it the drawn phone, never the one the minimum was priced from.
+
+Pricing from a smaller phone than the row draws breaks it. With Profile and History at gap 24, a minimum priced at a 320
+phone is 1504, but a fit that fills the window with whole slots draws four 346 px slots there and caps a tablet at 716.
+Pricing at the preferred size holds while the row draws the preferred phone at that width. A fit that takes the fewest
+slots within its scale band draws K - 1 slots of about `phone + (phone + gap) / (K - 1)` where K preferred phones fill
+the window exactly, so the phone branch holds only while that is above the band's top: K of 9 or fewer columns at 390,
+gap 24 and a top of 1.13. The tablet branch needs its own check whenever the drawn phone is wider than the priced one:
+History alone at a 320 phone and gap 16 gives 1136, where such a fit draws three 357 px slots and caps a tablet at 731.
+Where neither holds, the minimum is the narrowest width, searched upward from the preferred-size value, at which the
+check passes for the phone drawn there.
+
+The provider tests pin only that the value follows the phone width the provider is given and never the container width.
+A phone computed outside the provider is outside them, so its own tests run the check at the reported minimum.
 
 ### Row numbers and overflow
 
