@@ -29,12 +29,12 @@ for (const mode of ['visible', 'hidden', 'off']) {
     const pg = await context.newPage();
     pg.on('pageerror', (e) => console.log('PAGEERROR', e.message));
     await pg.goto(`${base}?mode=${mode}&slots=${process.env.SLOTS ?? "1,1,3"}&phone=412&gap=24&control=${process.env.CONTROL ?? "none"}`);
-    await pg.waitForSelector('[data-box="p1"]'); await pg.evaluate(() => { const l = [...document.querySelectorAll('[data-box]')].at(-1); l.setAttribute('data-box', 'pW'); const gs = l.querySelectorAll('[data-grab]'); gs.forEach((g) => g.setAttribute('data-grab', g.getAttribute('data-grab').replace(/^[^:]+/, 'pW'))); });
+    await pg.waitForSelector('[data-box="p1"]'); await pg.evaluate(() => { const l = [...document.querySelectorAll('[data-box]')].at(-1); l.setAttribute('data-box', 'pW'); const gs = l.querySelectorAll('[data-grab]'); for (const g of gs) g.setAttribute('data-grab', g.getAttribute('data-grab').replace(/^[^:]+/, 'pW')); });
     await pg.waitForTimeout(1500);
     for (let k = 0; k < 12; k++) { const r = await pg.evaluate(() => { const b = document.querySelector('[data-box="pW"]').getBoundingClientRect(); return b.right <= document.querySelector('[data-row-scroller]').getBoundingClientRect().right - 1; }); if (r) break; await pg.mouse.move(600, 300); await pg.mouse.wheel(50, 0); await pg.waitForTimeout(900); }
     console.log(`-- ${mode} ${how} ${width}`);
     let prev = await read(pg);
-    console.log('start ' + line(prev));
+    console.log(`start ${line(prev)}`);
     const shown = (r) => new Set(r.slots.filter((s) => !s.filter.includes('opacity(0)') && s.left >= -1 && s.left + s.width <= r.window + 1).map((s) => s.id));
     for (const round of [1, 2]) {
       if (how === 'drag') {

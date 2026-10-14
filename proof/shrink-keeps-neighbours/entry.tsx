@@ -62,7 +62,7 @@ function View({ panel, name }: { panel: any; name: string }) {
     e.preventDefault();
   };
   const bar = (side: 'left' | 'right') => (
-    <div data-grab={`${name}:${side}`} tabIndex={0} onKeyDown={onKey(side)} onPointerDown={onDown(side)} onPointerMove={onMove} onPointerUp={onUp} style={{ position: 'absolute', [side]: 0, top: 0, bottom: 0, width: 24, zIndex: 5, background: '#c33', touchAction: 'none', cursor: 'ew-resize' }} />
+    <button type="button" aria-label="Resize" data-grab={`${name}:${side}`} tabIndex={0} onKeyDown={onKey(side)} onPointerDown={onDown(side)} onPointerMove={onMove} onPointerUp={onUp} style={{ position: 'absolute', [side]: 0, top: 0, bottom: 0, width: 24, zIndex: 5, background: '#c33', border: 'none', padding: 0, touchAction: 'none', cursor: 'ew-resize' }} />
   );
   return (
     <PanelSizeBox width={panel.size.width} height={typeof panel.size.height === 'number' ? panel.size.height : 700}>
