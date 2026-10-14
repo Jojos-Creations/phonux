@@ -8,17 +8,19 @@ import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import createCache from '@emotion/cache';
 import { CacheProvider } from '@emotion/react';
-import { HostProvider, PanelRow, Workspace, registerView, resolvePanelSettings } from '../index.js';
+import { HostProvider, Workspace, resolvePanelSettings } from '../index.js';
 import type { PanelSettings, PanelWindow } from '../index.js';
 import { createFakeHost } from '../fakeHost.js';
 import { applyTemplate } from '../panelSettings.js';
 import { appendPanel, createHistoryPanel } from '../panelWindow.js';
 import { computeRowNumbers, maxScrollOf } from '../rowNumbers.js';
+import { StaticRow } from './support/seed-workspace.js';
+import { registerTestView } from './support/test-views.js';
 
 const ROOT = 'root';
 const GAP = 16;
 
-registerView('rn-view', ({ panel }) => createElement('i', { 'data-slot': panel.id }, panel.title));
+registerTestView('rn-view', ({ panel }) => createElement('i', { 'data-slot': panel.id }, panel.title));
 
 /** An entry as a creation path builds it: appendPanel's skeleton, then the 'create' writer over `layer`. */
 function made(id: string, layer: PanelSettings = {}): PanelWindow {
@@ -56,8 +58,8 @@ test('computeRowNumbers: History, five pinned and five web panels, all scroll, a
   assert.equal(maxScrollOf(n), 3482, '4450 - 968');
 });
 
-test('computeRowNumbers: a tablet panel is two slots, 796, beside the root, and the strip scrolls by what exceeds the window', () => {
-  const n = numbers([scrollRoot(), made('t', { formFactor: 'tablet' })]);
+test('computeRowNumbers: a two-slot panel is 796, beside the root, and the strip scrolls by what exceeds the window', () => {
+  const n = numbers([scrollRoot(), made('t', { slots: 2 })]);
   assert.deepEqual(n.widths, [390, 796]);
   assert.deepEqual(n.leftOffsets, [0, 406]);
   assert.equal(n.stripWidth, 1202);
@@ -65,8 +67,8 @@ test('computeRowNumbers: a tablet panel is two slots, 796, beside the root, and 
   assert.equal(maxScrollOf(n), 234, '1202 - 968');
 });
 
-test('computeRowNumbers: a desktop panel takes the slots that fit the window, two of them', () => {
-  const n = numbers([scrollRoot(), made('d', { formFactor: 'desktop' })]);
+test('computeRowNumbers: a 64-slot panel takes the slots that fit the window, two of them', () => {
+  const n = numbers([scrollRoot(), made('d', { slots: 64 })]);
   assert.deepEqual(n.widths, [390, 796]);
   assert.equal(n.stripWidth, 1202);
   assert.equal(maxScrollOf(n), 234, '1202 - 968');
@@ -87,10 +89,10 @@ test('computeRowNumbers: the third scroll panel overflows the window, so the mar
 });
 
 test('computeRowNumbers: unmeasured (container 0) has an unbounded window, no margin and nothing to scroll', () => {
-  const n = numbers([scrollRoot(), made('a'), made('b'), made('d', { formFactor: 'desktop' })], 0);
+  const n = numbers([scrollRoot(), made('a'), made('b'), made('d', { slots: 64 })], 0);
   assert.equal(n.windowWidth, Number.POSITIVE_INFINITY);
   assert.equal(n.rowMarginLeft, 0);
-  assert.equal(n.widths[3], 1202, 'a desktop panel is three slots until the row is measured');
+  assert.equal(n.widths[3], 1202, 'a 64-slot panel is three slots until the row is measured');
   assert.equal(maxScrollOf(n), 0);
 });
 
@@ -115,7 +117,7 @@ test('a mounted scrolling row: the container pads 16 on the left, the end elemen
   const entries = eleven().map((p) => ({ ...p, view: 'rn-view' }));
   const n = numbers(entries);
   const ref = { current: null };
-  const row = createElement(PanelRow, { entries, rootId: ROOT, closingIds: new Set<string>(), enteringViaAnchorIds: new Set<string>(), rowNumbers: n });
+  const row = createElement(StaticRow, { entries, rootId: ROOT, closingIds: new Set<string>(), enteringViaAnchorIds: new Set<string>(), rowNumbers: n });
   const workspace = createElement(Workspace, { overflowContainerRef: ref, rowRef: ref, containerWidth: 1000, rowResizeSettled: true, phoneWidth: 390, fixedColumnCount: 6, liveWidths: [], rowNumbers: n, children: row });
   const markup = renderToStaticMarkup(createElement(CacheProvider, { value: createCache({ key: 'css' }), children: createElement(HostProvider, { host: createFakeHost(), children: workspace }) }));
   assert.match(markup, /padding-left:16px/);

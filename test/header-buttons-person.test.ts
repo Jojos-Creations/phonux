@@ -6,7 +6,7 @@ import { test, afterEach, mock } from 'node:test';
 import assert from 'node:assert/strict';
 import './support/jsdom-globals.js';
 import { act, createElement, type ReactElement } from 'react';
-import type { FormFactor, HeaderButton, PanelResult, Pinning, SettingNote } from '../index.js';
+import type { HeaderButton, PanelResult, Pinning, SettingNote } from '../index.js';
 import { memoryWorkspaceStorage } from '../fakeHost.js';
 import { cleanup } from './support/mount-harness.js';
 import { headerRig, type HeaderRig } from './support/header-rig.js';
@@ -14,6 +14,7 @@ import { headerRig, type HeaderRig } from './support/header-rig.js';
 afterEach(() => {
   mock.restoreAll();
   cleanup();
+  cycleAt.clear();
 });
 
 const quiet = { tuning: { saveQuietMs: 5 } };
@@ -23,8 +24,14 @@ const slot = (label: string, extra: Partial<HeaderButton> = {}): HeaderButton =>
 const press = (rig: HeaderRig, panel: string, label: string): void => void act(() => rig.buttons(panel).find((b) => b.getAttribute('aria-label') === label)!.click());
 const FIX: Pinning = { pinned: { placement: 'row-start', parkable: false }, unpinned: { placement: 'row-end', parkable: true } };
 const overridesOf = async (store: ReturnType<typeof memoryWorkspaceStorage>): Promise<Array<Record<string, unknown>>> => ((await store.load())?.panels ?? []).map((p) => p.overrides as Record<string, unknown>);
-const TIERS: readonly FormFactor[] = ['phone', 'tablet', 'desktop'];
-const cycle = (h: { getState(): { formFactor: FormFactor }; setFormFactor(f: FormFactor): PanelResult }): PanelResult => h.setFormFactor(TIERS[(TIERS.indexOf(h.getState().formFactor) + 1) % TIERS.length]!);
+/** Where each panel's size button stands, since a handle does not report its slot count: one, two, three, then one again. */
+const cycleAt = new Map<string, number>();
+const cycle = (h: { id: string; setSlots(n: number): PanelResult }): PanelResult => {
+  const next = ((cycleAt.get(h.id) ?? 1) % 3) + 1;
+  const result = h.setSlots(next);
+  if (result.ok) cycleAt.set(h.id, next);
+  return result;
+};
 
 test('click: onClick gets this panel\'s handle and nothing else', async () => {
   const seen: Array<{ keys: string[]; id: string; ctxKeys: string[] }> = [];
@@ -58,16 +65,16 @@ test('click: a pin slot by h.pin() then h.unpin() equals the default pin over li
   assert.equal(clicks, before, 'with no click');
 });
 
-test('click: a size slot cycles phone, tablet, desktop, phone as one resize per press and never parks the panel', async () => {
+test('click: a size slot cycles one, two, three, one slots as one resize per press and never parks the panel', async () => {
   let resizes = 0;
   const rig = await headerRig({ ids: ['a'], slots: { size: slot('Size', { onClick: (h) => void cycle(h) }) }, over: { onPanelResize: () => void (resizes += 1) } });
-  const tiers: string[] = [rig.state('a').formFactor];
+  const widths: number[] = [rig.entry('a').slots ?? 1];
   for (let i = 0; i < 3; i += 1) {
     press(rig, 'a', 'Size');
-    tiers.push(rig.state('a').formFactor);
+    widths.push(rig.entry('a').slots ?? 1);
     assert.equal(rig.state('a').status, 'live', 'the resized panel is not parked');
   }
-  assert.deepEqual(tiers, ['phone', 'tablet', 'desktop', 'phone']);
+  assert.deepEqual(widths, [1, 2, 3, 1]);
   assert.equal(resizes, 3, 'one resize per press');
 });
 
@@ -107,7 +114,7 @@ test('click: a second press in one turn gets busy from the verb', async () => {
 test('person: a press records the person\'s anchor, parkable and form factor; a pin after an await and a pin from code record nothing; rememberLayout false records neither', async () => {
   const pin = (extra: Partial<HeaderButton> = {}): HeaderButton => slot('Pin', { onClick: (h) => void h.pin(), ...extra });
   const store = memoryWorkspaceStorage();
-  const rig = await headerRig({ ids: ['c', 'd'], settings: { c: { pinning: FIX } }, workspace: { storage: store }, over: quiet, slots: { pin: pin(), size: slot('Size', { onClick: (h) => void cycle(h) }) } });
+  const rig = await headerRig({ ids: ['c', 'd'], settings: { c: { pinning: FIX } }, workspace: { storage: store, ...quiet }, slots: { pin: pin(), size: slot('Size', { onClick: (h) => void cycle(h) }) } });
   press(rig, 'c', 'Pin');
   press(rig, 'd', 'Size');
   await wait();
@@ -118,7 +125,7 @@ test('person: a press records the person\'s anchor, parkable and form factor; a 
 
   cleanup();
   const later = memoryWorkspaceStorage();
-  const after = await headerRig({ ids: ['c'], settings: { c: { pinning: FIX } }, workspace: { storage: later }, over: quiet, slots: { pin: slot('Pin', { onClick: async (h) => { await Promise.resolve(); h.pin(); } }) } });
+  const after = await headerRig({ ids: ['c'], settings: { c: { pinning: FIX } }, workspace: { storage: later, ...quiet }, slots: { pin: slot('Pin', { onClick: async (h) => { await Promise.resolve(); h.pin(); } }) } });
   press(after, 'c', 'Pin');
   await wait();
   assert.equal(after.state('c').pinned, true, 'the pin itself still ran');
@@ -126,19 +133,19 @@ test('person: a press records the person\'s anchor, parkable and form factor; a 
 
   cleanup();
   const code = memoryWorkspaceStorage();
-  const fromCode = await headerRig({ ids: ['c'], settings: { c: { pinning: FIX } }, workspace: { storage: code }, over: quiet, slots: { pin: pin() } });
+  const fromCode = await headerRig({ ids: ['c'], settings: { c: { pinning: FIX } }, workspace: { storage: code, ...quiet }, slots: { pin: pin() } });
   fromCode.turn(() => fromCode.h.c!.pin());
   await wait();
   assert.deepEqual(await overridesOf(code), [{}], 'handle.pin() from code');
 
   cleanup();
   const forgetful = memoryWorkspaceStorage();
-  const forgets = await headerRig({ ids: ['c'], settings: { c: { pinning: FIX, rememberLayout: false } }, workspace: { storage: forgetful }, over: quiet, slots: { pin: pin(), size: slot('Size', { onClick: (h) => void cycle(h) }) } });
+  const forgets = await headerRig({ ids: ['c'], settings: { c: { pinning: FIX, rememberLayout: false } }, workspace: { storage: forgetful, ...quiet }, slots: { pin: pin(), size: slot('Size', { onClick: (h) => void cycle(h) }) } });
   press(forgets, 'c', 'Pin');
   press(forgets, 'c', 'Size');
   await wait();
   const kept = await overridesOf(forgetful);
-  assert.equal(kept.some((o) => 'anchor' in o || 'parkable' in o || 'formFactor' in o), false);
+  assert.equal(kept.some((o) => 'anchor' in o || 'parkable' in o || 'slots' in o), false);
 });
 
 test('safety: a throwing onClick and a rejecting promise reach onError with the row unchanged; without onError it is console.error', async () => {
@@ -177,7 +184,7 @@ for (const [what, id, extra] of FAILING) {
     const notes: SettingNote[] = [];
     const rig = await headerRig({ ids: ['a'], onNote: (n) => void notes.push(n), slots: { [id]: slot('Broken', extra), fine: slot('Fine') } });
     assert.deepEqual(rig.buttons('a').map((b) => b.getAttribute('aria-label')), ['Fine'], 'the panel and the other slot render');
-    act(() => void rig.h.a!.setFormFactor('tablet'));
+    act(() => void rig.h.a!.setSlots(2));
     await wait();
     assert.equal(notes.length, 1, 'once per slot per failure');
     assert.equal(notes[0]!.code, 'header-button-error');

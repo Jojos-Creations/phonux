@@ -294,19 +294,19 @@ test('a repeated deferred flip is changed false, and configure parkable true can
 // What must not change
 // ---------------------------------------------------------------------------
 
-test('a conflict or a tier the flip cannot take is answered before the pin decision, under show and apply-on-next-show alike', async () => {
+test('a conflict or a slot count the flip cannot take is answered before the pin decision, under show and apply-on-next-show alike', async () => {
   for (const when of ['show', 'apply-on-next-show'] as const) {
     const park = await cellRig('K', when);
     const conflict = refusedWith(park.turn(() => park.h.a!.configure({ parkable: false })), 'settings-conflict');
     assert.equal(conflict.setting, 'overflow');
     assert.deepEqual([park.state('a').status, park.state('a').deferredPin], ['parked', null], `${when}: the park panel`);
     cleanup();
-    const tablet = await pinRig({ settings: { a: { pinningWhenNotLive: when } } });
-    tablet.turn(() => tablet.h.a!.setFormFactor('tablet', 'person'));
-    tablet.turn(() => tablet.h.a!.hide());
-    await tablet.settle();
-    refusedWith(tablet.turn(() => tablet.h.a!.configure({ parkable: false })), 'tier-not-allowed');
-    assert.deepEqual([tablet.state('a').status, tablet.state('a').deferredPin], ['parked', null], `${when}: the tablet panel`);
+    const wide = await pinRig({ settings: { a: { pinningWhenNotLive: when } } });
+    wide.turn(() => wide.h.a!.setSlots(2, 'person'));
+    wide.turn(() => wide.h.a!.hide());
+    await wide.settle();
+    refusedWith(wide.turn(() => wide.h.a!.configure({ parkable: false })), 'slots-above-max');
+    assert.deepEqual([wide.state('a').status, wide.state('a').deferredPin], ['parked', null], `${when}: the two-slot panel`);
     cleanup();
   }
 });
@@ -359,7 +359,7 @@ const wait = (): Promise<void> => act(async () => void (await new Promise((resol
 test('a deferral configure stores is session only: the saved file holds none and a second launch starts without one', async () => {
   const store = memoryWorkspaceStorage();
   const S: PanelSettings = { pinningWhenNotLive: 'apply-on-next-show' };
-  const launch = (): Promise<PinRig> => pinRig({ settings: { a: S, b: S }, workspace: { storage: store }, over: { tuning: { saveQuietMs: 5 } } });
+  const launch = (): Promise<PinRig> => pinRig({ settings: { a: S, b: S }, workspace: { storage: store, tuning: { saveQuietMs: 5 } } });
   const r = await launch();
   r.turn(() => r.h.a!.hide());
   r.turn(() => r.h.b!.close());

@@ -8,8 +8,8 @@ import assert from 'node:assert/strict';
 import './support/jsdom-globals.js';
 import * as React from 'react';
 import { act } from 'react';
-import { registerView, useProvidePanels } from '../index.js';
-import type { PanelSettings, PanelWindow, PanelsInput, ProvidedPanels, SettingNote, WorkspaceState, WorkspaceStorage } from '../index.js';
+import { useProvidePanels } from '../index.js';
+import type { PanelSettings, PanelWindow, ProvidedPanels, SettingNote, WorkspaceState, WorkspaceStorage } from '../index.js';
 import { applyTemplate, resolvePanelSettings } from '../panelSettings.js';
 import { definePanel } from '../panelTemplate.js';
 import type { PanelTemplate } from '../panelTemplate.js';
@@ -19,10 +19,11 @@ import { placePanel } from '../panelPlacement.js';
 import { reconcileWorkspace } from '../workspacePlan.js';
 import { projectWorkspaceState } from '../workspaceState.js';
 import { differential, differentialsCovered } from './support/differential.js';
-import { cleanup, mount, panelsInput } from './support/mount-harness.js';
+import { cleanup, mount, useSeededInput, type SeededOver } from './support/mount-harness.js';
 import { made, mountRow, rootEntry } from './support/scroll-row.js';
+import { registerTestView } from './support/test-views.js';
 
-registerView('memory-view', ({ panel }) => React.createElement('i', null, panel.title));
+registerTestView('memory-view', ({ panel }) => React.createElement('i', null, panel.title));
 
 const ROOT = 'root';
 const QUIET_MS = 100;
@@ -70,13 +71,13 @@ interface Launch {
 }
 
 /** A provider over History alone, restored from `mem`; resolves once the load has settled. */
-async function launch(mem: Memory, over: Partial<PanelsInput> = {}): Promise<Launch> {
+async function launch(mem: Memory, over: Partial<SeededOver> = {}): Promise<Launch> {
   mock.timers.reset();
   mock.timers.enable({ apis: ['setTimeout'] });
   const notes: SettingNote[] = [];
   let latest: ProvidedPanels | undefined;
   function Probe(): React.ReactElement {
-    latest = useProvidePanels(panelsInput({ initialEntries: [createHistoryPanel(ROOT)], storage: mem.storage, tuning: { saveQuietMs: QUIET_MS }, onNote: (n) => void notes.push(n), ...over }));
+    latest = useProvidePanels(useSeededInput({ initialEntries: [createHistoryPanel(ROOT)], storage: mem.storage, tuning: { saveQuietMs: QUIET_MS }, onNote: (n) => void notes.push(n), ...over }));
     return React.createElement('output');
   }
   const mounted = mount(React.createElement(Probe));
@@ -144,7 +145,7 @@ test('only the resized panel carries overrides.slots', async () => {
   const first = await launch(mem, { workspaceDefaults: {} });
   create(first, { title: 'x' });
   create(first, { title: 'y' });
-  act(() => first.latest().setFormFactor(idOf(first, 'x'), 'tablet'));
+  act(() => first.latest().setSlots(idOf(first, 'x'), 2));
   first.flush();
   const byTitle = Object.fromEntries(mem.file()!.panels.map((p) => [p.title, p.overrides]));
   assert.equal(byTitle.x!.slots, 2);
@@ -159,21 +160,21 @@ test('an anonymous panel and a Host-bag panel of a template follow a changed wor
   create(first, { view: 'ta', title: 'host' });
   first.flush();
   first.unmount();
-  const second = await launch(mem, { workspaceDefaults: { formFactor: 'tablet' }, templates });
-  assert.deepEqual([second.byTitle('anon').formFactor, second.byTitle('host').formFactor], ['tablet', 'tablet']);
+  const second = await launch(mem, { workspaceDefaults: { slots: 2 }, templates });
+  assert.deepEqual([second.byTitle('anon').slots, second.byTitle('host').slots], [2, 2]);
 });
 
-test('a Host-bag create naming a formFactor keeps it through a save and a second mount', async () => {
+test('a Host-bag create naming slots keeps it through a save and a second mount', async () => {
   const mem = memory();
   const first = await launch(mem, { workspaceDefaults: {} });
-  create(first, { title: 'wide', formFactor: 'desktop' });
+  create(first, { title: 'wide', slots: 3 });
   first.flush();
   first.unmount();
   const second = await launch(mem, { workspaceDefaults: {} });
-  assert.equal(second.byTitle('wide').formFactor, 'desktop');
+  assert.equal(second.byTitle('wide').slots, 3);
 });
 
-test('rememberLayout false on a multiple template ignores the file\'s anchor and tier, where true applies them', async () => {
+test('rememberLayout false on a multiple template ignores the file\'s anchor and slots, where true applies them', async () => {
   for (const remember of [true, false]) {
     const mem = memory();
     const templates = (rememberLayout: boolean): PanelTemplate[] => [tpl('tm', { multiple: true, placeOnAdd: 'row-start', rememberLayout })];
@@ -182,13 +183,13 @@ test('rememberLayout false on a multiple template ignores the file\'s anchor and
     create(first, { view: 'tm', title: 'b' });
     assert.deepEqual(first.titles(), ['b', 'a']);
     act(() => first.latest().move(idOf(first, 'a'), 'left'));
-    act(() => first.latest().setFormFactor(idOf(first, 'a'), 'tablet'));
+    act(() => first.latest().setSlots(idOf(first, 'a'), 2));
     assert.deepEqual(first.titles(), ['a', 'b']);
     first.flush();
     first.unmount();
     const second = await launch(mem, { templates: templates(remember) });
     assert.deepEqual(second.titles(), remember ? ['a', 'b'] : ['b', 'a'], `remember ${remember}: order`);
-    assert.equal(second.byTitle('a').formFactor, remember ? 'tablet' : 'phone', `remember ${remember}: tier`);
+    assert.equal(second.byTitle('a').slots, remember ? 2 : 1, `remember ${remember}: slots`);
     cleanup();
   }
 });
@@ -202,12 +203,12 @@ test('the file has no instance key for a code-declared panel and one for an anon
   });
   create(first, { title: 'anon' });
   create(first, { view: 'multi', title: 'multi' });
-  create(first, { view: 'host', title: 'host', formFactor: 'tablet' });
+  create(first, { view: 'host', title: 'host', slots: 2 });
   first.flush();
   const byTitle = Object.fromEntries(mem.file()!.panels.map((p) => [p.title, p]));
   assert.equal('instance' in byTitle.decl!, false);
   for (const title of ['anon', 'multi', 'host']) assert.ok('instance' in byTitle[title]!, `${title} has an instance key`);
-  assert.deepEqual(byTitle.host!.instance, { title: 'host', formFactor: 'tablet' });
+  assert.deepEqual(byTitle.host!.instance, { title: 'host', slots: 2 });
 });
 
 test('a code placement through the engine-level placePanel is not recorded as an override', () => {
@@ -264,7 +265,7 @@ test('restoreVisibility parked restores a saved-live panel parked and held', asy
 
 test('JSON.parse of the saved file has no entry for a persist:session panel; a declared one is recreated and a runtime one is gone', async () => {
   const mem = memory();
-  const over = { templates: [tpl('sess', { persist: 'session', multiple: true })], declared: [{ id: 'sess', templateId: 'sess', settings: { title: 'declared' } }], workspaceDefaults: {} };
+  const over = { templates: [tpl('sess', { persist: 'session', multiple: true })], declared: [{ id: 'decl', templateId: 'sess', settings: { title: 'declared' } }], workspaceDefaults: {} };
   const first = await launch(mem, over);
   create(first, { view: 'sess', title: 'runtime' });
   create(first, { title: 'plain' });
@@ -372,15 +373,6 @@ test('a Host-bag create of a plain registerView view resolves through the cascad
   const p = l.byTitle('p');
   assert.notEqual(p.settings, undefined);
   assert.equal(p.settings!.overflow, 'scroll');
-});
-
-test('with no workspaceDefaults, templates or declared a Host-bag create builds a legacy entry: no settings, parks at capacity', async () => {
-  const l = await launch(memory());
-  create(l, { view: 'memory-view', title: 'p' });
-  const p = l.byTitle('p');
-  assert.equal(p.settings, undefined);
-  assert.equal(p.key, undefined);
-  assert.equal(p.overrides, undefined);
 });
 
 test('a Host-bag create naming no template while templates exist still resolves through the cascade', async () => {
@@ -493,7 +485,7 @@ test('S2 and S3: over 500 seeded sequences of Host-bag creates, restores and a p
       closable: random() < 0.7,
     };
     const mem = memory();
-    const over = (): Partial<PanelsInput> => ({ templates: [tpl('r', settings)], workspaceDefaults: {} });
+    const over = (): Partial<SeededOver> => ({ templates: [tpl('r', settings)], workspaceDefaults: {} });
     let l = await launch(mem, over());
     let plain = 0;
     let templated = 0;
@@ -541,7 +533,7 @@ const vendored = (): Promise<Vendored> => import(new URL('./fixtures/compat-0.1.
 const deriveAnchors = (entries: PanelWindow[]): PanelWindow[] => deriveAnchorsFromOrder(entries, ROOT);
 const legacyPanel = (id: string, title: string): PanelWindow => appendPanel([], { url: `https://${id}.example`, title, view: 'memory-view' }, id, ROOT)[0]!;
 
-test('a file written by the vendored 0.1.0 projectWorkspaceState restores with one singleton, a tablet web panel at its tier and a dragged order', async () => {
+test('a file written by the vendored 0.1.0 projectWorkspaceState restores with one singleton, a tablet web panel read as two slots and a dragged order', async () => {
   const { projectWorkspaceState: legacyProject } = await vendored();
   const solo = { ...legacyPanel('s', 'solo'), view: 'solo' };
   const web = { ...legacyPanel('w', 'web'), formFactor: 'tablet' as const };
@@ -552,18 +544,19 @@ test('a file written by the vendored 0.1.0 projectWorkspaceState restores with o
   const l = await launch(mem, { workspaceDefaults: {}, templates: [tpl('solo')], declared: [{ id: 'solo', templateId: 'solo', settings: { title: 'solo' } }] });
   assert.deepEqual(l.titles(), ['web', 'solo', 'other']);
   assert.equal(l.latest().entries.filter((p) => p.view === 'solo').length, 1);
-  assert.equal(l.byTitle('web').formFactor, 'tablet');
+  assert.equal(l.byTitle('web').slots, 2);
 });
 
-test('a plain 0.1.0 file restores through the engine with no settings, templates or declarations, exactly as 0.1.0 hydrated it', async () => {
+test('a plain 0.1.0 file restores through a workspace with no templates or declarations: its panels keep their title, slots and no key', async () => {
   const { projectWorkspaceState: legacyProject } = await vendored();
-  const file = legacyProject(deriveAnchors([createHistoryPanel(ROOT), legacyPanel('a', 'a'), { ...legacyPanel('b', 'b'), formFactor: 'tablet' as const }]), ROOT);
+  const tablet = { ...legacyPanel('b', 'b'), formFactor: 'tablet' as const };
+  const file = legacyProject(deriveAnchors([createHistoryPanel(ROOT), legacyPanel('a', 'a'), tablet]), ROOT);
   const mem = memory();
   await mem.storage.save(file);
   const l = await launch(mem);
   assert.deepEqual(l.titles(), ['a', 'b']);
-  assert.deepEqual(l.latest().entries.map((p) => [p.settings === undefined, p.key, p.overrides]), [[true, undefined, undefined], [true, undefined, undefined], [true, undefined, undefined]]);
-  assert.equal(l.byTitle('b').formFactor, 'tablet');
+  assert.deepEqual(l.latest().entries.map((p) => [p.key, p.overrides]), [[undefined, undefined], [undefined, undefined], [undefined, undefined]]);
+  assert.equal(l.byTitle('b').slots, 2);
 });
 
 test('the file this build writes passes the vendored 0.1.0 isWorkspaceState', async () => {
@@ -571,7 +564,7 @@ test('the file this build writes passes the vendored 0.1.0 isWorkspaceState', as
   const mem = memory();
   const l = await launch(mem, { workspaceDefaults: {}, templates: [tpl('m', { multiple: true })], declared: [{ id: 'decl', templateId: 'm' }] });
   create(l, { title: 'anon' });
-  create(l, { view: 'm', title: 'host', formFactor: 'tablet' });
+  create(l, { view: 'm', title: 'host', slots: 2 });
   act(() => l.latest().move(idOf(l, 'host'), 'left'));
   l.flush();
   const file = mem.file()!;

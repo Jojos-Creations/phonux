@@ -11,7 +11,7 @@ import type { ResolvedPanelSettings } from './panelSettings.js';
  * @public
  */
 export interface PanelRowEntry<P = JsonValue> extends PanelSummary<P> {
-  /** The registered view that renders this entry. An unregistered name renders a placeholder, never a crash. */
+  /** The id of the template that renders this entry. A name no template answers to renders a placeholder, never a crash. */
   readonly view: string;
   /** False for an always-shown column: the row never parks it and it is never a drag source. */
   readonly collapsible: boolean;
@@ -50,13 +50,12 @@ export interface NeighborWidths {
 
 /**
  * A row entry narrowed to what a view may see. Every place that hands a panel to a view goes through this one
- * function, so no view ever sees a layout field; `formFactor` and `size` are forwarded.
+ * function, so no view ever sees a layout field; `slots` and `size` are forwarded.
  * @internal
  */
-export const summarisePanel = ({ id, url, title, live, locked, params, formFactor, size, slots, settings }: PanelRowEntry): PanelSummary => ({
-  id, url, title, live, locked, params,
+export const summarisePanel = ({ id, key, url, title, live, locked, params, size, slots, settings }: PanelRowEntry): PanelSummary => ({
+  id: key ?? id, url, title, live, locked, params,
   // Absent, not undefined, when the record lacks them: a summary never lists a key its record never had.
-  ...(formFactor !== undefined ? { formFactor } : {}),
   ...(size !== undefined ? { size } : {}),
   ...(slots !== undefined ? { slots } : {}),
   ...(settings !== undefined ? { maxSlots: settings.maxSlots } : {}),

@@ -39,6 +39,8 @@ export function useWorkspacePersistence(i: {
   onNote?: (note: SettingNote) => void;
   /** The developer's panel order, read by every placement the restore makes whose value is `'order'`. */
   order?: () => readonly string[];
+  /** The title a declared panel gets when no settings layer names one. */
+  panelTitle?: (id: string) => string;
   /** Receives an error a save raised, by throwing or rejecting. Unset: `console.error`. */
   onError?: (e: unknown) => void;
   /** True for a workspace: the declared panels are created at mount even with no storage, and the restore settles after them. Read once, at mount. */
@@ -97,7 +99,7 @@ export function useWorkspacePersistence(i: {
     const reconcile = (saved: unknown): PanelWindow[] => {
       const templates = (typeof given === 'function' ? given() : given) ?? [];
       // Drawn here, never inside an updater: React may run an updater twice.
-      const result = reconcileWorkspace({ saved, templates, declared: typeof declared === 'function' ? declared() : declared, workspaceDefaults, rootId, current: panelsRef.current, freshId, order: i.order });
+      const result = reconcileWorkspace({ saved, templates, declared: typeof declared === 'function' ? declared() : declared, workspaceDefaults, rootId, current: panelsRef.current, freshId, order: i.order, ...(i.panelTitle !== undefined ? { panelTitle: i.panelTitle } : {}) });
       const before = (saved as { dismissed?: unknown } | null)?.dismissed;
       // A tombstone the restore dropped is still in the file; the baseline must not match it, or the file keeps it until some other change is saved.
       tombstonesDropped.current = Array.isArray(before) && before.length !== result.dismissed.length;

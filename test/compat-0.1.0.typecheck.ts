@@ -4,7 +4,7 @@
  * break one must say so in the changelog and edit this file in the same commit.
  */
 import * as React from 'react';
-import { HostProvider, Workspace, registerView, useProvidePanels, type PanelSummary, type PanelWindow, type PanelsAPI, type PanelsInput, type ProvidedPanels, type WorkspaceState, type WorkspaceStorage } from '../index.js';
+import { HostProvider, Workspace, createWorkspace, useProvidePanels, type PanelSummary, type PanelWindow, type PanelsAPI, type PanelsInput, type ProvidedPanels, type WorkspaceState, type WorkspaceStorage } from '../index.js';
 import { createFakeHost } from '../fakeHost.js';
 import type { Host, SettingsAPI } from '../fakeHost.js';
 
@@ -24,7 +24,6 @@ export const panelsApi: PanelsAPI = {
   create: (options?: { view?: string }): void => void options,
   activate: (id: string): void => void id,
   move: (id: string, direction: 'left' | 'right'): void => void [id, direction],
-  setFormFactor: (id: string, next: 'phone' | 'tablet' | 'desktop'): void => void [id, next],
   reanchor: (id: string, anchor: { panel?: string; position: 'left' | 'right'; priority?: number }): void => void [id, anchor],
   close: (id: string): void => void id,
   recentlyClosed: null,
@@ -32,20 +31,25 @@ export const panelsApi: PanelsAPI = {
   clearAll: (): void => undefined,
 };
 
+/** `setFormFactor` was removed on purpose, with the tiers: a host literal naming it must not compile. */
+// @ts-expect-error setFormFactor is gone
+export const retiredSetFormFactor: PanelsAPI = { ...panelsApi, setFormFactor: (id: string, next: 'phone' | 'tablet' | 'desktop'): void => void [id, next] };
+
 /** The settings member a host built by hand: `settingsColumn` and nothing else. */
 const settings: SettingsAPI = {
   settingsColumn: { visible: false, show: (): void => undefined, hide: (): void => undefined },
 };
 export const host: Host = { ...createFakeHost(), settings };
 
+/** The workspace an app hands useProvidePanels: it holds the storage the row is kept in. */
+export const workspace = createWorkspace({ mount: false, storage });
+
 /** The input an app hands useProvidePanels. */
 export const panelsInput = (overflowContainerRef: React.RefObject<HTMLDivElement | null>): PanelsInput => ({
-  initialEntries: [rootEntry],
-  rootId: 'root',
+  workspace,
   phoneWidth: 390,
   containerWidth: 0,
   overflowContainerRef,
-  storage,
   onPanelsClosed: (entry: { id: string; title: string; url: string; closedAt: string }): void => void entry,
 });
 
@@ -63,15 +67,13 @@ export const retiredSetMaxPanelsOnScreen: Host = { ...createFakeHost(), settings
 
 /** The stored cap a 0.1.0 app passed to useProvidePanels was removed on purpose: an input naming it must not compile. */
 export const retiredStoredCap = (overflowContainerRef: React.RefObject<HTMLDivElement | null>): PanelsInput => ({
-  rootId: 'root',
+  workspace,
   // @ts-expect-error storedMaxPanels is gone
   storedMaxPanels: null,
   phoneWidth: 390,
   containerWidth: 0,
   overflowContainerRef,
 });
-
-registerView('compat-probe', ({ panel }) => React.createElement('span', null, panel.id));
 
 export function CompatApp(): React.ReactElement {
   const overflowContainerRef = React.useRef<HTMLDivElement | null>(null);

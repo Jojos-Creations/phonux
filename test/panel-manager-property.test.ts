@@ -28,8 +28,8 @@ function prng(seed: number): () => number {
   };
 }
 
-type Op = 'show' | 'hide' | 'toggleVisibility' | 'close' | 'open' | 'move' | 'place' | 'setFormFactor' | 'scrollTo';
-const OPS: readonly Op[] = ['show', 'hide', 'toggleVisibility', 'close', 'open', 'move', 'place', 'setFormFactor', 'scrollTo'];
+type Op = 'show' | 'hide' | 'toggleVisibility' | 'close' | 'open' | 'move' | 'place' | 'setSlots' | 'scrollTo';
+const OPS: readonly Op[] = ['show', 'hide', 'toggleVisibility', 'close', 'open', 'move', 'place', 'setSlots', 'scrollTo'];
 
 function settingsVector(rand: () => number): PanelSettings {
   const pick = <T,>(...values: T[]): T => values[Math.floor(rand() * values.length)]!;
@@ -40,7 +40,7 @@ function settingsVector(rand: () => number): PanelSettings {
     crossable: pick(true, true, false),
     placeable: pick(true, true, false),
     resizable: pick(true, true, false),
-    formFactors: pick(['phone', 'tablet', 'desktop'], ['phone'], ['phone', 'tablet']),
+    maxSlots: pick(64, 1, 2),
     hideWhenLast: pick('allow', 'refuse'),
     hideStickiness: pick('sticky', 'until-room'),
     showWhenClosed: pick('refuse', 'reopen'),
@@ -55,9 +55,9 @@ function run(h: PanelHandle, op: Op, rand: () => number): PanelResult {
     case 'toggleVisibility': return h.toggleVisibility();
     case 'close': return h.close();
     case 'open': return h.open();
-    case 'move': return h.move(rand() < 0.5 ? 'left' : 'right');
+    case 'move': return h.move(rand() < 0.5 ? -1 : 1);
     case 'place': return h.place((['row-start', 'row-end', 'after-fixed'] as const)[Math.floor(rand() * 3)]!);
-    case 'setFormFactor': return h.setFormFactor((['phone', 'tablet', 'desktop'] as const)[Math.floor(rand() * 3)]!);
+    case 'setSlots': return h.setSlots(1 + Math.floor(rand() * 3));
     case 'scrollTo': return h.scrollTo();
   }
 }
@@ -69,7 +69,7 @@ function forced(h: PanelHandle, op: Op): string | undefined {
   if (op === 'hide') return s.parkable ? undefined : 'not-parkable';
   if (op === 'move') return s.draggable ? undefined : 'not-draggable';
   if (op === 'place') return s.placeable ? undefined : 'not-placeable';
-  if (op === 'setFormFactor') return s.resizable ? undefined : 'not-resizable';
+  if (op === 'setSlots') return s.resizable ? undefined : 'not-resizable';
   return undefined;
 }
 

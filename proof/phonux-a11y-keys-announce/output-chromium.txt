@@ -1,0 +1,10 @@
+PASS the row is a region named Panels :: region|Panels
+PASS each panel is a group with its place :: History, 1 of 4 / Notes, 2 of 4 / Todo, 3 of 4 / Mail, 4 of 4
+PASS the grab strip is a focusable button named for its panel :: {"role":"button","label":"Move or close Notes","tab":0}
+PASS ArrowRight on the strip moves Notes one slot right :: todo,notes,mail
+PASS and the live region says so :: Moved Notes right
+PASS and the row did not also step :: 0 -> 0
+PASS Delete on the strip closes Notes :: todo,mail
+PASS and the live region says so :: Closed Notes
+PASS a pointer drag says the title :: Picked up Todo
+PASS no console errors

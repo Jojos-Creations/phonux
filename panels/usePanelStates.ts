@@ -2,11 +2,12 @@
  * The read side of a workspace for components: hooks over the reader a row gives its template views. They answer
  * from the nearest PanelRow that was given a workspace and nothing outside one.
  */
-import { useContext, useSyncExternalStore } from 'react';
+import { useContext, useMemo, useSyncExternalStore } from 'react';
 import { filterStates } from '../panelHandles.js';
 import type { PanelId } from '../panelSettings.js';
 import type { ListFilter, PanelReader, PanelSnapshot, PanelState } from '../panelTemplate.js';
 import { PanelViewContextValue } from '../panelViewContext.js';
+import type { ViewWorkspace } from '../workspaceCore.js';
 
 const NO_SUBSCRIBE = (): (() => void) => () => {};
 const EMPTY_SNAPSHOT: PanelSnapshot = Object.freeze({ version: 0, status: 'detached', panels: Object.freeze([]) });
@@ -17,6 +18,17 @@ const EMPTY_SNAPSHOT: PanelSnapshot = Object.freeze({ version: 0, status: 'detac
  */
 export function useWorkspaceManager(): PanelReader | undefined {
   return useContext(PanelViewContextValue)?.manager;
+}
+
+/**
+ * The workspace of the PanelRow above, as a view acts on it: `panels.get(key)` returns the operable handle of any panel
+ * (close, show, hide, move, configure), `panels.addPanel` makes one, and the rest of the manager is there too. It is the same
+ * object on every render and undefined outside a PanelRow that has a workspace. The workspace's own `dispose`, `update` and
+ * `rename` are not part of it.
+ * @public
+ */
+export function useWorkspace(): ViewWorkspace | undefined {
+  return useContext(PanelViewContextValue)?.workspace;
 }
 
 function useSnapshot(): PanelSnapshot {
@@ -35,11 +47,33 @@ export function usePanelStates(f?: ListFilter): readonly PanelState[] {
   return filterStates(useSnapshot().panels, f);
 }
 
+function subscribeToPanel(reader: PanelReader, id: PanelId): (l: () => void) => () => void {
+  return (l) => {
+    let off: () => void = () => {};
+    const own = reader.get(id);
+    if (own !== undefined) off = own.subscribe(l);
+    else {
+      off = reader.subscribe(() => {
+        const found = reader.get(id);
+        if (found === undefined) return;
+        off();
+        off = found.subscribe(l);
+        l();
+      });
+    }
+    return () => off();
+  };
+}
+
 /**
- * The state of the panel with this id, re-read when it changes, or undefined when the workspace knows none.
+ * The state of the panel with this id, re-read when it changes, or undefined when the workspace knows none. Only a
+ * change to this panel re-renders the caller; a panel added later is picked up when it appears.
  * @param id - The panel's id.
  * @public
  */
 export function usePanelState(id: PanelId): PanelState | undefined {
-  return useSnapshot().panels.find((p) => p.id === id);
+  const reader = useWorkspaceManager();
+  const subscribe = useMemo(() => (reader === undefined ? NO_SUBSCRIBE : subscribeToPanel(reader, id)), [reader, id]);
+  const read = (): PanelState | undefined => reader?.getSnapshot().panels.find((p) => p.id === id);
+  return useSyncExternalStore(subscribe, read, read);
 }

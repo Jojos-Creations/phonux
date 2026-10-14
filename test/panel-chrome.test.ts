@@ -10,7 +10,7 @@ import { act } from 'react';
 import { createPortal } from 'react-dom';
 import { MotionConfig, animate, cubicBezier } from 'motion/react';
 import * as entry from '../index.js';
-import { DragToClose, Panel, PanelFrame, registerView, useActivePanel, useHost, usePanelActive, usePanelDragging, usePanelTuning } from '../index.js';
+import { DragToClose, Panel, PanelFrame, useActivePanel, useHost, usePanelActive, usePanelDragging, usePanelTuning } from '../index.js';
 import { createChromeStore } from '../panelChrome.js';
 
 // Read off the package entry, so a name the entry stops exporting fails a test and does not break the file's load.
@@ -20,6 +20,7 @@ import { advanceFrames, cleanup } from './support/mount-harness.js';
 import { drag, release } from './support/drag-gesture.js';
 import { headerRig } from './support/header-rig.js';
 import { made, mountRow, rootEntry, row, type MountedRow } from './support/scroll-row.js';
+import { registerTestView } from './support/test-views.js';
 
 afterEach(() => cleanup());
 
@@ -61,7 +62,7 @@ function ChromeView({ id }: { id: string }): React.ReactElement {
       ),
   });
 }
-registerView('chrome-view', ({ panel }) => React.createElement(ChromeView, { id: panel.id }));
+registerTestView('chrome-view', ({ panel }) => React.createElement(ChromeView, { id: panel.id }));
 
 const entries = (count: number) => row(rootEntry(), ...Array.from({ length: count }, (_, k) => made(`c${k + 1}`, {}, { view: 'chrome-view' })));
 const rootOf = (m: MountedRow, id: string): HTMLElement => m.container.querySelector<HTMLElement>(`[data-panel-root="${id}"]`)!;
@@ -79,7 +80,7 @@ test('the attribute names a host styles from are pinned', () => {
 });
 
 test('the package entry exports the names a mounted workspace renders: the marks, and one element per chrome part', async () => {
-  assert.deepEqual(CHROME_PARTS, { header: 'header', grabBar: 'grab-bar', footer: 'footer' });
+  assert.deepEqual(CHROME_PARTS, { header: 'header', grabBar: 'grab-bar', footer: 'footer', resize: 'resize' });
   const m = mountRow(entries(2), 3000);
   await advanceFrames(2000);
   const panel = rootOf(m, 'c1');
@@ -95,10 +96,12 @@ test('the package entry exports the names a mounted workspace renders: the marks
   await release(0, 24);
   await advanceFrames(3000);
   assert.equal(rootOf(m, 'c1').hasAttribute(DRAGGING_ATTRIBUTE), false);
-  for (const value of Object.values(CHROME_PARTS)) {
+  // The grips are drawn by PanelResizeGrips alone, which this panel does not put in its overlay (test/panel-resize-grips.test.ts).
+  const drawn = Object.values(CHROME_PARTS).filter((value) => value !== CHROME_PARTS.resize);
+  for (const value of drawn) {
     assert.equal(panel.querySelectorAll(`[${CHROME_ATTRIBUTE}="${value}"]`).length, 1, `one ${value}`);
   }
-  assert.equal(panel.querySelectorAll(`[${CHROME_ATTRIBUTE}]`).length, Object.keys(CHROME_PARTS).length, 'no part carries a value the object lacks');
+  assert.equal(panel.querySelectorAll(`[${CHROME_ATTRIBUTE}]`).length, drawn.length, 'no part carries a value the object lacks');
 });
 
 test('a press or a focus inside a panel makes it the one active panel, until another is used', async () => {

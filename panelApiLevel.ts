@@ -2,9 +2,8 @@
  * The panel API levels a template may declare with `api`, and the table that says which the library serves. A level names the
  * panel-facing surface a template was written against; DESIGN.md, "Panel API levels", says what it covers.
  */
-import type { PanelSummary } from './hostApi.js';
 import { PanelManagerError } from './panelManagerError.js';
-import type { PanelReader, ViewHandle } from './panelTemplate.js';
+import type { PanelViewProps } from './panelTemplate.js';
 
 /** A panel API level a template may declare with `api`: the package major version its panel code was written for. @public */
 export type PanelApiLevel = 1;
@@ -13,11 +12,7 @@ export type PanelApiLevel = 1;
 export const PANEL_API: PanelApiLevel = 1;
 
 /** What a template's view and footer are rendered with at the newest level. @internal */
-export interface NewestViewProps {
-  panel: PanelSummary;
-  handle: ViewHandle;
-  manager: PanelReader;
-}
+export type NewestViewProps = PanelViewProps;
 
 /** What a member's value is: its `typeof`, or `any` for a member that holds any JSON value. @internal */
 export type MemberKind = 'string' | 'number' | 'boolean' | 'function' | 'object' | 'any';
@@ -32,7 +27,7 @@ export type ShapeOf<T> = { readonly [K in keyof T]-?: MemberShape<T, K> };
 export type PropsShape = Readonly<Record<string, Readonly<Record<string, { readonly kind: MemberKind; readonly optional?: boolean }>>>>;
 
 /** The newest level's props, member by member. Optional members are marked so a panel without them is no mismatch. @internal */
-export const NEWEST_SHAPE: { readonly [K in keyof NewestViewProps]: ShapeOf<NewestViewProps[K]> } = {
+export const NEWEST_SHAPE: { readonly [K in keyof NewestViewProps]-?: ShapeOf<NewestViewProps[K]> } = {
   panel: {
     id: { kind: 'string' },
     url: { kind: 'string', optional: true },
@@ -40,7 +35,6 @@ export const NEWEST_SHAPE: { readonly [K in keyof NewestViewProps]: ShapeOf<Newe
     live: { kind: 'boolean' },
     locked: { kind: 'boolean' },
     params: { kind: 'any', optional: true },
-    formFactor: { kind: 'string', optional: true },
     slots: { kind: 'number', optional: true },
     maxSlots: { kind: 'number', optional: true },
     drawnSlots: { kind: 'number', optional: true },
@@ -60,7 +54,6 @@ export const NEWEST_SHAPE: { readonly [K in keyof NewestViewProps]: ShapeOf<Newe
     open: { kind: 'function' },
     move: { kind: 'function' },
     place: { kind: 'function' },
-    setFormFactor: { kind: 'function' },
     setSlots: { kind: 'function' },
     scrollTo: { kind: 'function' },
     pin: { kind: 'function' },

@@ -7,7 +7,7 @@ import { test, afterEach, mock } from 'node:test';
 import assert from 'node:assert/strict';
 import './support/jsdom-globals.js';
 import { act } from 'react';
-import type { PanelSettings, PanelsInput } from '../index.js';
+import type { PanelSettings, WorkspaceTuning } from '../index.js';
 import { differential, differentialsCovered } from './support/differential.js';
 import { advanceFrames, cleanup } from './support/mount-harness.js';
 import { made, mountRow, panelsOf, rootEntry, row } from './support/scroll-row.js';
@@ -62,10 +62,10 @@ test('differential scrollOnOpen: into-view and start put the same panel at diffe
   });
 });
 
-/** Where the row rests after panel s1, in view, becomes a tablet, under `scrollOnMove`. */
+/** Where the row rests after panel s1, in view, becomes two slots wide, under `scrollOnMove`. */
 async function movedTo(scrollOnMove: PanelSettings['scrollOnMove']): Promise<number> {
   const m = mountRow(panelsOf(5, { scrollOnMove }), 1000);
-  act(() => m.latest().setFormFactor('s1', 'tablet'));
+  act(() => m.latest().setSlots('s1', 2));
   await advanceFrames(900);
   const at = m.container.scrollLeft;
   cleanup();
@@ -100,7 +100,7 @@ test('differential tuning.rowGesture: step starts a glide on a swipe and free le
   });
 });
 
-const initialOf = (initialScroll: NonNullable<PanelsInput['tuning']>['initialScroll']): number => {
+const initialOf = (initialScroll: NonNullable<WorkspaceTuning['initialScroll']>): number => {
   const m = mountRow(panelsOf(10), 1000, { tuning: { initialScroll } });
   const at = m.container.scrollLeft;
   cleanup();

@@ -1,0 +1,173 @@
+{
+  "tests": [
+    "test/a11y-keys-announce.test.ts",
+    "test/row-gesture.test.ts",
+    "test/workspace-column.test.ts",
+    "test/default-frame.test.ts"
+  ],
+  "mutants": [
+    {
+      "name": "the row listener drops the shared guard for the old two-line check",
+      "file": "panels/useRowScrollGesture.ts",
+      "find": "if (arrowKeyBelongsElsewhere(e, document)) return;",
+      "replace": "if (e.defaultPrevented || e.altKey || e.ctrlKey || e.metaKey || e.shiftKey) return;",
+      "expectRed": [
+        "the row shares the column"
+      ]
+    },
+    {
+      "name": "the shared guard stops checking a key a handler took",
+      "file": "arrowKeys.ts",
+      "find": "if (e.defaultPrevented || e.isComposing",
+      "replace": "if (e.isComposing",
+      "expectRed": [
+        "arrowKeyBelongsElsewhere judges every clause"
+      ]
+    },
+    {
+      "name": "the shared guard judges a repeat",
+      "file": "arrowKeys.ts",
+      "find": "if (e.defaultPrevented || e.isComposing",
+      "replace": "if (e.defaultPrevented || e.repeat || e.isComposing",
+      "expectRed": [
+        "arrowKeyBelongsElsewhere judges every clause",
+        "a held arrow key keeps stepping"
+      ]
+    },
+    {
+      "name": "the column stops ignoring a repeat",
+      "file": "WorkspaceColumn.tsx",
+      "find": "if (e.repeat || arrowKeyBelongsElsewhere(e, document)) return;",
+      "replace": "if (arrowKeyBelongsElsewhere(e, document)) return;",
+      "expectRed": [
+        "the keys do nothing while focus is in a field"
+      ]
+    },
+    {
+      "name": "the row has no name",
+      "file": "Workspace.tsx",
+      "find": "aria-label={labels.row}",
+      "replace": "",
+      "expectRed": [
+        "the row is a named region"
+      ]
+    },
+    {
+      "name": "a panel group counts from zero",
+      "file": "PanelRow.tsx",
+      "find": "presentIndex + 1, present.length",
+      "replace": "presentIndex, present.length",
+      "expectRed": [
+        "the row is a named region"
+      ]
+    },
+    {
+      "name": "the slot is not a group",
+      "file": "PanelRowSlot.tsx",
+      "find": "role: 'group', ",
+      "replace": "",
+      "expectRed": [
+        "the row is a named region"
+      ]
+    },
+    {
+      "name": "a drag says the library's default words",
+      "file": "dragToClose.tsx",
+      "find": "accessibility: { announcements }",
+      "replace": "accessibility: {}",
+      "expectRed": [
+        "a drag says the panel"
+      ]
+    },
+    {
+      "name": "the strip is not a button",
+      "file": "dragToClose.tsx",
+      "find": "role: 'button' as const,",
+      "replace": "",
+      "expectRed": [
+        "the grab strip is a button"
+      ]
+    },
+    {
+      "name": "a press on the strip is ignored as a press on a button",
+      "file": "dragToClose.tsx",
+      "find": "(control !== null && control !== event.currentTarget)",
+      "replace": "(control !== null)",
+      "expectRed": [
+        "a press on the strip still starts a drag"
+      ]
+    },
+    {
+      "name": "ArrowRight moves left",
+      "file": "dragToClose.tsx",
+      "find": "const steps = event.key === 'ArrowLeft' ? -1 : 1;",
+      "replace": "const steps = event.key === 'ArrowLeft' ? 1 : -1;",
+      "expectRed": [
+        "the grab strip is a button"
+      ]
+    },
+    {
+      "name": "an Arrow key on the strip is not taken",
+      "file": "dragToClose.tsx",
+      "find": "              event.preventDefault();\n              const steps",
+      "replace": "              const steps",
+      "expectRed": [
+        "the grab strip is a button"
+      ]
+    },
+    {
+      "name": "a move that changed nothing says it moved",
+      "file": "dragToClose.tsx",
+      "find": "announce?.(reorderRef.current.onStep(steps) ? labels.moved(titleNow(), steps) : labels.cannotMove(titleNow(), steps));",
+      "replace": "reorderRef.current.onStep(steps); announce?.(labels.moved(titleNow(), steps));",
+      "expectRed": [
+        "the grab strip is a button"
+      ]
+    },
+    {
+      "name": "Delete does not close",
+      "file": "dragToClose.tsx",
+      "find": "event.key === 'Delete' && closeRef.current",
+      "replace": "event.key === 'Backspace' && closeRef.current",
+      "expectRed": [
+        "Delete on the strip closes"
+      ]
+    },
+    {
+      "name": "a close says nothing",
+      "file": "dragToClose.tsx",
+      "find": "announce?.(labels.closed(titleNow()));",
+      "replace": "",
+      "expectRed": [
+        "Delete on the strip closes"
+      ]
+    },
+    {
+      "name": "a modifier on the strip still acts",
+      "file": "dragToClose.tsx",
+      "find": "event.target !== event.currentTarget || event.altKey || event.ctrlKey || event.metaKey || event.shiftKey",
+      "replace": "event.target !== event.currentTarget",
+      "expectRed": [
+        "an arrow with a modifier"
+      ]
+    },
+    {
+      "name": "the live region is not polite",
+      "file": "Workspace.tsx",
+      "find": "aria-live=\"polite\"",
+      "replace": "aria-live=\"off\"",
+      "expectRed": [
+        "the grab strip is a button"
+      ]
+    },
+    {
+      "name": "the strip never hears its handle's title change",
+      "file": "dragToClose.tsx",
+      "find": "slotHandle?.subscribe(l) ?? (() => {})",
+      "replace": "(() => {})",
+      "expectRed": [
+        "follows its handle's title"
+      ]
+    }
+  ]
+}

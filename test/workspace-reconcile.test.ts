@@ -4,7 +4,6 @@
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { PanelManagerError } from '../panelManagerError.js';
 import { applyTemplate, resolvePanelSettings } from '../panelSettings.js';
 import type { PanelSettings } from '../panelSettings.js';
 import { definePanel } from '../panelTemplate.js';
@@ -12,8 +11,9 @@ import type { PanelTemplate } from '../panelTemplate.js';
 import { appendPanel, clearOverrides, createHistoryPanel, recordOverride, type PanelWindow } from '../panelWindow.js';
 import { computeRowOrder } from '../panelRowOrder.js';
 import { resolveViewIn } from '../templateView.js';
-import { assertTemplateIdFree, registerView, resolveView } from '../viewRegistry.js';
+import { placeholderFor } from '../viewRegistry.js';
 import { reconcileWorkspace, type ReconcileInput } from '../workspacePlan.js';
+import { sizeOfSlots } from '../panelTiers.js';
 import { projectWorkspaceState, type WorkspacePanelState, type WorkspaceState } from '../workspaceState.js';
 
 const ROOT = 'root';
@@ -54,25 +54,13 @@ const rowOf = (...entries: PanelWindow[]): PanelWindow[] => computeRowOrder([cre
 // The view registry
 // ---------------------------------------------------------------------------
 
-test('registry: a template id that is a registered view key throws template-collision', () => {
-  registerView('reg-c', View);
-  assert.throws(() => assertTemplateIdFree('reg-c'), (e) => e instanceof PanelManagerError && e.code === 'template-collision');
-  assert.doesNotThrow(() => assertTemplateIdFree('reg-c-free'), 'control: an id with no plain view is free');
-});
-
-test('registry: the view registered under a key wins over the template of a workspace that holds the same id', () => {
-  const t = tpl('history');
-  const Rendered = (): null => null;
-  registerView('history', Rendered);
-  assert.equal(resolveViewIn((id) => (id === 'history' ? t : undefined), 'history'), Rendered);
-});
-
-test('registry: a template resolves through the workspace that holds it only, and resolveView alone never sees one', () => {
+test('registry: a template resolves through the workspace that holds it only, and any other key is the placeholder', () => {
   const t = tpl('reg-d');
   const found = resolveViewIn((id) => (id === 'reg-d' ? t : undefined), 'reg-d');
-  assert.notEqual(found, resolveView('reg-d'), 'control: the workspace resolve found the template view');
-  assert.equal(resolveViewIn(() => undefined, 'reg-d'), resolveView('reg-d'), 'a workspace without the template renders the placeholder');
-  assert.equal(typeof resolveView('reg-d'), 'function');
+  assert.notEqual(found, placeholderFor('reg-d'), 'control: the workspace resolve found the template view');
+  assert.equal(resolveViewIn(() => undefined, 'reg-d'), placeholderFor('reg-d'), 'a workspace without the template renders the placeholder');
+  assert.equal(resolveViewIn(() => undefined, 'reg-d'), resolveViewIn(() => undefined, 'reg-d'), 'one placeholder per key, so a row does not remount it');
+  assert.equal(typeof placeholderFor('reg-d'), 'function');
 });
 
 // ---------------------------------------------------------------------------
@@ -88,7 +76,7 @@ test('recordOverride anchor copies each listed entry\'s current anchor, and a se
 });
 
 test('recordOverride slots copies the slot count of the listed id only', () => {
-  const row = rowOf(made('a', { formFactor: 'tablet', slots: 2 }), made('b', { formFactor: 'desktop', slots: 3 }));
+  const row = rowOf(made('a', { slots: 2 }), made('b', { slots: 3 }));
   const recorded = recordOverride(row, 'slots', ['a'], ROOT);
   assert.deepEqual(recorded.map((p) => p.overrides), [undefined, { slots: 2 }, undefined]);
 });
@@ -111,13 +99,13 @@ test('recordOverride skips the root, a marker, an entry with no settings and one
 });
 
 test('recordOverride keeps what other keys already hold', () => {
-  const row = rowOf(made('a', {}, { overrides: { formFactor: 'tablet' } }));
-  assert.deepEqual(recordOverride(row, 'anchor', ['a'], ROOT)[1]!.overrides, { formFactor: 'tablet', anchor: { panel: ROOT, position: 'right', priority: 0 } });
+  const row = rowOf(made('a', {}, { overrides: { slots: 2 } }));
+  assert.deepEqual(recordOverride(row, 'anchor', ['a'], ROOT)[1]!.overrides, { slots: 2, anchor: { panel: ROOT, position: 'right', priority: 0 } });
 });
 
 test('clearOverrides sets {} on each listed entry that carries settings and leaves the rest', () => {
   const handBuilt: PanelWindow = { id: 'h', url: '', live: true, locked: false, view: 'web', collapsible: true, listed: true };
-  const row = computeRowOrder([createHistoryPanel(ROOT), made('a', {}, { overrides: { formFactor: 'tablet' } }), made('b', {}, { overrides: { parkable: false } }), handBuilt], ROOT);
+  const row = computeRowOrder([createHistoryPanel(ROOT), made('a', {}, { overrides: { slots: 2 } }), made('b', {}, { overrides: { parkable: false } }), handBuilt], ROOT);
   const cleared = clearOverrides(row, ['a', 'h']);
   assert.deepEqual(cleared.map((p) => p.overrides), [undefined, {}, { parkable: false }, undefined]);
 });
@@ -147,9 +135,9 @@ test('reconcile with no file creates each declared panel in declaration order, w
 });
 
 test('reconcile creates a declared panel from the template layer under the declaration\'s own settings', () => {
-  const result = run({ templates: [tpl('t', { formFactor: 'tablet', title: 'From template' })], declared: [{ id: 'a', templateId: 't', settings: { title: 'From declaration' } }] });
+  const result = run({ templates: [tpl('t', { slots: 2, title: 'From template' })], declared: [{ id: 'a', templateId: 't', settings: { title: 'From declaration' } }] });
   assert.equal(result.entries[0]!.title, 'From declaration');
-  assert.equal(result.entries[0]!.formFactor, 'tablet');
+  assert.equal(result.entries[0]!.slots, 2);
 });
 
 test('reconcile does not create a declared panel whose key is dismissed, and keeps the tombstone', () => {
@@ -207,14 +195,14 @@ test('reconcile with no settings anywhere hydrates a 0.1.0 entry: no settings, n
   assert.deepEqual(result.entries.map((p) => [p.collapsible, p.live, p.key]), [[true, true, undefined], [false, true, undefined]]);
 });
 
-test('reconcile of a 0.1.0 entry under workspace defaults keeps its saved tier, live flag and anchor, with no overrides to own', () => {
-  const saved = file([savedEntry('x', { formFactor: 'tablet', live: false }), savedEntry('y', { anchor: { panel: 'x', position: 'left', priority: 0 } })]);
+test('reconcile of a 0.1.0 entry under workspace defaults keeps its saved slots, live flag and anchor, with no overrides to own', () => {
+  const saved = file([savedEntry('x', { slots: 2, live: false }), savedEntry('y', { anchor: { panel: 'x', position: 'left', priority: 0 } })]);
   const result = run({ saved, workspaceDefaults: {} });
   const byTitle = Object.fromEntries(result.entries.map((p) => [p.title, p]));
-  assert.equal(byTitle.x!.formFactor, 'tablet');
+  assert.equal(byTitle.x!.slots, 2);
   assert.equal(byTitle.x!.live, false);
   assert.deepEqual(titles(result.entries), ['y', 'x'], 'y was saved left of x');
-  assert.equal(byTitle.x!.overrides, undefined, 'a 0.1.0 entry owns its anchor and tier');
+  assert.equal(byTitle.x!.overrides, undefined, 'a 0.1.0 entry owns its anchor and slots');
   assert.equal(byTitle.x!.applied, undefined);
 });
 
@@ -256,11 +244,11 @@ test('an overrides.anchor naming another saved entry is re-pointed at that entry
 
 // Permission settings gate gestures, not restoring.
 
-test('overrides.formFactor tablet restores at tablet although the template now says resizable false', () => {
-  const saved = file([savedEntry('p', { view: 't', overrides: { formFactor: 'tablet' } })]);
+test('overrides.slots 2 restores at two slots although the template now says resizable false', () => {
+  const saved = file([savedEntry('p', { view: 't', overrides: { slots: 2 } })]);
   const result = run({ saved, templates: [tpl('t', { resizable: false })] });
-  assert.equal(result.entries[0]!.formFactor, 'tablet');
-  assert.equal(result.entries[0]!.size?.formFactor, 'tablet');
+  assert.equal(result.entries[0]!.slots, 2);
+  assert.deepEqual(result.entries[0]!.size, sizeOfSlots(2));
 });
 
 test('an overrides.anchor restores although draggable and placeable are false', () => {
@@ -272,20 +260,19 @@ test('an overrides.anchor restores although draggable and placeable are false', 
   assert.deepEqual(titles(result.entries), ['b', 'a']);
 });
 
-test('a tier outside formFactors is dropped with a note and is absent from the overrides that survive', () => {
-  const saved = file([savedEntry('p', { view: 't', overrides: { formFactor: 'desktop', anchor: { panel: ROOT, position: 'right', priority: 0 } } })]);
-  const result = run({ saved, templates: [tpl('t', { formFactors: ['phone', 'tablet'] })] });
-  assert.equal(result.entries[0]!.formFactor, 'phone');
-  assert.deepEqual(result.notes.filter((n) => n.code === 'override-dropped').map((n) => n.key), ['formFactor']);
-  assert.deepEqual(Object.keys(result.entries[0]!.overrides!), ['anchor']);
-  assert.deepEqual(Object.keys(projectWorkspaceState([createHistoryPanel(ROOT), ...result.entries], ROOT).panels[0]!.overrides!), ['anchor'], 'and so absent from the next save');
+test('an overrides.slots above maxSlots restores at maxSlots and the overrides that survive keep the anchor', () => {
+  const saved = file([savedEntry('p', { view: 't', overrides: { slots: 5, anchor: { panel: ROOT, position: 'right', priority: 0 } } })]);
+  const result = run({ saved, templates: [tpl('t', { maxSlots: 2 })] });
+  assert.equal(result.entries[0]!.slots, 2);
+  assert.deepEqual(result.entries[0]!.size, sizeOfSlots(2));
+  assert.equal(result.entries[0]!.overrides!.anchor !== undefined, true);
 });
 
 test('rememberLayout false applies none of the stored overrides and carries them through two saves unchanged', () => {
-  const overrides = { formFactor: 'tablet' as const, anchor: { panel: ROOT, position: 'right' as const, priority: 0 }, parkable: false };
+  const overrides = { slots: 2, anchor: { panel: ROOT, position: 'right' as const, priority: 0 }, parkable: false };
   const saved = file([savedEntry('p', { view: 't', overrides, applied: { placeOnAdd: 'row-end' } })]);
   const first = run({ saved, templates: [tpl('t', { rememberLayout: false })] });
-  assert.equal(first.entries[0]!.formFactor, 'phone');
+  assert.equal(first.entries[0]!.slots, 1);
   assert.equal(first.entries[0]!.collapsible, true);
   const once = projectWorkspaceState([createHistoryPanel(ROOT), ...first.entries], ROOT);
   const second = run({ saved: JSON.parse(JSON.stringify(once)), templates: [tpl('t', { rememberLayout: false })] });
@@ -294,24 +281,24 @@ test('rememberLayout false applies none of the stored overrides and carries them
 });
 
 test('flipping rememberLayout back to true applies the stored overrides', () => {
-  const saved = file([savedEntry('p', { view: 't', overrides: { formFactor: 'tablet' } })]);
-  assert.equal(run({ saved, templates: [tpl('t', { rememberLayout: false })] }).entries[0]!.formFactor, 'phone');
-  assert.equal(run({ saved, templates: [tpl('t', { rememberLayout: true })] }).entries[0]!.formFactor, 'tablet');
+  const saved = file([savedEntry('p', { view: 't', overrides: { slots: 2 } })]);
+  assert.equal(run({ saved, templates: [tpl('t', { rememberLayout: false })] }).entries[0]!.slots, 1);
+  assert.equal(run({ saved, templates: [tpl('t', { rememberLayout: true })] }).entries[0]!.slots, 2);
 });
 
 // overrides.parkable
 
-test('a hand-written overrides.parkable false restores a declared and an anonymous panel fixed: live, phone, the C1 values', () => {
+test('a hand-written overrides.parkable false restores a declared and an anonymous panel fixed: live, one slot, the C1 values', () => {
   const saved = file(
     line(
       savedEntry('d', { view: 't', key: 'd', overrides: { parkable: false }, live: false }),
-      savedEntry('x', { view: 't', key: 't~x', overrides: { parkable: false }, formFactor: 'tablet', live: false }),
+      savedEntry('x', { view: 't', key: 't~x', overrides: { parkable: false }, slots: 2, live: false }),
     ),
   );
   const result = run({ saved, templates: [tpl('t', { parkable: true, multiple: true })], declared: [{ id: 'd', templateId: 't' }] });
   assert.equal(result.entries.length, 2);
   for (const p of result.entries) {
-    assert.deepEqual([p.collapsible, p.live, p.formFactor, p.settings!.overflow, p.settings!.restoreVisibility], [false, true, 'phone', 'scroll', 'live'], p.key);
+    assert.deepEqual([p.collapsible, p.live, p.slots, p.settings!.overflow, p.settings!.restoreVisibility], [false, true, 1, 'scroll', 'live'], p.key);
   }
 });
 
@@ -322,12 +309,12 @@ test('overrides.parkable under rememberLayout false is carried dormant: the pane
   assert.deepEqual(result.entries[0]!.overrides, { parkable: false });
 });
 
-test('overrides.parkable false on a panel whose tier resolves to tablet is dropped with a note', () => {
-  const saved = file([savedEntry('p', { view: 't', overrides: { parkable: false, formFactor: 'tablet' } })]);
+test('overrides.parkable false on a panel whose slots resolve to two is dropped with a note', () => {
+  const saved = file([savedEntry('p', { view: 't', overrides: { parkable: false, slots: 2 } })]);
   const result = run({ saved, templates: [tpl('t')] });
   assert.equal(result.entries[0]!.collapsible, true);
   assert.deepEqual(result.notes.filter((n) => n.code === 'override-dropped').map((n) => n.key), ['parkable']);
-  assert.deepEqual(result.entries[0]!.overrides, { formFactor: 'tablet' });
+  assert.deepEqual(result.entries[0]!.overrides, { slots: 2 });
 });
 
 test('a malformed overrides.parkable is dropped by the sanitizer and the saved parkable never lands in instance', () => {
@@ -424,4 +411,27 @@ test('session anchor re-derived: a projected file keeps A, B, C order', () => {
   assert.equal(projected.panels.some((p) => p.id === 's'), false, 'the session panel is not in the file');
   const result = run({ saved: projected, workspaceDefaults: {} });
   assert.deepEqual(titles(result.entries), ['A', 'B', 'C', 'D', 'E']);
+});
+
+test('an entry saved before slots restores its top-level formFactor and its overrides.formFactor as slot counts, and slots wins over both', () => {
+  const old = (id: string, more: Record<string, unknown>): WorkspacePanelState => savedEntry(id, more as Partial<WorkspacePanelState>);
+  const saved = file(line(
+    old('tablet', { formFactor: 'tablet' }),
+    old('desktop', { formFactor: 'desktop' }),
+    old('phone', { formFactor: 'phone' }),
+    old('over', { view: 't', overrides: { formFactor: 'tablet' } }),
+    old('both', { formFactor: 'desktop', slots: 3 }),
+    old('over-both', { view: 't', overrides: { formFactor: 'desktop', slots: 3 } }),
+  ));
+  const result = run({ saved, templates: [tpl('t')], workspaceDefaults: {} });
+  assert.deepEqual(Object.fromEntries(result.entries.map((p) => [p.title, p.slots])), { tablet: 2, desktop: 64, phone: 1, over: 2, both: 3, 'over-both': 3 });
+  assert.deepEqual(result.entries.find((p) => p.title === 'over')!.overrides, { slots: 2 }, 'the old key is read as slots, so the next save writes slots');
+});
+
+test('a new save never writes formFactor and writes slots only when it is not one', () => {
+  const saved = file([savedEntry('p', { view: 't', overrides: { formFactor: 'tablet' } as never }), savedEntry('q', { view: 't', slots: 3 }), savedEntry('r', { view: 't', overrides: {} })]);
+  const result = run({ saved, templates: [tpl('t')] });
+  const projected = projectWorkspaceState([createHistoryPanel(ROOT), ...result.entries], ROOT);
+  assert.equal(JSON.stringify(projected).includes('formFactor'), false);
+  assert.deepEqual(Object.fromEntries(projected.panels.map((p) => [p.title, p.slots])), { p: 2, q: 3, r: undefined }, 'one slot is not written');
 });

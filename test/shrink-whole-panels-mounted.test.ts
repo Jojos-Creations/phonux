@@ -8,15 +8,16 @@ import './support/jsdom-globals.js';
 import * as React from 'react';
 import { act } from 'react';
 import { MotionConfig } from 'motion/react';
-import { registerView, usePanelDragging, usePanelResizing } from '../index.js';
+import { usePanelDragging, usePanelResizing } from '../index.js';
 import { advanceFrames, cleanup } from './support/mount-harness.js';
 import { differential } from './support/differential.js';
 import { computeRowNumbers } from '../rowNumbers.js';
 import { slotDriver } from '../PanelRowSlot.js';
 import { made, mountRow, rootEntry, row } from './support/scroll-row.js';
+import { registerTestView } from './support/test-views.js';
 
 const resizeSetters = new Map<string, (on: boolean) => void>();
-registerView('resizing-view', ({ panel }) => {
+registerTestView('resizing-view', ({ panel }) => {
   const [, set] = usePanelResizing();
   resizeSetters.set(panel.id, set);
   return React.createElement('i', { 'data-slot': panel.id, 'data-dragging': String(usePanelDragging()) }, panel.title);
@@ -278,6 +279,35 @@ test('the 4-slot panel steps through every size at rest: 1, 2, 3, 4, 3, 2, 1 for
   const back = [seen()];
   for (let k = 0; k < 7; k++) {
     await step(m, 'left');
+    back.push(seen());
+  }
+  assert.deepEqual(back, [...forward].reverse());
+});
+
+/** One trackpad swipe: deltas ramp up, peak and fade 16 ms apart, then the glide runs out and the gesture goes quiet. */
+async function swipe(m: ReturnType<typeof mountRow>, direction: 'right' | 'left'): Promise<void> {
+  for (const delta of [2, 4, 9, 18, 32, 50, 70, 88, 100, 104, 100, 92, 82, 72, 62, 52, 44, 36, 30, 24, 19, 15, 12, 9, 7, 5, 4, 3, 2, 1]) {
+    m.wheel({ deltaX: direction === 'right' ? delta : -delta });
+    mock.timers.tick?.(16);
+  }
+  await advanceFrames(600);
+  scrolled(m);
+  mock.timers.tick?.(1000);
+}
+
+test('one trackpad swipe is one step: the 4-slot panel comes in as 1, 2, 3, 4 slots and goes out as 3, 2, 1, one size per swipe', async () => {
+  const m = await opened('visible');
+  mock.timers.enable({ apis: ['setTimeout'] });
+  const seen = (): number => widthsOf(m.container)[2]!;
+  const forward = [seen()];
+  for (let k = 0; k < 7; k++) {
+    await swipe(m, 'right');
+    forward.push(seen());
+  }
+  assert.deepEqual(forward, [SLOT(1), SLOT(2), SLOT(3), SLOT(4), SLOT(3), SLOT(2), SLOT(1), SLOT(4)]);
+  const back = [seen()];
+  for (let k = 0; k < 7; k++) {
+    await swipe(m, 'left');
     back.push(seen());
   }
   assert.deepEqual(back, [...forward].reverse());

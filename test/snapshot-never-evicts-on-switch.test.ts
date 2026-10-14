@@ -65,7 +65,7 @@ async function build(ids: readonly string[], o: { width: number; park?: boolean;
   await flush();
   const found = m.latest().entries.find((p) => p.marker !== true && panelKey(p) === 'b');
   assert.ok(found, 'the row holds an entry keyed b');
-  return { ws, m, spy, b: handles[ids.indexOf('b')]!, id: found.id };
+  return { ws, m, spy, b: handles[ids.indexOf('b')]!, id: panelKey(found) };
 }
 
 const liveRig = (strict = false): Promise<Rig> => build(['a', 'b', 'c'], { width: 4000, strict });
@@ -185,7 +185,7 @@ test('the ask is made by the commit that applies the switch: a child sees it bef
     return null;
   }
   function Probe(): React.ReactElement {
-    useProvidePanels(panelsInput({ workspace: ws, rootId: ws.rootId, containerWidth: 4000, capture: spy }));
+    useProvidePanels(panelsInput({ workspace: ws, containerWidth: 4000, capture: spy }));
     return React.createElement(Watcher);
   }
   mount(React.createElement(Probe));

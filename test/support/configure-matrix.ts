@@ -16,7 +16,7 @@ import { panelKey } from '../../panelSettings.js';
 import { createFakeHost } from '../../fakeHost.js';
 import { advanceFrames, mount, panelsInput, withHost } from './mount-harness.js';
 import { FRAME_MS } from './jsdom-globals.js';
-import { flush, mountWorkspace, type MountedWorkspace } from './workspace-row.js';
+import { flush, mountWorkspace, rowEntries, type MountedWorkspace } from './workspace-row.js';
 
 export const CLASSES = ['NOW', 'NEXT', 'STATE', 'SCOPE'] as const;
 export type Cls = (typeof CLASSES)[number];
@@ -141,6 +141,9 @@ export function cell(cls: Cls, status: Status): void {
 }
 export const cellsExecuted = (): ReadonlySet<string> => cellsRun;
 
+/** Views are given a panel's key; these tests name a panel by the engine id of its entry, which the rig in use maps the key to. */
+const engineOf = { current: (key: string): string => rowEntries.current.find((p) => panelKey(p) === key)?.id ?? key };
+
 const mounts = new Map<string, { mounted: number; unmounted: number }>();
 const stateSetters = new Map<string, (n: number) => void>();
 export const viewLog = {
@@ -164,7 +167,8 @@ export const viewLog = {
 export const matrixTemplate = (id: string, over: Partial<PanelTemplate> = {}): PanelTemplate =>
   definePanel({
     id,
-    view: ({ panel }) => {
+    view: ({ panel: summary }) => {
+      const panel = { ...summary, id: engineOf.current(summary.id) };
       const caps = usePanelCapabilities();
       const closeEligible = usePanelCloseEligible();
       const reorderEligible = usePanelReorderEligible();
@@ -192,7 +196,7 @@ export const matrixTemplate = (id: string, over: Partial<PanelTemplate> = {}): P
         'data-title': panel.title ?? '',
         'data-close': String(closeEligible),
         'data-reorder': String(reorderEligible),
-        'data-caps': JSON.stringify({ closable: caps.closable, draggable: caps.draggable, placeable: caps.placeable, resizable: caps.resizable, formFactors: caps.formFactors }),
+        'data-caps': JSON.stringify({ closable: caps.closable, draggable: caps.draggable, placeable: caps.placeable, resizable: caps.resizable, maxSlots: caps.maxSlots }),
         'data-neighbors': JSON.stringify(neighbors),
         'data-pinned': String(pinned),
         'data-hidden': String(hidden),
@@ -219,7 +223,7 @@ function DragBox({ id, close }: { id: string; close: () => void }): React.ReactE
 export const dragTemplate = (id: string, over: Partial<PanelTemplate> = {}): PanelTemplate =>
   definePanel({
     id,
-    view: ({ panel, handle }) => createElement(DragBox, { id: panel.id, close: () => void handle.close() }),
+    view: ({ panel, handle }) => createElement(DragBox, { id: engineOf.current(panel.id), close: () => void handle.close() }),
     ...over,
     settings: { frame: 'none', ...over.settings },
   });
@@ -244,7 +248,8 @@ function mountWired(ws: WorkspaceHandle, width: number, over: Partial<PanelsInpu
   let latest: ProvidedPanels | undefined;
   let renders = 0;
   function Probe(): React.ReactElement {
-    latest = useProvidePanels(panelsInput({ workspace: ws, rootId: ws.rootId, containerWidth: width, overflowContainerRef: ref, onNote: (n) => void notes.push(n), ...over }));
+    latest = useProvidePanels(panelsInput({ workspace: ws, containerWidth: width, overflowContainerRef: ref, onNote: (n) => void notes.push(n), ...over }));
+    rowEntries.current = latest.entries;
     renders += 1;
     const provided = latest;
     return withHost(

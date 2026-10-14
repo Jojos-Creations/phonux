@@ -168,6 +168,7 @@
         "PhoneFrameHeader",
         "PhoneFrameHeaderRow",
         "PhoneView",
+        "TIER_SIZES",
         "computeMaxLiveWidth",
         "computeRowOrder",
         "deriveAnchorsFromOrder",
@@ -175,7 +176,9 @@
         "phoneFrameBareSx",
         "phoneFrameScrollSx",
         "registerPanelView",
+        "registerView",
         "resolvePanelView",
+        "resolveView",
         "shouldCloseOnRelease",
         "summarisePanel",
         "usePhoneAPIs",
@@ -185,6 +188,7 @@
         "DetectedPhone",
         "DeviceAPI",
         "Entry",
+        "FormFactor",
         "Item",
         "PanelComponent",
         "PhoneAPIs",
@@ -193,7 +197,9 @@
         "PhoneFrameHeaderRowProps",
         "PhoneFrameProps",
         "PhoneViewProps",
-        "ReleaseMeasure"
+        "ReleaseMeasure",
+        "ViewComponent",
+        "ViewProps"
       ]
     },
     "testing": {
@@ -202,7 +208,8 @@
       ],
       "types": [
         "DetectedPhone",
-        "FakePhoneAPIs"
+        "FakePhoneAPIs",
+        "FormFactor"
       ]
     }
   }

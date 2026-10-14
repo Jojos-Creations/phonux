@@ -37,7 +37,7 @@ test('pinned: the tie-break between unpinned panels leaves the pinned ones alone
 });
 
 test('pinned: a wide pinned panel is not parked in place of an unpinned one', async () => {
-  const r = await capRig({ count: 8, cap: 5, width: 2500, pinned: ['w1'], own: { w1: { formFactor: 'desktop' } } });
+  const r = await capRig({ count: 8, cap: 5, width: 2500, pinned: ['w1'], own: { w1: { slots: 64 } } });
   assert.equal(r.row(), 'w1 root w2* w3* w4 w5 w6 w7 w8', 'two unpinned panels park, exactly as many as exceed N');
 });
 
@@ -175,7 +175,7 @@ test('drag: dropping a pinned panel right of History parks exactly one other and
 
 test('drag: moving a panel one place with the move verb across History does the same as a drag', async () => {
   const r = await capRig({ count: 8, cap: 5, pinned: ['w1'] });
-  r.turn(() => r.h.w1!.move('right', 'person'));
+  r.turn(() => r.h.w1!.move(1, 'person'));
   await r.settle();
   assert.equal(r.row(), 'root w1 w2* w3* w4* w5 w6 w7 w8');
 });
@@ -192,7 +192,7 @@ test('drag: no committed row holds more than N unpinned live panels through a mo
   const r = await capRig({ count: 9, cap: 5, width: 3000, grab: true, pinned: ['w1', 'w2'], record: true });
   await advanceFrames(2000);
   const accepted = [
-    r.turn(() => r.h.w1!.move('right', 'person')),
+    r.turn(() => r.h.w1!.move(1, 'person')),
     r.turn(() => r.h.w2!.place('after-fixed', 'person')),
     r.turn(() => r.h.w6!.pin()),
     r.turn(() => r.h.w6!.unpin()),
@@ -295,8 +295,8 @@ test('layout reset: a pinned panel reset to the end of the row parks exactly one
 });
 
 test('layout reset: a wide panel that a reset moves back to the pinned start is not parked in place of an unpinned one', async () => {
-  const r = await capRig({ count: 9, cap: 5, width: 2500, pinned: ['w1'], own: { w1: { formFactor: 'desktop' } } });
-  r.turn(() => r.h.w1!.move('right', 'person'));
+  const r = await capRig({ count: 9, cap: 5, width: 2500, pinned: ['w1'], own: { w1: { slots: 64 } } });
+  r.turn(() => r.h.w1!.move(1, 'person'));
   r.turn(() => r.h.w8!.pin('person'));
   r.turn(() => r.h.w9!.pin('person'));
   r.turn(() => r.h.w2!.show());

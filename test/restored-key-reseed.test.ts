@@ -14,7 +14,7 @@ import { panelKey } from '../panelSettings.js';
 import { definePanel } from '../panelTemplate.js';
 import { nextEngineId, seedEngineIdsPast } from '../workspaceCore.js';
 import { createHistoryPanel } from '../panelWindow.js';
-import { cleanup, mount, panelsInput } from './support/mount-harness.js';
+import { cleanup, mount, useSeededInput } from './support/mount-harness.js';
 import { flush, markerTemplate, mountWorkspace } from './support/workspace-row.js';
 
 afterEach(() => cleanup());
@@ -55,7 +55,7 @@ test('the hand-wired hook restores through the same seed: create after a restore
   void storage.save(saved('reseed-b', keys));
   let latest: ProvidedPanels | undefined;
   const Probe = (): null => {
-    latest = useProvidePanels(panelsInput({ initialEntries: [createHistoryPanel('root')], storage, templates: [t], defaultView: 'reseed-b' }));
+    latest = useProvidePanels(useSeededInput({ initialEntries: [createHistoryPanel('root')], storage, templates: [t], defaultView: 'reseed-b' }));
     return null;
   };
   mount(React.createElement(React.StrictMode, null, React.createElement(Probe)));

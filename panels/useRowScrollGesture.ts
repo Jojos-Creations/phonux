@@ -13,14 +13,21 @@
  */
 import { useEffect, useRef } from 'react';
 import type { RefObject } from 'react';
+import { arrowKeyBelongsElsewhere } from '../arrowKeys.js';
 import { GESTURE_LOCK_MS, GESTURE_QUIET_MS } from '../rowConstants.js';
+
+/** How far above the trough of a fading tail an event must rise to count as a new swipe; tail jitter such as 14, 12, 13 stays under it. */
+const RISE_FACTOR = 1.5;
+/** The least the rise must also add to the trough, in delta units: a tail rounded to whole pixels (1, 1, 2, 1) is not a new swipe. */
+const RISE_FLOOR = 4;
 
 /**
  * `gestureLockMs`: after a step, wheel events are ignored for this long (the lock is not re-armed by them). A trackpad
- * swipe arrives as a burst of wheel deltas with a momentum tail, and a WebKit or Blink browser cannot tell a momentum
- * event from a fresh user one; so once the lock is over, an event steps again only if it is not decaying (it is at
- * least as large as the one before it, or it reverses direction). A swipe whose deltas fade away is one step; a wheel
- * or swipe that keeps its speed steps again and again.
+ * swipe arrives as a burst of wheel deltas that ramps up, peaks and fades, with a momentum tail, and a WebKit or Blink
+ * browser cannot tell a momentum event from a fresh user one. So one swipe is one step: after a step, an event steps again
+ * only once the lock is over and either its direction reverses, or the deltas have fallen since the step (the trough is
+ * the smallest magnitude seen since) and the event is at least `RISE_FACTOR` times the trough and `RISE_FLOOR` above it, a new swipe starting in the
+ * tail. A plateau of equal deltas, a ramp, and jitter in a tail never step again.
  *
  * `gestureQuietMs`: no wheel event for this long ends a gesture, so the next event is fresh and steps whatever its size.
  */
@@ -44,6 +51,8 @@ export function useRowScrollGesture(
     let locked = false;
     let previous = 0;
     let previousSign = 0;
+    // The smallest magnitude seen since the last step once the deltas have fallen; null until they do.
+    let trough: number | null = null;
     let unlockTimer: ReturnType<typeof setTimeout> | null = null;
     let quietTimer: ReturnType<typeof setTimeout> | null = null;
     const onWheel = (e: WheelEvent): void => {
@@ -56,7 +65,12 @@ export function useRowScrollGesture(
       e.preventDefault();
       const magnitude = Math.abs(amount);
       const sign = Math.sign(amount);
-      const holding = magnitude >= previous || sign !== previousSign;
+      const reversed = sign !== previousSign;
+      // A reversal inside the lock is not lost: the first event after it steps.
+      if (reversed) trough = 0;
+      else if (magnitude < previous) trough = trough === null ? magnitude : Math.min(trough, magnitude);
+      const fresh = reversed || previous === 0;
+      const holding = fresh || (trough !== null && magnitude >= Math.max(trough * RISE_FACTOR, trough + RISE_FLOOR));
       previous = magnitude;
       previousSign = sign;
       if (quietTimer) clearTimeout(quietTimer);
@@ -65,6 +79,7 @@ export function useRowScrollGesture(
       }, gestureQuietMsRef.current);
       if (locked || !holding) return;
       locked = true;
+      trough = null;
       unlockTimer = setTimeout(() => {
         locked = false;
       }, gestureLockMsRef.current);
@@ -72,12 +87,9 @@ export function useRowScrollGesture(
     };
     const onKeyDown = (e: KeyboardEvent): void => {
       if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
-      if (e.altKey || e.ctrlKey || e.metaKey || e.shiftKey) return;
+      if (arrowKeyBelongsElsewhere(e, document)) return;
       // A workspace a column keeps off-screen is inert: its row must not step for a key meant for the one in view.
       if (container.closest('[inert]') !== null) return;
-      const target = e.target as HTMLElement | null;
-      const tag = target?.tagName;
-      if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || target?.isContentEditable) return;
       onStepRef.current(e.key === 'ArrowRight' ? 'right' : 'left');
     };
     container.addEventListener('wheel', onWheel, { passive: false });
@@ -90,6 +102,5 @@ export function useRowScrollGesture(
     };
     // `overflowContainerRef` is a stable ref object (a useRef in the host's row shell): this effect attaches once,
     // at mount, and reads the latest `onStep` through `onStepRef` instead of re-subscribing to it.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [overflowContainerRef, mode]);
 }

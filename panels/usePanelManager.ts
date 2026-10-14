@@ -9,7 +9,6 @@
 import { useEffect, useLayoutEffect, useReducer, useRef, useState } from 'react';
 import type { Dispatch, SetStateAction } from 'react';
 import { flushSync } from 'react-dom';
-import type { FormFactor } from '../hostApi.js';
 import { computeRowNumbers } from '../rowNumbers.js';
 import { placePanel, reportNotes } from '../panelPlacement.js';
 import { applyPinChange, landPanel, pinHalf, pinnedIds, withoutDeferral, type PinApplied, type PinChange, type PinEnv } from '../panelPin.js';
@@ -26,13 +25,13 @@ import {
   lastParkedBefore,
   leftmostLiveIndex,
   farthestLiveCollapsibleId,
-  movePanel,
+  movePanelBy,
   parkLevers,
   parksForRoom,
   promoteToLive,
   recordOverride,
   rightmostLiveIndex,
-  resizeTo,
+  setSlots,
   sideOfLiveRange,
   type PanelWindow,
 } from '../panelWindow.js';
@@ -89,10 +88,10 @@ export interface UsePanelManagerResult {
    * with no `setPanels`, when nothing is parked on that side or when that panel's `revealOnScroll` is 'never'.
    */
   scrollRow: (direction: 'left' | 'right') => void;
-  /** Moves `id` one row-slot toward `direction`; see `movePanel` for the no-op contract. `record` false (a call from code) leaves the person's arrangement, `overrides`, as it was. True when the move changes this render's list. */
-  reorderPanel: (id: string, direction: 'left' | 'right', record?: boolean) => boolean;
-  /** `setFormFactor` through setPanels; if the row no longer fits, the same update parks what the capacity drop would, keeping every acted-on panel live. False for a no-op. `record` false leaves `overrides` as it was. */
-  resizePanel: (id: string, next: FormFactor | number, record?: boolean) => boolean;
+  /** Moves `id` `by` row-slots (negative: left; 'left' and 'right' are one slot); see `movePanel` for the no-op contract, and `movePanelBy` for a count that runs out at an edge. `record` false (a call from code) leaves the person's arrangement, `overrides`, as it was. True when the move changes this render's list. */
+  reorderPanel: (id: string, by: number | 'left' | 'right', record?: boolean) => boolean;
+  /** `setSlots` through setPanels; if the row no longer fits, the same update parks what the capacity drop would, keeping every acted-on panel live. False for a no-op. `record` false leaves `overrides` as it was. */
+  resizePanel: (id: string, slots: number, record?: boolean) => boolean;
   /** Puts `id` where `value` says, keeping its live flag; the placement is the developer's own ask, so `placeable` is the caller's to check. `record` false leaves `overrides` as it was. True when the placement changes this render's list. */
   placeAt: (id: string, value: AddPlacement | 'in-place', record?: boolean) => boolean;
   /** The in-flight gate shared by the manager's operations and the raw mutators. */
@@ -241,12 +240,12 @@ export function usePanelManager(
   };
   /** Every id a park must leave alone: those just acted on, and under a cap the pinned ones. */
   const keptIds = (): ReadonlySet<string> => new Set([...keepLiveRef.current.keys(), ...pinned]);
-  /** Tiers resizePanel queued on `seen` that have not reached `panels` yet, so a later action in the same handler can price them. */
-  const pendingTiersRef = useRef<{ seen: PanelWindow[] | null; tiers: ReadonlyMap<string, FormFactor | number> }>({ seen: null, tiers: new Map() });
-  /** `row` (read in this render) with those tiers applied. */
-  const withPendingTiers = (row: PanelWindow[]): PanelWindow[] => {
-    const { seen, tiers } = pendingTiersRef.current;
-    return seen === panels ? [...tiers].reduce((acc, [id, tier]) => resizeTo(acc, id, tier), row) : row;
+  /** Slot counts resizePanel queued on `seen` that have not reached `panels` yet, so a later action in the same handler can price them. */
+  const pendingSlotsRef = useRef<{ seen: PanelWindow[] | null; slots: ReadonlyMap<string, number> }>({ seen: null, slots: new Map() });
+  /** `row` (read in this render) with those slot counts applied. */
+  const withPendingSlots = (row: PanelWindow[]): PanelWindow[] => {
+    const { seen, slots } = pendingSlotsRef.current;
+    return seen === panels ? [...slots].reduce((acc, [id, count]) => setSlots(acc, id, count), row) : row;
   };
   /** `next`, plus in the same update whatever the reconcile's DROP would park, so no committed row overflows. */
   const settledKeeping = (next: PanelWindow[], keep: readonly string[]): PanelWindow[] => {
@@ -614,8 +613,8 @@ export function usePanelManager(
     markKeepLive(reveal.id);
     // A resize earlier in this handler is priced at its new tier, or the row committed below could overflow. A pin change the panel waits with lands first, so the gesture parks against the row it makes.
     const waiting = reveal.deferredPin !== undefined;
-    const landed = waiting ? landOn(withPendingTiers(panels), reveal.id, 'in-place') : undefined;
-    const sized = landed?.row ?? withPendingTiers(panels);
+    const landed = waiting ? landOn(withPendingSlots(panels), reveal.id, 'in-place') : undefined;
+    const sized = landed?.row ?? withPendingSlots(panels);
     const live = sized.filter(isParkLive);
     const farFirst = (direction === 'right' ? live : [...live].reverse()).filter((p) => !kept.has(p.id));
     const toPark = new Set<string>();
@@ -643,11 +642,12 @@ export function usePanelManager(
   };
 
   /** See `UsePanelManagerResult.reorderPanel`'s own doc comment. */
-  const reorderPanel = (id: string, direction: 'left' | 'right', record = true): boolean => {
-    const changes = movePanel(panels, id, direction, rootId) !== panels;
+  const reorderPanel = (id: string, by: number | 'left' | 'right', record = true): boolean => {
+    const count = by === 'left' ? -1 : by === 'right' ? 1 : by;
+    const changes = movePanelBy(panels, id, count, rootId) !== panels;
     keepMoved(id, changes);
     setPanels((prev) => {
-      const moved = movePanel(prev, id, direction, rootId);
+      const moved = movePanelBy(prev, id, count, rootId);
       // A drag settles every panel's place for the person, not only the dragged one's.
       return moved === prev || !record ? moved : recordOverride(moved, 'anchor', moved.map((p) => p.id), rootId);
     });
@@ -673,19 +673,19 @@ export function usePanelManager(
   };
 
   /** See `UsePanelManagerResult.resizePanel`'s own doc comment. */
-  const resizePanel = (id: string, next: FormFactor | number, record = true): boolean => {
-    if (resizeTo(panels, id, next) === panels) return false;
+  const resizePanel = (id: string, next: number, record = true): boolean => {
+    if (setSlots(panels, id, next) === panels) return false;
     const wasLive = panels.find((p) => p.id === id)?.live === true;
     markKeepLive(id);
     const keep = [...keptIds()];
-    const pending = pendingTiersRef.current.seen === panels ? pendingTiersRef.current.tiers : [];
-    pendingTiersRef.current = { seen: panels, tiers: new Map(pending).set(id, next) };
+    const pending = pendingSlotsRef.current.seen === panels ? pendingSlotsRef.current.slots : [];
+    pendingSlotsRef.current = { seen: panels, slots: new Map(pending).set(id, next) };
     if (wasLive) {
       purgeExitRight(id);
       forgetCollapsed(id);
     }
     setPanels((prev) => {
-      const resized = resizeTo(prev, id, next);
+      const resized = setSlots(prev, id, next);
       // An earlier call in this same handler may have queued a park of it (its exit mark and stack entry are
       // dropped above): a resize never parks its own panel, so that park is cancelled before anything commits.
       const own = wasLive && resized.some((p) => p.id === id && !p.live) ? resized.map((p) => (p.id === id ? { ...p, live: true } : p)) : resized;
@@ -800,7 +800,7 @@ export function usePanelManager(
   /** See `UsePanelManagerResult.revealMostRecentlyCollapsed`'s own doc comment for the full contract. */
   const revealMostRecentlyCollapsed = (panelsAfterClose: PanelWindow[]): void => {
     // Priced like scrollRow: a resize earlier in this handler is not in `panelsAfterClose` yet.
-    const sized = withPendingTiers(panelsAfterClose);
+    const sized = withPendingSlots(panelsAfterClose);
     const stack = collapseOrderRef.current;
     const stale = new Set<string>();
     let candidateId: string | null = null;

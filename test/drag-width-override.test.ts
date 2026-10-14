@@ -9,13 +9,14 @@ import './support/jsdom-globals.js';
 import * as React from 'react';
 import { act } from 'react';
 import { MotionConfig } from 'motion/react';
-import { PanelSizeBox, registerView, usePanelResizing } from '../index.js';
+import { PanelSizeBox, usePanelResizing } from '../index.js';
 import { advanceFrames, cleanup, mount } from './support/mount-harness.js';
 import { made, mountRow, rootEntry, row } from './support/scroll-row.js';
+import { registerTestView } from './support/test-views.js';
 
 type Setters = { resizing: (on: boolean) => void; width: (px: number | null, pin?: 'start' | 'end') => void; renders: number };
 const setters = new Map<string, Setters>();
-registerView('override-view', ({ panel }) => {
+registerTestView('override-view', ({ panel }) => {
   const [, resizing, width] = usePanelResizing();
   const entry = setters.get(panel.id) ?? { resizing, width, renders: 0 };
   entry.resizing = resizing;

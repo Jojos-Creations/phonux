@@ -139,7 +139,7 @@ const sameSlot = (a: PanelWindow, b: PanelWindow): boolean =>
 
 /**
  * `change` applied to panel `id` of `row`, all or nothing. `pin` places, then fixes: the half's placement is gated by
- * the panel's `placeable` as it is now, a fixed column needs the phone tier and no explicit setting the fix would
+ * the panel's `placeable` as it is now, a fixed column needs one slot and no explicit setting the fix would
  * override. `unpin` frees first, so the panel's permissions are the derived ones again, then places, so a fixed pin
  * can always be unpinned. A half with no placement uses `o.fallback`, which no `placeable` gate guards. A deferred pin
  * the panel held is cleared whatever the outcome.
@@ -157,7 +157,7 @@ export function applyPinChange(row: readonly PanelWindow[], id: string, change: 
   const freed = freedTo === undefined ? entry : reparked(entry, freedTo);
   if (half.placement !== undefined && !effective(freed).placeable) return refusal('not-placeable', `panel '${name}' cannot be placed`);
   if (fixedTo !== undefined) {
-    if (slotsOf(entry) !== 1) return refusal('tier-not-allowed', `panel '${name}' is wider than one slot, which a fixed column needs`);
+    if (slotsOf(entry) !== 1) return refusal('slots-above-max', `panel '${name}' is wider than one slot, which a fixed column needs`);
     const clash = fixedTo.conflicts.find((c) => c.kind === 'forced' && c.forcedBy === 'parkable');
     if (clash !== undefined) return refusal('settings-conflict', clash.message, clash.key as CatalogName);
   }

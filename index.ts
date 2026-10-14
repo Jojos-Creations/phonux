@@ -11,7 +11,6 @@ export type {
   PhoneSize,
   ClosedPageEntry,
   JsonValue,
-  FormFactor,
   PanelSize,
   PanelSummary,
   CreatePanelOptions,
@@ -30,9 +29,6 @@ export type { ViewId, ViewSnapshot, SnapshotsAPI, CaptureRegistry, CaptureTrigge
 
 export { useViewState, ViewStateMissingProviderError } from './viewState.js';
 export type { UseViewState } from './viewState.js';
-
-export { registerView, resolveView } from './viewRegistry.js';
-export type { ViewComponent, ViewProps } from './viewRegistry.js';
 
 export {
   Panel,
@@ -73,8 +69,10 @@ export { usePhoneFit } from './usePhoneFit.js';
 
 export type { PanelAnchor } from './panelRowOrder.js';
 export type { NeighborWidths, PanelRowEntry } from './panelRowEntry.js';
-export { DEFAULT_PANEL_SIZE, TIER_SIZES, panelWidthOf } from './panelTiers.js';
+export { DEFAULT_PANEL_SIZE, panelWidthOf } from './panelTiers.js';
 export { computeRowLayout } from './panelRowLayout.js';
+export { minWorkspaceWidth } from './minWorkspaceWidth.js';
+export type { MinWorkspaceWidthInput } from './minWorkspaceWidth.js';
 export type { RowLayoutInput, RowLayoutResult } from './panelRowLayout.js';
 export { computeRowNumbers } from './rowNumbers.js';
 export type { RowNumbers } from './rowNumbers.js';
@@ -152,6 +150,8 @@ export type { PanelApiLevel } from './panelApiLevel.js';
 export { definePanel } from './panelTemplate.js';
 export type {
   PanelTemplate,
+  PanelViewProps,
+  AnyPanelTemplate,
   PanelStatus,
   DeferredPin,
   PanelState,
@@ -169,12 +169,13 @@ export { createWorkspaceColumn } from './columnHandle.js';
 export type { ColumnOptions, ColumnState, ColumnStatus, ColumnStorage, ColumnWorkspaceOptions, WorkspaceColumnHandle } from './columnHandle.js';
 export { COLUMN_BOTTOM_BAND, COLUMN_TOP_BAND, WorkspaceColumn } from './WorkspaceColumn.js';
 export type { WorkspaceColumnProps } from './WorkspaceColumn.js';
-export type { WorkspaceHandle, WorkspaceOptions, WorkspaceWrapProps } from './workspaceCore.js';
+export type { ViewWorkspace, WorkspaceHandle, WorkspaceOptions, WorkspaceWrapProps } from './workspaceCore.js';
 export type { WorkspaceLive, WorkspacePanelsInput } from './workspaceLive.js';
 export type { PanelHandle } from './panelHandles.js';
 export type { ConfigureResult, PanelManager, PanelResult, PinResult, ResetResult } from './panelManager.js';
-export { usePanelStates, usePanelState, useWorkspaceManager } from './panels/usePanelStates.js';
-export { ACTIVE_ATTRIBUTE, CHROME_ATTRIBUTE, CHROME_PARTS, DRAGGING_ATTRIBUTE, useActivePanel, usePanelActive, usePanelDragging, usePanelResizing } from './panelChrome.js';
+export { usePanelStates, usePanelState, useWorkspace, useWorkspaceManager } from './panels/usePanelStates.js';
+export { PanelResizeGrips } from './PanelResizeGrips.js';
+export { ACTIVE_ATTRIBUTE, CHROME_ATTRIBUTE, CHROME_PARTS, DRAGGING_ATTRIBUTE, useActivePanel, usePanelActive, usePanelDragProps, usePanelDragging, usePanelResizing } from './panelChrome.js';
 export type { ChromePart } from './panelChrome.js';
 
 export { PanelManagerError } from './panelManagerError.js';

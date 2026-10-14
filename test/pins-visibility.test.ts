@@ -7,9 +7,10 @@ import assert from 'node:assert/strict';
 import './support/jsdom-globals.js';
 import * as React from 'react';
 import { act } from 'react';
-import { PanelRow, registerView, useViewState, type PanelWindow } from '../index.js';
+import { useViewState, type PanelWindow } from '../index.js';
 import type { UsePanelManagerResult } from '../panels/usePanelManager.js';
-import { advanceFrames, cleanup, mount, usePanelManagerWith, withHost } from './support/mount-harness.js';
+import { advanceFrames, cleanup, mount, usePanelManagerWith, withHost, StaticRow } from './support/mount-harness.js';
+import { registerTestView } from './support/test-views.js';
 
 const entry = (id: string, over: Partial<PanelWindow> = {}): PanelWindow => ({
   id,
@@ -47,14 +48,14 @@ function mountManager(initial: PanelWindow[], containerWidth: number): { latest:
 }
 
 const setters = new Map<string, (next: number) => void>();
-registerView('pin-vs', ({ panel }) => {
+registerTestView('pin-vs', ({ panel }) => {
   const [value, setValue] = useViewState('pin-count', 0);
   setters.set(panel.id, setValue);
   return React.createElement('i', { 'data-slot': panel.id }, String(value));
 });
 
 const NONE: ReadonlySet<string> = new Set();
-const row = (entries: PanelWindow[]): React.ReactElement => withHost(React.createElement(PanelRow, { entries, rootId: 'root', closingIds: NONE, enteringViaAnchorIds: NONE }));
+const row = (entries: PanelWindow[]): React.ReactElement => withHost(React.createElement(StaticRow, { entries, rootId: 'root', closingIds: NONE, enteringViaAnchorIds: NONE }));
 const slotText = (container: HTMLElement, id: string): string | null => container.querySelector(`[data-slot="${id}"]`)?.textContent ?? null;
 
 afterEach(() => {

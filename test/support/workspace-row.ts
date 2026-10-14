@@ -9,11 +9,15 @@ import { PanelRow, Workspace, definePanel, useProvidePanels } from '../../index.
 import type { PanelsInput, PanelTemplate, ProvidedPanels, SettingNote, WorkspaceHandle } from '../../index.js';
 import { createFakeHost } from '../../fakeHost.js';
 import { rowScrollerFor } from '../../rowScroller.js';
+import type { PanelWindow } from '../../panelWindow.js';
 import { mount, panelsInput, withHost } from './mount-harness.js';
 
 const NONE: ReadonlySet<string> = new Set();
 
 /** A template whose view renders `<i data-slot={panel.id} data-keys={Object.keys(handle)}>` so a test can read what a view receives. */
+/** The entries the newest mounted row was given, so a view can name its panel by engine id. */
+export const rowEntries: { current: readonly PanelWindow[] } = { current: [] };
+
 export const markerTemplate = (id: string, over: Partial<PanelTemplate> = {}): PanelTemplate =>
   definePanel({
     id,
@@ -51,7 +55,7 @@ export interface ResizableWorkspace extends MountedWorkspace {
  * `ws` mounted at a measured container `width`; `over` replaces any provider input. `onCommit` sees the row of every
  * render that reached the document, from a layout effect, so a render React discarded is never recorded.
  */
-export function mountWorkspace(ws: WorkspaceHandle, o: { width?: number; over?: Partial<PanelsInput>; strict?: boolean; withPanelRowWorkspace?: boolean; onCommit?: (provided: ProvidedPanels) => void; wrap?: (tree: React.ReactElement) => React.ReactElement } = {}): ResizableWorkspace {
+export function mountWorkspace(ws: WorkspaceHandle, o: { width?: number; over?: Partial<PanelsInput>; strict?: boolean; withMaxLiveWidth?: boolean; onCommit?: (provided: ProvidedPanels) => void; wrap?: (tree: React.ReactElement) => React.ReactElement } = {}): ResizableWorkspace {
   const width = o.width ?? 1000;
   const ref = React.createRef<HTMLDivElement>();
   const rowRef = React.createRef<HTMLDivElement>();
@@ -62,7 +66,8 @@ export function mountWorkspace(ws: WorkspaceHandle, o: { width?: number; over?: 
   function Probe(): React.ReactElement {
     const [containerWidth, setContainerWidth] = React.useState(width);
     measure = setContainerWidth;
-    latest = useProvidePanels(panelsInput({ workspace: ws, rootId: ws.rootId, containerWidth, overflowContainerRef: ref, onNote: (n) => void notes.push(n), ...o.over }));
+    latest = useProvidePanels(panelsInput({ workspace: ws, containerWidth, overflowContainerRef: ref, onNote: (n) => void notes.push(n), ...o.over }));
+    rowEntries.current = latest.entries;
     renders += 1;
     const provided = latest;
     React.useLayoutEffect(() => o.onCommit?.(provided));
@@ -70,7 +75,7 @@ export function mountWorkspace(ws: WorkspaceHandle, o: { width?: number; over?: 
       React.createElement(
         Workspace,
         { overflowContainerRef: ref, rowRef, containerWidth, rowResizeSettled: true, phoneWidth: 390, fixedColumnCount: provided.fixedViewCount, liveWidths: provided.liveWidths, rowScroll: provided.rowScroll, rowNumbers: provided.rowNumbers, tuning: provided.tuning } as never,
-        React.createElement(PanelRow, { entries: provided.entries, rootId: ws.rootId, closingIds: NONE, enteringViaAnchorIds: NONE, rowNumbers: provided.rowNumbers, ...(o.withPanelRowWorkspace === false ? {} : { workspace: ws }) }),
+        React.createElement(PanelRow, { entries: provided.entries, rootId: ws.rootId, closingIds: NONE, enteringViaAnchorIds: NONE, rowNumbers: provided.rowNumbers, ...(o.withMaxLiveWidth === true ? { maxLiveWidth: provided.maxLiveWidth } : {}), workspace: ws }),
       ),
       createFakeHost({ panels: provided }),
     );
