@@ -14,6 +14,7 @@ import { Workspace } from './Workspace.js';
 import { createDefaultTheme } from './defaultTheme.js';
 import { DEFAULT_PHONE_SIZE, HostProvider, type HostInput } from './hostApi.js';
 import { usePhoneFit } from './usePhoneFit.js';
+import { hostPanelsOf } from './hostPanels.js';
 import { useProvidePanels } from './panels/useProvidePanels.js';
 import type { ProvidedPanels } from './panels/useProvidePanels.js';
 import type { WorkspaceProps } from './Workspace.js';
@@ -119,7 +120,7 @@ export function AutoRoot({ workspace, columnTop = 0, themed = true }: { workspac
   });
   const theme = useMountTheme(binding.theme, binding.reportError);
   const host: HostInput = {
-    panels: provided,
+    panels: hostPanelsOf(provided),
     ...(values.device !== undefined ? { device: values.device } : {}),
     ...(values.settings !== undefined ? { settings: values.settings } : {}),
     ...(values.history !== undefined ? { history: values.history } : {}),

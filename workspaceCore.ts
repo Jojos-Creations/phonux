@@ -15,7 +15,7 @@ import { decidePinChange, isPinned, withoutDeferral, type PinChange, type PinDec
 import { applyTemplate, effective, holdUnlistedNote, panelKey, resolvePanelSettings, resolveUnderTuning, sameSettingsValue } from './panelSettings.js';
 import type { AddPlacement, PanelId, PanelSettings, PanelSettingsResolution, ResolvedPanelSettings, ResolvedPanelTuning, ResolvedWorkspaceTuning, ScrollAlign, SettingNote, WorkspaceTuning } from './panelSettings.js';
 import { definePanel } from './panelTemplate.js';
-import type { DeferredPin, PanelReader, PanelReadHandle, PanelSnapshot, PanelState, PanelTemplate, ViewHandle, WorkspaceStatus } from './panelTemplate.js';
+import type { DeferredPin, PanelReader, PanelReadHandle, PanelSnapshot, PanelState, PanelTemplate, AnyPanelTemplate, ViewHandle, WorkspaceStatus } from './panelTemplate.js';
 import { resolveWorkspaceTuning } from './panelTuning.js';
 import { createHistoryPanel, slotsOf, type PanelWindow } from './panelWindow.js';
 import type { PanelViewContext } from './panelViewContext.js';
@@ -72,9 +72,9 @@ export type WorkspaceOptions = WorkspaceLive & {
   /** The workspace's panel settings (every key except `tuning`), the layer under every template. */
   defaults?: Omit<PanelSettings, 'tuning'>;
   /** The root panel's template. Unset: the row has an invisible marker entry as its root. */
-  root?: PanelTemplate;
+  root?: AnyPanelTemplate;
   /** The templates panels of this workspace may be made from. */
-  templates?: readonly PanelTemplate[];
+  templates?: readonly AnyPanelTemplate[];
   /** The developer's panel order, read by every placement whose value is `'order'`. */
   order?: () => readonly PanelId[];
   /** The workspace's tuning leaves; each one left out or out of range takes the library default. */
@@ -143,9 +143,19 @@ export interface WorkspaceHandle {
    */
   update(live: WorkspaceLive): void;
   /** Registers a template with this workspace only; returns the function that removes it. */
-  registerTemplate(t: PanelTemplate): () => void;
+  registerTemplate(t: AnyPanelTemplate): () => void;
   /** Drops the workspace's listeners and intents; a later `addPanel` throws `disposed`. */
   dispose(): void;
+}
+
+/**
+ * What a view acts through on its workspace: the panel manager, which closes, shows and configures other panels by key, and
+ * `addPanel`. The workspace's own life (`dispose`, `update`, `rename`) is not here.
+ * @public
+ */
+export interface ViewWorkspace {
+  /** The workspace's panel manager with `addPanel`, which makes or finds a panel of a template and returns its handle. */
+  readonly panels: PanelManager & { addPanel: WorkspaceHandle['addPanel'] };
 }
 
 /** What the provider hook hands the workspace after every commit. */
@@ -175,7 +185,7 @@ export interface EngineOps {
   close(engineId: string): PanelResult;
   /** Opening a panel the engine already holds changes nothing, but it still waits its turn behind a close. */
   open(engineId: string): PanelResult;
-  move(engineId: string, direction: 'left' | 'right', source: PanelOpSource): PanelResult;
+  move(engineId: string, by: number, source: PanelOpSource): PanelResult;
   place(engineId: string, value: AddPlacement | 'in-place', source: PanelOpSource): PanelResult;
   setSlots(engineId: string, slots: number, source: PanelOpSource): PanelResult;
   scrollTo(engineId: string, align: ScrollAlign | undefined): PanelResult;
@@ -861,7 +871,7 @@ export function createWorkspace(o: WorkspaceOptions = {}): WorkspaceHandle {
       case 'open':
         return ops.open(engineId);
       case 'move':
-        return state.status === 'live' ? ops.move(engineId, call.direction, src) : refused('not-live', `panel '${id}' is parked`);
+        return state.status === 'live' ? ops.move(engineId, call.by, src) : refused('not-live', `panel '${id}' is parked`);
       case 'place':
         return ops.place(engineId, call.value, src);
       case 'setSlots':
@@ -1052,8 +1062,7 @@ export function createWorkspace(o: WorkspaceOptions = {}): WorkspaceHandle {
   /** `configureTuning`: the workspace's tuning keys, for this session. */
   const configureTuningOne = (patch: unknown): ConfigureResult => {
     const checked = checkPatch('tuning', patch);
-    const unavailable = lifecycleRefusal('workspace');
-    if (unavailable !== undefined) return failed(unavailable);
+    if (status === 'disposed') return failed(refused('disposed', 'the workspace was disposed'));
     if ('refusal' in checked) return { ok: false, ...checked.refusal };
     const plan = planTuning(tuningInput, patch as Record<string, unknown>);
     if (!plan.changed) return unchanged();
@@ -1063,8 +1072,9 @@ export function createWorkspace(o: WorkspaceOptions = {}): WorkspaceHandle {
       refresh();
       for (const l of [...tuningListeners]) l();
     };
-    if (plan.reprices) {
-      const done = commit!.ops.reprice(apply);
+    // Before the first load there is no layout to reprice: the patch lands in the input the load reads.
+    if (plan.reprices && commit !== undefined && status === 'ready') {
+      const done = commit.ops.reprice(apply);
       if (!done.ok) return failed(done);
     } else {
       apply();
@@ -1232,7 +1242,9 @@ export function createWorkspace(o: WorkspaceOptions = {}): WorkspaceHandle {
     },
   };
 
+  const workspace: ViewWorkspace = Object.freeze({ panels: Object.freeze({ ...handle.panels, addPanel }) });
   const view: PanelViewContext = {
+    workspace,
     handleFor: (name) => {
       const e = entryNamed((observed ?? committed)?.entries ?? [], name);
       return e === undefined || e.marker === true ? undefined : source.viewHandleOf(panelKey(e));

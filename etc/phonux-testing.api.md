@@ -5,6 +5,9 @@
 ```ts
 
 // @public
+export type AbsentHostMember = 'history' | 'snapshots';
+
+// @public
 export type AddPlacement = 'row-start' | 'row-end' | 'parkable-start' | 'parkable-end' | 'after-fixed' | 'order' | {
     before: PanelId;
 } | {
@@ -65,6 +68,8 @@ export interface FakeHost extends Host {
 // @public
 export type FakeOverrides = {
     [K in keyof Host]?: Partial<Host[K]>;
+} & {
+    absent?: readonly AbsentHostMember[];
 };
 
 // @public
@@ -105,20 +110,28 @@ export type PanelId = string;
 
 // @public
 export interface PanelsAPI {
+    // @deprecated
     activate(id: string): void;
     clearAll(): void;
+    // @deprecated
     close(id: string): void;
+    // @deprecated
     create(): void;
+    // @deprecated
     create(options: CreatePanelOptions): void;
     readonly maxFitPanels?: number | null;
+    readonly minWorkspaceWidth?: number;
+    // @deprecated
     move(id: string, direction: 'left' | 'right'): void;
     readonly panelList: readonly PanelSummary[];
+    // @deprecated
     reanchor(id: string, anchor: {
         panel?: string;
         position: 'left' | 'right';
         priority?: number;
     }): void;
     readonly recentlyClosed: readonly PanelSummary[] | null;
+    // @deprecated
     setSlots?(id: string, slots: number): void;
     undoClose(): void;
 }

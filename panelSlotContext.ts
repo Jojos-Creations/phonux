@@ -62,6 +62,8 @@ export interface PanelSlotValue {
   readonly maxSlots: ResolvedPanelSettings['maxSlots'];
   readonly neighborWidths: NeighborWidths;
   readonly pinned: boolean;
+  /** The panel's own handle, which `usePanelDragProps` closes and moves through and `usePanelPinned` reads. Absent in a row without a workspace. */
+  readonly handle?: Pick<ViewHandle, 'close' | 'move' | 'getState' | 'subscribe'> | undefined;
   /** This panel's tuning: its own dragToClose, slide, hopFraction and edgeScroll, and the workspace's row gap. */
   readonly tuning: ResolvedPanelTuning & { readonly rowGap: number; readonly chrome: ChromeTuning };
   /** Optional so a slot value built by hand (a test, a view mounted outside a row) needs none. */
