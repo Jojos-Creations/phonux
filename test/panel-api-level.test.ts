@@ -470,7 +470,6 @@ test('real props in many panel states have the shape the table describes', async
       seen.push(shapeMismatches(props, NEWEST_SHAPE));
       return null;
     },
-    settings: { frame: 'none' },
   });
   const w = createWorkspace({ mount: false, templates: [probe, levelOnePanel] });
   const bare = w.addPanel(probe);

@@ -1,7 +1,7 @@
 /**
  * The default frame: a template's view that draws no `Panel` or `PanelFrame` is drawn inside the library's frame, and one
  * that draws any part of its own is mounted once and left alone. The golden DOM of the self-framed fixtures is in
- * default-frame-golden.test.ts; this file covers the bare view, the cases between, the opt-out and the gestures.
+ * default-frame-golden.test.ts; this file covers the bare view, the cases between and the gestures.
  */
 import { test, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
@@ -9,9 +9,8 @@ import './support/jsdom-globals.js';
 import * as React from 'react';
 import { act } from 'react';
 import { Panel, PanelFrame, createWorkspace, definePanel } from '../index.js';
-import type { PanelHandle, PanelSettings, PanelTemplate, WorkspaceHandle } from '../index.js';
+import type { PanelHandle, PanelTemplate, WorkspaceHandle } from '../index.js';
 import { advanceFrames, cleanup } from './support/mount-harness.js';
-import { differential } from './support/differential.js';
 import { drag, release } from './support/drag-gesture.js';
 import { albumPanel, effects, frameOnlyPanel, restPanel, stableIds } from './support/frame-fixtures.js';
 import { flush, mountWorkspace, type ResizableWorkspace } from './support/workspace-row.js';
@@ -144,30 +143,6 @@ test('the template footer is drawn once, inside the library frame', async () => 
   const r = await rig([bareTemplate('bare', { footer: () => React.createElement('span', { 'data-foot': '' }, 'foot') })], ['bare']);
   await settle();
   assert.equal(bodiesOf(r.m, 'bare')!.closest('[data-row-slot]')!.querySelectorAll('[data-panel-footer]').length, 1);
-});
-
-// ---------------------------------------------------------------------------
-// The opt-out
-// ---------------------------------------------------------------------------
-
-test("frame: 'none' draws a bare view as it is, mounted once with no frame", async () => {
-  const none: PanelSettings = { frame: 'none' };
-  const r = await rig([bareTemplate('bare', { settings: none })], ['bare']);
-  await settle();
-  assert.equal(part(r.m, 'header').length, 1, 'only the root has a header');
-  assert.deepEqual(counts('bare'), [1, 0]);
-});
-
-test("changing frame from 'auto' to 'none' takes the library frame away", async () => {
-  const r = await rig([bareTemplate('bare')], ['bare']);
-  await settle();
-  assert.equal(part(r.m, 'header').length, 2);
-  await act(async () => void r.handles[0]!.configure({ frame: 'none' }));
-  await settle();
-  assert.equal(part(r.m, 'header').length, 1);
-  await act(async () => void r.handles[0]!.configure({ frame: 'auto' }));
-  await settle();
-  assert.equal(part(r.m, 'header').length, 2, 'and back');
 });
 
 // ---------------------------------------------------------------------------
@@ -385,20 +360,4 @@ test('a header button the template declares is drawn in the library header, pres
     buttons[0]!.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true, cancelable: true }));
   });
   assert.equal(document.activeElement, buttons[1], 'the arrow key moves between the buttons');
-});
-
-test('differential frame: a bare view has a library header under auto and none under none', async () => {
-  const headers = async (frame: 'auto' | 'none'): Promise<number> => {
-    const r = await rig([bareTemplate('bare', { settings: { frame } })], ['bare']);
-    await settle();
-    const n = bodiesOf(r.m, 'bare')!.closest('[data-row-slot]')!.querySelectorAll('[data-panel-chrome-part="header"]').length;
-    cleanup();
-    return n;
-  };
-  const auto = await headers('auto');
-  const none = await headers('none');
-  differential('frame', (run) => {
-    run('auto', () => auto);
-    run('none', () => none);
-  });
 });

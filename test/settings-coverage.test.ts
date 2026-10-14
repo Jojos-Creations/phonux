@@ -25,7 +25,6 @@ const OWNER_IDS: readonly string[] = [
   'phonux-engine-visibility-settings',
   'phonux-engine-placement-and-motion-settings',
   'phonux-engine-tuning-look-settings',
-  'phonux-keep-mounted-render-path',
   'phonux-row-numbers-and-overflow',
   'phonux-row-scroll-gesture-and-requests',
   'phonux-edge-scroll-while-dragging',
@@ -37,7 +36,6 @@ const OWNER_IDS: readonly string[] = [
   'phonux-max-live-panels',
   'phonux-slot-sizing-resizable-root-v3',
   'phonux-shrink-whole-panels-v1',
-  'phonux-default-frame-v3',
   'phonux-fit-phone-to-screen-v3',
 ];
 
@@ -60,9 +58,9 @@ function docClassWords(doc: string): Map<string, string> {
   return rows;
 }
 
-test('release gate: the catalog has 70 descriptors and the DESIGN.md table has 70 rows', () => {
-  assert.equal(PANEL_SETTINGS_CATALOG.length, 70);
-  assert.equal(docClassWords(DESIGN).size, 70);
+test('release gate: the catalog has 51 descriptors and the DESIGN.md table has 51 rows', () => {
+  assert.equal(PANEL_SETTINGS_CATALOG.length, 51);
+  assert.equal(docClassWords(DESIGN).size, 51);
 });
 
 for (const d of PANEL_SETTINGS_CATALOG) {
@@ -71,12 +69,12 @@ for (const d of PANEL_SETTINGS_CATALOG) {
     assert.equal(holders.length, 1, `${d.name} has ${holders.length} differential calls (${holders.join(', ')})`);
     assert.equal(count(MATRIX, probeOf(d.name)), 1, `${d.name} needs one matrix probe`);
     assert.equal(docClassWords(DESIGN).get(d.name), d.configure.cls, `${d.name} class word in DESIGN.md`);
-    assert.ok(OWNER_IDS.includes(d.ownerEntry), `${d.name} owner ${d.ownerEntry} is not one of the 18 entries`);
+    assert.ok(OWNER_IDS.includes(d.ownerEntry), `${d.name} owner ${d.ownerEntry} is not one of the 16 entries`);
   });
 }
 
-test('release gate: the owners are exactly the 18 listed ids', () => {
-  assert.equal(OWNER_IDS.length, 18);
+test('release gate: the owners are exactly the 16 listed ids', () => {
+  assert.equal(OWNER_IDS.length, 16);
   assert.deepEqual([...new Set(PANEL_SETTINGS_CATALOG.map((d) => d.ownerEntry))].sort(), [...OWNER_IDS].sort());
 });
 

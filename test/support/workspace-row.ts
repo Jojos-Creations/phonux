@@ -30,7 +30,7 @@ export const markerTemplate = (id: string, over: Partial<PanelTemplate> = {}): P
         'data-handle-id': handle.id,
       }),
     ...over,
-    settings: { frame: 'none', ...over.settings },
+    settings: over.settings,
   });
 
 export interface MountedWorkspace {

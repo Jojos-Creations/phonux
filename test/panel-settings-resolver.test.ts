@@ -3,12 +3,15 @@
  * lenient reading of saved layers, pin definitions, scope and view-settable conflicts, and a seeded property run.
  */
 
-import { test } from 'node:test';
+import { test, mock } from 'node:test';
 import { ALL_SLOTS } from '../rowConstants.js';
 import assert from 'node:assert/strict';
 import { isDeepStrictEqual } from 'node:util';
-import { PANEL_SETTINGS_CATALOG, PanelManagerError, mergePatch, resolvePanelSettings } from '../index.js';
-import type { CatalogName, HeaderButton, PanelSettings, PanelSettingsLayers, PanelSettingsResolution, ResolveOptions, SettingConflict, SourceLayer } from '../index.js';
+import { PANEL_SETTINGS_CATALOG, PanelManagerError } from '../index.js';
+import { FIXED, resolvePanelSettings } from '../panelSettings.js';
+import type { PanelSettingsLayers, ResolveOptions } from '../panelSettings.js';
+import { mergePatch } from '../settingsPatch.js';
+import type { CatalogName, HeaderButton, PanelSettings, PanelSettingsResolution, SettingConflict, SourceLayer } from '../index.js';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -85,45 +88,26 @@ const ENUMERATED: Record<string, readonly unknown[]> = {
   resizable: BOOL,
   clearable: BOOL,
   listed: BOOL,
-  keepMounted: BOOL,
-  animated: BOOL,
-  rememberLayout: BOOL,
-  reportClose: BOOL,
   hostCreatable: BOOL,
   multiple: BOOL,
   maxInstances: ['unlimited', 1, 2, 50],
   startVisibility: ['live', 'parked'],
   hideStickiness: ['sticky', 'until-room'],
-  hideWhenLast: ['allow', 'refuse'],
   capacityReturn: ['auto', 'manual'],
-  returnPriority: [-3, 0, 7],
   overflow: ['scroll', 'park'],
-  evictionRank: [-2, 0, 5],
-  evictionOrder: ['farthest', 'nearest', 'leftmost', 'rightmost'],
   revealOnScroll: ['edges', 'any', 'never'],
   scrollOnOpen: ['into-view', 'start', 'center', 'none'],
   scrollOnMove: ['follow', 'none'],
-  scrollOnDrag: ['edge', 'none'],
-  frame: ['auto', 'none'],
   toggleWhenClosed: ['ignore', 'reopen'],
   showWhenClosed: ['refuse', 'reopen'],
-  viewState: ['keep', 'reset-on-park'],
   placeOnAdd: PLACEMENTS,
   placeOnShow: ['in-place', ...PLACEMENTS],
-  placeOnReturn: ['in-place', ...PLACEMENTS],
-  placeFallback: ['row-start', 'row-end', 'parkable-start', 'parkable-end', 'after-fixed'],
-  undoPlacement: ['old-slot', ...PLACEMENTS],
   layer: ['base', 'raised'],
   enterFrom: ['auto', 'left', 'right', 'anchor'],
-  exitTo: ['auto', 'left', 'right'],
-  closeExit: ['down', 'left', 'right'],
   slots: [1, 2, 3, 64],
   maxSlots: [1, 2, 3, 64],
-  persist: ['saved', 'session'],
   restoreVisibility: ['saved', 'live', 'parked'],
   afterClose: ['stay-closed', 'return-next-launch'],
-  undoWindowMs: [0, 1, 10000],
-  snapshot: ['both', 'park', 'close', 'never'],
   pinningWhenNotLive: ['place-only', 'refuse', 'show', 'apply-on-next-show', { parked: 'show' }, { hidden: 'refuse' }, { closed: 'apply-on-next-show' }, { parked: 'place-only', hidden: 'show', closed: 'refuse' }],
   title: ['', 'Notes'],
 };
@@ -135,8 +119,8 @@ type Probe = readonly [what: string, layers: PanelSettingsLayers, layer: string,
 const PROBES: readonly Probe[] = [
   ['boolean given a string', { template: asSettings({ closable: 'yes' }) }, 'template', 'closable'],
   ['boolean given null', { template: asSettings({ parkable: null }) }, 'template', 'parkable'],
-  ['number given a string', { template: asSettings({ returnPriority: '1' }) }, 'template', 'returnPriority'],
-  ['number given NaN', { template: asSettings({ returnPriority: Number.NaN }) }, 'template', 'returnPriority'],
+  ['number given a string', { template: asSettings({ maxSlots: '1' }) }, 'template', 'maxSlots'],
+  ['number given NaN', { template: asSettings({ slots: Number.NaN }) }, 'template', 'slots'],
   ['title given a number', { template: asSettings({ title: 5 }) }, 'template', 'title'],
   ['pinning given a string', { template: asSettings({ pinning: 'row-start' }) }, 'template', 'pinning'],
   ['unknown member of overflow', { template: asSettings({ overflow: 'wrap' }) }, 'template', 'overflow'],
@@ -145,15 +129,9 @@ const PROBES: readonly Probe[] = [
   ['fractional maxSlots', { template: asSettings({ maxSlots: 1.5 }) }, 'template', 'maxSlots'],
   ['a removed key, formFactor', { template: asSettings({ formFactor: 'tablet' }) }, 'template', 'formFactor'],
   ['in-place in placeOnAdd', { template: asSettings({ placeOnAdd: 'in-place' }) }, 'template', 'placeOnAdd'],
-  ['in-place in placeFallback', { template: asSettings({ placeFallback: 'in-place' }) }, 'template', 'placeFallback'],
-  ['in-place in undoPlacement', { template: asSettings({ undoPlacement: 'in-place' }) }, 'template', 'undoPlacement'],
   ['a placement object with two keys', { template: asSettings({ placeOnAdd: { before: 'a', after: 'b' } }) }, 'template', 'placeOnAdd'],
   ['a placement before nobody', { template: asSettings({ placeOnAdd: { before: '' } }) }, 'template', 'placeOnAdd'],
   ['an anchor placement without its panel', { template: asSettings({ placeOnAdd: { anchor: { position: 'left' } } }) }, 'template', 'placeOnAdd'],
-  ['fractional evictionRank', { template: asSettings({ evictionRank: 1.5 }) }, 'template', 'evictionRank'],
-  ['fractional returnPriority', { template: asSettings({ returnPriority: 0.5 }) }, 'template', 'returnPriority'],
-  ['fractional undoWindowMs', { template: asSettings({ undoWindowMs: 1.5 }) }, 'template', 'undoWindowMs'],
-  ['negative undoWindowMs', { template: asSettings({ undoWindowMs: -1 }) }, 'template', 'undoWindowMs'],
   ['maxInstances zero', { template: asSettings({ maxInstances: 0 }) }, 'template', 'maxInstances'],
   ['maxInstances fractional', { template: asSettings({ maxInstances: 1.5 }) }, 'template', 'maxInstances'],
   ['maxInstances another word', { template: asSettings({ maxInstances: 'many' }) }, 'template', 'maxInstances'],
@@ -164,8 +142,6 @@ const PROBES: readonly Probe[] = [
   ["overflow 'maybe'", { template: asSettings({ overflow: 'maybe' }) }, 'template', 'overflow'],
   ["scrollOnOpen 'middle'", { template: asSettings({ scrollOnOpen: 'middle' }) }, 'template', 'scrollOnOpen'],
   ["scrollOnMove 'sometimes'", { template: asSettings({ scrollOnMove: 'sometimes' }) }, 'template', 'scrollOnMove'],
-  ["scrollOnDrag 'always'", { template: asSettings({ scrollOnDrag: 'always' }) }, 'template', 'scrollOnDrag'],
-  ["frame 'always'", { template: asSettings({ frame: 'always' }) }, 'template', 'frame'],
   ['headerButtons given a number', { template: asSettings({ headerButtons: 5 }) }, 'template', 'headerButtons'],
   ['headerButtons given a list', { template: asSettings({ headerButtons: [slot('a')] }) }, 'template', 'headerButtons'],
   ['headerButtons holding a string for a slot', { template: asSettings({ headerButtons: { size: 'x' } }) }, 'template', 'headerButtons'],
@@ -184,7 +160,7 @@ const PROBES: readonly Probe[] = [
   ['an instance layer that is a list', { instance: [] as unknown as PanelSettings }, 'instance', undefined],
 ];
 
-test('enumerations: the enumeration table and its companions cover every one of the 71 catalog names exactly once', () => {
+test('enumerations: the enumeration table and its companions cover every one of the 52 catalog names exactly once', () => {
   const covered = [...Object.keys(ENUMERATED), ...ELSEWHERE];
   assert.equal(new Set(covered).size, covered.length, 'a name is listed twice');
   assert.deepEqual([...covered].sort(), [...CATALOG_NAMES].sort());
@@ -211,7 +187,7 @@ test('enumerations: every enumerated value resolves to itself from the template 
   const expected = Object.values(ENUMERATED).reduce((sum, values) => sum + values.length, 0) + PROBES.length;
   assert.equal(executed, expected);
   assert.equal(valueCases, expected - PROBES.length);
-  assert.ok(valueCases >= 150 && PROBES.length >= 40, 'the tables are not empty');
+  assert.ok(valueCases >= 90 && PROBES.length >= 40, 'the tables are not empty');
 });
 
 test("enumerations: a probe's refusal names the layer and key in its message too, and a valid initialScroll { panel: 'x' } is accepted", () => {
@@ -462,12 +438,10 @@ test('cascade: undefined never overrides, at any layer', () => {
   assert.equal(tuned.value.tuning.hopFraction, 0.7);
 });
 
-test('cascade: placeOnAdd, placeOnShow, placeOnReturn, undoPlacement, pinning and pinningWhenNotLive are replaced whole', () => {
+test('cascade: placeOnAdd, placeOnShow, pinning and pinningWhenNotLive are replaced whole', () => {
   const rows: ReadonlyArray<readonly [string, unknown, unknown]> = [
     ['placeOnAdd', { before: 'a' }, { after: 'b' }],
     ['placeOnShow', { before: 'a' }, { anchor: { panel: 'b', position: 'right' } }],
-    ['placeOnReturn', 'row-end', { after: 'c' }],
-    ['undoPlacement', 'old-slot', { before: 'a' }],
     ['pinning', { pinned: { placement: 'row-start', parkable: true }, unpinned: { placement: 'row-end', parkable: false } }, { pinned: { placement: 'row-start' }, unpinned: { placement: 'after-fixed' } }],
     ['pinningWhenNotLive', { parked: 'show', hidden: 'refuse' }, { closed: 'refuse' }],
   ];
@@ -478,7 +452,7 @@ test('cascade: placeOnAdd, placeOnShow, placeOnReturn, undoPlacement, pinning an
     const alone = resolve({ template: asSettings({ [key]: lower }) });
     assert.deepEqual((alone.value as unknown as Record<string, unknown>)[key], lower, `${key}: the lower layer alone`);
   }
-  assert.equal(rows.length, 6);
+  assert.equal(rows.length, 4);
 });
 
 test('cascade: tuning merges per leaf and per member, and the source names the winner of each leaf', () => {
@@ -518,14 +492,14 @@ test('cascade: headerButtons merges per slot id; an instance false removes only 
 
 test('cascade: the source map names the winner of each key, from every layer at once', () => {
   const res = resolve({
-    workspace: { animated: false },
+    workspace: { scrollOnMove: 'none' },
     template: { layer: 'raised', closable: false },
     host: { title: 'From the view' },
-    instance: { closable: true, evictionRank: 4 },
+    instance: { closable: true, revealOnScroll: 'never' },
     user: { slots: 2 },
   });
   assert.deepEqual(
-    [res.source.animated, res.source.layer, res.source.title, res.source.closable, res.source.evictionRank, res.source.slots, res.source.overflow],
+    [res.source.scrollOnMove, res.source.layer, res.source.title, res.source.closable, res.source.revealOnScroll, res.source.slots, res.source.overflow],
     ['workspace', 'template', 'host', 'instance', 'instance', 'user', 'library'],
   );
 });
@@ -600,10 +574,9 @@ const C1_ROWS: readonly ForcedRow[] = [
   ['overflow', 'park', 'scroll'],
   ['startVisibility', 'parked', 'live'],
   ['restoreVisibility', 'parked', 'live'],
-  ['keepMounted', true, false],
 ];
 
-test('C1: a fixed column forces overflow, startVisibility, restoreVisibility and keepMounted, one conflict per ask', () => {
+test('C1: a fixed column forces overflow, startVisibility and restoreVisibility, one conflict per ask', () => {
   for (const layer of ['template', 'instance'] as const) {
     for (const [key, asked, applied] of C1_ROWS) {
       const layers: PanelSettingsLayers = layer === 'template' ? { template: asSettings({ parkable: false, [key]: asked }) } : { template: { parkable: false }, instance: asSettings({ [key]: asked }) };
@@ -640,10 +613,10 @@ test('C1: without the trigger the same asks stand, and a library or workspace co
   }
   const silent = resolve({ template: { parkable: false } });
   assert.deepEqual(silent.conflicts, []);
-  assert.deepEqual([silent.value.resizable, silent.value.maxSlots, silent.value.slots, silent.value.overflow, silent.value.startVisibility, silent.value.restoreVisibility, silent.value.keepMounted], [false, 1, 1, 'scroll', 'live', 'live', false]);
+  assert.deepEqual([silent.value.resizable, silent.value.maxSlots, silent.value.slots, silent.value.overflow, silent.value.startVisibility, silent.value.restoreVisibility], [false, 1, 1, 'scroll', 'live', 'live']);
   assert.deepEqual([silent.source.resizable, silent.source.maxSlots, silent.source.restoreVisibility], ['forced', 'forced', 'forced'], 'a value the library gave is forced without a conflict');
-  const workspaceAsk = resolve({ workspace: { overflow: 'park', keepMounted: true }, template: { parkable: false } });
-  assert.deepEqual([workspaceAsk.value.overflow, workspaceAsk.value.keepMounted, workspaceAsk.conflicts], ['scroll', false, []]);
+  const workspaceAsk = resolve({ workspace: { overflow: 'park' }, template: { parkable: false } });
+  assert.deepEqual([workspaceAsk.value.overflow, workspaceAsk.conflicts], ['scroll', []]);
   const equalAsk = resolve({ template: { parkable: false, overflow: 'scroll', resizable: false } });
   assert.deepEqual(equalAsk.conflicts, []);
   assert.equal(equalAsk.source.overflow, 'template', 'asking what the rule gives is not a collision');
@@ -651,12 +624,12 @@ test('C1: without the trigger the same asks stand, and a library or workspace co
 
 test('C1: every key a layer asked otherwise is listed, each at the layer that asked, host included', () => {
   const res = resolve({
-    template: { parkable: false, overflow: 'park', keepMounted: true },
+    template: { parkable: false, overflow: 'park' },
     instance: { startVisibility: 'parked', restoreVisibility: 'parked' },
   });
   assert.deepEqual(
     res.conflicts.map((c) => `${c.layer}:${c.key}`).sort(),
-    ['instance:restoreVisibility', 'instance:startVisibility', 'template:keepMounted', 'template:overflow'],
+    ['instance:restoreVisibility', 'instance:startVisibility', 'template:overflow'],
   );
   assert.ok(res.conflicts.every((c) => c.kind === 'forced' && c.rule === 'C1' && c.forcedBy === 'parkable'));
 });
@@ -668,16 +641,6 @@ test('C2: closable false forces clearable false, naming closable, and only when 
   assert.deepEqual(resolve({ template: { closable: false, clearable: false } }).conflicts, []);
   assert.deepEqual(resolve({ template: { closable: true, clearable: true } }).conflicts, []);
   assert.equal(resolve({ template: { closable: true, clearable: true } }).value.clearable, true);
-});
-
-test('C3: a session panel forces rememberLayout false and afterClose return-next-launch, naming persist', () => {
-  const asked = resolve({ template: { persist: 'session', rememberLayout: true, afterClose: 'stay-closed' } });
-  assert.deepEqual([asked.value.rememberLayout, asked.value.afterClose], [false, 'return-next-launch']);
-  assert.deepEqual(asked.conflicts.map((c) => [c.key, c.rule, c.forcedBy]).sort(), [['afterClose', 'C3', 'persist'], ['rememberLayout', 'C3', 'persist']]);
-  const bare = resolve({ template: { persist: 'session' } });
-  assert.deepEqual([bare.value.rememberLayout, bare.value.afterClose, bare.conflicts], [false, 'return-next-launch', []]);
-  const saved = resolve({ template: { persist: 'saved', rememberLayout: true, afterClose: 'stay-closed' } });
-  assert.deepEqual([saved.value.rememberLayout, saved.value.afterClose, saved.conflicts], [true, 'stay-closed', []]);
 });
 
 test('C4: slots above maxSlots become maxSlots; slots inside it stand', () => {
@@ -712,33 +675,13 @@ test('C5 feeds C1 and C2 for the root: a root asking overflow park or clearable 
   assert.deepEqual([res.value.overflow, res.value.clearable, res.value.resizable, res.value.slots], ['scroll', false, false, 1]);
 });
 
-test('C6: reset-on-park forces keepMounted false with one conflict naming both keys; keep leaves keepMounted alone', () => {
-  const res = resolve({ template: { viewState: 'reset-on-park', keepMounted: true } });
-  assert.equal(res.value.keepMounted, false);
-  assert.equal(res.conflicts.length, 1);
-  const [c] = res.conflicts as [SettingConflict];
-  assert.deepEqual([c.key, c.rule, c.forcedBy, c.asked, c.applied], ['keepMounted', 'C6', 'viewState', true, false]);
-  assert.ok(c.message.includes('keepMounted') && c.message.includes('viewState'), 'the message names both keys');
-  const keep = resolve({ template: { viewState: 'keep', keepMounted: true } });
-  assert.deepEqual([keep.value.keepMounted, keep.conflicts], [true, []]);
-  const library = resolve({ template: { viewState: 'reset-on-park' } });
-  assert.deepEqual([library.value.keepMounted, library.conflicts], [false, []]);
-});
-
-test('C1 and C6 together record one conflict for keepMounted: the first rule makes the value and the second finds nothing to change', () => {
-  const res = resolve({ template: { parkable: false, viewState: 'reset-on-park', keepMounted: true } });
-  assert.deepEqual(res.conflicts.map((c) => [c.key, c.rule]), [['keepMounted', 'C1']]);
-});
-
 test('conflicts: one per kind of rule, each carrying key, layer, kind, asked, applied and message, plus rule and forcedBy when forced', () => {
   type Row = readonly [rule: string, layers: PanelSettingsLayers, options: ResolveOptions, key: string, forcedBy: string | undefined];
   const rows: readonly Row[] = [
     ['C1', { template: { parkable: false, overflow: 'park' } }, {}, 'overflow', 'parkable'],
     ['C2', { template: { closable: false, clearable: true } }, {}, 'clearable', 'closable'],
-    ['C3', { template: { persist: 'session', rememberLayout: true } }, {}, 'rememberLayout', 'persist'],
     ['C4', { template: { maxSlots: 1, slots: 2 } }, {}, 'slots', 'maxSlots'],
     ['C5', { template: { closable: true } }, { root: true }, 'closable', undefined],
-    ['C6', { template: { viewState: 'reset-on-park', keepMounted: true } }, {}, 'keepMounted', 'viewState'],
   ];
   for (const [rule, layers, options, key, forcedBy] of rows) {
     const res = resolve(layers, options);
@@ -748,20 +691,16 @@ test('conflicts: one per kind of rule, each carrying key, layer, kind, asked, ap
     assert.equal('forcedBy' in c, forcedBy !== undefined, `${rule}: forcedBy is present only when a key forces it`);
     assert.ok(c.asked !== c.applied && typeof c.message === 'string' && c.message.length > 0, rule);
   }
-  assert.equal(rows.length, 6);
+  assert.equal(rows.length, 4);
 });
 
-test('park levers: a lever on a panel whose overflow resolves to scroll yields park-lever-inert once per key, and none when overflow is park', () => {
-  for (const [key, value] of [['capacityReturn', 'manual'], ['returnPriority', 3], ['evictionRank', 2], ['evictionOrder', 'nearest']] as const) {
-    const res = resolve({ template: asSettings({ [key]: value }) });
-    assert.deepEqual(res.notes.map((n) => [n.code, n.key]), [['park-lever-inert', key]], key);
-    const parked = resolve({ template: asSettings({ [key]: value, overflow: 'park' }) });
-    assert.deepEqual(parked.notes, [], `${key} with overflow park`);
-  }
-  const all = resolve({ template: { capacityReturn: 'manual', returnPriority: 3, evictionRank: 2, evictionOrder: 'nearest' } });
-  assert.deepEqual(all.notes.map((n) => n.key).sort(), ['capacityReturn', 'evictionOrder', 'evictionRank', 'returnPriority']);
+test('park levers: capacityReturn on a panel whose overflow resolves to scroll yields park-lever-inert, and none when overflow is park', () => {
+  const res = resolve({ template: { capacityReturn: 'manual' } });
+  assert.deepEqual(res.notes.map((n) => [n.code, n.key]), [['park-lever-inert', 'capacityReturn']]);
+  const parked = resolve({ template: { capacityReturn: 'manual', overflow: 'park' } });
+  assert.deepEqual(parked.notes, []);
   assert.deepEqual(resolve().notes, [], 'a library lever is not a note');
-  const forcedScroll = resolve({ template: { parkable: false, overflow: 'park', evictionRank: 1 } });
+  const forcedScroll = resolve({ template: { parkable: false, overflow: 'park', capacityReturn: 'manual' } });
   assert.deepEqual(forcedScroll.notes.map((n) => n.code), ['park-lever-inert'], 'overflow forced to scroll by C1 makes the lever inert');
 });
 
@@ -769,20 +708,17 @@ test('park levers: a lever on a panel whose overflow resolves to scroll yields p
 // Scope: not-view-settable and wrong-scope
 // ---------------------------------------------------------------------------
 
-test('host layer: closable true, keepMounted true, headerButtons, overflow and pinning are not-view-settable and change nothing', () => {
+test('host layer: closable true, headerButtons, overflow and pinning are not-view-settable and change nothing', () => {
   const res = resolve({
-    host: asSettings({ closable: true, keepMounted: true, headerButtons: { size: slot('Size') }, overflow: 'park', pinning: { pinned: { placement: 'row-start' }, unpinned: { placement: 'row-end' } } }),
+    host: asSettings({ closable: true, headerButtons: { size: slot('Size') }, overflow: 'park', pinning: { pinned: { placement: 'row-start' }, unpinned: { placement: 'row-end' } } }),
   });
   assert.deepEqual(res.conflicts.map((c) => [c.key, c.layer, c.kind]).sort(), [
     ['closable', 'host', 'not-view-settable'],
     ['headerButtons', 'host', 'not-view-settable'],
-    ['keepMounted', 'host', 'not-view-settable'],
     ['overflow', 'host', 'not-view-settable'],
     ['pinning', 'host', 'not-view-settable'],
   ]);
-  assert.deepEqual([res.value.closable, res.value.keepMounted, res.value.overflow, res.value.headerButtons, res.source.closable, res.source.overflow], [true, false, 'scroll', {}, 'library', 'library']);
-  const keep = res.conflicts.find((c) => c.key === 'keepMounted') as SettingConflict;
-  assert.deepEqual([keep.asked, keep.applied], [true, false]);
+  assert.deepEqual([res.value.closable, res.value.overflow, res.value.headerButtons, res.source.closable, res.source.overflow], [true, 'scroll', {}, 'library', 'library']);
 });
 
 test('host layer: the keys a view may set are accepted: title, listed, layer, slots, placeOnAdd with an anchor and enterFrom anchor', () => {
@@ -881,7 +817,7 @@ test('user layer: a slot count on a resizable:false panel and an anchor on a pan
 test('user layer: parkable false joins as the top layer, so C1 re-runs with source user and no conflict', () => {
   const res = resolve({ user: { parkable: false } });
   assert.deepEqual([res.value.parkable, res.source.parkable], [false, 'user']);
-  assert.deepEqual([res.value.resizable, res.value.overflow, res.value.maxSlots, res.value.keepMounted], [false, 'scroll', 1, false]);
+  assert.deepEqual([res.value.resizable, res.value.overflow, res.value.maxSlots], [false, 'scroll', 1]);
   assert.deepEqual([res.value.draggable, res.value.placeable, res.value.listed, res.value.clearable], [false, false, false, false]);
   assert.deepEqual(res.conflicts, []);
   assert.deepEqual(res.notes, []);
@@ -955,6 +891,35 @@ test('lenient: each kind of bad saved value is dropped alone: unknown key, wrong
     assert.deepEqual(res.notes.map((n) => [n.code, n.key]), [['invalid-saved-setting', key]], what);
     assert.deepEqual(res.value, resolve().value, `${what}: nothing else changed`);
   }
+});
+
+test('removed settings: a layer that still names one is ignored, the panel keeps the fixed value, and development logs once per key', () => {
+  const log = mock.method(console, 'error', () => undefined);
+  try {
+    const keys = Object.keys(FIXED);
+    assert.equal(keys.length, 19);
+    const asked = Object.fromEntries(keys.map((key) => [key, 'asked']));
+    for (const layer of ['workspace', 'template', 'instance'] as const) {
+      const res = resolve({ [layer]: asSettings(asked) });
+      assert.deepEqual(res.value, resolve().value, `${layer}: nothing changed`);
+      assert.deepEqual([res.conflicts, res.notes], [[], []], layer);
+      for (const key of keys) assert.equal(key in res.value, false, `${layer}: ${key} is not a resolved setting`);
+    }
+    const headings = log.mock.calls.map((call) => String(call.arguments[0]));
+    assert.equal(headings.length, keys.length, 'one message per key, not per layer');
+    assert.ok(headings.every((text) => /^phonux: the \w+ setting '\w+' was removed/.test(text)));
+  } finally {
+    log.mock.restore();
+  }
+});
+
+test('removed settings: a saved instance layer drops each with a note and keeps every other value', () => {
+  const res = resolve({ instance: asSettings({ closable: false, keepMounted: true, snapshot: 'never' }) }, { lenient: true });
+  assert.equal(res.value.closable, false);
+  assert.deepEqual(res.notes.map((n) => [n.code, n.key, n.message]).sort(), [
+    ['invalid-saved-setting', 'keepMounted', 'instance.keepMounted: a setting this version no longer has; dropped'],
+    ['invalid-saved-setting', 'snapshot', 'instance.snapshot: a setting this version no longer has; dropped'],
+  ]);
 });
 
 test('lenient: a layer that is not an object is dropped whole with one note; the workspace, template and host layers throw in both modes', () => {
@@ -1069,7 +1034,7 @@ function deepFreeze<T>(value: T): T {
 }
 
 /** Keys a stack asks for more often, so the coupling rules fire in most stacks. */
-const BOOSTED: Record<string, number> = { parkable: 0.3, closable: 0.25, persist: 0.25, viewState: 0.25, maxSlots: 0.3, slots: 0.3, keepMounted: 0.3, overflow: 0.3, clearable: 0.2, rememberLayout: 0.2, afterClose: 0.2, resizable: 0.2, startVisibility: 0.2, restoreVisibility: 0.2 };
+const BOOSTED: Record<string, number> = { parkable: 0.3, closable: 0.25, maxSlots: 0.3, slots: 0.3, overflow: 0.3, clearable: 0.2, afterClose: 0.2, resizable: 0.2, startVisibility: 0.2, restoreVisibility: 0.2 };
 const SKEWED_FALSE = new Set(['parkable', 'closable']);
 const PIN_VALID = PIN_TABLE.filter((row) => row[2] === 'valid').map((row) => row[1]);
 const SLOT_IDS = ['size', 'pin', 'menu'] as const;
@@ -1176,16 +1141,14 @@ function checkStack(layers: PanelSettingsLayers, options: ResolveOptions): void 
 
   if (v.parkable === false) {
     const asked = (key: string): boolean => ['template', 'host', 'instance'].includes(res.source[key] as string);
-    assert.deepEqual([v.overflow, v.startVisibility, v.restoreVisibility, v.keepMounted], ['scroll', 'live', 'live', false], 'C1');
+    assert.deepEqual([v.overflow, v.startVisibility, v.restoreVisibility], ['scroll', 'live', 'live'], 'C1');
     const fixed: Loose = { resizable: false, slots: 1, maxSlots: 1 };
     const askedValue = (key: string): unknown => ['instance', 'host', 'template'].map((name) => (name === 'host' && !VIEW_KEYS.includes(key) ? undefined : (layers[name as 'instance'] as Loose | undefined)?.[key])).find((x) => x !== undefined);
     if (!Object.keys(fixed).some((key) => askedValue(key) !== undefined && !isDeepStrictEqual(askedValue(key), fixed[key]))) assert.deepEqual([v.resizable, v.slots, v.maxSlots], [false, 1, 1], 'C1 size');
   }
   if (v.closable === false) assert.equal(v.clearable, false, 'C2');
-  if (v.persist === 'session') assert.deepEqual([v.rememberLayout, v.afterClose], [false, 'return-next-launch'], 'C3');
   assert.ok((v.slots as number) <= (v.maxSlots as number), 'C4');
   if (options.root === true) assert.deepEqual([v.closable, v.parkable, v.draggable, v.placeable, v.clearable], [false, false, false, false, false], 'C5');
-  if (v.viewState === 'reset-on-park') assert.equal(v.keepMounted, false, 'C6');
   for (const key of ['draggable', 'placeable', 'listed']) if (res.source[key] === 'derived') assert.equal(v[key], v.parkable, `${key} derived`);
   if (res.source.clearable === 'derived') assert.equal(v.clearable, v.parkable === true && v.closable === true, 'clearable derived');
 
@@ -1263,7 +1226,7 @@ test('property: 1200 seeded random layer stacks resolve inside their domains, ob
 
 test('property: the generator exercised every rule, every conflict kind, the root, the user layer and the notes, so a pass was not an empty run', () => {
   assert.ok(coverage.stacks >= 1000, `${coverage.stacks} stacks were checked before this test`);
-  assert.deepEqual([...coverage.rules].sort(), ['C1', 'C2', 'C3', 'C4', 'C5', 'C6']);
+  assert.deepEqual([...coverage.rules].sort(), ['C1', 'C2', 'C4', 'C5']);
   assert.deepEqual([...coverage.kinds].sort(), ['forced', 'not-view-settable', 'wrong-scope']);
   assert.deepEqual([...coverage.noteCodes].sort(), ['override-dropped', 'park-lever-inert', 'pin-unlists', 'resizable-capped']);
   assert.ok(coverage.roots >= 100 && coverage.withConflicts >= 300 && coverage.withNotes >= 300, JSON.stringify({ ...coverage, rules: undefined, kinds: undefined, noteCodes: undefined }));
@@ -1272,7 +1235,7 @@ test('property: the generator exercised every rule, every conflict kind, the roo
 
 test('property: a fixed stack holding every layer is not mutated, even deeply frozen, and resolves the same twice', () => {
   const layers: PanelSettingsLayers = deepFreeze({
-    workspace: { animated: false, hostCreatable: false },
+    workspace: { scrollOnMove: 'none', hostCreatable: false },
     template: { parkable: false, overflow: 'park', headerButtons: { size: slot('Size') }, tuning: { dragToClose: { minDistancePx: 100 } } },
     host: { title: 'T' },
     instance: { closable: false, headerButtons: { pin: slot('Pin') }, tuning: { hopFraction: 0.7 } },

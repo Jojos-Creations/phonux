@@ -6,7 +6,8 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { isDeepStrictEqual } from 'node:util';
-import { mergePatch, resolvePanelSettings } from '../index.js';
+import { resolvePanelSettings } from '../panelSettings.js';
+import { mergePatch } from '../settingsPatch.js';
 import type { HeaderButton, PanelSettings, SettingsPatch } from '../index.js';
 
 type Loose = Record<string, unknown>;
@@ -117,20 +118,14 @@ const FLAT_POOL: Record<string, readonly unknown[]> = {
   parkable: [true, false],
   draggable: [true, false],
   listed: [true, false],
-  keepMounted: [true, false],
   title: ['A', 'B'],
   overflow: ['scroll', 'park'],
-  evictionRank: [0, 2, -1],
-  returnPriority: [0, 3],
   maxSlots: [1, 2, 64],
   slots: [1, 2, 3],
   placeOnAdd: ['row-end', { before: 'a' }, { after: 'b' }],
-  undoPlacement: ['old-slot', { before: 'a' }],
   pinningWhenNotLive: ['refuse', { parked: 'show' }, { closed: 'refuse' }],
   pinning: [{ pinned: { placement: 'row-start' }, unpinned: { placement: 'row-end' } }, { pinned: { parkable: false }, unpinned: { parkable: true } }],
   layer: ['base', 'raised'],
-  persist: ['saved', 'session'],
-  viewState: ['keep', 'reset-on-park'],
 };
 const LEAF_POOL: Record<string, readonly unknown[]> = {
   dragToClose: [{ distanceFraction: 0.3 }, { minDistancePx: 120 }, { flickVelocity: 900, cancelVelocity: -100 }, { snapBack: { stiffness: 300, damping: 30 } }],

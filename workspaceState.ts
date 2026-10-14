@@ -261,30 +261,24 @@ function jsonSafe(value: unknown): JsonValue | undefined {
  * The saved form of `panels`: every entry but the root, with only the documented keys. `permanent` is derived
  * (`!collapsible`) because PanelWindow has no such field, and an absent optional stays absent so no key holds
  * `undefined`. An entry that carries settings also writes `key`, `instance` (unless code declares it again),
- * `overrides`, `applied` and `closable`; one whose `persist` is 'session' is not written, and an anchor that named
- * one is read again from the order that remains. `dismissed` is the tombstone list the caller holds.
+ * `overrides`, `applied` and `closable`. `dismissed` is the tombstone list the caller holds.
  */
 export function projectWorkspaceState(panels: readonly PanelWindow[], rootId: string, dismissed: readonly string[] = []): WorkspaceState {
-  const kept = panels.filter((p) => p.settings?.persist !== 'session');
-  const unsaved = new Set(panels.filter((p) => p.settings?.persist === 'session').map((p) => p.id));
-  const positional = new Map(deriveAnchorsFromOrder(kept, rootId).map((p) => [p.id, p.anchor]));
-  const names = (id: string): boolean => !unsaved.has(id);
-  // An anchor that named an unsaved panel forces every anchor to be read off the order: mixing the two numberings would reorder the row.
-  const rederive = kept.some((p) => (p.anchor !== undefined && !names(p.anchor.panel)) || (p.overrides?.anchor !== undefined && !names(p.overrides.anchor.panel)));
-  const root = kept.find((p) => p.id === rootId);
+  const positional = new Map(deriveAnchorsFromOrder(panels, rootId).map((p) => [p.id, p.anchor]));
+  const root = panels.find((p) => p.id === rootId);
   return {
     version: 1,
-    panels: kept
+    panels: panels
       .filter((p) => p.id !== rootId)
       .map((p) => {
-        const anchor = rederive ? positional.get(p.id)! : (p.anchor ?? positional.get(p.id)!);
+        const anchor = p.anchor ?? positional.get(p.id)!;
         const extras: Partial<WorkspacePanelState> = {};
         if (p.settings !== undefined) {
           extras.key = p.key ?? p.id;
           if (p.declared !== true) extras.instance = (jsonSafe(p.instance ?? {}) ?? {}) as { [key: string]: JsonValue };
           if (p.overrides !== undefined) {
             const { anchor: held, ...rest } = p.overrides;
-            extras.overrides = { ...(held === undefined ? {} : { anchor: names(held.panel) ? { ...held } : { panel: anchor.panel, position: anchor.position, priority: anchor.priority } }), ...rest };
+            extras.overrides = { ...(held === undefined ? {} : { anchor: { ...held } }), ...rest };
           }
           if (p.applied !== undefined) extras.applied = { placeOnAdd: p.applied.placeOnAdd };
           if (p.locked) extras.closable = false;

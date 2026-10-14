@@ -20,13 +20,13 @@ async function rig() {
   const seen: { panels?: PanelsAPI } = {};
   const probe = definePanel({
     id: 'probe',
-    settings: { frame: 'none' },
+    settings: {},
     view: () => {
       seen.panels = useHost().panels;
       return React.createElement('i', { 'data-slot': 'probe' });
     },
   });
-  const other = definePanel({ id: 'other', settings: { frame: 'none', multiple: true }, view: ({ handle }) => React.createElement('i', { 'data-slot': handle.id }) });
+  const other = definePanel({ id: 'other', settings: { multiple: true }, view: ({ handle }) => React.createElement('i', { 'data-slot': handle.id }) });
   await resize(1600);
   const ws = track(createWorkspace({ templates: [probe, other] }));
   ws.addPanel(probe);

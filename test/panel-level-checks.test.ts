@@ -23,13 +23,13 @@ afterEach(() => cleanup());
 const View = (): null => null;
 const onClick = (): void => undefined;
 
-/** A two-level description in which `frame`, `tuning.rowGap` and the header button `tooltip` arrived with level 2. */
+/** A two-level description in which `resizable`, `tuning.rowGap` and the header button `tooltip` arrived with level 2. */
 const FAKE_SINCE: LevelSince = {
-  settings: { closable: 1, frame: 2, 'tuning.rowGap': 2, headerButtons: 1, deprecatedAlias: 1 },
+  settings: { closable: 1, resizable: 2, 'tuning.rowGap': 2, headerButtons: 1, deprecatedAlias: 1 },
   headerButton: { label: 1, onClick: 1, tooltip: 2 },
 };
 
-const NEWER_SETTINGS = { closable: true, frame: 'none', tuning: { rowGap: 12 }, headerButtons: { note: { label: 'Note', tooltip: 'Tip', onClick } } };
+const NEWER_SETTINGS = { closable: true, resizable: false, tuning: { rowGap: 12 }, headerButtons: { note: { label: 'Note', tooltip: 'Tip', onClick } } };
 
 function capturingError<T>(run: () => T): { result: T; errors: string[] } {
   const errors: string[] = [];
@@ -59,7 +59,7 @@ function inProduction<T>(run: () => T): T {
 
 test('a template on level 1 is told which settings and header button members arrived with level 2', () => {
   assert.deepEqual(levelTieProblems(NEWER_SETTINGS, 1, FAKE_SINCE), [
-    "setting 'frame' was added in level 2",
+    "setting 'resizable' was added in level 2",
     "setting 'tuning.rowGap' was added in level 2",
     "header button member 'tooltip' was added in level 2",
   ]);
@@ -80,12 +80,12 @@ test('the report is one console.error per template naming the template, the leve
   assert.equal(errors.length, 1);
   assert.match(errors[0]!, /'tie-a'/);
   assert.match(errors[0]!, /level 1/);
-  for (const member of ['frame', 'tuning.rowGap', 'tooltip']) assert.ok(errors[0]!.includes(`'${member}'`), member);
+  for (const member of ['resizable', 'tuning.rowGap', 'tooltip']) assert.ok(errors[0]!.includes(`'${member}'`), member);
   assert.equal(capturingError(() => reportLevelTieOnce('tie-b', 1, NEWER_SETTINGS, FAKE_SINCE)).errors.length, 1, 'a second template is told for itself');
 });
 
 test('an omitted level is the newest, so nothing is newer; production is silent', () => {
-  assert.deepEqual(capturingError(() => reportLevelTieOnce('tie-c', undefined, { frame: 'none' }, { ...FAKE_SINCE, settings: { frame: 9 } })).errors, ['phonux: template \'tie-c\' is on panel API level 1 but uses members of a newer level: setting \'frame\' was added in level 9.']);
+  assert.deepEqual(capturingError(() => reportLevelTieOnce('tie-c', undefined, { resizable: false }, { ...FAKE_SINCE, settings: { resizable: 9 } })).errors, ['phonux: template \'tie-c\' is on panel API level 1 but uses members of a newer level: setting \'resizable\' was added in level 9.']);
   assert.deepEqual(capturingError(() => inProduction(() => reportLevelTieOnce('tie-d', 1, NEWER_SETTINGS, FAKE_SINCE))).errors, []);
 });
 
@@ -103,20 +103,20 @@ test('every shipped setting and header button member is named with the level tha
   assert.deepEqual(levelTieProblems(everything, 1, SHIPPED_SINCE), []);
 });
 
-/** Makes `frame` newer than level 1 for the shipped description while `run` is going, to show a door reaches the check. */
-function withFrameNewer<T>(run: () => T): T {
+/** Makes `resizable` newer than level 1 for the shipped description while `run` is going, to show a door reaches the check. */
+function withResizableNewer<T>(run: () => T): T {
   const settings = SHIPPED_SINCE.settings as Record<string, number>;
-  const before = settings.frame;
-  settings.frame = 2;
+  const before = settings.resizable;
+  settings.resizable = 2;
   try {
     return run();
   } finally {
-    settings.frame = before!;
+    settings.resizable = before!;
   }
 }
 
 test('every door that takes a template reports a member newer than its level, and none of them throws', () => {
-  const raw = (id: string, api?: 1): PanelTemplate => ({ id, ...(api === undefined ? {} : { api }), view: View, settings: { frame: 'none' } });
+  const raw = (id: string, api?: 1): PanelTemplate => ({ id, ...(api === undefined ? {} : { api }), view: View, settings: { resizable: false } });
   const doors: [string, (id: string) => void][] = [
     ['definePanel', (id) => void definePanel(raw(id, 1))],
     ['createWorkspace templates', (id) => void createWorkspace({ mount: false, templates: [raw(id, 1)] })],
@@ -124,15 +124,15 @@ test('every door that takes a template reports a member newer than its level, an
     ['workspace.registerTemplate', (id) => void createWorkspace({ mount: false }).registerTemplate(raw(id, 1))],
   ];
   doors.forEach(([name, door], index) => {
-    const { errors } = capturingError(() => withFrameNewer(() => door(`door-${index}`)));
+    const { errors } = capturingError(() => withResizableNewer(() => door(`door-${index}`)));
     assert.equal(errors.length, 1, name);
-    assert.match(errors[0]!, new RegExp(`'door-${index}'.*'frame'`), name);
+    assert.match(errors[0]!, new RegExp(`'door-${index}'.*'resizable'`), name);
   });
 });
 
 test('the shipped description reports nothing for templates that use every kind of member today', () => {
   const { errors } = capturingError(() => {
-    definePanel({ id: 'tie-today', view: View, api: 1, settings: { closable: true, frame: 'none', headerButtons: { a: { label: 'A', onClick, tooltip: 't', order: 1 } } } });
+    definePanel({ id: 'tie-today', view: View, api: 1, settings: { closable: true, resizable: false, headerButtons: { a: { label: 'A', onClick, tooltip: 't', order: 1 } } } });
     createWorkspace({ mount: false, templates: [levelOnePanel] });
   });
   assert.deepEqual(errors, []);
@@ -207,7 +207,6 @@ test('real header button items in every state have the shape the description giv
     id: 'items-real',
     view: Probe,
     settings: {
-      frame: 'none',
       headerButtons: {
         iconic: { icon: 'i', label: 'Icon', onClick },
         texty: { label: 'Text', onClick, side: 'start', order: 2, description: 'd', tooltip: 't' },
@@ -217,7 +216,7 @@ test('real header button items in every state have the shape the description giv
       },
     },
   });
-  const none = definePanel({ id: 'items-none', view: Probe, settings: { frame: 'none' } });
+  const none = definePanel({ id: 'items-none', view: Probe });
   const w = createWorkspace({ mount: false, templates: [buttons, none] });
   w.addPanel(buttons);
   w.addPanel(none);

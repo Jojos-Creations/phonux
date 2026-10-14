@@ -17,7 +17,7 @@ import { PanelHiddenContext, PanelSlotContext, type DragScroll } from './panelSl
 import type { PanelTemplate } from './panelTemplate.js';
 import { PanelViewContextValue } from './panelViewContext.js';
 import { HEADER_ROW_ATTRIBUTE, headerButtonsOf } from './panelHeaderButtons.js';
-import { LIBRARY_TUNING_DEFAULTS, effective, panelKey, resolvePanelSettings } from './panelSettings.js';
+import { FIXED, LIBRARY_TUNING_DEFAULTS, effective, panelKey, resolvePanelSettings } from './panelSettings.js';
 import type { ChromeTuning, ResolvedPanelSettings, ResolvedPanelTuning, WorkspaceTuning } from './panelSettings.js';
 import { PanelRowSlot } from './PanelRowSlot.js';
 import { ChromeStoreContext, createChromeStore } from './panelChrome.js';
@@ -199,7 +199,7 @@ export function PanelRow({
   const releasedAtParkRef = React.useRef<ReadonlyMap<string, boolean>>(new Map());
   const parkReleases = (p: PanelRowEntry): boolean => {
     if (!p.collapsible || p.live) return false;
-    return liveBeforeRef.current.get(p.id) === true ? effective(p).viewState === 'reset-on-park' : releasedAtParkRef.current.get(p.id) === true;
+    return liveBeforeRef.current.get(p.id) === true ? FIXED.viewState === 'reset-on-park' : releasedAtParkRef.current.get(p.id) === true;
   };
   // The latch is computed from the previous commit's live flags, so it must be assigned before they are overwritten.
   React.useLayoutEffect(() => {
@@ -217,8 +217,7 @@ export function PanelRow({
   const restRef = React.useRef<ReadonlyMap<string, { leftOffset: number; width: number }>>(new Map());
   const keepsMounted = (p: PanelRowEntry): boolean => {
     if (!p.collapsible || p.live || p.marker === true) return false;
-    const settings = effective(p);
-    if (!settings.keepMounted || settings.viewState === 'reset-on-park') return false;
+    if (!FIXED.keepMounted || FIXED.viewState === 'reset-on-park') return false;
     return liveBeforeRef.current.get(p.id) === true || keptAtParkRef.current.get(p.id) === true;
   };
   // View state is held by the key, the id a recentlyClosed summary carries, so a closed panel's state survives until its undo window ends.
@@ -347,7 +346,8 @@ export function PanelRow({
           const kept = presentIndex < 0;
           const rest = kept ? restRef.current.get(p.id)! : { leftOffset: leftOffsets[presentIndex]!, width: widths[presentIndex]! };
           const Component = resolveViewIn(templateOf, p.view);
-          const { closable, draggable, placeable, resizable, maxSlots, enterFrom, exitTo, closeExit, animated, layer, scrollOnDrag, headerButtons, frame } = effective(p);
+          const { closable, draggable, placeable, resizable, maxSlots, enterFrom, layer, headerButtons } = effective(p);
+          const { exitTo, closeExit, animated, scrollOnDrag } = FIXED;
           const own = slotTuning(workspaceTuning, binding.panelTuning(p as PanelWindow));
           const handle = viewContext.handleFor(panelKey(p));
           const report = binding.reportError;
@@ -367,7 +367,6 @@ export function PanelRow({
                 placeable,
                 resizable,
                 maxSlots,
-                frame,
                 id: p.id,
                 animated,
                 tracking,

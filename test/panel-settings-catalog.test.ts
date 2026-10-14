@@ -1,5 +1,5 @@
 /**
- * The catalog as data: the 70 names, who owns each, its class and doors, the exact defaults, the leaf-module rule, the
+ * The catalog as data: the 51 names, who owns each, its class and doors, the exact defaults, the leaf-module rule, the
  * differential recorder, and the table in DESIGN.md that must equal the descriptors row for row.
  */
 
@@ -9,7 +9,8 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import ts from 'typescript';
-import { LIBRARY_PANEL_DEFAULTS, LIBRARY_TUNING_DEFAULTS, PANEL_SETTINGS_CATALOG, resolvePanelSettings } from '../index.js';
+import { LIBRARY_PANEL_DEFAULTS, LIBRARY_TUNING_DEFAULTS, PANEL_SETTINGS_CATALOG } from '../index.js';
+import { resolvePanelSettings } from '../panelSettings.js';
 import type { CatalogName, ResolvedPanelSettings, SettingDescriptor } from '../index.js';
 import { createDifferentialRecorder } from './support/differential.js';
 
@@ -41,42 +42,23 @@ const NAME_TABLE: Record<CatalogName, true> = {
   listed: true,
   startVisibility: true,
   hideStickiness: true,
-  hideWhenLast: true,
   capacityReturn: true,
-  returnPriority: true,
   overflow: true,
-  evictionRank: true,
-  evictionOrder: true,
   revealOnScroll: true,
   scrollOnOpen: true,
   scrollOnMove: true,
-  scrollOnDrag: true,
   toggleWhenClosed: true,
   showWhenClosed: true,
-  viewState: true,
-  keepMounted: true,
-  frame: true,
   placeOnAdd: true,
   placeOnShow: true,
-  placeOnReturn: true,
-  placeFallback: true,
-  undoPlacement: true,
   layer: true,
   enterFrom: true,
-  exitTo: true,
-  closeExit: true,
-  animated: true,
   title: true,
   pinning: true,
   pinningWhenNotLive: true,
   headerButtons: true,
-  persist: true,
-  rememberLayout: true,
   restoreVisibility: true,
   afterClose: true,
-  undoWindowMs: true,
-  reportClose: true,
-  snapshot: true,
   'tuning.rowGap': true,
   'tuning.dragToClose': true,
   'tuning.slide': true,
@@ -98,15 +80,14 @@ const DERIVED_KEYS = ['draggable', 'placeable', 'listed', 'clearable'] as const;
 
 /** The one assignment of every name to the entry that enforces it. */
 const OWNER_TABLE: ReadonlyArray<readonly [string, readonly CatalogName[]]> = [
-  ['phonux-engine-permission-settings', ['closable', 'parkable', 'draggable', 'crossable', 'placeable', 'resizable', 'clearable', 'listed', 'title', 'undoWindowMs', 'reportClose', 'snapshot']],
-  ['phonux-engine-visibility-settings', ['startVisibility', 'hideStickiness', 'hideWhenLast', 'capacityReturn', 'returnPriority', 'evictionRank', 'evictionOrder', 'viewState', 'tuning.saveQuietMs', 'tuning.gestureLockMs', 'tuning.gestureQuietMs', 'tuning.returnTieBreak', 'tuning.dropTieBreak']],
-  ['phonux-engine-placement-and-motion-settings', ['placeOnAdd', 'placeOnShow', 'placeOnReturn', 'placeFallback', 'undoPlacement', 'layer', 'enterFrom', 'exitTo', 'closeExit', 'animated']],
+  ['phonux-engine-permission-settings', ['closable', 'parkable', 'draggable', 'crossable', 'placeable', 'resizable', 'clearable', 'listed', 'title']],
+  ['phonux-engine-visibility-settings', ['startVisibility', 'hideStickiness', 'capacityReturn', 'tuning.saveQuietMs', 'tuning.gestureLockMs', 'tuning.gestureQuietMs', 'tuning.returnTieBreak', 'tuning.dropTieBreak']],
+  ['phonux-engine-placement-and-motion-settings', ['placeOnAdd', 'placeOnShow', 'layer', 'enterFrom']],
   ['phonux-engine-tuning-look-settings', ['tuning.rowGap', 'tuning.dragToClose', 'tuning.slide', 'tuning.hopFraction', 'tuning.chrome', 'tuning.resizeSettleSlides']],
-  ['phonux-keep-mounted-render-path', ['keepMounted']],
   ['phonux-row-numbers-and-overflow', ['overflow']],
   ['phonux-row-scroll-gesture-and-requests', ['revealOnScroll', 'scrollOnOpen', 'scrollOnMove', 'tuning.rowGesture', 'tuning.initialScroll']],
-  ['phonux-edge-scroll-while-dragging', ['scrollOnDrag', 'tuning.edgeScroll']],
-  ['phonux-saved-overrides-and-template-paths', ['persist', 'rememberLayout', 'restoreVisibility', 'hostCreatable', 'multiple', 'maxInstances']],
+  ['phonux-edge-scroll-while-dragging', ['tuning.edgeScroll']],
+  ['phonux-saved-overrides-and-template-paths', ['restoreVisibility', 'hostCreatable', 'multiple', 'maxInstances']],
   ['phonux-workspace-attach-and-snapshot', ['afterClose']],
   ['phonux-panel-handle-operations', ['toggleWhenClosed', 'showWhenClosed']],
   ['phonux-pin-and-reset', ['pinning', 'pinningWhenNotLive']],
@@ -114,7 +95,6 @@ const OWNER_TABLE: ReadonlyArray<readonly [string, readonly CatalogName[]]> = [
   ['phonux-max-live-panels', ['tuning.maxLivePanels']],
   ['phonux-slot-sizing-resizable-root-v3', ['slots', 'maxSlots']],
   ['phonux-shrink-whole-panels-v1', ['tuning.shrinkOutOfView']],
-  ['phonux-default-frame-v3', ['frame']],
   ['phonux-fit-phone-to-screen-v3', ['tuning.phoneFit', 'tuning.phoneFitMin', 'tuning.phoneFitMax']],
 ];
 
@@ -192,7 +172,7 @@ function parseDocRows(doc: string): DocRow[] {
 function docDriftProblems(doc: string): string[] {
   const problems: string[] = [];
   const rows = parseDocRows(doc);
-  if (rows.length !== 70) problems.push(`the table has ${rows.length} rows, not 70`);
+  if (rows.length !== 51) problems.push(`the table has ${rows.length} rows, not 51`);
   const byName = new Map(rows.map((r) => [r.name, r]));
   if (byName.size !== rows.length) problems.push('a name appears in two rows');
   for (const d of PANEL_SETTINGS_CATALOG) {
@@ -215,12 +195,12 @@ const DOC = read('DESIGN.md');
 // Completeness
 // ---------------------------------------------------------------------------
 
-test('catalog: the name set is non-empty and has 70 names, one descriptor each, in no repeated order slot', () => {
+test('catalog: the name set is non-empty and has 51 names, one descriptor each, in no repeated order slot', () => {
   assert.ok(NAMES.length > 0);
-  assert.equal(NAMES.length, 70, "the design's count is 70: a changed count must change the design");
-  assert.equal(PANEL_SETTINGS_CATALOG.length, 70);
+  assert.equal(NAMES.length, 51, "the design's count is 51: a changed count must change the design");
+  assert.equal(PANEL_SETTINGS_CATALOG.length, 51);
   assert.deepEqual([...PANEL_SETTINGS_CATALOG.map((d) => d.name)].sort(), [...NAMES].sort());
-  assert.equal(new Set(PANEL_SETTINGS_CATALOG.map((d) => d.name)).size, 70);
+  assert.equal(new Set(PANEL_SETTINGS_CATALOG.map((d) => d.name)).size, 51);
 });
 
 test('catalog: the name set equals the keys of the two defaults objects plus the derived keys and the rows of the DESIGN.md table', () => {
@@ -231,7 +211,7 @@ test('catalog: the name set equals the keys of the two defaults objects plus the
   ]);
   assert.deepEqual([...fromDefaults].sort(), [...NAMES].sort());
   assert.deepEqual(parseDocRows(DOC).map((r) => r.name).sort(), [...NAMES].sort());
-  assert.equal(fromDefaults.size, 70);
+  assert.equal(fromDefaults.size, 51);
 });
 
 test('catalog: PANEL_SETTINGS_CATALOG is frozen all the way down', () => {
@@ -241,11 +221,11 @@ test('catalog: PANEL_SETTINGS_CATALOG is frozen all the way down', () => {
   }
 });
 
-test('catalog: OWNER_ENTRY assigns each of the 70 names to exactly one of 17 ids', () => {
+test('catalog: OWNER_ENTRY assigns each of the 51 names to exactly one of 17 ids', () => {
   assert.deepEqual(ownerTableProblems(OWNER_TABLE), []);
-  assert.equal(OWNER_OF.size, 70);
-  assert.equal(new Set(OWNER_OF.values()).size, 18);
-  assert.deepEqual(OWNER_TABLE.map(([, names]) => names.length), [12, 13, 10, 6, 1, 1, 5, 2, 6, 1, 2, 2, 1, 1, 2, 1, 1, 3]);
+  assert.equal(OWNER_OF.size, 51);
+  assert.equal(new Set(OWNER_OF.values()).size, 16);
+  assert.deepEqual(OWNER_TABLE.map(([, names]) => names.length), [9, 8, 4, 6, 1, 5, 1, 4, 1, 2, 2, 1, 1, 2, 1, 3]);
 });
 
 test('catalog: a scratch owner table with one name moved to a second id, or dropped, fails', () => {
@@ -256,20 +236,20 @@ test('catalog: a scratch owner table with one name moved to a second id, or drop
   assert.deepEqual(ownerTableProblems(OWNER_TABLE), [], 'control: the real table has no problem, so the two probes above could have passed');
 });
 
-test('catalog: the classes are NOW 19, NEXT 44, STATE 4 and SCOPE 3, and STATE and SCOPE name the expected keys', () => {
+test('catalog: the classes are NOW 18, NEXT 28, STATE 2 and SCOPE 3, and STATE and SCOPE name the expected keys', () => {
   const by = (cls: string) => PANEL_SETTINGS_CATALOG.filter((d) => d.configure.cls === cls).map((d) => d.name);
-  assert.equal(by('NOW').length, 19);
-  assert.equal(by('NEXT').length, 44);
-  assert.deepEqual(by('STATE').sort(), ['keepMounted', 'maxSlots', 'parkable', 'viewState']);
+  assert.equal(by('NOW').length, 18);
+  assert.equal(by('NEXT').length, 28);
+  assert.deepEqual(by('STATE').sort(), ['maxSlots', 'parkable']);
   assert.deepEqual(by('SCOPE').sort(), ['hostCreatable', 'maxInstances', 'multiple']);
 });
 
-test('catalog: the doors are template for 3 names, tuning for 17, instance and tuning for 4 and instance for the other 48', () => {
+test('catalog: the doors are template for 3 names, tuning for 15, instance and tuning for 4 and instance for the other 29', () => {
   const by = (doors: string) => PANEL_SETTINGS_CATALOG.filter((d) => d.configure.doors.join(',') === doors).map((d) => d.name);
   assert.deepEqual(by('template').sort(), [...TEMPLATE_KEYS].sort());
   assert.deepEqual(by('tuning').sort(), [...WORKSPACE_ONLY_KEYS].sort());
   assert.deepEqual(by('instance,tuning').sort(), [...PER_PANEL_TUNING].sort());
-  assert.equal(by('instance').length, 48);
+  assert.equal(by('instance').length, 29);
 });
 
 test('catalog: only title, listed, layer, slots, closable, placeOnAdd and enterFrom are view-settable', () => {
@@ -298,15 +278,15 @@ for (const name of NAMES) {
 // Docs drift
 // ---------------------------------------------------------------------------
 
-test('docs drift: DESIGN.md has exactly 70 rows between the markers and every name, values, default and class word matches', () => {
+test('docs drift: DESIGN.md has exactly 51 rows between the markers and every name, values, default and class word matches', () => {
   assert.deepEqual(docDriftProblems(DOC), []);
-  assert.equal(parseDocRows(DOC).length, 70);
+  assert.equal(parseDocRows(DOC).length, 51);
 });
 
 test('docs drift: editing one default in a scratch copy of the doc is caught', () => {
-  const edited = DOC.replace('| `returnPriority` | integer | 0 |', '| `returnPriority` | integer | 1 |');
+  const edited = DOC.replace('| `capacityReturn` | auto, manual | auto |', '| `capacityReturn` | auto, manual | manual |');
   assert.notEqual(edited, DOC, 'the planted edit must change the text');
-  assert.ok(docDriftProblems(edited).some((p) => p.startsWith('returnPriority: default differs')));
+  assert.ok(docDriftProblems(edited).some((p) => p.startsWith('capacityReturn: default differs')));
 });
 
 test('docs drift: changing one class word in a scratch copy of the doc is caught', () => {
@@ -316,10 +296,10 @@ test('docs drift: changing one class word in a scratch copy of the doc is caught
 });
 
 test('docs drift: a scratch copy with a row dropped, or a row added, fails the count', () => {
-  const dropped = DOC.replace(/\| `snapshot` \|[^\n]*\n/, '');
-  assert.ok(docDriftProblems(dropped).some((p) => p.includes('69 rows')));
+  const dropped = DOC.replace(/\| `afterClose` \|[^\n]*\n/, '');
+  assert.ok(docDriftProblems(dropped).some((p) => p.includes('50 rows')));
   const added = DOC.replace('<!-- catalog:end -->', '| `extra` | x | y | NOW. z |\n<!-- catalog:end -->');
-  assert.ok(docDriftProblems(added).some((p) => p.includes('71 rows')));
+  assert.ok(docDriftProblems(added).some((p) => p.includes('52 rows')));
 });
 
 // ---------------------------------------------------------------------------
@@ -385,41 +365,22 @@ const RESOLVED_DEFAULTS: { [K in Exclude<keyof ResolvedPanelSettings, 'title'>]:
   listed: true,
   startVisibility: 'live',
   hideStickiness: 'sticky',
-  hideWhenLast: 'allow',
   capacityReturn: 'auto',
-  returnPriority: 0,
   overflow: 'scroll',
-  evictionRank: 0,
-  evictionOrder: 'farthest',
   revealOnScroll: SCROLL_DEFAULTS.revealOnScroll,
   scrollOnOpen: SCROLL_DEFAULTS.scrollOnOpen,
   scrollOnMove: SCROLL_DEFAULTS.scrollOnMove,
-  scrollOnDrag: 'edge',
   toggleWhenClosed: 'ignore',
   showWhenClosed: 'refuse',
-  viewState: 'keep',
-  keepMounted: false,
-  frame: 'auto',
   placeOnAdd: 'row-end',
   placeOnShow: 'in-place',
-  placeOnReturn: 'in-place',
-  placeFallback: 'row-end',
-  undoPlacement: 'old-slot',
   layer: 'base',
   enterFrom: 'auto',
-  exitTo: 'auto',
-  closeExit: 'down',
-  animated: true,
   pinning: { pinned: { placement: 'row-start' }, unpinned: { placement: 'row-end' } },
   pinningWhenNotLive: 'place-only',
   headerButtons: {},
-  persist: 'saved',
-  rememberLayout: true,
   restoreVisibility: 'saved',
   afterClose: 'stay-closed',
-  undoWindowMs: 10000,
-  reportClose: true,
-  snapshot: 'both',
   tuning: {
     dragToClose: { distanceFraction: 0.25, minDistancePx: 80, flickMinDistancePx: 40, flickVelocity: 700, cancelVelocity: -300, directionLockPx: 8, restMs: 50, velocityWindowMs: 100, snapBack: { stiffness: 520, damping: 42 } },
     slide: { durationSec: 0.4, ease: [0.2, 0, 0, 1], closeExitSeconds: 0.18, closeExitEase: 'easeIn', glideEase: 'cubic-out' },
@@ -435,7 +396,7 @@ test('defaults: resolving no layers gives every key of ResolvedPanelSettings its
   assert.equal('title' in value, false, 'title has no default and is absent');
   assert.deepEqual(conflicts, []);
   assert.deepEqual(notes, []);
-  assert.equal(Object.keys(RESOLVED_DEFAULTS).length, 51);
+  assert.equal(Object.keys(RESOLVED_DEFAULTS).length, 32);
   for (const [key, layer] of Object.entries(source)) assert.equal(layer, (DERIVED_KEYS as readonly string[]).includes(key) ? 'derived' : 'library', `source of ${key}`);
 });
 
@@ -480,17 +441,18 @@ function valueImports(source: string, fileName = 'x.ts'): string[] {
 }
 
 const LEAF_ALLOWED: Record<string, readonly string[]> = {
-  'panelSettings.ts': ['./rowConstants.js', './panelManagerError.js'],
+  'panelSettings.ts': ['./rowConstants.js', './panelManagerError.js', './panelApiLevel.js'],
+  'panelApiLevel.ts': ['./panelManagerError.js'],
   'panelManagerError.ts': [],
   'rowConstants.ts': [],
 };
 
-test('leaf modules: panelSettings.ts value-imports only rowConstants and panelManagerError; the other two leaves import nothing at runtime', () => {
+test('leaf modules: panelSettings.ts value-imports only rowConstants, panelManagerError and panelApiLevel; panelApiLevel.ts only panelManagerError; the other two leaves import nothing at runtime', () => {
   for (const [file, allowed] of Object.entries(LEAF_ALLOWED)) {
     const found = valueImports(read(file), file);
     assert.deepEqual(found.filter((spec) => !allowed.includes(spec)), [], `${file} value-imports a module outside its leaf set`);
   }
-  assert.deepEqual(valueImports(read('panelSettings.ts'), 'panelSettings.ts').sort(), ['./panelManagerError.js', './rowConstants.js'], 'both leaves are really imported, so the scan read the right file');
+  assert.deepEqual(valueImports(read('panelSettings.ts'), 'panelSettings.ts').sort(), ['./panelApiLevel.js', './panelManagerError.js', './rowConstants.js'], 'all three leaves are really imported, so the scan read the right file');
 });
 
 test('leaf modules: a planted source importing PanelRowSlot, or loading anything at runtime another way, is flagged', () => {
@@ -542,7 +504,7 @@ test('doors: every name of each key class is admitted by exactly the calls its c
       checked += 1;
     }
   }
-  assert.equal(checked, 70 * 3);
+  assert.equal(checked, 51 * 3);
 });
 
 // ---------------------------------------------------------------------------

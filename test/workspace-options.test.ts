@@ -44,7 +44,6 @@ const hostRead = (): string => {
 const probe = (id = 'probe'): PanelTemplate =>
   definePanel({
     id,
-    settings: { frame: 'none' },
     view: ({ handle }) => {
       const read = hostRead();
       seen.push(read);
@@ -130,14 +129,13 @@ test('panels.defaultView is what a create that names no view opens, and an updat
   let host: ReturnType<typeof useHost> | undefined;
   const opener = definePanel({
     id: 'opener',
-    settings: { frame: 'none' },
     view: ({ handle }) => {
       host = useHost();
       return React.createElement('i', { 'data-slot': handle.id });
     },
   });
-  const a = definePanel({ id: 'a', settings: { frame: 'none', hostCreatable: true, multiple: true }, view: ({ handle }) => React.createElement('i', { 'data-slot': handle.id, 'data-view': 'a' }) });
-  const b = definePanel({ id: 'b', settings: { frame: 'none', hostCreatable: true, multiple: true }, view: ({ handle }) => React.createElement('i', { 'data-slot': handle.id, 'data-view': 'b' }) });
+  const a = definePanel({ id: 'a', settings: { hostCreatable: true, multiple: true }, view: ({ handle }) => React.createElement('i', { 'data-slot': handle.id, 'data-view': 'a' }) });
+  const b = definePanel({ id: 'b', settings: { hostCreatable: true, multiple: true }, view: ({ handle }) => React.createElement('i', { 'data-slot': handle.id, 'data-view': 'b' }) });
   win.width = 1400;
   const ws = track(createWorkspace({ templates: [opener, a, b], panels: { defaultView: 'a' } }));
   ws.addPanel('opener');
@@ -175,7 +173,7 @@ test('wrap renders inside the host and around the row, with the workspace, and k
   function Themed(): React.ReactElement {
     return React.createElement('i', { 'data-slot': 'themed', 'data-theme': React.useContext(Theme) });
   }
-  const themed = definePanel({ id: 'themed', settings: { frame: 'none' }, view: Themed });
+  const themed = definePanel({ id: 'themed', view: Themed });
   win.width = 1000;
   const ws = track(createWorkspace({ templates: [themed], wrap: Wrap, device: device(450) }));
   ws.addPanel('themed');
@@ -269,7 +267,6 @@ test('an update from a layout effect in wrap lands in the task that rendered the
   }
   const view = definePanel({
     id: 'probe',
-    settings: { frame: 'none' },
     view: ({ handle }) => {
       const width = useHost().device.size.width;
       React.useLayoutEffect(() => {

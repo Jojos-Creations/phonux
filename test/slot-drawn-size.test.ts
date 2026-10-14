@@ -9,6 +9,7 @@ import * as React from 'react';
 import { readFileSync } from 'node:fs';
 import { Panel, PanelFrame, PanelSizeBox, createWorkspace, definePanel, usePhoneSize } from '../index.js';
 import { cleanup, mount, withHost } from './support/mount-harness.js';
+import { useFrameClaim } from '../panelFrameClaim.js';
 import { flush, mountWorkspace } from './support/workspace-row.js';
 
 afterEach(cleanup);
@@ -18,9 +19,19 @@ const PHONE = 390;
 
 const BARE = (): React.ReactElement => React.createElement(PanelSizeBox, null, React.createElement(Panel, { title: 'P', children: React.createElement(PanelFrame, null, 'x') }));
 
+/** The same view claiming the frame, so the row's default frame does not wrap it a second time. */
+const CLAIMING = (): React.ReactElement => {
+  useFrameClaim('frame');
+  return BARE();
+};
+
 async function rowWith(gap: number, slots: number) {
-  const view = definePanel({ id: 'sized', view: BARE, settings: { frame: 'none', slots } });
-  const root = definePanel({ id: 'root', view: () => null, settings: { frame: 'none' } });
+  const view = definePanel({ id: 'sized', view: CLAIMING, settings: { slots } });
+  const root = definePanel({ id: 'root', view: () => {
+      useFrameClaim('frame');
+      return null;
+    },
+    settings: {} });
   const ws = createWorkspace({ mount: false, root, templates: [view], tuning: { rowGap: gap } });
   ws.addPanel('sized');
   const m = mountWorkspace(ws, { width: 4000 });

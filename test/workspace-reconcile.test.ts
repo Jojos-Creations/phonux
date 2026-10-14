@@ -87,11 +87,11 @@ test('recordOverride parkable copies collapsible as parkable', () => {
   assert.deepEqual(recorded.map((p) => p.overrides), [undefined, { parkable: true }, { parkable: false }]);
 });
 
-test('recordOverride skips the root, a marker, an entry with no settings and one whose rememberLayout is false', () => {
+test('recordOverride skips the root, a marker and an entry with no settings', () => {
   const marker: PanelWindow = { ...made('m'), marker: true };
   const handBuilt: PanelWindow = { id: 'h', url: '', live: true, locked: false, view: 'web', collapsible: true, listed: true };
   const rooted = applyTemplate(createHistoryPanel(ROOT), resolvePanelSettings({}, { root: true }).value, 'create');
-  const row = computeRowOrder([rooted, marker, handBuilt, made('r', { rememberLayout: false }), made('ok')], ROOT);
+  const row = computeRowOrder([rooted, marker, handBuilt, made('ok')], ROOT);
   const ids = row.map((p) => p.id);
   const recorded = recordOverride(row, 'anchor', ids, ROOT);
   assert.deepEqual(recorded.filter((p) => p.overrides !== undefined).map((p) => p.id), ['ok']);
@@ -268,24 +268,6 @@ test('an overrides.slots above maxSlots restores at maxSlots and the overrides t
   assert.equal(result.entries[0]!.overrides!.anchor !== undefined, true);
 });
 
-test('rememberLayout false applies none of the stored overrides and carries them through two saves unchanged', () => {
-  const overrides = { slots: 2, anchor: { panel: ROOT, position: 'right' as const, priority: 0 }, parkable: false };
-  const saved = file([savedEntry('p', { view: 't', overrides, applied: { placeOnAdd: 'row-end' } })]);
-  const first = run({ saved, templates: [tpl('t', { rememberLayout: false })] });
-  assert.equal(first.entries[0]!.slots, 1);
-  assert.equal(first.entries[0]!.collapsible, true);
-  const once = projectWorkspaceState([createHistoryPanel(ROOT), ...first.entries], ROOT);
-  const second = run({ saved: JSON.parse(JSON.stringify(once)), templates: [tpl('t', { rememberLayout: false })] });
-  const twice = projectWorkspaceState([createHistoryPanel(ROOT), ...second.entries], ROOT);
-  assert.deepEqual(twice.panels[0]!.overrides, overrides);
-});
-
-test('flipping rememberLayout back to true applies the stored overrides', () => {
-  const saved = file([savedEntry('p', { view: 't', overrides: { slots: 2 } })]);
-  assert.equal(run({ saved, templates: [tpl('t', { rememberLayout: false })] }).entries[0]!.slots, 1);
-  assert.equal(run({ saved, templates: [tpl('t', { rememberLayout: true })] }).entries[0]!.slots, 2);
-});
-
 // overrides.parkable
 
 test('a hand-written overrides.parkable false restores a declared and an anonymous panel fixed: live, one slot, the C1 values', () => {
@@ -300,13 +282,6 @@ test('a hand-written overrides.parkable false restores a declared and an anonymo
   for (const p of result.entries) {
     assert.deepEqual([p.collapsible, p.live, p.slots, p.settings!.overflow, p.settings!.restoreVisibility], [false, true, 1, 'scroll', 'live'], p.key);
   }
-});
-
-test('overrides.parkable under rememberLayout false is carried dormant: the panel stays parkable and the file keeps it', () => {
-  const saved = file([savedEntry('p', { view: 't', overrides: { parkable: false } })]);
-  const result = run({ saved, templates: [tpl('t', { rememberLayout: false })] });
-  assert.equal(result.entries[0]!.collapsible, true);
-  assert.deepEqual(result.entries[0]!.overrides, { parkable: false });
 });
 
 test('overrides.parkable false on a panel whose slots resolve to two is dropped with a note', () => {
@@ -395,23 +370,6 @@ for (const { name, more, top, check } of settled) {
     check(result);
   });
 }
-
-test('session anchor re-derived: a projected file keeps A, B, C order', () => {
-  const session = made('s', { persist: 'session' });
-  const row = rowOf(
-    session,
-    made('A', {}, { anchor: { panel: 's', position: 'right', priority: 0 } }),
-    made('B', {}, { anchor: { panel: 's', position: 'right', priority: 1 } }),
-    made('C', {}, { anchor: { panel: 's', position: 'right', priority: 2 } }),
-    made('D', {}, { anchor: { panel: ROOT, position: 'right', priority: 1 } }),
-    made('E', {}, { anchor: { panel: ROOT, position: 'right', priority: 2 } }),
-  );
-  assert.deepEqual(row.map((p) => p.title ?? p.id), ['History', 's', 'A', 'B', 'C', 'D', 'E'], 'control: the row runs through the session panel');
-  const projected = JSON.parse(JSON.stringify(projectWorkspaceState(row, ROOT))) as WorkspaceState;
-  assert.equal(projected.panels.some((p) => p.id === 's'), false, 'the session panel is not in the file');
-  const result = run({ saved: projected, workspaceDefaults: {} });
-  assert.deepEqual(titles(result.entries), ['A', 'B', 'C', 'D', 'E']);
-});
 
 test('an entry saved before slots restores its top-level formFactor and its overrides.formFactor as slot counts, and slots wins over both', () => {
   const old = (id: string, more: Record<string, unknown>): WorkspacePanelState => savedEntry(id, more as Partial<WorkspacePanelState>);

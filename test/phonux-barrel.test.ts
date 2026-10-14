@@ -66,8 +66,6 @@ const VALUE_EXPORTS = [
   'PANEL_SETTINGS_CATALOG',
   'LIBRARY_PANEL_DEFAULTS',
   'LIBRARY_TUNING_DEFAULTS',
-  'resolvePanelSettings',
-  'mergePatch',
   'PANEL_API',
   'definePanel',
   'PanelManagerError',
@@ -94,7 +92,7 @@ const VALUE_EXPORTS = [
   'DRAGGING_ATTRIBUTE',
 ].sort();
 
-test('the phonux barrel exports exactly the 80 runtime values, no more, no fewer', () => {
+test('the phonux barrel exports exactly the 78 runtime values, no more, no fewer', () => {
   assert.deepEqual(Object.keys(phonux).sort(), VALUE_EXPORTS);
 });
 

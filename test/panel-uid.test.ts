@@ -28,7 +28,6 @@ afterEach(() => {
 const ROOT = 'root';
 const QUIET_MS = 200;
 const U1 = `u_${'1'.repeat(32)}`;
-const U2 = `u_${'2'.repeat(32)}`;
 const U3 = `u_${'3'.repeat(32)}`;
 
 const counter = (): (() => string) => {
@@ -94,10 +93,9 @@ test('a plain panel\'s key and public summary are unchanged: the uid is never it
   assert.equal('uid' in summarisePanel(p!), false);
 });
 
-test('the file writes each saved panel\'s uid, and a persist session panel writes nothing', () => {
+test('the file writes each saved panel\'s uid', () => {
   const plain = appendPanel([createHistoryPanel(ROOT)], { view: 'uid-view' }, 'p1', ROOT, U1);
-  const session = applyTemplate(appendPanel([], { view: 'uid-view' }, 's1', ROOT, U2)[0]!, resolvePanelSettings({ instance: { persist: 'session' } }).value, 'create');
-  const state = projectWorkspaceState([...plain, session], ROOT);
+  const state = projectWorkspaceState(plain, ROOT);
   assert.deepEqual(state.panels.map((s) => s.uid), [U1]);
 });
 
