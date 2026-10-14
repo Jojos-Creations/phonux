@@ -370,6 +370,7 @@ export function PanelRow({
                 tracking,
                 setDragging: (on) => chrome.setDragging(p.id, on),
                 neighborWidths: neighborWidthsAt(p),
+                drawn: { width: rest.width, height: phoneHeight },
                 handle,
                 pinned: anchorTargetOf(p, rootId) === rootId && p.anchor?.position === 'left',
                 tuning: own,

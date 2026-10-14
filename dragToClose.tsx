@@ -14,7 +14,11 @@ import { stepTarget } from './scrollTargets.js';
 import type { DragToCloseTuning } from './panelSettings.js';
 import { CLOSE_EXIT_EASE, DIRECTION_LOCK_PX, DRAG_CLOSE_NUMBERS, DRAG_REST_MS, DRAG_VELOCITY_WINDOW_MS, SLIDE_CLOSE_EXIT_SECONDS, SNAP_BACK_SPRING } from './rowConstants.js';
 
-/** The tunables, in one place. Distances in px, velocities in px/s, positive = downward. @public */
+/**
+ * The library's default drag-to-close numbers. Distances in px, velocities in px/s, positive = downward.
+ * @public
+ * @deprecated A panel's numbers are `usePanelTuning().dragToClose`, and the defaults `LIBRARY_TUNING_DEFAULTS.dragToClose`.
+ */
 export const DRAG_CLOSE = {
   /** Close once dragged this fraction of the view's height ... */
   distanceFraction: DRAG_CLOSE_NUMBERS.distanceFraction,

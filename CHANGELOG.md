@@ -34,6 +34,8 @@
 
 ### Changed
 
+- Inside a row, `Panel`, `PanelFrame` and `PanelSizeBox` take an omitted `size` from the slot's drawn size, which includes the row's tuned gap, so a two-slot
+  panel's size box is as wide as its slot at any `tuning.rowGap`. `PanelSizeBox` accepts `width` and `height` as optional. Outside a row an omitted size is the phone size, as before.
 - A view may lock its own panel: `handle.configure({ closable: false })` from the view makes the panel not closable at once, and `null` removes the lock. A view still cannot ask for `closable: true`, and the root still answers `settings-conflict` to it. The lock is saved as before. `ViewPatch` gains `closable`.
 - A panel has one public id, its key. A template panel's `panel.id` was the row's counter (`3`) while `handle.id`, `PanelState.id` and `usePanelState` used the key (`web~3`), so an id from one place failed silently in another. Now `panel.id`, `PanelSummary.id` (`panelList`, `recentlyClosed`), every `PanelsAPI` verb, `useActivePanel` (its value and its setter), the id the snapshot trigger is given and `tuning.initialScroll.panel` all use the key. A hand-built entry's key is its id, so a view that never used templates sees no change. **Migration:** a view that held `panel.id` and passed it to a handle, manager or `usePanelState` needs nothing; one that stored the counter id (saved, or in a `viewId` for pictures) stores the key instead.
 - `handle.move(by, source?)` takes a signed slot count in place of `'left'` or `'right'`: `handle.move(-3, 'person')` is one gated call that crosses up to three
@@ -46,6 +48,8 @@
 
 ### Deprecated
 
+- `GAP` (16 whatever the gap is tuned to), `panelWidthOf`, `reorderStepsForOffset`, `computeRowLayout`, `computeRowNumbers` and `DRAG_CLOSE` carry `@deprecated`, each naming what to use
+  (`usePanelTuning().rowGap`, `LIBRARY_TUNING_DEFAULTS`, `usePanelReorderSteps()`, `usePanelDragProps()` and `useProvidePanels(...).rowNumbers`). They keep working. `PANEL_TRANSITION` stays.
 - The row's counter id as a panel id. `PanelsAPI` verbs, `useActivePanel`'s setter and `tuning.initialScroll.panel` still accept the counter id a view held before keys were the only id, with one development warning per id naming the key; it stops resolving in 0.3.0.
 - `useHost().panels.create`, `activate`, `move`, `setSlots`, `reanchor` and `close`. They keep working, with one development warning per verb naming the replacement on `useWorkspace()` (a panel's handle, or `addPanel` for create); they are removed in a later release. `panelList`, `maxFitPanels`, `recentlyClosed`, `undoClose` and `clearAll` stay. A view is now given only those `PanelsAPI` members as `useHost().panels`, not the row's own (`entries`, `rowNumbers`, `tuning` and the rest).
 
