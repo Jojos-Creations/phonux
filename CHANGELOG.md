@@ -4,12 +4,17 @@
 
 ### Changed
 
+- `handle.move(by, source?)` takes a signed slot count in place of `'left'` or `'right'`: `handle.move(-3, 'person')` is one gated call that crosses up to three
+  slots to the left, stops at an end or a panel that cannot be crossed, and answers `changed: true` when at least one slot was crossed. A drag over several
+  neighbours is one call, where the loop of raw `panels.move` calls was needed before. Pass `1` or `-1` where `'right'` or `'left'` was passed.
+  `usePanelPinned()` now reads `PanelState.pinned`, so it agrees with `handle.getState().pinned` (and with `pin()` and `unpin()`).
 - `tuning.shrinkOutOfView: 'off'` (the default) now shows the neighbour of a stop cut off by the window edge, at its full size. Before, a stepping row faded that
   neighbour out, so Off looked like Hide at rest. A panel is inert only when the window does not reach it, and a click or focus in the cut-off neighbour
   settles the row onto a stop afterwards. `'visible'` and `'hidden'` are unchanged. `RowNumbers` gains `showPartial`.
 
 ### Added
 
+- `usePanelDragProps()` returns the `onClose` and `reorder` of the panel it is called in for `DragToClose`, both going through the panel's handle. The default frame uses it.
 - A column of workspaces, one above the other. `createWorkspaceColumn(options)` renders itself like `createWorkspace`, and
   `column.addWorkspace(options)` is the one call that creates a workspace, adds it and returns its `WorkspaceHandle`. ArrowUp and
   ArrowDown move between workspaces (never while focus is in a field, widget, editor or dialog, or during a keyboard drag, and never

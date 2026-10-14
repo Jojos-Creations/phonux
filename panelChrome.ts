@@ -5,7 +5,9 @@
 import * as React from 'react';
 import { animate, useReducedMotion, useReducedMotionConfig } from 'motion/react';
 import { LIBRARY_TUNING_DEFAULTS, type PanelId } from './panelSettings.js';
+import type { ReorderHandle } from './dragToClose.js';
 import { PanelSlotContext } from './panelSlotContext.js';
+import { reorderStepsForOffset } from './panelWindow.js';
 
 /**
  * The attribute the library writes, empty-valued, on the root box of the active panel and removes when another panel
@@ -344,4 +346,28 @@ export function useChromeFade(visible: boolean): (node: HTMLElement | null) => v
     node.current = el;
     if (el !== null) settle(el);
   }, []);
+}
+
+/**
+ * The `onClose` and `reorder` of the panel this hook is called in, to spread onto `DragToClose`: a close and a move
+ * through the panel's own handle, so both are gated and answer a `PanelResult`. A close is offered when the panel is
+ * closable and sits in a column that closes; a reorder when it is draggable, and a release crossing several
+ * neighbours is one `move`. Outside a row with a workspace there is no handle, so it returns neither.
+ * @public
+ */
+export function usePanelDragProps(): { onClose?: () => void; reorder?: ReorderHandle } {
+  const slot = React.useContext(PanelSlotContext);
+  const handle = slot?.handle;
+  if (slot === undefined || handle === undefined) return {};
+  const props: { onClose?: () => void; reorder?: ReorderHandle } = {};
+  if (slot.collapsible && slot.closable) props.onClose = () => void handle.close('person');
+  if (slot.draggable) {
+    props.reorder = {
+      onDragEnd: (offset) => {
+        const steps = reorderStepsForOffset(offset, slot.neighborWidths, slot.tuning.rowGap, slot.tuning.hopFraction);
+        if (steps !== 0) handle.move(steps, 'person');
+      },
+    };
+  }
+  return props;
 }

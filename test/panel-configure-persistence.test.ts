@@ -50,7 +50,7 @@ const anonymous = (r: PinRig): PanelHandle => r.ws.panels.list().find((h) => h.t
 test('rememberLayout true, false, true over three launches: the dragged and the resized panel keep their overrides and apply again', async () => {
   const store = memoryWorkspaceStorage();
   let r = await launch(store);
-  r.turn(() => r.h.c!.move('left', 'person'));
+  r.turn(() => r.h.c!.move(-1, 'person'));
   r.turn(() => r.h.b!.setFormFactor('tablet', 'person'));
   assert.deepEqual([r.order().join(' '), r.entry('b').formFactor], ['root a c b', 'tablet']);
   await quit(r);
@@ -60,13 +60,13 @@ test('rememberLayout true, false, true over three launches: the dragged and the 
   r = await launch(store);
   assert.deepEqual([r.order().join(' '), r.entry('b').formFactor], ['root a c b', 'tablet'], 'launch 2 applies them');
   for (const id of ['b', 'c']) assert.deepEqual({ ...ok(r.turn(() => r.h[id]!.configure({ rememberLayout: false }))) }, { ok: true, changed: true, shown: false, now: [], later: ['rememberLayout'], shadowed: [], notes: [] });
-  r.turn(() => r.h.c!.move('right', 'person'));
+  r.turn(() => r.h.c!.move(1, 'person'));
   r.turn(() => r.h.b!.setFormFactor('phone', 'person'));
   assert.deepEqual([r.order().join(' '), r.entry('b').formFactor], ['root a b c', 'phone'], 'the session moves on');
   await wait();
   assert.deepEqual(await overridesOf(store), first, 'while rememberLayout is false nothing is recorded and the stored overrides ride through every save');
   for (const id of ['b', 'c']) ok(r.turn(() => r.h[id]!.configure({ rememberLayout: true })));
-  r.turn(() => r.h.a!.move('right', 'person'));
+  r.turn(() => r.h.a!.move(1, 'person'));
   assert.equal(r.order().join(' '), 'root b a c');
   await quit(r);
   assert.deepEqual(await overridesOf(store), { b: { anchor: right(0), slots: 2 }, a: { anchor: right(1) }, c: { anchor: right(2) } }, 'true again records, and the resize the false stretch skipped never replaced the stored tablet');
@@ -127,7 +127,7 @@ test('persist saved to session: the live panel is untouched, rememberLayout true
   const anchor = r.entry('b').anchor;
   assert.deepEqual({ ...ok(r.turn(() => r.h.b!.configure({ persist: 'session' }))) }, { ok: true, changed: true, shown: false, now: [], later: ['persist'], shadowed: [], notes: [] });
   assert.deepEqual([r.entry('b').anchor === anchor, r.order().join(' '), r.live().join(' ')], [true, 'root a b c', 'root a b c'], 'the live panel did not move');
-  r.turn(() => r.h.a!.move('right', 'person'));
+  r.turn(() => r.h.a!.move(1, 'person'));
   await quit(r);
   const saved = await file(store);
   assert.deepEqual(saved.panels.map((p) => p.key), ['a', 'c'], 'the session panel is not in the file');
@@ -161,7 +161,7 @@ test('configureTemplate and configureTuning are session only: nothing of them is
   let r = await launch(store, { extra: ANON });
   ok(r.turn(() => r.ws.panels.configureTemplate('m', { maxInstances: 2 })));
   ok(r.turn(() => r.ws.panels.configureTuning({ hopFraction: 0.3, rowGap: 24, saveQuietMs: 7 })));
-  r.turn(() => r.h.a!.move('right', 'person'));
+  r.turn(() => r.h.a!.move(1, 'person'));
   await quit(r);
   const text = JSON.stringify(await file(store));
   for (const trace of ['maxInstances', 'hopFraction', 'rowGap', 'saveQuietMs', 'tuning']) assert.equal(text.includes(trace), false, `the file has no ${trace}`);
@@ -175,7 +175,7 @@ test('the file\'s overrides are unchanged by any configure, whatever its class a
   const store = memoryWorkspaceStorage();
   const settings = { b: { pinning: { pinned: { parkable: false }, unpinned: { parkable: true } } satisfies Pinning } };
   let r = await launch(store, { settings });
-  r.turn(() => r.h.c!.move('left', 'person'));
+  r.turn(() => r.h.c!.move(-1, 'person'));
   r.turn(() => r.h.a!.setFormFactor('tablet', 'person'));
   r.turn(() => r.h.b!.pin('person'));
   await wait();
@@ -224,7 +224,7 @@ test('a deferred pin is never in the file, and a configure of pinning keeps it o
   assert.deepEqual(r.state('b').deferredPin, { by: 'pin' });
   ok(r.turn(() => r.h.b!.configure({ pinning: { pinned: { placement: 'row-start' }, unpinned: { placement: 'after-fixed' } } })));
   assert.deepEqual(r.state('b').deferredPin, { by: 'pin' }, 'control: it is still waiting');
-  r.turn(() => r.h.c!.move('left', 'person'));
+  r.turn(() => r.h.c!.move(-1, 'person'));
   await quit(r);
   const text = JSON.stringify(await file(store));
   assert.equal(text.includes('deferredPin'), false);

@@ -141,13 +141,13 @@ a drawn size: a phone panel never passes its stored `size` on, because its width
 
 ## `PanelsAPI.move` is directional (move-by-one), not "move to index"
 
-`move(id, 'left' | 'right')` swaps `id` past whichever OTHER shown panel currently sits toward that side,
+The handle's `move(by, source)` takes that step as a signed count, `by` slots in one gated call, so a drag crossing several neighbours is one call and one `PanelResult`; it stops at an end or at a panel that cannot be crossed, and is accepted unchanged at an end or for 0. The Host bag's `move(id, 'left' | 'right')` swaps `id` past whichever OTHER shown panel currently sits toward that side,
 rather than taking a raw target index. A raw index is meaningless across the `panelList`/internal-array
 split (`panelList` only ever lists panels, `collapsible: false` columns like History are never addressable
 targets) and would leak the internal array's own indexing into the public surface. The row's own
 drag-to-reorder gesture (the host's panel component) converts a pointer's cumulative offset into a step count and calls
-`move` that many times in the same direction -- the same primitive a future keyboard/single-pointer
-alternative (WCAG 2.5.7) would call once per key press. Panels can differ in width, so the step count is not
+`handle.move(steps)` once -- the same primitive a future keyboard/single-pointer
+alternative (WCAG 2.5.7) would call with 1 or -1 per key press. `usePanelDragProps()` hands `DragToClose` that close and that reorder for the panel it is called in; the default frame spreads it. Panels can differ in width, so the step count is not
 `offset / one slot`: a hop past a neighbour moves the dragged panel by that NEIGHBOUR's span (its width plus
 the gap), so each hop lands half-way across the next neighbour's span (`reorderStepsForOffset`, over the
 neighbour widths the row supplies per slot). With equal widths this is exactly one hop per slot.
@@ -1165,8 +1165,8 @@ walk (`neighborsAt`), so the preview and the release cannot disagree. Nothing is
 The dragged slot is drawn at `zIndex` 3 from the first publish until the spring home ends (the box publishes `null` there, when
 a press stops the spring, on a revive and under reduced motion at the release). The release publishes offset 0 (no hops) after
 `reorder.onDragEnd` returns, so the host's `move` calls and the cleared preview land in one React batch and the neighbours
-already rest where the new order puts them. This holds for a host that applies `move` synchronously (the
-`usePanelReorderSteps` + `move` loop of a row's view); a host that applies it later sees the neighbours slide back and forward
+already rest where the new order puts them. This holds for a host that applies `move` synchronously (a
+`handle.move(steps)` from a row's view, or a raw `move` loop); a host that applies it later sees the neighbours slide back and forward
 once. A host with a different hop rule gets a preview that does not match its drop.
 Under Reduce Motion (the system setting, which the drag box reads itself, or the app's `MotionConfig`) the slot hands Motion an instant
 transition inside its animate target for as long as a preview is set, so the neighbours' shifts, their return and the dragged slot's move to
@@ -1193,8 +1193,8 @@ so a `configure` made while the pointer is down reaches the next drag; the bound
 read again every frame, and the hold ends when the row stops scrolling.
 
 **Alternatives to the gesture.** WCAG 2.5.7 asks for a single-pointer alternative: offer a button that calls
-the same `onClose`, as History's trash buttons do. The row's drag-to-reorder needs one too; `PanelsAPI.move`
-exists for it, but no such control is built.
+the same `onClose`, as History's trash buttons do. The row's drag-to-reorder needs one too; `handle.move(1)` and `handle.move(-1)`
+exist for it, but no such control is built.
 
 ## PanelFrame's inset, scrollbar and header pill
 
