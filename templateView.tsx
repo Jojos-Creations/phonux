@@ -4,7 +4,7 @@
  */
 import * as React from 'react';
 import type { PanelSummary } from './hostApi.js';
-import { checkPanelApi, SHIPPED_LEVELS, warnIfOldLevel, type LevelTable } from './panelApiLevel.js';
+import { checkPanelApi, NEWEST_SHAPE, reportShapeOnce, SHIPPED_LEVELS, warnIfOldLevel, type LevelTable } from './panelApiLevel.js';
 import { FrameBoundary } from './panelFrameBoundary.js';
 import { PanelFooterContext } from './panelFooter.js';
 import type { PanelTemplate } from './panelTemplate.js';
@@ -28,7 +28,9 @@ export function templateViewFor(t: PanelTemplate, table: LevelTable = SHIPPED_LE
   checkPanelApi(t.id, t.api, table);
   const level = t.api ?? table.newest;
   warnIfOldLevel(t.id, level, table);
-  const adapt = table.levels.get(level)?.adapt;
+  const entry = table.levels.get(level);
+  const adapt = entry?.adapt;
+  const shape = entry?.shape ?? NEWEST_SHAPE;
   function TemplatePanelView({ panel }: { panel: PanelSummary }): React.JSX.Element {
     const context = React.useContext(PanelViewContextValue);
     const handle = context?.handleFor(panel.id);
@@ -38,6 +40,7 @@ export function templateViewFor(t: PanelTemplate, table: LevelTable = SHIPPED_LE
     }
     const props = { panel, handle, manager: context.manager };
     const viewProps = adapt === undefined ? props : adapt(props);
+    reportShapeOnce(t.id, level, viewProps, shape);
     const View = t.view as React.ComponentType<object>;
     const view = (
       <FrameBoundary template={t} panel={panel}>
