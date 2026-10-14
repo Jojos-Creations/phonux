@@ -251,6 +251,9 @@ test('the library tuning defaults are exactly these numbers, by key name', () =>
     chrome: { mode: 'always', fadeMs: 120, fadeEase: 'easeOut', slideMs: 140, slidePx: 8, graceMs: 250 },
     maxLivePanels: null,
     shrinkOutOfView: 'off',
+    phoneFit: 'off',
+    phoneFitMin: 0.82,
+    phoneFitMax: 1.13,
   });
 });
 

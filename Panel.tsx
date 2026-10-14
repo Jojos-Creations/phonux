@@ -10,7 +10,8 @@ import * as React from 'react';
 import Box, { type BoxProps } from '@mui/material/Box';
 import { type Theme } from '@mui/material/styles';
 import { PANEL_HEADER_GAP_PX, PanelHeaderRow, type PanelHeaderRowProps } from './PanelFrame.js';
-import { useHost, type PanelSize } from './hostApi.js';
+import { type PanelSize } from './hostApi.js';
+import { usePhoneSize } from './phoneFit.js';
 import { useFrameClaim } from './panelFrameClaim.js';
 import { PanelHiddenContext, PanelSlotContext } from './panelSlotContext.js';
 import { HEADER_ROW_ATTRIBUTE, PanelHeaderButtons, usePanelHeaderButtons } from './panelHeaderButtons.js';
@@ -71,7 +72,7 @@ export interface PanelProps extends Omit<BoxProps, 'children' | 'sx' | 'title'> 
   viewId?: ViewId;
   /** 'never' opts a Panel with a viewId out of registration entirely -- default 'auto'. */
   capture?: 'auto' | 'never';
-  /** This panel's own size instead of the shared useHost().device.size. Omitted: the width comes from device.size, read live -- see DESIGN.md. */
+  /** This panel's own size instead of the shared phone size (`usePhoneSize()`). Omitted: the width comes from it, read live -- see DESIGN.md. */
   size?: PanelSize;
 }
 
@@ -81,7 +82,7 @@ export interface PanelProps extends Omit<BoxProps, 'children' | 'sx' | 'title'> 
  * @public
  */
 export function Panel({ title, actions, headerProps, headerButtons = true, grabProps, overlay, sx, children, viewId, capture = 'auto', size, ...rest }: PanelProps) {
-  const { device } = useHost();
+  const phoneSize = usePhoneSize();
   useFrameClaim('panel');
   const registry = React.useContext(CaptureRegistryContext);
   const rootRef = React.useRef<HTMLDivElement | null>(null);
@@ -110,7 +111,7 @@ export function Panel({ title, actions, headerProps, headerButtons = true, grabP
   return (
     <PanelChromeVisibleContext.Provider value={visible}>
     <Box
-      sx={{ position: 'relative', width: size?.width ?? device.size.width, ...sx }}
+      sx={{ position: 'relative', width: size?.width ?? phoneSize.width, ...sx }}
       {...rest}
       {...(active ? { [ACTIVE_ATTRIBUTE]: '' } : {})}
       {...(dragging ? { [DRAGGING_ATTRIBUTE]: '' } : {})}

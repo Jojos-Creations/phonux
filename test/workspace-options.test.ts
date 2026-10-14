@@ -326,11 +326,11 @@ test('the mount does not pass rowResizeSettled: Workspace settles the row from t
 // 6. The catalog's tuning leaves
 // ---------------------------------------------------------------------------
 
-test('the catalog holds 16 tuning leaves, and DESIGN.md says so', () => {
+test('the catalog holds 19 tuning leaves, and DESIGN.md says so', () => {
   const leaves = PANEL_SETTINGS_CATALOG.filter((d) => d.name.startsWith('tuning.'));
-  assert.equal(leaves.length, 16);
+  assert.equal(leaves.length, 19);
   const design = readFileSync(fileURLToPath(new URL('../DESIGN.md', import.meta.url)), 'utf8');
   const start = design.indexOf('## Workspace options, wrap and update');
   assert.ok(start >= 0);
-  assert.match(design.slice(start, design.indexOf('\n## ', start + 1)), /holds 16 tuning leaves/);
+  assert.match(design.slice(start, design.indexOf('\n## ', start + 1)), /holds 19 tuning leaves/);
 });

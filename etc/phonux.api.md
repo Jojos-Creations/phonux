@@ -1044,6 +1044,9 @@ export type ResolvedWorkspaceTuning = ResolvedPanelTuning & {
     chrome: ChromeTuning;
     maxLivePanels: number | null;
     shrinkOutOfView: 'off' | 'visible' | 'hidden';
+    phoneFit: 'off' | 'fit';
+    phoneFitMin: number;
+    phoneFitMax: number;
 };
 
 // @public
@@ -1318,6 +1321,21 @@ export const usePanelTuning: () => ResolvedPanelTuning & {
 };
 
 // @public
+export function usePhoneFit(containerRef: React_2.RefObject<HTMLDivElement | null>, containerWidth: number, preferred: {
+    readonly width: number;
+    readonly height: number;
+}, tuning: ResolvedWorkspaceTuning, topInset?: number): {
+    readonly width: number;
+    readonly height: number;
+};
+
+// @public
+export function usePhoneSize(): {
+    readonly width: number;
+    readonly height: number;
+};
+
+// @public
 export function useProvidePanels(i: PanelsInput): ProvidedPanels;
 
 // @public
@@ -1516,6 +1534,7 @@ export interface WorkspaceProps extends Omit<BoxProps, 'children'> {
     fixedColumnCount: number;
     liveWidths: readonly number[];
     overflowContainerRef: RefObject<HTMLDivElement | null>;
+    phoneHeight?: number;
     phoneWidth: number;
     rowNumbers?: RowNumbers;
     rowRef: RefObject<HTMLDivElement | null>;
@@ -1561,6 +1580,9 @@ export type WorkspaceTuning = PanelTuning & {
     };
     maxLivePanels?: number | null;
     shrinkOutOfView?: 'off' | 'visible' | 'hidden';
+    phoneFit?: 'off' | 'fit';
+    phoneFitMin?: number;
+    phoneFitMax?: number;
 };
 
 // @public

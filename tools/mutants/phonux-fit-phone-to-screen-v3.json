@@ -1,0 +1,63 @@
+{
+  "tests": [
+    "test/phone-fit.test.ts"
+  ],
+  "mutants": [
+    {
+      "name": "the band's minimum is ignored",
+      "file": "phoneFit.ts",
+      "find": "scaleOf(inBand + 1) >= min",
+      "replace": "scaleOf(inBand + 1) >= 0.01",
+      "expectRed": [
+        "a window narrower than one minimum phone gets one slot at the minimum",
+        "invariants over every container width and height-budget class"
+      ]
+    },
+    {
+      "name": "the height cap is ignored",
+      "file": "phoneFit.ts",
+      "find": "const cap = Math.min(max, heightScale);",
+      "replace": "const cap = max;",
+      "expectRed": [
+        "the table at the real phone height and gap 24: widths, counts and leftovers",
+        "a window the height cap binds in: the minimum wins, with as many slots as fit, never one by default"
+      ]
+    },
+    {
+      "name": "the widths are not whole pixels",
+      "file": "phoneFit.ts",
+      "find": "const widthOf = (n: number): number => Math.floor((room + gap) / n) - gap;",
+      "replace": "const widthOf = (n: number): number => (room + gap) / n - gap;",
+      "expectRed": [
+        "invariants over every container width and height-budget class"
+      ]
+    },
+    {
+      "name": "no count fits inside the band at the cap: one slot instead of the most that fit",
+      "file": "phoneFit.ts",
+      "find": "else choice = make(inBand, ",
+      "replace": "else choice = make(1, ",
+      "expectRed": [
+        "the table at the real phone height and gap 24: widths, counts and leftovers"
+      ]
+    },
+    {
+      "name": "a count change needs no margin inside the band",
+      "file": "phoneFit.ts",
+      "find": "export const PHONE_FIT_MARGIN = 0.02;",
+      "replace": "export const PHONE_FIT_MARGIN = 0;",
+      "expectRed": [
+        "the width follows the band edge: a window holding still makes one count change at most"
+      ]
+    },
+    {
+      "name": "the Workspace publishes no phone size",
+      "file": "Workspace.tsx",
+      "find": "(phoneHeight === undefined ? undefined :",
+      "replace": "(true ? undefined :",
+      "expectRed": [
+        "a hand-wired flow: usePhoneFit before useProvidePanels, the pair to Workspace, and every reader sees the fitted size"
+      ]
+    }
+  ]
+}
