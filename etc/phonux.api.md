@@ -400,9 +400,6 @@ export type ListFilter = {
 export const MAX_WORKSPACE_NAME = 60;
 
 // @public
-export function mergePatch(layer: PanelSettings, patch: SettingsPatch): PanelSettings;
-
-// @public
 export function minWorkspaceWidth(input: MinWorkspaceWidthInput): number;
 
 // @public
@@ -740,15 +737,6 @@ export type PanelSettings = {
 };
 
 // @public
-export type PanelSettingsLayers = {
-    workspace?: PanelSettings;
-    template?: PanelSettings;
-    instance?: PanelSettings;
-    host?: PanelSettings;
-    user?: PanelUserLayer;
-};
-
-// @public
 export type PanelSettingsResolution = {
     value: ResolvedPanelSettings;
     source: Record<string, SourceLayer>;
@@ -838,19 +826,11 @@ export interface PanelSummary<P = JsonValue> {
 // @public
 export interface PanelTemplate<P extends JsonValue = JsonValue> {
     readonly api?: PanelApiLevel;
-    readonly footer?: React_2.ComponentType<{
-        panel: PanelSummary<P>;
-        handle: ViewHandle<P>;
-        manager: PanelReader;
-    }>;
+    readonly footer?: React_2.ComponentType<PanelViewProps<P>>;
     readonly id: string;
     readonly params?: P;
     readonly settings?: PanelSettings;
-    readonly view: React_2.ComponentType<{
-        panel: PanelSummary<P>;
-        handle: ViewHandle<P>;
-        manager: PanelReader;
-    }>;
+    readonly view: React_2.ComponentType<PanelViewProps<P>>;
 }
 
 // @public
@@ -873,6 +853,13 @@ export type PanelUserLayer = {
     anchor?: AnchorRequest;
     parkable?: boolean;
 };
+
+// @public
+export interface PanelViewProps<P extends JsonValue = JsonValue> {
+    handle: ViewHandle<P>;
+    manager: PanelReader;
+    panel: PanelSummary<P>;
+}
 
 // @public @deprecated
 export function panelWidthOf(p: Pick<PanelRowEntry, 'slots' | 'settings'>, phoneWidth: number, maxLiveWidth: number, gap?: number): number;
@@ -1067,15 +1054,6 @@ export type ResolvedWorkspaceTuning = ResolvedPanelTuning & {
 };
 
 // @public
-export type ResolveOptions = {
-    root?: boolean;
-    lenient?: boolean;
-};
-
-// @public
-export function resolvePanelSettings(layers?: PanelSettingsLayers, options?: ResolveOptions): PanelSettingsResolution;
-
-// @public
 export const ROW_LAYER_Z: Readonly<{
     BASE: 1;
     RAISED: 2;
@@ -1152,7 +1130,7 @@ export type SettingConflict = {
     readonly kind: 'forced' | 'wrong-scope' | 'not-view-settable';
     readonly asked: unknown;
     readonly applied: unknown;
-    readonly rule?: 'C1' | 'C2' | 'C3' | 'C4' | 'C5' | 'C6';
+    readonly rule?: 'C1' | 'C2' | 'C4' | 'C5';
     readonly forcedBy?: string;
     readonly message: string;
 };
@@ -1216,43 +1194,24 @@ export type SettingValues = {
     listed: boolean;
     startVisibility: 'live' | 'parked';
     hideStickiness: 'sticky' | 'until-room';
-    hideWhenLast: 'allow' | 'refuse';
     capacityReturn: 'auto' | 'manual';
-    returnPriority: number;
     overflow: Overflow;
-    evictionRank: number;
-    evictionOrder: 'farthest' | 'nearest' | 'leftmost' | 'rightmost';
     revealOnScroll: 'edges' | 'any' | 'never';
     scrollOnOpen: ScrollOnOpen;
     scrollOnMove: ScrollOnMove;
-    scrollOnDrag: ScrollOnDrag;
     toggleWhenClosed: 'ignore' | 'reopen';
     showWhenClosed: 'refuse' | 'reopen';
-    viewState: 'keep' | 'reset-on-park';
-    keepMounted: boolean;
-    frame: 'auto' | 'none';
     placeOnAdd: AddPlacement;
     placeOnShow: AddPlacement | 'in-place';
-    placeOnReturn: AddPlacement | 'in-place';
-    placeFallback: 'row-start' | 'row-end' | 'parkable-start' | 'parkable-end' | 'after-fixed';
-    undoPlacement: 'old-slot' | AddPlacement;
     layer: 'base' | 'raised';
     enterFrom: 'auto' | 'left' | 'right' | 'anchor';
-    exitTo: 'auto' | 'left' | 'right';
-    closeExit: 'down' | 'left' | 'right';
-    animated: boolean;
     slots: number;
     maxSlots: number;
     title: string;
     pinning: Pinning;
     pinningWhenNotLive: PinningWhenNotLive;
-    persist: 'saved' | 'session';
-    rememberLayout: boolean;
     restoreVisibility: 'saved' | 'live' | 'parked';
     afterClose: 'stay-closed' | 'return-next-launch';
-    undoWindowMs: number;
-    reportClose: boolean;
-    snapshot: 'both' | 'park' | 'close' | 'never';
 };
 
 // @public

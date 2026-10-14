@@ -59,7 +59,7 @@ interface Rig {
 /** The root and p1..p5, one slot each, in a `window` px window; the container pads PAD px, as a themed one would. */
 async function mountRig(mode: Mode, gap: number, o: { window?: number; reduced?: boolean; slots?: number[] } = {}): Promise<Rig> {
   const window = o.window ?? 1500;
-  const templates = IDS.map((id, k) => definePanel({ id, view: () => React.createElement(Grab, { id }), settings: { frame: 'none', slots: o.slots?.[k] ?? 1, maxSlots: 64 } }));
+  const templates = IDS.map((id, k) => definePanel({ id, view: () => React.createElement(Grab, { id }), settings: { slots: o.slots?.[k] ?? 1, maxSlots: 64 } }));
   const ws = createWorkspace({ mount: false, root: markerTemplate('root', { settings: { title: 'History' } }), templates, tuning: { rowGesture: 'step', shrinkOutOfView: mode, rowGap: gap } });
   for (const template of templates) ws.addPanel(template);
   const m = mountWorkspace(ws, { width: window, strict: true, ...(o.reduced === true ? { wrap: (tree: React.ReactElement) => React.createElement(MotionConfig, { reducedMotion: 'always' }, tree) } : {}) });

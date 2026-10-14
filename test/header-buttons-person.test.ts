@@ -111,7 +111,7 @@ test('click: a second press in one turn gets busy from the verb', async () => {
   assert.deepEqual(results.map((r) => (r.ok ? 'ok' : r.code)), ['ok', 'busy']);
 });
 
-test('person: a press records the person\'s anchor, parkable and form factor; a pin after an await and a pin from code record nothing; rememberLayout false records neither', async () => {
+test('person: a press records the person\'s anchor, parkable and form factor; a pin after an await and a pin from code record nothing', async () => {
   const pin = (extra: Partial<HeaderButton> = {}): HeaderButton => slot('Pin', { onClick: (h) => void h.pin(), ...extra });
   const store = memoryWorkspaceStorage();
   const rig = await headerRig({ ids: ['c', 'd'], settings: { c: { pinning: FIX } }, workspace: { storage: store, ...quiet }, slots: { pin: pin(), size: slot('Size', { onClick: (h) => void cycle(h) }) } });
@@ -137,15 +137,6 @@ test('person: a press records the person\'s anchor, parkable and form factor; a 
   fromCode.turn(() => fromCode.h.c!.pin());
   await wait();
   assert.deepEqual(await overridesOf(code), [{}], 'handle.pin() from code');
-
-  cleanup();
-  const forgetful = memoryWorkspaceStorage();
-  const forgets = await headerRig({ ids: ['c'], settings: { c: { pinning: FIX, rememberLayout: false } }, workspace: { storage: forgetful, ...quiet }, slots: { pin: pin(), size: slot('Size', { onClick: (h) => void cycle(h) }) } });
-  press(forgets, 'c', 'Pin');
-  press(forgets, 'c', 'Size');
-  await wait();
-  const kept = await overridesOf(forgetful);
-  assert.equal(kept.some((o) => 'anchor' in o || 'parkable' in o || 'slots' in o), false);
 });
 
 test('safety: a throwing onClick and a rejecting promise reach onError with the row unchanged; without onError it is console.error', async () => {

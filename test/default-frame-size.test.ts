@@ -128,14 +128,10 @@ test('a resize that lands while the box is on its way carries on from the size i
   assert.ok(Math.abs(scaleOf(box) * 390 - drawn) < 1.5, `from ${drawn.toFixed(1)}px, not from a size it never showed (${(scaleOf(box) * 390).toFixed(1)}px)`);
 });
 
-test('under Reduce Motion, and for a panel that is not animated, the box takes its size in the same frame', async () => {
+test('under Reduce Motion the box takes its size in the same frame', async () => {
   const reduced = await rig([bareTemplate('bare')], ['bare'], { wrap: (tree) => React.createElement(MotionConfig, { reducedMotion: 'always' }, tree) });
   await act(async () => void reduced.handles[0]!.setSlots(2));
   assert.equal(boxOf(reduced.m, 'bare').style.transform, '', 'Reduce Motion');
-  cleanup();
-  const still = await rig([bareTemplate('bare', { settings: { title: 'BARE', multiple: true, animated: false } })], ['bare']);
-  await act(async () => void still.handles[0]!.setSlots(2));
-  assert.equal(boxOf(still.m, 'bare').style.transform, '', 'animated: false');
 });
 
 test('a box that is mounted, or mounted again by the library frame, is not drawn from a size it never had', async () => {

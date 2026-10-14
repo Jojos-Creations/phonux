@@ -1,5 +1,5 @@
 /**
- * The engine's reading of the twelve permission and lifecycle settings it owns: one differential per name through
+ * The engine's reading of the nine permission and lifecycle settings it owns: one differential per name through
  * the real pure function or hook, the effect each setting has, the two writers of an entry's mirror fields, the
  * legacy defaults of a hand-built entry and the slot hooks. Entries are built the way a creation path will build
  * them (appendPanel's skeleton, then applyTemplate over a resolved layer), so the settings are the only variable.
@@ -11,7 +11,6 @@ import * as React from 'react';
 import { act } from 'react';
 import {
   LIBRARY_PANEL_DEFAULTS,
-  resolvePanelSettings,
   usePanelCapabilities,
   usePanelCloseEligible,
   usePanelNeighborWidths,
@@ -19,7 +18,7 @@ import {
   useProvidePanels,
 } from '../index.js';
 import type { CaptureTrigger, PanelSettings, PanelWindow, PanelsInput, ProvidedPanels, ResolvedPanelSettings } from '../index.js';
-import { applyTemplate, effective, panelKey } from '../panelSettings.js';
+import { applyTemplate, effective, panelKey, resolvePanelSettings } from '../panelSettings.js';
 import { deriveAnchorsFromOrder } from '../panelRowOrder.js';
 import { appendPanel, closePanel, createHistoryPanel, movePanel, reanchorPanel, restorePanel, setSlots } from '../panelWindow.js';
 import { sizeOfSlots } from '../panelTiers.js';
@@ -29,7 +28,7 @@ import { cleanup, mount, withHost, useSeededInput, StaticRow } from './support/m
 import { registerTestView } from './support/test-views.js';
 
 const ROOT = 'root';
-const OWNED = ['closable', 'parkable', 'draggable', 'crossable', 'placeable', 'resizable', 'clearable', 'listed', 'title', 'undoWindowMs', 'reportClose', 'snapshot'];
+const OWNED = ['closable', 'parkable', 'draggable', 'crossable', 'placeable', 'resizable', 'clearable', 'listed', 'title'];
 
 const resolve = (layer: PanelSettings = {}): ResolvedPanelSettings => resolvePanelSettings({ template: layer }).value;
 
@@ -204,45 +203,7 @@ test('differential title: the title the settings carry is the one panelList summ
   });
 });
 
-test('differential undoWindowMs: a close is held in recentlyClosed under 10000 and is final at once under 0', () => {
-  const held = (undoWindowMs: number): string[] | null => {
-    const p = provide([rootEntry(), made('a', { undoWindowMs })]);
-    act(() => p.now().close('a'));
-    return p.now().recentlyClosed?.map((s) => s.id) ?? null;
-  };
-  differential('undoWindowMs', (run) => {
-    run(10000, () => held(10000));
-    run(0, () => held(0));
-  });
-});
-
-test('differential reportClose: onPanelsClosed is called once under true and never under false', () => {
-  const reports = (reportClose: boolean): number => {
-    const seen: string[] = [];
-    const p = provide([rootEntry(), made('a', { reportClose })], { onPanelsClosed: (e) => void seen.push(e.id) });
-    act(() => p.now().close('a'));
-    return seen.length;
-  };
-  differential('reportClose', (run) => {
-    run(true, () => reports(true));
-    run(false, () => reports(false));
-  });
-});
-
-test('differential snapshot: a close asks the host for a picture under both and not under never', () => {
-  const pictures = (snapshot: 'both' | 'never'): string[] => {
-    const spy = spyCapture();
-    const p = provide([rootEntry(), made('a', { snapshot })], { capture: spy });
-    act(() => p.now().close('a'));
-    return spy.captured;
-  };
-  differential('snapshot', (run) => {
-    run('both', () => pictures('both'));
-    run('never', () => pictures('never'));
-  });
-});
-
-test('differential coverage: the names the differentials above completed are exactly the fourteen this entry owns', () => {
+test('differential coverage: the names the differentials above completed are exactly the nine this entry owns', () => {
   assert.ok(differentialsCovered().length > 0, 'no differential completed, so the equality below would prove nothing');
   assert.deepEqual(differentialsCovered(), [...OWNED].sort());
 });
@@ -422,7 +383,7 @@ test('a draggable false fixed column is never moved by its own drag and keeps it
 });
 
 // ---------------------------------------------------------------------------
-// undoWindowMs, reportClose, snapshot
+// The undo window and the pictures a park or a close takes
 // ---------------------------------------------------------------------------
 
 /** Mock timers over setTimeout and Date, after everything is loaded, so a window end is read off the tick count. */
@@ -430,68 +391,7 @@ const clock = (): void => mock.timers.enable({ apis: ['setTimeout', 'Date'], now
 const tick = (ms: number): void => act(() => mock.timers.tick(ms));
 const heldIds = (p: { now: () => ProvidedPanels }): string[] => p.now().recentlyClosed?.map((s) => s.id) ?? [];
 
-test('undoWindowMs 0: the close is absent from recentlyClosed, undoClose leaves it, and exactly one evict is seen', () => {
-  const spy = spyCapture();
-  const p = provide([rootEntry(), made('a', { undoWindowMs: 0 }), made('b')], { capture: spy });
-  act(() => p.now().close('a'));
-  assert.equal(p.now().recentlyClosed, null);
-  assert.deepEqual(p.ids(), ['root', 'b']);
-  act(() => p.now().undoClose());
-  assert.deepEqual(p.ids(), ['root', 'b'], 'nothing to undo');
-  assert.deepEqual(spy.evicted, ['a'], 'exactly one evict, at the close');
-});
-
-test('undoWindowMs 0: a second close of the same panel in the same turn is a no-op', () => {
-  const spy = spyCapture();
-  const closed: string[] = [];
-  const p = provide([rootEntry(), made('a', { undoWindowMs: 0 })], { capture: spy, onPanelsClosed: (e) => void closed.push(e.id) });
-  act(() => {
-    const stale = p.now();
-    stale.close('a');
-    stale.close('a');
-  });
-  assert.deepEqual(spy.evicted, ['a'], 'one evict, not two');
-  assert.equal(closed.length, 1, 'one report, not two');
-});
-
-test('undoWindowMs 0 closed inside an open window leaves that window\'s end where it was', () => {
-  clock();
-  const p = provide([rootEntry(), made('a'), made('z', { undoWindowMs: 0 })]);
-  act(() => p.now().close('a'));
-  tick(3000);
-  act(() => p.now().close('z'));
-  assert.deepEqual(heldIds(p), ['a'], 'only a is held');
-  tick(6999);
-  assert.deepEqual(heldIds(p), ['a'], 'the window still ends at 10 s from the first close');
-  tick(1);
-  assert.deepEqual(heldIds(p), [], 'and it ends there');
-});
-
-test('undoWindowMs 2000 closed inside a 10 s window leaves the end unchanged', () => {
-  clock();
-  const p = provide([rootEntry(), made('a'), made('s', { undoWindowMs: 2000 })]);
-  act(() => p.now().close('a'));
-  tick(1000);
-  act(() => p.now().close('s'));
-  tick(8999);
-  assert.deepEqual(heldIds(p), ['a', 's'], 'at 9999 ms both are still held: the 2 s value did not shorten the window');
-  tick(1);
-  assert.deepEqual(heldIds(p), [], 'both end together at 10 s');
-});
-
-test('undoWindowMs 30000 closed inside a 10 s window extends the end', () => {
-  clock();
-  const p = provide([rootEntry(), made('a'), made('l', { undoWindowMs: 30000 })]);
-  act(() => p.now().close('a'));
-  tick(1000);
-  act(() => p.now().close('l'));
-  tick(29999);
-  assert.deepEqual(heldIds(p), ['a', 'l'], 'at 30999 ms, still inside now + 30 s');
-  tick(1);
-  assert.deepEqual(heldIds(p), [], 'and over at 31 s');
-});
-
-test('the default window still restarts from each close: a second default close 1 s in ends the window at 11 s', () => {
+test('the undo window restarts from each close: a second default close 1 s in ends the window at 11 s', () => {
   clock();
   const p = provide([rootEntry(), made('a'), made('b')]);
   act(() => p.now().close('a'));
@@ -503,96 +403,22 @@ test('the default window still restarts from each close: a second default close 
   assert.deepEqual(heldIds(p), []);
 });
 
-test('reportClose false: onPanelsClosed is not called and onPanelsRestored lists only the reported, restored ids', () => {
-  const closedIds: string[] = [];
-  const restoredBatches: string[][] = [];
-  const p = provide([rootEntry(), made('quiet', { reportClose: false }), made('loud'), made('other')], {
-    onPanelsClosed: (e) => void closedIds.push(e.id),
-    onPanelsRestored: (batch) => void restoredBatches.push(batch),
-  });
-  act(() => p.now().close('quiet'));
-  assert.deepEqual(closedIds, [], 'nothing reported for the quiet one');
-  act(() => p.now().close('loud'));
-  assert.equal(closedIds.length, 1);
-  act(() => p.now().undoClose());
-  assert.deepEqual(p.ids().sort(), ['loud', 'other', 'quiet', 'root'].sort(), 'both are restored');
-  assert.deepEqual(restoredBatches, [closedIds], 'only the id that was reported comes back');
-});
-
-test('reportClose false for every close: undoClose restores them and onPanelsRestored is not called', () => {
-  const restoredBatches: string[][] = [];
-  const p = provide([rootEntry(), made('quiet', { reportClose: false })], { onPanelsRestored: (batch) => void restoredBatches.push(batch) });
-  act(() => p.now().close('quiet'));
-  act(() => p.now().undoClose());
-  assert.deepEqual(p.ids(), ['root', 'quiet']);
-  assert.deepEqual(restoredBatches, []);
-});
-
 /** Root plus three live panels, all under `layer`, in a container that holds three columns: the reconcile effect parks the leftmost one. */
 const parkingRow = (layer: PanelSettings, spy: Spy): ReturnType<typeof provide> =>
   provide([rootEntry(), made('a', { overflow: 'park', ...layer }), made('b', { overflow: 'park', ...layer }), made('c', { overflow: 'park', ...layer })], { capture: spy, containerWidth: 1300 });
 
-test('snapshot control: the row above really parks a panel, so the park scenarios below can be positive', () => {
+test('snapshot control: the row above really parks a panel, so the park scenario below can be positive', () => {
   const spy = spyCapture();
   const p = parkingRow({}, spy);
   assert.deepEqual(p.now().entries.filter((e) => !e.live).map((e) => e.id), ['a']);
 });
 
-test('snapshot never: a park, a close and a clearAll make 0 capture and 0 evict calls, where both makes at least one of each', () => {
-  const runAll = (snapshot: 'both' | 'never'): { captured: number; evicted: number } => {
-    const spy = spyCapture();
-    const parked = parkingRow({ snapshot }, spy);
-    act(() => parked.now().close('a'));
-    act(() => parked.now().clearAll());
-    return { captured: spy.captured.length, evicted: spy.evicted.length };
-  };
-  const both = runAll('both');
-  assert.ok(both.captured >= 1 && both.evicted >= 1, `positive control: both captured ${both.captured} and evicted ${both.evicted}`);
-  cleanup();
-  assert.deepEqual(runAll('never'), { captured: 0, evicted: 0 });
-});
-
-test('snapshot never: the picture of a close that elapses unrestored is not evicted either', () => {
-  clock();
-  const spy = spyCapture();
-  const p = provide([rootEntry(), made('a', { snapshot: 'never' }), made('b')], { capture: spy });
-  act(() => p.now().close('a'));
-  act(() => p.now().close('b'));
-  tick(10_000);
-  assert.deepEqual(spy.evicted, ['b'], 'b is evicted when its window elapses; a never asked for a picture');
-  assert.deepEqual(spy.captured, ['b']);
-});
-
-test("snapshot 'park' differs from 'both': it captures a park and not a close", () => {
-  const spyPark = spyCapture();
-  const parked = parkingRow({ snapshot: 'park' }, spyPark);
-  assert.deepEqual(spyPark.captured, ['a'], 'the park of a is captured under park');
-  act(() => parked.now().close('b'));
-  assert.deepEqual(spyPark.captured, ['a'], 'the close of b is not');
-  const closeOnly = spyCapture();
-  const p = provide([rootEntry(), made('a', { snapshot: 'park' })], { capture: closeOnly });
-  act(() => p.now().close('a'));
-  assert.deepEqual(closeOnly.captured, [], 'a close is not a park');
-});
-
-test("snapshot 'close' differs from 'both': it captures a close and not a park", () => {
-  const spyPark = spyCapture();
-  parkingRow({ snapshot: 'close' }, spyPark);
-  assert.deepEqual(spyPark.captured, [], 'the park of a is not captured under close');
-  cleanup();
-  const spyClose = spyCapture();
-  const p = provide([rootEntry(), made('a', { snapshot: 'close' })], { capture: spyClose });
-  act(() => p.now().close('a'));
-  assert.deepEqual(spyClose.captured, ['a']);
-});
-
-test("snapshot 'both' captures a park and a close: the default the two cases above are measured against", () => {
+test('a park and a close each take a picture', () => {
   const spy = spyCapture();
   const p = parkingRow({}, spy);
   assert.deepEqual(spy.captured, ['a']);
   act(() => p.now().close('b'));
   assert.deepEqual(spy.captured, ['a', 'b']);
-  assert.equal(effective(hand('x')).snapshot, 'both');
 });
 
 test('a close the gate refuses takes no picture', () => {
@@ -751,7 +577,7 @@ test('effective of a hand-built entry has every key without a legacy field at it
     assert.deepEqual(eff[key], derived[key], `${key} is not its library default`);
     compared += 1;
   }
-  assert.ok(compared > 30, `only ${compared} keys compared`);
+  assert.ok(compared > 11, `only ${compared} keys compared`);
   for (const key of ['closable', 'parkable', 'draggable', 'placeable', 'resizable', 'listed', 'clearable']) assert.equal(eff[key], true, `${key}: an ordinary hand-built entry is the library default`);
   assert.equal(eff.layer, LIBRARY_PANEL_DEFAULTS.layer);
 });

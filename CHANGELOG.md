@@ -4,6 +4,8 @@
 
 ### Breaking
 
+- Nineteen per-panel settings are removed from `PanelSettings`, `ResolvedPanelSettings`, `ViewPatch`, `InstancePatch`, `SettingsPatch`, `LIBRARY_PANEL_DEFAULTS` and `PANEL_SETTINGS_CATALOG`, so the 1.0 freeze covers only settings a panel author can use: `hideWhenLast`, `returnPriority`, `evictionRank`, `evictionOrder`, `scrollOnDrag`, `viewState`, `keepMounted`, `frame`, `placeOnReturn`, `placeFallback`, `undoPlacement`, `exitTo`, `closeExit`, `animated`, `persist`, `rememberLayout`, `undoWindowMs`, `reportClose` and `snapshot`. Every panel behaves as each did at its default (DESIGN.md, "Settings this version removed"). **Migration:** delete the key from the template. A template that still sets one is told once in development (`console.error`, naming the key) and the value is ignored; the next rc refuses it with `invalid-settings`. A saved file that holds one in a panel's instance layer still loads: the key is dropped with an `invalid-saved-setting` note. Coupling rules C3 and C6 went with their settings; `SettingConflict.rule` is `'C1' | 'C2' | 'C4' | 'C5'`, and the `park-lever-inert` note covers only `capacityReturn`.
+- `resolvePanelSettings`, `mergePatch`, `PanelSettingsLayers` and `ResolveOptions` are no longer exported from the package; no 0.1.0 name was among them.
 - The tier family is gone; a panel's width is its slot count. Removed: the `formFactor` and `formFactors` settings (a template that sets either
   throws `invalid-settings`), both `setFormFactor` verbs (the handle's and `PanelsAPI`'s), `PanelSummary.formFactor`, `PanelState.formFactor`,
   `PanelSize.formFactor`, `CreatePanelOptions.formFactor`, `ViewPatch.formFactor`, `PanelUserLayer.formFactor`, the `FormFactor` type, `TIER_SIZES`,
@@ -64,6 +66,9 @@
 
 ### Added
 
+- `PanelViewProps<P>` names the props a template's `view` and `footer` receive (`panel`, `handle`, `manager`); `PanelTemplate` uses it.
+  `phonux/testing` gains `createFakePanel(state?)`, a `ViewHandle` and `PanelReader` over one in-memory panel that record each operation
+  in `calls` and answer an accepted result, so a view test needs no cast. `usePanelState(id)` now re-reads only when that panel changes.
 - `PanelResizeGrips`: a grip on each side of a resizable panel, drawn by the default frame, so an app no longer writes its own grabber. The width follows the pointer and the release settles on the nearest slot (a snap under Reduce Motion); the left grip keeps the right edge still; a press that travels under 4 px is a click and resizes nothing, and the click a browser fires after a drag stops at the grip; ArrowLeft and ArrowRight step one slot; each grip is a 24 px `separator` with `aria-valuenow`, `aria-valuemin`, `aria-valuemax` and `aria-valuetext`. It draws nothing when `resizable` is false or fewer than two slots fit. New `PhonuxLabels` keys `resizeGrip` and `resizeGripValue`, and `CHROME_PARTS.resize`. A view that draws its own `Panel` puts `<PanelResizeGrips />` in `overlay`.
 - `theme?: (mode: 'light' | 'dark') => Theme` on `createWorkspace` and `createWorkspaceColumn`: the mount draws that theme with one `CssBaseline` instead of `createDefaultTheme`. `mode` is the window's color scheme. The column draws it once and its cells draw none of their own, which also ends a second `CssBaseline` in a column. A `wrap` must not draw its own `ThemeProvider` or `CssBaseline`.
 - The contract for a value that is not there yet: `history`, `snapshots` and `labels` are optional on `Host`, the first frame of an auto-mounted workspace holds exactly what `createWorkspace` was given, and `workspace.update` carries the rest. `createFakeHost({ absent: ['history', 'snapshots'] })` renders the absent frame in a test.

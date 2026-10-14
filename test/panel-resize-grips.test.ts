@@ -10,6 +10,7 @@ import * as React from 'react';
 import { act } from 'react';
 import { PANEL_SETTINGS_CATALOG, PanelResizeGrips, createWorkspace, definePanel, Panel, PanelFrame } from '../index.js';
 import type { PanelHandle, PanelSettings } from '../index.js';
+import { useFrameClaim } from '../panelFrameClaim.js';
 import { advanceFrames, cleanup } from './support/mount-harness.js';
 import { FRAME_MS } from './support/jsdom-globals.js';
 import { flush, mountWorkspace, type ResizableWorkspace } from './support/workspace-row.js';
@@ -282,8 +283,11 @@ test('each side has one 24 px wide tab stop, and a panel that cannot resize has 
 test('a hand-built Panel puts the grips in its overlay, and the grips add no settings key', async () => {
   const view = definePanel({
     id: 'own',
-    settings: { frame: 'none', maxSlots: 3 },
-    view: () => React.createElement(Panel, { title: 'Own', overlay: React.createElement(PanelResizeGrips), children: React.createElement(PanelFrame, null, React.createElement('i', { 'data-body': 'own' })) }),
+    settings: { maxSlots: 3 },
+    view: () => {
+      useFrameClaim('frame');
+      return React.createElement(Panel, { title: 'Own', overlay: React.createElement(PanelResizeGrips), children: React.createElement(PanelFrame, null, React.createElement('i', { 'data-body': 'own' })) });
+    },
   });
   const root = definePanel({ id: 'root', view: () => React.createElement(Panel, { title: 'History', children: null }) });
   const ws = createWorkspace({ mount: false, root, templates: [view] });

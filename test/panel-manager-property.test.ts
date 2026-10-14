@@ -41,7 +41,6 @@ function settingsVector(rand: () => number): PanelSettings {
     placeable: pick(true, true, false),
     resizable: pick(true, true, false),
     maxSlots: pick(64, 1, 2),
-    hideWhenLast: pick('allow', 'refuse'),
     hideStickiness: pick('sticky', 'until-room'),
     showWhenClosed: pick('refuse', 'reopen'),
     toggleWhenClosed: pick('ignore', 'reopen'),

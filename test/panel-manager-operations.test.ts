@@ -67,7 +67,7 @@ const TABLE: Record<string, { settings: PanelSettings; cells: Record<State, stri
     },
   },
   reopening: {
-    settings: { hideWhenLast: 'refuse', showWhenClosed: 'reopen', toggleWhenClosed: 'reopen' },
+    settings: { showWhenClosed: 'reopen', toggleWhenClosed: 'reopen' },
     cells: {
       live: ['F', 'T', 'T', 'T', 'F', 'T', 'T', 'T', 'F'],
       parked: ['T', 'F', 'T', 'T', 'F', 'not-live', 'T', 'T', 'not-live'],
@@ -120,16 +120,6 @@ test('a refusal touches nothing: entries reference-equal, no commit, the snapsho
     { name: 'not-draggable', settings: { b: { draggable: false } }, run: (r) => r.h.b!.move(-1), code: 'not-draggable' },
     { name: 'not-placeable', settings: { b: { placeable: false } }, run: (r) => r.h.b!.place('row-start'), code: 'not-placeable' },
     { name: 'not-resizable', settings: { b: { resizable: false } }, run: (r) => r.h.b!.setSlots(2), code: 'not-resizable' },
-    {
-      name: 'would-empty-row',
-      settings: { a: { hideWhenLast: 'refuse' } },
-      setup: (r) => {
-        r.turn(() => r.h.b!.close());
-        r.turn(() => r.h.c!.close());
-      },
-      run: (r) => r.h.a!.hide(),
-      code: 'would-empty-row',
-    },
     { name: 'is-closed', settings: {}, setup: (r) => void r.turn(() => r.h.b!.close()), run: (r) => r.h.b!.hide(), code: 'is-closed' },
     { name: 'not-live', settings: {}, setup: (r) => void r.turn(() => r.h.b!.hide()), run: (r) => r.h.b!.move(-1), code: 'not-live' },
   ];
@@ -172,28 +162,6 @@ test('the busy contract gives identical literal rows from a handler, a timer, a 
   }
 });
 
-test('hideWhenLast counts what this turn already hides or closes, so one panel always stays', async () => {
-  const refuse = { a: { hideWhenLast: 'refuse' }, b: { hideWhenLast: 'refuse' } } as const;
-  const two = async () => rig({ ids: ['a', 'b'], settings: refuse });
-  for (const trigger of TRIGGERS) {
-    let r = await two();
-    assert.deepEqual(await fire(trigger, () => [brief(r.h.a!.hide()), brief(r.h.b!.hide())]), ['T', 'would-empty-row'], `${trigger}: hide A + hide B`);
-    await fire('handler', () => undefined);
-    assert.equal(r.row(), 'a* b', `${trigger}: one panel stayed`);
-    cleanup();
-    r = await two();
-    assert.deepEqual(await fire(trigger, () => [brief(r.h.a!.hide()), brief(r.h.b!.close())]), ['T', 'busy'], `${trigger}: hide A + close B`);
-    await fire('handler', () => undefined);
-    assert.equal(r.row(), 'a* b', `${trigger}: hide A + close B leaves B present`);
-    cleanup();
-  }
-  // Across turns the second hide sees the first as committed.
-  const r = await two();
-  r.turn(() => r.h.a!.hide());
-  assert.equal(brief(r.turn(() => r.h.b!.hide())), 'would-empty-row', 'the last live panel is refused in a later turn too');
-  assert.equal(brief(r.turn(() => r.h.b!.close())), 'T', 'close is a different decision: hideWhenLast is about hiding');
-});
-
 test('LIMIT:3 is prevented through the manager: the second close in a turn is busy, so undo order holds', async () => {
   const r = await rig({ ids: ['a', 'b', 'c'] });
   const open = (): string => r.row().split(' ').filter((x) => !x.startsWith('~')).join(' ');
@@ -222,7 +190,6 @@ const MATRIX: Array<[name: string, a: unknown, b: unknown, observe: Observe, exp
   ['resizable', true, false, async (v) => { const r = await rig({ settings: { b: { resizable: v } } }); return [brief(r.turn(() => r.h.b!.setSlots(2))), slotsOf(r, 'b')]; }, ['T', 2], ['not-resizable', 1]],
   ['maxSlots', 3, 1, async (v) => { const r = await rig({ settings: { b: { maxSlots: v } } }); return [brief(r.turn(() => r.h.b!.setSlots(3))), slotsOf(r, 'b')]; }, ['T', 3], ['F', 1]],
   ['hideStickiness', 'sticky', 'until-room', async (v) => { const r = await rig({ settings: { b: { hideStickiness: v } } }); r.turn(() => r.h.b!.hide()); return [r.row(), r.h.b!.getState().held]; }, ['a b* c', true], ['a b c', false]],
-  ['hideWhenLast', 'allow', 'refuse', async (v) => { const r = await rig({ ids: ['a', 'b'], settings: { a: { hideWhenLast: v }, b: { hideWhenLast: v } } }); r.turn(() => r.h.a!.hide()); return [brief(r.turn(() => r.h.b!.hide())), r.row()]; }, ['T', 'a* b*'], ['would-empty-row', 'a* b']],
   ['toggleWhenClosed', 'ignore', 'reopen', async (v) => { const r = await rig({ settings: { b: { toggleWhenClosed: v } } }); r.turn(() => r.h.b!.close()); return [brief(r.turn(() => r.h.b!.toggleVisibility())), r.row()]; }, ['F', 'a c ~b'], ['T', 'a c b']],
   ['showWhenClosed', 'refuse', 'reopen', async (v) => { const r = await rig({ settings: { b: { showWhenClosed: v } } }); r.turn(() => r.h.b!.close()); return [brief(r.turn(() => r.h.b!.show())), r.row()]; }, ['is-closed', 'a c ~b'], ['T', 'a c b']],
   ['startVisibility', 'live', 'parked', async (v) => { const r = await rig({ ids: ['a'], extra: [markerTemplate('s', { settings: { startVisibility: v } })] }); let s!: PanelHandle; r.turn(() => { s = r.ws.addPanel('s'); }); return [s.getState().status, shape(r.row())]; }, ['live', 'a s'], ['parked', 'a s*']],
@@ -352,8 +319,8 @@ test('a manager verb other than close and open leaves the undo window as it was'
 });
 
 test('1000 add and close cycles leave the snapshot at most declared plus live', async () => {
-  // undoWindowMs 0 keeps closed views out of the undo list, and the frames let each exit finish: both would otherwise grow with the loop.
-  const r = await rig({ ids: ['a'], extra: [markerTemplate('m', { settings: { multiple: true, undoWindowMs: 0 } })] });
+  // The frames let each exit finish; without them the exits would pile up with the loop.
+  const r = await rig({ ids: ['a'], extra: [markerTemplate('m', { settings: { multiple: true } })] });
   for (let i = 0; i < 1000; i += 1) {
     let h!: PanelHandle;
     r.turn(() => {
@@ -368,21 +335,17 @@ test('1000 add and close cycles leave the snapshot at most declared plus live', 
   assert.equal(snapshot.length, 1, 'every anonymous instance was retired');
 });
 
-test('reapply: undoPlacement decides where the undone panel lands, and a parked panel comes back parked', async () => {
-  const outcomes: string[][] = [];
-  for (const undoPlacement of ['old-slot', 'row-start', 'row-end'] as const) {
-    const r = await rig({ settings: { b: { undoPlacement } } });
-    r.turn(() => r.h.b!.close());
-    act(() => r.m!.latest().undoClose());
-    outcomes.push([undoPlacement, r.row()]);
-    cleanup();
-  }
-  assert.deepEqual(outcomes, [['old-slot', 'a b c'], ['row-start', 'b a c'], ['row-end', 'a c b']]);
-  const r = await rig({ settings: { b: { undoPlacement: 'row-end' } } });
+test('reapply: undo puts the panel back at its old slot, and a parked panel comes back parked', async () => {
+  const closed = await rig();
+  closed.turn(() => closed.h.b!.close());
+  act(() => closed.m!.latest().undoClose());
+  assert.equal(closed.row(), 'a b c');
+  cleanup();
+  const r = await rig();
   r.turn(() => r.h.b!.hide());
   r.turn(() => r.h.b!.close());
   act(() => r.m!.latest().undoClose());
-  assert.equal(r.row(), 'a c b*', 'the live flag is kept: b was parked when it closed');
+  assert.equal(r.row(), 'a b* c', 'the live flag is kept: b was parked when it closed');
 });
 
 test('without a workspace undoClose restores the closed entry at its old slot, unchanged', () => {

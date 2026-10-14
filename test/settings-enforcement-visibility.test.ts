@@ -1,8 +1,7 @@
 /**
- * The engine's reading of the visibility settings it owns: startVisibility, hideStickiness, hideWhenLast,
- * capacityReturn, returnPriority, evictionRank, evictionOrder, viewState and the four timing keys. One differential
- * per name through the real hook or pure function, then literal rows for the hold map, the until-room threshold,
- * the park and return orders and the viewState latch, and a seeded property over measured rows.
+ * The engine's reading of the visibility settings it owns: startVisibility, hideStickiness, capacityReturn and the
+ * four timing keys. One differential per name through the real hook or pure function, then literal rows for the hold
+ * map, the until-room threshold and the park and return orders, and a seeded property over measured rows.
  * Rows are built the way a creation path will build them: appendPanel's skeleton, then applyTemplate over a
  * resolved layer. Widths: W(n) is the container width whose capacity beside History is n phone panels.
  */
@@ -11,9 +10,9 @@ import assert from 'node:assert/strict';
 import './support/jsdom-globals.js';
 import * as React from 'react';
 import { act } from 'react';
-import { resolvePanelSettings, useProvidePanels, useViewState } from '../index.js';
+import { useProvidePanels } from '../index.js';
 import type { PanelSettings, PanelWindow, ProvidedPanels, ResolvedPanelSettings, SettingNote, WorkspaceTuning } from '../index.js';
-import { applyTemplate } from '../panelSettings.js';
+import { applyTemplate, resolvePanelSettings } from '../panelSettings.js';
 import { computeMaxLiveWidth, computeRowLayout } from '../panelRowLayout.js';
 import { deriveAnchorsFromOrder } from '../panelRowOrder.js';
 import { panelWidthOf } from '../panelTiers.js';
@@ -22,19 +21,13 @@ import { fewestParksThatSettle, type UsePanelManagerResult } from '../panels/use
 import { usePanelClosing, type UsePanelClosingResult } from '../panels/usePanelClosing.js';
 import { projectWorkspaceState, type WorkspaceState, type WorkspaceStorage } from '../workspaceState.js';
 import { differential, differentialsCovered } from './support/differential.js';
-import { advanceFrames, cleanup, mount, usePanelManagerWith, withHost, useSeededInput, StaticRow, type SeededOver } from './support/mount-harness.js';
-import { registerTestView } from './support/test-views.js';
+import { cleanup, mount, usePanelManagerWith, useSeededInput, type SeededOver } from './support/mount-harness.js';
 
 const ROOT = 'root';
 const OWNED = [
   'startVisibility',
   'hideStickiness',
-  'hideWhenLast',
   'capacityReturn',
-  'returnPriority',
-  'evictionRank',
-  'evictionOrder',
-  'viewState',
   'tuning.saveQuietMs',
   'tuning.gestureLockMs',
   'tuning.gestureQuietMs',
@@ -178,25 +171,8 @@ function mulberry32(seed: number): Rng {
 }
 const pick = <T>(rng: Rng, items: readonly T[]): T => items[Math.floor(rng() * items.length)] as T;
 
-const setters = new Map<string, (next: number) => void>();
-registerTestView('vis-vs', ({ panel }) => {
-  const [value, setValue] = useViewState('vis-count', 0);
-  setters.set(panel.id, setValue);
-  return React.createElement('i', { 'data-slot': panel.id }, String(value));
-});
-
-const NONE: ReadonlySet<string> = new Set();
-const viewRow = (entries: PanelWindow[]): React.ReactElement => withHost(React.createElement(StaticRow, { entries, rootId: ROOT, closingIds: NONE, enteringViaAnchorIds: NONE }));
-const slotText = (container: HTMLElement, id: string): string | null => container.querySelector(`[data-slot="${id}"]`)?.textContent ?? null;
-/** The retain effect releases from a real zero-delay timer; one macrotask lets it run. */
-const flushRetain = (): Promise<void> =>
-  act(async () => {
-    await new Promise<void>((resolveTimer) => setTimeout(resolveTimer, 0));
-  });
-
 afterEach(() => {
   mock.timers.reset();
-  setters.clear();
   cleanup();
 });
 
@@ -229,19 +205,6 @@ test('differential hideStickiness: a panel created parked stays parked when room
   });
 });
 
-test('differential hideWhenLast: holding the last present panel is refused under refuse and taken under allow', () => {
-  const holds = (hideWhenLast: 'allow' | 'refuse'): string => {
-    const e = mountEngine(row(park('a'), park('b', { hideWhenLast })), W(2));
-    const first = e.call((v) => v.manager.holdPanel('a', 'sticky'));
-    const second = e.call((v) => v.manager.holdPanel('b', 'sticky'));
-    return `${first} ${second} live ${e.live().join(',')}`;
-  };
-  differential('hideWhenLast', (run) => {
-    run('allow', () => holds('allow'));
-    run('refuse', () => holds('refuse'));
-  });
-});
-
 test('differential capacityReturn: a panel parked for room comes back when room opens under auto and stays parked under manual', () => {
   const afterRoomOpens = (capacityReturn: 'auto' | 'manual'): string[] => {
     const e = mountEngine(row(rootEntry(), park('a', { capacityReturn }), park('b')), W(2));
@@ -252,69 +215,6 @@ test('differential capacityReturn: a panel parked for room comes back when room 
   differential('capacityReturn', (run) => {
     run('auto', () => afterRoomOpens('auto'));
     run('manual', () => afterRoomOpens('manual'));
-  });
-});
-
-test('differential returnPriority: with two parked panels and room for one, the higher priority returns instead of the latest parked', () => {
-  const returned = (returnPriority: number): string[] => {
-    const e = mountEngine(row(rootEntry(), park('x', { returnPriority }), park('y'), park('z')), W(3));
-    e.setWidth(W(1));
-    e.setWidth(W(2));
-    return e.live();
-  };
-  differential('returnPriority', (run) => {
-    run(0, () => returned(0));
-    run(5, () => returned(5));
-  });
-});
-
-test('differential evictionRank: opening into a full row parks the lowest rank, and the farthest when ranks are equal', () => {
-  const parked = (evictionRank: number): string[] => {
-    const e = mountEngine(row(rootEntry(), park('a', { evictionRank }), park('b')), W(2));
-    e.open(park('c'));
-    return e.parked();
-  };
-  differential('evictionRank', (run) => {
-    run(0, () => parked(0));
-    run(5, () => parked(5));
-  });
-});
-
-test('differential evictionOrder: the panel opened into a full row displaces the farthest under farthest and the nearest under nearest', () => {
-  const parked = (evictionOrder: 'farthest' | 'nearest'): string[] => {
-    const e = mountEngine(row(rootEntry(), park('a'), park('b')), W(2));
-    e.open(park('c', { evictionOrder }));
-    return e.parked();
-  };
-  differential('evictionOrder', (run) => {
-    run('farthest', () => parked('farthest'));
-    run('nearest', () => parked('nearest'));
-  });
-});
-
-/** Parks panel `a` by hand in a PanelRow, revives it, and reads the view's value, for each `viewState` value. */
-async function valueAfterRevive(viewState: 'keep' | 'reset-on-park'): Promise<string | null> {
-  const entry = (live: boolean): PanelWindow => made('a', { viewState }, { view: 'vis-vs', live });
-  const mounted = mount(viewRow([rootEntry(), entry(true)]));
-  act(() => setters.get('a')!(5));
-  mounted.rerender(viewRow([rootEntry(), entry(false)]));
-  await flushRetain();
-  await advanceFrames(600);
-  mounted.rerender(viewRow([rootEntry(), entry(true)]));
-  await advanceFrames(100);
-  const text = slotText(mounted.container, 'a');
-  mounted.unmount();
-  return text;
-}
-
-test('differential viewState: the value set before a park survives the revive under keep and is the initial value under reset-on-park', async () => {
-  const outcomes = new Map<string, string | null>([
-    ['keep', await valueAfterRevive('keep')],
-    ['reset-on-park', await valueAfterRevive('reset-on-park')],
-  ]);
-  differential('viewState', (run) => {
-    run('keep', () => outcomes.get('keep'));
-    run('reset-on-park', () => outcomes.get('reset-on-park'));
   });
 });
 
@@ -387,18 +287,9 @@ test('differential tuning.gestureQuietMs: a smaller swipe 120 ms after the first
   });
 });
 
-/** Three panels parked one after another (z, then x, then y) beside two live ones, then room for exactly one: the id that returns. */
+/** The id among q, x and p that the room returns, once they are parked one after another (q, then x, then p). */
 function returnedWith(tieBreak: 'latest-first' | 'earliest-first' | 'row-order'): string[] {
-  const p = provide(
-    row(rootEntry(), park('x', { evictionRank: -1 }), park('y', { evictionRank: 0 }), park('z', { evictionRank: -2 }), park('p', { evictionRank: 1 }), park('q', { evictionRank: 1 })),
-    { width: W(5), over: { tuning: { returnTieBreak: tieBreak } } },
-  );
-  p.setWidth(W(4));
-  p.setWidth(W(3));
-  p.setWidth(W(2));
-  assert.deepEqual(p.parked(), ['x', 'y', 'z'], 'control: the capacity drops parked the three lowest ranks');
-  p.setWidth(W(3));
-  return p.live().filter((id) => id !== 'p' && id !== 'q');
+  return threeParked(tieBreak).live().filter((id) => id === 'q' || id === 'x' || id === 'p');
 }
 
 test('differential tuning.returnTieBreak: with equal priorities the room returns the latest parked under latest-first and the oldest under earliest-first', () => {
@@ -421,7 +312,7 @@ test('differential tuning.dropTieBreak: a capacity drop among equal ranks parks 
   });
 });
 
-test('differential coverage: the names the differentials above completed are exactly the thirteen this entry owns', () => {
+test('differential coverage: the names the differentials above completed are exactly the eight this entry owns', () => {
   assert.ok(differentialsCovered().length > 0, 'no differential completed, so the equality below would prove nothing');
   assert.deepEqual(differentialsCovered(), [...OWNED].sort());
 });
@@ -606,7 +497,7 @@ test('until-room on an unmeasured row holds like sticky, then takes the threshol
 });
 
 // ---------------------------------------------------------------------------
-// hideWhenLast and wouldEmptyRow
+// wouldEmptyRow
 // ---------------------------------------------------------------------------
 
 test('wouldEmptyRow: a root-less row of [A B] would empty only when both are named or one is already in flight', () => {
@@ -627,28 +518,10 @@ test('wouldEmptyRow: a parked panel is not present, so the last live one would e
   assert.equal(e.call((v) => v.manager.wouldEmptyRow(['a'])), true);
 });
 
-test('wouldEmptyRow counts the holds already taken this turn: hide A and hide B on [A B] leaves one present', () => {
-  const e = mountEngine(row(park('a', { hideWhenLast: 'refuse' }), park('b', { hideWhenLast: 'refuse' })), W(2));
-  const out = e.call((v) => {
-    const first = v.manager.holdPanel('a', 'sticky');
-    const between = v.manager.wouldEmptyRow(['b']);
-    const second = v.manager.holdPanel('b', 'sticky');
-    return { first, between, second };
-  });
-  assert.deepEqual(out, { first: true, between: true, second: false });
-  assert.deepEqual(e.live(), ['b'], 'one panel stays present');
-});
-
-test('hideWhenLast allow lets hide A and hide B on [A B] empty the row', () => {
+test('hiding A and B on a row of [A B] with no fixed column empties it', () => {
   const e = mountEngine(row(park('a'), park('b')), W(2));
   const out = e.call((v) => [v.manager.holdPanel('a', 'sticky'), v.manager.holdPanel('b', 'sticky')]);
   assert.deepEqual(out, [true, true]);
-  assert.deepEqual(e.live(), []);
-});
-
-test('hideWhenLast refuse beside a fixed column never refuses: the root is always present', () => {
-  const e = mountEngine(row(rootEntry(), park('a', { hideWhenLast: 'refuse' })), W(2));
-  assert.equal(e.hold('a'), true);
   assert.deepEqual(e.live(), []);
 });
 
@@ -744,57 +617,25 @@ test('capacityReturn on a panel whose overflow is scroll is inert: it is parked 
 });
 
 // ---------------------------------------------------------------------------
-// evictionRank and evictionOrder
+// The park order
 // ---------------------------------------------------------------------------
 
-test('evictionRank: opening one more into a row of live panels with distinct ranks parks the lowest rank', () => {
-  const e = mountEngine(row(rootEntry(), park('a', { evictionRank: 2 }), park('b', { evictionRank: 1 }), park('c', { evictionRank: 3 })), W(3));
-  e.open(park('d', { evictionRank: 0 }));
-  assert.deepEqual(e.parked(), ['b']);
+test('a scroll panel is never parked for room: the park panel farthest from the opened one goes', () => {
+  const e = mountEngine(row(rootEntry(), park('a'), made('b', { overflow: 'scroll' }), park('c')), W(3));
+  e.open(park('d'));
+  assert.deepEqual(e.parked(), ['a']);
 });
 
-test('evictionRank: a negative rank parks first, and rank outranks the demander order', () => {
-  const e = mountEngine(row(rootEntry(), park('a', { evictionRank: 1 }), park('b', { evictionRank: -4 }), park('c', { evictionRank: 1 })), W(3));
-  e.open(park('d', { evictionOrder: 'rightmost' }));
-  assert.deepEqual(e.parked(), ['b'], 'rightmost would have taken c, but b has the lowest rank');
-});
-
-test('evictionRank on a panel whose overflow is scroll is ignored: it reads as rank 0, and the row never parks that panel for room', () => {
-  assert.equal(parkLevers(made('s', { overflow: 'scroll', evictionRank: 9 })).evictionRank, 0);
-  assert.equal(parkLevers(park('p', { evictionRank: 9 })).evictionRank, 9);
-  const e = mountEngine(row(rootEntry(), park('a', { evictionRank: 5 }), made('b', { overflow: 'scroll', evictionRank: 9 }), park('c', { evictionRank: 5 })), W(3));
-  e.open(park('d', { evictionRank: 5 }));
-  assert.deepEqual(e.parked(), ['a'], 'b is scroll and stays live; the park panel farthest from d goes');
-});
-
-/** [a b c d] live around a parked p at index 4, every rank equal, p activated with `order`: the id it parks. */
-function parkedByActivation(order: 'farthest' | 'nearest' | 'leftmost' | 'rightmost'): string[] {
-  const e = mountEngine(row(rootEntry(), park('a'), park('b'), park('c'), park('p', { evictionOrder: order }, { live: false }), park('d')), W(4));
+test('activating p parks the live panel farthest from it, a', () => {
+  const e = mountEngine(row(rootEntry(), park('a'), park('b'), park('c'), park('p', {}, { live: false }), park('d')), W(4));
   e.activate('p');
-  return e.parked();
-}
-
-test('evictionOrder farthest: activating p parks the live panel farthest from it, a', () => {
-  assert.deepEqual(parkedByActivation('farthest'), ['a']);
-});
-test('evictionOrder nearest: activating p parks the live panel nearest to it, c', () => {
-  assert.deepEqual(parkedByActivation('nearest'), ['c']);
-});
-test('evictionOrder leftmost: activating p parks the leftmost live panel, a', () => {
-  assert.deepEqual(parkedByActivation('leftmost'), ['a']);
-});
-test('evictionOrder rightmost: activating p parks the rightmost live panel, d', () => {
-  assert.deepEqual(parkedByActivation('rightmost'), ['d']);
+  assert.deepEqual(e.parked(), ['a']);
 });
 
-test('evictionOrder farthest with the demander near the left end parks the right end, e, where leftmost would park a', () => {
-  const layout = (order: 'farthest' | 'leftmost'): string[] => {
-    const e = mountEngine(row(rootEntry(), park('a'), park('p', { evictionOrder: order }, { live: false }), park('c'), park('d'), park('e')), W(4));
-    e.activate('p');
-    return e.parked();
-  };
-  assert.deepEqual(layout('farthest'), ['e']);
-  assert.deepEqual(layout('leftmost'), ['a']);
+test('activating p near the left end parks the right end, e', () => {
+  const e = mountEngine(row(rootEntry(), park('a'), park('p', {}, { live: false }), park('c'), park('d'), park('e')), W(4));
+  e.activate('p');
+  assert.deepEqual(e.parked(), ['e']);
 });
 
 test('farthestLiveCollapsibleId: a tie in distance goes to the lower index, for farthest and for nearest', () => {
@@ -805,37 +646,28 @@ test('farthestLiveCollapsibleId: a tie in distance goes to the lower index, for 
   assert.equal(farthestLiveCollapsibleId(panels, 3, new Set(['a', 'b', 'c', 'd'])), null, 'nothing left to park');
 });
 
-test('a panel in the acted-on set is never parked by its own action, whatever its rank', () => {
-  const e = mountEngine(row(rootEntry(), park('a', { evictionRank: 3 }), park('b', { evictionRank: 3 })), W(2));
-  e.open(park('c', { evictionRank: -9 }));
-  assert.deepEqual(e.live(), ['b', 'c'], 'c has the lowest rank and is still live: the one parked is a, the farthest of the rest');
-  const f = mountEngine(row(rootEntry(), park('a', { evictionRank: 3 }), park('b', { evictionRank: 3 }), park('p', { evictionRank: -9 }, { live: false })), W(2));
+test('a panel in the acted-on set is never parked by its own action', () => {
+  const e = mountEngine(row(rootEntry(), park('a'), park('b')), W(2));
+  e.open(park('c'));
+  assert.deepEqual(e.live(), ['b', 'c'], 'the one parked is a, the farthest of the rest, not c');
+  const f = mountEngine(row(rootEntry(), park('a'), park('b'), park('p', {}, { live: false })), W(2));
   f.activate('p');
   assert.ok(f.live().includes('p'), 'activation never parks the panel it activates');
 });
 
-test('promoteToLive reads the demander order: the keep set is still never parked', () => {
-  const panels = row(rootEntry(), park('a'), park('b'), park('p', { evictionOrder: 'leftmost' }, { live: false }));
+test('promoteToLive never parks a panel in the keep set', () => {
+  const panels = row(rootEntry(), park('a'), park('b'), park('p', {}, { live: false }));
   const out = promoteToLive(panels, 'p', 2, new Set(['a']))!;
-  assert.deepEqual(parkedOf(out), ['b'], 'leftmost would take a, which is kept');
+  assert.deepEqual(parkedOf(out), ['b'], 'a is the farthest from p, but it is kept');
 });
 
-test('a capacity drop with distinct ranks parks the lower ranks first', () => {
-  const e = mountEngine(
-    row(rootEntry(), park('a', { evictionRank: 3 }), park('b', { evictionRank: 2 }), park('c', { evictionRank: 1 }), park('d', { evictionRank: 0 }), park('e', { evictionRank: 4 })),
-    W(5),
-  );
-  e.setWidth(W(3));
-  assert.deepEqual(e.parked(), ['c', 'd']);
-});
-
-test('a capacity drop with every rank equal parks the leftmost excess', () => {
+test('a capacity drop parks the leftmost excess', () => {
   const e = mountEngine(row(rootEntry(), park('a'), park('b'), park('c'), park('d'), park('e')), W(5));
   e.setWidth(W(3));
   assert.deepEqual(e.parked(), ['a', 'b']);
 });
 
-/** A copy of the park choice without ranks or tie-breaks: the oracle the equal-rank case is held to. */
+/** A copy of the park choice without tie-breaks: the oracle fewestParksThatSettle is held to. */
 function referenceFewest(live: readonly PanelWindow[], widthOf: (p: PanelWindow) => number, settles: (set: readonly PanelWindow[]) => boolean, keepIds: readonly string[] = []): string[] {
   const narrowestFirst = (set: readonly PanelWindow[]): PanelWindow[] => [...set].sort((a, b) => widthOf(a) - widthOf(b));
   const inRowOrder = (set: readonly PanelWindow[]): PanelWindow[] => live.filter((p) => set.includes(p));
@@ -859,7 +691,7 @@ function referenceFewest(live: readonly PanelWindow[], widthOf: (p: PanelWindow)
   return toPark;
 }
 
-test('fewestParksThatSettle with every rank equal returns exactly what it returned before ranks, over 200 seeded rows', () => {
+test('fewestParksThatSettle returns what the reference choice returns, over 200 seeded rows', () => {
   let rowsThatParked = 0;
   for (let seed = 1; seed <= 200; seed += 1) {
     const rng = mulberry32(seed);
@@ -879,92 +711,51 @@ test('fewestParksThatSettle with every rank equal returns exactly what it return
   assert.ok(rowsThatParked >= 50, `only ${rowsThatParked} of the 200 rows parked anything, so the comparison proved little`);
 });
 
-test('fewestParksThatSettle with distinct ranks parks the lower rank first at equal park counts, and still the fewest', () => {
-  const live = [park('a', { evictionRank: 3 }), park('b', { evictionRank: 1 }), park('c', { evictionRank: 2 }), park('d', { evictionRank: 0 }), park('e', { evictionRank: 4 })];
-  const equalWidth = (): number => 390;
-  const atMost = (n: number) => (set: readonly PanelWindow[]): boolean => set.length <= n;
-  assert.deepEqual(fewestParksThatSettle(live, equalWidth, atMost(3)), ['b', 'd'], 'two parks, the two lowest ranks, in row order');
-  assert.deepEqual(fewestParksThatSettle(live, equalWidth, atMost(4)), ['d']);
-  const wide = new Map([['a', 390], ['b', 390], ['c', 1200], ['d', 390], ['e', 390]]);
-  const widthOf = (p: PanelWindow): number => wide.get(p.id)!;
-  const fits = (set: readonly PanelWindow[]): boolean => set.reduce((sum, p) => sum + widthOf(p), 0) <= 1600;
-  assert.deepEqual(fewestParksThatSettle(live, widthOf, fits), ['c'], 'parking the wide panel alone is fewer parks than the two lowest ranks');
-});
-
-test('fewestParksThatSettle: rightmost parks the right end of equal ranks, and rank still comes first', () => {
+test('fewestParksThatSettle: rightmost parks the right end', () => {
   const live = [park('a'), park('b'), park('c'), park('d')];
   const equalWidth = (): number => 390;
   const atMost2 = (set: readonly PanelWindow[]): boolean => set.length <= 2;
   assert.deepEqual(fewestParksThatSettle(live, equalWidth, atMost2, [], 'leftmost'), ['a', 'b']);
   assert.deepEqual(fewestParksThatSettle(live, equalWidth, atMost2, [], 'rightmost'), ['c', 'd']);
-  const ranked = [park('a'), park('b', { evictionRank: -1 }), park('c'), park('d')];
-  assert.deepEqual(fewestParksThatSettle(ranked, equalWidth, atMost2, [], 'rightmost'), ['b', 'd'], 'b first by rank, then the rightmost of the equal ones');
 });
 
-test('fewestParksThatSettle never parks a kept id, whatever its rank, unless the earlier ones already fill the row', () => {
-  const live = [park('a', { evictionRank: -5 }), park('b'), park('c')];
+test('fewestParksThatSettle never parks a kept id unless the earlier ones already fill the row', () => {
+  const live = [park('a'), park('b'), park('c')];
   const atMost2 = (set: readonly PanelWindow[]): boolean => set.length <= 2;
-  assert.deepEqual(fewestParksThatSettle(live, () => 390, atMost2, ['a']), ['b'], 'a has the lowest rank and is kept');
+  assert.deepEqual(fewestParksThatSettle(live, () => 390, atMost2, ['a']), ['b'], 'a would park first, but it is kept');
   const atMost1 = (set: readonly PanelWindow[]): boolean => set.length <= 1;
   assert.deepEqual(fewestParksThatSettle(live, () => 390, atMost1, ['a', 'b']), ['b', 'c'], 'a fills the one slot, so the second kept id gives way');
 });
 
 // ---------------------------------------------------------------------------
-// returnPriority and the return tie-break
+// The return tie-break
 // ---------------------------------------------------------------------------
 
-/** Five panels with ranks that park z, x, y in that order, then room for one. */
-function threeParked(tieBreak: 'latest-first' | 'earliest-first' | 'row-order' | undefined, priorities: { x?: number; y?: number; z?: number } = {}) {
-  const p = provide(
-    row(
-      rootEntry(),
-      park('x', { evictionRank: -1, returnPriority: priorities.x ?? 0 }),
-      park('y', { evictionRank: 0, returnPriority: priorities.y ?? 0 }),
-      park('z', { evictionRank: -2, returnPriority: priorities.z ?? 0 }),
-      park('p', { evictionRank: 1 }),
-      park('q', { evictionRank: 1 }),
-    ),
-    { width: W(5), over: tieBreak === undefined ? {} : { tuning: { returnTieBreak: tieBreak } } },
-  );
+/** Five panels where q, then x, then p are parked, in that order, then room for one: the park order differs from the row order and from its reverse. */
+function threeParked(tieBreak: 'latest-first' | 'earliest-first' | 'row-order' | undefined) {
+  const tuning = (dropTieBreak: 'leftmost' | 'rightmost') => ({ tuning: { dropTieBreak, ...(tieBreak === undefined ? {} : { returnTieBreak: tieBreak }) } });
+  const p = provide(row(rootEntry(), park('x'), park('y'), park('z'), park('p'), park('q')), { width: W(5), over: tuning('rightmost') });
   p.setWidth(W(4));
+  p.setOver(tuning('leftmost'));
   p.setWidth(W(3));
+  p.setOver(tuning('rightmost'));
   p.setWidth(W(2));
-  assert.deepEqual(p.parked(), ['x', 'y', 'z'], 'control: parked z, then x, then y');
+  assert.deepEqual(p.parked(), ['x', 'p', 'q'], 'control: parked q, then x, then p');
   p.setWidth(W(3));
   return p;
 }
 
-test('returnTieBreak latest-first: of three parked at equal priority the most recently parked, y, returns', () => {
-  assert.deepEqual(threeParked('latest-first').parked(), ['x', 'z']);
+test('returnTieBreak latest-first: of three parked the most recently parked, p, returns', () => {
+  assert.deepEqual(threeParked('latest-first').parked(), ['x', 'q']);
 });
-test('returnTieBreak earliest-first: the oldest parked, z, returns', () => {
-  assert.deepEqual(threeParked('earliest-first').parked(), ['x', 'y']);
+test('returnTieBreak earliest-first: the oldest parked, q, returns', () => {
+  assert.deepEqual(threeParked('earliest-first').parked(), ['x', 'p']);
 });
 test('returnTieBreak row-order: the panel earliest in the row, x, returns', () => {
-  assert.deepEqual(threeParked('row-order').parked(), ['y', 'z']);
+  assert.deepEqual(threeParked('row-order').parked(), ['p', 'q']);
 });
-test('returnTieBreak unset is latest-first, today\'s walk', () => {
-  assert.deepEqual(threeParked(undefined).parked(), ['x', 'z']);
-});
-
-test('returnPriority: the higher priority returns before a later parked one, and ties still follow the tie-break', () => {
-  assert.deepEqual(threeParked('latest-first', { z: 2 }).parked(), ['x', 'y'], 'z was parked first and has the highest priority');
-  assert.deepEqual(threeParked('earliest-first', { y: 1, x: 1 }).parked(), ['y', 'z'], 'x and y tie at 1: the older, x, returns');
-  assert.deepEqual(threeParked('row-order', { z: -1 }).parked(), ['y', 'z'], 'a negative priority goes last, and row order picks x');
-});
-
-test('returnPriority on a panel whose overflow is scroll is ignored', () => {
-  assert.equal(parkLevers(made('s', { overflow: 'scroll', returnPriority: 7 })).returnPriority, 0);
-  assert.equal(parkLevers(park('p', { returnPriority: 7 })).returnPriority, 7);
-});
-
-test('returnPriority also orders the walk after a close: the higher priority of two parked returns before the latest parked', () => {
-  const e = mountEngine(row(rootEntry(), park('a', { returnPriority: 3 }), park('b'), park('c'), park('d')), W(4));
-  e.setWidth(W(2));
-  assert.deepEqual(e.parked(), ['a', 'b'], 'control: the capacity drop parked the two leftmost, a then b');
-  e.close('d');
-  assert.deepEqual(e.live(), ['a', 'c']);
-  assert.deepEqual(e.parked(), ['b']);
+test('returnTieBreak unset is latest-first', () => {
+  assert.deepEqual(threeParked(undefined).parked(), ['x', 'q']);
 });
 
 // ---------------------------------------------------------------------------
@@ -1088,70 +879,6 @@ test('gestureLockMs is read from a ref at each arm: changing it keeps the listen
 });
 
 // ---------------------------------------------------------------------------
-// viewState latch
-// ---------------------------------------------------------------------------
-
-test('viewState reset-on-park: the value set before a park is released at that park and the revive reads the initial value', async () => {
-  assert.equal(await valueAfterRevive('reset-on-park'), '0');
-});
-
-test('viewState keep: the value set before a park survives the revive', async () => {
-  assert.equal(await valueAfterRevive('keep'), '5');
-});
-
-test('viewState flipped to reset-on-park after the park: the revive still reads the value, and the next park releases it', async () => {
-  const entry = (viewState: 'keep' | 'reset-on-park', live: boolean): PanelWindow => made('a', { viewState }, { view: 'vis-vs', live });
-  const mounted = mount(viewRow([rootEntry(), entry('keep', true)]));
-  act(() => setters.get('a')!(5));
-  mounted.rerender(viewRow([rootEntry(), entry('keep', false)]));
-  await flushRetain();
-  await advanceFrames(600);
-  mounted.rerender(viewRow([rootEntry(), entry('reset-on-park', false)]));
-  await flushRetain();
-  mounted.rerender(viewRow([rootEntry(), entry('reset-on-park', true)]));
-  await advanceFrames(100);
-  assert.equal(slotText(mounted.container, 'a'), '5', 'the setting flipped after the park, so this park stands as a keep');
-  mounted.rerender(viewRow([rootEntry(), entry('reset-on-park', false)]));
-  await flushRetain();
-  await advanceFrames(600);
-  mounted.rerender(viewRow([rootEntry(), entry('reset-on-park', true)]));
-  await advanceFrames(100);
-  assert.equal(slotText(mounted.container, 'a'), '0', 'the next park reads the new setting and released the value');
-});
-
-test('viewState reset-on-park: a second render of the parked row before the retain timer fires still releases the value', async () => {
-  const entry = (live: boolean): PanelWindow => made('a', { viewState: 'reset-on-park' }, { view: 'vis-vs', live });
-  const mounted = mount(viewRow([rootEntry(), entry(true)]));
-  act(() => setters.get('a')!(5));
-  mounted.rerender(viewRow([rootEntry(), entry(false)]));
-  mounted.rerender(viewRow([rootEntry(), entry(false)]));
-  await flushRetain();
-  await advanceFrames(600);
-  mounted.rerender(viewRow([rootEntry(), entry(true)]));
-  await advanceFrames(100);
-  assert.equal(slotText(mounted.container, 'a'), '0', 'the park latched as a release, so a later render of the same parked row does not retain it');
-});
-
-test('viewState reset-on-park: a view still mounted during its exit keeps its value until it unmounts', async () => {
-  const entry = (live: boolean): PanelWindow => made('a', { viewState: 'reset-on-park' }, { view: 'vis-vs', live });
-  const mounted = mount(viewRow([rootEntry(), entry(true)]));
-  act(() => setters.get('a')!(5));
-  mounted.rerender(viewRow([rootEntry(), entry(false)]));
-  await flushRetain();
-  await advanceFrames(100);
-  assert.equal(slotText(mounted.container, 'a'), '5', 'mid-exit the view still shows its value');
-  await advanceFrames(600);
-  assert.equal(slotText(mounted.container, 'a'), null, 'control: the exit finished');
-});
-
-test('viewState reset-on-park on a hand-built parked entry mounted parked releases nothing: there was no park commit', async () => {
-  const mounted = mount(viewRow([rootEntry(), made('a', { viewState: 'reset-on-park' }, { view: 'vis-vs', live: false })]));
-  mounted.rerender(viewRow([rootEntry(), made('a', { viewState: 'reset-on-park' }, { view: 'vis-vs', live: true })]));
-  await advanceFrames(100);
-  assert.equal(slotText(mounted.container, 'a'), '0');
-});
-
-// ---------------------------------------------------------------------------
 // S1: a seeded property over measured rows
 // ---------------------------------------------------------------------------
 
@@ -1164,7 +891,6 @@ function capacityOf(live: readonly PanelWindow[], containerWidth: number): numbe
 
 test('S1: over 500 seeded sequences on measured rows of park panels, the live parkable count never exceeds the capacity after a settled commit', () => {
   const stickiness = ['sticky', 'until-room'] as const;
-  const orders = ['farthest', 'nearest', 'leftmost', 'rightmost'] as const;
   const slotCounts = [1, 1, 1, 2] as const;
   let sequences = 0;
   let checks = 0;
@@ -1174,9 +900,6 @@ test('S1: over 500 seeded sequences on measured rows of park panels, the live pa
     let counter = 0;
     const fresh = (): PanelWindow =>
       park(`s${counter++}`, {
-        evictionRank: Math.floor(rng() * 4) - 1,
-        evictionOrder: pick(rng, orders),
-        returnPriority: Math.floor(rng() * 3),
         capacityReturn: rng() < 0.25 ? 'manual' : 'auto',
         hideStickiness: pick(rng, stickiness),
         startVisibility: rng() < 0.15 ? 'parked' : 'live',

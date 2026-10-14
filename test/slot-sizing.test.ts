@@ -8,7 +8,7 @@ import assert from 'node:assert/strict';
 import './support/jsdom-globals.js';
 import * as React from 'react';
 import { act } from 'react';
-import { resolvePanelSettings } from '../index.js';
+import { resolvePanelSettings } from '../panelSettings.js';
 import type { PanelSummary, PanelWindow, WorkspaceTuning } from '../index.js';
 import { RowHeightContext } from '../panelTuning.js';
 import { applyTemplate } from '../panelSettings.js';
@@ -140,7 +140,7 @@ test('setSlots and a shrunk neighbour keep the phone height in a row that has ro
       assert.ok(heights().length > 0 && heights().every((h) => h === height), `setSlots(${n}): every drawn panel is ${height} tall (${heights().join(',')})`);
     }
   } finally {
-    if (original === undefined) delete (proto as unknown as Record<string, unknown>)['clientHeight'];
+    if (original === undefined) delete (proto as unknown as Record<string, unknown>).clientHeight;
     else Object.defineProperty(proto, 'clientHeight', original);
   }
 });

@@ -175,16 +175,6 @@ test('the drawn position is the pointer offset plus the scroll distance at every
   assert.ok(m.container.scrollLeft > 1000, 'the loop ran');
 });
 
-test('with scrollOnDrag none the same gesture leaves scrollLeft 0 and gives 0 hops', async () => {
-  const m = mountEdgeRow({ scrollOnDrag: 'none' });
-  await dragTo(m, 1000);
-  await frames(100);
-  assert.equal(m.container.scrollLeft, 0);
-  await liftAt(1000);
-  await frames(30);
-  assert.deepEqual(ends.map((e) => [e.offset, e.hops]), [[40, 0]]);
-});
-
 test('the strip bounds the scroll: a scrollWidth inflated by the box never lifts scrollLeft past the row numbers', async () => {
   const m = mountEdgeRow();
   const box = boxOf(m);
@@ -260,7 +250,7 @@ test('hop rule: the released offset is hopped over by the view alone, at the tun
 });
 
 // ---------------------------------------------------------------------------
-// Reduced motion and animated false: one instant jump per interval, to a panel start
+// Reduced motion: one instant jump per interval, to a panel start
 // ---------------------------------------------------------------------------
 
 /** Frames per reduced-motion interval: the loop counts whole frames, and the first of a hold has dt 0. */
@@ -278,26 +268,21 @@ async function heldSeries(m: MountedRow, n: number): Promise<number[]> {
 }
 const jumps = (series: number[]): Array<{ frame: number; to: number }> => series.flatMap((v, k) => (v !== (k === 0 ? 0 : series[k - 1]) ? [{ frame: k, to: v }] : []));
 
-for (const [name, setup] of [
-  ['matchMedia reduce', () => reduceMotion(true)],
-  ['animated false', () => undefined],
-] as const) {
-  test(`${name}: no continuous scroll; the row jumps once per interval to panel starts 406, 812, 1218 and 1624 and the release reports 1664`, async () => {
-    setup();
-    const m = mountEdgeRow(name === 'animated false' ? { animated: false } : {});
-    const box = boxOf(m);
-    const per = intervalFrames(EDGE.reducedStepMs);
-    assert.equal(per, 32);
-    const series = await heldSeries(m, 4 * per + 1);
-    const seen = jumps(series);
-    assert.deepEqual(seen.map((j) => j.to), [406, 812, 1218, 1624]);
-    assert.deepEqual(seen.slice(1).map((j, k) => j.frame - seen[k]!.frame), [per, per, per], 'one jump per interval, nothing between');
-    assert.ok(Math.abs(drawnX(box) - (40 + 1624)) < 1e-6, 'the two translations jump together');
-    await liftAt(1000);
-    await frames(30);
-    assert.deepEqual(ends.map((e) => [e.offset, e.hops]), [[1664, 4]]);
-  });
-}
+test('matchMedia reduce: no continuous scroll; the row jumps once per interval to panel starts 406, 812, 1218 and 1624 and the release reports 1664', async () => {
+  reduceMotion(true);
+  const m = mountEdgeRow();
+  const box = boxOf(m);
+  const per = intervalFrames(EDGE.reducedStepMs);
+  assert.equal(per, 32);
+  const series = await heldSeries(m, 4 * per + 1);
+  const seen = jumps(series);
+  assert.deepEqual(seen.map((j) => j.to), [406, 812, 1218, 1624]);
+  assert.deepEqual(seen.slice(1).map((j, k) => j.frame - seen[k]!.frame), [per, per, per], 'one jump per interval, nothing between');
+  assert.ok(Math.abs(drawnX(box) - (40 + 1624)) < 1e-6, 'the two translations jump together');
+  await liftAt(1000);
+  await frames(30);
+  assert.deepEqual(ends.map((e) => [e.offset, e.hops]), [[1664, 4]]);
+});
 
 test('reduced motion: a pointer that leaves the band before one interval causes no jump', async () => {
   reduceMotion(true);

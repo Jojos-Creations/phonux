@@ -7,16 +7,14 @@ import * as React from 'react';
 import { DefaultFrame } from './defaultFrame.js';
 import type { PanelSummary } from './hostApi.js';
 import { FrameClaimContext, type FrameClaims } from './panelFrameClaim.js';
-import { PanelSlotContext } from './panelSlotContext.js';
 import type { PanelTemplate } from './panelTemplate.js';
 
 /** Whether a template's view was last found bare, by template object: the second panel of a bare template is drawn framed at once, so only the first one's view mounts twice. */
 const BARE_TEMPLATES = new WeakMap<PanelTemplate, boolean>();
 
-/** Draws `children` as they are, or inside the library's frame when the view below claims no part of one and the panel's `frame` setting is 'auto'. @internal */
+/** Draws `children` as they are, or inside the library's frame when the view below claims no part of one. @internal */
 export function FrameBoundary({ template, panel, children }: { template: PanelTemplate; panel: PanelSummary; children: React.ReactNode }): React.ReactElement {
-  const frame = React.useContext(PanelSlotContext)?.frame ?? 'auto';
-  const [bare, setBare] = React.useState(() => frame === 'auto' && BARE_TEMPLATES.get(template) === true);
+  const [bare, setBare] = React.useState(() => BARE_TEMPLATES.get(template) === true);
   const claimed = React.useRef(0);
   const bareNow = React.useRef(bare);
   bareNow.current = bare;
@@ -38,10 +36,10 @@ export function FrameBoundary({ template, panel, children }: { template: PanelTe
   );
   // After the view's own layout effects: its Panel has claimed by now.
   React.useLayoutEffect(() => {
-    const wants = frame === 'auto' && claimed.current === 0;
-    if (frame === 'auto') BARE_TEMPLATES.set(template, wants);
+    const wants = claimed.current === 0;
+    BARE_TEMPLATES.set(template, wants);
     if (wants !== bareNow.current) setBare(wants);
-  }, [frame, bare, template]);
+  }, [bare, template]);
   const view = <FrameClaimContext.Provider value={claims}>{children}</FrameClaimContext.Provider>;
   return bare ? <DefaultFrame panel={panel}>{view}</DefaultFrame> : view;
 }

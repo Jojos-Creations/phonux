@@ -347,7 +347,7 @@ test('with onError unset a failed save reaches console.error exactly once', asyn
 
 test('order: b with placeOnAdd order lands right of a, before c when its predecessors are absent, and at the fallback when order omits it', () => {
   const place = (present: string[], order: (() => string[]) | undefined): string[] => {
-    const tpl = (id: string) => markerTemplate(id, { settings: { placeOnAdd: id === 'b' ? 'order' : 'row-end', placeFallback: 'row-end' } });
+    const tpl = (id: string) => markerTemplate(id, { settings: { placeOnAdd: id === 'b' ? 'order' : 'row-end' } });
     const templates = ['a', 'b', 'c'].map(tpl);
     const w = createWorkspace({ mount: false, templates, ...(order !== undefined ? { order } : {}) });
     for (const id of present) w.addPanel(id);
@@ -364,7 +364,7 @@ test('order: b with placeOnAdd order lands right of a, before c when its predece
 });
 
 test("conflicts: a template forcing a rule warns once per panel and setting, throws under 'throw' and is silent under 'off'", () => {
-  const forcing = (id: string) => markerTemplate(id, { settings: { persist: 'session', rememberLayout: true } });
+  const forcing = (id: string) => markerTemplate(id, { settings: { closable: false, clearable: true } });
   const run = (conflicts: 'warn' | 'throw' | 'off'): { warned: number; thrown: boolean } => {
     const warned: unknown[] = [];
     const orig = console.warn;

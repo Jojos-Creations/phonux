@@ -7,7 +7,7 @@ import type { JsonValue } from './hostApi.js';
 import { placePanel } from './panelPlacement.js';
 import type { NamedPlacement } from './panelPlacement.js';
 import { computeRowOrder } from './panelRowOrder.js';
-import { applyTemplate, resolvePanelSettings, sameSettingsValue } from './panelSettings.js';
+import { FIXED, applyTemplate, resolvePanelSettings, sameSettingsValue } from './panelSettings.js';
 import type { AddPlacement, PanelSettings, PanelSettingsLayers, PanelSettingsResolution, ResolvedPanelSettings, SettingNote } from './panelSettings.js';
 import type { PanelTemplate } from './panelTemplate.js';
 import { sizeOfSlots } from './panelTiers.js';
@@ -185,7 +185,7 @@ export function reconcileWorkspace(i: ReconcileInput): ReconcileResult {
     const first = resolvePanelSettings(layers, { lenient: true });
     // The saved anchor names another saved entry; the live one names its fresh id.
     const heldOverrides = s.owned === undefined ? undefined : { ...s.owned, ...(s.owned.anchor !== undefined ? { anchor: anchorOf(s.owned.anchor) } : {}) };
-    const owns = !legacy && first.value.rememberLayout && Object.keys(heldOverrides!).length > 0;
+    const owns = !legacy && FIXED.rememberLayout && Object.keys(heldOverrides!).length > 0;
     const resolution = owns ? resolvePanelSettings({ ...layers, user: heldOverrides }, { lenient: true }) : first;
     const settings = resolution.value;
     for (const n of resolution.notes) notes.push({ ...n, panelId: id });
@@ -201,7 +201,7 @@ export function reconcileWorkspace(i: ReconcileInput): ReconcileResult {
       } else {
         applied = { placeOnAdd: settings.placeOnAdd };
         // A panel that remembers nothing has no saved place worth keeping: the default places it again.
-        if (!settings.rememberLayout || !sameSettingsValue(s.applied?.placeOnAdd, settings.placeOnAdd)) replace.push({ id, value: settings.placeOnAdd, fallback: settings.placeFallback });
+        if (!FIXED.rememberLayout || !sameSettingsValue(s.applied?.placeOnAdd, settings.placeOnAdd)) replace.push({ id, value: settings.placeOnAdd, fallback: FIXED.placeFallback });
       }
     }
     built.push({
@@ -244,7 +244,7 @@ export function reconcileWorkspace(i: ReconcileInput): ReconcileResult {
       newUid(),
     )[0]!;
     built.push({ ...applyTemplate({ ...skeleton, key: d.id }, settings, 'create'), declared: true, overrides: {}, applied: { placeOnAdd: settings.placeOnAdd } });
-    replace.push({ id, value: settings.placeOnAdd, fallback: settings.placeFallback });
+    replace.push({ id, value: settings.placeOnAdd, fallback: FIXED.placeFallback });
   }
 
   let row = computeRowOrder([...i.current, ...built], i.rootId);
@@ -274,7 +274,7 @@ export function finishCreated(i: { row: PanelWindow[]; id: string; settings: Res
     [i.id],
   );
   if (i.callerPlaced || i.settings.placeOnAdd === 'row-end') return row;
-  return placePanel(row, i.id, i.settings.placeOnAdd, { fallback: i.settings.placeFallback, rootId: i.rootId, ...(i.order !== undefined ? { order: i.order } : {}) }).row;
+  return placePanel(row, i.id, i.settings.placeOnAdd, { fallback: FIXED.placeFallback, rootId: i.rootId, ...(i.order !== undefined ? { order: i.order } : {}) }).row;
 }
 
 /** The notes a host-bag create's conflicts raise, one per setting the cascade overrode or refused. */

@@ -20,7 +20,6 @@ import {
   Workspace,
   PanelManagerError,
   reorderStepsForOffset,
-  resolvePanelSettings,
   slideToTransition,
   useProvidePanels,
   usePanelReorderSteps,
@@ -30,7 +29,7 @@ import { createWorkspace } from '../index.js';
 import type { PanelSettings, PanelTuning, PanelWindow, ProvidedPanels, SlideTuning, WorkspaceTuning } from '../index.js';
 import { SLOT_TRANSITION } from '../directionalTransition.js';
 import { PanelSlotContext, type PanelSlotValue } from '../panelSlotContext.js';
-import { applyTemplate } from '../panelSettings.js';
+import { applyTemplate, resolvePanelSettings } from '../panelSettings.js';
 import { resolveWorkspaceTuning } from '../panelTuning.js';
 import { panelRowSlotMotion } from '../PanelRowSlot.js';
 import { workspaceShellStyle } from '../Workspace.js';
@@ -281,7 +280,7 @@ test('slideToTransition: each of the four ease numbers alone makes the transitio
 // slide
 // ---------------------------------------------------------------------------
 
-test('slide: the slot enters and leaves over durationSec, the down exit takes closeExitSeconds, and animated false is still duration 0', () => {
+test('slide: the slot enters and leaves over durationSec, the down exit takes closeExitSeconds', () => {
   const slow: SlideTuning = { durationSec: 0.8, ease: [0.2, 0, 0, 1], closeExitSeconds: 0.3, closeExitEase: 'easeIn', glideEase: 'cubic-out' };
   const base = panelRowSlotMotion(0, 390, 700, 'right', 'down');
   assert.equal(base.transition.duration, 0.4);
@@ -289,9 +288,6 @@ test('slide: the slot enters and leaves over durationSec, the down exit takes cl
   const tuned = panelRowSlotMotion(0, 390, 700, 'right', 'down', true, 16, slow);
   assert.equal(tuned.transition.duration, 0.8);
   assert.equal((tuned.exit as { transition: { duration: number } }).transition.duration, 0.3);
-  const still = panelRowSlotMotion(0, 390, 700, 'right', 'down', false, 16, slow);
-  assert.deepEqual(still.transition, { duration: 0 });
-  assert.deepEqual((still.exit as { transition: unknown }).transition, { duration: 0 });
 });
 
 test('slide: the shell glides with the resolved slide once settled, and snaps before', () => {
@@ -314,7 +310,7 @@ function motionPropsOf(el: Element, key: string): Record<string, unknown> {
 
 /** The width the views that draw a PanelSizeBox below read; a test sets it before it renders again. */
 let boxWidth = 390;
-for (const name of ['tune-size', 'tune-size-own', 'snap-size', 'snap-size-r', 'snap-size-s']) registerTestView(name, () => React.createElement(PanelSizeBox, { width: boxWidth, height: 700, children: React.createElement('i') }));
+for (const name of ['tune-size', 'tune-size-own', 'snap-size', 'snap-size-r']) registerTestView(name, () => React.createElement(PanelSizeBox, { width: boxWidth, height: 700, children: React.createElement('i') }));
 
 /** How long, in ms, the PanelSizeBox in what `render` draws takes to reach its new width after `boxWidth` grows from 390 to 780. */
 async function sizeGlideMs(render: () => React.ReactElement): Promise<number> {
@@ -340,12 +336,10 @@ test("slide: PanelSizeBox's glide is the panel's resolved slide inside a slot an
   near(await sizeGlideMs(() => React.createElement(PanelSizeBox, { width: boxWidth, height: 700, children: React.createElement('i') })), PANEL_TRANSITION.duration, 'outside a slot, the shared transition');
 });
 
-test('PanelSizeBox snaps under Reduce Motion and for a panel that is not animated, and glides otherwise', async () => {
+test('PanelSizeBox snaps under Reduce Motion and glides otherwise', async () => {
   const slide = { slide: { durationSec: 0.8 } };
   assert.ok((await sizeGlideMs(() => rowOf([entry('a', { view: 'snap-size' })], slide))) > 500, 'positive control: the resize glides');
   assert.equal(await sizeGlideMs(() => React.createElement(MotionConfig, { reducedMotion: 'always' }, rowOf([entry('a', { view: 'snap-size-r' })], slide))), 0, 'Reduce Motion snaps');
-  const still = applyTemplate({ ...appendPanel([], { url: 'https://a.example', title: 'a', view: 'snap-size-s' }, 'a', ROOT)[0]! }, resolvePanelSettings({ template: { overflow: 'park', animated: false } }).value, 'create');
-  assert.equal(await sizeGlideMs(() => rowOf([still], slide)), 0, 'a panel that is not animated snaps');
 });
 
 /** A Workspace over one PanelRow: `workspace` is the Workspace's tuning, `row` the PanelRow's own prop. */

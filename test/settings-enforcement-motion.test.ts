@@ -1,5 +1,5 @@
 /**
- * The engine's reading of the motion settings it owns: layer, enterFrom, exitTo, closeExit and animated. One
+ * The engine's reading of the motion settings it owns: layer and enterFrom. One
  * differential per name through a mounted PanelRow, then literal rows for each precedence the catalog states. Entries
  * are built the way a creation path builds them: appendPanel's skeleton, then applyTemplate over a resolved layer.
  * Slot positions are read from the transform each slot carries right after a render, before any frame has run.
@@ -8,18 +8,17 @@ import { test, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
 import './support/jsdom-globals.js';
 import * as React from 'react';
-import { resolvePanelSettings } from '../index.js';
 import type { PanelSettings, PanelWindow } from '../index.js';
 import { enterDirectionOf } from '../PanelRow.js';
 import { GAP, panelRowSlotMotion } from '../PanelRowSlot.js';
-import { applyTemplate } from '../panelSettings.js';
+import { applyTemplate, resolvePanelSettings } from '../panelSettings.js';
 import { appendPanel, createHistoryPanel } from '../panelWindow.js';
 import { differential, differentialsCovered } from './support/differential.js';
 import { advanceFrames, cleanup, mount, withHost, StaticRow } from './support/mount-harness.js';
 import { registerTestView } from './support/test-views.js';
 
 const ROOT = 'root';
-const OWNED = ['layer', 'enterFrom', 'exitTo', 'closeExit', 'animated'];
+const OWNED = ['layer', 'enterFrom'];
 const SPAN = 390 + GAP;
 
 registerTestView('motion-view', ({ panel }) => React.createElement('i', { 'data-slot': panel.id }, panel.title));
@@ -132,25 +131,13 @@ async function exitOf(b: PanelSettings, p: Props = {}): Promise<{ x: number; y: 
   return out;
 }
 
-test('exitTo: a left or right constant beats exitRightIds, auto follows it, and closingIds still wins over both', async () => {
+test('exit direction: auto follows exitRightIds, and closingIds exits down without sliding sideways', async () => {
   const right = new Set(['b']);
-  assert.ok((await exitOf({}, {})).x < REST, 'auto, no mark: left');
-  assert.ok((await exitOf({}, { exitRight: right })).x > REST, 'auto with an exit-right mark: right');
-  assert.ok((await exitOf({ exitTo: 'left' }, { exitRight: right })).x < REST, 'left beats the exit-right mark');
-  assert.ok((await exitOf({ exitTo: 'right' }, {})).x > REST, 'right with no mark');
-  const closing = await exitOf({ exitTo: 'right' }, { closing: right, exitRight: right });
-  assert.ok(closing.y > 0, 'closingIds exits down whatever exitTo says');
+  assert.ok((await exitOf({}, {})).x < REST, 'no mark: left');
+  assert.ok((await exitOf({}, { exitRight: right })).x > REST, 'an exit-right mark: right');
+  const closing = await exitOf({}, { closing: right, exitRight: right });
+  assert.ok(closing.y > 0, 'closingIds exits down whatever the exit-right mark says');
   assert.equal(closing.x, REST, 'and does not slide sideways');
-});
-
-test('closeExit: a closing panel exits by the setting: down by default, left and right as written', async () => {
-  const closing = { closing: new Set(['b']) };
-  const down = await exitOf({}, closing);
-  assert.ok(down.y > 0 && down.x === REST, 'down: y grows, x stays at rest');
-  const left = await exitOf({ closeExit: 'left' }, closing);
-  assert.ok(left.x < REST && left.y === 0, 'left: x falls below rest, no y');
-  const right = await exitOf({ closeExit: 'right' }, closing);
-  assert.ok(right.x > REST && right.y === 0, 'right: x rises above rest, no y');
 });
 
 test('layer: a raised slot has z-index 2 and a base slot 1, and a hand-built entry reads its own layer field', () => {
@@ -166,29 +153,18 @@ test('layer: a raised slot has z-index 2 and a base slot 1, and a hand-built ent
   assert.equal(zOf({ id: 'b', url: 'x', title: 'b', live: true, locked: false, view: 'motion-view', collapsible: true, listed: true }), '1');
 });
 
-test('animated: false gives a slot a zero-duration transition on enter, on a close and on a park, and true leaves the shared PanelRowSlot transition', async () => {
-  const slow = async (animated: boolean): Promise<boolean> => {
-    const base = [rootEntry(), made('a'), made('b', { animated })];
-    const mounted = mount(row(base));
-    mounted.rerender(row([rootEntry(), made('a')]));
-    await advanceFrames(48);
-    const stillThere = slotOf(mounted.container, 'b') !== null;
-    mounted.unmount();
-    return stillThere;
-  };
-  assert.equal(await slow(true), true, 'three frames into a 0.4 s exit the slot is still sliding');
-  assert.equal(await slow(false), false, 'with animated false the exit has already finished');
-  const enterNow = async (animated: boolean): Promise<number> => {
-    const base = [rootEntry(), made('a')];
-    const mounted = mount(row(base));
-    mounted.rerender(row([...base, made('b', { animated })]));
-    await advanceFrames(32);
-    const x = xOf(mounted.container, 'b');
-    mounted.unmount();
-    return x;
-  };
-  assert.equal(await enterNow(false), REST, 'a panel that does not animate is at rest after two frames');
-  assert.notEqual(await enterNow(true), REST, 'one that does is still on its way');
+test('a slot animates: three frames into its exit it is still sliding, and a new slot is still on its way after two frames', async () => {
+  const base = [rootEntry(), made('a'), made('b')];
+  const leaving = mount(row(base));
+  leaving.rerender(row([rootEntry(), made('a')]));
+  await advanceFrames(48);
+  assert.notEqual(slotOf(leaving.container, 'b'), null, 'the slot is still sliding out');
+  leaving.unmount();
+  const entering = mount(row(base.slice(0, 2)));
+  entering.rerender(row(base));
+  await advanceFrames(32);
+  assert.notEqual(xOf(entering.container, 'b'), REST);
+  entering.unmount();
 });
 
 test('differential layer: the resolved layer decides the slot stacking', () => {
@@ -210,54 +186,12 @@ test('differential enterFrom: the resolved setting decides which side a new slot
   });
 });
 
-test('differential exitTo: the resolved setting decides which way a parked slot leaves', async () => {
-  const outputs: number[] = [];
-  const values = ['left', 'right'] as const;
-  for (const value of values) outputs.push((await exitOf({ exitTo: value }, {})).x);
-  differential('exitTo', (run) => {
-    values.forEach((value, i) => run(value, () => outputs[i]));
-  });
-});
-
-test('differential closeExit: the resolved setting decides which way a closing slot leaves', async () => {
-  const outputs: number[] = [];
-  const values = ['down', 'right'] as const;
-  for (const value of values) outputs.push((await exitOf({ closeExit: value }, { closing: new Set(['b']) })).y);
-  differential('closeExit', (run) => {
-    values.forEach((value, i) => run(value, () => outputs[i]));
-  });
-});
-
-test('differential animated: the resolved setting decides whether the exit takes time', async () => {
-  const outputs: boolean[] = [];
-  const values = [true, false] as const;
-  for (const value of values) {
-    const mounted = mount(row([rootEntry(), made('a'), made('b', { animated: value })]));
-    mounted.rerender(row([rootEntry(), made('a')]));
-    await advanceFrames(48);
-    outputs.push(slotOf(mounted.container, 'b') !== null);
-    mounted.unmount();
-  }
-  differential('animated', (run) => {
-    values.forEach((value, i) => run(value, () => outputs[i]));
-  });
-});
-
-test('panelRowSlotMotion: animated false makes every transition zero-duration and animated true leaves the shared one by reference', async () => {
+test('panelRowSlotMotion: the default transition is the shared one by reference, and the close exit keeps its own timing', async () => {
   const { PANEL_TRANSITION } = await import('../index.js');
   const base = panelRowSlotMotion(0, 390, 700, 'right', 'left');
   assert.equal(base.transition, PANEL_TRANSITION, 'the default is the very object a host animates its own row with');
-  assert.equal(panelRowSlotMotion(0, 390, 700, 'right', 'left', true).transition, PANEL_TRANSITION);
-  for (const exit of ['left', 'right', 'down'] as const) {
-    const m = panelRowSlotMotion(406, 390, 700, 'left', exit, false);
-    assert.deepEqual(m.transition, { duration: 0 });
-    assert.deepEqual(m.initial, panelRowSlotMotion(406, 390, 700, 'left', exit).initial, 'the targets are unchanged');
-    assert.deepEqual(m.animate, panelRowSlotMotion(406, 390, 700, 'left', exit).animate);
-  }
-  const down = panelRowSlotMotion(406, 390, 700, 'right', 'down', false).exit as { transition?: unknown };
-  assert.deepEqual(down.transition, { duration: 0 }, 'the close exit has no time either');
-  const kept = panelRowSlotMotion(406, 390, 700, 'right', 'down').exit as { transition?: { duration: number } };
-  assert.equal(kept.transition?.duration !== 0, true, 'and keeps its own timing when animated');
+  const down = panelRowSlotMotion(406, 390, 700, 'right', 'down').exit as { transition?: { duration: number } };
+  assert.equal(down.transition?.duration !== 0, true);
 });
 
 test('every motion name this file owns has a completed differential', () => {

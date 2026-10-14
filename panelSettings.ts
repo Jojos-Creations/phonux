@@ -8,6 +8,7 @@
 import type * as React from 'react';
 import type { SxProps, Theme } from '@mui/material/styles';
 import type { PanelSize } from './hostApi.js';
+import { reportOnce } from './panelApiLevel.js';
 import { PanelManagerError } from './panelManagerError.js';
 import type { PanelRowEntry } from './panelRowEntry.js';
 import type { PanelState, ViewHandle } from './panelTemplate.js';
@@ -212,56 +213,28 @@ export type SettingValues = {
   startVisibility: 'live' | 'parked';
   /** Whether a hidden panel stays hidden until shown ('sticky') or comes back once there is room ('until-room'). */
   hideStickiness: 'sticky' | 'until-room';
-  /** Whether `hide()` is allowed or refused when the panel is the last one visible. */
-  hideWhenLast: 'allow' | 'refuse';
   /** Whether a panel parked for room returns by itself when room appears ('auto') or only when shown ('manual'). */
   capacityReturn: 'auto' | 'manual';
-  /** An integer ranking which parked panel returns first when room appears; the highest returns first. Read only when `overflow` is 'park'. */
-  returnPriority: number;
   /** What the row may do with the panel when the open panels do not all fit. */
   overflow: Overflow;
-  /** An integer ranking which panel is parked first when room is needed; the lowest rank is parked first. Read only when `overflow` is 'park'. */
-  evictionRank: number;
-  /** Which live panel is parked when this panel needs room: the farthest from it, the nearest, the leftmost or the rightmost. Read only when `overflow` is 'park'. */
-  evictionOrder: 'farthest' | 'nearest' | 'leftmost' | 'rightmost';
   /** Which hidden panels a row scroll gesture may reveal: 'edges', 'any' or 'never'. */
   revealOnScroll: 'edges' | 'any' | 'never';
   /** Where the row scrolls the panel to on its next open, show or click. */
   scrollOnOpen: ScrollOnOpen;
   /** Whether the row follows the panel when it is moved, placed, resized, pinned, unpinned or its layout reset. */
   scrollOnMove: ScrollOnMove;
-  /** Whether the row scrolls at the window's edge while the panel is dragged. */
-  scrollOnDrag: ScrollOnDrag;
   /** What `toggleVisibility()` does to a closed declared panel: nothing ('ignore') or reopen it ('reopen'). */
   toggleWhenClosed: 'ignore' | 'reopen';
   /** What `show()` does to a closed declared panel: refuse it or reopen it. */
   showWhenClosed: 'refuse' | 'reopen';
-  /** Whether the view's `useViewState` state is kept across a park ('keep') or reset at each park ('reset-on-park'). */
-  viewState: 'keep' | 'reset-on-park';
-  /** Whether parking hides the view instead of unmounting it. */
-  keepMounted: boolean;
-  /** 'auto' draws the library's panel frame (header, grab bar, phone frame, footer) around a view that draws none of its own; 'none' never adds one. */
-  frame: 'auto' | 'none';
   /** Where the panel lands when it is added, and when the layout is reset. */
   placeOnAdd: AddPlacement;
   /** Where the panel lands when it is shown; 'in-place' leaves it where it is. */
   placeOnShow: AddPlacement | 'in-place';
-  /** Where a parked panel lands when it returns automatically; 'in-place' leaves it where it is. */
-  placeOnReturn: AddPlacement | 'in-place';
-  /** Where a panel lands when its placement names a panel that is missing or is the panel itself. */
-  placeFallback: 'row-start' | 'row-end' | 'parkable-start' | 'parkable-end' | 'after-fixed';
-  /** Where `undoClose` puts the panel back: 'old-slot', or a placement. */
-  undoPlacement: 'old-slot' | AddPlacement;
   /** The stacking tier of the panel's slot. */
   layer: 'base' | 'raised';
   /** The side the panel slides in from; 'auto' follows the row and 'anchor' uses its anchor's side. */
   enterFrom: 'auto' | 'left' | 'right' | 'anchor';
-  /** The side the panel slides out toward when parked; 'auto' follows the row. */
-  exitTo: 'auto' | 'left' | 'right';
-  /** How the panel leaves when it closes. */
-  closeExit: 'down' | 'left' | 'right';
-  /** Whether the panel's enter, exit, park and scroll are animated. */
-  animated: boolean;
   /** How many phone-panel widths wide the panel is, an integer of 1 or more; the row draws at most the slots that fit. It starts a panel at that width and never resizes one that already exists. Default 1. */
   slots: number;
   /** The most slots the panel may take, an integer of 1 or more. Default: every slot that fits. */
@@ -272,20 +245,10 @@ export type SettingValues = {
   pinning: Pinning;
   /** What a pin change does to a panel that is not live. */
   pinningWhenNotLive: PinningWhenNotLive;
-  /** Whether the panel is saved with the workspace ('saved') or lasts only for the session ('session'). */
-  persist: 'saved' | 'session';
-  /** Whether a person's layout changes to the panel are recorded and applied when the workspace is restored. */
-  rememberLayout: boolean;
   /** Whether the panel is restored as it was saved ('saved'), live or parked. */
   restoreVisibility: 'saved' | 'live' | 'parked';
   /** Whether a closed panel stays closed ('stay-closed') or returns at the next launch ('return-next-launch'). */
   afterClose: 'stay-closed' | 'return-next-launch';
-  /** How long a close can be undone, in ms; 0 means no undo. */
-  undoWindowMs: number;
-  /** Whether closing the panel is reported to the host. */
-  reportClose: boolean;
-  /** When a picture of the panel is taken: on park, on close, on both or never. */
-  snapshot: 'both' | 'park' | 'close' | 'never';
 };
 
 /** The numbers behind a drag-down close. Distances are in px and velocities in px per second, positive downward. @public */
@@ -519,7 +482,7 @@ export type SettingConflict = {
   /** The value that applies instead. */
   readonly applied: unknown;
   /** The coupling rule that forced the value, for kind 'forced'. */
-  readonly rule?: 'C1' | 'C2' | 'C3' | 'C4' | 'C5' | 'C6';
+  readonly rule?: 'C1' | 'C2' | 'C4' | 'C5';
   /** The setting or condition behind the rule, for kind 'forced'. */
   readonly forcedBy?: string;
   /** A readable description. */
@@ -804,17 +767,6 @@ const CATALOG_ROWS: readonly SettingDescriptor[] = [
     configure: { cls: 'NEXT', doors: ['instance'] },
   },
   {
-    name: 'hideWhenLast',
-    group: 'visibility',
-    values: 'allow, refuse',
-    default: 'allow',
-    scope: 'instance',
-    viewSettable: false,
-    exists: 'new',
-    ownerEntry: 'phonux-engine-visibility-settings',
-    configure: { cls: 'NEXT', doors: ['instance'] },
-  },
-  {
     name: 'capacityReturn',
     group: 'visibility',
     values: 'auto, manual',
@@ -822,17 +774,6 @@ const CATALOG_ROWS: readonly SettingDescriptor[] = [
     scope: 'instance',
     viewSettable: false,
     exists: 'today',
-    ownerEntry: 'phonux-engine-visibility-settings',
-    configure: { cls: 'NEXT', doors: ['instance'] },
-  },
-  {
-    name: 'returnPriority',
-    group: 'visibility',
-    values: 'integer',
-    default: '0',
-    scope: 'instance',
-    viewSettable: false,
-    exists: 'new',
     ownerEntry: 'phonux-engine-visibility-settings',
     configure: { cls: 'NEXT', doors: ['instance'] },
   },
@@ -845,28 +786,6 @@ const CATALOG_ROWS: readonly SettingDescriptor[] = [
     viewSettable: false,
     exists: 'new',
     ownerEntry: 'phonux-row-numbers-and-overflow',
-    configure: { cls: 'NEXT', doors: ['instance'] },
-  },
-  {
-    name: 'evictionRank',
-    group: 'visibility',
-    values: 'integer',
-    default: '0',
-    scope: 'instance',
-    viewSettable: false,
-    exists: 'new',
-    ownerEntry: 'phonux-engine-visibility-settings',
-    configure: { cls: 'NEXT', doors: ['instance'] },
-  },
-  {
-    name: 'evictionOrder',
-    group: 'visibility',
-    values: 'farthest, nearest, leftmost, rightmost',
-    default: 'farthest',
-    scope: 'instance',
-    viewSettable: false,
-    exists: 'today',
-    ownerEntry: 'phonux-engine-visibility-settings',
     configure: { cls: 'NEXT', doors: ['instance'] },
   },
   {
@@ -903,17 +822,6 @@ const CATALOG_ROWS: readonly SettingDescriptor[] = [
     configure: { cls: 'NEXT', doors: ['instance'] },
   },
   {
-    name: 'scrollOnDrag',
-    group: 'scrolling',
-    values: 'edge, none',
-    default: 'edge (Q19: the owner asked for a per-panel switch and \'Yes, scroll at the edge\'; the library default is edge)',
-    scope: 'instance',
-    viewSettable: false,
-    exists: 'new',
-    ownerEntry: 'phonux-edge-scroll-while-dragging',
-    configure: { cls: 'NEXT', doors: ['instance'] },
-  },
-  {
     name: 'toggleWhenClosed',
     group: 'operations',
     values: 'ignore, reopen',
@@ -936,28 +844,6 @@ const CATALOG_ROWS: readonly SettingDescriptor[] = [
     configure: { cls: 'NEXT', doors: ['instance'] },
   },
   {
-    name: 'viewState',
-    group: 'visibility',
-    values: 'keep, reset-on-park',
-    default: 'keep',
-    scope: 'instance',
-    viewSettable: false,
-    exists: 'today',
-    ownerEntry: 'phonux-engine-visibility-settings',
-    configure: { cls: 'STATE', doors: ['instance'] },
-  },
-  {
-    name: 'keepMounted',
-    group: 'visibility',
-    values: 'true, false',
-    default: 'false (C1, C6)',
-    scope: 'instance',
-    viewSettable: false,
-    exists: 'new',
-    ownerEntry: 'phonux-keep-mounted-render-path',
-    configure: { cls: 'STATE', doors: ['instance'] },
-  },
-  {
     name: 'placeOnAdd',
     group: 'placement',
     values: 'row-start, row-end, parkable-start, parkable-end, after-fixed, order, {before}, {after}, {anchor}',
@@ -973,39 +859,6 @@ const CATALOG_ROWS: readonly SettingDescriptor[] = [
     group: 'placement',
     values: 'the same plus in-place',
     default: 'in-place',
-    scope: 'instance',
-    viewSettable: false,
-    exists: 'today',
-    ownerEntry: 'phonux-engine-placement-and-motion-settings',
-    configure: { cls: 'NEXT', doors: ['instance'] },
-  },
-  {
-    name: 'placeOnReturn',
-    group: 'placement',
-    values: 'in-place, row-start, row-end, parkable-start, parkable-end, after-fixed, order, {before}, {after}, {anchor}',
-    default: 'in-place',
-    scope: 'instance',
-    viewSettable: false,
-    exists: 'today',
-    ownerEntry: 'phonux-engine-placement-and-motion-settings',
-    configure: { cls: 'NEXT', doors: ['instance'] },
-  },
-  {
-    name: 'placeFallback',
-    group: 'placement',
-    values: 'row-start, row-end, parkable-start, parkable-end, after-fixed',
-    default: 'row-end',
-    scope: 'instance',
-    viewSettable: false,
-    exists: 'today',
-    ownerEntry: 'phonux-engine-placement-and-motion-settings',
-    configure: { cls: 'NEXT', doors: ['instance'] },
-  },
-  {
-    name: 'undoPlacement',
-    group: 'placement',
-    values: 'old-slot or any placeOnAdd value',
-    default: 'old-slot',
     scope: 'instance',
     viewSettable: false,
     exists: 'today',
@@ -1031,39 +884,6 @@ const CATALOG_ROWS: readonly SettingDescriptor[] = [
     scope: 'instance',
     viewSettable: true,
     exists: 'today',
-    ownerEntry: 'phonux-engine-placement-and-motion-settings',
-    configure: { cls: 'NEXT', doors: ['instance'] },
-  },
-  {
-    name: 'exitTo',
-    group: 'motion',
-    values: 'auto, left, right',
-    default: 'auto',
-    scope: 'instance',
-    viewSettable: false,
-    exists: 'today',
-    ownerEntry: 'phonux-engine-placement-and-motion-settings',
-    configure: { cls: 'NEXT', doors: ['instance'] },
-  },
-  {
-    name: 'closeExit',
-    group: 'motion',
-    values: 'down, left, right',
-    default: 'down',
-    scope: 'instance',
-    viewSettable: false,
-    exists: 'today',
-    ownerEntry: 'phonux-engine-placement-and-motion-settings',
-    configure: { cls: 'NEXT', doors: ['instance'] },
-  },
-  {
-    name: 'animated',
-    group: 'motion',
-    values: 'true, false',
-    default: 'true',
-    scope: 'instance',
-    viewSettable: false,
-    exists: 'new',
     ownerEntry: 'phonux-engine-placement-and-motion-settings',
     configure: { cls: 'NEXT', doors: ['instance'] },
   },
@@ -1134,39 +954,6 @@ const CATALOG_ROWS: readonly SettingDescriptor[] = [
     configure: { cls: 'NOW', doors: ['instance'] },
   },
   {
-    name: 'frame',
-    group: 'header',
-    values: 'auto, none',
-    default: 'auto',
-    scope: 'instance',
-    viewSettable: false,
-    exists: 'new',
-    ownerEntry: 'phonux-default-frame-v3',
-    configure: { cls: 'NOW', doors: ['instance'] },
-  },
-  {
-    name: 'persist',
-    group: 'persistence',
-    values: 'saved, session',
-    default: 'saved',
-    scope: 'instance',
-    viewSettable: false,
-    exists: 'today',
-    ownerEntry: 'phonux-saved-overrides-and-template-paths',
-    configure: { cls: 'NEXT', doors: ['instance'] },
-  },
-  {
-    name: 'rememberLayout',
-    group: 'persistence',
-    values: 'true, false',
-    default: 'true (C3)',
-    scope: 'instance',
-    viewSettable: false,
-    exists: 'new',
-    ownerEntry: 'phonux-saved-overrides-and-template-paths',
-    configure: { cls: 'NEXT', doors: ['instance'] },
-  },
-  {
     name: 'restoreVisibility',
     group: 'persistence',
     values: 'saved, live, parked',
@@ -1181,44 +968,11 @@ const CATALOG_ROWS: readonly SettingDescriptor[] = [
     name: 'afterClose',
     group: 'persistence',
     values: 'stay-closed, return-next-launch',
-    default: 'stay-closed (C3)',
+    default: 'stay-closed',
     scope: 'instance',
     viewSettable: false,
     exists: 'new',
     ownerEntry: 'phonux-workspace-attach-and-snapshot',
-    configure: { cls: 'NEXT', doors: ['instance'] },
-  },
-  {
-    name: 'undoWindowMs',
-    group: 'closing',
-    values: 'integer ms; 0 = no undo',
-    default: '10000',
-    scope: 'instance',
-    viewSettable: false,
-    exists: 'today',
-    ownerEntry: 'phonux-engine-permission-settings',
-    configure: { cls: 'NEXT', doors: ['instance'] },
-  },
-  {
-    name: 'reportClose',
-    group: 'closing',
-    values: 'true, false',
-    default: 'true',
-    scope: 'instance',
-    viewSettable: false,
-    exists: 'today',
-    ownerEntry: 'phonux-engine-permission-settings',
-    configure: { cls: 'NEXT', doors: ['instance'] },
-  },
-  {
-    name: 'snapshot',
-    group: 'closing',
-    values: 'both, park, close, never',
-    default: 'both',
-    scope: 'instance',
-    viewSettable: false,
-    exists: 'today',
-    ownerEntry: 'phonux-engine-permission-settings',
     configure: { cls: 'NEXT', doors: ['instance'] },
   },
   {
@@ -1471,44 +1225,25 @@ export const LIBRARY_PANEL_DEFAULTS: LibraryPanelDefaults = freezeClone({
   maxInstances: 'unlimited' as number | 'unlimited',
   startVisibility: 'live' as const,
   hideStickiness: 'sticky' as const,
-  hideWhenLast: 'allow' as const,
   capacityReturn: 'auto' as const,
-  returnPriority: 0,
   overflow: 'scroll' as Overflow,
-  evictionRank: 0,
-  evictionOrder: 'farthest' as const,
   revealOnScroll: 'edges' as const,
   scrollOnOpen: 'into-view' as ScrollOnOpen,
   scrollOnMove: 'follow' as ScrollOnMove,
-  scrollOnDrag: 'edge' as ScrollOnDrag,
   toggleWhenClosed: 'ignore' as const,
   showWhenClosed: 'refuse' as const,
-  viewState: 'keep' as const,
-  keepMounted: false,
-  frame: 'auto' as const,
   placeOnAdd: 'row-end' as AddPlacement,
   placeOnShow: 'in-place' as AddPlacement | 'in-place',
-  placeOnReturn: 'in-place' as AddPlacement | 'in-place',
-  placeFallback: 'row-end' as const,
-  undoPlacement: 'old-slot' as 'old-slot' | AddPlacement,
   layer: 'base' as const,
   enterFrom: 'auto' as const,
-  exitTo: 'auto' as const,
-  closeExit: 'down' as const,
-  animated: true,
   slots: 1,
   maxSlots: ALL_SLOTS,
   title: undefined,
   pinning: { pinned: { placement: 'row-start' }, unpinned: { placement: 'row-end' } } as Pinning,
   pinningWhenNotLive: 'place-only' as PinningWhenNotLive,
   headerButtons: {},
-  persist: 'saved' as const,
-  rememberLayout: true,
   restoreVisibility: 'saved' as const,
   afterClose: 'stay-closed' as const,
-  undoWindowMs: 10000,
-  reportClose: true,
-  snapshot: 'both' as const,
 });
 
 /**
@@ -1695,6 +1430,60 @@ const pinningWhenNotLiveProblem: Check = (v) => {
   return undefined;
 };
 
+/** What the removed per-panel settings do, typed as the values they once took so the code that reads them keeps its branches. @internal */
+export interface FixedBehaviour {
+  readonly hideWhenLast: 'allow' | 'refuse';
+  readonly returnPriority: number;
+  readonly evictionRank: number;
+  readonly evictionOrder: 'farthest' | 'nearest' | 'leftmost' | 'rightmost';
+  readonly scrollOnDrag: ScrollOnDrag;
+  readonly viewState: 'keep' | 'reset-on-park';
+  readonly keepMounted: boolean;
+  readonly frame: 'auto' | 'none';
+  readonly placeOnReturn: AddPlacement | 'in-place';
+  readonly placeFallback: 'row-start' | 'row-end' | 'parkable-start' | 'parkable-end' | 'after-fixed';
+  readonly undoPlacement: 'old-slot' | AddPlacement;
+  readonly exitTo: 'auto' | 'left' | 'right';
+  readonly closeExit: 'down' | 'left' | 'right';
+  readonly animated: boolean;
+  readonly persist: 'saved' | 'session';
+  readonly rememberLayout: boolean;
+  readonly undoWindowMs: number;
+  readonly reportClose: boolean;
+  readonly snapshot: 'both' | 'park' | 'close' | 'never';
+}
+
+/**
+ * What the per-panel settings this version removed do now: each is fixed at the value it had as a default, for every
+ * panel. A template that still names one is told once in development and the value is ignored; a later rc refuses it.
+ * @internal
+ */
+export const FIXED: FixedBehaviour = Object.freeze({
+  hideWhenLast: 'allow',
+  returnPriority: 0,
+  evictionRank: 0,
+  evictionOrder: 'farthest',
+  scrollOnDrag: 'edge',
+  viewState: 'keep',
+  keepMounted: false,
+  frame: 'auto',
+  placeOnReturn: 'in-place',
+  placeFallback: 'row-end',
+  undoPlacement: 'old-slot',
+  exitTo: 'auto',
+  closeExit: 'down',
+  animated: true,
+  persist: 'saved',
+  rememberLayout: true,
+  undoWindowMs: 10000,
+  reportClose: true,
+  snapshot: 'both',
+});
+
+function reportRemovedKey(layer: string, key: string): void {
+  reportOnce(`removed:${key}`, `phonux: the ${layer} setting '${key}' was removed`, () => [`it is ignored and the panel behaves as if it were ${JSON.stringify(FIXED[key as keyof typeof FIXED])}`, 'the next rc refuses it with invalid-settings']);
+}
+
 type SettingKey = Exclude<CatalogName, `tuning.${string}`>;
 
 const SETTING_CHECKS: Record<SettingKey, Check> = {
@@ -1711,44 +1500,25 @@ const SETTING_CHECKS: Record<SettingKey, Check> = {
   listed: bool,
   startVisibility: oneOf('live', 'parked'),
   hideStickiness: oneOf('sticky', 'until-room'),
-  hideWhenLast: oneOf('allow', 'refuse'),
   capacityReturn: oneOf('auto', 'manual'),
-  returnPriority: integer(-Infinity),
   overflow: oneOf('scroll', 'park'),
-  evictionRank: integer(-Infinity),
-  evictionOrder: oneOf('farthest', 'nearest', 'leftmost', 'rightmost'),
   revealOnScroll: oneOf('edges', 'any', 'never'),
   scrollOnOpen: oneOf('into-view', 'start', 'center', 'none'),
   scrollOnMove: oneOf('follow', 'none'),
-  scrollOnDrag: oneOf('edge', 'none'),
   toggleWhenClosed: oneOf('ignore', 'reopen'),
   showWhenClosed: oneOf('refuse', 'reopen'),
-  viewState: oneOf('keep', 'reset-on-park'),
-  keepMounted: bool,
-  frame: oneOf('auto', 'none'),
   placeOnAdd: placementProblem,
   placeOnShow: placementOrInPlace,
-  placeOnReturn: placementOrInPlace,
-  placeFallback: oneOf('row-start', 'row-end', 'parkable-start', 'parkable-end', 'after-fixed'),
-  undoPlacement: undoPlacementProblem,
   layer: oneOf('base', 'raised'),
   enterFrom: oneOf('auto', 'left', 'right', 'anchor'),
-  exitTo: oneOf('auto', 'left', 'right'),
-  closeExit: oneOf('down', 'left', 'right'),
-  animated: bool,
   slots: integer(1, ALL_SLOTS),
   maxSlots: integer(1, ALL_SLOTS),
   title: text,
   pinning: pinningProblem,
   pinningWhenNotLive: pinningWhenNotLiveProblem,
   headerButtons: headerButtonsProblem,
-  persist: oneOf('saved', 'session'),
-  rememberLayout: bool,
   restoreVisibility: oneOf('saved', 'live', 'parked'),
   afterClose: oneOf('stay-closed', 'return-next-launch'),
-  undoWindowMs: integer(0),
-  reportClose: bool,
-  snapshot: oneOf('both', 'park', 'close', 'never'),
 };
 
 export type TuningLeaf = keyof WorkspaceTuning;
@@ -1953,6 +1723,11 @@ function checkLayer(layer: AskLayer, raw: unknown, env: Env): Accepted {
       checkTuning(layer, value, accepted, env, lenientLayer);
       continue;
     }
+    if (Object.hasOwn(FIXED, key)) {
+      if (lenientLayer) reject(layer, key, 'a setting this version no longer has', true, env.notes);
+      else reportRemovedKey(layer, key);
+      continue;
+    }
     if (!Object.hasOwn(SETTING_CHECKS, key)) {
       reject(layer, key, 'unknown setting', lenientLayer, env.notes);
       continue;
@@ -2103,22 +1878,16 @@ function applyRules(s: State, root: boolean): void {
     force(s, 'overflow', 'scroll', 'C1', 'parkable');
     force(s, 'startVisibility', 'live', 'C1', 'parkable');
     force(s, 'restoreVisibility', 'live', 'C1', 'parkable');
-    force(s, 'keepMounted', false, 'C1', 'parkable');
   }
   if (s.values.closable === false) force(s, 'clearable', false, 'C2', 'closable');
-  if (s.values.persist === 'session') {
-    force(s, 'rememberLayout', false, 'C3', 'persist');
-    force(s, 'afterClose', 'return-next-launch', 'C3', 'persist');
-  }
   if ((s.values.slots as number) > (s.values.maxSlots as number)) force(s, 'slots', s.values.maxSlots, 'C4', 'maxSlots');
   if (root) {
     force(s, 'draggable', false, 'C5');
     force(s, 'placeable', false, 'C5');
   }
-  if (s.values.viewState === 'reset-on-park') force(s, 'keepMounted', false, 'C6', 'viewState');
 }
 
-const PARK_LEVERS = ['capacityReturn', 'returnPriority', 'evictionRank', 'evictionOrder'] as const;
+const PARK_LEVERS = ['capacityReturn'] as const;
 
 function appliedFor(key: string, value: Plain, tuning: State['tuning']): unknown {
   if (key.startsWith('tuning.')) {
