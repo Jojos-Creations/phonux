@@ -9,6 +9,9 @@ import * as React from 'react';
 import { type RefObject } from 'react';
 import { motion, useReducedMotionConfig } from 'motion/react';
 import Box, { type BoxProps } from '@mui/material/Box';
+import { AnnounceContext } from './announce.js';
+import { useOptionalHost } from './hostApi.js';
+import { resolveLabels } from './labels.js';
 import { computeRowLayout } from './panelRowLayout.js';
 import { PANEL_TRANSITION } from './PanelRowSlot.js';
 import { slideToTransition } from './directionalTransition.js';
@@ -145,6 +148,9 @@ export interface WorkspaceProps extends Omit<BoxProps, 'children'> {
   children: React.ReactNode;
 }
 
+/** Clipped, not display: none, which would hide the live region from a screen reader. */
+const VISUALLY_HIDDEN = { position: 'absolute', width: 1, height: 1, margin: -1, padding: 0, overflow: 'hidden', clip: 'rect(0 0 0 0)', whiteSpace: 'nowrap', border: 0 } as const;
+
 /**
  * The workspace shell: a scroll container holding the centred, animated row, with two OverlaySlots
  * (`dialog` inside the row, `toast` as this component's own last sibling) so a view's WindowOverlay always
@@ -157,6 +163,10 @@ export function Workspace(props: WorkspaceProps): React.ReactElement {
   const gap = resolved.rowGap;
   const [chromeStore] = React.useState(createChromeStore);
   const reduced = useReducedMotionConfig() === true;
+  const labels = resolveLabels(useOptionalHost()?.labels);
+  // A new element per message, so the same words said twice are announced twice.
+  const [said, setSaid] = React.useState({ n: 0, text: '' });
+  const announce = React.useCallback((text: string) => setSaid((prev) => ({ n: prev.n + 1, text })), []);
   const derived = useResizeSettled(containerWidth, resizeSettleDelayMs(resolved.slide, resolved.resizeSettleSlides), reduced);
   const rowResizeSettled = given ?? derived;
   // A panel being resized by hand holds the row where it is: its strip changes under the pointer, and a settle onto the
@@ -265,12 +275,15 @@ export function Workspace(props: WorkspaceProps): React.ReactElement {
     };
   });
   return (
+    <AnnounceContext.Provider value={announce}>
     <PhoneSizeContext.Provider value={phoneSize}>
     <WorkspaceTuningContext.Provider value={resolved}>
       <ChromeStoreContext.Provider value={chromeStore}>
       <RowHeightContext.Provider value={availableHeight}>
       <Box
         ref={overflowContainerRef}
+        role="region"
+        aria-label={labels.row}
         {...rest}
         data-row-scroller=""
         sx={{
@@ -309,9 +322,13 @@ export function Workspace(props: WorkspaceProps): React.ReactElement {
       </Box>
       </RowHeightContext.Provider>
 
+      <Box role="status" aria-live="polite" aria-atomic="true" data-workspace-announcer="" sx={VISUALLY_HIDDEN}>
+        <span key={said.n}>{said.text}</span>
+      </Box>
       <OverlaySlot name="toast" />
       </ChromeStoreContext.Provider>
     </WorkspaceTuningContext.Provider>
     </PhoneSizeContext.Provider>
+    </AnnounceContext.Provider>
   );
 }

@@ -67,6 +67,7 @@ export const CHROME_PARTS: {
     readonly header: "header";
     readonly grabBar: "grab-bar";
     readonly footer: "footer";
+    readonly resize: "resize";
 };
 
 // @public
@@ -132,10 +133,10 @@ export interface ColumnWorkspaceOptions {
     name?: string;
 }
 
-// @public
+// @public @deprecated
 export function computeRowLayout(input: RowLayoutInput): RowLayoutResult;
 
-// @public
+// @public @deprecated
 export function computeRowNumbers(i: {
     entries: readonly PanelRowEntry[];
     phoneWidth: number;
@@ -205,7 +206,7 @@ export type DeferredPin = {
 // @public
 export function definePanel<P extends JsonValue = JsonValue>(t: PanelTemplate<P>): PanelTemplate<P>;
 
-// @public
+// @public @deprecated
 export const DRAG_CLOSE: {
     readonly distanceFraction: 0.25;
     readonly minDistancePx: 80;
@@ -225,7 +226,11 @@ export const DRAGGING_ATTRIBUTE = "data-panel-dragging";
 
 // @public
 export interface DragHandleProps {
+    'aria-keyshortcuts'?: string;
+    'aria-label'?: string;
+    onKeyDown?: (event: React_2.KeyboardEvent<HTMLElement>) => void;
     onPointerDown: (event: React_2.PointerEvent<HTMLElement>) => void;
+    role?: 'button';
     sx: {
         cursor: 'grab';
         touchAction: 'pan-x';
@@ -233,7 +238,13 @@ export interface DragHandleProps {
         '&:active': {
             cursor: 'grabbing';
         };
+        '&:focus-visible': {
+            outline: '2px solid';
+            outlineColor: 'primary.main';
+            outlineOffset: -2;
+        };
     };
+    tabIndex?: 0;
 }
 
 // @public
@@ -272,7 +283,7 @@ export type FadeEase = 'easeIn' | 'easeOut' | 'easeInOut' | 'linear' | BezierEas
 // @public
 export function findPhoneModel(id: string): PhoneModel | undefined;
 
-// @public
+// @public @deprecated
 export const GAP = 16;
 
 // @public
@@ -652,6 +663,9 @@ export type PanelReadHandle = {
 export type PanelRefusal = 'disposed' | 'not-attached' | 'not-ready' | 'is-pending' | 'is-closed' | 'not-live' | 'busy' | 'not-closable' | 'not-parkable' | 'not-draggable' | 'not-placeable' | 'not-resizable' | 'slots-above-max' | 'would-empty-row' | 'instance-limit' | 'unknown-panel' | 'wrong-scope' | 'would-reshape-row' | 'settings-conflict' | 'not-view-settable';
 
 // @public
+export function PanelResizeGrips(): React_2.ReactElement | null;
+
+// @public
 export type PanelResult = {
     readonly ok: true;
     readonly changed: boolean;
@@ -774,8 +788,8 @@ export interface PanelSize {
 
 // @public
 export function PanelSizeBox(input: {
-    width: number;
-    height: number;
+    width?: number;
+    height?: number;
     children: React_2.ReactNode;
 }): React_2.JSX.Element;
 
@@ -824,19 +838,11 @@ export interface PanelSummary<P = JsonValue> {
 // @public
 export interface PanelTemplate<P extends JsonValue = JsonValue> {
     readonly api?: PanelApiLevel;
-    readonly footer?: React_2.ComponentType<{
-        panel: PanelSummary<P>;
-        handle: ViewHandle<P>;
-        manager: PanelReader;
-    }>;
+    readonly footer?: React_2.ComponentType<PanelViewProps<P>>;
     readonly id: string;
     readonly params?: P;
     readonly settings?: PanelSettings;
-    readonly view: React_2.ComponentType<{
-        panel: PanelSummary<P>;
-        handle: ViewHandle<P>;
-        manager: PanelReader;
-    }>;
+    readonly view: React_2.ComponentType<PanelViewProps<P>>;
 }
 
 // @public
@@ -861,6 +867,13 @@ export type PanelUserLayer = {
 };
 
 // @public
+export interface PanelViewProps<P extends JsonValue = JsonValue> {
+    handle: ViewHandle<P>;
+    manager: PanelReader;
+    panel: PanelSummary<P>;
+}
+
+// @public @deprecated
 export function panelWidthOf(p: Pick<PanelRowEntry, 'slots' | 'settings'>, phoneWidth: number, maxLiveWidth: number, gap?: number): number;
 
 // @public
@@ -925,12 +938,23 @@ export interface PhoneSize {
 
 // @public
 export interface PhonuxLabels {
+    cannotMove: (title: string, steps: number) => string;
+    closed: (title: string) => string;
+    dragCancelled: (title: string) => string;
+    dropped: (title: string) => string;
     goToWorkspace: (name: string) => string;
+    grabStrip: (title: string) => string;
     historyTitle: string;
     lock: string;
+    moved: (title: string, steps: number) => string;
     newWorkspace: string;
+    panelPosition: (title: string, place: number, total: number) => string;
     panelTitle: (id: string) => string;
+    pickedUp: (title: string) => string;
     pin: string;
+    resizeGrip: (side: 'left' | 'right') => string;
+    resizeGripValue: (slots: number, most: number) => string;
+    row: string;
     unlock: string;
     unpin: string;
     untitledHeader: string;
@@ -988,9 +1012,10 @@ export interface ProvidedPanels extends PanelsAPI {
 // @public
 export interface ReorderHandle {
     onDragEnd: (offsetX: number) => void;
+    onStep?: (steps: number) => boolean;
 }
 
-// @public
+// @public @deprecated
 export function reorderStepsForOffset(offsetX: number, neighbors: NeighborWidths, gap: number, hopFraction?: number): number;
 
 // @public

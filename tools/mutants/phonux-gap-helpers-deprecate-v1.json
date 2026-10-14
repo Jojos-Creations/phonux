@@ -1,0 +1,63 @@
+{
+  "tests": [
+    "test/slot-drawn-size.test.ts",
+    "test/default-frame.test.ts",
+    "test/default-frame-size.test.ts"
+  ],
+  "mutants": [
+    {
+      "name": "the size box ignores the slot",
+      "file": "PanelRowSlot.tsx",
+      "find": "const width = given ?? slot?.drawn?.width ?? phone?.width ?? missingHost();",
+      "replace": "const width = given ?? phone?.width ?? missingHost();",
+      "expectRed": [
+        "a two-slot panel size box, Panel and PanelFrame equal the drawn width"
+      ]
+    },
+    {
+      "name": "PanelFrame ignores the slot",
+      "file": "PanelFrame.tsx",
+      "find": "const width = size?.width ?? drawn?.width ?? phone.width;",
+      "replace": "const width = size?.width ?? phone.width;",
+      "expectRed": [
+        "a two-slot panel size box, Panel and PanelFrame equal the drawn width"
+      ]
+    },
+    {
+      "name": "Panel ignores the slot",
+      "file": "Panel.tsx",
+      "find": "width: size?.width ?? slot?.drawn?.width ?? phoneSize.width",
+      "replace": "width: size?.width ?? phoneSize.width",
+      "expectRed": [
+        "a two-slot panel size box, Panel and PanelFrame equal the drawn width"
+      ]
+    },
+    {
+      "name": "the row hands the slot the phone width",
+      "file": "PanelRow.tsx",
+      "find": "drawn: { width: rest.width, height: phoneHeight },",
+      "replace": "drawn: { width: phoneSize.width, height: phoneHeight },",
+      "expectRed": [
+        "a two-slot panel size box, Panel and PanelFrame equal the drawn width"
+      ]
+    },
+    {
+      "name": "GAP loses its deprecation",
+      "file": "etc/phonux.api.md",
+      "find": "// @public @deprecated\nexport const GAP = 16;",
+      "replace": "// @public\nexport const GAP = 16;",
+      "expectRed": [
+        "the layout helpers and GAP carry @deprecated"
+      ]
+    },
+    {
+      "name": "panelWidthOf loses its deprecation",
+      "file": "etc/phonux.api.md",
+      "find": "// @public @deprecated\nexport function panelWidthOf",
+      "replace": "// @public\nexport function panelWidthOf",
+      "expectRed": [
+        "the layout helpers and GAP carry @deprecated"
+      ]
+    }
+  ]
+}

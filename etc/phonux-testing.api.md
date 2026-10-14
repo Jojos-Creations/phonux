@@ -4,6 +4,10 @@
 
 ```ts
 
+import type * as React_2 from 'react';
+import type { SxProps } from '@mui/material/styles';
+import type { Theme } from '@mui/material/styles';
+
 // @public
 export type AbsentHostMember = 'history' | 'snapshots';
 
@@ -26,6 +30,22 @@ export type AnchorRequest = {
 };
 
 // @public
+export type BezierEase = readonly [number, number, number, number];
+
+// @public
+export type CatalogName = Exclude<keyof PanelSettings, 'tuning'> | `tuning.${keyof WorkspaceTuning}`;
+
+// @public
+export type ChromeTuning = {
+    mode: 'always' | 'hover-or-active';
+    fadeMs: number;
+    fadeEase: FadeEase;
+    slideMs: number;
+    slidePx: number;
+    graceMs: number;
+};
+
+// @public
 export interface ClosedPageEntry {
     closedAt: string;
     id: string;
@@ -34,7 +54,31 @@ export interface ClosedPageEntry {
 }
 
 // @public
+export type CloseExitEase = 'easeIn' | 'easeOut' | 'easeInOut' | 'linear' | BezierEase;
+
+// @public
+export type ConfigureResult = {
+    readonly ok: true;
+    readonly changed: boolean;
+    readonly shown: boolean;
+    readonly now: readonly string[];
+    readonly later: readonly string[];
+    readonly shadowed: readonly string[];
+    readonly notes: readonly SettingNote[];
+} | {
+    readonly ok: false;
+    readonly code: PanelRefusal;
+    readonly message: string;
+    readonly setting?: string;
+};
+
+// @public
 export function createFakeHost(overrides?: FakeOverrides): FakeHost;
+
+// @public
+export function createFakePanel<P extends JsonValue = JsonValue>(state?: Partial<Omit<PanelState, 'params'>> & {
+    params?: P;
+}): FakePanel<P>;
 
 // @public
 export interface CreatePanelOptions {
@@ -54,8 +98,41 @@ export interface CreatePanelOptions {
 }
 
 // @public
+export type DeferredPin = {
+    by: 'pin' | 'unpin';
+} | {
+    parkable: boolean;
+};
+
+// @public
+export type DragToCloseTuning = {
+    distanceFraction: number;
+    minDistancePx: number;
+    flickMinDistancePx: number;
+    flickVelocity: number;
+    cancelVelocity: number;
+    directionLockPx: number;
+    restMs: number;
+    velocityWindowMs: number;
+    snapBack: {
+        stiffness: number;
+        damping: number;
+    };
+};
+
+// @public
+export type EdgeScrollTuning = {
+    zonePx: number;
+    maxPxPerSec: number;
+    reducedStepMs: number;
+};
+
+// @public
+export type FadeEase = 'easeIn' | 'easeOut' | 'easeInOut' | 'linear' | BezierEase;
+
+// @public
 export interface FakeCall {
-    api: keyof Host;
+    api: keyof Host | 'handle';
     args: unknown[];
     method: string;
 }
@@ -70,6 +147,52 @@ export type FakeOverrides = {
     [K in keyof Host]?: Partial<Host[K]>;
 } & {
     absent?: readonly AbsentHostMember[];
+};
+
+// @public
+export interface FakePanel<P extends JsonValue = JsonValue> {
+    readonly calls: FakeCall[];
+    readonly handle: ViewHandle<P>;
+    readonly manager: PanelReader;
+    readonly props: PanelViewProps<P>;
+}
+
+// @public
+export type GlideEase = 'cubic-out' | 'linear' | BezierEase;
+
+// @public
+export type HeaderButton = HeaderButtonIconForm | HeaderButtonTextForm;
+
+// @public
+export type HeaderButtonBase = {
+    label: string | ((c: HeaderButtonContext) => string);
+    onClick: (handle: ViewHandle, c: HeaderButtonContext & {
+        announce(text: string): void;
+    }) => void | Promise<unknown>;
+    side?: 'start' | 'end';
+    order?: number;
+    pressed?: (c: HeaderButtonContext) => boolean;
+    description?: string | ((c: HeaderButtonContext) => string);
+    tooltip?: string | ((c: HeaderButtonContext) => string);
+    disabled?: boolean | ((c: HeaderButtonContext) => boolean);
+    hidden?: boolean | ((c: HeaderButtonContext) => boolean);
+    sx?: SxProps<Theme>;
+};
+
+// @public
+export type HeaderButtonContext = {
+    state: PanelState;
+    settings: ResolvedPanelSettings;
+};
+
+// @public
+export type HeaderButtonIconForm = HeaderButtonBase & {
+    icon: React_2.ReactNode | ((c: HeaderButtonContext) => React_2.ReactNode);
+};
+
+// @public
+export type HeaderButtonTextForm = HeaderButtonBase & {
+    icon?: never;
 };
 
 // @public
@@ -98,15 +221,76 @@ export interface Host {
 }
 
 // @public
+export type InstancePatch = Omit<SettingsPatch, 'hostCreatable' | 'multiple' | 'maxInstances'>;
+
+// @public
 export type JsonValue = string | number | boolean | null | readonly JsonValue[] | {
     readonly [key: string]: JsonValue;
+};
+
+// @public
+export type ListFilter = {
+    status?: PanelStatus | readonly PanelStatus[];
+    listed?: boolean;
 };
 
 // @public
 export function memoryWorkspaceStorage(initial?: WorkspaceState | null): WorkspaceStorage;
 
 // @public
+export type Overflow = 'scroll' | 'park';
+
+// @public
+export interface PanelHandle<P extends JsonValue = JsonValue> extends PanelReadHandle {
+    close(source?: 'code' | 'person'): PanelResult;
+    configure(patch: InstancePatch): ConfigureResult;
+    getState(): PanelState & {
+        readonly params: P | undefined;
+    };
+    hide(source?: 'code' | 'person'): PanelResult;
+    move(by: number, source?: 'code' | 'person'): PanelResult;
+    open(source?: 'code' | 'person'): PanelResult;
+    pin(source?: 'code' | 'person'): PinResult;
+    place(p: AddPlacement | 'in-place', source?: 'code' | 'person'): PanelResult;
+    scrollTo(align?: ScrollAlign, source?: 'code' | 'person'): PanelResult;
+    setSlots(slots: number, source?: 'code' | 'person'): PanelResult;
+    show(source?: 'code' | 'person'): PanelResult;
+    toggleVisibility(source?: 'code' | 'person'): PanelResult;
+    unpin(source?: 'code' | 'person'): PinResult;
+}
+
+// @public
 export type PanelId = string;
+
+// @public
+export type PanelReader = {
+    get(id: PanelId): PanelReadHandle | undefined;
+    list(f?: ListFilter): readonly PanelState[];
+    getSnapshot(): PanelSnapshot;
+    subscribe(l: () => void): () => void;
+};
+
+// @public
+export type PanelReadHandle = {
+    readonly id: PanelId;
+    readonly templateId: string;
+    getState(): PanelState;
+    getSettings(): PanelSettingsResolution;
+    subscribe(l: () => void): () => void;
+};
+
+// @public
+export type PanelRefusal = 'disposed' | 'not-attached' | 'not-ready' | 'is-pending' | 'is-closed' | 'not-live' | 'busy' | 'not-closable' | 'not-parkable' | 'not-draggable' | 'not-placeable' | 'not-resizable' | 'slots-above-max' | 'would-empty-row' | 'instance-limit' | 'unknown-panel' | 'wrong-scope' | 'would-reshape-row' | 'settings-conflict' | 'not-view-settable';
+
+// @public
+export type PanelResult = {
+    readonly ok: true;
+    readonly changed: boolean;
+} | {
+    readonly ok: false;
+    readonly code: PanelRefusal;
+    readonly message: string;
+};
 
 // @public
 export interface PanelsAPI {
@@ -137,10 +321,56 @@ export interface PanelsAPI {
 }
 
 // @public
+export type PanelSettings = {
+    [K in keyof SettingValues]?: SettingValues[K];
+} & {
+    tuning?: PanelTuning;
+    headerButtons?: {
+        [id: string]: HeaderButton | false;
+    };
+};
+
+// @public
+export type PanelSettingsResolution = {
+    value: ResolvedPanelSettings;
+    source: Record<string, SourceLayer>;
+    conflicts: SettingConflict[];
+    notes: SettingNote[];
+    userAnchor?: AnchorRequest;
+};
+
+// @public
 export interface PanelSize {
     height: number | 'fill';
     width: number;
 }
+
+// @public
+export type PanelSnapshot = {
+    readonly version: number;
+    readonly status: WorkspaceStatus;
+    readonly panels: readonly PanelState[];
+};
+
+// @public
+export interface PanelState {
+    readonly deferredPin: DeferredPin | null;
+    readonly engineId: string | null;
+    readonly held: boolean;
+    readonly id: PanelId;
+    readonly index: number | null;
+    readonly listed: boolean;
+    readonly params: JsonValue | undefined;
+    readonly pinned: boolean;
+    readonly settings: ResolvedPanelSettings;
+    readonly status: PanelStatus;
+    readonly templateId: string;
+    readonly title: string | undefined;
+    readonly url?: string;
+}
+
+// @public
+export type PanelStatus = 'pending' | 'live' | 'parked' | 'closed';
 
 // @public
 export interface PanelSummary<P = JsonValue> {
@@ -155,6 +385,27 @@ export interface PanelSummary<P = JsonValue> {
     readonly slots?: number;
     readonly title?: string;
     readonly url?: string;
+}
+
+// @public
+export type PanelTuning = {
+    dragToClose?: {
+        [K in keyof DragToCloseTuning]?: DragToCloseTuning[K];
+    };
+    slide?: {
+        [K in keyof SlideTuning]?: SlideTuning[K];
+    };
+    hopFraction?: number;
+    edgeScroll?: {
+        [K in keyof EdgeScrollTuning]?: EdgeScrollTuning[K];
+    };
+};
+
+// @public
+export interface PanelViewProps<P extends JsonValue = JsonValue> {
+    handle: ViewHandle<P>;
+    manager: PanelReader;
+    panel: PanelSummary<P>;
 }
 
 // @public
@@ -182,18 +433,109 @@ export interface PhoneSize {
 
 // @public
 export interface PhonuxLabels {
+    cannotMove: (title: string, steps: number) => string;
+    closed: (title: string) => string;
+    dragCancelled: (title: string) => string;
+    dropped: (title: string) => string;
     goToWorkspace: (name: string) => string;
+    grabStrip: (title: string) => string;
     historyTitle: string;
     lock: string;
+    moved: (title: string, steps: number) => string;
     newWorkspace: string;
+    panelPosition: (title: string, place: number, total: number) => string;
     panelTitle: (id: string) => string;
+    pickedUp: (title: string) => string;
     pin: string;
+    resizeGrip: (side: 'left' | 'right') => string;
+    resizeGripValue: (slots: number, most: number) => string;
+    row: string;
     unlock: string;
     unpin: string;
     untitledHeader: string;
     untitledPanel: string;
     workspaceName: string;
 }
+
+// @public
+export type PinHalf = {
+    placement?: AddPlacement;
+    parkable?: boolean;
+};
+
+// @public
+export type Pinning = {
+    pinned: PinHalf;
+    unpinned: PinHalf;
+};
+
+// @public
+export type PinningWhenNotLive = PinWhenNotLive | {
+    parked?: PinWhenNotLive;
+    hidden?: PinWhenNotLive;
+    closed?: 'refuse' | 'apply-on-next-show';
+};
+
+// @public
+export type PinResult = PanelResult & {
+    readonly shown?: boolean;
+    readonly deferred?: boolean;
+    readonly setting?: CatalogName;
+};
+
+// @public
+export type PinWhenNotLive = 'place-only' | 'refuse' | 'show' | 'apply-on-next-show';
+
+// @public
+export type ResolvedPanelSettings = {
+    readonly [K in Exclude<keyof SettingValues, 'title'>]: SettingValues[K];
+} & {
+    readonly title?: string;
+    readonly tuning: ResolvedPanelTuning;
+    readonly headerButtons: {
+        readonly [id: string]: HeaderButton;
+    };
+};
+
+// @public
+export type ResolvedPanelTuning = {
+    dragToClose: DragToCloseTuning;
+    slide: SlideTuning;
+    hopFraction: number;
+    edgeScroll: EdgeScrollTuning;
+};
+
+// @public
+export type ScrollAlign = 'into-view' | 'start' | 'center';
+
+// @public
+export type ScrollOnDrag = 'edge' | 'none';
+
+// @public
+export type ScrollOnMove = 'follow' | 'none';
+
+// @public
+export type ScrollOnOpen = ScrollAlign | 'none';
+
+// @public
+export type SettingConflict = {
+    readonly key: string;
+    readonly layer: 'template' | 'host' | 'instance';
+    readonly kind: 'forced' | 'wrong-scope' | 'not-view-settable';
+    readonly asked: unknown;
+    readonly applied: unknown;
+    readonly rule?: 'C1' | 'C2' | 'C3' | 'C4' | 'C5' | 'C6';
+    readonly forcedBy?: string;
+    readonly message: string;
+};
+
+// @public
+export type SettingNote = {
+    code: string;
+    panelId?: PanelId;
+    key?: string;
+    message: string;
+};
 
 // @public
 export interface SettingsAPI {
@@ -205,13 +547,104 @@ export interface SettingsAPI {
 }
 
 // @public
+export type SettingsPatch = {
+    [K in keyof PanelSettings]?: PanelSettings[K] | null;
+};
+
+// @public
+export type SettingValues = {
+    closable: boolean;
+    parkable: boolean;
+    draggable: boolean;
+    crossable: boolean;
+    placeable: boolean;
+    resizable: boolean;
+    clearable: boolean;
+    hostCreatable: boolean;
+    multiple: boolean;
+    maxInstances: number | 'unlimited';
+    listed: boolean;
+    startVisibility: 'live' | 'parked';
+    hideStickiness: 'sticky' | 'until-room';
+    hideWhenLast: 'allow' | 'refuse';
+    capacityReturn: 'auto' | 'manual';
+    returnPriority: number;
+    overflow: Overflow;
+    evictionRank: number;
+    evictionOrder: 'farthest' | 'nearest' | 'leftmost' | 'rightmost';
+    revealOnScroll: 'edges' | 'any' | 'never';
+    scrollOnOpen: ScrollOnOpen;
+    scrollOnMove: ScrollOnMove;
+    scrollOnDrag: ScrollOnDrag;
+    toggleWhenClosed: 'ignore' | 'reopen';
+    showWhenClosed: 'refuse' | 'reopen';
+    viewState: 'keep' | 'reset-on-park';
+    keepMounted: boolean;
+    frame: 'auto' | 'none';
+    placeOnAdd: AddPlacement;
+    placeOnShow: AddPlacement | 'in-place';
+    placeOnReturn: AddPlacement | 'in-place';
+    placeFallback: 'row-start' | 'row-end' | 'parkable-start' | 'parkable-end' | 'after-fixed';
+    undoPlacement: 'old-slot' | AddPlacement;
+    layer: 'base' | 'raised';
+    enterFrom: 'auto' | 'left' | 'right' | 'anchor';
+    exitTo: 'auto' | 'left' | 'right';
+    closeExit: 'down' | 'left' | 'right';
+    animated: boolean;
+    slots: number;
+    maxSlots: number;
+    title: string;
+    pinning: Pinning;
+    pinningWhenNotLive: PinningWhenNotLive;
+    persist: 'saved' | 'session';
+    rememberLayout: boolean;
+    restoreVisibility: 'saved' | 'live' | 'parked';
+    afterClose: 'stay-closed' | 'return-next-launch';
+    undoWindowMs: number;
+    reportClose: boolean;
+    snapshot: 'both' | 'park' | 'close' | 'never';
+};
+
+// @public
+export type SlideTuning = {
+    durationSec: number;
+    ease: readonly [number, number, number, number];
+    closeExitSeconds: number;
+    closeExitEase: CloseExitEase;
+    glideEase: GlideEase;
+};
+
+// @public
 export interface SnapshotsAPI {
     get(viewId: ViewId): ViewSnapshot | null;
     subscribe(viewId: ViewId, listener: () => void): () => void;
 }
 
 // @public
+export type SourceLayer = 'library' | 'workspace' | 'template' | 'host' | 'instance' | 'user' | 'derived' | 'forced';
+
+// @public
+export type ViewHandle<P extends JsonValue = JsonValue> = Omit<PanelHandle<P>, 'configure'> & {
+    configure(patch: ViewPatch): ConfigureResult;
+};
+
+// @public
 export type ViewId = string;
+
+// @public
+export type ViewPatch = {
+    title?: string | null;
+    listed?: boolean | null;
+    layer?: 'base' | 'raised' | null;
+    closable?: false | null;
+    slots?: number | null;
+    placeOnAdd?: {
+        anchor: AnchorRequest & {
+            panel: PanelId;
+        };
+    } | null;
+    enterFrom?: 'anchor' | null;
+};
 
 // @public
 export interface ViewSnapshot {
@@ -271,9 +704,35 @@ export type WorkspaceState = {
 };
 
 // @public
+export type WorkspaceStatus = 'detached' | 'loading' | 'ready' | 'disposed';
+
+// @public
 export type WorkspaceStorage = {
     load(): Promise<WorkspaceState | null>;
     save(state: WorkspaceState): void | Promise<void>;
+};
+
+// @public
+export type WorkspaceTuning = PanelTuning & {
+    rowGap?: number;
+    saveQuietMs?: number;
+    gestureLockMs?: number;
+    gestureQuietMs?: number;
+    resizeSettleSlides?: number;
+    returnTieBreak?: 'latest-first' | 'earliest-first' | 'row-order';
+    dropTieBreak?: 'leftmost' | 'rightmost';
+    rowGesture?: 'step' | 'free' | 'off';
+    initialScroll?: 'start' | 'end' | 'root' | {
+        panel: PanelId;
+    };
+    chrome?: {
+        [K in keyof ChromeTuning]?: ChromeTuning[K];
+    };
+    maxLivePanels?: number | null;
+    shrinkOutOfView?: 'off' | 'visible' | 'hidden';
+    phoneFit?: 'off' | 'fit';
+    phoneFitMin?: number;
+    phoneFitMax?: number;
 };
 
 // (No @packageDocumentation comment for this package)

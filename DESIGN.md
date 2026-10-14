@@ -24,6 +24,22 @@ every call rather than simulating real behavior, since simulating real behavior 
 app's own logic -- exactly what this boundary exists to avoid. It has no test-runner dependency and
 imports only the contracts and the data-only phone model list.
 
+### A view test holds one panel
+
+`createFakePanel(state?)` is the one fake that holds state: the single panel state it was given, never changed. It exists because a
+view's props are a `ViewHandle` and a `PanelReader`, and building those by hand means casting. Its handle is typed as `ViewHandle`
+and its reader as `PanelReader`, so a member added to the real handle fails to compile in `fakeHost.ts` until the fake has it. An
+operation records a call (`api: 'handle'`) and answers an accepted result that changed nothing; a test that wants the effect of an
+operation uses a real workspace. The fake imports only `panelSettings.ts` to resolve the settings, never `workspaceCore.ts`, React or
+motion.
+
+### Named view props
+
+`PanelViewProps<P>` is what a template's `view` and `footer` receive: `panel`, `handle` and `manager`. The panel API level table
+(`NewestViewProps`) is that same type, so a member added to the props fails to compile until the level shape names it.
+`usePanelState(id)` listens to that one panel (`reader.get(id).subscribe`), reads its value from the snapshot, and until the panel
+exists listens to the workspace and switches to the panel once it appears.
+
 ## Behavior flags cross this boundary as data only
 
 The panel model (`PanelWindow`, `panelWindow.ts`) adds behavior flags (`collapsible`, `listed`, `view`, ...)
@@ -96,7 +112,12 @@ setting is false, through the same per-slot context (`panelSlotContext.ts`) that
 its answer from `draggable`. It renders no DragToClose wrapper -- no grab bar at all -- when it reads false,
 exactly like History's own locked Panel today.
 
-## `size?` is additive: omitted means "read the shared device size, exactly as before this prop existed"
+## `size?` is additive: omitted means the slot's drawn size inside a row, else the shared device size
+
+Inside a row an omitted `size` on `Panel`, `PanelFrame` and `PanelSizeBox` is the size the row draws the slot at (`PanelSlotValue.drawn`: the slot's
+width, at the row's tuned gap, and the row's height), so a view computes no width of its own and a size box cannot come out
+a few px off its slot. Outside a row the rule below holds as written. The first paragraph describes the rule from before
+slots, when one panel was always one phone wide.
 
 `Panel`/`PanelFrame` (`Panel.tsx`/`PanelFrame.tsx`) each gain an optional `size?: PanelSize`
 (`PanelSize`, `hostApi.tsx`, beside `PanelSummary`). A caller that omits it -- every
@@ -412,6 +433,22 @@ frame at the latest if none does. The edge comes to rest on a stop, so it is hel
 rests within half the gap between the two stops around it. Under 'visible' a pinned edge that was beyond the window (the panel was cut off) is not held: a stop that draws the widened panel smaller does not count, so the row lands on the nearest stop that draws it whole. A row whose panels all fit has no stops and nothing scrolls. Under 'visible', the stop number the fade
 and the steps use is the stop the row rests on.
 
+### The resize grips
+
+`PanelResizeGrips` is the library's own grabber: one on each side of a resizable panel, drawn by the default frame (a view that draws
+its own `Panel` puts it in `overlay`). It is built from `usePanelResizing()` and the slot context, with no new setting: it appears when
+the panel's `resizable` setting is true and at least two slots can be shown (`slotRange.most`, the fewest of `maxSlots` and the slots
+that fit), and the app's own grabber code goes away. The target is 24 px, centred on the gap between two panels, so it never covers a
+panel's controls; it is a `role="separator"` with `aria-valuenow`, `aria-valuemin`, `aria-valuemax` and a spoken `aria-valuetext`, is
+focusable, and ArrowLeft and ArrowRight step the panel one slot (the right grip grows on ArrowRight, the left grip on ArrowLeft), with
+`preventDefault` so the row does not also step.
+
+A press resizes only once the pointer has travelled 4 px; a shorter press is a click, which sets nothing and shows no drag mark. After a drag the grip swallows the one click the browser fires with the pointerup, so a click handler on the panel behind it never runs. A drag: the width follows the pointer, held between one slot and the most that fit (by `PanelRow`,
+which owns that clamp, so the grip does not repeat it), the left grip pins `'end'` and the right grip `'start'`, and the release is
+`handle.setSlots(nearest, 'person')`, `setDrawnWidth(null)`, `setResizing(false)` in that order, so the width glides from the held one to
+the slot width (a snap under Reduce Motion). A cancel or a lost pointer capture stores nothing and the width glides back. Firefox reports
+a pointer past the window edge as `clientX` 0; a move at 0 after the pointer was beyond 24 px is the last real position, not a position.
+
 The container's horizontal overflow follows `tuning.rowGesture`: 'step' scrolls with the scrollbar hidden,
 'free' scrolls with it visible, 'off' hides the overflow. A row with no settings is always hidden.
 
@@ -445,6 +482,13 @@ the next stop (the next panel start in a row without stops), from the in-flight 
 
 The row listens for the arrow keys on the window, so a control that uses an arrow key itself (a resize grabber, the header buttons'
 roving focus) must call `preventDefault()` on it: the row skips a keydown whose default was prevented, and a key nothing handles steps the row.
+The row and the workspace column share one guard, `arrowKeyBelongsElsewhere` (`arrowKeys.ts`), so neither steps for a key a handler took, a
+modified key, one typed in a field or a widget that uses the arrows, one while a dialog is open or an IME is composing, or one during a keyboard
+or pointer drag. A held key is the one clause that differs: the column ignores a repeat and the row keeps stepping on it, so the guard does not judge it.
+
+The row is a `region` named `labels.row` and each panel a `group` named `labels.panelPosition(title, place, total)` ("Notes, 2 of 4"), counting the
+panels drawn. The Workspace renders one polite live region (`role="status"`) and `AnnounceContext` carries `announce(text)`; a key that
+moves or closes a panel says so there, because nothing visible changes for a screen reader user.
 
 `tuning.initialScroll` runs once per mount, in a layout effect gated on the restore having settled, on a measured row
 with an entry, with no animation, and not at all when a wheel, a pointer-down or a glide got there first.
@@ -1109,6 +1153,13 @@ downward, then the latest `onClose` runs) or snap back on a spring. `@dnd-kit/co
 `DndContext` per box with its auto-scroll off, decides when a press becomes a drag and when it ends or is cancelled,
 with its events on `document`, so a drag survives leaving the handle; Motion draws the box and runs the springs.
 
+**Keys and names.** When `onClose` or `reorder.onStep` is set the handle is a focusable `button` (`role`, `tabIndex`, `aria-label`
+`labels.grabStrip(title)`, `aria-keyshortcuts` and `onKeyDown` are in the handle) where ArrowLeft and ArrowRight call
+`reorder.onStep(-1 | 1)`, Delete calls `onClose`, and each says what happened through the Workspace's live region. A key with a modifier, or one
+aimed at something inside the handle, is left alone. Because the handle is itself a button, the press rule skips a control inside the handle,
+never the handle. Inside a row the pointer drag says `labels.pickedUp`, `dropped` and `dragCancelled` with the panel's title through dnd-kit's own
+live region, in place of "draggable item" and a React id; a close by drag says `labels.closed` through the Workspace's.
+
 **Coexistence.** `touch-action` is `pan-x` on the handle: a horizontal swipe still scrolls the row, a vertical
 one is the gesture's. A press on a button, link or field is left alone, and only the primary button grabs.
 While a drag is live every vertically scrolling ancestor is locked (`overflow-y: hidden`, because a
@@ -1507,7 +1558,7 @@ developer's own and throw in both modes.
 `panelSettings.ts` imports no value except `rowConstants.ts` and `panelManagerError.ts`, so the table and the
 resolver load without React, Motion or any row code. `rowConstants.ts` is the one place each default number is
 written. `GAP`, `DRAG_CLOSE`, `SLOT_TRANSITION` and `WORKSPACE_SAVE_QUIET_MS` keep their names and values and read it
-(`GAP` is a re-export of `ROW_GAP`), and `test/rowconstants-drift.test.ts` asserts that no row file writes a second copy.
+(`GAP` is `ROW_GAP` under a deprecated name), and `test/rowconstants-drift.test.ts` asserts that no row file writes a second copy.
 
 ### One tuning value per render
 

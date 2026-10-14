@@ -26,6 +26,28 @@ export interface PhonuxLabels {
   goToWorkspace: (name: string) => string;
   /** The accessible name of the input that holds a workspace's name. Default `Workspace name`. */
   workspaceName: string;
+  /** The accessible name of the grip on one side of a resizable panel. Default `Resize from the left edge` or `Resize from the right edge`. */
+  resizeGrip: (side: 'left' | 'right') => string;
+  /** The spoken value of a resize grip, given the slots the panel is wide and the most it can take. Default `<slots> of <most> slots wide`. */
+  resizeGripValue: (slots: number, most: number) => string;
+  /** The accessible name of the row of panels, a region. Default `Panels`. */
+  row: string;
+  /** The accessible name of one panel's group: its title and its place among the panels drawn. Default `<title>, <place> of <total>`. */
+  panelPosition: (title: string, place: number, total: number) => string;
+  /** The accessible name of a panel's grab strip, a button that takes ArrowLeft, ArrowRight and Delete. Default `Move or close <title>`. */
+  grabStrip: (title: string) => string;
+  /** Said when a drag picks the panel up. Default `Picked up <title>`. */
+  pickedUp: (title: string) => string;
+  /** Said when a drag lets the panel go. Default `Dropped <title>`. */
+  dropped: (title: string) => string;
+  /** Said when a drag is cancelled. Default `Cancelled moving <title>`. */
+  dragCancelled: (title: string) => string;
+  /** Said after a key moved the panel one slot: `steps` is -1 for left and 1 for right. Default `Moved <title> left` or `Moved <title> right`. */
+  moved: (title: string, steps: number) => string;
+  /** Said when a key could not move the panel because it is at that end of the row. Default `<title> cannot move left` or `<title> cannot move right`. */
+  cannotMove: (title: string, steps: number) => string;
+  /** Said after a panel closed. Default `Closed <title>`. */
+  closed: (title: string) => string;
 }
 
 /** The English text every label takes when a host overrides none. @public */
@@ -41,6 +63,17 @@ export const DEFAULT_LABELS: Readonly<PhonuxLabels> = {
   newWorkspace: 'Create new workspace',
   goToWorkspace: (name) => `Go to ${name}`,
   workspaceName: 'Workspace name',
+  resizeGrip: (side) => `Resize from the ${side} edge`,
+  resizeGripValue: (slots, most) => `${slots} of ${most} slots wide`,
+  row: 'Panels',
+  panelPosition: (title, place, total) => `${title}, ${place} of ${total}`,
+  grabStrip: (title) => `Move or close ${title}`,
+  pickedUp: (title) => `Picked up ${title}`,
+  dropped: (title) => `Dropped ${title}`,
+  dragCancelled: (title) => `Cancelled moving ${title}`,
+  moved: (title, steps) => `Moved ${title} ${steps < 0 ? 'left' : 'right'}`,
+  cannotMove: (title, steps) => `${title} cannot move ${steps < 0 ? 'left' : 'right'}`,
+  closed: (title) => `Closed ${title}`,
 };
 
 /** `given` over the defaults, key by key; a key given as `undefined` keeps its default. @internal */

@@ -233,13 +233,12 @@ test('arrows skip INPUT, TEXTAREA, SELECT and contentEditable targets and any mo
     el.remove();
   }
   const editable = document.body.appendChild(document.createElement('div'));
-  // jsdom does not implement isContentEditable, which the hook reads.
-  Object.defineProperty(editable, 'isContentEditable', { value: true });
+  editable.setAttribute('contenteditable', 'true');
   m.key('ArrowRight', {}, editable);
   assert.equal(stepped(), false, 'contentEditable');
   const plainDiv = document.body.appendChild(document.createElement('div'));
   m.key('ArrowRight', {}, plainDiv);
-  assert.equal(stepped(), true, 'control: the same press without isContentEditable steps');
+  assert.equal(stepped(), true, 'control: the same press without contenteditable steps');
   for (const init of [{ altKey: true }, { ctrlKey: true }, { metaKey: true }, { shiftKey: true }]) {
     m.key('ArrowRight', init);
     assert.equal(stepped(), false, JSON.stringify(init));
@@ -269,6 +268,37 @@ test('an arrow a control only stops from bubbling never reaches the row', () => 
   m.key('ArrowRight', {}, control);
   assert.equal(m.scroller.glideTarget(), null);
   control.remove();
+});
+
+test('the row shares the column\'s guard: a widget that uses the arrows, an open dialog, a keyboard drag and an IME composition each keep the key from the row', () => {
+  const m = stepRow(eleven(), 1000);
+  const stepped = (target?: EventTarget, init: KeyboardEventInit = {}): boolean => {
+    m.key('ArrowRight', init, target);
+    const at = m.scroller.glideTarget();
+    m.scroller.stop();
+    return at !== null;
+  };
+  const slider = document.body.appendChild(document.createElement('div'));
+  slider.setAttribute('role', 'slider');
+  assert.equal(stepped(slider), false, 'a slider');
+  slider.remove();
+  const carried = document.body.appendChild(document.createElement('div'));
+  carried.setAttribute('aria-pressed', 'true');
+  carried.setAttribute('aria-roledescription', 'draggable');
+  assert.equal(stepped(carried), false, 'a panel a keyboard drag carries');
+  carried.remove();
+  const dialog = document.body.appendChild(document.createElement('div'));
+  dialog.setAttribute('aria-modal', 'true');
+  assert.equal(stepped(), false, 'a modal dialog is open');
+  dialog.remove();
+  assert.equal(stepped(undefined, { isComposing: true }), false, 'an IME is composing');
+  assert.equal(stepped(), true, 'control: a bare press steps');
+});
+
+test('a held arrow key keeps stepping the row: the repeat decision stays the column\'s', () => {
+  const m = stepRow(eleven(), 1000);
+  m.key('ArrowRight', { repeat: true });
+  assert.notEqual(m.scroller.glideTarget(), null);
 });
 
 test('an arrow does not step a row inside an inert ancestor, and steps again once it is not', () => {

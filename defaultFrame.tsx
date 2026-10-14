@@ -7,28 +7,25 @@ import * as React from 'react';
 import { DragToClose } from './dragToClose.js';
 import { useOptionalHost, type PanelSummary } from './hostApi.js';
 import { resolveLabels } from './labels.js';
-import { usePhoneSize } from './phoneFit.js';
 import Panel, { type PanelProps } from './Panel.js';
 import PanelFrame from './PanelFrame.js';
 import { SizeBox } from './PanelRowSlot.js';
 import { usePanelDragProps } from './panelChrome.js';
+import { PanelResizeGrips } from './PanelResizeGrips.js';
 import { PanelSlotContext } from './panelSlotContext.js';
 
 export function DefaultFrame({ panel, children }: { panel: PanelSummary; children: React.ReactNode }): React.ReactElement {
   const dragProps = usePanelDragProps();
-  const phoneSize = usePhoneSize();
   const labels = resolveLabels(useOptionalHost()?.labels);
   const slot = React.useContext(PanelSlotContext);
   const closeEligible = slot === undefined ? true : slot.collapsible && slot.closable;
   const size = (panel.slots ?? 1) > 1 ? panel.size : undefined;
   const title = panel.title ?? labels.untitledPanel;
-  const width = size?.width ?? phoneSize.width;
-  const height = size?.height === 'fill' ? '100%' : (size?.height ?? phoneSize.height);
   const body = <PanelFrame {...(size !== undefined ? { size } : {})}>{children}</PanelFrame>;
   // One box around the whole panel, so the frame, the header above it and the grab bar move together while the size animates.
   const boxed = (panelProps: Omit<PanelProps, 'children'>): React.ReactElement => (
-    <SizeBox width={width} height={height}>
-      <Panel {...panelProps} sx={{ height: '100%' }} {...(size !== undefined ? { size } : {})}>
+    <SizeBox {...(size !== undefined ? { width: size.width, height: size.height === 'fill' ? '100%' : size.height } : {})}>
+      <Panel {...panelProps} overlay={<PanelResizeGrips />} sx={{ height: '100%' }} {...(size !== undefined ? { size } : {})}>
         {body}
       </Panel>
     </SizeBox>

@@ -33,6 +33,7 @@ export function drawnSlotsOf(p: Pick<PanelRowEntry, 'slots' | 'settings'>, phone
  * A panel's own width in the row: its slots, that many phone widths with the row gap between them, no more than fit in
  * `maxLiveWidth`. A hand-built entry without slots takes the live `phoneWidth`.
  * @public
+ * @deprecated Inside a row, `Panel`, `PanelFrame` and `PanelSizeBox` take the slot's drawn size when `size` is left out, and `PanelSummary.size.width` is that width.
  */
 export function panelWidthOf(p: Pick<PanelRowEntry, 'slots' | 'settings'>, phoneWidth: number, maxLiveWidth: number, gap: number = ROW_GAP): number {
   const drawn = drawnSlotsOf(p, phoneWidth, maxLiveWidth, gap);
