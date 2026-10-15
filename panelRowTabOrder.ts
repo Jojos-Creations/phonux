@@ -2,10 +2,41 @@ import * as React from 'react';
 
 const TABBABLE = 'a[href],button,input,select,textarea,summary,iframe,[tabindex],[contenteditable=""],[contenteditable="true"]';
 
-function tabbablesOf(slot: Element): HTMLElement[] {
-  return [...slot.querySelectorAll<HTMLElement>(TABBABLE)].filter(
-    (el) => el.tabIndex >= 0 && !el.matches(':disabled') && el.getClientRects().length > 0 && getComputedStyle(el).visibility !== 'hidden' && el.closest('[inert]') === null,
-  );
+function usable(el: HTMLElement): boolean {
+  return el.tabIndex >= 0 && !el.matches(':disabled') && el.getClientRects().length > 0 && getComputedStyle(el).visibility !== 'hidden' && el.closest('[inert]') === null;
+}
+
+// The sentinels are not content: counting them would make a panel's last tabbable element its own end sentinel.
+function tabbablesOf(scope: Element): HTMLElement[] {
+  return [...scope.querySelectorAll<HTMLElement>(TABBABLE)].filter((el) => !el.hasAttribute('data-row-sentinel') && usable(el));
+}
+
+// True while the code itself moves focus onto a sentinel to let the browser's pending step carry on from it.
+let parking = false;
+
+function slotsOf(row: HTMLElement): Map<string, HTMLElement> {
+  return new Map([...row.querySelectorAll<HTMLElement>('[data-row-slot]')].map((s) => [s.dataset.rowId ?? '', s]));
+}
+
+/** Focuses the nearest reading-order neighbour of `slot` that has a tabbable element; false when there is none. */
+function handOver(slot: HTMLElement, row: HTMLElement, readingIds: readonly string[], back: boolean): boolean {
+  const slots = slotsOf(row);
+  const at = readingIds.indexOf(slot.dataset.rowId ?? '');
+  if (at < 0) return false;
+  for (let k = at + (back ? -1 : 1); k >= 0 && k < readingIds.length; k += back ? -1 : 1) {
+    const neighbour = slots.get(readingIds[k]!);
+    const found = neighbour === undefined ? [] : tabbablesOf(neighbour);
+    if (found.length === 0) continue;
+    found[back ? found.length - 1 : 0]!.focus();
+    return true;
+  }
+  return false;
+}
+
+/** The tabbable element nearest the row on the side Tab is heading to, outside the row. */
+function elementBeyond(row: HTMLElement, back: boolean): HTMLElement | undefined {
+  const beyond = tabbablesOf(row.ownerDocument.body).filter((el) => !row.contains(el) && (row.compareDocumentPosition(el) & (back ? Node.DOCUMENT_POSITION_PRECEDING : Node.DOCUMENT_POSITION_FOLLOWING)) !== 0);
+  return beyond[back ? beyond.length - 1 : 0];
 }
 
 /**
@@ -20,22 +51,45 @@ export function steerTab(event: React.KeyboardEvent<HTMLElement>, row: HTMLEleme
   const back = event.shiftKey;
   const own = tabbablesOf(slot);
   if (own[back ? 0 : own.length - 1] !== target) return;
-  const slots = new Map([...row.querySelectorAll<HTMLElement>('[data-row-slot]')].map((s) => [s.dataset.rowId ?? '', s]));
-  const at = readingIds.indexOf(slot.dataset.rowId ?? '');
-  if (at < 0) return;
-  for (let k = at + (back ? -1 : 1); k >= 0 && k < readingIds.length; k += back ? -1 : 1) {
-    const neighbour = slots.get(readingIds[k]!);
-    const found = neighbour === undefined ? [] : tabbablesOf(neighbour);
-    if (found.length === 0) continue;
+  if (readingIds.indexOf(slot.dataset.rowId ?? '') < 0) return;
+  if (handOver(slot, row, readingIds, back)) {
     event.preventDefault();
-    found[back ? found.length - 1 : 0]!.focus();
     return;
   }
-  // No reading-order neighbour is left: the browser's next stop would be a DOM-later panel, so focus the DOM-extreme
-  // tabbable and let the default step carry on from there, out of the row.
-  const all = tabbablesOf(row);
-  const edge = all[back ? 0 : all.length - 1];
-  if (edge !== undefined) edge.focus();
+  // No reading-order neighbour is left: the browser's next stop would be a DOM-later panel, so park focus on the DOM-extreme
+  // sentinel and let the default step carry on from there, out of the row.
+  const ends = [...row.querySelectorAll<HTMLElement>(`[data-row-sentinel=${back ? 'start' : 'end'}]`)].filter(usable);
+  const edge = ends[back ? 0 : ends.length - 1];
+  if (edge === undefined) return;
+  parking = true;
+  try {
+    edge.focus();
+  } finally {
+    parking = false;
+  }
+}
+
+/**
+ * Focus reaching a panel's start or end sentinel. A Tab pressed inside an iframe never reaches the row's keydown handler, and
+ * the browser's step out of the iframe lands on the sentinel next to it: coming from inside the panel, that hands focus over
+ * to the drawn neighbour (or past the row's end); coming from outside, the sentinel is passed through to the panel's content.
+ */
+export function steerSentinel(event: React.FocusEvent<HTMLElement>, row: HTMLElement, readingIds: readonly string[]): void {
+  const sentinel = event.target as HTMLElement;
+  const kind = sentinel.dataset.rowSentinel;
+  if (parking || (kind !== 'start' && kind !== 'end')) return;
+  const slot = sentinel.closest<HTMLElement>('[data-row-slot]');
+  if (slot === null || !row.contains(slot)) return;
+  const from = event.relatedTarget as Node | null;
+  const inside = from !== null && slot.contains(from);
+  const own = tabbablesOf(slot);
+  if (!inside && own.length > 0) {
+    own[kind === 'start' ? 0 : own.length - 1]!.focus();
+    return;
+  }
+  const back = inside ? kind === 'start' : kind === 'end';
+  if (handOver(slot, row, readingIds, back)) return;
+  elementBeyond(row, back)?.focus();
 }
 
 /** A Tab press the browser has not yet turned into a focus change; `shift` is its direction. */
@@ -84,7 +138,7 @@ export function steerEntry(event: React.FocusEvent<HTMLElement>, row: HTMLElemen
   const from = event.relatedTarget as Node | null;
   if (tab === null || (from !== null && row.contains(from))) return;
   const back = tab.shift;
-  const slots = new Map([...row.querySelectorAll<HTMLElement>('[data-row-slot]')].map((s) => [s.dataset.rowId ?? '', s]));
+  const slots = slotsOf(row);
   for (const id of back ? [...readingIds].reverse() : readingIds) {
     const slot = slots.get(id);
     const found = slot === undefined ? [] : tabbablesOf(slot);

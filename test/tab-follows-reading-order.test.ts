@@ -183,3 +183,42 @@ test('Tab skips an inert panel and lands in the next panel drawn', async () => {
   m.container.querySelector<HTMLElement>(`[data-stop="${reading[0]}-b"]`)!.focus();
   assert.equal(press(m, false), `${reading[2]}-a`);
 });
+
+/**
+ * A Tab pressed inside an iframe goes to the iframe's own document, so the row sees no keydown. The browser's step out of
+ * it lands on the next tabbable element of this document, which the test plays by focusing it with the iframe as the
+ * related target.
+ */
+function browserStepFromIframe(m: MountedRow, iframe: HTMLElement, shift: boolean): string {
+  const all = [...m.container.querySelectorAll<HTMLElement>('button,iframe,[tabindex]')].filter((el) => el.tabIndex >= 0);
+  act(() => void iframe.focus());
+  assert.equal(document.activeElement, iframe, 'the iframe holds focus');
+  const next = all[all.indexOf(iframe) + (shift ? -1 : 1)]!;
+  act(() => void next.focus());
+  return (document.activeElement as HTMLElement).dataset.stop ?? 'sentinel';
+}
+
+async function hostIframe(m: MountedRow, id: string, at: 'first' | 'last'): Promise<HTMLElement> {
+  const frame = document.createElement('iframe');
+  frame.dataset.stop = `${id}-f`;
+  const content = m.container.querySelector<HTMLElement>(`[data-grab="${id}"]`)!;
+  if (at === 'last') content.append(frame);
+  else content.prepend(frame);
+  await act(async () => void (await new Promise((r) => setTimeout(r, 0))));
+  return frame;
+}
+
+test('Tab out of an iframe that ends a panel lands in the panel drawn next', async () => {
+  const { m, reading } = await reorderedRow(false, 's3', -900);
+  const frame = await hostIframe(m, reading[0]!, 'last');
+  assert.notEqual(reading[1], 's4', 'the drawn-next panel is not the DOM-next one');
+  assert.equal(browserStepFromIframe(m, frame, false), `${reading[1]}-a`);
+});
+
+test('Shift+Tab out of an iframe that starts a panel lands in the panel drawn before', async () => {
+  const { m, reading } = await reorderedRow(false, 's3', 900);
+  const last = reading[reading.length - 1]!;
+  const frame = await hostIframe(m, last, 'first');
+  assert.notEqual(reading[reading.length - 2], 's2', 'the drawn-previous panel is not the DOM-previous one');
+  assert.equal(browserStepFromIframe(m, frame, true), `${reading[reading.length - 2]}-b`);
+});

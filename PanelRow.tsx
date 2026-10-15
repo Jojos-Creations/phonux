@@ -20,7 +20,7 @@ import { HEADER_ROW_ATTRIBUTE, headerButtonsOf } from './panelHeaderButtons.js';
 import { FIXED, LIBRARY_TUNING_DEFAULTS, effective, panelKey, resolvePanelSettings } from './panelSettings.js';
 import type { ChromeTuning, ResolvedPanelSettings, ResolvedPanelTuning, WorkspaceTuning } from './panelSettings.js';
 import { PanelRowSlot } from './PanelRowSlot.js';
-import { steerEntry, steerTab, useTabPress } from './panelRowTabOrder.js';
+import { steerEntry, steerSentinel, steerTab, useTabPress } from './panelRowTabOrder.js';
 import { ChromeStoreContext, createChromeStore } from './panelChrome.js';
 import { WorkspaceTuningContext, lookTuningDiffers, resolveWorkspaceTuning, slotTuning, type SlotTuning } from './panelTuning.js';
 import { reorderStepsForOffset, type PanelWindow } from './panelWindow.js';
@@ -305,7 +305,11 @@ export function PanelRow({
     empty row consumes no flex `gap` from its siblings. */}
     <Box
       onKeyDown={(event) => steerTab(event, event.currentTarget, present.map((p) => p.id))}
-      onFocus={(event) => steerEntry(event, event.currentTarget, present.map((p) => p.id), tabPress.current)}
+      onFocus={(event) => {
+        const ids = present.map((p) => p.id);
+        steerSentinel(event, event.currentTarget, ids);
+        steerEntry(event, event.currentTarget, ids, tabPress.current);
+      }}
       sx={{
         position: 'relative',
         flexShrink: 0,

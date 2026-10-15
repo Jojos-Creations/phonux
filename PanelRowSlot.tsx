@@ -200,6 +200,7 @@ export function PanelRowSlot({
 }) {
   const { initial, animate: animateTarget, exit, transition } = panelRowSlotMotion(leftOffset, width, phoneHeight, enterDirection, exitDirection, gap, slide, rowScroll);
   const el = React.useRef<HTMLDivElement>(null);
+  const framed = useHoldsFrame(el);
   // This slot's own copy of the transition, so the moment its slide counts from can be set for the one call that starts it.
   const startable: { duration: number; ease?: unknown; startTime?: number } = React.useMemo(() => ({ ...transition }), [transition]);
   const reducedMotion = useReducedMotionConfig();
@@ -269,9 +270,37 @@ export function PanelRowSlot({
         zIndex: zIndex ?? 0,
       }}
     >
+      {framed && <TabSentinel end={false} />}
       {children}
+      {framed && <TabSentinel end />}
     </motion.div>
   );
+}
+
+// No aria-hidden (a focusable element must not carry it) and no role: presentation is ignored on a focusable element anyway.
+// Zero-size, not display:none, so the browser still gives it a tab stop.
+// A tab stop on a non-interactive element is the point: it exists only to catch the browser's step out of an iframe.
+const SENTINEL_STOP = { tabIndex: 0 };
+
+function TabSentinel({ end }: { end: boolean }): React.ReactElement {
+  return <span {...SENTINEL_STOP} data-row-sentinel={end ? 'end' : 'start'} style={{ position: 'absolute', top: 0, left: 0, width: 0, height: 0, overflow: 'hidden', outline: 'none' }} />;
+}
+
+const FRAMES = 'iframe,frame,embed,object';
+
+// Only a cross-document element can swallow a Tab press, so a slot gets sentinels only while it holds one.
+function useHoldsFrame(slot: React.RefObject<HTMLElement | null>): boolean {
+  const [holds, setHolds] = React.useState(false);
+  React.useLayoutEffect(() => {
+    const node = slot.current;
+    if (node === null) return;
+    const sync = () => setHolds(node.querySelector(FRAMES) !== null);
+    sync();
+    const observer = new MutationObserver(sync);
+    observer.observe(node, { childList: true, subtree: true });
+    return () => observer.disconnect();
+  }, [slot]);
+  return holds;
 }
 
 /**

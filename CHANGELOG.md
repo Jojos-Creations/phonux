@@ -28,7 +28,7 @@
 ### Fixed
 
 - A leftward drag no longer flicks the panel it replaces to the window edge. The drop moved that panel's DOM node, which reset what it hosts; no panel node moves in a reorder now.
-- After a reorder, Tab and Shift+Tab walk the panels in the order they are drawn, not the order they opened.
+- After a reorder, Tab and Shift+Tab walk the panels in the order they are drawn, not the order they opened, also out of an iframe that ends or starts a panel.
 - The drag-to-close box and its release, close and edge scroll honour MotionConfig `reducedMotion: "always"` as well as the system's Reduce Motion query. `never` does not turn off the system query.
 - A step from a panel as wide as the window now slides it to show its right part beside the next whole panel, instead of jumping to the next panel and dropping the wide one.
 - A closed panel's `useViewState` is kept for the undo window again. The row held the state by the row's own id while `recentlyClosed` carries the key, so a panel with a key unlike its row id came back from Undo with empty state; both sides now use the key.
