@@ -742,6 +742,8 @@ chosen at creation (the smallest number no name in the column uses) and stored, 
 (`workspaceName.ts`): the name is trimmed and cut to `MAX_WORKSPACE_NAME` (60) characters; a name empty after trimming changes nothing and
 the input shows the old name again; Escape discards the draft; two workspaces may share a name. Deleting a workspace is out of scope.
 
+**Switch motion.** Every way of moving the column (ArrowUp/ArrowDown, the neighbour buttons, `scrollTo`, `step`, and a new workspace made current) changes the track's `translateY` with the slide from `resolveWorkspaceTuning(...).slide`. The track snaps instead when Reduce Motion is on, from MotionConfig or from the system query alone, and the regression tests pin each source (`test/workspace-switch-scroll*.test.ts`); `proof/rc4-workspace-switch-scroll` samples the transform every frame in Chromium. A row that moves horizontally inside a workspace is a separate mechanism (`rowScroller.ts`) and is not part of this.
+
 **Saved list.** `ColumnState` is `{ version: 1, workspaces: [{ id, name }], current }`. It is read once; workspaces code added before it
 arrived keep their handle and take the saved name, the saved order wins, and any that the list does not know follow it. A record that
 fails the guard reads as nothing saved. Saves run one after another after each change to the list, a name or the current workspace.

@@ -1,0 +1,26 @@
+{
+  "tests": [
+    "test/workspace-switch-scroll.test.ts",
+    "test/workspace-switch-scroll-system.test.ts"
+  ],
+  "mutants": [
+    {
+      "name": "the column ignores the system query: only MotionConfig asks for a snap",
+      "file": "WorkspaceColumn.tsx",
+      "find": "const reduced = useReducedMotionConfig() === true || systemReduced;",
+      "replace": "const reduced = useReducedMotionConfig() === true;",
+      "expectRed": [
+        "system query on, no MotionConfig: the switch snaps in its first frame"
+      ]
+    },
+    {
+      "name": "the column ignores MotionConfig: only the system query asks for a snap",
+      "file": "WorkspaceColumn.tsx",
+      "find": "const reduced = useReducedMotionConfig() === true || systemReduced;",
+      "replace": "const reduced = systemReduced;",
+      "expectRed": [
+        "MotionConfig always: the switch snaps in its first frame"
+      ]
+    }
+  ]
+}
