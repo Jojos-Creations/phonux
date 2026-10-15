@@ -20,6 +20,7 @@ import { HEADER_ROW_ATTRIBUTE, headerButtonsOf } from './panelHeaderButtons.js';
 import { FIXED, LIBRARY_TUNING_DEFAULTS, effective, panelKey, resolvePanelSettings } from './panelSettings.js';
 import type { ChromeTuning, ResolvedPanelSettings, ResolvedPanelTuning, WorkspaceTuning } from './panelSettings.js';
 import { PanelRowSlot } from './PanelRowSlot.js';
+import { steerEntry, steerSentinel, steerTab, useTabPress } from './panelRowTabOrder.js';
 import { ChromeStoreContext, createChromeStore } from './panelChrome.js';
 import { WorkspaceTuningContext, lookTuningDiffers, resolveWorkspaceTuning, slotTuning, type SlotTuning } from './panelTuning.js';
 import { reorderStepsForOffset, type PanelWindow } from './panelWindow.js';
@@ -177,6 +178,7 @@ export function PanelRow({
   const gap = workspaceTuning.rowGap;
   const disagrees = given !== undefined && inherited !== undefined && lookTuningDiffers(given, inherited);
   const warned = React.useRef(false);
+  const tabPress = useTabPress();
   React.useEffect(() => {
     if (!disagrees || warned.current || typeof process === 'undefined' || process.env.NODE_ENV === 'production') return;
     warned.current = true;
@@ -193,6 +195,11 @@ export function PanelRow({
   chrome.setKeys(new Map(entries.map((p) => [p.id, panelKey(p)])));
   // A panel this row showed and no longer shows (closed or parked) stops being the active or dragged one.
   const presentBefore = React.useRef<ReadonlySet<string>>(new Set());
+  // A panel's DOM position is the order it first appeared in, never its reading order: React moves the nodes a reorder
+  // leaves behind, and a moved node restarts what it hosts (a web view reloads). Position on screen comes from leftOffset.
+  const birth = React.useRef({ seq: 0, byId: new Map<string, number>() });
+  for (const p of present) if (!birth.current.byId.has(p.id)) birth.current.byId.set(p.id, birth.current.seq++);
+  const domOrder = [...present].sort((a, b) => birth.current.byId.get(a.id)! - birth.current.byId.get(b.id)!);
   React.useEffect(() => {
     const now = new Set(present.map((p) => p.id));
     for (const id of presentBefore.current) {
@@ -300,6 +307,12 @@ export function PanelRow({
     what is present at app start to skip animating a restored session. `display: none` (not width 0) so an
     empty row consumes no flex `gap` from its siblings. */}
     <Box
+      onKeyDown={(event) => steerTab(event, event.currentTarget, present.map((p) => p.id))}
+      onFocus={(event) => {
+        const ids = present.map((p) => p.id);
+        steerSentinel(event, event.currentTarget, ids);
+        steerEntry(event, event.currentTarget, ids, tabPress.current);
+      }}
       sx={{
         position: 'relative',
         flexShrink: 0,
@@ -309,7 +322,8 @@ export function PanelRow({
       }}
     >
       <AnimatePresence initial={false}>
-        {present.map((p, presentIndex) => {
+        {domOrder.map((p) => {
+          const presentIndex = present.indexOf(p);
           const rest = { leftOffset: leftOffsets[presentIndex]!, width: widths[presentIndex]! };
           const Component = resolveViewIn(templateOf, p.view);
           const { closable, draggable, placeable, resizable, maxSlots, enterFrom, layer, headerButtons } = effective(p);

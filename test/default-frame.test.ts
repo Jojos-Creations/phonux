@@ -246,10 +246,13 @@ test('a real pointer drag down on the grab bar closes a bare panel', async () =>
   assert.equal(r.m.container.querySelector('[data-body="bare"]') === null, true, 'the panel closed');
 });
 
+/** Panels in the order they are drawn: the DOM keeps the order they opened, so position comes from the slot's offset. */
+const leftOf = (n: HTMLElement): number => Number(n.closest('[data-row-slot]')!.getAttribute('data-row-slot'));
+
 test('a real pointer drag sideways on the grab bar moves a bare panel past its neighbour', async () => {
   const r = await rig([bareTemplate('one'), bareTemplate('two')], ['one', 'two']);
   await settle();
-  const order = (): string[] => [...r.m.container.querySelectorAll<HTMLElement>('[data-body]')].map((n) => n.dataset.body!);
+  const order = (): string[] => [...r.m.container.querySelectorAll<HTMLElement>('[data-body]')].sort((a, b) => leftOf(a) - leftOf(b)).map((n) => n.dataset.body!);
   assert.deepEqual(order(), ['one', 'two']);
   const grab = r.m.container.querySelector<HTMLElement>('[data-body="one"]')!.closest('[data-row-slot]')!.querySelector<HTMLElement>('[data-panel-grab-bar]')!;
   await drag(grab, { dx: 450, dy: 0 });
@@ -260,7 +263,7 @@ test('a real pointer drag sideways on the grab bar moves a bare panel past its n
 test('a drag across two neighbours moves the panel two slots in one release', async () => {
   const r = await rig([bareTemplate('one'), bareTemplate('two'), bareTemplate('three')], ['one', 'two', 'three']);
   await settle();
-  const order = (): string[] => [...r.m.container.querySelectorAll<HTMLElement>('[data-body]')].map((n) => n.dataset.body!);
+  const order = (): string[] => [...r.m.container.querySelectorAll<HTMLElement>('[data-body]')].sort((a, b) => leftOf(a) - leftOf(b)).map((n) => n.dataset.body!);
   const grab = r.m.container.querySelector<HTMLElement>('[data-body="one"]')!.closest('[data-row-slot]')!.querySelector<HTMLElement>('[data-panel-grab-bar]')!;
   await drag(grab, { dx: 900, dy: 0 });
   await settle();
@@ -269,7 +272,7 @@ test('a drag across two neighbours moves the panel two slots in one release', as
 
 /** The slot a bare view's panel is drawn in. */
 const slotOf = (r: Rig, id: string): HTMLElement => r.m.container.querySelector<HTMLElement>(`[data-body="${id}"]`)!.closest<HTMLElement>('[data-row-slot]')!;
-const bodyOrder = (r: Rig): string[] => [...r.m.container.querySelectorAll<HTMLElement>('[data-body]')].map((n) => n.dataset.body!);
+const bodyOrder = (r: Rig): string[] => [...r.m.container.querySelectorAll<HTMLElement>('[data-body]')].sort((a, b) => leftOf(a) - leftOf(b)).map((n) => n.dataset.body!);
 const grabOf = (r: Rig, id: string): HTMLElement | null => slotOf(r, id).querySelector<HTMLElement>('[data-panel-grab-bar]');
 
 /** A panel the settings forbid closing keeps the library header and frame, and gets no drag-to-close and no grab bar. */
