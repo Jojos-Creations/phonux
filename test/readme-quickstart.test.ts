@@ -128,7 +128,8 @@ test('the quickstart, run as written, draws a framed Notes panel with its title 
   await advanceFrames(400);
   const header = document.querySelector('[data-panel-chrome-part="header"]');
   assert.ok(header !== null && header.textContent?.includes('Notes') === true, 'the library draws a header with the template title');
-  assert.ok(document.querySelector('[data-panel-chrome-part="grab-bar"]') !== null, 'and a grab bar');
+  assert.ok(document.querySelector('[data-panel-chrome-part="grab-bar"]') !== null, 'and a grab handle');
+  assert.ok(header.contains(document.querySelector('[data-panel-chrome-part="grab-bar"]')), 'inside the header');
 });
 
 test('the advanced block draws the same DOM as the quickstart', async () => {
