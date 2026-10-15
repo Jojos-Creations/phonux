@@ -11,16 +11,28 @@ const srv = createServer((q, s) => {
 }).listen(0);
 const browser = await pw[engine].launch();
 const pg = await browser.newPage({ viewport: { width: 844, height: 900 } });
+const mode = process.env.MODE ?? 'plain';
 const errors = [];
 pg.on('pageerror', (e) => errors.push(e.message));
-await pg.goto(`http://localhost:${srv.address().port}/`);
+await pg.goto(`http://localhost:${srv.address().port}/?mode=${mode}`);
 await pg.waitForSelector('[data-content]');
 await pg.waitForTimeout(800);
 const m = await pg.evaluate(() => {
   const frame = document.querySelector('[data-phone-frame]').getBoundingClientRect();
   const c = document.querySelector('[data-content]').getBoundingClientRect();
-  return { left: Math.round(c.left - frame.left), top: Math.round(c.top - frame.top) };
+  const out = { left: Math.round(c.left - frame.left), top: Math.round(c.top - frame.top) };
+  const sc = document.querySelector('[data-scroller]');
+  if (sc) {
+    const cs = getComputedStyle(sc);
+    const box = sc.getBoundingClientRect();
+    Object.assign(out, {
+      padTop: cs.paddingTop, padRight: cs.paddingRight, padBottom: cs.paddingBottom, padLeft: cs.paddingLeft,
+      scrollbarGutter: cs.scrollbarGutter, scrollbarWidth: sc.offsetWidth - sc.clientWidth,
+      contentLeftInScroller: Math.round(c.left - box.left), contentTopInScroller: Math.round(c.top - box.top),
+    });
+  }
+  return out;
 });
-console.log(JSON.stringify({ engine, ...m, errors }));
+console.log(JSON.stringify({ engine, mode, ...m, errors }));
 await browser.close();
 srv.close();

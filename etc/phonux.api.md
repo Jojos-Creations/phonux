@@ -67,7 +67,6 @@ export const CHROME_PARTS: {
     readonly header: "header";
     readonly grabBar: "grab-bar";
     readonly footer: "footer";
-    readonly resize: "resize";
 };
 
 // @public
@@ -658,9 +657,6 @@ export type PanelReadHandle = {
 export type PanelRefusal = 'disposed' | 'not-attached' | 'not-ready' | 'is-pending' | 'is-closed' | 'not-live' | 'busy' | 'not-closable' | 'not-parkable' | 'not-draggable' | 'not-placeable' | 'not-resizable' | 'slots-above-max' | 'would-empty-row' | 'instance-limit' | 'unknown-panel' | 'wrong-scope' | 'would-reshape-row' | 'settings-conflict' | 'not-view-settable';
 
 // @public
-export function PanelResizeGrips(): React_2.ReactElement | null;
-
-// @public
 export type PanelResult = {
     readonly ok: true;
     readonly changed: boolean;
@@ -939,8 +935,6 @@ export interface PhonuxLabels {
     pickedUp: (title: string) => string;
     pin: string;
     pinFailed: string;
-    resizeGrip: (side: 'left' | 'right') => string;
-    resizeGripValue: (slots: number, most: number) => string;
     row: string;
     unlock: string;
     unpin: string;

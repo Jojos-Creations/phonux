@@ -459,8 +459,6 @@ export interface PhonuxLabels {
     pickedUp: (title: string) => string;
     pin: string;
     pinFailed: string;
-    resizeGrip: (side: 'left' | 'right') => string;
-    resizeGripValue: (slots: number, most: number) => string;
     row: string;
     unlock: string;
     unpin: string;
