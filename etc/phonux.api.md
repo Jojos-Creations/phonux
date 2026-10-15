@@ -80,6 +80,12 @@ export type ChromeTuning = {
     slideMs: number;
     slidePx: number;
     graceMs: number;
+    headerGapPx: number;
+    grabPillWidthPx: number;
+    grabPillHeightPx: number;
+    headerInsetPx: number;
+    footerPadXPx: number;
+    footerPadYPx: number;
 };
 
 // @public
