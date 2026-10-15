@@ -74,6 +74,8 @@
 
 ### Added
 
+- `tuning.chrome` takes six pixel settings for the chrome drawn around a panel: `headerGapPx` (the header pill's gap above the frame, also the grab bar's height), `grabPillWidthPx` and `grabPillHeightPx`, `headerInsetPx` (the header text's inset), and `footerPadXPx` and `footerPadYPx`. Their defaults are the values the library drew before, so nothing moves until a workspace sets one.
+
 - `PhonuxLabels.pinFailed` and `unpinFailed`: the text a host announces when a pin or unpin request is refused. Defaults `Could not pin this panel` and `Could not unpin this panel`.
 - A saved panel now carries an optional `uid` (`WorkspacePanelState.uid`, `u_` and 32 hex characters), made once when the
   panel is created and kept through save, restore, a copy of the file to another device and `undoClose`, so a later export,

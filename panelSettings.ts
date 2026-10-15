@@ -330,6 +330,18 @@ export type ChromeTuning = {
   slidePx: number;
   /** Milliseconds that icon row stays open after the pointer leaves the header. */
   graceMs: number;
+  /** Pixels between a header pill and the frame it floats above. The grab bar's strip is the same height. */
+  headerGapPx: number;
+  /** Pixels the grab bar's drawn pill is wide. */
+  grabPillWidthPx: number;
+  /** Pixels the grab bar's drawn pill is tall. */
+  grabPillHeightPx: number;
+  /** Pixels a header pill's text is inset from each end. */
+  headerInsetPx: number;
+  /** Pixels of horizontal padding on the footer. */
+  footerPadXPx: number;
+  /** Pixels of vertical padding on the footer. */
+  footerPadYPx: number;
 };
 
 /** The tuning leaves a panel may set; each may also be set on the workspace. @public */
@@ -1119,8 +1131,8 @@ const CATALOG_ROWS: readonly SettingDescriptor[] = [
   {
     name: 'tuning.chrome',
     group: 'tuning',
-    values: "object: mode 'always' or 'hover-or-active', fadeMs integer [0, 10000], fadeEase ('easeIn', 'easeOut', 'easeInOut', 'linear' or four numbers, x1 and x2 in [0,1]), slideMs integer [0, 10000], slidePx integer [0, 200], graceMs integer [0, 10000] (workspace only)",
-    default: "always, 120, easeOut, 140, 8, 250 (CHROME)",
+    values: "object: mode 'always' or 'hover-or-active', fadeMs integer [0, 10000], fadeEase ('easeIn', 'easeOut', 'easeInOut', 'linear' or four numbers, x1 and x2 in [0,1]), slideMs integer [0, 10000], slidePx integer [0, 200], graceMs integer [0, 10000], headerGapPx, grabPillWidthPx integer [0, 200], grabPillHeightPx integer [0, 50], headerInsetPx and footerPadXPx, footerPadYPx integer [0, 100] (workspace only)",
+    default: "always, 120, easeOut, 140, 8, 250, 24, 32, 4, 13, 12, 8 (CHROME)",
     scope: 'workspace',
     viewSettable: false,
     exists: 'new',
@@ -1555,6 +1567,12 @@ const TUNING_MEMBER_CHECKS: Record<'dragToClose' | 'slide' | 'edgeScroll' | 'chr
     slideMs: integer(0, 10000),
     slidePx: integer(0, 200),
     graceMs: integer(0, 10000),
+    headerGapPx: integer(0, 200),
+    grabPillWidthPx: integer(0, 200),
+    grabPillHeightPx: integer(0, 50),
+    headerInsetPx: integer(0, 100),
+    footerPadXPx: integer(0, 100),
+    footerPadYPx: integer(0, 100),
   },
 };
 
