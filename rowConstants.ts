@@ -82,13 +82,10 @@ export const EDGE_SCROLL_MAX_PX_PER_SEC = 900;
 export const EDGE_SCROLL_REDUCED_STEP_MS = 500;
 
 /**
- * The most slots a panel may be set to: finite, and larger than any window fits, so `maxSlots` can mean "every visible slot"
- * without a non-finite number ever being saved. The drawn count is always capped at the fit.
+ * The largest slot count a panel can be set to. It is finite and above what any window fits, so a consumer can
+ * use it as "every visible slot" and it stays a saveable number. A drawn count is always capped at the fit.
  */
 export const ALL_SLOTS = 64;
-
-/** Whether a stepping row resizes the neighbour its shown panels would leave cut off by the window edge: 'off' never does. */
-export const SHRINK_OUT_OF_VIEW = 'off' as const;
 
 /** Whether the default mount fits the phone size to the window: 'off' draws the host's preferred size as it is. */
 export const PHONE_FIT = 'off' as const;

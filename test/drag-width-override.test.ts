@@ -269,44 +269,36 @@ test('two drags in a row, the second beginning while the first release glide run
   assert.equal(widthOf(m.container, 's3'), stored[2]);
 });
 
-for (const mode of ['off', 'visible', 'hidden'] as const) {
-  test(`the hold: other panels, the row's scroll and its stop list never see the width ('${mode}', at each of three stops)`, async () => {
-    const m = await opened(1800, { tuning: { shrinkOutOfView: mode } }, [2, 4, 1, 3]);
-    for (const stop of [0, 1, 2]) {
-      if (stop > 0) {
-        m.wheel({ deltaX: 50 });
-        await advanceFrames(600);
-        act(() => void m.container.dispatchEvent(new Event('scroll')));
-      }
-      const marked = IDS[stop]!;
-      const others = IDS.concat(['s4']).filter((id) => id !== marked && slotOf(m.container, id) !== null);
-      const widths = others.map((id) => widthOf(m.container, id));
-      const filters = [...m.container.querySelectorAll<HTMLElement>('[data-row-slot]')].map((el) => el.style.filter);
-      const left = m.container.scrollLeft;
-      const numbers = m.latest().rowNumbers;
-      act(() => setters.get(marked)!.resizing(true));
-      for (const px of [500, 900, 1300]) {
-        await drag(marked, px);
-        assert.deepEqual(
-          others.map((id) => widthOf(m.container, id)),
-          widths,
-          `${mode} stop ${stop} at ${px}: no other panel changed`,
-        );
-        assert.equal(m.container.scrollLeft, left, `${mode} stop ${stop}: the row did not scroll`);
-        assert.equal(m.latest().rowNumbers, numbers, `${mode} stop ${stop}: the numbers are untouched`);
-        assert.deepEqual(
-          [...m.container.querySelectorAll<HTMLElement>('[data-row-slot]')].map((el) => el.style.filter),
-          filters,
-          `${mode} stop ${stop}: the fade stays on the stop the drag began on`,
-        );
-      }
-      await drag(marked, null);
-      act(() => setters.get(marked)!.resizing(false));
+test("the hold: other panels, the row's scroll and its stop list never see the width (at each of three stops)", async () => {
+  const m = await opened(1800, {}, [2, 4, 1, 3]);
+  for (const stop of [0, 1, 2]) {
+    if (stop > 0) {
+      m.wheel({ deltaX: 50 });
       await advanceFrames(600);
       act(() => void m.container.dispatchEvent(new Event('scroll')));
     }
-  });
-}
+    const marked = IDS[stop]!;
+    const others = IDS.concat(['s4']).filter((id) => id !== marked && slotOf(m.container, id) !== null);
+    const widths = others.map((id) => widthOf(m.container, id));
+    const left = m.container.scrollLeft;
+    const numbers = m.latest().rowNumbers;
+    act(() => setters.get(marked)!.resizing(true));
+    for (const px of [500, 900, 1300]) {
+      await drag(marked, px);
+      assert.deepEqual(
+        others.map((id) => widthOf(m.container, id)),
+        widths,
+        `stop ${stop} at ${px}: no other panel changed`,
+      );
+      assert.equal(m.container.scrollLeft, left, `stop ${stop}: the row did not scroll`);
+      assert.equal(m.latest().rowNumbers, numbers, `stop ${stop}: the numbers are untouched`);
+    }
+    await drag(marked, null);
+    act(() => setters.get(marked)!.resizing(false));
+    await advanceFrames(600);
+    act(() => void m.container.dispatchEvent(new Event('scroll')));
+  }
+});
 
 const stripOf = (container: HTMLElement): HTMLElement => container.querySelector<HTMLElement>('[data-row-strip]')!;
 const marginOf = (container: HTMLElement): number => Number.parseFloat(stripOf(container).style.marginLeft || '0');
@@ -346,7 +338,7 @@ test('the release: setSlots(nearest), then null, then the mark off, glides every
 });
 
 test('the release in a scrolling row: the scroll glide to the nearest stop and the width glide both end and neither reverses', async () => {
-  const m = await opened(1800, { tuning: { shrinkOutOfView: 'visible' } }, [1, 2, 1]);
+  const m = await opened(1800, {}, [1, 2, 1]);
   act(() => setters.get('s2')!.resizing(true));
   await drag('s2', 1100);
   const before = m.container.scrollLeft;
@@ -383,7 +375,7 @@ test('under Reduce Motion the release is one frame', async () => {
 test('the grabber stays under the pointer: the held edge does not move on screen and the other edge is exactly the width away, centred row and scrolling row, either pin', async () => {
   for (const [slots, stepToStop] of [[[1, 1, 1], 0], [[1, 2, 1], 1]] as const) {
     for (const pin of ['start', 'end'] as const) {
-      const m = await opened(1800, { tuning: { shrinkOutOfView: 'visible' } }, slots);
+      const m = await opened(1800, {}, slots);
       await advanceFrames(1500);
       for (let k = 0; k < stepToStop; k += 1) {
         m.wheel({ deltaX: 50 });
