@@ -15,7 +15,6 @@ import type { WorkspaceHandle } from '../index.js';
 import { advanceFrames, cleanup } from './support/mount-harness.js';
 import { markerTemplate, mountWorkspace, rowScrollerFor, type ResizableWorkspace } from './support/workspace-row.js';
 
-type Mode = 'off' | 'visible' | 'hidden';
 type Setters = { resizing: (on: boolean) => void; width: (px: number | null, pin?: 'start' | 'end') => void };
 const setters = new Map<string, Setters>();
 const PAD = 120;
@@ -57,10 +56,10 @@ interface Rig {
 }
 
 /** The root and p1..p5, one slot each, in a `window` px window; the container pads PAD px, as a themed one would. */
-async function mountRig(mode: Mode, gap: number, o: { window?: number; reduced?: boolean; slots?: number[] } = {}): Promise<Rig> {
+async function mountRig(gap: number, o: { window?: number; reduced?: boolean; slots?: number[] } = {}): Promise<Rig> {
   const window = o.window ?? 1500;
   const templates = IDS.map((id, k) => definePanel({ id, view: () => React.createElement(Grab, { id }), settings: { slots: o.slots?.[k] ?? 1, maxSlots: 64 } }));
-  const ws = createWorkspace({ mount: false, root: markerTemplate('root', { settings: { title: 'History' } }), templates, tuning: { rowGesture: 'step', shrinkOutOfView: mode, rowGap: gap } });
+  const ws = createWorkspace({ mount: false, root: markerTemplate('root', { settings: { title: 'History' } }), templates, tuning: { rowGesture: 'step', rowGap: gap } });
   for (const template of templates) ws.addPanel(template);
   const m = mountWorkspace(ws, { width: window, strict: true, ...(o.reduced === true ? { wrap: (tree: React.ReactElement) => React.createElement(MotionConfig, { reducedMotion: 'always' }, tree) } : {}) });
   Object.defineProperty(m.container, 'clientWidth', { value: window, configurable: true });
@@ -141,7 +140,7 @@ async function release(r: Rig, id: string, slots: number, order: Order = 'togeth
 }
 
 /** What the row must have done: it rests on the stop nearest the scroll that holds `edge`, and says so. */
-function assertLanded(r: Rig, id: string, drag: Drag, label: string, mode: Mode): { wanted: number; landed: number } {
+function assertLanded(r: Rig, id: string, drag: Drag, label: string): { wanted: number; landed: number } {
   const stops = stopsOf(r);
   const wanted = rowRight(r.m.container, r.ids[id]!) - drag.edge;
   const landed = r.m.container.scrollLeft;
@@ -149,56 +148,47 @@ function assertLanded(r: Rig, id: string, drag: Drag, label: string, mode: Mode)
   const best = Math.min(...stops.map((s) => Math.abs(s - wanted)));
   assert.ok(stops.some((s) => Math.abs(s - landed) < 0.5), `${label}: it rests on a stop: ${landed} in ${stops.join(',')}`);
   assert.ok(Math.abs(landed - wanted) <= best + 0.5, `${label}: it rests on the stop nearest ${wanted.toFixed(1)}, which is ${best.toFixed(1)} away; it is ${Math.abs(landed - wanted).toFixed(1)} away at ${landed}`);
-  if (mode === 'visible') {
-    const chosen = stops.findIndex((s) => Math.abs(s - landed) < 0.5);
-    assert.equal(stops[r.m.latest().rowNumbers.atStop], stops[chosen], `${label}: the stop the provider is on is the stop the row rests on`);
-  }
   return { wanted, landed };
 }
 
 const startStops = (stops: readonly number[], where: 'first' | 'middle' | 'last'): number => stops[where === 'first' ? 0 : where === 'last' ? stops.length - 1 : Math.floor(stops.length / 2)]!;
 const PANEL = { first: 'p1', middle: 'p3', last: 'p5' } as const;
 
-test('the case table: a left-grabber release lands on the stop that holds the right edge, whichever panel, growth, mode and gap', async () => {
+test('the case table: a left-grabber release lands on the stop that holds the right edge, whichever panel, growth and gap', async () => {
   const different: string[] = [];
   let cases = 0;
-  for (const mode of ['off', 'visible', 'hidden'] as const) {
-    for (const gap of [16, 24]) {
-      for (const where of ['first', 'middle', 'last'] as const) {
-        for (const grow of [2, 3]) {
-          const id = PANEL[where];
-          const r = await mountRig(mode, gap);
-          await scrollTo(r, startStops(stopsOf(r), where));
-          const label = `${mode} gap ${gap} ${id} 1 to ${grow}`;
-          const drag = await beginDrag(r, id, SLOT(grow, gap) - SLOT(1, gap) + 25);
-          assert.ok(Math.abs(screenRight(r.m.container, r.ids[id]!) - drag.edge) < 0.5, `${label}: the drag itself holds the right edge`);
-          const atRelease = r.m.container.scrollLeft;
-          await release(r, id, grow);
-          const { wanted } = assertLanded(r, id, drag, label, mode);
-          if (nearestIndex(stopsOf(r), atRelease) !== nearestIndex(stopsOf(r), wanted) && Math.abs(stopsOf(r)[nearestIndex(stopsOf(r), atRelease)]! - stopsOf(r)[nearestIndex(stopsOf(r), wanted)]!) > 1) different.push(label);
-          cases += 1;
-          cleanup();
-        }
+  for (const gap of [16, 24]) {
+    for (const where of ['first', 'middle', 'last'] as const) {
+      for (const grow of [2, 3]) {
+        const id = PANEL[where];
+        const r = await mountRig(gap);
+        await scrollTo(r, startStops(stopsOf(r), where));
+        const label = `gap ${gap} ${id} 1 to ${grow}`;
+        const drag = await beginDrag(r, id, SLOT(grow, gap) - SLOT(1, gap) + 25);
+        assert.ok(Math.abs(screenRight(r.m.container, r.ids[id]!) - drag.edge) < 0.5, `${label}: the drag itself holds the right edge`);
+        const atRelease = r.m.container.scrollLeft;
+        await release(r, id, grow);
+        const { wanted } = assertLanded(r, id, drag, label);
+        if (nearestIndex(stopsOf(r), atRelease) !== nearestIndex(stopsOf(r), wanted) && Math.abs(stopsOf(r)[nearestIndex(stopsOf(r), atRelease)]! - stopsOf(r)[nearestIndex(stopsOf(r), wanted)]!) > 1) different.push(label);
+        cases += 1;
+        cleanup();
       }
     }
   }
-  assert.equal(cases, 36);
-  assert.ok(different.length >= 6, `the table has cases where holding the edge lands elsewhere than the scroll at release would (${different.length}): ${different.join('; ')}`);
+  assert.equal(cases, 12);
+  assert.ok(different.length >= 2, `the table has cases where holding the edge lands elsewhere than the scroll at release would (${different.length}): ${different.join('; ')}`);
 });
 
 test('setSlots in an act of its own after the mark ends is the same release', async () => {
-  for (const mode of ['off', 'visible', 'hidden'] as const) {
-    const r = await mountRig(mode, 16);
-    await scrollTo(r, startStops(stopsOf(r), 'middle'));
-    const drag = await beginDrag(r, 'p3', SLOT(2, 16) - SLOT(1, 16) + 25);
-    await release(r, 'p3', 2, 'apart');
-    assertLanded(r, 'p3', drag, `${mode} apart`, mode);
-    cleanup();
-  }
+  const r = await mountRig(16);
+  await scrollTo(r, startStops(stopsOf(r), 'middle'));
+  const drag = await beginDrag(r, 'p3', SLOT(2, 16) - SLOT(1, 16) + 25);
+  await release(r, 'p3', 2, 'apart');
+  assertLanded(r, 'p3', drag, 'apart');
 });
 
 test('a release that never changes the slot count lands as it would have: nearest the scroll it had', async () => {
-  const r = await mountRig('visible', 16);
+  const r = await mountRig(16);
   await scrollTo(r, startStops(stopsOf(r), 'middle'));
   const drag = await beginDrag(r, 'p3', 60);
   void drag;
@@ -213,17 +203,17 @@ test('a release that never changes the slot count lands as it would have: neares
 });
 
 test('under Reduce Motion the release is held and snapped in one frame', async () => {
-  const r = await mountRig('visible', 16, { reduced: true });
+  const r = await mountRig(16, { reduced: true });
   await scrollTo(r, startStops(stopsOf(r), 'middle'));
   const drag = await beginDrag(r, 'p3', SLOT(2, 16) - SLOT(1, 16) + 25);
   await release(r, 'p3', 2);
-  assertLanded(r, 'p3', drag, 'reduced motion', 'visible');
+  assertLanded(r, 'p3', drag, 'reduced motion');
 });
 
 test('a mark that begins while the row is gliding holds the edge the panel is drawn at, not the one it is heading for', async () => {
   const landed = new Set<number>();
   for (const wait of [40, 80, 120, 160, 200, 240]) {
-    const r = await mountRig('visible', 16);
+    const r = await mountRig(16);
     const stops = stopsOf(r);
     await scrollTo(r, stops[0]!);
     rowScrollerFor(r.m.container).glideTo(stops[2]!, { durationSec: 0.4, instant: false, ease: 'linear' as never });
@@ -234,27 +224,23 @@ test('a mark that begins while the row is gliding holds the edge the panel is dr
     assert.ok(Math.abs(drag.edge - screenRight(r.m.container, r.ids.p2!)) < 0.5);
     assert.ok(drag.edge > 0 && drag.edge <= r.window, `${wait} ms: the pinned edge is in the window: ${drag.edge}`);
     await release(r, 'p2', 2);
-    landed.add(assertLanded(r, 'p2', drag, `begun ${wait} ms into a glide`, 'visible').landed);
+    landed.add(assertLanded(r, 'p2', drag, `begun ${wait} ms into a glide`).landed);
     cleanup();
   }
   assert.ok(landed.size >= 2, `the six begin points land on more than one stop: ${[...landed].join(',')}`);
 });
 
-test('a panel cut off by the window when the mark begins: off and hidden hold its edge; visible lands where the widened panel is drawn whole', async () => {
-  for (const mode of ['off', 'visible', 'hidden'] as const) {
-    const r = await mountRig(mode, 16);
-    await scrollTo(r, stopsOf(r)[0]!);
-    const drag = await beginDrag(r, 'p3', SLOT(2, 16) - SLOT(1, 16) + 25);
-    assert.ok(drag.edge > r.window, `${mode}: the edge is past the window: ${drag.edge}`);
-    await release(r, 'p3', 2);
-    if (mode === 'visible') assert.ok(screenRight(r.m.container, r.ids.p3!) <= r.window, `visible: the widened panel ends inside the window, not cut off at ${screenRight(r.m.container, r.ids.p3!)}`);
-    else assertLanded(r, 'p3', drag, `${mode} cut off`, mode);
-    cleanup();
-  }
+test('a panel cut off by the window when the mark begins keeps its edge held', async () => {
+  const r = await mountRig(16);
+  await scrollTo(r, stopsOf(r)[0]!);
+  const drag = await beginDrag(r, 'p3', SLOT(2, 16) - SLOT(1, 16) + 25);
+  assert.ok(drag.edge > r.window, `the edge is past the window: ${drag.edge}`);
+  await release(r, 'p3', 2);
+  assertLanded(r, 'p3', drag, 'cut off');
 });
 
 test('a row that fits has no stops to hold: nothing scrolls on the release', async () => {
-  const r = await mountRig('visible', 16, { window: 3200 });
+  const r = await mountRig(16, { window: 3200 });
   assert.equal(stopsOf(r).length === 0 || r.m.container.scrollLeft === 0, true);
   const drag = await beginDrag(r, 'p3', 300);
   void drag;
@@ -265,19 +251,19 @@ test('a row that fits has no stops to hold: nothing scrolls on the release', asy
 test('the edge held is the one the element reports when the mark begins, which the numbers can be ahead of', async () => {
   const landed = new Set<number>();
   for (const trim of [0, -100, -200, -300, -400]) {
-    const r = await mountRig('visible', 16);
+    const r = await mountRig(16);
     await scrollTo(r, startStops(stopsOf(r), 'middle'));
     const drag = await beginDrag(r, 'p3', SLOT(2, 16) - SLOT(1, 16) + 25, 4, trim);
     assert.equal(drag.edge, screenRight(r.m.container, r.ids.p3!) - trim);
     await release(r, 'p3', 2);
-    landed.add(assertLanded(r, 'p3', drag, `reported ${trim} px short`, 'visible').landed);
+    landed.add(assertLanded(r, 'p3', drag, `reported ${trim} px short`).landed);
     cleanup();
   }
   assert.ok(landed.size >= 2, `the edge reported moves the landing: ${[...landed].join(',')}`);
 });
 
 test('pinned at the start, a right-grabber release holds the left edge by the same rule', async () => {
-  const r = await mountRig('visible', 16);
+  const r = await mountRig(16);
   await scrollTo(r, startStops(stopsOf(r), 'middle'));
   const began = r.m.container.scrollLeft;
   act(() => setters.get('p3')!.resizing(true));

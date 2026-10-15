@@ -1,7 +1,6 @@
 {
   "tests": [
-    "test/row-gesture.test.ts",
-    "test/shrink-whole-panels-mounted.test.ts"
+    "test/row-gesture.test.ts"
   ],
   "mutants": [
     {
@@ -20,8 +19,7 @@
       "replace": "const holding = fresh || magnitude >= previous;",
       "expectRed": [
         "ramp up, peak and fade is one step",
-        "plateau of equal deltas",
-        "one trackpad swipe is one step"
+        "plateau of equal deltas"
       ]
     },
     {
@@ -47,9 +45,7 @@
       "file": "panels/useRowScrollGesture.ts",
       "find": "      locked = true;\n      trough = null;",
       "replace": "      locked = true;",
-      "expectRed": [
-        "one trackpad swipe is one step"
-      ]
+      "expectRed": []
     },
     {
       "name": "the first event of a gesture needs a fall to step",

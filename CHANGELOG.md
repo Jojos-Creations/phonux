@@ -39,6 +39,7 @@
 
 ### Changed
 
+- Shrink and Hide modes are removed and Off is the only edge mode: `tuning.shrinkOutOfView` values `'visible'` and `'hidden'` warn once each and act as `'off'` (the next rc refuses them), and the setting is kept only for the warning. It leaves `PANEL_SETTINGS_CATALOG` and `ResolvedWorkspaceTuning`; `RowNumbers` loses `stopShrinks`, `stopFirsts`, `drawnWidths`, `drawnOffsets`, `hideOutside`, `atStop` and `showPartial`, and `computeRowNumbers` its `shrink` and `atFirst` inputs.
 - The undocumented `window.__panelsApiForTests`, which the panels hook set in a test build, is gone. A test that needs the row uses `renderWorkspace` from
   `phonux/testing/row`; a host's own tests expose the API they need themselves.
 - Names and keys for assistive technology. The row is a `region` named `labels.row` ("Panels") and each panel a `group` named with its title and

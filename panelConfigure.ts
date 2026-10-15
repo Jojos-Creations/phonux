@@ -47,6 +47,17 @@ function refusalFor(call: ConfigureCall, name: string, value: unknown): PatchRef
 }
 
 /**
+ * Whether `leaf` is the removed tuning key. Its value is checked and a removed one is reported by `checkTuningLeaf`; nothing is
+ * asked of the catalog because the setting no longer has a row there.
+ */
+function isRemovedTuningLeaf(leaf: string, value: unknown, layer: string): boolean {
+  if (leaf !== 'shrinkOutOfView') return false;
+  const problem = checkTuningLeaf(leaf, value).problems[0];
+  if (problem !== undefined) throw new PanelManagerError('invalid-settings', `${layer}.${problem.key}: ${problem.problem}`, { layer, key: problem.key });
+  return true;
+}
+
+/**
  * The catalog names a patch touches, or the first refusal it earns. A key the catalog does not know throws
  * `invalid-settings` whatever else the patch holds: that is a programmer error, not a state.
  */
@@ -58,6 +69,7 @@ export function checkPatch(call: ConfigureCall, patch: unknown): { names: string
     const value = patch[key];
     if (value === undefined) continue;
     if (call === 'tuning') {
+      if (isRemovedTuningLeaf(key, value, layer)) continue;
       if (TUNING_LEAVES.has(key)) asks.push({ name: `tuning.${key}`, value });
       else if (FLAT_KEYS.has(key)) asks.push({ name: key, value });
       else if (key === 'tuning') asks.push({ name: 'tuning', value });
@@ -72,6 +84,7 @@ export function checkPatch(call: ConfigureCall, patch: unknown): { names: string
       } else {
         for (const leaf of Object.keys(value)) {
           if (value[leaf] === undefined) continue;
+          if (isRemovedTuningLeaf(leaf, value[leaf], layer)) continue;
           if (!TUNING_LEAVES.has(leaf)) throw new PanelManagerError('invalid-settings', `${layer}.tuning.${leaf}: unknown tuning key`, { layer, key: `tuning.${leaf}` });
           asks.push({ name: `tuning.${leaf}`, value: value[leaf] });
         }
@@ -352,7 +365,7 @@ export function planTuning(current: WorkspaceTuning | undefined, patch: Record<s
       const problem = checked.problems[0];
       if (problem !== undefined) throw new PanelManagerError('invalid-settings', `tuning.${problem.key.replace(/^tuning\./, '')}: ${problem.problem}`, { layer: 'tuning', key: problem.key });
     }
-    if (!sameSettingsValue((current as Record<string, unknown> | undefined)?.[leaf], after)) names.push(`tuning.${leaf}`);
+    if (leaf !== 'shrinkOutOfView' && !sameSettingsValue((current as Record<string, unknown> | undefined)?.[leaf], after)) names.push(`tuning.${leaf}`);
   }
   if (names.length === 0) return { changed: false };
   return { changed: true, input, now: names.filter((n) => actsNow(n, 'live')), later: names.filter((n) => !actsNow(n, 'live')), reprices: names.includes('tuning.rowGap') };
