@@ -1,8 +1,8 @@
 /**
  * The shared phone-shaped card every view renders inside, so every section reads as one
  * silhouette instead of near-identical border/radius/background declarations drifting apart.
- * Fixed size by default; `expanded` is only the tap-to-expand fullscreen overlay. The inset, scrollbar
- * and header-pill rules below are explained in DESIGN.md ("PanelFrame's inset, scrollbar and header pill").
+ * Fixed size by default; `expanded` is only the tap-to-expand fullscreen overlay. The frame's border, size and
+ * header-pill rules are explained in DESIGN.md ("PanelFrame's inset, scrollbar and header pill").
  */
 
 import * as React from 'react';

@@ -1,12 +1,25 @@
 {
-  "tests": ["test/panel-frame-unstyled.test.ts"],
+  "tests": [
+    "test/panel-frame-unstyled.test.ts"
+  ],
   "mutants": [
     {
       "name": "the frame spreads panelFrameScrollSx on its content again",
       "file": "PanelFrame.tsx",
       "find": "...sx,\n        }}\n      >\n        {children}",
       "replace": "...panelFrameScrollSx,\n          ...sx,\n        }}\n      >\n        {children}",
-      "expectRed": ["the content it holds gets no inset and no scrollbar rule"]
+      "expectRed": [
+        "the content it holds gets no inset and no scrollbar rule"
+      ]
+    },
+    {
+      "name": "the scroll recipe's right padding loses the scrollbar width",
+      "file": "PanelFrame.tsx",
+      "find": "pr: `${CONTENT_INSET_PX - SCROLLBAR_PX}px`,",
+      "replace": "pr: `${CONTENT_INSET_PX}px`,",
+      "expectRed": [
+        "the whole recipe a scroller spreads"
+      ]
     }
   ]
 }

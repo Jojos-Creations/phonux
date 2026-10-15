@@ -24,7 +24,25 @@ test('PanelFrame: the content it holds gets no inset and no scrollbar rule', () 
   assert.doesNotMatch(markup, /padding-top:12px/);
 });
 
-test('the scroll and bare exports stay importable; bare is an empty no-op', () => {
-  assert.equal(panelFrameScrollSx.pl, '12px');
+test('panelFrameScrollSx is the whole recipe a scroller spreads: 12px inset, 4px right under an 8px classic gutter', () => {
+  assert.deepEqual(
+    { ...panelFrameScrollSx },
+    {
+      overflowX: 'hidden',
+      overflowY: 'auto',
+      scrollbarGutter: 'stable',
+      pt: '12px',
+      pb: '12px',
+      pl: '12px',
+      pr: '4px',
+      '&::-webkit-scrollbar': { width: 8 },
+      '&::-webkit-scrollbar-track': { background: 'transparent' },
+      '&::-webkit-scrollbar-thumb': { background: 'rgba(255, 255, 255, 0.25)', borderRadius: 4 },
+      '&::-webkit-scrollbar-thumb:hover': { background: 'rgba(255, 255, 255, 0.4)' },
+    },
+  );
+});
+
+test('panelFrameBareSx is an empty no-op', () => {
   assert.deepEqual({ ...panelFrameBareSx }, {});
 });
