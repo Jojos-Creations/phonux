@@ -232,3 +232,20 @@ test('a Workspace given no phoneHeight publishes no phone size: usePhoneSize is 
   await advanceFrames(400);
   assert.equal(document.querySelector<HTMLElement>('[data-phone]')?.dataset.phone, '390x700');
 });
+
+test('the fitted size landed by the measurement is drawn at once: no size slide starts for a panel present at mount', async () => {
+  win.width = 0;
+  win.height = 1117;
+  widths.length = 0;
+  const ws = track(createWorkspace({ templates: [probe], tuning: { phoneFit: 'fit' } }));
+  ws.addPanel('fit-probe');
+  await until('the probe', () => slots(document.body).includes('fit-probe'));
+  await resize(1400);
+  const box = document.querySelector<HTMLElement>('[data-panel-size-box]');
+  assert.ok(box, 'the panel is in a size box');
+  assert.equal(document.querySelector<HTMLElement>('[data-phone]')?.dataset.phone, `330x${Math.round((330 / 390) * 700)}`, 'the fitted size landed');
+  assert.equal(box.style.transform, '', 'the box is drawn at its new size in the measuring commit, not scaled toward it');
+  assert.equal(box.style.width, '330px', 'the box takes the fitted width on its first frame');
+  await advanceFrames(400);
+  assert.equal(box.style.transform, '', 'and it stays there');
+});
