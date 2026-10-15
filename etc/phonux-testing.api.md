@@ -227,7 +227,7 @@ export interface Host {
 }
 
 // @public
-export type InstancePatch = Omit<SettingsPatch, 'hostCreatable' | 'multiple' | 'maxInstances'>;
+export type InstancePatch = Omit<SettingsPatch, 'hostCreatable' | 'hollowDot' | 'multiple' | 'maxInstances'>;
 
 // @public
 export type JsonValue = string | number | boolean | null | readonly JsonValue[] | {
@@ -572,6 +572,7 @@ export type SettingValues = {
     resizable: boolean;
     clearable: boolean;
     hostCreatable: boolean;
+    hollowDot: boolean;
     multiple: boolean;
     maxInstances: number | 'unlimited';
     listed: boolean;

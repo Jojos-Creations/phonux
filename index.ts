@@ -176,3 +176,4 @@ export type { ChromePart } from './panelChrome.js';
 
 export { PanelManagerError } from './panelManagerError.js';
 export type { PanelRefusal, PanelManagerErrorCode } from './panelManagerError.js';
+export { usePanelDots, type PanelDots } from './usePanelDots.js';

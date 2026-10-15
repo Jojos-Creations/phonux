@@ -89,6 +89,7 @@ const ENUMERATED: Record<string, readonly unknown[]> = {
   clearable: BOOL,
   listed: BOOL,
   hostCreatable: BOOL,
+  hollowDot: BOOL,
   multiple: BOOL,
   maxInstances: ['unlimited', 1, 2, 50],
   startVisibility: ['live', 'parked'],
@@ -1167,7 +1168,7 @@ function checkStack(layers: PanelSettingsLayers, options: ResolveOptions): void 
   const instance = layers.instance as Loose | undefined;
   if (instance !== undefined) {
     for (const key of Object.keys(instance)) {
-      if (['hostCreatable', 'multiple', 'maxInstances', 'tuning', 'headerButtons', 'pinning'].includes(key)) continue;
+      if (['hostCreatable', 'hollowDot', 'multiple', 'maxInstances', 'tuning', 'headerButtons', 'pinning'].includes(key)) continue;
       assert.ok(['instance', 'forced', 'user'].includes(res.source[key] as string), `an instance ask of ${key} is beaten only by a rule or the person: ${String(res.source[key])}`);
     }
   }

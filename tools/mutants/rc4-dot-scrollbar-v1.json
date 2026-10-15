@@ -1,0 +1,44 @@
+{
+  "tests": [
+    "test/row-dots.test.ts",
+    "test/panel-dots-hook.test.ts"
+  ],
+  "mutants": [
+    {
+      "name": "the drag maps track px to scroll px without clamping to the row",
+      "file": "rowDots.ts",
+      "find": "return Math.min(Math.max(i.startScroll + i.dx / f, 0), i.maxScroll);",
+      "replace": "return i.startScroll + i.dx / f;",
+      "expectRed": [
+        "a drag maps track px to scroll px and clamps to the row"
+      ]
+    },
+    {
+      "name": "a click returns the panel centre instead of the centring scroll",
+      "file": "rowDots.ts",
+      "find": "return Math.min(Math.max(centre - i.windowWidth / 2, 0), i.maxScroll);",
+      "replace": "return centre;",
+      "expectRed": [
+        "a click centres a 390 panel"
+      ]
+    },
+    {
+      "name": "ending an oval drag does not release the row claim",
+      "file": "usePanelDots.ts",
+      "find": "        open = false;\n        claim.release();",
+      "replace": "        open = false;",
+      "expectRed": [
+        "an oval drag writes the row through its claim"
+      ]
+    },
+    {
+      "name": "Reduce Motion from the library config is ignored for dot clicks",
+      "file": "usePanelDots.ts",
+      "find": "const reduced = systemReduced === true || configReduced === true;",
+      "replace": "const reduced = systemReduced === true;",
+      "expectRed": [
+        "a dot click snaps at once under Reduce Motion"
+      ]
+    }
+  ]
+}

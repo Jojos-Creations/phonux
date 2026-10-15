@@ -202,6 +202,8 @@ export type SettingValues = {
   clearable: boolean;
   /** Whether a view's host-bag `create` may name the template. Template scope. */
   hostCreatable: boolean;
+  /** Whether the dot bar draws this panel's dot hollow (the one an app marks, such as History). Template scope; the library reads the flag, never a name. */
+  hollowDot: boolean;
   /** Whether the template may have more than one instance. Template scope. */
   multiple: boolean;
   /** The most instances the template may have: an integer of at least 1, or 'unlimited'. Template scope. */
@@ -722,6 +724,17 @@ const CATALOG_ROWS: readonly SettingDescriptor[] = [
     configure: { cls: 'SCOPE', doors: ['template'] },
   },
   {
+    name: 'hollowDot',
+    group: 'template',
+    values: 'true, false (template scope)',
+    default: 'false',
+    scope: 'template',
+    viewSettable: false,
+    exists: 'new',
+    ownerEntry: 'phonux-saved-overrides-and-template-paths',
+    configure: { cls: 'SCOPE', doors: ['template'] },
+  },
+  {
     name: 'multiple',
     group: 'template',
     values: 'true, false (template scope)',
@@ -1220,6 +1233,7 @@ export const LIBRARY_PANEL_DEFAULTS: LibraryPanelDefaults = freezeClone({
   crossable: true,
   resizable: true,
   hostCreatable: true,
+  hollowDot: false,
   multiple: false,
   maxInstances: 'unlimited' as number | 'unlimited',
   startVisibility: 'live' as const,
@@ -1497,6 +1511,7 @@ const SETTING_CHECKS: Record<SettingKey, Check> = {
   resizable: bool,
   clearable: bool,
   hostCreatable: bool,
+  hollowDot: bool,
   multiple: bool,
   maxInstances: maxInstancesProblem,
   listed: bool,

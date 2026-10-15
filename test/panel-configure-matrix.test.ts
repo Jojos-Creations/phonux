@@ -561,6 +561,13 @@ test('matrix:hostCreatable', async () => {
   refusedWith(never.turn(() => never.ws.panels.configureTemplate('m', { hostCreatable: false })), 'not-ready');
 });
 
+test('matrix:hollowDot', async () => {
+  probe('hollowDot');
+  await wrongScopeInEveryStatus({ hollowDot: true }, 'hollowDot');
+  const r = await matrixRig({ ids: ['a'], extra: [matrixTemplate('m', { settings: { multiple: true } })] });
+  assert.equal(r.ws.panels.configureTemplate('m', { hollowDot: true }).ok, true, 'a template-scope hollowDot is accepted');
+});
+
 test('matrix:multiple', async () => {
   probe('multiple');
   await wrongScopeInEveryStatus({ multiple: false }, 'multiple');
@@ -1495,13 +1502,13 @@ test('the class table ran every cell: executed cells equal 4 classes by 9 status
 
 // The design copy is frozen; a catalog key added or removed after it is listed here, never in the copy.
 const REMOVED_AFTER_DESIGN: readonly string[] = ['formFactor', 'formFactors', 'hideWhenLast', 'returnPriority', 'evictionRank', 'evictionOrder', 'scrollOnDrag', 'viewState', 'keepMounted', 'placeOnReturn', 'placeFallback', 'undoPlacement', 'exitTo', 'closeExit', 'animated', 'persist', 'rememberLayout', 'undoWindowMs', 'reportClose', 'snapshot'];
-const ADDED_AFTER_DESIGN: readonly string[] = ['tuning.maxLivePanels', 'tuning.chrome', 'slots', 'maxSlots', 'tuning.resizeSettleSlides', 'tuning.phoneFit', 'tuning.phoneFitMin', 'tuning.phoneFitMax'];
+const ADDED_AFTER_DESIGN: readonly string[] = ['tuning.maxLivePanels', 'tuning.chrome', 'slots', 'maxSlots', 'tuning.resizeSettleSlides', 'tuning.phoneFit', 'tuning.phoneFitMin', 'tuning.phoneFitMax', 'hollowDot'];
 
-test('the probes ran every catalog name once: 50 executed, equal to the catalog and to the design copy of it plus the names added after it', () => {
+test('the probes ran every catalog name once: 51 executed, equal to the catalog and to the design copy of it plus the names added after it', () => {
   const design = JSON.parse(readFileSync(new URL('../design/0.2-rev7/DESIGN-phonux-0.2-rev7-catalog.json', import.meta.url), 'utf8')) as { name: string }[];
   assert.equal(design.length, 62);
-  assert.equal(CATALOG_NAMES.length, 50);
-  assert.equal(probesExecuted().size, 50);
+  assert.equal(CATALOG_NAMES.length, 51);
+  assert.equal(probesExecuted().size, 51);
   assert.deepEqual([...probesExecuted()].sort(), [...CATALOG_NAMES].sort());
   assert.deepEqual([...probesExecuted()].sort(), [...design.map((d) => d.name).filter((name) => !REMOVED_AFTER_DESIGN.includes(name)), ...ADDED_AFTER_DESIGN].sort());
 });

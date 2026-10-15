@@ -119,7 +119,7 @@ export interface PanelManager {
    * Changes the template-scope settings (`hostCreatable`, `multiple`, `maxInstances`) of a template for panels made from now on. Kept for this session only.
    * @throws PanelManagerError with code `unknown-template` for a template that is not registered, or `invalid-settings` when the patch is not an object or names an unknown key.
    */
-  configureTemplate(templateId: string, patch: Pick<SettingsPatch, 'hostCreatable' | 'multiple' | 'maxInstances'>): ConfigureResult;
+  configureTemplate(templateId: string, patch: Pick<SettingsPatch, 'hostCreatable' | 'hollowDot' | 'multiple' | 'maxInstances'>): ConfigureResult;
   /**
    * Changes the workspace's tuning keys; a per-panel key sets the workspace default. Kept for this session only.
    * @throws PanelManagerError with code `invalid-settings` when the patch is not an object or names an unknown key.
