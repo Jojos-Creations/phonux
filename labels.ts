@@ -30,10 +30,6 @@ export interface PhonuxLabels {
   goToWorkspace: (name: string) => string;
   /** The accessible name of the input that holds a workspace's name. Default `Workspace name`. */
   workspaceName: string;
-  /** The accessible name of the grip on one side of a resizable panel. Default `Resize from the left edge` or `Resize from the right edge`. */
-  resizeGrip: (side: 'left' | 'right') => string;
-  /** The spoken value of a resize grip, given the slots the panel is wide and the most it can take. Default `<slots> of <most> slots wide`. */
-  resizeGripValue: (slots: number, most: number) => string;
   /** The accessible name of the row of panels, a region. Default `Panels`. */
   row: string;
   /** The accessible name of one panel's group: its title and its place among the panels drawn. Default `<title>, <place> of <total>`. */
@@ -69,8 +65,6 @@ export const DEFAULT_LABELS: Readonly<PhonuxLabels> = {
   newWorkspace: 'Create new workspace',
   goToWorkspace: (name) => `Go to ${name}`,
   workspaceName: 'Workspace name',
-  resizeGrip: (side) => `Resize from the ${side} edge`,
-  resizeGripValue: (slots, most) => `${slots} of ${most} slots wide`,
   row: 'Panels',
   panelPosition: (title, place, total) => `${title}, ${place} of ${total}`,
   grabStrip: (title) => `Move or close ${title}`,
