@@ -15,6 +15,7 @@ import { resolveLabels } from './labels.js';
 import { PanelFooter } from './panelFooter.js';
 import { useFrameClaim } from './panelFrameClaim.js';
 import { PanelSlotContext } from './panelSlotContext.js';
+import { useChromePixels } from './panelChrome.js';
 import { glideCorner, glideEdge } from './sizeGlide.js';
 
 /** The props of `PanelFrame`: every `Box` prop except `children`, plus `expanded` and `size`. @public */
@@ -38,9 +39,6 @@ const CONTENT_INSET_PX = 12;
 export const PANEL_CORNER_RADIUS_UNITS = 4;
 /** That radius in px for `theme`; a header pill is twice this tall (exact semicircles). @public */
 export const panelCornerRadiusPx = (theme: Theme): number => PANEL_CORNER_RADIUS_UNITS * Number(theme.shape.borderRadius);
-/** The header pill's gap above the frame, in px -- also the grab handle's width and height (Panel.tsx), which is
- * WCAG 2.5.8's 24px minimum pointer target. One constant so the two can't drift apart. @internal */
-export const PANEL_HEADER_GAP_PX = 24;
 
 /**
  * Opt-in style for a scroller the view owns: content inset the same from the border on every side, with or
@@ -142,12 +140,13 @@ export interface PanelHeaderProps extends Omit<BoxProps, 'children'> {
  * @public
  */
 export function PanelHeader({ children, sx, ...rest }: PanelHeaderProps) {
+  const chrome = useChromePixels();
   return (
     <Box
       {...rest}
       sx={{
         position: 'absolute',
-        bottom: `calc(100% + ${PANEL_HEADER_GAP_PX}px)`,
+        bottom: `calc(100% + ${chrome.headerGapPx}px)`,
         left: 0,
         right: 0,
         // Twice the phone's own corner radius, so each end is an exact semicircle; from the theme, never a
@@ -160,8 +159,7 @@ export function PanelHeader({ children, sx, ...rest }: PanelHeaderProps) {
         // An inset shadow, not a border (see PanelFrame), so the padding gives the 1 px back.
         boxShadow: (theme: Theme) => glideEdge(theme.palette.divider),
         borderRadius: (theme: Theme) => glideCorner(panelCornerRadiusPx(theme)),
-        // 13 = the 1 px edge plus the 12 px inset the frame used to give content, so the header's text keeps its line.
-        px: '13px',
+        px: `${chrome.headerInsetPx}px`,
         py: '1px',
         fontSize: 13,
         color: 'common.white',

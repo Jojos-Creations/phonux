@@ -9,7 +9,8 @@
 import * as React from 'react';
 import Box, { type BoxProps } from '@mui/material/Box';
 import DragIndicatorIcon from '@mui/icons-material/DragIndicator';
-import { PANEL_HEADER_GAP_PX, PanelHeaderRow, type PanelHeaderRowProps } from './PanelFrame.js';
+import { PanelHeaderRow, type PanelHeaderRowProps } from './PanelFrame.js';
+import { useChromePixels } from './panelChrome.js';
 import { type PanelSize } from './hostApi.js';
 import { usePhoneSize } from './phoneFit.js';
 import { useFrameClaim } from './panelFrameClaim.js';
@@ -95,6 +96,7 @@ export function Panel({ title, actions, headerProps, headerButtons = true, grabP
   const { visible, handlers } = useChromeVisibility();
   const fadeHeader = useChromeFade(visible);
   const fadeGrab = useChromeFade(visible);
+  const chrome = useChromePixels();
   const warned = React.useRef(false);
   // One element, either way: inside the header it fades with the header, so only the header-less one fades itself.
   const grabHandleProps = {
@@ -106,8 +108,8 @@ export function Panel({ title, actions, headerProps, headerButtons = true, grabP
       alignItems: 'center',
       justifyContent: 'center',
       flexShrink: 0,
-      width: `${PANEL_HEADER_GAP_PX}px`,
-      height: `${PANEL_HEADER_GAP_PX}px`,
+      width: `${chrome.headerGapPx}px`,
+      height: `${chrome.headerGapPx}px`,
       ...grabProps?.sx,
     },
   };
