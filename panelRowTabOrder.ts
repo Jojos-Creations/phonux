@@ -33,6 +33,19 @@ function handOver(slot: HTMLElement, row: HTMLElement, readingIds: readonly stri
   return false;
 }
 
+/** Focuses the first (`back`: last) tabbable element of the first panel in reading order that has one; false when none has. */
+function enterInReadingOrder(row: HTMLElement, readingIds: readonly string[], back: boolean): boolean {
+  const slots = slotsOf(row);
+  for (const id of back ? [...readingIds].reverse() : readingIds) {
+    const slot = slots.get(id);
+    const found = slot === undefined ? [] : tabbablesOf(slot);
+    if (found.length === 0) continue;
+    found[back ? found.length - 1 : 0]!.focus();
+    return true;
+  }
+  return false;
+}
+
 /** The tabbable element nearest the row on the side Tab is heading to, outside the row. */
 function elementBeyond(row: HTMLElement, back: boolean): HTMLElement | undefined {
   const beyond = tabbablesOf(row.ownerDocument.body).filter((el) => !row.contains(el) && (row.compareDocumentPosition(el) & (back ? Node.DOCUMENT_POSITION_PRECEDING : Node.DOCUMENT_POSITION_FOLLOWING)) !== 0);
@@ -56,11 +69,18 @@ export function steerTab(event: React.KeyboardEvent<HTMLElement>, row: HTMLEleme
     event.preventDefault();
     return;
   }
-  // No reading-order neighbour is left: the browser's next stop would be a DOM-later panel, so park focus on the DOM-extreme
-  // sentinel and let the default step carry on from there, out of the row.
-  const ends = [...row.querySelectorAll<HTMLElement>(`[data-row-sentinel=${back ? 'start' : 'end'}]`)].filter(usable);
-  const edge = ends[back ? 0 : ends.length - 1];
-  if (edge === undefined) return;
+  // No reading-order neighbour is left: the browser's next stop would be a DOM-later panel. When the DOM-extreme panel has a
+  // sentinel, park focus on it and let the default step carry on from there, out of the row; otherwise go there directly.
+  const slots = [...slotsOf(row).values()];
+  const extreme = slots[back ? 0 : slots.length - 1];
+  const edge = extreme === undefined ? undefined : [...extreme.querySelectorAll<HTMLElement>(`[data-row-sentinel=${back ? 'start' : 'end'}]`)].find(usable);
+  if (edge === undefined) {
+    const beyond = elementBeyond(row, back);
+    if (beyond === undefined) return;
+    event.preventDefault();
+    beyond.focus();
+    return;
+  }
   parking = true;
   try {
     edge.focus();
@@ -84,6 +104,9 @@ export function steerSentinel(event: React.FocusEvent<HTMLElement>, row: HTMLEle
   const inside = from !== null && slot.contains(from);
   const own = tabbablesOf(slot);
   if (!inside && own.length > 0) {
+    // Coming from an element outside the row, the browser picked this slot by DOM order; reading order decides which panel is
+    // entered. A null source is also what Chromium reports for a step out of an iframe, which must stay with this slot.
+    if (from !== null && !row.contains(from) && enterInReadingOrder(row, readingIds, kind === 'end')) return;
     own[kind === 'start' ? 0 : own.length - 1]!.focus();
     return;
   }
@@ -137,13 +160,5 @@ export function useTabPress(): React.RefObject<TabPress | null> {
 export function steerEntry(event: React.FocusEvent<HTMLElement>, row: HTMLElement, readingIds: readonly string[], tab: TabPress | null): void {
   const from = event.relatedTarget as Node | null;
   if (tab === null || (from !== null && row.contains(from))) return;
-  const back = tab.shift;
-  const slots = slotsOf(row);
-  for (const id of back ? [...readingIds].reverse() : readingIds) {
-    const slot = slots.get(id);
-    const found = slot === undefined ? [] : tabbablesOf(slot);
-    if (found.length === 0) continue;
-    found[back ? found.length - 1 : 0]!.focus();
-    return;
-  }
+  enterInReadingOrder(row, readingIds, tab.shift);
 }

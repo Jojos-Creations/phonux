@@ -296,7 +296,11 @@ function useHoldsFrame(slot: React.RefObject<HTMLElement | null>): boolean {
     if (node === null) return;
     const sync = () => setHolds(node.querySelector(FRAMES) !== null);
     sync();
-    const observer = new MutationObserver(sync);
+    // Only an added or removed frame changes the answer; the sentinels this very state adds must not re-run the query.
+    const touchesFrame = (nodes: NodeList): boolean => [...nodes].some((n) => n instanceof Element && (n.matches(FRAMES) || n.querySelector(FRAMES) !== null));
+    const observer = new MutationObserver((records) => {
+      if (records.some((r) => touchesFrame(r.addedNodes) || touchesFrame(r.removedNodes))) sync();
+    });
     observer.observe(node, { childList: true, subtree: true });
     return () => observer.disconnect();
   }, [slot]);

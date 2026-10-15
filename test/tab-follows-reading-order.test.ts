@@ -222,3 +222,131 @@ test('Shift+Tab out of an iframe that starts a panel lands in the panel drawn be
   assert.notEqual(reading[reading.length - 2], 's2', 'the drawn-previous panel is not the DOM-previous one');
   assert.equal(browserStepFromIframe(m, frame, true), `${reading[reading.length - 2]}-b`);
 });
+
+/** Every tabbable element of the document in DOM order, sentinels and iframes included: what the browser's own Tab steps through. */
+const tabOrder = (): HTMLElement[] => [...document.querySelectorAll<HTMLElement>('button,iframe,[tabindex]')].filter((el) => el.tabIndex >= 0);
+const landedOn = (): string => {
+  const el = document.activeElement as HTMLElement;
+  return el.dataset.stop ?? (el.dataset.rowSentinel === undefined ? el.tagName : `sentinel-${el.dataset.rowSentinel}`);
+};
+/** The browser's default step from the focused element, unless the row's handler prevented it. */
+function stepUnlessPrevented(shift: boolean, prevented: boolean): void {
+  if (prevented) return;
+  const all = tabOrder();
+  const next = all[all.indexOf(document.activeElement as HTMLElement) + (shift ? -1 : 1)];
+  act(() => void next?.focus());
+}
+/** One Tab press on the focused element: keydown first, then the default step. */
+function tabPress(shift: boolean): void {
+  const event = new KeyboardEvent('keydown', { key: 'Tab', shiftKey: shift, bubbles: true, cancelable: true });
+  act(() => void document.activeElement!.dispatchEvent(event));
+  stepUnlessPrevented(shift, event.defaultPrevented);
+}
+
+interface Around {
+  m: MountedRow;
+  reading: string[];
+  before: HTMLButtonElement;
+  after: HTMLButtonElement;
+  stop: () => void;
+}
+/** A row reordered so the drawn-first (`drawnFirst`) or drawn-last panel is not at its DOM end, with a button on each side. */
+async function around(framed: boolean, frameAt: 'first' | 'last', drawnFirst: boolean): Promise<Around> {
+  const { m, reading } = await reorderedRow(false, 's3', drawnFirst ? -900 : 900);
+  if (framed) for (const id of reading) await hostIframe(m, id, frameAt);
+  const before = document.createElement('button');
+  const after = document.createElement('button');
+  before.dataset.stop = 'before';
+  after.dataset.stop = 'after';
+  m.container.before(before);
+  m.container.after(after);
+  // The window loses focus to an iframe that takes it, which ends the record of the Tab press that caused it.
+  const blurOnFrame = (e: Event): void => void (e.target instanceof HTMLIFrameElement && window.dispatchEvent(new Event('blur')));
+  document.addEventListener('focusin', blurOnFrame);
+  return { m, reading, before, after, stop: () => document.removeEventListener('focusin', blurOnFrame) };
+}
+const dropAround = (a: Around): void => {
+  a.stop();
+  a.before.remove();
+  a.after.remove();
+};
+
+for (const shift of [false, true]) {
+  test(`${shift ? 'Shift+Tab' : 'Tab'} from outside into a row of framed panels lands in the panel's content of the panel drawn ${shift ? 'last' : 'first'}`, async () => {
+    const a = await around(true, shift ? 'last' : 'first', !shift);
+    try {
+      const want = shift ? a.reading[a.reading.length - 1]! : a.reading[0]!;
+      assert.notEqual(want, shift ? 's5' : 's1', 'the panel entered is not the one the browser would pick');
+      (shift ? a.after : a.before).focus();
+      tabPress(shift);
+      assert.equal(landedOn(), `${want}-f`);
+    } finally {
+      dropAround(a);
+    }
+  });
+}
+
+for (const framed of [false, true]) {
+  const kind = framed ? 'framed' : 'unframed';
+  test(`Tab from the panel drawn last leaves a ${kind} row for the element after it`, async () => {
+    const a = await around(framed, 'first', false);
+    try {
+      const last = a.reading[a.reading.length - 1]!;
+      assert.notEqual(last, 's5', 'the drawn-last panel is not the DOM-last one');
+      a.m.container.querySelector<HTMLElement>(`[data-stop="${last}-b"]`)!.focus();
+      tabPress(false);
+      assert.equal(landedOn(), 'after');
+    } finally {
+      dropAround(a);
+    }
+  });
+  test(`Shift+Tab from the panel drawn first leaves a ${kind} row for the element before it`, async () => {
+    const a = await around(framed, 'last', true);
+    try {
+      const first = a.reading[0]!;
+      assert.notEqual(first, 's1', 'the drawn-first panel is not the DOM-first one');
+      a.m.container.querySelector<HTMLElement>(`[data-stop="${first}-a"]`)!.focus();
+      tabPress(true);
+      assert.equal(landedOn(), 'before');
+    } finally {
+      dropAround(a);
+    }
+  });
+}
+
+test('Tab parks focus on the DOM-last end sentinel while it leaves a framed row, so the content of that panel is not entered', async () => {
+  const a = await around(true, 'first', false);
+  try {
+    const last = a.reading[a.reading.length - 1]!;
+    a.m.container.querySelector<HTMLElement>(`[data-stop="${last}-b"]`)!.focus();
+    const event = new KeyboardEvent('keydown', { key: 'Tab', bubbles: true, cancelable: true });
+    act(() => void document.activeElement!.dispatchEvent(event));
+    assert.equal(landedOn(), 'sentinel-end');
+  } finally {
+    dropAround(a);
+  }
+});
+
+test('Tab out of an iframe that ends the panel drawn last leaves the row for the element after it', async () => {
+  const a = await around(true, 'last', false);
+  try {
+    const last = a.reading[a.reading.length - 1]!;
+    a.m.container.querySelector<HTMLElement>(`[data-stop="${last}-f"]`)!.focus();
+    stepUnlessPrevented(false, false);
+    assert.equal(landedOn(), 'after');
+  } finally {
+    dropAround(a);
+  }
+});
+
+test('Shift+Tab out of an iframe that starts the panel drawn first leaves the row for the element before it', async () => {
+  const a = await around(true, 'first', true);
+  try {
+    const first = a.reading[0]!;
+    a.m.container.querySelector<HTMLElement>(`[data-stop="${first}-f"]`)!.focus();
+    stepUnlessPrevented(true, false);
+    assert.equal(landedOn(), 'before');
+  } finally {
+    dropAround(a);
+  }
+});
