@@ -383,6 +383,8 @@ size: nothing fades or shrinks, and a panel is inert only when the window does n
 neighbour makes the browser scroll, and the row then settles onto the nearest stop that shows that panel. `'hidden'` has the same
 stops but fades the neighbour out, and between two stops a panel is whole or hidden and never part way. Neither resizes anything.
 
+A panel as wide as the window shows alone, and the next stop would start at the panel after it, dropping the wide one at the first step. So whenever a panel follows it, a stop is added after it that slides the panel left. The slide leaves the window ending at the edge of the whole panels that fit beside its right part (at least a phone's width of it stays); when no whole panel fits there, it slides one slot (phone width plus gap), so the panel keeps all but one slot of the window and the next panel's first slot comes in as the cut or hidden neighbour. The step after that starts at the next panel.
+
 With `'visible'` the row moves one slot at a time. The strip is a run of slot units: a panel that can be drawn smaller is as many
 units as its width holds slots, an entry that cannot (no `slots`, or a width that is no whole number of slots) is one unit as wide
 as itself. A stop is a window of consecutive units, greedy by width, and a step moves its start by one unit, forward and back, so
@@ -440,29 +442,6 @@ already do; when it comes in a later commit the settle waits for the commit in w
 frame at the latest if none does. The edge comes to rest on a stop, so it is held exactly only where a stop is at that scroll; otherwise it
 rests within half the gap between the two stops around it. Under 'visible' a pinned edge that was beyond the window (the panel was cut off) is not held: a stop that draws the widened panel smaller does not count, so the row lands on the nearest stop that draws it whole. A row whose panels all fit has no stops and nothing scrolls. Under 'visible', the stop number the fade
 and the steps use is the stop the row rests on.
-
-### The resize grips
-
-`PanelResizeGrips` is the library's own grabber: one on each side of a resizable panel, drawn by the default frame (a view that draws
-its own `Panel` puts it in `overlay`). It is built from `usePanelResizing()` and the slot context, with no new setting: it appears when
-the panel's `resizable` setting is true and at least two slots can be shown (`slotRange.most`, the fewest of `maxSlots` and the slots
-that fit), and the app's own grabber code goes away. The target is 24 px, centred on the gap between two panels, so it never covers a
-panel's controls; it is a `role="separator"` with `aria-valuenow`, `aria-valuemin`, `aria-valuemax` and a spoken `aria-valuetext`, is
-focusable, and ArrowLeft and ArrowRight step the panel one slot (the right grip grows on ArrowRight, the left grip on ArrowLeft), with
-`preventDefault` so the row does not also step.
-
-A press resizes only once the pointer has travelled 4 px; a shorter press is a click, which sets nothing and shows no drag mark. After a drag the grip swallows the one click the browser fires with the pointerup, so a click handler on the panel behind it never runs. A drag: the width follows the pointer, held between one slot and the most that fit (by `PanelRow`,
-which owns that clamp, so the grip does not repeat it), the left grip pins `'end'` and the right grip `'start'`, and the release is
-`handle.setSlots(nearest, 'person')`, `setDrawnWidth(null)`, `setResizing(false)` in that order, so the width glides from the held one to
-the slot width (a snap under Reduce Motion). A cancel or a lost pointer capture stores nothing and the width glides back. Firefox reports
-a pointer past the window edge as `clientX` 0; a move at 0 after the pointer was beyond 24 px is the last real position, not a position.
-
-The container's horizontal overflow follows `tuning.rowGesture`: 'step' scrolls with the scrollbar hidden,
-'free' scrolls with it visible, 'off' hides the overflow. A row with no settings is always hidden.
-
-`PanelsAPI.panelList` reports each panel's stored `slots` and `size`. The `panel` prop a resolved view receives
-carries the size it is drawn at, so a view that passes `panel.size` to `Panel`/`PanelFrame` stays inside
-its slot.
 
 ### Scrolling to a panel
 

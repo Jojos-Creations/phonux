@@ -27,6 +27,8 @@
 
 ### Fixed
 
+- The drag-to-close box and its release, close and edge scroll honour MotionConfig `reducedMotion: "always"` as well as the system's Reduce Motion query. `never` does not turn off the system query.
+- A step from a panel as wide as the window now slides it to show its right part beside the next whole panel, instead of jumping to the next panel and dropping the wide one.
 - A closed panel's `useViewState` is kept for the undo window again. The row held the state by the row's own id while `recentlyClosed` carries the key, so a panel with a key unlike its row id came back from Undo with empty state; both sides now use the key.
 - A panel added with `addPanel` and no title of its own now gets `labels.panelTitle(id)`, the same default the Host-bag `create` gave, whether it is added before or after the workspace mounts.
 - A trackpad swipe on a stepping row is one step. Its deltas ramp up before they fade, and every rising event after the 60 ms
@@ -68,6 +70,7 @@
 
 ### Added
 
+- `PhonuxLabels.pinFailed` and `unpinFailed`: the text a host announces when a pin or unpin request is refused. Defaults `Could not pin this panel` and `Could not unpin this panel`.
 - A saved panel now carries an optional `uid` (`WorkspacePanelState.uid`, `u_` and 32 hex characters), made once when the
   panel is created and kept through save, restore, a copy of the file to another device and `undoClose`, so a later export,
   import or sync can match panels. It is not the panel's key or id, and nothing a host holds changes. File version stays 1.
@@ -76,7 +79,6 @@
 - `PanelViewProps<P>` names the props a template's `view` and `footer` receive (`panel`, `handle`, `manager`); `PanelTemplate` uses it.
   `phonux/testing` gains `createFakePanel(state?)`, a `ViewHandle` and `PanelReader` over one in-memory panel that record each operation
   in `calls` and answer an accepted result, so a view test needs no cast. `usePanelState(id)` now re-reads only when that panel changes.
-- `PanelResizeGrips`: a grip on each side of a resizable panel, drawn by the default frame, so an app no longer writes its own grabber. The width follows the pointer and the release settles on the nearest slot (a snap under Reduce Motion); the left grip keeps the right edge still; a press that travels under 4 px is a click and resizes nothing, and the click a browser fires after a drag stops at the grip; ArrowLeft and ArrowRight step one slot; each grip is a 24 px `separator` with `aria-valuenow`, `aria-valuemin`, `aria-valuemax` and `aria-valuetext`. It draws nothing when `resizable` is false or fewer than two slots fit. New `PhonuxLabels` keys `resizeGrip` and `resizeGripValue`, and `CHROME_PARTS.resize`. A view that draws its own `Panel` puts `<PanelResizeGrips />` in `overlay`.
 - `theme?: (mode: 'light' | 'dark') => Theme` on `createWorkspace` and `createWorkspaceColumn`: the mount draws that theme with one `CssBaseline` instead of `createDefaultTheme`. `mode` is the window's color scheme. The column draws it once and its cells draw none of their own, which also ends a second `CssBaseline` in a column. A `wrap` must not draw its own `ThemeProvider` or `CssBaseline`.
 - The contract for a value that is not there yet: `history`, `snapshots` and `labels` are optional on `Host`, the first frame of an auto-mounted workspace holds exactly what `createWorkspace` was given, and `workspace.update` carries the rest. `createFakeHost({ absent: ['history', 'snapshots'] })` renders the absent frame in a test.
 
