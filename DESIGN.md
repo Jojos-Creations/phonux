@@ -502,7 +502,7 @@ edge or a pill drawn the usual way would be squashed with it: a quarter circle b
 for the 0.4 s. The box writes its scale as three custom properties (`--phonux-size-x`, `--phonux-size-y`, `--phonux-size-glide`,
 in `sizeGlide.ts`) from the draw that sets the transform, and removes all three at rest, when it snaps (Reduce Motion,
 held at a drawn width) and when it is nested, so a frame or header outside any box reads every
-fallback (1 and 0) and draws as it always did. `PanelFrame`, `PanelHeader` and the grab bar's pill read them:
+fallback (1 and 0) and draws as it always did. `PanelFrame` and `PanelHeader` read them:
 the corner radius is `r / x` by `r / y`, which draws `r` on each axis, and a radius too big for a side is cut by the browser on
 every corner alike, so a header pill that gets lower becomes a smaller true pill. The 1 px edge of the frame and the header pill is
 an inset shadow, not a border: the browser rounds a border's width to whole device pixels, so `1px / x` would draw as a step
@@ -1082,19 +1082,19 @@ its `collapsible` value.
 - **`params` freezes at creation.** There is no way to update a panel's `params` after it is created, so
   persistence saves a view's resumable content as it was when the panel was created.
 
-## The header-to-frame gap is one constant, and the grab bar fills exactly it
+## The header-to-frame gap is one constant, and the grab handle is that wide
 
-`PANEL_HEADER_GAP_PX` (`PanelFrame.tsx`) is the one number both `PanelHeader`'s `bottom` offset and
-`Panel`'s grab-bar element measure themselves against -- the same reason `PANEL_CORNER_RADIUS_UNITS` is a
-named export rather than a literal inlined twice: two independently-tuned numbers drift out of sync the
-moment either changes on its own, and here the drift would show up as a visible seam or overlap between the
-header pill and the grab bar beneath it.
+`PANEL_HEADER_GAP_PX` (`PanelFrame.tsx`) is the one number `PanelHeader`'s `bottom` offset and `Panel`'s grab
+handle both measure themselves against -- the same reason `PANEL_CORNER_RADIUS_UNITS` is a named export rather
+than a literal inlined twice. For the handle it is WCAG 2.5.8's 24px minimum pointer target, both ways.
 
 `Panel`'s `grabProps` is a separate prop from `headerProps`, not a field folded into it, because the header
-and the grab bar are two different elements: the header keeps only its title/actions and cosmetic `sx`,
-while `grabProps`'s `onPointerDown`/`sx` reach the grab bar instead, so clicking the title text or an action
-icon is never mistaken for a drag start. Omitting `grabProps` renders no grab bar at all, which is the
-correct shape for a locked view (nothing to drag).
+and the grab handle are two different elements: the handle is a grip icon inside the header row, left of the
+title, and `grabProps`'s `onPointerDown`/`sx` reach only it, so clicking the title text or an action icon is
+never mistaken for a drag start. It is one element with the same role, name and keys wherever it sits. It fades
+with the header it lives in, so it takes no fade of its own there. A `Panel` with `grabProps` and no `title` has no
+header row, and the icon is drawn alone above the frame's top-left corner instead. Omitting `grabProps` renders no
+handle at all, which is the correct shape for a locked view (nothing to drag).
 
 ## `DragToClose`: drag down to close, optionally sideways to reorder
 
@@ -1184,6 +1184,7 @@ panel the drop would cross by the DRAGGED panel's width plus the gap, left when 
 the `leftOffset` handed to its `PanelRowSlot` only: the row numbers, the rests a parked entry keeps and the order are untouched,
 so a refused or no-op drop leaves nothing to undo. The crossed ids and the widths `reorderStepsForOffset` reads come from one
 walk (`neighborsAt`), so the preview and the release cannot disagree. Nothing is published for a panel that is not `draggable`.
+Panels render in the order they first appeared, not in reading order, so a reorder moves no DOM node: a node that React moved would restart what it hosts (a web view reloads). Position on screen comes from `leftOffset` alone. Tab order would then follow the open order, so `PanelRow` handles Tab and Shift+Tab at a panel's last or first tabbable element and hands focus to the drawn neighbour's (`panelRowTabOrder.ts`); inside a panel and past the row's ends the browser's own movement runs. A Tab pressed inside an iframe (a web view) goes to the iframe's own document, so the row sees no keydown; a slot that holds an iframe (or frame, embed, object; watched by a MutationObserver) therefore renders a zero-size `tabindex=0` sentinel first and last, and the browser's step out of the iframe lands on it in this document, where the same hand-over runs (`steerSentinel`). A sentinel carries no `aria-hidden` (a focusable element must not) and no role, and it forwards focus at once, so it rests only at the end of the document, one extra stop before the browser's own chrome. Slots without a frame render none. Focus arriving from outside the row is redirected to the first (Shift+Tab: last) tabbable element in reading order only when a Tab key press caused it (recorded by a capturing document keydown listener, so a first Tab from the page or browser chrome counts too); focus from a click or a script is left where it went. One entry is not reordered: when the Tab comes from browser chrome into a row whose DOM-first (Shift+Tab: DOM-last) panel holds a frame, Chromium reports no source element, which looks the same as a step out of an iframe, so focus stays in the panel the browser chose.
 The dragged slot is drawn at `zIndex` 3 from the first publish until the spring home ends (the box publishes `null` there, when
 a press stops the spring, on a revive and under reduced motion at the release). The release publishes offset 0 (no hops) after
 `reorder.onDragEnd` returns, so the host's `move` calls and the cleared preview land in one React batch and the neighbours
@@ -1807,7 +1808,7 @@ and golden DOM recorded before the frame existed (test/golden/default-frame-self
 counts of one and none.
 
 **Size.** The frame animates its size like a `PanelSizeBox` view: `DefaultFrame` draws one box (`SizeBox`) around the whole
-`Panel`, so the header and the grab bar above the phone frame, the frame and the footer inside it are all drawn at the box's
+`Panel`, so the header, with the grab handle in it, above the phone frame, the frame and the footer inside it are all drawn at the box's
 scale and their edges stay on the frame's at every frame. The box is the panel's width and height (the device size for a phone,
 `panel.size` otherwise, `'100%'` of the row for a `'fill'` height); at rest it has no transform, so the frame's rect is what it was
 before the box existed. A box below another draws a plain `div` of the same size (`SizeBoxContext`), because two scales of one size
@@ -1849,7 +1850,7 @@ listens for the window's `blur` and activates when the focused element is an ifr
 panel that closes or parks.
 
 `Panel` writes `data-panel-active` and `data-panel-dragging` on its root box, and `data-panel-chrome-part="header"`,
-`"grab-bar"` or `"footer"` on the parts `tuning.chrome` fades. Hosts style from these names, so `index.ts` exports them
+`"grab-bar"` or `"footer"` on the parts `tuning.chrome` fades (the grab handle sits inside the header and fades with it). Hosts style from these names, so `index.ts` exports them
 (`ACTIVE_ATTRIBUTE`, `DRAGGING_ATTRIBUTE`, `CHROME_ATTRIBUTE`, and `CHROME_PARTS` for the part values) and the components write
 their values from the same constants; a test pins them. `data-panel-grab-bar`, `data-panel-footer` and `data-panel-size-box`
 are not a public contract.

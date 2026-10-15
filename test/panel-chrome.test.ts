@@ -64,6 +64,16 @@ function ChromeView({ id }: { id: string }): React.ReactElement {
 }
 registerTestView('chrome-view', ({ panel }) => React.createElement(ChromeView, { id: panel.id }));
 
+function UntitledView({ id }: { id: string }): React.ReactElement {
+  const { panels } = useHost();
+  return React.createElement(DragToClose, {
+    onClose: () => void panels.close(id),
+    children: (handle) =>
+      React.createElement(Panel, { ...({ 'data-panel-root': id } as object), grabProps: { 'data-grab': id, ...handle }, children: React.createElement('button', { type: 'button', 'data-body': id }, id) }),
+  });
+}
+registerTestView('untitled-view', ({ panel }) => React.createElement(UntitledView, { id: panel.id }));
+
 const entries = (count: number) => row(rootEntry(), ...Array.from({ length: count }, (_, k) => made(`c${k + 1}`, {}, { view: 'chrome-view' })));
 const rootOf = (m: MountedRow, id: string): HTMLElement => m.container.querySelector<HTMLElement>(`[data-panel-root="${id}"]`)!;
 const activeIds = (m: MountedRow): string[] => ['c1', 'c2', 'c3'].filter((id) => m.container.querySelector(`[data-body="${id}"]`) !== null && rootOf(m, id).hasAttribute(ACTIVE_ATTRIBUTE));
@@ -218,7 +228,7 @@ const hovered = (id: string, m: MountedRow): void => hover(rootOf(m, id), true);
 const opacityOf = (el: HTMLElement): string => el.style.opacity;
 const reduced = (row: React.ReactElement): React.ReactElement => React.createElement(MotionConfig, { reducedMotion: 'always' }, row);
 
-test("mode 'always' leaves no inline opacity on the header, the grab bar or the footer", async () => {
+test("mode 'always' leaves no inline opacity on the header, the grab handle or the footer", async () => {
   const m = mountRow(entries(2), 3000, {}, reduced);
   await advanceFrames(2000);
   for (const which of ['header', 'grab-bar', 'footer'] as const) assert.equal(opacityOf(part(m, 'c1', which)), '', which);
@@ -226,12 +236,35 @@ test("mode 'always' leaves no inline opacity on the header, the grab bar or the 
 
 const hoverMode = { tuning: { chrome: { mode: 'hover-or-active' as const } } };
 
+test('the grab handle is in the header, so it fades with it and carries no opacity of its own', async () => {
+  const m = mountRow(entries(3), 3000, hoverMode, reduced);
+  await advanceFrames(2000);
+  const grab = part(m, 'c1', 'grab-bar');
+  assert.equal(part(m, 'c1', 'header').contains(grab), true);
+  assert.equal(opacityOf(grab), '');
+  assert.equal(opacityOf(part(m, 'c1', 'header')), '0');
+});
+
+test('a Panel with grabProps and no title still draws the handle, focusable and fading itself, with no header', async () => {
+  const m = mountRow(row(rootEntry(), made('u1', {}, { view: 'untitled-view' })), 3000, hoverMode, reduced);
+  await advanceFrames(2000);
+  const grab = part(m, 'u1', 'grab-bar');
+  assert.ok(grab, 'the handle is drawn');
+  assert.equal(rootOf(m, 'u1').querySelector(`[${CHROME_ATTRIBUTE}="header"]`), null, 'no header element');
+  assert.equal(grab.tabIndex, 0);
+  assert.equal(grab.getAttribute('role'), 'button');
+  assert.equal(grab.getAttribute('aria-label'), 'Move or close u1');
+  assert.equal(opacityOf(grab), '0', 'it fades on its own, there being no header to fade it');
+  hovered('u1', m);
+  assert.equal(opacityOf(grab), '1');
+});
+
 test("mode 'hover-or-active' hides the chrome of a panel nobody is using, and keeps it hit-testable and in the tab order", async () => {
   const m = mountRow(entries(3), 3000, hoverMode, reduced);
   await advanceFrames(2000);
   for (const which of ['header', 'grab-bar', 'footer'] as const) {
     const el = part(m, 'c1', which);
-    assert.equal(opacityOf(el), '0', `${which} is transparent`);
+    if (which !== 'grab-bar') assert.equal(opacityOf(el), '0', `${which} is transparent`);
     assert.equal(el.style.pointerEvents, '', `${which} still takes pointer events`);
     assert.equal(el.hasAttribute('inert'), false, `${which} is not inert`);
     assert.notEqual(el.style.visibility, 'hidden');
@@ -243,7 +276,7 @@ test('hover shows the chrome, leaving hides it, and a pressed panel keeps it', a
   const m = mountRow(entries(3), 3000, hoverMode, reduced);
   await advanceFrames(2000);
   hovered('c1', m);
-  for (const which of ['header', 'grab-bar', 'footer'] as const) assert.equal(opacityOf(part(m, 'c1', which)), '1', `${which} shown on hover`);
+  for (const which of ['header', 'footer'] as const) assert.equal(opacityOf(part(m, 'c1', which)), '1', `${which} shown on hover`);
   assert.equal(opacityOf(part(m, 'c2', 'header')), '0', 'another panel stays hidden');
   press(m.container.querySelector('[data-body="c1"]')!);
   hover(rootOf(m, 'c1'), false);
@@ -381,7 +414,7 @@ test('on a device that cannot hover (hover: none) the chrome is always shown', a
   try {
     const m = mountRow(entries(2), 3000, hoverMode, reduced);
     await advanceFrames(2000);
-    for (const which of ['header', 'grab-bar', 'footer'] as const) assert.equal(opacityOf(part(m, 'c1', which)), '1', which);
+    for (const which of ['header', 'footer'] as const) assert.equal(opacityOf(part(m, 'c1', which)), '1', which);
   } finally {
     Object.defineProperty(window, 'matchMedia', { configurable: true, value: original });
   }
