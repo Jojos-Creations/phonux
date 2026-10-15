@@ -21,7 +21,7 @@ type Refused = Extract<ConfigureResult, { ok: false }>;
 
 const WORKSPACE_ONLY = ['rowGap', 'saveQuietMs', 'gestureLockMs', 'gestureQuietMs', 'resizeSettleSlides', 'returnTieBreak', 'dropTieBreak', 'rowGesture', 'initialScroll', 'maxLivePanels', 'chrome', 'phoneFit', 'phoneFitMin', 'phoneFitMax'];
 const PER_PANEL = ['dragToClose', 'slide', 'hopFraction', 'edgeScroll'];
-const TEMPLATE = ['hostCreatable', 'multiple', 'maxInstances'];
+const TEMPLATE = ['hostCreatable', 'multiple', 'maxInstances', 'hollowDot'];
 
 /** One legal value for every settings key the catalog names, so a sweep can ask each of them. */
 const VALUE: Record<string, unknown> = {
@@ -33,6 +33,7 @@ const VALUE: Record<string, unknown> = {
   resizable: false,
   clearable: false,
   hostCreatable: false,
+  hollowDot: false,
   multiple: false,
   maxInstances: 3,
   listed: false,

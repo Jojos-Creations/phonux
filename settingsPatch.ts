@@ -10,8 +10,8 @@ import type { AnchorRequest, PanelId, PanelSettings } from './panelSettings.js';
 /** A change to one settings layer; `null` deletes that key from the layer. @public */
 export type SettingsPatch = { [K in keyof PanelSettings]?: PanelSettings[K] | null };
 
-/** What `configure(id, ...)` accepts: every key except the three that belong to a template. @public */
-export type InstancePatch = Omit<SettingsPatch, 'hostCreatable' | 'multiple' | 'maxInstances'>;
+/** What `configure(id, ...)` accepts: every key except the four that belong to a template. @public */
+export type InstancePatch = Omit<SettingsPatch, 'hostCreatable' | 'hollowDot' | 'multiple' | 'maxInstances'>;
 
 /** Exactly the keys a view may set on its own panel; any other key is not-view-settable. @public */
 export type ViewPatch = {

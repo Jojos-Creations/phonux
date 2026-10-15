@@ -370,7 +370,7 @@ export function HostProvider(input: {
 }): React_2.JSX.Element;
 
 // @public
-export type InstancePatch = Omit<SettingsPatch, 'hostCreatable' | 'multiple' | 'maxInstances'>;
+export type InstancePatch = Omit<SettingsPatch, 'hostCreatable' | 'hollowDot' | 'multiple' | 'maxInstances'>;
 
 // @public
 export type JsonValue = string | number | boolean | null | readonly JsonValue[] | {
@@ -609,7 +609,7 @@ export type PanelId = string;
 // @public
 export interface PanelManager {
     configure(id: PanelId, patch: InstancePatch): ConfigureResult;
-    configureTemplate(templateId: string, patch: Pick<SettingsPatch, 'hostCreatable' | 'multiple' | 'maxInstances'>): ConfigureResult;
+    configureTemplate(templateId: string, patch: Pick<SettingsPatch, 'hostCreatable' | 'hollowDot' | 'multiple' | 'maxInstances'>): ConfigureResult;
     configureTuning(patch: {
         [K in keyof WorkspaceTuning]?: WorkspaceTuning[K] | null;
     }): ConfigureResult;
