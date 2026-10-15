@@ -1,8 +1,8 @@
 /**
  * The shared phone-shaped card every view renders inside, so every section reads as one
  * silhouette instead of near-identical border/radius/background declarations drifting apart.
- * Fixed size by default; `expanded` is only the tap-to-expand fullscreen overlay. The inset, scrollbar
- * and header-pill rules below are explained in DESIGN.md ("PanelFrame's inset, scrollbar and header pill").
+ * Fixed size by default; `expanded` is only the tap-to-expand fullscreen overlay. The frame's border, size and
+ * header-pill rules are explained in DESIGN.md ("PanelFrame's inset, scrollbar and header pill").
  */
 
 import * as React from 'react';
@@ -44,9 +44,10 @@ export const panelCornerRadiusPx = (theme: Theme): number => PANEL_CORNER_RADIUS
 export const PANEL_HEADER_GAP_PX = 24;
 
 /**
- * Keeps content inset the same from the border on every side, scrollbar or not: `scrollbar-gutter: stable`
- * reserves the bar's strip, so the right padding is pre-shrunk by its width. A nested scroller needs its own
- * copy of the `::-webkit-scrollbar` rules below, which style only the element they are set on.
+ * Opt-in style for a scroller the view owns: content inset the same from the border on every side, with or
+ * without a scrollbar (`scrollbar-gutter: stable` reserves the bar's strip, so the right padding is pre-shrunk
+ * by its width). PanelFrame does not apply it; spread it on the element that scrolls. The `::-webkit-scrollbar`
+ * rules style only the element they are set on, so each scroller needs its own copy.
  * @public
  */
 export const panelFrameScrollSx = {
@@ -69,26 +70,17 @@ export const panelFrameScrollSx = {
 } as const;
 
 /**
- * For a caller doing its own scrolling one level deeper (an embedded web view, a transcript under a
- * pinned input bar): cancels PanelFrame's own padding AND its reserved scrollbar strip, so
- * neither is reserved twice. Every property is a longhand -- MUI resolves `p`/`pr` and
- * `overflow`/`overflowY` independently, so a shorthand spread over a longhand does not reliably win.
+ * No effect. PanelFrame no longer styles its content, so there is nothing to cancel; the export stays so
+ * existing imports keep compiling.
+ * @deprecated Remove the spread. PanelFrame applies no padding or scrollbar to its content.
  * @public
  */
-export const panelFrameBareSx = {
-  pt: 0,
-  pr: 0,
-  pb: 0,
-  pl: 0,
-  overflowX: 'hidden',
-  overflowY: 'hidden',
-  scrollbarGutter: 'auto',
-} as const;
+export const panelFrameBareSx = {} as const;
 
 /**
- * Two nested boxes: the OUTER owns border, radius and size and clips to the rounded corner; the INNER owns
- * the padding and is the scroll container. `panelFrameScrollSx` forces a classic scrollbar, because an
- * overlay one floats over content with an inset no padding can cancel (DESIGN.md).
+ * Two nested boxes: the OUTER owns border, radius and size and clips to the rounded corner; the INNER is a
+ * plain flex column for the view's own content, styled only by the `sx` prop. Padding and scrolling inside
+ * are the view's (DESIGN.md).
  * @public
  */
 const PanelFrame = React.forwardRef<HTMLDivElement, PanelFrameProps>(function PanelFrame(
@@ -127,7 +119,6 @@ const PanelFrame = React.forwardRef<HTMLDivElement, PanelFrameProps>(function Pa
           minHeight: 0,
           display: 'flex',
           flexDirection: 'column',
-          ...panelFrameScrollSx,
           ...sx,
         }}
       >
@@ -170,8 +161,8 @@ export function PanelHeader({ children, sx, ...rest }: PanelHeaderProps) {
         // An inset shadow, not a border (see PanelFrame), so the padding gives the 1 px back.
         boxShadow: (theme: Theme) => glideEdge(theme.palette.divider),
         borderRadius: (theme: Theme) => glideCorner(panelCornerRadiusPx(theme)),
-        // PanelFrame's own content inset plus that 1 px, so a header's text lines up with the frame's content below.
-        px: `${CONTENT_INSET_PX + 1}px`,
+        // 13 = the 1 px edge plus the 12 px inset the frame used to give content, so the header's text keeps its line.
+        px: '13px',
         py: '1px',
         fontSize: 13,
         color: 'common.white',
