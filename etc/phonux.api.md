@@ -57,7 +57,7 @@ export interface CaptureTrigger {
 }
 
 // @public
-export type CatalogName = Exclude<keyof PanelSettings, 'tuning'> | `tuning.${keyof WorkspaceTuning}`;
+export type CatalogName = Exclude<keyof PanelSettings, 'tuning'> | `tuning.${Exclude<keyof WorkspaceTuning, 'shrinkOutOfView'>}`;
 
 // @public
 export const CHROME_ATTRIBUTE = "data-panel-chrome-part";
@@ -143,8 +143,6 @@ export function computeRowNumbers(i: {
     gap: number;
     fixedItemCount?: number;
     wholePanels?: boolean;
-    shrink?: 'off' | 'visible' | 'hidden';
-    atFirst?: number;
 }): RowNumbers;
 
 // @public
@@ -1043,7 +1041,6 @@ export type ResolvedWorkspaceTuning = ResolvedPanelTuning & {
     };
     chrome: ChromeTuning;
     maxLivePanels: number | null;
-    shrinkOutOfView: 'off' | 'visible' | 'hidden';
     phoneFit: 'off' | 'fit';
     phoneFitMin: number;
     phoneFitMax: number;
@@ -1076,11 +1073,7 @@ export interface RowLayoutResult {
 
 // @public
 export interface RowNumbers {
-    atStop: number;
-    drawnOffsets: readonly number[];
-    drawnWidths: readonly number[];
     endPad: number;
-    hideOutside: boolean;
     ids: readonly string[];
     leftOffsets: readonly number[];
     maxLiveWidth: number;
@@ -1088,13 +1081,7 @@ export interface RowNumbers {
     reservedWidths: readonly number[];
     rowMarginLeft: number;
     rowScroll: boolean;
-    showPartial: boolean;
-    stopFirsts: readonly number[];
     stops: readonly number[];
-    stopShrinks: readonly (readonly {
-        index: number;
-        slots: number;
-    }[])[];
     stopSpans: readonly {
         first: number;
         end: number;
