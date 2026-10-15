@@ -16,7 +16,7 @@ import { computeRowLayout } from './panelRowLayout.js';
 import { PANEL_TRANSITION } from './PanelRowSlot.js';
 import { slideToTransition } from './directionalTransition.js';
 import type { SlideTuning, WorkspaceTuning } from './panelSettings.js';
-import { PhoneSizeContext, useRowHeightBudget } from './phoneFit.js';
+import { LandingContext, PhoneSizeContext, useRowHeightBudget } from './phoneFit.js';
 import { RowHeightContext, WorkspaceTuningContext, resolveWorkspaceTuning } from './panelTuning.js';
 import { ChromeStoreContext, createChromeStore, type DrawnPin } from './panelChrome.js';
 import { ROW_GAP, ROW_GESTURE } from './rowConstants.js';
@@ -168,6 +168,11 @@ export function Workspace(props: WorkspaceProps): React.ReactElement {
   const [said, setSaid] = React.useState({ n: 0, text: '' });
   const announce = React.useCallback((text: string) => setSaid((prev) => ({ n: prev.n + 1, text })), []);
   const derived = useResizeSettled(containerWidth, resizeSettleDelayMs(resolved.slide, resolved.resizeSettleSlides), reduced);
+  // Unmeasured until the container has a width: the first measurement is the commit that lands the fitted size.
+  const [landing, setLanding] = React.useState(containerWidth === 0);
+  React.useLayoutEffect(() => {
+    if (landing && containerWidth > 0) setLanding(false);
+  }, [landing, containerWidth]);
   const rowResizeSettled = given ?? derived;
   // A panel being resized by hand holds the row where it is: its strip changes under the pointer, and a settle onto the
   // nearest stop would scroll the row while the person drags. The release settles once.
@@ -272,6 +277,7 @@ export function Workspace(props: WorkspaceProps): React.ReactElement {
   return (
     <AnnounceContext.Provider value={announce}>
     <PhoneSizeContext.Provider value={phoneSize}>
+    <LandingContext.Provider value={landing}>
     <WorkspaceTuningContext.Provider value={resolved}>
       <ChromeStoreContext.Provider value={chromeStore}>
       <RowHeightContext.Provider value={availableHeight}>
@@ -323,6 +329,7 @@ export function Workspace(props: WorkspaceProps): React.ReactElement {
       <OverlaySlot name="toast" />
       </ChromeStoreContext.Provider>
     </WorkspaceTuningContext.Provider>
+    </LandingContext.Provider>
     </PhoneSizeContext.Provider>
     </AnnounceContext.Provider>
   );

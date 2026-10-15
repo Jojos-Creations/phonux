@@ -10,7 +10,7 @@ import Box from '@mui/material/Box';
 import { AutoMountContext } from './autoMountContext.js';
 import { useHost } from './hostApi.js';
 import { resolveLabels } from './labels.js';
-import { usePhoneSize } from './phoneFit.js';
+import { LandingContext, usePhoneSize } from './phoneFit.js';
 import { isPresent, summarisePanel, type NeighborWidths, type PanelRowEntry } from './panelRowEntry.js';
 import { anchorTargetOf, resolveEnterDirection, type EnterDirection } from './panelRowOrder.js';
 import { PanelSlotContext, type DragScroll } from './panelSlotContext.js';
@@ -226,6 +226,9 @@ export function PanelRow({
   // How much wider the override draws the panel than its stored slots do (negative when narrower).
   const growth = drawnPx === undefined ? 0 : drawnPx - baseWidths[drawnIndex]!;
   const tracking = wanted;
+  // A slot's moves snap while the row lands its first measured size, as they do while a width is held.
+  const landing = React.useContext(LandingContext);
+  const slotTracking = tracking || landing;
   const widths = baseWidths.map((width, index) => (index === drawnIndex && drawnPx !== undefined ? drawnPx : width));
   React.useLayoutEffect(() => {
     drawnBeforeRef.current = new Map(present.map((p, index) => [p.id, baseWidths[index]!]));
@@ -331,7 +334,7 @@ export function PanelRow({
                 resizable,
                 maxSlots,
                 id: p.id,
-                tracking,
+                tracking: slotTracking,
                 setDragging: (on) => chrome.setDragging(p.id, on),
                 neighborWidths: neighborWidthsAt(p),
                 drawn: { width: rest.width, height: phoneHeight },
@@ -360,7 +363,7 @@ export function PanelRow({
                 enterDirection={enterDirectionOf(enterFrom, p.anchoredEnter ?? false, enterSideById.get(p.id), enteringViaAnchorIds.has(p.id), () => resolveEnterDirection(anchorIndexOf(p), presentIndex))}
                 exitDirection={closingIds.has(p.id) ? closeExit : exitTo !== 'auto' ? exitTo : exitRightIds.has(p.id) ? 'right' : 'left'}
                 zIndex={dragging?.id === p.id ? ROW_LAYER_Z.DRAGGED : layer === 'raised' ? ROW_LAYER_Z.RAISED : ROW_LAYER_Z.BASE}
-                tracking={tracking}
+                tracking={slotTracking}
                 gap={gap}
                 slide={own.slide}
                 rowScroll={rowScroll}
