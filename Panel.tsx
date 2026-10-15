@@ -160,6 +160,8 @@ export function Panel({ title, actions, headerProps, headerButtons = true, grabP
             </>
           ) : actions}
           {...headerProps}
+          // space-between would float the title to the middle; beside the handle it needs the auto margin, and only there.
+          {...(grabHandle ? { sx: { '& > [data-panel-grab-bar] + *': { mr: 'auto' }, ...headerProps?.sx } } : {})}
           {...(drawn ? { tabIndex: -1, role: 'toolbar', 'aria-orientation': 'horizontal' as const, ...(typeof title === 'string' ? { 'aria-label': title } : {}), [HEADER_ROW_ATTRIBUTE]: declared.handle.id } : {})}
           leading={grabHandle || drawn ? (
             <>

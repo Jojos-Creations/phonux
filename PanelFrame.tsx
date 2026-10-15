@@ -232,8 +232,7 @@ export function PanelHeaderRow({ title, actions, leading, sx, ...rest }: PanelHe
   return (
     <PanelHeader {...rest} sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 1, ...sx }}>
       {leading}
-      {/* With a leading item, space-between would float the title to the middle; the auto margin keeps it beside that item. */}
-      <Box sx={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0, ...(isEmptyHeaderContent(leading) ? {} : { mr: 'auto' }) }}>{resolvedTitle}</Box>
+      <Box sx={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 }}>{resolvedTitle}</Box>
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.25, flexShrink: 0 }}>{resolvedActions}</Box>
     </PanelHeader>
   );

@@ -64,6 +64,16 @@ function ChromeView({ id }: { id: string }): React.ReactElement {
 }
 registerTestView('chrome-view', ({ panel }) => React.createElement(ChromeView, { id: panel.id }));
 
+function UntitledView({ id }: { id: string }): React.ReactElement {
+  const { panels } = useHost();
+  return React.createElement(DragToClose, {
+    onClose: () => void panels.close(id),
+    children: (handle) =>
+      React.createElement(Panel, { ...({ 'data-panel-root': id } as object), grabProps: { 'data-grab': id, ...handle }, children: React.createElement('button', { type: 'button', 'data-body': id }, id) }),
+  });
+}
+registerTestView('untitled-view', ({ panel }) => React.createElement(UntitledView, { id: panel.id }));
+
 const entries = (count: number) => row(rootEntry(), ...Array.from({ length: count }, (_, k) => made(`c${k + 1}`, {}, { view: 'chrome-view' })));
 const rootOf = (m: MountedRow, id: string): HTMLElement => m.container.querySelector<HTMLElement>(`[data-panel-root="${id}"]`)!;
 const activeIds = (m: MountedRow): string[] => ['c1', 'c2', 'c3'].filter((id) => m.container.querySelector(`[data-body="${id}"]`) !== null && rootOf(m, id).hasAttribute(ACTIVE_ATTRIBUTE));
@@ -234,6 +244,20 @@ test('the grab handle is in the header, so it fades with it and carries no opaci
   assert.equal(part(m, 'c1', 'header').contains(grab), true);
   assert.equal(opacityOf(grab), '');
   assert.equal(opacityOf(part(m, 'c1', 'header')), '0');
+});
+
+test('a Panel with grabProps and no title still draws the handle, focusable and fading itself, with no header', async () => {
+  const m = mountRow(row(rootEntry(), made('u1', {}, { view: 'untitled-view' })), 3000, hoverMode, reduced);
+  await advanceFrames(2000);
+  const grab = part(m, 'u1', 'grab-bar');
+  assert.ok(grab, 'the handle is drawn');
+  assert.equal(rootOf(m, 'u1').querySelector(`[${CHROME_ATTRIBUTE}="header"]`), null, 'no header element');
+  assert.equal(grab.tabIndex, 0);
+  assert.equal(grab.getAttribute('role'), 'button');
+  assert.equal(grab.getAttribute('aria-label'), 'Move or close u1');
+  assert.equal(opacityOf(grab), '0', 'it fades on its own, there being no header to fade it');
+  hovered('u1', m);
+  assert.equal(opacityOf(grab), '1');
 });
 
 test("mode 'hover-or-active' hides the chrome of a panel nobody is using, and keeps it hit-testable and in the tab order", async () => {

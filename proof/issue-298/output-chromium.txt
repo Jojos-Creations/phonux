@@ -1,6 +1,0 @@
-PASS one grab handle :: 1
-PASS the handle is inside the header
-PASS the icon is left of the title :: grab right 645.0, title left 653.0
-PASS the icon is within the header's height :: grab 48.0..72.0, header 44.0..76.0
-PASS no bar sits below the header :: grab top 48.0, header bottom 76.0
-PASS still a focusable button named for the panel :: {"role":"button","tab":0,"label":"Move or close one"}
