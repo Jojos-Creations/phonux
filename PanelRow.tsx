@@ -214,7 +214,7 @@ export function PanelRow({
   if (resizingId === null) heldWidthsRef.current = null;
   else if (heldWidthsRef.current === null) heldWidthsRef.current = drawnBeforeRef.current;
   const held = heldWidthsRef.current;
-  const baseWidths = present.map((p) => (held !== null && p.id !== resizingId ? held.get(p.id) : undefined) ?? rowNumbers?.drawnWidths[numberAt(p)] ?? panelWidthOf(p, phoneWidth, maxLiveWidth, gap));
+  const baseWidths = present.map((p) => (held !== null && p.id !== resizingId ? held.get(p.id) : undefined) ?? rowNumbers?.widths[numberAt(p)] ?? panelWidthOf(p, phoneWidth, maxLiveWidth, gap));
   // The width a host draws the resized panel at, held between one slot and the most that fit. It lives here and in the slot
   // context only: the stops, capacity and the live set read the stored slots, so a drag across the whole range parks nothing.
   const drawnNow = React.useSyncExternalStore(chrome.subscribeDrawn, chrome.drawn, () => null);
@@ -236,7 +236,7 @@ export function PanelRow({
   const leftOffsets: number[] = [];
   let runningOffset = 0;
   for (const [index, width] of widths.entries()) {
-    leftOffsets.push((held === null ? rowNumbers?.drawnOffsets[numberAt(present[index]!)] : undefined) ?? runningOffset - pinShift);
+    leftOffsets.push((held === null ? rowNumbers?.leftOffsets[numberAt(present[index]!)] : undefined) ?? runningOffset - pinShift);
     runningOffset += width + gap;
   }
   // A panel is as many slots wide as its width spans, a half slot rounding up.

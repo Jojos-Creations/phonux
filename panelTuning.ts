@@ -39,6 +39,7 @@ export function resolveWorkspaceTuning(tuning: WorkspaceTuning | undefined): Res
     const accepted = given === undefined ? undefined : checkTuningLeaf(leaf, given).accepted;
     out[leaf] = accepted === undefined ? fallback : OBJECT_LEAVES.has(leaf) ? { ...(fallback as object), ...(accepted as object) } : accepted;
   }
+  if (tuning.shrinkOutOfView !== undefined) checkTuningLeaf('shrinkOutOfView', tuning.shrinkOutOfView);
   const resolved = frozenCopy(out) as unknown as ResolvedWorkspaceTuning;
   RESOLVED.add(resolved);
   return resolved;

@@ -249,7 +249,6 @@ test('the library tuning defaults are exactly these numbers, by key name', () =>
     initialScroll: 'start',
     chrome: { mode: 'always', fadeMs: 120, fadeEase: 'easeOut', slideMs: 140, slidePx: 8, graceMs: 250, headerGapPx: 24, grabPillWidthPx: 32, grabPillHeightPx: 4, headerInsetPx: 13, footerPadXPx: 12, footerPadYPx: 8 },
     maxLivePanels: null,
-    shrinkOutOfView: 'off',
     phoneFit: 'off',
     phoneFitMin: 0.82,
     phoneFitMax: 1.13,

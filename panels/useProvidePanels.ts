@@ -11,7 +11,7 @@ import { useReducedMotionConfig } from 'motion/react';
 import type { CreatePanelOptions, JsonValue, PanelsAPI } from '../hostApi.js';
 import { effectiveMaxPanels, rowFitCount } from '../panelCapacity.js';
 import { minWorkspaceWidth } from '../minWorkspaceWidth.js';
-import { computeRowNumbers, maxScrollOf, nearestStop, nearestStopIndex, snapToStop, snapToStopIndex, stopIndexOfFirst, type RowNumbers } from '../rowNumbers.js';
+import { computeRowNumbers, maxScrollOf, nearestStop, snapToStop, type RowNumbers } from '../rowNumbers.js';
 import { resolveLabels, type PhonuxLabels } from '../labels.js';
 import { rowScrollerFor } from '../rowScroller.js';
 import { gestureTarget, scrollTargetFor } from '../scrollTargets.js';
@@ -250,9 +250,6 @@ export interface ProvidedPanels extends PanelsAPI {
   readonly enterSideById: ReadonlyMap<string, 'left' | 'right'>;
 }
 
-/** The stop a stepping row is on, as the `stopFirsts` number that names it. */
-type RowPosition = { first: number };
-
 /**
  * Builds the `PanelsAPI` an app hands its views. The provider owns the panel list, seeded once from `initialEntries`.
  * Call it with this render's inputs and never memoise the result: its handlers close over this render's list.
@@ -278,58 +275,9 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
   const templateList = (): PanelTemplate[] => [...core.templates()];
   const fixedViewCount = i.fixedViewCount ?? panels.filter((p) => !p.collapsible && p.marker !== true).length;
   // Filters over the whole list, never an array position: a panel anchored left of History changes none of these.
-  // The stop the row is on, as a logical position: where the scroll is heading, never read back mid-glide, because two stops
-  // can share a scroll position and differ in the panels they draw smaller.
-  const [position, setPosition] = useState<RowPosition>({ first: 0 });
-  const positionRef = useRef(position);
-  positionRef.current = position;
-  const rowInput = { entries: panels, phoneWidth: i.phoneWidth, containerWidth: i.containerWidth, gap: tuning.rowGap, fixedItemCount: fixedViewCount, wholePanels: tuning.rowGesture === 'step', shrink: tuning.shrinkOutOfView };
-  const rowNumbers = computeRowNumbers({ ...rowInput, atFirst: position.first });
-  const numbersRef = useRef(rowNumbers);
-  numbersRef.current = rowNumbers;
-  const followStops = tuning.shrinkOutOfView === 'visible';
-  // A glide that lands a stop moves with the slots on the slide's ease; a pure scroll keeps the scroll ease.
-  const glideEase = followStops ? tuning.slide.ease : tuning.slide.glideEase;
-  const layoutRef = useRef('');
+  const rowInput = { entries: panels, phoneWidth: i.phoneWidth, containerWidth: i.containerWidth, gap: tuning.rowGap, fixedItemCount: fixedViewCount, wholePanels: tuning.rowGesture === 'step' };
+  const rowNumbers = computeRowNumbers(rowInput);
   const restedRef = useRef(false);
-  // Moves the logical position in the same event as the glide that goes there.
-  const land = (to: RowPosition): void => {
-    if (to.first === positionRef.current.first) return;
-    positionRef.current = to;
-    setPosition(to);
-  };
-  useLayoutEffect(() => {
-    const el = i.overflowContainerRef.current;
-    if (!followStops || el === null) {
-      land({ first: 0 });
-      return undefined;
-    }
-    const scroller = rowScrollerFor(el);
-    // A scroll nobody here steered (the API, a History click, a free-scroll settle, an edge-scroll drag) moves the position
-    // to the stop it lands on. A new layout (a resize, a cap change, a panel opened or closed) only remaps the stop.
-    const sync = (): void => {
-      if (scroller.claimHeld()) return;
-      const n = numbersRef.current;
-      if (n.stops.length === 0) {
-        land({ first: 0 });
-        return;
-      }
-      const heading = scroller.glideTarget() ?? scroller.scrollLeft();
-      const layout = `${n.windowWidth}|${n.ids.join(',')}|${n.widths.join(',')}`;
-      const fresh = layoutRef.current !== layout;
-      layoutRef.current = layout;
-      const first = n.stopFirsts[nearestStopIndex(n, heading)]!;
-      if (fresh) {
-        land({ first });
-        return;
-      }
-      if (Math.abs(heading - n.stops[stopIndexOfFirst(n.stopFirsts, positionRef.current.first)]!) < 1 || first === positionRef.current.first) return;
-      land({ first });
-    };
-    sync();
-    el.addEventListener('scroll', sync, { passive: true });
-    return () => el.removeEventListener('scroll', sync);
-  });
   const { maxLiveWidth } = rowNumbers;
   const fitCount = rowFitCount({ containerWidth: i.containerWidth, phoneWidth: i.phoneWidth, gap: tuning.rowGap, fixedColumnCount: fixedViewCount, liveWidths: [] });
   const maxFitPanels = fitCount === null ? null : effectiveMaxPanels(fitCount, fixedViewCount);
@@ -382,16 +330,7 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
   };
   const requestOpen = (id: string, over: Partial<Pick<ScrollRequest, 'align' | 'forced' | 'fresh'>> = {}): boolean => requestScroll({ id, kind: 'open', align: null, forced: false, fresh: false, ...over });
 
-  /**
-   * The stop that shows panel `k` whole nearest `raw`. The position it lands on comes back with it so the glide and the
-   * size change of the panels the stop draws smaller are one move.
-   */
-  const snapped = (k: number, raw: number): { to: number; landing: RowPosition | null } => {
-    const to = snapToStop(rowNumbers, k, raw);
-    if (!followStops || rowNumbers.stops.length === 0) return { to, landing: null };
-    const stop = snapToStopIndex(rowNumbers, k, raw, stopIndexOfFirst(rowNumbers.stopFirsts, positionRef.current.first));
-    return { to, landing: stop < 0 ? null : { first: rowNumbers.stopFirsts[stop]! } };
-  };
+  const snapped = (k: number, raw: number): number => snapToStop(rowNumbers, k, raw);
   /** Where the container would scroll to put panel `id` at `align`, or null when the row is not laid out for it. */
   const scrollTargetOf = (id: string, align: ScrollAlign): number | null => {
     const el = i.overflowContainerRef.current;
@@ -406,7 +345,7 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
       gap: tuning.rowGap,
       align,
     });
-    return snapped(k, raw).to;
+    return snapped(k, raw);
   };
   /** Whether a scroll to `align` would move the container: false when it is already there or the row has nothing to scroll. */
   const wouldScroll = (id: string, align: ScrollAlign): boolean => {
@@ -475,22 +414,12 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
       if (isPresent(p)) liveBefore += 1;
       else if (p.marker !== true) hidden.push({ id: p.id, liveBefore, held: heldIds.has(p.id), policy: effective(p).revealOnScroll });
     }
-    const stepping = followStops && rowNumbers.stops.length > 0;
-    if (stepping) {
-      // Two stops can share a scroll position and differ in what they draw, so the neighbouring stop is taken by place in the list, not by position.
-      const want = stopIndexOfFirst(rowNumbers.stopFirsts, positionRef.current.first) + (direction === 'right' ? 1 : -1);
-      if (want >= 0 && want < rowNumbers.stops.length) {
-        land({ first: rowNumbers.stopFirsts[want]! });
-        scroller.glideTo(rowNumbers.stops[want]!, { durationSec: tuning.slide.durationSec, instant: reducedMotion, ease: glideEase });
-        return;
-      }
-    }
     const step = gestureTarget({
       direction,
       base: scroller.glideTarget() ?? scroller.scrollLeft(),
       clientWidth: windowOf(el),
       // The strip is padded so every stop is reachable, which puts the browser's end past the last stop.
-      maxScroll: stepping ? Math.min(maxScroll, rowNumbers.stops[rowNumbers.stops.length - 1]!) : maxScroll,
+      maxScroll,
       liveStarts: rowNumbers.leftOffsets.map((offset) => rowNumbers.rowMarginLeft + offset),
       liveWidths: rowNumbers.widths,
       stops: rowNumbers.stops,
@@ -633,9 +562,7 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
       const k = rowNumbers.ids.indexOf(where === 'root' ? rootId : engineIdOf(where.panel));
       if (k >= 0) {
         const left = tuning.rowGap + rowNumbers.rowMarginLeft + rowNumbers.leftOffsets[k]!;
-        const landed = snapped(k, scrollTargetFor({ left, width: rowNumbers.widths[k]!, scrollLeft: 0, clientWidth: windowOf(el), maxScroll, gap: tuning.rowGap, align: 'start' }));
-        to = landed.to;
-        if (landed.landing !== null) land(landed.landing);
+        to = snapped(k, scrollTargetFor({ left, width: rowNumbers.widths[k]!, scrollLeft: 0, clientWidth: windowOf(el), maxScroll, gap: tuning.rowGap, align: 'start' }));
       }
     }
     if (to !== 0) scroller.glideTo(to, { durationSec: 0, instant: true, ease: tuning.slide.glideEase });
@@ -668,7 +595,7 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
     if (request.kind === 'open') align = request.align ?? (settings.scrollOnOpen !== 'none' ? settings.scrollOnOpen : request.forced ? 'into-view' : null);
     if (align === null) return;
     const scroller = rowScrollerFor(el);
-    const landed = snapped(
+    const to = snapped(
       k,
       scrollTargetFor({
         left: tuning.rowGap + rowNumbers.rowMarginLeft + rowNumbers.leftOffsets[k]!,
@@ -680,11 +607,8 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
         align,
       }),
     );
-    const to = landed.to;
-    // Two stops can share the position the row is at, so the stop it is on can be the wrong one with nothing to scroll.
-    if (landed.landing !== null && !scroller.claimHeld()) land(landed.landing);
     if (Math.abs(to - scroller.scrollLeft()) < 0.5) return;
-    if (!scroller.glideTo(to, { durationSec: tuning.slide.durationSec, instant: reducedMotion, ease: glideEase })) {
+    if (!scroller.glideTo(to, { durationSec: tuning.slide.durationSec, instant: reducedMotion, ease: tuning.slide.glideEase })) {
       scrollNote('scroll-dropped-during-drag', request.id, `A scroll to panel ${request.id} was dropped: a drag holds the row.`);
     }
   });

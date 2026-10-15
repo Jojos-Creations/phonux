@@ -20,7 +20,7 @@ import { PhoneSizeContext, useRowHeightBudget } from './phoneFit.js';
 import { RowHeightContext, WorkspaceTuningContext, resolveWorkspaceTuning } from './panelTuning.js';
 import { ChromeStoreContext, createChromeStore, type DrawnPin } from './panelChrome.js';
 import { ROW_GAP, ROW_GESTURE } from './rowConstants.js';
-import { fadeAt, nearestStop, scrollHoldingEdge, snapToStop, type RowNumbers } from './rowNumbers.js';
+import { nearestStop, scrollHoldingEdge, snapToStop, type RowNumbers } from './rowNumbers.js';
 import { rowScrollerFor } from './rowScroller.js';
 import { OverlaySlot } from './windowOverlay.js';
 
@@ -205,7 +205,7 @@ export function Workspace(props: WorkspaceProps): React.ReactElement {
         if (claim === null || n === undefined || n.stops.length === 0) return;
         const held = pin === null || edges === null ? scroller.scrollLeft() : scrollHoldingEdge(n, n.ids.indexOf(resizingId), pin, edges[pin], scroller.scrollLeft());
         const to = nearestStop(n, held);
-        if (Math.abs(to - scroller.scrollLeft()) >= 0.5) scroller.glideTo(to, { durationSec: resolved.slide.durationSec, instant: reduced, ease: resolved.shrinkOutOfView === 'visible' ? resolved.slide.ease : resolved.slide.glideEase });
+        if (Math.abs(to - scroller.scrollLeft()) >= 0.5) scroller.glideTo(to, { durationSec: resolved.slide.durationSec, instant: reduced, ease: resolved.slide.glideEase });
       };
       if (width(numbersRef.current) !== width(began) || pin === null) return run();
       const pending = { run, grown: () => width(numbersRef.current) !== width(began) };
@@ -231,25 +231,20 @@ export function Workspace(props: WorkspaceProps): React.ReactElement {
     scroller.stop();
     scroller.glideTo(0, { durationSec: 0, instant: true, ease: resolved.slide.glideEase });
   }, [scrolls, overflowContainerRef]);
-  // `filter`, not `opacity`: the slot's own opacity belongs to its enter and exit animation. Written straight to the
-  // element on every scroll event, since a state update per frame of a glide would re-render the whole row.
+  // Reach is written straight to the slots on every scroll event, since a state update per frame of a glide would re-render the whole row.
   React.useLayoutEffect(() => {
     const container = overflowContainerRef.current;
     const strip = rowRef.current;
     if (container === null || strip === null || rowNumbers === undefined) return;
     const apply = (): void => {
       if (rowScrollerFor(container).claimHeld()) return;
-      const opacities = fadeAt(rowNumbers, container.scrollLeft);
       const view = container.getBoundingClientRect();
       for (const slot of strip.querySelectorAll<HTMLElement>('[data-row-slot]')) {
-        const k = rowNumbers.ids.indexOf(slot.dataset.rowId ?? '');
-        const opacity = k < 0 ? 1 : opacities[k]!;
-        // Showing partial keeps every panel opaque, so only one the window does not reach at all is out of reach of Tab.
+        // A stepping row cuts the neighbour of a stop at the window edge, so only a panel the window does not reach at all is out of reach of Tab.
         const rect = slot.getBoundingClientRect();
-        const away = rowNumbers.showPartial ? rect.right <= view.left || rect.left >= view.right : opacity <= 0;
-        slot.style.filter = opacity >= 1 ? '' : `opacity(${opacity})`;
+        const away = rowNumbers.stops.length > 0 && (rect.right <= view.left || rect.left >= view.right);
         slot.style.pointerEvents = away ? 'none' : '';
-        // Inert too: Tab or find-in-page would otherwise scroll the row off its stop to reveal a faded panel.
+        // Inert too: Tab or find-in-page would otherwise scroll the row off its stop to reveal a panel the window does not reach.
         slot.toggleAttribute('inert', away);
       }
     };
@@ -258,7 +253,7 @@ export function Workspace(props: WorkspaceProps): React.ReactElement {
     // A click or focus in the cut-off neighbour makes the browser scroll it into view off a stop; the row settles back onto one.
     const onFocus = (event: FocusEvent): void => {
       const n = rowNumbers;
-      if (!n.showPartial) return;
+      if (n.stops.length === 0) return;
       const id = (event.target as Element | null)?.closest<HTMLElement>('[data-row-slot]')?.dataset.rowId;
       const k = n.ids.indexOf(id ?? '');
       requestAnimationFrame(() => {
