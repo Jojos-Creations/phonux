@@ -572,6 +572,7 @@ export type SettingValues = {
     resizable: boolean;
     clearable: boolean;
     hostCreatable: boolean;
+    hollowDot: boolean;
     multiple: boolean;
     maxInstances: number | 'unlimited';
     listed: boolean;

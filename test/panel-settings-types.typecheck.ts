@@ -43,6 +43,7 @@ export const SETTING_KEYS: Record<keyof SettingValues, true> = {
   maxSlots: true,
   clearable: true,
   hostCreatable: true,
+  hollowDot: true,
   multiple: true,
   maxInstances: true,
   listed: true,

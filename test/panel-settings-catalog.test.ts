@@ -1,5 +1,5 @@
 /**
- * The catalog as data: the 50 names, who owns each, its class and doors, the exact defaults, the leaf-module rule, the
+ * The catalog as data: the 51 names, who owns each, its class and doors, the exact defaults, the leaf-module rule, the
  * differential recorder, and the table in DESIGN.md that must equal the descriptors row for row.
  */
 
@@ -36,6 +36,7 @@ const NAME_TABLE: Record<CatalogName, true> = {
   'tuning.phoneFitMax': true,
   clearable: true,
   hostCreatable: true,
+  hollowDot: true,
   multiple: true,
   maxInstances: true,
   listed: true,
@@ -86,7 +87,7 @@ const OWNER_TABLE: ReadonlyArray<readonly [string, readonly CatalogName[]]> = [
   ['phonux-row-numbers-and-overflow', ['overflow']],
   ['phonux-row-scroll-gesture-and-requests', ['revealOnScroll', 'scrollOnOpen', 'scrollOnMove', 'tuning.rowGesture', 'tuning.initialScroll']],
   ['phonux-edge-scroll-while-dragging', ['tuning.edgeScroll']],
-  ['phonux-saved-overrides-and-template-paths', ['restoreVisibility', 'hostCreatable', 'multiple', 'maxInstances']],
+  ['phonux-saved-overrides-and-template-paths', ['restoreVisibility', 'hostCreatable', 'hollowDot', 'multiple', 'maxInstances']],
   ['phonux-workspace-attach-and-snapshot', ['afterClose']],
   ['phonux-panel-handle-operations', ['toggleWhenClosed', 'showWhenClosed']],
   ['phonux-pin-and-reset', ['pinning', 'pinningWhenNotLive']],
@@ -122,7 +123,7 @@ const SCROLL_DEFAULTS = {
   tuning: { edgeScroll: { zonePx: 48, maxPxPerSec: 900, reducedStepMs: 500 }, initialScroll: 'start' },
 } as const;
 
-const TEMPLATE_KEYS: readonly CatalogName[] = ['hostCreatable', 'multiple', 'maxInstances'];
+const TEMPLATE_KEYS: readonly CatalogName[] = ['hostCreatable', 'hollowDot', 'multiple', 'maxInstances'];
 const WORKSPACE_ONLY_KEYS: readonly CatalogName[] = ['tuning.rowGap', 'tuning.saveQuietMs', 'tuning.gestureLockMs', 'tuning.gestureQuietMs', 'tuning.resizeSettleSlides', 'tuning.returnTieBreak', 'tuning.dropTieBreak', 'tuning.rowGesture', 'tuning.initialScroll', 'tuning.maxLivePanels', 'tuning.chrome', 'tuning.phoneFit', 'tuning.phoneFitMin', 'tuning.phoneFitMax'];
 const PER_PANEL_TUNING: readonly CatalogName[] = ['tuning.dragToClose', 'tuning.slide', 'tuning.hopFraction', 'tuning.edgeScroll'];
 const expectedDoors = (name: CatalogName): readonly string[] => {
@@ -170,7 +171,7 @@ function parseDocRows(doc: string): DocRow[] {
 function docDriftProblems(doc: string): string[] {
   const problems: string[] = [];
   const rows = parseDocRows(doc);
-  if (rows.length !== 50) problems.push(`the table has ${rows.length} rows, not 50`);
+  if (rows.length !== 51) problems.push(`the table has ${rows.length} rows, not 51`);
   const byName = new Map(rows.map((r) => [r.name, r]));
   if (byName.size !== rows.length) problems.push('a name appears in two rows');
   for (const d of PANEL_SETTINGS_CATALOG) {
@@ -193,12 +194,12 @@ const DOC = read('DESIGN.md');
 // Completeness
 // ---------------------------------------------------------------------------
 
-test('catalog: the name set is non-empty and has 50 names, one descriptor each, in no repeated order slot', () => {
+test('catalog: the name set is non-empty and has 51 names, one descriptor each, in no repeated order slot', () => {
   assert.ok(NAMES.length > 0);
-  assert.equal(NAMES.length, 50, "the design's count is 50: a changed count must change the design");
-  assert.equal(PANEL_SETTINGS_CATALOG.length, 50);
+  assert.equal(NAMES.length, 51, "the design's count is 51: a changed count must change the design");
+  assert.equal(PANEL_SETTINGS_CATALOG.length, 51);
   assert.deepEqual([...PANEL_SETTINGS_CATALOG.map((d) => d.name)].sort(), [...NAMES].sort());
-  assert.equal(new Set(PANEL_SETTINGS_CATALOG.map((d) => d.name)).size, 50);
+  assert.equal(new Set(PANEL_SETTINGS_CATALOG.map((d) => d.name)).size, 51);
 });
 
 test('catalog: the name set equals the keys of the two defaults objects plus the derived keys and the rows of the DESIGN.md table', () => {
@@ -209,7 +210,7 @@ test('catalog: the name set equals the keys of the two defaults objects plus the
   ]);
   assert.deepEqual([...fromDefaults].sort(), [...NAMES].sort());
   assert.deepEqual(parseDocRows(DOC).map((r) => r.name).sort(), [...NAMES].sort());
-  assert.equal(fromDefaults.size, 50);
+  assert.equal(fromDefaults.size, 51);
 });
 
 test('catalog: PANEL_SETTINGS_CATALOG is frozen all the way down', () => {
@@ -219,11 +220,11 @@ test('catalog: PANEL_SETTINGS_CATALOG is frozen all the way down', () => {
   }
 });
 
-test('catalog: OWNER_ENTRY assigns each of the 50 names to exactly one of 16 ids', () => {
+test('catalog: OWNER_ENTRY assigns each of the 51 names to exactly one of 16 ids', () => {
   assert.deepEqual(ownerTableProblems(OWNER_TABLE), []);
-  assert.equal(OWNER_OF.size, 50);
+  assert.equal(OWNER_OF.size, 51);
   assert.equal(new Set(OWNER_OF.values()).size, 15);
-  assert.deepEqual(OWNER_TABLE.map(([, names]) => names.length), [9, 8, 4, 6, 1, 5, 1, 4, 1, 2, 2, 1, 1, 2, 3]);
+  assert.deepEqual(OWNER_TABLE.map(([, names]) => names.length), [9, 8, 4, 6, 1, 5, 1, 5, 1, 2, 2, 1, 1, 2, 3]);
 });
 
 test('catalog: a scratch owner table with one name moved to a second id, or dropped, fails', () => {
@@ -234,12 +235,12 @@ test('catalog: a scratch owner table with one name moved to a second id, or drop
   assert.deepEqual(ownerTableProblems(OWNER_TABLE), [], 'control: the real table has no problem, so the two probes above could have passed');
 });
 
-test('catalog: the classes are NOW 17, NEXT 28, STATE 2 and SCOPE 3, and STATE and SCOPE name the expected keys', () => {
+test('catalog: the classes are NOW 17, NEXT 28, STATE 2 and SCOPE 4, and STATE and SCOPE name the expected keys', () => {
   const by = (cls: string) => PANEL_SETTINGS_CATALOG.filter((d) => d.configure.cls === cls).map((d) => d.name);
   assert.equal(by('NOW').length, 17);
   assert.equal(by('NEXT').length, 28);
   assert.deepEqual(by('STATE').sort(), ['maxSlots', 'parkable']);
-  assert.deepEqual(by('SCOPE').sort(), ['hostCreatable', 'maxInstances', 'multiple']);
+  assert.deepEqual(by('SCOPE').sort(), ['hollowDot', 'hostCreatable', 'maxInstances', 'multiple']);
 });
 
 test('catalog: the doors are template for 3 names, tuning for 15, instance and tuning for 4 and instance for the other 29', () => {
@@ -276,9 +277,9 @@ for (const name of NAMES) {
 // Docs drift
 // ---------------------------------------------------------------------------
 
-test('docs drift: DESIGN.md has exactly 50 rows between the markers and every name, values, default and class word matches', () => {
+test('docs drift: DESIGN.md has exactly 51 rows between the markers and every name, values, default and class word matches', () => {
   assert.deepEqual(docDriftProblems(DOC), []);
-  assert.equal(parseDocRows(DOC).length, 50);
+  assert.equal(parseDocRows(DOC).length, 51);
 });
 
 test('docs drift: editing one default in a scratch copy of the doc is caught', () => {
@@ -295,9 +296,9 @@ test('docs drift: changing one class word in a scratch copy of the doc is caught
 
 test('docs drift: a scratch copy with a row dropped, or a row added, fails the count', () => {
   const dropped = DOC.replace(/\| `afterClose` \|[^\n]*\n/, '');
-  assert.ok(docDriftProblems(dropped).some((p) => p.includes('49 rows')));
+  assert.ok(docDriftProblems(dropped).some((p) => p.includes('50 rows')));
   const added = DOC.replace('<!-- catalog:end -->', '| `extra` | x | y | NOW. z |\n<!-- catalog:end -->');
-  assert.ok(docDriftProblems(added).some((p) => p.includes('51 rows')));
+  assert.ok(docDriftProblems(added).some((p) => p.includes('52 rows')));
 });
 
 // ---------------------------------------------------------------------------
@@ -357,6 +358,7 @@ const RESOLVED_DEFAULTS: { [K in Exclude<keyof ResolvedPanelSettings, 'title'>]:
   maxSlots: 64,
   clearable: true,
   hostCreatable: true,
+  hollowDot: false,
   multiple: false,
   maxInstances: 'unlimited',
   listed: true,
@@ -393,7 +395,7 @@ test('defaults: resolving no layers gives every key of ResolvedPanelSettings its
   assert.equal('title' in value, false, 'title has no default and is absent');
   assert.deepEqual(conflicts, []);
   assert.deepEqual(notes, []);
-  assert.equal(Object.keys(RESOLVED_DEFAULTS).length, 32);
+  assert.equal(Object.keys(RESOLVED_DEFAULTS).length, 33);
   for (const [key, layer] of Object.entries(source)) assert.equal(layer, (DERIVED_KEYS as readonly string[]).includes(key) ? 'derived' : 'library', `source of ${key}`);
 });
 
@@ -501,7 +503,7 @@ test('doors: every name of each key class is admitted by exactly the calls its c
       checked += 1;
     }
   }
-  assert.equal(checked, 50 * 3);
+  assert.equal(checked, 51 * 3);
 });
 
 // ---------------------------------------------------------------------------

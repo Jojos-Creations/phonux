@@ -72,6 +72,8 @@
 
 ### Added
 
+- `usePanelDots(...)` (`usePanelDots.ts`) is the headless state of a dot bar for a row: one dot per drawn panel, its width following the panel's width, the odd one hollow, the window oval, `selectDot(id)` to centre a panel, and `startOvalDrag()` to drag the oval. The app draws and places it; the library writes the row only through its scroll writer, and Reduce Motion snaps a click. The panel setting `hollowDot` (template scope, default false) draws that panel's dot hollow.
+
 - `tuning.chrome` takes six pixel settings for the chrome drawn around a panel: `headerGapPx` (the header pill's gap above the frame, also the grab bar's height), `grabPillWidthPx` and `grabPillHeightPx`, `headerInsetPx` (the header text's inset), and `footerPadXPx` and `footerPadYPx`. Their defaults are the values the library drew before, so nothing moves until a workspace sets one.
 
 - `PhonuxLabels.pinFailed` and `unpinFailed`: the text a host announces when a pin or unpin request is refused. Defaults `Could not pin this panel` and `Could not unpin this panel`.

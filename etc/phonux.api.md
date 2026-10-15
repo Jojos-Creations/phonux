@@ -472,6 +472,25 @@ export type PanelApiLevel = 1;
 export const panelCornerRadiusPx: (theme: Theme) => number;
 
 // @public
+export interface PanelDots {
+    readonly dots: readonly {
+        readonly id: string;
+        readonly left: number;
+        readonly width: number;
+        readonly hollow: boolean;
+    }[];
+    readonly oval: {
+        readonly left: number;
+        readonly width: number;
+    };
+    selectDot(id: string): void;
+    startOvalDrag(): {
+        drag(dx: number): void;
+        end(): void;
+    } | null;
+}
+
+// @public
 export function PanelFooter(): React_2.ReactElement | null;
 
 // @public
@@ -1170,6 +1189,7 @@ export type SettingValues = {
     resizable: boolean;
     clearable: boolean;
     hostCreatable: boolean;
+    hollowDot: boolean;
     multiple: boolean;
     maxInstances: number | 'unlimited';
     listed: boolean;
@@ -1233,6 +1253,20 @@ export const usePanelCapabilities: () => Pick<ResolvedPanelSettings, "closable" 
 
 // @public
 export const usePanelCloseEligible: () => boolean;
+
+// @public
+export function usePanelDots(i: {
+    rowNumbers: RowNumbers;
+    entries: readonly {
+        readonly id: string;
+        readonly settings?: {
+            readonly hollowDot: boolean;
+        };
+    }[];
+    trackWidth: number;
+    minDotPx: number;
+    scroller: React_2.RefObject<HTMLElement | null>;
+}): PanelDots;
 
 // @public
 export function usePanelDragging(): boolean;
