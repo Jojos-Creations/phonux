@@ -35,7 +35,6 @@ import {
   ROW_GAP,
   ROW_GESTURE,
   SAVE_QUIET_MS,
-  SHRINK_OUT_OF_VIEW,
   PHONE_FIT,
   PHONE_FIT_MIN,
   PHONE_FIT_MAX,
@@ -376,9 +375,9 @@ export type WorkspaceTuning = PanelTuning & {
    */
   maxLivePanels?: number | null;
   /**
-   * What happens to the neighbour a stepping row would show cut off by the window edge: 'off' leaves every panel at its
-   * size, 'visible' draws it smaller by whole slots so it fits the slots the shown panels leave free, 'hidden' keeps
-   * the room as margin and never draws that neighbour, not even part way through a glide.
+   * Removed: a stepping row always leaves every panel at its size and the window edge cuts the neighbour of a stop. 'off'
+   * is accepted; 'visible' and 'hidden' log one console warning each and act as 'off'.
+   * @deprecated Has no effect; remove it. The next release refuses 'visible' and 'hidden'.
    */
   shrinkOutOfView?: 'off' | 'visible' | 'hidden';
   /**
@@ -428,7 +427,6 @@ export type ResolvedWorkspaceTuning = ResolvedPanelTuning & {
   chrome: ChromeTuning;
   /** The most unpinned parkable panels the row keeps live, or `null` for no cap. */
   maxLivePanels: number | null;
-  shrinkOutOfView: 'off' | 'visible' | 'hidden';
   /** Whether the default mount fits the phone size to the window: 'off' or 'fit'. */
   phoneFit: 'off' | 'fit';
   /** The smallest scale of the preferred phone size the fit gives. */
@@ -490,7 +488,7 @@ export type SettingConflict = {
 };
 
 /** Every catalog name: a setting key, `headerButtons` as one name, and a dotted name per tuning leaf. @public */
-export type CatalogName = Exclude<keyof PanelSettings, 'tuning'> | `tuning.${keyof WorkspaceTuning}`;
+export type CatalogName = Exclude<keyof PanelSettings, 'tuning'> | `tuning.${Exclude<keyof WorkspaceTuning, 'shrinkOutOfView'>}`;
 
 /** The class word that opens a descriptor's on_configure rule. @public */
 export type SettingClass = 'NOW' | 'NEXT' | 'STATE' | 'SCOPE';
@@ -1141,17 +1139,6 @@ const CATALOG_ROWS: readonly SettingDescriptor[] = [
     configure: { cls: 'NOW', doors: ['tuning'] },
   },
   {
-    name: 'tuning.shrinkOutOfView',
-    group: 'tuning',
-    values: 'off, visible, hidden (workspace only)',
-    default: 'off (SHRINK_OUT_OF_VIEW)',
-    scope: 'workspace',
-    viewSettable: false,
-    exists: 'new',
-    ownerEntry: 'phonux-shrink-whole-panels-v1',
-    configure: { cls: 'NOW', doors: ['tuning'] },
-  },
-  {
     name: 'tuning.phoneFit',
     group: 'tuning',
     values: 'off, fit (workspace only)',
@@ -1277,7 +1264,6 @@ export const LIBRARY_TUNING_DEFAULTS: ResolvedWorkspaceTuning = freezeClone({
   initialScroll: INITIAL_SCROLL as ResolvedWorkspaceTuning['initialScroll'],
   chrome: { ...CHROME },
   maxLivePanels: null,
-  shrinkOutOfView: SHRINK_OUT_OF_VIEW as ResolvedWorkspaceTuning['shrinkOutOfView'],
   phoneFit: PHONE_FIT as ResolvedWorkspaceTuning['phoneFit'],
   phoneFitMin: PHONE_FIT_MIN,
   phoneFitMax: PHONE_FIT_MAX,
@@ -1480,6 +1466,10 @@ export const FIXED: FixedBehaviour = Object.freeze({
   snapshot: 'both',
 });
 
+function reportRemovedValue(key: string, value: string): void {
+  reportOnce(`removed:${key}:${value}`, `phonux: the ${key} value '${value}' was removed`, () => ["it is ignored and the setting behaves as if it were 'off'", 'the next rc refuses it with invalid-settings']);
+}
+
 function reportRemovedKey(layer: string, key: string): void {
   reportOnce(`removed:${key}`, `phonux: the ${layer} setting '${key}' was removed`, () => [`it is ignored and the panel behaves as if it were ${JSON.stringify(FIXED[key as keyof typeof FIXED])}`, 'the next rc refuses it with invalid-settings']);
 }
@@ -1598,6 +1588,10 @@ export function checkTuningLeaf(leaf: TuningLeaf, value: unknown): { accepted: u
   const base = `tuning.${leaf}`;
   if (!isObjectLeaf(leaf)) {
     const problem = TUNING_SCALAR_CHECKS[leaf](value);
+    if (problem === undefined && leaf === 'shrinkOutOfView' && value !== 'off') {
+      reportRemovedValue(base, value as string);
+      return { accepted: 'off', problems: [] };
+    }
     return problem === undefined ? { accepted: value, problems: [] } : { accepted: undefined, problems: [{ key: base, problem }] };
   }
   if (!isPlain(value)) return { accepted: undefined, problems: [{ key: base, problem: 'expected an object' }] };
@@ -1690,7 +1684,7 @@ function checkTuning(layer: AskLayer, raw: unknown, accepted: Accepted, env: Env
     }
     const checked = checkTuningLeaf(leaf, value);
     for (const { key, problem } of checked.problems) reject(layer, key, problem, lenientLayer, env.notes);
-    if (checked.accepted === undefined) continue;
+    if (checked.accepted === undefined || leaf === 'shrinkOutOfView') continue;
     const name = `tuning.${leaf}`;
     if (WORKSPACE_ONLY_TUNING.has(leaf)) {
       if (layer === 'template') throw new PanelManagerError('invalid-settings', `${layer}.${name}: a workspace-only tuning key; set it on WorkspaceOptions.tuning`, { layer, key: name });

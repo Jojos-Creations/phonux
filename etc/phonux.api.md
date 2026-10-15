@@ -57,7 +57,7 @@ export interface CaptureTrigger {
 }
 
 // @public
-export type CatalogName = Exclude<keyof PanelSettings, 'tuning'> | `tuning.${keyof WorkspaceTuning}`;
+export type CatalogName = Exclude<keyof PanelSettings, 'tuning'> | `tuning.${Exclude<keyof WorkspaceTuning, 'shrinkOutOfView'>}`;
 
 // @public
 export const CHROME_ATTRIBUTE = "data-panel-chrome-part";
@@ -67,7 +67,6 @@ export const CHROME_PARTS: {
     readonly header: "header";
     readonly grabBar: "grab-bar";
     readonly footer: "footer";
-    readonly resize: "resize";
 };
 
 // @public
@@ -144,8 +143,6 @@ export function computeRowNumbers(i: {
     gap: number;
     fixedItemCount?: number;
     wholePanels?: boolean;
-    shrink?: 'off' | 'visible' | 'hidden';
-    atFirst?: number;
 }): RowNumbers;
 
 // @public
@@ -660,9 +657,6 @@ export type PanelReadHandle = {
 export type PanelRefusal = 'disposed' | 'not-attached' | 'not-ready' | 'is-pending' | 'is-closed' | 'not-live' | 'busy' | 'not-closable' | 'not-parkable' | 'not-draggable' | 'not-placeable' | 'not-resizable' | 'slots-above-max' | 'would-empty-row' | 'instance-limit' | 'unknown-panel' | 'wrong-scope' | 'would-reshape-row' | 'settings-conflict' | 'not-view-settable';
 
 // @public
-export function PanelResizeGrips(): React_2.ReactElement | null;
-
-// @public
 export type PanelResult = {
     readonly ok: true;
     readonly changed: boolean;
@@ -941,8 +935,6 @@ export interface PhonuxLabels {
     pickedUp: (title: string) => string;
     pin: string;
     pinFailed: string;
-    resizeGrip: (side: 'left' | 'right') => string;
-    resizeGripValue: (slots: number, most: number) => string;
     row: string;
     unlock: string;
     unpin: string;
@@ -1049,7 +1041,6 @@ export type ResolvedWorkspaceTuning = ResolvedPanelTuning & {
     };
     chrome: ChromeTuning;
     maxLivePanels: number | null;
-    shrinkOutOfView: 'off' | 'visible' | 'hidden';
     phoneFit: 'off' | 'fit';
     phoneFitMin: number;
     phoneFitMax: number;
@@ -1082,11 +1073,7 @@ export interface RowLayoutResult {
 
 // @public
 export interface RowNumbers {
-    atStop: number;
-    drawnOffsets: readonly number[];
-    drawnWidths: readonly number[];
     endPad: number;
-    hideOutside: boolean;
     ids: readonly string[];
     leftOffsets: readonly number[];
     maxLiveWidth: number;
@@ -1094,13 +1081,7 @@ export interface RowNumbers {
     reservedWidths: readonly number[];
     rowMarginLeft: number;
     rowScroll: boolean;
-    showPartial: boolean;
-    stopFirsts: readonly number[];
     stops: readonly number[];
-    stopShrinks: readonly (readonly {
-        index: number;
-        slots: number;
-    }[])[];
     stopSpans: readonly {
         first: number;
         end: number;

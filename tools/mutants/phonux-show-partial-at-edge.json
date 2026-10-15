@@ -1,40 +1,26 @@
 {
-  "tests": ["test/show-partial-at-edge.test.ts", "test/whole-panels.test.ts", "test/shrink-whole-panels.test.ts"],
+  "tests": [
+    "test/show-partial-at-edge.test.ts",
+    "test/whole-panels.test.ts"
+  ],
   "mutants": [
-    {
-      "name": "Off fades the rest out again",
-      "file": "rowNumbers.ts",
-      "find": "if (last < 0 || n.showPartial) return",
-      "replace": "if (last < 0) return",
-      "expectRed": ["Off draws every panel opaque", "fadeAt with 'off' shows partial"]
-    },
-    {
-      "name": "Hide counted as show partial",
-      "file": "rowNumbers.ts",
-      "find": "showPartial: (i.shrink ?? 'off') === 'off' && whole !== null",
-      "replace": "showPartial: i.shrink !== 'visible' && whole !== null",
-      "expectRed": ["fadeAt with 'off' shows partial", "mid-step with Hide"]
-    },
-    {
-      "name": "inert stays tied to opacity",
-      "file": "Workspace.tsx",
-      "find": "const away = rowNumbers.showPartial ? rect.right <= view.left || rect.left >= view.right : opacity <= 0;",
-      "replace": "const away = opacity <= 0;",
-      "expectRed": ["golden at the first stop"]
-    },
-    {
-      "name": "inert never set while showing partial",
-      "file": "Workspace.tsx",
-      "find": "rect.right <= view.left || rect.left >= view.right",
-      "replace": "false",
-      "expectRed": ["golden at the first stop"]
-    },
     {
       "name": "focus does not settle",
       "file": "Workspace.tsx",
-      "find": "if (!n.showPartial) return;",
+      "find": "if (n.stops.length === 0) return;",
       "replace": "return;",
-      "expectRed": ["focusing the cut-off neighbour"]
+      "expectRed": [
+        "focusing the cut-off neighbour"
+      ]
+    },
+    {
+      "name": "inert never set while the window cuts a stop",
+      "file": "Workspace.tsx",
+      "find": "rect.right <= view.left || rect.left >= view.right",
+      "replace": "false",
+      "expectRed": [
+        "golden at the first stop"
+      ]
     }
   ]
 }

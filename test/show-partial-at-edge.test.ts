@@ -1,5 +1,5 @@
 /**
- * Off shows the neighbour of a stop cut by the window edge at its own size (phone 390, gap 16, container 1000: window 968,
+ * A stepping row shows the neighbour of a stop cut by the window edge at its own size (phone 390, gap 16, container 1000: window 968,
  * two panels fit). jsdom has no layout, so each element's rectangle is set from the row's own numbers.
  */
 import { test, afterEach, mock } from 'node:test';
@@ -14,9 +14,8 @@ afterEach(() => {
   cleanup();
 });
 
-type Mode = 'off' | 'visible' | 'hidden';
-const mounted = (mode: Mode) => {
-  const m = mountRow(panelsOf(5), 1000, { tuning: { rowGesture: 'step', shrinkOutOfView: mode } });
+const mounted = () => {
+  const m = mountRow(panelsOf(5), 1000, { tuning: { rowGesture: 'step' } });
   const slots = (): HTMLElement[] => [...m.container.querySelectorAll<HTMLElement>('[data-row-slot]')];
   const rect = (left: number, width: number): DOMRect => ({ left, right: left + width, top: 0, bottom: 700, width, height: 700, x: left, y: 0, toJSON: () => ({}) });
   m.container.getBoundingClientRect = () => rect(0, 1000);
@@ -31,19 +30,28 @@ const mounted = (mode: Mode) => {
   return { m, slots, layout, filters: () => slots().map((el) => el.style.filter), inert: () => slots().map((el) => el.hasAttribute('inert')) };
 };
 
-test('golden at the first stop: Off draws every panel opaque, Hide fades the rest out, Shrink is its own stepping row', () => {
-  const off = mounted('off');
+test('golden at the first stop: every panel is opaque, the cut-off neighbour is reachable and panels the window never reaches are not', () => {
+  const off = mounted();
   assert.deepEqual(off.filters(), ['', '', '', '', '', '']);
-  assert.deepEqual(off.inert(), [false, false, false, true, true, true], 'the cut-off neighbour is reachable, panels the window never reaches are not');
-  const hidden = mounted('hidden');
-  assert.deepEqual(hidden.filters(), ['', '', 'opacity(0)', 'opacity(0)', 'opacity(0)', 'opacity(0)']);
-  assert.deepEqual(hidden.inert(), [false, false, true, true, true, true]);
-  const visible = mounted('visible');
-  assert.equal(visible.m.latest().rowNumbers.showPartial, false);
+  assert.deepEqual(off.inert(), [false, false, false, true, true, true]);
+});
+
+test('a drag that holds the row leaves reach alone, and it catches up after the release', () => {
+  const t = mounted();
+  const before = t.inert();
+  const claim = t.m.scroller.claim();
+  assert.ok(claim, 'the scroller gave its claim');
+  claim.setMaxScroll(1624);
+  claim.write(406);
+  t.layout();
+  assert.deepEqual(t.inert(), before, 'positive control: the row moved, reach did not');
+  claim.release();
+  t.layout();
+  assert.deepEqual(t.inert(), [false, false, false, false, true, true]);
 });
 
 test('Off: a step moves one stop and the panel just past the window stays drawn in full width', async () => {
-  const t = mounted('off');
+  const t = mounted();
   mock.timers.enable({ apis: ['setTimeout'] });
   t.m.wheel({ deltaX: 50 });
   await advanceFrames(600);
@@ -55,7 +63,7 @@ test('Off: a step moves one stop and the panel just past the window stays drawn 
 });
 
 test('Off: focusing the cut-off neighbour makes the browser scroll, and the row settles back onto a stop', async () => {
-  const t = mounted('off');
+  const t = mounted();
   mock.timers.enable({ apis: ['setTimeout'] });
   t.m.container.scrollLeft = 150;
   const inside = document.createElement('button');
