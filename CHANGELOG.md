@@ -4,6 +4,7 @@
 
 ### Breaking
 
+- `PanelFrame` no longer styles the content it holds: the 12px inset, the scrollbar gutter and the `::-webkit-scrollbar` rules are gone, so the view owns its padding and scrolling. **Migration:** a view that scrolls and wants the standard inset spreads `panelFrameScrollSx` on its own scroller, with the scrollbar rules it already has. `panelFrameBareSx` is an empty deprecated object; delete the spread. `panelFrameScrollSx`, `panelFrameBareSx`, `PANEL_CORNER_RADIUS_UNITS` and `panelCornerRadiusPx` stay exported.
 - Nineteen per-panel settings are removed from `PanelSettings`, `ResolvedPanelSettings`, `ViewPatch`, `InstancePatch`, `SettingsPatch`, `LIBRARY_PANEL_DEFAULTS` and `PANEL_SETTINGS_CATALOG`, so the 1.0 freeze covers only settings a panel author can use: `hideWhenLast`, `returnPriority`, `evictionRank`, `evictionOrder`, `scrollOnDrag`, `viewState`, `keepMounted`, `frame`, `placeOnReturn`, `placeFallback`, `undoPlacement`, `exitTo`, `closeExit`, `animated`, `persist`, `rememberLayout`, `undoWindowMs`, `reportClose` and `snapshot`. Every panel behaves as each did at its default (DESIGN.md, "Settings this version removed"). **Migration:** delete the key from the template. A template that still sets one is told once in development (`console.error`, naming the key) and the value is ignored; the next rc refuses it with `invalid-settings`. A saved file that holds one in a panel's instance layer still loads: the key is dropped with an `invalid-saved-setting` note. Coupling rules C3 and C6 went with their settings; `SettingConflict.rule` is `'C1' | 'C2' | 'C4' | 'C5'`, and the `park-lever-inert` note covers only `capacityReturn`.
 - `usePanelHidden` is removed: a parked view always unmounts, so a view is never mounted and hidden. **Migration:** delete the call.
 - `resolvePanelSettings`, `mergePatch`, `PanelSettingsLayers` and `ResolveOptions` are no longer exported from the package; no 0.1.0 name was among them.
@@ -29,6 +30,7 @@
 
 - A leftward drag no longer flicks the panel it replaces to the window edge. The drop moved that panel's DOM node, which reset what it hosts; no panel node moves in a reorder now.
 - After a reorder, Tab and Shift+Tab walk the panels in the order they are drawn, not the order they opened, also out of an iframe that ends or starts a panel.
+- A panel present at mount no longer slides from the preferred phone size to the fitted one when the container is first measured: the measuring commit snaps its moves and its size box.
 - The drag-to-close box and its release, close and edge scroll honour MotionConfig `reducedMotion: "always"` as well as the system's Reduce Motion query. `never` does not turn off the system query.
 - A step from a panel as wide as the window now slides it to show its right part beside the next whole panel, instead of jumping to the next panel and dropping the wide one.
 - A closed panel's `useViewState` is kept for the undo window again. The row held the state by the row's own id while `recentlyClosed` carries the key, so a panel with a key unlike its row id came back from Undo with empty state; both sides now use the key.
@@ -40,6 +42,7 @@
 
 ### Changed
 
+- Shrink and Hide modes are removed and Off is the only edge mode: `tuning.shrinkOutOfView` values `'visible'` and `'hidden'` warn once each and act as `'off'` (the next rc refuses them), and the setting is kept only for the warning. It leaves `PANEL_SETTINGS_CATALOG` and `ResolvedWorkspaceTuning`; `RowNumbers` loses `stopShrinks`, `stopFirsts`, `drawnWidths`, `drawnOffsets`, `hideOutside`, `atStop` and `showPartial`, and `computeRowNumbers` its `shrink` and `atFirst` inputs.
 - The undocumented `window.__panelsApiForTests`, which the panels hook set in a test build, is gone. A test that needs the row uses `renderWorkspace` from
   `phonux/testing/row`; a host's own tests expose the API they need themselves.
 - Names and keys for assistive technology. The row is a `region` named `labels.row` ("Panels") and each panel a `group` named with its title and

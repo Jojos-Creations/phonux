@@ -367,59 +367,38 @@ empty box (so the element has no `height: 0`). A non-empty element is counted by
 The strip's margin snaps instead of gliding while stops exist, or `scrollWidth` would lag `maxScrollOf`. A strip that fits
 the window keeps its centring and has no stops; `free` and `off` rows have none either, so their margin is 0 on overflow.
 
-Padding does not clip scrolled content, so a neighbour of the shown set would peek `m_i` px at each edge. Panels outside
-the stop's set are therefore hidden by a fade (`fadeAt`): the slot's CSS `filter` (never `opacity`, which its enter and exit
-own) goes from one stop's set to the next as the row travels, and a slot at `opacity(0)` is also `inert` and takes no
-pointer events, so Tab and find-in-page cannot scroll the row off a stop. Workspace writes it on scroll events and on every
-render. Steps, `scrollTo`, the initial scroll, a drag released after edge scrolling and the settle after a change of
+Padding does not clip scrolled content, so a neighbour of the shown set peeks `m_i` px at each edge, cut by the window
+edge and drawn at its own size: nothing fades or shrinks. A slot the window does not reach at all is `inert` and takes no
+pointer events, so Tab and find-in-page cannot scroll the row off a stop; Workspace writes that on scroll events and on every
+render. A click or focus in the cut-off neighbour makes the browser scroll, and the row then settles onto the nearest stop that
+shows that panel. Steps, `scrollTo`, the initial scroll, a drag released after edge scrolling and the settle after a change of
 stops (a resize, a pin, a close, a reorder) all land on a stop; `scrollTo` with `align` `'start'` or `'center'` lands on
 the nearest stop that shows the panel, not at that alignment.
 
-#### Whole panels only: `tuning.shrinkOutOfView`
+#### Whole panels only
 
-Panels are whole slots, so the window holds a whole number of slots `u = floor((window + gap) / (phone + gap))`. With `'off'`
-(the default) a stop's panels are the greedy run of whole panels and the window edge cuts the neighbour in the margin, drawn at its own
-size: nothing fades or shrinks, and a panel is inert only when the window does not reach it at all. A click or focus in the cut-off
-neighbour makes the browser scroll, and the row then settles onto the nearest stop that shows that panel. `'hidden'` has the same
-stops but fades the neighbour out, and between two stops a panel is whole or hidden and never part way. Neither resizes anything.
+Panels are whole slots, so the window holds a whole number of slots `u = floor((window + gap) / (phone + gap))`. A stop's panels are
+the greedy run of whole panels, and the window edge cuts the neighbour in the margin, drawn at its own size. There is no other mode:
+the Shrink (`'visible'`) and Hide (`'hidden'`) values of `tuning.shrinkOutOfView` are removed, and a row never resizes a panel to fit
+the window.
 
-A panel as wide as the window shows alone, and the next stop would start at the panel after it, dropping the wide one at the first step. So whenever a panel follows it, a stop is added after it that slides the panel left. The slide leaves the window ending at the edge of the whole panels that fit beside its right part (at least a phone's width of it stays); when no whole panel fits there, it slides one slot (phone width plus gap), so the panel keeps all but one slot of the window and the next panel's first slot comes in as the cut or hidden neighbour. The step after that starts at the next panel.
+A panel as wide as the window shows alone, and the next stop would start at the panel after it, dropping the wide one at the first step. So whenever a panel follows it, a stop is added after it that slides the panel left. The slide leaves the window ending at the edge of the whole panels that fit beside its right part (at least a phone's width of it stays); when no whole panel fits there, it slides one slot (phone width plus gap), so the panel keeps all but one slot of the window and the next panel's first slot comes in as the cut neighbour. The step after that starts at the next panel.
 
-With `'visible'` the row moves one slot at a time. The strip is a run of slot units: a panel that can be drawn smaller is as many
-units as its width holds slots, an entry that cannot (no `slots`, or a width that is no whole number of slots) is one unit as wide
-as itself. A stop is a window of consecutive units, greedy by width, and a step moves its start by one unit, forward and back, so
-there is no lean and the last stop is the first window that reaches the end. The first and last panel a window meets are drawn at
-the units of them it holds (`drawnSlots`; `slots` is never written), so a panel steps through every size on the way in (1, 2, ...
-its own) and on the way out (its own, ... 2, 1) before it leaves, with none skipped. A window that starts inside the first panel
-holds it at fewer slots, so a 4-slot panel in [1, 4, 1, 2] at four slots goes 3, 4, 3, 2, 1. An indivisible entry makes its step a
-jump: the window passes over it whole. Groups and units come from the chosen, fit-capped widths, never from drawn ones, so the stops
-do not depend on where the row is.
+`tuning.shrinkOutOfView` stays on `WorkspaceTuning` only so a settings file or an app that still names it is told. `'off'` is
+accepted without a word; `'visible'` and `'hidden'` log one `console.error` each (in development, through the same helper as the
+removed per-panel settings), name the value as removed, and act as `'off'`. The next rc refuses them with `invalid-settings`. The key
+is no longer in `PANEL_SETTINGS_CATALOG` or `ResolvedWorkspaceTuning`, and `configureTuning` reports no change for it.
 
-Two stops that start in the same panel share a scroll position and differ only in the drawn widths, so a stop is named by its number
-(`stopFirsts[k]` is `k`), which is also the row's position, kept through a resize, a cap change and a panel opening or closing
-(clamped into the new list) and never saved; the scroll position is never used to name it, and when a scroll nobody steered lands on a position
-two stops share, the stop the row is on wins, else the earliest, which draws the first panel largest. `rowMarginLeft` is one
-constant, the least that puts every stop at a position >= 0 (a full window has the margin `(window - slotWidth(u)) / 2`); a stop's
-position is the natural left of the panel it starts in less its margin, so stepping inside the first panel moves no scroll.
-`endPad` is the farthest position's need plus the largest shortfall of the strips drawn on the stops, so the strip drawn on any stop reaches the position of every stop and the browser never clamps the scroll on a step; a first stop that is not 0 is where the row opens.
-
-A step sets the stop number in the same event as the glide, so the panels that change size, move or leave are one move; under
-Reduce Motion that is a single frame. The panels' x and the size boxes inside them animate on the slide's duration and ease, and the scroll
-glide of a step that lands a stop uses them too, because the panels that stay on the screen must move on one curve (the default
-`glideEase` differs from `slide.ease`; a pure scroll keeps `glideEase`). A slot's x animation starts in the same commit phase as the
-layout animation of its size box (`slotDriver.startPending`), or a neighbour trails a shrinking box by a frame and a gap opens. Landing on a panel (`scrollTo`, a History click, a create, a pin, a close) takes the nearest
-stop that draws it at its full width, and the stop number goes with it; a stop that draws it smaller does not count. A scroll nobody
-steered (a free-scroll settle, an edge-scroll drag) moves the stop number to the stop it lands on. Capacity (the cap, fit pricing, refill) reads
+Capacity (the cap, fit pricing, refill) reads
 chosen widths only, so a step never parks or returns a panel. `usePanelResizing()` marks a panel being resized by hand, and also
 marks it dragging; while it is marked every other panel keeps the width it had been drawn at, the row holds its scroll (a step is
-ignored and no settle runs), and the release settles onto the nearest stop once. The edge fade follows the logical stop, not the
-scroll position, since two stops can share one, and finds each slot by its panel id.
+ignored and no settle runs), and the release settles onto the nearest stop once.
 
 `setDrawnWidth(px, pin?)`, the third item of `usePanelResizing()`, draws the marked panel at a width a host holds, so a grabber can
 make it follow a pointer while `slots` stays the person's choice. The width reaches the row through the chrome store and the
 PanelRow that draws it, and nowhere else: `PanelRow` replaces the panel's drawn width, the running offsets of the panels after it,
 its height and its size box; `rowNumbers`, the stop list, the chosen widths, capacity and the live set never read it, so a drag across
-the whole range parks nothing and the hold above (other panels, scroll, fade stop) is unchanged. It is held between one slot and the
+the whole range parks nothing and the hold above (other panels, scroll) is unchanged. It is held between one slot and the
 fewest of `maxSlots` and the slots that fit, and a value that is not a finite non-negative number is ignored. While one is set every slot
 moves and every size box resizes in no time (`tracking` in the slot context), the centring margin is the one the numbers give, which
 is unchanged for the whole drag, and calls within one animation frame draw once with the last value. The height is the slots the width
@@ -440,8 +419,7 @@ for `'start'`, one rule for both. With no width drawn, or a panel that is not in
 before. The target needs numbers that carry the new slot count: when `setSlots` comes before the mark ends, as in the order above, they
 already do; when it comes in a later commit the settle waits for the commit in which the panel's width changes, and runs on the next
 frame at the latest if none does. The edge comes to rest on a stop, so it is held exactly only where a stop is at that scroll; otherwise it
-rests within half the gap between the two stops around it. Under 'visible' a pinned edge that was beyond the window (the panel was cut off) is not held: a stop that draws the widened panel smaller does not count, so the row lands on the nearest stop that draws it whole. A row whose panels all fit has no stops and nothing scrolls. Under 'visible', the stop number the fade
-and the steps use is the stop the row rests on.
+rests within half the gap between the two stops around it. A row whose panels all fit has no stops and nothing scrolls.
 
 ### Scrolling to a panel
 
@@ -1247,13 +1225,14 @@ Every view renders inside `PanelFrame` so each section reads as one phone silhou
 own border/radius/background declarations would drift from the others. The frame is the phone's size unless
 `size` or `expanded` says otherwise: a slot never grows to fill space.
 
-**Equal inset with or without a scrollbar.** Content sits `CONTENT_INSET_PX` (12px) from the border on all
-four sides whether or not a scrollbar is painted, with nothing measured at runtime: `scrollbar-gutter:
-stable` reserves the bar's strip permanently and the right padding is pre-shrunk by that strip
-(`SCROLLBAR_PX`, 8px), so the right side is (12 - 8) + 8 = 12px in both states, the bar flush against the
-border.
+**The view owns its content.** `PanelFrame` applies no padding, scrollbar or scroll behaviour to what it holds.
+Its inner box is a plain flex column styled only by its `sx` prop. A view that scrolls and wants the phone's
+standard inset spreads `panelFrameScrollSx` on its scroller: content sits 12px from the border on all four
+sides, with or without a bar, because `scrollbar-gutter: stable` reserves the strip and the right padding is
+pre-shrunk by it (`SCROLLBAR_PX`, 8px). Nothing is measured at runtime. The phone's look is the frame's border,
+radius and size; the inside is the developer's.
 
-**Why a classic scrollbar.** The default here in WebKit and Blink engines is an overlay scrollbar: it floats over content,
+**Why a classic scrollbar (for a view that opts in).** The default here in WebKit and Blink engines is an overlay scrollbar: it floats over content,
 reserves no layout width (`offsetWidth === clientWidth` on a scroller with real overflowing content) and
 draws with its own built-in inset from the scroller's edge, which no padding or box-model change on this
 side can remove. Splitting the frame into an outer box (border, radius, size, `overflow: hidden` clipping, no
@@ -1263,11 +1242,8 @@ its own. The explicit `::-webkit-scrollbar` rules force a classic scrollbar, whi
 own scrollbar. Those rules style only the element they are set on, so a nested scroller needs its own copy
 or it falls back to the engine's default-width bar and breaks the arithmetic above.
 
-**Never reserved twice.** A caller that scrolls one level deeper (an embedded document, a transcript under a pinned
-input bar) spreads `panelFrameBareSx`, which cancels both the padding and the gutter. Keeping either leaves a
-phantom gap outside the inner scrollbar and an uneven inset (28px on the right against 12px on the left).
-Its properties are longhands because MUI resolves `p`/`pr` and `overflow`/`overflowY` independently, so a
-shorthand spread over a longhand does not reliably win.
+**No reserved twice.** Because the frame adds no padding or gutter, there is nothing for a nested scroller to
+cancel. `panelFrameBareSx` is a deprecated empty object kept so existing imports compile.
 
 **border-box.** Row-layout width math treats `device.size` as the frame's real rendered size. Under
 content-box the border and padding land on top of it: a 390px phone rendered 416px wide by
@@ -1277,8 +1253,8 @@ content-box the border and padding land on top of it: a 390px phone rendered 416
 in one look: Paper `variant="outlined"`'s bgcolor and border, shaped as a pill; a radius
 equal to the phone's own corner radius and a height of twice it, so each end is an exact semicircle with the
 phone's curvature, both from the theme rather than a raw 24/48; and a fixed height, so wrapping content never
-changes the shape. Its horizontal padding equals the frame's content inset so header text lines up with the
-frame's own content. Internal layout is left to callers (`sx`), since one centers an ellipsis title and
+changes the shape. Its horizontal padding is 13px (the 1px edge plus the 12px inset the frame used to give content), so header
+text keeps the line it had before the frame stopped styling its content. Internal layout is left to callers (`sx`), since one centers an ellipsis title and
 another spaces out an icon row. `PanelHeaderRow` is the shared title-left/actions-right layout, so call sites
 stop re-implementing flex/ellipsis markup, and it substitutes placeholders for a falsy `title`/`actions` (a
 dimmed "Untitled", a dimmed "more" glyph) so the pill never blanks or changes shape. Its emptiness check
@@ -1524,7 +1500,7 @@ the same call shows the panel or is refused), and `invalid-saved-setting` for ea
 The `doors` of a descriptor name the configure call that accepts the key: `instance` (`configure(id)`), `template`
 (`configureTemplate`: `hostCreatable`, `multiple`, `maxInstances`) and `tuning` (`configureTuning`). These tuning
 leaves are workspace-only (`rowGap`, `saveQuietMs`, `gestureLockMs`, `gestureQuietMs`, `resizeSettleSlides`, `returnTieBreak`, `dropTieBreak`, `rowGesture`,
-`initialScroll`, `maxLivePanels`, `chrome`, `shrinkOutOfView`, `phoneFit`, `phoneFitMin`, `phoneFitMax`); these are per panel and also workspace-wide (`dragToClose`, `slide`, `hopFraction`, `edgeScroll`).
+`initialScroll`, `maxLivePanels`, `chrome`, `phoneFit`, `phoneFitMin`, `phoneFitMax`); these are per panel and also workspace-wide (`dragToClose`, `slide`, `hopFraction`, `edgeScroll`).
 A workspace-only leaf at the template layer throws, at the instance or host layer it is a `wrong-scope` conflict, and
 any tuning key in the workspace defaults throws. A view's own door, the host layer, accepts only `title`, `listed`,
 `layer`, `slots`, `closable: false`, `placeOnAdd: { anchor }` and `enterFrom: 'anchor'`. A view can lock its own panel at any time and
@@ -1647,7 +1623,6 @@ flip with a transition rule of its own) or SCOPE (a template-scope key).
 | `tuning.initialScroll` | start, end, root, { panel: PanelId } (workspace only; a design-derived key from Q15, not requested) | start (the library default, a design default the owner did not rule on; phonux-app sets 'end', owner Q20: the newest closable panels in view at launch) | NEXT (configureTuning only). Read at the next mount; nothing scrolls now. Session-only. |
 | `tuning.chrome` | object: mode 'always' or 'hover-or-active', fadeMs integer [0, 10000], fadeEase ('easeIn', 'easeOut', 'easeInOut', 'linear' or four numbers, x1 and x2 in [0,1]), slideMs integer [0, 10000], slidePx integer [0, 200], graceMs integer [0, 10000] (workspace only) | always, 120, easeOut, 140, 8, 250 (CHROME) | NOW (configureTuning only). A member patch keeps the other members. The chrome shows or hides at this commit; a fade in progress retargets. The library reads `mode`, `fadeMs` and `fadeEase` (`easeOut` is the curve Motion applies to a fade given only a duration, measured in Chromium); `slideMs`, `slidePx` and `graceMs` are for the host's own icon row. Session-only. |
 | `tuning.maxLivePanels` | integer >= 1, or null for no cap (workspace only) | null (no cap) | NOW (configureTuning only). A lower value parks the excess unpinned panels at this commit through the reconcile effect; a higher one or null returns the most recently parked, under `capacityReturn` auto as under manual (manual returns only the panels the capacity parked, never one the host hid), up to the new value, in one commit. Unmeasured: applies. Outside integers of 1 or more throws; null removes the cap. Session-only. |
-| `tuning.shrinkOutOfView` | off, visible, hidden (workspace only) | off (SHRINK_OUT_OF_VIEW) | NOW (configureTuning only). In a stepping row, what happens to the neighbour a stop's whole panels would leave cut off by the window edge (off shows it cut, at full size); see "Whole panels only". Other values throw. |
 | `tuning.phoneFit` | off, fit (workspace only) | off (PHONE_FIT) | NOW (configureTuning only). Whether the default mount fits the phone size to the window; see "Phone fit". Other values throw. |
 | `tuning.phoneFitMin` | number above 0 and up to 1 (workspace only) | 0.82 (PHONE_FIT_MIN) | NOW (configureTuning only). The smallest scale of the preferred phone size the fit gives; see "Phone fit". Other values throw. |
 | `tuning.phoneFitMax` | number from 1 to 4 (workspace only) | 1.13 (PHONE_FIT_MAX) | NOW (configureTuning only). The largest scale of the preferred phone size the fit gives; see "Phone fit". Other values throw. |
@@ -1749,7 +1724,7 @@ a hand-built `Host` give the same view result; `settingsColumn` is `settings.set
 minus what the mount measures (`phoneWidth`, `containerWidth`, `overflowContainerRef`) and what the workspace supplies (`workspace`,
 `rootId`, `storage`, `templates`, `declared`, `workspaceDefaults`, `tuning`, `initialEntries`) and `labels`, which is its own
 option, so there is no member list to keep in step with the hook. `topInset` is an option (the `Workspace` top padding), not a
-tuning leaf: the catalog holds 19 tuning leaves, counted from `PANEL_SETTINGS_CATALOG`, and a test pins the number.
+tuning leaf: the catalog holds 18 tuning leaves, counted from `PANEL_SETTINGS_CATALOG`, and a test pins the number.
 
 **`wrap`.** A component, `ComponentType<{ children, workspace }>`, rendered inside `HostProvider` and around `Workspace`. A
 `CaptureRegistryProvider` and the app's own contexts go in it (the theme goes in the `theme` option), a hook in it may call `useHost()` and `workspace.update`, and
@@ -2029,7 +2004,7 @@ Level N means panel code written for phonux N.x. `PANEL_API` equals the package'
 | The slot context hooks a view calls (`usePanelPinned`, `usePanelTuning` and the rest) and `useViewState`, snapshots | Workspace tuning options and the theme |
 | Header button items, the chrome attribute and part names | The saved workspace format, which has its own `version` |
 | The template's own `settings` keys and `params` | Peer dependency ranges (React, MUI) |
-| `useHost().panels` (`PanelsAPI`): the verbs a view calls and the summaries they return | The workspace-only tuning options (`rowGap`, `saveQuietMs`, `gestureLockMs`, `gestureQuietMs`, `resizeSettleSlides`, `returnTieBreak`, `dropTieBreak`, `rowGesture`, `initialScroll`, `maxLivePanels`, `chrome`, `shrinkOutOfView`, `phoneFit`, `phoneFitMin`, `phoneFitMax`): a host sets them on the workspace, and a view only reads what `usePanelTuning` returns |
+| `useHost().panels` (`PanelsAPI`): the verbs a view calls and the summaries they return | The workspace-only tuning options (`rowGap`, `saveQuietMs`, `gestureLockMs`, `gestureQuietMs`, `resizeSettleSlides`, `returnTieBreak`, `dropTieBreak`, `rowGesture`, `initialScroll`, `maxLivePanels`, `chrome`, `phoneFit`, `phoneFitMin`, `phoneFitMax`): a host sets them on the workspace, and a view only reads what `usePanelTuning` returns |
 | The frame components a view renders and their props: `PanelFrame`, `PanelHeader`, `PanelHeaderRow`, `PanelFooter`, `DragToClose`, `PanelSizeBox`, `WindowOverlay` | |
 | The view hooks: `usePanelStates`, `usePanelState`, `useWorkspace`, `useWorkspaceManager`, `useActivePanel`, `usePhoneSize` | |
 
