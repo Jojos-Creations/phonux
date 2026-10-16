@@ -26,7 +26,7 @@ export interface PanelFrameProps extends Omit<BoxProps, 'children'> {
   expanded?: boolean;
   /** This panel's own size instead of the shared phone size (`usePhoneSize()`). Omitted: inside a row the width and height are the slot's drawn size, else the phone size's, read live -- see DESIGN.md. `height: 'fill'` renders as `100%` rather than a pixel value. */
   size?: PanelSize;
-  /** `false` keeps the footer the panel's template declares out of this frame, for a view that draws `PanelFooter` itself. Default: drawn below the content. */
+  /** `false` keeps the footer the panel's template declares out of this frame, for a view that draws `PanelFooter` itself. Default: drawn floating below the frame. */
   footer?: boolean;
 }
 
@@ -89,7 +89,7 @@ const PanelFrame = React.forwardRef<HTMLDivElement, PanelFrameProps>(function Pa
   const drawn = React.useContext(PanelSlotContext)?.drawn;
   const width = size?.width ?? drawn?.width ?? phone.width;
   const height = size?.height === 'fill' ? '100%' : (size?.height ?? drawn?.height ?? phone.height);
-  return (
+  const frame = (
     <Box
       ref={ref}
       data-phone-frame=""
@@ -121,9 +121,15 @@ const PanelFrame = React.forwardRef<HTMLDivElement, PanelFrameProps>(function Pa
       >
         {children}
       </Box>
-      {footer && <PanelFooter />}
     </Box>
   );
+  // The footer is a sibling of the frame, not its child, so the frame's overflow clip cannot cut it off.
+  return footer ? (
+    <>
+      {frame}
+      <PanelFooter />
+    </>
+  ) : frame;
 });
 
 /** The props of `PanelHeader`: every `Box` prop except `children`. @public */
