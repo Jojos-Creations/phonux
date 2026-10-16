@@ -1,7 +1,8 @@
 /**
- * Centring on the one-phone grid. A row of N visible phones is a window of 406N - 16; a first panel of k slots centres at
- * scroll stop s when its left edge (rowMarginLeft + offset - s) is (window - width) / 2 = 203 (N - k). The grid holds that stop only
- * when N - k is even. When it is odd, no grid stop centres it, and the step lands on the nearest one.
+ * Centring on the one-phone grid. The row is one first panel of k slots, then six phones; the window shows N phones, so it is
+ * N * (phone + gap) - gap wide. The grid is anchored at scroll 0 and never shifted. The first panel's left edge at a step stop
+ * is rowMarginLeft + offset - stop; it centres when that equals (window - width) / 2. Rows are pure, and the phone size is an
+ * input, so no width is written in as a literal.
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -10,31 +11,34 @@ import { appendPanel } from '../panelWindow.js';
 import { applyTemplate, resolvePanelSettings } from '../panelSettings.js';
 import type { PanelSettings, PanelWindow } from '../index.js';
 
+const PHONE = 390;
+const GAP = 16;
+const STEP = PHONE + GAP;
 const ROOT = 'root';
 const made = (id: string, layer: PanelSettings = {}): PanelWindow => {
   const skeleton = appendPanel([], { url: `https://${id}.example`, title: id, view: 'scroll-row-view' }, id, ROOT)[0]!;
   return applyTemplate(skeleton, resolvePanelSettings({ template: layer }).value, 'create');
 };
 
-test('a wide panel centres at a step stop exactly where the anchored grid holds its centred position, for N 2 to 6', () => {
-  const report: string[] = [];
+/** The cells (N visible phones, k slots) whose panel centres on a grid stop: the only ones the rule allows. */
+const CENTRED = new Set(['3:1', '3:3', '4:2', '5:3', '5:5', '6:4']);
+
+test('for N visible phones (2 to 6) and a first panel of k slots (1 to N), the panel centres on a grid stop exactly in the listed cells', () => {
+  const centred: string[] = [];
   for (let N = 2; N <= 6; N++) {
     for (let k = 1; k <= N; k++) {
-      const window = 406 * N - 16;
-      const want = 203 * (N - k);
+      const window = N * STEP - GAP;
+      const width = k * STEP - GAP;
+      const want = (window - width) / 2;
       // A phone before the panel: a panel first in the row has no leading room to centre in.
       const entries = [made('lead'), made('w', { slots: k }), ...Array.from({ length: 6 }, (_, j) => made(`p${j}`))];
-      const n = computeRowNumbers({ entries, phoneWidth: 390, containerWidth: window + 32, gap: 16, wholePanels: true });
-      const left = (s: number) => n.rowMarginLeft + n.leftOffsets[1]! - s;
-      const nearest = Math.min(...n.stepStops.map((s) => Math.abs(left(s) - want)));
-      // The grid is anchored at scroll 0 and never shifted, so a centred stop exists exactly when the grid holds that position.
-      const onGrid = n.stepStops.some((s) => Math.abs(left(s) - want) < 0.5);
-      const at = n.rowMarginLeft + n.leftOffsets[1]! - want;
-      const gridHolds = Number.isInteger(at / 406) && at >= 0 && at <= maxScrollOf(n);
+      const n = computeRowNumbers({ entries, phoneWidth: PHONE, containerWidth: window + 2 * GAP, gap: GAP, wholePanels: true });
+      const at = (s: number) => n.rowMarginLeft + n.leftOffsets[1]! - s;
+      const onGrid = n.stepStops.some((s) => Math.abs(at(s) - want) < 0.5);
+      if (onGrid) centred.push(`${N}:${k}`);
+      const gridHolds = Number.isInteger((n.rowMarginLeft + n.leftOffsets[1]! - want) / STEP) && n.rowMarginLeft + n.leftOffsets[1]! - want >= 0 && n.rowMarginLeft + n.leftOffsets[1]! - want <= maxScrollOf(n);
       assert.equal(onGrid, gridHolds, `N${N} k${k}: centred ${onGrid}, grid holds ${gridHolds}`);
-      report.push(`N${N}k${k}:${(N - k) % 2 === 0 ? 'centred' : 'off-by-' + Math.round(nearest)}`);
     }
   }
-  assert.equal(report.length, 20, report.join(" "));
-  console.log(`CENTRING ${report.join(' ')}`);
+  assert.deepEqual(centred.sort(), [...CENTRED].sort());
 });
