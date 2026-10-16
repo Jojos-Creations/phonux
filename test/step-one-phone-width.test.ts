@@ -33,8 +33,9 @@ test('a mixed row of 1, 2, 4 and 5 slots at a 2046 container: every step is one 
   const maxScroll = maxScrollOf(n);
   assert.equal(visited.at(-1), maxScroll, 'the walk ends at the row end');
   const steps = visited.slice(1).map((at, k) => at - visited[k]!);
-  assert.ok(steps.slice(0, -1).every((s) => s === STEP), `steps ${steps.join(',')}`);
-  assert.ok(steps.at(-1)! <= STEP);
+  // A step is never longer than a phone width; a step shorter than one lands on a centred whole-panel stop.
+  assert.ok(steps.every((s) => s <= STEP), `steps ${steps.join(',')}`);
+  assert.ok(visited.every((at) => at % STEP === 0 || n.stops.includes(at) || at === maxScroll), `stops ${visited.join(',')}`);
 });
 
 test('a row that does not scroll has no step stops', () => {
