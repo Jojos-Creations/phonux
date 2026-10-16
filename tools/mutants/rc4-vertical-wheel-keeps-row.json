@@ -1,0 +1,16 @@
+{
+  "tests": [
+    "test/row-vertical-wheel.test.ts"
+  ],
+  "mutants": [
+    {
+      "name": "the stepping row scrolls vertically again (overflowY auto)",
+      "file": "Workspace.tsx",
+      "find": "          overflowY: 'hidden',",
+      "replace": "          overflowY: 'auto',",
+      "expectRed": [
+        "a stepping row is overflowY hidden"
+      ]
+    }
+  ]
+}

@@ -298,7 +298,8 @@ export function Workspace(props: WorkspaceProps): React.ReactElement {
           // A scrolling row's end space is the end element's (below); a row that does not scroll centres in this padding.
           pr: scrolls ? 0 : `${gap}px`,
           overflowX: style.overflowX,
-          overflowY: 'auto',
+          // The row never scrolls vertically: a panel scrolls its own content, and a wheel over the row must not move it off its workspace.
+          overflowY: 'hidden',
           ...(style.hideScrollbar ? { scrollbarWidth: 'none', '&::-webkit-scrollbar': { display: 'none' } } : {}),
         }}
       >
