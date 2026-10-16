@@ -29,6 +29,7 @@
 ### Fixed
 
 - Behavior change: a step over a row moves one phone width per event, also onto a wide panel. Before, a wide panel took a step of its whole width or half. Walking a 1280 px window across a five-slot desktop panel and then two phones: 4 events of 812, 1218, 406, 406 before; 7 events of 406 after. A row of phones is unchanged.
+- A vertical wheel over a panel row no longer moves the row up off its workspace: the row's own overflow is `overflowY: hidden`. A panel's inner scroller still scrolls.
 - A leftward drag no longer flicks the panel it replaces to the window edge. The drop moved that panel's DOM node, which reset what it hosts; no panel node moves in a reorder now.
 - After a reorder, Tab and Shift+Tab walk the panels in the order they are drawn, not the order they opened, also out of an iframe that ends or starts a panel.
 - A panel present at mount no longer slides from the preferred phone size to the fitted one when the container is first measured: the measuring commit snaps its moves and its size box.
@@ -43,6 +44,7 @@
 
 ### Changed
 
+- The panel footer floats below the frame, as the header floats above it: it takes no panel height, and the frame keeps its phone size with or without a footer. `PanelFrame` draws it as a sibling, not a child. The footer API is unchanged; a parent of a footered panel must be `position: relative`.
 - The grab handle is a grip icon left of the panel title in the header, and the bar below the header is gone; it is still the one focusable handle named by the title, with the same drag, reorder keys and Delete.
 - Shrink and Hide modes are removed and Off is the only edge mode: `tuning.shrinkOutOfView` values `'visible'` and `'hidden'` warn once each and act as `'off'` (the next rc refuses them), and the setting is kept only for the warning. It leaves `PANEL_SETTINGS_CATALOG` and `ResolvedWorkspaceTuning`; `RowNumbers` loses `stopShrinks`, `stopFirsts`, `drawnWidths`, `drawnOffsets`, `hideOutside`, `atStop` and `showPartial`, and `computeRowNumbers` its `shrink` and `atFirst` inputs.
 - The undocumented `window.__panelsApiForTests`, which the panels hook set in a test build, is gone. A test that needs the row uses `renderWorkspace` from

@@ -453,6 +453,8 @@ its `revealOnScroll` allows and no live panel lies between the window's edge and
 the next stop (the next panel start in a row without stops), from the in-flight glide's target. A row with nothing to scroll toward keeps the 0.1.0 swap
 (`scrollRow`), which swaps in no panel whose `revealOnScroll` is 'never'. The gesture does nothing while a claim is held.
 
+The row's own overflow is `overflowY: hidden` for every rowGesture: a vertical wheel over the row or a plain panel does nothing to the row, so it cannot move up off its workspace. A panel's own inner scroller still scrolls, because the wheel reaches it first.
+
 The row listens for the arrow keys on the window, so a control that uses an arrow key itself (a resize grabber, the header buttons'
 roving focus) must call `preventDefault()` on it: the row skips a keydown whose default was prevented, and a key nothing handles steps the row.
 The row and the workspace column share one guard, `arrowKeyBelongsElsewhere` (`arrowKeys.ts`), so neither steps for a key a handler took, a
@@ -1984,8 +1986,9 @@ DOM move is for the real-layout gate.
 ## Panel footer
 
 A template declares `footer`, a component given the same `panel`, `handle` and `manager` props as `view`, and every panel made
-from it shows the footer at the bottom of its `PanelFrame`: a box after the scroll box in the frame's column, which does not
-shrink, so content scrolls above it, and which the frame's rounded corner clips. It is a template field and not a setting:
+from it shows the footer below its `PanelFrame`, floating as the header floats above it: a sibling after the frame, absolutely
+positioned at the header's gap below the frame's bottom edge. It takes no panel height, so the frame keeps its phone size with or
+without a footer, and the frame's clip cannot cut it off. The parent must be `position: relative`, as for `PanelHeader`. It is a template field and not a setting:
 header buttons are settings because a person or an instance may change them, and a footer has no layer to cascade.
 
 The view adapter (`templateViewFor`) puts the footer element in a context, and `PanelFooter` reads it. A `PanelFrame` outside

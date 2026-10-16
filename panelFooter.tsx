@@ -4,8 +4,10 @@
  */
 import * as React from 'react';
 import Box from '@mui/material/Box';
+import { type Theme } from '@mui/material/styles';
 import { useFrameClaim } from './panelFrameClaim.js';
 import { CHROME_ATTRIBUTE, CHROME_PARTS, PanelChromeVisibleContext, useChromeFade, useChromePixels } from './panelChrome.js';
+import { glideEdge } from './sizeGlide.js';
 
 /** The footer element of the template view above, or null; provided by the view adapter, read by `PanelFooter`. @internal */
 export const PanelFooterContext = React.createContext<React.ReactElement | null>(null);
@@ -25,7 +27,8 @@ class FooterBoundary extends React.Component<{ children: React.ReactNode }, { fa
 }
 
 /**
- * Draws the footer the panel's template declares, below the content and inside the frame, in a box that does not shrink or scroll.
+ * Draws the footer the panel's template declares, floating below the frame as the header floats above it: outside the panel's own
+ * space, so it takes no height. The parent must be `position: relative`, as for `PanelHeader`.
  * `PanelFrame` draws it by default; a view that does not use `PanelFrame` renders this itself. Outside a template's view, or
  * for a template that declares no footer, it draws nothing. A footer that throws while rendering is hidden and the
  * rest of the panel stays.
@@ -40,7 +43,7 @@ export function PanelFooter(): React.ReactElement | null {
   if (footer === null) return null;
   return (
     <FooterBoundary>
-      <Box data-panel-footer="" {...{ [CHROME_ATTRIBUTE]: CHROME_PARTS.footer }} ref={fade} sx={{ flexShrink: 0, boxSizing: 'border-box', borderTop: '1px solid', borderColor: 'divider', px: `${chrome.footerPadXPx}px`, py: `${chrome.footerPadYPx}px` }}>
+      <Box data-panel-footer="" {...{ [CHROME_ATTRIBUTE]: CHROME_PARTS.footer }} ref={fade} sx={{ position: 'absolute', top: `calc(100% + ${chrome.headerGapPx}px)`, left: 0, right: 0, boxSizing: 'border-box', bgcolor: 'background.paper', boxShadow: (theme: Theme) => glideEdge(theme.palette.divider), px: `${chrome.footerPadXPx}px`, py: `${chrome.footerPadYPx}px` }}>
         {footer}
       </Box>
     </FooterBoundary>
