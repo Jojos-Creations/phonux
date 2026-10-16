@@ -28,6 +28,7 @@
 
 ### Fixed
 
+- Behavior change: a step over a row moves one phone width per event, also onto a wide panel. Before, a wide panel took a step of its whole width or half. Walking a 1280 px window across a five-slot desktop panel and then two phones: 4 events of 812, 1218, 406, 406 before; 7 events of 406 after. A row of phones is unchanged.
 - A vertical wheel over a panel row no longer moves the row up off its workspace: the row's own overflow is `overflowY: hidden`. A panel's inner scroller still scrolls.
 - A leftward drag no longer flicks the panel it replaces to the window edge. The drop moved that panel's DOM node, which reset what it hosts; no panel node moves in a reorder now.
 - After a reorder, Tab and Shift+Tab walk the panels in the order they are drawn, not the order they opened, also out of an iframe that ends or starts a panel.

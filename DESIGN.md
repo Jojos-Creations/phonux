@@ -375,6 +375,14 @@ shows that panel. Steps, `scrollTo`, the initial scroll, a drag released after e
 stops (a resize, a pin, a close, a reorder) all land on a stop; `scrollTo` with `align` `'start'` or `'center'` lands on
 the nearest stop that shows the panel, not at that alignment.
 
+#### Step stops
+
+A step (wheel, keys, the step gesture) moves one phone width: `stepStops` is every `phoneWidth + gap` from scroll 0, then the
+row's end (`maxScrollOf`), so the last step may be shorter. Panels are whole slots, so their left edges sit on that grid
+whatever the mix of widths. A step never lands between two grid points, and a window cut through a wide panel shows the
+next phone width of it. Drag snap and the nearest-stop settle still read `stops`, so after a drag a row can rest off the grid;
+the next step then goes to the next grid point. A row that does not scroll has no step stops and keeps the old step.
+
 #### Whole panels only
 
 Panels are whole slots, so the window holds a whole number of slots `u = floor((window + gap) / (phone + gap))`. A stop's panels are

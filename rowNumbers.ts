@@ -35,6 +35,11 @@ export interface RowNumbers {
    * does not scroll or its strip fits the window, which keeps its centring.
    */
   stops: readonly number[];
+  /**
+   * Where a step lands: `stops`, plus a stop every phone width from the left edge of each panel wider than a phone, ascending.
+   * Drag snap and the nearest-stop settle still read `stops`, so a drag never settles inside a panel. Empty when `stops` is.
+   */
+  stepStops: readonly number[];
   /** For each stop, the drawn entries it shows: the index of its first one and one past its last. Same order as `stops`. */
   stopSpans: readonly { first: number; end: number }[];
   /** Room after the strip so the last stop can leave an even margin at both edges; 0 when there are no stops. */
@@ -93,7 +98,20 @@ export function computeRowNumbers(i: {
   const stops = whole === null ? [] : whole.margins.map((margin, k) => rowMarginLeft + leftOffsets[whole.starts[k]!]! - margin + whole.insets[k]!);
   const stopSpans = whole === null ? [] : whole.ends.map((end, k) => ({ first: whole.starts[k]!, end }));
   const endPad = whole === null ? 0 : whole.endPad;
-  return { rowScroll, windowWidth, stripWidth, rowMarginLeft, ids: present.map((p) => p.id), widths, leftOffsets, maxLiveWidth, reservedWidths, parkLiveWidths, stops, stopSpans, endPad };
+  const stepStops = whole === null ? [] : stepGrid(Math.max(0, rowMarginLeft + stripWidth + endPad - windowWidth), i.phoneWidth + i.gap);
+  return { rowScroll, windowWidth, stripWidth, rowMarginLeft, ids: present.map((p) => p.id), widths, leftOffsets, maxLiveWidth, reservedWidths, parkLiveWidths, stops, stepStops, stopSpans, endPad };
+}
+
+/**
+ * Every phone width from scroll 0 up to `maxScroll`, then `maxScroll` itself: a step moves one phone width, and the last one
+ * moves the rest. Empty when the row does not scroll.
+ */
+function stepGrid(maxScroll: number, step: number): number[] {
+  if (maxScroll <= 0) return [];
+  const grid: number[] = [];
+  for (let at = 0; at < maxScroll; at += step) grid.push(at);
+  grid.push(maxScroll);
+  return grid;
 }
 
 type Pick = { start: number; end: number; margin: number; inset?: number };
