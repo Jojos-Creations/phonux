@@ -1,0 +1,4 @@
+Before the fix (overflowY auto on the row), same run.mjs, Chromium 1280x720 viewport, cell 600 px tall:
+{"before":{"rowScrollTop":0,"rowRectTop":0,"phoneTop":16,"scrolled":[]},"overRow":{"rowScrollTop":0,"rowRectTop":0,"phoneTop":16,"scrolled":["inner"]},"overInner":{"rowScrollTop":0,"rowRectTop":0,"phoneTop":16,"scrolled":["inner"]},"overPlain":{"rowScrollTop":132,"rowRectTop":0,"phoneTop":-116,"scrolled":["row","inner"]},"errors":[]}
+The wheel over the plain panel scrolls the row (rowScrollTop 132) and the phone's top moves to -116, off the top of the cell.
+Over the row's centre the wheel lands on the inner panel, which scrolls itself; the row does not move.
