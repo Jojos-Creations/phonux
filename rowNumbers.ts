@@ -36,8 +36,8 @@ export interface RowNumbers {
    */
   stops: readonly number[];
   /**
-   * Where a step lands: every phone width from scroll 0 up to the row's end, plus each whole-panel stop, ascending.
-   * Drag snap and the nearest-stop settle still read `stops`. Empty when `stops` is.
+   * Where a step lands: `stops`, plus a stop every phone width from the left edge of each panel wider than a phone, ascending.
+   * Drag snap and the nearest-stop settle still read `stops`, so a drag never settles inside a panel. Empty when `stops` is.
    */
   stepStops: readonly number[];
   /** For each stop, the drawn entries it shows: the index of its first one and one past its last. Same order as `stops`. */
@@ -98,7 +98,7 @@ export function computeRowNumbers(i: {
   const stops = whole === null ? [] : whole.margins.map((margin, k) => rowMarginLeft + leftOffsets[whole.starts[k]!]! - margin + whole.insets[k]!);
   const stopSpans = whole === null ? [] : whole.ends.map((end, k) => ({ first: whole.starts[k]!, end }));
   const endPad = whole === null ? 0 : whole.endPad;
-  const stepStops = whole === null ? [] : [...new Set([...stops, ...stepGrid(Math.max(0, rowMarginLeft + stripWidth + endPad - windowWidth), i.phoneWidth + i.gap)])].sort((a, b) => a - b);
+  const stepStops = whole === null ? [] : stepGrid(Math.max(0, rowMarginLeft + stripWidth + endPad - windowWidth), i.phoneWidth + i.gap);
   return { rowScroll, windowWidth, stripWidth, rowMarginLeft, ids: present.map((p) => p.id), widths, leftOffsets, maxLiveWidth, reservedWidths, parkLiveWidths, stops, stepStops, stopSpans, endPad };
 }
 
