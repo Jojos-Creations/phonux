@@ -1,0 +1,26 @@
+{
+  "tests": [
+    "test/centred-grid-sweep.test.ts",
+    "test/step-one-phone-width.test.ts"
+  ],
+  "mutants": [
+    {
+      "name": "the grid is shifted half a phone, so no centred position is on it",
+      "file": "rowNumbers.ts",
+      "find": "  for (let at = 0; at < maxScroll; at += step) grid.push(at);",
+      "replace": "  for (let at = step / 2; at < maxScroll; at += step) grid.push(at);",
+      "expectRed": [
+        "for N visible phones (2 to 6) and a first panel of k slots (1 to N), the panel centres on a grid stop exactly in the listed cells"
+      ]
+    },
+    {
+      "name": "whole-panel stops are added to the step stops",
+      "file": "rowNumbers.ts",
+      "find": "  const stepStops = whole === null ? [] : stepGrid(Math.max(0, rowMarginLeft + stripWidth + endPad - windowWidth), i.phoneWidth + i.gap);",
+      "replace": "  const stepStops = whole === null ? [] : [...new Set([...stops, ...stepGrid(Math.max(0, rowMarginLeft + stripWidth + endPad - windowWidth), i.phoneWidth + i.gap)])].sort((a, b) => a - b);",
+      "expectRed": [
+        "for N visible phones (2 to 6) and a first panel of k slots (1 to N), the panel centres on a grid stop exactly in the listed cells"
+      ]
+    }
+  ]
+}
