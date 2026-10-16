@@ -1978,8 +1978,9 @@ DOM move is for the real-layout gate.
 ## Panel footer
 
 A template declares `footer`, a component given the same `panel`, `handle` and `manager` props as `view`, and every panel made
-from it shows the footer at the bottom of its `PanelFrame`: a box after the scroll box in the frame's column, which does not
-shrink, so content scrolls above it, and which the frame's rounded corner clips. It is a template field and not a setting:
+from it shows the footer below its `PanelFrame`, floating as the header floats above it: a sibling after the frame, absolutely
+positioned at the header's gap below the frame's bottom edge. It takes no panel height, so the frame keeps its phone size with or
+without a footer, and the frame's clip cannot cut it off. The parent must be `position: relative`, as for `PanelHeader`. It is a template field and not a setting:
 header buttons are settings because a person or an instance may change them, and a footer has no layer to cascade.
 
 The view adapter (`templateViewFor`) puts the footer element in a context, and `PanelFooter` reads it. A `PanelFrame` outside
