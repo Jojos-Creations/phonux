@@ -422,7 +422,7 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
       maxScroll,
       liveStarts: rowNumbers.leftOffsets.map((offset) => rowNumbers.rowMarginLeft + offset),
       liveWidths: rowNumbers.widths,
-      stops: rowNumbers.stops,
+      stops: rowNumbers.stepStops,
       gap: tuning.rowGap,
       hidden,
     });
