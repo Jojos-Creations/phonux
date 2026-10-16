@@ -57,7 +57,7 @@ export function useRowScrollGesture(
     let quietTimer: ReturnType<typeof setTimeout> | null = null;
     const onWheel = (e: WheelEvent): void => {
       // A tilt wheel or two-finger swipe reports deltaX; Shift+wheel usually still reports deltaY, so treat
-      // Shift+deltaY as a horizontal ask too. Plain vertical wheel is left to overflowY:'auto'.
+      // Shift+deltaY as a horizontal ask too. A plain vertical wheel is not a step, and the row does not scroll vertically either (its overflowY is hidden).
       const horizontal = Math.abs(e.deltaX) > Math.abs(e.deltaY) || (e.shiftKey && e.deltaY !== 0);
       if (!horizontal) return;
       const amount = Math.abs(e.deltaX) > Math.abs(e.deltaY) ? e.deltaX : e.deltaY;

@@ -28,6 +28,7 @@
 
 ### Fixed
 
+- A vertical wheel over a panel row no longer moves the row up off its workspace: the row's own overflow is `overflowY: hidden`. A panel's inner scroller still scrolls.
 - A leftward drag no longer flicks the panel it replaces to the window edge. The drop moved that panel's DOM node, which reset what it hosts; no panel node moves in a reorder now.
 - After a reorder, Tab and Shift+Tab walk the panels in the order they are drawn, not the order they opened, also out of an iframe that ends or starts a panel.
 - A panel present at mount no longer slides from the preferred phone size to the fitted one when the container is first measured: the measuring commit snaps its moves and its size box.

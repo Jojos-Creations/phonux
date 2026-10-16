@@ -445,6 +445,8 @@ its `revealOnScroll` allows and no live panel lies between the window's edge and
 the next stop (the next panel start in a row without stops), from the in-flight glide's target. A row with nothing to scroll toward keeps the 0.1.0 swap
 (`scrollRow`), which swaps in no panel whose `revealOnScroll` is 'never'. The gesture does nothing while a claim is held.
 
+The row's own overflow is `overflowY: hidden` for every rowGesture: a vertical wheel over the row or a plain panel does nothing to the row, so it cannot move up off its workspace. A panel's own inner scroller still scrolls, because the wheel reaches it first.
+
 The row listens for the arrow keys on the window, so a control that uses an arrow key itself (a resize grabber, the header buttons'
 roving focus) must call `preventDefault()` on it: the row skips a keydown whose default was prevented, and a key nothing handles steps the row.
 The row and the workspace column share one guard, `arrowKeyBelongsElsewhere` (`arrowKeys.ts`), so neither steps for a key a handler took, a
@@ -2084,4 +2086,3 @@ reads.
 
 **History.** The library has no notion of History. The hollow dot is the panel setting `hollowDot`, which the app sets on the
 template it marks; the library reads the flag, never a name.
-
