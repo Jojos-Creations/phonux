@@ -61,7 +61,7 @@ export function computeRowNumbers(i: {
   gap: number;
   /** How many fixed columns a hand-built row prices its capacity from. Default: the drawn entries that are not collapsible. */
   fixedItemCount?: number;
-  /** True for a row whose gesture is 'step' or 'free': the window then shows only whole panels, at the stops. Default false. */
+  /** True for a row whose gesture is 'step': the window then shows only whole panels, at the stops. Default false. */
   wholePanels?: boolean;
 }): RowNumbers {
   const present = i.entries.filter(isPresent);

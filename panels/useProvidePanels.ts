@@ -300,9 +300,7 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
   const templateList = (): PanelTemplate[] => [...core.templates()];
   const fixedViewCount = i.fixedViewCount ?? panels.filter((p) => !p.collapsible && p.marker !== true).length;
   // Filters over the whole list, never an array position: a panel anchored left of History changes none of these.
-  // A free row keeps the one-phone grid too: its scroll rests on the stops, so whole panels fit once a scroll ends.
-  const stopsOnGrid = tuning.rowGesture === 'step' || tuning.rowGesture === 'free';
-  const rowInput = { entries: panels, phoneWidth: i.phoneWidth, containerWidth: i.containerWidth, gap: tuning.rowGap, fixedItemCount: fixedViewCount, wholePanels: stopsOnGrid };
+  const rowInput = { entries: panels, phoneWidth: i.phoneWidth, containerWidth: i.containerWidth, gap: tuning.rowGap, fixedItemCount: fixedViewCount, wholePanels: tuning.rowGesture === 'step' };
   const rowNumbers = computeRowNumbers(rowInput);
   const restedRef = useRef(false);
   const { maxLiveWidth } = rowNumbers;
@@ -426,8 +424,6 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
 
   // Set once the persistence hook is called, below: the rest watch reads the saved state the hook owns.
   const restWatch = useRef<() => void>(() => undefined);
-  // A pointer down on the row until it is let go, the scrollbar thumb included: a rest is not called while it is held.
-  const pointerHeldRef = useRef(false);
 
   // One step of the gesture. A row with nothing to scroll toward swaps: the parked panel beside the live range comes in.
   const stepRow = (direction: 'left' | 'right'): void => {
@@ -505,7 +501,7 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
 
   // A row a person moves is saved where it comes to rest. A wheel or pointer-down on the row and a step (a key or a
   // wheel gesture) call `restWatch`: it watches the row until it has stood still for REST_QUIET_MS, and if it moved,
-  // records the stop it rests on (a free row glides there first). It adds no listener, so the row's listener budget is the gesture's own. Nothing runs at open.
+  // records the stop it rests on. It adds no listener, so the row's listener budget is the gesture's own. Nothing runs at open.
   const settledRef = useRef(restoreSettled);
   settledRef.current = restoreSettled;
   const rowNumbersRef = useRef(rowNumbers);
@@ -521,14 +517,9 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
     let last = start;
     let still = performance.now();
     let moved = false;
-    // A free row glides to the nearest stop once it has rested, and saves the stop it lands on. A step row settles through
-    // its layout effect instead.
-    const settles = tuning.rowGesture === 'free';
     const rest = (at: number): void => {
       const n = rowNumbersRef.current;
-      const landing = settles ? nearestStop(n, at) : at;
-      if (settles && Math.abs(landing - at) >= 0.5) scroller.glideTo(landing, { durationSec: tuning.slide.durationSec, instant: reducedMotion, ease: tuning.slide.glideEase });
-      const k = nearestStopIndex(n, landing);
+      const k = nearestStopIndex(n, at);
       if (k < 0) return;
       const mark = markOfStop(n, k, stepRef.current);
       setScroll((prev) => (prev !== null && prev.panel === mark.panel && prev.offset === mark.offset ? prev : mark));
@@ -539,7 +530,7 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
       const gliding = scroller.glideTarget() !== null;
       const now = performance.now();
       if (at !== start || gliding) moved = true;
-      if (at !== last || gliding || scroller.claimHeld() || pointerHeldRef.current) {
+      if (at !== last || gliding || scroller.claimHeld()) {
         last = at;
         still = now;
       } else if (now - still >= REST_QUIET_MS) {
@@ -621,22 +612,14 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
       const el = i.overflowContainerRef.current;
       if (el !== null && e.target instanceof Node && el.contains(e.target)) {
         touchedRef.current = true;
-        if (e.type === 'pointerdown') pointerHeldRef.current = true;
         restWatch.current();
       }
     };
-    const release = (): void => {
-      pointerHeldRef.current = false;
-    };
     window.addEventListener('wheel', touch, { capture: true, passive: true });
     window.addEventListener('pointerdown', touch, true);
-    window.addEventListener('pointerup', release, true);
-    window.addEventListener('pointercancel', release, true);
     return () => {
       window.removeEventListener('wheel', touch, true);
       window.removeEventListener('pointerdown', touch, true);
-      window.removeEventListener('pointerup', release, true);
-      window.removeEventListener('pointercancel', release, true);
     };
     // Mount only: the container ref object never changes.
   }, []);
