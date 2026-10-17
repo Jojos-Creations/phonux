@@ -6,7 +6,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createElement } from 'react';
-import { createTheme, type Theme } from '@mui/material/styles';
 import { renderToStaticMarkup } from 'react-dom/server';
 import * as phonux from '../index.js';
 import { createFakeHost } from '../fakeHost.js';
