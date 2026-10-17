@@ -1859,7 +1859,7 @@ Each panel subscribes to its own entry, so a press that moves the mark re-render
 gained it. `PanelRowSlot` activates its panel from React capture handlers (`onPointerDownCapture`, `onFocusCapture`), which
 follow the React tree and so count a portaled dialog the panel opened; a focused iframe fires neither, so the slot also
 listens for the window's `blur` and activates when the focused element is an iframe inside it. The row clears the mark of a
-panel that closes or parks.
+panel that closes or parks. `usePanelSetDragging()` writes the same dragging entry for a drag a host runs, and clears what it set when its view unmounts.
 
 `Panel` writes `data-panel-active` and `data-panel-dragging` on its root box, and `data-panel-chrome-part="header"`,
 `"grab-bar"` or `"footer"` on the parts `tuning.chrome` fades (the grab handle sits inside the header and fades with it). Hosts style from these names, so `index.ts` exports them
