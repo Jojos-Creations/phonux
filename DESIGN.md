@@ -526,7 +526,7 @@ the shadow is the one ring a border was; while the box eases it is four bands, e
 is 1 px drawn (about 0.7 px on the diagonal of a corner). The properties inherit, so each frame of a glide the browser resolves
 the box's whole subtree again for them; the trace at four times slower CPU keeps overlap 0 and gap equal to the row gap.
 What is counted is the chrome the library draws. A view's own content (an avatar, a card, an image, text), the scrollbar thumb
-(`panelFrameScrollSx` is an exported value, whose type this would change) and the header buttons, which stay plain MUI buttons, are still scaled by the box and squash for the 0.4 s, as they did under `layout="size"`;
+(a view's scroller is its own, so the library has no scroller value to change) and the header buttons, which stay plain MUI buttons, are still scaled by the box and squash for the 0.4 s, as they did under `layout="size"`;
 undistorted content would be a clip-reveal in place of a scale, a different design.
 
 The size box follows any change of the panel's width, not only a slot-count change. Choosing a different phone
@@ -1236,20 +1236,19 @@ read again every frame, and the hold ends when the row stops scrolling.
 the same `onClose`, as History's trash buttons do. The row's drag-to-reorder needs one too; `handle.move(1)` and `handle.move(-1)`
 exist for it, but no such control is built.
 
-## PanelFrame's inset, scrollbar and header pill
+## PanelFrame's inset, scrollbar and header
 
 Every view renders inside `PanelFrame` so each section reads as one phone silhouette; a view that grew its
 own border/radius/background declarations would drift from the others. The frame is the phone's size unless
 `size` or `expanded` says otherwise: a slot never grows to fill space.
 
-**The view owns its content.** `PanelFrame` applies no padding, scrollbar or scroll behaviour to what it holds.
-Its inner box is a plain flex column styled only by its `sx` prop. A view that scrolls and wants the phone's
-standard inset spreads `panelFrameScrollSx` on its scroller: content sits 12px from the border on all four
-sides, with or without a bar, because `scrollbar-gutter: stable` reserves the strip and the right padding is
-pre-shrunk by it (`SCROLLBAR_PX`, 8px). Nothing is measured at runtime. The phone's look is the frame's border,
-radius and size; the inside is the developer's.
+**The view owns its content.** `PanelFrame` applies no padding, scrollbar or scroll behaviour to what it holds, and the
+library exports no look value for it: no inset, no scrollbar width, no scroller recipe (issue 309). Its inner box is a
+plain flex column styled only by its `sx` prop. A view that scrolls sets its own padding and `::-webkit-scrollbar` rules on
+the element that scrolls. Nothing is measured at runtime. The phone's look is the frame's border, radius and size; the
+inside is the developer's.
 
-**Why a classic scrollbar (for a view that opts in).** The default here in WebKit and Blink engines is an overlay scrollbar: it floats over content,
+**Why a classic scrollbar (for a view that wants one).** The default here in WebKit and Blink engines is an overlay scrollbar: it floats over content,
 reserves no layout width (`offsetWidth === clientWidth` on a scroller with real overflowing content) and
 draws with its own built-in inset from the scroller's edge, which no padding or box-model change on this
 side can remove. Splitting the frame into an outer box (border, radius, size, `overflow: hidden` clipping, no
@@ -1266,15 +1265,11 @@ cancel. `panelFrameBareSx` is a deprecated empty object kept so existing imports
 content-box the border and padding land on top of it: a 390px phone rendered 416px wide by
 `getBoundingClientRect()`, about 26px of silent under-fit per phone.
 
-**The header pill.** `PanelHeader` floats above the frame (it needs a `position: relative` parent) and bakes
-in one look: Paper `variant="outlined"`'s bgcolor and border, shaped as a pill; a radius
-equal to the phone's own corner radius and a height of twice it, so each end is an exact semicircle with the
-phone's curvature, both from the theme rather than a raw 24/48; and a fixed height, so wrapping content never
-changes the shape. Its horizontal padding is 13px (the 1px edge plus the 12px inset the frame used to give content), so header
+**The header.** `PanelHeader` floats above the frame (it needs a `position: relative` parent) with no background, border or shadow: the title and header buttons sit on the panel's own surroundings, and their colour is the theme's `text.primary`, so a light theme reads and the dark default stays white. Its height is twice the phone's own corner radius, from the theme rather than a raw 48, and a fixed height, so wrapping content never changes it. Its horizontal padding is 13px (the 1px edge plus the 12px inset the frame used to give content), so header
 text keeps the line it had before the frame stopped styling its content. Internal layout is left to callers (`sx`), since one centers an ellipsis title and
 another spaces out an icon row. `PanelHeaderRow` is the shared title-left/actions-right layout, so call sites
 stop re-implementing flex/ellipsis markup, and it substitutes placeholders for a falsy `title`/`actions` (a
-dimmed "Untitled", a dimmed "more" glyph) so the pill never blanks or changes shape. Its emptiness check
+dimmed "Untitled", a dimmed "more" glyph) so the header never blanks or changes shape. Its emptiness check
 mirrors JSX's own falsy-child rules, so `0` or whitespace still counts as content.
 
 ## `WindowOverlay`: window-level content with no Portal
@@ -1864,7 +1859,7 @@ Each panel subscribes to its own entry, so a press that moves the mark re-render
 gained it. `PanelRowSlot` activates its panel from React capture handlers (`onPointerDownCapture`, `onFocusCapture`), which
 follow the React tree and so count a portaled dialog the panel opened; a focused iframe fires neither, so the slot also
 listens for the window's `blur` and activates when the focused element is an iframe inside it. The row clears the mark of a
-panel that closes or parks.
+panel that closes or parks. `usePanelSetDragging()` writes the same dragging entry for any drag a host runs but a resize grabber, which uses `usePanelResizing()`. The store holds one dragging id, so a panel has one mark and the last write wins; the setter clears only what its own call raised when its view unmounts.
 
 `Panel` writes `data-panel-active` and `data-panel-dragging` on its root box, and `data-panel-chrome-part="header"`,
 `"grab-bar"` or `"footer"` on the parts `tuning.chrome` fades (the grab handle sits inside the header and fades with it). Hosts style from these names, so `index.ts` exports them

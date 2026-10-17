@@ -25,6 +25,7 @@ import type { JsonValue, PanelSummary } from './hostApi.js';
 import type { ListFilter, PanelReader, PanelSnapshot, PanelState, PanelViewProps, ViewHandle } from './panelTemplate.js';
 import { filterStates } from './panelHandles.js';
 import type { WorkspaceState, WorkspaceStorage } from './workspaceState.js';
+import { ROOT_MARKER_ID } from './workspaceCore.js';
 
 // The ./testing entry point has to name every type FakeHost's own declaration reaches, not just Host.
 export type { Host, PhoneSize, ClosedPageEntry, JsonValue, PanelSize, PanelSummary, CreatePanelOptions, SettingsAPI, HistoryAPI, PanelsAPI, PhoneDeviceAPI } from './hostApi.js';
@@ -173,6 +174,83 @@ export function memoryWorkspaceStorage(initial: WorkspaceState | null = null): M
       return lastSaved === null ? null : (JSON.parse(lastSaved) as WorkspaceState);
     },
   };
+}
+
+/** One panel for `seedWorkspace`: the identity, hostData and visibility the workspace restores it with. @public */
+export interface PanelSeed {
+  /** The id the restored panel is drawn under, so a test can name it. Unique within the seeds. */
+  id: string;
+  /** Id of the template that renders the panel. */
+  view: string;
+  /** What the panel carries as `hostData`, which a saved file never holds. */
+  hostData: JsonValue;
+  /** Whether the panel restores mounted in the row (true) or parked (false). */
+  live: boolean;
+  /** The URL the panel shows. */
+  url?: string;
+  /** The panel's title. */
+  title?: string;
+  /** How many slots wide the panel restores, which sets its size; left out, one. */
+  slots?: number;
+  /** Whether the panel is a permanent column: it restores live, unlisted and one slot wide whatever `live` and `slots` say. */
+  permanent?: boolean;
+  /** Which side of the root the panel restores on; default `'right'`. Seeds on one side keep the order given, left to right. */
+  side?: 'left' | 'right';
+}
+
+/** What `seedWorkspace` returns: members of `WorkspaceOptions` to spread into `createWorkspace`. @public */
+export interface SeededWorkspace {
+  /** Holds the seeded file; a `save` replaces it, so a second workspace over it restores what the first left. */
+  readonly storage: MemoryWorkspaceStorage;
+  /** Draws the seeds' ids for the restore, then counts up from 1 past any id a seed holds. */
+  readonly newId: () => string;
+  /** The `defaultHostData` that hands each restored panel its seed's `hostData`; a hand-mounted `useProvidePanels` takes it as `...seeded.panels`. */
+  readonly panels: { readonly defaultHostData: () => JsonValue };
+}
+
+/**
+ * Members of `WorkspaceOptions` that make a workspace restore `seeds`, in the order given, through the same path a saved
+ * file takes: `createWorkspace({ ...seedWorkspace(seeds), templates })`. For tests only; app code adds panels with
+ * `definePanel`, `createWorkspace` and `addPanel`. Seed a workspace that declares no panels, and let it restore before
+ * adding any: the first ids drawn and the first `hostData` handed out belong to the seeds.
+ * @param seeds - The panels to restore, left to right after the root.
+ * @param rootId - The id of the workspace's root entry; default is the id of a workspace without a root template.
+ * @param laterIds - Engine ids (a panel's `id` in the snapshot) that `newId` hands out after the seeds and before the counter, one per panel added to the live workspace. An instance key is not set here: `addPanel(view, { id })` already names it.
+ * @throws Error when two seeds share an id, or a later id repeats another.
+ * @public
+ */
+export function seedWorkspace(seeds: readonly PanelSeed[], rootId: string = ROOT_MARKER_ID, laterIds: readonly string[] = []): SeededWorkspace {
+  const ids = seeds.map((seed) => seed.id);
+  if (new Set(ids).size !== ids.length) throw new Error('seedWorkspace: two seeds share an id');
+  const taken = new Set([...ids, ...laterIds]);
+  if (taken.size !== ids.length + laterIds.length) throw new Error('seedWorkspace: an id is given twice');
+  // Priority 0 sits nearest the root, so the leftmost of the left seeds holds the highest.
+  const leftCount = seeds.filter((seed) => seed.side === 'left').length;
+  let leftSeen = 0;
+  const state: WorkspaceState = {
+    version: 1,
+    panels: seeds.map((seed, index) => ({
+      id: seed.id,
+      view: seed.view,
+      live: seed.live,
+      ...(seed.url !== undefined ? { url: seed.url } : {}),
+      ...(seed.title !== undefined ? { title: seed.title } : {}),
+      ...(seed.slots !== undefined ? { slots: seed.slots } : {}),
+      ...(seed.permanent !== undefined ? { permanent: seed.permanent } : {}),
+      anchor: seed.side === 'left' ? { panel: rootId, position: 'left', priority: leftCount - 1 - leftSeen++ } : { panel: rootId, position: 'right', priority: index },
+    })),
+  };
+  const idsLeft = [...ids, ...laterIds];
+  const hostDataLeft = seeds.map((seed) => seed.hostData);
+  let counter = 0;
+  const newId = (): string => {
+    const chosen = idsLeft.shift();
+    if (chosen !== undefined) return chosen;
+    do counter += 1;
+    while (taken.has(String(counter)));
+    return String(counter);
+  };
+  return { storage: memoryWorkspaceStorage(state), newId, panels: { defaultHostData: () => hostDataLeft.shift() ?? null } };
 }
 
 /** What `createFakePanel` builds: the props to render a view with, and the calls its handle received. @public */

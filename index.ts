@@ -51,7 +51,6 @@ export { default as PanelFrame } from './PanelFrame.js';
 export {
   PANEL_CORNER_RADIUS_UNITS,
   panelCornerRadiusPx,
-  panelFrameScrollSx,
   panelFrameBareSx,
   PanelHeader,
   PanelHeaderRow,
@@ -171,7 +170,7 @@ export type { WorkspaceLive, WorkspacePanelsInput } from './workspaceLive.js';
 export type { PanelHandle } from './panelHandles.js';
 export type { ConfigureResult, PanelManager, PanelResult, PinResult, ResetResult } from './panelManager.js';
 export { usePanelStates, usePanelState, useWorkspace, useWorkspaceManager } from './panels/usePanelStates.js';
-export { ACTIVE_ATTRIBUTE, CHROME_ATTRIBUTE, CHROME_PARTS, DRAGGING_ATTRIBUTE, useActivePanel, usePanelActive, usePanelDragProps, usePanelDragging, usePanelResizing } from './panelChrome.js';
+export { ACTIVE_ATTRIBUTE, CHROME_ATTRIBUTE, CHROME_PARTS, DRAGGING_ATTRIBUTE, useActivePanel, usePanelActive, usePanelDragProps, usePanelDragging, usePanelResizing, usePanelSetDragging } from './panelChrome.js';
 export type { ChromePart } from './panelChrome.js';
 
 export { PanelManagerError } from './panelManagerError.js';

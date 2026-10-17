@@ -1,7 +1,7 @@
 /**
  * The shared shell every column in the row renders through -- Settings, History and each live
  * panel build their own content, then hand it to Panel for the `position: relative` +
- * `width: phoneWidth` wrapper box and PanelHeaderRow's floating title pill above it. Deliberately
+ * `width: phoneWidth` wrapper box and PanelHeaderRow's floating title header above it. Deliberately
  * a SHELL, not a content container: it does not render PanelFrame itself, so a caller's `children`
  * (already one or more PanelFrame elements) needs no change to move under Panel.
  */
@@ -27,7 +27,7 @@ export { WindowOverlay, OverlaySlot, OVERLAY_Z, type OverlaySlotName, type Windo
 /** The props of `Panel`: every `Box` prop except `children`, `sx` and `title`, plus the header, grab handle, overlay and capture options. @public */
 export interface PanelProps extends Omit<BoxProps, 'children' | 'sx' | 'title'> {
   /**
-   * The header pill's title. Omitted entirely (not passed at all) renders
+   * The header's title. Omitted entirely (not passed at all) renders
    * NO header row, rather than forcing the view into
    * PanelHeaderRow's own "Untitled" placeholder. Pass an
    * explicit falsy value (e.g. `''`) to get that placeholder on purpose.
@@ -78,7 +78,7 @@ export interface PanelProps extends Omit<BoxProps, 'children' | 'sx' | 'title'> 
 
 /**
  * The shell every column in the row renders through: a relatively positioned box the width of the panel, with an
- * optional header pill above it, an optional grab handle and an optional overlay.
+ * optional header above it, an optional grab handle and an optional overlay.
  * @public
  */
 export function Panel({ title, actions, headerProps, headerButtons = true, grabProps, overlay, sx, children, viewId, capture = 'auto', size, ...rest }: PanelProps) {

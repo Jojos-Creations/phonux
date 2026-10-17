@@ -172,6 +172,7 @@
         "computeMaxLiveWidth",
         "computeRowOrder",
         "deriveAnchorsFromOrder",
+        "panelFrameScrollSx",
         "phoneCornerRadiusPx",
         "phoneFrameBareSx",
         "phoneFrameScrollSx",
