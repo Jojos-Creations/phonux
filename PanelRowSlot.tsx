@@ -222,8 +222,8 @@ export function PanelRowSlot({
   // React 19.2 re-runs effect cleanup and setup for a keyed child a reorder moves, and Motion's cleanup stops the slide this
   // slot was making toward its new rest; nothing then starts it again, so the slot stays where it was.
   // A drop under Reduce Motion lands here too: the moved slot's own slide is re-started with the preview's instant transition.
-  const restNow = React.useRef({ leftOffset, transition: snapping ? INSTANT_TRANSITION : slideTransition });
-  restNow.current = { leftOffset, transition: snapping ? INSTANT_TRANSITION : slideTransition };
+  const restNow = React.useRef({ leftOffset, transition: snapping || tracking ? INSTANT_TRANSITION : slideTransition });
+  restNow.current = { leftOffset, transition: snapping || tracking ? INSTANT_TRANSITION : slideTransition };
   const setUpBefore = React.useRef(false);
   const present = useIsPresent();
   // The drop's new rest lands in the commit that changes it, in the same frame as the dragged box's own offset going to 0: a snap that waited
@@ -251,7 +251,7 @@ export function PanelRowSlot({
     <motion.div
       ref={el}
       // Enters from one own-width-plus-gap span beyond its destination, right or left per `enterDirection` above.
-      initial={initial}
+      initial={snapping || tracking ? animateTarget : initial}
       animate={snapping || tracking ? { ...animateTarget, transition: INSTANT_TRANSITION } : animateTarget}
       exit={exit}
       transition={startable as typeof transition}
