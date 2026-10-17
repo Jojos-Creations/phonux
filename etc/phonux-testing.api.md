@@ -332,6 +332,16 @@ export interface PanelsAPI {
 }
 
 // @public
+export interface PanelSeed {
+    hostData: JsonValue;
+    id: string;
+    live: boolean;
+    title?: string;
+    url?: string;
+    view: string;
+}
+
+// @public
 export type PanelSettings = {
     [K in keyof SettingValues]?: SettingValues[K];
 } & {
@@ -527,6 +537,18 @@ export type ScrollOnMove = 'follow' | 'none';
 
 // @public
 export type ScrollOnOpen = ScrollAlign | 'none';
+
+// @public
+export interface SeededWorkspace {
+    readonly newId: () => string;
+    readonly panels: {
+        readonly defaultHostData: () => JsonValue;
+    };
+    readonly storage: MemoryWorkspaceStorage;
+}
+
+// @public
+export function seedWorkspace(seeds: readonly PanelSeed[], rootId?: string): SeededWorkspace;
 
 // @public
 export type SettingConflict = {
