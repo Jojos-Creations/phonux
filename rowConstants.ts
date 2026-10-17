@@ -67,7 +67,7 @@ export const RETURN_TIE_BREAK = 'latest-first' as const;
 export const DROP_TIE_BREAK = 'leftmost' as const;
 
 /** What the row's own scroll input does, and where the strip starts. */
-export const ROW_GESTURE = 'step' as const;
+export const ROW_GESTURE = 'free' as const;
 export const INITIAL_SCROLL = 'start' as const;
 
 /** When a panel's header, grab bar and footer show, and the numbers a host's header icon row animates with. */
