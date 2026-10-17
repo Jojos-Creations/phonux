@@ -25,6 +25,7 @@ import type { JsonValue, PanelSummary } from './hostApi.js';
 import type { ListFilter, PanelReader, PanelSnapshot, PanelState, PanelViewProps, ViewHandle } from './panelTemplate.js';
 import { filterStates } from './panelHandles.js';
 import type { WorkspaceState, WorkspaceStorage } from './workspaceState.js';
+import { ROOT_MARKER_ID } from './workspaceCore.js';
 
 // The ./testing entry point has to name every type FakeHost's own declaration reaches, not just Host.
 export type { Host, PhoneSize, ClosedPageEntry, JsonValue, PanelSize, PanelSummary, CreatePanelOptions, SettingsAPI, HistoryAPI, PanelsAPI, PhoneDeviceAPI } from './hostApi.js';
@@ -173,6 +174,75 @@ export function memoryWorkspaceStorage(initial: WorkspaceState | null = null): M
       return lastSaved === null ? null : (JSON.parse(lastSaved) as WorkspaceState);
     },
   };
+}
+
+/** One panel for `seedWorkspace`: the identity, hostData and visibility the workspace restores it with. @public */
+export interface PanelSeed {
+  /** The id the restored panel is drawn under, so a test can name it. Unique within the seeds. */
+  id: string;
+  /** Id of the template that renders the panel. */
+  view: string;
+  /** What the panel carries as `hostData`, which a saved file never holds. */
+  hostData: JsonValue;
+  /** Whether the panel restores mounted in the row (true) or parked (false). */
+  live: boolean;
+  /** The URL the panel shows. */
+  url?: string;
+  /** The panel's title. */
+  title?: string;
+  /** How many slots wide the panel restores, which sets its size; left out, one. */
+  slots?: number;
+  /** Whether the panel is a permanent column: it restores live, unlisted and one slot wide whatever `live` and `slots` say. */
+  permanent?: boolean;
+}
+
+/** What `seedWorkspace` returns: members of `WorkspaceOptions` to spread into `createWorkspace`. @public */
+export interface SeededWorkspace {
+  /** Holds the seeded file; a `save` replaces it, so a second workspace over it restores what the first left. */
+  readonly storage: MemoryWorkspaceStorage;
+  /** Draws the seeds' ids for the restore, then counts up from 1 past any id a seed holds. */
+  readonly newId: () => string;
+  /** The `defaultHostData` that hands each restored panel its seed's `hostData`; a hand-mounted `useProvidePanels` takes it as `...seeded.panels`. */
+  readonly panels: { readonly defaultHostData: () => JsonValue };
+}
+
+/**
+ * Members of `WorkspaceOptions` that make a workspace restore `seeds`, in the order given, through the same path a saved
+ * file takes: `createWorkspace({ ...seedWorkspace(seeds), templates })`. For tests only; app code adds panels with
+ * `definePanel`, `createWorkspace` and `addPanel`. Seed a workspace that declares no panels, and let it restore before
+ * adding any: the first ids drawn and the first `hostData` handed out belong to the seeds.
+ * @param seeds - The panels to restore, left to right after the root.
+ * @param rootId - The id of the workspace's root entry; default is the id of a workspace without a root template.
+ * @throws Error when two seeds share an id.
+ * @public
+ */
+export function seedWorkspace(seeds: readonly PanelSeed[], rootId: string = ROOT_MARKER_ID): SeededWorkspace {
+  const ids = seeds.map((seed) => seed.id);
+  if (new Set(ids).size !== ids.length) throw new Error('seedWorkspace: two seeds share an id');
+  const state: WorkspaceState = {
+    version: 1,
+    panels: seeds.map((seed, priority) => ({
+      id: seed.id,
+      view: seed.view,
+      live: seed.live,
+      ...(seed.url !== undefined ? { url: seed.url } : {}),
+      ...(seed.title !== undefined ? { title: seed.title } : {}),
+      ...(seed.slots !== undefined ? { slots: seed.slots } : {}),
+      ...(seed.permanent !== undefined ? { permanent: seed.permanent } : {}),
+      anchor: { panel: rootId, position: 'right', priority },
+    })),
+  };
+  const idsLeft = [...ids];
+  const hostDataLeft = seeds.map((seed) => seed.hostData);
+  let counter = 0;
+  const newId = (): string => {
+    const seeded = idsLeft.shift();
+    if (seeded !== undefined) return seeded;
+    do counter += 1;
+    while (ids.includes(String(counter)));
+    return String(counter);
+  };
+  return { storage: memoryWorkspaceStorage(state), newId, panels: { defaultHostData: () => hostDataLeft.shift() ?? null } };
 }
 
 /** What `createFakePanel` builds: the props to render a view with, and the calls its handle received. @public */
