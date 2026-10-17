@@ -1,5 +1,5 @@
 /**
- * The row's scroll gesture: a wheel swipe or an arrow key asks for one step in a direction. What a step does is the
+ * The row's scroll gesture: wheel travel or an arrow key asks for steps in a direction. What a step does is the
  * caller's: this hook only filters the input, keeps the burst lock and installs the listeners.
  *
  * Under `mode` 'free' and 'off' no listener is installed: the browser scrolls natively ('free') or nothing does.
@@ -8,7 +8,7 @@
  * keeps a horizontal swipe from also scrolling the page vertically would do nothing.
  *
  * `onStep` is read through a ref and never re-subscribed: it is a fresh closure every render (nothing here may be
- * memoised), and tearing the listeners down would lose the momentum lock's timer on every re-render, including the
+ * memoised), and tearing the listeners down would lose the gesture's travel on every re-render, including the
  * one `onStep` itself causes.
  */
 import { useEffect, useRef } from 'react';
@@ -16,20 +16,17 @@ import type { RefObject } from 'react';
 import { arrowKeyBelongsElsewhere } from '../arrowKeys.js';
 import { GESTURE_LOCK_MS, GESTURE_QUIET_MS } from '../rowConstants.js';
 
-/** How far above the trough of a fading tail an event must rise to count as a new swipe; tail jitter such as 14, 12, 13 stays under it. */
-const RISE_FACTOR = 1.5;
-/** The least the rise must also add to the trough, in delta units: a tail rounded to whole pixels (1, 1, 2, 1) is not a new swipe. */
-const RISE_FLOOR = 4;
+/** Pixels per line for a wheel that reports `deltaMode` lines (Firefox's mouse wheel); pages count as one step each. */
+const LINE_PX = 16;
 
 /**
- * `gestureLockMs`: after a step, wheel events are ignored for this long (the lock is not re-armed by them). A trackpad
- * swipe arrives as a burst of wheel deltas that ramps up, peaks and fades, with a momentum tail, and a WebKit or Blink
- * browser cannot tell a momentum event from a fresh user one. So one swipe is one step: after a step, an event steps again
- * only once the lock is over and either its direction reverses, or the deltas have fallen since the step (the trough is
- * the smallest magnitude seen since) and the event is at least `RISE_FACTOR` times the trough and `RISE_FLOOR` above it, a new swipe starting in the
- * tail. A plateau of equal deltas, a ramp, and jitter in a tail never step again.
+ * One gesture travels as far as it is pushed, one step per `stepPx` of wheel travel, never by free pixels: the first
+ * event of a gesture steps at once, so a short swipe or one wheel notch still moves, and every further `stepPx` of
+ * travel in the same direction steps again, momentum included. A reversal starts a fresh gesture. Each step is the
+ * caller's glide to the next stop, so the row always comes to rest on one.
  *
- * `gestureQuietMs`: no wheel event for this long ends a gesture, so the next event is fresh and steps whatever its size.
+ * `gestureLockMs`: after a step, the next one waits at least this long, so a single event far larger than `stepPx`
+ * cannot jump several stops in one frame. `gestureQuietMs`: no wheel event for this long ends a gesture.
  */
 export function useRowScrollGesture(
   overflowContainerRef: RefObject<HTMLDivElement | null>,
@@ -37,6 +34,7 @@ export function useRowScrollGesture(
   gestureLockMs: number = GESTURE_LOCK_MS,
   mode: 'step' | 'free' | 'off' = 'step',
   gestureQuietMs: number = GESTURE_QUIET_MS,
+  stepPx = 400,
 ): void {
   const onStepRef = useRef(onStep);
   onStepRef.current = onStep;
@@ -44,46 +42,49 @@ export function useRowScrollGesture(
   gestureLockMsRef.current = gestureLockMs;
   const gestureQuietMsRef = useRef(gestureQuietMs);
   gestureQuietMsRef.current = gestureQuietMs;
+  const stepPxRef = useRef(stepPx);
+  stepPxRef.current = stepPx;
 
   useEffect(() => {
     const container = overflowContainerRef.current;
     if (!container || mode !== 'step') return;
-    let locked = false;
-    let previous = 0;
-    let previousSign = 0;
-    // The smallest magnitude seen since the last step once the deltas have fallen; null until they do.
-    let trough: number | null = null;
-    let unlockTimer: ReturnType<typeof setTimeout> | null = null;
+    // 0 between gestures; otherwise the direction of the one in progress.
+    let sign = 0;
+    // Wheel travel since the last step, in px.
+    let travel = 0;
+    let lastStepAt = Number.NEGATIVE_INFINITY;
     let quietTimer: ReturnType<typeof setTimeout> | null = null;
+    const step = (direction: number): void => {
+      lastStepAt = performance.now();
+      onStepRef.current(direction > 0 ? 'right' : 'left');
+    };
     const onWheel = (e: WheelEvent): void => {
       // A tilt wheel or two-finger swipe reports deltaX; Shift+wheel usually still reports deltaY, so treat
       // Shift+deltaY as a horizontal ask too. A plain vertical wheel is not a step, and the row does not scroll vertically either (its overflowY is hidden).
       const horizontal = Math.abs(e.deltaX) > Math.abs(e.deltaY) || (e.shiftKey && e.deltaY !== 0);
       if (!horizontal) return;
-      const amount = Math.abs(e.deltaX) > Math.abs(e.deltaY) ? e.deltaX : e.deltaY;
-      if (amount === 0) return;
+      const raw = Math.abs(e.deltaX) > Math.abs(e.deltaY) ? e.deltaX : e.deltaY;
+      if (raw === 0) return;
       e.preventDefault();
-      const magnitude = Math.abs(amount);
-      const sign = Math.sign(amount);
-      const reversed = sign !== previousSign;
-      // A reversal inside the lock is not lost: the first event after it steps.
-      if (reversed) trough = 0;
-      else if (magnitude < previous) trough = trough === null ? magnitude : Math.min(trough, magnitude);
-      const fresh = reversed || previous === 0;
-      const holding = fresh || (trough !== null && magnitude >= Math.max(trough * RISE_FACTOR, trough + RISE_FLOOR));
-      previous = magnitude;
-      previousSign = sign;
+      const unit = Math.max(1, stepPxRef.current);
+      const amount = e.deltaMode === 1 ? raw * LINE_PX : e.deltaMode === 2 ? raw * unit : raw;
       if (quietTimer) clearTimeout(quietTimer);
       quietTimer = setTimeout(() => {
-        previous = 0;
+        sign = 0;
+        travel = 0;
       }, gestureQuietMsRef.current);
-      if (locked || !holding) return;
-      locked = true;
-      trough = null;
-      unlockTimer = setTimeout(() => {
-        locked = false;
-      }, gestureLockMsRef.current);
-      onStepRef.current(sign > 0 ? 'right' : 'left');
+      const direction = Math.sign(amount);
+      if (direction !== sign) {
+        sign = direction;
+        travel = 0;
+        step(direction);
+        return;
+      }
+      travel += Math.abs(amount);
+      if (travel < unit || performance.now() - lastStepAt < gestureLockMsRef.current) return;
+      // Travel beyond one more step carries over, capped so a held burst never queues stops it has not shown yet.
+      travel = Math.min(travel - unit, unit);
+      step(direction);
     };
     const onKeyDown = (e: KeyboardEvent): void => {
       if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
@@ -97,7 +98,6 @@ export function useRowScrollGesture(
     return () => {
       container.removeEventListener('wheel', onWheel);
       window.removeEventListener('keydown', onKeyDown);
-      if (unlockTimer) clearTimeout(unlockTimer);
       if (quietTimer) clearTimeout(quietTimer);
     };
     // `overflowContainerRef` is a stable ref object (a useRef in the host's row shell): this effect attaches once,

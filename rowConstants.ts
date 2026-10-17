@@ -39,10 +39,10 @@ export const HOP_FRACTION = 0.5;
 /** Quiet time before the workspace file is written. */
 export const SAVE_QUIET_MS = 500;
 
-/** After a row-scroll step, further wheel events inside this window are ignored. */
+/** The least time between two row-scroll steps of one wheel gesture. */
 export const GESTURE_LOCK_MS = 60;
 
-/** No wheel event for this long ends a row-scroll gesture: the next one is fresh and steps whatever its size. */
+/** No wheel event for this long ends a row-scroll gesture: the next one is fresh and steps at once. */
 export const GESTURE_QUIET_MS = 150;
 
 /** A pointer that lifts this long after its last move had stopped has no release velocity. */
@@ -67,7 +67,7 @@ export const RETURN_TIE_BREAK = 'latest-first' as const;
 export const DROP_TIE_BREAK = 'leftmost' as const;
 
 /** What the row's own scroll input does, and where the strip starts. */
-export const ROW_GESTURE = 'free' as const;
+export const ROW_GESTURE = 'step' as const;
 export const INITIAL_SCROLL = 'start' as const;
 
 /** When a panel's header, grab bar and footer show, and the numbers a host's header icon row animates with. */
