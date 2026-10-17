@@ -169,7 +169,7 @@ export function PanelRow({
   const binding = bindingOf(workspace);
   // The restored panels arrive with the settle, after the row mounted. The row keys its AnimatePresence on
   // this flag, so the panels present at settle skip their enter and later ones animate.
-  const restoreSettled = React.useSyncExternalStore(workspace.panels.subscribe, () => workspace.panels.getSnapshot().status !== 'loading');
+  const restoreSettled = React.useSyncExternalStore(workspace.panels.subscribe, () => workspace.panels.getSnapshot().status === 'ready');
   const autoMountOf = React.useContext(AutoMountContext);
   const handMounted = binding.autoMounted && autoMountOf !== workspace;
   React.useEffect(() => {
