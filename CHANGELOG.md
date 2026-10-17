@@ -33,6 +33,7 @@
 
 ### Fixed
 
+- The panel header's title follows the theme's text colour, so it reads on a light theme. The dark default is unchanged.
 - Behavior change: a step over a row moves one phone width per event, also onto a wide panel. Before, a wide panel took a step of its whole width or half. Walking a 1280 px window across a five-slot desktop panel and then two phones: 4 events of 812, 1218, 406, 406 before; 7 events of 406 after. A row of phones is unchanged. Every stop a row rests on is on that one-phone grid, so a drag release or a resize settle no longer leaves a half step: the next step is a whole phone width. The whole-panel stops are gone; a wide panel centres only where the grid holds the centred position.
 - A vertical wheel over a panel row no longer moves the row up off its workspace: the row's own overflow is `overflowY: hidden`. A panel's inner scroller still scrolls.
 - A leftward drag no longer flicks the panel it replaces to the window edge. The drop moved that panel's DOM node, which reset what it hosts; no panel node moves in a reorder now.
@@ -83,6 +84,7 @@
 
 ### Added
 
+- `usePanelSetDragging()` returns a setter for the dragging mark of the panel it is called in, so a host's own drag shows the chrome and `data-panel-dragging` without writing the attribute. It does nothing outside a row.
 - `usePanelDots(...)` (`usePanelDots.ts`) is the headless state of a dot bar for a row: one dot per drawn panel, its width following the panel's width, the odd one hollow, the window oval, `selectDot(id)` to centre a panel, and `startOvalDrag()` to drag the oval. The app draws and places it; the library writes the row only through its scroll writer, and Reduce Motion snaps a click. The panel setting `hollowDot` (template scope, default false) draws that panel's dot hollow.
 - A workspace switch's motion is pinned by tests and a Chromium proof for each way of switching and each Reduce Motion source (`test/workspace-switch-scroll*.test.ts`, `proof/rc4-workspace-switch-scroll`). The column already slides on every path, so there is no behaviour change.
 

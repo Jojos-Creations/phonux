@@ -1,0 +1,34 @@
+{
+  "tests": [
+    "test/panel-set-dragging.test.ts"
+  ],
+  "mutants": [
+    {
+      "name": "the unmount cleanup is dropped",
+      "file": "panelChrome.ts",
+      "find": "if (held.current && store !== undefined && id !== undefined) store.setDragging(id, false);",
+      "replace": "held.current = held.current;",
+      "expectRed": [
+        "the view that set the mark unmounting while its panel stays ends the mark"
+      ]
+    },
+    {
+      "name": "the setter no longer checks for a row",
+      "file": "panelChrome.ts",
+      "find": "      if (store === undefined || id === undefined) return;\n      held.current = on;",
+      "replace": "      held.current = on;",
+      "expectRed": [
+        "outside a row the setter does nothing"
+      ]
+    },
+    {
+      "name": "the setter gets a new identity on every render",
+      "file": "panelChrome.ts",
+      "find": "      held.current = on;\n      store.setDragging(id, on);\n    },\n    [store, id],",
+      "replace": "      held.current = on;\n      store.setDragging(id, on);\n    },\n    [store, id, Math.random()],",
+      "expectRed": [
+        "the setter keeps one identity across renders"
+      ]
+    }
+  ]
+}
