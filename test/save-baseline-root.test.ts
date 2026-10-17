@@ -41,7 +41,7 @@ test('opening a restored file with a root template saves nothing', async () => {
 
 test('opening a file whose root was saved two slots wide saves nothing', async () => {
   const storage = recordingStorage({ version: 1, panels: [], root: 'history', rootSlots: 2 });
-  const ws = createWorkspace({ mount: false, root: rootTemplate, templates: [page], storage, tuning: { saveQuietMs: 5 } });
+  const ws = createWorkspace({ mount: false, root: markerTemplate('history', { settings: { resizable: true, maxSlots: 3 } }), templates: [page], storage, tuning: { saveQuietMs: 5 } });
   const m = mountWorkspace(ws);
   await flush();
   await settle();
