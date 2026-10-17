@@ -31,14 +31,11 @@ export interface RowNumbers {
   /** The widths of the drawn entries the row may park for room. */
   parkLiveWidths: readonly number[];
   /**
-   * The `scrollLeft` values at which the window shows only whole panels, ascending; the first is 0. Empty when the row
-   * does not scroll or its strip fits the window, which keeps its centring.
+   * The `scrollLeft` values a stepping row rests on, ascending; the first is 0. They are one phone width apart, and the last
+   * is the row's end (`maxScrollOf`). Empty when the row does not scroll, or its strip fits the window and keeps its centring.
    */
   stops: readonly number[];
-  /**
-   * Where a step lands: `stops`, plus a stop every phone width from the left edge of each panel wider than a phone, ascending.
-   * Drag snap and the nearest-stop settle still read `stops`, so a drag never settles inside a panel. Empty when `stops` is.
-   */
+  /** The same values as `stops`, under the step's name. Empty when `stops` is. */
   stepStops: readonly number[];
   /** For each stop, the drawn entries it shows: the index of its first one and one past its last. Same order as `stops`. */
   stopSpans: readonly { first: number; end: number }[];
@@ -48,8 +45,8 @@ export interface RowNumbers {
 
 /**
  * The numbers for one row. A row whose entries carry no `overflow: 'scroll'` settings gets the 0.1.0 numbers
- * (`computeMaxLiveWidth`, `computeRowLayout`'s margin). A scrolling row draws every entry, prices a tablet at its own
- * width and a desktop panel at no more than the window, and centres only a strip that fits.
+ * (`computeMaxLiveWidth`, `computeRowLayout`'s margin). A scrolling row draws every entry, sizes each panel from its slots
+ * and no wider than the window, and centres only a strip that fits.
  * @public
  * @deprecated The provider computes the row's numbers from its tuning; read them as `useProvidePanels(...).rowNumbers`.
  */
