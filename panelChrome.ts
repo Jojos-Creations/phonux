@@ -214,10 +214,12 @@ export function usePanelDragging(): boolean {
 }
 
 /**
- * A setter for the dragging mark of the panel it is called in, for a drag the host runs itself, so a host never writes
- * `data-panel-dragging` by hand. `setDragging(true)` when the drag begins and `setDragging(false)` when it ends:
- * `usePanelDragging()` and the attribute follow, and the chrome shows as it does for a `DragToClose` drag. A mark this
- * hook set ends when the calling view unmounts. Outside a row the setter does nothing.
+ * A setter for the dragging mark of the panel it is called in, for any drag the host runs itself except a resize grabber
+ * (that uses `usePanelResizing()`), so a host never writes `data-panel-dragging` by hand. `setDragging(true)` when the drag
+ * begins and `setDragging(false)` when it ends: `usePanelDragging()` and the attribute follow, and the chrome shows as it
+ * does for a `DragToClose` drag. A panel has one mark, shared with `DragToClose` and `usePanelResizing()`, and the last
+ * write wins. A mark this hook set ends when the calling view unmounts, and the setter keeps one identity for the view's
+ * life. Outside a row the setter does nothing.
  * @public
  */
 export function usePanelSetDragging(): (on: boolean) => void {
