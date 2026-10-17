@@ -101,3 +101,13 @@ test('Reduce Motion lands the dropped panel in its new slot at once', async () =
   assert.equal(xOf(m.container, 's1'), rest + SPAN);
   assert.equal(boxX(m.container, 's1'), 0);
 });
+
+test('a release just under the hop point springs the box home in its own slot', async () => {
+  const { m, rest } = await dragAndRelease(SPAN * 0.5 - 6);
+  assert.equal(order(m), 'root,s1,s2,s3');
+  await advanceFrames(FRAME_MS);
+  assert.ok(Math.abs(boxX(m.container, 's1')) > 1, 'the box is still on its way, one frame after the release');
+  await advanceFrames(2000);
+  assert.equal(boxX(m.container, 's1'), 0);
+  assert.equal(xOf(m.container, 's1'), rest);
+});

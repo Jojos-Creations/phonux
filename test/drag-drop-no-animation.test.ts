@@ -1,7 +1,6 @@
 /**
- * A released drag that reorders puts the box in its new slot at once, with Reduce Motion off: no slide, no spring from the old slot.
- * Mutants: dropping `hopped` in dragToClose.tsx leaves the box springing (the box-translate assertions fail); dropping `dragged`
- * in PanelRowSlot.tsx leaves the slot sliding (the slot assertions fail); always jumping fails 'springs home'.
+ * A released drag whose host refuses the move puts the box back in its old slot at once, and Reduce Motion lands a hop at once.
+ * Mutants: dropping `dragged` in PanelRowSlot.tsx leaves the slot sliding (the slot assertions fail); always jumping fails the sub-threshold spring home in drag-drop-glide.
  */
 import { test, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
@@ -74,39 +73,6 @@ async function dragAndRelease(dx: number, mode: typeof host = 'move') {
   await release(dx, 0);
   return { m, rest };
 }
-
-for (const mode of ['move', 'flush'] as const) {
-  test(`${mode}: a hopped release lands box and slot at the new rest on the first frames, with nothing sliding or springing`, async () => {
-    const { m, rest } = await dragAndRelease(213, mode);
-    assert.equal(order(m), 'root,s2,s1,s3');
-    await advanceFrames(FRAME_MS);
-    for (let frame = 0; frame < 3; frame += 1) {
-      assert.equal(xOf(m.container, 's1'), rest + SPAN, `slot at its new rest, frame ${frame}`);
-      assert.equal(boxX(m.container, 's1'), 0, `box at 0 in its new slot, frame ${frame}`);
-      assert.equal(xOf(m.container, 's2'), rest, `crossed neighbour stays, frame ${frame}`);
-      await advanceFrames(FRAME_MS);
-    }
-  });
-}
-
-test('a release just over the hop point jumps, just under it springs home', async () => {
-  const over = await dragAndRelease(SPAN * 0.5 + 6);
-  assert.equal(order(over.m), 'root,s2,s1,s3');
-  assert.equal(boxX(over.m.container, 's1'), 0);
-  cleanup();
-  const { m, rest } = await dragAndRelease(SPAN * 0.5 - 6);
-  assert.equal(order(m), 'root,s1,s2,s3');
-  await advanceFrames(FRAME_MS);
-  assert.ok(Math.abs(boxX(m.container, 's1')) > 1, 'the box is still on its way, one frame after the release');
-  const seen: number[] = [];
-  for (let frame = 0; frame < 120; frame += 1) {
-    await advanceFrames(FRAME_MS);
-    seen.push(Math.abs(boxX(m.container, 's1')));
-  }
-  assert.ok(seen.some((v) => v > 0.5), 'it takes more than one frame');
-  assert.equal(seen[seen.length - 1], 0);
-  assert.equal(xOf(m.container, 's1'), rest);
-});
 
 test('a host that refuses the move: the previewed hop jumps the box back to its old slot, with no spring', async () => {
   const { m, rest } = await dragAndRelease(213, 'refuse');
