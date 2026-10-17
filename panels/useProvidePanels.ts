@@ -273,6 +273,8 @@ export interface ProvidedPanels extends PanelsAPI {
   readonly exitRightIds: ReadonlySet<string>;
   /** See usePanelManager.ts's `UsePanelManagerResult.enterSideById` for the full contract. */
   readonly enterSideById: ReadonlyMap<string, 'left' | 'right'>;
+  /** False until a saved workspace has been restored; the row holds its enter animations until then. */
+  readonly restoreSettled: boolean;
 }
 
 /**
@@ -1117,6 +1119,7 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
     enteringViaAnchorIds,
     exitRightIds,
     enterSideById,
+    restoreSettled,
   };
 
   return api;
