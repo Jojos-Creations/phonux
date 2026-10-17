@@ -7,7 +7,7 @@
 
 import * as React from 'react';
 import Box, { type BoxProps } from '@mui/material/Box';
-import { type Theme } from '@mui/material/styles';
+import { alpha, type Theme } from '@mui/material/styles';
 import MoreHorizIcon from '@mui/icons-material/MoreHoriz';
 import { useOptionalHost, type PanelSize } from './hostApi.js';
 import { usePhoneSize } from './phoneFit.js';
@@ -60,10 +60,10 @@ export const panelFrameScrollSx = {
   '&::-webkit-scrollbar': { width: SCROLLBAR_PX },
   '&::-webkit-scrollbar-track': { background: 'transparent' },
   '&::-webkit-scrollbar-thumb': {
-    background: 'rgba(255, 255, 255, 0.25)',
+    background: (theme: Theme) => alpha(theme.palette.text.primary, 0.25),
     borderRadius: SCROLLBAR_PX / 2,
   },
-  '&::-webkit-scrollbar-thumb:hover': { background: 'rgba(255, 255, 255, 0.4)' },
+  '&::-webkit-scrollbar-thumb:hover': { background: (theme: Theme) => alpha(theme.palette.text.primary, 0.4) },
 } as const;
 
 /**
@@ -155,20 +155,15 @@ export function PanelHeader({ children, sx, ...rest }: PanelHeaderProps) {
         bottom: `calc(100% + ${chrome.headerGapPx}px)`,
         left: 0,
         right: 0,
-        // Twice the phone's own corner radius, so each end is an exact semicircle; from the theme, never a
-        // raw 48. Fixed, so however the content wraps the pill keeps its shape.
+        // Twice the phone's own corner radius, the height the header had as a pill; from the theme, never a
+        // raw 48. Fixed, so however the content wraps the header keeps its height.
         height: (theme: Theme) => 2 * panelCornerRadiusPx(theme),
         display: 'flex',
         alignItems: 'center',
-        // bgcolor + border: MUI Paper variant="outlined"'s look, shaped as a pill.
-        bgcolor: 'background.paper',
-        // An inset shadow, not a border (see PanelFrame), so the padding gives the 1 px back.
-        boxShadow: (theme: Theme) => glideEdge(theme.palette.divider),
-        borderRadius: (theme: Theme) => glideCorner(panelCornerRadiusPx(theme)),
         px: `${chrome.headerInsetPx}px`,
         py: '1px',
         fontSize: 13,
-        color: 'common.white',
+        color: 'text.primary',
         ...sx,
       }}
     >
@@ -180,10 +175,10 @@ export function PanelHeader({ children, sx, ...rest }: PanelHeaderProps) {
 /** The props of `PanelHeaderRow`: every `PanelHeader` prop except `children` and `title`, plus `title` and `actions`. @public */
 export interface PanelHeaderRowProps extends Omit<PanelHeaderProps, 'children' | 'title'> {
   /** Left-aligned, ellipsis-truncated. Falsy renders a placeholder ("Untitled") instead of
-   * nothing, so the pill never blanks for a view with no title yet. */
+   * nothing, so the header never blanks for a view with no title yet. */
   title: React.ReactNode;
   /** Right-aligned, never truncated. Falsy renders a placeholder icon slot instead of nothing,
-   * so a conditional like `isRunning && <IconButton .../>` still keeps the pill's full shape. */
+   * so a conditional like `isRunning && <IconButton .../>` still keeps the header's full height. */
   actions?: React.ReactNode;
   /** Left of the title, never truncated. Nothing is drawn for it when it is omitted. */
   leading?: React.ReactNode;
@@ -203,7 +198,7 @@ const placeholderTitle = (text: string) => (
 );
 
 /** A dimmed "more" glyph reads as "no actions here" rather than a missing icon, and keeps the
- * row's right edge occupied so the pill's shape never depends on whether any were passed. */
+ * row's right edge occupied so the header's height never depends on whether any were passed. */
 const PLACEHOLDER_ACTIONS = (
   <Box
     data-header-placeholder-action=""
