@@ -451,7 +451,7 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
       maxScroll,
       liveStarts: rowNumbers.leftOffsets.map((offset) => rowNumbers.rowMarginLeft + offset),
       liveWidths: rowNumbers.widths,
-      stops: rowNumbers.stepStops,
+      stops: rowNumbers.stops,
       gap: tuning.rowGap,
       hidden,
     });
@@ -465,18 +465,18 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
   // The glide's own target is the base, so a settle never fights a step in flight. Never while a drag holds the row.
   useLayoutEffect(() => {
     const el = i.overflowContainerRef.current;
-    if (el === null || tuning.rowGesture !== 'step' || rowNumbers.stepStops.length === 0) return;
+    if (el === null || tuning.rowGesture !== 'step' || rowNumbers.stops.length === 0) return;
     const scroller = rowScrollerFor(el);
     if (scroller.claimHeld()) return;
     const base = scroller.glideTarget() ?? scroller.scrollLeft();
     // The settle lands on a step stop, so the next step is a whole phone width; the whole-panel stops can sit between grid points.
-    const to = nearestStop({ ...rowNumbers, stops: rowNumbers.stepStops }, base);
+    const to = nearestStop(rowNumbers, base);
     // The first stop is not 0 once another stop needs room left of it; opening the row there is not a movement to animate.
     const opening = !restedRef.current;
     restedRef.current = true;
     if (Math.abs(to - base) < 0.5) return;
     scroller.glideTo(to, { durationSec: tuning.slide.durationSec, instant: reducedMotion || opening, ease: tuning.slide.glideEase });
-  }, [rowNumbers.stepStops.join(','), rowNumbers.rowMarginLeft, rowNumbers.endPad]);
+  }, [rowNumbers.stops.join(','), rowNumbers.rowMarginLeft, rowNumbers.endPad]);
 
   // The row's wheel/arrow-key gesture is wired here, not in the host, so a host stays free of effects and refs.
   useRowScrollGesture(i.overflowContainerRef, stepRow, timing.gestureLockMs, tuning.rowGesture, tuning.gestureQuietMs);
