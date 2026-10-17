@@ -29,7 +29,7 @@
 ### Fixed
 
 - The panel header's title and the scrollbar thumb follow the theme's text colour (the thumb at 0.25, 0.4 on hover), so they read on a light theme. The dark default is unchanged.
-- Behavior change: a step over a row moves one phone width per event, also onto a wide panel. Before, a wide panel took a step of its whole width or half. Walking a 1280 px window across a five-slot desktop panel and then two phones: 4 events of 812, 1218, 406, 406 before; 7 events of 406 after. A row of phones is unchanged.
+- Behavior change: a step over a row moves one phone width per event, also onto a wide panel. Before, a wide panel took a step of its whole width or half. Walking a 1280 px window across a five-slot desktop panel and then two phones: 4 events of 812, 1218, 406, 406 before; 7 events of 406 after. A row of phones is unchanged. Every stop a row rests on is on that one-phone grid, so a drag release or a resize settle no longer leaves a half step: the next step is a whole phone width. The whole-panel stops are gone; a wide panel centres only where the grid holds the centred position.
 - A vertical wheel over a panel row no longer moves the row up off its workspace: the row's own overflow is `overflowY: hidden`. A panel's inner scroller still scrolls.
 - A leftward drag no longer flicks the panel it replaces to the window edge. The drop moved that panel's DOM node, which reset what it hosts; no panel node moves in a reorder now.
 - After a reorder, Tab and Shift+Tab walk the panels in the order they are drawn, not the order they opened, also out of an iframe that ends or starts a panel.

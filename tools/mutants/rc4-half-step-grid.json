@@ -1,0 +1,38 @@
+{
+  "tests": [
+    "test/centred-grid-sweep.test.ts",
+    "test/rest-on-grid.test.ts",
+    "test/step-one-phone-width.test.ts",
+    "test/whole-panels.test.ts",
+    "test/pinned-edge-release.test.ts"
+  ],
+  "mutants": [
+    {
+      "name": "the grid is shifted half a phone, so no step lands on the phone grid",
+      "file": "rowNumbers.ts",
+      "find": "  for (let at = 0; at < maxScroll; at += step) grid.push(at);",
+      "replace": "  for (let at = step / 2; at < maxScroll; at += step) grid.push(at);",
+      "expectRed": [
+        "for N visible phones (2 to 6) and a first panel of k slots (1 to N), the panel centres on a grid stop exactly in the listed cells"
+      ]
+    },
+    {
+      "name": "the grid drops the row's end stop, so the last step is not the row's end",
+      "file": "rowNumbers.ts",
+      "find": "  grid.push(maxScroll);\n",
+      "replace": "",
+      "expectRed": [
+        "the grid covers every phone width up to the end, and the end is the last stop"
+      ]
+    },
+    {
+      "name": "the stops keep every other grid point, so a rest or settle can land a half step short",
+      "file": "rowNumbers.ts",
+      "find": "  const stops = stepStops;",
+      "replace": "  const stops = stepStops.filter((_, k) => k % 2 === 0);",
+      "expectRed": [
+        "a rest from between stops settles on a grid stop, so the next step is one phone width"
+      ]
+    }
+  ]
+}
