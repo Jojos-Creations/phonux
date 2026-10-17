@@ -238,7 +238,13 @@ export function PanelRow({
   const tracking = wanted;
   // A slot's moves snap while the row lands its first measured size, as they do while a width is held.
   const landing = React.useContext(LandingContext);
-  const slotTracking = tracking || landing;
+  // Until the row is measured and the restore has settled, a slot's moves take no time, so a reload draws panels where they belong.
+  const [ready, setReady] = React.useState(false);
+  const measuredNow = rowNumbers === undefined || Number.isFinite(rowNumbers.windowWidth);
+  React.useLayoutEffect(() => {
+    if (measuredNow && restoreSettled) setReady(true);
+  }, [measuredNow, restoreSettled]);
+  const slotTracking = tracking || landing || !ready;
   const widths = baseWidths.map((width, index) => (index === drawnIndex && drawnPx !== undefined ? drawnPx : width));
   React.useLayoutEffect(() => {
     drawnBeforeRef.current = new Map(present.map((p, index) => [p.id, baseWidths[index]!]));
