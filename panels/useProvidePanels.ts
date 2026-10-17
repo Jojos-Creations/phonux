@@ -11,7 +11,7 @@ import { useReducedMotionConfig } from 'motion/react';
 import type { CreatePanelOptions, JsonValue, PanelsAPI } from '../hostApi.js';
 import { effectiveMaxPanels, rowFitCount } from '../panelCapacity.js';
 import { minWorkspaceWidth } from '../minWorkspaceWidth.js';
-import { computeRowNumbers, maxScrollOf, nearestStop, snapToStop, type RowNumbers } from '../rowNumbers.js';
+import { computeRowNumbers, maxScrollOf, nearestStop, snapToStop, snapToStopIndex, type RowNumbers } from '../rowNumbers.js';
 import { resolveLabels, type PhonuxLabels } from '../labels.js';
 import { rowScrollerFor } from '../rowScroller.js';
 import { gestureTarget, scrollTargetFor } from '../scrollTargets.js';
@@ -33,10 +33,35 @@ import { conflictNotes, finishCreated } from '../workspacePlan.js';
 import { usePanelClosing, type Reapplied } from './usePanelClosing.js';
 import { usePanelManager, type GateKind } from './usePanelManager.js';
 import { useRowScrollGesture } from './useRowScrollGesture.js';
-import { useWorkspacePersistence } from './useWorkspacePersistence.js';
+import { useWorkspacePersistence, type RestMark } from './useWorkspacePersistence.js';
 
 /** Whether the host's CaptureTrigger is asked for a picture at `event`: a panel is captured at both. */
 const asksForPicture = (event: 'park' | 'close'): boolean => FIXED.snapshot === 'both' || FIXED.snapshot === event;
+
+/** How long the row must stand still, in ms, before it counts as at rest: a glide's last frame and a momentum tail are not rest. */
+const REST_QUIET_MS = 150;
+
+/** The index in `n.stops` of the stop nearest `at`, the earliest on a tie; -1 when the row has no stops. */
+function nearestStopIndex(n: RowNumbers, at: number): number {
+  let best = -1;
+  for (const [k, stop] of n.stops.entries()) if (best < 0 || Math.abs(stop - at) < Math.abs(n.stops[best]! - at)) best = k;
+  return best;
+}
+
+/** The rest of the row at stop `k`, as a saved mark names it: the first drawn entry the stop shows, and the stop's offset from that entry's left edge in phone widths. */
+function markOfStop(n: RowNumbers, k: number, step: number): RestMark {
+  const index = n.stopSpans[k]!.first;
+  return { panel: n.ids[index]!, offset: (n.stops[k]! - (n.rowMarginLeft + n.leftOffsets[index]!)) / step };
+}
+
+/** The stop a saved mark names: the stop that shows its panel nearest the panel's left edge moved by the offset. Null when the panel is not drawn or no stop shows it. */
+function stopOfMark(n: RowNumbers, mark: RestMark | null, step: number): number | null {
+  if (mark === null) return null;
+  const index = n.ids.indexOf(mark.panel);
+  if (index < 0) return null;
+  const k = snapToStopIndex(n, index, n.rowMarginLeft + n.leftOffsets[index]! + mark.offset * step);
+  return k < 0 ? null : n.stops[k]!;
+}
 
 /**
  * Duck-typed (a `preventDefault` function): a bare `onClick={panels.create}` reference passes the click
@@ -397,10 +422,14 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
     if (known) requestOpen(id);
   };
 
+  // Set once the persistence hook is called, below: the rest watch reads the saved state the hook owns.
+  const restWatch = useRef<() => void>(() => undefined);
+
   // One step of the gesture. A row with nothing to scroll toward swaps: the parked panel beside the live range comes in.
   const stepRow = (direction: 'left' | 'right'): void => {
     const el = i.overflowContainerRef.current;
     if (el === null) return;
+    restWatch.current();
     const scroller = rowScrollerFor(el);
     if (scroller.claimHeld()) return;
     const maxScroll = maxScrollOf(rowNumbers);
@@ -452,7 +481,7 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
   // The row's wheel/arrow-key gesture is wired here, not in the host, so a host stays free of effects and refs.
   useRowScrollGesture(i.overflowContainerRef, stepRow, timing.gestureLockMs, tuning.rowGesture, tuning.gestureQuietMs);
 
-  const { restoreSettled, dismiss, undismiss, isDismissed } = useWorkspacePersistence({
+  const { restoreSettled, dismiss, undismiss, isDismissed, scroll, setScroll } = useWorkspacePersistence({
     storage: core.storage,
     panels,
     setPanels,
@@ -469,6 +498,52 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
     onError: core.reportError,
     replay: true,
   });
+
+  // A row a person moves is saved where it comes to rest. A wheel or pointer-down on the row and a step (a key or a
+  // wheel gesture) call `restWatch`: it watches the row until it has stood still for REST_QUIET_MS, and if it moved,
+  // records the stop it rests on. It adds no listener, so the row's listener budget is the gesture's own. Nothing runs at open.
+  const settledRef = useRef(restoreSettled);
+  settledRef.current = restoreSettled;
+  const rowNumbersRef = useRef(rowNumbers);
+  rowNumbersRef.current = rowNumbers;
+  const stepRef = useRef(0);
+  stepRef.current = i.phoneWidth + tuning.rowGap;
+  const restFrame = useRef<number | null>(null);
+  restWatch.current = (): void => {
+    const el = i.overflowContainerRef.current;
+    if (el === null || restFrame.current !== null) return;
+    const scroller = rowScrollerFor(el);
+    const start = scroller.scrollLeft();
+    let last = start;
+    let still = performance.now();
+    let moved = false;
+    const rest = (at: number): void => {
+      const n = rowNumbersRef.current;
+      const k = nearestStopIndex(n, at);
+      if (k < 0) return;
+      const mark = markOfStop(n, k, stepRef.current);
+      setScroll((prev) => (prev !== null && prev.panel === mark.panel && prev.offset === mark.offset ? prev : mark));
+    };
+    const tick = (): void => {
+      restFrame.current = null;
+      const at = scroller.scrollLeft();
+      const gliding = scroller.glideTarget() !== null;
+      const now = performance.now();
+      if (at !== start || gliding) moved = true;
+      if (at !== last || gliding || scroller.claimHeld()) {
+        last = at;
+        still = now;
+      } else if (now - still >= REST_QUIET_MS) {
+        if (moved && settledRef.current) rest(at);
+        return;
+      }
+      restFrame.current = requestAnimationFrame(tick);
+    };
+    restFrame.current = requestAnimationFrame(tick);
+  };
+  useEffect(() => () => {
+    if (restFrame.current !== null) cancelAnimationFrame(restFrame.current);
+  }, []);
 
   const createFromWorkspace = (req: CreateRequest): void => {
     const template = templateList().find((t) => t.id === req.templateId);
@@ -535,7 +610,10 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
   useEffect(() => {
     const touch = (e: Event): void => {
       const el = i.overflowContainerRef.current;
-      if (el !== null && e.target instanceof Node && el.contains(e.target)) touchedRef.current = true;
+      if (el !== null && e.target instanceof Node && el.contains(e.target)) {
+        touchedRef.current = true;
+        restWatch.current();
+      }
     };
     window.addEventListener('wheel', touch, { capture: true, passive: true });
     window.addEventListener('pointerdown', touch, true);
@@ -557,7 +635,11 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
     const where = tuning.initialScroll;
     const maxScroll = maxScrollOf(rowNumbers);
     let to = rowNumbers.stops[0] ?? 0;
-    if (where === 'end') {
+    // A saved rest wins over initialScroll: the row was left where the person put it.
+    const rested = stopOfMark(rowNumbers, scroll, i.phoneWidth + tuning.rowGap);
+    if (rested !== null) {
+      to = rested;
+    } else if (where === 'end') {
       to = maxScroll;
     } else if (where !== 'start') {
       const k = rowNumbers.ids.indexOf(where === 'root' ? rootId : engineIdOf(where.panel));

@@ -471,7 +471,8 @@ panels drawn. The Workspace renders one polite live region (`role="status"`) and
 moves or closes a panel says so there, because nothing visible changes for a screen reader user.
 
 `tuning.initialScroll` runs once per mount, in a layout effect gated on the restore having settled, on a measured row
-with an entry, with no animation, and not at all when a wheel, a pointer-down or a glide got there first.
+with an entry, with no animation, and not at all when a wheel, a pointer-down or a glide got there first. A rest saved
+by a previous launch (see "Where the row rests" under the persistence section) takes its place.
 
 #### The seam for a custom scrollbar
 
@@ -844,6 +845,8 @@ type WorkspacePanelState = {
 };
 ```
 
+The saved file also holds `scroll?: { panel: string; offset: number }`, the row's rest, which "Where the row rests" below defines.
+
 `version` is a literal `1`, bumped only on a breaking shape change; an unrecognized value is handled in
 "Versioning and failure" below. `panels` holds one entry per saveable panel, in row order; the host's own root
 column (History today) is never one of them (see "Permanent columns" below). `id` is FILE-SCOPED ONLY: it
@@ -879,7 +882,7 @@ are made again at the next launch of a newer one and panels match only between d
 ### What's saved, and what's never
 
 - **Saved.** `id` (file-scoped only, remapped on restore), `view`, `url`, `title`, `params`, `listed`, `live`,
-  `anchor`, `slots`, `permanent`, `layer`. `listed` and `layer` are written whenever the panel
+  `anchor`, `slots`, `permanent`, `layer`, and the file-level `scroll` (see "Where the row rests"). `listed` and `layer` are written whenever the panel
   has them, `slots` only when it is not 1, `title` and `params` only when defined, and `permanent` only when true; no key is ever written as
   `undefined`. A panel with no anchor of its own is saved with the one its position in the row implies.
 - **Never saved -- `hostData`.** The host's own opaque per-panel data, which a host may use for its
@@ -965,7 +968,7 @@ rewrite an anchor that names a later entry.
 ### Save timing
 
 Once the initial restore attempt has settled, phonux computes `projectWorkspaceState` on every committed panels
-change and compares its JSON with the baseline: the JSON the file is known to hold, which is the restore's baseline
+change, or on a change of the row's rest, and compares its JSON with the baseline: the JSON the file is known to hold, which is the restore's baseline
 (see below) until a save succeeds. An equal projection is skipped. Otherwise it schedules `save()` 500 ms later
 (`WORKSPACE_SAVE_QUIET_MS`) and every further change restarts that wait, so a drag is one save and a change that puts
 the row back to what was saved saves nothing.
@@ -1056,6 +1059,31 @@ unchanged.
   `templates` or `declared` a create builds the 0.1.0 entry, with no settings.
 - **Declarations need storage.** Code-declared panels are made by the reconcile, which runs inside the persistence
   hook, so a provider with no `storage` makes none.
+
+### Where the row rests
+
+`WorkspaceState.scroll` is the row's rest. `panel` is the id of the first panel the window shows at the stop the row rests
+on (`stopSpans[k].first`), and `offset` is how many phone widths that stop lies from that panel's left edge, negative when
+the stop is left of it. The offset is the stop's distance from the panel's edge over `phoneWidth + rowGap`, so a rest at
+the edge is 0. The margin before the first panel puts most stops off an edge, so the offset is usually not 0; it is what
+lets a rest inside a panel as wide as the window come back to that stop and not to its edge.
+
+Only a person's move writes it. A wheel, a pointer-down or a key starts a watch on the row, which records the stop the row
+comes to rest on once it has stood still for 150 ms, and only if it moved in that time. Opening never records one, and nor
+does a row the restore left where it was, so a file that holds none is not changed by opening. The rest is saved with the
+same debounced save as the panels (see "Save timing"), and the restore baseline holds the marker it restored, so opening a
+file that holds one saves nothing.
+
+On restore, `panel` is matched to this launch's entry by the entry's `uid`: a file keeps one per saved panel, and the root,
+which is never saved, keeps its id. The once-per-mount layout effect in `useProvidePanels` then goes to the stop that shows
+that panel nearest its left edge moved by the offset (`snapToStop`), in the commit that measures the row, with `glideTo` at
+duration 0, so no frame shows another position. A saved rest wins over `tuning.initialScroll`. It is not used when its panel
+is gone or not drawn, when the row has no stops, or when a wheel or pointer-down reached the row before the restore settled
+(the same rule `initialScroll` follows).
+
+A `scroll` that is not `{ panel: non-empty string, offset: finite number }` is dropped with an `invalid-saved-setting`
+note and the file restores as it would without one; `version` stays 1, and `isWorkspaceState` ignores the field. A
+resized window lands on a stop that shows the panel at the same offset in phone widths, not at the same pixels.
 
 ### Versioning and failure
 

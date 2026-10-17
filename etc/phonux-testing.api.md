@@ -719,6 +719,10 @@ export type WorkspaceState = {
     dismissed?: string[];
     root?: string;
     rootSlots?: number;
+    scroll?: {
+        panel: string;
+        offset: number;
+    };
 };
 
 // @public

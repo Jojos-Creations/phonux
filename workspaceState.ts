@@ -77,6 +77,12 @@ export type WorkspaceState = {
   root?: string;
   /** How many slots wide the root panel (History) was, when more than one. A file saved before slots has none. */
   rootSlots?: number;
+  /**
+   * Where the row rested, once a person moved it: `panel` is the id of the first panel the window showed at that stop,
+   * and `offset` how many phone widths the stop lies from that panel's left edge (negative left of it). A reload
+   * restores the same stop; a panel that is gone, or a row with no stops, restores as if there were none.
+   */
+  scroll?: { panel: string; offset: number };
 };
 
 /**
@@ -141,6 +147,18 @@ export function isWorkspaceState(value: unknown): value is WorkspaceState {
 
 /** What the sanitizer dropped from a saved entry and why. */
 export type Dropped = { key: string; message: string };
+
+/**
+ * The saved rest of a file: its `scroll` when well formed, otherwise undefined with a drop note for anything but an absent one.
+ */
+export function cleanSavedScroll(value: unknown, dropped: Dropped[]): NonNullable<WorkspaceState['scroll']> | undefined {
+  if (value === undefined) return undefined;
+  if (isRecord(value) && typeof value.panel === 'string' && value.panel !== '' && typeof value.offset === 'number' && Number.isFinite(value.offset)) {
+    return { panel: value.panel, offset: value.offset };
+  }
+  dropped.push({ key: 'scroll', message: 'scroll: expected { panel, offset }; dropped' });
+  return undefined;
+}
 
 /** The additive keys of a saved entry once cleaned. The person's changes are `owned` here, so only the functions that own the panel field named `overrides` ever write one. */
 export type SavedExtras = Pick<WorkspacePanelState, 'key' | 'instance' | 'applied' | 'closable'> & { owned?: WorkspacePanelState['overrides'] };
@@ -263,7 +281,7 @@ function jsonSafe(value: unknown): JsonValue | undefined {
  * `undefined`. An entry that carries settings also writes `key`, `instance` (unless code declares it again),
  * `overrides`, `applied` and `closable`. `dismissed` is the tombstone list the caller holds.
  */
-export function projectWorkspaceState(panels: readonly PanelWindow[], rootId: string, dismissed: readonly string[] = []): WorkspaceState {
+export function projectWorkspaceState(panels: readonly PanelWindow[], rootId: string, dismissed: readonly string[] = [], scroll?: NonNullable<WorkspaceState['scroll']>): WorkspaceState {
   const positional = new Map(deriveAnchorsFromOrder(panels, rootId).map((p) => [p.id, p.anchor]));
   const root = panels.find((p) => p.id === rootId);
   return {
@@ -302,6 +320,7 @@ export function projectWorkspaceState(panels: readonly PanelWindow[], rootId: st
     ...(dismissed.length > 0 ? { dismissed: [...dismissed] } : {}),
     ...(root?.settings !== undefined && root.key !== undefined ? { root: root.key } : {}),
     ...(root !== undefined && slotsOf(root) > 1 ? { rootSlots: slotsOf(root) } : {}),
+    ...(scroll !== undefined ? { scroll: { panel: scroll.panel, offset: scroll.offset } } : {}),
   };
 }
 

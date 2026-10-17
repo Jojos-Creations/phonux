@@ -369,10 +369,12 @@ test('initialScroll is skipped when a wheel or a pointer-down reached the row be
 
 const SCROLLING = { overflow: 'scroll' } as const;
 const stepping = (): PanelWindow[] => row(...['p1', 'p2', 'p3', 'p4', 'p5'].map((id) => made(id, SCROLLING)), rootEntry(), ...['w1', 'w2', 'w3', 'w4', 'w5'].map((id) => made(id, SCROLLING)));
-const stepTuning = (initialScroll: NonNullable<WorkspaceTuning['initialScroll']> = 'start'): Parameters<typeof mountScrollRow>[2] => ({ tuning: { rowGesture: 'step', initialScroll } });
+const stepTuning = (initialScroll: NonNullable<WorkspaceTuning['initialScroll']> = 'start'): Parameters<typeof mountScrollRow>[2] => ({ tuning: { rowGesture: 'step', initialScroll, saveQuietMs: 5 } });
+/** Lets the save timer (real time, so not the frame clock) fire. */
+const flushSaves = (): Promise<void> => act(async () => void (await new Promise((r) => setTimeout(r, 60))));
 
 /** The saved form of `entries`, with the marker the test gives (or none). */
-function savedOf(entries: PanelWindow[], scroll?: { panel: string; offset: unknown }): WorkspaceState {
+function savedOf(entries: PanelWindow[], scroll?: { panel: unknown; offset: unknown }): WorkspaceState {
   const state = projectWorkspaceState(entries, ROOT);
   return scroll === undefined ? state : ({ ...state, scroll } as WorkspaceState);
 }
@@ -415,6 +417,7 @@ test('a rest the person moved to saves a marker naming the first panel the windo
   await first.resolve(savedOf(stepping()));
   m.wheel({ deltaX: 300 });
   await settle();
+  await flushSaves();
   const rest = m.container.scrollLeft;
   assert.ok(rest > 0, 'control: the wheel moved the row off the first stop');
   const n = m.latest().rowNumbers;
@@ -438,6 +441,7 @@ test('opening a file with a marker, and one without, saves nothing past the quie
     const m = loadedRow(storage, stepTuning());
     await resolve(savedOf(stepping(), scroll));
     await settle();
+    await flushSaves();
     assert.deepEqual(saves, [], JSON.stringify(scroll));
     assert.equal(m.container.scrollLeft, scroll === undefined ? 0 : 812);
     cleanup();
@@ -485,7 +489,7 @@ test('a window resized between launches lands on a stop that shows the marker pa
   const n = m.latest().rowNumbers;
   const k = n.stops.indexOf(m.container.scrollLeft);
   assert.ok(k >= 0, 'on a stop');
-  const idx = n.ids.indexOf('p3');
+  const idx = n.ids.indexOf(idOfTitle(m, 'p3'));
   assert.ok(n.stopSpans[k]!.first <= idx && idx < n.stopSpans[k]!.end, 'the stop shows panel 3');
 });
 
@@ -498,12 +502,16 @@ test('two rows each restore their own marker', async () => {
   await b.resolve(savedOf(stepping(), { panel: 'w2', offset: 0 }));
   assert.equal(first.container.scrollLeft, 812);
   assert.equal(second.container.scrollLeft, nearestShowing(second, 'w2'), 'the second row lands on a stop showing w2, not the first row\'s stop');
+  assert.notEqual(second.container.scrollLeft, first.container.scrollLeft);
 });
 
-/** The stop of `m` nearest to where panel `id` starts, among the stops that show it. */
-function nearestShowing(m: MountedRow, id: string): number {
+/** The id a panel of `m` has this launch, found by the title `made` gives it (restored panels get fresh ids). */
+const idOfTitle = (m: MountedRow, title: string): string => m.latest().entries.find((p) => p.title === title)!.id;
+
+/** The stop of `m` nearest to where the panel titled `title` starts, among the stops that show it. */
+function nearestShowing(m: MountedRow, title: string): number {
   const n = m.latest().rowNumbers;
-  const idx = n.ids.indexOf(id);
+  const idx = n.ids.indexOf(idOfTitle(m, title));
   const left = n.rowMarginLeft + n.leftOffsets[idx]!;
   let best = Number.NaN;
   for (const [k, stop] of n.stops.entries()) {
