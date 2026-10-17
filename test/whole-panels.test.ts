@@ -27,31 +27,31 @@ const root = (): PanelWindow => applyTemplate({ ...createHistoryPanel(ROOT), vie
 const numbers = (entries: PanelWindow[], containerWidth = 1000, wholePanels = true) => computeRowNumbers({ entries, phoneWidth: 390, containerWidth, gap: 16, wholePanels });
 const six = () => [root(), ...['a', 'b', 'c', 'd', 'e'].map((id) => made(id))];
 
-test('six phone panels: two whole panels fit, so five stops 406 apart, an 86 margin each side and 86 of room after the strip', () => {
+test('six phone panels: two whole panels fit, so five stops 406 apart, an 86 margin each side and the last stop at the end of the strip', () => {
   const n = numbers(six());
   assert.equal(n.rowMarginLeft, 86, '(968 - 796) / 2');
-  assert.deepEqual(n.stops, [0, 406, 812, 1218, 1624]);
+  assert.deepEqual(n.stops, [0, 406, 812, 1218, 1538], 'the last stop is the end of the strip: 86 + 2420 - 968');
   assert.deepEqual(n.stopSpans, [{ first: 0, end: 3 }, { first: 0, end: 4 }, { first: 1, end: 5 }, { first: 2, end: 6 }, { first: 3, end: 6 }]);
-  assert.equal(n.endPad, 86);
-  assert.equal(maxScrollOf(n), 1624, '86 + 2420 + 86 - 968, the last stop');
+  assert.equal(n.endPad, 0);
+  assert.equal(maxScrollOf(n), 1538, '86 + 2420 - 968, the last stop');
 });
 
-test('a two-slot panel between two phones: the grid stops are 0, 406, 812 and 1218, each one phone width apart', () => {
+test('a two-slot panel between two phones: the grid stops are 0, 406, 812 and 929, each one phone width apart', () => {
   const n = numbers([root(), made('t', { slots: 2 }), made('b')]);
   assert.deepEqual(n.widths, [390, 796, 390]);
   assert.equal(n.rowMarginLeft, 289);
-  assert.deepEqual(n.stops, [0, 406, 812, 1218], 'every stop is on the one-phone grid');
+  assert.deepEqual(n.stops, [0, 406, 812, 929], 'every stop is on the one-phone grid, and the last is the end of the strip');
   assert.deepEqual(n.stopSpans, [{ first: 0, end: 2 }, { first: 0, end: 2 }, { first: 1, end: 3 }, { first: 1, end: 3 }]);
-  assert.equal(n.endPad, 289);
-  assert.equal(maxScrollOf(n), 1218);
+  assert.equal(n.endPad, 0);
+  assert.equal(maxScrollOf(n), 929);
 });
 
 test('a panel as wide as two slots shows alone with an even margin, and the stop before it keeps the phone centred', () => {
   const n = numbers([root(), made('d', { slots: 64 })]);
   assert.deepEqual(n.widths, [390, 796]);
-  assert.deepEqual(n.stops, [0, 406, 609], 'the grid stops 0 and 406, then the row end at 609');
-  assert.equal(n.endPad, 86);
-  assert.equal(maxScrollOf(n), 609);
+  assert.deepEqual(n.stops, [0, 406, 523], 'the grid stops 0 and 406, then the row end at 523');
+  assert.equal(n.endPad, 0);
+  assert.equal(maxScrollOf(n), 523);
 });
 
 test('a strip that fits the window keeps its centring and has no stops', () => {
@@ -91,11 +91,11 @@ test('mounted in free mode: no stops, a spacer of the row gap alone and the marg
   assert.equal(m.container.querySelector<HTMLElement>('[data-row-end-pad]')!.style.flex, '0 0 16px', 'the right edge space is the element, with no endPad to add');
 });
 
-test('mounted in step mode the trailing room is one spacer element of endPad plus the row gap, outside the strip', () => {
+test('mounted in step mode the trailing room is one spacer element, the row gap wide, outside the strip', () => {
   const m = mountRow(panelsOf(5), 1000, { tuning: { rowGesture: 'step' } });
   const spacer = m.container.querySelector<HTMLElement>('[data-row-end-pad]');
   assert.ok(spacer, 'a spacer is drawn');
-  assert.equal(spacer.style.flex, '0 0 102px', '86 of endPad and the 16 of the right edge');
+  assert.equal(spacer.style.flex, '0 0 16px', 'endPad is 0, so the spacer is the row gap alone');
   assert.equal(spacer.parentElement, m.container, 'a child of the scroll container, not of the strip');
 });
 
@@ -109,12 +109,12 @@ test('a window exactly two panels wide fits two, not one', () => {
 
 test('a resize that changes how many fit brings a row resting past the new last stop back to a stop', async () => {
   const m = mountRow(panelsOf(5), 1000, { tuning: { rowGesture: 'step' } });
-  m.scroller.glideTo(1624, { durationSec: 0, instant: true, ease: 'cubic-out' });
-  assert.equal(m.container.scrollLeft, 1624, 'the last stop at two fit');
+  m.scroller.glideTo(1538, { durationSec: 0, instant: true, ease: 'cubic-out' });
+  assert.equal(m.container.scrollLeft, 1538, 'the last stop at two fit');
   m.rerender(1500);
   await advanceFrames(600);
-  assert.deepEqual(m.latest().rowNumbers.stops, [0, 406, 812, 1218], 'three fit at 1500, so the last stop is panel 3');
-  assert.equal(m.container.scrollLeft, 1218);
+  assert.deepEqual(m.latest().rowNumbers.stops, [0, 406, 812, 1085], 'three fit at 1500, so the last stop is the new end, 1085, which shows the last four panels');
+  assert.equal(m.container.scrollLeft, 1085);
 });
 
 test('the strip margin snaps while stops exist and glides otherwise', () => {

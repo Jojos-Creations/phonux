@@ -205,7 +205,7 @@ test('the last step clamps to the strip end', () => {
   const stops = stopsOf(m, 1000);
   m.container.scrollLeft = stops[stops.length - 2]!;
   m.key('ArrowRight');
-  // endPad makes the last stop the farthest legal scroll, so the clamp and the stop agree.
+  // The last stop is the farthest legal scroll, so the clamp and the stop agree.
   assert.equal(m.scroller.glideTarget(), maxScrollOf(numbersOf(m, 1000)));
   assert.equal(m.scroller.glideTarget(), stops[stops.length - 1]);
 });

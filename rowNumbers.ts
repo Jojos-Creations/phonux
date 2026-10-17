@@ -42,7 +42,7 @@ export interface RowNumbers {
   stepStops: readonly number[];
   /** For each stop, the drawn entries it shows: the index of its first one and one past its last. Same order as `stops`. */
   stopSpans: readonly { first: number; end: number }[];
-  /** Room after the strip so the last stop can leave an even margin at both edges; 0 when there are no stops. */
+  /** Always 0: the space after the strip is one row gap wide, and the last stop leaves the last panel one gap from the window edge. */
   endPad: number;
 }
 
@@ -86,7 +86,7 @@ export function computeRowNumbers(i: {
     leftOffsets.push(running);
     running += width + i.gap;
   }
-  const whole = i.wholePanels === true && rowScroll && measured && stripWidth > windowWidth ? wholePanelStops(widths, leftOffsets, stripWidth, i.gap, windowWidth, i.phoneWidth) : null;
+  const whole = i.wholePanels === true && rowScroll && measured && stripWidth > windowWidth ? wholePanelStops(widths, leftOffsets, i.gap, windowWidth, i.phoneWidth) : null;
   let rowMarginLeft: number;
   if (whole !== null) {
     rowMarginLeft = whole.rowMargin;
@@ -95,12 +95,11 @@ export function computeRowNumbers(i: {
   } else {
     rowMarginLeft = !measured || stripWidth > windowWidth ? 0 : (windowWidth - stripWidth) / 2;
   }
-  const endPad = whole === null ? 0 : whole.endPad;
-  const stepStops = whole === null ? [] : stepGrid(Math.max(0, rowMarginLeft + stripWidth + endPad - windowWidth), i.phoneWidth + i.gap);
+  const stepStops = whole === null ? [] : stepGrid(Math.max(0, rowMarginLeft + stripWidth - windowWidth), i.phoneWidth + i.gap);
   // Every stop is on the one-phone grid, so drag snap, the rest settle and drag release all land on it.
   const stops = stepStops;
   const stopSpans = stops.map((at) => spanAt(at, widths, leftOffsets, rowMarginLeft, windowWidth));
-  return { rowScroll, windowWidth, stripWidth, rowMarginLeft, ids: present.map((p) => p.id), widths, leftOffsets, maxLiveWidth, reservedWidths, parkLiveWidths, stops, stepStops, stopSpans, endPad };
+  return { rowScroll, windowWidth, stripWidth, rowMarginLeft, ids: present.map((p) => p.id), widths, leftOffsets, maxLiveWidth, reservedWidths, parkLiveWidths, stops, stepStops, stopSpans, endPad: 0 };
 }
 
 /** The drawn entries a window at scroll `at` shows: the first one its right edge passes and one past the last one its left edge reaches. */
@@ -125,21 +124,15 @@ function stepGrid(maxScroll: number, step: number): number[] {
 }
 
 type Pick = { start: number; end: number; margin: number; inset?: number };
-type StopSet = { starts: number[]; ends: number[]; margins: number[]; insets: number[]; rowMargin: number; endPad: number };
+type StopSet = { starts: number[]; ends: number[]; margins: number[]; insets: number[]; rowMargin: number };
 
 /**
- * The row margin and end pad the picks need, and the picks that go forward: a stop whose scroll position lies left of the one
- * before it is left out. The margin and pad are the least that let every stop sit at a scroll position inside the strip, and
- * the strip reach every stop.
+ * The row margin the picks need, and the picks that go forward: a stop whose scroll position lies left of the one before it
+ * is left out. The margin is the least that lets every stop sit at a scroll position inside the strip.
  */
-function settleStops(picks: readonly Pick[], offsets: readonly number[], stripWidth: number, windowWidth: number): StopSet {
+function settleStops(picks: readonly Pick[], offsets: readonly number[]): StopSet {
   let rowMargin = 0;
-  let reach = Number.NEGATIVE_INFINITY;
-  for (const pick of picks) {
-    rowMargin = Math.max(rowMargin, pick.margin - offsets[pick.start]!);
-    reach = Math.max(reach, offsets[pick.start]! - pick.margin + (pick.inset ?? 0) + windowWidth - stripWidth);
-  }
-  const endPad = Math.max(0, reach);
+  for (const pick of picks) rowMargin = Math.max(rowMargin, pick.margin - offsets[pick.start]!);
   const kept: Pick[] = [];
   let last = Number.NEGATIVE_INFINITY;
   for (const pick of picks) {
@@ -148,7 +141,7 @@ function settleStops(picks: readonly Pick[], offsets: readonly number[], stripWi
     last = at;
     kept.push(pick);
   }
-  return { starts: kept.map((p) => p.start), ends: kept.map((p) => p.end), margins: kept.map((p) => p.margin), insets: kept.map((p) => p.inset ?? 0), rowMargin, endPad };
+  return { starts: kept.map((p) => p.start), ends: kept.map((p) => p.end), margins: kept.map((p) => p.margin), insets: kept.map((p) => p.inset ?? 0), rowMargin };
 }
 
 /**
@@ -157,7 +150,7 @@ function settleStops(picks: readonly Pick[], offsets: readonly number[], stripWi
  * Groups come from `widths` alone. A panel as wide as the window with a panel after it also gets a stop slid left, by the
  * whole panels that fit beside its right part or, when none does, by one slot.
  */
-function wholePanelStops(widths: readonly number[], offsets: readonly number[], stripWidth: number, gap: number, windowWidth: number, phoneWidth: number): StopSet {
+function wholePanelStops(widths: readonly number[], offsets: readonly number[], gap: number, windowWidth: number, phoneWidth: number): StopSet {
   const picks: Pick[] = [];
   for (let first = 0; first < widths.length; first++) {
     let used = widths[first]!;
@@ -175,7 +168,7 @@ function wholePanelStops(widths: readonly number[], offsets: readonly number[], 
     }
     if (end === widths.length) break;
   }
-  return settleStops(picks, offsets, stripWidth, windowWidth);
+  return settleStops(picks, offsets);
 }
 
 /**
