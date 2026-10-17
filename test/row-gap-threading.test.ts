@@ -1,6 +1,6 @@
 /**
  * The row gap reaches every site that prices or draws the row, from the one resolved value: literal arithmetic at
- * gaps 0, 16 and 40 over widths [390, 768, 390] with one fixed column, a seeded consistency property between the
+ * gaps 0, 16 and 40 over widths [390, two slots, 390] with one fixed column, a seeded consistency property between the
  * capacity and the layout budget, and the single-render rule for a PanelRow inside a Workspace. Every expected
  * number is written from its sum, never read back from the code under test.
  */
@@ -9,12 +9,13 @@ import assert from 'node:assert/strict';
 import './support/jsdom-globals.js';
 import * as React from 'react';
 import { act } from 'react';
-import { PanelRow, TIER_SIZES, Workspace, registerView, useProvidePanels, usePanelTuning } from '../index.js';
-import type { PanelWindow, ProvidedPanels, WorkspaceTuning } from '../index.js';
+import { Workspace, useProvidePanels, usePanelTuning } from '../index.js';
+import type { PanelWindow, ProvidedPanels, WorkspaceHandle, WorkspaceTuning } from '../index.js';
 import { computeMaxLiveWidth, computeRowLayout } from '../panelRowLayout.js';
 import { panelRowSlotMotion } from '../PanelRowSlot.js';
 import { workspaceShellStyle } from '../Workspace.js';
-import { cleanup, mount, panelsInput, withHost } from './support/mount-harness.js';
+import { cleanup, mount, withHost, useSeededInput, StaticRow, plainTemplate } from './support/mount-harness.js';
+import { registerTestView } from './support/test-views.js';
 
 const GAPS = [0, 16, 40] as const;
 const ROOT = 'root';
@@ -31,9 +32,9 @@ const entry = (id: string, over: Partial<PanelWindow> = {}): PanelWindow => ({
   ...over,
 });
 const fixedRoot = (): PanelWindow => entry(ROOT, { url: '', title: 'History', locked: true, collapsible: false, listed: false });
-const tablet = (id: string): PanelWindow => entry(id, { formFactor: 'tablet', size: { ...TIER_SIZES.tablet } });
+const twoSlots = (id: string): PanelWindow => entry(id, { slots: 2, size: { width: 796, height: 'fill' } });
 
-registerView('gap-view', ({ panel }) => React.createElement('i', { 'data-slot': panel.id }, panel.title));
+registerTestView('gap-view', ({ panel }) => React.createElement('i', { 'data-slot': panel.id }, panel.title));
 
 afterEach(() => {
   mock.restoreAll();
@@ -42,7 +43,7 @@ afterEach(() => {
 
 const NONE: ReadonlySet<string> = new Set();
 const rowOf = (entries: PanelWindow[], tuning?: WorkspaceTuning): React.ReactElement =>
-  withHost(React.createElement(PanelRow, { entries, rootId: ROOT, closingIds: NONE, enteringViaAnchorIds: NONE, ...(tuning === undefined ? {} : { tuning }) }));
+  withHost(React.createElement(StaticRow, { entries, rootId: ROOT, closingIds: NONE, enteringViaAnchorIds: NONE, ...(tuning === undefined ? {} : { tuning }) }));
 const slotX = (container: HTMLElement, id: string): number => {
   const slot = container.querySelector(`[data-slot="${id}"]`)?.parentElement;
   assert.ok(slot, `slot ${id} is mounted`);
@@ -54,7 +55,7 @@ const slotX = (container: HTMLElement, id: string): number => {
 function provided(rowGap: number, containerWidth: number, count = 0): { now: () => ProvidedPanels; live: () => number; unmount: () => void } {
   let latest: ProvidedPanels | undefined;
   function Probe(): React.ReactElement {
-    latest = useProvidePanels(panelsInput({ initialEntries: [fixedRoot()], containerWidth, tuning: { rowGap } }));
+    latest = useProvidePanels(useSeededInput({ initialEntries: [fixedRoot()], containerWidth, workspaceDefaults: { overflow: 'park' }, tuning: { rowGap } }));
     return React.createElement('output');
   }
   const mounted = mount(React.createElement(Probe));
@@ -84,15 +85,15 @@ test('the gap threads through every site at gaps 0, 16 and 40, from literal sums
   const margin: Record<number, number> = { 0: 426, 16: 394, 40: 346 };
   const maxLive: Record<number, number> = { 0: 2010, 16: 1962, 40: 1890 };
   for (const gap of GAPS) {
-    // Site 1 and 2: three present entries of 390, 768 and 390.
-    const row = mount(rowOf([fixedRoot(), tablet('t'), entry('p')], { rowGap: gap }));
-    assert.deepEqual([slotX(row.container, ROOT), slotX(row.container, 't'), slotX(row.container, 'p')], [0, 390 + gap, 390 + gap + 768 + gap], `offsets at gap ${gap}`);
+    // Site 1 and 2: three present entries of 390, two slots wide and 390.
+    const row = mount(rowOf([fixedRoot(), twoSlots('t'), entry('p')], { rowGap: gap }));
+    assert.deepEqual([slotX(row.container, ROOT), slotX(row.container, 't'), slotX(row.container, 'p')], [0, 390 + gap, 390 + gap + (780 + gap) + gap], `offsets at gap ${gap}`);
     executed += 1;
-    assert.equal(getComputedStyle(row.container.firstElementChild!).width, `${390 + 768 + 390 + 2 * gap}px`, `reserved width at gap ${gap}`);
+    assert.equal(getComputedStyle(row.container.firstElementChild!).width, `${390 + (780 + gap) + 390 + 2 * gap}px`, `reserved width at gap ${gap}`);
     executed += 1;
     row.unmount();
     // Site 3: the travel of a slot entering from the right is its own width plus the gap.
-    assert.deepEqual(panelRowSlotMotion(0, 390, 700, 'right', 'left', true, gap).initial, { x: 390 + gap, opacity: 0 }, `travel at gap ${gap}`);
+    assert.deepEqual(panelRowSlotMotion(0, 390, 700, 'right', 'left', gap).initial, { x: 390 + gap, opacity: 0 }, `travel at gap ${gap}`);
     executed += 1;
     // Site 4: the markup of the shell.
     const containerRef = { current: null } as React.RefObject<HTMLDivElement | null>;
@@ -197,7 +198,7 @@ test('a PanelRow inside a Workspace at rowGap 40 draws, pads and prices at 40, a
   const rowRef = { current: null } as React.RefObject<HTMLDivElement | null>;
   let provided2: ProvidedPanels | undefined;
   /** Rendered as the last view of the row: its layout effect runs after the whole commit's DOM writes. */
-  registerView('gap-probe', () => {
+  registerTestView('gap-probe', () => {
     const slotGap = usePanelTuning().rowGap;
     React.useLayoutEffect(() => {
       // The refs are attached after this effect on a first commit, so the nodes are found from the first slot: slot, row box, flex row, scroll container.
@@ -211,8 +212,12 @@ test('a PanelRow inside a Workspace at rowGap 40 draws, pads and prices at 40, a
     });
     return React.createElement('i', { 'data-probe': '' });
   });
-  function Host({ tuning }: { tuning: WorkspaceTuning }): React.ReactElement {
-    provided2 = useProvidePanels(panelsInput({ initialEntries: [fixedRoot()], containerWidth: 2400, tuning }));
+  let shared: WorkspaceHandle | undefined;
+  function Host(): React.ReactElement {
+    const input = useSeededInput({ initialEntries: [fixedRoot()], containerWidth: 2400, workspaceDefaults: { overflow: 'park' }, tuning: { rowGap: 40 }, templates: [plainTemplate('gap-probe')] });
+    shared = input.workspace;
+    provided2 = useProvidePanels(input);
+    const tuning = { rowGap: provided2.tuning.rowGap };
     return withHost(
       React.createElement(Workspace, {
         overflowContainerRef: containerRef,
@@ -223,15 +228,15 @@ test('a PanelRow inside a Workspace at rowGap 40 draws, pads and prices at 40, a
         fixedColumnCount: 1,
         liveWidths: [],
         tuning,
-        children: React.createElement(PanelRow, { entries: [entry('a'), entry('b', { view: 'gap-probe' })], rootId: ROOT, closingIds: NONE, enteringViaAnchorIds: NONE }),
+        children: React.createElement(StaticRow, { workspace: input.workspace, entries: [entry('a'), entry('b', { view: 'gap-probe' })], rootId: ROOT, closingIds: NONE, enteringViaAnchorIds: NONE }),
       }),
     );
   }
-  const mounted = mount(React.createElement(Host, { tuning: { rowGap: 40 } }));
+  mount(React.createElement(Host));
   assert.ok(log.length > 0, 'the probe committed');
   for (const commit of log) assert.deepEqual(commit, { slotGap: 40, padding: 40, flexGap: 40, boxGap: 40, capacityGap: 40 });
   const before = log.length;
-  mounted.rerender(React.createElement(Host, { tuning: { rowGap: 16 } }));
+  act(() => shared!.panels.configureTuning({ rowGap: 16 }));
   assert.ok(log.length > before, 'the change committed');
   const after = log.slice(before);
   for (const commit of after) assert.deepEqual(commit, { slotGap: 16, padding: 16, flexGap: 16, boxGap: 16, capacityGap: 16 });
@@ -259,7 +264,7 @@ const inWorkspace = (
       fixedColumnCount: 1,
       liveWidths,
       tuning: workspace,
-      children: React.createElement(PanelRow, { entries, rootId: ROOT, closingIds: NONE, enteringViaAnchorIds: NONE, ...(row === undefined ? {} : { tuning: row }) }),
+      children: React.createElement(StaticRow, { entries, rootId: ROOT, closingIds: NONE, enteringViaAnchorIds: NONE, ...(row === undefined ? {} : { tuning: row }) }),
     }),
   );
 /** How many warnings one mount of a Workspace at `workspace` over a PanelRow carrying `row` prints. */

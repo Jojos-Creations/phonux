@@ -1,7 +1,7 @@
 /**
  * The default frame: a template's view that draws no `Panel` or `PanelFrame` is drawn inside the library's frame, and one
  * that draws any part of its own is mounted once and left alone. The golden DOM of the self-framed fixtures is in
- * default-frame-golden.test.ts; this file covers the bare view, the cases between, the opt-out and the gestures.
+ * default-frame-golden.test.ts; this file covers the bare view, the cases between and the gestures.
  */
 import { test, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
@@ -9,9 +9,8 @@ import './support/jsdom-globals.js';
 import * as React from 'react';
 import { act } from 'react';
 import { Panel, PanelFrame, createWorkspace, definePanel } from '../index.js';
-import type { PanelHandle, PanelSettings, PanelTemplate, WorkspaceHandle } from '../index.js';
+import type { PanelHandle, PanelTemplate, WorkspaceHandle } from '../index.js';
 import { advanceFrames, cleanup } from './support/mount-harness.js';
-import { differential } from './support/differential.js';
 import { drag, release } from './support/drag-gesture.js';
 import { albumPanel, effects, frameOnlyPanel, restPanel, stableIds } from './support/frame-fixtures.js';
 import { flush, mountWorkspace, type ResizableWorkspace } from './support/workspace-row.js';
@@ -101,11 +100,11 @@ test('a bare view and a self-framed view each have one header and one phone fram
   assert.equal(r.m.container.querySelectorAll('[data-panel-chrome-part="header"]').length, 3, 'three panels, three headers');
 });
 
-test('a bare view with no title shows the untitled label, and the title the panel carries once it has one', async () => {
+test('a bare view with no title of its own shows the default panel title', async () => {
   const t = bareTemplate('anon');
   const noTitle = definePanel({ id: 'anon', view: t.view });
   const r = await rig([noTitle], ['anon']);
-  assert.match(bodiesOf(r.m, 'anon')!.closest('[data-row-slot]')!.textContent ?? '', /Untitled panel/);
+  assert.match(bodiesOf(r.m, 'anon')!.closest('[data-row-slot]')!.textContent ?? '', /Panel \S+/);
 });
 
 test('a bare view mounts again once when the frame is drawn around it; the next panel of the same template mounts once', async () => {
@@ -144,30 +143,6 @@ test('the template footer is drawn once, inside the library frame', async () => 
   const r = await rig([bareTemplate('bare', { footer: () => React.createElement('span', { 'data-foot': '' }, 'foot') })], ['bare']);
   await settle();
   assert.equal(bodiesOf(r.m, 'bare')!.closest('[data-row-slot]')!.querySelectorAll('[data-panel-footer]').length, 1);
-});
-
-// ---------------------------------------------------------------------------
-// The opt-out
-// ---------------------------------------------------------------------------
-
-test("frame: 'none' draws a bare view as it is, mounted once with no frame", async () => {
-  const none: PanelSettings = { frame: 'none' };
-  const r = await rig([bareTemplate('bare', { settings: none })], ['bare']);
-  await settle();
-  assert.equal(part(r.m, 'header').length, 1, 'only the root has a header');
-  assert.deepEqual(counts('bare'), [1, 0]);
-});
-
-test("changing frame from 'auto' to 'none' takes the library frame away", async () => {
-  const r = await rig([bareTemplate('bare')], ['bare']);
-  await settle();
-  assert.equal(part(r.m, 'header').length, 2);
-  await act(async () => void r.handles[0]!.configure({ frame: 'none' }));
-  await settle();
-  assert.equal(part(r.m, 'header').length, 1);
-  await act(async () => void r.handles[0]!.configure({ frame: 'auto' }));
-  await settle();
-  assert.equal(part(r.m, 'header').length, 2, 'and back');
 });
 
 // ---------------------------------------------------------------------------
@@ -271,10 +246,13 @@ test('a real pointer drag down on the grab bar closes a bare panel', async () =>
   assert.equal(r.m.container.querySelector('[data-body="bare"]') === null, true, 'the panel closed');
 });
 
+/** Panels in the order they are drawn: the DOM keeps the order they opened, so position comes from the slot's offset. */
+const leftOf = (n: HTMLElement): number => Number(n.closest('[data-row-slot]')!.getAttribute('data-row-slot'));
+
 test('a real pointer drag sideways on the grab bar moves a bare panel past its neighbour', async () => {
   const r = await rig([bareTemplate('one'), bareTemplate('two')], ['one', 'two']);
   await settle();
-  const order = (): string[] => [...r.m.container.querySelectorAll<HTMLElement>('[data-body]')].map((n) => n.dataset.body!);
+  const order = (): string[] => [...r.m.container.querySelectorAll<HTMLElement>('[data-body]')].sort((a, b) => leftOf(a) - leftOf(b)).map((n) => n.dataset.body!);
   assert.deepEqual(order(), ['one', 'two']);
   const grab = r.m.container.querySelector<HTMLElement>('[data-body="one"]')!.closest('[data-row-slot]')!.querySelector<HTMLElement>('[data-panel-grab-bar]')!;
   await drag(grab, { dx: 450, dy: 0 });
@@ -282,9 +260,19 @@ test('a real pointer drag sideways on the grab bar moves a bare panel past its n
   assert.deepEqual(order(), ['two', 'one']);
 });
 
+test('a drag across two neighbours moves the panel two slots in one release', async () => {
+  const r = await rig([bareTemplate('one'), bareTemplate('two'), bareTemplate('three')], ['one', 'two', 'three']);
+  await settle();
+  const order = (): string[] => [...r.m.container.querySelectorAll<HTMLElement>('[data-body]')].sort((a, b) => leftOf(a) - leftOf(b)).map((n) => n.dataset.body!);
+  const grab = r.m.container.querySelector<HTMLElement>('[data-body="one"]')!.closest('[data-row-slot]')!.querySelector<HTMLElement>('[data-panel-grab-bar]')!;
+  await drag(grab, { dx: 900, dy: 0 });
+  await settle();
+  assert.deepEqual(order(), ['two', 'three', 'one']);
+});
+
 /** The slot a bare view's panel is drawn in. */
 const slotOf = (r: Rig, id: string): HTMLElement => r.m.container.querySelector<HTMLElement>(`[data-body="${id}"]`)!.closest<HTMLElement>('[data-row-slot]')!;
-const bodyOrder = (r: Rig): string[] => [...r.m.container.querySelectorAll<HTMLElement>('[data-body]')].map((n) => n.dataset.body!);
+const bodyOrder = (r: Rig): string[] => [...r.m.container.querySelectorAll<HTMLElement>('[data-body]')].sort((a, b) => leftOf(a) - leftOf(b)).map((n) => n.dataset.body!);
 const grabOf = (r: Rig, id: string): HTMLElement | null => slotOf(r, id).querySelector<HTMLElement>('[data-panel-grab-bar]');
 
 /** A panel the settings forbid closing keeps the library header and frame, and gets no drag-to-close and no grab bar. */
@@ -375,20 +363,4 @@ test('a header button the template declares is drawn in the library header, pres
     buttons[0]!.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true, cancelable: true }));
   });
   assert.equal(document.activeElement, buttons[1], 'the arrow key moves between the buttons');
-});
-
-test('differential frame: a bare view has a library header under auto and none under none', async () => {
-  const headers = async (frame: 'auto' | 'none'): Promise<number> => {
-    const r = await rig([bareTemplate('bare', { settings: { frame } })], ['bare']);
-    await settle();
-    const n = bodiesOf(r.m, 'bare')!.closest('[data-row-slot]')!.querySelectorAll('[data-panel-chrome-part="header"]').length;
-    cleanup();
-    return n;
-  };
-  const auto = await headers('auto');
-  const none = await headers('none');
-  differential('frame', (run) => {
-    run('auto', () => auto);
-    run('none', () => none);
-  });
 });

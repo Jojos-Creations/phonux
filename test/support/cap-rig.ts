@@ -87,14 +87,14 @@ export const rowOf = (entries: readonly PanelWindow[]): string =>
 function grabbable(id: string, settings: PanelSettings) {
   return definePanel({
     id,
-    settings: { frame: 'none', ...settings },
+    settings,
     view: function Grab({ panel, handle }) {
       const stepsFor = usePanelReorderSteps();
       return React.createElement(DragToClose, {
         reorder: {
           onDragEnd: (offset: number) => {
             const steps = stepsFor(offset);
-            for (let k = 0; k < Math.abs(steps); k += 1) handle.move(steps > 0 ? 'right' : 'left', 'person');
+            for (let k = 0; k < Math.abs(steps); k += 1) handle.move(steps > 0 ? 1 : -1, 'person');
           },
         },
         children: (grip) => React.createElement('div', { 'data-grab': id, 'data-slot': panel.id, onPointerDown: grip.onPointerDown }, id),

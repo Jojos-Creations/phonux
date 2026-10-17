@@ -7,8 +7,7 @@ import { test, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
 import './support/jsdom-globals.js';
 import { act } from 'react';
-import { resolvePanelSettings } from '../index.js';
-import { applyTemplate } from '../panelSettings.js';
+import { applyTemplate, resolvePanelSettings } from '../panelSettings.js';
 import { createHistoryPanel } from '../panelWindow.js';
 import { maxScrollOf } from '../rowNumbers.js';
 import { advanceFrames, cleanup } from './support/mount-harness.js';
@@ -17,7 +16,7 @@ import { ROOT, made, mountRow, row } from './support/scroll-row.js';
 afterEach(() => cleanup());
 
 const resizableRoot = () =>
-  applyTemplate({ ...createHistoryPanel(ROOT), view: 'scroll-row-view' }, resolvePanelSettings({ template: { title: 'History', resizable: true, maxSlots: 3, formFactors: ['phone', 'tablet', 'desktop'] } as never }, { root: true }).value, 'create');
+  applyTemplate({ ...createHistoryPanel(ROOT), view: 'scroll-row-view' }, resolvePanelSettings({ template: { title: 'History', resizable: true, maxSlots: 3 } as never }, { root: true }).value, 'create');
 
 test('History grows while the row is scrolled to its end: the offset is kept and the strip is longer by the added slots', async () => {
   const m = mountRow(row(resizableRoot(), ...['a', 'b', 'c', 'd', 'e'].map((id) => made(id))), 1000);

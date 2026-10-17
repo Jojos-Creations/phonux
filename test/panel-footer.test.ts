@@ -28,7 +28,7 @@ function mountWith(over: Partial<PanelTemplate>, frameProps: { footer?: boolean 
   return mountWorkspace(ws);
 }
 
-test('a footer is drawn inside the frame after the scroll box, with the props the view gets', () => {
+test('a footer is drawn as the next sibling of the frame, floating below it, with the props the view gets', () => {
   const m = mountWith({ footer: Footer });
   const footer = m.container.querySelector('[data-footer]') as HTMLElement | null;
   assert.ok(footer, 'the footer rendered');
@@ -36,13 +36,11 @@ test('a footer is drawn inside the frame after the scroll box, with the props th
   assert.equal(footer.dataset.handleId, (m.container.querySelector('[data-body]') as HTMLElement).dataset.body, 'the footer gets the same handle as the view');
   assert.equal(footer.dataset.managerKeys, 'yes');
   const box = footer.closest('[data-panel-footer]') as HTMLElement;
-  const frame = box.parentElement as HTMLElement;
-  assert.equal(frame.hasAttribute('data-phone-frame'), true, 'the box is a direct child of the frame');
-  const scroll = frame.firstElementChild as HTMLElement;
-  assert.equal(scroll.contains(box), false, 'the footer is outside the scroller');
-  assert.equal(scroll.contains(m.container.querySelector('[data-body]')), true);
-  assert.equal(frame.lastElementChild === box, true, 'the footer is the last child');
-  assert.equal(getComputedStyle(box).flexShrink, '0');
+  const frame = box.previousElementSibling as HTMLElement;
+  assert.equal(frame.hasAttribute('data-phone-frame'), true, 'the footer follows the frame as its sibling, not its child');
+  assert.equal(frame.contains(box), false, 'the frame cannot clip the footer');
+  assert.equal(frame.firstElementChild?.contains(m.container.querySelector('[data-body]')), true, 'the body stays in the frame scroller');
+  assert.equal(getComputedStyle(box).position, 'absolute', 'the footer takes no space in the layout');
 });
 
 test('a template with no footer draws the frame it always did', () => {

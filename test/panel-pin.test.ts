@@ -43,8 +43,8 @@ test('pin() and unpin() under the default definition equal reanchor over literal
     assert.equal(r.order().join(' '), expected, label);
   };
   const before = ['a', 'b', 'c'].map((id) => {
-    const { collapsible, locked, listed, formFactor } = r.entry(id);
-    return { collapsible, locked, listed, formFactor };
+    const { collapsible, locked, listed, slots } = r.entry(id);
+    return { collapsible, locked, listed, slots };
   });
   assert.equal(r.order().join(' '), 'root a b c');
   step('pin c', () => r.h.c!.pin(), 'c root a b', 'T');
@@ -54,10 +54,10 @@ test('pin() and unpin() under the default definition equal reanchor over literal
   step('a call already in the target state is changed:false', () => r.h.b!.unpin(), 'root a c b', 'F');
   assert.deepEqual(rows.length, 5);
   const after = ['a', 'b', 'c'].map((id) => {
-    const { collapsible, locked, listed, formFactor } = r.entry(id);
-    return { collapsible, locked, listed, formFactor };
+    const { collapsible, locked, listed, slots } = r.entry(id);
+    return { collapsible, locked, listed, slots };
   });
-  assert.deepEqual(after, before, 'collapsible, locked, listed and formFactor are identical to the start');
+  assert.deepEqual(after, before, 'collapsible, locked, listed and slots are identical to the start');
   assert.deepEqual(['a', 'b', 'c'].map((id) => r.facts(id)), [FREE, FREE, FREE]);
 });
 
@@ -99,10 +99,10 @@ for (const rooted of [true, false]) {
       const first = read();
       assert.equal(first[3], true, 'the pinned panel reads pinned');
       for (const [id, direction] of [['a', 'right'], ['b', 'left'], ['dock', 'right'], ['a', 'left']] as const) {
-        r.turn(() => r.h[id]!.move(direction));
+        r.turn(() => r.h[id]!.move(direction === 'left' ? -1 : 1));
         assert.deepEqual(read(), first, `after moving ${id} ${direction}: ${r.order().join(' ')}`);
       }
-      r.turn(() => r.h.a!.move('right', 'person'));
+      r.turn(() => r.h.a!.move(1, 'person'));
       assert.deepEqual(read(), first, 'a person drag too');
     });
   }
@@ -143,7 +143,7 @@ for (const c of REACH) {
 test('all or nothing: each refusal leaves the entries reference-equal, with no commit', async () => {
   const cases: Array<{ name: string; settings: PanelSettings; prepare?: (r: PinRig) => void; code: string; setting?: string }> = [
     { name: 'an explicit placeable:false with a placement half', settings: layer(COMBINED, { placeable: false }), code: 'not-placeable' },
-    { name: 'a fixed pin on a tablet panel', settings: layer(COMBINED), prepare: (r) => void r.turn(() => r.h.c!.setFormFactor('tablet')), code: 'tier-not-allowed' },
+    { name: 'a fixed pin on a two-slot panel', settings: layer(COMBINED), prepare: (r) => void r.turn(() => r.h.c!.setSlots(2)), code: 'slots-above-max' },
   ];
   for (const c of cases) {
     const r = await pinRig({ settings: { c: c.settings } });
@@ -164,7 +164,7 @@ test('a fixed pin keeps an explicit resizable:true the panel asked for, and forc
   const r = await pinRig({ settings: { c: layer(COMBINED, { resizable: true }) } });
   assert.equal(brief(r.turn(() => r.h.c!.pin())), 'T');
   assert.equal(r.state('c').settings.resizable, true, 'the panel asked for it');
-  const { resolvePanelSettings } = await import('../index.js');
+  const { resolvePanelSettings } = await import('../panelSettings.js');
   const plain = resolvePanelSettings({ template: layer(COMBINED), user: { parkable: false } });
   assert.deepEqual([plain.value.resizable, plain.value.slots, plain.conflicts.filter((c) => c.key === 'resizable')], [false, 1, []], 'unasked, the fixed column is one slot and not resizable');
 });

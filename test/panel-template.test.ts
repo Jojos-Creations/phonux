@@ -112,7 +112,7 @@ test('PanelManagerError: is an Error with a name, a code, and the layer and key 
   assert.deepEqual([plain.name, plain.code, plain.message, plain.layer, plain.key], ['PanelManagerError', 'disposed', 'the workspace is disposed', undefined, undefined]);
   const located = new PanelManagerError('invalid-settings', 'template.closable: expected a boolean', { layer: 'template', key: 'closable' });
   assert.deepEqual([located.code, located.layer, located.key], ['invalid-settings', 'template', 'closable']);
-  const codes = ['invalid-template', 'duplicate-template', 'unknown-template', 'template-collision', 'root-mismatch', 'invalid-options', 'invalid-settings', 'instance-id-required', 'already-attached', 'disposed'] as const;
+  const codes = ['invalid-template', 'duplicate-template', 'unknown-template', 'root-mismatch', 'invalid-options', 'invalid-settings', 'instance-id-required', 'already-attached', 'disposed'] as const;
   for (const code of codes) assert.equal(new PanelManagerError(code, 'm').code, code);
-  assert.equal(codes.length, 10);
+  assert.equal(codes.length, 9);
 });

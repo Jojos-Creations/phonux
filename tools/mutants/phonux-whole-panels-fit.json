@@ -41,15 +41,6 @@
       ]
     },
     {
-      "name": "the fade keeps a panel at the left end of a stop's span hidden",
-      "file": "rowNumbers.ts",
-      "find": "(k >= n.stopSpans[stop]!.first && k < n.stopSpans[stop]!.end ? 1 : 0)",
-      "replace": "(k > n.stopSpans[stop]!.first && k < n.stopSpans[stop]!.end ? 1 : 0)",
-      "expectRed": [
-        "fadeAt: a panel leaving fades out"
-      ]
-    },
-    {
       "name": "the settle after a stops change no longer moves the row",
       "file": "panels/useProvidePanels.ts",
       "find": "    scroller.glideTo(to, { durationSec: tuning.slide.durationSec, instant: reducedMotion });\n  }, [rowNumbers.stops.join(',')",

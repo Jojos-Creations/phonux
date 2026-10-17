@@ -1,6 +1,6 @@
 /**
- * A drag in flight keeps the edge-scroll mode and the three edge numbers it locked with; a configure made while the
- * pointer is down reaches the next drag. jsdom has no PointerEvent, so every pointer event is a MouseEvent of the
+ * A drag in flight keeps the three edge numbers it locked with; a configure made while the pointer is down
+ * reaches the next drag. jsdom has no PointerEvent, so every pointer event is a MouseEvent of the
  * pointer type name carrying the pointer fields motion reads, and time is the virtual frame clock.
  */
 import { test, afterEach } from 'node:test';
@@ -13,7 +13,7 @@ import type { ConfigureResult, PanelHandle, PanelSettings } from '../index.js';
 import { LIBRARY_TUNING_DEFAULTS } from '../panelSettings.js';
 import { advanceFrames, cleanup } from './support/mount-harness.js';
 import { FRAME_MS } from './support/jsdom-globals.js';
-import { markerTemplate, mountWorkspace, rowScrollerFor, type MountedWorkspace } from './support/workspace-row.js';
+import { markerTemplate, mountWorkspace, type MountedWorkspace } from './support/workspace-row.js';
 
 afterEach(async () => {
   // A test that left the pointer down must not leave motion's window listeners live for the next one.
@@ -108,55 +108,6 @@ async function wholeDrag(r: Rig, n: number, at = POINTER, id = 's1'): Promise<nu
 }
 const near = (actual: number, expected: number, message: string): void => assert.ok(Math.abs(actual - expected) < 1e-6, `${message}: ${actual}, expected ${expected}`);
 
-test('scrollOnDrag edge to none mid-drag: this drag keeps scrolling at the pace it began with, and its release adds the whole distance and hops over it', async () => {
-  const r = await mountRig();
-  await dragTo(r, POINTER);
-  await warmUp();
-  near(await gainOver(r, 10), 72, 'ten frames before the configure');
-  await configure(r, 's1', { scrollOnDrag: 'none' });
-  near(await gainOver(r, 10), 72, 'ten frames after the configure');
-  near(await gainOver(r, 20), 144, 'twenty more');
-  const scrolled = r.m.container.scrollLeft;
-  near(scrolled, 288, 'the row at the lift');
-  assert.equal(rowScrollerFor(r.m.container).claimHeld(), true, 'the claim is still held until the lift');
-  await liftAt(POINTER);
-  await frames(30);
-  assert.equal(ends.length, 1);
-  near(ends[0]!.offset, 40 + 288, 'the released offset is the pointer offset plus the distance');
-  near(ends[0]!.offset, 40 + scrolled, 'the released offset counts the whole distance the row scrolled');
-  assert.equal(ends[0]!.hops, 1, '328 clears the first neighbour half-span 203 and not the second 609');
-  assert.equal(rowScrollerFor(r.m.container).claimHeld(), false, 'the lift gave the claim back');
-  assert.equal(r.m.container.scrollLeft, scrolled, 'the row stays where the drag left it');
-});
-
-test('scrollOnDrag edge to none mid-drag: the next drag reads none, and set back to edge scrolls again', async () => {
-  const r = await mountRig();
-  await dragTo(r, POINTER);
-  await configure(r, 's1', { scrollOnDrag: 'none' });
-  await frames(10);
-  await liftAt(POINTER);
-  await frames(30);
-  const none = await wholeDrag(r, 50);
-  assert.equal(none, 0, 'a whole drag held 50 frames under none gains nothing');
-  await configure(r, 's1', { scrollOnDrag: 'edge' });
-  const edge = await wholeDrag(r, 50);
-  assert.ok(edge > 0, `a whole drag after setting edge again gains ${edge}`);
-});
-
-test('scrollOnDrag none to edge mid-drag: this drag stays still and the next one scrolls', async () => {
-  const r = await mountRig({ s2: { scrollOnDrag: 'none' } });
-  await dragTo(r, POINTER, 's2');
-  const before = r.m.container.scrollLeft;
-  await configure(r, 's2', { scrollOnDrag: 'edge' });
-  await frames(30);
-  assert.equal(r.m.container.scrollLeft, before, 'the drag that began under none does not start scrolling');
-  assert.equal(rowScrollerFor(r.m.container).claimHeld(), false, 'and holds no claim');
-  await liftAt(POINTER);
-  await frames(30);
-  const next = await wholeDrag(r, 50, POINTER, 's2');
-  assert.ok(next > 0, `the next drag of s2 gains ${next}`);
-});
-
 test('tuning.edgeScroll zonePx 48 to 12 mid-drag: this drag keeps its pace, and the next drag is outside the narrower band', async () => {
   const r = await mountRig();
   await dragTo(r, POINTER);
@@ -181,24 +132,4 @@ test('tuning.edgeScroll maxPxPerSec 900 to 450 mid-drag: this drag keeps its pac
   await liftAt(POINTER);
   await frames(30);
   near(await wholeDrag(r, 50), whole / 2, 'the next whole drag');
-});
-
-test('tuning.edgeScroll reducedStepMs 500 to 250 mid-drag under animated false: this drag keeps jumping every 32 frames', async () => {
-  const r = await mountRig({ s1: { animated: false } });
-  await dragTo(r, WINDOW);
-  const series: number[] = [];
-  for (let frame = 0; frame < 110; frame += 1) {
-    if (frame === 39) await configure(r, 's1', { tuning: { edgeScroll: { reducedStepMs: 250 } } });
-    await frames(1);
-    series.push(r.m.container.scrollLeft);
-  }
-  const jumpFrames = series.flatMap((v, k) => (v !== (k === 0 ? 0 : series[k - 1]) ? [k] : []));
-  assert.ok(jumpFrames.length >= 3, `the row jumped ${jumpFrames.length} times, at frames ${jumpFrames.join(',')}`);
-  const every = Math.ceil(EDGE.reducedStepMs / FRAME_MS);
-  assert.equal(every, 32);
-  assert.deepEqual(
-    jumpFrames.slice(1).map((frame, k) => frame - jumpFrames[k]!),
-    jumpFrames.slice(1).map(() => every),
-    `every gap between jumps is ${every} frames, at frames ${jumpFrames.join(',')}`,
-  );
 });

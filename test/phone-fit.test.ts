@@ -122,7 +122,6 @@ test('the band, the cap and the whole pixels are each load-bearing', () => {
 const widths: number[] = [];
 const probe = definePanel({
   id: 'fit-probe',
-  settings: { frame: 'none' },
   view: ({ handle }) => {
     const size = usePhoneSize();
     widths.push(size.width);
@@ -203,7 +202,7 @@ test('a hand-wired flow: usePhoneFit before useProvidePanels, the pair to Worksp
     const [width, setWidth] = React.useState(0);
     React.useLayoutEffect(() => setWidth(ref.current!.clientWidth), []);
     const phone = usePhoneFit(ref, width, preferred, hand.tuning);
-    const provided = useProvidePanels({ workspace: hand, rootId: hand.rootId, phoneWidth: phone.width, containerWidth: width, overflowContainerRef: ref });
+    const provided = useProvidePanels({ workspace: hand, phoneWidth: phone.width, containerWidth: width, overflowContainerRef: ref });
     const row = React.createElement(PanelRow, { entries: provided.entries, rootId: hand.rootId, closingIds: provided.closingIds, enteringViaAnchorIds: provided.enteringViaAnchorIds, exitRightIds: provided.exitRightIds, enterSideById: provided.enterSideById, maxLiveWidth: provided.maxLiveWidth, tuning: provided.tuning, rowNumbers: provided.rowNumbers, workspace: hand });
     const shell = React.createElement(Workspace, { overflowContainerRef: ref, rowRef, containerWidth: width, phoneWidth: phone.width, phoneHeight: phone.height, fixedColumnCount: provided.fixedViewCount, liveWidths: provided.liveWidths, rowScroll: provided.rowScroll, rowNumbers: provided.rowNumbers, tuning: provided.tuning, children: row });
     return React.createElement(ThemeProvider, { theme: createDefaultTheme('light'), children: React.createElement(HostProvider, { host: { panels: provided }, children: shell }) });
@@ -224,7 +223,7 @@ test('a Workspace given no phoneHeight publishes no phone size: usePhoneSize is 
   function HandWired(): React.ReactElement {
     const ref = React.useRef<HTMLDivElement>(null);
     const rowRef = React.useRef<HTMLDivElement>(null);
-    const provided = useProvidePanels({ workspace: hand, rootId: hand.rootId, phoneWidth: 390, containerWidth: 1000, overflowContainerRef: ref });
+    const provided = useProvidePanels({ workspace: hand, phoneWidth: 390, containerWidth: 1000, overflowContainerRef: ref });
     const row = React.createElement(PanelRow, { entries: provided.entries, rootId: hand.rootId, closingIds: provided.closingIds, enteringViaAnchorIds: provided.enteringViaAnchorIds, exitRightIds: provided.exitRightIds, enterSideById: provided.enterSideById, maxLiveWidth: provided.maxLiveWidth, tuning: provided.tuning, rowNumbers: provided.rowNumbers, workspace: hand });
     const shell = React.createElement(Workspace, { overflowContainerRef: ref, rowRef, containerWidth: 1000, phoneWidth: 390, fixedColumnCount: provided.fixedViewCount, liveWidths: provided.liveWidths, rowScroll: provided.rowScroll, rowNumbers: provided.rowNumbers, tuning: provided.tuning, children: row });
     return React.createElement(ThemeProvider, { theme: createDefaultTheme('light'), children: React.createElement(HostProvider, { host: { panels: provided }, children: shell }) });
@@ -232,4 +231,21 @@ test('a Workspace given no phoneHeight publishes no phone size: usePhoneSize is 
   mount(React.createElement(HandWired));
   await advanceFrames(400);
   assert.equal(document.querySelector<HTMLElement>('[data-phone]')?.dataset.phone, '390x700');
+});
+
+test('the fitted size landed by the measurement is drawn at once: no size slide starts for a panel present at mount', async () => {
+  win.width = 0;
+  win.height = 1117;
+  widths.length = 0;
+  const ws = track(createWorkspace({ templates: [probe], tuning: { phoneFit: 'fit' } }));
+  ws.addPanel('fit-probe');
+  await until('the probe', () => slots(document.body).includes('fit-probe'));
+  await resize(1400);
+  const box = document.querySelector<HTMLElement>('[data-panel-size-box]');
+  assert.ok(box, 'the panel is in a size box');
+  assert.equal(document.querySelector<HTMLElement>('[data-phone]')?.dataset.phone, `330x${Math.round((330 / 390) * 700)}`, 'the fitted size landed');
+  assert.equal(box.style.transform, '', 'the box is drawn at its new size in the measuring commit, not scaled toward it');
+  assert.equal(box.style.width, '330px', 'the box takes the fitted width on its first frame');
+  await advanceFrames(400);
+  assert.equal(box.style.transform, '', 'and it stays there');
 });

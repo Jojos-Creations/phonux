@@ -34,6 +34,9 @@ export type AnchorRequest = {
 };
 
 // @public
+export type AnyPanelTemplate = PanelTemplate<any>;
+
+// @public
 export type BezierEase = readonly [number, number, number, number];
 
 // @public
@@ -54,7 +57,7 @@ export interface CaptureTrigger {
 }
 
 // @public
-export type CatalogName = Exclude<keyof PanelSettings, 'tuning'> | `tuning.${keyof WorkspaceTuning}`;
+export type CatalogName = Exclude<keyof PanelSettings, 'tuning'> | `tuning.${Exclude<keyof WorkspaceTuning, 'shrinkOutOfView'>}`;
 
 // @public
 export const CHROME_ATTRIBUTE = "data-panel-chrome-part";
@@ -77,6 +80,12 @@ export type ChromeTuning = {
     slideMs: number;
     slidePx: number;
     graceMs: number;
+    headerGapPx: number;
+    grabPillWidthPx: number;
+    grabPillHeightPx: number;
+    headerInsetPx: number;
+    footerPadXPx: number;
+    footerPadYPx: number;
 };
 
 // @public
@@ -124,20 +133,15 @@ export interface ColumnStorage {
 
 // @public
 export interface ColumnWorkspaceOptions {
-    defaults?: Omit<PanelSettings, 'tuning'>;
     id?: string;
     index?: number;
     name?: string;
-    order?: () => readonly PanelId[];
-    root?: PanelTemplate;
-    storage?: WorkspaceStorage;
-    templates?: readonly PanelTemplate[];
 }
 
-// @public
+// @public @deprecated
 export function computeRowLayout(input: RowLayoutInput): RowLayoutResult;
 
-// @public
+// @public @deprecated
 export function computeRowNumbers(i: {
     entries: readonly PanelRowEntry[];
     phoneWidth: number;
@@ -145,8 +149,6 @@ export function computeRowNumbers(i: {
     gap: number;
     fixedItemCount?: number;
     wholePanels?: boolean;
-    shrink?: 'off' | 'visible' | 'hidden';
-    atFirst?: number;
 }): RowNumbers;
 
 // @public
@@ -176,11 +178,11 @@ export interface CreatePanelOptions {
         priority?: number;
     };
     anchoredEnter?: boolean;
-    formFactor?: FormFactor;
     layer?: 'base' | 'raised';
     listed?: boolean;
     params?: JsonValue;
     permanent?: boolean;
+    slots?: number;
     title?: string;
     view?: string;
 }
@@ -207,7 +209,7 @@ export type DeferredPin = {
 // @public
 export function definePanel<P extends JsonValue = JsonValue>(t: PanelTemplate<P>): PanelTemplate<P>;
 
-// @public
+// @public @deprecated
 export const DRAG_CLOSE: {
     readonly distanceFraction: 0.25;
     readonly minDistancePx: 80;
@@ -227,7 +229,11 @@ export const DRAGGING_ATTRIBUTE = "data-panel-dragging";
 
 // @public
 export interface DragHandleProps {
+    'aria-keyshortcuts'?: string;
+    'aria-label'?: string;
+    onKeyDown?: (event: React_2.KeyboardEvent<HTMLElement>) => void;
     onPointerDown: (event: React_2.PointerEvent<HTMLElement>) => void;
+    role?: 'button';
     sx: {
         cursor: 'grab';
         touchAction: 'pan-x';
@@ -235,7 +241,13 @@ export interface DragHandleProps {
         '&:active': {
             cursor: 'grabbing';
         };
+        '&:focus-visible': {
+            outline: '2px solid';
+            outlineColor: 'primary.main';
+            outlineOffset: -2;
+        };
     };
+    tabIndex?: 0;
 }
 
 // @public
@@ -274,10 +286,7 @@ export type FadeEase = 'easeIn' | 'easeOut' | 'easeInOut' | 'linear' | BezierEas
 // @public
 export function findPhoneModel(id: string): PhoneModel | undefined;
 
-// @public
-export type FormFactor = 'phone' | 'tablet' | 'desktop';
-
-// @public
+// @public @deprecated
 export const GAP = 16;
 
 // @public
@@ -361,7 +370,7 @@ export function HostProvider(input: {
 }): React_2.JSX.Element;
 
 // @public
-export type InstancePatch = Omit<SettingsPatch, 'hostCreatable' | 'multiple' | 'maxInstances'>;
+export type InstancePatch = Omit<SettingsPatch, 'hostCreatable' | 'hollowDot' | 'multiple' | 'maxInstances'>;
 
 // @public
 export type JsonValue = string | number | boolean | null | readonly JsonValue[] | {
@@ -376,7 +385,7 @@ export const LIBRARY_TUNING_DEFAULTS: ResolvedWorkspaceTuning;
 
 // @public
 export type LibraryPanelDefaults = {
-    readonly [K in Exclude<keyof SettingValues, 'draggable' | 'placeable' | 'listed' | 'clearable' | 'title' | 'slots' | 'maxSlots'>]: SettingValues[K];
+    readonly [K in Exclude<keyof SettingValues, 'draggable' | 'placeable' | 'listed' | 'clearable' | 'title'>]: SettingValues[K];
 } & {
     readonly headerButtons: {
         readonly [id: string]: HeaderButton;
@@ -394,7 +403,16 @@ export type ListFilter = {
 export const MAX_WORKSPACE_NAME = 60;
 
 // @public
-export function mergePatch(layer: PanelSettings, patch: SettingsPatch): PanelSettings;
+export function minWorkspaceWidth(input: MinWorkspaceWidthInput): number;
+
+// @public
+export interface MinWorkspaceWidthInput {
+    fixedColumnCount: number;
+    gap?: number;
+    phoneSlots?: number;
+    phoneWidth: number;
+    tabletWidth?: number;
+}
 
 // @public
 export interface NeighborWidths {
@@ -454,21 +472,32 @@ export type PanelApiLevel = 1;
 export const panelCornerRadiusPx: (theme: Theme) => number;
 
 // @public
+export interface PanelDots {
+    readonly dots: readonly {
+        readonly id: string;
+        readonly left: number;
+        readonly width: number;
+        readonly hollow: boolean;
+    }[];
+    readonly oval: {
+        readonly left: number;
+        readonly width: number;
+    };
+    selectDot(id: string): void;
+    startOvalDrag(): {
+        drag(dx: number): void;
+        end(): void;
+    } | null;
+}
+
+// @public
 export function PanelFooter(): React_2.ReactElement | null;
 
 // @public
 export const PanelFrame: React_2.ForwardRefExoticComponent<Omit<PanelFrameProps, "ref"> & React_2.RefAttributes<HTMLDivElement>>;
 
-// @public
-export const panelFrameBareSx: {
-    readonly pt: 0;
-    readonly pr: 0;
-    readonly pb: 0;
-    readonly pl: 0;
-    readonly overflowX: "hidden";
-    readonly overflowY: "hidden";
-    readonly scrollbarGutter: "auto";
-};
+// @public @deprecated
+export const panelFrameBareSx: {};
 
 // @public
 export interface PanelFrameProps extends Omit<BoxProps, 'children'> {
@@ -510,12 +539,11 @@ export interface PanelHandle<P extends JsonValue = JsonValue> extends PanelReadH
         readonly params: P | undefined;
     };
     hide(source?: 'code' | 'person'): PanelResult;
-    move(direction: 'left' | 'right', source?: 'code' | 'person'): PanelResult;
+    move(by: number, source?: 'code' | 'person'): PanelResult;
     open(source?: 'code' | 'person'): PanelResult;
     pin(source?: 'code' | 'person'): PinResult;
     place(p: AddPlacement | 'in-place', source?: 'code' | 'person'): PanelResult;
     scrollTo(align?: ScrollAlign, source?: 'code' | 'person'): PanelResult;
-    setFormFactor(next: FormFactor, source?: 'code' | 'person'): PanelResult;
     setSlots(slots: number, source?: 'code' | 'person'): PanelResult;
     show(source?: 'code' | 'person'): PanelResult;
     toggleVisibility(source?: 'code' | 'person'): PanelResult;
@@ -581,7 +609,7 @@ export type PanelId = string;
 // @public
 export interface PanelManager {
     configure(id: PanelId, patch: InstancePatch): ConfigureResult;
-    configureTemplate(templateId: string, patch: Pick<SettingsPatch, 'hostCreatable' | 'multiple' | 'maxInstances'>): ConfigureResult;
+    configureTemplate(templateId: string, patch: Pick<SettingsPatch, 'hostCreatable' | 'hollowDot' | 'multiple' | 'maxInstances'>): ConfigureResult;
     configureTuning(patch: {
         [K in keyof WorkspaceTuning]?: WorkspaceTuning[K] | null;
     }): ConfigureResult;
@@ -604,7 +632,7 @@ export class PanelManagerError extends Error {
 }
 
 // @public
-export type PanelManagerErrorCode = 'invalid-template' | 'duplicate-template' | 'unknown-template' | 'template-collision' | 'root-mismatch' | 'invalid-options' | 'invalid-settings' | 'instance-id-required' | 'already-attached' | 'disposed';
+export type PanelManagerErrorCode = 'invalid-template' | 'duplicate-template' | 'unknown-template' | 'root-mismatch' | 'invalid-options' | 'invalid-settings' | 'instance-id-required' | 'already-attached' | 'disposed';
 
 // @public
 export interface PanelProps extends Omit<BoxProps, 'children' | 'sx' | 'title'> {
@@ -643,7 +671,7 @@ export type PanelReadHandle = {
 };
 
 // @public
-export type PanelRefusal = 'disposed' | 'not-attached' | 'not-ready' | 'is-pending' | 'is-closed' | 'not-live' | 'busy' | 'not-closable' | 'not-parkable' | 'not-draggable' | 'not-placeable' | 'not-resizable' | 'tier-not-allowed' | 'would-empty-row' | 'instance-limit' | 'unknown-panel' | 'wrong-scope' | 'would-reshape-row' | 'settings-conflict' | 'not-view-settable';
+export type PanelRefusal = 'disposed' | 'not-attached' | 'not-ready' | 'is-pending' | 'is-closed' | 'not-live' | 'busy' | 'not-closable' | 'not-parkable' | 'not-draggable' | 'not-placeable' | 'not-resizable' | 'slots-above-max' | 'would-empty-row' | 'instance-limit' | 'unknown-panel' | 'wrong-scope' | 'would-reshape-row' | 'settings-conflict' | 'not-view-settable';
 
 // @public
 export type PanelResult = {
@@ -666,7 +694,7 @@ export function PanelRow(input: {
     maxLiveWidth?: number;
     tuning?: WorkspaceTuning;
     rowNumbers?: RowNumbers;
-    workspace?: WorkspaceHandle;
+    workspace: WorkspaceHandle;
 }): React_2.ReactElement;
 
 // @public
@@ -683,21 +711,28 @@ export interface PanelRowEntry<P = JsonValue> extends PanelSummary<P> {
 
 // @public
 export interface PanelsAPI {
+    // @deprecated
     activate(id: string): void;
     clearAll(): void;
+    // @deprecated
     close(id: string): void;
+    // @deprecated
     create(): void;
+    // @deprecated
     create(options: CreatePanelOptions): void;
     readonly maxFitPanels?: number | null;
+    readonly minWorkspaceWidth?: number;
+    // @deprecated
     move(id: string, direction: 'left' | 'right'): void;
     readonly panelList: readonly PanelSummary[];
+    // @deprecated
     reanchor(id: string, anchor: {
         panel?: string;
         position: 'left' | 'right';
         priority?: number;
     }): void;
     readonly recentlyClosed: readonly PanelSummary[] | null;
-    setFormFactor(id: string, next: FormFactor): void;
+    // @deprecated
     setSlots?(id: string, slots: number): void;
     undoClose(): void;
 }
@@ -713,15 +748,6 @@ export type PanelSettings = {
 };
 
 // @public
-export type PanelSettingsLayers = {
-    workspace?: PanelSettings;
-    template?: PanelSettings;
-    instance?: PanelSettings;
-    host?: PanelSettings;
-    user?: PanelUserLayer;
-};
-
-// @public
 export type PanelSettingsResolution = {
     value: ResolvedPanelSettings;
     source: Record<string, SourceLayer>;
@@ -734,17 +760,9 @@ export type PanelSettingsResolution = {
 export interface PanelsInput {
     capture?: CaptureTrigger;
     containerWidth: number;
-    declared?: readonly {
-        id: string;
-        templateId: string;
-        settings?: PanelSettings;
-        params?: JsonValue;
-        url?: string;
-    }[];
     defaultHostData?: () => JsonValue;
     defaultView?: string;
     fixedViewCount?: number;
-    initialEntries?: readonly PanelWindow[];
     labels?: Partial<PhonuxLabels>;
     onNote?: (note: SettingNote) => void;
     onPanelResize?: () => void;
@@ -758,25 +776,19 @@ export interface PanelsInput {
     overflowContainerRef: RefObject<HTMLDivElement | null>;
     phoneWidth: number;
     resetHostDataOnRestore?: (hostData: JsonValue | undefined, panel: PanelWindow) => JsonValue | undefined;
-    rootId: string;
-    storage?: WorkspaceStorage;
-    templates?: readonly PanelTemplate[];
-    tuning?: WorkspaceTuning;
-    workspace?: WorkspaceHandle;
-    workspaceDefaults?: Omit<PanelSettings, 'tuning'>;
+    workspace: WorkspaceHandle;
 }
 
 // @public
 export interface PanelSize {
-    formFactor: FormFactor;
     height: number | 'fill';
     width: number;
 }
 
 // @public
 export function PanelSizeBox(input: {
-    width: number;
-    height: number;
+    width?: number;
+    height?: number;
     children: React_2.ReactNode;
 }): React_2.JSX.Element;
 
@@ -791,7 +803,6 @@ export type PanelSnapshot = {
 export interface PanelState {
     readonly deferredPin: DeferredPin | null;
     readonly engineId: string | null;
-    readonly formFactor: FormFactor;
     readonly held: boolean;
     readonly id: PanelId;
     readonly index: number | null;
@@ -812,7 +823,6 @@ export type PanelStatus = 'pending' | 'live' | 'parked' | 'closed';
 export interface PanelSummary<P = JsonValue> {
     readonly drawnSlots?: number;
     readonly fitSlots?: number;
-    readonly formFactor?: FormFactor;
     readonly id: string;
     readonly live: boolean;
     readonly locked: boolean;
@@ -827,19 +837,11 @@ export interface PanelSummary<P = JsonValue> {
 // @public
 export interface PanelTemplate<P extends JsonValue = JsonValue> {
     readonly api?: PanelApiLevel;
-    readonly footer?: React_2.ComponentType<{
-        panel: PanelSummary<P>;
-        handle: ViewHandle<P>;
-        manager: PanelReader;
-    }>;
+    readonly footer?: React_2.ComponentType<PanelViewProps<P>>;
     readonly id: string;
     readonly params?: P;
     readonly settings?: PanelSettings;
-    readonly view: React_2.ComponentType<{
-        panel: PanelSummary<P>;
-        handle: ViewHandle<P>;
-        manager: PanelReader;
-    }>;
+    readonly view: React_2.ComponentType<PanelViewProps<P>>;
 }
 
 // @public
@@ -858,14 +860,20 @@ export type PanelTuning = {
 
 // @public
 export type PanelUserLayer = {
-    formFactor?: FormFactor;
     slots?: number;
     anchor?: AnchorRequest;
     parkable?: boolean;
 };
 
 // @public
-export function panelWidthOf(p: Pick<PanelRowEntry, 'formFactor' | 'size' | 'slots' | 'settings'>, phoneWidth: number, maxLiveWidth: number, gap?: number): number;
+export interface PanelViewProps<P extends JsonValue = JsonValue> {
+    handle: ViewHandle<P>;
+    manager: PanelReader;
+    panel: PanelSummary<P>;
+}
+
+// @public @deprecated
+export function panelWidthOf(p: Pick<PanelRowEntry, 'slots' | 'settings'>, phoneWidth: number, maxLiveWidth: number, gap?: number): number;
 
 // @public
 export interface PanelWindow {
@@ -877,7 +885,6 @@ export interface PanelWindow {
     collapsible: boolean;
     declared?: true;
     deferredPin?: DeferredPin;
-    formFactor?: FormFactor;
     hostData?: JsonValue;
     id: string;
     instance?: PanelSettings;
@@ -889,7 +896,6 @@ export interface PanelWindow {
     marker?: true;
     overrides?: {
         anchor?: PanelAnchor;
-        formFactor?: FormFactor;
         slots?: number;
         parkable?: boolean;
     };
@@ -931,14 +937,25 @@ export interface PhoneSize {
 
 // @public
 export interface PhonuxLabels {
+    cannotMove: (title: string, steps: number) => string;
+    closed: (title: string) => string;
+    dragCancelled: (title: string) => string;
+    dropped: (title: string) => string;
     goToWorkspace: (name: string) => string;
+    grabStrip: (title: string) => string;
     historyTitle: string;
     lock: string;
+    moved: (title: string, steps: number) => string;
     newWorkspace: string;
+    panelPosition: (title: string, place: number, total: number) => string;
     panelTitle: (id: string) => string;
+    pickedUp: (title: string) => string;
     pin: string;
+    pinFailed: string;
+    row: string;
     unlock: string;
     unpin: string;
+    unpinFailed: string;
     untitledHeader: string;
     untitledPanel: string;
     workspaceName: string;
@@ -992,14 +1009,12 @@ export interface ProvidedPanels extends PanelsAPI {
 }
 
 // @public
-export function registerView<P extends JsonValue>(key: string, Component: ViewComponent<P>): void;
-
-// @public
 export interface ReorderHandle {
     onDragEnd: (offsetX: number) => void;
+    onStep?: (steps: number) => boolean;
 }
 
-// @public
+// @public @deprecated
 export function reorderStepsForOffset(offsetX: number, neighbors: NeighborWidths, gap: number, hopFraction?: number): number;
 
 // @public
@@ -1043,23 +1058,10 @@ export type ResolvedWorkspaceTuning = ResolvedPanelTuning & {
     };
     chrome: ChromeTuning;
     maxLivePanels: number | null;
-    shrinkOutOfView: 'off' | 'visible' | 'hidden';
     phoneFit: 'off' | 'fit';
     phoneFitMin: number;
     phoneFitMax: number;
 };
-
-// @public
-export type ResolveOptions = {
-    root?: boolean;
-    lenient?: boolean;
-};
-
-// @public
-export function resolvePanelSettings(layers?: PanelSettingsLayers, options?: ResolveOptions): PanelSettingsResolution;
-
-// @public
-export function resolveView(key: string): ViewComponent;
 
 // @public
 export const ROW_LAYER_Z: Readonly<{
@@ -1088,11 +1090,7 @@ export interface RowLayoutResult {
 
 // @public
 export interface RowNumbers {
-    atStop: number;
-    drawnOffsets: readonly number[];
-    drawnWidths: readonly number[];
     endPad: number;
-    hideOutside: boolean;
     ids: readonly string[];
     leftOffsets: readonly number[];
     maxLiveWidth: number;
@@ -1100,13 +1098,8 @@ export interface RowNumbers {
     reservedWidths: readonly number[];
     rowMarginLeft: number;
     rowScroll: boolean;
-    showPartial: boolean;
-    stopFirsts: readonly number[];
+    stepStops: readonly number[];
     stops: readonly number[];
-    stopShrinks: readonly (readonly {
-        index: number;
-        slots: number;
-    }[])[];
     stopSpans: readonly {
         first: number;
         end: number;
@@ -1138,7 +1131,7 @@ export type SettingConflict = {
     readonly kind: 'forced' | 'wrong-scope' | 'not-view-settable';
     readonly asked: unknown;
     readonly applied: unknown;
-    readonly rule?: 'C1' | 'C2' | 'C3' | 'C4' | 'C5' | 'C6';
+    readonly rule?: 'C1' | 'C2' | 'C4' | 'C5';
     readonly forcedBy?: string;
     readonly message: string;
 };
@@ -1195,52 +1188,32 @@ export type SettingValues = {
     crossable: boolean;
     placeable: boolean;
     resizable: boolean;
-    formFactors: readonly FormFactor[];
     clearable: boolean;
     hostCreatable: boolean;
+    hollowDot: boolean;
     multiple: boolean;
     maxInstances: number | 'unlimited';
     listed: boolean;
     startVisibility: 'live' | 'parked';
     hideStickiness: 'sticky' | 'until-room';
-    hideWhenLast: 'allow' | 'refuse';
     capacityReturn: 'auto' | 'manual';
-    returnPriority: number;
     overflow: Overflow;
-    evictionRank: number;
-    evictionOrder: 'farthest' | 'nearest' | 'leftmost' | 'rightmost';
     revealOnScroll: 'edges' | 'any' | 'never';
     scrollOnOpen: ScrollOnOpen;
     scrollOnMove: ScrollOnMove;
-    scrollOnDrag: ScrollOnDrag;
     toggleWhenClosed: 'ignore' | 'reopen';
     showWhenClosed: 'refuse' | 'reopen';
-    viewState: 'keep' | 'reset-on-park';
-    keepMounted: boolean;
-    frame: 'auto' | 'none';
     placeOnAdd: AddPlacement;
     placeOnShow: AddPlacement | 'in-place';
-    placeOnReturn: AddPlacement | 'in-place';
-    placeFallback: 'row-start' | 'row-end' | 'parkable-start' | 'parkable-end' | 'after-fixed';
-    undoPlacement: 'old-slot' | AddPlacement;
     layer: 'base' | 'raised';
     enterFrom: 'auto' | 'left' | 'right' | 'anchor';
-    exitTo: 'auto' | 'left' | 'right';
-    closeExit: 'down' | 'left' | 'right';
-    animated: boolean;
-    formFactor: FormFactor;
     slots: number;
     maxSlots: number;
     title: string;
     pinning: Pinning;
     pinningWhenNotLive: PinningWhenNotLive;
-    persist: 'saved' | 'session';
-    rememberLayout: boolean;
     restoreVisibility: 'saved' | 'live' | 'parked';
     afterClose: 'stay-closed' | 'return-next-launch';
-    undoWindowMs: number;
-    reportClose: boolean;
-    snapshot: 'both' | 'park' | 'close' | 'never';
 };
 
 // @public
@@ -1268,9 +1241,6 @@ export interface SnapshotsAPI {
 export type SourceLayer = 'library' | 'workspace' | 'template' | 'host' | 'instance' | 'user' | 'derived' | 'forced';
 
 // @public
-export const TIER_SIZES: Readonly<Record<FormFactor, PanelSize>>;
-
-// @public
 export function useActivePanel(): readonly [PanelId | null, (id: PanelId | null) => void];
 
 // @public
@@ -1280,19 +1250,36 @@ export function useHost(): Host;
 export function usePanelActive(): boolean;
 
 // @public
-export const usePanelCapabilities: () => Pick<ResolvedPanelSettings, "closable" | "draggable" | "placeable" | "resizable" | "formFactors">;
+export const usePanelCapabilities: () => Pick<ResolvedPanelSettings, "closable" | "draggable" | "placeable" | "resizable" | "maxSlots">;
 
 // @public
 export const usePanelCloseEligible: () => boolean;
 
 // @public
+export function usePanelDots(i: {
+    rowNumbers: RowNumbers;
+    entries: readonly {
+        readonly id: string;
+        readonly settings?: {
+            readonly hollowDot: boolean;
+        };
+    }[];
+    trackWidth: number;
+    minDotPx: number;
+    scroller: React_2.RefObject<HTMLElement | null>;
+}): PanelDots;
+
+// @public
 export function usePanelDragging(): boolean;
 
 // @public
-export function usePanelHeaderButtons(): readonly PanelHeaderButtonItem[];
+export function usePanelDragProps(): {
+    onClose?: () => void;
+    reorder?: ReorderHandle;
+};
 
 // @public
-export const usePanelHidden: () => boolean;
+export function usePanelHeaderButtons(): readonly PanelHeaderButtonItem[];
 
 // @public
 export const usePanelNeighborWidths: () => NeighborWidths;
@@ -1354,10 +1341,10 @@ export interface UseViewState {
 export const useViewState: UseViewState;
 
 // @public
-export function useWorkspaceManager(): PanelReader | undefined;
+export function useWorkspace(): ViewWorkspace | undefined;
 
 // @public
-export type ViewComponent<P = JsonValue> = React_2.ComponentType<ViewProps<P>>;
+export function useWorkspaceManager(): PanelReader | undefined;
 
 // @public
 export type ViewHandle<P extends JsonValue = JsonValue> = Omit<PanelHandle<P>, 'configure'> & {
@@ -1372,18 +1359,14 @@ export type ViewPatch = {
     title?: string | null;
     listed?: boolean | null;
     layer?: 'base' | 'raised' | null;
-    formFactor?: FormFactor | null;
+    closable?: false | null;
+    slots?: number | null;
     placeOnAdd?: {
         anchor: AnchorRequest & {
             panel: PanelId;
         };
     } | null;
     enterFrom?: 'anchor' | null;
-};
-
-// @public
-export type ViewProps<P = JsonValue> = {
-    panel: PanelSummary<P>;
 };
 
 // @public
@@ -1400,6 +1383,13 @@ export interface ViewSnapshot {
 // @public
 export class ViewStateMissingProviderError extends Error {
     constructor(missing: 'host' | 'view id');
+}
+
+// @public
+export interface ViewWorkspace {
+    readonly panels: PanelManager & {
+        addPanel: WorkspaceHandle['addPanel'];
+    };
 }
 
 // @public
@@ -1421,6 +1411,7 @@ export function WorkspaceColumn(input: WorkspaceColumnProps): React_2.ReactEleme
 // @public
 export interface WorkspaceColumnHandle {
     addWorkspace(o?: ColumnWorkspaceOptions): WorkspaceHandle;
+    configureTuning(patch: Parameters<PanelManager['configureTuning']>[0]): ConfigureResult;
     readonly current: number;
     dispose(): void;
     scrollTo(target: WorkspaceHandle | number): void;
@@ -1448,7 +1439,7 @@ export interface WorkspaceHandle {
     readonly id: string;
     readonly name: string;
     readonly panels: PanelManager;
-    registerTemplate(t: PanelTemplate): () => void;
+    registerTemplate(t: AnyPanelTemplate): () => void;
     rename(name: string): string;
     readonly rootId: string;
     readonly status: WorkspaceStatus;
@@ -1474,19 +1465,20 @@ export type WorkspaceOptions = WorkspaceLive & {
     onRename?: (name: string) => void;
     storage?: WorkspaceStorage;
     defaults?: Omit<PanelSettings, 'tuning'>;
-    root?: PanelTemplate;
-    templates?: readonly PanelTemplate[];
+    root?: AnyPanelTemplate;
+    templates?: readonly AnyPanelTemplate[];
     order?: () => readonly PanelId[];
     tuning?: WorkspaceTuning;
     conflicts?: 'warn' | 'throw' | 'off';
     newId?: () => string;
     onError?: (e: unknown) => void;
     mount?: HTMLElement | false;
+    theme?: (mode: 'light' | 'dark') => Theme;
     wrap?: ComponentType<WorkspaceWrapProps>;
 };
 
 // @public
-export type WorkspacePanelsInput = Partial<Omit<PanelsInput, 'workspace' | 'rootId' | 'phoneWidth' | 'containerWidth' | 'overflowContainerRef' | 'initialEntries' | 'storage' | 'templates' | 'declared' | 'workspaceDefaults' | 'tuning' | 'labels'>>;
+export type WorkspacePanelsInput = Partial<Omit<PanelsInput, 'workspace' | 'phoneWidth' | 'containerWidth' | 'overflowContainerRef' | 'labels'>>;
 
 // @public
 export type WorkspacePanelState = {
@@ -1502,7 +1494,6 @@ export type WorkspacePanelState = {
         position: 'left' | 'right';
         priority: number;
     };
-    formFactor?: FormFactor;
     slots?: number;
     permanent?: boolean;
     layer?: 'base' | 'raised';
@@ -1517,7 +1508,6 @@ export type WorkspacePanelState = {
             position: 'left' | 'right';
             priority: number;
         };
-        formFactor?: FormFactor;
         slots?: number;
         parkable?: boolean;
     };

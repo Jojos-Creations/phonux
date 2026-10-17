@@ -20,8 +20,6 @@ export interface DragScroll {
   readonly maxPxPerSec: number;
   /** The interval in ms between jumps when motion is reduced. */
   readonly reducedStepMs: number;
-  /** True when the panel is not animated: the row jumps by panel instead of scrolling continuously. */
-  readonly instant: boolean;
   /** The farthest legal `scrollLeft`, from the row numbers; the DOM is never asked, because a transformed descendant inflates `scrollWidth`. */
   readonly maxScroll: number;
   /** The `scrollLeft` values the row rests at, ascending: where a reduced-motion jump can land and where a released drag settles. */
@@ -50,8 +48,6 @@ export interface HeaderButtonsSlot {
 export interface PanelSlotValue {
   /** The panel's id. Optional so a slot value built by hand (a test, a view mounted outside a row) needs none. */
   readonly id?: string | undefined;
-  /** The panel's `animated` setting: false takes the chrome fade, like every other animation, in no time. Optional like `id`. */
-  readonly animated?: boolean | undefined;
   /** True while a host holds a width on a panel of this row (`usePanelResizing`'s `setDrawnWidth`): the row's moves and its size boxes take no time then, so they follow a pointer. */
   readonly tracking?: boolean | undefined;
   readonly collapsible: boolean;
@@ -59,15 +55,19 @@ export interface PanelSlotValue {
   readonly draggable: ResolvedPanelSettings['draggable'];
   readonly placeable: ResolvedPanelSettings['placeable'];
   readonly resizable: ResolvedPanelSettings['resizable'];
-  readonly formFactors: ResolvedPanelSettings['formFactors'];
+  readonly maxSlots: ResolvedPanelSettings['maxSlots'];
   readonly neighborWidths: NeighborWidths;
   readonly pinned: boolean;
+  /** How many slots wide the panel is drawn now, and the most it can take: its `maxSlots` or the slots that fit, whichever is fewer. Absent outside a row. */
+  readonly slotRange?: { readonly now: number; readonly most: number } | undefined;
+  /** The size the row draws this slot at, which an omitted `size` on `Panel`, `PanelFrame` and `PanelSizeBox` follows. Absent outside a row, where an omitted size is the phone size. */
+  readonly drawn?: { readonly width: number; readonly height: number } | undefined;
+  /** The panel's own handle, which `usePanelDragProps` closes and moves through and `usePanelPinned` reads. Absent in a row without a workspace. */
+  readonly handle?: Pick<ViewHandle, 'close' | 'move' | 'getState' | 'subscribe' | 'setSlots'> | undefined;
   /** This panel's tuning: its own dragToClose, slide, hopFraction and edgeScroll, and the workspace's row gap. */
   readonly tuning: ResolvedPanelTuning & { readonly rowGap: number; readonly chrome: ChromeTuning };
   /** Optional so a slot value built by hand (a test, a view mounted outside a row) needs none. */
   readonly dragScroll?: DragScroll | undefined;
-  /** The panel's `frame` setting: whether a view that draws no frame of its own gets the library's. Absent reads as 'auto'. */
-  readonly frame?: ResolvedPanelSettings['frame'] | undefined;
   /** The panel's declared header buttons; absent when none are declared or the row has no workspace. */
   readonly headerButtonSlots?: HeaderButtonsSlot | undefined;
   /** Marks this panel as being dragged from the moment its drag engages until it settles. Absent outside a row. */
@@ -82,9 +82,3 @@ export interface PanelSlotValue {
 }
 
 export const PanelSlotContext = React.createContext<PanelSlotValue | undefined>(undefined);
-
-/**
- * Whether the slot above is hidden: its view is parked, kept mounted and out of layout. Its own context, not a field
- * of PanelSlotValue, because the slot decides it from its exit animation after PanelRow has built the slot value.
- */
-export const PanelHiddenContext = React.createContext<boolean>(false);

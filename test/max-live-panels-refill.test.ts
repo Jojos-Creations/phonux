@@ -10,7 +10,7 @@ import * as React from 'react';
 import { act } from 'react';
 import { createWorkspace, useProvidePanels } from '../index.js';
 import type { PanelWindow, ProvidedPanels } from '../index.js';
-import { cleanup, mount, panelsInput } from './support/mount-harness.js';
+import { cleanup, mount, useSeededInput } from './support/mount-harness.js';
 import { markerTemplate } from './support/workspace-row.js';
 import { capRig, rowOf } from './support/cap-rig.js';
 
@@ -83,11 +83,12 @@ test('under StrictMode a raise returns once and the next render returns nothing 
   assert.equal(r.parked().length, 2);
 });
 
-test('a raise before the workspace has loaded is refused, so nothing is dropped into a half-restored row', () => {
+test('a raise before the workspace has loaded is stored for the load to read, and nothing is refilled without a row', () => {
   const ws = createWorkspace({ mount: false, root: markerTemplate('root'), templates: [markerTemplate('a')], tuning: { maxLivePanels: 2 } });
   const result = ws.panels.configureTuning({ maxLivePanels: 4 });
-  assert.equal(result.ok, false);
-  assert.equal(ws.tuning.maxLivePanels, 2);
+  assert.equal(result.ok, true);
+  assert.equal(ws.tuning.maxLivePanels, 4);
+  assert.equal(ws.status, 'detached');
 });
 
 test('pinned panels do not count: a raise returns up to the new value of unpinned panels', async () => {
@@ -131,7 +132,7 @@ function flatRow(width: number, cap: number): { row: () => string; raiseTo: (n: 
   function Probe(): React.ReactElement {
     const [n, set] = React.useState(cap);
     setCap = set;
-    latest = useProvidePanels(panelsInput({ initialEntries: entries, containerWidth: width, tuning: { maxLivePanels: n } }));
+    latest = useProvidePanels(useSeededInput({ initialEntries: entries, containerWidth: width, workspaceDefaults: { overflow: 'park' }, tuning: { maxLivePanels: n } }));
     seen.push(rowOf(latest.entries));
     return React.createElement('output');
   }

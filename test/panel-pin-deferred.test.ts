@@ -225,7 +225,7 @@ test('a deferral that no longer passes its re-check is dropped with a note and t
   r.turn(() => r.h.a!.hide());
   r.turn(() => r.h.a!.pin());
   assert.deepEqual(deferral(r, 'a'), { by: 'pin' });
-  r.turn(() => r.h.a!.setFormFactor('tablet'));
+  r.turn(() => r.h.a!.setSlots(2));
   r.turn(() => r.h.a!.show());
   assert.deepEqual([r.state('a').status, deferral(r, 'a'), r.state('a').pinned], ['live', null, false]);
   const dropped: SettingNote[] = r.m.notes.filter((n) => n.code === 'deferred-pin-dropped');
@@ -233,14 +233,14 @@ test('a deferral that no longer passes its re-check is dropped with a note and t
   assert.match(dropped[0]!.message, /wider than one slot/);
 });
 
-test('a closed record with a deferral drops it the same way when the tier no longer fits', async () => {
+test('a closed record with a deferral drops it the same way when the slot count no longer fits', async () => {
   const r = await pinRig({ ids: ['a', 'b'], settings: { b: { overflow: 'scroll', pinning: FIX, pinningWhenNotLive: 'apply-on-next-show' } } });
   r.turn(() => r.h.b!.close());
   await advanceFrames(9000);
   r.turn(() => r.h.b!.pin());
   r.turn(() => r.h.b!.open());
   await r.settle();
-  assert.deepEqual([r.state('b').status, deferral(r, 'b'), r.state('b').pinned], ['live', null, true], 'open() on a phone-tier panel applies it');
+  assert.deepEqual([r.state('b').status, deferral(r, 'b'), r.state('b').pinned], ['live', null, true], 'open() on a one-slot panel applies it');
 });
 
 // ---------------------------------------------------------------------------
@@ -249,7 +249,7 @@ test('a closed record with a deferral drops it the same way when the tier no lon
 
 test('a deferral is session only: the saved file holds no deferral and a second launch starts without one', async () => {
   const store = memoryWorkspaceStorage();
-  const r = await pinRig({ ids: IDS, width: 1000, workspace: { storage: store }, over: quiet, settings: Object.fromEntries(IDS.map((id) => [id, { overflow: 'park', pinning: PLACE, pinningWhenNotLive: 'apply-on-next-show' } as PanelSettings])) });
+  const r = await pinRig({ ids: IDS, width: 1000, workspace: { storage: store, ...quiet }, settings: Object.fromEntries(IDS.map((id) => [id, { overflow: 'park', pinning: PLACE, pinningWhenNotLive: 'apply-on-next-show' } as PanelSettings])) });
   await r.settle();
   r.turn(() => r.h.b!.pin('person'));
   assert.deepEqual(deferral(r, 'b'), { by: 'pin' });
@@ -259,7 +259,7 @@ test('a deferral is session only: the saved file holds no deferral and a second 
   assert.equal(JSON.stringify(saved).includes('deferredPin'), false);
   r.m.unmount();
   cleanup();
-  const second = await pinRig({ ids: IDS, width: 1000, workspace: { storage: store }, over: quiet, settings: Object.fromEntries(IDS.map((id) => [id, { overflow: 'park', pinning: PLACE, pinningWhenNotLive: 'apply-on-next-show' } as PanelSettings])) });
+  const second = await pinRig({ ids: IDS, width: 1000, workspace: { storage: store, ...quiet }, settings: Object.fromEntries(IDS.map((id) => [id, { overflow: 'park', pinning: PLACE, pinningWhenNotLive: 'apply-on-next-show' } as PanelSettings])) });
   await second.settle();
   assert.deepEqual(IDS.map((id) => deferral(second, id)), [null, null, null, null, null]);
 });
@@ -273,13 +273,13 @@ const overridesOf = async (store: ReturnType<typeof memoryWorkspaceStorage>): Pr
 test('a person pin records overrides.parkable, a code pin records nothing, and the next launch keeps the person\'s', async () => {
   const withPair = { c: { pinning: PAIR } };
   const store = memoryWorkspaceStorage();
-  const r = await pinRig({ settings: withPair, workspace: { storage: store }, over: quiet });
+  const r = await pinRig({ settings: withPair, workspace: { storage: store, ...quiet } });
   r.turn(() => r.h.c!.pin('person'));
   await wait();
   assert.deepEqual(await overridesOf(store), [{}, {}, { parkable: false }]);
   r.m.unmount();
   cleanup();
-  const second = await pinRig({ settings: withPair, workspace: { storage: store }, over: quiet });
+  const second = await pinRig({ settings: withPair, workspace: { storage: store, ...quiet } });
   await wait();
   assert.deepEqual(second.facts('c'), { parkable: false, listed: false, placeable: false, draggable: false, clearable: false, pinned: true });
   second.turn(() => second.h.c!.unpin('person'));
@@ -287,7 +287,7 @@ test('a person pin records overrides.parkable, a code pin records nothing, and t
   assert.deepEqual(await overridesOf(store), [{}, {}, { parkable: true }]);
   cleanup();
   const code = memoryWorkspaceStorage();
-  const third = await pinRig({ settings: withPair, workspace: { storage: code }, over: quiet });
+  const third = await pinRig({ settings: withPair, workspace: { storage: code, ...quiet } });
   third.turn(() => third.h.c!.pin());
   await wait();
   assert.equal(third.facts('c').parkable, false, 'the code pin holds for the session');
@@ -296,7 +296,7 @@ test('a person pin records overrides.parkable, a code pin records nothing, and t
 
 test('a person pin that names a placement records overrides.anchor for every id; a half with no placement records none', async () => {
   const store = memoryWorkspaceStorage();
-  const r = await pinRig({ settings: { c: { pinning: FIX } }, workspace: { storage: store }, over: quiet });
+  const r = await pinRig({ settings: { c: { pinning: FIX } }, workspace: { storage: store, ...quiet } });
   r.turn(() => r.h.c!.pin('person'));
   await wait();
   const saved = (await overridesOf(store)) as Array<{ anchor?: unknown; parkable?: boolean }>;
@@ -305,20 +305,10 @@ test('a person pin that names a placement records overrides.anchor for every id;
   assert.deepEqual(saved.map((o) => o.parkable), [false, undefined, undefined], 'only the pinned panel carries parkable');
   cleanup();
   const pair = memoryWorkspaceStorage();
-  const q = await pinRig({ settings: { c: { pinning: PAIR } }, workspace: { storage: pair }, over: quiet });
+  const q = await pinRig({ settings: { c: { pinning: PAIR } }, workspace: { storage: pair, ...quiet } });
   q.turn(() => q.h.c!.pin('person'));
   await wait();
   assert.equal(JSON.stringify(await overridesOf(pair)).includes('anchor'), false);
-});
-
-test('rememberLayout:false keeps a person pin out of the saved file', async () => {
-  const store = memoryWorkspaceStorage();
-  const r = await pinRig({ settings: { c: { pinning: FIX, rememberLayout: false } }, workspace: { storage: store }, over: quiet });
-  r.turn(() => r.h.c!.pin('person'));
-  await wait();
-  const saved = (await overridesOf(store)) as Array<{ parkable?: boolean }>;
-  assert.equal(saved.some((o) => o.parkable !== undefined), false);
-  assert.equal(r.facts('c').parkable, false, 'it still holds for the session');
 });
 
 // ---------------------------------------------------------------------------

@@ -1,6 +1,6 @@
 /**
  * How a template's view is rendered inside a row: the adapter that gives it its handle, and the lookup a row runs for a
- * panel's `view` key. Kept apart from viewRegistry.tsx so that module, which workspaceCore imports, loads no component.
+ * panel's `view` key.
  */
 import * as React from 'react';
 import type { PanelSummary } from './hostApi.js';
@@ -10,7 +10,7 @@ import { FrameBoundary } from './panelFrameBoundary.js';
 import { PanelFooterContext } from './panelFooter.js';
 import type { PanelTemplate } from './panelTemplate.js';
 import { PanelViewContextValue } from './panelViewContext.js';
-import { placeholderFor, plainViewFor, type ViewComponent } from './viewRegistry.js';
+import { placeholderFor, type ViewComponent } from './viewRegistry.js';
 
 /** One adapter per template object, for the same reason as the placeholders: a fresh component type on every resolve would remount the panel. */
 const adapters = new WeakMap<LevelTable, WeakMap<PanelTemplate, ViewComponent>>();
@@ -56,10 +56,8 @@ export function templateViewFor(t: PanelTemplate, table: LevelTable = SHIPPED_LE
   return TemplatePanelView;
 }
 
-/** `resolveView` for a row that has a workspace: a plain view wins, then the workspace's template for `key`, then the placeholder. @internal */
+/** The component a row draws for `key`: the workspace's template for it, else the placeholder. @internal */
 export function resolveViewIn(templateOf: (id: string) => PanelTemplate | undefined, key: string): ViewComponent {
-  const plain = plainViewFor(key);
-  if (plain) return plain;
   const template = templateOf(key);
   return template ? templateViewFor(template) : placeholderFor(key);
 }

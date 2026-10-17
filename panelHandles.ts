@@ -3,20 +3,23 @@
  * a template's reader returns for every panel. Both are plain objects holding a source and an id, so they stay valid
  * before the panel exists, while it is live and after the workspace detaches.
  */
-import type { JsonValue, FormFactor } from './hostApi.js';
+import type { JsonValue } from './hostApi.js';
 import type { ConfigureResult, PanelOpSource, PanelResult, PinResult, ResetResult } from './panelManager.js';
 import type { AddPlacement, PanelId, PanelSettingsResolution, ScrollAlign, WorkspaceTuning } from './panelSettings.js';
 import type { InstancePatch, SettingsPatch, ViewPatch } from './settingsPatch.js';
 import type { ListFilter, PanelReader, PanelReadHandle, PanelSnapshot, PanelState, ViewHandle } from './panelTemplate.js';
 
 /**
- * A handle on one panel: its five read members and the operations on it, keyed by the panel's id. It resolves the
+ * A handle on one panel: its read members and the operations on it, keyed by the panel's id. It resolves the
  * engine entry on every call, so it is valid while the panel is pending, live, parked or closed, and an operation
  * that state cannot take answers a refusal and touches nothing.
  * @public
  */
 export interface PanelHandle<P extends JsonValue = JsonValue> extends PanelReadHandle {
-  /** The panel's current state, with `params` typed by the template. */
+  /**
+   * The panel's current state, with `params` typed by the template.
+   * @throws PanelManagerError with code `invalid-options` when the workspace knows no panel with this id.
+   */
   getState(): PanelState & { readonly params: P | undefined };
   /** Brings the panel into view: a parked one comes back, a live one out of view is scrolled to, a closed one reopens when its `showWhenClosed` says so. */
   show(source?: 'code' | 'person'): PanelResult;
@@ -28,12 +31,13 @@ export interface PanelHandle<P extends JsonValue = JsonValue> extends PanelReadH
   close(source?: 'code' | 'person'): PanelResult;
   /** Brings a closed declared panel back where its `placeOnAdd` says; a panel that is already open stays as it is. */
   open(source?: 'code' | 'person'): PanelResult;
-  /** Moves a live panel one slot toward `direction`. */
-  move(direction: 'left' | 'right', source?: 'code' | 'person'): PanelResult;
+  /**
+   * Moves a live panel `by` slots, negative to the left, in one gated call. It stops at the row's end or at a panel it
+   * cannot cross; the result is accepted with `changed` true when at least one slot was crossed, and false at an end or for 0.
+   */
+  move(by: number, source?: 'code' | 'person'): PanelResult;
   /** Puts the panel where `p` says; a parked panel is placed and stays parked. */
   place(p: AddPlacement | 'in-place', source?: 'code' | 'person'): PanelResult;
-  /** Gives the panel the tier `next`, read as its slot count: phone 1, tablet 2, desktop every visible slot (clamped to `maxSlots`). Deprecated for `setSlots`. */
-  setFormFactor(next: FormFactor, source?: 'code' | 'person'): PanelResult;
   /** Makes the panel `slots` phone widths wide, clamped to 1 and its `maxSlots`; the row draws at most the slots that fit. */
   setSlots(slots: number, source?: 'code' | 'person'): PanelResult;
   /** Scrolls the row to a live panel, to `align` or, left out, where the panel's `scrollOnOpen` says. */
@@ -42,16 +46,18 @@ export interface PanelHandle<P extends JsonValue = JsonValue> extends PanelReadH
   pin(source?: 'code' | 'person'): PinResult;
   /** Applies the unpinned half of the panel's `pinning` in one commit: the panel is freed, then placed, so a fixed pin can always be undone. */
   unpin(source?: 'code' | 'person'): PinResult;
-  /** Changes settings of this panel after it was added; `null` removes an instance value. All or nothing, in one update; the result says what acts now and what waits. A flip of `parkable` on a panel that is not live follows `pinningWhenNotLive`: it may be refused with `would-reshape-row` or `is-closed`, show the panel, or wait and be listed in `later`. */
+  /**
+   * Changes settings of this panel after it was added; `null` removes an instance value. All or nothing, in one update; the result says what acts now and what waits. A flip of `parkable` on a panel that is not live follows `pinningWhenNotLive`: it may be refused with `would-reshape-row` or `is-closed`, show the panel, or wait and be listed in `later`.
+   * @throws PanelManagerError with code `invalid-settings` when the patch is not an object or names an unknown key.
+   */
   configure(patch: InstancePatch): ConfigureResult;
 }
 
 /** One operation a handle asks of its workspace. @internal */
 export type PanelVerbCall =
   | { verb: 'show' | 'hide' | 'toggleVisibility' | 'close' | 'open' }
-  | { verb: 'move'; direction: 'left' | 'right' }
+  | { verb: 'move'; by: number }
   | { verb: 'place'; value: AddPlacement | 'in-place' }
-  | { verb: 'setFormFactor'; next: FormFactor }
   | { verb: 'setSlots'; slots: number }
   | { verb: 'scrollTo'; align: ScrollAlign | undefined }
   | { verb: 'pin' | 'unpin' };
@@ -81,7 +87,7 @@ export interface ReadSource {
   configureTuning(patch: { [K in keyof WorkspaceTuning]?: WorkspaceTuning[K] | null }): ConfigureResult;
 }
 
-/** The read handle of panel `id` built from `templateId`: exactly the five read members. @internal */
+/** The read handle of panel `id` built from `templateId`: exactly the read members. @internal */
 export function makeHandle(source: ReadSource, id: PanelId, templateId: string): PanelReadHandle {
   return {
     id,
@@ -92,7 +98,7 @@ export function makeHandle(source: ReadSource, id: PanelId, templateId: string):
   };
 }
 
-/** The handle of panel `id` built from `templateId`: the five read members and the twelve operations. @internal */
+/** The handle of panel `id` built from `templateId`: the read members and every operation. @internal */
 export function makeViewHandle<P extends JsonValue = JsonValue>(source: ReadSource, id: PanelId, templateId: string): PanelHandle<P> {
   return {
     id,
@@ -105,9 +111,8 @@ export function makeViewHandle<P extends JsonValue = JsonValue>(source: ReadSour
     toggleVisibility: (src = 'code') => source.operate(id, { verb: 'toggleVisibility' }, src),
     close: (src = 'code') => source.operate(id, { verb: 'close' }, src),
     open: (src = 'code') => source.operate(id, { verb: 'open' }, src),
-    move: (direction, src = 'code') => source.operate(id, { verb: 'move', direction }, src),
+    move: (by, src = 'code') => source.operate(id, { verb: 'move', by }, src),
     place: (value, src = 'code') => source.operate(id, { verb: 'place', value }, src),
-    setFormFactor: (next, src = 'code') => source.operate(id, { verb: 'setFormFactor', next }, src),
     setSlots: (slots, src = 'code') => source.operate(id, { verb: 'setSlots', slots }, src),
     scrollTo: (align, src = 'code') => source.operate(id, { verb: 'scrollTo', align }, src),
     pin: (src = 'code') => source.operate(id, { verb: 'pin' }, src),

@@ -104,14 +104,13 @@ test('rowConstants: every exported constant reaches LIBRARY_TUNING_DEFAULTS, so 
   assert.equal(t.initialScroll, rowConstants.INITIAL_SCROLL);
   assert.deepEqual({ ...t.edgeScroll }, { zonePx: rowConstants.EDGE_SCROLL_ZONE_PX, maxPxPerSec: rowConstants.EDGE_SCROLL_MAX_PX_PER_SEC, reducedStepMs: rowConstants.EDGE_SCROLL_REDUCED_STEP_MS });
   assert.deepEqual({ ...t.chrome }, { ...rowConstants.CHROME });
-  assert.equal(t.shrinkOutOfView, rowConstants.SHRINK_OUT_OF_VIEW);
   assert.equal(t.phoneFit, rowConstants.PHONE_FIT);
   assert.equal(t.phoneFitMin, rowConstants.PHONE_FIT_MIN);
   assert.equal(t.phoneFitMax, rowConstants.PHONE_FIT_MAX);
   assert.equal(rowConstants.RESIZE_SETTLE_SLIDES, 1.25);
   assert.equal(rowConstants.ALL_SLOTS, 64);
   assert.equal(rowConstants.UNMEASURED_SLOTS, 3);
-  assert.equal(Object.keys(rowConstants).length, 35, 'the module exports exactly the 27 constants this test compares, the 4 slot constants and the 4 slot helpers');
+  assert.equal(Object.keys(rowConstants).length, 32, 'the module exports exactly the 26 constants this test compares, the 4 slot constants and the 2 slot helpers');
 });
 
 test('rowConstants: no source file outside rowConstants.ts declares its own copy of the save delay or the gesture lock', () => {
@@ -153,10 +152,10 @@ test('rowconstants: none of the held numbers is written outside a comment in Pan
   }
 });
 
-test('rowconstants: GAP is the one re-export line of ROW_GAP in PanelRowSlot.tsx and no file declares a gap number of its own', () => {
+test('rowconstants: GAP is the one alias line of ROW_GAP in PanelRowSlot.tsx and no file declares a gap number of its own', () => {
   const slot = readFileSync(`${ROOT}PanelRowSlot.tsx`, 'utf8');
-  assert.equal(slot.split('\n').filter((line) => line === "export { ROW_GAP as GAP } from './rowConstants.js';").length, 1);
-  assert.doesNotMatch(slot, /export const GAP/);
+  assert.equal(slot.split('\n').filter((line) => line === 'export const GAP = ROW_GAP;').length, 1);
+  assert.doesNotMatch(slot, /export const GAP = \d/);
   const offenders: string[] = [];
   const walk = (dir: string): void => {
     for (const entry of readdirSync(dir, { withFileTypes: true })) {

@@ -1,0 +1,34 @@
+{
+  "tests": [
+    "test/landing-snap.test.ts"
+  ],
+  "mutants": [
+    {
+      "name": "the slots' move snap drops the landing flag",
+      "file": "PanelRow.tsx",
+      "find": "tracking={slotTracking}",
+      "replace": "tracking={tracking}",
+      "expectRed": [
+        "a slot the measuring commit moves is set at once"
+      ]
+    },
+    {
+      "name": "the row's tracking drops the landing OR",
+      "file": "PanelRow.tsx",
+      "find": "const slotTracking = tracking || landing;",
+      "replace": "const slotTracking = tracking;",
+      "expectRed": [
+        "a slot the measuring commit moves is set at once"
+      ]
+    },
+    {
+      "name": "the landing flag is clear from the first render",
+      "file": "Workspace.tsx",
+      "find": "React.useState(containerWidth === 0);",
+      "replace": "React.useState(false);",
+      "expectRed": [
+        "a slot the measuring commit moves is set at once"
+      ]
+    }
+  ]
+}

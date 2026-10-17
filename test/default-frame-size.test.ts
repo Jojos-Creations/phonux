@@ -10,10 +10,8 @@ import { act } from 'react';
 import { MotionConfig } from 'motion/react';
 import { Panel, PanelFrame, PanelSizeBox, createWorkspace, definePanel } from '../index.js';
 import type { PanelHandle, PanelTemplate, WorkspaceHandle } from '../index.js';
-import { advanceFrames, cleanup, mount } from './support/mount-harness.js';
+import { advanceFrames, cleanup } from './support/mount-harness.js';
 import { frameClock } from './support/jsdom-globals.js';
-import { SizeBox } from '../PanelRowSlot.js';
-import { PanelHiddenContext } from '../panelSlotContext.js';
 import { stableIds } from './support/frame-fixtures.js';
 import { flush, mountWorkspace, type ResizableWorkspace } from './support/workspace-row.js';
 
@@ -72,7 +70,7 @@ test('a PanelSizeBox below the default frame draws a plain div, so the two never
   assert.equal(slot.querySelector<HTMLElement>('[data-panel-size-plain]')!.style.width, '100px');
 });
 
-test('the box is as wide as the frame at a phone, at two slots and at a tablet, and as high as the phone or as the row for fill', async () => {
+test('the box is as wide as the frame at a phone, at two slots and at three slots, and as high as the phone or as the row for fill', async () => {
   const r = await rig([bareTemplate('bare')], ['bare']);
   const dims = (): [string, string] => [boxOf(r.m, 'bare').style.width, boxOf(r.m, 'bare').style.height];
   const frameStyle = (): [string, string] => {
@@ -88,12 +86,12 @@ test('the box is as wide as the frame at a phone, at two slots and at a tablet, 
   assert.equal(dims()[0], slotOf(r.m, 'bare').style.width, 'two slots: the width of the slot');
   assert.equal(dims()[0], frameStyle()[0], 'and of the frame');
   assert.equal(dims()[1], phoneHeight, 'the height does not grow');
-  await act(async () => void r.handles[0]!.setFormFactor('tablet'));
+  await act(async () => void r.handles[0]!.setSlots(3));
   await advanceFrames(800);
-  assert.equal(r.handles[0]!.getState().formFactor, 'tablet');
-  assert.equal(dims()[0], frameStyle()[0], 'a tablet: the frame is as wide as the box');
+  assert.equal(dims()[0], `${3 * 390 + 2 * 16}px`, 'three slots wide');
+  assert.equal(dims()[0], frameStyle()[0], 'three slots: the frame is as wide as the box');
   assert.notEqual(dims()[0], '390px', 'which is its own width, not the phone');
-  assert.match(dims()[1], /^(\d+px|100%)$/, "and as high as the tablet, or as the row's own height for fill");
+  assert.match(dims()[1], /^(\d+px|100%)$/, "and as high as the phone, or as the row's own height for fill");
 });
 
 test('a resize draws the box at the old size and eases it to the new one over the slide, with the content laid out at the new size at once', async () => {
@@ -128,14 +126,10 @@ test('a resize that lands while the box is on its way carries on from the size i
   assert.ok(Math.abs(scaleOf(box) * 390 - drawn) < 1.5, `from ${drawn.toFixed(1)}px, not from a size it never showed (${(scaleOf(box) * 390).toFixed(1)}px)`);
 });
 
-test('under Reduce Motion, and for a panel that is not animated, the box takes its size in the same frame', async () => {
+test('under Reduce Motion the box takes its size in the same frame', async () => {
   const reduced = await rig([bareTemplate('bare')], ['bare'], { wrap: (tree) => React.createElement(MotionConfig, { reducedMotion: 'always' }, tree) });
   await act(async () => void reduced.handles[0]!.setSlots(2));
   assert.equal(boxOf(reduced.m, 'bare').style.transform, '', 'Reduce Motion');
-  cleanup();
-  const still = await rig([bareTemplate('bare', { settings: { title: 'BARE', multiple: true, animated: false } })], ['bare']);
-  await act(async () => void still.handles[0]!.setSlots(2));
-  assert.equal(boxOf(still.m, 'bare').style.transform, '', 'animated: false');
 });
 
 test('a box that is mounted, or mounted again by the library frame, is not drawn from a size it never had', async () => {
@@ -171,18 +165,6 @@ test('a view that draws its Panel late releases the library box with the frame, 
   await act(async () => void listeners.forEach((l) => l()));
   await advanceFrames(400);
   assert.equal(slotOf(r.m, 'lazy').querySelectorAll('[data-panel-size-box]').length, 0, 'the view is self-framed now');
-});
-
-test('a box in a parked panel takes its size at once, so the panel that returns is not eased from the one it left', async () => {
-  const at = (hidden: boolean, width: number): React.ReactElement => React.createElement(PanelHiddenContext.Provider, { value: hidden }, React.createElement(SizeBox, { width, height: 700, children: React.createElement('i') }));
-  const mounted = mount(at(true, 390));
-  mounted.rerender(at(true, 796));
-  const box = mounted.container.querySelector<HTMLElement>('[data-panel-size-box]')!;
-  assert.equal(box.style.transform, '', 'resized while parked');
-  mounted.rerender(at(false, 796));
-  assert.equal(box.style.transform, '', 'and shown again');
-  mounted.rerender(at(false, 390));
-  assert.notEqual(box.style.transform, '', 'positive control: the same resize while shown eases');
 });
 
 test("a growing panel's box and its neighbour's slide run as one curve, the same share of the way at every frame, after a commit that took 64 ms", async () => {

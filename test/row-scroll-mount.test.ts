@@ -8,7 +8,7 @@ import { test, afterEach, mock } from 'node:test';
 import assert from 'node:assert/strict';
 import './support/jsdom-globals.js';
 import { act } from 'react';
-import type { PanelSettings, PanelWindow, PanelsInput, ProvidedPanels } from '../index.js';
+import type { PanelSettings, PanelWindow, ProvidedPanels, WorkspaceTuning } from '../index.js';
 import { LIBRARY_PANEL_DEFAULTS, LIBRARY_TUNING_DEFAULTS } from '../panelSettings.js';
 import { rowScrollerFor } from '../rowScroller.js';
 import { scrollTargetFor } from '../scrollTargets.js';
@@ -21,7 +21,7 @@ afterEach(() => cleanup());
 /** The row [root a b c d e]: panel k starts at 16 + 406k. */
 const sixPanels = (layer: PanelSettings = {}): PanelWindow[] => row(rootEntry(), ...['a', 'b', 'c', 'd', 'e'].map((id) => made(id, layer)));
 
-const mountRow = (o: { entries?: PanelWindow[]; over?: Partial<PanelsInput>; width?: number }): MountedRow => mountScrollRow(o.entries ?? sixPanels(), o.width ?? 1000, o.over);
+const mountRow = (o: { entries?: PanelWindow[]; over?: Parameters<typeof mountScrollRow>[2]; width?: number }): MountedRow => mountScrollRow(o.entries ?? sixPanels(), o.width ?? 1000, o.over);
 
 /** Spies on the container's glideTo and returns the targets asked for since. */
 function glides(container: HTMLElement) {
@@ -197,12 +197,6 @@ test('while a claim is held a scrollTo returns false, a create is dropped, and b
   assert.equal(m.container.scrollLeft, 1218);
 });
 
-test('instant under animated:false: the target is reached with no frame advanced', () => {
-  const m = mountRow({ entries: sixPanels({ scrollOnOpen: 'start', animated: false }) });
-  act(() => void m.latest().scrollTo('c'));
-  assert.equal(m.container.scrollLeft, 1218);
-});
-
 test('the glide takes tuning.slide.durationSec: 0.4 s is 25 frames and 0.8 s is 50', async () => {
   for (const [seconds, frames] of [[0.4, 25], [0.8, 50]] as const) {
     const m = mountRow({ entries: sixPanels({ scrollOnOpen: 'start' }), over: { tuning: { slide: { durationSec: seconds } } } });
@@ -225,12 +219,12 @@ const follow = async (layer: PanelSettings, from: number, run: (p: ProvidedPanel
   return m.container.scrollLeft;
 };
 
-test('setFormFactor on an in-view panel scrolls the least distance that shows it whole: b to tablet from 0 ends at 234', async () => {
-  assert.equal(await follow({ scrollOnMove: 'follow' }, 0, (p) => p.setFormFactor('a', 'tablet')), 234);
+test('setSlots on an in-view panel scrolls the least distance that shows it whole: a to two slots from 0 ends at 234', async () => {
+  assert.equal(await follow({ scrollOnMove: 'follow' }, 0, (p) => p.setSlots('a', 2)), 234);
 });
 
-test('setFormFactor on a panel out of view scrolls nothing', async () => {
-  assert.equal(await follow({ scrollOnMove: 'follow' }, 0, (p) => p.setFormFactor('e', 'tablet')), 0);
+test('setSlots on a panel out of view scrolls nothing', async () => {
+  assert.equal(await follow({ scrollOnMove: 'follow' }, 0, (p) => p.setSlots('e', 2)), 0);
 });
 
 test('reanchor of a panel in view to the left of the root follows it: c, half in view at 406, lands at the strip start and the row scrolls to 0', async () => {
@@ -238,9 +232,9 @@ test('reanchor of a panel in view to the left of the root follows it: c, half in
 });
 
 test('scrollOnMove none records none, and the default reads LIBRARY_PANEL_DEFAULTS', async () => {
-  assert.equal(await follow({ scrollOnMove: 'none' }, 0, (p) => p.setFormFactor('a', 'tablet')), 0);
+  assert.equal(await follow({ scrollOnMove: 'none' }, 0, (p) => p.setSlots('a', 2)), 0);
   const def = LIBRARY_PANEL_DEFAULTS.scrollOnMove;
-  assert.equal(await follow({}, 0, (p) => p.setFormFactor('a', 'tablet')), def === 'follow' ? 234 : 0);
+  assert.equal(await follow({}, 0, (p) => p.setSlots('a', 2)), def === 'follow' ? 234 : 0);
 });
 
 test('a drag release (move) records none', async () => {
@@ -250,13 +244,13 @@ test('a drag release (move) records none', async () => {
 test('while a claim is held a follow request is dropped with the note, and the one after the release runs', async () => {
   const m = mountRow({ entries: sixPanels({ scrollOnMove: 'follow' }) });
   const claim = rowScrollerFor(m.container).claim()!;
-  act(() => m.latest().setFormFactor('a', 'tablet'));
+  act(() => m.latest().setSlots('a', 2));
   await settle();
   assert.equal(m.container.scrollLeft, 0);
   assert.deepEqual(m.notes.map((n) => n.code), ['scroll-dropped-during-drag']);
   claim.release();
-  act(() => m.latest().setFormFactor('a', 'phone'));
-  act(() => m.latest().setFormFactor('a', 'tablet'));
+  act(() => m.latest().setSlots('a', 1));
+  act(() => m.latest().setSlots('a', 2));
   await settle();
   assert.equal(m.container.scrollLeft, 234);
 });
@@ -269,10 +263,10 @@ function elevenPanels(): PanelWindow[] {
   const web = ['w1', 'w2', 'w3', 'w4', 'w5'].map((id) => made(id));
   return row(...pinned, rootEntry(), ...web);
 }
-const initial = (initialScroll: NonNullable<PanelsInput['tuning']>['initialScroll']): Partial<PanelsInput> => ({ tuning: { initialScroll } });
+const initial = (initialScroll: NonNullable<WorkspaceTuning['initialScroll']>): Parameters<typeof mountScrollRow>[2] => ({ tuning: { initialScroll } });
 
 test('initialScroll with no storage runs at the first measured commit, to literal values: start 0, root 2030, end 3482, a panel by id 3248', () => {
-  const expected: [NonNullable<PanelsInput['tuning']>['initialScroll'], number][] = [['start', 0], ['root', 2030], ['end', 3482], [{ panel: 'w3' }, 3248]];
+  const expected: [NonNullable<WorkspaceTuning['initialScroll']>, number][] = [['start', 0], ['root', 2030], ['end', 3482], [{ panel: 'w3' }, 3248]];
   for (const [value, at] of expected) {
     const m = mountRow({ entries: elevenPanels(), over: initial(value) });
     assert.equal(m.container.scrollLeft, at, JSON.stringify(value));
@@ -321,7 +315,7 @@ function deferredStorage(): { storage: WorkspaceStorage; resolve: () => void } {
   return { storage: { load: () => loaded, save: () => undefined }, resolve: () => release(savedState()) };
 }
 
-const deferredRow = (initialScroll: NonNullable<PanelsInput['tuning']>['initialScroll']) => {
+const deferredRow = (initialScroll: NonNullable<WorkspaceTuning['initialScroll']>) => {
   const { storage, resolve } = deferredStorage();
   const m = mountRow({ entries: [rootEntry()], over: { storage, workspaceDefaults: {}, tuning: { initialScroll } } });
   return { m, resolve };

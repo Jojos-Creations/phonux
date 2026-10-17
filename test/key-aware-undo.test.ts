@@ -10,10 +10,11 @@ import { fileURLToPath } from 'node:url';
 import './support/jsdom-globals.js';
 import * as React from 'react';
 import { act } from 'react';
-import { registerView, useProvidePanels, type PanelWindow, type ProvidedPanels } from '../index.js';
-import { cleanup, mount, panelsInput } from './support/mount-harness.js';
+import { useProvidePanels, type PanelWindow, type ProvidedPanels } from '../index.js';
+import { cleanup, mount, useSeededInput } from './support/mount-harness.js';
+import { registerTestView } from './support/test-views.js';
 
-registerView('undo-view', ({ panel }) => React.createElement('i', { 'data-slot': panel.id }, panel.title));
+registerTestView('undo-view', ({ panel }) => React.createElement('i', { 'data-slot': panel.id }, panel.title));
 
 const entry = (id: string, over: Partial<PanelWindow> = {}): PanelWindow => ({
   id,
@@ -33,7 +34,7 @@ function provide(initialEntries: PanelWindow[]): { now: () => ProvidedPanels; id
   const restored: string[][] = [];
   const closed: string[] = [];
   function Probe(): React.ReactElement {
-    latest = useProvidePanels(panelsInput({ initialEntries, onPanelsClosed: (e) => closed.push(e.id), onPanelsRestored: (logIds) => restored.push(logIds) }));
+    latest = useProvidePanels(useSeededInput({ initialEntries, onPanelsClosed: (e) => closed.push(e.id), onPanelsRestored: (logIds) => restored.push(logIds) }));
     return React.createElement('output');
   }
   mount(React.createElement(Probe));

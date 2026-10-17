@@ -13,7 +13,6 @@ import {
   Panel,
   PanelHeaderRow,
   PanelRow,
-  registerView,
   useProvidePanels,
   type Host,
   type ProvidedPanels,
@@ -23,11 +22,13 @@ import {
 import { createFakeHost } from '../fakeHost.js';
 import { DEFAULT_LABELS, resolveLabels, type PhonuxLabels } from '../labels.js';
 import { computeRowNumbers } from '../index.js';
+import { panelKey } from '../panelSettings.js';
 import { createHistoryPanel } from '../panelWindow.js';
-import { resolveView } from '../viewRegistry.js';
-import { cleanup, mount, panelsInput, withHost } from './support/mount-harness.js';
+import { placeholderFor } from '../viewRegistry.js';
+import { cleanup, mount, plainTemplate, withHost, useSeededInput, StaticRow } from './support/mount-harness.js';
+import { registerTestView } from './support/test-views.js';
 
-registerView('hn-view', ({ panel }) => React.createElement('i', { 'data-hn': panel.id }, panel.title));
+registerTestView('hn-view', ({ panel }) => React.createElement('i', { 'data-hn': panel.id }, panel.title));
 
 afterEach(() => {
   mock.timers.reset();
@@ -37,13 +38,14 @@ afterEach(() => {
 const ROOT = 'root';
 const NONE: ReadonlySet<string> = new Set();
 
-function mountProvider(over: Parameters<typeof panelsInput>[0] = {}): { latest: () => ProvidedPanels; container: HTMLElement; host: () => Host } {
+function mountProvider(over: Partial<Parameters<typeof useSeededInput>[0]> = {}): { latest: () => ProvidedPanels; container: HTMLElement; host: () => Host } {
   let latest: ProvidedPanels | undefined;
   const hostOver = (): Partial<Host> => ({ ...(over.labels !== undefined ? { labels: over.labels } : {}) });
   function Probe(): React.ReactElement {
-    latest = useProvidePanels(panelsInput({ initialEntries: [createHistoryPanel(ROOT)], ...over }));
+    const input = useSeededInput({ initialEntries: [createHistoryPanel(ROOT)], templates: [plainTemplate('hn-view')], ...over });
+    latest = useProvidePanels(input);
     const host: Host = { ...createFakeHost({ panels: latest }), ...hostOver() };
-    return withHost(React.createElement(PanelRow, { entries: latest.entries, rootId: ROOT, closingIds: NONE, enteringViaAnchorIds: NONE, rowNumbers: latest.rowNumbers }), host);
+    return withHost(React.createElement(PanelRow, { entries: latest.entries, rootId: ROOT, closingIds: NONE, enteringViaAnchorIds: NONE, rowNumbers: latest.rowNumbers, workspace: input.workspace }), host);
   }
   const mounted = mount(React.createElement(Probe));
   return { latest: () => latest!, container: mounted.container, host: () => createFakeHost() };
@@ -54,7 +56,7 @@ test('create() with no url reports an empty url, in the entry and in the summary
   act(() => m.latest().create({ view: 'hn-view' }));
   const made = m.latest().entries.find((p) => p.id !== ROOT)!;
   assert.equal(made.url, '');
-  assert.equal(m.latest().panelList.find((p) => p.id === made.id)!.url, '');
+  assert.equal(m.latest().panelList.find((p) => p.id === panelKey(made))!.url, '');
 });
 
 test('create() with no view and no default view renders the unregistered-view placeholder without throwing', () => {
@@ -118,7 +120,7 @@ test('a host holding only device.size and panels renders Panel and PanelRow', ()
   const row = mount(
     React.createElement(HostProvider, {
       host: minimal,
-      children: React.createElement(PanelRow, { entries: [entry], rootId: ROOT, closingIds: NONE, enteringViaAnchorIds: NONE, rowNumbers }),
+      children: React.createElement(StaticRow, { entries: [entry], rootId: ROOT, closingIds: NONE, enteringViaAnchorIds: NONE, rowNumbers }),
     }),
   );
   assert.equal(row.container.querySelectorAll('[data-hn]').length, 1);
@@ -140,7 +142,7 @@ test('labels overrides replace each default string', () => {
   const host: Host = { ...createFakeHost(), labels };
   const header = renderToStaticMarkup(React.createElement(HostProvider, { host, children: React.createElement(PanelHeaderRow, { title: '', actions: null }) }));
   assert.equal(header.includes('Namenlos'), true);
-  const Untitled = resolveView('hn-nowhere');
+  const Untitled = placeholderFor('hn-nowhere');
   const placeholder = renderToStaticMarkup(
     React.createElement(HostProvider, { host, children: React.createElement(Untitled, { panel: { id: 'x', live: true, locked: false } }) }),
   );
@@ -149,8 +151,16 @@ test('labels overrides replace each default string', () => {
 
 test('without labels every default string is the English text', () => {
   assert.equal(createHistoryPanel(ROOT).title, 'History');
-  const Untitled = resolveView('hn-nowhere');
+  const Untitled = placeholderFor('hn-nowhere');
   assert.equal(renderToStaticMarkup(React.createElement(Untitled, { panel: { id: 'x', live: true, locked: false } })).includes('Untitled panel'), true);
+});
+
+test('the pin-refusal labels default to English and a host overrides them', () => {
+  assert.equal(DEFAULT_LABELS.pinFailed, 'Could not pin this panel');
+  assert.equal(DEFAULT_LABELS.unpinFailed, 'Could not unpin this panel');
+  const labels = resolveLabels({ pinFailed: 'Anheften fehlgeschlagen' });
+  assert.equal(labels.pinFailed, 'Anheften fehlgeschlagen');
+  assert.equal(labels.unpinFailed, DEFAULT_LABELS.unpinFailed);
 });
 
 test('a label key given as undefined keeps its default', () => {

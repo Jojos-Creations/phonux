@@ -1,0 +1,70 @@
+/**
+ * usePanelDots' handlers, rendered: an oval drag writes the row only while it holds the claim and releases it on end,
+ * and a dot click glides, or snaps under Reduce Motion from either source.
+ */
+import './support/jsdom-globals.js';
+import test, { afterEach } from 'node:test';
+import assert from 'node:assert/strict';
+import * as React from 'react';
+import { MotionConfig } from 'motion/react';
+import { cleanup, mount } from './support/mount-harness.js';
+import { usePanelDots, type PanelDots } from '../usePanelDots.js';
+import type { RowNumbers } from '../rowNumbers.js';
+import { rowScrollerFor } from '../rowScroller.js';
+
+afterEach(() => cleanup());
+
+const numbers = {
+  rowScroll: true,
+  windowWidth: 600,
+  stripWidth: 1202,
+  rowMarginLeft: 0,
+  endPad: 0,
+  ids: ['a', 'b', 'c'],
+  widths: [390, 390, 390],
+  leftOffsets: [0, 406, 812],
+} as unknown as RowNumbers;
+const entries = [{ id: 'a' }, { id: 'b' }, { id: 'c' }];
+
+function probe(out: { dots?: PanelDots; el?: HTMLElement }, reduced?: 'always') {
+  const Probe = () => {
+    const scroller = React.useRef<HTMLDivElement>(null);
+    const dots = usePanelDots({ rowNumbers: numbers, entries, trackWidth: 1000, minDotPx: 1, scroller });
+    out.dots = dots;
+    out.el = scroller.current ?? undefined;
+    return React.createElement('div', { ref: scroller, 'data-row-scroller': '', style: { overflowX: 'auto', width: 300 } });
+  };
+  const tree = React.createElement(Probe);
+  return React.createElement(MotionConfig, { reducedMotion: reduced ?? 'never' }, tree);
+}
+
+test('an oval drag writes the row through its claim, and end releases the claim', () => {
+  const out: { dots?: PanelDots; el?: HTMLElement } = {};
+  const m = mount(probe(out));
+  const dots = out.dots!;
+  const el = m.container.querySelector<HTMLElement>('[data-row-scroller]')!;
+  const drag = dots.startOvalDrag();
+  assert.notEqual(drag, null);
+  assert.equal(dots.startOvalDrag(), null, 'a second drag cannot take a held row');
+  drag!.drag(50);
+  assert.ok(el.scrollLeft > 0, 'the drag moved the row');
+  drag!.end();
+  assert.notEqual(dots.startOvalDrag(), null, 'end released the claim');
+});
+
+test('a dot click glides to the centring target when motion is on', () => {
+  const out: { dots?: PanelDots; el?: HTMLElement } = {};
+  const m = mount(probe(out));
+  out.dots!.selectDot('b');
+  const el = m.container.querySelector<HTMLElement>('[data-row-scroller]')!;
+  assert.equal(rowScrollerFor(el).glideTarget(), 406 + 195 - 300);
+});
+
+test('a dot click snaps at once under Reduce Motion', () => {
+  const out: { dots?: PanelDots; el?: HTMLElement } = {};
+  const m = mount(probe(out, 'always'));
+  out.dots!.selectDot('b');
+  const el = m.container.querySelector<HTMLElement>('[data-row-scroller]')!;
+  assert.equal(el.scrollLeft, 406 + 195 - 300);
+  assert.equal(rowScrollerFor(el).glideTarget(), null);
+});

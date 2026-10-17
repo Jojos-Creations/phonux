@@ -29,13 +29,13 @@ const rigOf = (over: CapRigOptions = {}): Promise<CapRig> => capRig({ count: 9, 
 const wheel = (r: CapRig, init: WheelEventInit): void => void act(() => void r.m.container.dispatchEvent(new WheelEvent('wheel', { cancelable: true, bubbles: true, ...init })));
 const key = (name: string): void => void act(() => void window.dispatchEvent(new KeyboardEvent('keydown', { key: name, bubbles: true, cancelable: true })));
 
-/** Runs each input a burst lock apart and with the glide it starts finished, so each lands as its own step. */
+/** Runs each input a quiet gap apart (a fresh gesture) and with the glide it starts finished, so each lands as its own step. */
 async function steps(inputs: readonly (() => void)[]): Promise<void> {
   if (!timersOn) mock.timers.enable({ apis: ['setTimeout'] });
   timersOn = true;
   for (const input of inputs) {
     input();
-    act(() => mock.timers.tick(70));
+    act(() => mock.timers.tick(160));
     await advanceFrames(500);
   }
 }

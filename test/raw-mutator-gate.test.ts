@@ -1,5 +1,5 @@
 /**
- * The raw mutators (close, undoClose, activate, move, reanchor, setFormFactor) take a token on the ids they touch, so a
+ * The raw mutators (close, undoClose, activate, move, reanchor, setSlots) take a token on the ids they touch, so a
  * handle call on the same panel in the same turn answers busy; clearAll and create take none; a raw call never refuses.
  */
 import { test, afterEach } from 'node:test';
@@ -13,10 +13,11 @@ import { brief, rig, type Rig } from './support/ops-rig.js';
 afterEach(() => cleanup());
 
 const engineId = (r: Rig, id: string): string => r.h[id]!.getState().engineId!;
+const slotsOf = (r: Rig, id: string): number | undefined => r.m!.latest().entries.find((p) => p.id === engineId(r, id))?.slots;
 
 const RAW: Array<[name: string, prepare: (r: Rig) => void, call: (p: ProvidedPanels, r: Rig) => void]> = [
   ['close', () => undefined, (p, r) => p.close(engineId(r, 'b'))],
-  ['setFormFactor', () => undefined, (p, r) => p.setFormFactor(engineId(r, 'b'), 'tablet')],
+  ['setSlots', () => undefined, (p, r) => p.setSlots(engineId(r, 'b'), 2)],
   ['move', () => undefined, (p, r) => p.move(engineId(r, 'b'), 'right')],
   ['reanchor', () => undefined, (p, r) => p.reanchor(engineId(r, 'b'), { position: 'left', priority: 0 })],
   ['activate', (r) => void r.turn(() => r.h.b!.hide()), (p, r) => p.activate(engineId(r, 'b'))],
@@ -42,15 +43,15 @@ test('a panel the raw call did not touch is free for the handle in the same turn
   const r = await rig();
   const raw = r.m!.latest();
   const answers = r.turn(() => {
-    raw.setFormFactor(engineId(r, 'b'), 'tablet');
-    return [brief(r.h.a!.hide()), brief(r.h.c!.move('left'))];
+    raw.setSlots(engineId(r, 'b'), 2);
+    return [brief(r.h.a!.hide()), brief(r.h.c!.move(-1))];
   });
   assert.deepEqual(answers, ['T', 'T']);
 });
 
 test('the turn ends the gate: the same call in the next turn is not busy', async () => {
   const r = await rig();
-  r.turn(() => r.m!.latest().setFormFactor(engineId(r, 'b'), 'tablet'));
+  r.turn(() => r.m!.latest().setSlots(engineId(r, 'b'), 2));
   assert.equal(brief(r.turn(() => r.h.b!.hide())), 'T');
 });
 
@@ -60,27 +61,27 @@ test('a raw call on a panel a handle call holds does nothing and does not throw'
   const answer = r.turn(() => {
     const hidden = brief(r.h.b!.hide());
     raw.close(engineId(r, 'b'));
-    raw.setFormFactor(engineId(r, 'b'), 'tablet');
+    raw.setSlots(engineId(r, 'b'), 2);
     raw.move(engineId(r, 'b'), 'right');
     return hidden;
   });
   assert.equal(answer, 'T');
   assert.equal(r.row(), 'a b* c', 'b is parked, not closed, not moved');
-  assert.equal(r.h.b!.getState().formFactor, 'phone', 'and was not resized');
+  assert.equal(slotsOf(r, 'b'), 1, 'and was not resized');
 });
 
 test('two raw calls on one id behave as they did before the gate: both apply in call order, and a close wins over a later resize', async () => {
   const r = await rig();
   const raw = r.m!.latest();
   r.turn(() => {
-    raw.setFormFactor(engineId(r, 'a'), 'tablet');
-    raw.setFormFactor(engineId(r, 'a'), 'desktop');
+    raw.setSlots(engineId(r, 'a'), 2);
+    raw.setSlots(engineId(r, 'a'), 3);
   });
-  assert.equal(r.h.a!.getState().formFactor, 'desktop');
+  assert.equal(slotsOf(r, 'a'), 3);
   const id = engineId(r, 'b');
   r.turn(() => {
     raw.close(id);
-    raw.setFormFactor(id, 'tablet');
+    raw.setSlots(id, 2);
   });
   assert.equal(r.row(), 'a c ~b');
 });

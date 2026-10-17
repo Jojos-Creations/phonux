@@ -44,7 +44,6 @@ const hostRead = (): string => {
 const probe = (id = 'probe'): PanelTemplate =>
   definePanel({
     id,
-    settings: { frame: 'none' },
     view: ({ handle }) => {
       const read = hostRead();
       seen.push(read);
@@ -130,14 +129,13 @@ test('panels.defaultView is what a create that names no view opens, and an updat
   let host: ReturnType<typeof useHost> | undefined;
   const opener = definePanel({
     id: 'opener',
-    settings: { frame: 'none' },
     view: ({ handle }) => {
       host = useHost();
       return React.createElement('i', { 'data-slot': handle.id });
     },
   });
-  const a = definePanel({ id: 'a', settings: { frame: 'none', hostCreatable: true, multiple: true }, view: ({ handle }) => React.createElement('i', { 'data-slot': handle.id, 'data-view': 'a' }) });
-  const b = definePanel({ id: 'b', settings: { frame: 'none', hostCreatable: true, multiple: true }, view: ({ handle }) => React.createElement('i', { 'data-slot': handle.id, 'data-view': 'b' }) });
+  const a = definePanel({ id: 'a', settings: { hostCreatable: true, multiple: true }, view: ({ handle }) => React.createElement('i', { 'data-slot': handle.id, 'data-view': 'a' }) });
+  const b = definePanel({ id: 'b', settings: { hostCreatable: true, multiple: true }, view: ({ handle }) => React.createElement('i', { 'data-slot': handle.id, 'data-view': 'b' }) });
   win.width = 1400;
   const ws = track(createWorkspace({ templates: [opener, a, b], panels: { defaultView: 'a' } }));
   ws.addPanel('opener');
@@ -175,7 +173,7 @@ test('wrap renders inside the host and around the row, with the workspace, and k
   function Themed(): React.ReactElement {
     return React.createElement('i', { 'data-slot': 'themed', 'data-theme': React.useContext(Theme) });
   }
-  const themed = definePanel({ id: 'themed', settings: { frame: 'none' }, view: Themed });
+  const themed = definePanel({ id: 'themed', view: Themed });
   win.width = 1000;
   const ws = track(createWorkspace({ templates: [themed], wrap: Wrap, device: device(450) }));
   ws.addPanel('themed');
@@ -269,7 +267,6 @@ test('an update from a layout effect in wrap lands in the task that rendered the
   }
   const view = definePanel({
     id: 'probe',
-    settings: { frame: 'none' },
     view: ({ handle }) => {
       const width = useHost().device.size.width;
       React.useLayoutEffect(() => {
@@ -301,7 +298,7 @@ test('an option and the same value in a hand-built Host give the same view resul
   function HandWired(): React.ReactElement {
     const ref = React.useRef<HTMLDivElement>(null);
     const rowRef = React.useRef<HTMLDivElement>(null);
-    const provided = useProvidePanels({ workspace: hand, rootId: hand.rootId, phoneWidth: 460, containerWidth: 1000, overflowContainerRef: ref, labels: values.labels });
+    const provided = useProvidePanels({ workspace: hand, phoneWidth: 460, containerWidth: 1000, overflowContainerRef: ref, labels: values.labels });
     const row = React.createElement(PanelRow, { entries: provided.entries, rootId: hand.rootId, closingIds: provided.closingIds, enteringViaAnchorIds: provided.enteringViaAnchorIds, exitRightIds: provided.exitRightIds, enterSideById: provided.enterSideById, maxLiveWidth: provided.maxLiveWidth, tuning: provided.tuning, rowNumbers: provided.rowNumbers, workspace: hand });
     const shell = React.createElement(Workspace, { overflowContainerRef: ref, rowRef, containerWidth: 1000, phoneWidth: 460, fixedColumnCount: provided.fixedViewCount, liveWidths: provided.liveWidths, rowScroll: provided.rowScroll, rowNumbers: provided.rowNumbers, tuning: provided.tuning, children: row });
     return React.createElement(ThemeProvider, { theme: createDefaultTheme('light'), children: React.createElement(HostProvider, { host: { panels: provided, ...values }, children: shell }) });
@@ -326,11 +323,11 @@ test('the mount does not pass rowResizeSettled: Workspace settles the row from t
 // 6. The catalog's tuning leaves
 // ---------------------------------------------------------------------------
 
-test('the catalog holds 19 tuning leaves, and DESIGN.md says so', () => {
+test('the catalog holds 18 tuning leaves, and DESIGN.md says so', () => {
   const leaves = PANEL_SETTINGS_CATALOG.filter((d) => d.name.startsWith('tuning.'));
-  assert.equal(leaves.length, 19);
+  assert.equal(leaves.length, 18);
   const design = readFileSync(fileURLToPath(new URL('../DESIGN.md', import.meta.url)), 'utf8');
   const start = design.indexOf('## Workspace options, wrap and update');
   assert.ok(start >= 0);
-  assert.match(design.slice(start, design.indexOf('\n## ', start + 1)), /holds 19 tuning leaves/);
+  assert.match(design.slice(start, design.indexOf('\n## ', start + 1)), /holds 18 tuning leaves/);
 });

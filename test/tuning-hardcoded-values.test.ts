@@ -8,7 +8,8 @@ import './support/jsdom-globals.js';
 import * as React from 'react';
 import { cubicBezier } from 'motion/react';
 import { act } from 'react';
-import { DragToClose, LIBRARY_TUNING_DEFAULTS, OVERLAY_Z, ROW_LAYER_Z, resolvePanelSettings } from '../index.js';
+import { DragToClose, LIBRARY_TUNING_DEFAULTS, OVERLAY_Z, ROW_LAYER_Z } from '../index.js';
+import { resolvePanelSettings } from '../panelSettings.js';
 import type { SlideTuning } from '../index.js';
 import { panelRowSlotMotion } from '../PanelRowSlot.js';
 import { PanelSlotContext, type PanelSlotValue } from '../panelSlotContext.js';
@@ -27,7 +28,7 @@ const slotValue = (tuning: Partial<SlotTuning>): PanelSlotValue => ({
   draggable: true,
   placeable: true,
   resizable: true,
-  formFactors: DEFAULT_SLOT.formFactors,
+  maxSlots: DEFAULT_SLOT.maxSlots,
   neighborWidths: { left: [], right: [] },
   pinned: false,
   tuning: { ...slotTuning(LIBRARY_TUNING_DEFAULTS, undefined), ...tuning },
@@ -126,7 +127,7 @@ test('closeExitEase: a drag close leaves along the leaf, so a quarter of the way
 });
 
 test('closeExitEase: a button close takes the same leaf as a drag close, and the default is easeIn', () => {
-  const exitOf = (slide: SlideTuning) => (panelRowSlotMotion(0, 390, 700, 'right', 'down', true, 16, slide).exit as { transition: { duration: number; ease: unknown } }).transition;
+  const exitOf = (slide: SlideTuning) => (panelRowSlotMotion(0, 390, 700, 'right', 'down', 16, slide).exit as { transition: { duration: number; ease: unknown } }).transition;
   assert.deepEqual(exitOf(LIBRARY_TUNING_DEFAULTS.slide), { duration: 0.18, ease: 'easeIn' });
   assert.equal(exitOf({ ...LIBRARY_TUNING_DEFAULTS.slide, closeExitEase: 'linear' }).ease, 'linear');
   assert.deepEqual(exitOf({ ...LIBRARY_TUNING_DEFAULTS.slide, closeExitEase: [0.4, 0, 1, 1] }).ease, [0.4, 0, 1, 1]);

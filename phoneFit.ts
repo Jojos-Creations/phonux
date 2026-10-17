@@ -3,7 +3,7 @@
  * is the pure rule; the context and `usePhoneSize` carry its result to every reader of the phone size.
  */
 import * as React from 'react';
-import { useHost } from './hostApi.js';
+import { useHost, useOptionalHost } from './hostApi.js';
 import { ALL_SLOTS } from './rowConstants.js';
 
 /** A count change needs the new count's scale this far (a fraction of the band edge) inside the band. */
@@ -81,6 +81,13 @@ export function fitPhone(i: PhoneFitInput): PhoneFit {
 export const PhoneSizeContext = React.createContext<{ readonly width: number; readonly height: number } | undefined>(undefined);
 
 /**
+ * True in the commit that first measures the row's container, and in every commit before it. The fitted size lands in that
+ * commit, so the slots moved to it snap there: a slide from the preferred size would be a move nobody asked for.
+ * @internal
+ */
+export const LandingContext = React.createContext(false);
+
+/**
  * The phone size a panel is drawn at: the width and height of one slot. With the workspace's `phoneFit` on it is the host's
  * preferred size scaled to the window; otherwise it is `useHost().device.size`, which stays the person's preference. Read this,
  * not `device.size`, for any layout that must agree with the panel's width.
@@ -90,6 +97,13 @@ export function usePhoneSize(): { readonly width: number; readonly height: numbe
   const fitted = React.useContext(PhoneSizeContext);
   const { device } = useHost();
   return fitted ?? device.size;
+}
+
+/** `usePhoneSize` outside a `HostProvider`: undefined there, where `usePhoneSize` throws. @internal */
+export function useOptionalPhoneSize(): { readonly width: number; readonly height: number } | undefined {
+  const fitted = React.useContext(PhoneSizeContext);
+  const host = useOptionalHost();
+  return fitted ?? host?.device.size;
 }
 
 /** The height in px `container` leaves for the row once `topPad` and `gap` are taken out; 0 until measured and wherever nothing lays out. @internal */

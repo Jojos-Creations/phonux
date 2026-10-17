@@ -45,7 +45,7 @@ test('Panel golden: a title with actions renders the actions in the right-hand c
   check(render({ title: 'Sessions', actions: createElement('button', { type: 'button' }, 'Edit') }), 'title-actions');
 });
 
-test('Panel golden: a title with grabProps adds the grab bar above the frame', () => {
+test('Panel golden: a title with grabProps puts the grab handle left of the title in the header', () => {
   check(render({ title: 'Sessions', grabProps: { 'aria-label': 'Drag panel', 'data-grab': '' } }), 'title-grab');
 });
 

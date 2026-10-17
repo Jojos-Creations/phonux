@@ -102,19 +102,28 @@ export const accepted = (changed: boolean): PanelResult => ({ ok: true, changed 
 export const refused = (code: PanelRefusal, message: string): PanelResult => ({ ok: false, code, message });
 
 /**
- * Every panel of a workspace by id. Read members only.
+ * Every panel of a workspace by id, as handles that can also operate on it, with the calls that configure panels, templates and the workspace's tuning and reset a layout.
  * @public
  */
 export interface PanelManager {
-  /** The handle of the panel with this id, or undefined when the workspace knows none. */
+  /** The handle of the panel with this id, or undefined when the workspace knows none. `P` is an unchecked cast: nothing compares it with the panel's template. */
   get<P extends JsonValue = JsonValue>(id: PanelId): PanelHandle<P> | undefined;
   /** A handle for every panel `f` keeps; all panels when `f` is left out. */
   list(f?: ListFilter): readonly PanelHandle[];
-  /** Changes settings of one panel after it was added; `null` removes an instance value. All or nothing, in one update. A flip of `parkable` on a panel that is not live follows `pinningWhenNotLive`: it may be refused with `would-reshape-row` or `is-closed`, show the panel, or wait and be listed in `later`. */
+  /**
+   * Changes settings of one panel after it was added; `null` removes an instance value. All or nothing, in one update. A flip of `parkable` on a panel that is not live follows `pinningWhenNotLive`: it may be refused with `would-reshape-row` or `is-closed`, show the panel, or wait and be listed in `later`.
+   * @throws PanelManagerError with code `invalid-settings` when the patch is not an object or names an unknown key.
+   */
   configure(id: PanelId, patch: InstancePatch): ConfigureResult;
-  /** Changes the template-scope settings (`hostCreatable`, `multiple`, `maxInstances`) of a template for panels made from now on. Kept for this session only. */
-  configureTemplate(templateId: string, patch: Pick<SettingsPatch, 'hostCreatable' | 'multiple' | 'maxInstances'>): ConfigureResult;
-  /** Changes the workspace's tuning keys; a per-panel key sets the workspace default. Kept for this session only. */
+  /**
+   * Changes the template-scope settings (`hostCreatable`, `multiple`, `maxInstances`) of a template for panels made from now on. Kept for this session only.
+   * @throws PanelManagerError with code `unknown-template` for a template that is not registered, or `invalid-settings` when the patch is not an object or names an unknown key.
+   */
+  configureTemplate(templateId: string, patch: Pick<SettingsPatch, 'hostCreatable' | 'hollowDot' | 'multiple' | 'maxInstances'>): ConfigureResult;
+  /**
+   * Changes the workspace's tuning keys; a per-panel key sets the workspace default. Kept for this session only.
+   * @throws PanelManagerError with code `invalid-settings` when the patch is not an object or names an unknown key.
+   */
   configureTuning(patch: { [K in keyof WorkspaceTuning]?: WorkspaceTuning[K] | null }): ConfigureResult;
   /** Clears the person's overrides and any deferred pin of one panel, or of every panel but the root with 'all', and applies the cascade defaults now, in one update. */
   resetLayout(target: PanelId | 'all'): ResetResult;

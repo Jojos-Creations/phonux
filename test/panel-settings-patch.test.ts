@@ -6,7 +6,8 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { isDeepStrictEqual } from 'node:util';
-import { mergePatch, resolvePanelSettings } from '../index.js';
+import { resolvePanelSettings } from '../panelSettings.js';
+import { mergePatch } from '../settingsPatch.js';
 import type { HeaderButton, PanelSettings, SettingsPatch } from '../index.js';
 
 type Loose = Record<string, unknown>;
@@ -39,17 +40,17 @@ test('mergePatch: null deletes a value from the layer and the result resolves, w
   assert.equal(resolvePanelSettings({ instance: next }).value.overflow, 'scroll');
 });
 
-test('mergePatch: a value replaces the key, and placeOnAdd, formFactors and pinningWhenNotLive are replaced whole', () => {
-  const next = mergePatch({ placeOnAdd: { before: 'a' }, formFactors: ['phone', 'tablet'], pinningWhenNotLive: { parked: 'show', hidden: 'refuse' } }, { placeOnAdd: { after: 'b' }, formFactors: ['desktop'], pinningWhenNotLive: { closed: 'refuse' } });
-  assert.deepEqual(next, { placeOnAdd: { after: 'b' }, formFactors: ['desktop'], pinningWhenNotLive: { closed: 'refuse' } });
+test('mergePatch: a value replaces the key, and placeOnAdd and pinningWhenNotLive are replaced whole', () => {
+  const next = mergePatch({ placeOnAdd: { before: 'a' }, pinningWhenNotLive: { parked: 'show', hidden: 'refuse' } }, { placeOnAdd: { after: 'b' }, pinningWhenNotLive: { closed: 'refuse' } });
+  assert.deepEqual(next, { placeOnAdd: { after: 'b' }, pinningWhenNotLive: { closed: 'refuse' } });
 });
 
 test('mergePatch: undefined never changes anything, and an empty patch, an undefined patch and an equal patch return the same layer object', () => {
-  const layer: PanelSettings = { closable: false, formFactors: ['phone', 'tablet'], tuning: { hopFraction: 0.7, dragToClose: { minDistancePx: 90 } }, headerButtons: { size: false } };
+  const layer: PanelSettings = { closable: false, placeOnAdd: { before: 'a' }, tuning: { hopFraction: 0.7, dragToClose: { minDistancePx: 90 } }, headerButtons: { size: false } };
   assert.equal(mergePatch(layer, {}), layer);
   assert.equal(mergePatch(layer, { closable: undefined, tuning: undefined }), layer);
   assert.equal(mergePatch(layer, { closable: false }), layer, 'an equal value');
-  assert.equal(mergePatch(layer, { formFactors: ['phone', 'tablet'] }), layer, 'an equal list');
+  assert.equal(mergePatch(layer, { placeOnAdd: { before: 'a' } }), layer, 'an equal placement object');
   assert.equal(mergePatch(layer, { tuning: { hopFraction: 0.7 } }), layer, 'an equal tuning leaf');
   assert.equal(mergePatch(layer, { tuning: { dragToClose: { minDistancePx: 90 } } }), layer, 'an equal tuning member');
   assert.equal(mergePatch(layer, { headerButtons: { size: false } }), layer, 'an equal header-button slot');
@@ -84,7 +85,7 @@ test('mergePatch: headerButtons merges per slot id, false hides a slot, and null
 });
 
 test('mergePatch: frozen inputs are never mutated and the result shares no writable structure with a changed branch', () => {
-  const layer = deepFreeze({ closable: false, tuning: { dragToClose: { minDistancePx: 90 } }, headerButtons: { size: slot('Size') }, formFactors: ['phone', 'tablet'] }) as PanelSettings;
+  const layer = deepFreeze({ closable: false, tuning: { dragToClose: { minDistancePx: 90 } }, headerButtons: { size: slot('Size') }, placeOnAdd: { before: 'a' } }) as PanelSettings;
   const patch = deepFreeze({ title: 'T', tuning: { dragToClose: { distanceFraction: 0.3 }, hopFraction: 0.4 }, headerButtons: { pin: slot('Pin') } }) as SettingsPatch;
   const before = copy(layer);
   const next = mergePatch(layer, patch);
@@ -117,20 +118,14 @@ const FLAT_POOL: Record<string, readonly unknown[]> = {
   parkable: [true, false],
   draggable: [true, false],
   listed: [true, false],
-  keepMounted: [true, false],
   title: ['A', 'B'],
   overflow: ['scroll', 'park'],
-  evictionRank: [0, 2, -1],
-  returnPriority: [0, 3],
-  formFactors: [['phone'], ['phone', 'tablet'], ['tablet', 'desktop']],
-  formFactor: ['phone', 'tablet', 'desktop'],
+  maxSlots: [1, 2, 64],
+  slots: [1, 2, 3],
   placeOnAdd: ['row-end', { before: 'a' }, { after: 'b' }],
-  undoPlacement: ['old-slot', { before: 'a' }],
   pinningWhenNotLive: ['refuse', { parked: 'show' }, { closed: 'refuse' }],
   pinning: [{ pinned: { placement: 'row-start' }, unpinned: { placement: 'row-end' } }, { pinned: { parkable: false }, unpinned: { parkable: true } }],
   layer: ['base', 'raised'],
-  persist: ['saved', 'session'],
-  viewState: ['keep', 'reset-on-park'],
 };
 const LEAF_POOL: Record<string, readonly unknown[]> = {
   dragToClose: [{ distanceFraction: 0.3 }, { minDistancePx: 120 }, { flickVelocity: 900, cancelVelocity: -100 }, { snapBack: { stiffness: 300, damping: 30 } }],

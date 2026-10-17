@@ -9,15 +9,18 @@ import * as React from 'react';
 import { type RefObject } from 'react';
 import { motion, useReducedMotionConfig } from 'motion/react';
 import Box, { type BoxProps } from '@mui/material/Box';
+import { AnnounceContext } from './announce.js';
+import { useOptionalHost } from './hostApi.js';
+import { resolveLabels } from './labels.js';
 import { computeRowLayout } from './panelRowLayout.js';
 import { PANEL_TRANSITION } from './PanelRowSlot.js';
 import { slideToTransition } from './directionalTransition.js';
 import type { SlideTuning, WorkspaceTuning } from './panelSettings.js';
-import { PhoneSizeContext, useRowHeightBudget } from './phoneFit.js';
+import { LandingContext, PhoneSizeContext, useRowHeightBudget } from './phoneFit.js';
 import { RowHeightContext, WorkspaceTuningContext, resolveWorkspaceTuning } from './panelTuning.js';
 import { ChromeStoreContext, createChromeStore, type DrawnPin } from './panelChrome.js';
 import { ROW_GAP, ROW_GESTURE } from './rowConstants.js';
-import { fadeAt, nearestStop, scrollHoldingEdge, snapToStop, type RowNumbers } from './rowNumbers.js';
+import { nearestStop, scrollHoldingEdge, snapToStop, type RowNumbers } from './rowNumbers.js';
 import { rowScrollerFor } from './rowScroller.js';
 import { OverlaySlot } from './windowOverlay.js';
 
@@ -145,6 +148,9 @@ export interface WorkspaceProps extends Omit<BoxProps, 'children'> {
   children: React.ReactNode;
 }
 
+/** Clipped, not display: none, which would hide the live region from a screen reader. */
+const VISUALLY_HIDDEN = { position: 'absolute', width: 1, height: 1, margin: -1, padding: 0, overflow: 'hidden', clip: 'rect(0 0 0 0)', whiteSpace: 'nowrap', border: 0 } as const;
+
 /**
  * The workspace shell: a scroll container holding the centred, animated row, with two OverlaySlots
  * (`dialog` inside the row, `toast` as this component's own last sibling) so a view's WindowOverlay always
@@ -157,7 +163,16 @@ export function Workspace(props: WorkspaceProps): React.ReactElement {
   const gap = resolved.rowGap;
   const [chromeStore] = React.useState(createChromeStore);
   const reduced = useReducedMotionConfig() === true;
+  const labels = resolveLabels(useOptionalHost()?.labels);
+  // A new element per message, so the same words said twice are announced twice.
+  const [said, setSaid] = React.useState({ n: 0, text: '' });
+  const announce = React.useCallback((text: string) => setSaid((prev) => ({ n: prev.n + 1, text })), []);
   const derived = useResizeSettled(containerWidth, resizeSettleDelayMs(resolved.slide, resolved.resizeSettleSlides), reduced);
+  // Unmeasured until the container has a width: the first measurement is the commit that lands the fitted size.
+  const [landing, setLanding] = React.useState(containerWidth === 0);
+  React.useLayoutEffect(() => {
+    if (landing && containerWidth > 0) setLanding(false);
+  }, [landing, containerWidth]);
   const rowResizeSettled = given ?? derived;
   // A panel being resized by hand holds the row where it is: its strip changes under the pointer, and a settle onto the
   // nearest stop would scroll the row while the person drags. The release settles once.
@@ -195,7 +210,7 @@ export function Workspace(props: WorkspaceProps): React.ReactElement {
         if (claim === null || n === undefined || n.stops.length === 0) return;
         const held = pin === null || edges === null ? scroller.scrollLeft() : scrollHoldingEdge(n, n.ids.indexOf(resizingId), pin, edges[pin], scroller.scrollLeft());
         const to = nearestStop(n, held);
-        if (Math.abs(to - scroller.scrollLeft()) >= 0.5) scroller.glideTo(to, { durationSec: resolved.slide.durationSec, instant: reduced, ease: resolved.shrinkOutOfView === 'visible' ? resolved.slide.ease : resolved.slide.glideEase });
+        if (Math.abs(to - scroller.scrollLeft()) >= 0.5) scroller.glideTo(to, { durationSec: resolved.slide.durationSec, instant: reduced, ease: resolved.slide.glideEase });
       };
       if (width(numbersRef.current) !== width(began) || pin === null) return run();
       const pending = { run, grown: () => width(numbersRef.current) !== width(began) };
@@ -221,25 +236,20 @@ export function Workspace(props: WorkspaceProps): React.ReactElement {
     scroller.stop();
     scroller.glideTo(0, { durationSec: 0, instant: true, ease: resolved.slide.glideEase });
   }, [scrolls, overflowContainerRef]);
-  // `filter`, not `opacity`: the slot's own opacity belongs to its enter and exit animation. Written straight to the
-  // element on every scroll event, since a state update per frame of a glide would re-render the whole row.
+  // Reach is written straight to the slots on every scroll event, since a state update per frame of a glide would re-render the whole row.
   React.useLayoutEffect(() => {
     const container = overflowContainerRef.current;
     const strip = rowRef.current;
     if (container === null || strip === null || rowNumbers === undefined) return;
     const apply = (): void => {
       if (rowScrollerFor(container).claimHeld()) return;
-      const opacities = fadeAt(rowNumbers, container.scrollLeft);
       const view = container.getBoundingClientRect();
       for (const slot of strip.querySelectorAll<HTMLElement>('[data-row-slot]')) {
-        const k = rowNumbers.ids.indexOf(slot.dataset.rowId ?? '');
-        const opacity = k < 0 ? 1 : opacities[k]!;
-        // Showing partial keeps every panel opaque, so only one the window does not reach at all is out of reach of Tab.
+        // A stepping row cuts the neighbour of a stop at the window edge, so only a panel the window does not reach at all is out of reach of Tab.
         const rect = slot.getBoundingClientRect();
-        const away = rowNumbers.showPartial ? rect.right <= view.left || rect.left >= view.right : opacity <= 0;
-        slot.style.filter = opacity >= 1 ? '' : `opacity(${opacity})`;
+        const away = rowNumbers.stops.length > 0 && (rect.right <= view.left || rect.left >= view.right);
         slot.style.pointerEvents = away ? 'none' : '';
-        // Inert too: Tab or find-in-page would otherwise scroll the row off its stop to reveal a faded panel.
+        // Inert too: Tab or find-in-page would otherwise scroll the row off its stop to reveal a panel the window does not reach.
         slot.toggleAttribute('inert', away);
       }
     };
@@ -248,7 +258,7 @@ export function Workspace(props: WorkspaceProps): React.ReactElement {
     // A click or focus in the cut-off neighbour makes the browser scroll it into view off a stop; the row settles back onto one.
     const onFocus = (event: FocusEvent): void => {
       const n = rowNumbers;
-      if (!n.showPartial) return;
+      if (n.stops.length === 0) return;
       const id = (event.target as Element | null)?.closest<HTMLElement>('[data-row-slot]')?.dataset.rowId;
       const k = n.ids.indexOf(id ?? '');
       requestAnimationFrame(() => {
@@ -265,12 +275,16 @@ export function Workspace(props: WorkspaceProps): React.ReactElement {
     };
   });
   return (
+    <AnnounceContext.Provider value={announce}>
     <PhoneSizeContext.Provider value={phoneSize}>
+    <LandingContext.Provider value={landing}>
     <WorkspaceTuningContext.Provider value={resolved}>
       <ChromeStoreContext.Provider value={chromeStore}>
       <RowHeightContext.Provider value={availableHeight}>
       <Box
         ref={overflowContainerRef}
+        role="region"
+        aria-label={labels.row}
         {...rest}
         data-row-scroller=""
         sx={{
@@ -284,7 +298,8 @@ export function Workspace(props: WorkspaceProps): React.ReactElement {
           // A scrolling row's end space is the end element's (below); a row that does not scroll centres in this padding.
           pr: scrolls ? 0 : `${gap}px`,
           overflowX: style.overflowX,
-          overflowY: 'auto',
+          // The row never scrolls vertically: a panel scrolls its own content, and a wheel over the row must not move it off its workspace.
+          overflowY: 'hidden',
           ...(style.hideScrollbar ? { scrollbarWidth: 'none', '&::-webkit-scrollbar': { display: 'none' } } : {}),
         }}
       >
@@ -309,9 +324,14 @@ export function Workspace(props: WorkspaceProps): React.ReactElement {
       </Box>
       </RowHeightContext.Provider>
 
+      <Box role="status" aria-live="polite" aria-atomic="true" data-workspace-announcer="" sx={VISUALLY_HIDDEN}>
+        <span key={said.n}>{said.text}</span>
+      </Box>
       <OverlaySlot name="toast" />
       </ChromeStoreContext.Provider>
     </WorkspaceTuningContext.Provider>
+    </LandingContext.Provider>
     </PhoneSizeContext.Provider>
+    </AnnounceContext.Provider>
   );
 }

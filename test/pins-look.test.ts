@@ -9,15 +9,16 @@ import assert from 'node:assert/strict';
 import './support/jsdom-globals.js';
 import * as React from 'react';
 import { act } from 'react';
-import { PanelRow, Workspace, registerView, useProvidePanels, GAP, TIER_SIZES } from '../index.js';
+import { Workspace, useProvidePanels, GAP } from '../index.js';
 import type { PanelWindow, ProvidedPanels } from '../index.js';
 import { DRAG_CLOSE } from '../dragToClose.js';
 import { computeRowLayout } from '../panelRowLayout.js';
 import { panelRowSlotMotion } from '../PanelRowSlot.js';
 import { reorderStepsForOffset } from '../panelWindow.js';
-import { cleanup, mount, panelsInput, withHost } from './support/mount-harness.js';
+import { cleanup, mount, withHost, useSeededInput, StaticRow } from './support/mount-harness.js';
+import { registerTestView } from './support/test-views.js';
 
-registerView('pin-look', ({ panel }) => React.createElement('i', { 'data-slot': panel.id }, panel.title));
+registerTestView('pin-look', ({ panel }) => React.createElement('i', { 'data-slot': panel.id }, panel.title));
 
 const entry = (id: string, over: Partial<PanelWindow> = {}): PanelWindow => ({
   id,
@@ -30,7 +31,7 @@ const entry = (id: string, over: Partial<PanelWindow> = {}): PanelWindow => ({
   listed: true,
   ...over,
 });
-const tablet = (id: string): PanelWindow => entry(id, { formFactor: 'tablet', size: { ...TIER_SIZES.tablet } });
+const twoSlots = (id: string): PanelWindow => entry(id, { slots: 2, size: { width: 796, height: 'fill' } });
 const root = (): PanelWindow => entry('root', { url: '', title: 'History', locked: true, collapsible: false, listed: false });
 
 afterEach(() => cleanup());
@@ -63,7 +64,7 @@ test('Workspace markup: a given topPadding replaces only the top padding', () =>
 });
 
 const NONE: ReadonlySet<string> = new Set();
-const rowOf = (entries: PanelWindow[]): React.ReactElement => withHost(React.createElement(PanelRow, { entries, rootId: 'root', closingIds: NONE, enteringViaAnchorIds: NONE }));
+const rowOf = (entries: PanelWindow[]): React.ReactElement => withHost(React.createElement(StaticRow, { entries, rootId: 'root', closingIds: NONE, enteringViaAnchorIds: NONE }));
 const slotX = (container: HTMLElement, id: string): number => {
   const slot = container.querySelector(`[data-slot="${id}"]`)?.parentElement;
   assert.ok(slot, `slot ${id} is mounted`);
@@ -71,13 +72,13 @@ const slotX = (container: HTMLElement, id: string): number => {
   return match === null ? 0 : Number(match[1]);
 };
 
-test('PanelRow: for widths [390, 768, 390] the slot offsets are 0, 406 and 1190 and the row is 1580 wide', () => {
-  const mounted = mount(rowOf([root(), tablet('t'), entry('p')]));
+test('PanelRow: for widths [390, 796, 390] the slot offsets are 0, 406 and 1218 and the row is 1608 wide', () => {
+  const mounted = mount(rowOf([root(), twoSlots('t'), entry('p')]));
   assert.equal(slotX(mounted.container, 'root'), 0);
   assert.equal(slotX(mounted.container, 't'), 390 + 16);
-  assert.equal(slotX(mounted.container, 'p'), 390 + 16 + 768 + 16);
+  assert.equal(slotX(mounted.container, 'p'), 390 + 16 + 796 + 16);
   const box = mounted.container.firstElementChild as HTMLElement;
-  assert.equal(getComputedStyle(box).width, `${390 + 16 + 768 + 16 + 390}px`);
+  assert.equal(getComputedStyle(box).width, `${390 + 16 + 796 + 16 + 390}px`);
   mounted.unmount();
 });
 
@@ -98,7 +99,7 @@ test('panelRowSlotMotion: a slot enters one own width plus 16 beyond its rest, a
 function liveAfterBurst(containerWidth: number, count: number): number {
   let latest: ProvidedPanels | undefined;
   function Probe(): React.ReactElement {
-    latest = useProvidePanels(panelsInput({ initialEntries: [root()], containerWidth }));
+    latest = useProvidePanels(useSeededInput({ initialEntries: [root()], containerWidth, workspaceDefaults: { overflow: 'park' } }));
     return React.createElement('output');
   }
   const mounted = mount(React.createElement(Probe));
@@ -121,16 +122,16 @@ test('usePanelManager capacity at gap 16: the live count after a create burst is
   }
 });
 
-test('reorderStepsForOffset: equal neighbours hop at 203 and not at 202, a tablet neighbour hops at 392, and nothing beyond the last neighbour counts', () => {
+test('reorderStepsForOffset: equal neighbours hop at 203 and not at 202, a two-slot neighbour hops at 392, and nothing beyond the last neighbour counts', () => {
   const equal = { left: [390, 390, 390], right: [390, 390, 390] };
   assert.equal(reorderStepsForOffset(203, equal, GAP), 1);
   assert.equal(reorderStepsForOffset(202, equal, GAP), 0);
-  const phoneBesideTablet = { left: [], right: [768, 390] };
-  assert.equal(reorderStepsForOffset(391, phoneBesideTablet, GAP), 0);
-  assert.equal(reorderStepsForOffset(392, phoneBesideTablet, GAP), 1);
-  assert.equal(reorderStepsForOffset(700, phoneBesideTablet, GAP), 1);
-  assert.equal(reorderStepsForOffset(987, phoneBesideTablet, GAP), 2);
-  const tabletBesidePhone = { left: [390], right: [] };
-  assert.equal(reorderStepsForOffset(-203, tabletBesidePhone, GAP), -1);
-  assert.equal(reorderStepsForOffset(203, tabletBesidePhone, GAP), 0);
+  const phoneBesideWide = { left: [], right: [768, 390] };
+  assert.equal(reorderStepsForOffset(391, phoneBesideWide, GAP), 0);
+  assert.equal(reorderStepsForOffset(392, phoneBesideWide, GAP), 1);
+  assert.equal(reorderStepsForOffset(700, phoneBesideWide, GAP), 1);
+  assert.equal(reorderStepsForOffset(987, phoneBesideWide, GAP), 2);
+  const twoSlotBesidePhone = { left: [390], right: [] };
+  assert.equal(reorderStepsForOffset(-203, twoSlotBesidePhone, GAP), -1);
+  assert.equal(reorderStepsForOffset(203, twoSlotBesidePhone, GAP), 0);
 });

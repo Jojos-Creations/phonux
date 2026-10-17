@@ -9,6 +9,7 @@ import { act, createElement, useEffect, useLayoutEffect } from 'react';
 import { flushSync } from 'react-dom';
 import type { ConfigureResult, HeaderButton, PanelHandle, PanelResult, PanelSettings, PanelSummary, Pinning } from '../index.js';
 import { applyConfigure } from '../panelConfigure.js';
+import { ALL_SLOTS } from '../rowConstants.js';
 import { panelKey, resolvePanelSettings } from '../panelSettings.js';
 import type { PanelWindow } from '../panelWindow.js';
 import { bindingOf } from '../workspaceCore.js';
@@ -104,16 +105,18 @@ test('a patched key reads source instance in getSettings and the value is the pa
 // Class laws
 // ---------------------------------------------------------------------------
 
-const REFUSALS: readonly [string, string, (r: PinRig) => ConfigureResult][] = [
+/** [code, what, the call, a setup that runs before it]. */
+const REFUSALS: readonly [string, string, (r: PinRig) => ConfigureResult, ((r: PinRig) => void)?][] = [
   ['settings-conflict', 'a forced-rule conflict', (r) => r.h.b!.configure({ closable: false, clearable: true })],
   ['wrong-scope', 'a template key at the panel call', (r) => r.ws.panels.configure('b', { multiple: false } as never)],
   ['unknown-panel', 'a panel that does not exist', (r) => r.ws.panels.configure('zzz', { title: 'x' })],
-  ['tier-not-allowed', 'formFactors that exclude the tier', (r) => r.ws.panels.configure('b', { formFactors: ['tablet'] })],
+  ['slots-above-max', 'a maxSlots below the panel\'s slots', (r) => r.ws.panels.configure('b', { maxSlots: 1 }), (r) => r.turn(() => r.h.b!.setSlots(2, 'person'))],
 ];
 
-for (const [code, what, call] of REFUSALS) {
+for (const [code, what, call, setup] of REFUSALS) {
   test(`class law: a refusal (${what}) leaves the entries reference-equal, commits nothing and keeps the snapshot version`, async () => {
     const r = await pinRig();
+    setup?.(r);
     const seen = watch(r, () => call(r));
     refusedWith(seen.out, code);
     sameEntries(seen.before, seen.after);
@@ -185,10 +188,10 @@ test('class law: a clearAll queued after the call removes the panel and the conf
 });
 
 // ---------------------------------------------------------------------------
-// The writer: applyTemplate(reconfigure), three keys per class, on a resized panel and on a dragged one
+// The writer: applyTemplate(reconfigure), keys of each class, on a resized panel and on a dragged one
 // ---------------------------------------------------------------------------
 
-const UNTOUCHED = ['formFactor', 'size', 'anchor', 'live', 'hostData', 'key', 'overrides', 'applied'] as const;
+const UNTOUCHED = ['slots', 'size', 'anchor', 'live', 'hostData', 'key', 'overrides', 'applied'] as const;
 
 const WRITER_KEYS: readonly [string, string, PanelSettings][] = [
   ['NOW', 'closable', { closable: false }],
@@ -196,18 +199,15 @@ const WRITER_KEYS: readonly [string, string, PanelSettings][] = [
   ['NOW', 'title', { title: 'Renamed' }],
   ['NEXT', 'scrollOnOpen', { scrollOnOpen: 'center' }],
   ['NEXT', 'hideStickiness', { hideStickiness: 'until-room' }],
-  ['NEXT', 'undoWindowMs', { undoWindowMs: 9000 }],
-  ['STATE', 'keepMounted', { keepMounted: true }],
-  ['STATE', 'viewState', { viewState: 'reset-on-park' }],
-  ['STATE', 'formFactors', { formFactors: ['phone', 'tablet'] }],
+  ['STATE', 'maxSlots', { maxSlots: 2 }],
 ];
 
-for (const kind of ['a person-resized tablet panel', 'a dragged panel'] as const) {
+for (const kind of ['a person-resized two-slot panel', 'a dragged panel'] as const) {
   for (const [cls, key, patch] of WRITER_KEYS) {
-    test(`writer: ${cls} key ${key} on ${kind} leaves the tier, size, anchor, live, hostData, key, overrides and applied as they were`, async () => {
+    test(`writer: ${cls} key ${key} on ${kind} leaves the slots, size, anchor, live, hostData, key, overrides and applied as they were`, async () => {
       const r = await pinRig();
-      if (kind === 'a dragged panel') r.turn(() => r.h.c!.move('left', 'person'));
-      else r.turn(() => r.h.c!.setFormFactor('tablet', 'person'));
+      if (kind === 'a dragged panel') r.turn(() => r.h.c!.move(-1, 'person'));
+      else r.turn(() => r.h.c!.setSlots(2, 'person'));
       const before = r.entry('c');
       assert.ok(before.overrides !== undefined && Object.keys(before.overrides).length > 0, 'control: the person left an override');
       const res = done(r.turn(() => r.h.c!.configure(patch)));
@@ -220,7 +220,7 @@ for (const kind of ['a person-resized tablet panel', 'a dragged panel'] as const
   }
 }
 
-test('writer: a parkable flip to false on a hidden panel is refused under the default place-only, and under show it makes the panel live and a fixed column and writes nothing else of the tier', async () => {
+test('writer: a parkable flip to false on a hidden panel is refused under the default place-only, and under show it makes the panel live and a fixed column and writes nothing else of the entry', async () => {
   const refused = await pinRig();
   refused.turn(() => refused.h.c!.hide());
   assert.equal(refused.entry('c').live, false, 'control: the panel is parked');
@@ -236,29 +236,29 @@ test('writer: a parkable flip to false on a hidden panel is refused under the de
   const after = r.entry('c');
   assert.equal(after.collapsible, false);
   assert.equal(after.live, true, 'a fixed column is never parked');
-  for (const field of ['formFactor', 'size', 'anchor', 'hostData', 'key', 'overrides', 'applied'] as const) assert.equal(after[field] === before[field], true, `${field} is the same value`);
+  for (const field of ['slots', 'size', 'anchor', 'hostData', 'key', 'overrides', 'applied'] as const) assert.equal(after[field] === before[field], true, `${field} is the same value`);
 });
 
 // ---------------------------------------------------------------------------
 // The raw API in the same turn
 // ---------------------------------------------------------------------------
 
-test('raw setFormFactor then configure of formFactors is busy', async () => {
+test('raw setSlots then configure of maxSlots is busy', async () => {
   const r = await pinRig();
   const out = r.turn(() => {
-    r.provided().setFormFactor(r.entry('b').id, 'tablet');
-    return r.h.b!.configure({ formFactors: ['phone'] });
+    r.provided().setSlots(r.entry('b').id, 2);
+    return r.h.b!.configure({ maxSlots: 1 });
   });
   refusedWith(out, 'busy');
 });
 
-test('configure then a raw setFormFactor: the raw call is a no-op and the tier stays', async () => {
+test('configure then a raw setSlots: the raw call is a no-op and the slot count stays', async () => {
   const r = await pinRig();
   r.turn(() => {
-    done(r.h.b!.configure({ formFactors: ['phone', 'tablet'] }));
-    r.provided().setFormFactor(r.entry('b').id, 'tablet');
+    done(r.h.b!.configure({ maxSlots: 2 }));
+    r.provided().setSlots(r.entry('b').id, 2);
   });
-  assert.equal(r.entry('b').formFactor, 'phone');
+  assert.equal(r.entry('b').slots ?? 1, 1);
 });
 
 test('raw close then configure of closable is busy', async () => {
@@ -292,7 +292,7 @@ test('raw clearAll then configure of a removed id is busy', async () => {
 
 test('configure and manager calls on different panels combine in one turn', async () => {
   const r = await pinRig();
-  const out = r.turn(() => [r.h.a!.configure({ scrollOnOpen: 'center' }), r.h.b!.configure({ closable: false }), r.h.c!.move('left')]);
+  const out = r.turn(() => [r.h.a!.configure({ scrollOnOpen: 'center' }), r.h.b!.configure({ closable: false }), r.h.c!.move(-1)]);
   assert.deepEqual(out.map((o) => o.ok), [true, true, true]);
   assert.equal(r.h.a!.getSettings().value.scrollOnOpen, 'center');
   assert.equal(r.entry('b').locked, true);
@@ -325,14 +325,6 @@ test('a forced-rule conflict on a named key refuses: closable false beside clear
   assert.match(res.message, /closable/);
 });
 
-test('a forced-rule conflict on an unnamed key refuses: reset-on-park beside keepMounted true names keepMounted, rule C6 by viewState', async () => {
-  const r = await pinRig({ settings: { b: { keepMounted: true } } });
-  const res = refusedWith(r.turn(() => r.h.b!.configure({ viewState: 'reset-on-park' })), 'settings-conflict');
-  assert.equal(res.setting, 'keepMounted');
-  assert.match(res.message, /C6/);
-  assert.match(res.message, /viewState/);
-});
-
 test('a conflict that already existed before the call does not refuse', async () => {
   const r = await pinRig({ settings: { b: { closable: false, clearable: true } } });
   assert.equal(r.h.b!.getSettings().conflicts.length, 1, 'control: the stack already conflicts');
@@ -340,20 +332,20 @@ test('a conflict that already existed before the call does not refuse', async ()
   assert.equal(r.h.b!.getSettings().value.scrollOnOpen, 'center');
 });
 
-test('formFactors narrowed below the current tier is tier-not-allowed and widened is ok', async () => {
+test('maxSlots lowered below the current slots is slots-above-max and raised is ok', async () => {
   const r = await pinRig();
-  r.turn(() => r.h.b!.setFormFactor('tablet', 'person'));
-  refusedWith(r.turn(() => r.h.b!.configure({ formFactors: ['phone'] })), 'tier-not-allowed');
-  assert.deepEqual([...r.h.b!.getSettings().value.formFactors], ['phone', 'tablet', 'desktop']);
-  done(r.turn(() => r.h.b!.configure({ formFactors: ['phone', 'tablet'] })));
-  assert.deepEqual([...r.h.b!.getSettings().value.formFactors], ['phone', 'tablet']);
-  done(r.turn(() => r.h.b!.configure({ formFactors: ['phone', 'tablet', 'desktop'] })));
+  r.turn(() => r.h.b!.setSlots(2, 'person'));
+  refusedWith(r.turn(() => r.h.b!.configure({ maxSlots: 1 })), 'slots-above-max');
+  assert.equal(r.h.b!.getSettings().value.maxSlots, ALL_SLOTS);
+  done(r.turn(() => r.h.b!.configure({ maxSlots: 2 })));
+  assert.equal(r.h.b!.getSettings().value.maxSlots, 2);
+  done(r.turn(() => r.h.b!.configure({ maxSlots: ALL_SLOTS })));
 });
 
-test('a parkable flip to false needs the phone tier', async () => {
+test('a parkable flip to false needs the panel to be one slot wide', async () => {
   const r = await pinRig();
-  r.turn(() => r.h.b!.setFormFactor('tablet', 'person'));
-  refusedWith(r.turn(() => r.h.b!.configure({ parkable: false })), 'tier-not-allowed');
+  r.turn(() => r.h.b!.setSlots(2, 'person'));
+  refusedWith(r.turn(() => r.h.b!.configure({ parkable: false })), 'slots-above-max');
   assert.equal(r.entry('b').collapsible, true);
 });
 
@@ -425,7 +417,7 @@ const stored = (...later: string[]) => ({ ok: true, changed: true, shown: false,
 
 test('closed inside the window: closable false then undoClose gives locked true, and close() is refused not-closable', async () => {
   const r = await pinRig();
-  const id = r.entry('b').id;
+  const id = r.entry('b').key;
   r.turn(() => r.h.b!.close());
   const held = windowed(r);
   assert.deepEqual([r.state('b').status, held.map((p) => p.id), held[0]!.locked], ['closed', [id], false]);
@@ -450,32 +442,17 @@ test('closed inside the window: a title configured then undo restores the new ti
   assert.deepEqual([r.entry('b').title, r.state('b').title, r.order().join(' ')], ['Renamed', 'Renamed', 'root a b c']);
 });
 
-test('closed inside the window: an undoPlacement configured then undo places by it, and without it the panel returns to its old slot', async () => {
-  const control = await pinRig();
-  control.turn(() => control.h.a!.close());
-  control.turn(() => control.provided().undoClose());
-  await control.settle();
-  assert.equal(control.order().join(' '), 'root a b c', 'control: old-slot restores the recorded index');
-  cleanup();
+test('closed inside the window: resetLayout then undo restores at the resolved placeOnAdd and the resolved slots, not where the person left it', async () => {
   const r = await pinRig();
-  r.turn(() => r.h.a!.close());
-  assert.deepEqual({ ...done(r.turn(() => r.h.a!.configure({ undoPlacement: 'row-end' }))) }, stored('undoPlacement'));
-  r.turn(() => r.provided().undoClose());
-  await r.settle();
-  assert.equal(r.order().join(' '), 'root b c a');
-});
-
-test('closed inside the window: resetLayout then undo restores at the resolved placeOnAdd and the resolved tier, not where the person left it', async () => {
-  const r = await pinRig();
-  assert.deepEqual({ ...done(r.turn(() => r.h.c!.configure({ placeOnAdd: 'row-start', formFactor: 'tablet' }))) }, { ok: true, changed: true, shown: false, now: [], later: ['placeOnAdd', 'formFactor'], shadowed: [], notes: [] });
-  r.turn(() => r.h.c!.setFormFactor('phone', 'person'));
-  r.turn(() => r.h.c!.move('left', 'person'));
-  assert.deepEqual([r.order().join(' '), r.entry('c').formFactor], ['root a c b', 'phone']);
+  assert.deepEqual({ ...done(r.turn(() => r.h.c!.configure({ placeOnAdd: 'row-start', slots: 2 }))) }, { ok: true, changed: true, shown: false, now: [], later: ['placeOnAdd', 'slots'], shadowed: [], notes: [] });
+  r.turn(() => r.h.c!.setSlots(1, 'person'));
+  r.turn(() => r.h.c!.move(-1, 'person'));
+  assert.deepEqual([r.order().join(' '), r.entry('c').slots ?? 1], ['root a c b', 1]);
   r.turn(() => r.h.c!.close());
   assert.deepEqual({ ...r.turn(() => r.ws.panels.resetLayout('c')) }, { ok: true, changed: true, panels: ['c'] });
   r.turn(() => r.provided().undoClose());
   await r.settle();
-  assert.deepEqual([r.order().join(' '), r.entry('c').formFactor, r.entry('c').overrides], ['c root a b', 'tablet', {}]);
+  assert.deepEqual([r.order().join(' '), r.entry('c').slots, r.entry('c').overrides], ['c root a b', 2, {}]);
 });
 
 test('closed past the window: the edit is stored on the record and open() uses it', async () => {
@@ -495,7 +472,7 @@ test('closed past the window: the edit is stored on the record and open() uses i
 
 test('the undo window\'s panel objects are the same before and after every configure of a closed panel, accepted, equal or refused', async () => {
   const r = await pinRig();
-  const ids = [r.entry('a').id, r.entry('c').id];
+  const ids = [r.entry('a').key, r.entry('c').key];
   r.turn(() => r.h.a!.close());
   r.turn(() => r.h.c!.close());
   const held = windowed(r);
@@ -544,13 +521,13 @@ test('an anonymous closed instance answers is-closed to configure, inside the wi
 
 test('a configure that raises a runtime note carries it in the result and reports it once', async () => {
   const r = await pinRig();
-  const lever = done(r.turn(() => r.h.b!.configure({ evictionRank: 3 })));
-  assert.deepEqual([...lever.notes], [{ code: 'park-lever-inert', key: 'evictionRank', message: "evictionRank: only a panel whose overflow is 'park' is ever parked for room, so this has no effect here" }]);
+  const lever = done(r.turn(() => r.h.b!.configure({ capacityReturn: 'manual' })));
+  assert.deepEqual([...lever.notes], [{ code: 'park-lever-inert', key: 'capacityReturn', message: "capacityReturn: only a panel whose overflow is 'park' is ever parked for room, so this has no effect here" }]);
   assert.deepEqual(r.m.notes.map((n) => n.code), ['park-lever-inert']);
   const unlists = done(r.turn(() => r.h.c!.configure({ pinning: { pinned: { parkable: false }, unpinned: { parkable: true } } })));
   assert.deepEqual([...unlists.notes], [{ code: 'pin-unlists', key: 'pinning', message: 'pinning: the pinned half makes the panel a fixed column, which is unlisted unless listed is set' }]);
   assert.deepEqual(r.m.notes.map((n) => n.code), ['park-lever-inert', 'pin-unlists']);
-  const again = done(r.turn(() => r.h.b!.configure({ evictionRank: 3 })));
+  const again = done(r.turn(() => r.h.b!.configure({ capacityReturn: 'manual' })));
   assert.deepEqual([again.changed, [...again.notes]], [false, []]);
   assert.equal(r.m.notes.length, 2, 'an equal patch raises nothing more');
 });
@@ -592,15 +569,15 @@ for (const kind of ['declared', 'anonymous'] as const) {
   });
 }
 
-test('writer: formFactor is a NEXT key, so the entry keeps its tier and size and the settings read the new one', async () => {
+test('writer: slots is a NEXT key, so the entry keeps its slots and size and the settings read the new one', async () => {
   const r = await pinRig();
   const before = r.entry('b');
-  assert.deepEqual([before.formFactor, before.size?.formFactor], ['phone', 'phone']);
-  const res = done(r.turn(() => r.h.b!.configure({ formFactor: 'tablet' })));
-  assert.deepEqual([res.now, res.later], [[], ['formFactor']]);
+  assert.equal(before.slots ?? 1, 1);
+  const res = done(r.turn(() => r.h.b!.configure({ slots: 2 })));
+  assert.deepEqual([res.now, res.later], [[], ['slots']]);
   const after = r.entry('b');
   for (const field of UNTOUCHED) assert.equal(after[field] === before[field], true, `${field} is the same value`);
-  assert.deepEqual([after.formFactor, r.state('b').formFactor, r.h.b!.getSettings().value.formFactor, r.h.b!.getSettings().source.formFactor], ['phone', 'phone', 'tablet', 'instance']);
+  assert.deepEqual([after.slots ?? 1, r.h.b!.getSettings().value.slots, r.h.b!.getSettings().source.slots], [1, 2, 'instance']);
 });
 
 test('maxInstances 1 to 5 with one instance is ok, and 5 to 1 with one is ok too', async () => {
@@ -620,7 +597,7 @@ test('maxInstances 1 to 5 with one instance is ok, and 5 to 1 with one is ok too
 const IDS5 = ['a', 'b', 'c', 'd', 'e'];
 const PAIR_PIN = { pinned: { parkable: false }, unpinned: { parkable: true } } as const;
 
-type Context = 'live' | 'parked' | 'hidden' | 'person tablet' | 'person pin';
+type Context = 'live' | 'parked' | 'hidden' | 'person two slots' | 'person pin';
 /** A rig for each state a patch meets, and the panel the patch is for. */
 async function contextRig(context: Context): Promise<{ r: PinRig; id: string }> {
   if (context === 'parked') return { r: await pinRig({ ids: IDS5, width: 1000, settings: Object.fromEntries(IDS5.map((id) => [id, { overflow: 'park' } as PanelSettings])) }), id: 'b' };
@@ -631,8 +608,8 @@ async function contextRig(context: Context): Promise<{ r: PinRig; id: string }> 
   }
   const r = await pinRig();
   if (context === 'hidden') r.turn(() => r.h.b!.hide());
-  if (context === 'person tablet') r.turn(() => r.h.c!.setFormFactor('tablet', 'person'));
-  return { r, id: context === 'person tablet' ? 'c' : 'b' };
+  if (context === 'person two slots') r.turn(() => r.h.c!.setSlots(2, 'person'));
+  return { r, id: context === 'person two slots' ? 'c' : 'b' };
 }
 
 /** [context, the status the panel is in, the patch, now, later, shadowed]: every expectation written from the class of each key. */
@@ -643,24 +620,23 @@ const SAMPLE: readonly [Context, string, Record<string, unknown>, string[], stri
   ['live', 'live', { listed: false }, ['listed'], [], []],
   ['live', 'live', { layer: 'raised' }, ['layer'], [], []],
   ['live', 'live', { scrollOnOpen: 'center' }, [], ['scrollOnOpen'], []],
-  ['live', 'live', { hideStickiness: 'until-room', hideWhenLast: 'refuse' }, [], ['hideStickiness', 'hideWhenLast'], []],
+  ['live', 'live', { hideStickiness: 'until-room' }, [], ['hideStickiness'], []],
   ['live', 'live', { closable: false, scrollOnOpen: 'center' }, ['closable'], ['scrollOnOpen'], []],
-  ['live', 'live', { keepMounted: true }, [], ['keepMounted'], []],
-  ['live', 'live', { formFactors: ['phone', 'tablet'] }, ['formFactors'], [], []],
+  ['live', 'live', { maxSlots: 2 }, ['maxSlots'], [], []],
   ['live', 'live', { parkable: false }, ['parkable'], [], []],
   ['live', 'live', { tuning: { slide: { durationSec: 0.2 } } }, [], ['tuning.slide'], []],
   ['live', 'live', { headerButtons: { x: false } }, ['headerButtons'], [], []],
-  ['live', 'live', { formFactor: 'tablet' }, [], ['formFactor'], []],
+  ['live', 'live', { slots: 2 }, [], ['slots'], []],
   ['parked', 'parked', { closable: false }, ['closable'], [], []],
   ['parked', 'parked', { layer: 'raised' }, [], ['layer'], []],
   ['parked', 'parked', { title: 'Parked title' }, ['title'], [], []],
   ['hidden', 'parked', { listed: false }, ['listed'], [], []],
-  ['person tablet', 'live', { formFactor: 'phone' }, [], ['formFactor'], ['formFactor']],
+  ['person two slots', 'live', { slots: 1 }, [], ['slots'], ['slots']],
   ['person pin', 'live', { parkable: true }, ['parkable'], [], ['parkable']],
 ];
 
-test('the result of 20 patches over live, parked, hidden and person-shaped panels equals the literals written by hand', async () => {
-  assert.equal(SAMPLE.length, 20);
+test('the result of 19 patches over live, parked, hidden and person-shaped panels equals the literals written by hand', async () => {
+  assert.equal(SAMPLE.length, 19);
   let executed = 0;
   for (const [context, status, patch, now, later, shadowed] of SAMPLE) {
     const { r, id } = await contextRig(context);
@@ -670,7 +646,7 @@ test('the result of 20 patches over live, parked, hidden and person-shaped panel
     executed += 1;
     cleanup();
   }
-  assert.equal(executed, 20);
+  assert.equal(executed, 19);
 });
 
 test('a person pin outvotes a configured parkable: the result lists it as shadowed and the panel stays a fixed column', async () => {
@@ -686,8 +662,8 @@ test('getSettings after a configure deep-equals the resolver over the patched la
   const slot = { icon: 'i', label: 'X', onClick: () => undefined };
   const cases: [string, Record<string, unknown>][] = [
     ['a NOW key', { closable: false, title: 'Eve' }],
-    ['a NEXT key', { scrollOnOpen: 'center', hideWhenLast: 'refuse' }],
-    ['a STATE key', { formFactors: ['phone', 'tablet'], keepMounted: true }],
+    ['a NEXT key', { scrollOnOpen: 'center', hideStickiness: 'until-room' }],
+    ['a STATE key', { maxSlots: 2 }],
     ['a tuning leaf', { tuning: { hopFraction: 0.3, slide: { durationSec: 0.2 } } }],
     ['a slot', { headerButtons: { x: slot } }],
     ['a pinning definition', { pinning: { pinned: { placement: 'row-start' }, unpinned: { placement: 'row-end' } } }],
@@ -695,11 +671,11 @@ test('getSettings after a configure deep-equals the resolver over the patched la
   for (const [name, patch] of cases) {
     for (const person of [false, true]) {
       const r = await pinRig({ settings: { b: { scrollOnOpen: 'start' } } });
-      if (person) r.turn(() => r.h.b!.setFormFactor('tablet', 'person'));
+      if (person) r.turn(() => r.h.b!.setSlots(2, 'person'));
       const user = person ? r.entry('b').overrides : undefined;
       done(r.turn(() => r.h.b!.configure(patch as never)));
-      const expected = resolvePanelSettings({ template: { scrollOnOpen: 'start', frame: 'none' }, instance: patch as PanelSettings, ...(user === undefined ? {} : { user }) }, { lenient: true });
-      assert.deepEqual(r.h.b!.getSettings(), expected, `${name}${person ? ' with the person\'s tier' : ''}`);
+      const expected = resolvePanelSettings({ template: { scrollOnOpen: 'start' }, instance: patch as PanelSettings, ...(user === undefined ? {} : { user }) }, { lenient: true });
+      assert.deepEqual(r.h.b!.getSettings(), expected, `${name}${person ? ' with the person\'s slots' : ''}`);
       const flat = Object.keys(patch).flatMap((k) => (k === 'tuning' ? Object.keys(patch.tuning as object).map((leaf) => `tuning.${leaf}`) : [k]));
       for (const key of flat) assert.equal(r.h.b!.getSettings().source[key], 'instance', `${name}: ${key} reads source instance`);
       cleanup();
@@ -716,7 +692,7 @@ test('null removes the key and the cascade\'s value and source come back: librar
   const rows: [string, Record<string, unknown>, Record<string, unknown>, [unknown, string], [unknown, string], [unknown, string]][] = [
     ['scrollOnOpen', { scrollOnOpen: 'center' }, { scrollOnOpen: null }, ['start', 'template'], ['center', 'instance'], ['start', 'template']],
     ['hideStickiness', { hideStickiness: 'sticky' }, { hideStickiness: null }, ['until-room', 'workspace'], ['sticky', 'instance'], ['until-room', 'workspace']],
-    ['undoWindowMs', { undoWindowMs: 5000 }, { undoWindowMs: null }, [10000, 'library'], [5000, 'instance'], [10000, 'library']],
+    ['scrollOnMove', { scrollOnMove: 'none' }, { scrollOnMove: null }, ['follow', 'library'], ['none', 'instance'], ['follow', 'library']],
     ['tuning.hopFraction', { tuning: { hopFraction: 0.3 } }, { tuning: { hopFraction: null } }, [0.25, 'workspace'], [0.3, 'instance'], [0.25, 'workspace']],
   ];
   for (const [key, set, unset, was, during, back] of rows) {
@@ -736,21 +712,21 @@ test('null removes the key and the cascade\'s value and source come back: librar
 
 test('null on a key a view asked for at the Host-bag create brings the host\'s ask back with source host, for a template panel and a plain one', async () => {
   const r = await pinRig({ ids: ['a'], extra: [markerTemplate('m', { settings: { multiple: true, title: 'Template title' } })] });
-  act(() => void r.provided().create({ view: 'm', title: 'Host title', listed: false, formFactor: 'tablet' }));
+  act(() => void r.provided().create({ view: 'm', title: 'Host title', listed: false, slots: 2 }));
   act(() => void r.provided().create({ title: 'Plain host title' }));
   await r.settle();
   const templated = r.ws.panels.list().find((h) => h.templateId === 'm')!;
   const plain = r.ws.panels.list().find((h) => h.templateId !== 'm' && h.templateId !== 'a' && h.id !== r.ws.rootId)!;
-  const read = (h: PanelHandle, key: 'title' | 'listed' | 'formFactor'): [unknown, string | undefined] => [h.getSettings().value[key], h.getSettings().source[key]];
-  assert.deepEqual([read(templated, 'title')[0], read(templated, 'listed')[0], read(templated, 'formFactor')[0], read(plain, 'title')[0]], ['Host title', false, 'tablet', 'Plain host title'], 'control: the asks took effect');
+  const read = (h: PanelHandle, key: 'title' | 'listed' | 'slots'): [unknown, string | undefined] => [h.getSettings().value[key], h.getSettings().source[key]];
+  assert.deepEqual([read(templated, 'title')[0], read(templated, 'listed')[0], read(templated, 'slots')[0], read(plain, 'title')[0]], ['Host title', false, 2, 'Plain host title'], 'control: the asks took effect');
   assert.deepEqual(read(templated, 'title'), ['Host title', 'host'], 'the ask reads as the host layer until a configure sets the key');
   done(r.turn(() => templated.configure({ title: 'Configured', listed: true })));
   assert.deepEqual([read(templated, 'title'), read(templated, 'listed')], [['Configured', 'instance'], [true, 'instance']]);
-  const back = done(r.turn(() => templated.configure({ title: null, listed: null, formFactor: 'phone' })));
-  assert.deepEqual([[...back.now], [...back.later], [...back.shadowed]], [['title', 'listed'], ['formFactor'], []]);
-  assert.deepEqual([read(templated, 'title'), read(templated, 'listed'), read(templated, 'formFactor')], [['Host title', 'host'], [false, 'host'], ['phone', 'instance']], 'null shows the host\'s ask again, source host');
-  done(r.turn(() => templated.configure({ formFactor: null })));
-  assert.deepEqual(read(templated, 'formFactor'), ['tablet', 'host']);
+  const back = done(r.turn(() => templated.configure({ title: null, listed: null, slots: 1 })));
+  assert.deepEqual([[...back.now], [...back.later], [...back.shadowed]], [['title', 'listed'], ['slots'], []]);
+  assert.deepEqual([read(templated, 'title'), read(templated, 'listed'), read(templated, 'slots')], [['Host title', 'host'], [false, 'host'], [1, 'instance']], 'null shows the host\'s ask again, source host');
+  done(r.turn(() => templated.configure({ slots: null })));
+  assert.deepEqual(read(templated, 'slots'), [2, 'host']);
   assert.equal(r.state(templated.id).title, 'Host title', 'and the panel\'s own title follows');
   done(r.turn(() => plain.configure({ title: 'Configured' })));
   done(r.turn(() => plain.configure({ title: null })));
@@ -945,12 +921,12 @@ const LOCK_A = { closable: false } as const;
 const BUSY_ROWS: readonly { name: string; calls: (r: PinRig) => Answer[]; results: string[]; order: string; locked: boolean | null }[] = [
   { name: 'configure A + hide A', calls: (r) => [r.h.a!.configure(LOCK_A), r.h.a!.hide()], results: ['T', 'busy'], order: 'root a b c', locked: true },
   { name: 'configure A + close A', calls: (r) => [r.h.a!.configure(LOCK_A), r.h.a!.close()], results: ['T', 'busy'], order: 'root a b c', locked: true },
-  { name: 'configure A + move A', calls: (r) => [r.h.a!.configure(LOCK_A), r.h.a!.move('right')], results: ['T', 'busy'], order: 'root a b c', locked: true },
-  { name: 'configure A + setFormFactor A', calls: (r) => [r.h.a!.configure(LOCK_A), r.h.a!.setFormFactor('tablet')], results: ['T', 'busy'], order: 'root a b c', locked: true },
+  { name: 'configure A + move A', calls: (r) => [r.h.a!.configure(LOCK_A), r.h.a!.move(1)], results: ['T', 'busy'], order: 'root a b c', locked: true },
+  { name: 'configure A + setSlots A', calls: (r) => [r.h.a!.configure(LOCK_A), r.h.a!.setSlots(2)], results: ['T', 'busy'], order: 'root a b c', locked: true },
   { name: 'configure A + pin A', calls: (r) => [r.h.a!.configure(LOCK_A), r.h.a!.pin()], results: ['T', 'busy'], order: 'root a b c', locked: true },
   { name: 'hide A + configure A', calls: (r) => [r.h.a!.hide(), r.h.a!.configure(LOCK_A)], results: ['T', 'busy'], order: 'root a b c', locked: false },
-  { name: 'move A + configure A', calls: (r) => [r.h.a!.move('right'), r.h.a!.configure(LOCK_A)], results: ['T', 'busy'], order: 'root b a c', locked: false },
-  { name: 'setFormFactor A + configure A formFactors', calls: (r) => [r.h.a!.setFormFactor('tablet'), r.h.a!.configure({ formFactors: ['phone'] })], results: ['T', 'busy'], order: 'root a b c', locked: false },
+  { name: 'move A + configure A', calls: (r) => [r.h.a!.move(1), r.h.a!.configure(LOCK_A)], results: ['T', 'busy'], order: 'root b a c', locked: false },
+  { name: 'setSlots A + configure A maxSlots', calls: (r) => [r.h.a!.setSlots(2), r.h.a!.configure({ maxSlots: 1 })], results: ['T', 'busy'], order: 'root a b c', locked: false },
   { name: 'configure A + configure A', calls: (r) => [r.h.a!.configure(LOCK_A), r.h.a!.configure({ title: 'again' })], results: ['T', 'busy'], order: 'root a b c', locked: true },
   { name: 'configure A + configure B', calls: (r) => [r.h.a!.configure(LOCK_A), r.h.b!.configure({ closable: false })], results: ['T', 'T'], order: 'root a b c', locked: true },
   { name: 'close A + configure B', calls: (r) => [r.h.a!.close(), r.h.b!.configure(LOCK_A)], results: ['T', 'busy'], order: 'root b c', locked: null },
@@ -1024,7 +1000,7 @@ test('configureTuning rowGap is busy while any panel holds a token, and takes th
   cleanup();
   const raw = await pinRig();
   const afterRaw = raw.turn(() => {
-    raw.provided().setFormFactor(raw.entry('c').id, 'tablet');
+    raw.provided().setSlots(raw.entry('c').id, 2);
     return raw.ws.panels.configureTuning({ rowGap: 30 });
   });
   assert.equal(letter(afterRaw), 'busy', 'a raw token counts');
@@ -1041,7 +1017,7 @@ test('configureTuning rowGap re-prices the row in one commit: the slots rest one
   const r = await pinRig();
   await r.settle();
   const slotX = (name: string): number => {
-    const transform = (r.m.container.querySelector(`[data-slot="${name === 'root' ? name : r.entry(name).id}"]`)!.parentElement as HTMLElement).style.transform;
+    const transform = (r.m.container.querySelector(`[data-slot="${name}"]`)!.closest('[data-row-slot]') as HTMLElement).style.transform;
     return transform === 'none' ? 0 : Number(/translateX\((-?[\d.]+)px\)/.exec(transform)![1]);
   };
   assert.deepEqual(['root', 'a', 'b', 'c'].map(slotX), [0, 406, 812, 1218], 'before: 390 + 16 apart');

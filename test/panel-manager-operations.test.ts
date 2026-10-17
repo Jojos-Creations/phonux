@@ -9,14 +9,14 @@ import * as React from 'react';
 import { act } from 'react';
 import { createWorkspace, definePanel, useProvidePanels } from '../index.js';
 import type { PanelHandle, PanelResult, PanelSettings, PanelWindow, ProvidedPanels } from '../index.js';
-import { advanceFrames, cleanup, mount, panelsInput } from './support/mount-harness.js';
+import { advanceFrames, cleanup, mount, useSeededInput } from './support/mount-harness.js';
 import { differential, differentialsCovered } from './support/differential.js';
 import { flush, markerTemplate, mountWorkspace } from './support/workspace-row.js';
 import { brief, fire, rig, TRIGGERS, type Rig } from './support/ops-rig.js';
 
 afterEach(() => cleanup());
 
-const OPS = ['show', 'hide', 'toggle', 'close', 'open', 'move', 'place', 'setFormFactor', 'scrollTo'] as const;
+const OPS = ['show', 'hide', 'toggle', 'close', 'open', 'move', 'place', 'setSlots', 'scrollTo'] as const;
 type Op = (typeof OPS)[number];
 const STATES = ['live', 'parked', 'closed', 'pending'] as const;
 type State = (typeof STATES)[number];
@@ -28,9 +28,9 @@ const call = (h: PanelHandle, op: Op): PanelResult => {
     case 'toggle': return h.toggleVisibility();
     case 'close': return h.close();
     case 'open': return h.open();
-    case 'move': return h.move('right');
+    case 'move': return h.move(1);
     case 'place': return h.place('row-end');
-    case 'setFormFactor': return h.setFormFactor('tablet');
+    case 'setSlots': return h.setSlots(2);
     case 'scrollTo': return h.scrollTo();
   }
 };
@@ -57,17 +57,17 @@ const TABLE: Record<string, { settings: PanelSettings; cells: Record<State, stri
       pending: [P, P, P, P, P, P, P, P, P],
     },
   },
-  tiers: {
-    settings: { formFactors: ['phone'] },
+  'one slot at most': {
+    settings: { maxSlots: 1 },
     cells: {
-      live: ['F', 'T', 'T', 'T', 'F', 'T', 'T', 'tier-not-allowed', 'F'],
-      parked: ['T', 'F', 'T', 'T', 'F', 'not-live', 'T', 'tier-not-allowed', 'not-live'],
+      live: ['F', 'T', 'T', 'T', 'F', 'T', 'T', 'F', 'F'],
+      parked: ['T', 'F', 'T', 'T', 'F', 'not-live', 'T', 'F', 'not-live'],
       closed: [C, C, 'F', 'F', 'T', C, C, C, C],
       pending: [P, P, P, P, P, P, P, P, P],
     },
   },
   reopening: {
-    settings: { hideWhenLast: 'refuse', showWhenClosed: 'reopen', toggleWhenClosed: 'reopen' },
+    settings: { showWhenClosed: 'reopen', toggleWhenClosed: 'reopen' },
     cells: {
       live: ['F', 'T', 'T', 'T', 'F', 'T', 'T', 'T', 'F'],
       parked: ['T', 'F', 'T', 'T', 'F', 'not-live', 'T', 'T', 'not-live'],
@@ -117,22 +117,11 @@ test('a refusal touches nothing: entries reference-equal, no commit, the snapsho
   const cases: Array<{ name: string; settings: Record<string, PanelSettings>; setup?: (r: Rig) => void; run: (r: Rig) => PanelResult; code: string }> = [
     { name: 'not-closable', settings: { b: { closable: false } }, run: (r) => r.h.b!.close(), code: 'not-closable' },
     { name: 'not-parkable', settings: { b: { parkable: false } }, run: (r) => r.h.b!.hide(), code: 'not-parkable' },
-    { name: 'not-draggable', settings: { b: { draggable: false } }, run: (r) => r.h.b!.move('left'), code: 'not-draggable' },
+    { name: 'not-draggable', settings: { b: { draggable: false } }, run: (r) => r.h.b!.move(-1), code: 'not-draggable' },
     { name: 'not-placeable', settings: { b: { placeable: false } }, run: (r) => r.h.b!.place('row-start'), code: 'not-placeable' },
-    { name: 'not-resizable', settings: { b: { resizable: false } }, run: (r) => r.h.b!.setFormFactor('tablet'), code: 'not-resizable' },
-    { name: 'tier-not-allowed', settings: { b: { formFactors: ['phone'] } }, run: (r) => r.h.b!.setFormFactor('desktop'), code: 'tier-not-allowed' },
-    {
-      name: 'would-empty-row',
-      settings: { a: { hideWhenLast: 'refuse' } },
-      setup: (r) => {
-        r.turn(() => r.h.b!.close());
-        r.turn(() => r.h.c!.close());
-      },
-      run: (r) => r.h.a!.hide(),
-      code: 'would-empty-row',
-    },
+    { name: 'not-resizable', settings: { b: { resizable: false } }, run: (r) => r.h.b!.setSlots(2), code: 'not-resizable' },
     { name: 'is-closed', settings: {}, setup: (r) => void r.turn(() => r.h.b!.close()), run: (r) => r.h.b!.hide(), code: 'is-closed' },
-    { name: 'not-live', settings: {}, setup: (r) => void r.turn(() => r.h.b!.hide()), run: (r) => r.h.b!.move('left'), code: 'not-live' },
+    { name: 'not-live', settings: {}, setup: (r) => void r.turn(() => r.h.b!.hide()), run: (r) => r.h.b!.move(-1), code: 'not-live' },
   ];
   for (const c of cases) {
     const r = await rig({ settings: c.settings });
@@ -157,7 +146,7 @@ const BUSY_ROWS: Array<{ name: string; calls: Array<(h: Record<string, PanelHand
   { name: 'hide B then close A', calls: [(h) => h.b!.hide(), (h) => h.a!.close()], results: ['T', 'busy'], row: 'a b* c' },
   { name: 'hide A + hide B', calls: [(h) => h.a!.hide(), (h) => h.b!.hide()], results: ['T', 'T'], row: 'a* b* c' },
   { name: 'show B + hide C', calls: [(h) => h.b!.show(), (h) => h.c!.hide()], results: ['F', 'T'], row: 'a b c*' },
-  { name: 'setFormFactor A + hide A', calls: [(h) => h.a!.setFormFactor('tablet'), (h) => h.a!.hide()], results: ['T', 'busy'], row: 'a b c' },
+  { name: 'setSlots A + hide A', calls: [(h) => h.a!.setSlots(2), (h) => h.a!.hide()], results: ['T', 'busy'], row: 'a b c' },
 ];
 
 test('the busy contract gives identical literal rows from a handler, a timer, a promise continuation and a passive effect', async () => {
@@ -171,28 +160,6 @@ test('the busy contract gives identical literal rows from a handler, a timer, a 
       cleanup();
     }
   }
-});
-
-test('hideWhenLast counts what this turn already hides or closes, so one panel always stays', async () => {
-  const refuse = { a: { hideWhenLast: 'refuse' }, b: { hideWhenLast: 'refuse' } } as const;
-  const two = async () => rig({ ids: ['a', 'b'], settings: refuse });
-  for (const trigger of TRIGGERS) {
-    let r = await two();
-    assert.deepEqual(await fire(trigger, () => [brief(r.h.a!.hide()), brief(r.h.b!.hide())]), ['T', 'would-empty-row'], `${trigger}: hide A + hide B`);
-    await fire('handler', () => undefined);
-    assert.equal(r.row(), 'a* b', `${trigger}: one panel stayed`);
-    cleanup();
-    r = await two();
-    assert.deepEqual(await fire(trigger, () => [brief(r.h.a!.hide()), brief(r.h.b!.close())]), ['T', 'busy'], `${trigger}: hide A + close B`);
-    await fire('handler', () => undefined);
-    assert.equal(r.row(), 'a* b', `${trigger}: hide A + close B leaves B present`);
-    cleanup();
-  }
-  // Across turns the second hide sees the first as committed.
-  const r = await two();
-  r.turn(() => r.h.a!.hide());
-  assert.equal(brief(r.turn(() => r.h.b!.hide())), 'would-empty-row', 'the last live panel is refused in a later turn too');
-  assert.equal(brief(r.turn(() => r.h.b!.close())), 'T', 'close is a different decision: hideWhenLast is about hiding');
 });
 
 test('LIMIT:3 is prevented through the manager: the second close in a turn is busy, so undo order holds', async () => {
@@ -211,16 +178,18 @@ test('LIMIT:3 is prevented through the manager: the second close in a turn is bu
 const shape = (row: string): string => row.replace(/~\d+/g, '~N');
 
 type Observe = (value: never) => Promise<unknown>;
+/** The slot count the row holds for panel `id`. */
+const slotsOf = (r: Rig, id: string): number | undefined => r.m!.latest().entries.find((p) => p.id === r.h[id]!.getState().engineId)?.slots;
+
 const MATRIX: Array<[name: string, a: unknown, b: unknown, observe: Observe, expectA: unknown, expectB: unknown]> = [
   ['closable', true, false, async (v) => { const r = await rig({ settings: { b: { closable: v } } }); return [brief(r.turn(() => r.h.b!.close())), r.row()]; }, ['T', 'a c ~b'], ['not-closable', 'a b c']],
   ['parkable', true, false, async (v) => { const r = await rig({ settings: { b: { parkable: v } } }); return [brief(r.turn(() => r.h.b!.hide())), r.row()]; }, ['T', 'a b* c'], ['not-parkable', 'a b c']],
-  ['draggable', true, false, async (v) => { const r = await rig({ settings: { b: { draggable: v } } }); return [brief(r.turn(() => r.h.b!.move('right'))), r.row()]; }, ['T', 'a c b'], ['not-draggable', 'a b c']],
-  ['crossable', true, false, async (v) => { const r = await rig({ settings: { c: { crossable: v } } }); return [brief(r.turn(() => r.h.b!.move('right'))), r.row()]; }, ['T', 'a c b'], ['F', 'a b c']],
+  ['draggable', true, false, async (v) => { const r = await rig({ settings: { b: { draggable: v } } }); return [brief(r.turn(() => r.h.b!.move(1))), r.row()]; }, ['T', 'a c b'], ['not-draggable', 'a b c']],
+  ['crossable', true, false, async (v) => { const r = await rig({ settings: { c: { crossable: v } } }); return [brief(r.turn(() => r.h.b!.move(1))), r.row()]; }, ['T', 'a c b'], ['F', 'a b c']],
   ['placeable', true, false, async (v) => { const r = await rig({ settings: { b: { placeable: v } } }); return [brief(r.turn(() => r.h.b!.place('row-start'))), r.row()]; }, ['T', 'b a c'], ['not-placeable', 'a b c']],
-  ['resizable', true, false, async (v) => { const r = await rig({ settings: { b: { resizable: v } } }); return [brief(r.turn(() => r.h.b!.setFormFactor('tablet'))), r.h.b!.getState().formFactor]; }, ['T', 'tablet'], ['not-resizable', 'phone']],
-  ['formFactors', ['phone', 'desktop'], ['phone'], async (v) => { const r = await rig({ settings: { b: { formFactors: v } } }); return [brief(r.turn(() => r.h.b!.setFormFactor('desktop'))), r.h.b!.getState().formFactor]; }, ['T', 'desktop'], ['tier-not-allowed', 'phone']],
+  ['resizable', true, false, async (v) => { const r = await rig({ settings: { b: { resizable: v } } }); return [brief(r.turn(() => r.h.b!.setSlots(2))), slotsOf(r, 'b')]; }, ['T', 2], ['not-resizable', 1]],
+  ['maxSlots', 3, 1, async (v) => { const r = await rig({ settings: { b: { maxSlots: v } } }); return [brief(r.turn(() => r.h.b!.setSlots(3))), slotsOf(r, 'b')]; }, ['T', 3], ['F', 1]],
   ['hideStickiness', 'sticky', 'until-room', async (v) => { const r = await rig({ settings: { b: { hideStickiness: v } } }); r.turn(() => r.h.b!.hide()); return [r.row(), r.h.b!.getState().held]; }, ['a b* c', true], ['a b c', false]],
-  ['hideWhenLast', 'allow', 'refuse', async (v) => { const r = await rig({ ids: ['a', 'b'], settings: { a: { hideWhenLast: v }, b: { hideWhenLast: v } } }); r.turn(() => r.h.a!.hide()); return [brief(r.turn(() => r.h.b!.hide())), r.row()]; }, ['T', 'a* b*'], ['would-empty-row', 'a* b']],
   ['toggleWhenClosed', 'ignore', 'reopen', async (v) => { const r = await rig({ settings: { b: { toggleWhenClosed: v } } }); r.turn(() => r.h.b!.close()); return [brief(r.turn(() => r.h.b!.toggleVisibility())), r.row()]; }, ['F', 'a c ~b'], ['T', 'a c b']],
   ['showWhenClosed', 'refuse', 'reopen', async (v) => { const r = await rig({ settings: { b: { showWhenClosed: v } } }); r.turn(() => r.h.b!.close()); return [brief(r.turn(() => r.h.b!.show())), r.row()]; }, ['is-closed', 'a c ~b'], ['T', 'a c b']],
   ['startVisibility', 'live', 'parked', async (v) => { const r = await rig({ ids: ['a'], extra: [markerTemplate('s', { settings: { startVisibility: v } })] }); let s!: PanelHandle; r.turn(() => { s = r.ws.addPanel('s'); }); return [s.getState().status, shape(r.row())]; }, ['live', 'a s'], ['parked', 'a s*']],
@@ -336,9 +305,9 @@ test('a manager verb other than close and open leaves the undo window as it was'
     () => r.h.b!.hide(),
     () => r.h.b!.show(),
     () => r.h.b!.toggleVisibility(),
-    () => r.h.b!.move('right'),
+    () => r.h.b!.move(1),
     () => r.h.b!.place('row-end'),
-    () => r.h.b!.setFormFactor('tablet'),
+    () => r.h.b!.setSlots(2),
     () => r.h.b!.scrollTo(),
     () => r.h.b!.open(),
     () => r.h.a!.show(),
@@ -350,8 +319,8 @@ test('a manager verb other than close and open leaves the undo window as it was'
 });
 
 test('1000 add and close cycles leave the snapshot at most declared plus live', async () => {
-  // undoWindowMs 0 keeps closed views out of the undo list, and the frames let each exit finish: both would otherwise grow with the loop.
-  const r = await rig({ ids: ['a'], extra: [markerTemplate('m', { settings: { multiple: true, undoWindowMs: 0 } })] });
+  // The frames let each exit finish; without them the exits would pile up with the loop.
+  const r = await rig({ ids: ['a'], extra: [markerTemplate('m', { settings: { multiple: true } })] });
   for (let i = 0; i < 1000; i += 1) {
     let h!: PanelHandle;
     r.turn(() => {
@@ -366,28 +335,24 @@ test('1000 add and close cycles leave the snapshot at most declared plus live', 
   assert.equal(snapshot.length, 1, 'every anonymous instance was retired');
 });
 
-test('reapply: undoPlacement decides where the undone panel lands, and a parked panel comes back parked', async () => {
-  const outcomes: string[][] = [];
-  for (const undoPlacement of ['old-slot', 'row-start', 'row-end'] as const) {
-    const r = await rig({ settings: { b: { undoPlacement } } });
-    r.turn(() => r.h.b!.close());
-    act(() => r.m!.latest().undoClose());
-    outcomes.push([undoPlacement, r.row()]);
-    cleanup();
-  }
-  assert.deepEqual(outcomes, [['old-slot', 'a b c'], ['row-start', 'b a c'], ['row-end', 'a c b']]);
-  const r = await rig({ settings: { b: { undoPlacement: 'row-end' } } });
+test('reapply: undo puts the panel back at its old slot, and a parked panel comes back parked', async () => {
+  const closed = await rig();
+  closed.turn(() => closed.h.b!.close());
+  act(() => closed.m!.latest().undoClose());
+  assert.equal(closed.row(), 'a b c');
+  cleanup();
+  const r = await rig();
   r.turn(() => r.h.b!.hide());
   r.turn(() => r.h.b!.close());
   act(() => r.m!.latest().undoClose());
-  assert.equal(r.row(), 'a c b*', 'the live flag is kept: b was parked when it closed');
+  assert.equal(r.row(), 'a b* c', 'the live flag is kept: b was parked when it closed');
 });
 
 test('without a workspace undoClose restores the closed entry at its old slot, unchanged', () => {
   let latest!: ProvidedPanels;
   const entry = (id: string, over: Partial<PanelWindow> = {}): PanelWindow => ({ id, url: `https://${id}.example`, title: id, live: true, locked: false, view: 'web', collapsible: true, listed: true, ...over });
   function Probe(): React.ReactElement {
-    latest = useProvidePanels(panelsInput({ initialEntries: [entry('root', { url: '', locked: true, collapsible: false, listed: false }), entry('a'), entry('b'), entry('c')] }));
+    latest = useProvidePanels(useSeededInput({ initialEntries: [entry('root', { url: '', locked: true, collapsible: false, listed: false }), entry('a'), entry('b'), entry('c')] }));
     return React.createElement('output');
   }
   mount(React.createElement(Probe));
@@ -396,22 +361,22 @@ test('without a workspace undoClose restores the closed entry at its old slot, u
   assert.deepEqual(latest.entries.map((p) => p.id), ['root', 'a', 'b', 'c']);
 });
 
-test('source: a code call leaves every entry without overrides, a person call records the anchor or the form factor', async () => {
+test('source: a code call leaves every entry without overrides, a person call records the anchor or the slot count', async () => {
   const overrides = (r: Rig): string => JSON.stringify(r.m!.latest().entries.filter((p) => p.marker !== true).map((p) => p.overrides ?? {}));
   const r = await rig();
   const untouched = overrides(r);
   r.turn(() => {
-    r.h.b!.move('right');
-    r.h.a!.setFormFactor('tablet');
+    r.h.b!.move(1);
+    r.h.a!.setSlots(2);
     r.h.c!.place('row-start');
   });
   assert.equal(overrides(r), untouched, 'code leaves the person\'s arrangement alone');
   const person = await rig();
-  person.turn(() => person.h.b!.move('left', 'person'));
+  person.turn(() => person.h.b!.move(-1, 'person'));
   assert.match(JSON.stringify(person.m!.latest().entries.find((p) => p.title === undefined || true && p.id === person.h.b!.getState().engineId)?.overrides), /"anchor"/, 'move records an anchor');
-  person.turn(() => person.h.a!.setFormFactor('tablet', 'person'));
+  person.turn(() => person.h.a!.setSlots(2, 'person'));
   const a = person.m!.latest().entries.find((p) => p.id === person.h.a!.getState().engineId);
-  assert.equal(a?.overrides?.slots, 2, 'setFormFactor records the slot count');
+  assert.equal(a?.overrides?.slots, 2, 'setSlots records the slot count');
   person.turn(() => person.h.c!.place('row-start', 'person'));
   const c = person.m!.latest().entries.find((p) => p.id === person.h.c!.getState().engineId);
   assert.equal(c?.overrides?.anchor?.position, 'left', 'place records the anchor');
@@ -468,16 +433,16 @@ test('scrollTo scrolls to the literal target of each align, reads scrollOnOpen w
   assert.deepEqual(mixed, ['T', 'T', 'F'], 'a close in the same turn does not make scrollTo busy, on another panel or on the closing one');
 });
 
-test('scrollOnMove: an accepted move, place or setFormFactor on an in-view panel follows it; out of view and none record nothing', async () => {
+test('scrollOnMove: an accepted move, place or setSlots on an in-view panel follows it; out of view and none record nothing', async () => {
   const all = (scrollOnMove: string): Record<string, PanelSettings> => Object.fromEntries(['a', 'b', 'c', 'd', 'e', 'f'].map((id) => [id, { scrollOnMove } as PanelSettings]));
   const none = () => undefined;
-  assert.deepEqual(await scrolled(all('follow'), 0, none, (r) => r.h.b!.move('right')), { result: 'T', left: 234 }, 'b moves right past c and ends inside the window');
-  assert.deepEqual(await scrolled(all('none'), 0, none, (r) => r.h.b!.move('right')), { result: 'T', left: 0 });
+  assert.deepEqual(await scrolled(all('follow'), 0, none, (r) => r.h.b!.move(1)), { result: 'T', left: 234 }, 'b moves right past c and ends inside the window');
+  assert.deepEqual(await scrolled(all('none'), 0, none, (r) => r.h.b!.move(1)), { result: 'T', left: 0 });
   assert.deepEqual(await scrolled(all('follow'), 0, none, (r) => r.h.b!.place('row-end')), { result: 'T', left: 1452 });
   assert.deepEqual(await scrolled(all('none'), 0, none, (r) => r.h.b!.place('row-end')), { result: 'T', left: 0 });
-  assert.deepEqual(await scrolled(all('follow'), 0, none, (r) => r.h.c!.setFormFactor('tablet')), { result: 'T', left: 640 });
-  assert.deepEqual(await scrolled(all('none'), 0, none, (r) => r.h.c!.setFormFactor('tablet')), { result: 'T', left: 0 });
-  assert.deepEqual(await scrolled(all('follow'), 0, none, (r) => r.h.e!.setFormFactor('tablet')), { result: 'T', left: 0 }, 'e is out of view: no request');
+  assert.deepEqual(await scrolled(all('follow'), 0, none, (r) => r.h.c!.setSlots(2)), { result: 'T', left: 640 });
+  assert.deepEqual(await scrolled(all('none'), 0, none, (r) => r.h.c!.setSlots(2)), { result: 'T', left: 0 });
+  assert.deepEqual(await scrolled(all('follow'), 0, none, (r) => r.h.e!.setSlots(2)), { result: 'T', left: 0 }, 'e is out of view: no request');
 });
 
 test('scrollOnOpen: open() and show() record one request and the row scrolls to the literal target', async () => {
@@ -515,12 +480,12 @@ test('the owner example: a button in panel two toggles panel one through a closu
   assert.equal(one.getState().status, 'live', 'the second click shows it again');
 });
 
-test('a ViewHandle has exactly the eighteen sorted keys, pin, unpin and configure among them', async () => {
+test('a ViewHandle has exactly the seventeen sorted keys, pin, unpin and configure among them', async () => {
   const { createWorkspace } = await import('../index.js');
   const { mountWorkspace } = await import('./support/workspace-row.js');
   const w = createWorkspace({ mount: false, templates: [markerTemplate('probe')] });
   w.addPanel('probe');
   const m = mountWorkspace(w);
   const node = m.container.querySelector('[data-template="probe"]') as HTMLElement;
-  assert.deepEqual(node.dataset.handleKeys!.split(',').sort(), ['close', 'configure', 'getSettings', 'getState', 'hide', 'id', 'move', 'open', 'pin', 'place', 'scrollTo', 'setFormFactor', 'setSlots', 'show', 'subscribe', 'templateId', 'toggleVisibility', 'unpin']);
+  assert.deepEqual(node.dataset.handleKeys!.split(',').sort(), ['close', 'configure', 'getSettings', 'getState', 'hide', 'id', 'move', 'open', 'pin', 'place', 'scrollTo', 'setSlots', 'show', 'subscribe', 'templateId', 'toggleVisibility', 'unpin']);
 });

@@ -10,11 +10,10 @@ import type { SnapshotsAPI } from './snapshots.js';
 
 /**
  * What the `panels` option takes: every `useProvidePanels` input except the ones the mount measures
- * (`phoneWidth`, `containerWidth`, `overflowContainerRef`), the ones the workspace supplies (`workspace`, `rootId`,
- * `storage`, `templates`, `declared`, `workspaceDefaults`, `tuning`, `initialEntries`) and `labels`, which is its own option.
+ * (`phoneWidth`, `containerWidth`, `overflowContainerRef`), the workspace itself (`workspace`) and `labels`, which is its own option.
  * @public
  */
-export type WorkspacePanelsInput = Partial<Omit<PanelsInput, 'workspace' | 'rootId' | 'phoneWidth' | 'containerWidth' | 'overflowContainerRef' | 'initialEntries' | 'storage' | 'templates' | 'declared' | 'workspaceDefaults' | 'tuning' | 'labels'>>;
+export type WorkspacePanelsInput = Partial<Omit<PanelsInput, 'workspace' | 'phoneWidth' | 'containerWidth' | 'overflowContainerRef' | 'labels'>>;
 
 /**
  * What an app hands the host and can hand it again with `workspace.update`: the phone size, the settings column, the closed-page
@@ -47,7 +46,7 @@ export function refusedLiveKeys(input: object): string[] {
 }
 
 /**
- * Whether two values carry the same data: functions compare equal whatever their identity (an app that builds its objects
+ * Whether the values carry the same data: functions compare equal whatever their identity (an app that builds its objects
  * with fresh closures every render must not wake every reader every render), a function against no function does not,
  * and plain objects and arrays compare by their members, to a few levels.
  */

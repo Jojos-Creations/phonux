@@ -8,7 +8,8 @@ import { test, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
 import './support/jsdom-globals.js';
 import * as React from 'react';
-import { DRAG_CLOSE, DragToClose, LIBRARY_TUNING_DEFAULTS, resolvePanelSettings } from '../index.js';
+import { DRAG_CLOSE, DragToClose, LIBRARY_TUNING_DEFAULTS } from '../index.js';
+import { resolvePanelSettings } from '../panelSettings.js';
 import type { ReorderHandle } from '../index.js';
 import { shouldCloseOnRelease } from '../dragToClose.js';
 import { PanelSlotContext, type PanelSlotValue } from '../panelSlotContext.js';
@@ -25,7 +26,7 @@ const slotValue = (closable: boolean, tuning: Partial<SlotTuning>): PanelSlotVal
   draggable: true,
   placeable: true,
   resizable: true,
-  formFactors: DEFAULT_SLOT.formFactors,
+  maxSlots: DEFAULT_SLOT.maxSlots,
   neighborWidths: { left: [], right: [] },
   pinned: false,
   tuning: { ...slotTuning(LIBRARY_TUNING_DEFAULTS, undefined), ...tuning },

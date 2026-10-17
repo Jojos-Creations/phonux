@@ -7,7 +7,8 @@
 
 import type * as React from 'react';
 import type { SxProps, Theme } from '@mui/material/styles';
-import type { FormFactor, PanelSize } from './hostApi.js';
+import type { PanelSize } from './hostApi.js';
+import { reportOnce } from './panelApiLevel.js';
 import { PanelManagerError } from './panelManagerError.js';
 import type { PanelRowEntry } from './panelRowEntry.js';
 import type { PanelState, ViewHandle } from './panelTemplate.js';
@@ -34,7 +35,6 @@ import {
   ROW_GAP,
   ROW_GESTURE,
   SAVE_QUIET_MS,
-  SHRINK_OUT_OF_VIEW,
   PHONE_FIT,
   PHONE_FIT_MIN,
   PHONE_FIT_MAX,
@@ -42,15 +42,13 @@ import {
   SLIDE_DURATION_SEC,
   SLIDE_EASE,
   SNAP_BACK_SPRING,
-  slotsOfTier,
-  tierOfSlots,
 } from './rowConstants.js';
 
 // ---------------------------------------------------------------------------
 // Declared types
 // ---------------------------------------------------------------------------
 
-/** A panel's id: a singleton's template id, an explicit instance's given id, or `${templateId}~${random}`; 'all' is reserved. @public */
+/** A panel's id, which is its key and its only public id: a singleton's template id, an explicit instance's given id, or `${templateId}~${suffix}` where the suffix comes from the workspace's `newId` (a counter unless a custom one is given). An explicit id follows the template-id rules and may not equal a registered template's id; 'all' is reserved. @public */
 export type PanelId = string;
 
 /** Where a panel asks to sit relative to another panel. @public */
@@ -186,11 +184,11 @@ export type PinningWhenNotLive =
 /** Which layer a resolved value came from. A rule overrides the rest and 'derived' marks a value filled from another resolved field. @public */
 export type SourceLayer = 'library' | 'workspace' | 'template' | 'host' | 'instance' | 'user' | 'derived' | 'forced';
 
-/** The 50 settings whose value is one plain member; the catalog's other names are headerButtons and the fifteen tuning leaves. @public */
+/** The settings whose value is one plain member; the catalog's other names are headerButtons and the tuning leaves. @public */
 export type SettingValues = {
   /** Whether the panel can be closed; false removes the drag-down close and makes `close()` answer not-closable. */
   closable: boolean;
-  /** Whether the panel can be parked; false makes it a fixed column, which needs the phone tier. */
+  /** Whether the panel can be parked; false makes it a fixed column, which needs one slot. */
   parkable: boolean;
   /** Whether the panel can be moved by dragging or by `move()`. Defaults to the resolved `parkable`. */
   draggable: boolean;
@@ -198,14 +196,14 @@ export type SettingValues = {
   crossable: boolean;
   /** Whether the panel can be re-anchored, placed, or pinned with a placement. Defaults to the resolved `parkable`. */
   placeable: boolean;
-  /** Whether the panel's tier can be changed. */
+  /** Whether the panel's slot count can be changed. */
   resizable: boolean;
-  /** The tiers the panel may take; never empty. */
-  formFactors: readonly FormFactor[];
   /** Whether clear-all closes the panel. Defaults to the resolved `parkable` and `closable`. */
   clearable: boolean;
   /** Whether a view's host-bag `create` may name the template. Template scope. */
   hostCreatable: boolean;
+  /** Whether the dot bar draws this panel's dot hollow (the one an app marks, such as History). Template scope; the library reads the flag, never a name. */
+  hollowDot: boolean;
   /** Whether the template may have more than one instance. Template scope. */
   multiple: boolean;
   /** The most instances the template may have: an integer of at least 1, or 'unlimited'. Template scope. */
@@ -216,61 +214,31 @@ export type SettingValues = {
   startVisibility: 'live' | 'parked';
   /** Whether a hidden panel stays hidden until shown ('sticky') or comes back once there is room ('until-room'). */
   hideStickiness: 'sticky' | 'until-room';
-  /** Whether `hide()` is allowed or refused when the panel is the last one visible. */
-  hideWhenLast: 'allow' | 'refuse';
   /** Whether a panel parked for room returns by itself when room appears ('auto') or only when shown ('manual'). */
   capacityReturn: 'auto' | 'manual';
-  /** An integer ranking which parked panel returns first when room appears; the highest returns first. Read only when `overflow` is 'park'. */
-  returnPriority: number;
   /** What the row may do with the panel when the open panels do not all fit. */
   overflow: Overflow;
-  /** An integer ranking which panel is parked first when room is needed; the lowest rank is parked first. Read only when `overflow` is 'park'. */
-  evictionRank: number;
-  /** Which live panel is parked when this panel needs room: the farthest from it, the nearest, the leftmost or the rightmost. Read only when `overflow` is 'park'. */
-  evictionOrder: 'farthest' | 'nearest' | 'leftmost' | 'rightmost';
   /** Which hidden panels a row scroll gesture may reveal: 'edges', 'any' or 'never'. */
   revealOnScroll: 'edges' | 'any' | 'never';
   /** Where the row scrolls the panel to on its next open, show or click. */
   scrollOnOpen: ScrollOnOpen;
   /** Whether the row follows the panel when it is moved, placed, resized, pinned, unpinned or its layout reset. */
   scrollOnMove: ScrollOnMove;
-  /** Whether the row scrolls at the window's edge while the panel is dragged. */
-  scrollOnDrag: ScrollOnDrag;
   /** What `toggleVisibility()` does to a closed declared panel: nothing ('ignore') or reopen it ('reopen'). */
   toggleWhenClosed: 'ignore' | 'reopen';
   /** What `show()` does to a closed declared panel: refuse it or reopen it. */
   showWhenClosed: 'refuse' | 'reopen';
-  /** Whether the view's `useViewState` state is kept across a park ('keep') or reset at each park ('reset-on-park'). */
-  viewState: 'keep' | 'reset-on-park';
-  /** Whether parking hides the view instead of unmounting it. */
-  keepMounted: boolean;
-  /** 'auto' draws the library's panel frame (header, grab bar, phone frame, footer) around a view that draws none of its own; 'none' never adds one. */
-  frame: 'auto' | 'none';
   /** Where the panel lands when it is added, and when the layout is reset. */
   placeOnAdd: AddPlacement;
   /** Where the panel lands when it is shown; 'in-place' leaves it where it is. */
   placeOnShow: AddPlacement | 'in-place';
-  /** Where a parked panel lands when it returns automatically; 'in-place' leaves it where it is. */
-  placeOnReturn: AddPlacement | 'in-place';
-  /** Where a panel lands when its placement names a panel that is missing or is the panel itself. */
-  placeFallback: 'row-start' | 'row-end' | 'parkable-start' | 'parkable-end' | 'after-fixed';
-  /** Where `undoClose` puts the panel back: 'old-slot', or a placement. */
-  undoPlacement: 'old-slot' | AddPlacement;
   /** The stacking tier of the panel's slot. */
   layer: 'base' | 'raised';
   /** The side the panel slides in from; 'auto' follows the row and 'anchor' uses its anchor's side. */
   enterFrom: 'auto' | 'left' | 'right' | 'anchor';
-  /** The side the panel slides out toward when parked; 'auto' follows the row. */
-  exitTo: 'auto' | 'left' | 'right';
-  /** How the panel leaves when it closes. */
-  closeExit: 'down' | 'left' | 'right';
-  /** Whether the panel's enter, exit, park and scroll are animated. */
-  animated: boolean;
-  /** The tier a panel starts at; it never resizes a panel that already exists. Reports the tier of `slots`: one slot phone, two tablet, more desktop. */
-  formFactor: FormFactor;
-  /** How many phone-panel widths wide the panel is, an integer of 1 or more; the row draws at most the slots that fit. Derived from `formFactor` when no layer sets it, and it then wins over `formFactor`. */
+  /** How many phone-panel widths wide the panel is, an integer of 1 or more; the row draws at most the slots that fit. It starts a panel at that width and never resizes one that already exists. Default 1. */
   slots: number;
-  /** The most slots the panel may take, an integer of 1 or more. Derived from the widest of `formFactors` when no layer sets it. */
+  /** The most slots the panel may take, an integer of 1 or more. Default: every slot that fits. */
   maxSlots: number;
   /** The panel's title. */
   title: string;
@@ -278,20 +246,10 @@ export type SettingValues = {
   pinning: Pinning;
   /** What a pin change does to a panel that is not live. */
   pinningWhenNotLive: PinningWhenNotLive;
-  /** Whether the panel is saved with the workspace ('saved') or lasts only for the session ('session'). */
-  persist: 'saved' | 'session';
-  /** Whether a person's layout changes to the panel are recorded and applied when the workspace is restored. */
-  rememberLayout: boolean;
   /** Whether the panel is restored as it was saved ('saved'), live or parked. */
   restoreVisibility: 'saved' | 'live' | 'parked';
   /** Whether a closed panel stays closed ('stay-closed') or returns at the next launch ('return-next-launch'). */
   afterClose: 'stay-closed' | 'return-next-launch';
-  /** How long a close can be undone, in ms; 0 means no undo. */
-  undoWindowMs: number;
-  /** Whether closing the panel is reported to the host. */
-  reportClose: boolean;
-  /** When a picture of the panel is taken: on park, on close, on both or never. */
-  snapshot: 'both' | 'park' | 'close' | 'never';
 };
 
 /** The numbers behind a drag-down close. Distances are in px and velocities in px per second, positive downward. @public */
@@ -374,6 +332,18 @@ export type ChromeTuning = {
   slidePx: number;
   /** Milliseconds that icon row stays open after the pointer leaves the header. */
   graceMs: number;
+  /** Pixels between a header pill and the frame it floats above. The grab bar's strip is the same height. */
+  headerGapPx: number;
+  /** Pixels the grab bar's drawn pill is wide. */
+  grabPillWidthPx: number;
+  /** Pixels the grab bar's drawn pill is tall. */
+  grabPillHeightPx: number;
+  /** Pixels a header pill's text is inset from each end. */
+  headerInsetPx: number;
+  /** Pixels of horizontal padding on the footer. */
+  footerPadXPx: number;
+  /** Pixels of vertical padding on the footer. */
+  footerPadYPx: number;
 };
 
 /** The tuning leaves a panel may set; each may also be set on the workspace. @public */
@@ -388,7 +358,7 @@ export type PanelTuning = {
   edgeScroll?: { [K in keyof EdgeScrollTuning]?: EdgeScrollTuning[K] };
 };
 
-/** The per-panel leaves plus the eleven that only the workspace sets. @public */
+/** The per-panel leaves plus those only the workspace sets. @public */
 export type WorkspaceTuning = PanelTuning & {
   /** The gap between panels in px, an integer from 0 to 200. */
   rowGap?: number;
@@ -419,9 +389,9 @@ export type WorkspaceTuning = PanelTuning & {
    */
   maxLivePanels?: number | null;
   /**
-   * What happens to the neighbour a stepping row would show cut off by the window edge: 'off' leaves every panel at its
-   * size, 'visible' draws it smaller by whole slots so it fits the slots the shown panels leave free, 'hidden' keeps
-   * the room as margin and never draws that neighbour, not even part way through a glide.
+   * Removed: a stepping row always leaves every panel at its size and the window edge cuts the neighbour of a stop. 'off'
+   * is accepted; 'visible' and 'hidden' log one console warning each and act as 'off'.
+   * @deprecated Has no effect; remove it. The next release refuses 'visible' and 'hidden'.
    */
   shrinkOutOfView?: 'off' | 'visible' | 'hidden';
   /**
@@ -471,7 +441,6 @@ export type ResolvedWorkspaceTuning = ResolvedPanelTuning & {
   chrome: ChromeTuning;
   /** The most unpinned parkable panels the row keeps live, or `null` for no cap. */
   maxLivePanels: number | null;
-  shrinkOutOfView: 'off' | 'visible' | 'hidden';
   /** Whether the default mount fits the phone size to the window: 'off' or 'fit'. */
   phoneFit: 'off' | 'fit';
   /** The smallest scale of the preferred phone size the fit gives. */
@@ -525,7 +494,7 @@ export type SettingConflict = {
   /** The value that applies instead. */
   readonly applied: unknown;
   /** The coupling rule that forced the value, for kind 'forced'. */
-  readonly rule?: 'C1' | 'C2' | 'C3' | 'C4' | 'C5' | 'C6';
+  readonly rule?: 'C1' | 'C2' | 'C4' | 'C5';
   /** The setting or condition behind the rule, for kind 'forced'. */
   readonly forcedBy?: string;
   /** A readable description. */
@@ -533,7 +502,7 @@ export type SettingConflict = {
 };
 
 /** Every catalog name: a setting key, `headerButtons` as one name, and a dotted name per tuning leaf. @public */
-export type CatalogName = Exclude<keyof PanelSettings, 'tuning'> | `tuning.${keyof WorkspaceTuning}`;
+export type CatalogName = Exclude<keyof PanelSettings, 'tuning'> | `tuning.${Exclude<keyof WorkspaceTuning, 'shrinkOutOfView'>}`;
 
 /** The class word that opens a descriptor's on_configure rule. @public */
 export type SettingClass = 'NOW' | 'NEXT' | 'STATE' | 'SCOPE';
@@ -556,7 +525,7 @@ export interface SettingDescriptor {
   readonly default: string;
   /** Who may set the setting. */
   readonly scope: SettingScope;
-  /** Whether a view may set it, through the host layer. */
+  /** Whether a view may set it with `ViewHandle.configure`, which also checks the value the view asks for. */
   readonly viewSettable: boolean;
   /** Whether the setting names a behaviour that already existed ('today') or a new one ('new'). */
   readonly exists: 'today' | 'new';
@@ -585,11 +554,9 @@ export type PanelSettingsLayers = {
   user?: PanelUserLayer;
 };
 
-/** The person's own overrides: the only three things a person can change about a panel. @public */
+/** The person's own overrides: what a person can change about a panel. @public */
 export type PanelUserLayer = {
-  /** The tier the person chose; read as a slot count when `slots` is absent. */
-  formFactor?: FormFactor;
-  /** The slot count the person chose; wins over `formFactor`. */
+  /** The slot count the person chose. */
   slots?: number;
   /** Where the person put the panel. */
   anchor?: AnchorRequest;
@@ -674,7 +641,7 @@ const CATALOG_ROWS: readonly SettingDescriptor[] = [
     values: 'true, false',
     default: 'true (root: false)',
     scope: 'instance',
-    viewSettable: false,
+    viewSettable: true,
     exists: 'today',
     ownerEntry: 'phonux-engine-permission-settings',
     configure: { cls: 'NOW', doors: ['instance'] },
@@ -735,17 +702,6 @@ const CATALOG_ROWS: readonly SettingDescriptor[] = [
     configure: { cls: 'NOW', doors: ['instance'] },
   },
   {
-    name: 'formFactors',
-    group: 'permissions',
-    values: 'non-empty subset of phone, tablet, desktop',
-    default: 'all three (C1)',
-    scope: 'instance',
-    viewSettable: false,
-    exists: 'new',
-    ownerEntry: 'phonux-engine-permission-settings',
-    configure: { cls: 'STATE', doors: ['instance'] },
-  },
-  {
     name: 'clearable',
     group: 'permissions',
     values: 'true, false',
@@ -761,6 +717,17 @@ const CATALOG_ROWS: readonly SettingDescriptor[] = [
     group: 'template',
     values: 'true, false (template scope)',
     default: 'true',
+    scope: 'template',
+    viewSettable: false,
+    exists: 'new',
+    ownerEntry: 'phonux-saved-overrides-and-template-paths',
+    configure: { cls: 'SCOPE', doors: ['template'] },
+  },
+  {
+    name: 'hollowDot',
+    group: 'template',
+    values: 'true, false (template scope)',
+    default: 'false',
     scope: 'template',
     viewSettable: false,
     exists: 'new',
@@ -823,17 +790,6 @@ const CATALOG_ROWS: readonly SettingDescriptor[] = [
     configure: { cls: 'NEXT', doors: ['instance'] },
   },
   {
-    name: 'hideWhenLast',
-    group: 'visibility',
-    values: 'allow, refuse',
-    default: 'allow',
-    scope: 'instance',
-    viewSettable: false,
-    exists: 'new',
-    ownerEntry: 'phonux-engine-visibility-settings',
-    configure: { cls: 'NEXT', doors: ['instance'] },
-  },
-  {
     name: 'capacityReturn',
     group: 'visibility',
     values: 'auto, manual',
@@ -841,17 +797,6 @@ const CATALOG_ROWS: readonly SettingDescriptor[] = [
     scope: 'instance',
     viewSettable: false,
     exists: 'today',
-    ownerEntry: 'phonux-engine-visibility-settings',
-    configure: { cls: 'NEXT', doors: ['instance'] },
-  },
-  {
-    name: 'returnPriority',
-    group: 'visibility',
-    values: 'integer',
-    default: '0',
-    scope: 'instance',
-    viewSettable: false,
-    exists: 'new',
     ownerEntry: 'phonux-engine-visibility-settings',
     configure: { cls: 'NEXT', doors: ['instance'] },
   },
@@ -864,28 +809,6 @@ const CATALOG_ROWS: readonly SettingDescriptor[] = [
     viewSettable: false,
     exists: 'new',
     ownerEntry: 'phonux-row-numbers-and-overflow',
-    configure: { cls: 'NEXT', doors: ['instance'] },
-  },
-  {
-    name: 'evictionRank',
-    group: 'visibility',
-    values: 'integer',
-    default: '0',
-    scope: 'instance',
-    viewSettable: false,
-    exists: 'new',
-    ownerEntry: 'phonux-engine-visibility-settings',
-    configure: { cls: 'NEXT', doors: ['instance'] },
-  },
-  {
-    name: 'evictionOrder',
-    group: 'visibility',
-    values: 'farthest, nearest, leftmost, rightmost',
-    default: 'farthest',
-    scope: 'instance',
-    viewSettable: false,
-    exists: 'today',
-    ownerEntry: 'phonux-engine-visibility-settings',
     configure: { cls: 'NEXT', doors: ['instance'] },
   },
   {
@@ -922,17 +845,6 @@ const CATALOG_ROWS: readonly SettingDescriptor[] = [
     configure: { cls: 'NEXT', doors: ['instance'] },
   },
   {
-    name: 'scrollOnDrag',
-    group: 'scrolling',
-    values: 'edge, none',
-    default: 'edge (Q19: the owner asked for a per-panel switch and \'Yes, scroll at the edge\'; the library default is edge)',
-    scope: 'instance',
-    viewSettable: false,
-    exists: 'new',
-    ownerEntry: 'phonux-edge-scroll-while-dragging',
-    configure: { cls: 'NEXT', doors: ['instance'] },
-  },
-  {
     name: 'toggleWhenClosed',
     group: 'operations',
     values: 'ignore, reopen',
@@ -955,28 +867,6 @@ const CATALOG_ROWS: readonly SettingDescriptor[] = [
     configure: { cls: 'NEXT', doors: ['instance'] },
   },
   {
-    name: 'viewState',
-    group: 'visibility',
-    values: 'keep, reset-on-park',
-    default: 'keep',
-    scope: 'instance',
-    viewSettable: false,
-    exists: 'today',
-    ownerEntry: 'phonux-engine-visibility-settings',
-    configure: { cls: 'STATE', doors: ['instance'] },
-  },
-  {
-    name: 'keepMounted',
-    group: 'visibility',
-    values: 'true, false',
-    default: 'false (C1, C6)',
-    scope: 'instance',
-    viewSettable: false,
-    exists: 'new',
-    ownerEntry: 'phonux-keep-mounted-render-path',
-    configure: { cls: 'STATE', doors: ['instance'] },
-  },
-  {
     name: 'placeOnAdd',
     group: 'placement',
     values: 'row-start, row-end, parkable-start, parkable-end, after-fixed, order, {before}, {after}, {anchor}',
@@ -992,39 +882,6 @@ const CATALOG_ROWS: readonly SettingDescriptor[] = [
     group: 'placement',
     values: 'the same plus in-place',
     default: 'in-place',
-    scope: 'instance',
-    viewSettable: false,
-    exists: 'today',
-    ownerEntry: 'phonux-engine-placement-and-motion-settings',
-    configure: { cls: 'NEXT', doors: ['instance'] },
-  },
-  {
-    name: 'placeOnReturn',
-    group: 'placement',
-    values: 'in-place, row-start, row-end, parkable-start, parkable-end, after-fixed, order, {before}, {after}, {anchor}',
-    default: 'in-place',
-    scope: 'instance',
-    viewSettable: false,
-    exists: 'today',
-    ownerEntry: 'phonux-engine-placement-and-motion-settings',
-    configure: { cls: 'NEXT', doors: ['instance'] },
-  },
-  {
-    name: 'placeFallback',
-    group: 'placement',
-    values: 'row-start, row-end, parkable-start, parkable-end, after-fixed',
-    default: 'row-end',
-    scope: 'instance',
-    viewSettable: false,
-    exists: 'today',
-    ownerEntry: 'phonux-engine-placement-and-motion-settings',
-    configure: { cls: 'NEXT', doors: ['instance'] },
-  },
-  {
-    name: 'undoPlacement',
-    group: 'placement',
-    values: 'old-slot or any placeOnAdd value',
-    default: 'old-slot',
     scope: 'instance',
     viewSettable: false,
     exists: 'today',
@@ -1054,54 +911,10 @@ const CATALOG_ROWS: readonly SettingDescriptor[] = [
     configure: { cls: 'NEXT', doors: ['instance'] },
   },
   {
-    name: 'exitTo',
-    group: 'motion',
-    values: 'auto, left, right',
-    default: 'auto',
-    scope: 'instance',
-    viewSettable: false,
-    exists: 'today',
-    ownerEntry: 'phonux-engine-placement-and-motion-settings',
-    configure: { cls: 'NEXT', doors: ['instance'] },
-  },
-  {
-    name: 'closeExit',
-    group: 'motion',
-    values: 'down, left, right',
-    default: 'down',
-    scope: 'instance',
-    viewSettable: false,
-    exists: 'today',
-    ownerEntry: 'phonux-engine-placement-and-motion-settings',
-    configure: { cls: 'NEXT', doors: ['instance'] },
-  },
-  {
-    name: 'animated',
-    group: 'motion',
-    values: 'true, false',
-    default: 'true',
-    scope: 'instance',
-    viewSettable: false,
-    exists: 'new',
-    ownerEntry: 'phonux-engine-placement-and-motion-settings',
-    configure: { cls: 'NEXT', doors: ['instance'] },
-  },
-  {
-    name: 'formFactor',
-    group: 'identity',
-    values: 'phone, tablet, desktop',
-    default: 'phone (C4)',
-    scope: 'instance',
-    viewSettable: true,
-    exists: 'today',
-    ownerEntry: 'phonux-engine-permission-settings',
-    configure: { cls: 'NEXT', doors: ['instance'] },
-  },
-  {
     name: 'slots',
     group: 'identity',
     values: 'integer >= 1',
-    default: 'derived: the slot count of formFactor (phone 1, tablet 2, desktop every visible slot)',
+    default: '1',
     scope: 'instance',
     viewSettable: true,
     exists: 'new',
@@ -1112,7 +925,7 @@ const CATALOG_ROWS: readonly SettingDescriptor[] = [
     name: 'maxSlots',
     group: 'permissions',
     values: 'integer >= 1',
-    default: 'derived: the widest slot count formFactors allows (C1)',
+    default: 'every visible slot (C1)',
     scope: 'instance',
     viewSettable: false,
     exists: 'new',
@@ -1164,39 +977,6 @@ const CATALOG_ROWS: readonly SettingDescriptor[] = [
     configure: { cls: 'NOW', doors: ['instance'] },
   },
   {
-    name: 'frame',
-    group: 'header',
-    values: 'auto, none',
-    default: 'auto',
-    scope: 'instance',
-    viewSettable: false,
-    exists: 'new',
-    ownerEntry: 'phonux-default-frame-v3',
-    configure: { cls: 'NOW', doors: ['instance'] },
-  },
-  {
-    name: 'persist',
-    group: 'persistence',
-    values: 'saved, session',
-    default: 'saved',
-    scope: 'instance',
-    viewSettable: false,
-    exists: 'today',
-    ownerEntry: 'phonux-saved-overrides-and-template-paths',
-    configure: { cls: 'NEXT', doors: ['instance'] },
-  },
-  {
-    name: 'rememberLayout',
-    group: 'persistence',
-    values: 'true, false',
-    default: 'true (C3)',
-    scope: 'instance',
-    viewSettable: false,
-    exists: 'new',
-    ownerEntry: 'phonux-saved-overrides-and-template-paths',
-    configure: { cls: 'NEXT', doors: ['instance'] },
-  },
-  {
     name: 'restoreVisibility',
     group: 'persistence',
     values: 'saved, live, parked',
@@ -1211,44 +991,11 @@ const CATALOG_ROWS: readonly SettingDescriptor[] = [
     name: 'afterClose',
     group: 'persistence',
     values: 'stay-closed, return-next-launch',
-    default: 'stay-closed (C3)',
+    default: 'stay-closed',
     scope: 'instance',
     viewSettable: false,
     exists: 'new',
     ownerEntry: 'phonux-workspace-attach-and-snapshot',
-    configure: { cls: 'NEXT', doors: ['instance'] },
-  },
-  {
-    name: 'undoWindowMs',
-    group: 'closing',
-    values: 'integer ms; 0 = no undo',
-    default: '10000',
-    scope: 'instance',
-    viewSettable: false,
-    exists: 'today',
-    ownerEntry: 'phonux-engine-permission-settings',
-    configure: { cls: 'NEXT', doors: ['instance'] },
-  },
-  {
-    name: 'reportClose',
-    group: 'closing',
-    values: 'true, false',
-    default: 'true',
-    scope: 'instance',
-    viewSettable: false,
-    exists: 'today',
-    ownerEntry: 'phonux-engine-permission-settings',
-    configure: { cls: 'NEXT', doors: ['instance'] },
-  },
-  {
-    name: 'snapshot',
-    group: 'closing',
-    values: 'both, park, close, never',
-    default: 'both',
-    scope: 'instance',
-    viewSettable: false,
-    exists: 'today',
-    ownerEntry: 'phonux-engine-permission-settings',
     configure: { cls: 'NEXT', doors: ['instance'] },
   },
   {
@@ -1397,8 +1144,8 @@ const CATALOG_ROWS: readonly SettingDescriptor[] = [
   {
     name: 'tuning.chrome',
     group: 'tuning',
-    values: "object: mode 'always' or 'hover-or-active', fadeMs integer [0, 10000], fadeEase ('easeIn', 'easeOut', 'easeInOut', 'linear' or four numbers, x1 and x2 in [0,1]), slideMs integer [0, 10000], slidePx integer [0, 200], graceMs integer [0, 10000] (workspace only)",
-    default: "always, 120, easeOut, 140, 8, 250 (CHROME)",
+    values: "object: mode 'always' or 'hover-or-active', fadeMs integer [0, 10000], fadeEase ('easeIn', 'easeOut', 'easeInOut', 'linear' or four numbers, x1 and x2 in [0,1]), slideMs integer [0, 10000], slidePx integer [0, 200], graceMs integer [0, 10000], headerGapPx, grabPillWidthPx integer [0, 200], grabPillHeightPx integer [0, 50], headerInsetPx and footerPadXPx, footerPadYPx integer [0, 100] (workspace only)",
+    default: "always, 120, easeOut, 140, 8, 250, 24, 32, 4, 13, 12, 8 (CHROME)",
     scope: 'workspace',
     viewSettable: false,
     exists: 'new',
@@ -1414,17 +1161,6 @@ const CATALOG_ROWS: readonly SettingDescriptor[] = [
     viewSettable: false,
     exists: 'new',
     ownerEntry: 'phonux-max-live-panels',
-    configure: { cls: 'NOW', doors: ['tuning'] },
-  },
-  {
-    name: 'tuning.shrinkOutOfView',
-    group: 'tuning',
-    values: 'off, visible, hidden (workspace only)',
-    default: 'off (SHRINK_OUT_OF_VIEW)',
-    scope: 'workspace',
-    viewSettable: false,
-    exists: 'new',
-    ownerEntry: 'phonux-shrink-whole-panels-v1',
     configure: { cls: 'NOW', doors: ['tuning'] },
   },
   {
@@ -1478,7 +1214,7 @@ type DerivedDefaultKey = (typeof DERIVED_DEFAULT_KEYS)[number];
 
 /** Every setting that has its own default. The four derived ones follow `parkable` and `closable`; `title` has none. @public */
 export type LibraryPanelDefaults = {
-  readonly [K in Exclude<keyof SettingValues, 'draggable' | 'placeable' | 'listed' | 'clearable' | 'title' | 'slots' | 'maxSlots'>]: SettingValues[K];
+  readonly [K in Exclude<keyof SettingValues, 'draggable' | 'placeable' | 'listed' | 'clearable' | 'title'>]: SettingValues[K];
 } & {
   /** No header buttons by default. */
   readonly headerButtons: { readonly [id: string]: HeaderButton };
@@ -1496,49 +1232,31 @@ export const LIBRARY_PANEL_DEFAULTS: LibraryPanelDefaults = freezeClone({
   parkable: true,
   crossable: true,
   resizable: true,
-  formFactors: ['phone', 'tablet', 'desktop'] as readonly FormFactor[],
   hostCreatable: true,
+  hollowDot: false,
   multiple: false,
   maxInstances: 'unlimited' as number | 'unlimited',
   startVisibility: 'live' as const,
   hideStickiness: 'sticky' as const,
-  hideWhenLast: 'allow' as const,
   capacityReturn: 'auto' as const,
-  returnPriority: 0,
   overflow: 'scroll' as Overflow,
-  evictionRank: 0,
-  evictionOrder: 'farthest' as const,
   revealOnScroll: 'edges' as const,
   scrollOnOpen: 'into-view' as ScrollOnOpen,
   scrollOnMove: 'follow' as ScrollOnMove,
-  scrollOnDrag: 'edge' as ScrollOnDrag,
   toggleWhenClosed: 'ignore' as const,
   showWhenClosed: 'refuse' as const,
-  viewState: 'keep' as const,
-  keepMounted: false,
-  frame: 'auto' as const,
   placeOnAdd: 'row-end' as AddPlacement,
   placeOnShow: 'in-place' as AddPlacement | 'in-place',
-  placeOnReturn: 'in-place' as AddPlacement | 'in-place',
-  placeFallback: 'row-end' as const,
-  undoPlacement: 'old-slot' as 'old-slot' | AddPlacement,
   layer: 'base' as const,
   enterFrom: 'auto' as const,
-  exitTo: 'auto' as const,
-  closeExit: 'down' as const,
-  animated: true,
-  formFactor: 'phone' as FormFactor,
+  slots: 1,
+  maxSlots: ALL_SLOTS,
   title: undefined,
   pinning: { pinned: { placement: 'row-start' }, unpinned: { placement: 'row-end' } } as Pinning,
   pinningWhenNotLive: 'place-only' as PinningWhenNotLive,
   headerButtons: {},
-  persist: 'saved' as const,
-  rememberLayout: true,
   restoreVisibility: 'saved' as const,
   afterClose: 'stay-closed' as const,
-  undoWindowMs: 10000,
-  reportClose: true,
-  snapshot: 'both' as const,
 });
 
 /**
@@ -1572,7 +1290,6 @@ export const LIBRARY_TUNING_DEFAULTS: ResolvedWorkspaceTuning = freezeClone({
   initialScroll: INITIAL_SCROLL as ResolvedWorkspaceTuning['initialScroll'],
   chrome: { ...CHROME },
   maxLivePanels: null,
-  shrinkOutOfView: SHRINK_OUT_OF_VIEW as ResolvedWorkspaceTuning['shrinkOutOfView'],
   phoneFit: PHONE_FIT as ResolvedWorkspaceTuning['phoneFit'],
   phoneFitMin: PHONE_FIT_MIN,
   phoneFitMax: PHONE_FIT_MAX,
@@ -1584,7 +1301,6 @@ export const LIBRARY_TUNING_DEFAULTS: ResolvedWorkspaceTuning = freezeClone({
 
 type Check = (v: unknown) => string | undefined;
 
-const FORM_FACTORS: readonly FormFactor[] = ['phone', 'tablet', 'desktop'];
 const PLACEMENT_WORDS: readonly string[] = ['row-start', 'row-end', 'parkable-start', 'parkable-end', 'after-fixed', 'order'];
 const SLOT_ID = /^[a-z0-9-]{1,32}$/;
 
@@ -1636,12 +1352,6 @@ const placementProblem: Check = (v) => {
 
 const placementOrInPlace: Check = (v) => (v === 'in-place' ? undefined : placementProblem(v));
 const undoPlacementProblem: Check = (v) => (v === 'old-slot' ? undefined : placementProblem(v));
-
-const formFactorsProblem: Check = (v) => {
-  if (!Array.isArray(v) || v.length === 0) return 'expected a non-empty list of phone, tablet, desktop';
-  if (!v.every((item) => FORM_FACTORS.includes(item as FormFactor))) return 'expected only phone, tablet, desktop';
-  return new Set(v).size === v.length ? undefined : 'expected no repeated tier';
-};
 
 const maxInstancesProblem: Check = (v) => (v === 'unlimited' ? undefined : integer(1)(v) === undefined ? undefined : "expected an integer of at least 1 or 'unlimited'");
 
@@ -1732,6 +1442,64 @@ const pinningWhenNotLiveProblem: Check = (v) => {
   return undefined;
 };
 
+/** What the removed per-panel settings do, typed as the values they once took so the code that reads them keeps its branches. @internal */
+export interface FixedBehaviour {
+  readonly hideWhenLast: 'allow' | 'refuse';
+  readonly returnPriority: number;
+  readonly evictionRank: number;
+  readonly evictionOrder: 'farthest' | 'nearest' | 'leftmost' | 'rightmost';
+  readonly scrollOnDrag: ScrollOnDrag;
+  readonly viewState: 'keep' | 'reset-on-park';
+  readonly keepMounted: boolean;
+  readonly frame: 'auto' | 'none';
+  readonly placeOnReturn: AddPlacement | 'in-place';
+  readonly placeFallback: 'row-start' | 'row-end' | 'parkable-start' | 'parkable-end' | 'after-fixed';
+  readonly undoPlacement: 'old-slot' | AddPlacement;
+  readonly exitTo: 'auto' | 'left' | 'right';
+  readonly closeExit: 'down' | 'left' | 'right';
+  readonly animated: boolean;
+  readonly persist: 'saved' | 'session';
+  readonly rememberLayout: boolean;
+  readonly undoWindowMs: number;
+  readonly reportClose: boolean;
+  readonly snapshot: 'both' | 'park' | 'close' | 'never';
+}
+
+/**
+ * What the per-panel settings this version removed do now: each is fixed at the value it had as a default, for every
+ * panel. A template that still names one is told once in development and the value is ignored; a later rc refuses it.
+ * @internal
+ */
+export const FIXED: FixedBehaviour = Object.freeze({
+  hideWhenLast: 'allow',
+  returnPriority: 0,
+  evictionRank: 0,
+  evictionOrder: 'farthest',
+  scrollOnDrag: 'edge',
+  viewState: 'keep',
+  keepMounted: false,
+  frame: 'auto',
+  placeOnReturn: 'in-place',
+  placeFallback: 'row-end',
+  undoPlacement: 'old-slot',
+  exitTo: 'auto',
+  closeExit: 'down',
+  animated: true,
+  persist: 'saved',
+  rememberLayout: true,
+  undoWindowMs: 10000,
+  reportClose: true,
+  snapshot: 'both',
+});
+
+function reportRemovedValue(key: string, value: string): void {
+  reportOnce(`removed:${key}:${value}`, `phonux: the ${key} value '${value}' was removed`, () => ["it is ignored and the setting behaves as if it were 'off'", 'the next rc refuses it with invalid-settings']);
+}
+
+function reportRemovedKey(layer: string, key: string): void {
+  reportOnce(`removed:${key}`, `phonux: the ${layer} setting '${key}' was removed`, () => [`it is ignored and the panel behaves as if it were ${JSON.stringify(FIXED[key as keyof typeof FIXED])}`, 'the next rc refuses it with invalid-settings']);
+}
+
 type SettingKey = Exclude<CatalogName, `tuning.${string}`>;
 
 const SETTING_CHECKS: Record<SettingKey, Check> = {
@@ -1741,53 +1509,33 @@ const SETTING_CHECKS: Record<SettingKey, Check> = {
   crossable: bool,
   placeable: bool,
   resizable: bool,
-  formFactors: formFactorsProblem,
   clearable: bool,
   hostCreatable: bool,
+  hollowDot: bool,
   multiple: bool,
   maxInstances: maxInstancesProblem,
   listed: bool,
   startVisibility: oneOf('live', 'parked'),
   hideStickiness: oneOf('sticky', 'until-room'),
-  hideWhenLast: oneOf('allow', 'refuse'),
   capacityReturn: oneOf('auto', 'manual'),
-  returnPriority: integer(-Infinity),
   overflow: oneOf('scroll', 'park'),
-  evictionRank: integer(-Infinity),
-  evictionOrder: oneOf('farthest', 'nearest', 'leftmost', 'rightmost'),
   revealOnScroll: oneOf('edges', 'any', 'never'),
   scrollOnOpen: oneOf('into-view', 'start', 'center', 'none'),
   scrollOnMove: oneOf('follow', 'none'),
-  scrollOnDrag: oneOf('edge', 'none'),
   toggleWhenClosed: oneOf('ignore', 'reopen'),
   showWhenClosed: oneOf('refuse', 'reopen'),
-  viewState: oneOf('keep', 'reset-on-park'),
-  keepMounted: bool,
-  frame: oneOf('auto', 'none'),
   placeOnAdd: placementProblem,
   placeOnShow: placementOrInPlace,
-  placeOnReturn: placementOrInPlace,
-  placeFallback: oneOf('row-start', 'row-end', 'parkable-start', 'parkable-end', 'after-fixed'),
-  undoPlacement: undoPlacementProblem,
   layer: oneOf('base', 'raised'),
   enterFrom: oneOf('auto', 'left', 'right', 'anchor'),
-  exitTo: oneOf('auto', 'left', 'right'),
-  closeExit: oneOf('down', 'left', 'right'),
-  animated: bool,
-  formFactor: oneOf(...FORM_FACTORS),
   slots: integer(1, ALL_SLOTS),
   maxSlots: integer(1, ALL_SLOTS),
   title: text,
   pinning: pinningProblem,
   pinningWhenNotLive: pinningWhenNotLiveProblem,
   headerButtons: headerButtonsProblem,
-  persist: oneOf('saved', 'session'),
-  rememberLayout: bool,
   restoreVisibility: oneOf('saved', 'live', 'parked'),
   afterClose: oneOf('stay-closed', 'return-next-launch'),
-  undoWindowMs: integer(0),
-  reportClose: bool,
-  snapshot: oneOf('both', 'park', 'close', 'never'),
 };
 
 export type TuningLeaf = keyof WorkspaceTuning;
@@ -1834,6 +1582,12 @@ const TUNING_MEMBER_CHECKS: Record<'dragToClose' | 'slide' | 'edgeScroll' | 'chr
     slideMs: integer(0, 10000),
     slidePx: integer(0, 200),
     graceMs: integer(0, 10000),
+    headerGapPx: integer(0, 200),
+    grabPillWidthPx: integer(0, 200),
+    grabPillHeightPx: integer(0, 50),
+    headerInsetPx: integer(0, 100),
+    footerPadXPx: integer(0, 100),
+    footerPadYPx: integer(0, 100),
   },
 };
 
@@ -1867,6 +1621,10 @@ export function checkTuningLeaf(leaf: TuningLeaf, value: unknown): { accepted: u
   const base = `tuning.${leaf}`;
   if (!isObjectLeaf(leaf)) {
     const problem = TUNING_SCALAR_CHECKS[leaf](value);
+    if (problem === undefined && leaf === 'shrinkOutOfView' && value !== 'off') {
+      reportRemovedValue(base, value as string);
+      return { accepted: 'off', problems: [] };
+    }
     return problem === undefined ? { accepted: value, problems: [] } : { accepted: undefined, problems: [{ key: base, problem }] };
   }
   if (!isPlain(value)) return { accepted: undefined, problems: [{ key: base, problem: 'expected an object' }] };
@@ -1894,13 +1652,14 @@ const VIEW_SETTABLE_KEYS = new Set<string>(PANEL_SETTINGS_CATALOG.filter((d) => 
 
 /**
  * Whether a view may ask for `key` as `value`: a view may place itself only by an explicit anchor and enter only from it,
- * so those two keys are checked by value.
+ * so those keys are checked by value.
  * @internal
  */
 export const viewMayAsk = (key: string, value: unknown): boolean => {
   if (!VIEW_SETTABLE_KEYS.has(key)) return false;
   if (key === 'placeOnAdd') return isPlain(value) && Object.keys(value).length === 1 && value.anchor !== undefined;
   if (key === 'enterFrom') return value === 'anchor';
+  if (key === 'closable') return value === false;
   return true;
 };
 
@@ -1958,7 +1717,7 @@ function checkTuning(layer: AskLayer, raw: unknown, accepted: Accepted, env: Env
     }
     const checked = checkTuningLeaf(leaf, value);
     for (const { key, problem } of checked.problems) reject(layer, key, problem, lenientLayer, env.notes);
-    if (checked.accepted === undefined) continue;
+    if (checked.accepted === undefined || leaf === 'shrinkOutOfView') continue;
     const name = `tuning.${leaf}`;
     if (WORKSPACE_ONLY_TUNING.has(leaf)) {
       if (layer === 'template') throw new PanelManagerError('invalid-settings', `${layer}.${name}: a workspace-only tuning key; set it on WorkspaceOptions.tuning`, { layer, key: name });
@@ -1991,6 +1750,11 @@ function checkLayer(layer: AskLayer, raw: unknown, env: Env): Accepted {
       checkTuning(layer, value, accepted, env, lenientLayer);
       continue;
     }
+    if (Object.hasOwn(FIXED, key)) {
+      if (lenientLayer) reject(layer, key, 'a setting this version no longer has', true, env.notes);
+      else reportRemovedKey(layer, key);
+      continue;
+    }
     if (!Object.hasOwn(SETTING_CHECKS, key)) {
       reject(layer, key, 'unknown setting', lenientLayer, env.notes);
       continue;
@@ -2014,7 +1778,7 @@ function checkLayer(layer: AskLayer, raw: unknown, env: Env): Accepted {
 }
 
 function checkUser(raw: unknown, env: Env): PanelUserLayer {
-  const accepted: { formFactor?: FormFactor; slots?: number; anchor?: AnchorRequest; parkable?: boolean } = {};
+  const accepted: { slots?: number; anchor?: AnchorRequest; parkable?: boolean } = {};
   if (raw === undefined) return accepted;
   if (!isPlain(raw)) {
     reject('user', '', 'a settings layer must be an object', env.lenient, env.notes);
@@ -2024,8 +1788,7 @@ function checkUser(raw: unknown, env: Env): PanelUserLayer {
     const value = raw[key];
     if (value === undefined) continue;
     let problem: string | undefined;
-    if (key === 'formFactor') problem = oneOf(...FORM_FACTORS)(value);
-    else if (key === 'slots') problem = integer(1, ALL_SLOTS)(value);
+    if (key === 'slots') problem = integer(1, ALL_SLOTS)(value);
     else if (key === 'parkable') problem = bool(value);
     else if (key === 'anchor') problem = anchorProblem(value);
     else problem = 'unknown setting';
@@ -2033,8 +1796,7 @@ function checkUser(raw: unknown, env: Env): PanelUserLayer {
       reject('user', key, problem, env.lenient, env.notes);
       continue;
     }
-    if (key === 'formFactor') accepted.formFactor = value as FormFactor;
-    else if (key === 'slots') accepted.slots = value as number;
+    if (key === 'slots') accepted.slots = value as number;
     else if (key === 'parkable') accepted.parkable = value as boolean;
     else accepted.anchor = { ...(value as AnchorRequest) };
   }
@@ -2137,61 +1899,22 @@ function applyRules(s: State, root: boolean): void {
 
   if (s.values.parkable === false) {
     // The size settings are one group: if the panel's own template, host or instance asked for any of them (History is resizable when the app says so), all stand; otherwise they are forced to one phone slot.
-    const fixedSize = [['resizable', false], ['formFactors', ['phone']], ['formFactor', 'phone'], ['slots', 1], ['maxSlots', 1]] as const;
+    const fixedSize = [['resizable', false], ['slots', 1], ['maxSlots', 1]] as const;
     const askedForThisPanel = fixedSize.some(([key, applied]) => (s.source[key] === 'template' || s.source[key] === 'host' || s.source[key] === 'instance') && !sameSettingsValue(s.values[key], applied));
     if (!askedForThisPanel) for (const [key, applied] of fixedSize) force(s, key, applied, 'C1', 'parkable');
     force(s, 'overflow', 'scroll', 'C1', 'parkable');
     force(s, 'startVisibility', 'live', 'C1', 'parkable');
     force(s, 'restoreVisibility', 'live', 'C1', 'parkable');
-    force(s, 'keepMounted', false, 'C1', 'parkable');
   }
   if (s.values.closable === false) force(s, 'clearable', false, 'C2', 'closable');
-  if (s.values.persist === 'session') {
-    force(s, 'rememberLayout', false, 'C3', 'persist');
-    force(s, 'afterClose', 'return-next-launch', 'C3', 'persist');
-  }
-  // A tier asked by a layer after the one that asked for slots is the later word, so the earlier slot count gives way.
-  const askRank = (key: string): number => ASK_LAYERS.indexOf(s.source[key] as AskLayer);
-  if (s.values.slots !== undefined && askRank('slots') >= 0 && askRank('formFactor') > askRank('slots')) {
-    s.values.slots = undefined;
-    delete s.source.slots;
-  }
-  const tiers = s.values.formFactors as readonly FormFactor[];
-  if (s.values.slots === undefined && !tiers.includes(s.values.formFactor as FormFactor)) force(s, 'formFactor', tiers[0], 'C4', 'formFactors');
-  if (s.values.maxSlots === undefined) {
-    s.values.maxSlots = Math.max(...tiers.map(slotsOfTier));
-    s.source.maxSlots = 'derived';
-  }
-  const narrowest = Math.min(...tiers.map(slotsOfTier));
-  const broadest = Math.max(...tiers.map(slotsOfTier));
-  if ((s.values.maxSlots as number) < narrowest) force(s, 'maxSlots', narrowest, 'C4', 'formFactors');
-  else if ((s.values.maxSlots as number) > broadest) force(s, 'maxSlots', broadest, 'C4', 'formFactors');
-  const widest = s.values.maxSlots as number;
-  if (s.values.slots === undefined) {
-    const wanted = Math.min(slotsOfTier(s.values.formFactor as FormFactor), widest);
-    // A cap between two allowed tiers lands on the wider one that still fits under it.
-    const allowed = tiers.map(slotsOfTier).filter((n) => n <= wanted);
-    s.values.slots = tiers.includes(tierOfSlots(wanted)) ? wanted : Math.max(...allowed, narrowest);
-    s.source.slots = 'derived';
-  } else if ((s.values.slots as number) > widest) force(s, 'slots', widest, 'C4', 'maxSlots');
-  else if (!tiers.includes(tierOfSlots(s.values.slots as number))) force(s, 'slots', Math.min(slotsOfTier(tiers[0]!), widest), 'C4', 'formFactors');
-  // The tier a panel reports follows its slots, so the two never disagree; slots wins when both were asked for.
-  const reported = tierOfSlots(s.values.slots as number);
-  if (s.values.formFactor !== reported) {
-    if (askRank('formFactor') >= 0) force(s, 'formFactor', reported, 'C4', 'slots');
-    else {
-      s.values.formFactor = reported;
-      s.source.formFactor = 'derived';
-    }
-  }
+  if ((s.values.slots as number) > (s.values.maxSlots as number)) force(s, 'slots', s.values.maxSlots, 'C4', 'maxSlots');
   if (root) {
     force(s, 'draggable', false, 'C5');
     force(s, 'placeable', false, 'C5');
   }
-  if (s.values.viewState === 'reset-on-park') force(s, 'keepMounted', false, 'C6', 'viewState');
 }
 
-const PARK_LEVERS = ['capacityReturn', 'returnPriority', 'evictionRank', 'evictionOrder'] as const;
+const PARK_LEVERS = ['capacityReturn'] as const;
 
 function appliedFor(key: string, value: Plain, tuning: State['tuning']): unknown {
   if (key.startsWith('tuning.')) {
@@ -2231,35 +1954,25 @@ export function resolveUnderTuning(layers: PanelSettingsLayers, options: Resolve
   let state = merge(accepted, undefined, workspaceTuning);
   applyRules(state, root);
 
-  // The person's size as a slot count: their slots, else their tier read as slots.
-  const userTierFits = user.formFactor !== undefined && (state.values.formFactors as readonly FormFactor[]).includes(user.formFactor);
-  const userSlotsFit = user.slots !== undefined && (state.values.formFactors as readonly FormFactor[]).includes(tierOfSlots(user.slots));
-  const personSlots = user.slots !== undefined ? (userSlotsFit ? user.slots : undefined) : user.formFactor !== undefined && userTierFits ? slotsOfTier(user.formFactor) : undefined;
-  // A person's fixed column needs the phone tier, so the tier is settled before their parkable joins as the top layer.
-  const tier = personSlots === undefined ? (state.values.formFactor as FormFactor) : tierOfSlots(Math.min(personSlots, state.values.maxSlots as number));
+  // The person's size: their slot count, never above what the panel's own settings allow.
+  const personSlots = user.slots === undefined ? undefined : Math.min(user.slots, state.values.maxSlots as number);
+  // A person's fixed column needs one slot, so the slot count is settled before their parkable joins as the top layer.
+  const width = personSlots ?? (state.values.slots as number);
   let userParkable = user.parkable;
-  if (userParkable === false && tier !== 'phone') {
-    env.notes.push({ code: 'override-dropped', key: 'parkable', message: `user.parkable: a fixed column needs the phone tier and this panel resolves to ${tier}; dropped` });
+  if (userParkable === false && width !== 1) {
+    env.notes.push({ code: 'override-dropped', key: 'parkable', message: `user.parkable: a fixed column needs one slot and this panel resolves to ${width}; dropped` });
     userParkable = undefined;
   }
   if (userParkable !== undefined) {
     state = merge(accepted, userParkable, workspaceTuning);
     applyRules(state, root);
   }
-  if (user.formFactor !== undefined && user.slots === undefined && !userTierFits) {
-    env.notes.push({ code: 'override-dropped', key: 'formFactor', message: `user.formFactor: ${user.formFactor} is outside this panel's formFactors; dropped` });
-  }
-  if (user.slots !== undefined && !userSlotsFit) {
-    env.notes.push({ code: 'override-dropped', key: 'slots', message: `user.slots: ${user.slots} is outside this panel's formFactors; dropped` });
-  }
-  if (personSlots !== undefined) {
-    const chosen = Math.min(personSlots, state.values.maxSlots as number);
-    // The person's size outvotes what a rule made of the layers' asks, so those conflicts no longer describe the result.
-    state.drafts = state.drafts.filter((d) => d.key !== 'slots' && d.key !== 'formFactor');
-    state.values.slots = chosen;
+  if (user.slots !== undefined) {
+    // The person's size outvotes what a rule made of the layers' asks, so that conflict no longer describes the result.
+    state.drafts = state.drafts.filter((d) => d.key !== 'slots');
+    // Held to the maxSlots of the final merge: their own parkable may have lifted a fixed column's cap.
+    state.values.slots = Math.min(user.slots, state.values.maxSlots as number);
     state.source.slots = 'user';
-    state.values.formFactor = tierOfSlots(chosen);
-    state.source.formFactor = (user.formFactor ?? tierOfSlots(user.slots ?? chosen)) === state.values.formFactor ? 'user' : 'derived';
   }
 
   const resolved = state.values;
@@ -2277,7 +1990,7 @@ export function resolveUnderTuning(layers: PanelSettingsLayers, options: Resolve
   const notes = env.notes;
   const resizableAsked = state.source.resizable === 'template' || state.source.resizable === 'host' || state.source.resizable === 'instance';
   if (resolved.resizable === true && resizableAsked && resolved.maxSlots === 1) {
-    notes.push({ code: 'resizable-capped', key: 'maxSlots', message: `maxSlots: resizable is set by the ${state.source.resizable} layer but maxSlots resolves to 1, so the panel cannot grow; set maxSlots (and formFactors) too` });
+    notes.push({ code: 'resizable-capped', key: 'maxSlots', message: `maxSlots: resizable is set by the ${state.source.resizable} layer but maxSlots resolves to 1, so the panel cannot grow; set maxSlots too` });
   }
   const pinning = resolved.pinning as Pinning;
   if (pinning.pinned.parkable === false && state.source.listed === 'derived') {
@@ -2312,11 +2025,10 @@ export function resolveUnderTuning(layers: PanelSettingsLayers, options: Resolve
 
 /** What an entry with no settings starts from: every library default, the derived ones included. */
 const LEGACY_BASE: ResolvedPanelSettings = resolvePanelSettings().value;
-const FIXED_COLUMN_TIERS: readonly FormFactor[] = Object.freeze(['phone'] as const);
 
 /**
  * The settings `p` behaves under: `p.settings` itself when it has them, else values read from the fields a
- * hand-built entry carries (`locked`, `collapsible`, `listed`, `layer`, `anchoredEnter`, `formFactor`, `title`),
+ * hand-built entry carries (`locked`, `collapsible`, `listed`, `layer`, `anchoredEnter`, `slots`, `title`),
  * with every other key at its library default. A hand-built entry keeps its original parking and a fixed column
  * cannot be dragged, placed or resized.
  * @internal
@@ -2331,14 +2043,12 @@ export function effective(p: PanelWindow | PanelRowEntry): ResolvedPanelSettings
     draggable: parkable,
     placeable: parkable,
     resizable: parkable,
-    formFactors: parkable ? LEGACY_BASE.formFactors : FIXED_COLUMN_TIERS,
     clearable: parkable && !p.locked,
     listed: 'listed' in p ? p.listed : parkable,
     overflow: parkable ? 'park' : 'scroll',
     layer: p.layer ?? 'base',
     enterFrom: p.anchoredEnter === true ? 'anchor' : 'auto',
-    formFactor: p.formFactor ?? 'phone',
-    slots: ('slots' in p ? p.slots : undefined) ?? slotsOfTier(p.formFactor ?? 'phone'),
+    slots: ('slots' in p ? p.slots : undefined) ?? 1,
     maxSlots: parkable ? ALL_SLOTS : 1,
     ...(p.title !== undefined ? { title: p.title } : {}),
   };
@@ -2351,18 +2061,14 @@ export const holdUnlistedNote = (panelId: PanelId): SettingNote => ({ code: 'hol
 /** The name readers use for an entry: its `key` when created from settings, its `id` when hand-built. @internal */
 export const panelKey = (p: PanelWindow | PanelRowEntry): string => p.key ?? p.id;
 
-// Literals, not panelTiers.ts's TIER_SIZES: this file may value-import only its two leaf modules, and
-// test/settings-enforcement-permissions.test.ts holds these equal to the table the row prices widths from.
-const TIER_SIZE_LITERALS: Readonly<Record<FormFactor, PanelSize>> = {
-  phone: { formFactor: 'phone', width: 390, height: 700 },
-  tablet: { formFactor: 'tablet', width: 768, height: 'fill' },
-  desktop: { formFactor: 'desktop', width: 1200, height: 'fill' },
-};
+// Literals, not panelTiers.ts's sizeOfSlots: this file may value-import only its two leaf modules, and
+// test/settings-enforcement-permissions.test.ts holds this equal to the function the row prices widths from.
+const sizeOfSlotsLiteral = (slots: number): PanelSize => (slots <= 1 ? { width: 390, height: 700 } : { width: slots * 390 + (slots - 1) * ROW_GAP, height: 'fill' });
 
 /**
  * `entry` with `resolved` written into the fields that mirror it, and into no other. 'create' writes them all,
- * the tier and its size, `key` and `live` included (`startVisibility` 'parked' parks the entry; 'live' never revives
- * one the caller handed in parked); 'reconfigure' writes only what a later change may move and leaves the tier,
+ * the slots and their size, `key` and `live` included (`startVisibility` 'parked' parks the entry; 'live' never revives
+ * one the caller handed in parked); 'reconfigure' writes only what a later change may move and leaves the slots,
  * size, anchor, `live`, `hostData` and `key` as the person and the row left them.
  * @internal
  */
@@ -2388,9 +2094,8 @@ export function applyTemplate(entry: PanelWindow, resolved: ResolvedPanelSetting
     listed: resolved.listed,
     layer: resolved.layer,
     anchoredEnter: resolved.enterFrom === 'anchor',
-    formFactor: resolved.formFactor,
     slots: resolved.slots,
-    size: entry.size?.formFactor === resolved.formFactor ? entry.size : { ...TIER_SIZE_LITERALS[resolved.formFactor] },
+    size: entry.slots === resolved.slots && entry.size !== undefined ? entry.size : sizeOfSlotsLiteral(resolved.slots),
     ...title,
     settings: resolved,
     key: entry.key ?? entry.id,

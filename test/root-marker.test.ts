@@ -7,11 +7,12 @@ import { test, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
 import './support/jsdom-globals.js';
 import * as React from 'react';
-import { PanelRow, registerView, useProvidePanels, usePanelNeighborWidths, type PanelWindow, type ProvidedPanels } from '../index.js';
+import { useProvidePanels, usePanelNeighborWidths, type PanelWindow, type ProvidedPanels } from '../index.js';
 import { isPresent } from '../panelRowEntry.js';
 import { movePanel } from '../panelWindow.js';
 import type { UsePanelManagerResult } from '../panels/usePanelManager.js';
-import { cleanup, mount, panelsInput, usePanelManagerWith, withHost } from './support/mount-harness.js';
+import { cleanup, mount, usePanelManagerWith, withHost, useSeededInput, StaticRow } from './support/mount-harness.js';
+import { registerTestView } from './support/test-views.js';
 
 const MARKER = '__root__';
 
@@ -30,14 +31,14 @@ const marker = (): PanelWindow => entry(MARKER, { url: '', title: '', locked: tr
 const history = (): PanelWindow => entry('root', { url: '', title: 'History', locked: true, collapsible: false, listed: false });
 const ids = (panels: readonly PanelWindow[]): string[] => panels.map((p) => p.id);
 
-registerView('marker-probe', ({ panel }) => {
+registerTestView('marker-probe', ({ panel }) => {
   const widths = usePanelNeighborWidths();
   return React.createElement('i', { 'data-slot': panel.id, 'data-widths': JSON.stringify(widths) }, panel.title);
 });
 
 const NONE: ReadonlySet<string> = new Set();
 const rowOf = (entries: PanelWindow[], rootId: string): React.ReactElement =>
-  withHost(React.createElement(PanelRow, { entries, rootId, closingIds: NONE, enteringViaAnchorIds: NONE }));
+  withHost(React.createElement(StaticRow, { entries, rootId, closingIds: NONE, enteringViaAnchorIds: NONE }));
 const slotOf = (container: HTMLElement, id: string): HTMLElement | null => container.querySelector(`[data-slot="${id}"]`)?.parentElement ?? null;
 const slotIds = (container: HTMLElement): string[] => [...container.querySelectorAll('[data-slot]')].map((n) => (n as HTMLElement).dataset.slot!);
 const xOf = (container: HTMLElement, id: string): number => {
@@ -47,10 +48,10 @@ const xOf = (container: HTMLElement, id: string): number => {
   return match === null ? 0 : Number(match[1]);
 };
 
-function mountProvider(initialEntries: PanelWindow[], over: Parameters<typeof panelsInput>[0] = {}): () => ProvidedPanels {
+function mountProvider(initialEntries: PanelWindow[], over: Partial<Parameters<typeof useSeededInput>[0]> = {}): () => ProvidedPanels {
   let latest: ProvidedPanels | undefined;
   function Probe(): React.ReactElement {
-    latest = useProvidePanels(panelsInput({ initialEntries, ...over }));
+    latest = useProvidePanels(useSeededInput({ initialEntries, ...over }));
     return React.createElement('output');
   }
   mount(React.createElement(Probe));

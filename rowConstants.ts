@@ -71,7 +71,20 @@ export const ROW_GESTURE = 'step' as const;
 export const INITIAL_SCROLL = 'start' as const;
 
 /** When a panel's header, grab bar and footer show, and the numbers a host's header icon row animates with. */
-export const CHROME = { mode: 'always', fadeMs: 120, fadeEase: 'easeOut', slideMs: 140, slidePx: 8, graceMs: 250 } as const;
+export const CHROME = {
+  mode: 'always',
+  fadeMs: 120,
+  fadeEase: 'easeOut',
+  slideMs: 140,
+  slidePx: 8,
+  graceMs: 250,
+  headerGapPx: 24,
+  grabPillWidthPx: 32,
+  grabPillHeightPx: 4,
+  headerInsetPx: 13,
+  footerPadXPx: 12,
+  footerPadYPx: 8,
+} as const;
 
 /** How many slide durations the container width must hold still before the row's centring margin glides again. */
 export const RESIZE_SETTLE_SLIDES = 1.25;
@@ -82,13 +95,10 @@ export const EDGE_SCROLL_MAX_PX_PER_SEC = 900;
 export const EDGE_SCROLL_REDUCED_STEP_MS = 500;
 
 /**
- * The slot count `setFormFactor('desktop')` stores: finite, and larger than any window fits, so it keeps meaning
- * "every visible slot" without a non-finite number ever being saved. The drawn count is always capped at the fit.
+ * The largest slot count a panel can be set to. It is finite and above what any window fits, so a consumer can
+ * use it as "every visible slot" and it stays a saveable number. A drawn count is always capped at the fit.
  */
 export const ALL_SLOTS = 64;
-
-/** Whether a stepping row resizes the neighbour its shown panels would leave cut off by the window edge: 'off' never does. */
-export const SHRINK_OUT_OF_VIEW = 'off' as const;
 
 /** Whether the default mount fits the phone size to the window: 'off' draws the host's preferred size as it is. */
 export const PHONE_FIT = 'off' as const;
@@ -96,12 +106,6 @@ export const PHONE_FIT = 'off' as const;
 /** The scale band the fit keeps the phone in, as fractions of the preferred size: 320 to 441 px on 390, inside real phone widths. */
 export const PHONE_FIT_MIN = 0.82;
 export const PHONE_FIT_MAX = 1.13;
-
-/** The slot count a tier stands for: phone one, tablet two, desktop every visible slot. */
-export const slotsOfTier = (tier: 'phone' | 'tablet' | 'desktop'): number => (tier === 'phone' ? 1 : tier === 'tablet' ? 2 : ALL_SLOTS);
-
-/** The tier a slot count reports: one slot phone, two tablet, three or more desktop. */
-export const tierOfSlots = (slots: number): 'phone' | 'tablet' | 'desktop' => (slots <= 1 ? 'phone' : slots === 2 ? 'tablet' : 'desktop');
 
 /** The widest `slots` slots are drawn: whole phone widths with the row gap between them, so edges sit on the stop grid. */
 export const slotWidth = (slots: number, phoneWidth: number, gap: number): number => slots * phoneWidth + (slots - 1) * gap;

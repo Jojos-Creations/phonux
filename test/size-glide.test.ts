@@ -15,7 +15,6 @@ import type { PanelHandle, PanelTemplate, WorkspaceHandle } from '../index.js';
 import { createFakeHost } from '../fakeHost.js';
 import { SizeBox } from '../PanelRowSlot.js';
 import { DefaultFrame } from '../defaultFrame.js';
-import { PanelHiddenContext } from '../panelSlotContext.js';
 import { GLIDE_ON, GLIDE_X, GLIDE_Y, glideCorner, glideEdge, writeGlide } from '../sizeGlide.js';
 import { advanceFrames, cleanup, mount } from './support/mount-harness.js';
 import { frameClock } from './support/jsdom-globals.js';
@@ -80,8 +79,7 @@ test('the frame and the header pill draw their edge as a shadow that takes no la
   assert.match(pill, /padding-left: 13px; padding-right: 13px; padding-top: 1px; padding-bottom: 1px/, "the pill keeps its text 12 px from the frame's content and 1 px for the edge");
 });
 
-const sized = (hidden: boolean, width: number, height: number | '100%'): React.ReactElement =>
-  React.createElement(PanelHiddenContext.Provider, { value: hidden }, React.createElement(SizeBox, { width, height, children: React.createElement('i') }));
+const sized = (width: number, height: number | '100%'): React.ReactElement => React.createElement(SizeBox, { width, height, children: React.createElement('i') });
 const props = (el: HTMLElement): [string, string, string] => [el.style.getPropertyValue(GLIDE_X), el.style.getPropertyValue(GLIDE_Y), el.style.getPropertyValue(GLIDE_ON)];
 const scaleOf = (el: HTMLElement): [number, number] => {
   const m = /scale\(([-\d.e]+), ([-\d.e]+)\)/.exec(el.style.transform);
@@ -90,10 +88,10 @@ const scaleOf = (el: HTMLElement): [number, number] => {
 
 test('the box writes the scale it is drawn at as custom properties on every frame of the glide, and removes all three when it ends', async () => {
   mock.timers.enable({ apis: ['setTimeout'] });
-  const mounted = mount(sized(false, 390, 700));
+  const mounted = mount(sized(390, 700));
   const box = mounted.container.querySelector<HTMLElement>('[data-panel-size-box]')!;
   assert.deepEqual(props(box), ['', '', ''], 'at rest nothing is set');
-  mounted.rerender(sized(false, 796, 700));
+  mounted.rerender(sized(796, 700));
   let sampled = 0;
   for (let frame = 0; frame < 60; frame++) {
     const [x, y] = scaleOf(box);
@@ -109,16 +107,12 @@ test('the box writes the scale it is drawn at as custom properties on every fram
 });
 
 test('a box that snaps, or sits below another box, never sets the properties', async () => {
-  const parked = mount(sized(true, 390, 700));
-  parked.rerender(sized(true, 796, 700));
-  assert.deepEqual(props(parked.container.querySelector<HTMLElement>('[data-panel-size-box]')!), ['', '', ''], 'parked');
-  cleanup();
-  const reduced = mount(React.createElement(MotionConfig, { reducedMotion: 'always' }, sized(false, 390, 700)));
-  reduced.rerender(React.createElement(MotionConfig, { reducedMotion: 'always' }, sized(false, 796, 700)));
+  const reduced = mount(React.createElement(MotionConfig, { reducedMotion: 'always' }, sized(390, 700)));
+  reduced.rerender(React.createElement(MotionConfig, { reducedMotion: 'always' }, sized(796, 700)));
   assert.deepEqual(props(reduced.container.querySelector<HTMLElement>('[data-panel-size-box]')!), ['', '', ''], 'Reduce Motion');
   cleanup();
-  const nested = mount(React.createElement(SizeBox, { width: 390, height: 700, children: sized(false, 390, 700) }));
-  nested.rerender(React.createElement(SizeBox, { width: 390, height: 700, children: sized(false, 796, 700) }));
+  const nested = mount(React.createElement(SizeBox, { width: 390, height: 700, children: sized(390, 700) }));
+  nested.rerender(React.createElement(SizeBox, { width: 390, height: 700, children: sized(796, 700) }));
   const plain = nested.container.querySelector<HTMLElement>('[data-panel-size-plain]')!;
   assert.deepEqual(props(plain), ['', '', ''], 'a box inside a box is a plain div');
 });
@@ -150,18 +144,18 @@ async function rig(templates: PanelTemplate[], add: string[]): Promise<{ ws: Wor
 
 const boxOf = (m: ResizableWorkspace, id: string): HTMLElement => m.container.querySelector(`[data-body="${id}"]`)!.closest<HTMLElement>('[data-row-slot]')!.querySelector<HTMLElement>('[data-panel-size-box]')!;
 
-const summary = (formFactor: 'phone' | 'tablet' | 'desktop', size: { width: number; height: number | 'fill' }): never => ({ id: 'p', title: 'P', formFactor, size: { formFactor, ...size } }) as never;
+const summary = (slots: number, size: { width: number; height: number | 'fill' }): never => ({ id: 'p', title: 'P', slots, size }) as never;
 const framed = (panel: never): React.ReactElement => React.createElement(HostProvider, { host: createFakeHost(), children: React.createElement(DefaultFrame, { panel, children: React.createElement('i') }) });
 
-test("a panel that fills the row's height is drawn at 100% and its box never scales on y, while it still eases on x, to a tablet and on to a desktop and back", async () => {
+test("a panel that fills the row's height is drawn at 100% and its box never scales on y, while it still eases on x, to two slots and on to a wider panel and back", async () => {
   mock.timers.enable({ apis: ['setTimeout'] });
-  const mounted = mount(framed(summary('phone', { width: 390, height: 700 })));
+  const mounted = mount(framed(summary(1, { width: 390, height: 700 })));
   const box = mounted.container.querySelector<HTMLElement>('[data-panel-size-box]')!;
   assert.equal(box.style.height, '700px', 'a phone has a pixel height');
   const steps: Array<[string, never, string]> = [
-    ['to a tablet', summary('tablet', { width: 768, height: 'fill' }), '100%'],
-    ['on to a desktop', summary('desktop', { width: 1200, height: 'fill' }), '100%'],
-    ['back to a phone', summary('phone', { width: 390, height: 700 }), '700px'],
+    ['to two slots', summary(2, { width: 768, height: 'fill' }), '100%'],
+    ['on to a wider panel', summary(3, { width: 1200, height: 'fill' }), '100%'],
+    ['back to one slot', summary(1, { width: 390, height: 700 }), '700px'],
   ];
   for (const [name, panel, height] of steps) {
     mounted.rerender(framed(panel));
@@ -182,9 +176,9 @@ test("a panel that fills the row's height is drawn at 100% and its box never sca
 
 test('a height that changes is eased on y by the same curve as the width, and a change that lands mid-glide carries on from the height on screen', async () => {
   mock.timers.enable({ apis: ['setTimeout'] });
-  const mounted = mount(sized(false, 390, 700));
+  const mounted = mount(sized(390, 700));
   const box = mounted.container.querySelector<HTMLElement>('[data-panel-size-box]')!;
-  mounted.rerender(sized(false, 796, 350));
+  mounted.rerender(sized(796, 350));
   const [x0, y0] = scaleOf(box);
   assert.ok(Math.abs(x0 - 390 / 796) < 1e-6 && Math.abs(y0 - 2) < 1e-6, `drawn at the old size: ${x0}, ${y0}`);
   let compared = 0;
@@ -201,7 +195,7 @@ test('a height that changes is eased on y by the same curve as the width, and a 
   assert.ok(compared > 5);
   await advanceFrames(800);
   // A commit that took 64 ms keeps the two axes on one curve too.
-  mounted.rerender(sized(false, 390, 700));
+  mounted.rerender(sized(390, 700));
   const [jx0, jy0] = scaleOf(box);
   frameClock.skip(64);
   let jank = 0;
@@ -214,10 +208,10 @@ test('a height that changes is eased on y by the same curve as the width, and a 
   }
   assert.ok(jank > 3);
   await advanceFrames(800);
-  mounted.rerender(sized(false, 796, 350));
+  mounted.rerender(sized(796, 350));
   await advanceFrames(100);
   const drawnHeight = scaleOf(box)[1] * 350;
-  mounted.rerender(sized(false, 796, 700));
+  mounted.rerender(sized(796, 700));
   assert.ok(Math.abs(scaleOf(box)[1] * 700 - drawnHeight) < 1.5, `from ${drawnHeight.toFixed(1)}px high, not from a height it never showed (${(scaleOf(box)[1] * 700).toFixed(1)}px)`);
 });
 

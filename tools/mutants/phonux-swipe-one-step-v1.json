@@ -1,0 +1,89 @@
+{
+  "tests": [
+    "test/row-gesture.test.ts"
+  ],
+  "mutants": [
+    {
+      "name": "rise factor 1 lets tail jitter re-step",
+      "file": "panels/useRowScrollGesture.ts",
+      "find": "const RISE_FACTOR = 1.5;",
+      "replace": "const RISE_FACTOR = 1;",
+      "expectRed": [
+        "jitter in a swipe tail"
+      ]
+    },
+    {
+      "name": "the old rule: any event at least as large as the one before steps",
+      "file": "panels/useRowScrollGesture.ts",
+      "find": "const holding = fresh || (trough !== null && magnitude >= Math.max(trough * RISE_FACTOR, trough + RISE_FLOOR));",
+      "replace": "const holding = fresh || magnitude >= previous;",
+      "expectRed": [
+        "ramp up, peak and fade is one step",
+        "plateau of equal deltas"
+      ]
+    },
+    {
+      "name": "a reversal inside the lock is lost",
+      "file": "panels/useRowScrollGesture.ts",
+      "find": "if (reversed) trough = 0;",
+      "replace": "if (reversed) trough = null;",
+      "expectRed": [
+        "reverses direction after the lock steps back"
+      ]
+    },
+    {
+      "name": "the trough is never recorded, so a swipe in a tail never steps",
+      "file": "panels/useRowScrollGesture.ts",
+      "find": "else if (magnitude < previous) trough = trough === null ? magnitude : Math.min(trough, magnitude);",
+      "replace": "else if (magnitude < 0) trough = trough === null ? magnitude : Math.min(trough, magnitude);",
+      "expectRed": [
+        "starts in the first one tail"
+      ]
+    },
+    {
+      "name": "a step keeps the old trough",
+      "file": "panels/useRowScrollGesture.ts",
+      "find": "      locked = true;\n      trough = null;",
+      "replace": "      locked = true;",
+      "expectRed": []
+    },
+    {
+      "name": "the first event of a gesture needs a fall to step",
+      "file": "panels/useRowScrollGesture.ts",
+      "find": "const fresh = reversed || previous === 0;",
+      "replace": "const fresh = reversed;",
+      "expectRed": [
+        "after 150 ms without a wheel event",
+        "mouse notches 200 ms apart"
+      ]
+    },
+    {
+      "name": "the quiet gap does not end the gesture",
+      "file": "panels/useRowScrollGesture.ts",
+      "find": "      quietTimer = setTimeout(() => {\n        previous = 0;\n      }, gestureQuietMsRef.current);",
+      "replace": "      quietTimer = setTimeout(() => {}, gestureQuietMsRef.current);",
+      "expectRed": [
+        "after 150 ms without a wheel event",
+        "mouse notches 200 ms apart"
+      ]
+    },
+    {
+      "name": "the lock is ignored",
+      "file": "panels/useRowScrollGesture.ts",
+      "find": "if (locked || !holding) return;",
+      "replace": "if (!holding) return;",
+      "expectRed": [
+        "a second wheel event inside the 60 ms lock"
+      ]
+    },
+    {
+      "name": "no absolute floor on the rise",
+      "file": "panels/useRowScrollGesture.ts",
+      "find": "Math.max(trough * RISE_FACTOR, trough + RISE_FLOOR)",
+      "replace": "trough * RISE_FACTOR",
+      "expectRed": [
+        "quantised tail"
+      ]
+    }
+  ]
+}

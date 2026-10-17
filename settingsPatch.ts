@@ -4,23 +4,30 @@
  * produces is validated when the whole stack is resolved again.
  */
 
-import type { FormFactor } from './hostApi.js';
 import { sameSettingsValue } from './panelSettings.js';
 import type { AnchorRequest, PanelId, PanelSettings } from './panelSettings.js';
 
 /** A change to one settings layer; `null` deletes that key from the layer. @public */
 export type SettingsPatch = { [K in keyof PanelSettings]?: PanelSettings[K] | null };
 
-/** What `configure(id, ...)` accepts: every key except the three that belong to a template. @public */
-export type InstancePatch = Omit<SettingsPatch, 'hostCreatable' | 'multiple' | 'maxInstances'>;
+/** What `configure(id, ...)` accepts: every key except the four that belong to a template. @public */
+export type InstancePatch = Omit<SettingsPatch, 'hostCreatable' | 'hollowDot' | 'multiple' | 'maxInstances'>;
 
 /** Exactly the keys a view may set on its own panel; any other key is not-view-settable. @public */
 export type ViewPatch = {
+  /** The panel's title; `null` removes the view's value. */
   title?: string | null;
+  /** Whether the panel appears in `PanelReader.list` and the panel list; `null` removes the view's value. */
   listed?: boolean | null;
+  /** Whether the panel is drawn with the base panels or raised above them; `null` removes the view's value. */
   layer?: 'base' | 'raised' | null;
-  formFactor?: FormFactor | null;
+  /** `false` locks the panel against closing; a view cannot ask for `true`, and `null` removes the lock. */
+  closable?: false | null;
+  /** How many phone widths wide the panel is; the row draws at most the slots that fit. `null` removes the view's value. */
+  slots?: number | null;
+  /** Where the panel goes whenever it is added, as an anchor on another panel; `null` removes the view's value. */
   placeOnAdd?: { anchor: AnchorRequest & { panel: PanelId } } | null;
+  /** `'anchor'` makes the panel enter from the panel it is anchored to; `null` removes the view's value. */
   enterFrom?: 'anchor' | null;
 };
 

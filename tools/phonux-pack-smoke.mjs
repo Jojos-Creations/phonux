@@ -42,7 +42,7 @@ function valueExportsOf(reportFile) {
   const reExported = [...text.matchAll(/^export \{ (\w+)(?: as (\w+))? \}$/gm)].map((m) => m[2] ?? m[1]);
   return [...new Set([...declared, ...reExported])].sort();
 }
-const EXPECTED_VALUES = { phonux: valueExportsOf('phonux.api.md'), 'phonux/testing': valueExportsOf('phonux-testing.api.md') };
+const EXPECTED_VALUES = { phonux: valueExportsOf('phonux.api.md'), 'phonux/testing': valueExportsOf('phonux-testing.api.md'), 'phonux/testing/row': valueExportsOf('phonux-testing-row.api.md') };
 
 const CONSUMER_TSX = `import * as React from 'react';
 import { renderToString } from 'react-dom/server';
@@ -52,30 +52,28 @@ import {
   PanelFrame,
   PanelRow,
   Workspace,
-  registerView,
+  createWorkspace,
+  definePanel,
   useHost,
   useProvidePanels,
-  type PanelWindow,
-  type ViewProps,
 } from 'phonux';
 import { createFakeHost } from 'phonux/testing';
 
 export const MARKER = 'phonux-smoke-marker-9f3a1c';
 
-function SmokeView({ panel }: ViewProps): React.JSX.Element {
-  const host = useHost();
-  return (
-    <Panel title={panel.title}>
-      <PanelFrame>{\`\${MARKER} width=\${host.device.size.width}\`}</PanelFrame>
-    </Panel>
-  );
-}
+const smoke = definePanel({
+  id: 'phonux-smoke-view',
+  view: function SmokeView({ panel }) {
+    const host = useHost();
+    return (
+      <Panel title={panel.title}>
+        <PanelFrame>{\`\${MARKER} width=\${host.device.size.width}\`}</PanelFrame>
+      </Panel>
+    );
+  },
+});
 
-registerView('phonux-smoke-view', SmokeView);
-
-const ROOT: PanelWindow = {
-  id: 'root', url: '', title: 'Root', live: true, locked: true, view: 'phonux-smoke-view', collapsible: false, listed: false,
-};
+const workspace = createWorkspace({ mount: false, root: smoke });
 
 // The composition an app writes: provider -> Host -> Workspace -> PanelRow, all from the published names.
 function App(): React.JSX.Element {
@@ -83,9 +81,7 @@ function App(): React.JSX.Element {
   const rowRef = React.useRef<HTMLDivElement | null>(null);
   const fake = createFakeHost();
   const width = fake.device.size.width;
-  const provided = useProvidePanels({
-    initialEntries: [ROOT], rootId: 'root', phoneWidth: width, containerWidth: 1200, overflowContainerRef,
-  });
+  const provided = useProvidePanels({ workspace, phoneWidth: width, containerWidth: 1200, overflowContainerRef });
   return (
     <HostProvider host={{ ...fake, panels: provided }}>
       <Workspace
@@ -99,7 +95,8 @@ function App(): React.JSX.Element {
       >
         <PanelRow
           entries={provided.entries}
-          rootId="root"
+          rootId={workspace.rootId}
+          workspace={workspace}
           closingIds={provided.closingIds}
           enteringViaAnchorIds={provided.enteringViaAnchorIds}
           exitRightIds={provided.exitRightIds}
@@ -114,6 +111,26 @@ function App(): React.JSX.Element {
 export function render(): string {
   return renderToString(<App />);
 }
+`;
+
+// The row driver as a consumer's test imports it: first, before react, then a workspace rendered on the virtual clock.
+const CHECK_ROW_MJS = `import { frameClock, renderWorkspace } from 'phonux/testing/row';
+import { createElement } from 'react';
+import { createWorkspace, definePanel } from 'phonux';
+import { memoryWorkspaceStorage } from 'phonux/testing';
+
+const storage = memoryWorkspaceStorage();
+const note = definePanel({ id: 'note', view: () => createElement('i', null, 'smoke-note') });
+const workspace = createWorkspace({ root: note, storage });
+const before = frameClock.now();
+const rendered = await renderWorkspace(workspace, { width: 900 });
+const root = rendered.panel('note');
+if (root === undefined) throw new Error('the driver found no slot for the root panel');
+if (!root.root.textContent.includes('smoke-note')) throw new Error('the root panel did not draw its view');
+await rendered.setWidth(500);
+if (frameClock.now() <= before) throw new Error('the virtual clock never moved');
+await rendered.dispose();
+console.log('checkRow: rendered a workspace, resized it and took it away on the virtual clock');
 `;
 
 // A wrong prop type. If the .d.ts were not consulted (module unresolved, or types collapsed to any) this would not
@@ -136,11 +153,12 @@ export const bad = (
 );
 `;
 
-const CHECK_EXPORTS_MJS = `import * as main from 'phonux';
+const CHECK_EXPORTS_MJS = `import * as row from 'phonux/testing/row';
+import * as main from 'phonux';
 import * as testing from 'phonux/testing';
 
 const expected = ${JSON.stringify(EXPECTED_VALUES)};
-const actual = { phonux: Object.keys(main).sort(), 'phonux/testing': Object.keys(testing).sort() };
+const actual = { phonux: Object.keys(main).sort(), 'phonux/testing': Object.keys(testing).sort(), 'phonux/testing/row': Object.keys(row).sort() };
 const problems = [];
 for (const key of Object.keys(expected)) {
   const missing = expected[key].filter((n) => !actual[key].includes(n));
@@ -150,7 +168,7 @@ for (const key of Object.keys(expected)) {
   if (expected[key].length === 0) problems.push(key + ': the API report listed zero value exports, so nothing was checked');
 }
 if (problems.length) throw new Error(problems.join('; '));
-console.log('checkExports:', expected.phonux.length, 'values from phonux,', expected['phonux/testing'].length, 'from phonux/testing');
+console.log('checkExports:', expected.phonux.length, 'values from phonux,', expected['phonux/testing'].length, 'from phonux/testing,', expected['phonux/testing/row'].length, 'from phonux/testing/row');
 `;
 
 const CHECK_SSR_MJS = `import { MARKER, render } from './consumer.node.mjs';
@@ -260,6 +278,7 @@ try {
   writeFileSync(join(appDir, 'negative.tsx'), NEGATIVE_TSX);
   writeFileSync(join(appDir, 'checkExports.mjs'), CHECK_EXPORTS_MJS);
   writeFileSync(join(appDir, 'checkSsr.mjs'), CHECK_SSR_MJS);
+  writeFileSync(join(appDir, 'checkRow.mjs'), CHECK_ROW_MJS);
   const esbuild = join(appDir, 'node_modules', '.bin', 'esbuild');
   // The registry page is the packed README, so the block is read from it and not from the source tree.
   const readmeBlock = extractReadmeBlock(run('tar', ['-xOzf', tarball, 'package/README.md'], root), 'quickstart');
@@ -279,7 +298,7 @@ try {
     if (packed.publishConfig?.access !== 'public') problems.push('publishConfig.access is not "public"');
     if (JSON.stringify(packed.peerDependencies) !== JSON.stringify(PEERS)) problems.push('peerDependencies differ from the source manifest');
     const keys = Object.keys(packed.exports ?? {}).sort().join(',');
-    if (keys !== '.,./testing') problems.push(`exports keys are "${keys}", expected ". and ./testing"`);
+    if (keys !== '.,./testing,./testing/row') problems.push(`exports keys are "${keys}", expected ". and ./testing and ./testing/row"`);
     if (problems.length) throw new Error(problems.join('; '));
     return `${packed.name}@${packed.version}, license ${packed.license}`;
   });
@@ -347,6 +366,7 @@ try {
     run(esbuild, ['readme-quickstart.tsx', '--bundle', '--format=esm', '--platform=node', '--packages=external', '--jsx=automatic', '--outfile=readme-quickstart.node.mjs', '--log-level=error'], appDir);
     return run(process.execPath, ['checkReadme.mjs'], appDir).trim();
   });
+  record('(11) phonux/testing/row renders and resizes a workspace on its virtual clock', () => run(process.execPath, ['checkRow.mjs'], appDir).trim());
 } catch (err) {
   hardError = err;
 }

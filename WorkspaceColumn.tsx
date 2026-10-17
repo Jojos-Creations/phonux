@@ -10,7 +10,7 @@ import Button from '@mui/material/Button';
 import InputBase from '@mui/material/InputBase';
 import { slideToTransition } from './directionalTransition.js';
 import { resolveLabels } from './labels.js';
-import { DRAGGING_ATTRIBUTE } from './panelChrome.js';
+import { arrowKeyBelongsElsewhere } from './arrowKeys.js';
 import { resolveWorkspaceTuning } from './panelTuning.js';
 import { columnCoreOf, type WorkspaceColumnHandle } from './columnHandle.js';
 import type { WorkspaceHandle } from './workspaceCore.js';
@@ -25,28 +25,6 @@ export const COLUMN_BOTTOM_BAND = 26;
 const TARGET = 24;
 
 const DefaultCell = React.lazy(() => import('./autoMount.js').then((m) => ({ default: m.AutoRoot })));
-
-const EDITABLE_ROLES = '[role="textbox"],[role="searchbox"],[role="combobox"],[role="listbox"],[role="slider"],[role="spinbutton"],[role="menu"],[role="menubar"],[role="tablist"],[role="tree"],[role="grid"],[role="radiogroup"]';
-
-/**
- * Whether a vertical arrow key belongs to something other than the column: a modified or repeated key, one a handler already took,
- * one typed in a field or widget that uses the arrows, one while a dialog is open or an IME is composing, or one during a keyboard drag.
- * @internal
- */
-export function arrowKeyBelongsElsewhere(e: KeyboardEvent, doc: Document): boolean {
-  if (e.defaultPrevented || e.repeat || e.isComposing || e.keyCode === 229) return true;
-  if (e.altKey || e.ctrlKey || e.metaKey || e.shiftKey) return true;
-  for (const node of [e.target, doc.activeElement]) {
-    if (!(node instanceof Element)) continue;
-    if (node.closest('input,textarea,select')) return true;
-    if (node.closest(EDITABLE_ROLES)) return true;
-    const editable = node.closest('[contenteditable]');
-    if (editable !== null && editable.getAttribute('contenteditable') !== 'false') return true;
-    // dnd-kit marks the item a keyboard drag is carrying pressed.
-    if (node.closest('[aria-pressed="true"][aria-roledescription]')) return true;
-  }
-  return doc.querySelector(`dialog[open],[aria-modal="true"],[${DRAGGING_ATTRIBUTE}]`) !== null;
-}
 
 function NameInput({ workspace, label, inset }: { workspace: WorkspaceHandle; label: string; inset: number }): React.ReactElement {
   const [draft, setDraft] = React.useState<string | null>(null);
@@ -102,7 +80,8 @@ export function WorkspaceColumn({ column, children }: WorkspaceColumnProps): Rea
   React.useEffect(() => {
     const onKeyDown = (e: KeyboardEvent): void => {
       if (e.key !== 'ArrowUp' && e.key !== 'ArrowDown') return;
-      if (arrowKeyBelongsElsewhere(e, document)) return;
+      // A held key repeats: the column steps once per press, where the row keeps stepping while a key is held.
+      if (e.repeat || arrowKeyBelongsElsewhere(e, document)) return;
       if (column.step(e.key === 'ArrowUp' ? 'up' : 'down')) e.preventDefault();
     };
     window.addEventListener('keydown', onKeyDown);
@@ -158,7 +137,7 @@ export function WorkspaceColumn({ column, children }: WorkspaceColumnProps): Rea
               <NameInput workspace={ws} label={labels.workspaceName} inset={snap.topInset} />
               {children === undefined ? (
                 <React.Suspense fallback={null}>
-                  <DefaultCell workspace={ws} columnTop={COLUMN_TOP_BAND} />
+                  <DefaultCell workspace={ws} columnTop={COLUMN_TOP_BAND} themed={false} />
                 </React.Suspense>
               ) : (
                 children(ws)

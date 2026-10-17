@@ -5,7 +5,7 @@
  */
 
 import type * as React from 'react';
-import type { JsonValue, PanelSummary, FormFactor } from './hostApi.js';
+import type { JsonValue, PanelSummary } from './hostApi.js';
 import { reportLevelTieOnce } from './panelLevelChecks.js';
 import { checkPanelApi, type PanelApiLevel } from './panelApiLevel.js';
 import { PanelManagerError } from './panelManagerError.js';
@@ -60,8 +60,6 @@ export interface PanelState {
   readonly url?: string;
   /** The opaque, JSON-serializable params the panel was made with, or undefined when it has none. */
   readonly params: JsonValue | undefined;
-  /** The panel's current tier. */
-  readonly formFactor: FormFactor;
   /** Whether the panel appears in `PanelReader.list` and the panel list a view reads. */
   readonly listed: boolean;
   /** The panel's settings, resolved from every layer. */
@@ -82,15 +80,21 @@ export type PanelSnapshot = {
   readonly panels: readonly PanelState[];
 };
 
-/** The five read-only members every handle and view handle has. @public */
+/** The read-only members every handle and view handle has: id, template id, state, settings and subscribe. @public */
 export type PanelReadHandle = {
   /** The panel's id. */
   readonly id: PanelId;
   /** The id of the template the panel was made from. */
   readonly templateId: string;
-  /** The panel's current state. */
+  /**
+   * The panel's current state.
+   * @throws PanelManagerError with code `invalid-options` when the workspace knows no panel with this id.
+   */
   getState(): PanelState;
-  /** The panel's settings resolved from every layer, with the layer each value came from and any conflicts. */
+  /**
+   * The panel's settings resolved from every layer, with the layer each value came from and any conflicts.
+   * @throws PanelManagerError with code `invalid-options` when the workspace knows no panel with this id.
+   */
   getSettings(): PanelSettingsResolution;
   /** Calls `l` when the panel changes; returns a function that stops the calls. */
   subscribe(l: () => void): () => void;
@@ -114,33 +118,32 @@ export type PanelReader = {
   subscribe(l: () => void): () => void;
 };
 
+/**
+ * The props a template's `view` and `footer` receive. Not the legacy `ViewProps` of the view registry; that name is a different shape.
+ * @public
+ */
+export interface PanelViewProps<P extends JsonValue = JsonValue> {
+  /** What a view may see of this panel. */
+  panel: PanelSummary<P>;
+  /** The panel's own read members and operations; its `configure` takes only the keys a view may set. */
+  handle: ViewHandle<P>;
+  /** Read-only access to every panel. */
+  manager: PanelReader;
+}
+
 /** A panel kind: its id, the view that renders it, its settings layer and its initial params. @public */
 export interface PanelTemplate<P extends JsonValue = JsonValue> {
   /** 1-48 characters, no whitespace, no '~', no leading '_', not all digits, not 'all'; unique in a workspace. */
   readonly id: string;
   /** The panel API level the template was written against; left out, it is the newest (`PANEL_API`). Any other value throws `invalid-template`. */
   readonly api?: PanelApiLevel;
-  /** The component that renders the panel. It receives the panel's summary, its own read handle and a reader for every panel. */
-  readonly view: React.ComponentType<{
-    /** What a view may see of this panel. */
-    panel: PanelSummary<P>;
-    /** The panel's own read members. */
-    handle: ViewHandle<P>;
-    /** Read-only access to every panel. */
-    manager: PanelReader;
-  }>;
+  /** The component that renders the panel. It receives the panel's summary, its own `ViewHandle` (read members, operations on its own panel, and a `configure` that takes only `ViewPatch` keys) and a reader for every panel. */
+  readonly view: React.ComponentType<PanelViewProps<P>>;
   /**
    * The component drawn at the bottom of every panel made from this template, inside the frame and below the content, which
    * scrolls above it. It receives the same props as `view`. Declared on the template and not a setting, so no layer overrides it.
    */
-  readonly footer?: React.ComponentType<{
-    /** What a footer may see of this panel. */
-    panel: PanelSummary<P>;
-    /** The panel's own read members and operations. */
-    handle: ViewHandle<P>;
-    /** Read-only access to every panel. */
-    manager: PanelReader;
-  }>;
+  readonly footer?: React.ComponentType<PanelViewProps<P>>;
   /** The template's settings layer, applied to every panel made from it. */
   readonly settings?: PanelSettings;
   /** The params a panel made from this template starts with. */
@@ -163,9 +166,18 @@ function templateIdProblem(id: unknown): string | undefined {
 // A memo, forwardRef or lazy component is an object carrying $$typeof, not a function.
 const isComponent = (view: unknown): boolean => typeof view === 'function' || (typeof view === 'object' && view !== null && '$$typeof' in view);
 
+// `any`, not JsonValue: PanelTemplate<P> is invariant in P, so only `any` accepts a template of every params.
+/**
+ * A template of any params: what a workspace accepts in `templates`, `root` and `registerTemplate`, so a template made with
+ * `definePanel` for typed params needs no cast. `addPanel` still checks `params` against the template it is given.
+ * @public
+ */
+export type AnyPanelTemplate = PanelTemplate<any>;
+
 /**
  * Returns the template unchanged after checking it: a valid id, a component for `view` and for `footer` when given, an `api` the library serves, and a settings layer the
- * resolver accepts on its own. Throws PanelManagerError, 'invalid-template' or 'invalid-settings'.
+ * resolver accepts on its own. 
+ * @throws PanelManagerError with code `invalid-template` or `invalid-settings`.
  * @public
  */
 export function definePanel<P extends JsonValue = JsonValue>(t: PanelTemplate<P>): PanelTemplate<P> {

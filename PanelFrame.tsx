@@ -1,8 +1,8 @@
 /**
  * The shared phone-shaped card every view renders inside, so every section reads as one
  * silhouette instead of near-identical border/radius/background declarations drifting apart.
- * Fixed size by default; `expanded` is only the tap-to-expand fullscreen overlay. The inset, scrollbar
- * and header-pill rules below are explained in DESIGN.md ("PanelFrame's inset, scrollbar and header pill").
+ * Fixed size by default; `expanded` is only the tap-to-expand fullscreen overlay. The frame's border, size and
+ * header-pill rules are explained in DESIGN.md ("PanelFrame's inset, scrollbar and header pill").
  */
 
 import * as React from 'react';
@@ -14,6 +14,8 @@ import { usePhoneSize } from './phoneFit.js';
 import { resolveLabels } from './labels.js';
 import { PanelFooter } from './panelFooter.js';
 import { useFrameClaim } from './panelFrameClaim.js';
+import { PanelSlotContext } from './panelSlotContext.js';
+import { useChromePixels } from './panelChrome.js';
 import { glideCorner, glideEdge } from './sizeGlide.js';
 
 /** The props of `PanelFrame`: every `Box` prop except `children`, plus `expanded` and `size`. @public */
@@ -22,9 +24,9 @@ export interface PanelFrameProps extends Omit<BoxProps, 'children'> {
   children: React.ReactNode;
   /** Fill the available space instead of the fixed phone size (the tap-to-expand overlay). */
   expanded?: boolean;
-  /** This panel's own size instead of the shared phone size (`usePhoneSize()`). Omitted: width and height come from it, read live -- see DESIGN.md. `height: 'fill'` renders as `100%` rather than a pixel value. */
+  /** This panel's own size instead of the shared phone size (`usePhoneSize()`). Omitted: inside a row the width and height are the slot's drawn size, else the phone size's, read live -- see DESIGN.md. `height: 'fill'` renders as `100%` rather than a pixel value. */
   size?: PanelSize;
-  /** `false` keeps the footer the panel's template declares out of this frame, for a view that draws `PanelFooter` itself. Default: drawn below the content. */
+  /** `false` keeps the footer the panel's template declares out of this frame, for a view that draws `PanelFooter` itself. Default: drawn floating below the frame. */
   footer?: boolean;
 }
 
@@ -37,15 +39,12 @@ const CONTENT_INSET_PX = 12;
 export const PANEL_CORNER_RADIUS_UNITS = 4;
 /** That radius in px for `theme`; a header pill is twice this tall (exact semicircles). @public */
 export const panelCornerRadiusPx = (theme: Theme): number => PANEL_CORNER_RADIUS_UNITS * Number(theme.shape.borderRadius);
-/** The header pill's gap above the frame, in px -- also the grab bar's own height (Panel.tsx),
- * since the grab bar fills that whole strip. One constant so the two can't drift apart, and sized to WCAG
- * 2.5.8's 24px minimum pointer-target height even though the drawn pill inside it is thinner. @internal */
-export const PANEL_HEADER_GAP_PX = 24;
 
 /**
- * Keeps content inset the same from the border on every side, scrollbar or not: `scrollbar-gutter: stable`
- * reserves the bar's strip, so the right padding is pre-shrunk by its width. A nested scroller needs its own
- * copy of the `::-webkit-scrollbar` rules below, which style only the element they are set on.
+ * Opt-in style for a scroller the view owns: content inset the same from the border on every side, with or
+ * without a scrollbar (`scrollbar-gutter: stable` reserves the bar's strip, so the right padding is pre-shrunk
+ * by its width). PanelFrame does not apply it; spread it on the element that scrolls. The `::-webkit-scrollbar`
+ * rules style only the element they are set on, so each scroller needs its own copy.
  * @public
  */
 export const panelFrameScrollSx = {
@@ -68,26 +67,17 @@ export const panelFrameScrollSx = {
 } as const;
 
 /**
- * For a caller doing its own scrolling one level deeper (an embedded web view, a transcript under a
- * pinned input bar): cancels PanelFrame's own padding AND its reserved scrollbar strip, so
- * neither is reserved twice. Every property is a longhand -- MUI resolves `p`/`pr` and
- * `overflow`/`overflowY` independently, so a shorthand spread over a longhand does not reliably win.
+ * No effect. PanelFrame no longer styles its content, so there is nothing to cancel; the export stays so
+ * existing imports keep compiling.
+ * @deprecated Remove the spread. PanelFrame applies no padding or scrollbar to its content.
  * @public
  */
-export const panelFrameBareSx = {
-  pt: 0,
-  pr: 0,
-  pb: 0,
-  pl: 0,
-  overflowX: 'hidden',
-  overflowY: 'hidden',
-  scrollbarGutter: 'auto',
-} as const;
+export const panelFrameBareSx = {} as const;
 
 /**
- * Two nested boxes: the OUTER owns border, radius and size and clips to the rounded corner; the INNER owns
- * the padding and is the scroll container. `panelFrameScrollSx` forces a classic scrollbar, because an
- * overlay one floats over content with an inset no padding can cancel (DESIGN.md).
+ * Two nested boxes: the OUTER owns border, radius and size and clips to the rounded corner; the INNER is a
+ * plain flex column for the view's own content, styled only by the `sx` prop. Padding and scrolling inside
+ * are the view's (DESIGN.md).
  * @public
  */
 const PanelFrame = React.forwardRef<HTMLDivElement, PanelFrameProps>(function PanelFrame(
@@ -95,10 +85,11 @@ const PanelFrame = React.forwardRef<HTMLDivElement, PanelFrameProps>(function Pa
   ref,
 ) {
   useFrameClaim('frame');
-  const deviceSize = usePhoneSize();
-  const width = size?.width ?? deviceSize.width;
-  const height = size?.height === 'fill' ? '100%' : (size?.height ?? deviceSize.height);
-  return (
+  const phone = usePhoneSize();
+  const drawn = React.useContext(PanelSlotContext)?.drawn;
+  const width = size?.width ?? drawn?.width ?? phone.width;
+  const height = size?.height === 'fill' ? '100%' : (size?.height ?? drawn?.height ?? phone.height);
+  const frame = (
     <Box
       ref={ref}
       data-phone-frame=""
@@ -125,15 +116,20 @@ const PanelFrame = React.forwardRef<HTMLDivElement, PanelFrameProps>(function Pa
           minHeight: 0,
           display: 'flex',
           flexDirection: 'column',
-          ...panelFrameScrollSx,
           ...sx,
         }}
       >
         {children}
       </Box>
-      {footer && <PanelFooter />}
     </Box>
   );
+  // The footer is a sibling of the frame, not its child, so the frame's overflow clip cannot cut it off.
+  return footer ? (
+    <>
+      {frame}
+      <PanelFooter />
+    </>
+  ) : frame;
 });
 
 /** The props of `PanelHeader`: every `Box` prop except `children`. @public */
@@ -150,12 +146,13 @@ export interface PanelHeaderProps extends Omit<BoxProps, 'children'> {
  * @public
  */
 export function PanelHeader({ children, sx, ...rest }: PanelHeaderProps) {
+  const chrome = useChromePixels();
   return (
     <Box
       {...rest}
       sx={{
         position: 'absolute',
-        bottom: `calc(100% + ${PANEL_HEADER_GAP_PX}px)`,
+        bottom: `calc(100% + ${chrome.headerGapPx}px)`,
         left: 0,
         right: 0,
         // Twice the phone's own corner radius, so each end is an exact semicircle; from the theme, never a
@@ -168,8 +165,7 @@ export function PanelHeader({ children, sx, ...rest }: PanelHeaderProps) {
         // An inset shadow, not a border (see PanelFrame), so the padding gives the 1 px back.
         boxShadow: (theme: Theme) => glideEdge(theme.palette.divider),
         borderRadius: (theme: Theme) => glideCorner(panelCornerRadiusPx(theme)),
-        // PanelFrame's own content inset plus that 1 px, so a header's text lines up with the frame's content below.
-        px: `${CONTENT_INSET_PX + 1}px`,
+        px: `${chrome.headerInsetPx}px`,
         py: '1px',
         fontSize: 13,
         color: 'common.white',

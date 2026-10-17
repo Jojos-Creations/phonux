@@ -7,7 +7,7 @@ import assert from 'node:assert/strict';
 import './support/jsdom-globals.js';
 import * as React from 'react';
 import { act } from 'react';
-import { registerView, useProvidePanels, type PanelWindow, type PanelsInput, type ProvidedPanels, type WorkspaceState, type WorkspaceStorage } from '../index.js';
+import { useProvidePanels, type PanelWindow, type ProvidedPanels, type WorkspaceState, type WorkspaceStorage } from '../index.js';
 import { applyTemplate, resolvePanelSettings } from '../panelSettings.js';
 import { definePanel } from '../panelTemplate.js';
 import { PANEL_UID_FORM, newPanelUid } from '../panelUid.js';
@@ -15,9 +15,10 @@ import { appendPanel, createHistoryPanel } from '../panelWindow.js';
 import { summarisePanel } from '../panelRowEntry.js';
 import { reconcileWorkspace, type ReconcileInput } from '../workspacePlan.js';
 import { projectWorkspaceState, hydrateWorkspaceState, type WorkspacePanelState } from '../workspaceState.js';
-import { cleanup, mount, panelsInput } from './support/mount-harness.js';
+import { cleanup, mount, useSeededInput, type SeededOver } from './support/mount-harness.js';
+import { registerTestView } from './support/test-views.js';
 
-registerView('uid-view', ({ panel }) => React.createElement('i', null, panel.title));
+registerTestView('uid-view', ({ panel }) => React.createElement('i', null, panel.title));
 
 afterEach(() => {
   mock.timers.reset();
@@ -27,7 +28,6 @@ afterEach(() => {
 const ROOT = 'root';
 const QUIET_MS = 200;
 const U1 = `u_${'1'.repeat(32)}`;
-const U2 = `u_${'2'.repeat(32)}`;
 const U3 = `u_${'3'.repeat(32)}`;
 
 const counter = (): (() => string) => {
@@ -93,10 +93,9 @@ test('a plain panel\'s key and public summary are unchanged: the uid is never it
   assert.equal('uid' in summarisePanel(p!), false);
 });
 
-test('the file writes each saved panel\'s uid, and a persist session panel writes nothing', () => {
+test('the file writes each saved panel\'s uid', () => {
   const plain = appendPanel([createHistoryPanel(ROOT)], { view: 'uid-view' }, 'p1', ROOT, U1);
-  const session = applyTemplate(appendPanel([], { view: 'uid-view' }, 's1', ROOT, U2)[0]!, resolvePanelSettings({ instance: { persist: 'session' } }).value, 'create');
-  const state = projectWorkspaceState([...plain, session], ROOT);
+  const state = projectWorkspaceState(plain, ROOT);
   assert.deepEqual(state.panels.map((s) => s.uid), [U1]);
 });
 
@@ -171,12 +170,12 @@ interface Mounted {
   saves: WorkspaceState[];
 }
 
-function mountProvider(load: () => Promise<WorkspaceState | null>, over: Partial<PanelsInput> = {}): Mounted {
+function mountProvider(load: () => Promise<WorkspaceState | null>, over: Partial<SeededOver> = {}): Mounted {
   const saves: WorkspaceState[] = [];
   const storage: WorkspaceStorage = { load, save: (state) => void saves.push(state) };
   let latest: ProvidedPanels | undefined;
   function Probe(): React.ReactElement {
-    latest = useProvidePanels(panelsInput({ initialEntries: [createHistoryPanel(ROOT)], storage, tuning: { saveQuietMs: QUIET_MS }, ...over }));
+    latest = useProvidePanels(useSeededInput({ initialEntries: [createHistoryPanel(ROOT)], storage, tuning: { saveQuietMs: QUIET_MS }, ...over }));
     return React.createElement('output');
   }
   mount(React.createElement(Probe));
@@ -242,7 +241,7 @@ test('a declared panel made before the restore takes the uid the file holds, and
   if (last !== undefined) assert.deepEqual(uidsOf(last), [U1]);
 });
 
-test('closing a panel and undoing the close keeps its uid and leaves it without a key', async () => {
+test('closing a panel and undoing the close keeps its uid and its key', async () => {
   mock.timers.enable({ apis: ['setTimeout'] });
   const m = mountProvider(() => Promise.resolve(null));
   await settleAndWait();
@@ -253,5 +252,6 @@ test('closing a panel and undoing the close keeps its uid and leaves it without 
   act(() => m.latest().undoClose());
   const after = m.entries()[1]!;
   assert.equal(after.uid, before.uid);
-  assert.equal(after.key, undefined);
+  assert.notEqual(before.key, undefined, 'control: a panel the workspace makes has a key');
+  assert.equal(after.key, before.key);
 });

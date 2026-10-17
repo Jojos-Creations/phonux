@@ -3,7 +3,6 @@
  * makes against the layers a panel resolves under, and the entry that plan writes. Nothing here reads React state or
  * dispatches; the engine takes the plan and applies it in one update.
  */
-import type { FormFactor } from './hostApi.js';
 import type { ConfigureResult } from './panelManager.js';
 import { PanelManagerError } from './panelManagerError.js';
 import type { PanelRefusal } from './panelManagerError.js';
@@ -48,6 +47,17 @@ function refusalFor(call: ConfigureCall, name: string, value: unknown): PatchRef
 }
 
 /**
+ * Whether `leaf` is the removed tuning key. Its value is checked and a removed one is reported by `checkTuningLeaf`; nothing is
+ * asked of the catalog because the setting no longer has a row there.
+ */
+function isRemovedTuningLeaf(leaf: string, value: unknown, layer: string): boolean {
+  if (leaf !== 'shrinkOutOfView') return false;
+  const problem = checkTuningLeaf(leaf, value).problems[0];
+  if (problem !== undefined) throw new PanelManagerError('invalid-settings', `${layer}.${problem.key}: ${problem.problem}`, { layer, key: problem.key });
+  return true;
+}
+
+/**
  * The catalog names a patch touches, or the first refusal it earns. A key the catalog does not know throws
  * `invalid-settings` whatever else the patch holds: that is a programmer error, not a state.
  */
@@ -59,6 +69,7 @@ export function checkPatch(call: ConfigureCall, patch: unknown): { names: string
     const value = patch[key];
     if (value === undefined) continue;
     if (call === 'tuning') {
+      if (isRemovedTuningLeaf(key, value, layer)) continue;
       if (TUNING_LEAVES.has(key)) asks.push({ name: `tuning.${key}`, value });
       else if (FLAT_KEYS.has(key)) asks.push({ name: key, value });
       else if (key === 'tuning') asks.push({ name: 'tuning', value });
@@ -73,6 +84,7 @@ export function checkPatch(call: ConfigureCall, patch: unknown): { names: string
       } else {
         for (const leaf of Object.keys(value)) {
           if (value[leaf] === undefined) continue;
+          if (isRemovedTuningLeaf(leaf, value[leaf], layer)) continue;
           if (!TUNING_LEAVES.has(leaf)) throw new PanelManagerError('invalid-settings', `${layer}.tuning.${leaf}: unknown tuning key`, { layer, key: `tuning.${leaf}` });
           asks.push({ name: `tuning.${leaf}`, value: value[leaf] });
         }
@@ -90,10 +102,10 @@ export function checkPatch(call: ConfigureCall, patch: unknown): { names: string
   return { names: asks.map((a) => a.name) };
 }
 
-/** The settings whose configure class acts at this commit; `parkable` and `formFactors` are STATE keys that change what the panel is or may be at once. */
-const NOW_STATE: ReadonlySet<string> = new Set(['parkable', 'formFactors', 'maxSlots']);
+/** The settings whose configure class acts at this commit; `parkable` and `maxSlots` are STATE keys that change what the panel is or may be at once. */
+const NOW_STATE: ReadonlySet<string> = new Set(['parkable', 'maxSlots']);
 /** What a parked or held panel shows or answers at once: its permissions, its listing and its title. The rest waits for it to be drawn. */
-const WHILE_PARKED: ReadonlySet<string> = new Set(['closable', 'draggable', 'crossable', 'placeable', 'resizable', 'listed', 'title', 'pinning', 'parkable', 'formFactors', 'maxSlots']);
+const WHILE_PARKED: ReadonlySet<string> = new Set(['closable', 'draggable', 'crossable', 'placeable', 'resizable', 'listed', 'title', 'pinning', 'parkable', 'maxSlots']);
 
 /** Whether `name` acts at this commit on a panel in `status`. */
 export function actsNow(name: string, status: 'live' | 'parked' | 'hidden' | 'closed'): boolean {
@@ -142,8 +154,6 @@ export interface InstanceInput {
   /** The settings the entry carries, to tell a `parkable` a pin from code flipped from the layers' own. */
   current: ResolvedPanelSettings | undefined;
   root: boolean;
-  /** The tier the entry is at; absent for a closed record. */
-  tier: FormFactor | undefined;
   /** The slot count the entry is at; absent for a closed record. */
   slots?: number | undefined;
   status: 'live' | 'parked' | 'hidden' | 'closed';
@@ -229,12 +239,8 @@ export function planInstance(i: InstanceInput): InstancePlan {
 
   const fresh = after.conflicts.find((c) => !before.conflicts.some((b) => sameConflict(b, c)));
   if (fresh !== undefined) return { ok: false, code: 'settings-conflict', message: fresh.message, setting: fresh.key };
-  if (i.tier !== undefined && before.value.formFactors.includes(i.tier) && !after.value.formFactors.includes(i.tier)) {
-    return { ok: false, code: 'tier-not-allowed', message: `the panel is at the ${i.tier} tier, which these settings no longer allow` };
-  }
-
   if (i.slots !== undefined && i.slots <= before.value.maxSlots && i.slots > after.value.maxSlots) {
-    return { ok: false, code: 'tier-not-allowed', message: `the panel is ${i.slots} slots wide, which these settings no longer allow` };
+    return { ok: false, code: 'slots-above-max', message: `the panel is ${i.slots} slots wide, which these settings no longer allow` };
   }
 
   const changed = i.names.filter((n) => differs(base, layer, n));
@@ -298,7 +304,7 @@ export function deferredResult(rest: Extract<InstancePlan, { ok: true }>, fresh:
 /**
  * `entry` carrying what `plan` resolved: the fields that mirror the settings follow, the instance layer is kept for an
  * entry code does not re-declare, a title the patch removed goes, and a panel that became a fixed column is live. The
- * tier, size, anchor, `hostData`, `key`, `overrides` and `applied` are the ones `entry` already had.
+ * slots, size, anchor, `hostData`, `key`, `overrides` and `applied` are the ones `entry` already had.
  */
 export function reconfigured(entry: PanelWindow, plan: Extract<InstancePlan, { changed: true }>, patch: SettingsPatch): PanelWindow {
   let next = reparked(entry, plan.resolution);
@@ -359,7 +365,7 @@ export function planTuning(current: WorkspaceTuning | undefined, patch: Record<s
       const problem = checked.problems[0];
       if (problem !== undefined) throw new PanelManagerError('invalid-settings', `tuning.${problem.key.replace(/^tuning\./, '')}: ${problem.problem}`, { layer: 'tuning', key: problem.key });
     }
-    if (!sameSettingsValue((current as Record<string, unknown> | undefined)?.[leaf], after)) names.push(`tuning.${leaf}`);
+    if (leaf !== 'shrinkOutOfView' && !sameSettingsValue((current as Record<string, unknown> | undefined)?.[leaf], after)) names.push(`tuning.${leaf}`);
   }
   if (names.length === 0) return { changed: false };
   return { changed: true, input, now: names.filter((n) => actsNow(n, 'live')), later: names.filter((n) => !actsNow(n, 'live')), reprices: names.includes('tuning.rowGap') };

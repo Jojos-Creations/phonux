@@ -1,7 +1,7 @@
 /**
- * The engine's reading of the two settings that decide whether a held drag scrolls the row: scrollOnDrag and
- * tuning.edgeScroll. One differential per name through the real slot context: the same drag, the pointer half a
- * default zone inside the right edge, under two values must scroll the row differently. The literal rows are in
+ * The engine's reading of the setting that decides how a held drag scrolls the row: tuning.edgeScroll. A
+ * differential through the real slot context: the same drag, the pointer half a default zone inside the right
+ * edge, under two values must scroll the row differently. The literal rows are in
  * edge-scroll-pure.test.ts and edge-scroll-drag.test.ts.
  */
 import { test, afterEach } from 'node:test';
@@ -9,13 +9,14 @@ import assert from 'node:assert/strict';
 import './support/jsdom-globals.js';
 import * as React from 'react';
 import { act } from 'react';
-import { DragToClose, registerView } from '../index.js';
+import { DragToClose } from '../index.js';
 import type { PanelSettings } from '../index.js';
 import { LIBRARY_TUNING_DEFAULTS } from '../panelSettings.js';
 import { differential, differentialsCovered } from './support/differential.js';
 import { advanceFrames, cleanup } from './support/mount-harness.js';
 import { FRAME_MS } from './support/jsdom-globals.js';
 import { made, mountRow, rootEntry, row } from './support/scroll-row.js';
+import { registerTestView } from './support/test-views.js';
 
 afterEach(async () => {
   // A test that left the pointer down must not leave motion's window listeners live for the next one.
@@ -24,13 +25,13 @@ afterEach(async () => {
   cleanup();
 });
 
-const OWNED = ['scrollOnDrag', 'tuning.edgeScroll'];
+const OWNED = ['tuning.edgeScroll'];
 const EDGE = LIBRARY_TUNING_DEFAULTS.edgeScroll;
 const WINDOW = 1000;
 /** Half the default zone inside the right edge: full-ramp speed halved under the defaults. */
 const POINTER = WINDOW - EDGE.zonePx / 2;
 
-registerView('enforce-edge-view', ({ panel }) =>
+registerTestView('enforce-edge-view', ({ panel }) =>
   React.createElement(DragToClose, {
     reorder: { onDragEnd: () => undefined },
     children: (handle) => React.createElement('div', { 'data-handle': panel.id, onPointerDown: handle.onPointerDown }, 'grab'),
@@ -62,18 +63,6 @@ async function scrolledUnder(layer: PanelSettings): Promise<number> {
   return at;
 }
 
-test('differential scrollOnDrag: a drag held half a zone inside the edge scrolls under edge and not under none', async () => {
-  const outcomes = new Map<string, number>([
-    ['edge', await scrolledUnder({ scrollOnDrag: 'edge' })],
-    ['none', await scrolledUnder({ scrollOnDrag: 'none' })],
-  ]);
-  assert.ok(outcomes.get('edge')! > 0, 'the control moves');
-  differential('scrollOnDrag', (run) => {
-    run('edge', () => outcomes.get('edge'));
-    run('none', () => outcomes.get('none'));
-  });
-});
-
 test('differential tuning.edgeScroll: a zone of a quarter of the default leaves the same pointer outside the band', async () => {
   const outcomes = new Map<number, number>([
     [EDGE.zonePx, await scrolledUnder({ tuning: { edgeScroll: { zonePx: EDGE.zonePx } } })],
@@ -93,7 +82,7 @@ test('tuning.edgeScroll maxPxPerSec at half the default halves the distance', as
   assert.ok(Math.abs(half - full / 2) < 1e-6, `${half} against half of ${full}`);
 });
 
-test('the differentials covered are exactly the two names this file owns', () => {
+test('the differentials covered are exactly the name this file owns', () => {
   assert.ok(differentialsCovered().length > 0, 'no differential completed, so the equality below would prove nothing');
   assert.deepEqual(differentialsCovered(), [...OWNED].sort());
 });

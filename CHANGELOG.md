@@ -2,14 +2,103 @@
 
 ## Unreleased
 
+### Breaking
+
+- `PanelFrame` no longer styles the content it holds: the 12px inset, the scrollbar gutter and the `::-webkit-scrollbar` rules are gone, so the view owns its padding and scrolling. **Migration:** a view that scrolls and wants the standard inset spreads `panelFrameScrollSx` on its own scroller, with the scrollbar rules it already has. `panelFrameBareSx` is an empty deprecated object; delete the spread. `panelFrameScrollSx`, `panelFrameBareSx`, `PANEL_CORNER_RADIUS_UNITS` and `panelCornerRadiusPx` stay exported.
+- Nineteen per-panel settings are removed from `PanelSettings`, `ResolvedPanelSettings`, `ViewPatch`, `InstancePatch`, `SettingsPatch`, `LIBRARY_PANEL_DEFAULTS` and `PANEL_SETTINGS_CATALOG`, so the 1.0 freeze covers only settings a panel author can use: `hideWhenLast`, `returnPriority`, `evictionRank`, `evictionOrder`, `scrollOnDrag`, `viewState`, `keepMounted`, `frame`, `placeOnReturn`, `placeFallback`, `undoPlacement`, `exitTo`, `closeExit`, `animated`, `persist`, `rememberLayout`, `undoWindowMs`, `reportClose` and `snapshot`. Every panel behaves as each did at its default (DESIGN.md, "Settings this version removed"). **Migration:** delete the key from the template. A template that still sets one is told once in development (`console.error`, naming the key) and the value is ignored; the next rc refuses it with `invalid-settings`. A saved file that holds one in a panel's instance layer still loads: the key is dropped with an `invalid-saved-setting` note. Coupling rules C3 and C6 went with their settings; `SettingConflict.rule` is `'C1' | 'C2' | 'C4' | 'C5'`, and the `park-lever-inert` note covers only `capacityReturn`.
+- `usePanelHidden` is removed: a parked view always unmounts, so a view is never mounted and hidden. **Migration:** delete the call.
+- `resolvePanelSettings`, `mergePatch`, `PanelSettingsLayers` and `ResolveOptions` are no longer exported from the package; no 0.1.0 name was among them.
+- The tier family is gone; a panel's width is its slot count. Removed: the `formFactor` and `formFactors` settings (a template that sets either
+  throws `invalid-settings`), both `setFormFactor` verbs (the handle's and `PanelsAPI`'s), `PanelSummary.formFactor`, `PanelState.formFactor`,
+  `PanelSize.formFactor`, `CreatePanelOptions.formFactor`, `ViewPatch.formFactor`, `PanelUserLayer.formFactor`, the `FormFactor` type, `TIER_SIZES`,
+  and `usePanelCapabilities().formFactors`. **Migration:** phone is `slots: 1`, tablet `slots: 2`, desktop every visible slot (`maxSlots` is the cap, default
+  every slot that fits); `setFormFactor(id, 'tablet')` is `setSlots(id, 2)`; `formFactors: ['phone']` is `maxSlots: 1`; `usePanelCapabilities()` returns `maxSlots`.
+  `slots` is now a plain default of 1 and `maxSlots` of every visible slot. The refusal code `tier-not-allowed` is `slots-above-max`: lowering `maxSlots` below the
+  panel's slots, or pinning a panel wider than one slot into a fixed column. `CreatePanelOptions` and `ViewPatch` take `slots`.
+  A saved file from an older library still loads: a top-level `formFactor` on an entry and `overrides.formFactor` read as that tier's slot count (`slots` wins when both are
+  there). A file this version writes holds `slots` only for a panel wider than one slot and never a `formFactor`. `panelWidthOf` and the row price an entry with no `slots` as one phone width.
+- `registerView`, `resolveView`, `ViewComponent` and `ViewProps` are removed from `phonux`, and a row is always fed by a workspace.
+  A plain component becomes a template: `definePanel({ id, view })` with `createWorkspace({ templates })`, or
+  `workspace.registerTemplate`. A `view` key no template of the row's workspace answers to still renders the unregistered-view placeholder.
+  `PanelRow`'s `workspace` prop is required, and `PanelsInput.workspace` is required with it. `PanelsInput` loses the members only a row
+  without a workspace read: `rootId`, `initialEntries`, `storage`, `templates`, `declared`, `workspaceDefaults` and `tuning` now come from
+  `createWorkspace` (`root`, `storage`, `templates`, `addPanel`, `defaults`, `tuning`). The `template-collision` error code is gone with the
+  registry it guarded. The components (`PanelRow`, `Workspace`, `HostProvider`) stay public, always with a workspace. The deprecated Host-bag verbs
+  and `CreatePanelOptions` stay until their own removal.
+
+### Fixed
+
+- Behavior change: a step over a row moves one phone width per event, also onto a wide panel. Before, a wide panel took a step of its whole width or half. Walking a 1280 px window across a five-slot desktop panel and then two phones: 4 events of 812, 1218, 406, 406 before; 7 events of 406 after. A row of phones is unchanged.
+- A vertical wheel over a panel row no longer moves the row up off its workspace: the row's own overflow is `overflowY: hidden`. A panel's inner scroller still scrolls.
+- A leftward drag no longer flicks the panel it replaces to the window edge. The drop moved that panel's DOM node, which reset what it hosts; no panel node moves in a reorder now.
+- After a reorder, Tab and Shift+Tab walk the panels in the order they are drawn, not the order they opened, also out of an iframe that ends or starts a panel.
+- A panel present at mount no longer slides from the preferred phone size to the fitted one when the container is first measured: the measuring commit snaps its moves and its size box.
+- The drag-to-close box and its release, close and edge scroll honour MotionConfig `reducedMotion: "always"` as well as the system's Reduce Motion query. `never` does not turn off the system query.
+- A step from a panel as wide as the window now slides it to show its right part beside the next whole panel, instead of jumping to the next panel and dropping the wide one.
+- A closed panel's `useViewState` is kept for the undo window again. The row held the state by the row's own id while `recentlyClosed` carries the key, so a panel with a key unlike its row id came back from Undo with empty state; both sides now use the key.
+- A panel added with `addPanel` and no title of its own now gets `labels.panelTitle(id)`, the same default the Host-bag `create` gave, whether it is added before or after the workspace mounts.
+- A trackpad swipe on a stepping row is one step. Its deltas ramp up before they fade, and every rising event after the 60 ms
+  lock used to step again, so one swipe ran through several stops and a wide panel skipped its 1, 2, 3 slot sizes. After a step
+  an event steps again only on a reversal, or when it is 1.5 times, and at least 4 units above, the smallest delta seen since the
+  deltas fell (a new swipe in the tail). A plateau of equal deltas no longer steps repeatedly: a held mouse wheel is one step per gesture.
+
 ### Changed
 
+- The panel footer floats below the frame, as the header floats above it: it takes no panel height, and the frame keeps its phone size with or without a footer. `PanelFrame` draws it as a sibling, not a child. The footer API is unchanged; a parent of a footered panel must be `position: relative`.
+- The grab handle is a grip icon left of the panel title in the header, and the bar below the header is gone; it is still the one focusable handle named by the title, with the same drag, reorder keys and Delete.
+- Shrink and Hide modes are removed and Off is the only edge mode: `tuning.shrinkOutOfView` values `'visible'` and `'hidden'` warn once each and act as `'off'` (the next rc refuses them), and the setting is kept only for the warning. It leaves `PANEL_SETTINGS_CATALOG` and `ResolvedWorkspaceTuning`; `RowNumbers` loses `stopShrinks`, `stopFirsts`, `drawnWidths`, `drawnOffsets`, `hideOutside`, `atStop` and `showPartial`, and `computeRowNumbers` its `shrink` and `atFirst` inputs.
+- The undocumented `window.__panelsApiForTests`, which the panels hook set in a test build, is gone. A test that needs the row uses `renderWorkspace` from
+  `phonux/testing/row`; a host's own tests expose the API they need themselves.
+- Names and keys for assistive technology. The row is a `region` named `labels.row` ("Panels") and each panel a `group` named with its title and
+  place ("Notes, 2 of 4"). A drag says "Picked up Notes" and "Dropped Notes", not "draggable item" and an id. The grab strip of a panel that can
+  move or close is a focusable button named for the panel, and the name follows a title change at once: ArrowLeft and ArrowRight move the panel one slot, Delete closes it, and the Workspace's one polite live
+  region says what happened ("Moved Notes right", "Notes cannot move right", "Closed Notes"). `DragHandleProps` gains `role`, `tabIndex`,
+  `aria-label`, `aria-keyshortcuts` and `onKeyDown`, and `ReorderHandle` gains `onStep`; `usePanelDragProps()` fills both. New `PhonuxLabels` keys:
+  `row`, `panelPosition`, `grabStrip`, `pickedUp`, `dropped`, `dragCancelled`, `moved`, `cannotMove` and `closed`.
+- The row's arrow keys share the column's guard: a key now also stays with the row when focus is in a widget that uses the arrows (a slider, a
+  tab list, a listbox), a modal dialog is open, a drag is in progress or an IME is composing. A held key still repeats its step.
+- Inside a row, `Panel`, `PanelFrame` and `PanelSizeBox` take an omitted `size` from the slot's drawn size, which includes the row's tuned gap, so a two-slot
+  panel's size box is as wide as its slot at any `tuning.rowGap`. `PanelSizeBox` accepts `width` and `height` as optional. Outside a row an omitted size is the phone size, as before.
+- A view may lock its own panel: `handle.configure({ closable: false })` from the view makes the panel not closable at once, and `null` removes the lock. A view still cannot ask for `closable: true`, and the root still answers `settings-conflict` to it. The lock is saved as before. `ViewPatch` gains `closable`.
+- A panel has one public id, its key. A template panel's `panel.id` was the row's counter (`3`) while `handle.id`, `PanelState.id` and `usePanelState` used the key (`web~3`), so an id from one place failed silently in another. Now `panel.id`, `PanelSummary.id` (`panelList`, `recentlyClosed`), every `PanelsAPI` verb, `useActivePanel` (its value and its setter), the id the snapshot trigger is given and `tuning.initialScroll.panel` all use the key. A hand-built entry's key is its id, so a view that never used templates sees no change. **Migration:** a view that held `panel.id` and passed it to a handle, manager or `usePanelState` needs nothing; one that stored the counter id (saved, or in a `viewId` for pictures) stores the key instead.
+- `handle.move(by, source?)` takes a signed slot count in place of `'left'` or `'right'`: `handle.move(-3, 'person')` is one gated call that crosses up to three
+  slots to the left, stops at an end or a panel that cannot be crossed, and answers `changed: true` when at least one slot was crossed. A drag over several
+  neighbours is one call, where the loop of raw `panels.move` calls was needed before. Pass `1` or `-1` where `'right'` or `'left'` was passed.
+  `usePanelPinned()` now reads `PanelState.pinned`, so it agrees with `handle.getState().pinned` (and with `pin()` and `unpin()`).
 - `tuning.shrinkOutOfView: 'off'` (the default) now shows the neighbour of a stop cut off by the window edge, at its full size. Before, a stepping row faded that
   neighbour out, so Off looked like Hide at rest. A panel is inert only when the window does not reach it, and a click or focus in the cut-off neighbour
   settles the row onto a stop afterwards. `'visible'` and `'hidden'` are unchanged. `RowNumbers` gains `showPartial`.
 
+### Deprecated
+
+- `GAP` (16 whatever the gap is tuned to), `panelWidthOf`, `reorderStepsForOffset`, `computeRowLayout`, `computeRowNumbers` and `DRAG_CLOSE` carry `@deprecated`, each naming what to use
+  (`usePanelTuning().rowGap`, `LIBRARY_TUNING_DEFAULTS`, `usePanelReorderSteps()`, `usePanelDragProps()` and `useProvidePanels(...).rowNumbers`). They keep working. `PANEL_TRANSITION` stays.
+- The row's counter id as a panel id. `PanelsAPI` verbs, `useActivePanel`'s setter and `tuning.initialScroll.panel` still accept the counter id a view held before keys were the only id, with one development warning per id naming the key; it stops resolving in 0.3.0.
+- `useHost().panels.create`, `activate`, `move`, `setSlots`, `reanchor` and `close`. They keep working, with one development warning per verb naming the replacement on `useWorkspace()` (a panel's handle, or `addPanel` for create); they are removed in a later release. `panelList`, `maxFitPanels`, `recentlyClosed`, `undoClose` and `clearAll` stay. A view is now given only those `PanelsAPI` members as `useHost().panels`, not the row's own (`entries`, `rowNumbers`, `tuning` and the rest).
+
 ### Added
 
+- `usePanelDots(...)` (`usePanelDots.ts`) is the headless state of a dot bar for a row: one dot per drawn panel, its width following the panel's width, the odd one hollow, the window oval, `selectDot(id)` to centre a panel, and `startOvalDrag()` to drag the oval. The app draws and places it; the library writes the row only through its scroll writer, and Reduce Motion snaps a click. The panel setting `hollowDot` (template scope, default false) draws that panel's dot hollow.
+- A workspace switch's motion is pinned by tests and a Chromium proof for each way of switching and each Reduce Motion source (`test/workspace-switch-scroll*.test.ts`, `proof/rc4-workspace-switch-scroll`). The column already slides on every path, so there is no behaviour change.
+
+- `tuning.chrome` takes six pixel settings for the chrome drawn around a panel: `headerGapPx` (the header pill's gap above the frame, also the grab bar's height), `grabPillWidthPx` and `grabPillHeightPx`, `headerInsetPx` (the header text's inset), and `footerPadXPx` and `footerPadYPx`. Their defaults are the values the library drew before, so nothing moves until a workspace sets one.
+
+- `PhonuxLabels.pinFailed` and `unpinFailed`: the text a host announces when a pin or unpin request is refused. Defaults `Could not pin this panel` and `Could not unpin this panel`.
+- A saved panel now carries an optional `uid` (`WorkspacePanelState.uid`, `u_` and 32 hex characters), made once when the
+  panel is created and kept through save, restore, a copy of the file to another device and `undoClose`, so a later export,
+  import or sync can match panels. It is not the panel's key or id, and nothing a host holds changes. File version stays 1.
+  A file saved without uids restores unchanged and is written once with them. A library older than this one drops the
+  field on its next save, so the uids are made again.
+- `PanelViewProps<P>` names the props a template's `view` and `footer` receive (`panel`, `handle`, `manager`); `PanelTemplate` uses it.
+  `phonux/testing` gains `createFakePanel(state?)`, a `ViewHandle` and `PanelReader` over one in-memory panel that record each operation
+  in `calls` and answer an accepted result, so a view test needs no cast. `usePanelState(id)` now re-reads only when that panel changes.
+- `theme?: (mode: 'light' | 'dark') => Theme` on `createWorkspace` and `createWorkspaceColumn`: the mount draws that theme with one `CssBaseline` instead of `createDefaultTheme`. `mode` is the window's color scheme. The column draws it once and its cells draw none of their own, which also ends a second `CssBaseline` in a column. A `wrap` must not draw its own `ThemeProvider` or `CssBaseline`.
+- The contract for a value that is not there yet: `history`, `snapshots` and `labels` are optional on `Host`, the first frame of an auto-mounted workspace holds exactly what `createWorkspace` was given, and `workspace.update` carries the rest. `createFakeHost({ absent: ['history', 'snapshots'] })` renders the absent frame in a test.
+
+- `configureTuning` is accepted before the workspace is attached or loaded (only a disposed workspace refuses), and `column.configureTuning(patch)` applies one tuning change to every workspace in the column, including ones added or restored later.
+- `useWorkspace()` gives a view the manager of its workspace and `addPanel`, so a view such as History opens, closes, shows and creates other panels by key through the handles `panels.get(key)` returns. The type is `ViewWorkspace`: the panel manager plus `addPanel`, without `dispose`, `update` or `rename`, and the same object on every render. It is `undefined` outside a row that has a workspace. `useWorkspaceManager()` stays read-only.
+- `AnyPanelTemplate`: `WorkspaceOptions.templates`, `root` and `registerTemplate` take a template of any params, so a template made with `definePanel` for typed params needs no cast. `addPanel` still checks `params`.
+- `usePanelDragProps()` returns the `onClose` and `reorder` of the panel it is called in for `DragToClose`, both going through the panel's handle. The default frame uses it.
 - A column of workspaces, one above the other. `createWorkspaceColumn(options)` renders itself like `createWorkspace`, and
   `column.addWorkspace(options)` is the one call that creates a workspace, adds it and returns its `WorkspaceHandle`. ArrowUp and
   ArrowDown move between workspaces (never while focus is in a field, widget, editor or dialog, or during a keyboard drag, and never
@@ -17,20 +106,34 @@
   reads "Create new workspace" where there is none. Each workspace has a name input above its panels. A workspace now has an `id`
   that never changes, a `name` (default `Workspace <n>`) and `rename(name)`; `WorkspaceOptions` takes `id`, `name` and `onRename`.
   `ColumnStorage` keeps the list, the names and the current workspace, and the panels of each workspace under its id. New
-  `PhonuxLabels` keys: `newWorkspace`, `goToWorkspace` and `workspaceName`. `WorkspaceColumn` draws a column for an app that mounts itself.
+  `PhonuxLabels` keys: `newWorkspace`, `goToWorkspace` and `workspaceName`. `WorkspaceColumn` draws a column for an app that mounts itself. `addWorkspace` takes `id`, `name` and `index` only: the column has one content, and `ColumnStorage.workspace(id)` is the one door to a workspace's panels.
 - `tuning.phoneFit` (`'off'` by default, or `'fit'`) with `tuning.phoneFitMin` (0.82) and `tuning.phoneFitMax` (1.13): the default mount scales the
   phone (width and height together, whole pixels) so whole slots fill the window, within that band of the preferred size, and never cuts a panel at rest.
   `usePhoneSize()` returns the size a panel is drawn at; `useHost().device.size` stays the preferred size. Off, nothing changes.
   A hand-wired flow calls `usePhoneFit(containerRef, containerWidth, preferred, tuning, topInset?)` and gives the size to `useProvidePanels`
   and, with the new `Workspace` prop `phoneHeight`, to `Workspace`.
+- `minWorkspaceWidth({ phoneWidth, fixedColumnCount, phoneSlots?, tabletWidth?, gap? })` (with the `MinWorkspaceWidthInput`
+  type) gives the narrowest row container that shows every fixed column plus two phone slots, or plus one tablet panel
+  (768) when that is wider, and `PanelsAPI.minWorkspaceWidth` reports it for the live row, from its phone width,
+  `tuning.rowGap` and fixed columns, before the row is measured too. A host sets its window minimum from it (Tauri
+  `setMinSize`). History alone at phone 390 and gap 16 is 1234; Profile and History at gap 24 is 1680.
 - A template may declare the panel API level it was written against: `definePanel({ id, view, api: 1 })`. Leaving `api` out
   means the newest level, `PANEL_API` (also new, with the `PanelApiLevel` type). A level is the package major version the
   panel was written for. Before 1.0.0 level 1 moves with the prereleases; at 1.0.0 it is frozen. A level the library does not serve throws `invalid-template` from `definePanel`, `createWorkspace` and
   `registerTemplate`. Nothing changes for a template that sets nothing: there is one level today, and every level stays served until it is deprecated. In development the first render of a template logs one console.error when the props its level hands the view and footer lack a member the level promises or hold one of the wrong kind; `definePanel` and the header button items a view lists get the same treatment, and a setting or header button member newer than the template's level is reported the same way (nothing is newer with one level).
 
+- `phonux/testing/row`: `renderWorkspace(workspace, { width })` renders a workspace with the real engine in a jsdom window on a virtual frame clock, and
+  returns a driver with `scroller`, `panel(id)` (its `root`, `header`, `grabBar` and `footer`), `frames(count)`, `setWidth(width)`, `drag`, `release`, `press` and
+  `dispose`. The entry also exports `frameClock` and `FRAME_MS`. Import it before `react`: it installs the jsdom window and the clock, so a test steps frames instead of
+  waiting on real time. `jsdom` is an optional peer dependency, needed only for this entry. `createFakeHost` is unchanged and still only records.
+- `memoryWorkspaceStorage` returns a `MemoryWorkspaceStorage`, with a readable `saved`: a copy of the state `save` stored last, null before the first save.
+
 ### Fixed
 
 - After a reload, a panel made by `addPanel` or New view could take the key of a restored panel (`web~4`), because the counter behind default ids restarts at launch. `addPanel` then returned the restored panel and two rows could share one saved entry and one lock. A restore now moves the counter past every restored key. A workspace with its own `newId` is unchanged.
+- An arrow key a control already used no longer also steps the row. A resize grabber that narrowed a panel with ArrowLeft or ArrowRight
+  stepped the row the same way, so the leftmost panel left the window on each press (and, under Hide or Off, the resized panel could be faded).
+  The row now skips a keydown whose default was prevented, so a control that handles an arrow key calls `preventDefault()` on it; an arrow nothing handles steps as before.
 
 ## 0.2.0-rc.3
 
@@ -54,11 +157,6 @@
 
 ### Added
 
-- A saved panel now carries an optional `uid` (`WorkspacePanelState.uid`, `u_` and 32 hex characters), made once when the
-  panel is created and kept through save, restore, a copy of the file to another device and `undoClose`, so a later export,
-  import or sync can match panels. It is not the panel's key or id, and nothing a host holds changes. File version stays 1.
-  A file saved without uids restores unchanged and is written once with them. A library older than this one drops the
-  field on its next save, so the uids are made again.
 - The README quickstart is the default start (`definePanel`, `createWorkspace`, `addPanel`) with the hand-built `HostProvider`,
   `Workspace` and `PanelRow` row shown after it. Both blocks are read out of the README by marker, type-checked, and run in
   `test/readme-quickstart.test.ts`; `npm run smoke` builds and runs the packed README's quickstart against the tarball.

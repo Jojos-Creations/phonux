@@ -11,6 +11,7 @@ import type { ConfigureResult, PanelReader, ViewHandle } from '../index.js';
 import { PanelManagerError } from '../panelManagerError.js';
 import { panelKey } from '../panelSettings.js';
 import type { PanelWindow } from '../panelWindow.js';
+import { projectWorkspaceState } from '../workspaceState.js';
 import { cleanup } from './support/mount-harness.js';
 import { pinRig, type PinRig } from './support/pin-rig.js';
 
@@ -18,9 +19,9 @@ afterEach(() => cleanup());
 
 type Refused = Extract<ConfigureResult, { ok: false }>;
 
-const WORKSPACE_ONLY = ['rowGap', 'saveQuietMs', 'gestureLockMs', 'gestureQuietMs', 'resizeSettleSlides', 'returnTieBreak', 'dropTieBreak', 'rowGesture', 'initialScroll', 'maxLivePanels', 'chrome', 'shrinkOutOfView', 'phoneFit', 'phoneFitMin', 'phoneFitMax'];
+const WORKSPACE_ONLY = ['rowGap', 'saveQuietMs', 'gestureLockMs', 'gestureQuietMs', 'resizeSettleSlides', 'returnTieBreak', 'dropTieBreak', 'rowGesture', 'initialScroll', 'maxLivePanels', 'chrome', 'phoneFit', 'phoneFitMin', 'phoneFitMax'];
 const PER_PANEL = ['dragToClose', 'slide', 'hopFraction', 'edgeScroll'];
-const TEMPLATE = ['hostCreatable', 'multiple', 'maxInstances'];
+const TEMPLATE = ['hostCreatable', 'multiple', 'maxInstances', 'hollowDot'];
 
 /** One legal value for every settings key the catalog names, so a sweep can ask each of them. */
 const VALUE: Record<string, unknown> = {
@@ -30,51 +31,31 @@ const VALUE: Record<string, unknown> = {
   crossable: false,
   placeable: false,
   resizable: false,
-  formFactors: ['phone', 'tablet'],
   clearable: false,
   hostCreatable: false,
+  hollowDot: false,
   multiple: false,
   maxInstances: 3,
   listed: false,
   startVisibility: 'parked',
   hideStickiness: 'until-room',
-  hideWhenLast: 'refuse',
   capacityReturn: 'manual',
-  returnPriority: 3,
   overflow: 'park',
-  evictionRank: 2,
-  evictionOrder: 'nearest',
   revealOnScroll: 'any',
   scrollOnOpen: 'center',
   scrollOnMove: 'none',
-  scrollOnDrag: 'none',
-  frame: 'none',
   toggleWhenClosed: 'reopen',
   showWhenClosed: 'reopen',
-  viewState: 'reset-on-park',
-  keepMounted: true,
   placeOnAdd: 'row-start',
   placeOnShow: 'in-place',
-  placeOnReturn: 'in-place',
-  placeFallback: 'row-start',
-  undoPlacement: 'row-start',
   layer: 'raised',
   enterFrom: 'left',
-  exitTo: 'left',
-  closeExit: 'left',
-  animated: false,
-  formFactor: 'tablet',
   title: 'Renamed',
   pinning: { pinned: { placement: 'row-start' }, unpinned: { placement: 'row-end' } },
   pinningWhenNotLive: 'refuse',
   headerButtons: { x: false },
-  persist: 'session',
-  rememberLayout: false,
   restoreVisibility: 'parked',
   afterClose: 'return-next-launch',
-  undoWindowMs: 9000,
-  reportClose: false,
-  snapshot: 'never',
   rowGap: 20,
   dragToClose: { minDistancePx: 90 },
   slide: { durationSec: 0.3 },
@@ -90,7 +71,6 @@ const VALUE: Record<string, unknown> = {
   initialScroll: 'end',
   chrome: { mode: 'hover-or-active', fadeMs: 80 },
   maxLivePanels: 3,
-  shrinkOutOfView: 'visible',
   phoneFit: 'fit',
   phoneFitMin: 0.9,
   phoneFitMax: 1.1,
@@ -166,10 +146,10 @@ test('doors: the table ran every row, calls by classes by one key each', () => {
 // The sweep: every catalog key through every call
 // ---------------------------------------------------------------------------
 
-test('doors: the catalog holds the plain keys, three template keys among them, and nineteen tuning leaves', () => {
+test('doors: the catalog holds the plain keys, three template keys among them, and eighteen tuning leaves', () => {
   assert.equal(flatKeys.length + leafKeys.length, names.length);
   assert.deepEqual(leafKeys.sort(), [...PER_PANEL, ...WORKSPACE_ONLY].sort());
-  assert.equal(leafKeys.length, 19);
+  assert.equal(leafKeys.length, 18);
   assert.deepEqual(PANEL_SETTINGS_CATALOG.filter((d) => d.configure.doors.length === 1 && d.configure.doors[0] === 'template').map((d) => d.name).sort(), [...TEMPLATE].sort());
 });
 
@@ -178,7 +158,7 @@ for (const key of instanceKeys) {
     const r = await pinRig();
     const res = r.turn(() => r.ws.panels.configure('c', { [key]: VALUE[key] } as never));
     // A key that no valid arrangement of this row could take at once is refused whole with a typed code, never thrown.
-    assert.equal(res.ok || ['settings-conflict', 'tier-not-allowed'].includes((res as Refused).code), true, res.ok ? '' : `${(res as Refused).code}: ${(res as Refused).message}`);
+    assert.equal(res.ok || ['settings-conflict', 'slots-above-max'].includes((res as Refused).code), true, res.ok ? '' : `${(res as Refused).code}: ${(res as Refused).message}`);
     if (res.ok) assert.equal(r.h.c!.getSettings().source[key], 'instance');
   });
 }
@@ -296,7 +276,7 @@ const VIEW_ACCEPTS: readonly [string, unknown][] = [
   ['title', 'From the view'],
   ['listed', false],
   ['layer', 'raised'],
-  ['formFactor', 'tablet'],
+  ['closable', false],
   ['slots', 2],
   ['placeOnAdd', { anchor: { panel: 'root', position: 'left' } }],
   ['enterFrom', 'anchor'],
@@ -353,13 +333,38 @@ test('view: the PanelReader has no configure, and neither the handle nor the rea
   assert.equal(handle === (r.ws.panels.get('v') as unknown), false, 'the view\'s handle is not the manager\'s');
 });
 
-test('view: handle.configure({ closable: false }) leaves the panel closable', async () => {
+test('view: handle.configure({ closable: false }) locks its own panel and null unlocks it', async () => {
   const { r, seen } = await viewRig();
-  r.turn(() => seen.get('v')!.handle.configure({ closable: false } as never));
+  const handle = seen.get('v')!.handle;
+  assert.equal(r.turn(() => handle.configure({ closable: false })).ok, true);
+  assert.equal(r.ws.panels.get('v')!.getState().settings.closable, false);
+  assert.equal(r.entry('v').locked, true);
+  assert.equal((r.turn(() => handle.close()) as Refused).code, 'not-closable');
+  assert.equal(r.turn(() => handle.configure({ closable: null })).ok, true);
   assert.equal(r.ws.panels.get('v')!.getState().settings.closable, true);
   assert.equal(r.entry('v').locked, false);
-  assert.equal(r.turn(() => seen.get('v')!.handle.close()).ok, true);
+  assert.equal(r.turn(() => handle.close()).ok, true);
   assert.equal(r.ws.panels.get('v')!.getState().status, 'closed');
+});
+
+test('view: closable true is not view-settable, since a view may only lock its own panel', async () => {
+  const { r, seen } = await viewRig();
+  const res = r.turn(() => seen.get('v')!.handle.configure({ closable: true } as never)) as Refused;
+  assert.deepEqual([res.ok, res.code, res.setting], [false, 'not-view-settable', 'closable']);
+});
+
+test('view: a lock the view set is saved in the file as closable false', async () => {
+  const { r, seen } = await viewRig();
+  r.turn(() => seen.get('v')!.handle.configure({ closable: false }));
+  const saved = projectWorkspaceState([r.entry('v') as PanelWindow], 'root');
+  assert.equal(saved.panels[0]?.closable, false);
+  assert.deepEqual(saved.panels[0]?.instance, { closable: false });
+});
+
+test('the instance door still refuses closable true on the root with settings-conflict', async () => {
+  const { r } = await viewRig();
+  const res = r.turn(() => r.ws.panels.configure('root', { closable: true })) as Refused;
+  assert.deepEqual([res.ok, res.code], [false, 'settings-conflict']);
 });
 
 test('view: the handle carries the same keys as the manager\'s handle for the same panel, configure last', async () => {

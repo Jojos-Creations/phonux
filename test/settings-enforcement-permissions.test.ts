@@ -1,5 +1,5 @@
 /**
- * The engine's reading of the fourteen permission and lifecycle settings it owns: one differential per name through
+ * The engine's reading of the nine permission and lifecycle settings it owns: one differential per name through
  * the real pure function or hook, the effect each setting has, the two writers of an entry's mirror fields, the
  * legacy defaults of a hand-built entry and the slot hooks. Entries are built the way a creation path will build
  * them (appendPanel's skeleton, then applyTemplate over a resolved layer), so the settings are the only variable.
@@ -11,26 +11,24 @@ import * as React from 'react';
 import { act } from 'react';
 import {
   LIBRARY_PANEL_DEFAULTS,
-  PanelRow,
-  TIER_SIZES,
-  registerView,
-  resolvePanelSettings,
   usePanelCapabilities,
   usePanelCloseEligible,
   usePanelNeighborWidths,
   usePanelReorderEligible,
   useProvidePanels,
 } from '../index.js';
-import type { CaptureTrigger, FormFactor, PanelSettings, PanelWindow, PanelsInput, ProvidedPanels, ResolvedPanelSettings } from '../index.js';
-import { applyTemplate, effective, panelKey } from '../panelSettings.js';
+import type { CaptureTrigger, PanelSettings, PanelWindow, PanelsInput, ProvidedPanels, ResolvedPanelSettings } from '../index.js';
+import { applyTemplate, effective, panelKey, resolvePanelSettings } from '../panelSettings.js';
 import { deriveAnchorsFromOrder } from '../panelRowOrder.js';
-import { appendPanel, closePanel, createHistoryPanel, movePanel, reanchorPanel, restorePanel, setFormFactor } from '../panelWindow.js';
+import { appendPanel, closePanel, createHistoryPanel, movePanel, reanchorPanel, restorePanel, setSlots } from '../panelWindow.js';
+import { sizeOfSlots } from '../panelTiers.js';
 import { hydrateWorkspaceState } from '../workspaceState.js';
 import { differential, differentialsCovered } from './support/differential.js';
-import { cleanup, mount, panelsInput, withHost } from './support/mount-harness.js';
+import { cleanup, mount, withHost, useSeededInput, StaticRow } from './support/mount-harness.js';
+import { registerTestView } from './support/test-views.js';
 
 const ROOT = 'root';
-const OWNED = ['closable', 'parkable', 'draggable', 'crossable', 'placeable', 'resizable', 'formFactors', 'clearable', 'listed', 'formFactor', 'title', 'undoWindowMs', 'reportClose', 'snapshot'];
+const OWNED = ['closable', 'parkable', 'draggable', 'crossable', 'placeable', 'resizable', 'clearable', 'listed', 'title'];
 
 const resolve = (layer: PanelSettings = {}): ResolvedPanelSettings => resolvePanelSettings({ template: layer }).value;
 
@@ -62,7 +60,7 @@ const spyCapture = (): Spy => {
 function provide(initialEntries: PanelWindow[], over: Partial<PanelsInput> = {}): { now: () => ProvidedPanels; ids: () => string[] } {
   let latest: ProvidedPanels | undefined;
   function Probe(): React.ReactElement {
-    latest = useProvidePanels(panelsInput({ initialEntries, ...over }));
+    latest = useProvidePanels(useSeededInput({ initialEntries, ...over }));
     return React.createElement('output');
   }
   mount(React.createElement(Probe));
@@ -75,7 +73,7 @@ function provide(initialEntries: PanelWindow[], over: Partial<PanelsInput> = {})
 
 const NONE: ReadonlySet<string> = new Set();
 
-registerView('perm-probe', ({ panel }) => {
+registerTestView('perm-probe', ({ panel }) => {
   const widths = usePanelNeighborWidths();
   const caps = usePanelCapabilities();
   return React.createElement('i', {
@@ -91,7 +89,7 @@ registerView('perm-probe', ({ panel }) => {
 /** A PanelRow over `entries`, each rendered by the probe view; returns a reader of what slot `id` saw. */
 function mountRow(entries: PanelWindow[]): (id: string) => Record<string, string> {
   const probed = entries.map((p) => ({ ...p, view: 'perm-probe' }));
-  const mounted = mount(withHost(React.createElement(PanelRow, { entries: probed, rootId: ROOT, closingIds: NONE, enteringViaAnchorIds: NONE })));
+  const mounted = mount(withHost(React.createElement(StaticRow, { entries: probed, rootId: ROOT, closingIds: NONE, enteringViaAnchorIds: NONE })));
   return (id) => {
     const node = mounted.container.querySelector(`[data-probe="${id}"]`);
     assert.ok(node, `slot ${id} is not mounted`);
@@ -169,19 +167,11 @@ test('differential placeable: reanchorPanel changes the row under true and retur
   });
 });
 
-test('differential resizable: setFormFactor changes the tier under true and returns the same array under false', () => {
-  const tierAfter = (resizable: boolean): FormFactor | undefined => setFormFactor(row(rootEntry(), made('a', { resizable })), 'a', 'tablet').find((p) => p.id === 'a')?.formFactor;
+test('differential resizable: setSlots changes the slot count under true and returns the same array under false', () => {
+  const slotsAfter = (resizable: boolean): number | undefined => setSlots(row(rootEntry(), made('a', { resizable })), 'a', 2).find((p) => p.id === 'a')?.slots;
   differential('resizable', (run) => {
-    run(true, () => tierAfter(true));
-    run(false, () => tierAfter(false));
-  });
-});
-
-test('differential formFactors: a tier inside the set is taken and one outside it is refused', () => {
-  const tierAfter = (formFactors: FormFactor[]): FormFactor | undefined => setFormFactor(row(rootEntry(), made('a', { formFactors })), 'a', 'desktop').find((p) => p.id === 'a')?.formFactor;
-  differential('formFactors', (run) => {
-    run(['phone', 'tablet', 'desktop'], () => tierAfter(['phone', 'tablet', 'desktop']));
-    run(['phone', 'tablet'], () => tierAfter(['phone', 'tablet']));
+    run(true, () => slotsAfter(true));
+    run(false, () => slotsAfter(false));
   });
 });
 
@@ -205,17 +195,6 @@ test('differential listed: panelList holds the entry under true and not under fa
   });
 });
 
-test('differential formFactor: the created entry carries the tier and the size of that tier', () => {
-  const created = (formFactor: FormFactor): unknown => {
-    const entry = made('a', { formFactor });
-    return [entry.formFactor, entry.size];
-  };
-  differential('formFactor', (run) => {
-    run('phone', () => created('phone'));
-    run('tablet', () => created('tablet'));
-  });
-});
-
 test('differential title: the title the settings carry is the one panelList summarises', () => {
   const titleOf = (title: string): string | undefined => provide([rootEntry(), made('a', { title })]).now().panelList[0]?.title;
   differential('title', (run) => {
@@ -224,45 +203,7 @@ test('differential title: the title the settings carry is the one panelList summ
   });
 });
 
-test('differential undoWindowMs: a close is held in recentlyClosed under 10000 and is final at once under 0', () => {
-  const held = (undoWindowMs: number): string[] | null => {
-    const p = provide([rootEntry(), made('a', { undoWindowMs })]);
-    act(() => p.now().close('a'));
-    return p.now().recentlyClosed?.map((s) => s.id) ?? null;
-  };
-  differential('undoWindowMs', (run) => {
-    run(10000, () => held(10000));
-    run(0, () => held(0));
-  });
-});
-
-test('differential reportClose: onPanelsClosed is called once under true and never under false', () => {
-  const reports = (reportClose: boolean): number => {
-    const seen: string[] = [];
-    const p = provide([rootEntry(), made('a', { reportClose })], { onPanelsClosed: (e) => void seen.push(e.id) });
-    act(() => p.now().close('a'));
-    return seen.length;
-  };
-  differential('reportClose', (run) => {
-    run(true, () => reports(true));
-    run(false, () => reports(false));
-  });
-});
-
-test('differential snapshot: a close asks the host for a picture under both and not under never', () => {
-  const pictures = (snapshot: 'both' | 'never'): string[] => {
-    const spy = spyCapture();
-    const p = provide([rootEntry(), made('a', { snapshot })], { capture: spy });
-    act(() => p.now().close('a'));
-    return spy.captured;
-  };
-  differential('snapshot', (run) => {
-    run('both', () => pictures('both'));
-    run('never', () => pictures('never'));
-  });
-});
-
-test('differential coverage: the names the differentials above completed are exactly the fourteen this entry owns', () => {
+test('differential coverage: the names the differentials above completed are exactly the nine this entry owns', () => {
   assert.ok(differentialsCovered().length > 0, 'no differential completed, so the equality below would prove nothing');
   assert.deepEqual(differentialsCovered(), [...OWNED].sort());
 });
@@ -315,24 +256,24 @@ test('placeable false: reanchorPanel returns the same array', () => {
   assert.ok(reanchorPanel(panels, 'b', { position: 'left' }, ROOT) !== panels, 'control: a placeable panel is re-anchored');
 });
 
-test('resizable false: setFormFactor returns the same array and onPanelResize never fires, while a resizable panel fires it', () => {
+test('resizable false: setSlots returns the same array and onPanelResize never fires, while a resizable panel fires it', () => {
   let resizes = 0;
   const p = provide([rootEntry(), made('frozen', { resizable: false }), made('free')], { onPanelResize: () => void (resizes += 1) });
-  act(() => p.now().setFormFactor('frozen', 'tablet'));
-  assert.equal(resizes, 0, 'a frozen tier fires nothing');
-  assert.equal(p.now().entries.find((e) => e.id === 'frozen')?.formFactor, 'phone');
-  act(() => p.now().setFormFactor('free', 'tablet'));
+  act(() => p.now().setSlots('frozen', 2));
+  assert.equal(resizes, 0, 'a frozen slot count fires nothing');
+  assert.equal(p.now().entries.find((e) => e.id === 'frozen')?.slots, 1);
+  act(() => p.now().setSlots('free', 2));
   assert.equal(resizes, 1, 'control: the free panel resizes and fires once');
   const panels = row(rootEntry(), made('frozen', { resizable: false }));
-  assert.ok(setFormFactor(panels, 'frozen', 'tablet') === panels);
+  assert.ok(setSlots(panels, 'frozen', 2) === panels);
 });
 
-test('a tier outside formFactors: setFormFactor returns the same array and onPanelResize never fires', () => {
+test('a slot count above maxSlots: setSlots leaves a panel already at maxSlots alone and onPanelResize never fires', () => {
   let resizes = 0;
-  const p = provide([rootEntry(), made('a', { formFactors: ['phone', 'tablet'] })], { onPanelResize: () => void (resizes += 1) });
-  act(() => p.now().setFormFactor('a', 'desktop'));
+  const p = provide([rootEntry(), made('a', { maxSlots: 1 }), made('b', { maxSlots: 2 })], { onPanelResize: () => void (resizes += 1) });
+  act(() => p.now().setSlots('a', 2));
   assert.equal(resizes, 0);
-  act(() => p.now().setFormFactor('a', 'tablet'));
+  act(() => p.now().setSlots('b', 2));
   assert.equal(resizes, 1);
 });
 
@@ -442,7 +383,7 @@ test('a draggable false fixed column is never moved by its own drag and keeps it
 });
 
 // ---------------------------------------------------------------------------
-// undoWindowMs, reportClose, snapshot
+// The undo window and the pictures a park or a close takes
 // ---------------------------------------------------------------------------
 
 /** Mock timers over setTimeout and Date, after everything is loaded, so a window end is read off the tick count. */
@@ -450,68 +391,7 @@ const clock = (): void => mock.timers.enable({ apis: ['setTimeout', 'Date'], now
 const tick = (ms: number): void => act(() => mock.timers.tick(ms));
 const heldIds = (p: { now: () => ProvidedPanels }): string[] => p.now().recentlyClosed?.map((s) => s.id) ?? [];
 
-test('undoWindowMs 0: the close is absent from recentlyClosed, undoClose leaves it, and exactly one evict is seen', () => {
-  const spy = spyCapture();
-  const p = provide([rootEntry(), made('a', { undoWindowMs: 0 }), made('b')], { capture: spy });
-  act(() => p.now().close('a'));
-  assert.equal(p.now().recentlyClosed, null);
-  assert.deepEqual(p.ids(), ['root', 'b']);
-  act(() => p.now().undoClose());
-  assert.deepEqual(p.ids(), ['root', 'b'], 'nothing to undo');
-  assert.deepEqual(spy.evicted, ['a'], 'exactly one evict, at the close');
-});
-
-test('undoWindowMs 0: a second close of the same panel in the same turn is a no-op', () => {
-  const spy = spyCapture();
-  const closed: string[] = [];
-  const p = provide([rootEntry(), made('a', { undoWindowMs: 0 })], { capture: spy, onPanelsClosed: (e) => void closed.push(e.id) });
-  act(() => {
-    const stale = p.now();
-    stale.close('a');
-    stale.close('a');
-  });
-  assert.deepEqual(spy.evicted, ['a'], 'one evict, not two');
-  assert.equal(closed.length, 1, 'one report, not two');
-});
-
-test('undoWindowMs 0 closed inside an open window leaves that window\'s end where it was', () => {
-  clock();
-  const p = provide([rootEntry(), made('a'), made('z', { undoWindowMs: 0 })]);
-  act(() => p.now().close('a'));
-  tick(3000);
-  act(() => p.now().close('z'));
-  assert.deepEqual(heldIds(p), ['a'], 'only a is held');
-  tick(6999);
-  assert.deepEqual(heldIds(p), ['a'], 'the window still ends at 10 s from the first close');
-  tick(1);
-  assert.deepEqual(heldIds(p), [], 'and it ends there');
-});
-
-test('undoWindowMs 2000 closed inside a 10 s window leaves the end unchanged', () => {
-  clock();
-  const p = provide([rootEntry(), made('a'), made('s', { undoWindowMs: 2000 })]);
-  act(() => p.now().close('a'));
-  tick(1000);
-  act(() => p.now().close('s'));
-  tick(8999);
-  assert.deepEqual(heldIds(p), ['a', 's'], 'at 9999 ms both are still held: the 2 s value did not shorten the window');
-  tick(1);
-  assert.deepEqual(heldIds(p), [], 'both end together at 10 s');
-});
-
-test('undoWindowMs 30000 closed inside a 10 s window extends the end', () => {
-  clock();
-  const p = provide([rootEntry(), made('a'), made('l', { undoWindowMs: 30000 })]);
-  act(() => p.now().close('a'));
-  tick(1000);
-  act(() => p.now().close('l'));
-  tick(29999);
-  assert.deepEqual(heldIds(p), ['a', 'l'], 'at 30999 ms, still inside now + 30 s');
-  tick(1);
-  assert.deepEqual(heldIds(p), [], 'and over at 31 s');
-});
-
-test('the default window still restarts from each close: a second default close 1 s in ends the window at 11 s', () => {
+test('the undo window restarts from each close: a second default close 1 s in ends the window at 11 s', () => {
   clock();
   const p = provide([rootEntry(), made('a'), made('b')]);
   act(() => p.now().close('a'));
@@ -523,96 +403,22 @@ test('the default window still restarts from each close: a second default close 
   assert.deepEqual(heldIds(p), []);
 });
 
-test('reportClose false: onPanelsClosed is not called and onPanelsRestored lists only the reported, restored ids', () => {
-  const closedIds: string[] = [];
-  const restoredBatches: string[][] = [];
-  const p = provide([rootEntry(), made('quiet', { reportClose: false }), made('loud'), made('other')], {
-    onPanelsClosed: (e) => void closedIds.push(e.id),
-    onPanelsRestored: (batch) => void restoredBatches.push(batch),
-  });
-  act(() => p.now().close('quiet'));
-  assert.deepEqual(closedIds, [], 'nothing reported for the quiet one');
-  act(() => p.now().close('loud'));
-  assert.equal(closedIds.length, 1);
-  act(() => p.now().undoClose());
-  assert.deepEqual(p.ids().sort(), ['loud', 'other', 'quiet', 'root'].sort(), 'both are restored');
-  assert.deepEqual(restoredBatches, [closedIds], 'only the id that was reported comes back');
-});
-
-test('reportClose false for every close: undoClose restores them and onPanelsRestored is not called', () => {
-  const restoredBatches: string[][] = [];
-  const p = provide([rootEntry(), made('quiet', { reportClose: false })], { onPanelsRestored: (batch) => void restoredBatches.push(batch) });
-  act(() => p.now().close('quiet'));
-  act(() => p.now().undoClose());
-  assert.deepEqual(p.ids(), ['root', 'quiet']);
-  assert.deepEqual(restoredBatches, []);
-});
-
 /** Root plus three live panels, all under `layer`, in a container that holds three columns: the reconcile effect parks the leftmost one. */
 const parkingRow = (layer: PanelSettings, spy: Spy): ReturnType<typeof provide> =>
   provide([rootEntry(), made('a', { overflow: 'park', ...layer }), made('b', { overflow: 'park', ...layer }), made('c', { overflow: 'park', ...layer })], { capture: spy, containerWidth: 1300 });
 
-test('snapshot control: the row above really parks a panel, so the park scenarios below can be positive', () => {
+test('snapshot control: the row above really parks a panel, so the park scenario below can be positive', () => {
   const spy = spyCapture();
   const p = parkingRow({}, spy);
   assert.deepEqual(p.now().entries.filter((e) => !e.live).map((e) => e.id), ['a']);
 });
 
-test('snapshot never: a park, a close and a clearAll make 0 capture and 0 evict calls, where both makes at least one of each', () => {
-  const runAll = (snapshot: 'both' | 'never'): { captured: number; evicted: number } => {
-    const spy = spyCapture();
-    const parked = parkingRow({ snapshot }, spy);
-    act(() => parked.now().close('a'));
-    act(() => parked.now().clearAll());
-    return { captured: spy.captured.length, evicted: spy.evicted.length };
-  };
-  const both = runAll('both');
-  assert.ok(both.captured >= 1 && both.evicted >= 1, `positive control: both captured ${both.captured} and evicted ${both.evicted}`);
-  cleanup();
-  assert.deepEqual(runAll('never'), { captured: 0, evicted: 0 });
-});
-
-test('snapshot never: the picture of a close that elapses unrestored is not evicted either', () => {
-  clock();
-  const spy = spyCapture();
-  const p = provide([rootEntry(), made('a', { snapshot: 'never' }), made('b')], { capture: spy });
-  act(() => p.now().close('a'));
-  act(() => p.now().close('b'));
-  tick(10_000);
-  assert.deepEqual(spy.evicted, ['b'], 'b is evicted when its window elapses; a never asked for a picture');
-  assert.deepEqual(spy.captured, ['b']);
-});
-
-test("snapshot 'park' differs from 'both': it captures a park and not a close", () => {
-  const spyPark = spyCapture();
-  const parked = parkingRow({ snapshot: 'park' }, spyPark);
-  assert.deepEqual(spyPark.captured, ['a'], 'the park of a is captured under park');
-  act(() => parked.now().close('b'));
-  assert.deepEqual(spyPark.captured, ['a'], 'the close of b is not');
-  const closeOnly = spyCapture();
-  const p = provide([rootEntry(), made('a', { snapshot: 'park' })], { capture: closeOnly });
-  act(() => p.now().close('a'));
-  assert.deepEqual(closeOnly.captured, [], 'a close is not a park');
-});
-
-test("snapshot 'close' differs from 'both': it captures a close and not a park", () => {
-  const spyPark = spyCapture();
-  parkingRow({ snapshot: 'close' }, spyPark);
-  assert.deepEqual(spyPark.captured, [], 'the park of a is not captured under close');
-  cleanup();
-  const spyClose = spyCapture();
-  const p = provide([rootEntry(), made('a', { snapshot: 'close' })], { capture: spyClose });
-  act(() => p.now().close('a'));
-  assert.deepEqual(spyClose.captured, ['a']);
-});
-
-test("snapshot 'both' captures a park and a close: the default the two cases above are measured against", () => {
+test('a park and a close each take a picture', () => {
   const spy = spyCapture();
   const p = parkingRow({}, spy);
   assert.deepEqual(spy.captured, ['a']);
   act(() => p.now().close('b'));
   assert.deepEqual(spy.captured, ['a', 'b']);
-  assert.equal(effective(hand('x')).snapshot, 'both');
 });
 
 test('a close the gate refuses takes no picture', () => {
@@ -634,8 +440,8 @@ function randomLayer(rng: Rng): PanelSettings {
   if (chance(rng, 0.3)) layer.listed = chance(rng, 0.5);
   if (chance(rng, 0.3)) layer.layer = pick(rng, ['base', 'raised'] as const);
   if (chance(rng, 0.3)) layer.enterFrom = pick(rng, ['auto', 'left', 'right', 'anchor'] as const);
-  if (chance(rng, 0.4)) layer.formFactor = pick(rng, ['phone', 'tablet', 'desktop'] as const);
-  if (chance(rng, 0.3)) layer.formFactors = pick(rng, [['phone'], ['phone', 'tablet'], ['tablet', 'desktop'], ['phone', 'tablet', 'desktop']] as FormFactor[][]);
+  if (chance(rng, 0.4)) layer.slots = pick(rng, [1, 2, 3, 64] as const);
+  if (chance(rng, 0.3)) layer.maxSlots = pick(rng, [1, 2, 64] as const);
   if (chance(rng, 0.3)) layer.title = pick(rng, ['A', 'B', 'C']);
   return layer;
 }
@@ -651,8 +457,8 @@ test('create over 300 resolver-random entries writes every mirror field from the
     assert.equal(entry.collapsible, resolved.parkable, `#${n} collapsible`);
     assert.equal(entry.listed, resolved.listed, `#${n} listed`);
     assert.equal(entry.layer, resolved.layer, `#${n} layer`);
-    assert.equal(entry.formFactor, resolved.formFactor, `#${n} formFactor`);
-    assert.equal(entry.size?.formFactor, resolved.formFactor, `#${n} size follows the tier`);
+    assert.equal(entry.slots, resolved.slots, `#${n} slots`);
+    assert.deepEqual(entry.size, sizeOfSlots(resolved.slots), `#${n} size follows the slots`);
     assert.equal(entry.anchoredEnter, resolved.enterFrom === 'anchor', `#${n} anchoredEnter`);
     assert.ok(entry.settings === resolved, `#${n} the entry holds the resolved settings themselves`);
     assert.equal(entry.key, `id${n}`, `#${n} key`);
@@ -662,17 +468,17 @@ test('create over 300 resolver-random entries writes every mirror field from the
   assert.equal(checked, 300);
 });
 
-test('create sizes the entry from the tier: each tier equals the table the row prices widths from', () => {
-  for (const tier of ['phone', 'tablet', 'desktop'] as const) {
-    const entry = made('a', { formFactor: tier });
-    assert.deepEqual(entry.size, TIER_SIZES[tier], `${tier}: the size literals in panelSettings.ts drifted from TIER_SIZES`);
+test('create sizes the entry from its slots: each count equals sizeOfSlots, which the row prices widths from', () => {
+  for (const slots of [1, 2, 3, 64] as const) {
+    const entry = made('a', { slots });
+    assert.deepEqual(entry.size, sizeOfSlots(slots), `${slots}: the size literals in panelSettings.ts drifted from sizeOfSlots`);
   }
 });
 
-test('create keeps a size the entry already has for that tier and replaces one for another tier', () => {
-  const skeleton = appendPanel([], { url: 'https://x.example', formFactor: 'tablet' }, 'a', ROOT)[0]!;
-  assert.ok(applyTemplate(skeleton, resolve({ formFactor: 'tablet' }), 'create').size === skeleton.size, 'same tier: the same size object');
-  assert.deepEqual(applyTemplate(skeleton, resolve({ formFactor: 'desktop' }), 'create').size, TIER_SIZES.desktop);
+test('create keeps a size the entry already has for that slot count and replaces one for another count', () => {
+  const skeleton = appendPanel([], { url: 'https://x.example', slots: 2 }, 'a', ROOT)[0]!;
+  assert.ok(applyTemplate(skeleton, resolve({ slots: 2 }), 'create').size === skeleton.size, 'same count: the same size object');
+  assert.deepEqual(applyTemplate(skeleton, resolve({ slots: 64 }), 'create').size, sizeOfSlots(64));
 });
 
 test("create over the library defaults equals appendPanel's literals", () => {
@@ -681,7 +487,7 @@ test("create over the library defaults equals appendPanel's literals", () => {
   const { settings, key, ...rest } = created;
   assert.ok(settings !== undefined && key === 'a');
   assert.deepEqual(rest, { ...skeleton, slots: 1 }, 'every field appendPanel wrote is what create writes over the defaults, and the slot count the settings resolve to');
-  assert.deepEqual([created.locked, created.collapsible, created.listed, created.layer, created.anchoredEnter, created.formFactor], [false, true, true, 'base', false, 'phone']);
+  assert.deepEqual([created.locked, created.collapsible, created.listed, created.layer, created.anchoredEnter, created.slots], [false, true, true, 'base', false, 1]);
 });
 
 test("create writes key from the entry's own key when it has one, else its id, and never touches the input", () => {
@@ -696,16 +502,16 @@ test("create writes key from the entry's own key when it has one, else its id, a
 const changedKeys = (before: PanelWindow, after: PanelWindow): string[] =>
   [...new Set([...Object.keys(before), ...Object.keys(after)])].filter((k) => (before as unknown as Record<string, unknown>)[k] !== (after as unknown as Record<string, unknown>)[k]).sort();
 
-test('reconfigure writes only locked, listed, layer, anchoredEnter, title, settings and collapsible, and leaves the tier, size, anchor, live, hostData and key alone', () => {
-  const resized = setFormFactor(row(rootEntry(), made('a', {}, { hostData: { k: 1 } })), 'a', 'tablet')[1]!;
+test('reconfigure writes only locked, listed, layer, anchoredEnter, title, settings and collapsible, and leaves the slots, size, anchor, live, hostData and key alone', () => {
+  const resized = setSlots(row(rootEntry(), made('a', {}, { hostData: { k: 1 } })), 'a', 2)[1]!;
   const dragged = movePanel(row(rootEntry(), resized, made('b')), 'a', 'right', ROOT).find((p) => p.id === 'a')!;
-  for (const [label, entry] of [['a person-resized tablet entry', resized], ['a dragged entry', dragged]] as const) {
-    const next = applyTemplate(entry, resolve({ closable: false, listed: false, layer: 'raised', enterFrom: 'anchor', title: 'Renamed', formFactor: 'desktop', parkable: false }), 'reconfigure');
-    for (const kept of ['formFactor', 'size', 'anchor', 'live', 'hostData', 'key'] as const) {
+  for (const [label, entry] of [['a person-resized two-slot entry', resized], ['a dragged entry', dragged]] as const) {
+    const next = applyTemplate(entry, resolve({ closable: false, listed: false, layer: 'raised', enterFrom: 'anchor', title: 'Renamed', slots: 64, parkable: false }), 'reconfigure');
+    for (const kept of ['slots', 'size', 'anchor', 'live', 'hostData', 'key'] as const) {
       assert.ok(next[kept] === entry[kept], `${label}: ${kept} changed`);
     }
     assert.deepEqual(changedKeys(entry, next), ['anchoredEnter', 'collapsible', 'layer', 'listed', 'locked', 'settings', 'title']);
-    assert.equal(next.formFactor, entry.formFactor, `${label}: still the tier the person chose`);
+    assert.equal(next.slots, entry.slots, `${label}: still the slot count the person chose`);
   }
 });
 
@@ -763,7 +569,7 @@ test("effective of a hand-built fixed column has overflow 'scroll'", () => {
 
 test('effective of a hand-built entry has every key without a legacy field at its library default', () => {
   const eff = effective(hand('a')) as unknown as Record<string, unknown>;
-  const fromFields = new Set(['closable', 'parkable', 'draggable', 'placeable', 'resizable', 'formFactors', 'clearable', 'listed', 'overflow', 'layer', 'enterFrom', 'formFactor', 'title']);
+  const fromFields = new Set(['closable', 'parkable', 'draggable', 'placeable', 'resizable', 'maxSlots', 'clearable', 'listed', 'overflow', 'layer', 'enterFrom', 'slots', 'title']);
   const derived = resolvePanelSettings().value as unknown as Record<string, unknown>;
   let compared = 0;
   for (const key of Object.keys(derived)) {
@@ -771,16 +577,16 @@ test('effective of a hand-built entry has every key without a legacy field at it
     assert.deepEqual(eff[key], derived[key], `${key} is not its library default`);
     compared += 1;
   }
-  assert.ok(compared > 30, `only ${compared} keys compared`);
+  assert.ok(compared > 11, `only ${compared} keys compared`);
   for (const key of ['closable', 'parkable', 'draggable', 'placeable', 'resizable', 'listed', 'clearable']) assert.equal(eff[key], true, `${key}: an ordinary hand-built entry is the library default`);
   assert.equal(eff.layer, LIBRARY_PANEL_DEFAULTS.layer);
 });
 
-test('effective of a hand-built entry reads its own legacy fields: locked, collapsible, listed, layer, anchoredEnter, formFactor and title', () => {
-  const eff = effective(hand('a', { locked: true, listed: false, layer: 'raised', anchoredEnter: true, formFactor: 'tablet', title: 'T' }));
-  assert.deepEqual([eff.closable, eff.clearable, eff.listed, eff.layer, eff.enterFrom, eff.formFactor, eff.title], [false, false, false, 'raised', 'anchor', 'tablet', 'T']);
+test('effective of a hand-built entry reads its own legacy fields: locked, collapsible, listed, layer, anchoredEnter, slots and title', () => {
+  const eff = effective(hand('a', { locked: true, listed: false, layer: 'raised', anchoredEnter: true, slots: 2, title: 'T' }));
+  assert.deepEqual([eff.closable, eff.clearable, eff.listed, eff.layer, eff.enterFrom, eff.slots, eff.title], [false, false, false, 'raised', 'anchor', 2, 'T']);
   const fixed = effective(hand('f', { collapsible: false }));
-  assert.deepEqual([fixed.parkable, fixed.draggable, fixed.placeable, fixed.resizable, fixed.clearable, fixed.formFactors], [false, false, false, false, false, ['phone']]);
+  assert.deepEqual([fixed.parkable, fixed.draggable, fixed.placeable, fixed.resizable, fixed.clearable, fixed.maxSlots], [false, false, false, false, false, 1]);
 });
 
 test('effective is frozen and a hand-built entry with no title has no title key', () => {
@@ -808,11 +614,11 @@ test('effective reads a row entry (no `listed` field) as listed for a parkable o
 // The slot hooks
 // ---------------------------------------------------------------------------
 
-test('usePanelCapabilities in a row slot returns exactly closable, draggable, placeable, resizable and formFactors, from that panel', () => {
-  const read = mountRow(row(rootEntry(), made('a', { closable: false, resizable: false, formFactors: ['phone', 'tablet'] }), made('b')));
-  assert.equal(read('a').keys, 'closable,draggable,placeable,resizable,formFactors');
-  assert.deepEqual(JSON.parse(read('a').caps!), { closable: false, draggable: true, placeable: true, resizable: false, formFactors: ['phone', 'tablet'] });
-  assert.deepEqual(JSON.parse(read('b').caps!), { closable: true, draggable: true, placeable: true, resizable: true, formFactors: ['phone', 'tablet', 'desktop'] });
+test('usePanelCapabilities in a row slot returns exactly closable, draggable, placeable, resizable and maxSlots, from that panel', () => {
+  const read = mountRow(row(rootEntry(), made('a', { closable: false, resizable: false, maxSlots: 2 }), made('b')));
+  assert.equal(read('a').keys, 'closable,draggable,placeable,resizable,maxSlots');
+  assert.deepEqual(JSON.parse(read('a').caps!), { closable: false, draggable: true, placeable: true, resizable: false, maxSlots: 2 });
+  assert.deepEqual(JSON.parse(read('b').caps!), { closable: true, draggable: true, placeable: true, resizable: true, maxSlots: 64 });
 });
 
 test('usePanelCapabilities outside a row returns the library defaults', () => {
@@ -822,14 +628,14 @@ test('usePanelCapabilities outside a row returns the library defaults', () => {
     return React.createElement('output');
   }
   mount(React.createElement(Probe));
-  assert.deepEqual(seen, { closable: true, draggable: true, placeable: true, resizable: true, formFactors: ['phone', 'tablet', 'desktop'] });
-  assert.deepEqual(Object.keys(seen!), ['closable', 'draggable', 'placeable', 'resizable', 'formFactors']);
-  assert.deepEqual(seen!.formFactors, LIBRARY_PANEL_DEFAULTS.formFactors);
+  assert.deepEqual(seen, { closable: true, draggable: true, placeable: true, resizable: true, maxSlots: 64 });
+  assert.deepEqual(Object.keys(seen!), ['closable', 'draggable', 'placeable', 'resizable', 'maxSlots']);
+  assert.equal(seen!.maxSlots, LIBRARY_PANEL_DEFAULTS.maxSlots);
 });
 
 test('usePanelCapabilities for the root and a fixed column: not closable, draggable, placeable or resizable', () => {
   const read = mountRow(row(rootEntry(), made('f', { parkable: false })));
-  const expected = { closable: false, draggable: false, placeable: false, resizable: false, formFactors: ['phone'] };
+  const expected = { closable: false, draggable: false, placeable: false, resizable: false, maxSlots: 1 };
   assert.deepEqual(JSON.parse(read('root').caps!), expected);
   assert.deepEqual(JSON.parse(read('f').caps!), { ...expected, closable: true });
 });
@@ -873,7 +679,7 @@ test('a hand-built caller seeding { locked: true, collapsible: true }: clearAll 
 test('a hand-built entry behaves as before: its close, move, resize and re-anchor guards read its legacy fields', () => {
   const panels = row(hand('root', { locked: true, collapsible: false, listed: false }), hand('a'), hand('f', { collapsible: false }), hand('b'));
   assert.ok(movePanel(panels, 'f', 'right', ROOT) === panels, 'a fixed column is never dragged');
-  assert.ok(setFormFactor(panels, 'f', 'tablet') === panels, 'nor resized');
+  assert.ok(setSlots(panels, 'f', 2) === panels, 'nor resized');
   assert.ok(reanchorPanel(panels, 'f', { position: 'left' }, ROOT) === panels, 'nor re-anchored');
-  assert.ok(setFormFactor(panels, 'a', 'tablet') !== panels, 'an ordinary one is');
+  assert.ok(setSlots(panels, 'a', 2) !== panels, 'an ordinary one is');
 });

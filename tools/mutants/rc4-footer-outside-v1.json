@@ -1,0 +1,26 @@
+{
+  "tests": [
+    "test/panel-footer.test.ts",
+    "test/default-frame.test.ts"
+  ],
+  "mutants": [
+    {
+      "name": "the frame stops drawing its footer",
+      "file": "PanelFrame.tsx",
+      "find": "      <PanelFooter />\n",
+      "replace": "",
+      "expectRed": [
+        "a footer is drawn as the next sibling of the frame"
+      ]
+    },
+    {
+      "name": "the footer is laid out in flow, so it takes panel space again",
+      "file": "panelFooter.tsx",
+      "find": "position: 'absolute', top:",
+      "replace": "position: 'relative', top:",
+      "expectRed": [
+        "a footer is drawn as the next sibling of the frame"
+      ]
+    }
+  ]
+}

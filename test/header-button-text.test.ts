@@ -7,9 +7,9 @@ import assert from 'node:assert/strict';
 import './support/jsdom-globals.js';
 import { MotionConfig } from 'motion/react';
 import { act, createElement, type ReactElement } from 'react';
-import { PanelHeaderButtons, resolvePanelSettings, usePanelHeaderButtons } from '../index.js';
+import { PanelHeaderButtons, usePanelHeaderButtons } from '../index.js';
+import { resolvePanelSettings } from '../panelSettings.js';
 import type { HeaderButton, PanelHeaderButtonItem } from '../index.js';
-import { CHROME_ATTRIBUTE } from '../index.js';
 import { advanceFrames, cleanup } from './support/mount-harness.js';
 import { headerRig } from './support/header-rig.js';
 
@@ -152,7 +152,7 @@ test('long label: the title truncates before a button does, so the cluster never
 
 test('chrome fade: a text button sits in the header part and fades with an icon button, at 0, partway and 1', async () => {
   const rig = await headerRig({ ids: ['a'], slots: { i: iconSlot('Pin', { order: 0 }), t: textSlot('Save', { order: 1 }) }, workspace: { tuning: { chrome: { mode: 'hover-or-active', fadeMs: 400 } } } });
-  const header = rig.m.container.querySelector<HTMLElement>(`[${CHROME_ATTRIBUTE}="header"]`)!;
+  const header = rig.row('a')!;
   assert.ok(rig.buttons('a').every((b) => header.contains(b)), 'both forms are inside the faded header part');
   assert.equal(header.style.opacity, '0');
   const panelRoot = header.parentElement!;
@@ -169,7 +169,7 @@ test('chrome fade: a text button sits in the header part and fades with an icon 
 
 test('chrome fade: Reduce Motion snaps the header with both forms inside', async () => {
   const rig = await headerRig({ ids: ['a'], slots: { i: iconSlot('Pin'), t: textSlot('Save') }, workspace: { tuning: { chrome: { mode: 'hover-or-active', fadeMs: 400 } } }, wrap: (tree) => createElement(MotionConfig, { reducedMotion: 'always' }, tree) });
-  const header = rig.m.container.querySelector<HTMLElement>(`[${CHROME_ATTRIBUTE}="header"]`)!;
+  const header = rig.row('a')!;
   const panelRoot = header.parentElement!;
   act(() => void panelRoot.dispatchEvent(new MouseEvent('pointerover', { bubbles: true, relatedTarget: document.body })));
   assert.equal(header.style.opacity, '1', 'no time under Reduce Motion');

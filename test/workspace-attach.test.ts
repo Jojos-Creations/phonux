@@ -7,14 +7,12 @@ import { test, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
 import './support/jsdom-globals.js';
 import { readFileSync, readdirSync } from 'node:fs';
-import * as React from 'react';
 import { act } from 'react';
-import { PanelManagerError, createWorkspace, registerView } from '../index.js';
+import { PanelManagerError, createWorkspace } from '../index.js';
 import type { PanelHandle, PanelSettings, WorkspaceHandle } from '../index.js';
-import { resolveViewIn } from '../templateView.js';
 import { bindingOf, type EngineOps } from '../workspaceCore.js';
 import type { PanelWindow } from '../panelWindow.js';
-import { cleanup, mount, withHost } from './support/mount-harness.js';
+import { cleanup, } from './support/mount-harness.js';
 import { differential, differentialsCovered } from './support/differential.js';
 import { flush, markerTemplate, mountWorkspace } from './support/workspace-row.js';
 import { engineId, launch, live, settle } from './support/workspace-launch.js';
@@ -28,7 +26,6 @@ const NO_OPS: EngineOps = {
   open: () => ({ ok: false, code: 'is-closed', message: 'no engine' }),
   move: () => ({ ok: false, code: 'is-closed', message: 'no engine' }),
   place: () => ({ ok: false, code: 'is-closed', message: 'no engine' }),
-  setFormFactor: () => ({ ok: false, code: 'is-closed', message: 'no engine' }),
   setSlots: () => ({ ok: false, code: 'is-closed', message: 'no engine' }),
   scrollTo: () => ({ ok: false, code: 'is-closed', message: 'no engine' }),
   reopen: () => ({ ok: false, code: 'is-closed', message: 'no engine' }),
@@ -42,7 +39,7 @@ const NO_OPS: EngineOps = {
 
 afterEach(() => cleanup());
 
-const KEYS_OF_STATE = ['id', 'templateId', 'status', 'held', 'engineId', 'index', 'title', 'url', 'params', 'formFactor', 'listed', 'settings', 'pinned', 'deferredPin'];
+const KEYS_OF_STATE = ['id', 'templateId', 'status', 'held', 'engineId', 'index', 'title', 'url', 'params', 'listed', 'settings', 'pinned', 'deferredPin'];
 const statuses = (w: WorkspaceHandle): string[] => w.panels.getSnapshot().panels.map((p) => `${p.id}:${p.status}`);
 
 // ---------------------------------------------------------------------------
@@ -80,46 +77,16 @@ test('the two-template example with a root template: the root and two panels mou
   assert.equal(entries[0]!.view, 'history');
 });
 
-test('a template view receives its panel summary, the eighteen sorted keys of the operable handle (the read-only five and the thirteen verbs) and the four of the reader', () => {
+test('a template view receives its panel summary, the seventeen sorted keys of the operable handle (the read-only five and the twelve verbs) and the four of the reader', () => {
   const w = createWorkspace({ mount: false, templates: [markerTemplate('probe')] });
   w.addPanel('probe');
   const m = mountWorkspace(w);
   const node = m.container.querySelector('[data-template="probe"]') as HTMLElement;
   assert.ok(node, 'the template view did not render');
-  assert.equal(node.dataset.slot, m.latest().entries.find((p) => p.view === 'probe')!.id, 'panel is the row entry summary');
-  assert.deepEqual(node.dataset.handleKeys!.split(',').sort(), ['close', 'configure', 'getSettings', 'getState', 'hide', 'id', 'move', 'open', 'pin', 'place', 'scrollTo', 'setFormFactor', 'setSlots', 'show', 'subscribe', 'templateId', 'toggleVisibility', 'unpin'], 'id, templateId, getState, getSettings, subscribe, show, hide, toggleVisibility, close, open, move, place, setFormFactor, setSlots, scrollTo, pin, unpin, configure: 18 keys and no manager');
+  assert.equal(node.dataset.slot, m.latest().entries.find((p) => p.view === 'probe')!.key, 'panel is the row entry summary, and its id is the key');
+  assert.deepEqual(node.dataset.handleKeys!.split(',').sort(), ['close', 'configure', 'getSettings', 'getState', 'hide', 'id', 'move', 'open', 'pin', 'place', 'scrollTo', 'setSlots', 'show', 'subscribe', 'templateId', 'toggleVisibility', 'unpin'], 'id, templateId, getState, getSettings, subscribe, show, hide, toggleVisibility, close, open, move, place, setSlots, scrollTo, pin, unpin, configure: 17 keys and no manager');
   assert.equal(node.dataset.managerKeys, 'get,list,getSnapshot,subscribe');
   assert.equal(node.dataset.handleId, 'probe');
-});
-
-test('registerTemplate then registerView with the same id renders the plain view', () => {
-  const t = markerTemplate('both-ways');
-  const w = createWorkspace({ mount: false, templates: [t] });
-  registerView('both-ways', ({ panel }) => React.createElement('b', { 'data-plain': panel.id }));
-  const View = resolveViewIn(bindingOf(w).template, 'both-ways');
-  const ui = mount(withHost(React.createElement(View, { panel: { id: 'x', url: '', title: 't', live: true, locked: false } })));
-  assert.ok(ui.container.querySelector('[data-plain="x"]'), 'the plain view won');
-  w.dispose();
-});
-
-test('createWorkspace and registerTemplate on the handle throw template-collision over a plain view', () => {
-  registerView('plain-handle', () => null);
-  assert.throws(
-    () => createWorkspace({ mount: false, templates: [markerTemplate('plain-handle')] }),
-    (e: unknown) => e instanceof PanelManagerError && e.code === 'template-collision',
-  );
-  const w = createWorkspace({ mount: false });
-  assert.throws(
-    () => w.registerTemplate(markerTemplate('plain-handle')),
-    (e: unknown) => e instanceof PanelManagerError && e.code === 'template-collision',
-  );
-});
-
-test('a row mounted without a workspace renders a template panel as the unregistered placeholder, not a crash', () => {
-  const w = createWorkspace({ mount: false, templates: [markerTemplate('orphan')] });
-  w.addPanel('orphan');
-  const m = mountWorkspace(w, { withPanelRowWorkspace: false });
-  assert.ok(m.container.querySelector('[data-unregistered-panel-view="orphan"]'));
 });
 
 // ---------------------------------------------------------------------------
@@ -419,17 +386,17 @@ test('a restore of a saved root-less file keeps its order', async () => {
   const t = markerTemplate('r', { settings: { multiple: true } });
   const store = memoryWorkspaceStorage();
   const quick = { tuning: { saveQuietMs: 5 } };
-  const first = createWorkspace({ mount: false, templates: [t], storage: store });
+  const first = createWorkspace({ mount: false, templates: [t], storage: store, ...quick });
   for (const id of ['p1', 'p2', 'p3']) first.addPanel(t, { id });
-  const m1 = mountWorkspace(first, { over: quick });
+  const m1 = mountWorkspace(first);
   await flush();
   const idOf = (key: string): string => first.panels.get(key)!.getState().engineId!;
   act(() => m1.latest().move(idOf('p3'), 'left'));
   await act(async () => void (await new Promise((r) => setTimeout(r, 80))));
   m1.unmount();
   assert.ok((await store.load()) !== null, 'positive control: something was saved');
-  const reopened = createWorkspace({ mount: false, templates: [t], storage: store });
-  mountWorkspace(reopened, { over: quick });
+  const reopened = createWorkspace({ mount: false, templates: [t], storage: store, ...quick });
+  mountWorkspace(reopened);
   await flush();
   assert.deepEqual(
     reopened.panels.getSnapshot().panels.map((p) => p.id),

@@ -13,7 +13,7 @@ import { resolveWorkspaceTuning, slotTuning } from '../panelTuning.js';
 const chrome = (value: unknown) => checkTuningLeaf('chrome', value);
 
 test('the default is always, 120, 140, 8, 250 and is frozen', () => {
-  assert.deepEqual({ ...LIBRARY_TUNING_DEFAULTS.chrome }, { mode: 'always', fadeMs: 120, fadeEase: 'easeOut', slideMs: 140, slidePx: 8, graceMs: 250 });
+  assert.deepEqual({ ...LIBRARY_TUNING_DEFAULTS.chrome }, { mode: 'always', fadeMs: 120, fadeEase: 'easeOut', slideMs: 140, slidePx: 8, graceMs: 250, headerGapPx: 24, grabPillWidthPx: 32, grabPillHeightPx: 4, headerInsetPx: 13, footerPadXPx: 12, footerPadYPx: 8 });
   assert.ok(Object.isFrozen(LIBRARY_TUNING_DEFAULTS.chrome));
 });
 
@@ -62,9 +62,9 @@ test('an unknown member and a non-object are refused, and a bad member leaves it
 
 test('resolving a one-member chrome keeps the library value of the others, and a bad member keeps its default', () => {
   const resolved = resolveWorkspaceTuning({ chrome: { fadeMs: 60 } });
-  assert.deepEqual({ ...resolved.chrome }, { mode: 'always', fadeMs: 60, fadeEase: 'easeOut', slideMs: 140, slidePx: 8, graceMs: 250 });
+  assert.deepEqual({ ...resolved.chrome }, { mode: 'always', fadeMs: 60, fadeEase: 'easeOut', slideMs: 140, slidePx: 8, graceMs: 250, headerGapPx: 24, grabPillWidthPx: 32, grabPillHeightPx: 4, headerInsetPx: 13, footerPadXPx: 12, footerPadYPx: 8 });
   const refused = resolveWorkspaceTuning({ chrome: { mode: 'hover-or-active', slidePx: 999 } as never });
-  assert.deepEqual({ ...refused.chrome }, { mode: 'hover-or-active', fadeMs: 120, fadeEase: 'easeOut', slideMs: 140, slidePx: 8, graceMs: 250 });
+  assert.deepEqual({ ...refused.chrome }, { mode: 'hover-or-active', fadeMs: 120, fadeEase: 'easeOut', slideMs: 140, slidePx: 8, graceMs: 250, headerGapPx: 24, grabPillWidthPx: 32, grabPillHeightPx: 4, headerInsetPx: 13, footerPadXPx: 12, footerPadYPx: 8 });
 });
 
 test("every panel's tuning carries the workspace's chrome, whatever its own leaves say", () => {

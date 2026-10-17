@@ -6,10 +6,10 @@ import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import createCache from '@emotion/cache';
 import { CacheProvider } from '@emotion/react';
-import { HostProvider, Panel, createWorkspace, definePanel, resolvePanelSettings } from '../../index.js';
+import { HostProvider, Panel, createWorkspace, definePanel } from '../../index.js';
 import type { HeaderButton, PanelHandle, PanelProps } from '../../index.js';
 import { createFakeHost } from '../../fakeHost.js';
-import { LIBRARY_TUNING_DEFAULTS } from '../../panelSettings.js';
+import { LIBRARY_TUNING_DEFAULTS, resolvePanelSettings } from '../../panelSettings.js';
 import { PanelSlotContext, type PanelSlotValue } from '../../panelSlotContext.js';
 import { slotTuning } from '../../panelTuning.js';
 

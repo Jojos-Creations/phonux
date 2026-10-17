@@ -242,7 +242,7 @@ function applyTemplateWrites(source: string): { reconfigure: string[]; create: s
 }
 
 /** The entry fields a configure must never write itself: only applyTemplate's reconfigure branch (through `reparked`) may. */
-const ENTRY_FIELDS = ['locked', 'collapsible', 'listed', 'anchoredEnter', 'formFactor', 'size', 'anchor', 'hostData', 'overrides', 'applied', 'live', 'settings', 'title'];
+const ENTRY_FIELDS = ['locked', 'collapsible', 'listed', 'anchoredEnter', 'size', 'anchor', 'hostData', 'overrides', 'applied', 'live', 'settings', 'title'];
 /** The files a configure passes through before and after the engine's update. */
 const CONFIGURE_FILES = ['panelConfigure.ts', 'panelPin.ts', 'panelManager.ts', 'panelHandles.ts', 'workspaceCore.ts'];
 const CONFIGURE_FUNCTIONS = ['configureOne', 'configureTemplateOne', 'configureTuningOne'];
@@ -257,9 +257,9 @@ function configureWriters(read: (file: string) => string): string[] {
 }
 
 test('source: a configure writes an entry only through applyTemplate\'s reconfigure branch, and a planted second writer is found', () => {
-  assert.deepEqual(applyTemplateWrites(read('panelSettings.ts')).reconfigure, ['...entry', 'locked', '?collapsible', 'listed', 'layer', 'anchoredEnter', '...title', 'settings'], 'the reconfigure branch writes the mirror fields, the parkable flip and the title, and no tier, size, anchor, hostData, key, overrides or applied');
+  assert.deepEqual(applyTemplateWrites(read('panelSettings.ts')).reconfigure, ['...entry', 'locked', '?collapsible', 'listed', 'layer', 'anchoredEnter', '...title', 'settings'], 'the reconfigure branch writes the mirror fields, the parkable flip and the title, and no slots, size, anchor, hostData, key, overrides or applied');
   const create = applyTemplateWrites(read('panelSettings.ts')).create;
-  for (const created of ['formFactor', 'size', 'key', 'live']) assert.ok(create.includes(created), `the create branch writes ${created}, so a reconfigure that wrote it would be a second writer`);
+  for (const created of ['slots', 'size', 'key', 'live']) assert.ok(create.includes(created), `the create branch writes ${created}, so a reconfigure that wrote it would be a second writer`);
   const both = writesOf(read('panelSettings.ts'), 'panelSettings.ts', ['locked', 'collapsible']).map((s) => `${s.fn}:${s.key}`).sort();
   assert.deepEqual(both, ['applyTemplate:collapsible', 'applyTemplate:collapsible', 'applyTemplate:locked', 'applyTemplate:locked'], 'one write of each per mode, both inside applyTemplate');
   // The configure path: reconfigured() hands the entry to reparked(), which calls applyTemplate in reconfigure mode, and nothing else builds one.
@@ -280,8 +280,8 @@ test('source: a configure writes an entry only through applyTemplate\'s reconfig
       return configureWriters((f) => (f === file ? text : read(f)));
     };
     assert.deepEqual(
-      planted('panelConfigure.ts', 'export function plantedWriter(p: PanelWindow): PanelWindow {\n  const q = { ...p, locked: true, formFactor: \'tablet\' as const };\n  q.collapsible = false;\n  return q;\n}'),
-      ['panelConfigure.ts plantedWriter:collapsible', 'panelConfigure.ts plantedWriter:formFactor', 'panelConfigure.ts plantedWriter:locked', 'panelPin.ts reparked:live', 'workspaceCore.ts configureOne:settings'],
+      planted('panelConfigure.ts', 'export function plantedWriter(p: PanelWindow): PanelWindow {\n  const q = { ...p, locked: true, size: undefined };\n  q.collapsible = false;\n  return q;\n}'),
+      ['panelConfigure.ts plantedWriter:collapsible', 'panelConfigure.ts plantedWriter:locked', 'panelConfigure.ts plantedWriter:size', 'panelPin.ts reparked:live', 'workspaceCore.ts configureOne:settings'],
       'a second writer in panelConfigure.ts is found, all three of its writes',
     );
     assert.deepEqual(
@@ -289,9 +289,9 @@ test('source: a configure writes an entry only through applyTemplate\'s reconfig
       ['workspaceCore.ts configureOne:anchor'],
       'and so is one planted into a configure function of workspaceCore.ts',
     );
-    const widened = read('panelSettings.ts').replace("listed: resolved.listed,\n      layer", "listed: resolved.listed,\n      formFactor: resolved.formFactor,\n      layer");
+    const widened = read('panelSettings.ts').replace("listed: resolved.listed,\n      layer", "listed: resolved.listed,\n      slots: resolved.slots,\n      layer");
     assert.notEqual(widened, read('panelSettings.ts'), 'the plant found its place');
-    assert.deepEqual(applyTemplateWrites(widened).reconfigure, ['...entry', 'locked', '?collapsible', 'listed', 'formFactor', 'layer', 'anchoredEnter', '...title', 'settings'], 'a formFactor write planted in the reconfigure branch is found');
+    assert.deepEqual(applyTemplateWrites(widened).reconfigure, ['...entry', 'locked', '?collapsible', 'listed', 'slots', 'layer', 'anchoredEnter', '...title', 'settings'], 'a slots write planted in the reconfigure branch is found');
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
@@ -354,9 +354,9 @@ test('source: the read handle has exactly id, templateId, getState, getSettings 
   assert.deepEqual(returnedKeys(src, 'makeReader'), ['get', 'list', 'getSnapshot', 'subscribe']);
 });
 
-test('source: the handle a view receives has the five read members and the thirteen verbs, and no manager', () => {
+test('source: the handle a view receives has the five read members and the twelve verbs, and no manager', () => {
   const src = read('panelHandles.ts');
-  assert.deepEqual(returnedKeys(src, 'makeViewHandle'), ['id', 'templateId', 'getState', 'getSettings', 'subscribe', 'show', 'hide', 'toggleVisibility', 'close', 'open', 'move', 'place', 'setFormFactor', 'setSlots', 'scrollTo', 'pin', 'unpin', 'configure']);
+  assert.deepEqual(returnedKeys(src, 'makeViewHandle'), ['id', 'templateId', 'getState', 'getSettings', 'subscribe', 'show', 'hide', 'toggleVisibility', 'close', 'open', 'move', 'place', 'setSlots', 'scrollTo', 'pin', 'unpin', 'configure']);
   const widened = src.replace('    show: (src', '    manager: {},\n    show: (src');
   assert.notEqual(widened, src, 'control: the plant applied');
   assert.ok(returnedKeys(widened, 'makeViewHandle').includes('manager'), 'the pin sees a planted member');
@@ -469,29 +469,11 @@ test('source: PanelRowSlot keeps its one motion element, and PanelRow passes zIn
   assert.ok(lines.find((l) => l.includes('enterDirection={')), 'enterDirection={ is findable by line');
 });
 
-test('source: a kept slot is hidden from its exit animation\'s promise, never from onAnimationComplete, and PanelRow reads keepMounted only through the latch', () => {
-  const slot = stripComments(read('PanelRowSlot.tsx'), 'PanelRowSlot.tsx');
-  assert.doesNotMatch(slot, /onAnimationComplete/, 'a callback fires only after a frame, which a zero-length slide never gets');
-  assert.match(slot, /run\.finished\.then\(/, 'the exit move is awaited through its promise');
-  const row = stripComments(read('PanelRow.tsx'), 'PanelRow.tsx');
-  assert.equal([...row.matchAll(/\.keepMounted/g)].length, 1, 'keepMounted is read in keepsMounted only, which the latch refs gate');
-});
-
-test('source: Panel registers with the capture registry only while it is not hidden', () => {
-  const panel = stripComments(read('Panel.tsx'), 'Panel.tsx');
-  assert.match(panel, /capture === 'never' \|\| hidden \|\|/);
-});
-
 test("source: Panel's doc comment for viewId names CaptureRegistryProvider, and no comment line names CaptureRegistryContext", () => {
   const comments = read('Panel.tsx').split('\n').filter((l) => /^\s*(\/\*\*|\*|\/\/)/.test(l));
   assert.equal(comments.filter((l) => l.includes('CaptureRegistryContext')).length, 0);
   assert.ok(comments.some((l) => l.includes('CaptureRegistryProvider')), 'the doc names the exported way to supply a registry');
   assert.match(read('Panel.tsx'), /React\.useContext\(CaptureRegistryContext\)/, 'the code still reads the context');
-});
-
-test('source: usePanelHidden is exported by name from the barrel and read from the slot context PanelRowSlot provides', () => {
-  assert.match(read('index.ts'), /\busePanelHidden\b/);
-  assert.match(stripComments(read('PanelRowSlot.tsx'), 'PanelRowSlot.tsx'), /PanelHiddenContext\.Provider/);
 });
 
 /** What edge-scroll code must not contain, each a pattern over comment-stripped source. */
@@ -549,4 +531,11 @@ test('source: PanelRow keeps its single-line zIndex and enterDirection props, an
     assert.equal(/collapsible/.test(line), false, `${prop} does not read collapsible`);
   }
   assert.equal(/collapsible/.test(read('PanelRowSlot.tsx')), false);
+});
+
+test("source: the default frame closes and moves through the panel's handle, never the Host bag's raw verbs", () => {
+  const source = stripComments(read('defaultFrame.tsx'), 'defaultFrame.tsx');
+  assert.match(source, /usePanelDragProps\(/, 'the frame reads its drag props from the hook');
+  assert.doesNotMatch(source, /useHost\(|panels\.(move|close)\(/, 'no raw verb');
+  assert.match('const { panels } = useHost(); panels.move(id, 1);', /useHost\(|panels\.(move|close)\(/, 'the control: the same check sees a planted raw call');
 });

@@ -8,11 +8,12 @@ import assert from 'node:assert/strict';
 import './support/jsdom-globals.js';
 import * as React from 'react';
 import { flushSync } from 'react-dom';
-import { DragToClose, registerView, useHost, usePanelReorderSteps } from '../index.js';
+import { DragToClose, useHost, usePanelReorderSteps } from '../index.js';
 import { advanceFrames, cleanup } from './support/mount-harness.js';
 import { FRAME_MS } from './support/jsdom-globals.js';
 import { drag, release } from './support/drag-gesture.js';
 import { mountRow, panelsOf } from './support/scroll-row.js';
+import { registerTestView } from './support/test-views.js';
 
 afterEach(() => {
   cleanup();
@@ -53,7 +54,7 @@ function View({ id }: { id: string }): React.ReactElement {
     children: (handle) => React.createElement('div', { 'data-grab': id, onPointerDown: handle.onPointerDown }, id),
   });
 }
-registerView('scroll-row-view', ({ panel }) => React.createElement(View, { id: panel.id }));
+registerTestView('scroll-row-view', ({ panel }) => React.createElement(View, { id: panel.id }));
 
 const boxOf = (container: HTMLElement, id: string): HTMLElement => container.querySelector<HTMLElement>(`[data-grab="${id}"]`)!.closest<HTMLElement>('[data-drag-to-close]')!;
 const slotOf = (container: HTMLElement, id: string): HTMLElement => boxOf(container, id).parentElement!;
