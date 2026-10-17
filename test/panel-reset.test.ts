@@ -206,6 +206,9 @@ test('the file holds overrides {} and applied.placeOnAdd for every named entry, 
   const r = await pinRig({ workspace: { storage: store, ...quiet } });
   r.turn(() => r.h.c!.move(-1, 'person'));
   r.turn(() => r.h.c!.move(-1, 'person'));
+  // The moves put c back where it started, so only a save in between makes the reset a change to the file.
+  await wait();
+  assert.notDeepEqual((await store.load())!.panels.map((p) => p.overrides), [{}, {}, {}], 'control: the moves were saved as overrides');
   reset(r, 'all');
   await wait();
   const saved = (await store.load())!.panels;

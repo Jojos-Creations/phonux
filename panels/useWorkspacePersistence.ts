@@ -123,7 +123,11 @@ export function useWorkspacePersistence(i: {
     const settle = (restored: PanelWindow[], rootSlots?: number): void => {
       // The baseline is what the restored list projects to, not the file: saved ids differ from fresh ones,
       // and comparing against the file would save at every launch. A null baseline makes the first save go out.
-      lastSaved.current = tombstonesDropped.current || uidsMinted.current ? null : JSON.stringify(projectWorkspaceState(restored, rootId, dismissed.current));
+      // The save effect projects the root too (its key and slot count), so the baseline holds the root as the restore leaves it.
+      const root = panelsRef.current.filter((p) => p.id === rootId);
+      const rowed = computeRowOrder([...root, ...restored], rootId);
+      const baseline = rootSlots === undefined ? rowed : setSlots(rowed, rootId, rootSlots);
+      lastSaved.current = tombstonesDropped.current || uidsMinted.current ? null : JSON.stringify(projectWorkspaceState(baseline, rootId, dismissed.current));
       // Appended after what is already there, so a panel created while load() was pending survives. The root's saved size goes through setSlots, so a root that cannot resize ignores it.
       const adopt = adoptedUids.current;
       if (restored.length > 0 || rootSlots !== undefined || adopt.size > 0) {
