@@ -365,7 +365,7 @@ test('initialScroll is skipped when a wheel or a pointer-down reached the row be
 //
 // The row here scrolls in steps (overflow 'scroll', rowGesture 'step'): the eleven panels stop at 0, 406, 812, ...
 // with a margin of 86 before the first, so the stop that first shows panel k sits 86 px off that panel's left edge.
-// The end is 3654. A panel as wide as the window (a two-slot panel at container 828) is the wide case.
+// The end is 3568. A panel as wide as the window (a two-slot panel at container 828) is the wide case.
 
 const SCROLLING = { overflow: 'scroll' } as const;
 const stepping = (): PanelWindow[] => row(...['p1', 'p2', 'p3', 'p4', 'p5'].map((id) => made(id, SCROLLING)), rootEntry(), ...['w1', 'w2', 'w3', 'w4', 'w5'].map((id) => made(id, SCROLLING)));
@@ -452,7 +452,7 @@ test('a marker whose panel is gone falls back to initialScroll', async () => {
   const { storage, resolve } = scrollStorage();
   const m = loadedRow(storage, stepTuning('end'));
   await resolve(savedOf(stepping(), { panel: 'nope', offset: 0 }));
-  assert.equal(m.container.scrollLeft, 3654, 'the end of the strip');
+  assert.equal(m.container.scrollLeft, 3568, 'the end of the strip');
 });
 
 test('a marker in a row with no stops (not stepping) falls back to initialScroll', async () => {
