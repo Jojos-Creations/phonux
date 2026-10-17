@@ -31,17 +31,17 @@ test('six phone panels: two whole panels fit, so five stops 406 apart, an 86 mar
   const n = numbers(six());
   assert.equal(n.rowMarginLeft, 86, '(968 - 796) / 2');
   assert.deepEqual(n.stops, [0, 406, 812, 1218, 1624]);
-  assert.deepEqual(n.stopSpans, [{ first: 0, end: 2 }, { first: 1, end: 3 }, { first: 2, end: 4 }, { first: 3, end: 5 }, { first: 4, end: 6 }]);
+  assert.deepEqual(n.stopSpans, [{ first: 0, end: 3 }, { first: 0, end: 4 }, { first: 1, end: 5 }, { first: 2, end: 6 }, { first: 3, end: 6 }]);
   assert.equal(n.endPad, 86);
   assert.equal(maxScrollOf(n), 1624, '86 + 2420 + 86 - 968, the last stop');
 });
 
-test('a two-slot panel between two phones shows alone at its stop: stops 0, 609 and 1218, margins 289, 86 and 289', () => {
+test('a two-slot panel between two phones: the grid stops are 0, 406, 812 and 1218, each one phone width apart', () => {
   const n = numbers([root(), made('t', { slots: 2 }), made('b')]);
   assert.deepEqual(n.widths, [390, 796, 390]);
   assert.equal(n.rowMarginLeft, 289);
-  assert.deepEqual(n.stops, [0, 609, 1218], 'stop 1 is 289 + 406 - 86');
-  assert.deepEqual(n.stopSpans.map((s) => s.end - s.first), [1, 1, 1]);
+  assert.deepEqual(n.stops, [0, 406, 812, 1218], 'every stop is on the one-phone grid');
+  assert.deepEqual(n.stopSpans, [{ first: 0, end: 2 }, { first: 0, end: 2 }, { first: 1, end: 3 }, { first: 1, end: 3 }]);
   assert.equal(n.endPad, 289);
   assert.equal(maxScrollOf(n), 1218);
 });
@@ -49,7 +49,7 @@ test('a two-slot panel between two phones shows alone at its stop: stops 0, 609 
 test('a panel as wide as two slots shows alone with an even margin, and the stop before it keeps the phone centred', () => {
   const n = numbers([root(), made('d', { slots: 64 })]);
   assert.deepEqual(n.widths, [390, 796]);
-  assert.deepEqual(n.stops, [0, 609], '289 + 406 - 86');
+  assert.deepEqual(n.stops, [0, 406, 609], 'the grid stops 0 and 406, then the row end at 609');
   assert.equal(n.endPad, 86);
   assert.equal(maxScrollOf(n), 609);
 });
@@ -74,9 +74,9 @@ test('unmeasured, and wholePanels false, give no stops: the 0.2.0 numbers', () =
 
 test('snapToStop picks the nearest stop that shows the panel; nearestStop the nearest stop; both leave a row with no stops alone', () => {
   const n = numbers(six());
-  assert.equal(snapToStop(n, 3, 100), 812, 'panel 3 is shown at stops 812 and 1218');
-  assert.equal(snapToStop(n, 0, 900), 0, 'panel 0 is shown at stop 0 only');
-  assert.equal(snapToStop(n, 5, 0), 1624);
+  assert.equal(snapToStop(n, 3, 100), 406, 'panel 3 is shown at the grid stop 406');
+  assert.equal(snapToStop(n, 0, 900), 406, 'panel 0 is shown at the grid stop 406, which still shows its edge');
+  assert.equal(snapToStop(n, 5, 0), 1218, 'panel 5 is first shown at the grid stop 1218');
   assert.equal(nearestStop(n, 700), 812);
   assert.equal(nearestStop(n, 100), 0);
   const none = numbers([root(), made('a')]);
@@ -128,7 +128,7 @@ test('a panel as wide as the window gets a stop that keeps its right part beside
   const n = computeRowNumbers({ entries: [made('wide', { slots: 5 }), root(), made('next', { slots: 5 })], phoneWidth: 390, containerWidth: 2046, gap: 16, wholePanels: true });
   assert.deepEqual(n.widths, [2014, 390, 2014]);
   assert.deepEqual(n.stops.slice(0, 2), [0, 406]);
-  assert.deepEqual(n.stopSpans.slice(0, 3), [{ first: 0, end: 1 }, { first: 0, end: 2 }, { first: 1, end: 2 }]);
+  assert.deepEqual(n.stopSpans.slice(0, 3), [{ first: 0, end: 1 }, { first: 0, end: 2 }, { first: 0, end: 3 }]);
   assert.equal(n.stops[1]! + 2014, n.rowMarginLeft + n.leftOffsets[1]! + 390, 'the window ends at the History edge');
 });
 
@@ -137,14 +137,14 @@ test('a panel as wide as the window slides one slot when no whole panel fits bes
   const n = computeRowNumbers({ entries: [made('wide', { slots: 5 }), made('next', { slots: 5 })], phoneWidth: 390, containerWidth: 2046, gap: 16, wholePanels: true });
   assert.deepEqual(n.widths, [2014, 2014]);
   assert.deepEqual(n.stops.slice(0, 2), [0, 406]);
-  assert.deepEqual(n.stopSpans.slice(0, 2), [{ first: 0, end: 1 }, { first: 0, end: 1 }]);
+  assert.deepEqual(n.stopSpans.slice(0, 2), [{ first: 0, end: 1 }, { first: 0, end: 2 }]);
   assert.equal(n.rowMarginLeft + 2014 - n.stops[1]!, 1608, 'the wide panel keeps 1608 of the window');
 });
 
 test('an image, a second window-wide panel, History and a next panel: the first step keeps the image beside the second panel', () => {
   const n = computeRowNumbers({ entries: [made('image', { slots: 5 }), made('mid', { slots: 5 }), root(), made('next', { slots: 5 })], phoneWidth: 390, containerWidth: 2046, gap: 16, wholePanels: true });
   assert.deepEqual(n.widths, [2014, 2014, 390, 2014]);
-  assert.deepEqual(n.stops.slice(0, 3), [0, 406, 2030], 'step 1 slides one slot; step 2 starts at the second panel');
-  assert.deepEqual(n.stopSpans[1], { first: 0, end: 1 });
+  assert.deepEqual(n.stops.slice(0, 3), [0, 406, 812], 'every step is one phone width: 0, 406, 812');
+  assert.deepEqual(n.stopSpans[1], { first: 0, end: 2 }, 'at step 1 the second window-wide panel shows on the right');
   assert.equal(n.rowMarginLeft + 2014 - n.stops[1]!, 1608, 'the image keeps 1608 of the window');
 });

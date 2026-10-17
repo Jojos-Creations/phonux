@@ -95,11 +95,21 @@ export function computeRowNumbers(i: {
   } else {
     rowMarginLeft = !measured || stripWidth > windowWidth ? 0 : (windowWidth - stripWidth) / 2;
   }
-  const stops = whole === null ? [] : whole.margins.map((margin, k) => rowMarginLeft + leftOffsets[whole.starts[k]!]! - margin + whole.insets[k]!);
-  const stopSpans = whole === null ? [] : whole.ends.map((end, k) => ({ first: whole.starts[k]!, end }));
   const endPad = whole === null ? 0 : whole.endPad;
   const stepStops = whole === null ? [] : stepGrid(Math.max(0, rowMarginLeft + stripWidth + endPad - windowWidth), i.phoneWidth + i.gap);
+  // Every stop is on the one-phone grid, so drag snap, the rest settle and drag release all land on it.
+  const stops = stepStops;
+  const stopSpans = stops.map((at) => spanAt(at, widths, leftOffsets, rowMarginLeft, windowWidth));
   return { rowScroll, windowWidth, stripWidth, rowMarginLeft, ids: present.map((p) => p.id), widths, leftOffsets, maxLiveWidth, reservedWidths, parkLiveWidths, stops, stepStops, stopSpans, endPad };
+}
+
+/** The drawn entries a window at scroll `at` shows: the first one its right edge passes and one past the last one its left edge reaches. */
+function spanAt(at: number, widths: readonly number[], offsets: readonly number[], rowMarginLeft: number, windowWidth: number): { first: number; end: number } {
+  let first = 0;
+  while (first < widths.length - 1 && rowMarginLeft + offsets[first]! + widths[first]! <= at) first++;
+  let end = first + 1;
+  while (end < widths.length && rowMarginLeft + offsets[end]! < at + windowWidth) end++;
+  return { first, end };
 }
 
 /**

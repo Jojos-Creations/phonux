@@ -377,16 +377,21 @@ the nearest stop that shows the panel, not at that alignment.
 
 #### Step stops
 
-A step (wheel, keys, the step gesture) moves one phone width: `stepStops` is every `phoneWidth + gap` from scroll 0, then the
-row's end (`maxScrollOf`), so the last step may be shorter. Panels are whole slots, so their left edges sit on that grid
-whatever the mix of widths. A step never lands between two grid points, and a window cut through a wide panel shows the
-next phone width of it. Drag snap and the nearest-stop settle still read `stops`, so after a drag a row can rest off the grid;
-the next step then goes to the next grid point. A row that does not scroll has no step stops and keeps the old step.
+`stops` is the one-phone grid: every `phoneWidth + gap` from scroll 0, then the row's end (`maxScrollOf`), so the last stop may be
+shorter. Every stop a row can rest on is on that grid, whatever the mix of widths: a step, a drag release and the layout settle
+all land on it. A wide panel is not a stop of its own. A grid stop shows the whole panels the window holds from that point, and a
+window cut through a wide panel shows the next phone width of it. A wide panel is centred only where the grid lands on the centred
+position (the visible count minus its width is even); otherwise the nearest grid stop is used, and centring can be impossible.
+This replaces the whole-panel stop contract of the 297 tests. A row that does not scroll has no stops and keeps the old step.
+The row's margin and end pad still come from the whole-panel groups: they set the grid's phase, which decides where a wide
+panel can centre. Removing them would move every centred cell, so they stay; they no longer define a stop. `snapToStop` picks,
+among the grid stops whose window shows the panel, the one nearest the target; for a panel wider than the window that is the
+grid stop near its left edge. Drag release, resize and pin release read the same grid through `snapToStop` and `nearestStop`.
 
 #### Whole panels only
 
-Panels are whole slots, so the window holds a whole number of slots `u = floor((window + gap) / (phone + gap))`. A stop's panels are
-the greedy run of whole panels, and the window edge cuts the neighbour in the margin, drawn at its own size. There is no other mode:
+Panels are whole slots, so the window holds a whole number of slots `u = floor((window + gap) / (phone + gap))`. A grid stop shows
+the greedy run of whole panels from its point, and the window edge cuts the neighbour in the margin, drawn at its own size. There is no other mode:
 the Shrink (`'visible'`) and Hide (`'hidden'`) values of `tuning.shrinkOutOfView` are removed, and a row never resizes a panel to fit
 the window.
 
