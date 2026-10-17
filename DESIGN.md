@@ -376,6 +376,20 @@ shows that panel. Steps, `scrollTo`, the initial scroll, a drag released after e
 stops (a resize, a pin, a close, a reorder) all land on a stop; `scrollTo` with `align` `'start'` or `'center'` lands on
 the nearest stop that shows the panel, not at that alignment.
 
+#### Step stops
+
+`stops` is the one-phone grid: every `phoneWidth + gap` from scroll 0, then the row's end (`maxScrollOf`), so the last stop may be
+shorter. Every stop a row can rest on is on that grid, whatever the mix of widths: a step, a drag release and the layout settle
+all land on it. A wide panel is not a stop of its own. A grid stop shows the whole panels the window holds from that point, and a
+window cut through a wide panel shows the next phone width of it. A wide panel is centred only where the grid lands on the centred
+position (the visible count minus its width is even); otherwise the nearest grid stop is used, and centring can be impossible.
+This replaces the whole-panel stop contract of the 297 tests. A row that does not scroll has no stops and keeps the old step.
+The row's margin still comes from the whole-panel groups: it sets the grid's phase, which decides where a wide panel can centre.
+Removing it would move every centred cell, so it stays; it no longer defines a stop, and the end pad no longer adds one either
+(`endPad` is 0, so the grid ends at `maxScrollOf`). `snapToStop` picks,
+among the grid stops whose window shows the panel, the one nearest the target; for a panel wider than the window that is the
+grid stop near its left edge. Drag release, resize and pin release read the same grid through `snapToStop` and `nearestStop`.
+
 #### Whole panels only
 
 Panels are whole slots, so the window holds a whole number of slots `u = floor((window + gap) / (phone + gap))`. A grid stop shows

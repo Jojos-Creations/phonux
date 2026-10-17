@@ -31,10 +31,12 @@ export interface RowNumbers {
   /** The widths of the drawn entries the row may park for room. */
   parkLiveWidths: readonly number[];
   /**
-   * The `scrollLeft` values at which the window shows only whole panels, ascending; the first is 0. Empty when the row
-   * does not scroll or its strip fits the window, which keeps its centring.
+   * The `scrollLeft` values a stepping row rests on, ascending; the first is 0. They are one phone width apart, and the last
+   * is the row's end (`maxScrollOf`). Empty when the row does not scroll, or its strip fits the window and keeps its centring.
    */
   stops: readonly number[];
+  /** The same values as `stops`, under the step's name. Empty when `stops` is. */
+  stepStops: readonly number[];
   /** For each stop, the drawn entries it shows: the index of its first one and one past its last. Same order as `stops`. */
   stopSpans: readonly { first: number; end: number }[];
   /** Always 0: the space after the strip is one row gap wide, and the last stop leaves the last panel one gap from the window edge. */
@@ -90,9 +92,32 @@ export function computeRowNumbers(i: {
   } else {
     rowMarginLeft = !measured || stripWidth > windowWidth ? 0 : (windowWidth - stripWidth) / 2;
   }
-  const stops = whole === null ? [] : whole.margins.map((margin, k) => rowMarginLeft + leftOffsets[whole.starts[k]!]! - margin + whole.insets[k]!);
-  const stopSpans = whole === null ? [] : whole.ends.map((end, k) => ({ first: whole.starts[k]!, end }));
-  return { rowScroll, windowWidth, stripWidth, rowMarginLeft, ids: present.map((p) => p.id), widths, leftOffsets, maxLiveWidth, reservedWidths, parkLiveWidths, stops, stopSpans, endPad: 0 };
+  const stepStops = whole === null ? [] : stepGrid(Math.max(0, rowMarginLeft + stripWidth - windowWidth), i.phoneWidth + i.gap);
+  // Every stop is on the one-phone grid, so drag snap, the rest settle and drag release all land on it.
+  const stops = stepStops;
+  const stopSpans = stops.map((at) => spanAt(at, widths, leftOffsets, rowMarginLeft, windowWidth));
+  return { rowScroll, windowWidth, stripWidth, rowMarginLeft, ids: present.map((p) => p.id), widths, leftOffsets, maxLiveWidth, reservedWidths, parkLiveWidths, stops, stepStops, stopSpans, endPad: 0 };
+}
+
+/** The drawn entries a window at scroll `at` shows: the first one its right edge passes and one past the last one its left edge reaches. */
+function spanAt(at: number, widths: readonly number[], offsets: readonly number[], rowMarginLeft: number, windowWidth: number): { first: number; end: number } {
+  let first = 0;
+  while (first < widths.length - 1 && rowMarginLeft + offsets[first]! + widths[first]! <= at) first++;
+  let end = first + 1;
+  while (end < widths.length && rowMarginLeft + offsets[end]! < at + windowWidth) end++;
+  return { first, end };
+}
+
+/**
+ * Every phone width from scroll 0 up to `maxScroll`, then `maxScroll` itself: a step moves one phone width, and the last one
+ * moves the rest. Empty when the row does not scroll.
+ */
+function stepGrid(maxScroll: number, step: number): number[] {
+  if (maxScroll <= 0) return [];
+  const grid: number[] = [];
+  for (let at = 0; at < maxScroll; at += step) grid.push(at);
+  grid.push(maxScroll);
+  return grid;
 }
 
 type Pick = { start: number; end: number; margin: number; inset?: number };

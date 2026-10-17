@@ -1074,6 +1074,7 @@ export interface RowNumbers {
     reservedWidths: readonly number[];
     rowMarginLeft: number;
     rowScroll: boolean;
+    stepStops: readonly number[];
     stops: readonly number[];
     stopSpans: readonly {
         first: number;
