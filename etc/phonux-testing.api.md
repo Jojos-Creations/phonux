@@ -337,6 +337,7 @@ export interface PanelSeed {
     id: string;
     live: boolean;
     permanent?: boolean;
+    side?: 'left' | 'right';
     slots?: number;
     title?: string;
     url?: string;
@@ -550,7 +551,7 @@ export interface SeededWorkspace {
 }
 
 // @public
-export function seedWorkspace(seeds: readonly PanelSeed[], rootId?: string): SeededWorkspace;
+export function seedWorkspace(seeds: readonly PanelSeed[], rootId?: string, laterIds?: readonly string[]): SeededWorkspace;
 
 // @public
 export type SettingConflict = {

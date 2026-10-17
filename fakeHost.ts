@@ -194,6 +194,8 @@ export interface PanelSeed {
   slots?: number;
   /** Whether the panel is a permanent column: it restores live, unlisted and one slot wide whatever `live` and `slots` say. */
   permanent?: boolean;
+  /** Which side of the root the panel restores on; default `'right'`. Seeds on one side keep the order given, left to right. */
+  side?: 'left' | 'right';
 }
 
 /** What `seedWorkspace` returns: members of `WorkspaceOptions` to spread into `createWorkspace`. @public */
@@ -213,15 +215,21 @@ export interface SeededWorkspace {
  * adding any: the first ids drawn and the first `hostData` handed out belong to the seeds.
  * @param seeds - The panels to restore, left to right after the root.
  * @param rootId - The id of the workspace's root entry; default is the id of a workspace without a root template.
- * @throws Error when two seeds share an id.
+ * @param laterIds - Engine ids (a panel's `id` in the snapshot) that `newId` hands out after the seeds and before the counter, one per panel added to the live workspace. An instance key is not set here: `addPanel(view, { id })` already names it.
+ * @throws Error when two seeds share an id, or a later id repeats another.
  * @public
  */
-export function seedWorkspace(seeds: readonly PanelSeed[], rootId: string = ROOT_MARKER_ID): SeededWorkspace {
+export function seedWorkspace(seeds: readonly PanelSeed[], rootId: string = ROOT_MARKER_ID, laterIds: readonly string[] = []): SeededWorkspace {
   const ids = seeds.map((seed) => seed.id);
   if (new Set(ids).size !== ids.length) throw new Error('seedWorkspace: two seeds share an id');
+  const taken = new Set([...ids, ...laterIds]);
+  if (taken.size !== ids.length + laterIds.length) throw new Error('seedWorkspace: an id is given twice');
+  // Priority 0 sits nearest the root, so the leftmost of the left seeds holds the highest.
+  const leftCount = seeds.filter((seed) => seed.side === 'left').length;
+  let leftSeen = 0;
   const state: WorkspaceState = {
     version: 1,
-    panels: seeds.map((seed, priority) => ({
+    panels: seeds.map((seed, index) => ({
       id: seed.id,
       view: seed.view,
       live: seed.live,
@@ -229,17 +237,17 @@ export function seedWorkspace(seeds: readonly PanelSeed[], rootId: string = ROOT
       ...(seed.title !== undefined ? { title: seed.title } : {}),
       ...(seed.slots !== undefined ? { slots: seed.slots } : {}),
       ...(seed.permanent !== undefined ? { permanent: seed.permanent } : {}),
-      anchor: { panel: rootId, position: 'right', priority },
+      anchor: seed.side === 'left' ? { panel: rootId, position: 'left', priority: leftCount - 1 - leftSeen++ } : { panel: rootId, position: 'right', priority: index },
     })),
   };
-  const idsLeft = [...ids];
+  const idsLeft = [...ids, ...laterIds];
   const hostDataLeft = seeds.map((seed) => seed.hostData);
   let counter = 0;
   const newId = (): string => {
-    const seeded = idsLeft.shift();
-    if (seeded !== undefined) return seeded;
+    const chosen = idsLeft.shift();
+    if (chosen !== undefined) return chosen;
     do counter += 1;
-    while (ids.includes(String(counter)));
+    while (taken.has(String(counter)));
     return String(counter);
   };
   return { storage: memoryWorkspaceStorage(state), newId, panels: { defaultHostData: () => hostDataLeft.shift() ?? null } };

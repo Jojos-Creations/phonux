@@ -98,3 +98,33 @@ test('a seeded slot count sets the panel size and a seeded permanent column rest
   assert.equal(byId.get('column')!.live, true, 'a permanent column is never parked');
   assert.deepEqual([byId.get('wide')!.hostData, byId.get('column')!.hostData], ['w', 'c']);
 });
+
+test('left seeds restore left of the root in the order given, at their slot counts, and the right seed stays right', async () => {
+  const left = (id: string, slots: number): PanelSeed => ({ id, view: VIEW, hostData: id, live: true, slots, side: 'left' });
+  const seeded = seedWorkspace([left('l1', 2), left('l2', 3), { id: 'r1', view: VIEW, hostData: 'r', live: true }]);
+  const ws = createWorkspace({ mount: false, ...seeded, templates: [markerTemplate(VIEW)], tuning: { saveQuietMs: 5 } });
+  const m = mountWorkspace(ws, { over: { ...seeded.panels } });
+  await flush();
+  const entries = m.latest().entries;
+  assert.deepEqual(entries.map((p) => p.id), ['l1', 'l2', ws.rootId, 'r1']);
+  assert.deepEqual(entries.filter((p) => p.id !== ws.rootId).map(slotsOf), [2, 3, 1]);
+  assert.deepEqual(ws.panels.getSnapshot().panels.map((p) => p.id), ['l1', 'l2', 'r1']);
+  await act(async () => m.latest().close('l1'));
+  await act(async () => m.latest().undoClose());
+  assert.deepEqual(m.latest().entries.map((p) => p.id), ['l1', 'l2', ws.rootId, 'r1'], 'a left seed returns to its place after close and undo');
+  await act(async () => m.latest().close('r1'));
+  await act(async () => void (await new Promise((r) => setTimeout(r, 60))));
+  assert.deepEqual(seeded.storage.saved?.panels.map((p) => [p.id, p.anchor.position, p.slots]), [['l1', 'left', 2], ['l2', 'left', 3]]);
+});
+
+test('a panel added to the live workspace takes the chosen engine id, and its instance key stays the one addPanel was given', async () => {
+  const seeded = seedWorkspace(seeds, undefined, ['again', 'and-again']);
+  const ws = createWorkspace({ mount: false, ...seeded, templates: [markerTemplate(VIEW, { settings: { multiple: true } })] });
+  mountWorkspace(ws, { over: { ...seeded.panels } });
+  await flush();
+  await act(async () => void ws.addPanel(VIEW, { id: 'key1' }));
+  await act(async () => void ws.addPanel(VIEW));
+  assert.equal(ws.panels.get('key1')?.getState().engineId, 'again');
+  assert.deepEqual(ws.panels.getSnapshot().panels.map((p) => p.engineId).slice(-2), ['again', 'and-again']);
+  assert.throws(() => seedWorkspace(seeds, undefined, ['live1']), /given twice/);
+});
