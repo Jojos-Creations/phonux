@@ -15,8 +15,11 @@ import { setSlots, type PanelWindow } from '../panelWindow.js';
 import { seedEngineIdsPast } from '../workspaceCore.js';
 import { reconcileWorkspace } from '../workspacePlan.js';
 import type { DeclaredPanel } from '../workspacePlan.js';
-import { DISMISSED_LIMIT, projectWorkspaceState } from '../workspaceState.js';
-import type { WorkspaceState, WorkspaceStorage } from '../workspaceState.js';
+import { cleanSavedScroll, DISMISSED_LIMIT, isWorkspaceState, projectWorkspaceState } from '../workspaceState.js';
+import type { Dropped, WorkspaceState, WorkspaceStorage } from '../workspaceState.js';
+
+/** Where the row rested: the id of a panel this launch, and the offset of the stop from its left edge in phone widths. */
+export type RestMark = NonNullable<WorkspaceState['scroll']>;
 
 export { SAVE_QUIET_MS as WORKSPACE_SAVE_QUIET_MS };
 
@@ -53,6 +56,9 @@ export function useWorkspacePersistence(i: {
   undismiss(keys: readonly string[]): void;
   /** Whether `key` is a tombstone now. */
   isDismissed(key: string): boolean;
+  /** The saved rest this launch restored, then the one the row last came to rest on; null when there is none. */
+  scroll: RestMark | null;
+  setScroll: Dispatch<SetStateAction<RestMark | null>>;
 } {
   const { panels, setPanels } = i;
   const panelsRef = useRef(panels);
@@ -92,10 +98,32 @@ export function useWorkspacePersistence(i: {
   const uidsMinted = useRef(false);
   // Panels already in the row that take the uid the file holds for them.
   const adoptedUids = useRef<Map<string, string>>(new Map());
+  // The row's rest: the one the file held, then the one a person's move last left it on. Saved with the panels.
+  const [scroll, setScroll] = useState<RestMark | null>(null);
 
   useEffect(() => {
     // StrictMode runs this effect twice; only the run that is not cancelled may apply its result.
     let cancelled = false;
+    // The file's rest, named by the id of the panel this launch gives its entry: the entry is matched by its uid, which
+    // a file keeps for every panel it saves. The root keeps its own id. A malformed rest is dropped with a note.
+    const savedRest = (loaded: WorkspaceState | null, restored: PanelWindow[]): RestMark | undefined => {
+      if (!isWorkspaceState(loaded)) return undefined;
+      const drops: Dropped[] = [];
+      const rest = cleanSavedScroll(loaded.scroll, drops);
+      for (const d of drops) {
+        try {
+          onNote?.({ code: 'invalid-saved-setting', ...d });
+        } catch {
+          // A reporter that throws must not break the restore that raised the note.
+        }
+      }
+      if (rest === undefined) return undefined;
+      if (rest.panel === rootId) return rest;
+      const uid = loaded.panels.find((p) => p.id === rest.panel)?.uid;
+      if (uid === undefined) return undefined;
+      const id = restored.find((p) => p.uid === uid)?.id ?? [...adoptedUids.current].find(([, held]) => held === uid)?.[0] ?? panelsRef.current.find((p) => p.uid === uid)?.id;
+      return id === undefined ? undefined : { panel: id, offset: rest.offset };
+    };
     const reconcile = (saved: unknown): PanelWindow[] => {
       const templates = (typeof given === 'function' ? given() : given) ?? [];
       // Drawn here, never inside an updater: React may run an updater twice.
@@ -120,14 +148,15 @@ export function useWorkspacePersistence(i: {
         return hostData === undefined ? p : { ...p, hostData };
       });
     };
-    const settle = (restored: PanelWindow[], rootSlots?: number): void => {
+    const settle = (restored: PanelWindow[], rootSlots?: number, mark?: RestMark): void => {
       // The baseline is what the restored list projects to, not the file: saved ids differ from fresh ones,
       // and comparing against the file would save at every launch. A null baseline makes the first save go out.
       // The save effect projects the root too (its key and slot count), so the baseline holds the root as the restore leaves it.
       const root = panelsRef.current.filter((p) => p.id === rootId);
       const rowed = computeRowOrder([...root, ...restored], rootId);
       const baseline = rootSlots === undefined ? rowed : setSlots(rowed, rootId, rootSlots);
-      lastSaved.current = tombstonesDropped.current || uidsMinted.current ? null : JSON.stringify(projectWorkspaceState(baseline, rootId, dismissed.current));
+      lastSaved.current = tombstonesDropped.current || uidsMinted.current ? null : JSON.stringify(projectWorkspaceState(baseline, rootId, dismissed.current, mark));
+      setScroll(mark ?? null);
       // Appended after what is already there, so a panel created while load() was pending survives. The root's saved size goes through setSlots, so a root that cannot resize ignores it.
       const adopt = adoptedUids.current;
       if (restored.length > 0 || rootSlots !== undefined || adopt.size > 0) {
@@ -168,7 +197,8 @@ export function useWorkspacePersistence(i: {
           return;
         }
         const saved = (loaded as { rootSlots?: unknown } | null)?.rootSlots;
-        settle(restored, typeof saved === 'number' && Number.isInteger(saved) && saved >= 1 ? saved : undefined);
+        const rest = savedRest(loaded, restored);
+        settle(restored, typeof saved === 'number' && Number.isInteger(saved) && saved >= 1 ? saved : undefined, rest);
       },
       () => {
         if (cancelled) return;
@@ -183,7 +213,7 @@ export function useWorkspacePersistence(i: {
 
   useEffect(() => {
     if (storage === undefined || !settled) return;
-    const state = projectWorkspaceState(panels, rootId, dismissed.current);
+    const state = projectWorkspaceState(panels, rootId, dismissed.current, scroll ?? undefined);
     const json = JSON.stringify(state);
     // A save in flight may land after this change, so a match with the baseline does not yet mean the file is right.
     if (json === lastSaved.current && inFlight.current === null) return;
@@ -220,7 +250,7 @@ export function useWorkspacePersistence(i: {
     }, saveQuietMsRef.current);
     return () => clearTimeout(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps -- storage and rootId never change
-  }, [panels, settled]);
+  }, [panels, settled, scroll]);
 
   // True at once without storage: there is nothing to wait for.
   return {
@@ -232,5 +262,7 @@ export function useWorkspacePersistence(i: {
       if (dismissed.current.some((k) => keys.includes(k))) dismissed.current = dismissed.current.filter((k) => !keys.includes(k));
     },
     isDismissed: (key) => dismissed.current.includes(key),
+    scroll,
+    setScroll,
   };
 }

@@ -1,0 +1,34 @@
+{
+  "tests": [
+    "test/row-scroll-mount.test.ts"
+  ],
+  "mutants": [
+    {
+      "name": "the saved rest is ignored and the mount falls back to initialScroll",
+      "file": "panels/useProvidePanels.ts",
+      "find": "    const rested = stopOfMark(rowNumbers, scroll, i.phoneWidth + tuning.rowGap);",
+      "replace": "    const rested: number | null = null;",
+      "expectRed": [
+        "a saved marker mounts the row at the stop that shows its panel whole"
+      ]
+    },
+    {
+      "name": "the saved rest is applied with a glide instead of at once",
+      "file": "panels/useProvidePanels.ts",
+      "find": "    if (to !== 0) scroller.glideTo(to, { durationSec: 0, instant: true, ease: tuning.slide.glideEase });",
+      "replace": "    if (to !== 0) scroller.glideTo(to, { durationSec: tuning.slide.durationSec, instant: false, ease: tuning.slide.glideEase });",
+      "expectRed": [
+        "a saved marker mounts the row at the stop that shows its panel whole"
+      ]
+    },
+    {
+      "name": "the marker names the last panel the stop shows, not the first",
+      "file": "panels/useProvidePanels.ts",
+      "find": "  const index = n.stopSpans[k]!.first;",
+      "replace": "  const index = n.stopSpans[k]!.end - 1;",
+      "expectRed": [
+        "a rest the person moved to saves a marker naming the first panel"
+      ]
+    }
+  ]
+}

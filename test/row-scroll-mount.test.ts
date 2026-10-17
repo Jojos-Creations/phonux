@@ -360,3 +360,174 @@ test('initialScroll is skipped when a wheel or a pointer-down reached the row be
     cleanup();
   }
 });
+
+// --- a reload keeps the row's rest ---------------------------------------------------------------------------
+//
+// The row here scrolls in steps (overflow 'scroll', rowGesture 'step'): the eleven panels stop at 0, 406, 812, ...
+// with a margin of 86 before the first, so the stop that first shows panel k sits 86 px off that panel's left edge.
+// The end is 3568. A panel as wide as the window (a two-slot panel at container 828) is the wide case.
+
+const SCROLLING = { overflow: 'scroll' } as const;
+const stepping = (): PanelWindow[] => row(...['p1', 'p2', 'p3', 'p4', 'p5'].map((id) => made(id, SCROLLING)), rootEntry(), ...['w1', 'w2', 'w3', 'w4', 'w5'].map((id) => made(id, SCROLLING)));
+const stepTuning = (initialScroll: NonNullable<WorkspaceTuning['initialScroll']> = 'start'): Parameters<typeof mountScrollRow>[2] => ({ tuning: { rowGesture: 'step', initialScroll, saveQuietMs: 5 } });
+/** Lets the save timer (real time, so not the frame clock) fire. */
+const flushSaves = (): Promise<void> => act(async () => void (await new Promise((r) => setTimeout(r, 60))));
+
+/** The saved form of `entries`, with the marker the test gives (or none). */
+function savedOf(entries: PanelWindow[], scroll?: { panel: unknown; offset: unknown }): WorkspaceState {
+  const state = projectWorkspaceState(entries, ROOT);
+  return scroll === undefined ? state : ({ ...state, scroll } as WorkspaceState);
+}
+
+/** A storage whose load waits for the test, and whose saves are recorded. */
+function scrollStorage(): { storage: WorkspaceStorage; saves: WorkspaceState[]; resolve: (state: WorkspaceState | null) => Promise<void> } {
+  const saves: WorkspaceState[] = [];
+  let release: (state: WorkspaceState | null) => void = () => undefined;
+  const loaded = new Promise<WorkspaceState | null>((resolve) => {
+    release = resolve;
+  });
+  return {
+    storage: { load: () => loaded, save: (state) => void saves.push(structuredClone(state)) },
+    saves,
+    resolve: (state) =>
+      act(async () => {
+        release(state);
+      }),
+  };
+}
+
+/** The row mounted with `entries` as its seed (History only, so the file supplies the rest) and the storage given. */
+const loadedRow = (storage: WorkspaceStorage, tuning: Parameters<typeof mountScrollRow>[2], width = 1000, seed: PanelWindow[] = [rootEntry()]): MountedRow => mountScrollRow(seed, width, { storage, workspaceDefaults: {}, ...tuning });
+
+test('a saved marker mounts the row at the stop that shows its panel whole, in one instant glide, and beats initialScroll', async () => {
+  const { storage, saves, resolve } = scrollStorage();
+  const m = loadedRow(storage, stepTuning('end'));
+  const spy = mock.method(rowScrollerFor(m.container), 'glideTo');
+  await resolve(savedOf(stepping(), { panel: 'p3', offset: 0 }));
+  assert.deepEqual(saves, [], 'control: opening saves nothing');
+  // Panel 3 starts at 898 (margin 86 + 812); the stop nearest that which shows it whole is 812.
+  assert.equal(m.container.scrollLeft, 812);
+  assert.equal(spy.mock.callCount(), 1, 'one glide, not one per step');
+  assert.equal((spy.mock.calls[0]!.arguments[1] as { durationSec: number }).durationSec, 0);
+});
+
+test('a rest the person moved to saves a marker naming the first panel the window shows, and a reload restores the same stop', async () => {
+  const first = scrollStorage();
+  const m = loadedRow(first.storage, stepTuning());
+  await first.resolve(savedOf(stepping()));
+  m.wheel({ deltaX: 300 });
+  await settle();
+  await flushSaves();
+  const rest = m.container.scrollLeft;
+  assert.ok(rest > 0, 'control: the wheel moved the row off the first stop');
+  const n = m.latest().rowNumbers;
+  const k = n.stops.indexOf(rest);
+  assert.ok(k >= 0, 'the row rests on a stop');
+  const saved = first.saves.at(-1);
+  assert.ok(saved?.scroll, 'a marker is saved once the row is at rest');
+  const shown = n.stopSpans[k]!.first;
+  assert.equal(saved.scroll!.panel, n.ids[shown]);
+  assert.ok(Math.abs(saved.scroll!.offset - (rest - (n.rowMarginLeft + n.leftOffsets[shown]!)) / 406) < 1e-9);
+
+  const second = scrollStorage();
+  const reloaded = loadedRow(second.storage, stepTuning());
+  await second.resolve(saved);
+  assert.equal(reloaded.container.scrollLeft, rest, 'the saved panel id is mapped to the id it has in this launch');
+});
+
+test('opening a file with a marker, and one without, saves nothing past the quiet period', async () => {
+  for (const scroll of [{ panel: 'p3', offset: 0 }, undefined]) {
+    const { storage, saves, resolve } = scrollStorage();
+    const m = loadedRow(storage, stepTuning());
+    await resolve(savedOf(stepping(), scroll));
+    await settle();
+    await flushSaves();
+    assert.deepEqual(saves, [], JSON.stringify(scroll));
+    assert.equal(m.container.scrollLeft, scroll === undefined ? 0 : 812);
+    cleanup();
+  }
+});
+
+test('a marker whose panel is gone falls back to initialScroll', async () => {
+  const { storage, resolve } = scrollStorage();
+  const m = loadedRow(storage, stepTuning('end'));
+  await resolve(savedOf(stepping(), { panel: 'nope', offset: 0 }));
+  assert.equal(m.container.scrollLeft, 3568, 'the end of the strip');
+});
+
+test('a marker in a row with no stops (not stepping) falls back to initialScroll', async () => {
+  const { storage, resolve } = scrollStorage();
+  const m = loadedRow(storage, { tuning: { initialScroll: 'end' } });
+  await resolve(savedOf(elevenPanels(), { panel: 'p3', offset: 0 }));
+  assert.equal(m.container.scrollLeft, 3482);
+});
+
+test('a wheel before a marker restores settles leaves the row where the wheel put it', async () => {
+  const { storage, resolve } = scrollStorage();
+  const m = loadedRow(storage, stepTuning());
+  act(() => void m.container.dispatchEvent(new Event('wheel', { bubbles: true })));
+  await resolve(savedOf(stepping(), { panel: 'p3', offset: 0 }));
+  assert.equal(m.container.scrollLeft, 0);
+});
+
+test('a malformed marker is dropped with a note, not thrown, and the restore reads as with no marker', async () => {
+  for (const scroll of [{ panel: 7, offset: 0 }, { panel: 'p3', offset: 'far' }]) {
+    const { storage, resolve } = scrollStorage();
+    const m = loadedRow(storage, stepTuning());
+    await resolve(savedOf(stepping(), scroll));
+    assert.equal(m.latest().entries.length, 11, 'the file still restores its ten panels beside History');
+    assert.equal(m.container.scrollLeft, 0, JSON.stringify(scroll));
+    assert.ok(m.notes.some((n) => n.code === 'invalid-saved-setting' && n.key === 'scroll'), JSON.stringify(m.notes));
+    cleanup();
+  }
+});
+
+test('a window resized between launches lands on a stop that shows the marker panel', async () => {
+  const { storage, resolve } = scrollStorage();
+  const m = loadedRow(storage, stepTuning(), 1100);
+  await resolve(savedOf(stepping(), { panel: 'p3', offset: 0 }));
+  const n = m.latest().rowNumbers;
+  const k = n.stops.indexOf(m.container.scrollLeft);
+  assert.ok(k >= 0, 'on a stop');
+  const idx = n.ids.indexOf(idOfTitle(m, 'p3'));
+  assert.ok(n.stopSpans[k]!.first <= idx && idx < n.stopSpans[k]!.end, 'the stop shows panel 3');
+});
+
+test('two rows each restore their own marker', async () => {
+  const a = scrollStorage();
+  const b = scrollStorage();
+  const first = loadedRow(a.storage, stepTuning());
+  const second = loadedRow(b.storage, stepTuning());
+  await a.resolve(savedOf(stepping(), { panel: 'p3', offset: 0 }));
+  await b.resolve(savedOf(stepping(), { panel: 'w2', offset: 0 }));
+  assert.equal(first.container.scrollLeft, 812);
+  assert.equal(second.container.scrollLeft, nearestShowing(second, 'w2'), 'the second row lands on a stop showing w2, not the first row\'s stop');
+  assert.notEqual(second.container.scrollLeft, first.container.scrollLeft);
+});
+
+/** The id a panel of `m` has this launch, found by the title `made` gives it (restored panels get fresh ids). */
+const idOfTitle = (m: MountedRow, title: string): string => m.latest().entries.find((p) => p.title === title)!.id;
+
+/** The stop of `m` nearest to where the panel titled `title` starts, among the stops that show it. */
+function nearestShowing(m: MountedRow, title: string): number {
+  const n = m.latest().rowNumbers;
+  const idx = n.ids.indexOf(idOfTitle(m, title));
+  const left = n.rowMarginLeft + n.leftOffsets[idx]!;
+  let best = Number.NaN;
+  for (const [k, stop] of n.stops.entries()) {
+    if (idx < n.stopSpans[k]!.first || idx >= n.stopSpans[k]!.end) continue;
+    if (Number.isNaN(best) || Math.abs(stop - left) < Math.abs(best - left)) best = stop;
+  }
+  return best;
+}
+
+test('a panel as wide as the window: a marker one phone width into it restores inside the panel, not at its left edge', async () => {
+  const S = SCROLLING;
+  const entries = row(made('p1', S), made('desk', { ...S, slots: 2 }), made('p2', S), made('p3', S), rootEntry());
+  const { storage, resolve } = scrollStorage();
+  const m = loadedRow(storage, stepTuning(), 828);
+  // The desk starts at 609 (margin 203 + 406) and is 796 wide, the window's width: 1.5 phone widths in is the stop at 1218.
+  await resolve(savedOf(entries, { panel: 'desk', offset: 1.5 }));
+  assert.equal(m.container.scrollLeft, 1218);
+  assert.notEqual(m.container.scrollLeft, 812, 'the stop at the desk left edge is not it');
+});
