@@ -152,6 +152,10 @@ export interface PanelHeaderRowProps extends Omit<PanelHeaderProps, 'children' |
   actions?: React.ReactNode;
   /** Left of the title, never truncated. Nothing is drawn for it when it is omitted. */
   leading?: React.ReactNode;
+  /** Whether a click on a string title edits it in place. Needs `onTitleChange`. Default false. */
+  isInput?: boolean;
+  /** Called with the trimmed new title when an edit commits (Enter or blur) to a non-empty, changed value. Escape cancels. */
+  onTitleChange?: (next: string) => void;
 }
 
 /** Deliberately narrow (mirrors JSX's own falsy-child rules, not a general emptiness check) so a
@@ -185,14 +189,57 @@ const PLACEHOLDER_ACTIONS = (
  * substitution lives HERE, not in each caller, so every caller gets it for free.
  * @public
  */
-export function PanelHeaderRow({ title, actions, leading, sx, ...rest }: PanelHeaderRowProps) {
+export function PanelHeaderRow({ title, actions, leading, sx, isInput = false, onTitleChange, ...rest }: PanelHeaderRowProps) {
   const labels = resolveLabels(useOptionalHost()?.labels);
+  const [draft, setDraft] = React.useState<string | null>(null);
+  const inputRef = React.useRef<HTMLInputElement>(null);
+  const editing = draft !== null;
+  React.useEffect(() => {
+    if (editing) inputRef.current?.focus();
+  }, [editing]);
   const resolvedTitle = isEmptyHeaderContent(title) ? placeholderTitle(labels.untitledHeader) : title;
   const resolvedActions = isEmptyHeaderContent(actions) ? PLACEHOLDER_ACTIONS : actions;
+  const editable = isInput && typeof title === 'string' && onTitleChange !== undefined;
+  const commit = (): void => {
+    if (draft === null) return;
+    const next = draft.trim();
+    setDraft(null);
+    if (next !== '' && next !== title) onTitleChange?.(next);
+  };
+  const titleNode =
+    draft !== null ? (
+      <input
+        ref={inputRef}
+        aria-label={typeof title === 'string' ? title : undefined}
+        value={draft}
+        onChange={(event) => setDraft(event.target.value)}
+        onBlur={commit}
+        onKeyDown={(event) => {
+          if (event.key === 'Enter') commit();
+          else if (event.key === 'Escape') setDraft(null);
+        }}
+        style={{ font: 'inherit', color: 'inherit', background: 'transparent', border: 0, outline: 'none', padding: 0, width: '100%', minWidth: 0 }}
+      />
+    ) : editable ? (
+      <Box
+        component="span"
+        role="button"
+        tabIndex={0}
+        onClick={() => setDraft(title)}
+        onKeyDown={(event) => {
+          if (event.key === 'Enter' || event.key === ' ') setDraft(title);
+        }}
+        sx={{ cursor: 'text' }}
+      >
+        {resolvedTitle}
+      </Box>
+    ) : (
+      resolvedTitle
+    );
   return (
     <PanelHeader {...rest} sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 1, ...sx }}>
       {leading}
-      <Box sx={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 }}>{resolvedTitle}</Box>
+      <Box sx={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 }}>{titleNode}</Box>
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.25, flexShrink: 0 }}>{resolvedActions}</Box>
     </PanelHeader>
   );
