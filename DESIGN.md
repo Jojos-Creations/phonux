@@ -383,6 +383,10 @@ all land on it. A wide panel is not a stop of its own. A grid stop shows the who
 window cut through a wide panel shows the next phone width of it. A wide panel is centred only where the grid lands on the centred
 position (the visible count minus its width is even); otherwise the nearest grid stop is used, and centring can be impossible.
 This replaces the whole-panel stop contract of the 297 tests. A row that does not scroll has no stops and keeps the old step.
+The row's margin and end pad still come from the whole-panel groups: they set the grid's phase, which decides where a wide
+panel can centre. Removing them would move every centred cell, so they stay; they no longer define a stop. `snapToStop` picks,
+among the grid stops whose window shows the panel, the one nearest the target; for a panel wider than the window that is the
+grid stop near its left edge. Drag release, resize and pin release read the same grid through `snapToStop` and `nearestStop`.
 
 #### Whole panels only
 
