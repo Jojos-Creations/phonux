@@ -136,7 +136,6 @@ export function PanelRow({
   tuning,
   rowNumbers,
   workspace,
-  restoreSettled = true,
 }: {
   /** The raw one-list array (PanelRowEntry, not PanelSummary): `view` alone picks the component (an unknown key renders a
    * placeholder, never nothing), independent of `layer` (stacking) and `anchoredEnter` (enter direction). */
@@ -155,9 +154,6 @@ export function PanelRow({
   enterSideById?: ReadonlyMap<string, 'left' | 'right'>;
   /** The widest one live panel can be in this row (ProvidedPanels.maxLiveWidth). Omitted: no cap. */
   maxLiveWidth?: number;
-  /** False while a saved workspace is still restoring. The restored panels arrive with the settle, so the row
-   * keys its AnimatePresence on this flag: the panels present at that moment skip their enter, later ones animate. */
-  restoreSettled?: boolean;
   /** The workspace tuning this row renders with. Omitted: the enclosing Workspace's, else the library defaults. A value that differs from the Workspace's warns once in development. */
   tuning?: WorkspaceTuning;
   /** The row's numbers (ProvidedPanels.rowNumbers): every width and rest is read from them, and a park exits relative to its rest when `rowScroll` is true. Omitted: the row computes its own from `maxLiveWidth`. */
@@ -171,6 +167,9 @@ export function PanelRow({
   const inherited = React.useContext(WorkspaceTuningContext);
   const given = tuning === undefined ? undefined : resolveWorkspaceTuning(tuning);
   const binding = bindingOf(workspace);
+  // The restored panels arrive with the settle, after the row mounted. The row keys its AnimatePresence on
+  // this flag, so the panels present at settle skip their enter and later ones animate.
+  const restoreSettled = React.useSyncExternalStore(workspace.panels.subscribe, () => workspace.panels.getSnapshot().status !== 'loading');
   const autoMountOf = React.useContext(AutoMountContext);
   const handMounted = binding.autoMounted && autoMountOf !== workspace;
   React.useEffect(() => {
