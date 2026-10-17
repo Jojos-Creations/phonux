@@ -51,7 +51,6 @@ export { default as PanelFrame } from './PanelFrame.js';
 export {
   PANEL_CORNER_RADIUS_UNITS,
   panelCornerRadiusPx,
-  panelFrameScrollSx,
   panelFrameBareSx,
   PanelHeader,
   PanelHeaderRow,
