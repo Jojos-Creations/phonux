@@ -66,17 +66,16 @@ const rulesOf = (element: React.ReactElement): string[] => {
   return [...document.querySelectorAll('style')].flatMap((el) => [...((el as HTMLStyleElement).sheet?.cssRules ?? [])].map((rule) => rule.cssText));
 };
 
-test('the frame and the header pill draw their edge as a shadow that takes no layout, and keep the 1 px they used to hold as padding', () => {
+test('the frame draws its edge as a shadow that takes no layout, and the header draws no pill: no background, ring or radius, and keeps the 1 px it had as padding', () => {
   const rules = rulesOf(React.createElement(Panel, { title: 'T', children: React.createElement(PanelFrame, null, 'body') }));
   const frame = rules.find((rule) => /padding: 1px;/.test(rule) && /box-shadow/.test(rule))!;
-  const pill = rules.find((rule) => /bottom: calc\(100% \+ 24px\)/.test(rule))!;
-  assert.ok(frame && pill, 'both rules were found');
-  for (const [name, rule] of [['frame', frame], ['pill', pill]] as const) {
-    assert.match(rule, /box-shadow: inset 0 0 0 calc\(1px \* \(1 - var\(--phonux-size-glide, 0\)\)\)/, `${name} draws the ring`);
-    assert.doesNotMatch(rule, /[\s;{]border(-width|-color|-style)?:/, `${name} has no border, which would be rounded to device pixels and re-lay out the content`);
-    assert.match(rule, /border-radius: calc\([\d.]+px \/ var\(--phonux-size-x, 1\)\)\/calc\([\d.]+px \/ var\(--phonux-size-y, 1\)\)/, `${name} reads the scale for its corners`);
-  }
-  assert.match(pill, /padding-left: 13px; padding-right: 13px; padding-top: 1px; padding-bottom: 1px/, "the pill keeps its text 12 px from the frame's content and 1 px for the edge");
+  const header = rules.find((rule) => /bottom: calc\(100% \+ 24px\)/.test(rule))!;
+  assert.ok(frame && header, 'both rules were found');
+  assert.match(frame, /box-shadow: inset 0 0 0 calc\(1px \* \(1 - var\(--phonux-size-glide, 0\)\)\)/, 'the frame draws the ring');
+  assert.doesNotMatch(frame, /[\s;{]border(-width|-color|-style)?:/, 'the frame has no border, which would be rounded to device pixels and re-lay out the content');
+  assert.match(frame, /border-radius: calc\([\d.]+px \/ var\(--phonux-size-x, 1\)\)\/calc\([\d.]+px \/ var\(--phonux-size-y, 1\)\)/, 'the frame reads the scale for its corners');
+  assert.doesNotMatch(header, /background-color:|box-shadow:|border-radius:/, 'the header has no pill background, edge or radius');
+  assert.match(header, /padding-left: 13px; padding-right: 13px; padding-top: 1px; padding-bottom: 1px/, "the header keeps its text 12 px from the frame's content and 1 px of padding");
 });
 
 const sized = (width: number, height: number | '100%'): React.ReactElement => React.createElement(SizeBox, { width, height, children: React.createElement('i') });

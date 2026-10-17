@@ -1236,7 +1236,7 @@ read again every frame, and the hold ends when the row stops scrolling.
 the same `onClose`, as History's trash buttons do. The row's drag-to-reorder needs one too; `handle.move(1)` and `handle.move(-1)`
 exist for it, but no such control is built.
 
-## PanelFrame's inset, scrollbar and header pill
+## PanelFrame's inset, scrollbar and header
 
 Every view renders inside `PanelFrame` so each section reads as one phone silhouette; a view that grew its
 own border/radius/background declarations would drift from the others. The frame is the phone's size unless
@@ -1266,15 +1266,11 @@ cancel. `panelFrameBareSx` is a deprecated empty object kept so existing imports
 content-box the border and padding land on top of it: a 390px phone rendered 416px wide by
 `getBoundingClientRect()`, about 26px of silent under-fit per phone.
 
-**The header pill.** `PanelHeader` floats above the frame (it needs a `position: relative` parent) and bakes
-in one look: Paper `variant="outlined"`'s bgcolor and border, shaped as a pill; a radius
-equal to the phone's own corner radius and a height of twice it, so each end is an exact semicircle with the
-phone's curvature, both from the theme rather than a raw 24/48; and a fixed height, so wrapping content never
-changes the shape. Its horizontal padding is 13px (the 1px edge plus the 12px inset the frame used to give content), so header
+**The header.** `PanelHeader` floats above the frame (it needs a `position: relative` parent) with no background, border or shadow: the title and header buttons sit on the panel's own surroundings, and their colour is the theme's `text.primary`, so a light theme reads and the dark default stays white. Its height is twice the phone's own corner radius, from the theme rather than a raw 48, and a fixed height, so wrapping content never changes it. Its horizontal padding is 13px (the 1px edge plus the 12px inset the frame used to give content), so header
 text keeps the line it had before the frame stopped styling its content. Internal layout is left to callers (`sx`), since one centers an ellipsis title and
 another spaces out an icon row. `PanelHeaderRow` is the shared title-left/actions-right layout, so call sites
 stop re-implementing flex/ellipsis markup, and it substitutes placeholders for a falsy `title`/`actions` (a
-dimmed "Untitled", a dimmed "more" glyph) so the pill never blanks or changes shape. Its emptiness check
+dimmed "Untitled", a dimmed "more" glyph) so the header never blanks or changes shape. Its emptiness check
 mirrors JSX's own falsy-child rules, so `0` or whitespace still counts as content.
 
 ## `WindowOverlay`: window-level content with no Portal
