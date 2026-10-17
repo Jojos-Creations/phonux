@@ -99,7 +99,7 @@ async function savedRow(): Promise<{ m: ReturnType<typeof mountWorkspace>; ws: R
   const m = mountWorkspace(ws, { width: 1280 });
   await flush();
   await wait();
-  const anchors = async (): Promise<string[]> => ((await store.load())!.panels.filter((p) => (p.overrides as { anchor?: unknown } | undefined)?.anchor !== undefined).map((p) => p.key!));
+  const anchors = async (): Promise<string[]> => (((await store.load())?.panels ?? []).filter((p) => (p.overrides as { anchor?: unknown } | undefined)?.anchor !== undefined).map((p) => p.key!));
   return { m, ws, anchors };
 }
 

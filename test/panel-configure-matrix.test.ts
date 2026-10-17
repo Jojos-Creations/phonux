@@ -1204,7 +1204,7 @@ test('matrix:tuning.saveQuietMs', async () => {
   const tick = (ms: number): void => act(() => mock.timers.tick(ms));
   tick(500);
   const base = saves.length;
-  assert.equal(base > 0, true, 'the restore settled and its first save came after the default 500 ms');
+  assert.equal(base, 0, 'the restore settled and opening saved nothing; the first change is saved at the default 500 ms, below');
   r.turn(() => r.h.a!.move(1, 'person'));
   tick(499);
   assert.equal(saves.length, base, 'before: a change is not saved before the quiet time');

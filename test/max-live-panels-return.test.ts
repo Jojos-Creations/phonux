@@ -201,6 +201,8 @@ test('restore: a saved workspace with more live panels than N arrives with the e
   const store = memoryWorkspaceStorage();
   const saver = await capRig({ count: 8, width: 4000, workspace: { storage: store }, tuning: { saveQuietMs: 5 } });
   assert.equal(saver.row(), 'root w1 w2 w3 w4 w5 w6 w7 w8', 'saved with every panel live');
+  // Opening saves nothing, so the file exists only once something changes; a title leaves the row alone.
+  saver.turn(() => saver.h.w1!.configure({ title: 'Saved' }));
   await new Promise((resolve) => setTimeout(resolve, 60));
   assert.deepEqual((await store.load())?.panels.map((p) => p.live), Array(8).fill(true), 'the file holds the eight, each live');
   cleanup();

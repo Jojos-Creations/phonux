@@ -23,6 +23,14 @@ const icon = (name: string): ReactElement => createElement('i', { 'data-icon': n
 const slot = (label: string, extra: Partial<HeaderButton> = {}): HeaderButton => ({ icon: icon(label), label, onClick: () => undefined, ...extra });
 const press = (rig: HeaderRig, panel: string, label: string): void => void act(() => rig.buttons(panel).find((b) => b.getAttribute('aria-label') === label)!.click());
 const FIX: Pinning = { pinned: { placement: 'row-start', parkable: false }, unpinned: { placement: 'row-end', parkable: true } };
+/** A storage holding a file with one unchanged panel under `key`, so a test that expects no override reads a file that exists. */
+const fileWith = (key: string): ReturnType<typeof memoryWorkspaceStorage> =>
+  memoryWorkspaceStorage({
+    version: 1,
+    root: 'root',
+    panels: [{ id: '1', uid: 'u_00000000000000000000000000000001', key, view: key, url: '', live: true, anchor: { panel: 'root', position: 'right', priority: 0 }, instance: {}, overrides: {}, applied: { placeOnAdd: 'row-end' } }],
+  });
+
 const overridesOf = async (store: ReturnType<typeof memoryWorkspaceStorage>): Promise<Array<Record<string, unknown>>> => ((await store.load())?.panels ?? []).map((p) => p.overrides as Record<string, unknown>);
 /** Where each panel's size button stands, since a handle does not report its slot count: one, two, three, then one again. */
 const cycleAt = new Map<string, number>();
@@ -124,7 +132,7 @@ test('person: a press records the person\'s anchor, parkable and form factor; a 
   assert.equal(sized.slots, 2, 'overrides.slots');
 
   cleanup();
-  const later = memoryWorkspaceStorage();
+  const later = fileWith('c');
   const after = await headerRig({ ids: ['c'], settings: { c: { pinning: FIX } }, workspace: { storage: later, ...quiet }, slots: { pin: slot('Pin', { onClick: async (h) => { await Promise.resolve(); h.pin(); } }) } });
   press(after, 'c', 'Pin');
   await wait();
@@ -132,7 +140,7 @@ test('person: a press records the person\'s anchor, parkable and form factor; a 
   assert.deepEqual(await overridesOf(later), [{}], 'a verb after an await is code');
 
   cleanup();
-  const code = memoryWorkspaceStorage();
+  const code = fileWith('c');
   const fromCode = await headerRig({ ids: ['c'], settings: { c: { pinning: FIX } }, workspace: { storage: code, ...quiet }, slots: { pin: pin() } });
   fromCode.turn(() => fromCode.h.c!.pin());
   await wait();
