@@ -1,6 +1,6 @@
 // node run.mjs <bundle.js> [chromium|webkit|firefox]
 // Light and dark system schemes, with the auto-mount's own theme. The header carries no pill (no fill, shadow or radius), its title and
-// buttons read against what is behind them (WCAG AA contrast, 4.5), its buttons have no fill, and the scrollbar thumb follows the text colour.
+// buttons read against what is behind them (WCAG AA contrast, 4.5), its buttons have no fill.
 import { createServer } from 'node:http';
 import { readFileSync } from 'node:fs';
 const pw = await import(process.env.PLAYWRIGHT_MODULE ?? '/opt/node22/lib/node_modules/playwright/index.mjs');
@@ -34,9 +34,7 @@ for (const scheme of ['light', 'dark']) {
     const mix = { r: fg.r * fg.a + behind.r * (1 - fg.a), g: fg.g * fg.a + behind.g * (1 - fg.a), b: fg.b * fg.a + behind.b * (1 - fg.a) };
     const [hi, lo] = [lum(mix), lum(behind)].sort((a, b) => b - a);
     const buttons = [...header.querySelectorAll('button, [role=button]')].map((b) => getComputedStyle(b).backgroundColor);
-    const thumbs = [];
-    for (const sheet of document.styleSheets) for (const rule of sheet.cssRules ?? []) if (rule.selectorText?.includes('scrollbar-thumb')) thumbs.push(`${rule.selectorText.split(',').pop().slice(-28)} ${rule.style.background || rule.style.backgroundColor}`);
-    return { bg: hs.backgroundColor, shadow: hs.boxShadow, radius: hs.borderRadius, border: hs.borderTopWidth, color: getComputedStyle(title).color, behind: `rgb(${behind.r},${behind.g},${behind.b})`, contrast: (hi + 0.05) / (lo + 0.05), buttons, thumbs };
+    return { bg: hs.backgroundColor, shadow: hs.boxShadow, radius: hs.borderRadius, border: hs.borderTopWidth, color: getComputedStyle(title).color, behind: `rgb(${behind.r},${behind.g},${behind.b})`, contrast: (hi + 0.05) / (lo + 0.05), buttons };
   });
   console.log(`-- ${scheme}: title ${r.color} on ${r.behind}`);
   check(`${scheme}: the header has no fill`, r.bg === 'rgba(0, 0, 0, 0)', r.bg);
@@ -44,7 +42,6 @@ for (const scheme of ['light', 'dark']) {
   check(`${scheme}: the header has no radius`, r.radius === '0px', r.radius);
   check(`${scheme}: the title reads against what is behind it (contrast >= 4.5)`, r.contrast >= 4.5, r.contrast.toFixed(2));
   check(`${scheme}: header buttons have no fill`, r.buttons.length > 0 && r.buttons.every((c) => c === 'rgba(0, 0, 0, 0)'), `${r.buttons.length} buttons ${[...new Set(r.buttons)].join(' ')}`);
-  if (engine !== 'firefox') check(`${scheme}: the scrollbar thumb follows the text colour`, r.thumbs.length > 0 && (scheme === 'light' ? r.thumbs.every((t) => !t.includes('255, 255, 255')) : r.thumbs.every((t) => t.includes('255, 255, 255'))), r.thumbs.join(' ; '));
   check(`${scheme}: no page errors`, errors.length === 0, errors.join(' | '));
   await page.screenshot({ path: process.env.SHOTS ? `${process.env.SHOTS}/header-${scheme}-${engine}.png` : undefined }).catch(() => {});
 }

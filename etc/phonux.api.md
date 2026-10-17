@@ -508,30 +508,6 @@ export interface PanelFrameProps extends Omit<BoxProps, 'children'> {
 }
 
 // @public
-export const panelFrameScrollSx: {
-    readonly overflowX: "hidden";
-    readonly overflowY: "auto";
-    readonly scrollbarGutter: "stable";
-    readonly pt: "12px";
-    readonly pb: "12px";
-    readonly pl: "12px";
-    readonly pr: "4px";
-    readonly '&::-webkit-scrollbar': {
-        readonly width: 8;
-    };
-    readonly '&::-webkit-scrollbar-track': {
-        readonly background: "transparent";
-    };
-    readonly '&::-webkit-scrollbar-thumb': {
-        readonly background: (theme: Theme) => string;
-        readonly borderRadius: number;
-    };
-    readonly '&::-webkit-scrollbar-thumb:hover': {
-        readonly background: (theme: Theme) => string;
-    };
-};
-
-// @public
 export interface PanelHandle<P extends JsonValue = JsonValue> extends PanelReadHandle {
     close(source?: 'code' | 'person'): PanelResult;
     configure(patch: InstancePatch): ConfigureResult;

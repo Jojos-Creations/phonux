@@ -4,7 +4,7 @@
 
 ### Breaking
 
-- `PanelFrame` no longer styles the content it holds: the 12px inset, the scrollbar gutter and the `::-webkit-scrollbar` rules are gone, so the view owns its padding and scrolling. **Migration:** a view that scrolls and wants the standard inset spreads `panelFrameScrollSx` on its own scroller, with the scrollbar rules it already has. `panelFrameBareSx` is an empty deprecated object; delete the spread. `panelFrameScrollSx`, `panelFrameBareSx`, `PANEL_CORNER_RADIUS_UNITS` and `panelCornerRadiusPx` stay exported.
+- `PanelFrame` no longer styles the content it holds: the 12px inset, the scrollbar gutter and the `::-webkit-scrollbar` rules are gone, so the view owns its padding and scrolling. The scroller recipe is removed (see Removed). **Migration:** a view that scrolls writes its own padding and scrollbar rules in its `sx` on its own scroller. `panelFrameBareSx` is an empty deprecated object; delete the spread. `panelFrameBareSx`, `PANEL_CORNER_RADIUS_UNITS` and `panelCornerRadiusPx` stay exported.
 - Nineteen per-panel settings are removed from `PanelSettings`, `ResolvedPanelSettings`, `ViewPatch`, `InstancePatch`, `SettingsPatch`, `LIBRARY_PANEL_DEFAULTS` and `PANEL_SETTINGS_CATALOG`, so the 1.0 freeze covers only settings a panel author can use: `hideWhenLast`, `returnPriority`, `evictionRank`, `evictionOrder`, `scrollOnDrag`, `viewState`, `keepMounted`, `frame`, `placeOnReturn`, `placeFallback`, `undoPlacement`, `exitTo`, `closeExit`, `animated`, `persist`, `rememberLayout`, `undoWindowMs`, `reportClose` and `snapshot`. Every panel behaves as each did at its default (DESIGN.md, "Settings this version removed"). **Migration:** delete the key from the template. A template that still sets one is told once in development (`console.error`, naming the key) and the value is ignored; the next rc refuses it with `invalid-settings`. A saved file that holds one in a panel's instance layer still loads: the key is dropped with an `invalid-saved-setting` note. Coupling rules C3 and C6 went with their settings; `SettingConflict.rule` is `'C1' | 'C2' | 'C4' | 'C5'`, and the `park-lever-inert` note covers only `capacityReturn`.
 - `usePanelHidden` is removed: a parked view always unmounts, so a view is never mounted and hidden. **Migration:** delete the call.
 - `resolvePanelSettings`, `mergePatch`, `PanelSettingsLayers` and `ResolveOptions` are no longer exported from the package; no 0.1.0 name was among them.
@@ -26,9 +26,14 @@
   registry it guarded. The components (`PanelRow`, `Workspace`, `HostProvider`) stay public, always with a workspace. The deprecated Host-bag verbs
   and `CreatePanelOptions` stay until their own removal.
 
+### Removed
+
+- `panelFrameScrollSx`: the scroller recipe with the 12px inset and the 8px classic scrollbar. A view that scrolls writes its own
+  padding and `::-webkit-scrollbar` rules on its scroller; `panelFrameBareSx` stays as the deprecated no-op.
+
 ### Fixed
 
-- The panel header's title and the scrollbar thumb follow the theme's text colour (the thumb at 0.25, 0.4 on hover), so they read on a light theme. The dark default is unchanged.
+- The panel header's title follows the theme's text colour, so it reads on a light theme. The dark default is unchanged.
 - Behavior change: a step over a row moves one phone width per event, also onto a wide panel. Before, a wide panel took a step of its whole width or half. Walking a 1280 px window across a five-slot desktop panel and then two phones: 4 events of 812, 1218, 406, 406 before; 7 events of 406 after. A row of phones is unchanged. Every stop a row rests on is on that one-phone grid, so a drag release or a resize settle no longer leaves a half step: the next step is a whole phone width. The whole-panel stops are gone; a wide panel centres only where the grid holds the centred position.
 - A vertical wheel over a panel row no longer moves the row up off its workspace: the row's own overflow is `overflowY: hidden`. A panel's inner scroller still scrolls.
 - A leftward drag no longer flicks the panel it replaces to the window edge. The drop moved that panel's DOM node, which reset what it hosts; no panel node moves in a reorder now.

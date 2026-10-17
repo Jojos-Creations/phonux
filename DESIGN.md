@@ -526,7 +526,7 @@ the shadow is the one ring a border was; while the box eases it is four bands, e
 is 1 px drawn (about 0.7 px on the diagonal of a corner). The properties inherit, so each frame of a glide the browser resolves
 the box's whole subtree again for them; the trace at four times slower CPU keeps overlap 0 and gap equal to the row gap.
 What is counted is the chrome the library draws. A view's own content (an avatar, a card, an image, text), the scrollbar thumb
-(`panelFrameScrollSx` is an exported value, whose type this would change) and the header buttons, which stay plain MUI buttons, are still scaled by the box and squash for the 0.4 s, as they did under `layout="size"`;
+(a view's scroller is its own, so the library has no scroller value to change) and the header buttons, which stay plain MUI buttons, are still scaled by the box and squash for the 0.4 s, as they did under `layout="size"`;
 undistorted content would be a clip-reveal in place of a scale, a different design.
 
 The size box follows any change of the panel's width, not only a slot-count change. Choosing a different phone
@@ -1242,14 +1242,13 @@ Every view renders inside `PanelFrame` so each section reads as one phone silhou
 own border/radius/background declarations would drift from the others. The frame is the phone's size unless
 `size` or `expanded` says otherwise: a slot never grows to fill space.
 
-**The view owns its content.** `PanelFrame` applies no padding, scrollbar or scroll behaviour to what it holds.
-Its inner box is a plain flex column styled only by its `sx` prop. A view that scrolls and wants the phone's
-standard inset spreads `panelFrameScrollSx` on its scroller: content sits 12px from the border on all four
-sides, with or without a bar, because `scrollbar-gutter: stable` reserves the strip and the right padding is
-pre-shrunk by it (`SCROLLBAR_PX`, 8px). Nothing is measured at runtime. The phone's look is the frame's border,
-radius and size; the inside is the developer's.
+**The view owns its content.** `PanelFrame` applies no padding, scrollbar or scroll behaviour to what it holds, and the
+library exports no look value for it: no inset, no scrollbar width, no scroller recipe (issue 309). Its inner box is a
+plain flex column styled only by its `sx` prop. A view that scrolls sets its own padding and `::-webkit-scrollbar` rules on
+the element that scrolls. Nothing is measured at runtime. The phone's look is the frame's border, radius and size; the
+inside is the developer's.
 
-**Why a classic scrollbar (for a view that opts in).** The default here in WebKit and Blink engines is an overlay scrollbar: it floats over content,
+**Why a classic scrollbar (for a view that wants one).** The default here in WebKit and Blink engines is an overlay scrollbar: it floats over content,
 reserves no layout width (`offsetWidth === clientWidth` on a scroller with real overflowing content) and
 draws with its own built-in inset from the scroller's edge, which no padding or box-model change on this
 side can remove. Splitting the frame into an outer box (border, radius, size, `overflow: hidden` clipping, no

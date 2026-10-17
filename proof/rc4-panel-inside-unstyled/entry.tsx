@@ -1,15 +1,15 @@
 // One default panel in a real browser. ?mode=plain puts a text node straight in the frame; ?mode=scroll puts a
-// Box spreading panelFrameScrollSx (the scroller a view opts into) around a tall child.
+// Box scroller with no look values of its own (the library now exports none) around a tall child.
 import * as React from 'react';
 import { createRoot } from 'react-dom/client';
 import Box from '@mui/material/Box';
-import { createWorkspace, definePanel, panelFrameScrollSx } from 'LIB/index.js';
+import { createWorkspace, definePanel } from 'LIB/index.js';
 import { AutoRoot } from 'LIB/autoMount.js';
 
 const mode = new URLSearchParams(location.search).get('mode') ?? 'plain';
 const view = () =>
   mode === 'scroll' ? (
-    <Box data-scroller="" sx={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', ...panelFrameScrollSx }}>
+    <Box data-scroller="" sx={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', overflowY: 'auto' }}>
       <p data-content="" style={{ margin: 0, height: 2000 }}>content</p>
     </Box>
   ) : (

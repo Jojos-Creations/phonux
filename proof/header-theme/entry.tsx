@@ -1,7 +1,7 @@
 // Two titled panels with a scrolling body, so a header and a scrollbar thumb are on screen. The page exposes the workspace as window.__ws.
 import { createRoot } from 'react-dom/client';
 import Box from '@mui/material/Box';
-import { createWorkspace, definePanel, panelFrameScrollSx } from 'LIB/index.js';
+import { createWorkspace, definePanel } from 'LIB/index.js';
 import { AutoRoot } from 'LIB/autoMount.js';
 
 const tall = (id: string) =>
@@ -9,7 +9,7 @@ const tall = (id: string) =>
     id,
     settings: { title: `Title ${id}` },
     view: () => (
-      <Box data-body={id} sx={{ ...panelFrameScrollSx, height: '100%', overflowY: 'scroll' }}>
+      <Box data-body={id} sx={{ height: '100%', overflowY: 'scroll' }}>
         <div style={{ height: 3000 }}>{id}</div>
       </Box>
     ),

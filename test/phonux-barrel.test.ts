@@ -27,7 +27,6 @@ const VALUE_EXPORTS = [
   'PanelFrame',
   'PANEL_CORNER_RADIUS_UNITS',
   'panelCornerRadiusPx',
-  'panelFrameScrollSx',
   'panelFrameBareSx',
   'PanelHeader',
   'PanelHeaderButtons',
