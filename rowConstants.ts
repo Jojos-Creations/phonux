@@ -40,7 +40,7 @@ export const HOP_FRACTION = 0.5;
 export const SAVE_QUIET_MS = 500;
 
 /** The least time between two row-scroll steps of one wheel gesture. */
-export const GESTURE_LOCK_MS = 60;
+export const GESTURE_LOCK_MS = 30;
 
 /** No wheel event for this long ends a row-scroll gesture: the next one is fresh and steps at once. */
 export const GESTURE_QUIET_MS = 150;
