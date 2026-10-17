@@ -8,6 +8,7 @@ import './support/jsdom-globals.js';
 import { act } from 'react';
 import { createWorkspace, type JsonValue } from '../index.js';
 import { seedWorkspace, type PanelSeed } from '../fakeHost.js';
+import { slotsOf } from '../panelWindow.js';
 import { cleanup } from './support/mount-harness.js';
 import { flush, markerTemplate, mountWorkspace } from './support/workspace-row.js';
 
@@ -81,4 +82,19 @@ test('seedWorkspace refuses two seeds with one id, and draws ids past the seeds 
   assert.throws(() => seedWorkspace([seeds[0]!, seeds[0]!]), /share an id/);
   const { newId } = seedWorkspace([{ ...seeds[0]!, id: '1' }]);
   assert.deepEqual([newId(), newId(), newId()], ['1', '2', '3']);
+});
+
+test('a seeded slot count sets the panel size and a seeded permanent column restores live and not parkable', async () => {
+  const wide: PanelSeed = { id: 'wide', view: VIEW, hostData: 'w', live: true, slots: 2 };
+  const column: PanelSeed = { id: 'column', view: VIEW, hostData: 'c', live: false, permanent: true };
+  const seeded = seedWorkspace([wide, column]);
+  const ws = createWorkspace({ mount: false, ...seeded, templates: [markerTemplate(VIEW)] });
+  const m = mountWorkspace(ws, { over: { ...seeded.panels } });
+  await flush();
+  const byId = new Map(m.latest().entries.map((p) => [p.id, p]));
+  assert.equal(slotsOf(byId.get('wide')!), 2);
+  assert.equal(slotsOf(byId.get('column')!), 1);
+  assert.equal(byId.get('column')!.collapsible, false);
+  assert.equal(byId.get('column')!.live, true, 'a permanent column is never parked');
+  assert.deepEqual([byId.get('wide')!.hostData, byId.get('column')!.hostData], ['w', 'c']);
 });

@@ -336,6 +336,8 @@ export interface PanelSeed {
     hostData: JsonValue;
     id: string;
     live: boolean;
+    permanent?: boolean;
+    slots?: number;
     title?: string;
     url?: string;
     view: string;

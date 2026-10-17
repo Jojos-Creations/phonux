@@ -190,6 +190,10 @@ export interface PanelSeed {
   url?: string;
   /** The panel's title. */
   title?: string;
+  /** How many slots wide the panel restores, which sets its size; left out, one. */
+  slots?: number;
+  /** Whether the panel is a permanent column: it restores live, unlisted and one slot wide whatever `live` and `slots` say. */
+  permanent?: boolean;
 }
 
 /** What `seedWorkspace` returns: members of `WorkspaceOptions` to spread into `createWorkspace`. @public */
@@ -223,6 +227,8 @@ export function seedWorkspace(seeds: readonly PanelSeed[], rootId: string = ROOT
       live: seed.live,
       ...(seed.url !== undefined ? { url: seed.url } : {}),
       ...(seed.title !== undefined ? { title: seed.title } : {}),
+      ...(seed.slots !== undefined ? { slots: seed.slots } : {}),
+      ...(seed.permanent !== undefined ? { permanent: seed.permanent } : {}),
       anchor: { panel: rootId, position: 'right', priority },
     })),
   };
