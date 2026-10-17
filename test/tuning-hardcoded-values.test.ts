@@ -206,12 +206,12 @@ for (const [name, start] of [
 test('glideEase: the settle after a resize that moves the stops glides along the workspace leaf', async () => {
   const settle = async (glideEase: SlideTuning['glideEase']): Promise<number> => {
     const m = mountRow(panelsOf(5), 1000, { tuning: { rowGesture: 'step', ...SLOW(glideEase) } });
-    m.scroller.glideTo(1624, { durationSec: 0, instant: true, ease: 'linear' });
+    m.scroller.glideTo(1538, { durationSec: 0, instant: true, ease: 'linear' });
     m.rerender(1500);
     const target = m.scroller.glideTarget();
-    assert.equal(target, 1218, 'control: the row is brought to the new last stop');
+    assert.equal(target, 1085, 'control: the row is brought to the new last stop');
     await advanceFrames(25 * 16);
-    const fraction = (1624 - m.container.scrollLeft) / (1624 - 1218);
+    const fraction = (1538 - m.container.scrollLeft) / (1538 - 1085);
     cleanup();
     return fraction;
   };

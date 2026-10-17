@@ -1,0 +1,32 @@
+{
+  "tests": [
+    "test/last-panel-edge.test.ts",
+    "test/whole-panels.test.ts",
+    "test/step-one-phone-width.test.ts"
+  ],
+  "mutants": [
+    {
+      "name": "the last whole-panel group's even margin is added back to the stops and the range",
+      "file": "rowNumbers.ts",
+      "find": "  const stepStops = whole === null ? [] : stepGrid(Math.max(0, rowMarginLeft + stripWidth - windowWidth), i.phoneWidth + i.gap);",
+      "replace": "  const lastMargin = whole === null ? 0 : (windowWidth - widths[widths.length - 1]!) / 2;\n  const stepStops = whole === null ? [] : stepGrid(Math.max(0, rowMarginLeft + stripWidth + lastMargin - windowWidth), i.phoneWidth + i.gap);",
+      "expectRed": [
+        "[root, 1, 1, 5-slot, 1] at 2240: rowMarginLeft and the stops are the expected ones",
+        "[root, 5-slot, 1] at 1300: rowMarginLeft and the stops are the expected ones",
+        "[root, 5-slot, 1, 1] at 2046: rowMarginLeft and the stops are the expected ones",
+        "mounted at 2240: stepping to the last stop lands the scroll at maxScrollOf"
+      ]
+    },
+    {
+      "name": "the end pad is applied to the max scroll only, so the range reaches past the last stop",
+      "file": "rowNumbers.ts",
+      "find": "stopSpans, endPad: 0 };",
+      "replace": "stopSpans, endPad: whole === null ? 0 : (windowWidth - widths[widths.length - 1]!) / 2 };",
+      "expectRed": [
+        "[root, 1, 1, 5-slot, 1] at 2240: endPad is 0 and the last panel's right edge",
+        "[root, 5-slot, 1] at 1300: endPad is 0 and the last panel's right edge",
+        "[root, 5-slot, 1, 1] at 2046: endPad is 0 and the last panel's right edge"
+      ]
+    }
+  ]
+}

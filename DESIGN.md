@@ -358,9 +358,10 @@ In a scrolling row with `rowGesture` `'step'` whose strip is wider than the wind
 `wholePanels`) returns `stops`: the `scrollLeft` values at which the window shows only whole panels. From panel `i` the
 shown set is the greedy run of panels that fit the window, at least one, and the leftover width is split evenly as
 margin `m_i`. `rowMarginLeft` is the first set's margin, stop `i` is `rowMarginLeft + leftOffset_i - m_i`, the stops end at
-the first panel from which everything after it fits, and `endPad` (the last set's margin) is drawn after the strip as a
-spacer element, a sibling of the strip inside the scroll container so a drag's end cap still reads the strip's own edge.
-The element is `endPad` plus the row gap wide on every scrolling row (`endPad` 0 included) and the container's right padding is 0
+the first panel from which everything after it fits. The space after the strip is a spacer element, a sibling of the strip inside
+the scroll container so a drag's end cap still reads the strip's own edge. `endPad` is always 0, so the last stop is the row's end
+(`maxScrollOf`) and rests the last panel one row gap from the window edge; the last set's margin is not added to the range, which
+would leave blank room after the last panel. The element is the row gap wide on every scrolling row and the container's right padding is 0
 there, because engines disagree on what the scrollable width counts: WebKit leaves a flex item's end margin out, and Firefox an
 empty box (so the element has no `height: 0`). A non-empty element is counted by all three, whatever each does with padding, and
 `maxScrollOf` is then the browser's range. A row that does not scroll keeps its padding to centre in.
@@ -383,8 +384,9 @@ all land on it. A wide panel is not a stop of its own. A grid stop shows the who
 window cut through a wide panel shows the next phone width of it. A wide panel is centred only where the grid lands on the centred
 position (the visible count minus its width is even); otherwise the nearest grid stop is used, and centring can be impossible.
 This replaces the whole-panel stop contract of the 297 tests. A row that does not scroll has no stops and keeps the old step.
-The row's margin and end pad still come from the whole-panel groups: they set the grid's phase, which decides where a wide
-panel can centre. Removing them would move every centred cell, so they stay; they no longer define a stop. `snapToStop` picks,
+The row's margin still comes from the whole-panel groups: it sets the grid's phase, which decides where a wide panel can centre.
+Removing it would move every centred cell, so it stays; it no longer defines a stop, and the end pad no longer adds one either
+(`endPad` is 0, so the grid ends at `maxScrollOf`). `snapToStop` picks,
 among the grid stops whose window shows the panel, the one nearest the target; for a panel wider than the window that is the
 grid stop near its left edge. Drag release, resize and pin release read the same grid through `snapToStop` and `nearestStop`.
 
