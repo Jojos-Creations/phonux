@@ -635,7 +635,7 @@ function DragToCloseBox({
         const restBefore = Number(slotEl?.dataset.rowSlot);
         let landed = false;
         dropping.current = true;
-        // The slot snaps to its new rest in the host's commit. The box gives up the same distance in that commit's microtask, before paint, so the panel stays where it was dropped and the spring carries it in.
+        // The host's commit moves the slot. This observer runs before paint, so the box gives up the same distance and the spring carries it in.
         const watch = new MutationObserver(() => {
           const moved = Number(slotEl?.dataset.rowSlot) - restBefore;
           if (moved === 0 || Number.isNaN(moved)) return;
