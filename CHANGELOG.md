@@ -84,7 +84,7 @@
 
 ### Added
 
-- `seedWorkspace` and `PanelSeed` in `phonux/testing`, for tests only: members of `WorkspaceOptions` that make a workspace restore panels under given ids with given `hostData`, slot count, permanent-column flag and live or parked state, through the path a saved file takes. The `phonux` entry is unchanged.
+- `seedWorkspace` and `PanelSeed` in `phonux/testing`, for tests only: members of `WorkspaceOptions` that make a workspace restore panels under given ids with given `hostData`, slot count, permanent-column flag and live or parked state, through the path a saved file takes. A seed can sit left of the root (`side`), and `laterIds` names the engine ids of panels added afterwards. The `phonux` entry is unchanged.
 - `usePanelSetDragging()` returns a setter for the dragging mark of the panel it is called in, so a host's own drag shows the chrome and `data-panel-dragging` without writing the attribute. It does nothing outside a row.
 - `usePanelDots(...)` (`usePanelDots.ts`) is the headless state of a dot bar for a row: one dot per drawn panel, its width following the panel's width, the odd one hollow, the window oval, `selectDot(id)` to centre a panel, and `startOvalDrag()` to drag the oval. The app draws and places it; the library writes the row only through its scroll writer, and Reduce Motion snaps a click. The panel setting `hollowDot` (template scope, default false) draws that panel's dot hollow.
 - A workspace switch's motion is pinned by tests and a Chromium proof for each way of switching and each Reduce Motion source (`test/workspace-switch-scroll*.test.ts`, `proof/rc4-workspace-switch-scroll`). The column already slides on every path, so there is no behaviour change.
