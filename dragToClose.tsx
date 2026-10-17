@@ -508,6 +508,7 @@ function DragToCloseBox({
     if (box.current) box.current.style.transform = 'none';
   }, [isPresent]);
 
+  const dropping = React.useRef(false);
   // Release springs the box home; a cancelled gesture takes the same road without reporting a hop or a close.
   const springHome = () => {
     const back = settleHome(x, scrollX, snapBack);
@@ -613,6 +614,8 @@ function DragToCloseBox({
       springHome();
     },
     onDragEnd: () => {
+      // A host that renders the move synchronously re-registers this monitor, and dnd-kit then calls the new listener for the same drop.
+      if (dropping.current) return;
       stoppedSpring.current = false;
       if (engaged.current) follow(); // the last move may not have had its frame yet
       stopFollowing();
@@ -628,16 +631,44 @@ function DragToCloseBox({
         const scrolled = edge.end();
         // Judged before the host hears of the drop: a host that renders the move synchronously must not change the answer.
         const hopped = slotRef.current?.dragHops?.(offset + scrolled) ?? false;
+        const slotEl = box.current?.closest<HTMLElement>('[data-row-slot]') ?? null;
+        const restBefore = Number(slotEl?.dataset.rowSlot);
+        let landed = false;
+        dropping.current = true;
+        // The host's commit moves the slot. This observer runs before paint, so the box gives up the same distance and the spring carries it in.
+        const watch = new MutationObserver(() => {
+          const moved = Number(slotEl?.dataset.rowSlot) - restBefore;
+          if (moved === 0 || Number.isNaN(moved)) return;
+          landed = true;
+          watch.disconnect();
+          x.jump(x.get() + scrollX.get() - moved);
+          scrollX.jump(0);
+          springHome();
+        });
+        const gliding = hopped && !reduceMotion && slotEl !== null && !Number.isNaN(restBefore);
+        if (gliding) watch.observe(slotEl, { attributes: true, attributeFilter: ['data-row-slot'] });
         if (!cancelled) reorder.onDragEnd(offset + scrolled);
         preview(0);
         if (reduceMotion || hopped) {
-          // A box that lands in a new slot appears there at once: a spring from the old one would read as snapping back.
-          x.jump(0);
-          scrollX.jump(0);
+          if (!gliding) {
+            x.jump(0);
+            scrollX.jump(0);
+          }
           // One frame later, so the row judges the host's reorder with the preview still set and snaps the dragged slot too.
-          frame.postRender(() => preview(null));
-          return unlockScrollParents();
+          frame.postRender(() => {
+            watch.disconnect();
+            if (gliding && !landed) {
+              // The host kept the panel where it was: the box returns to its slot at once, as it left.
+              x.jump(0);
+              scrollX.jump(0);
+              unlockScrollParents();
+            }
+            dropping.current = false;
+            preview(null);
+          });
+          return gliding ? undefined : unlockScrollParents();
         }
+        dropping.current = false;
         springHome();
         return; // never a close: shouldCloseOnRelease is not even consulted for a horizontal-locked release
       }
@@ -678,6 +709,7 @@ function DragToCloseBox({
       const control = (event.target as Element).closest(INTERACTIVE);
       if (event.button !== 0 || (control !== null && control !== event.currentTarget) || closing.current) return; // a press would stop the exit: onClose would never run
       stoppedSpring.current = false;
+      dropping.current = false;
       if (running.current) { running.current.stop(); running.current = null; stoppedSpring.current = y.get() !== 0 || x.get() !== 0 || scrollX.get() !== 0; unlockScrollParents(); preview(null); } // stop() never settles the spring's promise, so its own unlock would not run
       edge.press(event);
       // Taken at the press so no selection can begin elsewhere during the gesture. An existing selection is left alone until dnd-kit

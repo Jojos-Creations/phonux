@@ -33,6 +33,8 @@
 
 ### Fixed
 
+- A stepping row's last stop rests with the last panel one row gap from the window edge, not behind a blank stretch. The room after the strip was the last whole-panel group's even margin, so at a 2240 px window a row ending in a phone stopped with about 909 px of blank space after it. `RowNumbers.endPad` is now always 0 and the end space is the row gap wide. The stops below the last are unchanged; the last stop is the strip's new end, so grid stops that lay past it are dropped.
+- A panel dragged sideways and dropped into a new slot glides into it from where it was released, with Reduce Motion off, instead of jumping a slot-width in one frame. Reduce Motion still lands it at once, and a release that hops nowhere still springs home.
 - Opening a workspace that has a root template no longer saves once with nothing changed: the restore baseline now includes the root's key and slot count, as the save does.
 - The panel header's title follows the theme's text colour, so it reads on a light theme. The dark default is unchanged.
 - Behavior change: a step over a row moves one phone width per event, also onto a wide panel. Before, a wide panel took a step of its whole width or half. Walking a 1280 px window across a five-slot desktop panel and then two phones: 4 events of 812, 1218, 406, 406 before; 7 events of 406 after. A row of phones is unchanged. Every stop a row rests on is on that one-phone grid, so a drag release or a resize settle no longer leaves a half step: the next step is a whole phone width. The whole-panel stops are gone; a wide panel centres only where the grid holds the centred position.
