@@ -97,21 +97,31 @@ function missingMatchesRemoved(fixture: ExportsFixture, current: { root: Names; 
   );
 }
 
-/** The backtick-quoted names of the first and third top-level bullets of the release section's Removed list, one set per bullet. */
+/**
+ * The backtick-quoted names of the Removed lists: the first set is every bullet under Unreleased's Removed list and the
+ * first top-level bullet of the 0.2.0-rc.1 Removed list; the second is that list's third top-level bullet. One set per group.
+ */
 function changelogRemovedBullets(): [Set<string>, Set<string>] {
   const lines = readText(fileURLToPath(new URL('../CHANGELOG.md', import.meta.url))).split('\n');
-  const unreleased = lines.findIndex((line) => /^## (Unreleased|0\.2\.0-rc\.1)\s*$/.test(line));
-  const removedAt = lines.findIndex((line, i) => i > unreleased && /^### Removed\s*$/.test(line));
-  assert.ok(unreleased >= 0 && removedAt >= 0, 'CHANGELOG.md has an Unreleased section with a Removed list');
-  const bullets: string[][] = [];
-  for (let i = removedAt + 1; i < lines.length && !/^#{1,3} /.test(lines[i] ?? ''); i += 1) {
-    if (/^- /.test(lines[i] ?? '')) bullets.push([]);
-    bullets[bullets.length - 1]?.push(lines[i] ?? '');
-  }
-  assert.ok(bullets.length >= 3, 'the Removed list has at least its three bullets');
+  const removedBullets = (from: number): string[][] => {
+    const removedAt = lines.findIndex((line, i) => i > from && /^### Removed\s*$/.test(line));
+    const bullets: string[][] = [];
+    for (let i = removedAt + 1; removedAt >= 0 && i < lines.length && !/^#{1,3} /.test(lines[i] ?? ''); i += 1) {
+      if (/^- /.test(lines[i] ?? '')) bullets.push([]);
+      bullets[bullets.length - 1]?.push(lines[i] ?? '');
+    }
+    return bullets;
+  };
+  const unreleased = lines.findIndex((line) => /^## Unreleased\s*$/.test(line));
+  const release = lines.findIndex((line) => /^## 0\.2\.0-rc\.1\s*$/.test(line));
+  const unreleasedBullets = removedBullets(unreleased);
+  const releaseBullets = removedBullets(release);
+  assert.ok(unreleased >= 0 && release >= 0, 'CHANGELOG.md has an Unreleased section and a 0.2.0-rc.1 section');
+  assert.ok(releaseBullets.length >= 3, 'the 0.2.0-rc.1 Removed list has at least its three bullets');
   // A name after `->` is the replacement the bullet points to, not a name it removes.
   const names = (bullet: string[] | undefined): Set<string> => new Set([...(bullet ?? []).join('\n').matchAll(/(->\s*)?`([^`]+)`/g)].filter((m) => m[1] === undefined).map((m) => m[2] ?? ''));
-  return [names(bullets[0]), names(bullets[2])];
+  const aliases = new Set([...names(releaseBullets[0]), ...unreleasedBullets.flatMap((bullet) => [...names(bullet)])]);
+  return [aliases, names(releaseBullets[2])];
 }
 
 /** The backtick-quoted names of every Breaking list from the Unreleased section down through 0.2.0-rc.3. */

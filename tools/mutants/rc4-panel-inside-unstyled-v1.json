@@ -11,6 +11,15 @@
       "expectRed": [
         "the content it holds gets no inset and no scrollbar rule"
       ]
+    },
+    {
+      "name": "the barrel exports the removed recipe again, as an alias of the empty one",
+      "file": "index.ts",
+      "find": "  panelFrameBareSx,",
+      "replace": "  panelFrameBareSx,\n  panelFrameBareSx as panelFrameScrollSx,",
+      "expectRed": [
+        "the library ships no scroller recipe"
+      ]
     }
   ]
 }
