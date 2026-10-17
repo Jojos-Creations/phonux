@@ -30,41 +30,11 @@ export interface PanelFrameProps extends Omit<BoxProps, 'children'> {
   footer?: boolean;
 }
 
-/** The classic (non-overlay) scrollbar this app draws for itself, in px. */
-const SCROLLBAR_PX = 8;
-/** How far content sits from the frame's own border, on every side, in px. */
-const CONTENT_INSET_PX = 12;
 /** The phone's corner radius in theme shape units (4 x 6px = 24px). The frame's corners and the header
  * pills' semicircular ends both derive from it, so they cannot drift apart. @public */
 export const PANEL_CORNER_RADIUS_UNITS = 4;
 /** That radius in px for `theme`; a header pill is twice this tall (exact semicircles). @public */
 export const panelCornerRadiusPx = (theme: Theme): number => PANEL_CORNER_RADIUS_UNITS * Number(theme.shape.borderRadius);
-
-/**
- * Opt-in style for a scroller the view owns: content inset the same from the border on every side, with or
- * without a scrollbar (`scrollbar-gutter: stable` reserves the bar's strip, so the right padding is pre-shrunk
- * by its width). PanelFrame does not apply it; spread it on the element that scrolls. The `::-webkit-scrollbar`
- * rules style only the element they are set on, so each scroller needs its own copy.
- * @public
- */
-export const panelFrameScrollSx = {
-  overflowX: 'hidden',
-  overflowY: 'auto',
-  scrollbarGutter: 'stable',
-  pt: `${CONTENT_INSET_PX}px`,
-  pb: `${CONTENT_INSET_PX}px`,
-  pl: `${CONTENT_INSET_PX}px`,
-  pr: `${CONTENT_INSET_PX - SCROLLBAR_PX}px`,
-  // Forces a classic (non-overlay) scrollbar: an overlay one reserves no layout width, which
-  // would break the padding math above. Track transparent, thumb a low-contrast fill.
-  '&::-webkit-scrollbar': { width: SCROLLBAR_PX },
-  '&::-webkit-scrollbar-track': { background: 'transparent' },
-  '&::-webkit-scrollbar-thumb': {
-    background: 'rgba(255, 255, 255, 0.25)',
-    borderRadius: SCROLLBAR_PX / 2,
-  },
-  '&::-webkit-scrollbar-thumb:hover': { background: 'rgba(255, 255, 255, 0.4)' },
-} as const;
 
 /**
  * No effect. PanelFrame no longer styles its content, so there is nothing to cancel; the export stays so
