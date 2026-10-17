@@ -58,6 +58,7 @@ const VALUE_EXPORTS = [
   'usePanelNeighborWidths',
   'usePanelPinned',
   'usePanelResizing',
+  'usePanelSetDragging',
   'Workspace',
   'useProvidePanels',
   'reorderStepsForOffset',

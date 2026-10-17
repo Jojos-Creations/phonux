@@ -214,6 +214,36 @@ export function usePanelDragging(): boolean {
 }
 
 /**
+ * A setter for the dragging mark of the panel it is called in, for any drag the host runs itself except a resize grabber
+ * (that uses `usePanelResizing()`), so a host never writes `data-panel-dragging` by hand. `setDragging(true)` when the drag
+ * begins and `setDragging(false)` when it ends: `usePanelDragging()` and the attribute follow, and the chrome shows as it
+ * does for a `DragToClose` drag. A panel has one mark, shared with `DragToClose` and `usePanelResizing()`, and the last
+ * write wins. A mark this hook set ends when the calling view unmounts, and the setter keeps one identity for the view's
+ * life. Outside a row the setter does nothing.
+ * @public
+ */
+export function usePanelSetDragging(): (on: boolean) => void {
+  const store = React.useContext(ChromeStoreContext);
+  const id = React.useContext(PanelSlotContext)?.id;
+  const held = React.useRef(false);
+  React.useEffect(
+    () => () => {
+      if (held.current && store !== undefined && id !== undefined) store.setDragging(id, false);
+      held.current = false;
+    },
+    [store, id],
+  );
+  return React.useCallback(
+    (on: boolean) => {
+      if (store === undefined || id === undefined) return;
+      held.current = on;
+      store.setDragging(id, on);
+    },
+    [store, id],
+  );
+}
+
+/**
  * Whether this panel is being resized by hand, and two setters for a host's resize grabber to call.
  *
  * `setResizing(true)` when a drag begins and `setResizing(false)` when it ends. While it is true no other panel's drawn
