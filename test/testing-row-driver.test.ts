@@ -128,7 +128,7 @@ test('memoryWorkspaceStorage.saved is null until the first save and then a copy 
   // Opening saves nothing, so a change (a title) is what makes the first save.
   ws.panels.get('a')!.configure({ title: 'Saved' });
   // The save waits out its quiet period on a real timer, which the virtual clock does not move.
-  await new Promise((resolve) => setTimeout(resolve, 30));
+  for (let turn = 0; turn < 100 && storage.saved === null; turn += 1) await new Promise((resolve) => setTimeout(resolve, 30));
   const saved = (): WorkspaceState | null => storage.saved;
   const first = saved();
   assert.ok(first, 'the workspace saved');
