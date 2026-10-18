@@ -13,7 +13,7 @@
  */
 import { useEffect, useRef } from 'react';
 import type { RefObject } from 'react';
-import { arrowKeyBelongsElsewhere } from '../arrowKeys.js';
+import { arrowKeyBelongsElsewhere, contentScrolls } from '../arrowKeys.js';
 import { GESTURE_LOCK_MS, GESTURE_QUIET_MS } from '../rowConstants.js';
 
 /** Pixels per line for a wheel that reports `deltaMode` lines (Firefox's mouse wheel); pages count as one step each. */
@@ -65,6 +65,8 @@ export function useRowScrollGesture(
       if (!horizontal) return;
       const raw = Math.abs(e.deltaX) > Math.abs(e.deltaY) ? e.deltaX : e.deltaY;
       if (raw === 0) return;
+      // A panel's own horizontal scroller (a carousel, a wide table) takes the swipe while it can still move.
+      if (e.target instanceof Element && contentScrolls(e.target, 'x', Math.sign(raw))) return;
       e.preventDefault();
       const unit = Math.max(1, stepPxRef.current);
       const amount = e.deltaMode === 1 ? raw * LINE_PX : e.deltaMode === 2 ? raw * unit : raw;
