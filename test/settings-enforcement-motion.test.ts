@@ -13,8 +13,10 @@ import { enterDirectionOf } from '../PanelRow.js';
 import { GAP, panelRowSlotMotion } from '../PanelRowSlot.js';
 import { applyTemplate, resolvePanelSettings } from '../panelSettings.js';
 import { appendPanel, createHistoryPanel } from '../panelWindow.js';
+import type { WorkspaceHandle } from '../index.js';
+import { bindingOf, type EngineOps } from '../workspaceCore.js';
 import { differential, differentialsCovered } from './support/differential.js';
-import { advanceFrames, cleanup, mount, withHost, StaticRow } from './support/mount-harness.js';
+import { advanceFrames, cleanup, mount, seededWorkspace, withHost, StaticRow } from './support/mount-harness.js';
 import { registerTestView } from './support/test-views.js';
 
 const ROOT = 'root';
@@ -38,9 +40,22 @@ interface Props {
   sides?: ReadonlyMap<string, 'left' | 'right'>;
 }
 const NONE: ReadonlySet<string> = new Set();
-const row = (entries: PanelWindow[], p: Props = {}): React.ReactElement =>
+/**
+ * A row holds its slots' moves until its workspace's restore has settled, so a slot that enters a row whose workspace never
+ * settled starts at its rest. The enter and exit cases mount over a workspace that has.
+ */
+function settledWorkspace(entries: readonly PanelWindow[]): WorkspaceHandle {
+  const workspace = seededWorkspace(entries, { rootId: ROOT });
+  const binding = bindingOf(workspace);
+  binding.attach({});
+  binding.publish({ entries, held: new Set(), settled: true, create: () => {}, lateRegister: () => {}, ops: {} as EngineOps });
+  assert.equal(workspace.panels.getSnapshot().status, 'ready', 'the workspace did not settle, so every slot would start at its rest');
+  return workspace;
+}
+const row = (entries: PanelWindow[], p: Props = {}, workspace?: WorkspaceHandle): React.ReactElement =>
   withHost(
     React.createElement(StaticRow, {
+      ...(workspace !== undefined ? { workspace } : {}),
       entries,
       rootId: ROOT,
       closingIds: p.closing ?? NONE,
@@ -61,8 +76,9 @@ afterEach(() => cleanup());
 /** B enters at index 1 of [root, A, B] with `b`'s settings and the given marks; returns its x right after the render. */
 function enterX(b: PanelSettings, p: Props = {}, over: Partial<PanelWindow> = {}): number {
   const base = [rootEntry(), made('a')];
-  const mounted = mount(row(base));
-  mounted.rerender(row([...base, made('b', b, over)], p));
+  const workspace = settledWorkspace(base);
+  const mounted = mount(row(base, {}, workspace));
+  mounted.rerender(row([...base, made('b', b, over)], p, workspace));
   const x = xOf(mounted.container, 'b');
   mounted.unmount();
   return x;
@@ -96,8 +112,9 @@ test('enterFrom anchor equals the legacy anchoredEnter true: the same slot start
   });
   const mountLegacy = (p: Props): number => {
     const base = [rootEntry(), made('a')];
-    const mounted = mount(row(base));
-    mounted.rerender(row([...base, legacy('b')], p));
+    const workspace = settledWorkspace(base);
+    const mounted = mount(row(base, {}, workspace));
+    mounted.rerender(row([...base, legacy('b')], p, workspace));
     const x = xOf(mounted.container, 'b');
     mounted.unmount();
     return x;
@@ -121,8 +138,9 @@ test('enterDirectionOf is a pure function of the setting, the 0.1.0 flag, the ma
 /** The slot's transform after `b` is removed from [root, a, b] with the given marks and a few frames of its exit. */
 async function exitOf(b: PanelSettings, p: Props = {}): Promise<{ x: number; y: number; opacity: string }> {
   const base = [rootEntry(), made('a'), made('b', b)];
-  const mounted = mount(row(base, p));
-  mounted.rerender(row([rootEntry(), made('a')], p));
+  const workspace = settledWorkspace(base);
+  const mounted = mount(row(base, p, workspace));
+  mounted.rerender(row([rootEntry(), made('a')], p, workspace));
   await advanceFrames(100);
   const slot = slotOf(mounted.container, 'b');
   assert.ok(slot, 'the slot is still mounted mid-exit');
@@ -155,13 +173,15 @@ test('layer: a raised slot has z-index 2 and a base slot 1, and a hand-built ent
 
 test('a slot animates: three frames into its exit it is still sliding, and a new slot is still on its way after two frames', async () => {
   const base = [rootEntry(), made('a'), made('b')];
-  const leaving = mount(row(base));
-  leaving.rerender(row([rootEntry(), made('a')]));
+  const leavingWorkspace = settledWorkspace(base);
+  const leaving = mount(row(base, {}, leavingWorkspace));
+  leaving.rerender(row([rootEntry(), made('a')], {}, leavingWorkspace));
   await advanceFrames(48);
   assert.notEqual(slotOf(leaving.container, 'b'), null, 'the slot is still sliding out');
   leaving.unmount();
-  const entering = mount(row(base.slice(0, 2)));
-  entering.rerender(row(base));
+  const enteringWorkspace = settledWorkspace(base.slice(0, 2));
+  const entering = mount(row(base.slice(0, 2), {}, enteringWorkspace));
+  entering.rerender(row(base, {}, enteringWorkspace));
   await advanceFrames(32);
   assert.notEqual(xOf(entering.container, 'b'), REST);
   entering.unmount();

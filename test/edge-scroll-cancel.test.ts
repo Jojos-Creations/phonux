@@ -216,9 +216,8 @@ test('the row ceasing to scroll mid-hold gives the claim back and the row stops 
   await liftAt(1000);
 });
 
-test('a pointercancel mid-drag releases the claim with no scroll write and no hop, and the handle is touch-action pan-x', async () => {
-  const m = mountCancelRow();
-  assert.equal(lastHandle?.sx.touchAction, 'pan-x');
+/** A row whose scrollLeft is counted: `writes` rises on every assignment. */
+function countWrites(m: MountedRow): { writes: () => number; value: () => number } {
   let writes = 0;
   let value = 0;
   Object.defineProperty(m.container, 'scrollLeft', {
@@ -229,15 +228,41 @@ test('a pointercancel mid-drag releases the claim with no scroll write and no ho
       value = next;
     },
   });
+  return { writes: () => writes, value: () => value };
+}
+
+test('a pointercancel mid-drag releases the claim with no scroll write and no hop, and the handle is touch-action pan-x', async () => {
+  // An 'off' row has no stops: a row with stops glides onto the nearest one when the drag ends, which is a write of the settle's and not the loop's.
+  const m = mountCancelRow({}, { tuning: { rowGesture: 'off' } });
+  assert.equal(lastHandle?.sx.touchAction, 'pan-x');
+  const scroll = countWrites(m);
   await dragTo(m, 1000);
   await frames(20);
-  assert.ok(writes > 0, 'the loop wrote while it held');
+  assert.ok(scroll.writes() > 0, 'the loop wrote while it held');
   await cancelAt(1000);
-  const writesAtCancel = writes;
-  const where = value;
+  const writesAtCancel = scroll.writes();
+  const where = scroll.value();
   await frames(60);
-  assert.equal(writes, writesAtCancel, 'no write after the cancel');
-  assert.equal(value, where);
+  assert.equal(scroll.writes(), writesAtCancel, 'no write after the cancel');
+  assert.equal(scroll.value(), where);
+  assert.equal(ends.length, 0, 'no hop');
+  assert.equal(claimFree(m), true);
+});
+
+test('a pointercancel on a free row lets the edge loop go and the row rests on the stop nearest where it was left', async () => {
+  const m = mountCancelRow();
+  const scroll = countWrites(m);
+  await dragTo(m, 1000);
+  await frames(20);
+  await cancelAt(1000);
+  const where = scroll.value();
+  assert.ok(where > 0, 'the loop scrolled the row');
+  await frames(60);
+  assert.equal(scroll.value(), Math.round(where / 406) * 406, 'the settle glide landed on a grid stop (390 + the 16 gap apart)');
+  assert.notEqual(scroll.value(), where, 'control: the settle moved the row');
+  const settled = scroll.writes();
+  await frames(60);
+  assert.equal(scroll.writes(), settled, 'and nothing writes after it');
   assert.equal(ends.length, 0, 'no hop');
   assert.equal(claimFree(m), true);
 });

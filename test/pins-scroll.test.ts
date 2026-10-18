@@ -5,7 +5,7 @@
  */
 import { test, afterEach, mock } from 'node:test';
 import assert from 'node:assert/strict';
-import './support/jsdom-globals.js';
+import { frameClock } from './support/jsdom-globals.js';
 import * as React from 'react';
 import { act } from 'react';
 import { useProvidePanels } from '../index.js';
@@ -68,20 +68,28 @@ test('PIN with [A, B parked, C] and A, C live, scrollRow in both directions reve
   assert.deepEqual(liveIds(panelsNow), ['a', 'c']);
 });
 
-test('PIN a swipe on a row whose parked panel lies beyond the live range swaps: A parks, the next parked returns, once per burst under the 60 ms lock', () => {
-  const p = provide(row(rootEntry(), park('a'), park('b'), park('c', { live: false })), W(2));
+test('PIN a swipe on a row whose parked panel lies beyond the live range swaps: A parks, the next parked returns, and a same-direction step waits 30 ms after the last', () => {
+  const p = provide(row(rootEntry(), park('a'), park('b'), park('c', { live: false }), park('d', { live: false })), W(2));
   mock.timers.enable({ apis: ['setTimeout'] });
+  const tick = (ms: number): void =>
+    void act(() => {
+      mock.timers.tick(ms);
+      frameClock.skip(ms);
+    });
   try {
     p.wheel(100);
     assert.deepEqual(p.live(), ['b', 'c']);
-    p.wheel(-100);
-    assert.deepEqual(p.live(), ['b', 'c'], 'a second swipe inside the lock does nothing');
-    act(() => mock.timers.tick(59));
-    p.wheel(-100);
+    tick(10);
+    p.wheel(500);
+    assert.deepEqual(p.live(), ['b', 'c'], 'a phone width of travel inside the lock does nothing');
+    tick(19);
+    p.wheel(1);
     assert.deepEqual(p.live(), ['b', 'c'], 'one ms short of the lock');
-    act(() => mock.timers.tick(1));
+    tick(1);
+    p.wheel(1);
+    assert.deepEqual(p.live(), ['c', 'd'], 'after the lock the travel steps again');
     p.wheel(-100);
-    assert.deepEqual(p.live(), ['a', 'b'], 'after the lock the swipe swaps back');
+    assert.deepEqual(p.live(), ['b', 'c'], 'a reversal is a fresh gesture: the lock does not hold it');
   } finally {
     mock.timers.reset();
   }

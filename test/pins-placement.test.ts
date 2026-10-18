@@ -7,13 +7,14 @@ import assert from 'node:assert/strict';
 import './support/jsdom-globals.js';
 import * as React from 'react';
 import { act } from 'react';
-import { useProvidePanels, type PanelWindow, type ProvidedPanels } from '../index.js';
+import { useProvidePanels, type PanelWindow, type ProvidedPanels, type WorkspaceHandle } from '../index.js';
 import { computeRowLayout } from '../panelRowLayout.js';
 import { computeRowOrder, deriveAnchorsFromOrder } from '../panelRowOrder.js';
 import { movePanel, reanchorPanel } from '../panelWindow.js';
 import type { UsePanelManagerResult } from '../panels/usePanelManager.js';
 import { hydrateWorkspaceState, type WorkspaceState } from '../workspaceState.js';
-import { advanceFrames, cleanup, mount, usePanelManagerWith, withHost, useSeededInput, StaticRow } from './support/mount-harness.js';
+import { bindingOf, type EngineOps } from '../workspaceCore.js';
+import { advanceFrames, cleanup, mount, usePanelManagerWith, withHost, useSeededInput, StaticRow, seededWorkspace } from './support/mount-harness.js';
 import { registerTestView } from './support/test-views.js';
 
 const entry = (id: string, over: Partial<PanelWindow> = {}): PanelWindow => ({
@@ -35,8 +36,17 @@ const anchorsOf = (panels: readonly PanelWindow[]): Record<string, string> =>
 registerTestView('pin-placement', ({ panel }) => React.createElement('i', { 'data-slot': panel.id }, panel.title));
 
 const NONE: ReadonlySet<string> = new Set();
-const rowOf = (entries: PanelWindow[], rootId: string, entering: ReadonlySet<string> = NONE): React.ReactElement =>
-  withHost(React.createElement(StaticRow, { entries, rootId, closingIds: NONE, enteringViaAnchorIds: entering }));
+const rowOf = (entries: PanelWindow[], rootId: string, entering: ReadonlySet<string> = NONE, workspace?: WorkspaceHandle): React.ReactElement =>
+  withHost(React.createElement(StaticRow, { entries, rootId, closingIds: NONE, enteringViaAnchorIds: entering, ...(workspace !== undefined ? { workspace } : {}) }));
+/** A row holds its slots' moves until its workspace's restore has settled, so an entering slot is only seen to slide in over a workspace that has. */
+function settledWorkspace(entries: readonly PanelWindow[], rootId: string): WorkspaceHandle {
+  const workspace = seededWorkspace(entries, { rootId });
+  const binding = bindingOf(workspace);
+  binding.attach({});
+  binding.publish({ entries, held: new Set(), settled: true, create: () => {}, lateRegister: () => {}, ops: {} as EngineOps });
+  assert.equal(workspace.panels.getSnapshot().status, 'ready', 'the workspace did not settle, so every slot would start at its rest');
+  return workspace;
+}
 /** The slot's translateX in px right after a render, before any frame has run; a slot at x 0 carries no transform. */
 const slotX = (container: HTMLElement, id: string): number => {
   const slot = container.querySelector(`[data-slot="${id}"]`)?.parentElement;
@@ -134,8 +144,9 @@ test('PIN scrollRow with the root absent: a rightward step brings the first park
 });
 
 test('PIN PanelRow with the root absent enters a reappearing entry from the right: the anchor formula finds no anchor entry', async () => {
-  const mounted = mount(rowOf([entry('a')], 'root'));
-  mounted.rerender(rowOf([entry('a'), entry('b', { anchor: { panel: 'root', position: 'left', priority: 0 } })], 'root', new Set(['b'])));
+  const workspace = settledWorkspace([entry('a')], 'root');
+  const mounted = mount(rowOf([entry('a')], 'root', NONE, workspace));
+  mounted.rerender(rowOf([entry('a'), entry('b', { anchor: { panel: 'root', position: 'left', priority: 0 } })], 'root', new Set(['b']), workspace));
   assert.equal(slotX(mounted.container, 'b'), 812, 'rest 406 plus one span of 406: the right-hand start, although the anchor says left');
   await advanceFrames(600);
   assert.equal(slotX(mounted.container, 'b'), 406, 'control: it settles at its rest position');

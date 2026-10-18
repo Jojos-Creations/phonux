@@ -136,6 +136,8 @@ function walked(n: number, from = 0): number {
 /** How many of the five 390 neighbours' hop thresholds `offset` reaches. */
 const hopsAt = (offset: number): number => [203, 609, 1015, 1421, 1827].filter((threshold) => offset >= threshold).length;
 const FIVE_NEIGHBOURS = { left: [], right: [390, 390, 390, 390, 390] };
+/** Where a free row comes to rest after a scroll to `at`: the nearest of its one-phone grid stops (390 + the 16 gap apart, from 0). */
+const settledAt = (at: number): number => Math.round(at / 406) * 406;
 
 test('held at the right edge for 100 frames the row scrolls 99 steps; held mid-window it stays; the release adds the distance and hops over it', async () => {
   const m = mountEdgeRow();
@@ -151,7 +153,8 @@ test('held at the right edge for 100 frames the row scrolls 99 steps; held mid-w
   assert.equal(ends[0]!.hops, hopsAt(40 + distance));
   assert.equal(hopsAt(40 + distance), 4, '1465.6 clears 1421 and not 1827');
   assert.equal(reorderStepsForOffset(ends[0]!.offset, FIVE_NEIGHBOURS, 16, LIBRARY_TUNING_DEFAULTS.hopFraction), 4);
-  assert.ok(Math.abs(m.container.scrollLeft - distance) < 1e-6, 'the row stays where the pointer left it');
+  assert.equal(m.container.scrollLeft, settledAt(distance), 'the row is not snapped back: it settles on the stop nearest where the pointer left it');
+  assert.notEqual(settledAt(distance), 0);
 
   cleanup();
   const mid = mountEdgeRow();
@@ -213,7 +216,8 @@ test('released with nothing to hop over, the box springs home as one: both trans
   assert.equal(settled(translates), settled(xs), 'both reach 0 in the same frame');
   assert.equal(box.style.transform, 'none');
   assert.ok(['', 'none', '0px 0px', '0px'].includes(box.style.translate), `translate settled at ${JSON.stringify(box.style.translate)}`);
-  assert.ok(Math.abs(m.container.scrollLeft - walked(99)) < 1e-6, 'the row is not snapped back');
+  assert.equal(m.container.scrollLeft, settledAt(walked(99)), 'the row is not snapped back: it settles on the stop nearest where the pointer left it');
+  assert.notEqual(settledAt(walked(99)), 0);
 });
 
 test('released after the edge scroll carried the drag over hops, the box is at rest the frame after the release: no spring', async () => {
