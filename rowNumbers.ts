@@ -61,7 +61,7 @@ export function computeRowNumbers(i: {
   gap: number;
   /** How many fixed columns a hand-built row prices its capacity from. Default: the drawn entries that are not collapsible. */
   fixedItemCount?: number;
-  /** True for a row whose gesture is 'step': the window then shows only whole panels, at the stops. Default false. */
+  /** True for a row whose gesture is 'step': the row then rests on the one-phone grid, `stops`. Default false. */
   wholePanels?: boolean;
 }): RowNumbers {
   const present = i.entries.filter(isPresent);
@@ -83,17 +83,16 @@ export function computeRowNumbers(i: {
     leftOffsets.push(running);
     running += width + i.gap;
   }
-  const whole = i.wholePanels === true && rowScroll && measured && stripWidth > windowWidth ? wholePanelStops(widths, leftOffsets, i.gap, windowWidth, i.phoneWidth) : null;
+  const overflows = rowScroll && measured && stripWidth > windowWidth;
+  // A strip that overflows starts flush at the window's left: a centring margin would show as blank room at scroll 0 and
+  // push every grid stop off the panel starts.
   let rowMarginLeft: number;
-  if (whole !== null) {
-    rowMarginLeft = whole.rowMargin;
-  } else if (!rowScroll) {
+  if (!rowScroll) {
     rowMarginLeft = computeRowLayout({ containerWidth: i.containerWidth, phoneWidth: i.phoneWidth, gap: i.gap, fixedItemCount, liveWidths: present.flatMap((p, k) => (p.collapsible ? [widths[k]!] : [])) }).computedRowMarginLeft;
   } else {
-    rowMarginLeft = !measured || stripWidth > windowWidth ? 0 : (windowWidth - stripWidth) / 2;
+    rowMarginLeft = !measured || overflows ? 0 : (windowWidth - stripWidth) / 2;
   }
-  const stepStops = whole === null ? [] : stepGrid(Math.max(0, rowMarginLeft + stripWidth - windowWidth), i.phoneWidth + i.gap);
-  // Every stop is on the one-phone grid, so drag snap, the rest settle and drag release all land on it.
+  const stepStops = i.wholePanels === true && overflows ? stepGrid(stripWidth - windowWidth, i.phoneWidth + i.gap) : [];
   const stops = stepStops;
   const stopSpans = stops.map((at) => spanAt(at, widths, leftOffsets, rowMarginLeft, windowWidth));
   return { rowScroll, windowWidth, stripWidth, rowMarginLeft, ids: present.map((p) => p.id), widths, leftOffsets, maxLiveWidth, reservedWidths, parkLiveWidths, stops, stepStops, stopSpans, endPad: 0 };
@@ -118,54 +117,6 @@ function stepGrid(maxScroll: number, step: number): number[] {
   for (let at = 0; at < maxScroll; at += step) grid.push(at);
   grid.push(maxScroll);
   return grid;
-}
-
-type Pick = { start: number; end: number; margin: number; inset?: number };
-type StopSet = { starts: number[]; ends: number[]; margins: number[]; insets: number[]; rowMargin: number };
-
-/**
- * The row margin the picks need, and the picks that go forward: a stop whose scroll position lies left of the one before it
- * is left out. The margin is the least that lets every stop sit at a scroll position inside the strip.
- */
-function settleStops(picks: readonly Pick[], offsets: readonly number[]): StopSet {
-  let rowMargin = 0;
-  for (const pick of picks) rowMargin = Math.max(rowMargin, pick.margin - offsets[pick.start]!);
-  const kept: Pick[] = [];
-  let last = Number.NEGATIVE_INFINITY;
-  for (const pick of picks) {
-    const at = rowMargin + offsets[pick.start]! - pick.margin + (pick.inset ?? 0);
-    if (at < last) continue;
-    last = at;
-    kept.push(pick);
-  }
-  return { starts: kept.map((p) => p.start), ends: kept.map((p) => p.end), margins: kept.map((p) => p.margin), insets: kept.map((p) => p.inset ?? 0), rowMargin };
-}
-
-/**
- * Per start panel, the end of the whole panels that fit the window from it (at least one) and the even margin left over,
- * for every start up to the first one from which everything remaining fits: a later stop would only add blank room.
- * Groups come from `widths` alone. A panel as wide as the window with a panel after it also gets a stop slid left, by the
- * whole panels that fit beside its right part or, when none does, by one slot.
- */
-function wholePanelStops(widths: readonly number[], offsets: readonly number[], gap: number, windowWidth: number, phoneWidth: number): StopSet {
-  const picks: Pick[] = [];
-  for (let first = 0; first < widths.length; first++) {
-    let used = widths[first]!;
-    let end = first + 1;
-    while (end < widths.length && used + gap + widths[end]! <= windowWidth) used += gap + widths[end++]!;
-    picks.push({ start: first, end, margin: Math.max(0, (windowWidth - used) / 2) });
-    if (end === first + 1 && widths[first]! >= windowWidth) {
-      // The next stop starts at the panel after this one and would drop it whole; this stop slides it so a right part of at least a phone's width stays beside what follows.
-      let reachEnd = first + 1;
-      let beside = 0;
-      while (reachEnd < widths.length && beside + gap + widths[reachEnd]! <= windowWidth - phoneWidth) beside += gap + widths[reachEnd++]!;
-      if (reachEnd > first + 1) picks.push({ start: first, end: reachEnd, margin: 0, inset: widths[first]! + beside - windowWidth });
-      // No whole panel fits beside it, so slide one slot: the next panel's first slot comes in as a neighbour the window edge cuts.
-      else if (reachEnd < widths.length) picks.push({ start: first, end: first + 1, margin: 0, inset: phoneWidth + gap });
-    }
-    if (end === widths.length) break;
-  }
-  return settleStops(picks, offsets);
 }
 
 /**

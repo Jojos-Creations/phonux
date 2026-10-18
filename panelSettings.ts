@@ -374,8 +374,8 @@ export type WorkspaceTuning = PanelTuning & {
   returnTieBreak?: 'latest-first' | 'earliest-first' | 'row-order';
   /** Which of two equally ranked panels is parked first when the row loses room: the leftmost or the rightmost. */
   dropTieBreak?: 'leftmost' | 'rightmost';
-  /** What the row's own scroll input does: 'step', 'free' or 'off'. */
-  rowGesture?: 'step' | 'free' | 'off';
+  /** What the row's own scroll input does: 'step' or 'off'. */
+  rowGesture?: 'step' | 'off';
   /** Where the row starts scrolled: its 'start', its 'end', the 'root', or a given panel. */
   initialScroll?: 'start' | 'end' | 'root' | { panel: PanelId };
   /** Overrides for the chrome numbers: when header, grab bar and footer show, and the fade and slide timing. */
@@ -433,8 +433,8 @@ export type ResolvedWorkspaceTuning = ResolvedPanelTuning & {
   returnTieBreak: 'latest-first' | 'earliest-first' | 'row-order';
   /** Which of two equally ranked panels is parked first when the row loses room: the leftmost or the rightmost. */
   dropTieBreak: 'leftmost' | 'rightmost';
-  /** What the row's own scroll input does: 'step', 'free' or 'off'. */
-  rowGesture: 'step' | 'free' | 'off';
+  /** What the row's own scroll input does: 'step' or 'off'. */
+  rowGesture: 'step' | 'off';
   /** Where the row starts scrolled: its 'start', its 'end', the 'root', or a given panel. */
   initialScroll: 'start' | 'end' | 'root' | { panel: PanelId };
   /** The chrome numbers: when header, grab bar and footer show, and the fade and slide timing. */
@@ -1024,7 +1024,7 @@ const CATALOG_ROWS: readonly SettingDescriptor[] = [
     name: 'tuning.slide',
     group: 'tuning',
     values: "object: durationSec [0, 10], ease (four numbers, x1 and x2 in [0,1]), closeExitSeconds [0, 5], closeExitEase ('easeIn', 'easeOut', 'easeInOut', 'linear' or four numbers), glideEase ('cubic-out', 'linear' or four numbers); panel or workspace",
-    default: "0.4, [0.2, 0, 0, 1], 0.18, 'easeIn', 'cubic-out' (SLOT_TRANSITION, DRAG_CLOSE.exitSeconds, CLOSE_EXIT_EASE, GLIDE_EASE)",
+    default: "0.6, [0.4, 0, 0.2, 1], 0.18, 'easeIn', 'cubic-out' (SLOT_TRANSITION, DRAG_CLOSE.exitSeconds, CLOSE_EXIT_EASE, GLIDE_EASE)",
     scope: 'panel or workspace',
     viewSettable: false,
     exists: 'today',
@@ -1122,7 +1122,7 @@ const CATALOG_ROWS: readonly SettingDescriptor[] = [
   {
     name: 'tuning.rowGesture',
     group: 'tuning',
-    values: 'step, free, off (workspace only; a design-derived key from Q15, not requested)',
+    values: 'step, off (workspace only; a design-derived key from Q15, not requested)',
     default: 'step',
     scope: 'workspace',
     viewSettable: false,
@@ -1600,7 +1600,7 @@ const TUNING_SCALAR_CHECKS: Record<'hopFraction' | 'rowGap' | 'saveQuietMs' | 'g
   resizeSettleSlides: num(0, 10),
   returnTieBreak: oneOf('latest-first', 'earliest-first', 'row-order'),
   dropTieBreak: oneOf('leftmost', 'rightmost'),
-  rowGesture: oneOf('step', 'free', 'off'),
+  rowGesture: oneOf('step', 'off'),
   initialScroll: (v) => {
     if (v === 'start' || v === 'end' || v === 'root') return undefined;
     if (isPlain(v) && Object.keys(v).length === 1 && nonEmptyString(v.panel)) return undefined;

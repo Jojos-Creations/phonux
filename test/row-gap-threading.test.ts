@@ -16,6 +16,7 @@ import { panelRowSlotMotion } from '../PanelRowSlot.js';
 import { workspaceShellStyle } from '../Workspace.js';
 import { cleanup, mount, withHost, useSeededInput, StaticRow, plainTemplate } from './support/mount-harness.js';
 import { registerTestView } from './support/test-views.js';
+import { made, mountRow, rootEntry, row } from './support/scroll-row.js';
 
 const GAPS = [0, 16, 40] as const;
 const ROOT = 'root';
@@ -315,9 +316,19 @@ test('a PanelRow prop beats the Workspace tuning in what the row draws', () => {
 });
 
 test('the row gap reaches the slot that is entering: through a PanelRow at gap 40 it starts one own span, 40 included, beyond its rest', () => {
+  const m = mountRow(row(rootEntry(), made('a')), 2400, { tuning: { rowGap: 40 } });
+  assert.equal(slotX(m.container, 'a'), 390 + 40, 'control: a rests one column and one gap in');
+  act(() => void m.latest().create({ view: 'scroll-row-view' }));
+  const slots = [...m.container.querySelectorAll('[data-slot]')].map((el) => el.getAttribute('data-slot')!);
+  assert.equal(slots.length, 3, 'the new slot is mounted');
+  const id = slots[2]!;
+  assert.equal(slotX(m.container, id), 2 * (390 + 40) + (390 + 40), 'rest 860 plus the slot span 430');
+});
+
+test('a row whose restore has not settled puts an added slot at its rest, with no slide in', () => {
   const mounted = mount(rowOf([entry('a')], { rowGap: 40 }));
   mounted.rerender(rowOf([entry('a'), entry('b')], { rowGap: 40 }));
-  assert.equal(slotX(mounted.container, 'b'), 390 + 40 + (390 + 40), 'rest 430 plus the slot span 430');
+  assert.equal(slotX(mounted.container, 'b'), 390 + 40, 'rest 430, not 430 plus the span');
 });
 
 test('the Workspace hands its row gap to the shell margin: with live widths [768, 390] at gap 40 the shell sits 346 left', () => {

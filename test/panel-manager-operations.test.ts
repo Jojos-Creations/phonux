@@ -10,6 +10,7 @@ import { act } from 'react';
 import { createWorkspace, definePanel, useProvidePanels } from '../index.js';
 import type { PanelHandle, PanelResult, PanelSettings, PanelWindow, ProvidedPanels } from '../index.js';
 import { advanceFrames, cleanup, mount, useSeededInput } from './support/mount-harness.js';
+import { SLIDE_DURATION_SEC } from '../rowConstants.js';
 import { differential, differentialsCovered } from './support/differential.js';
 import { flush, markerTemplate, mountWorkspace } from './support/workspace-row.js';
 import { brief, fire, rig, TRIGGERS, type Rig } from './support/ops-rig.js';
@@ -327,7 +328,7 @@ test('1000 add and close cycles leave the snapshot at most declared plus live', 
       h = r.ws.addPanel('m');
     });
     r.turn(() => void h.close());
-    if (i % 20 === 19) await advanceFrames(400);
+    if (i % 20 === 19) await advanceFrames(SLIDE_DURATION_SEC * 1000 + 100);
   }
   const snapshot = r.ws.panels.getSnapshot().panels;
   const live = snapshot.filter((p) => p.status !== 'closed').length;
@@ -384,9 +385,9 @@ test('source: a code call leaves every entry without overrides, a person call re
 
 type FreeRig = Pick<Rig, 'ws' | 'h' | 'm' | 'turn'>;
 
-/** A mounted row in the free gesture: these tests pin literal panel-start targets, which the default step gesture would snap to whole-panel stops. */
+/** A mounted row in the free gesture, which glides to the one-phone grid (406 px apart, then the strip end): every literal target below is a grid stop or the strip end. */
 async function freeRig(o: { ids: readonly string[]; width: number; settings?: Record<string, PanelSettings> }): Promise<FreeRig> {
-  const ws = createWorkspace({ mount: false, tuning: { rowGesture: 'free' }, templates: o.ids.map((id) => markerTemplate(id, o.settings?.[id] === undefined ? {} : { settings: o.settings[id] })) });
+  const ws = createWorkspace({ mount: false, tuning: { rowGesture: 'step' }, templates: o.ids.map((id) => markerTemplate(id, o.settings?.[id] === undefined ? {} : { settings: o.settings[id] })) });
   const h: Record<string, PanelHandle> = {};
   for (const id of o.ids) h[id] = ws.addPanel(id);
   const m = mountWorkspace(ws, { width: o.width });
@@ -420,14 +421,15 @@ async function scrolled(settings: Record<string, PanelSettings>, from: number, p
 
 test('scrollTo scrolls to the literal target of each align, reads scrollOnOpen when no align is given, and is never busy', async () => {
   const at = (align: 'into-view' | 'start' | 'center') => scrolled({}, 0, () => undefined, (r) => r.h.d!.scrollTo(align));
-  assert.deepEqual(await at('into-view'), { result: 'T', left: 640 });
+  assert.deepEqual(await at('into-view'), { result: 'T', left: 812 }, 'd needs 608 to be whole; the stop that shows it is 812');
   assert.deepEqual(await at('start'), { result: 'T', left: 1218 });
-  assert.deepEqual(await at('center'), { result: 'T', left: 929 });
+  assert.deepEqual(await at('center'), { result: 'T', left: 812 }, 'centred d is at 913, nearer the stop 812 than 1218');
   const byDefault = async (scrollOnOpen: string) => scrolled({ d: { scrollOnOpen } as unknown as PanelSettings }, 0, () => undefined, (r) => r.h.d!.scrollTo());
   assert.deepEqual(await byDefault('start'), { result: 'T', left: 1218 });
-  assert.deepEqual(await byDefault('center'), { result: 'T', left: 929 });
-  assert.deepEqual(await byDefault('none'), { result: 'T', left: 640 }, 'none reads as into-view for an explicit scrollTo');
-  assert.deepEqual(await scrolled({}, 640, () => undefined, (r) => r.h.d!.scrollTo('into-view')), { result: 'F', left: 640 }, 'already there');
+  assert.deepEqual(await byDefault('center'), { result: 'T', left: 812 });
+  assert.deepEqual(await byDefault('none'), { result: 'T', left: 812 }, 'none reads as into-view for an explicit scrollTo');
+  assert.deepEqual(await scrolled({}, 812, () => undefined, (r) => r.h.d!.scrollTo('into-view')), { result: 'F', left: 812 }, 'already there');
+  assert.deepEqual(await scrolled({}, 640, () => undefined, (r) => r.h.d!.scrollTo('into-view')), { result: 'T', left: 812 }, 'at 640 d is whole but the row rests on a stop, so it still glides to 812');
   const r = await freeRig({ ids: ['a', 'b', 'c', 'd', 'e', 'f'], width: 1000 });
   const mixed = r.turn(() => [brief(r.h.a!.close()), brief(r.h.d!.scrollTo()), brief(r.h.a!.scrollTo())]);
   assert.deepEqual(mixed, ['T', 'T', 'F'], 'a close in the same turn does not make scrollTo busy, on another panel or on the closing one');
@@ -436,11 +438,11 @@ test('scrollTo scrolls to the literal target of each align, reads scrollOnOpen w
 test('scrollOnMove: an accepted move, place or setSlots on an in-view panel follows it; out of view and none record nothing', async () => {
   const all = (scrollOnMove: string): Record<string, PanelSettings> => Object.fromEntries(['a', 'b', 'c', 'd', 'e', 'f'].map((id) => [id, { scrollOnMove } as PanelSettings]));
   const none = () => undefined;
-  assert.deepEqual(await scrolled(all('follow'), 0, none, (r) => r.h.b!.move(1)), { result: 'T', left: 234 }, 'b moves right past c and ends inside the window');
+  assert.deepEqual(await scrolled(all('follow'), 0, none, (r) => r.h.b!.move(1)), { result: 'T', left: 406 }, 'b moves right past c and ends inside the window, at the stop that shows it');
   assert.deepEqual(await scrolled(all('none'), 0, none, (r) => r.h.b!.move(1)), { result: 'T', left: 0 });
   assert.deepEqual(await scrolled(all('follow'), 0, none, (r) => r.h.b!.place('row-end')), { result: 'T', left: 1452 });
   assert.deepEqual(await scrolled(all('none'), 0, none, (r) => r.h.b!.place('row-end')), { result: 'T', left: 0 });
-  assert.deepEqual(await scrolled(all('follow'), 0, none, (r) => r.h.c!.setSlots(2)), { result: 'T', left: 640 });
+  assert.deepEqual(await scrolled(all('follow'), 0, none, (r) => r.h.c!.setSlots(2)), { result: 'T', left: 812 }, 'c grows to 796 px and starts at 812: the stop that shows it whole');
   assert.deepEqual(await scrolled(all('none'), 0, none, (r) => r.h.c!.setSlots(2)), { result: 'T', left: 0 });
   assert.deepEqual(await scrolled(all('follow'), 0, none, (r) => r.h.e!.setSlots(2)), { result: 'T', left: 0 }, 'e is out of view: no request');
 });
@@ -448,7 +450,7 @@ test('scrollOnMove: an accepted move, place or setSlots on an in-view panel foll
 test('scrollOnOpen: open() and show() record one request and the row scrolls to the literal target', async () => {
   const layer = (scrollOnOpen?: string): Record<string, PanelSettings> => ({ d: scrollOnOpen === undefined ? {} : ({ scrollOnOpen } as unknown as PanelSettings) });
   const park = (r: FreeRig): void => void r.turn(() => r.h.d!.hide());
-  for (const [align, left] of [['into-view', 640], ['start', 1218], ['center', 929], [undefined, 640]] as const) {
+  for (const [align, left] of [['into-view', 812], ['start', 1218], ['center', 812], [undefined, 812]] as const) {
     assert.deepEqual(await scrolled(layer(align), 0, park, (r) => r.h.d!.show()), { result: 'T', left }, `show of a parked panel: ${align ?? 'default'}`);
     assert.deepEqual(await scrolled(layer(align), 0, () => undefined, (r) => r.h.d!.show()), { result: 'T', left }, `show of a live panel out of view: ${align ?? 'default'}`);
   }

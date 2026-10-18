@@ -300,7 +300,8 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
   const templateList = (): PanelTemplate[] => [...core.templates()];
   const fixedViewCount = i.fixedViewCount ?? panels.filter((p) => !p.collapsible && p.marker !== true).length;
   // Filters over the whole list, never an array position: a panel anchored left of History changes none of these.
-  const rowInput = { entries: panels, phoneWidth: i.phoneWidth, containerWidth: i.containerWidth, gap: tuning.rowGap, fixedItemCount: fixedViewCount, wholePanels: tuning.rowGesture === 'step' };
+  const stopsOnGrid = tuning.rowGesture === 'step';
+  const rowInput = { entries: panels, phoneWidth: i.phoneWidth, containerWidth: i.containerWidth, gap: tuning.rowGap, fixedItemCount: fixedViewCount, wholePanels: stopsOnGrid };
   const rowNumbers = computeRowNumbers(rowInput);
   const restedRef = useRef(false);
   const { maxLiveWidth } = rowNumbers;
@@ -424,6 +425,8 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
 
   // Set once the persistence hook is called, below: the rest watch reads the saved state the hook owns.
   const restWatch = useRef<() => void>(() => undefined);
+  // A pointer down on the row until it is let go, the scrollbar thumb included: a rest is not called while it is held.
+  const pointerHeldRef = useRef(false);
 
   // One step of the gesture. A row with nothing to scroll toward swaps: the parked panel beside the live range comes in.
   const stepRow = (direction: 'left' | 'right'): void => {
@@ -479,7 +482,7 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
   }, [rowNumbers.stepStops.join(','), rowNumbers.rowMarginLeft, rowNumbers.endPad]);
 
   // The row's wheel/arrow-key gesture is wired here, not in the host, so a host stays free of effects and refs.
-  useRowScrollGesture(i.overflowContainerRef, stepRow, timing.gestureLockMs, tuning.rowGesture, tuning.gestureQuietMs);
+  useRowScrollGesture(i.overflowContainerRef, stepRow, timing.gestureLockMs, tuning.rowGesture, tuning.gestureQuietMs, i.phoneWidth + tuning.rowGap);
 
   const { restoreSettled, dismiss, undismiss, isDismissed, scroll, setScroll } = useWorkspacePersistence({
     storage: core.storage,
@@ -530,7 +533,7 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
       const gliding = scroller.glideTarget() !== null;
       const now = performance.now();
       if (at !== start || gliding) moved = true;
-      if (at !== last || gliding || scroller.claimHeld()) {
+      if (at !== last || gliding || scroller.claimHeld() || pointerHeldRef.current) {
         last = at;
         still = now;
       } else if (now - still >= REST_QUIET_MS) {
@@ -612,14 +615,22 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
       const el = i.overflowContainerRef.current;
       if (el !== null && e.target instanceof Node && el.contains(e.target)) {
         touchedRef.current = true;
+        if (e.type === 'pointerdown') pointerHeldRef.current = true;
         restWatch.current();
       }
     };
+    const release = (): void => {
+      pointerHeldRef.current = false;
+    };
     window.addEventListener('wheel', touch, { capture: true, passive: true });
     window.addEventListener('pointerdown', touch, true);
+    window.addEventListener('pointerup', release, true);
+    window.addEventListener('pointercancel', release, true);
     return () => {
       window.removeEventListener('wheel', touch, true);
       window.removeEventListener('pointerdown', touch, true);
+      window.removeEventListener('pointerup', release, true);
+      window.removeEventListener('pointercancel', release, true);
     };
     // Mount only: the container ref object never changes.
   }, []);

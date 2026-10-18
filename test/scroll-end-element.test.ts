@@ -21,23 +21,18 @@ afterEach(() => {
 const element = (container: HTMLElement): HTMLElement | null => container.querySelector<HTMLElement>('[data-row-end-pad]');
 const paddingRight = (container: HTMLElement): string => getComputedStyle(container).paddingRight;
 
-for (const [mode, tuning] of [
-  ['step', { rowGesture: 'step' }],
-  ['free', { rowGesture: 'free' }],
-] as const) {
-  test(`${mode}: the end element is endPad plus the row gap and the padding right is 0`, () => {
-    const m = mountRow(panelsOf(5), 1000, { tuning });
-    const n = m.latest().rowNumbers;
-    assert.ok(n.rowScroll);
-    assert.equal(element(m.container)!.style.flex, `0 0 ${n.endPad + 16}px`);
-    assert.equal(paddingRight(m.container), '0px');
-    assert.equal(maxScrollOf(n), Math.max(0, n.rowMarginLeft + n.stripWidth + n.endPad - n.windowWidth), 'the range the library counts is the same sum');
-  });
-}
+test('the end element is endPad plus the row gap and the padding right is 0', () => {
+  const m = mountRow(panelsOf(5), 1000, { tuning: { rowGesture: 'step' } });
+  const n = m.latest().rowNumbers;
+  assert.ok(n.rowScroll);
+  assert.equal(element(m.container)!.style.flex, `0 0 ${n.endPad + 16}px`);
+  assert.equal(paddingRight(m.container), '0px');
+  assert.equal(maxScrollOf(n), Math.max(0, n.rowMarginLeft + n.stripWidth + n.endPad - n.windowWidth), 'the range the library counts is the same sum');
+});
 
 test('a row with an endPad of 0 still draws the element, the row gap wide', () => {
-  const m = mountRow(panelsOf(8), 1000, { tuning: { rowGesture: 'free' } });
-  assert.equal(m.latest().rowNumbers.endPad, 0, 'a free row has nothing to pad');
+  const m = mountRow(panelsOf(8), 1000, { tuning: { rowGesture: 'step' } });
+  assert.equal(m.latest().rowNumbers.endPad, 0, 'a row that fits whole panels has nothing to pad');
   assert.equal(element(m.container)!.style.flex, '0 0 16px');
 });
 

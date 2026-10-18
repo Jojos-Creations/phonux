@@ -262,7 +262,7 @@ test('case B7: overflow scroll to park on a live panel parks nothing at configur
 
 test('case B8: scrollOnOpen none on a live panel: the next open does not scroll', async () => {
   const opened = async (none: boolean): Promise<number> => {
-    const r = await matrixRig({ ids: ['a', 'b', 'c', 'd', 'e'], width: 1000, workspace: { tuning: { rowGesture: 'free' } } });
+    const r = await matrixRig({ ids: ['a', 'b', 'c', 'd', 'e'], width: 1000, workspace: { tuning: { rowGesture: 'step' } } });
     await r.settle();
     if (none) {
       assert.deepEqual(shape(r.turn(() => r.h.c!.configure({ scrollOnOpen: 'none' }))), { now: [], later: ['scrollOnOpen'], shadowed: [] });
@@ -309,6 +309,7 @@ test('edge scroll 3: tuning.edgeScroll zonePx from the default to a quarter of i
   const r = await dragRig();
   assert.equal(HALF_ZONE_POINTER, EDGE_WINDOW - ZONE / 2);
   assert.equal((await heldScroll(r, 's1', HALF_ZONE_POINTER)) > 0, true, 'positive control: under the default zone the pointer is inside the band');
+  await r.settle();
   assert.deepEqual(shape(r.turn(() => r.h.s1!.configure({ tuning: { edgeScroll: { zonePx: QUARTER } } }))), { now: [], later: ['tuning.edgeScroll'], shadowed: [] });
   const at = r.m.container.scrollLeft;
   await r.settle();

@@ -241,26 +241,42 @@ test('differential tuning.saveQuietMs: the workspace is saved at the configured 
   });
 });
 
-/** A provider over [a b live, c parked at the right] with a wheel listener; returns the live ids after a right, a left and (300 ms later) a right swipe. */
-function swipes(gestureLockMs: number): string[] {
+/**
+ * Runs `steps` against a provider over [a b live, c d e parked at the right] with a wheel listener and a clock the test moves; returns
+ * the live ids after. A wheel of one phone width plus the row gap (406) is exactly one step of travel; the clock moves performance.now
+ * only, so the quiet timer never fires and the events stay one gesture.
+ */
+function clocked(tuning: { gestureLockMs: number }, steps: (wheel: (deltaX: number) => void, advance: (ms: number) => void, setLock: (ms: number) => void, live: () => string[]) => void, extra: (container: HTMLElement) => void = () => undefined): string[] {
   const container = document.createElement('div');
   document.body.appendChild(container);
-  const p = provide(row(rootEntry(), park('a'), park('b'), park('c', {}, { live: false })), { width: W(2), over: { overflowContainerRef: { current: container }, tuning: { gestureLockMs, rowGesture: 'step' } } });
+  extra(container);
+  // One ref object across renders, as a host's useRef gives: a new one would re-subscribe the listeners.
+  const ref = { current: container };
+  let clock = 1000;
+  mock.method(performance, 'now', () => clock);
+  const p = provide(row(rootEntry(), park('a'), park('b'), park('c', {}, { live: false }), park('d', {}, { live: false }), park('e', {}, { live: false })), { width: W(2), over: { overflowContainerRef: ref, tuning: { ...tuning, rowGesture: 'step' } } });
   mock.timers.enable({ apis: ['setTimeout'] });
   const wheel = (deltaX: number): void => void act(() => void container.dispatchEvent(new WheelEvent('wheel', { deltaX, cancelable: true, bubbles: true })));
-  wheel(100);
-  act(() => mock.timers.tick(300));
-  wheel(-100);
+  steps(wheel, (ms) => void (clock += ms), (ms) => p.setOver({ overflowContainerRef: ref, tuning: { gestureLockMs: ms, rowGesture: 'step' } }), p.live);
   const seen = p.live();
   mock.timers.reset();
+  mock.restoreAll();
   container.remove();
   return seen;
 }
 
-test('differential tuning.gestureLockMs: a second swipe 300 ms after the first acts under a 100 ms lock and is ignored under a 600 ms lock', () => {
+function swipes(gestureLockMs: number): string[] {
+  return clocked({ gestureLockMs }, (wheel, advance) => {
+    wheel(406);
+    advance(50);
+    wheel(406);
+  });
+}
+
+test('differential tuning.gestureLockMs: a second step of travel 50 ms after the first acts under a 20 ms lock and is held back under an 80 ms lock', () => {
   differential('tuning.gestureLockMs', (run) => {
-    run(100, () => swipes(100));
-    run(600, () => swipes(600));
+    run(20, () => swipes(20));
+    run(80, () => swipes(80));
   });
 });
 
@@ -817,10 +833,10 @@ test('a remount restores a parked panel parked, with no hold carried over', asyn
 // Timing tuning
 // ---------------------------------------------------------------------------
 
-test('the timing defaults are 500 ms and 60 ms, and a tuning left out takes them', async () => {
+test('the timing defaults are 500 ms and 30 ms, and a tuning left out takes them', async () => {
   const { LIBRARY_TUNING_DEFAULTS } = await import('../panelSettings.js');
   assert.equal(LIBRARY_TUNING_DEFAULTS.saveQuietMs, 500);
-  assert.equal(LIBRARY_TUNING_DEFAULTS.gestureLockMs, 60);
+  assert.equal(LIBRARY_TUNING_DEFAULTS.gestureLockMs, 30);
   assert.equal(await savesAfter(499), 0, 'not saved at 499 ms');
   assert.equal(await savesAfter(500), 1, 'saved at 500 ms');
 });
@@ -852,30 +868,32 @@ test('saveQuietMs is read at each arm: changing it between two changes retimes t
   assert.equal(saves.length, 2);
 });
 
-test('gestureLockMs is read from a ref at each arm: changing it keeps the listeners and retimes the next lock', () => {
-  const container = document.createElement('div');
-  document.body.appendChild(container);
+test('gestureLockMs is read at each wheel event: changing it keeps the listeners and applies to the next step', () => {
   let removed = 0;
-  const original = container.removeEventListener.bind(container);
-  container.removeEventListener = ((...args: Parameters<typeof original>) => {
-    removed += 1;
-    return original(...args);
-  }) as typeof container.removeEventListener;
-  const base = { overflowContainerRef: { current: container } };
-  const p = provide(row(rootEntry(), park('a'), park('b'), park('c', {}, { live: false })), { width: W(2), over: { ...base, tuning: { gestureLockMs: 100, rowGesture: 'step' } } });
-  mock.timers.enable({ apis: ['setTimeout'] });
-  const wheel = (deltaX: number): void => void act(() => void container.dispatchEvent(new WheelEvent('wheel', { deltaX, cancelable: true, bubbles: true })));
-  wheel(100);
-  assert.deepEqual(p.live(), ['b', 'c'], 'the first swipe acted');
-  p.setOver({ ...base, tuning: { gestureLockMs: 600, rowGesture: 'step' } });
-  assert.equal(removed, 0, 'the new value did not tear the listeners down');
-  act(() => mock.timers.tick(150));
-  wheel(-100);
-  assert.deepEqual(p.live(), ['a', 'b'], 'the lock armed before the change ran out at 100 ms, so this swipe acted and armed 600');
-  act(() => mock.timers.tick(300));
-  wheel(100);
-  assert.deepEqual(p.live(), ['a', 'b'], 'still locked at 300 ms of 600');
-  container.remove();
+  const live = clocked(
+    { gestureLockMs: 100 },
+    (wheel, advance, setLock, now) => {
+      wheel(406);
+      advance(150);
+      wheel(406);
+      assert.deepEqual(now(), ['c', 'd'], 'two steps, 150 ms apart under a 100 ms lock');
+      setLock(600);
+      assert.equal(removed, 0, 'the new value did not tear the listeners down');
+      advance(150);
+      wheel(406);
+      assert.deepEqual(now(), ['c', 'd'], '150 ms after a step is inside the new 600 ms lock');
+      advance(450);
+      wheel(406);
+    },
+    (container) => {
+      const original = container.removeEventListener.bind(container);
+      container.removeEventListener = ((...args: Parameters<typeof original>) => {
+        removed += 1;
+        return original(...args);
+      }) as typeof container.removeEventListener;
+    },
+  );
+  assert.deepEqual(live, ['d', 'e'], '600 ms after the last step the lock is over');
 });
 
 // ---------------------------------------------------------------------------

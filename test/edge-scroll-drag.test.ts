@@ -14,6 +14,7 @@ import { PanelSlotContext, type PanelSlotValue } from '../panelSlotContext.js';
 import { slotTuning } from '../panelTuning.js';
 import { reorderStepsForOffset } from '../panelWindow.js';
 import { edgeScrollStep } from '../edgeScroll.js';
+import { SLIDE_DURATION_SEC } from '../rowConstants.js';
 import { advanceFrames, cleanup, mount } from './support/mount-harness.js';
 import { drag } from './support/drag-gesture.js';
 import { FRAME_MS } from './support/jsdom-globals.js';
@@ -105,6 +106,8 @@ const press = (target: Element, x: number): Promise<void> => act(async () => voi
 const moveTo = (x: number, y = 100): Promise<void> => act(async () => void document.dispatchEvent(pointer('pointermove', x, y)));
 const liftAt = (x: number, y = 100): Promise<void> => act(async () => void document.dispatchEvent(pointer('pointerup', x, y)));
 const frames = (n: number): Promise<void> => advanceFrames(n * FRAME_MS);
+/** Frames for a default-slide glide to land and the box spring to finish. */
+const GLIDE_FRAMES = Math.ceil((SLIDE_DURATION_SEC * 1000) / FRAME_MS) + 10;
 const handleOf = (m: MountedRow, id: string): Element => {
   const handle = m.container.querySelector(`[data-handle="${id}"]`);
   assert.ok(handle, `${id}'s grab bar rendered`);
@@ -136,6 +139,8 @@ function walked(n: number, from = 0): number {
 /** How many of the five 390 neighbours' hop thresholds `offset` reaches. */
 const hopsAt = (offset: number): number => [203, 609, 1015, 1421, 1827].filter((threshold) => offset >= threshold).length;
 const FIVE_NEIGHBOURS = { left: [], right: [390, 390, 390, 390, 390] };
+/** Where a free row comes to rest after a scroll to `at`: the nearest of its one-phone grid stops (390 + the 16 gap apart, from 0). */
+const settledAt = (at: number): number => Math.round(at / 406) * 406;
 
 test('held at the right edge for 100 frames the row scrolls 99 steps; held mid-window it stays; the release adds the distance and hops over it', async () => {
   const m = mountEdgeRow();
@@ -145,13 +150,14 @@ test('held at the right edge for 100 frames the row scrolls 99 steps; held mid-w
   assert.ok(Math.abs(m.container.scrollLeft - distance) < 1e-6, `scrollLeft ${m.container.scrollLeft}, expected ${distance} (99 x ${(EDGE.maxPxPerSec * FRAME_MS) / 1000})`);
   assert.equal(ends.length, 0, 'nothing hops during the drag');
   await liftAt(1000);
-  await frames(30);
+  await frames(GLIDE_FRAMES);
   assert.equal(ends.length, 1);
   assert.ok(Math.abs(ends[0]!.offset - (40 + distance)) < 1e-6, `released offset ${ends[0]!.offset}`);
   assert.equal(ends[0]!.hops, hopsAt(40 + distance));
   assert.equal(hopsAt(40 + distance), 4, '1465.6 clears 1421 and not 1827');
   assert.equal(reorderStepsForOffset(ends[0]!.offset, FIVE_NEIGHBOURS, 16, LIBRARY_TUNING_DEFAULTS.hopFraction), 4);
-  assert.ok(Math.abs(m.container.scrollLeft - distance) < 1e-6, 'the row stays where the pointer left it');
+  assert.equal(m.container.scrollLeft, settledAt(distance), 'the row is not snapped back: it settles on the stop nearest where the pointer left it');
+  assert.notEqual(settledAt(distance), 0);
 
   cleanup();
   const mid = mountEdgeRow();
@@ -213,7 +219,8 @@ test('released with nothing to hop over, the box springs home as one: both trans
   assert.equal(settled(translates), settled(xs), 'both reach 0 in the same frame');
   assert.equal(box.style.transform, 'none');
   assert.ok(['', 'none', '0px 0px', '0px'].includes(box.style.translate), `translate settled at ${JSON.stringify(box.style.translate)}`);
-  assert.ok(Math.abs(m.container.scrollLeft - walked(99)) < 1e-6, 'the row is not snapped back');
+  assert.equal(m.container.scrollLeft, settledAt(walked(99)), 'the row is not snapped back: it settles on the stop nearest where the pointer left it');
+  assert.notEqual(settledAt(walked(99)), 0);
 });
 
 test('released after the edge scroll carried the drag over hops, the box is at rest the frame after the release: no spring', async () => {

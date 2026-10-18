@@ -55,7 +55,7 @@ test('differential scrollOnOpen: into-view and start put the same panel at diffe
     ['into-view', await openedAt('into-view')],
     ['start', await openedAt('start')],
   ]);
-  assert.deepEqual([...outcomes.values()], [640, 1218]);
+  assert.deepEqual([...outcomes.values()], [812, 1218]);
   differential('scrollOnOpen', (run) => {
     run('into-view', () => outcomes.get('into-view'));
     run('start', () => outcomes.get('start'));
@@ -77,7 +77,7 @@ test('differential scrollOnMove: a panel in view that grows past the window is f
     ['follow', await movedTo('follow')],
     ['none', await movedTo('none')],
   ]);
-  assert.deepEqual([...outcomes.values()], [234, 0]);
+  assert.deepEqual([...outcomes.values()], [406, 0]);
   differential('scrollOnMove', (run) => {
     run('follow', () => outcomes.get('follow'));
     run('none', () => outcomes.get('none'));
@@ -85,7 +85,7 @@ test('differential scrollOnMove: a panel in view that grows past the window is f
 });
 
 /** The glide a wheel swipe starts under `rowGesture`. */
-function swipeGlide(rowGesture: 'step' | 'free'): number | null {
+function swipeGlide(rowGesture: 'step' | 'off'): number | null {
   const m = mountRow(panelsOf(10), 1000, { tuning: { rowGesture } });
   m.wheel({ deltaX: 50 });
   const target = m.scroller.glideTarget();
@@ -93,10 +93,10 @@ function swipeGlide(rowGesture: 'step' | 'free'): number | null {
   return target;
 }
 
-test('differential tuning.rowGesture: step starts a glide on a swipe and free leaves the row to the browser', () => {
+test('differential tuning.rowGesture: step starts a glide on a swipe and off leaves the row still', () => {
   differential('tuning.rowGesture', (run) => {
     run('step', () => swipeGlide('step'));
-    run('free', () => swipeGlide('free'));
+    run('off', () => swipeGlide('off'));
   });
 });
 

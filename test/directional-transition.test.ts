@@ -12,8 +12,8 @@ import { createHistoryPanel } from '../panelWindow.js';
 const HISTORY_PANEL_ID = 'history';
 import { DRAG_CLOSE, GAP, PANEL_TRANSITION } from '../index.js';
 
-test('SLOT_TRANSITION is the tuned duration/easing (0.4s, the [0.2,0,0,1] cubic-bezier), and PANEL_TRANSITION is the SAME object, not a copy', () => {
-  assert.deepEqual(SLOT_TRANSITION, { duration: 0.4, ease: [0.2, 0, 0, 1] });
+test('SLOT_TRANSITION is the tuned duration/easing (0.6s, the [0.4,0,0.2,1] cubic-bezier), and PANEL_TRANSITION is the SAME object, not a copy', () => {
+  assert.deepEqual(SLOT_TRANSITION, { duration: 0.6, ease: [0.4, 0, 0.2, 1] });
   assert.equal(PANEL_TRANSITION, SLOT_TRANSITION, 'hosts key off reference equality with PanelRowSlot\'s own PANEL_TRANSITION export');
 });
 

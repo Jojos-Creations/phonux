@@ -28,9 +28,12 @@ export const DIRECTION_LOCK_PX = 8;
 /** The spring a released drag-to-close box snaps back with. */
 export const SNAP_BACK_SPRING = Object.freeze({ stiffness: 520, damping: 42 });
 
-/** The enter and exit slide every slot shares. */
-export const SLIDE_DURATION_SEC = 0.4;
-export const SLIDE_EASE: readonly [number, number, number, number] = Object.freeze([0.2, 0, 0, 1]) as readonly [number, number, number, number];
+/**
+ * The enter and exit slide every slot shares, which a resize also rides. Eased in and out: an ease-out covers half a resize in
+ * its first tenth of a second, which reads as a snap.
+ */
+export const SLIDE_DURATION_SEC = 0.6;
+export const SLIDE_EASE: readonly [number, number, number, number] = Object.freeze([0.4, 0, 0.2, 1]) as readonly [number, number, number, number];
 export const SLIDE_CLOSE_EXIT_SECONDS = CLOSE_EXIT_SECONDS;
 
 /** A drag crosses a neighbour once it has covered this fraction of that neighbour's span. */
@@ -39,10 +42,10 @@ export const HOP_FRACTION = 0.5;
 /** Quiet time before the workspace file is written. */
 export const SAVE_QUIET_MS = 500;
 
-/** After a row-scroll step, further wheel events inside this window are ignored. */
-export const GESTURE_LOCK_MS = 60;
+/** The least time between two row-scroll steps of one wheel gesture. */
+export const GESTURE_LOCK_MS = 30;
 
-/** No wheel event for this long ends a row-scroll gesture: the next one is fresh and steps whatever its size. */
+/** No wheel event for this long ends a row-scroll gesture: the next one is fresh and steps at once. */
 export const GESTURE_QUIET_MS = 150;
 
 /** A pointer that lifts this long after its last move had stopped has no release velocity. */

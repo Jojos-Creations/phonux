@@ -167,6 +167,9 @@ export function PanelRow({
   const inherited = React.useContext(WorkspaceTuningContext);
   const given = tuning === undefined ? undefined : resolveWorkspaceTuning(tuning);
   const binding = bindingOf(workspace);
+  // The restored panels arrive with the settle, after the row mounted. The row is not ready until the commit after it, and
+  // a slot that mounts before then starts at its rest, so restored panels skip their enter and later ones animate.
+  const restoreSettled = React.useSyncExternalStore(workspace.panels.subscribe, () => workspace.panels.getSnapshot().status === 'ready', () => false);
   const autoMountOf = React.useContext(AutoMountContext);
   const handMounted = binding.autoMounted && autoMountOf !== workspace;
   React.useEffect(() => {
@@ -235,7 +238,13 @@ export function PanelRow({
   const tracking = wanted;
   // A slot's moves snap while the row lands its first measured size, as they do while a width is held.
   const landing = React.useContext(LandingContext);
-  const slotTracking = tracking || landing;
+  // Until the row is measured and the restore has settled, a slot's moves take no time, so a reload draws panels where they belong.
+  const [ready, setReady] = React.useState(false);
+  const measuredNow = rowNumbers === undefined || Number.isFinite(rowNumbers.windowWidth);
+  React.useLayoutEffect(() => {
+    if (measuredNow && restoreSettled) setReady(true);
+  }, [measuredNow, restoreSettled]);
+  const slotTracking = tracking || landing || !ready;
   const widths = baseWidths.map((width, index) => (index === drawnIndex && drawnPx !== undefined ? drawnPx : width));
   React.useLayoutEffect(() => {
     drawnBeforeRef.current = new Map(present.map((p, index) => [p.id, baseWidths[index]!]));

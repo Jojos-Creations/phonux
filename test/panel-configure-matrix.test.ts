@@ -775,7 +775,7 @@ test('matrix:revealOnScroll', async () => {
 
 test('matrix:scrollOnOpen', async () => {
   probe('scrollOnOpen');
-  const r = await matrixRig({ ids: ['a', 'b', 'c', 'd', 'e'], width: 1000, workspace: { tuning: { rowGesture: 'free' } } });
+  const r = await matrixRig({ ids: ['a', 'b', 'c', 'd', 'e'], width: 1000, workspace: { tuning: { rowGesture: 'step' } } });
   await r.settle();
   assert.equal(r.m.container.scrollLeft, 0);
   assert.deepEqual(shape(r.turn(() => r.h.c!.configure({ scrollOnOpen: 'start' }))), { now: [], later: ['scrollOnOpen'], shadowed: [] });
@@ -789,8 +789,8 @@ test('matrix:scrollOnOpen', async () => {
   await r.settle();
   r.turn(() => r.h.c!.scrollTo());
   await r.settle();
-  assert.equal(r.m.container.scrollLeft, 640, "none: scrollTo() falls back to into-view, c's right edge 1624 less the 984 visible");
-  const hidden = await matrixRig({ ids: ['a', 'b', 'c', 'd', 'e'], width: 1000, workspace: { tuning: { rowGesture: 'free' } } });
+  assert.equal(r.m.container.scrollLeft, 812, "none: scrollTo() falls back to into-view: c's right edge 1624 less the 984 visible is 640, and the stop that shows c whole is 812");
+  const hidden = await matrixRig({ ids: ['a', 'b', 'c', 'd', 'e'], width: 1000, workspace: { tuning: { rowGesture: 'step' } } });
   hidden.turn(() => hidden.h.c!.hide());
   await hidden.settle();
   done(hidden.turn(() => hidden.h.c!.configure({ scrollOnOpen: 'start' })));
@@ -803,7 +803,7 @@ test('matrix:scrollOnOpen', async () => {
 test('matrix:scrollOnMove', async () => {
   probe('scrollOnMove');
   const grown = async (none: boolean): Promise<number> => {
-    const r = await matrixRig({ ids: ['a', 'b', 'c', 'd', 'e'], width: 1000, workspace: { tuning: { rowGesture: 'free' } } });
+    const r = await matrixRig({ ids: ['a', 'b', 'c', 'd', 'e'], width: 1000, workspace: { tuning: { rowGesture: 'step' } } });
     await r.settle();
     if (none) {
       assert.deepEqual(shape(r.turn(() => r.h.a!.configure({ scrollOnMove: 'none' }))), { now: [], later: ['scrollOnMove'], shadowed: [] });
@@ -816,7 +816,7 @@ test('matrix:scrollOnMove', async () => {
     r.m.unmount();
     return at;
   };
-  assert.equal(await grown(false), 234, 'control: a in view grows to two slots, 796 px, and the row follows by the least distance that shows it whole');
+  assert.equal(await grown(false), 406, 'control: a in view grows to two slots, 796 px, and the row follows to the stop that shows it whole');
   assert.equal(await grown(true), 0, 'the next move reads none: the row stays');
 });
 
@@ -1226,27 +1226,32 @@ test('matrix:tuning.saveQuietMs', async () => {
 test('matrix:tuning.gestureLockMs', async () => {
   probe('tuning.gestureLockMs');
   await wrongScopeInEveryStatus({ tuning: { gestureLockMs: 700 } }, 'tuning.gestureLockMs');
+  // The lock reads performance.now, which the fake timers leave alone: a clock the test moves puts the second event an exact interval after the first.
+  // Both events are one phone width plus the row gap (406) in one direction, so the second carries a whole step of travel.
   const swipes = async (gestureLockMs: number | undefined): Promise<(number | null)[]> => {
     const r = await matrixRig({ ids: ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j'], width: 1000 });
     await r.settle();
     mockWindow();
+    let clock = 1000;
+    const now = mock.method(performance, 'now', () => clock);
     const scroller = rowScrollerFor(r.m.container);
     if (gestureLockMs !== undefined) done(r.turn(() => r.ws.panels.configureTuning({ gestureLockMs })));
     const wheel = (deltaX: number): void => act(() => void r.m.container.dispatchEvent(new WheelEvent('wheel', { deltaX, cancelable: true, bubbles: true })));
-    wheel(100);
+    wheel(406);
     const first = scroller.glideTarget();
-    act(() => mock.timers.tick(30));
-    wheel(-100);
+    clock += 10;
+    wheel(406);
     const second = scroller.glideTarget();
+    now.mock.restore();
     mock.timers.reset();
     r.m.unmount();
     return [first, second];
   };
   const [firstDefault, secondDefault] = await swipes(undefined);
   assert.equal(firstDefault !== null, true, 'control: the first swipe starts a glide');
-  assert.equal(secondDefault, firstDefault, 'under the default 60 ms lock a second swipe 30 ms later is ignored');
-  const [firstShort, secondShort] = await swipes(10);
-  assert.notEqual(secondShort, firstShort, 'under 10 ms the same second swipe acts');
+  assert.equal(secondDefault, firstDefault, 'under the default 30 ms lock a second step of travel 10 ms later is held back');
+  const [firstShort, secondShort] = await swipes(5);
+  assert.notEqual(secondShort, firstShort, 'under 5 ms the same second step acts');
 });
 
 test('matrix:tuning.gestureQuietMs', async () => {
@@ -1320,7 +1325,7 @@ test('matrix:tuning.dropTieBreak', async () => {
 
 test('matrix:tuning.rowGesture', async () => {
   probe('tuning.rowGesture');
-  await wrongScopeInEveryStatus({ tuning: { rowGesture: 'free' } }, 'tuning.rowGesture');
+  await wrongScopeInEveryStatus({ tuning: { rowGesture: 'off' } }, 'tuning.rowGesture');
   const r = await matrixRig({ ids: ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j'], width: 1000 });
   await r.settle();
   const scroller = rowScrollerFor(r.m.container);
@@ -1328,12 +1333,13 @@ test('matrix:tuning.rowGesture', async () => {
   wheel();
   assert.equal(scroller.glideTarget() !== null, true, 'before: step starts a glide on a swipe');
   await r.settle();
-  assert.deepEqual({ ...done(r.turn(() => r.ws.panels.configureTuning({ rowGesture: 'free' }))) }, { ok: true, changed: true, shown: false, now: [], later: ['tuning.rowGesture'], shadowed: [], notes: [] });
+  assert.deepEqual({ ...done(r.turn(() => r.ws.panels.configureTuning({ rowGesture: 'off' }))) }, { ok: true, changed: true, shown: false, now: [], later: ['tuning.rowGesture'], shadowed: [], notes: [] });
   assert.equal(r.live().length, 11, 'no panel moves');
   const at = r.m.container.scrollLeft;
   await r.settle();
   wheel();
-  assert.deepEqual([scroller.glideTarget(), r.m.container.scrollLeft], [null, at], 'after the next render: free installs no listener, so a swipe is left to the browser');
+  assert.deepEqual([scroller.glideTarget(), r.m.container.scrollLeft], [null, at], 'after the next render: off installs no listener, so a swipe does nothing');
+  assert.equal(thrownCode(() => r.ws.panels.configureTuning({ rowGesture: 'free' } as never)), 'invalid-settings', "'free' is not a gesture: it throws like any other value outside the set");
 });
 
 test('matrix:tuning.initialScroll', async () => {
@@ -1346,7 +1352,7 @@ test('matrix:tuning.initialScroll', async () => {
   assert.deepEqual({ ...done(r.turn(() => r.ws.panels.configureTuning({ initialScroll: 'end' }))) }, { ok: true, changed: true, shown: false, now: [], later: ['tuning.initialScroll'], shadowed: [], notes: [] });
   await r.settle();
   assert.equal(r.m.container.scrollLeft, 0, 'nothing scrolls now');
-  const next = await matrixRig({ ids, width: 1000, workspace: { tuning: { initialScroll: 'end', rowGesture: 'free' } } });
+  const next = await matrixRig({ ids, width: 1000, workspace: { tuning: { initialScroll: 'end', rowGesture: 'step' } } });
   await next.settle();
   assert.equal(next.m.container.scrollLeft, 3482, 'a mount that reads end puts the strip at its farthest legal scroll: 4450 less the 969 window');
   assert.equal(r.ws.tuning.initialScroll, 'end', 'the workspace now holds it for its next mount');

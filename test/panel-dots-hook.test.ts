@@ -29,7 +29,7 @@ const entries = [{ id: 'a' }, { id: 'b' }, { id: 'c' }];
 function probe(out: { dots?: PanelDots; el?: HTMLElement }, reduced?: 'always') {
   const Probe = () => {
     const scroller = React.useRef<HTMLDivElement>(null);
-    const dots = usePanelDots({ rowNumbers: numbers, entries, trackWidth: 1000, minDotPx: 1, scroller });
+    const dots = usePanelDots({ rowNumbers: numbers, entries, scroller });
     out.dots = dots;
     out.el = scroller.current ?? undefined;
     return React.createElement('div', { ref: scroller, 'data-row-scroller': '', style: { overflowX: 'auto', width: 300 } });

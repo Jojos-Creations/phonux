@@ -1,6 +1,7 @@
 /**
- * A view that draws its own frame renders the same DOM, and mounts and unmounts its view the same number of times, as it did
- * before the library drew a default frame. The golden file was recorded from the same fixtures on a tree without the frame.
+ * A view that draws its own frame renders the DOM the golden file holds, and mounts and unmounts its view the same number of
+ * times, as it did before the library drew a default frame. The golden file was recorded from the same fixtures; the default
+ * frame adds nothing to it.
  */
 import { test, afterEach } from 'node:test';
 import assert from 'node:assert/strict';

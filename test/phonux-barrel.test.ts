@@ -89,9 +89,13 @@ const VALUE_EXPORTS = [
   'CHROME_ATTRIBUTE',
   'CHROME_PARTS',
   'DRAGGING_ATTRIBUTE',
+  'PHONE_FRAME_ATTRIBUTE',
+  // The workspace name control a column draws, for a host to size and style around.
+  'WORKSPACE_NAME_CONTROL_HEIGHT',
+  'WORKSPACE_NAME_INPUT_ATTRIBUTE',
 ].sort();
 
-test('the phonux barrel exports exactly the 78 runtime values, no more, no fewer', () => {
+test('the phonux barrel exports exactly the 81 runtime values, no more, no fewer', () => {
   assert.deepEqual(Object.keys(phonux).sort(), VALUE_EXPORTS);
 });
 

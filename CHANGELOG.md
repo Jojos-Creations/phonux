@@ -28,6 +28,9 @@
 
 ### Removed
 
+- `'free'` as a value of `tuning.rowGesture`, which is now `'step' | 'off'`: a row has one way to scroll. `configureTuning({ rowGesture: 'free' })`
+  throws `invalid-settings`, as any value outside the set does; in `WorkspaceOptions.tuning` the value is refused and the default `'step'` stands.
+  **Migration:** drop the key, or set `'step'`; use `'off'` for a row that no wheel or key moves.
 - `panelFrameScrollSx`: the scroller recipe with the 12px inset and the 8px classic scrollbar. A view that scrolls writes its own
   padding and `::-webkit-scrollbar` rules on its scroller; `panelFrameBareSx` stays as the deprecated no-op.
 
@@ -53,6 +56,7 @@
 
 ### Changed
 
+- The default slide (`tuning.slide`) is 0.6 s eased in and out (`[0.4, 0, 0.2, 1]`), up from 0.4 s eased out (`[0.2, 0, 0, 1]`). A resize rides it, and the old ease-out covered half a grow or shrink in its first 90 ms, so a resize read as a snap. Enters, exits and the row's scroll glide take the new timing too. **Migration:** a host that wants the old feel sets `tuning.slide` to `{ durationSec: 0.4, ease: [0.2, 0, 0, 1] }`.
 - The panel footer floats below the frame, as the header floats above it: it takes no panel height, and the frame keeps its phone size with or without a footer. `PanelFrame` draws it as a sibling, not a child. The footer API is unchanged; a parent of a footered panel must be `position: relative`.
 - The grab handle is a grip icon left of the panel title in the header, and the bar below the header is gone; it is still the one focusable handle named by the title, with the same drag, reorder keys and Delete.
 - Shrink and Hide modes are removed and Off is the only edge mode: `tuning.shrinkOutOfView` values `'visible'` and `'hidden'` warn once each and act as `'off'` (the next rc refuses them), and the setting is kept only for the warning. It leaves `PANEL_SETTINGS_CATALOG` and `ResolvedWorkspaceTuning`; `RowNumbers` loses `stopShrinks`, `stopFirsts`, `drawnWidths`, `drawnOffsets`, `hideOutside`, `atStop` and `showPartial`, and `computeRowNumbers` its `shrink` and `atFirst` inputs.

@@ -7,7 +7,6 @@ import Box from '@mui/material/Box';
 import { type Theme } from '@mui/material/styles';
 import { useFrameClaim } from './panelFrameClaim.js';
 import { CHROME_ATTRIBUTE, CHROME_PARTS, PanelChromeVisibleContext, useChromeFade, useChromePixels } from './panelChrome.js';
-import { glideEdge } from './sizeGlide.js';
 
 /** The footer element of the template view above, or null; provided by the view adapter, read by `PanelFooter`. @internal */
 export const PanelFooterContext = React.createContext<React.ReactElement | null>(null);
@@ -43,7 +42,7 @@ export function PanelFooter(): React.ReactElement | null {
   if (footer === null) return null;
   return (
     <FooterBoundary>
-      <Box data-panel-footer="" {...{ [CHROME_ATTRIBUTE]: CHROME_PARTS.footer }} ref={fade} sx={{ position: 'absolute', top: `calc(100% + ${chrome.headerGapPx}px)`, left: 0, right: 0, boxSizing: 'border-box', bgcolor: 'background.paper', boxShadow: (theme: Theme) => glideEdge(theme.palette.divider), px: `${chrome.footerPadXPx}px`, py: `${chrome.footerPadYPx}px` }}>
+      <Box data-panel-footer="" {...{ [CHROME_ATTRIBUTE]: CHROME_PARTS.footer }} ref={fade} sx={{ position: 'absolute', top: `calc(100% + ${chrome.headerGapPx}px)`, left: 0, right: 0, boxSizing: 'border-box', bgcolor: 'background.paper', boxShadow: (theme: Theme) => `inset 0 0 0 1px ${theme.palette.divider}`, px: `${chrome.footerPadXPx}px`, py: `${chrome.footerPadYPx}px` }}>
         {footer}
       </Box>
     </FooterBoundary>

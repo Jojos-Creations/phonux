@@ -7,7 +7,11 @@ import assert from 'node:assert/strict';
 import './support/jsdom-globals.js';
 import { act } from 'react';
 import { advanceFrames, cleanup } from './support/mount-harness.js';
+import { SLIDE_DURATION_SEC } from '../rowConstants.js';
 import { mountRow, panelsOf } from './support/scroll-row.js';
+
+/** Long enough for a default-slide glide to land, with a few frames to spare. */
+const GLIDE_DONE_MS = SLIDE_DURATION_SEC * 1000 + 100;
 
 afterEach(() => {
   mock.timers.reset();
@@ -54,7 +58,7 @@ test('Off: a step moves one stop and the panel just past the window stays drawn 
   const t = mounted();
   mock.timers.enable({ apis: ['setTimeout'] });
   t.m.wheel({ deltaX: 50 });
-  await advanceFrames(600);
+  await advanceFrames(GLIDE_DONE_MS);
   assert.equal(t.m.container.scrollLeft, 406);
   t.layout();
   assert.deepEqual(t.filters(), ['', '', '', '', '', '']);
@@ -69,6 +73,6 @@ test('Off: focusing the cut-off neighbour makes the browser scroll, and the row 
   const inside = document.createElement('button');
   t.slots()[2]!.appendChild(inside);
   inside.dispatchEvent(new FocusEvent('focusin', { bubbles: true }));
-  await advanceFrames(600);
+  await advanceFrames(GLIDE_DONE_MS);
   assert.ok(t.m.latest().rowNumbers.stops.includes(t.m.container.scrollLeft), `rests on a stop, not ${t.m.container.scrollLeft}`);
 });

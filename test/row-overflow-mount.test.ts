@@ -53,7 +53,7 @@ function Shell({ provided, containerWidth, workspace }: { provided: ProvidedPane
   );
 }
 
-test('a mount of 11 scroll panels at a measured container of 1000 renders every slot in a strip wider than its window, with overflow-x auto', () => {
+test('a mount of 11 scroll panels at a measured container of 1000 renders every slot in a strip wider than its window, with overflow-x hidden for the stepping row', () => {
   let latest: ProvidedPanels | undefined;
   function Probe(): React.ReactElement {
     const input = useSeededInput({ initialEntries: [scrollRoot()], containerWidth: 1000, workspaceDefaults: {} });
@@ -67,7 +67,8 @@ test('a mount of 11 scroll panels at a measured container of 1000 renders every 
   assert.equal(latest!.rowNumbers.stripWidth, 4450);
   assert.equal(latest!.rowNumbers.windowWidth, 968);
   const shell = mounted.container.querySelector('[data-shell]') as HTMLElement;
-  assert.equal(getComputedStyle(shell).overflowX, 'auto');
+  assert.equal(getComputedStyle(shell).overflowX, 'hidden', 'a stepping row moves only through its scroll writer');
+  assert.equal(getComputedStyle(shell).overscrollBehaviorX, 'none');
 });
 
 test('a row that stops scrolling resets the container scrollLeft to 0 in the same commit', () => {

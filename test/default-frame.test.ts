@@ -11,10 +11,13 @@ import { act } from 'react';
 import { Panel, PanelFrame, createWorkspace, definePanel } from '../index.js';
 import type { PanelHandle, PanelTemplate, WorkspaceHandle } from '../index.js';
 import { advanceFrames, cleanup } from './support/mount-harness.js';
+import { SLIDE_DURATION_SEC } from '../rowConstants.js';
 import { drag, release } from './support/drag-gesture.js';
 import { albumPanel, effects, frameOnlyPanel, restPanel, stableIds } from './support/frame-fixtures.js';
 import { flush, mountWorkspace, type ResizableWorkspace } from './support/workspace-row.js';
 
+/** Long enough for a default-slide enter or exit to finish, with a few frames to spare. */
+const SLIDE_DONE_MS = SLIDE_DURATION_SEC * 1000 + 100;
 const open: WorkspaceHandle[] = [];
 
 afterEach(() => {
@@ -68,7 +71,7 @@ const part = (m: ResizableWorkspace, name: string): HTMLElement[] => [...m.conta
 const bodiesOf = (m: ResizableWorkspace, id: string): HTMLElement | null => m.container.querySelector<HTMLElement>(`[data-body="${id}"]`);
 const settle = async (): Promise<void> => {
   await act(async () => undefined);
-  await advanceFrames(400);
+  await advanceFrames(SLIDE_DONE_MS);
 };
 
 // ---------------------------------------------------------------------------
@@ -224,12 +227,14 @@ test('at two slots the library frame is as wide as its slot', async () => {
   const r = await rig([bareTemplate('bare')], ['bare']);
   await settle();
   const slot = (): HTMLElement => r.m.container.querySelector('[data-body="bare"]')!.closest('[data-row-slot]') as HTMLElement;
+  const box = (): HTMLElement => slot().querySelector<HTMLElement>('[data-panel-size-box]')!;
   const frameWidth = (): string => getComputedStyle(slot().querySelector('[data-phone-frame]')!).width;
-  assert.equal(frameWidth(), '390px', 'one slot is a phone');
+  assert.equal(box().style.width, '390px', 'one slot is a phone');
   await act(async () => void r.handles[0]!.setSlots(2));
   await settle();
   assert.notEqual(slot().style.width, '390px', 'the slot grew');
-  assert.equal(frameWidth(), slot().style.width, 'and the frame with it');
+  assert.equal(box().style.width, slot().style.width, 'and the size box with it');
+  assert.equal(frameWidth(), '100%', 'the frame fills the box, so it is as wide as the slot');
 });
 
 // ---------------------------------------------------------------------------

@@ -105,6 +105,8 @@ test('the mark is one flag per panel and the last write wins', async () => {
 
 test('the setter keeps one identity across renders', async () => {
   await row();
+  // The row remounts its slots once when the restore settles, so only renders after that are one mount's.
+  identities.clear();
   act(() => controls.get('s1')!.showSetter(true));
   act(() => controls.get('s1')!.showSetter(true));
   const seen = identities.get('s1')!;

@@ -11,6 +11,7 @@ import { act } from 'react';
 import { DragToClose, useHost, usePanelReorderSteps } from '../index.js';
 import { advanceFrames, cleanup } from './support/mount-harness.js';
 import { drag, release } from './support/drag-gesture.js';
+import { SLIDE_DURATION_SEC } from '../rowConstants.js';
 import { made, mountRow, panelsOf, rootEntry, row, type MountedRow } from './support/scroll-row.js';
 import { registerTestView } from './support/test-views.js';
 
@@ -228,7 +229,7 @@ test('a cancel returns every neighbour to rest within the slide time, and the ra
   });
   await advanceFrames(16);
   assert.equal(zOf(m, 's1'), '3', 'still raised while the box springs home');
-  await advanceFrames(450);
+  await advanceFrames(SLIDE_DURATION_SEC * 1000 + 50);
   assert.equal(xOf(m, 's2'), rest, 'the neighbour is back by the end of its slide, not only when the box has settled');
   await advanceFrames(3000);
   assert.equal(zOf(m, 's1'), '1');

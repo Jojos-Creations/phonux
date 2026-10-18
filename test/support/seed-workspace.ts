@@ -54,7 +54,7 @@ export function seededWorkspace(entries: readonly PanelWindow[], o: SeedOptions 
     // A root the engine names itself (`__root__`) is the marker a workspace without a root template has.
     ...(rootId.startsWith('_') ? {} : { root: plainTemplate(rootId, entries.find((e) => e.id === rootId)?.view ?? rootId) }),
     templates: [...(o.templates ?? []), ...views.map((v) => plainTemplate(v))],
-    tuning: { rowGesture: 'free', ...o.tuning },
+    tuning: { rowGesture: 'step', ...o.tuning },
     ...(o.workspaceDefaults !== undefined ? { defaults: o.workspaceDefaults } : {}),
     ...(o.storage !== undefined ? { storage: o.storage } : {}),
   });

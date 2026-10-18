@@ -15,8 +15,8 @@ import { resolveLabels } from './labels.js';
 import { PanelFooter } from './panelFooter.js';
 import { useFrameClaim } from './panelFrameClaim.js';
 import { PanelSlotContext } from './panelSlotContext.js';
+import { useInsideSizeBox } from './PanelRowSlot.js';
 import { useChromePixels } from './panelChrome.js';
-import { glideCorner, glideEdge } from './sizeGlide.js';
 
 /** The props of `PanelFrame`: every `Box` prop except `children`, plus `expanded` and `size`. @public */
 export interface PanelFrameProps extends Omit<BoxProps, 'children'> {
@@ -30,6 +30,8 @@ export interface PanelFrameProps extends Omit<BoxProps, 'children'> {
   footer?: boolean;
 }
 
+/** The attribute a panel's phone frame carries, so a stylesheet can select the frame without a class name. @public */
+export const PHONE_FRAME_ATTRIBUTE = 'data-phone-frame';
 /** The phone's corner radius in theme shape units (4 x 6px = 24px). The frame's corners and the header
  * pills' semicircular ends both derive from it, so they cannot drift apart. @public */
 export const PANEL_CORNER_RADIUS_UNITS = 4;
@@ -57,21 +59,23 @@ const PanelFrame = React.forwardRef<HTMLDivElement, PanelFrameProps>(function Pa
   useFrameClaim('frame');
   const phone = usePhoneSize();
   const drawn = React.useContext(PanelSlotContext)?.drawn;
-  const width = size?.width ?? drawn?.width ?? phone.width;
-  const height = size?.height === 'fill' ? '100%' : (size?.height ?? drawn?.height ?? phone.height);
+  // Below a size box the frame fills it, so a resize eases the frame too instead of jumping it to the new size.
+  const boxed = useInsideSizeBox();
+  const width = boxed ? '100%' : (size?.width ?? drawn?.width ?? phone.width);
+  const height = boxed || size?.height === 'fill' ? '100%' : (size?.height ?? drawn?.height ?? phone.height);
   const frame = (
     <Box
       ref={ref}
-      data-phone-frame=""
+      {...{ [PHONE_FRAME_ATTRIBUTE]: '' }}
       {...rest}
       sx={{
         // border-box: row-layout width math elsewhere treats the phone size as this box's real
         // rendered size; content-box would add border+padding on top, silently under-fitting.
         boxSizing: 'border-box',
-        // The 1 px edge is an inset shadow, not a border, so the size glide can keep it 1 px drawn without moving the layout.
+        // The 1 px edge is an inset shadow inside 1 px of padding, so it draws over nothing the content lays out.
         p: '1px',
-        boxShadow: (theme: Theme) => glideEdge(theme.palette.divider),
-        borderRadius: (theme: Theme) => glideCorner(panelCornerRadiusPx(theme)),
+        boxShadow: (theme: Theme) => `inset 0 0 0 1px ${theme.palette.divider}`,
+        borderRadius: (theme: Theme) => `${panelCornerRadiusPx(theme)}px`,
         bgcolor: 'background.paper',
         display: 'flex',
         flexDirection: 'column',
@@ -152,6 +156,10 @@ export interface PanelHeaderRowProps extends Omit<PanelHeaderProps, 'children' |
   actions?: React.ReactNode;
   /** Left of the title, never truncated. Nothing is drawn for it when it is omitted. */
   leading?: React.ReactNode;
+  /** Whether a click on a string title edits it in place. Needs `onTitleChange`. Default false. */
+  isInput?: boolean;
+  /** Called with the trimmed new title when an edit commits (Enter or blur) to a non-empty, changed value. Escape cancels. */
+  onTitleChange?: (next: string) => void;
 }
 
 /** Deliberately narrow (mirrors JSX's own falsy-child rules, not a general emptiness check) so a
@@ -185,14 +193,57 @@ const PLACEHOLDER_ACTIONS = (
  * substitution lives HERE, not in each caller, so every caller gets it for free.
  * @public
  */
-export function PanelHeaderRow({ title, actions, leading, sx, ...rest }: PanelHeaderRowProps) {
+export function PanelHeaderRow({ title, actions, leading, sx, isInput = false, onTitleChange, ...rest }: PanelHeaderRowProps) {
   const labels = resolveLabels(useOptionalHost()?.labels);
+  const [draft, setDraft] = React.useState<string | null>(null);
+  const inputRef = React.useRef<HTMLInputElement>(null);
+  const editing = draft !== null;
+  React.useEffect(() => {
+    if (editing) inputRef.current?.focus();
+  }, [editing]);
   const resolvedTitle = isEmptyHeaderContent(title) ? placeholderTitle(labels.untitledHeader) : title;
   const resolvedActions = isEmptyHeaderContent(actions) ? PLACEHOLDER_ACTIONS : actions;
+  const editable = isInput && typeof title === 'string' && onTitleChange !== undefined;
+  const commit = (): void => {
+    if (draft === null) return;
+    const next = draft.trim();
+    setDraft(null);
+    if (next !== '' && next !== title) onTitleChange?.(next);
+  };
+  const titleNode =
+    draft !== null ? (
+      <input
+        ref={inputRef}
+        aria-label={typeof title === 'string' ? title : undefined}
+        value={draft}
+        onChange={(event) => setDraft(event.target.value)}
+        onBlur={commit}
+        onKeyDown={(event) => {
+          if (event.key === 'Enter') commit();
+          else if (event.key === 'Escape') setDraft(null);
+        }}
+        style={{ font: 'inherit', color: 'inherit', background: 'transparent', border: 0, outline: 'none', padding: 0, width: '100%', minWidth: 0 }}
+      />
+    ) : editable ? (
+      <Box
+        component="span"
+        role="button"
+        tabIndex={0}
+        onClick={() => setDraft(title)}
+        onKeyDown={(event) => {
+          if (event.key === 'Enter' || event.key === ' ') setDraft(title);
+        }}
+        sx={{ cursor: 'text' }}
+      >
+        {resolvedTitle}
+      </Box>
+    ) : (
+      resolvedTitle
+    );
   return (
     <PanelHeader {...rest} sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 1, ...sx }}>
       {leading}
-      <Box sx={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 }}>{resolvedTitle}</Box>
+      <Box sx={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 }}>{titleNode}</Box>
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.25, flexShrink: 0 }}>{resolvedActions}</Box>
     </PanelHeader>
   );

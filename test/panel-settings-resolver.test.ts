@@ -202,7 +202,7 @@ test('enumerations: the four workspace-only enumerated tuning leaves accept ever
   const members: Record<string, readonly unknown[]> = {
     returnTieBreak: ['latest-first', 'earliest-first', 'row-order'],
     dropTieBreak: ['leftmost', 'rightmost'],
-    rowGesture: ['step', 'free', 'off'],
+    rowGesture: ['step', 'off'],
     initialScroll: ['start', 'end', 'root', { panel: 'x' }],
   };
   let executed = 0;
@@ -216,7 +216,7 @@ test('enumerations: the four workspace-only enumerated tuning leaves accept ever
       executed += 1;
     }
   }
-  assert.equal(executed, 12);
+  assert.equal(executed, 11);
 });
 
 test('enumerations: the per-panel tuning leaves resolve from the template layer, merged member by member over the library numbers', () => {
@@ -766,7 +766,7 @@ const WORKSPACE_ONLY_ASKS: ReadonlyArray<readonly [leaf: string, value: unknown]
   ['gestureLockMs', 100],
   ['returnTieBreak', 'row-order'],
   ['dropTieBreak', 'rightmost'],
-  ['rowGesture', 'free'],
+  ['rowGesture', 'off'],
   ['initialScroll', 'end'],
   ['chrome', { mode: 'hover-or-active' }],
   ['maxLivePanels', 3],

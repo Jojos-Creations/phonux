@@ -1,6 +1,7 @@
 /**
  * An omitted size follows the slot: inside a row `Panel`, `PanelFrame` and `PanelSizeBox` take the size the row draws the
- * slot at, so a tuned gap cannot leave a size box a few px off the slot; outside a row they keep the phone size.
+ * slot at, so a tuned gap cannot leave a size box a few px off the slot; outside a row they keep the phone size. Below a
+ * size box `Panel` and `PanelFrame` fill it instead, so they take the size the box is drawn at on every frame of a resize.
  */
 import { test, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
@@ -25,8 +26,14 @@ const CLAIMING = (): React.ReactElement => {
   return BARE();
 };
 
-async function rowWith(gap: number, slots: number) {
-  const view = definePanel({ id: 'sized', view: CLAIMING, settings: { slots } });
+/** A `Panel` and `PanelFrame` drawn straight in the slot, with no size box around them. */
+const UNBOXED = (): React.ReactElement => {
+  useFrameClaim('frame');
+  return React.createElement(Panel, { title: 'P', children: React.createElement(PanelFrame, null, 'x') });
+};
+
+async function rowWith(gap: number, slots: number, content: () => React.ReactElement = CLAIMING) {
+  const view = definePanel({ id: 'sized', view: content, settings: { slots } });
   const root = definePanel({ id: 'root', view: () => {
       useFrameClaim('frame');
       return null;
@@ -36,19 +43,29 @@ async function rowWith(gap: number, slots: number) {
   ws.addPanel('sized');
   const m = mountWorkspace(ws, { width: 4000 });
   await flush();
-  const box = m.container.querySelector<HTMLElement>('[data-panel-size-box]')!;
   const frame = m.container.querySelector<HTMLElement>('[data-phone-frame]')!;
-  const slot = box.closest<HTMLElement>('[data-row-slot]')!;
+  const slot = frame.closest<HTMLElement>('[data-row-slot]')!;
+  const box = slot.querySelector<HTMLElement>('[data-panel-size-box]')!;
   return { box, frame, slot };
 }
 
-test('in a row with a 24 px gap a two-slot panel size box, Panel and PanelFrame equal the drawn width', async () => {
+test('in a row with a 24 px gap a two-slot panel size box equals the drawn width, and Panel and PanelFrame fill it', async () => {
   const r = await rowWith(24, 2);
   const drawn = 2 * PHONE + 24;
   assert.equal(r.box.style.width, `${drawn}px`, 'the size box is the slot width, not 2 phones and the default gap');
-  assert.equal(getComputedStyle(r.frame).width, `${drawn}px`, 'PanelFrame');
-  assert.equal(getComputedStyle(r.box.firstElementChild!).width, `${drawn}px`, 'Panel');
+  assert.equal(getComputedStyle(r.frame).width, '100%', 'PanelFrame fills the box');
+  assert.equal(getComputedStyle(r.frame).height, '100%', 'PanelFrame fills the box in height');
+  assert.equal(getComputedStyle(r.box.firstElementChild!).width, '100%', 'Panel fills the box');
+  assert.equal(getComputedStyle(r.box.firstElementChild!).height, '100%', 'Panel fills the box in height');
   assert.notEqual(r.box.style.width, `${2 * PHONE + 16}px`, 'control: the default 16 px gap would price it differently');
+});
+
+test('in a row with a 24 px gap a two-slot Panel and PanelFrame with no size box equal the drawn width', async () => {
+  const r = await rowWith(24, 2, UNBOXED);
+  const drawn = 2 * PHONE + 24;
+  assert.equal(r.box, null, 'control: nothing boxes them');
+  assert.equal(getComputedStyle(r.frame).width, `${drawn}px`, 'PanelFrame');
+  assert.equal(getComputedStyle(r.frame.parentElement!).width, `${drawn}px`, 'Panel');
 });
 
 test('a one-slot panel in the same row is the phone width', async () => {

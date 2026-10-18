@@ -47,7 +47,7 @@ export interface WorkspaceShellStyleInput {
   /** Whether the row scrolls, for a caller with no `rowNumbers`. Ignored when `rowNumbers` is given. Default false. */
   rowScroll?: boolean;
   /** What the row's own scroll input does. Default: the library's `rowGesture`. */
-  rowGesture?: 'step' | 'free' | 'off';
+  rowGesture?: 'step' | 'off';
 }
 
 /** The values the row shell renders with, derived by `workspaceShellStyle`. @internal */
@@ -61,8 +61,11 @@ export interface WorkspaceShellStyle {
         /** Zero: the margin snaps with no animation. */
         duration: 0;
       };
-  /** The scroll container's horizontal overflow: 'auto' for a scrolling row whose gesture is not 'off', else 'hidden'. */
-  overflowX: 'hidden' | 'auto';
+  /**
+   * The scroll container's horizontal overflow, always 'hidden': the row moves only through its scroll writer, so the browser
+   * never scrolls it and its wheel listener can stay passive.
+   */
+  overflowX: 'hidden';
   /** True when the container scrolls but shows no scrollbar: a scrolling row whose gesture is 'step'. */
   hideScrollbar: boolean;
 }
@@ -82,7 +85,7 @@ export function workspaceShellStyle(i: WorkspaceShellStyleInput): WorkspaceShell
     marginLeft,
     // The margin snaps while stops exist: a gliding margin would leave the scrollable width short of where a stop sits.
     transition: i.rowResizeSettled && !(i.rowNumbers !== undefined && i.rowNumbers.stops.length > 0) ? (i.slide === undefined ? PANEL_TRANSITION : slideToTransition(i.slide)) : { duration: 0 },
-    overflowX: scrolls && gesture !== 'off' ? 'auto' : 'hidden',
+    overflowX: 'hidden',
     hideScrollbar: scrolls && gesture === 'step',
   };
 }
@@ -301,6 +304,8 @@ export function Workspace(props: WorkspaceProps): React.ReactElement {
           // The row never scrolls vertically: a panel scrolls its own content, and a wheel over the row must not move it off its workspace.
           overflowY: 'hidden',
           ...(style.hideScrollbar ? { scrollbarWidth: 'none', '&::-webkit-scrollbar': { display: 'none' } } : {}),
+          // A sideways swipe at the row's end must not chain to the page, where a browser reads it as back or forward.
+          ...(scrolls ? { overscrollBehaviorX: 'none' } : {}),
         }}
       >
         {beforeRow}
