@@ -1,56 +1,72 @@
 /**
- * The dot bar's geometry (rowDots.ts), pure: dot widths follow panel widths, the oval is the window, a click's
- * centring target clamps to the row, and a drag maps track px to scroll px.
+ * The dot bar's geometry (rowDots.ts), pure: a dot is as many phone dashes as its panel is phones wide, the oval is the
+ * window at a fixed width and slides with the scroll without a jump at a panel boundary, a click's centring target clamps
+ * to the row, and a drag maps track px to scroll px.
  */
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { centreScroll, dotLayout, dragScroll, trackScale } from '../rowDots.js';
+import { DOT_GAP_PX, DOT_PHONE_PX, centreScroll, dotLayout, dotMap, dragScroll, toScroll, toTrack } from '../rowDots.js';
 
-// Three panels 390 wide with a 16 gap: strip 1218 wide, window 600 wide, a 1000 px track.
-const row = { ids: ['a', 'b', 'c'], widths: [390, 390, 390], leftOffsets: [0, 406, 812], stripWidth: 1202, windowWidth: 600, maxScroll: 602 };
+// Three phones 390 wide with a 16 gap: one slot is 406 strip px and 30 track px (a 22 dash and an 8 gap).
+const row = { ids: ['a', 'b', 'c'], widths: [390, 390, 390], leftOffsets: [0, 406, 812], windowWidth: 600, maxScroll: 602 };
+const map = dotMap(row);
+const SLOT = DOT_PHONE_PX + DOT_GAP_PX;
+const near = (a: number, b: number, what: string): void => assert.ok(Math.abs(a - b) < 1e-6, `${what}: ${a} vs ${b}`);
 
-test('dot widths follow the panels: a wide panel is a wide dot, the odd one hollow', () => {
-  const wide = { ...row, widths: [390, 780, 390], leftOffsets: [0, 406, 1202], stripWidth: 1582 };
-  const l = dotLayout({ ...wide, hollow: [false, true, false], scrollLeft: 0, trackWidth: 1000, minDotPx: 1 });
-  const f = 1000 / 1582;
-  assert.deepEqual(l.dots.map((d) => d.width), [390 * f, 780 * f, 390 * f]);
+test('a dot is one phone dash per slot its panel spans, with one dot gap between dots, the odd one hollow', () => {
+  const wide = dotMap({ widths: [390, 796, 390], leftOffsets: [0, 406, 1218] });
+  const l = dotLayout({ ids: ['a', 'b', 'c'], hollow: [false, true, false], map: wide, windowWidth: 600, scrollLeft: 0 });
+  assert.deepEqual(l.dots.map((d) => d.width), [22, 52, 22]);
+  assert.deepEqual(l.dots.map((d) => d.left), [0, 30, 90]);
   assert.deepEqual(l.dots.map((d) => d.hollow), [false, true, false]);
+  assert.equal(wide.width, 112);
 });
 
-test('the oval is the window in track px, and its left follows the scroll', () => {
-  const f = 1000 / 1202;
-  const at0 = dotLayout({ ...row, hollow: [], scrollLeft: 0, trackWidth: 1000, minDotPx: 1 });
-  assert.equal(at0.oval.width, 600 * f);
-  assert.equal(at0.oval.left, 0);
-  const at200 = dotLayout({ ...row, hollow: [], scrollLeft: 200, trackWidth: 1000, minDotPx: 1 });
-  assert.equal(at200.oval.left, 200 * f);
+test('the oval keeps one width at every scroll, as many slots as the window holds, and only its left moves', () => {
+  const width = ((600 + 16) / 406) * SLOT - DOT_GAP_PX;
+  for (const scrollLeft of [0, 100, 203, 405, 406, 500, 602]) {
+    const l = dotLayout({ ...row, hollow: [], map, scrollLeft });
+    near(l.oval.width, width, `width at ${scrollLeft}`);
+  }
+  near(dotLayout({ ...row, hollow: [], map, scrollLeft: 0 }).oval.left, 0, 'left at 0');
+  near(dotLayout({ ...row, hollow: [], map, scrollLeft: 203 }).oval.left, SLOT / 2, 'left half a slot in');
+  near(dotLayout({ ...row, hollow: [], map, scrollLeft: 406 }).oval.left, SLOT, 'left one slot in');
 });
 
-test('a row that fits, or whose window is not measured, shows the oval over the whole track', () => {
-  const fits = dotLayout({ ...row, windowWidth: 2000, hollow: [], scrollLeft: 0, trackWidth: 1000, minDotPx: 1 });
-  assert.deepEqual(fits.oval, { left: 0, width: 1000 });
-  const unmeasured = dotLayout({ ...row, windowWidth: Infinity, hollow: [], scrollLeft: 0, trackWidth: 1000, minDotPx: 1 });
-  assert.deepEqual(unmeasured.oval, { left: 0, width: 1000 });
+test('the scroll-to-track map has no jump at a panel boundary, a wide one included', () => {
+  const wide = dotMap({ widths: [390, 796, 390], leftOffsets: [0, 406, 1218] });
+  for (const m of [map, wide]) {
+    for (const edge of m.strips.slice(1)) near(toTrack(m, edge - 1e-6), toTrack(m, edge), `at ${edge}`);
+  }
+  // A wide panel spans its slots at the same rate as a phone, so the oval's width does not change across it.
+  const at = (s: number) => dotLayout({ ids: ['a', 'b', 'c'], hollow: [], map: wide, windowWidth: 600, scrollLeft: s }).oval;
+  near(at(300).width, at(900).width, 'width across the wide panel');
 });
 
-test('a dot never narrows below minDotPx', () => {
-  const l = dotLayout({ ...row, widths: [10, 390, 390], hollow: [], scrollLeft: 0, trackWidth: 1000, minDotPx: 10 });
-  assert.equal(l.dots[0]?.width, 10);
+test('toScroll undoes toTrack inside the bar', () => {
+  for (const s of [0, 50, 406, 600, 1000]) near(toScroll(map, toTrack(map, s)), s, `round trip ${s}`);
+});
+
+test('a row that fits, or whose window is not measured, shows the oval over the whole bar', () => {
+  assert.deepEqual(dotLayout({ ...row, windowWidth: 2000, hollow: [], map, scrollLeft: 0 }).oval, { left: 0, width: map.width });
+  assert.deepEqual(dotLayout({ ...row, windowWidth: Infinity, hollow: [], map, scrollLeft: 0 }).oval, { left: 0, width: map.width });
+});
+
+test('the oval stops at the bar end even when the scroll would carry it past', () => {
+  const l = dotLayout({ ...row, hollow: [], map, scrollLeft: 5000 });
+  near(l.oval.left + l.oval.width, map.width, 'right edge');
 });
 
 test('an empty row and a single panel lay out without a dot gap or a divide by zero', () => {
-  const none = dotLayout({ ids: [], widths: [], leftOffsets: [], hollow: [], stripWidth: 0, windowWidth: Infinity, scrollLeft: 0, trackWidth: 1000, minDotPx: 1 });
-  assert.deepEqual(none.dots, []);
-  assert.equal(trackScale(1000, 0), 0);
-  const one = dotLayout({ ids: ['a'], widths: [390], leftOffsets: [0], hollow: [true], stripWidth: 390, windowWidth: 600, scrollLeft: 0, trackWidth: 1000, minDotPx: 1 });
-  assert.equal(one.dots[0]?.left, 0);
-  assert.ok(Math.abs((one.dots[0]?.width ?? 0) - 1000) < 1e-9);
-  assert.equal(one.dots[0]?.hollow, true);
+  const none = dotMap({ widths: [], leftOffsets: [] });
+  assert.equal(none.width, 0);
+  assert.deepEqual(dotLayout({ ids: [], hollow: [], map: none, windowWidth: Infinity, scrollLeft: 0 }).dots, []);
+  const one = dotLayout({ ids: ['a'], hollow: [true], map: dotMap({ widths: [390], leftOffsets: [0] }), windowWidth: 600, scrollLeft: 0 });
+  assert.deepEqual(one.dots, [{ id: 'a', left: 0, width: DOT_PHONE_PX, hollow: true }]);
 });
 
-test('a click centres a 390 panel, and a 2/3 or 4/5 wide panel as near as the row allows', () => {
-  assert.equal(centreScroll({ ...row, index: 1, maxScroll: 602 }), 406 + 195 - 300);
-  // The first panel cannot centre below zero; the last cannot centre past the row's end.
+test('a click centres a 390 panel, as near as the row allows at either end', () => {
+  assert.equal(centreScroll({ ...row, index: 1 }), 406 + 195 - 300);
   assert.equal(centreScroll({ ...row, index: 0 }), 0);
   assert.equal(centreScroll({ ...row, index: 2 }), 602);
 });
@@ -61,9 +77,7 @@ test('a row that cannot scroll, or an unmeasured window, gives no centring targe
 });
 
 test('a drag maps track px to scroll px and clamps to the row', () => {
-  const f = 1000 / 1202;
-  assert.equal(dragScroll({ startScroll: 100, dx: 50, trackWidth: 1000, stripWidth: 1202, maxScroll: 602 }), 100 + 50 / f);
-  assert.equal(dragScroll({ startScroll: 100, dx: -5000, trackWidth: 1000, stripWidth: 1202, maxScroll: 602 }), 0);
-  assert.equal(dragScroll({ startScroll: 100, dx: 5000, trackWidth: 1000, stripWidth: 1202, maxScroll: 602 }), 602);
-  assert.equal(dragScroll({ startScroll: 100, dx: 50, trackWidth: 1000, stripWidth: 0, maxScroll: 602 }), 100);
+  near(dragScroll({ startScroll: 0, dx: SLOT / 2, map, maxScroll: 602 }), 203, 'half a slot');
+  assert.equal(dragScroll({ startScroll: 100, dx: -5000, map, maxScroll: 602 }), 0);
+  assert.equal(dragScroll({ startScroll: 100, dx: 5000, map, maxScroll: 602 }), 602);
 });

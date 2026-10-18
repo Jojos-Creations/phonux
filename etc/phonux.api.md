@@ -488,6 +488,7 @@ export interface PanelDots {
         drag(dx: number): void;
         end(): void;
     } | null;
+    readonly width: number;
 }
 
 // @public
@@ -569,7 +570,9 @@ export function PanelHeaderRow(input: PanelHeaderRowProps): React_2.JSX.Element;
 // @public
 export interface PanelHeaderRowProps extends Omit<PanelHeaderProps, 'children' | 'title'> {
     actions?: React_2.ReactNode;
+    isInput?: boolean;
     leading?: React_2.ReactNode;
+    onTitleChange?: (next: string) => void;
     title: React_2.ReactNode;
 }
 
@@ -884,6 +887,9 @@ export interface PanelWindow {
     url: string;
     view: string;
 }
+
+// @public
+export const PHONE_FRAME_ATTRIBUTE = "data-phone-frame";
 
 // @public
 export const PHONE_MODELS: readonly PhoneModel[];
@@ -1240,8 +1246,6 @@ export function usePanelDots(i: {
             readonly hollowDot: boolean;
         };
     }[];
-    trackWidth: number;
-    minDotPx: number;
     scroller: React_2.RefObject<HTMLElement | null>;
 }): PanelDots;
 
@@ -1383,6 +1387,12 @@ export interface WindowOverlayProps {
 
 // @public
 export function Workspace(props: WorkspaceProps): React_2.ReactElement;
+
+// @public
+export const WORKSPACE_NAME_CONTROL_HEIGHT = 24;
+
+// @public
+export const WORKSPACE_NAME_INPUT_ATTRIBUTE = "data-workspace-name-input";
 
 // @public
 export function WorkspaceColumn(input: WorkspaceColumnProps): React_2.ReactElement;
