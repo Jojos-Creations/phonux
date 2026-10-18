@@ -167,9 +167,9 @@ export function PanelRow({
   const inherited = React.useContext(WorkspaceTuningContext);
   const given = tuning === undefined ? undefined : resolveWorkspaceTuning(tuning);
   const binding = bindingOf(workspace);
-  // The restored panels arrive with the settle, after the row mounted. The row keys its AnimatePresence on
-  // this flag, so the panels present at settle skip their enter and later ones animate.
-  const restoreSettled = React.useSyncExternalStore(workspace.panels.subscribe, () => workspace.panels.getSnapshot().status === 'ready');
+  // The restored panels arrive with the settle, after the row mounted. The row is not ready until the commit after it, and
+  // a slot that mounts before then starts at its rest, so restored panels skip their enter and later ones animate.
+  const restoreSettled = React.useSyncExternalStore(workspace.panels.subscribe, () => workspace.panels.getSnapshot().status === 'ready', () => false);
   const autoMountOf = React.useContext(AutoMountContext);
   const handMounted = binding.autoMounted && autoMountOf !== workspace;
   React.useEffect(() => {
@@ -330,7 +330,7 @@ export function PanelRow({
         width: reservedWidth,
       }}
     >
-      <AnimatePresence key={restoreSettled ? 'settled' : 'restoring'} initial={false}>
+      <AnimatePresence initial={false}>
         {domOrder.map((p) => {
           const presentIndex = present.indexOf(p);
           const rest = { leftOffset: leftOffsets[presentIndex]!, width: widths[presentIndex]! };
