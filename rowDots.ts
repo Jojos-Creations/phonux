@@ -17,36 +17,83 @@ export interface DotLayout {
   readonly oval: { readonly left: number; readonly width: number };
 }
 
-/** The track px per strip px; 0 before the row has a strip to scale. */
-export function trackScale(trackWidth: number, stripWidth: number): number {
-  return stripWidth > 0 && Number.isFinite(stripWidth) ? trackWidth / stripWidth : 0;
-}
+/** A dot's width by panel size: a panel one phone wide draws the first, two phones the second, and so on. A panel four or more phones wide draws the last. */
+export const DOT_WIDTH_PX = [8, 16, 24, 32] as const;
+
+/** The space between two dots, in px. */
+export const DOT_GAP_PX = 4;
 
 /**
- * Dots at the panels' strip positions scaled to the track, so a wide panel is a wide dot. A dot never narrows below
- * `minDotPx`. The oval is the window in track px: the whole track while the window is not measured or the row fits.
+ * Where each dot sits in the track, and the strip span each panel covers. A scroll position maps onto the track
+ * piecewise: inside a panel's span, the track moves across that panel's dot, so the oval tracks the scroll smoothly.
  */
-export function dotLayout(i: {
-  ids: readonly string[];
-  widths: readonly number[];
-  leftOffsets: readonly number[];
-  hollow: readonly boolean[];
-  stripWidth: number;
-  windowWidth: number;
-  scrollLeft: number;
-  trackWidth: number;
-  minDotPx: number;
-}): DotLayout {
-  const f = trackScale(i.trackWidth, i.stripWidth);
+export interface DotMap {
+  readonly lefts: readonly number[];
+  readonly widths: readonly number[];
+  readonly strips: readonly number[];
+  readonly spans: readonly number[];
+  readonly width: number;
+}
+
+/** The dot bar's map for the row's panels. Dot widths come from the panel's size, not from the track. */
+export function dotMap(i: { widths: readonly number[]; leftOffsets: readonly number[] }): DotMap {
+  const positive = i.widths.filter((w) => w > 0);
+  const unit = positive.length === 0 ? 1 : Math.min(...positive);
+  const lefts: number[] = [];
+  const widths: number[] = [];
+  const strips: number[] = [];
+  const spans: number[] = [];
+  let at = 0;
+  i.widths.forEach((w, k) => {
+    const slots = Math.max(1, Math.round(w / unit));
+    const dot = DOT_WIDTH_PX[Math.min(slots, DOT_WIDTH_PX.length) - 1]!;
+    const start = i.leftOffsets[k] ?? 0;
+    const next = i.leftOffsets[k + 1];
+    lefts.push(at);
+    widths.push(dot);
+    strips.push(start);
+    spans.push(next === undefined ? w : next - start);
+    at += dot + DOT_GAP_PX;
+  });
+  return { lefts, widths, strips, spans, width: Math.max(0, at - DOT_GAP_PX) };
+}
+
+/** The index of the last entry of `starts` that is at or before `at`, 0 when none is. */
+function segmentOf(starts: readonly number[], at: number): number {
+  let k = 0;
+  for (let j = 0; j < starts.length; j++) if (starts[j]! <= at) k = j;
+  return k;
+}
+
+/** The track px for strip scroll `at`, piecewise over the panels. */
+export function toTrack(map: DotMap, at: number): number {
+  if (map.lefts.length === 0) return 0;
+  const k = segmentOf(map.strips, at);
+  const span = map.spans[k]!;
+  const t = span > 0 ? Math.min(Math.max((at - map.strips[k]!) / span, 0), 1) : 0;
+  return map.lefts[k]! + t * map.widths[k]!;
+}
+
+/** The strip scroll for track px `at`: the inverse of `toTrack`, clamped to the bar. */
+export function toScroll(map: DotMap, at: number): number {
+  if (map.lefts.length === 0) return 0;
+  const k = segmentOf(map.lefts, at);
+  const dot = map.widths[k]!;
+  const t = dot > 0 ? Math.min(Math.max((at - map.lefts[k]!) / dot, 0), 1) : 0;
+  return map.strips[k]! + t * map.spans[k]!;
+}
+
+/** Dots at their sizes, plus the oval for the visible window, in track px from the bar's left edge. */
+export function dotLayout(i: { ids: readonly string[]; hollow: readonly boolean[]; map: DotMap; windowWidth: number; scrollLeft: number }): DotLayout {
   const dots = i.ids.map((id, k) => ({
     id,
-    left: (i.leftOffsets[k] ?? 0) * f,
-    width: Math.max(i.minDotPx, (i.widths[k] ?? 0) * f),
+    left: i.map.lefts[k] ?? 0,
+    width: i.map.widths[k] ?? 0,
     hollow: i.hollow[k] === true,
   }));
-  const width = Number.isFinite(i.windowWidth) ? Math.min(i.trackWidth, i.windowWidth * f) : i.trackWidth;
-  const left = Math.min(Math.max(0, i.scrollLeft * f), Math.max(0, i.trackWidth - width));
-  return { dots, oval: { left, width } };
+  const left = toTrack(i.map, i.scrollLeft);
+  const right = Number.isFinite(i.windowWidth) ? toTrack(i.map, i.scrollLeft + i.windowWidth) : i.map.width;
+  return { dots, oval: { left, width: Math.max(0, right - left) } };
 }
 
 /**
@@ -60,8 +107,7 @@ export function centreScroll(i: { index: number; leftOffsets: readonly number[];
 }
 
 /** The scroll after the oval has been dragged `dx` track px from where the drag began, clamped to the row's range. */
-export function dragScroll(i: { startScroll: number; dx: number; trackWidth: number; stripWidth: number; maxScroll: number }): number {
-  const f = trackScale(i.trackWidth, i.stripWidth);
-  if (!(f > 0)) return i.startScroll;
-  return Math.min(Math.max(i.startScroll + i.dx / f, 0), i.maxScroll);
+export function dragScroll(i: { startScroll: number; dx: number; map: DotMap; maxScroll: number }): number {
+  const at = toScroll(i.map, toTrack(i.map, i.startScroll) + i.dx);
+  return Math.min(Math.max(at, 0), i.maxScroll);
 }

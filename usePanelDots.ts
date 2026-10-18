@@ -6,7 +6,7 @@
 import * as React from 'react';
 import { useReducedMotion, useReducedMotionConfig } from 'motion/react';
 import { GLIDE_EASE, SLIDE_DURATION_SEC } from './rowConstants.js';
-import { centreScroll, dotLayout, dragScroll } from './rowDots.js';
+import { centreScroll, dotLayout, dotMap, dragScroll } from './rowDots.js';
 import { maxScrollOf, type RowNumbers } from './rowNumbers.js';
 import { rowScrollerFor, type ScrollClaim } from './rowScroller.js';
 
@@ -16,6 +16,8 @@ export interface PanelDots {
   readonly dots: readonly { readonly id: string; readonly left: number; readonly width: number; readonly hollow: boolean }[];
   /** The window oval in track px. */
   readonly oval: { readonly left: number; readonly width: number };
+  /** The bar's total width in px: its dots and the gaps between them. The app sizes the track to this. */
+  readonly width: number;
   /** Centres the panel `id` in the window. Does nothing when the row cannot scroll, or while a drag holds the row. */
   selectDot(id: string): void;
   /** Begins dragging the oval. Null while the row is held elsewhere (a gesture or another drag). Call `drag` with the pointer's track dx and `end` on release or cancel. */
@@ -24,19 +26,17 @@ export interface PanelDots {
 
 /**
  * The bar for one row. `rowNumbers` is `useProvidePanels(...).rowNumbers`; `entries` carries each drawn panel's
- * settings (the hollow dot is the panel setting `hollowDot`); `trackWidth` is the width the app gives the bar;
- * `minDotPx` is the narrowest a dot may draw; `scroller` is the row's scroll container (the element with
- * `data-row-scroller`). Reduce Motion snaps a dot click, under either the OS query or `MotionConfig`.
+ * settings (the hollow dot is the panel setting `hollowDot`); `scroller` is the row's scroll container (the element
+ * with `data-row-scroller`). A dot's width comes from its panel's size, and the bar grows and shrinks with the
+ * panels; the app sets no width for it. Reduce Motion snaps a dot click, under either the OS query or `MotionConfig`.
  * @public
  */
 export function usePanelDots(i: {
   rowNumbers: RowNumbers;
   entries: readonly { readonly id: string; readonly settings?: { readonly hollowDot: boolean } }[];
-  trackWidth: number;
-  minDotPx: number;
   scroller: React.RefObject<HTMLElement | null>;
 }): PanelDots {
-  const { rowNumbers: n, entries, trackWidth, minDotPx, scroller } = i;
+  const { rowNumbers: n, entries, scroller } = i;
   const systemReduced = useReducedMotion();
   const configReduced = useReducedMotionConfig();
   const reduced = systemReduced === true || configReduced === true;
@@ -52,17 +52,14 @@ export function usePanelDots(i: {
   }, [scroller]);
 
   const hollow = n.ids.map((id) => entries.find((e) => e.id === id)?.settings?.hollowDot === true);
+  const map = dotMap({ widths: n.widths, leftOffsets: n.leftOffsets });
   const layout = dotLayout({
     ids: n.ids,
-    widths: n.widths,
-    leftOffsets: n.leftOffsets,
     hollow,
-    stripWidth: n.stripWidth,
+    map,
     windowWidth: n.windowWidth,
     // The track starts at the strip's first panel, not at scroll 0.
     scrollLeft: scrollLeft - n.rowMarginLeft,
-    trackWidth,
-    minDotPx,
   });
   const maxScroll = maxScrollOf(n);
 
@@ -86,7 +83,7 @@ export function usePanelDots(i: {
     let open = true;
     return {
       drag(dx: number) {
-        if (open) claim.write(dragScroll({ startScroll, dx, trackWidth, stripWidth: n.stripWidth, maxScroll }));
+        if (open) claim.write(dragScroll({ startScroll, dx, map, maxScroll }));
       },
       end() {
         if (!open) return;
@@ -96,5 +93,5 @@ export function usePanelDots(i: {
     };
   };
 
-  return { dots: layout.dots, oval: layout.oval, selectDot, startOvalDrag };
+  return { dots: layout.dots, oval: layout.oval, width: map.width, selectDot, startOvalDrag };
 }
