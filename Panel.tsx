@@ -88,7 +88,7 @@ export function Panel({ title, actions, headerProps, headerButtons = true, grabP
   const registry = React.useContext(CaptureRegistryContext);
   const rootRef = React.useRef<HTMLDivElement | null>(null);
   const slot = React.useContext(PanelSlotContext);
-  // Below a size box the panel fills it, so it eases with the box instead of jumping to its new width.
+  // Below a size box the panel fills it on both axes, so it eases with the box and its frame's 100% has a height to resolve against.
   const boxed = useInsideSizeBox();
   const declared = slot?.headerButtonSlots;
   const buttons = usePanelHeaderButtons();
@@ -131,7 +131,7 @@ export function Panel({ title, actions, headerProps, headerButtons = true, grabP
   return (
     <PanelChromeVisibleContext.Provider value={visible}>
     <Box
-      sx={{ position: 'relative', width: boxed ? '100%' : (size?.width ?? slot?.drawn?.width ?? phoneSize.width), ...sx }}
+      sx={{ position: 'relative', width: boxed ? '100%' : (size?.width ?? slot?.drawn?.width ?? phoneSize.width), height: boxed ? '100%' : undefined, ...sx }}
       {...rest}
       {...(active ? { [ACTIVE_ATTRIBUTE]: '' } : {})}
       {...(dragging ? { [DRAGGING_ATTRIBUTE]: '' } : {})}
