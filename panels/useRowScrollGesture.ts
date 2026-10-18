@@ -4,8 +4,8 @@
  *
  * Under `mode` 'free' and 'off' no listener is installed: the browser scrolls natively ('free') or nothing does.
  *
- * Native `addEventListener`, not React's `onWheel`: React's wheel listener is passive, so the `preventDefault()` that
- * keeps a horizontal swipe from also scrolling the page vertically would do nothing.
+ * The wheel listener is passive and never cancels: a stepping row's overflow is hidden, so the browser has nothing of the row's
+ * to scroll, and a listener that could cancel would make the browser wait on it for every wheel over a panel, vertical ones too.
  *
  * `onStep` is read through a ref and never re-subscribed: it is a fresh closure every render (nothing here may be
  * memoised), and tearing the listeners down would lose the gesture's travel on every re-render, including the
@@ -67,7 +67,6 @@ export function useRowScrollGesture(
       if (raw === 0) return;
       // A panel's own horizontal scroller (a carousel, a wide table) takes the swipe while it can still move.
       if (e.target instanceof Element && contentScrolls(e.target, 'x', Math.sign(raw))) return;
-      e.preventDefault();
       const unit = Math.max(1, stepPxRef.current);
       const amount = e.deltaMode === 1 ? raw * LINE_PX : e.deltaMode === 2 ? raw * unit : raw;
       if (quietTimer) clearTimeout(quietTimer);
@@ -95,7 +94,7 @@ export function useRowScrollGesture(
       if (container.closest('[inert]') !== null) return;
       onStepRef.current(e.key === 'ArrowRight' ? 'right' : 'left');
     };
-    container.addEventListener('wheel', onWheel, { passive: false });
+    container.addEventListener('wheel', onWheel, { passive: true });
     window.addEventListener('keydown', onKeyDown);
     return () => {
       container.removeEventListener('wheel', onWheel);
