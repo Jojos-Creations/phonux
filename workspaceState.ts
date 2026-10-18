@@ -11,15 +11,14 @@ import { appendPanel, slotsOf, type PanelWindow } from './panelWindow.js';
 import { ALL_SLOTS } from './rowConstants.js';
 
 /**
- * One saved panel. `id` only names this panel inside its own file, so an `anchor` can point at another entry;
- * it is replaced on restore. Never saved: `hostData`, `size`, `locked`, `collapsible`, `anchoredEnter`, the settings
+ * One saved panel. An `anchor` or `scroll` names another entry by its `uid` (its `key` when it has no uid). Never saved: `hostData`, `size`, `locked`, `collapsible`, `anchoredEnter`, the settings
  * themselves and the host's root column. The keys from `key` on are written only for a panel that carries settings;
  * a file without them restores unchanged.
  * @public
  */
 export type WorkspacePanelState = {
-  /** Names this panel within its own file; other entries' `anchor.panel` may point at it. */
-  id: string;
+  /** Read only from a file saved before a panel was named by its `uid`: the name other entries' `anchor.panel` use there. A save never writes it, and a restore ignores it for naming the panel. */
+  id?: string;
   /** Id of the template that renders the panel. */
   view: string;
   /** The URL the panel shows; a file without one restores a panel with none. */
@@ -33,7 +32,7 @@ export type WorkspacePanelState = {
   /** Whether the panel was mounted in the row (true) or parked (false). */
   live: boolean;
   // Inline, not PanelAnchor: an interface is not assignable to JsonValue.
-  /** Where the panel sits: on `position`'s side of the entry with id `panel` (or the host's root column), ordered by `priority`. */
+  /** Where the panel sits: on `position`'s side of the entry whose `uid` (or `key`) is `panel`, or of the host's root column, ordered by `priority`. */
   anchor: { panel: string; position: 'left' | 'right'; priority: number };
   /** The panel's slot count, written only when it is more than one. */
   slots?: number;
@@ -49,7 +48,7 @@ export type WorkspacePanelState = {
   instance?: { [key: string]: JsonValue };
   /** What the person changed: where the panel sits, its slot count, whether it is parkable. Present (possibly empty) means the panel owns only the keys it holds. */
   overrides?: {
-    /** Where the person put the panel; `panel` names another entry of this file. */
+    /** Where the person put the panel; `panel` names another entry of this file as `anchor.panel` does. */
     anchor?: { panel: string; position: 'left' | 'right'; priority: number };
     /** The slot count the person chose. */
     slots?: number;
@@ -78,7 +77,7 @@ export type WorkspaceState = {
   /** How many slots wide the root panel (History) was, when more than one. A file saved before slots has none. */
   rootSlots?: number;
   /**
-   * Where the row rested, once a person moved it: `panel` is the id of the first panel the window showed at that stop,
+   * Where the row rested, once a person moved it: `panel` is the `uid` of the first panel the window showed at that stop (the root's id for the root),
    * and `offset` how many phone widths the stop lies from that panel's left edge (negative left of it). A reload
    * restores the same stop; a panel that is gone, or a row with no stops, restores as if there were none.
    */
@@ -116,7 +115,7 @@ function isSavedPanel(value: unknown): value is WorkspacePanelState {
   if (!isRecord(value)) return false;
   const { anchor } = value;
   return (
-    typeof value.id === 'string' &&
+    isOptional(value.id, 'string') &&
     typeof value.view === 'string' &&
     isOptional(value.url, 'string') &&
     typeof value.live === 'boolean' &&
@@ -136,13 +135,14 @@ function isSavedPanel(value: unknown): value is WorkspacePanelState {
 
 /**
  * Whether `value` is a workspace file this version understands: version 1, a `panels` array of well-typed entries
- * with unique ids. Unknown extra keys are accepted (a later optional field is additive); `params` is not deep-checked.
+ * with unique ids where they hold one. Unknown extra keys are accepted (a later optional field is additive); `params` is not deep-checked.
  */
 export function isWorkspaceState(value: unknown): value is WorkspaceState {
   if (!isRecord(value) || value.version !== 1 || !Array.isArray(value.panels)) return false;
   const panels: unknown[] = value.panels;
   if (!panels.every(isSavedPanel)) return false;
-  return new Set(panels.map((p) => p.id)).size === panels.length;
+  const ids = panels.flatMap((p) => (p.id === undefined ? [] : [p.id]));
+  return new Set(ids).size === ids.length;
 }
 
 /** What the sanitizer dropped from a saved entry and why. */
@@ -284,6 +284,9 @@ function jsonSafe(value: unknown): JsonValue | undefined {
 export function projectWorkspaceState(panels: readonly PanelWindow[], rootId: string, dismissed: readonly string[] = [], scroll?: NonNullable<WorkspaceState['scroll']>): WorkspaceState {
   const positional = new Map(deriveAnchorsFromOrder(panels, rootId).map((p) => [p.id, p.anchor]));
   const root = panels.find((p) => p.id === rootId);
+  // A counter id restarts every launch, so the file names a panel by what outlives one: its uid, else its key.
+  const names = new Map(panels.map((p) => [p.id, p.uid ?? p.key ?? p.id]));
+  const nameOf = (id: string): string => (id === rootId ? rootId : (names.get(id) ?? id));
   return {
     version: 1,
     panels: panels
@@ -296,13 +299,12 @@ export function projectWorkspaceState(panels: readonly PanelWindow[], rootId: st
           if (p.declared !== true) extras.instance = (jsonSafe(p.instance ?? {}) ?? {}) as { [key: string]: JsonValue };
           if (p.overrides !== undefined) {
             const { anchor: held, ...rest } = p.overrides;
-            extras.overrides = { ...(held === undefined ? {} : { anchor: { ...held } }), ...rest };
+            extras.overrides = { ...(held === undefined ? {} : { anchor: { ...held, panel: nameOf(held.panel) } }), ...rest };
           }
           if (p.applied !== undefined) extras.applied = { placeOnAdd: p.applied.placeOnAdd };
           if (p.locked) extras.closable = false;
         }
         return {
-          id: p.id,
           ...(p.uid !== undefined ? { uid: p.uid } : {}),
           view: p.view,
           url: p.url,
@@ -310,7 +312,7 @@ export function projectWorkspaceState(panels: readonly PanelWindow[], rootId: st
           ...(p.params !== undefined ? { params: p.params } : {}),
           ...(p.listed !== undefined ? { listed: p.listed } : {}),
           live: p.live,
-          anchor: { panel: anchor.panel, position: anchor.position, priority: anchor.priority },
+          anchor: { panel: nameOf(anchor.panel), position: anchor.position, priority: anchor.priority },
           ...(p.slots !== undefined && p.slots !== 1 ? { slots: p.slots } : {}),
           ...(!p.collapsible ? { permanent: true } : {}),
           ...(p.layer !== undefined ? { layer: p.layer } : {}),
@@ -320,7 +322,7 @@ export function projectWorkspaceState(panels: readonly PanelWindow[], rootId: st
     ...(dismissed.length > 0 ? { dismissed: [...dismissed] } : {}),
     ...(root?.settings !== undefined && root.key !== undefined ? { root: root.key } : {}),
     ...(root !== undefined && slotsOf(root) > 1 ? { rootSlots: slotsOf(root) } : {}),
-    ...(scroll !== undefined ? { scroll: { panel: scroll.panel, offset: scroll.offset } } : {}),
+    ...(scroll !== undefined ? { scroll: { panel: nameOf(scroll.panel), offset: scroll.offset } } : {}),
   };
 }
 
@@ -347,15 +349,31 @@ export function entryFromSaved(s: WorkspacePanelState, id: string, anchor: Panel
 }
 
 /**
+ * What each name an entry answers to maps to in `values` (parallel to the entries): its `uid`, its `key`, and the `id`
+ * a file saved before panels were named by uid holds. A name claimed twice goes to the first, and a uid outranks
+ * an id outranks a key, so a name an older file gave a counter id is read as that id.
+ */
+export function savedNames<T>(entries: readonly { id?: string; uid?: unknown; key?: unknown }[], values: readonly T[]): Map<string, T> {
+  const out = new Map<string, T>();
+  for (const field of ['uid', 'id', 'key'] as const) {
+    entries.forEach((e, k) => {
+      const name = e[field];
+      if (typeof name === 'string' && name !== '' && !out.has(name)) out.set(name, values[k]!);
+    });
+  }
+  return out;
+}
+
+/**
  * The panels `state` describes, in row order and without the root, each under a fresh id from `freshId`. `hostData`
  * is left for the caller: only the host knows what a new panel carries.
  */
 export function hydrateWorkspaceState(state: WorkspaceState, freshId: () => string, rootId: string): PanelWindow[] {
-  // Every entry's id is drawn before anything else, so a saved id that happens to equal a fresh one is never reused.
+  // Every entry's id is drawn before anything else, so a saved name that happens to equal a fresh id is never reused.
   const fresh = state.panels.map(() => freshId());
-  const freshOf = new Map(state.panels.map((s, i) => [s.id, fresh[i]!]));
-  // One id nothing else holds stands in for every anchor target the file does not contain: a saved id kept as it
-  // is could equal a fresh one (both count up from 1 each launch) and attach the panel to a stranger.
+  const freshOf = savedNames(state.panels, fresh);
+  // One id nothing else holds stands in for every anchor target the file does not contain: a name kept as it
+  // is could equal a fresh id (both count up from 1 each launch) and attach the panel to a stranger.
   let missing: string | undefined;
   const targetOf = (saved: string): string => {
     if (saved === rootId) return rootId;

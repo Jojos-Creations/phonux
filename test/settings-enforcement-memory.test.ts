@@ -524,7 +524,7 @@ test('a plain 0.1.0 file restores through a workspace with no templates or decla
   assert.equal(l.byTitle('b').slots, 2);
 });
 
-test('the file this build writes passes the vendored 0.1.0 isWorkspaceState', async () => {
+test('the file this build writes carries no counter id, which the vendored 0.1.0 isWorkspaceState requires', async () => {
   const { isWorkspaceState: legacyGuard } = await vendored();
   const mem = memory();
   const l = await launch(mem, { workspaceDefaults: {}, templates: [tpl('m', { multiple: true })], declared: [{ id: 'decl', templateId: 'm' }] });
@@ -534,7 +534,10 @@ test('the file this build writes passes the vendored 0.1.0 isWorkspaceState', as
   l.flush();
   const file = mem.file()!;
   assert.ok(file.panels.some((p) => p.overrides !== undefined && p.instance !== undefined), 'control: the file carries the new keys');
-  assert.equal(legacyGuard(file), true);
+  assert.ok(file.panels.every((p) => !('id' in p)), 'no entry carries an id');
+  assert.equal(legacyGuard(file), false, 'a 0.1.0 reader refuses a file without ids');
+  const withIds = { ...file, panels: file.panels.map((p, k) => ({ ...p, id: String(k + 1) })) };
+  assert.equal(legacyGuard(withIds), true, 'control: the same file with ids passes the 0.1.0 guard');
 });
 
 test('malformed overrides, dismissed, applied, a duplicate key and a 300-entry dismissed each end settled with the row intact', async () => {

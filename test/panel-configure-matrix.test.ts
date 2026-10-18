@@ -151,7 +151,7 @@ async function nowCell(status: Status): Promise<void> {
 const NEXT_PATCH = { hideStickiness: 'until-room', capacityReturn: 'manual' } as const;
 
 const wait = (): Promise<void> => act(async () => void (await new Promise((resolve) => setTimeout(resolve, 150))));
-const keysOf = async (store: WorkspaceStorage): Promise<string[]> => ((await store.load())?.panels ?? []).map((p) => p.key ?? p.id);
+const keysOf = async (store: WorkspaceStorage): Promise<string[]> => ((await store.load())?.panels ?? []).map((p) => p.key ?? p.id ?? p.uid ?? '');
 
 async function nextCell(status: Status): Promise<void> {
   const cell = CLASS_TABLE.NEXT[status];
@@ -1052,7 +1052,7 @@ async function quit(r: MatrixRig): Promise<void> {
   r.m.unmount();
 }
 const fileOf = async (store: Store) => (await store.load())!;
-const keysIn = async (store: Store): Promise<string[]> => (await fileOf(store)).panels.map((p) => p.key ?? p.id);
+const keysIn = async (store: Store): Promise<string[]> => (await fileOf(store)).panels.map((p) => p.key ?? p.id ?? p.uid ?? '');
 
 test('matrix:restoreVisibility', async () => {
   probe('restoreVisibility');

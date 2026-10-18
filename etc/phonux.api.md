@@ -1471,7 +1471,7 @@ export type WorkspacePanelsInput = Partial<Omit<PanelsInput, 'workspace' | 'phon
 
 // @public
 export type WorkspacePanelState = {
-    id: string;
+    id?: string;
     view: string;
     url?: string;
     title?: string;

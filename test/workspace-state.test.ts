@@ -18,8 +18,10 @@ import type { JsonValue, PanelWindow, WorkspacePanelState, WorkspaceState } from
 const ROOT = 'history';
 
 /** A collapsible live panel as the host holds it; `more` overrides any field. */
+const uidFor = (id: string): string => `u_${Buffer.from(id).toString('hex').padEnd(32, '0')}`;
 const panel = (id: string, more: Partial<PanelWindow> = {}): PanelWindow => ({
   id,
+  uid: uidFor(id),
   url: `https://${id}.example`,
   live: true,
   locked: false,
@@ -67,12 +69,12 @@ test('W1 project saves exactly the documented keys, never hostData, size, locked
   });
   const state = projectWorkspaceState([root, full], ROOT);
   assert.equal(state.version, 1);
-  assert.deepEqual(state.panels.map((p) => p.id), ['7'], 'control: the panel is saved and the root is not');
+  assert.deepEqual(state.panels.map((p) => p.uid), [uidFor('7')], 'control: the panel is saved and the root is not');
   const entry = state.panels[0]!;
-  assert.deepEqual(Object.keys(entry).sort(), ['anchor', 'id', 'layer', 'listed', 'live', 'params', 'slots', 'title', 'url', 'view']);
+  assert.deepEqual(Object.keys(entry).sort(), ['anchor', 'layer', 'listed', 'live', 'params', 'slots', 'title', 'uid', 'url', 'view'], 'no counter id is saved');
   for (const key of ['hostData', 'size', 'locked', 'collapsible', 'anchoredEnter', 'permanent']) assert.equal(key in entry, false, key);
   assert.deepEqual(entry, {
-    id: '7',
+    uid: uidFor('7'),
     view: 'web',
     url: 'https://7.example',
     title: 'Seven',
@@ -92,17 +94,17 @@ test('W2 project derives permanent from collapsible and emits an optional key on
   const rail = panel('rail', { collapsible: false, listed: false, title: 'Rail', slots: 1 });
   const rich = panel('rich', { title: '', params: null, listed: false, layer: 'raised', slots: ALL_SLOTS });
   const [b, u, r, c] = projectWorkspaceState([createHistoryPanel(ROOT), bare, undefinedKeys, rail, rich], ROOT).panels;
-  assert.deepEqual(Object.keys(b!).sort(), ['anchor', 'id', 'live', 'url', 'view'], 'a record without listed, title, params, layer or slots saves none of those keys');
+  assert.deepEqual(Object.keys(b!).sort(), ['anchor', 'live', 'url', 'view'], 'a record without listed, title, params, layer or slots saves none of those keys');
   assert.equal(b!.live, false);
-  assert.deepEqual(Object.keys(u!).sort(), ['anchor', 'id', 'listed', 'live', 'url', 'view'], 'keys that are present but undefined are not emitted');
+  assert.deepEqual(Object.keys(u!).sort(), ['anchor', 'listed', 'live', 'uid', 'url', 'view'], 'keys that are present but undefined are not emitted');
   assert.equal(r!.permanent, true, 'collapsible false is saved as permanent');
-  assert.deepEqual(Object.keys(r!).sort(), ['anchor', 'id', 'listed', 'live', 'permanent', 'title', 'url', 'view']);
+  assert.deepEqual(Object.keys(r!).sort(), ['anchor', 'listed', 'live', 'permanent', 'title', 'uid', 'url', 'view']);
   assert.equal('slots' in r!, false, 'one slot is the default and is not written');
   assert.equal('permanent' in u!, false, 'a collapsible panel never carries permanent');
   assert.equal('permanent' in c!, false);
   assert.deepEqual([c!.title, c!.params, c!.listed, c!.layer, c!.slots], ['', null, false, 'raised', ALL_SLOTS], 'defined values are emitted as they are, falsy ones included');
   for (const entry of [b!, u!, r!, c!]) {
-    for (const [key, value] of Object.entries({ ...entry, ...entry.anchor })) assert.notEqual(value, undefined, `${entry.id}.${key} holds undefined`);
+    for (const [key, value] of Object.entries({ ...entry, ...entry.anchor })) assert.notEqual(value, undefined, `${entry.uid}.${key} holds undefined`);
   }
 });
 
@@ -111,11 +113,11 @@ test('W3 project fills a missing anchor from position, round-trips through JSON 
   const right1 = panel('r1');
   const right2 = panel('r2', { anchor: { panel: 'r1', position: 'left', priority: 4 } });
   const state = projectWorkspaceState([left, createHistoryPanel(ROOT), right1, right2], ROOT);
-  assert.deepEqual(state.panels.map((p) => [p.id, p.anchor]), [
-    ['l', { panel: ROOT, position: 'left', priority: 0 }],
-    ['r1', { panel: ROOT, position: 'right', priority: 0 }],
-    ['r2', { panel: 'r1', position: 'left', priority: 4 }],
-  ], 'an anchor the panel already has is copied as it stands');
+  assert.deepEqual(state.panels.map((p) => [p.uid, p.anchor]), [
+    [uidFor('l'), { panel: ROOT, position: 'left', priority: 0 }],
+    [uidFor('r1'), { panel: ROOT, position: 'right', priority: 0 }],
+    [uidFor('r2'), { panel: uidFor('r1'), position: 'left', priority: 4 }],
+  ], 'an anchor the panel already has is copied as it stands, its target named by uid');
   const asJson: JsonValue = state;
   assert.deepEqual(JSON.parse(JSON.stringify(asJson)), state);
   assert.equal(isWorkspaceState(JSON.parse(JSON.stringify(state))), true, 'what project writes is what the guard reads');
@@ -259,7 +261,7 @@ test('W10 isWorkspaceState accepts a good file and extra keys, and rejects every
     ['an entry that is null', (s) => { s.panels[1] = null; }],
     ['an entry that is a string', (s) => { s.panels[1] = 'b'; }],
     ['an entry that is an array', (s) => { s.panels[1] = []; }],
-    ['no id', (s) => { delete s.panels[1].id; }],
+    ['an object id', (s) => { s.panels[1].id = {}; }],
     ['a numeric id', (s) => { s.panels[1].id = 2; }],
     ['no view', (s) => { delete s.panels[1].view; }],
     ['a url that is not a string', (s) => { s.panels[1].url = 5; }],

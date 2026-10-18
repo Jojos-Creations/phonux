@@ -677,7 +677,7 @@ export interface ViewSnapshot {
 
 // @public
 export type WorkspacePanelState = {
-    id: string;
+    id?: string;
     view: string;
     url?: string;
     title?: string;
