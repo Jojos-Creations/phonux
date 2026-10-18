@@ -28,7 +28,8 @@ const dotWidthOf = (slots: number): number => slots * DOT_PHONE_PX + (slots - 1)
 
 /**
  * Where each dot sits in the track, and the strip span each panel covers. A scroll position maps onto the track
- * piecewise: inside a panel's span, the track moves across that panel's dot, so the oval tracks the scroll smoothly.
+ * piecewise: a panel's span (the panel and the gap after it) maps onto its dot and the dot gap after it, so the map has
+ * no jump at a boundary and the oval tracks the scroll smoothly.
  */
 export interface DotMap {
   readonly lefts: readonly number[];
@@ -36,6 +37,9 @@ export interface DotMap {
   readonly strips: readonly number[];
   readonly spans: readonly number[];
   readonly width: number;
+  /** One phone slot (a phone and a row gap) in strip px, and the phone width, which size the oval to the window. */
+  readonly pitch: number;
+  readonly phone: number;
 }
 
 /** The dot bar's map for the row's panels. Dot widths come from the panel's size, not from the track. */
@@ -58,7 +62,10 @@ export function dotMap(i: { widths: readonly number[]; leftOffsets: readonly num
     spans.push(next === undefined ? w : next - start);
     at += dot + DOT_GAP_PX;
   });
-  return { lefts, widths, strips, spans, width: Math.max(0, at - DOT_GAP_PX) };
+  // A span between two panels is `slots` phones and as many gaps, so the narrowest per-slot span is one phone and one gap.
+  const pitches = spans.slice(0, -1).map((span, k) => span / Math.max(1, Math.round(i.widths[k]! / unit)));
+  const pitch = pitches.length === 0 ? unit : Math.min(...pitches);
+  return { lefts, widths, strips, spans, width: Math.max(0, at - DOT_GAP_PX), pitch, phone: unit };
 }
 
 /** The index of the last entry of `starts` that is at or before `at`, 0 when none is. */
@@ -68,21 +75,24 @@ function segmentOf(starts: readonly number[], at: number): number {
   return k;
 }
 
+/** The track width segment `k` covers: its dot, and the dot gap after it unless it is the last. */
+const trackSpan = (map: DotMap, k: number): number => map.widths[k]! + (k < map.lefts.length - 1 ? DOT_GAP_PX : 0);
+
 /** The track px for strip scroll `at`, piecewise over the panels. */
 export function toTrack(map: DotMap, at: number): number {
   if (map.lefts.length === 0) return 0;
   const k = segmentOf(map.strips, at);
   const span = map.spans[k]!;
   const t = span > 0 ? Math.min(Math.max((at - map.strips[k]!) / span, 0), 1) : 0;
-  return map.lefts[k]! + t * map.widths[k]!;
+  return map.lefts[k]! + t * trackSpan(map, k);
 }
 
 /** The strip scroll for track px `at`: the inverse of `toTrack`, clamped to the bar. */
 export function toScroll(map: DotMap, at: number): number {
   if (map.lefts.length === 0) return 0;
   const k = segmentOf(map.lefts, at);
-  const dot = map.widths[k]!;
-  const t = dot > 0 ? Math.min(Math.max((at - map.lefts[k]!) / dot, 0), 1) : 0;
+  const track = trackSpan(map, k);
+  const t = track > 0 ? Math.min(Math.max((at - map.lefts[k]!) / track, 0), 1) : 0;
   return map.strips[k]! + t * map.spans[k]!;
 }
 
@@ -94,9 +104,12 @@ export function dotLayout(i: { ids: readonly string[]; hollow: readonly boolean[
     width: i.map.widths[k] ?? 0,
     hollow: i.hollow[k] === true,
   }));
-  const left = toTrack(i.map, i.scrollLeft);
-  const right = Number.isFinite(i.windowWidth) ? toTrack(i.map, i.scrollLeft + i.windowWidth) : i.map.width;
-  return { dots, oval: { left, width: Math.max(0, right - left) } };
+  // The window is a fixed width, so the oval is too: as many phone dots and dot gaps as the window holds slots. Only its left moves.
+  const gap = i.map.pitch - i.map.phone;
+  const slots = Number.isFinite(i.windowWidth) && i.map.pitch > 0 ? (i.windowWidth + gap) / i.map.pitch : Infinity;
+  const width = Math.min(i.map.width, Math.max(0, slots * (DOT_PHONE_PX + DOT_GAP_PX) - DOT_GAP_PX));
+  const left = Math.min(Math.max(toTrack(i.map, i.scrollLeft), 0), i.map.width - width);
+  return { dots, oval: { left, width } };
 }
 
 /**
