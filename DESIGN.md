@@ -819,7 +819,7 @@ type WorkspaceState = {
 };
 
 type WorkspacePanelState = {
-  id: string;
+  id?: string;
   view: string;
   url: string;
   title?: string;
@@ -838,10 +838,11 @@ The saved file also holds `scroll?: { panel: string; offset: number }`, the row'
 
 `version` is a literal `1`, bumped only on a breaking shape change; an unrecognized value is handled in
 "Versioning and failure" below. `panels` holds one entry per saveable panel, in row order; the host's own root
-column (History today) is never one of them (see "Permanent columns" below). `id` is FILE-SCOPED ONLY: it
-resolves another entry's `anchor.panel` within this same array during hydrate, and is always replaced with a
-fresh runtime id on restore -- a saved id is never reused verbatim, since panel ids restart at 1 each launch.
-`view` is the registry key; an unrecognized key renders the existing placeholder, the same as it does outside
+column (History today) is never one of them (see "Permanent columns" below). `id` is read from an older file and never written: it was the panel's counter id, the name another entry's
+`anchor.panel` used within the array, and counter ids restart at 1 each launch, so a file that carried them was
+rewritten by every relaunch. A file now names a panel by its `uid` (its `key` for an entry with no uid) in every `anchor.panel`,
+`overrides.anchor.panel` and `scroll.panel`; the host's root column keeps its own id. A restore reads `id` only as one more name an
+anchor may use, in a file that holds it, and draws a fresh runtime id for every entry. `view` is the registry key; an unrecognized key renders the existing placeholder, the same as it does outside
 restore, never dropped. `params` is opaque and view-supplied, carried verbatim and never interpreted, and the
 guard does not look inside it. `listed` defaults to `true` when a panel isn't `permanent`, but `permanent:true`
 forces `listed:false` regardless of any `listed` also present in the same saved entry -- the identical forcing
@@ -856,8 +857,8 @@ when its `panel` is dangling or cyclic (see "How hydrate builds the list" below)
 
 **`uid`.** Each saved entry also carries an optional `uid` so two copies of a file, on two devices, can match panels. It
 is opaque: `u_` and 32 lowercase hex characters (128 random bits, from `crypto.getRandomValues`, with `Math.random`
-where crypto is missing). It is not the panel's `key` and not its public id, is never matched as a name, and is never
-used as a handle; the runtime `id` above stays file-scoped. `appendPanel` is the one place a panel gets its uid (so a
+where crypto is missing). It is not the panel's `key` and not its public id, and is never used as a handle; inside a file it
+is the name entries use for one another (see above), and a counter id a panel holds at runtime is never saved. `appendPanel` is the one place a panel gets its uid (so a
 plain, a template, a declared and a restored panel all do), and a closed panel that `undoClose` brings back is the same
 entry, so it keeps it. A restore reads a saved uid back for each entry; a uid that is repeated, empty, not of that form
 or not a string is dropped with an `invalid-saved-setting` note and made again. A panel already in the row (a declared
@@ -870,7 +871,7 @@ are made again at the next launch of a newer one and panels match only between d
 
 ### What's saved, and what's never
 
-- **Saved.** `id` (file-scoped only, remapped on restore), `view`, `url`, `title`, `params`, `listed`, `live`,
+- **Saved.** `view`, `url`, `title`, `params`, `listed`, `live`,
   `anchor`, `slots`, `permanent`, `layer`, and the file-level `scroll` (see "Where the row rests"). `listed` and `layer` are written whenever the panel
   has them, `slots` only when it is not 1, `title` and `params` only when defined, and `permanent` only when true; no key is ever written as
   `undefined`. A panel with no anchor of its own is saved with the one its position in the row implies.
@@ -940,15 +941,16 @@ resolves with, so a host may hand it unvalidated JSON.
 
 ### How hydrate builds the list
 
-Hydrate draws a fresh id for EVERY saved entry before it does anything else, so a saved id that happens to
-equal a fresh one is never reused. It then builds each entry through `appendPanel`, the one creation function,
+Hydrate draws a fresh id for EVERY saved entry before it does anything else, so a saved name that happens to
+equal a fresh id is never reused. It then builds each entry through `appendPanel`, the one creation function,
 so every default and every creation rule (`permanent` forcing `listed:false` and one slot, a slot count's
 size from `sizeOfSlots`) has no second copy, and overwrites `anchor` and `live` from the file. It copies only
 the keys it knows, which is what makes a later optional field additive (see "Versioning and failure" below).
 
-An anchor's target is mapped as follows: the root stays the root; a saved id maps to the fresh id of that entry;
-anything else (an entry closed before the file was written, or a hand-edited id) maps to ONE id drawn lazily
-after the entries, which no panel holds. A saved id kept as it stood could equal a fresh one -- both count up
+An anchor's target is mapped as follows: the root stays the root; a saved name maps to the fresh id of that entry (its `uid`
+first, then the `id` an older file holds, then its `key`; a name two entries claim goes to the first);
+anything else (an entry closed before the file was written, or a hand-edited name) maps to ONE id drawn lazily
+after the entries, which no panel holds. A saved name kept as it stood could equal a fresh id -- both count up
 from 1 each launch -- and would attach the panel to a stranger; with the unheld id, `computeRowOrder`'s own
 fallback for a missing target applies (the root's right side, the priority kept), the same one a self-anchor or a
 cycle gets. Hydrate then runs ONE `computeRowOrder` over the whole set: placing the entries one at a time would
