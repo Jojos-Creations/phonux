@@ -208,12 +208,13 @@ test('a destroyed mount leaves the workspace usable by the next one', () => {
 
 const FILLER = ['f1', 'f2', 'f3', 'f4', 'f5'];
 
-/** Where the row rests after `addPanel` of a template asking `scrollOnOpen`, with five panels already there and a 1000 wide window. */
-async function addedAt(scrollOnOpen: PanelSettings['scrollOnOpen'] | undefined): Promise<{ at: number; mountedAt: number; notes: string[] }> {
-  const t = markerTemplate('scr', { settings: { placeOnAdd: { after: 'f2' }, ...(scrollOnOpen === undefined ? {} : { scrollOnOpen }) } });
-  const w = createWorkspace({ mount: false, templates: [t, ...FILLER.map((id) => markerTemplate(id, { settings: { scrollOnOpen: 'none' } }))], tuning: { rowGesture: 'free' } });
-  for (const id of FILLER) w.addPanel(id);
-  const m = mountWorkspace(w);
+/** Where the row rests after `addPanel` of a template asking `scrollOnOpen`, with `fillers` panels already there (five by default) and a 1000 wide window unless `width` says otherwise. The new panel lands after the filler `after`. */
+async function addedAt(scrollOnOpen: PanelSettings['scrollOnOpen'] | undefined, o: { width?: number; fillers?: readonly string[]; after?: string } = {}): Promise<{ at: number; mountedAt: number; notes: string[] }> {
+  const fillers = o.fillers ?? FILLER;
+  const t = markerTemplate('scr', { settings: { placeOnAdd: { after: o.after ?? 'f2' }, ...(scrollOnOpen === undefined ? {} : { scrollOnOpen }) } });
+  const w = createWorkspace({ mount: false, templates: [t, ...fillers.map((id) => markerTemplate(id, { settings: { scrollOnOpen: 'none' } }))], tuning: { rowGesture: 'free' } });
+  for (const id of fillers) w.addPanel(id);
+  const m = mountWorkspace(w, o.width === undefined ? {} : { width: o.width });
   await flush();
   await advanceFrames(900);
   const mountedAt = m.container.scrollLeft;
@@ -227,14 +228,15 @@ test('first paint never scrolls: panels declared before mount and replayed at se
   assert.equal(r.mountedAt, 0);
 });
 
-test('addPanel after ready scrolls to the literal target of scrollOnOpen: into-view, start and center each land elsewhere', async () => {
-  const into = await addedAt('into-view');
-  const start = await addedAt('start');
-  const center = await addedAt('center');
+test('addPanel after ready scrolls to the literal target of scrollOnOpen: into-view, start and center each land on a different stop', async () => {
+  // Eight panels and a 1600 wide window, the new one fourth: the row rests on the one-phone grid (406 px apart), and these
+  // three aligns snap to three different stops (a narrower window leaves two of them on one).
+  const shape = { width: 1600, fillers: ['f1', 'f2', 'f3', 'f4', 'f5', 'f6', 'f7', 'f8'], after: 'f4' };
+  const into = await addedAt('into-view', shape);
+  const start = await addedAt('start', shape);
+  const center = await addedAt('center', shape);
   assert.ok(into.at > 0, 'positive control: a request was recorded and the row moved');
-  assert.equal(new Set([into.at, start.at, center.at]).size, 3, `${into.at} ${start.at} ${center.at}`);
-  assert.ok(start.at > into.at);
-  assert.ok(center.at > into.at && center.at < start.at);
+  assert.deepEqual([into.at, center.at, start.at], [406, 1218, 1624]);
 });
 
 test('the default scrollOnOpen is the library default', async () => {

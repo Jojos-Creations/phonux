@@ -56,8 +56,11 @@ test('scrolling: wheel steps move the strip end to end and reveal nothing, where
   fresh();
 
   const control = await rigOf({ reveal: 'edges' });
-  await steps([() => wheel(control, { deltaX: 100 }), () => wheel(control, { deltaX: 100 }), () => wheel(control, { deltaX: -100 })]);
-  assert.equal(control.row(), 'root w1* w2* w3 w4 w5 w6 w7 w8*', 'control: with root and w4 scrolled out of view the step back reveals w3 and parks the farthest panel, w8');
+  const back = (): void => wheel(control, { deltaX: -100 });
+  await steps([() => wheel(control, { deltaX: 100 }), () => wheel(control, { deltaX: 100 }), back]);
+  assert.equal(control.row(), BASE, 'control: one phone width back from 812 lands on 406, where w4 is still in view between the window edge and the parked panels');
+  await steps([back]);
+  assert.equal(control.row(), 'root w1* w2* w3 w4 w5 w6 w7 w8*', 'control: with root scrolled out of view and w4 first in view the next step back reveals w3 and parks the farthest panel, w8');
 });
 
 test('scrolling: Shift+wheel steps reveal nothing, where revealOnScroll edges reveals the panel at the window edge', async () => {
@@ -69,7 +72,7 @@ test('scrolling: Shift+wheel steps reveal nothing, where revealOnScroll edges re
   fresh();
 
   const control = await rigOf({ reveal: 'edges' });
-  await steps([() => wheel(control, { deltaY: 100, shiftKey: true }), () => wheel(control, { deltaY: 100, shiftKey: true }), () => wheel(control, { deltaY: -100, shiftKey: true })]);
+  await steps([() => wheel(control, { deltaY: 100, shiftKey: true }), () => wheel(control, { deltaY: 100, shiftKey: true }), () => wheel(control, { deltaY: -100, shiftKey: true }), () => wheel(control, { deltaY: -100, shiftKey: true })]);
   assert.equal(control.row(), 'root w1* w2* w3 w4 w5 w6 w7 w8*');
 });
 
@@ -80,7 +83,7 @@ test('scrolling: arrow keys step the strip and reveal nothing, where revealOnScr
   fresh();
 
   const control = await rigOf({ reveal: 'edges' });
-  await steps([() => key('ArrowRight'), () => key('ArrowRight'), () => key('ArrowLeft')]);
+  await steps([() => key('ArrowRight'), () => key('ArrowRight'), () => key('ArrowLeft'), () => key('ArrowLeft')]);
   assert.equal(control.row(), 'root w1* w2* w3 w4 w5 w6 w7 w8*');
 });
 
