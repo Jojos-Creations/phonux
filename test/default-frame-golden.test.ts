@@ -1,7 +1,7 @@
 /**
- * A view that draws its own frame renders the DOM the golden file holds and mounts its view the same number of times as a
- * view the library never wraps. The golden file was recorded from the same fixtures; the default frame adds nothing to it.
- * The row's AnimatePresence is keyed on the restore settle, so a view mounts at launch and once more when the restore lands.
+ * A view that draws its own frame renders the DOM the golden file holds, and mounts and unmounts its view the same number of
+ * times, as it did before the library drew a default frame. The golden file was recorded from the same fixtures; the default
+ * frame adds nothing to it.
  */
 import { test, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
@@ -34,7 +34,7 @@ if (process.env.RECORD_FRAME_GOLDEN === '1') {
     writeFileSync(GOLDEN, `${JSON.stringify(await recordAll(), null, 2)}\n`);
   });
 } else {
-  test('every self-framed fixture renders the DOM recorded without the default frame, with the launch mount and the one the restore settle adds', async () => {
+  test('every self-framed fixture renders the DOM recorded without the default frame, with one mount and no unmount', async () => {
     assert.ok(existsSync(GOLDEN), 'the golden file is committed');
     const golden = JSON.parse(readFileSync(GOLDEN, 'utf8')) as Golden;
     const now = await recordAll();
@@ -42,7 +42,7 @@ if (process.env.RECORD_FRAME_GOLDEN === '1') {
     for (const name of Object.keys(golden)) {
       assert.equal(now[name]!.html, golden[name]!.html, `${name}: the DOM is what it was`);
       assert.deepEqual([now[name]!.mounts, now[name]!.unmounts], [golden[name]!.mounts, golden[name]!.unmounts], `${name}: effect counts are what they were`);
-      assert.deepEqual([golden[name]!.mounts, golden[name]!.unmounts], [2, 1], `${name}: the launch mount, then the one remount at the restore settle`);
+      assert.deepEqual([golden[name]!.mounts, golden[name]!.unmounts], [1, 0], `${name}: one mount, no unmount at launch`);
     }
   });
 }

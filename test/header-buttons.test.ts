@@ -102,17 +102,16 @@ test('where drawn: order ties break by id, and a panel declaring none draws noth
   assert.equal(rig.m.container.querySelectorAll('[data-header-buttons-row="n"]').length, 0);
 });
 
-test('where drawn: a Panel with no title draws no cluster and warns once per mount in development', async () => {
+test('where drawn: a Panel with no title draws no cluster and warns once in development', async () => {
   const warnings: string[] = [];
   const original = console.warn;
   console.warn = (...args: unknown[]) => void warnings.push(String(args[0]));
   try {
     const rig = await headerRig({ slots: { pin: slot('Pin panel') }, title: undefined });
     assert.equal(rig.m.container.querySelectorAll('button').length, 0);
-    // The row remounts its panels once when the restore settles, so each of the three panels warns on both mounts.
-    assert.equal(warnings.filter((w) => w.includes('header buttons')).length, 6, 'one per mount of a panel with the buttons declared');
+    assert.equal(warnings.filter((w) => w.includes('header buttons')).length, 3, 'one per panel with the buttons declared');
     act(() => rig.h.a!.hide());
-    assert.equal(warnings.filter((w) => w.includes('header buttons')).length, 6, 'a re-render warns no more');
+    assert.equal(warnings.filter((w) => w.includes('header buttons')).length, 3, 'a re-render warns no more');
   } finally {
     console.warn = original;
   }

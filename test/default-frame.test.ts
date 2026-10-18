@@ -1,6 +1,6 @@
 /**
  * The default frame: a template's view that draws no `Panel` or `PanelFrame` is drawn inside the library's frame, and one
- * that draws any part of its own is left alone: the boundary neither wraps it nor remounts it. The golden DOM of the self-framed fixtures is in
+ * that draws any part of its own is mounted once and left alone. The golden DOM of the self-framed fixtures is in
  * default-frame-golden.test.ts; this file covers the bare view, the cases between and the gestures.
  */
 import { test, afterEach } from 'node:test';
@@ -149,13 +149,13 @@ test('the template footer is drawn once, inside the library frame', async () => 
 // The cases between
 // ---------------------------------------------------------------------------
 
-test('a view that draws only a PanelFrame counts as self-framed: no library header, no second frame, no mount from the boundary', async () => {
+test('a view that draws only a PanelFrame counts as self-framed: no library header, no second frame, one mount', async () => {
   const r = await rig([frameOnlyPanel()], ['frameonly']);
   await settle();
   const slot = bodiesOf(r.m, 'frameonly')!.closest('[data-row-slot]')!;
   assert.equal(slot.querySelectorAll('[data-panel-chrome-part="header"]').length, 0);
   assert.equal(slot.querySelectorAll('[data-panel-grab-bar]').length, 0);
-  assert.deepEqual(counts('frameonly'), [2, 1], 'the launch mount and the remount at the restore settle, none from the boundary');
+  assert.deepEqual(counts('frameonly'), [1, 0]);
 });
 
 test('a view that draws only a Panel, or a PanelFrame with its footer off, counts as self-framed too', async () => {
@@ -176,12 +176,11 @@ test('a view that draws only a Panel, or a PanelFrame with its footer off, count
   assert.equal(bodiesOf(r.m, 'quietframe')!.closest('[data-row-slot]')!.querySelectorAll('[data-phone-frame]').length, 1, 'quiet frame: one frame');
 });
 
-test('self-framed views are not wrapped and the boundary does not remount them', async () => {
+test('self-framed views mount once and are not wrapped', async () => {
   const r = await rig([albumPanel(), restPanel()], ['album', 'rest']);
   await settle();
-  // The row remounts its panels once when the restore settles; the boundary adds no mount of its own.
-  assert.deepEqual(counts('album'), [2, 1]);
-  assert.deepEqual(counts('rest'), [2, 1]);
+  assert.deepEqual(counts('album'), [1, 0]);
+  assert.deepEqual(counts('rest'), [1, 0]);
   for (const id of ['album', 'rest']) assert.equal(bodiesOf(r.m, id)!.closest('[data-row-slot]')!.querySelectorAll('[data-panel-chrome-part="header"]').length, 1, `${id}: its own header only`);
 });
 

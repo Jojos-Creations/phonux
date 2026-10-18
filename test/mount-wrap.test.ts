@@ -58,9 +58,8 @@ test('StrictMode in the wrap double-runs a view effect pair in development and t
   const ws = track(createWorkspace({ templates: [probed], wrap: providers }));
   ws.addPanel('probed');
   await until('the panel', () => slots(document.body).length === 1);
-  // The row remounts its panels once when the restore settles, and StrictMode runs the pair on each mount.
-  assert.equal(effects.mounts, 4, 'mount, simulated unmount, mount, then the same again after the remount');
-  assert.equal(effects.cleanups, 3);
+  assert.equal(effects.mounts, 2, 'mount, simulated unmount, mount');
+  assert.equal(effects.cleanups, 1);
   assert.equal(ws.panels.list().length, 1, 'one panel, no duplicate');
   assert.equal(document.querySelectorAll('[data-slot="probed"]').length, 1);
 });
