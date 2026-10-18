@@ -48,12 +48,12 @@ test('the workspace snapshot reports each seed as live or parked as seeded, with
   assert.equal(states[0]!.title, 'Live one');
 });
 
-test('the saved file still holds a seed parked, under its seeded id, after another closes', async () => {
+test('the saved file still holds a seed parked, without a counter id, after another closes', async () => {
   const { seeded, m } = await launch();
   await act(async () => void (await new Promise((r) => setTimeout(r, 60))));
   await act(async () => m.latest().close('live1'));
   await act(async () => void (await new Promise((r) => setTimeout(r, 60))));
-  assert.deepEqual(seeded.storage.saved?.panels.map((p) => [p.id, p.live]), [['parked1', false]]);
+  assert.deepEqual(seeded.storage.saved?.panels.map((p) => [p.url, p.live, 'id' in p]), [['https://parked1.example', false, false]]);
 });
 
 test('a live and a parked seed close and undo with the hostData they were seeded with, handed to resetHostDataOnRestore', async () => {
@@ -114,7 +114,7 @@ test('left seeds restore left of the root in the order given, at their slot coun
   assert.deepEqual(m.latest().entries.map((p) => p.id), ['l1', 'l2', ws.rootId, 'r1'], 'a left seed returns to its place after close and undo');
   await act(async () => m.latest().close('r1'));
   await act(async () => void (await new Promise((r) => setTimeout(r, 60))));
-  assert.deepEqual(seeded.storage.saved?.panels.map((p) => [p.id, p.anchor.position, p.slots]), [['l1', 'left', 2], ['l2', 'left', 3]]);
+  assert.deepEqual(seeded.storage.saved?.panels.map((p) => [p.anchor.position, p.slots, 'id' in p]), [['left', 2, false], ['left', 3, false]]);
 });
 
 test('a panel added to the live workspace takes the chosen engine id, and its instance key stays the one addPanel was given', async () => {

@@ -377,7 +377,9 @@ const flushSaves = (): Promise<void> => act(async () => void (await new Promise(
 /** The saved form of `entries`, with the marker the test gives (or none). */
 function savedOf(entries: PanelWindow[], scroll?: { panel: unknown; offset: unknown }): WorkspaceState {
   const state = projectWorkspaceState(entries, ROOT);
-  return scroll === undefined ? state : ({ ...state, scroll } as WorkspaceState);
+  // The marker names a panel by its uid in a file; a test gives the entry's id.
+  const named = scroll === undefined ? undefined : { ...scroll, panel: entries.find((p) => p.id === scroll.panel)?.uid ?? scroll.panel };
+  return named === undefined ? state : ({ ...state, scroll: named } as WorkspaceState);
 }
 
 /** A storage whose load waits for the test, and whose saves are recorded. */
@@ -427,13 +429,13 @@ test('a rest the person moved to saves a marker naming the first panel the windo
   const saved = first.saves.at(-1);
   assert.ok(saved?.scroll, 'a marker is saved once the row is at rest');
   const shown = n.stopSpans[k]!.first;
-  assert.equal(saved.scroll!.panel, n.ids[shown]);
+  assert.equal(saved.scroll!.panel, m.latest().entries.find((p) => p.id === n.ids[shown])?.uid, 'the marker names the panel by its uid');
   assert.ok(Math.abs(saved.scroll!.offset - (rest - (n.rowMarginLeft + n.leftOffsets[shown]!)) / 406) < 1e-9);
 
   const second = scrollStorage();
   const reloaded = loadedRow(second.storage, stepTuning());
   await second.resolve(saved);
-  assert.equal(reloaded.container.scrollLeft, rest, 'the saved panel id is mapped to the id it has in this launch');
+  assert.equal(reloaded.container.scrollLeft, rest, 'the saved panel uid is mapped to the id it has in this launch');
 });
 
 test('opening a file with a marker, and one without, saves nothing past the quiet period', async () => {

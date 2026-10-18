@@ -13,7 +13,7 @@ import type { PanelTemplate } from './panelTemplate.js';
 import { sizeOfSlots } from './panelTiers.js';
 import { newPanelUid } from './panelUid.js';
 import { appendPanel, clearOverrides, type PanelWindow } from './panelWindow.js';
-import { cleanDismissed, cleanSavedExtras, cleanSavedUid, entryFromSaved, isWorkspaceState } from './workspaceState.js';
+import { cleanDismissed, cleanSavedExtras, cleanSavedUid, entryFromSaved, isWorkspaceState, savedNames } from './workspaceState.js';
 import type { Dropped, SavedExtras, WorkspacePanelState } from './workspaceState.js';
 
 /** A panel code declares: created at every launch unless the person dismissed it, and rebuilt from the file when the file has it. */
@@ -95,7 +95,7 @@ function keptInstance(instance: PanelSettings, resolution: PanelSettingsResoluti
 export function reconcileWorkspace(i: ReconcileInput): ReconcileResult {
   const notes: SettingNote[] = [];
   const topDrops: Dropped[] = [];
-  let file: { panels: SavedEntry[]; drops: Dropped[][]; dismissed: string[] } | undefined;
+  let file: { panels: SavedEntry[]; raw: WorkspacePanelState[]; drops: Dropped[][]; dismissed: string[] } | undefined;
   if (i.saved !== null && i.saved !== undefined) {
     if (!isWorkspaceState(i.saved)) {
       notes.push({ code: 'workspace-ignored', message: 'Ignored the saved workspace: it is not a version 1 workspace file.' });
@@ -112,7 +112,7 @@ export function reconcileWorkspace(i: ReconcileInput): ReconcileResult {
         const uid = cleanSavedUid(s, seenUids, entryDrops);
         return { ...(plain as SavedEntry), ...(uid !== undefined ? { uid } : {}), ...cleanSavedExtras(s, seen, entryDrops) };
       });
-      file = { panels, drops, dismissed: cleanDismissed((i.saved as { dismissed?: unknown }).dismissed, topDrops) };
+      file = { panels, raw: i.saved.panels, drops, dismissed: cleanDismissed((i.saved as { dismissed?: unknown }).dismissed, topDrops) };
     }
   }
   for (const d of topDrops) notes.push({ code: 'invalid-saved-setting', key: d.key, message: d.message });
@@ -126,7 +126,7 @@ export function reconcileWorkspace(i: ReconcileInput): ReconcileResult {
 
   // Every id is drawn before anything else, so a saved id that happens to equal a fresh one is never reused.
   const fresh = saved.map(() => i.freshId());
-  const freshOf = new Map(saved.map((s, k) => [s.id, fresh[k]!]));
+  const freshOf = savedNames(file?.raw ?? [], fresh);
   let missing: string | undefined;
   const targetOf = (savedId: string): string => {
     if (savedId === i.rootId) return i.rootId;

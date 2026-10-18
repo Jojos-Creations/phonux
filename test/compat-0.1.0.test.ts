@@ -242,13 +242,13 @@ function tiersAsSlots(value: unknown): unknown {
   return { ...out, slots, ...('size' in (value as object) ? { size: sizeOfSlots(slots) } : {}) };
 }
 
-/** A saved entry (projectWorkspaceState's output) with its tier read as slots, which are written only above one. */
+/** A saved entry (projectWorkspaceState's output) with its tier read as slots, which are written only above one, and without the counter id this library no longer saves. */
 function savedTiersAsSlots(output: unknown): unknown {
   const state = output as { panels?: Record<string, unknown>[] } & Record<string, unknown>;
   if (!Array.isArray(state.panels)) return output;
   return {
     ...state,
-    panels: state.panels.map(({ formFactor, ...rest }) => {
+    panels: state.panels.map(({ formFactor, id: _id, ...rest }) => {
       const slots = typeof formFactor === 'string' ? TIER_SLOTS[formFactor] : undefined;
       return slots === undefined || slots === 1 ? rest : { ...rest, slots };
     }),

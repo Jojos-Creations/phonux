@@ -15,7 +15,7 @@ import { setSlots, type PanelWindow } from '../panelWindow.js';
 import { seedEngineIdsPast } from '../workspaceCore.js';
 import { reconcileWorkspace } from '../workspacePlan.js';
 import type { DeclaredPanel } from '../workspacePlan.js';
-import { cleanSavedScroll, DISMISSED_LIMIT, isWorkspaceState, projectWorkspaceState } from '../workspaceState.js';
+import { cleanSavedScroll, DISMISSED_LIMIT, isWorkspaceState, projectWorkspaceState, savedNames } from '../workspaceState.js';
 import type { Dropped, WorkspaceState, WorkspaceStorage } from '../workspaceState.js';
 
 /** Where the row rested: the id of a panel this launch, and the offset of the stop from its left edge in phone widths. */
@@ -105,7 +105,7 @@ export function useWorkspacePersistence(i: {
     // StrictMode runs this effect twice; only the run that is not cancelled may apply its result.
     let cancelled = false;
     // The file's rest, named by the id of the panel this launch gives its entry: the entry is matched by its uid, which
-    // a file keeps for every panel it saves. The root keeps its own id. A malformed rest is dropped with a note.
+    // a file keeps for every panel it saves (an older file names it by the entry's id). The root keeps its own id. A malformed rest is dropped with a note.
     const savedRest = (loaded: WorkspaceState | null, restored: PanelWindow[]): RestMark | undefined => {
       if (!isWorkspaceState(loaded)) return undefined;
       const drops: Dropped[] = [];
@@ -119,7 +119,7 @@ export function useWorkspacePersistence(i: {
       }
       if (rest === undefined) return undefined;
       if (rest.panel === rootId) return rest;
-      const uid = loaded.panels.find((p) => p.id === rest.panel)?.uid;
+      const uid = savedNames(loaded.panels, loaded.panels.map((p) => p.uid)).get(rest.panel);
       if (uid === undefined) return undefined;
       const id = restored.find((p) => p.uid === uid)?.id ?? [...adoptedUids.current].find(([, held]) => held === uid)?.[0] ?? panelsRef.current.find((p) => p.uid === uid)?.id;
       return id === undefined ? undefined : { panel: id, offset: rest.offset };
