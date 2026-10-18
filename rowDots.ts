@@ -17,11 +17,14 @@ export interface DotLayout {
   readonly oval: { readonly left: number; readonly width: number };
 }
 
-/** A dot's width by panel size: a panel one phone wide draws the first, two phones the second, and so on. A panel four or more phones wide draws the last. */
-export const DOT_WIDTH_PX = [8, 16, 24, 32] as const;
+/** The width of a one-phone panel's dot, in px. */
+export const DOT_PHONE_PX = 22;
 
 /** The space between two dots, in px. */
-export const DOT_GAP_PX = 4;
+export const DOT_GAP_PX = 8;
+
+/** A panel `slots` phones wide draws one dot as wide as that many phone dots and the gaps between them. */
+const dotWidthOf = (slots: number): number => slots * DOT_PHONE_PX + (slots - 1) * DOT_GAP_PX;
 
 /**
  * Where each dot sits in the track, and the strip span each panel covers. A scroll position maps onto the track
@@ -46,7 +49,7 @@ export function dotMap(i: { widths: readonly number[]; leftOffsets: readonly num
   let at = 0;
   i.widths.forEach((w, k) => {
     const slots = Math.max(1, Math.round(w / unit));
-    const dot = DOT_WIDTH_PX[Math.min(slots, DOT_WIDTH_PX.length) - 1]!;
+    const dot = dotWidthOf(slots);
     const start = i.leftOffsets[k] ?? 0;
     const next = i.leftOffsets[k + 1];
     lefts.push(at);
