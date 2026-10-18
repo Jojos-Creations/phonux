@@ -334,6 +334,9 @@ const missingHost = (): never => {
 /** True below a `SizeBox`: a box inside another is a plain div, because two glides of one size would fight. */
 const SizeBoxContext = React.createContext(false);
 
+/** True below a `SizeBox`: the panel and its frame fill the box, so they take each eased frame's size, not the target's. @internal */
+export const useInsideSizeBox = (): boolean => React.useContext(SizeBoxContext);
+
 /**
  * `PanelSizeBox` with a height that may be the slot's own (`'100%'`, a panel that fills the row's height), which is the box the
  * default frame draws around its whole panel. A box below another draws a plain div of the same size.

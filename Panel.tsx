@@ -17,6 +17,7 @@ import { useFrameClaim } from './panelFrameClaim.js';
 import { PanelSlotContext } from './panelSlotContext.js';
 import { HEADER_ROW_ATTRIBUTE, PanelHeaderButtons, usePanelHeaderButtons } from './panelHeaderButtons.js';
 import { CaptureRegistryContext, type ViewId } from './snapshots.js';
+import { useInsideSizeBox } from './PanelRowSlot.js';
 import { ACTIVE_ATTRIBUTE, CHROME_ATTRIBUTE, CHROME_PARTS, DRAGGING_ATTRIBUTE, PanelChromeVisibleContext, useChromeFade, useChromeVisibility, usePanelActive, usePanelDragging } from './panelChrome.js';
 
 export { HostMissingProviderError, HostProvider, useHost } from './hostApi.js';
@@ -87,6 +88,8 @@ export function Panel({ title, actions, headerProps, headerButtons = true, grabP
   const registry = React.useContext(CaptureRegistryContext);
   const rootRef = React.useRef<HTMLDivElement | null>(null);
   const slot = React.useContext(PanelSlotContext);
+  // Below a size box the panel fills it, so it eases with the box instead of jumping to its new width.
+  const boxed = useInsideSizeBox();
   const declared = slot?.headerButtonSlots;
   const buttons = usePanelHeaderButtons();
   const drawn = headerButtons && declared !== undefined && title !== undefined && buttons.some((b) => !b.hidden);
@@ -128,7 +131,7 @@ export function Panel({ title, actions, headerProps, headerButtons = true, grabP
   return (
     <PanelChromeVisibleContext.Provider value={visible}>
     <Box
-      sx={{ position: 'relative', width: size?.width ?? slot?.drawn?.width ?? phoneSize.width, ...sx }}
+      sx={{ position: 'relative', width: boxed ? '100%' : (size?.width ?? slot?.drawn?.width ?? phoneSize.width), ...sx }}
       {...rest}
       {...(active ? { [ACTIVE_ATTRIBUTE]: '' } : {})}
       {...(dragging ? { [DRAGGING_ATTRIBUTE]: '' } : {})}

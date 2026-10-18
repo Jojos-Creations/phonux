@@ -15,6 +15,7 @@ import { resolveLabels } from './labels.js';
 import { PanelFooter } from './panelFooter.js';
 import { useFrameClaim } from './panelFrameClaim.js';
 import { PanelSlotContext } from './panelSlotContext.js';
+import { useInsideSizeBox } from './PanelRowSlot.js';
 import { useChromePixels } from './panelChrome.js';
 
 /** The props of `PanelFrame`: every `Box` prop except `children`, plus `expanded` and `size`. @public */
@@ -58,8 +59,10 @@ const PanelFrame = React.forwardRef<HTMLDivElement, PanelFrameProps>(function Pa
   useFrameClaim('frame');
   const phone = usePhoneSize();
   const drawn = React.useContext(PanelSlotContext)?.drawn;
-  const width = size?.width ?? drawn?.width ?? phone.width;
-  const height = size?.height === 'fill' ? '100%' : (size?.height ?? drawn?.height ?? phone.height);
+  // Below a size box the frame fills it, so a resize eases the frame too instead of jumping it to the new size.
+  const boxed = useInsideSizeBox();
+  const width = boxed ? '100%' : (size?.width ?? drawn?.width ?? phone.width);
+  const height = boxed || size?.height === 'fill' ? '100%' : (size?.height ?? drawn?.height ?? phone.height);
   const frame = (
     <Box
       ref={ref}
