@@ -500,12 +500,12 @@ neighbour widths a drag crosses. A view follows the same rule: pass `panel.size`
 
 The row's slot (`PanelRowSlot`) owns the enter/exit animation, so the resize never lives on the slot
 itself: Motion's docs warn against `layout` and `exit` on one element. It lives on an inner size box
-(`PanelSizeBox`) that the built-in web view renders inside its slot, under its drag box. That box takes its new
-size at once and draws it with a scale transform from the old size to 1, over the same 0.4 s transition the slots
-slide with, from the left edge because the slot's own `x` already animates position. It is not Motion's
+(`PanelSizeBox`) that the built-in web view renders inside its slot, under its drag box. That box eases its real
+width and height from the size on screen to the new one, over the same 0.4 s transition the slots slide with, growing
+from the left edge because the slot's own `x` already animates position. It is not Motion's
 `layout="size"`: that animation starts in the frame after the commit while the slot's slide starts in the commit,
 so a commit that janks (the default frame's MUI render does) would draw the box and its neighbour from different
-moments. The box starts its scale in the commit's layout effect, and both it and the slot's slide are given that same
+moments. The box starts its glide in the commit's layout effect, and both it and the slot's slide are given that same
 commit's time as their `startTime` (`slideStart()`), because Motion otherwise starts a slide from the moment its
 keyframes resolve when that is over 40 ms after the commit; so a neighbour of a growing panel stays one gap from it
 at any frame rate. It is the panel's own width and the row's own height,
@@ -515,22 +515,9 @@ slot, position and the row's capacity follow, but its content snaps to the new s
 view renders a size box. The row's centring margin glides with the resize even right after a window resize,
 when a window-driven margin change would snap.
 
-While the box eases, the chrome the library draws stays true. The scale is not the same on both axes, so a corner radius, a 1 px
-edge or a pill drawn the usual way would be squashed with it: a quarter circle becomes an ellipse and the edge thins or thickens
-for the 0.4 s. The box writes its scale as three custom properties (`--phonux-size-x`, `--phonux-size-y`, `--phonux-size-glide`,
-in `sizeGlide.ts`) from the draw that sets the transform, and removes all three at rest, when it snaps (Reduce Motion,
-held at a drawn width) and when it is nested, so a frame or header outside any box reads every
-fallback (1 and 0) and draws as it always did. `PanelFrame` and `PanelHeader` read them:
-the corner radius is `r / x` by `r / y`, which draws `r` on each axis, and a radius too big for a side is cut by the browser on
-every corner alike, so a header pill that gets lower becomes a smaller true pill. The 1 px edge of the frame and the header pill is
-an inset shadow, not a border: the browser rounds a border's width to whole device pixels, so `1px / x` would draw as a step
-function, and a new border width would re-lay out the content that the box promises is laid out at its new size at once. At rest
-the shadow is the one ring a border was; while the box eases it is four bands, each `1px / scale` wide on its own axis, so the edge
-is 1 px drawn (about 0.7 px on the diagonal of a corner). The properties inherit, so each frame of a glide the browser resolves
-the box's whole subtree again for them; the trace at four times slower CPU keeps overlap 0 and gap equal to the row gap.
-What is counted is the chrome the library draws. A view's own content (an avatar, a card, an image, text), the scrollbar thumb
-(a view's scroller is its own, so the library has no scroller value to change) and the header buttons, which stay plain MUI buttons, are still scaled by the box and squash for the 0.4 s, as they did under `layout="size"`;
-undistorted content would be a clip-reveal in place of a scale, a different design.
+The box eases its real width and height, not a scale, so its content reflows on every frame of the glide, as a maximize
+does, and the chrome the library draws (the corner radius, the 1 px edge, the header pill) is never squashed. A height of the slot's
+own (`'100%'`) has no number to ease, so only the width eases then.
 
 The size box follows any change of the panel's width, not only a slot-count change. Choosing a different phone
 model resizes every panel's size box too, so their width and height glide over the same 0.4 s while
@@ -1850,11 +1837,11 @@ and golden DOM recorded before the frame existed (test/golden/default-frame-self
 counts of one and none.
 
 **Size.** The frame animates its size like a `PanelSizeBox` view: `DefaultFrame` draws one box (`SizeBox`) around the whole
-`Panel`, so the header, with the grab handle in it, above the phone frame, the frame and the footer inside it are all drawn at the box's
-scale and their edges stay on the frame's at every frame. The box is the panel's width and height (the device size for a phone,
-`panel.size` otherwise, `'100%'` of the row for a `'fill'` height); at rest it has no transform, so the frame's rect is what it was
-before the box existed. A box below another draws a plain `div` of the same size (`SizeBoxContext`), because two scales of one size
-would multiply, so a bare view that draws its own `PanelSizeBox` is unchanged. Nothing is eased from a size the box never had: a
+`Panel`, so the header, with the grab handle in it, above the phone frame, the frame and the footer inside it all take the box's size
+and their edges stay on the frame's at every frame. The box is the panel's width and height (the device size for a phone,
+`panel.size` otherwise, `'100%'` of the row for a `'fill'` height); at rest the frame's rect is what it was
+before the box existed. A box below another draws a plain `div` of the same size (`SizeBoxContext`), because two glides of one size
+would fight, so a bare view that draws its own `PanelSizeBox` is unchanged. Nothing is eased from a size the box never had: a
 first mount, the frame drawn again after a late claim, a parked panel that returns and a snap (Reduce Motion, a
 held width) all draw at the new size at once. Rejected: one box per part, which lets a part trail the frame by a frame.
 

@@ -319,7 +319,7 @@ async function sizeGlideMs(render: () => React.ReactElement): Promise<number> {
   mounted.rerender(render());
   const box = mounted.container.querySelector<HTMLElement>('[data-panel-size-box]')!;
   let frames = 0;
-  while (box.style.transform !== '' && frames < 200) {
+  while (box.style.width !== '780px' && frames < 200) {
     await advanceFrames(16);
     frames += 1;
   }

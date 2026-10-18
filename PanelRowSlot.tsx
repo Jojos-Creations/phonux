@@ -7,7 +7,6 @@ import type { SlideTuning } from './panelSettings.js';
 import { ROW_GAP } from './rowConstants.js';
 import { HostMissingProviderError } from './hostApi.js';
 import { useOptionalPhoneSize } from './phoneFit.js';
-import { writeGlide } from './sizeGlide.js';
 
 /**
  * The library's default row gap, 16 px; the gap a workspace draws with is its `tuning.rowGap`, which this does not follow.
@@ -308,8 +307,8 @@ function useHoldsFrame(slot: React.RefObject<HTMLElement | null>): boolean {
 }
 
 /**
- * The box a resize animates. It takes its new size at once, so its content is laid out at that size, and is drawn at the old size
- * and eased to the new one over the slide, in step with the neighbouring slots. A view renders it inside its own slot.
+ * The box a resize animates. Its real width and height ease from the size on screen to the new one over the slide, in step with
+ * the neighbouring slots, so its content reflows as it goes and is never stretched. A view renders it inside its own slot.
  * Under Reduce Motion, or while a host holds a width, the resize snaps.
  * @public
  */
@@ -322,7 +321,7 @@ export function PanelSizeBox({
   width?: number;
   /** The box's height in px; a change animates. Omitted: the slot's drawn height inside a row, else the phone height. */
   height?: number;
-  /** The content, laid out at the new size at once. */
+  /** The content, laid out at the box's size on every frame. */
   children: React.ReactNode;
 }) {
   return <SizeBox width={width} height={height}>{children}</SizeBox>;
@@ -332,7 +331,7 @@ const missingHost = (): never => {
   throw new HostMissingProviderError();
 };
 
-/** True below a `SizeBox`: a box inside another is a plain div, because two scales of one size would multiply. */
+/** True below a `SizeBox`: a box inside another is a plain div, because two glides of one size would fight. */
 const SizeBoxContext = React.createContext(false);
 
 /**
@@ -353,46 +352,40 @@ export function SizeBox({ width: given, height: givenHeight, children }: { width
   const systemReduced = useReducedMotion() === true;
   const snaps = configReduced || systemReduced || slot?.tracking === true;
   const box = React.useRef<HTMLDivElement>(null);
-  const seen = React.useRef<{ width: number; height: number | '100%' } | undefined>(undefined);
-  const scale = React.useRef({ x: 1, y: 1 });
+  const drawn = React.useRef<{ width: number; height: number | '100%' } | undefined>(undefined);
   const run = React.useRef<{ stop: () => void } | undefined>(undefined);
   // Starts in the commit's layout effect, on the slot's slide clock (`slideStart`), so a commit that janks opens no gap to a neighbour.
   React.useLayoutEffect(() => {
     const node = box.current;
     if (node === null || nested) return;
-    const before = seen.current;
-    seen.current = { width, height };
+    // From where the box is drawn now, so a resize that lands mid-glide carries on from the size on screen.
+    const from = drawn.current;
     run.current?.stop();
     run.current = undefined;
-    const draw = (x: number, y: number): void => {
-      scale.current = { x, y };
-      node.style.transform = x === 1 && y === 1 ? '' : `scale(${x}, ${y})`;
-      writeGlide(node, x, y);
+    const draw = (w: number, h: number | '100%'): void => {
+      drawn.current = { width: w, height: h };
+      node.style.width = `${w}px`;
+      node.style.height = typeof h === 'number' ? `${h}px` : h;
     };
-    if (before === undefined || snaps) {
-      draw(1, 1);
+    // A height of the slot's own ('100%') has no number to ease from or to, so only the width eases.
+    const h0 = typeof from?.height === 'number' && typeof height === 'number' ? from.height : height;
+    if (from === undefined || snaps || (Math.abs(from.width - width) < 0.5 && (typeof h0 !== 'number' || typeof height !== 'number' || Math.abs(h0 - height) < 0.5))) {
+      draw(width, height);
       return;
     }
-    // From where the box is drawn now, so a resize that lands mid-glide carries on from the size on screen.
-    const x0 = (before.width * scale.current.x) / width;
-    const y0 = typeof before.height === 'number' && typeof height === 'number' ? (before.height * scale.current.y) / height : 1;
-    if (Math.abs(x0 - 1) < 0.001 && Math.abs(y0 - 1) < 0.001) {
-      draw(1, 1);
-      return;
-    }
-    draw(x0, y0);
+    draw(from.width, h0);
     const transition = slide === undefined ? PANEL_TRANSITION : slideToTransition(slide);
     run.current = animate(0, 1, {
       ...transition,
       startTime: slideStart(),
-      onUpdate: (p: number) => draw(x0 + (1 - x0) * p, y0 + (1 - y0) * p),
-      onComplete: () => draw(1, 1),
+      onUpdate: (p: number) => draw(from.width + (width - from.width) * p, typeof h0 === 'number' && typeof height === 'number' ? h0 + (height - h0) * p : height),
+      onComplete: () => draw(width, height),
     });
   }, [width, height, snaps, nested]);
   React.useEffect(() => () => run.current?.stop(), []);
   if (nested) return <div data-panel-size-plain="" style={{ width, height }}>{children}</div>;
   return (
-    <div ref={box} data-panel-size-box="" style={{ width, height, transformOrigin: '0 0' }}>
+    <div ref={box} data-panel-size-box="" style={{ width, height }}>
       <SizeBoxContext.Provider value>{children}</SizeBoxContext.Provider>
     </div>
   );

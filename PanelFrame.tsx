@@ -16,7 +16,6 @@ import { PanelFooter } from './panelFooter.js';
 import { useFrameClaim } from './panelFrameClaim.js';
 import { PanelSlotContext } from './panelSlotContext.js';
 import { useChromePixels } from './panelChrome.js';
-import { glideCorner, glideEdge } from './sizeGlide.js';
 
 /** The props of `PanelFrame`: every `Box` prop except `children`, plus `expanded` and `size`. @public */
 export interface PanelFrameProps extends Omit<BoxProps, 'children'> {
@@ -70,10 +69,10 @@ const PanelFrame = React.forwardRef<HTMLDivElement, PanelFrameProps>(function Pa
         // border-box: row-layout width math elsewhere treats the phone size as this box's real
         // rendered size; content-box would add border+padding on top, silently under-fitting.
         boxSizing: 'border-box',
-        // The 1 px edge is an inset shadow, not a border, so the size glide can keep it 1 px drawn without moving the layout.
+        // The 1 px edge is an inset shadow inside 1 px of padding, so it draws over nothing the content lays out.
         p: '1px',
-        boxShadow: (theme: Theme) => glideEdge(theme.palette.divider),
-        borderRadius: (theme: Theme) => glideCorner(panelCornerRadiusPx(theme)),
+        boxShadow: (theme: Theme) => `inset 0 0 0 1px ${theme.palette.divider}`,
+        borderRadius: (theme: Theme) => `${panelCornerRadiusPx(theme)}px`,
         bgcolor: 'background.paper',
         display: 'flex',
         flexDirection: 'column',
