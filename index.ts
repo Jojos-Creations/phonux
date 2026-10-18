@@ -50,6 +50,7 @@ export type {
 export { default as PanelFrame } from './PanelFrame.js';
 export {
   PANEL_CORNER_RADIUS_UNITS,
+  PHONE_FRAME_ATTRIBUTE,
   panelCornerRadiusPx,
   panelFrameBareSx,
   PanelHeader,
@@ -163,7 +164,7 @@ export { createWorkspace } from './workspaceCore.js';
 export { MAX_WORKSPACE_NAME } from './workspaceName.js';
 export { createWorkspaceColumn } from './columnHandle.js';
 export type { ColumnOptions, ColumnState, ColumnStatus, ColumnStorage, ColumnWorkspaceOptions, WorkspaceColumnHandle } from './columnHandle.js';
-export { COLUMN_BOTTOM_BAND, COLUMN_TOP_BAND, WorkspaceColumn } from './WorkspaceColumn.js';
+export { COLUMN_BOTTOM_BAND, COLUMN_TOP_BAND, WORKSPACE_NAME_CONTROL_HEIGHT, WORKSPACE_NAME_INPUT_ATTRIBUTE, WorkspaceColumn } from './WorkspaceColumn.js';
 export type { WorkspaceColumnProps } from './WorkspaceColumn.js';
 export type { ViewWorkspace, WorkspaceHandle, WorkspaceOptions, WorkspaceWrapProps } from './workspaceCore.js';
 export type { WorkspaceLive, WorkspacePanelsInput } from './workspaceLive.js';

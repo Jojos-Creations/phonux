@@ -21,8 +21,11 @@ export const COLUMN_TOP_BAND = 76;
 /** The room below a workspace's row for the name of the workspace below, in px. @public */
 export const COLUMN_BOTTOM_BAND = 26;
 
-/** The least height of a control the column draws, px: a pointer target of 24. */
-const TARGET = 24;
+/** The height of a workspace name input and of the column's neighbour buttons, in px. @public */
+export const WORKSPACE_NAME_CONTROL_HEIGHT = 24;
+/** The attribute the workspace name input carries, so a stylesheet can select it without a class name. @public */
+export const WORKSPACE_NAME_INPUT_ATTRIBUTE = 'data-workspace-name-input';
+const TARGET = WORKSPACE_NAME_CONTROL_HEIGHT;
 
 const DefaultCell = React.lazy(() => import('./autoMount.js').then((m) => ({ default: m.AutoRoot })));
 
@@ -44,7 +47,7 @@ function NameInput({ workspace, label, inset }: { workspace: WorkspaceHandle; la
           e.currentTarget.blur();
         }
       }}
-      inputProps={{ 'aria-label': label, maxLength: MAX_WORKSPACE_NAME, 'data-workspace-name-input': '', style: { textAlign: 'center', padding: 0, height: TARGET } }}
+      inputProps={{ 'aria-label': label, maxLength: MAX_WORKSPACE_NAME, [WORKSPACE_NAME_INPUT_ATTRIBUTE]: '', style: { textAlign: 'center', padding: 0, height: TARGET } }}
       sx={{ position: 'absolute', top: 24 + inset, left: '50%', transform: 'translateX(-50%)', width: 280, maxWidth: 'calc(100% - 32px)', height: TARGET, fontSize: 14, zIndex: 1 }}
     />
   );

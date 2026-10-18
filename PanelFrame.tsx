@@ -30,6 +30,8 @@ export interface PanelFrameProps extends Omit<BoxProps, 'children'> {
   footer?: boolean;
 }
 
+/** The attribute a panel's phone frame carries, so a stylesheet can select the frame without a class name. @public */
+export const PHONE_FRAME_ATTRIBUTE = 'data-phone-frame';
 /** The phone's corner radius in theme shape units (4 x 6px = 24px). The frame's corners and the header
  * pills' semicircular ends both derive from it, so they cannot drift apart. @public */
 export const PANEL_CORNER_RADIUS_UNITS = 4;
@@ -62,7 +64,7 @@ const PanelFrame = React.forwardRef<HTMLDivElement, PanelFrameProps>(function Pa
   const frame = (
     <Box
       ref={ref}
-      data-phone-frame=""
+      {...{ [PHONE_FRAME_ATTRIBUTE]: '' }}
       {...rest}
       sx={{
         // border-box: row-layout width math elsewhere treats the phone size as this box's real
