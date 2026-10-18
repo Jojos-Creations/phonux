@@ -50,14 +50,14 @@ test('rowConstants: SAVE_QUIET_MS equals WORKSPACE_SAVE_QUIET_MS, which stays ex
   assert.equal(WORKSPACE_SAVE_QUIET_MS, 500);
 });
 
-test('rowConstants: the gesture lock is the literal 60 and the hop fraction is the literal 0.5, and neither number has a second copy in the row code', () => {
-  assert.equal(rowConstants.GESTURE_LOCK_MS, 60);
+test('rowConstants: the gesture lock is the literal 30 and the hop fraction is the literal 0.5, and neither number has a second copy in the row code', () => {
+  assert.equal(rowConstants.GESTURE_LOCK_MS, 30);
   assert.equal(rowConstants.HOP_FRACTION, 0.5);
   const gesture = readFileSync(`${ROOT}panels/useRowScrollGesture.ts`, 'utf8');
   const persistence = readFileSync(`${ROOT}panels/useWorkspacePersistence.ts`, 'utf8');
   assert.match(gesture, /import \{ GESTURE_LOCK_MS, GESTURE_QUIET_MS \} from '\.\.\/rowConstants\.js';/, 'the gesture imports the one constant it defaults to');
   assert.doesNotMatch(gesture, /GESTURE_LOCK_MS = /, 'no module constant of the gesture lock is left in the gesture file');
-  assert.doesNotMatch(gesture, /\b60\b/, 'the number 60 is not written in the gesture file');
+  assert.doesNotMatch(gesture, /\b30\b/, 'the number 30 is not written in the gesture file');
   assert.doesNotMatch(gesture, /\b150\b/, 'the number 150 is not written in the gesture file');
   assert.match(persistence, /import \{ SAVE_QUIET_MS \} from '\.\.\/rowConstants\.js';/, 'the persistence hook imports the one constant it defaults to');
   assert.doesNotMatch(persistence, /SAVE_QUIET_MS = 500/, 'no module constant of the save delay is left in the persistence file');

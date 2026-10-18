@@ -26,7 +26,7 @@ import {
   usePanelTuning,
 } from '../index.js';
 import { createWorkspace } from '../index.js';
-import type { PanelSettings, PanelTuning, PanelWindow, ProvidedPanels, SlideTuning, WorkspaceTuning } from '../index.js';
+import type { PanelSettings, PanelTuning, PanelWindow, ProvidedPanels, SlideTuning, WorkspaceHandle, WorkspaceTuning } from '../index.js';
 import { SLOT_TRANSITION } from '../directionalTransition.js';
 import { PanelSlotContext, type PanelSlotValue } from '../panelSlotContext.js';
 import { applyTemplate, resolvePanelSettings } from '../panelSettings.js';
@@ -36,7 +36,7 @@ import { workspaceShellStyle } from '../Workspace.js';
 import { appendPanel } from '../panelWindow.js';
 import { differential, differentialsCovered } from './support/differential.js';
 import { drag } from './support/drag-gesture.js';
-import { advanceFrames, cleanup, mount, panelsInput, withHost, StaticRow } from './support/mount-harness.js';
+import { advanceFrames, cleanup, mount, panelsInput, withHost, StaticRow, seededWorkspace } from './support/mount-harness.js';
 import { registerTestView } from './support/test-views.js';
 
 const OWNED = ['tuning.rowGap', 'tuning.dragToClose', 'tuning.slide', 'tuning.hopFraction', 'tuning.chrome', 'tuning.resizeSettleSlides'];
@@ -83,8 +83,24 @@ function made(id: string, tuning: NonNullable<PanelSettings['tuning']> = {}, ove
   return applyTemplate({ ...skeleton, instance: { tuning }, ...over }, resolvePanelSettings({ template: { overflow: 'park', tuning } }).value, 'create');
 }
 const NONE: ReadonlySet<string> = new Set();
+/**
+ * A seeded workspace that reports its restore as settled. A row holds its slots' moves until the restore settles, and a workspace
+ * that was never attached does not, so without this the timing tests would see every move snap.
+ */
+function settledWorkspace(entries: readonly PanelWindow[]): WorkspaceHandle {
+  const workspace = seededWorkspace(entries, { rootId: ROOT });
+  const panels = workspace.panels as { getSnapshot: () => { status: string } };
+  const real = panels.getSnapshot.bind(panels);
+  panels.getSnapshot = () => ({ ...real(), status: 'ready' });
+  return workspace;
+}
+/** Holds one settled workspace for the life of a mount, so a rerender with other entries is the same workspace. */
+function SettledRow(props: { entries: PanelWindow[]; tuning?: WorkspaceTuning }): React.ReactElement {
+  const [workspace] = React.useState(() => settledWorkspace(props.entries));
+  return React.createElement(StaticRow, { ...props, workspace, rootId: ROOT, closingIds: NONE, enteringViaAnchorIds: NONE });
+}
 const rowOf = (entries: PanelWindow[], tuning?: WorkspaceTuning): React.ReactElement =>
-  withHost(React.createElement(StaticRow, { entries, rootId: ROOT, closingIds: NONE, enteringViaAnchorIds: NONE, ...(tuning === undefined ? {} : { tuning }) }));
+  withHost(React.createElement(SettledRow, { entries, ...(tuning === undefined ? {} : { tuning }) }));
 const slotOf = (container: HTMLElement, id: string): HTMLElement => {
   const slot = container.querySelector(`[data-slot="${id}"]`)?.parentElement;
   assert.ok(slot, `slot ${id} is mounted`);
@@ -240,7 +256,7 @@ test('the library tuning defaults are exactly these numbers, by key name', () =>
     hopFraction: 0.5,
     edgeScroll: { zonePx: 48, maxPxPerSec: 900, reducedStepMs: 500 },
     saveQuietMs: 500,
-    gestureLockMs: 60,
+    gestureLockMs: 30,
     gestureQuietMs: 150,
     resizeSettleSlides: 1.25,
     returnTieBreak: 'latest-first',

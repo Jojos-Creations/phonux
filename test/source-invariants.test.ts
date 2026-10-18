@@ -374,10 +374,10 @@ test('source: a planted member on the handle or the reader is found, so the shap
 // Timing tuning and the hold wiring
 // ---------------------------------------------------------------------------
 
-test('source: useRowScrollGesture reads gestureLockMs from a ref assigned on every render, arms the timer from it and never lists it as an effect dependency', () => {
+test('source: useRowScrollGesture reads gestureLockMs from a ref assigned on every render, measures the burst lock against it and never lists it as an effect dependency', () => {
   const src = read('panels/useRowScrollGesture.ts');
   assert.match(src, /const gestureLockMsRef = useRef\(gestureLockMs\);\s*gestureLockMsRef\.current = gestureLockMs;/, 'the ref is created and assigned in the render body, like scrollRowRef');
-  assert.match(src, /setTimeout\(\(\) => \{\s*locked = false;\s*\}, gestureLockMsRef\.current\);/, 'armUnlock arms the timer from the ref');
+  assert.match(src, /performance\.now\(\) - lastStepAt < gestureLockMsRef\.current/, 'a step inside the lock window is held back, the window read from the ref');
   assert.match(src, /\}, \[overflowContainerRef, mode\]\);/, 'the effect depends on the container ref and the gesture mode alone, so a new lock does not tear the listeners down');
   assert.doesNotMatch(src, /GESTURE_LOCK_MS = /, 'the module constant is gone');
   assert.match(src, /gestureLockMs: number = GESTURE_LOCK_MS/, 'the parameter defaults to the one constant');

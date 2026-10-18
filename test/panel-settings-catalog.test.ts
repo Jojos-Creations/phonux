@@ -313,7 +313,7 @@ test('defaults: LIBRARY_TUNING_DEFAULTS deep-equals the exact object, with the s
     hopFraction: 0.5,
     edgeScroll: SCROLL_DEFAULTS.tuning.edgeScroll,
     saveQuietMs: 500,
-    gestureLockMs: 60,
+    gestureLockMs: 30,
     gestureQuietMs: 150,
     resizeSettleSlides: 1.25,
     returnTieBreak: 'latest-first',

@@ -20,8 +20,12 @@ const made = (id: string, layer: PanelSettings = {}): PanelWindow => {
   return applyTemplate(skeleton, resolvePanelSettings({ template: layer }).value, 'create');
 };
 
-/** The cells (N visible phones, k slots) whose panel centres on a grid stop: the only ones the rule allows. */
-const CENTRED = new Set(['3:1', '3:3', '4:2', '5:3', '5:5', '6:4']);
+/**
+ * The cells (N visible phones, k slots) whose panel centres on a grid stop: the only ones the rule allows. The row starts flush left,
+ * so the panel sits one phone in and is centred only when its centring offset, (N - k) / 2 phones, is a whole number of steps
+ * from there: k = N - 2 at stop 0, and k = N, which fills the window, at stop 406.
+ */
+const CENTRED = new Set(['2:2', '3:1', '3:3', '4:2', '4:4', '5:3', '5:5', '6:4', '6:6']);
 
 test('for N visible phones (2 to 6) and a first panel of k slots (1 to N), the panel centres on a grid stop exactly in the listed cells', () => {
   const centred: string[] = [];

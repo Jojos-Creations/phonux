@@ -789,7 +789,7 @@ test('matrix:scrollOnOpen', async () => {
   await r.settle();
   r.turn(() => r.h.c!.scrollTo());
   await r.settle();
-  assert.equal(r.m.container.scrollLeft, 640, "none: scrollTo() falls back to into-view, c's right edge 1624 less the 984 visible");
+  assert.equal(r.m.container.scrollLeft, 812, "none: scrollTo() falls back to into-view: c's right edge 1624 less the 984 visible is 640, and the stop that shows c whole is 812");
   const hidden = await matrixRig({ ids: ['a', 'b', 'c', 'd', 'e'], width: 1000, workspace: { tuning: { rowGesture: 'free' } } });
   hidden.turn(() => hidden.h.c!.hide());
   await hidden.settle();
@@ -816,7 +816,7 @@ test('matrix:scrollOnMove', async () => {
     r.m.unmount();
     return at;
   };
-  assert.equal(await grown(false), 234, 'control: a in view grows to two slots, 796 px, and the row follows by the least distance that shows it whole');
+  assert.equal(await grown(false), 406, 'control: a in view grows to two slots, 796 px, and the row follows to the stop that shows it whole');
   assert.equal(await grown(true), 0, 'the next move reads none: the row stays');
 });
 
@@ -1226,27 +1226,32 @@ test('matrix:tuning.saveQuietMs', async () => {
 test('matrix:tuning.gestureLockMs', async () => {
   probe('tuning.gestureLockMs');
   await wrongScopeInEveryStatus({ tuning: { gestureLockMs: 700 } }, 'tuning.gestureLockMs');
+  // The lock reads performance.now, which the fake timers leave alone: a clock the test moves puts the second event an exact interval after the first.
+  // Both events are one phone width plus the row gap (406) in one direction, so the second carries a whole step of travel.
   const swipes = async (gestureLockMs: number | undefined): Promise<(number | null)[]> => {
     const r = await matrixRig({ ids: ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j'], width: 1000 });
     await r.settle();
     mockWindow();
+    let clock = 1000;
+    const now = mock.method(performance, 'now', () => clock);
     const scroller = rowScrollerFor(r.m.container);
     if (gestureLockMs !== undefined) done(r.turn(() => r.ws.panels.configureTuning({ gestureLockMs })));
     const wheel = (deltaX: number): void => act(() => void r.m.container.dispatchEvent(new WheelEvent('wheel', { deltaX, cancelable: true, bubbles: true })));
-    wheel(100);
+    wheel(406);
     const first = scroller.glideTarget();
-    act(() => mock.timers.tick(30));
-    wheel(-100);
+    clock += 10;
+    wheel(406);
     const second = scroller.glideTarget();
+    now.mock.restore();
     mock.timers.reset();
     r.m.unmount();
     return [first, second];
   };
   const [firstDefault, secondDefault] = await swipes(undefined);
   assert.equal(firstDefault !== null, true, 'control: the first swipe starts a glide');
-  assert.equal(secondDefault, firstDefault, 'under the default 60 ms lock a second swipe 30 ms later is ignored');
-  const [firstShort, secondShort] = await swipes(10);
-  assert.notEqual(secondShort, firstShort, 'under 10 ms the same second swipe acts');
+  assert.equal(secondDefault, firstDefault, 'under the default 30 ms lock a second step of travel 10 ms later is held back');
+  const [firstShort, secondShort] = await swipes(5);
+  assert.notEqual(secondShort, firstShort, 'under 5 ms the same second step acts');
 });
 
 test('matrix:tuning.gestureQuietMs', async () => {

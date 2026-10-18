@@ -91,7 +91,7 @@ test('definePanel accepts any component kind for footer and refuses anything els
   }
 });
 
-test('a footer that throws while rendering is hidden, the panel stays, and the console is told by us once', () => {
+test('a footer that throws while rendering is hidden, the panel stays, and the console is told by us once per mount', () => {
   const calls: string[] = [];
   const original = console.error;
   console.error = (...args: unknown[]) => void calls.push(args.map(String).join(' '));
@@ -102,7 +102,8 @@ test('a footer that throws while rendering is hidden, the panel stays, and the c
     const m = mountWith({ footer: Boom });
     assert.equal(m.container.querySelector('[data-panel-footer]') === null, true);
     assert.equal(m.container.querySelector('[data-body]') !== null, true);
-    assert.equal(calls.filter((c) => c.startsWith('PanelFooter:') && c.includes('boom')).length, 1);
+    // The row remounts its panels once when the restore settles, and the footer throws again on that mount.
+    assert.equal(calls.filter((c) => c.startsWith('PanelFooter:') && c.includes('boom')).length, 2);
   } finally {
     console.error = original;
   }

@@ -1,6 +1,6 @@
 /**
  * The rest settle lands on a grid stop. With a phone, a three-slot panel and four phones at a 2000 px container (phone 380, gap 16),
- * the grid is every 396 from 0 and the row ends at 1186, a shorter last step. A rest from 892 must settle on the grid stop 792, or the next step is short.
+ * the grid is every 396 from 0 and the row ends at 1184, a shorter last step. A rest from 892 must settle on the grid stop 792, or the next step is short.
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -23,8 +23,8 @@ test('a rest from between stops settles on a grid stop, so the next step is one 
   const base = 2 * STEP + 100;
   const onGrid = (at: number) => Math.abs(at / STEP - Math.round(at / STEP)) < 1e-6;
   assert.deepEqual(n.stops, n.stepStops, 'every stop is a grid stop');
-  assert.equal(n.stops.at(-1), 1186, 'the row ends at 1186, which is off the grid');
+  assert.equal(n.stops.at(-1), 1184, 'the row ends at 1184, which is off the grid');
   const settled = nearestStop(n, base);
   assert.ok(onGrid(settled), `settled ${settled}`);
-  assert.equal(settled, 2 * STEP, 'the grid stop 792 is nearer than the end at 1186');
+  assert.equal(settled, 2 * STEP, 'the grid stop 792 is nearer than the end at 1184');
 });
