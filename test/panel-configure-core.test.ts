@@ -9,7 +9,7 @@ import { act, createElement, useEffect, useLayoutEffect } from 'react';
 import { flushSync } from 'react-dom';
 import type { ConfigureResult, HeaderButton, PanelHandle, PanelResult, PanelSettings, PanelSummary, Pinning } from '../index.js';
 import { applyConfigure } from '../panelConfigure.js';
-import { ALL_SLOTS } from '../rowConstants.js';
+import { ALL_SLOTS, SLIDE_DURATION_SEC } from '../rowConstants.js';
 import { panelKey, resolvePanelSettings } from '../panelSettings.js';
 import type { PanelWindow } from '../panelWindow.js';
 import { bindingOf } from '../workspaceCore.js';
@@ -401,7 +401,7 @@ test('configureTuning applies to the workspace tuning, to every panel\'s resolve
   r.turn(() => r.h.b!.configure({ tuning: { slide: { durationSec: 0.9 } } }));
   assert.equal(r.h.b!.getSettings().value.tuning.slide.durationSec, 0.9, 'a panel\'s own leaf beats the workspace\'s');
   done(r.turn(() => r.ws.panels.configureTuning({ slide: null, hopFraction: null })));
-  assert.equal(r.ws.tuning.slide.durationSec, 0.4);
+  assert.equal(r.ws.tuning.slide.durationSec, SLIDE_DURATION_SEC);
   assert.equal(r.h.a!.getSettings().value.tuning.hopFraction, 0.5);
 });
 
@@ -1050,7 +1050,7 @@ test('configureTuning rowGap in park mode: a smaller capacity parks the fewest p
 
 test('configureTuning rowGap in a scrolling row only re-prices: nothing is parked, and the farthest legal scrollLeft moves with the strip', async () => {
   const ids = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j'];
-  const r = await pinRig({ ids, width: 1000, workspace: { tuning: { rowGesture: 'free' } } });
+  const r = await pinRig({ ids, width: 1000, workspace: { tuning: { rowGesture: 'step' } } });
   await r.settle();
   const numbers = () => {
     const n = r.m.latest().rowNumbers;

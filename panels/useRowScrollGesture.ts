@@ -2,7 +2,7 @@
  * The row's scroll gesture: wheel travel or an arrow key asks for steps in a direction. What a step does is the
  * caller's: this hook only filters the input, keeps the burst lock and installs the listeners.
  *
- * Under `mode` 'free' and 'off' no listener is installed: the browser scrolls natively ('free') or nothing does.
+ * Under `mode` 'off' no listener is installed and nothing scrolls the row.
  *
  * The wheel listener is passive and never cancels: a stepping row's overflow is hidden, so the browser has nothing of the row's
  * to scroll, and a listener that could cancel would make the browser wait on it for every wheel over a panel, vertical ones too.
@@ -32,7 +32,7 @@ export function useRowScrollGesture(
   overflowContainerRef: RefObject<HTMLDivElement | null>,
   onStep: (direction: 'left' | 'right') => void,
   gestureLockMs: number = GESTURE_LOCK_MS,
-  mode: 'step' | 'free' | 'off' = 'step',
+  mode: 'step' | 'off' = 'step',
   gestureQuietMs: number = GESTURE_QUIET_MS,
   stepPx = 400,
 ): void {

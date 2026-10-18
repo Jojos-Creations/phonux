@@ -249,7 +249,7 @@ test('a pointercancel mid-drag releases the claim with no scroll write and no ho
   assert.equal(claimFree(m), true);
 });
 
-test('a pointercancel on a free row lets the edge loop go and the row rests on the stop nearest where it was left', async () => {
+test('a pointercancel on a stepping row lets the edge loop go and the row rests on the stop nearest where it was left', async () => {
   const m = mountCancelRow();
   const scroll = countWrites(m);
   await dragTo(m, 1000);
@@ -267,19 +267,7 @@ test('a pointercancel on a free row lets the edge loop go and the row rests on t
   assert.equal(claimFree(m), true);
 });
 
-test('native scrolls during the hold: free adds them, step and off ignore a wheel burst, and off still edge-scrolls by code', async () => {
-  const free = mountCancelRow({}, { tuning: { rowGesture: 'free' } });
-  await dragTo(free, 1000);
-  await frames(10);
-  free.container.scrollLeft += 300;
-  await frames(20);
-  const expected = 300 + (walked(9) - 0) - 0 + (walked(29) - walked(9));
-  assert.ok(Math.abs(free.container.scrollLeft - expected) < 1e-6, `free: ${free.container.scrollLeft} vs ${expected}`);
-  assert.ok(Math.abs(drawnX(free) - (40 + free.container.scrollLeft)) < 1e-6, 'the drawn position includes the 300');
-  await liftAt(1000);
-  await frames(30);
-  cleanup();
-
+test('a wheel burst during the hold scrolls nothing under step or off, and off still edge-scrolls by code', async () => {
   for (const rowGesture of ['step', 'off'] as const) {
     const m = mountCancelRow({}, { tuning: { rowGesture } });
     await dragTo(m, 500);
@@ -325,7 +313,7 @@ test('a claim someone else holds: no edge scroll, the box still follows the poin
 });
 
 test('the scroll distance counts from scrollLeft at pointer-down: a native 100 before the axis lock is counted, then the edge distance', async () => {
-  const m = mountCancelRow({}, { tuning: { rowGesture: 'free' } });
+  const m = mountCancelRow({}, { tuning: { rowGesture: 'step' } });
   await press(handleOf(m), 960);
   m.container.scrollLeft = 100;
   await moveTo(1000);

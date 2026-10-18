@@ -11,10 +11,13 @@ import { act } from 'react';
 import { Panel, PanelFrame, createWorkspace, definePanel } from '../index.js';
 import type { PanelHandle, PanelTemplate, WorkspaceHandle } from '../index.js';
 import { advanceFrames, cleanup } from './support/mount-harness.js';
+import { SLIDE_DURATION_SEC } from '../rowConstants.js';
 import { drag, release } from './support/drag-gesture.js';
 import { albumPanel, effects, frameOnlyPanel, restPanel, stableIds } from './support/frame-fixtures.js';
 import { flush, mountWorkspace, type ResizableWorkspace } from './support/workspace-row.js';
 
+/** Long enough for a default-slide enter or exit to finish, with a few frames to spare. */
+const SLIDE_DONE_MS = SLIDE_DURATION_SEC * 1000 + 100;
 const open: WorkspaceHandle[] = [];
 
 afterEach(() => {
@@ -68,7 +71,7 @@ const part = (m: ResizableWorkspace, name: string): HTMLElement[] => [...m.conta
 const bodiesOf = (m: ResizableWorkspace, id: string): HTMLElement | null => m.container.querySelector<HTMLElement>(`[data-body="${id}"]`);
 const settle = async (): Promise<void> => {
   await act(async () => undefined);
-  await advanceFrames(400);
+  await advanceFrames(SLIDE_DONE_MS);
 };
 
 // ---------------------------------------------------------------------------

@@ -67,7 +67,7 @@ const VALUE: Record<string, unknown> = {
   resizeSettleSlides: 2,
   returnTieBreak: 'row-order',
   dropTieBreak: 'rightmost',
-  rowGesture: 'free',
+  rowGesture: 'off',
   initialScroll: 'end',
   chrome: { mode: 'hover-or-active', fadeMs: 80 },
   maxLivePanels: 3,

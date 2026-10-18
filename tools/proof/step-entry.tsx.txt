@@ -13,7 +13,7 @@ const MODE = (q.get('mode') ?? 'visible') as 'off' | 'visible' | 'hidden';
 const SLOTS = (q.get('slots') ?? '1,2,1').split(',').map(Number);
 const CONTROL = q.get('control') ?? 'none';
 const REDUCE = q.get('reduce') === '1';
-const GESTURE = (q.get('gesture') ?? 'step') as 'step' | 'free';
+const GESTURE = (q.get('gesture') ?? 'step') as 'step' | 'off';
 const REVEAL = q.get('reveal');
 const ROOT = 'root';
 const FRAME = q.get('frame') ?? 'none';

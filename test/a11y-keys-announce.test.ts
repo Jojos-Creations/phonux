@@ -14,10 +14,13 @@ import { DragToClose } from '../dragToClose.js';
 import { PanelSlotContext, type PanelSlotValue } from '../panelSlotContext.js';
 import { slotTuning } from '../panelTuning.js';
 import { advanceFrames, cleanup } from './support/mount-harness.js';
+import { SLIDE_DURATION_SEC } from '../rowConstants.js';
 import { drag, release } from './support/drag-gesture.js';
 import { stableIds } from './support/frame-fixtures.js';
 import { flush, mountWorkspace, type ResizableWorkspace } from './support/workspace-row.js';
 
+/** Long enough for a default-slide enter or exit to finish, with a few frames to spare. */
+const SLIDE_DONE_MS = SLIDE_DURATION_SEC * 1000 + 100;
 const open: WorkspaceHandle[] = [];
 afterEach(() => {
   cleanup();
@@ -35,7 +38,7 @@ async function rig(ids: string[], over: Record<string, Record<string, unknown>> 
   for (const id of ids) ws.addPanel(id, { id: `${id}-1` });
   const m = mountWorkspace(ws, { width: 1600, withMaxLiveWidth: true });
   await flush();
-  await advanceFrames(400);
+  await advanceFrames(SLIDE_DONE_MS);
   return m;
 }
 /** Panels in the order they are drawn: the DOM keeps the order they opened, so position comes from the slot's offset. */
@@ -46,7 +49,7 @@ const stripOf = (m: ResizableWorkspace, id: string): HTMLElement => slotOf(m, id
 const announcer = (): string => document.querySelector('[data-workspace-announcer]')!.textContent ?? '';
 const settle = async (): Promise<void> => {
   await act(async () => undefined);
-  await advanceFrames(400);
+  await advanceFrames(SLIDE_DONE_MS);
 };
 const press = async (el: Element, key: string): Promise<KeyboardEvent> => {
   const event = new KeyboardEvent('keydown', { key, bubbles: true, cancelable: true });

@@ -26,7 +26,7 @@ const base: WorkspaceShellStyleInput = { containerWidth: 1000, rowResizeSettled:
 const shell = (over: Partial<WorkspaceShellStyleInput>) => workspaceShellStyle({ ...base, ...over });
 
 test('workspaceShellStyle: a row with no settings is hidden and shows no scrollbar rule, whatever the gesture', () => {
-  for (const rowGesture of [undefined, 'step', 'free', 'off'] as const) {
+  for (const rowGesture of [undefined, 'step', 'off'] as const) {
     const s = shell({ rowNumbers: legacy, ...(rowGesture === undefined ? {} : { rowGesture }) });
     assert.equal(s.overflowX, 'hidden');
     assert.equal(s.hideScrollbar, false);
@@ -38,11 +38,6 @@ test("workspaceShellStyle: a scrolling row with rowGesture 'step' is overflow hi
   assert.deepEqual([shell({ rowNumbers: rowOf(2), rowGesture: 'step' }).overflowX, shell({ rowNumbers: rowOf(2), rowGesture: 'step' }).hideScrollbar], ['hidden', true]);
   assert.equal(shell({ rowNumbers: rowOf(2) }).overflowX, 'hidden', "step is the default gesture");
   assert.equal(shell({ rowNumbers: rowOf(2) }).hideScrollbar, true, "step is the default gesture");
-});
-
-test("workspaceShellStyle: a scrolling row with rowGesture 'free' scrolls and keeps its scrollbar", () => {
-  const s = shell({ rowNumbers: rowOf(2), rowGesture: 'free' });
-  assert.deepEqual([s.overflowX, s.hideScrollbar], ['auto', false]);
 });
 
 test("workspaceShellStyle: a scrolling row with rowGesture 'off' does not scroll", () => {
@@ -80,14 +75,6 @@ test("a mounted Workspace for a scrolling row at rowGesture 'step' emits overflo
   assert.match(markup, NO_CHAINING);
   assert.match(markup, HIDES_SCROLLBAR);
   assert.match(markup, WEBKIT_RULE);
-});
-
-test("a mounted Workspace at rowGesture 'free' is the one that emits overflow-x:auto, with neither scrollbar-hiding rule (the step case above is the positive control)", () => {
-  const markup = markupOf(rowOf(2), { rowGesture: 'free' });
-  assert.match(markup, /overflow-x:auto/);
-  assert.match(markup, NO_CHAINING);
-  assert.doesNotMatch(markup, HIDES_SCROLLBAR);
-  assert.doesNotMatch(markup, WEBKIT_RULE);
 });
 
 test("a mounted Workspace at rowGesture 'off' emits overflow-x:hidden with neither scrollbar-hiding rule", () => {

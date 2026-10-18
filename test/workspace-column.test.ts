@@ -12,6 +12,7 @@ import { COLUMN_BOTTOM_BAND, createWorkspace, createWorkspaceColumn, definePanel
 import type { ColumnState, ColumnStorage, PanelTemplate, WorkspaceColumnHandle } from '../index.js';
 import { memoryWorkspaceStorage } from '../fakeHost.js';
 import { bindingOf } from '../workspaceCore.js';
+import { SLIDE_DURATION_SEC, SLIDE_EASE } from '../rowConstants.js';
 import { arrowKeyBelongsElsewhere } from '../arrowKeys.js';
 import { rigCleanup, slots, until } from './support/auto-rig.js';
 
@@ -268,7 +269,7 @@ test('without Reduce Motion the column glides to the new workspace', async () =>
   act(() => void c.scrollTo(2));
   const track = cells()[0]!.parentElement!;
   await until('the track moved', () => track.style.transform === 'translateY(-200%)');
-  assert.match(track.style.transition, /^transform 0\.4s cubic-bezier\(/);
+  assert.equal(track.style.transition, `transform ${SLIDE_DURATION_SEC}s cubic-bezier(${SLIDE_EASE.join(',')})`);
 });
 
 // ---------------------------------------------------------------------------

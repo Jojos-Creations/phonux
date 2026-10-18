@@ -183,7 +183,7 @@ test('a pin whose placement half cannot be placed refuses even with the parkable
 
 test('a fixed pin never needs room: all-scroll row at 800 px, History and three fixed pins, every pin is accepted and the strip is wider than the window', async () => {
   const scroll: PanelSettings = { overflow: 'scroll', ...layer(COMBINED) };
-  const r = await pinRig({ ids: ['p1', 'p2', 'p3', 'x'], width: 800, settings: { p1: scroll, p2: scroll, p3: scroll, x: { overflow: 'scroll' } }, workspace: { tuning: { rowGesture: 'free' } } });
+  const r = await pinRig({ ids: ['p1', 'p2', 'p3', 'x'], width: 800, settings: { p1: scroll, p2: scroll, p3: scroll, x: { overflow: 'scroll' } }, workspace: { tuning: { rowGesture: 'step' } } });
   for (const id of ['p1', 'p2', 'p3']) assert.equal(brief(r.turn(() => r.h[id]!.pin())), 'T', `${id} pin`);
   assert.deepEqual(['p1', 'p2', 'p3'].map((id) => r.facts(id).parkable), [false, false, false]);
   const numbers = r.provided().rowNumbers;
@@ -222,7 +222,7 @@ test('a fixed pin in an unmeasured row is accepted', async () => {
 async function followRig(scrollOnMove: string | undefined, from: number): Promise<{ r: PinRig; el: HTMLElement }> {
   const ids = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j'];
   const over: PanelSettings = { overflow: 'scroll', ...(scrollOnMove === undefined ? {} : ({ scrollOnMove } as unknown as PanelSettings)) };
-  const r = await pinRig({ ids, width: 1000, settings: Object.fromEntries(ids.map((id) => [id, over])), workspace: { tuning: { rowGesture: 'free' } } });
+  const r = await pinRig({ ids, width: 1000, settings: Object.fromEntries(ids.map((id) => [id, over])), workspace: { tuning: { rowGesture: 'step' } } });
   await advanceFrames(900);
   r.m.container.scrollLeft = from;
   return { r, el: r.m.container };

@@ -13,6 +13,7 @@ import type { PanelWindow } from '../index.js';
 import { advanceFrames, cleanup } from './support/mount-harness.js';
 import { frameClock } from './support/jsdom-globals.js';
 import { computeRowNumbers, maxScrollOf, type RowNumbers } from '../rowNumbers.js';
+import { SLIDE_DURATION_SEC } from '../rowConstants.js';
 import { made, mountRow, panelsOf, rootEntry, row, type MountedRow } from './support/scroll-row.js';
 
 afterEach(() => {
@@ -20,9 +21,12 @@ afterEach(() => {
   cleanup();
 });
 
+/** Long enough for a default-slide glide to land, with a few frames to spare. */
+const GLIDE_DONE_MS = SLIDE_DURATION_SEC * 1000 + 100;
+
 const eleven = (): PanelWindow[] => panelsOf(10);
 
-/** The helper mounts 'free' unless told otherwise; these tests are about the step gesture. */
+/** Pins the gesture to 'step' whatever the helper's default; these tests are about the step gesture. */
 const stepRow = (entries: PanelWindow[], width: number, over: Parameters<typeof mountRow>[2] = {}): MountedRow =>
   mountRow(entries, width, { ...over, tuning: { ...over.tuning, rowGesture: 'step' } });
 
@@ -44,7 +48,7 @@ test('a wheel burst of 30 events scrolls exactly one stop, and its later events 
   mock.timers.enable({ apis: ['setTimeout'] });
   for (let n = 0; n < 30; n += 1) m.wheel({ deltaX: 50 });
   assert.equal(m.scroller.glideTarget(), stops[1]);
-  await advanceFrames(500);
+  await advanceFrames(GLIDE_DONE_MS);
   assert.equal(m.container.scrollLeft, stops[1]);
 });
 
@@ -225,7 +229,7 @@ test('a wheel that stops leaves the row where its last step put it', async () =>
   tick(30);
   m.wheel({ deltaX: 400 });
   tick(1000);
-  await advanceFrames(500);
+  await advanceFrames(GLIDE_DONE_MS);
   assert.equal(m.container.scrollLeft, stops[2]);
 });
 
@@ -378,7 +382,7 @@ test('a glide the gesture started stops at pointer-down in the container', () =>
 });
 
 /** Counts the container's wheel and the window's keydown listeners added while `render` mounts. */
-function listenersFor(rowGesture: 'step' | 'free' | 'off'): number {
+function listenersFor(rowGesture: 'step' | 'off'): number {
   const proto = (window as unknown as { EventTarget: typeof EventTarget }).EventTarget.prototype;
   const spy = mock.method(proto, 'addEventListener');
   try {
@@ -393,10 +397,8 @@ function listenersFor(rowGesture: 'step' | 'free' | 'off'): number {
   }
 }
 
-test('free and off install no gesture listener; step installs two', () => {
+test('off installs no gesture listener; step installs two', () => {
   assert.equal(listenersFor('step'), 2, 'positive control');
-  cleanup();
-  assert.equal(listenersFor('free'), 0);
   cleanup();
   assert.equal(listenersFor('off'), 0);
 });
@@ -431,7 +433,7 @@ test('the gesture shows no hidden panel while a claim is held', () => {
 const narrow = 430;
 const swipe = async (m: MountedRow, deltaX: number): Promise<void> => {
   m.wheel({ deltaX });
-  await advanceFrames(500);
+  await advanceFrames(GLIDE_DONE_MS);
   tick(400);
 };
 
@@ -441,7 +443,7 @@ test('a held panel after the last panel in view is reached only once no live pan
     mock.timers.enable({ apis: ['setTimeout'] });
     act(() => m.latest().create({ view: 'scroll-row-view' }));
     const heldId = m.latest().entries[m.latest().entries.length - 1]!.id;
-    await advanceFrames(500);
+    await advanceFrames(GLIDE_DONE_MS);
     const stops = stopsOf(m, narrow);
     assert.equal(m.container.scrollLeft, 0, `${policy}: a hidden create scrolls nothing`);
     assert.deepEqual(m.live(), ['c']);

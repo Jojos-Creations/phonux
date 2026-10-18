@@ -309,7 +309,7 @@ test('defaults: LIBRARY_TUNING_DEFAULTS deep-equals the exact object, with the s
   assert.deepEqual(LIBRARY_TUNING_DEFAULTS, {
     rowGap: 16,
     dragToClose: { distanceFraction: 0.25, minDistancePx: 80, flickMinDistancePx: 40, flickVelocity: 700, cancelVelocity: -300, directionLockPx: 8, restMs: 50, velocityWindowMs: 100, snapBack: { stiffness: 520, damping: 42 } },
-    slide: { durationSec: 0.4, ease: [0.2, 0, 0, 1], closeExitSeconds: 0.18, closeExitEase: 'easeIn', glideEase: 'cubic-out' },
+    slide: { durationSec: 0.6, ease: [0.4, 0, 0.2, 1], closeExitSeconds: 0.18, closeExitEase: 'easeIn', glideEase: 'cubic-out' },
     hopFraction: 0.5,
     edgeScroll: SCROLL_DEFAULTS.tuning.edgeScroll,
     saveQuietMs: 500,
@@ -382,7 +382,7 @@ const RESOLVED_DEFAULTS: { [K in Exclude<keyof ResolvedPanelSettings, 'title'>]:
   afterClose: 'stay-closed',
   tuning: {
     dragToClose: { distanceFraction: 0.25, minDistancePx: 80, flickMinDistancePx: 40, flickVelocity: 700, cancelVelocity: -300, directionLockPx: 8, restMs: 50, velocityWindowMs: 100, snapBack: { stiffness: 520, damping: 42 } },
-    slide: { durationSec: 0.4, ease: [0.2, 0, 0, 1], closeExitSeconds: 0.18, closeExitEase: 'easeIn', glideEase: 'cubic-out' },
+    slide: { durationSec: 0.6, ease: [0.4, 0, 0.2, 1], closeExitSeconds: 0.18, closeExitEase: 'easeIn', glideEase: 'cubic-out' },
     hopFraction: 0.5,
     edgeScroll: SCROLL_DEFAULTS.tuning.edgeScroll,
   },

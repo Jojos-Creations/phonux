@@ -24,7 +24,7 @@ interface Mounted {
 }
 
 /** The hook on a container holding one child, with the options each test is about; `steps` records what the row was asked to do. */
-function mountGesture(mode: 'step' | 'free' | 'off' = 'step'): Mounted {
+function mountGesture(mode: 'step' | 'off' = 'step'): Mounted {
   const steps: Array<'left' | 'right'> = [];
   const ref = React.createRef<HTMLDivElement>();
   function Row(): React.ReactElement {
@@ -106,26 +106,21 @@ test('over plain content the same wheel steps', () => {
   assert.deepEqual(m.steps, ['right']);
 });
 
-test('under free and off no wheel listener is installed, so the browser scrolls or nothing does', () => {
-  for (const mode of ['free', 'off'] as const) {
-    const m = mountGesture(mode);
-    const event = wheel(m.inner, { deltaX: 120 });
-    assert.deepEqual(m.steps, [], mode);
-    assert.equal(event.defaultPrevented, false, mode);
-    cleanup();
-  }
+test('under off no wheel listener is installed, so nothing scrolls the row', () => {
+  const m = mountGesture('off');
+  const event = wheel(m.inner, { deltaX: 120 });
+  assert.deepEqual(m.steps, []);
+  assert.equal(event.defaultPrevented, false);
 });
 
 const SHELL = { rowResizeSettled: true, containerWidth: 800, phoneWidth: 390, fixedColumnCount: 1, liveWidths: [] as number[] };
 
-test('the shell hides the horizontal overflow of a scrolling row that steps, and shows it only for free', () => {
+test('the shell hides the horizontal overflow of a scrolling row, whether it steps or not', () => {
   assert.equal(workspaceShellStyle({ ...SHELL, rowScroll: true, rowGesture: 'step' }).overflowX, 'hidden');
-  assert.equal(workspaceShellStyle({ ...SHELL, rowScroll: true, rowGesture: 'free' }).overflowX, 'auto');
   assert.equal(workspaceShellStyle({ ...SHELL, rowScroll: true, rowGesture: 'off' }).overflowX, 'hidden');
-  assert.equal(workspaceShellStyle({ ...SHELL, rowScroll: false, rowGesture: 'free' }).overflowX, 'hidden', 'a row that does not scroll has nothing to show');
 });
 
-test('a stepping row hides its scrollbar, and a free one shows it', () => {
+test('a stepping row hides its scrollbar, and an off row has none to hide', () => {
   assert.equal(workspaceShellStyle({ ...SHELL, rowScroll: true, rowGesture: 'step' }).hideScrollbar, true);
-  assert.equal(workspaceShellStyle({ ...SHELL, rowScroll: true, rowGesture: 'free' }).hideScrollbar, false);
+  assert.equal(workspaceShellStyle({ ...SHELL, rowScroll: true, rowGesture: 'off' }).hideScrollbar, false);
 });

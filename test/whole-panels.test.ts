@@ -86,7 +86,7 @@ test('snapToStop picks the nearest stop that shows the panel; nearestStop the ne
 });
 
 test('mounted in free mode: the one-phone grid stops, a spacer of the row gap alone and the margin is 0 once the strip overflows', () => {
-  const m = mountRow(panelsOf(5), 1000, { tuning: { rowGesture: 'free' } });
+  const m = mountRow(panelsOf(5), 1000, { tuning: { rowGesture: 'step' } });
   assert.deepEqual(m.latest().rowNumbers.stops, [0, 406, 812, 1218, 1452], 'a free row rests on the grid too, so a scroll that ends settles on a stop');
   assert.equal(m.latest().rowNumbers.rowMarginLeft, 0);
   assert.equal(m.container.querySelector<HTMLElement>('[data-row-end-pad]')!.style.flex, '0 0 16px', 'the right edge space is the element, with no endPad to add');

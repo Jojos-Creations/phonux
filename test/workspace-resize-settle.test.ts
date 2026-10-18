@@ -10,6 +10,7 @@ import { act } from 'react';
 import { Workspace } from '../index.js';
 import { resizeSettleDelayMs, useResizeSettled } from '../Workspace.js';
 import { LIBRARY_TUNING_DEFAULTS } from '../panelSettings.js';
+import { SLIDE_DURATION_SEC } from '../rowConstants.js';
 import { advanceFrames, cleanup, mount, withHost } from './support/mount-harness.js';
 
 afterEach(() => {
@@ -18,13 +19,15 @@ afterEach(() => {
 });
 
 const SLIDES = LIBRARY_TUNING_DEFAULTS.resizeSettleSlides;
+const SLIDE_MS = SLIDE_DURATION_SEC * 1000;
+const DEFAULT_DELAY_MS = Math.round(SLIDES * SLIDE_MS);
 
-test('the settle delay is resizeSettleSlides slide durations: 500 ms at the defaults, scaling with the slide and the leaf, 0 for either at 0', () => {
+test('the settle delay is resizeSettleSlides slide durations: 1.25 default slides at the defaults, scaling with the slide and the leaf, 0 for either at 0', () => {
   assert.equal(SLIDES, 1.25);
-  assert.equal(resizeSettleDelayMs(LIBRARY_TUNING_DEFAULTS.slide, SLIDES), 500);
+  assert.equal(resizeSettleDelayMs(LIBRARY_TUNING_DEFAULTS.slide, SLIDES), DEFAULT_DELAY_MS);
   assert.equal(resizeSettleDelayMs({ ...LIBRARY_TUNING_DEFAULTS.slide, durationSec: 0.8 }, SLIDES), 1000);
   assert.equal(resizeSettleDelayMs({ ...LIBRARY_TUNING_DEFAULTS.slide, durationSec: 0 }, SLIDES), 0);
-  assert.equal(resizeSettleDelayMs(LIBRARY_TUNING_DEFAULTS.slide, 0.5), 200);
+  assert.equal(resizeSettleDelayMs(LIBRARY_TUNING_DEFAULTS.slide, 0.5), Math.round(0.5 * SLIDE_MS));
   assert.equal(resizeSettleDelayMs(LIBRARY_TUNING_DEFAULTS.slide, 0), 0);
   const half = { ...LIBRARY_TUNING_DEFAULTS.slide, durationSec: 0.5 };
   assert.equal(resizeSettleDelayMs(half, 0.0031), 2, '1.55 ms rounds up');
@@ -129,7 +132,7 @@ test('and glides again after the delay', async () => {
   mock.timers.enable({ apis: ['setTimeout', 'setInterval'] });
   const m = mount(workspaceAt(1000));
   m.rerender(workspaceAt(1200));
-  act(() => mock.timers.tick(500));
+  act(() => mock.timers.tick(DEFAULT_DELAY_MS));
   await advanceFrames(2000);
   const start = marginOf(m.container);
   m.rerender(workspaceAt(1200, [390]));
@@ -159,7 +162,7 @@ test('a supplied rowResizeSettled wins, either way', async () => {
   assert.equal(await glidesWhenAPanelJoins(1000, () => undefined, { rowResizeSettled: true }), true, 'true glides');
 });
 
-test('tuning.resizeSettleSlides sets the wait: 2 slides of 0.4 s is 800 ms, one short still snaps and the full wait glides; 0 glides at once', async () => {
+test('tuning.resizeSettleSlides sets the wait: 2 default slides is the whole wait, one short still snaps and the full wait glides; 0 glides at once', async () => {
   mock.timers.enable({ apis: ['setTimeout', 'setInterval'] });
   const marginAfter = async (waitMs: number, tuning: Record<string, unknown>): Promise<'snapped' | 'glided'> => {
     const extra = { tuning };
@@ -176,8 +179,8 @@ test('tuning.resizeSettleSlides sets the wait: 2 slides of 0.4 s is 800 ms, one 
     m.unmount();
     return mid !== start && mid !== end ? 'glided' : 'snapped';
   };
-  assert.equal(await marginAfter(799, { resizeSettleSlides: 2 }), 'snapped', 'one ms short of 2 x 0.4 s');
-  assert.equal(await marginAfter(800, { resizeSettleSlides: 2 }), 'glided');
-  assert.equal(await marginAfter(499, {}), 'snapped', 'control: the default 1.25 still waits 500 ms');
+  assert.equal(await marginAfter(2 * SLIDE_MS - 1, { resizeSettleSlides: 2 }), 'snapped', 'one ms short of 2 default slides');
+  assert.equal(await marginAfter(2 * SLIDE_MS, { resizeSettleSlides: 2 }), 'glided');
+  assert.equal(await marginAfter(DEFAULT_DELAY_MS - 1, {}), 'snapped', 'control: the default 1.25 still waits its full delay');
   assert.equal(await marginAfter(0, { resizeSettleSlides: 0 }), 'glided', '0 settles at once');
 });

@@ -29,7 +29,7 @@ export interface CapRigOptions {
   /** Every web panel's `revealOnScroll`; default 'never'. */
   reveal?: 'edges' | 'any' | 'never';
   /** `tuning.rowGesture`; default 'step', so wheel and arrow keys act. */
-  gesture?: 'step' | 'free' | 'off';
+  gesture?: 'step' | 'off';
   /** Draws a drag handle in every web panel, whose horizontal drop moves the panel one hop per step. */
   grab?: boolean;
   /** Settings every web panel adds over the three above. */

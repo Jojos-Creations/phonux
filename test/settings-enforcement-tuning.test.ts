@@ -28,6 +28,7 @@ import {
 import { createWorkspace } from '../index.js';
 import type { PanelSettings, PanelTuning, PanelWindow, ProvidedPanels, SlideTuning, WorkspaceHandle, WorkspaceTuning } from '../index.js';
 import { SLOT_TRANSITION } from '../directionalTransition.js';
+import { SLIDE_DURATION_SEC, SLIDE_EASE } from '../rowConstants.js';
 import { PanelSlotContext, type PanelSlotValue } from '../panelSlotContext.js';
 import { applyTemplate, resolvePanelSettings } from '../panelSettings.js';
 import { resolveWorkspaceTuning } from '../panelTuning.js';
@@ -235,9 +236,10 @@ async function glidesAfterResize(waitMs: number, resizeSettleSlides: number): Pr
   return mid !== start && mid !== end;
 }
 
-test('differential tuning.resizeSettleSlides: 600 ms after a width change the row glides at 1 slide (400 ms) and still snaps at 2 (800 ms)', async () => {
-  const short = await glidesAfterResize(600, 1);
-  const long = await glidesAfterResize(600, 2);
+test('differential tuning.resizeSettleSlides: 1.5 slides after a width change the row glides at 1 slide and still snaps at 2', async () => {
+  const waitMs = 1.5 * SLIDE_DURATION_SEC * 1000;
+  const short = await glidesAfterResize(waitMs, 1);
+  const long = await glidesAfterResize(waitMs, 2);
   differential('tuning.resizeSettleSlides', (run) => {
     run(1, () => short);
     run(2, () => long);
@@ -252,7 +254,7 @@ test('the library tuning defaults are exactly these numbers, by key name', () =>
   assert.deepEqual(LIBRARY_TUNING_DEFAULTS, {
     rowGap: 16,
     dragToClose: { distanceFraction: 0.25, minDistancePx: 80, flickMinDistancePx: 40, flickVelocity: 700, cancelVelocity: -300, directionLockPx: 8, restMs: 50, velocityWindowMs: 100, snapBack: { stiffness: 520, damping: 42 } },
-    slide: { durationSec: 0.4, ease: [0.2, 0, 0, 1], closeExitSeconds: 0.18, closeExitEase: 'easeIn', glideEase: 'cubic-out' },
+    slide: { durationSec: 0.6, ease: [0.4, 0, 0.2, 1], closeExitSeconds: 0.18, closeExitEase: 'easeIn', glideEase: 'cubic-out' },
     hopFraction: 0.5,
     edgeScroll: { zonePx: 48, maxPxPerSec: 900, reducedStepMs: 500 },
     saveQuietMs: 500,
@@ -277,18 +279,23 @@ test('slideToTransition: the default slide is SLOT_TRANSITION itself, any other 
   const slow: SlideTuning = { ...LIBRARY_TUNING_DEFAULTS.slide, durationSec: 0.8 };
   const slowed = slideToTransition(slow);
   assert.notEqual(slowed, SLOT_TRANSITION);
-  assert.deepEqual(slowed, { duration: 0.8, ease: [0.2, 0, 0, 1] });
+  assert.deepEqual(slowed, { duration: 0.8, ease: [...SLIDE_EASE] });
   assert.notEqual(slowed.ease, slow.ease, 'the ease is copied: the tuning holds a read-only tuple');
   assert.equal(slideToTransition({ ...LIBRARY_TUNING_DEFAULTS.slide, closeExitSeconds: 0.3 }), SLOT_TRANSITION, 'the close exit is not part of a transition');
 });
 
 test('slideToTransition: each of the four ease numbers alone makes the transition its own, carrying that number', () => {
   const one = (ease: readonly [number, number, number, number]) => slideToTransition({ ...LIBRARY_TUNING_DEFAULTS.slide, ease });
-  assert.deepEqual(one([0.3, 0, 0, 1]), { duration: 0.4, ease: [0.3, 0, 0, 1] }, 'the first');
-  assert.deepEqual(one([0.2, 0.1, 0, 1]), { duration: 0.4, ease: [0.2, 0.1, 0, 1] }, 'the second');
-  assert.deepEqual(one([0.2, 0, 0.1, 1]), { duration: 0.4, ease: [0.2, 0, 0.1, 1] }, 'the third');
-  assert.deepEqual(one([0.2, 0, 0, 0.9]), { duration: 0.4, ease: [0.2, 0, 0, 0.9] }, 'the fourth');
-  for (const ease of [[0.3, 0, 0, 1], [0.2, 0.1, 0, 1], [0.2, 0, 0.1, 1], [0.2, 0, 0, 0.9]] as const) assert.notEqual(one(ease), SLOT_TRANSITION, `${ease.join(',')} is not the shared transition`);
+  const [x1, y1, x2, y2] = SLIDE_EASE;
+  const first = [x1 + 0.1, y1, x2, y2] as const;
+  const second = [x1, y1 + 0.1, x2, y2] as const;
+  const third = [x1, y1, x2 + 0.1, y2] as const;
+  const fourth = [x1, y1, x2, y2 - 0.1] as const;
+  assert.deepEqual(one(first), { duration: SLIDE_DURATION_SEC, ease: [...first] }, 'the first');
+  assert.deepEqual(one(second), { duration: SLIDE_DURATION_SEC, ease: [...second] }, 'the second');
+  assert.deepEqual(one(third), { duration: SLIDE_DURATION_SEC, ease: [...third] }, 'the third');
+  assert.deepEqual(one(fourth), { duration: SLIDE_DURATION_SEC, ease: [...fourth] }, 'the fourth');
+  for (const ease of [first, second, third, fourth] as const) assert.notEqual(one(ease), SLOT_TRANSITION, `${ease.join(',')} is not the shared transition`);
 });
 
 // ---------------------------------------------------------------------------
@@ -298,7 +305,7 @@ test('slideToTransition: each of the four ease numbers alone makes the transitio
 test('slide: the slot enters and leaves over durationSec, the down exit takes closeExitSeconds', () => {
   const slow: SlideTuning = { durationSec: 0.8, ease: [0.2, 0, 0, 1], closeExitSeconds: 0.3, closeExitEase: 'easeIn', glideEase: 'cubic-out' };
   const base = panelRowSlotMotion(0, 390, 700, 'right', 'down');
-  assert.equal(base.transition.duration, 0.4);
+  assert.equal(base.transition.duration, SLIDE_DURATION_SEC);
   assert.equal((base.exit as { transition: { duration: number } }).transition.duration, 0.18);
   const tuned = panelRowSlotMotion(0, 390, 700, 'right', 'down', 16, slow);
   assert.equal(tuned.transition.duration, 0.8);
@@ -387,13 +394,13 @@ async function joinedX(second: PanelWindow, frames: number): Promise<number> {
 test("slide: a panel's own slide, not the workspace's, times that panel's own entrance", async () => {
   const plain = await joinedX(entry('b'), 8);
   const slow = await joinedX(made('b', { slide: { durationSec: 0.9 } }), 8);
-  assert.ok(slow > plain, `the panel with its own 0.9 s slide (${slow}) is further from rest than the default 0.4 s one (${plain})`);
+  assert.ok(slow > plain, `the panel with its own 0.9 s slide (${slow}) is further from rest than the default ${SLIDE_DURATION_SEC} s one (${plain})`);
 });
 
 test('slide: the Workspace hands its resolved slide to the shell glide', () => {
   const rowRef = { current: null } as React.RefObject<HTMLDivElement | null>;
   mount(inWorkspace({ slide: { durationSec: 0.8 } }, [entry('a')], rowRef, [768, 390]));
-  assert.deepEqual(motionPropsOf(rowRef.current!, 'animate').transition, { duration: 0.8, ease: [0.2, 0, 0, 1] });
+  assert.deepEqual(motionPropsOf(rowRef.current!, 'animate').transition, { duration: 0.8, ease: [...SLIDE_EASE] });
 });
 
 // ---------------------------------------------------------------------------
@@ -585,7 +592,7 @@ for (const [path, value, accepted] of RANGES) {
   });
 }
 
-const WORKSPACE_RANGES: readonly [string, unknown, boolean][] = [['rowGap', 0, true], ['rowGap', 200, true], ['rowGap', -1, false], ['rowGap', 201, false], ['rowGap', 16.5, false], ...RANGES];
+const WORKSPACE_RANGES: readonly [string, unknown, boolean][] = [['rowGap', 0, true], ['rowGap', 200, true], ['rowGap', -1, false], ['rowGap', 201, false], ['rowGap', 16.5, false], ['rowGesture', 'step', true], ['rowGesture', 'off', true], ['rowGesture', 'free', false], ...RANGES];
 
 for (const [path, value, accepted] of WORKSPACE_RANGES) {
   test(`ranges: ${path} = ${JSON.stringify(value)} in the workspace tuning, a Workspace or a PanelRow ${accepted ? 'is kept' : 'takes its default and nothing throws'}`, () => {

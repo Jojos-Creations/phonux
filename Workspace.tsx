@@ -47,7 +47,7 @@ export interface WorkspaceShellStyleInput {
   /** Whether the row scrolls, for a caller with no `rowNumbers`. Ignored when `rowNumbers` is given. Default false. */
   rowScroll?: boolean;
   /** What the row's own scroll input does. Default: the library's `rowGesture`. */
-  rowGesture?: 'step' | 'free' | 'off';
+  rowGesture?: 'step' | 'off';
 }
 
 /** The values the row shell renders with, derived by `workspaceShellStyle`. @internal */
@@ -62,10 +62,10 @@ export interface WorkspaceShellStyle {
         duration: 0;
       };
   /**
-   * The scroll container's horizontal overflow: 'auto' for a scrolling row whose gesture is 'free', else 'hidden'. A stepping row
-   * moves only through its scroll writer, so the browser never scrolls it and its wheel listener can stay passive.
+   * The scroll container's horizontal overflow, always 'hidden': the row moves only through its scroll writer, so the browser
+   * never scrolls it and its wheel listener can stay passive.
    */
-  overflowX: 'hidden' | 'auto';
+  overflowX: 'hidden';
   /** True when the container scrolls but shows no scrollbar: a scrolling row whose gesture is 'step'. */
   hideScrollbar: boolean;
 }
@@ -85,7 +85,7 @@ export function workspaceShellStyle(i: WorkspaceShellStyleInput): WorkspaceShell
     marginLeft,
     // The margin snaps while stops exist: a gliding margin would leave the scrollable width short of where a stop sits.
     transition: i.rowResizeSettled && !(i.rowNumbers !== undefined && i.rowNumbers.stops.length > 0) ? (i.slide === undefined ? PANEL_TRANSITION : slideToTransition(i.slide)) : { duration: 0 },
-    overflowX: scrolls && gesture === 'free' ? 'auto' : 'hidden',
+    overflowX: 'hidden',
     hideScrollbar: scrolls && gesture === 'step',
   };
 }

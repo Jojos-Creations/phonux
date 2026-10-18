@@ -14,6 +14,7 @@ import { PanelSlotContext, type PanelSlotValue } from '../panelSlotContext.js';
 import { slotTuning } from '../panelTuning.js';
 import { reorderStepsForOffset } from '../panelWindow.js';
 import { edgeScrollStep } from '../edgeScroll.js';
+import { SLIDE_DURATION_SEC } from '../rowConstants.js';
 import { advanceFrames, cleanup, mount } from './support/mount-harness.js';
 import { drag } from './support/drag-gesture.js';
 import { FRAME_MS } from './support/jsdom-globals.js';
@@ -105,6 +106,8 @@ const press = (target: Element, x: number): Promise<void> => act(async () => voi
 const moveTo = (x: number, y = 100): Promise<void> => act(async () => void document.dispatchEvent(pointer('pointermove', x, y)));
 const liftAt = (x: number, y = 100): Promise<void> => act(async () => void document.dispatchEvent(pointer('pointerup', x, y)));
 const frames = (n: number): Promise<void> => advanceFrames(n * FRAME_MS);
+/** Frames for a default-slide glide to land and the box spring to finish. */
+const GLIDE_FRAMES = Math.ceil((SLIDE_DURATION_SEC * 1000) / FRAME_MS) + 10;
 const handleOf = (m: MountedRow, id: string): Element => {
   const handle = m.container.querySelector(`[data-handle="${id}"]`);
   assert.ok(handle, `${id}'s grab bar rendered`);
@@ -147,7 +150,7 @@ test('held at the right edge for 100 frames the row scrolls 99 steps; held mid-w
   assert.ok(Math.abs(m.container.scrollLeft - distance) < 1e-6, `scrollLeft ${m.container.scrollLeft}, expected ${distance} (99 x ${(EDGE.maxPxPerSec * FRAME_MS) / 1000})`);
   assert.equal(ends.length, 0, 'nothing hops during the drag');
   await liftAt(1000);
-  await frames(30);
+  await frames(GLIDE_FRAMES);
   assert.equal(ends.length, 1);
   assert.ok(Math.abs(ends[0]!.offset - (40 + distance)) < 1e-6, `released offset ${ends[0]!.offset}`);
   assert.equal(ends[0]!.hops, hopsAt(40 + distance));

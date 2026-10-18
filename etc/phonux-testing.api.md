@@ -743,7 +743,7 @@ export type WorkspaceTuning = PanelTuning & {
     resizeSettleSlides?: number;
     returnTieBreak?: 'latest-first' | 'earliest-first' | 'row-order';
     dropTieBreak?: 'leftmost' | 'rightmost';
-    rowGesture?: 'step' | 'free' | 'off';
+    rowGesture?: 'step' | 'off';
     initialScroll?: 'start' | 'end' | 'root' | {
         panel: PanelId;
     };

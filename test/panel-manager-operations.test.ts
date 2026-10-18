@@ -10,6 +10,7 @@ import { act } from 'react';
 import { createWorkspace, definePanel, useProvidePanels } from '../index.js';
 import type { PanelHandle, PanelResult, PanelSettings, PanelWindow, ProvidedPanels } from '../index.js';
 import { advanceFrames, cleanup, mount, useSeededInput } from './support/mount-harness.js';
+import { SLIDE_DURATION_SEC } from '../rowConstants.js';
 import { differential, differentialsCovered } from './support/differential.js';
 import { flush, markerTemplate, mountWorkspace } from './support/workspace-row.js';
 import { brief, fire, rig, TRIGGERS, type Rig } from './support/ops-rig.js';
@@ -327,7 +328,7 @@ test('1000 add and close cycles leave the snapshot at most declared plus live', 
       h = r.ws.addPanel('m');
     });
     r.turn(() => void h.close());
-    if (i % 20 === 19) await advanceFrames(400);
+    if (i % 20 === 19) await advanceFrames(SLIDE_DURATION_SEC * 1000 + 100);
   }
   const snapshot = r.ws.panels.getSnapshot().panels;
   const live = snapshot.filter((p) => p.status !== 'closed').length;
@@ -386,7 +387,7 @@ type FreeRig = Pick<Rig, 'ws' | 'h' | 'm' | 'turn'>;
 
 /** A mounted row in the free gesture, which glides to the one-phone grid (406 px apart, then the strip end): every literal target below is a grid stop or the strip end. */
 async function freeRig(o: { ids: readonly string[]; width: number; settings?: Record<string, PanelSettings> }): Promise<FreeRig> {
-  const ws = createWorkspace({ mount: false, tuning: { rowGesture: 'free' }, templates: o.ids.map((id) => markerTemplate(id, o.settings?.[id] === undefined ? {} : { settings: o.settings[id] })) });
+  const ws = createWorkspace({ mount: false, tuning: { rowGesture: 'step' }, templates: o.ids.map((id) => markerTemplate(id, o.settings?.[id] === undefined ? {} : { settings: o.settings[id] })) });
   const h: Record<string, PanelHandle> = {};
   for (const id of o.ids) h[id] = ws.addPanel(id);
   const m = mountWorkspace(ws, { width: o.width });

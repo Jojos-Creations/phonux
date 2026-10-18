@@ -366,7 +366,7 @@ there, because engines disagree on what the scrollable width counts: WebKit leav
 empty box (so the element has no `height: 0`). A non-empty element is counted by all three, whatever each does with padding, and
 `maxScrollOf` is then the browser's range. A row that does not scroll keeps its padding to centre in.
 The strip's margin snaps instead of gliding while stops exist, or `scrollWidth` would lag `maxScrollOf`. A strip that fits
-the window keeps its centring and has no stops; `free` and `off` rows have none either, so their margin is 0 on overflow.
+the window keeps its centring and has no stops; an `off` row has none either, so its margin is 0 on overflow.
 
 Padding does not clip scrolled content, so a neighbour of the shown set peeks `m_i` px at each edge, cut by the window
 edge and drawn at its own size: nothing fades or shrinks. A slot the window does not reach at all is `inert` and takes no
@@ -501,7 +501,7 @@ neighbour widths a drag crosses. A view follows the same rule: pass `panel.size`
 The row's slot (`PanelRowSlot`) owns the enter/exit animation, so the resize never lives on the slot
 itself: Motion's docs warn against `layout` and `exit` on one element. It lives on an inner size box
 (`PanelSizeBox`) that the built-in web view renders inside its slot, under its drag box. That box eases its real
-width and height from the size on screen to the new one, over the same 0.4 s transition the slots slide with, growing
+width and height from the size on screen to the new one, over the same 0.6 s transition the slots slide with, growing
 from the left edge because the slot's own `x` already animates position. It is not Motion's
 `layout="size"`: that animation starts in the frame after the commit while the slot's slide starts in the commit,
 so a commit that janks (the default frame's MUI render does) would draw the box and its neighbour from different
@@ -520,7 +520,7 @@ does, and the chrome the library draws (the corner radius, the 1 px edge, the he
 own (`'100%'`) has no number to ease, so only the width eases then.
 
 The size box follows any change of the panel's width, not only a slot-count change. Choosing a different phone
-model resizes every panel's size box too, so their width and height glide over the same 0.4 s while
+model resizes every panel's size box too, so their width and height glide over the same 0.6 s while
 the slots slide to their new positions; History, which has no size box, takes the new size at once. Every
 panel lands exactly on its slots at the new phone size. A window resize that moves the fit cap resizes a capped panel the
 same way.
@@ -1237,7 +1237,7 @@ found by its `data-row-scroller` mark and never by computed overflow, so a hidde
 container (`edgeScrollSpeed`, a linear ramp to `maxPxPerSec`; `edgeScrollStep`, one frame capped at 50 ms), and the
 claim's bound is the row numbers' `maxScroll`, never `scrollWidth`, which a box drawn past the row's end would inflate. The
 box is therefore never drawn past it: its drawn offset is capped by how far it sits from the row's end (measured once when
-the drag locks), so the scrollable width, and the scrollbar a `free` row shows, stay as they were. Under
+the drag locks), so the scrollable width stays as it was. Under
 reduced motion the row instead jumps to the next panel start every `reducedStepMs` the pointer
 stays in a band. The box is drawn at Motion's `x`, which the loop sets to the pointer offset, plus the scroll distance
 as the CSS `translate` property, which Motion's rewrites of `transform` never touch; the release reports the pointer
@@ -1640,7 +1640,7 @@ flip with a transition rule of its own) or SCOPE (a template-scope key).
 | `afterClose` | stay-closed, return-next-launch | stay-closed | NEXT. Read when the panel next leaves the list. An existing tombstone is neither added nor removed by the flip. |
 | `tuning.rowGap` | integer px 0 to 200 (workspace only) | 16 (GAP) | NOW (configureTuning only). The whole row re-prices at this commit; in park mode a smaller capacity parks the fewest park panels through the reconcile effect; a scrolling row only re-prices and clamps scrollLeft. Slides in progress retarget. Unmeasured: stored. Busy while any panel has a token. Outside 0-200 throws. |
 | `tuning.dragToClose` | object: distanceFraction [0.05, 1], minDistancePx >= 8, flickMinDistancePx >= 8, flickVelocity >= 100, cancelVelocity <= -50, directionLockPx integer [2, 64], restMs integer [1, 1000], velocityWindowMs integer [16, 1000], snapBack { stiffness [50, 2000], damping [5, 200] }; panel or workspace | 0.25, 80, 40, 700, -300, 8, 50, 100, { 520, 42 } (DRAG_CLOSE; DIRECTION_LOCK_PX; DRAG_REST_MS; DRAG_VELOCITY_WINDOW_MS) | NEXT. Panel door: configure(id, { tuning: { dragToClose } }); workspace door: configureTuning sets the default. Read at the next release; a drag in flight is judged by the values current at release. Leaves merge; null removes a panel leaf. |
-| `tuning.slide` | object: durationSec [0, 10], ease (four numbers, x1 and x2 in [0,1]), closeExitSeconds [0, 5], closeExitEase ('easeIn', 'easeOut', 'easeInOut', 'linear' or four numbers), glideEase ('cubic-out', 'linear' or four numbers); panel or workspace | 0.4, [0.2, 0, 0, 1], 0.18, 'easeIn', 'cubic-out' (SLOT_TRANSITION, DRAG_CLOSE.exitSeconds, CLOSE_EXIT_EASE, GLIDE_EASE) | NEXT. Panel and workspace doors. Read at the next enter, exit, close or scroll; animations running keep their timing. |
+| `tuning.slide` | object: durationSec [0, 10], ease (four numbers, x1 and x2 in [0,1]), closeExitSeconds [0, 5], closeExitEase ('easeIn', 'easeOut', 'easeInOut', 'linear' or four numbers), glideEase ('cubic-out', 'linear' or four numbers); panel or workspace | 0.6, [0.4, 0, 0.2, 1], 0.18, 'easeIn', 'cubic-out' (SLOT_TRANSITION, DRAG_CLOSE.exitSeconds, CLOSE_EXIT_EASE, GLIDE_EASE) | NEXT. Panel and workspace doors. Read at the next enter, exit, close or scroll; animations running keep their timing. |
 | `tuning.hopFraction` | number in (0, 1]; panel or workspace | 0.5 | NEXT. Panel and workspace doors. Read by the dragged panel's view at its next release. Outside (0, 1] throws. |
 | `tuning.edgeScroll` | object: zonePx integer [8, 200], maxPxPerSec integer [100, 5000], reducedStepMs integer [100, 5000]; panel or workspace (a key derived from Q19; the numbers are owner-confirmed, Q21) | 48, 900, 500 (owner-confirmed, Q21; the numbers live in rowConstants.ts) | NEXT. Panel door: configure(id, { tuning: { edgeScroll } }); workspace door: configureTuning sets the default. Read at the next drag start; a drag in flight keeps its numbers. Leaves merge; null removes a panel leaf. |
 | `tuning.saveQuietMs` | integer ms >= 0 (workspace only) | 500 | NEXT (configureTuning only). A timer already armed keeps its deadline; the next arm uses the new value. Session-only. |
@@ -1649,7 +1649,7 @@ flip with a transition rule of its own) or SCOPE (a template-scope key).
 | `tuning.resizeSettleSlides` | number [0, 10], multiplies slide.durationSec (workspace only) | 1.25 | NOW (configureTuning only). 0 settles at once. A settle timer already running keeps its length; the next width change arms the new one. Session-only. |
 | `tuning.returnTieBreak` | latest-first, earliest-first, row-order (workspace only) | latest-first | NEXT (configureTuning only). Read at the next stack walk; nothing returns now. |
 | `tuning.dropTieBreak` | leftmost, rightmost (workspace only) | leftmost | NEXT (configureTuning only). Read at the next capacity drop or resize; nothing parks now. |
-| `tuning.rowGesture` | step, free, off (workspace only; a design-derived key from Q15, not requested) | step | NEXT (configureTuning only). The listener set is re-read at the next render; a gesture in flight finishes; no panel moves. Session-only. |
+| `tuning.rowGesture` | step, off (workspace only; a design-derived key from Q15, not requested) | step | NEXT (configureTuning only). The listener set is re-read at the next render; a gesture in flight finishes; no panel moves. Session-only. |
 | `tuning.initialScroll` | start, end, root, { panel: PanelId } (workspace only; a design-derived key from Q15, not requested) | start (the library default, a design default the owner did not rule on; phonux-app sets 'end', owner Q20: the newest closable panels in view at launch) | NEXT (configureTuning only). Read at the next mount; nothing scrolls now. Session-only. |
 | `tuning.chrome` | object: mode 'always' or 'hover-or-active', fadeMs integer [0, 10000], fadeEase ('easeIn', 'easeOut', 'easeInOut', 'linear' or four numbers, x1 and x2 in [0,1]), slideMs integer [0, 10000], slidePx integer [0, 200], graceMs integer [0, 10000], headerGapPx, grabPillWidthPx integer [0, 200], grabPillHeightPx integer [0, 50], headerInsetPx and footerPadXPx, footerPadYPx integer [0, 100] (workspace only) | always, 120, easeOut, 140, 8, 250, 24, 32, 4, 13, 12, 8 (CHROME) | NOW (configureTuning only). A member patch keeps the other members. The chrome shows or hides at this commit; a fade in progress retargets. The library reads `mode`, `fadeMs` and `fadeEase` (`easeOut` is the curve Motion applies to a fade given only a duration, measured in Chromium); `slideMs`, `slidePx` and `graceMs` are for the host's own icon row. Session-only. |
 | `tuning.maxLivePanels` | integer >= 1, or null for no cap (workspace only) | null (no cap) | NOW (configureTuning only). A lower value parks the excess unpinned panels at this commit through the reconcile effect; a higher one or null returns the most recently parked, under `capacityReturn` auto as under manual (manual returns only the panels the capacity parked, never one the host hid), up to the new value, in one commit. Unmeasured: applies. Outside integers of 1 or more throws; null removes the cap. Session-only. |

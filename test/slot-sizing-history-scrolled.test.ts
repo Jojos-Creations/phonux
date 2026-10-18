@@ -19,7 +19,7 @@ const resizableRoot = () =>
   applyTemplate({ ...createHistoryPanel(ROOT), view: 'scroll-row-view' }, resolvePanelSettings({ template: { title: 'History', resizable: true, maxSlots: 3 } as never }, { root: true }).value, 'create');
 
 test('History grows while the row is scrolled to its end: the offset is kept and the strip is longer by the added slots', async () => {
-  const m = mountRow(row(resizableRoot(), ...['a', 'b', 'c', 'd', 'e'].map((id) => made(id))), 1000);
+  const m = mountRow(row(resizableRoot(), ...['a', 'b', 'c', 'd', 'e'].map((id) => made(id))), 1000, { tuning: { rowGesture: 'off' } });
   const end = maxScrollOf(m.latest().rowNumbers!);
   assert.equal(end, 1452, 'six phone panels: the strip is 2420 long in a 968 window');
   m.container.scrollLeft = end;

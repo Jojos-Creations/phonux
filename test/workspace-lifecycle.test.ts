@@ -212,7 +212,7 @@ const FILLER = ['f1', 'f2', 'f3', 'f4', 'f5'];
 async function addedAt(scrollOnOpen: PanelSettings['scrollOnOpen'] | undefined, o: { width?: number; fillers?: readonly string[]; after?: string } = {}): Promise<{ at: number; mountedAt: number; notes: string[] }> {
   const fillers = o.fillers ?? FILLER;
   const t = markerTemplate('scr', { settings: { placeOnAdd: { after: o.after ?? 'f2' }, ...(scrollOnOpen === undefined ? {} : { scrollOnOpen }) } });
-  const w = createWorkspace({ mount: false, templates: [t, ...fillers.map((id) => markerTemplate(id, { settings: { scrollOnOpen: 'none' } }))], tuning: { rowGesture: 'free' } });
+  const w = createWorkspace({ mount: false, templates: [t, ...fillers.map((id) => markerTemplate(id, { settings: { scrollOnOpen: 'none' } }))], tuning: { rowGesture: 'step' } });
   for (const id of fillers) w.addPanel(id);
   const m = mountWorkspace(w, o.width === undefined ? {} : { width: o.width });
   await flush();
