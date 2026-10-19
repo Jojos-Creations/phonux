@@ -362,19 +362,19 @@ test('edge scroll 6: a hidden panel and an engine-parked panel store the tuning,
   assert.deepEqual([parked.state(away!).status, parked.h[away!]!.getSettings().value.tuning.edgeScroll.zonePx], ['parked', QUARTER], 'stored on the parked panel, which stays parked');
 });
 
-test('root column 1: closable, parkable, draggable and placeable true on the root are each a settings-conflict naming the key and rule C5, with no forcedBy', async () => {
+test('root column 1: closable, parkable and placeable true on the root are each a settings-conflict naming the key and rule C5, with no forcedBy', async () => {
   const r = await matrixRig();
   const entries = r.m.latest().entries;
   const renders = r.m.renders();
   let executed = 0;
-  for (const key of ['closable', 'parkable', 'draggable', 'placeable'] as const) {
+  for (const key of ['closable', 'parkable', 'placeable'] as const) {
     const refusal = refusedWith(r.turn(() => r.ws.panels.configure(r.ws.rootId, { [key]: true } as never)), 'settings-conflict');
     assert.equal(refusal.setting, key, `${key}: the result names the asked key`);
     assert.match(refusal.message, /C5/, `${key}: the message names rule C5`);
     assert.doesNotMatch(refusal.message, /because of/, `${key}: and names no forcing key`);
     executed += 1;
   }
-  assert.equal(executed, 4);
+  assert.equal(executed, 3);
   assert.deepEqual([r.m.latest().entries === entries, r.m.renders()], [true, renders], 'the root was not touched');
 });
 

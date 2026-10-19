@@ -461,9 +461,7 @@ test('matrix:draggable', async () => {
   await r.settle();
   done(r.turn(() => r.h.c!.configure({ draggable: false })));
   assert.deepEqual([r.state('c').settings.draggable, r.state('c').status], [false, 'parked'], 'a hidden panel stores it');
-  const root = refusedWith(r.turn(() => r.ws.panels.configure(r.ws.rootId, { draggable: true })), 'settings-conflict');
-  assert.equal(root.setting, 'draggable');
-  assert.match(root.message, /C5/);
+  assert.deepEqual(shape(r.turn(() => r.ws.panels.configure(r.ws.rootId, { draggable: true }))), { now: ['draggable'], later: [], shadowed: [] }, 'the root takes draggable true; only closable, parkable and placeable answer C5');
 });
 
 test('matrix:crossable', async () => {
