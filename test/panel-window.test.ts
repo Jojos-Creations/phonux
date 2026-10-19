@@ -6,16 +6,13 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  DEFAULT_PHONE_SIZE,
   GAP,
   panelWidthOf,
   type PanelAnchor,
-  type PanelSize,
 } from '../index.js';
 import { computeMaxLiveWidth } from '../panelRowLayout.js';
 import { computeRowOrder, deriveAnchorsFromOrder } from '../panelRowOrder.js';
 import { summarisePanel, type PanelRowEntry } from '../panelRowEntry.js';
-import { sizeOfSlots } from '../panelTiers.js';
 import {
   type PanelWindow,
   appendPanel,
@@ -34,10 +31,6 @@ import {
   sideOfLiveRange,
 } from '../panelWindow.js';
 
-/** Every entry's default size, rebuilt from DEFAULT_PHONE_SIZE rather than a 390/700 literal, so this file
- * cannot drift from panelTiers.ts's DEFAULT_PANEL_SIZE derivation. */
-const DEFAULT_PANEL_SIZE: PanelSize = { width: DEFAULT_PHONE_SIZE.width, height: DEFAULT_PHONE_SIZE.height };
-
 /** History's own seeded id. The production constant is host-owned, so this pure-function test keeps its own copy. */
 const ROOT_ID = 'history';
 
@@ -46,7 +39,7 @@ test('appendPanel: appends a new LIVE extra panel carrying the hostData and url'
   assert.deepEqual(next, [
     {
       id: 'w1', uid: next[0]!.uid, url: 'https://example.com/new-tab', hostData: { sourceWebContentsId: 7, webContentsId: null }, live: true, locked: false, view: 'web', collapsible: true, listed: true, anchor: { panel: ROOT_ID, position: 'right', priority: 0 }, layer: 'base', anchoredEnter: false,
-      slots: 1, size: DEFAULT_PANEL_SIZE,
+      slots: 1,
     },
   ]);
 });
@@ -74,7 +67,7 @@ test('appendPanel: view/params/listed/layer/anchoredEnter from create()\'s optio
   assert.deepEqual(next, [
     {
       id: 'c1', uid: next[0]!.uid, url: 'about:blank', hostData: { sourceWebContentsId: -1, webContentsId: null }, live: true, locked: false, view: 'test-custom', collapsible: true, listed: false, params: { a: 1 }, anchor: { panel: ROOT_ID, position: 'right', priority: 0 }, layer: 'raised', anchoredEnter: true,
-      slots: 1, size: DEFAULT_PANEL_SIZE,
+      slots: 1,
     },
   ]);
 });
@@ -94,45 +87,46 @@ test('appendPanel: permanent:true with `view` OMITTED (the single most obvious c
 });
 
 // ---------------------------------------------------------------------------
-// slots/size: the SAME default lands on a plain web panel and a permanent column alike; History carries the size
-// only. summarisePanel forwards both fields into PanelSummary unchanged.
+// slots: the SAME default lands on a plain web panel and a permanent column alike; History carries none.
+// summarisePanel forwards it into PanelSummary unchanged.
 // ---------------------------------------------------------------------------
 
-test('appendPanel: slots/size default to 1/DEFAULT_PANEL_SIZE for a plain panel AND a permanent:true one alike -- the default applies uniformly regardless of collapsible', () => {
+test('appendPanel: slots default to 1 for a plain panel AND a permanent:true one alike -- the default applies uniformly regardless of collapsible', () => {
   const plain = appendPanel([], { hostData: { sourceWebContentsId: -1, webContentsId: null }, url: 'about:blank' }, 'w1', ROOT_ID)[0]!;
   const permanent = appendPanel([], { hostData: { sourceWebContentsId: -1, webContentsId: null }, url: 'about:blank', permanent: true }, 'p1', ROOT_ID)[0]!;
-  assert.deepEqual([plain.slots, plain.size], [1, DEFAULT_PANEL_SIZE]);
-  assert.deepEqual([permanent.slots, permanent.size], [1, DEFAULT_PANEL_SIZE], 'a permanent column gets the SAME default -- only setSlots\'s later eligibility differs, not the default itself');
+  assert.equal(plain.slots, 1);
+  assert.equal('size' in plain, false, 'size is derived, never stored');
+  assert.equal(permanent.slots, 1, 'a permanent column gets the SAME default -- only setSlots\'s later eligibility differs, not the default itself');
 });
 
-test('createHistoryPanel: size defaults the same way as any other entry, and it carries no slot count of its own', () => {
+test('createHistoryPanel: it carries no slot count and no stored size', () => {
   const history = createHistoryPanel(ROOT_ID);
-  assert.deepEqual([history.slots, history.size], [undefined, DEFAULT_PANEL_SIZE]);
+  assert.deepEqual([history.slots, 'size' in history], [undefined, false]);
 });
 
-test('summarisePanel: forwards slots and size from PanelWindow into PanelSummary unchanged -- red if summarisePanel drops the fields', () => {
-  const [wide] = appendPanel([], { hostData: { sourceWebContentsId: -1, webContentsId: null }, url: 'https://t.example' }, 't1', ROOT_ID).map((p) => ({ ...p, slots: 2, size: sizeOfSlots(2) }));
+test('summarisePanel: forwards slots from PanelWindow into PanelSummary and adds no size -- red if summarisePanel drops the field or stores one', () => {
+  const [wide] = appendPanel([], { hostData: { sourceWebContentsId: -1, webContentsId: null }, url: 'https://t.example' }, 't1', ROOT_ID).map((p) => ({ ...p, slots: 2 }));
   const summary = summarisePanel(wide!);
-  assert.deepEqual([summary.slots, summary.size], [2, sizeOfSlots(2)], 'a panel set to two slots reads two back through summarisePanel, not the 1 it was created with');
+  assert.deepEqual([summary.slots, 'size' in summary], [2, false], 'a panel set to two slots reads two back through summarisePanel, not the 1 it was created with');
 });
 
 test('summarisePanel: round-trip through create -> panelList for the DEFAULT slot count too (a panel created with no override reads 1 back, not undefined)', () => {
   const created = appendPanel([], { hostData: { sourceWebContentsId: -1, webContentsId: null }, url: 'https://d.example' }, 'd1', ROOT_ID)[0]!;
   const summary = summarisePanel(created);
-  assert.deepEqual([summary.slots, summary.size], [1, DEFAULT_PANEL_SIZE]);
+  assert.deepEqual([summary.slots, 'size' in summary], [1, false]);
 });
 
-test('summarisePanel: every entry this file creates (a plain panel, a permanent column) summarises to exactly the PanelSummary keys -- slots/size included, no desktop-only field', () => {
+test('summarisePanel: every entry this file creates (a plain panel, a permanent column) summarises to exactly the PanelSummary keys -- slots included, no stored size, no desktop-only field', () => {
   const entries = [
     appendPanel([], { hostData: { sourceWebContentsId: 3, webContentsId: null }, url: 'https://w.example', title: 'W', params: { a: 1 } }, 'w1', ROOT_ID)[0]!,
     appendPanel([], { hostData: { sourceWebContentsId: -1, webContentsId: null }, url: 'about:blank', permanent: true }, 'p1', ROOT_ID)[0]!,
   ];
-  const keys = ['id', 'live', 'locked', 'params', 'size', 'slots', 'title', 'url'];
+  const keys = ['id', 'live', 'locked', 'params', 'slots', 'title', 'url'];
   assert.deepEqual(entries.map((p) => Object.keys(summarisePanel(p)).sort()), [keys, keys]);
-  assert.deepEqual(Object.keys(summarisePanel(createHistoryPanel(ROOT_ID))).sort(), ['id', 'live', 'locked', 'params', 'size', 'title', 'url'], 'History carries a size but no slot count');
+  assert.deepEqual(Object.keys(summarisePanel(createHistoryPanel(ROOT_ID))).sort(), ['id', 'live', 'locked', 'params', 'title', 'url'], 'History carries no slot count');
 });
 
-test('summarisePanel: a record that carries no slots/size summarises with those keys ABSENT, not present as undefined', () => {
+test('summarisePanel: a record that carries no slots summarises with those keys ABSENT, not present as undefined', () => {
   const bare: PanelWindow = { id: 'b1', url: 'https://b.example', hostData: { sourceWebContentsId: -1, webContentsId: null }, live: true, locked: false, view: 'web', collapsible: true, listed: true };
   assert.deepEqual(Object.keys(summarisePanel(bare)).sort(), ['id', 'live', 'locked', 'params', 'title', 'url']);
 });
@@ -448,22 +442,17 @@ test('reorderStepsForOffset: crossing a DIFFERENTLY-sized neighbour hops exactly
   assert.equal(reorderStepsForOffset(203, wideBesidePhone, GAP), 0, 'nothing to its right: no hop, however far');
 });
 
-test('panelWidthOf: a one-slot panel, or an entry carrying no slots, ALWAYS uses the live phoneWidth argument, never its own stored size', () => {
-  const phonePanel = createHistoryPanel(ROOT_ID); // no slots, size DEFAULT_PANEL_SIZE (390x700)
-  assert.equal(panelWidthOf(phonePanel, 430, Number.POSITIVE_INFINITY), 430, 'the LIVE phoneWidth (430), not the stored 390 placeholder');
+test('panelWidthOf: a one-slot panel, or an entry carrying no slots, ALWAYS uses the live phoneWidth argument, never a stored size', () => {
+  const phonePanel = createHistoryPanel(ROOT_ID); // no slots
+  assert.equal(panelWidthOf(phonePanel, 430, Number.POSITIVE_INFINITY), 430, 'the LIVE phoneWidth (430)');
   assert.equal(panelWidthOf({ ...phonePanel, slots: 1 }, 430, Number.POSITIVE_INFINITY), 430, 'an explicit one slot is the same width as an omitted count');
 });
 
-test('panelWidthOf: a multi-slot panel is that many LIVE phone widths with the row gap between them, never its own stored size.width', () => {
-  const two: PanelWindow = { ...createHistoryPanel(ROOT_ID), slots: 2, size: { width: 820, height: 1180 } };
-  assert.equal(panelWidthOf(two, 430, Number.POSITIVE_INFINITY), 2 * 430 + GAP, 'two live phone widths and a gap, ignoring the stored 820 entirely');
-  const three: PanelWindow = { ...createHistoryPanel(ROOT_ID), slots: 3, size: { width: 1200, height: 800 } };
+test('panelWidthOf: a multi-slot panel is that many LIVE phone widths with the row gap between them, from the slots alone', () => {
+  const two: PanelWindow = { ...createHistoryPanel(ROOT_ID), slots: 2 };
+  assert.equal(panelWidthOf(two, 430, Number.POSITIVE_INFINITY), 2 * 430 + GAP, 'two live phone widths and a gap, from the live phone width');
+  const three: PanelWindow = { ...createHistoryPanel(ROOT_ID), slots: 3 };
   assert.equal(panelWidthOf(three, 430, Number.POSITIVE_INFINITY), 3 * 430 + 2 * GAP);
-});
-
-test('panelWidthOf: a multi-slot panel with no stored size still reads its width from the live phoneWidth', () => {
-  const noSize: PanelWindow = { ...createHistoryPanel(ROOT_ID), slots: 2, size: undefined };
-  assert.equal(panelWidthOf(noSize, 430, Number.POSITIVE_INFINITY), 2 * 430 + GAP, 'a missing size changes nothing: the width is slots and phoneWidth');
 });
 
 test('panelWidthOf caps a multi-slot panel at the whole slots that fit in maxLiveWidth. History alone, phone 390: two slots (796) at the default 1280 window, three (1202) at 1920 for any larger count, and one slot at the 844 minimum', () => {
@@ -494,37 +483,23 @@ test('panelWidthOf never caps a one-slot panel: it is always the live phone widt
 });
 
 // ---------------------------------------------------------------------------
-// setSlots: one panel's own slot count and size, replaced in place.
+// setSlots: one panel's own slot count, replaced in place.
 // ---------------------------------------------------------------------------
 
 const webEntry = (id: string, more: Partial<PanelWindow> = {}): PanelWindow => ({ ...appendPanel([], { hostData: { sourceWebContentsId: -1, webContentsId: null }, url: `https://${id}.example` }, id, ROOT_ID)[0]!, ...more });
 
-test('setSlots: changes ONLY the named panel\'s slot count and size, grow and shrink alike; every other entry is the same object, in the same place', () => {
+test('setSlots: changes ONLY the named panel\'s slot count, grow and shrink alike; every other entry is the same object, in the same place', () => {
   const start = [createHistoryPanel(ROOT_ID), webEntry('a'), webEntry('b'), webEntry('c', { live: false })];
   const grown = setSlots(start, 'b', 64);
   assert.deepEqual(grown.map((p) => p.id), ['history', 'a', 'b', 'c'], 'order unchanged');
-  assert.deepEqual([grown[2]!.slots, grown[2]!.size], [64, { width: 64 * 390 + 63 * 16, height: 'fill' }]);
+  assert.equal(grown[2]!.slots, 64);
   assert.equal(grown[2]!.live, true, 'still live: a resize is never a park');
   for (const i of [0, 1, 3]) assert.equal(grown[i], start[i], `entry ${start[i]!.id} is untouched (same object)`);
   const shrunk = setSlots(grown, 'b', 2);
-  assert.deepEqual([shrunk[2]!.slots, shrunk[2]!.size], [2, { width: 796, height: 'fill' }]);
+  assert.equal(shrunk[2]!.slots, 2);
   const back = setSlots(shrunk, 'b', 1);
-  assert.deepEqual([back[2]!.slots, back[2]!.size], [1, DEFAULT_PANEL_SIZE], 'back to one slot: the phone placeholder size again');
+  assert.equal(back[2]!.slots, 1);
   for (const i of [0, 1, 3]) assert.equal(back[i], start[i], `entry ${start[i]!.id} is still the same object after three resizes`);
-});
-
-test('setSlots: REPLACES size with a fresh object every time -- the shared default is never mutated', () => {
-  const history = createHistoryPanel(ROOT_ID);
-  const shared = history.size!; // the one DEFAULT_PANEL_SIZE object every entry is created with
-  const start = [history, webEntry('a')];
-  assert.equal(start[1]!.size, shared, 'precondition: a new panel references the shared default object');
-  const two = setSlots(start, 'a', 2);
-  assert.notEqual(two[1]!.size, shared);
-  const one = setSlots(two, 'a', 1);
-  assert.deepEqual(one[1]!.size, shared, 'back to one slot: the shared default size again');
-  assert.notEqual(one[1]!.size, two[1]!.size);
-  assert.deepEqual(shared, DEFAULT_PANEL_SIZE, 'the shared default still reads 390x700');
-  assert.ok(Object.isFrozen(shared), 'the shared object is frozen, so a mutation throws instead of resizing every panel at once');
 });
 
 test('setSlots: clamps to 1 and to the panel\'s maxSlots, rounding a fraction', () => {
@@ -552,11 +527,11 @@ test('setSlots: a PARKED panel may change slots and stays parked', () => {
   assert.deepEqual([next[1]!.slots, next[1]!.live], [2, false]);
 });
 
-test('appendPanel: slots lands on a new panel with that count\'s size; a permanent column ignores it and stays one slot', () => {
+test('appendPanel: slots lands on a new panel; a permanent column ignores it and stays one slot', () => {
   const two = appendPanel([], { hostData: { sourceWebContentsId: -1, webContentsId: null }, url: 'about:blank', slots: 2 }, 't1', ROOT_ID)[0]!;
-  assert.deepEqual([two.slots, two.size], [2, { width: 796, height: 'fill' }]);
+  assert.equal(two.slots, 2);
   const permanent = appendPanel([], { hostData: { sourceWebContentsId: -1, webContentsId: null }, url: 'about:blank', permanent: true, slots: 64 }, 'p1', ROOT_ID)[0]!;
-  assert.deepEqual([permanent.slots, permanent.size], [1, DEFAULT_PANEL_SIZE], 'a permanent column is always one slot');
+  assert.equal(permanent.slots, 1, 'a permanent column is always one slot');
 });
 
 // ---------------------------------------------------------------------------
@@ -675,16 +650,14 @@ test('reanchorPanel: applies the anchor and reorders; panel defaults to History,
   assert.equal(reanchorPanel(row, 'perm', { position: 'left' }, ROOT_ID), row, 'a permanent column');
 });
 
-test('a 64-slot panel keeps its slots, size, hostData and params byte-identical (the same objects) while a DIFFERENT panel moves, reanchors or closes around it -- red if any rebuild reconstructs records instead of spreading them', () => {
-  const size = sizeOfSlots(64);
+test('a 64-slot panel keeps its slots, hostData and params byte-identical (the same objects) while a DIFFERENT panel moves, reanchors or closes around it -- red if any rebuild reconstructs records instead of spreading them', () => {
   const params = { notes: ['kept'], depth: { n: 1 } };
-  const wide = anchored('wide', right(1), { slots: 64, size, hostData: { webContentsId: 42 }, params });
+  const wide = anchored('wide', right(1), { slots: 64, hostData: { webContentsId: 42 }, params });
   const row = [createHistoryPanel(ROOT_ID), anchored('a', right(0)), wide, anchored('b', right(2)), anchored('q', right(0, 'b'))];
   const check = (panels: readonly PanelWindow[], what: string, rebuilt: boolean): void => {
     const w = panels.find((p) => p.id === 'wide')!;
     assert.deepEqual([w.slots, (w.hostData as { webContentsId: number } | undefined)?.webContentsId], [64, 42], what);
     assert.equal(w.hostData, wide.hostData, `${what}: the same hostData object`);
-    assert.equal(w.size, size, `${what}: the same size object`);
     assert.equal(w.params, params, `${what}: the same params object`);
     assert.equal(w.url, 'https://wide.example', what);
     if (rebuilt) assert.notEqual(w, wide, `precondition (${what}): wide's own record really was rebuilt, so the checks above are not vacuous`);

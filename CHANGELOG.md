@@ -4,6 +4,9 @@
 
 ### Breaking
 
+- A panel's `size` is derived, never stored: `PanelWindow.size` and `sizeOfSlots` are removed, and `applyTemplate`, `setSlots` and a settings reset no longer write one. `PanelSummary.size` stays and is the size the row draws the slot at (its drawn width and height), so it is always present in a row. `PanelRowEntry` has no `size`. **Migration:** a hand-built `PanelWindow` drops `size`; a saved workspace never held one, and one that is handed an entry carrying it ignores it.
+- `PanelSlotValue.slotRange` is removed (nothing read it). `maxSlots` is exposed through `usePanelCapabilities()` for views and `PanelSummary.maxSlots` for hosts. `pinned` has one source, `isPinned`: the slot's own flag followed a left-of-root formula and disagreed with `PanelState.pinned` under a `pinning` that reads by `parkable`.
+
 - A saved workspace no longer carries a panel's counter id, so reopening a workspace rewrites nothing: counter ids restart at 1 each launch, and a file that held them
   changed every panel's saved bytes at the first save after a relaunch even though nothing had changed. `WorkspacePanelState.id` is optional and never written; an entry's
   `anchor.panel`, `overrides.anchor.panel` and the file's `scroll.panel` name another panel by its `uid` (its `key` for an entry with no uid), and the host's root column keeps its id.

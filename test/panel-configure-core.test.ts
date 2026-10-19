@@ -191,7 +191,7 @@ test('class law: a clearAll queued after the call removes the panel and the conf
 // The writer: applyTemplate(reconfigure), keys of each class, on a resized panel and on a dragged one
 // ---------------------------------------------------------------------------
 
-const UNTOUCHED = ['slots', 'size', 'anchor', 'live', 'hostData', 'key', 'overrides', 'applied'] as const;
+const UNTOUCHED = ['slots', 'anchor', 'live', 'hostData', 'key', 'overrides', 'applied'] as const;
 
 const WRITER_KEYS: readonly [string, string, PanelSettings][] = [
   ['NOW', 'closable', { closable: false }],
@@ -236,7 +236,7 @@ test('writer: a parkable flip to false on a hidden panel is refused under the de
   const after = r.entry('c');
   assert.equal(after.collapsible, false);
   assert.equal(after.live, true, 'a fixed column is never parked');
-  for (const field of ['slots', 'size', 'anchor', 'hostData', 'key', 'overrides', 'applied'] as const) assert.equal(after[field] === before[field], true, `${field} is the same value`);
+  for (const field of ['slots', 'anchor', 'hostData', 'key', 'overrides', 'applied'] as const) assert.equal(after[field] === before[field], true, `${field} is the same value`);
 });
 
 // ---------------------------------------------------------------------------

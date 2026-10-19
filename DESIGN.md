@@ -53,11 +53,16 @@ exists listens to the workspace and switches to the panel once it appears.
 The panel model (`PanelWindow`, `panelWindow.ts`) adds behavior flags (`collapsible`, `listed`, `view`, ...)
 and, for an entry made from settings, the resolved `settings` and a `key`, to decide overflow, listing,
 permissions and rendering -- but `PanelSummary` (a view's own read of a panel) exposes only what a view needs to
-render a row: id, url, title, live, locked, slots, size. A view never sees the entry, its flags or its
+render a row: id, url, title, live, locked, slots, and the drawn size. A view never sees the entry, its flags or its
 settings. What it may ask is what its own panel permits, and that crosses as data too: `usePanelCapabilities()`
 returns the four booleans and the widest slot count a person can act on (`closable`, `draggable`, `placeable`,
 `resizable`, `maxSlots`), read from the slot context `panelSlotContext.ts` holds, never a reference to the
 entry. A view mounted outside a row is told the library defaults.
+
+`maxSlots` is exposed once per audience: `usePanelCapabilities().maxSlots` for a view's own controls, and `PanelSummary.maxSlots`
+for a host reading `panelList`, which has no slot context. `resizable` is the on/off switch and `maxSlots` only the upper bound,
+so nothing reads `maxSlots === slots` as "not resizable". `pinned` has one source, `isPinned` (`panelPin.ts`) read under the
+entry's own `pinning`; the slot's flag, `PanelState.pinned` and `pinnedIds` all come from it.
 
 ### An entry carries the settings it was made under
 
@@ -67,9 +72,9 @@ and, with `collapsible`, `clearable`; `collapsible` gives `parkable`, `draggable
 collapsible entry's `overflow` is 'park', a fixed column's 'scroll'), with every other key at its library
 default. So a hand-built 0.1.0 entry behaves as it did. `applyTemplate(entry, resolved, mode)` is the one writer
 of the fields that mirror the settings: 'create' writes `locked` (`!closable`), `collapsible` (`parkable`),
-`listed`, `layer`, `anchoredEnter`, `slots`, its `size`, `title`, `settings` and `key`; 'reconfigure'
+`listed`, `layer`, `anchoredEnter`, `slots`, `title`, `settings` and `key`; 'reconfigure'
 writes only `locked`, `listed`, `layer`, `anchoredEnter`, `title`, `settings` and, for a parkable flip,
-`collapsible`, and leaves the slots, size, anchor, `live`, `hostData` and `key` as the person and the row left
+`collapsible`, and leaves the slots, anchor, `live`, `hostData` and `key` as the person and the row left
 them. `appendPanel`, `restorePanel` and `hydrateWorkspaceState` write no `key`, so a hand-built entry has none
 and a reader uses `p.key ?? p.id`. Every guard that decides a permission reads `effective(p)`: `movePanel`
 (`draggable`, and `crossable` of every array slot from the source to the target, parked ones included),
@@ -138,35 +143,26 @@ is the type's own default state, so there is no version where "the new field" co
 size) -- it is the live, shared value every panel already read, so a host that resizes its window mid-session
 never leaves a size-less view rendering stale dimensions.
 
-`PanelSummary.slots`/`size` are themselves optional, not required, even though
-`panelWindow.ts` always sets them on every entry it creates (`createHistoryPanel`, `appendPanel`) -- the same
-choice already made for `anchor`/`layer`/`anchoredEnter` on the internal `PanelWindow` record. A `PanelSummary`
-is a structural type: any object shaped like one satisfies it, including hand-built test fixtures that predate
-this feature and never set these two fields. Required fields would force every such fixture, in this app and
-any third party's, to add them just to keep compiling, for a schema addition that changes no rendered pixel
-by itself (`Panel`/`PanelFrame` never read `PanelSummary.size`; only their own separate `size` prop, passed
-explicitly by the view, does -- see "The width source" below). The app's projection (`summarisePanel()`) follows the same rule in
-the other direction: it forwards `slots`/`size` when the record carries them and omits the key when it
-does not, never a key present with the value `undefined` -- so a summary never lists a field its record never
-had, and a view testing `'size' in panel` gets the same answer as `panel.size !== undefined`.
+`PanelSummary.slots`/`size` are themselves optional, not required: a `PanelSummary` is a structural type, so any
+object shaped like one satisfies it, including hand-built fixtures that never set these two fields. Required fields
+would force every such fixture, in this app and any third party's, to add them just to keep compiling.
+`size` is derived, never stored: `PanelWindow` has no `size`, and the row writes `PanelSummary.size` for the view from
+the slot's drawn width and height (`PanelSlotValue.drawn`), so it is never stale. `Panel`/`PanelFrame` never read it; only their own
+separate `size` prop, passed explicitly by the view, does -- see "The width source" below. `summarisePanel()` forwards
+`slots` when the record carries it and omits the key when it does not, never a key present with the value `undefined`.
+A saved workspace never held a size, and a hand-built entry that still carries one has it ignored.
 
-### Where `PanelWindow`'s own default size comes from, without importing desktop code into phonux
+### Where a panel's size comes from
 
 `panelWindow.ts` is part of this folder: the `PanelWindow` record and every pure transition over a
 `PanelWindow[]` (`appendPanel`, `createHistoryPanel`, `closePanel`, `restorePanel`, ...). It sits inside the
 import boundary above, so it imports only its siblings and never the desktop app. The main barrel exports
 `PanelWindow` and `reorderStepsForOffset` from it; every other name stays `@internal`, reached by no
 entry point, and the package's own tests import `panelWindow.ts` by relative path.
-Its functions are pure, taking no device-state argument, and are tested that way (`test/panel-window.test.ts`
-builds panels with no device store initialized at all). Reading a live device size inside them -- the
-host's device-size store holds one that changes with every resize -- would make them impure, would
-need an import of host code this package may not have, and would need a new parameter threaded in from
-`usePanelManager.ts`/`useProvidePanels.ts`. So the default is `DEFAULT_PANEL_SIZE` (`panelTiers.ts`): one slot at
-`DEFAULT_PHONE_SIZE`'s (`hostApi.tsx`) 390x700 -- the SAME value a host's device-size store,
-like `fakeHost.ts`'s, starts at before any resize -- rather than a second hardcoded literal or a live read. A panel of
-more slots takes `sizeOfSlots(n)` (also `panelTiers.ts`): `n x 390 + (n - 1) x gap` wide and `'fill'` high. The size is a
-placeholder, not a drawn size: the row draws a panel at its slots' width from the live phone width (see
-"The width source" below), so the stored size never reaches a pixel.
+Its functions are pure and take no device-state argument (`test/panel-window.test.ts` builds panels with no device store
+initialized at all). A size would need the live device size, so the record holds none: a panel is its `slots`, and its
+size is derived where it is drawn, from the slots and the measured phone width (see "The width source" below).
+`DEFAULT_PANEL_SIZE` (`panelTiers.ts`) stays exported as the built-in phone size.
 
 ## `PanelsAPI.move` is directional (move-by-one), not "move to index"
 
@@ -238,8 +234,7 @@ fit, it stays live anyway (the row always keeps at least one panel).
 Shrinking it gives the room back, and parked panels return as for a wider window. No-op for an unknown id, a
 permanent column such as History (it always stays one slot, like `move`'s own exemption), a panel that is not
 `resizable`, or a panel already at the clamped count. A parked panel may change its count and stays parked.
-`create({ slots })` opens a panel at a count directly (ignored with `permanent`). The host replaces the panel's `size`
-with a new object each time; the default size object is shared by every panel and never changes.
+`create({ slots })` opens a panel at a count directly (ignored with `permanent`). The record holds the count only; its size is derived.
 
 Several calls in one handler (resizes, `create`, `activate`) each keep their own panel live the same way.
 When they cannot all fit together, the earlier calls keep their room and a later panel parks, as it would had
@@ -488,7 +483,7 @@ stays internal until the scrollbar exists.
 ### The width source
 
 A panel's width is ALWAYS computed from the live phone width -- the model the user picked, `device.size` -- and
-never read from its stored `size`: that stored value is a placeholder, and reading it would freeze every panel at
+never read from a stored size: none is stored, and a stored one would freeze every panel at
 390-wide slots whatever the model. An entry with `slots` is that many live phone widths with the gap between them, no more
 than `maxSlots` and what fits; an entry without `slots` (a hand-built one) is one phone width. One host helper
 (`panelWidthOf`) owns this rule and the fit cap, and every width sum reads through it: the row's capacity,

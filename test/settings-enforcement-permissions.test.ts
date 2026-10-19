@@ -21,7 +21,6 @@ import type { CaptureTrigger, PanelSettings, PanelWindow, PanelsInput, ProvidedP
 import { applyTemplate, effective, panelKey, resolvePanelSettings } from '../panelSettings.js';
 import { deriveAnchorsFromOrder } from '../panelRowOrder.js';
 import { appendPanel, closePanel, createHistoryPanel, movePanel, reanchorPanel, restorePanel, setSlots } from '../panelWindow.js';
-import { sizeOfSlots } from '../panelTiers.js';
 import { hydrateWorkspaceState } from '../workspaceState.js';
 import { differential, differentialsCovered } from './support/differential.js';
 import { cleanup, mount, withHost, useSeededInput, StaticRow } from './support/mount-harness.js';
@@ -458,7 +457,6 @@ test('create over 300 resolver-random entries writes every mirror field from the
     assert.equal(entry.listed, resolved.listed, `#${n} listed`);
     assert.equal(entry.layer, resolved.layer, `#${n} layer`);
     assert.equal(entry.slots, resolved.slots, `#${n} slots`);
-    assert.deepEqual(entry.size, sizeOfSlots(resolved.slots), `#${n} size follows the slots`);
     assert.equal(entry.anchoredEnter, resolved.enterFrom === 'anchor', `#${n} anchoredEnter`);
     assert.ok(entry.settings === resolved, `#${n} the entry holds the resolved settings themselves`);
     assert.equal(entry.key, `id${n}`, `#${n} key`);
@@ -466,19 +464,6 @@ test('create over 300 resolver-random entries writes every mirror field from the
     checked += 1;
   }
   assert.equal(checked, 300);
-});
-
-test('create sizes the entry from its slots: each count equals sizeOfSlots, which the row prices widths from', () => {
-  for (const slots of [1, 2, 3, 64] as const) {
-    const entry = made('a', { slots });
-    assert.deepEqual(entry.size, sizeOfSlots(slots), `${slots}: the size literals in panelSettings.ts drifted from sizeOfSlots`);
-  }
-});
-
-test('create keeps a size the entry already has for that slot count and replaces one for another count', () => {
-  const skeleton = appendPanel([], { url: 'https://x.example', slots: 2 }, 'a', ROOT)[0]!;
-  assert.ok(applyTemplate(skeleton, resolve({ slots: 2 }), 'create').size === skeleton.size, 'same count: the same size object');
-  assert.deepEqual(applyTemplate(skeleton, resolve({ slots: 64 }), 'create').size, sizeOfSlots(64));
 });
 
 test("create over the library defaults equals appendPanel's literals", () => {
@@ -502,12 +487,12 @@ test("create writes key from the entry's own key when it has one, else its id, a
 const changedKeys = (before: PanelWindow, after: PanelWindow): string[] =>
   [...new Set([...Object.keys(before), ...Object.keys(after)])].filter((k) => (before as unknown as Record<string, unknown>)[k] !== (after as unknown as Record<string, unknown>)[k]).sort();
 
-test('reconfigure writes only locked, listed, layer, anchoredEnter, title, settings and collapsible, and leaves the slots, size, anchor, live, hostData and key alone', () => {
+test('reconfigure writes only locked, listed, layer, anchoredEnter, title, settings and collapsible, and leaves the slots, anchor, live, hostData and key alone', () => {
   const resized = setSlots(row(rootEntry(), made('a', {}, { hostData: { k: 1 } })), 'a', 2)[1]!;
   const dragged = movePanel(row(rootEntry(), resized, made('b')), 'a', 'right', ROOT).find((p) => p.id === 'a')!;
   for (const [label, entry] of [['a person-resized two-slot entry', resized], ['a dragged entry', dragged]] as const) {
     const next = applyTemplate(entry, resolve({ closable: false, listed: false, layer: 'raised', enterFrom: 'anchor', title: 'Renamed', slots: 64, parkable: false }), 'reconfigure');
-    for (const kept of ['slots', 'size', 'anchor', 'live', 'hostData', 'key'] as const) {
+    for (const kept of ['slots', 'anchor', 'live', 'hostData', 'key'] as const) {
       assert.ok(next[kept] === entry[kept], `${label}: ${kept} changed`);
     }
     assert.deepEqual(changedKeys(entry, next), ['anchoredEnter', 'collapsible', 'layer', 'listed', 'locked', 'settings', 'title']);

@@ -3,7 +3,7 @@
  * function that operates on a `PanelWindow[]` array.
  */
 import { DEFAULT_LABELS } from './labels.js';
-import type { JsonValue, PanelSize } from './hostApi.js';
+import type { JsonValue } from './hostApi.js';
 import { isPresent, type NeighborWidths, type PanelRowEntry } from './panelRowEntry.js';
 import { computeRowOrder, deriveAnchorsFromOrder } from './panelRowOrder.js';
 import type { PanelAnchor } from './panelRowOrder.js';
@@ -11,7 +11,6 @@ import { FIXED, effective } from './panelSettings.js';
 import { newPanelUid } from './panelUid.js';
 import type { AddPlacement, FixedBehaviour, PanelSettings, ResolvedPanelSettings } from './panelSettings.js';
 import type { DeferredPin } from './panelTemplate.js';
-import { DEFAULT_PANEL_SIZE, sizeOfSlots } from './panelTiers.js';
 import { HOP_FRACTION } from './rowConstants.js';
 
 /**
@@ -47,8 +46,6 @@ export interface PanelWindow {
   layer?: 'base' | 'raised';
   /** Whether this entry's reappearance always resolves through the anchor formula (resolveEnterDirection) instead of unconditionally entering from the right -- read ONLY by PanelRow's enterDirection. Default false. */
   anchoredEnter?: boolean;
-  /** This panel's own rendered size (a host's panel component passes it to Panel/PanelFrame for a panel wider than one slot). createHistoryPanel/appendPanel always set it. Optional so a record built by hand without it still typechecks. */
-  size?: PanelSize;
   /** How many phone-panel widths wide this entry is set to. Absent on a hand-built entry, which reads as one slot. */
   slots?: number;
   /** The resolved settings this entry was created under, whose mirror fields (`locked`, `collapsible`, `listed`, `layer`, `anchoredEnter`, `slots`) were written from them. Absent for a hand-built entry. */
@@ -83,7 +80,6 @@ export function createHistoryPanel(rootId: string, title: string = DEFAULT_LABEL
   return {
     id: rootId, url: '', title, live: true, locked: true,
     view: 'history', collapsible: false, listed: false, layer: 'raised', anchoredEnter: true,
-    size: DEFAULT_PANEL_SIZE,
   };
 }
 
@@ -179,7 +175,6 @@ export function appendPanel(panels: PanelWindow[], info: { url?: string } & Appe
     anchoredEnter: info.anchoredEnter ?? false,
     // Every entry carries its slot count; a permanent column's is always one.
     slots,
-    size: sizeOfSlots(slots),
   };
   return computeRowOrder([...panels, entry], rootId);
 }
@@ -379,9 +374,9 @@ export function reorderStepsForOffset(offsetX: number, neighbors: NeighborWidths
 export const slotsOf = (p: Pick<PanelWindow, 'slots'>): number => p.slots ?? 1;
 
 /**
- * `id` at `slots` wide (clamped to 1 and its `maxSlots`), its `size` REPLACED by the size of that slot count. Returns the SAME
+ * `id` at `slots` wide (clamped to 1 and its `maxSlots`). Returns the SAME
  * array reference for every no-op: an unknown id, an entry whose `resizable` setting is false (History or a permanent column
- * by default), or a panel already at the clamped count. A parked panel may change size and stays parked.
+ * by default), or a panel already at the clamped count. A parked panel may change slots and stays parked.
  * @internal
  */
 export function setSlots(panels: PanelWindow[], id: string, slots: number): PanelWindow[] {
@@ -390,7 +385,7 @@ export function setSlots(panels: PanelWindow[], id: string, slots: number): Pane
   const allowed = effective(target);
   const next = Math.max(1, Math.min(Math.round(slots), allowed.maxSlots));
   if (!allowed.resizable || slotsOf(target) === next) return panels;
-  return panels.map((p) => (p.id === id ? { ...p, slots: next, size: sizeOfSlots(next) } : p));
+  return panels.map((p) => (p.id === id ? { ...p, slots: next } : p));
 }
 
 /** Whether `p` records the person's changes at all: it carries settings. */

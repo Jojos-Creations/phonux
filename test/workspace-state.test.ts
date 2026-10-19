@@ -6,7 +6,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { computeRowOrder } from '../panelRowOrder.js';
-import { DEFAULT_PANEL_SIZE, sizeOfSlots } from '../panelTiers.js';
 import { appendPanel, createHistoryPanel, slotsOf } from '../panelWindow.js';
 import { ALL_SLOTS } from '../rowConstants.js';
 import { applyTemplate, resolvePanelSettings } from '../panelSettings.js';
@@ -65,7 +64,6 @@ test('W1 project saves exactly the documented keys, never hostData, size, locked
     layer: 'raised',
     anchoredEnter: true,
     slots: 2,
-    size: sizeOfSlots(2),
   });
   const state = projectWorkspaceState([root, full], ROOT);
   assert.equal(state.version, 1);
@@ -186,8 +184,8 @@ test('W7 hydrate applies appendPanel\'s creation rules: permanent wins over list
     saved('l', { url: 'https://l.example', listed: false, layer: 'raised', title: 'Kept', params: { n: 1 }, anchor: { panel: ROOT, position: 'right', priority: 3 } }),
   );
   const [p, t, m, l] = hydrateWorkspaceState(state, freshId, ROOT) as [PanelWindow, PanelWindow, PanelWindow, PanelWindow];
-  assert.deepEqual([p.collapsible, p.listed, p.slots, p.live, p.size], [false, false, 1, true, DEFAULT_PANEL_SIZE], 'permanent: not collapsible, not listed, one slot, and shown though saved parked');
-  assert.deepEqual([t.collapsible, t.slots, t.live, t.size], [true, 2, false, sizeOfSlots(2)], 'a collapsible two-slot panel keeps its slots, its size and its parked flag');
+  assert.deepEqual([p.collapsible, p.listed, p.slots, p.live], [false, false, 1, true], 'permanent: not collapsible, not listed, one slot, and shown though saved parked');
+  assert.deepEqual([t.collapsible, t.slots, t.live], [true, 2, false], 'a collapsible two-slot panel keeps its slots and its parked flag');
   assert.deepEqual([m.view, m.listed, m.slots, m.layer], ['mystery-view', true, 1, 'base'], 'an unknown view key survives, and every default comes from appendPanel');
   assert.deepEqual([l.listed, l.layer, l.title, l.params], [false, 'raised', 'Kept', { n: 1 }]);
   for (const entry of [p, t, m, l]) {
@@ -426,7 +424,6 @@ test('W24 hydrate reads a top-level formFactor of a file saved before slots as t
   assert.equal(isWorkspaceState(state), true, 'control: the old file passes the guard');
   const out = hydrateWorkspaceState(state, drawFrom(['1', '2', '3', '4', '5']), ROOT);
   assert.deepEqual(out.map((e) => e.slots), [1, 2, ALL_SLOTS, 3, 1], 'phone 1, tablet 2, desktop every slot, slots over formFactor, a permanent column one');
-  assert.deepEqual(out.map((e) => e.size), [DEFAULT_PANEL_SIZE, sizeOfSlots(2), sizeOfSlots(ALL_SLOTS), sizeOfSlots(3), DEFAULT_PANEL_SIZE]);
 });
 
 test('W25 project never writes formFactor and writes slots only when it is not one', () => {

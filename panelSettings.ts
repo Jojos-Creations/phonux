@@ -7,7 +7,6 @@
 
 import type * as React from 'react';
 import type { SxProps, Theme } from '@mui/material/styles';
-import type { PanelSize } from './hostApi.js';
 import { reportOnce } from './panelApiLevel.js';
 import { PanelManagerError } from './panelManagerError.js';
 import type { PanelRowEntry } from './panelRowEntry.js';
@@ -2061,15 +2060,11 @@ export const holdUnlistedNote = (panelId: PanelId): SettingNote => ({ code: 'hol
 /** The name readers use for an entry: its `key` when created from settings, its `id` when hand-built. @internal */
 export const panelKey = (p: PanelWindow | PanelRowEntry): string => p.key ?? p.id;
 
-// Literals, not panelTiers.ts's sizeOfSlots: this file may value-import only its two leaf modules, and
-// test/settings-enforcement-permissions.test.ts holds this equal to the function the row prices widths from.
-const sizeOfSlotsLiteral = (slots: number): PanelSize => (slots <= 1 ? { width: 390, height: 700 } : { width: slots * 390 + (slots - 1) * ROW_GAP, height: 'fill' });
-
 /**
  * `entry` with `resolved` written into the fields that mirror it, and into no other. 'create' writes them all,
- * the slots and their size, `key` and `live` included (`startVisibility` 'parked' parks the entry; 'live' never revives
+ * the slots, `key` and `live` included (`startVisibility` 'parked' parks the entry; 'live' never revives
  * one the caller handed in parked); 'reconfigure' writes only what a later change may move and leaves the slots,
- * size, anchor, `live`, `hostData` and `key` as the person and the row left them.
+ * anchor, `live`, `hostData` and `key` as the person and the row left them.
  * @internal
  */
 export function applyTemplate(entry: PanelWindow, resolved: ResolvedPanelSettings, mode: 'create' | 'reconfigure'): PanelWindow {
@@ -2095,7 +2090,6 @@ export function applyTemplate(entry: PanelWindow, resolved: ResolvedPanelSetting
     layer: resolved.layer,
     anchoredEnter: resolved.enterFrom === 'anchor',
     slots: resolved.slots,
-    size: entry.slots === resolved.slots && entry.size !== undefined ? entry.size : sizeOfSlotsLiteral(resolved.slots),
     ...title,
     settings: resolved,
     key: entry.key ?? entry.id,

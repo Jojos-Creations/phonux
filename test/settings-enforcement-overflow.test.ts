@@ -309,7 +309,7 @@ test('workspaceDefaults on a restore: entries keep their saved live, anchor, slo
   const withDefaults = await restore({});
   assert.deepEqual(withDefaults.map((e) => e.id === ROOT || e.settings !== undefined), [true, true, true, true]);
   const [, wide, column, hidden] = withDefaults;
-  assert.deepEqual([wide!.live, wide!.slots, wide!.size?.width, wide!.listed, wide!.layer], [true, 2, 796, false, 'raised']);
+  assert.deepEqual([wide!.live, wide!.slots, wide!.listed, wide!.layer], [true, 2, false, 'raised']);
   assert.deepEqual([column!.live, column!.collapsible, column!.settings?.parkable], [true, false, false]);
   assert.equal(hidden!.live, false, 'a panel saved parked stays parked');
   assert.deepEqual(withDefaults.map((e) => e.anchor), without.map((e) => e.anchor));

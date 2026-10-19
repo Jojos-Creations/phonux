@@ -10,7 +10,6 @@ import { computeRowOrder } from './panelRowOrder.js';
 import { FIXED, applyTemplate, resolvePanelSettings, sameSettingsValue } from './panelSettings.js';
 import type { AddPlacement, PanelSettings, PanelSettingsLayers, PanelSettingsResolution, ResolvedPanelSettings, SettingNote } from './panelSettings.js';
 import type { PanelTemplate } from './panelTemplate.js';
-import { sizeOfSlots } from './panelTiers.js';
 import { newPanelUid } from './panelUid.js';
 import { appendPanel, clearOverrides, type PanelWindow } from './panelWindow.js';
 import { cleanDismissed, cleanSavedExtras, cleanSavedUid, entryFromSaved, isWorkspaceState, savedNames } from './workspaceState.js';
@@ -208,7 +207,6 @@ export function reconcileWorkspace(i: ReconcileInput): ReconcileResult {
       ...reconfigured,
       live,
       slots: settings.slots,
-      size: sizeOfSlots(settings.slots),
       ...(anchor !== undefined ? { anchor } : {}),
       ...(key !== undefined ? { key } : {}),
       ...(claim !== undefined ? { declared: true as const } : { instance: keptInstance(plainAsk, resolution) }),

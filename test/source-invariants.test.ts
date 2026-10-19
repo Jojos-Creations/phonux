@@ -257,9 +257,9 @@ function configureWriters(read: (file: string) => string): string[] {
 }
 
 test('source: a configure writes an entry only through applyTemplate\'s reconfigure branch, and a planted second writer is found', () => {
-  assert.deepEqual(applyTemplateWrites(read('panelSettings.ts')).reconfigure, ['...entry', 'locked', '?collapsible', 'listed', 'layer', 'anchoredEnter', '...title', 'settings'], 'the reconfigure branch writes the mirror fields, the parkable flip and the title, and no slots, size, anchor, hostData, key, overrides or applied');
+  assert.deepEqual(applyTemplateWrites(read('panelSettings.ts')).reconfigure, ['...entry', 'locked', '?collapsible', 'listed', 'layer', 'anchoredEnter', '...title', 'settings'], 'the reconfigure branch writes the mirror fields, the parkable flip and the title, and no slots, anchor, hostData, key, overrides or applied');
   const create = applyTemplateWrites(read('panelSettings.ts')).create;
-  for (const created of ['slots', 'size', 'key', 'live']) assert.ok(create.includes(created), `the create branch writes ${created}, so a reconfigure that wrote it would be a second writer`);
+  for (const created of ['slots', 'key', 'live']) assert.ok(create.includes(created), `the create branch writes ${created}, so a reconfigure that wrote it would be a second writer`);
   const both = writesOf(read('panelSettings.ts'), 'panelSettings.ts', ['locked', 'collapsible']).map((s) => `${s.fn}:${s.key}`).sort();
   assert.deepEqual(both, ['applyTemplate:collapsible', 'applyTemplate:collapsible', 'applyTemplate:locked', 'applyTemplate:locked'], 'one write of each per mode, both inside applyTemplate');
   // The configure path: reconfigured() hands the entry to reparked(), which calls applyTemplate in reconfigure mode, and nothing else builds one.

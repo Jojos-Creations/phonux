@@ -12,6 +12,7 @@ import { useHost } from './hostApi.js';
 import { resolveLabels } from './labels.js';
 import { LandingContext, usePhoneSize } from './phoneFit.js';
 import { isPresent, summarisePanel, type NeighborWidths, type PanelRowEntry } from './panelRowEntry.js';
+import { pinnedIds } from './panelPin.js';
 import { anchorTargetOf, resolveEnterDirection, type EnterDirection } from './panelRowOrder.js';
 import { PanelSlotContext, type DragScroll } from './panelSlotContext.js';
 import type { PanelTemplate } from './panelTemplate.js';
@@ -52,11 +53,10 @@ export function enterDirectionOf(from: ResolvedPanelSettings['enterFrom'], ancho
   return mark ?? (from === 'anchor' || anchoredEnter || viaAnchor ? formula() : 'right');
 }
 
-/** The view's summary with `size.width` at the width the row renders it, so a view passing `panel.size` to Panel stays inside its slot. */
-function renderedSummary(p: PanelRowEntry, width: number, height: number | undefined, drawnSlots: number | undefined, fitSlots: number | undefined) {
+/** The view's summary with `size` at the width and height the row draws the slot, so a view passing `panel.size` to Panel stays inside its slot. */
+function renderedSummary(p: PanelRowEntry, width: number, height: number, drawnSlots: number | undefined, fitSlots: number | undefined) {
   const summary = summarisePanel(p);
-  if (p.slots !== undefined) return { ...summary, drawnSlots, fitSlots, size: summary.size && { ...summary.size, width, height: height ?? summary.size.height } };
-  return summary.size && summary.size.width !== width && (p.slots ?? 1) > 1 ? { ...summary, size: { ...summary.size, width } } : summary;
+  return { ...summary, ...(p.slots !== undefined ? { drawnSlots, fitSlots } : {}), size: { width, height } };
 }
 
 /** What a view mounted outside any row is told: the library defaults, which `resolvePanelSettings` fills in for the derived keys too. */
@@ -195,6 +195,7 @@ export function PanelRow({
   // View state is held by the key, the id a recentlyClosed summary carries, so a closed panel's state survives until its undo window ends.
   useViewState.useRetainOnly([...entries.map((p) => panelKey(p)), ...(panels.recentlyClosed ?? []).map((p) => p.id)]);
   const present = entries.filter(isPresent);
+  const pinned = pinnedIds(entries as readonly PanelWindow[], rootId);
   chrome.setKeys(new Map(entries.map((p) => [p.id, panelKey(p)])));
   // A panel this row showed and no longer shows (closed or parked) stops being the active or dragged one.
   const presentBefore = React.useRef<ReadonlySet<string>>(new Set());
@@ -361,9 +362,8 @@ export function PanelRow({
                 setDragging: (on) => chrome.setDragging(p.id, on),
                 neighborWidths: neighborWidthsAt(p),
                 drawn: { width: rest.width, height: phoneHeight },
-                slotRange: { now: slotsOfWidth(rest.width), most: Math.max(1, Math.min(effective(p).maxSlots, fitSlotsNow)) },
                 handle,
-                pinned: anchorTargetOf(p, rootId) === rootId && p.anchor?.position === 'left',
+                pinned: pinned.has(p.id),
                 tuning: own,
                 dragScroll,
                 headerButtonSlots,

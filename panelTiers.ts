@@ -13,13 +13,6 @@ import { ROW_GAP, fitSlots, slotWidth } from './rowConstants.js';
 export const DEFAULT_PANEL_SIZE: PanelSize = Object.freeze({ width: DEFAULT_PHONE_SIZE.width, height: DEFAULT_PHONE_SIZE.height });
 
 /**
- * The size recorded for a panel of `slots` slots: the phone size for one, else the slots' width at the built-in phone width
- * and the row's own height. A placeholder the row replaces with the width it draws.
- * @internal
- */
-export const sizeOfSlots = (slots: number): PanelSize => (slots <= 1 ? DEFAULT_PANEL_SIZE : { width: slotWidth(slots, DEFAULT_PHONE_SIZE.width, ROW_GAP), height: 'fill' });
-
-/**
  * The slots a panel is drawn at: its `slots` (at most its `maxSlots`) capped at what fits in `maxLiveWidth`; undefined for a
  * hand-built entry that carries no slots, which keeps drawing at the phone width.
  * @internal

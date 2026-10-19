@@ -58,8 +58,6 @@ export interface PanelSlotValue {
   readonly maxSlots: ResolvedPanelSettings['maxSlots'];
   readonly neighborWidths: NeighborWidths;
   readonly pinned: boolean;
-  /** How many slots wide the panel is drawn now, and the most it can take: its `maxSlots` or the slots that fit, whichever is fewer. Absent outside a row. */
-  readonly slotRange?: { readonly now: number; readonly most: number } | undefined;
   /** The size the row draws this slot at, which an omitted `size` on `Panel`, `PanelFrame` and `PanelSizeBox` follows. Absent outside a row, where an omitted size is the phone size. */
   readonly drawn?: { readonly width: number; readonly height: number } | undefined;
   /** The panel's own handle, which `usePanelDragProps` closes and moves through and `usePanelPinned` reads. Absent in a row without a workspace. */

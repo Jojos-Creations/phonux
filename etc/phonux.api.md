@@ -677,7 +677,7 @@ export function PanelRow(input: {
 }): React_2.ReactElement;
 
 // @public
-export interface PanelRowEntry<P = JsonValue> extends PanelSummary<P> {
+export interface PanelRowEntry<P = JsonValue> extends Omit<PanelSummary<P>, 'size'> {
     readonly anchor?: PanelAnchor;
     readonly anchoredEnter?: boolean;
     readonly collapsible: boolean;
@@ -880,7 +880,6 @@ export interface PanelWindow {
     };
     params?: JsonValue;
     settings?: ResolvedPanelSettings;
-    size?: PanelSize;
     slots?: number;
     title?: string;
     uid?: string;

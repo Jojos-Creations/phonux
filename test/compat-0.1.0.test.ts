@@ -15,7 +15,7 @@ import { computeRowOrder, deriveAnchorsFromOrder } from '../panelRowOrder.js';
 import * as panelWindow from '../panelWindow.js';
 import { appendPanel, closePanel, movePanel, reanchorPanel, reorderStepsForOffset, restorePanel } from '../panelWindow.js';
 import { computeMaxLiveWidth, computeRowLayout } from '../panelRowLayout.js';
-import { panelWidthOf, sizeOfSlots } from '../panelTiers.js';
+import { panelWidthOf } from '../panelTiers.js';
 import { ALL_SLOTS } from '../rowConstants.js';
 import { hydrateWorkspaceState, projectWorkspaceState } from '../workspaceState.js';
 
@@ -230,7 +230,7 @@ function withoutUid(output: unknown): unknown {
 /** What a 0.1.0 tier stood for: width is a slot count now, and the tier word is gone. */
 const TIER_SLOTS: Readonly<Record<string, number>> = { phone: 1, tablet: 2, desktop: ALL_SLOTS };
 
-/** `value` with every panel-shaped object's tier read as its slot count and its size recomputed from it; the rest is copied as it is. */
+/** `value` with every panel-shaped object's tier read as its slot count and the rest is copied as it is. */
 function tiersAsSlots(value: unknown): unknown {
   if (Array.isArray(value)) return value.map(tiersAsSlots);
   if (typeof value !== 'object' || value === null) return value;
@@ -239,7 +239,7 @@ function tiersAsSlots(value: unknown): unknown {
   for (const [key, held] of Object.entries(rest)) out[key] = tiersAsSlots(held);
   if (typeof formFactor !== 'string' || !(formFactor in TIER_SLOTS)) return 'size' in (value as object) || 'formFactor' in (value as object) ? { ...out, ...('size' in (value as object) ? { size: (value as { size: unknown }).size } : {}) } : out;
   const slots = typeof out.slots === 'number' ? out.slots : TIER_SLOTS[formFactor]!;
-  return { ...out, slots, ...('size' in (value as object) ? { size: sizeOfSlots(slots) } : {}) };
+  return { ...out, slots };
 }
 
 /** A saved entry (projectWorkspaceState's output) with its tier read as slots, which are written only above one, and without the counter id this library no longer saves. */

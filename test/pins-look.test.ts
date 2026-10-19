@@ -31,7 +31,7 @@ const entry = (id: string, over: Partial<PanelWindow> = {}): PanelWindow => ({
   listed: true,
   ...over,
 });
-const twoSlots = (id: string): PanelWindow => entry(id, { slots: 2, size: { width: 796, height: 'fill' } });
+const twoSlots = (id: string): PanelWindow => entry(id, { slots: 2 });
 const root = (): PanelWindow => entry('root', { url: '', title: 'History', locked: true, collapsible: false, listed: false });
 
 afterEach(() => cleanup());

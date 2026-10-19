@@ -13,7 +13,6 @@ import { computeRowOrder } from '../panelRowOrder.js';
 import { resolveViewIn } from '../templateView.js';
 import { placeholderFor } from '../viewRegistry.js';
 import { reconcileWorkspace, type ReconcileInput } from '../workspacePlan.js';
-import { sizeOfSlots } from '../panelTiers.js';
 import { projectWorkspaceState, type WorkspacePanelState, type WorkspaceState } from '../workspaceState.js';
 
 const ROOT = 'root';
@@ -248,7 +247,6 @@ test('overrides.slots 2 restores at two slots although the template now says res
   const saved = file([savedEntry('p', { view: 't', overrides: { slots: 2 } })]);
   const result = run({ saved, templates: [tpl('t', { resizable: false })] });
   assert.equal(result.entries[0]!.slots, 2);
-  assert.deepEqual(result.entries[0]!.size, sizeOfSlots(2));
 });
 
 test('an overrides.anchor restores although draggable and placeable are false', () => {
@@ -264,7 +262,6 @@ test('an overrides.slots above maxSlots restores at maxSlots and the overrides t
   const saved = file([savedEntry('p', { view: 't', overrides: { slots: 5, anchor: { panel: ROOT, position: 'right', priority: 0 } } })]);
   const result = run({ saved, templates: [tpl('t', { maxSlots: 2 })] });
   assert.equal(result.entries[0]!.slots, 2);
-  assert.deepEqual(result.entries[0]!.size, sizeOfSlots(2));
   assert.equal(result.entries[0]!.overrides!.anchor !== undefined, true);
 });
 
