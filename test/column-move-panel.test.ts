@@ -7,8 +7,8 @@ import assert from 'node:assert/strict';
 import './support/jsdom-globals.js';
 import * as React from 'react';
 import { act } from 'react';
-import { createWorkspace, createWorkspaceColumn, definePanel } from '../index.js';
-import type { ColumnState, ColumnStorage, MovePanelResult, WorkspaceColumnHandle, WorkspaceHandle, WorkspaceState } from '../index.js';
+import { createWorkspace, createWorkspaceColumn, definePanel, useHost } from '../index.js';
+import type { ColumnOptions, ColumnState, ColumnStorage, MovePanelResult, WorkspaceColumnHandle, WorkspaceHandle, WorkspaceState } from '../index.js';
 import { memoryWorkspaceStorage, type MemoryWorkspaceStorage } from '../fakeHost.js';
 import { rigCleanup, until } from './support/auto-rig.js';
 
@@ -26,33 +26,51 @@ const rail = definePanel({ id: 'rail', view, settings: { parkable: false } });
 const pinned = definePanel({ id: 'pinned', view, settings: { multiple: true, movable: false } });
 const sticky = definePanel({ id: 'sticky', view, settings: { afterClose: 'return-next-launch' } });
 const front = definePanel({ id: 'front', view, settings: { multiple: true, placeOnAdd: 'row-start' } });
-const home = definePanel({ id: 'home', view });
+/** What the root view saw of the host's undo window at each render. */
+const undoSeen: Array<number | null> = [];
+const home = definePanel({
+  id: 'home',
+  view: () => {
+    const { panels } = useHost();
+    undoSeen.push(panels?.recentlyClosed?.length ?? null);
+    return React.createElement('i', { 'data-slot': 'home' });
+  },
+});
 
-/** Storage that outlives a column, so a second column built over it is a relaunch. */
-function disk(): { storage: ColumnStorage; files: Map<string, MemoryWorkspaceStorage>; list: { state: ColumnState | null } } {
+/** Storage that outlives a column, so a second column built over it is a relaunch. A workspace named in `hold` does not finish loading until `let` is called for it. */
+function disk(hold: string[] = []): { storage: ColumnStorage; files: Map<string, MemoryWorkspaceStorage>; list: { state: ColumnState | null }; let: (id: string) => void } {
   const files = new Map<string, MemoryWorkspaceStorage>();
   const list: { state: ColumnState | null } = { state: null };
+  const gates = new Map<string, () => void>();
+  const waits = new Map(hold.map((id) => [id, new Promise<void>((resolve) => gates.set(id, resolve))]));
   const storage: ColumnStorage = {
     load: async () => list.state,
     save: (s) => void (list.state = s),
     workspace: (id) => {
       let f = files.get(id);
       if (f === undefined) files.set(id, (f = memoryWorkspaceStorage()));
-      return f;
+      const inner = f;
+      const wait = waits.get(id);
+      return wait === undefined ? inner : { load: () => wait.then(() => inner.load()), save: (state) => inner.save(state) };
     },
   };
-  return { storage, files, list };
+  return { storage, files, list, let: (id) => gates.get(id)?.() };
 }
 
 type Disk = ReturnType<typeof disk>;
 
-async function launch(d: Disk, ids: string[] = ['top', 'bottom'], declare?: (ws: WorkspaceHandle) => void): Promise<{ column: WorkspaceColumnHandle; top: WorkspaceHandle; bottom: WorkspaceHandle }> {
-  const column = createWorkspaceColumn({ root: home, templates: [note, solo, pair, rail, pinned, sticky, front], storage: d.storage, tuning: { saveQuietMs: 0 } });
+function build(d: Disk, extra: Partial<ColumnOptions> = {}): WorkspaceColumnHandle {
+  const column = createWorkspaceColumn({ root: home, templates: [note, solo, pair, rail, pinned, sticky, front], storage: d.storage, tuning: { saveQuietMs: 0 }, ...extra });
   columns.push(column);
+  return column;
+}
+
+async function launch(d: Disk, ids: string[] = ['top', 'bottom'], declare?: (ws: WorkspaceHandle) => void, extra: Partial<ColumnOptions> = {}): Promise<{ column: WorkspaceColumnHandle; top: WorkspaceHandle; bottom: WorkspaceHandle; all: WorkspaceHandle[] }> {
+  const column = build(d, extra);
   const made = ids.map((id) => column.addWorkspace({ id }));
   for (const ws of made) declare?.(ws);
-  await until('both rows ready', () => made.every((w) => w.status === 'ready'));
-  return { column, top: made[0]!, bottom: made[1]! };
+  await until('all rows ready', () => made.every((w) => w.status === 'ready'));
+  return { column, top: made[0]!, bottom: made[1]!, all: made };
 }
 
 const ready = (ws: WorkspaceHandle, id: string): Promise<void> => until(`panel ${id}`, () => ws.panels.get(id)?.getState().status === 'live');
@@ -270,4 +288,119 @@ test('addWorkspace at index 0 and at the end puts a workspace above the first an
   const below = column.addWorkspace({ index: column.workspaces.length });
   assert.deepEqual(column.workspaces, [above, top, bottom, below]);
   assert.equal(column.workspaces[column.current], bottom);
+});
+
+test('two moves of one panel in one turn: the second answers busy and the panel is in one workspace only', async () => {
+  const d = disk();
+  const { column, top, bottom, all } = await launch(d, ['top', 'bottom', 'third']);
+  const third = all[2]!;
+  top.addPanel('note', { id: 'n1' });
+  await ready(top, 'n1');
+  let first: MovePanelResult | undefined;
+  let second: MovePanelResult | undefined;
+  act(() => {
+    first = column.movePanel(top, 'n1', bottom);
+    second = column.movePanel(top, 'n1', third);
+  });
+  assert.equal(first?.ok, true);
+  assert.equal(failed(second!).code, 'busy');
+  await ready(bottom, 'n1');
+  await new Promise((r) => setTimeout(r, 30));
+  assert.equal(third.panels.get('n1')?.getState().status ?? 'closed', 'closed', 'the refused move added nothing');
+  assert.equal(top.panels.get('n1')?.getState().status ?? 'closed', 'closed');
+});
+
+test('a move is not a close: no closed-panel report and no undo window', async () => {
+  const d = disk();
+  const closed: string[] = [];
+  const { column, top, bottom } = await launch(d, ['top', 'bottom'], undefined, { panels: { onPanelsClosed: (e) => void closed.push(e.id) } });
+  top.addPanel('note', { id: 'n1' });
+  top.addPanel('note', { id: 'n2' });
+  await ready(top, 'n1');
+  await ready(top, 'n2');
+  undoSeen.length = 0;
+  assert.ok(column.movePanel(top, 'n1', bottom).ok);
+  await ready(bottom, 'n1');
+  await new Promise((r) => setTimeout(r, 30));
+  assert.deepEqual(closed, [], 'the host is told of no close');
+  assert.deepEqual(undoSeen.filter((n) => n !== null), [], 'the undo window never opened');
+  // The probes see a real close.
+  assert.ok(top.panels.get('n2')!.close().ok);
+  await until('close reported', () => closed.length === 1);
+  await until('undo window seen', () => undoSeen.some((n) => n === 1));
+});
+
+test('url and title go with the panel, a title set at run time too, and survive a relaunch', async () => {
+  const d = disk();
+  const { column, top, bottom } = await launch(d);
+  top.addPanel('solo', { url: 'https://example.test/page' });
+  top.addPanel('note', { id: 'n1', url: 'https://example.test/n1' });
+  await ready(top, 'solo');
+  await ready(top, 'n1');
+  assert.ok(top.panels.get('n1')!.configure({ title: 'Renamed at run time' }).ok);
+  const soloTitle = top.panels.get('solo')!.getState().title;
+  assert.ok(soloTitle !== undefined && soloTitle !== '', 'the singleton has a default title');
+  // A token on a panel lasts until the next commit.
+  await new Promise((r) => setTimeout(r, 30));
+  assert.ok(column.movePanel(top, 'solo', bottom).ok);
+  await new Promise((r) => setTimeout(r, 30));
+  assert.ok(column.movePanel(top, 'n1', bottom).ok);
+  await ready(bottom, 'solo');
+  await ready(bottom, 'n1');
+  assert.equal(bottom.panels.get('solo')!.getState().url, 'https://example.test/page');
+  assert.equal(bottom.panels.get('solo')!.getState().title, soloTitle, 'a default title does not change with the engine id');
+  assert.equal(bottom.panels.get('n1')!.getState().url, 'https://example.test/n1');
+  assert.equal(bottom.panels.get('n1')!.getState().title, 'Renamed at run time');
+  await until('saved', () => savedViews(d, 'bottom').length === 2);
+  const file = saved(d, 'bottom')!.panels;
+  assert.deepEqual(file.map((p) => [p.key, p.url, p.title]), [['solo', 'https://example.test/page', soloTitle], ['n1', 'https://example.test/n1', 'Renamed at run time']]);
+  act(() => column.dispose());
+  const again = await launch(d);
+  await ready(again.bottom, 'n1');
+  assert.equal(again.bottom.panels.get('n1')!.getState().url, 'https://example.test/n1');
+  assert.equal(again.bottom.panels.get('n1')!.getState().title, 'Renamed at run time');
+  assert.equal(again.bottom.panels.get('solo')!.getState().url, 'https://example.test/page');
+});
+
+test('a workspace still loading refuses as source and as target, and the panel stays', async () => {
+  const d = disk(['bottom']);
+  const column = build(d);
+  const top = column.addWorkspace({ id: 'top' });
+  const bottom = column.addWorkspace({ id: 'bottom' });
+  await until('top ready', () => top.status === 'ready');
+  await until('bottom loading', () => bottom.status === 'loading');
+  top.addPanel('note', { id: 'n1' });
+  await ready(top, 'n1');
+  assert.equal(failed(column.movePanel(top, 'n1', bottom)).code, 'not-ready');
+  assert.equal(failed(column.movePanel(bottom, 'n1', top)).code, 'not-ready');
+  assert.equal(top.panels.get('n1')?.getState().status, 'live');
+  d.let('bottom');
+  await until('bottom ready', () => bottom.status === 'ready');
+  assert.ok(column.movePanel(top, 'n1', bottom).ok, 'once loaded the same move goes through');
+});
+
+test('a target that lacks the panel template refuses with unknown-panel', async () => {
+  const d = disk();
+  const { column, top, bottom } = await launch(d);
+  top.registerTemplate(definePanel({ id: 'extra', view }));
+  top.addPanel('extra');
+  await ready(top, 'extra');
+  const r = failed(column.movePanel(top, 'extra', bottom));
+  assert.equal(r.code, 'unknown-panel');
+  assert.match(r.message, /not registered in the target/);
+  assert.equal(top.panels.get('extra')?.getState().status, 'live');
+});
+
+test('moving a declared panel back to the workspace that declares it says so', async () => {
+  const d = disk();
+  const declare = (ws: WorkspaceHandle): void => {
+    if (ws.id === 'top') ws.addPanel('note', { id: 'fixed' });
+  };
+  const { column, top, bottom } = await launch(d, ['top', 'bottom'], declare);
+  await ready(top, 'fixed');
+  assert.ok(column.movePanel(top, 'fixed', bottom).ok);
+  await ready(bottom, 'fixed');
+  const back = failed(column.movePanel(bottom, 'fixed', top));
+  assert.equal(back.code, 'instance-limit');
+  assert.match(back.message, /declares a panel under that id/);
 });

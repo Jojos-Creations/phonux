@@ -1322,9 +1322,11 @@ export function createWorkspace(o: WorkspaceOptions = {}): WorkspaceHandle {
       const count = instancesOf(template.id);
       const engineId = key.includes('~') ? key.slice(key.indexOf('~') + 1) : newId();
       const taken = records.get(key);
-      const clash = committed!.entries.some((p) => panelKey(p) === key || p.id === engineId) || inflight.has(key) || taken?.intent === true;
+      const present = committed!.entries.some((p) => panelKey(p) === key || p.id === engineId) || inflight.has(key);
+      const declaredHere = taken?.intent === true;
+      const clash = present || declaredHere;
       const full = (!res.value.multiple && count > 0) || (res.value.maxInstances !== 'unlimited' && count >= res.value.maxInstances);
-      if (clash || full) return { refusal: refused('instance-limit', clash ? `panel '${key}': the target workspace already has a panel under that name` : `panel '${key}': template '${template.id}' is at its limit of ${res.value.multiple ? res.value.maxInstances : 1} in the target workspace`) as Extract<PanelResult, { ok: false }> };
+      if (clash || full) return { refusal: refused('instance-limit', clash ? (present ? `panel '${key}': the target workspace already has a panel under that id` : `panel '${key}': the target workspace's code declares a panel under that id, so it cannot take another`) : `panel '${key}': template '${template.id}' is at its limit of ${res.value.multiple ? res.value.maxInstances : 1} in the target workspace`) as Extract<PanelResult, { ok: false }> };
       return {
         go: () => {
           records.set(key, { id: key, templateId: template.id, settings: carried.settings, params: carried.params, url: carried.url, intent: false, closed: false, anonymous: key.includes('~') });

@@ -103,9 +103,10 @@ export interface WorkspaceColumnHandle {
    * that is at the template's instance limit or already holds a panel under that id (`instance-limit`); and a panel with an operation
    * in flight (`busy`).
    *
-   * Both workspaces must be drawn (by `WorkspaceColumn`, which mounts every cell, or by an app's own row) and finished loading,
-   * because a workspace keeps its panels in its row: otherwise the answer is `not-attached` or `not-ready` and nothing changed. A
-   * view's `useViewState` is held per workspace and does not move; the view starts again from its `initial`.
+   * Both workspaces must be drawn (by `WorkspaceColumn`, which mounts every cell, or by an app's own row) and finished loading;
+   * otherwise the answer is `not-attached` or `not-ready` and nothing changed. A view's `useViewState` is held per workspace and
+   * does not move: the view starts again from its `initial`. The host data the target's `panels.defaultHostData` builds is given
+   * afresh, and the source's is dropped. A parked panel arrives live, as a new panel does.
    */
   movePanel(from: WorkspaceHandle | number, panelId: PanelId, to: WorkspaceHandle | number): MovePanelResult;
   /**
