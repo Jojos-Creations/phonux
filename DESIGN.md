@@ -361,7 +361,9 @@ would leave blank room after the last panel. The element is the row gap wide on 
 there, because engines disagree on what the scrollable width counts: WebKit leaves a flex item's end margin out, and Firefox an
 empty box (so the element has no `height: 0`). A non-empty element is counted by all three, whatever each does with padding, and
 `maxScrollOf` is then the browser's range. A row that does not scroll keeps its padding to centre in.
-The strip's margin snaps instead of gliding while stops exist, or `scrollWidth` would lag `maxScrollOf`. A strip that fits
+The strip's margin snaps instead of gliding while stops exist, or `scrollWidth` would lag `maxScrollOf`, except in a panel resize: a
+grow that overflows the window adds its stops in the render that moves the margin, so the margin glides there (a panel's width changed
+under an unchanged container width, or a width is held), and the settle onto a stop waits for the slide. A window resize keeps the snap. A strip that fits
 the window keeps its centring and has no stops; an `off` row has none either, so its margin is 0 on overflow.
 
 Padding does not clip scrolled content, so a neighbour of the shown set peeks `m_i` px at each edge, cut by the window
@@ -419,7 +421,7 @@ right; `'end'` shifts the whole strip left by the growth, so the right edge and 
 before make room, which is what a grabber on the left needs, with the row box (and so the scroll extent) as long as before. The release is
 `setSlots(nearest)`, then `setDrawnWidth(null)`, then `setResizing(false)`: the first fixes what the panel is, the second lets it
 glide from the held width to that one (a snap under Reduce Motion, which also snaps the centring margin), and the third lifts the hold,
-so the row settles once onto a stop while the width and margin glide. Ending the mark, or the panel leaving the row, drops a
+so the row settles once onto a stop. When the release moves the centring margin, that settle starts once the margin's slide has ended. Ending the mark, or the panel leaving the row, drops a
 width still set.
 
 The settle holds the edge `pin` named. When the mark begins the Workspace reads that panel's rect from the element, after its claim has

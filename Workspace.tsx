@@ -34,6 +34,8 @@ export interface WorkspaceShellStyleInput {
   containerWidth: number;
   /** The margin glides once this has held still; it snaps otherwise (see the caller's own settle timer). */
   rowResizeSettled: boolean;
+  /** True in the render of a deliberate panel resize: the margin then glides even while the row has stops. Default false. */
+  panelResizing?: boolean;
   /** The width every fixed column renders at (PhoneDeviceAPI size). */
   phoneWidth: number;
   /** The number of always-present columns the row renders. */
@@ -85,11 +87,21 @@ export function workspaceShellStyle(i: WorkspaceShellStyleInput): WorkspaceShell
   const gesture = i.rowGesture ?? ROW_GESTURE;
   return {
     marginLeft,
-    // The margin snaps while stops exist: a gliding margin would leave the scrollable width short of where a stop sits.
-    transition: i.rowResizeSettled && !(i.rowNumbers !== undefined && i.rowNumbers.stops.length > 0) ? (i.slide === undefined ? PANEL_TRANSITION : slideToTransition(i.slide)) : { duration: 0 },
+    // The margin snaps while stops exist, or the scrollable width would be short of where a stop sits. A panel resize glides anyway:
+    // a grow that overflows the window adds its stops in the render that moves the margin, and a snap there jumps every panel.
+    transition: i.rowResizeSettled && (i.panelResizing === true || !(i.rowNumbers !== undefined && i.rowNumbers.stops.length > 0)) ? (i.slide === undefined ? PANEL_TRANSITION : slideToTransition(i.slide)) : { duration: 0 },
     overflowX: 'hidden',
     hideScrollbar: scrolls && gesture === 'step',
   };
+}
+
+/** Whether a panel present in both has a different width in `after`: a resize, not a panel coming or going. */
+function panelWidthChanged(before: RowNumbers | undefined, after: RowNumbers | undefined): boolean {
+  if (before === undefined || after === undefined) return false;
+  return after.ids.some((id, k) => {
+    const was = before.ids.indexOf(id);
+    return was >= 0 && before.widths[was] !== after.widths[k];
+  });
 }
 
 /** How long the container width must hold still before the row's margin glides again: `slides` slide durations. @internal */
@@ -190,6 +202,7 @@ export function Workspace(props: WorkspaceProps): React.ReactElement {
   numbersRef.current = rowNumbers;
   // The release settles after the numbers carry the new slot count: it waits for them, or one frame, while the claim is held.
   const settle = React.useRef<{ run: () => void; grown: () => boolean } | null>(null);
+  const settleTimer = React.useRef<ReturnType<typeof setTimeout>>(undefined);
   React.useLayoutEffect(() => {
     const container = overflowContainerRef.current;
     if (resizingId === null || container === null) return undefined;
@@ -218,8 +231,27 @@ export function Workspace(props: WorkspaceProps): React.ReactElement {
         const n = numbersRef.current;
         if (claim === null || n === undefined || n.stops.length === 0) return;
         const held = pin === null || edges === null ? scroller.scrollLeft() : scrollHoldingEdge(n, n.ids.indexOf(resizingId), pin, edges[pin], scroller.scrollLeft());
-        const to = nearestStop(n, held);
-        if (Math.abs(to - scroller.scrollLeft()) >= 0.5) scroller.glideTo(to, { durationSec: resolved.slide.durationSec, instant: reduced, ease: resolved.slide.glideEase });
+        const glide = (from: RowNumbers): void => {
+          const to = nearestStop(from, held);
+          if (Math.abs(to - scroller.scrollLeft()) >= 0.5) scroller.glideTo(to, { durationSec: resolved.slide.durationSec, instant: reduced, ease: resolved.slide.glideEase });
+        };
+        clearTimeout(settleTimer.current);
+        if (reduced || n.rowMarginLeft === began?.rowMarginLeft) {
+          glide(n);
+          return;
+        }
+        // The margin glides to the release's numbers first: a scroll glide beside it moves every panel by both, and the scrollable width is
+        // short of the target until the margin lands. Whoever moves the row during that wait has chosen where it rests, so the settle only
+        // runs for a row nobody asked to move or moved, onto the stops the row has by then. A step the row refuses (at either end)
+        // moves nothing, so it is counted as an ask of its own.
+        const releasedAt = scroller.scrollLeft();
+        const asked = scroller.inputs();
+        settleTimer.current = setTimeout(() => {
+          const now = numbersRef.current;
+          if (now === undefined || now.stops.length === 0 || scroller.inputs() !== asked) return;
+          if (Math.abs((scroller.glideTarget() ?? scroller.scrollLeft()) - releasedAt) >= 0.5) return;
+          glide(now);
+        }, resolved.slide.durationSec * 1000);
       };
       if (width(numbersRef.current) !== width(began) || pin === null) return run();
       const pending = { run, grown: () => width(numbersRef.current) !== width(began) };
@@ -230,10 +262,31 @@ export function Workspace(props: WorkspaceProps): React.ReactElement {
   React.useLayoutEffect(() => {
     if (resizingId === null && settle.current?.grown() === true) settle.current.run();
   }, [rowNumbers, resizingId]);
-  React.useLayoutEffect(() => () => void settle.current?.run(), []);
+  React.useLayoutEffect(
+    () => () => {
+      settle.current?.run();
+      clearTimeout(settleTimer.current);
+    },
+    [],
+  );
+  // A press on the row is a person choosing where it rests, even if it moves nothing.
+  React.useEffect(() => {
+    const container = overflowContainerRef.current;
+    if (container === null) return undefined;
+    const note = (): void => rowScrollerFor(container).noteInput();
+    container.addEventListener('pointerdown', note, { passive: true });
+    return () => container.removeEventListener('pointerdown', note);
+  }, [overflowContainerRef]);
+  // What the last commit drew. A panel whose width differs from it under the same container width was resized on purpose; a window
+  // resize moves the container width too and keeps its snap.
+  const drawn = React.useRef({ numbers: rowNumbers, containerWidth });
+  const panelResizing = resizingId !== null || (drawn.current.containerWidth === containerWidth && panelWidthChanged(drawn.current.numbers, rowNumbers));
+  React.useLayoutEffect(() => {
+    drawn.current = { numbers: rowNumbers, containerWidth };
+  });
   const scrolls = rowNumbers?.rowScroll ?? rowScroll ?? false;
   const phoneSize = React.useMemo(() => (phoneHeight === undefined ? undefined : { width: phoneWidth, height: phoneHeight }), [phoneWidth, phoneHeight]);
-  const style = workspaceShellStyle({ containerWidth, rowResizeSettled, phoneWidth, fixedColumnCount, liveWidths, gap, slide: resolved.slide, rowScroll, rowNumbers, rowGesture: resolved.rowGesture });
+  const style = workspaceShellStyle({ containerWidth, rowResizeSettled, panelResizing, phoneWidth, fixedColumnCount, liveWidths, gap, slide: resolved.slide, rowScroll, rowNumbers, rowGesture: resolved.rowGesture });
   // The room the row has to grow into: the container's height less its padding. 0 (unmeasured) applies no height limit.
   const topPad = topPadding ?? gap;
   const availableHeight = useRowHeightBudget(overflowContainerRef, topPad, gap);

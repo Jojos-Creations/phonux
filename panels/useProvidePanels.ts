@@ -435,6 +435,7 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
     if (el === null) return;
     restWatch.current();
     const scroller = rowScrollerFor(el);
+    scroller.noteInput();
     if (scroller.claimHeld()) return;
     const maxScroll = maxScrollOf(rowNumbers);
     if (!rowNumbers.rowScroll || maxScroll <= 0) {

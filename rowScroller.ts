@@ -24,6 +24,10 @@ export interface RowScroller {
   glideTo(target: number, o: { durationSec: number; instant: boolean; ease: GlideEase }): boolean;
   /** Where the glide in flight ends; null when none is. */
   glideTarget(): number | null;
+  /** How many times a person has asked to move the row: a step, a dot, a press on the row. Counted whether or not the row moved. */
+  inputs(): number;
+  /** Records one such ask. */
+  noteInput(): void;
   /** Ends the glide in flight where it is. */
   stop(): void;
   /** The exclusive writer, or null while one is held. */
@@ -64,6 +68,7 @@ function createRowScroller(el: HTMLElement): RowScroller {
   let frame: number | null = null;
   // Read back after every own write: the browser rounds and clamps, and the scroll event it fires later reports that value.
   let lastWritten = el.scrollLeft;
+  let inputs = 0;
 
   const write = (left: number): void => {
     el.scrollLeft = left;
@@ -117,6 +122,10 @@ function createRowScroller(el: HTMLElement): RowScroller {
       return true;
     },
     glideTarget: () => (glide === null ? null : glide.to),
+    inputs: () => inputs,
+    noteInput() {
+      inputs += 1;
+    },
     claimHeld: () => claimed,
     stop,
     claim() {
