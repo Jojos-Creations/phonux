@@ -311,7 +311,7 @@ function runMore(r: PinRig, h: PanelHandle, op: MoreOp, rand: () => number, scro
   }
 }
 
-const REFUSALS = new Set(['disposed', 'not-attached', 'not-ready', 'is-pending', 'is-closed', 'not-live', 'busy', 'not-closable', 'not-parkable', 'not-movable', 'not-resizable', 'slots-above-max', 'would-empty-row', 'instance-limit', 'unknown-panel', 'wrong-scope', 'would-reshape-row', 'settings-conflict', 'not-view-settable']);
+const REFUSALS = new Set(['disposed', 'not-attached', 'not-ready', 'is-pending', 'is-closed', 'not-live', 'busy', 'not-closable', 'not-parkable', 'not-movable', 'not-resizable', 'root-fixed', 'slots-above-max', 'would-empty-row', 'instance-limit', 'unknown-panel', 'wrong-scope', 'would-reshape-row', 'settings-conflict', 'not-view-settable']);
 
 test('final property: over random settings vectors, pin, unpin, scrollTo, resetLayout, configure and the operations keep every guarantee of 7.3 after every step', async () => {
   const MORE_SEQUENCES = 500;

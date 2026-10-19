@@ -88,6 +88,7 @@ export function checkPatch(call: ConfigureCall, patch: unknown): { names: string
       }
       continue;
     }
+    if (key === 'draggable' || key === 'placeable') throw new PanelManagerError('invalid-settings', `${layer}.${key}: a setting this version no longer has; set 'movable' instead`, { layer, key });
     if (!FLAT_KEYS.has(key)) throw new PanelManagerError('invalid-settings', `${layer}.${key}: unknown setting`, { layer, key });
     asks.push({ name: key, value });
   }
