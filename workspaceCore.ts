@@ -259,6 +259,10 @@ export interface EngineBinding {
   reportNote(note: SettingNote): void;
   /** The attached hook binds (or, with undefined, unbinds) where runtime notes go. */
   bindNotes(sink: ((note: SettingNote) => void) | undefined): void;
+  /** The row tells the workspace the panel drawn under `engineId` was just focused or pressed; the attached hook counts that as a touch. Ignored while no hook is bound. */
+  touch(engineId: string): void;
+  /** The attached hook binds (or, with undefined, unbinds) where touches go. */
+  bindTouch(sink: ((engineId: string) => void) | undefined): void;
   /** The workspace's own templates, the root's included. */
   templates(): readonly PanelTemplate[];
   /** The template this workspace holds under `id`, or undefined: what its row renders a panel of `id` with. */
@@ -436,6 +440,7 @@ export function createWorkspace(o: WorkspaceOptions = {}): WorkspaceHandle {
   let warnedHandMount = false;
 
   let noteSink: ((note: SettingNote) => void) | undefined;
+  let touchSink: ((engineId: string) => void) | undefined;
   const notesBeforeSink: SettingNote[] = [];
 
   const reportConflicts = (id: PanelId, res: PanelSettingsResolution): void => {
@@ -1125,6 +1130,10 @@ export function createWorkspace(o: WorkspaceOptions = {}): WorkspaceHandle {
       } catch {
         // A reporter that throws must not break the slot that raised the note.
       }
+    },
+    touch: (engineId) => touchSink?.(engineId),
+    bindTouch: (sink) => {
+      touchSink = sink;
     },
     bindNotes: (sink) => {
       noteSink = sink;

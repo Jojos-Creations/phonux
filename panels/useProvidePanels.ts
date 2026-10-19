@@ -406,6 +406,7 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
     deferPin,
     resetPanels,
     gate,
+    touchPanel,
   } = usePanelManager(panels, setPanels, i.phoneWidth, i.containerWidth, fixedViewCount, rootId, {
     onNote: i.onNote,
     tuning: { rowGap: tuning.rowGap, returnTieBreak: timing.returnTieBreak, dropTieBreak: timing.dropTieBreak, maxLivePanels: tuning.maxLivePanels },
@@ -589,6 +590,10 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
   useLayoutEffect(() => {
     core.bindNotes((note) => reportNotes(i.onNote, [note]));
     return () => core.bindNotes(undefined);
+  });
+  useLayoutEffect(() => {
+    core.bindTouch(touchPanel);
+    return () => core.bindTouch(undefined);
   });
   const attachOwner = useRef({});
   useLayoutEffect(() => {

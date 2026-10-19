@@ -15,8 +15,9 @@ import type { PanelSettings, PanelWindow, ProvidedPanels, ResolvedPanelSettings,
 import { applyTemplate, resolvePanelSettings } from '../panelSettings.js';
 import { computeMaxLiveWidth, computeRowLayout } from '../panelRowLayout.js';
 import { deriveAnchorsFromOrder } from '../panelRowOrder.js';
+import { frameClock } from '../testingClock.js';
 import { panelWidthOf } from '../panelTiers.js';
-import { appendPanel, createHistoryPanel, farthestLiveCollapsibleId, parkLevers, promoteToLive } from '../panelWindow.js';
+import { appendPanel, createHistoryPanel, leastRecentlyTouchedId, parkLevers, promoteToLive } from '../panelWindow.js';
 import { fewestParksThatSettle, type UsePanelManagerResult } from '../panels/usePanelManager.js';
 import { usePanelClosing, type UsePanelClosingResult } from '../panels/usePanelClosing.js';
 import { projectWorkspaceState, type WorkspaceState, type WorkspaceStorage } from '../workspaceState.js';
@@ -180,7 +181,7 @@ afterEach(() => {
 // One differential per owned name
 // ---------------------------------------------------------------------------
 
-test('differential startVisibility: a panel opened into a full row parks the farthest under live, and is created parked under parked', () => {
+test('differential startVisibility: a panel opened into a full row parks the oldest under live, and is created parked under parked', () => {
   const outcome = (startVisibility: 'live' | 'parked'): string => {
     const e = mountEngine(row(rootEntry(), park('a'), park('b')), W(2));
     e.open(park('c', { startVisibility }));
@@ -368,7 +369,7 @@ test('holdPanel on a panel parked for room takes it off the collapse stack: it s
   const after = (held: boolean): string[] => {
     const e = mountEngine(row(rootEntry(), park('a'), park('b')), W(2));
     e.open(park('c'));
-    assert.deepEqual(e.parked(), ['a'], 'control: opening c parked the farthest, a, and put it on the stack');
+    assert.deepEqual(e.parked(), ['a'], 'control: opening c parked the oldest, a, and put it on the stack');
     if (held) assert.equal(e.hold('a'), true);
     e.close('c');
     return e.live();
@@ -615,7 +616,7 @@ test('capacityReturn manual: showing the panel returns it and drops the mark', (
   e.open(park('c'));
   e.activate('a');
   assert.deepEqual(e.held(), []);
-  assert.deepEqual(e.live(), ['a', 'b'], 'a is live and c, the farthest of the others, was parked for it');
+  assert.deepEqual(e.live(), ['a', 'c'], 'a is live and b, the lower index of the two tied, was parked for it');
 });
 
 test('capacityReturn auto is the default and the stack returns the panel when room opens', () => {
@@ -636,36 +637,47 @@ test('capacityReturn on a panel whose overflow is scroll is inert: it is parked 
 // The park order
 // ---------------------------------------------------------------------------
 
-test('a scroll panel is never parked for room: the park panel farthest from the opened one goes', () => {
+test('a scroll panel is never parked for room: the park panel touched longest ago goes', () => {
   const e = mountEngine(row(rootEntry(), park('a'), made('b', { overflow: 'scroll' }), park('c')), W(3));
   e.open(park('d'));
   assert.deepEqual(e.parked(), ['a']);
 });
 
-test('activating p parks the live panel farthest from it, a', () => {
+test('activating p parks the live panel touched longest ago, a tie going to the lower index', () => {
   const e = mountEngine(row(rootEntry(), park('a'), park('b'), park('c'), park('p', {}, { live: false }), park('d')), W(4));
   e.activate('p');
   assert.deepEqual(e.parked(), ['a']);
 });
 
-test('activating p near the left end parks the right end, e', () => {
+test('activating p parks the one panel left untouched while the others were touched, wherever it sits', () => {
   const e = mountEngine(row(rootEntry(), park('a'), park('p', {}, { live: false }), park('c'), park('d'), park('e')), W(4));
+  frameClock.skip(10);
+  for (const id of ['a', 'c', 'd']) e.call((v) => v.manager.touchPanel(id));
   e.activate('p');
   assert.deepEqual(e.parked(), ['e']);
 });
 
-test('farthestLiveCollapsibleId: a tie in distance goes to the lower index, for farthest and for nearest', () => {
-  const panels = row(rootEntry(), park('a'), park('b'), park('p', {}, { live: false }), park('c'), park('d'));
-  assert.equal(farthestLiveCollapsibleId(panels, 3, new Set(), 'farthest'), 'a', 'a and d are two away');
-  assert.equal(farthestLiveCollapsibleId(panels, 3, new Set(), 'nearest'), 'b', 'b and c are one away');
-  assert.equal(farthestLiveCollapsibleId(panels, 3), 'a', 'the order argument defaults to farthest');
-  assert.equal(farthestLiveCollapsibleId(panels, 3, new Set(['a', 'b', 'c', 'd'])), null, 'nothing left to park');
+test('touching the oldest panel spares it from the next park', () => {
+  const e = mountEngine(row(rootEntry(), park('a'), park('b'), park('c'), park('p', {}, { live: false })), W(3));
+  frameClock.skip(10);
+  e.call((v) => v.manager.touchPanel('a'));
+  e.activate('p');
+  assert.deepEqual(e.parked(), ['b'], 'a was touched after b and c were created, so b is the oldest');
+});
+
+test('leastRecentlyTouchedId: the smallest touch time goes, a tie goes to the lower index, and an excluded panel is spared', () => {
+  const panels = row(rootEntry(), park('a'), park('b'), park('c'), park('d'));
+  const at: Record<string, number> = { a: 5, b: 2, c: 2, d: 9 };
+  assert.equal(leastRecentlyTouchedId(panels, (id) => at[id]!), 'b', 'b and c are tied at 2, and b is first in the row');
+  assert.equal(leastRecentlyTouchedId(panels, (id) => at[id]!, new Set(['b'])), 'c');
+  assert.equal(leastRecentlyTouchedId(panels, () => 0), 'a', 'all tied: the lowest index');
+  assert.equal(leastRecentlyTouchedId(panels, () => 0, new Set(['a', 'b', 'c', 'd'])), null, 'nothing left to park');
 });
 
 test('a panel in the acted-on set is never parked by its own action', () => {
   const e = mountEngine(row(rootEntry(), park('a'), park('b')), W(2));
   e.open(park('c'));
-  assert.deepEqual(e.live(), ['b', 'c'], 'the one parked is a, the farthest of the rest, not c');
+  assert.deepEqual(e.live(), ['b', 'c'], 'the one parked is a, the oldest of the rest, not c');
   const f = mountEngine(row(rootEntry(), park('a'), park('b'), park('p', {}, { live: false })), W(2));
   f.activate('p');
   assert.ok(f.live().includes('p'), 'activation never parks the panel it activates');
@@ -673,8 +685,8 @@ test('a panel in the acted-on set is never parked by its own action', () => {
 
 test('promoteToLive never parks a panel in the keep set', () => {
   const panels = row(rootEntry(), park('a'), park('b'), park('p', {}, { live: false }));
-  const out = promoteToLive(panels, 'p', 2, new Set(['a']))!;
-  assert.deepEqual(parkedOf(out), ['b'], 'a is the farthest from p, but it is kept');
+  const out = promoteToLive(panels, 'p', 2, () => 0, new Set(['a']))!;
+  assert.deepEqual(parkedOf(out), ['b'], 'a is the oldest, but it is kept');
 });
 
 test('a capacity drop parks the leftmost excess', () => {

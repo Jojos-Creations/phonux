@@ -550,13 +550,13 @@ test('undo: undoClose restores the panel at its old index, and a parked panel co
   assert.deepEqual(undone(false).flags(), ['H', 'A', 'X~', 'B', 'C']);
 });
 
-test('undo: a restored live panel goes through the room-making rule -- the row is full, so the farthest live panel is parked', () => {
+test('undo: a restored live panel goes through the room-making rule -- the row is full, so the oldest live panel is parked', () => {
   const provider = provide([fixed(ROOT), made('A'), made('B'), made('X')], { width: W(2) });
   assert.deepEqual(provider.flags(), ['H', 'A~', 'B', 'X'], 'control: the measured row parked A');
   act(() => provider.now().close('X'));
   assert.deepEqual(provider.flags(), ['H', 'A', 'B'], 'closing X made room for A');
   act(() => provider.now().undoClose());
-  assert.deepEqual(provider.flags(), ['H', 'A~', 'B', 'X'], 'X returns at the end and live, and A, the farthest from it, parks');
+  assert.deepEqual(provider.flags(), ['H', 'A~', 'B', 'X'], 'X returns at the end and live, and A, the older of the two, parks');
 });
 
 test('differential placeOnShow: the resolved setting decides where activate lands a parked panel', () => {
@@ -641,19 +641,19 @@ test('show: two activates in one handler each place over the row the other left,
   assert.deepEqual(provider.flags(), ['C', 'H', 'A', 'D', 'B']);
 });
 
-test('show: an activate that makes room parks the farthest panel and places the shown one in the same update, whatever an earlier update in the handler did', () => {
+test('show: an activate that makes room parks the oldest panel and places the shown one in the same update, whatever an earlier update in the handler did', () => {
   const entries = () => [fixed(ROOT), made('A'), made('B'), made('C', { placeOnShow: 'row-start' }, { live: false })];
   const plain = provide(entries(), { width: W(2) });
   assert.deepEqual(plain.flags(), ['H', 'A', 'B', 'C~'], 'control: two live panels fill the row');
   act(() => plain.now().activate('C'));
-  assert.deepEqual(plain.flags(), ['C', 'H', 'A', 'B~'], 'C is placed first, and the panel farthest from it parks');
+  assert.deepEqual(plain.flags(), ['C', 'H', 'A~', 'B'], 'C is placed first, and A, the lower index of the two tied, parks');
   cleanup();
   const moved = provide(entries(), { width: W(2) });
   act(() => {
     moved.now().move('B', 'left');
     moved.now().activate('C');
   });
-  assert.deepEqual(moved.flags(), ['C', 'H', 'B~', 'A'], 'the earlier move survived: B still stands before A, and the panel the render picked to park is the one that parks');
+  assert.deepEqual(moved.flags(), ['C', 'H', 'B', 'A~'], 'the earlier move survived: B still stands before A, and the panel the render picked to park (A, first of the two tied in that render\'s row) is the one that parks');
 });
 
 test('reveal after a close: the placement runs over the row an earlier update in the same handler left', () => {
