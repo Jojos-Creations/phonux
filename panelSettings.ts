@@ -513,7 +513,7 @@ export type PanelUserLayer = {
 
 /** Options for `resolvePanelSettings`. @public */
 export type ResolveOptions = {
-  /** Resolve the root panel, which its coupling rule makes unparkable and unclosable; it is unmovable until a layer sets `movable`. Default false. */
+  /** Resolve the root panel, which its coupling rule makes unparkable and unclosable; its `movable` gates only a person's drag and is false until a layer sets it. Default false. */
   root?: boolean;
   /** Drop an invalid key from the instance and user layers with a note instead of throwing. Default false. */
   lenient?: boolean;
@@ -1435,10 +1435,6 @@ function reportRemovedKey(layer: string, key: string): void {
 /** The keys `movable` replaced. */
 const MERGED_INTO_MOVABLE: ReadonlySet<string> = new Set(['draggable', 'placeable']);
 
-function reportMergedKey(layer: string, key: string): void {
-  reportOnce(`removed:${key}`, `phonux: the ${layer} setting '${key}' was removed`, () => ["it is ignored; 'movable' replaced it and its default follows 'parkable'", 'the next rc refuses it with invalid-settings']);
-}
-
 /**
  * A saved layer's `draggable` and `placeable`, as the one `movable` they became: only when both are present and
  * agree, because either alone says nothing about the other half of what `movable` now covers.
@@ -1646,7 +1642,7 @@ function checkLayer(layer: AskLayer, raw: unknown, env: Env): Accepted {
       continue;
     }
     if (MERGED_INTO_MOVABLE.has(key)) {
-      if (!lenientLayer) reportMergedKey(layer, key);
+      if (!lenientLayer) reject(layer, key, "a setting this version no longer has; set 'movable' instead", false, env.notes);
       else if (savedMovable(raw) !== undefined) {
         if (key === 'draggable') {
           accepted.flat.set('movable', savedMovable(raw));

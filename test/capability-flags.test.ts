@@ -1,11 +1,13 @@
 /**
  * closable, movable and resizable limit a person's gestures only, and the two keys movable replaced load as notes.
  */
-import { test, afterEach, mock } from 'node:test';
+import { test, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
 import './support/jsdom-globals.js';
 import { resolvePanelSettings } from '../panelSettings.js';
+import { definePanel } from '../index.js';
 import type { PanelSettings } from '../index.js';
+import { PanelManagerError } from '../panelManagerError.js';
 import { cleanup } from './support/mount-harness.js';
 import { pinRig } from './support/pin-rig.js';
 
@@ -22,19 +24,27 @@ test('movable follows parkable, any layer may set it, and the root accepts it', 
   assert.deepEqual([root.value.movable, root.conflicts.map((c) => [c.key, c.rule])], [true, []]);
 });
 
-test('a template or workspace default that names draggable or placeable is ignored and told once in development', () => {
-  const log = mock.method(console, 'error', () => undefined);
-  try {
-    for (const layer of ['workspace', 'template', 'instance'] as const) {
-      const res = resolvePanelSettings({ [layer]: asSettings({ draggable: false, placeable: false }) });
-      assert.equal(res.value.movable, true, `${layer}: the key changed nothing`);
-      assert.deepEqual([res.conflicts, res.notes], [[], []], layer);
-      assert.equal('draggable' in res.value || 'placeable' in res.value, false);
+test('a template, workspace default or live instance layer that names draggable or placeable throws invalid-settings naming movable', () => {
+  for (const layer of ['workspace', 'template', 'instance'] as const) {
+    for (const key of ['draggable', 'placeable']) {
+      for (const value of [true, false]) {
+        assert.throws(
+          () => resolvePanelSettings({ [layer]: asSettings({ [key]: value }) }),
+          (e: unknown) => e instanceof PanelManagerError && e.code === 'invalid-settings' && e.message.includes(`${layer}.${key}`) && e.message.includes('movable'),
+          `${layer}.${key}=${value}`,
+        );
+      }
     }
-    assert.ok(log.mock.calls.every((c) => /^phonux: the \w+ setting '(draggable|placeable)' was removed/.test(String(c.arguments[0]))));
-    assert.equal(log.mock.calls.length, 2, 'one message per key, not per layer');
-  } finally {
-    log.mock.restore();
+  }
+});
+
+test('definePanel with draggable: false or placeable throws invalid-settings naming movable', () => {
+  for (const key of ['draggable', 'placeable']) {
+    assert.throws(
+      () => definePanel({ id: 'x', view: () => null, settings: { [key]: false } as never }),
+      (e: unknown) => e instanceof PanelManagerError && e.code === 'invalid-settings' && e.message.includes('movable'),
+      key,
+    );
   }
 });
 
@@ -93,12 +103,38 @@ test('resizable false: a person is refused, the developer resizes, and maxSlots 
   assert.equal(r.entry('b').slots, 2);
 });
 
-test('the root cannot be closed or moved or placed by anyone', async () => {
+test('the root cannot be closed or placed by anyone, and a person cannot move it while its movable is unset', async () => {
   const r = await pinRig();
   const root = r.ws.panels.get(r.ws.rootId)!;
   assert.equal(letter(r.turn(() => root.close())), 'not-closable');
   assert.equal(letter(r.turn(() => root.close('person'))), 'not-closable');
-  assert.equal(letter(r.turn(() => root.move(1))), 'not-movable');
   assert.equal(letter(r.turn(() => root.place('row-end'))), 'not-movable');
+  assert.equal(letter(r.turn(() => root.place('row-end', 'person'))), 'not-movable');
+  assert.equal(letter(r.turn(() => root.move(1, 'person'))), 'not-movable', 'the person\'s drag is what movable gates');
+  assert.equal(r.order().join(' '), 'root a b c');
+});
+
+test('the developer reorders the root whatever its movable says: the handle move and the host move verb', async () => {
+  const r = await pinRig();
+  const root = r.ws.panels.get(r.ws.rootId)!;
+  assert.equal(root.getState().settings.movable, false);
+  assert.equal(letter(r.turn(() => root.move(1))), 'T');
+  assert.equal(r.order().join(' '), 'a root b c');
+  assert.equal(r.entry('root').anchor, undefined, 'the root is never anchored');
+  r.turn(() => r.provided().move(r.ws.rootId, 'right'));
+  assert.equal(r.order().join(' '), 'a b root c');
+  assert.equal(letter(r.turn(() => root.move(-2))), 'T');
+  assert.equal(r.order().join(' '), 'root a b c');
+});
+
+test('pin, pin(person) and unpin on the root are refused with not-movable and write no self-anchor', async () => {
+  const r = await pinRig();
+  const root = r.ws.panels.get(r.ws.rootId)!;
+  const before = JSON.stringify(r.m.latest().entries.map((p) => [p.id, p.anchor, p.live]));
+  for (const call of [() => root.pin(), () => root.pin('person'), () => root.unpin(), () => root.unpin('person')]) {
+    assert.equal(letter(r.turn(call)), 'not-movable');
+  }
+  assert.equal(JSON.stringify(r.m.latest().entries.map((p) => [p.id, p.anchor, p.live])), before);
+  assert.equal(r.entry('root').anchor, undefined);
   assert.equal(r.order().join(' '), 'root a b c');
 });
