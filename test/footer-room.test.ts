@@ -1,6 +1,6 @@
 /**
  * The footer is the header's height, sits HEADER_GAP_PX under the frame, and the row reserves exactly that much under its
- * frames. Real layout is measured in proof/footer-room; here the numbers and the styles that carry them are pinned.
+ * frames. The numbers and the styles that carry them are pinned here.
  */
 import { test, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
