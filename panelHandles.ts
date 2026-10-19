@@ -37,15 +37,15 @@ export interface PanelHandle<P extends JsonValue = JsonValue> extends PanelReadH
    * A call from code is not limited by `movable`, the root's included; with source `'person'` a panel whose `movable` is false answers `not-movable`.
    */
   move(by: number, source?: 'code' | 'person'): PanelResult;
-  /** Puts the panel where `p` says; a parked panel is placed and stays parked. Limited by `movable` as `move` is; the root is never placed (`not-movable`), as it cannot be anchored to itself. */
+  /** Puts the panel where `p` says; a parked panel is placed and stays parked. Limited by `movable` as `move` is; the root is never placed (`root-fixed`), as it cannot be anchored to itself. */
   place(p: AddPlacement | 'in-place', source?: 'code' | 'person'): PanelResult;
   /** Makes the panel `slots` phone widths wide, clamped to 1 and its `maxSlots`; the row draws at most the slots that fit. A call from code is not limited by `resizable`; with source `'person'` a panel whose `resizable` is false answers `not-resizable`. */
   setSlots(slots: number, source?: 'code' | 'person'): PanelResult;
   /** Scrolls the row to a live panel, to `align` or, left out, where the panel's `scrollOnOpen` says. */
   scrollTo(align?: ScrollAlign, source?: 'code' | 'person'): PanelResult;
-  /** Applies the pinned half of the panel's `pinning` in one commit: it is placed, then fixed when the half says so; a panel that is not live follows `pinningWhenNotLive`. The root answers `not-movable`: it cannot be anchored to itself. */
+  /** Applies the pinned half of the panel's `pinning` in one commit: it is placed, then fixed when the half says so; a panel that is not live follows `pinningWhenNotLive`. The root answers `root-fixed`: it cannot be anchored to itself. */
   pin(source?: 'code' | 'person'): PinResult;
-  /** Applies the unpinned half of the panel's `pinning` in one commit: the panel is freed, then placed, so a fixed pin can always be undone. The root answers `not-movable` as `pin` does. */
+  /** Applies the unpinned half of the panel's `pinning` in one commit: the panel is freed, then placed, so a fixed pin can always be undone. The root answers `root-fixed` as `pin` does. */
   unpin(source?: 'code' | 'person'): PinResult;
   /**
    * Changes settings of this panel after it was added; `null` removes an instance value. All or nothing, in one update; the result says what acts now and what waits. A flip of `parkable` on a panel that is not live follows `pinningWhenNotLive`: it may be refused with `would-reshape-row` or `is-closed`, show the panel, or wait and be listed in `later`.
