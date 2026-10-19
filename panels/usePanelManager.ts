@@ -23,8 +23,8 @@ import { DROP_TIE_BREAK, RETURN_TIE_BREAK, ROW_GAP } from '../rowConstants.js';
 import {
   firstParkedAfter,
   lastParkedBefore,
+  leastRecentlyTouchedId,
   leftmostLiveIndex,
-  farthestLiveCollapsibleId,
   movePanelBy,
   parkLevers,
   parksForRoom,
@@ -37,6 +37,8 @@ import {
 } from '../panelWindow.js';
 
 export interface UsePanelManagerResult {
+  /** Marks `id` as touched now: the panel the next park for room spares longest. A no-op for an id the row does not hold. */
+  touchPanel: (id: string) => void;
   revealPanelProactively: (panelsNow: PanelWindow[], apply: (prev: PanelWindow[]) => PanelWindow[]) => void;
   /**
    * Shows panel `id` the way a click on it does, landing it by `pin` when given. `from` is the row the landing is planned
@@ -228,6 +230,17 @@ export function usePanelManager(
    * read it, so a push or pop need not re-render.
    */
   const collapseOrderRef = useRef<string[]>([]);
+
+  /**
+   * When each panel was last touched: created, shown again, or focused. Session only, because a restored row has no
+   * touch order to restore and starts every panel tied, which the row order then settles. A panel not stamped yet
+   * counts as the newest, so one opened in the update being decided is never the one parked.
+   */
+  const touchedRef = useRef<Map<string, number>>(new Map());
+  const touchPanel = (id: string): void => {
+    if (touchedRef.current.has(id)) touchedRef.current.set(id, performance.now());
+  };
+  const touchedAt = (id: string): number => touchedRef.current.get(id) ?? Number.POSITIVE_INFINITY;
 
   /**
    * The panels the next capacity-reconcile DROP must keep live, in the order they were acted on: each one just
@@ -469,7 +482,7 @@ export function usePanelManager(
     if (!row.some((p) => p.id === id && !p.live)) return null;
     const landed = landOn(row, id, placeAs, pin);
     if (landed.row.some((p) => p.id === id && p.live)) return landed.row;
-    return promoteToLive(landed.row, id, cap, keep);
+    return promoteToLive(landed.row, id, cap, touchedAt, keep);
   };
 
   const wouldEmptyRow = (ids: readonly string[]): boolean => {
@@ -535,7 +548,7 @@ export function usePanelManager(
     const exempt = keptIds();
     let scratch = afterInsert;
     for (let i = 0; i < overCapacity; i++) {
-      const id = farthestLiveCollapsibleId(scratch, targetIndex, exempt, parkLevers(afterInsert[targetIndex]!).evictionOrder);
+      const id = leastRecentlyTouchedId(scratch, touchedAt, exempt);
       if (!id) break;
       toPark.push(id);
       scratch = scratch.map((p) => (p.id === id ? { ...p, live: false } : p));
@@ -584,7 +597,7 @@ export function usePanelManager(
     const showAt = effective(target).placeOnShow;
     const landed = landOn(from, id, showAt, pin);
     const before = showAt === 'in-place' && !landed.pinned ? from : landed.row;
-    const result = before.some((p) => p.id === id && p.live) ? before : promoteToLive(before, id, capacityShowing(before, target), keptIds());
+    const result = before.some((p) => p.id === id && p.live) ? before : promoteToLive(before, id, capacityShowing(before, target), touchedAt, keptIds());
     if (!result) return;
     reportNotes(options?.onNote, landed.notes);
     if (showAt !== 'in-place' || landed.pinned) setEnterSide(id, sideOfLiveRange(result, id));
@@ -715,6 +728,11 @@ export function usePanelManager(
     // stack learns of any park not already on it from the commit itself.
     const before = committedRef.current;
     committedRef.current = panels;
+    // A panel that is new, or live where it was parked, is touched now; one that left the row is forgotten.
+    const touched = touchedRef.current;
+    const stamp = performance.now();
+    for (const id of [...touched.keys()]) if (!panels.some((p) => p.id === id)) touched.delete(id);
+    for (const p of panels) if (!touched.has(p.id) || (p.live && !before.some((q) => q.id === p.id && q.live))) touched.set(p.id, stamp);
     const byCap = capParkedRef.current;
     capParkedRef.current = [];
     // A panel added parked is held per its own setting, unless the cap parked it before its row was shown; a hold whose panel is gone (clearAll wipes without a close) is dropped.
@@ -824,7 +842,7 @@ export function usePanelManager(
       // One of the two "reappearance" paths that enter from the anchor's side -- mark it BEFORE the setPanels
       // call below; no flushSync, since the mark only has to be in the commit that mounts the slot.
       markEnteringViaAnchor(revealId);
-      setPanels((current) => promoteToLive(current, revealId, Number.POSITIVE_INFINITY) ?? current);
+      setPanels((current) => promoteToLive(current, revealId, Number.POSITIVE_INFINITY, touchedAt) ?? current);
       return;
     }
     const placed = landOn(panelsAfterClose, revealId, returnAt);
@@ -928,6 +946,7 @@ export function usePanelManager(
     heldIds: heldRef.current,
     wouldEmptyRow,
     markHeld,
+    touchPanel,
   };
 }
 

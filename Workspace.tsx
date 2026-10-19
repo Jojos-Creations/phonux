@@ -276,19 +276,39 @@ export function Workspace(props: WorkspaceProps): React.ReactElement {
     const strip = rowRef.current;
     if (container === null || strip === null || rowNumbers === undefined) return;
     const apply = (): void => {
-      if (rowScrollerFor(container).claimHeld()) return;
+      const held = rowScrollerFor(container).claimHeld();
       const view = container.getBoundingClientRect();
       for (const slot of strip.querySelectorAll<HTMLElement>('[data-row-slot]')) {
         // A stepping row cuts the neighbour of a stop at the window edge, so only a panel the window does not reach at all is out of reach of Tab.
         const rect = slot.getBoundingClientRect();
         const away = rowNumbers.stops.length > 0 && (rect.right <= view.left || rect.left >= view.right);
+        // A peek narrower than the gap shows only the frame's edge, a hairline that reads as a stray bar rather than a panel.
+        // Judged during a drag too, since the drag's preview slides panels into view while the claim holds reach still.
+        const shown = Math.min(rect.right, view.right) - Math.max(rect.left, view.left);
+        slot.style.visibility = !away && rowNumbers.stops.length > 0 && shown < gap ? 'hidden' : '';
+        if (held) continue;
         slot.style.pointerEvents = away ? 'none' : '';
         // Inert too: Tab or find-in-page would otherwise scroll the row off its stop to reveal a panel the window does not reach.
         slot.toggleAttribute('inert', away);
       }
     };
     apply();
+    // A close, a move or a drag's preview slides the slots without a scroll event, so the hide is judged again on every frame of
+    // that slide, and for as long as a drag holds the row. A drag's preview renders only the row, so its pointer or key restarts this.
+    let frame = 0;
+    let until = 0;
+    const follow = (): void => {
+      until = performance.now() + resolved.slide.durationSec * 1000 + 100;
+      if (frame !== 0) return;
+      frame = requestAnimationFrame(function tick(): void {
+        apply();
+        frame = performance.now() < until || rowScrollerFor(container).claimHeld() ? requestAnimationFrame(tick) : 0;
+      });
+    };
+    follow();
     container.addEventListener('scroll', apply, { passive: true });
+    container.addEventListener('pointermove', follow, { passive: true });
+    container.addEventListener('keydown', follow);
     // A click or focus in the cut-off neighbour makes the browser scroll it into view off a stop; the row settles back onto one.
     const onFocus = (event: FocusEvent): void => {
       const n = rowNumbers;
@@ -305,6 +325,9 @@ export function Workspace(props: WorkspaceProps): React.ReactElement {
     container.addEventListener('focusin', onFocus);
     return () => {
       container.removeEventListener('focusin', onFocus);
+      cancelAnimationFrame(frame);
+      container.removeEventListener('pointermove', follow);
+      container.removeEventListener('keydown', follow);
       container.removeEventListener('scroll', apply);
     };
   });

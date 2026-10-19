@@ -340,9 +340,11 @@ action has just marked, as the effect does, and the effect records its parks onc
 any park for room: under `capacityReturn: 'manual'` each is held until shown or until `maxLivePanels` is raised (the capacity-parked ones are kept in park order beside the hold, so a raise tells them from a host hide), under 'auto' it goes on the stack and
 returns by `returnTieBreak`. A higher value, or `null`, returns what has room for it under 'auto', and under 'manual' the panels the capacity parked, most recently parked first, up to the new value; never one the host hid.
 
-What the cap parks is chosen as a window-fit park chooses, with the pinned panels added to those a park leaves alone:
-the farthest from the panel acted on. Opening, showing or undoing a panel parks the unpinned
-panel farthest from it and never a pinned one, nor the panel just opened, moved or unpinned. A pin change moves a panel
+Opening, showing or undoing a panel parks the unpinned panel touched longest ago, and never a pinned one, nor the panel just
+opened, moved or unpinned. A panel's touch time is set when it is created and set again when it is shown from parked or
+focused (or pressed) in the row; a tie goes to the panel nearer the start of the row. Touch times are session state and
+are not saved: a restored row starts every panel tied, so the row order decides until something is touched. A park the
+window forces (a capacity drop, a resize) is a different rule and still parks the fewest panels, the leftmost first. A pin change moves a panel
 across the root and so changes the count: pinning a live panel leaves one fewer unpinned panel live and returns nothing
 under 'manual' (under 'auto' the most recently parked comes back), and unpinning one parks exactly one other. A move, a
 place or a drop across the root does the same and, as a pin does, keeps the moved panel live. A parked pinned panel takes
@@ -1469,7 +1471,7 @@ the key with an `invalid-saved-setting` note and keeps every other value.
 | --- | --- |
 | `hideWhenLast` | `allow`: a hide is never refused for emptying the row |
 | `returnPriority`, `evictionRank` | 0: no ranking, so the workspace's tie-break tuning and the order of the row decide |
-| `evictionOrder` | `farthest` |
+| `evictionOrder` | `least-recently-touched`: room is made by parking the panel touched longest ago |
 | `scrollOnDrag` | `edge` |
 | `viewState` | `keep` |
 | `keepMounted` | false |
@@ -1680,8 +1682,8 @@ already at the edge of the row. `after-fixed` is the last non-parkable entry, or
 one. A target that is missing or is the panel itself, and an `order` that cannot place it, lands at `row-end`
 and raises one `placement-fallback` note.
 
-`placeOnShow` is applied in `activate` before `promoteToLive`, so the panel that room-making parks is the one farthest
-from where the shown panel will stand. A panel that returns automatically (a capacity rise, or the reveal after a close)
+`placeOnShow` is applied in `activate` before `promoteToLive`; where the shown panel stands does not change which panel
+room-making parks, the one touched longest ago. A panel that returns automatically (a capacity rise, or the reveal after a close)
 stays where it is. `undoClose` puts a panel back with `restorePanel` at the recorded index.
 
 A placed panel's enter side is an explicit mark, the side of the live range its landing slot is on, not the anchor
