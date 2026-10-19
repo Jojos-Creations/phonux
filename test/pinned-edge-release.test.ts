@@ -4,7 +4,7 @@
  * StrictMode with the app's call order; jsdom has no layout, so every slot's rect is rebuilt from the strip margin, the slot's
  * transform and width and the row's scroll, which is what a browser would report.
  */
-import { test, afterEach } from 'node:test';
+import { test, afterEach, mock } from 'node:test';
 import assert from 'node:assert/strict';
 import './support/jsdom-globals.js';
 import * as React from 'react';
@@ -12,6 +12,7 @@ import { act } from 'react';
 import { MotionConfig } from 'motion/react';
 import { createWorkspace, definePanel, usePanelResizing } from '../index.js';
 import type { WorkspaceHandle } from '../index.js';
+import { SLIDE_DURATION_SEC } from '../rowConstants.js';
 import { advanceFrames, cleanup } from './support/mount-harness.js';
 import { markerTemplate, mountWorkspace, rowScrollerFor, type ResizableWorkspace } from './support/workspace-row.js';
 
@@ -29,6 +30,7 @@ function Grab({ id }: { id: string }): React.ReactElement {
 }
 
 afterEach(() => {
+  mock.timers.reset();
   report.id = '';
   report.trim = 0;
   Element.prototype.getBoundingClientRect = rectOf;
@@ -279,4 +281,30 @@ test('pinned at the start, a right-grabber release holds the left edge by the sa
   const wanted = marginOf(r.m.container) + xOf(r.m.container, r.ids.p3!) - left;
   const best = Math.min(...stops.map((s) => Math.abs(s - wanted)));
   assert.ok(Math.abs(r.m.container.scrollLeft - wanted) <= best + 0.5, `the left edge is held: wanted ${wanted.toFixed(1)}, rests ${r.m.container.scrollLeft}`);
+});
+
+test('a release that adds stops glides the margin first and settles onto the stop once it has landed', async () => {
+  mock.timers.enable({ apis: ['setTimeout'] });
+  const r = await mountRig(16, { window: 2600 });
+  await frames(1500);
+  assert.equal(stopsOf(r).length, 0, 'control: six slots fit the window, so nothing scrolls');
+  const start = marginOf(r.m.container);
+  assert.ok(start > 0, `control: a fitting row is centred (${start})`);
+  const drag = await beginDrag(r, 'p1', SLOT(2, 16) - SLOT(1, 16) + 25);
+  assert.equal(marginOf(r.m.container), start, 'the drag leaves the margin alone');
+  act(() => {
+    r.m.latest().setSlots(r.ids.p1!, 2);
+    setters.get('p1')!.width(null);
+    setters.get('p1')!.resizing(false);
+  });
+  assert.ok(stopsOf(r).length > 0, 'the release added stops');
+  await frames(40);
+  const mid = marginOf(r.m.container);
+  assert.ok(mid > 0 && mid < start, `the margin is gliding 40 ms in: ${mid} of ${start}`);
+  assert.equal(r.m.container.scrollLeft, 0, 'the scroll waits for the margin');
+  act(() => mock.timers.tick(SLIDE_DURATION_SEC * 1000));
+  await frames(1200);
+  assert.equal(marginOf(r.m.container), 0);
+  assertLanded(r, 'p1', drag, 'after the slide');
+  assert.ok(r.m.container.scrollLeft > 0, 'control: the settle did move the row');
 });

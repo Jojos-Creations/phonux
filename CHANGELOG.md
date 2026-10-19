@@ -41,6 +41,7 @@
 
 ### Fixed
 
+- A panel resize that grows a row past the window no longer snaps the centring margin, which jumped every panel by the whole margin in one frame. The margin snaps while the row has stops, and such a grow adds its stops in the same render that moves the margin. The margin now glides with the shared slide when a panel's width changes under an unchanged window, or while a width is held (`usePanelResizing`). A window resize keeps the snap. After a held-width release that moves the margin, the settle onto the nearest stop starts when the slide ends, so the scroll and the margin do not move the panels together.
 - A stepping row's last stop rests with the last panel one row gap from the window edge, not behind a blank stretch. The room after the strip was the last whole-panel group's even margin, so at a 2240 px window a row ending in a phone stopped with about 909 px of blank space after it. `RowNumbers.endPad` is now always 0 and the end space is the row gap wide. The stops below the last are unchanged; the last stop is the strip's new end, so grid stops that lay past it are dropped.
 - A panel dragged sideways and dropped into a new slot glides into it from where it was released, with Reduce Motion off, instead of jumping a slot-width in one frame. Reduce Motion still lands it at once, and a release that hops nowhere still springs home.
 - Opening a workspace that has a root template no longer saves once with nothing changed: the restore baseline now includes the root's key and slot count, as the save does.
