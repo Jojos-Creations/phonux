@@ -1120,6 +1120,8 @@ header offset and the footer's padding measure against. It is a constant, not tu
 passes `sx` to `PanelFrame` or `PanelFooter`. The grab handle is `GRAB_HANDLE_PX` (24), WCAG 2.5.8's minimum pointer target
 both ways, so changing the gap never shrinks the handle. The footer is bare like the header (no border, shadow or fill) and has the header's height.
 
+The footer floats `HEADER_GAP_PX` below the frame, mirroring the header's gap above it, and is `panelHeaderHeightPx(theme)` tall (`panelChromeSize.ts`, twice the corner radius), the same function the header's height reads. The row's bottom padding and the phone-fit height budget both use `rowBottomReservePx(theme, gap)` = `max(gap, HEADER_GAP_PX + header height)`, so the footer's whole box lies inside the row and a click at its centre reaches it. `test/footer-room.test.ts` pins the chain and `proof/footer-room` measures it in Chromium.
+
 `Panel`'s `grabProps` is a separate prop from `headerProps`, not a field folded into it, because the header
 and the grab handle are two different elements: the handle is a grip icon inside the header row, left of the
 title, and `grabProps`'s `onPointerDown`/`sx` reach only it, so clicking the title text or an action icon is

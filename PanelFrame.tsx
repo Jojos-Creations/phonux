@@ -17,6 +17,7 @@ import { useFrameClaim } from './panelFrameClaim.js';
 import { PanelSlotContext } from './panelSlotContext.js';
 import { useInsideSizeBox } from './PanelRowSlot.js';
 import { HEADER_GAP_PX, HEADER_INSET_PX } from './rowConstants.js';
+import { panelHeaderHeightPx } from './panelChromeSize.js';
 
 /** The props of `PanelFrame`: every `Box` prop except `children`, plus `expanded` and `size`. @public */
 export interface PanelFrameProps extends Omit<BoxProps, 'children'> {
@@ -128,9 +129,8 @@ export function PanelHeader({ children, sx, ...rest }: PanelHeaderProps) {
         bottom: `calc(100% + ${HEADER_GAP_PX}px)`,
         left: 0,
         right: 0,
-        // Twice the phone's own corner radius, the height the header had as a pill; from the theme, never a
-        // raw 48. Fixed, so however the content wraps the header keeps its height.
-        height: (theme: Theme) => 2 * panelCornerRadiusPx(theme),
+        // Fixed, so however the content wraps the header keeps its height; the footer reads the same function.
+        height: panelHeaderHeightPx,
         display: 'flex',
         alignItems: 'center',
         px: `${HEADER_INSET_PX}px`,
