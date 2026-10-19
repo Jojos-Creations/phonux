@@ -2,7 +2,6 @@ import * as React from 'react';
 import useMediaQuery from '@mui/material/useMediaQuery';
 import { useReducedMotionConfig } from 'motion/react';
 import type { ResolvedWorkspaceTuning } from './panelSettings.js';
-import { useTheme } from '@mui/material/styles';
 import { rowBottomReservePx } from './panelChromeSize.js';
 import { fitPhone, useRowHeightBudget } from './phoneFit.js';
 import { resizeSettleDelayMs } from './Workspace.js';
@@ -40,7 +39,7 @@ export function usePhoneFit(
   const osReduced = useMediaQuery('(prefers-reduced-motion: reduce)');
   const reduced = motionReduced || osReduced;
   const on = tuning.phoneFit === 'fit';
-  const budget = useRowHeightBudget(containerRef, topInset ?? tuning.rowGap, rowBottomReservePx(useTheme(), tuning.rowGap), on);
+  const budget = useRowHeightBudget(containerRef, topInset ?? tuning.rowGap, rowBottomReservePx(tuning.rowGap), on);
   const delay = resizeSettleDelayMs(tuning.slide, tuning.resizeSettleSlides);
   const width = useSettledValue(containerWidth, delay, reduced, on);
   const height = useSettledValue(budget, delay, reduced, on);

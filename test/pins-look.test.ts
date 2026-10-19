@@ -46,7 +46,7 @@ test('Workspace markup: the top, left, right and bottom padding and the row flex
     withHost(React.createElement(Workspace, { overflowContainerRef: containerRef, rowRef, containerWidth: 1300, rowResizeSettled: true, phoneWidth: 390, fixedColumnCount: 1, liveWidths: [], children: React.createElement('i') })),
   );
   const style = getComputedStyle(containerRef.current!);
-  assert.deepEqual([style.paddingTop, style.paddingLeft, style.paddingRight, style.paddingBottom], ['16px', '16px', '16px', '36px']);
+  assert.deepEqual([style.paddingTop, style.paddingLeft, style.paddingRight, style.paddingBottom], ['16px', '16px', '16px', '40px']);
   assert.equal(rowRef.current!.style.gap, '16px');
   mounted.unmount();
 });
@@ -58,7 +58,7 @@ test('Workspace markup: a given topPadding replaces only the top padding (the bo
     withHost(React.createElement(Workspace, { overflowContainerRef: containerRef, rowRef, containerWidth: 1300, rowResizeSettled: true, phoneWidth: 390, fixedColumnCount: 1, liveWidths: [], topPadding: 52, children: React.createElement('i') })),
   );
   const style = getComputedStyle(containerRef.current!);
-  assert.deepEqual([style.paddingTop, style.paddingLeft, style.paddingRight, style.paddingBottom], ['52px', '16px', '16px', '36px']);
+  assert.deepEqual([style.paddingTop, style.paddingLeft, style.paddingRight, style.paddingBottom], ['52px', '16px', '16px', '40px']);
   mounted.unmount();
 });
 
