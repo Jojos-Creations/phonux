@@ -413,8 +413,14 @@ test('a column drawn before its saved workspace is read lands on it without a sl
     if (track) seen.push({ transform: track.style.transform, transition: track.style.transition });
   });
   watch.observe(document.body, { subtree: true, childList: true, attributes: true, attributeFilter: ['style'] });
-  const storage = memoryColumnStorage({ version: 1, workspaces: [{ id: 'a1', name: 'One' }, { id: 'b1', name: 'Two' }, { id: 'c1', name: 'Three' }], current: 'c1' });
+  const stored = memoryColumnStorage({ version: 1, workspaces: [{ id: 'a1', name: 'One' }, { id: 'b1', name: 'Two' }, { id: 'c1', name: 'Three' }], current: 'c1' });
+  let read!: () => void;
+  const gate = new Promise<void>((r) => (read = r));
+  const storage: ColumnStorage = { ...stored, load: () => gate.then(stored.load) };
   const c = make({ storage });
+  await until('drawn while loading', () => document.querySelector('[data-workspace-column]') !== null);
+  assert.equal(c.status, 'loading', 'positive control: the column is drawn before the saved list is read');
+  read();
   await until('ready', () => c.status === 'ready');
   const track = (): HTMLElement => cells()[0]!.parentElement!;
   await until('placed on the saved workspace', () => track().style.transform === 'translateY(-200%)');
