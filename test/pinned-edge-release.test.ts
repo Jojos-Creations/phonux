@@ -394,7 +394,7 @@ const key = (name: string): void => void act(() => void window.dispatchEvent(new
 function dotsOf(r: Rig): PanelDots {
   const out: { dots?: PanelDots } = {};
   const Probe = (): React.ReactElement => {
-    out.dots = usePanelDots({ rowNumbers: r.m.latest().rowNumbers, entries: [], scroller: { current: r.m.container } });
+    out.dots = usePanelDots({ rowNumbers: r.m.latest().rowNumbers, entries: [], scroller: { current: r.m.container }, tuning: r.m.latest().tuning });
     return React.createElement('i');
   };
   mount(React.createElement(Probe));
