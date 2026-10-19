@@ -108,7 +108,7 @@ test('(d) a person-pinned fixed column becomes parkable again and its overrides 
   assert.equal(JSON.stringify((await store.load())!.panels).includes('"parkable":false'), true, 'positive control: the pin was saved');
   reset(r, 'c');
   await wait();
-  assert.deepEqual(r.facts('c'), { parkable: true, listed: true, placeable: true, draggable: true, clearable: true, pinned: false });
+  assert.deepEqual(r.facts('c'), { parkable: true, listed: true, movable: true, clearable: true, pinned: false });
   assert.deepEqual((await store.load())!.panels.at(-1)!.overrides, {}, 'c is last in the row again, with nothing left of its pin');
   assert.equal(r.order().join(' '), 'root a b c');
 });

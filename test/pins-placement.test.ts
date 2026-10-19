@@ -22,13 +22,12 @@ const entry = (id: string, over: Partial<PanelWindow> = {}): PanelWindow => ({
   url: `https://${id}.example`,
   title: id.toUpperCase(),
   live: true,
-  locked: false,
   view: 'pin-placement',
   collapsible: true,
   listed: true,
   ...over,
 });
-const root = (id = 'root'): PanelWindow => entry(id, { url: '', title: 'History', locked: true, collapsible: false, listed: false });
+const root = (id = 'root'): PanelWindow => entry(id, { url: '', title: 'History', collapsible: false, listed: false });
 const ids = (panels: readonly PanelWindow[]): string[] => panels.map((p) => p.id);
 const anchorsOf = (panels: readonly PanelWindow[]): Record<string, string> =>
   Object.fromEntries(panels.filter((p) => p.anchor !== undefined).map((p) => [p.id, `${p.anchor!.panel} ${p.anchor!.position} ${p.anchor!.priority}`]));

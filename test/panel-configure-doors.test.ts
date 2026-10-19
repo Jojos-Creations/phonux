@@ -27,9 +27,8 @@ const TEMPLATE = ['hostCreatable', 'multiple', 'maxInstances', 'hollowDot'];
 const VALUE: Record<string, unknown> = {
   closable: false,
   parkable: false,
-  draggable: false,
+  movable: false,
   crossable: false,
-  placeable: false,
   resizable: false,
   clearable: false,
   hostCreatable: false,
@@ -338,11 +337,11 @@ test('view: handle.configure({ closable: false }) locks its own panel and null u
   const handle = seen.get('v')!.handle;
   assert.equal(r.turn(() => handle.configure({ closable: false })).ok, true);
   assert.equal(r.ws.panels.get('v')!.getState().settings.closable, false);
-  assert.equal(r.entry('v').locked, true);
-  assert.equal((r.turn(() => handle.close()) as Refused).code, 'not-closable');
+  assert.equal(!r.entry('v').settings!.closable, true);
+  assert.equal((r.turn(() => handle.close('person')) as Refused).code, 'not-closable');
   assert.equal(r.turn(() => handle.configure({ closable: null })).ok, true);
   assert.equal(r.ws.panels.get('v')!.getState().settings.closable, true);
-  assert.equal(r.entry('v').locked, false);
+  assert.equal(!r.entry('v').settings!.closable, false);
   assert.equal(r.turn(() => handle.close()).ok, true);
   assert.equal(r.ws.panels.get('v')!.getState().status, 'closed');
 });

@@ -52,8 +52,7 @@ export interface PanelSlotValue {
   readonly tracking?: boolean | undefined;
   readonly collapsible: boolean;
   readonly closable: ResolvedPanelSettings['closable'];
-  readonly draggable: ResolvedPanelSettings['draggable'];
-  readonly placeable: ResolvedPanelSettings['placeable'];
+  readonly movable: ResolvedPanelSettings['movable'];
   readonly resizable: ResolvedPanelSettings['resizable'];
   readonly maxSlots: ResolvedPanelSettings['maxSlots'];
   readonly neighborWidths: NeighborWidths;

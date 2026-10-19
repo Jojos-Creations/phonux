@@ -328,7 +328,6 @@ export function createFakePanel<P extends JsonValue = JsonValue>(state: Partial<
     id: own.id,
     ...(own.title === undefined ? {} : { title: own.title }),
     live: own.status === 'live',
-    locked: false,
     ...(own.params === undefined ? {} : { params: own.params }),
     slots: own.settings.slots,
   };

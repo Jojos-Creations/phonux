@@ -23,7 +23,6 @@ const panel = (id: string, more: Partial<PanelWindow> = {}): PanelWindow => ({
   uid: uidFor(id),
   url: `https://${id}.example`,
   live: true,
-  locked: false,
   view: 'web',
   collapsible: true,
   listed: true,
@@ -87,7 +86,7 @@ test('W1 project saves exactly the documented keys, never hostData, size, locked
 });
 
 test('W2 project derives permanent from collapsible and emits an optional key only when it is defined', () => {
-  const bare = { id: 'bare', url: 'https://bare.example', live: false, locked: false, view: 'web', collapsible: true } as PanelWindow;
+  const bare = { id: 'bare', url: 'https://bare.example', live: false, view: 'web', collapsible: true } as PanelWindow;
   const undefinedKeys = panel('undef', { title: undefined, params: undefined, layer: undefined, slots: undefined });
   const rail = panel('rail', { collapsible: false, listed: false, title: 'Rail', slots: 1 });
   const rich = panel('rich', { title: '', params: null, listed: false, layer: 'raised', slots: ALL_SLOTS });
@@ -189,7 +188,7 @@ test('W7 hydrate applies appendPanel\'s creation rules: permanent wins over list
   assert.deepEqual([m.view, m.listed, m.slots, m.layer], ['mystery-view', true, 1, 'base'], 'an unknown view key survives, and every default comes from appendPanel');
   assert.deepEqual([l.listed, l.layer, l.title, l.params], [false, 'raised', 'Kept', { n: 1 }]);
   for (const entry of [p, t, m, l]) {
-    assert.deepEqual([entry.locked, entry.anchoredEnter, 'hostData' in entry], [false, false, false], 'hostData is left for the provider');
+    assert.deepEqual([entry.anchoredEnter, 'hostData' in entry], [false, false], 'hostData is left for the provider');
   }
 });
 
@@ -404,12 +403,6 @@ test('W22 cleanDismissed keeps strings only, once each, the newest 256, and read
   assert.deepEqual(cleanDismissed({}, dropped), []);
   assert.deepEqual(dropped.map((d) => d.key), ['dismissed']);
   assert.deepEqual(cleanDismissed(undefined, dropped), []);
-});
-
-test('W23 hydrate locks an entry saved with closable false and leaves every other unlocked', () => {
-  const state = file(saved('a', { closable: false }), saved('b'));
-  const [a, b] = hydrateWorkspaceState(state, drawFrom(['1', '2']), ROOT);
-  assert.deepEqual([a!.locked, b!.locked], [true, false]);
 });
 
 test('W24 hydrate reads a top-level formFactor of a file saved before slots as the slot count, and a slots key wins over it', () => {

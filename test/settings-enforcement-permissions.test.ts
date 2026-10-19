@@ -12,9 +12,7 @@ import { act } from 'react';
 import {
   LIBRARY_PANEL_DEFAULTS,
   usePanelCapabilities,
-  usePanelCloseEligible,
   usePanelNeighborWidths,
-  usePanelReorderEligible,
   useProvidePanels,
 } from '../index.js';
 import type { CaptureTrigger, PanelSettings, PanelWindow, PanelsInput, ProvidedPanels, ResolvedPanelSettings } from '../index.js';
@@ -27,7 +25,7 @@ import { cleanup, mount, withHost, useSeededInput, StaticRow } from './support/m
 import { registerTestView } from './support/test-views.js';
 
 const ROOT = 'root';
-const OWNED = ['closable', 'parkable', 'draggable', 'crossable', 'placeable', 'resizable', 'clearable', 'listed', 'title'];
+const OWNED = ['closable', 'parkable', 'movable', 'crossable', 'resizable', 'clearable', 'listed', 'title'];
 
 const resolve = (layer: PanelSettings = {}): ResolvedPanelSettings => resolvePanelSettings({ template: layer }).value;
 
@@ -42,7 +40,7 @@ const rootEntry = (): PanelWindow =>
   applyTemplate(createHistoryPanel(ROOT), resolvePanelSettings({ template: { title: 'History', layer: 'raised', enterFrom: 'anchor' } }, { root: true }).value, 'create');
 
 /** A hand-built 0.1.0 entry: no settings, no key. */
-const hand = (id: string, over: Partial<PanelWindow> = {}): PanelWindow => ({ id, url: `https://${id}.example`, title: id.toUpperCase(), live: true, locked: false, view: 'web', collapsible: true, listed: true, ...over });
+const hand = (id: string, over: Partial<PanelWindow> = {}): PanelWindow => ({ id, url: `https://${id}.example`, title: id.toUpperCase(), live: true, view: 'web', collapsible: true, listed: true, ...over });
 
 /** The row in array order with every anchor read from it, as the engine keeps it. */
 const row = (...entries: PanelWindow[]): PanelWindow[] => deriveAnchorsFromOrder(entries, ROOT);
@@ -80,8 +78,8 @@ registerTestView('perm-probe', ({ panel }) => {
     'data-widths': JSON.stringify(widths),
     'data-caps': JSON.stringify(caps),
     'data-keys': Object.keys(caps).join(','),
-    'data-reorder': String(usePanelReorderEligible()),
-    'data-close': String(usePanelCloseEligible()),
+    'data-reorder': String(caps.movable),
+    'data-close': String(caps.closable),
   });
 });
 
@@ -119,15 +117,11 @@ afterEach(() => {
 // One differential per owned name
 // ---------------------------------------------------------------------------
 
-test('differential closable: a close removes the entry under true and leaves the row alone under false', () => {
-  const closeOutcome = (closable: boolean): string[] => {
-    const p = provide([rootEntry(), made('a', { closable })]);
-    act(() => p.now().close('a'));
-    return p.ids();
-  };
+test('differential closable: the capability a person closes by reads true under true and false under false', () => {
+  const offered = (closable: boolean): string | undefined => mountRow(row(rootEntry(), made('a', { closable })))('a').close;
   differential('closable', (run) => {
-    run(true, () => closeOutcome(true));
-    run(false, () => closeOutcome(false));
+    run(true, () => offered(true));
+    run(false, () => offered(false));
   });
 });
 
@@ -139,11 +133,11 @@ test('differential parkable: false makes the entry a fixed column the provider c
   });
 });
 
-test('differential draggable: movePanel moves the source under true and returns the same array under false', () => {
-  const moved = (draggable: boolean): string[] => ids(movePanel(row(rootEntry(), made('a', { draggable }), made('b')), 'a', 'right', ROOT));
-  differential('draggable', (run) => {
-    run(true, () => moved(true));
-    run(false, () => moved(false));
+test('differential movable: the capability a person moves by reads true under true and false under false', () => {
+  const offered = (movable: boolean): string | undefined => mountRow(row(rootEntry(), made('a', { movable }), made('b')))('a').reorder;
+  differential('movable', (run) => {
+    run(true, () => offered(true));
+    run(false, () => offered(false));
   });
 });
 
@@ -155,22 +149,11 @@ test('differential crossable: a hop past the entry happens under true and is ref
   });
 });
 
-test('differential placeable: reanchorPanel changes the row under true and returns the same array under false', () => {
-  const reanchored = (placeable: boolean): boolean => {
-    const panels = row(rootEntry(), made('a', { placeable }), made('b'));
-    return reanchorPanel(panels, 'a', { position: 'left' }, ROOT) !== panels;
-  };
-  differential('placeable', (run) => {
-    run(true, () => reanchored(true));
-    run(false, () => reanchored(false));
-  });
-});
-
-test('differential resizable: setSlots changes the slot count under true and returns the same array under false', () => {
-  const slotsAfter = (resizable: boolean): number | undefined => setSlots(row(rootEntry(), made('a', { resizable })), 'a', 2).find((p) => p.id === 'a')?.slots;
+test('differential resizable: the capability a person resizes by reads true under true and false under false', () => {
+  const offered = (resizable: boolean): unknown => JSON.parse(mountRow(row(rootEntry(), made('a', { resizable })))('a').caps!).resizable;
   differential('resizable', (run) => {
-    run(true, () => slotsAfter(true));
-    run(false, () => slotsAfter(false));
+    run(true, () => offered(true));
+    run(false, () => offered(false));
   });
 });
 
@@ -202,7 +185,7 @@ test('differential title: the title the settings carry is the one panelList summ
   });
 });
 
-test('differential coverage: the names the differentials above completed are exactly the nine this entry owns', () => {
+test('differential coverage: the names the differentials above completed are exactly the eight this entry owns', () => {
   assert.ok(differentialsCovered().length > 0, 'no differential completed, so the equality below would prove nothing');
   assert.deepEqual(differentialsCovered(), [...OWNED].sort());
 });
@@ -211,30 +194,25 @@ test('differential coverage: the names the differentials above completed are exa
 // Permission effects
 // ---------------------------------------------------------------------------
 
-test('closable false: a close leaves the entries and closingIds as they were, calls nothing and clearAll keeps the panel', () => {
-  const closed: string[] = [];
-  const p = provide([rootEntry(), made('a', { closable: false }), made('b')], { onPanelsClosed: (e) => void closed.push(e.id) });
-  const entries = p.now().entries;
-  const closing = p.now().closingIds;
+test('closable false: the developer\'s own close still closes the panel, and clearAll keeps it', () => {
+  const p = provide([rootEntry(), made('a', { closable: false }), made('b', { clearable: false })]);
   act(() => p.now().close('a'));
-  assert.ok(p.now().entries === entries, 'the entries are the same array');
-  assert.ok(p.now().closingIds === closing, 'closingIds is the same set');
-  assert.deepEqual(closed, []);
-  assert.equal(p.now().recentlyClosed, null);
-  act(() => p.now().clearAll());
-  assert.deepEqual(p.ids(), ['root', 'a'], 'clearAll removed the closable one and kept the locked one');
+  assert.deepEqual(p.ids(), ['root', 'b'], 'the close was not limited by closable');
+  const q = provide([rootEntry(), made('a', { closable: false }), made('b')]);
+  act(() => q.now().clearAll());
+  assert.deepEqual(q.ids(), ['root', 'a'], 'clearAll removed the closable one and kept the unclosable one');
 });
 
-test('closable false: the entry is locked and not clearable, which is what the close gate and clearAll read', () => {
+test('closable false: the entry is not clearable, which is what clearAll reads', () => {
   const entry = made('a', { closable: false });
-  assert.equal(entry.locked, true);
+  assert.equal(!entry.settings!.closable, true);
   assert.equal(effective(entry).clearable, false, 'C2: an unclosable panel is not cleared either');
 });
 
 test('the root resolves closable false by rule and its close is refused', () => {
   const root = rootEntry();
   assert.equal(effective(root).closable, false);
-  assert.equal(root.locked, true);
+  assert.equal(!root.settings!.closable, true);
   const closed: string[] = [];
   const p = provide([root, made('a')], { onPanelsClosed: (e) => void closed.push(e.id) });
   const entries = p.now().entries;
@@ -243,28 +221,29 @@ test('the root resolves closable false by rule and its close is refused', () => 
   assert.deepEqual(closed, []);
 });
 
-test('draggable false: movePanel returns the same array for that source while another panel still crosses it', () => {
-  const panels = row(rootEntry(), made('a', { draggable: false }), made('b'));
-  assert.ok(movePanel(panels, 'a', 'right', ROOT) === panels, 'the source itself is refused');
-  assert.deepEqual(ids(movePanel(panels, 'b', 'left', ROOT)), ['root', 'b', 'a'], 'b crosses a: draggable never stops a crossing');
+test('movable false: movePanel and reanchorPanel still move the panel, since they are the developer\'s own calls', () => {
+  const panels = row(rootEntry(), made('a', { movable: false }), made('b'));
+  assert.deepEqual(ids(movePanel(panels, 'a', 'right', ROOT)), ['root', 'b', 'a']);
+  assert.deepEqual(ids(movePanel(panels, 'b', 'left', ROOT)), ['root', 'b', 'a'], 'and b crosses a');
+  assert.ok(reanchorPanel(panels, 'a', { position: 'left' }, ROOT) !== panels);
 });
 
-test('placeable false: reanchorPanel returns the same array', () => {
-  const panels = row(rootEntry(), made('a', { placeable: false }), made('b'));
-  assert.ok(reanchorPanel(panels, 'a', { position: 'left' }, ROOT) === panels);
-  assert.ok(reanchorPanel(panels, 'b', { position: 'left' }, ROOT) !== panels, 'control: a placeable panel is re-anchored');
+test('the root is never moved or re-anchored, whatever calls ask', () => {
+  const panels = row(rootEntry(), made('a'), made('b'));
+  assert.ok(movePanel(panels, ROOT, 'right', ROOT) === panels);
+  assert.ok(reanchorPanel(panels, ROOT, { panel: 'b', position: 'right' }, ROOT) === panels);
 });
 
-test('resizable false: setSlots returns the same array and onPanelResize never fires, while a resizable panel fires it', () => {
+test('resizable false: the developer\'s own setSlots still resizes the panel, within maxSlots', () => {
   let resizes = 0;
-  const p = provide([rootEntry(), made('frozen', { resizable: false }), made('free')], { onPanelResize: () => void (resizes += 1) });
+  const p = provide([rootEntry(), made('frozen', { resizable: false }), made('capped', { resizable: false, maxSlots: 1 })], { onPanelResize: () => void (resizes += 1) });
   act(() => p.now().setSlots('frozen', 2));
-  assert.equal(resizes, 0, 'a frozen slot count fires nothing');
-  assert.equal(p.now().entries.find((e) => e.id === 'frozen')?.slots, 1);
-  act(() => p.now().setSlots('free', 2));
-  assert.equal(resizes, 1, 'control: the free panel resizes and fires once');
+  assert.equal(resizes, 1, 'the call fired once');
+  assert.equal(p.now().entries.find((e) => e.id === 'frozen')?.slots, 2);
+  act(() => p.now().setSlots('capped', 2));
+  assert.equal(resizes, 1, 'maxSlots still clamps');
   const panels = row(rootEntry(), made('frozen', { resizable: false }));
-  assert.ok(setSlots(panels, 'frozen', 2) === panels);
+  assert.ok(setSlots(panels, 'frozen', 2) !== panels);
 });
 
 test('a slot count above maxSlots: setSlots leaves a panel already at maxSlots alone and onPanelResize never fires', () => {
@@ -362,13 +341,11 @@ test('a parkable non-crossable panel keeps the same entries on each side under 2
   assert.ok(moves > 20, `only ${moves} of 200 moves happened, so the invariant was barely exercised`);
 });
 
-test('a draggable false fixed column is never moved by its own drag and keeps its neighbours under 200 seeded moves of others', () => {
+test('a fixed column that is crossable false keeps its neighbours under 200 seeded moves of others', () => {
   const rng = mulberry32(77);
   const fixed = made('f', { parkable: false, crossable: false });
-  assert.equal(effective(fixed).draggable, false, 'a fixed column is not draggable by derivation');
+  assert.equal(effective(fixed).movable, false, 'a fixed column is not movable by derivation');
   let panels = row(rootEntry(), made('a'), made('b', {}, { live: false }), fixed, made('c'), made('d'));
-  assert.ok(movePanel(panels, 'f', 'left', ROOT) === panels);
-  assert.ok(movePanel(panels, 'f', 'right', ROOT) === panels);
   const before = leftOf(panels, 'f');
   let moves = 0;
   for (let step = 0; step < 200; step += 1) {
@@ -422,8 +399,8 @@ test('a park and a close each take a picture', () => {
 
 test('a close the gate refuses takes no picture', () => {
   const spy = spyCapture();
-  const p = provide([rootEntry(), made('a', { closable: false })], { capture: spy });
-  act(() => p.now().close('a'));
+  const p = provide([rootEntry(), made('a')], { capture: spy });
+  act(() => p.now().close(ROOT));
   act(() => p.now().close('nobody'));
   assert.deepEqual(spy.captured, []);
 });
@@ -452,7 +429,6 @@ test('create over 300 resolver-random entries writes every mirror field from the
     const resolved = resolvePanelSettings({ template: randomLayer(rng), instance: randomLayer(rng) }, { root: chance(rng, 0.1) }).value;
     const skeleton = appendPanel([], { url: 'https://x.example', title: 'X' }, `id${n}`, ROOT)[0]!;
     const entry = applyTemplate(skeleton, resolved, 'create');
-    assert.equal(entry.locked, !resolved.closable, `#${n} locked`);
     assert.equal(entry.collapsible, resolved.parkable, `#${n} collapsible`);
     assert.equal(entry.listed, resolved.listed, `#${n} listed`);
     assert.equal(entry.layer, resolved.layer, `#${n} layer`);
@@ -472,7 +448,7 @@ test("create over the library defaults equals appendPanel's literals", () => {
   const { settings, key, ...rest } = created;
   assert.ok(settings !== undefined && key === 'a');
   assert.deepEqual(rest, { ...skeleton, slots: 1 }, 'every field appendPanel wrote is what create writes over the defaults, and the slot count the settings resolve to');
-  assert.deepEqual([created.locked, created.collapsible, created.listed, created.layer, created.anchoredEnter, created.slots], [false, true, true, 'base', false, 1]);
+  assert.deepEqual([!created.settings!.closable, created.collapsible, created.listed, created.layer, created.anchoredEnter, created.slots], [false, true, true, 'base', false, 1]);
 });
 
 test("create writes key from the entry's own key when it has one, else its id, and never touches the input", () => {
@@ -487,7 +463,7 @@ test("create writes key from the entry's own key when it has one, else its id, a
 const changedKeys = (before: PanelWindow, after: PanelWindow): string[] =>
   [...new Set([...Object.keys(before), ...Object.keys(after)])].filter((k) => (before as unknown as Record<string, unknown>)[k] !== (after as unknown as Record<string, unknown>)[k]).sort();
 
-test('reconfigure writes only locked, listed, layer, anchoredEnter, title, settings and collapsible, and leaves the slots, anchor, live, hostData and key alone', () => {
+test('reconfigure writes only listed, layer, anchoredEnter, title, settings and collapsible, and leaves the slots, anchor, live, hostData and key alone', () => {
   const resized = setSlots(row(rootEntry(), made('a', {}, { hostData: { k: 1 } })), 'a', 2)[1]!;
   const dragged = movePanel(row(rootEntry(), resized, made('b')), 'a', 'right', ROOT).find((p) => p.id === 'a')!;
   for (const [label, entry] of [['a person-resized two-slot entry', resized], ['a dragged entry', dragged]] as const) {
@@ -495,7 +471,7 @@ test('reconfigure writes only locked, listed, layer, anchoredEnter, title, setti
     for (const kept of ['slots', 'anchor', 'live', 'hostData', 'key'] as const) {
       assert.ok(next[kept] === entry[kept], `${label}: ${kept} changed`);
     }
-    assert.deepEqual(changedKeys(entry, next), ['anchoredEnter', 'collapsible', 'layer', 'listed', 'locked', 'settings', 'title']);
+    assert.deepEqual(changedKeys(entry, next), ['anchoredEnter', 'collapsible', 'layer', 'listed', 'settings', 'title']);
     assert.equal(next.slots, entry.slots, `${label}: still the slot count the person chose`);
   }
 });
@@ -505,7 +481,7 @@ test('reconfigure leaves a hand-built entry without a key and rewrites collapsib
   const same = applyTemplate(entry, resolve({ closable: false }), 'reconfigure');
   assert.equal('key' in same, false);
   assert.ok(same.collapsible === entry.collapsible);
-  assert.equal(same.locked, true);
+  assert.equal(!same.settings!.closable, true);
   const flipped = applyTemplate(entry, resolve({ parkable: false }), 'reconfigure');
   assert.equal(flipped.collapsible, false);
   assert.equal(flipped.live, true);
@@ -554,7 +530,7 @@ test("effective of a hand-built fixed column has overflow 'scroll'", () => {
 
 test('effective of a hand-built entry has every key without a legacy field at its library default', () => {
   const eff = effective(hand('a')) as unknown as Record<string, unknown>;
-  const fromFields = new Set(['closable', 'parkable', 'draggable', 'placeable', 'resizable', 'maxSlots', 'clearable', 'listed', 'overflow', 'layer', 'enterFrom', 'slots', 'title']);
+  const fromFields = new Set(['closable', 'parkable', 'movable', 'resizable', 'maxSlots', 'clearable', 'listed', 'overflow', 'layer', 'enterFrom', 'slots', 'title']);
   const derived = resolvePanelSettings().value as unknown as Record<string, unknown>;
   let compared = 0;
   for (const key of Object.keys(derived)) {
@@ -563,15 +539,15 @@ test('effective of a hand-built entry has every key without a legacy field at it
     compared += 1;
   }
   assert.ok(compared > 11, `only ${compared} keys compared`);
-  for (const key of ['closable', 'parkable', 'draggable', 'placeable', 'resizable', 'listed', 'clearable']) assert.equal(eff[key], true, `${key}: an ordinary hand-built entry is the library default`);
+  for (const key of ['closable', 'parkable', 'movable', 'resizable', 'listed', 'clearable']) assert.equal(eff[key], true, `${key}: an ordinary hand-built entry is the library default`);
   assert.equal(eff.layer, LIBRARY_PANEL_DEFAULTS.layer);
 });
 
-test('effective of a hand-built entry reads its own legacy fields: locked, collapsible, listed, layer, anchoredEnter, slots and title', () => {
-  const eff = effective(hand('a', { locked: true, listed: false, layer: 'raised', anchoredEnter: true, slots: 2, title: 'T' }));
-  assert.deepEqual([eff.closable, eff.clearable, eff.listed, eff.layer, eff.enterFrom, eff.slots, eff.title], [false, false, false, 'raised', 'anchor', 2, 'T']);
+test('effective of a hand-built entry reads its own legacy fields: collapsible, listed, layer, anchoredEnter, slots and title', () => {
+  const eff = effective(hand('a', { listed: false, layer: 'raised', anchoredEnter: true, slots: 2, title: 'T' }));
+  assert.deepEqual([eff.closable, eff.clearable, eff.listed, eff.layer, eff.enterFrom, eff.slots, eff.title], [true, true, false, 'raised', 'anchor', 2, 'T']);
   const fixed = effective(hand('f', { collapsible: false }));
-  assert.deepEqual([fixed.parkable, fixed.draggable, fixed.placeable, fixed.resizable, fixed.clearable, fixed.maxSlots], [false, false, false, false, false, 1]);
+  assert.deepEqual([fixed.parkable, fixed.closable, fixed.movable, fixed.resizable, fixed.clearable, fixed.maxSlots], [false, false, false, false, false, 1]);
 });
 
 test('effective is frozen and a hand-built entry with no title has no title key', () => {
@@ -599,11 +575,11 @@ test('effective reads a row entry (no `listed` field) as listed for a parkable o
 // The slot hooks
 // ---------------------------------------------------------------------------
 
-test('usePanelCapabilities in a row slot returns exactly closable, draggable, placeable, resizable and maxSlots, from that panel', () => {
+test('usePanelCapabilities in a row slot returns exactly closable, movable, resizable and maxSlots, from that panel', () => {
   const read = mountRow(row(rootEntry(), made('a', { closable: false, resizable: false, maxSlots: 2 }), made('b')));
-  assert.equal(read('a').keys, 'closable,draggable,placeable,resizable,maxSlots');
-  assert.deepEqual(JSON.parse(read('a').caps!), { closable: false, draggable: true, placeable: true, resizable: false, maxSlots: 2 });
-  assert.deepEqual(JSON.parse(read('b').caps!), { closable: true, draggable: true, placeable: true, resizable: true, maxSlots: 64 });
+  assert.equal(read('a').keys, 'closable,movable,resizable,maxSlots');
+  assert.deepEqual(JSON.parse(read('a').caps!), { closable: false, movable: true, resizable: false, maxSlots: 2 });
+  assert.deepEqual(JSON.parse(read('b').caps!), { closable: true, movable: true, resizable: true, maxSlots: 64 });
 });
 
 test('usePanelCapabilities outside a row returns the library defaults', () => {
@@ -613,58 +589,47 @@ test('usePanelCapabilities outside a row returns the library defaults', () => {
     return React.createElement('output');
   }
   mount(React.createElement(Probe));
-  assert.deepEqual(seen, { closable: true, draggable: true, placeable: true, resizable: true, maxSlots: 64 });
-  assert.deepEqual(Object.keys(seen!), ['closable', 'draggable', 'placeable', 'resizable', 'maxSlots']);
+  assert.deepEqual(seen, { closable: true, movable: true, resizable: true, maxSlots: 64 });
+  assert.deepEqual(Object.keys(seen!), ['closable', 'movable', 'resizable', 'maxSlots']);
   assert.equal(seen!.maxSlots, LIBRARY_PANEL_DEFAULTS.maxSlots);
 });
 
-test('usePanelCapabilities for the root and a fixed column: not closable, draggable, placeable or resizable', () => {
+test('usePanelCapabilities for the root and a fixed column: not movable or resizable, and the root not closable', () => {
   const read = mountRow(row(rootEntry(), made('f', { parkable: false })));
-  const expected = { closable: false, draggable: false, placeable: false, resizable: false, maxSlots: 1 };
+  const expected = { closable: false, movable: false, resizable: false, maxSlots: 1 };
   assert.deepEqual(JSON.parse(read('root').caps!), expected);
-  assert.deepEqual(JSON.parse(read('f').caps!), { ...expected, closable: true });
+  assert.deepEqual(JSON.parse(read('f').caps!), expected, 'an always-shown column offers no close either');
 });
 
-test('usePanelReorderEligible follows draggable, not collapsible', () => {
-  const read = mountRow(row(rootEntry(), made('can'), made('cannot', { draggable: false }), made('fixed', { parkable: false })));
+test('the reorder capability follows movable, not collapsible', () => {
+  const read = mountRow(row(rootEntry(), made('can'), made('cannot', { movable: false }), made('fixed', { parkable: false })));
   assert.equal(read('can').reorder, 'true');
-  assert.equal(read('cannot').reorder, 'false', 'parkable but not draggable');
+  assert.equal(read('cannot').reorder, 'false', 'parkable but not movable');
   assert.equal(read('fixed').reorder, 'false');
   assert.equal(read('root').reorder, 'false');
 });
 
-test('usePanelReorderEligible and usePanelCloseEligible outside a row: reorder false, close true', () => {
-  const seen: boolean[] = [];
-  function Probe(): React.ReactElement {
-    seen.push(usePanelReorderEligible(), usePanelCloseEligible());
-    return React.createElement('output');
-  }
-  mount(React.createElement(Probe));
-  assert.deepEqual(seen.slice(0, 2), [false, true]);
-});
-
-test('usePanelCloseEligible is false for a locked parkable entry and for a fixed column, true for an ordinary one', () => {
-  const read = mountRow(row(rootEntry(), made('plain'), made('locked', { closable: false }), made('fixed', { parkable: false })));
+test('the close capability is false for an unclosable parkable entry and for a fixed column, true for an ordinary one', () => {
+  const read = mountRow(row(rootEntry(), made('plain'), made('unclosable', { closable: false }), made('fixed', { parkable: false })));
   assert.equal(read('plain').close, 'true');
-  assert.equal(read('locked').close, 'false');
-  assert.equal(read('fixed').close, 'false');
+  assert.equal(read('unclosable').close, 'false');
+  assert.equal(read('fixed').close, 'false', 'an always-shown column offers no close even with closable true');
+  assert.equal(JSON.parse(read('fixed').caps!).closable, false, 'usePanelCapabilities says so in the one place');
 });
 
-test('a hand-built caller seeding { locked: true, collapsible: true }: clearAll keeps it and usePanelCloseEligible is false for it', () => {
-  const p = provide([hand('root', { locked: true, collapsible: false, listed: false }), hand('locked', { locked: true }), hand('plain')]);
+test('a hand-built fixed column: clearAll keeps it and no close is offered for it', () => {
+  const p = provide([hand('root', { collapsible: false, listed: false }), hand('fixed', { collapsible: false }), hand('plain')]);
   act(() => p.now().clearAll());
-  assert.deepEqual(p.ids(), ['root', 'locked']);
+  assert.deepEqual(p.ids(), ['root', 'fixed']);
   cleanup();
-  const read = mountRow([hand('root', { locked: true, collapsible: false, listed: false }), hand('locked', { locked: true }), hand('plain')]);
-  assert.equal(read('locked').close, 'false');
+  const read = mountRow([hand('root', { collapsible: false, listed: false }), hand('fixed', { collapsible: false }), hand('plain')]);
+  assert.equal(read('fixed').close, 'false');
   assert.equal(read('plain').close, 'true');
-  assert.equal(read('locked').reorder, 'true', 'a locked panel may still be reordered');
+  assert.equal(read('plain').reorder, 'true');
 });
 
-test('a hand-built entry behaves as before: its close, move, resize and re-anchor guards read its legacy fields', () => {
-  const panels = row(hand('root', { locked: true, collapsible: false, listed: false }), hand('a'), hand('f', { collapsible: false }), hand('b'));
-  assert.ok(movePanel(panels, 'f', 'right', ROOT) === panels, 'a fixed column is never dragged');
-  assert.ok(setSlots(panels, 'f', 2) === panels, 'nor resized');
-  assert.ok(reanchorPanel(panels, 'f', { position: 'left' }, ROOT) === panels, 'nor re-anchored');
-  assert.ok(setSlots(panels, 'a', 2) !== panels, 'an ordinary one is');
+test('a hand-built entry behaves as before: its resize guard reads its legacy fields', () => {
+  const panels = row(hand('root', { collapsible: false, listed: false }), hand('a'), hand('f', { collapsible: false }), hand('b'));
+  assert.ok(setSlots(panels, 'f', 2) === panels, 'a fixed column is one slot');
+  assert.ok(setSlots(panels, 'a', 2) !== panels, 'an ordinary one is not');
 });

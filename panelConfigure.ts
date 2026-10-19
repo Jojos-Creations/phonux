@@ -105,7 +105,7 @@ export function checkPatch(call: ConfigureCall, patch: unknown): { names: string
 /** The settings whose configure class acts at this commit; `parkable` and `maxSlots` are STATE keys that change what the panel is or may be at once. */
 const NOW_STATE: ReadonlySet<string> = new Set(['parkable', 'maxSlots']);
 /** What a parked or held panel shows or answers at once: its permissions, its listing and its title. The rest waits for it to be drawn. */
-const WHILE_PARKED: ReadonlySet<string> = new Set(['closable', 'draggable', 'crossable', 'placeable', 'resizable', 'listed', 'title', 'pinning', 'parkable', 'maxSlots']);
+const WHILE_PARKED: ReadonlySet<string> = new Set(['closable', 'movable', 'crossable', 'resizable', 'listed', 'title', 'pinning', 'parkable', 'maxSlots']);
 
 /** Whether `name` acts at this commit on a panel in `status`. */
 export function actsNow(name: string, status: 'live' | 'parked' | 'hidden' | 'closed'): boolean {

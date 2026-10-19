@@ -341,10 +341,10 @@ test('names match an entry by its key first and its id second, and the anchor na
 });
 
 test('placePanel keeps the live flag, every setting and the entry itself, writing only its anchor; the person never sees it as an override', () => {
-  const parked = made('N', { placeable: false }, { live: false });
+  const parked = made('N', { movable: false }, { live: false });
   const row = [...abc(), parked];
   const placed = placePanel(row, 'N', 'row-start', { rootId: ROOT, fallback: 'row-end' });
-  assert.deepEqual(ids(placed.row), ['N', 'H', 'A', 'B'], 'a placeable:false panel is still placed: placement is the developer\'s ask');
+  assert.deepEqual(ids(placed.row), ['N', 'H', 'A', 'B'], 'a movable:false panel is still placed: placement is the developer\'s ask');
   const after = placed.row.find((p) => p.id === 'N')!;
   assert.equal(after.live, false, 'a parked panel stays parked');
   assert.equal(after.settings, parked.settings, 'the settings object is the very one it had');

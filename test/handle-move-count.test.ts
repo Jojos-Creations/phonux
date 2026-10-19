@@ -42,9 +42,10 @@ test('one move is one gate token: a second move on the panel in the same turn an
   assert.deepEqual(out, ['T', 'busy', 'T']);
 });
 
-test('a panel that cannot be dragged refuses a count with not-draggable', async () => {
-  const r = await pinRig({ settings: { b: { draggable: false } } });
-  assert.equal(letter(r.turn(() => r.h.b!.move(-1))), 'not-draggable');
+test('a panel a person cannot move refuses a count with not-movable, and the developer\'s own count moves it', async () => {
+  const r = await pinRig({ settings: { b: { movable: false } } });
+  assert.equal(letter(r.turn(() => r.h.b!.move(-1, 'person'))), 'not-movable');
+  assert.equal(letter(r.turn(() => r.h.b!.move(-1))), 'T');
 });
 
 test('usePanelPinned reads PanelState.pinned, before and after a pin and a drag across the root', async () => {
@@ -82,7 +83,7 @@ test('usePanelDragProps offers a close to a closable panel only, and a reorder t
   const read = (): string[][] => [...r.m.container.querySelectorAll<HTMLElement>('[data-probe]')].map((n) => [n.dataset.close!, n.dataset.reorder!]);
   r.ws.addPanel('probe');
   r.ws.addPanel('probe', { settings: { closable: false } });
-  r.ws.addPanel('probe', { settings: { draggable: false } });
+  r.ws.addPanel('probe', { settings: { movable: false } });
   await r.settle();
   assert.deepEqual(read(), [['true', 'true'], ['false', 'true'], ['true', 'false']]);
 });

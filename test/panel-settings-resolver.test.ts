@@ -82,9 +82,8 @@ const PLACEMENTS = [...WORDS, ...OBJECT_PLACEMENTS] as const;
 const ENUMERATED: Record<string, readonly unknown[]> = {
   closable: BOOL,
   parkable: BOOL,
-  draggable: BOOL,
+  movable: BOOL,
   crossable: BOOL,
-  placeable: BOOL,
   resizable: BOOL,
   clearable: BOOL,
   listed: BOOL,
@@ -539,10 +538,10 @@ test('cascade: a tuning key in the workspace defaults throws; the three template
 // Derived defaults and the coupling rules
 // ---------------------------------------------------------------------------
 
-const DERIVED = ['draggable', 'placeable', 'listed', 'clearable'] as const;
+const DERIVED = ['movable', 'listed', 'clearable'] as const;
 const valueOf = (res: PanelSettingsResolution, key: string): unknown => (res.value as unknown as Record<string, unknown>)[key];
 
-test('derived defaults: draggable, placeable, listed and clearable follow parkable (and closable for clearable), sourced derived', () => {
+test('derived defaults: movable, listed and clearable follow parkable (and closable for clearable), sourced derived', () => {
   const normal = resolve();
   for (const key of DERIVED) {
     assert.equal(valueOf(normal, key), true, key);
@@ -556,18 +555,18 @@ test('derived defaults: draggable, placeable, listed and clearable follow parkab
   const notClosable = resolve({ template: { closable: false } });
   assert.equal(notClosable.value.clearable, false);
   assert.equal(notClosable.source.clearable, 'derived');
-  assert.equal(notClosable.value.draggable, true, 'only clearable follows closable');
+  assert.equal(notClosable.value.movable, true, 'only clearable follows closable');
   assert.deepEqual(notClosable.conflicts, []);
 });
 
 test('derived defaults: a derived default is overridable at every layer and the override is never a conflict', () => {
   for (const layer of ['workspace', 'template', 'instance'] as const) {
-    const res = resolve({ template: { parkable: false }, [layer]: { draggable: true, placeable: true, listed: true, clearable: true } });
+    const res = resolve({ template: { parkable: false }, [layer]: { movable: true, listed: true, clearable: true } });
     for (const key of DERIVED) assert.equal(valueOf(res, key), true, `${layer}.${key}`);
     assert.deepEqual(res.conflicts, [], layer);
   }
-  const off = resolve({ instance: { listed: false, draggable: false } });
-  assert.deepEqual([off.value.listed, off.value.draggable, off.source.listed, off.source.draggable], [false, false, 'instance', 'instance']);
+  const off = resolve({ instance: { listed: false, movable: false } });
+  assert.deepEqual([off.value.listed, off.value.movable, off.source.listed, off.source.movable], [false, false, 'instance', 'instance']);
 });
 
 type ForcedRow = readonly [key: string, asked: unknown, applied: unknown];
@@ -652,22 +651,22 @@ test('C4: slots above maxSlots become maxSlots; slots inside it stand', () => {
   assert.deepEqual([inside.value.slots, inside.source.slots, inside.conflicts], [2, 'template', []]);
 });
 
-test('C5: the root is never closable, parkable, clearable, draggable or placeable, and a layer that asked otherwise has a conflict without forcedBy', () => {
+test('C5: the root is never closable, parkable, clearable or movable, and a layer that asked otherwise has a conflict without forcedBy', () => {
   const bare = resolve({}, { root: true });
-  assert.deepEqual([bare.value.closable, bare.value.parkable, bare.value.clearable, bare.value.draggable, bare.value.placeable, bare.value.listed], [false, false, false, false, false, false]);
+  assert.deepEqual([bare.value.closable, bare.value.parkable, bare.value.clearable, bare.value.movable, bare.value.listed], [false, false, false, false, false]);
   assert.deepEqual(bare.conflicts, [], 'a library collision is silent');
-  assert.deepEqual([bare.source.closable, bare.source.parkable, bare.source.draggable], ['forced', 'forced', 'derived'], 'draggable was already false from the fixed column, so nothing was forced');
-  const asked = resolve({ template: { closable: true, parkable: true, draggable: true, placeable: true } }, { root: true });
-  assert.deepEqual(asked.conflicts.map((c) => c.key).sort(), ['closable', 'draggable', 'parkable', 'placeable']);
+  assert.deepEqual([bare.source.closable, bare.source.parkable, bare.source.movable], ['forced', 'forced', 'derived'], 'movable was already false from the fixed column, so nothing was forced');
+  const asked = resolve({ template: { closable: true, parkable: true, movable: true } }, { root: true });
+  assert.deepEqual(asked.conflicts.map((c) => c.key).sort(), ['closable', 'movable', 'parkable']);
   for (const c of asked.conflicts) {
     assert.equal(c.rule, 'C5', c.key);
     assert.equal('forcedBy' in c, false, `${c.key} has no forcedBy`);
     assert.equal(c.kind, 'forced');
     assert.equal(c.applied, false);
   }
-  const notRoot = resolve({ template: { closable: true, parkable: true, draggable: true, placeable: true } });
+  const notRoot = resolve({ template: { closable: true, parkable: true, movable: true } });
   assert.deepEqual(notRoot.conflicts, []);
-  assert.deepEqual([notRoot.value.closable, notRoot.value.draggable], [true, true]);
+  assert.deepEqual([notRoot.value.closable, notRoot.value.movable], [true, true]);
 });
 
 test('C5 feeds C1 and C2 for the root: a root asking overflow park or clearable true is also forced, naming parkable and closable', () => {
@@ -804,14 +803,14 @@ test('user layer: a slot count above maxSlots is held at maxSlots without a note
   assert.deepEqual([inside.value.slots, inside.source.slots, inside.notes], [2, 'user', []]);
 });
 
-test('user layer: a slot count on a resizable:false panel and an anchor on a panel that is neither draggable nor placeable are not dropped', () => {
+test('user layer: a slot count on a resizable:false panel and an anchor on a panel that is not movable are not dropped', () => {
   const size = resolve({ instance: { resizable: false }, user: { slots: 2 } });
   assert.deepEqual([size.value.slots, size.value.resizable, size.source.slots, size.notes], [2, false, 'user', []]);
   const anchor = { panel: 'notes', position: 'left', priority: 2 } as const;
-  const res = resolve({ instance: { draggable: false, placeable: false }, user: { anchor } });
+  const res = resolve({ instance: { movable: false }, user: { anchor } });
   assert.deepEqual(res.userAnchor, anchor);
   assert.deepEqual(res.notes, []);
-  assert.deepEqual([res.value.draggable, res.value.placeable], [false, false]);
+  assert.deepEqual([res.value.movable], [false]);
   assert.equal('userAnchor' in resolve(), false, 'no user anchor, no userAnchor');
 });
 
@@ -819,7 +818,7 @@ test('user layer: parkable false joins as the top layer, so C1 re-runs with sour
   const res = resolve({ user: { parkable: false } });
   assert.deepEqual([res.value.parkable, res.source.parkable], [false, 'user']);
   assert.deepEqual([res.value.resizable, res.value.overflow, res.value.maxSlots], [false, 'scroll', 1]);
-  assert.deepEqual([res.value.draggable, res.value.placeable, res.value.listed, res.value.clearable], [false, false, false, false]);
+  assert.deepEqual([res.value.movable, res.value.listed, res.value.clearable], [false, false, false]);
   assert.deepEqual(res.conflicts, []);
   assert.deepEqual(res.notes, []);
   const kept = resolve({ user: { parkable: true } });
@@ -1149,8 +1148,8 @@ function checkStack(layers: PanelSettingsLayers, options: ResolveOptions): void 
   }
   if (v.closable === false) assert.equal(v.clearable, false, 'C2');
   assert.ok((v.slots as number) <= (v.maxSlots as number), 'C4');
-  if (options.root === true) assert.deepEqual([v.closable, v.parkable, v.draggable, v.placeable, v.clearable], [false, false, false, false, false], 'C5');
-  for (const key of ['draggable', 'placeable', 'listed']) if (res.source[key] === 'derived') assert.equal(v[key], v.parkable, `${key} derived`);
+  if (options.root === true) assert.deepEqual([v.closable, v.parkable, v.movable, v.clearable], [false, false, false, false], 'C5');
+  for (const key of ['movable', 'listed']) if (res.source[key] === 'derived') assert.equal(v[key], v.parkable, `${key} derived`);
   if (res.source.clearable === 'derived') assert.equal(v.clearable, v.parkable === true && v.closable === true, 'clearable derived');
 
   for (const [key, layerName] of [['parkable', 'user'], ['slots', 'user']] as const) if (res.source[key] === layerName) {

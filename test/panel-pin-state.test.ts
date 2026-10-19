@@ -10,7 +10,7 @@ import { resolvePanelSettings } from '../panelSettings.js';
 import type { PanelWindow } from '../panelWindow.js';
 
 const ROOT = 'root';
-const entry = (id: string, over: Partial<PanelWindow> = {}): PanelWindow => ({ id, url: '', title: id, live: true, locked: false, view: id, collapsible: true, listed: true, key: id, ...over });
+const entry = (id: string, over: Partial<PanelWindow> = {}): PanelWindow => ({ id, url: '', title: id, live: true, view: id, collapsible: true, listed: true, key: id, ...over });
 const rootEntry = (): PanelWindow => entry(ROOT, { marker: true });
 const settingsOf = (parkable: boolean): PanelWindow['settings'] => resolvePanelSettings({ template: { parkable } }).value;
 

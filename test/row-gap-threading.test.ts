@@ -26,13 +26,12 @@ const entry = (id: string, over: Partial<PanelWindow> = {}): PanelWindow => ({
   url: `https://${id}.example`,
   title: id.toUpperCase(),
   live: true,
-  locked: false,
   view: 'gap-view',
   collapsible: true,
   listed: true,
   ...over,
 });
-const fixedRoot = (): PanelWindow => entry(ROOT, { url: '', title: 'History', locked: true, collapsible: false, listed: false });
+const fixedRoot = (): PanelWindow => entry(ROOT, { url: '', title: 'History', collapsible: false, listed: false });
 const twoSlots = (id: string): PanelWindow => entry(id, { slots: 2 });
 
 registerTestView('gap-view', ({ panel }) => React.createElement('i', { 'data-slot': panel.id }, panel.title));

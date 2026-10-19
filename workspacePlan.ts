@@ -165,7 +165,7 @@ export function reconcileWorkspace(i: ReconcileInput): ReconcileResult {
     if (s.uid === undefined) minted = true;
     const base = entryFromSaved(s, id, anchorOf(s.anchor), i.rootId, s.uid ?? newUid());
     if (!settingsOn) {
-      built.push(s.closable === false ? { ...base, locked: true } : base);
+      built.push(base);
       return;
     }
 
@@ -227,7 +227,7 @@ export function reconcileWorkspace(i: ReconcileInput): ReconcileResult {
     }
     const resolution = resolvePanelSettings({ workspace, template: template.settings, instance: d.settings }, { lenient: true });
     const settings = resolution.value;
-    // A tombstone keeps a panel closed only while the panel can be closed and stays closed after it: a stale one never hides a locked or returning panel.
+    // A tombstone keeps a panel closed only while the panel can be closed and stays closed after it: a stale one never hides an unclosable or returning panel.
     if (dismissed.includes(d.id)) {
       if (settings.closable && settings.afterClose === 'stay-closed') continue;
       released.add(d.id);

@@ -260,16 +260,16 @@ test('restoreVisibility parked restores a saved-live panel parked and held', asy
 // Creation paths: restore and the Host-bag create naming a template
 // ---------------------------------------------------------------------------
 
-test('closable false yields locked entries on the create path and on restore', async () => {
+test('closable false yields unclosable entries on the create path and on restore', async () => {
   const mem = memory();
   const templates = [tpl('lock', { closable: false, multiple: true })];
   const first = await launch(mem, { templates });
   create(first, { view: 'lock', title: 'l' });
-  assert.equal(first.byTitle('l').locked, true);
+  assert.equal(first.byTitle('l').settings!.closable, false);
   first.flush();
   first.unmount();
   const second = await launch(mem, { templates });
-  assert.equal(second.byTitle('l').locked, true);
+  assert.equal(second.byTitle('l').settings!.closable, false);
 });
 
 test('hostCreatable false makes the Host-bag create a no-op while a restore works', async () => {
@@ -474,7 +474,7 @@ test('S2 and S3: over 500 seeded sequences of Host-bag creates, restores and a p
       }
       const entries = l.latest().entries.filter((p) => p.id !== ROOT);
       assert.equal(entries.filter((p) => p.view !== 'r').length, plain, `run ${run}: plain creates are never refused`);
-      assert.ok(entries.filter((p) => p.view === 'r').every((p) => p.locked === (settings.closable === false)), `run ${run}: closable holds on every path`);
+      assert.ok(entries.filter((p) => p.view === 'r').every((p) => (p.settings?.closable === false) === (settings.closable === false)), `run ${run}: closable holds on every path`);
     }
     l.unmount();
     cleanup();

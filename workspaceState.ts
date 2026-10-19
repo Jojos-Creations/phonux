@@ -11,7 +11,7 @@ import { appendPanel, slotsOf, type PanelWindow } from './panelWindow.js';
 import { ALL_SLOTS } from './rowConstants.js';
 
 /**
- * One saved panel. An `anchor` or `scroll` names another entry by its `uid` (its `key` when it has no uid). Never saved: `hostData`, `size`, `locked`, `collapsible`, `anchoredEnter`, the settings
+ * One saved panel. An `anchor` or `scroll` names another entry by its `uid` (its `key` when it has no uid). Never saved: `hostData`, `size`, `collapsible`, `anchoredEnter`, the settings
  * themselves and the host's root column. The keys from `key` on are written only for a panel that carries settings;
  * a file without them restores unchanged.
  * @public
@@ -302,7 +302,7 @@ export function projectWorkspaceState(panels: readonly PanelWindow[], rootId: st
             extras.overrides = { ...(held === undefined ? {} : { anchor: { ...held, panel: nameOf(held.panel) } }), ...rest };
           }
           if (p.applied !== undefined) extras.applied = { placeOnAdd: p.applied.placeOnAdd };
-          if (p.locked) extras.closable = false;
+          if (!p.settings.closable) extras.closable = false;
         }
         return {
           ...(p.uid !== undefined ? { uid: p.uid } : {}),
@@ -384,8 +384,7 @@ export function hydrateWorkspaceState(state: WorkspaceState, freshId: () => stri
   };
   const seenUids = new Set<string>();
   const built = state.panels.map((s, i) => {
-    const entry = entryFromSaved(s, fresh[i]!, { panel: targetOf(s.anchor.panel), position: s.anchor.position, priority: s.anchor.priority }, rootId, cleanSavedUid(s, seenUids, []));
-    return s.closable === false ? { ...entry, locked: true } : entry;
+    return entryFromSaved(s, fresh[i]!, { panel: targetOf(s.anchor.panel), position: s.anchor.position, priority: s.anchor.priority }, rootId, cleanSavedUid(s, seenUids, []));
   });
   // One pass over the whole set: placing entries one at a time would rewrite an anchor that names a later entry.
   return computeRowOrder(built, rootId);

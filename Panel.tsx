@@ -47,7 +47,7 @@ export interface PanelProps extends Omit<BoxProps, 'children' | 'sx' | 'title'> 
    * element, a grip icon left of the title in the header row -- never spread onto `headerProps` -- so a
    * click on the title text or an action icon in the header is never mistaken for a drag start. Without a
    * `title` there is no header row, and the icon sits above the frame's top-left corner instead. Omitted
-   * (the usual case for a locked view, e.g. History) renders no grab handle at all.
+   * (the usual case for a view that cannot be closed, e.g. History) renders no grab handle at all.
    */
   grabProps?: Omit<BoxProps, 'children'> & { [key: `data-${string}`]: string | boolean | undefined };
   /**

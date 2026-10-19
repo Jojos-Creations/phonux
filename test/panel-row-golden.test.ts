@@ -21,11 +21,11 @@ registerTestView('golden-view', ({ panel }) => createElement('span', { 'data-gol
 const NONE: ReadonlySet<string> = new Set();
 
 const root: PanelWindow = {
-  id: 'root', url: '', title: 'History', live: true, locked: true, view: 'golden-view', collapsible: false, listed: false,
+  id: 'root', url: '', title: 'History', live: true, view: 'golden-view', collapsible: false, listed: false,
   layer: 'raised', anchoredEnter: true,
 };
 const phone = (id: string, title: string, priority: number, live = true): PanelWindow => ({
-  id, url: `https://${id}.example`, title, live, locked: false, view: 'golden-view', collapsible: true, listed: true,
+  id, url: `https://${id}.example`, title, live, view: 'golden-view', collapsible: true, listed: true,
   anchor: { panel: 'root', position: 'right', priority }, layer: 'base', anchoredEnter: false,
 });
 const twoSlots = (id: string, title: string, priority: number): PanelWindow => ({

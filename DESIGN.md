@@ -53,9 +53,9 @@ exists listens to the workspace and switches to the panel once it appears.
 The panel model (`PanelWindow`, `panelWindow.ts`) adds behavior flags (`collapsible`, `listed`, `view`, ...)
 and, for an entry made from settings, the resolved `settings` and a `key`, to decide overflow, listing,
 permissions and rendering -- but `PanelSummary` (a view's own read of a panel) exposes only what a view needs to
-render a row: id, url, title, live, locked, slots, and the drawn size. A view never sees the entry, its flags or its
+render a row: id, url, title, live, slots, and the drawn size. A view never sees the entry, its flags or its
 settings. What it may ask is what its own panel permits, and that crosses as data too: `usePanelCapabilities()`
-returns the four booleans and the widest slot count a person can act on (`closable`, `draggable`, `placeable`,
+returns the three booleans and the widest slot count a person can act on by gesture (`closable`, `movable`,
 `resizable`, `maxSlots`), read from the slot context `panelSlotContext.ts` holds, never a reference to the
 entry. A view mounted outside a row is told the library defaults.
 
@@ -67,19 +67,19 @@ entry's own `pinning`; the slot's flag, `PanelState.pinned` and `pinnedIds` all 
 ### An entry carries the settings it was made under
 
 `effective(p)` (`panelSettings.ts`, internal) is the one reader of an entry's settings: `p.settings` itself when
-the entry has them, otherwise values read from the fields a hand-built entry carries (`locked` gives `closable`
-and, with `collapsible`, `clearable`; `collapsible` gives `parkable`, `draggable`, `placeable` and `resizable`; a
+the entry has them, otherwise values read from the fields a hand-built entry carries (`collapsible` gives
+`parkable`, `closable`, `movable`, `resizable` and `clearable`; a
 collapsible entry's `overflow` is 'park', a fixed column's 'scroll'), with every other key at its library
 default. So a hand-built 0.1.0 entry behaves as it did. `applyTemplate(entry, resolved, mode)` is the one writer
-of the fields that mirror the settings: 'create' writes `locked` (`!closable`), `collapsible` (`parkable`),
+of the fields that mirror the settings: 'create' writes `collapsible` (`parkable`),
 `listed`, `layer`, `anchoredEnter`, `slots`, `title`, `settings` and `key`; 'reconfigure'
-writes only `locked`, `listed`, `layer`, `anchoredEnter`, `title`, `settings` and, for a parkable flip,
+writes only `listed`, `layer`, `anchoredEnter`, `title`, `settings` and, for a parkable flip,
 `collapsible`, and leaves the slots, anchor, `live`, `hostData` and `key` as the person and the row left
 them. `appendPanel`, `restorePanel` and `hydrateWorkspaceState` write no `key`, so a hand-built entry has none
 and a reader uses `p.key ?? p.id`. Every guard that decides a permission reads `effective(p)`: `movePanel`
-(`draggable`, and `crossable` of every array slot from the source to the target, parked ones included),
-`reanchorPanel` (`placeable`), `setSlots` (`resizable` and `maxSlots`), the `clearAll` filter
-(`clearable`), and the close path (`locked`, which `applyTemplate` writes). Reads of `.collapsible` that remain
+(`crossable` of every array slot from the source to the target, parked ones included), `setSlots` (`maxSlots`),
+the `clearAll` filter (`clearable`), and the engine's operations, which read `closable`, `movable` and `resizable`
+for a person's gesture only (see "The capability flags limit a person's gestures"). Reads of `.collapsible` that remain
 are about presence and parking, and test/source-invariants.test.ts lists the functions that make them.
 
 ## The panel-view lookup: never a crash, never a silent substitution
@@ -91,7 +91,7 @@ register -- renders a visible, inert placeholder naming the title and the key, r
 would take the whole row down with it) or silently falling back to some default view (which would
 render a blank shell for what is actually broken, more confusing than an honest placeholder). `view`
 is read ONLY at this one render-selection site; every overflow/collapse/close decision elsewhere reads
-`collapsible`/`listed`/`locked` instead, never `view`, so widening it to an open string cannot change any of
+`collapsible`/`listed` instead, never `view`, so widening it to an open string cannot change any of
 those decisions.
 
 ## Position, layer and enter-direction are per-panel metadata, not per-view rules
@@ -103,27 +103,26 @@ each, read by exactly the site that decides that one behavior: `anchor` by the f
 enter-direction choice, which resolves against that panel's own anchor target. `layer` and `anchoredEnter` are
 set once at creation; `anchor` is set at creation and changed by `reanchor` and by a drag. A custom panel can
 opt into any of History's behaviors without becoming History-shaped in any other way -- `listed`,
-`collapsible` and `locked` stay independent of all three.
+and `collapsible` stay independent of all three.
 
 ### `permanent` is the one door to a collapsible:false column
 
 `CreatePanelOptions.permanent` (`AppendPanelOptions.permanent` underneath it) is the only way a spawned panel
-can become a permanent column -- there is no raw `collapsible` or public `locked` key. Setting it forces
+can become a permanent column -- there is no raw `collapsible` key. Setting it forces
 `listed:false` regardless of any `listed` the caller also passes: the framework's History-row trash
 (suppressed by `listed:false`, History's own precedent) must never be the close affordance for a column whose
 own component owns its own close control. It adds no fourth field alongside `anchor`/`layer`/`anchoredEnter`
 above -- those three already work on any entry, collapsible or not, unchanged (`create({ permanent: true,
 anchor })` places the column like any panel). A permanent column is exempt from every row gesture, capacity
-park, `reanchor` and from being dragged, for free, by already being `collapsible:false`, the same way History
+park and from being dragged by a person, for free, by already being `collapsible:false`, the same way History
 already is. Other panels can still be dragged past it -- see `PanelsAPI.move`'s own section below.
 
 The "own control only" guarantee also has to hold for the host's default view, not just a custom one: `view`
 left unset resolves to `PanelsInput.defaultView` (with none, the unregistered-view placeholder), a host's own panel component, which otherwise wraps
 EVERY panel in a framework drag-to-close handle unconditionally. That component reads
-`usePanelCloseEligible`, which is false for a column with `collapsible:false` and for an entry whose `closable`
-setting is false, through the same per-slot context (`panelSlotContext.ts`) that gives `usePanelReorderEligible`
-its answer from `draggable`. It renders no DragToClose wrapper -- no grab bar at all -- when it reads false,
-exactly like History's own locked Panel today.
+`usePanelCapabilities().closable`, which is false for a column with `collapsible:false` and for an entry whose
+`closable` setting is false, through the per-slot context (`panelSlotContext.ts`). It renders no DragToClose wrapper -- no grab bar at all -- when it reads false,
+exactly like History's own Panel today.
 
 ## `size?` is additive: omitted means the slot's drawn size inside a row, else the shared device size
 
@@ -881,9 +880,6 @@ are made again at the next launch of a newer one and panels match only between d
   and `maxSlots` clamp). When an entry or its `overrides` holds both `formFactor` and `slots`, `slots` wins. An
   `overrides.formFactor` that is none of the three is dropped with an `invalid-saved-setting` note (`overrides.formFactor:
   expected phone, tablet or desktop; dropped`); an entry's own such value fails the shape guard like any other malformed field.
-- **Never saved -- `locked`.** Mirrors the `closable` setting (`locked` is `!closable`) and is written only by
-  `applyTemplate`; `appendPanel`, which every restore goes through, writes `false`. It is rebuilt on restore, never
-  round-tripped.
 - **Never saved -- `collapsible`.** Not an independent stored fact: it is `appendPanel`'s own `!info.permanent`
   derivation, recomputed from the saved `permanent` field on restore rather than round-tripped.
 - **Never saved -- `anchoredEnter`.** A creation-time enter-animation hint, defaulted on restore, not a fact
@@ -1018,7 +1014,7 @@ code-declared panel, `<template>~<id>` for a multiple template, the panel's id f
 (the layer the panel was made with: a Host-bag create's asks, or a plain `permanent`; left out for a code-declared
 panel, whose declaration is the source of truth), `overrides` (`anchor`, `slots`, `parkable`: what a person did
 with a gesture), `applied` (the `placeOnAdd` that placed the entry last) and `closable: false` when the panel is
-locked. The file also carries `dismissed` (at most 256 keys of declared panels a person closed, the oldest dropped) and
+unclosable. The file also carries `dismissed` (at most 256 keys of declared panels a person closed, the oldest dropped) and
 `root` (the root entry's `key`). All of them are additive, so a 0.1.0 reader ignores them and a 0.1.0 file restores
 unchanged.
 
@@ -1028,7 +1024,7 @@ unchanged.
   empties them. Only those two and `reconcileWorkspace` write `overrides` on an entry, and `projectWorkspaceState`
   builds the saved member.
 - **Gestures are gated, restoring is not.** A stored `slots` or `anchor` restores although the template now says
-  `resizable: false` or `draggable: false`. A count above `maxSlots` is clamped to it, and `parkable: false` on a panel that
+  `resizable: false` or `movable: false`. A count above `maxSlots` is clamped to it, and `parkable: false` on a panel that
   resolves to more than one slot is dropped with an `override-dropped` note and is absent from the next save.
 - **`applied`.** An entry with no override keeps its saved place only while the resolved `placeOnAdd` equals
   `applied.placeOnAdd`; when the default changed it is placed again.
@@ -1125,7 +1121,7 @@ title, and `grabProps`'s `onPointerDown`/`sx` reach only it, so clicking the tit
 never mistaken for a drag start. It is one element with the same role, name and keys wherever it sits. It fades
 with the header it lives in, so it takes no fade of its own there. A `Panel` with `grabProps` and no `title` has no
 header row, and the icon is drawn alone above the frame's top-left corner instead. Omitting `grabProps` renders no
-handle at all, which is the correct shape for a locked view (nothing to drag).
+handle at all, which is the correct shape for a view that cannot be closed or moved (nothing to drag).
 
 ## `DragToClose`: drag down to close, optionally sideways to reorder
 
@@ -1214,7 +1210,7 @@ release's own expression, the pointer offset (edge-held) or the drag offset, plu
 panel the drop would cross by the DRAGGED panel's width plus the gap, left when dragged right and right when dragged left, as
 the `leftOffset` handed to its `PanelRowSlot` only: the row numbers, the rests a parked entry keeps and the order are untouched,
 so a refused or no-op drop leaves nothing to undo. The crossed ids and the widths `reorderStepsForOffset` reads come from one
-walk (`neighborsAt`), so the preview and the release cannot disagree. Nothing is published for a panel that is not `draggable`.
+walk (`neighborsAt`), so the preview and the release cannot disagree. Nothing is published for a panel that is not `movable`.
 Panels render in the order they first appeared, not in reading order, so a reorder moves no DOM node: a node that React moved would restart what it hosts (a web view reloads). Position on screen comes from `leftOffset` alone. Tab order would then follow the open order, so `PanelRow` handles Tab and Shift+Tab at a panel's last or first tabbable element and hands focus to the drawn neighbour's (`panelRowTabOrder.ts`); inside a panel and past the row's ends the browser's own movement runs. A Tab pressed inside an iframe (a web view) goes to the iframe's own document, so the row sees no keydown; a slot that holds an iframe (or frame, embed, object; watched by a MutationObserver) therefore renders a zero-size `tabindex=0` sentinel first and last, and the browser's step out of the iframe lands on it in this document, where the same hand-over runs (`steerSentinel`). A sentinel carries no `aria-hidden` (a focusable element must not) and no role, and it forwards focus at once, so it rests only at the end of the document, one extra stop before the browser's own chrome. Slots without a frame render none. Focus arriving from outside the row is redirected to the first (Shift+Tab: last) tabbable element in reading order only when a Tab key press caused it (recorded by a capturing document keydown listener, so a first Tab from the page or browser chrome counts too); focus from a click or a script is left where it went. One entry is not reordered: when the Tab comes from browser chrome into a row whose DOM-first (Shift+Tab: DOM-last) panel holds a frame, Chromium reports no source element, which looks the same as a step out of an iframe, so focus stays in the panel the browser chose.
 The dragged slot is drawn at `zIndex` 3 from the first publish until the spring home ends (the box publishes `null` there, when
 a press stops the spring, on a revive and under reduced motion at the release). The release publishes offset 0 (no hops) after
@@ -1447,7 +1443,7 @@ Set by the reference app (14): `multiple`, `hostCreatable`, `pinningWhenNotLive`
 `capacityReturn`, `revealOnScroll`, `headerButtons`, `title`, `listed`, `layer`, `resizable`, `closable`, `scrollOnMove`.
 The second known consumer is not in this repository, so these 14 are proven for the app only.
 
-Read by a verb or a view patch: `parkable`, `pinning`, `slots`, `maxSlots`, `draggable`, `placeable`, `crossable`,
+Read by a verb or a view patch: `parkable`, `pinning`, `slots`, `maxSlots`, `movable`, `crossable`,
 `hideStickiness`, `startVisibility`, `placeOnAdd`, `placeOnShow`, `scrollOnOpen`, `showWhenClosed`,
 `toggleWhenClosed`, `afterClose`, `enterFrom`, `clearable` (`clearAll`) and `maxInstances` (`configureTemplate`).
 
@@ -1479,6 +1475,24 @@ the key with an `invalid-saved-setting` note and keeps every other value.
 
 Coupling rules C3 and C6 went with their settings; the other rules keep their numbers.
 
+`draggable` and `placeable` merged into `movable`, and a template that still names either is refused like any removed
+key. A saved instance layer that holds both with the same boolean loads as `movable` with an `invalid-saved-setting`
+note; one that holds only one of them, or two that disagree, drops the key with that note, because either alone
+does not say what `movable` should be.
+
+### The capability flags limit a person's gestures
+
+`closable`, `movable` and `resizable` say what a person may do by gesture: the drag-down close and the close button,
+the reorder drag and a drop at a placement, the resize grabbers. They never limit the developer's own calls. Every
+engine operation knows its source (`'person'` from a gesture, `'code'` otherwise, see `PanelOpSource`) and checks the
+flag only for `'person'`, answering `not-closable`, `not-movable` or `not-resizable`; `close()`, `move()`, `place()`,
+`setSlots()` and a pin with a placement from code succeed whatever the flags say. What stays enforced for code is
+structure, not these flags: the root cannot be closed, moved or re-anchored (`not-closable`, `not-movable`),
+`maxSlots` clamps every slot count, `crossable` still bars a hop across a neighbour, and `parkable: false` still
+refuses `hide()`. `movePanel`, `reanchorPanel` and `setSlots` (the pure functions) read none of the three flags.
+`usePanelCapabilities().closable` is also false for an always-shown column (`collapsible: false`), since the row's
+close gesture is never offered for one; it is the one place a view reads whether a close is offered.
+
 ### Layers and the cascade
 
 Lowest to highest: library defaults, workspace defaults, template, host (what a view asked for in a Host-bag
@@ -1496,7 +1510,7 @@ through again.
 
 ### Derived defaults and coupling rules
 
-`draggable`, `placeable` and `listed` follow `parkable`; `clearable` follows `parkable` and `closable`. Any layer may
+`movable` and `listed` follow `parkable`; `clearable` follows `parkable` and `closable`. Any layer may
 set them, and a value a layer sets is never forced.
 
 | Rule | When | Forces |
@@ -1504,7 +1518,7 @@ set them, and a value a layer sets is never forced.
 | C1 | `parkable: false` (a fixed column) | `resizable: false`, `slots: 1`, `maxSlots: 1` (all three stand when the panel's own template, host or instance asked for any of them), `overflow: 'scroll'`, `startVisibility: 'live'`, `restoreVisibility: 'live'` |
 | C2 | `closable: false` | `clearable: false` |
 | C4 | `slots` above `maxSlots` | `slots` is `maxSlots` |
-| C5 | the root | `parkable: false`, `closable: false`, `draggable: false`, `placeable: false` |
+| C5 | the root | `parkable: false`, `closable: false`, `movable: false` |
 
 The root's rule runs first because it feeds C1 and C2. A conflict is recorded only when a template, host or instance
 layer asked for a value a rule overrides; the same collision caused by the library or the workspace defaults is
@@ -1602,12 +1616,11 @@ flip with a transition rule of its own) or SCOPE (a template-scope key).
 <!-- catalog:start -->
 | Setting | Values | Default | On configure |
 | --- | --- | --- | --- |
-| `closable` | true, false | true (root: false) | NOW. L, T: true->false removes the drag-down close and makes close() answer not-closable at this commit; clearable re-derives false (C2); a DragToClose release already decided re-checks at its animation end and snaps back. false->true restores them. A view may set false or null on its own panel at any time. K, H: History row only. Root: closable:true is settings-conflict (C5); explicit clearable:true beside closable:false is settings-conflict. |
-| `parkable` | true, false | true | STATE. L, T: true->false needs a panel of one slot (slots-above-max) and no conflicting explicit value (settings-conflict); listed, draggable, placeable, clearable re-derive false at this commit unless named; the row re-prices and the reconcile settles it (two commits). false->true lifts C1. K, H: per pinningWhenNotLive (place-only and refuse: would-reshape-row; show: shown true then flips; apply-on-next-show: stores deferredPin { parkable }). C, U: place-only, refuse, show answer is-closed; apply-on-next-show stores on the record. A person's overrides.parkable outvotes the flip (shadowed). |
-| `draggable` | true, false | derived: parkable | NOW. L, T: true->false removes the reorder grab and makes move() a same-array no-op from this commit; a drag in flight ends with no hops. K, H: stored. Root: true is settings-conflict. |
+| `closable` | true, false | true (root: false) | NOW. L, T: true->false removes the drag-down close and makes a person's close answer not-closable at this commit (close() from code still works); clearable re-derives false (C2); a DragToClose release already decided re-checks at its animation end and snaps back. false->true restores them. A view may set false or null on its own panel at any time. K, H: History row only. Root: closable:true is settings-conflict (C5); explicit clearable:true beside closable:false is settings-conflict. |
+| `parkable` | true, false | true | STATE. L, T: true->false needs a panel of one slot (slots-above-max) and no conflicting explicit value (settings-conflict); listed, movable, clearable re-derive false at this commit unless named; the row re-prices and the reconcile settles it (two commits). false->true lifts C1. K, H: per pinningWhenNotLive (place-only and refuse: would-reshape-row; show: shown true then flips; apply-on-next-show: stores deferredPin { parkable }). C, U: place-only, refuse, show answer is-closed; apply-on-next-show stores on the record. A person's overrides.parkable outvotes the flip (shadowed). |
+| `movable` | true, false | derived: parkable | NOW. L, T: true->false removes the reorder grab and makes a person's move or placement answer not-movable from this commit; a drag in flight ends with no hops; move(), place() and a placement-bearing pin() from code are not limited. K, H: stored. Root: true is settings-conflict. |
 | `crossable` | true, false | true | NOW. L, T: the next drag of any other panel sees it at once; a drag already released is judged by movePanel (changed:false). K, H: a non-crossable parked panel is a barrier for the next drag too. |
-| `placeable` | true, false | derived: parkable | NOW. L, T, K, H: false makes reanchor, place and a placement-bearing pin() refuse (not-placeable) from this commit. Row: nothing moves. Root: true is settings-conflict. |
-| `resizable` | true, false | true (C1) | NOW. L, T, K, H: true->false freezes the size (setSlots refused); the size and the person's saved size are never changed or dropped by this call. C1: forced false on a fixed column unless the panel's own layers asked for a size. |
+| `resizable` | true, false | true (C1) | NOW. L, T, K, H: true->false removes the resize grabbers and makes a person's resize answer not-resizable (setSlots() from code still resizes, within maxSlots); the size and the person's saved size are never changed or dropped by this call. C1: forced false on a fixed column unless the panel's own layers asked for a size. |
 | `slots` | integer >= 1 | 1 | NEXT. The panel is that many phone widths wide with the row gap between them, drawn at no more than `maxSlots` and no more than fit the window; the next layout pass draws it. A person's drag-resize writes it, and it is saved with the workspace. Above `maxSlots` it is forced down to `maxSlots` (C4). |
 | `maxSlots` | integer >= 1 | every visible slot (C1) | STATE. L, T, K, H: lowering below the panel's current slots needs the panel to be narrower first (slots-above-max); raising lets the panel be resized wider. C1: a fixed column is one slot. A host-set `resizable` with `maxSlots` 1 is kept and noted (resizable-capped). |
 | `clearable` | true, false | derived: parkable and closable (C2) | NEXT. Read by the next clearAll. C2: clearable:true with closable:false is settings-conflict; null re-derives it. |
@@ -1662,7 +1675,7 @@ flip with a transition rule of its own) or SCOPE (a template-scope key).
 `panelPlacement.ts` holds the pure half. `resolvePlacement(row, rootId, self, value, o)` turns one value into an
 anchor request against the row without the panel itself, and `placePanel(row, id, value, o)` applies it to a panel
 already in the row. The row is then ordered by `computeRowOrder`, so a placement is only ever an anchor. It is the
-developer's own ask: nothing here reads `placeable`, and no placement is recorded as a person's override.
+developer's own ask: nothing here reads `movable`, and no placement is recorded as a person's override.
 
 Every "immediately next to" request carries priority -1. Only -1 lands nearest, because an equal priority on the
 right of the anchor goes to the entry earlier in the row and on the left to the later one. `row-end` has no priority,
@@ -1824,7 +1837,7 @@ whether the `Panel` renders belongs outside the view. React.lazy resolves from i
 Under StrictMode the claim is made and given back by the same effect pair, so the verdict is the same. A panel that parks and
 returns keeps the verdict; it is not probed again.
 
-**Who gets the grab bar.** The frame follows `PanelRow`'s own rule: a panel that cannot be closed (`closable: false`, or not parkable) gets the header and the phone frame but no grab bar and no `DragToClose`, and a panel that cannot be dragged (`draggable: false`) keeps the grab bar and the drag-down close but not the reorder. The grab bar carries both gestures, so a panel with `closable: false` and `draggable: true` has no reorder handle in the default frame, as the root has none; a view that wants one draws its own `Panel` with `grabProps`.
+**Who gets the grab bar.** The frame follows `PanelRow`'s own rule: a panel that cannot be closed (`closable: false`, or not parkable) gets the header and the phone frame but no grab bar and no `DragToClose`, and a panel that cannot be moved (`movable: false`) keeps the grab bar and the drag-down close but not the reorder. The grab bar carries both gestures, so a panel with `closable: false` and `movable: true` has no reorder handle in the default frame, as the root has none; a view that wants one draws its own `Panel` with `grabProps`.
 
 **Rejected.** (a) An outer frame that every view sits in, with the inner `Panel` hiding itself when it finds one: a `Panel` the view
 configures (`grabProps`, `overlay`, `headerProps`, `sx`, its rest props) would have to hand every one of those up to the outer
@@ -1858,7 +1871,7 @@ A verb names a panel, never a row index, and resolves it on every call: a handle
 
 ### Pinning and reset
 
-- **Applying a half.** `pin` and `unpin` apply the panel's pinning definition in one commit, all or nothing. `pin` places (gated by `placeable` as the panel is now), then fixes; `unpin` frees first, then gates `placeable` on the freed panel, then places, so a fixed pin can always be unpinned. A fixing half needs a panel of one slot (`slots-above-max`) and no explicit setting the fix would override (`settings-conflict`, with the offending catalog name in `setting`). A fixed pin never needs room: there is no `no-room` refusal.
+- **Applying a half.** `pin` and `unpin` apply the panel's pinning definition in one commit, all or nothing. `pin` places, then fixes; `unpin` frees first, then places, so a fixed pin can always be unpinned. `movable` gates none of it. A fixing half needs a panel of one slot (`slots-above-max`) and no explicit setting the fix would override (`settings-conflict`, with the offending catalog name in `setting`). A fixed pin never needs room: there is no `no-room` refusal.
 - **Not live.** `pinningWhenNotLive` answers for a parked or hidden panel: `place-only` applies a placement-only half in place and answers `would-reshape-row` for a half naming `parkable`; `refuse` always answers `would-reshape-row`; `show` shows the panel and applies the half in one commit; `apply-on-next-show` stores the half on the entry. A closed declared panel stores it on its record instead.
 - **Deferred pins.** A stored half is applied inside the update of every path that makes the panel live: `show`, a History click, a Host-bag activate, the row gesture, an automatic return, an undo and `open`. It is re-checked there and dropped with the note `deferred-pin-dropped` when it no longer applies. A fixing half sets `live` so a fixed column is never parked. It is session only and never saved.
 - **The person's pin.** A person's pin records `overrides.anchor` (every id, when the half names a placement) and `overrides.parkable` (when it names `parkable`) through `recordOverride`; a code pin flips `parkable` for the session and records nothing.

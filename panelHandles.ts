@@ -27,18 +27,19 @@ export interface PanelHandle<P extends JsonValue = JsonValue> extends PanelReadH
   hide(source?: 'code' | 'person'): PanelResult;
   /** Hides a live panel, shows a parked one and, for a closed one, reopens it when its `toggleWhenClosed` says so. */
   toggleVisibility(source?: 'code' | 'person'): PanelResult;
-  /** Closes the panel completely; the undo window of the row applies. */
+  /** Closes the panel completely; the undo window of the row applies. A call from code is not limited by `closable`, but the root is never closed; with source `'person'` a panel whose `closable` is false answers `not-closable`. */
   close(source?: 'code' | 'person'): PanelResult;
   /** Brings a closed declared panel back where its `placeOnAdd` says; a panel that is already open stays as it is. */
   open(source?: 'code' | 'person'): PanelResult;
   /**
    * Moves a live panel `by` slots, negative to the left, in one gated call. It stops at the row's end or at a panel it
    * cannot cross; the result is accepted with `changed` true when at least one slot was crossed, and false at an end or for 0.
+   * A call from code is not limited by `movable`, but the root never moves; with source `'person'` a panel whose `movable` is false answers `not-movable`.
    */
   move(by: number, source?: 'code' | 'person'): PanelResult;
-  /** Puts the panel where `p` says; a parked panel is placed and stays parked. */
+  /** Puts the panel where `p` says; a parked panel is placed and stays parked. Limited by `movable` as `move` is. */
   place(p: AddPlacement | 'in-place', source?: 'code' | 'person'): PanelResult;
-  /** Makes the panel `slots` phone widths wide, clamped to 1 and its `maxSlots`; the row draws at most the slots that fit. */
+  /** Makes the panel `slots` phone widths wide, clamped to 1 and its `maxSlots`; the row draws at most the slots that fit. A call from code is not limited by `resizable`; with source `'person'` a panel whose `resizable` is false answers `not-resizable`. */
   setSlots(slots: number, source?: 'code' | 'person'): PanelResult;
   /** Scrolls the row to a live panel, to `align` or, left out, where the panel's `scrollOnOpen` says. */
   scrollTo(align?: ScrollAlign, source?: 'code' | 'person'): PanelResult;

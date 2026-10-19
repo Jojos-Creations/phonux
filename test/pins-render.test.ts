@@ -26,13 +26,12 @@ const entry = (id: string, over: Partial<PanelWindow> = {}): PanelWindow => ({
   url: `https://${id}.example`,
   title: id,
   live: true,
-  locked: false,
   view: 'pin-render-counter',
   collapsible: true,
   listed: true,
   ...over,
 });
-const root = (): PanelWindow => entry('root', { url: '', title: 'History', locked: true, collapsible: false, listed: false, view: 'pin-render-root' });
+const root = (): PanelWindow => entry('root', { url: '', title: 'History', collapsible: false, listed: false, view: 'pin-render-root' });
 registerTestView('pin-render-root', () => React.createElement('b'));
 
 const NONE: ReadonlySet<string> = new Set();

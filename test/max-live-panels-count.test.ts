@@ -105,8 +105,8 @@ test('null is a value of its own: a workspace takes it as no cap, and the instan
 // A row that does not scroll
 // ---------------------------------------------------------------------------
 
-const entry = (id: string, over: Partial<PanelWindow> = {}): PanelWindow => ({ id, url: `https://${id}.example`, title: id.toUpperCase(), live: true, locked: false, view: 'web', collapsible: true, listed: true, ...over });
-const historyEntry = (): PanelWindow => entry('root', { url: '', title: 'History', locked: true, collapsible: false, listed: false });
+const entry = (id: string, over: Partial<PanelWindow> = {}): PanelWindow => ({ id, url: `https://${id}.example`, title: id.toUpperCase(), live: true, view: 'web', collapsible: true, listed: true, ...over });
+const historyEntry = (): PanelWindow => entry('root', { url: '', title: 'History', collapsible: false, listed: false });
 
 /** Hand-built entries, which carry no settings and so give a row with no scroll entry. `rows` collects the row of every committed render. */
 function handBuilt(entries: PanelWindow[], width: number, tuning?: WorkspaceTuning, rows?: string[], strict = false): { now: () => ProvidedPanels; row: () => string } {

@@ -33,7 +33,6 @@ export const NEWEST_SHAPE: { readonly [K in keyof NewestViewProps]-?: ShapeOf<Ne
     url: { kind: 'string', optional: true },
     title: { kind: 'string', optional: true },
     live: { kind: 'boolean' },
-    locked: { kind: 'boolean' },
     params: { kind: 'any', optional: true },
     slots: { kind: 'number', optional: true },
     maxSlots: { kind: 'number', optional: true },

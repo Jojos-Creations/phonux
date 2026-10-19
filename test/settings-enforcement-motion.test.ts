@@ -107,7 +107,7 @@ test("enterFrom auto keeps today's precedence: a mark first, then the anchor for
 
 test('enterFrom anchor equals the legacy anchoredEnter true: the same slot start in a PanelRow mount, with and without a mark', () => {
   const legacy = (id: string): PanelWindow => ({
-    id, url: `https://${id}.example`, title: id, live: true, locked: false, view: 'motion-view', collapsible: true, listed: true,
+    id, url: `https://${id}.example`, title: id, live: true, view: 'motion-view', collapsible: true, listed: true,
     anchor: { panel: ROOT, position: 'right', priority: 5 }, anchoredEnter: true,
   });
   const mountLegacy = (p: Props): number => {
@@ -167,8 +167,8 @@ test('layer: a raised slot has z-index 2 and a base slot 1, and a hand-built ent
   };
   assert.equal(zOf(made('b', { layer: 'raised' })), '2');
   assert.equal(zOf(made('b', { layer: 'base' })), '1');
-  assert.equal(zOf({ id: 'b', url: 'x', title: 'b', live: true, locked: false, view: 'motion-view', collapsible: true, listed: true, layer: 'raised' }), '2');
-  assert.equal(zOf({ id: 'b', url: 'x', title: 'b', live: true, locked: false, view: 'motion-view', collapsible: true, listed: true }), '1');
+  assert.equal(zOf({ id: 'b', url: 'x', title: 'b', live: true, view: 'motion-view', collapsible: true, listed: true, layer: 'raised' }), '2');
+  assert.equal(zOf({ id: 'b', url: 'x', title: 'b', live: true, view: 'motion-view', collapsible: true, listed: true }), '1');
 });
 
 test('a slot animates: three frames into its exit it is still sliding, and a new slot is still on its way after two frames', async () => {

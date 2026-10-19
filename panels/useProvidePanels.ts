@@ -772,9 +772,9 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
 
   /** `close` as a person's gesture and the manager's `close` verb both run it: the picture, then the close. True when the close was accepted. */
   const closeNow = (id: string): boolean => {
-    // A close the gate in usePanelClosing.ts will refuse (an unknown or locked id) takes no picture.
+    // A close the gate in usePanelClosing.ts will refuse (an unknown id or the root) takes no picture.
     const target = panels.find((p) => p.id === id);
-    if (target && !target.locked && asksForPicture('close')) capture.capture(panelKey(target));
+    if (target && id !== rootId && asksForPicture('close')) capture.capture(panelKey(target));
     return closing.close(id);
   };
 
@@ -810,8 +810,7 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
     const target = held(engineId);
     if (!isEntry(target)) return target;
     if (gate.busy([engineId], 'other')) return busy(target);
-    const settings = effective(target);
-    if (!settings.resizable) return refused('not-resizable', `panel '${panelKey(target)}' cannot be resized`);
+    if (source === 'person' && !effective(target).resizable) return refused('not-resizable', `panel '${panelKey(target)}' cannot be resized`);
     if (source !== 'person') warnSlotsClamped(target, next);
     const token = gate.take([engineId], 'other')!;
     const changed = resizePanel(engineId, next, source === 'person');
@@ -853,11 +852,11 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
       gate.release(token);
       return accepted(changed);
     },
-    close: (engineId) => {
+    close: (engineId, source) => {
       const target = held(engineId);
       if (!isEntry(target)) return target;
       if (gate.busy([engineId], 'close')) return busy(target);
-      if (target.locked || !effective(target).closable) return refused('not-closable', `panel '${panelKey(target)}' cannot be closed`);
+      if (engineId === rootId || (source === 'person' && !effective(target).closable)) return refused('not-closable', `panel '${panelKey(target)}' cannot be closed`);
       const token = gate.take([engineId], 'close')!;
       const changed = closeNow(engineId);
       gate.release(token);
@@ -872,7 +871,7 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
       const target = held(engineId);
       if (!isEntry(target)) return target;
       if (gate.busy([engineId], 'other')) return busy(target);
-      if (!effective(target).draggable) return refused('not-draggable', `panel '${panelKey(target)}' cannot be moved`);
+      if (engineId === rootId || (source === 'person' && !effective(target).movable)) return refused('not-movable', `panel '${panelKey(target)}' cannot be moved`);
       const token = gate.take([engineId], 'other')!;
       const changed = reorderPanel(engineId, by, source === 'person');
       if (changed) followPanel(engineId);
@@ -883,7 +882,7 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
       const target = held(engineId);
       if (!isEntry(target)) return target;
       if (gate.busy([engineId], 'other')) return busy(target);
-      if (!effective(target).placeable) return refused('not-placeable', `panel '${panelKey(target)}' cannot be placed`);
+      if (engineId === rootId || (source === 'person' && !effective(target).movable)) return refused('not-movable', `panel '${panelKey(target)}' cannot be placed`);
       const token = gate.take([engineId], 'other')!;
       const changed = placeAt(engineId, value, source === 'person');
       if (changed) followPanel(engineId);
@@ -1086,7 +1085,7 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
     close: named(raw((id: string) => [id], 'close', (id) => void closeNow(id))),
     recentlyClosed: closing.recentlyClosed?.map(summarisePanel) ?? null,
     undoClose: raw(() => closing.closedIds(), 'other', closing.undoClose),
-    // Drops every clearable panel: never History, a fixed column or a locked one. Its picture goes now, not at an
+    // Drops every clearable panel: never History, a fixed column or an unclearable one. Its picture goes now, not at an
     // undo window: a dropped panel can never be shown again. The ids come from the updater's own list, because
     // this render's `panels` misses a panel created earlier in the same batch.
     clearAll: () => {

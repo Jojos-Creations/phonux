@@ -72,7 +72,6 @@ const entry = (id: string, over: Partial<PanelWindow> = {}): PanelWindow => ({
   url: `https://${id}.example`,
   title: id.toUpperCase(),
   live: true,
-  locked: false,
   view: 'tune-view',
   collapsible: true,
   listed: true,

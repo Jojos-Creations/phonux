@@ -28,14 +28,13 @@ const entry = (over: Partial<PanelWindow>): PanelWindow => ({
   url: 'https://a.example',
   title: 'a',
   live: true,
-  locked: false,
   view: 'cvs-view',
   collapsible: true,
   listed: true,
   settings: { ...base },
   ...over,
 });
-const root = (): PanelWindow => ({ id: 'root', url: '', title: 'History', live: true, locked: true, view: 'cvs-root', collapsible: false, listed: false });
+const root = (): PanelWindow => ({ id: 'root', url: '', title: 'History', live: true, view: 'cvs-root', collapsible: false, listed: false });
 
 afterEach(() => {
   cleanup();

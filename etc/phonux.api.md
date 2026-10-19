@@ -385,7 +385,7 @@ export const LIBRARY_TUNING_DEFAULTS: ResolvedWorkspaceTuning;
 
 // @public
 export type LibraryPanelDefaults = {
-    readonly [K in Exclude<keyof SettingValues, 'draggable' | 'placeable' | 'listed' | 'clearable' | 'title'>]: SettingValues[K];
+    readonly [K in Exclude<keyof SettingValues, 'movable' | 'listed' | 'clearable' | 'title'>]: SettingValues[K];
 } & {
     readonly headerButtons: {
         readonly [id: string]: HeaderButton;
@@ -650,7 +650,7 @@ export type PanelReadHandle = {
 };
 
 // @public
-export type PanelRefusal = 'disposed' | 'not-attached' | 'not-ready' | 'is-pending' | 'is-closed' | 'not-live' | 'busy' | 'not-closable' | 'not-parkable' | 'not-draggable' | 'not-placeable' | 'not-resizable' | 'slots-above-max' | 'would-empty-row' | 'instance-limit' | 'unknown-panel' | 'wrong-scope' | 'would-reshape-row' | 'settings-conflict' | 'not-view-settable';
+export type PanelRefusal = 'disposed' | 'not-attached' | 'not-ready' | 'is-pending' | 'is-closed' | 'not-live' | 'busy' | 'not-closable' | 'not-parkable' | 'not-movable' | 'not-resizable' | 'slots-above-max' | 'would-empty-row' | 'instance-limit' | 'unknown-panel' | 'wrong-scope' | 'would-reshape-row' | 'settings-conflict' | 'not-view-settable';
 
 // @public
 export type PanelResult = {
@@ -804,7 +804,6 @@ export interface PanelSummary<P = JsonValue> {
     readonly fitSlots?: number;
     readonly id: string;
     readonly live: boolean;
-    readonly locked: boolean;
     readonly maxSlots?: number;
     readonly params?: P;
     readonly size?: PanelSize;
@@ -871,7 +870,6 @@ export interface PanelWindow {
     layer?: 'base' | 'raised';
     listed: boolean;
     live: boolean;
-    locked: boolean;
     marker?: true;
     overrides?: {
         anchor?: PanelAnchor;
@@ -1165,9 +1163,8 @@ export type SettingsPatch = {
 export type SettingValues = {
     closable: boolean;
     parkable: boolean;
-    draggable: boolean;
+    movable: boolean;
     crossable: boolean;
-    placeable: boolean;
     resizable: boolean;
     clearable: boolean;
     hostCreatable: boolean;
@@ -1231,10 +1228,7 @@ export function useHost(): Host;
 export function usePanelActive(): boolean;
 
 // @public
-export const usePanelCapabilities: () => Pick<ResolvedPanelSettings, "closable" | "draggable" | "placeable" | "resizable" | "maxSlots">;
-
-// @public
-export const usePanelCloseEligible: () => boolean;
+export const usePanelCapabilities: () => Pick<ResolvedPanelSettings, "closable" | "movable" | "resizable" | "maxSlots">;
 
 // @public
 export function usePanelDots(i: {
@@ -1265,9 +1259,6 @@ export const usePanelNeighborWidths: () => NeighborWidths;
 
 // @public
 export const usePanelPinned: () => boolean;
-
-// @public
-export const usePanelReorderEligible: () => boolean;
 
 // @public
 export const usePanelReorderSteps: () => ((offsetX: number) => number);

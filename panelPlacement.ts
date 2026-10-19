@@ -1,7 +1,7 @@
 /**
  * Where a panel lands: the pure half of placeOnAdd, placeOnShow, placeOnReturn, placeFallback and undoPlacement.
  * `resolvePlacement` turns one value into an anchor request against the row as it stands; `placePanel` applies it to
- * a panel already in the row. Placement is the developer's own ask, so nothing here reads `placeable`, and the
+ * a panel already in the row. Placement is the developer's own ask, so nothing here reads `movable`, and the
  * entry's settings are never written: the person's arrangement is whatever the row's anchors say.
  */
 import type { AddPlacement, SettingNote } from './panelSettings.js';

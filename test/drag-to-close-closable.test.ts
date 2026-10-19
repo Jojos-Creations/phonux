@@ -23,8 +23,7 @@ const DEFAULT_SLOT = resolvePanelSettings().value;
 const slotValue = (closable: boolean, tuning: Partial<SlotTuning>): PanelSlotValue => ({
   collapsible: true,
   closable,
-  draggable: true,
-  placeable: true,
+  movable: true,
   resizable: true,
   maxSlots: DEFAULT_SLOT.maxSlots,
   neighborWidths: { left: [], right: [] },
