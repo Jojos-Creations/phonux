@@ -254,6 +254,9 @@ export function Workspace(props: WorkspaceProps): React.ReactElement {
         slot.style.pointerEvents = away ? 'none' : '';
         // Inert too: Tab or find-in-page would otherwise scroll the row off its stop to reveal a panel the window does not reach.
         slot.toggleAttribute('inert', away);
+        // A peek narrower than the gap shows only the frame's edge, a hairline that reads as a stray bar rather than a panel.
+        const shown = Math.min(rect.right, view.right) - Math.max(rect.left, view.left);
+        slot.style.visibility = !away && rowNumbers.stops.length > 0 && shown < gap ? 'hidden' : '';
       }
     };
     apply();

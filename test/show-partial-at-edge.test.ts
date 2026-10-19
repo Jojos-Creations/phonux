@@ -76,3 +76,18 @@ test('Off: focusing the cut-off neighbour makes the browser scroll, and the row 
   await advanceFrames(GLIDE_DONE_MS);
   assert.ok(t.m.latest().rowNumbers.stops.includes(t.m.container.scrollLeft), `rests on a stop, not ${t.m.container.scrollLeft}`);
 });
+
+test('a panel the window cuts to less than a gap is hidden, and one showing a full gap is drawn', () => {
+  const t = mounted();
+  const shown = (): string[] => t.slots().map((el) => el.style.visibility);
+  assert.deepEqual(shown(), ['', '', '', '', '', ''], 'positive control: at the first stop the cut-off neighbour shows 86 px and is drawn');
+  // The first panel's right edge sits at 492 - scroll, so these leave 15 px and then 16 px of it in the window.
+  t.m.container.scrollLeft = 477;
+  t.layout();
+  assert.equal(shown()[0], 'hidden', 'a 15 px peek is a sliver');
+  assert.equal(t.inert()[0], false, 'still reachable: hidden is drawing only');
+  t.m.container.scrollLeft = 476;
+  t.layout();
+  assert.equal(shown()[0], '', 'a 16 px peek is drawn');
+  assert.equal(shown()[1], '');
+});
