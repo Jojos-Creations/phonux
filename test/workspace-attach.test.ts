@@ -35,6 +35,7 @@ const NO_OPS: EngineOps = {
   resetClosed: () => false,
   configure: () => ({ ok: false, code: 'is-closed', message: 'no engine' }),
   reprice: () => ({ ok: false, code: 'is-closed', message: 'no engine' }),
+  release: () => ({ ok: false, code: 'is-closed', message: 'no engine' }),
 };
 
 afterEach(() => cleanup());

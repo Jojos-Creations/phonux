@@ -27,7 +27,7 @@ import type { PanelSettings, PanelSettingsResolution, ResolvedPanelSettings, Res
 import type { PanelTemplate } from '../panelTemplate.js';
 import { reportNotes } from '../panelPlacement.js';
 import { resolveWorkspaceTuning } from '../panelTuning.js';
-import { appendPanel, clearOverrides, recordOverride, reanchorPanel, slotsOf, type AnchorRequest, type PanelWindow } from '../panelWindow.js';
+import { appendPanel, clearOverrides, closePanel, recordOverride, reanchorPanel, slotsOf, type AnchorRequest, type PanelWindow } from '../panelWindow.js';
 import { bindingOf, type CreateRequest, type EngineOps, type WorkspaceHandle } from '../workspaceCore.js';
 import { conflictNotes, finishCreated } from '../workspacePlan.js';
 import { usePanelClosing, type Reapplied } from './usePanelClosing.js';
@@ -171,6 +171,8 @@ function appendFromTemplate(
     declared: boolean;
     /** The title a panel gets when no settings layer names one. */
     fallbackTitle: string;
+    /** True to put the panel at the end of the row whatever its `placeOnAdd` says. */
+    rowEnd?: boolean;
   },
 ): PanelWindow[] {
   const { value } = resolvePanelSettings({ ...(a.defaults !== undefined ? { workspace: a.defaults } : {}), template: a.template.settings, ...(a.settings !== undefined ? { instance: a.settings } : {}) }, { lenient: true });
@@ -191,7 +193,7 @@ function appendFromTemplate(
     a.id,
     a.rootId,
   );
-  const made = finishCreated({ row: next, id: a.id, settings: value, instance: a.settings ?? {}, name: a.name, callerPlaced: false, rootId: a.rootId, ...(a.order !== undefined ? { order: a.order } : {}) });
+  const made = finishCreated({ row: next, id: a.id, settings: value, instance: a.settings ?? {}, name: a.name, callerPlaced: a.rowEnd === true, rootId: a.rootId, ...(a.order !== undefined ? { order: a.order } : {}) });
   if (!a.declared) return made;
   return made.map((p) => {
     if (p.id !== a.id) return p;
@@ -555,10 +557,15 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
     if (template === undefined) return;
     // Built here, outside the updater below: React may run an updater twice and the host's builder is not required to be pure.
     const hostData = i.defaultHostData?.();
-    const build = (prev: PanelWindow[]): PanelWindow[] =>
-      prev.some((p) => panelKey(p) === req.id)
-        ? prev
-        : appendFromTemplate(prev, { template, id: req.engineId, name: req.id, settings: req.settings, params: req.params, url: req.url, hostData, defaults: workspaceDefaults, rootId, order: core.order, declared: req.declared === true, fallbackTitle: labels.panelTitle(req.engineId) });
+    const carried = req.carried;
+    const build = (prev: PanelWindow[]): PanelWindow[] => {
+      if (prev.some((p) => panelKey(p) === req.id)) return prev;
+      const made = appendFromTemplate(prev, { template, id: req.engineId, name: req.id, settings: req.settings, params: req.params, url: req.url, hostData, defaults: workspaceDefaults, rootId, order: core.order, declared: req.declared === true, fallbackTitle: labels.panelTitle(req.engineId), rowEnd: carried !== undefined });
+      if (carried === undefined) return made;
+      // The panel keeps its identity, name and size; its place in the old row means nothing here.
+      const kept = made.map((p) => (p.id === req.engineId ? { ...p, ...(carried.uid !== undefined ? { uid: carried.uid } : {}), ...(carried.title !== undefined ? { title: carried.title } : {}), ...(carried.slots !== undefined ? { slots: carried.slots } : {}) } : p));
+      return carried.sized ? recordOverride(kept, 'slots', [req.engineId], rootId) : kept;
+    };
     // A pin change stored while the panel was closed lands as the panel is added: placement, then the `parkable` flip.
     const withPin = (row: PanelWindow[]): PanelWindow[] => (req.deferredPin === undefined || !row.some((p) => p.id === req.engineId) ? row : landPanel(row, req.engineId, 'in-place', req.deferredPin).row);
     if (req.deferredPin !== undefined && build(panels).some((p) => p.id === req.engineId)) reportNotes(i.onNote, landPanel(build(panels), req.engineId, 'in-place', req.deferredPin).notes);
@@ -857,6 +864,23 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
       const changed = holdPanel(engineId, settings.hideStickiness);
       gate.release(token);
       return accepted(changed);
+    },
+    release: (engineId, run) => {
+      const target = held(engineId);
+      if (!isEntry(target)) return target;
+      if (gate.busy([engineId], 'close')) return busy(target);
+      if (!run) return accepted(false);
+      const token = gate.take([engineId], 'close')!;
+      const found = closePanel(panels, engineId, rootId);
+      setPanels((prev) => closePanel(prev, engineId, rootId)?.remaining ?? prev);
+      if (found !== null) {
+        forgetCollapsed(engineId);
+        releaseHold(engineId);
+        revealMostRecentlyCollapsed(found.remaining);
+      }
+      if (FIXED.snapshot !== 'never') capture.evict(panelKey(target));
+      gate.release(token);
+      return accepted(true);
     },
     close: (engineId, source) => {
       const target = held(engineId);

@@ -399,6 +399,18 @@ export interface MinWorkspaceWidthInput {
 }
 
 // @public
+export type MovePanelResult = {
+    readonly ok: true;
+    readonly workspace: WorkspaceHandle;
+    readonly index: number;
+    readonly panelId: PanelId;
+} | {
+    readonly ok: false;
+    readonly code: PanelRefusal | 'unknown-workspace' | 'same-workspace';
+    readonly message: string;
+};
+
+// @public
 export interface NeighborWidths {
     readonly left: readonly number[];
     readonly right: readonly number[];
@@ -1356,6 +1368,7 @@ export interface WorkspaceColumnHandle {
     configureTuning(patch: Parameters<PanelManager['configureTuning']>[0]): ConfigureResult;
     readonly current: number;
     dispose(): void;
+    movePanel(from: WorkspaceHandle | number, panelId: PanelId, to: WorkspaceHandle | number): MovePanelResult;
     scrollTo(target: WorkspaceHandle | number): void;
     readonly status: ColumnStatus;
     step(direction: 'up' | 'down'): boolean;
