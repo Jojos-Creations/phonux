@@ -42,7 +42,7 @@ export type { ViewPatch } from './settingsPatch.js';
 export type { BezierEase, FadeEase } from './panelSettings.js';
 export type { ChromeTuning, CloseExitEase, GlideEase, HeaderButtonBase, HeaderButtonContext, PinHalf, PinWhenNotLive } from './panelSettings.js';
 export type { SettingsPatch } from './settingsPatch.js';
-export type { DragToCloseTuning, EdgeScrollTuning, HeaderButtonIconForm, HeaderButtonTextForm, Overflow, PanelSettings, Pinning, PinningWhenNotLive, ScrollOnDrag, ScrollOnMove, ScrollOnOpen, SlideTuning, WorkspaceTuning } from './panelSettings.js';
+export type { DragToCloseTuning, EdgeScrollTuning, EnterFrom, ExitTo, HeaderButtonIconForm, HeaderButtonTextForm, Overflow, PanelSettings, Pinning, PinningWhenNotLive, ScrollOnDrag, ScrollOnMove, ScrollOnOpen, SlideTuning, WorkspaceTuning } from './panelSettings.js';
 export type { InstancePatch } from './settingsPatch.js';
 
 /** One recorded call to a fake method, as listed in `FakeHost.calls`. @public */

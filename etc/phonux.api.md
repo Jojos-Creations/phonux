@@ -265,6 +265,12 @@ export type EdgeScrollTuning = {
 };
 
 // @public
+export type EnterFrom = 'auto' | 'left' | 'right' | 'anchor' | 'top' | 'bottom' | 'fade' | 'expand';
+
+// @public
+export type ExitTo = 'auto' | 'left' | 'right' | 'top' | 'bottom' | 'fade' | 'shrink';
+
+// @public
 export type FadeEase = 'easeIn' | 'easeOut' | 'easeInOut' | 'linear' | BezierEase;
 
 // @public
@@ -1017,6 +1023,8 @@ export type ResolvedWorkspaceTuning = {
     phoneFit: 'off' | 'fit';
     phoneFitMin: number;
     phoneFitMax: number;
+    defaultEnterFrom: EnterFrom;
+    defaultExitTo: ExitTo;
 };
 
 // @public
@@ -1161,7 +1169,8 @@ export type SettingValues = {
     placeOnAdd: AddPlacement;
     placeOnShow: AddPlacement | 'in-place';
     layer: 'base' | 'raised';
-    enterFrom: 'auto' | 'left' | 'right' | 'anchor';
+    enterFrom: EnterFrom;
+    exitTo: ExitTo;
     slots: number;
     maxSlots: number;
     title: string;
@@ -1543,6 +1552,8 @@ export type WorkspaceTuning = {
     phoneFit?: 'off' | 'fit';
     phoneFitMin?: number;
     phoneFitMax?: number;
+    defaultEnterFrom?: EnterFrom;
+    defaultExitTo?: ExitTo;
 };
 
 // @public

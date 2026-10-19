@@ -28,6 +28,7 @@ const OWNING_FILES = [
   'max-live-panels-count',
   'slot-sizing',
   'phone-fit',
+  'panel-enter-exit-styles',
   'default-frame',
 ].map((base) => `${base}.test.ts`);
 

@@ -35,6 +35,7 @@ const OWNING_BASENAMES = [
   'slot-sizing',
   'phone-fit',
   'default-frame',
+  'panel-enter-exit-styles',
 ] as const;
 const OWNING_FILES: readonly string[] = OWNING_BASENAMES.map((b) => `${b}.test.ts`);
 
