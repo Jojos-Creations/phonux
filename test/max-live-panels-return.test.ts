@@ -60,7 +60,7 @@ test('scrolling: wheel steps move the strip end to end and reveal nothing, where
   await steps([() => wheel(control, { deltaX: 100 }), () => wheel(control, { deltaX: 100 }), back]);
   assert.equal(control.row(), BASE, 'control: one phone width back from 812 lands on 406, where w4 is still in view between the window edge and the parked panels');
   await steps([back]);
-  assert.equal(control.row(), 'root w1* w2* w3 w4 w5 w6 w7 w8*', 'control: with root scrolled out of view and w4 first in view the next step back reveals w3 and parks the farthest panel, w8');
+  assert.equal(control.row(), 'root w1* w2* w3 w4* w5 w6 w7 w8', 'control: with root scrolled out of view and w4 first in view the next step back reveals w3 and parks the oldest panel, the leftmost of the tied, w4');
 });
 
 test('scrolling: Shift+wheel steps reveal nothing, where revealOnScroll edges reveals the panel at the window edge', async () => {
@@ -73,7 +73,7 @@ test('scrolling: Shift+wheel steps reveal nothing, where revealOnScroll edges re
 
   const control = await rigOf({ reveal: 'edges' });
   await steps([() => wheel(control, { deltaY: 100, shiftKey: true }), () => wheel(control, { deltaY: 100, shiftKey: true }), () => wheel(control, { deltaY: -100, shiftKey: true }), () => wheel(control, { deltaY: -100, shiftKey: true })]);
-  assert.equal(control.row(), 'root w1* w2* w3 w4 w5 w6 w7 w8*');
+  assert.equal(control.row(), 'root w1* w2* w3 w4* w5 w6 w7 w8');
 });
 
 test('scrolling: arrow keys step the strip and reveal nothing, where revealOnScroll edges reveals the panel at the window edge', async () => {
@@ -84,7 +84,7 @@ test('scrolling: arrow keys step the strip and reveal nothing, where revealOnScr
 
   const control = await rigOf({ reveal: 'edges' });
   await steps([() => key('ArrowRight'), () => key('ArrowRight'), () => key('ArrowLeft'), () => key('ArrowLeft')]);
-  assert.equal(control.row(), 'root w1* w2* w3 w4 w5 w6 w7 w8*');
+  assert.equal(control.row(), 'root w1* w2* w3 w4* w5 w6 w7 w8');
 });
 
 test('scrolling: in a row whose strip fits the window a wheel step swaps nothing, where revealOnScroll edges swaps a hidden panel in', async () => {
@@ -193,7 +193,7 @@ test('close: undoing a close restores the panel to its place and parks exactly o
   r.turn(() => r.m.latest().undoClose());
   await r.settle();
   assert.equal(r.unpinnedLive().length, 5);
-  assert.equal(r.row(), 'root w1* w2* w3* w4 w5 w6 w7 w8 w9*', 'w6 is back between w5 and w7, and the panel farthest from it parked');
+  assert.equal(r.row(), 'root w1* w2* w3* w4* w5 w6 w7 w8 w9', 'w6 is back between w5 and w7, and the oldest live panel parked: w4, the leftmost of those tied');
 });
 
 // ---------------------------------------------------------------------------
@@ -234,22 +234,23 @@ test('scrollTo: a live panel scrolls into view, and a hidden one is refused and 
   assert.equal(r.row(), BASE);
 });
 
-test('show: the host showing a hidden panel brings it back and parks exactly one other, the farthest from it', async () => {
+test('show: the host showing a hidden panel brings it back and parks exactly one other, the oldest', async () => {
   const r = await rigOf();
   const result = r.turn(() => r.h.w2!.show());
   assert.equal(result.ok, true);
   await r.settle();
-  assert.equal(r.row(), 'root w1* w2 w3* w4 w5 w6 w7 w8*');
+  assert.equal(r.row(), 'root w1* w2 w3* w4* w5 w6 w7 w8');
 });
 
 test('History click: clicking a hidden panel brings it back and parks exactly one other, and a second click does the same again', async () => {
   const r = await rigOf();
+  await r.settle();
   r.turn(() => r.m.latest().activate(r.entry('w3').id));
   await r.settle();
-  assert.equal(r.row(), 'root w1* w2* w3 w4 w5 w6 w7 w8*', 'N stays five: w8, the farthest from w3, parks');
+  assert.equal(r.row(), 'root w1* w2* w3 w4* w5 w6 w7 w8', 'N stays five: w4, the leftmost of the tied live panels, parks');
   r.turn(() => r.m.latest().activate(r.entry('w1').id));
   await r.settle();
-  assert.equal(r.row(), 'root w1 w2* w3 w4 w5 w6 w7* w8*');
+  assert.equal(r.row(), 'root w1 w2* w3 w4* w5* w6 w7 w8', 'w3 was touched after the rest, so w5, the leftmost of the others, parks');
   assert.equal(r.unpinnedLive().length, 5);
 });
 
