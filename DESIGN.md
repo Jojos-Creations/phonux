@@ -1743,7 +1743,7 @@ explicit `exitTo` is the same for a park and a close.
 Every entrance and exit but the `auto` close takes the workspace's `slide` timing: the transition is the shared
 `PANEL_TRANSITION` object itself while `slide` is at its defaults (0.6 s, in-out), and every one fades the opacity as
 a slide does. The neighbours' moves are the slide every slot makes to a new rest, started on the same clock, so the
-gap at an expanding or shrinking slot never closes over it. An expanding or shrinking slot clips what it holds and
+gap at an expanding or shrinking slot never closes over it. An expanding or shrinking slot clips what it holds across (never up or down, where the frame draws its header) and
 leaves it at the full width: the frame draws the content at the slot's drawn width from the row's numbers, not from
 the slot's box, so the content is revealed, never squashed or reflowed.
 

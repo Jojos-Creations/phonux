@@ -144,12 +144,12 @@ export function PanelRow({
   entries: readonly PanelRowEntry[];
   /** The row's root entry: an entry with no anchor orients against it, and `usePanelPinned` means left of it. */
   rootId: string;
-  /** Ids being closed: each exits DOWN. Kept off PanelsAPI on purpose. */
+  /** Ids being closed: each exits DOWN while its `exitTo` resolves to 'auto'. Kept off PanelsAPI on purpose. */
   closingIds: ReadonlySet<string>;
   /** Ids (re)joining `live` by a reveal or an undo: each enters from its anchor's side. Any other entry
    * enters from the right unless its own `anchoredEnter` says otherwise. */
   enteringViaAnchorIds: ReadonlySet<string>;
-  /** Ids parking with an exit to the RIGHT; every other park exits LEFT. */
+  /** Ids parking with an exit to the RIGHT; every other park exits LEFT. Read only while the panel's `exitTo` resolves to 'auto'. */
   exitRightIds?: ReadonlySet<string>;
   /** An explicit enter side per id, winning over the anchor formula: a scroll gesture knows which side a reveal
    * must enter from, which the boolean anchor formula cannot express. */

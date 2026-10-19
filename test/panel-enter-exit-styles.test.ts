@@ -151,7 +151,8 @@ test('expand: the width starts at 0, clipped, and eases to the full width at its
   try {
     const { slot, mounted } = entering({ enterFrom: 'expand' });
     assert.equal(slot.style.width, '0px', 'drawn at 0 before the first paint');
-    assert.equal(slot.style.overflow, 'hidden', 'the content is clipped, never squashed');
+    assert.equal(slot.style.overflowX, 'clip', 'the content is clipped across, never squashed');
+    assert.equal(slot.style.overflowY, '', 'and not up and down, where the frame draws its header');
     assert.equal(axis(slot, 'X'), REST, 'at its rest from the start');
     assert.deepEqual(rec.calls.map((c) => [c.from, c.to]), [[0, WIDTH]]);
     assert.equal(rec.calls[0]!.transition, PANEL_TRANSITION, 'the default slide: 0.6 s, in-out');
@@ -161,7 +162,7 @@ test('expand: the width starts at 0, clipped, and eases to the full width at its
     assert.ok(mid > 0 && mid < WIDTH, `mid-expand the width is between (${mid})`);
     await advanceFrames(600);
     assert.equal(slot.style.width, `${WIDTH}px`, 'it lands at the full width');
-    assert.equal(slot.style.overflow, '', 'and the clip is gone');
+    assert.equal(slot.style.overflowX, '', 'and the clip is gone');
     mounted.unmount();
     const tuned = entering({ enterFrom: 'expand' }, { slide: { durationSec: 0.3, ease: [0.2, 0, 0, 1] } });
     assert.deepEqual(rec.calls[1]!.transition, { duration: 0.3, ease: [0.2, 0, 0, 1] }, "the workspace's slide tuning, not a second copy");
@@ -219,7 +220,7 @@ test('reduced motion: an expand lands at its full width at once and a shrink at 
   try {
     const { slot, mounted } = entering({ enterFrom: 'expand' }, {}, true);
     assert.equal(slot.style.width, `${WIDTH}px`);
-    assert.equal(slot.style.overflow, '');
+    assert.equal(slot.style.overflowX, '');
     assert.deepEqual(rec.calls, [], 'no width animation starts');
     mounted.unmount();
     const base = [rootEntry(), made('a'), made('b', { exitTo: 'shrink' })];

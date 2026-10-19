@@ -284,17 +284,18 @@ export function PanelRowSlot({
     const node = el.current;
     if (node === null) return;
     const own = sizing.current;
-    // Clipped while drawn narrower than the slot, so the content keeps its full width and is revealed, never squashed.
+    // Clipped across only while drawn narrower than the slot, so the content keeps its full width and is revealed, never squashed,
+    // and the header the frame draws above the slot's box still shows.
     const draw = (w: number): void => {
       own.drawn = w;
       node.style.width = `${w}px`;
-      node.style.overflow = 'hidden';
+      node.style.overflowX = 'clip';
     };
     const settle = (): void => {
       own.run = undefined;
       own.drawn = undefined;
       node.style.width = `${width}px`;
-      node.style.overflow = '';
+      node.style.overflowX = '';
     };
     const ease = (from: number, to: number, done: () => void): void => {
       own.run?.stop();
