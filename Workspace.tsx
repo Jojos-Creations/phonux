@@ -21,6 +21,7 @@ import { LandingContext, PhoneSizeContext, useRowHeightBudget } from './phoneFit
 import { RowHeightContext } from './panelTuning.js';
 import { bindingOf, type WorkspaceHandle } from './workspaceCore.js';
 import { ChromeStoreContext, createChromeStore, type DrawnPin } from './panelChrome.js';
+import { rowBottomReservePx } from './panelChromeSize.js';
 import { ROW_GAP, ROW_GESTURE } from './rowConstants.js';
 import { nearestStop, scrollHoldingEdge, snapToStop, type RowNumbers } from './rowNumbers.js';
 import { rowScrollerFor } from './rowScroller.js';
@@ -289,7 +290,8 @@ export function Workspace(props: WorkspaceProps): React.ReactElement {
   const style = workspaceShellStyle({ containerWidth, rowResizeSettled, panelResizing, phoneWidth, fixedColumnCount, liveWidths, gap, slide: resolved.slide, rowScroll, rowNumbers, rowGesture: resolved.rowGesture });
   // The room the row has to grow into: the container's height less its padding. 0 (unmeasured) applies no height limit.
   const topPad = topPadding ?? gap;
-  const availableHeight = useRowHeightBudget(overflowContainerRef, topPad, gap);
+  const bottomPad = rowBottomReservePx(gap);
+  const availableHeight = useRowHeightBudget(overflowContainerRef, topPad, bottomPad);
   // A row that stops scrolling must not keep the offset it had: the margin that centres it assumes the strip starts at 0.
   React.useLayoutEffect(() => {
     const container = overflowContainerRef.current;
@@ -377,7 +379,7 @@ export function Workspace(props: WorkspaceProps): React.ReactElement {
           height: '100%',
           minHeight: 0,
           pt: `${topPadding ?? gap}px`,
-          pb: `${gap}px`,
+          pb: `${bottomPad}px`,
           pl: `${gap}px`,
           // A scrolling row's end space is the end element's (below); a row that does not scroll centres in this padding.
           pr: scrolls ? 0 : `${gap}px`,

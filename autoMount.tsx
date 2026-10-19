@@ -98,6 +98,25 @@ function useMountTheme(make: ThemeFor | undefined, onError: (e: unknown) => void
 
 export function AutoRoot({ workspace, columnTop = 0, themed = true }: { workspace: WorkspaceHandle; columnTop?: number; themed?: boolean }): React.ReactElement {
   const binding = bindingOf(workspace);
+  const theme = useMountTheme(binding.theme, binding.reportError);
+  const body = <AutoBody workspace={workspace} columnTop={columnTop} />;
+  return (
+    <AutoMountContext.Provider value={workspace}>
+      {themed ? (
+        <ThemeProvider theme={theme}>
+          <CssBaseline />
+          {body}
+        </ThemeProvider>
+      ) : (
+        body
+      )}
+    </AutoMountContext.Provider>
+  );
+}
+
+/** Inside the mount's ThemeProvider, so the phone fit and the row read the one theme. */
+function AutoBody({ workspace, columnTop }: { workspace: WorkspaceHandle; columnTop: number }): React.ReactElement {
+  const binding = bindingOf(workspace);
   React.useSyncExternalStore(binding.live.subscribe, binding.live.version);
   const values = binding.live.latest();
   const stand = React.useRef(new Map<string, unknown>());
@@ -117,7 +136,6 @@ export function AutoRoot({ workspace, columnTop = 0, themed = true }: { workspac
     containerWidth,
     overflowContainerRef: ref,
   });
-  const theme = useMountTheme(binding.theme, binding.reportError);
   const host: HostInput = {
     panels: hostPanelsOf(provided),
     ...(values.device !== undefined ? { device: values.device } : {}),
@@ -132,19 +150,7 @@ export function AutoRoot({ workspace, columnTop = 0, themed = true }: { workspac
       <PanelRow {...rowProps(provided, workspace)} />
     </Workspace>
   );
-  const hosted = <HostProvider host={host}>{Wrap === undefined ? row : <Wrap workspace={workspace}>{row}</Wrap>}</HostProvider>;
-  return (
-    <AutoMountContext.Provider value={workspace}>
-      {themed ? (
-        <ThemeProvider theme={theme}>
-          <CssBaseline />
-          {hosted}
-        </ThemeProvider>
-      ) : (
-        hosted
-      )}
-    </AutoMountContext.Provider>
-  );
+  return <HostProvider host={host}>{Wrap === undefined ? row : <Wrap workspace={workspace}>{row}</Wrap>}</HostProvider>;
 }
 
 /**

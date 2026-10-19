@@ -106,18 +106,18 @@ export function useOptionalPhoneSize(): { readonly width: number; readonly heigh
   return fitted ?? host?.device.size;
 }
 
-/** The height in px `container` leaves for the row once `topPad` and `gap` are taken out; 0 until measured and wherever nothing lays out. @internal */
-export function useRowHeightBudget(ref: React.RefObject<HTMLDivElement | null>, topPad: number, gap: number, enabled = true): number {
+/** The height in px `container` leaves for the row once `topPad` above and `bottomPad` below are taken out; 0 until measured and wherever nothing lays out. @internal */
+export function useRowHeightBudget(ref: React.RefObject<HTMLDivElement | null>, topPad: number, bottomPad: number, enabled = true): number {
   const [budget, setBudget] = React.useState(0);
   React.useLayoutEffect(() => {
     const container = ref.current;
     if (!enabled || container === null) return undefined;
-    const measure = (): void => setBudget(Math.max(0, Math.round(container.clientHeight - topPad - gap)));
+    const measure = (): void => setBudget(Math.max(0, Math.round(container.clientHeight - topPad - bottomPad)));
     measure();
     if (typeof ResizeObserver === 'undefined') return undefined;
     const observer = new ResizeObserver(measure);
     observer.observe(container);
     return () => observer.disconnect();
-  }, [ref, topPad, gap, enabled]);
+  }, [ref, topPad, bottomPad, enabled]);
   return budget;
 }
