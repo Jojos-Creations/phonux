@@ -103,3 +103,19 @@ test('a hidden sliver that slides into view without a scroll, as after a close, 
   await advanceFrames(GLIDE_DONE_MS);
   assert.equal(t.slots()[0]!.style.visibility, '', 'a slot fully in view is drawn');
 });
+
+test('a hidden sliver that a held drag slides into view is drawn while the drag still holds the row', async () => {
+  const t = mounted();
+  t.m.container.scrollLeft = 477;
+  t.layout();
+  assert.equal(t.slots()[0]!.style.visibility, 'hidden', 'positive control: a 15 px peek starts hidden');
+  await advanceFrames(GLIDE_DONE_MS);
+  const claim = t.m.scroller.claim();
+  assert.ok(claim, 'the scroller gave its claim');
+  // The drag's preview moves the slot with no scroll event and no Workspace render; only the pointer moves on the row.
+  t.slots()[0]!.getBoundingClientRect = () => ({ left: 16, right: 406, top: 0, bottom: 700, width: 390, height: 700, x: 16, y: 0, toJSON: () => ({}) });
+  act(() => void t.slots()[0]!.dispatchEvent(new Event('pointermove', { bubbles: true })));
+  await advanceFrames(100);
+  assert.equal(t.slots()[0]!.style.visibility, '', 'a slot fully in view is drawn during the drag');
+  claim.release();
+});
