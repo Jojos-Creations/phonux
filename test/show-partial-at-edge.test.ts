@@ -91,3 +91,15 @@ test('a panel the window cuts to less than a gap is hidden, and one showing a fu
   assert.equal(shown()[0], '', 'a 16 px peek is drawn');
   assert.equal(shown()[1], '');
 });
+
+test('a hidden sliver that slides into view without a scroll, as after a close, is drawn again', async () => {
+  const t = mounted();
+  t.m.container.scrollLeft = 477;
+  t.layout();
+  assert.equal(t.slots()[0]!.style.visibility, 'hidden', 'positive control: a 15 px peek starts hidden');
+  // A render starts the follow-through; the slot then slides fully into the window with no scroll event.
+  t.m.rerender(1000);
+  t.slots()[0]!.getBoundingClientRect = () => ({ left: 16, right: 406, top: 0, bottom: 700, width: 390, height: 700, x: 16, y: 0, toJSON: () => ({}) });
+  await advanceFrames(GLIDE_DONE_MS);
+  assert.equal(t.slots()[0]!.style.visibility, '', 'a slot fully in view is drawn');
+});

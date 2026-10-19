@@ -260,6 +260,12 @@ export function Workspace(props: WorkspaceProps): React.ReactElement {
       }
     };
     apply();
+    // A close or a move slides the slots without a scroll event, so the hide is judged again on every frame of that slide.
+    const until = performance.now() + resolved.slide.durationSec * 1000 + 100;
+    let frame = requestAnimationFrame(function follow(): void {
+      apply();
+      if (performance.now() < until) frame = requestAnimationFrame(follow);
+    });
     container.addEventListener('scroll', apply, { passive: true });
     // A click or focus in the cut-off neighbour makes the browser scroll it into view off a stop; the row settles back onto one.
     const onFocus = (event: FocusEvent): void => {
@@ -277,6 +283,7 @@ export function Workspace(props: WorkspaceProps): React.ReactElement {
     container.addEventListener('focusin', onFocus);
     return () => {
       container.removeEventListener('focusin', onFocus);
+      cancelAnimationFrame(frame);
       container.removeEventListener('scroll', apply);
     };
   });
