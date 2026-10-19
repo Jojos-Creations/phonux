@@ -116,7 +116,7 @@ const pick = <T>(rng: Rng, items: readonly T[]): T => items[Math.floor(rng() * i
 const FLAT_POOL: Record<string, readonly unknown[]> = {
   closable: [true, false],
   parkable: [true, false],
-  draggable: [true, false],
+  movable: [true, false],
   listed: [true, false],
   title: ['A', 'B'],
   overflow: ['scroll', 'park'],

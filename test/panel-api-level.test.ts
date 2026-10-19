@@ -124,7 +124,7 @@ function renderAdapted(t: PanelTemplate, table: LevelTable, seen: Seen[]): void 
   };
   const Probed = templateViewFor(probe, table);
   const ctx = { handleFor: () => handle as never, manager: manager as never };
-  mount(withHost(React.createElement(PanelViewContextValue.Provider, { value: ctx }, React.createElement(Probed, { panel: { id: 'p1', live: true, locked: false } }))));
+  mount(withHost(React.createElement(PanelViewContextValue.Provider, { value: ctx }, React.createElement(Probed, { panel: { id: 'p1', live: true } }))));
   if (seen[0] !== undefined) seen[0].footerKeys = [...new Set(footerKeys)].sort();
 }
 
@@ -313,7 +313,7 @@ function chainTable(newest: 2 | 3 | 4): LevelTable {
 
 const FULL_HANDLE: Record<string, unknown> = Object.fromEntries(Object.keys(NEWEST_SHAPE.handle).map((key) => [key, key === 'id' || key === 'templateId' ? key : () => undefined]));
 const FULL_MANAGER: Record<string, unknown> = Object.fromEntries(Object.keys(NEWEST_SHAPE.manager).map((key) => [key, () => undefined]));
-const PANEL = { id: 'p1', live: true, locked: false };
+const PANEL = { id: 'p1', live: true };
 
 /** The props a view and its footer receive from `table`, rendered with whole stub handle and manager. */
 function received(id: string, api: number | undefined, table: LevelTable, handle: Record<string, unknown> = FULL_HANDLE): { view: Record<string, unknown>; footer: Record<string, unknown> } {
@@ -427,7 +427,7 @@ test('the shape check is silent in production, and a second template is checked 
 test('the shape check never runs a getter or a method and never throws', () => {
   let ran = 0;
   const props = {
-    panel: { get id() { ran += 1; return 'p'; }, live: true, locked: false },
+    panel: { get id() { ran += 1; return 'p'; }, live: true },
     handle: new Proxy({}, { has: () => { ran += 1; return true; } }),
     manager: { get: () => { ran += 1; }, list: () => { ran += 1; }, getSnapshot: () => { ran += 1; }, subscribe: () => { ran += 1; } },
   };
@@ -437,7 +437,7 @@ test('the shape check never runs a getter or a method and never throws', () => {
 });
 
 test('optional members may be absent and a present one of the wrong kind is reported', () => {
-  const base = { panel: { id: 'p', live: true, locked: false }, handle: FULL_HANDLE, manager: FULL_MANAGER };
+  const base = { panel: { id: 'p', live: true }, handle: FULL_HANDLE, manager: FULL_MANAGER };
   assert.deepEqual(shapeMismatches(base, NEWEST_SHAPE), []);
   assert.deepEqual(shapeMismatches({ ...base, panel: null }, NEWEST_SHAPE), ['panel is null']);
   assert.deepEqual(shapeMismatches({ ...base, handle: undefined }, NEWEST_SHAPE), ['handle is missing']);

@@ -189,7 +189,7 @@ export interface EngineCommit {
 export interface EngineOps {
   show(engineId: string): PanelResult;
   hide(engineId: string): PanelResult;
-  close(engineId: string): PanelResult;
+  close(engineId: string, source: PanelOpSource): PanelResult;
   /** Opening a panel the engine already holds changes nothing, but it still waits its turn behind a close. */
   open(engineId: string): PanelResult;
   move(engineId: string, by: number, source: PanelOpSource): PanelResult;
@@ -700,7 +700,7 @@ export function createWorkspace(o: WorkspaceOptions = {}): WorkspaceHandle {
   };
 
   const rootEntry = (): PanelWindow => {
-    if (root === undefined) return { id: ROOT_MARKER_ID, url: '', title: '', live: true, locked: true, view: ROOT_MARKER_ID, collapsible: false, listed: false, marker: true };
+    if (root === undefined) return { id: ROOT_MARKER_ID, url: '', title: '', live: true, view: ROOT_MARKER_ID, collapsible: false, listed: false, marker: true };
     const res = resolve({ ...(defaults !== undefined ? { workspace: defaults } : {}), template: root.settings }, { root: true });
     return applyTemplate({ ...createHistoryPanel(root.id), title: res.value.title ?? '', view: root.id, ...(root.params !== undefined ? { params: root.params } : {}), key: root.id }, res.value, 'create');
   };
@@ -873,7 +873,7 @@ export function createWorkspace(o: WorkspaceOptions = {}): WorkspaceHandle {
       case 'toggleVisibility':
         return state.status === 'live' ? ops.hide(engineId) : ops.show(engineId);
       case 'close':
-        return ops.close(engineId);
+        return ops.close(engineId, src);
       case 'open':
         return ops.open(engineId);
       case 'move':

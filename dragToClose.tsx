@@ -575,7 +575,7 @@ function DragToCloseBox({
       const rowSlot = slotRef.current;
       // The pointer offset plus the row's scroll distance is what the release hands the hop rule.
       const total = (edge.held() ? edge.pointerOffset() : dx) + scrollX.get();
-      if (rowSlot?.draggable === true) preview(total);
+      if (rowSlot?.movable === true) preview(total);
     }
     // The losing axis is held at zero on every move: a locked box moves on one axis only. Upward y is not followed.
     if (axisLock.current === 'x') {

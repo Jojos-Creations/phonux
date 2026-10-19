@@ -152,7 +152,7 @@ test('a view reads the level of its template from context', () => {
     };
     const Probed = templateViewFor({ id, ...(api === undefined ? {} : { api: api as never }), view: Probe } as PanelTemplate, table);
     const ctx = { handleFor: () => ({}) as never, manager: {} as never };
-    mount(withHost(React.createElement(PanelViewContextValue.Provider, { value: ctx }, React.createElement(Probed, { panel: { id: 'p', live: true, locked: false } }))));
+    mount(withHost(React.createElement(PanelViewContextValue.Provider, { value: ctx }, React.createElement(Probed, { panel: { id: 'p', live: true } }))));
   }
   assert.deepEqual([...new Set(seen)], [1, 2]);
 });

@@ -34,7 +34,7 @@ const NONE: ReadonlySet<string> = new Set();
 /** One phone and one gap: where the second slot of a row rests. */
 const STEP = 406;
 
-const entry = (id: string): PanelWindow => ({ id, url: `https://${id}.example`, title: id.toUpperCase(), live: true, locked: false, view: 'restore-probe', collapsible: true, listed: true });
+const entry = (id: string): PanelWindow => ({ id, url: `https://${id}.example`, title: id.toUpperCase(), live: true, view: 'restore-probe', collapsible: true, listed: true });
 
 /** A seeded workspace whose restore is under the test's control: `loading` until `settle()`, which tells the row. */
 function restoring(all: readonly PanelWindow[]): { workspace: WorkspaceHandle; settle: () => void } {

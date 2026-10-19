@@ -188,7 +188,7 @@ test('held is true exactly for a parked panel with a hold', () => {
   const w = createWorkspace({ mount: false });
   const binding = bindingOf(w);
   const owner = {};
-  const entry = (id: string, live: boolean): PanelWindow => ({ id, url: '', title: id, live, locked: false, view: 'x', collapsible: true, listed: true, key: id });
+  const entry = (id: string, live: boolean): PanelWindow => ({ id, url: '', title: id, live, view: 'x', collapsible: true, listed: true, key: id });
   binding.attach(owner);
   const root = binding.initialEntries()[0]!;
   binding.publish({
@@ -433,7 +433,7 @@ test('PanelState.pinned is the pure isPinned of the entry: left of the root true
   const binding = bindingOf(w);
   binding.attach({});
   const root = binding.initialEntries()[0]!;
-  const entry = (id: string, anchor: PanelWindow['anchor']): PanelWindow => ({ id, url: '', title: id, live: true, locked: false, view: 'x', collapsible: true, listed: true, key: id, anchor });
+  const entry = (id: string, anchor: PanelWindow['anchor']): PanelWindow => ({ id, url: '', title: id, live: true, view: 'x', collapsible: true, listed: true, key: id, anchor });
   const left = entry('l', { panel: root.id, position: 'left', priority: 0 });
   const right = entry('r', { panel: root.id, position: 'right', priority: 0 });
   binding.publish({ entries: [left, root, right], held: new Set(), settled: true, create: () => {}, lateRegister: () => {}, ops: NO_OPS });

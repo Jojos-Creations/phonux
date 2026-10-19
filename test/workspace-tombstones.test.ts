@@ -143,11 +143,10 @@ test('registerTemplate over a placeholder turns a saved closable false entry int
   const m = mountWorkspace(w);
   await flush();
   assert.equal(m.container.querySelector('[data-template="late-lock"]'), null, 'positive control: before registration it is a placeholder');
-  assert.equal(m.latest().entries.find((p) => p.view === 'late-lock')?.locked, true);
   act(() => void w.registerTemplate(markerTemplate('late-lock', { settings: { closable: false } })));
   await flush();
   assert.ok(m.container.querySelector('[data-template="late-lock"]'), 'the template view now renders');
-  assert.equal(m.latest().entries.find((p) => p.view === 'late-lock')?.locked, true);
+  assert.equal(m.latest().entries.find((p) => p.view === 'late-lock')?.settings?.closable, false);
   assert.equal(w.panels.get('late-lock')?.getState().status, 'live');
 });
 

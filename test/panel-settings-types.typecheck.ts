@@ -35,9 +35,8 @@ export type SettingKeysAreTheCatalogNames = Expect<Equal<keyof SettingValues, No
 export const SETTING_KEYS: Record<keyof SettingValues, true> = {
   closable: true,
   parkable: true,
-  draggable: true,
+  movable: true,
   crossable: true,
-  placeable: true,
   resizable: true,
   slots: true,
   maxSlots: true,

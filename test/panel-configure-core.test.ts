@@ -140,9 +140,9 @@ test('class law: a NOW key changes only the fields it names', async () => {
   const r = await pinRig();
   const seen = watch(r, () => r.h.b!.configure({ closable: false }));
   done(seen.out);
-  sameEntries(seen.before, seen.after, 'b', ['settings', 'instance', 'locked']);
-  assert.equal(seen.after.get('b')!.locked, true);
-  assert.equal(seen.before.get('b')!.locked, false);
+  sameEntries(seen.before, seen.after, 'b', ['settings', 'instance']);
+  assert.equal(seen.after.get('b')!.settings!.closable, false);
+  assert.equal(seen.before.get('b')!.settings!.closable, true);
 });
 
 test('class law: an equal patch is changed false and commits nothing', async () => {
@@ -195,7 +195,7 @@ const UNTOUCHED = ['slots', 'size', 'anchor', 'live', 'hostData', 'key', 'overri
 
 const WRITER_KEYS: readonly [string, string, PanelSettings][] = [
   ['NOW', 'closable', { closable: false }],
-  ['NOW', 'draggable', { draggable: false }],
+  ['NOW', 'movable', { movable: false }],
   ['NOW', 'title', { title: 'Renamed' }],
   ['NEXT', 'scrollOnOpen', { scrollOnOpen: 'center' }],
   ['NEXT', 'hideStickiness', { hideStickiness: 'until-room' }],
@@ -277,7 +277,7 @@ test('configure of closable then a raw close: nothing closes', async () => {
     r.provided().close(r.entry('b').id);
   });
   assert.deepEqual(r.order(), ['root', 'a', 'b', 'c']);
-  assert.equal(r.entry('b').locked, true);
+  assert.equal(!r.entry('b').settings!.closable, true);
 });
 
 test('raw clearAll then configure of a removed id is busy', async () => {
@@ -295,7 +295,7 @@ test('configure and manager calls on different panels combine in one turn', asyn
   const out = r.turn(() => [r.h.a!.configure({ scrollOnOpen: 'center' }), r.h.b!.configure({ closable: false }), r.h.c!.move(-1)]);
   assert.deepEqual(out.map((o) => o.ok), [true, true, true]);
   assert.equal(r.h.a!.getSettings().value.scrollOnOpen, 'center');
-  assert.equal(r.entry('b').locked, true);
+  assert.equal(!r.entry('b').settings!.closable, true);
   assert.deepEqual(r.order(), ['root', 'a', 'c', 'b']);
 });
 
@@ -420,14 +420,13 @@ test('closed inside the window: closable false then undoClose gives locked true,
   const id = r.entry('b').key;
   r.turn(() => r.h.b!.close());
   const held = windowed(r);
-  assert.deepEqual([r.state('b').status, held.map((p) => p.id), held[0]!.locked], ['closed', [id], false]);
+  assert.deepEqual([r.state('b').status, held.map((p) => p.id)], ['closed', [id]]);
   assert.deepEqual({ ...done(r.turn(() => r.h.b!.configure({ closable: false }))) }, stored('closable'));
   assert.equal(windowed(r)[0] === held[0], true, 'the window still holds the very object it held');
-  assert.equal(held[0]!.locked, false, 'and it was not edited');
   r.turn(() => r.provided().undoClose());
   await r.settle();
-  assert.deepEqual([r.order().join(' '), r.entry('b').locked, r.state('b').settings.closable], ['root a b c', true, false]);
-  assert.deepEqual({ ...r.turn(() => r.h.b!.close()) }, { ok: false, code: 'not-closable', message: "panel 'b' cannot be closed" });
+  assert.deepEqual([r.order().join(' '), !r.entry('b').settings!.closable, r.state('b').settings.closable], ['root a b c', true, false]);
+  assert.deepEqual({ ...r.turn(() => r.h.b!.close('person')) }, { ok: false, code: 'not-closable', message: "panel 'b' cannot be closed" });
   assert.equal(r.state('b').status, 'live');
 });
 
@@ -466,8 +465,8 @@ test('closed past the window: the edit is stored on the record and open() uses i
   assert.deepEqual({ ...res }, stored('closable', 'placeOnAdd', 'title'));
   assert.deepEqual({ ...r.turn(() => r.h.b!.open()) }, { ok: true, changed: true });
   await r.settle();
-  assert.deepEqual([r.order().join(' '), r.entry('b').locked, r.entry('b').title], ['b root a c', true, 'Late']);
-  assert.equal((r.turn(() => r.h.b!.close()) as { code?: string }).code, 'not-closable');
+  assert.deepEqual([r.order().join(' '), !r.entry('b').settings!.closable, r.entry('b').title], ['b root a c', true, 'Late']);
+  assert.equal((r.turn(() => r.h.b!.close('person')) as { code?: string }).code, 'not-closable');
 });
 
 test('the undo window\'s panel objects are the same before and after every configure of a closed panel, accepted, equal or refused', async () => {
@@ -563,9 +562,9 @@ for (const kind of ['declared', 'anonymous'] as const) {
     assert.deepEqual({ ok: (res as Done).ok, now: [...(res as Done).now] }, { ok: true, now: ['closable', 'pinning'] });
     const after = r.entry(id);
     assert.equal(after.live, false, 'control: the planted show of a parked neighbour parked it before the configure could commit');
-    assert.deepEqual([after.settings === before.settings, after.locked, after.settings!.closable, after.settings!.pinning.pinned.parkable], [false, true, false, false], 'the entry carries the configure');
+    assert.deepEqual([after.settings === before.settings, !after.settings!.closable, after.settings!.closable, after.settings!.pinning.pinned.parkable], [false, true, false, false], 'the entry carries the configure');
     assert.deepEqual([handle.getSettings().value.closable, handle.getSettings().source.closable], [false, 'instance'], 'and the resolver reads the same');
-    assert.equal((r.turn(() => handle.close()) as { code?: string }).code, 'not-closable', 'and the restriction holds: close() is refused');
+    assert.equal((r.turn(() => handle.close('person')) as { code?: string }).code, 'not-closable', 'and the restriction holds: close() is refused');
   });
 }
 
@@ -615,7 +614,7 @@ async function contextRig(context: Context): Promise<{ r: PinRig; id: string }> 
 /** [context, the status the panel is in, the patch, now, later, shadowed]: every expectation written from the class of each key. */
 const SAMPLE: readonly [Context, string, Record<string, unknown>, string[], string[], string[]][] = [
   ['live', 'live', { closable: false }, ['closable'], [], []],
-  ['live', 'live', { draggable: false }, ['draggable'], [], []],
+  ['live', 'live', { movable: false }, ['movable'], [], []],
   ['live', 'live', { title: 'Renamed' }, ['title'], [], []],
   ['live', 'live', { listed: false }, ['listed'], [], []],
   ['live', 'live', { layer: 'raised' }, ['layer'], [], []],
@@ -941,7 +940,7 @@ test('configure and any operation on the same panel give the same literal rows f
       assert.deepEqual(answers, row.results, `${trigger}: ${row.name}`);
       await fire('handler', () => undefined);
       assert.equal(r.order().join(' '), row.order, `${trigger}: ${row.name}: the row afterwards`);
-      assert.equal(row.locked === null ? r.state('a').status : r.entry('a').locked, row.locked === null ? 'closed' : row.locked, `${trigger}: ${row.name}: A afterwards`);
+      assert.equal(row.locked === null ? r.state('a').status : !r.entry('a').settings!.closable, row.locked === null ? 'closed' : row.locked, `${trigger}: ${row.name}: A afterwards`);
       cleanup();
     }
   }
@@ -975,7 +974,7 @@ test('configure from a layout effect, a passive effect, a timer and a promise co
       out = r.h.b!.configure({ closable: false, scrollOnOpen: 'center' });
     });
     assert.deepEqual({ ...done(out!) }, { ok: true, changed: true, shown: false, now: ['closable'], later: ['scrollOnOpen'], shadowed: [], notes: [] }, kind);
-    assert.deepEqual([r.m.renders() - renders, r.ws.panels.getSnapshot().version - version, r.entry('b').locked], [1, 1, true], `${kind}: one commit, one snapshot, the lock applied`);
+    assert.deepEqual([r.m.renders() - renders, r.ws.panels.getSnapshot().version - version, !r.entry('b').settings!.closable], [1, 1, true], `${kind}: one commit, one snapshot, the lock applied`);
     cleanup();
   }
   assert.deepEqual(logged.mock.calls.map((c) => String(c.arguments[0])), [], 'no lifecycle logged a thing');

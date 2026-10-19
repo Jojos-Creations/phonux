@@ -21,13 +21,12 @@ const TEST_DIR = dirname(fileURLToPath(import.meta.url));
 
 registerTestView('harness-probe', ({ panel }) => React.createElement('div', { 'data-probe': panel.id }, panel.title));
 
-const rootEntry: PanelWindow = { id: 'root', url: '', title: 'History', live: true, locked: true, view: 'harness-probe', collapsible: false, listed: false };
+const rootEntry: PanelWindow = { id: 'root', url: '', title: 'History', live: true, view: 'harness-probe', collapsible: false, listed: false };
 const liveEntry: PanelWindow = {
   id: 'a',
   url: 'https://a.example',
   title: 'A',
   live: true,
-  locked: false,
   view: 'harness-probe',
   collapsible: true,
   listed: true,

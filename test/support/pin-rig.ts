@@ -38,7 +38,7 @@ export interface PinRig {
   entry: (id: string) => PanelWindow;
   state: (id: string) => PanelState;
   /** The permission and listing facts a pin changes, as literals. */
-  facts: (id: string) => { parkable: boolean; listed: boolean; placeable: boolean; draggable: boolean; clearable: boolean; pinned: boolean };
+  facts: (id: string) => { parkable: boolean; listed: boolean; movable: boolean; clearable: boolean; pinned: boolean };
   provided: () => ProvidedPanels;
   settle: () => Promise<void>;
 }
@@ -78,7 +78,7 @@ export async function pinRig(o: PinRigOptions = {}): Promise<PinRig> {
     state: (id) => ws.panels.get(id)!.getState(),
     facts: (id) => {
       const s = ws.panels.get(id)!.getState();
-      return { parkable: s.settings.parkable, listed: s.listed, placeable: s.settings.placeable, draggable: s.settings.draggable, clearable: s.settings.clearable, pinned: s.pinned };
+      return { parkable: s.settings.parkable, listed: s.listed, movable: s.settings.movable, clearable: s.settings.clearable, pinned: s.pinned };
     },
     provided: () => m.latest(),
     settle: () => advanceFrames(900),

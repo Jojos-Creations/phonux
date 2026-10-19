@@ -147,14 +147,14 @@ test('setSlots keeps the phone height in a row that has room to grow', async () 
 
 test('a hand-built entry without slots keeps the phone height and the older width rule', () => {
   const { height } = phone();
-  const entry: PanelWindow = { id: 'h', url: 'https://h.example', title: 'h', live: true, locked: false, view: 'slot-view', collapsible: true, listed: true };
+  const entry: PanelWindow = { id: 'h', url: 'https://h.example', title: 'h', live: true, view: 'slot-view', collapsible: true, listed: true };
   const mounted = mount(rowOf([entry], undefined, height + 400));
   assert.equal(boxHeight(mounted.container), height);
   assert.equal(slotOf(mounted.container, 'h').style.height, '', 'the slot fills the row');
   mounted.unmount();
 });
 
-test('setSlots clamps to maxSlots, needs a resizable panel and no-ops on an unchanged count', () => {
+test('setSlots clamps to maxSlots, ignores the resizable setting and no-ops on an unchanged count', () => {
   const rows = [made('a', { slots: 1, maxSlots: 3 })];
   const two = setSlots(rows, 'a', 2);
   assert.equal(two[0]!.slots, 2);
@@ -162,7 +162,7 @@ test('setSlots clamps to maxSlots, needs a resizable panel and no-ops on an unch
   assert.equal(setSlots(two, 'a', 9)[0]!.slots, 3, 'clamped to maxSlots');
   assert.equal(setSlots(two, 'a', 0)[0]!.slots, 1, 'clamped to one');
   const frozen = [made('f', { resizable: false })];
-  assert.equal(setSlots(frozen, 'f', 2), frozen, 'a panel that is not resizable refuses');
+  assert.equal(setSlots(frozen, 'f', 2)[0]!.slots, 2, 'resizable limits a person\'s gesture, not this call');
 });
 
 test('resolver: the later layer wins when both ask for slots, and slots above maxSlots are forced down to it', () => {

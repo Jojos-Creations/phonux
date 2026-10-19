@@ -186,17 +186,15 @@ export type SourceLayer = 'library' | 'workspace' | 'template' | 'host' | 'insta
 
 /** The settings whose value is one plain member; the catalog's other names are headerButtons and the tuning leaves. @public */
 export type SettingValues = {
-  /** Whether the panel can be closed; false removes the drag-down close and makes `close()` answer not-closable. */
+  /** Whether a person can close the panel; false removes the drag-down close and the close button. The developer's own `close()` is not limited by it. */
   closable: boolean;
   /** Whether the panel can be parked; false makes it a fixed column, which needs one slot. */
   parkable: boolean;
-  /** Whether the panel can be moved by dragging or by `move()`. Defaults to the resolved `parkable`. */
-  draggable: boolean;
+  /** Whether a person can move the panel, by a reorder drag or by dropping it at a placement. The developer's own `move()`, `place()` and pin with a placement are not limited by it. Defaults to the resolved `parkable`. */
+  movable: boolean;
   /** Whether another panel's drag can cross this panel. */
   crossable: boolean;
-  /** Whether the panel can be re-anchored, placed, or pinned with a placement. Defaults to the resolved `parkable`. */
-  placeable: boolean;
-  /** Whether the panel's slot count can be changed. */
+  /** Whether a person can change the panel's slot count. The developer's own `setSlots()` is not limited by it. */
   resizable: boolean;
   /** Whether clear-all closes the panel. Defaults to the resolved `parkable` and `closable`. */
   clearable: boolean;
@@ -566,7 +564,7 @@ export type PanelUserLayer = {
 
 /** Options for `resolvePanelSettings`. @public */
 export type ResolveOptions = {
-  /** Resolve the root panel, which its coupling rule makes unparkable, unclosable, undraggable and unplaceable. Default false. */
+  /** Resolve the root panel, which its coupling rule makes unparkable, unclosable and unmovable. Default false. */
   root?: boolean;
   /** Drop an invalid key from the instance and user layers with a note instead of throwing. Default false. */
   lenient?: boolean;
@@ -658,7 +656,7 @@ const CATALOG_ROWS: readonly SettingDescriptor[] = [
     configure: { cls: 'STATE', doors: ['instance'] },
   },
   {
-    name: 'draggable',
+    name: 'movable',
     group: 'permissions',
     values: 'true, false',
     default: 'derived: parkable',
@@ -676,17 +674,6 @@ const CATALOG_ROWS: readonly SettingDescriptor[] = [
     scope: 'instance',
     viewSettable: false,
     exists: 'new',
-    ownerEntry: 'phonux-engine-permission-settings',
-    configure: { cls: 'NOW', doors: ['instance'] },
-  },
-  {
-    name: 'placeable',
-    group: 'permissions',
-    values: 'true, false',
-    default: 'derived: parkable',
-    scope: 'instance',
-    viewSettable: false,
-    exists: 'today',
     ownerEntry: 'phonux-engine-permission-settings',
     configure: { cls: 'NOW', doors: ['instance'] },
   },
@@ -1209,12 +1196,12 @@ export const PANEL_SETTINGS_CATALOG: readonly SettingDescriptor[] = freezeClone(
 // Defaults
 // ---------------------------------------------------------------------------
 
-const DERIVED_DEFAULT_KEYS = ['draggable', 'placeable', 'listed', 'clearable'] as const;
+const DERIVED_DEFAULT_KEYS = ['movable', 'listed', 'clearable'] as const;
 type DerivedDefaultKey = (typeof DERIVED_DEFAULT_KEYS)[number];
 
-/** Every setting that has its own default. The four derived ones follow `parkable` and `closable`; `title` has none. @public */
+/** Every setting that has its own default. The three derived ones follow `parkable` and `closable`; `title` has none. @public */
 export type LibraryPanelDefaults = {
-  readonly [K in Exclude<keyof SettingValues, 'draggable' | 'placeable' | 'listed' | 'clearable' | 'title'>]: SettingValues[K];
+  readonly [K in Exclude<keyof SettingValues, 'movable' | 'listed' | 'clearable' | 'title'>]: SettingValues[K];
 } & {
   /** No header buttons by default. */
   readonly headerButtons: { readonly [id: string]: HeaderButton };
@@ -1500,14 +1487,29 @@ function reportRemovedKey(layer: string, key: string): void {
   reportOnce(`removed:${key}`, `phonux: the ${layer} setting '${key}' was removed`, () => [`it is ignored and the panel behaves as if it were ${JSON.stringify(FIXED[key as keyof typeof FIXED])}`, 'the next rc refuses it with invalid-settings']);
 }
 
+/** The keys `movable` replaced. */
+const MERGED_INTO_MOVABLE: ReadonlySet<string> = new Set(['draggable', 'placeable']);
+
+function reportMergedKey(layer: string, key: string): void {
+  reportOnce(`removed:${key}`, `phonux: the ${layer} setting '${key}' was removed`, () => ["it is ignored; 'movable' replaced it and its default follows 'parkable'", 'the next rc refuses it with invalid-settings']);
+}
+
+/**
+ * A saved layer's `draggable` and `placeable`, as the one `movable` they became: only when both are present and
+ * agree, because either alone says nothing about the other half of what `movable` now covers.
+ */
+function savedMovable(raw: Plain): boolean | undefined {
+  const { draggable, placeable } = raw;
+  return typeof draggable === 'boolean' && draggable === placeable && raw.movable === undefined ? draggable : undefined;
+}
+
 type SettingKey = Exclude<CatalogName, `tuning.${string}`>;
 
 const SETTING_CHECKS: Record<SettingKey, Check> = {
   closable: bool,
   parkable: bool,
-  draggable: bool,
+  movable: bool,
   crossable: bool,
-  placeable: bool,
   resizable: bool,
   clearable: bool,
   hostCreatable: bool,
@@ -1750,6 +1752,16 @@ function checkLayer(layer: AskLayer, raw: unknown, env: Env): Accepted {
       checkTuning(layer, value, accepted, env, lenientLayer);
       continue;
     }
+    if (MERGED_INTO_MOVABLE.has(key)) {
+      if (!lenientLayer) reportMergedKey(layer, key);
+      else if (savedMovable(raw) !== undefined) {
+        if (key === 'draggable') {
+          accepted.flat.set('movable', savedMovable(raw));
+          env.notes.push({ code: 'invalid-saved-setting', key: 'movable', message: `${layer}.draggable and ${layer}.placeable: settings this version no longer has; read as movable` });
+        }
+      } else reject(layer, key, 'a setting this version no longer has; set movable instead', true, env.notes);
+      continue;
+    }
     if (Object.hasOwn(FIXED, key)) {
       if (lenientLayer) reject(layer, key, 'a setting this version no longer has', true, env.notes);
       else reportRemovedKey(layer, key);
@@ -1892,8 +1904,7 @@ function applyRules(s: State, root: boolean): void {
     force(s, 'closable', false, 'C5');
   }
   const parkable = s.values.parkable === true;
-  fill(s, 'draggable', parkable);
-  fill(s, 'placeable', parkable);
+  fill(s, 'movable', parkable);
   fill(s, 'listed', parkable);
   fill(s, 'clearable', parkable && s.values.closable === true);
 
@@ -1909,8 +1920,7 @@ function applyRules(s: State, root: boolean): void {
   if (s.values.closable === false) force(s, 'clearable', false, 'C2', 'closable');
   if ((s.values.slots as number) > (s.values.maxSlots as number)) force(s, 'slots', s.values.maxSlots, 'C4', 'maxSlots');
   if (root) {
-    force(s, 'draggable', false, 'C5');
-    force(s, 'placeable', false, 'C5');
+    force(s, 'movable', false, 'C5');
   }
 }
 
@@ -2028,9 +2038,9 @@ const LEGACY_BASE: ResolvedPanelSettings = resolvePanelSettings().value;
 
 /**
  * The settings `p` behaves under: `p.settings` itself when it has them, else values read from the fields a
- * hand-built entry carries (`locked`, `collapsible`, `listed`, `layer`, `anchoredEnter`, `slots`, `title`),
+ * hand-built entry carries (`collapsible`, `listed`, `layer`, `anchoredEnter`, `slots`, `title`),
  * with every other key at its library default. A hand-built entry keeps its original parking and a fixed column
- * cannot be dragged, placed or resized.
+ * cannot be closed, moved or resized by a person.
  * @internal
  */
 export function effective(p: PanelWindow | PanelRowEntry): ResolvedPanelSettings {
@@ -2038,12 +2048,11 @@ export function effective(p: PanelWindow | PanelRowEntry): ResolvedPanelSettings
   const parkable = p.collapsible;
   const legacy: ResolvedPanelSettings = {
     ...LEGACY_BASE,
-    closable: !p.locked,
+    closable: parkable,
     parkable,
-    draggable: parkable,
-    placeable: parkable,
+    movable: parkable,
     resizable: parkable,
-    clearable: parkable && !p.locked,
+    clearable: parkable,
     listed: 'listed' in p ? p.listed : parkable,
     overflow: parkable ? 'park' : 'scroll',
     layer: p.layer ?? 'base',
@@ -2077,7 +2086,6 @@ export function applyTemplate(entry: PanelWindow, resolved: ResolvedPanelSetting
   if (mode === 'reconfigure') {
     return {
       ...entry,
-      locked: !resolved.closable,
       ...(resolved.parkable !== entry.collapsible ? { collapsible: resolved.parkable } : {}),
       listed: resolved.listed,
       layer: resolved.layer,
@@ -2088,7 +2096,6 @@ export function applyTemplate(entry: PanelWindow, resolved: ResolvedPanelSetting
   }
   return {
     ...entry,
-    locked: !resolved.closable,
     collapsible: resolved.parkable,
     live: entry.live && resolved.startVisibility === 'live',
     listed: resolved.listed,

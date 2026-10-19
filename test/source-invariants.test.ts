@@ -136,28 +136,24 @@ function collapsibleReads(source: string, file: string): Site[] {
 const ENTRY_FILES = ['panelWindow.ts', 'panelRowEntry.ts', ...readdirSync(join(ROOT, 'panels')).filter((f) => /[.]tsx?$/.test(f)).sort().map((f) => `panels/${f}`)];
 const sitesOf = (sites: Site[]): string[] => sites.map((s) => `${s.fn}:${s.key}`).sort();
 
-test("source: `locked` and `collapsible` are written only by applyTemplate, plus the 0.1.0 literals in appendPanel and createHistoryPanel; `key` is written by applyTemplate alone", () => {
+test("source: `collapsible` is written only by applyTemplate, plus the 0.1.0 literals in appendPanel and createHistoryPanel; `key` is written by applyTemplate alone", () => {
   assert.ok(ENTRY_FILES.length >= 7, 'the scan list is short: panels/ was not read');
   const outside: string[] = [];
   for (const file of ENTRY_FILES) {
-    for (const site of writesOf(read(file), file, ['locked', 'collapsible', 'key'])) outside.push(`${file} ${site.fn}:${site.key}`);
+    for (const site of writesOf(read(file), file, ['collapsible', 'key'])) outside.push(`${file} ${site.fn}:${site.key}`);
   }
-  // summarisePanel only copies `locked` into the PanelSummary a view sees; it writes no entry.
   assert.deepEqual(
     outside.sort(),
     [
-      'panelRowEntry.ts summarisePanel:locked',
       'panelWindow.ts appendPanel:collapsible',
-      'panelWindow.ts appendPanel:locked',
       'panelWindow.ts createHistoryPanel:collapsible',
-      'panelWindow.ts createHistoryPanel:locked',
       // A template registered after the restore names the entries that were built without it, so lateRegister gives each its key.
       'panels/useProvidePanels.ts lateRegister:key',
     ],
-    'a writer of locked, collapsible or key outside the allowed functions',
+    'a writer of collapsible or key outside the allowed functions',
   );
-  const settingsFile = writesOf(read('panelSettings.ts'), 'panelSettings.ts', ['locked', 'collapsible']);
-  assert.deepEqual(sitesOf(settingsFile), ['applyTemplate:collapsible', 'applyTemplate:collapsible', 'applyTemplate:locked', 'applyTemplate:locked'], 'panelSettings.ts writes them in applyTemplate and nowhere else, once per mode');
+  const settingsFile = writesOf(read('panelSettings.ts'), 'panelSettings.ts', ['collapsible']);
+  assert.deepEqual(sitesOf(settingsFile), ['applyTemplate:collapsible', 'applyTemplate:collapsible'], 'panelSettings.ts writes them in applyTemplate and nowhere else, once per mode');
 });
 
 /** The `key` member written inside applyTemplate, and whether it sits in the reconfigure branch. */
@@ -192,13 +188,13 @@ test("source: applyTemplate writes `key` once, outside its reconfigure branch, a
   assert.deepEqual(writesOf(read('panelWindow.ts'), 'panelWindow.ts', ['key']), [], 'panelWindow.ts has no key write, appendPanel included');
 });
 
-test('source: a planted extra writer of locked, collapsible or key in a scratch copy of panelWindow.ts is found, and a planted key write in the reconfigure branch is too', () => {
+test('source: a planted extra writer of collapsible or key in a scratch copy of panelWindow.ts is found, and a planted key write in the reconfigure branch is too', () => {
   const dir = mkdtempSync(join(tmpdir(), 'phonux-invariants-'));
   try {
     const copy = join(dir, 'panelWindow.ts');
-    writeFileSync(copy, `${read('panelWindow.ts')}\nexport function plantedWriter(p: PanelWindow): PanelWindow {\n  const q = { ...p, locked: true, key: 'k' };\n  q.collapsible = false;\n  return q;\n}\n`);
-    const planted = sitesOf(writesOf(readFileSync(copy, 'utf8'), copy, ['locked', 'collapsible', 'key']));
-    assert.deepEqual(planted.filter((s) => s.startsWith('plantedWriter')), ['plantedWriter:collapsible', 'plantedWriter:key', 'plantedWriter:locked'], 'the scan sees all three planted writes');
+    writeFileSync(copy, `${read('panelWindow.ts')}\nexport function plantedWriter(p: PanelWindow): PanelWindow {\n  const q = { ...p, key: 'k' };\n  q.collapsible = false;\n  return q;\n}\n`);
+    const planted = sitesOf(writesOf(readFileSync(copy, 'utf8'), copy, ['collapsible', 'key']));
+    assert.deepEqual(planted.filter((s) => s.startsWith('plantedWriter')), ['plantedWriter:collapsible', 'plantedWriter:key'], 'the scan sees both planted writes');
     const reconfigureWrite = read('panelSettings.ts').replace("listed: resolved.listed,\n      layer", "listed: resolved.listed,\n      key: entry.id,\n      layer");
     assert.notEqual(reconfigureWrite, read('panelSettings.ts'), 'the plant found its place');
     assert.deepEqual(keyWritesInApplyTemplate(reconfigureWrite), { total: 2, inReconfigure: 1 });
@@ -242,7 +238,7 @@ function applyTemplateWrites(source: string): { reconfigure: string[]; create: s
 }
 
 /** The entry fields a configure must never write itself: only applyTemplate's reconfigure branch (through `reparked`) may. */
-const ENTRY_FIELDS = ['locked', 'collapsible', 'listed', 'anchoredEnter', 'size', 'anchor', 'hostData', 'overrides', 'applied', 'live', 'settings', 'title'];
+const ENTRY_FIELDS = ['collapsible', 'listed', 'anchoredEnter', 'size', 'anchor', 'hostData', 'overrides', 'applied', 'live', 'settings', 'title'];
 /** The files a configure passes through before and after the engine's update. */
 const CONFIGURE_FILES = ['panelConfigure.ts', 'panelPin.ts', 'panelManager.ts', 'panelHandles.ts', 'workspaceCore.ts'];
 const CONFIGURE_FUNCTIONS = ['configureOne', 'configureTemplateOne', 'configureTuningOne'];
@@ -257,11 +253,11 @@ function configureWriters(read: (file: string) => string): string[] {
 }
 
 test('source: a configure writes an entry only through applyTemplate\'s reconfigure branch, and a planted second writer is found', () => {
-  assert.deepEqual(applyTemplateWrites(read('panelSettings.ts')).reconfigure, ['...entry', 'locked', '?collapsible', 'listed', 'layer', 'anchoredEnter', '...title', 'settings'], 'the reconfigure branch writes the mirror fields, the parkable flip and the title, and no slots, size, anchor, hostData, key, overrides or applied');
+  assert.deepEqual(applyTemplateWrites(read('panelSettings.ts')).reconfigure, ['...entry', '?collapsible', 'listed', 'layer', 'anchoredEnter', '...title', 'settings'], 'the reconfigure branch writes the mirror fields, the parkable flip and the title, and no slots, size, anchor, hostData, key, overrides or applied');
   const create = applyTemplateWrites(read('panelSettings.ts')).create;
   for (const created of ['slots', 'size', 'key', 'live']) assert.ok(create.includes(created), `the create branch writes ${created}, so a reconfigure that wrote it would be a second writer`);
-  const both = writesOf(read('panelSettings.ts'), 'panelSettings.ts', ['locked', 'collapsible']).map((s) => `${s.fn}:${s.key}`).sort();
-  assert.deepEqual(both, ['applyTemplate:collapsible', 'applyTemplate:collapsible', 'applyTemplate:locked', 'applyTemplate:locked'], 'one write of each per mode, both inside applyTemplate');
+  const both = writesOf(read('panelSettings.ts'), 'panelSettings.ts', ['collapsible']).map((s) => `${s.fn}:${s.key}`).sort();
+  assert.deepEqual(both, ['applyTemplate:collapsible', 'applyTemplate:collapsible'], 'one write of each per mode, both inside applyTemplate');
   // The configure path: reconfigured() hands the entry to reparked(), which calls applyTemplate in reconfigure mode, and nothing else builds one.
   assert.match(stripComments(read('panelConfigure.ts'), 'panelConfigure.ts'), /reparked\(entry, plan\.resolution\)/);
   assert.match(stripComments(read('panelPin.ts'), 'panelPin.ts'), /applyTemplate\(entry, resolution\.value, 'reconfigure'\)/);
@@ -280,9 +276,9 @@ test('source: a configure writes an entry only through applyTemplate\'s reconfig
       return configureWriters((f) => (f === file ? text : read(f)));
     };
     assert.deepEqual(
-      planted('panelConfigure.ts', 'export function plantedWriter(p: PanelWindow): PanelWindow {\n  const q = { ...p, locked: true, size: undefined };\n  q.collapsible = false;\n  return q;\n}'),
-      ['panelConfigure.ts plantedWriter:collapsible', 'panelConfigure.ts plantedWriter:locked', 'panelConfigure.ts plantedWriter:size', 'panelPin.ts reparked:live', 'workspaceCore.ts configureOne:settings'],
-      'a second writer in panelConfigure.ts is found, all three of its writes',
+      planted('panelConfigure.ts', 'export function plantedWriter(p: PanelWindow): PanelWindow {\n  const q = { ...p, size: undefined };\n  q.collapsible = false;\n  return q;\n}'),
+      ['panelConfigure.ts plantedWriter:collapsible', 'panelConfigure.ts plantedWriter:size', 'panelPin.ts reparked:live', 'workspaceCore.ts configureOne:settings'],
+      'a second writer in panelConfigure.ts is found, both of its writes',
     );
     assert.deepEqual(
       planted('workspaceCore.ts', 'export function configureOne(p: PanelWindow): PanelWindow {\n  return { ...p, anchor: undefined };\n}').filter((site) => site.includes('anchor')),
@@ -291,7 +287,7 @@ test('source: a configure writes an entry only through applyTemplate\'s reconfig
     );
     const widened = read('panelSettings.ts').replace("listed: resolved.listed,\n      layer", "listed: resolved.listed,\n      slots: resolved.slots,\n      layer");
     assert.notEqual(widened, read('panelSettings.ts'), 'the plant found its place');
-    assert.deepEqual(applyTemplateWrites(widened).reconfigure, ['...entry', 'locked', '?collapsible', 'listed', 'slots', 'layer', 'anchoredEnter', '...title', 'settings'], 'a slots write planted in the reconfigure branch is found');
+    assert.deepEqual(applyTemplateWrites(widened).reconfigure, ['...entry', '?collapsible', 'listed', 'slots', 'layer', 'anchoredEnter', '...title', 'settings'], 'a slots write planted in the reconfigure branch is found');
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }

@@ -246,7 +246,7 @@ test('a deferred flip does not hold back the rest of the patch: closable applies
   const out = r.turn(() => r.h.a!.configure({ parkable: false, closable: false }));
   assert.deepEqual(shape(out), ANSWER(true, false, ['closable'], ['parkable']));
   assert.equal(r.state('a').settings.closable, false);
-  assert.equal(r.entry('a').locked, true, 'the entry carries the change, not only the record');
+  assert.equal(!r.entry('a').settings!.closable, true, 'the entry carries the change, not only the record');
   assert.deepEqual([r.state('a').settings.parkable, r.state('a').deferredPin], [true, { parkable: false }]);
 });
 

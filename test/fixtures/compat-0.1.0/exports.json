@@ -182,6 +182,8 @@
         "resolveView",
         "shouldCloseOnRelease",
         "summarisePanel",
+        "usePanelCloseEligible",
+        "usePanelReorderEligible",
         "usePhoneAPIs",
         "vendorLabelForUsbVendorId"
       ],

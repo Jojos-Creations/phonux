@@ -65,11 +65,11 @@ function parkPanelsFit(r: MatrixRig): boolean {
 
 test('case A1: closable true to false on a live panel: the control is gone, close is refused not-closable, the History trash is gone and clearable re-derives false', async () => {
   const r = await matrixRig();
-  assert.deepEqual([r.seen('b')?.['data-close'], summaryOf(r, 'b')?.locked, r.state('b').settings.clearable], ['true', false, true]);
+  assert.deepEqual([r.seen('b')?.['data-close'], !r.state('b').settings.closable, r.state('b').settings.clearable], ['true', false, true]);
   assert.deepEqual(shape(r.turn(() => r.h.b!.configure({ closable: false }))), { now: ['closable'], later: [], shadowed: [] });
   assert.equal(r.seen('b')?.['data-close'], 'false', 'the view is no longer offered the close control');
-  assert.equal(letter(r.turn(() => r.h.b!.close())), 'not-closable');
-  assert.equal(summaryOf(r, 'b')?.locked, true, 'History offers no trash for it');
+  assert.equal(letter(r.turn(() => r.h.b!.close('person'))), 'not-closable');
+  assert.equal(!r.state('b').settings.closable, true, 'History offers no trash for it');
   assert.equal(r.state('b').settings.clearable, false, 'clearable re-derived false');
   r.turn(() => r.provided().clearAll());
   assert.equal(r.order().join(' '), 'root b', 'and clearAll keeps it');
@@ -83,8 +83,8 @@ test('case A2: closable false inside a declared panel\'s window is stored, and u
   assert.equal(r.state('b').status, 'closed', 'a closed panel stays closed');
   r.turn(() => r.provided().undoClose());
   await r.settle();
-  assert.deepEqual([r.state('b').status, r.entry('b').locked, r.order().join(' ')], ['live', true, 'root a b c']);
-  assert.equal(letter(r.turn(() => r.h.b!.close())), 'not-closable', 'undo restored it unclosable');
+  assert.deepEqual([r.state('b').status, !r.entry('b').settings!.closable, r.order().join(' ')], ['live', true, 'root a b c']);
+  assert.equal(letter(r.turn(() => r.h.b!.close('person'))), 'not-closable', 'undo restored it unclosable');
 });
 
 test('case A3: closable false during a DragToClose exit: released at +epsilon and at the end of the exit, the box snaps back, nothing closes and a new press drags again', async () => {
@@ -139,23 +139,23 @@ test('case A4: closable true on the root is a settings-conflict naming closable 
   assert.equal(r.m.latest().entries === entries, true, 'the engine was not touched');
 });
 
-test('case A5: parkable true to false on a live phone panel: listed, draggable, placeable and clearable re-derive false at the commit unless named, the settled row fits, a resizable true beside it stands and a measured park row accepts it', async () => {
+test('case A5: parkable true to false on a live phone panel: listed, movable and clearable re-derive false at the commit unless named, the settled row fits, a resizable true beside it stands and a measured park row accepts it', async () => {
   const r = await matrixRig({ ids: ['a', 'b', 'c'], settings: { a: { overflow: 'park' }, c: { overflow: 'park' } }, width: 1700 });
   await r.settle();
   assert.equal(r.live().join(' '), 'root a b c');
   const facts = (name: string): unknown[] => {
     const s = r.state(name);
-    return [s.settings.parkable, s.listed, s.settings.draggable, s.settings.placeable, s.settings.clearable];
+    return [s.settings.parkable, s.listed, s.settings.movable, s.settings.clearable];
   };
-  assert.deepEqual(facts('b'), [true, true, true, true, true]);
+  assert.deepEqual(facts('b'), [true, true, true, true]);
   assert.deepEqual(shape(r.turn(() => r.h.b!.configure({ parkable: false }))), { now: ['parkable'], later: [], shadowed: [] }, 'a measured row holding park panels accepts it: no refusal for room');
-  assert.deepEqual(facts('b'), [false, false, false, false, false], 'all four re-derived at the commit');
+  assert.deepEqual(facts('b'), [false, false, false, false], 'all three re-derived at the commit');
   await r.settle();
   assert.equal(parkPanelsFit(r), true, 'the settled row fits the window beside the new fixed column');
   assert.equal(r.state('b').status, 'live', 'the fixed column is live');
   const named = await matrixRig();
   assert.deepEqual(shape(named.turn(() => named.h.b!.configure({ parkable: false, listed: true }))), { now: ['parkable', 'listed'], later: [], shadowed: [] });
-  assert.deepEqual([named.state('b').settings.parkable, named.state('b').listed, named.state('b').settings.draggable], [false, true, false], 'a named key keeps its value');
+  assert.deepEqual([named.state('b').settings.parkable, named.state('b').listed, named.state('b').settings.movable], [false, true, false], 'a named key keeps its value');
   assert.deepEqual(shape(named.turn(() => named.h.a!.configure({ parkable: false, resizable: true }))), { now: ['parkable', 'resizable'], later: [], shadowed: [] });
   assert.deepEqual([named.state('a').settings.parkable, named.state('a').settings.resizable], [false, true], 'a resizable true the panel asked for beside its fixed column stands');
 });
@@ -173,11 +173,11 @@ test('case A7: parkable false to true on a live fixed column makes it an ordinar
   const r = await matrixRig({ settings: { b: { parkable: false } } });
   const facts = (): unknown[] => {
     const s = r.state('b');
-    return [s.settings.parkable, s.listed, s.settings.draggable, s.settings.placeable, s.settings.clearable];
+    return [s.settings.parkable, s.listed, s.settings.movable, s.settings.clearable];
   };
-  assert.deepEqual([facts(), r.entry('b').collapsible, r.provided().fixedViewCount], [[false, false, false, false, false], false, 2], 'before: a fixed column');
+  assert.deepEqual([facts(), r.entry('b').collapsible, r.provided().fixedViewCount], [[false, false, false, false], false, 2], 'before: a fixed column');
   assert.deepEqual(shape(r.turn(() => r.h.b!.configure({ parkable: true }))), { now: ['parkable'], later: [], shadowed: [] });
-  assert.deepEqual([facts(), r.entry('b').collapsible, r.provided().fixedViewCount], [[true, true, true, true, true], true, 1], 'after: C1 is lifted and the derived keys follow parkable');
+  assert.deepEqual([facts(), r.entry('b').collapsible, r.provided().fixedViewCount], [[true, true, true, true], true, 1], 'after: C1 is lifted and the derived keys follow parkable');
   assert.equal(letter(r.turn(() => r.h.b!.hide())), 'T', 'it can be hidden');
 });
 
@@ -362,19 +362,19 @@ test('edge scroll 6: a hidden panel and an engine-parked panel store the tuning,
   assert.deepEqual([parked.state(away!).status, parked.h[away!]!.getSettings().value.tuning.edgeScroll.zonePx], ['parked', QUARTER], 'stored on the parked panel, which stays parked');
 });
 
-test('root column 1: closable, parkable, draggable and placeable true on the root are each a settings-conflict naming the key and rule C5, with no forcedBy', async () => {
+test('root column 1: closable, parkable and movable true on the root are each a settings-conflict naming the key and rule C5, with no forcedBy', async () => {
   const r = await matrixRig();
   const entries = r.m.latest().entries;
   const renders = r.m.renders();
   let executed = 0;
-  for (const key of ['closable', 'parkable', 'draggable', 'placeable'] as const) {
+  for (const key of ['closable', 'parkable', 'movable'] as const) {
     const refusal = refusedWith(r.turn(() => r.ws.panels.configure(r.ws.rootId, { [key]: true } as never)), 'settings-conflict');
     assert.equal(refusal.setting, key, `${key}: the result names the asked key`);
     assert.match(refusal.message, /C5/, `${key}: the message names rule C5`);
     assert.doesNotMatch(refusal.message, /because of/, `${key}: and names no forcing key`);
     executed += 1;
   }
-  assert.equal(executed, 4);
+  assert.equal(executed, 3);
   assert.deepEqual([r.m.latest().entries === entries, r.m.renders()], [true, renders], 'the root was not touched');
 });
 

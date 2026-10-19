@@ -89,7 +89,7 @@ test('recordOverride parkable copies collapsible as parkable', () => {
 
 test('recordOverride skips the root, a marker and an entry with no settings', () => {
   const marker: PanelWindow = { ...made('m'), marker: true };
-  const handBuilt: PanelWindow = { id: 'h', url: '', live: true, locked: false, view: 'web', collapsible: true, listed: true };
+  const handBuilt: PanelWindow = { id: 'h', url: '', live: true, view: 'web', collapsible: true, listed: true };
   const rooted = applyTemplate(createHistoryPanel(ROOT), resolvePanelSettings({}, { root: true }).value, 'create');
   const row = computeRowOrder([rooted, marker, handBuilt, made('ok')], ROOT);
   const ids = row.map((p) => p.id);
@@ -104,7 +104,7 @@ test('recordOverride keeps what other keys already hold', () => {
 });
 
 test('clearOverrides sets {} on each listed entry that carries settings and leaves the rest', () => {
-  const handBuilt: PanelWindow = { id: 'h', url: '', live: true, locked: false, view: 'web', collapsible: true, listed: true };
+  const handBuilt: PanelWindow = { id: 'h', url: '', live: true, view: 'web', collapsible: true, listed: true };
   const row = computeRowOrder([createHistoryPanel(ROOT), made('a', {}, { overrides: { slots: 2 } }), made('b', {}, { overrides: { parkable: false } }), handBuilt], ROOT);
   const cleared = clearOverrides(row, ['a', 'h']);
   assert.deepEqual(cleared.map((p) => p.overrides), [undefined, {}, { parkable: false }, undefined]);
@@ -251,12 +251,12 @@ test('overrides.slots 2 restores at two slots although the template now says res
   assert.deepEqual(result.entries[0]!.size, sizeOfSlots(2));
 });
 
-test('an overrides.anchor restores although draggable and placeable are false', () => {
+test('an overrides.anchor restores although movable is false', () => {
   const saved = file([
     savedEntry('a', { view: 't', overrides: { anchor: { panel: 'b', position: 'right', priority: 0 } } }),
     savedEntry('b', { view: 't', overrides: {}, anchor: { panel: ROOT, position: 'right', priority: 0 } }),
   ]);
-  const result = run({ saved, templates: [tpl('t', { draggable: false, placeable: false })] });
+  const result = run({ saved, templates: [tpl('t', { movable: false })] });
   assert.deepEqual(titles(result.entries), ['b', 'a']);
 });
 
@@ -326,13 +326,13 @@ test('a fixed column is live whatever it was saved as', () => {
 
 // closable
 
-test('a saved closable false restores locked for a view no template rebuilds, and a template that says closable true wins over it', () => {
+test('a saved closable false restores unclosable for a view no template rebuilds, and a template that says closable true wins over it', () => {
   const unregistered = run({ saved: file([savedEntry('p', { view: 'nobody', closable: false, overrides: {} })]), workspaceDefaults: {} });
-  assert.equal(unregistered.entries[0]!.locked, true);
+  assert.equal(unregistered.entries[0]!.settings!.closable, false);
   const registered = run({ saved: file([savedEntry('p', { view: 't', closable: false, overrides: {} })]), templates: [tpl('t', { closable: true })] });
-  assert.equal(registered.entries[0]!.locked, false);
+  assert.equal(registered.entries[0]!.settings!.closable, true);
   const locked = run({ saved: file([savedEntry('p', { view: 't', overrides: {} })]), templates: [tpl('t', { closable: false })] });
-  assert.equal(locked.entries[0]!.locked, true);
+  assert.equal(locked.entries[0]!.settings!.closable, false);
 });
 
 // lenient restore

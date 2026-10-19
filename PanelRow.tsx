@@ -62,31 +62,16 @@ function renderedSummary(p: PanelRowEntry, width: number, height: number | undef
 /** What a view mounted outside any row is told: the library defaults, which `resolvePanelSettings` fills in for the derived keys too. */
 const OUTSIDE_ROW = resolvePanelSettings().value;
 /**
- * True only for an entry whose `draggable` setting is true (a plain web panel by default): an always-shown column
- * (the root, or a `permanent:true` custom column) is never a reorder source. Unprovided resolves to false: a view
- * mounted with no `PanelRow` above it never reorders.
+ * What this panel lets a person do with it by gesture: close it (`closable`), move it (`movable`) and resize it
+ * (`resizable`), and the most slots it may take. `closable` is false for an always-shown column even when its
+ * setting is true, since the row's close gesture never offers one. These limit only the person's gestures, never the
+ * developer's own calls. Outside a row: the library defaults.
  * @public
  */
-export const usePanelReorderEligible = (): boolean => React.useContext(PanelSlotContext)?.draggable ?? false;
-/**
- * False for an always-shown column (`collapsible:false`) and for an entry whose `closable` setting is false: the
- * built-in 'web' view must never wrap either in a framework close handle (CreatePanelOptions.permanent's 'own
- * control only' guarantee, and a locked panel's refusal). Unprovided resolves to true: a view mounted directly
- * (as tests do) is an ordinary closable panel.
- * @public
- */
-export const usePanelCloseEligible = (): boolean => {
-  const slot = React.useContext(PanelSlotContext);
-  return slot === undefined ? true : slot.collapsible && slot.closable;
-};
-/**
- * What this panel's own settings let a person do with it: close, drag, re-anchor and resize it, and the most slots it
- * may take. Outside a row: the library defaults.
- * @public
- */
-export const usePanelCapabilities = (): Pick<ResolvedPanelSettings, 'closable' | 'draggable' | 'placeable' | 'resizable' | 'maxSlots'> => {
-  const slot = React.useContext(PanelSlotContext) ?? OUTSIDE_ROW;
-  return { closable: slot.closable, draggable: slot.draggable, placeable: slot.placeable, resizable: slot.resizable, maxSlots: slot.maxSlots };
+export const usePanelCapabilities = (): Pick<ResolvedPanelSettings, 'closable' | 'movable' | 'resizable' | 'maxSlots'> => {
+  const inRow = React.useContext(PanelSlotContext);
+  const slot = inRow ?? OUTSIDE_ROW;
+  return { closable: slot.closable && (inRow?.collapsible ?? true), movable: slot.movable, resizable: slot.resizable, maxSlots: slot.maxSlots };
 };
 /** The widths this entry's drag can cross (reorderStepsForOffset's input). Unprovided: none, so no hop.
  * @public */
@@ -302,7 +287,7 @@ export function PanelRow({
   }, [draggedGone]);
   const shiftById = new Map<string, number>();
   const draggedEntry = dragging === null ? undefined : present.find((x) => x.id === dragging.id);
-  if (dragging !== null && draggedEntry !== undefined && dragging.steps !== 0 && effective(draggedEntry).draggable) {
+  if (dragging !== null && draggedEntry !== undefined && dragging.steps !== 0 && effective(draggedEntry).movable) {
     // Every panel the drag would cross moves by the dragged panel's own span, away from the side it is dragged toward.
     const span = widthById.get(draggedEntry.id)! + gap;
     const walk = neighborsAt(draggedEntry);
@@ -335,7 +320,7 @@ export function PanelRow({
           const presentIndex = present.indexOf(p);
           const rest = { leftOffset: leftOffsets[presentIndex]!, width: widths[presentIndex]! };
           const Component = resolveViewIn(templateOf, p.view);
-          const { closable, draggable, placeable, resizable, maxSlots, enterFrom, layer, headerButtons } = effective(p);
+          const { closable, movable, resizable, maxSlots, enterFrom, layer, headerButtons } = effective(p);
           const { exitTo, closeExit, scrollOnDrag } = FIXED;
           const own = slotTuning(workspaceTuning, binding.panelTuning(p as PanelWindow));
           const handle = viewContext.handleFor(panelKey(p));
@@ -352,8 +337,7 @@ export function PanelRow({
               value={{
                 collapsible: p.collapsible,
                 closable,
-                draggable,
-                placeable,
+                movable,
                 resizable,
                 maxSlots,
                 id: p.id,

@@ -120,31 +120,31 @@ async function nowCell(status: Status): Promise<void> {
     else r.turn(() => r.provided().undoClose());
     await r.settle();
     assert.equal(r.state(id).status, 'live');
-    assert.equal(r.entry(id).locked, true, 'the record carried the edit into the reopened panel');
-    assert.equal(letter(r.turn(() => r.h[id]!.close())), 'not-closable');
+    assert.equal(!r.entry(id).settings!.closable, true, 'the record carried the edit into the reopened panel');
+    assert.equal(letter(r.turn(() => r.h[id]!.close('person'))), 'not-closable');
     return;
   }
   assert.equal(out.kind, 'applied-now');
   const mounted = status === 'live' || status === 'hidden' ? r.seen(id) : null;
   if (status === 'live') assert.equal(mounted?.['data-close'], 'true', 'before: the view is offered the close control');
-  assert.equal(summaryOf(r, id)?.locked, false, 'before: the History row offers a close');
+  assert.equal(!r.state(id).settings.closable, false, 'before: the History row offers a close');
   const res = done(a.configure({ closable: false }));
   assert.deepEqual({ ok: res.ok, changed: res.changed, shown: res.shown, now: [...res.now], later: [...res.later], shadowed: [...res.shadowed] }, { ok: true, changed: true, shown: false, now: ['closable'], later: [], shadowed: [] });
-  assert.equal(summaryOf(r, id)?.locked, true, 'after: the History row no longer offers a close, in the same commit');
-  assert.equal(r.entry(id).locked, true);
+  assert.equal(!r.state(id).settings.closable, true, 'after: the History row no longer offers a close, in the same commit');
+  assert.equal(!r.entry(id).settings!.closable, true);
   assert.equal(r.state(id).settings.clearable, false, 'clearable re-derives false (C2)');
   if (status === 'live') assert.equal(r.seen(id)?.['data-close'], 'false', 'the view is no longer offered the close control');
   assert.equal(r.order().join(' '), before.order, 'nothing moved');
   assert.equal(r.live().join(' '), before.live, 'nothing parked or returned');
   assertSideEffects(a, before, cell);
-  assert.equal(letter(r.turn(() => r.h[id]!.close())), 'not-closable');
+  assert.equal(letter(r.turn(() => r.h[id]!.close('person'))), 'not-closable');
   if (cell.staysLive === true) {
     assert.equal(r.state(id).status, 'parked', 'control: the panel was parked when configured');
     r.turn(() => r.h[id]!.show());
     await r.settle();
     assert.equal(r.state(id).status, 'live', 'the acted-on panel is live and stays live');
     assert.deepEqual(r.live().filter((n) => n !== 'root'), [id], 'the row holds one park panel beside the root, so room was made by parking the one that was live');
-    assert.equal(letter(r.turn(() => r.h[id]!.close())), 'not-closable');
+    assert.equal(letter(r.turn(() => r.h[id]!.close('person'))), 'not-closable');
   }
 }
 
@@ -379,11 +379,11 @@ async function wrongScopeInEveryStatus(patch: Record<string, unknown>, setting: 
 test('matrix:closable', async () => {
   probe('closable');
   const r = await matrixRig();
-  const read = (id: string): unknown[] => [r.seen(id)?.['data-close'], summaryOf(r, id)?.locked, r.state(id).settings.clearable];
+  const read = (id: string): unknown[] => [r.seen(id)?.['data-close'], !r.state(id).settings.closable, r.state(id).settings.clearable];
   assert.deepEqual(read('b'), ['true', false, true], 'before: a close control is offered, History can close it, clearAll takes it');
   assert.deepEqual(shape(r.turn(() => r.h.b!.configure({ closable: false }))), { now: ['closable'], later: [], shadowed: [] });
   assert.deepEqual(read('b'), ['false', true, false], 'after, in that commit: no close control, no close from History, clearable re-derived false');
-  assert.equal(letter(r.turn(() => r.h.b!.close())), 'not-closable', 'close() answers not-closable');
+  assert.equal(letter(r.turn(() => r.h.b!.close('person'))), 'not-closable', 'close() answers not-closable');
   assert.equal(r.state('b').status, 'live');
   assert.deepEqual(read('c'), ['true', false, true], 'a neighbour is untouched');
   done(r.turn(() => r.h.b!.configure({ closable: true })));
@@ -391,7 +391,7 @@ test('matrix:closable', async () => {
   r.turn(() => r.h.c!.hide());
   await r.settle();
   done(r.turn(() => r.h.c!.configure({ closable: false })));
-  assert.deepEqual([summaryOf(r, 'c')?.locked, r.seen('c'), r.state('c').status], [true, null, 'parked'], 'a hidden panel changes in the History row only');
+  assert.deepEqual([!r.state('c').settings.closable, r.seen('c'), r.state('c').status], [true, null, 'parked'], 'a hidden panel changes in the History row only');
   const root = refusedWith(r.turn(() => r.ws.panels.configure(r.ws.rootId, { closable: true })), 'settings-conflict');
   assert.equal(root.setting, 'closable');
   assert.match(root.message, /C5/);
@@ -405,14 +405,14 @@ test('matrix:parkable', async () => {
   const r = await matrixRig({ ids, settings: { f: { pinningWhenNotLive: 'apply-on-next-show' }, g: { pinning: PAIR_PIN } } });
   const facts = (id: string): unknown[] => {
     const s = r.state(id);
-    return [s.settings.parkable, s.listed, s.settings.draggable, s.settings.placeable, s.settings.clearable];
+    return [s.settings.parkable, s.listed, s.settings.movable, s.settings.clearable];
   };
-  assert.deepEqual([facts('b'), r.provided().fixedViewCount], [[true, true, true, true, true], 1], 'before: an ordinary panel, one fixed column (the root)');
+  assert.deepEqual([facts('b'), r.provided().fixedViewCount], [[true, true, true, true], 1], 'before: an ordinary panel, one fixed column (the root)');
   assert.deepEqual(shape(r.turn(() => r.h.b!.configure({ parkable: false }))), { now: ['parkable'], later: [], shadowed: [] });
-  assert.deepEqual([facts('b'), r.entry('b').collapsible, r.provided().fixedViewCount], [[false, false, false, false, false], false, 2], 'after, in that commit: listed, draggable, placeable and clearable re-derived false; the row prices a second fixed column');
+  assert.deepEqual([facts('b'), r.entry('b').collapsible, r.provided().fixedViewCount], [[false, false, false, false], false, 2], 'after, in that commit: listed, movable and clearable re-derived false; the row prices a second fixed column');
   assert.equal(letter(r.turn(() => r.h.b!.hide())), 'not-parkable');
   done(r.turn(() => r.h.b!.configure({ parkable: true })));
-  assert.deepEqual([facts('b'), r.entry('b').collapsible], [[true, true, true, true, true], true], 'false to true lifts C1');
+  assert.deepEqual([facts('b'), r.entry('b').collapsible], [[true, true, true, true], true], 'false to true lifts C1');
   r.turn(() => r.h.c!.setSlots(2, 'person'));
   assert.equal(refusedWith(r.turn(() => r.h.c!.configure({ parkable: false })), 'slots-above-max').ok, false, 'a two-slot panel cannot become a fixed column');
   assert.deepEqual(shape(r.turn(() => r.h.a!.configure({ parkable: false, resizable: true }))), { now: ['parkable', 'resizable'], later: [], shadowed: [] }, 'resizable true beside a fixed column stands: the panel asked for its size itself');
@@ -448,21 +448,28 @@ test('matrix:parkable', async () => {
   s.end();
 });
 
-test('matrix:draggable', async () => {
-  probe('draggable');
-  const r = await matrixRig();
+test('matrix:movable', async () => {
+  probe('movable');
+  const r = await matrixRig({ settings: { c: { pinning: { pinned: { placement: 'row-start' }, unpinned: { placement: 'row-end' } } } } });
   assert.equal(r.seen('b')?.['data-reorder'], 'true', 'before: the reorder grab is offered');
-  assert.deepEqual(shape(r.turn(() => r.h.b!.configure({ draggable: false }))), { now: ['draggable'], later: [], shadowed: [] });
+  assert.deepEqual(shape(r.turn(() => r.h.b!.configure({ movable: false }))), { now: ['movable'], later: [], shadowed: [] });
   assert.equal(r.seen('b')?.['data-reorder'], 'false', 'after, in that commit: no reorder grab');
-  assert.equal(letter(r.turn(() => r.h.b!.move(1))), 'not-draggable');
+  assert.equal(JSON.parse(r.seen('b')!['data-caps']!).movable, false, 'and the view reads movable false');
+  assert.equal(letter(r.turn(() => r.h.b!.move(1, 'person'))), 'not-movable', 'a person is refused');
+  assert.equal(letter(r.turn(() => r.h.b!.place('row-end', 'person'))), 'not-movable', 'a person is refused a placement too');
   assert.equal(r.order().join(' '), 'root a b c', 'nothing moved');
+  assert.equal(letter(r.turn(() => r.h.b!.move(1))), 'T', 'the developer\'s own move is not limited');
+  assert.equal(r.order().join(' '), 'root a c b');
+  assert.equal(letter(r.turn(() => r.h.b!.place('row-start'))), 'T', 'nor is the developer\'s own place');
+  assert.equal(r.order().join(' '), 'b root a c');
   assert.equal(r.seen('a')?.['data-reorder'], 'true', 'a neighbour is untouched');
   r.turn(() => r.h.c!.hide());
   await r.settle();
-  done(r.turn(() => r.h.c!.configure({ draggable: false })));
-  assert.deepEqual([r.state('c').settings.draggable, r.state('c').status], [false, 'parked'], 'a hidden panel stores it');
-  const root = refusedWith(r.turn(() => r.ws.panels.configure(r.ws.rootId, { draggable: true })), 'settings-conflict');
-  assert.equal(root.setting, 'draggable');
+  done(r.turn(() => r.h.c!.configure({ movable: false })));
+  assert.deepEqual([r.state('c').settings.movable, r.state('c').status], [false, 'parked'], 'a hidden panel stores it');
+  assert.equal(letter(r.turn(() => r.h.c!.pin())), 'T', 'a placement-bearing pin() is not limited');
+  const root = refusedWith(r.turn(() => r.ws.panels.configure(r.ws.rootId, { movable: true })), 'settings-conflict');
+  assert.equal(root.setting, 'movable');
   assert.match(root.message, /C5/);
 });
 
@@ -483,38 +490,19 @@ test('matrix:crossable', async () => {
   assert.deepEqual(rightOfA(), [], 'a hidden panel that is not crossable is a barrier for the next drag too');
 });
 
-test('matrix:placeable', async () => {
-  probe('placeable');
-  const r = await matrixRig({ settings: { c: { pinning: { pinned: { placement: 'row-start' }, unpinned: { placement: 'row-end' } } } } });
-  assert.equal(r.seen('b')?.['data-caps'] !== undefined && JSON.parse(r.seen('b')!['data-caps']!).placeable, true, 'before: placeable');
-  assert.deepEqual(shape(r.turn(() => r.h.b!.configure({ placeable: false }))), { now: ['placeable'], later: [], shadowed: [] });
-  assert.equal(JSON.parse(r.seen('b')!['data-caps']!).placeable, false, 'after, in that commit: the view reads placeable false');
-  assert.equal(letter(r.turn(() => r.h.b!.place('row-end'))), 'not-placeable');
-  assert.equal(letter(r.turn(() => r.h.b!.pin())), 'not-placeable', 'a placement-bearing pin() refuses too');
-  assert.equal(r.order().join(' '), 'root a b c', 'nothing moved');
-  assert.equal(letter(r.turn(() => r.h.a!.place('row-end'))), 'T', 'a neighbour still places');
-  r.turn(() => r.h.c!.hide());
-  await r.settle();
-  done(r.turn(() => r.h.c!.configure({ placeable: false })));
-  assert.equal(letter(r.turn(() => r.h.c!.place('row-start'))), 'not-placeable', 'a hidden panel refuses too');
-  const root = refusedWith(r.turn(() => r.ws.panels.configure(r.ws.rootId, { placeable: true })), 'settings-conflict');
-  assert.equal(root.setting, 'placeable');
-  assert.match(root.message, /C5/);
-});
-
 test('matrix:resizable', async () => {
   probe('resizable');
   const r = await matrixRig();
   r.turn(() => r.h.b!.setSlots(2, 'person'));
   assert.deepEqual([r.entry('b').slots, r.entry('b').overrides?.slots], [2, 2], 'before: the person chose two slots');
   assert.deepEqual(shape(r.turn(() => r.h.b!.configure({ resizable: false }))), { now: ['resizable'], later: [], shadowed: [] });
-  assert.equal(letter(r.turn(() => r.h.b!.setSlots(1))), 'not-resizable', 'after: setSlots is refused');
+  assert.equal(letter(r.turn(() => r.h.b!.setSlots(1, 'person'))), 'not-resizable', 'after: setSlots is refused');
   assert.deepEqual([r.entry('b').slots, r.entry('b').overrides?.slots], [2, 2], "the slots and the person's saved size are never changed or dropped");
   assert.equal(letter(r.turn(() => r.h.a!.setSlots(2))), 'T', 'a neighbour still resizes');
   r.turn(() => r.h.c!.hide());
   await r.settle();
   done(r.turn(() => r.h.c!.configure({ resizable: false })));
-  assert.equal(letter(r.turn(() => r.h.c!.setSlots(2))), 'not-resizable', 'a hidden panel refuses too');
+  assert.equal(letter(r.turn(() => r.h.c!.setSlots(2, 'person'))), 'not-resizable', 'a hidden panel refuses too');
   const fixed = await matrixRig();
   done(fixed.turn(() => fixed.h.a!.configure({ parkable: false })));
   assert.equal(shape(fixed.turn(() => fixed.h.a!.configure({ resizable: true }))).now[0], 'resizable', 'C1: true asked for the fixed column itself stands');
@@ -1507,14 +1495,14 @@ test('the class table ran every cell: executed cells equal 4 classes by 9 status
 });
 
 // The design copy is frozen; a catalog key added or removed after it is listed here, never in the copy.
-const REMOVED_AFTER_DESIGN: readonly string[] = ['formFactor', 'formFactors', 'hideWhenLast', 'returnPriority', 'evictionRank', 'evictionOrder', 'scrollOnDrag', 'viewState', 'keepMounted', 'placeOnReturn', 'placeFallback', 'undoPlacement', 'exitTo', 'closeExit', 'animated', 'persist', 'rememberLayout', 'undoWindowMs', 'reportClose', 'snapshot'];
-const ADDED_AFTER_DESIGN: readonly string[] = ['tuning.maxLivePanels', 'tuning.chrome', 'slots', 'maxSlots', 'tuning.resizeSettleSlides', 'tuning.phoneFit', 'tuning.phoneFitMin', 'tuning.phoneFitMax', 'hollowDot'];
+const REMOVED_AFTER_DESIGN: readonly string[] = ['formFactor', 'formFactors', 'hideWhenLast', 'returnPriority', 'evictionRank', 'evictionOrder', 'scrollOnDrag', 'viewState', 'keepMounted', 'placeOnReturn', 'placeFallback', 'undoPlacement', 'exitTo', 'closeExit', 'animated', 'persist', 'rememberLayout', 'undoWindowMs', 'reportClose', 'snapshot', 'draggable', 'placeable'];
+const ADDED_AFTER_DESIGN: readonly string[] = ['tuning.maxLivePanels', 'tuning.chrome', 'slots', 'maxSlots', 'tuning.resizeSettleSlides', 'tuning.phoneFit', 'tuning.phoneFitMin', 'tuning.phoneFitMax', 'hollowDot', 'movable'];
 
-test('the probes ran every catalog name once: 51 executed, equal to the catalog and to the design copy of it plus the names added after it', () => {
+test('the probes ran every catalog name once: 50 executed, equal to the catalog and to the design copy of it plus the names added after it', () => {
   const design = JSON.parse(readFileSync(new URL('../design/0.2-rev7/DESIGN-phonux-0.2-rev7-catalog.json', import.meta.url), 'utf8')) as { name: string }[];
   assert.equal(design.length, 62);
-  assert.equal(CATALOG_NAMES.length, 51);
-  assert.equal(probesExecuted().size, 51);
+  assert.equal(CATALOG_NAMES.length, 50);
+  assert.equal(probesExecuted().size, 50);
   assert.deepEqual([...probesExecuted()].sort(), [...CATALOG_NAMES].sort());
   assert.deepEqual([...probesExecuted()].sort(), [...design.map((d) => d.name).filter((name) => !REMOVED_AFTER_DESIGN.includes(name)), ...ADDED_AFTER_DESIGN].sort());
 });

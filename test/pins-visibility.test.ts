@@ -17,13 +17,12 @@ const entry = (id: string, over: Partial<PanelWindow> = {}): PanelWindow => ({
   url: `https://${id}.example`,
   title: id.toUpperCase(),
   live: true,
-  locked: false,
   view: 'pin-vs',
   collapsible: true,
   listed: true,
   ...over,
 });
-const root = (): PanelWindow => entry('root', { url: '', title: 'History', locked: true, collapsible: false, listed: false });
+const root = (): PanelWindow => entry('root', { url: '', title: 'History', collapsible: false, listed: false });
 const liveIds = (panels: readonly PanelWindow[]): string[] => panels.filter((p) => p.live).map((p) => p.id);
 
 /** Wide enough for three live panels beside History: 390 + 3 * (390 + 16) + 32. */

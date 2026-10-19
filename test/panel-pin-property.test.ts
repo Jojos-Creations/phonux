@@ -52,13 +52,13 @@ test('seeded random sequences keep S3 and S10 after every step', async () => {
     const rand = prng(seed);
     const pick = <T,>(...values: T[]): T => values[Math.floor(rand() * values.length)]!;
     const settings: Record<string, PanelSettings> = {};
-    const placeable: Record<string, boolean> = {};
+    const movable: Record<string, boolean> = {};
     const definitionOf: Record<string, Pinning | undefined> = {};
     for (const id of IDS) {
       const definition = id === 'dock' ? undefined : pick(...DEFINITIONS);
       definitionOf[id] = definition;
-      placeable[id] = pick(true, true, true, false);
-      settings[id] = { overflow: 'scroll', placeable: placeable[id], pinningWhenNotLive: pick(...WHEN), ...(definition === undefined ? {} : { pinning: definition }) } as PanelSettings;
+      movable[id] = pick(true, true, true, false);
+      settings[id] = { overflow: 'scroll', ...(movable[id] ? {} : { movable: false }), pinningWhenNotLive: pick(...WHEN), ...(definition === undefined ? {} : { pinning: definition }) } as PanelSettings;
     }
     const r = await pinRig({ ids: IDS, width: pick(800, 1000, 4000), settings });
     const where = (step: number): string => `seed ${seed} step ${step}`;
@@ -89,11 +89,11 @@ test('seeded random sequences keep S3 and S10 after every step', async () => {
       assert.equal(new Set(keys).size, keys.length, `${where(step)}: keys unique`);
       if (op === 'pin' || op === 'unpin' || op === 'pinPerson') pins += 1;
       if (result.ok && (result as { deferred?: boolean }).deferred === true) deferred += 1;
-      // S3: a placement half never bypasses placeable:false on a live panel.
+      // S3: movable limits a person's drag and drop only, so a pin with a placement is never refused for it.
       const definition = definitionOf[id];
       const half = definition === undefined ? { placement: 'x' } : op === 'unpin' ? definition.unpinned : definition.pinned;
-      if ((op === 'pin' || op === 'unpin' || op === 'pinPerson') && before.status === 'live' && !placeable[id] && 'placement' in half && (half as { placement?: unknown }).placement !== undefined) {
-        assert.equal(brief(result), 'not-placeable', `${where(step)}: ${op} on ${id}`);
+      if ((op === 'pin' || op === 'unpin' || op === 'pinPerson') && before.status === 'live' && !movable[id] && 'placement' in half && (half as { placement?: unknown }).placement !== undefined) {
+        assert.notEqual(brief(result), 'not-movable', `${where(step)}: ${op} on ${id}`);
       }
       // S3: a refusal changes no read.
       if (!result.ok && (op === 'pin' || op === 'unpin' || op === 'pinPerson')) assert.deepEqual(reads(), readsBefore, `${where(step)}: refused ${op} moved a read`);
@@ -101,10 +101,10 @@ test('seeded random sequences keep S3 and S10 after every step', async () => {
       if (op === 'move' && result.ok) {
         for (const other of IDS) if (other !== id) assert.equal(r.state(other).pinned, readsBefore[other], `${where(step)}: moving ${id} changed ${other}'s read`);
       }
-      // A fixed pin reads fixed everywhere: not parkable, not listed, not draggable.
+      // A fixed pin reads fixed everywhere: not parkable, not listed, not movable.
       for (const other of IDS) {
         const f = r.facts(other);
-        if (f.pinned && definitionOf[other]?.pinned.parkable === false) assert.deepEqual([f.parkable, f.listed, f.draggable], [false, false, false], `${where(step)}: ${other} reads pinned with a fixed definition`);
+        if (f.pinned && definitionOf[other]?.pinned.parkable === false) assert.deepEqual([f.parkable, f.listed, f.movable], [false, false, false], `${where(step)}: ${other} reads pinned with a fixed definition`);
       }
       // S3: show() always works on a panel that is not closed.
       if (step % 3 === 2) {

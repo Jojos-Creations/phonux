@@ -19,7 +19,7 @@ import { registerTestView } from './support/test-views.js';
 
 afterEach(() => cleanup());
 
-const legacyRoot = (): PanelWindow => ({ id: 'root', url: '', title: 'History', live: true, locked: true, view: 'web', collapsible: false, listed: false });
+const legacyRoot = (): PanelWindow => ({ id: 'root', url: '', title: 'History', live: true, view: 'web', collapsible: false, listed: false });
 
 test('pin R4: a row of hand-built entries at container 1000 keeps History and the newest panel live', () => {
   let latest: ProvidedPanels | undefined;

@@ -16,13 +16,12 @@ const entry = (id: string, over: Partial<PanelWindow> = {}): PanelWindow => ({
   url: `https://${id}.example`,
   title: id.toUpperCase(),
   live: true,
-  locked: false,
   view: 'web',
   collapsible: true,
   listed: true,
   ...over,
 });
-const root = (): PanelWindow => entry('root', { url: '', title: 'History', locked: true, collapsible: false, listed: false });
+const root = (): PanelWindow => entry('root', { url: '', title: 'History', collapsible: false, listed: false });
 const ids = (panels: readonly PanelWindow[]): string[] => panels.map((p) => p.id);
 
 /** Mounts useProvidePanels over `initialEntries` and returns a reader for the latest render's value. */
@@ -50,11 +49,11 @@ test('PIN movePanel across a parked panel: [P, X parked, Q] moving P right gives
   assert.deepEqual(ids(moved), ['root', 'x', 'q', 'p'], 'P hops past the next present panel Q, and the parked X shifts one slot with it');
 });
 
-test('clearAll keeps an initialEntries entry seeded { locked: true, collapsible: true } and removes a plain one', () => {
-  const provider = mountProvider([root(), entry('locked', { locked: true }), entry('plain')]);
-  assert.deepEqual(ids(provider.latest().entries), ['root', 'locked', 'plain'], 'control: both panels are seeded');
+test('clearAll keeps an initialEntries fixed column and removes a plain one', () => {
+  const provider = mountProvider([root(), entry('fixed', { collapsible: false }), entry('plain')]);
+  assert.deepEqual(ids(provider.latest().entries), ['root', 'fixed', 'plain'], 'control: both panels are seeded');
   act(() => provider.latest().clearAll());
-  assert.deepEqual(ids(provider.latest().entries), ['root', 'locked'], 'a locked parkable entry is not clearable, a plain one still is');
+  assert.deepEqual(ids(provider.latest().entries), ['root', 'fixed'], 'a fixed column is not clearable, a plain one still is');
 });
 
 test('LIMIT:3 two closes before a re-render undo in the wrong order', () => {

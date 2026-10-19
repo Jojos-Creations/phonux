@@ -42,9 +42,8 @@ function settingsVector(rand: () => number): PanelSettings {
   return {
     closable: pick(true, true, false),
     parkable: pick(true, true, true, false),
-    draggable: pick(true, true, false),
+    movable: pick(true, true, false),
     crossable: pick(true, true, false),
-    placeable: pick(true, true, false),
     resizable: pick(true, true, false),
     maxSlots: pick(64, 1, 2),
     hideStickiness: pick('sticky', 'until-room'),
@@ -58,9 +57,8 @@ function settingsVector(rand: () => number): PanelSettings {
 const VALUES: Readonly<Record<string, readonly unknown[]>> = {
   closable: [true, false],
   parkable: [true, false],
-  draggable: [true, false],
+  movable: [true, false],
   crossable: [true, false],
-  placeable: [true, false],
   resizable: [true, false],
   maxSlots: [1, 2, 3, 64],
   clearable: [true, false],
@@ -97,7 +95,7 @@ const TUNING_VALUES: Readonly<Record<string, readonly unknown[]>> = {
   edgeScroll: [{ zonePx: 60 }],
 };
 const KEYS = Object.keys(VALUES);
-const PERMISSIONS = ['closable', 'parkable', 'draggable', 'crossable', 'placeable', 'resizable', 'maxSlots'] as const;
+const PERMISSIONS = ['closable', 'parkable', 'movable', 'crossable', 'resizable', 'maxSlots'] as const;
 const LEAVES = Object.keys(TUNING_VALUES);
 
 /** A patch of one to three keys, each a legal value or a null; now and then a tuning leaf. */
@@ -117,8 +115,8 @@ function randomPatch(rand: () => number): Record<string, unknown> {
   return patch;
 }
 
-type Op = 'show' | 'hide' | 'toggleVisibility' | 'close' | 'open' | 'move' | 'place' | 'setSlots' | 'scrollTo' | 'configure' | 'resetOne' | 'resetAll' | 'undo' | 'tuning' | 'movePerson' | 'resizePerson' | 'configureOutvoted';
-const OPS: readonly Op[] = ['show', 'hide', 'toggleVisibility', 'close', 'open', 'move', 'movePerson', 'place', 'setSlots', 'resizePerson', 'resizePerson', 'scrollTo', 'configure', 'configure', 'configure', 'configureOutvoted', 'configureOutvoted', 'resetOne', 'resetAll', 'undo', 'tuning'];
+type Op = 'show' | 'hide' | 'toggleVisibility' | 'close' | 'open' | 'move' | 'place' | 'placePerson' | 'setSlots' | 'scrollTo' | 'configure' | 'resetOne' | 'resetAll' | 'undo' | 'tuning' | 'movePerson' | 'resizePerson' | 'configureOutvoted';
+const OPS: readonly Op[] = ['show', 'hide', 'toggleVisibility', 'close', 'open', 'move', 'movePerson', 'place', 'placePerson', 'setSlots', 'resizePerson', 'resizePerson', 'scrollTo', 'configure', 'configure', 'configure', 'configureOutvoted', 'configureOutvoted', 'resetOne', 'resetAll', 'undo', 'tuning'];
 
 /** What one call did, and the patch a configure carried. */
 interface Call {
@@ -131,11 +129,12 @@ function run(r: PinRig, h: PanelHandle, op: Op, rand: () => number): Call {
     case 'show': return { answer: h.show() };
     case 'hide': return { answer: h.hide() };
     case 'toggleVisibility': return { answer: h.toggleVisibility() };
-    case 'close': return { answer: h.close() };
+    case 'close': return { answer: h.close('person') };
     case 'open': return { answer: h.open() };
     case 'move': return { answer: h.move(rand() < 0.5 ? -1 : 1) };
     case 'movePerson': return { answer: h.move(rand() < 0.5 ? -1 : 1, 'person') };
     case 'place': return { answer: h.place(pickFrom(rand, ['row-start', 'row-end', 'after-fixed'] as const)) };
+    case 'placePerson': return { answer: h.place(pickFrom(rand, ['row-start', 'row-end', 'after-fixed'] as const), 'person') };
     case 'setSlots': return { answer: h.setSlots(pickFrom(rand, [1, 2, 3] as const)) };
     case 'resizePerson': return { answer: h.setSlots(pickFrom(rand, [1, 2, 3] as const), 'person') };
     case 'scrollTo': return { answer: h.scrollTo() };
@@ -163,9 +162,8 @@ function forced(h: PanelHandle, op: Op): string | undefined {
   const s = h.getState().settings;
   if (op === 'close') return s.closable ? undefined : 'not-closable';
   if (op === 'hide') return s.parkable ? undefined : 'not-parkable';
-  if (op === 'move' || op === 'movePerson') return s.draggable ? undefined : 'not-draggable';
-  if (op === 'place') return s.placeable ? undefined : 'not-placeable';
-  if (op === 'setSlots' || op === 'resizePerson') return s.resizable ? undefined : 'not-resizable';
+  if (op === 'movePerson' || op === 'placePerson') return s.movable ? undefined : 'not-movable';
+  if (op === 'resizePerson') return s.resizable ? undefined : 'not-resizable';
   return undefined;
 }
 
@@ -325,15 +323,7 @@ function runMore(r: PinRig, h: PanelHandle, op: MoreOp, rand: () => number, scro
   }
 }
 
-/** The refusal a panel's own settings force for a pin or unpin on a live panel, or undefined when they allow it. */
-function forcedPin(h: PanelHandle, op: MoreOp): string | undefined {
-  const s = h.getState().settings;
-  if (op === 'pin' || op === 'pinPerson') return s.pinning.pinned.placement !== undefined && !s.placeable ? 'not-placeable' : undefined;
-  if (op === 'unpin' || op === 'unpinPerson') return s.pinning.unpinned.placement !== undefined && !s.placeable ? 'not-placeable' : undefined;
-  return undefined;
-}
-
-const REFUSALS = new Set(['disposed', 'not-attached', 'not-ready', 'is-pending', 'is-closed', 'not-live', 'busy', 'not-closable', 'not-parkable', 'not-draggable', 'not-placeable', 'not-resizable', 'slots-above-max', 'would-empty-row', 'instance-limit', 'unknown-panel', 'wrong-scope', 'would-reshape-row', 'settings-conflict', 'not-view-settable']);
+const REFUSALS = new Set(['disposed', 'not-attached', 'not-ready', 'is-pending', 'is-closed', 'not-live', 'busy', 'not-closable', 'not-parkable', 'not-movable', 'not-resizable', 'slots-above-max', 'would-empty-row', 'instance-limit', 'unknown-panel', 'wrong-scope', 'would-reshape-row', 'settings-conflict', 'not-view-settable']);
 
 test('final property: over random settings vectors, pin, unpin, scrollTo, resetLayout, configure and the operations keep every guarantee of 7.3 after every step', async () => {
   const MORE_SEQUENCES = 500;
@@ -343,7 +333,6 @@ test('final property: over random settings vectors, pin, unpin, scrollTo, resetL
   let pinsAccepted = 0;
   let unpinsAccepted = 0;
   let scrollsAccepted = 0;
-  let placeableRefusals = 0;
   let scrollBounds = 0;
   let neverParkedChecks = 0;
   let mirrorsChecked = 0;
@@ -362,7 +351,7 @@ test('final property: over random settings vectors, pin, unpin, scrollTo, resetL
       const h = r.h[first]!;
       const before = h.getState();
       const isPin = op === 'pin' || op === 'unpin' || op === 'pinPerson' || op === 'unpinPerson';
-      const forcedCode = isPin ? forcedPin(h, op) : forced(h, op as Op);
+      const forcedCode = isPin ? undefined : forced(h, op as Op);
       const entries = r.m.latest().entries;
       const renders = r.m.renders();
       const version = r.ws.panels.getSnapshot().version;
@@ -390,7 +379,6 @@ test('final property: over random settings vectors, pin, unpin, scrollTo, resetL
       if ((before.status === 'live' || before.status === 'parked') && forcedCode !== undefined && !twin) {
         const expectation = before.status === 'parked' && (op === 'move' || op === 'movePerson') ? 'not-live' : forcedCode;
         if (!(isPin && before.status !== 'live')) assert.equal(brief(one.answer), expectation, `${where(step)}: ${op} on ${first} must give ${expectation}`);
-        if (isPin) placeableRefusals += 1;
       }
       // A refusal leaves the list reference-equal with no commit (a single-call turn only).
       if (!twin && !one.answer.ok) {
@@ -453,6 +441,6 @@ test('final property: over random settings vectors, pin, unpin, scrollTo, resetL
   }
   console.log(`final property sequences run: ${sequences} (${scrollOnlySequences} scroll-only)`);
   assert.ok(sequences >= 500, `sequences run: ${sequences}`);
-  console.log(`final property checks fired: ${pinsAccepted} pins, ${unpinsAccepted} unpins, ${scrollsAccepted} scrolls accepted, ${placeableRefusals} pin refusals checked, ${scrollBounds} scroll bounds, ${neverParkedChecks} never-parked rows, ${mirrorsChecked} mirror comparisons over ${steps} steps`);
+  console.log(`final property checks fired: ${pinsAccepted} pins, ${unpinsAccepted} unpins, ${scrollsAccepted} scrolls accepted, ${scrollBounds} scroll bounds, ${neverParkedChecks} never-parked rows, ${mirrorsChecked} mirror comparisons over ${steps} steps`);
   assert.ok(pinsAccepted > 100 && unpinsAccepted > 50 && scrollsAccepted > 100 && scrollBounds > 50 && neverParkedChecks > 400 && mirrorsChecked > 10000 && scrollOnlySequences >= 100, `the checks fired: ${pinsAccepted} pins, ${unpinsAccepted} unpins, ${scrollsAccepted} scrolls, ${scrollBounds} bounds, ${neverParkedChecks} never-parked rows, ${mirrorsChecked} mirrors, ${scrollOnlySequences} scroll-only sequences`);
 });

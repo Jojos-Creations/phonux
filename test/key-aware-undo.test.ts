@@ -21,13 +21,12 @@ const entry = (id: string, over: Partial<PanelWindow> = {}): PanelWindow => ({
   url: `https://${id}.example`,
   title: id,
   live: true,
-  locked: false,
   view: 'undo-view',
   collapsible: true,
   listed: true,
   ...over,
 });
-const root = (): PanelWindow => entry('root', { url: '', title: 'History', locked: true, collapsible: false, listed: false });
+const root = (): PanelWindow => entry('root', { url: '', title: 'History', collapsible: false, listed: false });
 
 function provide(initialEntries: PanelWindow[]): { now: () => ProvidedPanels; ids: () => string[]; restored: string[][]; closed: string[] } {
   let latest: ProvidedPanels | undefined;
@@ -86,7 +85,7 @@ test('a closed panel whose key is already in the row under another id is skipped
 });
 
 test('a compat caller seeding a locked, collapsible entry under the closed panel\'s key: nothing comes back and nothing is reported', () => {
-  const p = provide([root(), entry('a', { key: 'k' }), entry('seed', { key: 'k', locked: true, collapsible: true })]);
+  const p = provide([root(), entry('a', { key: 'k' }), entry('seed', { key: 'k', collapsible: true })]);
   act(() => p.now().close('a'));
   act(() => p.now().undoClose());
   assert.deepEqual(p.ids(), ['root', 'seed']);
@@ -94,7 +93,7 @@ test('a compat caller seeding a locked, collapsible entry under the closed panel
 });
 
 test('a hand-built entry has its id for its key, so an undo with no twin restores it and reports it', () => {
-  const p = provide([root(), entry('a'), entry('seed', { locked: true, collapsible: true })]);
+  const p = provide([root(), entry('a'), entry('seed', { collapsible: true })]);
   act(() => p.now().close('a'));
   act(() => p.now().undoClose());
   assert.deepEqual(p.ids(), ['root', 'a', 'seed']);
