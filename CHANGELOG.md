@@ -34,6 +34,7 @@
   `createWorkspace` (`root`, `storage`, `templates`, `addPanel`, `defaults`, `tuning`). The `template-collision` error code is gone with the
   registry it guarded. The components (`PanelRow`, `Workspace`, `HostProvider`) stay public, always with a workspace. The deprecated Host-bag verbs
   and `CreatePanelOptions` stay until their own removal.
+- A panel carries no tuning; row-wide knobs live on the workspace. Removed: `PanelTuning`, `ResolvedPanelTuning`, `PanelSettings.tuning`, `ResolvedPanelSettings.tuning`, the `tuning` prop of `Workspace` and `PanelRow`, the instance and template doors of `tuning.dragToClose`, `tuning.slide`, `tuning.hopFraction` and `tuning.edgeScroll` (their scope is `'workspace'`, and the `'panel or workspace'` scope is gone), and these constants-now members: `dragToClose.directionLockPx`, `restMs`, `velocityWindowMs`, `snapBack`, and `chrome.slideMs`, `slidePx`, `graceMs`, `headerGapPx`, `grabPillWidthPx`, `grabPillHeightPx`, `headerInsetPx`, `footerPadXPx`, `footerPadYPx`. `usePanelTuning()` returns the workspace values (`rowGap`, `dragToClose`, `slide`, `hopFraction`, `edgeScroll`) without `chrome`, `usePanelDots` takes the workspace `tuning`, and `PanelFooter` takes `sx`. **Migration:** set the value with `createWorkspace({ tuning })` or `configureTuning`; pass `workspace={workspace}` to `Workspace` instead of `tuning={provided.tuning}`, and drop `tuning` from `PanelRow`; restyle the header gap, the header inset and the footer padding through the `sx` of `PanelFrame` or `PanelFooter`. A template that carries `tuning` throws `invalid-settings`; a saved panel layer that carries `tuning` loads with an `invalid-saved-setting` note and the key is ignored.
 
 ### Removed
 
@@ -62,6 +63,8 @@
   lock used to step again, so one swipe ran through several stops and a wide panel skipped its 1, 2, 3 slot sizes. After a step
   an event steps again only on a reversal, or when it is 1.5 times, and at least 4 units above, the smallest delta seen since the
   deltas fell (a new swipe in the tail). A plateau of equal deltas no longer steps repeatedly: a held mouse wheel is one step per gesture.
+- A click on a header dot glides along the workspace's `slide` (its duration and `glideEase`), not the library default.
+- The settle after an edge-scroll drag glides along the workspace's `slide.glideEase`.
 
 ### Changed
 
@@ -90,6 +93,8 @@
 - `tuning.shrinkOutOfView: 'off'` (the default) now shows the neighbour of a stop cut off by the window edge, at its full size. Before, a stepping row faded that
   neighbour out, so Off looked like Hide at rest. A panel is inert only when the window does not reach it, and a click or focus in the cut-off neighbour
   settles the row onto a stop afterwards. `'visible'` and `'hidden'` are unchanged. `RowNumbers` gains `showPartial`.
+- The gap between a panel's header and its frame is 4 px, down from 24 px, and the grab handle stays 24 px wide and tall.
+- `PanelFooter` is bare, like the header: no border, shadow or background, and the header's height, where it was a bordered box a little shorter. **Migration:** delete any `sx` that flattens it.
 
 ### Deprecated
 

@@ -244,15 +244,6 @@
       ]
     },
     {
-      "name": "chrome.slidePx allows 201",
-      "file": "panelSettings.ts",
-      "find": "    slidePx: integer(0, 200),",
-      "replace": "    slidePx: integer(0, 201),",
-      "expectRed": [
-        "matrix:tuning.chrome"
-      ]
-    },
-    {
       "name": "the unpin label has the pin wording",
       "file": "labels.ts",
       "find": "unpin: 'Unpin',",
@@ -268,15 +259,6 @@
       "replace": "lock: 'Unlock',",
       "expectRed": [
         "the pin, unpin, lock and unlock labels default to English"
-      ]
-    },
-    {
-      "name": "the default fade is not 120 ms",
-      "file": "rowConstants.ts",
-      "find": "export const CHROME = { mode: 'always', fadeMs: 120,",
-      "replace": "export const CHROME = { mode: 'always', fadeMs: 100,",
-      "expectRed": [
-        "the default is always, 120, 140, 8, 250 and is frozen"
       ]
     },
     {
@@ -298,66 +280,12 @@
       ]
     },
     {
-      "name": "chrome.slideMs allows 10001",
-      "file": "panelSettings.ts",
-      "find": "    slideMs: integer(0, 10000),",
-      "replace": "    slideMs: integer(0, 10001),",
-      "expectRed": [
-        "chrome.slideMs: 0 and 10000 are accepted"
-      ]
-    },
-    {
-      "name": "chrome.graceMs allows 10001",
-      "file": "panelSettings.ts",
-      "find": "    graceMs: integer(0, 10000),",
-      "replace": "    graceMs: integer(0, 10001),",
-      "expectRed": [
-        "chrome.graceMs: 0 and 10000 are accepted"
-      ]
-    },
-    {
       "name": "chrome.fadeMs refuses 10000",
       "file": "panelSettings.ts",
       "find": "    fadeMs: integer(0, 10000),",
       "replace": "    fadeMs: integer(0, 9999),",
       "expectRed": [
         "chrome.fadeMs: 0 and 10000 are accepted"
-      ]
-    },
-    {
-      "name": "the default slideMs is not 140",
-      "file": "rowConstants.ts",
-      "find": "slideMs: 140,",
-      "replace": "slideMs: 150,",
-      "expectRed": [
-        "the default is always, 120, 140, 8, 250 and is frozen"
-      ]
-    },
-    {
-      "name": "the default slidePx is not 8",
-      "file": "rowConstants.ts",
-      "find": "slidePx: 8,",
-      "replace": "slidePx: 9,",
-      "expectRed": [
-        "the default is always, 120, 140, 8, 250 and is frozen"
-      ]
-    },
-    {
-      "name": "the default graceMs is not 250",
-      "file": "rowConstants.ts",
-      "find": "graceMs: 250 }",
-      "replace": "graceMs: 251 }",
-      "expectRed": [
-        "the default is always, 120, 140, 8, 250 and is frozen"
-      ]
-    },
-    {
-      "name": "the default mode is hover-or-active",
-      "file": "rowConstants.ts",
-      "find": "export const CHROME = { mode: 'always',",
-      "replace": "export const CHROME = { mode: 'hover-or-active',",
-      "expectRed": [
-        "the default is always, 120, 140, 8, 250 and is frozen"
       ]
     }
   ]

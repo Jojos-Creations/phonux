@@ -8,7 +8,7 @@ import './support/jsdom-globals.js';
 import * as React from 'react';
 import { act } from 'react';
 import { DragToClose } from '../index.js';
-import type { PanelSettings } from '../index.js';
+import type { WorkspaceTuning } from '../index.js';
 import { advanceFrames, cleanup } from './support/mount-harness.js';
 import { FRAME_MS } from './support/jsdom-globals.js';
 import { made, mountRow, rootEntry, row, type MountedRow } from './support/scroll-row.js';
@@ -49,9 +49,9 @@ function EdgeBox({ id }: { id: string }): React.ReactElement {
 registerTestView('whole-edge-view', ({ panel }) => React.createElement(EdgeBox, { id: panel.id }));
 
 const WINDOW = 1000;
-function mountEdgeRow(layer: PanelSettings = {}): MountedRow {
-  const entries = row(rootEntry(), ...Array.from({ length: 10 }, (_, k) => made(`s${k + 1}`, layer, { view: 'whole-edge-view' })));
-  const m = mountRow(entries, WINDOW, { tuning: { rowGesture: 'step' } });
+function mountEdgeRow(tuning: WorkspaceTuning = {}): MountedRow {
+  const entries = row(rootEntry(), ...Array.from({ length: 10 }, (_, k) => made(`s${k + 1}`, {}, { view: 'whole-edge-view' })));
+  const m = mountRow(entries, WINDOW, { tuning: { rowGesture: 'step', ...tuning } });
   Object.defineProperty(m.container, 'clientWidth', { value: WINDOW, configurable: true });
   m.container.getBoundingClientRect = () => ({ left: 0, right: WINDOW, top: 0, bottom: 700, width: WINDOW, height: 700, x: 0, y: 0, toJSON: () => ({}) });
   return m;
@@ -108,7 +108,7 @@ test('under reduced motion a held edge jumps stop by stop, to 406 and not to the
 
 test('a released drag settles along slide.glideEase: a quarter of the way through a slow settle a linear one has covered about a quarter and the default most of it', async () => {
   const settled = async (glideEase: 'cubic-out' | 'linear'): Promise<number> => {
-    const m = mountEdgeRow({ tuning: { slide: { durationSec: 1.6, glideEase } } });
+    const m = mountEdgeRow({ slide: { durationSec: 1.6, glideEase } });
     await dragTo(m, 1000);
     await frames(100);
     const from = m.container.scrollLeft;

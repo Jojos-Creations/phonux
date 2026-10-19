@@ -15,7 +15,7 @@ export interface SeedOptions {
   rootId?: string;
   /** Free by default, so the literal scroll targets these tests pin stay panel-start numbers; the whole-panel stops have their own tests. */
   tuning?: WorkspaceTuning;
-  workspaceDefaults?: Omit<PanelSettings, 'tuning'>;
+  workspaceDefaults?: PanelSettings;
   /** Templates beyond the plain one made for each distinct `view` the entries name. */
   templates?: readonly PanelTemplate[];
   storage?: WorkspaceStorage;

@@ -388,21 +388,18 @@ test('configureTemplate applies to future creations: a raised limit allows the n
   assert.equal(r.ws.panels.get('m1')!.getState().settings.maxInstances, 4, 'null would restore the template\'s own 2, below the 3 that exist');
 });
 
-test('configureTuning applies to the workspace tuning, to every panel\'s resolved tuning and back with null', async () => {
+test('configureTuning applies to the workspace tuning and back with null, and no panel holds a tuning of its own', async () => {
   const r = await pinRig();
   done(r.turn(() => r.ws.panels.configureTuning({ slide: { durationSec: 0.2 }, hopFraction: 0.25 })));
   assert.equal(r.ws.tuning.slide.durationSec, 0.2);
   assert.equal(r.ws.tuning.hopFraction, 0.25);
-  for (const id of ['a', 'b', 'c']) {
-    const tuning = r.ws.panels.get(id)!.getSettings().value.tuning;
-    assert.equal(tuning.slide.durationSec, 0.2, `panel ${id}`);
-    assert.equal(tuning.hopFraction, 0.25, `panel ${id}`);
-  }
-  r.turn(() => r.h.b!.configure({ tuning: { slide: { durationSec: 0.9 } } }));
-  assert.equal(r.h.b!.getSettings().value.tuning.slide.durationSec, 0.9, 'a panel\'s own leaf beats the workspace\'s');
+  for (const id of ['a', 'b', 'c']) assert.equal('tuning' in r.ws.panels.get(id)!.getSettings().value, false, `panel ${id}`);
+  const refused = r.turn(() => r.h.b!.configure({ tuning: { slide: { durationSec: 0.9 } } } as never));
+  assert.deepEqual([refused.ok, (refused as { code?: string }).code], [false, 'wrong-scope'], 'a panel cannot set a tuning leaf');
+  assert.equal(r.ws.tuning.slide.durationSec, 0.2, 'and the workspace\'s value stands');
   done(r.turn(() => r.ws.panels.configureTuning({ slide: null, hopFraction: null })));
   assert.equal(r.ws.tuning.slide.durationSec, SLIDE_DURATION_SEC);
-  assert.equal(r.h.a!.getSettings().value.tuning.hopFraction, 0.5);
+  assert.equal(r.ws.tuning.hopFraction, 0.5);
 });
 
 // ---------------------------------------------------------------------------
@@ -623,7 +620,6 @@ const SAMPLE: readonly [Context, string, Record<string, unknown>, string[], stri
   ['live', 'live', { closable: false, scrollOnOpen: 'center' }, ['closable'], ['scrollOnOpen'], []],
   ['live', 'live', { maxSlots: 2 }, ['maxSlots'], [], []],
   ['live', 'live', { parkable: false }, ['parkable'], [], []],
-  ['live', 'live', { tuning: { slide: { durationSec: 0.2 } } }, [], ['tuning.slide'], []],
   ['live', 'live', { headerButtons: { x: false } }, ['headerButtons'], [], []],
   ['live', 'live', { slots: 2 }, [], ['slots'], []],
   ['parked', 'parked', { closable: false }, ['closable'], [], []],
@@ -634,8 +630,8 @@ const SAMPLE: readonly [Context, string, Record<string, unknown>, string[], stri
   ['person pin', 'live', { parkable: true }, ['parkable'], [], ['parkable']],
 ];
 
-test('the result of 19 patches over live, parked, hidden and person-shaped panels equals the literals written by hand', async () => {
-  assert.equal(SAMPLE.length, 19);
+test('the result of 18 patches over live, parked, hidden and person-shaped panels equals the literals written by hand', async () => {
+  assert.equal(SAMPLE.length, 18);
   let executed = 0;
   for (const [context, status, patch, now, later, shadowed] of SAMPLE) {
     const { r, id } = await contextRig(context);
@@ -645,7 +641,7 @@ test('the result of 19 patches over live, parked, hidden and person-shaped panel
     executed += 1;
     cleanup();
   }
-  assert.equal(executed, 19);
+  assert.equal(executed, 18);
 });
 
 test('a person pin outvotes a configured parkable: the result lists it as shadowed and the panel stays a fixed column', async () => {
@@ -663,7 +659,6 @@ test('getSettings after a configure deep-equals the resolver over the patched la
     ['a NOW key', { closable: false, title: 'Eve' }],
     ['a NEXT key', { scrollOnOpen: 'center', hideStickiness: 'until-room' }],
     ['a STATE key', { maxSlots: 2 }],
-    ['a tuning leaf', { tuning: { hopFraction: 0.3, slide: { durationSec: 0.2 } } }],
     ['a slot', { headerButtons: { x: slot } }],
     ['a pinning definition', { pinning: { pinned: { placement: 'row-start' }, unpinned: { placement: 'row-end' } } }],
   ];
@@ -682,17 +677,16 @@ test('getSettings after a configure deep-equals the resolver over the patched la
   }
 });
 
-test('null removes the key and the cascade\'s value and source come back: library, workspace, template and the workspace tuning', async () => {
-  const r = await pinRig({ settings: { b: { scrollOnOpen: 'start' } }, workspace: { defaults: { hideStickiness: 'until-room' }, tuning: { hopFraction: 0.25 } } });
+test('null removes the key and the cascade\'s value and source come back: library, workspace and template', async () => {
+  const r = await pinRig({ settings: { b: { scrollOnOpen: 'start' } }, workspace: { defaults: { hideStickiness: 'until-room' } } });
   const read = (key: string): [unknown, string | undefined] => {
     const s = r.h.b!.getSettings();
-    return [key === 'tuning.hopFraction' ? s.value.tuning.hopFraction : (s.value as unknown as Record<string, unknown>)[key], s.source[key]];
+    return [(s.value as unknown as Record<string, unknown>)[key], s.source[key]];
   };
   const rows: [string, Record<string, unknown>, Record<string, unknown>, [unknown, string], [unknown, string], [unknown, string]][] = [
     ['scrollOnOpen', { scrollOnOpen: 'center' }, { scrollOnOpen: null }, ['start', 'template'], ['center', 'instance'], ['start', 'template']],
     ['hideStickiness', { hideStickiness: 'sticky' }, { hideStickiness: null }, ['until-room', 'workspace'], ['sticky', 'instance'], ['until-room', 'workspace']],
     ['scrollOnMove', { scrollOnMove: 'none' }, { scrollOnMove: null }, ['follow', 'library'], ['none', 'instance'], ['follow', 'library']],
-    ['tuning.hopFraction', { tuning: { hopFraction: 0.3 } }, { tuning: { hopFraction: null } }, [0.25, 'workspace'], [0.3, 'instance'], [0.25, 'workspace']],
   ];
   for (const [key, set, unset, was, during, back] of rows) {
     assert.deepEqual(read(key), was, `${key}: before`);

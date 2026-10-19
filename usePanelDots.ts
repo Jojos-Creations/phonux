@@ -5,7 +5,7 @@
  */
 import * as React from 'react';
 import { useReducedMotion, useReducedMotionConfig } from 'motion/react';
-import { GLIDE_EASE, SLIDE_DURATION_SEC } from './rowConstants.js';
+import type { ResolvedWorkspaceTuning } from './panelSettings.js';
 import { centreScroll, dotLayout, dotMap, dragScroll } from './rowDots.js';
 import { maxScrollOf, type RowNumbers } from './rowNumbers.js';
 import { rowScrollerFor, type ScrollClaim } from './rowScroller.js';
@@ -28,15 +28,17 @@ export interface PanelDots {
  * The bar for one row. `rowNumbers` is `useProvidePanels(...).rowNumbers`; `entries` carries each drawn panel's
  * settings (the hollow dot is the panel setting `hollowDot`); `scroller` is the row's scroll container (the element
  * with `data-row-scroller`). A dot's width comes from its panel's size, and the bar grows and shrinks with the
- * panels; the app sets no width for it. Reduce Motion snaps a dot click, under either the OS query or `MotionConfig`.
+ * panels; the app sets no width for it. A dot click glides with the workspace's `slide` (`tuning` is `useProvidePanels(...).tuning`).
+ * Reduce Motion snaps it, under either the OS query or `MotionConfig`.
  * @public
  */
 export function usePanelDots(i: {
   rowNumbers: RowNumbers;
   entries: readonly { readonly id: string; readonly settings?: { readonly hollowDot: boolean } }[];
   scroller: React.RefObject<HTMLElement | null>;
+  tuning: Pick<ResolvedWorkspaceTuning, 'slide'>;
 }): PanelDots {
-  const { rowNumbers: n, entries, scroller } = i;
+  const { rowNumbers: n, entries, scroller, tuning } = i;
   const systemReduced = useReducedMotion();
   const configReduced = useReducedMotionConfig();
   const reduced = systemReduced === true || configReduced === true;
@@ -69,7 +71,7 @@ export function usePanelDots(i: {
     if (!el || index < 0) return;
     const target = centreScroll({ index, leftOffsets: n.leftOffsets, widths: n.widths, windowWidth: n.windowWidth, maxScroll });
     if (target === null) return;
-    rowScrollerFor(el).glideTo(Math.min(maxScroll, target + n.rowMarginLeft), { durationSec: SLIDE_DURATION_SEC, instant: reduced, ease: GLIDE_EASE });
+    rowScrollerFor(el).glideTo(Math.min(maxScroll, target + n.rowMarginLeft), { durationSec: tuning.slide.durationSec, instant: reduced, ease: tuning.slide.glideEase });
   };
 
   const startOvalDrag = () => {

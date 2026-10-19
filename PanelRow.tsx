@@ -19,11 +19,11 @@ import type { PanelTemplate } from './panelTemplate.js';
 import { PanelViewContextValue } from './panelViewContext.js';
 import { HEADER_ROW_ATTRIBUTE, headerButtonsOf } from './panelHeaderButtons.js';
 import { FIXED, LIBRARY_TUNING_DEFAULTS, effective, panelKey, resolvePanelSettings } from './panelSettings.js';
-import type { ChromeTuning, ResolvedPanelSettings, ResolvedPanelTuning, WorkspaceTuning } from './panelSettings.js';
+import type { ResolvedPanelSettings, ResolvedWorkspaceTuning } from './panelSettings.js';
 import { PanelRowSlot } from './PanelRowSlot.js';
 import { steerEntry, steerSentinel, steerTab, useTabPress } from './panelRowTabOrder.js';
 import { ChromeStoreContext, createChromeStore } from './panelChrome.js';
-import { WorkspaceTuningContext, lookTuningDiffers, resolveWorkspaceTuning, slotTuning, type SlotTuning } from './panelTuning.js';
+import { slotTuning, type SlotTuning } from './panelTuning.js';
 import { reorderStepsForOffset, type PanelWindow } from './panelWindow.js';
 import { maxScrollOf, type RowNumbers } from './rowNumbers.js';
 import { panelWidthOf } from './panelTiers.js';
@@ -76,13 +76,18 @@ export const usePanelCapabilities = (): Pick<ResolvedPanelSettings, 'closable' |
 /** The widths this entry's drag can cross (reorderStepsForOffset's input). Unprovided: none, so no hop.
  * @public */
 export const usePanelNeighborWidths = (): NeighborWidths => React.useContext(PanelSlotContext)?.neighborWidths ?? NO_NEIGHBORS;
-const OUTSIDE_ROW_TUNING: SlotTuning = slotTuning(LIBRARY_TUNING_DEFAULTS, undefined);
+const OUTSIDE_ROW_TUNING: SlotTuning = slotTuning(LIBRARY_TUNING_DEFAULTS);
+type PanelRowTuning = Pick<ResolvedWorkspaceTuning, 'rowGap' | 'dragToClose' | 'slide' | 'hopFraction' | 'edgeScroll'>;
+const OUTSIDE_ROW_VIEW_TUNING: PanelRowTuning = OUTSIDE_ROW_TUNING.view;
 /**
- * This panel's look tuning: its own dragToClose, slide, hopFraction and edgeScroll, and the workspace's rowGap and chrome.
- * Outside a row: the library defaults.
+ * The workspace's row-wide `rowGap`, `dragToClose`, `slide`, `hopFraction` and `edgeScroll`: every panel reads the same
+ * values, since a panel carries no tuning of its own. Outside a row: the library defaults.
  * @public
  */
-export const usePanelTuning = (): ResolvedPanelTuning & { readonly rowGap: number; readonly chrome: ChromeTuning } => React.useContext(PanelSlotContext)?.tuning ?? OUTSIDE_ROW_TUNING;
+export const usePanelTuning = (): Pick<ResolvedWorkspaceTuning, 'rowGap' | 'dragToClose' | 'slide' | 'hopFraction' | 'edgeScroll'> => {
+  const tuning = React.useContext(PanelSlotContext)?.tuning;
+  return tuning === undefined ? OUTSIDE_ROW_VIEW_TUNING : tuning.view;
+};
 /**
  * The hops a horizontal drag of this panel asks for: `steps(offsetX)` is reorderStepsForOffset over this slot's
  * neighbours, the row's gap and this panel's hop fraction. Outside a row there are no neighbours, so it is 0.
@@ -118,7 +123,6 @@ export function PanelRow({
   exitRightIds = EMPTY_SET,
   enterSideById = EMPTY_MAP,
   maxLiveWidth = Number.POSITIVE_INFINITY,
-  tuning,
   rowNumbers,
   workspace,
 }: {
@@ -139,18 +143,14 @@ export function PanelRow({
   enterSideById?: ReadonlyMap<string, 'left' | 'right'>;
   /** The widest one live panel can be in this row (ProvidedPanels.maxLiveWidth). Omitted: no cap. */
   maxLiveWidth?: number;
-  /** The workspace tuning this row renders with. Omitted: the enclosing Workspace's, else the library defaults. A value that differs from the Workspace's warns once in development. */
-  tuning?: WorkspaceTuning;
   /** The row's numbers (ProvidedPanels.rowNumbers): every width and rest is read from them, and a park exits relative to its rest when `rowScroll` is true. Omitted: the row computes its own from `maxLiveWidth`. */
   rowNumbers?: RowNumbers;
-  /** The workspace this row renders: each template view receives its own handle and the reader of every panel, and the row's tuning is the workspace's unless `tuning` is given. */
+  /** The workspace this row renders: each template view receives its own handle and the reader of every panel, and the row's tuning is the workspace's. */
   workspace: WorkspaceHandle;
 }): React.ReactElement {
   const { panels, labels: givenLabels } = useHost();
   const labels = resolveLabels(givenLabels);
   const phoneSize = usePhoneSize();
-  const inherited = React.useContext(WorkspaceTuningContext);
-  const given = tuning === undefined ? undefined : resolveWorkspaceTuning(tuning);
   const binding = bindingOf(workspace);
   // The restored panels arrive with the settle, after the row mounted. The row is not ready until the commit after it, and
   // a slot that mounts before then starts at its rest, so restored panels skip their enter and later ones animate.
@@ -161,17 +161,9 @@ export function PanelRow({
     if (handMounted) binding.warnHandMounted();
   }, [handMounted, binding]);
   const templateOf = (id: string): PanelTemplate | undefined => binding.template(id);
-  const fromWorkspace = React.useSyncExternalStore(binding.subscribe, () => binding.tuning, () => binding.tuning);
-  const workspaceTuning = given ?? fromWorkspace ?? inherited ?? LIBRARY_TUNING_DEFAULTS;
+  const workspaceTuning = React.useSyncExternalStore(binding.subscribe, () => binding.tuning, () => binding.tuning);
   const gap = workspaceTuning.rowGap;
-  const disagrees = given !== undefined && inherited !== undefined && lookTuningDiffers(given, inherited);
-  const warned = React.useRef(false);
   const tabPress = useTabPress();
-  React.useEffect(() => {
-    if (!disagrees || warned.current || typeof process === 'undefined' || process.env.NODE_ENV === 'production') return;
-    warned.current = true;
-    console.warn('PanelRow: its tuning prop differs from the Workspace tuning above it; the row renders with its own, but the Workspace and the capacity still price the row with theirs.');
-  }, [disagrees]);
   const inheritedChrome = React.useContext(ChromeStoreContext);
   const [ownChrome] = React.useState(createChromeStore);
   const chrome = inheritedChrome ?? ownChrome;
@@ -323,7 +315,7 @@ export function PanelRow({
           const Component = resolveViewIn(templateOf, p.view);
           const { closable, movable, resizable, maxSlots, enterFrom, layer, headerButtons } = effective(p);
           const { exitTo, closeExit, scrollOnDrag } = FIXED;
-          const own = slotTuning(workspaceTuning, binding.panelTuning(p as PanelWindow));
+          const own = slotTuning(workspaceTuning);
           const handle = viewContext.handleFor(panelKey(p));
           const report = binding.reportError;
           const note = binding.reportNote;

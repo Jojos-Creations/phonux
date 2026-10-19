@@ -10,7 +10,7 @@ import './support/jsdom-globals.js';
 import * as React from 'react';
 import { act } from 'react';
 import { DragToClose } from '../index.js';
-import type { PanelSettings } from '../index.js';
+import type { WorkspaceTuning } from '../index.js';
 import { LIBRARY_TUNING_DEFAULTS } from '../panelSettings.js';
 import { differential, differentialsCovered } from './support/differential.js';
 import { advanceFrames, cleanup } from './support/mount-harness.js';
@@ -44,10 +44,10 @@ function pointer(type: 'pointerdown' | 'pointermove' | 'pointerup', x: number): 
   return event;
 }
 
-/** How far the row scrolls in 50 held frames, the pointer at `POINTER`, under `layer` on every panel. */
-async function scrolledUnder(layer: PanelSettings): Promise<number> {
-  const entries = row(rootEntry(), ...Array.from({ length: 10 }, (_, k) => made(`s${k + 1}`, layer, { view: 'enforce-edge-view' })));
-  const m = mountRow(entries, WINDOW);
+/** How far the row scrolls in 50 held frames, the pointer at `POINTER`, under the workspace `tuning`. */
+async function scrolledUnder(tuning: WorkspaceTuning): Promise<number> {
+  const entries = row(rootEntry(), ...Array.from({ length: 10 }, (_, k) => made(`s${k + 1}`, {}, { view: 'enforce-edge-view' })));
+  const m = mountRow(entries, WINDOW, { tuning });
   Object.defineProperty(m.container, 'clientWidth', { value: WINDOW, configurable: true });
   m.container.getBoundingClientRect = () => ({ left: 0, right: WINDOW, top: 0, bottom: 700, width: WINDOW, height: 700, x: 0, y: 0, toJSON: () => ({}) });
   const handle = m.container.querySelector('[data-handle="s1"]');
@@ -65,8 +65,8 @@ async function scrolledUnder(layer: PanelSettings): Promise<number> {
 
 test('differential tuning.edgeScroll: a zone of a quarter of the default leaves the same pointer outside the band', async () => {
   const outcomes = new Map<number, number>([
-    [EDGE.zonePx, await scrolledUnder({ tuning: { edgeScroll: { zonePx: EDGE.zonePx } } })],
-    [EDGE.zonePx / 4, await scrolledUnder({ tuning: { edgeScroll: { zonePx: EDGE.zonePx / 4 } } })],
+    [EDGE.zonePx, await scrolledUnder({ edgeScroll: { zonePx: EDGE.zonePx } })],
+    [EDGE.zonePx / 4, await scrolledUnder({ edgeScroll: { zonePx: EDGE.zonePx / 4 } })],
   ]);
   assert.equal(outcomes.get(EDGE.zonePx / 4), 0);
   differential('tuning.edgeScroll', (run) => {
@@ -77,7 +77,7 @@ test('differential tuning.edgeScroll: a zone of a quarter of the default leaves 
 
 test('tuning.edgeScroll maxPxPerSec at half the default halves the distance', async () => {
   const full = await scrolledUnder({});
-  const half = await scrolledUnder({ tuning: { edgeScroll: { maxPxPerSec: EDGE.maxPxPerSec / 2 } } });
+  const half = await scrolledUnder({ edgeScroll: { maxPxPerSec: EDGE.maxPxPerSec / 2 } });
   assert.ok(full > 0);
   assert.ok(Math.abs(half - full / 2) < 1e-6, `${half} against half of ${full}`);
 });

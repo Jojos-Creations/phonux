@@ -1,14 +1,15 @@
 /**
- * mergePatch: null deletes, undefined is ignored, tuning and headerButtons merge by leaf and slot, an equal patch
- * returns the very same layer, nothing is mutated, and 500 seeded patches agree with a hand-written reference.
+ * mergePatch: null deletes, undefined is ignored, headerButtons merges by slot, an equal patch returns the very same layer,
+ * nothing is mutated, and 500 seeded patches agree with a hand-written reference. mergeTuningPatch does the same for the
+ * workspace tuning, leaf by leaf and member by member.
  */
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { isDeepStrictEqual } from 'node:util';
 import { resolvePanelSettings } from '../panelSettings.js';
-import { mergePatch } from '../settingsPatch.js';
-import type { HeaderButton, PanelSettings, SettingsPatch } from '../index.js';
+import { mergePatch, mergeTuningPatch } from '../settingsPatch.js';
+import type { HeaderButton, PanelSettings, SettingsPatch, WorkspaceTuning } from '../index.js';
 
 type Loose = Record<string, unknown>;
 const asPatch = (x: unknown): SettingsPatch => x as SettingsPatch;
@@ -46,29 +47,28 @@ test('mergePatch: a value replaces the key, and placeOnAdd and pinningWhenNotLiv
 });
 
 test('mergePatch: undefined never changes anything, and an empty patch, an undefined patch and an equal patch return the same layer object', () => {
-  const layer: PanelSettings = { closable: false, placeOnAdd: { before: 'a' }, tuning: { hopFraction: 0.7, dragToClose: { minDistancePx: 90 } }, headerButtons: { size: false } };
+  const layer: PanelSettings = { closable: false, placeOnAdd: { before: 'a' }, headerButtons: { size: false } };
   assert.equal(mergePatch(layer, {}), layer);
-  assert.equal(mergePatch(layer, { closable: undefined, tuning: undefined }), layer);
+  assert.equal(mergePatch(layer, { closable: undefined, title: undefined }), layer);
   assert.equal(mergePatch(layer, { closable: false }), layer, 'an equal value');
   assert.equal(mergePatch(layer, { placeOnAdd: { before: 'a' } }), layer, 'an equal placement object');
-  assert.equal(mergePatch(layer, { tuning: { hopFraction: 0.7 } }), layer, 'an equal tuning leaf');
-  assert.equal(mergePatch(layer, { tuning: { dragToClose: { minDistancePx: 90 } } }), layer, 'an equal tuning member');
   assert.equal(mergePatch(layer, { headerButtons: { size: false } }), layer, 'an equal header-button slot');
   assert.equal(mergePatch(layer, asPatch({ title: null })), layer, 'deleting a key the layer does not hold');
   assert.notEqual(mergePatch(layer, { closable: true }), layer, 'control: a real change returns a new object');
-  assert.notEqual(mergePatch(layer, { tuning: { hopFraction: 0.8 } }), layer);
 });
 
-test('mergePatch: tuning merges per leaf and per member, and null deletes a leaf or a member', () => {
-  const layer: PanelSettings = { tuning: { dragToClose: { distanceFraction: 0.3 }, slide: { durationSec: 1 }, hopFraction: 0.6 } };
-  const merged = mergePatch(layer, { tuning: { dragToClose: { minDistancePx: 100 }, edgeScroll: { zonePx: 30 } } });
-  assert.deepEqual(merged.tuning, { dragToClose: { distanceFraction: 0.3, minDistancePx: 100 }, slide: { durationSec: 1 }, hopFraction: 0.6, edgeScroll: { zonePx: 30 } });
-  assert.deepEqual(mergePatch(layer, asPatch({ tuning: { hopFraction: null } })).tuning, { dragToClose: { distanceFraction: 0.3 }, slide: { durationSec: 1 } });
-  assert.deepEqual(mergePatch(layer, asPatch({ tuning: { slide: null } })).tuning, { dragToClose: { distanceFraction: 0.3 }, hopFraction: 0.6 });
-  assert.deepEqual(mergePatch(layer, asPatch({ tuning: { dragToClose: { distanceFraction: null } } })).tuning, { dragToClose: {}, slide: { durationSec: 1 }, hopFraction: 0.6 });
-  assert.equal('tuning' in mergePatch(layer, { tuning: null }), false, 'null on tuning deletes every leaf');
-  assert.deepEqual(mergePatch({}, { tuning: { hopFraction: 0.5 } }), { tuning: { hopFraction: 0.5 } });
-  assert.deepEqual(mergePatch({}, { tuning: {} }), {}, 'an empty tuning patch on a layer without tuning adds nothing');
+test('mergeTuningPatch: merges per leaf and per member, null deletes a leaf or a member, and an equal patch returns the same object', () => {
+  const tuning: WorkspaceTuning = { dragToClose: { distanceFraction: 0.3 }, slide: { durationSec: 1 }, hopFraction: 0.6 };
+  const merged = mergeTuningPatch(tuning, { dragToClose: { minDistancePx: 100 }, edgeScroll: { zonePx: 30 } });
+  assert.deepEqual(merged, { dragToClose: { distanceFraction: 0.3, minDistancePx: 100 }, slide: { durationSec: 1 }, hopFraction: 0.6, edgeScroll: { zonePx: 30 } });
+  assert.deepEqual(mergeTuningPatch(tuning, { hopFraction: null }), { dragToClose: { distanceFraction: 0.3 }, slide: { durationSec: 1 } });
+  assert.deepEqual(mergeTuningPatch(tuning, { slide: null }), { dragToClose: { distanceFraction: 0.3 }, hopFraction: 0.6 });
+  assert.deepEqual(mergeTuningPatch(tuning, { dragToClose: { distanceFraction: null } }), { dragToClose: {}, slide: { durationSec: 1 }, hopFraction: 0.6 });
+  assert.deepEqual(mergeTuningPatch(undefined, { hopFraction: 0.5 }), { hopFraction: 0.5 });
+  const empty = {};
+  assert.equal(mergeTuningPatch(empty, {}), empty, 'an empty patch on an empty tuning adds nothing');
+  assert.equal(mergeTuningPatch(tuning, { hopFraction: 0.6, dragToClose: { distanceFraction: 0.3 } }), tuning, 'an equal patch is the same object');
+  assert.deepEqual(tuning, { dragToClose: { distanceFraction: 0.3 }, slide: { durationSec: 1 }, hopFraction: 0.6 }, 'the input is unchanged');
 });
 
 test('mergePatch: headerButtons merges per slot id, false hides a slot, and null deletes a slot', () => {
@@ -85,14 +85,13 @@ test('mergePatch: headerButtons merges per slot id, false hides a slot, and null
 });
 
 test('mergePatch: frozen inputs are never mutated and the result shares no writable structure with a changed branch', () => {
-  const layer = deepFreeze({ closable: false, tuning: { dragToClose: { minDistancePx: 90 } }, headerButtons: { size: slot('Size') }, placeOnAdd: { before: 'a' } }) as PanelSettings;
-  const patch = deepFreeze({ title: 'T', tuning: { dragToClose: { distanceFraction: 0.3 }, hopFraction: 0.4 }, headerButtons: { pin: slot('Pin') } }) as SettingsPatch;
+  const layer = deepFreeze({ closable: false, headerButtons: { size: slot('Size') }, placeOnAdd: { before: 'a' } }) as PanelSettings;
+  const patch = deepFreeze({ title: 'T', headerButtons: { pin: slot('Pin') } }) as SettingsPatch;
   const before = copy(layer);
   const next = mergePatch(layer, patch);
   assert.deepEqual(layer, before);
-  assert.deepEqual(next.tuning, { dragToClose: { minDistancePx: 90, distanceFraction: 0.3 }, hopFraction: 0.4 });
-  assert.equal(Object.isFrozen(next.tuning), false, 'the changed branch is a new object');
-  assert.equal(Object.isFrozen(next.tuning?.dragToClose), false);
+  assert.deepEqual(Object.keys(next.headerButtons ?? {}).sort(), ['pin', 'size']);
+  assert.equal(Object.isFrozen(next.headerButtons), false, 'the changed branch is a new object');
 });
 
 // ---------------------------------------------------------------------------
@@ -139,11 +138,6 @@ const SLOTS = [slot('A'), slot('B', { side: 'end' }), slot('C', { order: 4 })] a
 function randomLayer(rng: Rng): Loose {
   const layer: Loose = {};
   for (const [key, values] of Object.entries(FLAT_POOL)) if (chance(rng, 0.2)) layer[key] = pick(rng, values);
-  if (chance(rng, 0.5)) {
-    const tuning: Loose = {};
-    for (const [leaf, values] of Object.entries(LEAF_POOL)) if (chance(rng, 0.4)) tuning[leaf] = pick(rng, values);
-    layer.tuning = tuning;
-  }
   if (chance(rng, 0.4)) {
     const map: Loose = {};
     for (const id of SLOT_IDS) if (chance(rng, 0.5)) map[id] = chance(rng, 0.2) ? false : pick(rng, SLOTS);
@@ -157,19 +151,6 @@ function randomPatch(rng: Rng): Loose {
   for (const [key, values] of Object.entries(FLAT_POOL)) {
     if (!chance(rng, 0.2)) continue;
     patch[key] = chance(rng, 0.25) ? null : chance(rng, 0.1) ? undefined : pick(rng, values);
-  }
-  if (chance(rng, 0.08)) patch.tuning = null;
-  else if (chance(rng, 0.6)) {
-    const tuning: Loose = {};
-    for (const [leaf, values] of Object.entries(LEAF_POOL)) {
-      if (!chance(rng, 0.4)) continue;
-      const kind = rng();
-      if (kind < 0.2) tuning[leaf] = null;
-      else if (kind < 0.3) tuning[leaf] = undefined;
-      else if (kind < 0.55 && typeof pick(rng, values) === 'object') tuning[leaf] = { [pick(rng, ['distanceFraction', 'durationSec', 'zonePx', 'minDistancePx'])]: null };
-      else tuning[leaf] = pick(rng, values);
-    }
-    patch.tuning = tuning;
   }
   if (chance(rng, 0.05)) patch.headerButtons = null;
   else if (chance(rng, 0.5)) {
@@ -189,22 +170,6 @@ function reference(layer: Loose, patch: Loose): Loose {
     if (asked === undefined) continue;
     if (asked === null) {
       delete out[key];
-    } else if (key === 'tuning') {
-      const tuning: Loose = { ...(isPlain(out.tuning) ? out.tuning : {}) };
-      for (const [leaf, leafAsked] of Object.entries(asked as Loose)) {
-        if (leafAsked === undefined) continue;
-        if (leafAsked === null) delete tuning[leaf];
-        else if (isPlain(leafAsked)) {
-          const members: Loose = { ...(isPlain(tuning[leaf]) ? (tuning[leaf] as Loose) : {}) };
-          for (const [member, memberAsked] of Object.entries(leafAsked)) {
-            if (memberAsked === undefined) continue;
-            if (memberAsked === null) delete members[member];
-            else members[member] = memberAsked;
-          }
-          tuning[leaf] = members;
-        } else tuning[leaf] = leafAsked;
-      }
-      out.tuning = tuning;
     } else if (key === 'headerButtons') {
       const map: Loose = { ...(isPlain(out.headerButtons) ? out.headerButtons : {}) };
       for (const [id, slotAsked] of Object.entries(asked as Loose)) {
@@ -249,4 +214,40 @@ test('mergePatch: 500 seeded patches resolve equal to a hand-written reference, 
   assert.equal(iterations, ITERATIONS);
   assert.ok(iterations >= 500);
   assert.ok(unchanged >= 5 && changed >= 300, `the generator made ${unchanged} unchanged and ${changed} changed patches`);
+});
+
+test('mergeTuningPatch: 300 seeded patches agree with a hand-written reference and never mutate their inputs', () => {
+  for (let i = 0; i < 300; i += 1) {
+    const rng = mulberry32(31000 + i);
+    const base: Loose = {};
+    for (const [leaf, values] of Object.entries(LEAF_POOL)) if (chance(rng, 0.5)) base[leaf] = pick(rng, values);
+    const patch: Loose = {};
+    for (const [leaf, values] of Object.entries(LEAF_POOL)) {
+      if (!chance(rng, 0.4)) continue;
+      const kind = rng();
+      if (kind < 0.2) patch[leaf] = null;
+      else if (kind < 0.3) patch[leaf] = undefined;
+      else if (kind < 0.55 && typeof pick(rng, values) === 'object') patch[leaf] = { [pick(rng, ['distanceFraction', 'durationSec', 'zonePx', 'minDistancePx'])]: null };
+      else patch[leaf] = pick(rng, values);
+    }
+    deepFreeze(base);
+    deepFreeze(patch);
+    const expected: Loose = copy(base);
+    for (const [leaf, asked] of Object.entries(patch)) {
+      if (asked === undefined) continue;
+      if (asked === null) delete expected[leaf];
+      else if (isPlain(asked)) {
+        const existed = isPlain(expected[leaf]);
+        const members: Loose = { ...(existed ? (expected[leaf] as Loose) : {}) };
+        for (const [member, memberAsked] of Object.entries(asked)) {
+          if (memberAsked === null) delete members[member];
+          else if (memberAsked !== undefined) members[member] = memberAsked;
+        }
+        if (existed || Object.keys(members).length > 0) expected[leaf] = members;
+      } else expected[leaf] = asked;
+    }
+    const merged = mergeTuningPatch(base as WorkspaceTuning, patch);
+    assert.deepEqual(merged, expected, `seed ${31000 + i}`);
+    if (isDeepStrictEqual(base, expected)) assert.equal(merged, base, `seed ${31000 + i}: nothing changed, so the same object`);
+  }
 });

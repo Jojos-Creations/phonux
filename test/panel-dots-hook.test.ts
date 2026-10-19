@@ -7,7 +7,9 @@ import test, { afterEach } from 'node:test';
 import assert from 'node:assert/strict';
 import * as React from 'react';
 import { MotionConfig } from 'motion/react';
-import { cleanup, mount } from './support/mount-harness.js';
+import { advanceFrames, cleanup, mount } from './support/mount-harness.js';
+import { resolveWorkspaceTuning } from '../panelTuning.js';
+import type { WorkspaceTuning } from '../panelSettings.js';
 import { usePanelDots, type PanelDots } from '../usePanelDots.js';
 import type { RowNumbers } from '../rowNumbers.js';
 import { rowScrollerFor } from '../rowScroller.js';
@@ -26,10 +28,10 @@ const numbers = {
 } as unknown as RowNumbers;
 const entries = [{ id: 'a' }, { id: 'b' }, { id: 'c' }];
 
-function probe(out: { dots?: PanelDots; el?: HTMLElement }, reduced?: 'always') {
+function probe(out: { dots?: PanelDots; el?: HTMLElement }, reduced?: 'always', tuning: WorkspaceTuning = {}) {
   const Probe = () => {
     const scroller = React.useRef<HTMLDivElement>(null);
-    const dots = usePanelDots({ rowNumbers: numbers, entries, scroller });
+    const dots = usePanelDots({ rowNumbers: numbers, entries, scroller, tuning: resolveWorkspaceTuning(tuning) });
     out.dots = dots;
     out.el = scroller.current ?? undefined;
     return React.createElement('div', { ref: scroller, 'data-row-scroller': '', style: { overflowX: 'auto', width: 300 } });
@@ -67,4 +69,22 @@ test('a dot click snaps at once under Reduce Motion', () => {
   const el = m.container.querySelector<HTMLElement>('[data-row-scroller]')!;
   assert.equal(el.scrollLeft, 406 + 195 - 300);
   assert.equal(rowScrollerFor(el).glideTarget(), null);
+});
+
+test("a dot click glides with the workspace's slide: duration and glide ease, not the library's", async () => {
+  const target = 406 + 195 - 300;
+  const quarter = async (tuning: WorkspaceTuning): Promise<number> => {
+    const out: { dots?: PanelDots; el?: HTMLElement } = {};
+    const m = mount(probe(out, undefined, tuning));
+    out.dots!.selectDot('b');
+    const el = m.container.querySelector<HTMLElement>('[data-row-scroller]')!;
+    await advanceFrames(25 * 16);
+    const at = el.scrollLeft;
+    cleanup();
+    return at / target;
+  };
+  const linear = await quarter({ slide: { durationSec: 1.6, glideEase: 'linear' } });
+  assert.ok(Math.abs(linear - 0.25) < 0.02, `a quarter of a linear 1.6 s glide has covered a quarter, got ${linear}`);
+  const cubic = await quarter({ slide: { durationSec: 1.6, glideEase: 'cubic-out' } });
+  assert.ok(cubic > 0.5, `the same quarter along cubic-out has covered most of it, got ${cubic}`);
 });

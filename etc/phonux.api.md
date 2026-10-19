@@ -57,7 +57,7 @@ export interface CaptureTrigger {
 }
 
 // @public
-export type CatalogName = Exclude<keyof PanelSettings, 'tuning'> | `tuning.${Exclude<keyof WorkspaceTuning, 'shrinkOutOfView'>}`;
+export type CatalogName = keyof PanelSettings | `tuning.${Exclude<keyof WorkspaceTuning, 'shrinkOutOfView'>}`;
 
 // @public
 export const CHROME_ATTRIBUTE = "data-panel-chrome-part";
@@ -77,15 +77,6 @@ export type ChromeTuning = {
     mode: 'always' | 'hover-or-active';
     fadeMs: number;
     fadeEase: FadeEase;
-    slideMs: number;
-    slidePx: number;
-    graceMs: number;
-    headerGapPx: number;
-    grabPillWidthPx: number;
-    grabPillHeightPx: number;
-    headerInsetPx: number;
-    footerPadXPx: number;
-    footerPadYPx: number;
 };
 
 // @public
@@ -264,13 +255,6 @@ export type DragToCloseTuning = {
     flickMinDistancePx: number;
     flickVelocity: number;
     cancelVelocity: number;
-    directionLockPx: number;
-    restMs: number;
-    velocityWindowMs: number;
-    snapBack: {
-        stiffness: number;
-        damping: number;
-    };
 };
 
 // @public
@@ -492,7 +476,9 @@ export interface PanelDots {
 }
 
 // @public
-export function PanelFooter(): React_2.ReactElement | null;
+export function PanelFooter(input: {
+    sx?: SxProps<Theme>;
+}): React_2.ReactElement | null;
 
 // @public
 export const PanelFrame: React_2.ForwardRefExoticComponent<Omit<PanelFrameProps, "ref"> & React_2.RefAttributes<HTMLDivElement>>;
@@ -671,7 +657,6 @@ export function PanelRow(input: {
     exitRightIds?: ReadonlySet<string>;
     enterSideById?: ReadonlyMap<string, 'left' | 'right'>;
     maxLiveWidth?: number;
-    tuning?: WorkspaceTuning;
     rowNumbers?: RowNumbers;
     workspace: WorkspaceHandle;
 }): React_2.ReactElement;
@@ -720,7 +705,6 @@ export interface PanelsAPI {
 export type PanelSettings = {
     [K in keyof SettingValues]?: SettingValues[K];
 } & {
-    tuning?: PanelTuning;
     headerButtons?: {
         [id: string]: HeaderButton | false;
     };
@@ -821,20 +805,6 @@ export interface PanelTemplate<P extends JsonValue = JsonValue> {
     readonly settings?: PanelSettings;
     readonly view: React_2.ComponentType<PanelViewProps<P>>;
 }
-
-// @public
-export type PanelTuning = {
-    dragToClose?: {
-        [K in keyof DragToCloseTuning]?: DragToCloseTuning[K];
-    };
-    slide?: {
-        [K in keyof SlideTuning]?: SlideTuning[K];
-    };
-    hopFraction?: number;
-    edgeScroll?: {
-        [K in keyof EdgeScrollTuning]?: EdgeScrollTuning[K];
-    };
-};
 
 // @public
 export type PanelUserLayer = {
@@ -1008,22 +978,17 @@ export type ResolvedPanelSettings = {
     readonly [K in Exclude<keyof SettingValues, 'title'>]: SettingValues[K];
 } & {
     readonly title?: string;
-    readonly tuning: ResolvedPanelTuning;
     readonly headerButtons: {
         readonly [id: string]: HeaderButton;
     };
 };
 
 // @public
-export type ResolvedPanelTuning = {
+export type ResolvedWorkspaceTuning = {
     dragToClose: DragToCloseTuning;
     slide: SlideTuning;
     hopFraction: number;
     edgeScroll: EdgeScrollTuning;
-};
-
-// @public
-export type ResolvedWorkspaceTuning = ResolvedPanelTuning & {
     rowGap: number;
     saveQuietMs: number;
     gestureLockMs: number;
@@ -1152,7 +1117,7 @@ export interface SettingsAPI {
 }
 
 // @public
-export type SettingScope = 'instance' | 'template' | 'workspace' | 'panel or workspace';
+export type SettingScope = 'instance' | 'template' | 'workspace';
 
 // @public
 export type SettingsPatch = {
@@ -1240,6 +1205,7 @@ export function usePanelDots(i: {
         };
     }[];
     scroller: React_2.RefObject<HTMLElement | null>;
+    tuning: Pick<ResolvedWorkspaceTuning, 'slide'>;
 }): PanelDots;
 
 // @public
@@ -1276,10 +1242,7 @@ export function usePanelState(id: PanelId): PanelState | undefined;
 export function usePanelStates(f?: ListFilter): readonly PanelState[];
 
 // @public
-export const usePanelTuning: () => ResolvedPanelTuning & {
-    readonly rowGap: number;
-    readonly chrome: ChromeTuning;
-};
+export const usePanelTuning: () => Pick<ResolvedWorkspaceTuning, "rowGap" | "dragToClose" | "slide" | "hopFraction" | "edgeScroll">;
 
 // @public
 export function usePhoneFit(containerRef: React_2.RefObject<HTMLDivElement | null>, containerWidth: number, preferred: {
@@ -1443,7 +1406,7 @@ export type WorkspaceOptions = WorkspaceLive & {
     name?: string;
     onRename?: (name: string) => void;
     storage?: WorkspaceStorage;
-    defaults?: Omit<PanelSettings, 'tuning'>;
+    defaults?: PanelSettings;
     root?: AnyPanelTemplate;
     templates?: readonly AnyPanelTemplate[];
     order?: () => readonly PanelId[];
@@ -1511,7 +1474,7 @@ export interface WorkspaceProps extends Omit<BoxProps, 'children'> {
     rowResizeSettled?: boolean;
     rowScroll?: boolean;
     topPadding?: number;
-    tuning?: WorkspaceTuning;
+    workspace?: WorkspaceHandle;
 }
 
 // @public
@@ -1537,7 +1500,17 @@ export type WorkspaceStorage = {
 };
 
 // @public
-export type WorkspaceTuning = PanelTuning & {
+export type WorkspaceTuning = {
+    dragToClose?: {
+        [K in keyof DragToCloseTuning]?: DragToCloseTuning[K];
+    };
+    slide?: {
+        [K in keyof SlideTuning]?: SlideTuning[K];
+    };
+    hopFraction?: number;
+    edgeScroll?: {
+        [K in keyof EdgeScrollTuning]?: EdgeScrollTuning[K];
+    };
     rowGap?: number;
     saveQuietMs?: number;
     gestureLockMs?: number;

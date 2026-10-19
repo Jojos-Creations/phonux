@@ -74,7 +74,7 @@ export function mountWorkspace(ws: WorkspaceHandle, o: { width?: number; over?: 
     return withHost(
       React.createElement(
         Workspace,
-        { overflowContainerRef: ref, rowRef, containerWidth, rowResizeSettled: true, phoneWidth: 390, fixedColumnCount: provided.fixedViewCount, liveWidths: provided.liveWidths, rowScroll: provided.rowScroll, rowNumbers: provided.rowNumbers, tuning: provided.tuning } as never,
+        { overflowContainerRef: ref, rowRef, containerWidth, rowResizeSettled: true, phoneWidth: 390, fixedColumnCount: provided.fixedViewCount, liveWidths: provided.liveWidths, rowScroll: provided.rowScroll, rowNumbers: provided.rowNumbers, workspace: ws } as never,
         React.createElement(PanelRow, { entries: provided.entries, rootId: ws.rootId, closingIds: NONE, enteringViaAnchorIds: NONE, rowNumbers: provided.rowNumbers, ...(o.withMaxLiveWidth === true ? { maxLiveWidth: provided.maxLiveWidth } : {}), workspace: ws }),
       ),
       createFakeHost({ panels: provided }),

@@ -9,7 +9,6 @@ import './support/jsdom-globals.js';
 import { act } from 'react';
 import type { AnchorRequest, ConfigureResult, PanelHandle, PanelSettings, Pinning, WorkspaceState } from '../index.js';
 import { memoryWorkspaceStorage } from '../fakeHost.js';
-import { SLIDE_DURATION_SEC } from '../rowConstants.js';
 import { cleanup } from './support/mount-harness.js';
 import { pinRig, type PinRig, type PinRigOptions } from './support/pin-rig.js';
 import { markerTemplate } from './support/workspace-row.js';
@@ -113,11 +112,11 @@ test('maxSlots lowered below the person\'s saved count clamps it without a note,
 test('configure on an anonymous instance restores configured; the same patch on a declared panel does not, the declaration wins', async () => {
   const store = memoryWorkspaceStorage();
   const settings = { b: { title: 'Declared title' } };
-  const patch = { title: 'Configured', listed: false, tuning: { slide: { durationSec: 0.3 } } };
+  const patch = { title: 'Configured', listed: false };
   let r = await launch(store, { extra: ANON, settings });
   const x = r.turn(() => r.ws.addPanel('m'));
   await r.settle();
-  assert.deepEqual({ ...ok(r.turn(() => x.configure(patch))) }, { ok: true, changed: true, shown: false, now: ['title', 'listed'], later: ['tuning.slide'], shadowed: [], notes: [] });
+  assert.deepEqual({ ...ok(r.turn(() => x.configure(patch))) }, { ok: true, changed: true, shown: false, now: ['title', 'listed'], later: [], shadowed: [], notes: [] });
   ok(r.turn(() => r.h.b!.configure(patch)));
   assert.deepEqual([r.state('b').title, r.state('b').listed], ['Configured', false]);
   await quit(r);
@@ -126,8 +125,8 @@ test('configure on an anonymous instance restores configured; the same patch on 
 
   r = await launch(store, { extra: ANON, settings });
   const back = anonymous(r).getState();
-  assert.deepEqual([back.title, back.listed, back.settings.tuning.slide.durationSec], ['Configured', false, 0.3], 'the anonymous instance');
-  assert.deepEqual([r.state('b').title, r.state('b').listed, r.state('b').settings.tuning.slide.durationSec], ['Declared title', true, SLIDE_DURATION_SEC], 'the declared panel');
+  assert.deepEqual([back.title, back.listed], ['Configured', false], 'the anonymous instance');
+  assert.deepEqual([r.state('b').title, r.state('b').listed], ['Declared title', true], 'the declared panel');
 });
 
 test('configureTemplate and configureTuning are session only: nothing of them is in the file, and the next launch starts from the declarations', async () => {
@@ -141,7 +140,7 @@ test('configureTemplate and configureTuning are session only: nothing of them is
   for (const trace of ['maxInstances', 'hopFraction', 'rowGap', 'saveQuietMs', 'tuning']) assert.equal(text.includes(trace), false, `the file has no ${trace}`);
   assert.equal(JSON.parse(text).panels.length > 0, true, 'control: the file was written');
   r = await launch(store, { extra: ANON });
-  assert.deepEqual([r.ws.tuning.hopFraction, r.ws.tuning.rowGap, r.h.a!.getSettings().value.tuning.hopFraction], [0.5, 16, 0.5]);
+  assert.deepEqual([r.ws.tuning.hopFraction, r.ws.tuning.rowGap, r.ws.tuning.saveQuietMs], [0.5, 16, 5], 'the launch rig'+"'s own quick save");
   assert.equal(r.ws.panels.get('a')!.getSettings().value.maxInstances, 'unlimited');
 });
 
@@ -161,7 +160,7 @@ test('the file\'s overrides are unchanged by any configure, whatever its class a
     ['c', { scrollOnOpen: 'center', placeOnAdd: 'row-start', listed: false }],
     ['b', { parkable: true }],
     ['b', { pinning: { pinned: { parkable: false }, unpinned: { parkable: true } } }],
-    ['c', { tuning: { slide: { durationSec: 0.2 } }, headerButtons: { x: false } }],
+    ['c', { headerButtons: { x: false } }],
   ];
   for (const [id, patch] of patches) ok(r.turn(() => r.h[id]!.configure(patch as never)));
   await quit(r);

@@ -28,7 +28,7 @@ const slotValue = (closable: boolean, tuning: Partial<SlotTuning>): PanelSlotVal
   maxSlots: DEFAULT_SLOT.maxSlots,
   neighborWidths: { left: [], right: [] },
   pinned: false,
-  tuning: { ...slotTuning(LIBRARY_TUNING_DEFAULTS, undefined), ...tuning },
+  tuning: { ...slotTuning(LIBRARY_TUNING_DEFAULTS), ...tuning },
 });
 
 type Rule = { distanceFraction: number; minDistancePx: number; flickVelocity: number; flickMinDistancePx: number; cancelVelocity: number };
@@ -123,27 +123,10 @@ test('a DragToClose in a slot closes at the slot minimum, and one outside a row 
   assert.deepEqual(closes, [1, 2], 'outside a row 100 px closes at the default 80');
 });
 
-test('the direction lock: 10 px sideways locks horizontal at the default 8 and stays unlocked with a lock of 20', async () => {
-  const ends: number[] = [];
-  const reorder: ReorderHandle = { onDragEnd: (offsetX) => ends.push(offsetX) };
-  const byDefault = mountBox({ reorder, onClose: () => undefined });
-  await drag(byDefault.handle, { dx: 10, dy: 0, steps: 5 });
-  await frames(30);
-  assert.deepEqual(ends.map(Math.round), [10], 'locked horizontal: the reorder heard the offset');
-  byDefault.mounted.unmount();
-  ends.length = 0;
-  const wide = mountBox({ reorder, onClose: () => undefined, slot: { tuning: { dragToClose: { ...LIBRARY_TUNING_DEFAULTS.dragToClose, directionLockPx: 20 } } } });
-  await drag(wide.handle, { dx: 10, dy: 0, steps: 5 });
-  await frames(30);
-  assert.deepEqual(ends, [], 'still unlocked at 10 px: the reorder heard nothing');
-});
-
-/** The distance from rest `after` frames after a short release, on `axisName`, under the slot's spring. */
-async function springBack(snapBack: { stiffness: number; damping: number } | undefined, axisName: 'X' | 'Y', after: number): Promise<number> {
+/** The distance from rest `after` frames after a short release, on `axisName`, under the library spring. */
+async function springBack(axisName: 'X' | 'Y', after: number): Promise<number> {
   const reorder: ReorderHandle = { onDragEnd: () => undefined };
-  const setup: Setup =
-    snapBack === undefined ? { reorder, onClose: () => undefined } : { reorder, onClose: () => undefined, slot: { tuning: { dragToClose: { ...LIBRARY_TUNING_DEFAULTS.dragToClose, snapBack } } } };
-  const { box, handle, mounted } = mountBox(setup);
+  const { box, handle, mounted } = mountBox({ reorder, onClose: () => undefined });
   await drag(handle, axisName === 'Y' ? { dx: 0, dy: 60 } : { dx: 60, dy: 0 });
   await frames(after);
   const out = axis(box, axisName);
@@ -151,48 +134,29 @@ async function springBack(snapBack: { stiffness: number; damping: number } | und
   return out;
 }
 
-test('the snap-back spring: the slot values drive it, the default is 520 and 42, and a stiffer or softer one is faster or slower', async () => {
+test('the snap-back spring is the library one: a short release is still mid-flight a few frames on, and home after many', async () => {
   for (const name of ['Y', 'X'] as const) {
-    const byDefault = await springBack(undefined, name, 3);
-    const explicit = await springBack({ stiffness: 520, damping: 42 }, name, 3);
-    const soft = await springBack({ stiffness: 50, damping: 5 }, name, 3);
-    const stiff = await springBack({ stiffness: 2000, damping: 89 }, name, 3);
-    assert.equal(byDefault, explicit, `${name}: the default is the 520 and 42 spring`);
-    assert.ok(soft > byDefault, `${name}: the soft spring (${soft}) is still further out than the default (${byDefault})`);
-    assert.ok(stiff < byDefault, `${name}: the stiff spring (${stiff}) is nearer rest than the default (${byDefault})`);
-    assert.ok(byDefault > 0 && byDefault < 60, `${name}: the default is mid-flight at ${byDefault}`);
+    const early = await springBack(name, 3);
+    assert.ok(early > 0 && early < 60, `${name}: mid-flight at ${early}`);
+    const late = await springBack(name, 120);
+    assert.ok(Math.abs(late) < 1, `${name}: home at ${late}`);
   }
 });
 
-test('the snap-back spring: damping alone and stiffness alone each change the path', async () => {
-  const byDefault = await springBack(undefined, 'Y', 6);
-  const looser = await springBack({ stiffness: 520, damping: 5 }, 'Y', 6);
-  const softer = await springBack({ stiffness: 50, damping: 42 }, 'Y', 6);
-  assert.notEqual(looser, byDefault, `damping 5 over the default stiffness (${looser}) is not the default path (${byDefault})`);
-  assert.notEqual(softer, byDefault, `stiffness 50 over the default damping (${softer}) is not the default path (${byDefault})`);
-});
-
-test('the direction lock: the vertical offset is read against the slot lock too, and outside a row the lock is 8', async () => {
+test('the direction lock: 7 px sideways locks nothing and 8 px locks horizontal, in a row or outside one', async () => {
   const ends: number[] = [];
   const reorder: ReorderHandle = { onDragEnd: (offsetX) => ends.push(offsetX) };
-  const wide = mountBox({ reorder, onClose: () => undefined, slot: { tuning: { dragToClose: { ...LIBRARY_TUNING_DEFAULTS.dragToClose, directionLockPx: 20 } } } });
-  await drag(wide.handle, { dx: 15, dy: 10, steps: 5 });
-  await frames(30);
-  assert.deepEqual(ends, [], 'neither axis reached the lock of 20, so a 15 by 10 drag locked nothing');
-  wide.mounted.unmount();
-  const byDefault = mountBox({ reorder, onClose: () => undefined, slot: {} });
-  await drag(byDefault.handle, { dx: 15, dy: 10, steps: 5 });
-  await frames(30);
-  assert.deepEqual(ends.map(Math.round), [15], 'at the default 8 the same drag locked horizontal');
-  byDefault.mounted.unmount();
-  ends.length = 0;
-  const outside = mountBox({ reorder, onClose: () => undefined });
-  await drag(outside.handle, { dx: 7, dy: 0, steps: 1 });
-  await frames(30);
-  assert.deepEqual(ends, [], 'outside a row 7 px is short of the lock');
-  await drag(outside.handle, { dx: 8, dy: 0, steps: 1 });
-  await frames(30);
-  assert.deepEqual(ends.map(Math.round), [8], 'and 8 px locks it');
+  for (const slot of [undefined, {}]) {
+    ends.length = 0;
+    const box = mountBox({ reorder, onClose: () => undefined, ...(slot === undefined ? {} : { slot }) });
+    await drag(box.handle, { dx: 7, dy: 0, steps: 1 });
+    await frames(30);
+    assert.deepEqual(ends, [], '7 px is short of the lock');
+    await drag(box.handle, { dx: 8, dy: 0, steps: 1 });
+    await frames(30);
+    assert.deepEqual(ends.map(Math.round), [8], 'and 8 px locks it');
+    box.mounted.unmount();
+  }
 });
 
 /** Frames from the release until onClose runs. */
@@ -309,27 +273,6 @@ test('closable turning false on the last frame of the exit still stops the close
   assert.ok(Math.abs(out.rest) < 1, `the box returned to rest (${out.rest})`);
   assert.equal(out.locked, 'auto');
   assert.ok(out.again > 20);
-});
-
-/** The box's distance from rest on each frame after an exit that closability stops partway, under `snapBack` for the return. */
-async function returnPath(snapBack: { stiffness: number; damping: number } | undefined): Promise<number[]> {
-  const setup: Setup = { onClose: () => undefined, slot: { closable: true, ...(snapBack === undefined ? {} : { tuning: { dragToClose: { ...LIBRARY_TUNING_DEFAULTS.dragToClose, snapBack } } }) } };
-  const { box, handle, update } = mountBox(setup);
-  await drag(handle, { dx: 0, dy: 300 });
-  const path: number[] = [];
-  for (let i = 0; i < 40; i += 1) {
-    if (i === 1) update({ ...setup, slot: { ...setup.slot, closable: false } });
-    await frames(1);
-    path.push(Math.round(axis(box, 'Y')));
-  }
-  return path;
-}
-
-test('the return after an exit that closability stopped runs under the slot spring, not the library one', async () => {
-  const byDefault = await returnPath(undefined);
-  const soft = await returnPath({ stiffness: 50, damping: 5 });
-  assert.ok(Math.max(...byDefault) > 600 && Math.max(...soft) > 600, 'both went down first');
-  assert.notDeepEqual(soft, byDefault, 'a soft slot spring gives its own return path');
 });
 
 test('onClose gone during the exit: the end of the exit returns the box to rest and calls nothing', async () => {

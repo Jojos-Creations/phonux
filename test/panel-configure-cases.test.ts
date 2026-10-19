@@ -305,12 +305,12 @@ test('case B9: scrollOnMove follow to none: the next pin does not scroll, and no
 const ZONE = LIBRARY_TUNING_DEFAULTS.edgeScroll.zonePx;
 const QUARTER = ZONE / 4;
 
-test('edge scroll 3: tuning.edgeScroll zonePx from the default to a quarter of it through configure(id): half the default zone from the edge scrolls under the default and not after the change', async () => {
+test('edge scroll 3: tuning.edgeScroll zonePx from the default to a quarter of it through configureTuning: half the default zone from the edge scrolls under the default and not after the change', async () => {
   const r = await dragRig();
   assert.equal(HALF_ZONE_POINTER, EDGE_WINDOW - ZONE / 2);
   assert.equal((await heldScroll(r, 's1', HALF_ZONE_POINTER)) > 0, true, 'positive control: under the default zone the pointer is inside the band');
   await r.settle();
-  assert.deepEqual(shape(r.turn(() => r.h.s1!.configure({ tuning: { edgeScroll: { zonePx: QUARTER } } }))), { now: [], later: ['tuning.edgeScroll'], shadowed: [] });
+  assert.deepEqual(shape(r.turn(() => r.ws.panels.configureTuning({ edgeScroll: { zonePx: QUARTER } }))), { now: [], later: ['tuning.edgeScroll'], shadowed: [] });
   const at = r.m.container.scrollLeft;
   await r.settle();
   assert.equal(r.m.container.scrollLeft, at, 'nothing scrolls at configure');
@@ -325,7 +325,7 @@ test('edge scroll 4: a drag in flight keeps the edge numbers it began with', asy
   const a = r.m.container.scrollLeft;
   await hold(10);
   const b = r.m.container.scrollLeft;
-  done(r.turn(() => r.h.s1!.configure({ tuning: { edgeScroll: { zonePx: QUARTER } } })));
+  done(r.turn(() => r.ws.panels.configureTuning({ edgeScroll: { zonePx: QUARTER } })));
   await hold(10);
   const c = r.m.container.scrollLeft;
   assert.equal(b - a > 0, true, 'control: scrolling');
@@ -333,33 +333,25 @@ test('edge scroll 4: a drag in flight keeps the edge numbers it began with', asy
   await lift(HALF_ZONE_POINTER);
 });
 
-test('edge scroll 5: configureTuning sets the default zone for panels without a leaf, a panel leaf wins, and null removes the leaf', async () => {
+test('edge scroll 5: configureTuning sets the zone for every panel and null puts the library default back', async () => {
   const r = await dragRig();
   assert.deepEqual({ ...done(r.turn(() => r.ws.panels.configureTuning({ edgeScroll: { zonePx: QUARTER } }))) }, { ok: true, changed: true, shown: false, now: [], later: ['tuning.edgeScroll'], shadowed: [], notes: [] });
-  assert.equal(await heldScroll(r, 's3', HALF_ZONE_POINTER), 0, 'a panel with no leaf reads the new workspace default');
-  done(r.turn(() => r.h.s1!.configure({ tuning: { edgeScroll: { zonePx: ZONE } } })));
-  assert.equal((await heldScroll(r, 's1', HALF_ZONE_POINTER)) > 0, true, "a panel's own leaf wins over the workspace default");
-  done(r.turn(() => r.h.s1!.configure({ tuning: { edgeScroll: null } } as never)));
-  assert.equal(r.h.s1!.getSettings().source['tuning.edgeScroll'], 'workspace', 'null removed the leaf');
-  assert.equal(await heldScroll(r, 's1', HALF_ZONE_POINTER), 0, 'so the panel reads the workspace default again');
+  assert.equal(await heldScroll(r, 's3', HALF_ZONE_POINTER), 0, 'a panel reads the new workspace zone');
+  assert.equal(await heldScroll(r, 's1', HALF_ZONE_POINTER), 0, 'and so does every other');
   done(r.turn(() => r.ws.panels.configureTuning({ edgeScroll: null } as never)));
   assert.equal((await heldScroll(r, 's3', HALF_ZONE_POINTER)) > 0, true, 'null at the workspace puts the library default back');
 });
 
-test('edge scroll 6: a hidden panel and an engine-parked panel store the tuning, and it applies when the panel is next dragged', async () => {
-  const hidden = await dragRig();
-  hidden.turn(() => hidden.h.s3!.hide());
-  await hidden.settle();
-  assert.deepEqual(shape(hidden.turn(() => hidden.h.s3!.configure({ tuning: { edgeScroll: { zonePx: QUARTER } } }))), { now: [], later: ['tuning.edgeScroll'], shadowed: [] });
-  assert.deepEqual([hidden.state('s3').status, hidden.h.s3!.getSettings().value.tuning.edgeScroll.zonePx], ['parked', QUARTER], 'stored on the hidden panel');
-  hidden.turn(() => hidden.h.s3!.show());
-  await hidden.settle();
-  assert.equal(await heldScroll(hidden, 's3', HALF_ZONE_POINTER), 0, 'shown again, its quarter-width zone leaves the pointer outside the band');
-  const parked = await dragRig({ park: true });
-  const away = ['s1', 's2', 's3', 's4', 's5', 's6', 's7', 's8', 's9'].find((name) => parked.state(name).status === 'parked' && !parked.state(name).held);
-  assert.notEqual(away, undefined, 'the engine parked some panels for room');
-  assert.deepEqual(shape(parked.turn(() => parked.h[away!]!.configure({ tuning: { edgeScroll: { zonePx: QUARTER } } }))), { now: [], later: ['tuning.edgeScroll'], shadowed: [] });
-  assert.deepEqual([parked.state(away!).status, parked.h[away!]!.getSettings().value.tuning.edgeScroll.zonePx], ['parked', QUARTER], 'stored on the parked panel, which stays parked');
+test('edge scroll 6: a panel carries no tuning, so configure(id, { tuning }) is wrong-scope on a live, a hidden and a parked panel alike and a resolved panel holds none', async () => {
+  const r = await dragRig();
+  r.turn(() => r.h.s3!.hide());
+  await r.settle();
+  for (const name of ['s1', 's3']) {
+    const answer = r.turn(() => r.h[name]!.configure({ tuning: { edgeScroll: { zonePx: QUARTER } } } as never));
+    assert.equal(answer.ok, false, name);
+    assert.equal((answer as { code?: string }).code, 'wrong-scope', name);
+    assert.equal('tuning' in r.h[name]!.getSettings().value, false, `${name} holds no tuning`);
+  }
 });
 
 test('root column 1: closable, parkable and movable true on the root are each a settings-conflict naming the key and rule C5, with no forcedBy', async () => {

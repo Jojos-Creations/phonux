@@ -28,7 +28,7 @@ export function staticPanel(o: { slots?: Record<string, HeaderButton>; props?: O
     collapsible: true,
     neighborWidths: { left: [], right: [] },
     pinned: false,
-    tuning: slotTuning(LIBRARY_TUNING_DEFAULTS, undefined),
+    tuning: slotTuning(LIBRARY_TUNING_DEFAULTS),
     ...(o.slots === undefined ? {} : { headerButtonSlots: { slots: o.slots, handle, report: () => {}, note: () => {} } }),
   };
   const panel = createElement(Panel, { ...(o.props ?? {}), children: 'Body' });

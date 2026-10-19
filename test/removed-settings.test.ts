@@ -155,5 +155,5 @@ test('tuning.shrinkOutOfView: configureTuning and a settings layer treat a remov
   const plain = resolvePanelSettings({});
   const layered = resolvePanelSettings({ instance: { tuning: { shrinkOutOfView: 'off' } } as unknown as PanelSettings }, { lenient: true });
   assert.deepEqual(layered.value, plain.value);
-  assert.deepEqual(layered.notes, []);
+  assert.deepEqual(layered.notes.map((n) => [n.code, n.key]), [['invalid-saved-setting', 'tuning']], 'a saved panel layer holding any tuning loads with one note');
 });

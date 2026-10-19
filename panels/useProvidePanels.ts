@@ -126,7 +126,7 @@ interface CreatePlan {
 }
 
 /** `options` resolved against the workspace defaults and, for a template view, the template's own layer. A permanent column is a plain view's own ask; a template's panel cannot ask it, which the resolver records as a conflict. */
-function planCreate(options: CreatePanelOptions | undefined, template: PanelTemplate | undefined, defaults: Omit<PanelSettings, 'tuning'>): CreatePlan {
+function planCreate(options: CreatePanelOptions | undefined, template: PanelTemplate | undefined, defaults: PanelSettings): CreatePlan {
   const permanent = options?.permanent === true;
   const host: PanelSettings = {
     ...(options?.title !== undefined ? { title: options.title } : {}),
@@ -165,7 +165,7 @@ function appendFromTemplate(
     params: JsonValue | undefined;
     url: string | undefined;
     hostData: JsonValue | undefined;
-    defaults: Omit<PanelSettings, 'tuning'> | undefined;
+    defaults: PanelSettings | undefined;
     rootId: string;
     order: (() => readonly string[]) | undefined;
     declared: boolean;
@@ -252,7 +252,7 @@ export interface ProvidedPanels extends PanelsAPI {
   readonly rowScroll: boolean;
   /** The row's one set of numbers, the same value the shell, the row and the capacity are priced from. Hand it to a Workspace's and a PanelRow's `rowNumbers`. */
   readonly rowNumbers: RowNumbers;
-  /** the workspace's tuning over the library defaults, leaf by leaf: the one value this render's capacity and widths were priced from. Hand it to a Workspace's `tuning`. */
+  /** the workspace's tuning over the library defaults, leaf by leaf: the one value this render's capacity and widths were priced from. Hand it to `usePhoneFit`. */
   readonly tuning: ResolvedWorkspaceTuning;
   /**
    * Asks the row to scroll to panel `id` after the next commit, at `align` (default: the panel's `scrollOnOpen`, else

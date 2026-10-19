@@ -334,7 +334,7 @@ test('a saved closable false restores unclosable for a view no template rebuilds
 
 // lenient restore
 
-test('one entry\'s instance layer holding an unknown key, a wrong type, tuning.rowGap 999 and the removed evictable restores with the valid keys and notes', () => {
+test('one entry\'s instance layer holding an unknown key, a wrong type, a tuning key and the removed evictable restores with the valid keys and notes', () => {
   const instance = { title: 'Kept', bogus: 1, listed: 'maybe', tuning: { rowGap: 999 }, evictable: true } as never;
   const saved = file(line(savedEntry('a', { view: 't', instance, overrides: {} }), savedEntry('b', { view: 't', overrides: {} })));
   const result = run({ saved, templates: [tpl('t')] });
@@ -342,7 +342,7 @@ test('one entry\'s instance layer holding an unknown key, a wrong type, tuning.r
   assert.equal(result.entries[0]!.title, 'Kept');
   assert.deepEqual(result.entries[0]!.instance, { title: 'Kept' }, 'what was invalid is not carried into the next save');
   const notes = result.notes.filter((n) => n.code === 'invalid-saved-setting');
-  assert.deepEqual(notes.map((n) => n.key).sort(), ['bogus', 'evictable', 'listed', 'tuning.rowGap']);
+  assert.deepEqual(notes.map((n) => n.key).sort(), ['bogus', 'evictable', 'listed', 'tuning']);
   assert.ok(notes.every((n) => n.panelId === result.entries[0]!.id));
 });
 

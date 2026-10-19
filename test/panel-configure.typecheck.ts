@@ -8,7 +8,7 @@ declare const manager: PanelManager;
 declare const handle: PanelHandle;
 declare const view: ViewHandle;
 
-const onPanel: ConfigureResult = manager.configure('a', { closable: false, tuning: { slide: { durationSec: 0.2 } }, title: null });
+const onPanel: ConfigureResult = manager.configure('a', { closable: false, title: null });
 const onHandle: ConfigureResult = handle.configure({ scrollOnOpen: 'center' });
 const onTemplate: ConfigureResult = manager.configureTemplate('t', { hostCreatable: true, multiple: null, maxInstances: 3 });
 const onTuning: ConfigureResult = manager.configureTuning({ rowGap: 20, slide: null, initialScroll: { panel: 'a' } });
@@ -16,6 +16,8 @@ const onView: ConfigureResult = view.configure({ title: 'x', placeOnAdd: { ancho
 
 // @ts-expect-error a template key is not an InstancePatch key
 manager.configure('a', { hostCreatable: true });
+// @ts-expect-error tuning is the workspace's, not an InstancePatch key
+manager.configure('a', { tuning: { slide: { durationSec: 0.2 } } });
 // @ts-expect-error a template key is not an InstancePatch key
 handle.configure({ maxInstances: 2 });
 // @ts-expect-error the template call takes only the three template keys

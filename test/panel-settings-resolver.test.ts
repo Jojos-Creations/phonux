@@ -8,7 +8,7 @@ import { ALL_SLOTS } from '../rowConstants.js';
 import assert from 'node:assert/strict';
 import { isDeepStrictEqual } from 'node:util';
 import { PANEL_SETTINGS_CATALOG, PanelManagerError } from '../index.js';
-import { FIXED, resolvePanelSettings } from '../panelSettings.js';
+import { FIXED, LIBRARY_TUNING_DEFAULTS, checkTuningLeaf, resolvePanelSettings } from '../panelSettings.js';
 import type { PanelSettingsLayers, ResolveOptions } from '../panelSettings.js';
 import { mergePatch } from '../settingsPatch.js';
 import type { CatalogName, HeaderButton, PanelSettings, PanelSettingsResolution, SettingConflict, SourceLayer } from '../index.js';
@@ -42,7 +42,7 @@ function assertShape(res: PanelSettingsResolution): void {
     }
   }
   for (const n of res.notes) assert.ok(typeof n.code === 'string' && n.code.length > 0 && typeof n.message === 'string' && n.message.length > 0);
-  assert.ok(Object.isFrozen(res.value) && Object.isFrozen(res.value.tuning) && Object.isFrozen(res.value.headerButtons));
+  assert.ok(Object.isFrozen(res.value) && Object.isFrozen(res.value.headerButtons));
   _shapesChecked += 1;
 }
 
@@ -150,12 +150,9 @@ const PROBES: readonly Probe[] = [
   ["pinningWhenNotLive closed: 'show'", { template: asSettings({ pinningWhenNotLive: { closed: 'show' } }) }, 'template', 'pinningWhenNotLive'],
   ['pinningWhenNotLive with an unknown status', { template: asSettings({ pinningWhenNotLive: { open: 'show' } }) }, 'template', 'pinningWhenNotLive'],
   ['tuning given a number', { instance: asSettings({ tuning: 5 }) }, 'instance', 'tuning'],
-  ['an unknown tuning key', { instance: asSettings({ tuning: { wobble: 1 } }) }, 'instance', 'tuning.wobble'],
-  ['an unknown tuning member', { instance: asSettings({ tuning: { dragToClose: { nope: 1 } } }) }, 'instance', 'tuning.dragToClose.nope'],
-  ['a tuning leaf of the wrong type', { instance: asSettings({ tuning: { slide: 5 } }) }, 'instance', 'tuning.slide'],
-  ["rowGesture 'swipe'", { instance: asSettings({ tuning: { rowGesture: 'swipe' } }) }, 'instance', 'tuning.rowGesture'],
-  ["initialScroll 'middle'", { instance: asSettings({ tuning: { initialScroll: 'middle' } }) }, 'instance', 'tuning.initialScroll'],
-  ["initialScroll { panel: '' }", { instance: asSettings({ tuning: { initialScroll: { panel: '' } } }) }, 'instance', 'tuning.initialScroll'],
+  ['a template layer carrying a tuning leaf', { template: asSettings({ tuning: { hopFraction: 0.7 } }) }, 'template', 'tuning'],
+  ['a host layer carrying a tuning leaf', { host: asSettings({ tuning: { slide: { durationSec: 1 } } }) }, 'host', 'tuning'],
+  ['an instance layer carrying a tuning leaf', { instance: asSettings({ tuning: { dragToClose: { minDistancePx: 100 } } }) }, 'instance', 'tuning'],
   ['a template layer that is not an object', { template: 5 as unknown as PanelSettings }, 'template', undefined],
   ['an instance layer that is a list', { instance: [] as unknown as PanelSettings }, 'instance', undefined],
 ];
@@ -187,17 +184,15 @@ test('enumerations: every enumerated value resolves to itself from the template 
   const expected = Object.values(ENUMERATED).reduce((sum, values) => sum + values.length, 0) + PROBES.length;
   assert.equal(executed, expected);
   assert.equal(valueCases, expected - PROBES.length);
-  assert.ok(valueCases >= 90 && PROBES.length >= 40, 'the tables are not empty');
+  assert.ok(valueCases >= 90 && PROBES.length >= 30, 'the tables are not empty');
 });
 
-test("enumerations: a probe's refusal names the layer and key in its message too, and a valid initialScroll { panel: 'x' } is accepted", () => {
+test("enumerations: a probe's refusal names the layer and key in its message too", () => {
   const error = refuses({ template: asSettings({ overflow: 'maybe' }) }, 'template', 'overflow');
   assert.match(error.message, /template\.overflow/);
-  const ok = resolve({ instance: asSettings({ tuning: { initialScroll: { panel: 'x' } } }) });
-  assert.deepEqual(ok.conflicts.map((c) => [c.key, c.kind, c.asked]), [['tuning.initialScroll', 'wrong-scope', { panel: 'x' }]]);
 });
 
-test('enumerations: the four workspace-only enumerated tuning leaves accept every member at the instance layer as a wrong-scope conflict that applies nothing', () => {
+test('enumerations: the four enumerated tuning leaves accept every member', () => {
   const members: Record<string, readonly unknown[]> = {
     returnTieBreak: ['latest-first', 'earliest-first', 'row-order'],
     dropTieBreak: ['leftmost', 'rightmost'],
@@ -207,30 +202,23 @@ test('enumerations: the four workspace-only enumerated tuning leaves accept ever
   let executed = 0;
   for (const [leaf, values] of Object.entries(members)) {
     for (const value of values) {
-      const res = resolve({ instance: asSettings({ tuning: { [leaf]: value } }) });
-      assert.equal(res.conflicts.length, 1);
-      const [c] = res.conflicts as [SettingConflict];
-      assert.deepEqual([c.key, c.layer, c.kind, c.asked], [`tuning.${leaf}`, 'instance', 'wrong-scope', value]);
-      assert.equal(res.source[`tuning.${leaf}`], undefined, 'a workspace-only leaf has no source entry in a panel resolve');
+      assert.deepEqual(checkTuningLeaf(leaf as never, value), { accepted: value, problems: [] }, `${leaf} = ${JSON.stringify(value)}`);
       executed += 1;
     }
   }
   assert.equal(executed, 11);
+  for (const [leaf, bad] of [['rowGesture', 'swipe'], ['initialScroll', 'middle'], ['initialScroll', { panel: '' }]] as const) assert.equal(checkTuningLeaf(leaf, bad).problems[0]?.key, `tuning.${leaf}`, leaf);
 });
 
-test('enumerations: the per-panel tuning leaves resolve from the template layer, merged member by member over the library numbers', () => {
-  const res = resolve({
-    template: {
-      tuning: { dragToClose: { distanceFraction: 0.5 }, slide: { durationSec: 1, ease: [0.1, 0, 0.9, 1] }, hopFraction: 0.75, edgeScroll: { zonePx: 60 } },
-    },
-  });
-  assert.equal(res.value.tuning.dragToClose.distanceFraction, 0.5);
-  assert.equal(res.value.tuning.dragToClose.minDistancePx, 80, 'a member not named keeps the library number');
-  assert.deepEqual([...res.value.tuning.slide.ease], [0.1, 0, 0.9, 1]);
-  assert.equal(res.value.tuning.slide.closeExitSeconds, 0.18);
-  assert.equal(res.value.tuning.hopFraction, 0.75);
-  assert.deepEqual({ ...res.value.tuning.edgeScroll }, { zonePx: 60, maxPxPerSec: 900, reducedStepMs: 500 });
-  for (const leaf of ['dragToClose', 'slide', 'hopFraction', 'edgeScroll']) assert.equal(res.source[`tuning.${leaf}`], 'template', leaf);
+test('a panel resolves no tuning: the value holds none, and no layer may carry one', () => {
+  const res = resolve();
+  assert.equal('tuning' in res.value, false);
+  assert.deepEqual(Object.keys(res.source).filter((k) => k.startsWith('tuning.')), []);
+  for (const layer of ['workspace', 'template', 'host', 'instance'] as const) {
+    for (const tuning of [{ hopFraction: 0.75 }, { dragToClose: { distanceFraction: 0.5 } }, { slide: { durationSec: 1 } }, { edgeScroll: { zonePx: 60 } }, { rowGap: 8 }, { nope: 1 }, 5]) {
+      refuses({ [layer]: asSettings({ tuning }) }, layer, 'tuning');
+    }
+  }
 });
 
 // ---------------------------------------------------------------------------
@@ -257,18 +245,6 @@ const RANGES: readonly RangeRow[] = [
   ['dragToClose.cancelVelocity', 0, 'reject'],
   ['dragToClose.cancelVelocity', -49, 'reject'],
   ['dragToClose.cancelVelocity', -50, 'accept'],
-  ['dragToClose.directionLockPx', 1, 'reject'],
-  ['dragToClose.directionLockPx', 2, 'accept'],
-  ['dragToClose.directionLockPx', 64, 'accept'],
-  ['dragToClose.directionLockPx', 65, 'reject'],
-  ['dragToClose.snapBack', { stiffness: 49, damping: 42 }, 'reject'],
-  ['dragToClose.snapBack', { stiffness: 50, damping: 42 }, 'accept'],
-  ['dragToClose.snapBack', { stiffness: 2000, damping: 42 }, 'accept'],
-  ['dragToClose.snapBack', { stiffness: 2001, damping: 42 }, 'reject'],
-  ['dragToClose.snapBack', { stiffness: 520, damping: 4 }, 'reject'],
-  ['dragToClose.snapBack', { stiffness: 520, damping: 5 }, 'accept'],
-  ['dragToClose.snapBack', { stiffness: 520, damping: 200 }, 'accept'],
-  ['dragToClose.snapBack', { stiffness: 520, damping: 201 }, 'reject'],
   ['hopFraction', 0, 'reject'],
   ['hopFraction', 0.01, 'accept'],
   ['hopFraction', 1, 'accept'],
@@ -293,15 +269,6 @@ const RANGES: readonly RangeRow[] = [
   ['slide.glideEase', 'easeIn', 'reject'],
   ['slide.glideEase', [0, 0, 0.58, 1], 'accept'],
   ['slide.glideEase', [-0.01, 0, 0.58, 1], 'reject'],
-  ['dragToClose.restMs', 0, 'reject'],
-  ['dragToClose.restMs', 1, 'accept'],
-  ['dragToClose.restMs', 1000, 'accept'],
-  ['dragToClose.restMs', 1001, 'reject'],
-  ['dragToClose.restMs', 50.5, 'reject'],
-  ['dragToClose.velocityWindowMs', 15, 'reject'],
-  ['dragToClose.velocityWindowMs', 16, 'accept'],
-  ['dragToClose.velocityWindowMs', 1000, 'accept'],
-  ['dragToClose.velocityWindowMs', 1001, 'reject'],
   ['slide.ease', [0.2, 0, 1], 'reject'],
   ['slide.ease', [-0.01, 0, 0.5, 1], 'reject'],
   ['slide.ease', [0, 0, 0.5, 1], 'accept'],
@@ -344,40 +311,33 @@ const RANGES: readonly RangeRow[] = [
   ['edgeScroll.reducedStepMs', 5001, 'reject'],
 ];
 
-const WORKSPACE_ONLY_NUMBERS = ['rowGap', 'saveQuietMs', 'gestureLockMs', 'gestureQuietMs', 'resizeSettleSlides', 'maxLivePanels'];
-
-test('ranges: every (value, outcome) row is accepted or refused at the instance layer, and the executed rows equal the table length', () => {
+test('ranges: every (value, outcome) row is accepted or refused by the tuning leaf check, and the executed rows equal the table length', () => {
   let executed = 0;
   for (const [path, value, outcome] of RANGES) {
     const [leaf = '', member] = path.split('.');
-    const tuning = member === undefined ? { [leaf]: value } : { [leaf]: { [member]: value } };
-    const layers: PanelSettingsLayers = { instance: asSettings({ tuning }) };
+    const checked = checkTuningLeaf(leaf as never, member === undefined ? value : { [member]: value });
     const where = `${path} = ${JSON.stringify(value)}`;
     if (outcome === 'reject') {
-      refuses(layers, 'instance', `tuning.${path}`);
+      assert.deepEqual(checked.problems.map((p) => p.key), [`tuning.${path}`], where);
+      assert.equal(checked.accepted, undefined, where);
     } else {
-      const res = resolve(layers);
-      if (WORKSPACE_ONLY_NUMBERS.includes(path)) {
-        assert.deepEqual(res.conflicts.map((c) => [c.key, c.kind]), [[`tuning.${path}`, 'wrong-scope']], where);
-      } else {
-        assert.deepEqual(res.conflicts, [], where);
-        const applied = member === undefined ? (res.value.tuning as unknown as Record<string, unknown>)[leaf] : ((res.value.tuning as unknown as Record<string, Record<string, unknown>>)[leaf] as Record<string, unknown>)[member];
-        assert.deepEqual(applied, value, where);
-        assert.equal(res.source[`tuning.${leaf}`], 'instance', where);
-      }
+      assert.deepEqual(checked.problems, [], where);
+      assert.deepEqual(member === undefined ? checked.accepted : (checked.accepted as Record<string, unknown>)[member], value, where);
     }
     executed += 1;
   }
   assert.equal(executed, RANGES.length);
-  assert.equal(RANGES.length, 103);
+  assert.equal(RANGES.length, 82);
 });
 
 test('ranges: a refusal of a tuning member names the dotted key, and the numbers of the library defaults are inside their own ranges', () => {
-  refuses({ instance: asSettings({ tuning: { dragToClose: { cancelVelocity: 0 } } }) }, 'instance', 'tuning.dragToClose.cancelVelocity');
-  refuses({ instance: asSettings({ tuning: { slide: { ease: [2, 0, 0, 1] } } }) }, 'instance', 'tuning.slide.ease');
-  const defaults = resolve().value.tuning;
-  const echoed = resolve({ instance: { tuning: { dragToClose: { ...defaults.dragToClose }, slide: { ...defaults.slide }, hopFraction: defaults.hopFraction, edgeScroll: { ...defaults.edgeScroll } } } });
-  assert.deepEqual(echoed.value.tuning, defaults);
+  assert.equal(checkTuningLeaf('dragToClose', { cancelVelocity: 0 }).problems[0]?.key, 'tuning.dragToClose.cancelVelocity');
+  assert.equal(checkTuningLeaf('slide', { ease: [2, 0, 0, 1] }).problems[0]?.key, 'tuning.slide.ease');
+  assert.equal(checkTuningLeaf('dragToClose', { directionLockPx: 8 }).problems[0]?.problem, 'unknown tuning member', 'a dropped internal is no longer a member');
+  assert.equal(checkTuningLeaf('chrome', { slideMs: 140 }).problems[0]?.problem, 'unknown tuning member', 'nor is a chrome pixel number');
+  for (const leaf of Object.keys(LIBRARY_TUNING_DEFAULTS) as (keyof typeof LIBRARY_TUNING_DEFAULTS)[]) {
+    assert.deepEqual(checkTuningLeaf(leaf, LIBRARY_TUNING_DEFAULTS[leaf]).problems, [], `the default of ${leaf}`);
+  }
 });
 
 // ---------------------------------------------------------------------------
@@ -434,8 +394,8 @@ test('cascade: undefined never overrides, at any layer', () => {
   const library = resolve({ template: asSettings({ closable: undefined }) });
   assert.equal(library.value.closable, true);
   assert.equal(library.source.closable, 'library');
-  const tuned = resolve({ template: { tuning: { hopFraction: 0.7 } }, instance: asSettings({ tuning: { hopFraction: undefined } }) });
-  assert.equal(tuned.value.tuning.hopFraction, 0.7);
+  const absent = resolve({ template: { closable: false }, instance: asSettings({ tuning: undefined }) });
+  assert.equal(absent.value.closable, false, 'an undefined tuning is not a tuning');
 });
 
 test('cascade: placeOnAdd, placeOnShow, pinning and pinningWhenNotLive are replaced whole', () => {
@@ -453,18 +413,6 @@ test('cascade: placeOnAdd, placeOnShow, pinning and pinningWhenNotLive are repla
     assert.deepEqual((alone.value as unknown as Record<string, unknown>)[key], lower, `${key}: the lower layer alone`);
   }
   assert.equal(rows.length, 4);
-});
-
-test('cascade: tuning merges per leaf and per member, and the source names the winner of each leaf', () => {
-  const res = resolve({
-    template: { tuning: { dragToClose: { distanceFraction: 0.3 }, slide: { durationSec: 0.5 }, hopFraction: 0.6 } },
-    instance: { tuning: { dragToClose: { minDistancePx: 100 }, edgeScroll: { zonePx: 40 } } },
-  });
-  assert.deepEqual({ ...res.value.tuning.dragToClose }, { distanceFraction: 0.3, minDistancePx: 100, flickMinDistancePx: 40, flickVelocity: 700, cancelVelocity: -300, directionLockPx: 8, restMs: 50, velocityWindowMs: 100, snapBack: { stiffness: 520, damping: 42 } });
-  assert.equal(res.value.tuning.slide.durationSec, 0.5);
-  assert.equal(res.value.tuning.hopFraction, 0.6);
-  assert.equal(res.value.tuning.edgeScroll.zonePx, 40);
-  assert.deepEqual([res.source['tuning.dragToClose'], res.source['tuning.slide'], res.source['tuning.hopFraction'], res.source['tuning.edgeScroll']], ['instance', 'template', 'template', 'instance']);
 });
 
 test('cascade: headerButtons merges per slot id; an instance false removes only that id; a later slot replaces the earlier whole', () => {
@@ -737,10 +685,8 @@ test("host layer: placeOnAdd without an anchor and an enterFrom other than 'anch
   }
 });
 
-test('host layer: a per-panel tuning leaf is not-view-settable too', () => {
-  const res = resolve({ host: { tuning: { hopFraction: 0.7 } } });
-  assert.deepEqual(res.conflicts.map((c) => [c.key, c.kind, c.asked, c.applied]), [['tuning.hopFraction', 'not-view-settable', 0.7, 0.5]]);
-  assert.equal(res.value.tuning.hopFraction, 0.5);
+test('host layer: a tuning leaf is refused, not a not-view-settable conflict', () => {
+  refuses({ host: { tuning: { hopFraction: 0.7 } } as never }, 'host', 'tuning');
 });
 
 test('scope: template keys at the instance or host layer are wrong-scope and apply nothing, template and workspace asks standing', () => {
@@ -759,7 +705,7 @@ test('scope: template keys at the instance or host layer are wrong-scope and app
   assert.equal(applied.applied, true, 'the conflict reports the value that stands');
 });
 
-const WORKSPACE_ONLY_ASKS: ReadonlyArray<readonly [leaf: string, value: unknown]> = [
+const WORKSPACE_TUNING_ASKS: ReadonlyArray<readonly [leaf: string, value: unknown]> = [
   ['rowGap', 8],
   ['saveQuietMs', 100],
   ['gestureLockMs', 100],
@@ -769,27 +715,26 @@ const WORKSPACE_ONLY_ASKS: ReadonlyArray<readonly [leaf: string, value: unknown]
   ['initialScroll', 'end'],
   ['chrome', { mode: 'hover-or-active' }],
   ['maxLivePanels', 3],
+  ['dragToClose', { minDistancePx: 100 }],
+  ['slide', { durationSec: 0.2 }],
+  ['hopFraction', 0.3],
+  ['edgeScroll', { zonePx: 30 }],
 ];
 
-test('scope: the nine workspace-only tuning keys are wrong-scope at the instance or host layer and throw at the template layer', () => {
+test('scope: every tuning key throws at the workspace, template, host and instance layers alike', () => {
   let executed = 0;
-  for (const [leaf, value] of WORKSPACE_ONLY_ASKS) {
-    const tuning = { [leaf]: value };
-    for (const layer of ['instance', 'host'] as const) {
-      const res = resolve({ [layer]: asSettings({ tuning }) });
-      assert.deepEqual(res.conflicts.map((c) => [c.key, c.layer, c.kind, c.asked]), [[`tuning.${leaf}`, layer, 'wrong-scope', value]], `${layer}.${leaf}`);
+  for (const [leaf, value] of WORKSPACE_TUNING_ASKS) {
+    for (const layer of ['workspace', 'template', 'host', 'instance'] as const) {
+      refuses({ [layer]: asSettings({ tuning: { [leaf]: value } }) }, layer, 'tuning');
       executed += 1;
     }
-    refuses({ template: asSettings({ tuning }) }, 'template', `tuning.${leaf}`);
-    executed += 1;
   }
-  assert.equal(executed, 27);
-  assert.equal(WORKSPACE_ONLY_ASKS.length, 9);
+  assert.equal(executed, 52);
 });
 
 test('scope: a wrong-scope ask beside valid keys leaves the valid keys applied', () => {
-  const res = resolve({ instance: asSettings({ closable: false, tuning: { rowGap: 4, hopFraction: 0.8 } }) });
-  assert.deepEqual([res.value.closable, res.value.tuning.hopFraction, res.conflicts.map((c) => c.key)], [false, 0.8, ['tuning.rowGap']]);
+  const res = resolve({ instance: asSettings({ closable: false, multiple: true }) });
+  assert.deepEqual([res.value.closable, res.conflicts.map((c) => c.key)], [false, ['multiple']]);
 });
 
 // ---------------------------------------------------------------------------
@@ -860,11 +805,11 @@ const SAVED_USER = { slots: 2, bogus: 1, parkable: 'yes', anchor: 5 } as unknown
 
 test('lenient: an instance and a user layer holding bad keys return the others intact with one invalid-saved-setting note per drop and never throw', () => {
   const res = resolve({ instance: SAVED_INSTANCE, user: SAVED_USER }, { lenient: true });
-  assert.deepEqual([res.value.closable, res.value.tuning.hopFraction, res.value.slots, res.value.listed, res.value.overflow, res.value.parkable], [false, 0.7, 2, true, 'scroll', true]);
+  assert.deepEqual([res.value.closable, res.value.slots, res.value.listed, res.value.overflow, res.value.parkable], [false, 2, true, 'scroll', true]);
   assert.ok(res.notes.every((n) => n.code === 'invalid-saved-setting'));
   const instanceNotes = res.notes.filter((n) => n.message.startsWith('instance.'));
   const userNotes = res.notes.filter((n) => n.message.startsWith('user.'));
-  assert.deepEqual(instanceNotes.map((n) => n.key).sort(), ['bogus', 'listed', 'overflow', 'parkable', 'tuning.rowGap']);
+  assert.deepEqual(instanceNotes.map((n) => n.key).sort(), ['bogus', 'listed', 'overflow', 'parkable', 'tuning']);
   assert.deepEqual(userNotes.map((n) => n.key).sort(), ['anchor', 'bogus', 'parkable']);
   assert.equal(res.notes.length, 8, 'one note per drop');
   assert.deepEqual(res.conflicts, []);
@@ -876,15 +821,14 @@ test('lenient: the same stack without lenient throws, naming the first bad key o
   refuses({ user: SAVED_USER }, 'user', 'bogus');
 });
 
-test('lenient: each kind of bad saved value is dropped alone: unknown key, wrong type, tuning out of range, a removed enum member, a non-boolean parkable', () => {
+test('lenient: each kind of bad saved value is dropped alone: unknown key, wrong type, a saved tuning, a removed enum member, a non-boolean parkable', () => {
   const rows: ReadonlyArray<readonly [string, PanelSettings, string]> = [
     ['unknown key', asSettings({ gone: true }), 'gone'],
     ['wrong type', asSettings({ title: 5 }), 'title'],
-    ['tuning.rowGap 999', asSettings({ tuning: { rowGap: 999 } }), 'tuning.rowGap'],
+    ['a saved tuning, whatever it holds', asSettings({ tuning: { rowGap: 8 } }), 'tuning'],
     ['removed enum member', asSettings({ overflow: 'evictable' }), 'overflow'],
     ['non-boolean parkable', asSettings({ parkable: 1 }), 'parkable'],
-    ['out-of-range member', asSettings({ tuning: { dragToClose: { distanceFraction: 7 } } }), 'tuning.dragToClose.distanceFraction'],
-    ['unknown tuning key', asSettings({ tuning: { wobble: 1 } }), 'tuning.wobble'],
+    ['a saved tuning that is no object', asSettings({ tuning: 5 }), 'tuning'],
   ];
   for (const [what, instance, key] of rows) {
     const res = resolve({ instance }, { lenient: true });
@@ -931,7 +875,7 @@ test('lenient: a layer that is not an object is dropped whole with one note; the
     refuses({ host: asSettings({ bogus: 1 }) }, 'host', 'bogus', { lenient });
     refuses({ template: asSettings({ overflow: 'evictable' }) }, 'template', 'overflow', { lenient });
     refuses({ workspace: asSettings({ tuning: { rowGap: 1 } }) }, 'workspace', 'tuning', { lenient });
-    refuses({ template: asSettings({ tuning: { rowGap: 1 } }) }, 'template', 'tuning.rowGap', { lenient });
+    refuses({ template: asSettings({ tuning: { rowGap: 1 } }) }, 'template', 'tuning', { lenient });
   }
 });
 
@@ -1038,16 +982,6 @@ const BOOSTED: Record<string, number> = { parkable: 0.3, closable: 0.25, maxSlot
 const SKEWED_FALSE = new Set(['parkable', 'closable']);
 const PIN_VALID = PIN_TABLE.filter((row) => row[2] === 'valid').map((row) => row[1]);
 const SLOT_IDS = ['size', 'pin', 'menu'] as const;
-const TUNING_POOL: readonly Loose[] = [
-  { dragToClose: { distanceFraction: 0.3 } },
-  { dragToClose: { minDistancePx: 120, flickVelocity: 900 } },
-  { dragToClose: { snapBack: { stiffness: 300, damping: 30 } } },
-  { slide: { durationSec: 0.2 } },
-  { slide: { ease: [0.3, 0, 0.7, 1] } },
-  { edgeScroll: { zonePx: 30 } },
-  { hopFraction: 0.3 },
-  { hopFraction: 0.6 },
-];
 const VIEW_KEYS = ['title', 'listed', 'layer', 'slots', 'placeOnAdd', 'enterFrom'];
 
 function randomHeaderButtons(rng: Rng): Loose {
@@ -1057,16 +991,6 @@ function randomHeaderButtons(rng: Rng): Loose {
     map[id] = chance(rng, 0.25) ? false : slot(`${id}-${Math.floor(rng() * 3)}`, chance(rng, 0.5) ? { side: 'end', order: 2 } : {});
   }
   return map;
-}
-
-function randomTuning(rng: Rng, allowWorkspaceOnly: boolean): Loose {
-  const tuning: Loose = {};
-  for (let n = 0; n < 2; n += 1) if (chance(rng, 0.6)) Object.assign(tuning, pick(rng, TUNING_POOL));
-  if (allowWorkspaceOnly && chance(rng, 0.4)) {
-    const [leaf, value] = pick(rng, WORKSPACE_ONLY_ASKS);
-    tuning[leaf] = value;
-  }
-  return tuning;
 }
 
 function randomLayer(rng: Rng, kind: 'workspace' | 'template' | 'host' | 'instance'): PanelSettings | undefined {
@@ -1079,9 +1003,6 @@ function randomLayer(rng: Rng, kind: 'workspace' | 'template' | 'host' | 'instan
   }
   if (chance(rng, 0.15)) layer.pinning = pick(rng, PIN_VALID);
   if (chance(rng, 0.2)) layer.headerButtons = randomHeaderButtons(rng);
-  if (kind === 'template' && chance(rng, 0.25)) layer.tuning = randomTuning(rng, false);
-  if (kind === 'instance' && chance(rng, 0.3)) layer.tuning = randomTuning(rng, true);
-  if (kind === 'host' && chance(rng, 0.05)) layer.tuning = randomTuning(rng, true);
   return layer as PanelSettings;
 }
 
@@ -1101,23 +1022,6 @@ function randomStack(rng: Rng): { layers: PanelSettingsLayers; options: ResolveO
   return { layers, options: { root: chance(rng, 0.15) } };
 }
 
-/** Independent bounds for every tuning member, written from the ranges and not from the validators. */
-function tuningInDomain(t: Loose): boolean {
-  const within = (v: unknown, lo: number, hi: number): boolean => typeof v === 'number' && v >= lo && v <= hi;
-  const d = t.dragToClose as Loose;
-  const sb = d.snapBack as Loose;
-  const sl = t.slide as Loose;
-  const ease = sl.ease as number[];
-  const es = t.edgeScroll as Loose;
-  return (
-    Object.keys(t).sort().join() === 'dragToClose,edgeScroll,hopFraction,slide' &&
-    within(d.distanceFraction, 0.05, 1) && within(d.minDistancePx, 8, Infinity) && within(d.flickMinDistancePx, 8, Infinity) && within(d.flickVelocity, 100, Infinity) &&
-    within(d.cancelVelocity, -Infinity, -50) && within(d.directionLockPx, 2, 64) && within(sb.stiffness, 50, 2000) && within(sb.damping, 5, 200) &&
-    within(sl.durationSec, 0, 10) && within(sl.closeExitSeconds, 0, 5) && ease.length === 4 && within(ease[0], 0, 1) && within(ease[2], 0, 1) &&
-    within(t.hopFraction, 0.0001, 1) && within(es.zonePx, 8, 200) && within(es.maxPxPerSec, 100, 5000) && within(es.reducedStepMs, 100, 5000)
-  );
-}
-
 const PIN_DOMAIN = PIN_VALID.map((p) => ({ pinned: {}, unpinned: {}, ...(p as object) }));
 const NOTE_CODES = ['override-dropped', 'pin-unlists', 'park-lever-inert', 'resizable-capped'];
 
@@ -1132,12 +1036,11 @@ function checkStack(layers: PanelSettingsLayers, options: ResolveOptions): void 
   const v = res.value as unknown as Loose;
 
   for (const [key, value] of Object.entries(v)) {
-    if (key === 'tuning') assert.ok(tuningInDomain(value as Loose), 'tuning in domain');
-    else if (key === 'headerButtons') assert.ok(Object.values(value as Loose).every((s) => typeof s === 'object' && s !== null && typeof (s as Loose).label === 'string'), 'headerButtons holds slots only');
+    if (key === 'headerButtons') assert.ok(Object.values(value as Loose).every((s) => typeof s === 'object' && s !== null && typeof (s as Loose).label === 'string'), 'headerButtons holds slots only');
     else if (key === 'pinning') assert.ok(PIN_DOMAIN.some((p) => isDeepStrictEqual(p, value)) || isDeepStrictEqual(value, { pinned: { placement: 'row-start' }, unpinned: { placement: 'row-end' } }), 'pinning in domain');
     else assert.ok((ENUMERATED[key] ?? []).some((member) => isDeepStrictEqual(member, value)), `${key} = ${JSON.stringify(value)} is in its domain`);
   }
-  for (const key of Object.keys(v)) if (key !== 'tuning' && key !== 'headerButtons') assert.ok(key in res.source, `${key} has a source`);
+  for (const key of Object.keys(v)) if (key !== 'headerButtons') assert.ok(key in res.source, `${key} has a source`);
 
   if (v.parkable === false) {
     const asked = (key: string): boolean => ['template', 'host', 'instance'].includes(res.source[key] as string);
@@ -1161,13 +1064,13 @@ function checkStack(layers: PanelSettingsLayers, options: ResolveOptions): void 
     const layer = layers[layerName] as Loose | undefined;
     if (layer === undefined) continue;
     for (const key of Object.keys(layer)) {
-      if (res.source[key] === layerName && key !== 'headerButtons' && key !== 'pinning' && key !== 'tuning') assert.ok(isDeepStrictEqual(layer[key], v[key]), `${layerName}.${key} won, so its value stands`);
+      if (res.source[key] === layerName && key !== 'headerButtons' && key !== 'pinning') assert.ok(isDeepStrictEqual(layer[key], v[key]), `${layerName}.${key} won, so its value stands`);
     }
   }
   const instance = layers.instance as Loose | undefined;
   if (instance !== undefined) {
     for (const key of Object.keys(instance)) {
-      if (['hostCreatable', 'hollowDot', 'multiple', 'maxInstances', 'tuning', 'headerButtons', 'pinning'].includes(key)) continue;
+      if (['hostCreatable', 'hollowDot', 'multiple', 'maxInstances', 'headerButtons', 'pinning'].includes(key)) continue;
       assert.ok(['instance', 'forced', 'user'].includes(res.source[key] as string), `an instance ask of ${key} is beaten only by a rule or the person: ${String(res.source[key])}`);
     }
   }
@@ -1179,12 +1082,8 @@ function checkStack(layers: PanelSettingsLayers, options: ResolveOptions): void 
     seen.add(id);
     const layer = layers[c.layer] as Loose | undefined;
     assert.ok(layer !== undefined, `the ${c.layer} layer exists`);
-    if (c.key.startsWith('tuning.')) {
-      assert.ok(Object.hasOwn((layer as Loose).tuning as Loose, c.key.slice('tuning.'.length)), `${c.layer} asked ${c.key}`);
-    } else {
-      assert.ok(isDeepStrictEqual((layer as Loose)[c.key], c.asked), `${c.layer} asked ${c.key}`);
-      assert.ok(isDeepStrictEqual(v[c.key], c.applied), `${c.key} applied`);
-    }
+    assert.ok(isDeepStrictEqual((layer as Loose)[c.key], c.asked), `${c.layer} asked ${c.key}`);
+    assert.ok(isDeepStrictEqual(v[c.key], c.applied), `${c.key} applied`);
     if (c.kind === 'forced') assert.ok(!isDeepStrictEqual(c.asked, c.applied), 'a forced conflict changed something');
     coverage.kinds.add(c.kind);
     if (c.rule !== undefined) coverage.rules.add(c.rule);
@@ -1236,9 +1135,9 @@ test('property: the generator exercised every rule, every conflict kind, the roo
 test('property: a fixed stack holding every layer is not mutated, even deeply frozen, and resolves the same twice', () => {
   const layers: PanelSettingsLayers = deepFreeze({
     workspace: { scrollOnMove: 'none', hostCreatable: false },
-    template: { parkable: false, overflow: 'park', headerButtons: { size: slot('Size') }, tuning: { dragToClose: { minDistancePx: 100 } } },
+    template: { parkable: false, overflow: 'park', headerButtons: { size: slot('Size') } },
     host: { title: 'T' },
-    instance: { closable: false, headerButtons: { pin: slot('Pin') }, tuning: { hopFraction: 0.7 } },
+    instance: { closable: false, headerButtons: { pin: slot('Pin') } },
     user: { slots: 1, anchor: { panel: 'x', position: 'left' } },
   }) as PanelSettingsLayers;
   const first = resolve(layers);

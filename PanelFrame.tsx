@@ -16,7 +16,7 @@ import { PanelFooter } from './panelFooter.js';
 import { useFrameClaim } from './panelFrameClaim.js';
 import { PanelSlotContext } from './panelSlotContext.js';
 import { useInsideSizeBox } from './PanelRowSlot.js';
-import { useChromePixels } from './panelChrome.js';
+import { HEADER_GAP_PX, HEADER_INSET_PX } from './rowConstants.js';
 
 /** The props of `PanelFrame`: every `Box` prop except `children`, plus `expanded` and `size`. @public */
 export interface PanelFrameProps extends Omit<BoxProps, 'children'> {
@@ -120,13 +120,12 @@ export interface PanelHeaderProps extends Omit<BoxProps, 'children'> {
  * @public
  */
 export function PanelHeader({ children, sx, ...rest }: PanelHeaderProps) {
-  const chrome = useChromePixels();
   return (
     <Box
       {...rest}
       sx={{
         position: 'absolute',
-        bottom: `calc(100% + ${chrome.headerGapPx}px)`,
+        bottom: `calc(100% + ${HEADER_GAP_PX}px)`,
         left: 0,
         right: 0,
         // Twice the phone's own corner radius, the height the header had as a pill; from the theme, never a
@@ -134,7 +133,7 @@ export function PanelHeader({ children, sx, ...rest }: PanelHeaderProps) {
         height: (theme: Theme) => 2 * panelCornerRadiusPx(theme),
         display: 'flex',
         alignItems: 'center',
-        px: `${chrome.headerInsetPx}px`,
+        px: `${HEADER_INSET_PX}px`,
         py: '1px',
         fontSize: 13,
         color: 'text.primary',

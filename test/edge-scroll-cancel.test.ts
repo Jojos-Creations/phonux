@@ -173,7 +173,7 @@ function mountAlone(dragScroll: DragScroll | undefined) {
     collapsible: true,
     neighborWidths: { left: [], right: [] },
     pinned: false,
-    tuning: slotTuning(LIBRARY_TUNING_DEFAULTS, undefined),
+    tuning: slotTuning(LIBRARY_TUNING_DEFAULTS),
     dragScroll: value,
   });
   const ui = (value: DragScroll | undefined): React.ReactElement =>

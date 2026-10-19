@@ -7,7 +7,7 @@ import assert from 'node:assert/strict';
 import './support/jsdom-globals.js';
 import * as React from 'react';
 import { act } from 'react';
-import { Workspace } from '../index.js';
+import { Workspace, createWorkspace } from '../index.js';
 import { resizeSettleDelayMs, useResizeSettled } from '../Workspace.js';
 import { LIBRARY_TUNING_DEFAULTS } from '../panelSettings.js';
 import { SLIDE_DURATION_SEC } from '../rowConstants.js';
@@ -145,7 +145,7 @@ test('and glides again after the delay', async () => {
 
 test("the wait follows the workspace's slide", async () => {
   mock.timers.enable({ apis: ['setTimeout', 'setInterval'] });
-  const slow = { tuning: { slide: { durationSec: 0.8 } } };
+  const slow = { workspace: createWorkspace({ mount: false, tuning: { slide: { durationSec: 0.8 } } }) };
   const m = mount(workspaceAt(1000, [], slow));
   m.rerender(workspaceAt(1200, [], slow));
   act(() => mock.timers.tick(999));
@@ -165,7 +165,7 @@ test('a supplied rowResizeSettled wins, either way', async () => {
 test('tuning.resizeSettleSlides sets the wait: 2 default slides is the whole wait, one short still snaps and the full wait glides; 0 glides at once', async () => {
   mock.timers.enable({ apis: ['setTimeout', 'setInterval'] });
   const marginAfter = async (waitMs: number, tuning: Record<string, unknown>): Promise<'snapped' | 'glided'> => {
-    const extra = { tuning };
+    const extra = { workspace: createWorkspace({ mount: false, tuning }) };
     const m = mount(workspaceAt(1000, [], extra));
     m.rerender(workspaceAt(1200, [], extra));
     act(() => mock.timers.tick(waitMs));
