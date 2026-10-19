@@ -79,6 +79,13 @@ export function WorkspaceColumn({ column, children }: WorkspaceColumnProps): Rea
   const labels = React.useMemo(() => resolveLabels(snap.labels), [snap.labels]);
   const cells = React.useRef(new Map<string, HTMLElement>());
   const left = React.useRef<number>(snap.current);
+  // The saved workspace is selected only once the column has read it, so the move onto it is a placement, not a slide: the slide
+  // comes on with the first move away from where the column was when it became ready.
+  const placedAt = React.useRef<number | null>(null);
+  const moved = React.useRef(false);
+  if (snap.status === 'ready' && placedAt.current === null) placedAt.current = snap.current;
+  if (placedAt.current !== null && snap.current !== placedAt.current) moved.current = true;
+  const placed = moved.current;
 
   React.useEffect(() => {
     const onKeyDown = (e: KeyboardEvent): void => {
@@ -108,7 +115,7 @@ export function WorkspaceColumn({ column, children }: WorkspaceColumnProps): Rea
 
   return (
     <Box data-workspace-column="" sx={{ position: 'relative', width: '100%', height: '100%', overflow: 'hidden' }}>
-      <div style={{ height: '100%', transform: `translateY(${-Math.max(snap.current, 0) * 100}%)`, transition: reduced ? 'none' : `transform ${move.duration}s cubic-bezier(${move.ease.join(',')})` }}>
+      <div style={{ height: '100%', transform: `translateY(${-Math.max(snap.current, 0) * 100}%)`, transition: reduced || !placed ? 'none' : `transform ${move.duration}s cubic-bezier(${move.ease.join(',')})` }}>
         {snap.workspaces.map((ws, i) => {
           const active = i === snap.current;
           const above = snap.workspaces[i - 1];
