@@ -2,10 +2,11 @@
  * The column behind `createWorkspaceColumn`: React-free state that the `WorkspaceColumn` component draws. It owns the ordered
  * list of workspaces, their names and the current one, and saves the list through one optional storage. DESIGN.md, "The workspace column".
  */
-import { createWorkspace, type WorkspaceHandle, type WorkspaceOptions } from './workspaceCore.js';
+import { createWorkspace, transferPanel, type MovePanelResult, type WorkspaceHandle, type WorkspaceOptions } from './workspaceCore.js';
 import { PanelManagerError } from './panelManagerError.js';
 import { checkPatch, planTuning, unchanged } from './panelConfigure.js';
 import type { ConfigureResult, PanelManager } from './panelManager.js';
+import type { PanelId } from './panelSettings.js';
 import { cleanWorkspaceName } from './workspaceName.js';
 import { refusedLiveKeys, type WorkspaceLive } from './workspaceLive.js';
 import type { Theme } from '@mui/material/styles';
@@ -88,6 +89,25 @@ export interface WorkspaceColumnHandle {
   scrollTo(target: WorkspaceHandle | number): void;
   /** Moves to the workspace above or below; false at the end of the column. */
   step(direction: 'up' | 'down'): boolean;
+  /**
+   * Moves the panel `panelId` from the workspace `from` to the end of the row of the workspace `to`, in the same column. Each
+   * workspace is a handle of this column or an index into `workspaces`. The panel stays the same panel: its template, params, url,
+   * title, size (slot count, and whether the person chose it) and saved identity (`uid`) all go with it; where it stood in the old row and whether the person made it parkable do not, the target saves it
+   * and the source stops saving it, so it survives a reload in the workspace it ended up in and is gone from the other. The current
+   * workspace does not change; to follow the panel, `scrollTo(result.workspace)`.
+   *
+   * Nothing moves, and the answer says why, for: a column that is disposed (`disposed`); a workspace that is not in the column
+   * (`unknown-workspace`); the same workspace twice (`same-workspace`); a panel the source does not hold (`unknown-panel`); the
+   * workspace's root panel (`root-fixed`); an always-shown column, a panel whose `movable` is false and a panel that code declares
+   * again at every launch unless closing it is final (`not-movable`); a target whose template is not registered (`unknown-panel`) or
+   * that is at the template's instance limit or already holds a panel under that id (`instance-limit`); and a panel with an operation
+   * in flight (`busy`).
+   *
+   * Both workspaces must be drawn (by `WorkspaceColumn`, which mounts every cell, or by an app's own row) and finished loading,
+   * because a workspace keeps its panels in its row: otherwise the answer is `not-attached` or `not-ready` and nothing changed. A
+   * view's `useViewState` is held per workspace and does not move; the view starts again from its `initial`.
+   */
+  movePanel(from: WorkspaceHandle | number, panelId: PanelId, to: WorkspaceHandle | number): MovePanelResult;
   /**
    * `WorkspaceManager.configureTuning` for the whole column: the patch reaches every workspace in it, those added later start from it,
    * and the column's own slide follows it. Kept for this session only. It works before the saved list has been read and refuses
@@ -275,6 +295,18 @@ export function createWorkspaceColumn(o: ColumnOptions = {}): WorkspaceColumnHan
       current = next;
       commit();
       return true;
+    },
+    movePanel: (from, panelId, to) => {
+      const stay = (code: Extract<MovePanelResult, { ok: false }>['code'], message: string): MovePanelResult => ({ ok: false, code, message });
+      if (status === 'disposed') return stay('disposed', 'the column was disposed');
+      const at = (w: WorkspaceHandle | number): number => (typeof w === 'number' ? (Number.isInteger(w) && w >= 0 && w < list.length ? w : -1) : list.indexOf(w));
+      const source = at(from);
+      const target = at(to);
+      if (source < 0 || target < 0) return stay('unknown-workspace', `${source < 0 ? 'the source' : 'the target'} workspace is not in this column`);
+      if (source === target) return stay('same-workspace', `panel '${panelId}' is already in workspace '${list[source]!.name}'`);
+      const moved = transferPanel(list[source]!, panelId, list[target]!);
+      if (!moved.ok) return moved;
+      return { ok: true, workspace: list[target]!, index: target, panelId };
     },
     configureTuning: (patch) => {
       if (status === 'disposed') return { ok: false, code: 'disposed', message: 'the column was disposed' };
