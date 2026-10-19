@@ -1120,7 +1120,7 @@ header offset and the footer's padding measure against. It is a constant, not tu
 passes `sx` to `PanelFrame` or `PanelFooter`. The grab handle is `GRAB_HANDLE_PX` (24), WCAG 2.5.8's minimum pointer target
 both ways, so changing the gap never shrinks the handle. The footer is bare like the header (no border, shadow or fill) and has the header's height.
 
-The footer floats `HEADER_GAP_PX` below the frame, mirroring the header's gap above it, and is `BAR_HEIGHT_PX` (36, `rowConstants.ts`) tall, the same constant the header's height reads, in every theme. The row's bottom padding and the phone-fit height budget both use `rowBottomReservePx(gap)` = `max(gap, FOOTER_ROOM_PX)` (`panelChromeSize.ts`, 4 + 36 = 40), so the footer's whole box lies inside the row and a click at its centre reaches it. The mount's phone fit runs inside the mount's `ThemeProvider` like the row. `test/footer-room.test.ts` and `test/phone-fit-reserve.test.ts` pin the chain.
+The footer floats `HEADER_GAP_PX` below the frame, mirroring the header's gap above it, and is `BAR_HEIGHT_PX` (36, `panelChromeSize.ts`) tall, the same constant the header's height reads, in every theme. The row's bottom padding and the phone-fit height budget both use `rowBottomReservePx(gap)` = `max(gap, FOOTER_ROOM_PX)` (`panelChromeSize.ts`, 4 + 36 = 40), so the footer's whole box lies inside the row and a click at its centre reaches it. `test/footer-room.test.ts` and `test/phone-fit-reserve.test.ts` pin the chain.
 
 `Panel`'s `grabProps` is a separate prop from `headerProps`, not a field folded into it, because the header
 and the grab handle are two different elements: the handle is a grip icon inside the header row, left of the

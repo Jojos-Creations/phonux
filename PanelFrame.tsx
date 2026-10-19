@@ -33,10 +33,9 @@ export interface PanelFrameProps extends Omit<BoxProps, 'children'> {
 
 /** The attribute a panel's phone frame carries, so a stylesheet can select the frame without a class name. @public */
 export const PHONE_FRAME_ATTRIBUTE = 'data-phone-frame';
-/** The phone's corner radius in theme shape units (4 x 6px = 24px). The frame's corners and the header
- * pills' semicircular ends both derive from it, so they cannot drift apart. @public */
+/** The phone's corner radius in theme shape units (4 x 6px = 24px). @public */
 export const PANEL_CORNER_RADIUS_UNITS = 4;
-/** That radius in px for `theme`; a header pill is twice this tall (exact semicircles). @public */
+/** That radius in px for `theme`. @public */
 export const panelCornerRadiusPx = (theme: Theme): number => PANEL_CORNER_RADIUS_UNITS * Number(theme.shape.borderRadius);
 
 /**
