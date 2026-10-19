@@ -103,7 +103,8 @@ const ENUMERATED: Record<string, readonly unknown[]> = {
   placeOnAdd: PLACEMENTS,
   placeOnShow: ['in-place', ...PLACEMENTS],
   layer: ['base', 'raised'],
-  enterFrom: ['auto', 'left', 'right', 'anchor'],
+  enterFrom: ['auto', 'left', 'right', 'anchor', 'top', 'bottom', 'fade', 'expand'],
+  exitTo: ['auto', 'left', 'right', 'top', 'bottom', 'fade', 'shrink'],
   slots: [1, 2, 3, 64],
   maxSlots: [1, 2, 3, 64],
   restoreVisibility: ['saved', 'live', 'parked'],
@@ -113,7 +114,7 @@ const ENUMERATED: Record<string, readonly unknown[]> = {
 };
 
 /** The names the enumeration table leaves to a test of their own. */
-const ELSEWHERE: readonly CatalogName[] = ['headerButtons', 'pinning', 'tuning.rowGap', 'tuning.dragToClose', 'tuning.slide', 'tuning.hopFraction', 'tuning.edgeScroll', 'tuning.saveQuietMs', 'tuning.gestureLockMs', 'tuning.gestureQuietMs', 'tuning.resizeSettleSlides', 'tuning.returnTieBreak', 'tuning.dropTieBreak', 'tuning.rowGesture', 'tuning.initialScroll', 'tuning.maxLivePanels', 'tuning.chrome', 'tuning.phoneFit', 'tuning.phoneFitMin', 'tuning.phoneFitMax'];
+const ELSEWHERE: readonly CatalogName[] = ['headerButtons', 'pinning', 'tuning.defaultEnterFrom', 'tuning.defaultExitTo', 'tuning.rowGap', 'tuning.dragToClose', 'tuning.slide', 'tuning.hopFraction', 'tuning.edgeScroll', 'tuning.saveQuietMs', 'tuning.gestureLockMs', 'tuning.gestureQuietMs', 'tuning.resizeSettleSlides', 'tuning.returnTieBreak', 'tuning.dropTieBreak', 'tuning.rowGesture', 'tuning.initialScroll', 'tuning.maxLivePanels', 'tuning.chrome', 'tuning.phoneFit', 'tuning.phoneFitMin', 'tuning.phoneFitMax'];
 
 type Probe = readonly [what: string, layers: PanelSettingsLayers, layer: string, key: string | undefined];
 const PROBES: readonly Probe[] = [
@@ -140,6 +141,10 @@ const PROBES: readonly Probe[] = [
   ['unknown key at the host layer', { host: asSettings({ nope: 1 }) }, 'host', 'nope'],
   ['unknown key at the workspace layer', { workspace: asSettings({ nope: 1 }) }, 'workspace', 'nope'],
   ["overflow 'maybe'", { template: asSettings({ overflow: 'maybe' }) }, 'template', 'overflow'],
+  ["enterFrom 'diagonal'", { template: asSettings({ enterFrom: 'diagonal' }) }, 'template', 'enterFrom'],
+  ["enterFrom 'shrink', an exit", { template: asSettings({ enterFrom: 'shrink' }) }, 'template', 'enterFrom'],
+  ["exitTo 'expand', an entrance", { template: asSettings({ exitTo: 'expand' }) }, 'template', 'exitTo'],
+  ["exitTo 'down'", { template: asSettings({ exitTo: 'down' }) }, 'template', 'exitTo'],
   ["scrollOnOpen 'middle'", { template: asSettings({ scrollOnOpen: 'middle' }) }, 'template', 'scrollOnOpen'],
   ["scrollOnMove 'sometimes'", { template: asSettings({ scrollOnMove: 'sometimes' }) }, 'template', 'scrollOnMove'],
   ['headerButtons given a number', { template: asSettings({ headerButtons: 5 }) }, 'template', 'headerButtons'],
@@ -297,6 +302,18 @@ const RANGES: readonly RangeRow[] = [
   ['maxLivePanels', Number.NaN, 'reject'],
   ['maxLivePanels', 1, 'accept'],
   ['maxLivePanels', null, 'accept'],
+  ['enterFrom', 'expand', 'accept'],
+  ['enterFrom', 'fade', 'accept'],
+  ['enterFrom', 'top', 'accept'],
+  ['enterFrom', 'anchor', 'accept'],
+  ['enterFrom', 'shrink', 'reject'],
+  ['enterFrom', 'diagonal', 'reject'],
+  ['exitTo', 'shrink', 'accept'],
+  ['exitTo', 'bottom', 'accept'],
+  ['exitTo', 'auto', 'accept'],
+  ['exitTo', 'expand', 'reject'],
+  ['exitTo', 'anchor', 'reject'],
+  ['exitTo', 'down', 'reject'],
   ['edgeScroll.zonePx', 7, 'reject'],
   ['edgeScroll.zonePx', 8, 'accept'],
   ['edgeScroll.zonePx', 200, 'accept'],
@@ -327,7 +344,7 @@ test('ranges: every (value, outcome) row is accepted or refused by the tuning le
     executed += 1;
   }
   assert.equal(executed, RANGES.length);
-  assert.equal(RANGES.length, 82);
+  assert.equal(RANGES.length, 94);
 });
 
 test('ranges: a refusal of a tuning member names the dotted key, and the numbers of the library defaults are inside their own ranges', () => {
@@ -844,7 +861,7 @@ test('removed settings: a layer that still names one is ignored, the panel keeps
   const log = mock.method(console, 'error', () => undefined);
   try {
     const keys = Object.keys(FIXED);
-    assert.equal(keys.length, 19);
+    assert.equal(keys.length, 18);
     const asked = Object.fromEntries(keys.map((key) => [key, 'asked']));
     for (const layer of ['workspace', 'template', 'instance'] as const) {
       const res = resolve({ [layer]: asSettings(asked) });

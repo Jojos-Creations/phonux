@@ -18,12 +18,13 @@ const SETTINGS_SINCE: Record<CatalogName, PanelApiLevel> = {
   closable: 1, parkable: 1, movable: 1, crossable: 1, resizable: 1, clearable: 1, hostCreatable: 1, hollowDot: 1, multiple: 1,
   maxInstances: 1, listed: 1, startVisibility: 1, hideStickiness: 1, capacityReturn: 1, overflow: 1,
   revealOnScroll: 1, scrollOnOpen: 1, scrollOnMove: 1, toggleWhenClosed: 1, showWhenClosed: 1,
-  placeOnAdd: 1, placeOnShow: 1, layer: 1, enterFrom: 1,
+  placeOnAdd: 1, placeOnShow: 1, layer: 1, enterFrom: 1, exitTo: 1,
   slots: 1, maxSlots: 1, title: 1, pinning: 1, pinningWhenNotLive: 1, headerButtons: 1,
   restoreVisibility: 1, afterClose: 1,
   'tuning.rowGap': 1, 'tuning.dragToClose': 1, 'tuning.slide': 1, 'tuning.hopFraction': 1, 'tuning.edgeScroll': 1, 'tuning.saveQuietMs': 1,
   'tuning.gestureLockMs': 1, 'tuning.gestureQuietMs': 1, 'tuning.resizeSettleSlides': 1, 'tuning.returnTieBreak': 1, 'tuning.dropTieBreak': 1,
   'tuning.rowGesture': 1, 'tuning.initialScroll': 1, 'tuning.chrome': 1, 'tuning.maxLivePanels': 1, 'tuning.phoneFit': 1, 'tuning.phoneFitMin': 1, 'tuning.phoneFitMax': 1,
+  'tuning.defaultEnterFrom': 1, 'tuning.defaultExitTo': 1,
 };
 
 const HEADER_BUTTON_SINCE: Record<keyof HeaderButtonBase | 'icon', PanelApiLevel> = {

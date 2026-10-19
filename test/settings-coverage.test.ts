@@ -21,6 +21,7 @@ const TEXTS: ReadonlyMap<string, string> = new Map(
 );
 
 const OWNER_IDS: readonly string[] = [
+  'lib-enter-expand',
   'phonux-engine-permission-settings',
   'phonux-engine-visibility-settings',
   'phonux-engine-placement-and-motion-settings',
@@ -57,9 +58,9 @@ function docClassWords(doc: string): Map<string, string> {
   return rows;
 }
 
-test('release gate: the catalog has 50 descriptors and the DESIGN.md table has 50 rows', () => {
-  assert.equal(PANEL_SETTINGS_CATALOG.length, 50);
-  assert.equal(docClassWords(DESIGN).size, 50);
+test('release gate: the catalog has 53 descriptors and the DESIGN.md table has 53 rows', () => {
+  assert.equal(PANEL_SETTINGS_CATALOG.length, 53);
+  assert.equal(docClassWords(DESIGN).size, 53);
 });
 
 for (const d of PANEL_SETTINGS_CATALOG) {
@@ -68,12 +69,12 @@ for (const d of PANEL_SETTINGS_CATALOG) {
     assert.equal(holders.length, 1, `${d.name} has ${holders.length} differential calls (${holders.join(', ')})`);
     assert.equal(count(MATRIX, probeOf(d.name)), 1, `${d.name} needs one matrix probe`);
     assert.equal(docClassWords(DESIGN).get(d.name), d.configure.cls, `${d.name} class word in DESIGN.md`);
-    assert.ok(OWNER_IDS.includes(d.ownerEntry), `${d.name} owner ${d.ownerEntry} is not one of the 15 entries`);
+    assert.ok(OWNER_IDS.includes(d.ownerEntry), `${d.name} owner ${d.ownerEntry} is not one of the 16 entries`);
   });
 }
 
-test('release gate: the owners are exactly the 15 listed ids', () => {
-  assert.equal(OWNER_IDS.length, 15);
+test('release gate: the owners are exactly the 16 listed ids', () => {
+  assert.equal(OWNER_IDS.length, 16);
   assert.deepEqual([...new Set(PANEL_SETTINGS_CATALOG.map((d) => d.ownerEntry))].sort(), [...OWNER_IDS].sort());
 });
 

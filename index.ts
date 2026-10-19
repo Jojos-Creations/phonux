@@ -99,6 +99,8 @@ export type {
   AnchorRequest,
   AddPlacement,
   Overflow,
+  EnterFrom,
+  ExitTo,
   ScrollAlign,
   ScrollOnOpen,
   ScrollOnMove,
