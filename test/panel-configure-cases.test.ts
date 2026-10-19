@@ -257,7 +257,7 @@ test('case B7: overflow scroll to park on a live panel parks nothing at configur
   assert.equal(r.live().join(' '), 'root a b', 'nothing parks at configure: a is the only park panel and it fits');
   r.turn(() => void r.ws.addPanel('c'));
   await r.settle();
-  assert.deepEqual([r.state('a').status, r.live().join(' ')], ['parked', 'root b c'], 'opening a second park panel overflows the row: the farthest park panel, a, goes');
+  assert.deepEqual([r.state('a').status, r.live().join(' ')], ['parked', 'root b c'], 'opening a second park panel overflows the row: the oldest park panel, a, goes');
 });
 
 test('case B8: scrollOnOpen none on a live panel: the next open does not scroll', async () => {

@@ -11,12 +11,12 @@ import { FIXED, resolvePanelSettings } from '../panelSettings.js';
 import { PanelManagerError } from '../panelManagerError.js';
 import type { PanelSettings } from '../index.js';
 
-/** The value each removed setting had as its default, written out so a changed constant fails here. */
+/** The value each removed setting is fixed at (its 0.1.0 default, but for `evictionOrder`), written out so a changed constant fails here. */
 const FROZEN = {
   hideWhenLast: 'allow',
   returnPriority: 0,
   evictionRank: 0,
-  evictionOrder: 'farthest',
+  evictionOrder: 'least-recently-touched',
   scrollOnDrag: 'edge',
   viewState: 'keep',
   keepMounted: false,
@@ -54,7 +54,7 @@ function silenceConsole<T>(run: () => T): { result: T; errors: string[] } {
   }
 }
 
-test('the fixed behaviour of every removed setting is its 0.1.0 default', () => {
+test('the fixed behaviour of every removed setting is the one written out', () => {
   assert.deepEqual({ ...FIXED }, FROZEN);
   assert.equal(Object.isFrozen(FIXED), true);
 });

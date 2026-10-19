@@ -202,7 +202,7 @@ test('park capacity subtracts the reserved widths: a scroll root beside park pan
   cleanup();
   const wide = at(1500);
   assert.equal(wide.live().length, 3, '(1468 - 390) / 406 = 2 park panels beside the root');
-  assert.deepEqual(wide.parked(), [wide.ids()[1]!], 'the one parked is the farthest from the opened panel, never the opened one');
+  assert.deepEqual(wide.parked(), [wide.ids()[1]!], 'the one parked is the oldest, never the opened one');
 });
 
 test('a scroll panel beside the park panels takes its width out of the budget, and the floor keeps one park panel live', () => {
@@ -237,7 +237,7 @@ test('a park panel opened into a crowded scroll row stays live, and a scroll pan
   act(() => p.now().create());
   act(() => p.now().create({ title: 'second' }));
   const [, , , first, second] = p.ids();
-  assert.deepEqual(p.parked(), [first], 'the farthest other park panel goes, never the one opened');
+  assert.deepEqual(p.parked(), [first], 'the oldest other park panel goes, never the one opened');
   assert.ok(p.live().includes(second!));
 });
 

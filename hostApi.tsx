@@ -183,7 +183,7 @@ export interface PanelsAPI {
    * the panel -- an unknown key renders a placeholder, never a crash. No raw
    * `collapsible`/`locked` key: `permanent` (CreatePanelOptions) is the only door to a permanent column, and
    * `locked` is never settable at all. A panel whose `overflow` setting is 'park' parks the live parkable panel
-   * farthest from it at capacity; any other panel scrolls the row instead of parking anything.
+   * touched longest ago at capacity; any other panel scrolls the row instead of parking anything.
    * @deprecated Use `useWorkspace().panels.addPanel(template)`. Still works, with one development warning; removed in a later release.
    */
   create(): void;
@@ -194,7 +194,7 @@ export interface PanelsAPI {
    */
   create(options: CreatePanelOptions): void;
   /**
-   * Make a panel live in place, without reordering the row. When its `overflow` is 'park', it may park the live parkable panel farthest from it.
+   * Make a panel live in place, without reordering the row. When its `overflow` is 'park', it may park the live parkable panel touched longest ago.
    * @deprecated Use `useWorkspace().panels.get(key)?.show()`. Still works, with one development warning; removed in a later release.
    */
   activate(id: string): void;
@@ -229,7 +229,7 @@ export interface PanelsAPI {
   close(id: string): void;
   /** The views closed within the current undo window, oldest first; non-null exactly while it is open, which is until the latest of each recent close's time plus that panel's `undoWindowMs`. Drives the "Closed N pages / Undo" toast. */
   readonly recentlyClosed: readonly PanelSummary[] | null;
-  /** Undo every close in `recentlyClosed`: each view returns at its old place (a live one comes back live, parking the live parkable one farthest from it if the row is full and its `overflow` is 'park') and its log entry is removed. Does nothing when the window is closed. */
+  /** Undo every close in `recentlyClosed`: each view returns at its old place (a live one comes back live, parking the live parkable one touched longest ago if the row is full and its `overflow` is 'park') and its log entry is removed. Does nothing when the window is closed. */
   undoClose(): void;
   /** Forgets every panel that is clearable; History, a fixed column and a locked panel stay. Not logged and not undoable. */
   clearAll(): void;
