@@ -235,12 +235,15 @@ export function Workspace(props: WorkspaceProps): React.ReactElement {
           return;
         }
         // The margin glides to the release's numbers first: a scroll glide beside it moves every panel by both, and the scrollable width is
-        // short of the target until the margin lands. Anything that moves the row during that wait has chosen where it rests, so the
-        // settle then only runs if the row is where the release left it, onto the stops the row has by then.
+        // short of the target until the margin lands. Whoever moves the row during that wait has chosen where it rests, so the settle only
+        // runs for a row nobody asked to move or moved, onto the stops the row has by then. A step the row refuses (at either end)
+        // moves nothing, so it is counted as an ask of its own.
         const releasedAt = scroller.scrollLeft();
+        const asked = scroller.inputs();
         settleTimer.current = setTimeout(() => {
           const now = numbersRef.current;
-          if (now === undefined || now.stops.length === 0 || scroller.glideTarget() !== null || Math.abs(scroller.scrollLeft() - releasedAt) >= 0.5) return;
+          if (now === undefined || now.stops.length === 0 || scroller.inputs() !== asked) return;
+          if (Math.abs((scroller.glideTarget() ?? scroller.scrollLeft()) - releasedAt) >= 0.5) return;
           glide(now);
         }, resolved.slide.durationSec * 1000);
       };
@@ -260,6 +263,14 @@ export function Workspace(props: WorkspaceProps): React.ReactElement {
     },
     [],
   );
+  // A press on the row is a person choosing where it rests, even if it moves nothing.
+  React.useEffect(() => {
+    const container = overflowContainerRef.current;
+    if (container === null) return undefined;
+    const note = (): void => rowScrollerFor(container).noteInput();
+    container.addEventListener('pointerdown', note, { passive: true });
+    return () => container.removeEventListener('pointerdown', note);
+  }, [overflowContainerRef]);
   // What the last commit drew. A panel whose width differs from it under the same container width was resized on purpose; a window
   // resize moves the container width too and keeps its snap.
   const drawn = React.useRef({ numbers: rowNumbers, containerWidth });

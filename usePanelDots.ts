@@ -67,6 +67,7 @@ export function usePanelDots(i: {
     const el = scroller.current;
     const index = n.ids.indexOf(id);
     if (!el || index < 0) return;
+    rowScrollerFor(el).noteInput();
     const target = centreScroll({ index, leftOffsets: n.leftOffsets, widths: n.widths, windowWidth: n.windowWidth, maxScroll });
     if (target === null) return;
     rowScrollerFor(el).glideTo(Math.min(maxScroll, target + n.rowMarginLeft), { durationSec: SLIDE_DURATION_SEC, instant: reduced, ease: GLIDE_EASE });
@@ -76,6 +77,7 @@ export function usePanelDots(i: {
     const el = scroller.current;
     if (!el) return null;
     const scroll = rowScrollerFor(el);
+    scroll.noteInput();
     const claim: ScrollClaim | null = scroll.claim();
     if (claim === null) return null;
     claim.setMaxScroll(maxScroll);

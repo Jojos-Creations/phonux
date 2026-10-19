@@ -10,10 +10,11 @@ import './support/jsdom-globals.js';
 import * as React from 'react';
 import { act } from 'react';
 import { MotionConfig } from 'motion/react';
-import { createWorkspace, definePanel, usePanelResizing } from '../index.js';
+import { createWorkspace, definePanel, usePanelDots, usePanelResizing } from '../index.js';
 import type { WorkspaceHandle } from '../index.js';
 import { SLIDE_DURATION_SEC } from '../rowConstants.js';
-import { advanceFrames, cleanup } from './support/mount-harness.js';
+import type { PanelDots } from '../index.js';
+import { advanceFrames, cleanup, mount } from './support/mount-harness.js';
 import { markerTemplate, mountWorkspace, rowScrollerFor, type ResizableWorkspace } from './support/workspace-row.js';
 
 type Setters = { resizing: (on: boolean) => void; width: (px: number | null, pin?: 'start' | 'end') => void };
@@ -108,7 +109,7 @@ interface Drag {
 }
 
 /** Marks `id` resizing and widens it from its left grabber by `extra` px, pin 'end'. */
-async function beginDrag(r: Rig, id: string, extra: number, steps = 4, trim = 0): Promise<Drag> {
+async function beginDrag(r: Rig, id: string, extra: number, steps = 4, trim = 0, pin: 'start' | 'end' = 'end'): Promise<Drag> {
   const began = r.m.container.scrollLeft;
   report.id = r.ids[id]!;
   report.trim = trim;
@@ -117,7 +118,7 @@ async function beginDrag(r: Rig, id: string, extra: number, steps = 4, trim = 0)
   const edge = screenRight(r.m.container, r.ids[id]!) - trim;
   const start = widthOf(r.m.container, r.ids[id]!);
   for (let k = 1; k <= steps; k += 1) {
-    act(() => setters.get(id)!.width(start + (extra * k) / steps, 'end'));
+    act(() => setters.get(id)!.width(start + (extra * k) / steps, pin));
     await frames(20);
   }
   return { edge, began };
@@ -319,14 +320,14 @@ async function elapse(ms: number): Promise<void> {
 const SETTLE_WAIT_MS = SLIDE_DURATION_SEC * 1000;
 
 /** A wide window where six slots fit, then p1 grown to two slots: the release adds stops and moves the centring margin, so the settle waits. */
-async function releaseMovingMargin(r: Rig, id = 'p1'): Promise<void> {
-  const drag = await beginDrag(r, id, SLOT(2, 16) - SLOT(1, 16) + 25);
-  void drag;
+async function releaseMovingMargin(r: Rig, id = 'p1', pin: 'start' | 'end' = 'end'): Promise<Drag> {
+  const drag = await beginDrag(r, id, SLOT(2, 16) - SLOT(1, 16) + 25, 4, 0, pin);
   act(() => {
     r.m.latest().setSlots(r.ids[id]!, 2);
     setters.get(id)!.width(null);
     setters.get(id)!.resizing(false);
   });
+  return drag;
 }
 
 test('a wheel during the wait for the margin decides where the row rests; the pending settle does not undo it', async () => {
@@ -386,4 +387,115 @@ test('unmounting during the wait for the margin cancels the settle', async () =>
   cleanup();
   act(() => mock.timers.tick(SETTLE_WAIT_MS + 100));
   assert.equal(glides.mock.callCount(), 0, 'the unmounted row is not scrolled');
+});
+
+/** An arrow key as the window sees it. */
+const key = (name: string): void => void act(() => void window.dispatchEvent(new KeyboardEvent('keydown', { key: name, bubbles: true, cancelable: true })));
+function dotsOf(r: Rig): PanelDots {
+  const out: { dots?: PanelDots } = {};
+  const Probe = (): React.ReactElement => {
+    out.dots = usePanelDots({ rowNumbers: r.m.latest().rowNumbers, entries: [], scroller: { current: r.m.container } });
+    return React.createElement('i');
+  };
+  mount(React.createElement(Probe));
+  return out.dots!;
+}
+/** What a person can do to a row held at its first stop that moves nothing: each is still a choice. */
+const REFUSED_AT_START: Record<string, (r: Rig) => void> = {
+  'a left wheel': (r) => wheel(r, -50),
+  'ArrowLeft': () => key('ArrowLeft'),
+  'a press on the row': (r) => void act(() => void r.m.container.dispatchEvent(new MouseEvent('pointerdown', { bubbles: true }))),
+  'a click on the first dot': (r) => {
+    const dots = dotsOf(r);
+    act(() => dots.selectDot('root'));
+  },
+  'a press on the oval': (r) => {
+    const dots = dotsOf(r);
+    act(() => dots.startOvalDrag()?.end());
+  },
+};
+for (const [what, ask] of Object.entries(REFUSED_AT_START)) {
+  test(`${what} during the wait for the margin keeps the row at the first stop it was released on, though it moves nothing`, async () => {
+    mock.timers.enable({ apis: ['setTimeout'] });
+    const r = await mountRig(16, { window: 2600 });
+    await frames(1500);
+    await releaseMovingMargin(r);
+    const stops = stopsOf(r);
+    assert.equal(stops.length, 2, 'control: the release added a second stop for the settle to head for');
+    await elapse(250);
+    assert.equal(r.m.container.scrollLeft, 0, 'control: the row is held at the first stop while the margin slides');
+    ask(r);
+    assert.equal(r.m.container.scrollLeft, 0, 'the ask moved nothing');
+    await elapse(SETTLE_WAIT_MS + 1000);
+    assert.equal(r.m.container.scrollLeft, stops[0], 'the row rests at the first stop');
+    assert.equal(rowScrollerFor(r.m.container).glideTarget(), null);
+  });
+}
+
+test('released at the start, a step to the far stop then a step the row refuses there leave the row at the far stop', async () => {
+  mock.timers.enable({ apis: ['setTimeout'] });
+  const r = await mountRig(16, { window: 2600 });
+  await frames(1500);
+  await releaseMovingMargin(r, 'p1', 'start');
+  const stops = stopsOf(r);
+  key('ArrowRight');
+  assert.equal(rowScrollerFor(r.m.container).glideTarget(), stops[1], 'control: the step heads for the far stop');
+  await elapse(300);
+  key('ArrowRight');
+  await elapse(SETTLE_WAIT_MS + 1000);
+  assert.equal(r.m.container.scrollLeft, stops[1], 'the row rests at the far stop');
+});
+
+test('a scroll that is still gliding when the wait ends decides where the row rests, even before it has moved', async () => {
+  mock.timers.enable({ apis: ['setTimeout'] });
+  const r = await mountRig(16, { window: 2600 });
+  await frames(1500);
+  await releaseMovingMargin(r);
+  await elapse(50);
+  rowScrollerFor(r.m.container).glideTo(100, { durationSec: 0.5, instant: false, ease: 'linear' as never });
+  act(() => mock.timers.tick(SETTLE_WAIT_MS));
+  assert.equal(r.m.container.scrollLeft, 0, 'control: no frame has run, so the row has not moved');
+  await frames(1500);
+  assert.equal(r.m.container.scrollLeft, 100);
+});
+
+test('a scroll that has already landed when the wait ends decides where the row rests', async () => {
+  mock.timers.enable({ apis: ['setTimeout'] });
+  const r = await mountRig(16, { window: 2600 });
+  await frames(1500);
+  await releaseMovingMargin(r);
+  await elapse(100);
+  act(() => void rowScrollerFor(r.m.container).glideTo(100, { durationSec: 0, instant: true, ease: 'linear' as never }));
+  assert.equal(rowScrollerFor(r.m.container).glideTarget(), null, 'control: nothing is gliding');
+  await elapse(SETTLE_WAIT_MS + 1000);
+  assert.equal(r.m.container.scrollLeft, 100);
+});
+
+test('the settle onto a stop uses the stops the row has when the wait ends', async () => {
+  mock.timers.enable({ apis: ['setTimeout'] });
+  const r = await mountRig(16, { window: 2600 });
+  await frames(1500);
+  const drag = await releaseMovingMargin(r);
+  const before = [...stopsOf(r)];
+  await elapse(100);
+  act(() => void r.m.latest().setSlots(r.ids.p2!, 2));
+  assert.equal(rowScrollerFor(r.m.container).glideTarget(), null, 'control: the change did not scroll the row');
+  assert.ok(stopsOf(r).length > 0 && !stopsOf(r).includes(before[1]!), `the stops changed: ${before.join(',')} then ${stopsOf(r).join(',')}`);
+  await elapse(SETTLE_WAIT_MS + 1000);
+  assertLanded(r, 'p1', drag, 'after the stops changed');
+  assert.ok(r.m.container.scrollLeft > 0, 'control: the settle did move the row');
+});
+
+test('a row that has no stops when the wait ends is not settled', async () => {
+  mock.timers.enable({ apis: ['setTimeout'] });
+  const r = await mountRig(16, { window: 2600 });
+  await frames(1500);
+  await releaseMovingMargin(r);
+  await elapse(100);
+  const glides = mock.method(rowScrollerFor(r.m.container), 'glideTo');
+  act(() => void r.m.latest().setSlots(r.ids.p1!, 1));
+  assert.equal(stopsOf(r).length, 0, 'control: the row fits again');
+  await elapse(SETTLE_WAIT_MS + 1000);
+  assert.equal(glides.mock.callCount(), 0);
+  assert.equal(r.m.container.scrollLeft, 0);
 });
