@@ -67,32 +67,32 @@ test('pinned: opening a panel that lands pinned parks nothing, since it takes no
   assert.equal(r.row(), 'w9 root w1* w2* w3* w4 w5 w6 w7 w8');
 });
 
-test('pinned: showing a hidden panel parks exactly one unpinned panel, the farthest from it, and no pinned one', async () => {
+test('pinned: showing a hidden panel parks exactly one unpinned panel, the one touched longest ago, and no pinned one', async () => {
   const r = await capRig({ count: 9, cap: 5, pinned: ['w1', 'w2'] });
   assert.equal(r.row(), 'w1 w2 root w3* w4* w5 w6 w7 w8 w9');
   const result = r.turn(() => r.h.w3!.show());
   assert.equal(result.ok, true);
   await r.settle();
-  assert.equal(r.row(), 'w1 w2 root w3 w4* w5 w6 w7 w8 w9*', 'the farthest from w3 is w9; w1 and w2 sit further from it and are kept');
+  assert.equal(r.row(), 'w1 w2 root w3 w4* w5* w6 w7 w8 w9', 'the unpinned panels were all touched together, so the tie goes to the leftmost, w5; w1 and w2 are older still and are kept');
 });
 
 test('pinned: a History click on a hidden panel parks exactly one unpinned panel and no pinned one', async () => {
   const r = await capRig({ count: 9, cap: 5, pinned: ['w1', 'w2'] });
   r.turn(() => r.m.latest().activate(r.entry('w4').id));
   await r.settle();
-  assert.equal(r.row(), 'w1 w2 root w3* w4 w5 w6 w7 w8 w9*');
+  assert.equal(r.row(), 'w1 w2 root w3* w4 w5* w6 w7 w8 w9');
 });
 
-test('pinned: showing a hidden panel at the far right parks the farthest unpinned panel, although a pinned one lies further from it', async () => {
+test('pinned: showing a hidden panel at the far right parks the oldest unpinned panel, although pinned ones are older still', async () => {
   const r = await capRig({ count: 9, cap: 5, pinned: ['w1', 'w2'], tuning: { dropTieBreak: 'rightmost' } });
   assert.equal(r.row(), 'w1 w2 root w3 w4 w5 w6 w7 w8* w9*');
   const result = r.turn(() => r.h.w9!.show());
   assert.equal(result.ok, true);
   await r.settle();
-  assert.equal(r.row(), 'w1 w2 root w3* w4 w5 w6 w7 w8* w9', 'w1 is nine places from w9 and w3 six, and w1 is not parked');
+  assert.equal(r.row(), 'w1 w2 root w3* w4 w5 w6 w7 w8* w9', 'w1 is pinned and not parked; w3 is the leftmost of the tied unpinned panels');
 });
 
-test('pinned: a History click on a hidden panel at the far right parks the farthest unpinned panel, not a pinned one further away', async () => {
+test('pinned: a History click on a hidden panel at the far right parks the oldest unpinned panel, not an older pinned one', async () => {
   const r = await capRig({ count: 9, cap: 5, pinned: ['w1', 'w2'], tuning: { dropTieBreak: 'rightmost' } });
   r.turn(() => r.m.latest().activate(r.entry('w9').id));
   await r.settle();
@@ -110,7 +110,7 @@ test('pinned: undoing the close of a live panel restores it and parks exactly on
   assert.equal(r.row(), 'w1 w2 root w3* w4 w5 w6 w7 w9', 'the open fills the freed slot');
   r.turn(() => r.m.latest().undoClose());
   await r.settle();
-  assert.equal(r.row(), 'w1 w2 root w3* w4* w5 w6 w7 w8 w9', 'w8 returns to its place, and the farthest unpinned panel from it parks');
+  assert.equal(r.row(), 'w1 w2 root w3* w4* w5 w6 w7 w8 w9', 'w8 returns to its place, and the oldest unpinned panel parks');
 });
 
 // ---------------------------------------------------------------------------

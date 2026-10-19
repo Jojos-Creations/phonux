@@ -468,9 +468,7 @@ test('matrix:movable', async () => {
   done(r.turn(() => r.h.c!.configure({ movable: false })));
   assert.deepEqual([r.state('c').settings.movable, r.state('c').status], [false, 'parked'], 'a hidden panel stores it');
   assert.equal(letter(r.turn(() => r.h.c!.pin())), 'T', 'a placement-bearing pin() is not limited');
-  const root = refusedWith(r.turn(() => r.ws.panels.configure(r.ws.rootId, { movable: true })), 'settings-conflict');
-  assert.equal(root.setting, 'movable');
-  assert.match(root.message, /C5/);
+  assert.deepEqual(shape(r.turn(() => r.ws.panels.configure(r.ws.rootId, { movable: true }))), { now: ['movable'], later: [], shadowed: [] }, 'the root takes movable true; only closable and parkable answer C5');
 });
 
 test('matrix:crossable', async () => {
@@ -715,7 +713,7 @@ test('matrix:overflow', async () => {
     r.m.unmount();
     return r.live().join(' ');
   };
-  assert.equal(await opens(false), 'root b c', 'control: opening c parks a, the farthest');
+  assert.equal(await opens(false), 'root b c', 'control: opening c parks a, the oldest');
   assert.equal(await opens(true), 'root a c', 'park to scroll: a is no longer parked for room, so b goes instead');
   const wide = await matrixRig({ ids: ['a', 'b', 'c'], width: 1300 });
   await wide.settle();

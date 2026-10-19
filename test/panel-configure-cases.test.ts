@@ -257,7 +257,7 @@ test('case B7: overflow scroll to park on a live panel parks nothing at configur
   assert.equal(r.live().join(' '), 'root a b', 'nothing parks at configure: a is the only park panel and it fits');
   r.turn(() => void r.ws.addPanel('c'));
   await r.settle();
-  assert.deepEqual([r.state('a').status, r.live().join(' ')], ['parked', 'root b c'], 'opening a second park panel overflows the row: the farthest park panel, a, goes');
+  assert.deepEqual([r.state('a').status, r.live().join(' ')], ['parked', 'root b c'], 'opening a second park panel overflows the row: the oldest park panel, a, goes');
 });
 
 test('case B8: scrollOnOpen none on a live panel: the next open does not scroll', async () => {
@@ -354,19 +354,19 @@ test('edge scroll 6: a panel carries no tuning, so configure(id, { tuning }) is 
   }
 });
 
-test('root column 1: closable, parkable and movable true on the root are each a settings-conflict naming the key and rule C5, with no forcedBy', async () => {
+test('root column 1: closable and parkable true on the root are each a settings-conflict naming the key and rule C5, with no forcedBy', async () => {
   const r = await matrixRig();
   const entries = r.m.latest().entries;
   const renders = r.m.renders();
   let executed = 0;
-  for (const key of ['closable', 'parkable', 'movable'] as const) {
+  for (const key of ['closable', 'parkable'] as const) {
     const refusal = refusedWith(r.turn(() => r.ws.panels.configure(r.ws.rootId, { [key]: true } as never)), 'settings-conflict');
     assert.equal(refusal.setting, key, `${key}: the result names the asked key`);
     assert.match(refusal.message, /C5/, `${key}: the message names rule C5`);
     assert.doesNotMatch(refusal.message, /because of/, `${key}: and names no forcing key`);
     executed += 1;
   }
-  assert.equal(executed, 3);
+  assert.equal(executed, 2);
   assert.deepEqual([r.m.latest().entries === entries, r.m.renders()], [true, renders], 'the root was not touched');
 });
 

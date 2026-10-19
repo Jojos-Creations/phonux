@@ -406,6 +406,7 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
     deferPin,
     resetPanels,
     gate,
+    touchPanel,
   } = usePanelManager(panels, setPanels, i.phoneWidth, i.containerWidth, fixedViewCount, rootId, {
     onNote: i.onNote,
     tuning: { rowGap: tuning.rowGap, returnTieBreak: timing.returnTieBreak, dropTieBreak: timing.dropTieBreak, maxLivePanels: tuning.maxLivePanels },
@@ -589,6 +590,10 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
   useLayoutEffect(() => {
     core.bindNotes((note) => reportNotes(i.onNote, [note]));
     return () => core.bindNotes(undefined);
+  });
+  useLayoutEffect(() => {
+    core.bindTouch(touchPanel);
+    return () => core.bindTouch(undefined);
   });
   const attachOwner = useRef({});
   useLayoutEffect(() => {
@@ -871,7 +876,7 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
       const target = held(engineId);
       if (!isEntry(target)) return target;
       if (gate.busy([engineId], 'other')) return busy(target);
-      if (engineId === rootId || (source === 'person' && !effective(target).movable)) return refused('not-movable', `panel '${panelKey(target)}' cannot be moved`);
+      if ((source === 'person' || engineId === rootId) && !effective(target).movable) return refused('not-movable', `panel '${panelKey(target)}' cannot be moved`);
       const token = gate.take([engineId], 'other')!;
       const changed = reorderPanel(engineId, by, source === 'person');
       if (changed) followPanel(engineId);

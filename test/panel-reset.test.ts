@@ -68,7 +68,9 @@ test('(c) a slot count that no longer fits parks the fewest park panels and the 
   await r.settle();
   r.turn(() => r.h.b!.show());
   await r.settle();
-  assert.deepEqual(r.live(), ['root', 'b', 'c']);
+  r.turn(() => r.h.c!.show());
+  await r.settle();
+  assert.deepEqual(r.live(), ['root', 'b', 'c'], 'showing c parks d, the panel touched longest ago');
   assert.deepEqual(reset(r, 'c'), { ok: true, changed: true, panels: ['c'], parked: ['b'], returned: [] });
   await r.settle();
   assert.deepEqual(r.live(), ['root', 'c']);

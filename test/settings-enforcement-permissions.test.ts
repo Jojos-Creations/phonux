@@ -228,9 +228,8 @@ test('movable false: movePanel and reanchorPanel still move the panel, since the
   assert.ok(reanchorPanel(panels, 'a', { position: 'left' }, ROOT) !== panels);
 });
 
-test('the root is never moved or re-anchored, whatever calls ask', () => {
+test('the root is never re-anchored, whatever calls ask', () => {
   const panels = row(rootEntry(), made('a'), made('b'));
-  assert.ok(movePanel(panels, ROOT, 'right', ROOT) === panels);
   assert.ok(reanchorPanel(panels, ROOT, { panel: 'b', position: 'right' }, ROOT) === panels);
 });
 

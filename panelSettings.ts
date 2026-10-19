@@ -513,7 +513,7 @@ export type PanelUserLayer = {
 
 /** Options for `resolvePanelSettings`. @public */
 export type ResolveOptions = {
-  /** Resolve the root panel, which its coupling rule makes unparkable, unclosable and unmovable. Default false. */
+  /** Resolve the root panel, which its coupling rule makes unparkable and unclosable; it is unmovable until a layer sets `movable`. Default false. */
   root?: boolean;
   /** Drop an invalid key from the instance and user layers with a note instead of throwing. Default false. */
   lenient?: boolean;
@@ -1379,7 +1379,7 @@ export interface FixedBehaviour {
   readonly hideWhenLast: 'allow' | 'refuse';
   readonly returnPriority: number;
   readonly evictionRank: number;
-  readonly evictionOrder: 'farthest' | 'nearest' | 'leftmost' | 'rightmost';
+  readonly evictionOrder: 'least-recently-touched';
   readonly scrollOnDrag: ScrollOnDrag;
   readonly viewState: 'keep' | 'reset-on-park';
   readonly keepMounted: boolean;
@@ -1406,7 +1406,7 @@ export const FIXED: FixedBehaviour = Object.freeze({
   hideWhenLast: 'allow',
   returnPriority: 0,
   evictionRank: 0,
-  evictionOrder: 'farthest',
+  evictionOrder: 'least-recently-touched',
   scrollOnDrag: 'edge',
   viewState: 'keep',
   keepMounted: false,
@@ -1791,9 +1791,7 @@ function applyRules(s: State, root: boolean): void {
   }
   if (s.values.closable === false) force(s, 'clearable', false, 'C2', 'closable');
   if ((s.values.slots as number) > (s.values.maxSlots as number)) force(s, 'slots', s.values.maxSlots, 'C4', 'maxSlots');
-  if (root) {
-    force(s, 'movable', false, 'C5');
-  }
+  // `movable` is not forced: the root reorders when a layer turns it on, and stays at its fixed-column default otherwise.
 }
 
 const PARK_LEVERS = ['capacityReturn'] as const;

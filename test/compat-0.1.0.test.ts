@@ -285,6 +285,11 @@ test('compat-0.1.0 corpus: the pure functions give the vendored 0.1.0 outputs on
       widened += 1;
       continue;
     }
+    if (c.fn === 'movePanel' && args[1] === args[3]) {
+      // 0.1.0 never moved the root; the pure function now does, and a person's drag is limited by the root's `movable` setting, which is off unless a layer sets it.
+      widened += 1;
+      continue;
+    }
     const actual = withoutUid(replay(args));
     const expected = withoutLocked(c.fn === 'projectWorkspaceState' ? savedTiersAsSlots(c.out) : c.fn === 'panelWidthOf' ? c.out : tiersAsSlots(c.out));
     assert.deepStrictEqual(actual, expected, `${c.fn} case ${replayed} no longer answers as 0.1.0 did`);

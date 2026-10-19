@@ -14,12 +14,12 @@ afterEach(cleanup);
 const letter = (a: { ok: boolean; changed?: boolean; code?: string }): string => (a.ok ? (a.changed ? 'T' : 'F') : (a.code as string));
 const asSettings = (v: object): PanelSettings => v as PanelSettings;
 
-test('movable follows parkable, any layer may set it, and the root is forced false', () => {
+test('movable follows parkable, any layer may set it, and the root accepts it', () => {
   assert.equal(resolvePanelSettings().value.movable, true);
   assert.deepEqual([resolvePanelSettings({ template: { parkable: false } }).value.movable, resolvePanelSettings({ template: { parkable: false } }).source.movable], [false, 'derived']);
   assert.equal(resolvePanelSettings({ template: { parkable: false, movable: true } }).value.movable, true);
   const root = resolvePanelSettings({ template: { movable: true } }, { root: true });
-  assert.deepEqual([root.value.movable, root.conflicts.map((c) => [c.key, c.rule])], [false, [['movable', 'C5']]]);
+  assert.deepEqual([root.value.movable, root.conflicts.map((c) => [c.key, c.rule])], [true, []]);
 });
 
 test('a template or workspace default that names draggable or placeable is ignored and told once in development', () => {
