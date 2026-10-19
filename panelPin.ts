@@ -148,6 +148,7 @@ export function applyPinChange(row: readonly PanelWindow[], id: string, change: 
   const entry = row.find((p) => p.id === id);
   if (entry === undefined) return refusal('unknown-panel', `no panel '${id}' is in the row`);
   const name = panelKey(entry);
+  if (id === env.rootId) return refusal('not-movable', `panel '${name}' is the root and cannot be anchored to itself`);
   const half = halfOf(definitionOf(entry), change);
   const fixing = half.parkable === false && entry.collapsible;
   const freeing = half.parkable === true && !entry.collapsible;

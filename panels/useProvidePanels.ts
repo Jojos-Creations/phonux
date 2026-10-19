@@ -877,7 +877,7 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
       const target = held(engineId);
       if (!isEntry(target)) return target;
       if (gate.busy([engineId], 'other')) return busy(target);
-      if ((source === 'person' || engineId === rootId) && !effective(target).movable) return refused('not-movable', `panel '${panelKey(target)}' cannot be moved`);
+      if (source === 'person' && !effective(target).movable) return refused('not-movable', `panel '${panelKey(target)}' cannot be moved`);
       const token = gate.take([engineId], 'other')!;
       const changed = reorderPanel(engineId, by, source === 'person');
       if (changed) followPanel(engineId);

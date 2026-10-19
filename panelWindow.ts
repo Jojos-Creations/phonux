@@ -137,8 +137,9 @@ export function reanchorPanel(panels: PanelWindow[], id: string, request: Anchor
   return anchorPanel(panels, id, request, rootId);
 }
 
-/** `id` anchored per `request` and the row ordered to match, with no check at all. @internal */
+/** `id` anchored per `request` and the row ordered to match; the root is never anchored, so it comes back unchanged. @internal */
 export function anchorPanel(panels: readonly PanelWindow[], id: string, request: AnchorRequest, rootId: string): PanelWindow[] {
+  if (id === rootId) return panels.slice();
   const anchor = fillAnchor(panels, rootId, request, id);
   return computeRowOrder(panels.map((p) => (p.id === id ? { ...p, anchor } : p)), rootId);
 }
