@@ -1447,7 +1447,7 @@ export interface FixedBehaviour {
   readonly hideWhenLast: 'allow' | 'refuse';
   readonly returnPriority: number;
   readonly evictionRank: number;
-  readonly evictionOrder: 'farthest' | 'nearest' | 'leftmost' | 'rightmost';
+  readonly evictionOrder: 'least-recently-touched';
   readonly scrollOnDrag: ScrollOnDrag;
   readonly viewState: 'keep' | 'reset-on-park';
   readonly keepMounted: boolean;
@@ -1474,7 +1474,7 @@ export const FIXED: FixedBehaviour = Object.freeze({
   hideWhenLast: 'allow',
   returnPriority: 0,
   evictionRank: 0,
-  evictionOrder: 'farthest',
+  evictionOrder: 'least-recently-touched',
   scrollOnDrag: 'edge',
   viewState: 'keep',
   keepMounted: false,

@@ -391,7 +391,10 @@ export function PanelRow({
                 slide={own.slide}
                 rowScroll={rowScroll}
                 previewing={dragging !== null}
-                onActivate={() => chrome.setActive(p.id)}
+                onActivate={() => {
+                  chrome.setActive(p.id);
+                  binding.touch(p.id);
+                }}
                 dragged={dragging?.id === p.id}
               >
                 {/* A resolved component -- built-in or third-party -- is written against PanelSummary only,

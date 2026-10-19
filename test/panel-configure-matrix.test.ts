@@ -725,7 +725,7 @@ test('matrix:overflow', async () => {
     r.m.unmount();
     return r.live().join(' ');
   };
-  assert.equal(await opens(false), 'root b c', 'control: opening c parks a, the farthest');
+  assert.equal(await opens(false), 'root b c', 'control: opening c parks a, the oldest');
   assert.equal(await opens(true), 'root a c', 'park to scroll: a is no longer parked for room, so b goes instead');
   const wide = await matrixRig({ ids: ['a', 'b', 'c'], width: 1300 });
   await wide.settle();
