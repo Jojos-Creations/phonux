@@ -41,6 +41,7 @@
 
 ### Fixed
 
+- `WorkspaceColumn` lands on the saved workspace without a slide when it is drawn before the saved list is read; it glides from the first move after that.
 - A stepping row's last stop rests with the last panel one row gap from the window edge, not behind a blank stretch. The room after the strip was the last whole-panel group's even margin, so at a 2240 px window a row ending in a phone stopped with about 909 px of blank space after it. `RowNumbers.endPad` is now always 0 and the end space is the row gap wide. The stops below the last are unchanged; the last stop is the strip's new end, so grid stops that lay past it are dropped.
 - A panel dragged sideways and dropped into a new slot glides into it from where it was released, with Reduce Motion off, instead of jumping a slot-width in one frame. Reduce Motion still lands it at once, and a release that hops nowhere still springs home.
 - Opening a workspace that has a root template no longer saves once with nothing changed: the restore baseline now includes the root's key and slot count, as the save does.
