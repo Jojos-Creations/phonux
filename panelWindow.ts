@@ -3,7 +3,7 @@
  * function that operates on a `PanelWindow[]` array.
  */
 import { DEFAULT_LABELS } from './labels.js';
-import type { JsonValue, PanelSize } from './hostApi.js';
+import type { JsonValue } from './hostApi.js';
 import { isPresent, type NeighborWidths, type PanelRowEntry } from './panelRowEntry.js';
 import { computeRowOrder, deriveAnchorsFromOrder } from './panelRowOrder.js';
 import type { PanelAnchor } from './panelRowOrder.js';
@@ -11,7 +11,6 @@ import { FIXED, effective } from './panelSettings.js';
 import { newPanelUid } from './panelUid.js';
 import type { AddPlacement, FixedBehaviour, PanelSettings, ResolvedPanelSettings } from './panelSettings.js';
 import type { DeferredPin } from './panelTemplate.js';
-import { DEFAULT_PANEL_SIZE, sizeOfSlots } from './panelTiers.js';
 import { HOP_FRACTION } from './rowConstants.js';
 
 /**
@@ -31,9 +30,7 @@ export interface PanelWindow {
   hostData?: JsonValue;
   /** Mounted in the row right now. `false` means parked: still in this array, just not rendered. */
   live: boolean;
-  /** Whether DragToClose's drag-down gesture may close this panel at all. Every panel created by `appendPanel` is unlocked. */
-  locked: boolean;
-  /** Which component renders this entry (a template id) -- read ONLY by the row (PanelRow); every park/close site reads `collapsible`/`listed`/`locked` instead, never this. An open string, not a closed union: an unregistered value renders a placeholder, never a crash. */
+  /** Which component renders this entry (a template id) -- read ONLY by the row (PanelRow); every park/close site reads `collapsible`/`listed` instead, never this. An open string, not a closed union: an unregistered value renders a placeholder, never a crash. */
   view: string;
   /** Capacity parks (an open, a revive, the row gesture, a capacity drop) may park this entry; `false` marks an always-shown column exempt from all of them. */
   collapsible: boolean;
@@ -47,11 +44,9 @@ export interface PanelWindow {
   layer?: 'base' | 'raised';
   /** Whether this entry's reappearance always resolves through the anchor formula (resolveEnterDirection) instead of unconditionally entering from the right -- read ONLY by PanelRow's enterDirection. Default false. */
   anchoredEnter?: boolean;
-  /** This panel's own rendered size (a host's panel component passes it to Panel/PanelFrame for a panel wider than one slot). createHistoryPanel/appendPanel always set it. Optional so a record built by hand without it still typechecks. */
-  size?: PanelSize;
   /** How many phone-panel widths wide this entry is set to. Absent on a hand-built entry, which reads as one slot. */
   slots?: number;
-  /** The resolved settings this entry was created under, whose mirror fields (`locked`, `collapsible`, `listed`, `layer`, `anchoredEnter`, `slots`) were written from them. Absent for a hand-built entry. */
+  /** The resolved settings this entry was created under, whose mirror fields (`collapsible`, `listed`, `layer`, `anchoredEnter`, `slots`) were written from them. Absent for a hand-built entry. */
   settings?: ResolvedPanelSettings;
   /** This entry's stable name, written once when it is created from settings; absent on a hand-built entry, whose `id` stands in. */
   key?: string;
@@ -78,19 +73,17 @@ export interface PanelWindow {
   marker?: true;
 }
 
-/** History's own seeded entry: never collapsible (an always-shown column), never listed (it must not list itself), always live, locked by default (the host's close path honours `locked`); raised, so a left-exiting park slides under it; anchoredEnter, which against itself resolves 'right'; no anchor: it is the root every anchor leads to. Same default size as every other entry. @internal */
+/** History's own seeded entry: never collapsible (an always-shown column), never listed (it must not list itself), always live, never closed (the close path refuses the root); raised, so a left-exiting park slides under it; anchoredEnter, which against itself resolves 'right'; no anchor: it is the root every anchor leads to. Same default size as every other entry. @internal */
 export function createHistoryPanel(rootId: string, title: string = DEFAULT_LABELS.historyTitle): PanelWindow {
   return {
-    id: rootId, url: '', title, live: true, locked: true,
+    id: rootId, url: '', title, live: true,
     view: 'history', collapsible: false, listed: false, layer: 'raised', anchoredEnter: true,
-    size: DEFAULT_PANEL_SIZE,
   };
 }
 
 /**
- * Per-call metadata create() may set beyond a bare url. No raw `collapsible`/`locked` key: `permanent`
- * is the only door to `collapsible:false` (see `appendPanel`'s own doc comment for what it forces), and
- * `locked` is never settable at all -- create() can never make an unclosable panel.
+ * Per-call metadata create() may set beyond a bare url. No raw `collapsible` key: `permanent`
+ * is the only door to `collapsible:false` (see `appendPanel`'s own doc comment for what it forces).
  * @internal
  */
 export interface AppendPanelOptions {
@@ -138,15 +131,15 @@ function fillAnchor(panels: readonly PanelWindow[], rootId: string, request: Anc
   return { panel, position: request.position, priority: max + 1 };
 }
 
-/** `id` re-anchored per `request` (defaults as for appendPanel), the row re-ordered to match. The SAME array for an unknown id or an entry whose `placeable` setting is false (a fixed column by default). @internal */
+/** `id` re-anchored per `request` (defaults as for appendPanel), the row re-ordered to match. The SAME array for an unknown id or the root. @internal */
 export function reanchorPanel(panels: PanelWindow[], id: string, request: AnchorRequest, rootId: string): PanelWindow[] {
-  const target = panels.find((p) => p.id === id);
-  if (!target || !effective(target).placeable) return panels;
+  if (id === rootId || !panels.some((p) => p.id === id)) return panels;
   return anchorPanel(panels, id, request, rootId);
 }
 
-/** `id` anchored per `request` and the row ordered to match, with no `placeable` check: a placement setting is the developer's own ask, not a person's re-anchor. @internal */
+/** `id` anchored per `request` and the row ordered to match; the root is never anchored, so it comes back unchanged. @internal */
 export function anchorPanel(panels: readonly PanelWindow[], id: string, request: AnchorRequest, rootId: string): PanelWindow[] {
+  if (id === rootId) return panels.slice();
   const anchor = fillAnchor(panels, rootId, request, id);
   return computeRowOrder(panels.map((p) => (p.id === id ? { ...p, anchor } : p)), rootId);
 }
@@ -155,9 +148,8 @@ export function anchorPanel(panels: readonly PanelWindow[], id: string, request:
  * Builds a brand-new, live 'extra' panel immutably and places it by `info.anchor` (default: right of
  * History, past every panel already there -- the row's far right end). History is seeded directly, never
  * through this function. `permanent` forces `collapsible:false` and `listed:false` (overriding any `info.listed`
- * passed) since such a column must supply its own close control, never the row's trash; `locked`
- * stays false regardless so that control keeps working with no extra plumbing (the host's close path gates
- * only on `locked`).
+ * passed) since such a column must supply its own close control, never the row's trash; that control
+ * closes it through the developer's own `close`, which `closable` does not limit.
  * @internal
  */
 export function appendPanel(panels: PanelWindow[], info: { url?: string } & AppendPanelOptions, id: string, rootId: string, uid: string = newPanelUid()): PanelWindow[] {
@@ -169,7 +161,6 @@ export function appendPanel(panels: PanelWindow[], info: { url?: string } & Appe
     ...(info.title !== undefined ? { title: info.title } : {}),
     ...(info.hostData !== undefined ? { hostData: info.hostData } : {}),
     live: true,
-    locked: false,
     view: info.view ?? 'web',
     collapsible: !info.permanent,
     listed: info.permanent ? false : (info.listed ?? true),
@@ -179,7 +170,6 @@ export function appendPanel(panels: PanelWindow[], info: { url?: string } & Appe
     anchoredEnter: info.anchoredEnter ?? false,
     // Every entry carries its slot count; a permanent column's is always one.
     slots,
-    size: sizeOfSlots(slots),
   };
   return computeRowOrder([...panels, entry], rootId);
 }
@@ -297,15 +287,14 @@ export function closePanel(panels: PanelWindow[], id: string, rootId: string): {
  * Moves `id` one PRESENT slot (`isPresent`, PanelRow's filter) toward `direction`, past
  * whichever present panel sits there, History included; a parked panel between the two shifts one array slot,
  * keeping firstParkedAfter/lastParkedBefore/sideOfLiveRange meaningful. Every anchor is then re-read from the
- * new order. The SAME array for every no-op: unknown id, a source whose `draggable` setting is false (a fixed
- * column by default), a parked panel, one already at that edge, or any array slot from the source to the target
+ * new order. The SAME array for every no-op: unknown id, a parked panel, one already at that edge, or any array slot from the source to the target
  * (parked ones included) holding an entry whose `crossable` setting is false.
  * @internal
  */
 export function movePanel(panels: PanelWindow[], id: string, direction: 'left' | 'right', rootId: string): PanelWindow[] {
   const present = panels.filter(isPresent);
   const presentIndex = present.findIndex((p) => p.id === id);
-  if (presentIndex < 0 || !effective(present[presentIndex]!).draggable) return panels;
+  if (presentIndex < 0) return panels;
   const neighbor = present[direction === 'left' ? presentIndex - 1 : presentIndex + 1];
   if (!neighbor) return panels;
   const from = panels.findIndex((p) => p.id === id);
@@ -360,9 +349,8 @@ export function reorderStepsForOffset(offsetX: number, neighbors: NeighborWidths
 export const slotsOf = (p: Pick<PanelWindow, 'slots'>): number => p.slots ?? 1;
 
 /**
- * `id` at `slots` wide (clamped to 1 and its `maxSlots`), its `size` REPLACED by the size of that slot count. Returns the SAME
- * array reference for every no-op: an unknown id, an entry whose `resizable` setting is false (History or a permanent column
- * by default), or a panel already at the clamped count. A parked panel may change size and stays parked.
+ * `id` at `slots` wide (clamped to 1 and its `maxSlots`). Returns the SAME
+ * array reference for every no-op: an unknown id or a panel already at the clamped count; a fixed column's `maxSlots` of 1 clamps it. A parked panel may change slots and stays parked.
  * @internal
  */
 export function setSlots(panels: PanelWindow[], id: string, slots: number): PanelWindow[] {
@@ -370,8 +358,8 @@ export function setSlots(panels: PanelWindow[], id: string, slots: number): Pane
   if (!target || !Number.isFinite(slots)) return panels;
   const allowed = effective(target);
   const next = Math.max(1, Math.min(Math.round(slots), allowed.maxSlots));
-  if (!allowed.resizable || slotsOf(target) === next) return panels;
-  return panels.map((p) => (p.id === id ? { ...p, slots: next, size: sizeOfSlots(next) } : p));
+  if (slotsOf(target) === next) return panels;
+  return panels.map((p) => (p.id === id ? { ...p, slots: next } : p));
 }
 
 /** Whether `p` records the person's changes at all: it carries settings. */

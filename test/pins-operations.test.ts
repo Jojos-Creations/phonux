@@ -17,13 +17,12 @@ const entry = (id: string, over: Partial<PanelWindow> = {}): PanelWindow => ({
   url: `https://${id}.example`,
   title: id.toUpperCase(),
   live: true,
-  locked: false,
   view: 'web',
   collapsible: true,
   listed: true,
   ...over,
 });
-const root = (): PanelWindow => entry('root', { url: '', title: 'History', locked: true, collapsible: false, listed: false });
+const root = (): PanelWindow => entry('root', { url: '', title: 'History', collapsible: false, listed: false });
 const label = (p: PanelWindow): string => (p.live ? p.id : `${p.id}*`);
 const row = (panels: readonly PanelWindow[]): string => panels.map(label).join(' ');
 

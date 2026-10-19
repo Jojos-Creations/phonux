@@ -37,7 +37,7 @@ export function useWorkspacePersistence(i: {
   /** The panels code declares; each is created unless the file has it or the person dismissed it. A list is read once, at mount; a function is called at each restore. */
   declared?: readonly DeclaredPanel[] | (() => readonly DeclaredPanel[]);
   /** The workspace's panel settings, so a restored panel resolves as a new one does. Read once, at mount. */
-  workspaceDefaults?: Omit<PanelSettings, 'tuning'>;
+  workspaceDefaults?: PanelSettings;
   /** Receives each note the restore raises; whatever it throws is swallowed. */
   onNote?: (note: SettingNote) => void;
   /** The developer's panel order, read by every placement the restore makes whose value is `'order'`. */

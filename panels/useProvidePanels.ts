@@ -17,7 +17,7 @@ import { rowScrollerFor } from '../rowScroller.js';
 import { gestureTarget, scrollTargetFor } from '../scrollTargets.js';
 import { isPresent, summarisePanel } from '../panelRowEntry.js';
 import { entryNamed } from '../panelIds.js';
-import { panelWidthOf, sizeOfSlots } from '../panelTiers.js';
+import { panelWidthOf } from '../panelTiers.js';
 import { noopCaptureTrigger, type CaptureTrigger } from '../snapshots.js';
 import { applyConfigure } from '../panelConfigure.js';
 import { accepted, refused, type ConfigureResult, type PanelOpSource, type PanelResult } from '../panelManager.js';
@@ -126,7 +126,7 @@ interface CreatePlan {
 }
 
 /** `options` resolved against the workspace defaults and, for a template view, the template's own layer. A permanent column is a plain view's own ask; a template's panel cannot ask it, which the resolver records as a conflict. */
-function planCreate(options: CreatePanelOptions | undefined, template: PanelTemplate | undefined, defaults: Omit<PanelSettings, 'tuning'>): CreatePlan {
+function planCreate(options: CreatePanelOptions | undefined, template: PanelTemplate | undefined, defaults: PanelSettings): CreatePlan {
   const permanent = options?.permanent === true;
   const host: PanelSettings = {
     ...(options?.title !== undefined ? { title: options.title } : {}),
@@ -165,7 +165,7 @@ function appendFromTemplate(
     params: JsonValue | undefined;
     url: string | undefined;
     hostData: JsonValue | undefined;
-    defaults: Omit<PanelSettings, 'tuning'> | undefined;
+    defaults: PanelSettings | undefined;
     rootId: string;
     order: (() => readonly string[]) | undefined;
     declared: boolean;
@@ -252,7 +252,7 @@ export interface ProvidedPanels extends PanelsAPI {
   readonly rowScroll: boolean;
   /** The row's one set of numbers, the same value the shell, the row and the capacity are priced from. Hand it to a Workspace's and a PanelRow's `rowNumbers`. */
   readonly rowNumbers: RowNumbers;
-  /** the workspace's tuning over the library defaults, leaf by leaf: the one value this render's capacity and widths were priced from. Hand it to a Workspace's `tuning`. */
+  /** the workspace's tuning over the library defaults, leaf by leaf: the one value this render's capacity and widths were priced from. Hand it to `usePhoneFit`. */
   readonly tuning: ResolvedWorkspaceTuning;
   /**
    * Asks the row to scroll to panel `id` after the next commit, at `align` (default: the panel's `scrollOnOpen`, else
@@ -778,9 +778,9 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
 
   /** `close` as a person's gesture and the manager's `close` verb both run it: the picture, then the close. True when the close was accepted. */
   const closeNow = (id: string): boolean => {
-    // A close the gate in usePanelClosing.ts will refuse (an unknown or locked id) takes no picture.
+    // A close the gate in usePanelClosing.ts will refuse (an unknown id or the root) takes no picture.
     const target = panels.find((p) => p.id === id);
-    if (target && !target.locked && asksForPicture('close')) capture.capture(panelKey(target));
+    if (target && id !== rootId && asksForPicture('close')) capture.capture(panelKey(target));
     return closing.close(id);
   };
 
@@ -816,8 +816,7 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
     const target = held(engineId);
     if (!isEntry(target)) return target;
     if (gate.busy([engineId], 'other')) return busy(target);
-    const settings = effective(target);
-    if (!settings.resizable) return refused('not-resizable', `panel '${panelKey(target)}' cannot be resized`);
+    if (source === 'person' && !effective(target).resizable) return refused('not-resizable', `panel '${panelKey(target)}' cannot be resized`);
     if (source !== 'person') warnSlotsClamped(target, next);
     const token = gate.take([engineId], 'other')!;
     const changed = resizePanel(engineId, next, source === 'person');
@@ -859,11 +858,11 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
       gate.release(token);
       return accepted(changed);
     },
-    close: (engineId) => {
+    close: (engineId, source) => {
       const target = held(engineId);
       if (!isEntry(target)) return target;
       if (gate.busy([engineId], 'close')) return busy(target);
-      if (target.locked || !effective(target).closable) return refused('not-closable', `panel '${panelKey(target)}' cannot be closed`);
+      if (engineId === rootId || (source === 'person' && !effective(target).closable)) return refused('not-closable', `panel '${panelKey(target)}' cannot be closed`);
       const token = gate.take([engineId], 'close')!;
       const changed = closeNow(engineId);
       gate.release(token);
@@ -878,7 +877,7 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
       const target = held(engineId);
       if (!isEntry(target)) return target;
       if (gate.busy([engineId], 'other')) return busy(target);
-      if (!effective(target).draggable) return refused('not-draggable', `panel '${panelKey(target)}' cannot be moved`);
+      if (source === 'person' && !effective(target).movable) return refused('not-movable', `panel '${panelKey(target)}' cannot be moved`);
       const token = gate.take([engineId], 'other')!;
       const changed = reorderPanel(engineId, by, source === 'person');
       if (changed) followPanel(engineId);
@@ -889,7 +888,7 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
       const target = held(engineId);
       if (!isEntry(target)) return target;
       if (gate.busy([engineId], 'other')) return busy(target);
-      if (!effective(target).placeable) return refused('not-placeable', `panel '${panelKey(target)}' cannot be placed`);
+      if (engineId === rootId || (source === 'person' && !effective(target).movable)) return refused('not-movable', `panel '${panelKey(target)}' cannot be placed`);
       const token = gate.take([engineId], 'other')!;
       const changed = placeAt(engineId, value, source === 'person');
       if (changed) followPanel(engineId);
@@ -989,7 +988,7 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
         if (panel.settings === undefined) return panel;
         const value = core.resolveDefaults(panel).value;
         const defaults = applyTemplate(panel, value, 'reconfigure');
-        return clearOverrides([{ ...defaults, ...(slotsOf(panel) === value.slots ? {} : { slots: value.slots, size: sizeOfSlots(value.slots) }), applied: { placeOnAdd: value.placeOnAdd } }], [panel.id])[0]!;
+        return clearOverrides([{ ...defaults, ...(slotsOf(panel) === value.slots ? {} : { slots: value.slots }), applied: { placeOnAdd: value.placeOnAdd } }], [panel.id])[0]!;
       }),
     reopen: (req) => {
       // The closed views are tokened too: a raw undoClose in this turn restores the very key this call would add.
@@ -1092,7 +1091,7 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
     close: named(raw((id: string) => [id], 'close', (id) => void closeNow(id))),
     recentlyClosed: closing.recentlyClosed?.map(summarisePanel) ?? null,
     undoClose: raw(() => closing.closedIds(), 'other', closing.undoClose),
-    // Drops every clearable panel: never History, a fixed column or a locked one. Its picture goes now, not at an
+    // Drops every clearable panel: never History, a fixed column or an unclearable one. Its picture goes now, not at an
     // undo window: a dropped panel can never be shown again. The ids come from the updater's own list, because
     // this render's `panels` misses a panel created earlier in the same batch.
     clearAll: () => {

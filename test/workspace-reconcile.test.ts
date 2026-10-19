@@ -13,7 +13,6 @@ import { computeRowOrder } from '../panelRowOrder.js';
 import { resolveViewIn } from '../templateView.js';
 import { placeholderFor } from '../viewRegistry.js';
 import { reconcileWorkspace, type ReconcileInput } from '../workspacePlan.js';
-import { sizeOfSlots } from '../panelTiers.js';
 import { projectWorkspaceState, type WorkspacePanelState, type WorkspaceState } from '../workspaceState.js';
 
 const ROOT = 'root';
@@ -89,7 +88,7 @@ test('recordOverride parkable copies collapsible as parkable', () => {
 
 test('recordOverride skips the root, a marker and an entry with no settings', () => {
   const marker: PanelWindow = { ...made('m'), marker: true };
-  const handBuilt: PanelWindow = { id: 'h', url: '', live: true, locked: false, view: 'web', collapsible: true, listed: true };
+  const handBuilt: PanelWindow = { id: 'h', url: '', live: true, view: 'web', collapsible: true, listed: true };
   const rooted = applyTemplate(createHistoryPanel(ROOT), resolvePanelSettings({}, { root: true }).value, 'create');
   const row = computeRowOrder([rooted, marker, handBuilt, made('ok')], ROOT);
   const ids = row.map((p) => p.id);
@@ -104,7 +103,7 @@ test('recordOverride keeps what other keys already hold', () => {
 });
 
 test('clearOverrides sets {} on each listed entry that carries settings and leaves the rest', () => {
-  const handBuilt: PanelWindow = { id: 'h', url: '', live: true, locked: false, view: 'web', collapsible: true, listed: true };
+  const handBuilt: PanelWindow = { id: 'h', url: '', live: true, view: 'web', collapsible: true, listed: true };
   const row = computeRowOrder([createHistoryPanel(ROOT), made('a', {}, { overrides: { slots: 2 } }), made('b', {}, { overrides: { parkable: false } }), handBuilt], ROOT);
   const cleared = clearOverrides(row, ['a', 'h']);
   assert.deepEqual(cleared.map((p) => p.overrides), [undefined, {}, { parkable: false }, undefined]);
@@ -248,15 +247,14 @@ test('overrides.slots 2 restores at two slots although the template now says res
   const saved = file([savedEntry('p', { view: 't', overrides: { slots: 2 } })]);
   const result = run({ saved, templates: [tpl('t', { resizable: false })] });
   assert.equal(result.entries[0]!.slots, 2);
-  assert.deepEqual(result.entries[0]!.size, sizeOfSlots(2));
 });
 
-test('an overrides.anchor restores although draggable and placeable are false', () => {
+test('an overrides.anchor restores although movable is false', () => {
   const saved = file([
     savedEntry('a', { view: 't', overrides: { anchor: { panel: 'b', position: 'right', priority: 0 } } }),
     savedEntry('b', { view: 't', overrides: {}, anchor: { panel: ROOT, position: 'right', priority: 0 } }),
   ]);
-  const result = run({ saved, templates: [tpl('t', { draggable: false, placeable: false })] });
+  const result = run({ saved, templates: [tpl('t', { movable: false })] });
   assert.deepEqual(titles(result.entries), ['b', 'a']);
 });
 
@@ -264,7 +262,6 @@ test('an overrides.slots above maxSlots restores at maxSlots and the overrides t
   const saved = file([savedEntry('p', { view: 't', overrides: { slots: 5, anchor: { panel: ROOT, position: 'right', priority: 0 } } })]);
   const result = run({ saved, templates: [tpl('t', { maxSlots: 2 })] });
   assert.equal(result.entries[0]!.slots, 2);
-  assert.deepEqual(result.entries[0]!.size, sizeOfSlots(2));
   assert.equal(result.entries[0]!.overrides!.anchor !== undefined, true);
 });
 
@@ -326,18 +323,18 @@ test('a fixed column is live whatever it was saved as', () => {
 
 // closable
 
-test('a saved closable false restores locked for a view no template rebuilds, and a template that says closable true wins over it', () => {
+test('a saved closable false restores unclosable for a view no template rebuilds, and a template that says closable true wins over it', () => {
   const unregistered = run({ saved: file([savedEntry('p', { view: 'nobody', closable: false, overrides: {} })]), workspaceDefaults: {} });
-  assert.equal(unregistered.entries[0]!.locked, true);
+  assert.equal(unregistered.entries[0]!.settings!.closable, false);
   const registered = run({ saved: file([savedEntry('p', { view: 't', closable: false, overrides: {} })]), templates: [tpl('t', { closable: true })] });
-  assert.equal(registered.entries[0]!.locked, false);
+  assert.equal(registered.entries[0]!.settings!.closable, true);
   const locked = run({ saved: file([savedEntry('p', { view: 't', overrides: {} })]), templates: [tpl('t', { closable: false })] });
-  assert.equal(locked.entries[0]!.locked, true);
+  assert.equal(locked.entries[0]!.settings!.closable, false);
 });
 
 // lenient restore
 
-test('one entry\'s instance layer holding an unknown key, a wrong type, tuning.rowGap 999 and the removed evictable restores with the valid keys and notes', () => {
+test('one entry\'s instance layer holding an unknown key, a wrong type, a tuning key and the removed evictable restores with the valid keys and notes', () => {
   const instance = { title: 'Kept', bogus: 1, listed: 'maybe', tuning: { rowGap: 999 }, evictable: true } as never;
   const saved = file(line(savedEntry('a', { view: 't', instance, overrides: {} }), savedEntry('b', { view: 't', overrides: {} })));
   const result = run({ saved, templates: [tpl('t')] });
@@ -345,7 +342,7 @@ test('one entry\'s instance layer holding an unknown key, a wrong type, tuning.r
   assert.equal(result.entries[0]!.title, 'Kept');
   assert.deepEqual(result.entries[0]!.instance, { title: 'Kept' }, 'what was invalid is not carried into the next save');
   const notes = result.notes.filter((n) => n.code === 'invalid-saved-setting');
-  assert.deepEqual(notes.map((n) => n.key).sort(), ['bogus', 'evictable', 'listed', 'tuning.rowGap']);
+  assert.deepEqual(notes.map((n) => n.key).sort(), ['bogus', 'evictable', 'listed', 'tuning']);
   assert.ok(notes.every((n) => n.panelId === result.entries[0]!.id));
 });
 

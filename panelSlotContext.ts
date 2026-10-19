@@ -4,8 +4,9 @@
  */
 import * as React from 'react';
 import type { NeighborWidths } from './panelRowEntry.js';
-import type { ChromeTuning, GlideEase, ResolvedPanelSettings, ResolvedPanelTuning, SettingNote } from './panelSettings.js';
+import type { GlideEase, ResolvedPanelSettings, SettingNote } from './panelSettings.js';
 import type { ViewHandle } from './panelTemplate.js';
+import type { SlotTuning } from './panelTuning.js';
 
 /**
  * What a drag of this panel needs to scroll the row at its edge. Absent outside a row and when the row does not
@@ -52,20 +53,17 @@ export interface PanelSlotValue {
   readonly tracking?: boolean | undefined;
   readonly collapsible: boolean;
   readonly closable: ResolvedPanelSettings['closable'];
-  readonly draggable: ResolvedPanelSettings['draggable'];
-  readonly placeable: ResolvedPanelSettings['placeable'];
+  readonly movable: ResolvedPanelSettings['movable'];
   readonly resizable: ResolvedPanelSettings['resizable'];
   readonly maxSlots: ResolvedPanelSettings['maxSlots'];
   readonly neighborWidths: NeighborWidths;
   readonly pinned: boolean;
-  /** How many slots wide the panel is drawn now, and the most it can take: its `maxSlots` or the slots that fit, whichever is fewer. Absent outside a row. */
-  readonly slotRange?: { readonly now: number; readonly most: number } | undefined;
   /** The size the row draws this slot at, which an omitted `size` on `Panel`, `PanelFrame` and `PanelSizeBox` follows. Absent outside a row, where an omitted size is the phone size. */
   readonly drawn?: { readonly width: number; readonly height: number } | undefined;
   /** The panel's own handle, which `usePanelDragProps` closes and moves through and `usePanelPinned` reads. Absent in a row without a workspace. */
   readonly handle?: Pick<ViewHandle, 'close' | 'move' | 'getState' | 'subscribe' | 'setSlots'> | undefined;
-  /** This panel's tuning: its own dragToClose, slide, hopFraction and edgeScroll, and the workspace's row gap. */
-  readonly tuning: ResolvedPanelTuning & { readonly rowGap: number; readonly chrome: ChromeTuning };
+  /** The workspace's tuning this row reads: every slot gets the same values. */
+  readonly tuning: SlotTuning;
   /** Optional so a slot value built by hand (a test, a view mounted outside a row) needs none. */
   readonly dragScroll?: DragScroll | undefined;
   /** The panel's declared header buttons; absent when none are declared or the row has no workspace. */

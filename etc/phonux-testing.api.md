@@ -33,22 +33,13 @@ export type AnchorRequest = {
 export type BezierEase = readonly [number, number, number, number];
 
 // @public
-export type CatalogName = Exclude<keyof PanelSettings, 'tuning'> | `tuning.${Exclude<keyof WorkspaceTuning, 'shrinkOutOfView'>}`;
+export type CatalogName = keyof PanelSettings | `tuning.${Exclude<keyof WorkspaceTuning, 'shrinkOutOfView'>}`;
 
 // @public
 export type ChromeTuning = {
     mode: 'always' | 'hover-or-active';
     fadeMs: number;
     fadeEase: FadeEase;
-    slideMs: number;
-    slidePx: number;
-    graceMs: number;
-    headerGapPx: number;
-    grabPillWidthPx: number;
-    grabPillHeightPx: number;
-    headerInsetPx: number;
-    footerPadXPx: number;
-    footerPadYPx: number;
 };
 
 // @public
@@ -117,13 +108,6 @@ export type DragToCloseTuning = {
     flickMinDistancePx: number;
     flickVelocity: number;
     cancelVelocity: number;
-    directionLockPx: number;
-    restMs: number;
-    velocityWindowMs: number;
-    snapBack: {
-        stiffness: number;
-        damping: number;
-    };
 };
 
 // @public
@@ -291,7 +275,7 @@ export type PanelReadHandle = {
 };
 
 // @public
-export type PanelRefusal = 'disposed' | 'not-attached' | 'not-ready' | 'is-pending' | 'is-closed' | 'not-live' | 'busy' | 'not-closable' | 'not-parkable' | 'not-draggable' | 'not-placeable' | 'not-resizable' | 'slots-above-max' | 'would-empty-row' | 'instance-limit' | 'unknown-panel' | 'wrong-scope' | 'would-reshape-row' | 'settings-conflict' | 'not-view-settable';
+export type PanelRefusal = 'disposed' | 'not-attached' | 'not-ready' | 'is-pending' | 'is-closed' | 'not-live' | 'busy' | 'not-closable' | 'not-parkable' | 'not-movable' | 'not-resizable' | 'slots-above-max' | 'would-empty-row' | 'instance-limit' | 'unknown-panel' | 'wrong-scope' | 'would-reshape-row' | 'settings-conflict' | 'not-view-settable';
 
 // @public
 export type PanelResult = {
@@ -348,7 +332,6 @@ export interface PanelSeed {
 export type PanelSettings = {
     [K in keyof SettingValues]?: SettingValues[K];
 } & {
-    tuning?: PanelTuning;
     headerButtons?: {
         [id: string]: HeaderButton | false;
     };
@@ -402,7 +385,6 @@ export interface PanelSummary<P = JsonValue> {
     readonly fitSlots?: number;
     readonly id: string;
     readonly live: boolean;
-    readonly locked: boolean;
     readonly maxSlots?: number;
     readonly params?: P;
     readonly size?: PanelSize;
@@ -410,20 +392,6 @@ export interface PanelSummary<P = JsonValue> {
     readonly title?: string;
     readonly url?: string;
 }
-
-// @public
-export type PanelTuning = {
-    dragToClose?: {
-        [K in keyof DragToCloseTuning]?: DragToCloseTuning[K];
-    };
-    slide?: {
-        [K in keyof SlideTuning]?: SlideTuning[K];
-    };
-    hopFraction?: number;
-    edgeScroll?: {
-        [K in keyof EdgeScrollTuning]?: EdgeScrollTuning[K];
-    };
-};
 
 // @public
 export interface PanelViewProps<P extends JsonValue = JsonValue> {
@@ -515,18 +483,9 @@ export type ResolvedPanelSettings = {
     readonly [K in Exclude<keyof SettingValues, 'title'>]: SettingValues[K];
 } & {
     readonly title?: string;
-    readonly tuning: ResolvedPanelTuning;
     readonly headerButtons: {
         readonly [id: string]: HeaderButton;
     };
-};
-
-// @public
-export type ResolvedPanelTuning = {
-    dragToClose: DragToCloseTuning;
-    slide: SlideTuning;
-    hopFraction: number;
-    edgeScroll: EdgeScrollTuning;
 };
 
 // @public
@@ -591,9 +550,8 @@ export type SettingsPatch = {
 export type SettingValues = {
     closable: boolean;
     parkable: boolean;
-    draggable: boolean;
+    movable: boolean;
     crossable: boolean;
-    placeable: boolean;
     resizable: boolean;
     clearable: boolean;
     hostCreatable: boolean;
@@ -735,7 +693,17 @@ export type WorkspaceStorage = {
 };
 
 // @public
-export type WorkspaceTuning = PanelTuning & {
+export type WorkspaceTuning = {
+    dragToClose?: {
+        [K in keyof DragToCloseTuning]?: DragToCloseTuning[K];
+    };
+    slide?: {
+        [K in keyof SlideTuning]?: SlideTuning[K];
+    };
+    hopFraction?: number;
+    edgeScroll?: {
+        [K in keyof EdgeScrollTuning]?: EdgeScrollTuning[K];
+    };
     rowGap?: number;
     saveQuietMs?: number;
     gestureLockMs?: number;

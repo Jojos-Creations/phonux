@@ -83,12 +83,12 @@ test('definePanel: the view must be a component: a function, a memo or a lazy co
   }
 });
 
-test('definePanel: the template settings go through the resolver, so a bad key, value or workspace-only tuning key is invalid-settings naming the template layer', () => {
+test('definePanel: the template settings go through the resolver, so a bad key, value or tuning key is invalid-settings naming the template layer', () => {
   const rows: ReadonlyArray<readonly [what: string, settings: unknown, key: string]> = [
     ['an unknown key', { nope: 1 }, 'nope'],
     ['a wrong type', { closable: 'yes' }, 'closable'],
-    ['an out-of-range tuning member', { tuning: { dragToClose: { distanceFraction: 7 } } }, 'tuning.dragToClose.distanceFraction'],
-    ['a workspace-only tuning key', { tuning: { rowGap: 8 } }, 'tuning.rowGap'],
+    ['a tuning key with a workspace leaf', { tuning: { dragToClose: { distanceFraction: 0.3 } } }, 'tuning'],
+    ['a tuning key with a workspace-only leaf', { tuning: { rowGap: 8 } }, 'tuning'],
     ['an invalid pin definition', { pinning: { pinned: { placement: 'row-end' }, unpinned: { placement: 'row-start' } } }, 'pinning'],
     ['an in-place placeOnAdd', { placeOnAdd: 'in-place' }, 'placeOnAdd'],
   ];

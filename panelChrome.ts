@@ -4,11 +4,10 @@
  */
 import * as React from 'react';
 import { animate, useReducedMotion, useReducedMotionConfig } from 'motion/react';
-import { type ChromeTuning, LIBRARY_TUNING_DEFAULTS, type PanelId } from './panelSettings.js';
+import { LIBRARY_TUNING_DEFAULTS, type PanelId } from './panelSettings.js';
 import type { ReorderHandle } from './dragToClose.js';
 import { warnCounterId } from './panelIds.js';
 import { PanelSlotContext } from './panelSlotContext.js';
-import { CHROME } from './rowConstants.js';
 import { reorderStepsForOffset } from './panelWindow.js';
 
 /**
@@ -404,7 +403,7 @@ export function useChromeFade(visible: boolean): (node: HTMLElement | null) => v
 /**
  * The `onClose` and `reorder` of the panel this hook is called in, to spread onto `DragToClose`: a close and a move
  * through the panel's own handle, so both are gated and answer a `PanelResult`. A close is offered when the panel is
- * closable and sits in a column that closes; a reorder when it is draggable, and a release crossing several
+ * closable and sits in a column that closes; a reorder when it is movable, and a release crossing several
  * neighbours is one `move`. The reorder's `onStep` is the same call for the grab strip's Arrow keys. Outside a row with a workspace there is no handle, so it returns neither.
  * @public
  */
@@ -414,7 +413,7 @@ export function usePanelDragProps(): { onClose?: () => void; reorder?: ReorderHa
   if (slot === undefined || handle === undefined) return {};
   const props: { onClose?: () => void; reorder?: ReorderHandle } = {};
   if (slot.collapsible && slot.closable) props.onClose = () => void handle.close('person');
-  if (slot.draggable) {
+  if (slot.movable) {
     props.reorder = {
       onDragEnd: (offset) => {
         const steps = reorderStepsForOffset(offset, slot.neighborWidths, slot.tuning.rowGap, slot.tuning.hopFraction);
@@ -429,5 +428,3 @@ export function usePanelDragProps(): { onClose?: () => void; reorder?: ReorderHa
   return props;
 }
 
-/** The chrome's pixel values the row gives its panels: the workspace's `tuning.chrome`, or the library's defaults outside a row. */
-export const useChromePixels = (): ChromeTuning => React.useContext(PanelSlotContext)?.tuning.chrome ?? CHROME;

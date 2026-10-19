@@ -58,8 +58,8 @@ export function mountRow(entries: PanelWindow[], width: number, over: Partial<Om
     return withHost(
       React.createElement(
         Workspace,
-        { overflowContainerRef: ref, rowRef, containerWidth, rowResizeSettled: true, phoneWidth: 390, fixedColumnCount: provided.fixedViewCount, liveWidths: provided.liveWidths, rowScroll: provided.rowScroll, rowNumbers: provided.rowNumbers, tuning: provided.tuning } as never,
-        React.createElement(PanelRow, { entries: provided.entries, rootId: ROOT, closingIds: NONE, enteringViaAnchorIds: NONE, rowNumbers: provided.rowNumbers, tuning: provided.tuning, workspace }),
+        { overflowContainerRef: ref, rowRef, containerWidth, rowResizeSettled: true, phoneWidth: 390, fixedColumnCount: provided.fixedViewCount, liveWidths: provided.liveWidths, rowScroll: provided.rowScroll, rowNumbers: provided.rowNumbers, workspace } as never,
+        React.createElement(PanelRow, { entries: provided.entries, rootId: ROOT, closingIds: NONE, enteringViaAnchorIds: NONE, rowNumbers: provided.rowNumbers, workspace }),
       ),
       createFakeHost({ panels: provided }),
     );

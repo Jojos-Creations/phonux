@@ -22,14 +22,13 @@ const entry = (id: string, live: boolean, over: Partial<PanelWindow> = {}): Pane
   url: `https://${id}.example`,
   title: id,
   live,
-  locked: false,
   view: 'km-view',
   collapsible: true,
   listed: true,
   settings: { ...base, overflow: 'park' },
   ...over,
 });
-const root = (): PanelWindow => ({ id: 'root', url: '', title: 'History', live: true, locked: true, view: 'km-root', collapsible: false, listed: false });
+const root = (): PanelWindow => ({ id: 'root', url: '', title: 'History', live: true, view: 'km-root', collapsible: false, listed: false });
 const NONE: ReadonlySet<string> = new Set();
 const rowOf = (entries: PanelWindow[]): React.ReactElement => withHost(React.createElement(StaticRow, { entries, rootId: 'root', closingIds: NONE, enteringViaAnchorIds: NONE }));
 const slotOf = (container: HTMLElement, id: string): HTMLElement => {

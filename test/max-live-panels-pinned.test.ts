@@ -41,10 +41,10 @@ test('pinned: a wide pinned panel is not parked in place of an unpinned one', as
   assert.equal(r.row(), 'w1 root w2* w3* w4 w5 w6 w7 w8', 'two unpinned panels park, exactly as many as exceed N');
 });
 
-test('pinned: a pinned panel stays draggable, placeable and parkable', async () => {
+test('pinned: a pinned panel stays movable and parkable', async () => {
   const r = await capRig({ count: 6, cap: 5, pinned: ['w1'] });
   const { settings } = r.ws.panels.get('w1')!.getState();
-  assert.deepEqual([settings.draggable, settings.placeable, settings.parkable], [true, true, true]);
+  assert.deepEqual([settings.movable, settings.parkable], [true, true]);
 });
 
 // ---------------------------------------------------------------------------

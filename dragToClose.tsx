@@ -39,16 +39,12 @@ export const DRAG_CLOSE = {
 } as const;
 
 /** What a DragToClose outside any row reads: the library defaults. */
-const OUTSIDE_ROW_DRAG: DragToCloseTuning = {
+const OUTSIDE_ROW_DRAG: Readonly<DragToCloseTuning> = {
   distanceFraction: DRAG_CLOSE.distanceFraction,
   minDistancePx: DRAG_CLOSE.minDistancePx,
   flickMinDistancePx: DRAG_CLOSE.flickMinDistancePx,
   flickVelocity: DRAG_CLOSE.flickVelocity,
   cancelVelocity: DRAG_CLOSE.cancelVelocity,
-  directionLockPx: DIRECTION_LOCK_PX,
-  restMs: DRAG_REST_MS,
-  velocityWindowMs: DRAG_VELOCITY_WINDOW_MS,
-  snapBack: { stiffness: DRAG_CLOSE.snapBack.stiffness, damping: DRAG_CLOSE.snapBack.damping },
 };
 
 /** The five numbers the close rule reads. */
@@ -363,9 +359,8 @@ export function DragToClose(input: {
   children: (handle: DragHandleProps) => React.ReactNode;
 }): React.ReactElement {
   const slot = React.useContext(PanelSlotContext);
-  const lockPx = (slot?.tuning.dragToClose ?? OUTSIDE_ROW_DRAG).directionLockPx;
   // The distance is the direction lock, a hair under it because the sensor wants to be passed and a lock is reached.
-  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: Math.max(0, lockPx - 0.01) } }));
+  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: Math.max(0, DIRECTION_LOCK_PX - 0.01) } }));
   const labels = resolveLabels(useOptionalHost()?.labels);
   // dnd-kit would name the drag 'draggable item' and a React id; inside a row it says the panel's title instead.
   const handle = slot?.handle;
@@ -454,9 +449,9 @@ function DragToCloseBox({
     return giveBackSelection;
   }, []);
   const closing = React.useRef(false); // a release has decided to close: the exit runs and takes no more presses
-  // Set once the first `directionLockPx` decides; null until then, and always for a vertical-only handle.
+  // Set once the first `DIRECTION_LOCK_PX` of movement decides; null until then, and always for a vertical-only handle.
   const axisLock = React.useRef<'x' | 'y' | null>(null);
-  const snapBack = { type: 'spring', stiffness: drag.snapBack.stiffness, damping: drag.snapBack.damping } as const;
+  const snapBack = DRAG_CLOSE.snapBack;
 
   // overflow-y: hidden while a drag is live: the transformed box would otherwise add a scrollbar.
   const lockScrollParents = () => {
@@ -549,7 +544,7 @@ function DragToCloseBox({
         // Every move is a sample, stamped by the browser: a short flick is a few events, and a frame loop would see fewer.
         const kept = samples.current;
         kept.push({ t: event.timeStamp, y: clientY - pointer.current.downY });
-        while (kept.length > 2 && kept[0]!.t < event.timeStamp - (slotRef.current?.tuning.dragToClose ?? OUTSIDE_ROW_DRAG).velocityWindowMs) kept.shift();
+        while (kept.length > 2 && kept[0]!.t < event.timeStamp - DRAG_VELOCITY_WINDOW_MS) kept.shift();
       }
     }
     if (event.type === 'pointermove') return latestMove.current();
@@ -575,7 +570,7 @@ function DragToCloseBox({
       const rowSlot = slotRef.current;
       // The pointer offset plus the row's scroll distance is what the release hands the hop rule.
       const total = (edge.held() ? edge.pointerOffset() : dx) + scrollX.get();
-      if (rowSlot?.draggable === true) preview(total);
+      if (rowSlot?.movable === true) preview(total);
     }
     // The losing axis is held at zero on every move: a locked box moves on one axis only. Upward y is not followed.
     if (axisLock.current === 'x') {
@@ -592,7 +587,7 @@ function DragToCloseBox({
   // context renders its start; dnd-kit decides when the press is a drag (and ends or cancels it), this decides what the box does.
   latestMove.current = () => {
     if (engaged.current) return;
-    if (Math.hypot(pointer.current.x - pointer.current.downX, pointer.current.y - pointer.current.downY) < drag.directionLockPx) return;
+    if (Math.hypot(pointer.current.x - pointer.current.downX, pointer.current.y - pointer.current.downY) < DIRECTION_LOCK_PX) return;
     engaged.current = true;
     axisLock.current = null;
     slotRef.current?.setDragging?.(true);
@@ -677,7 +672,7 @@ function DragToCloseBox({
       const height = rect?.height ?? 0;
       const recent = samples.current;
       const last = recent[recent.length - 1];
-      const rested = released.current - (last?.t ?? 0) > (slotRef.current?.tuning.dragToClose ?? OUTSIDE_ROW_DRAG).restMs;
+      const rested = released.current - (last?.t ?? 0) > DRAG_REST_MS;
       const velocityY = rested ? 0 : peakSpeed(recent);
       if (closeRef.current !== undefined && closableRef.current && shouldCloseOnRelease({ offsetY: Math.max(0, dy), velocityY, height }, drag)) {
         if (reduceMotion) return closeRef.current();

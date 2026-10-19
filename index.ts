@@ -76,7 +76,7 @@ export type { MinWorkspaceWidthInput } from './minWorkspaceWidth.js';
 export type { RowLayoutInput, RowLayoutResult } from './panelRowLayout.js';
 export { computeRowNumbers } from './rowNumbers.js';
 export type { RowNumbers } from './rowNumbers.js';
-export { PanelRow, usePanelCapabilities, usePanelCloseEligible, usePanelNeighborWidths, usePanelPinned, usePanelReorderEligible, usePanelReorderSteps, usePanelTuning } from './PanelRow.js';
+export { PanelRow, usePanelCapabilities, usePanelNeighborWidths, usePanelPinned, usePanelReorderSteps, usePanelTuning } from './PanelRow.js';
 export { slideToTransition } from './directionalTransition.js';
 export { GAP, PANEL_TRANSITION, PanelSizeBox } from './PanelRowSlot.js';
 export { PanelHeaderButtons, usePanelHeaderButtons } from './panelHeaderButtons.js';
@@ -123,9 +123,7 @@ export type {
   DragToCloseTuning,
   SlideTuning,
   EdgeScrollTuning,
-  PanelTuning,
   WorkspaceTuning,
-  ResolvedPanelTuning,
   ResolvedWorkspaceTuning,
   SettingNote,
   SettingConflict,

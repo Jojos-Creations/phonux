@@ -15,9 +15,11 @@ import { resolveLabels } from './labels.js';
 import { computeRowLayout } from './panelRowLayout.js';
 import { PANEL_TRANSITION } from './PanelRowSlot.js';
 import { slideToTransition } from './directionalTransition.js';
-import type { SlideTuning, WorkspaceTuning } from './panelSettings.js';
+import { LIBRARY_TUNING_DEFAULTS } from './panelSettings.js';
+import type { SlideTuning } from './panelSettings.js';
 import { LandingContext, PhoneSizeContext, useRowHeightBudget } from './phoneFit.js';
-import { RowHeightContext, WorkspaceTuningContext, resolveWorkspaceTuning } from './panelTuning.js';
+import { RowHeightContext } from './panelTuning.js';
+import { bindingOf, type WorkspaceHandle } from './workspaceCore.js';
 import { ChromeStoreContext, createChromeStore, type DrawnPin } from './panelChrome.js';
 import { ROW_GAP, ROW_GESTURE } from './rowConstants.js';
 import { nearestStop, scrollHoldingEdge, snapToStop, type RowNumbers } from './rowNumbers.js';
@@ -154,14 +156,17 @@ export interface WorkspaceProps extends Omit<BoxProps, 'children'> {
   rowNumbers?: RowNumbers;
   /** Clearance above the row, in px. Defaults to the row gap; a host with its own chrome above the scroll container (e.g. a drag strip) passes more. */
   topPadding?: number;
-  /** The row's look tuning; each leaf left out takes the library default. Hand the same value to useProvidePanels, which prices the row's capacity from its rowGap. */
-  tuning?: WorkspaceTuning;
+  /** The workspace this shell draws: its tuning (`rowGap`, `slide`, `resizeSettleSlides`, `rowGesture`) sizes the row's margin and glides. Omitted: the library's tuning defaults. */
+  workspace?: WorkspaceHandle;
   /** Rendered as the scroll container's first child, ahead of the row -- a slot for host content (e.g. a
    * device toast) that must sit there without being absorbed as row content via `children`. */
   beforeRow?: React.ReactNode;
   /** The row's content: the panels. */
   children: React.ReactNode;
 }
+
+/** A subscription that never fires, for a shell given no workspace. */
+const NO_SUBSCRIPTION = (): (() => void) => () => {};
 
 /** Clipped, not display: none, which would hide the live region from a screen reader. */
 const VISUALLY_HIDDEN = { position: 'absolute', width: 1, height: 1, margin: -1, padding: 0, overflow: 'hidden', clip: 'rect(0 0 0 0)', whiteSpace: 'nowrap', border: 0 } as const;
@@ -173,8 +178,9 @@ const VISUALLY_HIDDEN = { position: 'absolute', width: 1, height: 1, margin: -1,
  * @public
  */
 export function Workspace(props: WorkspaceProps): React.ReactElement {
-  const { overflowContainerRef, rowRef, containerWidth, rowResizeSettled: given, phoneWidth, phoneHeight, fixedColumnCount, liveWidths, rowScroll, rowNumbers, topPadding, tuning, beforeRow, children, ...rest } = props;
-  const resolved = React.useMemo(() => resolveWorkspaceTuning(tuning), [tuning]);
+  const { overflowContainerRef, rowRef, containerWidth, rowResizeSettled: given, phoneWidth, phoneHeight, fixedColumnCount, liveWidths, rowScroll, rowNumbers, topPadding, workspace, beforeRow, children, ...rest } = props;
+  const binding = workspace === undefined ? undefined : bindingOf(workspace);
+  const resolved = React.useSyncExternalStore(binding?.subscribe ?? NO_SUBSCRIPTION, () => binding?.tuning ?? LIBRARY_TUNING_DEFAULTS, () => binding?.tuning ?? LIBRARY_TUNING_DEFAULTS);
   const gap = resolved.rowGap;
   const [chromeStore] = React.useState(createChromeStore);
   const reduced = useReducedMotionConfig() === true;
@@ -357,7 +363,6 @@ export function Workspace(props: WorkspaceProps): React.ReactElement {
     <AnnounceContext.Provider value={announce}>
     <PhoneSizeContext.Provider value={phoneSize}>
     <LandingContext.Provider value={landing}>
-    <WorkspaceTuningContext.Provider value={resolved}>
       <ChromeStoreContext.Provider value={chromeStore}>
       <RowHeightContext.Provider value={availableHeight}>
       <Box
@@ -410,7 +415,6 @@ export function Workspace(props: WorkspaceProps): React.ReactElement {
       </Box>
       <OverlaySlot name="toast" />
       </ChromeStoreContext.Provider>
-    </WorkspaceTuningContext.Provider>
     </LandingContext.Provider>
     </PhoneSizeContext.Provider>
     </AnnounceContext.Provider>

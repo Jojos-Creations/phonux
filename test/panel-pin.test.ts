@@ -20,9 +20,9 @@ afterEach(() => cleanup());
 const layer = (pinning: Pinning, more: PanelSettings = {}): PanelSettings => ({ pinning, ...more });
 const pinningOf = (pinned: Pinning['pinned'], unpinned: Pinning['unpinned']): Pinning => ({ pinned, unpinned });
 
-const FREE = { parkable: true, listed: true, placeable: true, draggable: true, clearable: true, pinned: false };
+const FREE = { parkable: true, listed: true, movable: true, clearable: true, pinned: false };
 const PINNED_FREE = { ...FREE, pinned: true };
-const FIXED = { parkable: false, listed: false, placeable: false, draggable: false, clearable: false, pinned: true };
+const FIXED = { parkable: false, listed: false, movable: false, clearable: false, pinned: true };
 
 const PAIR = pinningOf({ parkable: false }, { parkable: true });
 const PAIR_AFTER_DOCK = pinningOf({ placement: { after: 'dock' }, parkable: false }, { placement: 'row-end', parkable: true });
@@ -43,8 +43,8 @@ test('pin() and unpin() under the default definition equal reanchor over literal
     assert.equal(r.order().join(' '), expected, label);
   };
   const before = ['a', 'b', 'c'].map((id) => {
-    const { collapsible, locked, listed, slots } = r.entry(id);
-    return { collapsible, locked, listed, slots };
+    const { collapsible, listed, slots } = r.entry(id);
+    return { collapsible, listed, slots };
   });
   assert.equal(r.order().join(' '), 'root a b c');
   step('pin c', () => r.h.c!.pin(), 'c root a b', 'T');
@@ -54,10 +54,10 @@ test('pin() and unpin() under the default definition equal reanchor over literal
   step('a call already in the target state is changed:false', () => r.h.b!.unpin(), 'root a c b', 'F');
   assert.deepEqual(rows.length, 5);
   const after = ['a', 'b', 'c'].map((id) => {
-    const { collapsible, locked, listed, slots } = r.entry(id);
-    return { collapsible, locked, listed, slots };
+    const { collapsible, listed, slots } = r.entry(id);
+    return { collapsible, listed, slots };
   });
-  assert.deepEqual(after, before, 'collapsible, locked, listed and slots are identical to the start');
+  assert.deepEqual(after, before, 'collapsible, listed and slots are identical to the start');
   assert.deepEqual(['a', 'b', 'c'].map((id) => r.facts(id)), [FREE, FREE, FREE]);
 });
 
@@ -142,7 +142,6 @@ for (const c of REACH) {
 
 test('all or nothing: each refusal leaves the entries reference-equal, with no commit', async () => {
   const cases: Array<{ name: string; settings: PanelSettings; prepare?: (r: PinRig) => void; code: string; setting?: string }> = [
-    { name: 'an explicit placeable:false with a placement half', settings: layer(COMBINED, { placeable: false }), code: 'not-placeable' },
     { name: 'a fixed pin on a two-slot panel', settings: layer(COMBINED), prepare: (r) => void r.turn(() => r.h.c!.setSlots(2)), code: 'slots-above-max' },
   ];
   for (const c of cases) {
@@ -169,12 +168,12 @@ test('a fixed pin keeps an explicit resizable:true the panel asked for, and forc
   assert.deepEqual([plain.value.resizable, plain.value.slots, plain.conflicts.filter((c) => c.key === 'resizable')], [false, 1, []], 'unasked, the fixed column is one slot and not resizable');
 });
 
-test('a pin whose placement half cannot be placed refuses even with the parkable half valid, and unpin of a fixed pin with placeable:false still frees it', async () => {
-  const r = await pinRig({ settings: { c: layer(COMBINED) } });
+test('a pin with a placement half places a movable:false panel, and unpin of a fixed pin frees it', async () => {
+  const r = await pinRig({ settings: { c: layer(COMBINED, { movable: false }) } });
   r.turn(() => r.h.c!.pin());
   assert.deepEqual(r.facts('c'), FIXED);
   assert.equal(brief(r.turn(() => r.h.c!.unpin())), 'T');
-  assert.deepEqual(r.facts('c'), FREE);
+  assert.deepEqual(r.facts('c'), { ...FREE, movable: false }, 'the explicit movable:false stands');
 });
 
 // ---------------------------------------------------------------------------

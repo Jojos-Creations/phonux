@@ -27,24 +27,25 @@ export interface PanelHandle<P extends JsonValue = JsonValue> extends PanelReadH
   hide(source?: 'code' | 'person'): PanelResult;
   /** Hides a live panel, shows a parked one and, for a closed one, reopens it when its `toggleWhenClosed` says so. */
   toggleVisibility(source?: 'code' | 'person'): PanelResult;
-  /** Closes the panel completely; the undo window of the row applies. */
+  /** Closes the panel completely; the undo window of the row applies. A call from code is not limited by `closable`, but the root is never closed; with source `'person'` a panel whose `closable` is false answers `not-closable`. */
   close(source?: 'code' | 'person'): PanelResult;
   /** Brings a closed declared panel back where its `placeOnAdd` says; a panel that is already open stays as it is. */
   open(source?: 'code' | 'person'): PanelResult;
   /**
    * Moves a live panel `by` slots, negative to the left, in one gated call. It stops at the row's end or at a panel it
    * cannot cross; the result is accepted with `changed` true when at least one slot was crossed, and false at an end or for 0.
+   * A call from code is not limited by `movable`, the root's included; with source `'person'` a panel whose `movable` is false answers `not-movable`.
    */
   move(by: number, source?: 'code' | 'person'): PanelResult;
-  /** Puts the panel where `p` says; a parked panel is placed and stays parked. */
+  /** Puts the panel where `p` says; a parked panel is placed and stays parked. Limited by `movable` as `move` is; the root is never placed (`not-movable`), as it cannot be anchored to itself. */
   place(p: AddPlacement | 'in-place', source?: 'code' | 'person'): PanelResult;
-  /** Makes the panel `slots` phone widths wide, clamped to 1 and its `maxSlots`; the row draws at most the slots that fit. */
+  /** Makes the panel `slots` phone widths wide, clamped to 1 and its `maxSlots`; the row draws at most the slots that fit. A call from code is not limited by `resizable`; with source `'person'` a panel whose `resizable` is false answers `not-resizable`. */
   setSlots(slots: number, source?: 'code' | 'person'): PanelResult;
   /** Scrolls the row to a live panel, to `align` or, left out, where the panel's `scrollOnOpen` says. */
   scrollTo(align?: ScrollAlign, source?: 'code' | 'person'): PanelResult;
-  /** Applies the pinned half of the panel's `pinning` in one commit: it is placed, then fixed when the half says so; a panel that is not live follows `pinningWhenNotLive`. */
+  /** Applies the pinned half of the panel's `pinning` in one commit: it is placed, then fixed when the half says so; a panel that is not live follows `pinningWhenNotLive`. The root answers `not-movable`: it cannot be anchored to itself. */
   pin(source?: 'code' | 'person'): PinResult;
-  /** Applies the unpinned half of the panel's `pinning` in one commit: the panel is freed, then placed, so a fixed pin can always be undone. */
+  /** Applies the unpinned half of the panel's `pinning` in one commit: the panel is freed, then placed, so a fixed pin can always be undone. The root answers `not-movable` as `pin` does. */
   unpin(source?: 'code' | 'person'): PinResult;
   /**
    * Changes settings of this panel after it was added; `null` removes an instance value. All or nothing, in one update; the result says what acts now and what waits. A flip of `parkable` on a panel that is not live follows `pinningWhenNotLive`: it may be refused with `would-reshape-row` or `is-closed`, show the panel, or wait and be listed in `later`.

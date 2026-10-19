@@ -9,7 +9,7 @@ import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import createCache from '@emotion/cache';
 import { CacheProvider } from '@emotion/react';
-import { Workspace } from '../index.js';
+import { Workspace, createWorkspace } from '../index.js';
 import type { WorkspaceTuning } from '../index.js';
 import { workspaceShellStyle, type WorkspaceShellStyleInput } from '../Workspace.js';
 import { computeRowNumbers, type RowNumbers } from '../rowNumbers.js';
@@ -53,7 +53,7 @@ test("workspaceShellStyle: the margin is the numbers' rowMarginLeft, 0 for eleve
 
 function markupOf(rowNumbers: RowNumbers, tuning?: WorkspaceTuning): string {
   const ref = { current: null };
-  const workspace = createElement(Workspace, { overflowContainerRef: ref, rowRef: ref, containerWidth: 1000, rowResizeSettled: true, phoneWidth: 390, fixedColumnCount: 1, liveWidths: [], rowNumbers, ...(tuning === undefined ? {} : { tuning }), children: null });
+  const workspace = createElement(Workspace, { overflowContainerRef: ref, rowRef: ref, containerWidth: 1000, rowResizeSettled: true, phoneWidth: 390, fixedColumnCount: 1, liveWidths: [], rowNumbers, ...(tuning === undefined ? {} : { workspace: createWorkspace({ mount: false, tuning }) }), children: null });
   return renderToStaticMarkup(createElement(CacheProvider, { value: createCache({ key: 'css' }), children: workspace }));
 }
 const HIDES_SCROLLBAR = /scrollbar-width:none/;

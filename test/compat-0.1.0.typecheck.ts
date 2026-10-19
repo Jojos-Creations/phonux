@@ -9,8 +9,8 @@ import { createFakeHost } from '../fakeHost.js';
 import type { Host, SettingsAPI } from '../fakeHost.js';
 
 /** A literal naming only the fields 0.1.0 required: every later field has to stay optional. */
-export const rootEntry: PanelWindow = { id: 'root', url: '', live: true, locked: true, view: 'history', collapsible: false, listed: false };
-export const webEntry: PanelWindow = { id: '1', url: 'https://example.com', live: true, locked: false, view: 'web', collapsible: true, listed: true };
+export const rootEntry: PanelWindow = { id: 'root', url: '', live: true, view: 'history', collapsible: false, listed: false };
+export const webEntry: PanelWindow = { id: '1', url: 'https://example.com', live: true, view: 'web', collapsible: true, listed: true };
 
 /** A host-written store: load resolves a saved state or null, save takes one. */
 export const storage: WorkspaceStorage = {

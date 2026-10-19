@@ -1,5 +1,5 @@
 /**
- * The root panel drags sideways like any other panel when its `draggable` setting is on: its neighbours slide aside live
+ * The root panel drags sideways like any other panel when its `movable` setting is on: its neighbours slide aside live
  * through the root's own view and its `grabProps`, and the drop re-anchors exactly the crossed panels to the root's other side.
  */
 import { test, afterEach } from 'node:test';
@@ -80,7 +80,7 @@ const distinct = (commits: string[][]): string[] => commits.map((c) => c.join(' 
 const sides = (r: Rig): Record<string, string> => Object.fromEntries(Object.entries(anchorsOf(r)).map(([k, v]) => [k, v.split(' ').slice(0, 2).join(' ')]));
 
 test('the preview: a held root drag slides the neighbour it would cross aside, and the order changes only at the drop', async () => {
-  const r = await rig({ root: { draggable: true } });
+  const r = await rig({ root: { movable: true } });
   const rest = Object.fromEntries(ALL.map((k) => [k, xOf(r, k)]));
   await hold(r, SPAN * 0.5 + 10);
   await advanceFrames(1000);
@@ -96,7 +96,7 @@ test('the preview: a held root drag slides the neighbour it would cross aside, a
 
 test('the commit: a drop past one panel re-anchors that panel alone, in one commit', async () => {
   const commits: string[][] = [];
-  const r = await rig({ root: { draggable: true }, commits });
+  const r = await rig({ root: { movable: true }, commits });
   const before = sides(r);
   commits.length = 0;
   await hold(r, SPAN * 0.5 + 10);
@@ -111,7 +111,7 @@ test('the commit: a drop past one panel re-anchors that panel alone, in one comm
 
 test('the commit: a drop past two panels re-anchors those two to the root\'s other side and nothing else', async () => {
   const commits: string[][] = [];
-  const r = await rig({ root: { draggable: true }, commits });
+  const r = await rig({ root: { movable: true }, commits });
   const before = sides(r);
   const rest = Object.fromEntries(ALL.map((k) => [k, xOf(r, k)]));
   commits.length = 0;
@@ -128,7 +128,7 @@ test('the commit: a drop past two panels re-anchors those two to the root\'s oth
 });
 
 test('the pin flip: crossed panels read pinned and unpinned by their new side, others are unchanged, and the way back flips them again', async () => {
-  const r = await rig({ root: { draggable: true } });
+  const r = await rig({ root: { movable: true } });
   assert.deepEqual(pinned(r), { a: false, b: false, c: false });
   await hold(r, SPAN * 1.5 + 10);
   await release(SPAN * 1.5 + 10, 0);
@@ -141,7 +141,7 @@ test('the pin flip: crossed panels read pinned and unpinned by their new side, o
 });
 
 test('keys: ArrowRight and ArrowLeft on the root\'s grab handle move it one slot, as they do any panel', async () => {
-  const r = await rig({ root: { draggable: true } });
+  const r = await rig({ root: { movable: true } });
   const press = async (key: string): Promise<void> => {
     await act(async () => void grabOf(r, 'root').dispatchEvent(new KeyboardEvent('keydown', { key, bubbles: true, cancelable: true })));
     await advanceFrames(1500);
@@ -155,9 +155,9 @@ test('keys: ArrowRight and ArrowLeft on the root\'s grab handle move it one slot
   assert.equal(order(r).join(' '), 'root a b c', 'the first slot cannot go further left');
 });
 
-test('without the setting the root is not draggable: no reorder through the handle, key or pointer', async () => {
+test('without the setting the root is not movable: no reorder through the handle, key or pointer', async () => {
   const r = await rig();
-  assert.equal(r.ws.panels.get('root')!.getState().settings.draggable, false);
+  assert.equal(r.ws.panels.get('root')!.getState().settings.movable, false);
   await act(async () => void grabOf(r, 'root').dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true, cancelable: true })));
   await hold(r, SPAN * 1.5 + 10);
   await advanceFrames(1000);
@@ -168,7 +168,7 @@ test('without the setting the root is not draggable: no reorder through the hand
 });
 
 test('a neighbour that cannot be crossed stops the root\'s drag, as it stops any panel', async () => {
-  const r = await rig({ root: { draggable: true } });
+  const r = await rig({ root: { movable: true } });
   act(() => void r.ws.panels.get('b')!.configure({ crossable: false }));
   await advanceFrames(100);
   await hold(r, SPAN * 2.5 + 10);
@@ -177,18 +177,18 @@ test('a neighbour that cannot be crossed stops the root\'s drag, as it stops any
   assert.equal(order(r).join(' '), 'a root b c', 'the root crossed the first panel and stopped before the one that cannot be crossed');
 });
 
-test('settings: draggable true is accepted on the root; closable, parkable and placeable true still answer settings-conflict', async () => {
-  const resolved = resolvePanelSettings({ template: { draggable: true } }, { root: true });
-  assert.deepEqual([resolved.value.draggable, resolved.source.draggable, resolved.conflicts], [true, 'template', []]);
-  assert.deepEqual([resolved.value.closable, resolved.value.parkable, resolved.value.placeable], [false, false, false], 'the rest of C5 stands beside it');
+test('settings: movable true is accepted on the root; closable and parkable true still answer settings-conflict', async () => {
+  const resolved = resolvePanelSettings({ template: { movable: true } }, { root: true });
+  assert.deepEqual([resolved.value.movable, resolved.source.movable, resolved.conflicts], [true, 'template', []]);
+  assert.deepEqual([resolved.value.closable, resolved.value.parkable], [false, false], 'the rest of C5 stands beside it');
   const r = await rig();
   let accepted: ReturnType<typeof r.ws.panels.configure> | undefined;
   act(() => {
-    accepted = r.ws.panels.configure(r.ws.rootId, { draggable: true });
+    accepted = r.ws.panels.configure(r.ws.rootId, { movable: true });
   });
   assert.equal(accepted?.ok, true, 'accepted through the instance door');
-  assert.equal(r.ws.panels.get('root')!.getState().settings.draggable, true);
-  for (const key of ['closable', 'parkable', 'placeable'] as const) {
+  assert.equal(r.ws.panels.get('root')!.getState().settings.movable, true);
+  for (const key of ['closable', 'parkable'] as const) {
     let answer: ReturnType<typeof r.ws.panels.configure> | undefined;
     act(() => {
       answer = r.ws.panels.configure(r.ws.rootId, { [key]: true } as never);
@@ -201,14 +201,14 @@ test('settings: draggable true is accepted on the root; closable, parkable and p
 
 test('a root dragged to the middle is restored there: the saved file names the crossed panels\' sides, and the root\'s place follows', async () => {
   const store = memoryWorkspaceStorage();
-  const first = await rig({ root: { draggable: true }, storage: store });
+  const first = await rig({ root: { movable: true }, storage: store });
   await hold(first, SPAN * 0.5 + 10);
   await release(SPAN * 0.5 + 10, 0);
   await advanceFrames(3000);
   await settle();
   assert.equal(order(first).join(' '), 'a root b c');
   cleanup();
-  const second = await rig({ root: { draggable: true }, storage: store });
+  const second = await rig({ root: { movable: true }, storage: store });
   await settle();
   await advanceFrames(3000);
   assert.equal(order(second).join(' '), 'a root b c');
@@ -218,7 +218,7 @@ test('a root dragged to the middle is restored there: the saved file names the c
 test('under a cap, panels the root crosses to its left are pinned and stay live, and the cap counts only the panels right of the root', async () => {
   const r = await capRig({ count: 6, cap: 2 });
   assert.equal(r.row(), 'root w1* w2* w3* w4* w5 w6');
-  act(() => void r.ws.panels.configure(r.ws.rootId, { draggable: true }));
+  act(() => void r.ws.panels.configure(r.ws.rootId, { movable: true }));
   let answer: { ok: boolean; changed?: boolean } | undefined;
   r.turn(() => {
     answer = r.ws.panels.get(r.ws.rootId)!.move(2);

@@ -35,9 +35,8 @@ export type SettingKeysAreTheCatalogNames = Expect<Equal<keyof SettingValues, No
 export const SETTING_KEYS: Record<keyof SettingValues, true> = {
   closable: true,
   parkable: true,
-  draggable: true,
+  movable: true,
   crossable: true,
-  placeable: true,
   resizable: true,
   slots: true,
   maxSlots: true,
@@ -131,11 +130,11 @@ export const viewClosable: ViewPatch = { closable: true };
 // @ts-expect-error a view places itself only by an anchor
 export const viewPlacement: ViewPatch = { placeOnAdd: 'row-end' };
 
-export const instancePatch: InstancePatch = { closable: false, title: null, tuning: { hopFraction: 0.4 } };
+export const instancePatch: InstancePatch = { closable: false, title: null };
 // @ts-expect-error a template-scope key is not an instance patch key
 export const instanceTemplateKey: InstancePatch = { multiple: true };
 export const settingsPatch: SettingsPatch = { multiple: true, maxInstances: null, headerButtons: { size: false } };
-export const layerSettings: PanelSettings = { overflow: 'park', tuning: { dragToClose: { minDistancePx: 90 } }, headerButtons: { size: false } };
+export const layerSettings: PanelSettings = { overflow: 'park', headerButtons: { size: false } };
 
 export const reader: PanelReader = {
   get: (id) => (id === handle.id ? handle : undefined),

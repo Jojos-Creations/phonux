@@ -29,9 +29,9 @@ const call = (h: PanelHandle, op: Op): PanelResult => {
     case 'toggle': return h.toggleVisibility();
     case 'close': return h.close();
     case 'open': return h.open();
-    case 'move': return h.move(1);
-    case 'place': return h.place('row-end');
-    case 'setSlots': return h.setSlots(2);
+    case 'move': return h.move(1, 'person');
+    case 'place': return h.place('row-end', 'person');
+    case 'setSlots': return h.setSlots(2, 'person');
     case 'scrollTo': return h.scrollTo();
   }
 };
@@ -50,10 +50,10 @@ const TABLE: Record<string, { settings: PanelSettings; cells: Record<State, stri
     },
   },
   immobile: {
-    settings: { draggable: false, placeable: false, resizable: false },
+    settings: { movable: false, resizable: false },
     cells: {
-      live: ['F', 'T', 'T', 'T', 'F', 'not-draggable', 'not-placeable', 'not-resizable', 'F'],
-      parked: ['T', 'F', 'T', 'T', 'F', 'not-live', 'not-placeable', 'not-resizable', 'not-live'],
+      live: ['F', 'T', 'T', 'T', 'F', 'not-movable', 'not-movable', 'not-resizable', 'F'],
+      parked: ['T', 'F', 'T', 'T', 'F', 'not-live', 'not-movable', 'not-resizable', 'not-live'],
       closed: [C, C, 'F', 'F', 'T', C, C, C, C],
       pending: [P, P, P, P, P, P, P, P, P],
     },
@@ -116,11 +116,11 @@ test('the outcomes table ran every cell: executed equals the computed product an
 
 test('a refusal touches nothing: entries reference-equal, no commit, the snapshot unchanged', async () => {
   const cases: Array<{ name: string; settings: Record<string, PanelSettings>; setup?: (r: Rig) => void; run: (r: Rig) => PanelResult; code: string }> = [
-    { name: 'not-closable', settings: { b: { closable: false } }, run: (r) => r.h.b!.close(), code: 'not-closable' },
+    { name: 'not-closable', settings: { b: { closable: false } }, run: (r) => r.h.b!.close('person'), code: 'not-closable' },
     { name: 'not-parkable', settings: { b: { parkable: false } }, run: (r) => r.h.b!.hide(), code: 'not-parkable' },
-    { name: 'not-draggable', settings: { b: { draggable: false } }, run: (r) => r.h.b!.move(-1), code: 'not-draggable' },
-    { name: 'not-placeable', settings: { b: { placeable: false } }, run: (r) => r.h.b!.place('row-start'), code: 'not-placeable' },
-    { name: 'not-resizable', settings: { b: { resizable: false } }, run: (r) => r.h.b!.setSlots(2), code: 'not-resizable' },
+    { name: 'not-movable (a reorder)', settings: { b: { movable: false } }, run: (r) => r.h.b!.move(-1, 'person'), code: 'not-movable' },
+    { name: 'not-movable (a placement)', settings: { b: { movable: false } }, run: (r) => r.h.b!.place('row-start', 'person'), code: 'not-movable' },
+    { name: 'not-resizable', settings: { b: { resizable: false } }, run: (r) => r.h.b!.setSlots(2, 'person'), code: 'not-resizable' },
     { name: 'is-closed', settings: {}, setup: (r) => void r.turn(() => r.h.b!.close()), run: (r) => r.h.b!.hide(), code: 'is-closed' },
     { name: 'not-live', settings: {}, setup: (r) => void r.turn(() => r.h.b!.hide()), run: (r) => r.h.b!.move(-1), code: 'not-live' },
   ];
@@ -183,12 +183,11 @@ type Observe = (value: never) => Promise<unknown>;
 const slotsOf = (r: Rig, id: string): number | undefined => r.m!.latest().entries.find((p) => p.id === r.h[id]!.getState().engineId)?.slots;
 
 const MATRIX: Array<[name: string, a: unknown, b: unknown, observe: Observe, expectA: unknown, expectB: unknown]> = [
-  ['closable', true, false, async (v) => { const r = await rig({ settings: { b: { closable: v } } }); return [brief(r.turn(() => r.h.b!.close())), r.row()]; }, ['T', 'a c ~b'], ['not-closable', 'a b c']],
+  ['closable', true, false, async (v) => { const r = await rig({ settings: { b: { closable: v } } }); return [brief(r.turn(() => r.h.b!.close('person'))), r.row()]; }, ['T', 'a c ~b'], ['not-closable', 'a b c']],
   ['parkable', true, false, async (v) => { const r = await rig({ settings: { b: { parkable: v } } }); return [brief(r.turn(() => r.h.b!.hide())), r.row()]; }, ['T', 'a b* c'], ['not-parkable', 'a b c']],
-  ['draggable', true, false, async (v) => { const r = await rig({ settings: { b: { draggable: v } } }); return [brief(r.turn(() => r.h.b!.move(1))), r.row()]; }, ['T', 'a c b'], ['not-draggable', 'a b c']],
   ['crossable', true, false, async (v) => { const r = await rig({ settings: { c: { crossable: v } } }); return [brief(r.turn(() => r.h.b!.move(1))), r.row()]; }, ['T', 'a c b'], ['F', 'a b c']],
-  ['placeable', true, false, async (v) => { const r = await rig({ settings: { b: { placeable: v } } }); return [brief(r.turn(() => r.h.b!.place('row-start'))), r.row()]; }, ['T', 'b a c'], ['not-placeable', 'a b c']],
-  ['resizable', true, false, async (v) => { const r = await rig({ settings: { b: { resizable: v } } }); return [brief(r.turn(() => r.h.b!.setSlots(2))), slotsOf(r, 'b')]; }, ['T', 2], ['not-resizable', 1]],
+  ['movable', true, false, async (v) => { const r = await rig({ settings: { b: { movable: v } } }); return [brief(r.turn(() => r.h.b!.move(1, 'person'))), brief(r.turn(() => r.h.b!.place('row-start', 'person'))), r.row()]; }, ['T', 'T', 'b a c'], ['not-movable', 'not-movable', 'a b c']],
+  ['resizable', true, false, async (v) => { const r = await rig({ settings: { b: { resizable: v } } }); return [brief(r.turn(() => r.h.b!.setSlots(2, 'person'))), slotsOf(r, 'b')]; }, ['T', 2], ['not-resizable', 1]],
   ['maxSlots', 3, 1, async (v) => { const r = await rig({ settings: { b: { maxSlots: v } } }); return [brief(r.turn(() => r.h.b!.setSlots(3))), slotsOf(r, 'b')]; }, ['T', 3], ['F', 1]],
   ['hideStickiness', 'sticky', 'until-room', async (v) => { const r = await rig({ settings: { b: { hideStickiness: v } } }); r.turn(() => r.h.b!.hide()); return [r.row(), r.h.b!.getState().held]; }, ['a b* c', true], ['a b c', false]],
   ['toggleWhenClosed', 'ignore', 'reopen', async (v) => { const r = await rig({ settings: { b: { toggleWhenClosed: v } } }); r.turn(() => r.h.b!.close()); return [brief(r.turn(() => r.h.b!.toggleVisibility())), r.row()]; }, ['F', 'a c ~b'], ['T', 'a c b']],
@@ -351,9 +350,9 @@ test('reapply: undo puts the panel back at its old slot, and a parked panel come
 
 test('without a workspace undoClose restores the closed entry at its old slot, unchanged', () => {
   let latest!: ProvidedPanels;
-  const entry = (id: string, over: Partial<PanelWindow> = {}): PanelWindow => ({ id, url: `https://${id}.example`, title: id, live: true, locked: false, view: 'web', collapsible: true, listed: true, ...over });
+  const entry = (id: string, over: Partial<PanelWindow> = {}): PanelWindow => ({ id, url: `https://${id}.example`, title: id, live: true, view: 'web', collapsible: true, listed: true, ...over });
   function Probe(): React.ReactElement {
-    latest = useProvidePanels(useSeededInput({ initialEntries: [entry('root', { url: '', locked: true, collapsible: false, listed: false }), entry('a'), entry('b'), entry('c')] }));
+    latest = useProvidePanels(useSeededInput({ initialEntries: [entry('root', { url: '', collapsible: false, listed: false }), entry('a'), entry('b'), entry('c')] }));
     return React.createElement('output');
   }
   mount(React.createElement(Probe));

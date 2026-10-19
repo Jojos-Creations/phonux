@@ -1,9 +1,8 @@
 /**
  * The engine's reading of the look tuning it owns: tuning.rowGap, tuning.dragToClose, tuning.slide and
  * tuning.hopFraction, through a mounted PanelRow where the behaviour is a render and through the pure function where
- * it is arithmetic. One differential per name, then the defaults, the cascade from the workspace to one panel, the
- * scope and range rules, and the interfaces a host calls. Entries are hand-built or made the way a creation path
- * makes them: appendPanel's skeleton, then applyTemplate over a resolved layer.
+ * it is arithmetic. One differential per name, then the defaults, the workspace-only scope, the range rules, and the
+ * interfaces a host calls.
  */
 import { test, afterEach, mock } from 'node:test';
 import assert from 'node:assert/strict';
@@ -26,15 +25,14 @@ import {
   usePanelTuning,
 } from '../index.js';
 import { createWorkspace } from '../index.js';
-import type { PanelSettings, PanelTuning, PanelWindow, ProvidedPanels, SlideTuning, WorkspaceHandle, WorkspaceTuning } from '../index.js';
+import type { PanelWindow, ProvidedPanels, SlideTuning, WorkspaceHandle, WorkspaceTuning } from '../index.js';
 import { SLOT_TRANSITION } from '../directionalTransition.js';
 import { SLIDE_DURATION_SEC, SLIDE_EASE } from '../rowConstants.js';
 import { PanelSlotContext, type PanelSlotValue } from '../panelSlotContext.js';
-import { applyTemplate, resolvePanelSettings } from '../panelSettings.js';
+import { checkTuningLeaf, resolvePanelSettings } from '../panelSettings.js';
 import { resolveWorkspaceTuning } from '../panelTuning.js';
 import { panelRowSlotMotion } from '../PanelRowSlot.js';
 import { workspaceShellStyle } from '../Workspace.js';
-import { appendPanel } from '../panelWindow.js';
 import { differential, differentialsCovered } from './support/differential.js';
 import { drag } from './support/drag-gesture.js';
 import { advanceFrames, cleanup, mount, panelsInput, withHost, StaticRow, seededWorkspace } from './support/mount-harness.js';
@@ -72,24 +70,18 @@ const entry = (id: string, over: Partial<PanelWindow> = {}): PanelWindow => ({
   url: `https://${id}.example`,
   title: id.toUpperCase(),
   live: true,
-  locked: false,
   view: 'tune-view',
   collapsible: true,
   listed: true,
   ...over,
 });
-/** An entry as a creation path builds it, carrying resolved settings whose tuning is `tuning`. */
-function made(id: string, tuning: NonNullable<PanelSettings['tuning']> = {}, over: Partial<PanelWindow> = {}): PanelWindow {
-  const skeleton = appendPanel([], { url: `https://${id}.example`, title: id, view: 'tune-view' }, id, ROOT)[0]!;
-  return applyTemplate({ ...skeleton, instance: { tuning }, ...over }, resolvePanelSettings({ template: { overflow: 'park', tuning } }).value, 'create');
-}
 const NONE: ReadonlySet<string> = new Set();
 /**
  * A seeded workspace that reports its restore as settled. A row holds its slots' moves until the restore settles, and a workspace
  * that was never attached does not, so without this the timing tests would see every move snap.
  */
-function settledWorkspace(entries: readonly PanelWindow[]): WorkspaceHandle {
-  const workspace = seededWorkspace(entries, { rootId: ROOT });
+function settledWorkspace(entries: readonly PanelWindow[], tuning?: WorkspaceTuning): WorkspaceHandle {
+  const workspace = seededWorkspace(entries, { rootId: ROOT, ...(tuning === undefined ? {} : { tuning }) });
   const panels = workspace.panels as { getSnapshot: () => { status: string } };
   const real = panels.getSnapshot.bind(panels);
   panels.getSnapshot = () => ({ ...real(), status: 'ready' });
@@ -97,8 +89,8 @@ function settledWorkspace(entries: readonly PanelWindow[]): WorkspaceHandle {
 }
 /** Holds one settled workspace for the life of a mount, so a rerender with other entries is the same workspace. */
 function SettledRow(props: { entries: PanelWindow[]; tuning?: WorkspaceTuning }): React.ReactElement {
-  const [workspace] = React.useState(() => settledWorkspace(props.entries));
-  return React.createElement(StaticRow, { ...props, workspace, rootId: ROOT, closingIds: NONE, enteringViaAnchorIds: NONE });
+  const [workspace] = React.useState(() => settledWorkspace(props.entries, props.tuning));
+  return React.createElement(StaticRow, { entries: props.entries, workspace, rootId: ROOT, closingIds: NONE, enteringViaAnchorIds: NONE });
 }
 const rowOf = (entries: PanelWindow[], tuning?: WorkspaceTuning): React.ReactElement =>
   withHost(React.createElement(SettledRow, { entries, ...(tuning === undefined ? {} : { tuning }) }));
@@ -206,6 +198,7 @@ test('differential tuning.chrome: an idle panel keeps its header drawn under alw
 /** Whether the row's centring margin glides when a panel joins, `waitMs` after the width changed, under the given leaf. */
 async function glidesAfterResize(waitMs: number, resizeSettleSlides: number): Promise<boolean> {
   mock.timers.enable({ apis: ['setTimeout', 'setInterval'] });
+  const workspace = createWorkspace({ mount: false, tuning: { resizeSettleSlides } });
   const at = (liveWidths: number[], width: number): React.ReactElement =>
     withHost(
       React.createElement(Workspace, {
@@ -215,7 +208,7 @@ async function glidesAfterResize(waitMs: number, resizeSettleSlides: number): Pr
         phoneWidth: 390,
         fixedColumnCount: 1,
         liveWidths,
-        tuning: { resizeSettleSlides },
+        workspace,
         children: React.createElement('i'),
       } as never),
     );
@@ -253,7 +246,7 @@ test('differential tuning.resizeSettleSlides: 1.5 slides after a width change th
 test('the library tuning defaults are exactly these numbers, by key name', () => {
   assert.deepEqual(LIBRARY_TUNING_DEFAULTS, {
     rowGap: 16,
-    dragToClose: { distanceFraction: 0.25, minDistancePx: 80, flickMinDistancePx: 40, flickVelocity: 700, cancelVelocity: -300, directionLockPx: 8, restMs: 50, velocityWindowMs: 100, snapBack: { stiffness: 520, damping: 42 } },
+    dragToClose: { distanceFraction: 0.25, minDistancePx: 80, flickMinDistancePx: 40, flickVelocity: 700, cancelVelocity: -300 },
     slide: { durationSec: 0.6, ease: [0.4, 0, 0.2, 1], closeExitSeconds: 0.18, closeExitEase: 'easeIn', glideEase: 'cubic-out' },
     hopFraction: 0.5,
     edgeScroll: { zonePx: 48, maxPxPerSec: 900, reducedStepMs: 500 },
@@ -265,7 +258,7 @@ test('the library tuning defaults are exactly these numbers, by key name', () =>
     dropTieBreak: 'leftmost',
     rowGesture: 'step',
     initialScroll: 'start',
-    chrome: { mode: 'always', fadeMs: 120, fadeEase: 'easeOut', slideMs: 140, slidePx: 8, graceMs: 250, headerGapPx: 24, grabPillWidthPx: 32, grabPillHeightPx: 4, headerInsetPx: 13, footerPadXPx: 12, footerPadYPx: 8 },
+    chrome: { mode: 'always', fadeMs: 120, fadeEase: 'easeOut' },
     maxLivePanels: null,
     phoneFit: 'off',
     phoneFitMin: 0.82,
@@ -354,7 +347,6 @@ async function sizeGlideMs(render: () => React.ReactElement): Promise<number> {
 test("slide: PanelSizeBox's glide is the panel's resolved slide inside a slot and the shared one outside", async () => {
   const near = (actual: number, seconds: number, what: string): void => assert.ok(Math.abs(actual - seconds * 1000) <= 48, `${what}: ${actual} ms for ${seconds} s`);
   near(await sizeGlideMs(() => rowOf([entry('a', { view: 'tune-size' })], { slide: { durationSec: 0.8 } })), 0.8, "the workspace's slide");
-  near(await sizeGlideMs(() => rowOf([made('a', { slide: { durationSec: 0.6 } }, { view: 'tune-size-own' })], { slide: { durationSec: 0.8 } })), 0.6, "the panel's own slide beats the workspace's");
   near(await sizeGlideMs(() => React.createElement(PanelSizeBox, { width: boxWidth, height: 700, children: React.createElement('i') })), PANEL_TRANSITION.duration, 'outside a slot, the shared transition');
 });
 
@@ -364,8 +356,9 @@ test('PanelSizeBox snaps under Reduce Motion and glides otherwise', async () => 
   assert.equal(await sizeGlideMs(() => React.createElement(MotionConfig, { reducedMotion: 'always' }, rowOf([entry('a', { view: 'snap-size-r' })], slide))), 0, 'Reduce Motion snaps');
 });
 
-/** A Workspace over one PanelRow: `workspace` is the Workspace's tuning, `row` the PanelRow's own prop. */
-function inWorkspace(workspace: WorkspaceTuning, entries: PanelWindow[], rowRef: React.RefObject<HTMLDivElement | null>, liveWidths: number[] = []): React.ReactElement {
+/** A Workspace shell over one PanelRow, both reading one workspace made with `tuning`. */
+function inWorkspace(tuning: WorkspaceTuning, entries: PanelWindow[], rowRef: React.RefObject<HTMLDivElement | null>, liveWidths: number[] = []): React.ReactElement {
+  const workspace = settledWorkspace(entries, tuning);
   return withHost(
     React.createElement(Workspace, {
       overflowContainerRef: { current: null } as React.RefObject<HTMLDivElement | null>,
@@ -375,27 +368,11 @@ function inWorkspace(workspace: WorkspaceTuning, entries: PanelWindow[], rowRef:
       phoneWidth: 390,
       fixedColumnCount: 1,
       liveWidths,
-      tuning: workspace,
-      children: React.createElement(StaticRow, { entries, rootId: ROOT, closingIds: NONE, enteringViaAnchorIds: NONE }),
+      workspace,
+      children: React.createElement(StaticRow, { entries, workspace, rootId: ROOT, closingIds: NONE, enteringViaAnchorIds: NONE }),
     }),
   );
 }
-
-/** x of slot b `frames` frames after it joined a row holding only a. */
-async function joinedX(second: PanelWindow, frames: number): Promise<number> {
-  const mounted = mount(rowOf([entry('a')]));
-  mounted.rerender(rowOf([entry('a'), second]));
-  await advanceFrames(frames * 16);
-  const x = xOf(mounted.container, 'b');
-  mounted.unmount();
-  return x;
-}
-
-test("slide: a panel's own slide, not the workspace's, times that panel's own entrance", async () => {
-  const plain = await joinedX(entry('b'), 8);
-  const slow = await joinedX(made('b', { slide: { durationSec: 0.9 } }), 8);
-  assert.ok(slow > plain, `the panel with its own 0.9 s slide (${slow}) is further from rest than the default ${SLIDE_DURATION_SEC} s one (${plain})`);
-});
 
 test('slide: the Workspace hands its resolved slide to the shell glide', () => {
   const rowRef = { current: null } as React.RefObject<HTMLDivElement | null>;
@@ -452,17 +429,16 @@ test('usePanelReorderSteps: outside a row there are no neighbours, so every offs
 // The cascade, the scope and the ranges
 // ---------------------------------------------------------------------------
 
-test('usePanelTuning: exactly the six keys, the library defaults outside a row and the workspace value inside one', () => {
+test('usePanelTuning: exactly the five row keys, the library defaults outside a row and the workspace value inside one', () => {
   let outside: ReturnType<typeof usePanelTuning> | undefined;
   function Probe(): React.ReactElement {
     outside = usePanelTuning();
     return React.createElement('i');
   }
   mount(React.createElement(Probe));
-  assert.deepEqual(Object.keys(outside!), ['rowGap', 'chrome', 'dragToClose', 'slide', 'hopFraction', 'edgeScroll']);
+  assert.deepEqual(Object.keys(outside!), ['rowGap', 'dragToClose', 'slide', 'hopFraction', 'edgeScroll']);
   assert.deepEqual(outside, {
     rowGap: 16,
-    chrome: { mode: 'always', fadeMs: 120, fadeEase: 'easeOut', slideMs: 140, slidePx: 8, graceMs: 250, headerGapPx: 24, grabPillWidthPx: 32, grabPillHeightPx: 4, headerInsetPx: 13, footerPadXPx: 12, footerPadYPx: 8 },
     dragToClose: LIBRARY_TUNING_DEFAULTS.dragToClose,
     slide: LIBRARY_TUNING_DEFAULTS.slide,
     hopFraction: 0.5,
@@ -470,29 +446,19 @@ test('usePanelTuning: exactly the six keys, the library defaults outside a row a
   });
   const inRow = mount(rowOf([entry('a')], { rowGap: 24, hopFraction: 0.3, edgeScroll: { zonePx: 60 } }));
   const tuning = seenOf('a').tuning;
-  assert.deepEqual(Object.keys(tuning), ['rowGap', 'chrome', 'dragToClose', 'slide', 'hopFraction', 'edgeScroll']);
+  assert.deepEqual(Object.keys(tuning), ['rowGap', 'dragToClose', 'slide', 'hopFraction', 'edgeScroll']);
   assert.equal(tuning.rowGap, 24);
   assert.equal(tuning.hopFraction, 0.3);
   assert.deepEqual(tuning.edgeScroll, { zonePx: 60, maxPxPerSec: 900, reducedStepMs: 500 }, 'a leaf given in part keeps the default for the rest');
   inRow.unmount();
 });
 
-test("cascade: a panel's own dragToClose, slide and hopFraction beat the workspace's for that panel only, and its rowGap is always the workspace's", () => {
+test('every panel in a row reads the same workspace rowGap, dragToClose, slide, hopFraction and edgeScroll', () => {
   const workspace: WorkspaceTuning = { rowGap: 24, dragToClose: { minDistancePx: 100 }, slide: { durationSec: 0.5 }, hopFraction: 0.3, edgeScroll: { zonePx: 60 } };
-  const own = { dragToClose: { minDistancePx: 200 }, slide: { durationSec: 0.9 }, hopFraction: 0.7, edgeScroll: { zonePx: 90 } };
-  const mounted = mount(rowOf([entry('plain'), made('own', own)], workspace));
-  const plain = seenOf('plain').tuning;
-  const mine = seenOf('own').tuning;
-  assert.equal(plain.dragToClose.minDistancePx, 100);
-  assert.equal(plain.slide.durationSec, 0.5);
-  assert.equal(plain.hopFraction, 0.3);
-  assert.equal(plain.edgeScroll.zonePx, 60);
-  assert.equal(mine.dragToClose.minDistancePx, 200);
-  assert.equal(mine.slide.durationSec, 0.9);
-  assert.equal(mine.hopFraction, 0.7);
-  assert.equal(mine.edgeScroll.zonePx, 90);
-  assert.equal(plain.rowGap, 24);
-  assert.equal(mine.rowGap, 24);
+  const mounted = mount(rowOf([entry('one'), entry('two')], workspace));
+  const one = seenOf('one').tuning;
+  assert.deepEqual([one.rowGap, one.dragToClose.minDistancePx, one.slide.durationSec, one.hopFraction, one.edgeScroll.zonePx], [24, 100, 0.5, 0.3, 60]);
+  assert.deepEqual(seenOf('two').tuning, one);
   mounted.unmount();
 });
 
@@ -506,17 +472,14 @@ const refusal = (layers: Parameters<typeof resolvePanelSettings>[0]): PanelManag
   return assert.fail('the layer was accepted');
 };
 
-test('scope: rowGap at the template layer throws invalid-settings naming template.tuning.rowGap, and at the instance layer is a wrong-scope conflict that applies nothing', () => {
-  const thrown = refusal({ template: { tuning: { rowGap: 20 } as PanelTuning } });
+test('scope: a tuning key in a template throws invalid-settings naming template.tuning, and a panel resolves none', () => {
+  const thrown = refusal({ template: { tuning: { rowGap: 20 } } as never });
   assert.equal(thrown.code, 'invalid-settings');
-  assert.match(thrown.message, /template\.tuning\.rowGap/);
-  const res = resolvePanelSettings({ instance: { tuning: { rowGap: 20 } as PanelTuning } });
-  assert.deepEqual(res.conflicts.map((c) => [c.key, c.layer, c.kind]), [['tuning.rowGap', 'instance', 'wrong-scope']]);
-  assert.equal(res.value.tuning.dragToClose.minDistancePx, 80);
-  assert.ok(!('rowGap' in res.value.tuning), 'a panel carries no rowGap of its own');
+  assert.match(thrown.message, /template\.tuning/);
+  assert.ok(!('tuning' in resolvePanelSettings().value), 'a panel carries no tuning');
 });
 
-/** Each per-panel tuning member, its two floors and its two ceilings: [path, value, accepted]. */
+/** Each tuning member, its two floors and its two ceilings: [path, value, accepted]. */
 const RANGES: readonly [string, unknown, boolean][] = [
   ['dragToClose.distanceFraction', 0.05, true],
   ['dragToClose.distanceFraction', 0.049, false],
@@ -530,17 +493,6 @@ const RANGES: readonly [string, unknown, boolean][] = [
   ['dragToClose.flickVelocity', 99, false],
   ['dragToClose.cancelVelocity', -50, true],
   ['dragToClose.cancelVelocity', -49, false],
-  ['dragToClose.directionLockPx', 2, true],
-  ['dragToClose.directionLockPx', 1, false],
-  ['dragToClose.directionLockPx', 64, true],
-  ['dragToClose.directionLockPx', 65, false],
-  ['dragToClose.directionLockPx', 8.5, false],
-  ['dragToClose.snapBack', { stiffness: 50, damping: 5 }, true],
-  ['dragToClose.snapBack', { stiffness: 49, damping: 5 }, false],
-  ['dragToClose.snapBack', { stiffness: 2000, damping: 200 }, true],
-  ['dragToClose.snapBack', { stiffness: 2001, damping: 200 }, false],
-  ['dragToClose.snapBack', { stiffness: 50, damping: 4 }, false],
-  ['dragToClose.snapBack', { stiffness: 50, damping: 201 }, false],
   ['slide.durationSec', 0, true],
   ['slide.durationSec', -0.1, false],
   ['slide.durationSec', 10, true],
@@ -570,25 +522,24 @@ const RANGES: readonly [string, unknown, boolean][] = [
   ['edgeScroll.reducedStepMs', 5000, true],
   ['edgeScroll.reducedStepMs', 5001, false],
 ];
-const layerWith = (path: string, value: unknown): PanelSettings => {
+const layerWith = (path: string, value: unknown): WorkspaceTuning => {
   const [leaf, member] = path.split('.') as [string, string | undefined];
-  return { tuning: { [leaf]: member === undefined ? value : { [member]: value } } } as PanelSettings;
+  return { [leaf]: member === undefined ? value : { [member]: value } } as WorkspaceTuning;
 };
 
 test('ranges: the table has both sides of every floor and ceiling', () => {
-  assert.ok(RANGES.filter(([, , accepted]) => accepted).length >= 20 && RANGES.filter(([, , accepted]) => !accepted).length >= 25);
+  assert.ok(RANGES.filter(([, , accepted]) => accepted).length >= 19 && RANGES.filter(([, , accepted]) => !accepted).length >= 21);
 });
 
 for (const [path, value, accepted] of RANGES) {
-  const shown = JSON.stringify(value);
-  test(`ranges: a template layer ${accepted ? 'accepts' : 'refuses'} tuning.${path} = ${shown}${accepted ? '' : ' with invalid-settings naming the leaf'}`, () => {
+  test(`ranges: the tuning check ${accepted ? 'accepts' : 'refuses'} tuning.${path} = ${JSON.stringify(value)}${accepted ? '' : ' naming the leaf'}`, () => {
+    const [leaf, member] = path.split('.') as [Parameters<typeof checkTuningLeaf>[0], string | undefined];
+    const checked = checkTuningLeaf(leaf, member === undefined ? value : { [member]: value });
     if (accepted) {
-      assert.doesNotThrow(() => resolvePanelSettings({ template: layerWith(path, value) }));
+      assert.deepEqual(checked.problems, []);
       return;
     }
-    const thrown = refusal({ template: layerWith(path, value) });
-    assert.equal(thrown.code, 'invalid-settings');
-    assert.ok(thrown.message.includes(`tuning.${path}`), `${thrown.message} names tuning.${path}`);
+    assert.deepEqual(checked.problems.map((q) => q.key), [`tuning.${path}`]);
   });
 }
 
@@ -596,7 +547,7 @@ const WORKSPACE_RANGES: readonly [string, unknown, boolean][] = [['rowGap', 0, t
 
 for (const [path, value, accepted] of WORKSPACE_RANGES) {
   test(`ranges: ${path} = ${JSON.stringify(value)} in the workspace tuning, a Workspace or a PanelRow ${accepted ? 'is kept' : 'takes its default and nothing throws'}`, () => {
-    const resolved = resolveWorkspaceTuning(layerWith(path, value).tuning as WorkspaceTuning);
+    const resolved = resolveWorkspaceTuning(layerWith(path, value));
     const [leaf, member] = path.split('.') as [keyof typeof LIBRARY_TUNING_DEFAULTS, string | undefined];
     const got = member === undefined ? resolved[leaf] : (resolved[leaf] as Record<string, unknown>)[member];
     const base = member === undefined ? LIBRARY_TUNING_DEFAULTS[leaf] : (LIBRARY_TUNING_DEFAULTS[leaf] as Record<string, unknown>)[member];
@@ -617,9 +568,10 @@ test('ranges: a refused member keeps its default beside an accepted sibling, and
 // Where the resolved value goes
 // ---------------------------------------------------------------------------
 
-test('Workspace provides its tuning to the rows below it, and ProvidedPanels.tuning is the workspace tuning over the library defaults', () => {
+test('Workspace and its rows read the workspace handle tuning, and ProvidedPanels.tuning is the workspace tuning over the library defaults', () => {
   const containerRef = { current: null } as React.RefObject<HTMLDivElement | null>;
   const rowRef = { current: null } as React.RefObject<HTMLDivElement | null>;
+  const handle = settledWorkspace([entry('a')], { rowGap: 32, hopFraction: 0.25 });
   const mounted = mount(
     withHost(
       React.createElement(Workspace, {
@@ -630,8 +582,8 @@ test('Workspace provides its tuning to the rows below it, and ProvidedPanels.tun
         phoneWidth: 390,
         fixedColumnCount: 1,
         liveWidths: [],
-        tuning: { rowGap: 32, hopFraction: 0.25 },
-        children: React.createElement(StaticRow, { seed: { tuning: { rowGap: 32, hopFraction: 0.25 } }, entries: [entry('a')], rootId: ROOT, closingIds: NONE, enteringViaAnchorIds: NONE }),
+        workspace: handle,
+        children: React.createElement(StaticRow, { workspace: handle, entries: [entry('a')], rootId: ROOT, closingIds: NONE, enteringViaAnchorIds: NONE }),
       }),
     ),
   );

@@ -84,8 +84,6 @@ test('rowConstants: every exported constant reaches LIBRARY_TUNING_DEFAULTS, so 
   assert.equal(t.dragToClose.flickVelocity, rowConstants.DRAG_CLOSE_NUMBERS.flickVelocity);
   assert.equal(t.dragToClose.flickMinDistancePx, rowConstants.DRAG_CLOSE_NUMBERS.flickMinDistancePx);
   assert.equal(t.dragToClose.cancelVelocity, rowConstants.DRAG_CLOSE_NUMBERS.cancelVelocity);
-  assert.equal(t.dragToClose.directionLockPx, rowConstants.DIRECTION_LOCK_PX);
-  assert.deepEqual({ ...t.dragToClose.snapBack }, { ...rowConstants.SNAP_BACK_SPRING });
   assert.equal(t.slide.durationSec, rowConstants.SLIDE_DURATION_SEC);
   assert.deepEqual([...t.slide.ease], [...rowConstants.SLIDE_EASE]);
   assert.equal(t.slide.closeExitSeconds, rowConstants.SLIDE_CLOSE_EXIT_SECONDS);
@@ -93,8 +91,6 @@ test('rowConstants: every exported constant reaches LIBRARY_TUNING_DEFAULTS, so 
   assert.equal(t.saveQuietMs, rowConstants.SAVE_QUIET_MS);
   assert.equal(t.gestureLockMs, rowConstants.GESTURE_LOCK_MS);
   assert.equal(t.gestureQuietMs, rowConstants.GESTURE_QUIET_MS);
-  assert.equal(t.dragToClose.restMs, rowConstants.DRAG_REST_MS);
-  assert.equal(t.dragToClose.velocityWindowMs, rowConstants.DRAG_VELOCITY_WINDOW_MS);
   assert.equal(t.slide.closeExitEase, rowConstants.CLOSE_EXIT_EASE);
   assert.equal(t.slide.glideEase, rowConstants.GLIDE_EASE);
   assert.deepEqual({ ...rowConstants.ROW_LAYER_Z }, { BASE: 1, RAISED: 2, DRAGGED: 3 });
@@ -108,9 +104,14 @@ test('rowConstants: every exported constant reaches LIBRARY_TUNING_DEFAULTS, so 
   assert.equal(t.phoneFitMin, rowConstants.PHONE_FIT_MIN);
   assert.equal(t.phoneFitMax, rowConstants.PHONE_FIT_MAX);
   assert.equal(rowConstants.RESIZE_SETTLE_SLIDES, 1.25);
+  assert.equal(rowConstants.DIRECTION_LOCK_PX, 8);
+  assert.deepEqual({ ...rowConstants.SNAP_BACK_SPRING }, { stiffness: 520, damping: 42 });
+  assert.equal(rowConstants.DRAG_REST_MS, 50);
+  assert.equal(rowConstants.DRAG_VELOCITY_WINDOW_MS, 100);
+  assert.deepEqual([rowConstants.HEADER_GAP_PX, rowConstants.GRAB_HANDLE_PX, rowConstants.HEADER_INSET_PX, rowConstants.FOOTER_PAD_X_PX, rowConstants.FOOTER_PAD_Y_PX], [4, 24, 13, 12, 8]);
   assert.equal(rowConstants.ALL_SLOTS, 64);
   assert.equal(rowConstants.UNMEASURED_SLOTS, 3);
-  assert.equal(Object.keys(rowConstants).length, 32, 'the module exports exactly the 26 constants this test compares, the 4 slot constants and the 2 slot helpers');
+  assert.equal(Object.keys(rowConstants).length, 37, 'the module exports exactly the 31 constants this test compares, the 4 slot constants and the 2 slot helpers');
 });
 
 test('rowConstants: no source file outside rowConstants.ts declares its own copy of the save delay or the gesture lock', () => {

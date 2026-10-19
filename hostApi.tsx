@@ -76,8 +76,6 @@ export interface PanelSummary<P = JsonValue> {
   readonly title?: string;
   /** Mounted in the row now (false = parked, listed in History only). */
   readonly live: boolean;
-  /** Whether a drag-down close is offered for this panel. A live/spawned panel is always false. */
-  readonly locked: boolean;
   /** Opaque per-panel data a create() caller supplied; undefined for built-ins. */
   readonly params?: P;
   /** How many phone-panel widths wide the panel is set to; the row draws it at most as wide as the slots that fit (`drawnSlots`). */
@@ -151,7 +149,7 @@ export interface CreatePanelOptions {
    * Makes the new entry a permanent column: `collapsible:false` (never parked by a row gesture or capacity,
    * never a drag source, and counted in the capacity floor) and `listed:false`, forced regardless of
    * any `listed` also passed, so a permanent column supplies its own close control rather than the History row's
-   * trash. `locked` stays false always: closing it through its own control still works. Default false.
+   * trash. Its own control closes it through `close`, which `closable` does not limit. Default false.
    */
   permanent?: boolean;
   /** How many phone-panel widths wide the new panel is (see `setSlots`), clamped to 1 and its `maxSlots`. Ignored with `permanent`: a permanent column is always one slot. Default 1. */
@@ -181,8 +179,7 @@ export interface PanelsAPI {
   /**
    * Appends a live panel; zero-arg opens a panel of the host's default view. `view` names the template that renders
    * the panel -- an unknown key renders a placeholder, never a crash. No raw
-   * `collapsible`/`locked` key: `permanent` (CreatePanelOptions) is the only door to a permanent column, and
-   * `locked` is never settable at all. A panel whose `overflow` setting is 'park' parks the live parkable panel
+   * `collapsible` key: `permanent` (CreatePanelOptions) is the only door to a permanent column. A panel whose `overflow` setting is 'park' parks the live parkable panel
    * touched longest ago at capacity; any other panel scrolls the row instead of parking anything.
    * @deprecated Use `useWorkspace().panels.addPanel(template)`. Still works, with one development warning; removed in a later release.
    */
@@ -231,7 +228,7 @@ export interface PanelsAPI {
   readonly recentlyClosed: readonly PanelSummary[] | null;
   /** Undo every close in `recentlyClosed`: each view returns at its old place (a live one comes back live, parking the live parkable one touched longest ago if the row is full and its `overflow` is 'park') and its log entry is removed. Does nothing when the window is closed. */
   undoClose(): void;
-  /** Forgets every panel that is clearable; History, a fixed column and a locked panel stay. Not logged and not undoable. */
+  /** Forgets every panel that is clearable; History, a fixed column and an unclearable panel stay. Not logged and not undoable. */
   clearAll(): void;
 }
 

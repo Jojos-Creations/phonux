@@ -29,7 +29,7 @@ interface ClosedView {
 export type Reapplied = { panel: PanelWindow; placeAs: 'old-slot' | AddPlacement };
 
 export interface UsePanelClosingResult {
-  /** Closes a view completely and opens the undo window, or extends it to at least the panel's `undoWindowMs` from now (a panel with 0 is final at once). Unknown, locked or already-closed id: does nothing and answers false. */
+  /** Closes a view completely and opens the undo window, or extends it to at least the panel's `undoWindowMs` from now (a panel with 0 is final at once). Unknown, root or already-closed id: does nothing and answers false. */
   close: (id: string) => boolean;
   /** Drops the views closed inside the window whose key is `key`, so an undo has nothing to skip or report for them. True when one was dropped. */
   forgetClosed: (key: string) => boolean;
@@ -132,8 +132,8 @@ export function usePanelClosing(
 
   const close = (id: string): boolean => {
     const found = closePanel(panels, id, rootId);
-    // A locked entry's close is a no-op: the one lock gate, which every entry (History included) goes through.
-    if (!found || claimed.current.has(id) || found.closed.locked) return false;
+    // The root's close is a no-op: the one gate every close goes through.
+    if (!found || claimed.current.has(id) || id === rootId) return false;
     claimed.current.add(id);
     const settings = effective(found.closed);
     // Commits ALONE, before the removal: AnimatePresence takes an exiting child's `exit` from its LAST props

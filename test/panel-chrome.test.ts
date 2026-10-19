@@ -10,7 +10,7 @@ import { act } from 'react';
 import { createPortal } from 'react-dom';
 import { MotionConfig, animate, cubicBezier } from 'motion/react';
 import * as entry from '../index.js';
-import { DragToClose, Panel, PanelFrame, useActivePanel, useHost, usePanelActive, usePanelDragging, usePanelTuning } from '../index.js';
+import { DragToClose, Panel, PanelFrame, useActivePanel, useHost, usePanelActive, usePanelDragging } from '../index.js';
 import { createChromeStore } from '../panelChrome.js';
 
 // Read off the package entry, so a name the entry stops exporting fails a test and does not break the file's load.
@@ -39,7 +39,6 @@ function Controls(): React.ReactElement {
 function ChromeView({ id }: { id: string }): React.ReactElement {
   const active = usePanelActive();
   const dragging = usePanelDragging();
-  const tuning = usePanelTuning();
   const { panels } = useHost();
   renders[id] = (renders[id] ?? 0) + 1;
   return React.createElement(DragToClose, {
@@ -54,7 +53,7 @@ function ChromeView({ id }: { id: string }): React.ReactElement {
           React.createElement(
             PanelFrame,
             null,
-            React.createElement('button', { type: 'button', 'data-body': id }, `${id} ${active ? 'active' : ''} ${dragging ? 'dragging' : ''} ${tuning.chrome.mode}`),
+            React.createElement('button', { type: 'button', 'data-body': id }, `${id} ${active ? 'active' : ''} ${dragging ? 'dragging' : ''}`),
             id === 'c1' ? React.createElement(Controls) : null,
             portalHost === null ? null : createPortal(React.createElement('button', { type: 'button', 'data-portaled': id }, 'portaled'), portalHost),
           ),

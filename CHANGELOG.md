@@ -4,6 +4,9 @@
 
 ### Breaking
 
+- A panel's `size` is derived, never stored: `PanelWindow.size` and `sizeOfSlots` are removed, and `applyTemplate`, `setSlots` and a settings reset no longer write one. `PanelSummary.size` stays and is the size the row draws the slot at (its drawn width and height), so it is always present in a row. `PanelRowEntry` has no `size`. **Migration:** a hand-built `PanelWindow` drops `size`; a saved workspace never held one, and one that is handed an entry carrying it ignores it.
+- `PanelSlotValue.slotRange` is removed (nothing read it). `maxSlots` is exposed through `usePanelCapabilities()` for views and `PanelSummary.maxSlots` for hosts. `pinned` has one source, `isPinned`: the slot's own flag followed a left-of-root formula and disagreed with `PanelState.pinned` under a `pinning` that reads by `parkable`.
+
 - A saved workspace no longer carries a panel's counter id, so reopening a workspace rewrites nothing: counter ids restart at 1 each launch, and a file that held them
   changed every panel's saved bytes at the first save after a relaunch even though nothing had changed. `WorkspacePanelState.id` is optional and never written; an entry's
   `anchor.panel`, `overrides.anchor.panel` and the file's `scroll.panel` name another panel by its `uid` (its `key` for an entry with no uid), and the host's root column keeps its id.
@@ -11,6 +14,7 @@
   from a saved entry reads `uid` or `key`; a library at 0.1.0 reads a file this version writes as invalid, because its guard requires `id`.
 - `PanelFrame` no longer styles the content it holds: the 12px inset, the scrollbar gutter and the `::-webkit-scrollbar` rules are gone, so the view owns its padding and scrolling. The scroller recipe is removed (see Removed). **Migration:** a view that scrolls writes its own padding and scrollbar rules in its `sx` on its own scroller. `panelFrameBareSx` is an empty deprecated object; delete the spread. `panelFrameBareSx`, `PANEL_CORNER_RADIUS_UNITS` and `panelCornerRadiusPx` stay exported.
 - Nineteen per-panel settings are removed from `PanelSettings`, `ResolvedPanelSettings`, `ViewPatch`, `InstancePatch`, `SettingsPatch`, `LIBRARY_PANEL_DEFAULTS` and `PANEL_SETTINGS_CATALOG`, so the 1.0 freeze covers only settings a panel author can use: `hideWhenLast`, `returnPriority`, `evictionRank`, `evictionOrder`, `scrollOnDrag`, `viewState`, `keepMounted`, `frame`, `placeOnReturn`, `placeFallback`, `undoPlacement`, `exitTo`, `closeExit`, `animated`, `persist`, `rememberLayout`, `undoWindowMs`, `reportClose` and `snapshot`. Every panel behaves as each did at its default, except `evictionOrder`, which is least recently touched (DESIGN.md, "Settings this version removed"). **Migration:** delete the key from the template. A template that still sets one is told once in development (`console.error`, naming the key) and the value is ignored; the next rc refuses it with `invalid-settings`. A saved file that holds one in a panel's instance layer still loads: the key is dropped with an `invalid-saved-setting` note. Coupling rules C3 and C6 went with their settings; `SettingConflict.rule` is `'C1' | 'C2' | 'C4' | 'C5'`, and the `park-lever-inert` note covers only `capacityReturn`.
+- `draggable` and `placeable` are one setting, `movable` (default from `parkable`, so false on the root until a layer sets it), and `closable`, `movable` and `resizable` limit only a person's gestures: the drag-down close and close button, the reorder drag and a drop at a placement, the resize grabbers. The developer's own `close()`, `move()`, `place()`, `setSlots()` and a pin with a placement succeed whatever they say; the root still cannot be closed, and `place()`, `pin()` and `unpin()` on it answer `not-movable` because it cannot be anchored to itself, but `move()` reorders it whatever its `movable` says (that flag, false until a layer sets it, gates only the person's drag of the root), and `maxSlots` still clamps. The refusals `not-draggable` and `not-placeable` are one, `not-movable`, and a person's gesture is what raises `not-closable`, `not-movable` and `not-resizable`. `usePanelCapabilities()` returns `closable`, `movable`, `resizable` and `maxSlots`. `PanelSummary.locked` and `PanelWindow.locked` are removed (a panel is unclosable when `closable` is false), and so are `usePanelReorderEligible` (read `usePanelCapabilities().movable`) and `usePanelCloseEligible` (read `usePanelCapabilities().closable`, which is also false for an always-shown column). **Migration:** rename `draggable` and `placeable` to `movable` in templates (one that still names either throws `invalid-settings` naming `movable`), and call `close('person')`, `move(by, 'person')`, `place(value, 'person')` or `setSlots(n, 'person')` where a refusal for a person's gesture is wanted. A saved instance layer that holds `draggable` and `placeable` with the same value loads as `movable`, and any other combination drops the key; both with an `invalid-saved-setting` note.
 - `usePanelHidden` is removed: a parked view always unmounts, so a view is never mounted and hidden. **Migration:** delete the call.
 - `resolvePanelSettings`, `mergePatch`, `PanelSettingsLayers` and `ResolveOptions` are no longer exported from the package; no 0.1.0 name was among them.
 - The tier family is gone; a panel's width is its slot count. Removed: the `formFactor` and `formFactors` settings (a template that sets either
@@ -30,6 +34,7 @@
   `createWorkspace` (`root`, `storage`, `templates`, `addPanel`, `defaults`, `tuning`). The `template-collision` error code is gone with the
   registry it guarded. The components (`PanelRow`, `Workspace`, `HostProvider`) stay public, always with a workspace. The deprecated Host-bag verbs
   and `CreatePanelOptions` stay until their own removal.
+- A panel carries no tuning; row-wide knobs live on the workspace. Removed: `PanelTuning`, `ResolvedPanelTuning`, `PanelSettings.tuning`, `ResolvedPanelSettings.tuning`, the `tuning` prop of `Workspace` and `PanelRow`, the instance and template doors of `tuning.dragToClose`, `tuning.slide`, `tuning.hopFraction` and `tuning.edgeScroll` (their scope is `'workspace'`, and the `'panel or workspace'` scope is gone), and these constants-now members: `dragToClose.directionLockPx`, `restMs`, `velocityWindowMs`, `snapBack`, and `chrome.slideMs`, `slidePx`, `graceMs`, `headerGapPx`, `grabPillWidthPx`, `grabPillHeightPx`, `headerInsetPx`, `footerPadXPx`, `footerPadYPx`. `usePanelTuning()` returns the workspace values (`rowGap`, `dragToClose`, `slide`, `hopFraction`, `edgeScroll`) without `chrome`, `usePanelDots` takes the workspace `tuning`, and `PanelFooter` takes `sx`. **Migration:** set the value with `createWorkspace({ tuning })` or `configureTuning`; pass `workspace={workspace}` to `Workspace` instead of `tuning={provided.tuning}`, and drop `tuning` from `PanelRow`; restyle the header gap, the header inset and the footer padding through the `sx` of `PanelFrame` or `PanelFooter`. A template that carries `tuning` throws `invalid-settings`; a saved panel layer that carries `tuning` loads with an `invalid-saved-setting` note and the key is ignored.
 
 ### Removed
 
@@ -60,6 +65,8 @@
   lock used to step again, so one swipe ran through several stops and a wide panel skipped its 1, 2, 3 slot sizes. After a step
   an event steps again only on a reversal, or when it is 1.5 times, and at least 4 units above, the smallest delta seen since the
   deltas fell (a new swipe in the tail). A plateau of equal deltas no longer steps repeatedly: a held mouse wheel is one step per gesture.
+- A click on a header dot glides along the workspace's `slide` (its duration and `glideEase`), not the library default.
+- The settle after an edge-scroll drag glides along the workspace's `slide.glideEase`.
 
 ### Changed
 
@@ -89,6 +96,8 @@
 - `tuning.shrinkOutOfView: 'off'` (the default) now shows the neighbour of a stop cut off by the window edge, at its full size. Before, a stepping row faded that
   neighbour out, so Off looked like Hide at rest. A panel is inert only when the window does not reach it, and a click or focus in the cut-off neighbour
   settles the row onto a stop afterwards. `'visible'` and `'hidden'` are unchanged. `RowNumbers` gains `showPartial`.
+- The gap between a panel's header and its frame is 4 px, down from 24 px, and the grab handle stays 24 px wide and tall.
+- `PanelFooter` is bare, like the header: no border, shadow or background, and the header's height, where it was a bordered box a little shorter. **Migration:** delete any `sx` that flattens it.
 
 ### Deprecated
 

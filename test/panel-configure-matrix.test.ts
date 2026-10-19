@@ -120,31 +120,31 @@ async function nowCell(status: Status): Promise<void> {
     else r.turn(() => r.provided().undoClose());
     await r.settle();
     assert.equal(r.state(id).status, 'live');
-    assert.equal(r.entry(id).locked, true, 'the record carried the edit into the reopened panel');
-    assert.equal(letter(r.turn(() => r.h[id]!.close())), 'not-closable');
+    assert.equal(!r.entry(id).settings!.closable, true, 'the record carried the edit into the reopened panel');
+    assert.equal(letter(r.turn(() => r.h[id]!.close('person'))), 'not-closable');
     return;
   }
   assert.equal(out.kind, 'applied-now');
   const mounted = status === 'live' || status === 'hidden' ? r.seen(id) : null;
   if (status === 'live') assert.equal(mounted?.['data-close'], 'true', 'before: the view is offered the close control');
-  assert.equal(summaryOf(r, id)?.locked, false, 'before: the History row offers a close');
+  assert.equal(!r.state(id).settings.closable, false, 'before: the History row offers a close');
   const res = done(a.configure({ closable: false }));
   assert.deepEqual({ ok: res.ok, changed: res.changed, shown: res.shown, now: [...res.now], later: [...res.later], shadowed: [...res.shadowed] }, { ok: true, changed: true, shown: false, now: ['closable'], later: [], shadowed: [] });
-  assert.equal(summaryOf(r, id)?.locked, true, 'after: the History row no longer offers a close, in the same commit');
-  assert.equal(r.entry(id).locked, true);
+  assert.equal(!r.state(id).settings.closable, true, 'after: the History row no longer offers a close, in the same commit');
+  assert.equal(!r.entry(id).settings!.closable, true);
   assert.equal(r.state(id).settings.clearable, false, 'clearable re-derives false (C2)');
   if (status === 'live') assert.equal(r.seen(id)?.['data-close'], 'false', 'the view is no longer offered the close control');
   assert.equal(r.order().join(' '), before.order, 'nothing moved');
   assert.equal(r.live().join(' '), before.live, 'nothing parked or returned');
   assertSideEffects(a, before, cell);
-  assert.equal(letter(r.turn(() => r.h[id]!.close())), 'not-closable');
+  assert.equal(letter(r.turn(() => r.h[id]!.close('person'))), 'not-closable');
   if (cell.staysLive === true) {
     assert.equal(r.state(id).status, 'parked', 'control: the panel was parked when configured');
     r.turn(() => r.h[id]!.show());
     await r.settle();
     assert.equal(r.state(id).status, 'live', 'the acted-on panel is live and stays live');
     assert.deepEqual(r.live().filter((n) => n !== 'root'), [id], 'the row holds one park panel beside the root, so room was made by parking the one that was live');
-    assert.equal(letter(r.turn(() => r.h[id]!.close())), 'not-closable');
+    assert.equal(letter(r.turn(() => r.h[id]!.close('person'))), 'not-closable');
   }
 }
 
@@ -379,11 +379,11 @@ async function wrongScopeInEveryStatus(patch: Record<string, unknown>, setting: 
 test('matrix:closable', async () => {
   probe('closable');
   const r = await matrixRig();
-  const read = (id: string): unknown[] => [r.seen(id)?.['data-close'], summaryOf(r, id)?.locked, r.state(id).settings.clearable];
+  const read = (id: string): unknown[] => [r.seen(id)?.['data-close'], !r.state(id).settings.closable, r.state(id).settings.clearable];
   assert.deepEqual(read('b'), ['true', false, true], 'before: a close control is offered, History can close it, clearAll takes it');
   assert.deepEqual(shape(r.turn(() => r.h.b!.configure({ closable: false }))), { now: ['closable'], later: [], shadowed: [] });
   assert.deepEqual(read('b'), ['false', true, false], 'after, in that commit: no close control, no close from History, clearable re-derived false');
-  assert.equal(letter(r.turn(() => r.h.b!.close())), 'not-closable', 'close() answers not-closable');
+  assert.equal(letter(r.turn(() => r.h.b!.close('person'))), 'not-closable', 'close() answers not-closable');
   assert.equal(r.state('b').status, 'live');
   assert.deepEqual(read('c'), ['true', false, true], 'a neighbour is untouched');
   done(r.turn(() => r.h.b!.configure({ closable: true })));
@@ -391,7 +391,7 @@ test('matrix:closable', async () => {
   r.turn(() => r.h.c!.hide());
   await r.settle();
   done(r.turn(() => r.h.c!.configure({ closable: false })));
-  assert.deepEqual([summaryOf(r, 'c')?.locked, r.seen('c'), r.state('c').status], [true, null, 'parked'], 'a hidden panel changes in the History row only');
+  assert.deepEqual([!r.state('c').settings.closable, r.seen('c'), r.state('c').status], [true, null, 'parked'], 'a hidden panel changes in the History row only');
   const root = refusedWith(r.turn(() => r.ws.panels.configure(r.ws.rootId, { closable: true })), 'settings-conflict');
   assert.equal(root.setting, 'closable');
   assert.match(root.message, /C5/);
@@ -405,14 +405,14 @@ test('matrix:parkable', async () => {
   const r = await matrixRig({ ids, settings: { f: { pinningWhenNotLive: 'apply-on-next-show' }, g: { pinning: PAIR_PIN } } });
   const facts = (id: string): unknown[] => {
     const s = r.state(id);
-    return [s.settings.parkable, s.listed, s.settings.draggable, s.settings.placeable, s.settings.clearable];
+    return [s.settings.parkable, s.listed, s.settings.movable, s.settings.clearable];
   };
-  assert.deepEqual([facts('b'), r.provided().fixedViewCount], [[true, true, true, true, true], 1], 'before: an ordinary panel, one fixed column (the root)');
+  assert.deepEqual([facts('b'), r.provided().fixedViewCount], [[true, true, true, true], 1], 'before: an ordinary panel, one fixed column (the root)');
   assert.deepEqual(shape(r.turn(() => r.h.b!.configure({ parkable: false }))), { now: ['parkable'], later: [], shadowed: [] });
-  assert.deepEqual([facts('b'), r.entry('b').collapsible, r.provided().fixedViewCount], [[false, false, false, false, false], false, 2], 'after, in that commit: listed, draggable, placeable and clearable re-derived false; the row prices a second fixed column');
+  assert.deepEqual([facts('b'), r.entry('b').collapsible, r.provided().fixedViewCount], [[false, false, false, false], false, 2], 'after, in that commit: listed, movable and clearable re-derived false; the row prices a second fixed column');
   assert.equal(letter(r.turn(() => r.h.b!.hide())), 'not-parkable');
   done(r.turn(() => r.h.b!.configure({ parkable: true })));
-  assert.deepEqual([facts('b'), r.entry('b').collapsible], [[true, true, true, true, true], true], 'false to true lifts C1');
+  assert.deepEqual([facts('b'), r.entry('b').collapsible], [[true, true, true, true], true], 'false to true lifts C1');
   r.turn(() => r.h.c!.setSlots(2, 'person'));
   assert.equal(refusedWith(r.turn(() => r.h.c!.configure({ parkable: false })), 'slots-above-max').ok, false, 'a two-slot panel cannot become a fixed column');
   assert.deepEqual(shape(r.turn(() => r.h.a!.configure({ parkable: false, resizable: true }))), { now: ['parkable', 'resizable'], later: [], shadowed: [] }, 'resizable true beside a fixed column stands: the panel asked for its size itself');
@@ -448,20 +448,27 @@ test('matrix:parkable', async () => {
   s.end();
 });
 
-test('matrix:draggable', async () => {
-  probe('draggable');
-  const r = await matrixRig();
+test('matrix:movable', async () => {
+  probe('movable');
+  const r = await matrixRig({ settings: { c: { pinning: { pinned: { placement: 'row-start' }, unpinned: { placement: 'row-end' } } } } });
   assert.equal(r.seen('b')?.['data-reorder'], 'true', 'before: the reorder grab is offered');
-  assert.deepEqual(shape(r.turn(() => r.h.b!.configure({ draggable: false }))), { now: ['draggable'], later: [], shadowed: [] });
+  assert.deepEqual(shape(r.turn(() => r.h.b!.configure({ movable: false }))), { now: ['movable'], later: [], shadowed: [] });
   assert.equal(r.seen('b')?.['data-reorder'], 'false', 'after, in that commit: no reorder grab');
-  assert.equal(letter(r.turn(() => r.h.b!.move(1))), 'not-draggable');
+  assert.equal(JSON.parse(r.seen('b')!['data-caps']!).movable, false, 'and the view reads movable false');
+  assert.equal(letter(r.turn(() => r.h.b!.move(1, 'person'))), 'not-movable', 'a person is refused');
+  assert.equal(letter(r.turn(() => r.h.b!.place('row-end', 'person'))), 'not-movable', 'a person is refused a placement too');
   assert.equal(r.order().join(' '), 'root a b c', 'nothing moved');
+  assert.equal(letter(r.turn(() => r.h.b!.move(1))), 'T', 'the developer\'s own move is not limited');
+  assert.equal(r.order().join(' '), 'root a c b');
+  assert.equal(letter(r.turn(() => r.h.b!.place('row-start'))), 'T', 'nor is the developer\'s own place');
+  assert.equal(r.order().join(' '), 'b root a c');
   assert.equal(r.seen('a')?.['data-reorder'], 'true', 'a neighbour is untouched');
   r.turn(() => r.h.c!.hide());
   await r.settle();
-  done(r.turn(() => r.h.c!.configure({ draggable: false })));
-  assert.deepEqual([r.state('c').settings.draggable, r.state('c').status], [false, 'parked'], 'a hidden panel stores it');
-  assert.deepEqual(shape(r.turn(() => r.ws.panels.configure(r.ws.rootId, { draggable: true }))), { now: ['draggable'], later: [], shadowed: [] }, 'the root takes draggable true; only closable, parkable and placeable answer C5');
+  done(r.turn(() => r.h.c!.configure({ movable: false })));
+  assert.deepEqual([r.state('c').settings.movable, r.state('c').status], [false, 'parked'], 'a hidden panel stores it');
+  assert.equal(letter(r.turn(() => r.h.c!.pin())), 'T', 'a placement-bearing pin() is not limited');
+  assert.deepEqual(shape(r.turn(() => r.ws.panels.configure(r.ws.rootId, { movable: true }))), { now: ['movable'], later: [], shadowed: [] }, 'the root takes movable true; only closable and parkable answer C5');
 });
 
 test('matrix:crossable', async () => {
@@ -481,38 +488,19 @@ test('matrix:crossable', async () => {
   assert.deepEqual(rightOfA(), [], 'a hidden panel that is not crossable is a barrier for the next drag too');
 });
 
-test('matrix:placeable', async () => {
-  probe('placeable');
-  const r = await matrixRig({ settings: { c: { pinning: { pinned: { placement: 'row-start' }, unpinned: { placement: 'row-end' } } } } });
-  assert.equal(r.seen('b')?.['data-caps'] !== undefined && JSON.parse(r.seen('b')!['data-caps']!).placeable, true, 'before: placeable');
-  assert.deepEqual(shape(r.turn(() => r.h.b!.configure({ placeable: false }))), { now: ['placeable'], later: [], shadowed: [] });
-  assert.equal(JSON.parse(r.seen('b')!['data-caps']!).placeable, false, 'after, in that commit: the view reads placeable false');
-  assert.equal(letter(r.turn(() => r.h.b!.place('row-end'))), 'not-placeable');
-  assert.equal(letter(r.turn(() => r.h.b!.pin())), 'not-placeable', 'a placement-bearing pin() refuses too');
-  assert.equal(r.order().join(' '), 'root a b c', 'nothing moved');
-  assert.equal(letter(r.turn(() => r.h.a!.place('row-end'))), 'T', 'a neighbour still places');
-  r.turn(() => r.h.c!.hide());
-  await r.settle();
-  done(r.turn(() => r.h.c!.configure({ placeable: false })));
-  assert.equal(letter(r.turn(() => r.h.c!.place('row-start'))), 'not-placeable', 'a hidden panel refuses too');
-  const root = refusedWith(r.turn(() => r.ws.panels.configure(r.ws.rootId, { placeable: true })), 'settings-conflict');
-  assert.equal(root.setting, 'placeable');
-  assert.match(root.message, /C5/);
-});
-
 test('matrix:resizable', async () => {
   probe('resizable');
   const r = await matrixRig();
   r.turn(() => r.h.b!.setSlots(2, 'person'));
   assert.deepEqual([r.entry('b').slots, r.entry('b').overrides?.slots], [2, 2], 'before: the person chose two slots');
   assert.deepEqual(shape(r.turn(() => r.h.b!.configure({ resizable: false }))), { now: ['resizable'], later: [], shadowed: [] });
-  assert.equal(letter(r.turn(() => r.h.b!.setSlots(1))), 'not-resizable', 'after: setSlots is refused');
+  assert.equal(letter(r.turn(() => r.h.b!.setSlots(1, 'person'))), 'not-resizable', 'after: setSlots is refused');
   assert.deepEqual([r.entry('b').slots, r.entry('b').overrides?.slots], [2, 2], "the slots and the person's saved size are never changed or dropped");
   assert.equal(letter(r.turn(() => r.h.a!.setSlots(2))), 'T', 'a neighbour still resizes');
   r.turn(() => r.h.c!.hide());
   await r.settle();
   done(r.turn(() => r.h.c!.configure({ resizable: false })));
-  assert.equal(letter(r.turn(() => r.h.c!.setSlots(2))), 'not-resizable', 'a hidden panel refuses too');
+  assert.equal(letter(r.turn(() => r.h.c!.setSlots(2, 'person'))), 'not-resizable', 'a hidden panel refuses too');
   const fixed = await matrixRig();
   done(fixed.turn(() => fixed.h.a!.configure({ parkable: false })));
   assert.equal(shape(fixed.turn(() => fixed.h.a!.configure({ resizable: true }))).now[0], 'resizable', 'C1: true asked for the fixed column itself stands');
@@ -1115,36 +1103,38 @@ test('matrix:tuning.rowGap', async () => {
 
 test('matrix:tuning.dragToClose', async () => {
   probe('tuning.dragToClose');
+  await wrongScopeInEveryStatus({ tuning: { dragToClose: { minDistancePx: 120 } } }, 'tuning.dragToClose');
   const r = await dragRig();
   const handle = (name: string): Element => r.m.container.querySelector(`[data-handle="${r.entry(name).id}"]`)!;
   await drag(handle('s2'), { dx: 0, dy: 100 });
   await advanceFrames(40 * 16);
   assert.equal(r.state('s2').status, 'closed', 'control: a 100 px drag down closes a panel under the default minimum of 80');
-  assert.deepEqual(shape(r.turn(() => r.h.s1!.configure({ tuning: { dragToClose: { minDistancePx: 120 } } }))), { now: [], later: ['tuning.dragToClose'], shadowed: [] });
+  assert.deepEqual(shape(r.turn(() => r.ws.panels.configureTuning({ dragToClose: { minDistancePx: 120 } }))), { now: [], later: ['tuning.dragToClose'], shadowed: [] });
   await drag(handle('s1'), { dx: 0, dy: 100, keepDown: true });
-  done(r.turn(() => r.h.s1!.configure({ tuning: { dragToClose: { minDistancePx: 90 } } })));
+  done(r.turn(() => r.ws.panels.configureTuning({ dragToClose: { minDistancePx: 90 } })));
   await release(0, 100);
   await advanceFrames(40 * 16);
   assert.equal(r.state('s1').status, 'closed', 'a drag in flight is judged by the values current at the release: 90 px is short of 100');
-  await drag(handle('s3'), { dx: 0, dy: 100 });
-  await advanceFrames(40 * 16);
-  assert.equal(r.state('s3').status, 'closed', 'a neighbour keeps the default');
   done(r.turn(() => r.ws.panels.configureTuning({ dragToClose: { minDistancePx: 150 } })));
   await drag(handle('s4'), { dx: 0, dy: 100 });
   await advanceFrames(40 * 16);
-  assert.equal(r.state('s4').status, 'live', 'configureTuning sets the default for panels without a leaf');
-  done(r.turn(() => r.h.s5!.configure({ tuning: { dragToClose: null } } as never)));
-  assert.equal(r.h.s5!.getSettings().source['tuning.dragToClose'], 'workspace', 'null removes a panel leaf, so the workspace default is read again');
+  assert.equal(r.state('s4').status, 'live', 'every panel reads the new minimum');
+  await drag(handle('s3'), { dx: 0, dy: 160 });
+  await advanceFrames(40 * 16);
+  assert.equal(r.state('s3').status, 'closed', 'and 160 px is past it');
+  done(r.turn(() => r.ws.panels.configureTuning({ dragToClose: null } as never)));
+  assert.equal(r.ws.tuning.dragToClose.minDistancePx, LIBRARY_TUNING_DEFAULTS.dragToClose.minDistancePx, 'null puts the library default back');
 });
 
 test('matrix:tuning.slide', async () => {
   probe('tuning.slide');
+  await wrongScopeInEveryStatus({ tuning: { slide: { durationSec: 0.05 } } }, 'tuning.slide');
   const present = async (configure: boolean): Promise<boolean> => {
     const r = await matrixRig({ ids: ['a', 'b', 'c'] });
     await r.settle();
     const engine = r.entry('b').id;
     if (configure) {
-      assert.deepEqual(shape(r.turn(() => r.h.b!.configure({ tuning: { slide: { durationSec: 0.05 } } }))), { now: [], later: ['tuning.slide'], shadowed: [] });
+      assert.deepEqual(shape(r.turn(() => r.ws.panels.configureTuning({ slide: { durationSec: 0.05 } }))), { now: [], later: ['tuning.slide'], shadowed: [] });
       assert.equal(r.order().join(' '), 'root a b c', 'nothing moves at configure');
     }
     r.turn(() => r.h.b!.hide());
@@ -1155,41 +1145,40 @@ test('matrix:tuning.slide', async () => {
   };
   assert.equal(await present(false), true, 'control: a park under the default 0.4 s slide is still sliding after six frames');
   assert.equal(await present(true), false, 'the next exit reads the shorter slide');
-  const r = await matrixRig();
-  done(r.turn(() => r.ws.panels.configureTuning({ slide: { durationSec: 0.2 } })));
-  assert.equal(r.h.a!.getSettings().value.tuning.slide.durationSec, 0.2, 'configureTuning sets the default for panels without a leaf');
   const running = await matrixRig({ ids: ['a', 'b', 'c'] });
   await running.settle();
   const engine = running.entry('b').id;
   running.turn(() => running.h.b!.hide());
   await frames(2);
-  done(running.turn(() => running.h.b!.configure({ tuning: { slide: { durationSec: 0.05 } } })));
+  done(running.turn(() => running.ws.panels.configureTuning({ slide: { durationSec: 0.05 } })));
   await frames(4);
   assert.equal(slotAt(running, engine) !== null, true, 'an animation running keeps its timing: six frames in, the 0.4 s exit is still sliding');
 });
 
 test('matrix:tuning.hopFraction', async () => {
   probe('tuning.hopFraction');
+  await wrongScopeInEveryStatus({ tuning: { hopFraction: 0.25 } }, 'tuning.hopFraction');
   const r = await matrixRig();
   const steps = (): unknown => JSON.parse(r.seen('a')!['data-steps']!);
   assert.deepEqual(steps(), [0, 1], 'before: half of a 390 neighbour plus half a gap is 203 px, so 150 px hops nothing and 250 px hops one');
-  assert.deepEqual(shape(r.turn(() => r.h.a!.configure({ tuning: { hopFraction: 0.25 } }))), { now: [], later: ['tuning.hopFraction'], shadowed: [] });
+  assert.deepEqual(shape(r.turn(() => r.ws.panels.configureTuning({ hopFraction: 0.25 }))), { now: [], later: ['tuning.hopFraction'], shadowed: [] });
   assert.deepEqual(steps(), [1, 1], 'after: a quarter plus half a gap is 105.5 px, so 150 px hops one');
-  assert.equal(JSON.parse(r.seen('b')!['data-steps']!)[0], 0, 'a neighbour keeps the default');
-  assert.equal(thrownCode(() => r.h.a!.configure({ tuning: { hopFraction: 1.5 } })), 'invalid-settings', 'outside (0, 1] throws');
+  assert.deepEqual(JSON.parse(r.seen('b')!['data-steps']!), [1, 1], 'a neighbour reads the same workspace value');
+  assert.equal(thrownCode(() => r.ws.panels.configureTuning({ hopFraction: 1.5 })), 'invalid-settings', 'outside (0, 1] throws');
   done(r.turn(() => r.ws.panels.configureTuning({ hopFraction: 0.8 })));
-  assert.deepEqual(JSON.parse(r.seen('b')!['data-steps']!), [0, 0], 'configureTuning sets the default for panels without a leaf: 0.8 of 390 plus 8 is 320');
-  assert.deepEqual(steps(), [1, 1], "and a panel's own leaf still wins");
+  assert.deepEqual(JSON.parse(r.seen('b')!['data-steps']!), [0, 0], 'configureTuning moves every panel: 0.8 of 390 plus 8 is 320');
+  assert.deepEqual(steps(), [0, 0]);
 });
 
 test('matrix:tuning.edgeScroll', async () => {
   probe('tuning.edgeScroll');
+  await wrongScopeInEveryStatus({ tuning: { edgeScroll: { zonePx: 12 } } }, 'tuning.edgeScroll');
   const quarter = LIBRARY_TUNING_DEFAULTS.edgeScroll.zonePx / 4;
   const r = await dragRig();
   assert.equal((await heldScroll(r, 's1', HALF_ZONE_POINTER)) > 0, true, 'before: half the default zone from the edge scrolls');
-  assert.deepEqual(shape(r.turn(() => r.h.s2!.configure({ tuning: { edgeScroll: { zonePx: quarter } } }))), { now: [], later: ['tuning.edgeScroll'], shadowed: [] });
+  assert.deepEqual(shape(r.turn(() => r.ws.panels.configureTuning({ edgeScroll: { zonePx: quarter } }))), { now: [], later: ['tuning.edgeScroll'], shadowed: [] });
   assert.equal(await heldScroll(r, 's2', HALF_ZONE_POINTER), 0, 'after: a quarter-zone band leaves the same pointer outside it');
-  assert.equal((await heldScroll(r, 's1', HALF_ZONE_POINTER)) > 0, true, 'a neighbour keeps the default');
+  assert.equal(await heldScroll(r, 's1', HALF_ZONE_POINTER), 0, 'for every panel');
 });
 
 test('matrix:tuning.saveQuietMs', async () => {
@@ -1361,15 +1350,15 @@ test('matrix:tuning.chrome', async () => {
   await wrongScopeInEveryStatus({ tuning: { chrome: { mode: 'hover-or-active' } } }, 'tuning.chrome');
   const r = await matrixRig();
   await r.settle();
-  assert.deepEqual({ ...r.ws.tuning.chrome }, { mode: 'always', fadeMs: 120, fadeEase: 'easeOut', slideMs: 140, slidePx: 8, graceMs: 250, headerGapPx: 24, grabPillWidthPx: 32, grabPillHeightPx: 4, headerInsetPx: 13, footerPadXPx: 12, footerPadYPx: 8 });
+  assert.deepEqual({ ...r.ws.tuning.chrome }, { mode: 'always', fadeMs: 120, fadeEase: 'easeOut' });
   assert.deepEqual({ ...done(r.turn(() => r.ws.panels.configureTuning({ chrome: { fadeMs: 60 } }))) }, { ok: true, changed: true, shown: false, now: ['tuning.chrome'], later: [], shadowed: [], notes: [] });
-  assert.deepEqual({ ...r.ws.tuning.chrome }, { mode: 'always', fadeMs: 60, fadeEase: 'easeOut', slideMs: 140, slidePx: 8, graceMs: 250, headerGapPx: 24, grabPillWidthPx: 32, grabPillHeightPx: 4, headerInsetPx: 13, footerPadXPx: 12, footerPadYPx: 8 }, 'a one-member patch keeps the other members');
+  assert.deepEqual({ ...r.ws.tuning.chrome }, { mode: 'always', fadeMs: 60, fadeEase: 'easeOut' }, 'a one-member patch keeps the other members');
   assert.equal(done(r.turn(() => r.ws.panels.configureTuning({ chrome: { fadeMs: 60 } }))).changed, false, 'an equal patch changes nothing');
-  assert.equal(thrownCode(() => r.ws.panels.configureTuning({ chrome: { slidePx: 201 } })), 'invalid-settings', 'outside 0 to 200 throws');
+  assert.equal(thrownCode(() => r.ws.panels.configureTuning({ chrome: { fadeMs: 10001 } })), 'invalid-settings', 'outside 0 to 10000 throws');
   assert.equal(thrownCode(() => r.ws.panels.configureTuning({ chrome: { mode: 'sometimes' } as never })), 'invalid-settings');
   assert.equal(r.ws.tuning.chrome.fadeMs, 60, 'a refused patch left the value');
   assert.deepEqual({ ...done(r.turn(() => r.ws.panels.configureTuning({ chrome: { fadeEase: 'linear' } }))) }, { ok: true, changed: true, shown: false, now: ['tuning.chrome'], later: [], shadowed: [], notes: [] } as never, 'fadeEase applies at once, like the other members');
-  assert.deepEqual({ ...r.ws.tuning.chrome }, { mode: 'always', fadeMs: 60, fadeEase: 'linear', slideMs: 140, slidePx: 8, graceMs: 250, headerGapPx: 24, grabPillWidthPx: 32, grabPillHeightPx: 4, headerInsetPx: 13, footerPadXPx: 12, footerPadYPx: 8 }, 'a fadeEase-only patch keeps the other members');
+  assert.deepEqual({ ...r.ws.tuning.chrome }, { mode: 'always', fadeMs: 60, fadeEase: 'linear' }, 'a fadeEase-only patch keeps the other members');
   assert.equal(thrownCode(() => r.ws.panels.configureTuning({ chrome: { fadeEase: 'cubic-out' } as never })), 'invalid-settings');
   assert.equal(r.ws.tuning.chrome.fadeEase, 'linear', 'a refused patch left the value');
 });
@@ -1505,14 +1494,14 @@ test('the class table ran every cell: executed cells equal 4 classes by 9 status
 });
 
 // The design copy is frozen; a catalog key added or removed after it is listed here, never in the copy.
-const REMOVED_AFTER_DESIGN: readonly string[] = ['formFactor', 'formFactors', 'hideWhenLast', 'returnPriority', 'evictionRank', 'evictionOrder', 'scrollOnDrag', 'viewState', 'keepMounted', 'placeOnReturn', 'placeFallback', 'undoPlacement', 'exitTo', 'closeExit', 'animated', 'persist', 'rememberLayout', 'undoWindowMs', 'reportClose', 'snapshot'];
-const ADDED_AFTER_DESIGN: readonly string[] = ['tuning.maxLivePanels', 'tuning.chrome', 'slots', 'maxSlots', 'tuning.resizeSettleSlides', 'tuning.phoneFit', 'tuning.phoneFitMin', 'tuning.phoneFitMax', 'hollowDot'];
+const REMOVED_AFTER_DESIGN: readonly string[] = ['formFactor', 'formFactors', 'hideWhenLast', 'returnPriority', 'evictionRank', 'evictionOrder', 'scrollOnDrag', 'viewState', 'keepMounted', 'placeOnReturn', 'placeFallback', 'undoPlacement', 'exitTo', 'closeExit', 'animated', 'persist', 'rememberLayout', 'undoWindowMs', 'reportClose', 'snapshot', 'draggable', 'placeable'];
+const ADDED_AFTER_DESIGN: readonly string[] = ['tuning.maxLivePanels', 'tuning.chrome', 'slots', 'maxSlots', 'tuning.resizeSettleSlides', 'tuning.phoneFit', 'tuning.phoneFitMin', 'tuning.phoneFitMax', 'hollowDot', 'movable'];
 
-test('the probes ran every catalog name once: 51 executed, equal to the catalog and to the design copy of it plus the names added after it', () => {
+test('the probes ran every catalog name once: 50 executed, equal to the catalog and to the design copy of it plus the names added after it', () => {
   const design = JSON.parse(readFileSync(new URL('../design/0.2-rev7/DESIGN-phonux-0.2-rev7-catalog.json', import.meta.url), 'utf8')) as { name: string }[];
   assert.equal(design.length, 62);
-  assert.equal(CATALOG_NAMES.length, 51);
-  assert.equal(probesExecuted().size, 51);
+  assert.equal(CATALOG_NAMES.length, 50);
+  assert.equal(probesExecuted().size, 50);
   assert.deepEqual([...probesExecuted()].sort(), [...CATALOG_NAMES].sort());
   assert.deepEqual([...probesExecuted()].sort(), [...design.map((d) => d.name).filter((name) => !REMOVED_AFTER_DESIGN.includes(name)), ...ADDED_AFTER_DESIGN].sort());
 });

@@ -15,7 +15,7 @@ export interface LevelSince {
 }
 
 const SETTINGS_SINCE: Record<CatalogName, PanelApiLevel> = {
-  closable: 1, parkable: 1, draggable: 1, crossable: 1, placeable: 1, resizable: 1, clearable: 1, hostCreatable: 1, hollowDot: 1, multiple: 1,
+  closable: 1, parkable: 1, movable: 1, crossable: 1, resizable: 1, clearable: 1, hostCreatable: 1, hollowDot: 1, multiple: 1,
   maxInstances: 1, listed: 1, startVisibility: 1, hideStickiness: 1, capacityReturn: 1, overflow: 1,
   revealOnScroll: 1, scrollOnOpen: 1, scrollOnMove: 1, toggleWhenClosed: 1, showWhenClosed: 1,
   placeOnAdd: 1, placeOnShow: 1, layer: 1, enterFrom: 1,

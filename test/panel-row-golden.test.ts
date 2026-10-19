@@ -21,16 +21,15 @@ registerTestView('golden-view', ({ panel }) => createElement('span', { 'data-gol
 const NONE: ReadonlySet<string> = new Set();
 
 const root: PanelWindow = {
-  id: 'root', url: '', title: 'History', live: true, locked: true, view: 'golden-view', collapsible: false, listed: false,
-  layer: 'raised', anchoredEnter: true, size: { width: 390, height: 700 },
+  id: 'root', url: '', title: 'History', live: true, view: 'golden-view', collapsible: false, listed: false,
+  layer: 'raised', anchoredEnter: true,
 };
 const phone = (id: string, title: string, priority: number, live = true): PanelWindow => ({
-  id, url: `https://${id}.example`, title, live, locked: false, view: 'golden-view', collapsible: true, listed: true,
+  id, url: `https://${id}.example`, title, live, view: 'golden-view', collapsible: true, listed: true,
   anchor: { panel: 'root', position: 'right', priority }, layer: 'base', anchoredEnter: false,
-  size: { width: 390, height: 700 },
 });
 const twoSlots = (id: string, title: string, priority: number): PanelWindow => ({
-  ...phone(id, title, priority), slots: 2, size: { width: 796, height: 'fill' },
+  ...phone(id, title, priority), slots: 2,
 });
 
 function render(entries: PanelWindow[]): string {

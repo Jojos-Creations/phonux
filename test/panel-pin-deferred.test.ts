@@ -281,7 +281,7 @@ test('a person pin records overrides.parkable, a code pin records nothing, and t
   cleanup();
   const second = await pinRig({ settings: withPair, workspace: { storage: store, ...quiet } });
   await wait();
-  assert.deepEqual(second.facts('c'), { parkable: false, listed: false, placeable: false, draggable: false, clearable: false, pinned: true });
+  assert.deepEqual(second.facts('c'), { parkable: false, listed: false, movable: false, clearable: false, pinned: true });
   second.turn(() => second.h.c!.unpin('person'));
   await wait();
   assert.deepEqual(await overridesOf(store), [{}, {}, { parkable: true }]);

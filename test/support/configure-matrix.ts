@@ -10,7 +10,7 @@ import * as React from 'react';
 import { createElement, useEffect } from 'react';
 import { act } from 'react';
 import { mock } from 'node:test';
-import { DragToClose, LIBRARY_TUNING_DEFAULTS, PANEL_SETTINGS_CATALOG, PanelRow, Workspace, createWorkspace, definePanel, useProvidePanels, useViewState, usePanelCapabilities, usePanelCloseEligible, usePanelNeighborWidths, usePanelPinned, usePanelReorderEligible, usePanelReorderSteps } from '../../index.js';
+import { DragToClose, LIBRARY_TUNING_DEFAULTS, PANEL_SETTINGS_CATALOG, PanelRow, Workspace, createWorkspace, definePanel, useProvidePanels, useViewState, usePanelCapabilities, usePanelNeighborWidths, usePanelPinned, usePanelReorderSteps } from '../../index.js';
 import type { CaptureTrigger, ConfigureResult, PanelHandle, PanelResult, PanelSettings, PanelState, PanelTemplate, PanelWindow, PanelsInput, ProvidedPanels, WorkspaceHandle, WorkspaceOptions } from '../../index.js';
 import { useFrameClaim } from '../../panelFrameClaim.js';
 import { panelKey } from '../../panelSettings.js';
@@ -171,8 +171,6 @@ export const matrixTemplate = (id: string, over: Partial<PanelTemplate> = {}): P
       const panel = { ...summary, id: engineOf.current(summary.id) };
       useFrameClaim('frame');
       const caps = usePanelCapabilities();
-      const closeEligible = usePanelCloseEligible();
-      const reorderEligible = usePanelReorderEligible();
       const neighbors = usePanelNeighborWidths();
       const pinned = usePanelPinned();
       const steps = usePanelReorderSteps();
@@ -194,9 +192,9 @@ export const matrixTemplate = (id: string, over: Partial<PanelTemplate> = {}): P
       return createElement('i', {
         'data-slot': panel.id,
         'data-title': panel.title ?? '',
-        'data-close': String(closeEligible),
-        'data-reorder': String(reorderEligible),
-        'data-caps': JSON.stringify({ closable: caps.closable, draggable: caps.draggable, placeable: caps.placeable, resizable: caps.resizable, maxSlots: caps.maxSlots }),
+        'data-close': String(caps.closable),
+        'data-reorder': String(caps.movable),
+        'data-caps': JSON.stringify({ closable: caps.closable, movable: caps.movable, resizable: caps.resizable, maxSlots: caps.maxSlots }),
         'data-neighbors': JSON.stringify(neighbors),
         'data-pinned': String(pinned),
         'data-n': String(n),
@@ -255,7 +253,7 @@ function mountWired(ws: WorkspaceHandle, width: number, over: Partial<PanelsInpu
     return withHost(
       React.createElement(
         Workspace,
-        { overflowContainerRef: ref, rowRef, containerWidth: width, rowResizeSettled: true, phoneWidth: 390, fixedColumnCount: provided.fixedViewCount, liveWidths: provided.liveWidths, rowScroll: provided.rowScroll, rowNumbers: provided.rowNumbers, tuning: provided.tuning } as never,
+        { overflowContainerRef: ref, rowRef, containerWidth: width, rowResizeSettled: true, phoneWidth: 390, fixedColumnCount: provided.fixedViewCount, liveWidths: provided.liveWidths, rowScroll: provided.rowScroll, rowNumbers: provided.rowNumbers, workspace: ws } as never,
         React.createElement(PanelRow, {
           entries: provided.entries,
           rootId: ws.rootId,

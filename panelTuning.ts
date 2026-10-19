@@ -1,19 +1,16 @@
 /**
- * The look tuning as one value per render: the workspace's leaves resolved over the library defaults, the context that
- * carries it to every PanelRow below a Workspace, and the merge of one panel's own leaves over it.
+ * The look tuning as one value per render: the workspace's leaves resolved over the library defaults, and the slice of it
+ * each slot reads.
  */
 import * as React from 'react';
 import { LIBRARY_TUNING_DEFAULTS, checkTuningLeaf } from './panelSettings.js';
-import type { ChromeTuning, ResolvedPanelTuning, ResolvedWorkspaceTuning, WorkspaceTuning } from './panelSettings.js';
-
-/** The tuning a Workspace resolved; unset outside a Workspace. */
-export const WorkspaceTuningContext = React.createContext<ResolvedWorkspaceTuning | undefined>(undefined);
+import type { ResolvedWorkspaceTuning, WorkspaceTuning } from './panelSettings.js';
 
 /** The height in px the Workspace's scroll container leaves for the row (its padding taken out); 0 until measured, and always in an environment that does no layout. */
 export const RowHeightContext = React.createContext<number>(0);
 
-/** A panel's tuning: the four per-panel leaves and the workspace's row gap and chrome numbers. */
-export type SlotTuning = ResolvedPanelTuning & { readonly rowGap: number; readonly chrome: ChromeTuning };
+/** What a slot reads of the workspace's tuning. */
+export type SlotTuning = Pick<ResolvedWorkspaceTuning, 'rowGap' | 'chrome' | 'dragToClose' | 'slide' | 'hopFraction' | 'edgeScroll'> & { view: Pick<ResolvedWorkspaceTuning, 'rowGap' | 'dragToClose' | 'slide' | 'hopFraction' | 'edgeScroll'> };
 
 const OBJECT_LEAVES: ReadonlySet<string> = new Set(['dragToClose', 'slide', 'edgeScroll', 'chrome']);
 /** What this module resolved: handing one on to another resolve keeps its identity, so a context value does not change for nothing. */
@@ -45,13 +42,15 @@ export function resolveWorkspaceTuning(tuning: WorkspaceTuning | undefined): Res
   return resolved;
 }
 
-/** One panel's tuning: its own leaves when it has resolved settings, else the workspace's; the row gap is always the workspace's. */
-export function slotTuning(workspace: ResolvedWorkspaceTuning, own: ResolvedPanelTuning | undefined): SlotTuning {
-  const from = own ?? workspace;
-  return { rowGap: workspace.rowGap, chrome: workspace.chrome, dragToClose: from.dragToClose, slide: from.slide, hopFraction: from.hopFraction, edgeScroll: from.edgeScroll };
-}
+const SLOTS = new WeakMap<ResolvedWorkspaceTuning, SlotTuning>();
 
-/** Whether two workspace tunings differ in a leaf a row reads. */
-export function lookTuningDiffers(a: ResolvedWorkspaceTuning, b: ResolvedWorkspaceTuning): boolean {
-  return JSON.stringify(slotTuning(a, undefined)) !== JSON.stringify(slotTuning(b, undefined));
+/** The slice of the workspace's tuning every slot reads; one object per resolved tuning, so a context value does not change for nothing. */
+export function slotTuning(workspace: ResolvedWorkspaceTuning): SlotTuning {
+  let slot = SLOTS.get(workspace);
+  if (slot === undefined) {
+    const view = { rowGap: workspace.rowGap, dragToClose: workspace.dragToClose, slide: workspace.slide, hopFraction: workspace.hopFraction, edgeScroll: workspace.edgeScroll };
+    slot = { ...view, chrome: workspace.chrome, view };
+    SLOTS.set(workspace, slot);
+  }
+  return slot;
 }

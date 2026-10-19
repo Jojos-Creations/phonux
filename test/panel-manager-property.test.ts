@@ -36,9 +36,8 @@ function settingsVector(rand: () => number): PanelSettings {
   return {
     closable: pick(true, true, false),
     parkable: pick(true, true, false),
-    draggable: pick(true, true, false),
+    movable: pick(true, true, false),
     crossable: pick(true, true, false),
-    placeable: pick(true, true, false),
     resizable: pick(true, true, false),
     maxSlots: pick(64, 1, 2),
     hideStickiness: pick('sticky', 'until-room'),
@@ -52,11 +51,11 @@ function run(h: PanelHandle, op: Op, rand: () => number): PanelResult {
     case 'show': return h.show();
     case 'hide': return h.hide();
     case 'toggleVisibility': return h.toggleVisibility();
-    case 'close': return h.close();
+    case 'close': return h.close('person');
     case 'open': return h.open();
-    case 'move': return h.move(rand() < 0.5 ? -1 : 1);
-    case 'place': return h.place((['row-start', 'row-end', 'after-fixed'] as const)[Math.floor(rand() * 3)]!);
-    case 'setSlots': return h.setSlots(1 + Math.floor(rand() * 3));
+    case 'move': return h.move(rand() < 0.5 ? -1 : 1, 'person');
+    case 'place': return h.place((['row-start', 'row-end', 'after-fixed'] as const)[Math.floor(rand() * 3)]!, 'person');
+    case 'setSlots': return h.setSlots(1 + Math.floor(rand() * 3), 'person');
     case 'scrollTo': return h.scrollTo();
   }
 }
@@ -66,8 +65,7 @@ function forced(h: PanelHandle, op: Op): string | undefined {
   const s = h.getState().settings;
   if (op === 'close') return s.closable ? undefined : 'not-closable';
   if (op === 'hide') return s.parkable ? undefined : 'not-parkable';
-  if (op === 'move') return s.draggable ? undefined : 'not-draggable';
-  if (op === 'place') return s.placeable ? undefined : 'not-placeable';
+  if (op === 'move' || op === 'place') return s.movable ? undefined : 'not-movable';
   if (op === 'setSlots') return s.resizable ? undefined : 'not-resizable';
   return undefined;
 }

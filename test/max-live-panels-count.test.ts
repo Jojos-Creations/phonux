@@ -95,18 +95,17 @@ test('a workspace made with a value that is not an integer of 1 or more starts w
   assert.equal(createWorkspace({ mount: false, root: markerTemplate('root'), templates: [] }).tuning.maxLivePanels, null, 'left out, there is none');
 });
 
-test('null is a value of its own: a workspace takes it as no cap, and the instance layer reports it wrong-scope as it does any other value of this leaf', () => {
+test('null is a value of its own: a workspace takes it as no cap, and a panel layer carrying it is refused like any other tuning key', () => {
   assert.equal(createWorkspace({ mount: false, root: markerTemplate('root'), templates: [], tuning: { maxLivePanels: null } }).tuning.maxLivePanels, null);
-  const asked = resolvePanelSettings({ instance: { tuning: { maxLivePanels: null } } as never });
-  assert.deepEqual(asked.conflicts.map((c) => [c.key, c.kind]), [['tuning.maxLivePanels', 'wrong-scope']]);
+  assert.throws(() => resolvePanelSettings({ instance: { tuning: { maxLivePanels: null } } as never }), /instance\.tuning/);
 });
 
 // ---------------------------------------------------------------------------
 // A row that does not scroll
 // ---------------------------------------------------------------------------
 
-const entry = (id: string, over: Partial<PanelWindow> = {}): PanelWindow => ({ id, url: `https://${id}.example`, title: id.toUpperCase(), live: true, locked: false, view: 'web', collapsible: true, listed: true, ...over });
-const historyEntry = (): PanelWindow => entry('root', { url: '', title: 'History', locked: true, collapsible: false, listed: false });
+const entry = (id: string, over: Partial<PanelWindow> = {}): PanelWindow => ({ id, url: `https://${id}.example`, title: id.toUpperCase(), live: true, view: 'web', collapsible: true, listed: true, ...over });
+const historyEntry = (): PanelWindow => entry('root', { url: '', title: 'History', collapsible: false, listed: false });
 
 /** Hand-built entries, which carry no settings and so give a row with no scroll entry. `rows` collects the row of every committed render. */
 function handBuilt(entries: PanelWindow[], width: number, tuning?: WorkspaceTuning, rows?: string[], strict = false): { now: () => ProvidedPanels; row: () => string } {

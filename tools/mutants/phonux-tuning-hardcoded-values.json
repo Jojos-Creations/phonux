@@ -27,24 +27,6 @@
       ]
     },
     {
-      "name": "restMs ignored by the release",
-      "file": "dragToClose.tsx",
-      "find": "(slotRef.current?.tuning.dragToClose ?? OUTSIDE_ROW_DRAG).restMs",
-      "replace": "DRAG_REST_MS",
-      "expectRed": [
-        "restMs: a 60 px flick lifted 80 ms after its last move"
-      ]
-    },
-    {
-      "name": "velocityWindowMs ignored by the release",
-      "file": "dragToClose.tsx",
-      "find": "(slotRef.current?.tuning.dragToClose ?? OUTSIDE_ROW_DRAG).velocityWindowMs",
-      "replace": "DRAG_VELOCITY_WINDOW_MS",
-      "expectRed": [
-        "velocityWindowMs: a fast move followed by slow ones"
-      ]
-    },
-    {
       "name": "the drag close ignores closeExitEase",
       "file": "dragToClose.tsx",
       "find": "{ duration: exitSeconds, ease: exitEase }",
@@ -135,21 +117,21 @@
       ]
     },
     {
-      "name": "outside a row the release rests after 5 ms",
-      "file": "dragToClose.tsx",
-      "find": "restMs: DRAG_REST_MS",
-      "replace": "restMs: 5",
+      "name": "the header gap is 24 again",
+      "file": "rowConstants.ts",
+      "find": "export const HEADER_GAP_PX = 4;",
+      "replace": "export const HEADER_GAP_PX = 24;",
       "expectRed": [
-        "outside a row a DragToClose reads the library defaults"
+        "rowConstants: the remaining defaults are the strings and numbers the tuning defaults carry"
       ]
     },
     {
-      "name": "outside a row the velocity window is 1000 ms",
-      "file": "dragToClose.tsx",
-      "find": "velocityWindowMs: DRAG_VELOCITY_WINDOW_MS",
-      "replace": "velocityWindowMs: 1000",
+      "name": "the drag rest time is 51 ms",
+      "file": "rowConstants.ts",
+      "find": "export const DRAG_REST_MS = 50;",
+      "replace": "export const DRAG_REST_MS = 51;",
       "expectRed": [
-        "outside a row a DragToClose reads the library defaults"
+        "rowConstants: the remaining defaults are the strings and numbers the tuning defaults carry"
       ]
     }
   ]

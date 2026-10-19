@@ -15,7 +15,7 @@ import { computeRowOrder, deriveAnchorsFromOrder } from '../panelRowOrder.js';
 import * as panelWindow from '../panelWindow.js';
 import { appendPanel, closePanel, movePanel, reanchorPanel, reorderStepsForOffset, restorePanel } from '../panelWindow.js';
 import { computeMaxLiveWidth, computeRowLayout } from '../panelRowLayout.js';
-import { panelWidthOf, sizeOfSlots } from '../panelTiers.js';
+import { panelWidthOf } from '../panelTiers.js';
 import { ALL_SLOTS } from '../rowConstants.js';
 import { hydrateWorkspaceState, projectWorkspaceState } from '../workspaceState.js';
 
@@ -142,16 +142,16 @@ function changelogBreakingNames(): Set<string> {
   return names;
 }
 
-test('compat-0.1.0 fixture: 66 root values and 2 testing values in 0.1.0, 47 names since removed (28 root values, 15 root types, 1 testing value, 3 testing types)', () => {
+test('compat-0.1.0 fixture: 66 root values and 2 testing values in 0.1.0, 49 names since removed (30 root values, 15 root types, 1 testing value, 3 testing types)', () => {
   const fixture = exportsFixture();
   assert.equal(fixture.root.values.length, 66);
   assert.equal(fixture.testing.values.length, 2);
   const removed = fixture.removedSince010;
-  assert.equal(removed.root.values.length, 28);
+  assert.equal(removed.root.values.length, 30);
   assert.equal(removed.root.types.length, 15);
   assert.equal(removed.testing.values.length, 1);
   assert.equal(removed.testing.types.length, 3);
-  assert.equal(removed.root.values.length + removed.root.types.length + removed.testing.values.length + removed.testing.types.length, 47);
+  assert.equal(removed.root.values.length + removed.root.types.length + removed.testing.values.length + removed.testing.types.length, 49);
   assert.ok(removed.root.values.every((name) => fixture.root.values.includes(name)), 'every removed root value was a 0.1.0 root value');
   assert.ok(removed.root.types.every((name) => fixture.root.types.includes(name)), 'every removed root type was a 0.1.0 root type');
   assert.ok(removed.testing.values.every((name) => fixture.testing.values.includes(name)), 'every removed testing value was a 0.1.0 testing value');
@@ -230,7 +230,7 @@ function withoutUid(output: unknown): unknown {
 /** What a 0.1.0 tier stood for: width is a slot count now, and the tier word is gone. */
 const TIER_SLOTS: Readonly<Record<string, number>> = { phone: 1, tablet: 2, desktop: ALL_SLOTS };
 
-/** `value` with every panel-shaped object's tier read as its slot count and its size recomputed from it; the rest is copied as it is. */
+/** `value` with every panel-shaped object's tier read as its slot count and the rest is copied as it is. */
 function tiersAsSlots(value: unknown): unknown {
   if (Array.isArray(value)) return value.map(tiersAsSlots);
   if (typeof value !== 'object' || value === null) return value;
@@ -239,7 +239,16 @@ function tiersAsSlots(value: unknown): unknown {
   for (const [key, held] of Object.entries(rest)) out[key] = tiersAsSlots(held);
   if (typeof formFactor !== 'string' || !(formFactor in TIER_SLOTS)) return 'size' in (value as object) || 'formFactor' in (value as object) ? { ...out, ...('size' in (value as object) ? { size: (value as { size: unknown }).size } : {}) } : out;
   const slots = typeof out.slots === 'number' ? out.slots : TIER_SLOTS[formFactor]!;
-  return { ...out, slots, ...('size' in (value as object) ? { size: sizeOfSlots(slots) } : {}) };
+  return { ...out, slots };
+}
+
+/** `value` without the `locked` field 0.1.0 panels carried: the closable setting replaced it, so nothing writes or reads it any more. */
+function withoutLocked(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(withoutLocked);
+  if (typeof value !== 'object' || value === null) return value;
+  const out: Record<string, unknown> = {};
+  for (const [key, held] of Object.entries(value)) if (key !== 'locked') out[key] = withoutLocked(held);
+  return out;
 }
 
 /** A saved entry (projectWorkspaceState's output) with its tier read as slots, which are written only above one, and without the counter id this library no longer saves. */
@@ -270,14 +279,19 @@ test('compat-0.1.0 corpus: the pure functions give the vendored 0.1.0 outputs on
     const replay = REPLAY[c.fn];
     assert.ok(replay, `the corpus names ${c.fn}, which this test does not replay`);
     // A saved file keeps its tiers on purpose: reading them is what hydrateWorkspaceState must still do.
-    const args = c.fn === 'hydrateWorkspaceState' ? structuredClone(c.args) : (tiersAsSlots(structuredClone(c.args)) as unknown[]);
+    const args = c.fn === 'hydrateWorkspaceState' ? structuredClone(c.args) : (withoutLocked(tiersAsSlots(structuredClone(c.args))) as unknown[]);
     if (c.fn === 'panelWidthOf' && (args[0] as { slots?: number }).slots !== undefined && (args[0] as { slots: number }).slots > 1) {
       // A wider panel is that many phone widths now, not the stored tier width: slot-sizing.test.ts holds that rule.
       widened += 1;
       continue;
     }
+    if (c.fn === 'movePanel' && args[1] === args[3]) {
+      // 0.1.0 never moved the root; the pure function now does, and a person's drag is limited by the root's `movable` setting, which is off unless a layer sets it.
+      widened += 1;
+      continue;
+    }
     const actual = withoutUid(replay(args));
-    const expected = c.fn === 'projectWorkspaceState' ? savedTiersAsSlots(c.out) : c.fn === 'panelWidthOf' ? c.out : tiersAsSlots(c.out);
+    const expected = withoutLocked(c.fn === 'projectWorkspaceState' ? savedTiersAsSlots(c.out) : c.fn === 'panelWidthOf' ? c.out : tiersAsSlots(c.out));
     assert.deepStrictEqual(actual, expected, `${c.fn} case ${replayed} no longer answers as 0.1.0 did`);
     if (['appendPanel', 'restorePanel', 'hydrateWorkspaceState'].includes(c.fn)) {
       for (const output of [expected, actual]) {

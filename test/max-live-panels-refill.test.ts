@@ -124,8 +124,8 @@ test('a close returns nothing, and a close after a raise returns nothing more', 
 
 /** A hand-built row, which has no scroll entry and no settings: the walk a raise takes is the capacity-rise walk, bounded by the window. */
 function flatRow(width: number, cap: number): { row: () => string; raiseTo: (n: number) => void; seen: string[] } {
-  const entry = (id: string, over: Partial<PanelWindow> = {}): PanelWindow => ({ id, url: `https://${id}.example`, title: id, live: true, locked: false, view: 'web', collapsible: true, listed: true, ...over });
-  const entries = [entry('root', { url: '', title: 'History', locked: true, collapsible: false, listed: false }), ...['a', 'b', 'c', 'd', 'e', 'f'].map((id) => entry(id))];
+  const entry = (id: string, over: Partial<PanelWindow> = {}): PanelWindow => ({ id, url: `https://${id}.example`, title: id, live: true, view: 'web', collapsible: true, listed: true, ...over });
+  const entries = [entry('root', { url: '', title: 'History', collapsible: false, listed: false }), ...['a', 'b', 'c', 'd', 'e', 'f'].map((id) => entry(id))];
   let latest: ProvidedPanels | undefined;
   const seen: string[] = [];
   let setCap: (n: number) => void = () => undefined;

@@ -12,8 +12,8 @@ import { makeHandle, makeOwnHandle, makeReader, makeViewHandle, type PanelHandle
 import { accepted, makePanelManager, refused, type ConfigureResult, type PanelManager, type PanelOpSource, type PanelResult, type PinResult, type ResetResult } from './panelManager.js';
 import { PanelManagerError } from './panelManagerError.js';
 import { decidePinChange, isPinned, withoutDeferral, type PinChange, type PinDecision, type PinStatus } from './panelPin.js';
-import { applyTemplate, effective, holdUnlistedNote, panelKey, resolvePanelSettings, resolveUnderTuning, sameSettingsValue } from './panelSettings.js';
-import type { AddPlacement, PanelId, PanelSettings, PanelSettingsResolution, ResolvedPanelSettings, ResolvedPanelTuning, ResolvedWorkspaceTuning, ScrollAlign, SettingNote, WorkspaceTuning } from './panelSettings.js';
+import { applyTemplate, effective, holdUnlistedNote, panelKey, resolvePanelSettings, sameSettingsValue } from './panelSettings.js';
+import type { AddPlacement, PanelId, PanelSettings, PanelSettingsResolution, ResolvedPanelSettings, ResolvedWorkspaceTuning, ScrollAlign, SettingNote, WorkspaceTuning } from './panelSettings.js';
 import { definePanel } from './panelTemplate.js';
 import type { DeferredPin, PanelReader, PanelReadHandle, PanelSnapshot, PanelState, PanelTemplate, AnyPanelTemplate, ViewHandle, WorkspaceStatus } from './panelTemplate.js';
 import { resolveWorkspaceTuning } from './panelTuning.js';
@@ -68,8 +68,8 @@ export type WorkspaceOptions = WorkspaceLive & {
   onRename?: (name: string) => void;
   /** Where the workspace is kept between launches. Unset: nothing is loaded or saved. */
   storage?: WorkspaceStorage;
-  /** The workspace's panel settings (every key except `tuning`), the layer under every template. */
-  defaults?: Omit<PanelSettings, 'tuning'>;
+  /** The workspace's panel settings, the layer under every template. */
+  defaults?: PanelSettings;
   /** The root panel's template. Unset: the row has an invisible marker entry as its root. */
   root?: AnyPanelTemplate;
   /** The templates panels of this workspace may be made from. */
@@ -189,7 +189,7 @@ export interface EngineCommit {
 export interface EngineOps {
   show(engineId: string): PanelResult;
   hide(engineId: string): PanelResult;
-  close(engineId: string): PanelResult;
+  close(engineId: string, source: PanelOpSource): PanelResult;
   /** Opening a panel the engine already holds changes nothing, but it still waits its turn behind a close. */
   open(engineId: string): PanelResult;
   move(engineId: string, by: number, source: PanelOpSource): PanelResult;
@@ -232,13 +232,11 @@ export interface CreateRequest {
 export interface EngineBinding {
   readonly rootId: string;
   readonly storage: WorkspaceStorage | undefined;
-  readonly defaults: Omit<PanelSettings, 'tuning'> | undefined;
+  readonly defaults: PanelSettings | undefined;
   readonly tuningInput: WorkspaceTuning | undefined;
   readonly tuning: ResolvedWorkspaceTuning;
   /** The instance layer `e` resolves under now: the record's for a closed entry or one code declares, the entry's own otherwise. */
   layerOf(e: PanelWindow): PanelSettings | undefined;
-  /** The tuning leaves `e` resolves to under the workspace's current tuning; undefined for an entry that carries no settings. */
-  panelTuning(e: PanelWindow): ResolvedPanelTuning | undefined;
   /** Keeps what a view asked for at a Host-bag create of the panel drawn under `engineId` as its host layer for this session. */
   hostAsked(engineId: string, host: PanelSettings): void;
   readonly order: (() => readonly PanelId[]) | undefined;
@@ -383,7 +381,7 @@ export function createWorkspace(o: WorkspaceOptions = {}): WorkspaceHandle {
   const effectiveTemplates = new WeakMap<PanelTemplate, { over: PanelSettings; template: PanelTemplate }>();
   /** The last commit's entries by engine id, so the next commit can tell which panels left. */
   let lastEntries = new Map<string, PanelWindow>();
-  const resolutions = new WeakMap<object, { template: PanelTemplate | undefined; settings: PanelSettings | undefined; split: HostSplit | undefined; tuning: WorkspaceTuning | undefined; res: PanelSettingsResolution }>();
+  const resolutions = new WeakMap<object, { template: PanelTemplate | undefined; settings: PanelSettings | undefined; split: HostSplit | undefined; res: PanelSettingsResolution }>();
 
   let status: WorkspaceStatus = 'detached';
   let owner: object | undefined;
@@ -413,9 +411,6 @@ export function createWorkspace(o: WorkspaceOptions = {}): WorkspaceHandle {
     const found = registeredTemplate(id);
     return found === undefined ? undefined : withOverrides(found);
   };
-
-  /** Every resolve a workspace makes reads the workspace's per-panel tuning leaves as the layer under the template. */
-  const resolve = (layers: NonNullable<Parameters<typeof resolvePanelSettings>[0]>, options?: Parameters<typeof resolvePanelSettings>[1]): PanelSettingsResolution => resolveUnderTuning(layers, options ?? {}, tuningInput);
 
   /** The instance layer `e` resolves under: for a closed entry and for one code declares, the record's, which a configure edits; otherwise the entry's own. */
   const instanceLayer = (e: PanelWindow): PanelSettings | undefined => {
@@ -457,13 +452,13 @@ export function createWorkspace(o: WorkspaceOptions = {}): WorkspaceHandle {
   const resolutionFor = (key: object, id: PanelId, templateId: string, settings: PanelSettings | undefined, user: PanelWindow['overrides'], isRoot: boolean, split: HostSplit | undefined): PanelSettingsResolution => {
     const template = templateOf(templateId);
     const cached = resolutions.get(key);
-    if (cached !== undefined && cached.template === template && cached.settings === settings && cached.split === split && cached.tuning === tuningInput) return cached.res;
+    if (cached !== undefined && cached.template === template && cached.settings === settings && cached.split === split) return cached.res;
     const instance = ownLayer(settings, split);
-    const res = resolve(
+    const res = resolvePanelSettings(
       { ...(defaults !== undefined ? { workspace: defaults } : {}), ...(template?.settings !== undefined ? { template: template.settings } : {}), ...(split !== undefined ? { host: split.host } : {}), ...(instance !== undefined ? { instance } : {}), ...(user !== undefined ? { user } : {}) },
       { lenient: true, root: isRoot },
     );
-    resolutions.set(key, { template, settings, split, tuning: tuningInput, res });
+    resolutions.set(key, { template, settings, split, res });
     return res;
   };
 
@@ -472,7 +467,7 @@ export function createWorkspace(o: WorkspaceOptions = {}): WorkspaceHandle {
     const template = templateOf(e.view);
     const split = splits.get(e.id);
     const settings = ownLayer(instanceLayer(e), split);
-    return resolve(
+    return resolvePanelSettings(
       { ...(defaults !== undefined ? { workspace: defaults } : {}), ...(template?.settings !== undefined ? { template: template.settings } : {}), ...(split !== undefined ? { host: split.host } : {}), ...(settings !== undefined ? { instance: settings } : {}), ...(user !== undefined ? { user } : {}) },
       { lenient: true, root: e.id === rootId },
     );
@@ -705,8 +700,8 @@ export function createWorkspace(o: WorkspaceOptions = {}): WorkspaceHandle {
   };
 
   const rootEntry = (): PanelWindow => {
-    if (root === undefined) return { id: ROOT_MARKER_ID, url: '', title: '', live: true, locked: true, view: ROOT_MARKER_ID, collapsible: false, listed: false, marker: true };
-    const res = resolve({ ...(defaults !== undefined ? { workspace: defaults } : {}), template: root.settings }, { root: true });
+    if (root === undefined) return { id: ROOT_MARKER_ID, url: '', title: '', live: true, view: ROOT_MARKER_ID, collapsible: false, listed: false, marker: true };
+    const res = resolvePanelSettings({ ...(defaults !== undefined ? { workspace: defaults } : {}), template: root.settings }, { root: true });
     return applyTemplate({ ...createHistoryPanel(root.id), title: res.value.title ?? '', view: root.id, ...(root.params !== undefined ? { params: root.params } : {}), key: root.id }, res.value, 'create');
   };
 
@@ -747,7 +742,7 @@ export function createWorkspace(o: WorkspaceOptions = {}): WorkspaceHandle {
     }
     if (options?.id !== undefined) validateExplicitId(options.id, t);
     // Validated here, not at settle, so a bad settings layer throws at the call that wrote it.
-    const res = resolve({ ...(defaults !== undefined ? { workspace: defaults } : {}), template: withOverrides(t).settings, ...(options?.settings !== undefined ? { instance: options.settings } : {}) });
+    const res = resolvePanelSettings({ ...(defaults !== undefined ? { workspace: defaults } : {}), template: withOverrides(t).settings, ...(options?.settings !== undefined ? { instance: options.settings } : {}) });
     const multiple = res.value.multiple;
     const ready = status === 'ready' && commit !== undefined;
     if (options?.id === undefined && multiple && !ready) throw new PanelManagerError('instance-id-required', `template '${t.id}' is multiple: before the workspace is ready each panel needs an explicit id`);
@@ -791,7 +786,7 @@ export function createWorkspace(o: WorkspaceOptions = {}): WorkspaceHandle {
     if (rec === undefined || state === undefined || (rec.anonymous && !rec.closed)) return refused('is-closed', `panel '${id}' is closed and nothing can name it again`);
     const template = templateOf(rec.templateId);
     if (template === undefined) return refused('unknown-panel', `panel '${id}': template '${rec.templateId}' is not registered`);
-    const res = resolve({ ...(defaults !== undefined ? { workspace: defaults } : {}), template: template.settings, ...(rec.settings !== undefined ? { instance: rec.settings } : {}) }, { lenient: true });
+    const res = resolvePanelSettings({ ...(defaults !== undefined ? { workspace: defaults } : {}), template: template.settings, ...(rec.settings !== undefined ? { instance: rec.settings } : {}) }, { lenient: true });
     const count = instancesOf(template.id);
     const full = (!res.value.multiple && count > 0) || (res.value.maxInstances !== 'unlimited' && count >= res.value.maxInstances);
     if (full) return refused('instance-limit', `panel '${id}': template '${template.id}' is at its limit of ${res.value.multiple ? res.value.maxInstances : 1}`);
@@ -878,7 +873,7 @@ export function createWorkspace(o: WorkspaceOptions = {}): WorkspaceHandle {
       case 'toggleVisibility':
         return state.status === 'live' ? ops.hide(engineId) : ops.show(engineId);
       case 'close':
-        return ops.close(engineId);
+        return ops.close(engineId, src);
       case 'open':
         return ops.open(engineId);
       case 'move':
@@ -959,7 +954,7 @@ export function createWorkspace(o: WorkspaceOptions = {}): WorkspaceHandle {
     if ('refusal' in checked) return { ok: false, ...checked.refusal };
     if (state.status === 'pending') return failed(refused('is-pending', `panel '${id}' is still being added`));
     const asked = patch as SettingsPatch;
-    const input = { call: caller, patch: asked, names: checked.names, workspace: defaults, tuning: tuningInput };
+    const input = { call: caller, patch: asked, names: checked.names, workspace: defaults };
     const rest = withoutFlip(asked, checked.names);
     if (state.status === 'closed') {
       const rec = records.get(id);
@@ -1048,8 +1043,8 @@ export function createWorkspace(o: WorkspaceOptions = {}): WorkspaceHandle {
     const before = templateOverrides.get(templateId);
     const plan = planTemplate(before, patch as SettingsPatch);
     if (!plan.changed) return unchanged();
-    const after = resolve({ ...(defaults !== undefined ? { workspace: defaults } : {}), template: { ...template.settings, ...plan.layer } }).value;
-    const wasMultiple = resolve({ ...(defaults !== undefined ? { workspace: defaults } : {}), template: { ...template.settings, ...before } }).value.multiple;
+    const after = resolvePanelSettings({ ...(defaults !== undefined ? { workspace: defaults } : {}), template: { ...template.settings, ...plan.layer } }).value;
+    const wasMultiple = resolvePanelSettings({ ...(defaults !== undefined ? { workspace: defaults } : {}), template: { ...template.settings, ...before } }).value.multiple;
     if (checked.names.includes('multiple') && wasMultiple && !after.multiple) {
       const counted = returningInstances(templateId);
       if (counted.some((key) => key !== templateId)) {
@@ -1106,7 +1101,6 @@ export function createWorkspace(o: WorkspaceOptions = {}): WorkspaceHandle {
       return tuning;
     },
     layerOf: instanceLayer,
-    panelTuning: (e) => (e.settings === undefined ? undefined : entryResolution(e).value.tuning),
     hostAsked: (engineId, host) => void splits.set(engineId, { host, touched: new Set() }),
     order: o.order,
     newId,

@@ -144,7 +144,7 @@ test('labels overrides replace each default string', () => {
   assert.equal(header.includes('Namenlos'), true);
   const Untitled = placeholderFor('hn-nowhere');
   const placeholder = renderToStaticMarkup(
-    React.createElement(HostProvider, { host, children: React.createElement(Untitled, { panel: { id: 'x', live: true, locked: false } }) }),
+    React.createElement(HostProvider, { host, children: React.createElement(Untitled, { panel: { id: 'x', live: true } }) }),
   );
   assert.equal(placeholder.includes('Ohne Titel'), true);
 });
@@ -152,7 +152,7 @@ test('labels overrides replace each default string', () => {
 test('without labels every default string is the English text', () => {
   assert.equal(createHistoryPanel(ROOT).title, 'History');
   const Untitled = placeholderFor('hn-nowhere');
-  assert.equal(renderToStaticMarkup(React.createElement(Untitled, { panel: { id: 'x', live: true, locked: false } })).includes('Untitled panel'), true);
+  assert.equal(renderToStaticMarkup(React.createElement(Untitled, { panel: { id: 'x', live: true } })).includes('Untitled panel'), true);
 });
 
 test('the pin-refusal labels default to English and a host overrides them', () => {

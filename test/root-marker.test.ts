@@ -21,14 +21,13 @@ const entry = (id: string, over: Partial<PanelWindow> = {}): PanelWindow => ({
   url: `https://${id}.example`,
   title: id.toUpperCase(),
   live: true,
-  locked: false,
   view: 'marker-probe',
   collapsible: true,
   listed: true,
   ...over,
 });
-const marker = (): PanelWindow => entry(MARKER, { url: '', title: '', locked: true, collapsible: false, listed: false, marker: true });
-const history = (): PanelWindow => entry('root', { url: '', title: 'History', locked: true, collapsible: false, listed: false });
+const marker = (): PanelWindow => entry(MARKER, { url: '', title: '', collapsible: false, listed: false, marker: true });
+const history = (): PanelWindow => entry('root', { url: '', title: 'History', collapsible: false, listed: false });
 const ids = (panels: readonly PanelWindow[]): string[] => panels.map((p) => p.id);
 
 registerTestView('marker-probe', ({ panel }) => {

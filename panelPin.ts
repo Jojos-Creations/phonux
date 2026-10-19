@@ -138,24 +138,23 @@ const sameSlot = (a: PanelWindow, b: PanelWindow): boolean =>
   a.id === b.id && a.collapsible === b.collapsible && a.live === b.live && a.listed === b.listed && a.anchor?.panel === b.anchor?.panel && a.anchor?.position === b.anchor?.position;
 
 /**
- * `change` applied to panel `id` of `row`, all or nothing. `pin` places, then fixes: the half's placement is gated by
- * the panel's `placeable` as it is now, a fixed column needs one slot and no explicit setting the fix would
- * override. `unpin` frees first, so the panel's permissions are the derived ones again, then places, so a fixed pin
- * can always be unpinned. A half with no placement uses `o.fallback`, which no `placeable` gate guards. A deferred pin
- * the panel held is cleared whatever the outcome.
+ * `change` applied to panel `id` of `row`, all or nothing. `pin` places, then fixes: a fixed column needs one slot and
+ * no explicit setting the fix would override. `unpin` frees first, then places. A half with no placement uses
+ * `o.fallback`. Placement is the developer's own ask, so `movable` gates none of it. A deferred pin the panel held is
+ * cleared whatever the outcome.
  * @internal
  */
 export function applyPinChange(row: readonly PanelWindow[], id: string, change: PinChange, env: PinEnv, o: { fallback?: AddPlacement | 'in-place' } = {}): PinApplied {
   const entry = row.find((p) => p.id === id);
   if (entry === undefined) return refusal('unknown-panel', `no panel '${id}' is in the row`);
   const name = panelKey(entry);
+  if (id === env.rootId) return refusal('not-movable', `panel '${name}' is the root and cannot be anchored to itself`);
   const half = halfOf(definitionOf(entry), change);
   const fixing = half.parkable === false && entry.collapsible;
   const freeing = half.parkable === true && !entry.collapsible;
   const fixedTo = fixing ? env.resolveWith(entry, false) : undefined;
   const freedTo = freeing ? env.resolveWith(entry, true) : undefined;
   const freed = freedTo === undefined ? entry : reparked(entry, freedTo);
-  if (half.placement !== undefined && !effective(freed).placeable) return refusal('not-placeable', `panel '${name}' cannot be placed`);
   if (fixedTo !== undefined) {
     if (slotsOf(entry) !== 1) return refusal('slots-above-max', `panel '${name}' is wider than one slot, which a fixed column needs`);
     const clash = fixedTo.conflicts.find((c) => c.kind === 'forced' && c.forcedBy === 'parkable');

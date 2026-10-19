@@ -40,6 +40,7 @@ function EdgeBox({ id }: { id: string }): React.ReactElement {
 
 interface Rig {
   m: MountedWorkspace;
+  ws: ReturnType<typeof createWorkspace>;
   h: Record<string, PanelHandle>;
 }
 
@@ -57,7 +58,7 @@ async function mountRig(own: Record<string, PanelSettings> = {}): Promise<Rig> {
   Object.defineProperty(m.container, 'clientWidth', { value: WINDOW, configurable: true });
   m.container.getBoundingClientRect = () => RECT;
   await frames(60);
-  return { m, h };
+  return { m, ws, h };
 }
 
 function pointer(type: 'pointerdown' | 'pointermove' | 'pointerup', x: number, y = 100): Event {
@@ -82,11 +83,11 @@ async function dragTo(r: Rig, at: number, id = 's1'): Promise<void> {
 }
 /** The loop's first frame has dt 0, so the first two frames after the move gain nothing: one frame of warm-up opens a window that gains 7.2 a frame. */
 const warmUp = (): Promise<void> => frames(1);
-/** `configure` inside one act, answering ok. */
-async function configure(r: Rig, id: string, patch: Parameters<PanelHandle['configure']>[0]): Promise<void> {
+/** `configureTuning` inside one act, answering ok. */
+async function configure(r: Rig, patch: Parameters<Rig['ws']['panels']['configureTuning']>[0]): Promise<void> {
   let result: ConfigureResult | undefined;
   await act(async () => {
-    result = r.h[id]!.configure(patch);
+    result = r.ws.panels.configureTuning(patch);
   });
   assert.equal(result?.ok, true, `configure ${JSON.stringify(patch)} answered ${JSON.stringify(result)}`);
 }
@@ -113,7 +114,7 @@ test('tuning.edgeScroll zonePx 48 to 12 mid-drag: this drag keeps its pace, and 
   await dragTo(r, POINTER);
   await warmUp();
   near(await gainOver(r, 10), 72, 'ten frames before the configure');
-  await configure(r, 's1', { tuning: { edgeScroll: { zonePx: 12 } } });
+  await configure(r, { edgeScroll: { zonePx: 12 } });
   near(await gainOver(r, 10), 72, 'ten frames after the configure');
   await liftAt(POINTER);
   await frames(30);
@@ -127,7 +128,7 @@ test('tuning.edgeScroll maxPxPerSec 900 to 450 mid-drag: this drag keeps its pac
   await dragTo(r, POINTER);
   await warmUp();
   near(await gainOver(r, 10), 72, 'ten frames before the configure');
-  await configure(r, 's1', { tuning: { edgeScroll: { maxPxPerSec: 450 } } });
+  await configure(r, { edgeScroll: { maxPxPerSec: 450 } });
   near(await gainOver(r, 10), 72, 'ten frames after the configure');
   await liftAt(POINTER);
   await frames(30);

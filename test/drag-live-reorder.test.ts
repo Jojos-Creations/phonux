@@ -124,8 +124,8 @@ test('a panel wider than its neighbours makes them move by ITS span, and a narro
   await advanceFrames(3000);
 });
 
-test('nothing is previewed for a panel that is not draggable', async () => {
-  const m = mountRow(row(rootEntry(), made('s1', { draggable: false }), made('s2')), 3000);
+test('nothing is previewed for a panel that is not movable', async () => {
+  const m = mountRow(row(rootEntry(), made('s1', { movable: false }), made('s2')), 3000);
   await advanceFrames(2000);
   const before = xOf(m, 's2');
   await drag(handleOf(m, 's1'), { dx: SPAN, dy: 0, steps: 8, hold: 8, keepDown: true });

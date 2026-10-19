@@ -10,7 +10,6 @@ import { computeRowOrder } from './panelRowOrder.js';
 import { FIXED, applyTemplate, resolvePanelSettings, sameSettingsValue } from './panelSettings.js';
 import type { AddPlacement, PanelSettings, PanelSettingsLayers, PanelSettingsResolution, ResolvedPanelSettings, SettingNote } from './panelSettings.js';
 import type { PanelTemplate } from './panelTemplate.js';
-import { sizeOfSlots } from './panelTiers.js';
 import { newPanelUid } from './panelUid.js';
 import { appendPanel, clearOverrides, type PanelWindow } from './panelWindow.js';
 import { cleanDismissed, cleanSavedExtras, cleanSavedUid, entryFromSaved, isWorkspaceState, savedNames } from './workspaceState.js';
@@ -30,7 +29,7 @@ export interface ReconcileInput {
   /** The panels code declares, in declaration order. */
   declared: readonly DeclaredPanel[] | undefined;
   /** The workspace's panel settings; with neither these, templates nor declarations a restored panel is a 0.1.0 entry with no settings. */
-  workspaceDefaults?: Omit<PanelSettings, 'tuning'>;
+  workspaceDefaults?: PanelSettings;
   /** The row's root id. */
   rootId: string;
   /** The panels already in the row, which a restored entry is placed beside and never duplicates. */
@@ -75,11 +74,7 @@ function keptInstance(instance: PanelSettings, resolution: PanelSettingsResoluti
   const copy: Record<string, unknown> = { ...instance };
   for (const note of resolution.notes) {
     if (note.code !== 'invalid-saved-setting' || note.key === undefined || !note.message.startsWith('instance')) continue;
-    if (note.key.startsWith('tuning.') && typeof copy.tuning === 'object' && copy.tuning !== null) {
-      const { [note.key.slice('tuning.'.length)]: _gone, ...rest } = copy.tuning as Record<string, unknown>;
-      if (Object.keys(rest).length === 0) delete copy.tuning;
-      else copy.tuning = rest;
-    } else delete copy[note.key];
+    delete copy[note.key];
   }
   return copy as PanelSettings;
 }
@@ -166,7 +161,7 @@ export function reconcileWorkspace(i: ReconcileInput): ReconcileResult {
     if (s.uid === undefined) minted = true;
     const base = entryFromSaved(s, id, anchorOf(s.anchor), i.rootId, s.uid ?? newUid());
     if (!settingsOn) {
-      built.push(s.closable === false ? { ...base, locked: true } : base);
+      built.push(base);
       return;
     }
 
@@ -208,7 +203,6 @@ export function reconcileWorkspace(i: ReconcileInput): ReconcileResult {
       ...reconfigured,
       live,
       slots: settings.slots,
-      size: sizeOfSlots(settings.slots),
       ...(anchor !== undefined ? { anchor } : {}),
       ...(key !== undefined ? { key } : {}),
       ...(claim !== undefined ? { declared: true as const } : { instance: keptInstance(plainAsk, resolution) }),
@@ -229,7 +223,7 @@ export function reconcileWorkspace(i: ReconcileInput): ReconcileResult {
     }
     const resolution = resolvePanelSettings({ workspace, template: template.settings, instance: d.settings }, { lenient: true });
     const settings = resolution.value;
-    // A tombstone keeps a panel closed only while the panel can be closed and stays closed after it: a stale one never hides a locked or returning panel.
+    // A tombstone keeps a panel closed only while the panel can be closed and stays closed after it: a stale one never hides an unclosable or returning panel.
     if (dismissed.includes(d.id)) {
       if (settings.closable && settings.afterClose === 'stay-closed') continue;
       released.add(d.id);

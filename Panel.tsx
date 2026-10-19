@@ -10,7 +10,6 @@ import * as React from 'react';
 import Box, { type BoxProps } from '@mui/material/Box';
 import DragIndicatorIcon from '@mui/icons-material/DragIndicator';
 import { PanelHeaderRow, type PanelHeaderRowProps } from './PanelFrame.js';
-import { useChromePixels } from './panelChrome.js';
 import { type PanelSize } from './hostApi.js';
 import { usePhoneSize } from './phoneFit.js';
 import { useFrameClaim } from './panelFrameClaim.js';
@@ -18,6 +17,7 @@ import { PanelSlotContext } from './panelSlotContext.js';
 import { HEADER_ROW_ATTRIBUTE, PanelHeaderButtons, usePanelHeaderButtons } from './panelHeaderButtons.js';
 import { CaptureRegistryContext, type ViewId } from './snapshots.js';
 import { useInsideSizeBox } from './PanelRowSlot.js';
+import { GRAB_HANDLE_PX } from './rowConstants.js';
 import { ACTIVE_ATTRIBUTE, CHROME_ATTRIBUTE, CHROME_PARTS, DRAGGING_ATTRIBUTE, PanelChromeVisibleContext, useChromeFade, useChromeVisibility, usePanelActive, usePanelDragging } from './panelChrome.js';
 
 export { HostMissingProviderError, HostProvider, useHost } from './hostApi.js';
@@ -47,7 +47,7 @@ export interface PanelProps extends Omit<BoxProps, 'children' | 'sx' | 'title'> 
    * element, a grip icon left of the title in the header row -- never spread onto `headerProps` -- so a
    * click on the title text or an action icon in the header is never mistaken for a drag start. Without a
    * `title` there is no header row, and the icon sits above the frame's top-left corner instead. Omitted
-   * (the usual case for a locked view, e.g. History) renders no grab handle at all.
+   * (the usual case for a view that cannot be closed, e.g. History) renders no grab handle at all.
    */
   grabProps?: Omit<BoxProps, 'children'> & { [key: `data-${string}`]: string | boolean | undefined };
   /**
@@ -99,7 +99,6 @@ export function Panel({ title, actions, headerProps, headerButtons = true, grabP
   const { visible, handlers } = useChromeVisibility();
   const fadeHeader = useChromeFade(visible);
   const fadeGrab = useChromeFade(visible);
-  const chrome = useChromePixels();
   const warned = React.useRef(false);
   // One element, either way: inside the header it fades with the header, so only the header-less one fades itself.
   const grabHandleProps = {
@@ -111,8 +110,8 @@ export function Panel({ title, actions, headerProps, headerButtons = true, grabP
       alignItems: 'center',
       justifyContent: 'center',
       flexShrink: 0,
-      width: `${chrome.headerGapPx}px`,
-      height: `${chrome.headerGapPx}px`,
+      width: `${GRAB_HANDLE_PX}px`,
+      height: `${GRAB_HANDLE_PX}px`,
       ...grabProps?.sx,
     },
   };

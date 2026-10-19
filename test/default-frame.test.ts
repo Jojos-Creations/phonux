@@ -310,8 +310,8 @@ test('a permanent panel, one that is not parkable, gets no drag-to-close either'
   assert.equal(grabOf(r, 'plain') !== null, true, 'control: the ordinary panel has its grab bar');
 });
 
-test('a panel whose draggable setting is false keeps the drag-down close but is not moved by a sideways drag', async () => {
-  const r = await rig([bareTemplate('one', { settings: { title: 'ONE', multiple: true, draggable: false } }), bareTemplate('two')], ['one', 'two']);
+test('a panel whose movable setting is false keeps the drag-down close but is not moved by a sideways drag', async () => {
+  const r = await rig([bareTemplate('one', { settings: { title: 'ONE', multiple: true, movable: false } }), bareTemplate('two')], ['one', 'two']);
   await settle();
   assert.deepEqual(bodyOrder(r), ['one', 'two']);
   assert.equal(grabOf(r, 'one') !== null, true, 'the grab bar is still drawn');
@@ -323,18 +323,18 @@ test('a panel whose draggable setting is false keeps the drag-down close but is 
   assert.deepEqual(bodyOrder(r), ['one', 'two'], 'a sideways drag leaves the order');
   const follower = slotOf(r, 'two').querySelector<HTMLElement>('[data-drag-to-close]')!;
   await drag(grabOf(r, 'two')!, { dx: -450, dy: 0, keepDown: true });
-  assert.match(follower.style.transform, /translateX/, 'control: a draggable panel follows the same pointer');
+  assert.match(follower.style.transform, /translateX/, 'control: a movable panel follows the same pointer');
   await release(-450, 0);
   await settle();
-  assert.deepEqual(bodyOrder(r), ['two', 'one'], 'control: the draggable panel beside it moves past it');
+  assert.deepEqual(bodyOrder(r), ['two', 'one'], 'control: the movable panel beside it moves past it');
   await drag(grabOf(r, 'one')!, { dx: 0, dy: 400 });
   await settle();
   await advanceFrames(2000);
   assert.equal(r.m.container.querySelector('[data-body="one"]') === null, true, 'and a downward drag on the same grab bar still closes it');
 });
 
-test('a panel that cannot be closed but is draggable has no grab bar and so no reorder handle', async () => {
-  const r = await rig([bareTemplate('one', { settings: { title: 'ONE', multiple: true, closable: false, draggable: true } }), bareTemplate('two')], ['one', 'two']);
+test('a panel that cannot be closed but is movable has no grab bar and so no reorder handle', async () => {
+  const r = await rig([bareTemplate('one', { settings: { title: 'ONE', multiple: true, closable: false, movable: true } }), bareTemplate('two')], ['one', 'two']);
   await settle();
   assert.deepEqual(bodyOrder(r), ['one', 'two']);
   assert.equal(grabOf(r, 'one') === null, true);

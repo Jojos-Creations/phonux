@@ -94,7 +94,7 @@ export interface UsePanelManagerResult {
   reorderPanel: (id: string, by: number | 'left' | 'right', record?: boolean) => boolean;
   /** `setSlots` through setPanels; if the row no longer fits, the same update parks what the capacity drop would, keeping every acted-on panel live. False for a no-op. `record` false leaves `overrides` as it was. */
   resizePanel: (id: string, slots: number, record?: boolean) => boolean;
-  /** Puts `id` where `value` says, keeping its live flag; the placement is the developer's own ask, so `placeable` is the caller's to check. `record` false leaves `overrides` as it was. True when the placement changes this render's list. */
+  /** Puts `id` where `value` says, keeping its live flag; the placement is the developer's own ask, so a person's `movable` is the caller's to check. `record` false leaves `overrides` as it was. True when the placement changes this render's list. */
   placeAt: (id: string, value: AddPlacement | 'in-place', record?: boolean) => boolean;
   /** The in-flight gate shared by the manager's operations and the raw mutators. */
   gate: OperationGate;
