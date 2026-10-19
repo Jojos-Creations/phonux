@@ -20,6 +20,7 @@ export type PanelRefusal =
   | 'not-parkable'
   | 'not-movable'
   | 'not-resizable'
+  | 'root-fixed'
   | 'slots-above-max'
   | 'would-empty-row'
   | 'instance-limit'

@@ -1787,7 +1787,7 @@ function applyRules(s: State, root: boolean): void {
   }
   if (s.values.closable === false) force(s, 'clearable', false, 'C2', 'closable');
   if ((s.values.slots as number) > (s.values.maxSlots as number)) force(s, 'slots', s.values.maxSlots, 'C4', 'maxSlots');
-  // `movable` is not forced: the root reorders when a layer turns it on, and stays at its fixed-column default otherwise.
+  // `movable` is not forced: code moves the root whatever it says, and it gates only the person's drag. The root is never closed, placed, pinned or unpinned.
 }
 
 const PARK_LEVERS = ['capacityReturn'] as const;

@@ -108,8 +108,8 @@ test('the root cannot be closed or placed by anyone, and a person cannot move it
   const root = r.ws.panels.get(r.ws.rootId)!;
   assert.equal(letter(r.turn(() => root.close())), 'not-closable');
   assert.equal(letter(r.turn(() => root.close('person'))), 'not-closable');
-  assert.equal(letter(r.turn(() => root.place('row-end'))), 'not-movable');
-  assert.equal(letter(r.turn(() => root.place('row-end', 'person'))), 'not-movable');
+  assert.equal(letter(r.turn(() => root.place('row-end'))), 'root-fixed');
+  assert.equal(letter(r.turn(() => root.place('row-end', 'person'))), 'root-fixed');
   assert.equal(letter(r.turn(() => root.move(1, 'person'))), 'not-movable', 'the person\'s drag is what movable gates');
   assert.equal(r.order().join(' '), 'root a b c');
 });
@@ -127,14 +127,30 @@ test('the developer reorders the root whatever its movable says: the handle move
   assert.equal(r.order().join(' '), 'root a b c');
 });
 
-test('pin, pin(person) and unpin on the root are refused with not-movable and write no self-anchor', async () => {
-  const r = await pinRig();
-  const root = r.ws.panels.get(r.ws.rootId)!;
-  const before = JSON.stringify(r.m.latest().entries.map((p) => [p.id, p.anchor, p.live]));
-  for (const call of [() => root.pin(), () => root.pin('person'), () => root.unpin(), () => root.unpin('person')]) {
-    assert.equal(letter(r.turn(call)), 'not-movable');
+test('pin, pin(person), unpin and place on the root are refused with root-fixed, movable unset or true, and write no self-anchor', async () => {
+  for (const movable of [undefined, true]) {
+    const r = await pinRig();
+    const root = r.ws.panels.get(r.ws.rootId)!;
+    if (movable) assert.equal(letter(r.turn(() => root.configure({ movable: true }))), 'T');
+    const before = JSON.stringify(r.m.latest().entries.map((p) => [p.id, p.anchor, p.live]));
+    for (const call of [() => root.pin(), () => root.pin('person'), () => root.unpin(), () => root.unpin('person'), () => root.place('row-end'), () => root.place('row-end', 'person')]) {
+      assert.equal(letter(r.turn(call)), 'root-fixed', `movable ${movable}`);
+    }
+    assert.equal(JSON.stringify(r.m.latest().entries.map((p) => [p.id, p.anchor, p.live])), before);
+    assert.equal(r.entry('root').anchor, undefined);
+    assert.equal(r.order().join(' '), 'root a b c');
   }
-  assert.equal(JSON.stringify(r.m.latest().entries.map((p) => [p.id, p.anchor, p.live])), before);
-  assert.equal(r.entry('root').anchor, undefined);
-  assert.equal(r.order().join(' '), 'root a b c');
+});
+
+test('a live configure patch that names draggable or placeable throws invalid-settings naming movable', async () => {
+  const r = await pinRig();
+  for (const key of ['draggable', 'placeable']) {
+    for (const run of [() => r.h.b!.configure({ [key]: false } as never), () => r.ws.panels.configure('b', { [key]: false } as never)]) {
+      assert.throws(
+        () => r.turn(run),
+        (e: unknown) => e instanceof PanelManagerError && e.code === 'invalid-settings' && e.key === key && e.message.includes("'movable'") && !e.message.includes('unknown setting'),
+        key,
+      );
+    }
+  }
 });

@@ -636,7 +636,7 @@ export type PanelReadHandle = {
 };
 
 // @public
-export type PanelRefusal = 'disposed' | 'not-attached' | 'not-ready' | 'is-pending' | 'is-closed' | 'not-live' | 'busy' | 'not-closable' | 'not-parkable' | 'not-movable' | 'not-resizable' | 'slots-above-max' | 'would-empty-row' | 'instance-limit' | 'unknown-panel' | 'wrong-scope' | 'would-reshape-row' | 'settings-conflict' | 'not-view-settable';
+export type PanelRefusal = 'disposed' | 'not-attached' | 'not-ready' | 'is-pending' | 'is-closed' | 'not-live' | 'busy' | 'not-closable' | 'not-parkable' | 'not-movable' | 'not-resizable' | 'root-fixed' | 'slots-above-max' | 'would-empty-row' | 'instance-limit' | 'unknown-panel' | 'wrong-scope' | 'would-reshape-row' | 'settings-conflict' | 'not-view-settable';
 
 // @public
 export type PanelResult = {
