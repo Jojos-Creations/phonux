@@ -566,7 +566,7 @@ export type PanelUserLayer = {
 
 /** Options for `resolvePanelSettings`. @public */
 export type ResolveOptions = {
-  /** Resolve the root panel, which its coupling rule makes unparkable, unclosable, undraggable and unplaceable. Default false. */
+  /** Resolve the root panel, which its coupling rule makes unparkable, unclosable and unplaceable; it is undraggable until a layer sets `draggable`. Default false. */
   root?: boolean;
   /** Drop an invalid key from the instance and user layers with a note instead of throwing. Default false. */
   lenient?: boolean;
@@ -1908,10 +1908,8 @@ function applyRules(s: State, root: boolean): void {
   }
   if (s.values.closable === false) force(s, 'clearable', false, 'C2', 'closable');
   if ((s.values.slots as number) > (s.values.maxSlots as number)) force(s, 'slots', s.values.maxSlots, 'C4', 'maxSlots');
-  if (root) {
-    force(s, 'draggable', false, 'C5');
-    force(s, 'placeable', false, 'C5');
-  }
+  // `draggable` is not forced: the root reorders when a layer turns it on, and stays at its fixed-column default otherwise.
+  if (root) force(s, 'placeable', false, 'C5');
 }
 
 const PARK_LEVERS = ['capacityReturn'] as const;
