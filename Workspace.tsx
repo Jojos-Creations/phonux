@@ -225,13 +225,24 @@ export function Workspace(props: WorkspaceProps): React.ReactElement {
         const n = numbersRef.current;
         if (claim === null || n === undefined || n.stops.length === 0) return;
         const held = pin === null || edges === null ? scroller.scrollLeft() : scrollHoldingEdge(n, n.ids.indexOf(resizingId), pin, edges[pin], scroller.scrollLeft());
-        const to = nearestStop(n, held);
-        const glide = (): void => void (Math.abs(to - scroller.scrollLeft()) >= 0.5 && scroller.glideTo(to, { durationSec: resolved.slide.durationSec, instant: reduced, ease: resolved.slide.glideEase }));
-        // The margin glides to the release's numbers: a scroll glide beside it moves every panel by both, and the scrollable width is
-        // short of the target until the margin lands.
+        const glide = (from: RowNumbers): void => {
+          const to = nearestStop(from, held);
+          if (Math.abs(to - scroller.scrollLeft()) >= 0.5) scroller.glideTo(to, { durationSec: resolved.slide.durationSec, instant: reduced, ease: resolved.slide.glideEase });
+        };
         clearTimeout(settleTimer.current);
-        if (!reduced && n.rowMarginLeft !== began?.rowMarginLeft) settleTimer.current = setTimeout(glide, resolved.slide.durationSec * 1000);
-        else glide();
+        if (reduced || n.rowMarginLeft === began?.rowMarginLeft) {
+          glide(n);
+          return;
+        }
+        // The margin glides to the release's numbers first: a scroll glide beside it moves every panel by both, and the scrollable width is
+        // short of the target until the margin lands. Anything that moves the row during that wait has chosen where it rests, so the
+        // settle then only runs if the row is where the release left it, onto the stops the row has by then.
+        const releasedAt = scroller.scrollLeft();
+        settleTimer.current = setTimeout(() => {
+          const now = numbersRef.current;
+          if (now === undefined || now.stops.length === 0 || scroller.glideTarget() !== null || Math.abs(scroller.scrollLeft() - releasedAt) >= 0.5) return;
+          glide(now);
+        }, resolved.slide.durationSec * 1000);
       };
       if (width(numbersRef.current) !== width(began) || pin === null) return run();
       const pending = { run, grown: () => width(numbersRef.current) !== width(began) };

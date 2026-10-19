@@ -30,6 +30,7 @@ function Grab({ id }: { id: string }): React.ReactElement {
 }
 
 afterEach(() => {
+  mock.restoreAll();
   mock.timers.reset();
   report.id = '';
   report.trim = 0;
@@ -307,4 +308,82 @@ test('a release that adds stops glides the margin first and settles onto the sto
   assert.equal(marginOf(r.m.container), 0);
   assertLanded(r, 'p1', drag, 'after the slide');
   assert.ok(r.m.container.scrollLeft > 0, 'control: the settle did move the row');
+});
+
+const wheel = (r: Rig, deltaX: number): void => void act(() => void r.m.container.dispatchEvent(new WheelEvent('wheel', { deltaX, cancelable: true, bubbles: true })));
+/** Moves the mocked setTimeout clock and the frame clock together. */
+async function elapse(ms: number): Promise<void> {
+  act(() => mock.timers.tick(ms));
+  await frames(ms);
+}
+const SETTLE_WAIT_MS = SLIDE_DURATION_SEC * 1000;
+
+/** A wide window where six slots fit, then p1 grown to two slots: the release adds stops and moves the centring margin, so the settle waits. */
+async function releaseMovingMargin(r: Rig, id = 'p1'): Promise<void> {
+  const drag = await beginDrag(r, id, SLOT(2, 16) - SLOT(1, 16) + 25);
+  void drag;
+  act(() => {
+    r.m.latest().setSlots(r.ids[id]!, 2);
+    setters.get(id)!.width(null);
+    setters.get(id)!.resizing(false);
+  });
+}
+
+test('a wheel during the wait for the margin decides where the row rests; the pending settle does not undo it', async () => {
+  mock.timers.enable({ apis: ['setTimeout'] });
+  const r = await mountRig(16, { window: 2600 });
+  await frames(1500);
+  assert.equal(stopsOf(r).length, 0, 'control: the row fits, so it has no stops before the release');
+  await releaseMovingMargin(r);
+  const stops = stopsOf(r);
+  assert.equal(stops.length, 2, 'control: the release added a second stop');
+  await elapse(100);
+  wheel(r, 50);
+  assert.equal(rowScrollerFor(r.m.container).glideTarget(), stops[1], 'control: the wheel steps to the far stop');
+  await elapse(200);
+  assert.ok(r.m.container.scrollLeft > 0 && r.m.container.scrollLeft < stops[1]!, `control: the row is mid-glide when the wheel reverses: ${r.m.container.scrollLeft}`);
+  wheel(r, -50);
+  assert.equal(rowScrollerFor(r.m.container).glideTarget(), stops[0], 'control: the reversing wheel steps back to the first stop');
+  await elapse(SETTLE_WAIT_MS + 1000);
+  assert.equal(r.m.container.scrollLeft, stops[0], 'the row rests where the wheel put it');
+  assert.equal(rowScrollerFor(r.m.container).glideTarget(), null);
+});
+
+test('a second release re-arms the settle: the first release\'s pending timer is cleared', async () => {
+  mock.timers.enable({ apis: ['setTimeout'] });
+  const armed: unknown[] = [];
+  const cleared: unknown[] = [];
+  const mockedSet = globalThis.setTimeout;
+  const mockedClear = globalThis.clearTimeout;
+  mock.method(globalThis, 'setTimeout', ((fn: () => void, ms?: number, ...rest: unknown[]) => {
+    const handle = (mockedSet as typeof setTimeout)(fn, ms, ...rest);
+    if (ms === SETTLE_WAIT_MS) armed.push(handle);
+    return handle;
+  }) as typeof setTimeout);
+  mock.method(globalThis, 'clearTimeout', ((handle?: Parameters<typeof clearTimeout>[0]) => {
+    cleared.push(handle);
+    return (mockedClear as typeof clearTimeout)(handle);
+  }) as typeof clearTimeout);
+  const r = await mountRig(16, { window: 2600 });
+  await frames(1500);
+  await releaseMovingMargin(r);
+  assert.equal(armed.length, 1, 'control: the first release armed the settle');
+  assert.ok(!cleared.includes(armed[0]), 'control: nothing has cleared it yet');
+  await elapse(100);
+  await releaseMovingMargin(r, 'p2');
+  assert.ok(cleared.includes(armed[0]), 'the second release cleared the first release\'s timer before it settled');
+});
+
+test('unmounting during the wait for the margin cancels the settle', async () => {
+  mock.timers.enable({ apis: ['setTimeout'] });
+  const r = await mountRig(16, { window: 2600 });
+  await frames(1500);
+  const scroller = rowScrollerFor(r.m.container);
+  const glides = mock.method(scroller, 'glideTo');
+  await releaseMovingMargin(r);
+  await frames(100);
+  assert.equal(glides.mock.callCount(), 0, 'control: the settle is still waiting for the margin');
+  cleanup();
+  act(() => mock.timers.tick(SETTLE_WAIT_MS + 100));
+  assert.equal(glides.mock.callCount(), 0, 'the unmounted row is not scrolled');
 });
