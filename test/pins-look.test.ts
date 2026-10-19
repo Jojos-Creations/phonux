@@ -39,7 +39,7 @@ test('GAP is the number 16', () => {
   assert.equal(GAP, 16);
 });
 
-test('Workspace markup: the top, left, right and bottom padding and the row flex gap are 16 px and the bottom one is the footer room, 36 px, the top one with topPadding omitted', () => {
+test('Workspace markup: the top, left, right and bottom padding and the row flex gap are 16 px and the bottom one is the footer room, 40 px, the top one with topPadding omitted', () => {
   const containerRef = { current: null } as React.RefObject<HTMLDivElement | null>;
   const rowRef = { current: null } as React.RefObject<HTMLDivElement | null>;
   const mounted = mount(
@@ -51,7 +51,7 @@ test('Workspace markup: the top, left, right and bottom padding and the row flex
   mounted.unmount();
 });
 
-test('Workspace markup: a given topPadding replaces only the top padding (the bottom stays the footer room)', () => {
+test('Workspace markup: a given topPadding replaces only the top padding (the bottom stays the footer room, 40 px)', () => {
   const containerRef = { current: null } as React.RefObject<HTMLDivElement | null>;
   const rowRef = { current: null } as React.RefObject<HTMLDivElement | null>;
   const mounted = mount(
