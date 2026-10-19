@@ -25,13 +25,13 @@ import type { WorkspaceColumnHandle } from './columnHandle.js';
 import type { WorkspacePanelsInput } from './workspaceLive.js';
 
 /** The `Workspace` props the mount derives from what `useProvidePanels` returned: the same mapping a hand-wired flow writes out. @internal */
-export function workspaceProps(provided: ProvidedPanels): Pick<WorkspaceProps, 'fixedColumnCount' | 'liveWidths' | 'rowScroll' | 'rowNumbers' | 'tuning'> {
-  return { fixedColumnCount: provided.fixedViewCount, liveWidths: provided.liveWidths, rowScroll: provided.rowScroll, rowNumbers: provided.rowNumbers, tuning: provided.tuning };
+export function workspaceProps(provided: ProvidedPanels, workspace: WorkspaceHandle): Pick<WorkspaceProps, 'fixedColumnCount' | 'liveWidths' | 'rowScroll' | 'rowNumbers' | 'workspace'> {
+  return { fixedColumnCount: provided.fixedViewCount, liveWidths: provided.liveWidths, rowScroll: provided.rowScroll, rowNumbers: provided.rowNumbers, workspace };
 }
 
 /** The `PanelRow` props the mount derives from what `useProvidePanels` returned. @internal */
-export function rowProps(provided: ProvidedPanels, workspace: WorkspaceHandle): Pick<React.ComponentProps<typeof PanelRow>, 'entries' | 'rootId' | 'closingIds' | 'enteringViaAnchorIds' | 'exitRightIds' | 'enterSideById' | 'maxLiveWidth' | 'tuning' | 'rowNumbers' | 'workspace'> {
-  return { entries: provided.entries, rootId: workspace.rootId, closingIds: provided.closingIds, enteringViaAnchorIds: provided.enteringViaAnchorIds, exitRightIds: provided.exitRightIds, enterSideById: provided.enterSideById, maxLiveWidth: provided.maxLiveWidth, tuning: provided.tuning, rowNumbers: provided.rowNumbers, workspace };
+export function rowProps(provided: ProvidedPanels, workspace: WorkspaceHandle): Pick<React.ComponentProps<typeof PanelRow>, 'entries' | 'rootId' | 'closingIds' | 'enteringViaAnchorIds' | 'exitRightIds' | 'enterSideById' | 'maxLiveWidth' | 'rowNumbers' | 'workspace'> {
+  return { entries: provided.entries, rootId: workspace.rootId, closingIds: provided.closingIds, enteringViaAnchorIds: provided.enteringViaAnchorIds, exitRightIds: provided.exitRightIds, enterSideById: provided.enterSideById, maxLiveWidth: provided.maxLiveWidth, rowNumbers: provided.rowNumbers, workspace };
 }
 
 /** The window's width as the row prices itself from it: the scroll container's own `clientWidth`, 0 until it is measured. */
@@ -128,7 +128,7 @@ export function AutoRoot({ workspace, columnTop = 0, themed = true }: { workspac
   };
   const Wrap = binding.wrap;
   const row = (
-    <Workspace overflowContainerRef={ref} rowRef={rowRef} containerWidth={containerWidth} phoneWidth={phoneWidth} phoneHeight={phone.height} {...(topPadding !== undefined ? { topPadding } : {})} {...workspaceProps(provided)}>
+    <Workspace overflowContainerRef={ref} rowRef={rowRef} containerWidth={containerWidth} phoneWidth={phoneWidth} phoneHeight={phone.height} {...(topPadding !== undefined ? { topPadding } : {})} {...workspaceProps(provided, workspace)}>
       <PanelRow {...rowProps(provided, workspace)} />
     </Workspace>
   );

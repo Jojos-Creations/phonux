@@ -102,11 +102,10 @@ function HandWired({ workspace }: { workspace: WorkspaceHandle }): React.ReactEl
     exitRightIds: provided.exitRightIds,
     enterSideById: provided.enterSideById,
     maxLiveWidth: provided.maxLiveWidth,
-    tuning: provided.tuning,
     rowNumbers: provided.rowNumbers,
     workspace,
   });
-  const shell = React.createElement(Workspace, { overflowContainerRef: ref, rowRef, containerWidth, phoneWidth: 390, fixedColumnCount: provided.fixedViewCount, liveWidths: provided.liveWidths, rowScroll: provided.rowScroll, rowNumbers: provided.rowNumbers, tuning: provided.tuning, children: row });
+  const shell = React.createElement(Workspace, { overflowContainerRef: ref, rowRef, containerWidth, phoneWidth: 390, fixedColumnCount: provided.fixedViewCount, liveWidths: provided.liveWidths, rowScroll: provided.rowScroll, rowNumbers: provided.rowNumbers, workspace, children: row });
   const host = React.createElement(HostProvider, { host: { panels: provided }, children: shell });
   return React.createElement(ThemeProvider, { theme: createDefaultTheme('light'), children: host });
 }
@@ -176,16 +175,15 @@ test('the mount hands the row and the workspace shell each value useProvidePanel
   assert.equal(row.exitRightIds, p.exitRightIds);
   assert.equal(row.enterSideById, p.enterSideById);
   assert.equal(row.maxLiveWidth, p.maxLiveWidth);
-  assert.equal(row.tuning, p.tuning);
   assert.equal(row.rowNumbers, p.rowNumbers);
   assert.equal(row.workspace, ws);
-  assert.equal(Object.keys(row).length, 10, 'all ten PanelRow props are accounted for');
-  const shell = workspaceProps(p);
+  assert.equal(Object.keys(row).length, 9, 'all nine PanelRow props are accounted for');
+  const shell = workspaceProps(p, ws);
   assert.equal(shell.fixedColumnCount, p.fixedViewCount);
   assert.equal(shell.liveWidths, p.liveWidths);
   assert.equal(shell.rowScroll, p.rowScroll);
   assert.equal(shell.rowNumbers, p.rowNumbers);
-  assert.equal(shell.tuning, p.tuning);
+  assert.equal(shell.workspace, ws);
 });
 
 // ---------------------------------------------------------------------------

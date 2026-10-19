@@ -73,21 +73,25 @@ export const DROP_TIE_BREAK = 'leftmost' as const;
 export const ROW_GESTURE = 'step' as const;
 export const INITIAL_SCROLL = 'start' as const;
 
-/** When a panel's header, grab bar and footer show, and the numbers a host's header icon row animates with. */
+/** When a panel's header, grab bar and footer show, and how they fade. */
 export const CHROME = {
   mode: 'always',
   fadeMs: 120,
   fadeEase: 'easeOut',
-  slideMs: 140,
-  slidePx: 8,
-  graceMs: 250,
-  headerGapPx: 24,
-  grabPillWidthPx: 32,
-  grabPillHeightPx: 4,
-  headerInsetPx: 13,
-  footerPadXPx: 12,
-  footerPadYPx: 8,
 } as const;
+
+/** Pixels between a header and the frame it floats above, and between the frame and its footer. */
+export const HEADER_GAP_PX = 4;
+
+/** Pixels the grab bar's square strip is wide and tall, so its icon sits the same whatever the header gap. */
+export const GRAB_HANDLE_PX = 24;
+
+/** Pixels a header's content is inset from each end. */
+export const HEADER_INSET_PX = 13;
+
+/** Pixels of horizontal and vertical padding on the footer. */
+export const FOOTER_PAD_X_PX = 12;
+export const FOOTER_PAD_Y_PX = 8;
 
 /** How many slide durations the container width must hold still before the row's centring margin glides again. */
 export const RESIZE_SETTLE_SLIDES = 1.25;

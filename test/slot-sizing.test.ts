@@ -43,7 +43,7 @@ function made(id: string, template: Record<string, unknown> = {}): PanelWindow {
 }
 
 const rowOf = (entries: PanelWindow[], tuning?: WorkspaceTuning, available = 0, maxLiveWidth = Number.POSITIVE_INFINITY): React.ReactElement =>
-  React.createElement(RowHeightContext.Provider, { value: available }, withHost(React.createElement(StaticRow, { entries, rootId: ROOT, closingIds: NONE, enteringViaAnchorIds: NONE, maxLiveWidth, ...(tuning === undefined ? {} : { tuning }) })));
+  React.createElement(RowHeightContext.Provider, { value: available }, withHost(React.createElement(StaticRow, { entries, rootId: ROOT, closingIds: NONE, enteringViaAnchorIds: NONE, maxLiveWidth, ...(tuning === undefined ? {} : { seed: { tuning } }) })));
 
 const slotOf = (container: HTMLElement, id: string): HTMLElement => {
   const slot = container.querySelector(`[data-slot="${id}"]`)?.parentElement;

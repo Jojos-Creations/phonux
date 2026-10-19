@@ -87,7 +87,7 @@ interface Run {
  * One seeded sequence over a row at `containerWidth` whose panels come from `defaults`. A hidden panel is a create
  * under startVisibility 'parked'; showing it is an activate of that id. Returns the first step's wrong ids, if any.
  */
-function sequence(seed: number, defaults: Omit<PanelSettings, 'tuning'>, steps: number): Run {
+function sequence(seed: number, defaults: PanelSettings, steps: number): Run {
   const rand = seeded(seed);
   const pick = <T,>(items: readonly T[]): T => items[Math.floor(rand() * items.length)]!;
   const containerWidth = pick([600, 1000, 1500]);

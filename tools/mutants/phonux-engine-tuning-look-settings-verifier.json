@@ -6,102 +6,12 @@
   ],
   "mutants": [
     {
-      "name": "T11 differs: only rowGap compared",
-      "file": "panelTuning.ts",
-      "find": "return JSON.stringify(slotTuning(a, undefined)) !== JSON.stringify(slotTuning(b, undefined));",
-      "replace": "return a.rowGap !== b.rowGap;",
-      "expectRed": [
-        "a differing look leaf warns"
-      ]
-    },
-    {
-      "name": "T12 differs: dragToClose ignored",
-      "file": "panelTuning.ts",
-      "find": "return JSON.stringify(slotTuning(a, undefined)) !== JSON.stringify(slotTuning(b, undefined));",
-      "replace": "return JSON.stringify({ ...slotTuning(a, undefined), dragToClose: 0 }) !== JSON.stringify({ ...slotTuning(b, undefined), dragToClose: 0 });",
-      "expectRed": [
-        "a differing look leaf warns"
-      ]
-    },
-    {
-      "name": "T13 differs: slide ignored",
-      "file": "panelTuning.ts",
-      "find": "return JSON.stringify(slotTuning(a, undefined)) !== JSON.stringify(slotTuning(b, undefined));",
-      "replace": "return JSON.stringify({ ...slotTuning(a, undefined), slide: 0 }) !== JSON.stringify({ ...slotTuning(b, undefined), slide: 0 });",
-      "expectRed": [
-        "a differing look leaf warns"
-      ]
-    },
-    {
-      "name": "T14 differs: hopFraction ignored",
-      "file": "panelTuning.ts",
-      "find": "return JSON.stringify(slotTuning(a, undefined)) !== JSON.stringify(slotTuning(b, undefined));",
-      "replace": "return JSON.stringify({ ...slotTuning(a, undefined), hopFraction: 0 }) !== JSON.stringify({ ...slotTuning(b, undefined), hopFraction: 0 });",
-      "expectRed": [
-        "a differing look leaf warns"
-      ]
-    },
-    {
-      "name": "T15 differs: edgeScroll ignored",
-      "file": "panelTuning.ts",
-      "find": "return JSON.stringify(slotTuning(a, undefined)) !== JSON.stringify(slotTuning(b, undefined));",
-      "replace": "return JSON.stringify({ ...slotTuning(a, undefined), edgeScroll: 0 }) !== JSON.stringify({ ...slotTuning(b, undefined), edgeScroll: 0 });",
-      "expectRed": [
-        "a differing look leaf warns"
-      ]
-    },
-    {
-      "name": "T17 differs: whole workspace tuning compared (non-look leaves warn)",
-      "file": "panelTuning.ts",
-      "find": "return JSON.stringify(slotTuning(a, undefined)) !== JSON.stringify(slotTuning(b, undefined));",
-      "replace": "return JSON.stringify(a) !== JSON.stringify(b);",
-      "expectRed": [
-        "a leaf the row does not read"
-      ]
-    },
-    {
-      "name": "R1 PanelRow: context beats the prop",
-      "file": "PanelRow.tsx",
-      "find": "const workspaceTuning = given ?? inherited ?? LIBRARY_TUNING_DEFAULTS;",
-      "replace": "const workspaceTuning = inherited ?? given ?? LIBRARY_TUNING_DEFAULTS;",
-      "expectRed": [
-        "a PanelRow prop beats the Workspace tuning"
-      ]
-    },
-    {
-      "name": "R2 PanelRow: warned-once ref dropped",
-      "file": "PanelRow.tsx",
-      "find": "if (!disagrees || warned.current || typeof process",
-      "replace": "if (!disagrees || typeof process",
-      "expectRed": [
-        "the warning is once per instance"
-      ]
-    },
-    {
       "name": "R3 PanelRow: slot gets no gap",
       "file": "PanelRow.tsx",
       "find": "gap={gap}",
       "replace": "gap={undefined}",
       "expectRed": [
         "the row gap reaches the slot that is entering"
-      ]
-    },
-    {
-      "name": "R4 PanelRow: slot slide is the workspace slide",
-      "file": "PanelRow.tsx",
-      "find": "slide={own.slide}",
-      "replace": "slide={workspaceTuning.slide}",
-      "expectRed": [
-        "a panel's own slide, not the workspace's, times"
-      ]
-    },
-    {
-      "name": "R7 PanelRow: warn without the production check",
-      "file": "PanelRow.tsx",
-      "find": " || process.env.NODE_ENV === 'production') return;",
-      "replace": ") return;",
-      "expectRed": [
-        "the warning is for development only"
       ]
     },
     {
@@ -147,51 +57,6 @@
       "replace": "",
       "expectRed": [
         "each of the four ease numbers"
-      ]
-    },
-    {
-      "name": "X12 drag: damping constant",
-      "file": "dragToClose.tsx",
-      "find": "damping: drag.snapBack.damping } as const;",
-      "replace": "damping: SNAP_BACK_SPRING.damping } as const;",
-      "expectRed": [
-        "damping alone and stiffness alone"
-      ]
-    },
-    {
-      "name": "X12b drag: stiffness constant",
-      "file": "dragToClose.tsx",
-      "find": "stiffness: drag.snapBack.stiffness, damping: drag.snapBack.damping } as const;",
-      "replace": "stiffness: SNAP_BACK_SPRING.stiffness, damping: drag.snapBack.damping } as const;",
-      "expectRed": [
-        "damping alone and stiffness alone"
-      ]
-    },
-    {
-      "name": "X13 drag: direction lock y constant",
-      "file": "dragToClose.tsx",
-      "find": "Math.abs(info.offset.y) >= drag.directionLockPx",
-      "replace": "Math.abs(info.offset.y) >= DIRECTION_LOCK_PX",
-      "expectRed": [
-        "the vertical offset is read against the slot lock"
-      ]
-    },
-    {
-      "name": "X19 drag: outside-row lock default 9",
-      "file": "dragToClose.tsx",
-      "find": "directionLockPx: DIRECTION_LOCK_PX,",
-      "replace": "directionLockPx: 9,",
-      "expectRed": [
-        "outside a row the lock is 8"
-      ]
-    },
-    {
-      "name": "X9 drag: stopped close snaps back with the library spring",
-      "file": "dragToClose.tsx",
-      "find": "closing.current = false;\n            const back = animate(y, 0, snapBack);",
-      "replace": "closing.current = false;\n            const back = animate(y, 0, DRAG_CLOSE.snapBack);",
-      "expectRed": [
-        "the return after an exit that closability stopped"
       ]
     },
     {

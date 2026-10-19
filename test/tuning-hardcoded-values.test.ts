@@ -31,7 +31,7 @@ const slotValue = (tuning: Partial<SlotTuning>): PanelSlotValue => ({
   maxSlots: DEFAULT_SLOT.maxSlots,
   neighborWidths: { left: [], right: [] },
   pinned: false,
-  tuning: { ...slotTuning(LIBRARY_TUNING_DEFAULTS, undefined), ...tuning },
+  tuning: { ...slotTuning(LIBRARY_TUNING_DEFAULTS), ...tuning },
 });
 
 function mountBox(tuning: Partial<SlotTuning> | null, onClose: () => void = () => undefined) {
@@ -77,17 +77,7 @@ const FLICK: ReadonlyArray<readonly [number, number]> = [
   [20, 40],
   [30, 60],
 ];
-const drags = (restMs: number, velocityWindowMs = 100): Partial<SlotTuning> => ({ dragToClose: { ...LIBRARY_TUNING_DEFAULTS.dragToClose, restMs, velocityWindowMs } });
-
-test('restMs: a 60 px flick lifted 80 ms after its last move has no velocity at the default 50 ms and closes under 120 ms', async () => {
-  assert.equal(await closesAfter(drags(50), FLICK, 10), true, 'control: lifted 10 ms after the last move it is a flick');
-  cleanup();
-  assert.equal(await closesAfter(drags(50), FLICK, 80), false, 'rested at the default');
-  cleanup();
-  assert.equal(await closesAfter(drags(120), FLICK, 80), true, 'not rested under 120 ms');
-});
-
-test('outside a row a DragToClose reads the library defaults: rested after 50 ms, a 100 ms velocity window', async () => {
+test('a DragToClose judges its release by the library constants: rested after 50 ms, a 100 ms velocity window', async () => {
   assert.equal(await closesAfter(null, FLICK, 10), true, 'control: lifted 10 ms after the last move it is a flick');
   cleanup();
   assert.equal(await closesAfter(null, FLICK, 80), false, 'rested after the default 50 ms');
@@ -96,18 +86,6 @@ test('outside a row a DragToClose reads the library defaults: rested after 50 ms
   assert.equal(await closesAfter(null, fastThenSlow, 10), false, 'the default 100 ms window has dropped the fast move');
   cleanup();
   assert.equal(await closesAfter(null, [[0, 0], [16, 50], [60, 55], [100, 60]], 10), true, 'control: inside the window the fast move still counts');
-});
-
-test('velocityWindowMs: a fast move followed by slow ones is a flick only while the window still reaches it', async () => {
-  const fastThenSlow: ReadonlyArray<readonly [number, number]> = [
-    [0, 0],
-    [16, 50],
-    [116, 55],
-    [216, 60],
-  ];
-  assert.equal(await closesAfter(drags(50, 100), fastThenSlow, 10), false, 'the default 100 ms window has dropped the fast move');
-  cleanup();
-  assert.equal(await closesAfter(drags(50, 1000), fastThenSlow, 10), true, 'a 1000 ms window still sees it');
 });
 
 test('closeExitEase: a drag close leaves along the leaf, so a quarter of the way through a linear exit is further than an ease-in one', async () => {

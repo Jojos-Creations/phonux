@@ -255,7 +255,7 @@ function mountWired(ws: WorkspaceHandle, width: number, over: Partial<PanelsInpu
     return withHost(
       React.createElement(
         Workspace,
-        { overflowContainerRef: ref, rowRef, containerWidth: width, rowResizeSettled: true, phoneWidth: 390, fixedColumnCount: provided.fixedViewCount, liveWidths: provided.liveWidths, rowScroll: provided.rowScroll, rowNumbers: provided.rowNumbers, tuning: provided.tuning } as never,
+        { overflowContainerRef: ref, rowRef, containerWidth: width, rowResizeSettled: true, phoneWidth: 390, fixedColumnCount: provided.fixedViewCount, liveWidths: provided.liveWidths, rowScroll: provided.rowScroll, rowNumbers: provided.rowNumbers, workspace: ws } as never,
         React.createElement(PanelRow, {
           entries: provided.entries,
           rootId: ws.rootId,

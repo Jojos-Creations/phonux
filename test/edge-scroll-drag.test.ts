@@ -311,7 +311,7 @@ test('reduced motion: half the interval doubles the jumps, and twelve intervals 
     return series;
   };
   const whole = await held(mountEdgeRow(), 130);
-  const half = await held(mountEdgeRow({ tuning: { edgeScroll: { reducedStepMs: EDGE.reducedStepMs / 2 } } }), 130);
+  const half = await held(mountEdgeRow({}, { tuning: { edgeScroll: { reducedStepMs: EDGE.reducedStepMs / 2 } } }), 130);
   assert.equal(jumps(whole).length, 4);
   assert.equal(jumps(half).length, 8);
   const long = await held(mountEdgeRow(), 12 * intervalFrames(EDGE.reducedStepMs) + 40);
@@ -366,7 +366,7 @@ const bareSlot = (): PanelSlotValue => ({
   collapsible: true,
   neighborWidths: { left: [], right: [] },
   pinned: false,
-  tuning: slotTuning(LIBRARY_TUNING_DEFAULTS, undefined),
+  tuning: slotTuning(LIBRARY_TUNING_DEFAULTS),
   dragScroll: { mode: 'edge', zonePx: EDGE.zonePx, maxPxPerSec: EDGE.maxPxPerSec, reducedStepMs: EDGE.reducedStepMs, maxScroll: MAX_SCROLL, stops: [], settleStops: [], settleSec: 0.4, settleEase: 'cubic-out' },
 });
 

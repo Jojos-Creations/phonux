@@ -18,10 +18,7 @@ import {
   CHROME,
   RESIZE_SETTLE_SLIDES,
   CLOSE_EXIT_EASE,
-  DIRECTION_LOCK_PX,
   DRAG_CLOSE_NUMBERS,
-  DRAG_REST_MS,
-  DRAG_VELOCITY_WINDOW_MS,
   DROP_TIE_BREAK,
   EDGE_SCROLL_MAX_PX_PER_SEC,
   EDGE_SCROLL_REDUCED_STEP_MS,
@@ -41,7 +38,6 @@ import {
   SLIDE_CLOSE_EXIT_SECONDS,
   SLIDE_DURATION_SEC,
   SLIDE_EASE,
-  SNAP_BACK_SPRING,
 } from './rowConstants.js';
 
 // ---------------------------------------------------------------------------
@@ -264,19 +260,6 @@ export type DragToCloseTuning = {
   flickVelocity: number;
   /** A negative velocity: a release moving back up at least this fast cancels the close. */
   cancelVelocity: number;
-  /** The movement in px on either axis that decides whether a drag locks to the horizontal or the vertical. */
-  directionLockPx: number;
-  /** Milliseconds a pointer may lie still before the release: a lift after that long has no velocity, so only distance can close. */
-  restMs: number;
-  /** Milliseconds the release looks back for its velocity. */
-  velocityWindowMs: number;
-  /** The spring a released drag that does not close returns with. */
-  snapBack: {
-    /** The spring's stiffness. */
-    stiffness: number;
-    /** The spring's damping. */
-    damping: number;
-  };
 };
 
 /** The timing of a panel's slide in and out of the row. @public */
@@ -315,10 +298,7 @@ export type EdgeScrollTuning = {
   reducedStepMs: number;
 };
 
-/**
- * When a panel's header, grab bar and footer show, and the numbers a host's header icon row animates with. A workspace
- * sets it; every panel reads the workspace's value. @public
- */
+/** When a panel's header, grab bar and footer show, and how they fade. A workspace sets it; every panel reads the workspace's value. @public */
 export type ChromeTuning = {
   /** 'always' draws the chrome of every panel; 'hover-or-active' draws it fully only on a panel that is hovered, focused, active or being dragged. */
   mode: 'always' | 'hover-or-active';
@@ -326,28 +306,10 @@ export type ChromeTuning = {
   fadeMs: number;
   /** The curve of that fade: 'easeIn', 'easeOut', 'easeInOut', 'linear' or four cubic-bezier numbers. */
   fadeEase: FadeEase;
-  /** Milliseconds a host's header icon row takes to slide in. The library draws no such row; it only carries the number. */
-  slideMs: number;
-  /** Pixels that icon row travels while it slides in. */
-  slidePx: number;
-  /** Milliseconds that icon row stays open after the pointer leaves the header. */
-  graceMs: number;
-  /** Pixels between a header pill and the frame it floats above. The grab bar's strip is the same height. */
-  headerGapPx: number;
-  /** Pixels the grab bar's drawn pill is wide. */
-  grabPillWidthPx: number;
-  /** Pixels the grab bar's drawn pill is tall. */
-  grabPillHeightPx: number;
-  /** Pixels a header pill's text is inset from each end. */
-  headerInsetPx: number;
-  /** Pixels of horizontal padding on the footer. */
-  footerPadXPx: number;
-  /** Pixels of vertical padding on the footer. */
-  footerPadYPx: number;
 };
 
-/** The tuning leaves a panel may set; each may also be set on the workspace. @public */
-export type PanelTuning = {
+/** The workspace's tuning: the row-wide numbers, set through `createWorkspace({ tuning })` and `configureTuning`. A panel carries none. @public */
+export type WorkspaceTuning = {
   /** Overrides for the drag-down close numbers. */
   dragToClose?: { [K in keyof DragToCloseTuning]?: DragToCloseTuning[K] };
   /** Overrides for the slide timing. */
@@ -356,10 +318,6 @@ export type PanelTuning = {
   hopFraction?: number;
   /** Overrides for the edge-scroll numbers. */
   edgeScroll?: { [K in keyof EdgeScrollTuning]?: EdgeScrollTuning[K] };
-};
-
-/** The per-panel leaves plus those only the workspace sets. @public */
-export type WorkspaceTuning = PanelTuning & {
   /** The gap between panels in px, an integer from 0 to 200. */
   rowGap?: number;
   /** Milliseconds of quiet before the workspace is saved. */
@@ -378,7 +336,7 @@ export type WorkspaceTuning = PanelTuning & {
   rowGesture?: 'step' | 'off';
   /** Where the row starts scrolled: its 'start', its 'end', the 'root', or a given panel. */
   initialScroll?: 'start' | 'end' | 'root' | { panel: PanelId };
-  /** Overrides for the chrome numbers: when header, grab bar and footer show, and the fade and slide timing. */
+  /** Overrides for the chrome numbers: when header, grab bar and footer show, and how they fade. */
   chrome?: { [K in keyof ChromeTuning]?: ChromeTuning[K] };
   /**
    * The most unpinned parkable panels the row keeps live, an integer of 1 or more, or `null` for no cap. Panels beyond
@@ -405,8 +363,8 @@ export type WorkspaceTuning = PanelTuning & {
   phoneFitMax?: number;
 };
 
-/** The per-panel tuning leaves after resolving, every one present. @public */
-export type ResolvedPanelTuning = {
+/** Every tuning leaf after resolving, each present. @public */
+export type ResolvedWorkspaceTuning = {
   /** The drag-down close numbers. */
   dragToClose: DragToCloseTuning;
   /** The slide timing. */
@@ -415,10 +373,6 @@ export type ResolvedPanelTuning = {
   hopFraction: number;
   /** The edge-scroll numbers. */
   edgeScroll: EdgeScrollTuning;
-};
-
-/** Every tuning leaf after resolving: the per-panel ones plus the workspace-only ones. @public */
-export type ResolvedWorkspaceTuning = ResolvedPanelTuning & {
   /** The gap between panels in px, an integer from 0 to 200. */
   rowGap: number;
   /** Milliseconds of quiet before the workspace is saved. */
@@ -437,7 +391,7 @@ export type ResolvedWorkspaceTuning = ResolvedPanelTuning & {
   rowGesture: 'step' | 'off';
   /** Where the row starts scrolled: its 'start', its 'end', the 'root', or a given panel. */
   initialScroll: 'start' | 'end' | 'root' | { panel: PanelId };
-  /** The chrome numbers: when header, grab bar and footer show, and the fade and slide timing. */
+  /** The chrome numbers: when header, grab bar and footer show, and how they fade. */
   chrome: ChromeTuning;
   /** The most unpinned parkable panels the row keeps live, or `null` for no cap. */
   maxLivePanels: number | null;
@@ -455,16 +409,12 @@ export type ResolvedPanelSettings = {
 } & {
   /** The panel's title; absent when no layer set one. */
   readonly title?: string;
-  /** The panel's tuning leaves, every one present. */
-  readonly tuning: ResolvedPanelTuning;
   /** The panel's header buttons by slot id. */
   readonly headerButtons: { readonly [id: string]: HeaderButton };
 };
 
-/** What one settings layer may hold. A tuning key at the workspace-defaults layer is refused. @public */
+/** What one settings layer may hold. Tuning is the workspace's, so a layer carrying `tuning` is refused (a saved instance layer loads with a note). @public */
 export type PanelSettings = { [K in keyof SettingValues]?: SettingValues[K] } & {
-  /** Tuning leaves to override. */
-  tuning?: PanelTuning;
   /** Header buttons by slot id; `false` removes a slot an earlier layer set. */
   headerButtons?: { [id: string]: HeaderButton | false };
 };
@@ -502,7 +452,7 @@ export type SettingConflict = {
 };
 
 /** Every catalog name: a setting key, `headerButtons` as one name, and a dotted name per tuning leaf. @public */
-export type CatalogName = Exclude<keyof PanelSettings, 'tuning'> | `tuning.${Exclude<keyof WorkspaceTuning, 'shrinkOutOfView'>}`;
+export type CatalogName = keyof PanelSettings | `tuning.${Exclude<keyof WorkspaceTuning, 'shrinkOutOfView'>}`;
 
 /** The class word that opens a descriptor's on_configure rule. @public */
 export type SettingClass = 'NOW' | 'NEXT' | 'STATE' | 'SCOPE';
@@ -510,8 +460,8 @@ export type SettingClass = 'NOW' | 'NEXT' | 'STATE' | 'SCOPE';
 /** The configure call that accepts a key: configure(id), configureTemplate or configureTuning. @public */
 export type SettingDoor = 'instance' | 'template' | 'tuning';
 
-/** Who may set a setting: one panel, a template, the whole workspace, or either of the last two for a panel. @public */
-export type SettingScope = 'instance' | 'template' | 'workspace' | 'panel or workspace';
+/** Who may set a setting: one panel, a template, or the whole workspace. @public */
+export type SettingScope = 'instance' | 'template' | 'workspace';
 
 /** One row of the catalog. `values` and `default` are the wording of the row in DESIGN.md. @public */
 export interface SettingDescriptor {
@@ -1012,46 +962,46 @@ const CATALOG_ROWS: readonly SettingDescriptor[] = [
   {
     name: 'tuning.dragToClose',
     group: 'tuning',
-    values: 'object: distanceFraction [0.05, 1], minDistancePx >= 8, flickMinDistancePx >= 8, flickVelocity >= 100, cancelVelocity <= -50, directionLockPx integer [2, 64], restMs integer [1, 1000], velocityWindowMs integer [16, 1000], snapBack { stiffness [50, 2000], damping [5, 200] }; panel or workspace',
-    default: '0.25, 80, 40, 700, -300, 8, 50, 100, { 520, 42 } (DRAG_CLOSE; DIRECTION_LOCK_PX; DRAG_REST_MS; DRAG_VELOCITY_WINDOW_MS)',
-    scope: 'panel or workspace',
+    values: 'object: distanceFraction [0.05, 1], minDistancePx >= 8, flickMinDistancePx >= 8, flickVelocity >= 100, cancelVelocity <= -50 (workspace only)',
+    default: '0.25, 80, 40, 700, -300 (DRAG_CLOSE)',
+    scope: 'workspace',
     viewSettable: false,
     exists: 'today',
     ownerEntry: 'phonux-engine-tuning-look-settings',
-    configure: { cls: 'NEXT', doors: ['instance', 'tuning'] },
+    configure: { cls: 'NEXT', doors: ['tuning'] },
   },
   {
     name: 'tuning.slide',
     group: 'tuning',
-    values: "object: durationSec [0, 10], ease (four numbers, x1 and x2 in [0,1]), closeExitSeconds [0, 5], closeExitEase ('easeIn', 'easeOut', 'easeInOut', 'linear' or four numbers), glideEase ('cubic-out', 'linear' or four numbers); panel or workspace",
+    values: "object: durationSec [0, 10], ease (four numbers, x1 and x2 in [0,1]), closeExitSeconds [0, 5], closeExitEase ('easeIn', 'easeOut', 'easeInOut', 'linear' or four numbers), glideEase ('cubic-out', 'linear' or four numbers) (workspace only)",
     default: "0.6, [0.4, 0, 0.2, 1], 0.18, 'easeIn', 'cubic-out' (SLOT_TRANSITION, DRAG_CLOSE.exitSeconds, CLOSE_EXIT_EASE, GLIDE_EASE)",
-    scope: 'panel or workspace',
+    scope: 'workspace',
     viewSettable: false,
     exists: 'today',
     ownerEntry: 'phonux-engine-tuning-look-settings',
-    configure: { cls: 'NEXT', doors: ['instance', 'tuning'] },
+    configure: { cls: 'NEXT', doors: ['tuning'] },
   },
   {
     name: 'tuning.hopFraction',
     group: 'tuning',
-    values: 'number in (0, 1]; panel or workspace',
+    values: 'number in (0, 1] (workspace only)',
     default: '0.5',
-    scope: 'panel or workspace',
+    scope: 'workspace',
     viewSettable: false,
     exists: 'today',
     ownerEntry: 'phonux-engine-tuning-look-settings',
-    configure: { cls: 'NEXT', doors: ['instance', 'tuning'] },
+    configure: { cls: 'NEXT', doors: ['tuning'] },
   },
   {
     name: 'tuning.edgeScroll',
     group: 'tuning',
-    values: 'object: zonePx integer [8, 200], maxPxPerSec integer [100, 5000], reducedStepMs integer [100, 5000]; panel or workspace (a key derived from Q19; the numbers are owner-confirmed, Q21)',
+    values: 'object: zonePx integer [8, 200], maxPxPerSec integer [100, 5000], reducedStepMs integer [100, 5000] (workspace only)',
     default: '48, 900, 500 (owner-confirmed, Q21; the numbers live in rowConstants.ts)',
-    scope: 'panel or workspace',
+    scope: 'workspace',
     viewSettable: false,
     exists: 'new',
     ownerEntry: 'phonux-edge-scroll-while-dragging',
-    configure: { cls: 'NEXT', doors: ['instance', 'tuning'] },
+    configure: { cls: 'NEXT', doors: ['tuning'] },
   },
   {
     name: 'tuning.saveQuietMs',
@@ -1144,8 +1094,8 @@ const CATALOG_ROWS: readonly SettingDescriptor[] = [
   {
     name: 'tuning.chrome',
     group: 'tuning',
-    values: "object: mode 'always' or 'hover-or-active', fadeMs integer [0, 10000], fadeEase ('easeIn', 'easeOut', 'easeInOut', 'linear' or four numbers, x1 and x2 in [0,1]), slideMs integer [0, 10000], slidePx integer [0, 200], graceMs integer [0, 10000], headerGapPx, grabPillWidthPx integer [0, 200], grabPillHeightPx integer [0, 50], headerInsetPx and footerPadXPx, footerPadYPx integer [0, 100] (workspace only)",
-    default: "always, 120, easeOut, 140, 8, 250, 24, 32, 4, 13, 12, 8 (CHROME)",
+    values: "object: mode 'always' or 'hover-or-active', fadeMs integer [0, 10000], fadeEase ('easeIn', 'easeOut', 'easeInOut', 'linear' or four numbers, x1 and x2 in [0,1]) (workspace only)",
+    default: "always, 120, easeOut (CHROME)",
     scope: 'workspace',
     viewSettable: false,
     exists: 'new',
@@ -1260,8 +1210,8 @@ export const LIBRARY_PANEL_DEFAULTS: LibraryPanelDefaults = freezeClone({
 });
 
 /**
- * The library default of every tuning leaf. The leaves a panel may set (dragToClose, slide, hopFraction,
- * edgeScroll) are each their own frozen object.
+ * The library default of every tuning leaf. The object-valued leaves (dragToClose, slide, edgeScroll, chrome) are each
+ * their own frozen object.
  * @public
  */
 export const LIBRARY_TUNING_DEFAULTS: ResolvedWorkspaceTuning = freezeClone({
@@ -1272,10 +1222,6 @@ export const LIBRARY_TUNING_DEFAULTS: ResolvedWorkspaceTuning = freezeClone({
     flickMinDistancePx: DRAG_CLOSE_NUMBERS.flickMinDistancePx,
     flickVelocity: DRAG_CLOSE_NUMBERS.flickVelocity,
     cancelVelocity: DRAG_CLOSE_NUMBERS.cancelVelocity,
-    directionLockPx: DIRECTION_LOCK_PX,
-    restMs: DRAG_REST_MS,
-    velocityWindowMs: DRAG_VELOCITY_WINDOW_MS,
-    snapBack: { stiffness: SNAP_BACK_SPRING.stiffness, damping: SNAP_BACK_SPRING.damping },
   },
   slide: { durationSec: SLIDE_DURATION_SEC, ease: [...SLIDE_EASE] as unknown as readonly [number, number, number, number], closeExitSeconds: SLIDE_CLOSE_EXIT_SECONDS, closeExitEase: CLOSE_EXIT_EASE, glideEase: GLIDE_EASE },
   hopFraction: HOP_FRACTION,
@@ -1554,14 +1500,6 @@ const TUNING_MEMBER_CHECKS: Record<'dragToClose' | 'slide' | 'edgeScroll' | 'chr
     flickMinDistancePx: num(8, Infinity),
     flickVelocity: num(100, Infinity),
     cancelVelocity: num(-Infinity, -50),
-    directionLockPx: integer(2, 64),
-    restMs: integer(1, 1000),
-    velocityWindowMs: integer(16, 1000),
-    snapBack: (v) => {
-      if (!isPlain(v)) return 'expected { stiffness, damping }';
-      for (const key of Object.keys(v)) if (key !== 'stiffness' && key !== 'damping') return `unknown key '${key}'`;
-      return num(50, 2000)(v.stiffness) !== undefined ? 'stiffness must be a number from 50 to 2000' : num(5, 200)(v.damping) !== undefined ? 'damping must be a number from 5 to 200' : undefined;
-    },
   },
   slide: {
     durationSec: num(0, 10),
@@ -1579,15 +1517,6 @@ const TUNING_MEMBER_CHECKS: Record<'dragToClose' | 'slide' | 'edgeScroll' | 'chr
     mode: oneOf('always', 'hover-or-active'),
     fadeMs: integer(0, 10000),
     fadeEase: (v) => (typeof v === 'string' ? oneOf('easeIn', 'easeOut', 'easeInOut', 'linear')(v) : bezierProblem(v)),
-    slideMs: integer(0, 10000),
-    slidePx: integer(0, 200),
-    graceMs: integer(0, 10000),
-    headerGapPx: integer(0, 200),
-    grabPillWidthPx: integer(0, 200),
-    grabPillHeightPx: integer(0, 50),
-    headerInsetPx: integer(0, 100),
-    footerPadXPx: integer(0, 100),
-    footerPadYPx: integer(0, 100),
   },
 };
 
@@ -1614,7 +1543,6 @@ const TUNING_SCALAR_CHECKS: Record<'hopFraction' | 'rowGap' | 'saveQuietMs' | 'g
 };
 
 const isObjectLeaf = (leaf: string): leaf is keyof typeof TUNING_MEMBER_CHECKS => Object.hasOwn(TUNING_MEMBER_CHECKS, leaf);
-const isTuningLeaf = (leaf: string): leaf is TuningLeaf => isObjectLeaf(leaf) || Object.hasOwn(TUNING_SCALAR_CHECKS, leaf);
 
 /** What a tuning leaf's value holds: the members that passed, and one problem per member that did not. */
 export function checkTuningLeaf(leaf: TuningLeaf, value: unknown): { accepted: unknown; problems: { key: string; problem: string }[] } {
@@ -1646,7 +1574,6 @@ export function checkTuningLeaf(leaf: TuningLeaf, value: unknown): { accepted: u
   return { accepted: Object.keys(accepted).length > 0 ? accepted : undefined, problems };
 }
 
-const WORKSPACE_ONLY_TUNING = new Set<string>(PANEL_SETTINGS_CATALOG.filter((d) => d.configure.doors.length === 1 && d.configure.doors[0] === 'tuning').map((d) => d.name.slice('tuning.'.length)));
 const TEMPLATE_SCOPE_KEYS = new Set<string>(PANEL_SETTINGS_CATALOG.filter((d) => d.configure.doors.length === 1 && d.configure.doors[0] === 'template').map((d) => d.name));
 const VIEW_SETTABLE_KEYS = new Set<string>(PANEL_SETTINGS_CATALOG.filter((d) => d.viewSettable).map((d) => d.name));
 
@@ -1674,7 +1601,6 @@ type Rule = NonNullable<SettingConflict['rule']>;
 
 interface Accepted {
   flat: Map<string, unknown>;
-  tuning: Map<string, unknown>;
 }
 
 interface Pending {
@@ -1700,43 +1626,11 @@ function reject(layer: string, key: string, problem: string, lenientLayer: boole
   throw new PanelManagerError('invalid-settings', `${where}: ${problem}`, key === '' ? { layer } : { layer, key });
 }
 
-function checkTuning(layer: AskLayer, raw: unknown, accepted: Accepted, env: Env, lenientLayer: boolean): void {
-  if (layer === 'workspace') {
-    throw new PanelManagerError('invalid-settings', 'workspace.tuning: tuning is not a workspace default; set it on WorkspaceOptions.tuning', { layer, key: 'tuning' });
-  }
-  if (!isPlain(raw)) {
-    reject(layer, 'tuning', 'expected an object', lenientLayer, env.notes);
-    return;
-  }
-  for (const leaf of Object.keys(raw)) {
-    const value = raw[leaf];
-    if (value === undefined) continue;
-    if (!isTuningLeaf(leaf)) {
-      reject(layer, `tuning.${leaf}`, 'unknown tuning key', lenientLayer, env.notes);
-      continue;
-    }
-    const checked = checkTuningLeaf(leaf, value);
-    for (const { key, problem } of checked.problems) reject(layer, key, problem, lenientLayer, env.notes);
-    if (checked.accepted === undefined || leaf === 'shrinkOutOfView') continue;
-    const name = `tuning.${leaf}`;
-    if (WORKSPACE_ONLY_TUNING.has(leaf)) {
-      if (layer === 'template') throw new PanelManagerError('invalid-settings', `${layer}.${name}: a workspace-only tuning key; set it on WorkspaceOptions.tuning`, { layer, key: name });
-      env.pending.push({ key: name, layer: layer as 'host' | 'instance', kind: 'wrong-scope', asked: checked.accepted });
-      continue;
-    }
-    if (layer === 'host') {
-      env.pending.push({ key: name, layer, kind: 'not-view-settable', asked: checked.accepted });
-      continue;
-    }
-    accepted.tuning.set(leaf, checked.accepted);
-  }
-}
-
 /** A pin definition may leave a half out; the resolved value always has both. */
 const withBothHalves = (v: Plain): Pinning => ({ pinned: (v.pinned ?? {}) as PinHalf, unpinned: (v.unpinned ?? {}) as PinHalf });
 
 function checkLayer(layer: AskLayer, raw: unknown, env: Env): Accepted {
-  const accepted: Accepted = { flat: new Map(), tuning: new Map() };
+  const accepted: Accepted = { flat: new Map() };
   if (raw === undefined) return accepted;
   const lenientLayer = env.lenient && layer === 'instance';
   if (!isPlain(raw)) {
@@ -1747,7 +1641,7 @@ function checkLayer(layer: AskLayer, raw: unknown, env: Env): Accepted {
     const value = raw[key];
     if (value === undefined) continue;
     if (key === 'tuning') {
-      checkTuning(layer, value, accepted, env, lenientLayer);
+      reject(layer, 'tuning', 'tuning belongs to the workspace, not to a panel; set it on WorkspaceOptions.tuning', lenientLayer, env.notes);
       continue;
     }
     if (Object.hasOwn(FIXED, key)) {
@@ -1814,33 +1708,17 @@ interface Draft {
 interface State {
   values: Plain;
   source: Record<string, SourceLayer>;
-  tuning: { dragToClose: Plain; slide: Plain; hopFraction: number; edgeScroll: Plain };
   drafts: Draft[];
 }
 
 /** Merges the accepted layers over the library defaults, lowest first; a later layer's value wins field by field. */
-function merge(accepted: Record<AskLayer, Accepted>, userParkable: boolean | undefined, workspaceTuning: WorkspaceTuning | undefined): State {
+function merge(accepted: Record<AskLayer, Accepted>, userParkable: boolean | undefined): State {
   const values: Plain = { ...LIBRARY_PANEL_DEFAULTS };
   const source: Record<string, SourceLayer> = {};
   for (const key of Object.keys(values)) if (values[key] !== undefined) source[key] = 'library';
-  const tuning = {
-    dragToClose: { ...LIBRARY_TUNING_DEFAULTS.dragToClose } as Plain,
-    slide: { ...LIBRARY_TUNING_DEFAULTS.slide } as Plain,
-    hopFraction: LIBRARY_TUNING_DEFAULTS.hopFraction,
-    edgeScroll: { ...LIBRARY_TUNING_DEFAULTS.edgeScroll } as Plain,
-  };
-  for (const leaf of ['dragToClose', 'slide', 'hopFraction', 'edgeScroll']) source[`tuning.${leaf}`] = 'library';
-  for (const leaf of ['dragToClose', 'slide', 'hopFraction', 'edgeScroll'] as const) {
-    const given = workspaceTuning?.[leaf];
-    const kept = given === undefined ? undefined : checkTuningLeaf(leaf, given).accepted;
-    if (kept === undefined) continue;
-    if (leaf === 'hopFraction') tuning.hopFraction = kept as number;
-    else Object.assign(tuning[leaf], kept as Plain);
-    source[`tuning.${leaf}`] = 'workspace';
-  }
 
   for (const layer of ASK_LAYERS) {
-    const { flat, tuning: leaves } = accepted[layer];
+    const { flat } = accepted[layer];
     for (const [key, value] of flat) {
       if (key === 'headerButtons') {
         const slots: Plain = { ...(values.headerButtons as Plain) };
@@ -1856,17 +1734,12 @@ function merge(accepted: Record<AskLayer, Accepted>, userParkable: boolean | und
         source[key] = layer;
       }
     }
-    for (const [leaf, value] of leaves) {
-      if (leaf === 'hopFraction') tuning.hopFraction = value as number;
-      else Object.assign(tuning[leaf as 'dragToClose' | 'slide' | 'edgeScroll'], value as Plain);
-      source[`tuning.${leaf}`] = layer;
-    }
   }
   if (userParkable !== undefined) {
     values.parkable = userParkable;
     source.parkable = 'user';
   }
-  return { values, source, tuning, drafts: [] };
+  return { values, source, drafts: [] };
 }
 
 /** Overrides one value. A conflict is recorded only when a developer layer's own ask is what changes. */
@@ -1916,15 +1789,6 @@ function applyRules(s: State, root: boolean): void {
 
 const PARK_LEVERS = ['capacityReturn'] as const;
 
-function appliedFor(key: string, value: Plain, tuning: State['tuning']): unknown {
-  if (key.startsWith('tuning.')) {
-    const leaf = key.slice('tuning.'.length);
-    if (leaf === 'dragToClose' || leaf === 'slide' || leaf === 'edgeScroll' || leaf === 'hopFraction') return tuning[leaf];
-    return (LIBRARY_TUNING_DEFAULTS as unknown as Plain)[leaf];
-  }
-  return value[key];
-}
-
 const forcedMessage = (d: Draft, applied: unknown): string => `${d.key}: the ${d.layer} layer asked ${show(d.asked)}, but ${d.rule} makes it ${show(applied)}${d.forcedBy === undefined ? '' : ` because of ${d.forcedBy}`}`;
 
 /**
@@ -1936,22 +1800,13 @@ const forcedMessage = (d: Draft, applied: unknown): string => `${d.key}: the ${d
  * @public
  */
 export function resolvePanelSettings(layers: PanelSettingsLayers = {}, options: ResolveOptions = {}): PanelSettingsResolution {
-  return resolveUnderTuning(layers, options, undefined);
-}
-
-/**
- * `resolvePanelSettings` with the workspace's four per-panel tuning leaves as the layer under the template: what a panel
- * resolves to inside a workspace. Leaves the workspace does not set keep the library default.
- * @internal
- */
-export function resolveUnderTuning(layers: PanelSettingsLayers, options: ResolveOptions, workspaceTuning: WorkspaceTuning | undefined): PanelSettingsResolution {
   const root = options.root === true;
   const env: Env = { lenient: options.lenient === true, notes: [], pending: [] };
   const accepted = {} as Record<AskLayer, Accepted>;
   for (const layer of ASK_LAYERS) accepted[layer] = checkLayer(layer, layers[layer], env);
   const user = checkUser(layers.user, env);
 
-  let state = merge(accepted, undefined, workspaceTuning);
+  let state = merge(accepted, undefined);
   applyRules(state, root);
 
   // The person's size: their slot count, never above what the panel's own settings allow.
@@ -1964,7 +1819,7 @@ export function resolveUnderTuning(layers: PanelSettingsLayers, options: Resolve
     userParkable = undefined;
   }
   if (userParkable !== undefined) {
-    state = merge(accepted, userParkable, workspaceTuning);
+    state = merge(accepted, userParkable);
     applyRules(state, root);
   }
   if (user.slots !== undefined) {
@@ -1978,12 +1833,12 @@ export function resolveUnderTuning(layers: PanelSettingsLayers, options: Resolve
   const resolved = state.values;
   const conflicts: SettingConflict[] = [];
   for (const p of env.pending) {
-    const applied = appliedFor(p.key, resolved, state.tuning);
-    const message = p.kind === 'wrong-scope' ? `${p.key}: the ${p.layer} layer cannot set a ${TEMPLATE_SCOPE_KEYS.has(p.key) ? 'template-scope' : 'workspace-only'} setting; it was ignored` : `${p.key}: a view cannot set this; the ${p.layer} layer's ask was ignored`;
+    const applied = resolved[p.key];
+    const message = p.kind === 'wrong-scope' ? `${p.key}: the ${p.layer} layer cannot set a template-scope setting; it was ignored` : `${p.key}: a view cannot set this; the ${p.layer} layer's ask was ignored`;
     conflicts.push({ key: p.key, layer: p.layer, kind: p.kind, asked: p.asked, applied, message });
   }
   for (const d of state.drafts) {
-    const applied = appliedFor(d.key, resolved, state.tuning);
+    const applied = resolved[d.key];
     conflicts.push({ key: d.key, layer: d.layer, kind: 'forced', asked: d.asked, applied, rule: d.rule, ...(d.forcedBy === undefined ? {} : { forcedBy: d.forcedBy }), message: forcedMessage(d, applied) });
   }
 
@@ -2012,7 +1867,6 @@ export function resolveUnderTuning(layers: PanelSettingsLayers, options: Resolve
   const slots: Plain = {};
   for (const id of Object.keys(resolved.headerButtons as Plain)) slots[id] = Object.freeze({ ...((resolved.headerButtons as Plain)[id] as Plain) });
   value.headerButtons = Object.freeze(slots);
-  value.tuning = freezeClone({ dragToClose: state.tuning.dragToClose, slide: state.tuning.slide, hopFraction: state.tuning.hopFraction, edgeScroll: state.tuning.edgeScroll });
 
   const result: PanelSettingsResolution = { value: Object.freeze(value) as unknown as ResolvedPanelSettings, source: state.source, conflicts, notes };
   if (user.anchor !== undefined) result.userAnchor = user.anchor;

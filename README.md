@@ -106,7 +106,7 @@ export function Row({ workspace }: { workspace: WorkspaceHandle }) {
         liveWidths={provided.liveWidths}
         rowScroll={provided.rowScroll}
         rowNumbers={provided.rowNumbers}
-        tuning={provided.tuning}
+        workspace={workspace}
       >
         <PanelRow
           entries={provided.entries}
@@ -116,7 +116,6 @@ export function Row({ workspace }: { workspace: WorkspaceHandle }) {
           exitRightIds={provided.exitRightIds}
           enterSideById={provided.enterSideById}
           maxLiveWidth={provided.maxLiveWidth}
-          tuning={provided.tuning}
           rowNumbers={provided.rowNumbers}
           workspace={workspace}
         />

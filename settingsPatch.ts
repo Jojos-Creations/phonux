@@ -5,7 +5,7 @@
  */
 
 import { sameSettingsValue } from './panelSettings.js';
-import type { AnchorRequest, PanelId, PanelSettings } from './panelSettings.js';
+import type { AnchorRequest, PanelId, PanelSettings, WorkspaceTuning } from './panelSettings.js';
 
 /** A change to one settings layer; `null` deletes that key from the layer. @public */
 export type SettingsPatch = { [K in keyof PanelSettings]?: PanelSettings[K] | null };
@@ -35,7 +35,7 @@ type Plain = Record<string, unknown>;
 
 const isPlain = (v: unknown): v is Plain => typeof v === 'object' && v !== null && !Array.isArray(v);
 
-/** Merges a patch into one container (tuning, or one tuning leaf, or the header-button map) member by member. */
+/** Merges a patch into one container (the workspace tuning, one tuning leaf, or the header-button map) member by member. */
 function mergeMembers(base: unknown, patch: unknown, deeper: boolean): unknown {
   if (!isPlain(patch)) return patch;
   const result: Plain = isPlain(base) ? { ...base } : {};
@@ -57,7 +57,7 @@ function mergeMembers(base: unknown, patch: unknown, deeper: boolean): unknown {
 
 /**
  * Applies a patch to a settings layer and returns the new layer; the layer and the patch are never changed. `null`
- * deletes a value, and inside `tuning` and `headerButtons` it deletes one leaf or slot. An empty patch, or one that
+ * deletes a value, and inside `headerButtons` it deletes one slot. An empty patch, or one that
  * changes nothing, returns the very same layer object.
  * @public
  */
@@ -69,8 +69,8 @@ export function mergePatch(layer: PanelSettings, patch: SettingsPatch): PanelSet
     if (value === undefined) continue;
     if (value === null) {
       delete next[key];
-    } else if (key === 'tuning' || key === 'headerButtons') {
-      const merged = mergeMembers(next[key], value, key === 'tuning');
+    } else if (key === 'headerButtons') {
+      const merged = mergeMembers(next[key], value, false);
       if (isPlain(merged) && Object.keys(merged).length === 0 && !isPlain(next[key])) continue;
       next[key] = merged;
     } else {
@@ -78,4 +78,14 @@ export function mergePatch(layer: PanelSettings, patch: SettingsPatch): PanelSet
     }
   }
   return sameSettingsValue(next, layer) ? layer : (next as PanelSettings);
+}
+
+/**
+ * Applies a `configureTuning` patch to the workspace's tuning input, leaf by leaf and member by member; `null` deletes a leaf
+ * or a member. Returns the very same object when nothing changes.
+ * @internal
+ */
+export function mergeTuningPatch(current: WorkspaceTuning | undefined, patch: Record<string, unknown>): WorkspaceTuning {
+  const base = current ?? {};
+  return mergeMembers(base, patch, true) as WorkspaceTuning;
 }

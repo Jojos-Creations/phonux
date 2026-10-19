@@ -7,9 +7,9 @@ import type { ConfigureResult } from './panelManager.js';
 import { PanelManagerError } from './panelManagerError.js';
 import type { PanelRefusal } from './panelManagerError.js';
 import { reparked, withoutDeferral, type PinChange } from './panelPin.js';
-import { PANEL_SETTINGS_CATALOG, checkTuningLeaf, resolveUnderTuning, sameSettingsValue, viewMayAsk } from './panelSettings.js';
+import { PANEL_SETTINGS_CATALOG, checkTuningLeaf, resolvePanelSettings, sameSettingsValue, viewMayAsk } from './panelSettings.js';
 import type { PanelSettings, PanelSettingsResolution, PanelUserLayer, ResolvedPanelSettings, SettingConflict, SettingDescriptor, SettingNote, WorkspaceTuning } from './panelSettings.js';
-import { mergePatch, type SettingsPatch } from './settingsPatch.js';
+import { mergePatch, mergeTuningPatch, type SettingsPatch } from './settingsPatch.js';
 import type { PanelWindow } from './panelWindow.js';
 
 /** Which call a patch arrives through: a panel's own `configure`, a view's, `configureTemplate` or `configureTuning`. */
@@ -25,7 +25,6 @@ export interface PatchRefusal {
 const DESCRIPTORS: ReadonlyMap<string, SettingDescriptor> = new Map(PANEL_SETTINGS_CATALOG.map((d) => [d.name, d]));
 const FLAT_KEYS: ReadonlySet<string> = new Set(PANEL_SETTINGS_CATALOG.filter((d) => !d.name.startsWith('tuning.')).map((d) => d.name));
 const TUNING_LEAVES: ReadonlySet<string> = new Set(PANEL_SETTINGS_CATALOG.filter((d) => d.name.startsWith('tuning.')).map((d) => d.name.slice('tuning.'.length)));
-const PANEL_TUNING_LEAVES: readonly string[] = PANEL_SETTINGS_CATALOG.filter((d) => d.configure.doors.includes('instance') && d.name.startsWith('tuning.')).map((d) => d.name.slice('tuning.'.length));
 
 /** The layer name an error for `call` carries. */
 const layerOf = (call: ConfigureCall): string => (call === 'tuning' ? 'tuning' : call === 'template' ? 'template' : 'instance');
@@ -77,17 +76,15 @@ export function checkPatch(call: ConfigureCall, patch: unknown): { names: string
       continue;
     }
     if (key === 'tuning') {
-      if (value === null) {
-        for (const leaf of PANEL_TUNING_LEAVES) asks.push({ name: `tuning.${leaf}`, value: null });
-      } else if (!isPlain(value)) {
-        throw new PanelManagerError('invalid-settings', `${layer}.tuning: expected an object`, { layer, key: 'tuning' });
-      } else {
-        for (const leaf of Object.keys(value)) {
-          if (value[leaf] === undefined) continue;
-          if (isRemovedTuningLeaf(leaf, value[leaf], layer)) continue;
-          if (!TUNING_LEAVES.has(leaf)) throw new PanelManagerError('invalid-settings', `${layer}.tuning.${leaf}: unknown tuning key`, { layer, key: `tuning.${leaf}` });
-          asks.push({ name: `tuning.${leaf}`, value: value[leaf] });
-        }
+      if (!isPlain(value)) {
+        asks.push({ name: 'tuning', value });
+        continue;
+      }
+      for (const leaf of Object.keys(value)) {
+        if (value[leaf] === undefined) continue;
+        if (isRemovedTuningLeaf(leaf, value[leaf], layer)) continue;
+        if (!TUNING_LEAVES.has(leaf)) throw new PanelManagerError('invalid-settings', `${layer}.tuning.${leaf}: unknown tuning key`, { layer, key: `tuning.${leaf}` });
+        asks.push({ name: `tuning.${leaf}`, value: value[leaf] });
       }
       continue;
     }
@@ -95,7 +92,7 @@ export function checkPatch(call: ConfigureCall, patch: unknown): { names: string
     asks.push({ name: key, value });
   }
   for (const ask of asks) {
-    if (ask.name === 'tuning') return { refusal: { code: 'wrong-scope', setting: 'tuning', message: `'tuning' cannot be set through configureTuning; give it the tuning keys themselves` } };
+    if (ask.name === 'tuning') return { refusal: { code: 'wrong-scope', setting: 'tuning', message: call === 'tuning' ? `'tuning' cannot be set through configureTuning; give it the tuning keys themselves` : `'tuning' belongs to the workspace; use configureTuning(...)` } };
     const refusal = refusalFor(call, ask.name, ask.value);
     if (refusal !== undefined) return { refusal };
   }
@@ -147,8 +144,6 @@ export interface InstanceInput {
   template: PanelSettings | undefined;
   /** What a view asked for at the Host-bag create of this panel, when it did. */
   split: HostSplit | undefined;
-  /** The workspace's tuning input: the layer under the template for the four per-panel leaves. */
-  tuning: WorkspaceTuning | undefined;
   /** The person's overrides; absent for a closed record. */
   person: PanelUserLayer | undefined;
   /** The settings the entry carries, to tell a `parkable` a pin from code flipped from the layers' own. */
@@ -186,10 +181,6 @@ const sameNote = (a: SettingNote, b: SettingNote): boolean => a.code === b.code 
 
 /** Whether the layer holds a different value for `name` than `before` does. */
 function differs(before: PanelSettings, after: PanelSettings, name: string): boolean {
-  if (name.startsWith('tuning.')) {
-    const leaf = name.slice('tuning.'.length) as keyof WorkspaceTuning;
-    return !sameSettingsValue(before.tuning?.[leaf as never], after.tuning?.[leaf as never]);
-  }
   return !sameSettingsValue((before as Record<string, unknown>)[name], (after as Record<string, unknown>)[name]);
 }
 
@@ -229,7 +220,7 @@ export function planInstance(i: InstanceInput): InstancePlan {
     instance: ownLayer(instance, of) ?? instance,
     ...(user !== undefined ? { user } : {}),
   });
-  const resolve = (instance: PanelSettings, user: PanelUserLayer | undefined, of: HostSplit | undefined): PanelSettingsResolution => resolveUnderTuning(layers(instance, user, of), { root: i.root }, i.tuning);
+  const resolve = (instance: PanelSettings, user: PanelUserLayer | undefined, of: HostSplit | undefined): PanelSettingsResolution => resolvePanelSettings(layers(instance, user, of), { root: i.root });
   const plain = resolve(base, i.person, i.split);
   // A pin from code flips `parkable` for the session without recording it; the flip outvotes the layers until a patch asks for `parkable` itself.
   const session = i.current !== undefined && i.current.parkable !== plain.value.parkable ? i.current.parkable : undefined;
@@ -246,8 +237,7 @@ export function planInstance(i: InstanceInput): InstancePlan {
   const changed = i.names.filter((n) => differs(base, layer, n));
   const now = changed.filter((n) => actsNow(n, i.status));
   const later = changed.filter((n) => !now.includes(n));
-  const patchValue = (n: string): unknown => (n.startsWith('tuning.') ? (i.patch as { tuning?: Record<string, unknown> | null }).tuning?.[n.slice('tuning.'.length)] : (i.patch as Record<string, unknown>)[n]);
-  const shadowed = changed.filter((n) => patchValue(n) !== null && after.source[n] !== 'instance');
+  const shadowed = changed.filter((n) => asked[n] !== null && after.source[n] !== 'instance');
   const notes = after.notes.filter((n) => !before.notes.some((b) => sameNote(b, n)));
   return { ok: true, changed: true, layer, resolution: after, now, later, shadowed, notes, cancelsPin: asksParkable, split };
 }
@@ -352,10 +342,9 @@ export type TuningPlan =
 
 /** The plan for patching the workspace tuning input; a leaf that is out of range throws `invalid-settings`. */
 export function planTuning(current: WorkspaceTuning | undefined, patch: Record<string, unknown>): TuningPlan {
-  const base = { tuning: current ?? {} } as PanelSettings;
-  const merged = mergePatch(base, { tuning: patch } as SettingsPatch);
-  if (merged === base) return { changed: false };
-  const input = (merged.tuning ?? {}) as WorkspaceTuning;
+  const base = current ?? {};
+  const input = mergeTuningPatch(base, patch);
+  if (input === base) return { changed: false };
   const names: string[] = [];
   for (const leaf of Object.keys(patch)) {
     if (patch[leaf] === undefined) continue;

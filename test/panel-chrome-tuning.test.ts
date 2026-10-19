@@ -1,6 +1,6 @@
 /**
  * tuning.chrome as a value: its default, each member's bounds on both sides, the one-member patch that keeps the rest,
- * the refusal at panel scope, and the slot carrying the workspace's value to every panel. Labels the host may override sit
+ * and the slot carrying the workspace's value to every panel. Labels the host may override sit
  * here too, since they are chrome names the library hands to a host.
  */
 import { test } from 'node:test';
@@ -12,16 +12,13 @@ import { resolveWorkspaceTuning, slotTuning } from '../panelTuning.js';
 
 const chrome = (value: unknown) => checkTuningLeaf('chrome', value);
 
-test('the default is always, 120, 140, 8, 250 and is frozen', () => {
-  assert.deepEqual({ ...LIBRARY_TUNING_DEFAULTS.chrome }, { mode: 'always', fadeMs: 120, fadeEase: 'easeOut', slideMs: 140, slidePx: 8, graceMs: 250, headerGapPx: 24, grabPillWidthPx: 32, grabPillHeightPx: 4, headerInsetPx: 13, footerPadXPx: 12, footerPadYPx: 8 });
+test('the default is always, 120, easeOut and is frozen', () => {
+  assert.deepEqual({ ...LIBRARY_TUNING_DEFAULTS.chrome }, { mode: 'always', fadeMs: 120, fadeEase: 'easeOut' });
   assert.ok(Object.isFrozen(LIBRARY_TUNING_DEFAULTS.chrome));
 });
 
 const BOUNDS: ReadonlyArray<readonly [member: string, ceiling: number]> = [
   ['fadeMs', 10000],
-  ['slideMs', 10000],
-  ['graceMs', 10000],
-  ['slidePx', 200],
 ];
 for (const [member, ceiling] of BOUNDS) {
   test(`chrome.${member}: 0 and ${ceiling} are accepted, -1 and ${ceiling + 1} refused, and a fraction or a string refused`, () => {
@@ -55,23 +52,22 @@ test("chrome.mode: 'always' and 'hover-or-active' are accepted, anything else re
 test('an unknown member and a non-object are refused, and a bad member leaves its good neighbour accepted', () => {
   assert.equal(chrome({ fade: 100 }).problems[0]!.problem, 'unknown tuning member');
   assert.equal(chrome('always').problems[0]!.problem, 'expected an object');
-  const mixed = chrome({ fadeMs: 90, slidePx: 201 });
+  const mixed = chrome({ fadeMs: 90, mode: 'sometimes' });
   assert.deepEqual(mixed.accepted, { fadeMs: 90 });
   assert.equal(mixed.problems.length, 1);
 });
 
 test('resolving a one-member chrome keeps the library value of the others, and a bad member keeps its default', () => {
   const resolved = resolveWorkspaceTuning({ chrome: { fadeMs: 60 } });
-  assert.deepEqual({ ...resolved.chrome }, { mode: 'always', fadeMs: 60, fadeEase: 'easeOut', slideMs: 140, slidePx: 8, graceMs: 250, headerGapPx: 24, grabPillWidthPx: 32, grabPillHeightPx: 4, headerInsetPx: 13, footerPadXPx: 12, footerPadYPx: 8 });
-  const refused = resolveWorkspaceTuning({ chrome: { mode: 'hover-or-active', slidePx: 999 } as never });
-  assert.deepEqual({ ...refused.chrome }, { mode: 'hover-or-active', fadeMs: 120, fadeEase: 'easeOut', slideMs: 140, slidePx: 8, graceMs: 250, headerGapPx: 24, grabPillWidthPx: 32, grabPillHeightPx: 4, headerInsetPx: 13, footerPadXPx: 12, footerPadYPx: 8 });
+  assert.deepEqual({ ...resolved.chrome }, { mode: 'always', fadeMs: 60, fadeEase: 'easeOut' });
+  const refused = resolveWorkspaceTuning({ chrome: { mode: 'hover-or-active', fadeMs: 99999 } as never });
+  assert.deepEqual({ ...refused.chrome }, { mode: 'hover-or-active', fadeMs: 120, fadeEase: 'easeOut' });
 });
 
-test("every panel's tuning carries the workspace's chrome, whatever its own leaves say", () => {
+test("every slot carries the workspace's chrome and the same tuning object for the same workspace tuning", () => {
   const workspace = resolveWorkspaceTuning({ chrome: { mode: 'hover-or-active' } });
-  const own = resolveWorkspaceTuning({ chrome: { mode: 'always' }, slide: { durationSec: 0.1 } });
-  assert.equal(slotTuning(workspace, own).chrome, workspace.chrome);
-  assert.equal(slotTuning(workspace, undefined).chrome, workspace.chrome);
+  assert.equal(slotTuning(workspace).chrome, workspace.chrome);
+  assert.equal(slotTuning(workspace), slotTuning(workspace));
 });
 
 test('the pin, unpin, lock and unlock labels default to English and a host overrides each one', () => {

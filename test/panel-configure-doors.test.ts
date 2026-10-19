@@ -19,8 +19,7 @@ afterEach(() => cleanup());
 
 type Refused = Extract<ConfigureResult, { ok: false }>;
 
-const WORKSPACE_ONLY = ['rowGap', 'saveQuietMs', 'gestureLockMs', 'gestureQuietMs', 'resizeSettleSlides', 'returnTieBreak', 'dropTieBreak', 'rowGesture', 'initialScroll', 'maxLivePanels', 'chrome', 'phoneFit', 'phoneFitMin', 'phoneFitMax'];
-const PER_PANEL = ['dragToClose', 'slide', 'hopFraction', 'edgeScroll'];
+const WORKSPACE_ONLY = ['rowGap', 'saveQuietMs', 'gestureLockMs', 'gestureQuietMs', 'resizeSettleSlides', 'returnTieBreak', 'dropTieBreak', 'rowGesture', 'initialScroll', 'maxLivePanels', 'chrome', 'phoneFit', 'phoneFitMin', 'phoneFitMax', 'dragToClose', 'slide', 'hopFraction', 'edgeScroll'];
 const TEMPLATE = ['hostCreatable', 'multiple', 'maxInstances', 'hollowDot'];
 
 /** One legal value for every settings key the catalog names, so a sweep can ask each of them. */
@@ -93,7 +92,7 @@ const watchRow = (r: PinRig) => {
 };
 
 // ---------------------------------------------------------------------------
-// The hand-written table: three calls by four key classes
+// The hand-written table: three calls by three key classes
 // ---------------------------------------------------------------------------
 
 type Call = 'configure' | 'configureTemplate' | 'configureTuning';
@@ -101,21 +100,18 @@ const ROWS: readonly [Call, string, string, 'accepts' | 'wrong-scope'][] = [
   ['configure', 'an instance key', 'scrollOnOpen', 'accepts'],
   ['configure', 'a template key', 'maxInstances', 'wrong-scope'],
   ['configure', 'a workspace-only tuning key', 'rowGap', 'wrong-scope'],
-  ['configure', 'a per-panel tuning leaf', 'dragToClose', 'accepts'],
   ['configureTemplate', 'an instance key', 'scrollOnOpen', 'wrong-scope'],
   ['configureTemplate', 'a template key', 'maxInstances', 'accepts'],
   ['configureTemplate', 'a workspace-only tuning key', 'rowGap', 'wrong-scope'],
-  ['configureTemplate', 'a per-panel tuning leaf', 'dragToClose', 'wrong-scope'],
   ['configureTuning', 'an instance key', 'scrollOnOpen', 'wrong-scope'],
   ['configureTuning', 'a template key', 'maxInstances', 'wrong-scope'],
   ['configureTuning', 'a workspace-only tuning key', 'rowGap', 'accepts'],
-  ['configureTuning', 'a per-panel tuning leaf', 'dragToClose', 'accepts'],
 ];
 
 function ask(r: PinRig, call: Call, key: string): ConfigureResult {
   const value = VALUE[key];
-  if (call === 'configure') return r.ws.panels.configure('b', (PER_PANEL.includes(key) || WORKSPACE_ONLY.includes(key) ? { tuning: { [key]: value } } : { [key]: value }) as never);
-  if (call === 'configureTemplate') return r.ws.panels.configureTemplate('b', (PER_PANEL.includes(key) || WORKSPACE_ONLY.includes(key) ? { tuning: { [key]: value } } : { [key]: value }) as never);
+  if (call === 'configure') return r.ws.panels.configure('b', (WORKSPACE_ONLY.includes(key) ? { tuning: { [key]: value } } : { [key]: value }) as never);
+  if (call === 'configureTemplate') return r.ws.panels.configureTemplate('b', (WORKSPACE_ONLY.includes(key) ? { tuning: { [key]: value } } : { [key]: value }) as never);
   return r.ws.panels.configureTuning({ [key]: value } as never);
 }
 
@@ -131,14 +127,14 @@ for (const [call, cls, key, want] of ROWS) {
     } else {
       assert.equal(res.ok, false);
       assert.equal((res as Refused).code, 'wrong-scope');
-      assert.equal((res as Refused).setting, PER_PANEL.includes(key) || WORKSPACE_ONLY.includes(key) ? `tuning.${key}` : key);
+      assert.equal((res as Refused).setting, WORKSPACE_ONLY.includes(key) ? `tuning.${key}` : key);
       unchanged();
     }
   });
 }
 
 test('doors: the table ran every row, calls by classes by one key each', () => {
-  assert.equal(executed, 3 * 4);
+  assert.equal(executed, 3 * 3);
   assert.equal(ROWS.length, executed);
 });
 
@@ -148,7 +144,7 @@ test('doors: the table ran every row, calls by classes by one key each', () => {
 
 test('doors: the catalog holds the plain keys, three template keys among them, and eighteen tuning leaves', () => {
   assert.equal(flatKeys.length + leafKeys.length, names.length);
-  assert.deepEqual(leafKeys.sort(), [...PER_PANEL, ...WORKSPACE_ONLY].sort());
+  assert.deepEqual(leafKeys.sort(), [...WORKSPACE_ONLY].sort());
   assert.equal(leafKeys.length, 18);
   assert.deepEqual(PANEL_SETTINGS_CATALOG.filter((d) => d.configure.doors.length === 1 && d.configure.doors[0] === 'template').map((d) => d.name).sort(), [...TEMPLATE].sort());
 });
@@ -177,16 +173,10 @@ for (const key of TEMPLATE) {
 }
 
 for (const leaf of leafKeys) {
-  const perPanel = PER_PANEL.includes(leaf);
-  test(`sweep: the tuning leaf ${leaf} is ${perPanel ? 'accepted by configure(id) and configureTuning' : 'accepted by configureTuning only'}`, async () => {
+  test(`sweep: the tuning leaf ${leaf} is accepted by configureTuning only`, async () => {
     const r = await pinRig();
-    const onPanel = r.turn(() => r.ws.panels.configure('c', { tuning: { [leaf]: VALUE[leaf] } } as never));
-    if (perPanel) {
-      assert.equal(onPanel.ok, true);
-      assert.equal(r.h.c!.getSettings().source[`tuning.${leaf}`], 'instance');
-    } else {
-      assert.deepEqual([(onPanel as Refused).code, (onPanel as Refused).setting], ['wrong-scope', `tuning.${leaf}`]);
-    }
+    const onPanel = r.turn(() => r.ws.panels.configure('c', { tuning: { [leaf]: VALUE[leaf] } } as never)) as Refused;
+    assert.deepEqual([onPanel.code, onPanel.setting], ['wrong-scope', `tuning.${leaf}`]);
     const onTuning = r.turn(() => r.ws.panels.configureTuning({ [leaf]: VALUE[leaf] } as never));
     assert.equal(onTuning.ok, true);
     const onTemplate = r.turn(() => r.ws.panels.configureTemplate('c', { tuning: { [leaf]: VALUE[leaf] } } as never)) as Refused;
@@ -232,7 +222,7 @@ test('an unknown key throws invalid-settings naming it, at each call, and an unk
   assert.equal(thrown(() => r.ws.panels.configureTemplate('zzz', { multiple: true })).code, 'unknown-template');
   assert.equal(thrown(() => r.h.c!.configure({ closable: 'yes' } as never)).code, 'invalid-settings', 'a wrong type throws');
   assert.equal(thrown(() => r.ws.panels.configureTuning({ rowGap: -4 })).code, 'invalid-settings', 'an out-of-range leaf throws');
-  assert.equal(thrown(() => r.h.c!.configure({ tuning: { slide: { durationSec: 99 } } })).code, 'invalid-settings');
+  assert.equal(r.h.c!.configure({ tuning: { slide: { durationSec: 99 } } } as never).ok, false, 'a panel cannot set a tuning leaf, so its value is never read');
   // An unknown key throws even beside a key that earns a refusal.
   assert.equal(thrown(() => r.ws.panels.configure('c', { maxInstances: 2, nope: 1 } as never)).code, 'invalid-settings');
 });

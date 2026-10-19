@@ -107,3 +107,41 @@ test('a footer that throws while rendering is hidden, the panel stays, and the c
     console.error = original;
   }
 });
+
+test('the footer is bare like the header: no shadow, border or fill, the header height, 4 px below the frame', () => {
+  const m = mountWith({ footer: Footer });
+  const box = m.container.querySelector('[data-panel-footer]') as HTMLElement;
+  const style = getComputedStyle(box);
+  assert.ok(['', 'none'].includes(style.boxShadow), `no shadow: ${style.boxShadow}`);
+  const header = m.container.querySelector('[data-panel-chrome-part="header"]') as HTMLElement | null;
+  assert.ok(header !== null, 'control: the panel draws a header');
+  assert.equal(style.height, getComputedStyle(header).height, 'the footer is as tall as the header');
+  assert.match(style.top, /calc\(100% \+ 4px\)/, 'the footer sits one header gap below the frame');
+  for (const side of ['Top', 'Right', 'Bottom', 'Left'] as const) assert.ok(['', '0px'].includes(style[`border${side}Width`]), `no ${side.toLowerCase()} border`);
+  assert.ok(['', 'transparent', 'rgba(0, 0, 0, 0)'].includes(style.backgroundColor), `no fill: ${style.backgroundColor}`);
+});
+
+test('PanelFooter sx is layered last, so a developer can restyle the padding the library sets', () => {
+  const view = (): React.ReactElement => h('section', null, h(PanelFooter, { sx: { px: '3px', borderRadius: '2px' } }));
+  const t = definePanel({ id: 'a', view, footer: Footer });
+  const ws = createWorkspace({ mount: false, root: markerTemplate('root', { settings: { title: 'History' } }), templates: [t] });
+  ws.addPanel(t);
+  const m = mountWorkspace(ws);
+  const style = getComputedStyle(m.container.querySelector('[data-panel-footer]') as HTMLElement);
+  assert.equal(style.paddingLeft, '3px');
+  assert.equal(style.borderRadius, '2px');
+});
+
+test('the header floats 4 px above the frame and the grab handle stays a 24 px target', () => {
+  const view = ({ handle }: { handle: { id: string } }): React.ReactElement => h(Panel, { title: 'T', grabProps: {}, children: h(PanelFrame, null, h(Body, { handle })) });
+  const t = definePanel({ id: 'a', view });
+  const ws = createWorkspace({ mount: false, root: markerTemplate('root', { settings: { title: 'History' } }), templates: [t] });
+  ws.addPanel(t);
+  const m = mountWorkspace(ws);
+  const header = m.container.querySelector('[data-panel-chrome-part="header"]') as HTMLElement | null;
+  assert.ok(header, 'the header rendered');
+  assert.match(getComputedStyle(header).bottom, /calc\(100% \+ 4px\)/);
+  const grab = m.container.querySelector('[data-panel-grab-bar]') as HTMLElement | null;
+  assert.ok(grab, 'the grab handle rendered');
+  assert.deepEqual([getComputedStyle(grab).width, getComputedStyle(grab).height], ['24px', '24px']);
+});

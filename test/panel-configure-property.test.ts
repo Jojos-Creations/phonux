@@ -90,29 +90,17 @@ const VALUES: Readonly<Record<string, readonly unknown[]>> = {
   restoreVisibility: ['saved', 'live', 'parked'],
   afterClose: ['stay-closed', 'return-next-launch'],
 };
-const TUNING_VALUES: Readonly<Record<string, readonly unknown[]>> = {
-  dragToClose: [{ minDistancePx: 90 }, { distanceFraction: 0.3 }],
-  slide: [{ durationSec: 0.2 }, { durationSec: 0.5 }],
-  hopFraction: [0.3, 0.6],
-  edgeScroll: [{ zonePx: 60 }],
-};
 const KEYS = Object.keys(VALUES);
 const PERMISSIONS = ['closable', 'parkable', 'draggable', 'crossable', 'placeable', 'resizable', 'maxSlots'] as const;
-const LEAVES = Object.keys(TUNING_VALUES);
 
-/** A patch of one to three keys, each a legal value or a null; now and then a tuning leaf. */
+/** A patch of one to three keys, each a legal value or a null. */
 function randomPatch(rand: () => number): Record<string, unknown> {
   const patch: Record<string, unknown> = {};
   const count = 1 + Math.floor(rand() * 3);
   for (let n = 0; n < count; n += 1) {
-    if (rand() < 0.15) {
-      const leaf = pickFrom(rand, LEAVES);
-      patch.tuning = { ...(patch.tuning as object | undefined), [leaf]: rand() < 0.25 ? null : pickFrom(rand, TUNING_VALUES[leaf]!) };
-    } else {
-      // The keys a person's override can outvote come up often enough for the shadowed list to be tested.
-      const key = n === 0 && rand() < 0.25 ? pickFrom(rand, ['slots', 'parkable']) : pickFrom(rand, KEYS);
-      patch[key] = rand() < 0.15 ? null : pickFrom(rand, VALUES[key]!);
-    }
+    // The keys a person's override can outvote come up often enough for the shadowed list to be tested.
+    const key = n === 0 && rand() < 0.25 ? pickFrom(rand, ['slots', 'parkable']) : pickFrom(rand, KEYS);
+    patch[key] = rand() < 0.15 ? null : pickFrom(rand, VALUES[key]!);
   }
   return patch;
 }
@@ -251,7 +239,7 @@ test('seeded random sequences with configure and resetLayout keep the invariants
           const res = one.answer as unknown as Extract<ConfigureResult, { ok: true }>;
           if (res.changed) {
             const source = h.getSettings().source;
-            const asked = Object.entries(one.patch).flatMap(([k, v]) => (k === 'tuning' ? Object.entries(v as Record<string, unknown>).map(([leaf, x]) => [`tuning.${leaf}`, x] as const) : [[k, v] as const]));
+            const asked = Object.entries(one.patch);
             const expected = asked.filter(([k, v]) => v !== null && source[k] !== 'instance' && res.now.concat(res.later).includes(k)).map(([k]) => k);
             assert.deepEqual([...res.shadowed].sort(), expected.sort(), `${where(step)}: shadowed names the patched keys the instance layer lost`);
             shadowChecked += 1;
