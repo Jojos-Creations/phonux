@@ -19,7 +19,7 @@ afterEach(() => cleanup());
 
 type Refused = Extract<ConfigureResult, { ok: false }>;
 
-const WORKSPACE_ONLY = ['rowGap', 'saveQuietMs', 'gestureLockMs', 'gestureQuietMs', 'resizeSettleSlides', 'returnTieBreak', 'dropTieBreak', 'rowGesture', 'initialScroll', 'maxLivePanels', 'chrome', 'phoneFit', 'phoneFitMin', 'phoneFitMax', 'dragToClose', 'slide', 'hopFraction', 'edgeScroll'];
+const WORKSPACE_ONLY = ['defaultEnterFrom', 'defaultExitTo', 'rowGap', 'saveQuietMs', 'gestureLockMs', 'gestureQuietMs', 'resizeSettleSlides', 'returnTieBreak', 'dropTieBreak', 'rowGesture', 'initialScroll', 'maxLivePanels', 'chrome', 'phoneFit', 'phoneFitMin', 'phoneFitMax', 'dragToClose', 'slide', 'hopFraction', 'edgeScroll'];
 const TEMPLATE = ['hostCreatable', 'multiple', 'maxInstances', 'hollowDot'];
 
 /** One legal value for every settings key the catalog names, so a sweep can ask each of them. */
@@ -48,6 +48,7 @@ const VALUE: Record<string, unknown> = {
   placeOnShow: 'in-place',
   layer: 'raised',
   enterFrom: 'left',
+  exitTo: 'fade',
   title: 'Renamed',
   pinning: { pinned: { placement: 'row-start' }, unpinned: { placement: 'row-end' } },
   pinningWhenNotLive: 'refuse',
@@ -72,6 +73,8 @@ const VALUE: Record<string, unknown> = {
   phoneFit: 'fit',
   phoneFitMin: 0.9,
   phoneFitMax: 1.1,
+  defaultEnterFrom: 'expand',
+  defaultExitTo: 'shrink',
   slots: 2,
   maxSlots: 3,
 };
@@ -141,10 +144,10 @@ test('doors: the table ran every row, calls by classes by one key each', () => {
 // The sweep: every catalog key through every call
 // ---------------------------------------------------------------------------
 
-test('doors: the catalog holds the plain keys, three template keys among them, and eighteen tuning leaves', () => {
+test('doors: the catalog holds the plain keys, three template keys among them, and twenty tuning leaves', () => {
   assert.equal(flatKeys.length + leafKeys.length, names.length);
   assert.deepEqual(leafKeys.sort(), [...WORKSPACE_ONLY].sort());
-  assert.equal(leafKeys.length, 18);
+  assert.equal(leafKeys.length, 20);
   assert.deepEqual(PANEL_SETTINGS_CATALOG.filter((d) => d.configure.doors.length === 1 && d.configure.doors[0] === 'template').map((d) => d.name).sort(), [...TEMPLATE].sort());
 });
 
