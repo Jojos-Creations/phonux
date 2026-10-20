@@ -166,6 +166,15 @@ export interface WorkspaceProps extends Omit<BoxProps, 'children'> {
   children: React.ReactNode;
 }
 
+// Browsers round layout to fractions of a pixel, so a slot flush with the window edge can read a hair over it.
+const EDGE_TOLERANCE_PX = 1;
+
+/** True when `next` places or sizes a drawn entry differently from `prev`. */
+function slotsMoved(prev: RowNumbers, next: RowNumbers): boolean {
+  if (prev.rowMarginLeft !== next.rowMarginLeft || prev.ids.length !== next.ids.length) return true;
+  return next.ids.some((id, k) => id !== prev.ids[k] || next.leftOffsets[k] !== prev.leftOffsets[k] || next.widths[k] !== prev.widths[k]);
+}
+
 /** A subscription that never fires, for a shell given no workspace. */
 const NO_SUBSCRIPTION = (): (() => void) => () => {};
 
@@ -300,14 +309,21 @@ export function Workspace(props: WorkspaceProps): React.ReactElement {
     scroller.stop();
     scroller.glideTo(0, { durationSec: 0, instant: true, ease: resolved.slide.glideEase });
   }, [scrolls, overflowContainerRef]);
+  // A close, reopen or move slides slots without moving scrollLeft, so the row counts as moving until that slide has landed.
+  const slideRef = React.useRef({ numbers: rowNumbers, endsAt: 0 });
+  if (rowNumbers !== undefined && slideRef.current.numbers !== undefined && slotsMoved(slideRef.current.numbers, rowNumbers)) {
+    slideRef.current = { numbers: rowNumbers, endsAt: performance.now() + resolved.slide.durationSec * 1000 + 100 };
+  } else if (slideRef.current.numbers !== rowNumbers) slideRef.current = { numbers: rowNumbers, endsAt: slideRef.current.endsAt };
   // Reach is written straight to the slots on every scroll event, since a state update per frame of a glide would re-render the whole row.
   React.useLayoutEffect(() => {
     const container = overflowContainerRef.current;
     const strip = rowRef.current;
     if (container === null || strip === null || rowNumbers === undefined) return;
     const apply = (): void => {
-      const held = rowScrollerFor(container).claimHeld();
+      const scroller = rowScrollerFor(container);
+      const held = scroller.claimHeld();
       const view = container.getBoundingClientRect();
+      const atRest = !held && scroller.glideTarget() === null && performance.now() >= slideRef.current.endsAt && rowNumbers.stops.some((stop) => Math.abs(stop - container.scrollLeft) <= EDGE_TOLERANCE_PX);
       for (const slot of strip.querySelectorAll<HTMLElement>('[data-row-slot]')) {
         // A stepping row cuts the neighbour of a stop at the window edge, so only a panel the window does not reach at all is out of reach of Tab.
         const rect = slot.getBoundingClientRect();
@@ -315,7 +331,11 @@ export function Workspace(props: WorkspaceProps): React.ReactElement {
         // A peek narrower than the gap shows only the frame's edge, a hairline that reads as a stray bar rather than a panel.
         // Judged during a drag too, since the drag's preview slides panels into view while the claim holds reach still.
         const shown = Math.min(rect.right, view.right) - Math.max(rect.left, view.left);
-        slot.style.visibility = !away && rowNumbers.stops.length > 0 && shown < gap ? 'hidden' : '';
+        // At rest only whole slots draw; a panel wider than a phone may show partly. In motion a slot crossing an edge keeps drawing,
+        // or a panel leaving the window would vanish at its first pixel instead of sliding out.
+        const cut = rect.left < view.left - EDGE_TOLERANCE_PX || rect.right > view.right + EDGE_TOLERANCE_PX;
+        const wholeOnly = atRest && cut && rect.width <= phoneWidth + EDGE_TOLERANCE_PX;
+        slot.style.visibility = !away && rowNumbers.stops.length > 0 && (shown < gap || wholeOnly) ? 'hidden' : '';
         if (held) continue;
         slot.style.pointerEvents = away ? 'none' : '';
         // Inert too: Tab or find-in-page would otherwise scroll the row off its stop to reveal a panel the window does not reach.
@@ -332,7 +352,7 @@ export function Workspace(props: WorkspaceProps): React.ReactElement {
       if (frame !== 0) return;
       frame = requestAnimationFrame(function tick(): void {
         apply();
-        frame = performance.now() < until || rowScrollerFor(container).claimHeld() ? requestAnimationFrame(tick) : 0;
+        frame = performance.now() < Math.max(until, slideRef.current.endsAt) || rowScrollerFor(container).claimHeld() ? requestAnimationFrame(tick) : 0;
       });
     };
     follow();

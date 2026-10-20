@@ -367,7 +367,8 @@ under an unchanged container width, or a width is held), and the settle onto a s
 the window keeps its centring and has no stops; an `off` row has none either, so its margin is 0 on overflow.
 
 Padding does not clip scrolled content, so a neighbour of the shown set peeks `m_i` px at each edge, cut by the window
-edge and drawn at its own size: nothing fades or shrinks. A slot the window does not reach at all is `inert` and takes no
+edge. Nothing fades or shrinks, but at rest a cut slot no wider than a phone is `visibility: hidden` (Workspace writes it with reach), so only
+whole slots draw; a wider panel the edge cuts draws partly, and a slot crossing an edge in a glide, a held drag or a slide after a close, reopen or move keeps drawing until the row rests (the numbers changed, plus one slide and 100 ms). A slot the window does not reach at all is `inert` and takes no
 pointer events, so Tab and find-in-page cannot scroll the row off a stop; Workspace writes that on scroll events and on every
 render. A click or focus in the cut-off neighbour makes the browser scroll, and the row then settles onto the nearest stop that
 shows that panel. Steps, `scrollTo`, the initial scroll, a drag released after edge scrolling and the settle after a change of
@@ -391,7 +392,7 @@ grid stop near its left edge. Drag release, resize and pin release read the same
 #### Whole panels only
 
 Panels are whole slots, so the window holds a whole number of slots `u = floor((window + gap) / (phone + gap))`. A grid stop shows
-the greedy run of whole panels from its point, and the window edge cuts the neighbour in the margin, drawn at its own size. There is no other mode:
+the greedy run of whole panels from its point, and the window edge cuts the neighbour in the margin, which is not drawn while the row rests unless it is wider than a phone. There is no other mode:
 the Shrink (`'visible'`) and Hide (`'hidden'`) values of `tuning.shrinkOutOfView` are removed, and a row never resizes a panel to fit
 the window.
 
@@ -1145,10 +1146,21 @@ line snaps back. Its render prop hands out a handle for `Panel`'s `grabProps`:
 ```
 
 The handle is the grab bar and nothing else, so the body keeps its own scrolling and clicks. The box follows
-the pointer vertically and only downward. On release `shouldCloseOnRelease` decides: close (the box leaves
+the pointer vertically, up and down. On release `shouldCloseOnRelease` decides: close (the box leaves
 downward, then the latest `onClose` runs) or snap back on a spring. `@dnd-kit/core`'s pointer sensor, one
 `DndContext` per box with its auto-scroll off, decides when a press becomes a drag and when it ends or is cancelled,
 with its events on `document`, so a drag survives leaving the handle; Motion draws the box and runs the springs.
+
+**Reporting the pointer, and dropping elsewhere.** `onDragMove({ x, y, clientX, clientY })` runs on every pointer move from the move that engages the
+drag (`x` and `y` are the pointer's travel from the press, `clientX` and `clientY` its viewport position), and `onDragEnd({ offsetX, offsetY, clientX, clientY })`
+runs once at release, before `reorder.onDragEnd` and before any close. Both read the pointer's own events, so they are exact whatever the box's
+drawn offset is. A press that never engages, and a cancelled gesture (a native pan, Escape), report no release: an app that previews a drop target clears it
+when its own pointer tracking ends, not on `onDragEnd` alone. An app hit-tests its own targets with `clientX` and `clientY`; the library draws none. `closeOnRelease={false}`
+keeps the box from closing on release: whatever the distance or speed, and whichever way it was dragged, the release springs home and `onClose` is not called by the
+drag (the Delete key still calls it). These are props of `DragToClose`, not panel settings: a callback is a closure over the app's own state, and a setting is
+data that is configured, saved and restored. While a drag is engaged on either axis the panel's slot is lifted to `ROW_LAYER_Z.DRAGGED` (never below its own
+layer), read from the same dragging mark as `usePanelDragging()`, so the box paints over the row's other slots and over an app element at a lower z; the lift
+ends with the spring home, when the mark does. The row's scroll container still clips what is drawn outside it.
 
 **Keys and names.** When `onClose` or `reorder.onStep` is set the handle is a focusable `button` (`role`, `tabIndex`, `aria-label`
 `labels.grabStrip(title)`, `aria-keyshortcuts` and `onKeyDown` are in the handle) where ArrowLeft and ArrowRight call
@@ -1302,6 +1314,8 @@ or it falls back to the engine's default-width bar and breaks the arithmetic abo
 
 **No reserved twice.** Because the frame adds no padding or gutter, there is nothing for a nested scroller to
 cancel. `panelFrameBareSx` is a deprecated empty object kept so existing imports compile.
+
+**The corner radius and the ring.** The frame's 1 px edge is an inset shadow on the outer box, drawn under its children, with 1 px of padding of the same width (one constant in `PanelFrame.tsx`), so the content box begins where the ring ends. The outer box rounds at `panelCornerRadiusPx(theme)` (24 px by default). The content box takes `border-radius: inherit` and clips its children, so opaque full-bleed content (a photo, a web view) cannot cover the ring along a corner arc, which would read as a border that fades out at the corners. It inherits rather than computing the theme radius minus the edge, because a host may set the frame's radius by a stylesheet rule, an inline style or an animation, and only the cascade follows those live; the content box then sits at most 0.4 px inside the ring's inner curve at a 24 px radius, never over it. A view's `sx` on the frame is layered last, so a view that wants its own radius or overflow on that box can set it. `tools/proof/frame-corner-ring-probe.mjs` scores the ring pixels along all four arcs in headless WebKit and Chromium, at the theme's radius and at 40 px written onto the mounted frame.
 
 **border-box.** Row-layout width math treats `device.size` as the frame's real rendered size. Under
 content-box the border and padding land on top of it: a 390px phone rendered 416px wide by

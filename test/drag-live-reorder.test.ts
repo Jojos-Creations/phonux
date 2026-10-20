@@ -124,16 +124,17 @@ test('a panel wider than its neighbours makes them move by ITS span, and a narro
   await advanceFrames(3000);
 });
 
-test('nothing is previewed for a panel that is not movable', async () => {
+test('nothing is previewed for a panel that is not movable, though the held panel is lifted', async () => {
   const m = mountRow(row(rootEntry(), made('s1', { movable: false }), made('s2')), 3000);
   await advanceFrames(2000);
   const before = xOf(m, 's2');
   await drag(handleOf(m, 's1'), { dx: SPAN, dy: 0, steps: 8, hold: 8, keepDown: true });
   await advanceFrames(1000);
   assert.equal(xOf(m, 's2'), before);
-  assert.equal(zOf(m, 's1'), '1', 'and nothing is raised');
+  assert.equal(zOf(m, 's1'), '3', 'the held panel is lifted over the row, whether or not it can be moved');
   await release(SPAN, 0);
   await advanceFrames(2000);
+  assert.equal(zOf(m, 's1'), '1', 'and the lift ends when it settles');
 });
 
 test('the preview stops at a panel that cannot be crossed, as the hop rule does', async () => {
@@ -235,14 +236,15 @@ test('a cancel returns every neighbour to rest within the slide time, and the ra
   assert.equal(zOf(m, 's1'), '1');
 });
 
-test('a drag that locks vertical previews nothing: no neighbour moves and the slot is never raised', async () => {
+test('a drag that locks vertical previews nothing: no neighbour moves, and the held slot is lifted until it settles', async () => {
   const m = mountRow(panelsOf(4), 3000);
   await advanceFrames(2000);
   const rest = xOf(m, 's2');
   await drag(handleOf(m, 's1'), { dx: 20, dy: 60, steps: 6, hold: 4, keepDown: true });
   await advanceFrames(1000);
   assert.equal(xOf(m, 's2'), rest);
-  assert.equal(zOf(m, 's1'), '1');
+  assert.equal(zOf(m, 's1'), '3');
   await release(20, 60);
   await advanceFrames(2000);
+  assert.equal(zOf(m, 's1'), '1');
 });
