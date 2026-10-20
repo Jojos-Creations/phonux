@@ -245,6 +245,9 @@ export interface DragHandleProps {
 export function DragToClose(input: {
     onClose?: () => void;
     reorder?: ReorderHandle;
+    closeOnRelease?: boolean;
+    onDragMove?: (move: GrabDragMove) => void;
+    onDragEnd?: (end: GrabDragEnd) => void;
     children: (handle: DragHandleProps) => React_2.ReactNode;
 }): React_2.ReactElement;
 
@@ -281,6 +284,22 @@ export const GAP = 16;
 
 // @public
 export type GlideEase = 'cubic-out' | 'linear' | BezierEase;
+
+// @public
+export interface GrabDragEnd {
+    clientX: number;
+    clientY: number;
+    offsetX: number;
+    offsetY: number;
+}
+
+// @public
+export interface GrabDragMove {
+    clientX: number;
+    clientY: number;
+    x: number;
+    y: number;
+}
 
 // @public
 export type HeaderButton = HeaderButtonIconForm | HeaderButtonTextForm;

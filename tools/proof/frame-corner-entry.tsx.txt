@@ -1,0 +1,23 @@
+// One PanelFrame at a fixed place holding an opaque full-bleed child, in the theme's dark or light scheme.
+// Query: scheme=<dark|light> child=<full|none>   (none: the same frame with nothing in it, the ring's own pixels)
+import * as React from 'react';
+import { createRoot } from 'react-dom/client';
+import { ThemeProvider, createTheme } from '@mui/material/styles';
+import { HostProvider, PanelFrame } from 'LIB/index.js';
+import { createFakeHost } from 'LIB/fakeHost.js';
+
+const q = new URLSearchParams(location.search);
+const mode = q.get('scheme') === 'light' ? 'light' : 'dark';
+const theme = createTheme({ palette: { mode } });
+
+createRoot(document.getElementById('root') as HTMLElement).render(
+  <ThemeProvider theme={theme}>
+    <HostProvider host={createFakeHost()}>
+      <div style={{ position: 'absolute', left: 24, top: 24 }}>
+        <PanelFrame footer={false} size={{ width: 390, height: 600 }}>
+          {q.get('child') === 'none' ? null : <div data-fullbleed="" style={{ flex: 1, background: '#e53935' }} />}
+        </PanelFrame>
+      </div>
+    </HostProvider>
+  </ThemeProvider>,
+);
