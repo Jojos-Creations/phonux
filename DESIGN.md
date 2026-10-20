@@ -367,7 +367,8 @@ under an unchanged container width, or a width is held), and the settle onto a s
 the window keeps its centring and has no stops; an `off` row has none either, so its margin is 0 on overflow.
 
 Padding does not clip scrolled content, so a neighbour of the shown set peeks `m_i` px at each edge, cut by the window
-edge and drawn at its own size: nothing fades or shrinks. A slot the window does not reach at all is `inert` and takes no
+edge. Nothing fades or shrinks, but at rest a cut slot no wider than a phone is `visibility: hidden` (Workspace writes it with reach), so only
+whole slots draw; a wider panel the edge cuts draws partly, and a slot crossing an edge in a glide or a held drag keeps drawing until the row rests. A slot the window does not reach at all is `inert` and takes no
 pointer events, so Tab and find-in-page cannot scroll the row off a stop; Workspace writes that on scroll events and on every
 render. A click or focus in the cut-off neighbour makes the browser scroll, and the row then settles onto the nearest stop that
 shows that panel. Steps, `scrollTo`, the initial scroll, a drag released after edge scrolling and the settle after a change of
@@ -391,7 +392,7 @@ grid stop near its left edge. Drag release, resize and pin release read the same
 #### Whole panels only
 
 Panels are whole slots, so the window holds a whole number of slots `u = floor((window + gap) / (phone + gap))`. A grid stop shows
-the greedy run of whole panels from its point, and the window edge cuts the neighbour in the margin, drawn at its own size. There is no other mode:
+the greedy run of whole panels from its point, and the window edge cuts the neighbour in the margin, which is not drawn while the row rests unless it is wider than a phone. There is no other mode:
 the Shrink (`'visible'`) and Hide (`'hidden'`) values of `tuning.shrinkOutOfView` are removed, and a row never resizes a panel to fit
 the window.
 
