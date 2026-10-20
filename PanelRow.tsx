@@ -25,6 +25,7 @@ import { steerEntry, steerSentinel, steerTab, useTabPress } from './panelRowTabO
 import { ChromeStoreContext, createChromeStore } from './panelChrome.js';
 import { slotTuning, type SlotTuning } from './panelTuning.js';
 import { reorderStepsForOffset, type PanelWindow } from './panelWindow.js';
+import { RowDropContext, dropParts, partShifts, useRowDrop, type Neighbor, type Walk } from './panelRowDrop.js';
 import { maxScrollOf, type RowNumbers } from './rowNumbers.js';
 import { panelWidthOf } from './panelTiers.js';
 import { fitSlots, slotWidth } from './rowConstants.js';
@@ -263,10 +264,10 @@ export function PanelRow({
   // Nearest first on each side, an always-shown column included: movePanel swaps past one like any neighbour. The
   // walk is over every array slot and stops at the first entry that is not crossable, a parked one included,
   // because that is where movePanel refuses the hop.
-  const neighborsAt = (entry: PanelRowEntry): { left: Array<{ id: string; width: number }>; right: Array<{ id: string; width: number }> } => {
+  const neighborsAt = (entry: PanelRowEntry): Walk => {
     const at = entries.indexOf(entry);
     const side = (step: 1 | -1) => {
-      const out: Array<{ id: string; width: number }> = [];
+      const out: Neighbor[] = [];
       for (let i = at + step; i >= 0 && i < entries.length; i += step) {
         const next = entries[i]!;
         if (!effective(next).crossable) break;
@@ -284,6 +285,12 @@ export function PanelRow({
   // Per panel, and searched in `present`: each slot's own `index` below counts in that same array.
   const anchorIndexOf = (p: PanelRowEntry): number => present.findIndex((x) => x.id === anchorTargetOf(p, rootId));
   const viewContext = viewContextOf(workspace);
+  const rowTuning = slotTuning(workspaceTuning);
+  // The one hop rule: the header drag and a drag that starts outside the row both count their hops through it.
+  const stepsFor = (entry: PanelRowEntry, offset: number): number => reorderStepsForOffset(offset, neighborWidthsAt(entry), gap, rowTuning.hopFraction);
+  const dragScroll: DragScroll | undefined = rowScroll
+    ? { mode: FIXED.scrollOnDrag, zonePx: rowTuning.edgeScroll.zonePx, maxPxPerSec: rowTuning.edgeScroll.maxPxPerSec, reducedStepMs: rowTuning.edgeScroll.reducedStepMs, maxScroll, stops, settleStops: rowNumbers === undefined ? [] : rowNumbers.stops, settleSec: rowTuning.slide.durationSec, settleEase: rowTuning.slide.glideEase }
+    : undefined;
   // A horizontal drag's live hop count. Only the slots' drawn positions follow it; the order changes at the drop.
   const [dragging, setDragging] = React.useState<{ id: string; steps: number } | null>(null);
   // A dragged panel that left the row (closed by other means) takes its preview with it.
@@ -291,22 +298,39 @@ export function PanelRow({
   React.useEffect(() => {
     if (draggedGone) setDragging(null);
   }, [draggedGone]);
+  const leftById = new Map(present.map((p, index) => [p.id, leftOffsets[index]!]));
+  const widthFor = (entry: PanelRowEntry): number => widthById.get(entry.id) ?? panelWidthOf(entry, phoneWidth, maxLiveWidth, gap);
+  const boxRef = React.useRef<HTMLDivElement>(null);
+  const dropRowOf = (entry: PanelRowEntry) => ({ entries, rowGap: gap, widthById, leftById, width: widthFor(entry), walk: neighborsAt(entry) });
+  const { preview: drop, controller: rowDrop } = useRowDrop({
+    workspace,
+    rootId,
+    entries,
+    chrome,
+    boxRef,
+    walkOf: neighborsAt,
+    stepsFor,
+    dragScroll,
+    centreOf: (entry, hidden) => (hidden ? (dropParts({ id: entry.id, steps: 0, hidden: true }, dropRowOf(entry)).gap?.left ?? 0) + widthFor(entry) / 2 : (leftById.get(entry.id) ?? 0) + widthFor(entry) / 2),
+  });
   const shiftById = new Map<string, number>();
   const draggedEntry = dragging === null ? undefined : present.find((x) => x.id === dragging.id);
   if (dragging !== null && draggedEntry !== undefined && dragging.steps !== 0 && effective(draggedEntry).movable) {
-    // Every panel the drag would cross moves by the dragged panel's own span, away from the side it is dragged toward.
-    const span = widthById.get(draggedEntry.id)! + gap;
-    const walk = neighborsAt(draggedEntry);
-    const forward = dragging.steps > 0;
-    for (const crossed of (forward ? walk.right : walk.left).slice(0, Math.abs(dragging.steps))) shiftById.set(crossed.id, forward ? -span : span);
+    for (const [id, by] of partShifts(neighborsAt(draggedEntry), dragging.steps, widthById.get(draggedEntry.id)! + gap)) shiftById.set(id, by);
   }
+  const dropEntry = drop === null ? undefined : entries.find((x) => x.id === drop.id);
+  const dropPartsNow = drop === null || dropEntry === undefined ? undefined : dropParts(drop, dropRowOf(dropEntry));
+  if (dropPartsNow !== undefined) for (const [id, by] of dropPartsNow.shifts) shiftById.set(id, by);
+  const gapSpan = dropPartsNow?.gap == null ? 0 : dropPartsNow.gap.width + gap;
   return (
     <ChromeStoreContext.Provider value={chrome}>
     <PanelViewContextValue.Provider value={viewContext}>
+    <RowDropContext.Provider value={rowDrop}>
     {/* Always mounted: an exiting entry needs AnimatePresence to animate inside, and `initial={false}` must see
     what is present at app start to skip animating a restored session. `display: none` (not width 0) so an
     empty row consumes no flex `gap` from its siblings. */}
     <Box
+      ref={boxRef}
       onKeyDown={(event) => steerTab(event, event.currentTarget, present.map((p) => p.id))}
       onFocus={(event) => {
         const ids = present.map((p) => p.id);
@@ -318,25 +342,22 @@ export function PanelRow({
         flexShrink: 0,
         height: rowHeight,
         display: present.length > 0 ? 'block' : 'none',
-        width: reservedWidth,
+        width: reservedWidth + gapSpan,
       }}
     >
+      {dropPartsNow?.gap == null ? null : <Box aria-hidden data-panel-row-drop-gap="" sx={{ position: 'absolute', top: 0, left: dropPartsNow.gap.left, width: dropPartsNow.gap.width, height: rowHeight, pointerEvents: 'none' }} />}
       <AnimatePresence initial={false}>
         {domOrder.map((p) => {
           const presentIndex = present.indexOf(p);
           const rest = { leftOffset: leftOffsets[presentIndex]!, width: widths[presentIndex]! };
           const Component = resolveViewIn(templateOf, p.view);
           const { closable, movable, resizable, maxSlots, enterFrom, exitTo, layer, headerButtons } = effective(p);
-          const { scrollOnDrag } = FIXED;
-          const own = slotTuning(workspaceTuning);
+                    const own = rowTuning;
           const handle = viewContext.handleFor(panelKey(p));
           const report = binding.reportError;
           const note = binding.reportNote;
           // A panel whose last button was just removed while it held focus still gets the slot context for that one commit, so the hook that moves focus runs.
           const headerButtonSlots = headerButtonsOf(headerButtons, handle, report, note) ?? (handle !== undefined && focusInHeaderRow(handle.id) ? { slots: {}, handle, report, note } : undefined);
-          const dragScroll: DragScroll | undefined = rowScroll
-            ? { mode: scrollOnDrag, zonePx: own.edgeScroll.zonePx, maxPxPerSec: own.edgeScroll.maxPxPerSec, reducedStepMs: own.edgeScroll.reducedStepMs, maxScroll, stops, settleStops: rowNumbers === undefined ? [] : rowNumbers.stops, settleSec: own.slide.durationSec, settleEase: own.slide.glideEase }
-            : undefined;
           return (
             <PanelSlotContext.Provider
               key={p.id}
@@ -356,11 +377,11 @@ export function PanelRow({
                 tuning: own,
                 dragScroll,
                 headerButtonSlots,
-                dragHops: (offset) => reorderStepsForOffset(offset, neighborWidthsAt(p), gap, own.hopFraction) !== 0,
+                dragHops: (offset) => stepsFor(p, offset) !== 0,
                 previewReorder: (offset) =>
                   setDragging((now) => {
                     if (offset === null) return now?.id === p.id ? null : now;
-                    const steps = reorderStepsForOffset(offset, neighborWidthsAt(p), gap, own.hopFraction);
+                    const steps = stepsFor(p, offset);
                     return now?.id === p.id && now.steps === steps ? now : { id: p.id, steps };
                   }),
               }}
@@ -374,12 +395,12 @@ export function PanelRow({
                 height={p.slots === undefined ? undefined : phoneHeight}
                 enterDirection={enterDirectionOf(enterFrom, p.anchoredEnter ?? false, enterSideById.get(p.id), enteringViaAnchorIds.has(p.id), () => resolveEnterDirection(anchorIndexOf(p), presentIndex), workspaceTuning.defaultEnterFrom)}
                 exitDirection={exitStyleOf(exitTo, workspaceTuning.defaultExitTo, closingIds.has(p.id), exitRightIds.has(p.id))}
-                zIndex={dragging?.id === p.id ? ROW_LAYER_Z.DRAGGED : layer === 'raised' ? ROW_LAYER_Z.RAISED : ROW_LAYER_Z.BASE}
+                zIndex={dragging?.id === p.id || drop?.id === p.id ? ROW_LAYER_Z.DRAGGED : layer === 'raised' ? ROW_LAYER_Z.RAISED : ROW_LAYER_Z.BASE}
                 tracking={slotTracking}
                 gap={gap}
                 slide={own.slide}
                 rowScroll={rowScroll}
-                previewing={dragging !== null}
+                previewing={dragging !== null || drop !== null}
                 onActivate={() => {
                   chrome.setActive(p.id);
                   binding.touch(p.id);
@@ -399,6 +420,7 @@ export function PanelRow({
         })}
       </AnimatePresence>
     </Box>
+    </RowDropContext.Provider>
     </PanelViewContextValue.Provider>
     </ChromeStoreContext.Provider>
   );

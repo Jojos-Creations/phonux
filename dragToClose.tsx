@@ -10,10 +10,9 @@ import { animate, cancelFrame, frame, motion, useIsPresent, useMotionValue, useR
 import { AnnounceContext } from './announce.js';
 import { useOptionalHost } from './hostApi.js';
 import { resolveLabels } from './labels.js';
-import { edgeScrollSpeed, edgeScrollStep } from './edgeScroll.js';
 import { PanelSlotContext, type DragScroll } from './panelSlotContext.js';
-import { closestRowScroller, rowScrollerFor, type RowScroller, type ScrollClaim } from './rowScroller.js';
-import { stepTarget } from './scrollTargets.js';
+import { endEdgeHold, openEdgeHold, stepEdgeHold, type EdgeHold } from './panelRowDropScroll.js';
+import { closestRowScroller, rowScrollerFor } from './rowScroller.js';
 import type { DragToCloseTuning } from './panelSettings.js';
 import { CLOSE_EXIT_EASE, DIRECTION_LOCK_PX, DRAG_CLOSE_NUMBERS, DRAG_REST_MS, DRAG_VELOCITY_WINDOW_MS, SLIDE_CLOSE_EXIT_SECONDS, SNAP_BACK_SPRING } from './rowConstants.js';
 
@@ -94,23 +93,6 @@ export interface ReorderHandle {
   onStep?: (steps: number) => boolean;
 }
 
-/** A horizontal drag's hold on the row scroller: the claim, the pointer-down scroll it counts from, and the frame loop. */
-interface EdgeHold {
-  scroller: RowScroller;
-  scrollerEl: HTMLElement;
-  claim: ScrollClaim;
-  startScroll: number;
-  /** The slot's edge numbers when the drag locked: a configure made mid-drag must reach the next drag, not this one. */
-  began: { zonePx: number; maxPxPerSec: number; reducedStepMs: number };
-  frame: number | null;
-  /** The previous frame's timestamp; null until the first frame, whose dt is 0. */
-  lastMs: number | null;
-  /** Reduced motion: how long the pointer has stayed in a band since the last jump. */
-  waitedMs: number;
-  /** The pointer has lifted or been cancelled: no further frame may move the row before the release reads the distance. */
-  stopped: boolean;
-}
-
 /**
  * Edge scrolling for one DragToClose: the claim on the row scroller (taken when a horizontal drag locks), the
  * requestAnimationFrame loop that scrolls it while the pointer rests in a band, and the scroll distance the release
@@ -153,23 +135,7 @@ function useEdgeScroll(box: React.RefObject<HTMLDivElement | null>, dragScroll: 
     if (h === null) return;
     h.frame = null;
     if (h.stopped || slot === undefined) return;
-    const dt = h.lastMs === null ? 0 : nowMs - h.lastMs;
-    h.lastMs = nowMs;
-    const bound = slot.maxScroll;
-    h.claim.setMaxScroll(bound);
-    const rect = h.scrollerEl.getBoundingClientRect();
-    const speed = edgeScrollSpeed({ pointerX: pointer.current.x, left: rect.left, right: rect.right, zonePx: h.began.zonePx, maxPxPerSec: h.began.maxPxPerSec });
-    const at = h.scroller.scrollLeft();
-    if (latest.current.reduceMotion) {
-      h.waitedMs = speed === 0 ? 0 : h.waitedMs + dt;
-      if (h.waitedMs >= h.began.reducedStepMs) {
-        h.waitedMs = 0;
-        const to = stepTarget(speed < 0 ? 'left' : 'right', at, slot.stops, bound);
-        if (to !== null) h.claim.write(to);
-      }
-    } else if (speed !== 0) {
-      h.claim.write(at + edgeScrollStep({ speed, dtMs: dt, scrollLeft: at, maxScroll: bound }));
-    }
+    stepEdgeHold(h, nowMs, pointer.current.x, slot, latest.current.reduceMotion);
     scrollX.set(h.scroller.scrollLeft() - h.startScroll);
     h.frame = requestAnimationFrame(tick);
   };
@@ -179,16 +145,7 @@ function useEdgeScroll(box: React.RefObject<HTMLDivElement | null>, dragScroll: 
     const h = hold.current;
     if (h === null) return 0;
     hold.current = null;
-    if (h.frame !== null) cancelAnimationFrame(h.frame);
-    const distance = h.scroller.scrollLeft() - h.startScroll;
-    h.claim.release();
-    const slot = latest.current.dragScroll;
-    if (slot !== undefined && slot.settleStops.length > 0) {
-      const at = h.scroller.scrollLeft();
-      const to = slot.settleStops.reduce((best, stop) => (Math.abs(stop - at) < Math.abs(best - at) ? stop : best));
-      if (Math.abs(to - at) >= 0.5) h.scroller.glideTo(to, { durationSec: slot.settleSec, instant: latest.current.reduceMotion, ease: slot.settleEase });
-    }
-    return distance;
+    return endEdgeHold(h, latest.current.dragScroll, latest.current.reduceMotion);
   };
 
   React.useEffect(
@@ -226,12 +183,10 @@ function useEdgeScroll(box: React.RefObject<HTMLDivElement | null>, dragScroll: 
       // Rects and the translations drawn now are in the same screen px; both ends scroll together, so the gap holds as the row scrolls.
       slack.current = rowEnd === undefined || own === undefined || rowEnd.width === 0 ? Number.POSITIVE_INFINITY : rowEnd.right - (own.right - x.get() - scrollX.get());
       if (p === null || slot === undefined || slot.mode !== 'edge') return;
-      const scroller = rowScrollerFor(p.scrollerEl);
-      const claim = scroller.claim();
-      if (claim === null) return;
-      claim.setMaxScroll(slot.maxScroll);
+      const opened = openEdgeHold(p.scrollerEl, p.startScroll, slot);
+      if (opened === null) return;
       pointer.current = { x: clientX, offset: clientX - p.downX };
-      hold.current = { scroller, scrollerEl: p.scrollerEl, claim, startScroll: p.startScroll, began: { zonePx: slot.zonePx, maxPxPerSec: slot.maxPxPerSec, reducedStepMs: slot.reducedStepMs }, frame: null, lastMs: null, waitedMs: 0, stopped: false };
+      hold.current = opened;
       hold.current.frame = requestAnimationFrame(tick);
     },
     /** Each pointer move: the box follows the pointer by `x` alone, and the scroll distance rides the second value. */
