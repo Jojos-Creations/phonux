@@ -509,9 +509,10 @@ function DragToCloseBox({
   const dropping = React.useRef(false);
   // Release springs the box home; a cancelled gesture takes the same road without reporting a hop or a close.
   const springHome = () => {
-    const back = settleHome(x, scrollX, snapBack);
-    running.current = back;
-    void back.then(() => {
+    const vertical = animate(y, 0, snapBack);
+    const sideways = settleHome(x, scrollX, snapBack);
+    running.current = { stop: () => { vertical.stop(); sideways.stop(); } };
+    void Promise.all([vertical, sideways]).then(() => {
       unlockScrollParents();
       preview(null);
     });
