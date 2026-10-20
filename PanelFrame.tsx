@@ -38,6 +38,9 @@ export const PANEL_CORNER_RADIUS_UNITS = 4;
 /** That radius in px for `theme`. @public */
 export const panelCornerRadiusPx = (theme: Theme): number => PANEL_CORNER_RADIUS_UNITS * Number(theme.shape.borderRadius);
 
+// One width for the padding and the inset shadow, so the content box begins exactly where the ring ends.
+const EDGE_PX = 1;
+
 /**
  * No effect. PanelFrame no longer styles its content, so there is nothing to cancel; the export stays so
  * existing imports keep compiling.
@@ -72,9 +75,9 @@ const PanelFrame = React.forwardRef<HTMLDivElement, PanelFrameProps>(function Pa
         // border-box: row-layout width math elsewhere treats the phone size as this box's real
         // rendered size; content-box would add border+padding on top, silently under-fitting.
         boxSizing: 'border-box',
-        // The 1 px edge is an inset shadow inside 1 px of padding, so it draws over nothing the content lays out.
-        p: '1px',
-        boxShadow: (theme: Theme) => `inset 0 0 0 1px ${theme.palette.divider}`,
+        // The edge is an inset shadow inside padding of the same width, so it draws over nothing the content lays out.
+        p: `${EDGE_PX}px`,
+        boxShadow: (theme: Theme) => `inset 0 0 0 ${EDGE_PX}px ${theme.palette.divider}`,
         borderRadius: (theme: Theme) => `${panelCornerRadiusPx(theme)}px`,
         bgcolor: 'background.paper',
         display: 'flex',
@@ -90,6 +93,10 @@ const PanelFrame = React.forwardRef<HTMLDivElement, PanelFrameProps>(function Pa
           minHeight: 0,
           display: 'flex',
           flexDirection: 'column',
+          // Opaque full-bleed content would otherwise paint over the ring along each corner arc. Inherited, so it follows
+          // the frame's radius however that is set, including an inline or animated one a stylesheet cannot see.
+          borderRadius: 'inherit',
+          overflow: 'hidden',
           ...sx,
         }}
       >
