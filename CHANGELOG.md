@@ -47,6 +47,7 @@
 
 ### Fixed
 
+- A grab-handle drag cancelled by Escape or a `pointercancel` now springs the panel's vertical offset back to rest too. It sprang only the horizontal offset and the row's scroll, so a panel dragged up or down stayed lifted (at `translateY(-90px)`, for example) until its next gesture.
 - The workspace's status region is a 1px clipped box. It was sized 100% by 100% (a bare `1` in `sx` is a percentage), so inside a host's scrolling container it added a screenful of scrollable area and drew a native scrollbar.
 - A stepping row at rest draws only whole slots: the neighbour the window edge cuts is no longer drawn, however much of it shows (with four phone slots fitting, a 60 px sliver of the fifth showed). A panel wider than a phone may still show partly, and a slot crossing an edge while the row glides or a drag holds it keeps drawing until the row rests.
 - `PanelFrame`'s 1 px edge now stays visible around the rounded corners. Opaque full-bleed content (a photo, a web view) painted over the ring along each corner arc, so the border faded out at the corners. The frame's content box now takes the frame's own radius (`border-radius: inherit`) and clips what it holds, so it follows the radius however that is set: the theme, an inline style, a stylesheet rule or an animation. A view that sets its own `borderRadius` or `overflow` in the frame's `sx` still wins. No export changes.
