@@ -1,10 +1,11 @@
 import * as React from 'react';
 import { PresenceContext, animate, motion, useIsPresent, useReducedMotion, useReducedMotionConfig, visualElementStore, type TargetAndTransition } from 'motion/react';
 import { SLOT_TRANSITION, directionalTransition, slideToTransition } from './directionalTransition.js';
+import { usePanelDragging } from './panelChrome.js';
 import { PanelSlotContext } from './panelSlotContext.js';
 import { LIBRARY_TUNING_DEFAULTS } from './panelSettings.js';
 import type { SlideTuning } from './panelSettings.js';
-import { ROW_GAP } from './rowConstants.js';
+import { ROW_GAP, ROW_LAYER_Z } from './rowConstants.js';
 import { HostMissingProviderError } from './hostApi.js';
 import { useOptionalPhoneSize } from './phoneFit.js';
 
@@ -258,6 +259,8 @@ export function PanelRowSlot({
   }, []);
   const slideTransition = reducedMotion ? INSTANT_TRANSITION : transition;
   const snapping = previewing && (reducedMotion || systemReduced || dragged);
+  // A drag of any axis lifts its slot above the row's others until it has settled; the slot is its own stacking context, so only its z can do it.
+  const lifted = usePanelDragging();
   // React 19.2 re-runs effect cleanup and setup for a keyed child a reorder moves, and Motion's cleanup stops the slide this
   // slot was making toward its new rest; nothing then starts it again, so the slot stays where it was.
   // A drop under Reduce Motion lands here too: the moved slot's own slide is re-started with the preview's instant transition.
@@ -353,7 +356,7 @@ export function PanelRowSlot({
         left: 0,
         // Snaps, never animates: nothing paints the slot's own width (PanelSizeBox animates the visible resize).
         width,
-        zIndex: zIndex ?? 0,
+        zIndex: lifted ? Math.max(zIndex ?? 0, ROW_LAYER_Z.DRAGGED) : (zIndex ?? 0),
       }}
     >
       {framed && <TabSentinel end={false} />}

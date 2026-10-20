@@ -1,5 +1,5 @@
 /**
- * Drag a view's grab handle DOWN to close it; with `reorder`, also sideways to reorder. It knows nothing about
+ * Drag a view's grab handle DOWN to close it (the box follows the pointer up and down); with `reorder`, also sideways to reorder. It knows nothing about
  * panels or the app. onClose MUST remove the view: a close never unlocks the scroll ancestors. Also offer a
  * button calling the same onClose (WCAG 2.5.7). The full contract: DESIGN.md, "`DragToClose`".
  */
@@ -300,6 +300,30 @@ export function holdDragSelection(doc: Document): () => void {
   };
 }
 
+/** Where the pointer is during a grab-handle drag: what `DragToClose`'s `onDragMove` receives on every pointer move. @public */
+export interface GrabDragMove {
+  /** How far the pointer has travelled right of where it went down, px (negative = left). */
+  x: number;
+  /** How far the pointer has travelled below where it went down, px (negative = up). */
+  y: number;
+  /** The pointer's x in viewport px, the coordinate to hit-test against `getBoundingClientRect()` or pass to `elementFromPoint`. */
+  clientX: number;
+  /** The pointer's y in viewport px. */
+  clientY: number;
+}
+
+/** Where the pointer let go of a grab-handle drag: what `DragToClose`'s `onDragEnd` receives on release. @public */
+export interface GrabDragEnd {
+  /** How far the pointer travelled right of where it went down, px (negative = left); the pointer's own travel, not the row's scroll added. */
+  offsetX: number;
+  /** How far the pointer travelled below where it went down, px (negative = up). */
+  offsetY: number;
+  /** The pointer's x in viewport px at release. */
+  clientX: number;
+  /** The pointer's y in viewport px at release. */
+  clientY: number;
+}
+
 /**
  * A box whose grab handle, dragged down far enough, calls `onClose`; with `reorder`, the same handle also drags
  * sideways. `onClose` must remove the view, because a close never unlocks the scroll ancestors.
@@ -310,6 +334,21 @@ export function DragToClose(input: {
   onClose?: () => void;
   /** When set, the handle also drags horizontally and reports the total offset to `reorder.onDragEnd` on release. */
   reorder?: ReorderHandle;
+  /**
+   * Whether a drag released far or fast enough downward closes the box. Default true. When false a release anywhere springs the box
+   * home and `onClose` is not called by the drag; the Delete key on the handle still calls it.
+   */
+  closeOnRelease?: boolean;
+  /**
+   * Called on every pointer move of a drag, from the move that starts it, with where the pointer is. Not called for a press that never
+   * becomes a drag. Use `clientX` and `clientY` to hit-test your own targets.
+   */
+  onDragMove?: (move: GrabDragMove) => void;
+  /**
+   * Called once when the pointer is released after a drag, before `reorder.onDragEnd` and before any close, with where the pointer
+   * let go. Not called when the gesture is cancelled (a native pan, the Escape key), and not for a press that never became a drag.
+   */
+  onDragEnd?: (end: GrabDragEnd) => void;
   /** Render prop: receives the handle props to spread onto the grab bar, and returns the box's content. */
   children: (handle: DragHandleProps) => React.ReactNode;
 }): React.ReactElement {
@@ -335,10 +374,16 @@ export function DragToClose(input: {
 function DragToCloseBox({
   onClose,
   reorder,
+  closeOnRelease = true,
+  onDragMove,
+  onDragEnd,
   children,
 }: {
   onClose?: () => void;
   reorder?: ReorderHandle;
+  closeOnRelease?: boolean;
+  onDragMove?: (move: GrabDragMove) => void;
+  onDragEnd?: (end: GrabDragEnd) => void;
   children: (handle: DragHandleProps) => React.ReactNode;
 }): React.ReactElement {
   const draggable = useDraggable({ id: React.useId() });
@@ -381,6 +426,9 @@ function DragToCloseBox({
         };
   const reorderRef = React.useRef(reorder);
   reorderRef.current = reorder;
+  // Read by the window listener, which is made once and outlives the render that made it.
+  const dragMoveRef = React.useRef(onDragMove);
+  dragMoveRef.current = onDragMove;
   // Read by the frame step and the release, which outlive the render that started them.
   const slotRef = React.useRef(slot);
   slotRef.current = slot;
@@ -502,7 +550,11 @@ function DragToCloseBox({
         while (kept.length > 2 && kept[0]!.t < event.timeStamp - DRAG_VELOCITY_WINDOW_MS) kept.shift();
       }
     }
-    if (event.type === 'pointermove') return latestMove.current();
+    if (event.type === 'pointermove') {
+      latestMove.current();
+      if (engaged.current) dragMoveRef.current?.({ x: clientX - pointer.current.downX, y: clientY - pointer.current.downY, clientX, clientY });
+      return;
+    }
     pressedDoc.current = null;
     giveBackSelection();
     for (const type of ['pointermove', 'pointerup', 'pointercancel']) window.removeEventListener(type, trackPointer.current, true);
@@ -527,13 +579,13 @@ function DragToCloseBox({
       const total = (edge.held() ? edge.pointerOffset() : dx) + scrollX.get();
       if (rowSlot?.movable === true) preview(total);
     }
-    // The losing axis is held at zero on every move: a locked box moves on one axis only. Upward y is not followed.
+    // The losing axis is held at zero on every move: a locked box moves on one axis only.
     if (axisLock.current === 'x') {
       x.set(edge.cap(dx));
       y.set(0);
     } else {
       x.set(0);
-      y.set(Math.max(0, dy));
+      y.set(dy);
     }
     return { dx, dy };
   };
@@ -567,12 +619,14 @@ function DragToCloseBox({
       // A host that renders the move synchronously re-registers this monitor, and dnd-kit then calls the new listener for the same drop.
       if (dropping.current) return;
       stoppedSpring.current = false;
-      if (engaged.current) follow(); // the last move may not have had its frame yet
+      const wasEngaged = engaged.current;
+      if (wasEngaged) follow(); // the last move may not have had its frame yet
       stopFollowing();
       const lockedAxis = axisLock.current;
       axisLock.current = null;
       const dx = pointer.current.x - pointer.current.downX;
       const dy = pointer.current.y - pointer.current.downY;
+      if (wasEngaged) onDragEnd?.({ offsetX: dx, offsetY: dy, clientX: pointer.current.x, clientY: pointer.current.y });
       const cancelled = reorder ? edge.release() : false;
       if (reorder && lockedAxis === 'x') {
         // The claim goes back before the hop is reported: the move the hop causes may ask the row to scroll, and a held claim would drop that request.
@@ -629,7 +683,7 @@ function DragToCloseBox({
       const last = recent[recent.length - 1];
       const rested = released.current - (last?.t ?? 0) > DRAG_REST_MS;
       const velocityY = rested ? 0 : peakSpeed(recent);
-      if (closeRef.current !== undefined && closableRef.current && shouldCloseOnRelease({ offsetY: Math.max(0, dy), velocityY, height }, drag)) {
+      if (closeOnRelease && closeRef.current !== undefined && closableRef.current && shouldCloseOnRelease({ offsetY: Math.max(0, dy), velocityY, height }, drag)) {
         if (reduceMotion) return closeRef.current();
         const toBottom = Math.max(height, window.innerHeight - (rect?.top ?? 0));
         const exit = animate(y, toBottom, { duration: exitSeconds, ease: exitEase });

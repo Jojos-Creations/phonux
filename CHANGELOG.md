@@ -166,6 +166,7 @@
   `dispose`. The entry also exports `frameClock` and `FRAME_MS`. Import it before `react`: it installs the jsdom window and the clock, so a test steps frames instead of
   waiting on real time. `jsdom` is an optional peer dependency, needed only for this entry. `createFakeHost` is unchanged and still only records.
 - `memoryWorkspaceStorage` returns a `MemoryWorkspaceStorage`, with a readable `saved`: a copy of the state `save` stored last, null before the first save.
+- A grab-handle drag can be dropped somewhere the app draws, such as a preview strip of the workspace above or below. `DragToClose` follows the pointer up as well as down (a drag up springs home on release; the drag-down close rule is unchanged), takes `closeOnRelease` (default true; false makes a release anywhere spring back and close nothing) and calls `onDragMove({ x, y, clientX, clientY })` on every move and `onDragEnd({ offsetX, offsetY, clientX, clientY })` on release, typed as `GrabDragMove` and `GrabDragEnd`. The dragged panel's slot is drawn above the row's other slots from the moment the drag engages until it has settled, on either axis. **Migration:** none; a box that is dragged upward now moves with the pointer where it stayed still.
 
 ### Fixed
 

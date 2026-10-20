@@ -1145,10 +1145,21 @@ line snaps back. Its render prop hands out a handle for `Panel`'s `grabProps`:
 ```
 
 The handle is the grab bar and nothing else, so the body keeps its own scrolling and clicks. The box follows
-the pointer vertically and only downward. On release `shouldCloseOnRelease` decides: close (the box leaves
+the pointer vertically, up and down. On release `shouldCloseOnRelease` decides: close (the box leaves
 downward, then the latest `onClose` runs) or snap back on a spring. `@dnd-kit/core`'s pointer sensor, one
 `DndContext` per box with its auto-scroll off, decides when a press becomes a drag and when it ends or is cancelled,
 with its events on `document`, so a drag survives leaving the handle; Motion draws the box and runs the springs.
+
+**Reporting the pointer, and dropping elsewhere.** `onDragMove({ x, y, clientX, clientY })` runs on every pointer move from the move that engages the
+drag (`x` and `y` are the pointer's travel from the press, `clientX` and `clientY` its viewport position), and `onDragEnd({ offsetX, offsetY, clientX, clientY })`
+runs once at release, before `reorder.onDragEnd` and before any close. Both read the pointer's own events, so they are exact whatever the box's
+drawn offset is. A press that never engages, and a cancelled gesture (a native pan, Escape), report no release: an app that previews a drop target clears it
+when its own pointer tracking ends, not on `onDragEnd` alone. An app hit-tests its own targets with `clientX` and `clientY`; the library draws none. `closeOnRelease={false}`
+keeps the box from closing on release: whatever the distance or speed, and whichever way it was dragged, the release springs home and `onClose` is not called by the
+drag (the Delete key still calls it). These are props of `DragToClose`, not panel settings: a callback is a closure over the app's own state, and a setting is
+data that is configured, saved and restored. While a drag is engaged on either axis the panel's slot is lifted to `ROW_LAYER_Z.DRAGGED` (never below its own
+layer), read from the same dragging mark as `usePanelDragging()`, so the box paints over the row's other slots and over an app element at a lower z; the lift
+ends with the spring home, when the mark does. The row's scroll container still clips what is drawn outside it.
 
 **Keys and names.** When `onClose` or `reorder.onStep` is set the handle is a focusable `button` (`role`, `tabIndex`, `aria-label`
 `labels.grabStrip(title)`, `aria-keyshortcuts` and `onKeyDown` are in the handle) where ArrowLeft and ArrowRight call
