@@ -164,3 +164,24 @@ test('a panel wider than a phone may show partly at rest', () => {
   act(() => void t.m.container.dispatchEvent(new Event('scroll')));
   assert.equal(wide.style.visibility, '', 'a two-slot panel cut by the edge is drawn');
 });
+
+test('a slot sliding in after a close stays drawn mid-slide and is hidden once the slide has landed', async () => {
+  const t = mountedFourFit();
+  const slot = (id: string): HTMLElement => t.slots().find((el) => el.dataset.rowId === id)!;
+  const at = (id: string, left: number): void => {
+    slot(id).getBoundingClientRect = () => ({ left, right: left + 390, top: 0, bottom: 700, width: 390, height: 700, x: left, y: 0, toJSON: () => ({}) });
+  };
+  assert.equal(slot('s4').style.visibility, 'hidden', 'positive control: the fifth slot is the cut neighbour at rest');
+  act(() => t.m.latest().close('s1'));
+  // A close slides the slots with no scroll event: s4 passes 1640 - 200 on its way to its new place, 190 px inside the window.
+  at('s4', 1440);
+  act(() => void t.m.container.dispatchEvent(new Event('scroll')));
+  assert.equal(slot('s4').style.visibility, '', 'a slot sliding into view is drawn while the slide runs');
+  mock.timers.enable({ apis: ['setTimeout'] });
+  await advanceFrames(GLIDE_DONE_MS);
+  at('s4', 1234);
+  at('s5', 1640);
+  act(() => void t.m.container.dispatchEvent(new Event('scroll')));
+  assert.equal(slot('s4').style.visibility, '', 'a whole slot draws at rest');
+  assert.equal(slot('s5').style.visibility, 'hidden', 'the cut neighbour is hidden once the slide has landed');
+});

@@ -169,6 +169,12 @@ export interface WorkspaceProps extends Omit<BoxProps, 'children'> {
 // Browsers round layout to fractions of a pixel, so a slot flush with the window edge can read a hair over it.
 const EDGE_TOLERANCE_PX = 1;
 
+/** True when `next` places or sizes a drawn entry differently from `prev`. */
+function slotsMoved(prev: RowNumbers, next: RowNumbers): boolean {
+  if (prev.rowMarginLeft !== next.rowMarginLeft || prev.ids.length !== next.ids.length) return true;
+  return next.ids.some((id, k) => id !== prev.ids[k] || next.leftOffsets[k] !== prev.leftOffsets[k] || next.widths[k] !== prev.widths[k]);
+}
+
 /** A subscription that never fires, for a shell given no workspace. */
 const NO_SUBSCRIPTION = (): (() => void) => () => {};
 
@@ -303,6 +309,11 @@ export function Workspace(props: WorkspaceProps): React.ReactElement {
     scroller.stop();
     scroller.glideTo(0, { durationSec: 0, instant: true, ease: resolved.slide.glideEase });
   }, [scrolls, overflowContainerRef]);
+  // A close, reopen or move slides slots without moving scrollLeft, so the row counts as moving until that slide has landed.
+  const slideRef = React.useRef({ numbers: rowNumbers, endsAt: 0 });
+  if (rowNumbers !== undefined && slideRef.current.numbers !== undefined && slotsMoved(slideRef.current.numbers, rowNumbers)) {
+    slideRef.current = { numbers: rowNumbers, endsAt: performance.now() + resolved.slide.durationSec * 1000 + 100 };
+  } else if (slideRef.current.numbers !== rowNumbers) slideRef.current = { numbers: rowNumbers, endsAt: slideRef.current.endsAt };
   // Reach is written straight to the slots on every scroll event, since a state update per frame of a glide would re-render the whole row.
   React.useLayoutEffect(() => {
     const container = overflowContainerRef.current;
@@ -312,7 +323,7 @@ export function Workspace(props: WorkspaceProps): React.ReactElement {
       const scroller = rowScrollerFor(container);
       const held = scroller.claimHeld();
       const view = container.getBoundingClientRect();
-      const atRest = !held && scroller.glideTarget() === null && rowNumbers.stops.some((stop) => Math.abs(stop - container.scrollLeft) <= EDGE_TOLERANCE_PX);
+      const atRest = !held && scroller.glideTarget() === null && performance.now() >= slideRef.current.endsAt && rowNumbers.stops.some((stop) => Math.abs(stop - container.scrollLeft) <= EDGE_TOLERANCE_PX);
       for (const slot of strip.querySelectorAll<HTMLElement>('[data-row-slot]')) {
         // A stepping row cuts the neighbour of a stop at the window edge, so only a panel the window does not reach at all is out of reach of Tab.
         const rect = slot.getBoundingClientRect();
@@ -341,7 +352,7 @@ export function Workspace(props: WorkspaceProps): React.ReactElement {
       if (frame !== 0) return;
       frame = requestAnimationFrame(function tick(): void {
         apply();
-        frame = performance.now() < until || rowScrollerFor(container).claimHeld() ? requestAnimationFrame(tick) : 0;
+        frame = performance.now() < Math.max(until, slideRef.current.endsAt) || rowScrollerFor(container).claimHeld() ? requestAnimationFrame(tick) : 0;
       });
     };
     follow();
