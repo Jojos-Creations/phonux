@@ -401,6 +401,7 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
     holdPanel,
     wouldEmptyRow,
     placeAt,
+    landAt,
     landPanel,
     previewPin,
     pinPanel,
@@ -917,6 +918,18 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
       const token = gate.take([engineId], 'other')!;
       const changed = placeAt(engineId, value, source === 'person');
       if (changed) followPanel(engineId);
+      gate.release(token);
+      return accepted(changed);
+    },
+    land: (engineId, value, source) => {
+      const target = held(engineId);
+      if (!isEntry(target)) return target;
+      if (gate.busy([engineId], 'other')) return busy(target);
+      if (engineId === rootId) return refused('root-fixed', `panel '${panelKey(target)}' is the root and cannot be placed`);
+      if (source === 'person' && !effective(target).movable) return refused('not-movable', `panel '${panelKey(target)}' cannot be placed`);
+      const token = gate.take([engineId], 'other')!;
+      const changed = target.live ? placeAt(engineId, value, source === 'person') : landAt(engineId, value, source === 'person');
+      if (changed) scrollForShow(engineId);
       gate.release(token);
       return accepted(changed);
     },

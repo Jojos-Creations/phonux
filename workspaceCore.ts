@@ -194,6 +194,8 @@ export interface EngineOps {
   open(engineId: string): PanelResult;
   move(engineId: string, by: number, source: PanelOpSource): PanelResult;
   place(engineId: string, value: AddPlacement | 'in-place', source: PanelOpSource): PanelResult;
+  /** Puts a parked or hidden panel where `value` says and makes it live in the same update; a live panel is placed. */
+  land(engineId: string, value: AddPlacement | 'in-place', source: PanelOpSource): PanelResult;
   setSlots(engineId: string, slots: number, source: PanelOpSource): PanelResult;
   scrollTo(engineId: string, align: ScrollAlign | undefined): PanelResult;
   /** Re-adds a closed panel, as `create` does; refuses `busy` when the turn's gate says so. */
@@ -329,6 +331,8 @@ interface Core {
   reader: PanelReader;
   handle: WorkspaceHandle;
   transfer: Transfer;
+  /** Runs the internal land verb on the panel public under a key. */
+  land(key: PanelId, value: AddPlacement | 'in-place', src: PanelOpSource): PanelResult;
 }
 
 /** A panel as it leaves one workspace for another. */
@@ -907,6 +911,8 @@ export function createWorkspace(o: WorkspaceOptions = {}): WorkspaceHandle {
         return state.status === 'live' ? ops.move(engineId, call.by, src) : refused('not-live', `panel '${id}' is parked`);
       case 'place':
         return ops.place(engineId, call.value, src);
+      case 'land':
+        return ops.land(engineId, call.value, src);
       case 'setSlots':
         return ops.setSlots(engineId, call.slots, src);
       case 'scrollTo':
@@ -1337,7 +1343,7 @@ export function createWorkspace(o: WorkspaceOptions = {}): WorkspaceHandle {
       };
     },
   };
-  CORES.set(handle, { binding, view, reader, handle, transfer });
+  CORES.set(handle, { binding, view, reader, handle, transfer, land: (key, value, src) => operate(key, { verb: 'land', value }, src) });
   if (autoMounted) {
     // Loaded on demand so a workspace that never mounts keeps `react-dom/client` off its import path; a mount that outlives a dispose is undone at once.
     void import('./autoMount.js')
@@ -1358,6 +1364,12 @@ const coreOf = (ws: WorkspaceHandle): Core => {
 
 /** What a provider hook reads from and writes to `ws`. Throws `invalid-options` for anything `createWorkspace` did not make. */
 export const bindingOf = (ws: WorkspaceHandle): EngineBinding => coreOf(ws).binding;
+
+/**
+ * Puts the parked or hidden panel public under `key` where `value` says and makes it live, as one gated update; a live panel is placed. The row-drop hook ends a
+ * drag of a panel that is not in view with it. Throws `invalid-options` for anything `createWorkspace` did not make.
+ */
+export const landPanelIn = (ws: WorkspaceHandle, key: PanelId, value: AddPlacement | 'in-place', src: PanelOpSource): PanelResult => coreOf(ws).land(key, value, src);
 
 /** What a row tells its template views about `ws`. */
 export const viewContextOf = (ws: WorkspaceHandle): PanelViewContext => coreOf(ws).view;
