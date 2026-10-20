@@ -940,6 +940,110 @@ test('matrix:enterFrom', async () => {
   assert.equal(x >= 812 && x < 1218, true, `a slide in progress keeps its start side: x ${x} is still between the rest and the right start`);
 });
 
+test('matrix:exitTo', async () => {
+  probe('exitTo');
+  const leave = async (configure: 'top' | undefined): Promise<{ x: number; y: number }> => {
+    const r = await matrixRig();
+    await r.settle();
+    const engine = r.entry('b').id;
+    if (configure !== undefined) {
+      assert.deepEqual(shape(r.turn(() => r.h.b!.configure({ exitTo: configure }))), { now: [], later: ['exitTo'], shadowed: [] });
+      assert.equal(r.order().join(' '), 'root a b c', 'nothing moves at configure');
+    }
+    r.turn(() => r.h.b!.hide());
+    await frames(4);
+    const slot = slotAt(r, engine);
+    assert.equal(slot !== null, true, 'control: the slot is mid-exit');
+    const out = { x: axisOf(slot, 'X'), y: axisOf(slot, 'Y') };
+    r.m.unmount();
+    return out;
+  };
+  const sideways = await leave(undefined);
+  assert.equal(sideways.x !== 812 && sideways.y === 0, true, `control: a park leaves sideways (x ${sideways.x}, y ${sideways.y})`);
+  const up = await leave('top');
+  assert.equal(up.x === 812 && up.y < 0, true, `the next park leaves upward from its rest (x ${up.x}, y ${up.y})`);
+  const r = await matrixRig();
+  await r.settle();
+  const engine = r.entry('b').id;
+  r.turn(() => r.h.b!.hide());
+  await frames(2);
+  done(r.turn(() => r.h.b!.configure({ exitTo: 'top' })));
+  await frames(3);
+  assert.equal(axisOf(slotAt(r, engine), 'Y'), 0, 'an exit in progress keeps its style: still sideways, never upward');
+});
+
+test('matrix:tuning.defaultEnterFrom', async () => {
+  probe('tuning.defaultEnterFrom');
+  await wrongScopeInEveryStatus({ tuning: { defaultEnterFrom: 'top' } }, 'tuning.defaultEnterFrom');
+  const enter = async (tuning: 'top' | undefined, own?: 'left'): Promise<{ x: number; y: number }> => {
+    const r = await matrixRig();
+    await r.settle();
+    if (own !== undefined) done(r.turn(() => r.h.b!.configure({ enterFrom: own })));
+    if (tuning !== undefined) {
+      assert.deepEqual(shape(r.turn(() => r.ws.panels.configureTuning({ defaultEnterFrom: tuning }))), { now: [], later: ['tuning.defaultEnterFrom'], shadowed: [] });
+      assert.equal(r.order().join(' '), 'root a b c', 'nothing moves at configure');
+    }
+    r.turn(() => r.h.b!.hide());
+    await r.settle();
+    r.turn(() => r.h.b!.show());
+    const slot = slotAt(r, r.entry('b').id);
+    const out = { x: axisOf(slot, 'X'), y: axisOf(slot, 'Y') };
+    r.m.unmount();
+    return out;
+  };
+  assert.deepEqual(await enter(undefined), { x: 812 + 406, y: 0 }, 'control: the default enters from the right, one span beyond');
+  const top = await enter('top');
+  assert.equal(top.x === 812 && top.y < 0, true, `a panel at auto takes the workspace's top (x ${top.x}, y ${top.y})`);
+  assert.deepEqual(await enter('top', 'left'), { x: 812 - 406, y: 0 }, "the panel's own left wins over the workspace's top");
+  const r = await matrixRig();
+  await r.settle();
+  const engine = r.entry('b').id;
+  r.turn(() => r.h.b!.hide());
+  await r.settle();
+  r.turn(() => r.h.b!.show());
+  await frames(2);
+  done(r.turn(() => r.ws.panels.configureTuning({ defaultEnterFrom: 'top' })));
+  await frames(3);
+  const x = axisOf(slotAt(r, engine), 'X');
+  assert.equal(x > 812 && x < 1218 && axisOf(slotAt(r, engine), 'Y') === 0, true, `an entrance in progress keeps its style: x ${x} is still sliding in from the right`);
+});
+
+test('matrix:tuning.defaultExitTo', async () => {
+  probe('tuning.defaultExitTo');
+  await wrongScopeInEveryStatus({ tuning: { defaultExitTo: 'bottom' } }, 'tuning.defaultExitTo');
+  const leave = async (tuning: 'bottom' | undefined, own?: 'right'): Promise<{ x: number; y: number }> => {
+    const r = await matrixRig();
+    await r.settle();
+    const engine = r.entry('b').id;
+    if (own !== undefined) done(r.turn(() => r.h.b!.configure({ exitTo: own })));
+    if (tuning !== undefined) {
+      assert.deepEqual(shape(r.turn(() => r.ws.panels.configureTuning({ defaultExitTo: tuning }))), { now: [], later: ['tuning.defaultExitTo'], shadowed: [] });
+      assert.equal(r.order().join(' '), 'root a b c', 'nothing moves at configure');
+    }
+    r.turn(() => r.h.b!.hide());
+    await frames(4);
+    const slot = slotAt(r, engine);
+    assert.equal(slot !== null, true, 'control: the slot is mid-exit');
+    const out = { x: axisOf(slot, 'X'), y: axisOf(slot, 'Y') };
+    r.m.unmount();
+    return out;
+  };
+  const sideways = await leave(undefined);
+  assert.equal(sideways.x < 812 && sideways.y === 0, true, `control: a park leaves to the left (x ${sideways.x}, y ${sideways.y})`);
+  const down = await leave('bottom');
+  assert.equal(down.x === 812 && down.y > 0, true, `a panel at auto takes the workspace's bottom (x ${down.x}, y ${down.y})`);
+  const right = await leave('bottom', 'right');
+  assert.equal(right.x > 812 && right.y === 0, true, `the panel's own right wins over the workspace's bottom (x ${right.x}, y ${right.y})`);
+  const r = await matrixRig();
+  await r.settle();
+  const engine = r.entry('b').id;
+  r.turn(() => r.h.b!.hide());
+  await frames(2);
+  done(r.turn(() => r.ws.panels.configureTuning({ defaultExitTo: 'bottom' })));
+  await frames(3);
+  assert.equal(axisOf(slotAt(r, engine), 'Y'), 0, 'an exit in progress keeps its style: still sideways, never downward');
+});
+
 test('matrix:title', async () => {
   probe('title');
   const logged: string[] = [];
@@ -1494,14 +1598,14 @@ test('the class table ran every cell: executed cells equal 4 classes by 9 status
 });
 
 // The design copy is frozen; a catalog key added or removed after it is listed here, never in the copy.
-const REMOVED_AFTER_DESIGN: readonly string[] = ['formFactor', 'formFactors', 'hideWhenLast', 'returnPriority', 'evictionRank', 'evictionOrder', 'scrollOnDrag', 'viewState', 'keepMounted', 'placeOnReturn', 'placeFallback', 'undoPlacement', 'exitTo', 'closeExit', 'animated', 'persist', 'rememberLayout', 'undoWindowMs', 'reportClose', 'snapshot', 'draggable', 'placeable'];
-const ADDED_AFTER_DESIGN: readonly string[] = ['tuning.maxLivePanels', 'tuning.chrome', 'slots', 'maxSlots', 'tuning.resizeSettleSlides', 'tuning.phoneFit', 'tuning.phoneFitMin', 'tuning.phoneFitMax', 'hollowDot', 'movable'];
+const REMOVED_AFTER_DESIGN: readonly string[] = ['formFactor', 'formFactors', 'hideWhenLast', 'returnPriority', 'evictionRank', 'evictionOrder', 'scrollOnDrag', 'viewState', 'keepMounted', 'placeOnReturn', 'placeFallback', 'undoPlacement', 'closeExit', 'animated', 'persist', 'rememberLayout', 'undoWindowMs', 'reportClose', 'snapshot', 'draggable', 'placeable'];
+const ADDED_AFTER_DESIGN: readonly string[] = ['tuning.defaultEnterFrom', 'tuning.defaultExitTo', 'tuning.maxLivePanels', 'tuning.chrome', 'slots', 'maxSlots', 'tuning.resizeSettleSlides', 'tuning.phoneFit', 'tuning.phoneFitMin', 'tuning.phoneFitMax', 'hollowDot', 'movable'];
 
-test('the probes ran every catalog name once: 50 executed, equal to the catalog and to the design copy of it plus the names added after it', () => {
+test('the probes ran every catalog name once: 53 executed, equal to the catalog and to the design copy of it plus the names added after it', () => {
   const design = JSON.parse(readFileSync(new URL('../design/0.2-rev7/DESIGN-phonux-0.2-rev7-catalog.json', import.meta.url), 'utf8')) as { name: string }[];
   assert.equal(design.length, 62);
-  assert.equal(CATALOG_NAMES.length, 50);
-  assert.equal(probesExecuted().size, 50);
+  assert.equal(CATALOG_NAMES.length, 53);
+  assert.equal(probesExecuted().size, 53);
   assert.deepEqual([...probesExecuted()].sort(), [...CATALOG_NAMES].sort());
   assert.deepEqual([...probesExecuted()].sort(), [...design.map((d) => d.name).filter((name) => !REMOVED_AFTER_DESIGN.includes(name)), ...ADDED_AFTER_DESIGN].sort());
 });

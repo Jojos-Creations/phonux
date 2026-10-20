@@ -1,5 +1,5 @@
 import * as React from 'react';
-import { animate, motion, useIsPresent, useReducedMotion, useReducedMotionConfig, visualElementStore, type TargetAndTransition } from 'motion/react';
+import { PresenceContext, animate, motion, useIsPresent, useReducedMotion, useReducedMotionConfig, visualElementStore, type TargetAndTransition } from 'motion/react';
 import { SLOT_TRANSITION, directionalTransition, slideToTransition } from './directionalTransition.js';
 import { PanelSlotContext } from './panelSlotContext.js';
 import { LIBRARY_TUNING_DEFAULTS } from './panelSettings.js';
@@ -56,20 +56,31 @@ function slideStart(): number {
   return commitClock;
 }
 
-type ExitDirection = 'down' | 'left' | 'right';
+/**
+ * How a slot enters: a slide from one side, a fade where it rests, or its width growing from 0 at its rest.
+ * @internal
+ */
+export type SlotEntrance = 'left' | 'right' | 'top' | 'bottom' | 'fade' | 'expand';
+
+/**
+ * How a slot leaves: 'down' is the close exit on the close timing; the others take the slide timing, and 'shrink'
+ * eases its width to 0 at its rest.
+ * @internal
+ */
+export type SlotExit = 'down' | 'left' | 'right' | 'top' | 'bottom' | 'fade' | 'shrink';
 
 /**
  * The pure values behind one PanelRowSlot render, split out so a test can assert exact motion
  * values without mounting a component. `exit` stays entirely local to this function: 'down' needs a second
  * axis and its own transition, 'left' a target independent of `leftOffset`; neither fits directionalTransition's
- * symmetric default.
+ * symmetric default. 'expand' and 'shrink' only fade here; the slot eases their width itself.
  */
 export function panelRowSlotMotion(
   leftOffset: number,
   width: number,
   phoneHeight: number,
-  enterDirection: 'left' | 'right',
-  exitDirection: ExitDirection,
+  enterDirection: SlotEntrance,
+  exitDirection: SlotExit,
   gap: number = ROW_GAP,
   slide: SlideTuning = LIBRARY_TUNING_DEFAULTS.slide,
   rowScroll = false,
@@ -81,7 +92,15 @@ export function panelRowSlotMotion(
   // Positive distance enters from the right (directionalTransition.ts's own sign convention); a negative
   // one enters from the left -- see panelRowOrder.ts for who decides which.
   const enterDistance = enterDirection === 'left' ? -ownSpan : ownSpan;
-  const { initial, animate, transition } = directionalTransition('x', rest, enterDistance, slideToTransition(slide));
+  const sideways = directionalTransition('x', rest, enterDistance, slideToTransition(slide));
+  const { transition } = sideways;
+  // A vertical slide travels the row's height, so the slot clears the row's top or bottom edge.
+  const { initial, animate } =
+    enterDirection === 'left' || enterDirection === 'right'
+      ? sideways
+      : enterDirection === 'top' || enterDirection === 'bottom'
+        ? { initial: { x: rest, y: enterDirection === 'top' ? -phoneHeight : phoneHeight, opacity: 0 }, animate: { x: rest, y: 0, opacity: 1 } }
+        : { initial: { x: rest, opacity: 0 }, animate: { x: rest, opacity: 1 } };
   // 'down': a close, timed to DragToClose's exit so trash and drag closes read as one motion (DragToClose calls
   // `onClose` after its own `y` animation, so this ramps in under a box already off-screen). 'left'/'right': a
   // park, off the edge it was hidden past, so a close never looks like a park.
@@ -90,7 +109,11 @@ export function panelRowSlotMotion(
       ? { x: rest, y: phoneHeight, opacity: 0, transition: { duration: slide.closeExitSeconds, ease: slide.closeExitEase } }
       : exitDirection === 'right'
         ? { x: rest + ownSpan, opacity: 0 }
-        : { ...parkExitTarget(rest, ownSpan, 'left', rowScroll) };
+        : exitDirection === 'left'
+          ? { ...parkExitTarget(rest, ownSpan, 'left', rowScroll) }
+          : exitDirection === 'top' || exitDirection === 'bottom'
+            ? { x: rest, y: exitDirection === 'top' ? -phoneHeight : phoneHeight, opacity: 0 }
+            : { x: rest, opacity: 0 };
   return { initial, animate, exit, transition };
 }
 
@@ -129,7 +152,20 @@ export const slotDriver = {
   animate(el: HTMLElement, values: SlotValues, transition: TargetAndTransition['transition']): void {
     animate(el, { x: values.x, opacity: values.opacity }, transition as never);
   },
+  /**
+   * Eases the slot's drawn width from `from` to `to` px on the slide clock, calling `draw` with each frame's width.
+   * Returns the run, so a later move can stop it where it is.
+   */
+  resize(from: number, to: number, transition: { duration: number; ease: [number, number, number, number] }, draw: (width: number) => void, done: () => void): { stop: () => void } {
+    return animate(from, to, { ...transition, startTime: slideStart(), onUpdate: draw, onComplete: done });
+  },
 };
+
+/** What a slot's own width animation holds: the run in progress and the width it last drew, while it differs from the slot's. */
+interface WidthRun {
+  run?: { stop: () => void };
+  drawn?: number;
+}
 
 /**
  * One entry's animated slot in the row: its position, width, enter/exit motion and stacking.
@@ -171,10 +207,10 @@ export function PanelRowSlot({
   /** Computed by the caller (panelRowOrder.ts's `resolveEnterDirection`, or an explicit gesture side).
    * Must be correct on this component's FIRST render after the item (re)appears -- AnimatePresence
    * has no later render of a fresh mount to fix a wrong guess. */
-  enterDirection: 'left' | 'right';
+  enterDirection: SlotEntrance;
   /** Must be correct on this component's LAST render before it leaves the `live`-filtered array --
    * AnimatePresence has no later render of a removed child to fix a wrong guess. */
-  exitDirection: 'down' | 'left' | 'right';
+  exitDirection: SlotExit;
   /**
    * Each slot's `motion.div` carries a `transform`, so it is its OWN stacking context and a child's `zIndex`
    * cannot compare against a SIBLING slot: stacking between slots (e.g. a raised column above a panel sliding
@@ -197,8 +233,12 @@ export function PanelRowSlot({
   /** The panel rendered inside the slot. */
   children: React.ReactNode;
 }) {
-  const { initial, animate: animateTarget, exit, transition } = panelRowSlotMotion(leftOffset, width, phoneHeight, enterDirection, exitDirection, gap, slide, rowScroll);
+  // The entrance is read once, as the slot mounts: an enter in progress keeps its style whatever the settings say later.
+  const [entrance] = React.useState(enterDirection);
+  const { initial, animate: animateTarget, exit, transition } = panelRowSlotMotion(leftOffset, width, phoneHeight, entrance, exitDirection, gap, slide, rowScroll);
   const el = React.useRef<HTMLDivElement>(null);
+  // A child AnimatePresence finds at its own first render does not enter, so it does not grow either.
+  const presence = React.useContext(PresenceContext);
   const framed = useHoldsFrame(el);
   // This slot's own copy of the transition, so the moment its slide counts from can be set for the one call that starts it.
   const startable: { duration: number; ease?: unknown; startTime?: number } = React.useMemo(() => ({ ...transition }), [transition]);
@@ -238,6 +278,53 @@ export function PanelRowSlot({
       delete startable.startTime;
     }
   });
+  const sizing = React.useRef<WidthRun>({});
+  const grows = React.useRef(entrance === 'expand' && !(snapping || tracking) && presence?.initial !== false);
+  React.useLayoutEffect(() => {
+    const node = el.current;
+    if (node === null) return;
+    const own = sizing.current;
+    // Clipped across only while drawn narrower than the slot, so the content keeps its full width and is revealed, never squashed,
+    // and the header the frame draws above the slot's box still shows.
+    const draw = (w: number): void => {
+      own.drawn = w;
+      node.style.width = `${w}px`;
+      node.style.overflowX = 'clip';
+    };
+    const settle = (): void => {
+      own.run = undefined;
+      own.drawn = undefined;
+      node.style.width = `${width}px`;
+      node.style.overflowX = '';
+    };
+    const ease = (from: number, to: number, done: () => void): void => {
+      own.run?.stop();
+      draw(from);
+      own.run = slotDriver.resize(from, to, transition, draw, done);
+    };
+    if (grows.current) {
+      grows.current = false;
+      if (reducedMotion) return;
+      ease(0, width, settle);
+      return;
+    }
+    if (!present) {
+      // A leaving slot holds the width it was drawn at, unless it shrinks from there.
+      own.run?.stop();
+      own.run = undefined;
+      if (exitDirection !== 'shrink') return;
+      if (reducedMotion) draw(0);
+      else ease(own.drawn ?? width, 0, () => {});
+      return;
+    }
+    if (own.drawn === undefined) return;
+    // Back in the row while drawn narrower (a re-priced width mid-grow, a return mid-shrink): carry on to the width from the one on screen.
+    if (reducedMotion || snapping || tracking) {
+      own.run?.stop();
+      settle();
+    } else ease(own.drawn, width, settle);
+  }, [width, present, snapping || tracking]);
+  React.useEffect(() => () => sizing.current.run?.stop(), []);
   React.useEffect(() => {
     if (!setUpBefore.current) {
       setUpBefore.current = true;

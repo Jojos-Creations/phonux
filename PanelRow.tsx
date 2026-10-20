@@ -19,8 +19,8 @@ import type { PanelTemplate } from './panelTemplate.js';
 import { PanelViewContextValue } from './panelViewContext.js';
 import { HEADER_ROW_ATTRIBUTE, headerButtonsOf } from './panelHeaderButtons.js';
 import { FIXED, LIBRARY_TUNING_DEFAULTS, effective, panelKey, resolvePanelSettings } from './panelSettings.js';
-import type { ResolvedPanelSettings, ResolvedWorkspaceTuning } from './panelSettings.js';
-import { PanelRowSlot } from './PanelRowSlot.js';
+import type { EnterFrom, ExitTo, ResolvedPanelSettings, ResolvedWorkspaceTuning } from './panelSettings.js';
+import { PanelRowSlot, type SlotEntrance, type SlotExit } from './PanelRowSlot.js';
 import { steerEntry, steerSentinel, steerTab, useTabPress } from './panelRowTabOrder.js';
 import { ChromeStoreContext, createChromeStore } from './panelChrome.js';
 import { slotTuning, type SlotTuning } from './panelTuning.js';
@@ -44,13 +44,26 @@ function focusInHeaderRow(panelId: string): boolean {
 }
 
 /**
- * The side an entry slides in from. 'left' and 'right' are constants that beat every mark. Otherwise an explicit mark
- * from the engine wins, then the anchor formula for an entry that always uses it ('anchor', or the
- * `anchoredEnter` flag) or is entering via an anchor, then the right.
+ * How an entry enters. The panel's own `enterFrom` (or the `anchoredEnter` flag, read as 'anchor') wins over the
+ * workspace's `tuning.defaultEnterFrom` unless it is 'auto'. A side, 'fade' or 'expand' is a constant that beats every mark.
+ * Otherwise an explicit mark from the engine wins, then the anchor formula for an entry that always uses it ('anchor')
+ * or is entering via an anchor, then the right.
  */
-export function enterDirectionOf(from: ResolvedPanelSettings['enterFrom'], anchoredEnter: boolean, mark: EnterDirection | undefined, viaAnchor: boolean, formula: () => EnterDirection): EnterDirection {
-  if (from === 'left' || from === 'right') return from;
-  return mark ?? (from === 'anchor' || anchoredEnter || viaAnchor ? formula() : 'right');
+export function enterDirectionOf(from: EnterFrom, anchoredEnter: boolean, mark: EnterDirection | undefined, viaAnchor: boolean, formula: () => EnterDirection, workspace: EnterFrom = 'auto'): SlotEntrance {
+  const own = from === 'auto' && anchoredEnter ? 'anchor' : from;
+  const chosen = own === 'auto' ? workspace : own;
+  if (chosen !== 'auto' && chosen !== 'anchor') return chosen;
+  return mark ?? (chosen === 'anchor' || viaAnchor ? formula() : 'right');
+}
+
+/**
+ * How an entry leaves. The panel's own `exitTo` wins over the workspace's `tuning.defaultExitTo` unless it is 'auto'; when
+ * both are 'auto' a close drops down on the close timing and a park leaves by the side the row marked, else the left.
+ */
+export function exitStyleOf(own: ExitTo, workspace: ExitTo, closing: boolean, parkRight: boolean): SlotExit {
+  const chosen = own === 'auto' ? workspace : own;
+  if (chosen !== 'auto') return chosen;
+  return closing ? FIXED.closeExit : parkRight ? 'right' : 'left';
 }
 
 /** The view's summary with `size` at the width and height the row draws the slot, so a view passing `panel.size` to Panel stays inside its slot. */
@@ -131,12 +144,12 @@ export function PanelRow({
   entries: readonly PanelRowEntry[];
   /** The row's root entry: an entry with no anchor orients against it, and `usePanelPinned` means left of it. */
   rootId: string;
-  /** Ids being closed: each exits DOWN. Kept off PanelsAPI on purpose. */
+  /** Ids being closed: each exits DOWN while its `exitTo` resolves to 'auto'. Kept off PanelsAPI on purpose. */
   closingIds: ReadonlySet<string>;
   /** Ids (re)joining `live` by a reveal or an undo: each enters from its anchor's side. Any other entry
    * enters from the right unless its own `anchoredEnter` says otherwise. */
   enteringViaAnchorIds: ReadonlySet<string>;
-  /** Ids parking with an exit to the RIGHT; every other park exits LEFT. */
+  /** Ids parking with an exit to the RIGHT; every other park exits LEFT. Read only while the panel's `exitTo` resolves to 'auto'. */
   exitRightIds?: ReadonlySet<string>;
   /** An explicit enter side per id, winning over the anchor formula: a scroll gesture knows which side a reveal
    * must enter from, which the boolean anchor formula cannot express. */
@@ -313,8 +326,8 @@ export function PanelRow({
           const presentIndex = present.indexOf(p);
           const rest = { leftOffset: leftOffsets[presentIndex]!, width: widths[presentIndex]! };
           const Component = resolveViewIn(templateOf, p.view);
-          const { closable, movable, resizable, maxSlots, enterFrom, layer, headerButtons } = effective(p);
-          const { exitTo, closeExit, scrollOnDrag } = FIXED;
+          const { closable, movable, resizable, maxSlots, enterFrom, exitTo, layer, headerButtons } = effective(p);
+          const { scrollOnDrag } = FIXED;
           const own = slotTuning(workspaceTuning);
           const handle = viewContext.handleFor(panelKey(p));
           const report = binding.reportError;
@@ -359,8 +372,8 @@ export function PanelRow({
                 width={rest.width}
                 phoneHeight={rowHeight}
                 height={p.slots === undefined ? undefined : phoneHeight}
-                enterDirection={enterDirectionOf(enterFrom, p.anchoredEnter ?? false, enterSideById.get(p.id), enteringViaAnchorIds.has(p.id), () => resolveEnterDirection(anchorIndexOf(p), presentIndex))}
-                exitDirection={closingIds.has(p.id) ? closeExit : exitTo !== 'auto' ? exitTo : exitRightIds.has(p.id) ? 'right' : 'left'}
+                enterDirection={enterDirectionOf(enterFrom, p.anchoredEnter ?? false, enterSideById.get(p.id), enteringViaAnchorIds.has(p.id), () => resolveEnterDirection(anchorIndexOf(p), presentIndex), workspaceTuning.defaultEnterFrom)}
+                exitDirection={exitStyleOf(exitTo, workspaceTuning.defaultExitTo, closingIds.has(p.id), exitRightIds.has(p.id))}
                 zIndex={dragging?.id === p.id ? ROW_LAYER_Z.DRAGGED : layer === 'raised' ? ROW_LAYER_Z.RAISED : ROW_LAYER_Z.BASE}
                 tracking={slotTracking}
                 gap={gap}

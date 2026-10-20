@@ -1456,7 +1456,7 @@ Read by a verb or a view patch: `parkable`, `pinning`, `slots`, `maxSlots`, `mov
 
 ### Settings this version removed
 
-Nineteen settings are gone from `PanelSettings`, the catalog and every patch type, and each panel behaves as the
+Eighteen settings are gone from `PanelSettings`, the catalog and every patch type, and each panel behaves as the
 setting's default did. A template that still names one gets one development `console.error` per key and the value is
 ignored; the next rc refuses it with `invalid-settings`. A saved file's instance layer that holds one loads, drops
 the key with an `invalid-saved-setting` note and keeps every other value.
@@ -1473,7 +1473,7 @@ the key with an `invalid-saved-setting` note and keeps every other value.
 | `placeOnReturn` | `in-place` |
 | `placeFallback` | `row-end` |
 | `undoPlacement` | `old-slot` |
-| `exitTo`, `closeExit` | `auto` and `down` |
+| `closeExit` | `down`: an `exitTo` of `auto` closes downward |
 | `animated` | true |
 | `persist`, `rememberLayout` | `saved` and true |
 | `undoWindowMs` | 10000 |
@@ -1650,7 +1650,8 @@ flip with a transition rule of its own) or SCOPE (a template-scope key).
 | `placeOnAdd` | row-start, row-end, parkable-start, parkable-end, after-fixed, order, {before}, {after}, {anchor} | row-end | NEXT. Read by the next add of this panel and by resetLayout; no live, parked or hidden panel moves (use place()). in-place throws invalid-settings; a missing target uses placeFallback. |
 | `placeOnShow` | the same plus in-place | in-place | NEXT. Read by the next show. K, H: configure does not re-place or reveal. |
 | `layer` | base, raised | base | NOW. L, T: the z-index changes at this commit; a slot mid-exit keeps the one it left with. Row order and widths do not change. |
-| `enterFrom` | auto, left, right, anchor | auto | NEXT. Read at the next enter; a slide in progress keeps its start side. |
+| `enterFrom` | auto, left, right, anchor, top, bottom, fade, expand | auto | NEXT. Read at the next enter; a slide in progress keeps its start side, and an entrance in progress keeps its style. |
+| `exitTo` | auto, left, right, top, bottom, fade, shrink | auto | NEXT. Read at the next park or close; an exit in progress keeps its style. |
 | `title` | string | none ('Panel N' for the bag) | NOW. L, T, K, H: the summary title changes at this commit (header pill, History row); the closed-pages log entry keeps the old title. U: undo rebuilds with it. null restores the cascade value. |
 | `pinning` | object { pinned: PinHalf, unpinned: PinHalf }; PinHalf = { placement?, parkable? }; valid only if readable after a drag (6A); empty = no pin | { pinned: { placement: 'row-start' }, unpinned: { placement: 'row-end' } } (0.1.0's one pin rule) | NOW. PanelState.pinned and a slot's pressed state re-read at this commit; nothing moves, parks, shows or scrolls. A deferred pin keeps its direction. An unreadable definition or in-place throws. |
 | `pinningWhenNotLive` | place-only, refuse, show, apply-on-next-show; or { parked?, hidden?, closed? } (closed: refuse or apply-on-next-show) | place-only | NEXT. Read by the next pin change. A stored deferred pin is neither applied nor dropped by a flip of this setting. C, U: the record's value governs. |
@@ -1675,6 +1676,8 @@ flip with a transition rule of its own) or SCOPE (a template-scope key).
 | `tuning.phoneFit` | off, fit (workspace only) | off (PHONE_FIT) | NOW (configureTuning only). Whether the default mount fits the phone size to the window; see "Phone fit". Other values throw. |
 | `tuning.phoneFitMin` | number above 0 and up to 1 (workspace only) | 0.82 (PHONE_FIT_MIN) | NOW (configureTuning only). The smallest scale of the preferred phone size the fit gives; see "Phone fit". Other values throw. |
 | `tuning.phoneFitMax` | number from 1 to 4 (workspace only) | 1.13 (PHONE_FIT_MAX) | NOW (configureTuning only). The largest scale of the preferred phone size the fit gives; see "Phone fit". Other values throw. |
+| `tuning.defaultEnterFrom` | auto, left, right, anchor, top, bottom, fade, expand (workspace only) | auto | NEXT (configureTuning only). Read at each panel's next enter; an entrance in progress keeps its style. |
+| `tuning.defaultExitTo` | auto, left, right, top, bottom, fade, shrink (workspace only) | auto | NEXT (configureTuning only). Read at each panel's next park or close; an exit in progress keeps its style. |
 <!-- catalog:end -->
 
 ## Placement, the root marker, key-aware undo and motion
@@ -1720,10 +1723,38 @@ skipped and its log id is not reported.
 
 ### Motion
 
-`enterFrom` `left` and `right` are constants and beat the engine's mark and the anchor formula. `auto` is today's
-order: a mark, then the formula for an entry entering via an anchor, then the right. `anchor` is the 0.1.0
-`anchoredEnter` flag as a setting. A parked panel leaves toward the exit-right marks, else left, and a closing panel
-leaves downward. `layer` sets the stacking. The transition is the shared `PANEL_TRANSITION` object itself.
+A panel's entrance is its `enterFrom` and its exit, for a park and a close alike, its `exitTo`. Each has one
+workspace-wide default, `tuning.defaultEnterFrom` and `tuning.defaultExitTo`: a panel whose own value is `auto` takes the
+workspace's, and any other value of its own wins. Both workspace defaults are `auto`, which is the behaviour below
+the row had before either existed. `anchor` is the 0.1.0 `anchoredEnter` flag as a setting, and that flag counts as
+the panel's own `anchor`.
+
+Entrances. `auto` is the row's order: a mark, then the formula for an entry entering via an anchor, then the right.
+`anchor` takes the formula at every enter. `left`, `right`, `top` and `bottom` slide in from that side (a vertical
+slide travels the row's height), `fade` fades in at the slot's rest, and `expand` grows the slot's width from 0 to its
+full width at its rest while the neighbours to its right slide apart to make room. Every value but `auto` and `anchor`
+is a constant that beats the engine's mark and the anchor formula.
+
+Exits. `auto` parks toward the exit-right marks, else left, and closes downward along `slide.closeExitSeconds` and
+`slide.closeExitEase`, the curve a drag close shares. `left`, `right`, `top` and `bottom` slide out to that side, `fade`
+fades out at the rest, and `shrink` eases the slot's width to 0 at its rest while the neighbours close up. An
+explicit `exitTo` is the same for a park and a close.
+
+Every entrance and exit but the `auto` close takes the workspace's `slide` timing: the transition is the shared
+`PANEL_TRANSITION` object itself while `slide` is at its defaults (0.6 s, in-out), and every one fades the opacity as
+a slide does. The neighbours' moves are the slide every slot makes to a new rest, started on the same clock, so the
+gap at an expanding or shrinking slot never closes over it. An expanding or shrinking slot clips what it holds across (never up or down, where the frame draws its header) and
+leaves it at the full width: the frame draws the content at the slot's drawn width from the row's numbers, not from
+the slot's box, so the content is revealed, never squashed or reflowed.
+
+Reduced motion is honoured as the slide honours it: under Motion's reduced-motion setting a slide's move lands at
+once and its fade still runs, so an `expand` or `shrink` width lands at once and the fade still runs. A slot that
+mounts at its rest (a restored panel, or one added while a width is held) does not grow.
+
+Both settings are NEXT: the style is read when the panel next enters or leaves, and one in progress keeps its style. An
+interrupted width animation carries on from the width on screen: a re-priced row eases it to the new width, a panel
+that returns mid-shrink grows back from where it is, and a panel that leaves mid-expand holds its drawn width while it
+leaves, or shrinks from it. `layer` sets the stacking.
 
 ### A parked view unmounts
 
@@ -1773,7 +1804,7 @@ a hand-built `Host` give the same view result; `settingsColumn` is `settings.set
 minus what the mount measures (`phoneWidth`, `containerWidth`, `overflowContainerRef`) and what the workspace supplies (`workspace`,
 `rootId`, `storage`, `templates`, `declared`, `workspaceDefaults`, `tuning`, `initialEntries`) and `labels`, which is its own
 option, so there is no member list to keep in step with the hook. `topInset` is an option (the `Workspace` top padding), not a
-tuning leaf: the catalog holds 18 tuning leaves, counted from `PANEL_SETTINGS_CATALOG`, and a test pins the number.
+tuning leaf: the catalog holds 20 tuning leaves, counted from `PANEL_SETTINGS_CATALOG`, and a test pins the number.
 
 **`wrap`.** A component, `ComponentType<{ children, workspace }>`, rendered inside `HostProvider` and around `Workspace`. A
 `CaptureRegistryProvider` and the app's own contexts go in it (the theme goes in the `theme` option), a hook in it may call `useHost()` and `workspace.update`, and
@@ -2054,7 +2085,7 @@ Level N means panel code written for phonux N.x. `PANEL_API` equals the package'
 | The slot context hooks a view calls (`usePanelPinned`, `usePanelTuning` and the rest) and `useViewState`, snapshots | Workspace tuning options and the theme |
 | Header button items, the chrome attribute and part names | The saved workspace format, which has its own `version` |
 | The template's own `settings` keys and `params` | Peer dependency ranges (React, MUI) |
-| `useHost().panels` (`PanelsAPI`): the verbs a view calls and the summaries they return | The workspace-only tuning options (`rowGap`, `saveQuietMs`, `gestureLockMs`, `gestureQuietMs`, `resizeSettleSlides`, `returnTieBreak`, `dropTieBreak`, `rowGesture`, `initialScroll`, `maxLivePanels`, `chrome`, `phoneFit`, `phoneFitMin`, `phoneFitMax`, `dragToClose`, `slide`, `hopFraction`, `edgeScroll`): a host sets them on the workspace, and a view only reads what `usePanelTuning` returns |
+| `useHost().panels` (`PanelsAPI`): the verbs a view calls and the summaries they return | The workspace-only tuning options (`rowGap`, `saveQuietMs`, `gestureLockMs`, `gestureQuietMs`, `resizeSettleSlides`, `returnTieBreak`, `dropTieBreak`, `rowGesture`, `initialScroll`, `maxLivePanels`, `chrome`, `phoneFit`, `phoneFitMin`, `phoneFitMax`, `dragToClose`, `slide`, `hopFraction`, `edgeScroll`, `defaultEnterFrom`, `defaultExitTo`): a host sets them on the workspace, and a view only reads what `usePanelTuning` returns |
 | The frame components a view renders and their props: `PanelFrame`, `PanelHeader`, `PanelHeaderRow`, `PanelFooter`, `DragToClose`, `PanelSizeBox`, `WindowOverlay` | |
 | The view hooks: `usePanelStates`, `usePanelState`, `useWorkspace`, `useWorkspaceManager`, `useActivePanel`, `usePhoneSize` | |
 

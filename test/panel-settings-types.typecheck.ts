@@ -59,6 +59,7 @@ export const SETTING_KEYS: Record<keyof SettingValues, true> = {
   placeOnShow: true,
   layer: true,
   enterFrom: true,
+  exitTo: true,
   title: true,
   pinning: true,
   pinningWhenNotLive: true,

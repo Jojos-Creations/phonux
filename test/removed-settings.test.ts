@@ -1,5 +1,5 @@
 /**
- * The nineteen per-panel settings this version removed: their fixed behaviour, what a template or a saved file that
+ * The eighteen per-panel settings this version removed: their fixed behaviour, what a template or a saved file that
  * still names one gets, and the list of settings that stay.
  */
 import { test } from 'node:test';
@@ -24,7 +24,6 @@ const FROZEN = {
   placeOnReturn: 'in-place',
   placeFallback: 'row-end',
   undoPlacement: 'old-slot',
-  exitTo: 'auto',
   closeExit: 'down',
   animated: true,
   persist: 'saved',
@@ -39,7 +38,7 @@ const REMOVED = Object.keys(FROZEN);
 /** The settings that stay: what the app sets, what a verb or a view patch reads, and the two template and clear-all readers. */
 const KEPT = [
   'multiple', 'hostCreatable', 'hollowDot', 'pinningWhenNotLive', 'restoreVisibility', 'overflow', 'capacityReturn', 'revealOnScroll', 'headerButtons', 'title', 'listed', 'layer', 'resizable', 'closable', 'scrollOnMove',
-  'parkable', 'pinning', 'slots', 'maxSlots', 'movable', 'crossable', 'hideStickiness', 'startVisibility', 'placeOnAdd', 'placeOnShow', 'scrollOnOpen', 'showWhenClosed', 'toggleWhenClosed', 'afterClose', 'enterFrom',
+  'parkable', 'pinning', 'slots', 'maxSlots', 'movable', 'crossable', 'hideStickiness', 'startVisibility', 'placeOnAdd', 'placeOnShow', 'scrollOnOpen', 'showWhenClosed', 'toggleWhenClosed', 'afterClose', 'enterFrom', 'exitTo',
   'clearable', 'maxInstances',
 ];
 

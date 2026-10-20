@@ -80,6 +80,25 @@ export type AddPlacement =
 /** What the row may do with a panel when the open panels do not all fit: scroll past it, or park it. @public */
 export type Overflow = 'scroll' | 'park';
 
+/**
+ * How a panel enters the row. 'auto' takes the workspace's `tuning.defaultEnterFrom`, whose own 'auto' slides in from the side
+ * the row picks (an engine mark, else the anchor's side for a panel entering via its anchor, else the right). 'anchor'
+ * slides in from its anchor's side whenever it enters. 'left', 'right', 'top' and 'bottom' slide in from that side,
+ * 'fade' fades in where it rests, and 'expand' grows its width out of the gap at its slot while its neighbours part to
+ * make room. Every entrance takes the workspace's `slide` timing.
+ * @public
+ */
+export type EnterFrom = 'auto' | 'left' | 'right' | 'anchor' | 'top' | 'bottom' | 'fade' | 'expand';
+
+/**
+ * How a panel leaves the row, when it parks and when it closes. 'auto' takes the workspace's `tuning.defaultExitTo`, whose own
+ * 'auto' parks off the side the row picks and closes downward along `slide.closeExitSeconds` and `slide.closeExitEase`.
+ * 'left', 'right', 'top' and 'bottom' slide out to that side, 'fade' fades out where it rests, and 'shrink' collapses
+ * its width into the gap at its slot while its neighbours close up. Those take the workspace's `slide` timing.
+ * @public
+ */
+export type ExitTo = 'auto' | 'left' | 'right' | 'top' | 'bottom' | 'fade' | 'shrink';
+
 /** Where a scrolled-to panel lands in the window. A stepping row (`rowGesture` 'step') lands on the nearest stop that shows the panel whole instead, so 'start' and 'center' are then approximate. @public */
 export type ScrollAlign = 'into-view' | 'start' | 'center';
 
@@ -227,8 +246,10 @@ export type SettingValues = {
   placeOnShow: AddPlacement | 'in-place';
   /** The stacking tier of the panel's slot. */
   layer: 'base' | 'raised';
-  /** The side the panel slides in from; 'auto' follows the row and 'anchor' uses its anchor's side. */
-  enterFrom: 'auto' | 'left' | 'right' | 'anchor';
+  /** How the panel enters the row (`EnterFrom`); 'auto' takes the workspace's `tuning.defaultEnterFrom`. */
+  enterFrom: EnterFrom;
+  /** How the panel leaves the row when it parks or closes (`ExitTo`); 'auto' takes the workspace's `tuning.defaultExitTo`. */
+  exitTo: ExitTo;
   /** How many phone-panel widths wide the panel is, an integer of 1 or more; the row draws at most the slots that fit. It starts a panel at that width and never resizes one that already exists. Default 1. */
   slots: number;
   /** The most slots the panel may take, an integer of 1 or more. Default: every slot that fits. */
@@ -358,6 +379,10 @@ export type WorkspaceTuning = {
   phoneFitMin?: number;
   /** The largest scale the fit gives the phone, a number from 1 to 4, as a fraction of the preferred size. */
   phoneFitMax?: number;
+  /** How a panel whose own `enterFrom` is 'auto' enters the row; any value of `EnterFrom`, and 'auto' is the row's own choice of side. */
+  defaultEnterFrom?: EnterFrom;
+  /** How a panel whose own `exitTo` is 'auto' leaves the row; any value of `ExitTo`, and 'auto' parks sideways and closes downward. */
+  defaultExitTo?: ExitTo;
 };
 
 /** Every tuning leaf after resolving, each present. @public */
@@ -398,6 +423,10 @@ export type ResolvedWorkspaceTuning = {
   phoneFitMin: number;
   /** The largest scale of the preferred phone size the fit gives. */
   phoneFitMax: number;
+  /** How a panel whose own `enterFrom` is 'auto' enters the row. */
+  defaultEnterFrom: EnterFrom;
+  /** How a panel whose own `exitTo` is 'auto' leaves the row. */
+  defaultExitTo: ExitTo;
 };
 
 /** Deeply frozen; every key is present after a resolve except `title`. @public */
@@ -838,12 +867,23 @@ const CATALOG_ROWS: readonly SettingDescriptor[] = [
   {
     name: 'enterFrom',
     group: 'motion',
-    values: 'auto, left, right, anchor',
+    values: 'auto, left, right, anchor, top, bottom, fade, expand',
     default: 'auto',
     scope: 'instance',
     viewSettable: true,
     exists: 'today',
     ownerEntry: 'phonux-engine-placement-and-motion-settings',
+    configure: { cls: 'NEXT', doors: ['instance'] },
+  },
+  {
+    name: 'exitTo',
+    group: 'motion',
+    values: 'auto, left, right, top, bottom, fade, shrink',
+    default: 'auto',
+    scope: 'instance',
+    viewSettable: false,
+    exists: 'new',
+    ownerEntry: 'lib-enter-expand',
     configure: { cls: 'NEXT', doors: ['instance'] },
   },
   {
@@ -1132,6 +1172,28 @@ const CATALOG_ROWS: readonly SettingDescriptor[] = [
     ownerEntry: 'phonux-fit-phone-to-screen-v3',
     configure: { cls: 'NOW', doors: ['tuning'] },
   },
+  {
+    name: 'tuning.defaultEnterFrom',
+    group: 'tuning',
+    values: 'auto, left, right, anchor, top, bottom, fade, expand (workspace only)',
+    default: 'auto',
+    scope: 'workspace',
+    viewSettable: false,
+    exists: 'new',
+    ownerEntry: 'lib-enter-expand',
+    configure: { cls: 'NEXT', doors: ['tuning'] },
+  },
+  {
+    name: 'tuning.defaultExitTo',
+    group: 'tuning',
+    values: 'auto, left, right, top, bottom, fade, shrink (workspace only)',
+    default: 'auto',
+    scope: 'workspace',
+    viewSettable: false,
+    exists: 'new',
+    ownerEntry: 'lib-enter-expand',
+    configure: { cls: 'NEXT', doors: ['tuning'] },
+  },
 ];
 
 /**
@@ -1184,7 +1246,8 @@ export const LIBRARY_PANEL_DEFAULTS: LibraryPanelDefaults = freezeClone({
   placeOnAdd: 'row-end' as AddPlacement,
   placeOnShow: 'in-place' as AddPlacement | 'in-place',
   layer: 'base' as const,
-  enterFrom: 'auto' as const,
+  enterFrom: 'auto' as EnterFrom,
+  exitTo: 'auto' as ExitTo,
   slots: 1,
   maxSlots: ALL_SLOTS,
   title: undefined,
@@ -1225,6 +1288,8 @@ export const LIBRARY_TUNING_DEFAULTS: ResolvedWorkspaceTuning = freezeClone({
   phoneFit: PHONE_FIT as ResolvedWorkspaceTuning['phoneFit'],
   phoneFitMin: PHONE_FIT_MIN,
   phoneFitMax: PHONE_FIT_MAX,
+  defaultEnterFrom: 'auto',
+  defaultExitTo: 'auto',
 });
 
 // ---------------------------------------------------------------------------
@@ -1387,7 +1452,6 @@ export interface FixedBehaviour {
   readonly placeOnReturn: AddPlacement | 'in-place';
   readonly placeFallback: 'row-start' | 'row-end' | 'parkable-start' | 'parkable-end' | 'after-fixed';
   readonly undoPlacement: 'old-slot' | AddPlacement;
-  readonly exitTo: 'auto' | 'left' | 'right';
   readonly closeExit: 'down' | 'left' | 'right';
   readonly animated: boolean;
   readonly persist: 'saved' | 'session';
@@ -1414,7 +1478,6 @@ export const FIXED: FixedBehaviour = Object.freeze({
   placeOnReturn: 'in-place',
   placeFallback: 'row-end',
   undoPlacement: 'old-slot',
-  exitTo: 'auto',
   closeExit: 'down',
   animated: true,
   persist: 'saved',
@@ -1446,6 +1509,9 @@ function savedMovable(raw: Plain): boolean | undefined {
 
 type SettingKey = Exclude<CatalogName, `tuning.${string}`>;
 
+const ENTER_FROM: readonly EnterFrom[] = ['auto', 'left', 'right', 'anchor', 'top', 'bottom', 'fade', 'expand'];
+const EXIT_TO: readonly ExitTo[] = ['auto', 'left', 'right', 'top', 'bottom', 'fade', 'shrink'];
+
 const SETTING_CHECKS: Record<SettingKey, Check> = {
   closable: bool,
   parkable: bool,
@@ -1470,7 +1536,8 @@ const SETTING_CHECKS: Record<SettingKey, Check> = {
   placeOnAdd: placementProblem,
   placeOnShow: placementOrInPlace,
   layer: oneOf('base', 'raised'),
-  enterFrom: oneOf('auto', 'left', 'right', 'anchor'),
+  enterFrom: oneOf(...ENTER_FROM),
+  exitTo: oneOf(...EXIT_TO),
   slots: integer(1, ALL_SLOTS),
   maxSlots: integer(1, ALL_SLOTS),
   title: text,
@@ -1517,7 +1584,7 @@ const TUNING_MEMBER_CHECKS: Record<'dragToClose' | 'slide' | 'edgeScroll' | 'chr
   },
 };
 
-const TUNING_SCALAR_CHECKS: Record<'hopFraction' | 'rowGap' | 'saveQuietMs' | 'gestureLockMs' | 'gestureQuietMs' | 'resizeSettleSlides' | 'returnTieBreak' | 'dropTieBreak' | 'rowGesture' | 'initialScroll' | 'maxLivePanels' | 'shrinkOutOfView' | 'phoneFit' | 'phoneFitMin' | 'phoneFitMax', Check> = {
+const TUNING_SCALAR_CHECKS: Record<'hopFraction' | 'rowGap' | 'saveQuietMs' | 'gestureLockMs' | 'gestureQuietMs' | 'resizeSettleSlides' | 'returnTieBreak' | 'dropTieBreak' | 'rowGesture' | 'initialScroll' | 'maxLivePanels' | 'shrinkOutOfView' | 'phoneFit' | 'phoneFitMin' | 'phoneFitMax' | 'defaultEnterFrom' | 'defaultExitTo', Check> = {
   hopFraction: num(0, 1, { minOpen: true }),
   rowGap: integer(0, 200),
   saveQuietMs: integer(0),
@@ -1537,6 +1604,8 @@ const TUNING_SCALAR_CHECKS: Record<'hopFraction' | 'rowGap' | 'saveQuietMs' | 'g
   phoneFit: oneOf('off', 'fit'),
   phoneFitMin: num(0, 1, { minOpen: true }),
   phoneFitMax: num(1, 4),
+  defaultEnterFrom: oneOf(...ENTER_FROM),
+  defaultExitTo: oneOf(...EXIT_TO),
 };
 
 const isObjectLeaf = (leaf: string): leaf is keyof typeof TUNING_MEMBER_CHECKS => Object.hasOwn(TUNING_MEMBER_CHECKS, leaf);
