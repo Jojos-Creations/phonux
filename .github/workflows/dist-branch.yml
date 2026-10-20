@@ -34,3 +34,15 @@ jobs:
           git add -A
           git commit -q -m "Built package from ${GITHUB_SHA}"
           git push --force "https://x-access-token:${{ github.token }}@github.com/${GITHUB_REPOSITORY}.git" HEAD:refs/heads/dist
+      # The dist branch is force-pushed as a new root commit, so the previous build sits on no ref. A tag per build keeps every pinned SHA fetchable.
+      - name: Tag the dist commit by its source sha
+        run: |
+          cd dist
+          tag="dist-${GITHUB_SHA}"
+          remote="https://x-access-token:${{ github.token }}@github.com/${GITHUB_REPOSITORY}.git"
+          if [ -n "$(git ls-remote --tags "$remote" "refs/tags/${tag}")" ]; then
+            echo "${tag} already exists; keeping it"
+            exit 0
+          fi
+          git tag "${tag}"
+          git push "$remote" "refs/tags/${tag}"
