@@ -402,6 +402,49 @@ test('the land op refuses the root and, for a person, a panel that is not movabl
   assert.equal(order(m), 'root,s3,s2,s1', 'a live panel is placed where asked, and the panel anchored to it follows');
 });
 
+test('the land op answers busy to a second land on the same panel in the same turn', async () => {
+  const m = await mounted(parkedRow());
+  let first: PanelResult | undefined;
+  let second: PanelResult | undefined;
+  await act(async () => {
+    first = landPanelIn(m.workspace, 's3', { after: 's4' }, 'code');
+    second = landPanelIn(m.workspace, 's3', { after: 's1' }, 'code');
+  });
+  await settle();
+  assert.equal(first?.ok, true);
+  assert.equal(second?.ok, false);
+  assert.equal(second?.ok === false && second.code, 'busy');
+  assert.equal(order(m), 'root,s1,s2,s4,s3,s5', 'the second land changed nothing');
+});
+
+test('the land op gives its token back: a later operation on the same panel is accepted', async () => {
+  const m = await mounted(parkedRow());
+  const landed = await opResult(m, 's3', 'code', 's4');
+  assert.equal(landed.ok, true);
+  let hidden: PanelResult | undefined;
+  await act(async () => {
+    hidden = seen.ws!.panels.get('s3')!.hide();
+  });
+  assert.equal(hidden?.ok, true, hidden?.ok === false ? hidden.code : undefined);
+  await settle();
+  assert.equal(liveIds(m), 'root,s1,s2,s4,s5', 'hidden again');
+});
+
+test('ending a hidden drag gives the token back: the panel can be hidden straight after', async () => {
+  const m = await mounted(parkedRow());
+  begin('s3');
+  await update(at(m, 's4', SPAN + 10));
+  const dropped = await finish();
+  assert.equal(dropped.ok, true);
+  let hidden: PanelResult | undefined;
+  await act(async () => {
+    hidden = seen.ws!.panels.get('s3')!.hide();
+  });
+  assert.equal(hidden?.ok, true, hidden?.ok === false ? hidden.code : undefined);
+  await settle();
+  assert.equal(liveIds(m), 'root,s1,s2,s4,s5');
+});
+
 /** Runs the internal land verb through the workspace the row was mounted with. */
 async function opResult(m: MountedRow, key: string, source: 'code' | 'person', after = 's2'): Promise<PanelResult> {
   let result: PanelResult | undefined;

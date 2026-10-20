@@ -352,7 +352,7 @@ export function PanelRow({
           const rest = { leftOffset: leftOffsets[presentIndex]!, width: widths[presentIndex]! };
           const Component = resolveViewIn(templateOf, p.view);
           const { closable, movable, resizable, maxSlots, enterFrom, exitTo, layer, headerButtons } = effective(p);
-                    const own = rowTuning;
+          const own = rowTuning;
           const handle = viewContext.handleFor(panelKey(p));
           const report = binding.reportError;
           const note = binding.reportNote;
