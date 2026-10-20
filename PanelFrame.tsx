@@ -40,8 +40,6 @@ export const panelCornerRadiusPx = (theme: Theme): number => PANEL_CORNER_RADIUS
 
 // One width for the padding and the inset shadow, so the content box begins exactly where the ring ends.
 const EDGE_PX = 1;
-// The ring's inner curve: concentric with the outer corner, so a content box rounded to it never covers the ring.
-const innerRadiusPx = (theme: Theme): number => Math.max(0, panelCornerRadiusPx(theme) - EDGE_PX);
 
 /**
  * No effect. PanelFrame no longer styles its content, so there is nothing to cancel; the export stays so
@@ -95,8 +93,9 @@ const PanelFrame = React.forwardRef<HTMLDivElement, PanelFrameProps>(function Pa
           minHeight: 0,
           display: 'flex',
           flexDirection: 'column',
-          // Opaque full-bleed content would otherwise paint over the ring along each corner arc.
-          borderRadius: (theme: Theme) => `${innerRadiusPx(theme)}px`,
+          // Opaque full-bleed content would otherwise paint over the ring along each corner arc. Inherited, so it follows
+          // the frame's radius however that is set, including an inline or animated one a stylesheet cannot see.
+          borderRadius: 'inherit',
           overflow: 'hidden',
           ...sx,
         }}
