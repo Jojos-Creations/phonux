@@ -80,10 +80,11 @@ test('with closeOnRelease off a release anywhere springs back and closes nothing
   assert.ok(Math.abs(translateY(kept.box)) < 1, 'the box is back at rest after each');
   cleanup();
 
-  const control = mountBox({ onClose: () => closes.push(2) });
+  const controlCloses: number[] = [];
+  const control = mountBox({ onClose: () => controlCloses.push(2) });
   await drag(control.handle, { dx: 0, dy: 300, steps: 6, hold: 4 });
   await advanceFrames(2000);
-  assert.deepEqual(closes, [2], 'the identical drag closes when closeOnRelease is left at its default');
+  assert.deepEqual(controlCloses, [2], 'the identical drag closes when closeOnRelease is left at its default');
 });
 
 test('with closeOnRelease explicitly true the drag-down close rule is the one it always was', async () => {
@@ -133,6 +134,14 @@ test('onDragEnd arrives before the sideways report and before the close; a press
   await drag(handle, { dx: 0, dy: 300, steps: 6, hold: 4 });
   await advanceFrames(2000);
   assert.deepEqual(order, ['end', 'close'], 'a drag down reports its pointer before the close');
+});
+
+test('a press that moved just under the direction lock reports neither a move nor a release', async () => {
+  const seen: string[] = [];
+  const { handle } = mountBox({ onDragMove: () => void seen.push('move'), onDragEnd: () => void seen.push('end') });
+  await drag(handle, { dx: 7.995, dy: 0, steps: 1, hold: 2 });
+  await advanceFrames(500);
+  assert.deepEqual(seen, [], 'the sensor may start under 8 px, but the gesture has not started');
 });
 
 test('a cancelled gesture reports no release', async () => {

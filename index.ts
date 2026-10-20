@@ -46,6 +46,7 @@ export type {
   OverlaySlotName,
   WindowOverlayProps,
 } from './Panel.js';
+export type { GrabDragEnd, GrabDragMove } from './dragToClose.js';
 
 export { default as PanelFrame } from './PanelFrame.js';
 export {
