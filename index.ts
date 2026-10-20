@@ -95,6 +95,7 @@ export { reorderStepsForOffset } from './panelWindow.js';
 export { createDefaultTheme } from './defaultTheme.js';
 
 export type { WorkspacePanelState, WorkspaceState, WorkspaceStorage } from './workspaceState.js';
+export { isWorkspaceState } from './workspaceState.js';
 
 export { PANEL_SETTINGS_CATALOG, LIBRARY_PANEL_DEFAULTS, LIBRARY_TUNING_DEFAULTS } from './panelSettings.js';
 export type {

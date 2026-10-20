@@ -898,10 +898,11 @@ are made again at the next launch of a newer one and panels match only between d
 
 phonux owns the `WorkspaceState`/`WorkspacePanelState` types, the guard `isWorkspaceState`, the pure
 `projectWorkspaceState`/`hydrateWorkspaceState` function pair, the restore and save timing, and a small
-`WorkspaceStorage` (load/save) contract phonux defines but never puts on the public `Host`/`PanelsAPI` bag. Only
-the three types are public, exported from the package entry point so a host can implement the contract; the
-guard and the pair live in `workspaceState.ts` and stay inside the package, because only `useProvidePanels`
-(through its persistence hook, `panels/useWorkspacePersistence.ts`) and the tests call them. Keeping a capability
+`WorkspaceStorage` (load/save) contract phonux defines but never puts on the public `Host`/`PanelsAPI` bag. The
+three types and the guard `isWorkspaceState` are public, exported from the package entry point so a host can implement
+the contract and validate a file it imports; the pair `projectWorkspaceState`/`hydrateWorkspaceState` lives in
+`workspaceState.ts` and stays inside the package, because only `useProvidePanels` (through its persistence hook,
+`panels/useWorkspacePersistence.ts`) and the tests call it. Keeping a capability
 off the public bag has a real precedent already in this package:
 `CaptureRegistryContext` keeps the write side of a picture out of `Host`/`SnapshotsAPI` entirely, as its own
 second context that app code mounts through `CaptureRegistryProvider`, AROUND `HostProvider` (see "Snapshots"

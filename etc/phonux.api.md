@@ -382,6 +382,9 @@ export function HostProvider(input: {
 export type InstancePatch = Omit<SettingsPatch, 'hostCreatable' | 'hollowDot' | 'multiple' | 'maxInstances'>;
 
 // @public
+export function isWorkspaceState(value: unknown): value is WorkspaceState;
+
+// @public
 export type JsonValue = string | number | boolean | null | readonly JsonValue[] | {
     readonly [key: string]: JsonValue;
 };

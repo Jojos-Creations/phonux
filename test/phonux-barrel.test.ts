@@ -82,6 +82,7 @@ const VALUE_EXPORTS = [
   'usePanelDragging',
   // Opt-in extras (never applied implicitly).
   'createDefaultTheme',
+  'isWorkspaceState',
   'ROW_LAYER_Z',
   // The names Panel writes on the DOM, for a host to style from.
   'ACTIVE_ATTRIBUTE',
@@ -94,7 +95,7 @@ const VALUE_EXPORTS = [
   'WORKSPACE_NAME_INPUT_ATTRIBUTE',
 ].sort();
 
-test('the phonux barrel exports exactly the 79 runtime values, no more, no fewer', () => {
+test('the phonux barrel exports exactly the 80 runtime values, no more, no fewer', () => {
   assert.deepEqual(Object.keys(phonux).sort(), VALUE_EXPORTS);
 });
 
