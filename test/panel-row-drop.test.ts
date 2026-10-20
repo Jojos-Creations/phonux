@@ -117,6 +117,11 @@ test('begin refuses a panel that is not movable for a person, and takes it for c
   assert.equal(order(m), 'root,s1,s2,s3');
 });
 
+test('begin refuses the root for code as well, whatever its movable says', async () => {
+  await mounted();
+  assert.equal(begin('root', 'code'), false);
+});
+
 test('begin refuses a closed panel, and one that is still being added', async () => {
   const m = await mounted();
   const handle = seen.ws!.panels.get('s3')!;
@@ -186,6 +191,24 @@ test('for the same offsets the hook parts the neighbours exactly as a header dra
     await frames(60);
     cleanup();
     assert.deepEqual(viaHook, viaHeader, `offset ${offset}`);
+  }
+});
+
+test('the hop count is the header rule at literal offsets: a hop needs half the next neighbour\'s span, counted from where the last hop ended', async () => {
+  // A phone neighbour is 390 + 16 gap = 406 wide, so the thresholds are 203, 609 and 1015.
+  const cases: Array<[number, string]> = [
+    [202, 'root,s1,s2,s3,s4'],
+    [204, 'root,s2,s1,s3,s4'],
+    [608, 'root,s2,s1,s3,s4'],
+    [610, 'root,s2,s3,s1,s4'],
+  ];
+  for (const [offset, expected] of cases) {
+    const m = await mounted();
+    begin('s1');
+    await update(at(m, 's1', offset));
+    await finish();
+    assert.equal(order(m), expected, `offset ${offset}`);
+    cleanup();
   }
 });
 

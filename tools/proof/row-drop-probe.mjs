@@ -2,7 +2,7 @@
 // Builds a row of the library at <libDir>: History (the root) with a tile for each panel, then panels one, two and three live and four parked.
 // A tile is a plain element in History's view that drives usePanelRowDrop() from a real pointer: down begins, move updates, up ends.
 // Scenario 'hidden': drags the tile of the parked 'four' across the row from right to left in steps, sampling every panel's left edge and the
-// gap at each step, screenshots mid-drag, and drops it between 'one' and 'two'. Scenario 'live': drags the tile of 'three' to the left of 'one'.
+// gap at each step, screenshots mid-drag, and drops it between 'one' and 'two'. Scenario 'live': drags the tile of 'three' three hops left, to just before 'one'.
 // Prints one JSON line per sample and a verdict line; exits 1 when the neighbours did not part or the drop did not land at the pointed index.
 // Needs esbuild, react and react-dom in <libDir>/node_modules. Headless only.
 import { createServer } from 'node:http';
@@ -94,16 +94,17 @@ try {
   const y = tile.y + tile.height / 2;
   await page.mouse.move(startX, y);
   await page.mouse.down();
-  const targetX = rest.one + 390 + 8; // the boundary between one and two
+  // The header's hop rule: the gap moves a whole slot once the pointer passes half the next neighbour's span from where the last hop ended,
+  // so 1100 (one hop left of three, 209 px from the gap's start) puts the gap between one and two.
   const samples = [];
-  const xs = [1500, 1300, 1100, 900, 700, 500, targetX];
+  const xs = [1500, 1300, 900, 500, 1100];
   for (const [i, x] of xs.entries()) {
     await page.mouse.move(x, y, { steps: 6 });
     await page.waitForTimeout(700);
     const s = { x, lefts: await lefts(), gap: await gap() };
     samples.push(s);
     console.log(JSON.stringify({ phase: 'hidden-drag', ...s }));
-    if (i === 3) await page.screenshot({ path: join(out, 'mid-drag-hidden.png') });
+    if (i === 2) await page.screenshot({ path: join(out, 'mid-drag-hidden.png') });
   }
   await page.screenshot({ path: join(out, 'at-target-hidden.png') });
   const gapAtTarget = samples.at(-1).gap;
@@ -120,7 +121,9 @@ try {
   console.log(JSON.stringify({ phase: 'hidden-drop', lefts: landed, order: after, result: await page.evaluate(() => window.__result) }));
   await page.screenshot({ path: join(out, 'after-drop-hidden.png') });
   check(after.startsWith('root:live,one:live,four:live,two:live,three:live'), `four landed between one and two (${after})`);
-  check(landed.four === gapAtTarget?.left, `four rests where the gap was (${landed.four} vs ${gapAtTarget?.left})`);
+  // The row recentres once it holds five panels, so the gap's x is compared after the same shift as the root's.
+  const shift = landed.root - rest.root;
+  check(landed.four === (gapAtTarget?.left ?? 0) + shift, `four rests where the gap was (${landed.four} vs ${gapAtTarget?.left} + ${shift})`);
   check(gapAtTarget && (await gap()) === null, 'the gap is gone after the drop');
 
   // live source: the tile of three, dragged to the left of one
@@ -130,7 +133,7 @@ try {
   const before3 = await lefts();
   const liveSamples = [];
   const centreOf = (id) => before3[id] + 195;
-  for (const x of [centreOf('three') - 100, centreOf('three') - 450, centreOf('three') - 1000, centreOf('three') - 1500]) {
+  for (const x of [centreOf('three') - 100, centreOf('three') - 450, centreOf('three') - 800, centreOf('three') - 1200]) {
     await page.mouse.move(x, tile3.y + tile3.height / 2, { steps: 6 });
     await page.waitForTimeout(700);
     const s = { x, lefts: await lefts() };
@@ -143,7 +146,7 @@ try {
   await page.waitForTimeout(1500);
   const after3 = await order();
   console.log(JSON.stringify({ phase: 'live-drop', lefts: await lefts(), order: after3 }));
-  check(/^root:live,/.test(after3) && after3.indexOf('three:live') < after3.indexOf('one:live'), `three moved left of one (${after3})`);
+  check(after3.startsWith('root:live,three:live,one:live,four:live,two:live'), `three moved three slots left, to just before one (${after3})`);
   check(errors.length === 0, `no page errors (${errors.join(' | ')})`);
   console.log(JSON.stringify({ verdict: failed ? 'FAIL' : 'PASS', shots: ['mid-drag-hidden.png', 'at-target-hidden.png', 'after-drop-hidden.png', 'mid-drag-live.png'].map((f) => join(out, f)) }));
 } finally {
