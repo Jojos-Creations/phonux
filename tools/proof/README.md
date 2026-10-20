@@ -15,3 +15,12 @@ Each line: `scrollLeft`, `scrollWidth`, `clientWidth`, `browserMax` (scrollWidth
 `events` (every scroll event since the last line). What to read: is `browserMax` smaller than the last stop, or than `lib.maxScroll`, by
 `paddingRight`? Does `scrollLeft` ever differ from a stop? Do `events` show a scroll the library did not write?
 Chromium on this checkout: `browserMax` follows the drawn widths (1218, 1624, 812 at the three stops of [1,4]) and every step lands on a stop.
+
+# Frame corner ring probe
+
+`frame-corner-ring-probe.mjs` (with `frame-corner-entry.tsx.txt`) renders `PanelFrame` around an opaque full-bleed child in headless WebKit and Chromium at deviceScaleFactor 2, dark and light, and scores 17 points on each of the four corner arcs against the same frame rendered empty. It writes the corner crops and a 2 x 2 contact sheet per engine and scheme, prints one JSON line per arc, and exits 0 only when every sample is ring-coloured (1: a gap in the ring, 2: it could not prove anything).
+
+    PLAYWRIGHT_ENTRY=<path>/playwright-core/index.mjs WEBKIT_BIN=<pw_run.sh> CHROMIUM_BIN=<headless shell> \
+      node tools/proof/frame-corner-ring-probe.mjs <libDir> [outDir]
+
+Run it with `<libDir>` as a checkout of main for the negative control: 64 of 272 samples are ring-coloured there and the exit status is 1.

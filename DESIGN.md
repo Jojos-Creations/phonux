@@ -1278,6 +1278,8 @@ or it falls back to the engine's default-width bar and breaks the arithmetic abo
 **No reserved twice.** Because the frame adds no padding or gutter, there is nothing for a nested scroller to
 cancel. `panelFrameBareSx` is a deprecated empty object kept so existing imports compile.
 
+**The corner radius and the ring.** The frame's 1 px edge is an inset shadow on the outer box, drawn under its children, with 1 px of padding of the same width, so the content box begins where the ring ends. The outer box rounds at `panelCornerRadiusPx(theme)` (24 px by default). The content box is rounded at that minus the edge width (23 px) and clips its children: the ring's inner curve is concentric with the outer corner, so the two curves meet with no gap and no overlap. A square, unclipped content box lets opaque full-bleed content (a photo, a web view) cover the ring along each corner arc, which reads as a border that fades out at the corners. The padding and the shadow spread are one constant in `PanelFrame.tsx`, and nothing else in the library animates or sets the frame's radius, so the inner radius is derived from the same theme value as the outer one. A view's `sx` on the frame is layered last, so a view that wants its own radius or overflow on that box can set it. `tools/proof/frame-corner-ring-probe.mjs` scores the ring pixels along all four arcs in headless WebKit and Chromium.
+
 **border-box.** Row-layout width math treats `device.size` as the frame's real rendered size. Under
 content-box the border and padding land on top of it: a 390px phone rendered 416px wide by
 `getBoundingClientRect()`, about 26px of silent under-fit per phone.
