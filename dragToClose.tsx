@@ -94,30 +94,6 @@ export interface ReorderHandle {
   onStep?: (steps: number) => boolean;
 }
 
-/** Where the pointer is during a grab-handle drag: what `DragToClose`'s `onDragMove` receives on every pointer move. @public */
-export interface GrabDragMove {
-  /** How far the pointer has travelled right of where it went down, px (negative = left). */
-  x: number;
-  /** How far the pointer has travelled below where it went down, px (negative = up). */
-  y: number;
-  /** The pointer's x in viewport px, the coordinate to hit-test against `getBoundingClientRect()` or pass to `elementFromPoint`. */
-  clientX: number;
-  /** The pointer's y in viewport px. */
-  clientY: number;
-}
-
-/** Where the pointer let go of a grab-handle drag: what `DragToClose`'s `onDragEnd` receives on release. @public */
-export interface GrabDragEnd {
-  /** How far the pointer travelled right of where it went down, px (negative = left); the pointer's own travel, not the row's scroll added. */
-  offsetX: number;
-  /** How far the pointer travelled below where it went down, px (negative = up). */
-  offsetY: number;
-  /** The pointer's x in viewport px at release. */
-  clientX: number;
-  /** The pointer's y in viewport px at release. */
-  clientY: number;
-}
-
 /** A horizontal drag's hold on the row scroller: the claim, the pointer-down scroll it counts from, and the frame loop. */
 interface EdgeHold {
   scroller: RowScroller;
@@ -367,6 +343,30 @@ export function holdDragSelection(doc: Document): () => void {
     doc.removeEventListener('dragstart', taken.onDragStart, true);
     selectionHolds.delete(doc);
   };
+}
+
+/** Where the pointer is during a grab-handle drag: what `DragToClose`'s `onDragMove` receives on every pointer move. @public */
+export interface GrabDragMove {
+  /** How far the pointer has travelled right of where it went down, px (negative = left). */
+  x: number;
+  /** How far the pointer has travelled below where it went down, px (negative = up). */
+  y: number;
+  /** The pointer's x in viewport px, the coordinate to hit-test against `getBoundingClientRect()` or pass to `elementFromPoint`. */
+  clientX: number;
+  /** The pointer's y in viewport px. */
+  clientY: number;
+}
+
+/** Where the pointer let go of a grab-handle drag: what `DragToClose`'s `onDragEnd` receives on release. @public */
+export interface GrabDragEnd {
+  /** How far the pointer travelled right of where it went down, px (negative = left); the pointer's own travel, not the row's scroll added. */
+  offsetX: number;
+  /** How far the pointer travelled below where it went down, px (negative = up). */
+  offsetY: number;
+  /** The pointer's x in viewport px at release. */
+  clientX: number;
+  /** The pointer's y in viewport px at release. */
+  clientY: number;
 }
 
 /**
