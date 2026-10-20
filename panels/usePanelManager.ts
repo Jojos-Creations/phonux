@@ -42,9 +42,9 @@ export interface UsePanelManagerResult {
   revealPanelProactively: (panelsNow: PanelWindow[], apply: (prev: PanelWindow[]) => PanelWindow[]) => void;
   /**
    * Shows panel `id` the way a click on it does, landing it by `pin` when given. `from` is the row the landing is planned
-   * against, this render's list when omitted.
+   * against, this render's list when omitted. `placeAs` lands it there instead of by its `placeOnShow`.
    */
-  handleActivatePanel: (id: string, pin?: PinChange, from?: PanelWindow[]) => void;
+  handleActivatePanel: (id: string, pin?: PinChange, from?: PanelWindow[], placeAs?: AddPlacement | 'in-place') => void;
   /** Removes `id` from the collapse-order stack, so a closed panel (or one `undoClose` restores) leaves no stale entry for a later reveal. */
   forgetCollapsed: (id: string) => void;
   /**
@@ -96,6 +96,8 @@ export interface UsePanelManagerResult {
   resizePanel: (id: string, slots: number, record?: boolean) => boolean;
   /** Puts `id` where `value` says, keeping its live flag; the placement is the developer's own ask, so a person's `movable` is the caller's to check. `record` false leaves `overrides` as it was. True when the placement changes this render's list. */
   placeAt: (id: string, value: AddPlacement | 'in-place', record?: boolean) => boolean;
+  /** Puts the parked or hidden panel `id` where `value` says and makes it live, in one update; 'in-place' lands it at its array slot. `record` false leaves `overrides` as it was. False, changing nothing, for an unknown or live panel. */
+  landAt: (id: string, value: AddPlacement | 'in-place', record?: boolean) => boolean;
   /** The in-flight gate shared by the manager's operations and the raw mutators. */
   gate: OperationGate;
   /** Explicit enter sides from `scrollRow` and the capacity rise; they win over `enteringViaAnchorIds`, which cannot say which side. */
@@ -584,7 +586,7 @@ export function usePanelManager(
    * Clicking ANY row -- live or parked alike -- activates it (promoteToLive's own doc
    * comment has the full "make/keep it live, preserve array order" spec).
    */
-  const handleActivatePanel = (id: string, pin?: PinChange, from: PanelWindow[] = panels): void => {
+  const handleActivatePanel = (id: string, pin?: PinChange, from: PanelWindow[] = panels, placeAs?: AddPlacement | 'in-place'): void => {
     const target = from.find((p) => p.id === id);
     if (!target || target.live) return;
     markKeepLive(id);
@@ -594,7 +596,7 @@ export function usePanelManager(
     forgetEnteringViaAnchor(id);
     clearEnterSide(id);
     // Re-placed before it goes live, in the same update; the updaters below place again over the latest list.
-    const showAt = effective(target).placeOnShow;
+    const showAt = placeAs ?? effective(target).placeOnShow;
     const landed = landOn(from, id, showAt, pin);
     const before = showAt === 'in-place' && !landed.pinned ? from : landed.row;
     const result = before.some((p) => p.id === id && p.live) ? before : promoteToLive(before, id, capacityShowing(before, target), touchedAt, keptIds());
@@ -683,6 +685,16 @@ export function usePanelManager(
       return record ? recordOverride(next, 'anchor', next.map((p) => p.id), rootId) : next;
     });
     return changes;
+  };
+
+  /** See `UsePanelManagerResult.landAt`'s own doc comment. */
+  const landAt = (id: string, value: AddPlacement | 'in-place', record = true): boolean => {
+    const target = panels.find((p) => p.id === id);
+    if (target === undefined || target.live) return false;
+    handleActivatePanel(id, undefined, panels, value);
+    // Queued after the lift, in the same batch, so the person's arrangement is read from the row the lift made.
+    if (record) setPanels((prev) => recordOverride(prev, 'anchor', prev.map((p) => p.id), rootId));
+    return true;
   };
 
   /** See `UsePanelManagerResult.resizePanel`'s own doc comment. */
@@ -938,6 +950,7 @@ export function usePanelManager(
     reorderPanel,
     resizePanel,
     placeAt,
+    landAt,
     gate,
     enterSideById: enterSideRef.current,
     exitRightIds,

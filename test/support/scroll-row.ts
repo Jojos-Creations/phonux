@@ -6,7 +6,7 @@ import assert from 'node:assert/strict';
 import * as React from 'react';
 import { act } from 'react';
 import { PanelRow, Workspace, useProvidePanels } from '../../index.js';
-import type { PanelSettings, PanelWindow, PanelsInput, ProvidedPanels, SettingNote } from '../../index.js';
+import type { PanelSettings, PanelWindow, PanelsInput, ProvidedPanels, SettingNote, WorkspaceHandle } from '../../index.js';
 import { createFakeHost } from '../../fakeHost.js';
 import { applyTemplate, resolvePanelSettings } from '../../panelSettings.js';
 import { deriveAnchorsFromOrder } from '../../panelRowOrder.js';
@@ -31,6 +31,8 @@ export const panelsOf = (count: number, layer: PanelSettings = {}): PanelWindow[
 const NONE: ReadonlySet<string> = new Set();
 
 export interface MountedRow {
+  /** The workspace the row was mounted with. */
+  workspace: WorkspaceHandle;
   latest: () => ProvidedPanels;
   container: HTMLDivElement;
   notes: SettingNote[];
@@ -68,6 +70,7 @@ export function mountRow(entries: PanelWindow[], width: number, over: Partial<Om
   const container = ref.current;
   assert.ok(container, 'the Workspace never attached its scroll container');
   return {
+    workspace,
     latest: () => latest!,
     container,
     notes,
