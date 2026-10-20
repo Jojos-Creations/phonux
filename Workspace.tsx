@@ -169,8 +169,8 @@ export interface WorkspaceProps extends Omit<BoxProps, 'children'> {
 /** A subscription that never fires, for a shell given no workspace. */
 const NO_SUBSCRIPTION = (): (() => void) => () => {};
 
-/** Clipped, not display: none, which would hide the live region from a screen reader. */
-const VISUALLY_HIDDEN = { position: 'absolute', width: 1, height: 1, margin: -1, padding: 0, overflow: 'hidden', clip: 'rect(0 0 0 0)', whiteSpace: 'nowrap', border: 0 } as const;
+/** Clipped, not display: none, which would hide the live region from a screen reader. Pixel strings, because in `sx` a bare 1 is 100% and a bare -1 is a spacing unit, which would give a host's scroller a box to scroll. */
+const VISUALLY_HIDDEN = { position: 'absolute', width: '1px', height: '1px', margin: '-1px', padding: 0, overflow: 'hidden', clip: 'rect(0 0 0 0)', whiteSpace: 'nowrap', border: 0 } as const;
 
 /**
  * The workspace shell: a scroll container holding the centred, animated row, with two OverlaySlots
