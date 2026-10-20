@@ -245,6 +245,9 @@ export interface DragHandleProps {
 export function DragToClose(input: {
     onClose?: () => void;
     reorder?: ReorderHandle;
+    closeOnRelease?: boolean;
+    onDragMove?: (move: GrabDragMove) => void;
+    onDragEnd?: (end: GrabDragEnd) => void;
     children: (handle: DragHandleProps) => React_2.ReactNode;
 }): React_2.ReactElement;
 
@@ -281,6 +284,22 @@ export const GAP = 16;
 
 // @public
 export type GlideEase = 'cubic-out' | 'linear' | BezierEase;
+
+// @public
+export interface GrabDragEnd {
+    clientX: number;
+    clientY: number;
+    offsetX: number;
+    offsetY: number;
+}
+
+// @public
+export interface GrabDragMove {
+    clientX: number;
+    clientY: number;
+    x: number;
+    y: number;
+}
 
 // @public
 export type HeaderButton = HeaderButtonIconForm | HeaderButtonTextForm;
@@ -678,6 +697,14 @@ export function PanelRow(input: {
     rowNumbers?: RowNumbers;
     workspace: WorkspaceHandle;
 }): React_2.ReactElement;
+
+// @public
+export interface PanelRowDrop {
+    begin(id: string, source?: 'code' | 'person'): boolean;
+    cancel(): void;
+    end(): PanelResult;
+    update(clientX: number): void;
+}
 
 // @public
 export interface PanelRowEntry<P = JsonValue> extends Omit<PanelSummary<P>, 'size'> {
@@ -1252,6 +1279,9 @@ export const usePanelReorderSteps: () => ((offsetX: number) => number);
 
 // @public
 export function usePanelResizing(): readonly [boolean, (on: boolean) => void, (px: number | null, pin?: 'start' | 'end') => void];
+
+// @public
+export function usePanelRowDrop(): PanelRowDrop;
 
 // @public
 export function usePanelSetDragging(): (on: boolean) => void;

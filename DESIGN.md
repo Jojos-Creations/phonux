@@ -1145,10 +1145,21 @@ line snaps back. Its render prop hands out a handle for `Panel`'s `grabProps`:
 ```
 
 The handle is the grab bar and nothing else, so the body keeps its own scrolling and clicks. The box follows
-the pointer vertically and only downward. On release `shouldCloseOnRelease` decides: close (the box leaves
+the pointer vertically, up and down. On release `shouldCloseOnRelease` decides: close (the box leaves
 downward, then the latest `onClose` runs) or snap back on a spring. `@dnd-kit/core`'s pointer sensor, one
 `DndContext` per box with its auto-scroll off, decides when a press becomes a drag and when it ends or is cancelled,
 with its events on `document`, so a drag survives leaving the handle; Motion draws the box and runs the springs.
+
+**Reporting the pointer, and dropping elsewhere.** `onDragMove({ x, y, clientX, clientY })` runs on every pointer move from the move that engages the
+drag (`x` and `y` are the pointer's travel from the press, `clientX` and `clientY` its viewport position), and `onDragEnd({ offsetX, offsetY, clientX, clientY })`
+runs once at release, before `reorder.onDragEnd` and before any close. Both read the pointer's own events, so they are exact whatever the box's
+drawn offset is. A press that never engages, and a cancelled gesture (a native pan, Escape), report no release: an app that previews a drop target clears it
+when its own pointer tracking ends, not on `onDragEnd` alone. An app hit-tests its own targets with `clientX` and `clientY`; the library draws none. `closeOnRelease={false}`
+keeps the box from closing on release: whatever the distance or speed, and whichever way it was dragged, the release springs home and `onClose` is not called by the
+drag (the Delete key still calls it). These are props of `DragToClose`, not panel settings: a callback is a closure over the app's own state, and a setting is
+data that is configured, saved and restored. While a drag is engaged on either axis the panel's slot is lifted to `ROW_LAYER_Z.DRAGGED` (never below its own
+layer), read from the same dragging mark as `usePanelDragging()`, so the box paints over the row's other slots and over an app element at a lower z; the lift
+ends with the spring home, when the mark does. The row's scroll container still clips what is drawn outside it.
 
 **Keys and names.** When `onClose` or `reorder.onStep` is set the handle is a focusable `button` (`role`, `tabIndex`, `aria-label`
 `labels.grabStrip(title)`, `aria-keyshortcuts` and `onKeyDown` are in the handle) where ArrowLeft and ArrowRight call
@@ -1252,6 +1263,31 @@ read again every frame, and the hold ends when the row stops scrolling.
 **Alternatives to the gesture.** WCAG 2.5.7 asks for a single-pointer alternative: offer a button that calls
 the same `onClose`, as History's trash buttons do. The row's drag-to-reorder needs one too; `handle.move(1)` and `handle.move(-1)`
 exist for it, but no such control is built.
+
+## A drag that starts outside the row: `usePanelRowDrop`
+
+A tile in a view (a Workspace or History tile) drags a panel into the row with `usePanelRowDrop()`: `begin(id, source)`, `update(clientX)`,
+`end()` and `cancel()`. PanelRow provides the controller through a context, so the hook works in any view the row renders and answers
+false, doing nothing, outside one.
+
+**One hop rule.** The header drag and this drag count hops through the same `stepsFor(entry, offset)` in PanelRow
+(`reorderStepsForOffset` over `neighborsAt`), and part the row through the same `partShifts`, so for the same offset the neighbours
+sit in the same places. The offset counts from the centre of the panel's slot, or, for a panel that is not in view, from the centre of the
+gap it would hold at its place in the array. The preview is state in PanelRow; the order changes only at the drop.
+
+**A panel in view** is drawn at the slot its hops end in, the crossed neighbours slide aside by its span, and `end()` is one `move`. **A parked or
+hidden panel** is not in the row, so the row holds a gap its own width (`dropParts`): every present panel after its place in the array moves right
+by the span and the ones the drag crossed take that back. The gap is a transient element carrying `data-panel-row-drop-gap`, not a public contract.
+`end()` lands it with `landPanelIn`, an internal verb of the workspace core: place and show are two gated verbs that answer `busy` to each other
+in one turn, so one gated engine op (`land`) does both in one update. A live panel handed to it is only placed.
+
+**Refusals.** `begin` refuses an unknown, closed or pending panel, the root, a second drag while one runs, and a panel whose `movable` is false when
+the source is `'person'` (the default; `'code'` is not limited by `movable`, as the handle verbs are not). A panel that is not `crossable` stops the
+walk, so a pinned panel cannot hop over one either.
+
+**Edge scroll.** The drag takes the row scroller's claim at `begin` and runs the same frame (`stepEdgeHold`, with `edgeScrollSpeed` and
+`edgeScrollStep`) that `DragToClose` runs; the two share `panelRowDropScroll.ts`. The hop count is read again every frame, because the row scrolls
+under a pointer that has not moved. The claim goes back at `end`, `cancel` and when the row unmounts.
 
 ## PanelFrame's inset, scrollbar and header
 

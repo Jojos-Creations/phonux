@@ -47,6 +47,7 @@ const VALUE_EXPORTS = [
   'GAP',
   'PANEL_TRANSITION',
   'usePanelReorderSteps',
+  'usePanelRowDrop',
   'usePanelTuning',
   'usePanelCapabilities',
   'usePanelDragProps',

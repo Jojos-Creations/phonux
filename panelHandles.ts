@@ -59,6 +59,7 @@ export type PanelVerbCall =
   | { verb: 'show' | 'hide' | 'toggleVisibility' | 'close' | 'open' }
   | { verb: 'move'; by: number }
   | { verb: 'place'; value: AddPlacement | 'in-place' }
+  | { verb: 'land'; value: AddPlacement | 'in-place' }
   | { verb: 'setSlots'; slots: number }
   | { verb: 'scrollTo'; align: ScrollAlign | undefined }
   | { verb: 'pin' | 'unpin' };
