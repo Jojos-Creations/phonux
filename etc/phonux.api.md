@@ -699,6 +699,14 @@ export function PanelRow(input: {
 }): React_2.ReactElement;
 
 // @public
+export interface PanelRowDrop {
+    begin(id: string, source?: 'code' | 'person'): boolean;
+    cancel(): void;
+    end(): PanelResult;
+    update(clientX: number): void;
+}
+
+// @public
 export interface PanelRowEntry<P = JsonValue> extends Omit<PanelSummary<P>, 'size'> {
     readonly anchor?: PanelAnchor;
     readonly anchoredEnter?: boolean;
@@ -1271,6 +1279,9 @@ export const usePanelReorderSteps: () => ((offsetX: number) => number);
 
 // @public
 export function usePanelResizing(): readonly [boolean, (on: boolean) => void, (px: number | null, pin?: 'start' | 'end') => void];
+
+// @public
+export function usePanelRowDrop(): PanelRowDrop;
 
 // @public
 export function usePanelSetDragging(): (on: boolean) => void;

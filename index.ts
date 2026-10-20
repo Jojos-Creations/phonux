@@ -78,6 +78,8 @@ export type { RowLayoutInput, RowLayoutResult } from './panelRowLayout.js';
 export { computeRowNumbers } from './rowNumbers.js';
 export type { RowNumbers } from './rowNumbers.js';
 export { PanelRow, usePanelCapabilities, usePanelNeighborWidths, usePanelPinned, usePanelReorderSteps, usePanelTuning } from './PanelRow.js';
+export { usePanelRowDrop } from './usePanelRowDrop.js';
+export type { PanelRowDrop } from './usePanelRowDrop.js';
 export { slideToTransition } from './directionalTransition.js';
 export { GAP, PANEL_TRANSITION, PanelSizeBox } from './PanelRowSlot.js';
 export { PanelHeaderButtons, usePanelHeaderButtons } from './panelHeaderButtons.js';

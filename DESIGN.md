@@ -1264,6 +1264,31 @@ read again every frame, and the hold ends when the row stops scrolling.
 the same `onClose`, as History's trash buttons do. The row's drag-to-reorder needs one too; `handle.move(1)` and `handle.move(-1)`
 exist for it, but no such control is built.
 
+## A drag that starts outside the row: `usePanelRowDrop`
+
+A tile in a view (a Workspace or History tile) drags a panel into the row with `usePanelRowDrop()`: `begin(id, source)`, `update(clientX)`,
+`end()` and `cancel()`. PanelRow provides the controller through a context, so the hook works in any view the row renders and answers
+false, doing nothing, outside one.
+
+**One hop rule.** The header drag and this drag count hops through the same `stepsFor(entry, offset)` in PanelRow
+(`reorderStepsForOffset` over `neighborsAt`), and part the row through the same `partShifts`, so for the same offset the neighbours
+sit in the same places. The offset counts from the centre of the panel's slot, or, for a panel that is not in view, from the centre of the
+gap it would hold at its place in the array. The preview is state in PanelRow; the order changes only at the drop.
+
+**A panel in view** is drawn at the slot its hops end in, the crossed neighbours slide aside by its span, and `end()` is one `move`. **A parked or
+hidden panel** is not in the row, so the row holds a gap its own width (`dropParts`): every present panel after its place in the array moves right
+by the span and the ones the drag crossed take that back. The gap is a transient element carrying `data-panel-row-drop-gap`, not a public contract.
+`end()` lands it with `landPanelIn`, an internal verb of the workspace core: place and show are two gated verbs that answer `busy` to each other
+in one turn, so one gated engine op (`land`) does both in one update. A live panel handed to it is only placed.
+
+**Refusals.** `begin` refuses an unknown, closed or pending panel, the root, a second drag while one runs, and a panel whose `movable` is false when
+the source is `'person'` (the default; `'code'` is not limited by `movable`, as the handle verbs are not). A panel that is not `crossable` stops the
+walk, so a pinned panel cannot hop over one either.
+
+**Edge scroll.** The drag takes the row scroller's claim at `begin` and runs the same frame (`stepEdgeHold`, with `edgeScrollSpeed` and
+`edgeScrollStep`) that `DragToClose` runs; the two share `panelRowDropScroll.ts`. The hop count is read again every frame, because the row scrolls
+under a pointer that has not moved. The claim goes back at `end`, `cancel` and when the row unmounts.
+
 ## PanelFrame's inset, scrollbar and header
 
 Every view renders inside `PanelFrame` so each section reads as one phone silhouette; a view that grew its
