@@ -879,7 +879,7 @@ are made again at the next launch of a newer one and panels match only between d
   value inside the blob, so none of it is saved: `WorkspacePanelState` has no field for it. A restored panel
   gets `defaultHostData()` like a created one, so a host that needs a fresh handle per panel builds it there;
   with no `defaultHostData`, or when it returns `undefined`, the panel has no `hostData` key at all.
-- **Never saved -- `size`.** Always recomputed from `slots` (`sizeOfSlots`), never round-tripped.
+- **Never saved -- `size`.** Always recomputed from `slots`, never round-tripped.
 - **Read from an older file -- `formFactor`.** A new file never writes `formFactor`. A file that has one, on an entry or in
   `overrides.formFactor`, is still read as a slot count: `phone` is 1, `tablet` 2 and `desktop` `ALL_SLOTS` (64, which the fit
   and `maxSlots` clamp). When an entry or its `overrides` holds both `formFactor` and `slots`, `slots` wins. An
@@ -941,7 +941,7 @@ resolves with, so a host may hand it unvalidated JSON.
 Hydrate draws a fresh id for EVERY saved entry before it does anything else, so a saved name that happens to
 equal a fresh id is never reused. It then builds each entry through `appendPanel`, the one creation function,
 so every default and every creation rule (`permanent` forcing `listed:false` and one slot, a slot count's
-size from `sizeOfSlots`) has no second copy, and overwrites `anchor` and `live` from the file. It copies only
+size, derived from `slots`) has no second copy, and overwrites `anchor` and `live` from the file. It copies only
 the keys it knows, which is what makes a later optional field additive (see "Versioning and failure" below).
 
 An anchor's target is mapped as follows: the root stays the root; a saved name maps to the fresh id of that entry (its `uid`
@@ -2153,7 +2153,7 @@ track place (`left`, `width`, `hollow`), the window oval's `left` and `width`, a
 no oval; the app places and styles them, so no colour, radius or border is set here.
 
 **Geometry.** The track scales the row's strip: a dot sits at its panel's strip offset and is as wide as the panel, so a wide
-panel is a wide dot. A dot never narrows below the `minDotPx` the app passes. The oval is the window (`windowWidth`) in track px,
+panel is a wide dot. The library sets no minimum dot width; the app decides one when it draws the dot. The oval is the window (`windowWidth`) in track px,
 and it fills the track while the window is unmeasured or the row fits. All of it is pure, in `rowDots.ts`.
 
 **Writes.** A click on a dot centres its panel (`centreScroll`, clamped to the row's range); a row that cannot scroll gives no
