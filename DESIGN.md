@@ -673,16 +673,14 @@ that rule protects. It deliberately leaves out phonux-app's palette, typography 
 per-component style overrides: those are this product's own branding, not something a
 third-party consumer should inherit just by taking the default.
 
-## The hierarchy: `WorkspaceGrid` > `Workspace` > `PanelRow` > `Panel` > `View`
+## The hierarchy: `Workspace` > `PanelRow` > `Panel` > `View`
 
-A `WorkspaceGrid` holds many `Workspace`s, a `Workspace` holds one or more `PanelRow`s, a `PanelRow` holds
-`Panel` slots of one or more phone widths, and each `Panel` renders one `View` -- the component a
-developer writes and registers. This folder owns `PanelRow`, the `Panel` shell and the `View` registry, plus
-the host contract that connects them; the `Panel` shell and the `View` registry are the two levels a View
-author actually touches.
+A `Workspace` holds one `PanelRow`, a `PanelRow` holds `Panel` slots of one or more phone widths, and each `Panel`
+renders one `View` -- the component a developer writes and registers. The `Panel` shell and the `View` registry are
+the two levels a View author actually touches.
 
-`PanelRow` lives in this folder; `Workspace` is a phonux component too. This section names the split the `Workspace`
-extraction moves code against, so that extraction is a rename-and-relocate pass, not a fresh design.
+`PanelRow` and `Workspace` are both phonux components. There is no grid of workspaces in the library: a host that
+needs several workspaces holds several `Workspace` values itself.
 
 **What phonux owns: `PanelRow`.** `PanelRow` renders N animated slots from a plain entries array --
 `PanelRow.tsx` (the composition) and `PanelRowSlot.tsx` (one slot's motion), over this folder's own animation
@@ -803,7 +801,7 @@ both would leave every future name ambiguous about which it meant.
 
 This section describes phonux's own half of workspace-state persistence: the saved `JsonValue` shape, the pure
 project/hydrate functions, phonux's own storage contract, and the save/restore timing. It defines no
-`WorkspaceGrid` mechanism -- one workspace, one row, a single `{version, panels}` envelope is enough, by design -- and it does not say where or how the data reaches disk; the host's own choices there are
+multi-workspace grid: one workspace, one row, a single `{version, panels}` envelope is enough, by design. It does not say where or how the data reaches disk; the host's own choices there are
 out of scope (see "Ownership and scope" below).
 
 ### The shape
@@ -1298,7 +1296,7 @@ own border/radius/background declarations would drift from the others. The frame
 `size` or `expanded` says otherwise: a slot never grows to fill space.
 
 **The view owns its content.** `PanelFrame` applies no padding, scrollbar or scroll behaviour to what it holds, and the
-library exports no look value for it: no inset, no scrollbar width, no scroller recipe (issue 309). Its inner box is a
+library exports no look value for it: no inset, no scrollbar width, no scroller recipe. Its inner box is a
 plain flex column styled only by its `sx` prop. A view that scrolls sets its own padding and `::-webkit-scrollbar` rules on
 the element that scrolls. Nothing is measured at runtime. The phone's look is the frame's border, radius and size; the
 inside is the developer's.

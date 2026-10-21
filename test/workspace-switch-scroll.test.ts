@@ -1,8 +1,7 @@
 /**
  * A workspace switch moves the column's track with the slide, and snaps when Reduce Motion is asked for by MotionConfig.
  * This file keeps the system query off, so MotionConfig is the only source here. The system query alone is in
- * workspace-switch-scroll-system.test.ts, because Motion reads the query once per module. The browser side is
- * proof/rc4-workspace-switch-scroll.
+ * workspace-switch-scroll-system.test.ts, because Motion reads the query once per module.
  */
 import './support/jsdom-globals.js';
 import { afterEach, test } from 'node:test';
