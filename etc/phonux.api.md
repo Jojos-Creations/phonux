@@ -1411,6 +1411,7 @@ export interface WorkspaceColumnHandle {
     readonly current: number;
     dispose(): void;
     movePanel(from: WorkspaceHandle | number, panelId: PanelId, to: WorkspaceHandle | number): MovePanelResult;
+    removeWorkspace(target: WorkspaceHandle | number): boolean;
     scrollTo(target: WorkspaceHandle | number): void;
     readonly status: ColumnStatus;
     step(direction: 'up' | 'down'): boolean;
