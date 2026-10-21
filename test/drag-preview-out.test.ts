@@ -29,7 +29,10 @@ function mountPreviewBox(exitFor: (end: GrabDragEnd) => PreviewExit | null, onCl
 test('a vertical drag past the threshold grabs a tile, and a release with no side leaves the panel in place', async () => {
   const calls: Array<GrabDragEnd> = [];
   let closes = 0;
-  const { handle } = mountPreviewBox((end) => (calls.push(end), null), () => (closes += 1));
+  const { handle } = mountPreviewBox((end) => {
+    calls.push(end);
+    return null;
+  }, () => (closes += 1));
   await drag(handle, { dx: 0, dy: 120, steps: 4, hold: 8 });
   await advanceFrames(2000);
   assert.equal(document.querySelectorAll('[data-drag-preview]').length, 0, 'the tile is gone once released');
