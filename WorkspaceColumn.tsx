@@ -1,7 +1,7 @@
 /**
  * The column component: every workspace of a `WorkspaceColumnHandle` in a cell of its own, one above the other, with the current
- * one in view. The person moves by ArrowUp/ArrowDown and by the buttons at the top and bottom centre, which name the neighbour
- * or offer to create one; the column itself never scrolls under a wheel or a trackpad. DESIGN.md, "The workspace column".
+ * one in view. The person moves by the buttons at the top and bottom centre, which name the neighbour or offer to create one, and
+ * by whatever key the app binds to `step`; the column itself never scrolls under a wheel or a trackpad. DESIGN.md, "The workspace column".
  */
 import * as React from 'react';
 import { useReducedMotion, useReducedMotionConfig } from 'motion/react';
@@ -10,7 +10,6 @@ import Button from '@mui/material/Button';
 import InputBase from '@mui/material/InputBase';
 import { slideToTransition } from './directionalTransition.js';
 import { resolveLabels } from './labels.js';
-import { arrowKeyBelongsElsewhere } from './arrowKeys.js';
 import { resolveWorkspaceTuning } from './panelTuning.js';
 import { columnCoreOf, type WorkspaceColumnHandle } from './columnHandle.js';
 import type { WorkspaceHandle } from './workspaceCore.js';
@@ -86,17 +85,6 @@ export function WorkspaceColumn({ column, children }: WorkspaceColumnProps): Rea
   if (snap.status === 'ready' && placedAt.current === null) placedAt.current = snap.current;
   if (placedAt.current !== null && snap.current !== placedAt.current) moved.current = true;
   const placed = moved.current;
-
-  React.useEffect(() => {
-    const onKeyDown = (e: KeyboardEvent): void => {
-      if (e.key !== 'ArrowUp' && e.key !== 'ArrowDown') return;
-      // A held key repeats: the column steps once per press, where the row keeps stepping while a key is held.
-      if (e.repeat || arrowKeyBelongsElsewhere(e, document)) return;
-      if (column.step(e.key === 'ArrowUp' ? 'up' : 'down')) e.preventDefault();
-    };
-    window.addEventListener('keydown', onKeyDown);
-    return () => window.removeEventListener('keydown', onKeyDown);
-  }, [column]);
 
   // An inert cell drops the focus inside it; the arrow keys keep working only if focus lands somewhere in the column again.
   React.useLayoutEffect(() => {

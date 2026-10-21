@@ -1,7 +1,7 @@
 /**
- * The workspace column: addWorkspace is the one way in, ArrowUp/ArrowDown and the neighbour buttons are the only way to move, the
- * name input renames, off-screen cells are inert, and the saved list restores around what code added. A mutant that drops a hotkey
- * guard, the inert flag or the create-and-scroll fails a test here.
+ * The workspace column: addWorkspace is the one way in, step and the neighbour buttons are the only way to move, the
+ * name input renames, off-screen cells are inert, and the saved list restores around what code added. A mutant that drops the inert
+ * flag or the create-and-scroll fails a test here.
  */
 import { afterEach, test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -79,61 +79,25 @@ test('an id already in the column is refused, and a disposed column refuses an a
   assert.throws(() => c.addWorkspace(), { code: 'disposed' });
 });
 
-test('ArrowDown and ArrowUp move the current workspace and stop at the ends', async () => {
+test('step moves the current workspace and stops at the ends', async () => {
   const c = await three();
-  assert.equal(key(window, 'ArrowUp').defaultPrevented, false, 'nothing above the first');
+  assert.equal(c.step('up'), false, 'nothing above the first');
   assert.equal(c.current, 0);
-  assert.equal(key(window, 'ArrowDown').defaultPrevented, true);
-  key(window, 'ArrowDown');
-  key(window, 'ArrowDown');
+  assert.equal(c.step('down'), true);
+  c.step('down');
+  c.step('down');
   assert.equal(c.current, 2);
-  key(window, 'ArrowUp');
+  c.step('up');
   assert.equal(c.current, 1);
 });
 
-test('the keys do nothing while focus is in a field, a widget, an editor, or a dialog is open', async () => {
+test('no arrow key moves the column: the app binds a key to step', async () => {
   const c = await three();
-  const host = document.createElement('div');
-  document.body.appendChild(host);
-  const make1 = (tag: string, attrs: Record<string, string> = {}): HTMLElement => {
-    const el = document.createElement(tag);
-    for (const [k, v] of Object.entries(attrs)) el.setAttribute(k, v);
-    host.replaceChildren(el);
-    return el;
-  };
-  const fields: Array<[string, () => HTMLElement]> = [
-    ['input', () => make1('input')],
-    ['textarea', () => make1('textarea')],
-    ['select', () => make1('select')],
-    ['contenteditable', () => make1('div', { contenteditable: 'true' })],
-    ['textbox role', () => make1('div', { role: 'textbox' })],
-    ['combobox role', () => make1('div', { role: 'combobox' })],
-    ['keyboard drag', () => make1('div', { 'aria-pressed': 'true', 'aria-roledescription': 'Draggable' })],
-  ];
-  for (const [name, build] of fields) {
-    key(build(), 'ArrowDown');
-    assert.equal(c.current, 0, `${name} keeps the key`);
+  for (const k of ['ArrowUp', 'ArrowDown']) {
+    assert.equal(key(window, k).defaultPrevented, false, `${k} on the window`);
+    assert.equal(key(document.body, k).defaultPrevented, false, `${k} on the body`);
   }
-  const plain = make1('div');
-  key(plain, 'ArrowDown', { shiftKey: true });
-  key(plain, 'ArrowDown', { altKey: true });
-  key(plain, 'ArrowDown', { ctrlKey: true });
-  key(plain, 'ArrowDown', { metaKey: true });
-  key(plain, 'ArrowDown', { repeat: true });
-  key(plain, 'ArrowDown', { isComposing: true });
-  assert.equal(c.current, 0, 'modified, repeated and composing keys are left alone');
-  const taken = new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true, cancelable: true });
-  plain.addEventListener('keydown', (e) => e.preventDefault(), { once: true });
-  act(() => void plain.dispatchEvent(taken));
-  assert.equal(c.current, 0, 'a key a handler took is left alone');
-  const dialog = document.createElement('div');
-  dialog.setAttribute('aria-modal', 'true');
-  document.body.appendChild(dialog);
-  key(plain, 'ArrowDown');
-  assert.equal(c.current, 0, 'an open dialog keeps the key');
-  dialog.remove();
-  key(plain, 'ArrowDown');
-  assert.equal(c.current, 1, 'and the plain key then moves');
+  assert.equal(c.current, 0, 'bare keys leave the column where it is');
 });
 
 test('arrowKeyBelongsElsewhere is false for a bare key on the body', () => {
