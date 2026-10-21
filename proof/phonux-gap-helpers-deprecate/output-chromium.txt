@@ -1,5 +1,0 @@
-PASS bare: the box, the frame and the slot are one width :: {"slot":804,"box":804,"frame":804}
-PASS bare: two slots are two phones and the tuned 24 px gap :: 804, a phone is 390
-PASS own: the box, the frame and the slot are one width :: {"slot":804,"box":804,"frame":804}
-PASS own: two slots are two phones and the tuned 24 px gap :: 804, a phone is 390
-PASS no console errors

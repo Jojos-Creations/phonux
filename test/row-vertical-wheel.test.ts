@@ -1,7 +1,6 @@
 /**
  * A stepping row does not scroll vertically: its overflow box is overflowY hidden, so a vertical wheel over the row,
- * or over a plain panel in it, cannot move the row up off its workspace. A panel's own inner scroller still scrolls, and
- * proof/rc4-vertical-wheel-keeps-row shows that in Chromium.
+ * or over a plain panel in it, cannot move the row up off its workspace. A panel's own inner scroller still scrolls.
  */
 import { test, afterEach } from 'node:test';
 import assert from 'node:assert/strict';

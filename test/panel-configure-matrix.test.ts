@@ -1602,7 +1602,7 @@ const REMOVED_AFTER_DESIGN: readonly string[] = ['formFactor', 'formFactors', 'h
 const ADDED_AFTER_DESIGN: readonly string[] = ['tuning.defaultEnterFrom', 'tuning.defaultExitTo', 'tuning.maxLivePanels', 'tuning.chrome', 'slots', 'maxSlots', 'tuning.resizeSettleSlides', 'tuning.phoneFit', 'tuning.phoneFitMin', 'tuning.phoneFitMax', 'hollowDot', 'movable'];
 
 test('the probes ran every catalog name once: 53 executed, equal to the catalog and to the design copy of it plus the names added after it', () => {
-  const design = JSON.parse(readFileSync(new URL('../design/0.2-rev7/DESIGN-phonux-0.2-rev7-catalog.json', import.meta.url), 'utf8')) as { name: string }[];
+  const design = JSON.parse(readFileSync(new URL('./fixtures/catalog-design-copy.json', import.meta.url), 'utf8')) as { name: string }[];
   assert.equal(design.length, 62);
   assert.equal(CATALOG_NAMES.length, 53);
   assert.equal(probesExecuted().size, 53);
