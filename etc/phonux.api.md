@@ -248,6 +248,8 @@ export function DragToClose(input: {
     closeOnRelease?: boolean;
     onDragMove?: (move: GrabDragMove) => void;
     onDragEnd?: (end: GrabDragEnd) => void;
+    previewOut?: PreviewOut;
+    exitFor?: (end: GrabDragEnd) => PreviewExit | null;
     children: (handle: DragHandleProps) => React_2.ReactNode;
 }): React_2.ReactElement;
 
@@ -986,6 +988,16 @@ export type PinResult = PanelResult & {
 
 // @public
 export type PinWhenNotLive = 'place-only' | 'refuse' | 'show' | 'apply-on-next-show';
+
+// @public
+export type PreviewExit = 'top' | 'bottom';
+
+// @public
+export interface PreviewOut {
+    height: number;
+    render: () => React_2.ReactNode;
+    width: number;
+}
 
 // @public
 export interface ProvidedPanels extends PanelsAPI {
