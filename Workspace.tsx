@@ -22,7 +22,7 @@ import { RowHeightContext } from './panelTuning.js';
 import { bindingOf, type WorkspaceHandle } from './workspaceCore.js';
 import { ChromeStoreContext, createChromeStore, type DrawnPin } from './panelChrome.js';
 import { rowBottomReservePx } from './panelChromeSize.js';
-import { ROW_GAP, ROW_GESTURE } from './rowConstants.js';
+import { ROW_GAP } from './rowConstants.js';
 import { nearestStop, scrollHoldingEdge, snapToStop, type RowNumbers } from './rowNumbers.js';
 import { rowScrollerFor } from './rowScroller.js';
 import { OverlaySlot } from './windowOverlay.js';
@@ -71,7 +71,7 @@ export interface WorkspaceShellStyle {
    * never scrolls it and its wheel listener can stay passive.
    */
   overflowX: 'hidden';
-  /** True when the container scrolls but shows no scrollbar: a scrolling row whose gesture is 'step'. */
+  /** True when the row scrolls: the row never shows a native scrollbar. Panel bodies keep their own. */
   hideScrollbar: boolean;
 }
 
@@ -85,14 +85,13 @@ export function workspaceShellStyle(i: WorkspaceShellStyleInput): WorkspaceShell
       ? i.rowNumbers.rowMarginLeft
       : computeRowLayout({ containerWidth: i.containerWidth, phoneWidth: i.phoneWidth, gap: i.gap ?? ROW_GAP, fixedItemCount: i.fixedColumnCount, liveWidths: i.liveWidths }).computedRowMarginLeft;
   const scrolls = i.rowNumbers?.rowScroll ?? i.rowScroll ?? false;
-  const gesture = i.rowGesture ?? ROW_GESTURE;
   return {
     marginLeft,
     // The margin snaps while stops exist, or the scrollable width would be short of where a stop sits. A panel resize glides anyway:
     // a grow that overflows the window adds its stops in the render that moves the margin, and a snap there jumps every panel.
     transition: i.rowResizeSettled && (i.panelResizing === true || !(i.rowNumbers !== undefined && i.rowNumbers.stops.length > 0)) ? (i.slide === undefined ? PANEL_TRANSITION : slideToTransition(i.slide)) : { duration: 0 },
     overflowX: 'hidden',
-    hideScrollbar: scrolls && gesture === 'step',
+    hideScrollbar: scrolls,
   };
 }
 

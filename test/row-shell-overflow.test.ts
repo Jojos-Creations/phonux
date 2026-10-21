@@ -40,9 +40,9 @@ test("workspaceShellStyle: a scrolling row with rowGesture 'step' is overflow hi
   assert.equal(shell({ rowNumbers: rowOf(2) }).hideScrollbar, true, "step is the default gesture");
 });
 
-test("workspaceShellStyle: a scrolling row with rowGesture 'off' does not scroll", () => {
+test("workspaceShellStyle: a scrolling row with rowGesture 'off' is overflow hidden and still hides its scrollbar", () => {
   const s = shell({ rowNumbers: rowOf(2), rowGesture: 'off' });
-  assert.deepEqual([s.overflowX, s.hideScrollbar], ['hidden', false]);
+  assert.deepEqual([s.overflowX, s.hideScrollbar], ['hidden', true]);
 });
 
 test("workspaceShellStyle: the margin is the numbers' rowMarginLeft, 0 for eleven panels and 86 for two", () => {
@@ -77,9 +77,9 @@ test("a mounted Workspace for a scrolling row at rowGesture 'step' emits overflo
   assert.match(markup, WEBKIT_RULE);
 });
 
-test("a mounted Workspace at rowGesture 'off' emits overflow-x:hidden with neither scrollbar-hiding rule", () => {
+test("a mounted Workspace at rowGesture 'off' emits overflow-x:hidden and both scrollbar-hiding rules", () => {
   const markup = markupOf(rowOf(2), { rowGesture: 'off' });
   assert.match(markup, /overflow-x:hidden/);
-  assert.doesNotMatch(markup, HIDES_SCROLLBAR);
-  assert.doesNotMatch(markup, WEBKIT_RULE);
+  assert.match(markup, HIDES_SCROLLBAR);
+  assert.match(markup, WEBKIT_RULE);
 });

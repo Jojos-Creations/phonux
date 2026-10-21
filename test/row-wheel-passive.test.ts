@@ -120,7 +120,8 @@ test('the shell hides the horizontal overflow of a scrolling row, whether it ste
   assert.equal(workspaceShellStyle({ ...SHELL, rowScroll: true, rowGesture: 'off' }).overflowX, 'hidden');
 });
 
-test('a stepping row hides its scrollbar, and an off row has none to hide', () => {
+test('a scrolling row hides its scrollbar whether it steps or not, and a row that does not scroll keeps none to hide', () => {
   assert.equal(workspaceShellStyle({ ...SHELL, rowScroll: true, rowGesture: 'step' }).hideScrollbar, true);
-  assert.equal(workspaceShellStyle({ ...SHELL, rowScroll: true, rowGesture: 'off' }).hideScrollbar, false);
+  assert.equal(workspaceShellStyle({ ...SHELL, rowScroll: true, rowGesture: 'off' }).hideScrollbar, true);
+  assert.equal(workspaceShellStyle({ ...SHELL, rowScroll: false, rowGesture: 'step' }).hideScrollbar, false);
 });
