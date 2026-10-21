@@ -4,6 +4,7 @@
 
 ### Breaking
 
+- The workspace column no longer listens for bare ArrowUp/ArrowDown. The column binds no key: `column.step('up' | 'down')` is the one way a key moves it, and an app binds its own (phonux-app uses Option+Up/Down). **Migration:** a host that relied on bare arrows binds a key to `step`, applying `arrowKeyBelongsElsewhere` (or its own guard) first.
 - A panel's `size` is derived, never stored: `PanelWindow.size` and `sizeOfSlots` are removed, and `applyTemplate`, `setSlots` and a settings reset no longer write one. `PanelSummary.size` stays and is the size the row draws the slot at (its drawn width and height), so it is always present in a row. `PanelRowEntry` has no `size`. **Migration:** a hand-built `PanelWindow` drops `size`; a saved workspace never held one, and one that is handed an entry carrying it ignores it.
 - `PanelSlotValue.slotRange` is removed (nothing read it). `maxSlots` is exposed through `usePanelCapabilities()` for views and `PanelSummary.maxSlots` for hosts. `pinned` has one source, `isPinned`: the slot's own flag followed a left-of-root formula and disagreed with `PanelState.pinned` under a `pinning` that reads by `parkable`.
 
