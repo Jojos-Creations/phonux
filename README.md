@@ -63,6 +63,7 @@ const notes = definePanel({ id: 'notes', view: NotesView });
 const column = createWorkspaceColumn({ templates: [notes] });
 column.addWorkspace().addPanel('notes'); // "Workspace 1"
 column.addWorkspace({ name: 'Reading' }); // or give it a name
+column.removeWorkspace(0); // takes it out and disposes it; false for the last one
 ```
 
 The column renders itself. ArrowUp and ArrowDown (when focus is not in a field or dialog) move between workspaces, a button at the top
