@@ -744,7 +744,7 @@ chosen at creation (the smallest number no name in the column uses) and stored, 
 (`workspaceName.ts`): the name is trimmed and cut to `MAX_WORKSPACE_NAME` (60) characters; a name empty after trimming changes nothing and
 the input shows the old name again; Escape discards the draft; two workspaces may share a name. Deleting a workspace is out of scope.
 
-**Switch motion.** Every way of moving the column (ArrowUp/ArrowDown, the neighbour buttons, `scrollTo`, `step`, and a new workspace made current) changes the track's `translateY` with the slide from `resolveWorkspaceTuning(...).slide`. The track snaps instead when Reduce Motion is on, from MotionConfig or from the system query alone, and the regression tests pin each source (`test/workspace-switch-scroll*.test.ts`); `proof/rc4-workspace-switch-scroll` samples the transform every frame in Chromium. A row that moves horizontally inside a workspace is a separate mechanism (`rowScroller.ts`) and is not part of this.
+**Switch motion.** Every way of moving the column (ArrowUp/ArrowDown, the neighbour buttons, `scrollTo`, `step`, and a new workspace made current) changes the track's `translateY` with the slide from `resolveWorkspaceTuning(...).slide`. The track snaps instead when Reduce Motion is on, from MotionConfig or from the system query alone, and the regression tests pin each source (`test/workspace-switch-scroll*.test.ts`). A row that moves horizontally inside a workspace is a separate mechanism (`rowScroller.ts`) and is not part of this.
 
 **Saved list.** `ColumnState` is `{ version: 1, workspaces: [{ id, name }], current }`. It is read once; workspaces code added before it
 arrived keep their handle and take the saved name, the saved order wins, and any that the list does not know follow it. A record that
@@ -2128,6 +2128,14 @@ and a published version is never edited: a fix is a new version, and `CHANGELOG.
 runs the typecheck, the tests, the build, the API report check and the smoke on a pull request into `release` and on dispatch;
 a pull request into `main` runs no cloud check.
 
+### Release candidate base
+
+`0.2.0-rc.3` is built from this commit of `main`; library source changed since `0.2.0-rc.1`, and the CHANGELOG sections
+for `0.2.0-rc.2` and `0.2.0-rc.3` list what.
+
+```text
+base: b1b9a6702574742dadf2a66cf934a8a07d5c678b
+```
 
 No real browser has measured this tree. Every claim about real layout, scrolling or painting stays not run; the jsdom and unit
 suites are the only evidence behind this candidate.
