@@ -25,6 +25,9 @@ export const DRAG_CLOSE_NUMBERS = Object.freeze({
 /** The first this many px of either axis decide which direction a drag locks to. */
 export const DIRECTION_LOCK_PX = 8;
 
+/** How far a vertical drag travels before its preview is grabbed; until then the box does not move. */
+export const PREVIEW_OUT_PX = 24;
+
 /** The spring a released drag-to-close box snaps back with. */
 export const SNAP_BACK_SPRING = Object.freeze({ stiffness: 520, damping: 42 });
 

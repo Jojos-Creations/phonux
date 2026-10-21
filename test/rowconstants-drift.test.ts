@@ -105,13 +105,14 @@ test('rowConstants: every exported constant reaches LIBRARY_TUNING_DEFAULTS, so 
   assert.equal(t.phoneFitMax, rowConstants.PHONE_FIT_MAX);
   assert.equal(rowConstants.RESIZE_SETTLE_SLIDES, 1.25);
   assert.equal(rowConstants.DIRECTION_LOCK_PX, 8);
+  assert.equal(rowConstants.PREVIEW_OUT_PX, 24);
   assert.deepEqual({ ...rowConstants.SNAP_BACK_SPRING }, { stiffness: 520, damping: 42 });
   assert.equal(rowConstants.DRAG_REST_MS, 50);
   assert.equal(rowConstants.DRAG_VELOCITY_WINDOW_MS, 100);
   assert.deepEqual([rowConstants.HEADER_GAP_PX, rowConstants.GRAB_HANDLE_PX, rowConstants.HEADER_INSET_PX, rowConstants.FOOTER_PAD_X_PX, rowConstants.FOOTER_PAD_Y_PX], [4, 24, 13, 12, 8]);
   assert.equal(rowConstants.ALL_SLOTS, 64);
   assert.equal(rowConstants.UNMEASURED_SLOTS, 3);
-  assert.equal(Object.keys(rowConstants).length, 37, 'the module exports exactly the 31 constants this test compares, the 4 slot constants and the 2 slot helpers');
+  assert.equal(Object.keys(rowConstants).length, 38, 'the module exports exactly the 32 constants this test compares, the 4 slot constants and the 2 slot helpers');
 });
 
 test('rowConstants: no source file outside rowConstants.ts declares its own copy of the save delay or the gesture lock', () => {

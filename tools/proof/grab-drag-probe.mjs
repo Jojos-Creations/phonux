@@ -113,7 +113,7 @@ try {
     const el = document.elementFromPoint(x, y);
     if (!el) return 'none';
     const slot = el.closest('[data-row-slot]');
-    if (slot) return 'slot:' + (slot.querySelector('[data-body]')?.dataset.body ?? '?');
+    if (slot) return `slot:${slot.querySelector('[data-body]')?.dataset.body ?? '?'}`;
     if (el.closest('#cover')) return 'cover';
     if (el.closest('#name-strip')) return 'name-strip';
     if (el.closest('#dot-bar')) return 'dot-bar';

@@ -1226,6 +1226,8 @@ horizontal never evaluates `shouldCloseOnRelease`, so residual vertical jitter c
 locked vertical, or one that never locks (a sub-threshold jiggle), runs the close logic unchanged. Without
 `reorder`, for a handle that only closes (History's bar, never a reorder source), only the vertical offset is followed.
 
+**Vertical preview (`previewOut`, `exitFor`).** With `previewOut` set, a vertical drag does not move the box until it passes `PREVIEW_OUT_PX`; past it a tile of the given `width` and `height` is drawn in the body at the pointer and follows it. The box stays in its slot. On release `exitFor(end)` picks the side: `'top'` or `'bottom'` slides the real box out that way and then calls `onClose`; `null` drops the tile and the box stays where it is. A release before the threshold moves nothing. The tile is portalled to the body, because the box is transformed and would make a fixed position relative to it. The horizontal lock and the drag-close rule without `previewOut` are unchanged.
+
 **Live reorder.** While a horizontal drag is held, the box publishes its offset to the row (the slot's `previewReorder`): the
 release's own expression, the pointer offset (edge-held) or the drag offset, plus the row's scroll distance, never the drawn
 `x`, which `cap` may clamp. The box applies no hop rule itself; `PanelRow` turns the offset into hops with

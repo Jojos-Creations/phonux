@@ -5,6 +5,7 @@
  */
 
 import * as React from 'react';
+import { createPortal } from 'react-dom';
 import { DndContext, PointerSensor, useDndMonitor, useDraggable, useSensor, useSensors } from '@dnd-kit/core';
 import { animate, cancelFrame, frame, motion, useIsPresent, useMotionValue, useReducedMotion, useReducedMotionConfig, useTransform, type MotionValue } from 'motion/react';
 import { AnnounceContext } from './announce.js';
@@ -14,7 +15,7 @@ import { PanelSlotContext, type DragScroll } from './panelSlotContext.js';
 import { endEdgeHold, openEdgeHold, stepEdgeHold, type EdgeHold } from './panelRowDropScroll.js';
 import { closestRowScroller, rowScrollerFor } from './rowScroller.js';
 import type { DragToCloseTuning } from './panelSettings.js';
-import { CLOSE_EXIT_EASE, DIRECTION_LOCK_PX, DRAG_CLOSE_NUMBERS, DRAG_REST_MS, DRAG_VELOCITY_WINDOW_MS, SLIDE_CLOSE_EXIT_SECONDS, SNAP_BACK_SPRING } from './rowConstants.js';
+import { CLOSE_EXIT_EASE, DIRECTION_LOCK_PX, DRAG_CLOSE_NUMBERS, DRAG_REST_MS, DRAG_VELOCITY_WINDOW_MS, PREVIEW_OUT_PX, ROW_LAYER_Z, SLIDE_CLOSE_EXIT_SECONDS, SNAP_BACK_SPRING } from './rowConstants.js';
 
 /**
  * The library's default drag-to-close numbers. Distances in px, velocities in px/s, positive = downward.
@@ -324,6 +325,23 @@ export interface GrabDragEnd {
   clientY: number;
 }
 
+/** The side a vertically dragged panel slides out to when its preview is dropped there. @public */
+export type PreviewExit = 'top' | 'bottom';
+
+/**
+ * The tile a vertical drag pops out. `width` and `height` are the tile's size in px; `render` draws its content, typically a
+ * snapshot of the panel. The panel itself stays in its slot while the tile is dragged.
+ * @public
+ */
+export interface PreviewOut {
+  /** The tile's width in px. */
+  width: number;
+  /** The tile's height in px. */
+  height: number;
+  /** Draws the tile's content; called while a preview is out. */
+  render: () => React.ReactNode;
+}
+
 /**
  * A box whose grab handle, dragged down far enough, calls `onClose`; with `reorder`, the same handle also drags
  * sideways. `onClose` must remove the view, because a close never unlocks the scroll ancestors.
@@ -349,6 +367,16 @@ export function DragToClose(input: {
    * let go. Not called when the gesture is cancelled (a native pan, the Escape key), and not for a press that never became a drag.
    */
   onDragEnd?: (end: GrabDragEnd) => void;
+  /**
+   * When set, a vertical drag past `PREVIEW_OUT_PX` grabs a tile-size preview instead of moving the box, and the box stays in its slot.
+   * Pair with `exitFor` to say where a dropped preview's panel leaves to.
+   */
+  previewOut?: PreviewOut;
+  /**
+   * Called once at release when a preview is out, to choose the side the real panel slides out to: 'top' or 'bottom' closes the box
+   * that way (then `onClose` runs), and null drops the preview and leaves the panel where it is. Not called without `previewOut`.
+   */
+  exitFor?: (end: GrabDragEnd) => PreviewExit | null;
   /** Render prop: receives the handle props to spread onto the grab bar, and returns the box's content. */
   children: (handle: DragHandleProps) => React.ReactNode;
 }): React.ReactElement {
@@ -377,6 +405,8 @@ function DragToCloseBox({
   closeOnRelease = true,
   onDragMove,
   onDragEnd,
+  previewOut,
+  exitFor,
   children,
 }: {
   onClose?: () => void;
@@ -384,6 +414,8 @@ function DragToCloseBox({
   closeOnRelease?: boolean;
   onDragMove?: (move: GrabDragMove) => void;
   onDragEnd?: (end: GrabDragEnd) => void;
+  previewOut?: PreviewOut;
+  exitFor?: (end: GrabDragEnd) => PreviewExit | null;
   children: (handle: DragHandleProps) => React.ReactNode;
 }): React.ReactElement {
   const draggable = useDraggable({ id: React.useId() });
@@ -429,6 +461,14 @@ function DragToCloseBox({
   // Read by the window listener, which is made once and outlives the render that made it.
   const dragMoveRef = React.useRef(onDragMove);
   dragMoveRef.current = onDragMove;
+  const previewOutRef = React.useRef(previewOut);
+  previewOutRef.current = previewOut;
+  const exitForRef = React.useRef(exitFor);
+  exitForRef.current = exitFor;
+  // The pointer's position while a vertical preview is out, or null: the tile is drawn at it.
+  const [previewAt, setPreviewAt] = React.useState<{ x: number; y: number } | null>(null);
+  // Set once a vertical drag passes PREVIEW_OUT_PX with a preview set; the box then never moves on that drag.
+  const previewing = React.useRef(false);
   // Read by the frame step and the release, which outlive the render that started them.
   const slotRef = React.useRef(slot);
   slotRef.current = slot;
@@ -584,6 +624,11 @@ function DragToCloseBox({
     if (axisLock.current === 'x') {
       x.set(edge.cap(dx));
       y.set(0);
+    } else if (previewOutRef.current !== undefined) {
+      x.set(0);
+      y.set(0);
+      if (!previewing.current && Math.abs(dy) >= PREVIEW_OUT_PX) previewing.current = true;
+      if (previewing.current) setPreviewAt({ x: pointer.current.x, y: pointer.current.y });
     } else {
       x.set(0);
       y.set(dy);
@@ -609,6 +654,8 @@ function DragToCloseBox({
   useDndMonitor({
     onDragCancel: () => {
       stoppedSpring.current = false;
+      previewing.current = false;
+      setPreviewAt(null);
       if (previewed.current !== null) preview(0);
       stopFollowing();
       axisLock.current = null;
@@ -680,6 +727,30 @@ function DragToCloseBox({
       if (reorder) x.jump(0); // residual sub-threshold horizontal drift from a gesture that never locked (or locked vertical)
       const rect = box.current?.getBoundingClientRect();
       const height = rect?.height ?? 0;
+      if (previewOutRef.current !== undefined) {
+        // A preview drag never moves the box, so the only motion here is the exit the caller picks for a dropped preview.
+        const wasPreviewing = previewing.current;
+        previewing.current = false;
+        setPreviewAt(null);
+        const side = wasPreviewing && wasEngaged && closableRef.current ? (exitForRef.current?.({ offsetX: dx, offsetY: dy, clientX: pointer.current.x, clientY: pointer.current.y }) ?? null) : null;
+        if (side === null || closeRef.current === undefined) {
+          unlockScrollParents();
+          return;
+        }
+        if (reduceMotion) return closeRef.current();
+        const distance = side === 'bottom' ? Math.max(height, window.innerHeight - (rect?.top ?? 0)) : -Math.max(height, rect?.bottom ?? 0);
+        const exit = animate(y, distance, { duration: exitSeconds, ease: exitEase });
+        running.current = exit;
+        closing.current = true;
+        void exit.then(() => {
+          if (closeRef.current !== undefined && closableRef.current) return closeRef.current();
+          closing.current = false;
+          const back = animate(y, 0, snapBack);
+          running.current = back;
+          void back.then(unlockScrollParents);
+        });
+        return;
+      }
       const recent = samples.current;
       const last = recent[recent.length - 1];
       const rested = released.current - (last?.t ?? 0) > DRAG_REST_MS;
@@ -755,16 +826,31 @@ function DragToCloseBox({
         }),
   };
 
+  // In the body, not in the box: the box is transformed, which would make a fixed position relative to it.
+  const tile = previewOut !== undefined && previewAt !== null && typeof document !== 'undefined'
+    ? createPortal(
+        <div
+          data-drag-preview=""
+          style={{ position: 'fixed', left: previewAt.x - previewOut.width / 2, top: previewAt.y - previewOut.height / 2, width: previewOut.width, height: previewOut.height, pointerEvents: 'none', zIndex: ROW_LAYER_Z.DRAGGED + 1000 }}
+        >
+          {previewOut.render()}
+        </div>,
+        document.body,
+      )
+    : null;
   return (
-    <motion.div
-      ref={(el: HTMLDivElement | null) => {
-        box.current = el;
-        draggable.setNodeRef(el);
-      }}
-      data-drag-to-close=""
-      style={reorder ? { x, y, translate: scrollTranslate } : { y }}
-    >
-      {children(handle)}
-    </motion.div>
+    <>
+      <motion.div
+        ref={(el: HTMLDivElement | null) => {
+          box.current = el;
+          draggable.setNodeRef(el);
+        }}
+        data-drag-to-close=""
+        style={reorder ? { x, y, translate: scrollTranslate } : { y }}
+      >
+        {children(handle)}
+      </motion.div>
+      {tile}
+    </>
   );
 }
