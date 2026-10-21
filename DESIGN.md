@@ -1492,39 +1492,6 @@ Read by a verb or a view patch: `parkable`, `pinning`, `slots`, `maxSlots`, `mov
 `hideStickiness`, `startVisibility`, `placeOnAdd`, `placeOnShow`, `scrollOnOpen`, `showWhenClosed`,
 `toggleWhenClosed`, `afterClose`, `enterFrom`, `clearable` (`clearAll`) and `maxInstances` (`configureTemplate`).
 
-### Settings this version removed
-
-Eighteen settings are gone from `PanelSettings`, the catalog and every patch type, and each panel behaves as the
-setting's default did. A template that still names one gets one development `console.error` per key and the value is
-ignored; the next rc refuses it with `invalid-settings`. A saved file's instance layer that holds one loads, drops
-the key with an `invalid-saved-setting` note and keeps every other value.
-
-| Removed | Fixed at |
-| --- | --- |
-| `hideWhenLast` | `allow`: a hide is never refused for emptying the row |
-| `returnPriority`, `evictionRank` | 0: no ranking, so the workspace's tie-break tuning and the order of the row decide |
-| `evictionOrder` | `least-recently-touched`: room is made by parking the panel touched longest ago |
-| `scrollOnDrag` | `edge` |
-| `viewState` | `keep` |
-| `keepMounted` | false |
-| `frame` | `auto` |
-| `placeOnReturn` | `in-place` |
-| `placeFallback` | `row-end` |
-| `undoPlacement` | `old-slot` |
-| `closeExit` | `down`: an `exitTo` of `auto` closes downward |
-| `animated` | true |
-| `persist`, `rememberLayout` | `saved` and true |
-| `undoWindowMs` | 10000 |
-| `reportClose` | true |
-| `snapshot` | `both` |
-
-Coupling rules C3 and C6 went with their settings; the other rules keep their numbers.
-
-`draggable` and `placeable` merged into `movable`, and a template that still names either throws `invalid-settings`
-naming `movable`, as one that carries `tuning` does. A saved instance layer that holds both with the same boolean loads as `movable` with an `invalid-saved-setting`
-note; one that holds only one of them, or two that disagree, drops the key with that note, because either alone
-does not say what `movable` should be.
-
 ### The capability flags limit a person's gestures
 
 `closable`, `movable` and `resizable` say what a person may do by gesture: the drag-down close and the close button,
@@ -2161,14 +2128,6 @@ and a published version is never edited: a fix is a new version, and `CHANGELOG.
 runs the typecheck, the tests, the build, the API report check and the smoke on a pull request into `release` and on dispatch;
 a pull request into `main` runs no cloud check.
 
-### Release candidate base
-
-`0.2.0-rc.3` is built from this commit of `main`; library source changed since `0.2.0-rc.1`, and the CHANGELOG sections
-for `0.2.0-rc.2` and `0.2.0-rc.3` list what.
-
-```text
-base: b1b9a6702574742dadf2a66cf934a8a07d5c678b
-```
 
 No real browser has measured this tree. Every claim about real layout, scrolling or painting stays not run; the jsdom and unit
 suites are the only evidence behind this candidate.
