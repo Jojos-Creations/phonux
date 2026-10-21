@@ -136,6 +136,7 @@ function isSavedPanel(value: unknown): value is WorkspacePanelState {
 /**
  * Whether `value` is a workspace file this version understands: version 1, a `panels` array of well-typed entries
  * with unique ids where they hold one. Unknown extra keys are accepted (a later optional field is additive); `params` is not deep-checked.
+ * @public
  */
 export function isWorkspaceState(value: unknown): value is WorkspaceState {
   if (!isRecord(value) || value.version !== 1 || !Array.isArray(value.panels)) return false;
