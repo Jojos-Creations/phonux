@@ -90,6 +90,14 @@ export interface WorkspaceColumnHandle {
   /** Moves to the workspace above or below; false at the end of the column. */
   step(direction: 'up' | 'down'): boolean;
   /**
+   * Takes the workspace `target` (a handle of this column, or an index) out of the column and disposes it, so its panels and
+   * history leave the screen. Its saved panels are not deleted: the saved list no longer names it, and deleting them is the
+   * app's job. When it was the current workspace, the one below becomes current, or the one above when it was the last.
+   * Returns false and changes nothing for the last workspace in the column, a workspace that is not in it, a column still
+   * reading its saved list (which would bring the workspace back), and a disposed column.
+   */
+  removeWorkspace(target: WorkspaceHandle | number): boolean;
+  /**
    * Moves the panel `panelId` from the workspace `from` to the end of the row of the workspace `to`, in the same column. Each
    * workspace is a handle of this column or an index into `workspaces`. The panel stays the same panel: its template, params, url,
    * title, size (slot count, and whether the person chose it) and saved identity (`uid`) all go with it; where it stood in the old row and whether the person made it parkable do not, the target saves it
@@ -294,6 +302,17 @@ export function createWorkspaceColumn(o: ColumnOptions = {}): WorkspaceColumnHan
       const next = current + (direction === 'up' ? -1 : 1);
       if (status === 'disposed' || next < 0 || next >= list.length) return false;
       current = next;
+      commit();
+      return true;
+    },
+    removeWorkspace: (target) => {
+      const i = typeof target === 'number' ? target : list.indexOf(target);
+      if (status !== 'ready' || list.length < 2 || !Number.isInteger(i) || i < 0 || i >= list.length) return false;
+      const removed = list[i]!;
+      const cur = list[current];
+      removed.dispose();
+      list = list.filter((w) => w !== removed);
+      current = cur === removed ? Math.min(i, list.length - 1) : cur === undefined ? -1 : list.indexOf(cur);
       commit();
       return true;
     },
