@@ -1669,7 +1669,7 @@ flip with a transition rule of its own) or SCOPE (a template-scope key).
 | `tuning.hopFraction` | number in (0, 1] (workspace only) | 0.5 | NEXT (configureTuning only). Read by the dragged panel's view at its next release. Outside (0, 1] throws. |
 | `tuning.edgeScroll` | object: zonePx integer [8, 200], maxPxPerSec integer [100, 5000], reducedStepMs integer [100, 5000] (workspace only) | 48, 900, 500 (owner-confirmed, Q21; the numbers live in rowConstants.ts) | NEXT (configureTuning only). Read at the next drag start; a drag in flight keeps its numbers. Leaves merge. |
 | `tuning.saveQuietMs` | integer ms >= 0 (workspace only) | 500 | NEXT (configureTuning only). A timer already armed keeps its deadline; the next arm uses the new value. Session-only. |
-| `tuning.gestureLockMs` | integer ms >= 0 (workspace only) | 60 | NEXT (configureTuning only). A lock already armed keeps its remaining time. Session-only. |
+| `tuning.gestureLockMs` | integer ms >= 0 (workspace only) | 30 | NEXT (configureTuning only). A lock already armed keeps its remaining time. Session-only. |
 | `tuning.gestureQuietMs` | integer ms >= 1 (workspace only) | 150 | NEXT (configureTuning only). A quiet timer already running keeps its length; the next wheel event arms the new one. Session-only. |
 | `tuning.resizeSettleSlides` | number [0, 10], multiplies slide.durationSec (workspace only) | 1.25 | NOW (configureTuning only). 0 settles at once. A settle timer already running keeps its length; the next width change arms the new one. Session-only. |
 | `tuning.returnTieBreak` | latest-first, earliest-first, row-order (workspace only) | latest-first | NEXT (configureTuning only). Read at the next stack walk; nothing returns now. |
