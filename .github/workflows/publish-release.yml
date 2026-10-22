@@ -1,0 +1,59 @@
+name: Publish release
+
+# Manual only. The run waits on the npm-release environment, so a person approves it in the Actions UI before any publish step runs.
+on:
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: The commit on main to publish, a full sha
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: publish-release
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    environment: npm-release
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ inputs.ref }}
+          fetch-depth: 0
+      # A prerelease built from a branch would publish code no one reviewed on main.
+      - name: Refuse a commit that is not on main
+        run: git merge-base --is-ancestor "${{ inputs.ref }}" origin/main
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      # release:check refuses a version the registry already has, then builds and runs the publish gate.
+      - run: npm run release:check
+      - name: Publish the prerelease from dist/
+        working-directory: dist
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          version=$(node -p "require('./package.json').version")
+          case "$version" in
+            *-*) tag=next ;;
+            *) echo "refusing to publish $version without a prerelease tag"; exit 1 ;;
+          esac
+          npm publish --tag "$tag" --access public
+          echo "published phonux@$version under $tag"
+      - name: Confirm the registry serves the version
+        run: |
+          version=$(node -p "require('./dist/package.json').version")
+          for attempt in 1 2 3 4 5; do
+            served=$(npm view "phonux@$version" version 2>/dev/null || true)
+            [ "$served" = "$version" ] && { echo "registry serves phonux@$version"; exit 0; }
+            sleep 10
+          done
+          echo "registry does not yet serve phonux@$version"
+          exit 1
