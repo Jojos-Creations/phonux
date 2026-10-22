@@ -27,11 +27,15 @@ jobs:
           fetch-depth: 0
       # A prerelease built from a branch would publish code no one reviewed on main.
       - name: Refuse a commit that is not on main
-        run: git merge-base --is-ancestor "${{ inputs.ref }}" origin/main
+        env:
+          REF: ${{ inputs.ref }}
+        run: git merge-base --is-ancestor "$REF" origin/main
+      # registry-url makes setup-node write the .npmrc that sends NODE_AUTH_TOKEN to the registry.
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version: 24
           cache: npm
+          registry-url: https://registry.npmjs.org
       - run: npm ci
       # release:check refuses a version the registry already has, then builds and runs the publish gate.
       - run: npm run release:check
