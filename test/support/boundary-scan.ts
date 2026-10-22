@@ -74,7 +74,7 @@
  *
  * Two spellings that text matching cannot see are handled here, because they
  * are cheap to handle honestly. An identifier written with an escape
- * (`window.\u{73}implebrowser`) is refused outright (rule 'escaped-identifier'):
+ * (`window.\u{70}honuxApp`) is refused outright (rule 'escaped-identifier'):
  * nobody has a reason to spell a name that way in a view. A string or template
  * chunk whose DECODED value matches a 'code' rule that its raw text does not
  * (`window['simple\x62rowser']`) is reported under that rule.
