@@ -48,8 +48,10 @@ export interface UseClosedPagesOptions {
  * kept outside the component's state.
  * @throws RangeError when `limit` is not a positive integer.
  * @example
+ * ```ts
  * const closed = useClosedPages({ storage: closedPagesStorage, limit: 50 });
  * // in a panel's onPanelsClosed: closed.add({ id, title, url, closedAt })
+ * ```
  * @public
  */
 export function useClosedPages({ storage, limit }: UseClosedPagesOptions): ClosedPagesList {

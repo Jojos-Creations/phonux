@@ -23,7 +23,9 @@ export interface ClosedPagesTemplateOptions {
  * A panel template that shows the closed pages, with the settings a closed-pages log uses (closable, one at a time,
  * host-creatable). Add it to a workspace's `templates` like any other template.
  * @example
+ * ```ts
  * const closedPages = createClosedPagesTemplate({ list: closed, onReopen: (entry) => openPage(entry.url) });
+ * ```
  * @public
  */
 export function createClosedPagesTemplate({ list, onReopen, id = 'closed-pages', title = 'Closed pages' }: ClosedPagesTemplateOptions): PanelTemplate {
