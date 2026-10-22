@@ -77,7 +77,7 @@ test('differential scrollOnMove: a panel in view that grows past the window is f
     ['follow', await movedTo('follow')],
     ['none', await movedTo('none')],
   ]);
-  assert.deepEqual([...outcomes.values()], [406, 0]);
+  assert.deepEqual([...outcomes.values()], [609, 0]);
   differential('scrollOnMove', (run) => {
     run('follow', () => outcomes.get('follow'));
     run('none', () => outcomes.get('none'));

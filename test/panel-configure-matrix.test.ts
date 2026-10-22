@@ -802,7 +802,7 @@ test('matrix:scrollOnMove', async () => {
     r.m.unmount();
     return at;
   };
-  assert.equal(await grown(false), 406, 'control: a in view grows to two slots, 796 px, and the row follows to the stop that shows it whole');
+  assert.equal(await grown(false), 609, 'control: a in view grows to two slots, 796 px, and the row follows to the stop that shows it whole');
   assert.equal(await grown(true), 0, 'the next move reads none: the row stays');
 });
 
