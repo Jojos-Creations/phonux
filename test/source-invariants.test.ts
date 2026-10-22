@@ -317,11 +317,12 @@ test('source: a scratch copy of useProvidePanels.ts with a fifth writer of `over
 /** Functions that still read `.collapsible`: presence, parking and fixed-column bookkeeping. Permission decisions read effective(p). */
 const COLLAPSIBLE_READERS: Record<string, readonly string[]> = {
   'panelWindow.ts': ['firstParkedAfter', 'lastParkedBefore', 'leftmostLiveIndex', 'parksForRoom', 'recordOverride', 'rightmostLiveIndex', 'sideOfLiveRange'],
-  'panels/usePanelManager.ts': ['holdPanel', 'markHeld', 'pricing', 'usePanelManager', 'wouldEmptyRow'],
+  'panels/rowSettle.ts': ['rowPricing'],
+  'panels/usePanelManager.ts': ['holdPanel', 'markHeld', 'usePanelManager', 'wouldEmptyRow'],
   'panels/useProvidePanels.ts': ['useProvidePanels'],
 };
 
-test('source: every read of `.collapsible` in panelWindow.ts, usePanelManager.ts and useProvidePanels.ts sits in a function on the allow-list', () => {
+test('source: every read of `.collapsible` in panelWindow.ts, rowSettle.ts, usePanelManager.ts and useProvidePanels.ts sits in a function on the allow-list', () => {
   for (const [file, allowed] of Object.entries(COLLAPSIBLE_READERS)) {
     const readers = [...new Set(collapsibleReads(read(file), file).map((s) => s.fn))].sort();
     assert.deepEqual(readers, [...allowed].sort(), `${file}: the functions that read .collapsible differ from the allow-list`);
@@ -451,11 +452,11 @@ test('source: the five configure files import no flushSync, the two hooks that d
   }
 });
 
-test('source: usePanelManager.ts and useProvidePanels.ts take maxLiveWidth from computeRowNumbers and never name computeMaxLiveWidth', () => {
-  for (const file of ['panels/usePanelManager.ts', 'panels/useProvidePanels.ts']) {
+test('source: rowSettle.ts, usePanelManager.ts and useProvidePanels.ts take maxLiveWidth from computeRowNumbers and never name computeMaxLiveWidth', () => {
+  for (const file of ['panels/rowSettle.ts', 'panels/usePanelManager.ts', 'panels/useProvidePanels.ts']) {
     assert.doesNotMatch(read(file), /\bcomputeMaxLiveWidth\b/, `${file} names computeMaxLiveWidth, in code or in a comment`);
-    assert.match(read(file), /\bcomputeRowNumbers\b/, `${file} prices from computeRowNumbers`);
   }
+  for (const file of ['panels/rowSettle.ts', 'panels/useProvidePanels.ts']) assert.match(read(file), /\bcomputeRowNumbers\b/, `${file} prices from computeRowNumbers`);
 });
 
 test('source: PanelRowSlot keeps its one motion element, and PanelRow passes zIndex and enterDirection on lines of their own', () => {
