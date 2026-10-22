@@ -68,7 +68,7 @@ test('pin: a 40 px horizontal drag on a reorder DragToClose reports onDragEnd(40
 });
 
 // ---------------------------------------------------------------------------
-// Through a mounted row: eleven panels (phone 390, gap 16), the window 1000 wide, maxScroll 3482 from the row numbers
+// Through a mounted row: eleven panels (phone 390, gap 16), the window 1000 wide, maxScroll 3654 from the row numbers
 // ---------------------------------------------------------------------------
 
 const ends: Array<{ id: string; offset: number; hops: number }> = [];
@@ -84,7 +84,7 @@ function EdgeBox({ id }: { id: string }): React.ReactElement {
 registerTestView('edge-view', ({ panel }) => React.createElement(EdgeBox, { id: panel.id }));
 
 const WINDOW = 1000;
-const MAX_SCROLL = 3482;
+const MAX_SCROLL = 3654;
 const EDGE = LIBRARY_TUNING_DEFAULTS.edgeScroll;
 
 function mountEdgeRow(layer: PanelSettings = {}, over: Parameters<typeof mountRow>[2] = {}): MountedRow {
@@ -257,7 +257,7 @@ test('hop rule: the released offset is hopped over by the view alone, at the tun
 });
 
 // ---------------------------------------------------------------------------
-// Reduced motion: one instant jump per interval, to a panel start
+// Reduced motion: one instant jump per interval, to a grid stop
 // ---------------------------------------------------------------------------
 
 /** Frames per reduced-motion interval: the loop counts whole frames, and the first of a hold has dt 0. */
@@ -275,7 +275,7 @@ async function heldSeries(m: MountedRow, n: number): Promise<number[]> {
 }
 const jumps = (series: number[]): Array<{ frame: number; to: number }> => series.flatMap((v, k) => (v !== (k === 0 ? 0 : series[k - 1]) ? [{ frame: k, to: v }] : []));
 
-test('matchMedia reduce: no continuous scroll; the row jumps once per interval to panel starts 406, 812, 1218 and 1624 and the release reports 1664', async () => {
+test('matchMedia reduce: no continuous scroll; the row jumps once per interval to the grid stops 406, 812, 1218 and 1624 and the release reports 1664', async () => {
   reduceMotion(true);
   const m = mountEdgeRow();
   const box = boxOf(m);
@@ -317,7 +317,7 @@ test('reduced motion: half the interval doubles the jumps, and twelve intervals 
   const long = await held(mountEdgeRow(), 12 * intervalFrames(EDGE.reducedStepMs) + 40);
   assert.equal(long[long.length - 1], MAX_SCROLL);
   assert.equal(jumps(long).at(-1)!.to, MAX_SCROLL);
-  assert.equal(jumps(long).length, 9, 'eight panel starts and then the bound');
+  assert.equal(jumps(long).length, 9, 'eight grid stops and then the bound');
 });
 
 // ---------------------------------------------------------------------------
@@ -474,7 +474,9 @@ test('the listener counter itself sees a listener a component adds on mount', ()
 test('the last panel dragged to the right edge is drawn no further than the row end, so the scrollable width does not grow, and the hop rule still reads the pointer', async () => {
   const m = mountEdgeRow();
   const box = boxOf(m, 's10');
-  const ROW_END = 4466;
+  // The strip's right edge in the container's coordinates: the 16 gap, the centring margin, then the strip. endPad lies past it.
+  const n = m.latest().rowNumbers;
+  const ROW_END = 16 + n.rowMarginLeft + n.stripWidth;
   // jsdom lays nothing out: the row's end and the box's drawn right edge are stated here, in screen px, from the scroll position and the drawn offset.
   const strip = m.container.querySelector('[data-row-strip]');
   assert.ok(strip, 'the row carries its strip mark');
