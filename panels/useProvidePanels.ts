@@ -475,7 +475,8 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
     const el = i.overflowContainerRef.current;
     if (el === null || tuning.rowGesture !== 'step' || rowNumbers.stepStops.length === 0) return;
     const scroller = rowScrollerFor(el);
-    if (scroller.claimHeld()) return;
+    // A resize's settle owns the rest while its margin glides; a stop that moved in that wait is settled onto when it ends.
+    if (scroller.claimHeld() || scroller.settling()) return;
     const base = scroller.glideTarget() ?? scroller.scrollLeft();
     // The settle lands on a step stop, so the next step is a whole phone width; the whole-panel stops can sit between grid points.
     const to = nearestStop({ ...rowNumbers, stops: rowNumbers.stepStops }, base);
