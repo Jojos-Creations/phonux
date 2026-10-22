@@ -32,6 +32,8 @@ import { bindingOf, type CreateRequest, type EngineOps, type WorkspaceHandle } f
 import { conflictNotes, finishCreated } from '../workspacePlan.js';
 import { usePanelClosing, type Reapplied } from './usePanelClosing.js';
 import { usePanelManager, type GateKind } from './usePanelManager.js';
+import { createPanelList } from './panelList.js';
+import { settleKeeping, type RowEnv } from './rowSettle.js';
 import { useRowScrollGesture } from './useRowScrollGesture.js';
 import { useWorkspacePersistence, type RestMark } from './useWorkspacePersistence.js';
 
@@ -292,7 +294,9 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
     if (i.workspace !== boundWorkspace) console.error('useProvidePanels: the workspace changed while mounted and the first one stays attached; give the component a key so a new workspace remounts it.');
   }, [i.workspace, boundWorkspace]);
   const rootId = core.rootId;
-  const [panels, setPanels] = useState<PanelWindow[]>(() => core.initialEntries());
+  const [list] = useState(() => createPanelList<PanelWindow[]>(core.initialEntries()));
+  const rawPanels = useSyncExternalStore(list.subscribe, list.get, list.get);
+  const setPanels = list.set;
   const tuningInput = core.tuningInput;
   const timing = timingTuning(tuningInput);
   const workspaceTuning = useSyncExternalStore(core.subscribe, () => core.tuning, () => core.tuning);
@@ -300,7 +304,21 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
   const freshId = core.newId;
   const workspaceDefaults = core.defaults;
   const templateList = (): PanelTemplate[] => [...core.templates()];
-  const fixedViewCount = i.fixedViewCount ?? panels.filter((p) => !p.collapsible && p.marker !== true).length;
+  const fixedViewCount = i.fixedViewCount ?? rawPanels.filter((p) => !p.collapsible && p.marker !== true).length;
+  // The cap settles the row before anything reads it, so no committed row holds more live panels than the cap, not even for one frame.
+  const keepLiveRef = useRef<ReadonlyMap<string, PanelWindow[]>>(new Map());
+  const capParkedRef = useRef<string[]>([]);
+  const maxLive = tuning.maxLivePanels ?? null;
+  const settleEnv: RowEnv = { phoneWidth: i.phoneWidth, containerWidth: i.containerWidth, gap: tuning.rowGap, fixedColumnCount: fixedViewCount, maxLive, rootId, dropTieBreak: timing.dropTieBreak };
+  const acted = [...keepLiveRef.current].filter(([, seen]) => seen !== rawPanels).map(([id]) => id);
+  const panels = maxLive === null ? rawPanels : settleKeeping(settleEnv, rawPanels, acted);
+  if (panels !== rawPanels) {
+    const parked = rawPanels.filter((p, k) => p.live && !panels[k]!.live).map((p) => p.id);
+    capParkedRef.current = [...capParkedRef.current.filter((id) => !parked.includes(id)), ...parked];
+  }
+  useLayoutEffect(() => {
+    if (panels !== rawPanels) setPanels(panels);
+  });
   // Filters over the whole list, never an array position: a panel anchored left of History changes none of these.
   const stopsOnGrid = tuning.rowGesture === 'step';
   const rowInput = { entries: panels, phoneWidth: i.phoneWidth, containerWidth: i.containerWidth, gap: tuning.rowGap, fixedItemCount: fixedViewCount, wholePanels: stopsOnGrid };
@@ -412,6 +430,8 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
     touchPanel,
   } = usePanelManager(panels, setPanels, i.phoneWidth, i.containerWidth, fixedViewCount, rootId, {
     onNote: i.onNote,
+    keepLiveRef,
+    capParkedRef,
     tuning: { rowGap: tuning.rowGap, returnTieBreak: timing.returnTieBreak, dropTieBreak: timing.dropTieBreak, maxLivePanels: tuning.maxLivePanels },
     ...(core.order !== undefined ? { order: core.order } : {}),
     resolveWith: core.resolveWith,
