@@ -38,7 +38,9 @@ test('for N visible phones (2 to 6) and a first panel of k slots (1 to N), the p
       const entries = [made('lead'), made('w', { slots: k }), ...Array.from({ length: 6 }, (_, j) => made(`p${j}`))];
       const n = computeRowNumbers({ entries, phoneWidth: PHONE, containerWidth: window + 2 * GAP, gap: GAP, wholePanels: true });
       const at = (s: number) => n.rowMarginLeft + n.leftOffsets[1]! - s;
-      const onGrid = n.stepStops.some((s) => Math.abs(at(s) - want) < 0.5);
+      // Only the one-phone grid counts here: a rest added for a panel the grid never shows whole is not a grid stop.
+      const grid = n.stepStops.filter((s) => Math.abs(s / STEP - Math.round(s / STEP)) < 1e-9 || s === maxScrollOf(n));
+      const onGrid = grid.some((s) => Math.abs(at(s) - want) < 0.5);
       if (onGrid) centred.push(`${N}:${k}`);
       const gridHolds = Number.isInteger((n.rowMarginLeft + n.leftOffsets[1]! - want) / STEP) && n.rowMarginLeft + n.leftOffsets[1]! - want >= 0 && n.rowMarginLeft + n.leftOffsets[1]! - want <= maxScrollOf(n);
       assert.equal(onGrid, gridHolds, `N${N} k${k}: centred ${onGrid}, grid holds ${gridHolds}`);

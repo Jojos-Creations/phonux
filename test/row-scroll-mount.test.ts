@@ -219,8 +219,8 @@ const follow = async (layer: PanelSettings, from: number, run: (p: ProvidedPanel
   return m.container.scrollLeft;
 };
 
-test('setSlots on an in-view panel follows it: a to two slots from 0 targets 523, the least distance that shows it whole, and snaps to the stop 406', async () => {
-  assert.equal(await follow({ scrollOnMove: 'follow' }, 0, (p) => p.setSlots('a', 2)), 406);
+test('setSlots on an in-view panel follows it: a to two slots from 0 targets 523, the only rest that shows it whole, and snaps to the stop 609', async () => {
+  assert.equal(await follow({ scrollOnMove: 'follow' }, 0, (p) => p.setSlots('a', 2)), 609);
 });
 
 test('setSlots on a panel out of view scrolls nothing', async () => {
@@ -234,7 +234,7 @@ test('reanchor of a panel in view to the left of the root follows it: c, partly 
 test('scrollOnMove none records none, and the default reads LIBRARY_PANEL_DEFAULTS', async () => {
   assert.equal(await follow({ scrollOnMove: 'none' }, 0, (p) => p.setSlots('a', 2)), 0);
   const def = LIBRARY_PANEL_DEFAULTS.scrollOnMove;
-  assert.equal(await follow({}, 0, (p) => p.setSlots('a', 2)), def === 'follow' ? 406 : 0);
+  assert.equal(await follow({}, 0, (p) => p.setSlots('a', 2)), def === 'follow' ? 609 : 0);
 });
 
 test('a drag release (move) records none', async () => {
@@ -252,7 +252,7 @@ test('while a claim is held a follow request is dropped with the note, and the o
   act(() => m.latest().setSlots('a', 1));
   act(() => m.latest().setSlots('a', 2));
   await settle();
-  assert.equal(m.container.scrollLeft, 406);
+  assert.equal(m.container.scrollLeft, 609);
 });
 
 // --- initialScroll -------------------------------------------------------------------------------------------

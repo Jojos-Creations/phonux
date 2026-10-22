@@ -41,8 +41,8 @@ test('a two-slot panel between two phones: the first and last runs are one phone
   const n = numbers([root(), made('t', { slots: 2 }), made('b')]);
   assert.deepEqual(n.widths, [390, 796, 390]);
   assert.equal(n.rowMarginLeft, 289, 'the first whole run is one phone: (968 - 390) / 2');
-  assert.deepEqual(n.stops, [0, 406, 812, 1218], 'every stop is on the one-phone grid, and the last is the end of the strip: 289 + 1608 + 289 - 968');
-  assert.deepEqual(n.stopSpans, [{ first: 0, end: 2 }, { first: 0, end: 2 }, { first: 1, end: 3 }, { first: 1, end: 3 }]);
+  assert.deepEqual(n.stops, [0, 406, 609, 812, 1218], 'the grid, the rest that centres the two-slot panel alone at 609 (695 - 86), and the end: 289 + 1608 + 289 - 968');
+  assert.deepEqual(n.stopSpans, [{ first: 0, end: 2 }, { first: 0, end: 2 }, { first: 0, end: 3 }, { first: 1, end: 3 }, { first: 1, end: 3 }]);
   assert.equal(n.endPad, 289, 'the last whole run is one phone: (968 - 390) / 2');
   assert.equal(maxScrollOf(n), 1218);
 });

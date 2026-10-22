@@ -97,7 +97,7 @@ export function computeRowNumbers(i: {
   // The tail is centred the same way, so the row's last rest shows its last whole panels with even room on both sides.
   const endPad = stepping ? Math.max(0, (windowWidth - tailWidth(widths, i.gap, windowWidth)) / 2) : 0;
   const maxScroll = stepping ? rowMarginLeft + stripWidth + endPad - windowWidth : 0;
-  const stops = stepping ? stepGrid(maxScroll, i.phoneWidth + i.gap) : [];
+  const stops = stepping ? restStops(maxScroll, i.phoneWidth + i.gap, { widths, offsets: leftOffsets, rowMarginLeft, gap: i.gap, windowWidth }) : [];
   const stopSpans = stops.map((at) => spanAt(at, widths, leftOffsets, rowMarginLeft, windowWidth));
   return { rowScroll, windowWidth, stripWidth, rowMarginLeft, ids: present.map((p) => p.id), widths, leftOffsets, maxLiveWidth, reservedWidths, parkLiveWidths, stops, stepStops: stops, stopSpans, endPad };
 }
@@ -124,6 +124,29 @@ function spanAt(at: number, widths: readonly number[], offsets: readonly number[
   let end = first + 1;
   while (end < widths.length && rowMarginLeft + offsets[end]! < at + windowWidth) end++;
   return { first, end };
+}
+
+/**
+ * The rests of a stepping row: the one-phone grid, plus a rest centring the whole run that starts at each panel the grid never
+ * shows whole. A grid stop can miss a panel that fits the window, and a panel must be fully visible at some rest.
+ * Ascending, and the last one is `maxScroll`.
+ */
+function restStops(maxScroll: number, step: number, g: { widths: readonly number[]; offsets: readonly number[]; rowMarginLeft: number; gap: number; windowWidth: number }): number[] {
+  const grid = stepGrid(maxScroll, step);
+  const rests = [...grid];
+  g.widths.forEach((width, j) => {
+    if (width > g.windowWidth) return;
+    const left = g.rowMarginLeft + g.offsets[j]!;
+    if (grid.some((at) => left - at >= 0 && left - at + width <= g.windowWidth)) return;
+    const leftover = g.windowWidth - wholeRunWidth(j, g.widths, g.gap, g.windowWidth);
+    rests.push(clampTo(left - leftover / 2, 0, maxScroll));
+  });
+  rests.sort((a, b) => a - b);
+  return rests.filter((at, k) => k === rests.length - 1 || rests[k + 1]! - at > 1);
+}
+
+function clampTo(value: number, low: number, high: number): number {
+  return Math.min(high, Math.max(low, value));
 }
 
 /**
