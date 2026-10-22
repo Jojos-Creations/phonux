@@ -187,7 +187,7 @@ test('a fixed pin never needs room: all-scroll row at 800 px, History and three 
   assert.deepEqual(['p1', 'p2', 'p3'].map((id) => r.facts(id).parkable), [false, false, false]);
   const numbers = r.provided().rowNumbers;
   assert.ok(numbers.stripWidth > numbers.windowWidth, `${numbers.stripWidth} > ${numbers.windowWidth}`);
-  assert.equal(numbers.rowMarginLeft, 0);
+  assert.equal(numbers.rowMarginLeft, (numbers.windowWidth - 390) / 2, 'control: the first whole run is History alone, so it is centred in the window');
   assert.equal(numbers.stripWidth, 5 * 390 + 4 * 16, 'History, three pins and x at 390 each with four gaps');
   assert.equal(r.order().join(' '), 'p3 p2 p1 root x');
 });
@@ -227,21 +227,24 @@ async function followRig(scrollOnMove: string | undefined, from: number): Promis
   return { r, el: r.m.container };
 }
 
-test('pin follows the person: the last panel in view at 3482 moves to left 16 and the row scrolls to 0, and unpin returns to 4076 and 3482', async () => {
+test('pin follows the person: the last panel in view at 3482 moves to the row start and the row scrolls to 0, and unpin returns it to 4162 with the row on the stop at its end', async () => {
   const { r, el } = await followRig('follow', 3482);
   const left = (id: string): number => {
     const n = r.provided().rowNumbers;
     return n.leftOffsets[n.ids.indexOf(r.entry(id).id)]! + 16 + n.rowMarginLeft;
   };
-  assert.equal(left('j'), 4076);
+  // The margin is 86 on both sides: the first whole run is History and a, 796 px of 968. So j sits at 4060 + 16 + 86 here.
+  assert.equal(left('j'), 4162);
   assert.equal(brief(r.turn(() => r.h.j!.pin())), 'T');
   await advanceFrames(900);
-  assert.equal(left('j'), 16);
+  // Pinned first, j and History are the first whole run: the same 86 margin, so j is at 16 + 86 and the row is on its first stop.
+  assert.equal(left('j'), 102);
   assert.equal(el.scrollLeft, 0);
   assert.equal(brief(r.turn(() => r.h.j!.unpin())), 'T');
   await advanceFrames(900);
-  assert.equal(left('j'), 4076);
-  assert.equal(el.scrollLeft, 3482);
+  // 3482 is not a stop; the row settles on the nearest, 3654, which is the row's end and shows j whole.
+  assert.equal(left('j'), 4162);
+  assert.equal(el.scrollLeft, 3654);
 });
 
 test('pin follows the person: the default scrollOnMove is follow, a code pin() on an out-of-view panel scrolls nothing, and none scrolls nothing', async () => {

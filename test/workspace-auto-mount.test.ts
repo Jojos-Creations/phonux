@@ -138,8 +138,8 @@ test('the auto-mounted workspace renders the same DOM as the hand-wired one, scr
   const html = (el: HTMLElement): string => (el === autoTarget ? (el.firstElementChild as HTMLElement).innerHTML : el.innerHTML).replace(/(Dnd(?:DescribedBy|LiveRegion))-\d+/g, '$1-N');
   const scroller = autoTarget.querySelector<HTMLElement>('[data-row-scroller]')!;
   assert.equal(getComputedStyle(scroller).overflowX, 'hidden', 'a stepping row moves by steps, so the browser has nothing to scroll');
-  // A strip that fits is centred by a margin; one wider than the window starts flush left.
-  assert.equal((scroller.firstElementChild as HTMLElement).style.marginLeft, '0px', 'control: at 700 wide the five panels overflow the row');
+  // An overflowing stepping row centres its first whole run: at 700 wide that is History alone, (668 - 390) / 2 = 139.
+  assert.equal((scroller.firstElementChild as HTMLElement).style.marginLeft, '139px', 'control: at 700 wide the five panels overflow the row');
   assert.equal(html(autoTarget), html(handTarget), 'the rows render the same DOM at 700 wide');
   await act(async () => void auto.panels.get('b')!.close());
   await act(async () => void hand.panels.get('b')!.close());

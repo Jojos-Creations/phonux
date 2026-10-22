@@ -439,7 +439,7 @@ test('scrollOnMove: an accepted move, place or setSlots on an in-view panel foll
   const none = () => undefined;
   assert.deepEqual(await scrolled(all('follow'), 0, none, (r) => r.h.b!.move(1)), { result: 'T', left: 406 }, 'b moves right past c and ends inside the window, at the stop that shows it');
   assert.deepEqual(await scrolled(all('none'), 0, none, (r) => r.h.b!.move(1)), { result: 'T', left: 0 });
-  assert.deepEqual(await scrolled(all('follow'), 0, none, (r) => r.h.b!.place('row-end')), { result: 'T', left: 1452 });
+  assert.deepEqual(await scrolled(all('follow'), 0, none, (r) => r.h.b!.place('row-end')), { result: 'T', left: 1624 }, 'the row end is the last stop, 1624');
   assert.deepEqual(await scrolled(all('none'), 0, none, (r) => r.h.b!.place('row-end')), { result: 'T', left: 0 });
   assert.deepEqual(await scrolled(all('follow'), 0, none, (r) => r.h.c!.setSlots(2)), { result: 'T', left: 812 }, 'c grows to 796 px and starts at 812: the stop that shows it whole');
   assert.deepEqual(await scrolled(all('none'), 0, none, (r) => r.h.c!.setSlots(2)), { result: 'T', left: 0 });
@@ -458,7 +458,7 @@ test('scrollOnOpen: open() and show() record one request and the row scrolls to 
   assert.deepEqual(await scrolled({}, 0, () => undefined, (r) => r.h.a!.show()), { result: 'F', left: 0 }, 'a live panel in view: nothing recorded');
   assert.deepEqual(await scrolled({}, 0, () => undefined, (r) => r.h.a!.hide()), { result: 'T', left: 0 }, 'hide records none');
   const closed = (r: FreeRig): void => void r.turn(() => r.h.d!.close());
-  assert.deepEqual(await scrolled(layer('start'), 0, closed, (r) => r.h.d!.open()), { result: 'T', left: 1452 }, 'a reopened panel lands at row-end, which clamps to the strip end');
+  assert.deepEqual(await scrolled(layer('start'), 0, closed, (r) => r.h.d!.open()), { result: 'T', left: 1624 }, 'a reopened panel lands at row-end, the last stop: 86 + 2420 + 86 less the 968 window');
   assert.deepEqual(await scrolled(layer('none'), 0, closed, (r) => r.h.d!.open()), { result: 'T', left: 0 });
 });
 
