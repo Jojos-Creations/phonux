@@ -276,7 +276,8 @@ test('case B8: scrollOnOpen none on a live panel: the next open does not scroll'
     r.m.unmount();
     return at;
   };
-  assert.equal(await opened(false), 1452, 'control: reopened at the row end, the default scrolls c into view: right edge 2436 less the 984 visible');
+  // c reopens last, at 2030 + 16 + the 86 margin, and the default brings it in on the stop that shows it whole: the row's end, 1624.
+  assert.equal(await opened(false), 1624, 'control: reopened at the row end, the default scrolls c into view on the stop that shows it whole');
   assert.equal(await opened(true), 0, 'none: the open scrolls nothing');
 });
 
