@@ -1445,7 +1445,7 @@ test('matrix:tuning.initialScroll', async () => {
   assert.equal(r.m.container.scrollLeft, 0, 'nothing scrolls now');
   const next = await matrixRig({ ids, width: 1000, workspace: { tuning: { initialScroll: 'end', rowGesture: 'step' } } });
   await next.settle();
-  // The row's end is 86 + 4450 + 86 (the centred tails) less the 968 window: 3654, the last stop.
+  // The row's end is 86 + 4450 + 86 (the centered tails) less the 968 window: 3654, the last stop.
   assert.equal(next.m.container.scrollLeft, 3654, 'a mount that reads end puts the strip at its farthest legal scroll');
   assert.equal(r.ws.tuning.initialScroll, 'end', 'the workspace now holds it for its next mount');
 });

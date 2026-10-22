@@ -1,6 +1,6 @@
 /**
  * The scroll requests and the initial scroll, through a mounted provider and Workspace. The container's width is the
- * host's measurement (1000), so the window is 968 and a row of n phone panels has strip 406n - 16 and, centred at both ends
+ * host's measurement (1000), so the window is 968 and a row of n phone panels has strip 406n - 16 and, centered at both ends
  * (86 each side), maxScroll 406n - 812: 1624 at six panels, 2030 at seven and 3654 at eleven. The executor is observed through the
  * container's own scrollLeft once the glide has run, and through a spy on glideTo where a call count is the point. The row rests on
  * the one-phone grid (0, 406, 812, 1218, then 1624 at six panels), so a request lands on the stop nearest its raw target that shows the panel.
@@ -18,7 +18,7 @@ import { ROOT, made, mountRow as mountScrollRow, rootEntry, row, type MountedRow
 
 afterEach(() => cleanup());
 
-/** The row [root a b c d e]: panel k starts at 102 + 406k (the gap, then the 86 centring of the first run), and the stops are 0, 406, 812, 1218 and 1624. */
+/** The row [root a b c d e]: panel k starts at 102 + 406k (the gap, then the 86 centering of the first run), and the stops are 0, 406, 812, 1218 and 1624. */
 const sixPanels = (layer: PanelSettings = {}): PanelWindow[] => row(rootEntry(), ...['a', 'b', 'c', 'd', 'e'].map((id) => made(id, layer)));
 
 const mountRow = (o: { entries?: PanelWindow[]; over?: Parameters<typeof mountScrollRow>[2]; width?: number }): MountedRow => mountScrollRow(o.entries ?? sixPanels(), o.width ?? 1000, o.over);
@@ -32,7 +32,7 @@ function glides(container: HTMLElement) {
 /** Runs the glide in flight to its end. */
 const settle = (): Promise<void> => advanceFrames(900);
 
-test('scrollTo at each align scrolls to the stop nearest the literal target: panel c (left 1320) into view 726 -> 812, at the start 1304 -> 1218, centred 1015 -> 812 (a tie with 1218, the earlier wins)', async () => {
+test('scrollTo at each align scrolls to the stop nearest the literal target: panel c (left 1320) into view 726 -> 812, at the start 1304 -> 1218, centered 1015 -> 812 (a tie with 1218, the earlier wins)', async () => {
   const expected = { 'into-view': 812, start: 1218, center: 812 } as const;
   for (const align of ['into-view', 'start', 'center'] as const) {
     const m = mountRow({ entries: sixPanels({ scrollOnOpen: 'none' }) });
@@ -130,7 +130,7 @@ test('two requests in one commit: the last wins', async () => {
     m.latest().scrollTo('d', 'center');
   });
   await settle();
-  assert.deepEqual(asked(), [1218], 'd centred targets 1726 + 195 - 500 = 1421, equally far from the stops 1218 and 1624: the earlier wins');
+  assert.deepEqual(asked(), [1218], 'd centered targets 1726 + 195 - 500 = 1421, equally far from the stops 1218 and 1624: the earlier wins');
 });
 
 test('first paint and a restore record no request and raise no note', async () => {
@@ -364,7 +364,7 @@ test('initialScroll is skipped when a wheel or a pointer-down reached the row be
 // --- a reload keeps the row's rest ---------------------------------------------------------------------------
 //
 // The row here scrolls in steps (overflow 'scroll', rowGesture 'step'): the eleven panels rest on the grid 0, 406, 812, ...,
-// and the first and last whole runs are centred (86 each side), so a stop does not sit on a panel's left edge.
+// and the first and last whole runs are centered (86 each side), so a stop does not sit on a panel's left edge.
 // The end is 3654. A panel as wide as the window (a two-slot panel at container 828) is the wide case.
 
 const SCROLLING = { overflow: 'scroll' } as const;
@@ -528,7 +528,7 @@ test('a panel as wide as the window: a marker one phone width into it restores i
   const entries = row(made('p1', S), made('desk', { ...S, slots: 2 }), made('p2', S), made('p3', S), rootEntry());
   const { storage, resolve } = scrollStorage();
   const m = loadedRow(storage, stepTuning(), 828);
-  // The desk starts at 609 (the 203 centring of the first phone, plus one phone) and is 796 wide, the window's width. One phone
+  // The desk starts at 609 (the 203 centering of the first phone, plus one phone) and is 796 wide, the window's width. One phone
   // width in is 1015, equally far from the stops 812 and 1218: the earlier one wins.
   await resolve(savedOf(entries, { panel: 'desk', offset: 1 }));
   assert.equal(m.container.scrollLeft, 812);

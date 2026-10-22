@@ -422,7 +422,7 @@ test('scrollTo scrolls to the literal target of each align, reads scrollOnOpen w
   const at = (align: 'into-view' | 'start' | 'center') => scrolled({}, 0, () => undefined, (r) => r.h.d!.scrollTo(align));
   assert.deepEqual(await at('into-view'), { result: 'T', left: 812 }, 'd needs 608 to be whole; the stop that shows it is 812');
   assert.deepEqual(await at('start'), { result: 'T', left: 1218 });
-  assert.deepEqual(await at('center'), { result: 'T', left: 812 }, 'centred d is at 913, nearer the stop 812 than 1218');
+  assert.deepEqual(await at('center'), { result: 'T', left: 812 }, 'centered d is at 913, nearer the stop 812 than 1218');
   const byDefault = async (scrollOnOpen: string) => scrolled({ d: { scrollOnOpen } as unknown as PanelSettings }, 0, () => undefined, (r) => r.h.d!.scrollTo());
   assert.deepEqual(await byDefault('start'), { result: 'T', left: 1218 });
   assert.deepEqual(await byDefault('center'), { result: 'T', left: 812 });

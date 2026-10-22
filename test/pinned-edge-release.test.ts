@@ -262,7 +262,7 @@ test('a row that fits has no stops to hold: nothing scrolls on the release', asy
   const drag = await beginDrag(r, 'p3', 300);
   void drag;
   await release(r, 'p3', 2);
-  assert.equal(r.m.container.scrollLeft, 0, 'the centred row stays at scroll 0');
+  assert.equal(r.m.container.scrollLeft, 0, 'the centered row stays at scroll 0');
 });
 
 test('the edge held is the one the element reports when the mark begins, which the numbers can be ahead of', async () => {
@@ -304,7 +304,7 @@ test('a release that adds stops glides the margin first and settles onto the sto
   await frames(1500);
   assert.equal(stopsOf(r).length, 0, 'control: six slots fit the window, so nothing scrolls');
   const start = marginOf(r.m.container);
-  assert.ok(start > 0, `control: a fitting row is centred (${start})`);
+  assert.ok(start > 0, `control: a fitting row is centered (${start})`);
   const drag = await beginDrag(r, 'p1', SLOT(3, 16) - SLOT(1, 16) + 25);
   assert.equal(marginOf(r.m.container), start, 'the drag leaves the margin alone');
   act(() => {
@@ -334,7 +334,7 @@ const SETTLE_WAIT_MS = SLIDE_DURATION_SEC * 1000;
 
 /**
  * A 2932 px window where six slots fit, then the panel grown to three slots: the release adds one stop (0 and the row's end)
- * and moves the centring margin from 240 to 37, so the settle waits. Two slots would leave the margin where it was.
+ * and moves the centering margin from 240 to 37, so the settle waits. Two slots would leave the margin where it was.
  */
 async function releaseMovingMargin(r: Rig, id = 'p1', pin: 'start' | 'end' = 'end'): Promise<Drag> {
   const drag = await beginDrag(r, id, SLOT(3, 16) - SLOT(1, 16) + 25, 4, 0, pin);

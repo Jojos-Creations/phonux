@@ -187,7 +187,7 @@ test('a fixed pin never needs room: all-scroll row at 800 px, History and three 
   assert.deepEqual(['p1', 'p2', 'p3'].map((id) => r.facts(id).parkable), [false, false, false]);
   const numbers = r.provided().rowNumbers;
   assert.ok(numbers.stripWidth > numbers.windowWidth, `${numbers.stripWidth} > ${numbers.windowWidth}`);
-  assert.equal(numbers.rowMarginLeft, (numbers.windowWidth - 390) / 2, 'control: the first whole run is History alone, so it is centred in the window');
+  assert.equal(numbers.rowMarginLeft, (numbers.windowWidth - 390) / 2, 'control: the first whole run is History alone, so it is centered in the window');
   assert.equal(numbers.stripWidth, 5 * 390 + 4 * 16, 'History, three pins and x at 390 each with four gaps');
   assert.equal(r.order().join(' '), 'p3 p2 p1 root x');
 });

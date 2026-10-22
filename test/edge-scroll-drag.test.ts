@@ -474,7 +474,7 @@ test('the listener counter itself sees a listener a component adds on mount', ()
 test('the last panel dragged to the right edge is drawn no further than the row end, so the scrollable width does not grow, and the hop rule still reads the pointer', async () => {
   const m = mountEdgeRow();
   const box = boxOf(m, 's10');
-  // The strip's right edge in the container's coordinates: the 16 gap, the centring margin, then the strip. endPad lies past it.
+  // The strip's right edge in the container's coordinates: the 16 gap, the centering margin, then the strip. endPad lies past it.
   const n = m.latest().rowNumbers;
   const ROW_END = 16 + n.rowMarginLeft + n.stripWidth;
   // jsdom lays nothing out: the row's end and the box's drawn right edge are stated here, in screen px, from the scroll position and the drawn offset.

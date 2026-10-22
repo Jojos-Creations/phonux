@@ -1,5 +1,5 @@
 /**
- * A stepping row's last stop rests with the last whole run centred: the last panel's right edge sits endPad inside the window,
+ * A stepping row's last stop rests with the last whole run centered: the last panel's right edge sits endPad inside the window,
  * which is the tail's leftover on each side. Rows are phone 390 with gap 16; the expected margins, pads and stops are the numbers
  * the row gets at each container width.
  */
@@ -25,7 +25,7 @@ const rows: Record<string, () => PanelWindow[]> = {
   '[root, 5-slot, 1, 1]': () => row(rootEntry(), made('c', { slots: 5 }), made('d'), made('e')),
 };
 
-// The margin, end pad and stops at each container width. The margin centres the first whole run and the end pad the last one; the
+// The margin, end pad and stops at each container width. The margin centers the first whole run and the end pad the last one; the
 // stops are the one-phone grid up to the last stop, which is the strip width plus both pads less the window.
 const expected: Record<string, Record<number, { rowMarginLeft: number; endPad: number; stops: number[] }>> = {
   '[root, 1, 1, 5-slot, 1]': {
@@ -51,14 +51,14 @@ for (const [name, entries] of Object.entries(rows)) {
       const n = computeRowNumbers({ entries: entries(), phoneWidth: PHONE, containerWidth: width, gap: GAP, wholePanels: true });
       const last = n.widths.length - 1;
       const lastRight = n.rowMarginLeft + n.leftOffsets[last]! + n.widths[last]!;
-      assert.equal(n.endPad, expected[name]![width]!.endPad, 'the tail is centred by its leftover');
+      assert.equal(n.endPad, expected[name]![width]!.endPad, 'the tail is centered by its leftover');
       assert.equal(maxScrollOf(n) + n.windowWidth - lastRight, n.endPad, 'the last stop leaves the tail its endPad on the right, as on the left of its run');
     });
 
     test(`${name} at ${width}: rowMarginLeft and the stops are the expected ones, the last stop being the new maxScroll`, () => {
       const n = computeRowNumbers({ entries: entries(), phoneWidth: PHONE, containerWidth: width, gap: GAP, wholePanels: true });
       const want = expected[name]![width]!;
-      assert.equal(n.rowMarginLeft, want.rowMarginLeft, 'the first whole run is centred in the window');
+      assert.equal(n.rowMarginLeft, want.rowMarginLeft, 'the first whole run is centered in the window');
       assert.deepEqual(n.stops, want.stops, 'every stop below the last is on the one-phone grid, and the last is the new maxScroll');
       assert.equal(n.stops.at(-1), maxScrollOf(n));
     });

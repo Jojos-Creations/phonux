@@ -16,7 +16,7 @@ export interface RowNumbers {
   windowWidth: number;
   /** The width of every drawn entry plus one gap between each two. */
   stripWidth: number;
-  /** The row's left margin: centring for a strip that fits, the first whole run's centring for a stepping row that overflows, else 0. */
+  /** The row's left margin: centering for a strip that fits, the first whole run's centering for a stepping row that overflows, else 0. */
   rowMarginLeft: number;
   /** The ids of the drawn entries, in row order. */
   ids: readonly string[];
@@ -31,22 +31,22 @@ export interface RowNumbers {
   /** The widths of the drawn entries the row may park for room. */
   parkLiveWidths: readonly number[];
   /**
-   * The `scrollLeft` values a stepping row rests on, ascending; the first is 0. Each rests on the one-phone grid and centres the
-   * whole panels it shows; the last is the row's end (`maxScrollOf`). Empty when the row does not scroll, or its strip fits the window and keeps its centring.
+   * The `scrollLeft` values a stepping row rests on, ascending; the first is 0. Each rests on the one-phone grid and centers the
+   * whole panels it shows; the last is the row's end (`maxScrollOf`). Empty when the row does not scroll, or its strip fits the window and keeps its centering.
    */
   stops: readonly number[];
   /** The same values as `stops`, under the step's name. Empty when `stops` is. */
   stepStops: readonly number[];
   /** For each stop, the drawn entries it shows: the index of its first one and one past its last. Same order as `stops`. */
   stopSpans: readonly { first: number; end: number }[];
-  /** The space after the strip: the centring of the tail's whole panels on a stepping row that overflows, else 0. */
+  /** The space after the strip: the centering of the tail's whole panels on a stepping row that overflows, else 0. */
   endPad: number;
 }
 
 /**
  * The numbers for one row. A row whose entries carry no `overflow: 'scroll'` settings gets the 0.1.0 numbers
  * (`computeMaxLiveWidth`, `computeRowLayout`'s margin). A scrolling row draws every entry, sizes each panel from its slots
- * and no wider than the window, and centres only a strip that fits.
+ * and no wider than the window, and centers only a strip that fits.
  * @public
  * @deprecated The provider computes the row's numbers from its tuning; read them as `useProvidePanels(...).rowNumbers`.
  */
@@ -85,7 +85,7 @@ export function computeRowNumbers(i: {
   }
   const overflows = rowScroll && measured && stripWidth > windowWidth;
   const stepping = i.wholePanels === true && overflows;
-  // A non-stepping overflowing row starts flush at the window's left: it has no stops to centre on.
+  // A non-stepping overflowing row starts flush at the window's left: it has no stops to center on.
   let rowMarginLeft: number;
   if (!rowScroll) {
     rowMarginLeft = computeRowLayout({ containerWidth: i.containerWidth, phoneWidth: i.phoneWidth, gap: i.gap, fixedItemCount, liveWidths: present.flatMap((p, k) => (p.collapsible ? [widths[k]!] : [])) }).computedRowMarginLeft;
@@ -94,7 +94,7 @@ export function computeRowNumbers(i: {
   } else {
     rowMarginLeft = !measured || overflows ? 0 : (windowWidth - stripWidth) / 2;
   }
-  // The tail is centred the same way, so the row's last rest shows its last whole panels with even room on both sides.
+  // The tail is centered the same way, so the row's last rest shows its last whole panels with even room on both sides.
   const endPad = stepping ? Math.max(0, (windowWidth - tailWidth(widths, i.gap, windowWidth)) / 2) : 0;
   const maxScroll = stepping ? rowMarginLeft + stripWidth + endPad - windowWidth : 0;
   const stops = stepping ? restStops(maxScroll, i.phoneWidth + i.gap, { widths, offsets: leftOffsets, rowMarginLeft, gap: i.gap, windowWidth }) : [];
@@ -127,7 +127,7 @@ function spanAt(at: number, widths: readonly number[], offsets: readonly number[
 }
 
 /**
- * The rests of a stepping row: the one-phone grid, plus a rest centring the whole run that starts at each panel the grid never
+ * The rests of a stepping row: the one-phone grid, plus a rest centering the whole run that starts at each panel the grid never
  * shows whole. A grid stop can miss a panel that fits the window, and a panel must be fully visible at some rest.
  * Ascending, and the last one is `maxScroll`.
  */
