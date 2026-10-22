@@ -669,7 +669,8 @@ as `SLOT_TRANSITION`.
 The optional default theme ports phonux-app's own no-animation MUI settings (disabled
 `transitions.create`, and a CssBaseline reset scoped to `transition`/`animation`, never
 `transform`/`opacity`) because a consumer's phonux views run the same slide animations
-that rule protects. It deliberately leaves out phonux-app's palette, typography and
+that rule protects. The reset skips the workspace column's own slide element (`[data-workspace-column] > div`),
+whose transition is the one slide that is written as `transition`; `test/default-theme-column-slide.test.ts` holds that line. It deliberately leaves out phonux-app's palette, typography and
 per-component style overrides: those are this product's own branding, not something a
 third-party consumer should inherit just by taking the default.
 
