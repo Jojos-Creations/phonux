@@ -61,7 +61,7 @@ test('boundary: no library source touches the bridge, a host-specific global or 
     assert.deepEqual([...new Set(hits.map((v) => v.rule))].sort(), ['about:', 'bridge()', 'chromium', 'electron', 'localStorage', 'navigator.usb', 'webContents', 'webview']);
     const rules = PHONE_BOUNDARY_RULES.map((r) => r.name);
     for (const name of ['electron', 'chromium', 'webview', 'webContents', 'navigator.usb', 'about:']) assert.ok(rules.includes(name), `the rule list lost ${name}`);
-    assert.ok(!rules.includes('window.simplebrowser'), 'the product name is back in the rule list');
+    assert.ok(!rules.includes('window.phonuxApp'), 'the app bridge name is back in the rule list');
     const lookalike = plant(dir, 'Lookalike.ts', ['const electronics = 1;', 'const aboutBlank = 2;']);
     assert.deepEqual(scanBoundary({ files: [lookalike], rules: PHONE_BOUNDARY_RULES, minFiles: 1 }).violations, []);
   });
