@@ -48,14 +48,14 @@ test('a panel grown past the window glides the centring margin instead of snappi
   assert.equal(m.latest().rowNumbers.stops.length, 0, 'control: four slots fit the window, so the row centres and has no stops');
   const start = marginOf(m.container);
   assert.ok(start > 0, `control: a fitting row has a centring margin (${start})`);
-  act(() => void m.latest().setSlots('s1', 2));
+  act(() => void m.latest().setSlots('s1', 5));
   assert.ok(m.latest().rowNumbers.stops.length > 0, 'the grow added stops in the render that moved the margin');
   await advanceFrames(32);
   const mid = marginOf(m.container);
   await advanceFrames(2000);
   const end = marginOf(m.container);
-  assert.equal(end, 0, 'an overflowing row starts flush at the window edge');
-  assert.ok(mid < start && mid > end, `32 ms in the margin is between ${start} and ${end}: ${mid}`);
+  assert.equal(end, m.latest().rowNumbers.rowMarginLeft, 'an overflowing row rests on the centring of its first whole run');
+  assert.ok(Math.min(start, end) < mid && mid < Math.max(start, end), `32 ms in the margin is between ${start} and ${end}: ${mid}`);
 });
 
 test('a window resize that narrows a panel and adds stops still snaps the margin', async () => {

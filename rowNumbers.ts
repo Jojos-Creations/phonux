@@ -16,7 +16,7 @@ export interface RowNumbers {
   windowWidth: number;
   /** The width of every drawn entry plus one gap between each two. */
   stripWidth: number;
-  /** The row's left margin: centring for a strip that fits, 0 for one that does not. */
+  /** The row's left margin: centring for a strip that fits, the first whole run's centring for a stepping row that overflows, else 0. */
   rowMarginLeft: number;
   /** The ids of the drawn entries, in row order. */
   ids: readonly string[];
@@ -31,15 +31,15 @@ export interface RowNumbers {
   /** The widths of the drawn entries the row may park for room. */
   parkLiveWidths: readonly number[];
   /**
-   * The `scrollLeft` values a stepping row rests on, ascending; the first is 0. They are one phone width apart, and the last
-   * is the row's end (`maxScrollOf`). Empty when the row does not scroll, or its strip fits the window and keeps its centring.
+   * The `scrollLeft` values a stepping row rests on, ascending; the first is 0. Each rests on the one-phone grid and centres the
+   * whole panels it shows; the last is the row's end (`maxScrollOf`). Empty when the row does not scroll, or its strip fits the window and keeps its centring.
    */
   stops: readonly number[];
   /** The same values as `stops`, under the step's name. Empty when `stops` is. */
   stepStops: readonly number[];
   /** For each stop, the drawn entries it shows: the index of its first one and one past its last. Same order as `stops`. */
   stopSpans: readonly { first: number; end: number }[];
-  /** Always 0: the space after the strip is one row gap wide, and the last stop leaves the last panel one gap from the window edge. */
+  /** The space after the strip: the centring of the tail's whole panels on a stepping row that overflows, else 0. */
   endPad: number;
 }
 
@@ -84,19 +84,38 @@ export function computeRowNumbers(i: {
     running += width + i.gap;
   }
   const overflows = rowScroll && measured && stripWidth > windowWidth;
-  // A strip that overflows starts flush at the window's left: a centring margin would show as blank room at scroll 0 and
-  // push every grid stop off the panel starts.
+  const stepping = i.wholePanels === true && overflows;
+  // A non-stepping overflowing row starts flush at the window's left: it has no stops to centre on.
   let rowMarginLeft: number;
   if (!rowScroll) {
     rowMarginLeft = computeRowLayout({ containerWidth: i.containerWidth, phoneWidth: i.phoneWidth, gap: i.gap, fixedItemCount, liveWidths: present.flatMap((p, k) => (p.collapsible ? [widths[k]!] : [])) }).computedRowMarginLeft;
+  } else if (stepping) {
+    rowMarginLeft = Math.max(0, (windowWidth - wholeRunWidth(0, widths, i.gap, windowWidth)) / 2);
   } else {
     rowMarginLeft = !measured || overflows ? 0 : (windowWidth - stripWidth) / 2;
   }
-  const stepStops = i.wholePanels === true && overflows ? stepGrid(stripWidth - windowWidth, i.phoneWidth + i.gap) : [];
-  const stops = stepStops;
+  // The tail is centred the same way, so the row's last rest shows its last whole panels with even room on both sides.
+  const endPad = stepping ? Math.max(0, (windowWidth - tailWidth(widths, i.gap, windowWidth)) / 2) : 0;
+  const maxScroll = stepping ? rowMarginLeft + stripWidth + endPad - windowWidth : 0;
+  const stops = stepping ? stepGrid(maxScroll, i.phoneWidth + i.gap) : [];
   const stopSpans = stops.map((at) => spanAt(at, widths, leftOffsets, rowMarginLeft, windowWidth));
-  return { rowScroll, windowWidth, stripWidth, rowMarginLeft, ids: present.map((p) => p.id), widths, leftOffsets, maxLiveWidth, reservedWidths, parkLiveWidths, stops, stepStops, stopSpans, endPad: 0 };
+  return { rowScroll, windowWidth, stripWidth, rowMarginLeft, ids: present.map((p) => p.id), widths, leftOffsets, maxLiveWidth, reservedWidths, parkLiveWidths, stops, stepStops: stops, stopSpans, endPad };
 }
+
+/** The width of the whole panels a window holds from `first` on: `first` itself, then each next one that still fits. */
+function wholeRunWidth(first: number, widths: readonly number[], gap: number, windowWidth: number): number {
+  let width = widths[first]!;
+  for (let k = first + 1; k < widths.length && width + gap + widths[k]! <= windowWidth; k++) width += gap + widths[k]!;
+  return width;
+}
+
+/** The width of the whole panels at the end of the strip that a window holds, counted back from the last one. */
+function tailWidth(widths: readonly number[], gap: number, windowWidth: number): number {
+  let width = widths[widths.length - 1]!;
+  for (let k = widths.length - 2; k >= 0 && width + gap + widths[k]! <= windowWidth; k--) width += gap + widths[k]!;
+  return width;
+}
+
 
 /** The drawn entries a window at scroll `at` shows: the first one its right edge passes and one past the last one its left edge reaches. */
 function spanAt(at: number, widths: readonly number[], offsets: readonly number[], rowMarginLeft: number, windowWidth: number): { first: number; end: number } {
