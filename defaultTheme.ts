@@ -15,7 +15,9 @@ export function createDefaultTheme(mode: 'light' | 'dark'): Theme {
     components: {
       MuiCssBaseline: {
         styleOverrides: {
-          '*, *::before, *::after': {
+          // The column's slide element keeps its transition: WorkspaceColumn animates it with `transition: transform`, which
+          // an `!important` reset here would zero (https://github.com/Jojos-Creations/phonux/issues/435).
+          '*:not([data-workspace-column] > div), *::before, *::after': {
             transition: 'none !important',
             animation: 'none !important',
           },
