@@ -20,6 +20,10 @@ export interface PhonuxLabels {
   pinFailed: string;
   /** The text a host announces when an unpin request is refused. Default `Could not unpin this panel`. */
   unpinFailed: string;
+  /** The accessible name of a panel's move menu button, which holds Pin or Unpin. Default `Move`. */
+  move: string;
+  /** The accessible name of a panel's close button. Default `Close`. */
+  close: string;
   /** The name of a lock button or action, which makes a panel not closable. Default `Lock`. */
   lock: string;
   /** The name of an unlock button or action. Default `Unlock`. */
@@ -74,6 +78,8 @@ export const DEFAULT_LABELS: Readonly<PhonuxLabels> = {
   unpin: 'Unpin',
   pinFailed: 'Could not pin this panel',
   unpinFailed: 'Could not unpin this panel',
+  move: 'Move',
+  close: 'Close',
   lock: 'Lock',
   unlock: 'Unlock',
   newWorkspace: 'Create new workspace',

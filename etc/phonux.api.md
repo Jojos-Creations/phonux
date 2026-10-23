@@ -179,6 +179,9 @@ export interface CreatePanelOptions {
 }
 
 // @public
+export function createTileCapture(options: TileCaptureOptions): TileCapture;
+
+// @public
 export function createWorkspace(o?: WorkspaceOptions): WorkspaceHandle;
 
 // @public
@@ -588,6 +591,9 @@ export interface PanelHeaderIconItem extends PanelHeaderButtonItemBase {
 }
 
 // @public
+export function PanelHeaderMenu(): React_2.JSX.Element | null;
+
+// @public
 export interface PanelHeaderProps extends Omit<BoxProps, 'children'> {
     children: React_2.ReactNode;
 }
@@ -937,6 +943,7 @@ export interface PhoneSize {
 // @public
 export interface PhonuxLabels {
     cannotMove: (title: string, steps: number) => string;
+    close: string;
     closed: (title: string) => string;
     dragCancelled: (title: string) => string;
     dropped: (title: string) => string;
@@ -944,6 +951,7 @@ export interface PhonuxLabels {
     grabStrip: (title: string) => string;
     historyTitle: string;
     lock: string;
+    move: string;
     moved: (title: string, steps: number) => string;
     newWorkspace: string;
     panelPosition: (title: string, place: number, total: number) => string;
@@ -1022,6 +1030,13 @@ export interface ProvidedPanels extends PanelsAPI {
     scrollTo(id: string, align?: ScrollAlign): boolean;
     setSlots(id: string, slots: number): void;
     readonly tuning: ResolvedWorkspaceTuning;
+}
+
+// @public
+export interface RecaptureOnSettleOptions {
+    readonly liveIds: () => readonly ViewId[];
+    readonly open: boolean;
+    readonly settleMs?: number;
 }
 
 // @public
@@ -1254,6 +1269,56 @@ export interface SnapshotsAPI {
 export type SourceLayer = 'library' | 'workspace' | 'template' | 'host' | 'instance' | 'user' | 'derived' | 'forced';
 
 // @public
+export interface TileCapture extends CaptureRegistry, CaptureTrigger, SnapshotsAPI {
+    restore(liveIds: readonly ViewId[]): Promise<void>;
+}
+
+// @public
+export interface TileCaptureOptions {
+    readonly maxBytes?: number;
+    readonly maxPictures?: number;
+    readonly rasterise: TileRasteriser;
+    readonly storage?: TilePictureStorage;
+}
+
+// @public
+export interface TilePictureRecord {
+    readonly capturedAt: number;
+    readonly extent: 'viewport' | 'full';
+    readonly height: number;
+    readonly src: string;
+    readonly touch: number;
+    readonly viewId: ViewId;
+    readonly width: number;
+}
+
+// @public
+export interface TilePictureStorage {
+    readAll(): Promise<readonly TilePictureRecord[]>;
+    remove(viewIds: readonly ViewId[]): Promise<void>;
+    write(record: TilePictureRecord): Promise<void>;
+}
+
+// @public
+export interface TileRaster {
+    readonly pixels: Uint8ClampedArray;
+    readonly src: string;
+}
+
+// @public
+export type TileRasteriser = (request: TileRequest) => Promise<TileRaster | null>;
+
+// @public
+export interface TileRequest {
+    readonly element: HTMLElement;
+    readonly extent: 'viewport' | 'full';
+    readonly height: number;
+    readonly pictureHeight: number;
+    readonly pictureWidth: number;
+    readonly width: number;
+}
+
+// @public
 export function useActivePanel(): readonly [PanelId | null, (id: PanelId | null) => void];
 
 // @public
@@ -1334,6 +1399,9 @@ export function usePhoneSize(): {
 
 // @public
 export function useProvidePanels(i: PanelsInput): ProvidedPanels;
+
+// @public
+export function useRecaptureOnSettle(trigger: CaptureTrigger, options: RecaptureOnSettleOptions): void;
 
 // @public
 export function useViewSnapshot(viewId: ViewId): ViewSnapshot | null;
