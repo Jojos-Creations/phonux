@@ -36,22 +36,21 @@ test('the page never scrolls sideways at phone width', async ({ page }) => {
   expect(overflow).toBeLessThanOrEqual(0);
 });
 
-// Synthetic touch events, so the same test runs in WebKit and Chromium. They do not scroll the page
-// natively; this guards against script moving the page on a touch. The row's own swipe is checked with #429.
-test('a touch swipe on the page does not scroll the page itself', async ({ page }) => {
-  const scrolled = await page.evaluate(() => {
-    const target = document.body;
-    const point = (x: number) => new Touch({ identifier: 1, target, clientX: x, clientY: 300 });
-    const fire = (type: string, x: number) => {
-      const touch = point(x);
-      const list = type === 'touchend' ? [] : [touch];
-      target.dispatchEvent(new TouchEvent(type, { touches: list, targetTouches: list, changedTouches: [touch], bubbles: true, cancelable: true }));
-    };
-    fire('touchstart', 300);
-    for (let x = 270; x >= 0; x -= 30) fire('touchmove', x);
-    fire('touchend', 0);
-    return window.scrollX;
-  });
+test('a touch swipe on the page does not scroll the page itself', async ({ page, browserName }) => {
+  test.skip(browserName === 'webkit', 'desktop WebKit cannot synthesize touch; covered by the iOS Simulator check');
+  const size = page.viewportSize();
+  if (!size) throw new Error('the phone profile sets a viewport');
+  const y = Math.round(size.height / 2);
+  const session = await page.context().newCDPSession(page);
+  const touch = (type: 'touchStart' | 'touchMove' | 'touchEnd', x: number) =>
+    session.send('Input.dispatchTouchEvent', {
+      type,
+      touchPoints: type === 'touchEnd' ? [] : [{ x, y }],
+    });
+  await touch('touchStart', size.width - 20);
+  for (let step = 1; step <= 10; step++) await touch('touchMove', size.width - 20 - step * 30);
+  await touch('touchEnd', 0);
+  const scrolled = await page.evaluate(() => window.scrollX);
   expect(scrolled).toBe(0);
 });
 
