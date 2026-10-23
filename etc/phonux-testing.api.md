@@ -460,7 +460,14 @@ export interface PhonuxLabels {
     unpinFailed: string;
     untitledHeader: string;
     untitledPanel: string;
+    workspaceEmpty: string;
+    workspaceHidden: string;
     workspaceName: string;
+    workspaceNoMatches: string;
+    workspacePinned: string;
+    workspaceSearch: string;
+    workspaceUntitled: string;
+    workspaceViewing: string;
 }
 
 // @public

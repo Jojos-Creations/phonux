@@ -64,6 +64,20 @@ export interface PhonuxLabels {
   closedPagesNoMatches: string;
   /** The text a closed page with no title shows. Default `Untitled`. */
   closedPagesUntitled: string;
+  /** The heading over a workspace grid's pinned panels. Default `Pinned`. */
+  workspacePinned: string;
+  /** The heading over a workspace grid's live, unpinned panels. Default `Viewing`. */
+  workspaceViewing: string;
+  /** The heading over a workspace grid's parked, unpinned panels. Default `Hidden`. */
+  workspaceHidden: string;
+  /** The search field's name and placeholder in a workspace grid. Default `Search panels`. */
+  workspaceSearch: string;
+  /** The title a workspace grid gives a panel with no title and no url. Default `Untitled`. */
+  workspaceUntitled: string;
+  /** Shown in a workspace grid when there are no panels to list. Default `No panels yet.`. */
+  workspaceEmpty: string;
+  /** Shown in a workspace grid when the search matches no panel. Default `No panels match.`. */
+  workspaceNoMatches: string;
 }
 
 /** The English text every label takes when a host overrides none. @public */
@@ -98,6 +112,13 @@ export const DEFAULT_LABELS: Readonly<PhonuxLabels> = {
   closedPagesEmpty: 'No closed pages yet',
   closedPagesNoMatches: 'No matches',
   closedPagesUntitled: 'Untitled',
+  workspacePinned: 'Pinned',
+  workspaceViewing: 'Viewing',
+  workspaceHidden: 'Hidden',
+  workspaceSearch: 'Search panels',
+  workspaceUntitled: 'Untitled',
+  workspaceEmpty: 'No panels yet.',
+  workspaceNoMatches: 'No panels match.',
 };
 
 /** `given` over the defaults, key by key; a key given as `undefined` keeps its default. @internal */

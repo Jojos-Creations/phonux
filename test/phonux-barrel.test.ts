@@ -64,6 +64,7 @@ const VALUE_EXPORTS = [
   'usePanelResizing',
   'usePanelSetDragging',
   'Workspace',
+  'WorkspacePanel',
   'useProvidePanels',
   'reorderStepsForOffset',
   'slideToTransition',
