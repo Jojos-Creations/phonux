@@ -100,6 +100,14 @@ export function workspaceTileSpan(slots: number | undefined, columns: number): n
   return Math.min(slots, columns);
 }
 
+/**
+ * A tile's picture ratio: `span` phone widths by one phone height, so a tile of any span in a row has the same height as a
+ * one-column tile and the row lines up.
+ */
+export function workspaceTileRatio(span: number, size: { width: number; height: number }): string {
+  return `${span * size.width} / ${size.height}`;
+}
+
 /** The title a tile shows: the panel's title, else its url, else `untitled`. */
 export function workspaceTileTitle(title: string | undefined, url: string | undefined, untitled: string): string {
   if (title !== undefined && title.trim() !== '') return title;

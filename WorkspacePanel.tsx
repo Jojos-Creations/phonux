@@ -30,6 +30,7 @@ import { usePhoneSize } from './phoneFit.js';
 import {
   filterWorkspaceTiles,
   reorderWorkspaceIds,
+  workspaceTileRatio,
   workspaceTileSpan,
   workspaceGroups,
   workspaceTileColumns,
@@ -105,7 +106,7 @@ export interface WorkspaceTrashProps {
  * keys, and the drag announcements shared with the panels).
  * Tile pictures come from the host's snapshots (`useViewSnapshot`); a tile with no picture shows its `placeholder`, else an
  * empty placeholder. A tile spans as many grid columns as its entry's `slots`, capped at the grid's columns, and its picture
- * keeps the phone's proportions at that width.
+ * is that many phone widths wide and one phone tall, so every tile in a row has the same height.
  *
  * @throws RangeError when a tile count is not a positive integer.
  * @public
@@ -220,8 +221,7 @@ function WorkspaceView({ entries, tileCounts, tileSize = 'medium', className, on
 /** A tile is picked up, and dropped onto, when the grid is draggable. */
 function WorkspaceTileButton({ tile, span, draggable, onActivate }: { tile: WorkspacePanelEntry; span: number; draggable: boolean; onActivate: (id: string) => void }): React.JSX.Element {
   const snapshot = useViewSnapshot(tile.id);
-  const size = usePhoneSize();
-  const ratio = `${size.width} / ${size.height}`;
+  const ratio = workspaceTileRatio(span, usePhoneSize());
   const drag = useDraggable({ id: tile.id, disabled: !draggable });
   const drop = useDroppable({ id: tile.id, disabled: !draggable });
   const over = drop.isOver && !drag.isDragging;

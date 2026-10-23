@@ -9,7 +9,7 @@ import * as React from 'react';
 import { act } from 'react';
 import { WorkspacePanel, WorkspaceTrash } from '../index.js';
 import type { WorkspacePanelEntry, WorkspacePanelProps } from '../index.js';
-import { reorderWorkspaceIds, workspaceTileSpan } from '../workspacePanelModel.js';
+import { reorderWorkspaceIds, workspaceTileRatio, workspaceTileSpan } from '../workspacePanelModel.js';
 import { advanceFrames, cleanup, mount, withHost, type Mounted } from './support/mount-harness.js';
 import { FRAME_MS } from './support/jsdom-globals.js';
 
@@ -104,6 +104,13 @@ test('the rendered tiles span their slots within the medium grid of four columns
   const spans = Object.fromEntries([...m.container.querySelectorAll<HTMLElement>('[data-workspace-tile]')].map((t) => [t.dataset.workspaceTile, t.dataset.span]));
   assert.deepEqual(spans, { phone: '1', fold: '2', desk: '4', ultra: '4' });
   m.unmount();
+});
+
+test('a tile picture is its span in phone widths by one phone height, so a two-column tile is no taller than a one-column tile', () => {
+  const phone = { width: 390, height: 844 };
+  assert.equal(workspaceTileRatio(1, phone), '390 / 844');
+  assert.equal(workspaceTileRatio(2, phone), '780 / 844', 'twice as wide, the same height');
+  assert.equal(workspaceTileRatio(3, phone), '1170 / 844');
 });
 
 // jsdom lays nothing out, so each tile and the trash get a fixed box that the drag measures against.
