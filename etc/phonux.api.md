@@ -965,7 +965,14 @@ export interface PhonuxLabels {
     unpinFailed: string;
     untitledHeader: string;
     untitledPanel: string;
+    workspaceEmpty: string;
+    workspaceHidden: string;
     workspaceName: string;
+    workspaceNoMatches: string;
+    workspacePinned: string;
+    workspaceSearch: string;
+    workspaceUntitled: string;
+    workspaceViewing: string;
 }
 
 // @public
@@ -1556,6 +1563,16 @@ export type WorkspaceOptions = WorkspaceLive & {
 };
 
 // @public
+export function WorkspacePanel(input: WorkspacePanelProps): React_2.JSX.Element;
+
+// @public
+export interface WorkspacePanelProps {
+    readonly className?: string;
+    readonly tileCounts?: Partial<WorkspaceTileCounts>;
+    readonly tileSize?: WorkspaceTileSize;
+}
+
+// @public
 export type WorkspacePanelsInput = Partial<Omit<PanelsInput, 'workspace' | 'phoneWidth' | 'containerWidth' | 'overflowContainerRef' | 'labels'>>;
 
 // @public
@@ -1634,6 +1651,16 @@ export type WorkspaceStorage = {
     load(): Promise<WorkspaceState | null>;
     save(state: WorkspaceState): void | Promise<void>;
 };
+
+// @public
+export interface WorkspaceTileCounts {
+    readonly large: number;
+    readonly medium: number;
+    readonly small: number;
+}
+
+// @public
+export type WorkspaceTileSize = 'small' | 'medium' | 'large';
 
 // @public
 export type WorkspaceTuning = {
