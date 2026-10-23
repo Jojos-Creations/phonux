@@ -683,6 +683,15 @@ export class PanelManagerError extends Error {
 export type PanelManagerErrorCode = 'invalid-template' | 'duplicate-template' | 'unknown-template' | 'root-mismatch' | 'invalid-options' | 'invalid-settings' | 'instance-id-required' | 'already-attached' | 'disposed';
 
 // @public
+export interface PanelPresence {
+    readonly reason: PanelPresenceReason;
+    readonly shown: boolean;
+}
+
+// @public
+export type PanelPresenceReason = 'shown' | 'exiting' | 'closing' | 'parked' | 'scrolledAway';
+
+// @public
 export interface PanelProps extends Omit<BoxProps, 'children' | 'sx' | 'title'> {
     actions?: React_2.ReactNode;
     capture?: 'auto' | 'never';
@@ -717,6 +726,21 @@ export type PanelReadHandle = {
     getSettings(): PanelSettingsResolution;
     subscribe(l: () => void): () => void;
 };
+
+// @public
+export interface PanelRect {
+    readonly height: number;
+    readonly width: number;
+    readonly x: number;
+    readonly y: number;
+}
+
+// @public
+export interface PanelRectEvent {
+    readonly key: string;
+    readonly phase: 'moving' | 'settled';
+    readonly rect: PanelRect;
+}
 
 // @public
 export type PanelRefusal = 'disposed' | 'not-attached' | 'not-ready' | 'is-pending' | 'is-closed' | 'not-live' | 'busy' | 'not-closable' | 'not-parkable' | 'not-movable' | 'not-resizable' | 'root-fixed' | 'slots-above-max' | 'would-empty-row' | 'instance-limit' | 'unknown-panel' | 'wrong-scope' | 'would-reshape-row' | 'settings-conflict' | 'not-view-settable';
@@ -819,6 +843,7 @@ export interface PanelsInput {
     fixedViewCount?: number;
     labels?: Partial<PhonuxLabels>;
     onNote?: (note: SettingNote) => void;
+    onPanelRect?: (event: PanelRectEvent) => void;
     onPanelResize?: () => void;
     onPanelsClosed?: (entry: {
         id: string;
@@ -1428,6 +1453,9 @@ export const usePanelNeighborWidths: () => NeighborWidths;
 export const usePanelPinned: () => boolean;
 
 // @public
+export function usePanelPresence(): PanelPresence;
+
+// @public
 export const usePanelReorderSteps: () => ((offsetX: number) => number);
 
 // @public
@@ -1438,6 +1466,9 @@ export function usePanelRowDrop(): PanelRowDrop;
 
 // @public
 export function usePanelSetDragging(): (on: boolean) => void;
+
+// @public
+export function usePanelSliding(): boolean;
 
 // @public
 export function usePanelState(id: PanelId): PanelState | undefined;

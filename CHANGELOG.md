@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- A panel's box is reported while it moves: `usePanelSliding()` and the `onPanelRect` input give each panel's rect during a slide, a drag, a resize and a row scroll, and one `settled` report at rest. A slide now fires a capture before it starts, under the default snapshot policy, so a host that passes a capture trigger sees one more capture per slide.
 - An `edgeHold: 'both'` panel no longer shares its row with a cap: any number of them may stick, and when scroll pins two to the same edge they stack in row order, a gap apart, with the outermost nearest the window edge. A panel with no room beside the others lets go and scrolls normally, as before.
 
 ### Changed
@@ -127,6 +128,8 @@
 - A `WorkspacePanelEntry` takes an optional `icon`, drawn before the tile's title in the caption row. A tile with no icon renders no icon slot.
 - `WorkspacePanel` announces a tile drag through the host's `pickedUp`, `dropped` and `dragCancelled` labels inside a host context as well as outside one.
 - `edgeHold` is a per-panel setting, `'off'` by default: `'left'` keeps the panel at the row's left edge and `'right'` at its right while the other panels slide under it. `'both'` keeps the panel in the strip and sticks it at whichever edge the scroll takes it past; a row admits one `both` panel, since two would stick at one edge once the scroll passes both. A held panel that cannot fit beside the others, or sits in a row that does not scroll, lets go and scrolls normally. `RowNumbers` gains `held`, `stuck`, `leftInset`, `rightInset`, `stripStart` and `stripWindow`.
+
+- `usePanelPresence()` tells a view why it is or is not drawn: `{ shown, reason }`, where `reason` is `shown`, `exiting` (drawn and leaving), `closing`, `parked` or `scrolledAway`. It is read-only and re-renders the view only when the reason changes; outside a row the reason is `shown`.
 
 - `isWorkspaceState` is exported from the package entry point, so a host can check an imported workspace file with the same guard the library applies to saved state.
 - `usePanelRowDrop()` lets a view drag a panel into the row from outside it, such as a Workspace or History tile. `begin(id, source?)` returns false for a panel that is closed, still being added, the row's root, or (for a person) not `movable`; `update(clientX)` parts the neighbours by the hop rule the header drag uses and scrolls the row at its edges; `end()` answers a `PanelResult` and `cancel()` restores the row. A parked or hidden panel shows a gap its own width at the place it would land, and `end()` places and shows it in one update.

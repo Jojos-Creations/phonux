@@ -21,6 +21,7 @@ import { LandingContext, PhoneSizeContext, useRowHeightBudget } from './phoneFit
 import { RowHeightContext } from './panelTuning.js';
 import { bindingOf, type WorkspaceHandle } from './workspaceCore.js';
 import { ChromeStoreContext, createChromeStore, type DrawnPin } from './panelChrome.js';
+import { AwayContext, createAwayStore } from './panelAway.js';
 import { rowBottomReservePx } from './panelChromeSize.js';
 import { ROW_GAP } from './rowConstants.js';
 import { nearestStop, scrollHoldingEdge, snapToStop, type RowNumbers } from './rowNumbers.js';
@@ -192,6 +193,7 @@ export function Workspace(props: WorkspaceProps): React.ReactElement {
   const resolved = React.useSyncExternalStore(binding?.subscribe ?? NO_SUBSCRIPTION, () => binding?.tuning ?? LIBRARY_TUNING_DEFAULTS, () => binding?.tuning ?? LIBRARY_TUNING_DEFAULTS);
   const gap = resolved.rowGap;
   const [chromeStore] = React.useState(createChromeStore);
+  const [awayStore] = React.useState(createAwayStore);
   const reduced = useReducedMotionConfig() === true;
   const labels = resolveLabels(useOptionalHost()?.labels);
   // A new element per message, so the same words said twice are announced twice.
@@ -323,10 +325,17 @@ export function Workspace(props: WorkspaceProps): React.ReactElement {
       const held = scroller.claimHeld();
       const view = container.getBoundingClientRect();
       const atRest = !held && scroller.glideTarget() === null && performance.now() >= slideRef.current.endsAt && rowNumbers.stops.some((stop) => Math.abs(stop - container.scrollLeft) <= EDGE_TOLERANCE_PX);
+      const seen = new Set<string>();
       for (const slot of strip.querySelectorAll<HTMLElement>('[data-row-slot]')) {
         // A stepping row cuts the neighbour of a stop at the window edge, so only a panel the window does not reach at all is out of reach of Tab.
         const rect = slot.getBoundingClientRect();
         const away = rowNumbers.stops.length > 0 && (rect.right <= view.left || rect.left >= view.right);
+        // Published here, not in PanelRow: this loop is the only place that measures a slot against the window.
+        const id = slot.dataset.rowId;
+        if (id !== undefined) {
+          seen.add(id);
+          awayStore.set(id, away);
+        }
         // A peek narrower than the gap shows only the frame's edge, a hairline that reads as a stray bar rather than a panel.
         // Judged during a drag too, since the drag's preview slides panels into view while the claim holds reach still.
         const shown = Math.min(rect.right, view.right) - Math.max(rect.left, view.left);
@@ -340,6 +349,7 @@ export function Workspace(props: WorkspaceProps): React.ReactElement {
         // Inert too: Tab or find-in-page would otherwise scroll the row off its stop to reveal a panel the window does not reach.
         slot.toggleAttribute('inert', away);
       }
+      awayStore.retain(seen);
     };
     apply();
     // A close, a move or a drag's preview slides the slots without a scroll event, so the hide is judged again on every frame of
@@ -394,6 +404,7 @@ export function Workspace(props: WorkspaceProps): React.ReactElement {
     <PhoneSizeContext.Provider value={phoneSize}>
     <LandingContext.Provider value={landing}>
       <ChromeStoreContext.Provider value={chromeStore}>
+      <AwayContext.Provider value={awayStore}>
       <RowHeightContext.Provider value={availableHeight}>
       <Box
         ref={overflowContainerRef}
@@ -449,6 +460,7 @@ export function Workspace(props: WorkspaceProps): React.ReactElement {
         <span key={said.n}>{said.text}</span>
       </Box>
       <OverlaySlot name="toast" />
+      </AwayContext.Provider>
       </ChromeStoreContext.Provider>
     </LandingContext.Provider>
     </PhoneSizeContext.Provider>

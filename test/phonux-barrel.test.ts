@@ -61,6 +61,7 @@ const VALUE_EXPORTS = [
   'usePanelHeaderButtons',
   'usePanelNeighborWidths',
   'usePanelPinned',
+  'usePanelPresence',
   'usePanelResizing',
   'usePanelSetDragging',
   'Workspace',
@@ -88,6 +89,7 @@ const VALUE_EXPORTS = [
   'useActivePanel',
   'usePanelActive',
   'usePanelDragging',
+  'usePanelSliding',
   // Opt-in extras (never applied implicitly).
   'createDefaultTheme',
   'isWorkspaceState',
@@ -103,7 +105,7 @@ const VALUE_EXPORTS = [
   'WORKSPACE_NAME_INPUT_ATTRIBUTE',
 ].sort();
 
-test('the phonux barrel exports exactly the 81 runtime values, no more, no fewer', () => {
+test('the phonux barrel exports exactly the 90 runtime values, no more, no fewer', () => {
   assert.deepEqual(Object.keys(phonux).sort(), VALUE_EXPORTS);
 });
 

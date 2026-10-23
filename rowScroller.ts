@@ -32,6 +32,8 @@ export interface RowScroller {
   stop(): void;
   /** The exclusive writer, or null while one is held. */
   claim(): ScrollClaim | null;
+  /** Wakes `listener` after each write to `scrollLeft` and on a native scroll of the row. Returns the unsubscribe. */
+  subscribe(listener: () => void): () => void;
   /** True while a claim is held. Asked instead of probing with `claim()`, which would end a glide in flight. */
   claimHeld(): boolean;
 }
@@ -70,9 +72,14 @@ function createRowScroller(el: HTMLElement): RowScroller {
   let lastWritten = el.scrollLeft;
   let inputs = 0;
 
+  const listeners = new Set<() => void>();
+  const notify = (): void => {
+    for (const l of [...listeners]) l();
+  };
   const write = (left: number): void => {
     el.scrollLeft = left;
     lastWritten = el.scrollLeft;
+    notify();
   };
   const onForeignScroll = (): void => {
     if (Math.abs(el.scrollLeft - lastWritten) > FOREIGN_SCROLL_PX) stop();
@@ -127,6 +134,14 @@ function createRowScroller(el: HTMLElement): RowScroller {
       inputs += 1;
     },
     claimHeld: () => claimed,
+    subscribe(listener) {
+      if (listeners.size === 0) el.addEventListener('scroll', notify, { passive: true });
+      listeners.add(listener);
+      return () => {
+        if (!listeners.delete(listener) || listeners.size > 0) return;
+        el.removeEventListener('scroll', notify);
+      };
+    },
     stop,
     claim() {
       if (claimed) return null;

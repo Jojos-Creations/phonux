@@ -76,6 +76,10 @@ export interface ChromeStore {
   subscribePanel(id: PanelId, listener: () => void): () => void;
   /** Wakes `listener` when the active panel changes. */
   subscribeActive(listener: () => void): () => void;
+  /** Whether `id` is in a slide: from its own motion starting until that motion ends. */
+  sliding(id: PanelId): boolean;
+  /** Marks `id` as sliding or not; a change wakes `subscribePanel(id)` listeners. */
+  setSliding(id: PanelId, on: boolean): void;
   /** The row tells the store each panel's key, which is its public id; the store holds engine ids. */
   setKeys(keys: ReadonlyMap<PanelId, string>): void;
   /** The key a panel is public under, or `engine` itself when the row has not named it. */
@@ -97,6 +101,7 @@ export function createChromeStore(): ChromeStore {
     for (const l of [...drawnListeners]) l();
   };
   const activeListeners = new Set<() => void>();
+  const slidingIds = new Set<PanelId>();
   let keys: ReadonlyMap<PanelId, string> = new Map();
   let engines: ReadonlyMap<string, PanelId> = new Map();
   const byPanel = new Map<PanelId, Set<() => void>>();
@@ -155,6 +160,13 @@ export function createChromeStore(): ChromeStore {
       activeListeners.add(listener);
       return () => void activeListeners.delete(listener);
     },
+    sliding: (id) => slidingIds.has(id),
+    setSliding(id, on) {
+      if (on === slidingIds.has(id)) return;
+      if (on) slidingIds.add(id);
+      else slidingIds.delete(id);
+      wake([id], false);
+    },
     setKeys(next) {
       keys = next;
       engines = new Map([...next].map(([engine, key]) => [key, engine]));
@@ -193,6 +205,136 @@ function usePanelMark(read: (store: ChromeStore, id: PanelId) => boolean): boole
   const id = React.useContext(PanelSlotContext)?.id;
   const subscribe = React.useCallback((l: () => void) => (store === undefined || id === undefined ? () => {} : store.subscribePanel(id, l)), [store, id]);
   return React.useSyncExternalStore(subscribe, () => (store === undefined || id === undefined ? false : read(store, id)), () => false);
+}
+
+/**
+ * A panel's box on screen, in viewport pixels, as `getBoundingClientRect` reports it.
+ * @public
+ */
+export interface PanelRect {
+  /** The left edge, in viewport pixels. */
+  readonly x: number;
+  /** The top edge, in viewport pixels. */
+  readonly y: number;
+  /** The box's width in pixels, as drawn (transforms included). */
+  readonly width: number;
+  /** The box's height in pixels, as drawn (transforms included). */
+  readonly height: number;
+}
+
+/**
+ * One report of a panel's box. `moving` comes each time the box changes while the panel moves; `settled` comes once after
+ * the panel stops, with the box it stopped at. `key` is the panel's public key, the one `CaptureTrigger` and `PanelsAPI` use.
+ * @public
+ */
+export interface PanelRectEvent {
+  /** The panel's public key, the id `CaptureTrigger` and `PanelsAPI` use for it. */
+  readonly key: string;
+  /** The box at this report. */
+  readonly rect: PanelRect;
+  /** `moving` while the box changes; `settled` once, after the last `moving`, when the panel has stopped. */
+  readonly phase: 'moving' | 'settled';
+}
+
+/** The `detail` of a `PANEL_RECT_EVENT`: the slot's panel id, which the provider maps to its key. @internal */
+export interface PanelRectDetail {
+  readonly id: string;
+  readonly rect: PanelRect;
+  readonly phase: 'moving' | 'settled';
+}
+
+/** The public report for one slot's detail, under the panel's key. @internal */
+export function panelRectEvent(key: string, detail: PanelRectDetail): PanelRectEvent {
+  return { key, rect: detail.rect, phase: detail.phase };
+}
+
+/**
+ * The bubbling event a slot dispatches on its own element with a `PanelRectDetail`. Window-scoped listeners hear every slot,
+ * so a provider filters by the ids it knows. @internal
+ */
+export const PANEL_RECT_EVENT = 'phonux:panel-rect';
+
+/**
+ * Dispatched on a slot's element with `detail: { id }` before its slide starts, so a listener reads the picture the panel
+ * still shows. @internal
+ */
+export const PANEL_SLIDE_EVENT = 'phonux:panel-slide';
+
+/**
+ * Reports one slot's box while it moves. `kick()` runs a frame loop that reports `moving` on each change and, once nothing
+ * is moving and the box has stood still for a frame, one `settled`. `settle()` ends the loop at once with the box as it is,
+ * for the moment a motion completes. @internal
+ */
+export interface PanelRectReporter {
+  kick(): void;
+  settle(): void;
+  stop(): void;
+}
+
+/**
+ * Builds the reporter for `el`. `id` is read at each report, so a slot whose panel id changes keeps reporting under it;
+ * no report is sent while it is undefined. `moving` says whether anything besides the box's own changes keeps the loop
+ * going (a slide, a drag, a resize, a row scroll). @internal
+ */
+export function createRectReporter(el: HTMLElement, env: { id: () => string | undefined; moving: () => boolean }): PanelRectReporter {
+  let frame: number | null = null;
+  let last: PanelRect | null = null;
+  // One settled report is owed after each stop: set by the first measurement and by every change, cleared when it is sent.
+  let owed = false;
+  const send = (phase: PanelRectDetail['phase'], rect: PanelRect): void => {
+    const id = env.id();
+    if (id === undefined) return;
+    el.dispatchEvent(new CustomEvent<PanelRectDetail>(PANEL_RECT_EVENT, { bubbles: true, detail: { id, rect, phase } }));
+  };
+  // Returns true only for a change since the previous measurement; the first measurement is a baseline, not a move.
+  const measure = (): boolean => {
+    const box = el.getBoundingClientRect();
+    const rect: PanelRect = { x: box.x, y: box.y, width: box.width, height: box.height };
+    const first = last === null;
+    const changed = last !== null && (rect.x !== last.x || rect.y !== last.y || rect.width !== last.width || rect.height !== last.height);
+    if (first || changed) owed = true;
+    if (changed) send('moving', rect);
+    last = rect;
+    return changed;
+  };
+  const settleReport = (): void => {
+    if (!owed || last === null) return;
+    owed = false;
+    send('settled', last);
+  };
+  const tick = (): void => {
+    frame = null;
+    const changed = measure();
+    if (!changed && !env.moving()) {
+      settleReport();
+      return;
+    }
+    frame = requestAnimationFrame(tick);
+  };
+  return {
+    kick() {
+      if (frame === null) frame = requestAnimationFrame(tick);
+    },
+    settle() {
+      if (frame !== null) cancelAnimationFrame(frame);
+      frame = null;
+      measure();
+      settleReport();
+    },
+    stop() {
+      if (frame !== null) cancelAnimationFrame(frame);
+      frame = null;
+    },
+  };
+}
+
+/**
+ * True from the moment this panel's slide starts (a move in its row, an entrance or an exit) until the slide ends. False
+ * outside a row.
+ * @public
+ */
+export function usePanelSliding(): boolean {
+  return usePanelMark((store, id) => store.sliding(id));
 }
 
 /**
