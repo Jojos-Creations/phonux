@@ -1448,10 +1448,11 @@ never gains a `snapshot` field for the same reason `PanelWindow`'s host-only fie
 (see "A resolved panel component only ever sees a `PanelSummary`" above): a picture is read on demand through
 `useViewSnapshot`, not pushed into every row's own summary object.
 
-`CaptureTrigger` -- what `useProvidePanels` calls at a park or close to (re)capture a view's picture or to drop
-it -- is declared in `snapshots.ts`, beside `CaptureRegistry`. phonux only says WHEN. A provider with no `capture`
+`CaptureTrigger` -- what `useProvidePanels` calls at a park, a close or just before a panel slides, to (re)capture a
+view's picture or to drop it -- is declared in `snapshots.ts`, beside `CaptureRegistry`. phonux only says WHEN. A provider with no `capture`
 input uses `noopCaptureTrigger`, so phonux never captures by itself; a host that wants real pictures passes its own
-trigger. A panel is captured at both a park and a close. The two eviction paths differ in timing: `clearAll` evicts every dropped panel's picture at once, because
+trigger. A panel is captured at a park, at a close and at the start of each slide, while the picture still shows
+the rest it had. The slide capture fires only under the library's fixed snapshot policy `'both'`, the one that asks for pictures at a slide. The two eviction paths differ in timing: `clearAll` evicts every dropped panel's picture at once, because
 a dropped panel can never be shown again; and a closed panel's picture waits for its undo window (Undo keeps it;
 the window's natural elapse evicts it). A capture already in flight cannot outlive an evict: the store keeps a generation per view id, bumped by each
 evict, and a capture that finishes under an older generation drops its picture instead of storing it. So a panel
@@ -1724,6 +1725,24 @@ flip with a transition rule of its own) or SCOPE (a template-scope key).
 | `tuning.defaultEnterFrom` | auto, left, right, anchor, top, bottom, fade, expand (workspace only) | auto | NEXT (configureTuning only). Read at each panel's next enter; an entrance in progress keeps its style. |
 | `tuning.defaultExitTo` | auto, left, right, top, bottom, fade, shrink (workspace only) | auto | NEXT (configureTuning only). Read at each panel's next park or close; an exit in progress keeps its style. |
 <!-- catalog:end -->
+
+## Panel boxes are reported, never drawn over
+
+A native view a host draws over a panel (a Simple Browser WebContentsView, a Capacitor webview) needs the panel's box
+while it moves. phonux reports boxes and owns no native view; `PanelsInput.onPanelRect` is the one channel out.
+
+Each `PanelRowSlot` runs its own frame loop (`createRectReporter` in `panelChrome.ts`) only while its slot is moving:
+its own slide (Motion's start and completion, `onAnimationStart`/`onAnimationComplete`), a drag or resize of its panel
+(the store's marks), a row scroll (`RowScroller.subscribe`, which fires on each write and on native scroll), or a drawn
+width. Each change reports `moving`; once nothing is moving and the box has stood still for a frame, one `settled`
+reports the box it stopped at. A slot that mounts at rest reports one `settled`. The loop never runs at rest.
+
+The slot dispatches `phonux:panel-rect` on its own element (bubbling). `useProvidePanels` listens on `window` and
+forwards only the ids it rendered, keyed by `panelKey`, so two providers that render the same panel id on one page
+would both forward it. A slide also dispatches `phonux:panel-slide` before Motion starts, which is the capture moment.
+
+Known gap: `DragToClose` moves its own box inside the slot, so a vertical close drag reaches the reports only when the
+slot itself moves.
 
 ## Placement, the root marker, key-aware undo and motion
 
