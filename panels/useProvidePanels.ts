@@ -369,6 +369,9 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
     const el = i.overflowContainerRef.current;
     if (el === null) return false;
     if (rowScrollerFor(el).claimHeld()) {
+      // A host's scrollTo during a resize hold is kept: the resize's release settles the row, then the scroll runs. Automatic
+      // scrolls stay dropped, as a drag drops them.
+      if (request.forced && rowScrollerFor(el).deferUntilRelease(() => pendingScroll.set({ ...request, misses: 0 }))) return true;
       scrollNote('scroll-dropped-during-drag', request.id, `A scroll to panel ${request.id} was dropped: a drag holds the row.`);
       return false;
     }
