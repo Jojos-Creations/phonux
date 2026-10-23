@@ -8,7 +8,8 @@
 import * as React from 'react';
 import { type RefObject } from 'react';
 import { motion, useReducedMotionConfig } from 'motion/react';
-import Box, { type BoxProps } from '@mui/material/Box';
+import Box from '@mui/material/Box';
+import type { ElementProps } from './cssStyle.js';
 import { AnnounceContext } from './announce.js';
 import { useOptionalHost } from './hostApi.js';
 import { resolveLabels } from './labels.js';
@@ -126,7 +127,7 @@ export function useResizeSettled(width: number, delayMs: number, instant: boolea
 }
 
 /** The props of `Workspace`: every `Box` prop except `children`, plus the row's refs and the host's measurements. @public */
-export interface WorkspaceProps extends Omit<BoxProps, 'children'> {
+export interface WorkspaceProps extends Omit<ElementProps, 'children'> {
   /** Attach to the scroll container: the caller's ResizeObserver measures it. */
   overflowContainerRef: RefObject<HTMLDivElement | null>;
   /** Attach to the row (the flex box holding the columns): the SAME ref object a caller's own

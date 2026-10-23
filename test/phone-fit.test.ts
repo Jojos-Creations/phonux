@@ -7,7 +7,7 @@ import assert from 'node:assert/strict';
 import './support/jsdom-globals.js';
 import * as React from 'react';
 import { PanelRow, Workspace, createWorkspace, definePanel, usePhoneFit, usePhoneSize, useProvidePanels, type WorkspaceHandle } from '../index.js';
-import { createDefaultTheme } from '../defaultTheme.js';
+import { createDefaultTheme, muiThemeFor } from '../defaultTheme.js';
 import { HostProvider } from '../hostApi.js';
 import { ThemeProvider } from '@mui/material/styles';
 import { advanceFrames, mount } from './support/mount-harness.js';
@@ -205,7 +205,7 @@ test('a hand-wired flow: usePhoneFit before useProvidePanels, the pair to Worksp
     const provided = useProvidePanels({ workspace: hand, phoneWidth: phone.width, containerWidth: width, overflowContainerRef: ref });
     const row = React.createElement(PanelRow, { entries: provided.entries, rootId: hand.rootId, closingIds: provided.closingIds, enteringViaAnchorIds: provided.enteringViaAnchorIds, exitRightIds: provided.exitRightIds, enterSideById: provided.enterSideById, maxLiveWidth: provided.maxLiveWidth, rowNumbers: provided.rowNumbers, workspace: hand });
     const shell = React.createElement(Workspace, { overflowContainerRef: ref, rowRef, containerWidth: width, phoneWidth: phone.width, phoneHeight: phone.height, fixedColumnCount: provided.fixedViewCount, liveWidths: provided.liveWidths, rowScroll: provided.rowScroll, rowNumbers: provided.rowNumbers, workspace: hand, children: row });
-    return React.createElement(ThemeProvider, { theme: createDefaultTheme('light'), children: React.createElement(HostProvider, { host: { panels: provided }, children: shell }) });
+    return React.createElement(ThemeProvider, { theme: muiThemeFor(createDefaultTheme('light')), children: React.createElement(HostProvider, { host: { panels: provided }, children: shell }) });
   }
   mount(React.createElement(HandWired));
   await advanceFrames(400);
@@ -226,7 +226,7 @@ test('a Workspace given no phoneHeight publishes no phone size: usePhoneSize is 
     const provided = useProvidePanels({ workspace: hand, phoneWidth: 390, containerWidth: 1000, overflowContainerRef: ref });
     const row = React.createElement(PanelRow, { entries: provided.entries, rootId: hand.rootId, closingIds: provided.closingIds, enteringViaAnchorIds: provided.enteringViaAnchorIds, exitRightIds: provided.exitRightIds, enterSideById: provided.enterSideById, maxLiveWidth: provided.maxLiveWidth, rowNumbers: provided.rowNumbers, workspace: hand });
     const shell = React.createElement(Workspace, { overflowContainerRef: ref, rowRef, containerWidth: 1000, phoneWidth: 390, fixedColumnCount: provided.fixedViewCount, liveWidths: provided.liveWidths, rowScroll: provided.rowScroll, rowNumbers: provided.rowNumbers, workspace: hand, children: row });
-    return React.createElement(ThemeProvider, { theme: createDefaultTheme('light'), children: React.createElement(HostProvider, { host: { panels: provided }, children: shell }) });
+    return React.createElement(ThemeProvider, { theme: muiThemeFor(createDefaultTheme('light')), children: React.createElement(HostProvider, { host: { panels: provided }, children: shell }) });
   }
   mount(React.createElement(HandWired));
   await advanceFrames(400);

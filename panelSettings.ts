@@ -6,7 +6,7 @@
  */
 
 import type * as React from 'react';
-import type { SxProps, Theme } from '@mui/material/styles';
+import type { CssStyle } from './cssStyle.js';
 import { reportOnce } from './panelApiLevel.js';
 import { PanelManagerError } from './panelManagerError.js';
 import type { PanelRowEntry } from './panelRowEntry.js';
@@ -145,8 +145,8 @@ export type HeaderButtonBase = {
   disabled?: boolean | ((c: HeaderButtonContext) => boolean);
   /** Whether the button is left out, or a function that decides. */
   hidden?: boolean | ((c: HeaderButtonContext) => boolean);
-  /** Extra styles for the button. */
-  sx?: SxProps<Theme>;
+  /** Extra styles for the button: CSS properties in camelCase, with nested keys for selectors. */
+  sx?: CssStyle;
 };
 
 /** The icon form of a title-bar button: the `icon` key is present, and the label is its accessible name only. @public */
@@ -1382,7 +1382,7 @@ function headerButtonSlotProblem(slot: Plain): string | undefined {
   if (slot.tooltip !== undefined && !stringOrFunction(slot.tooltip)) return 'tooltip must be a string or a function';
   if (slot.disabled !== undefined && !booleanOrFunction(slot.disabled)) return 'disabled must be a boolean or a function';
   if (slot.hidden !== undefined && !booleanOrFunction(slot.hidden)) return 'hidden must be a boolean or a function';
-  if (slot.sx !== undefined && (typeof slot.sx !== 'function' && (typeof slot.sx !== 'object' || slot.sx === null))) return 'sx must be an object, an array or a function';
+  if (slot.sx !== undefined && (typeof slot.sx !== 'object' || slot.sx === null || Array.isArray(slot.sx))) return 'sx must be a style object';
   return undefined;
 }
 

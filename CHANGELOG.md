@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+### Breaking
+
+- The MUI and DOM types leave the public API, ahead of 0.2.0 final. `createWorkspace({ theme })` and `createDefaultTheme(mode)` take and return `PhonuxTheme`, a set of CSS colors and a corner unit, and the library builds its styling theme from it. `HeaderButton.sx` and the drag handle's `sx` are a `CssStyle` (plain CSS properties), not MUI `sx`. `panelCornerRadiusPx` takes a `PhonuxTheme`. The root props of `Panel`, `PanelFrame`, `PanelHeader` and `Workspace` are `ElementProps`, not MUI `BoxProps`. The drag handle's `onPointerDown` and `onKeyDown` take `HandlePointerEvent` and `HandleKeyEvent`, which React's events satisfy.
+- The drag handle's focus ring is drawn in `currentColor` instead of the theme's primary color.
+- `PhonuxThemeProvider` draws the row's styling for a hand-rendered row (`mount: false`), in place of an app's own MUI `ThemeProvider`.
+
 - A scroll asked for while a resize holds the row (a host that clears the resize mark and calls `scrollTo` in the same tick) is kept and runs once the resize settles, where it used to be dropped without a note. A drag still drops one.
 - A panel's box is reported while it moves: `usePanelSliding()` and the `onPanelRect` input give each panel's rect during a slide, a drag, a resize and a row scroll, and one `settled` report at rest. A slide now fires a capture before it starts, under the default snapshot policy, so a host that passes a capture trigger sees one more capture per slide.
 - An `edgeHold: 'both'` panel no longer shares its row with a cap: any number of them may stick, and when scroll pins two to the same edge they stack in row order, a gap apart, with the outermost nearest the window edge. A panel with no room beside the others lets go and scrolls normally, as before.

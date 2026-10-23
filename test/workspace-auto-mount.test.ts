@@ -19,7 +19,7 @@ import { PanelRow, Workspace, createWorkspace, definePanel, useHost, useProvideP
 import type { HostInput, PanelTemplate, WorkspaceHandle } from '../index.js';
 import { memoryWorkspaceStorage } from '../fakeHost.js';
 import { AutoRoot, rowProps, workspaceProps } from '../autoMount.js';
-import { createDefaultTheme } from '../defaultTheme.js';
+import { createDefaultTheme, muiThemeFor } from '../defaultTheme.js';
 import { HostProvider } from '../hostApi.js';
 import { advanceFrames, mount } from './support/mount-harness.js';
 import { rigCleanup, observers, resize, slots, track, until, win } from './support/auto-rig.js';
@@ -107,7 +107,7 @@ function HandWired({ workspace }: { workspace: WorkspaceHandle }): React.ReactEl
   });
   const shell = React.createElement(Workspace, { overflowContainerRef: ref, rowRef, containerWidth, phoneWidth: 390, fixedColumnCount: provided.fixedViewCount, liveWidths: provided.liveWidths, rowScroll: provided.rowScroll, rowNumbers: provided.rowNumbers, workspace, children: row });
   const host = React.createElement(HostProvider, { host: { panels: provided }, children: shell });
-  return React.createElement(ThemeProvider, { theme: createDefaultTheme('light'), children: host });
+  return React.createElement(ThemeProvider, { theme: muiThemeFor(createDefaultTheme('light')), children: host });
 }
 
 const scrolling = (id: string): PanelTemplate => tpl(id, { settings: { overflow: 'scroll' } });

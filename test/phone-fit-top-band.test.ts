@@ -10,7 +10,7 @@ import * as React from 'react';
 import { act } from 'react';
 import { COLUMN_TOP_BAND, createWorkspaceColumn, definePanel, Panel, PanelFrame, usePhoneSize, Workspace } from '../index.js';
 import type { WorkspaceColumnHandle } from '../index.js';
-import { createDefaultTheme } from '../defaultTheme.js';
+import { createDefaultTheme, muiThemeFor } from '../defaultTheme.js';
 import { HostProvider } from '../hostApi.js';
 import { ThemeProvider } from '@mui/material/styles';
 import { mount } from './support/mount-harness.js';
@@ -90,7 +90,7 @@ async function bareSize(sized: 'panel' | 'frame'): Promise<{ width: string; heig
   await mount(
     React.createElement(
       ThemeProvider,
-      { theme: createDefaultTheme('light') },
+      { theme: muiThemeFor(createDefaultTheme('light')) },
       React.createElement(HostProvider, { host, children: React.createElement(BareWorkspace, { sized }) }),
     ),
   );

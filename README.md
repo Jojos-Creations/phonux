@@ -78,7 +78,7 @@ workspace's panels are kept by `storage.workspace(id)` (return `undefined` for n
 ## Building your own flow
 
 The default start is built on the components it exports, and they stay public. This is the same row written out by hand: create
-the workspace with `mount: false`, then render the row inside the app's own MUI `ThemeProvider`.
+the workspace with `mount: false`, then render the row inside `PhonuxThemeProvider` with the theme the app wants.
 
 <!-- advanced:start -->
 ```tsx
