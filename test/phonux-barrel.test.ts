@@ -36,6 +36,8 @@ const VALUE_EXPORTS = [
   'useViewSnapshot',
   'CaptureRegistryProvider',
   'noopCaptureTrigger',
+  'createTileCapture',
+  'useRecaptureOnSettle',
   'useViewState',
   'ViewStateMissingProviderError',
   'DEFAULT_PANEL_SIZE',

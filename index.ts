@@ -27,6 +27,19 @@ export type { PhonuxLabels } from './labels.js';
 export { useViewSnapshot, CaptureRegistryProvider, noopCaptureTrigger } from './snapshots.js';
 export type { ViewId, ViewSnapshot, SnapshotsAPI, CaptureRegistry, CaptureTrigger } from './snapshots.js';
 
+export { createTileCapture } from './captureTiles.js';
+export type {
+  TileCapture,
+  TileCaptureOptions,
+  TilePictureRecord,
+  TilePictureStorage,
+  TileRaster,
+  TileRasteriser,
+  TileRequest,
+} from './captureTiles.js';
+export { useRecaptureOnSettle } from './captureRecapture.js';
+export type { RecaptureOnSettleOptions } from './captureRecapture.js';
+
 export { useViewState, ViewStateMissingProviderError } from './viewState.js';
 export type { UseViewState } from './viewState.js';
 
