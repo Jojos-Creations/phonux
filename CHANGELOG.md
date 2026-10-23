@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+### Changed
+
+- A touch drag on a drag-to-close handle now waits for a short hold (250 ms) before the panel moves, so a vertical swipe on the handle scrolls the page instead of dragging the panel. A mouse or pen drag still starts once it passes the direction lock.
+
 ## 0.2.0-rc.4
 
 ### Breaking

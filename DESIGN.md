@@ -1991,6 +1991,23 @@ enabled button when its holder is removed or disabled, and Arrow, Home and End s
 The Workspace derives the row's resize settle from `tuning.slide`: the row snaps while the width moves and glides once it has
 held for `tuning.resizeSettleSlides` (1.25) slide durations, at once under Reduce Motion. A `rowResizeSettled` the host supplies wins.
 
+## Safe areas and a touch drag in a web view
+
+A Capacitor page runs in WKWebView on iPhone and in the Android System WebView. Three things follow from that.
+
+- **Insets need the host's opt-in.** `env(safe-area-inset-*)` is 0 unless the page's viewport meta says `viewport-fit=cover`, and
+  the library cannot write that meta. The Workspace row reads the top and bottom insets as a margin and a height shrink, so its
+  measured height (`useRowHeightBudget`) already leaves them out. The side insets are not applied: the row's stops and widths are
+  computed from `gap` alone, and a side inset would move every stop.
+- **Exit distance uses the visible bottom.** `visibleViewportBottom()` (`dragToClose.tsx`) is the visual viewport's bottom, so a
+  dismissed panel leaves the screen while a pinch or the on-screen keyboard has shrunk what is visible. `100dvh` is a CSS unit and
+  cannot give a pixel distance to a spring.
+- **A touch waits for a hold.** The grab bar is `touch-action: pan-x`, so a vertical touch on it is left to the page's pan until
+  the press has held. A touch reaches the drag sensor only after 250 ms, and only if it has moved no more than 6 px by then (the
+  workspace's tile drag holds a touch the same way). A touch that moves first is a page pan and never starts the drag. A mouse or
+  pen is unchanged and starts past the direction lock: the hold is on the handle, not the sensor, because the sensor's activator
+  is one per event name and would drop the mouse's.
+
 ## Doc comments
 
 An export reachable from `index.ts` or `fakeHost.ts` is documented with TSDoc, the `/** */` syntax API Extractor already

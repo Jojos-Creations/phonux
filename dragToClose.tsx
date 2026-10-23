@@ -234,6 +234,15 @@ function settleHome(x: MotionValue<number>, scrollX: MotionValue<number>, spring
 }
 
 /**
+ * The bottom of the visible area in layout-viewport px. The visual viewport is what the person sees: a pinch or an on-screen
+ * keyboard shrinks it while `window.innerHeight` stays put, and an exit short of the visible bottom stops on screen.
+ */
+export function visibleViewportBottom(): number {
+  const visual = window.visualViewport;
+  return visual === null || visual === undefined ? window.innerHeight : visual.offsetTop + visual.height;
+}
+
+/**
  * The fastest the pointer travelled between two samples at least SEGMENT_MIN_MS apart, px/s (positive = down). The
  * peak, not the average of the window: a flick is judged by how fast it moved, and its events arrive unevenly.
  */
@@ -341,6 +350,12 @@ export interface PreviewOut {
   /** Draws the tile's content; called while a preview is out. */
   render: () => React.ReactNode;
 }
+
+// A touch press reaches dnd-kit only after this hold, and only if it has not moved past TOUCH_HOLD_TOLERANCE_PX by then: a
+// touch that moves first is a page pan, which the handle's touch-action leaves to the browser. WorkspacePanel's tile drag
+// holds a touch the same way.
+const TOUCH_HOLD_MS = 250;
+const TOUCH_HOLD_TOLERANCE_PX = 6;
 
 /**
  * A box whose grab handle, dragged down far enough, calls `onClose`; with `reorder`, the same handle also drags
@@ -570,6 +585,13 @@ function DragToCloseBox({
     });
   };
   const engaged = React.useRef(false);
+  // False while a touch press waits for its hold: the box must not follow a swipe the page is about to scroll.
+  const touchHeld = React.useRef(true);
+  // The frame that checks a touch press's hold; the pointer loop is frame-driven too, so the hold is not a timer.
+  const touchHold = React.useRef<number | null>(null);
+  React.useEffect(() => () => {
+    if (touchHold.current !== null) cancelAnimationFrame(touchHold.current);
+  }, []);
   const followStep = React.useRef<(() => void) | null>(null);
   const stopFollowing = () => {
     engaged.current = false;
@@ -581,6 +603,10 @@ function DragToCloseBox({
   returnHomeRef.current = returnHome;
   const trackPointer = React.useRef((event: Event) => {
     const { clientX, clientY } = event as PointerEvent;
+    if (touchHold.current !== null && (event.type !== 'pointermove' || Math.hypot(clientX - pointer.current.downX, clientY - pointer.current.downY) > TOUCH_HOLD_TOLERANCE_PX)) {
+      cancelAnimationFrame(touchHold.current);
+      touchHold.current = null;
+    }
     if (event.type !== 'pointercancel') {
       pointer.current = { ...pointer.current, x: clientX, y: clientY };
       if (event.type === 'pointerup') released.current = event.timeStamp;
@@ -639,7 +665,7 @@ function DragToCloseBox({
   // The gesture starts on the pointer's own events, in the frame the offset passes the direction lock, not when dnd-kit's
   // context renders its start; dnd-kit decides when the press is a drag (and ends or cancels it), this decides what the box does.
   latestMove.current = () => {
-    if (engaged.current) return;
+    if (engaged.current || !touchHeld.current) return;
     if (Math.hypot(pointer.current.x - pointer.current.downX, pointer.current.y - pointer.current.downY) < DIRECTION_LOCK_PX) return;
     engaged.current = true;
     axisLock.current = null;
@@ -738,7 +764,7 @@ function DragToCloseBox({
           return;
         }
         if (reduceMotion) return closeRef.current();
-        const distance = side === 'bottom' ? Math.max(height, window.innerHeight - (rect?.top ?? 0)) : -Math.max(height, rect?.bottom ?? 0);
+        const distance = side === 'bottom' ? Math.max(height, visibleViewportBottom() - (rect?.top ?? 0)) : -Math.max(height, rect?.bottom ?? 0);
         const exit = animate(y, distance, { duration: exitSeconds, ease: exitEase });
         running.current = exit;
         closing.current = true;
@@ -757,7 +783,7 @@ function DragToCloseBox({
       const velocityY = rested ? 0 : peakSpeed(recent);
       if (closeOnRelease && closeRef.current !== undefined && closableRef.current && shouldCloseOnRelease({ offsetY: Math.max(0, dy), velocityY, height }, drag)) {
         if (reduceMotion) return closeRef.current();
-        const toBottom = Math.max(height, window.innerHeight - (rect?.top ?? 0));
+        const toBottom = Math.max(height, visibleViewportBottom() - (rect?.top ?? 0));
         const exit = animate(y, toBottom, { duration: exitSeconds, ease: exitEase });
         running.current = exit;
         closing.current = true;
@@ -786,6 +812,7 @@ function DragToCloseBox({
       if (event.button !== 0 || (control !== null && control !== event.currentTarget) || closing.current) return; // a press would stop the exit: onClose would never run
       stoppedSpring.current = false;
       dropping.current = false;
+      touchHeld.current = event.pointerType !== 'touch';
       if (running.current) { running.current.stop(); running.current = null; stoppedSpring.current = y.get() !== 0 || x.get() !== 0 || scrollX.get() !== 0; unlockScrollParents(); preview(null); } // stop() never settles the spring's promise, so its own unlock would not run
       edge.press(event);
       // Taken at the press so no selection can begin elsewhere during the gesture. An existing selection is left alone until dnd-kit
@@ -801,9 +828,24 @@ function DragToCloseBox({
         window.removeEventListener(type, trackPointer.current, true);
         window.addEventListener(type, trackPointer.current, true);
       }
-      draggable.listeners?.onPointerDown?.(event);
+      if (event.pointerType !== 'touch') {
+        draggable.listeners?.onPointerDown?.(event);
+        return;
+      }
+      if (touchHold.current !== null) cancelAnimationFrame(touchHold.current);
+      const pressedAt = event.timeStamp;
+      const awaitHold = (now: number): void => {
+        if (now - pressedAt < TOUCH_HOLD_MS) {
+          touchHold.current = requestAnimationFrame(awaitHold);
+          return;
+        }
+        touchHold.current = null;
+        touchHeld.current = true;
+        draggable.listeners?.onPointerDown?.(event);
+      };
+      touchHold.current = requestAnimationFrame(awaitHold);
     },
-    // pan-x: a horizontal swipe still scrolls the row; a vertical one is this gesture's.
+    // pan-x: a horizontal swipe still scrolls the row; a vertical one is this gesture's, once a touch has held (TOUCH_HOLD_MS).
     sx: { cursor: 'grab', touchAction: 'pan-x', userSelect: 'none', '&:active': { cursor: 'grabbing' }, '&:focus-visible': { outline: '2px solid', outlineColor: 'primary.main', outlineOffset: -2 } },
     ...(onClose === undefined && reorder?.onStep === undefined
       ? {}
