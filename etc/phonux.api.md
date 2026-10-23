@@ -683,6 +683,15 @@ export class PanelManagerError extends Error {
 export type PanelManagerErrorCode = 'invalid-template' | 'duplicate-template' | 'unknown-template' | 'root-mismatch' | 'invalid-options' | 'invalid-settings' | 'instance-id-required' | 'already-attached' | 'disposed';
 
 // @public
+export interface PanelPresence {
+    readonly reason: PanelPresenceReason;
+    readonly shown: boolean;
+}
+
+// @public
+export type PanelPresenceReason = 'shown' | 'exiting' | 'closing' | 'parked' | 'scrolledAway';
+
+// @public
 export interface PanelProps extends Omit<BoxProps, 'children' | 'sx' | 'title'> {
     actions?: React_2.ReactNode;
     capture?: 'auto' | 'never';
@@ -1442,6 +1451,9 @@ export const usePanelNeighborWidths: () => NeighborWidths;
 
 // @public
 export const usePanelPinned: () => boolean;
+
+// @public
+export function usePanelPresence(): PanelPresence;
 
 // @public
 export const usePanelReorderSteps: () => ((offsetX: number) => number);

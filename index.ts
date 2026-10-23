@@ -201,6 +201,8 @@ export { usePanelStates, usePanelState, useWorkspace, useWorkspaceManager } from
 export { ACTIVE_ATTRIBUTE, CHROME_ATTRIBUTE, CHROME_PARTS, DRAGGING_ATTRIBUTE, useActivePanel, usePanelActive, usePanelDragProps, usePanelDragging, usePanelResizing, usePanelSetDragging, usePanelSliding } from './panelChrome.js';
 export type { PanelRect, PanelRectEvent } from './panelChrome.js';
 export type { ChromePart } from './panelChrome.js';
+export { usePanelPresence } from './panelPresence.js';
+export type { PanelPresence, PanelPresenceReason } from './panelPresence.js';
 
 export { PanelManagerError } from './panelManagerError.js';
 export type { PanelRefusal, PanelManagerErrorCode } from './panelManagerError.js';

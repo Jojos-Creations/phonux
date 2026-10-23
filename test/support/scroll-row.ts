@@ -47,12 +47,12 @@ export interface MountedRow {
  * `entries` mounted at a measured container `width`; `over` replaces any provider input; `wrap` puts the mounted row inside a
  * parent, such as StrictMode or a MotionConfig.
  */
-export function mountRow(entries: PanelWindow[], width: number, over: Partial<Omit<PanelsInput, 'workspace'>> & SeedOptions = {}, wrap: (row: React.ReactElement) => React.ReactElement = (row) => row): MountedRow {
+export function mountRow(entries: PanelWindow[], width: number, over: Partial<Omit<PanelsInput, 'workspace'>> & SeedOptions & { wireClosing?: boolean } = {}, wrap: (row: React.ReactElement) => React.ReactElement = (row) => row): MountedRow {
   const ref = React.createRef<HTMLDivElement>();
   const rowRef = React.createRef<HTMLDivElement>();
   const notes: SettingNote[] = [];
   let latest: ProvidedPanels | undefined;
-  const { rootId: _root, tuning, workspaceDefaults, templates, storage, ...hook } = over;
+  const { rootId: _root, tuning, workspaceDefaults, templates, storage, wireClosing = false, ...hook } = over;
   const workspace = seededWorkspace(entries, { rootId: ROOT, ...(tuning !== undefined ? { tuning } : {}), ...(workspaceDefaults !== undefined ? { workspaceDefaults } : {}), ...(templates !== undefined ? { templates } : {}), ...(storage !== undefined ? { storage } : {}) });
   function Probe({ containerWidth }: { containerWidth: number }): React.ReactElement {
     latest = useProvidePanels(panelsInput({ workspace, containerWidth, overflowContainerRef: ref, onNote: (n) => void notes.push(n), ...hook }));
@@ -61,7 +61,7 @@ export function mountRow(entries: PanelWindow[], width: number, over: Partial<Om
       React.createElement(
         Workspace,
         { overflowContainerRef: ref, rowRef, containerWidth, rowResizeSettled: true, phoneWidth: 390, fixedColumnCount: provided.fixedViewCount, liveWidths: provided.liveWidths, rowScroll: provided.rowScroll, rowNumbers: provided.rowNumbers, workspace } as never,
-        React.createElement(PanelRow, { entries: provided.entries, rootId: ROOT, closingIds: NONE, enteringViaAnchorIds: NONE, rowNumbers: provided.rowNumbers, workspace }),
+        React.createElement(PanelRow, { entries: provided.entries, rootId: ROOT, closingIds: wireClosing ? provided.closingIds : NONE, enteringViaAnchorIds: NONE, rowNumbers: provided.rowNumbers, workspace }),
       ),
       createFakeHost({ panels: provided }),
     );

@@ -381,6 +381,7 @@ export function PanelRow({
           drawn: { width: rest.width, height: phoneHeight },
           handle,
           pinned: pinned.has(p.id),
+          closing: closingIds.has(p.id),
           tuning: own,
           dragScroll,
           headerButtonSlots,

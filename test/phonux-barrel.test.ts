@@ -61,6 +61,7 @@ const VALUE_EXPORTS = [
   'usePanelHeaderButtons',
   'usePanelNeighborWidths',
   'usePanelPinned',
+  'usePanelPresence',
   'usePanelResizing',
   'usePanelSetDragging',
   'Workspace',
