@@ -34,7 +34,7 @@ interface PlaywrightModule {
 /** What tools/proof/step-entry.tsx.txt puts on the page. */
 interface Probe {
   container(): HTMLElement;
-  provided(): { rowNumbers: { stops: number[]; atStop: number; rowMarginLeft: number; stripWidth: number; endPad: number; windowWidth: number } };
+  provided(): { rowNumbers: { stops: number[]; rowMarginLeft: number; stripWidth: number; endPad: number; windowWidth: number } };
 }
 
 async function loadPlaywright(): Promise<PlaywrightModule | undefined> {
@@ -91,7 +91,9 @@ test('every stop of a stepping row is inside the range the browser gives, at 180
               const c = (window as unknown as { __g: Probe }).__g.container();
               const n = (window as unknown as { __g: Probe }).__g.provided().rowNumbers;
               const pad = c.querySelector('[data-row-end-pad]');
-              return { scrollLeft: c.scrollLeft, browserMax: c.scrollWidth - c.clientWidth, stops: n.stops, atStop: n.atStop, maxScroll: Math.max(0, n.rowMarginLeft + n.stripWidth + n.endPad - n.windowWidth), endPad: n.endPad, padWidth: pad === null ? null : pad.getBoundingClientRect().width };
+              // The stop the row rests on is the one nearest its scroll; the assertions below check it is exact.
+              const atStop = n.stops.reduce((best, stop, k) => (Math.abs(stop - c.scrollLeft) < Math.abs(n.stops[best]! - c.scrollLeft) ? k : best), 0);
+              return { scrollLeft: c.scrollLeft, browserMax: c.scrollWidth - c.clientWidth, stops: n.stops, atStop, maxScroll: Math.max(0, n.rowMarginLeft + n.stripWidth + n.endPad - n.windowWidth), endPad: n.endPad, padWidth: pad === null ? null : pad.getBoundingClientRect().width };
             });
           };
           const where = `${slots} at ${width}, gap ${gap}`;

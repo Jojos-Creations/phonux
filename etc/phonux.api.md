@@ -88,6 +88,38 @@ export interface ClosedPageEntry {
 }
 
 // @public
+export interface ClosedPagesList {
+    add(entry: ClosedPageEntry): void;
+    readonly entries: readonly ClosedPageEntry[];
+    readonly loaded: boolean;
+    touch(id: string): void;
+}
+
+// @public
+export function ClosedPagesPanel(input: ClosedPagesPanelProps): React_2.ReactElement;
+
+// @public
+export interface ClosedPagesPanelProps {
+    readonly className?: string;
+    readonly list: ClosedPagesList;
+    readonly onReopen: (entry: ClosedPageEntry) => void;
+}
+
+// @public
+export interface ClosedPagesStorage {
+    read(): Promise<readonly ClosedPageEntry[]>;
+    write(entries: readonly ClosedPageEntry[]): Promise<void>;
+}
+
+// @public
+export interface ClosedPagesTemplateOptions {
+    readonly id?: string;
+    readonly list: ClosedPagesList;
+    readonly onReopen: (entry: ClosedPageEntry) => void;
+    readonly title?: string;
+}
+
+// @public
 export type CloseExitEase = 'easeIn' | 'easeOut' | 'easeInOut' | 'linear' | BezierEase;
 
 // @public
@@ -157,6 +189,9 @@ export type ConfigureResult = {
     readonly message: string;
     readonly setting?: string;
 };
+
+// @public
+export function createClosedPagesTemplate(input: ClosedPagesTemplateOptions): PanelTemplate;
 
 // @public
 export function createDefaultTheme(mode: 'light' | 'dark'): Theme;
@@ -945,6 +980,12 @@ export interface PhonuxLabels {
     cannotMove: (title: string, steps: number) => string;
     close: string;
     closed: (title: string) => string;
+    closedPagesEmpty: string;
+    closedPagesLoading: string;
+    closedPagesNoMatches: string;
+    closedPagesSearch: string;
+    closedPagesTitle: string;
+    closedPagesUntitled: string;
     dragCancelled: (title: string) => string;
     dropped: (title: string) => string;
     goToWorkspace: (name: string) => string;
@@ -1320,6 +1361,15 @@ export interface TileRequest {
 
 // @public
 export function useActivePanel(): readonly [PanelId | null, (id: PanelId | null) => void];
+
+// @public
+export function useClosedPages(input: UseClosedPagesOptions): ClosedPagesList;
+
+// @public
+export interface UseClosedPagesOptions {
+    readonly limit: number;
+    readonly storage: ClosedPagesStorage;
+}
 
 // @public
 export function useHost(): Host;
