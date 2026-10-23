@@ -592,6 +592,28 @@ const CATALOG_ROWS = [
         configure: { cls: 'NOW', doors: ['tuning'] },
     },
     {
+        name: 'tuning.rowTop',
+        group: 'tuning',
+        values: 'integer px 0 to 400, or null (workspace only)',
+        default: 'null (the default room)',
+        scope: 'workspace',
+        viewSettable: false,
+        exists: 'new',
+        ownerEntry: 'core-app-row-api',
+        configure: { cls: 'NOW', doors: ['tuning'] },
+    },
+    {
+        name: 'tuning.phoneHeight',
+        group: 'tuning',
+        values: "'fit', 'auto' (workspace only)",
+        default: "'fit'",
+        scope: 'workspace',
+        viewSettable: false,
+        exists: 'new',
+        ownerEntry: 'core-app-row-api',
+        configure: { cls: 'NOW', doors: ['tuning'] },
+    },
+    {
         name: 'tuning.phoneFit',
         group: 'tuning',
         values: 'off, fit (workspace only)',
@@ -702,6 +724,8 @@ export const LIBRARY_PANEL_DEFAULTS = freezeClone({
  */
 export const LIBRARY_TUNING_DEFAULTS = freezeClone({
     rowGap: ROW_GAP,
+    rowTop: null,
+    phoneHeight: 'fit',
     dragToClose: {
         distanceFraction: DRAG_CLOSE_NUMBERS.distanceFraction,
         minDistancePx: DRAG_CLOSE_NUMBERS.minDistancePx,
@@ -1017,6 +1041,8 @@ const TUNING_MEMBER_CHECKS = {
 const TUNING_SCALAR_CHECKS = {
     hopFraction: num(0, 1, { minOpen: true }),
     rowGap: integer(0, 200),
+    rowTop: (v) => (v === null ? undefined : integer(0, 400)(v)),
+    phoneHeight: oneOf('fit', 'auto'),
     saveQuietMs: integer(0),
     gestureLockMs: integer(0),
     gestureQuietMs: integer(1),

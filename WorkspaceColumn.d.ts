@@ -22,7 +22,7 @@ export interface WorkspaceColumnProps {
      * What fills a workspace's cell: the app's own hand-wired row for that workspace. Omitted: the row the library mounts itself, as
      * `createWorkspace` does. A returned row puts the column's `topInset` plus `COLUMN_TOP_BAND` plus its row gap above its panels.
      */
-    children?: (workspace: WorkspaceHandle) => React.ReactNode;
+    children?: (workspace: WorkspaceHandle) => React.ReactNode | undefined;
 }
 /**
  * Draws a column: one cell per workspace, the current one in view, the others inert and hidden from assistive technology but

@@ -44,3 +44,4 @@ export { ACTIVE_ATTRIBUTE, CHROME_ATTRIBUTE, CHROME_PARTS, DRAGGING_ATTRIBUTE, u
 export { usePanelPresence } from './panelPresence.js';
 export { PanelManagerError } from './panelManagerError.js';
 export { usePanelDots } from './usePanelDots.js';
+export { useWorkspaceRow } from './workspaceRow.js';

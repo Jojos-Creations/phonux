@@ -18,6 +18,7 @@ import { usePhoneFit } from './usePhoneFit.js';
 import { hostPanelsOf } from './hostPanels.js';
 import { useProvidePanels } from './panels/useProvidePanels.js';
 import { bindingOf } from './workspaceCore.js';
+import { WorkspaceRowContext } from './workspaceRow.js';
 import { columnCoreOf } from './columnHandle.js';
 import { WorkspaceColumn } from './WorkspaceColumn.js';
 /** The `Workspace` props the mount derives from what `useProvidePanels` returned: the same mapping a hand-wired flow writes out. @internal */
@@ -108,7 +109,7 @@ function AutoBody({ workspace, columnTop }) {
     const containerWidth = useContainerWidth(ref);
     const preferred = values.device?.size ?? DEFAULT_PHONE_SIZE;
     const tuning = React.useSyncExternalStore(binding.subscribe, () => binding.tuning, () => binding.tuning);
-    const topPadding = columnTop > 0 ? columnTop + (values.topInset ?? 0) + tuning.rowGap : values.topInset;
+    const topPadding = tuning.rowTop ?? (columnTop > 0 ? columnTop + (values.topInset ?? 0) + tuning.rowGap : values.topInset);
     const phone = usePhoneFit(ref, containerWidth, preferred, tuning, topPadding);
     const phoneWidth = phone.width;
     const provided = useProvidePanels({
@@ -129,7 +130,15 @@ function AutoBody({ workspace, columnTop }) {
     };
     const Wrap = binding.wrap;
     const row = (_jsx(Workspace, { overflowContainerRef: ref, rowRef: rowRef, containerWidth: containerWidth, phoneWidth: phoneWidth, phoneHeight: phone.height, ...(topPadding !== undefined ? { topPadding } : {}), ...workspaceProps(provided, workspace), children: _jsx(PanelRow, { ...rowProps(provided, workspace) }) }));
-    return _jsx(HostProvider, { host: host, children: Wrap === undefined ? row : _jsx(Wrap, { workspace: workspace, children: row }) });
+    const rowValue = React.useMemo(() => ({
+        rowNumbers: provided.rowNumbers,
+        entries: provided.entries,
+        maxFitPanels: provided.maxFitPanels ?? null,
+        scroller: rowRef,
+        tuning,
+        phoneSize: { width: phone.width, height: phone.height },
+    }), [provided.rowNumbers, provided.entries, provided.maxFitPanels, tuning, phone.width, phone.height]);
+    return (_jsx(HostProvider, { host: host, children: _jsx(WorkspaceRowContext.Provider, { value: rowValue, children: Wrap === undefined ? row : _jsx(Wrap, { workspace: workspace, children: row }) }) }));
 }
 /**
  * Renders `workspace` into `target` (default: a full-window element appended to `document.body`) and returns the function that
