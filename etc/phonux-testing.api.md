@@ -434,6 +434,12 @@ export interface PhonuxLabels {
     cannotMove: (title: string, steps: number) => string;
     close: string;
     closed: (title: string) => string;
+    closedPagesEmpty: string;
+    closedPagesLoading: string;
+    closedPagesNoMatches: string;
+    closedPagesSearch: string;
+    closedPagesTitle: string;
+    closedPagesUntitled: string;
     dragCancelled: (title: string) => string;
     dropped: (title: string) => string;
     goToWorkspace: (name: string) => string;
