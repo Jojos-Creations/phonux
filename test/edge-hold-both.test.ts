@@ -44,7 +44,7 @@ test("sticky-both: a both panel's layout is the same as a row where it is a plai
   const b = numbers(both, 1000, true);
   assert.deepEqual([b.ids, b.widths, b.leftOffsets, b.stops, b.stopSpans, b.stripStart], [p.ids, p.widths, p.leftOffsets, p.stops, p.stopSpans, p.stripStart]);
   assert.equal(maxScrollOf(b), maxScrollOf(p));
-  assert.deepEqual(b.stops, [0, 406, 812, 1218, 1624, 2030, 2264], 'the one-phone grid, the last stop the end of the range');
+  assert.deepEqual(b.stops, [0, 406, 812, 1218, 1624, 2030, 2436], 'the one-phone grid, and the last stop the centered end of the range: 86 + 3232 + 86 - 968');
 });
 
 test('two both panels in one row both stick, each clear of the other on the edge they stack at, in row order', () => {
