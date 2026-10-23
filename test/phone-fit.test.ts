@@ -249,3 +249,28 @@ test('the fitted size landed by the measurement is drawn at once: no size slide 
   await advanceFrames(400);
   assert.equal(box.style.transform, '', 'and it stays there');
 });
+
+/** The phone's drawn height under `tuning`, observed on a real mount. */
+async function drawnHeight(tuning: Record<string, unknown>, width: number, height: number): Promise<number> {
+  const m = await mounted({ tuning }, width, height);
+  const result = Number(document.querySelector<HTMLElement>('[data-phone]')!.dataset.phone!.split('x')[1]);
+  rigCleanup();
+  return result;
+}
+
+test('differential tuning.phoneHeight: under fit the frame scales with the width, under auto it is as tall as the row room', async () => {
+  const seen = { fit: await drawnHeight({ phoneFit: 'fit' }, 1000, 900), auto: await drawnHeight({ phoneFit: 'fit', phoneHeight: 'auto' }, 1000, 900) };
+  differential('tuning.phoneHeight', (run) => {
+    for (const mode of ['fit', 'auto'] as const) run(mode, () => seen[mode]);
+  });
+  assert.deepEqual(seen, { fit: 790, auto: 844 });
+});
+
+test('differential tuning.rowTop: a larger room above the row leaves a shorter row room, so a shorter frame under auto', async () => {
+  const seen = { none: await drawnHeight({ phoneFit: 'fit', phoneHeight: 'auto' }, 1000, 900), large: await drawnHeight({ phoneFit: 'fit', phoneHeight: 'auto', rowTop: 300 }, 1000, 900) };
+  differential('tuning.rowTop', (run) => {
+    run(null, () => seen.none);
+    run(300, () => seen.large);
+  });
+  assert.deepEqual(seen, { none: 844, large: 560 });
+});

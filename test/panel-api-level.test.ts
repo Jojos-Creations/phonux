@@ -281,7 +281,7 @@ test('the frozen level-1 framed fixture draws its own frame from the frame compo
 
 test('DESIGN lists every workspace-scope tuning row as not covered by a level', () => {
   const rows = PANEL_SETTINGS_CATALOG.filter((d) => d.scope === 'workspace').map((d) => d.name.replace(/^tuning\./, ''));
-  assert.equal(rows.length, 20);
+  assert.equal(rows.length, 22);
   const line = readFileSync(new URL('../DESIGN.md', import.meta.url), 'utf8').split('\n').find((l) => l.startsWith('| `useHost().panels`'));
   assert.ok(line, 'the level table row naming the workspace-only options');
   const notCovered = line.split('|')[2]!;
