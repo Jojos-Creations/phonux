@@ -2023,11 +2023,11 @@ A Capacitor page runs in WKWebView on iPhone and in the Android System WebView. 
 - **Exit distance uses the visible bottom.** `visibleViewportBottom()` (`dragToClose.tsx`) is the visual viewport's bottom, so a
   dismissed panel leaves the screen while a pinch or the on-screen keyboard has shrunk what is visible. `100dvh` is a CSS unit and
   cannot give a pixel distance to a spring.
-- **A touch waits for a hold.** The grab bar is `touch-action: pan-x`, so a vertical touch on it is left to the page's pan until
-  the press has held. A touch reaches the drag sensor only after 250 ms, and only if it has moved no more than 6 px by then (the
-  workspace's tile drag holds a touch the same way). A touch that moves first is a page pan and never starts the drag. A mouse or
-  pen is unchanged and starts past the direction lock: the hold is on the handle, not the sensor, because the sensor's activator
-  is one per event name and would drop the mouse's.
+- **A touch never drags the grab bar.** The grab bar is `touch-action: pan-x`, so a vertical touch on it is the page's pan, and the
+  browser cancels the pointer once it pans. A touch press therefore never reaches the drag sensor, and a held touch cannot close a
+  panel. A mouse or pen is unchanged and starts past the direction lock; the press is taken on the handle, not the sensor, because
+  the sensor's activator is one per event name and would drop the mouse's. The workspace's tile drag is separate and still holds a
+  touch for 250 ms.
 
 ## Doc comments
 

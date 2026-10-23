@@ -1,6 +1,6 @@
 /**
- * A touch press on the drag-to-close handle waits for a hold before it drags, so a vertical swipe on the handle is a page
- * pan until then. The mouse drags at once, so the same move closes under the mouse and not under an early touch.
+ * A touch on the drag-to-close handle never drags it: the browser keeps the handle's native pan, so a vertical touch scrolls the
+ * page and cannot close the box. The mouse drags at once, so the same move closes under the mouse and not under a touch.
  */
 import { test, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
@@ -14,7 +14,6 @@ import { drag } from './support/drag-gesture.js';
 afterEach(() => cleanup());
 
 const ORIGIN = 100;
-const HOLD_MS = 250;
 
 function pointerEvent(type: 'pointerdown' | 'pointermove' | 'pointerup', pointerType: 'mouse' | 'touch', x: number, y: number): Event {
   const event = new MouseEvent(type, { bubbles: true, cancelable: true, clientX: x, clientY: y, screenX: x, screenY: y, button: 0, buttons: type === 'pointerup' ? 0 : 1 });
@@ -64,13 +63,13 @@ test('a touch that moves down before its hold does not close the box, and the sa
   const touch = mountBox(() => touchCloses.push(1));
   await touchDrag(touch.handle, { dy: 300, holdMs: 0 });
   await advanceFrames(2000);
-  assert.deepEqual(touchCloses, [], 'a touch that moved before the hold is a page pan, not a drag');
+  assert.deepEqual(touchCloses, [], 'a touch dragged down is a page pan, not a close');
 });
 
-test('a touch held for the hold and then dragged down 300 px closes the box', async () => {
+test('a touch held on the handle and then dragged down does not close the box either', async () => {
   const closes: number[] = [];
   const { handle } = mountBox(() => closes.push(1));
-  await touchDrag(handle, { dy: 300, holdMs: HOLD_MS + 50 });
+  await touchDrag(handle, { dy: 300, holdMs: 400 });
   await advanceFrames(2000);
-  assert.deepEqual(closes, [1], 'the drag started at the hold and the release closed it');
+  assert.deepEqual(closes, [], 'a held touch never starts the close drag');
 });
