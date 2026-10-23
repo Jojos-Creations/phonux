@@ -234,6 +234,15 @@ function settleHome(x: MotionValue<number>, scrollX: MotionValue<number>, spring
 }
 
 /**
+ * The bottom of the visible area in layout-viewport px. The visual viewport is what the person sees: a pinch or an on-screen
+ * keyboard shrinks it while `window.innerHeight` stays put, and an exit short of the visible bottom stops on screen.
+ */
+export function visibleViewportBottom(): number {
+  const visual = window.visualViewport;
+  return visual === null || visual === undefined ? window.innerHeight : visual.offsetTop + visual.height;
+}
+
+/**
  * The fastest the pointer travelled between two samples at least SEGMENT_MIN_MS apart, px/s (positive = down). The
  * peak, not the average of the window: a flick is judged by how fast it moved, and its events arrive unevenly.
  */
@@ -738,7 +747,7 @@ function DragToCloseBox({
           return;
         }
         if (reduceMotion) return closeRef.current();
-        const distance = side === 'bottom' ? Math.max(height, window.innerHeight - (rect?.top ?? 0)) : -Math.max(height, rect?.bottom ?? 0);
+        const distance = side === 'bottom' ? Math.max(height, visibleViewportBottom() - (rect?.top ?? 0)) : -Math.max(height, rect?.bottom ?? 0);
         const exit = animate(y, distance, { duration: exitSeconds, ease: exitEase });
         running.current = exit;
         closing.current = true;
@@ -757,7 +766,7 @@ function DragToCloseBox({
       const velocityY = rested ? 0 : peakSpeed(recent);
       if (closeOnRelease && closeRef.current !== undefined && closableRef.current && shouldCloseOnRelease({ offsetY: Math.max(0, dy), velocityY, height }, drag)) {
         if (reduceMotion) return closeRef.current();
-        const toBottom = Math.max(height, window.innerHeight - (rect?.top ?? 0));
+        const toBottom = Math.max(height, visibleViewportBottom() - (rect?.top ?? 0));
         const exit = animate(y, toBottom, { duration: exitSeconds, ease: exitEase });
         running.current = exit;
         closing.current = true;
@@ -801,9 +810,12 @@ function DragToCloseBox({
         window.removeEventListener(type, trackPointer.current, true);
         window.addEventListener(type, trackPointer.current, true);
       }
+      // A touch never starts a close or a reorder here: the browser keeps its native pan of the handle, so the press only tracks the
+      // pointer for its own bookkeeping. A mouse or pen press drags at once.
+      if (event.pointerType === 'touch') return;
       draggable.listeners?.onPointerDown?.(event);
     },
-    // pan-x: a horizontal swipe still scrolls the row; a vertical one is this gesture's.
+    // pan-x: a horizontal swipe still scrolls the row, and a vertical one scrolls the page; the handle does not drag on touch.
     sx: { cursor: 'grab', touchAction: 'pan-x', userSelect: 'none', '&:active': { cursor: 'grabbing' }, '&:focus-visible': { outline: '2px solid', outlineColor: 'primary.main', outlineOffset: -2 } },
     ...(onClose === undefined && reorder?.onStep === undefined
       ? {}

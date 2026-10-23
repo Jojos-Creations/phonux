@@ -420,7 +420,10 @@ export function Workspace(props: WorkspaceProps): React.ReactElement {
         sx={{
           position: 'relative',
           display: 'flex',
-          height: '100%',
+          // The row sits inside the device's top and bottom safe areas. The inset is a margin, not padding, so the box the row
+          // measures for its height shrinks by it. env() is 0 unless the page's viewport meta sets viewport-fit=cover.
+          marginTop: 'env(safe-area-inset-top, 0px)',
+          height: 'calc(100% - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px))',
           minHeight: 0,
           pt: `${topPadding ?? gap}px`,
           pb: `${bottomPad}px`,
