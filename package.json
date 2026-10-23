@@ -34,6 +34,7 @@
     "test": "node tools/run-tests.mjs test/*.test.ts",
     "file-test": "node tools/run-tests-narrow.mjs",
     "build": "node tools/phonux-build.mjs",
+    "phone": "playwright test -c playwright.phone.config.ts",
     "smoke": "node tools/phonux-pack-smoke.mjs",
     "check:api-report": "node tools/phonux-api-report.mjs",
     "api-report:update": "node tools/phonux-api-report.mjs --local",
@@ -43,6 +44,7 @@
   "devDependencies": {
     "@biomejs/biome": "2.5.15",
     "@microsoft/api-extractor": "^7.59.2",
+    "@playwright/test": "1.56.1",
     "@types/jsdom": "^21.1.7",
     "@types/node": "^22.10.0",
     "@types/react": "^19.2.18",
