@@ -89,7 +89,7 @@ export { Workspace } from './Workspace.js';
 export type { WorkspaceProps } from './Workspace.js';
 export { WorkspacePanel } from './WorkspacePanel.js';
 export type { WorkspacePanelProps } from './WorkspacePanel.js';
-export type { WorkspacePanelLabels, WorkspaceTileCounts, WorkspaceTileSize } from './workspacePanelModel.js';
+export type { WorkspaceTileCounts, WorkspaceTileSize } from './workspacePanelModel.js';
 export { useProvidePanels } from './panels/useProvidePanels.js';
 export type { PanelsInput, ProvidedPanels } from './panels/useProvidePanels.js';
 export type { PanelWindow } from './panelWindow.js';

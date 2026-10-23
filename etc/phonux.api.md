@@ -957,7 +957,14 @@ export interface PhonuxLabels {
     unpinFailed: string;
     untitledHeader: string;
     untitledPanel: string;
+    workspaceEmpty: string;
+    workspaceHidden: string;
     workspaceName: string;
+    workspaceNoMatches: string;
+    workspacePinned: string;
+    workspaceSearch: string;
+    workspaceUntitled: string;
+    workspaceViewing: string;
 }
 
 // @public
@@ -1491,19 +1498,8 @@ export type WorkspaceOptions = WorkspaceLive & {
 export function WorkspacePanel(input: WorkspacePanelProps): React_2.JSX.Element;
 
 // @public
-export interface WorkspacePanelLabels {
-    readonly empty: string;
-    readonly hidden: string;
-    readonly noMatches: string;
-    readonly pinned: string;
-    readonly search: string;
-    readonly untitled: string;
-    readonly viewing: string;
-}
-
-// @public
 export interface WorkspacePanelProps {
-    readonly labels?: Partial<WorkspacePanelLabels>;
+    readonly className?: string;
     readonly tileCounts?: Partial<WorkspaceTileCounts>;
     readonly tileSize?: WorkspaceTileSize;
 }

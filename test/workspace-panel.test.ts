@@ -9,14 +9,15 @@ import * as React from 'react';
 import { act } from 'react';
 import { WorkspacePanel, createWorkspace, definePanel } from '../index.js';
 import type { PanelTemplate, WorkspacePanelProps } from '../index.js';
-import { DEFAULT_WORKSPACE_PANEL_LABELS, DEFAULT_WORKSPACE_TILE_COUNTS, filterWorkspaceTiles, workspaceGroups, workspaceTileColumns, type WorkspaceTile } from '../workspacePanelModel.js';
+import { DEFAULT_LABELS } from '../labels.js';
+import { DEFAULT_WORKSPACE_TILE_COUNTS, filterWorkspaceTiles, workspaceGroups, workspaceTileColumns, type WorkspaceTile } from '../workspacePanelModel.js';
 import { cleanup } from './support/mount-harness.js';
 import { markerTemplate, mountWorkspace } from './support/workspace-row.js';
 
 afterEach(() => cleanup());
 
 const h = React.createElement;
-const L = DEFAULT_WORKSPACE_PANEL_LABELS;
+const L = DEFAULT_LABELS;
 
 const tile = (id: string, over: Partial<WorkspaceTile> = {}): WorkspaceTile => ({ id, title: id, live: true, pinned: false, ...over });
 
@@ -142,16 +143,16 @@ test('typing in the search field narrows the rendered tiles and shows the no-mat
     ['alpha'],
   );
   type('zzz');
-  assert.equal(m.container.querySelector('[data-workspace-empty]')?.textContent, L.noMatches);
+  assert.equal(m.container.querySelector('[data-workspace-empty]')?.textContent, L.workspaceNoMatches);
   m.unmount();
 });
 
-test('labels default to English and a developer may override any of them', () => {
-  assert.equal(L.pinned, 'Pinned');
-  assert.equal(L.viewing, 'Viewing');
-  assert.equal(L.hidden, 'Hidden');
+test('the group headings come from the label keys, so a host overrides them in one place', () => {
+  assert.equal(L.workspacePinned, 'Pinned');
+  assert.equal(L.workspaceViewing, 'Viewing');
+  assert.equal(L.workspaceHidden, 'Hidden');
   assert.deepEqual(
-    workspaceGroups([tile('v')], { ...L, viewing: 'Open' }).map((g) => g.label),
+    workspaceGroups([tile('v')], { ...L, workspaceViewing: 'Open' }).map((g) => g.label),
     ['Open'],
   );
 });

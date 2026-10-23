@@ -1,3 +1,5 @@
+import type { PhonuxLabels } from './labels.js';
+
 /**
  * The plain model behind `WorkspacePanel`: its tile sizes and counts, its three groups, its search, and the title a tile shows.
  * Nothing here touches React, so the grouping and filtering can be checked without a mounted panel.
@@ -19,34 +21,11 @@ export interface WorkspaceTileCounts {
 /** The tiles per row a `WorkspacePanel` uses when `tileCounts` leaves a size out. */
 export const DEFAULT_WORKSPACE_TILE_COUNTS: WorkspaceTileCounts = { small: 5, medium: 4, large: 3 };
 
-/** The text a `WorkspacePanel` shows around its tiles. Every field is a string a person reads. @public */
-export interface WorkspacePanelLabels {
-  /** The heading over the panels that are pinned. */
-  readonly pinned: string;
-  /** The heading over the panels that are live and not pinned. */
-  readonly viewing: string;
-  /** The heading over the panels that are parked and not pinned. */
-  readonly hidden: string;
-  /** The search field's label and placeholder. */
-  readonly search: string;
-  /** The title a panel with no title and no url shows. */
-  readonly untitled: string;
-  /** Shown when the workspace has no panels to list. */
-  readonly empty: string;
-  /** Shown when the search matches no panel. */
-  readonly noMatches: string;
-}
-
-/** The English labels a `WorkspacePanel` uses for any label left out. */
-export const DEFAULT_WORKSPACE_PANEL_LABELS: WorkspacePanelLabels = {
-  pinned: 'Pinned',
-  viewing: 'Viewing',
-  hidden: 'Hidden',
-  search: 'Search panels',
-  untitled: 'Untitled',
-  empty: 'No panels yet.',
-  noMatches: 'No panels match.',
-};
+/** The labels a workspace grid draws, read from the host's `PhonuxLabels`. */
+export type WorkspaceLabels = Pick<
+  PhonuxLabels,
+  'workspacePinned' | 'workspaceViewing' | 'workspaceHidden' | 'workspaceUntitled' | 'workspaceEmpty' | 'workspaceNoMatches'
+>;
 
 /** One panel as the grid lists it. */
 export interface WorkspaceTile {
@@ -74,11 +53,11 @@ export interface WorkspaceGroup {
  * The groups that have at least one tile, in the order pinned, viewing, hidden. A pinned panel is in the pinned group only,
  * whatever its live state; each group keeps the order its tiles were given in.
  */
-export function workspaceGroups(tiles: readonly WorkspaceTile[], labels: WorkspacePanelLabels): WorkspaceGroup[] {
+export function workspaceGroups(tiles: readonly WorkspaceTile[], labels: Pick<WorkspaceLabels, 'workspacePinned' | 'workspaceViewing' | 'workspaceHidden'>): WorkspaceGroup[] {
   const groups: WorkspaceGroup[] = [
-    { key: 'pinned', label: labels.pinned, tiles: tiles.filter((t) => t.pinned) },
-    { key: 'viewing', label: labels.viewing, tiles: tiles.filter((t) => !t.pinned && t.live) },
-    { key: 'hidden', label: labels.hidden, tiles: tiles.filter((t) => !t.pinned && !t.live) },
+    { key: 'pinned', label: labels.workspacePinned, tiles: tiles.filter((t) => t.pinned) },
+    { key: 'viewing', label: labels.workspaceViewing, tiles: tiles.filter((t) => !t.pinned && t.live) },
+    { key: 'hidden', label: labels.workspaceHidden, tiles: tiles.filter((t) => !t.pinned && !t.live) },
   ];
   return groups.filter((group) => group.tiles.length > 0);
 }

@@ -5,16 +5,16 @@
 
 import * as React from 'react';
 import Box from '@mui/material/Box';
+import { resolveLabels } from './labels.js';
+import { useOptionalHost } from './hostApi.js';
 import { useViewSnapshot } from './snapshots.js';
 import { useWorkspace, usePanelStates } from './panels/usePanelStates.js';
 import { usePhoneSize } from './phoneFit.js';
 import {
-  DEFAULT_WORKSPACE_PANEL_LABELS,
   filterWorkspaceTiles,
   workspaceGroups,
   workspaceTileColumns,
   workspaceTileTitle,
-  type WorkspacePanelLabels,
   type WorkspaceTile,
   type WorkspaceTileCounts,
   type WorkspaceTileSize,
@@ -35,57 +35,59 @@ export interface WorkspacePanelProps {
    * @defaultValue `'medium'`
    */
   readonly tileSize?: WorkspaceTileSize;
-  /** The text around the tiles. A label left out keeps its English default. */
-  readonly labels?: Partial<WorkspacePanelLabels>;
+  /** A class name for the root element, so the developer can set its spacing, type and colours. */
+  readonly className?: string;
 }
 
 /**
  * The workspace's panels as tiles, with a search field above them. Activating a tile shows that panel. The panel lists the
  * panels that are live or parked and `listed`; set `listed: false` on the template that renders it to leave it out of its own grid.
  *
- * Tile pictures come from the host's snapshots (`useViewSnapshot`); a tile with no picture shows its title on a plain
- * placeholder. The component draws no padding and no scroll region: the panel's own frame and footer supply both.
+ * It draws its structure only: the search field, a heading per non-empty group, the tile grid, and each tile's picture and
+ * caption. It draws no padding, no gap, no type size and no scroll region. The developer sets those by wrapping the panel
+ * or through `className`. Every visible string comes from the host's `labels` (the `workspace*` keys).
+ * Tile pictures come from the host's snapshots (`useViewSnapshot`); a tile with no picture shows an empty placeholder.
  *
  * @throws RangeError when a tile count is not a positive integer.
  * @public
  */
-export function WorkspacePanel({ tileCounts, tileSize = 'medium', labels }: WorkspacePanelProps): React.JSX.Element {
-  const text = { ...DEFAULT_WORKSPACE_PANEL_LABELS, ...labels };
+export function WorkspacePanel({ tileCounts, tileSize = 'medium', className }: WorkspacePanelProps): React.JSX.Element {
+  const labels = resolveLabels(useOptionalHost()?.labels);
   const columns = workspaceTileColumns(tileSize, tileCounts);
   const states = usePanelStates({ listed: true, status: ['live', 'parked'] });
   const [search, setSearch] = React.useState('');
   const tiles: WorkspaceTile[] = states.map((state) => ({
     id: state.id,
-    title: workspaceTileTitle(state.title, state.url, text.untitled),
+    title: workspaceTileTitle(state.title, state.url, labels.workspaceUntitled),
     live: state.status === 'live',
     pinned: state.pinned,
   }));
   const shown = filterWorkspaceTiles(tiles, search);
-  const groups = workspaceGroups(shown, text);
-  const message = tiles.length === 0 ? text.empty : shown.length === 0 ? text.noMatches : undefined;
+  const groups = workspaceGroups(shown, labels);
+  const message = tiles.length === 0 ? labels.workspaceEmpty : shown.length === 0 ? labels.workspaceNoMatches : undefined;
   return (
-    <Box data-workspace-panel="" sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+    <Box data-workspace-panel="" className={className} sx={{ display: 'flex', flexDirection: 'column' }}>
       <Box
         component="input"
         type="search"
         data-workspace-search=""
-        aria-label={text.search}
-        placeholder={text.search}
+        aria-label={labels.workspaceSearch}
+        placeholder={labels.workspaceSearch}
         value={search}
         onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSearch(e.target.value)}
-        sx={{ width: '100%', boxSizing: 'border-box', font: 'inherit', fontSize: 13, p: 1, borderRadius: 2, border: 1, borderColor: 'divider', bgcolor: 'background.paper', color: 'text.primary' }}
+        sx={{ width: '100%', boxSizing: 'border-box', font: 'inherit', color: 'text.primary' }}
       />
       {message !== undefined && (
-        <Box role="status" data-workspace-empty="" sx={{ fontSize: 12, color: 'text.secondary', textAlign: 'center' }}>
+        <Box role="status" data-workspace-empty="" sx={{ color: 'text.secondary', textAlign: 'center' }}>
           {message}
         </Box>
       )}
       {groups.map((group) => (
         <React.Fragment key={group.key}>
-          <Box role="heading" aria-level={3} data-workspace-group={group.key} sx={{ fontSize: 11, fontWeight: 600, letterSpacing: 0.4, textTransform: 'uppercase', color: 'text.disabled', px: 0.5 }}>
+          <Box role="heading" aria-level={3} data-workspace-group={group.key} sx={{ color: 'text.disabled', textTransform: 'uppercase' }}>
             {group.label}
           </Box>
-          <Box data-workspace-tiles="" data-columns={columns} sx={{ display: 'grid', gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))`, gap: 1 }}>
+          <Box data-workspace-tiles="" data-columns={columns} sx={{ display: 'grid', gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))` }}>
             {group.tiles.map((tile) => (
               <WorkspaceTileButton key={tile.id} tile={tile} />
             ))}
@@ -111,14 +113,14 @@ function WorkspaceTileButton({ tile }: { tile: WorkspaceTile }): React.JSX.Eleme
       onClick={() => {
         workspace?.panels.get(tile.id)?.show('person');
       }}
-      sx={{ display: 'block', minWidth: 0, p: 0, border: 0, borderRadius: 1, bgcolor: 'action.hover', color: 'inherit', font: 'inherit', textAlign: 'left', cursor: 'pointer', overflow: 'hidden' }}
+      sx={{ display: 'block', minWidth: 0, border: 0, bgcolor: 'action.hover', color: 'inherit', font: 'inherit', textAlign: 'left', cursor: 'pointer', overflow: 'hidden' }}
     >
       {snapshot ? (
         <Box component="img" src={snapshot.src} alt="" sx={{ display: 'block', width: '100%', aspectRatio: ratio, objectFit: 'cover', objectPosition: 'top' }} />
       ) : (
         <Box aria-hidden="true" sx={{ width: '100%', aspectRatio: ratio, bgcolor: 'action.selected' }} />
       )}
-      <Box sx={{ px: 0.75, py: 0.5, fontSize: 11, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{tile.title}</Box>
+      <Box sx={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{tile.title}</Box>
     </Box>
   );
 }
