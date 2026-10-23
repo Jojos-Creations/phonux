@@ -255,7 +255,13 @@ function tailWidth(widths: readonly number[], gap: number, windowWidth: number):
  */
 function restStops(maxScroll: number, step: number, g: { widths: readonly number[]; offsets: readonly number[]; rowMarginLeft: number; gap: number; windowWidth: number }): number[] {
   const grid = stepGrid(maxScroll, step);
-  const rests = [...grid];
+  // Each grid anchor moves to the centered rest of the whole run its window shows; the last anchor is the row's end.
+  const rests = grid.map((at) => {
+    if (at >= maxScroll) return maxScroll;
+    const { first } = spanAt(at, g.widths, g.offsets, g.rowMarginLeft, g.windowWidth);
+    const leftover = g.windowWidth - wholeRunWidth(first, g.widths, g.gap, g.windowWidth);
+    return clampTo(g.rowMarginLeft + g.offsets[first]! - leftover / 2, 0, maxScroll);
+  });
   g.widths.forEach((width, j) => {
     if (width > g.windowWidth) return;
     const left = g.rowMarginLeft + g.offsets[j]!;
