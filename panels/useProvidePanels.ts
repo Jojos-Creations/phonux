@@ -14,6 +14,7 @@ import { minWorkspaceWidth } from '../minWorkspaceWidth.js';
 import { computeRowNumbers, maxScrollOf, nearestStop, snapToStop, snapToStopIndex, type RowNumbers } from '../rowNumbers.js';
 import { resolveLabels, type PhonuxLabels } from '../labels.js';
 import { rowScrollerFor } from '../rowScroller.js';
+import { createRestWatch } from './restWatch.js';
 import { gestureTarget, scrollTargetFor } from '../scrollTargets.js';
 import { isPresent, summarisePanel } from '../panelRowEntry.js';
 import { entryNamed } from '../panelIds.js';
@@ -447,8 +448,8 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
     if (known) requestOpen(id);
   };
 
-  // Set once the persistence hook is called, below: the rest watch reads the saved state the hook owns.
-  const restWatch = useRef<() => void>(() => undefined);
+  // Set once the persistence hook is called, below: the rest watch restores the saved state the hook owns.
+  const [restWatcher] = useState(() => createRestWatch({ quietMs: REST_QUIET_MS, pointerHeld: () => pointerHeldRef.current, settled: () => settledRef.current }));
   // A pointer down on the row until it is let go, the scrollbar thumb included: a rest is not called while it is held.
   const pointerHeldRef = useRef(false);
 
@@ -456,7 +457,7 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
   const stepRow = (direction: 'left' | 'right'): void => {
     const el = i.overflowContainerRef.current;
     if (el === null) return;
-    restWatch.current();
+    watchRest();
     const scroller = rowScrollerFor(el);
     scroller.noteInput();
     if (scroller.claimHeld()) return;
@@ -536,42 +537,18 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
   rowNumbersRef.current = rowNumbers;
   const stepRef = useRef(0);
   stepRef.current = i.phoneWidth + tuning.rowGap;
-  const restFrame = useRef<number | null>(null);
-  restWatch.current = (): void => {
+  const watchRest = (): void => {
     const el = i.overflowContainerRef.current;
-    if (el === null || restFrame.current !== null) return;
-    const scroller = rowScrollerFor(el);
-    const start = scroller.scrollLeft();
-    let last = start;
-    let still = performance.now();
-    let moved = false;
-    const rest = (at: number): void => {
-      const n = rowNumbersRef.current;
-      const k = nearestStopIndex(n, at);
-      if (k < 0) return;
-      const mark = markOfStop(n, k, stepRef.current);
-      setScroll((prev) => (prev !== null && prev.panel === mark.panel && prev.offset === mark.offset ? prev : mark));
-    };
-    const tick = (): void => {
-      restFrame.current = null;
-      const at = scroller.scrollLeft();
-      const gliding = scroller.glideTarget() !== null;
-      const now = performance.now();
-      if (at !== start || gliding) moved = true;
-      if (at !== last || gliding || scroller.claimHeld() || pointerHeldRef.current) {
-        last = at;
-        still = now;
-      } else if (now - still >= REST_QUIET_MS) {
-        if (moved && settledRef.current) rest(at);
-        return;
-      }
-      restFrame.current = requestAnimationFrame(tick);
-    };
-    restFrame.current = requestAnimationFrame(tick);
+    if (el !== null) restWatcher.watch(el, restAt);
   };
-  useEffect(() => () => {
-    if (restFrame.current !== null) cancelAnimationFrame(restFrame.current);
-  }, []);
+  const restAt = (at: number): void => {
+    const n = rowNumbersRef.current;
+    const k = nearestStopIndex(n, at);
+    if (k < 0) return;
+    const mark = markOfStop(n, k, stepRef.current);
+    setScroll((prev) => (prev !== null && prev.panel === mark.panel && prev.offset === mark.offset ? prev : mark));
+  };
+  useEffect(() => () => restWatcher.cancel(), [restWatcher]);
 
   const createFromWorkspace = (req: CreateRequest): void => {
     const template = templateList().find((t) => t.id === req.templateId);
@@ -650,7 +627,7 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
       if (el !== null && e.target instanceof Node && el.contains(e.target)) {
         touchedRef.current = true;
         if (e.type === 'pointerdown') pointerHeldRef.current = true;
-        restWatch.current();
+        watchRest();
       }
     };
     const release = (): void => {
