@@ -7,8 +7,10 @@ import assert from 'node:assert/strict';
 import './support/jsdom-globals.js';
 import * as React from 'react';
 import { act } from 'react';
+import { DndContext, MouseSensor, pointerWithin, useDroppable, useSensor, useSensors, type DragEndEvent } from '@dnd-kit/core';
 import { WorkspacePanel, WorkspaceTrash } from '../index.js';
 import type { WorkspacePanelEntry, WorkspacePanelProps } from '../index.js';
+import { createFakeHost } from '../fakeHost.js';
 import { reorderWorkspaceIds, workspaceTileRatio, workspaceTileSpan } from '../workspacePanelModel.js';
 import { advanceFrames, cleanup, mount, withHost, type Mounted } from './support/mount-harness.js';
 import { FRAME_MS } from './support/jsdom-globals.js';
@@ -113,7 +115,7 @@ test('a tile picture is its span in phone widths by one phone height, so a two-c
   assert.equal(workspaceTileRatio(3, phone), '1170 / 844');
 });
 
-// jsdom lays nothing out, so each tile and the trash get a fixed box that the drag measures against.
+// jsdom lays nothing out, so each tile and the trash (or a host target in the trash's place) get a fixed box that the drag measures against.
 const rowRect = (index: number): DOMRect => toRect(index * 50, 0, 100, 40);
 const TRASH_RECT = toRect(0, 300, 40, 40);
 
@@ -128,7 +130,7 @@ async function withLayout(container: HTMLElement, run: () => Promise<void>): Pro
   [...container.querySelectorAll<HTMLElement>('[data-workspace-tile]')].forEach((tile, index) => rects.set(tile.dataset.workspaceTile ?? '', rowRect(index)));
   rects.set('trash', TRASH_RECT);
   Element.prototype.getBoundingClientRect = function getBoundingClientRect(this: Element): DOMRect {
-    const key = this.hasAttribute('data-workspace-trash') ? 'trash' : (this as HTMLElement).dataset.workspaceTile;
+    const key = this.hasAttribute('data-workspace-trash') || this.hasAttribute('data-host-target') ? 'trash' : (this as HTMLElement).dataset.workspaceTile;
     return (key !== undefined && rects.get(key)) || original.call(this);
   };
   try {
@@ -138,8 +140,8 @@ async function withLayout(container: HTMLElement, run: () => Promise<void>): Pro
   }
 }
 
-/** A mouse drag from `from` by (dx, dy): press, move past the drag threshold, move on, release. */
-async function dragBy(from: HTMLElement, dx: number, dy: number): Promise<void> {
+/** A mouse drag from `from` by (dx, dy): press, move past the drag threshold, move on, then release (or press Escape). */
+async function dragBy(from: HTMLElement, dx: number, dy: number, end: 'release' | 'escape' = 'release'): Promise<void> {
   const x = 50;
   const y = 20;
   const mouse = (type: string, cx: number, cy: number): MouseEvent => new MouseEvent(type, { bubbles: true, cancelable: true, clientX: cx, clientY: cy, button: 0, buttons: type === 'mouseup' ? 0 : 1 });
@@ -156,10 +158,23 @@ async function dragBy(from: HTMLElement, dx: number, dy: number): Promise<void> 
   });
   await advanceFrames(FRAME_MS);
   await act(async () => {
-    document.dispatchEvent(mouse('mouseup', x + dx, y + dy));
+    if (end === 'escape') document.dispatchEvent(new KeyboardEvent('keydown', { bubbles: true, cancelable: true, key: 'Escape', code: 'Escape' }));
+    else document.dispatchEvent(mouse('mouseup', x + dx, y + dy));
   });
   await advanceFrames(FRAME_MS);
 }
+
+/** The rendered tile for `id`, which must be there. */
+function tileOf(container: HTMLElement, id: string): HTMLElement {
+  const tile = container.querySelector<HTMLElement>(`[data-workspace-tile="${id}"]`);
+  assert.ok(tile, `the tile ${id} rendered`);
+  return tile;
+}
+
+/** The text of the screen-reader region dnd-kit writes its announcements into, which a context without the panel's own announcements uses. */
+const dndAnnouncement = (): string => document.querySelector('[id^="DndLiveRegion"]')?.textContent ?? '';
+/** The text of the panel's own announcement region, which it writes inside a host's context. */
+const panelAnnouncement = (container: HTMLElement): string => container.querySelector('[data-workspace-announcement]')?.textContent ?? '';
 
 test('dragging a tile onto another reorders the grid through onReorder and leaves the order to the host', async () => {
   const reordered: string[][] = [];
@@ -191,5 +206,112 @@ test('dropping a tile on the host trash calls onTrash with its id and removes no
   assert.deepEqual(trashed, ['a']);
   assert.deepEqual(reordered, [], 'a trash drop is not a reorder');
   assert.deepEqual(tileIds(m.container), ['a', 'b'], 'the library does not remove the entry');
+  m.unmount();
+});
+
+test('a tile with an icon renders it in its caption row, and a tile without one renders no icon slot', () => {
+  const m = render({ entries: [entry('a', { icon: h('svg', { 'data-test-icon': '' }) }), entry('b')] });
+  const tileA = m.container.querySelector<HTMLElement>('[data-workspace-tile="a"]');
+  const tileB = m.container.querySelector<HTMLElement>('[data-workspace-tile="b"]');
+  assert.ok(tileA?.querySelector('[data-workspace-tile-icon] [data-test-icon]'), 'the icon is in the caption slot');
+  assert.equal(tileA?.querySelector('[data-workspace-tile-icon]')?.parentElement?.textContent, 'Title a', 'the title sits beside the icon');
+  assert.equal(tileB?.querySelector('[data-workspace-tile-icon]'), null, 'no icon slot without an icon');
+  assert.equal(tileB?.querySelector('[data-test-icon]'), null);
+  m.unmount();
+});
+
+test('the drag announcements use the host labels, and the English defaults when the host gives none', async () => {
+  const labels = { pickedUp: (t: string) => `Lift ${t}`, dropped: (t: string) => `Put down ${t}`, dragCancelled: (t: string) => `Stopped ${t}` };
+  const custom = render({ entries: [entry('a'), entry('b')], onReorder: () => {} });
+  await withLayout(custom.container, async () => {
+    await dragBy(tileOf(custom.container, 'a'), 0, 100);
+  });
+  assert.equal(dndAnnouncement(), 'Dropped Title a', 'defaults when no labels are given');
+  custom.unmount();
+
+  const hosted = mount(withHost(h(WorkspacePanel, { entries: [entry('a'), entry('b')], onReorder: () => {} }), { ...createFakeHost(), labels }));
+  await withLayout(hosted.container, async () => {
+    await dragBy(tileOf(hosted.container, 'a'), 0, 100);
+  });
+  assert.equal(dndAnnouncement(), 'Put down Title a', 'the host label is used for the drop');
+  hosted.unmount();
+});
+
+test('inside a host context the announcements come from the host labels, and cancel with its own label', async () => {
+  const labels = { pickedUp: (t: string) => `Lift ${t}`, dropped: (t: string) => `Put down ${t}`, dragCancelled: (t: string) => `Stopped ${t}` };
+  const m = mount(withHost(hostedGrid({ entries: [entry('a'), entry('b')], onReorder: () => {} }, []), { ...createFakeHost(), labels }));
+  await withLayout(m.container, async () => {
+    const tile = m.container.querySelector<HTMLElement>('[data-workspace-tile="a"]');
+    assert.ok(tile, 'the tile rendered');
+    await dragBy(tile, 0, 100, 'escape');
+  });
+  assert.equal(panelAnnouncement(m.container), 'Stopped Title a', 'a cancelled drag says the host label');
+  m.unmount();
+
+  const defaults = mount(withHost(hostedGrid({ entries: [entry('a'), entry('b')], onReorder: () => {} }, [])));
+  await withLayout(defaults.container, async () => {
+    await dragBy(tileOf(defaults.container, 'a'), 0, 100);
+  });
+  assert.equal(panelAnnouncement(defaults.container), 'Dropped Title a', 'the English default when the host gives none');
+  defaults.unmount();
+});
+
+/**
+ * A panel inside the host's own `DndContext`, with a drop target next to the grid. The host's `onDragEnd` records each drop.
+ * The sensor is a mouse sensor and the collisions are by pointer, as a host's own would be: the mouse events the drag helper
+ * dispatches start it, and the layout helper's boxes are read by pointer, not by rectangle overlap.
+ */
+function HostedGrid({ props, events }: { props: WorkspacePanelProps; events: { active: string; over: string | null }[] }): React.JSX.Element {
+  const sensors = useSensors(useSensor(MouseSensor, { activationConstraint: { distance: 6 } }));
+  return h(
+    DndContext,
+    {
+      sensors,
+      collisionDetection: pointerWithin,
+      onDragEnd: (event: DragEndEvent) => {
+        events.push({ active: String(event.active.id), over: event.over === null ? null : String(event.over.id) });
+      },
+    },
+    h(WorkspacePanel, props),
+    h(HostTarget),
+  );
+}
+
+function hostedGrid(props: WorkspacePanelProps, events: { active: string; over: string | null }[]): React.ReactElement {
+  return h(HostedGrid, { props, events });
+}
+
+/** The host's own drop target, placed where the layout helper puts the trash. */
+function HostTarget(): React.JSX.Element {
+  const drop = useDroppable({ id: 'host-target' });
+  return h('div', { ref: drop.setNodeRef, 'data-host-target': '' }, 'host');
+}
+
+test('inside a host context the panel opens no second DndContext, and a tile drag reaches the host drop target', async () => {
+  const events: { active: string; over: string | null }[] = [];
+  const reordered: string[][] = [];
+  const m = mount(withHost(hostedGrid({ entries: [entry('a'), entry('b')], onReorder: (ids) => reordered.push([...ids]) }, events)));
+  assert.equal(document.querySelectorAll('[id^="DndDescribedBy"]').length, 1, 'only the host context is rendered');
+  await withLayout(m.container, async () => {
+    const tile = m.container.querySelector<HTMLElement>('[data-workspace-tile="a"]');
+    assert.ok(tile, 'the tile rendered');
+    await dragBy(tile, 270, 0);
+  });
+  assert.deepEqual(events, [{ active: 'a', over: 'host-target' }], 'the host saw the tile drag and its drop');
+  assert.deepEqual(reordered, [], 'a drop on the host target is not a reorder');
+  m.unmount();
+});
+
+test('inside a host context a tile dropped on another tile reorders the grid through onReorder', async () => {
+  const events: { active: string; over: string | null }[] = [];
+  const reordered: string[][] = [];
+  const m = mount(withHost(hostedGrid({ entries: [entry('a'), entry('b'), entry('c')], onReorder: (ids) => reordered.push([...ids]) }, events)));
+  await withLayout(m.container, async () => {
+    const tile = m.container.querySelector<HTMLElement>('[data-workspace-tile="a"]');
+    assert.ok(tile, 'the tile rendered');
+    await dragBy(tile, 0, 100);
+  });
+  assert.deepEqual(reordered, [['b', 'c', 'a']]);
+  assert.deepEqual(events, [{ active: 'a', over: 'c' }], 'the host also sees the drop');
   m.unmount();
 });
