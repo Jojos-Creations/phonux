@@ -40,20 +40,21 @@ test('differential revealOnScroll: an engine-parked panel with a live panel beyo
   });
 });
 
-/** Where panel b is drawn in a row of root, b, c and d at 1000 px: in its edge element when held, else in the strip. */
-function drawnAt(edgeHold: PanelSettings['edgeHold']): 'left edge' | 'strip' | 'missing' {
+/** Where panel b is drawn in a row of root, b, c and d at 1000 px: in the strip, held by its sticky host when held. */
+function drawnAt(edgeHold: PanelSettings['edgeHold']): 'held' | 'strip' | 'missing' {
   const m = mountRow(row(rootEntry(), made('b', { edgeHold }), made('c'), made('d')), 1000);
-  const where = m.container.querySelector('[data-row-edge="left"] [data-row-id="b"]') !== null ? 'left edge' : m.container.querySelector('[data-row-strip] [data-row-id="b"]') !== null ? 'strip' : 'missing';
+  const slot = m.container.querySelector<HTMLElement>('[data-row-strip] [data-row-id="b"]');
+  const where = slot === null ? 'missing' : slot.closest<HTMLElement>('[data-row-hold]')?.style.position === 'sticky' ? 'held' : 'strip';
   cleanup();
   return where;
 }
 
-test('differential edgeHold: a panel held at the left edge is drawn in the edge element, and off draws it in the strip', () => {
+test('differential edgeHold: a panel held at the left edge is pinned by its host in the strip, and off has no host', () => {
   const outcomes = new Map([
     ['off', drawnAt('off')],
     ['left', drawnAt('left')],
   ]);
-  assert.deepEqual([...outcomes.values()], ['strip', 'left edge']);
+  assert.deepEqual([...outcomes.values()], ['strip', 'held']);
   differential('edgeHold', (run) => {
     run('off', () => outcomes.get('off'));
     run('left', () => outcomes.get('left'));

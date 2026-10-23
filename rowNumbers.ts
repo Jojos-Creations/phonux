@@ -131,15 +131,10 @@ export function computeRowNumbers(i: {
   } else {
     rowMarginLeft = !measured || overflows ? 0 : (windowWidth - stripWidth) / 2;
   }
-  // The sticky panels stack in row order: a panel keeps clear of every 'both' panel before it on the left and after it on the
-  // right, each with its gap, so two of them held at one edge sit side by side, never over each other.
+  // The one 'both' panel keeps clear of the fixed groups: its left inset is the left group, its right inset the right group.
   const stuck: RowNumbers['stuck'][number][] = [];
-  const bothKs = admitted.filter((a) => a.hold === 'both').map((a) => a.k);
-  for (const [n, k] of bothKs.entries()) {
-    const before = bothKs.slice(0, n).reduce((sum, j) => sum + allWidths[j]! + i.gap, 0);
-    const after = bothKs.slice(n + 1).reduce((sum, j) => sum + allWidths[j]! + i.gap, 0);
-    stuck.push({ id: present[k]!.id, left: leftInset + before, right: rightInset + i.gap + after });
-  }
+  const both = admitted.find((a) => a.hold === 'both');
+  if (both !== undefined) stuck.push({ id: present[both.k]!.id, left: leftInset, right: rightInset + i.gap });
   const stepStops = i.wholePanels === true && overflows ? stepGrid(stripWidth - stripWindow, i.phoneWidth + i.gap) : [];
   const stops = stepStops;
   const stopSpans = stops.map((at) => spanAt(at, widths, leftOffsets, rowMarginLeft, stripWindow));
@@ -180,6 +175,8 @@ function admitHolds(present: readonly PanelRowEntry[], allWidths: readonly numbe
   for (const [k, p] of present.entries()) {
     const hold = p.settings?.edgeHold;
     if (hold !== 'left' && hold !== 'right' && hold !== 'both') continue;
+    // One 'both' panel per row: once the scroll passes two of them, both stick at the same edge, and nothing keeps them apart.
+    if (hold === 'both' && picked.some((a) => a.hold === 'both')) continue;
     const side = hold === 'right' ? 'right' : 'left';
     const { leftInset, rightInset } = insetsOf([...picked, { k, side }], allWidths, gap);
     if (windowWidth - leftInset - rightInset >= phoneWidth) picked.push({ k, hold, side });

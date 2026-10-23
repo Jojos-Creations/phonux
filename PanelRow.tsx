@@ -5,7 +5,6 @@
  */
 
 import * as React from 'react';
-import { createPortal } from 'react-dom';
 import { AnimatePresence } from 'motion/react';
 import Box from '@mui/material/Box';
 import { AutoMountContext } from './autoMountContext.js';
@@ -21,7 +20,7 @@ import { PanelViewContextValue } from './panelViewContext.js';
 import { HEADER_ROW_ATTRIBUTE, headerButtonsOf } from './panelHeaderButtons.js';
 import { FIXED, LIBRARY_TUNING_DEFAULTS, effective, panelKey, resolvePanelSettings } from './panelSettings.js';
 import type { EnterFrom, ExitTo, ResolvedPanelSettings, ResolvedWorkspaceTuning } from './panelSettings.js';
-import { PanelRowSlot, RowEdgesContext, type SlotEntrance, type SlotExit } from './PanelRowSlot.js';
+import { PanelRowSlot, type SlotEntrance, type SlotExit } from './PanelRowSlot.js';
 import { steerEntry, steerSentinel, steerTab, useTabPress } from './panelRowTabOrder.js';
 import { ChromeStoreContext, createChromeStore } from './panelChrome.js';
 import { slotTuning, type SlotTuning } from './panelTuning.js';
@@ -93,18 +92,19 @@ export const usePanelCapabilities = (): Pick<ResolvedPanelSettings, 'closable' |
 export const usePanelNeighborWidths = (): NeighborWidths => React.useContext(PanelSlotContext)?.neighborWidths ?? NO_NEIGHBORS;
 const OUTSIDE_ROW_TUNING: SlotTuning = slotTuning(LIBRARY_TUNING_DEFAULTS);
 /**
- * The host of an edgeHold 'both' panel: a zero-height flex line as wide as the strip, holding a spacer and the panel's box.
- * A sticky box clamps within its containing block, so the line must span the strip for the panel to reach either edge.
- * The panel is never re-parented, so its view keeps its place while it is held.
+ * The host of every edgeHold panel, held or not, so the panel's React place never changes as its hold starts or lets go. A
+ * held panel's host is a zero-height flex line that starts at the scroller's content origin (`lineLeft` is minus the strip's
+ * start), holding a spacer and the panel's box, which is sticky. A sticky box clamps within its containing block, so the line
+ * must span the whole content for the panel to reach either edge. A panel that is not held passes through unchanged.
  */
-function PanelHold({ on, sticky, leftOffset, width, rowWidth, children }: { on: boolean; sticky: { left: number; right: number } | null; leftOffset: number; width: number; rowWidth: number; children: React.ReactNode }): React.ReactElement {
-  if (!on) return <>{children}</>;
+function PanelHold({ sticky, spacer, lineLeft, lineWidth, width, children }: { sticky: { left?: number; right?: number } | null; spacer: number; lineLeft: number; lineWidth: number; width: number; children: React.ReactNode }): React.ReactElement {
+  const held = sticky !== null;
   return (
-    <Box data-row-hold-line="" sx={{ display: 'flex', height: 0, width: rowWidth }}>
-      <Box sx={{ width: leftOffset, flexShrink: 0 }} />
+    <Box data-row-hold-line="" style={held ? { display: 'flex', height: 0, width: lineWidth, marginLeft: `${lineLeft}px`, flexShrink: 0 } : { display: 'contents' }}>
+      <Box style={held ? { width: spacer, flexShrink: 0 } : { display: 'none' }} />
       <Box
         data-row-hold=""
-        sx={{ position: sticky === null ? 'relative' : 'sticky', left: sticky === null ? undefined : `${sticky.left}px`, right: sticky === null ? undefined : `${sticky.right}px`, flexShrink: 0, height: 0, width, zIndex: sticky === null ? undefined : ROW_LAYER_Z.DRAGGED }}
+        style={held ? { position: 'sticky', left: sticky.left === undefined ? undefined : `${sticky.left}px`, right: sticky.right === undefined ? undefined : `${sticky.right}px`, flexShrink: 0, height: 0, width, zIndex: ROW_LAYER_Z.DRAGGED } : { display: 'contents' }}
       >
         {children}
       </Box>
@@ -206,11 +206,11 @@ export function PanelRow({
   const phoneHeight = phoneSize.height;
   // View state is held by the key, the id a recentlyClosed summary carries, so a closed panel's state survives until its undo window ends.
   useViewState.useRetainOnly([...entries.map((p) => panelKey(p)), ...(panels.recentlyClosed ?? []).map((p) => p.id)]);
-  // The strip draws the present entries the row does not hold at an edge; a held one is drawn in its edge group, by the same slot code.
+  // The strip's widths and rests are the present entries the row does not hold at an edge. A held one keeps its React place in
+  // the strip and is positioned by its PanelHold host, so holding or releasing it never remounts its view.
   const presentAll = entries.filter(isPresent);
   const heldById = new Map((rowNumbers?.held ?? []).map((h) => [h.id, h] as const));
   const present = presentAll.filter((p) => !heldById.has(p.id));
-  const edges = React.useContext(RowEdgesContext);
   const pinned = pinnedIds(entries as readonly PanelWindow[], rootId);
   chrome.setKeys(new Map(entries.map((p) => [p.id, panelKey(p)])));
   // A panel this row showed and no longer shows (closed or parked) stops being the active or dragged one.
@@ -219,7 +219,7 @@ export function PanelRow({
   // leaves behind, and a moved node restarts what it hosts (a web view reloads). Position on screen comes from leftOffset.
   const birth = React.useRef({ seq: 0, byId: new Map<string, number>() });
   for (const p of presentAll) if (!birth.current.byId.has(p.id)) birth.current.byId.set(p.id, birth.current.seq++);
-  const domOrder = [...present].sort((a, b) => birth.current.byId.get(a.id)! - birth.current.byId.get(b.id)!);
+  const domOrder = [...presentAll].sort((a, b) => birth.current.byId.get(a.id)! - birth.current.byId.get(b.id)!);
   React.useEffect(() => {
     const now = new Set(presentAll.map((p) => p.id));
     for (const id of presentBefore.current) {
@@ -359,8 +359,12 @@ export function PanelRow({
     // A panel whose last button was just removed while it held focus still gets the slot context for that one commit, so the hook that moves focus runs.
     const headerButtonSlots = headerButtonsOf(headerButtons, handle, report, note) ?? (handle !== undefined && focusInHeaderRow(handle.id) ? { slots: {}, handle, report, note } : undefined);
     const index = presentAll.indexOf(p);
-    const hostsBoth = !held && p.settings?.edgeHold === 'both';
-    const stuckAt = hostsBoth ? rowNumbers?.stuck.find((st) => st.id === p.id) : undefined;
+    const h = heldById.get(p.id);
+    const stuckAt = p.settings?.edgeHold === 'both' && h === undefined ? rowNumbers?.stuck.find((st) => st.id === p.id) : undefined;
+    const sticky = h !== undefined ? (h.side === 'left' ? { left: h.offset } : { right: (rowNumbers?.rightInset ?? 0) + gap - h.offset - h.width }) : stuckAt !== undefined ? { left: stuckAt.left, right: stuckAt.right } : null;
+    const stripStart = rowNumbers?.stripStart ?? 0;
+    // A right hold's group starts where the strip's row box ends (the row box is the strip's first item).
+    const spacer = h !== undefined ? (h.side === 'left' ? h.offset : stripStart + reservedWidth + gapSpan + h.offset) : stuckAt !== undefined ? stripStart + rest.leftOffset : 0;
     return (
       <PanelSlotContext.Provider
         key={p.id}
@@ -389,11 +393,11 @@ export function PanelRow({
             }),
         }}
       >
-        <PanelHold on={hostsBoth} sticky={stuckAt === undefined ? null : { left: stuckAt.left, right: stuckAt.right }} leftOffset={rest.leftOffset} width={rest.width} rowWidth={rowNumbers?.stripWidth ?? 0}>
+        <PanelHold sticky={sticky} spacer={spacer} lineLeft={-stripStart} lineWidth={stripStart + reservedWidth + gapSpan + (rowNumbers?.rightInset ?? 0)} width={rest.width}>
         <PanelRowSlot
           panelId={p.id}
           label={labels.panelPosition(p.title || labels.untitledPanel, index + 1, presentAll.length)}
-          leftOffset={(hostsBoth ? 0 : rest.leftOffset) + (shiftById.get(p.id) ?? 0)}
+          leftOffset={(sticky !== null ? 0 : rest.leftOffset) + (shiftById.get(p.id) ?? 0)}
           width={rest.width}
           phoneHeight={rowHeight}
           height={p.slots === undefined ? undefined : phoneHeight}
@@ -423,24 +427,6 @@ export function PanelRow({
       </PanelSlotContext.Provider>
     );
   };
-  // The held panels of one edge, in a box as wide as that edge's inset. Without a Workspace there is no edge to hold to, so the
-  // group draws at the row's own start.
-  const edgeGroup = (side: 'left' | 'right'): React.ReactElement => {
-    const inset = side === 'left' ? (rowNumbers?.leftInset ?? 0) : (rowNumbers?.rightInset ?? 0);
-    const members = presentAll.filter((p) => heldById.get(p.id)?.side === side);
-    return (
-      <Box data-row-edge-group={side} sx={{ position: 'relative', height: rowHeight, width: inset }}>
-        <AnimatePresence initial={false}>
-          {members.map((p) => {
-            const h = heldById.get(p.id)!;
-            return slotFor(p, { leftOffset: h.offset, width: h.width }, true);
-          })}
-        </AnimatePresence>
-      </Box>
-    );
-  };
-  const heldLeft = [...heldById.values()].some((h) => h.side === 'left');
-  const heldRight = [...heldById.values()].some((h) => h.side === 'right');
   return (
     <ChromeStoreContext.Provider value={chrome}>
     <PanelViewContextValue.Provider value={viewContext}>
@@ -465,13 +451,15 @@ export function PanelRow({
       }}
     >
       {dropPartsNow?.gap == null ? null : <Box aria-hidden data-panel-row-drop-gap="" sx={{ position: 'absolute', top: 0, left: dropPartsNow.gap.left, width: dropPartsNow.gap.width, height: rowHeight, pointerEvents: 'none' }} />}
-      <AnimatePresence initial={false}>{domOrder.filter((p) => !heldById.has(p.id)).map((p) => slotFor(p, { leftOffset: leftOffsets[present.indexOf(p)]!, width: widths[present.indexOf(p)]! }, false))}</AnimatePresence>
-      {/* Held panels are drawn in their edge's group, which the Workspace places outside this strip. */}
-      {edges === null && heldLeft ? edgeGroup('left') : null}
-      {edges === null && heldRight ? edgeGroup('right') : null}
+      <AnimatePresence initial={false}>
+        {domOrder.map((p) => {
+          const h = heldById.get(p.id);
+          return h !== undefined
+            ? slotFor(p, { leftOffset: h.offset, width: h.width }, true)
+            : slotFor(p, { leftOffset: leftOffsets[present.indexOf(p)]!, width: widths[present.indexOf(p)]! }, false);
+        })}
+      </AnimatePresence>
     </Box>
-    {edges?.left !== null && edges?.left !== undefined && heldLeft ? createPortal(edgeGroup('left'), edges.left) : null}
-    {edges?.right !== null && edges?.right !== undefined && heldRight ? createPortal(edgeGroup('right'), edges.right) : null}
     </RowDropContext.Provider>
     </PanelViewContextValue.Provider>
     </ChromeStoreContext.Provider>

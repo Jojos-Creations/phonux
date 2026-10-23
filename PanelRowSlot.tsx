@@ -10,13 +10,6 @@ import { HostMissingProviderError } from './hostApi.js';
 import { useOptionalPhoneSize } from './phoneFit.js';
 
 /**
- * The two elements the Workspace draws outside the strip, at the row's left and right ends, where a panel held at an edge is drawn.
- * Null until the Workspace has mounted them, and outside a Workspace.
- * @internal
- */
-export const RowEdgesContext = React.createContext<{ readonly left: HTMLElement | null; readonly right: HTMLElement | null } | null>(null);
-
-/**
  * The library's default row gap, 16 px; the gap a workspace draws with is its `tuning.rowGap`, which this does not follow.
  * @public
  * @deprecated Read the gap with `usePanelTuning().rowGap`, and the default with `LIBRARY_TUNING_DEFAULTS.rowGap`.

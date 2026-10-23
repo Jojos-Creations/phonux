@@ -39,6 +39,8 @@ const NONE: ReadonlySet<string> = new Set();
 const rowOf = (entries: PanelWindow[], rootId: string): React.ReactElement =>
   withHost(React.createElement(StaticRow, { entries, rootId, closingIds: NONE, enteringViaAnchorIds: NONE }));
 const slotOf = (container: HTMLElement, id: string): HTMLElement | null => container.querySelector(`[data-slot="${id}"]`)?.parentElement ?? null;
+/** The row root: the parent of the panel's hold line, which every panel has (the host is `display: contents` unless held). */
+const rowRootOf = (container: HTMLElement, id: string): HTMLElement => slotOf(container, id)!.closest<HTMLElement>('[data-row-hold-line]')!.parentElement!;
 const slotIds = (container: HTMLElement): string[] => [...container.querySelectorAll('[data-slot]')].map((n) => (n as HTMLElement).dataset.slot!);
 const xOf = (container: HTMLElement, id: string): number => {
   const slot = slotOf(container, id);
@@ -84,7 +86,7 @@ test("a row [marker, A, B] draws two slots at x 0 and 406, each 390 wide, in a r
   assert.equal(xOf(mounted.container, 'b'), 406);
   assert.equal(slotOf(mounted.container, 'a')!.style.width, '390px');
   assert.equal(slotOf(mounted.container, 'b')!.style.width, '390px');
-  assert.equal(getComputedStyle(slotOf(mounted.container, 'a')!.parentElement as HTMLElement).width, '796px', 'the row reserves 390 + 16 + 390');
+  assert.equal(getComputedStyle(rowRootOf(mounted.container, 'a')).width, '796px', 'the row reserves 390 + 16 + 390');
 });
 
 test('a row of only a marker draws nothing, is hidden and reserves no width', () => {
@@ -109,7 +111,7 @@ test('usePanelNeighborWidths for A in [marker, A, B] sees nothing on the left an
 test('with a real History root the same row has three slots and A sees History on its left', () => {
   const mounted = mount(rowOf([history(), entry('a'), entry('b')], 'root'));
   assert.deepEqual(slotIds(mounted.container), ['root', 'a', 'b']);
-  assert.equal(getComputedStyle(slotOf(mounted.container, 'root')!.parentElement as HTMLElement).width, '1202px');
+  assert.equal(getComputedStyle(rowRootOf(mounted.container, 'root')).width, '1202px');
   assert.equal((mounted.container.querySelector('[data-slot="a"]') as HTMLElement).dataset.widths, '{"left":[390],"right":[390]}');
 });
 

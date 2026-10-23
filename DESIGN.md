@@ -438,9 +438,10 @@ rests within half the gap between the two stops around it. A row whose panels al
 ### Edge holds
 
 `edgeHold` ('off' by default, 'left', 'right' or 'both') keeps a panel at a row edge while the strip scrolls under it. A slot cannot
-be the sticky element: its `x` is a Motion transform, and a transform fights the sticky offset. So `rowNumbers.ts` takes the held
-panels out of the strip (`held`, `ids`, `leftOffsets`, `stops`) and `Workspace.tsx` draws two sticky elements in the scroller, one
-before the strip and one after it. `PanelRow` portals each held panel's slot into its edge element.
+be the sticky element: its `x` is a Motion transform, and a transform fights the sticky offset. So every held panel keeps its React
+place in the strip, wrapped in a `PanelHold` host that is sticky while the panel is held (see below). `rowNumbers.ts` takes the left
+and right holds out of the strip's widths and rests (`held`, `ids`, `leftOffsets`, `stops`), and `Workspace.tsx` draws two plain
+spacers in the scroller, as wide as the left and right groups, so the strip starts and ends where the groups do. Nothing is portaled.
 
 - The element's insets are its own: the left one `left: 0`, the right one `right: gap`. Chromium counts the scroller's padding inside a sticky
   inset, so a `left: gap` on the left element pushes it a gap too far and it overlaps the strip.
@@ -451,16 +452,18 @@ before the strip and one after it. `PanelRow` portals each held panel's slot int
 - The room rule: a candidate holds while the window keeps at least one phone of strip beside every hold, in row order. A candidate that
   cannot fit lets go and scrolls with the strip. The holds stand only if the strip without them still overflows, so a row that would not
   scroll releases them all.
-- 'both' stays in the strip and sticks. Its place is its strip place, so the layout is the same at every scroll: `rowNumbers.stuck` gives
-  each admitted 'both' panel its insets, `left` (the fixed left group, then the 'both' panels before it, each with its gap) and `right` (the
-  fixed right group, one gap, then the 'both' panels after it). Two of them held at one edge therefore stack, never overlap.
-- The panel's React place never changes: `PanelHold` draws every 'both' panel in a zero-height flex line as wide as the strip, with a
-  spacer that puts the panel at its strip place and the panel's box after it. That box is `position: sticky` (with `left` and `right` set to
-  its insets) while the row sticks it and `relative` otherwise. The line must span the strip: a sticky box clamps within its containing
-  block, and a margin on the box itself would stop it reaching the right edge.
-- A panel's view is mounted once and kept (checked in `test/edge-hold-chromium.test.ts`, which counts mounts and keeps the DOM node).
-- Open: a hold at both ends of one row with the same panel (only one 'both' panel can be pinned on each edge at once), and WebKit and
-  Firefox are not verified.
+- 'both' stays in the strip at its strip place, so the layout is the same at every scroll. `rowNumbers.stuck` gives the one admitted 'both'
+  panel its insets: `left` is the fixed left group, `right` the fixed right group and its gap. A row admits one 'both' panel: once the
+  scroll passes two of them, both stick at the same edge, and nothing keeps them apart, so a second one lets go like any release.
+- A held left or right panel is pinned by its own inset: `left` is its offset in the left group, and `right` is the right group's
+  inset less its offset and its width. Its spacer puts it at its group's place at scroll 0, so the group needs no portal.
+- `PanelHold` renders for every panel, held or not, so the React tree never changes when a hold starts or lets go. A held panel's host
+  is a zero-height flex line that starts at the scroller's content origin (minus the strip's start), holding a spacer and the panel's box,
+  which is `position: sticky` with its insets. An unheld panel's host is `display: contents`. The line must span the whole content: a
+  sticky box clamps within its containing block, and a margin on the box itself would stop it reaching the right edge.
+- A panel's view is mounted once and kept, whether it is held left, right or both, and whether the hold starts or lets go (checked in
+  `test/edge-hold-chromium.test.ts`, which counts mounts and keeps the DOM node across window resizes that release and admit a hold).
+- Open: WebKit and Firefox are not verified.
 - WebKit is not verified: sticky inside an `overflow-x` scroller is the fragile case, and the Chromium proof is `test/edge-hold-chromium.test.ts`.
 
 ### Scrolling to a panel
@@ -1684,7 +1687,7 @@ flip with a transition rule of its own) or SCOPE (a template-scope key).
 | `capacityReturn` | auto, manual | auto | NEXT. Governs parks decided after the commit. A panel on the stack stays returnable; one already held stays held; no reveal. |
 | `overflow` | scroll, park | scroll for every panel built through the cascade (a template, workspace defaults, a Host-bag create, or a restore inside a workspace; C1: scroll for a fixed column); a hand-built 0.1.0 entry in a row with no workspace defaults: park | NEXT. Read at the next park decision. L: park->scroll protects it from then on; scroll->park makes it eligible; nothing parks, returns or scrolls at configure. K, H: stored; a K panel already on the stack still returns. C1: park on a fixed column is settings-conflict. |
 | `revealOnScroll` | edges, any, never | edges | NEXT. Read by the next gesture. K: edges->any makes an engine-parked panel reachable. H: edges and any reach it. Nothing is revealed by configure. |
-| `edgeHold` | off, left, right, both | off | NOW. L, T: a panel with `left` leaves the strip for the left edge (`right` for the right) at this commit, and the row re-prices; a `both` panel leaves for the edge the scroll takes it past. It lets go at once when it cannot fit beside the others or the row does not scroll. K, H: stored, and read at the next render. Nothing scrolls at configure. |
+| `edgeHold` | off, left, right, both | off | NOW. L, T: a panel with `left` leaves the strip for the left edge (`right` for the right) at this commit, and the row re-prices; a `both` panel (one per row) leaves for the edge the scroll takes it past. It lets go at once when it cannot fit beside the others or the row does not scroll. K, H: stored, and read at the next render. Nothing scrolls at configure. |
 | `scrollOnOpen` | into-view, start, center, none | into-view | NEXT. Read by the next open, show or click of this panel. L, T, K, H: stored. No scroll happens at configure. Use handle.scrollTo() to scroll now (its align defaults to this setting, 'into-view' when it is none). |
 | `scrollOnMove` | follow, none | follow | NEXT. Read by the next move, place, setSlots, pin, unpin or resetLayout of this panel. L, T, K, H: stored. Nothing scrolls at configure. |
 | `toggleWhenClosed` | ignore, reopen | ignore | NEXT. Read by the next toggleVisibility() on a closed declared panel. C, U: the record's value is used by the next toggle. |

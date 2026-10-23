@@ -16,6 +16,7 @@ const ROOT = fileURLToPath(new URL('..', import.meta.url));
 
 interface Page {
   goto(url: string): Promise<unknown>;
+  setViewportSize(size: { width: number; height: number }): Promise<unknown>;
   waitForSelector(selector: string): Promise<unknown>;
   waitForTimeout(ms: number): Promise<void>;
   evaluate<T, A = undefined>(fn: (arg: A) => T, arg?: A): Promise<T>;
@@ -87,10 +88,7 @@ test('a held panel stays at its edge in Chromium while the strip scrolls under i
       const c = document.querySelector<HTMLElement>('[data-row-scroller]')!;
       const cr = c.getBoundingClientRect();
       const rects: Record<string, { left: number; right: number }> = {};
-      // A held panel leaves the strip as it takes its edge, and its strip copy fades out for the exit: the held copy is the panel.
-      const heldCopies = new Set([...document.querySelectorAll<HTMLElement>('[data-row-edge] [data-row-slot]')].map((el) => el.dataset.rowId));
       for (const el of document.querySelectorAll<HTMLElement>('[data-row-slot]')) {
-        if (!el.closest('[data-row-edge]') && heldCopies.has(el.dataset.rowId)) continue;
         const r = el.getBoundingClientRect();
         rects[el.dataset.rowId!] = { left: r.left - cr.left, right: r.right - cr.left };
       }
@@ -193,28 +191,29 @@ test('a held panel stays at its edge in Chromium while the strip scrolls under i
     const bothRight = await open('slots=1,1,1,1,1,1&holds=p6:both');
     for (const row of await sweep(bothRight, '7')) assert.equal(row.right, 1000 - GAP, `both from the right: pinned flush at scroll ${row.at}`);
 
-    // 4d. Two 'both' panels at once, in a 1400 window (a 1000 window holds one: two phones of strip beside both would not fit).
-    // p2 sticks left from scroll 812 and p5 sticks right up to 1036, so between them both are pinned at once, side by side.
-    // Over the whole range each one flips side and neither ever overlaps the other or leaves the window.
+    // 4d. One 'both' panel per row: p2 is the one that sticks, and a second 'both' (p5) lets go and is drawn in the strip exactly
+    // as in a row with no holds. The 1400 window keeps the first one's room. p2 is pinned left once the scroll passes its place.
     const two = await open('slots=1,1,1,1,1,1&holds=p2:both,p5:both', 1400);
+    const control = await open('slots=1,1,1,1,1,1', 1400);
     const twoGeo = await measure(two);
     assert.deepEqual(twoGeo.held, [], 'two both panels: neither is in a group');
+    const stuckIds = await two.evaluate(() => (window as unknown as { __e: { provided(): { rowNumbers: { stuck: { id: string }[] } } } }).__e.provided().rowNumbers.stuck.map((st) => st.id));
+    assert.deepEqual(stuckIds, ['3'], 'two both panels: only the first sticks');
+    for (const at of [0, 1000]) {
+      await scrollTo(two, at);
+      await scrollTo(control, at);
+      const g = await measure(two);
+      const c = await measure(control);
+      assert.deepEqual(g.rects['6'], c.rects['6'], `two both panels: the second is in the strip, where it is with no holds, at scroll ${at}`);
+    }
     for (let at = 0; at <= twoGeo.maxScroll; at += 97) {
       await scrollTo(two, at);
       const g = await measure(two);
       const a = g.rects['3']!;
-      const b = g.rects['6']!;
-      assert.ok(a.right <= b.left + 1 || b.right <= a.left + 1, `two both panels: no overlap at scroll ${at}`);
-      assert.ok(a.left >= GAP - 1 && b.right <= 1400 - GAP + 1, `two both panels: both in the window at scroll ${at}`);
+      assert.ok(a.left >= GAP - 1 && a.right <= 1400 - GAP + 1, `two both panels: the sticking one is in the window at scroll ${at}`);
     }
-    await scrollTo(two, 0);
-    const start = await measure(two);
-    assert.equal(start.rects['3']!.right, 1400 - GAP - (PHONE + GAP), 'two both panels: p2 at scroll 0 sits left of p5 at the right edge');
-    assert.equal(start.rects['6']!.right, 1400 - GAP, 'two both panels: p5 at scroll 0 is pinned right');
     await scrollTo(two, 1000);
-    const both1000 = await measure(two);
-    assert.equal(both1000.rects['3']!.left, GAP, 'two both panels: p2 is pinned left at 1000');
-    assert.equal(both1000.rects['6']!.right, 1400 - GAP, 'two both panels: p5 is pinned right at 1000');
+    assert.equal((await measure(two)).rects['3']!.left, GAP, 'two both panels: p2 is pinned left at 1000');
     await scrollTo(two, twoGeo.maxScroll);
     assert.equal((await measure(two)).rects['6']!.left, 2030 + GAP - twoGeo.maxScroll, 'two both panels: p5 is back in the strip at the end');
 
@@ -229,6 +228,27 @@ test('a held panel stays at its edge in Chromium while the strip scrolls under i
       const g = await measure(stepped);
       assert.equal(g.rects[steppedGeo.held[0]!.id]!.left, GAP, `step: held at stop ${stop}`);
       assert.equal(g.coverLeft, steppedGeo.held[0]!.id, `step: held on top at stop ${stop}`);
+    }
+
+    // 6. Mounts across a hold: a held panel keeps its view when the hold starts and when it lets go, for left, right and both.
+    // The window resize releases the hold (no room) and admits it again; the view is the same instance throughout.
+    for (const [query, id] of [['slots=1,1,1,1,1,1&holds=p1:left', 'p1'], ['slots=1,1,1,1,1,1&holds=p6:right', 'p6'], ['slots=1,1,1,1,1,1&holds=p1:both', 'p1']] as const) {
+      const page = await open(query, 1000);
+      const viewOf = () =>
+        page.evaluate((name) => {
+          const w = window as unknown as { __mounts: Record<string, number>; __nodes: Record<string, Element | null>; __e: { provided(): { rowNumbers: { held: unknown[]; stuck: unknown[] } } } };
+          const n = w.__e.provided().rowNumbers;
+          return { mounts: w.__mounts[name], same: w.__nodes[name] === document.querySelector(`[data-box="${name}"]`), holding: n.held.length + n.stuck.length };
+        }, id);
+      const base = await viewOf();
+      assert.equal(base.holding, 1, `${query}: the hold is on at 1000`);
+      for (const width of [300, 1000, 600, 1000]) {
+        await page.setViewportSize({ width, height: 800 });
+        await page.waitForTimeout(300);
+        const now = await viewOf();
+        assert.deepEqual({ mounts: now.mounts, same: now.same }, { mounts: base.mounts, same: true }, `${query}: the view is not re-created at window ${width}`);
+        assert.equal(now.holding, width === 1000 ? 1 : 0, `${query}: the hold is ${width === 1000 ? 'on' : 'released'} at window ${width}`);
+      }
     }
 
     // 5. No room: a three-phone panel cannot fit beside the strip in a 968 window, so it lets go and scrolls normally.

@@ -1,7 +1,7 @@
 /**
  * An edgeHold 'both' panel on literal rows (phone 390, gap 16). It stays in the strip at its own place, so the layout does not
  * change with the scroll; the numbers give it the insets it sticks at, and the row's host holds it at whichever edge the scroll
- * takes it past. Two 'both' panels stack in row order, and a release lets them go as it does for the other holds.
+ * takes it past. A row admits one 'both' panel, and a release lets it go as it does for the other holds.
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -47,13 +47,11 @@ test("sticky-both: a both panel's layout is the same as a row where it is a plai
   assert.deepEqual(b.stops, [0, 406, 812, 1218, 1624, 2030, 2264], 'the one-phone grid, the last stop the end of the range');
 });
 
-test('sticky-both stacks: two both panels in one row keep clear of each other, each with the other\'s width and a gap', () => {
+test('one both per row: a second both panel lets go and stays a plain strip panel, so no edge holds two', () => {
   const n = numbers([scrollRoot(), made('a', { edgeHold: 'both' }), made('b'), made('c'), made('d', { edgeHold: 'both' }), made('e')], 1400);
   assert.deepEqual(n.held, []);
-  assert.deepEqual(n.stuck, [
-    { id: 'a', left: 0, right: GAP + PHONE + GAP },
-    { id: 'd', left: PHONE + GAP, right: GAP },
-  ], 'a sticks left of d when both are pinned: d starts a phone and a gap in, and a ends a phone and a gap before the right edge');
+  assert.deepEqual(n.stuck, [{ id: 'a', left: 0, right: GAP }], 'only the first both panel sticks');
+  assert.ok(n.ids.includes('d'), 'the second is drawn in the strip, unpinned');
 });
 
 test('sticky-both with a fixed left hold: the fixed group is in front of the sticky panel, so the sticky panel keeps clear of it', () => {
