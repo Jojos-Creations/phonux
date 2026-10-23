@@ -93,10 +93,9 @@ export const usePanelCapabilities = (): Pick<ResolvedPanelSettings, 'closable' |
 export const usePanelNeighborWidths = (): NeighborWidths => React.useContext(PanelSlotContext)?.neighborWidths ?? NO_NEIGHBORS;
 const OUTSIDE_ROW_TUNING: SlotTuning = slotTuning(LIBRARY_TUNING_DEFAULTS);
 /**
- * The host of an edgeHold 'both' panel. The host is a zero-height flex line as wide as the strip, with a spacer that puts the
- * panel at its strip place and the panel's own box after it: a sticky host clamps within its line, so the line must span the strip
- * for the panel to reach either edge. Sticky while the row holds the panel at an edge, and never re-parented as it does.
- * A panel that is not a 'both' panel passes through.
+ * The host of an edgeHold 'both' panel: a zero-height flex line as wide as the strip, holding a spacer and the panel's box.
+ * A sticky box clamps within its containing block, so the line must span the strip for the panel to reach either edge.
+ * The panel is never re-parented, so its view keeps its place while it is held.
  */
 function PanelHold({ on, sticky, leftOffset, width, rowWidth, children }: { on: boolean; sticky: { left: number; right: number } | null; leftOffset: number; width: number; rowWidth: number; children: React.ReactNode }): React.ReactElement {
   if (!on) return <>{children}</>;
