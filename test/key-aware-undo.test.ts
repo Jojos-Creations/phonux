@@ -100,13 +100,13 @@ test('a hand-built entry has its id for its key, so an undo with no twin restore
   assert.deepEqual(p.restored, [[p.closed[0]!]]);
 });
 
-test('source: undoClose reads the batch from closedRef, and the skip check names the key', () => {
+test('source: undoClose reads the batch from the closed store, and the skip check names the key', () => {
   const dir = join(fileURLToPath(new URL('.', import.meta.url)), '..', 'panels');
   const source = readFileSync(join(dir, 'usePanelClosing.ts'), 'utf8');
   const body = source.slice(source.indexOf('const undoClose = () => {'));
   assert.ok(body.length < source.length, 'the function was found');
   const head = body.slice(0, body.indexOf('stopWindow();'));
-  assert.ok(head.includes('closedRef.current'), 'the batch comes from the ref');
+  assert.ok(head.includes('closedStore.get()'), 'the batch comes from the store, read now');
   assert.ok(!/\bclosed\b/.test(head.replace(/\/\/.*$/gm, '')), 'and not from the render-time closed list');
   assert.ok(body.includes('panelKey(p) === panelKey(panel)'), 'the skip check compares keys');
 });
