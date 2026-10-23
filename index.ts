@@ -96,6 +96,7 @@ export type { PanelRowDrop } from './usePanelRowDrop.js';
 export { slideToTransition } from './directionalTransition.js';
 export { GAP, PANEL_TRANSITION, PanelSizeBox } from './PanelRowSlot.js';
 export { PanelHeaderButtons, usePanelHeaderButtons } from './panelHeaderButtons.js';
+export { PanelHeaderMenu } from './PanelHeaderMenu.js';
 export { PanelFooter } from './panelFooter.js';
 export type { PanelHeaderButtonItem, PanelHeaderButtonItemBase, PanelHeaderIconItem, PanelHeaderTextItem } from './panelHeaderButtons.js';
 export { Workspace } from './Workspace.js';

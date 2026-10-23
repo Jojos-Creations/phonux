@@ -30,6 +30,7 @@ const VALUE_EXPORTS = [
   'panelFrameBareSx',
   'PanelHeader',
   'PanelHeaderButtons',
+  'PanelHeaderMenu',
   'PanelFooter',
   'PanelHeaderRow',
   'useViewSnapshot',
@@ -97,7 +98,7 @@ const VALUE_EXPORTS = [
   'WORKSPACE_NAME_INPUT_ATTRIBUTE',
 ].sort();
 
-test('the phonux barrel exports exactly the 80 runtime values, no more, no fewer', () => {
+test('the phonux barrel exports exactly the 81 runtime values, no more, no fewer', () => {
   assert.deepEqual(Object.keys(phonux).sort(), VALUE_EXPORTS);
 });
 
