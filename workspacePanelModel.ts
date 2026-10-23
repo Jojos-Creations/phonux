@@ -27,16 +27,23 @@ export type WorkspaceLabels = Pick<
   'workspacePinned' | 'workspaceViewing' | 'workspaceHidden' | 'workspaceUntitled' | 'workspaceEmpty' | 'workspaceNoMatches'
 >;
 
-/** One panel as the grid lists it. */
-export interface WorkspaceTile {
-  /** The panel's id, which activating the tile shows. */
+/**
+ * One entry a `WorkspacePanel` lists as a tile. The host supplies these, or the panel derives them from the workspace.
+ * @public
+ */
+export interface WorkspacePanelEntry {
+  /** The id the tile reports on activate, drop and trash. */
   readonly id: string;
   /** The title the tile shows and the search matches. */
   readonly title: string;
-  /** Whether the panel is in the row now (`false` means parked). */
+  /** Whether the entry is in the row now; `false` means parked. Decides the group it is in, unless `pinned`. */
   readonly live: boolean;
-  /** Whether the panel is pinned. */
+  /** Whether the entry is pinned. A pinned entry is in the pinned group whatever `live` says. */
   readonly pinned: boolean;
+  /** An image URL drawn in the tile until a picture of the panel is taken. */
+  readonly placeholder?: string;
+  /** The panel's width in slots (a positive integer). The tile spans that many grid columns, capped at the grid's columns. @defaultValue `1` */
+  readonly slots?: number;
 }
 
 /** A heading and the tiles under it. */
@@ -46,14 +53,14 @@ export interface WorkspaceGroup {
   /** The heading the group shows. */
   readonly label: string;
   /** The group's tiles, in the order they were given. */
-  readonly tiles: readonly WorkspaceTile[];
+  readonly tiles: readonly WorkspacePanelEntry[];
 }
 
 /**
  * The groups that have at least one tile, in the order pinned, viewing, hidden. A pinned panel is in the pinned group only,
  * whatever its live state; each group keeps the order its tiles were given in.
  */
-export function workspaceGroups(tiles: readonly WorkspaceTile[], labels: Pick<WorkspaceLabels, 'workspacePinned' | 'workspaceViewing' | 'workspaceHidden'>): WorkspaceGroup[] {
+export function workspaceGroups(tiles: readonly WorkspacePanelEntry[], labels: Pick<WorkspaceLabels, 'workspacePinned' | 'workspaceViewing' | 'workspaceHidden'>): WorkspaceGroup[] {
   const groups: WorkspaceGroup[] = [
     { key: 'pinned', label: labels.workspacePinned, tiles: tiles.filter((t) => t.pinned) },
     { key: 'viewing', label: labels.workspaceViewing, tiles: tiles.filter((t) => !t.pinned && t.live) },
@@ -63,10 +70,42 @@ export function workspaceGroups(tiles: readonly WorkspaceTile[], labels: Pick<Wo
 }
 
 /** The tiles whose title holds `text`, ignoring case and outer spaces; blank text keeps them all. */
-export function filterWorkspaceTiles(tiles: readonly WorkspaceTile[], text: string): readonly WorkspaceTile[] {
+export function filterWorkspaceTiles(tiles: readonly WorkspacePanelEntry[], text: string): readonly WorkspacePanelEntry[] {
   const needle = text.trim().toLocaleLowerCase();
   if (needle === '') return tiles;
   return tiles.filter((tile) => tile.title.toLocaleLowerCase().includes(needle));
+}
+
+/**
+ * The ids in the order a drop of `movedId` onto `overId` leaves them: `movedId` takes `overId`'s place and the ids between
+ * the two shift one place, as a sortable list does. Unchanged when either id is absent or they are the same.
+ */
+export function reorderWorkspaceIds(ids: readonly string[], movedId: string, overId: string): string[] {
+  const from = ids.indexOf(movedId);
+  const to = ids.indexOf(overId);
+  const next = [...ids];
+  if (from < 0 || to < 0 || from === to) return next;
+  next.splice(from, 1);
+  next.splice(to, 0, movedId);
+  return next;
+}
+
+/**
+ * The grid columns a tile spans: its panel's width in slots, capped at the grid's column count, and 1 when the entry gives no slots.
+ * @throws RangeError when `slots` is not a positive integer.
+ */
+export function workspaceTileSpan(slots: number | undefined, columns: number): number {
+  if (slots === undefined) return 1;
+  if (!Number.isInteger(slots) || slots < 1) throw new RangeError(`WorkspacePanel: an entry's slots must be a positive integer, got ${String(slots)}`);
+  return Math.min(slots, columns);
+}
+
+/**
+ * A tile's picture ratio: `span` phone widths by one phone height, so a tile of any span in a row has the same height as a
+ * one-column tile and the row lines up.
+ */
+export function workspaceTileRatio(span: number, size: { width: number; height: number }): string {
+  return `${span * size.width} / ${size.height}`;
 }
 
 /** The title a tile shows: the panel's title, else its url, else `untitled`. */
