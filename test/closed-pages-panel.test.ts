@@ -8,6 +8,7 @@ import * as React from 'react';
 import { ClosedPagesPanel, createClosedPagesTemplate, createWorkspace } from '../index.js';
 import type { ClosedPageEntry, ClosedPagesList } from '../index.js';
 import { cleanup, mount, withHost } from './support/mount-harness.js';
+import { createFakeHost } from '../fakeHost.js';
 import { markerTemplate, mountWorkspace } from './support/workspace-row.js';
 
 afterEach(() => cleanup());
@@ -33,7 +34,7 @@ function fakeList(entries: readonly ClosedPageEntry[], loaded = true): ClosedPag
   };
 }
 
-const rows = (container: HTMLElement): string[] => [...container.querySelectorAll('[data-closed-pages-row] button > div:first-child')].map((r) => r.textContent ?? '');
+const rows = (container: HTMLElement): string[] => [...container.querySelectorAll('[data-closed-pages-row] button > span:first-child')].map((r) => r.textContent ?? '');
 
 function typeInto(input: HTMLInputElement, value: string): void {
   const set = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set;
@@ -86,4 +87,11 @@ test('createClosedPagesTemplate returns a template with its id and title, and mo
   ws.addPanel(template);
   const m = mountWorkspace(ws);
   assert.equal(m.container.querySelectorAll('[data-closed-pages-row]').length, 3);
+});
+
+test('panel text comes from the host labels, with English defaults when none are given', () => {
+  const host = { ...createFakeHost(), labels: { closedPagesEmpty: 'Nothing yet', closedPagesSearch: 'Find' } };
+  const m = mount(withHost(h(ClosedPagesPanel, { list: fakeList([]), onReopen: () => {} }), host));
+  assert.equal(m.container.querySelector('[data-closed-pages-empty]')?.textContent, 'Nothing yet');
+  assert.equal(m.container.querySelector('input')?.getAttribute('placeholder'), 'Find');
 });

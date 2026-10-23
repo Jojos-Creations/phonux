@@ -100,6 +100,7 @@ export function ClosedPagesPanel(input: ClosedPagesPanelProps): React_2.ReactEle
 
 // @public
 export interface ClosedPagesPanelProps {
+    readonly className?: string;
     readonly list: ClosedPagesList;
     readonly onReopen: (entry: ClosedPageEntry) => void;
 }
@@ -972,6 +973,12 @@ export interface PhoneSize {
 export interface PhonuxLabels {
     cannotMove: (title: string, steps: number) => string;
     closed: (title: string) => string;
+    closedPagesEmpty: string;
+    closedPagesLoading: string;
+    closedPagesNoMatches: string;
+    closedPagesSearch: string;
+    closedPagesTitle: string;
+    closedPagesUntitled: string;
     dragCancelled: (title: string) => string;
     dropped: (title: string) => string;
     goToWorkspace: (name: string) => string;

@@ -3,6 +3,7 @@ import { definePanel, type PanelTemplate } from './panelTemplate.js';
 import type { ClosedPageEntry } from './hostApi.js';
 import type { ClosedPagesList } from './closedPagesList.js';
 import { ClosedPagesPanel } from './ClosedPagesPanel.js';
+import { DEFAULT_LABELS } from './labels.js';
 
 /**
  * The options of `createClosedPagesTemplate`.
@@ -15,7 +16,7 @@ export interface ClosedPagesTemplateOptions {
   readonly onReopen: (entry: ClosedPageEntry) => void;
   /** The template id. Default `closed-pages`. */
   readonly id?: string;
-  /** The panel's title. Default `Closed pages`. */
+  /** The panel's title. Default: the `closedPagesTitle` label. */
   readonly title?: string;
 }
 
@@ -28,7 +29,7 @@ export interface ClosedPagesTemplateOptions {
  * ```
  * @public
  */
-export function createClosedPagesTemplate({ list, onReopen, id = 'closed-pages', title = 'Closed pages' }: ClosedPagesTemplateOptions): PanelTemplate {
+export function createClosedPagesTemplate({ list, onReopen, id = 'closed-pages', title = DEFAULT_LABELS.closedPagesTitle }: ClosedPagesTemplateOptions): PanelTemplate {
   const view = (): React.ReactElement => <ClosedPagesPanel list={list} onReopen={onReopen} />;
   return definePanel({
     id,

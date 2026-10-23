@@ -48,6 +48,18 @@ export interface PhonuxLabels {
   cannotMove: (title: string, steps: number) => string;
   /** Said after a panel closed. Default `Closed <title>`. */
   closed: (title: string) => string;
+  /** The title of the closed-pages panel when a template is made without one. Default `Closed pages`. */
+  closedPagesTitle: string;
+  /** The placeholder and accessible name of the closed-pages search field. Default `Search closed pages`. */
+  closedPagesSearch: string;
+  /** The text the closed-pages panel shows until its stored log is read. Default `Loading`. */
+  closedPagesLoading: string;
+  /** The text the closed-pages panel shows when nothing has been closed. Default `No closed pages yet`. */
+  closedPagesEmpty: string;
+  /** The text the closed-pages panel shows when the search matches nothing. Default `No matches`. */
+  closedPagesNoMatches: string;
+  /** The text a closed page with no title shows. Default `Untitled`. */
+  closedPagesUntitled: string;
 }
 
 /** The English text every label takes when a host overrides none. @public */
@@ -74,6 +86,12 @@ export const DEFAULT_LABELS: Readonly<PhonuxLabels> = {
   moved: (title, steps) => `Moved ${title} ${steps < 0 ? 'left' : 'right'}`,
   cannotMove: (title, steps) => `${title} cannot move ${steps < 0 ? 'left' : 'right'}`,
   closed: (title) => `Closed ${title}`,
+  closedPagesTitle: 'Closed pages',
+  closedPagesSearch: 'Search closed pages',
+  closedPagesLoading: 'Loading',
+  closedPagesEmpty: 'No closed pages yet',
+  closedPagesNoMatches: 'No matches',
+  closedPagesUntitled: 'Untitled',
 };
 
 /** `given` over the defaults, key by key; a key given as `undefined` keeps its default. @internal */
