@@ -204,7 +204,7 @@ test('a PanelRow inside a Workspace at rowGap 40 draws, pads and prices at 40, a
     const slotGap = usePanelTuning().rowGap;
     React.useLayoutEffect(() => {
       // The refs are attached after this effect on a first commit, so the nodes are found from the first slot: slot, row box, flex row, scroll container.
-      const box = document.querySelector('[data-slot="a"]')!.parentElement!.parentElement!;
+      const box = document.querySelector('[data-slot="a"]')!.closest('[data-row-hold-line]')!.parentElement!;
       const padding = Number.parseFloat(getComputedStyle(box.parentElement!.parentElement!).paddingLeft);
       const flexGap = Number.parseFloat(box.parentElement!.style.gap);
       // Two present panels of 390: the row box is 780 + gap wide.

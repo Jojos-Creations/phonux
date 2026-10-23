@@ -51,6 +51,7 @@ export const SETTING_KEYS: Record<keyof SettingValues, true> = {
   capacityReturn: true,
   overflow: true,
   revealOnScroll: true,
+  edgeHold: true,
   scrollOnOpen: true,
   scrollOnMove: true,
   toggleWhenClosed: true,

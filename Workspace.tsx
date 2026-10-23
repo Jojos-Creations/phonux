@@ -361,6 +361,8 @@ export function Workspace(props: WorkspaceProps): React.ReactElement {
     // A click or focus in the cut-off neighbour makes the browser scroll it into view off a stop; the row settles back onto one.
     const onFocus = (event: FocusEvent): void => {
       const n = rowNumbers;
+      // A held panel is in view at every scroll, so focusing it moves nothing.
+      if ((event.target as Element | null)?.closest('[data-row-edge]') != null) return;
       if (n.stops.length === 0) return;
       const id = (event.target as Element | null)?.closest<HTMLElement>('[data-row-slot]')?.dataset.rowId;
       const k = n.ids.indexOf(id ?? '');
@@ -380,6 +382,13 @@ export function Workspace(props: WorkspaceProps): React.ReactElement {
       container.removeEventListener('scroll', apply);
     };
   });
+  // Each edge element is a plain spacer as wide as its group, so the strip starts after the left one and ends before the right one.
+  // The held panels themselves sit in the strip and are positioned from here (see PanelRow's PanelHold), so these hold no content.
+  // An edge element exists only while a panel is held there, so a row that holds nothing renders exactly as it did.
+  const holdsLeft = rowNumbers?.held.some((h) => h.side === 'left') === true;
+  const holdsRight = rowNumbers?.held.some((h) => h.side === 'right') === true;
+  const leftEdgeStyle = { width: `${rowNumbers?.leftInset ?? 0}px`, flexShrink: 0 } as const;
+  const rightEdgeStyle = { width: `${rowNumbers?.rightInset ?? 0}px`, flexShrink: 0 } as const;
   return (
     <AnnounceContext.Provider value={announce}>
     <PhoneSizeContext.Provider value={phoneSize}>
@@ -411,6 +420,7 @@ export function Workspace(props: WorkspaceProps): React.ReactElement {
         }}
       >
         {beforeRow}
+        {holdsLeft ? <div data-row-edge="left" style={leftEdgeStyle} /> : null}
         {/* margin:'auto', not the container's justify-content/align-items:center, so an overflowing row
             stays reachable by scroll. marginLeft is Motion-animated (not written directly) so the row
             recenter and each panel's own slide-in read as one motion instead of two; only left needs to
@@ -427,6 +437,7 @@ export function Workspace(props: WorkspaceProps): React.ReactElement {
         </motion.div>
         {/* A non-empty element is in every engine's scroll range; WebKit leaves a flex item's end margin out and Firefox an empty box,
             which clamps the last stop short. Outside the strip so a drag's end cap stays at the last panel. */}
+        {holdsRight ? <div data-row-edge="right" style={rightEdgeStyle} /> : null}
         {scrolls ? <div aria-hidden data-row-end-pad="" style={{ flex: `0 0 ${(rowNumbers?.endPad ?? 0) + gap}px` }} /> : null}
       </Box>
       </RowHeightContext.Provider>

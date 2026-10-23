@@ -585,6 +585,7 @@ export type SettingValues = {
     capacityReturn: 'auto' | 'manual';
     overflow: Overflow;
     revealOnScroll: 'edges' | 'any' | 'never';
+    edgeHold: 'off' | 'left' | 'right' | 'both';
     scrollOnOpen: ScrollOnOpen;
     scrollOnMove: ScrollOnMove;
     toggleWhenClosed: 'ignore' | 'reopen';

@@ -59,9 +59,9 @@ export function usePanelDots(i: {
     ids: n.ids,
     hollow,
     map,
-    windowWidth: n.windowWidth,
+    windowWidth: n.stripWindow,
     // The track starts at the strip's first panel, not at scroll 0.
-    scrollLeft: scrollLeft - n.rowMarginLeft,
+    scrollLeft: scrollLeft - n.stripStart,
   });
   const maxScroll = maxScrollOf(n);
 
@@ -70,9 +70,9 @@ export function usePanelDots(i: {
     const index = n.ids.indexOf(id);
     if (!el || index < 0) return;
     rowScrollerFor(el).noteInput();
-    const target = centreScroll({ index, leftOffsets: n.leftOffsets, widths: n.widths, windowWidth: n.windowWidth, maxScroll });
+    const target = centreScroll({ index, leftOffsets: n.leftOffsets, widths: n.widths, windowWidth: n.stripWindow, maxScroll });
     if (target === null) return;
-    rowScrollerFor(el).glideTo(Math.min(maxScroll, target + n.rowMarginLeft), { durationSec: tuning.slide.durationSec, instant: reduced, ease: tuning.slide.glideEase });
+    rowScrollerFor(el).glideTo(Math.min(maxScroll, target + n.stripStart), { durationSec: tuning.slide.durationSec, instant: reduced, ease: tuning.slide.glideEase });
   };
 
   const startOvalDrag = () => {

@@ -729,6 +729,19 @@ test('matrix:overflow', async () => {
 
 const swipeRight = (r: MatrixRig, dx = 50): void => act(() => void r.m.container.dispatchEvent(new WheelEvent('wheel', { deltaX: dx, cancelable: true, bubbles: true })));
 
+test('matrix:edgeHold', async () => {
+  probe('edgeHold');
+  // Width 1000 gives a 968 window: the row scrolls, and b holds at the left edge beside one phone of strip.
+  const r = await matrixRig({ ids: ['b', 'c'], width: 1000 });
+  await r.settle();
+  assert.deepEqual(r.provided().rowNumbers.held, []);
+  assert.deepEqual(shape(r.turn(() => r.h.b!.configure({ edgeHold: 'left' }))), { now: ['edgeHold'], later: [], shadowed: [] });
+  assert.deepEqual(r.provided().rowNumbers.held.map((h) => [h.id, h.side]), [[r.entry('b').id, 'left']], 'in that commit b is drawn at the left edge');
+  done(r.turn(() => r.h.b!.configure({ edgeHold: 'off' })));
+  assert.deepEqual(r.provided().rowNumbers.held, [], 'off releases it in the same commit');
+  r.m.unmount();
+});
+
 test('matrix:revealOnScroll', async () => {
   probe('revealOnScroll');
   // Window 398 wide shows only the root; b is parked by the engine for room and c is live beyond the window edge.
@@ -1599,13 +1612,13 @@ test('the class table ran every cell: executed cells equal 4 classes by 9 status
 
 // The design copy is frozen; a catalog key added or removed after it is listed here, never in the copy.
 const REMOVED_AFTER_DESIGN: readonly string[] = ['formFactor', 'formFactors', 'hideWhenLast', 'returnPriority', 'evictionRank', 'evictionOrder', 'scrollOnDrag', 'viewState', 'keepMounted', 'placeOnReturn', 'placeFallback', 'undoPlacement', 'closeExit', 'animated', 'persist', 'rememberLayout', 'undoWindowMs', 'reportClose', 'snapshot', 'draggable', 'placeable'];
-const ADDED_AFTER_DESIGN: readonly string[] = ['tuning.defaultEnterFrom', 'tuning.defaultExitTo', 'tuning.maxLivePanels', 'tuning.chrome', 'slots', 'maxSlots', 'tuning.resizeSettleSlides', 'tuning.phoneFit', 'tuning.phoneFitMin', 'tuning.phoneFitMax', 'hollowDot', 'movable'];
+const ADDED_AFTER_DESIGN: readonly string[] = ['edgeHold', 'tuning.defaultEnterFrom', 'tuning.defaultExitTo', 'tuning.maxLivePanels', 'tuning.chrome', 'slots', 'maxSlots', 'tuning.resizeSettleSlides', 'tuning.phoneFit', 'tuning.phoneFitMin', 'tuning.phoneFitMax', 'hollowDot', 'movable'];
 
-test('the probes ran every catalog name once: 53 executed, equal to the catalog and to the design copy of it plus the names added after it', () => {
+test('the probes ran every catalog name once: 54 executed, equal to the catalog and to the design copy of it plus the names added after it', () => {
   const design = JSON.parse(readFileSync(new URL('./fixtures/catalog-design-copy.json', import.meta.url), 'utf8')) as { name: string }[];
   assert.equal(design.length, 62);
-  assert.equal(CATALOG_NAMES.length, 53);
-  assert.equal(probesExecuted().size, 53);
+  assert.equal(CATALOG_NAMES.length, 54);
+  assert.equal(probesExecuted().size, 54);
   assert.deepEqual([...probesExecuted()].sort(), [...CATALOG_NAMES].sort());
   assert.deepEqual([...probesExecuted()].sort(), [...design.map((d) => d.name).filter((name) => !REMOVED_AFTER_DESIGN.includes(name)), ...ADDED_AFTER_DESIGN].sort());
 });
