@@ -232,7 +232,7 @@ export type SettingValues = {
   overflow: Overflow;
   /** Which hidden panels a row scroll gesture may reveal: 'edges', 'any' or 'never'. */
   revealOnScroll: 'edges' | 'any' | 'never';
-  /** Which edge the panel stays at while the row scrolls: 'off' lets it scroll away, 'left' keeps it at the left edge and 'right' at the right, with the other panels sliding under it. 'both' holds at the left edge, as 'left' does; a hold at both edges at once is not built. A held panel that cannot fit beside the others, or sits in a row that does not scroll, lets go and scrolls normally. */
+  /** Which edge the panel stays at while the row scrolls: 'off' lets it scroll away, 'left' keeps it at the left edge and 'right' at the right, with the other panels sliding under it. 'both' is in the strip while it is in view, and holds at whichever edge the scroll takes it past. A held panel that cannot fit beside the others, or sits in a row that does not scroll, lets go and scrolls normally. */
   edgeHold: 'off' | 'left' | 'right' | 'both';
   /** Where the row scrolls the panel to on its next open, show or click. */
   scrollOnOpen: ScrollOnOpen;

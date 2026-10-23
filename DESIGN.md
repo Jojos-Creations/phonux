@@ -451,8 +451,17 @@ before the strip and one after it. `PanelRow` portals each held panel's slot int
 - The room rule: a candidate holds while the window keeps at least one phone of strip beside every hold, in row order. A candidate that
   cannot fit lets go and scrolls with the strip. The holds stand only if the strip without them still overflows, so a row that would not
   scroll releases them all.
-- 'both' takes the left group and has no two-sided hold. A panel in the strip has no fixed position at either end, so a hold at both
-  ends needs a layout the absolute slots do not give. Open.
+- 'both' holds at whichever edge the scroll takes the panel past. It is in the strip while its left edge is in view, held left once
+  the scroll has put that edge at the window's left, and held right once its right edge is at the window's right. Its place is found
+  with the other fixed holds applied, so the side is the scroll's own: `computeRowNumbers` takes `scrollLeft`, and the provider keeps
+  that scroll in state only while the layout it gives changes (`layoutKey`), so a scroll that changes no side renders nothing.
+- A flip is seamless: at the scroll where the side changes, the held place and the strip place coincide, and the other panels keep their
+  screen positions (a strip panel behind the held one moves under it). The stops and the range do not depend on the side, since a held
+  panel removes its width and its group adds the same width back. `stopIds` and `stopLefts` give each stop's own strip, and
+  `snapToStopIndex` finds a panel by id, because a panel can be in the strip at one stop and held at the next.
+- A slot moves with no time in the commit where a held panel changes edge (`holdsMoved` in PanelRow): the strip has already moved under
+  it. The panel's slot is remounted in its new group, so a view inside it starts again, and its strip copy fades out for the exit.
+- Open: a hold at both ends of one row at once, two 'both' panels whose flips coincide, and WebKit and Firefox.
 - WebKit is not verified: sticky inside an `overflow-x` scroller is the fragile case, and the Chromium proof is `test/edge-hold-chromium.test.ts`.
 
 ### Scrolling to a panel
@@ -1676,7 +1685,7 @@ flip with a transition rule of its own) or SCOPE (a template-scope key).
 | `capacityReturn` | auto, manual | auto | NEXT. Governs parks decided after the commit. A panel on the stack stays returnable; one already held stays held; no reveal. |
 | `overflow` | scroll, park | scroll for every panel built through the cascade (a template, workspace defaults, a Host-bag create, or a restore inside a workspace; C1: scroll for a fixed column); a hand-built 0.1.0 entry in a row with no workspace defaults: park | NEXT. Read at the next park decision. L: park->scroll protects it from then on; scroll->park makes it eligible; nothing parks, returns or scrolls at configure. K, H: stored; a K panel already on the stack still returns. C1: park on a fixed column is settings-conflict. |
 | `revealOnScroll` | edges, any, never | edges | NEXT. Read by the next gesture. K: edges->any makes an engine-parked panel reachable. H: edges and any reach it. Nothing is revealed by configure. |
-| `edgeHold` | off, left, right, both | off | NOW. L, T: a panel with `left` or `both` leaves the strip for the left edge (`right` for the right) at this commit, and the row re-prices; it lets go at once when it cannot fit beside the others or the row does not scroll. K, H: stored, and read at the next render. Nothing scrolls at configure. |
+| `edgeHold` | off, left, right, both | off | NOW. L, T: a panel with `left` leaves the strip for the left edge (`right` for the right) at this commit, and the row re-prices; a `both` panel leaves for the edge the scroll takes it past. It lets go at once when it cannot fit beside the others or the row does not scroll. K, H: stored, and read at the next render. Nothing scrolls at configure. |
 | `scrollOnOpen` | into-view, start, center, none | into-view | NEXT. Read by the next open, show or click of this panel. L, T, K, H: stored. No scroll happens at configure. Use handle.scrollTo() to scroll now (its align defaults to this setting, 'into-view' when it is none). |
 | `scrollOnMove` | follow, none | follow | NEXT. Read by the next move, place, setSlots, pin, unpin or resetLayout of this panel. L, T, K, H: stored. Nothing scrolls at configure. |
 | `toggleWhenClosed` | ignore, reopen | ignore | NEXT. Read by the next toggleVisibility() on a closed declared panel. C, U: the record's value is used by the next toggle. |

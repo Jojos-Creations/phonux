@@ -115,7 +115,7 @@
 
 ### Added
 
-- `edgeHold` is a per-panel setting, `'off'` by default: `'left'` keeps the panel at the row's left edge and `'right'` at its right while the other panels slide under it. `'both'` takes the left edge: a hold at both ends is not built. A held panel that cannot fit beside the others, or sits in a row that does not scroll, lets go and scrolls normally. `RowNumbers` gains `held`, `leftInset`, `rightInset`, `stripStart` and `stripWindow`.
+- `edgeHold` is a per-panel setting, `'off'` by default: `'left'` keeps the panel at the row's left edge and `'right'` at its right while the other panels slide under it. `'both'` is in the strip while it is in view and holds at whichever edge the scroll takes it past. A held panel that cannot fit beside the others, or sits in a row that does not scroll, lets go and scrolls normally. `RowNumbers` gains `held`, `leftInset`, `rightInset`, `stripStart`, `stripWindow`, `stopIds` and `stopLefts`, and `computeRowNumbers` takes `scrollLeft`.
 
 - `isWorkspaceState` is exported from the package entry point, so a host can check an imported workspace file with the same guard the library applies to saved state.
 - `usePanelRowDrop()` lets a view drag a panel into the row from outside it, such as a Workspace or History tile. `begin(id, source?)` returns false for a panel that is closed, still being added, the row's root, or (for a person) not `movable`; `update(clientX)` parts the neighbours by the hop rule the header drag uses and scrolls the row at its edges; `end()` answers a `PanelResult` and `cancel()` restores the row. A parked or hidden panel shows a gap its own width at the place it would land, and `end()` places and shows it in one update.

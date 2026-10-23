@@ -7,6 +7,7 @@
  */
 
 import { useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore, type RefObject } from 'react';
+import { flushSync } from 'react-dom';
 import { useReducedMotionConfig } from 'motion/react';
 import type { CreatePanelOptions, JsonValue, PanelsAPI } from '../hostApi.js';
 import { effectiveMaxPanels, rowFitCount } from '../panelCapacity.js';
@@ -54,7 +55,12 @@ function nearestStopIndex(n: RowNumbers, at: number): number {
 /** The rest of the row at stop `k`, as a saved mark names it: the first drawn entry the stop shows, and the stop's offset from that entry's left edge in phone widths. */
 function markOfStop(n: RowNumbers, k: number, step: number): RestMark {
   const index = n.stopSpans[k]!.first;
-  return { panel: n.ids[index]!, offset: (n.stops[k]! - (n.stripStart + n.leftOffsets[index]!)) / step };
+  return { panel: n.stopIds[k]![index]!, offset: (n.stops[k]! - n.stopLefts[k]![index]!) / step };
+}
+
+/** What `rowNumbers` draws for a scroll, as a string: two scrolls with the same key lay the row out the same. */
+function layoutKey(n: RowNumbers): string {
+  return `${n.ids.join('\u0000')}\u0001${n.held.map((h) => `${h.id}:${h.side}`).join('\u0000')}`;
 }
 
 /** The stop a saved mark names: the stop that shows its panel nearest the panel's left edge moved by the offset. Null when the panel is not drawn or no stop shows it. */
@@ -323,7 +329,32 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
   // Filters over the whole list, never an array position: a panel anchored left of History changes none of these.
   const stopsOnGrid = tuning.rowGesture === 'step';
   const rowInput = { entries: panels, phoneWidth: i.phoneWidth, containerWidth: i.containerWidth, gap: tuning.rowGap, fixedItemCount: fixedViewCount, wholePanels: stopsOnGrid };
-  const rowNumbers = computeRowNumbers(rowInput);
+  // The scroll the numbers are taken at, kept in state only when it changes which panels hold at an edge: an edgeHold 'both'
+  // panel's side follows the scroll, and the layout changes only at the scroll where that side does.
+  const [edgeScroll, setEdgeScroll] = useState(0);
+  const rowNumbers = computeRowNumbers({ ...rowInput, scrollLeft: edgeScroll });
+  const rowInputRef = useRef(rowInput);
+  rowInputRef.current = rowInput;
+  const layoutKeyRef = useRef(layoutKey(rowNumbers));
+  layoutKeyRef.current = layoutKey(rowNumbers);
+  // Records the scroll the row is at when its layout has changed. The scroll event reports it; the layout effect below catches a
+  // scroll the event has not reported yet, such as one written in the same commit.
+  const syncEdgeScroll = (flush: boolean): void => {
+    const el = i.overflowContainerRef.current;
+    if (el === null) return;
+    const at = el.scrollLeft;
+    if (layoutKey(computeRowNumbers({ ...rowInputRef.current, scrollLeft: at })) === layoutKeyRef.current) return;
+    if (flush) flushSync(() => setEdgeScroll(at));
+    else setEdgeScroll(at);
+  };
+  useEffect(() => {
+    const el = i.overflowContainerRef.current;
+    if (el === null) return;
+    const onScroll = (): void => syncEdgeScroll(true);
+    el.addEventListener('scroll', onScroll, { passive: true });
+    return () => el.removeEventListener('scroll', onScroll);
+  }, [i.overflowContainerRef]);
+  useLayoutEffect(() => syncEdgeScroll(false));
   const restedRef = useRef(false);
   const { maxLiveWidth } = rowNumbers;
   const fitCount = rowFitCount({ containerWidth: i.containerWidth, phoneWidth: i.phoneWidth, gap: tuning.rowGap, fixedColumnCount: fixedViewCount, liveWidths: [] });

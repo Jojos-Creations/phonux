@@ -241,7 +241,15 @@ export function PanelRow({
   React.useLayoutEffect(() => {
     if (measuredNow && restoreSettled) setReady(true);
   }, [measuredNow, restoreSettled]);
-  const slotTracking = tracking || landing || !ready;
+  // A held panel that changes edge moves the strip under the slots that did not move, so their rests take no time in that commit:
+  // a slide would start from where the strip was before the change.
+  const holdsKey = (rowNumbers?.held ?? []).map((h) => `${h.id}:${h.side}`).join(',');
+  const committedHolds = React.useRef(holdsKey);
+  const holdsMoved = committedHolds.current !== holdsKey;
+  React.useLayoutEffect(() => {
+    committedHolds.current = holdsKey;
+  });
+  const slotTracking = tracking || landing || !ready || holdsMoved;
   const widths = baseWidths.map((width, index) => (index === drawnIndex && drawnPx !== undefined ? drawnPx : width));
   React.useLayoutEffect(() => {
     drawnBeforeRef.current = new Map(present.map((p, index) => [p.id, baseWidths[index]!]));

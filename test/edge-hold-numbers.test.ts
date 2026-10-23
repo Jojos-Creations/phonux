@@ -58,11 +58,15 @@ test('sticky-right: a right-held panel is drawn after the strip, with its leadin
   assert.equal(maxScrollOf(n), 4 * 390 + 3 * GAP + 406 - 968, 'the right group adds its width to the range, so the last stop rests it at the window edge');
 });
 
-test('sticky-both: a both-held panel takes the left group and reserves the left inset', () => {
-  const n = numbers([scrollRoot(), made('a', { edgeHold: 'both' }), made('b'), made('c'), made('d')]);
-  assert.deepEqual(n.held, [{ id: 'a', side: 'left', width: 390, offset: 0 }], 'both is the left group: the row has no two-sided hold');
-  assert.equal(n.leftInset, 406);
-  assert.equal(n.rightInset, 0);
+test('sticky-both: a both-held panel is in the strip while it is in view, and holds left once the scroll takes it past the left edge', () => {
+  const entries = [scrollRoot(), made('a', { edgeHold: 'both' }), made('b'), made('c'), made('d')];
+  const atStart = numbers(entries);
+  assert.deepEqual(atStart.held, [], 'at scroll 0 the panel is 406 px in: fully in view, so it is a strip panel');
+  assert.ok(atStart.ids.includes('a'));
+  const past = computeRowNumbers({ entries, phoneWidth: 390, containerWidth: 1000, gap: GAP, scrollLeft: 406 });
+  assert.deepEqual(past.held, [{ id: 'a', side: 'left', width: 390, offset: 0 }], 'at 406 its left edge is at the window edge: it holds left');
+  assert.equal(past.leftInset, 406);
+  assert.equal(past.rightInset, 0);
 });
 
 test('no room: a held panel that leaves less than one phone of strip beside it lets go and scrolls with the strip', () => {

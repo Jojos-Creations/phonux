@@ -87,7 +87,10 @@ test('a held panel stays at its edge in Chromium while the strip scrolls under i
       const c = document.querySelector<HTMLElement>('[data-row-scroller]')!;
       const cr = c.getBoundingClientRect();
       const rects: Record<string, { left: number; right: number }> = {};
+      // A held panel leaves the strip as it takes its edge, and its strip copy fades out for the exit: the held copy is the panel.
+      const heldCopies = new Set([...document.querySelectorAll<HTMLElement>('[data-row-edge] [data-row-slot]')].map((el) => el.dataset.rowId));
       for (const el of document.querySelectorAll<HTMLElement>('[data-row-slot]')) {
+        if (!el.closest('[data-row-edge]') && heldCopies.has(el.dataset.rowId)) continue;
         const r = el.getBoundingClientRect();
         rects[el.dataset.rowId!] = { left: r.left - cr.left, right: r.right - cr.left };
       }
@@ -154,12 +157,32 @@ test('a held panel stays at its edge in Chromium while the strip scrolls under i
       assert.equal(row.coverRight, rightId, `right: on top at its edge at scroll ${row.at}`);
     }
 
-    // 4. Both: the row holds it at the left edge, as left does; there is no two-sided hold (see the setting's doc comment).
+    // 4. Both: p1 is in the strip while its left edge is in view, and holds at the left once the scroll takes it past that edge.
+    // The strip starts after History, so p1's strip place is 406 px in (and the row's gap in front of it): at scroll 0 and 300 it
+    // slides with the strip, and at 900 and the end it is held at the left gap.
     const both = await open('slots=1,1,1,1,1,1&holds=p1:both');
     const bothGeo = await measure(both);
-    assert.deepEqual(bothGeo.held.map((h) => h.side), ['left']);
-    const bothRows = await sweep(both, bothGeo.held[0]!.id);
-    for (const row of bothRows) assert.equal(row.left, GAP, `both: held at the left gap at scroll ${row.at}`);
+    assert.deepEqual(bothGeo.held, [], 'both: at scroll 0 p1 is in view in the strip');
+    const bothRows = await sweep(both, '2');
+    for (const row of bothRows) {
+      if (row.at < 406) assert.equal(row.left, GAP + 406 - row.at, `both: in the strip at scroll ${row.at}`);
+      else {
+        assert.equal(row.left, GAP, `both: held at the left gap at scroll ${row.at}`);
+        assert.equal(row.coverLeft, '2', `both: held on top at scroll ${row.at}`);
+      }
+    }
+    assert.ok(bothRows.at(-1)!.at === bothGeo.maxScroll && bothRows.at(-1)!.left === GAP, 'both: held at the end of the row');
+    // The flip is continuous: at the scroll where p1's left edge reaches the window edge, its strip place and its held place are the same.
+    await scrollTo(both, 406);
+    const atFlip = await measure(both);
+    assert.equal(atFlip.rects['2']!.left, GAP, 'both: at scroll 406 the strip place and the held place are the same');
+    assert.deepEqual(atFlip.held.map((h) => h.side), ['left']);
+
+    // 4c. Both from the right: p6 starts past the right edge, so it holds at the right gap at every scroll.
+    const bothRight = await open('slots=1,1,1,1,1,1&holds=p6:both');
+    const bothRightGeo = await measure(bothRight);
+    assert.deepEqual(bothRightGeo.held.map((h) => h.side), ['right'], 'both from the right: held at the right edge at the start');
+    for (const row of await sweep(bothRight, bothRightGeo.held[0]!.id)) assert.equal(row.right, 1000 - GAP, `both from the right: held flush at scroll ${row.at}`);
 
     // 4b. Stepping, the library default: the row rests on its stops, and the held panel is at its edge at every one.
     const stepped = await open('slots=1,1,1,1,1,1&holds=p1:left&gesture=step');
