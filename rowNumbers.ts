@@ -36,9 +36,9 @@ export interface RowNumbers {
     offset: number;
   }[];
   /**
-   * The edgeHold 'both' panels that stick: each is drawn in the strip at its own place and holds at whichever edge the scroll
-   * takes it past. `left` and `right` are the insets from the scrollport's edges that it keeps clear of the fixed groups and of
-   * the sticky panels beside it. Empty when the row does not scroll.
+   * The edgeHold 'both' panels that stick, in row order: each is drawn in the strip at its own place and holds at whichever edge
+   * the scroll takes it past. `left` and `right` are the insets from the scrollport's edges that it keeps clear of the fixed
+   * groups and of the 'both' panels stacked on its edge. Empty when the row does not scroll.
    */
   stuck: readonly {
     /** The panel's id. */
@@ -131,10 +131,16 @@ export function computeRowNumbers(i: {
   } else {
     rowMarginLeft = !measured || overflows ? 0 : (windowWidth - stripWidth) / 2;
   }
-  // The one 'both' panel keeps clear of the fixed groups: its left inset is the left group, its right inset the right group.
-  const stuck: RowNumbers['stuck'][number][] = [];
-  const both = admitted.find((a) => a.hold === 'both');
-  if (both !== undefined) stuck.push({ id: present[both.k]!.id, left: leftInset, right: rightInset + i.gap });
+  // A 'both' panel keeps clear of the fixed groups and of the 'both' panels that stack on its edge. Scroll pins an earlier one
+  // whenever it pins a later one, so the stack on the left runs in row order from the left group, and on the right it runs in
+  // row order from the right group: the outermost panel of each stack sits nearest the window edge.
+  const bothKs = admitted.filter((a) => a.hold === 'both').map((a) => a.k);
+  const stacked = (ks: readonly number[]): number => ks.reduce((sum, k) => sum + allWidths[k]! + i.gap, 0);
+  const stuck: RowNumbers['stuck'][number][] = bothKs.map((k, j) => ({
+    id: present[k]!.id,
+    left: leftInset + stacked(bothKs.slice(0, j)),
+    right: rightInset + i.gap + stacked(bothKs.slice(j + 1)),
+  }));
   const stepStops = i.wholePanels === true && overflows ? stepGrid(stripWidth - stripWindow, i.phoneWidth + i.gap) : [];
   const stops = stepStops;
   const stopSpans = stops.map((at) => spanAt(at, widths, leftOffsets, rowMarginLeft, stripWindow));
@@ -175,8 +181,6 @@ function admitHolds(present: readonly PanelRowEntry[], allWidths: readonly numbe
   for (const [k, p] of present.entries()) {
     const hold = p.settings?.edgeHold;
     if (hold !== 'left' && hold !== 'right' && hold !== 'both') continue;
-    // One 'both' panel per row: once the scroll passes two of them, both stick at the same edge, and nothing keeps them apart.
-    if (hold === 'both' && picked.some((a) => a.hold === 'both')) continue;
     const side = hold === 'right' ? 'right' : 'left';
     const { leftInset, rightInset } = insetsOf([...picked, { k, side }], allWidths, gap);
     if (windowWidth - leftInset - rightInset >= phoneWidth) picked.push({ k, hold, side });

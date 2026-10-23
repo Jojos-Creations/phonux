@@ -1645,6 +1645,7 @@ export function WorkspacePanel(props: WorkspacePanelProps): React_2.JSX.Element;
 
 // @public
 export interface WorkspacePanelEntry {
+    readonly icon?: ReactNode;
     readonly id: string;
     readonly live: boolean;
     readonly pinned: boolean;
