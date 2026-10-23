@@ -36,7 +36,8 @@ test('the page never scrolls sideways at phone width', async ({ page }) => {
   expect(overflow).toBeLessThanOrEqual(0);
 });
 
-test('a touch swipe on the page does not scroll the page itself', async ({ page }) => {
+test('a touch swipe on the page does not scroll the page itself', async ({ page, browserName }) => {
+  test.skip(browserName === 'webkit', 'desktop WebKit cannot synthesize touch; covered by the iOS Simulator check');
   const size = page.viewportSize();
   if (!size) throw new Error('the phone profile sets a viewport');
   const y = Math.round(size.height / 2);
