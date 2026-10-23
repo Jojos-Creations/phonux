@@ -6,6 +6,7 @@
 import * as React from 'react';
 import { createPortal } from 'react-dom';
 import Box from '@mui/material/Box';
+import type { Theme } from '@mui/material/styles';
 import {
   closestCenter,
   DndContext,
@@ -207,7 +208,7 @@ function WorkspaceView({ entries, tileCounts, tileSize = 'medium', className, on
           // Drawn in the body: a tile sits inside transformed ancestors, which would offset a fixed overlay from the pointer.
           <DragOverlay dropAnimation={null}>
             {dragging === undefined ? null : (
-              <Box data-workspace-ghost="" sx={{ bgcolor: 'background.paper', boxShadow: 4, borderRadius: 1, whiteSpace: 'nowrap', cursor: 'grabbing' }}>
+              <Box data-workspace-ghost="" sx={{ bgcolor: 'background.paper', boxShadow: (theme: Theme) => theme.shadows[4], borderRadius: 1, whiteSpace: 'nowrap', cursor: 'grabbing' }}>
                 {titleOf(dragging)}
               </Box>
             )}
@@ -251,9 +252,8 @@ function WorkspaceTileButton({ tile, span, draggable, onActivate }: { tile: Work
         textAlign: 'left',
         cursor: draggable ? 'grab' : 'pointer',
         overflow: 'hidden',
-        opacity: drag.isDragging ? 0.3 : undefined,
-        outline: over ? '2px solid' : undefined,
-        outlineColor: 'primary.main',
+        opacity: drag.isDragging ? (theme: Theme) => theme.palette.action.disabledOpacity : undefined,
+        outline: over ? (theme: Theme) => `${theme.spacing(0.25)} solid ${theme.palette.primary.main}` : undefined,
       }}
     >
       {snapshot ? (
