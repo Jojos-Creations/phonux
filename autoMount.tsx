@@ -19,6 +19,7 @@ import { useProvidePanels } from './panels/useProvidePanels.js';
 import type { ProvidedPanels } from './panels/useProvidePanels.js';
 import type { WorkspaceProps } from './Workspace.js';
 import { bindingOf, type WorkspaceHandle } from './workspaceCore.js';
+import { WorkspaceRowContext, type WorkspaceRow } from './workspaceRow.js';
 import { columnCoreOf } from './columnHandle.js';
 import { WorkspaceColumn } from './WorkspaceColumn.js';
 import type { WorkspaceColumnHandle } from './columnHandle.js';
@@ -151,7 +152,22 @@ function AutoBody({ workspace, columnTop }: { workspace: WorkspaceHandle; column
       <PanelRow {...rowProps(provided, workspace)} />
     </Workspace>
   );
-  return <HostProvider host={host}>{Wrap === undefined ? row : <Wrap workspace={workspace}>{row}</Wrap>}</HostProvider>;
+  const rowValue = React.useMemo(
+    (): WorkspaceRow => ({
+      rowNumbers: provided.rowNumbers,
+      entries: provided.entries,
+      maxFitPanels: provided.maxFitPanels ?? null,
+      scroller: rowRef,
+      tuning,
+      phoneSize: { width: phone.width, height: phone.height },
+    }),
+    [provided.rowNumbers, provided.entries, provided.maxFitPanels, tuning, phone.width, phone.height],
+  );
+  return (
+    <HostProvider host={host}>
+      <WorkspaceRowContext.Provider value={rowValue}>{Wrap === undefined ? row : <Wrap workspace={workspace}>{row}</Wrap>}</WorkspaceRowContext.Provider>
+    </HostProvider>
+  );
 }
 
 /**

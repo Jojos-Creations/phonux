@@ -60,7 +60,7 @@ export interface WorkspaceColumnProps {
    * What fills a workspace's cell: the app's own hand-wired row for that workspace. Omitted: the row the library mounts itself, as
    * `createWorkspace` does. A returned row puts the column's `topInset` plus `COLUMN_TOP_BAND` plus its row gap above its panels.
    */
-  children?: (workspace: WorkspaceHandle) => React.ReactNode;
+  children?: (workspace: WorkspaceHandle) => React.ReactNode | undefined;
 }
 
 /**
@@ -68,6 +68,9 @@ export interface WorkspaceColumnProps {
  * still mounted, so their panels keep their state. Moving to another workspace moves focus into its cell when focus was in the one left.
  * @public
  */
+/** The cell's own row, or undefined when the function is absent or returns undefined: the library's row is drawn then. */
+const drawn = (children: WorkspaceColumnProps['children'], ws: WorkspaceHandle): React.ReactNode | undefined => (children === undefined ? undefined : children(ws));
+
 export function WorkspaceColumn({ column, children }: WorkspaceColumnProps): React.ReactElement {
   const core = columnCoreOf(column);
   const snap = React.useSyncExternalStore(core.subscribe, core.snapshot, core.snapshot);
@@ -133,12 +136,12 @@ export function WorkspaceColumn({ column, children }: WorkspaceColumnProps): Rea
                 {above === undefined ? labels.newWorkspace : above.name}
               </Button>
               <NameInput workspace={ws} label={labels.workspaceName} inset={snap.topInset} />
-              {children === undefined ? (
+              {drawn(children, ws) === undefined ? (
                 <React.Suspense fallback={null}>
                   <DefaultCell workspace={ws} columnTop={COLUMN_TOP_BAND} themed={false} />
                 </React.Suspense>
               ) : (
-                children(ws)
+                drawn(children, ws)
               )}
               <Button
                 data-workspace-neighbour="below"
