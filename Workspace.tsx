@@ -218,7 +218,7 @@ export function Workspace(props: WorkspaceProps): React.ReactElement {
     const container = overflowContainerRef.current;
     if (resizingId === null || container === null) return undefined;
     const scroller = rowScrollerFor(container);
-    const claim = scroller.claim();
+    const claim = scroller.claim({ replayScroll: true });
     // Where the panel's edges are in the window now, read from the element once the claim has stopped any glide: the numbers
     // can be ahead of what is drawn (a margin or a slide still gliding, a panel drawn shrunk).
     const slot = container.querySelector<HTMLElement>(`[data-row-id="${resizingId}"]`);
@@ -240,11 +240,16 @@ export function Workspace(props: WorkspaceProps): React.ReactElement {
         settle.current = null;
         claim?.release();
         const n = numbersRef.current;
-        if (claim === null || n === undefined || n.stops.length === 0) return;
+        if (claim === null || n === undefined || n.stops.length === 0) {
+          scroller.replayDeferred();
+          return;
+        }
         const held = pin === null || edges === null ? scroller.scrollLeft() : scrollHoldingEdge(n, n.ids.indexOf(resizingId), pin, edges[pin], scroller.scrollLeft());
+        // The settle lands first; a scroll the claim kept is replayed after it, so it overrides the settle.
         const glide = (from: RowNumbers): void => {
           const to = nearestStop(from, held);
           if (Math.abs(to - scroller.scrollLeft()) >= 0.5) scroller.glideTo(to, { durationSec: resolved.slide.durationSec, instant: reduced, ease: resolved.slide.glideEase });
+          scroller.replayDeferred();
         };
         clearTimeout(settleTimer.current);
         if (reduced || n.rowMarginLeft === began?.rowMarginLeft) {
@@ -259,8 +264,8 @@ export function Workspace(props: WorkspaceProps): React.ReactElement {
         const asked = scroller.inputs();
         settleTimer.current = setTimeout(() => {
           const now = numbersRef.current;
-          if (now === undefined || now.stops.length === 0 || scroller.inputs() !== asked) return;
-          if (Math.abs((scroller.glideTarget() ?? scroller.scrollLeft()) - releasedAt) >= 0.5) return;
+          if (now === undefined || now.stops.length === 0 || scroller.inputs() !== asked) return scroller.replayDeferred();
+          if (Math.abs((scroller.glideTarget() ?? scroller.scrollLeft()) - releasedAt) >= 0.5) return scroller.replayDeferred();
           glide(now);
         }, resolved.slide.durationSec * 1000);
       };
