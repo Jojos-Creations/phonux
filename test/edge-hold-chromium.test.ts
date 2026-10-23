@@ -105,6 +105,13 @@ test('a held panel stays at its edge in Chromium while the strip scrolls under i
     }, at);
     await page.waitForTimeout(120);
   };
+  /** The row slot drawn on top at `x` px from the scroller's left, at the row's middle. */
+  const coverAt = (page: Page, x: number): Promise<string | null> =>
+    page.evaluate((px) => {
+      const c = document.querySelector<HTMLElement>('[data-row-scroller]')!;
+      const cr = c.getBoundingClientRect();
+      return document.elementFromPoint(cr.left + px, cr.top + cr.height / 2)?.closest<HTMLElement>('[data-row-id]')?.dataset.rowId ?? null;
+    }, x);
   const sweep = async (page: Page, id: string): Promise<{ at: number; left: number; right: number; coverLeft: string | null; coverRight: string | null }[]> => {
     const out: { at: number; left: number; right: number; coverLeft: string | null; coverRight: string | null }[] = [];
     const first = await measure(page);
@@ -191,31 +198,68 @@ test('a held panel stays at its edge in Chromium while the strip scrolls under i
     const bothRight = await open('slots=1,1,1,1,1,1&holds=p6:both');
     for (const row of await sweep(bothRight, '7')) assert.equal(row.right, 1000 - GAP, `both from the right: pinned flush at scroll ${row.at}`);
 
-    // 4d. One 'both' panel per row: p2 is the one that sticks, and a second 'both' (p5) lets go and is drawn in the strip exactly
-    // as in a row with no holds. The 1400 window keeps the first one's room. p2 is pinned left once the scroll passes its place.
-    const two = await open('slots=1,1,1,1,1,1&holds=p2:both,p5:both', 1400);
-    const control = await open('slots=1,1,1,1,1,1', 1400);
-    const twoGeo = await measure(two);
-    assert.deepEqual(twoGeo.held, [], 'two both panels: neither is in a group');
-    const stuckIds = await two.evaluate(() => (window as unknown as { __e: { provided(): { rowNumbers: { stuck: { id: string }[] } } } }).__e.provided().rowNumbers.stuck.map((st) => st.id));
-    assert.deepEqual(stuckIds, ['3'], 'two both panels: only the first sticks');
-    for (const at of [0, 1000]) {
-      await scrollTo(two, at);
-      await scrollTo(control, at);
-      const g = await measure(two);
-      const c = await measure(control);
-      assert.deepEqual(g.rects['6'], c.rects['6'], `two both panels: the second is in the strip, where it is with no holds, at scroll ${at}`);
+    // 4d. Stacking: p1 and p2 both stick. Each is in the strip at its own place until the scroll takes it past its edge, and once
+    // the scroll pins both to the left they stack in row order, p2 one panel and one gap in from p1. The 1400 window keeps room for
+    // two; a third (p3) has none, so it lets go and scrolls with the strip.
+    const stack = await open('slots=1,1,1,1,1,1&holds=p1:both,p2:both', 1400);
+    const stackGeo = await measure(stack);
+    assert.deepEqual(stackGeo.held, [], 'stack: neither is in a group');
+    const stackIds = await stack.evaluate(() => (window as unknown as { __e: { provided(): { rowNumbers: { stuck: { id: string }[] } } } }).__e.provided().rowNumbers.stuck.map((st) => st.id));
+    assert.deepEqual(stackIds, ['2', '3'], 'stack: both panels stick');
+    for (const at of [0, 300, 406, 500, 900, stackGeo.maxScroll]) {
+      await scrollTo(stack, at);
+      const g = await measure(stack);
+      const outer = g.rects['2']!;
+      const inner = g.rects['3']!;
+      const outerAt = at < 406 ? GAP + 406 - at : GAP;
+      const innerAt = at <= 406 ? GAP + 812 - at : GAP + 406;
+      assert.equal(outer.left, outerAt, `stack: p1 in the strip, then pinned, at scroll ${at}`);
+      assert.equal(inner.left, innerAt, `stack: p2 in the strip, then stacked a panel and a gap in from p1, at scroll ${at}`);
+      assert.equal(inner.left - outer.right, GAP, `stack: a gap between the two at scroll ${at}`);
     }
-    for (let at = 0; at <= twoGeo.maxScroll; at += 97) {
-      await scrollTo(two, at);
-      const g = await measure(two);
-      const a = g.rects['3']!;
-      assert.ok(a.left >= GAP - 1 && a.right <= 1400 - GAP + 1, `two both panels: the sticking one is in the window at scroll ${at}`);
+    await scrollTo(stack, stackGeo.maxScroll);
+    assert.equal(await coverAt(stack, 211), '2', 'stack: p1 is on top where it stacks at the left');
+    assert.equal(await coverAt(stack, 617), '3', 'stack: p2 is on top where it stacks at the left');
+
+    // Stacked from the right: p5 and p6 stick at the right edge, p6 nearest it, a gap in from p5.
+    const stackRight = await open('slots=1,1,1,1,1,1&holds=p5:both,p6:both', 1400);
+    const stackRightGeo = await measure(stackRight);
+    await scrollTo(stackRight, stackRightGeo.maxScroll);
+    const rightPinned = await measure(stackRight);
+    assert.equal(rightPinned.rects['7']!.right, 1400 - GAP, 'stack from the right: the last one sits flush at the right gap');
+    assert.equal(rightPinned.rects['6']!.right, 1400 - GAP - 390 - GAP, 'stack from the right: the one before it is a panel and a gap in');
+    assert.equal(await coverAt(stackRight, 1400 - 200), '7', 'stack from the right: the outer panel is on top at its edge');
+
+    // A third both panel has no room beside the two: it is drawn in the strip and scrolls normally.
+    const third = await open('slots=1,1,1,1,1,1&holds=p1:both,p2:both,p3:both', 1400);
+    const thirdGeo = await measure(third);
+    const thirdIds = await third.evaluate(() => (window as unknown as { __e: { provided(): { rowNumbers: { stuck: { id: string }[] } } } }).__e.provided().rowNumbers.stuck.map((st) => st.id));
+    assert.deepEqual(thirdIds, ['2', '3'], 'third: the third lets go, the first two stand');
+    await scrollTo(third, 0);
+    const thirdAt0 = (await measure(third)).rects['4']!.left;
+    await scrollTo(third, 1000);
+    assert.equal((await measure(third)).rects['4']!.left, thirdAt0 - 1000, 'third: it scrolls normally, with the strip');
+    await scrollTo(third, thirdGeo.maxScroll);
+    assert.ok((await measure(third)).rects['4']!.left < GAP, 'third: at the end it is off the window, not pinned');
+
+    // 4e. Mounts across a stack: the views of both stacked panels are the same instances as the stack pins them, lets go of them,
+    // and pins them again. Each panel's mount count is its own, so a remount of either one shows.
+    const stackMounts = await open('slots=1,1,1,1,1,1&holds=p1:both,p2:both', 1400);
+    const stackViews = (page: Page) =>
+      page.evaluate(() => {
+        const w = window as unknown as { __mounts: Record<string, number>; __nodes: Record<string, Element | null> };
+        return ['p1', 'p2'].map((name) => ({ name, mounts: w.__mounts[name], same: w.__nodes[name] === document.querySelector(`[data-box="${name}"]`) }));
+      });
+    const stackSettled = await stackViews(stackMounts);
+    for (const at of [0, 406, 900, 0, 900]) {
+      await scrollTo(stackMounts, at);
+      assert.deepEqual(await stackViews(stackMounts), stackSettled, `stack: both views are the same instances at scroll ${at}`);
     }
-    await scrollTo(two, 1000);
-    assert.equal((await measure(two)).rects['3']!.left, GAP, 'two both panels: p2 is pinned left at 1000');
-    await scrollTo(two, twoGeo.maxScroll);
-    assert.equal((await measure(two)).rects['6']!.left, 2030 + GAP - twoGeo.maxScroll, 'two both panels: p5 is back in the strip at the end');
+    for (const width of [600, 1400]) {
+      await stackMounts.setViewportSize({ width, height: 800 });
+      await stackMounts.waitForTimeout(300);
+      assert.deepEqual(await stackViews(stackMounts), stackSettled, `stack: both views are the same instances at window ${width}`);
+    }
 
     // 4b. Stepping, the library default: the row rests on its stops, and the held panel is at its edge at every one.
     const stepped = await open('slots=1,1,1,1,1,1&holds=p1:left&gesture=step');
