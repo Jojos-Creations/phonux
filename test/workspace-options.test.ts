@@ -100,13 +100,15 @@ test('with none of them a view reads the defaults a bare HostProvider gives', as
   assert.deepEqual(hostOf(), { size: { width: 390, height: 700, modelId: 'default' }, column: false, entries: null, snapshots: false, labels: null });
 });
 
-test('topInset is the clearance above the row, and an update moves it', async () => {
+test('standalone, tuning.rowTop is the row top room and a configure moves it; topInset alone does not set it', async () => {
   win.height = 800;
-  const ws = await started({ topInset: 200 });
   const padding = (): string => getComputedStyle(document.querySelector<HTMLElement>('[data-row-scroller]')!).paddingTop;
+  const ws = await started({ tuning: { rowTop: 200 } });
   assert.equal(padding(), '200px');
-  await act(async () => ws.update({ topInset: 0 }));
+  await act(async () => void ws.panels.configureTuning({ rowTop: 0 }));
   assert.equal(padding(), '0px');
+  await started({ topInset: 200 });
+  assert.notEqual(getComputedStyle(document.querySelector<HTMLElement>('[data-row-scroller]')!).paddingTop, '200px');
 });
 
 test('panels.onPanelsClosed hears each close, and the callback an update gave is the one a later close calls', async () => {

@@ -39,6 +39,20 @@ test('useWorkspaceRow inside wrap returns the row: its entries, a scroller and t
   assert.equal(last.maxFitPanels, null, 'an unfitted row has no fit count');
 });
 
+test('the scroller is the element that scrolls the row: the one marked data-row-scroller, with the panels inside it', async () => {
+  let scroller: React.RefObject<HTMLElement | null> | undefined;
+  const Wrap = ({ children }: WorkspaceWrapProps): React.ReactElement => {
+    scroller = useWorkspaceRow().scroller;
+    return React.createElement(React.Fragment, null, children);
+  };
+  const ws = track(createWorkspace({ templates: [probe], wrap: Wrap }));
+  ws.addPanel('probe');
+  await until('the probe', () => slots(document.body).includes('probe'));
+  const marked = document.querySelector('[data-row-scroller]');
+  assert.ok(marked !== null && scroller?.current === marked, 'the row scroller is the marked container');
+  assert.ok(marked.contains(document.querySelector('[data-slot="probe"]')), 'the panel is inside the scroller');
+});
+
 test('a cell whose children function returns undefined draws the library row, and a cell returning null draws nothing', async () => {
   const c = createWorkspaceColumn({ templates: [probe], mount: false });
   columns.push(c);
@@ -48,6 +62,15 @@ test('a cell whose children function returns undefined draws the library row, an
   mount(withHost(React.createElement(WorkspaceColumn, { column: c, children: () => undefined })));
   await until('the library row', () => document.querySelector('[data-row-scroller]') !== null);
   assert.equal(document.querySelectorAll('[data-row-scroller]').length, 1);
+  rigCleanup();
+  const empty = createWorkspaceColumn({ templates: [probe], mount: false });
+  columns.push(empty);
+  act(() => {
+    empty.addWorkspace().addPanel('probe');
+  });
+  mount(withHost(React.createElement(WorkspaceColumn, { column: empty, children: () => null })));
+  await until('the cell', () => document.querySelector('[data-workspace-name-input]') !== null || document.querySelector('[data-workspace-neighbour]') !== null);
+  assert.equal(document.querySelectorAll('[data-row-scroller]').length, 0, 'a null cell draws no library row');
 });
 
 test('rowTop and phoneHeight are workspace tuning: a valid value is accepted, an out-of-range one is refused', () => {

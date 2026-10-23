@@ -266,11 +266,13 @@ test('differential tuning.phoneHeight: under fit the frame scales with the width
   assert.deepEqual(seen, { fit: 790, auto: 844 });
 });
 
-test('differential tuning.rowTop: a larger room above the row leaves a shorter row room, so a shorter frame under auto', async () => {
+test('differential tuning.rowTop: a larger room above the row shortens the auto frame, down to the fit it is never shorter than', async () => {
   const seen = { none: await drawnHeight({ phoneFit: 'fit', phoneHeight: 'auto' }, 1000, 900), large: await drawnHeight({ phoneFit: 'fit', phoneHeight: 'auto', rowTop: 300 }, 1000, 900) };
+  const fitLarge = await drawnHeight({ phoneFit: 'fit', phoneHeight: 'fit', rowTop: 300 }, 1000, 900);
   differential('tuning.rowTop', (run) => {
     run(null, () => seen.none);
     run(300, () => seen.large);
   });
-  assert.deepEqual(seen, { none: 844, large: 560 });
+  assert.ok(fitLarge < seen.none, 'the larger room is shorter than the room that fits 844');
+  assert.deepEqual(seen, { none: 844, large: fitLarge });
 });

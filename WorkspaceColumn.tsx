@@ -111,6 +111,7 @@ export function WorkspaceColumn({ column, children }: WorkspaceColumnProps): Rea
           const active = i === snap.current;
           const above = snap.workspaces[i - 1];
           const below = snap.workspaces[i + 1];
+          const own = drawn(children, ws);
           return (
             <Box
               key={ws.id}
@@ -136,12 +137,12 @@ export function WorkspaceColumn({ column, children }: WorkspaceColumnProps): Rea
                 {above === undefined ? labels.newWorkspace : above.name}
               </Button>
               <NameInput workspace={ws} label={labels.workspaceName} inset={snap.topInset} />
-              {drawn(children, ws) === undefined ? (
+              {own === undefined ? (
                 <React.Suspense fallback={null}>
                   <DefaultCell workspace={ws} columnTop={COLUMN_TOP_BAND} themed={false} />
                 </React.Suspense>
               ) : (
-                drawn(children, ws)
+                own
               )}
               <Button
                 data-workspace-neighbour="below"
