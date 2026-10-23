@@ -16,9 +16,18 @@ const NONE = new Set<string>();
 const ids = SLOTS.map((_, k) => `p${k + 1}`);
 let latest: any;
 
+// Each view counts its own mounts and keeps its DOM node, so a test can tell a view that stayed mounted from one that was re-created.
 function View({ panel, name }: { panel: any; name: string }) {
+  const ref = React.useRef<HTMLDivElement>(null);
+  React.useEffect(() => {
+    const w = window as any;
+    w.__mounts = w.__mounts ?? {};
+    w.__mounts[name] = (w.__mounts[name] ?? 0) + 1;
+    w.__nodes = w.__nodes ?? {};
+    w.__nodes[name] = ref.current;
+  }, []);
   return (
-    <div data-box={name} style={{ position: 'relative', width: '100%', height: '100%', background: name === ROOT ? '#243' : '#335', color: '#fff' }}>
+    <div ref={ref} data-box={name} style={{ position: 'relative', width: '100%', height: '100%', background: name === ROOT ? '#243' : '#335', color: '#fff' }}>
       {name}
     </div>
   );

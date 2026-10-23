@@ -92,6 +92,27 @@ export const usePanelCapabilities = (): Pick<ResolvedPanelSettings, 'closable' |
  * @public */
 export const usePanelNeighborWidths = (): NeighborWidths => React.useContext(PanelSlotContext)?.neighborWidths ?? NO_NEIGHBORS;
 const OUTSIDE_ROW_TUNING: SlotTuning = slotTuning(LIBRARY_TUNING_DEFAULTS);
+/**
+ * The host of an edgeHold 'both' panel. The host is a zero-height flex line as wide as the strip, with a spacer that puts the
+ * panel at its strip place and the panel's own box after it: a sticky host clamps within its line, so the line must span the strip
+ * for the panel to reach either edge. Sticky while the row holds the panel at an edge, and never re-parented as it does.
+ * A panel that is not a 'both' panel passes through.
+ */
+function PanelHold({ on, sticky, leftOffset, width, rowWidth, children }: { on: boolean; sticky: { left: number; right: number } | null; leftOffset: number; width: number; rowWidth: number; children: React.ReactNode }): React.ReactElement {
+  if (!on) return <>{children}</>;
+  return (
+    <Box data-row-hold-line="" sx={{ display: 'flex', height: 0, width: rowWidth }}>
+      <Box sx={{ width: leftOffset, flexShrink: 0 }} />
+      <Box
+        data-row-hold=""
+        sx={{ position: sticky === null ? 'relative' : 'sticky', left: sticky === null ? undefined : `${sticky.left}px`, right: sticky === null ? undefined : `${sticky.right}px`, flexShrink: 0, height: 0, width, zIndex: sticky === null ? undefined : ROW_LAYER_Z.DRAGGED }}
+      >
+        {children}
+      </Box>
+    </Box>
+  );
+}
+
 type PanelRowTuning = Pick<ResolvedWorkspaceTuning, 'rowGap' | 'dragToClose' | 'slide' | 'hopFraction' | 'edgeScroll'>;
 const OUTSIDE_ROW_VIEW_TUNING: PanelRowTuning = OUTSIDE_ROW_TUNING.view;
 /**
@@ -241,15 +262,7 @@ export function PanelRow({
   React.useLayoutEffect(() => {
     if (measuredNow && restoreSettled) setReady(true);
   }, [measuredNow, restoreSettled]);
-  // A held panel that changes edge moves the strip under the slots that did not move, so their rests take no time in that commit:
-  // a slide would start from where the strip was before the change.
-  const holdsKey = (rowNumbers?.held ?? []).map((h) => `${h.id}:${h.side}`).join(',');
-  const committedHolds = React.useRef(holdsKey);
-  const holdsMoved = committedHolds.current !== holdsKey;
-  React.useLayoutEffect(() => {
-    committedHolds.current = holdsKey;
-  });
-  const slotTracking = tracking || landing || !ready || holdsMoved;
+  const slotTracking = tracking || landing || !ready;
   const widths = baseWidths.map((width, index) => (index === drawnIndex && drawnPx !== undefined ? drawnPx : width));
   React.useLayoutEffect(() => {
     drawnBeforeRef.current = new Map(present.map((p, index) => [p.id, baseWidths[index]!]));
@@ -347,6 +360,8 @@ export function PanelRow({
     // A panel whose last button was just removed while it held focus still gets the slot context for that one commit, so the hook that moves focus runs.
     const headerButtonSlots = headerButtonsOf(headerButtons, handle, report, note) ?? (handle !== undefined && focusInHeaderRow(handle.id) ? { slots: {}, handle, report, note } : undefined);
     const index = presentAll.indexOf(p);
+    const hostsBoth = !held && p.settings?.edgeHold === 'both';
+    const stuckAt = hostsBoth ? rowNumbers?.stuck.find((st) => st.id === p.id) : undefined;
     return (
       <PanelSlotContext.Provider
         key={p.id}
@@ -375,10 +390,11 @@ export function PanelRow({
             }),
         }}
       >
+        <PanelHold on={hostsBoth} sticky={stuckAt === undefined ? null : { left: stuckAt.left, right: stuckAt.right }} leftOffset={rest.leftOffset} width={rest.width} rowWidth={rowNumbers?.stripWidth ?? 0}>
         <PanelRowSlot
           panelId={p.id}
           label={labels.panelPosition(p.title || labels.untitledPanel, index + 1, presentAll.length)}
-          leftOffset={rest.leftOffset + (shiftById.get(p.id) ?? 0)}
+          leftOffset={(hostsBoth ? 0 : rest.leftOffset) + (shiftById.get(p.id) ?? 0)}
           width={rest.width}
           phoneHeight={rowHeight}
           height={p.slots === undefined ? undefined : phoneHeight}
@@ -404,6 +420,7 @@ export function PanelRow({
             <Component panel={renderedSummary(p, rest.width, phoneHeight, slotsOfWidth(rest.width), fitSlotsNow)} />
           </useViewState.Provider>
         </PanelRowSlot>
+        </PanelHold>
       </PanelSlotContext.Provider>
     );
   };

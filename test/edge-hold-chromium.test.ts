@@ -75,8 +75,8 @@ test('a held panel stays at its edge in Chromium while the strip scrolls under i
     res.end(js ? readFileSync(join(dir, 'out.js')) : html);
   }).listen(0);
   const port = (server.address() as { port: number }).port;
-  const open = async (query: string): Promise<Page> => {
-    const page = await (await browser.newContext({ viewport: { width: 1000, height: 800 } })).newPage();
+  const open = async (query: string, width = 1000): Promise<Page> => {
+    const page = await (await browser.newContext({ viewport: { width, height: 800 } })).newPage();
     await page.goto(`http://localhost:${port}/?${query}`);
     await page.waitForSelector('[data-row-strip]');
     await page.waitForTimeout(300);
@@ -157,32 +157,66 @@ test('a held panel stays at its edge in Chromium while the strip scrolls under i
       assert.equal(row.coverRight, rightId, `right: on top at its edge at scroll ${row.at}`);
     }
 
-    // 4. Both: p1 is in the strip while its left edge is in view, and holds at the left once the scroll takes it past that edge.
+    // 4. Both: p1 is in the strip while its left edge is in view, and sticks at the left once the scroll takes it past that edge.
     // The strip starts after History, so p1's strip place is 406 px in (and the row's gap in front of it): at scroll 0 and 300 it
-    // slides with the strip, and at 900 and the end it is held at the left gap.
+    // slides with the strip, and at 900 and the end it is pinned at the left gap. Nothing is held in the layout: it is one panel.
     const both = await open('slots=1,1,1,1,1,1&holds=p1:both');
     const bothGeo = await measure(both);
-    assert.deepEqual(bothGeo.held, [], 'both: at scroll 0 p1 is in view in the strip');
+    assert.deepEqual(bothGeo.held, [], 'both: p1 is not in a group: it is a strip panel that sticks');
     const bothRows = await sweep(both, '2');
     for (const row of bothRows) {
       if (row.at < 406) assert.equal(row.left, GAP + 406 - row.at, `both: in the strip at scroll ${row.at}`);
       else {
-        assert.equal(row.left, GAP, `both: held at the left gap at scroll ${row.at}`);
-        assert.equal(row.coverLeft, '2', `both: held on top at scroll ${row.at}`);
+        assert.equal(row.left, GAP, `both: pinned at the left gap at scroll ${row.at}`);
+        assert.equal(row.coverLeft, '2', `both: on top at scroll ${row.at}`);
       }
     }
-    assert.ok(bothRows.at(-1)!.at === bothGeo.maxScroll && bothRows.at(-1)!.left === GAP, 'both: held at the end of the row');
-    // The flip is continuous: at the scroll where p1's left edge reaches the window edge, its strip place and its held place are the same.
+    assert.ok(bothRows.at(-1)!.at === bothGeo.maxScroll && bothRows.at(-1)!.left === GAP, 'both: pinned at the end of the row');
+    // The flip is continuous: at the scroll where p1's left edge reaches the window edge, its strip place and its pinned place coincide.
     await scrollTo(both, 406);
-    const atFlip = await measure(both);
-    assert.equal(atFlip.rects['2']!.left, GAP, 'both: at scroll 406 the strip place and the held place are the same');
-    assert.deepEqual(atFlip.held.map((h) => h.side), ['left']);
+    assert.equal((await measure(both)).rects['2']!.left, GAP, 'both: at scroll 406 the strip place and the pinned place are the same');
 
-    // 4c. Both from the right: p6 starts past the right edge, so it holds at the right gap at every scroll.
+    // 4a. Remount: a 'both' panel is one view across every side it takes, so its mount count stays 1 and its DOM node is the same.
+    const viewState = (page: Page) =>
+      page.evaluate(() => {
+        const w = window as unknown as { __mounts: Record<string, number>; __nodes: Record<string, Element | null> };
+        return { mounts: w.__mounts.p1, same: w.__nodes.p1 === document.querySelector('[data-box="p1"]') };
+      });
+    // Every view mounts twice as the page settles (every panel does, not only this one); the count after that is the baseline.
+    const settled = (await viewState(both)).mounts;
+    for (const at of [0, 300, 900, 406, 0, 900]) {
+      await scrollTo(both, at);
+      assert.deepEqual(await viewState(both), { mounts: settled, same: true }, `both: the view is not re-created at scroll ${at}`);
+    }
+
+    // 4c. Both from the right: p6 starts past the right edge, so it is pinned at the right gap at every scroll.
     const bothRight = await open('slots=1,1,1,1,1,1&holds=p6:both');
-    const bothRightGeo = await measure(bothRight);
-    assert.deepEqual(bothRightGeo.held.map((h) => h.side), ['right'], 'both from the right: held at the right edge at the start');
-    for (const row of await sweep(bothRight, bothRightGeo.held[0]!.id)) assert.equal(row.right, 1000 - GAP, `both from the right: held flush at scroll ${row.at}`);
+    for (const row of await sweep(bothRight, '7')) assert.equal(row.right, 1000 - GAP, `both from the right: pinned flush at scroll ${row.at}`);
+
+    // 4d. Two 'both' panels at once, in a 1400 window (a 1000 window holds one: two phones of strip beside both would not fit).
+    // p2 sticks left from scroll 812 and p5 sticks right up to 1036, so between them both are pinned at once, side by side.
+    // Over the whole range each one flips side and neither ever overlaps the other or leaves the window.
+    const two = await open('slots=1,1,1,1,1,1&holds=p2:both,p5:both', 1400);
+    const twoGeo = await measure(two);
+    assert.deepEqual(twoGeo.held, [], 'two both panels: neither is in a group');
+    for (let at = 0; at <= twoGeo.maxScroll; at += 97) {
+      await scrollTo(two, at);
+      const g = await measure(two);
+      const a = g.rects['3']!;
+      const b = g.rects['6']!;
+      assert.ok(a.right <= b.left + 1 || b.right <= a.left + 1, `two both panels: no overlap at scroll ${at}`);
+      assert.ok(a.left >= GAP - 1 && b.right <= 1400 - GAP + 1, `two both panels: both in the window at scroll ${at}`);
+    }
+    await scrollTo(two, 0);
+    const start = await measure(two);
+    assert.equal(start.rects['3']!.right, 1400 - GAP - (PHONE + GAP), 'two both panels: p2 at scroll 0 sits left of p5 at the right edge');
+    assert.equal(start.rects['6']!.right, 1400 - GAP, 'two both panels: p5 at scroll 0 is pinned right');
+    await scrollTo(two, 1000);
+    const both1000 = await measure(two);
+    assert.equal(both1000.rects['3']!.left, GAP, 'two both panels: p2 is pinned left at 1000');
+    assert.equal(both1000.rects['6']!.right, 1400 - GAP, 'two both panels: p5 is pinned right at 1000');
+    await scrollTo(two, twoGeo.maxScroll);
+    assert.equal((await measure(two)).rects['6']!.left, 2030 + GAP - twoGeo.maxScroll, 'two both panels: p5 is back in the strip at the end');
 
     // 4b. Stepping, the library default: the row rests on its stops, and the held panel is at its edge at every one.
     const stepped = await open('slots=1,1,1,1,1,1&holds=p1:left&gesture=step');

@@ -451,17 +451,16 @@ before the strip and one after it. `PanelRow` portals each held panel's slot int
 - The room rule: a candidate holds while the window keeps at least one phone of strip beside every hold, in row order. A candidate that
   cannot fit lets go and scrolls with the strip. The holds stand only if the strip without them still overflows, so a row that would not
   scroll releases them all.
-- 'both' holds at whichever edge the scroll takes the panel past. It is in the strip while its left edge is in view, held left once
-  the scroll has put that edge at the window's left, and held right once its right edge is at the window's right. Its place is found
-  with the other fixed holds applied, so the side is the scroll's own: `computeRowNumbers` takes `scrollLeft`, and the provider keeps
-  that scroll in state only while the layout it gives changes (`layoutKey`), so a scroll that changes no side renders nothing.
-- A flip is seamless: at the scroll where the side changes, the held place and the strip place coincide, and the other panels keep their
-  screen positions (a strip panel behind the held one moves under it). The stops and the range do not depend on the side, since a held
-  panel removes its width and its group adds the same width back. `stopIds` and `stopLefts` give each stop's own strip, and
-  `snapToStopIndex` finds a panel by id, because a panel can be in the strip at one stop and held at the next.
-- A slot moves with no time in the commit where a held panel changes edge (`holdsMoved` in PanelRow): the strip has already moved under
-  it. The panel's slot is remounted in its new group, so a view inside it starts again, and its strip copy fades out for the exit.
-- Open: a hold at both ends of one row at once, two 'both' panels whose flips coincide, and WebKit and Firefox.
+- 'both' stays in the strip and sticks. Its place is its strip place, so the layout is the same at every scroll: `rowNumbers.stuck` gives
+  each admitted 'both' panel its insets, `left` (the fixed left group, then the 'both' panels before it, each with its gap) and `right` (the
+  fixed right group, one gap, then the 'both' panels after it). Two of them held at one edge therefore stack, never overlap.
+- The panel's React place never changes: `PanelHold` draws every 'both' panel in a zero-height flex line as wide as the strip, with a
+  spacer that puts the panel at its strip place and the panel's box after it. That box is `position: sticky` (with `left` and `right` set to
+  its insets) while the row sticks it and `relative` otherwise. The line must span the strip: a sticky box clamps within its containing
+  block, and a margin on the box itself would stop it reaching the right edge.
+- A panel's view is mounted once and kept (checked in `test/edge-hold-chromium.test.ts`, which counts mounts and keeps the DOM node).
+- Open: a hold at both ends of one row with the same panel (only one 'both' panel can be pinned on each edge at once), and WebKit and
+  Firefox are not verified.
 - WebKit is not verified: sticky inside an `overflow-x` scroller is the fragile case, and the Chromium proof is `test/edge-hold-chromium.test.ts`.
 
 ### Scrolling to a panel
