@@ -52,6 +52,8 @@ component for the app's providers (StrictMode, `MotionConfig` and contexts go in
 "Workspace options, wrap and update"). A title-bar button is a setting too: `headerButtons: { more: { label: 'More', onClick } }`
 draws the label as the button's text.
 
+A view unmounts when its panel parks or closes, so audio, a web view or a socket started inside a view stops with it. Start those in the `wrap` component instead, which stays mounted for the workspace's life, and let the panel render controls for them (see `DESIGN.md`, "A parked view unmounts").
+
 ## Several workspaces
 
 A column of workspaces is one call per workspace, in the same style as the quickstart:

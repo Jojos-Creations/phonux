@@ -1773,6 +1773,8 @@ leaves, or shrinks from it. `layer` sets the stacking.
 
 A parked panel's view is unmounted and mounts again, fresh, when the panel is shown.
 
+So anything a view starts (audio, a web view, a socket) stops when its panel parks or closes. The one way to keep it running is to put it in `createWorkspace({ wrap })`: `wrap` renders once above every panel and never remounts, so a service there outlives every view. The panel renders controls that read it through a context. On a phone the player is a native plugin reached the same way, and a service that must survive a closed panel lives in `wrap` too, never in a view or a footer.
+
 ## The workspace core is React-free, and a row only reads it
 
 `createWorkspace` keeps everything a workspace is outside React: the template registry, the declared panels, the options and the last committed list. `useProvidePanels({ workspace })` is its one consumer: it attaches in a layout effect that runs once, and it publishes the committed list and a few controls (`create`, `lateRegister`) in a layout effect that runs after every commit. Both are written after commit, never during render, so a handle read from an event handler sees what the screen shows.
