@@ -61,8 +61,8 @@ export declare function workspaceShellStyle(i: WorkspaceShellStyleInput): Worksp
 /** How long the container width must hold still before the row's margin glides again: `slides` slide durations. @internal */
 export declare function resizeSettleDelayMs(slide: SlideTuning, slides: number): number;
 /**
- * Whether `width` has held still for `delayMs`; true at once when `instant`. The width a timer last confirmed is state, so a
- * width change reads unsettled in the very render that sees it.
+ * Whether `width` has held still for `delayMs`; true at once when `instant`. The mount counts as a change, so a width change
+ * inside the settle period snaps; one that comes after a full settle period of stillness glides from its first render.
  * @internal
  */
 export declare function useResizeSettled(width: number, delayMs: number, instant: boolean): boolean;

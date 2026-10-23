@@ -109,7 +109,8 @@ function AutoBody({ workspace, columnTop }) {
     const containerWidth = useContainerWidth(ref);
     const preferred = values.device?.size ?? DEFAULT_PHONE_SIZE;
     const tuning = React.useSyncExternalStore(binding.subscribe, () => binding.tuning, () => binding.tuning);
-    const topPadding = tuning.rowTop ?? (columnTop > 0 ? columnTop + (values.topInset ?? 0) + tuning.rowGap : values.topInset);
+    // Standalone, `tuning.rowTop` alone sets the row's top room; the column's own cell adds its topInset clearance to the band.
+    const topPadding = tuning.rowTop ?? (columnTop > 0 ? columnTop + (values.topInset ?? 0) + tuning.rowGap : undefined);
     const phone = usePhoneFit(ref, containerWidth, preferred, tuning, topPadding);
     const phoneWidth = phone.width;
     const provided = useProvidePanels({
@@ -134,7 +135,7 @@ function AutoBody({ workspace, columnTop }) {
         rowNumbers: provided.rowNumbers,
         entries: provided.entries,
         maxFitPanels: provided.maxFitPanels ?? null,
-        scroller: rowRef,
+        scroller: ref,
         tuning,
         phoneSize: { width: phone.width, height: phone.height },
     }), [provided.rowNumbers, provided.entries, provided.maxFitPanels, tuning, phone.width, phone.height]);
