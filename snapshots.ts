@@ -60,8 +60,8 @@ export interface CaptureRegistry {
 }
 
 /**
- * What a host hands phonux to call at a park or close: (re)capture a view's picture, or drop it. phonux only says
- * WHEN; what a capture is stays host code (see the DOM-redraw note above). @public
+ * What a host hands phonux to call at a park, a close or just before a panel slides: (re)capture a view's picture, or
+ * drop it. phonux only says WHEN; what a capture is stays host code (see the DOM-redraw note above). @public
  */
 export interface CaptureTrigger {
   /** (Re)captures whatever is registered for this id; a no-op if nothing is. Never throws, even if the engine does. */

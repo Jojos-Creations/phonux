@@ -1,13 +1,14 @@
 import * as React from 'react';
 import { PresenceContext, animate, motion, useIsPresent, useReducedMotion, useReducedMotionConfig, visualElementStore, type TargetAndTransition } from 'motion/react';
 import { SLOT_TRANSITION, directionalTransition, slideToTransition } from './directionalTransition.js';
-import { usePanelDragging } from './panelChrome.js';
+import { ChromeStoreContext, PANEL_SLIDE_EVENT, createRectReporter, usePanelDragging, type PanelRectReporter } from './panelChrome.js';
 import { PanelSlotContext } from './panelSlotContext.js';
 import { LIBRARY_TUNING_DEFAULTS } from './panelSettings.js';
 import type { SlideTuning } from './panelSettings.js';
 import { ROW_GAP, ROW_LAYER_Z } from './rowConstants.js';
 import { HostMissingProviderError } from './hostApi.js';
 import { useOptionalPhoneSize } from './phoneFit.js';
+import { closestRowScroller, rowScrollerFor } from './rowScroller.js';
 
 /**
  * The library's default row gap, 16 px; the gap a workspace draws with is its `tuning.rowGap`, which this does not follow.
@@ -238,6 +239,19 @@ export function PanelRowSlot({
   const [entrance] = React.useState(enterDirection);
   const { initial, animate: animateTarget, exit, transition } = panelRowSlotMotion(leftOffset, width, phoneHeight, entrance, exitDirection, gap, slide, rowScroll);
   const el = React.useRef<HTMLDivElement>(null);
+  // What a report and the frame loop read: the row's store and this slot's panel id, as of this render.
+  const chrome = React.useContext(ChromeStoreContext);
+  const live = React.useRef({ chrome, panelId });
+  live.current = { chrome, panelId };
+  const reporter = React.useRef<PanelRectReporter | null>(null);
+  // True between Motion's own start and completion of this slot's animation; the store mirrors it for usePanelSliding.
+  const sliding = React.useRef(false);
+  const kickRect = React.useCallback((): void => reporter.current?.kick(), []);
+  const setSliding = (on: boolean): void => {
+    sliding.current = on;
+    const { chrome: store, panelId: id } = live.current;
+    if (store !== undefined && id !== undefined) store.setSliding(id, on);
+  };
   // A child AnimatePresence finds at its own first render does not enter, so it does not grow either.
   const presence = React.useContext(PresenceContext);
   const framed = useHoldsFrame(el);
@@ -276,6 +290,8 @@ export function PanelRowSlot({
     lastRest.current = leftOffset;
     if (moved && (snapping || tracking) && el.current !== null && present) slotDriver.set(el.current, { x: leftOffset, opacity: 1 });
     else if (moved && el.current !== null && present) {
+      // Before the slide starts: a listener reads the box the panel still shows.
+      if (panelId !== undefined) el.current.dispatchEvent(new CustomEvent(PANEL_SLIDE_EVENT, { bubbles: true, detail: { id: panelId } }));
       startable.startTime = slideStart();
       slotDriver.startPending(el.current);
       delete startable.startTime;
@@ -293,12 +309,14 @@ export function PanelRowSlot({
       own.drawn = w;
       node.style.width = `${w}px`;
       node.style.overflowX = 'clip';
+      kickRect();
     };
     const settle = (): void => {
       own.run = undefined;
       own.drawn = undefined;
       node.style.width = `${width}px`;
       node.style.overflowX = '';
+      kickRect();
     };
     const ease = (from: number, to: number, done: () => void): void => {
       own.run?.stop();
@@ -336,6 +354,38 @@ export function PanelRowSlot({
     if (el.current === null || !present) return;
     slotDriver.animate(el.current, { x: restNow.current.leftOffset, opacity: 1 }, restNow.current.transition);
   }, []);
+  // A box that moves by its own motion, a drag, a resize or a row scroll is reported until it stops. A slot that mounts
+  // reports its rest once; its reporter is recreated under StrictMode's second setup, so nothing here is shared.
+  React.useLayoutEffect(() => {
+    const node = el.current;
+    if (node === null) return;
+    const row = closestRowScroller(node);
+    const rowMoving = (): boolean => row !== null && (rowScrollerFor(row).glideTarget() !== null || rowScrollerFor(row).claimHeld());
+    const rep = createRectReporter(node, {
+      id: () => live.current.panelId,
+      moving: () => {
+        const { chrome: store, panelId: id } = live.current;
+        const held = store !== undefined && id !== undefined && (store.dragging() === id || store.resizing() === id);
+        return sliding.current || held || rowMoving();
+      },
+    });
+    reporter.current = rep;
+    const unsubscribeRow = row === null ? () => {} : rowScrollerFor(row).subscribe(kickRect);
+    rep.kick();
+    return () => {
+      unsubscribeRow();
+      rep.stop();
+      reporter.current = null;
+      if (sliding.current) setSliding(false);
+    };
+  }, [kickRect]);
+  React.useEffect(() => {
+    if (chrome === undefined || panelId === undefined) return;
+    const offs = [chrome.subscribePanel(panelId, kickRect), chrome.subscribeResizing(kickRect), chrome.subscribeDrawn(kickRect)];
+    return () => {
+      for (const off of offs) off();
+    };
+  }, [chrome, panelId, kickRect]);
   return (
     <motion.div
       ref={el}
@@ -344,6 +394,14 @@ export function PanelRowSlot({
       animate={snapping || tracking ? { ...animateTarget, transition: INSTANT_TRANSITION } : animateTarget}
       exit={exit}
       transition={startable as typeof transition}
+      onAnimationStart={() => {
+        setSliding(true);
+        kickRect();
+      }}
+      onAnimationComplete={() => {
+        setSliding(false);
+        reporter.current?.settle();
+      }}
       {...(label === undefined ? {} : { role: 'group', 'aria-label': label })}
       data-row-slot={leftOffset}
       data-row-id={panelId}

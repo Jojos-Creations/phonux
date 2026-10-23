@@ -20,6 +20,7 @@ import { isPresent, summarisePanel } from '../panelRowEntry.js';
 import { entryNamed } from '../panelIds.js';
 import { panelWidthOf } from '../panelTiers.js';
 import { noopCaptureTrigger, type CaptureTrigger } from '../snapshots.js';
+import { PANEL_RECT_EVENT, PANEL_SLIDE_EVENT, panelRectEvent, type PanelRectDetail, type PanelRectEvent } from '../panelChrome.js';
 import { applyConfigure } from '../panelConfigure.js';
 import { accepted, refused, type ConfigureResult, type PanelOpSource, type PanelResult } from '../panelManager.js';
 import { decidePinChange, type PinChange, type PinStatus } from '../panelPin.js';
@@ -92,6 +93,11 @@ export interface PanelsInput {
   overflowContainerRef: RefObject<HTMLDivElement | null>;
   /** Defaults to phonux's `noopCaptureTrigger`: a host that wants real pictures passes its own. */
   capture?: CaptureTrigger;
+  /**
+   * Called with a panel's box while it moves: `moving` on each change, then one `settled` with the box it stopped at. A
+   * native view a host draws over a panel follows these; phonux draws nothing itself. Panels are keyed by their public key.
+   */
+  onPanelRect?: (event: PanelRectEvent) => void;
   /** Called when setSlots really resizes a panel, so the host can glide the row's margin with it. */
   onPanelResize?: () => void;
   /** The view a `create()` without a `view` opens. Unset: such a panel has no view and renders the unregistered-view placeholder, which is also what an unregistered key renders. */
@@ -287,6 +293,10 @@ export interface ProvidedPanels extends PanelsAPI {
  */
 export function useProvidePanels(i: PanelsInput): ProvidedPanels {
   const capture = i.capture ?? noopCaptureTrigger;
+  const onPanelRect = useRef(i.onPanelRect);
+  onPanelRect.current = i.onPanelRect;
+  // Every id this provider has rendered, mapped to its key. Kept after a panel leaves so its exit still reports under its key.
+  const keyById = useRef(new Map<string, string>());
   const labels = resolveLabels(i.labels);
   // The first workspace given is the one this hook serves for its whole life; a later one is reported, never followed.
   const boundWorkspace = useRef(i.workspace).current;
@@ -722,6 +732,7 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
     }
   });
 
+  for (const p of panels) keyById.current.set(p.id, panelKey(p));
   // Diffs the one list instead of capturing per call site: usePanelManager parks from several sites with no single
   // "on park" hook, and a per-site call would silently miss any site not touched.
   const prevLiveRef = useRef<ReadonlyMap<string, boolean>>(new Map());
@@ -732,6 +743,26 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
     }
     prevLiveRef.current = new Map(panels.map((p) => [p.id, p.live]));
   }, [panels, capture]);
+
+  // The slots report through window events (see panelChrome.ts); a provider hears only the ids it rendered.
+  useEffect(() => {
+    const keyOf = (id: string): string | undefined => keyById.current.get(id);
+    const onSlide = (e: Event): void => {
+      const key = keyOf((e as CustomEvent<{ id: string }>).detail.id);
+      if (key !== undefined && FIXED.snapshot === 'both') capture.capture(key);
+    };
+    const onRect = (e: Event): void => {
+      const d = (e as CustomEvent<PanelRectDetail>).detail;
+      const key = keyOf(d.id);
+      if (key !== undefined) onPanelRect.current?.(panelRectEvent(key, d));
+    };
+    window.addEventListener(PANEL_SLIDE_EVENT, onSlide);
+    window.addEventListener(PANEL_RECT_EVENT, onRect);
+    return () => {
+      window.removeEventListener(PANEL_SLIDE_EVENT, onSlide);
+      window.removeEventListener(PANEL_RECT_EVENT, onRect);
+    };
+  }, [capture]);
 
   // clearAll only records ids here: React may run its updater during render, where evict would notify other components.
   const clearedIds = useRef(new Set<string>());
