@@ -65,6 +65,7 @@ const VALUE_EXPORTS = [
   'usePanelSetDragging',
   'Workspace',
   'WorkspacePanel',
+  'WorkspaceTrash',
   'useProvidePanels',
   'reorderStepsForOffset',
   'slideToTransition',

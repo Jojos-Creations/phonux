@@ -1613,11 +1613,26 @@ export type WorkspaceOptions = WorkspaceLive & {
 };
 
 // @public
-export function WorkspacePanel(input: WorkspacePanelProps): React_2.JSX.Element;
+export function WorkspacePanel(props: WorkspacePanelProps): React_2.JSX.Element;
+
+// @public
+export interface WorkspacePanelEntry {
+    readonly id: string;
+    readonly live: boolean;
+    readonly pinned: boolean;
+    readonly placeholder?: string;
+    readonly slots?: number;
+    readonly title: string;
+}
 
 // @public
 export interface WorkspacePanelProps {
     readonly className?: string;
+    readonly entries?: readonly WorkspacePanelEntry[];
+    readonly header?: React_2.ReactNode;
+    readonly onActivate?: (id: string) => void;
+    readonly onReorder?: (ids: readonly string[]) => void;
+    readonly onTrash?: (id: string) => void;
     readonly tileCounts?: Partial<WorkspaceTileCounts>;
     readonly tileSize?: WorkspaceTileSize;
 }
@@ -1711,6 +1726,15 @@ export interface WorkspaceTileCounts {
 
 // @public
 export type WorkspaceTileSize = 'small' | 'medium' | 'large';
+
+// @public
+export function WorkspaceTrash(input: WorkspaceTrashProps): React_2.JSX.Element;
+
+// @public
+export interface WorkspaceTrashProps {
+    readonly children?: React_2.ReactNode;
+    readonly className?: string;
+}
 
 // @public
 export type WorkspaceTuning = {
