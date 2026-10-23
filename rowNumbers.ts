@@ -18,15 +18,47 @@ export interface RowNumbers {
   stripWidth: number;
   /** The row's left margin: centring for a strip that fits, 0 for one that does not. */
   rowMarginLeft: number;
-  /** The ids of the drawn entries, in row order. */
+  /** The ids of the drawn entries in the strip, in row order. Panels held at an edge are not here; `held` lists them. */
   ids: readonly string[];
   /** The width of each drawn entry, in the order of `ids`. */
   widths: readonly number[];
-  /** Each drawn entry's resting x: the widths before it plus one gap each. */
+  /** Each drawn entry's resting x inside the strip: the widths before it plus one gap each. */
   leftOffsets: readonly number[];
+  /** The panels held at an edge, left group first. Each is drawn in its edge's group, which the row keeps in view while the strip scrolls. */
+  held: readonly {
+    /** The panel's id. */
+    id: string;
+    /** The edge the panel holds at. */
+    side: 'left' | 'right';
+    /** The panel's width in px. */
+    width: number;
+    /** Where the panel sits inside its edge's group, in px from the group's left. */
+    offset: number;
+  }[];
+  /**
+   * The edgeHold 'both' panels that stick: each is drawn in the strip at its own place and holds at whichever edge the scroll
+   * takes it past. `left` and `right` are the insets from the scrollport's edges that it keeps clear of the fixed groups and of
+   * the sticky panels beside it. Empty when the row does not scroll.
+   */
+  stuck: readonly {
+    /** The panel's id. */
+    id: string;
+    /** The inset from the scrollport's left edge the panel's left edge keeps. */
+    left: number;
+    /** The inset from the scrollport's right edge the panel's right edge keeps. */
+    right: number;
+  }[];
+  /** The width the left group takes before the strip, its trailing gap included; 0 with no left group. */
+  leftInset: number;
+  /** The width the right group takes after the strip, its leading gap included; 0 with no right group. */
+  rightInset: number;
+  /** The scrollLeft at which the strip's first slot rests: the left group and the row's margin. */
+  stripStart: number;
+  /** The width the strip is seen through: the window less both groups. `windowWidth` when no panel is held. */
+  stripWindow: number;
   /** The widest one panel can be in this row; `Infinity` before the row is measured. */
   maxLiveWidth: number;
-  /** The widths of the drawn entries the row never parks for room. */
+  /** The widths of the drawn entries the row never parks for room, the held and sticky panels included. */
   reservedWidths: readonly number[];
   /** The widths of the drawn entries the row may park for room. */
   parkLiveWidths: readonly number[];
@@ -44,8 +76,8 @@ export interface RowNumbers {
 }
 
 /**
- * The numbers for one row. A row whose entries carry no `overflow: 'scroll'` settings gets the 0.1.0 numbers
- * (`computeMaxLiveWidth`, `computeRowLayout`'s margin). A scrolling row draws every entry, sizes each panel from its slots
+ * The numbers for one row. A row whose entries carry no `overflow: 'scroll'` settings gets the numbers of a row that
+ * never scrolls (`computeMaxLiveWidth`, `computeRowLayout`'s margin). A scrolling row draws every entry, sizes each panel from its slots
  * and no wider than the window, and centres only a strip that fits.
  * @public
  * @deprecated The provider computes the row's numbers from its tuning; read them as `useProvidePanels(...).rowNumbers`.
@@ -72,30 +104,114 @@ export function computeRowNumbers(i: {
   const windowWidth = measured ? Math.max(0, i.containerWidth - 2 * i.gap) : Number.POSITIVE_INFINITY;
   const fixedItemCount = i.fixedItemCount ?? present.filter((p) => !p.collapsible).length;
   const maxLiveWidth = rowScroll ? Math.max(i.phoneWidth, windowWidth) : computeMaxLiveWidth({ containerWidth: i.containerWidth, phoneWidth: i.phoneWidth, gap: i.gap, fixedItemCount });
-  const widths = present.map((p) => panelWidthOf(p, i.phoneWidth, maxLiveWidth, i.gap));
-  const parks = present.map((p) => parksForRoom(p));
-  const parkLiveWidths = widths.filter((_, k) => parks[k]);
-  const reservedWidths = widths.filter((_, k) => !parks[k]);
-  const stripWidth = widths.length === 0 ? 0 : widths.reduce((sum, width) => sum + width, 0) + (widths.length - 1) * i.gap;
+  const allWidths = present.map((p) => panelWidthOf(p, i.phoneWidth, maxLiveWidth, i.gap));
+  const admitted = rowScroll && measured ? admitHolds(present, allWidths, i.gap, i.phoneWidth, windowWidth) : [];
+  const admittedKs = new Set(admitted.map((a) => a.k));
+  // Only the left and right holds take a group in flow; a 'both' panel stays in the strip and sticks where it is drawn.
+  const edges: Edge[] = admitted.flatMap((a) => (a.hold === 'both' ? [] : [{ k: a.k, side: a.hold }]));
+  const { leftInset, rightInset, held } = edgeGroups(edges, present, allWidths, i.gap);
+  const heldAt = new Set(edges.map((e) => e.k));
+  const strip = present.flatMap((p, k) => (heldAt.has(k) ? [] : [{ p, k }]));
+  const ids = strip.map((x) => x.p.id);
+  const widths = strip.map((x) => allWidths[x.k]!);
+  const stripWidth = contentLength(widths, i.gap);
+  const stripWindow = windowWidth - leftInset - rightInset;
   const leftOffsets: number[] = [];
   let running = 0;
   for (const width of widths) {
     leftOffsets.push(running);
     running += width + i.gap;
   }
-  const overflows = rowScroll && measured && stripWidth > windowWidth;
+  const overflows = rowScroll && measured && stripWidth > stripWindow;
   // A strip that overflows starts flush at the window's left: a centring margin would show as blank room at scroll 0 and
   // push every grid stop off the panel starts.
   let rowMarginLeft: number;
   if (!rowScroll) {
-    rowMarginLeft = computeRowLayout({ containerWidth: i.containerWidth, phoneWidth: i.phoneWidth, gap: i.gap, fixedItemCount, liveWidths: present.flatMap((p, k) => (p.collapsible ? [widths[k]!] : [])) }).computedRowMarginLeft;
+    rowMarginLeft = computeRowLayout({ containerWidth: i.containerWidth, phoneWidth: i.phoneWidth, gap: i.gap, fixedItemCount, liveWidths: present.flatMap((p, k) => (p.collapsible ? [allWidths[k]!] : [])) }).computedRowMarginLeft;
   } else {
     rowMarginLeft = !measured || overflows ? 0 : (windowWidth - stripWidth) / 2;
   }
-  const stepStops = i.wholePanels === true && overflows ? stepGrid(stripWidth - windowWidth, i.phoneWidth + i.gap) : [];
+  // The one 'both' panel keeps clear of the fixed groups: its left inset is the left group, its right inset the right group.
+  const stuck: RowNumbers['stuck'][number][] = [];
+  const both = admitted.find((a) => a.hold === 'both');
+  if (both !== undefined) stuck.push({ id: present[both.k]!.id, left: leftInset, right: rightInset + i.gap });
+  const stepStops = i.wholePanels === true && overflows ? stepGrid(stripWidth - stripWindow, i.phoneWidth + i.gap) : [];
   const stops = stepStops;
-  const stopSpans = stops.map((at) => spanAt(at, widths, leftOffsets, rowMarginLeft, windowWidth));
-  return { rowScroll, windowWidth, stripWidth, rowMarginLeft, ids: present.map((p) => p.id), widths, leftOffsets, maxLiveWidth, reservedWidths, parkLiveWidths, stops, stepStops, stopSpans, endPad: 0 };
+  const stopSpans = stops.map((at) => spanAt(at, widths, leftOffsets, rowMarginLeft, stripWindow));
+  // A panel the row admits is never parked for room, whether it is held or sticks in the strip.
+  const reservedWidths = [...present.flatMap((p, k) => (admittedKs.has(k) || parksForRoom(p) ? [] : [allWidths[k]!])), ...admitted.map((a) => allWidths[a.k]!)];
+  const parkLiveWidths = present.flatMap((p, k) => (admittedKs.has(k) || !parksForRoom(p) ? [] : [allWidths[k]!]));
+  return { rowScroll, windowWidth, stripWidth, rowMarginLeft, ids, widths, leftOffsets, held, stuck, leftInset, rightInset, stripStart: leftInset + rowMarginLeft, stripWindow, maxLiveWidth, reservedWidths, parkLiveWidths, stops, stepStops, stopSpans, endPad: 0 };
+}
+
+/** One held entry: the entry's index in the present list and the edge it holds at. */
+interface Edge {
+  k: number;
+  side: 'left' | 'right';
+}
+
+/** The length of `widths` laid end to end with one gap between each two: 0 for none. */
+function contentLength(widths: readonly number[], gap: number): number {
+  return widths.length === 0 ? 0 : widths.reduce((sum, width) => sum + width, 0) + (widths.length - 1) * gap;
+}
+
+/**
+ * An entry the row admits to an edge, and the hold it asked for. A `both` entry is admitted on the left's room, since it may
+ * stick at either edge, and `side` is the group it counts in for that room.
+ */
+interface Admitted {
+  k: number;
+  hold: 'left' | 'right' | 'both';
+  side: 'left' | 'right';
+}
+
+/**
+ * The panels admitted to an edge, in row order, or none. A candidate joins while the window keeps at least one phone's width of
+ * strip beside every admitted panel; one that cannot fit lets go and scrolls with the strip. The admissions stand only while the
+ * strip without them still overflows the window that remains, so a row that would not scroll releases them all.
+ */
+function admitHolds(present: readonly PanelRowEntry[], allWidths: readonly number[], gap: number, phoneWidth: number, windowWidth: number): Admitted[] {
+  const picked: Admitted[] = [];
+  for (const [k, p] of present.entries()) {
+    const hold = p.settings?.edgeHold;
+    if (hold !== 'left' && hold !== 'right' && hold !== 'both') continue;
+    // One 'both' panel per row: once the scroll passes two of them, both stick at the same edge, and nothing keeps them apart.
+    if (hold === 'both' && picked.some((a) => a.hold === 'both')) continue;
+    const side = hold === 'right' ? 'right' : 'left';
+    const { leftInset, rightInset } = insetsOf([...picked, { k, side }], allWidths, gap);
+    if (windowWidth - leftInset - rightInset >= phoneWidth) picked.push({ k, hold, side });
+  }
+  if (picked.length === 0) return [];
+  const { leftInset, rightInset } = insetsOf(picked, allWidths, gap);
+  const heldK = new Set(picked.map((e) => e.k));
+  const restWidths = allWidths.filter((_, k) => !heldK.has(k));
+  return contentLength(restWidths, gap) > windowWidth - leftInset - rightInset ? picked : [];
+}
+
+/** The widths the two edge groups take in flow for `picks`: the left group with its trailing gap, the right with its leading one. */
+function insetsOf(picks: readonly { k: number; side: 'left' | 'right' }[], allWidths: readonly number[], gap: number): { leftInset: number; rightInset: number } {
+  const left = picks.filter((e) => e.side === 'left').map((e) => allWidths[e.k]!);
+  const right = picks.filter((e) => e.side === 'right').map((e) => allWidths[e.k]!);
+  return { leftInset: left.length === 0 ? 0 : contentLength(left, gap) + gap, rightInset: right.length === 0 ? 0 : gap + contentLength(right, gap) };
+}
+
+/** The group sizes and each held panel's x inside its group, left group first in row order, then the right. */
+function edgeGroups(edges: readonly Edge[], present: readonly PanelRowEntry[], allWidths: readonly number[], gap: number): { leftInset: number; rightInset: number; held: RowNumbers['held'] } {
+  const { leftInset, rightInset } = insetsOf(edges, allWidths, gap);
+  const held: RowNumbers['held'][number][] = [];
+  let x = 0;
+  for (const e of edges) {
+    if (e.side !== 'left') continue;
+    held.push({ id: present[e.k]!.id, side: 'left', width: allWidths[e.k]!, offset: x });
+    x += allWidths[e.k]! + gap;
+  }
+  x = gap;
+  for (const e of edges) {
+    if (e.side !== 'right') continue;
+    held.push({ id: present[e.k]!.id, side: 'right', width: allWidths[e.k]!, offset: x });
+    x += allWidths[e.k]! + gap;
+  }
+  return { leftInset, rightInset, held };
 }
 
 /** The drawn entries a window at scroll `at` shows: the first one its right edge passes and one past the last one its left edge reaches. */
@@ -154,11 +270,11 @@ export function nearestStop(n: RowNumbers, at: number): number {
  */
 export function scrollHoldingEdge(n: RowNumbers, k: number, pin: 'start' | 'end', edge: number, at: number): number {
   if (k < 0 || k >= n.ids.length) return at;
-  const left = n.rowMarginLeft + n.leftOffsets[k]!;
+  const left = n.stripStart + n.leftOffsets[k]!;
   return (pin === 'end' ? left + n.widths[k]! : left) - edge;
 }
 
 /** The farthest legal `scrollLeft` for `n`, from its numbers and never read back from the DOM; 0 while unmeasured. @internal */
 export function maxScrollOf(n: RowNumbers): number {
-  return Number.isFinite(n.windowWidth) ? Math.max(0, n.rowMarginLeft + n.stripWidth + n.endPad - n.windowWidth) : 0;
+  return Number.isFinite(n.windowWidth) ? Math.max(0, n.stripStart + n.stripWidth + n.rightInset + n.endPad - n.windowWidth) : 0;
 }

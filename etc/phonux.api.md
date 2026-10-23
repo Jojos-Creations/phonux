@@ -1160,11 +1160,19 @@ export interface RowLayoutResult {
 // @public
 export interface RowNumbers {
     endPad: number;
+    held: readonly {
+        id: string;
+        side: 'left' | 'right';
+        width: number;
+        offset: number;
+    }[];
     ids: readonly string[];
+    leftInset: number;
     leftOffsets: readonly number[];
     maxLiveWidth: number;
     parkLiveWidths: readonly number[];
     reservedWidths: readonly number[];
+    rightInset: number;
     rowMarginLeft: number;
     rowScroll: boolean;
     stepStops: readonly number[];
@@ -1173,7 +1181,14 @@ export interface RowNumbers {
         first: number;
         end: number;
     }[];
+    stripStart: number;
     stripWidth: number;
+    stripWindow: number;
+    stuck: readonly {
+        id: string;
+        left: number;
+        right: number;
+    }[];
     widths: readonly number[];
     windowWidth: number;
 }
@@ -1267,6 +1282,7 @@ export type SettingValues = {
     capacityReturn: 'auto' | 'manual';
     overflow: Overflow;
     revealOnScroll: 'edges' | 'any' | 'never';
+    edgeHold: 'off' | 'left' | 'right' | 'both';
     scrollOnOpen: ScrollOnOpen;
     scrollOnMove: ScrollOnMove;
     toggleWhenClosed: 'ignore' | 'reopen';

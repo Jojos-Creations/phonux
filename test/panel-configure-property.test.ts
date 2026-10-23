@@ -68,6 +68,7 @@ const VALUES: Readonly<Record<string, readonly unknown[]>> = {
   capacityReturn: ['auto', 'manual'],
   overflow: ['scroll', 'park'],
   revealOnScroll: ['edges', 'any', 'never'],
+  edgeHold: ['off', 'left', 'right', 'both'],
   scrollOnOpen: ['into-view', 'start', 'center', 'none'],
   scrollOnMove: ['follow', 'none'],
   toggleWhenClosed: ['ignore', 'reopen'],

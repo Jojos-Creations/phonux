@@ -1,5 +1,5 @@
 /**
- * The engine's reading of the scroll settings it owns: revealOnScroll, scrollOnOpen, scrollOnMove, tuning.rowGesture
+ * The engine's reading of the scroll settings it owns: revealOnScroll, edgeHold, scrollOnOpen, scrollOnMove, tuning.rowGesture
  * and tuning.initialScroll. One differential per name through the real hook and Workspace: the same scenario under
  * two values must give different outputs. The literal rows are in row-scroll-mount.test.ts and row-gesture.test.ts.
  */
@@ -17,7 +17,7 @@ afterEach(() => {
   cleanup();
 });
 
-const OWNED = ['revealOnScroll', 'scrollOnOpen', 'scrollOnMove', 'tuning.rowGesture', 'tuning.initialScroll'];
+const OWNED = ['revealOnScroll', 'edgeHold', 'scrollOnOpen', 'scrollOnMove', 'tuning.rowGesture', 'tuning.initialScroll'];
 
 /** Whether the parked panel b sits live after one rightward swipe in a window that shows only the root (430 px). */
 async function revealedUnder(revealOnScroll: 'edges' | 'any' | 'never'): Promise<boolean> {
@@ -37,6 +37,27 @@ test('differential revealOnScroll: an engine-parked panel with a live panel beyo
   differential('revealOnScroll', (run) => {
     run('edges', () => outcomes.get('edges'));
     run('any', () => outcomes.get('any'));
+  });
+});
+
+/** Where panel b is drawn in a row of root, b, c and d at 1000 px: in the strip, held by its sticky host when held. */
+function drawnAt(edgeHold: PanelSettings['edgeHold']): 'held' | 'strip' | 'missing' {
+  const m = mountRow(row(rootEntry(), made('b', { edgeHold }), made('c'), made('d')), 1000);
+  const slot = m.container.querySelector<HTMLElement>('[data-row-strip] [data-row-id="b"]');
+  const where = slot === null ? 'missing' : slot.closest<HTMLElement>('[data-row-hold]')?.style.position === 'sticky' ? 'held' : 'strip';
+  cleanup();
+  return where;
+}
+
+test('differential edgeHold: a panel held at the left edge is pinned by its host in the strip, and off has no host', () => {
+  const outcomes = new Map([
+    ['off', drawnAt('off')],
+    ['left', drawnAt('left')],
+  ]);
+  assert.deepEqual([...outcomes.values()], ['strip', 'held']);
+  differential('edgeHold', (run) => {
+    run('off', () => outcomes.get('off'));
+    run('left', () => outcomes.get('left'));
   });
 });
 

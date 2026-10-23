@@ -54,7 +54,7 @@ function nearestStopIndex(n: RowNumbers, at: number): number {
 /** The rest of the row at stop `k`, as a saved mark names it: the first drawn entry the stop shows, and the stop's offset from that entry's left edge in phone widths. */
 function markOfStop(n: RowNumbers, k: number, step: number): RestMark {
   const index = n.stopSpans[k]!.first;
-  return { panel: n.ids[index]!, offset: (n.stops[k]! - (n.rowMarginLeft + n.leftOffsets[index]!)) / step };
+  return { panel: n.ids[index]!, offset: (n.stops[k]! - (n.stripStart + n.leftOffsets[index]!)) / step };
 }
 
 /** The stop a saved mark names: the stop that shows its panel nearest the panel's left edge moved by the offset. Null when the panel is not drawn or no stop shows it. */
@@ -62,7 +62,7 @@ function stopOfMark(n: RowNumbers, mark: RestMark | null, step: number): number 
   if (mark === null) return null;
   const index = n.ids.indexOf(mark.panel);
   if (index < 0) return null;
-  const k = snapToStopIndex(n, index, n.rowMarginLeft + n.leftOffsets[index]! + mark.offset * step);
+  const k = snapToStopIndex(n, index, n.stripStart + n.leftOffsets[index]! + mark.offset * step);
   return k < 0 ? null : n.stops[k]!;
 }
 
@@ -371,7 +371,7 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
     const entry = panels.find((p) => p.id === id);
     const k = rowNumbers.ids.indexOf(id);
     if (el === null || entry === undefined || k < 0 || effective(entry).scrollOnMove !== 'follow') return;
-    const left = tuning.rowGap + rowNumbers.rowMarginLeft + rowNumbers.leftOffsets[k]!;
+    const left = tuning.rowGap + rowNumbers.stripStart + rowNumbers.leftOffsets[k]!;
     const inView = left < el.scrollLeft + windowOf(el) - tuning.rowGap && left + rowNumbers.widths[k]! > el.scrollLeft + tuning.rowGap;
     if (inView) requestScroll({ id, kind: 'move', align: null, forced: false, fresh: false });
   };
@@ -384,7 +384,7 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
     const k = rowNumbers.ids.indexOf(id);
     if (el === null || k < 0) return null;
     const raw = scrollTargetFor({
-      left: tuning.rowGap + rowNumbers.rowMarginLeft + rowNumbers.leftOffsets[k]!,
+      left: tuning.rowGap + rowNumbers.stripStart + rowNumbers.leftOffsets[k]!,
       width: rowNumbers.widths[k]!,
       scrollLeft: rowScrollerFor(el).scrollLeft(),
       clientWidth: windowOf(el),
@@ -478,7 +478,7 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
       clientWidth: windowOf(el),
       // The strip is padded so every stop is reachable, which puts the browser's end past the last stop.
       maxScroll,
-      liveStarts: rowNumbers.leftOffsets.map((offset) => rowNumbers.rowMarginLeft + offset),
+      liveStarts: rowNumbers.leftOffsets.map((offset) => rowNumbers.stripStart + offset),
       liveWidths: rowNumbers.widths,
       stops: rowNumbers.stepStops,
       gap: tuning.rowGap,
@@ -505,7 +505,7 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
     restedRef.current = true;
     if (Math.abs(to - base) < 0.5) return;
     scroller.glideTo(to, { durationSec: tuning.slide.durationSec, instant: reducedMotion || opening, ease: tuning.slide.glideEase });
-  }, [rowNumbers.stepStops.join(','), rowNumbers.rowMarginLeft, rowNumbers.endPad]);
+  }, [rowNumbers.stepStops.join(','), rowNumbers.stripStart, rowNumbers.endPad]);
 
   // The row's wheel/arrow-key gesture is wired here, not in the host, so a host stays free of effects and refs.
   useRowScrollGesture(i.overflowContainerRef, stepRow, timing.gestureLockMs, tuning.rowGesture, tuning.gestureQuietMs, i.phoneWidth + tuning.rowGap);
@@ -666,7 +666,7 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
     } else if (where !== 'start') {
       const k = rowNumbers.ids.indexOf(where === 'root' ? rootId : engineIdOf(where.panel));
       if (k >= 0) {
-        const left = tuning.rowGap + rowNumbers.rowMarginLeft + rowNumbers.leftOffsets[k]!;
+        const left = tuning.rowGap + rowNumbers.stripStart + rowNumbers.leftOffsets[k]!;
         to = snapped(k, scrollTargetFor({ left, width: rowNumbers.widths[k]!, scrollLeft: 0, clientWidth: windowOf(el), maxScroll, gap: tuning.rowGap, align: 'start' }));
       }
     }
@@ -680,6 +680,11 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
     const el = i.overflowContainerRef.current;
     const entry = panels.find((p) => p.id === request.id);
     const k = rowNumbers.ids.indexOf(request.id);
+    // A panel the row holds at an edge is in view at every scroll: there is nothing to move to.
+    if (k < 0 && rowNumbers.held.some((h) => h.id === request.id)) {
+      pendingScroll.set(null);
+      return;
+    }
     if (el === null || (k < 0 && request.fresh && entry !== undefined)) {
       pendingScroll.set(null);
       return;
@@ -702,7 +707,7 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
     const to = snapped(
       k,
       scrollTargetFor({
-        left: tuning.rowGap + rowNumbers.rowMarginLeft + rowNumbers.leftOffsets[k]!,
+        left: tuning.rowGap + rowNumbers.stripStart + rowNumbers.leftOffsets[k]!,
         width: rowNumbers.widths[k]!,
         scrollLeft: scroller.scrollLeft(),
         clientWidth: windowOf(el),
