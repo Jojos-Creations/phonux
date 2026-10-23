@@ -13,7 +13,7 @@ import { AnnounceContext } from './announce.js';
 import { useOptionalHost } from './hostApi.js';
 import { resolveLabels } from './labels.js';
 import { computeRowLayout } from './panelRowLayout.js';
-import { PANEL_TRANSITION } from './PanelRowSlot.js';
+import { PANEL_TRANSITION, RowEdgesContext } from './PanelRowSlot.js';
 import { slideToTransition } from './directionalTransition.js';
 import { LIBRARY_TUNING_DEFAULTS } from './panelSettings.js';
 import type { SlideTuning } from './panelSettings.js';
@@ -22,7 +22,7 @@ import { RowHeightContext } from './panelTuning.js';
 import { bindingOf, type WorkspaceHandle } from './workspaceCore.js';
 import { ChromeStoreContext, createChromeStore, type DrawnPin } from './panelChrome.js';
 import { rowBottomReservePx } from './panelChromeSize.js';
-import { ROW_GAP } from './rowConstants.js';
+import { ROW_GAP, ROW_LAYER_Z } from './rowConstants.js';
 import { nearestStop, scrollHoldingEdge, snapToStop, type RowNumbers } from './rowNumbers.js';
 import { rowScrollerFor } from './rowScroller.js';
 import { OverlaySlot } from './windowOverlay.js';
@@ -192,6 +192,10 @@ export function Workspace(props: WorkspaceProps): React.ReactElement {
   const resolved = React.useSyncExternalStore(binding?.subscribe ?? NO_SUBSCRIPTION, () => binding?.tuning ?? LIBRARY_TUNING_DEFAULTS, () => binding?.tuning ?? LIBRARY_TUNING_DEFAULTS);
   const gap = resolved.rowGap;
   const [chromeStore] = React.useState(createChromeStore);
+  // The two edge elements a panel held at an edge is drawn in (PanelRow portals into them). State, not refs, so the row re-renders once they exist.
+  const [leftEdge, setLeftEdge] = React.useState<HTMLDivElement | null>(null);
+  const [rightEdge, setRightEdge] = React.useState<HTMLDivElement | null>(null);
+  const edges = React.useMemo(() => ({ left: leftEdge, right: rightEdge }), [leftEdge, rightEdge]);
   const reduced = useReducedMotionConfig() === true;
   const labels = resolveLabels(useOptionalHost()?.labels);
   // A new element per message, so the same words said twice are announced twice.
@@ -361,6 +365,8 @@ export function Workspace(props: WorkspaceProps): React.ReactElement {
     // A click or focus in the cut-off neighbour makes the browser scroll it into view off a stop; the row settles back onto one.
     const onFocus = (event: FocusEvent): void => {
       const n = rowNumbers;
+      // A held panel is in view at every scroll, so focusing it moves nothing.
+      if ((event.target as Element | null)?.closest('[data-row-edge]') != null) return;
       if (n.stops.length === 0) return;
       const id = (event.target as Element | null)?.closest<HTMLElement>('[data-row-slot]')?.dataset.rowId;
       const k = n.ids.indexOf(id ?? '');
@@ -380,12 +386,22 @@ export function Workspace(props: WorkspaceProps): React.ReactElement {
       container.removeEventListener('scroll', apply);
     };
   });
+  // Each edge element is a sticky item of the scroller, so it holds at its edge while the strip scrolls under it. The scroller's own
+  // padding counts inside a sticky inset, so the left element takes no inset of its own (its padding is the gap) and the right one
+  // takes the gap, the row's right padding being 0 while it scrolls. The vertical margins centre it on the strip, as the strip is centred.
+  const edgeBase = { position: 'sticky', flexShrink: 0, marginTop: 'auto', marginBottom: 'auto', zIndex: ROW_LAYER_Z.DRAGGED } as const;
+  // An edge element exists only while a panel is held there, so a row that holds nothing renders exactly as it did.
+  const holdsLeft = rowNumbers?.held.some((h) => h.side === 'left') === true;
+  const holdsRight = rowNumbers?.held.some((h) => h.side === 'right') === true;
+  const leftEdgeStyle = { ...edgeBase, left: 0 } as const;
+  const rightEdgeStyle = { ...edgeBase, right: `${gap}px` } as const;
   return (
     <AnnounceContext.Provider value={announce}>
     <PhoneSizeContext.Provider value={phoneSize}>
     <LandingContext.Provider value={landing}>
       <ChromeStoreContext.Provider value={chromeStore}>
       <RowHeightContext.Provider value={availableHeight}>
+      <RowEdgesContext.Provider value={edges}>
       <Box
         ref={overflowContainerRef}
         role="region"
@@ -411,6 +427,7 @@ export function Workspace(props: WorkspaceProps): React.ReactElement {
         }}
       >
         {beforeRow}
+        {holdsLeft ? <div ref={setLeftEdge} data-row-edge="left" style={leftEdgeStyle} /> : null}
         {/* margin:'auto', not the container's justify-content/align-items:center, so an overflowing row
             stays reachable by scroll. marginLeft is Motion-animated (not written directly) so the row
             recenter and each panel's own slide-in read as one motion instead of two; only left needs to
@@ -427,8 +444,10 @@ export function Workspace(props: WorkspaceProps): React.ReactElement {
         </motion.div>
         {/* A non-empty element is in every engine's scroll range; WebKit leaves a flex item's end margin out and Firefox an empty box,
             which clamps the last stop short. Outside the strip so a drag's end cap stays at the last panel. */}
+        {holdsRight ? <div ref={setRightEdge} data-row-edge="right" style={rightEdgeStyle} /> : null}
         {scrolls ? <div aria-hidden data-row-end-pad="" style={{ flex: `0 0 ${(rowNumbers?.endPad ?? 0) + gap}px` }} /> : null}
       </Box>
+      </RowEdgesContext.Provider>
       </RowHeightContext.Provider>
 
       <Box role="status" aria-live="polite" aria-atomic="true" data-workspace-announcer="" sx={VISUALLY_HIDDEN}>

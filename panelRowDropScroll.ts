@@ -40,7 +40,8 @@ export function stepEdgeHold(h: EdgeHold, nowMs: number, pointerX: number, slot:
   const bound = slot.maxScroll;
   h.claim.setMaxScroll(bound);
   const rect = h.scrollerEl.getBoundingClientRect();
-  const speed = edgeScrollSpeed({ pointerX, left: rect.left, right: rect.right, zonePx: h.began.zonePx, maxPxPerSec: h.began.maxPxPerSec });
+  // The band is the strip's window: a held panel's edge group covers the scroller's ends, so a pointer over it does not scroll the row.
+  const speed = edgeScrollSpeed({ pointerX, left: rect.left + (slot.insetLeft ?? 0), right: rect.right - (slot.insetRight ?? 0), zonePx: h.began.zonePx, maxPxPerSec: h.began.maxPxPerSec });
   const at = h.scroller.scrollLeft();
   if (reduceMotion) {
     h.waitedMs = speed === 0 ? 0 : h.waitedMs + dt;

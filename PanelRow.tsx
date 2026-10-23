@@ -5,6 +5,7 @@
  */
 
 import * as React from 'react';
+import { createPortal } from 'react-dom';
 import { AnimatePresence } from 'motion/react';
 import Box from '@mui/material/Box';
 import { AutoMountContext } from './autoMountContext.js';
@@ -20,7 +21,7 @@ import { PanelViewContextValue } from './panelViewContext.js';
 import { HEADER_ROW_ATTRIBUTE, headerButtonsOf } from './panelHeaderButtons.js';
 import { FIXED, LIBRARY_TUNING_DEFAULTS, effective, panelKey, resolvePanelSettings } from './panelSettings.js';
 import type { EnterFrom, ExitTo, ResolvedPanelSettings, ResolvedWorkspaceTuning } from './panelSettings.js';
-import { PanelRowSlot, type SlotEntrance, type SlotExit } from './PanelRowSlot.js';
+import { PanelRowSlot, RowEdgesContext, type SlotEntrance, type SlotExit } from './PanelRowSlot.js';
 import { steerEntry, steerSentinel, steerTab, useTabPress } from './panelRowTabOrder.js';
 import { ChromeStoreContext, createChromeStore } from './panelChrome.js';
 import { slotTuning, type SlotTuning } from './panelTuning.js';
@@ -185,7 +186,11 @@ export function PanelRow({
   const phoneHeight = phoneSize.height;
   // View state is held by the key, the id a recentlyClosed summary carries, so a closed panel's state survives until its undo window ends.
   useViewState.useRetainOnly([...entries.map((p) => panelKey(p)), ...(panels.recentlyClosed ?? []).map((p) => p.id)]);
-  const present = entries.filter(isPresent);
+  // The strip draws the present entries the row does not hold at an edge; a held one is drawn in its edge group, by the same slot code.
+  const presentAll = entries.filter(isPresent);
+  const heldById = new Map((rowNumbers?.held ?? []).map((h) => [h.id, h] as const));
+  const present = presentAll.filter((p) => !heldById.has(p.id));
+  const edges = React.useContext(RowEdgesContext);
   const pinned = pinnedIds(entries as readonly PanelWindow[], rootId);
   chrome.setKeys(new Map(entries.map((p) => [p.id, panelKey(p)])));
   // A panel this row showed and no longer shows (closed or parked) stops being the active or dragged one.
@@ -193,10 +198,10 @@ export function PanelRow({
   // A panel's DOM position is the order it first appeared in, never its reading order: React moves the nodes a reorder
   // leaves behind, and a moved node restarts what it hosts (a web view reloads). Position on screen comes from leftOffset.
   const birth = React.useRef({ seq: 0, byId: new Map<string, number>() });
-  for (const p of present) if (!birth.current.byId.has(p.id)) birth.current.byId.set(p.id, birth.current.seq++);
+  for (const p of presentAll) if (!birth.current.byId.has(p.id)) birth.current.byId.set(p.id, birth.current.seq++);
   const domOrder = [...present].sort((a, b) => birth.current.byId.get(a.id)! - birth.current.byId.get(b.id)!);
   React.useEffect(() => {
-    const now = new Set(present.map((p) => p.id));
+    const now = new Set(presentAll.map((p) => p.id));
     for (const id of presentBefore.current) {
       if (now.has(id)) continue;
       if (chrome.active() === id) chrome.setActive(null);
@@ -259,7 +264,7 @@ export function PanelRow({
   // While a width is held the row box is never shorter than it was: the browser would clamp the scroll to a shorter strip and move the row under the pointer.
   const reservedWidth = Math.max(0, widths.reduce((sum, width) => sum + width + gap, 0) - gap - pinShift, tracking ? baseWidths.reduce((sum, width) => sum + width + gap, 0) - gap : 0);
   const maxScroll = rowNumbers === undefined ? 0 : maxScrollOf(rowNumbers);
-  const stops = rowNumbers === undefined ? [] : rowNumbers.stops.length > 0 ? rowNumbers.stops : rowNumbers.leftOffsets.map((offset) => rowNumbers.rowMarginLeft + offset);
+  const stops = rowNumbers === undefined ? [] : rowNumbers.stops.length > 0 ? rowNumbers.stops : rowNumbers.leftOffsets.map((offset) => rowNumbers.stripStart + offset);
   const widthById = new Map(present.map((p, index) => [p.id, widths[index]!]));
   // Nearest first on each side, an always-shown column included: movePanel swaps past one like any neighbour. The
   // walk is over every array slot and stops at the first entry that is not crossable, a parked one included,
@@ -270,7 +275,8 @@ export function PanelRow({
       const out: Neighbor[] = [];
       for (let i = at + step; i >= 0 && i < entries.length; i += step) {
         const next = entries[i]!;
-        if (!effective(next).crossable) break;
+        // A held panel is never crossed: it is not in the strip, so a drag that passed it would move it out of its edge.
+        if (!effective(next).crossable || heldById.has(next.id)) break;
         const width = widthById.get(next.id);
         if (width !== undefined) out.push({ id: next.id, width });
       }
@@ -289,7 +295,7 @@ export function PanelRow({
   // The one hop rule: the header drag and a drag that starts outside the row both count their hops through it.
   const stepsFor = (entry: PanelRowEntry, offset: number): number => reorderStepsForOffset(offset, neighborWidthsAt(entry), gap, rowTuning.hopFraction);
   const dragScroll: DragScroll | undefined = rowScroll
-    ? { mode: FIXED.scrollOnDrag, zonePx: rowTuning.edgeScroll.zonePx, maxPxPerSec: rowTuning.edgeScroll.maxPxPerSec, reducedStepMs: rowTuning.edgeScroll.reducedStepMs, maxScroll, stops, settleStops: rowNumbers === undefined ? [] : rowNumbers.stops, settleSec: rowTuning.slide.durationSec, settleEase: rowTuning.slide.glideEase }
+    ? { mode: FIXED.scrollOnDrag, zonePx: rowTuning.edgeScroll.zonePx, maxPxPerSec: rowTuning.edgeScroll.maxPxPerSec, reducedStepMs: rowTuning.edgeScroll.reducedStepMs, maxScroll, stops, settleStops: rowNumbers === undefined ? [] : rowNumbers.stops, settleSec: rowTuning.slide.durationSec, settleEase: rowTuning.slide.glideEase, insetLeft: rowNumbers?.leftInset ?? 0, insetRight: rowNumbers?.rightInset ?? 0 }
     : undefined;
   // A horizontal drag's live hop count. Only the slots' drawn positions follow it; the order changes at the drop.
   const [dragging, setDragging] = React.useState<{ id: string; steps: number } | null>(null);
@@ -322,6 +328,95 @@ export function PanelRow({
   const dropPartsNow = drop === null || dropEntry === undefined ? undefined : dropParts(drop, dropRowOf(dropEntry));
   if (dropPartsNow !== undefined) for (const [id, by] of dropPartsNow.shifts) shiftById.set(id, by);
   const gapSpan = dropPartsNow?.gap == null ? 0 : dropPartsNow.gap.width + gap;
+  // One slot for a strip entry or a held one. A held entry is not draggable and is drawn in place with fades: it never moves.
+  const slotFor = (p: PanelRowEntry, rest: { leftOffset: number; width: number }, held: boolean): React.ReactElement => {
+    const Component = resolveViewIn(templateOf, p.view);
+    const { closable, movable, resizable, maxSlots, enterFrom, exitTo, layer, headerButtons } = effective(p);
+    const own = rowTuning;
+    const handle = viewContext.handleFor(panelKey(p));
+    const report = binding.reportError;
+    const note = binding.reportNote;
+    // A panel whose last button was just removed while it held focus still gets the slot context for that one commit, so the hook that moves focus runs.
+    const headerButtonSlots = headerButtonsOf(headerButtons, handle, report, note) ?? (handle !== undefined && focusInHeaderRow(handle.id) ? { slots: {}, handle, report, note } : undefined);
+    const index = presentAll.indexOf(p);
+    return (
+      <PanelSlotContext.Provider
+        key={p.id}
+        value={{
+          collapsible: p.collapsible,
+          closable,
+          movable: movable && !held,
+          resizable,
+          maxSlots,
+          id: p.id,
+          tracking: slotTracking,
+          setDragging: (on) => chrome.setDragging(p.id, on),
+          neighborWidths: neighborWidthsAt(p),
+          drawn: { width: rest.width, height: phoneHeight },
+          handle,
+          pinned: pinned.has(p.id),
+          tuning: own,
+          dragScroll,
+          headerButtonSlots,
+          dragHops: (offset) => stepsFor(p, offset) !== 0,
+          previewReorder: (offset) =>
+            setDragging((now) => {
+              if (offset === null) return now?.id === p.id ? null : now;
+              const steps = stepsFor(p, offset);
+              return now?.id === p.id && now.steps === steps ? now : { id: p.id, steps };
+            }),
+        }}
+      >
+        <PanelRowSlot
+          panelId={p.id}
+          label={labels.panelPosition(p.title || labels.untitledPanel, index + 1, presentAll.length)}
+          leftOffset={rest.leftOffset + (shiftById.get(p.id) ?? 0)}
+          width={rest.width}
+          phoneHeight={rowHeight}
+          height={p.slots === undefined ? undefined : phoneHeight}
+          enterDirection={held ? 'fade' : enterDirectionOf(enterFrom, p.anchoredEnter ?? false, enterSideById.get(p.id), enteringViaAnchorIds.has(p.id), () => resolveEnterDirection(anchorIndexOf(p), index), workspaceTuning.defaultEnterFrom)}
+          exitDirection={held ? 'fade' : exitStyleOf(exitTo, workspaceTuning.defaultExitTo, closingIds.has(p.id), exitRightIds.has(p.id))}
+          zIndex={dragging?.id === p.id || drop?.id === p.id ? ROW_LAYER_Z.DRAGGED : layer === 'raised' ? ROW_LAYER_Z.RAISED : ROW_LAYER_Z.BASE}
+          tracking={slotTracking}
+          gap={gap}
+          slide={own.slide}
+          rowScroll={rowScroll}
+          previewing={dragging !== null || drop !== null}
+          onActivate={() => {
+            chrome.setActive(p.id);
+            binding.touch(p.id);
+          }}
+          dragged={dragging?.id === p.id}
+        >
+          {/* A resolved component -- built-in or third-party -- is written against PanelSummary only,
+              never the internal record. */}
+          {/* The ONE place useViewState's ambient panel id is set, so a view's own useViewState(key,
+              initial) call needs no id argument. */}
+          <useViewState.Provider value={panelKey(p)}>
+            <Component panel={renderedSummary(p, rest.width, phoneHeight, slotsOfWidth(rest.width), fitSlotsNow)} />
+          </useViewState.Provider>
+        </PanelRowSlot>
+      </PanelSlotContext.Provider>
+    );
+  };
+  // The held panels of one edge, in a box as wide as that edge's inset. Without a Workspace there is no edge to hold to, so the
+  // group draws at the row's own start.
+  const edgeGroup = (side: 'left' | 'right'): React.ReactElement => {
+    const inset = side === 'left' ? (rowNumbers?.leftInset ?? 0) : (rowNumbers?.rightInset ?? 0);
+    const members = presentAll.filter((p) => heldById.get(p.id)?.side === side);
+    return (
+      <Box data-row-edge-group={side} sx={{ position: 'relative', height: rowHeight, width: inset }}>
+        <AnimatePresence initial={false}>
+          {members.map((p) => {
+            const h = heldById.get(p.id)!;
+            return slotFor(p, { leftOffset: h.offset, width: h.width }, true);
+          })}
+        </AnimatePresence>
+      </Box>
+    );
+  };
+  const heldLeft = [...heldById.values()].some((h) => h.side === 'left');
+  const heldRight = [...heldById.values()].some((h) => h.side === 'right');
   return (
     <ChromeStoreContext.Provider value={chrome}>
     <PanelViewContextValue.Provider value={viewContext}>
@@ -341,85 +436,18 @@ export function PanelRow({
         position: 'relative',
         flexShrink: 0,
         height: rowHeight,
-        display: present.length > 0 ? 'block' : 'none',
+        display: presentAll.length > 0 ? 'block' : 'none',
         width: reservedWidth + gapSpan,
       }}
     >
       {dropPartsNow?.gap == null ? null : <Box aria-hidden data-panel-row-drop-gap="" sx={{ position: 'absolute', top: 0, left: dropPartsNow.gap.left, width: dropPartsNow.gap.width, height: rowHeight, pointerEvents: 'none' }} />}
-      <AnimatePresence initial={false}>
-        {domOrder.map((p) => {
-          const presentIndex = present.indexOf(p);
-          const rest = { leftOffset: leftOffsets[presentIndex]!, width: widths[presentIndex]! };
-          const Component = resolveViewIn(templateOf, p.view);
-          const { closable, movable, resizable, maxSlots, enterFrom, exitTo, layer, headerButtons } = effective(p);
-          const own = rowTuning;
-          const handle = viewContext.handleFor(panelKey(p));
-          const report = binding.reportError;
-          const note = binding.reportNote;
-          // A panel whose last button was just removed while it held focus still gets the slot context for that one commit, so the hook that moves focus runs.
-          const headerButtonSlots = headerButtonsOf(headerButtons, handle, report, note) ?? (handle !== undefined && focusInHeaderRow(handle.id) ? { slots: {}, handle, report, note } : undefined);
-          return (
-            <PanelSlotContext.Provider
-              key={p.id}
-              value={{
-                collapsible: p.collapsible,
-                closable,
-                movable,
-                resizable,
-                maxSlots,
-                id: p.id,
-                tracking: slotTracking,
-                setDragging: (on) => chrome.setDragging(p.id, on),
-                neighborWidths: neighborWidthsAt(p),
-                drawn: { width: rest.width, height: phoneHeight },
-                handle,
-                pinned: pinned.has(p.id),
-                tuning: own,
-                dragScroll,
-                headerButtonSlots,
-                dragHops: (offset) => stepsFor(p, offset) !== 0,
-                previewReorder: (offset) =>
-                  setDragging((now) => {
-                    if (offset === null) return now?.id === p.id ? null : now;
-                    const steps = stepsFor(p, offset);
-                    return now?.id === p.id && now.steps === steps ? now : { id: p.id, steps };
-                  }),
-              }}
-            >
-              <PanelRowSlot
-                panelId={p.id}
-                label={labels.panelPosition(p.title || labels.untitledPanel, presentIndex + 1, present.length)}
-                leftOffset={rest.leftOffset + (shiftById.get(p.id) ?? 0)}
-                width={rest.width}
-                phoneHeight={rowHeight}
-                height={p.slots === undefined ? undefined : phoneHeight}
-                enterDirection={enterDirectionOf(enterFrom, p.anchoredEnter ?? false, enterSideById.get(p.id), enteringViaAnchorIds.has(p.id), () => resolveEnterDirection(anchorIndexOf(p), presentIndex), workspaceTuning.defaultEnterFrom)}
-                exitDirection={exitStyleOf(exitTo, workspaceTuning.defaultExitTo, closingIds.has(p.id), exitRightIds.has(p.id))}
-                zIndex={dragging?.id === p.id || drop?.id === p.id ? ROW_LAYER_Z.DRAGGED : layer === 'raised' ? ROW_LAYER_Z.RAISED : ROW_LAYER_Z.BASE}
-                tracking={slotTracking}
-                gap={gap}
-                slide={own.slide}
-                rowScroll={rowScroll}
-                previewing={dragging !== null || drop !== null}
-                onActivate={() => {
-                  chrome.setActive(p.id);
-                  binding.touch(p.id);
-                }}
-                dragged={dragging?.id === p.id}
-              >
-                {/* A resolved component -- built-in or third-party -- is written against PanelSummary only,
-                    never the internal record. */}
-                {/* The ONE place useViewState's ambient panel id is set, so a view's own useViewState(key,
-                    initial) call needs no id argument. */}
-                <useViewState.Provider value={panelKey(p)}>
-                  <Component panel={renderedSummary(p, rest.width, phoneHeight, slotsOfWidth(rest.width), fitSlotsNow)} />
-                </useViewState.Provider>
-              </PanelRowSlot>
-            </PanelSlotContext.Provider>
-          );
-        })}
-      </AnimatePresence>
+      <AnimatePresence initial={false}>{domOrder.filter((p) => !heldById.has(p.id)).map((p) => slotFor(p, { leftOffset: leftOffsets[present.indexOf(p)]!, width: widths[present.indexOf(p)]! }, false))}</AnimatePresence>
+      {/* Held panels are drawn in their edge's group, which the Workspace places outside this strip. */}
+      {edges === null && heldLeft ? edgeGroup('left') : null}
+      {edges === null && heldRight ? edgeGroup('right') : null}
     </Box>
+    {edges?.left !== null && edges?.left !== undefined && heldLeft ? createPortal(edgeGroup('left'), edges.left) : null}
+    {edges?.right !== null && edges?.right !== undefined && heldRight ? createPortal(edgeGroup('right'), edges.right) : null}
     </RowDropContext.Provider>
     </PanelViewContextValue.Provider>
     </ChromeStoreContext.Provider>

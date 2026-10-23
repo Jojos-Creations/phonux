@@ -31,6 +31,10 @@ export interface DragScroll {
   readonly settleSec: number;
   /** The curve that glide travels along. */
   readonly settleEase: GlideEase;
+  /** The width the left edge group takes, which an edge-scroll band does not reach into. Default 0. */
+  readonly insetLeft?: number;
+  /** The width the right edge group takes, which an edge-scroll band does not reach into. Default 0. */
+  readonly insetRight?: number;
 }
 
 /** What a panel's header buttons need to draw and press: its resolved slots, its own handle and where errors and notes go. */

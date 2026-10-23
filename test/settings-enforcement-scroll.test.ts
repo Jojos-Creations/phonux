@@ -1,5 +1,5 @@
 /**
- * The engine's reading of the scroll settings it owns: revealOnScroll, scrollOnOpen, scrollOnMove, tuning.rowGesture
+ * The engine's reading of the scroll settings it owns: revealOnScroll, edgeHold, scrollOnOpen, scrollOnMove, tuning.rowGesture
  * and tuning.initialScroll. One differential per name through the real hook and Workspace: the same scenario under
  * two values must give different outputs. The literal rows are in row-scroll-mount.test.ts and row-gesture.test.ts.
  */
@@ -17,7 +17,7 @@ afterEach(() => {
   cleanup();
 });
 
-const OWNED = ['revealOnScroll', 'scrollOnOpen', 'scrollOnMove', 'tuning.rowGesture', 'tuning.initialScroll'];
+const OWNED = ['revealOnScroll', 'edgeHold', 'scrollOnOpen', 'scrollOnMove', 'tuning.rowGesture', 'tuning.initialScroll'];
 
 /** Whether the parked panel b sits live after one rightward swipe in a window that shows only the root (430 px). */
 async function revealedUnder(revealOnScroll: 'edges' | 'any' | 'never'): Promise<boolean> {
@@ -37,6 +37,26 @@ test('differential revealOnScroll: an engine-parked panel with a live panel beyo
   differential('revealOnScroll', (run) => {
     run('edges', () => outcomes.get('edges'));
     run('any', () => outcomes.get('any'));
+  });
+});
+
+/** Where panel b is drawn in a row of root, b, c and d at 1000 px: in its edge element when held, else in the strip. */
+function drawnAt(edgeHold: PanelSettings['edgeHold']): 'left edge' | 'strip' | 'missing' {
+  const m = mountRow(row(rootEntry(), made('b', { edgeHold }), made('c'), made('d')), 1000);
+  const where = m.container.querySelector('[data-row-edge="left"] [data-row-id="b"]') !== null ? 'left edge' : m.container.querySelector('[data-row-strip] [data-row-id="b"]') !== null ? 'strip' : 'missing';
+  cleanup();
+  return where;
+}
+
+test('differential edgeHold: a panel held at the left edge is drawn in the edge element, and off draws it in the strip', () => {
+  const outcomes = new Map([
+    ['off', drawnAt('off')],
+    ['left', drawnAt('left')],
+  ]);
+  assert.deepEqual([...outcomes.values()], ['strip', 'left edge']);
+  differential('edgeHold', (run) => {
+    run('off', () => outcomes.get('off'));
+    run('left', () => outcomes.get('left'));
   });
 });
 

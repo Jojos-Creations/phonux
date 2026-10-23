@@ -40,6 +40,7 @@ const VALUE: Record<string, unknown> = {
   capacityReturn: 'manual',
   overflow: 'park',
   revealOnScroll: 'any',
+  edgeHold: 'left',
   scrollOnOpen: 'center',
   scrollOnMove: 'none',
   toggleWhenClosed: 'reopen',
