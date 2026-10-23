@@ -63,14 +63,14 @@ export interface WorkspaceColumnProps {
   children?: (workspace: WorkspaceHandle) => React.ReactNode | undefined;
 }
 
+/** The cell's own row, or undefined when the function is absent or returns undefined: the library's row is drawn then. */
+const drawn = (children: WorkspaceColumnProps['children'], ws: WorkspaceHandle): React.ReactNode | undefined => (children === undefined ? undefined : children(ws));
+
 /**
  * Draws a column: one cell per workspace, the current one in view, the others inert and hidden from assistive technology but
  * still mounted, so their panels keep their state. Moving to another workspace moves focus into its cell when focus was in the one left.
  * @public
  */
-/** The cell's own row, or undefined when the function is absent or returns undefined: the library's row is drawn then. */
-const drawn = (children: WorkspaceColumnProps['children'], ws: WorkspaceHandle): React.ReactNode | undefined => (children === undefined ? undefined : children(ws));
-
 export function WorkspaceColumn({ column, children }: WorkspaceColumnProps): React.ReactElement {
   const core = columnCoreOf(column);
   const snap = React.useSyncExternalStore(core.subscribe, core.snapshot, core.snapshot);

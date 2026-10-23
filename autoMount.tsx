@@ -127,7 +127,7 @@ function AutoBody({ workspace, columnTop }: { workspace: WorkspaceHandle; column
   const containerWidth = useContainerWidth(ref);
   const preferred = values.device?.size ?? DEFAULT_PHONE_SIZE;
   const tuning = React.useSyncExternalStore(binding.subscribe, () => binding.tuning, () => binding.tuning);
-  const topPadding = columnTop > 0 ? columnTop + (values.topInset ?? 0) + tuning.rowGap : values.topInset;
+  const topPadding = tuning.rowTop ?? (columnTop > 0 ? columnTop + (values.topInset ?? 0) + tuning.rowGap : values.topInset);
   const phone = usePhoneFit(ref, containerWidth, preferred, tuning, topPadding);
   const phoneWidth = phone.width;
   const provided = useProvidePanels({

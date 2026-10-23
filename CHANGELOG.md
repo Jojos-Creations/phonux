@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+### Added
+
+- `useWorkspaceRow()`: a hook inside a workspace's `wrap` that returns the mounted row's `rowNumbers`, `entries` (`WorkspaceRowEntry`: id and hollow dot), `scroller`, slide values, `maxFitPanels` and the fitted `phoneSize`.
+- `tuning.rowTop` (integer px 0 to 400, or null): the room above the row, which the default mount uses for the row's top padding and the phone fit alike. `tuning.phoneHeight` (`'fit'` or `'auto'`): under `phoneFit: 'fit'`, `'auto'` makes the frame as tall as the row's room, and the width still fits.
+- A `WorkspaceColumn` cell whose children function returns `undefined` draws the library's own row for that cell; `null` draws nothing.
+
 ### Breaking
 
 - The MUI and DOM types leave the public API, ahead of 0.2.0 final. `createWorkspace({ theme })` and `createDefaultTheme(mode)` take and return `PhonuxTheme`, a set of CSS colors and a corner unit, and the library builds its styling theme from it. `HeaderButton.sx` and the drag handle's `sx` are a `CssStyle` (plain CSS properties), not MUI `sx`. `panelCornerRadiusPx` takes a `PhonuxTheme`. The root props of `Panel`, `PanelFrame`, `PanelHeader` and `Workspace` are `ElementProps`, not MUI `BoxProps`. The drag handle's `onPointerDown` and `onKeyDown` take `HandlePointerEvent` and `HandleKeyEvent`, which React's events satisfy.

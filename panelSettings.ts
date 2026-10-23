@@ -340,6 +340,10 @@ export type WorkspaceTuning = {
   edgeScroll?: { [K in keyof EdgeScrollTuning]?: EdgeScrollTuning[K] };
   /** The gap between panels in px, an integer from 0 to 200. */
   rowGap?: number;
+  /** The room above the row in px, an integer from 0 to 400, or null for the room the default mount leaves (the column band, the top inset and the row gap). */
+  rowTop?: number | null;
+  /** The phone's height under `phoneFit: 'fit'`: 'fit' scales it with the width; 'auto' makes the frame as tall as the row's room, and its width still fits. */
+  phoneHeight?: 'fit' | 'auto';
   /** Milliseconds of quiet before the workspace is saved. */
   saveQuietMs?: number;
   /** Milliseconds after a row scroll gesture during which further wheel events are ignored. */
@@ -399,6 +403,10 @@ export type ResolvedWorkspaceTuning = {
   edgeScroll: EdgeScrollTuning;
   /** The gap between panels in px, an integer from 0 to 200. */
   rowGap: number;
+  /** The room above the row in px, or null for the default room. */
+  rowTop: number | null;
+  /** The phone's height under `phoneFit: 'fit'`: 'fit' or 'auto'. */
+  phoneHeight: 'fit' | 'auto';
   /** Milliseconds of quiet before the workspace is saved. */
   saveQuietMs: number;
   /** Milliseconds after a row scroll gesture during which further wheel events are ignored. */
@@ -1153,6 +1161,28 @@ const CATALOG_ROWS: readonly SettingDescriptor[] = [
     configure: { cls: 'NOW', doors: ['tuning'] },
   },
   {
+    name: 'tuning.rowTop',
+    group: 'tuning',
+    values: 'integer px 0 to 400, or null (workspace only)',
+    default: 'null (the default room)',
+    scope: 'workspace',
+    viewSettable: false,
+    exists: 'new',
+    ownerEntry: 'core-app-row-api',
+    configure: { cls: 'NOW', doors: ['tuning'] },
+  },
+  {
+    name: 'tuning.phoneHeight',
+    group: 'tuning',
+    values: "'fit', 'auto' (workspace only)",
+    default: "'fit'",
+    scope: 'workspace',
+    viewSettable: false,
+    exists: 'new',
+    ownerEntry: 'core-app-row-api',
+    configure: { cls: 'NOW', doors: ['tuning'] },
+  },
+  {
     name: 'tuning.phoneFit',
     group: 'tuning',
     values: 'off, fit (workspace only)',
@@ -1279,6 +1309,8 @@ export const LIBRARY_PANEL_DEFAULTS: LibraryPanelDefaults = freezeClone({
  */
 export const LIBRARY_TUNING_DEFAULTS: ResolvedWorkspaceTuning = freezeClone({
   rowGap: ROW_GAP,
+  rowTop: null,
+  phoneHeight: 'fit',
   dragToClose: {
     distanceFraction: DRAG_CLOSE_NUMBERS.distanceFraction,
     minDistancePx: DRAG_CLOSE_NUMBERS.minDistancePx,
@@ -1599,9 +1631,11 @@ const TUNING_MEMBER_CHECKS: Record<'dragToClose' | 'slide' | 'edgeScroll' | 'chr
   },
 };
 
-const TUNING_SCALAR_CHECKS: Record<'hopFraction' | 'rowGap' | 'saveQuietMs' | 'gestureLockMs' | 'gestureQuietMs' | 'resizeSettleSlides' | 'returnTieBreak' | 'dropTieBreak' | 'rowGesture' | 'initialScroll' | 'maxLivePanels' | 'shrinkOutOfView' | 'phoneFit' | 'phoneFitMin' | 'phoneFitMax' | 'defaultEnterFrom' | 'defaultExitTo', Check> = {
+const TUNING_SCALAR_CHECKS: Record<'hopFraction' | 'rowGap' | 'rowTop' | 'phoneHeight' | 'saveQuietMs' | 'gestureLockMs' | 'gestureQuietMs' | 'resizeSettleSlides' | 'returnTieBreak' | 'dropTieBreak' | 'rowGesture' | 'initialScroll' | 'maxLivePanels' | 'shrinkOutOfView' | 'phoneFit' | 'phoneFitMin' | 'phoneFitMax' | 'defaultEnterFrom' | 'defaultExitTo', Check> = {
   hopFraction: num(0, 1, { minOpen: true }),
   rowGap: integer(0, 200),
+  rowTop: (v) => (v === null ? undefined : integer(0, 400)(v)),
+  phoneHeight: oneOf('fit', 'auto'),
   saveQuietMs: integer(0),
   gestureLockMs: integer(0),
   gestureQuietMs: integer(1),

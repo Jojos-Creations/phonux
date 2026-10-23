@@ -209,3 +209,4 @@ export type { PanelPresence, PanelPresenceReason } from './panelPresence.js';
 export { PanelManagerError } from './panelManagerError.js';
 export type { PanelRefusal, PanelManagerErrorCode } from './panelManagerError.js';
 export { usePanelDots, type PanelDots } from './usePanelDots.js';
+export { useWorkspaceRow, type WorkspaceRow, type WorkspaceRowEntry } from './workspaceRow.js';

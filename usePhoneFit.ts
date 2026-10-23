@@ -50,6 +50,7 @@ export function usePhoneFit(
   });
   const fitted = fit === undefined || fit.count === 0;
   const w = fitted ? preferred.width : fit.width;
-  const h = fitted ? preferred.height : fit.height;
+  // Under 'auto' the frame is as tall as the row's room: the fitted height is not used.
+  const h = on && tuning.phoneHeight === 'auto' ? height : fitted ? preferred.height : fit.height;
   return React.useMemo(() => ({ width: w, height: h }), [w, h]);
 }
