@@ -200,7 +200,7 @@ phonux is licensed under the [PolyForm Noncommercial License 1.0.0](https://poly
 
 Versions 0.1.0 and 0.2.0-rc.2 were published under the MIT licence and stay MIT. From 0.2.0-rc.3 on, phonux is PolyForm Noncommercial. Third-party notices are in THIRD_PARTY_NOTICES.md in the package.
 
-`npm run phone` runs the phone-width checks in Chromium on iPhone 13 and Pixel 7 profiles (touch on, no WebKit).
+`npm run phone` runs the phone-width checks in Chromium on iPhone 13 and Pixel 7 profiles (touch on). `npm run phone:webkit` runs the iPhone profile in WebKit, which needs WebKit installed; `PHONE_PROJECTS` picks any set of them.
 
 ## Developing phonux
 
