@@ -114,3 +114,24 @@ test('a held panel keeps its view when its hold starts and when it lets go, for 
     cleanup();
   }
 });
+
+test('two both panels stack: each host is pinned at its stacked inset, and neither view remounts as the stack starts or lets go', () => {
+  const entries = [rootEntry(), made('stack-a', { edgeHold: 'both' }, { view: 'edge-count' }), made('stack-b', {}, { view: 'edge-count' }), made('stack-c', { edgeHold: 'both' }, { view: 'edge-count' }), made('stack-d', {}, { view: 'edge-count' })];
+  const m = mountRow(row(...entries), 1400);
+  const stuck = m.latest().rowNumbers.stuck;
+  assert.deepEqual(stuck.map((s) => s.id), [entries[1]!.id, entries[3]!.id], 'both panels stick, in row order');
+  const hostOf = (id: string) => slotOf(m.container, id)!.closest<HTMLElement>('[data-row-hold]');
+  const outer = hostOf(entries[1]!.id);
+  const inner = hostOf(entries[3]!.id);
+  assert.equal(outer?.style.left, `${stuck[0]!.left}px`, 'the outer panel is pinned at the window edge');
+  assert.equal(inner?.style.left, `${stuck[1]!.left}px`, 'the inner panel is pinned a panel and a gap in');
+  assert.equal(inner?.style.left, '406px');
+  assert.equal(outer?.style.right, `${stuck[0]!.right}px`);
+  const first = [counted.get(entries[1]!.id), counted.get(entries[3]!.id)];
+  assert.ok(first.every((n) => n !== undefined), 'both views mounted');
+  m.rerender(300);
+  assert.equal(m.latest().rowNumbers.stuck.length, 0, 'at 300 there is no room for the stack: both let go');
+  m.rerender(1400);
+  assert.equal(m.latest().rowNumbers.stuck.length, 2, 'at 1400 the stack is back');
+  assert.deepEqual([counted.get(entries[1]!.id), counted.get(entries[3]!.id)], first, 'the views are the same instances through the stack starting and letting go');
+});

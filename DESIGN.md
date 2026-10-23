@@ -452,9 +452,11 @@ spacers in the scroller, as wide as the left and right groups, so the strip star
 - The room rule: a candidate holds while the window keeps at least one phone of strip beside every hold, in row order. A candidate that
   cannot fit lets go and scrolls with the strip. The holds stand only if the strip without them still overflows, so a row that would not
   scroll releases them all.
-- 'both' stays in the strip at its strip place, so the layout is the same at every scroll. `rowNumbers.stuck` gives the one admitted 'both'
-  panel its insets: `left` is the fixed left group, `right` the fixed right group and its gap. A row admits one 'both' panel: once the
-  scroll passes two of them, both stick at the same edge, and nothing keeps them apart, so a second one lets go like any release.
+- 'both' stays in the strip at its strip place, so the layout is the same at every scroll. `rowNumbers.stuck` gives each admitted 'both'
+  panel its insets, in row order. `left` is the fixed left group plus one panel and gap for each 'both' panel before it; `right` is the
+  fixed right group and its gap plus one panel and gap for each 'both' panel after it. Scroll pins an earlier panel whenever it pins a
+  later one on the same edge, so each edge's stack runs in row order with the outermost panel nearest the window edge. A 'both' panel
+  with no room beside the others lets go like any release.
 - A held left or right panel is pinned by its own inset: `left` is its offset in the left group, and `right` is the right group's
   inset less its offset and its width. Its spacer puts it at its group's place at scroll 0, so the group needs no portal.
 - `PanelHold` renders for every panel, held or not, so the React tree never changes when a hold starts or lets go. A held panel's host

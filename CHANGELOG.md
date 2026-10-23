@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- An `edgeHold: 'both'` panel no longer shares its row with a cap: any number of them may stick, and when scroll pins two to the same edge they stack in row order, a gap apart, with the outermost nearest the window edge. A panel with no room beside the others lets go and scrolls normally, as before.
+
 ## 0.2.0-rc.4
 
 ### Breaking
