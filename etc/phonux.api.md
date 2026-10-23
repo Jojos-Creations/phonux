@@ -172,6 +172,7 @@ export function computeRowNumbers(i: {
     gap: number;
     fixedItemCount?: number;
     wholePanels?: boolean;
+    scrollLeft?: number;
 }): RowNumbers;
 
 // @public
@@ -1176,6 +1177,8 @@ export interface RowNumbers {
     rowMarginLeft: number;
     rowScroll: boolean;
     stepStops: readonly number[];
+    stopIds: readonly (readonly string[])[];
+    stopLefts: readonly (readonly number[])[];
     stops: readonly number[];
     stopSpans: readonly {
         first: number;
