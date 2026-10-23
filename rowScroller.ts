@@ -30,8 +30,12 @@ export interface RowScroller {
   noteInput(): void;
   /** Ends the glide in flight where it is. */
   stop(): void;
-  /** The exclusive writer, or null while one is held. */
-  claim(): ScrollClaim | null;
+  /** The exclusive writer, or null while one is held. A `replayScroll` claim keeps the scroll asked for while it is held, for `replayDeferred()`. */
+  claim(options?: { replayScroll?: boolean }): ScrollClaim | null;
+  /** Keeps `run` for the held `replayScroll` claim: it runs at `replayDeferred()`, the last one kept wins. False when no such claim is held. */
+  deferUntilRelease(run: () => void): boolean;
+  /** Runs the scroll kept by `deferUntilRelease`, once. A no-op when none was kept. */
+  replayDeferred(): void;
   /** Wakes `listener` after each write to `scrollLeft` and on a native scroll of the row. Returns the unsubscribe. */
   subscribe(listener: () => void): () => void;
   /** True while a claim is held. Asked instead of probing with `claim()`, which would end a glide in flight. */
@@ -66,6 +70,9 @@ export function closestRowScroller(from: Element): HTMLElement | null {
 
 function createRowScroller(el: HTMLElement): RowScroller {
   let claimed = false;
+  // Set by a `replayScroll` claim; `deferred` is the scroll kept for it, run at `replayDeferred()` once its settle has moved the row.
+  let replayable = false;
+  let deferred: (() => void) | null = null;
   let glide: { from: number; to: number; startMs: number; durationMs: number; curve: (t: number) => number } | null = null;
   let frame: number | null = null;
   // Read back after every own write: the browser rounds and clamps, and the scroll event it fires later reports that value.
@@ -134,6 +141,17 @@ function createRowScroller(el: HTMLElement): RowScroller {
       inputs += 1;
     },
     claimHeld: () => claimed,
+    deferUntilRelease(run) {
+      if (!claimed || !replayable) return false;
+      deferred = run;
+      return true;
+    },
+    replayDeferred() {
+      const run = deferred;
+      deferred = null;
+      replayable = false;
+      run?.();
+    },
     subscribe(listener) {
       if (listeners.size === 0) el.addEventListener('scroll', notify, { passive: true });
       listeners.add(listener);
@@ -143,10 +161,12 @@ function createRowScroller(el: HTMLElement): RowScroller {
       };
     },
     stop,
-    claim() {
+    claim(options) {
       if (claimed) return null;
       stop();
       claimed = true;
+      replayable = options?.replayScroll === true;
+      deferred = null;
       let max: number | null = null;
       let released = false;
       return {

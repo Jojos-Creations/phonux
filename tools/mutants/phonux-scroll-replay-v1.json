@@ -1,0 +1,25 @@
+{
+  "tests": [
+    "test/scroll-replay-resize.test.ts"
+  ],
+  "mutants": [
+    {
+      "name": "a host scrollTo asked for while a resize holds the row is dropped, as a drag's is",
+      "file": "panels/useProvidePanels.ts",
+      "find": "      if (request.forced && rowScrollerFor(el).deferUntilRelease(() => pendingScroll.set({ ...request, misses: 0 }))) return true;",
+      "replace": "      if (false && request.forced && rowScrollerFor(el).deferUntilRelease(() => pendingScroll.set({ ...request, misses: 0 }))) return true;",
+      "expectRed": [
+        "a scroll asked for while a resize holds the row is kept, and runs once the claim releases and the settle is done"
+      ]
+    },
+    {
+      "name": "the first scroll asked for during a resize hold is replayed, not the last",
+      "file": "rowScroller.ts",
+      "find": "      deferred = run;\n      return true;",
+      "replace": "      deferred = deferred ?? run;\n      return true;",
+      "expectRed": [
+        "two scrolls asked for during a resize hold replay only the last"
+      ]
+    }
+  ]
+}
