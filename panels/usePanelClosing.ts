@@ -1,4 +1,5 @@
-import { useEffect, useRef, useState, type Dispatch, type SetStateAction } from 'react';
+import { useEffect, useRef, useState, useSyncExternalStore, type Dispatch, type SetStateAction } from 'react';
+import { createPanelList } from './panelList.js';
 import { flushSync } from 'react-dom';
 import type { JsonValue } from '../hostApi.js';
 import { reportNotes, restorePlaced } from '../panelPlacement.js';
@@ -101,16 +102,11 @@ export function usePanelClosing(
   /** Lands a restored entry that carries a pin change it waited with: the change is applied in the update that restores it. */
   settle?: (row: PanelWindow[], id: string) => { row: PanelWindow[]; notes: SettingNote[] },
 ): UsePanelClosingResult {
-  const [closed, setClosed] = useState<ClosedView[]>([]);
-  // Mirrors `closed` synchronously (never via an effect): the timer callback below fires from a closure
-  // created at the LAST close() call, whose own render still saw `closed` BEFORE that call's own setClosed
-  // took effect -- reading this ref instead always sees every entry the window is actually holding when it fires.
-  const closedRef = useRef<ClosedView[]>([]);
-  const setClosedBoth = (next: ClosedView[]): void => {
-    closedRef.current = next;
-    setClosed(next);
-  };
-  const [closingIds, setClosingIds] = useState<ReadonlySet<string>>(new Set());
+  // Plain stores: a read in the timer below sees every entry the window holds, whichever closure made the last write.
+  const [closedStore] = useState(() => createPanelList<ClosedView[]>([]));
+  const closed = useSyncExternalStore(closedStore.subscribe, closedStore.get, closedStore.get);
+  const [closingStore] = useState(() => createPanelList<ReadonlySet<string>>(new Set()));
+  const closingIds = useSyncExternalStore(closingStore.subscribe, closingStore.get, closingStore.get);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   // When the open window ends, ms since the epoch: a later close may move it later, never earlier.
   const windowEnd = useRef<number | null>(null);
@@ -139,7 +135,7 @@ export function usePanelClosing(
     // Commits ALONE, before the removal: AnimatePresence takes an exiting child's `exit` from its LAST props
     // before it left, and a plain setState would batch with the setPanels below into one commit that never
     // has the panel both present AND marked.
-    flushSync(() => setClosingIds((prev) => new Set(prev).add(id)));
+    flushSync(() => closingStore.set((prev) => new Set(prev).add(id)));
     const closedAt = new Date().toISOString();
     const logId = `${closedAt}#${id}`;
     setPanels((prev) => closePanel(prev, id, rootId)?.remaining ?? prev);
@@ -151,7 +147,7 @@ export function usePanelClosing(
     }
     // A pin change the entry waited with dies with it; the one a closed panel waits with is on its record.
     const { deferredPin: _dropped, ...closedPanel } = found.closed;
-    setClosedBoth([...closedRef.current, { panel: closedPanel, index: found.index, logId, reported: FIXED.reportClose }]);
+    closedStore.set([...closedStore.get(), { panel: closedPanel, index: found.index, logId, reported: FIXED.reportClose }]);
     const now = Date.now();
     const end = Math.max(windowEnd.current ?? 0, now + FIXED.undoWindowMs);
     windowEnd.current = end;
@@ -160,18 +156,18 @@ export function usePanelClosing(
       timer.current = null;
       windowEnd.current = null;
       claimed.current.clear();
-      const elapsed = closedRef.current.map((e) => e.panel);
-      setClosedBoth([]);
+      const elapsed = closedStore.get().map((e) => e.panel);
+      closedStore.set([]);
       onWindowElapsed?.(elapsed);
     }, end - now);
     return true;
   };
 
   const forgetClosed = (key: string): boolean => {
-    const dropped = closedRef.current.filter((e) => panelKey(e.panel) === key);
+    const dropped = closedStore.get().filter((e) => panelKey(e.panel) === key);
     if (dropped.length === 0) return false;
-    const kept = closedRef.current.filter((e) => panelKey(e.panel) !== key);
-    setClosedBoth(kept);
+    const kept = closedStore.get().filter((e) => panelKey(e.panel) !== key);
+    closedStore.set(kept);
     if (kept.length === 0) stopWindow();
     // Nothing can undo these any more, so their pictures go as they do when the window elapses.
     onWindowElapsed?.(dropped.map((e) => e.panel));
@@ -180,10 +176,10 @@ export function usePanelClosing(
 
   const undoClose = () => {
     // The ref, not this render's `closed`: a second call in the same handler must find the batch already taken.
-    const batch = closedRef.current;
+    const batch = closedStore.get();
     if (batch.length === 0) return;
     stopWindow();
-    setClosedBoth([]);
+    closedStore.set([]);
     // Last closed first: each index was taken from the array as it was when THAT view closed, so undoing in reverse re-creates it.
     let working = panels;
     const restoredIds = new Set<string>();
@@ -218,7 +214,7 @@ export function usePanelClosing(
     }
     // A restored id is no longer closing: a stale mark would slide a LATER park of it down instead of left. An
     // id never restored keeps its mark, harmlessly: ids never repeat in a session (useProvidePanels.ts's nextWindowId).
-    setClosingIds((prev) => {
+    closingStore.set((prev) => {
       const ids = batch.map((e) => e.panel.id).filter((restoredId) => prev.has(restoredId));
       if (ids.length === 0) return prev;
       const next = new Set(prev);
@@ -230,10 +226,10 @@ export function usePanelClosing(
   };
 
   const markReset = (id: string, reset: (panel: PanelWindow) => PanelWindow): boolean => {
-    if (!closedRef.current.some((e) => e.panel.id === id)) return false;
-    setClosedBoth(closedRef.current.map((e) => (e.panel.id === id ? { ...e, panel: reset(e.panel), reset: true as const } : e)));
+    if (!closedStore.get().some((e) => e.panel.id === id)) return false;
+    closedStore.set(closedStore.get().map((e) => (e.panel.id === id ? { ...e, panel: reset(e.panel), reset: true as const } : e)));
     return true;
   };
 
-  return { close, forgetClosed, closedIds: () => closedRef.current.map((e) => e.panel.id), undoClose, markReset, recentlyClosed: closed.length > 0 ? closed.map((e) => e.panel) : null, closingIds };
+  return { close, forgetClosed, closedIds: () => closedStore.get().map((e) => e.panel.id), undoClose, markReset, recentlyClosed: closed.length > 0 ? closed.map((e) => e.panel) : null, closingIds };
 }
