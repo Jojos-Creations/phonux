@@ -1422,9 +1422,9 @@ it -- is declared in `snapshots.ts`, beside `CaptureRegistry`. phonux only says 
 input uses `noopCaptureTrigger`, so phonux never captures by itself; a host that wants real pictures passes its own
 trigger. A panel is captured at both a park and a close. The two eviction paths differ in timing: `clearAll` evicts every dropped panel's picture at once, because
 a dropped panel can never be shown again; and a closed panel's picture waits for its undo window (Undo keeps it;
-the window's natural elapse evicts it). Known limit: a capture already in flight can still store its picture after
-an evict, because the store has no per-id generation, so a panel parked and then cleared within one engine call can
-end up with a picture nothing evicts.
+the window's natural elapse evicts it). A capture already in flight cannot outlive an evict: the store keeps a generation per view id, bumped by each
+evict, and a capture that finishes under an older generation drops its picture instead of storing it. So a panel
+parked and then cleared within one engine call ends with no picture.
 
 ## `useViewState`: per-view state that outlives a park, not a restart
 
