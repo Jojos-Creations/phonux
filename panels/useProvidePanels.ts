@@ -20,7 +20,7 @@ import { isPresent, summarisePanel } from '../panelRowEntry.js';
 import { entryNamed } from '../panelIds.js';
 import { panelWidthOf } from '../panelTiers.js';
 import { noopCaptureTrigger, type CaptureTrigger } from '../snapshots.js';
-import { PANEL_RECT_EVENT, PANEL_SLIDE_EVENT, type PanelRectDetail, type PanelRectEvent } from '../panelChrome.js';
+import { PANEL_RECT_EVENT, PANEL_SLIDE_EVENT, panelRectEvent, type PanelRectDetail, type PanelRectEvent } from '../panelChrome.js';
 import { applyConfigure } from '../panelConfigure.js';
 import { accepted, refused, type ConfigureResult, type PanelOpSource, type PanelResult } from '../panelManager.js';
 import { decidePinChange, type PinChange, type PinStatus } from '../panelPin.js';
@@ -754,7 +754,7 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
     const onRect = (e: Event): void => {
       const d = (e as CustomEvent<PanelRectDetail>).detail;
       const key = keyOf(d.id);
-      if (key !== undefined) onPanelRect.current?.({ key, rect: d.rect, phase: d.phase });
+      if (key !== undefined) onPanelRect.current?.(panelRectEvent(key, d));
     };
     window.addEventListener(PANEL_SLIDE_EVENT, onSlide);
     window.addEventListener(PANEL_RECT_EVENT, onRect);

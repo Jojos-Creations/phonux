@@ -243,6 +243,11 @@ export interface PanelRectDetail {
   readonly phase: 'moving' | 'settled';
 }
 
+/** The public report for one slot's detail, under the panel's key. @internal */
+export function panelRectEvent(key: string, detail: PanelRectDetail): PanelRectEvent {
+  return { key, rect: detail.rect, phase: detail.phase };
+}
+
 /**
  * The bubbling event a slot dispatches on its own element with a `PanelRectDetail`. Window-scoped listeners hear every slot,
  * so a provider filters by the ids it knows. @internal
