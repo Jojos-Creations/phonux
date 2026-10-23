@@ -92,3 +92,21 @@ test('a provider forwards each slot report under the panel key', async () => {
     restoreBoxes();
   }
 });
+
+test('a close that slides the panels after it captures each of them before its slot moves', async () => {
+  const captured: { id: string; x: number }[] = [];
+  const m = mountRow(panelsOf(3), 3000, { capture: { capture: (id) => void captured.push({ id, x: translateX(slotOf(id)) }), evict: () => undefined }, wireClosing: true });
+  await advanceFrames(2000);
+  const restBefore = translateX(slotOf('s2'));
+  captured.length = 0;
+  act(() => m.latest().close('s1'));
+  await advanceFrames(2000);
+  assert.notEqual(translateX(slotOf('s2')), restBefore, 's2 slid, so the box it had before the slide is no longer its box');
+  const atSlide = captured.find((c) => c.id === 's2');
+  assert.ok(atSlide, 's2 is captured when it slides');
+  assert.equal(atSlide.x, restBefore, 'the capture reads s2 at its box before the slide moves it');
+
+  function slotOf(id: string): HTMLElement {
+    return m.container.querySelector<HTMLElement>(`[data-row-id="${id}"]`)!;
+  }
+});
