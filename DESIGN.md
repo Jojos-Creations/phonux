@@ -301,7 +301,7 @@ lands, a host with `phoneFit` on sets no window minimum from this value. A phone
 reads `p.settings?.overflow`, never `effective(p).overflow`: a hand-built fixed History reads 'scroll' under
 `effective()`, and a row of hand-built entries must keep its 0.1.0 numbers (`computeMaxLiveWidth` and
 `computeRowLayout`'s margin). Within a scrolling row the margin is 0 once the strip is wider than the window (the first stop's
-margin in a stepping row, see below) and centres it otherwise; before the first measurement the window is unbounded and nothing scrolls.
+margin in a stepping row, see below) and centers it otherwise; before the first measurement the window is unbounded and nothing scrolls.
 
 Only an entry whose `overflow` is 'park' is parked for room. Its capacity is `computeRowLayout` over the widths
 of the live park entries, with the widths of every other drawn entry (the fixed columns and the scroll panels)
@@ -350,21 +350,8 @@ back by `show`, a History click or an undo of its close, each of which parks one
 
 #### Whole-panel stops
 
-In a scrolling row with `rowGesture` `'step'` whose strip is wider than the window, `computeRowNumbers` (called with
-`wholePanels`) returns `stops`: the `scrollLeft` values at which the window shows only whole panels. From panel `i` the
-shown set is the greedy run of panels that fit the window, at least one, and the leftover width is split evenly as
-margin `m_i`. `rowMarginLeft` is the first set's margin, stop `i` is `rowMarginLeft + leftOffset_i - m_i`, the stops end at
-the first panel from which everything after it fits. The space after the strip is a spacer element, a sibling of the strip inside
-the scroll container so a drag's end cap still reads the strip's own edge. `endPad` is always 0, so the last stop is the row's end
-(`maxScrollOf`) and rests the last panel one row gap from the window edge; the last set's margin is not added to the range, which
-would leave blank room after the last panel. The element is the row gap wide on every scrolling row and the container's right padding is 0
-there, because engines disagree on what the scrollable width counts: WebKit leaves a flex item's end margin out, and Firefox an
-empty box (so the element has no `height: 0`). A non-empty element is counted by all three, whatever each does with padding, and
-`maxScrollOf` is then the browser's range. A row that does not scroll keeps its padding to centre in.
-The strip's margin snaps instead of gliding while stops exist, or `scrollWidth` would lag `maxScrollOf`, except in a panel resize: a
-grow that overflows the window adds its stops in the render that moves the margin, so the margin glides there (a panel's width changed
-under an unchanged container width, or a width is held), and the settle onto a stop waits for the slide. A window resize keeps the snap. A strip that fits
-the window keeps its centring and has no stops; an `off` row has none either, so its margin is 0 on overflow.
+In a scrolling row with `rowGesture` `'step'` whose strip is wider than the window, `computeRowNumbers` (called with `wholePanels`) returns `stops`: the `scrollLeft` values at which the window shows whole panels, on the one-phone grid, `k * (phone + gap)` from 0 up to the row's end. The whole row is centered at each rest: the leftover width is split evenly on both sides of the shown whole panels, not each panel on its own. The first whole run (the greedy run of panels from panel 0 that the window holds, at least one) sets `rowMarginLeft` to half its leftover, so scroll 0 rests centered. The tail (the greedy run of panels from the end) sets `endPad` to half its leftover, so the row's end rests centered and `maxScrollOf` is that rest. A grid stop centers exactly when the grid lands on the centered position, which is every stop when the panels share one width. A row whose mix of widths puts a stop off that position rests with uneven margins there, because a stop never leaves the grid, so a step stays one phone width. The space after the strip is a spacer element, a sibling of the strip inside the scroll container so a drag's end cap still reads the strip's own edge. The element is `endPad` plus the row gap wide on every scrolling row, and the container's right padding is 0 there, because engines disagree on what the scrollable width counts: WebKit leaves a flex item's end margin out, and Firefox an empty box (so the element has no `height: 0`). A non-empty element is counted by all three, whatever each does with padding, and `maxScrollOf` is then the browser's range. A row that does not scroll keeps its padding to center in.
+The strip's margin snaps instead of gliding while stops exist, or `scrollWidth` would lag `maxScrollOf`, except in a panel resize: a grow that overflows the window adds its stops in the render that moves the margin, so the margin glides there (a panel's width changed under an unchanged container width, or a width is held), and the settle onto a stop waits for the slide. A window resize keeps the snap. A strip that fits the window keeps its centering and has no stops; an `off` row has none either, so its margin is 0 on overflow.
 
 Padding does not clip scrolled content, so a neighbour of the shown set peeks `m_i` px at each edge, cut by the window
 edge. Nothing fades or shrinks, but at rest a cut slot no wider than a phone is `visibility: hidden` (Workspace writes it with reach), so only
@@ -377,17 +364,10 @@ the nearest stop that shows the panel, not at that alignment.
 
 #### Step stops
 
-`stops` is the one-phone grid: every `phoneWidth + gap` from scroll 0, then the row's end (`maxScrollOf`), so the last stop may be
-shorter. Every stop a row can rest on is on that grid, whatever the mix of widths: a step, a drag release and the layout settle
-all land on it. A wide panel is not a stop of its own. A grid stop shows the whole panels the window holds from that point, and a
-window cut through a wide panel shows the next phone width of it. A wide panel is centred only where the grid lands on the centred
-position (the visible count minus its width is even); otherwise the nearest grid stop is used, and centring can be impossible.
-This replaces the whole-panel stop contract of the 297 tests. A row that does not scroll has no stops and keeps the old step.
-The row's margin still comes from the whole-panel groups: it sets the grid's phase, which decides where a wide panel can centre.
-Removing it would move every centred cell, so it stays; it no longer defines a stop, and the end pad no longer adds one either
-(`endPad` is 0, so the grid ends at `maxScrollOf`). `snapToStop` picks,
-among the grid stops whose window shows the panel, the one nearest the target; for a panel wider than the window that is the
-grid stop near its left edge. Drag release, resize and pin release read the same grid through `snapToStop` and `nearestStop`.
+`stops` are the one-phone grid, `k * (phone + gap)` from 0, and the last is the row's end (`maxScrollOf`), so a step always moves one
+phone width. A step moves to the next anchor, so it covers one phone width of grid and lands on the rest that centers what that
+anchor shows. A window cut through a wide panel shows the next phone width of it, and a drag release, resize and pin release land on the grid through `snapToStop` and
+`nearestStop`. A row that does not scroll has no stops and keeps the old step.
 
 #### Whole panels only
 
@@ -414,19 +394,19 @@ PanelRow that draws it, and nowhere else: `PanelRow` replaces the panel's drawn 
 its height and its size box; `rowNumbers`, the stop list, the chosen widths, capacity and the live set never read it, so a drag across
 the whole range parks nothing and the hold above (other panels, scroll) is unchanged. It is held between one slot and the
 fewest of `maxSlots` and the slots that fit, and a value that is not a finite non-negative number is ignored. While one is set every slot
-moves and every size box resizes in no time (`tracking` in the slot context), the centring margin is the one the numbers give, which
+moves and every size box resizes in no time (`tracking` in the slot context), the centering margin is the one the numbers give, which
 is unchanged for the whole drag, and calls within one animation frame draw once with the last value. The height is the slots the width
 rounds to, so it steps half a slot in, the point the release snaps to, and the panels around it realign on the same frame. `pin` names the
 edge that stays still: `'start'` leaves the left edge and the panels before it where they were, so the right edge follows a grabber on the
 right; `'end'` shifts the whole strip left by the growth, so the right edge and every panel after it stay where they were and the panels
 before make room, which is what a grabber on the left needs, with the row box (and so the scroll extent) as long as before. The release is
 `setSlots(nearest)`, then `setDrawnWidth(null)`, then `setResizing(false)`: the first fixes what the panel is, the second lets it
-glide from the held width to that one (a snap under Reduce Motion, which also snaps the centring margin), and the third lifts the hold,
-so the row settles once onto a stop. When the release moves the centring margin, that settle starts once the margin's slide has ended. Ending the mark, or the panel leaving the row, drops a
+glide from the held width to that one (a snap under Reduce Motion, which also snaps the centering margin), and the third lifts the hold,
+so the row settles once onto a stop. When the release moves the centering margin, that settle starts once the margin's slide has ended. Ending the mark, or the panel leaving the row, drops a
 width still set.
 
 The settle holds the edge `pin` named. When the mark begins the Workspace reads that panel's rect from the element, after its claim has
-stopped any scroll glide, so a centring margin still gliding or a panel drawn shrunk counts as drawn; the numbers can be ahead of it.
+stopped any scroll glide, so a centering margin still gliding or a panel drawn shrunk counts as drawn; the numbers can be ahead of it.
 The pin is latched while a width is drawn, because the host clears the width before it ends the mark. At the release the row lands on the
 stop nearest the scroll that puts the pinned edge back where it was read: the right edge for `'end'` (a grabber on the left), the left edge
 for `'start'`, one rule for both. With no width drawn, or a panel that is not in the row, it is the stop nearest the scroll it has, as
@@ -525,7 +505,7 @@ never read from a stored size: none is stored, and a stored one would freeze eve
 390-wide slots whatever the model. An entry with `slots` is that many live phone widths with the gap between them, no more
 than `maxSlots` and what fits; an entry without `slots` (a hand-built one) is one phone width. One host helper
 (`panelWidthOf`) owns this rule and the fit cap, and every width sum reads through it: the row's capacity,
-the row's centring margin, each slot's position and width, the size box, and the
+the row's centering margin, each slot's position and width, the size box, and the
 neighbour widths a drag crosses. A view follows the same rule: pass `panel.size` to
 `Panel`/`PanelFrame` only for a panel of more than one slot, and omit it for a one-slot one so the device size applies.
 
@@ -545,7 +525,7 @@ at any frame rate. It is the panel's own width and the row's own height,
 so a `'fill'` view's percentage height resolves inside it. A column that is not collapsible (History, a
 permanent column) never changes its slot count and renders no size box. A third-party view may change its slot count too: its
 slot, position and the row's capacity follow, but its content snaps to the new size, since only the built-in
-view renders a size box. The row's centring margin glides with the resize even right after a window resize,
+view renders a size box. The row's centering margin glides with the resize even right after a window resize,
 when a window-driven margin change would snap.
 
 The box eases its real width and height, not a scale, so its content reflows on every frame of the glide, as a maximize
@@ -576,7 +556,7 @@ slots, so `n` slots are `n x phone + (n - 1) x gap` wide and every edge lands on
 `min(slots, maxSlots, fit)`, where `fit = floor((maxLive + gap) / (phone + gap))` and `maxLive` is the window (the
 container less one gap each side) or, in a parking row, what is left beside the fixed columns. The choice (`slots`) is
 never rewritten to the drawn count, so a window that grows gives the width back. A panel keeps the phone height at any slot count.
-The slot-out motion of a closing panel drops by the row height. History keeps its own size and is centred like the rest.
+The slot-out motion of a closing panel drops by the row height. History keeps its own size and is centered like the rest.
 Unmeasured widths use `UNMEASURED_SLOTS` (3).
 
 At 844, 1280 and 1800 px windows the fit is 2, 3 and 4 slots.
@@ -614,7 +594,7 @@ are `floor((W + gap) / N) - gap` px wide each (whole pixels, so the sums compare
 aspect. The height cap is the height budget over the preferred height, never above the band's top. Then, in order:
 
 1. the smallest N whose scale is inside the band and under the cap: the exact fill;
-2. else the most slots inside the band at the cap's scale, whole slots with the leftover centred as the row centres it;
+2. else the most slots inside the band at the cap's scale, whole slots with the leftover centered as the row centers it;
 3. else the band's minimum wins, with as many slots as fit at it (at least one), and the row scrolls vertically. A phone below the minimum is
    unreadable, and one slot would leave the window empty.
 
@@ -805,7 +785,7 @@ radiogroup), the item is pressed under dnd-kit's keyboard drag, a panel is being
 **Mounted, inert, focus.** Every cell stays mounted, so panels keep their state, and the cells that are not current are `inert` and
 `aria-hidden`. When the current cell changes while focus was inside the one left, focus moves to the new cell (`tabIndex -1`), so the arrow keys keep working.
 
-**Vertical budget.** Each cell is as tall as the column. The column's `topInset` is clearance for chrome the app draws over the window (0 by default): the controls start below it, and the row's top padding is `topInset` plus `COLUMN_TOP_BAND` (76) plus the row gap (16), 92 px with no inset. Every control is 24 px high, the least pointer target. A panel's header hangs 56 px above its 700 px body, so from the window's top edge down: the button naming the workspace above at 0 to 24 px, the name input at 24 to 48 px, the headers from 48 px, the bodies, then the bottom button 24 px high ending 2 px above the bottom edge (`COLUMN_BOTTOM_BAND` is 26). The phone keeps its height. Measured in Chromium (`phonux-workspace-column-proof`): at 832 px high the headers start at 48, the bodies run 104 to 804 and the bottom button 806 to 830, so nothing overlaps and 832 is the least window height for that. With a `topInset` the least height is the inset plus 830: at 832 with an inset of 32 the input ends at 80 over headers that start at 68. At 1080 the row is centred in the 972 px between its paddings: headers at 172, bodies 228 to 928, bottom button 1054 to 1078. Under 832 the row sits at the top of its padding and the headers climb under the name input; the phone never shrinks for it.
+**Vertical budget.** Each cell is as tall as the column. The column's `topInset` is clearance for chrome the app draws over the window (0 by default): the controls start below it, and the row's top padding is `topInset` plus `COLUMN_TOP_BAND` (76) plus the row gap (16), 92 px with no inset. Every control is 24 px high, the least pointer target. A panel's header hangs 56 px above its 700 px body, so from the window's top edge down: the button naming the workspace above at 0 to 24 px, the name input at 24 to 48 px, the headers from 48 px, the bodies, then the bottom button 24 px high ending 2 px above the bottom edge (`COLUMN_BOTTOM_BAND` is 26). The phone keeps its height. Measured in Chromium (`phonux-workspace-column-proof`): at 832 px high the headers start at 48, the bodies run 104 to 804 and the bottom button 806 to 830, so nothing overlaps and 832 is the least window height for that. With a `topInset` the least height is the inset plus 830: at 832 with an inset of 32 the input ends at 80 over headers that start at 68. At 1080 the row is centered in the 972 px between its paddings: headers at 172, bodies 228 to 928, bottom button 1054 to 1078. Under 832 the row sits at the top of its padding and the headers climb under the name input; the phone never shrinks for it.
 
 ## Naming rules R1-R4
 
@@ -1162,7 +1142,7 @@ header offset and the footer's padding measure against. It is a constant, not tu
 passes `sx` to `PanelFrame` or `PanelFooter`. The grab handle is `GRAB_HANDLE_PX` (24), WCAG 2.5.8's minimum pointer target
 both ways, so changing the gap never shrinks the handle. The footer is bare like the header (no border, shadow or fill) and has the header's height.
 
-The footer floats `HEADER_GAP_PX` below the frame, mirroring the header's gap above it, and is `BAR_HEIGHT_PX` (36, `panelChromeSize.ts`) tall, the same constant the header's height reads, in every theme. The row's bottom padding and the phone-fit height budget both use `rowBottomReservePx(gap)` = `max(gap, FOOTER_ROOM_PX)` (`panelChromeSize.ts`, 4 + 36 = 40), so the footer's whole box lies inside the row and a click at its centre reaches it. `test/footer-room.test.ts` and `test/phone-fit-reserve.test.ts` pin the chain.
+The footer floats `HEADER_GAP_PX` below the frame, mirroring the header's gap above it, and is `BAR_HEIGHT_PX` (36, `panelChromeSize.ts`) tall, the same constant the header's height reads, in every theme. The row's bottom padding and the phone-fit height budget both use `rowBottomReservePx(gap)` = `max(gap, FOOTER_ROOM_PX)` (`panelChromeSize.ts`, 4 + 36 = 40), so the footer's whole box lies inside the row and a click at its center reaches it. `test/footer-room.test.ts` and `test/phone-fit-reserve.test.ts` pin the chain.
 
 `Panel`'s `grabProps` is a separate prop from `headerProps`, not a field folded into it, because the header
 and the grab handle are two different elements: the handle is a grip icon inside the header row, left of the
@@ -1314,7 +1294,7 @@ false, doing nothing, outside one.
 
 **One hop rule.** The header drag and this drag count hops through the same `stepsFor(entry, offset)` in PanelRow
 (`reorderStepsForOffset` over `neighborsAt`), and part the row through the same `partShifts`, so for the same offset the neighbours
-sit in the same places. The offset counts from the centre of the panel's slot, or, for a panel that is not in view, from the centre of the
+sit in the same places. The offset counts from the center of the panel's slot, or, for a panel that is not in view, from the center of the
 gap it would hold at its place in the array. The preview is state in PanelRow; the order changes only at the drop.
 
 **A panel in view** is drawn at the slot its hops end in, the crossed neighbours slide aside by its span, and `end()` is one `move`. **A parked or
@@ -1395,7 +1375,7 @@ a transformed slot, which re-anchors `position: fixed` to itself.
 The layer adds no wrapper, so it cannot enforce the contract the CONTENT must keep:
 
 1. Its root element is `position: fixed` and sets its own zIndex from `OVERLAY_Z`. A non-fixed root would
-   become a flex item of the row and mis-centre it.
+   become a flex item of the row and mis-center it.
 2. It renders where the SLOT is. Context (theme, `useHost()`) comes from the slot's position; React events
    bubble through the slot's ancestors, not the view's; a provider the view installs itself is not visible
    to it.
@@ -2220,7 +2200,7 @@ no oval; the app places and styles them, so no colour, radius or border is set h
 panel is a wide dot. The library sets no minimum dot width; the app decides one when it draws the dot. The oval is the window (`windowWidth`) in track px,
 and it fills the track while the window is unmeasured or the row fits. All of it is pure, in `rowDots.ts`.
 
-**Writes.** A click on a dot centres its panel (`centreScroll`, clamped to the row's range); a row that cannot scroll gives no
+**Writes.** A click on a dot centers its panel (`centreScroll`, clamped to the row's range); a row that cannot scroll gives no
 target and the click does nothing. The oval drag takes the row's claim (`rowScrollerFor(...).claim()`), writes each drag as
 `write(dragScroll(...))`, and releases the claim on `end()`. The bar never writes `scrollLeft` itself. A held row (a gesture or
 another drag) refuses a new drag with null.

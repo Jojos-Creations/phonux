@@ -43,7 +43,7 @@ test('a row that does not scroll has no step stops', () => {
 
 test('the grid covers every phone width up to the end, and the end is the last stop', () => {
   const n = numbers([root(), ...['a', 'b', 'c', 'd', 'e'].map((id) => made(id))], 1000);
-  assert.deepEqual(n.stepStops, [0, 406, 812, 1218, 1452], 'five phones at a 968 window: four phone widths, then the rest to the end at 1452');
+  assert.deepEqual(n.stepStops, [0, 406, 812, 1218, 1624], 'five phones at a 968 window: the grid to 1218, then the centered end at 1624 (86 + 2420 + 86 - 968)');
 });
 
 test('events for one pass across a row at 1280 with a five-slot desktop panel: each step is one phone width', () => {
@@ -55,5 +55,5 @@ test('events for one pass across a row at 1280 with a five-slot desktop panel: e
 
 test('events for one pass across five phone panels at 1000: one per phone width', () => {
   const n = numbers([root(), ...['a', 'b', 'c', 'd', 'e'].map((id) => made(id))], 1000);
-  assert.equal(walk(n).length - 1, 4, 'four events: three of 406, then the rest to the end at 1452');
+  assert.equal(walk(n).length - 1, 4, 'four events of 406, the last reaching the centered end at 1624');
 });

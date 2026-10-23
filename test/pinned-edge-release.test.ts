@@ -30,9 +30,18 @@ function Grab({ id }: { id: string }): React.ReactElement {
   return React.createElement('i', { 'data-slot': id });
 }
 
+/** The settle waits on the mocked setTimeout, so every test that mounts a row runs on it; enabling twice would drop the wrappers a test set up. */
+let timersOn = false;
+function ensureMockTimers(): void {
+  if (timersOn) return;
+  mock.timers.enable({ apis: ['setTimeout'] });
+  timersOn = true;
+}
+
 afterEach(() => {
   mock.restoreAll();
   mock.timers.reset();
+  timersOn = false;
   report.id = '';
   report.trim = 0;
   Element.prototype.getBoundingClientRect = rectOf;
@@ -61,6 +70,7 @@ interface Rig {
 
 /** The root and p1..p5, one slot each, in a `window` px window; the container pads PAD px, as a themed one would. */
 async function mountRig(gap: number, o: { window?: number; reduced?: boolean; slots?: number[] } = {}): Promise<Rig> {
+  ensureMockTimers();
   const window = o.window ?? 1500;
   const templates = IDS.map((id, k) => definePanel({ id, view: () => React.createElement(Grab, { id }), settings: { slots: o.slots?.[k] ?? 1, maxSlots: 64 } }));
   const ws = createWorkspace({ mount: false, root: markerTemplate('root', { settings: { title: 'History' } }), templates, tuning: { rowGesture: 'step', rowGap: gap } });
@@ -140,6 +150,9 @@ async function release(r: Rig, id: string, slots: number, order: Order = 'togeth
     });
     act(() => void r.m.latest().setSlots(r.ids[id]!, slots));
   }
+  // The settle waits for the margin's slide on the mocked clock, so it arms on the frame that runs the release, then fires here.
+  await frames(40);
+  act(() => mock.timers.tick(SLIDE_DURATION_SEC * 1000));
   await frames(1200);
 }
 
@@ -249,7 +262,7 @@ test('a row that fits has no stops to hold: nothing scrolls on the release', asy
   const drag = await beginDrag(r, 'p3', 300);
   void drag;
   await release(r, 'p3', 2);
-  assert.equal(r.m.container.scrollLeft, 0, 'the centred row stays at scroll 0');
+  assert.equal(r.m.container.scrollLeft, 0, 'the centered row stays at scroll 0');
 });
 
 test('the edge held is the one the element reports when the mark begins, which the numbers can be ahead of', async () => {
@@ -286,16 +299,16 @@ test('pinned at the start, a right-grabber release holds the left edge by the sa
 });
 
 test('a release that adds stops glides the margin first and settles onto the stop once it has landed', async () => {
-  mock.timers.enable({ apis: ['setTimeout'] });
-  const r = await mountRig(16, { window: 2600 });
+  ensureMockTimers();
+  const r = await mountRig(16, { window: 2932 });
   await frames(1500);
   assert.equal(stopsOf(r).length, 0, 'control: six slots fit the window, so nothing scrolls');
   const start = marginOf(r.m.container);
-  assert.ok(start > 0, `control: a fitting row is centred (${start})`);
-  const drag = await beginDrag(r, 'p1', SLOT(2, 16) - SLOT(1, 16) + 25);
+  assert.ok(start > 0, `control: a fitting row is centered (${start})`);
+  const drag = await beginDrag(r, 'p1', SLOT(3, 16) - SLOT(1, 16) + 25);
   assert.equal(marginOf(r.m.container), start, 'the drag leaves the margin alone');
   act(() => {
-    r.m.latest().setSlots(r.ids.p1!, 2);
+    r.m.latest().setSlots(r.ids.p1!, 3);
     setters.get('p1')!.width(null);
     setters.get('p1')!.resizing(false);
   });
@@ -306,7 +319,7 @@ test('a release that adds stops glides the margin first and settles onto the sto
   assert.equal(r.m.container.scrollLeft, 0, 'the scroll waits for the margin');
   act(() => mock.timers.tick(SLIDE_DURATION_SEC * 1000));
   await frames(1200);
-  assert.equal(marginOf(r.m.container), 0);
+  assert.equal(marginOf(r.m.container), r.m.latest().rowNumbers.rowMarginLeft);
   assertLanded(r, 'p1', drag, 'after the slide');
   assert.ok(r.m.container.scrollLeft > 0, 'control: the settle did move the row');
 });
@@ -319,11 +332,14 @@ async function elapse(ms: number): Promise<void> {
 }
 const SETTLE_WAIT_MS = SLIDE_DURATION_SEC * 1000;
 
-/** A wide window where six slots fit, then p1 grown to two slots: the release adds stops and moves the centring margin, so the settle waits. */
+/**
+ * A 2932 px window where six slots fit, then the panel grown to three slots: the release adds one stop (0 and the row's end)
+ * and moves the centering margin from 240 to 37, so the settle waits. Two slots would leave the margin where it was.
+ */
 async function releaseMovingMargin(r: Rig, id = 'p1', pin: 'start' | 'end' = 'end'): Promise<Drag> {
-  const drag = await beginDrag(r, id, SLOT(2, 16) - SLOT(1, 16) + 25, 4, 0, pin);
+  const drag = await beginDrag(r, id, SLOT(3, 16) - SLOT(1, 16) + 25, 4, 0, pin);
   act(() => {
-    r.m.latest().setSlots(r.ids[id]!, 2);
+    r.m.latest().setSlots(r.ids[id]!, 3);
     setters.get(id)!.width(null);
     setters.get(id)!.resizing(false);
   });
@@ -331,8 +347,8 @@ async function releaseMovingMargin(r: Rig, id = 'p1', pin: 'start' | 'end' = 'en
 }
 
 test('a wheel during the wait for the margin decides where the row rests; the pending settle does not undo it', async () => {
-  mock.timers.enable({ apis: ['setTimeout'] });
-  const r = await mountRig(16, { window: 2600 });
+  ensureMockTimers();
+  const r = await mountRig(16, { window: 2932 });
   await frames(1500);
   assert.equal(stopsOf(r).length, 0, 'control: the row fits, so it has no stops before the release');
   await releaseMovingMargin(r);
@@ -351,7 +367,7 @@ test('a wheel during the wait for the margin decides where the row rests; the pe
 });
 
 test('a second release re-arms the settle: the first release\'s pending timer is cleared', async () => {
-  mock.timers.enable({ apis: ['setTimeout'] });
+  ensureMockTimers();
   const armed: unknown[] = [];
   const cleared: unknown[] = [];
   const mockedSet = globalThis.setTimeout;
@@ -365,7 +381,7 @@ test('a second release re-arms the settle: the first release\'s pending timer is
     cleared.push(handle);
     return (mockedClear as typeof clearTimeout)(handle);
   }) as typeof clearTimeout);
-  const r = await mountRig(16, { window: 2600 });
+  const r = await mountRig(16, { window: 2932 });
   await frames(1500);
   await releaseMovingMargin(r);
   assert.equal(armed.length, 1, 'control: the first release armed the settle');
@@ -376,8 +392,8 @@ test('a second release re-arms the settle: the first release\'s pending timer is
 });
 
 test('unmounting during the wait for the margin cancels the settle', async () => {
-  mock.timers.enable({ apis: ['setTimeout'] });
-  const r = await mountRig(16, { window: 2600 });
+  ensureMockTimers();
+  const r = await mountRig(16, { window: 2932 });
   await frames(1500);
   const scroller = rowScrollerFor(r.m.container);
   const glides = mock.method(scroller, 'glideTo');
@@ -416,8 +432,8 @@ const REFUSED_AT_START: Record<string, (r: Rig) => void> = {
 };
 for (const [what, ask] of Object.entries(REFUSED_AT_START)) {
   test(`${what} during the wait for the margin keeps the row at the first stop it was released on, though it moves nothing`, async () => {
-    mock.timers.enable({ apis: ['setTimeout'] });
-    const r = await mountRig(16, { window: 2600 });
+    ensureMockTimers();
+    const r = await mountRig(16, { window: 2932 });
     await frames(1500);
     await releaseMovingMargin(r);
     const stops = stopsOf(r);
@@ -433,8 +449,8 @@ for (const [what, ask] of Object.entries(REFUSED_AT_START)) {
 }
 
 test('released at the start, a step to the far stop then a step the row refuses there leave the row at the far stop', async () => {
-  mock.timers.enable({ apis: ['setTimeout'] });
-  const r = await mountRig(16, { window: 2600 });
+  ensureMockTimers();
+  const r = await mountRig(16, { window: 2932 });
   await frames(1500);
   await releaseMovingMargin(r, 'p1', 'start');
   const stops = stopsOf(r);
@@ -447,8 +463,8 @@ test('released at the start, a step to the far stop then a step the row refuses 
 });
 
 test('a scroll that is still gliding when the wait ends decides where the row rests, even before it has moved', async () => {
-  mock.timers.enable({ apis: ['setTimeout'] });
-  const r = await mountRig(16, { window: 2600 });
+  ensureMockTimers();
+  const r = await mountRig(16, { window: 2932 });
   await frames(1500);
   await releaseMovingMargin(r);
   await elapse(50);
@@ -460,8 +476,8 @@ test('a scroll that is still gliding when the wait ends decides where the row re
 });
 
 test('a scroll that has already landed when the wait ends decides where the row rests', async () => {
-  mock.timers.enable({ apis: ['setTimeout'] });
-  const r = await mountRig(16, { window: 2600 });
+  ensureMockTimers();
+  const r = await mountRig(16, { window: 2932 });
   await frames(1500);
   await releaseMovingMargin(r);
   await elapse(100);
@@ -472,23 +488,23 @@ test('a scroll that has already landed when the wait ends decides where the row 
 });
 
 test('the settle onto a stop uses the stops the row has when the wait ends', async () => {
-  mock.timers.enable({ apis: ['setTimeout'] });
-  const r = await mountRig(16, { window: 2600 });
+  ensureMockTimers();
+  const r = await mountRig(16, { window: 2932 });
   await frames(1500);
   const drag = await releaseMovingMargin(r);
   const before = [...stopsOf(r)];
   await elapse(100);
   act(() => void r.m.latest().setSlots(r.ids.p2!, 2));
   assert.equal(rowScrollerFor(r.m.container).glideTarget(), null, 'control: the change did not scroll the row');
-  assert.ok(stopsOf(r).length > 0 && !stopsOf(r).includes(before[1]!), `the stops changed: ${before.join(',')} then ${stopsOf(r).join(',')}`);
+  assert.ok(stopsOf(r).length > before.length, `the stops changed: ${before.join(',')} then ${stopsOf(r).join(',')}`);
   await elapse(SETTLE_WAIT_MS + 1000);
   assertLanded(r, 'p1', drag, 'after the stops changed');
   assert.ok(r.m.container.scrollLeft > 0, 'control: the settle did move the row');
 });
 
 test('a row that has no stops when the wait ends is not settled', async () => {
-  mock.timers.enable({ apis: ['setTimeout'] });
-  const r = await mountRig(16, { window: 2600 });
+  ensureMockTimers();
+  const r = await mountRig(16, { window: 2932 });
   await frames(1500);
   await releaseMovingMargin(r);
   await elapse(100);

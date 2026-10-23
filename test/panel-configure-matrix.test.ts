@@ -815,7 +815,7 @@ test('matrix:scrollOnMove', async () => {
     r.m.unmount();
     return at;
   };
-  assert.equal(await grown(false), 406, 'control: a in view grows to two slots, 796 px, and the row follows to the stop that shows it whole');
+  assert.equal(await grown(false), 609, 'control: a in view grows to two slots, 796 px, and the row follows to the stop that shows it whole');
   assert.equal(await grown(true), 0, 'the next move reads none: the row stays');
 });
 
@@ -1458,7 +1458,8 @@ test('matrix:tuning.initialScroll', async () => {
   assert.equal(r.m.container.scrollLeft, 0, 'nothing scrolls now');
   const next = await matrixRig({ ids, width: 1000, workspace: { tuning: { initialScroll: 'end', rowGesture: 'step' } } });
   await next.settle();
-  assert.equal(next.m.container.scrollLeft, 3482, 'a mount that reads end puts the strip at its farthest legal scroll: 4450 less the 969 window');
+  // The row's end is 86 + 4450 + 86 (the centered tails) less the 968 window: 3654, the last stop.
+  assert.equal(next.m.container.scrollLeft, 3654, 'a mount that reads end puts the strip at its farthest legal scroll');
   assert.equal(r.ws.tuning.initialScroll, 'end', 'the workspace now holds it for its next mount');
 });
 

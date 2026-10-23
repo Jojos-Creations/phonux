@@ -236,7 +236,9 @@ test('addPanel after ready scrolls to the literal target of scrollOnOpen: into-v
   const start = await addedAt('start', shape);
   const center = await addedAt('center', shape);
   assert.ok(into.at > 0, 'positive control: a request was recorded and the row moved');
-  assert.deepEqual([into.at, center.at, start.at], [406, 1218, 1624]);
+  // The new panel starts at 1823 (16 + the 183 margin of the first whole run + 1624): into-view takes the nearest stop that shows it
+  // whole, 812; start and center land on 1624 and 1218.
+  assert.deepEqual([into.at, center.at, start.at], [812, 1218, 1624]);
 });
 
 test('the default scrollOnOpen is the library default', async () => {

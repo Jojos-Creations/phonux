@@ -30,10 +30,10 @@ test('the end element is endPad plus the row gap and the padding right is 0', ()
   assert.equal(maxScrollOf(n), Math.max(0, n.rowMarginLeft + n.stripWidth + n.endPad - n.windowWidth), 'the range the library counts is the same sum');
 });
 
-test('a row with an endPad of 0 still draws the element, the row gap wide', () => {
+test('a tail of two whole panels in a 968 px window is centered by its leftover, and the element carries that pad', () => {
   const m = mountRow(panelsOf(8), 1000, { tuning: { rowGesture: 'step' } });
-  assert.equal(m.latest().rowNumbers.endPad, 0, 'a row that fits whole panels has nothing to pad');
-  assert.equal(element(m.container)!.style.flex, '0 0 16px');
+  assert.equal(m.latest().rowNumbers.endPad, 86, 'the tail is 390 + 16 + 390 = 796 wide, so (968 - 796) / 2 is 86 on each side');
+  assert.equal(element(m.container)!.style.flex, '0 0 102px');
 });
 
 const bare = (rowScroll: boolean, ref: React.RefObject<HTMLDivElement | null>): React.ReactElement =>
