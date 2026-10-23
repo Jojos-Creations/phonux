@@ -30,6 +30,7 @@ const VALUE_EXPORTS = [
   'panelFrameBareSx',
   'PanelHeader',
   'PanelHeaderButtons',
+  'PanelHeaderMenu',
   'PanelFooter',
   'ClosedPagesPanel',
   'createClosedPagesTemplate',
@@ -38,6 +39,8 @@ const VALUE_EXPORTS = [
   'useViewSnapshot',
   'CaptureRegistryProvider',
   'noopCaptureTrigger',
+  'createTileCapture',
+  'useRecaptureOnSettle',
   'useViewState',
   'ViewStateMissingProviderError',
   'DEFAULT_PANEL_SIZE',
@@ -98,7 +101,7 @@ const VALUE_EXPORTS = [
   'WORKSPACE_NAME_INPUT_ATTRIBUTE',
 ].sort();
 
-test('the phonux barrel exports exactly the 80 runtime values, no more, no fewer', () => {
+test('the phonux barrel exports exactly the 81 runtime values, no more, no fewer', () => {
   assert.deepEqual(Object.keys(phonux).sort(), VALUE_EXPORTS);
 });
 
