@@ -4,9 +4,10 @@
  * `reconcileWorkspace`, called in the load's success handler; a throw there takes the same path as a failed load, so
  * the workspace always settles. With no storage it does nothing: no state, no promise, no timer.
  */
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import type { Dispatch, SetStateAction } from 'react';
 import type { JsonValue } from '../hostApi.js';
+import { createPanelList } from './panelList.js';
 import { computeRowOrder } from '../panelRowOrder.js';
 import type { PanelSettings, SettingNote } from '../panelSettings.js';
 import type { PanelTemplate } from '../panelTemplate.js';
@@ -85,7 +86,8 @@ export function useWorkspacePersistence(i: {
   };
   // State, not a ref: opening the gate must re-run the save effect, or a change committed while load() was
   // pending (with nothing to restore) would never be saved.
-  const [settled, setSettled] = useState(false);
+  const [settledStore] = useState(() => createPanelList(false));
+  const settled = useSyncExternalStore(settledStore.subscribe, settledStore.get, settledStore.get);
   // The JSON the file is known to hold: restored, or saved and settled without error. A projection equal to it is not saved again.
   const lastSaved = useRef<string | null>(null);
   // The newest save that has not settled; a change that projects to the same JSON is already on its way.
@@ -99,7 +101,9 @@ export function useWorkspacePersistence(i: {
   // Panels already in the row that take the uid the file holds for them.
   const adoptedUids = useRef<Map<string, string>>(new Map());
   // The row's rest: the one the file held, then the one a person's move last left it on. Saved with the panels.
-  const [scroll, setScroll] = useState<RestMark | null>(null);
+  const [scrollStore] = useState(() => createPanelList<RestMark | null>(null));
+  const scroll = useSyncExternalStore(scrollStore.subscribe, scrollStore.get, scrollStore.get);
+  const setScroll = scrollStore.set;
 
   useEffect(() => {
     // StrictMode runs this effect twice; only the run that is not cancelled may apply its result.
@@ -166,7 +170,7 @@ export function useWorkspacePersistence(i: {
           return rootSlots === undefined ? added : setSlots(added, rootId, rootSlots);
         });
       }
-      setSettled(true);
+      settledStore.set(true);
     };
     // A failed load, or a restore that threw, still gets the panels code declares; a restore that cannot even do that restores nothing.
     const fail = (): void => {
