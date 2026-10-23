@@ -342,8 +342,9 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
     slotsWarnedRef.current.add(warned);
     console.warn(`panel '${key}': setSlots(${asked}) is above its maxSlots (${max}); the panel is made ${max} wide`);
   };
-  const pendingScrollRef = useRef<ScrollRequest | null>(null);
-  const [, bumpScroll] = useState(0);
+  // The pending request is a plain store. Subscribing makes each set re-render the row, as the old counter did.
+  const [pendingScroll] = useState(() => createPanelList<ScrollRequest | null>(null));
+  useSyncExternalStore(pendingScroll.subscribe, pendingScroll.get, pendingScroll.get);
   const scrollNote = (code: string, panelId: string, message: string): void => {
     try {
       i.onNote?.({ code, panelId, message });
@@ -360,9 +361,8 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
       scrollNote('scroll-dropped-during-drag', request.id, `A scroll to panel ${request.id} was dropped: a drag holds the row.`);
       return false;
     }
-    pendingScrollRef.current = { ...request, misses: 0 };
     // A request on a panel that is already shown changes no state, so nothing else would commit for it to run in.
-    bumpScroll((n) => n + 1);
+    pendingScroll.set({ ...request, misses: 0 });
     return true;
   };
   const followPanel = (id: string): void => {
@@ -698,26 +698,25 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
 
   // Runs the pending request against this commit's numbers: the target margin is the one about to be drawn.
   useLayoutEffect(() => {
-    const request = pendingScrollRef.current;
+    const request = pendingScroll.get();
     if (request === null) return;
     const el = i.overflowContainerRef.current;
     const entry = panels.find((p) => p.id === request.id);
     const k = rowNumbers.ids.indexOf(request.id);
     if (el === null || (k < 0 && request.fresh && entry !== undefined)) {
-      pendingScrollRef.current = null;
+      pendingScroll.set(null);
       return;
     }
     if (k < 0 || entry === undefined) {
       if (request.misses + 1 < REQUEST_WAIT_COMMITS) {
-        pendingScrollRef.current = { ...request, misses: request.misses + 1 };
-        bumpScroll((n) => n + 1);
+        pendingScroll.set({ ...request, misses: request.misses + 1 });
       } else {
-        pendingScrollRef.current = null;
+        pendingScroll.set(null);
         scrollNote('scroll-request-dropped', request.id, `A scroll to panel ${request.id} was dropped: it was not in the row after ${REQUEST_WAIT_COMMITS} commits.`);
       }
       return;
     }
-    pendingScrollRef.current = null;
+    pendingScroll.set(null);
     const settings = effective(entry);
     let align: ScrollAlign | null = 'into-view';
     if (request.kind === 'open') align = request.align ?? (settings.scrollOnOpen !== 'none' ? settings.scrollOnOpen : request.forced ? 'into-view' : null);
