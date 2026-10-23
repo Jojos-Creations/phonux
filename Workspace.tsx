@@ -239,6 +239,7 @@ export function Workspace(props: WorkspaceProps): React.ReactElement {
       const run = (): void => {
         settle.current = null;
         claim?.release();
+        scroller.setSettling(false);
         const n = numbersRef.current;
         if (claim === null || n === undefined || n.stops.length === 0) {
           scroller.replayDeferred();
@@ -262,7 +263,9 @@ export function Workspace(props: WorkspaceProps): React.ReactElement {
         // moves nothing, so it is counted as an ask of its own.
         const releasedAt = scroller.scrollLeft();
         const asked = scroller.inputs();
+        scroller.setSettling(true);
         settleTimer.current = setTimeout(() => {
+          scroller.setSettling(false);
           const now = numbersRef.current;
           if (now === undefined || now.stops.length === 0 || scroller.inputs() !== asked) return scroller.replayDeferred();
           if (Math.abs((scroller.glideTarget() ?? scroller.scrollLeft()) - releasedAt) >= 0.5) return scroller.replayDeferred();

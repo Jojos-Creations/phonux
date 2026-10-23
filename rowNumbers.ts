@@ -64,14 +64,14 @@ export interface RowNumbers {
   parkLiveWidths: readonly number[];
   /**
    * The `scrollLeft` values a stepping row rests on, ascending; the first is 0. They are one phone width apart, and the last
-   * is the row's end (`maxScrollOf`). Empty when the row does not scroll, or its strip fits the window and keeps its centring.
+   * is the row's end (`maxScrollOf`). Empty when the row does not scroll, or its strip fits the window and keeps its centering.
    */
   stops: readonly number[];
   /** The same values as `stops`, under the step's name. Empty when `stops` is. */
   stepStops: readonly number[];
   /** For each stop, the drawn entries it shows: the index of its first one and one past its last. Same order as `stops`. */
   stopSpans: readonly { first: number; end: number }[];
-  /** Always 0: the space after the strip is one row gap wide, and the last stop leaves the last panel one gap from the window edge. */
+  /** The space after the strip: the centering pad of the tail's whole panels on a stepping row that overflows, else 0. */
   endPad: number;
 }
 
@@ -123,14 +123,20 @@ export function computeRowNumbers(i: {
     running += width + i.gap;
   }
   const overflows = rowScroll && measured && stripWidth > stripWindow;
-  // A strip that overflows starts flush at the window's left: a centring margin would show as blank room at scroll 0 and
-  // push every grid stop off the panel starts.
+  const stepping = i.wholePanels === true && overflows;
+  // A non-stepping overflowing row starts flush at the strip's left: it has no stops to center on. Every centering here is
+  // between the held groups' insets, so a held panel stays flush to its edge and the scrolling set centers in what is left.
   let rowMarginLeft: number;
   if (!rowScroll) {
     rowMarginLeft = computeRowLayout({ containerWidth: i.containerWidth, phoneWidth: i.phoneWidth, gap: i.gap, fixedItemCount, liveWidths: present.flatMap((p, k) => (p.collapsible ? [allWidths[k]!] : [])) }).computedRowMarginLeft;
+  } else if (stepping) {
+    rowMarginLeft = Math.max(0, (stripWindow - wholeRunWidth(0, widths, i.gap, stripWindow)) / 2);
   } else {
-    rowMarginLeft = !measured || overflows ? 0 : (windowWidth - stripWidth) / 2;
+    rowMarginLeft = !measured || overflows ? 0 : (stripWindow - stripWidth) / 2;
   }
+  // The tail is centered the same way, so the row's last rest shows its last whole panels with even room on both sides.
+  const endPad = stepping ? Math.max(0, (stripWindow - tailWidth(widths, i.gap, stripWindow)) / 2) : 0;
+  const maxScroll = stepping ? rowMarginLeft + stripWidth + endPad - stripWindow : 0;
   // A 'both' panel keeps clear of the fixed groups and of the 'both' panels that stack on its edge. Scroll pins an earlier one
   // whenever it pins a later one, so the stack on the left runs in row order from the left group, and on the right it runs in
   // row order from the right group: the outermost panel of each stack sits nearest the window edge.
@@ -141,13 +147,13 @@ export function computeRowNumbers(i: {
     left: leftInset + stacked(bothKs.slice(0, j)),
     right: rightInset + i.gap + stacked(bothKs.slice(j + 1)),
   }));
-  const stepStops = i.wholePanels === true && overflows ? stepGrid(stripWidth - stripWindow, i.phoneWidth + i.gap) : [];
-  const stops = stepStops;
+  const stops = stepping ? restStops(maxScroll, i.phoneWidth + i.gap, { widths, offsets: leftOffsets, rowMarginLeft, gap: i.gap, windowWidth: stripWindow }) : [];
+  const stepStops = stops;
   const stopSpans = stops.map((at) => spanAt(at, widths, leftOffsets, rowMarginLeft, stripWindow));
   // A panel the row admits is never parked for room, whether it is held or sticks in the strip.
   const reservedWidths = [...present.flatMap((p, k) => (admittedKs.has(k) || parksForRoom(p) ? [] : [allWidths[k]!])), ...admitted.map((a) => allWidths[a.k]!)];
   const parkLiveWidths = present.flatMap((p, k) => (admittedKs.has(k) || !parksForRoom(p) ? [] : [allWidths[k]!]));
-  return { rowScroll, windowWidth, stripWidth, rowMarginLeft, ids, widths, leftOffsets, held, stuck, leftInset, rightInset, stripStart: leftInset + rowMarginLeft, stripWindow, maxLiveWidth, reservedWidths, parkLiveWidths, stops, stepStops, stopSpans, endPad: 0 };
+  return { rowScroll, windowWidth, stripWidth, rowMarginLeft, ids, widths, leftOffsets, held, stuck, leftInset, rightInset, stripStart: leftInset + rowMarginLeft, stripWindow, maxLiveWidth, reservedWidths, parkLiveWidths, stops, stepStops, stopSpans, endPad };
 }
 
 /** One held entry: the entry's index in the present list and the edge it holds at. */
@@ -225,6 +231,44 @@ function spanAt(at: number, widths: readonly number[], offsets: readonly number[
   let end = first + 1;
   while (end < widths.length && rowMarginLeft + offsets[end]! < at + windowWidth) end++;
   return { first, end };
+}
+
+/** The width of the whole panels a window holds from `first` on: `first` itself, then each next one that still fits. */
+function wholeRunWidth(first: number, widths: readonly number[], gap: number, windowWidth: number): number {
+  let width = widths[first]!;
+  for (let k = first + 1; k < widths.length && width + gap + widths[k]! <= windowWidth; k++) width += gap + widths[k]!;
+  return width;
+}
+
+/** The width of the whole panels at the end of the strip that a window holds, counted back from the last one. */
+function tailWidth(widths: readonly number[], gap: number, windowWidth: number): number {
+  let width = widths[widths.length - 1]!;
+  for (let k = widths.length - 2; k >= 0 && width + gap + widths[k]! <= windowWidth; k--) width += gap + widths[k]!;
+  return width;
+}
+
+
+/**
+ * The rests of a stepping row: the one-phone grid, plus a rest centering the whole run that starts at each panel the grid never
+ * shows whole. A grid stop can miss a panel that fits the window, and a panel must be fully visible at some rest.
+ * Ascending, and the last one is `maxScroll`.
+ */
+function restStops(maxScroll: number, step: number, g: { widths: readonly number[]; offsets: readonly number[]; rowMarginLeft: number; gap: number; windowWidth: number }): number[] {
+  const grid = stepGrid(maxScroll, step);
+  const rests = [...grid];
+  g.widths.forEach((width, j) => {
+    if (width > g.windowWidth) return;
+    const left = g.rowMarginLeft + g.offsets[j]!;
+    if (grid.some((at) => left - at >= 0 && left - at + width <= g.windowWidth)) return;
+    const leftover = g.windowWidth - wholeRunWidth(j, g.widths, g.gap, g.windowWidth);
+    rests.push(clampTo(left - leftover / 2, 0, maxScroll));
+  });
+  rests.sort((a, b) => a - b);
+  return rests.filter((at, k) => k === rests.length - 1 || rests[k + 1]! - at > 1);
+}
+
+function clampTo(value: number, low: number, high: number): number {
+  return Math.min(high, Math.max(low, value));
 }
 
 /**
