@@ -119,6 +119,9 @@
 
 ### Added
 
+- `WorkspacePanel` renders its tiles into a host's `DndContext` when one encloses it, instead of opening a second one, so a tile drag reaches the host's drop targets and the host's `onDragEnd` sees the tile. Without a host context it is unchanged.
+- A `WorkspacePanelEntry` takes an optional `icon`, drawn before the tile's title in the caption row. A tile with no icon renders no icon slot.
+- `WorkspacePanel` announces a tile drag through the host's `pickedUp`, `dropped` and `dragCancelled` labels inside a host context as well as outside one.
 - `edgeHold` is a per-panel setting, `'off'` by default: `'left'` keeps the panel at the row's left edge and `'right'` at its right while the other panels slide under it. `'both'` keeps the panel in the strip and sticks it at whichever edge the scroll takes it past; a row admits one `both` panel, since two would stick at one edge once the scroll passes both. A held panel that cannot fit beside the others, or sits in a row that does not scroll, lets go and scrolls normally. `RowNumbers` gains `held`, `stuck`, `leftInset`, `rightInset`, `stripStart` and `stripWindow`.
 
 - `isWorkspaceState` is exported from the package entry point, so a host can check an imported workspace file with the same guard the library applies to saved state.
