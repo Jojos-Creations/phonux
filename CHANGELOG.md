@@ -10,6 +10,10 @@
 
 - `PanelHeaderMenu` takes an optional `onPinChange(verb, ok)`, called after each Pin or Unpin from the menu, so a host can show its own message.
 
+### Fixed
+
+- A panel's slide and rect events are built with its element's own window's `CustomEvent`. Where the global one is another realm's, the element refused the event and mounting a panel threw; this is a regression fix for the rect events (#475).
+
 ### Changed
 
 - Closing the header menu returns focus to its move button, and that focus no longer snaps the row onto the panel. A Pin or Unpin from the menu is kept from scrolling the row.
