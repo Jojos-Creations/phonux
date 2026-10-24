@@ -284,7 +284,9 @@ export function createRectReporter(el: HTMLElement, env: { id: () => string | un
   const send = (phase: PanelRectDetail['phase'], rect: PanelRect): void => {
     const id = env.id();
     if (id === undefined) return;
-    el.dispatchEvent(new CustomEvent<PanelRectDetail>(PANEL_RECT_EVENT, { bubbles: true, detail: { id, rect, phase } }));
+    // The element's own window's constructor: an event from another realm is refused by its dispatchEvent.
+    const Ctor = el.ownerDocument.defaultView?.CustomEvent ?? CustomEvent;
+    el.dispatchEvent(new Ctor<PanelRectDetail>(PANEL_RECT_EVENT, { bubbles: true, detail: { id, rect, phase } }));
   };
   // Returns true only for a change since the previous measurement; the first measurement is a baseline, not a move.
   const measure = (): boolean => {
