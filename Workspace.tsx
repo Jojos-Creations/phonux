@@ -405,9 +405,10 @@ export function Workspace(props: WorkspaceProps): React.ReactElement {
   const scrolledRef = React.useRef(0);
   const endPadRef = React.useRef<HTMLDivElement>(null);
   const before = drawn.current.numbers;
-  const pastEnd = scrolls && rowNumbers !== undefined && resolved.rowGesture === 'step' ? scrolledRef.current - maxScrollOf(rowNumbers) : 0;
-  // The strip's margin glides, so until it lands the row ends short of the numbers by the margin still to come.
-  const endHold = pastEnd > 0 ? pastEnd + Math.max(0, rowNumbers!.rowMarginLeft - (before?.rowMarginLeft ?? rowNumbers!.rowMarginLeft)) : 0;
+  // Measured from where the row's end is drawn, which for a row that fits is left of 0 (`maxScrollOf` would floor it there), and
+  // the strip's margin glides, so until it lands the row ends short of the numbers by the margin still to come.
+  const drawnEnd = rowNumbers === undefined ? 0 : rowNumbers.stripStart + rowNumbers.stripWidth + rowNumbers.rightInset + rowNumbers.endPad - rowNumbers.windowWidth - Math.max(0, rowNumbers.rowMarginLeft - (before?.rowMarginLeft ?? rowNumbers.rowMarginLeft));
+  const endHold = scrolls && rowNumbers !== undefined && resolved.rowGesture === 'step' && scrolledRef.current > maxScrollOf(rowNumbers) ? scrolledRef.current - drawnEnd : 0;
   React.useLayoutEffect(() => {
     const container = overflowContainerRef.current;
     if (container === null) return undefined;
