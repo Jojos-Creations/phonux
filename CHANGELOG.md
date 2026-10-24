@@ -8,6 +8,7 @@
 
 ### Fixed
 
+- Adding or removing a workspace above the current one no longer slides the column: the current workspace stays in view and the track jumps to its new index. Before, the column jumped to the new workspace and glided back a full screen.
 - A panel's slide and rect events are built with its element's own window's `CustomEvent`. Where the global one is another realm's, the element refused the event and mounting a panel threw; this is a regression fix for the rect events (#475).
 
 ### Changed
