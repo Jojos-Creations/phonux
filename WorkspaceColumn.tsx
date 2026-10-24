@@ -85,9 +85,14 @@ export function WorkspaceColumn({ column, children }: WorkspaceColumnProps): Rea
   if (snap.status === 'ready' && placedAt.current === null) placedAt.current = snap.current;
   if (placedAt.current !== null && snap.current !== placedAt.current) moved.current = true;
   const placed = moved.current;
+  // A workspace added or removed above the current one shifts its index without changing what is shown: the track jumps there.
+  const currentId = snap.workspaces[snap.current]?.id;
+  const shownId = React.useRef(currentId);
+  const reseated = shownId.current === currentId && left.current !== snap.current;
 
   // An inert cell drops the focus inside it; the arrow keys keep working only if focus lands somewhere in the column again.
   React.useLayoutEffect(() => {
+    shownId.current = currentId;
     const was = snap.workspaces[left.current];
     left.current = snap.current;
     const now = snap.workspaces[snap.current];
@@ -103,7 +108,7 @@ export function WorkspaceColumn({ column, children }: WorkspaceColumnProps): Rea
 
   return (
     <Box data-workspace-column="" sx={{ position: 'relative', width: '100%', height: '100%', overflow: 'hidden' }}>
-      <div style={{ height: '100%', transform: `translateY(${-Math.max(snap.current, 0) * 100}%)`, transition: reduced || !placed ? 'none' : `transform ${move.duration}s cubic-bezier(${move.ease.join(',')})` }}>
+      <div style={{ height: '100%', transform: `translateY(${-Math.max(snap.current, 0) * 100}%)`, transition: reduced || !placed || reseated ? 'none' : `transform ${move.duration}s cubic-bezier(${move.ease.join(',')})` }}>
         {snap.workspaces.map((ws, i) => {
           const active = i === snap.current;
           const above = snap.workspaces[i - 1];
