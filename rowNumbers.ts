@@ -147,7 +147,7 @@ export function computeRowNumbers(i: {
     left: leftInset + stacked(bothKs.slice(0, j)),
     right: rightInset + i.gap + stacked(bothKs.slice(j + 1)),
   }));
-  const stops = stepping ? restStops(maxScroll, i.phoneWidth + i.gap, { widths, offsets: leftOffsets, rowMarginLeft, gap: i.gap, windowWidth: stripWindow }) : [];
+  const stops = stepping ? restStops(maxScroll, i.phoneWidth + i.gap, { widths, offsets: leftOffsets, rowMarginLeft, gap: i.gap, windowWidth: stripWindow, phoneWidth: i.phoneWidth }) : [];
   const stepStops = stops;
   const stopSpans = stops.map((at) => spanAt(at, widths, leftOffsets, rowMarginLeft, stripWindow));
   // A panel the row admits is never parked for room, whether it is held or sticks in the strip.
@@ -253,7 +253,7 @@ function tailWidth(widths: readonly number[], gap: number, windowWidth: number):
  * shows whole. A grid stop can miss a panel that fits the window, and a panel must be fully visible at some rest.
  * Ascending, and the last one is `maxScroll`.
  */
-function restStops(maxScroll: number, step: number, g: { widths: readonly number[]; offsets: readonly number[]; rowMarginLeft: number; gap: number; windowWidth: number }): number[] {
+function restStops(maxScroll: number, step: number, g: { widths: readonly number[]; offsets: readonly number[]; rowMarginLeft: number; gap: number; windowWidth: number; phoneWidth: number }): number[] {
   const grid = stepGrid(maxScroll, step);
   const rests = [...grid];
   g.widths.forEach((width, j) => {
@@ -263,8 +263,34 @@ function restStops(maxScroll: number, step: number, g: { widths: readonly number
     const leftover = g.windowWidth - wholeRunWidth(j, g.widths, g.gap, g.windowWidth);
     rests.push(clampTo(left - leftover / 2, 0, maxScroll));
   });
-  rests.sort((a, b) => a - b);
-  return rests.filter((at, k) => k === rests.length - 1 || rests[k + 1]! - at > 1);
+  const flushed = rests.map((at) => flushCutWideRun(at, g, maxScroll));
+  flushed.sort((a, b) => a - b);
+  return flushed.filter((at, k) => k === flushed.length - 1 || flushed[k + 1]! - at > 1);
+}
+
+/**
+ * A rest that cuts a wide panel at one edge gives the cut panel the leftover room: the whole panels the rest shows move flush
+ * against the other edge. Those whole panels are the same ones before and after, so a panel visible whole at `at` stays so.
+ * Returns `at` when no wide panel is cut at exactly one edge, or when the move would cut a normal phone.
+ */
+function flushCutWideRun(at: number, g: { widths: readonly number[]; offsets: readonly number[]; rowMarginLeft: number; gap: number; windowWidth: number; phoneWidth: number }, maxScroll: number): number {
+  const { widths, windowWidth } = g;
+  const lefts = widths.map((_, j) => g.rowMarginLeft + g.offsets[j]! - at);
+  const whole = widths.flatMap((_, j) => (lefts[j]! >= 0 && lefts[j]! + widths[j]! <= windowWidth ? [j] : []));
+  if (whole.length === 0) return at;
+  const cutLeft = widths.some((width, j) => width > g.phoneWidth && lefts[j]! < 0 && lefts[j]! + width > 0);
+  const cutRight = widths.some((width, j) => width > g.phoneWidth && lefts[j]! < windowWidth && lefts[j]! + width > windowWidth);
+  if (cutLeft === cutRight) return at;
+  const first = whole[0]!;
+  const last = whole[whole.length - 1]!;
+  const runLeft = g.rowMarginLeft + g.offsets[first]!;
+  const runRight = g.rowMarginLeft + g.offsets[last]! + widths[last]!;
+  const flushed = clampTo(cutLeft ? runRight - windowWidth : runLeft, 0, maxScroll);
+  const phoneCut = widths.some((width, j) => {
+    const left = g.rowMarginLeft + g.offsets[j]! - flushed;
+    return width <= g.phoneWidth && ((left < 0 && left + width > 0) || (left < windowWidth && left + width > windowWidth));
+  });
+  return phoneCut ? at : flushed;
 }
 
 function clampTo(value: number, low: number, high: number): number {
