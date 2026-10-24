@@ -7,6 +7,14 @@
 - A panel's box is reported while it moves: `usePanelSliding()` and the `onPanelRect` input give each panel's rect during a slide, a drag, a resize and a row scroll, and one `settled` report at rest. A slide now fires a capture before it starts, under the default snapshot policy, so a host that passes a capture trigger sees one more capture per slide.
 - An `edgeHold: 'both'` panel no longer shares its row with a cap: any number of them may stick, and when scroll pins two to the same edge they stack in row order, a gap apart, with the outermost nearest the window edge. A panel with no room beside the others lets go and scrolls normally, as before.
 
+### Fixed
+
+- A panel's slide and rect events are built with its element's own window's `CustomEvent`. Where the global one is another realm's, the element refused the event and mounting a panel threw; this is a regression fix for the rect events (#475).
+
+### Changed
+
+- A touch on a drag-to-close grab bar no longer drags the panel, so a touch always scrolls the page and never closes the panel. Before, a touch that held for 250 ms could drag it. A mouse or pen drag is unchanged.
+
 ## 0.2.0-rc.4
 
 ### Breaking

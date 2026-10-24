@@ -328,7 +328,7 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
     capParkedRef.current = [...capParkedRef.current.filter((id) => !parked.includes(id)), ...parked];
   }
   useLayoutEffect(() => {
-    if (panels !== rawPanels) setPanels(panels);
+    if (panels !== rawPanels) setPanels((current) => settleKeeping(settleEnv, current, acted));
   });
   // Filters over the whole list, never an array position: a panel anchored left of History changes none of these.
   const stopsOnGrid = tuning.rowGesture === 'step';
