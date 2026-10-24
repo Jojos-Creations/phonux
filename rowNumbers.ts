@@ -130,12 +130,20 @@ export function computeRowNumbers(i: {
   if (!rowScroll) {
     rowMarginLeft = computeRowLayout({ containerWidth: i.containerWidth, phoneWidth: i.phoneWidth, gap: i.gap, fixedItemCount, liveWidths: present.flatMap((p, k) => (p.collapsible ? [allWidths[k]!] : [])) }).computedRowMarginLeft;
   } else if (stepping) {
-    rowMarginLeft = Math.max(0, (stripWindow - wholeRunWidth(0, widths, i.gap, stripWindow)) / 2);
+    // A wide panel cut at an end takes the leftover, so the end's whole panels sit flush to the window edge, as at every rest.
+    const head = wholeRunWidth(0, widths, i.gap, stripWindow);
+    const afterHead = widths.findIndex((width, k) => leftOffsets[k]! + width > head);
+    rowMarginLeft = (widths[afterHead] ?? 0) > i.phoneWidth ? 0 : Math.max(0, (stripWindow - head) / 2);
   } else {
     rowMarginLeft = !measured || overflows ? 0 : (stripWindow - stripWidth) / 2;
   }
-  // The tail is centered the same way, so the row's last rest shows its last whole panels with even room on both sides.
-  const endPad = stepping ? Math.max(0, (stripWindow - tailWidth(widths, i.gap, stripWindow)) / 2) : 0;
+  // The tail follows the same rule, so the row's last rest looks like its first.
+  let endPad = 0;
+  if (stepping) {
+    const tail = tailWidth(widths, i.gap, stripWindow);
+    const beforeTail = widths.filter((_, k) => leftOffsets[k]! < stripWidth - tail).length - 1;
+    endPad = (widths[beforeTail] ?? 0) > i.phoneWidth ? 0 : Math.max(0, (stripWindow - tail) / 2);
+  }
   const maxScroll = stepping ? rowMarginLeft + stripWidth + endPad - stripWindow : 0;
   // A 'both' panel keeps clear of the fixed groups and of the 'both' panels that stack on its edge. Scroll pins an earlier one
   // whenever it pins a later one, so the stack on the left runs in row order from the left group, and on the right it runs in
