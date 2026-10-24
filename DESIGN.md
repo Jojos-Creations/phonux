@@ -362,6 +362,14 @@ shows that panel. Steps, `scrollTo`, the initial scroll, a drag released after e
 stops (a resize, a pin, a close, a reorder) all land on a stop; `scrollTo` with `align` `'start'` or `'center'` lands on
 the nearest stop that shows the panel, not at that alignment.
 
+A change that ends the row left of where it is scrolled (a close that brings the whole row into view, or one that shortens
+it) would be clamped by the browser in one jump, in the frame the strip shrinks or the closing slot leaves. So in that commit
+the end element keeps the old scroll range, plus whatever of the centering margin is still to glide in, and it gives the
+range back on each frame of the settle's glide. A row that fits has one rest, 0, and the settle glides there. When the slots
+slid in that change (a close, an open, a reorder) the settle uses the slide's own curve, `slide.ease`, not `glideEase`:
+a panel that both slides and scrolls then moves one way only. A settle after a window resize alone keeps `glideEase`. With
+nothing to glide (reduced motion, or a drag holding the row) the hold is dropped at once.
+
 #### Step stops
 
 `stops` are one rest per step of the one-phone grid, `k * (phone + gap)` from 0. The inner rests move back by the half leftover, and

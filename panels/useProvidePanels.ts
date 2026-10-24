@@ -286,6 +286,9 @@ export interface ProvidedPanels extends PanelsAPI {
   readonly enterSideById: ReadonlyMap<string, 'left' | 'right'>;
 }
 
+/** Which panels the row draws and where in the strip: it changes when a slot slides, and never for a window resize alone. */
+const slotsKey = (n: RowNumbers): string => `${n.ids.join(',')}|${n.leftOffsets.join(',')}`;
+
 /**
  * Builds the `PanelsAPI` an app hands its views. The provider owns the panel list, seeded once from `initialEntries`.
  * Call it with this render's inputs and never memoise the result: its handlers close over this render's list.
@@ -503,23 +506,36 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
     }
   };
 
+  // The slots the last commit drew, read by the settle below before this commit's are recorded.
+  const drawnSlotsRef = useRef('');
   // The window, a pin, a close or a reorder moves the stops: a row left between two is brought to the nearest one.
   // The glide's own target is the base, so a settle never fights a step in flight. Never while a drag holds the row.
   useLayoutEffect(() => {
     const el = i.overflowContainerRef.current;
-    if (el === null || tuning.rowGesture !== 'step' || rowNumbers.stepStops.length === 0) return;
+    if (el === null || tuning.rowGesture !== 'step' || !Number.isFinite(rowNumbers.windowWidth)) return;
     const scroller = rowScrollerFor(el);
     // A resize's settle owns the rest while its margin glides; a stop that moved in that wait is settled onto when it ends.
     if (scroller.claimHeld() || scroller.settling()) return;
     const base = scroller.glideTarget() ?? scroller.scrollLeft();
+    // When the slots slid (a close, an open, a reorder) the settle rides their own curve: on another, a panel that both slides and
+    // scrolls lurches back and forth.
+    const ease = slotsKey(rowNumbers) === drawnSlotsRef.current ? tuning.slide.glideEase : ([...tuning.slide.ease] as [number, number, number, number]);
+    // A row that fits has one rest, 0: a close that brings the whole row into view glides there with the close.
+    if (rowNumbers.stepStops.length === 0) {
+      if (base >= 0.5) scroller.glideTo(0, { durationSec: tuning.slide.durationSec, instant: reducedMotion, ease });
+      return;
+    }
     // The settle lands on a step stop, so the next step is a whole phone width; the whole-panel stops can sit between grid points.
     const to = nearestStop({ ...rowNumbers, stops: rowNumbers.stepStops }, base);
     // The first stop is not 0 once another stop needs room left of it; opening the row there is not a movement to animate.
     const opening = !restedRef.current;
     restedRef.current = true;
     if (Math.abs(to - base) < 0.5) return;
-    scroller.glideTo(to, { durationSec: tuning.slide.durationSec, instant: reducedMotion || opening, ease: tuning.slide.glideEase });
+    scroller.glideTo(to, { durationSec: tuning.slide.durationSec, instant: reducedMotion || opening, ease });
   }, [rowNumbers.stepStops.join(','), rowNumbers.stripStart, rowNumbers.endPad]);
+  useLayoutEffect(() => {
+    drawnSlotsRef.current = slotsKey(rowNumbers);
+  });
 
   // The row's wheel/arrow-key gesture is wired here, not in the host, so a host stays free of effects and refs.
   useRowScrollGesture(i.overflowContainerRef, stepRow, timing.gestureLockMs, tuning.rowGesture, tuning.gestureQuietMs, i.phoneWidth + tuning.rowGap);
