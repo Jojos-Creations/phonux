@@ -7,7 +7,7 @@ import assert from 'node:assert/strict';
 import './support/jsdom-globals.js';
 import { act, createElement } from 'react';
 import { PanelHeaderMenu, type PanelHeaderMenuProps, type Pinning, type PanelSettings } from '../index.js';
-import { cleanup } from './support/mount-harness.js';
+import { advanceFrames, cleanup } from './support/mount-harness.js';
 import { headerRig, type HeaderRig } from './support/header-rig.js';
 
 afterEach(() => {
@@ -109,4 +109,13 @@ test('menu: closing the menu without a pin returns focus to the move button', as
   const move = moveButton(rig, 'a');
   assert.ok(move !== null && document.activeElement === move, 'focus returned to the move button');
   assert.equal(rig.state('a').pinned, false, 'closing pins nothing');
+});
+
+test('menu: after a pin, focus lands on the move button once the header is back', async () => {
+  const rig = await withMenu({ pinning: FIX });
+  const entry = await openMenu(rig, 'a');
+  act(() => void entry.click());
+  await advanceFrames(300);
+  const move = moveButton(rig, 'a');
+  assert.ok(move !== null && document.activeElement === move, 'focus is on the move button after the pin');
 });

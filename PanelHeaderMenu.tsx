@@ -19,7 +19,7 @@ import { resolveLabels } from './labels.js';
 import { usePanelCapabilities, usePanelPinned } from './PanelRow.js';
 import { usePanelDragProps } from './panelChrome.js';
 import { PanelSlotContext, type PanelSlotValue } from './panelSlotContext.js';
-import { quietly } from './quietMove.js';
+import { focusMoveWhenBack, quietly } from './quietMove.js';
 import type { ViewHandle } from './panelTemplate.js';
 
 /** The slot's handle plus the pin verbs. The row types its handle with the members it reads; the verbs are on the same object. */
@@ -69,7 +69,10 @@ export function PanelHeaderMenu({ onPinChange }: PanelHeaderMenuProps = {}): Rea
   const togglePin = (): void => {
     closeMenu();
     const verb = pinned ? 'unpin' : 'pin';
+    const rowId = moveRef.current?.closest<HTMLElement>('[data-row-id]')?.dataset.rowId;
     const result = quietly(() => handle[verb]('person'));
+    // A pin can drop the header slot for a render, so the move button is found again over the next frames.
+    if (rowId !== undefined) focusMoveWhenBack(rowId);
     if (!result.ok) announce?.(pinned ? labels.unpinFailed : labels.pinFailed);
     onPinChange?.(verb, result.ok);
   };
