@@ -6,7 +6,7 @@ import { test, afterEach, mock } from 'node:test';
 import assert from 'node:assert/strict';
 import './support/jsdom-globals.js';
 import { act, createElement } from 'react';
-import { PanelHeaderMenu, type Pinning, type PanelSettings } from '../index.js';
+import { PanelHeaderMenu, type PanelHeaderMenuProps, type Pinning, type PanelSettings } from '../index.js';
 import { cleanup } from './support/mount-harness.js';
 import { headerRig, type HeaderRig } from './support/header-rig.js';
 
@@ -84,4 +84,29 @@ test('menu: it draws in the header slot only, and the panel body holds none of i
   const body = rig.m.container.querySelector<HTMLElement>('[data-slot="a"]');
   assert.ok(body, 'the panel body rendered');
   assert.equal(body.querySelector('[data-panel-header-menu]'), null, 'nothing drawn inside the body');
+});
+
+test('menu: a pin or unpin from the menu reports to onPinChange with the verb and whether it applied', async () => {
+  const calls: Array<[string, boolean]> = [];
+  const rig = await headerRig({ ids: ['a'], actions: createElement<PanelHeaderMenuProps>(PanelHeaderMenu, { onPinChange: (verb, ok) => calls.push([verb, ok]) }), settings: { a: { pinning: FIX } } });
+  let entry = await openMenu(rig, 'a');
+  act(() => void entry.click());
+  await wait();
+  entry = await openMenu(rig, 'a');
+  act(() => void entry.click());
+  await wait();
+  assert.deepEqual(calls, [
+    ['pin', true],
+    ['unpin', true],
+  ]);
+});
+
+test('menu: closing the menu without a pin returns focus to the move button', async () => {
+  const rig = await withMenu({ pinning: FIX });
+  await openMenu(rig, 'a');
+  act(() => void document.querySelector<HTMLElement>('[role="menu"]')!.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true })));
+  await wait();
+  const move = moveButton(rig, 'a');
+  assert.ok(move !== null && document.activeElement === move, 'focus returned to the move button');
+  assert.equal(rig.state('a').pinned, false, 'closing pins nothing');
 });

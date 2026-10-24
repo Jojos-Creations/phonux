@@ -96,7 +96,7 @@ export type { PanelRowDrop } from './usePanelRowDrop.js';
 export { slideToTransition } from './directionalTransition.js';
 export { GAP, PANEL_TRANSITION, PanelSizeBox } from './PanelRowSlot.js';
 export { PanelHeaderButtons, usePanelHeaderButtons } from './panelHeaderButtons.js';
-export { PanelHeaderMenu } from './PanelHeaderMenu.js';
+export { PanelHeaderMenu, type PanelHeaderMenuProps } from './PanelHeaderMenu.js';
 export { PanelFooter } from './panelFooter.js';
 export { useClosedPages } from './closedPagesList.js';
 export type { ClosedPagesList, ClosedPagesStorage, UseClosedPagesOptions } from './closedPagesList.js';

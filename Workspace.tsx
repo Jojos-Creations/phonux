@@ -25,6 +25,7 @@ import { AwayContext, createAwayStore } from './panelAway.js';
 import { rowBottomReservePx } from './panelChromeSize.js';
 import { ROW_GAP } from './rowConstants.js';
 import { nearestStop, scrollHoldingEdge, snapToStop, type RowNumbers } from './rowNumbers.js';
+import { isQuietly } from './quietMove.js';
 import { rowScrollerFor } from './rowScroller.js';
 import { OverlaySlot } from './windowOverlay.js';
 
@@ -378,7 +379,7 @@ export function Workspace(props: WorkspaceProps): React.ReactElement {
       const n = rowNumbers;
       // A held panel is in view at every scroll, so focusing it moves nothing.
       if ((event.target as Element | null)?.closest('[data-row-edge]') != null) return;
-      if (n.stops.length === 0) return;
+      if (n.stops.length === 0 || isQuietly()) return;
       const id = (event.target as Element | null)?.closest<HTMLElement>('[data-row-slot]')?.dataset.rowId;
       const k = n.ids.indexOf(id ?? '');
       requestAnimationFrame(() => {

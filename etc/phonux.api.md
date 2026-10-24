@@ -626,7 +626,12 @@ export interface PanelHeaderIconItem extends PanelHeaderButtonItemBase {
 }
 
 // @public
-export function PanelHeaderMenu(): React_2.JSX.Element | null;
+export function PanelHeaderMenu(input?: PanelHeaderMenuProps): React_2.JSX.Element | null;
+
+// @public
+export interface PanelHeaderMenuProps {
+    onPinChange?: (verb: 'pin' | 'unpin', ok: boolean) => void;
+}
 
 // @public
 export interface PanelHeaderProps extends Omit<BoxProps, 'children'> {

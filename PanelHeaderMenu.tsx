@@ -19,6 +19,7 @@ import { resolveLabels } from './labels.js';
 import { usePanelCapabilities, usePanelPinned } from './PanelRow.js';
 import { usePanelDragProps } from './panelChrome.js';
 import { PanelSlotContext, type PanelSlotValue } from './panelSlotContext.js';
+import { quietly } from './quietMove.js';
 import type { ViewHandle } from './panelTemplate.js';
 
 /** The slot's handle plus the pin verbs. The row types its handle with the members it reads; the verbs are on the same object. */
@@ -26,16 +27,22 @@ type SlotHandle = NonNullable<PanelSlotValue['handle']> & Pick<ViewHandle, 'pin'
 
 const INHERIT = { color: 'inherit' } as const;
 
+/** The props of `PanelHeaderMenu`. @public */
+export interface PanelHeaderMenuProps {
+  /** Called once a Pin or Unpin from the menu has been applied or refused: `ok` is whether the panel's pin changed. */
+  onPinChange?: (verb: 'pin' | 'unpin', ok: boolean) => void;
+}
+
 /**
  * The header controls of the panel the call is made in, meant for the header slot (the `actions` of `Panel`, or of
- * `PanelHeaderRow`). It takes no props. It draws nothing outside a panel row.
+ * `PanelHeaderRow`). It draws nothing outside a panel row.
  *
  * The move menu shows when the panel is movable or pinned and holds one entry, Pin or Unpin, which reads the panel's pinned
- * state; the X shows when the panel is closable. A refused pin or
- * unpin is announced through the workspace's live region.
+ * state; the X shows when the panel is closable. The pin never scrolls the row, and focus returns to the move button without
+ * the row reading it as a choice. A refused pin or unpin is announced through the workspace's live region.
  * @public
  */
-export function PanelHeaderMenu(): React.JSX.Element | null {
+export function PanelHeaderMenu({ onPinChange }: PanelHeaderMenuProps = {}): React.JSX.Element | null {
   const labels = resolveLabels(useOptionalHost()?.labels);
   const announce = React.useContext(AnnounceContext);
   const { onClose } = usePanelDragProps();
@@ -43,14 +50,28 @@ export function PanelHeaderMenu(): React.JSX.Element | null {
   const pinned = usePanelPinned();
   const handle = React.useContext(PanelSlotContext)?.handle as SlotHandle | undefined;
   const [anchor, setAnchor] = React.useState<HTMLElement | null>(null);
+  const moveRef = React.useRef<HTMLButtonElement>(null);
+  const [returnFocus, setReturnFocus] = React.useState(false);
+  // Focus goes back in the layout effect of the render that closes the menu: its focus trap is off by then, and the row is quiet.
+  React.useLayoutEffect(() => {
+    if (!returnFocus) return;
+    setReturnFocus(false);
+    quietly(() => moveRef.current?.focus({ preventScroll: true }));
+  }, [returnFocus]);
   // A pinned panel reads as not movable, and its Unpin entry must stay reachable.
   const showMove = movable || pinned;
   if (handle === undefined || (onClose === undefined && !showMove)) return null;
 
-  const togglePin = (): void => {
+  const closeMenu = (): void => {
     setAnchor(null);
-    const result = pinned ? handle.unpin('person') : handle.pin('person');
+    setReturnFocus(true);
+  };
+  const togglePin = (): void => {
+    closeMenu();
+    const verb = pinned ? 'unpin' : 'pin';
+    const result = quietly(() => handle[verb]('person'));
     if (!result.ok) announce?.(pinned ? labels.unpinFailed : labels.pinFailed);
+    onPinChange?.(verb, result.ok);
   };
 
   return (
@@ -58,6 +79,7 @@ export function PanelHeaderMenu(): React.JSX.Element | null {
       {showMove ? (
         <>
           <IconButton
+            ref={moveRef}
             size="small"
             aria-label={labels.move}
             aria-haspopup="menu"
@@ -68,7 +90,7 @@ export function PanelHeaderMenu(): React.JSX.Element | null {
           >
             <ControlCameraIcon fontSize="small" />
           </IconButton>
-          <Menu open={anchor !== null} anchorEl={anchor} onClose={() => setAnchor(null)}>
+          <Menu open={anchor !== null} anchorEl={anchor} onClose={closeMenu} disableRestoreFocus>
             <MenuItem data-panel-pin-toggle="" onClick={togglePin}>
               <ListItemIcon>{pinned ? <PushPinIcon fontSize="small" /> : <PushPinOutlinedIcon fontSize="small" />}</ListItemIcon>
               {pinned ? labels.unpin : labels.pin}
