@@ -254,7 +254,14 @@ function tailWidth(widths: readonly number[], gap: number, windowWidth: number):
  * Ascending, and the last one is `maxScroll`.
  */
 function restStops(maxScroll: number, step: number, g: { widths: readonly number[]; offsets: readonly number[]; rowMarginLeft: number; gap: number; windowWidth: number }): number[] {
-  const grid = stepGrid(maxScroll, step);
+  // Option (b): a grid rest that cannot center its whole panels is skipped; the first and the last rest always stay.
+  const grid = stepGrid(maxScroll, step).filter((at) => {
+    if (at <= 0 || at >= maxScroll) return true;
+    const { first } = spanAt(at, g.widths, g.offsets, g.rowMarginLeft, g.windowWidth);
+    const leftover = g.windowWidth - wholeRunWidth(first, g.widths, g.gap, g.windowWidth);
+    const sitsAt = g.rowMarginLeft + g.offsets[first]! - at;
+    return Math.abs(sitsAt - leftover / 2) <= 1;
+  });
   const rests = [...grid];
   g.widths.forEach((width, j) => {
     if (width > g.windowWidth) return;
