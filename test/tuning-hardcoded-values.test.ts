@@ -186,7 +186,7 @@ test('glideEase: the settle after a resize that moves the stops glides along the
     m.scroller.glideTo(1452, { durationSec: 0, instant: true, ease: 'linear' });
     m.rerender(1500);
     const target = m.scroller.glideTarget();
-    assert.equal(target, 952, 'control: the row is brought to the new last stop');
+    assert.equal(target, 952, 'control: the row is brought to the new last stop, 2420 - 1468');
     await advanceFrames(25 * 16);
     const fraction = (1452 - m.container.scrollLeft) / (1452 - 952);
     cleanup();

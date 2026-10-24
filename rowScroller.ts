@@ -40,6 +40,10 @@ export interface RowScroller {
   subscribe(listener: () => void): () => void;
   /** True while a claim is held. Asked instead of probing with `claim()`, which would end a glide in flight. */
   claimHeld(): boolean;
+  /** True while a resize's settle waits for the margin to glide: the settle, not a change of stops, decides where the row rests. */
+  settling(): boolean;
+  /** Marks or unmarks that wait. */
+  setSettling(on: boolean): void;
 }
 
 // A scroll event this far from the last value written is somebody else's; browsers round a fractional write.
@@ -78,6 +82,7 @@ function createRowScroller(el: HTMLElement): RowScroller {
   // Read back after every own write: the browser rounds and clamps, and the scroll event it fires later reports that value.
   let lastWritten = el.scrollLeft;
   let inputs = 0;
+  let settleWait = false;
 
   const listeners = new Set<() => void>();
   const notify = (): void => {
@@ -159,6 +164,10 @@ function createRowScroller(el: HTMLElement): RowScroller {
         if (!listeners.delete(listener) || listeners.size > 0) return;
         el.removeEventListener('scroll', notify);
       };
+    },
+    settling: () => settleWait,
+    setSettling(on) {
+      settleWait = on;
     },
     stop,
     claim(options) {

@@ -7,7 +7,7 @@ import * as React from 'react';
 import { useReducedMotion, useReducedMotionConfig } from 'motion/react';
 import type { ResolvedWorkspaceTuning } from './panelSettings.js';
 import { centreScroll, dotLayout, dotMap, dragScroll } from './rowDots.js';
-import { maxScrollOf, type RowNumbers } from './rowNumbers.js';
+import { maxScrollOf, snapToStop, type RowNumbers } from './rowNumbers.js';
 import { rowScrollerFor, type ScrollClaim } from './rowScroller.js';
 
 /** What the bar draws and where: `dots` and `oval` in track px, from the left edge of the track. @public */
@@ -72,7 +72,10 @@ export function usePanelDots(i: {
     rowScrollerFor(el).noteInput();
     const target = centreScroll({ index, leftOffsets: n.leftOffsets, widths: n.widths, windowWidth: n.stripWindow, maxScroll });
     if (target === null) return;
-    rowScrollerFor(el).glideTo(Math.min(maxScroll, target + n.stripStart), { durationSec: tuning.slide.durationSec, instant: reduced, ease: tuning.slide.glideEase });
+    // A stepping row rests on its stops only, so the dot's rest is the stop that shows the panel, not the margin-shifted centre.
+    // Numbers built by hand may omit the stops; such a row has none to snap to.
+    const at = Math.min(maxScroll, target + n.stripStart);
+    rowScrollerFor(el).glideTo(n.stops?.length ? snapToStop(n, index, at) : at, { durationSec: tuning.slide.durationSec, instant: reduced, ease: tuning.slide.glideEase });
   };
 
   const startOvalDrag = () => {

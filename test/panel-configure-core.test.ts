@@ -1059,6 +1059,7 @@ test('configureTuning rowGap in a scrolling row only re-prices: nothing is parke
   assert.equal(r.m.renders() - renders, 1, 'one commit');
   r.turn(() => r.h.j!.scrollTo('start'));
   await r.settle();
+  // At gap 0 the row ends flush, so the bound is 4290 - 1000.
   assert.equal(r.m.container.scrollLeft, 3290, 'a scroll to the last panel stops at the new bound, not the old 3482');
 });
 

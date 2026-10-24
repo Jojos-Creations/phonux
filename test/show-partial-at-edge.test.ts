@@ -26,7 +26,7 @@ const mounted = () => {
   const layout = (): void => {
     const scroll = m.container.scrollLeft;
     slots().forEach((el, k) => {
-      el.getBoundingClientRect = () => rect(16 + 86 + 406 * k - scroll, 390);
+      el.getBoundingClientRect = () => rect(16 + 406 * k - scroll, 390);
     });
     act(() => void m.container.dispatchEvent(new Event('scroll')));
   };
@@ -45,8 +45,8 @@ test('a drag that holds the row leaves reach alone, and it catches up after the 
   const before = t.inert();
   const claim = t.m.scroller.claim();
   assert.ok(claim, 'the scroller gave its claim');
-  claim.setMaxScroll(1624);
-  claim.write(406);
+  claim.setMaxScroll(1452);
+  claim.write(320);
   t.layout();
   assert.deepEqual(t.inert(), before, 'positive control: the row moved, reach did not');
   claim.release();
@@ -59,7 +59,7 @@ test('Off: a step moves one stop and the panel just past the window stays drawn 
   mock.timers.enable({ apis: ['setTimeout'] });
   t.m.wheel({ deltaX: 50 });
   await advanceFrames(GLIDE_DONE_MS);
-  assert.equal(t.m.container.scrollLeft, 406);
+  assert.equal(t.m.container.scrollLeft, 320, 'the second stop is 406 less the 86 centering shift');
   t.layout();
   assert.deepEqual(t.filters(), ['', '', '', '', '', '']);
   assert.deepEqual(t.inert(), [false, false, false, false, true, true], 'panels cut by either edge are not inert; one the window never reaches is');
@@ -80,13 +80,13 @@ test('Off: focusing the cut-off neighbour makes the browser scroll, and the row 
 test('a panel the window cuts to less than a gap is hidden, and one showing a full gap is drawn', () => {
   const t = mounted();
   const shown = (): string[] => t.slots().map((el) => el.style.visibility);
-  assert.deepEqual(shown(), ['', '', 'hidden', '', '', ''], 'positive control: at the first stop the cut-off neighbour shows 86 px, more than a gap, and is still not drawn');
-  // The first panel's right edge sits at 492 - scroll, so these leave 15 px and then 16 px of it in the window.
-  t.m.container.scrollLeft = 477;
+  assert.deepEqual(shown(), ['', '', 'hidden', '', '', ''], 'positive control: at the first stop the cut-off neighbour shows 172 px, more than a gap, and is still not drawn');
+  // The first panel's right edge sits at 406 - scroll, so these leave 15 px and then 16 px of it in the window.
+  t.m.container.scrollLeft = 391;
   t.layout();
   assert.equal(shown()[0], 'hidden', 'a 15 px peek is a sliver');
   assert.equal(t.inert()[0], false, 'still reachable: hidden is drawing only');
-  t.m.container.scrollLeft = 476;
+  t.m.container.scrollLeft = 390;
   t.layout();
   assert.equal(shown()[0], '', 'a 16 px peek is drawn');
   assert.equal(shown()[1], '');
@@ -94,7 +94,7 @@ test('a panel the window cuts to less than a gap is hidden, and one showing a fu
 
 test('a hidden sliver that slides into view without a scroll, as after a close, is drawn again', async () => {
   const t = mounted();
-  t.m.container.scrollLeft = 477;
+  t.m.container.scrollLeft = 391;
   t.layout();
   assert.equal(t.slots()[0]!.style.visibility, 'hidden', 'positive control: a 15 px peek starts hidden');
   // A render starts the follow-through; the slot then slides fully into the window with no scroll event.
@@ -106,7 +106,7 @@ test('a hidden sliver that slides into view without a scroll, as after a close, 
 
 test('a hidden sliver that a held drag slides into view is drawn while the drag still holds the row', async () => {
   const t = mounted();
-  t.m.container.scrollLeft = 477;
+  t.m.container.scrollLeft = 391;
   t.layout();
   assert.equal(t.slots()[0]!.style.visibility, 'hidden', 'positive control: a 15 px peek starts hidden');
   await advanceFrames(GLIDE_DONE_MS);
@@ -140,7 +140,7 @@ const mountedFourFit = () => {
 
 test('when four phone slots fit, the fifth is cut by the window edge and is not drawn, though 60 px of it shows', () => {
   const t = mountedFourFit();
-  assert.deepEqual(t.m.latest().rowNumbers.stops.slice(0, 2), [0, 406], 'positive control: the row steps one phone width at a time');
+  assert.deepEqual(t.m.latest().rowNumbers.stops.slice(0, 3), [0, 376, 782], 'positive control: the row steps one phone width between inner stops, less the 30 centering shift off 0');
   assert.deepEqual(t.shown().slice(0, 6), ['', '', '', '', 'hidden', ''], 'the four whole slots draw, the cut fifth does not');
   assert.equal(t.slots()[4]!.hasAttribute('inert'), false, 'hidden is drawing only: the cut slot stays reachable');
 });
@@ -151,7 +151,7 @@ test('a slot that slides out of the window while the row glides keeps drawing un
   t.m.container.scrollLeft = 200;
   t.layout();
   assert.equal(t.shown()[0], '', 'the first slot is cut at its left edge off a stop and still draws');
-  t.m.container.scrollLeft = 406;
+  t.m.container.scrollLeft = 376;
   t.layout();
   assert.equal(t.shown()[5], 'hidden', 'the sixth slot is the cut neighbour at the second stop and does not draw');
   assert.deepEqual(t.shown().slice(1, 5), ['', '', '', ''], 'the four whole slots draw');

@@ -420,15 +420,15 @@ async function scrolled(settings: Record<string, PanelSettings>, from: number, p
 
 test('scrollTo scrolls to the literal target of each align, reads scrollOnOpen when no align is given, and is never busy', async () => {
   const at = (align: 'into-view' | 'start' | 'center') => scrolled({}, 0, () => undefined, (r) => r.h.d!.scrollTo(align));
-  assert.deepEqual(await at('into-view'), { result: 'T', left: 812 }, 'd needs 608 to be whole; the stop that shows it is 812');
-  assert.deepEqual(await at('start'), { result: 'T', left: 1218 });
-  assert.deepEqual(await at('center'), { result: 'T', left: 812 }, 'centred d is at 913, nearer the stop 812 than 1218');
+  assert.deepEqual(await at('into-view'), { result: 'T', left: 726 }, 'd needs 640 to be whole; the stop that shows it is 726');
+  assert.deepEqual(await at('start'), { result: 'T', left: 1132 }, 'd starts at 1218, nearest the stop 1132');
+  assert.deepEqual(await at('center'), { result: 'T', left: 726 }, 'centered d is at 929, as near 726 as 1132, and the earlier stop wins');
   const byDefault = async (scrollOnOpen: string) => scrolled({ d: { scrollOnOpen } as unknown as PanelSettings }, 0, () => undefined, (r) => r.h.d!.scrollTo());
-  assert.deepEqual(await byDefault('start'), { result: 'T', left: 1218 });
-  assert.deepEqual(await byDefault('center'), { result: 'T', left: 812 });
-  assert.deepEqual(await byDefault('none'), { result: 'T', left: 812 }, 'none reads as into-view for an explicit scrollTo');
-  assert.deepEqual(await scrolled({}, 812, () => undefined, (r) => r.h.d!.scrollTo('into-view')), { result: 'F', left: 812 }, 'already there');
-  assert.deepEqual(await scrolled({}, 640, () => undefined, (r) => r.h.d!.scrollTo('into-view')), { result: 'T', left: 812 }, 'at 640 d is whole but the row rests on a stop, so it still glides to 812');
+  assert.deepEqual(await byDefault('start'), { result: 'T', left: 1132 });
+  assert.deepEqual(await byDefault('center'), { result: 'T', left: 726 });
+  assert.deepEqual(await byDefault('none'), { result: 'T', left: 726 }, 'none reads as into-view for an explicit scrollTo');
+  assert.deepEqual(await scrolled({}, 726, () => undefined, (r) => r.h.d!.scrollTo('into-view')), { result: 'F', left: 726 }, 'already there');
+  assert.deepEqual(await scrolled({}, 640, () => undefined, (r) => r.h.d!.scrollTo('into-view')), { result: 'T', left: 726 }, 'at 640 d is whole but the row rests on a stop, so it still glides to 726');
   const r = await freeRig({ ids: ['a', 'b', 'c', 'd', 'e', 'f'], width: 1000 });
   const mixed = r.turn(() => [brief(r.h.a!.close()), brief(r.h.d!.scrollTo()), brief(r.h.a!.scrollTo())]);
   assert.deepEqual(mixed, ['T', 'T', 'F'], 'a close in the same turn does not make scrollTo busy, on another panel or on the closing one');
@@ -437,11 +437,11 @@ test('scrollTo scrolls to the literal target of each align, reads scrollOnOpen w
 test('scrollOnMove: an accepted move, place or setSlots on an in-view panel follows it; out of view and none record nothing', async () => {
   const all = (scrollOnMove: string): Record<string, PanelSettings> => Object.fromEntries(['a', 'b', 'c', 'd', 'e', 'f'].map((id) => [id, { scrollOnMove } as PanelSettings]));
   const none = () => undefined;
-  assert.deepEqual(await scrolled(all('follow'), 0, none, (r) => r.h.b!.move(1)), { result: 'T', left: 406 }, 'b moves right past c and ends inside the window, at the stop that shows it');
+  assert.deepEqual(await scrolled(all('follow'), 0, none, (r) => r.h.b!.move(1)), { result: 'T', left: 320 }, 'b moves right past c and ends inside the window, at the stop that shows it');
   assert.deepEqual(await scrolled(all('none'), 0, none, (r) => r.h.b!.move(1)), { result: 'T', left: 0 });
-  assert.deepEqual(await scrolled(all('follow'), 0, none, (r) => r.h.b!.place('row-end')), { result: 'T', left: 1452 });
+  assert.deepEqual(await scrolled(all('follow'), 0, none, (r) => r.h.b!.place('row-end')), { result: 'T', left: 1452 }, 'the row end is the last stop, 2420 - 968');
   assert.deepEqual(await scrolled(all('none'), 0, none, (r) => r.h.b!.place('row-end')), { result: 'T', left: 0 });
-  assert.deepEqual(await scrolled(all('follow'), 0, none, (r) => r.h.c!.setSlots(2)), { result: 'T', left: 812 }, 'c grows to 796 px and starts at 812: the stop that shows it whole');
+  assert.deepEqual(await scrolled(all('follow'), 0, none, (r) => r.h.c!.setSlots(2)), { result: 'T', left: 726 }, 'c grows to 796 px at 812 to 1608: the stop that shows it whole is 726');
   assert.deepEqual(await scrolled(all('none'), 0, none, (r) => r.h.c!.setSlots(2)), { result: 'T', left: 0 });
   assert.deepEqual(await scrolled(all('follow'), 0, none, (r) => r.h.e!.setSlots(2)), { result: 'T', left: 0 }, 'e is out of view: no request');
 });
@@ -449,7 +449,7 @@ test('scrollOnMove: an accepted move, place or setSlots on an in-view panel foll
 test('scrollOnOpen: open() and show() record one request and the row scrolls to the literal target', async () => {
   const layer = (scrollOnOpen?: string): Record<string, PanelSettings> => ({ d: scrollOnOpen === undefined ? {} : ({ scrollOnOpen } as unknown as PanelSettings) });
   const park = (r: FreeRig): void => void r.turn(() => r.h.d!.hide());
-  for (const [align, left] of [['into-view', 812], ['start', 1218], ['center', 812], [undefined, 812]] as const) {
+  for (const [align, left] of [['into-view', 726], ['start', 1132], ['center', 726], [undefined, 726]] as const) {
     assert.deepEqual(await scrolled(layer(align), 0, park, (r) => r.h.d!.show()), { result: 'T', left }, `show of a parked panel: ${align ?? 'default'}`);
     assert.deepEqual(await scrolled(layer(align), 0, () => undefined, (r) => r.h.d!.show()), { result: 'T', left }, `show of a live panel out of view: ${align ?? 'default'}`);
   }
@@ -458,7 +458,7 @@ test('scrollOnOpen: open() and show() record one request and the row scrolls to 
   assert.deepEqual(await scrolled({}, 0, () => undefined, (r) => r.h.a!.show()), { result: 'F', left: 0 }, 'a live panel in view: nothing recorded');
   assert.deepEqual(await scrolled({}, 0, () => undefined, (r) => r.h.a!.hide()), { result: 'T', left: 0 }, 'hide records none');
   const closed = (r: FreeRig): void => void r.turn(() => r.h.d!.close());
-  assert.deepEqual(await scrolled(layer('start'), 0, closed, (r) => r.h.d!.open()), { result: 'T', left: 1452 }, 'a reopened panel lands at row-end, which clamps to the strip end');
+  assert.deepEqual(await scrolled(layer('start'), 0, closed, (r) => r.h.d!.open()), { result: 'T', left: 1452 }, 'a reopened panel lands at row-end, the last stop: 2420 less the 968 window');
   assert.deepEqual(await scrolled(layer('none'), 0, closed, (r) => r.h.d!.open()), { result: 'T', left: 0 });
 });
 

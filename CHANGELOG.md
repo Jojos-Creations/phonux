@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- A stepping row that overflows rests on one stop per phone-width step again, so a panel of N slots takes N steps to pass. The first and last stops sit flush to the window edges with no empty space after the strip (`endPad` is 0, and `rowMarginLeft` is 0). The stops between them center the slots they show, and those steps are exactly one phone width. rc.4 rested every stop flush left, so the shown panels sat off-center.
 - A scroll asked for while a resize holds the row (a host that clears the resize mark and calls `scrollTo` in the same tick) is kept and runs once the resize settles, where it used to be dropped without a note. A drag still drops one.
 - A panel's box is reported while it moves: `usePanelSliding()` and the `onPanelRect` input give each panel's rect during a slide, a drag, a resize and a row scroll, and one `settled` report at rest. A slide now fires a capture before it starts, under the default snapshot policy, so a host that passes a capture trigger sees one more capture per slide.
 - An `edgeHold: 'both'` panel no longer shares its row with a cap: any number of them may stick, and when scroll pins two to the same edge they stack in row order, a gap apart, with the outermost nearest the window edge. A panel with no room beside the others lets go and scrolls normally, as before.
