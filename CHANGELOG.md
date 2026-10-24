@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.2.0-rc.5
 
 - Closing a panel when the row then fits, or shortens past where it is scrolled, glides the row home with the close. Before, the browser clamped the scroll: closing the last panel faded it and then snapped the row over, and closing the one before it made the last panel lurch. The settle now rides the slide's in-out curve (`slide.ease`) whenever the slots slid in the same change; a settle after a window resize alone keeps `glideEase`.
 - A stepping row that overflows rests on one stop per phone-width step again, so a panel of N slots takes N steps to pass. The first and last stops sit flush to the window edges with no empty space after the strip (`endPad` is 0, and `rowMarginLeft` is 0). The stops between them center the slots they show, and those steps are exactly one phone width. rc.4 rested every stop flush left, so the shown panels sat off-center.
