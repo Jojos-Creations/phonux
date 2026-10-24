@@ -78,7 +78,7 @@ export interface RowNumbers {
 /**
  * The numbers for one row. A row whose entries carry no `overflow: 'scroll'` settings gets the numbers of a row that
  * never scrolls (`computeMaxLiveWidth`, `computeRowLayout`'s margin). A scrolling row draws every entry, sizes each panel from its slots
- * and no wider than the window, and centres only a strip that fits.
+ * and no wider than the window, and centers only a strip that fits.
  * @public
  * @deprecated The provider computes the row's numbers from its tuning; read them as `useProvidePanels(...).rowNumbers`.
  */
@@ -124,8 +124,8 @@ export function computeRowNumbers(i: {
   }
   const overflows = rowScroll && measured && stripWidth > stripWindow;
   const stepping = i.wholePanels === true && overflows;
-  // An overflowing row starts and ends flush at the strip's edges; the dot bar marks the end. Every centering here is between
-  // the held groups' insets, so a held panel stays flush to its edge and the scrolling set centers in what is left.
+  // An overflowing row starts and ends flush at the strip's edges; the dot bar marks the end. A strip that fits centers between
+  // the held groups' insets, so a held panel stays flush to its edge.
   let rowMarginLeft: number;
   if (!rowScroll) {
     rowMarginLeft = computeRowLayout({ containerWidth: i.containerWidth, phoneWidth: i.phoneWidth, gap: i.gap, fixedItemCount, liveWidths: present.flatMap((p, k) => (p.collapsible ? [allWidths[k]!] : [])) }).computedRowMarginLeft;
