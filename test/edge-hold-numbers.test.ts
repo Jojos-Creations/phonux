@@ -107,9 +107,9 @@ test('a held panel reserves its width in reservedWidths, so the capacity is pric
   assert.equal(n.reservedWidths.length, 5, 'four strip panels and the held one');
 });
 
-test('the whole-panel grid of a held row ends on the centered range, so the last stop rests the strip with even room', () => {
+test('the whole-panel grid of a held row is measured in the strip window, and its last stop rests the strip flush at the window edge', () => {
   const n = numbers([scrollRoot(), made('a', { edgeHold: 'left' }), made('b'), made('c'), made('d')], 1000, true);
-  assert.deepEqual(n.stops, [0, 406, 812, maxScrollOf(n)]);
-  assert.equal(n.stops.at(-1), 1218, 'the strip between the held panel and the window edge is 562 wide, centered with 86 each side');
-  assert.equal(snapToStop(n, 2, 500), 406, 'of the stops whose span draws strip panel c, the one nearest the target');
+  assert.deepEqual(n.stops, [0, 320, 726, maxScrollOf(n)], 'the grid less ((562 + 16) mod 406) / 2 = 86, in the 562 between the held panel and the window edge');
+  assert.equal(n.stops.at(-1), 1046, 'the 1608 strip ends flush at the edge of the 562 window: 1608 - 562');
+  assert.equal(snapToStop(n, 2, 500), 320, 'of the stops whose span draws strip panel c, the one nearest the target');
 });

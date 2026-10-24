@@ -233,10 +233,11 @@ test('a mark that begins while the row is gliding holds the edge the panel is dr
     const r = await mountRig(16);
     const stops = stopsOf(r);
     await scrollTo(r, stops[0]!);
-    rowScrollerFor(r.m.container).glideTo(stops[2]!, { durationSec: 0.4, instant: false, ease: 'linear' as never });
+    // Gliding to the far stop puts the six begin points either side of the scroll midway between two stops of the released row.
+    rowScrollerFor(r.m.container).glideTo(stops[3]!, { durationSec: 0.4, instant: false, ease: 'linear' as never });
     await frames(wait);
     const mid = r.m.container.scrollLeft;
-    assert.ok(mid > stops[0]! + 5 && mid < stops[2]! - 5, `${wait} ms: the glide is under way: ${mid}`);
+    assert.ok(mid > stops[0]! + 5 && mid < stops[3]! - 5, `${wait} ms: the glide is under way: ${mid}`);
     const drag = await beginDrag(r, 'p2', SLOT(2, 16) - SLOT(1, 16) + 25, 2);
     assert.ok(Math.abs(drag.edge - screenRight(r.m.container, r.ids.p2!)) < 0.5);
     assert.ok(drag.edge > 0 && drag.edge <= r.window, `${wait} ms: the pinned edge is in the window: ${drag.edge}`);
@@ -334,7 +335,8 @@ const SETTLE_WAIT_MS = SLIDE_DURATION_SEC * 1000;
 
 /**
  * A 2932 px window where six slots fit, then the panel grown to three slots: the release adds one stop (0 and the row's end)
- * and moves the centering margin from 240 to 37, so the settle waits. Two slots would leave the margin where it was.
+ * and moves the margin from 240 to 0, since an overflowing row sits flush, so the settle waits. Two slots would still fit and add
+ * no stop.
  */
 async function releaseMovingMargin(r: Rig, id = 'p1', pin: 'start' | 'end' = 'end'): Promise<Drag> {
   const drag = await beginDrag(r, id, SLOT(3, 16) - SLOT(1, 16) + 25, 4, 0, pin);

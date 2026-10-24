@@ -229,16 +229,17 @@ test('first paint never scrolls: panels declared before mount and replayed at se
 });
 
 test('addPanel after ready scrolls to the literal target of scrollOnOpen: into-view, start and center each land on a different stop', async () => {
-  // Eight panels and a 1600 wide window, the new one fourth: the row rests on the one-phone grid (406 px apart), and these
-  // three aligns snap to three different stops (a narrower window leaves two of them on one).
+  // Eight panels and a 1600 wide window, the new one fifth: the row rests on the one-phone grid (406 px apart, less 183), and
+  // these three aligns snap to three different stops (a narrower window leaves two of them on one).
   const shape = { width: 1600, fillers: ['f1', 'f2', 'f3', 'f4', 'f5', 'f6', 'f7', 'f8'], after: 'f4' };
   const into = await addedAt('into-view', shape);
   const start = await addedAt('start', shape);
   const center = await addedAt('center', shape);
   assert.ok(into.at > 0, 'positive control: a request was recorded and the row moved');
-  // The new panel starts at 1823 (16 + the 183 margin of the first whole run + 1624): into-view takes the nearest stop that shows it
-  // whole, 812; start and center land on 1624 and 1218.
-  assert.deepEqual([into.at, center.at, start.at], [812, 1218, 1624]);
+  // The window is 1568 and the strip 3638, so the stops are 0, 223, 629, 1035, 1441, 1847, 2070: the grid less
+  // ((1568 + 16) mod 406) / 2 = 183, then the end. The new panel starts at 1640 (16 + 1624): into-view (446) takes the nearest
+  // stop that shows it whole, 629; center (1035) and start (1624) land on 1035 and 1441.
+  assert.deepEqual([into.at, center.at, start.at], [629, 1035, 1441]);
 });
 
 test('the default scrollOnOpen is the library default', async () => {

@@ -1,6 +1,6 @@
 /**
  * Centering on the one-phone grid. The row is a phone, then one panel of k slots, then six phones; the window shows N phones, so
- * it is N * (phone + gap) - gap wide. The grid is anchored at scroll 0 and never shifted. The panel's left edge at a step stop
+ * it is N * (phone + gap) - gap wide, which leaves no leftover, so the grid from scroll 0 is not shifted. The panel's left edge at a step stop
  * is rowMarginLeft + offset - stop; it centers when that equals (window - width) / 2. Rows are pure, and the phone size is an
  * input, so no width is written in as a literal.
  */
@@ -21,11 +21,10 @@ const made = (id: string, layer: PanelSettings = {}): PanelWindow => {
 };
 
 /**
- * The cells (N visible phones, k slots) whose panel centers on a grid stop. The first whole run is centered, so the panel's
- * offset is that margin plus one phone: k = N - 2 centers at stop 0, and odd N with k = N centers at stop (N + 1) / 2 phones.
- * A panel that fills the window with even N centers on no stop.
+ * The cells (N visible phones, k slots) whose panel centers on a grid stop. The row has no margin, so the panel's offset is one
+ * phone and it centers at stop (1 - (N - k) / 2) phones: k = N - 2 centers at stop 0, and k = N, filling the window, at stop 1.
  */
-const CENTERED = new Set(['3:1', '3:3', '4:2', '5:3', '5:5', '6:4']);
+const CENTERED = new Set(['2:2', '3:1', '3:3', '4:2', '4:4', '5:3', '5:5', '6:4', '6:6']);
 
 test('for N visible phones (2 to 6) and a first panel of k slots (1 to N), the panel centers on a grid stop exactly in the listed cells', () => {
   const centered: string[] = [];
