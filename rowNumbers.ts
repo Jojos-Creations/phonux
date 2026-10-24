@@ -16,7 +16,7 @@ export interface RowNumbers {
   windowWidth: number;
   /** The width of every drawn entry plus one gap between each two. */
   stripWidth: number;
-  /** The row's left margin: centring for a strip that fits, 0 for one that does not. */
+  /** The row's left margin: centering for a strip that fits, 0 for one that does not. */
   rowMarginLeft: number;
   /** The ids of the drawn entries in the strip, in row order. Panels held at an edge are not here; `held` lists them. */
   ids: readonly string[];
@@ -63,15 +63,15 @@ export interface RowNumbers {
   /** The widths of the drawn entries the row may park for room. */
   parkLiveWidths: readonly number[];
   /**
-   * The `scrollLeft` values a stepping row rests on, ascending; the first is 0. They are one phone width apart, and the last
-   * is the row's end (`maxScrollOf`). Empty when the row does not scroll, or its strip fits the window and keeps its centering.
+   * The `scrollLeft` values a stepping row rests on, ascending; the first is 0 and the last is the row's end (`maxScrollOf`).
+   * No two are more than one phone width apart. Empty when the row does not scroll, or its strip fits the window and keeps its centering.
    */
   stops: readonly number[];
   /** The same values as `stops`, under the step's name. Empty when `stops` is. */
   stepStops: readonly number[];
   /** For each stop, the drawn entries it shows: the index of its first one and one past its last. Same order as `stops`. */
   stopSpans: readonly { first: number; end: number }[];
-  /** The space after the strip: the centering pad of the tail's whole panels on a stepping row that overflows, else 0. */
+  /** The space after the strip. 0: an overflowing row ends flush at the window's edge. */
   endPad: number;
 }
 
@@ -124,26 +124,15 @@ export function computeRowNumbers(i: {
   }
   const overflows = rowScroll && measured && stripWidth > stripWindow;
   const stepping = i.wholePanels === true && overflows;
-  // A non-stepping overflowing row starts flush at the strip's left: it has no stops to center on. Every centering here is
-  // between the held groups' insets, so a held panel stays flush to its edge and the scrolling set centers in what is left.
+  // An overflowing row starts and ends flush at the strip's edges; the dot bar marks the end. Every centering here is between
+  // the held groups' insets, so a held panel stays flush to its edge and the scrolling set centers in what is left.
   let rowMarginLeft: number;
   if (!rowScroll) {
     rowMarginLeft = computeRowLayout({ containerWidth: i.containerWidth, phoneWidth: i.phoneWidth, gap: i.gap, fixedItemCount, liveWidths: present.flatMap((p, k) => (p.collapsible ? [allWidths[k]!] : [])) }).computedRowMarginLeft;
-  } else if (stepping) {
-    // A wide panel cut at an end takes the leftover, so the end's whole panels sit flush to the window edge, as at every rest.
-    const head = wholeRunWidth(0, widths, i.gap, stripWindow);
-    const afterHead = widths.findIndex((width, k) => leftOffsets[k]! + width > head);
-    rowMarginLeft = (widths[afterHead] ?? 0) > i.phoneWidth ? 0 : Math.max(0, (stripWindow - head) / 2);
   } else {
     rowMarginLeft = !measured || overflows ? 0 : (stripWindow - stripWidth) / 2;
   }
-  // The tail follows the same rule, so the row's last rest looks like its first.
-  let endPad = 0;
-  if (stepping) {
-    const tail = tailWidth(widths, i.gap, stripWindow);
-    const beforeTail = widths.filter((_, k) => leftOffsets[k]! < stripWidth - tail).length - 1;
-    endPad = (widths[beforeTail] ?? 0) > i.phoneWidth ? 0 : Math.max(0, (stripWindow - tail) / 2);
-  }
+  const endPad = 0;
   const maxScroll = stepping ? rowMarginLeft + stripWidth + endPad - stripWindow : 0;
   // A 'both' panel keeps clear of the fixed groups and of the 'both' panels that stack on its edge. Scroll pins an earlier one
   // whenever it pins a later one, so the stack on the left runs in row order from the left group, and on the right it runs in
@@ -241,64 +230,59 @@ function spanAt(at: number, widths: readonly number[], offsets: readonly number[
   return { first, end };
 }
 
-/** The width of the whole panels a window holds from `first` on: `first` itself, then each next one that still fits. */
-function wholeRunWidth(first: number, widths: readonly number[], gap: number, windowWidth: number): number {
-  let width = widths[first]!;
-  for (let k = first + 1; k < widths.length && width + gap + widths[k]! <= windowWidth; k++) width += gap + widths[k]!;
-  return width;
-}
-
-/** The width of the whole panels at the end of the strip that a window holds, counted back from the last one. */
-function tailWidth(widths: readonly number[], gap: number, windowWidth: number): number {
-  let width = widths[widths.length - 1]!;
-  for (let k = widths.length - 2; k >= 0 && width + gap + widths[k]! <= windowWidth; k--) width += gap + widths[k]!;
-  return width;
-}
-
-
 /**
- * The rests of a stepping row: the one-phone grid, plus a rest centering the whole run that starts at each panel the grid never
- * shows whole. A grid stop can miss a panel that fits the window, and a panel must be fully visible at some rest.
- * Ascending, and the last one is `maxScroll`.
+ * The rests of a stepping row: the one-phone grid, plus a rest at each panel the grid never shows whole, since a panel must be
+ * fully visible at some rest. The ends stay flush to the window edges; every rest between them is placed by `placeRest`.
+ * Ascending; the first is 0 and the last is `maxScroll`.
  */
-function restStops(maxScroll: number, step: number, g: { widths: readonly number[]; offsets: readonly number[]; rowMarginLeft: number; gap: number; windowWidth: number; phoneWidth: number }): number[] {
+function restStops(maxScroll: number, step: number, g: RestGeometry): number[] {
   const grid = stepGrid(maxScroll, step);
   const rests = [...grid];
   g.widths.forEach((width, j) => {
     if (width > g.windowWidth) return;
     const left = g.rowMarginLeft + g.offsets[j]!;
     if (grid.some((at) => left - at >= 0 && left - at + width <= g.windowWidth)) return;
-    const leftover = g.windowWidth - wholeRunWidth(j, g.widths, g.gap, g.windowWidth);
-    rests.push(clampTo(left - leftover / 2, 0, maxScroll));
+    rests.push(clampTo(left, 0, maxScroll));
   });
-  const flushed = rests.map((at) => flushCutWideRun(at, g, maxScroll));
-  flushed.sort((a, b) => a - b);
-  return flushed.filter((at, k) => k === flushed.length - 1 || flushed[k + 1]! - at > 1);
+  const placed = rests.map((at) => (at <= 0 || at >= maxScroll ? at : placeRest(at, g, maxScroll))).sort((x, y) => x - y);
+  const out: number[] = [];
+  for (const at of placed) if (out.length === 0 || at - out[out.length - 1]! > 1) out.push(at);
+  out[out.length - 1] = maxScroll;
+  return out;
+}
+
+interface RestGeometry {
+  widths: readonly number[];
+  offsets: readonly number[];
+  rowMarginLeft: number;
+  gap: number;
+  windowWidth: number;
+  phoneWidth: number;
 }
 
 /**
- * A rest that cuts a wide panel at one edge gives the cut panel the leftover room: the whole panels the rest shows move flush
- * against the other edge. Those whole panels are the same ones before and after, so a panel visible whole at `at` stays so.
- * Returns `at` when no wide panel is cut at exactly one edge, or when the move would cut a normal phone.
+ * Where a rest between the ends sits, keeping the same whole panels the window shows at `at`. A wide panel cut at one edge takes
+ * the leftover room and the whole panels move flush to the other edge; otherwise the leftover splits evenly on both sides.
+ * A flush move that would cut a normal phone centers instead.
  */
-function flushCutWideRun(at: number, g: { widths: readonly number[]; offsets: readonly number[]; rowMarginLeft: number; gap: number; windowWidth: number; phoneWidth: number }, maxScroll: number): number {
+function placeRest(at: number, g: RestGeometry, maxScroll: number): number {
   const { widths, windowWidth } = g;
   const lefts = widths.map((_, j) => g.rowMarginLeft + g.offsets[j]! - at);
   const whole = widths.flatMap((_, j) => (lefts[j]! >= 0 && lefts[j]! + widths[j]! <= windowWidth ? [j] : []));
   if (whole.length === 0) return at;
+  const runLeft = g.rowMarginLeft + g.offsets[whole[0]!]!;
+  const last = whole[whole.length - 1]!;
+  const runRight = g.rowMarginLeft + g.offsets[last]! + widths[last]!;
+  const centered = clampTo(runLeft - (windowWidth - (runRight - runLeft)) / 2, 0, maxScroll);
   const cutLeft = widths.some((width, j) => width > g.phoneWidth && lefts[j]! < 0 && lefts[j]! + width > 0);
   const cutRight = widths.some((width, j) => width > g.phoneWidth && lefts[j]! < windowWidth && lefts[j]! + width > windowWidth);
-  if (cutLeft === cutRight) return at;
-  const first = whole[0]!;
-  const last = whole[whole.length - 1]!;
-  const runLeft = g.rowMarginLeft + g.offsets[first]!;
-  const runRight = g.rowMarginLeft + g.offsets[last]! + widths[last]!;
+  if (cutLeft === cutRight) return centered;
   const flushed = clampTo(cutLeft ? runRight - windowWidth : runLeft, 0, maxScroll);
   const phoneCut = widths.some((width, j) => {
     const left = g.rowMarginLeft + g.offsets[j]! - flushed;
     return width <= g.phoneWidth && ((left < 0 && left + width > 0) || (left < windowWidth && left + width > windowWidth));
   });
-  return phoneCut ? at : flushed;
+  return phoneCut ? centered : flushed;
 }
 
 function clampTo(value: number, low: number, high: number): number {
