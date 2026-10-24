@@ -47,7 +47,7 @@ test('the grid covers every phone width up to the end, and the end is the last s
 });
 
 test('events for one pass across a row at 1280 with a five-slot desktop panel: each step is one phone width', () => {
-  // Count = the steps to the end, printed in the PR body. Five slots cannot fit a 1248 window, so the panel is drawn at the slots that fit.
+  // Five slots cannot fit a 1248 window, so the panel is drawn at the slots that fit.
   const n = numbers([root(), made('desk', { slots: 5 }), made('p1'), made('p2')], 1280);
   const visited = walk(n);
   assert.equal(visited.length - 1, Math.ceil(maxScrollOf(n) / STEP), `${visited.length - 1} events to ${maxScrollOf(n)}`);
