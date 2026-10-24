@@ -24,7 +24,7 @@ import { ChromeStoreContext, createChromeStore, type DrawnPin } from './panelChr
 import { AwayContext, createAwayStore } from './panelAway.js';
 import { rowBottomReservePx } from './panelChromeSize.js';
 import { ROW_GAP } from './rowConstants.js';
-import { nearestStop, scrollHoldingEdge, snapToStop, type RowNumbers } from './rowNumbers.js';
+import { maxScrollOf, nearestStop, scrollHoldingEdge, snapToStop, type RowNumbers } from './rowNumbers.js';
 import { rowScrollerFor } from './rowScroller.js';
 import { OverlaySlot } from './windowOverlay.js';
 
@@ -400,6 +400,35 @@ export function Workspace(props: WorkspaceProps): React.ReactElement {
       container.removeEventListener('scroll', apply);
     };
   });
+  // A close or a narrower window can end the row left of where it is scrolled. The browser would clamp the scroll in the same frame,
+  // a jump, so the end element keeps the old range in that commit and gives it back frame by frame as the row's glide carries it home.
+  const scrolledRef = React.useRef(0);
+  const endPadRef = React.useRef<HTMLDivElement>(null);
+  const before = drawn.current.numbers;
+  // Measured from where the row's end is drawn, which for a row that fits is left of 0 (`maxScrollOf` would floor it there), and
+  // the strip's margin glides, so until it lands the row ends short of the numbers by the margin still to come.
+  const drawnEnd = rowNumbers === undefined ? 0 : rowNumbers.stripStart + rowNumbers.stripWidth + rowNumbers.rightInset + rowNumbers.endPad - rowNumbers.windowWidth - Math.max(0, rowNumbers.rowMarginLeft - (before?.rowMarginLeft ?? rowNumbers.rowMarginLeft));
+  const endHold = scrolls && rowNumbers !== undefined && resolved.rowGesture === 'step' && scrolledRef.current > maxScrollOf(rowNumbers) ? scrolledRef.current - drawnEnd : 0;
+  React.useLayoutEffect(() => {
+    const container = overflowContainerRef.current;
+    if (container === null) return undefined;
+    const scroller = rowScrollerFor(container);
+    const follow = (): void => {
+      scrolledRef.current = container.scrollLeft;
+      const pad = endPadRef.current;
+      if (pad === null || pad.style.minWidth === '') return;
+      const need = container.scrollLeft + container.clientWidth - pad.offsetLeft;
+      pad.style.minWidth = scroller.glideTarget() !== null && need > 0 ? `${need}px` : '';
+    };
+    scrolledRef.current = container.scrollLeft;
+    return scroller.subscribe(follow);
+  }, [overflowContainerRef]);
+  // Nothing glided the row home (a drag holds it, or motion is off): the range is given back at once.
+  React.useEffect(() => {
+    const container = overflowContainerRef.current;
+    const pad = endPadRef.current;
+    if (endHold > 0 && container !== null && pad !== null && rowScrollerFor(container).glideTarget() === null) pad.style.minWidth = '';
+  });
   // Each edge element is a plain spacer as wide as its group, so the strip starts after the left one and ends before the right one.
   // The held panels themselves sit in the strip and are positioned from here (see PanelRow's PanelHold), so these hold no content.
   // An edge element exists only while a panel is held there, so a row that holds nothing renders exactly as it did.
@@ -460,7 +489,7 @@ export function Workspace(props: WorkspaceProps): React.ReactElement {
         {/* A non-empty element is in every engine's scroll range; WebKit leaves a flex item's end margin out and Firefox an empty box,
             which clamps the last stop short. Outside the strip so a drag's end cap stays at the last panel. */}
         {holdsRight ? <div data-row-edge="right" style={rightEdgeStyle} /> : null}
-        {scrolls ? <div aria-hidden data-row-end-pad="" style={{ flex: `0 0 ${(rowNumbers?.endPad ?? 0) + gap}px` }} /> : null}
+        {scrolls ? <div ref={endPadRef} aria-hidden data-row-end-pad="" style={{ flex: `0 0 ${(rowNumbers?.endPad ?? 0) + gap}px`, ...(endHold > 0 ? { minWidth: `${(rowNumbers?.endPad ?? 0) + gap + endHold}px` } : {}) }} /> : null}
       </Box>
       </RowHeightContext.Provider>
 
