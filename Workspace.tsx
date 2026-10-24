@@ -87,11 +87,14 @@ export function workspaceShellStyle(i: WorkspaceShellStyleInput): WorkspaceShell
       ? i.rowNumbers.rowMarginLeft
       : computeRowLayout({ containerWidth: i.containerWidth, phoneWidth: i.phoneWidth, gap: i.gap ?? ROW_GAP, fixedItemCount: i.fixedColumnCount, liveWidths: i.liveWidths }).computedRowMarginLeft;
   const scrolls = i.rowNumbers?.rowScroll ?? i.rowScroll ?? false;
+  // The margin snaps while stops exist, or the scrollable width would be short of where a stop sits. A panel resize glides anyway,
+  // even inside the settle window: a grow that overflows the window adds its stops in the render that moves the margin, and a
+  // snap there jumps every panel.
+  const hasStops = i.rowNumbers !== undefined && i.rowNumbers.stops.length > 0;
+  const glides = i.panelResizing === true || (i.rowResizeSettled && !hasStops);
   return {
     marginLeft,
-    // The margin snaps while stops exist, or the scrollable width would be short of where a stop sits. A panel resize glides anyway:
-    // a grow that overflows the window adds its stops in the render that moves the margin, and a snap there jumps every panel.
-    transition: i.rowResizeSettled && (i.panelResizing === true || !(i.rowNumbers !== undefined && i.rowNumbers.stops.length > 0)) ? (i.slide === undefined ? PANEL_TRANSITION : slideToTransition(i.slide)) : { duration: 0 },
+    transition: glides ? (i.slide === undefined ? PANEL_TRANSITION : slideToTransition(i.slide)) : { duration: 0 },
     overflowX: 'hidden',
     hideScrollbar: scrolls,
   };
