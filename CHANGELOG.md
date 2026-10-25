@@ -5,7 +5,6 @@
 ### Breaking
 
 - The MUI and DOM types leave the public API, ahead of 0.2.0 final. `createWorkspace({ theme })` and `createDefaultTheme(mode)` take and return `PhonuxTheme`, a set of CSS colors and a corner unit, and the library builds its styling theme from it. `HeaderButton.sx` and the drag handle's `sx` are a `CssStyle` (plain CSS properties), not MUI `sx`. `panelCornerRadiusPx` takes a `PhonuxTheme`. The root props of `Panel`, `PanelFrame`, `PanelHeader` and `Workspace` are `ElementProps`, not MUI `BoxProps`. The drag handle's `onPointerDown` and `onKeyDown` take `HandlePointerEvent` and `HandleKeyEvent`, which React's events satisfy.
-- The drag handle's focus ring is drawn in `currentColor` instead of the theme's primary color.
 - `PhonuxThemeProvider` draws the row's styling for a hand-rendered row (`mount: false`), in place of an app's own MUI `ThemeProvider`.
 
 ## 0.2.0-rc.5
