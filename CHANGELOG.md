@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+### Added
+
+- A panel added through the `addPanel` of a view's own `useWorkspace()` records that view's panel as its opener: `PanelState.openedBy` is the opener's id, or null for a panel the host opened. It is set once, a drag or a reorder never changes it, and it is saved in the workspace file, so it survives a relaunch; a file saved before it loads with no openers. When a panel closes, the panels it opened take its own opener.
+- `PanelManager.familyOf(id)` lists a panel and every panel it opened, directly or through the panels it opened, in row order.
+- `WorkspaceColumnHandle.movePanel` takes `{ withFamily: true }` (`MovePanelOptions`) to move a panel together with its family to the end of another workspace's row, keeping who opened whom among them. It is all or nothing: one member the target refuses moves none, and the message names it. `canMovePanel` answers what `movePanel` would, without moving, so a host can offer only the workspaces that can take the whole family. `MovePanelResult` gains `panelIds`, every panel that moved in its new order. A panel moved alone now arrives with no opener, and the panels it opened stay behind under its old opener.
+
 ### Fixed
 
 - A panel's header stays on screen when its frame fills the row's height. The row keeps the header's room, 40 px, above its frames, as it keeps the footer's below, and the phone fit prices the height from it; a `topPadding` or `topInset` under 40 is raised to 40. On a 402 x 714 phone the header sat 24 px above the screen's top.
