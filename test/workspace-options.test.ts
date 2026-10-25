@@ -12,7 +12,7 @@ import * as React from 'react';
 import { act } from 'react';
 import { PANEL_SETTINGS_CATALOG, PanelManagerError, PanelRow, Workspace, createWorkspace, definePanel, useHost, useProvidePanels } from '../index.js';
 import type { HistoryAPI, PanelTemplate, PhoneDeviceAPI, SettingsAPI, SnapshotsAPI, WorkspaceHandle, WorkspaceLive, WorkspaceWrapProps } from '../index.js';
-import { createDefaultTheme } from '../defaultTheme.js';
+import { createDefaultTheme, muiThemeFor } from '../defaultTheme.js';
 import { HostProvider } from '../hostApi.js';
 import { ThemeProvider } from '@mui/material/styles';
 import { advanceFrames, mount } from './support/mount-harness.js';
@@ -301,7 +301,7 @@ test('an option and the same value in a hand-built Host give the same view resul
     const provided = useProvidePanels({ workspace: hand, phoneWidth: 460, containerWidth: 1000, overflowContainerRef: ref, labels: values.labels });
     const row = React.createElement(PanelRow, { entries: provided.entries, rootId: hand.rootId, closingIds: provided.closingIds, enteringViaAnchorIds: provided.enteringViaAnchorIds, exitRightIds: provided.exitRightIds, enterSideById: provided.enterSideById, maxLiveWidth: provided.maxLiveWidth, rowNumbers: provided.rowNumbers, workspace: hand });
     const shell = React.createElement(Workspace, { overflowContainerRef: ref, rowRef, containerWidth: 1000, phoneWidth: 460, fixedColumnCount: provided.fixedViewCount, liveWidths: provided.liveWidths, rowScroll: provided.rowScroll, rowNumbers: provided.rowNumbers, workspace: hand, children: row });
-    return React.createElement(ThemeProvider, { theme: createDefaultTheme('light'), children: React.createElement(HostProvider, { host: { panels: provided, ...values }, children: shell }) });
+    return React.createElement(ThemeProvider, { theme: muiThemeFor(createDefaultTheme('light')), children: React.createElement(HostProvider, { host: { panels: provided, ...values }, children: shell }) });
   }
   mount(React.createElement(HandWired));
   await advanceFrames(400);

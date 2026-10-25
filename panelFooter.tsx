@@ -4,8 +4,7 @@
  */
 import * as React from 'react';
 import Box from '@mui/material/Box';
-import type { SxProps } from '@mui/material/styles';
-import { type Theme } from '@mui/material/styles';
+import type { CssStyle } from './cssStyle.js';
 import { useFrameClaim } from './panelFrameClaim.js';
 import { CHROME_ATTRIBUTE, CHROME_PARTS, PanelChromeVisibleContext, useChromeFade } from './panelChrome.js';
 import { BAR_HEIGHT_PX } from './panelChromeSize.js';
@@ -37,7 +36,7 @@ class FooterBoundary extends React.Component<{ children: React.ReactNode }, { fa
  * `PanelFrame` would draw, give the frame `footer={false}` and render `PanelFooter` with the `sx`.
  * @public
  */
-export function PanelFooter({ sx }: { sx?: SxProps<Theme> }): React.ReactElement | null {
+export function PanelFooter({ sx }: { sx?: CssStyle }): React.ReactElement | null {
   // A view that lays its footer out itself draws its own frame; the library frame would draw the footer a second time.
   useFrameClaim('frame');
   const footer = React.useContext(PanelFooterContext);

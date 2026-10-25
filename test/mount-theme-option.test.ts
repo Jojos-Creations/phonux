@@ -7,9 +7,9 @@ import assert from 'node:assert/strict';
 import './support/jsdom-globals.js';
 import * as React from 'react';
 import { act } from 'react';
-import { createTheme, useTheme, type Theme } from '@mui/material/styles';
+import { useTheme, type Theme } from '@mui/material/styles';
 import { createDefaultTheme, createWorkspace, createWorkspaceColumn, definePanel } from '../index.js';
-import type { WorkspaceColumnHandle } from '../index.js';
+import type { PhonuxTheme, WorkspaceColumnHandle } from '../index.js';
 import { rigCleanup, slots, track, until } from './support/auto-rig.js';
 
 let dark = false;
@@ -47,11 +47,12 @@ afterEach(() => {
 const probe = definePanel({
   id: 'probe',
   view: ({ handle }) => {
-    const t = useTheme() as Theme & { appMade?: boolean };
-    return React.createElement('i', { 'data-slot': handle.id, 'data-mode': t.palette.mode, 'data-text': t.palette.text.primary, 'data-app': String(t.appMade === true) });
+    const t = useTheme() as Theme;
+    return React.createElement('i', { 'data-slot': handle.id, 'data-mode': t.palette.mode, 'data-text': t.palette.text.primary, 'data-app': String(t.palette.primary.main === APP_PRIMARY) });
   },
 });
-const appTheme = (mode: 'light' | 'dark'): Theme => Object.assign(createTheme({ palette: { mode, text: { primary: mode === 'dark' ? '#abcdef' : '#123456' } } }), { appMade: true });
+const APP_PRIMARY = '#ff00aa';
+const appTheme = (mode: 'light' | 'dark'): PhonuxTheme => ({ ...createDefaultTheme(mode), primary: APP_PRIMARY, text: mode === 'dark' ? '#abcdef' : '#123456' });
 
 /** CssBaseline's sheet is the global one whose first rule sets font smoothing on html; emotion gives each Global its own sheet. */
 const baselines = (): number =>
@@ -76,10 +77,10 @@ test('left out, the default theme is drawn for the mode', async () => {
   ws.addPanel('probe');
   await shown();
   assert.equal(drawn().app, 'false');
-  assert.equal(drawn().text, createDefaultTheme('light').palette.text.primary);
+  assert.equal(drawn().text, createDefaultTheme('light').text);
   await setDark(true);
   assert.equal(drawn().mode, 'dark');
-  assert.equal(drawn().text, createDefaultTheme('dark').palette.text.primary);
+  assert.equal(drawn().text, createDefaultTheme('dark').text);
 });
 
 test('exactly one CssBaseline is in the document with the option and without it', async () => {
@@ -115,7 +116,7 @@ test('a theme function that throws goes to onError and the default theme is draw
   await until('the report', () => errors.length > 0);
   assert.equal((errors[0] as Error).message, 'boom');
   assert.equal(drawn().app, 'false');
-  assert.equal(drawn().text, createDefaultTheme('light').palette.text.primary);
+  assert.equal(drawn().text, createDefaultTheme('light').text);
 });
 
 test('a theme function that returns something that is not a theme goes to onError and the default theme is drawn', async () => {
@@ -124,7 +125,7 @@ test('a theme function that returns something that is not a theme goes to onErro
   ws.addPanel('probe');
   await shown();
   await until('the report', () => errors.length > 0);
-  assert.match((errors[0] as Error).message, /must return a MUI Theme/);
+  assert.match((errors[0] as Error).message, /must return a PhonuxTheme/);
   assert.equal(drawn().app, 'false');
   assert.equal(errors.length, 1, 'reported once');
 });

@@ -7,8 +7,7 @@ import assert from 'node:assert/strict';
 import './support/jsdom-globals.js';
 import * as React from 'react';
 import { act } from 'react';
-import { createTheme, type Theme } from '@mui/material/styles';
-import { createWorkspace, definePanel, usePhoneSize } from '../index.js';
+import { createDefaultTheme, createWorkspace, definePanel, usePhoneSize, type PhonuxTheme } from '../index.js';
 import { FOOTER_ROOM_PX } from '../panelChromeSize.js';
 import { advanceFrames } from './support/mount-harness.js';
 import { RowHeightContext } from '../panelTuning.js';
@@ -33,7 +32,7 @@ const TOP = GAP;
 const assertFills = (actual: number, budget: number, what: string): void => assert.ok(actual <= budget && actual > budget - 2, `${what}: ${actual} against a budget of ${budget}`);
 const WINDOW_HEIGHT = 700;
 
-async function autoMounted(opts: { theme?: Theme; rowGap?: number }): Promise<void> {
+async function autoMounted(opts: { theme?: PhonuxTheme; rowGap?: number }): Promise<void> {
   win.width = 1000;
   win.height = WINDOW_HEIGHT;
   const ws = track(createWorkspace({ templates: [probe], tuning: { phoneFit: 'fit', rowGap: opts.rowGap ?? GAP }, ...(opts.theme === undefined ? {} : { theme: () => opts.theme! }) }));
@@ -60,7 +59,7 @@ test('a row gap wider than the footer room is the reserve', async () => {
 });
 
 test('a mount theme with another corner radius: the reserve is 40 for the fit and the scroller padding alike', async () => {
-  const theme = createTheme({ shape: { borderRadius: 6 } });
+  const theme = { ...createDefaultTheme('light'), radiusUnitPx: 6 };
   await autoMounted({ theme });
   assert.equal(padBottom(), 40);
   assertFills(phoneHeight(), WINDOW_HEIGHT - TOP - 40, 'the fit reserve is the padding');
