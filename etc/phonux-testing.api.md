@@ -382,6 +382,7 @@ export interface PanelState {
     readonly id: PanelId;
     readonly index: number | null;
     readonly listed: boolean;
+    readonly openedBy?: PanelId | null;
     readonly params: JsonValue | undefined;
     readonly pinned: boolean;
     readonly settings: ResolvedPanelSettings;
@@ -700,6 +701,7 @@ export type WorkspacePanelState = {
         placeOnAdd: AddPlacement;
     };
     closable?: false;
+    openedBy?: string;
 };
 
 // @public

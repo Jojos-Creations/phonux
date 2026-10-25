@@ -70,7 +70,7 @@ test('the workspace a view gets is the manager and addPanel, and none of dispose
   await flush();
   const ws = seen.ws!;
   assert.deepEqual(Object.keys(ws), ['panels']);
-  assert.deepEqual(Object.keys(ws.panels).sort(), ['addPanel', 'configure', 'configureTemplate', 'configureTuning', 'get', 'getSnapshot', 'list', 'resetLayout', 'subscribe']);
+  assert.deepEqual(Object.keys(ws.panels).sort(), ['addPanel', 'configure', 'configureTemplate', 'configureTuning', 'familyOf', 'get', 'getSnapshot', 'list', 'resetLayout', 'subscribe']);
   for (const name of ['dispose', 'update', 'rename', 'registerTemplate', 'tuning', 'status']) assert.equal(name in ws, false, name);
 });
 
