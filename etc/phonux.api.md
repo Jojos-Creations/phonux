@@ -467,11 +467,17 @@ export interface MinWorkspaceWidthInput {
 }
 
 // @public
+export interface MovePanelOptions {
+    readonly withFamily?: boolean;
+}
+
+// @public
 export type MovePanelResult = {
     readonly ok: true;
     readonly workspace: WorkspaceHandle;
     readonly index: number;
     readonly panelId: PanelId;
+    readonly panelIds: readonly PanelId[];
 } | {
     readonly ok: false;
     readonly code: PanelRefusal | 'unknown-workspace' | 'same-workspace';
@@ -661,6 +667,7 @@ export interface PanelManager {
     configureTuning(patch: {
         [K in keyof WorkspaceTuning]?: WorkspaceTuning[K] | null;
     }): ConfigureResult;
+    familyOf(id: PanelId): readonly PanelId[];
     get<P extends JsonValue = JsonValue>(id: PanelId): PanelHandle<P> | undefined;
     getSnapshot(): PanelSnapshot;
     list(f?: ListFilter): readonly PanelHandle[];
@@ -886,6 +893,7 @@ export interface PanelState {
     readonly id: PanelId;
     readonly index: number | null;
     readonly listed: boolean;
+    readonly openedBy?: PanelId | null;
     readonly params: JsonValue | undefined;
     readonly pinned: boolean;
     readonly settings: ResolvedPanelSettings;
@@ -957,6 +965,7 @@ export interface PanelWindow {
     listed: boolean;
     live: boolean;
     marker?: true;
+    openedBy?: string;
     overrides?: {
         anchor?: PanelAnchor;
         slots?: number;
@@ -1591,10 +1600,11 @@ export function WorkspaceColumn(input: WorkspaceColumnProps): React_2.ReactEleme
 // @public
 export interface WorkspaceColumnHandle {
     addWorkspace(o?: ColumnWorkspaceOptions): WorkspaceHandle;
+    canMovePanel(from: WorkspaceHandle | number, panelId: PanelId, to: WorkspaceHandle | number, options?: MovePanelOptions): MovePanelResult;
     configureTuning(patch: Parameters<PanelManager['configureTuning']>[0]): ConfigureResult;
     readonly current: number;
     dispose(): void;
-    movePanel(from: WorkspaceHandle | number, panelId: PanelId, to: WorkspaceHandle | number): MovePanelResult;
+    movePanel(from: WorkspaceHandle | number, panelId: PanelId, to: WorkspaceHandle | number, options?: MovePanelOptions): MovePanelResult;
     removeWorkspace(target: WorkspaceHandle | number): boolean;
     scrollTo(target: WorkspaceHandle | number): void;
     readonly status: ColumnStatus;
@@ -1723,6 +1733,7 @@ export type WorkspacePanelState = {
         placeOnAdd: AddPlacement;
     };
     closable?: false;
+    openedBy?: string;
 };
 
 // @public

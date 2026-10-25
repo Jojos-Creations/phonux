@@ -41,7 +41,7 @@ const NO_OPS: EngineOps = {
 
 afterEach(() => cleanup());
 
-const KEYS_OF_STATE = ['id', 'templateId', 'status', 'held', 'engineId', 'index', 'title', 'url', 'params', 'listed', 'settings', 'pinned', 'deferredPin'];
+const KEYS_OF_STATE = ['id', 'templateId', 'status', 'held', 'engineId', 'index', 'title', 'url', 'params', 'listed', 'settings', 'pinned', 'deferredPin', 'openedBy'];
 const statuses = (w: WorkspaceHandle): string[] => w.panels.getSnapshot().panels.map((p) => `${p.id}:${p.status}`);
 
 // ---------------------------------------------------------------------------
@@ -108,7 +108,7 @@ test('getSnapshot is reference-equal until something changes and its keys are ex
   assert.equal(w.panels.getSnapshot(), again, 'nothing changed, so the snapshot is the same object');
 });
 
-test('each PanelState has exactly the fourteen keys in order, with engineId and index null for a pending panel', () => {
+test('each PanelState has exactly the fifteen keys in order, with engineId and index null for a pending panel', () => {
   const w = createWorkspace({ mount: false, templates: [markerTemplate('k')] });
   const h = w.addPanel('k');
   const pending = h.getState();
