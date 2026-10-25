@@ -39,14 +39,14 @@ test('GAP is the number 16', () => {
   assert.equal(GAP, 16);
 });
 
-test('Workspace markup: the top, left, right and bottom padding and the row flex gap are 16 px and the bottom one is the footer room, 40 px, the top one with topPadding omitted', () => {
+test('Workspace markup: the left and right padding and the row flex gap are 16 px, and the top and bottom are the header and footer room, 40 px, with topPadding omitted', () => {
   const containerRef = { current: null } as React.RefObject<HTMLDivElement | null>;
   const rowRef = { current: null } as React.RefObject<HTMLDivElement | null>;
   const mounted = mount(
     withHost(React.createElement(Workspace, { overflowContainerRef: containerRef, rowRef, containerWidth: 1300, rowResizeSettled: true, phoneWidth: 390, fixedColumnCount: 1, liveWidths: [], children: React.createElement('i') })),
   );
   const style = getComputedStyle(containerRef.current!);
-  assert.deepEqual([style.paddingTop, style.paddingLeft, style.paddingRight, style.paddingBottom], ['16px', '16px', '16px', '40px']);
+  assert.deepEqual([style.paddingTop, style.paddingLeft, style.paddingRight, style.paddingBottom], ['40px', '16px', '16px', '40px']);
   assert.equal(rowRef.current!.style.gap, '16px');
   mounted.unmount();
 });

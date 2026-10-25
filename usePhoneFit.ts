@@ -2,7 +2,7 @@ import * as React from 'react';
 import useMediaQuery from '@mui/material/useMediaQuery';
 import { useReducedMotionConfig } from 'motion/react';
 import type { ResolvedWorkspaceTuning } from './panelSettings.js';
-import { rowBottomReservePx } from './panelChromeSize.js';
+import { rowBottomReservePx, rowTopReservePx } from './panelChromeSize.js';
 import { fitPhone, useRowHeightBudget } from './phoneFit.js';
 import { resizeSettleDelayMs } from './Workspace.js';
 
@@ -24,7 +24,7 @@ function useSettledValue(value: number, delayMs: number, instant: boolean, enabl
  * and `tuning.phoneFitMax`; off, or before the container is measured, `preferred` itself. A new fit is drawn only after the
  * container's width and height have held still for the resize settle (`tuning.resizeSettleSlides` slide durations), and at once
  * under Reduce Motion, so a window held at a breakpoint does not flip the count. `topInset` is the room the row leaves above
- * itself, as `Workspace`'s `topPadding`; omitted, the row gap. `containerWidth` is the same width the row is priced from.
+ * itself, as `Workspace`'s `topPadding`; omitted, the row gap; either way never less than a header's room. `containerWidth` is the same width the row is priced from.
  * Hand it a `tuning` that is the one the workspace is priced with (`ProvidedPanels.tuning`, or `WorkspaceHandle.tuning`).
  * @public
  */
@@ -39,7 +39,7 @@ export function usePhoneFit(
   const osReduced = useMediaQuery('(prefers-reduced-motion: reduce)');
   const reduced = motionReduced || osReduced;
   const on = tuning.phoneFit === 'fit';
-  const budget = useRowHeightBudget(containerRef, topInset ?? tuning.rowGap, rowBottomReservePx(tuning.rowGap), on);
+  const budget = useRowHeightBudget(containerRef, rowTopReservePx(topInset ?? tuning.rowGap), rowBottomReservePx(tuning.rowGap), on);
   const delay = resizeSettleDelayMs(tuning.slide, tuning.resizeSettleSlides);
   const width = useSettledValue(containerWidth, delay, reduced, on);
   const height = useSettledValue(budget, delay, reduced, on);

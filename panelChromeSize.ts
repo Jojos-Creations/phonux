@@ -12,3 +12,6 @@ export const FOOTER_ROOM_PX = HEADER_GAP_PX + BAR_HEIGHT_PX;
 
 /** Px the row leaves under its frames: the row gap, or the footer's room when that is more. Layout and phone-fit height both read it. @internal */
 export const rowBottomReservePx = (gap: number): number => Math.max(gap, FOOTER_ROOM_PX);
+
+/** Px the row leaves above its frames: the asked room, or the header's when that is more, so a header drawn above a frame that fills the height stays on screen. @internal */
+export const rowTopReservePx = (asked: number): number => Math.max(asked, FOOTER_ROOM_PX);

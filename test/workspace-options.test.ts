@@ -106,7 +106,7 @@ test('topInset is the clearance above the row, and an update moves it', async ()
   const padding = (): string => getComputedStyle(document.querySelector<HTMLElement>('[data-row-scroller]')!).paddingTop;
   assert.equal(padding(), '200px');
   await act(async () => ws.update({ topInset: 0 }));
-  assert.equal(padding(), '0px');
+  assert.equal(padding(), '40px', 'never less than the header room, so a header stays on screen');
 });
 
 test('panels.onPanelsClosed hears each close, and the callback an update gave is the one a later close calls', async () => {

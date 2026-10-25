@@ -2008,7 +2008,13 @@ A Capacitor page runs in WKWebView on iPhone and in the Android System WebView. 
 - **Insets need the host's opt-in.** `env(safe-area-inset-*)` is 0 unless the page's viewport meta says `viewport-fit=cover`, and
   the library cannot write that meta. The Workspace row reads the top and bottom insets as a margin and a height shrink, so its
   measured height (`useRowHeightBudget`) already leaves them out. The side insets are not applied: the row's stops and widths are
-  computed from `gap` alone, and a side inset would move every stop.
+  computed from `gap` alone, and a side inset would move every stop. The column's links and name input add the same top and
+  bottom insets to their offsets.
+- **The header and footer have room inside the row.** Both are drawn outside the frame, so the row pads 40 px (the bar plus its
+  gap) above and below the frames, or the row gap when that is more, and the phone fit prices the height from the same numbers.
+  A phone's height is the binding side, so without the top room the header of a frame that fills the row sits off screen.
+- **A fitted phone is never taller than its row.** The row never scrolls vertically, so a row too short for the minimum phone
+  draws it at the minimum width and the row's height, shorter than the preferred shape, rather than cutting its bottom off.
 - **Exit distance uses the visible bottom.** `visibleViewportBottom()` (`dragToClose.tsx`) is the visual viewport's bottom, so a
   dismissed panel leaves the screen while a pinch or the on-screen keyboard has shrunk what is visible. `100dvh` is a CSS unit and
   cannot give a pixel distance to a spring.

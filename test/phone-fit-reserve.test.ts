@@ -1,6 +1,6 @@
 /**
- * The phone fit prices the row's height from the same reserve under the frames that Workspace pads with: the footer's room,
- * or the row gap when that is more. It is the same in every theme.
+ * The phone fit prices the row's height from the same reserves that Workspace pads with: the header's room above the frames and
+ * the footer's room under them, or the row gap when that is more. It is the same in every theme.
  */
 import { afterEach, test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -28,7 +28,8 @@ const probe = definePanel({
 const phoneHeight = (): number => Number(document.querySelector<HTMLElement>('[data-phone]')!.dataset.phone!.split('x')[1]);
 const padBottom = (): number => Number.parseFloat(getComputedStyle(document.querySelector('[data-row-scroller]')!).paddingBottom);
 const GAP = 16;
-const TOP = GAP;
+/** The room above the frames: the row gap, floored at the header's room, the same 40 as the footer's. */
+const TOP = FOOTER_ROOM_PX;
 /** The fitted height is the width-quantized phone, so it falls at most 2 px short of the budget and never over. */
 const assertFills = (actual: number, budget: number, what: string): void => assert.ok(actual <= budget && actual > budget - 2, `${what}: ${actual} against a budget of ${budget}`);
 const WINDOW_HEIGHT = 700;
@@ -75,7 +76,7 @@ test('a live row gap change re-fits the phone to the new reserve', async () => {
   await until('the first fit', () => phoneHeight() > 0 && phoneHeight() >= WINDOW_HEIGHT - TOP - FOOTER_ROOM_PX - 2);
   assertFills(phoneHeight(), WINDOW_HEIGHT - TOP - FOOTER_ROOM_PX, 'gap under the footer room');
   act(() => ws.panels.configureTuning({ rowGap: 60 }));
-  await until('the re-fit', () => phoneHeight() < 640);
+  await until('the re-fit', () => phoneHeight() <= WINDOW_HEIGHT - TOP - 60);
   assertFills(phoneHeight(), WINDOW_HEIGHT - TOP - 60, 'the wider gap is the reserve');
   assert.equal(padBottom(), 60);
 });

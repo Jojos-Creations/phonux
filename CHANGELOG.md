@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased
+
+### Fixed
+
+- A panel's header stays on screen when its frame fills the row's height. The row keeps the header's room, 40 px, above its frames, as it keeps the footer's below, and the phone fit prices the height from it; a `topPadding` or `topInset` under 40 is raised to 40. On a 402 x 714 phone the header sat 24 px above the screen's top.
+- The phone fit never draws a panel taller than the row. A row too short for the minimum phone keeps the minimum width and cuts the height to the row, where the frame used to run past the row's bottom, which never scrolls vertically.
+- The column's links and workspace name input sit inside the device's safe areas, as the row does, so on a page with `viewport-fit=cover` they clear the notch and the home bar.
+
 ## 0.2.0-rc.5
 
 - Closing a panel when the row then fits, or shortens past where it is scrolled, glides the row home with the close. Before, the browser clamped the scroll: closing the last panel faded it and then snapped the row over, and closing the one before it made the last panel lurch. The settle now rides the slide's in-out curve (`slide.ease`) whenever the slots slid in the same change; a settle after a window resize alone keeps `glideEase`.
