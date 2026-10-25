@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+### Added
+
+- A panel added through the `addPanel` of a view's own `useWorkspace()` records that view's panel as its opener: `PanelState.openedBy` is the opener's id, or null for a panel the host opened. It is set once, a drag or a reorder never changes it, and it is saved in the workspace file, so it survives a relaunch; a file saved before it loads with no openers. When a panel closes, the panels it opened take its own opener.
+- `PanelManager.familyOf(id)` lists a panel and every panel it opened, directly or through the panels it opened, in row order.
+- `WorkspaceColumnHandle.movePanel` takes `{ withFamily: true }` (`MovePanelOptions`) to move a panel together with its family to the end of another workspace's row, keeping who opened whom among them. It is all or nothing: one member the target refuses moves none, and the message names it. `canMovePanel` answers what `movePanel` would, without moving, so a host can offer only the workspaces that can take the whole family. `MovePanelResult` gains `panelIds`, every panel that moved in its new order. A panel moved alone now arrives with no opener, and the panels it opened stay behind under its old opener.
+
 ### Breaking
 
 - The MUI and DOM types leave the public API, ahead of 0.2.0 final. `createWorkspace({ theme })` and `createDefaultTheme(mode)` take and return `PhonuxTheme`, a set of CSS colors and a corner unit, and the library builds its styling theme from it. `HeaderButton.sx` and the drag handle's `sx` are a `CssStyle` (plain CSS properties), not MUI `sx`. `panelCornerRadiusPx` takes a `PhonuxTheme`. The root props of `Panel`, `PanelFrame`, `PanelHeader` and `Workspace` are `ElementProps`, not MUI `BoxProps`. The drag handle's `onPointerDown` and `onKeyDown` take `HandlePointerEvent` and `HandleKeyEvent`, which React's events satisfy.

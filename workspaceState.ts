@@ -59,6 +59,8 @@ export type WorkspacePanelState = {
   applied?: { placeOnAdd: AddPlacement };
   /** Written as `false` for a panel that cannot be closed. */
   closable?: false;
+  /** The panel whose view opened this one, named as `anchor.panel` names one: written only while that panel is in the row too. A file without it restores the panel with no opener. */
+  openedBy?: string;
 };
 
 /**
@@ -295,6 +297,7 @@ export function projectWorkspaceState(panels: readonly PanelWindow[], rootId: st
       .map((p) => {
         const anchor = p.anchor ?? positional.get(p.id)!;
         const extras: Partial<WorkspacePanelState> = {};
+        if (p.openedBy !== undefined && p.openedBy !== p.id && names.has(p.openedBy)) extras.openedBy = nameOf(p.openedBy);
         if (p.settings !== undefined) {
           extras.key = p.key ?? p.id;
           if (p.declared !== true) extras.instance = (jsonSafe(p.instance ?? {}) ?? {}) as { [key: string]: JsonValue };
