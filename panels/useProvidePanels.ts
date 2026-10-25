@@ -508,6 +508,7 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
 
   // The slots the last commit drew, read by the settle below before this commit's are recorded.
   const drawnSlotsRef = useRef('');
+  const settledNumbersRef = useRef<RowNumbers | undefined>(undefined);
   // The window, a pin, a close or a reorder moves the stops: a row left between two is brought to the nearest one.
   // The glide's own target is the base, so a settle never fights a step in flight. Never while a drag holds the row.
   useLayoutEffect(() => {
@@ -517,6 +518,8 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
     // A resize's settle owns the rest while its margin glides; a stop that moved in that wait is settled onto when it ends.
     if (scroller.claimHeld() || scroller.settling()) return;
     const base = scroller.glideTarget() ?? scroller.scrollLeft();
+    const before = settledNumbersRef.current;
+    settledNumbersRef.current = rowNumbers;
     // When the slots slid (a close, an open, a reorder) the settle rides their own curve: on another, a panel that both slides and
     // scrolls lurches back and forth.
     const ease = slotsKey(rowNumbers) === drawnSlotsRef.current ? tuning.slide.glideEase : ([...tuning.slide.ease] as [number, number, number, number]);
@@ -526,7 +529,9 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
       return;
     }
     // The settle lands on a step stop, so the next step is a whole phone width; the whole-panel stops can sit between grid points.
-    const to = nearestStop({ ...rowNumbers, stops: rowNumbers.stepStops }, base);
+    // A new window width rescales every stop, so a row resting at an end stays at that end rather than at the nearest pixel.
+    const atEnd = before !== undefined && before.windowWidth !== rowNumbers.windowWidth && before.stepStops.length > 1 && Math.abs(base - before.stepStops.at(-1)!) < 1;
+    const to = atEnd ? rowNumbers.stepStops.at(-1)! : nearestStop({ ...rowNumbers, stops: rowNumbers.stepStops }, base);
     // The first stop is not 0 once another stop needs room left of it; opening the row there is not a movement to animate.
     const opening = !restedRef.current;
     restedRef.current = true;

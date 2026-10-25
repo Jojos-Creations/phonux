@@ -3,6 +3,7 @@
 ## Unreleased
 
 - A window resize (maximize, restore) moves the row once: its place, its height in the window, its capacity and the phone size change together in one slide, once the window has held still for the resize settle. Before, the row recentered and jumped vertically at once, the phone size followed 0.75 s later, and a narrower window parked a panel and brought it back.
+- A scrolling row holds still while the window resizes: a wider window no longer clamps its scroll (which popped the leftmost panel in early), and a panel keeps drawing or hiding as it was until the row moves. A row resting at its end stays at its end after a resize; it used to settle on whichever stop was nearest in pixels, so a maximize and restore could leave the end.
 - `usePhoneFit` returns a `PhoneFitResult`: the phone size plus the settled `containerWidth` and `heightBudget` it was fitted to. Hand those to `useProvidePanels` and `Workspace`. `Workspace` takes `heightBudget`; given, its row's vertical place glides, its margin glides past the first measurement, and panels that fill the row's height read that budget. The settle is counted on animation frames, so `phonux/testing/row` steps it.
 
 ## 0.2.0-rc.5

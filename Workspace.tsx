@@ -348,8 +348,9 @@ export function Workspace(props: WorkspaceProps): React.ReactElement {
       const scroller = rowScrollerFor(container);
       const held = scroller.claimHeld();
       const view = container.getBoundingClientRect();
-      // A held row is not at rest: a panel the narrower window cuts stays drawn until the row's glide decides where it rests.
-      const atRest = !held && !holding(container) && scroller.glideTarget() === null && performance.now() >= slideRef.current.endsAt && rowNumbers.stops.some((stop) => Math.abs(stop - container.scrollLeft) <= EDGE_TOLERANCE_PX);
+      // While the row holds for the new width, each slot keeps what it drew, so nothing appears or vanishes before the row moves.
+      const still = holding(container);
+      const atRest = !held && scroller.glideTarget() === null && performance.now() >= slideRef.current.endsAt && rowNumbers.stops.some((stop) => Math.abs(stop - container.scrollLeft) <= EDGE_TOLERANCE_PX);
       const seen = new Set<string>();
       for (const slot of strip.querySelectorAll<HTMLElement>('[data-row-slot]')) {
         // A stepping row cuts the neighbour of a stop at the window edge, so only a panel the window does not reach at all is out of reach of Tab.
@@ -368,7 +369,7 @@ export function Workspace(props: WorkspaceProps): React.ReactElement {
         // or a panel leaving the window would vanish at its first pixel instead of sliding out.
         const cut = rect.left < view.left - EDGE_TOLERANCE_PX || rect.right > view.right + EDGE_TOLERANCE_PX;
         const wholeOnly = atRest && cut && rect.width <= phoneWidth + EDGE_TOLERANCE_PX;
-        slot.style.visibility = !away && rowNumbers.stops.length > 0 && (shown < gap || wholeOnly) ? 'hidden' : '';
+        if (!still) slot.style.visibility = !away && rowNumbers.stops.length > 0 && (shown < gap || wholeOnly) ? 'hidden' : '';
         if (held) continue;
         slot.style.pointerEvents = away ? 'none' : '';
         // Inert too: Tab or find-in-page would otherwise scroll the row off its stop to reveal a panel the window does not reach.
@@ -451,15 +452,25 @@ export function Workspace(props: WorkspaceProps): React.ReactElement {
     if (container === null || heightBudget === undefined || typeof ResizeObserver === 'undefined') return undefined;
     const keep = (): void => {
       const pad = endPadRef.current;
-      if (pad === null || !holding(container)) return;
-      const need = heldScrollRef.current + container.clientWidth - pad.offsetLeft;
+      const strip = rowRef.current;
+      if (pad === null || strip === null || !holding(container)) return;
+      // Measured from the strip's end, not the pad's: once the row fits, the strip's auto right margin pushes the pad out.
+      const need = heldScrollRef.current + container.clientWidth - (pad.offsetLeft - Number.parseFloat(getComputedStyle(strip).marginRight));
       if (need <= pad.offsetWidth) return;
       pad.style.minWidth = `${need}px`;
       container.scrollLeft = heldScrollRef.current;
     };
+    // The scroller notifies on its own glides; a scroll by the person or the browser is read here.
+    const read = (): void => {
+      if (!holding(container)) heldScrollRef.current = container.scrollLeft;
+    };
     const observer = new ResizeObserver(keep);
     observer.observe(container);
-    return () => observer.disconnect();
+    container.addEventListener('scroll', read, { passive: true });
+    return () => {
+      observer.disconnect();
+      container.removeEventListener('scroll', read);
+    };
   }, [overflowContainerRef, heightBudget === undefined]);
   // The row has taken the window's width: a range the hold kept is given back once nothing glides through it.
   React.useLayoutEffect(() => {
