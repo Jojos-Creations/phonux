@@ -13,6 +13,8 @@ export interface PanelViewContext {
     manager: PanelReader | undefined;
     /** What a view acts through on its workspace, or undefined when the row has none. */
     workspace?: ViewWorkspace;
+    /** The same for the view of the panel drawn under `engineId`: a panel its `addPanel` creates records that panel as its opener. */
+    workspaceFor?(engineId: string): ViewWorkspace;
 }
 /** Provided by PanelRow from its `workspace` prop; absent for a row without one. */
 export declare const PanelViewContextValue: React.Context<PanelViewContext | undefined>;

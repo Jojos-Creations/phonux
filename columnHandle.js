@@ -96,6 +96,23 @@ export function createWorkspaceColumn(o = {}) {
         changed();
         persist();
     };
+    /** `movePanel`, or with `run` false `canMovePanel`. */
+    const move = (from, panelId, to, options, run) => {
+        const stay = (code, message) => ({ ok: false, code, message });
+        if (status === 'disposed')
+            return stay('disposed', 'the column was disposed');
+        const at = (w) => (typeof w === 'number' ? (Number.isInteger(w) && w >= 0 && w < list.length ? w : -1) : list.indexOf(w));
+        const source = at(from);
+        const target = at(to);
+        if (source < 0 || target < 0)
+            return stay('unknown-workspace', `${source < 0 ? 'the source' : 'the target'} workspace is not in this column`);
+        if (source === target)
+            return stay('same-workspace', `panel '${panelId}' is already in workspace '${list[source].name}'`);
+        const moved = transferPanel(list[source], panelId, list[target], options?.withFamily === true, run);
+        if (!moved.ok)
+            return moved;
+        return { ok: true, workspace: list[target], index: target, panelId, panelIds: moved.panelIds };
+    };
     const freeName = () => {
         const used = new Set(list.map((w) => w.name));
         for (let n = list.length + 1;; n++)
@@ -182,22 +199,8 @@ export function createWorkspaceColumn(o = {}) {
             commit();
             return true;
         },
-        movePanel: (from, panelId, to) => {
-            const stay = (code, message) => ({ ok: false, code, message });
-            if (status === 'disposed')
-                return stay('disposed', 'the column was disposed');
-            const at = (w) => (typeof w === 'number' ? (Number.isInteger(w) && w >= 0 && w < list.length ? w : -1) : list.indexOf(w));
-            const source = at(from);
-            const target = at(to);
-            if (source < 0 || target < 0)
-                return stay('unknown-workspace', `${source < 0 ? 'the source' : 'the target'} workspace is not in this column`);
-            if (source === target)
-                return stay('same-workspace', `panel '${panelId}' is already in workspace '${list[source].name}'`);
-            const moved = transferPanel(list[source], panelId, list[target]);
-            if (!moved.ok)
-                return moved;
-            return { ok: true, workspace: list[target], index: target, panelId };
-        },
+        movePanel: (from, panelId, to, options) => move(from, panelId, to, options, true),
+        canMovePanel: (from, panelId, to, options) => move(from, panelId, to, options, false),
         configureTuning: (patch) => {
             if (status === 'disposed')
                 return { ok: false, code: 'disposed', message: 'the column was disposed' };

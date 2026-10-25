@@ -14,6 +14,7 @@ export function makePanelManager(source) {
         configureTemplate: (templateId, patch) => source.configureTemplate(templateId, patch),
         configureTuning: (patch) => source.configureTuning(patch),
         resetLayout: (target) => source.resetLayout(target),
+        familyOf: (id) => source.familyOf(id),
         getSnapshot: () => source.getSnapshot(),
         subscribe: (l) => source.subscribe(l),
     };

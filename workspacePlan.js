@@ -90,6 +90,8 @@ export function reconcileWorkspace(i) {
     }
     const newUid = i.newUid ?? newPanelUid;
     const adopted = [];
+    /** The id of the panel already in the row that stands for a saved entry, by the entry's index. */
+    const standIns = new Map();
     let minted = false;
     const built = [];
     const replace = [];
@@ -101,6 +103,8 @@ export function reconcileWorkspace(i) {
         if (key !== undefined && have.has(key)) {
             // The panel already in the row stands for this entry: it takes the file's uid, or the file gets its own.
             const present = i.current.find((p) => (p.key ?? p.id) === key);
+            if (present !== undefined)
+                standIns.set(k, present.id);
             if (s.uid === undefined)
                 minted = true;
             else if (present !== undefined && present.uid !== s.uid)
@@ -196,8 +200,23 @@ export function reconcileWorkspace(i) {
         row = placed.row;
         notes.push(...placed.notes);
     }
+    // Mapped once every entry has its id: an opener may stand later in the file than the panel it opened.
+    const openerOf = savedNames(file?.raw ?? [], fresh.map((id, k) => standIns.get(k) ?? id));
+    const openers = new Map();
+    saved.forEach((s, k) => {
+        const name = s.openedBy;
+        if (name === undefined)
+            return;
+        if (typeof name !== 'string' || name === '') {
+            notes.push({ code: 'invalid-saved-setting', panelId: fresh[k], key: 'openedBy', message: 'openedBy: expected the name of another saved panel; dropped' });
+            return;
+        }
+        const opener = name === i.rootId ? i.rootId : openerOf.get(name);
+        if (opener !== undefined && opener !== fresh[k])
+            openers.set(fresh[k], opener);
+    });
     const added = new Set(built.map((p) => p.id));
-    return { entries: row.filter((p) => added.has(p.id)), notes, dismissed: dismissed.filter((k) => !restoredKeys.has(k) && !released.has(k)), adopted, minted };
+    return { entries: row.filter((p) => added.has(p.id)).map((p) => (openers.has(p.id) ? { ...p, openedBy: openers.get(p.id) } : p)), notes, dismissed: dismissed.filter((k) => !restoredKeys.has(k) && !released.has(k)), adopted, minted };
 }
 /**
  * `row`, which holds a just-built entry `id`, with that entry resolved by `settings`: carrying its `instance` layer,

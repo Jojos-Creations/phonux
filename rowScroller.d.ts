@@ -42,6 +42,10 @@ export interface RowScroller {
     subscribe(listener: () => void): () => void;
     /** True while a claim is held. Asked instead of probing with `claim()`, which would end a glide in flight. */
     claimHeld(): boolean;
+    /** True while a resize's settle waits for the margin to glide: the settle, not a change of stops, decides where the row rests. */
+    settling(): boolean;
+    /** Marks or unmarks that wait. */
+    setSettling(on: boolean): void;
 }
 /** The one `RowScroller` of `element`: the same object on every call. */
 export declare function rowScrollerFor(element: HTMLElement): RowScroller;

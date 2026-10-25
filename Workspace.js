@@ -22,7 +22,7 @@ import { ChromeStoreContext, createChromeStore } from './panelChrome.js';
 import { AwayContext, createAwayStore } from './panelAway.js';
 import { rowBottomReservePx } from './panelChromeSize.js';
 import { ROW_GAP } from './rowConstants.js';
-import { nearestStop, scrollHoldingEdge, snapToStop } from './rowNumbers.js';
+import { maxScrollOf, nearestStop, scrollHoldingEdge, snapToStop } from './rowNumbers.js';
 import { rowScrollerFor } from './rowScroller.js';
 import { OverlaySlot } from './windowOverlay.js';
 /** Everything the markup needs from the measurement, computed synchronously while rendering (never through state or an effect).
@@ -158,6 +158,7 @@ export function Workspace(props) {
             const run = () => {
                 settle.current = null;
                 claim?.release();
+                scroller.setSettling(false);
                 const n = numbersRef.current;
                 if (claim === null || n === undefined || n.stops.length === 0) {
                     scroller.replayDeferred();
@@ -182,7 +183,9 @@ export function Workspace(props) {
                 // moves nothing, so it is counted as an ask of its own.
                 const releasedAt = scroller.scrollLeft();
                 const asked = scroller.inputs();
+                scroller.setSettling(true);
                 settleTimer.current = setTimeout(() => {
+                    scroller.setSettling(false);
                     const now = numbersRef.current;
                     if (now === undefined || now.stops.length === 0 || scroller.inputs() !== asked)
                         return scroller.replayDeferred();
@@ -329,6 +332,38 @@ export function Workspace(props) {
             container.removeEventListener('scroll', apply);
         };
     });
+    // A close or a narrower window can end the row left of where it is scrolled. The browser would clamp the scroll in the same frame,
+    // a jump, so the end element keeps the old range in that commit and gives it back frame by frame as the row's glide carries it home.
+    const scrolledRef = React.useRef(0);
+    const endPadRef = React.useRef(null);
+    const before = drawn.current.numbers;
+    // Measured from where the row's end is drawn, which for a row that fits is left of 0 (`maxScrollOf` would floor it there), and
+    // the strip's margin glides, so until it lands the row ends short of the numbers by the margin still to come.
+    const drawnEnd = rowNumbers === undefined ? 0 : rowNumbers.stripStart + rowNumbers.stripWidth + rowNumbers.rightInset + rowNumbers.endPad - rowNumbers.windowWidth - Math.max(0, rowNumbers.rowMarginLeft - (before?.rowMarginLeft ?? rowNumbers.rowMarginLeft));
+    const endHold = scrolls && rowNumbers !== undefined && resolved.rowGesture === 'step' && scrolledRef.current > maxScrollOf(rowNumbers) ? scrolledRef.current - drawnEnd : 0;
+    React.useLayoutEffect(() => {
+        const container = overflowContainerRef.current;
+        if (container === null)
+            return undefined;
+        const scroller = rowScrollerFor(container);
+        const follow = () => {
+            scrolledRef.current = container.scrollLeft;
+            const pad = endPadRef.current;
+            if (pad === null || pad.style.minWidth === '')
+                return;
+            const need = container.scrollLeft + container.clientWidth - pad.offsetLeft;
+            pad.style.minWidth = scroller.glideTarget() !== null && need > 0 ? `${need}px` : '';
+        };
+        scrolledRef.current = container.scrollLeft;
+        return scroller.subscribe(follow);
+    }, [overflowContainerRef]);
+    // Nothing glided the row home (a drag holds it, or motion is off): the range is given back at once.
+    React.useEffect(() => {
+        const container = overflowContainerRef.current;
+        const pad = endPadRef.current;
+        if (endHold > 0 && container !== null && pad !== null && rowScrollerFor(container).glideTarget() === null)
+            pad.style.minWidth = '';
+    });
     // Each edge element is a plain spacer as wide as its group, so the strip starts after the left one and ends before the right one.
     // The held panels themselves sit in the strip and are positioned from here (see PanelRow's PanelHold), so these hold no content.
     // An edge element exists only while a panel is held there, so a row that holds nothing renders exactly as it did.
@@ -355,5 +390,5 @@ export function Workspace(props) {
                                         ...(style.hideScrollbar ? { scrollbarWidth: 'none', '&::-webkit-scrollbar': { display: 'none' } } : {}),
                                         // A sideways swipe at the row's end must not chain to the page, where a browser reads it as back or forward.
                                         ...(scrolls ? { overscrollBehaviorX: 'none' } : {}),
-                                    }, children: [beforeRow, holdsLeft ? _jsx("div", { "data-row-edge": "left", style: leftEdgeStyle }) : null, _jsxs(motion.div, { ref: rowRef, "data-row-strip": "", style: { display: 'flex', gap: `${gap}px`, marginTop: 'auto', marginBottom: 'auto', marginRight: 'auto', ...(scrolls ? { flexShrink: 0 } : {}) }, animate: { marginLeft: style.marginLeft }, transition: reduced ? { duration: 0 } : style.transition, children: [_jsx(OverlaySlot, { name: "dialog" }), children] }), holdsRight ? _jsx("div", { "data-row-edge": "right", style: rightEdgeStyle }) : null, scrolls ? _jsx("div", { "aria-hidden": true, "data-row-end-pad": "", style: { flex: `0 0 ${(rowNumbers?.endPad ?? 0) + gap}px` } }) : null] }) }), _jsx(Box, { role: "status", "aria-live": "polite", "aria-atomic": "true", "data-workspace-announcer": "", sx: VISUALLY_HIDDEN, children: _jsx("span", { children: said.text }, said.n) }), _jsx(OverlaySlot, { name: "toast" })] }) }) }) }) }));
+                                    }, children: [beforeRow, holdsLeft ? _jsx("div", { "data-row-edge": "left", style: leftEdgeStyle }) : null, _jsxs(motion.div, { ref: rowRef, "data-row-strip": "", style: { display: 'flex', gap: `${gap}px`, marginTop: 'auto', marginBottom: 'auto', marginRight: 'auto', ...(scrolls ? { flexShrink: 0 } : {}) }, animate: { marginLeft: style.marginLeft }, transition: reduced ? { duration: 0 } : style.transition, children: [_jsx(OverlaySlot, { name: "dialog" }), children] }), holdsRight ? _jsx("div", { "data-row-edge": "right", style: rightEdgeStyle }) : null, scrolls ? _jsx("div", { ref: endPadRef, "aria-hidden": true, "data-row-end-pad": "", style: { flex: `0 0 ${(rowNumbers?.endPad ?? 0) + gap}px`, ...(endHold > 0 ? { minWidth: `${(rowNumbers?.endPad ?? 0) + gap + endHold}px` } : {}) } }) : null] }) }), _jsx(Box, { role: "status", "aria-live": "polite", "aria-atomic": "true", "data-workspace-announcer": "", sx: VISUALLY_HIDDEN, children: _jsx("span", { children: said.text }, said.n) }), _jsx(OverlaySlot, { name: "toast" })] }) }) }) }) }));
 }

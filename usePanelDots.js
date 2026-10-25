@@ -6,7 +6,7 @@
 import * as React from 'react';
 import { useReducedMotion, useReducedMotionConfig } from 'motion/react';
 import { centreScroll, dotLayout, dotMap, dragScroll } from './rowDots.js';
-import { maxScrollOf } from './rowNumbers.js';
+import { maxScrollOf, snapToStop } from './rowNumbers.js';
 import { rowScrollerFor } from './rowScroller.js';
 /**
  * The bar for one row. `rowNumbers` is `useProvidePanels(...).rowNumbers`; `entries` carries each drawn panel's
@@ -51,7 +51,10 @@ export function usePanelDots(i) {
         const target = centreScroll({ index, leftOffsets: n.leftOffsets, widths: n.widths, windowWidth: n.stripWindow, maxScroll });
         if (target === null)
             return;
-        rowScrollerFor(el).glideTo(Math.min(maxScroll, target + n.stripStart), { durationSec: tuning.slide.durationSec, instant: reduced, ease: tuning.slide.glideEase });
+        // A stepping row rests on its stops only, so the dot's rest is the stop that shows the panel, not the margin-shifted centre.
+        // Numbers built by hand may omit the stops; such a row has none to snap to.
+        const at = Math.min(maxScroll, target + n.stripStart);
+        rowScrollerFor(el).glideTo(n.stops?.length ? snapToStop(n, index, at) : at, { durationSec: tuning.slide.durationSec, instant: reduced, ease: tuning.slide.glideEase });
     };
     const startOvalDrag = () => {
         const el = scroller.current;

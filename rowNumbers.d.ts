@@ -7,7 +7,7 @@ export interface RowNumbers {
     windowWidth: number;
     /** The width of every drawn entry plus one gap between each two. */
     stripWidth: number;
-    /** The row's left margin: centring for a strip that fits, 0 for one that does not. */
+    /** The row's left margin: centering for a strip that fits, 0 for one that does not. */
     rowMarginLeft: number;
     /** The ids of the drawn entries in the strip, in row order. Panels held at an edge are not here; `held` lists them. */
     ids: readonly string[];
@@ -54,8 +54,8 @@ export interface RowNumbers {
     /** The widths of the drawn entries the row may park for room. */
     parkLiveWidths: readonly number[];
     /**
-     * The `scrollLeft` values a stepping row rests on, ascending; the first is 0. They are one phone width apart, and the last
-     * is the row's end (`maxScrollOf`). Empty when the row does not scroll, or its strip fits the window and keeps its centring.
+     * The `scrollLeft` values a stepping row rests on, ascending; the first is 0 and the last is the row's end (`maxScrollOf`).
+     * No two are more than one phone width apart. Empty when the row does not scroll, or its strip fits the window and keeps its centering.
      */
     stops: readonly number[];
     /** The same values as `stops`, under the step's name. Empty when `stops` is. */
@@ -65,13 +65,13 @@ export interface RowNumbers {
         first: number;
         end: number;
     }[];
-    /** Always 0: the space after the strip is one row gap wide, and the last stop leaves the last panel one gap from the window edge. */
+    /** The space after the strip. 0: an overflowing row ends flush at the window's edge. */
     endPad: number;
 }
 /**
  * The numbers for one row. A row whose entries carry no `overflow: 'scroll'` settings gets the numbers of a row that
  * never scrolls (`computeMaxLiveWidth`, `computeRowLayout`'s margin). A scrolling row draws every entry, sizes each panel from its slots
- * and no wider than the window, and centres only a strip that fits.
+ * and no wider than the window, and centers only a strip that fits.
  * @public
  * @deprecated The provider computes the row's numbers from its tuning; read them as `useProvidePanels(...).rowNumbers`.
  */

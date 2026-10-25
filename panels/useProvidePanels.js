@@ -34,6 +34,7 @@ import { createPanelList } from './panelList.js';
 import { settleKeeping } from './rowSettle.js';
 import { useRowScrollGesture } from './useRowScrollGesture.js';
 import { useWorkspacePersistence } from './useWorkspacePersistence.js';
+import { keepOpeners } from '../panelOpener.js';
 /** Whether the host's CaptureTrigger is asked for a picture at `event`: a panel is captured at both. */
 const asksForPicture = (event) => FIXED.snapshot === 'both' || FIXED.snapshot === event;
 /** How long the row must stand still, in ms, before it counts as at rest: a glide's last frame and a momentum tail are not rest. */
@@ -137,6 +138,8 @@ function timingTuning(tuning) {
 }
 /** Commits a request for a panel not in the row waits before it is dropped. */
 const REQUEST_WAIT_COMMITS = 2;
+/** Which panels the row draws and where in the strip: it changes when a slot slides, and never for a window resize alone. */
+const slotsKey = (n) => `${n.ids.join(',')}|${n.leftOffsets.join(',')}`;
 /**
  * Builds the `PanelsAPI` an app hands its views. The provider owns the panel list, seeded once from `initialEntries`.
  * Call it with this render's inputs and never memoise the result: its handlers close over this render's list.
@@ -159,7 +162,8 @@ export function useProvidePanels(i) {
     const rootId = core.rootId;
     const [list] = useState(() => createPanelList(core.initialEntries()));
     const rawPanels = useSyncExternalStore(list.subscribe, list.get, list.get);
-    const setPanels = list.set;
+    // Every change to the list passes here, so a panel that leaves by any path hands its children to its own opener.
+    const [setPanels] = useState(() => (next) => list.set((prev) => keepOpeners(prev, typeof next === 'function' ? next(prev) : next)));
     const tuningInput = core.tuningInput;
     const timing = timingTuning(tuningInput);
     const workspaceTuning = useSyncExternalStore(core.subscribe, () => core.tuning, () => core.tuning);
@@ -181,7 +185,7 @@ export function useProvidePanels(i) {
     }
     useLayoutEffect(() => {
         if (panels !== rawPanels)
-            setPanels(panels);
+            setPanels((current) => settleKeeping(settleEnv, current, acted));
     });
     // Filters over the whole list, never an array position: a panel anchored left of History changes none of these.
     const stopsOnGrid = tuning.rowGesture === 'step';
@@ -335,16 +339,28 @@ export function useProvidePanels(i) {
             scroller.glideTo(step.to, { durationSec: tuning.slide.durationSec, instant: reducedMotion, ease: tuning.slide.glideEase });
         }
     };
+    // The slots the last commit drew, read by the settle below before this commit's are recorded.
+    const drawnSlotsRef = useRef('');
     // The window, a pin, a close or a reorder moves the stops: a row left between two is brought to the nearest one.
     // The glide's own target is the base, so a settle never fights a step in flight. Never while a drag holds the row.
     useLayoutEffect(() => {
         const el = i.overflowContainerRef.current;
-        if (el === null || tuning.rowGesture !== 'step' || rowNumbers.stepStops.length === 0)
+        if (el === null || tuning.rowGesture !== 'step' || !Number.isFinite(rowNumbers.windowWidth))
             return;
         const scroller = rowScrollerFor(el);
-        if (scroller.claimHeld())
+        // A resize's settle owns the rest while its margin glides; a stop that moved in that wait is settled onto when it ends.
+        if (scroller.claimHeld() || scroller.settling())
             return;
         const base = scroller.glideTarget() ?? scroller.scrollLeft();
+        // When the slots slid (a close, an open, a reorder) the settle rides their own curve: on another, a panel that both slides and
+        // scrolls lurches back and forth.
+        const ease = slotsKey(rowNumbers) === drawnSlotsRef.current ? tuning.slide.glideEase : [...tuning.slide.ease];
+        // A row that fits has one rest, 0: a close that brings the whole row into view glides there with the close.
+        if (rowNumbers.stepStops.length === 0) {
+            if (base >= 0.5)
+                scroller.glideTo(0, { durationSec: tuning.slide.durationSec, instant: reducedMotion, ease });
+            return;
+        }
         // The settle lands on a step stop, so the next step is a whole phone width; the whole-panel stops can sit between grid points.
         const to = nearestStop({ ...rowNumbers, stops: rowNumbers.stepStops }, base);
         // The first stop is not 0 once another stop needs room left of it; opening the row there is not a movement to animate.
@@ -352,8 +368,11 @@ export function useProvidePanels(i) {
         restedRef.current = true;
         if (Math.abs(to - base) < 0.5)
             return;
-        scroller.glideTo(to, { durationSec: tuning.slide.durationSec, instant: reducedMotion || opening, ease: tuning.slide.glideEase });
+        scroller.glideTo(to, { durationSec: tuning.slide.durationSec, instant: reducedMotion || opening, ease });
     }, [rowNumbers.stepStops.join(','), rowNumbers.stripStart, rowNumbers.endPad]);
+    useLayoutEffect(() => {
+        drawnSlotsRef.current = slotsKey(rowNumbers);
+    });
     // The row's wheel/arrow-key gesture is wired here, not in the host, so a host stays free of effects and refs.
     useRowScrollGesture(i.overflowContainerRef, stepRow, timing.gestureLockMs, tuning.rowGesture, tuning.gestureQuietMs, i.phoneWidth + tuning.rowGap);
     const { restoreSettled, dismiss, undismiss, isDismissed, scroll, setScroll } = useWorkspacePersistence({
@@ -407,10 +426,11 @@ export function useProvidePanels(i) {
             if (prev.some((p) => panelKey(p) === req.id))
                 return prev;
             const made = appendFromTemplate(prev, { template, id: req.engineId, name: req.id, settings: req.settings, params: req.params, url: req.url, hostData, defaults: workspaceDefaults, rootId, order: core.order, declared: req.declared === true, fallbackTitle: labels.panelTitle(req.engineId), rowEnd: carried !== undefined });
+            const opened = req.openedBy === undefined ? made : made.map((p) => (p.id === req.engineId ? { ...p, openedBy: req.openedBy } : p));
             if (carried === undefined)
-                return made;
+                return opened;
             // The panel keeps its identity, name and size; its place in the old row means nothing here.
-            const kept = made.map((p) => (p.id === req.engineId ? { ...p, ...(carried.uid !== undefined ? { uid: carried.uid } : {}), ...(carried.title !== undefined ? { title: carried.title } : {}), ...(carried.slots !== undefined ? { slots: carried.slots } : {}) } : p));
+            const kept = opened.map((p) => (p.id === req.engineId ? { ...p, ...(carried.uid !== undefined ? { uid: carried.uid } : {}), ...(carried.title !== undefined ? { title: carried.title } : {}), ...(carried.slots !== undefined ? { slots: carried.slots } : {}) } : p));
             return carried.sized ? recordOverride(kept, 'slots', [req.engineId], rootId) : kept;
         };
         // A pin change stored while the panel was closed lands as the panel is added: placement, then the `parkable` flip.
@@ -741,24 +761,31 @@ export function useProvidePanels(i) {
             gate.release(token);
             return accepted(changed);
         },
-        release: (engineId, run) => {
-            const target = held(engineId);
-            if (!isEntry(target))
-                return target;
-            if (gate.busy([engineId], 'close'))
-                return busy(target);
+        release: (engineIds, run) => {
+            const targets = [];
+            for (const engineId of engineIds) {
+                const target = held(engineId);
+                if (!isEntry(target))
+                    return target;
+                targets.push(target);
+            }
+            const blocked = targets.find((t) => gate.busy([t.id], 'close'));
+            if (blocked !== undefined)
+                return busy(blocked);
             if (!run)
                 return accepted(false);
-            const token = gate.take([engineId], 'close');
-            const found = closePanel(panels, engineId, rootId);
-            setPanels((prev) => closePanel(prev, engineId, rootId)?.remaining ?? prev);
-            if (found !== null) {
-                forgetCollapsed(engineId);
-                releaseHold(engineId);
-                revealMostRecentlyCollapsed(found.remaining);
+            // One token for the whole set: a close holds the turn, so a second release in the same turn would answer busy.
+            const token = gate.take(engineIds, 'close');
+            const without = (row) => engineIds.reduce((rest, engineId) => closePanel(rest, engineId, rootId)?.remaining ?? rest, row);
+            const remaining = without(panels);
+            setPanels(without);
+            for (const target of targets) {
+                forgetCollapsed(target.id);
+                releaseHold(target.id);
+                if (FIXED.snapshot !== 'never')
+                    capture.evict(panelKey(target));
             }
-            if (FIXED.snapshot !== 'never')
-                capture.evict(panelKey(target));
+            revealMostRecentlyCollapsed(remaining);
             gate.release(token);
             return accepted(true);
         },

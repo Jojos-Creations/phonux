@@ -205,6 +205,8 @@ export function projectWorkspaceState(panels, rootId, dismissed = [], scroll) {
             .map((p) => {
             const anchor = p.anchor ?? positional.get(p.id);
             const extras = {};
+            if (p.openedBy !== undefined && p.openedBy !== p.id && names.has(p.openedBy))
+                extras.openedBy = nameOf(p.openedBy);
             if (p.settings !== undefined) {
                 extras.key = p.key ?? p.id;
                 if (p.declared !== true)

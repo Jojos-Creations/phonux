@@ -8,8 +8,9 @@ import type { ViewWorkspace } from '../workspaceCore.js';
 export declare function useWorkspaceManager(): PanelReader | undefined;
 /**
  * The workspace of the PanelRow above, as a view acts on it: `panels.get(key)` returns the operable handle of any panel
- * (close, show, hide, move, configure), `panels.addPanel` makes one, and the rest of the manager is there too. It is the same
- * object on every render and undefined outside a PanelRow that has a workspace. The workspace's own `dispose`, `update` and
+ * (close, show, hide, move, configure), `panels.addPanel` makes one, and the rest of the manager is there too. Inside a panel's
+ * view, a panel its `addPanel` creates records that panel as its opener (`PanelState.openedBy`). It is the same object on every
+ * render of one view and undefined outside a PanelRow that has a workspace. The workspace's own `dispose`, `update` and
  * `rename` are not part of it.
  * @public
  */

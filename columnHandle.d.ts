@@ -2,7 +2,7 @@
  * The column behind `createWorkspaceColumn`: React-free state that the `WorkspaceColumn` component draws. It owns the ordered
  * list of workspaces, their names and the current one, and saves the list through one optional storage. DESIGN.md, "The workspace column".
  */
-import { type MovePanelResult, type WorkspaceHandle, type WorkspaceOptions } from './workspaceCore.js';
+import { type MovePanelOptions, type MovePanelResult, type WorkspaceHandle, type WorkspaceOptions } from './workspaceCore.js';
 import type { ConfigureResult, PanelManager } from './panelManager.js';
 import type { PanelId } from './panelSettings.js';
 import { type WorkspaceLive } from './workspaceLive.js';
@@ -109,8 +109,19 @@ export interface WorkspaceColumnHandle {
      * otherwise the answer is `not-attached` or `not-ready` and nothing changed. A view's `useViewState` is held per workspace and
      * does not move: the view starts again from its `initial`. The host data the target's `panels.defaultHostData` builds is given
      * afresh, and the source's is dropped. A parked panel arrives live, as a new panel does.
+     *
+     * The moved panel arrives with no opener (`PanelState.openedBy` is null), and the panels it opened in the source take its old
+     * opener. With `{ withFamily: true }` every panel it opened, directly or through the panels it opened, moves with it: they land
+     * after it in the order they stood, keep who opened whom among them, and the same checks apply to each one, all or nothing, so
+     * one refusal moves none and its message names the panel that stood in the way. The target's lack of room is never a refusal:
+     * it makes room as it does for any new panel, under its cap.
      */
-    movePanel(from: WorkspaceHandle | number, panelId: PanelId, to: WorkspaceHandle | number): MovePanelResult;
+    movePanel(from: WorkspaceHandle | number, panelId: PanelId, to: WorkspaceHandle | number, options?: MovePanelOptions): MovePanelResult;
+    /**
+     * What `movePanel` with the same arguments would answer now, without moving anything: a host lists as move targets only the
+     * workspaces this accepts.
+     */
+    canMovePanel(from: WorkspaceHandle | number, panelId: PanelId, to: WorkspaceHandle | number, options?: MovePanelOptions): MovePanelResult;
     /**
      * `WorkspaceManager.configureTuning` for the whole column: the patch reaches every workspace in it, those added later start from it,
      * and the column's own slide follows it. Kept for this session only. It works before the saved list has been read and refuses

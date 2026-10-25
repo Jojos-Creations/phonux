@@ -37,6 +37,7 @@ function createRowScroller(el) {
     // Read back after every own write: the browser rounds and clamps, and the scroll event it fires later reports that value.
     let lastWritten = el.scrollLeft;
     let inputs = 0;
+    let settleWait = false;
     const listeners = new Set();
     const notify = () => {
         for (const l of [...listeners])
@@ -123,6 +124,10 @@ function createRowScroller(el) {
                     return;
                 el.removeEventListener('scroll', notify);
             };
+        },
+        settling: () => settleWait,
+        setSettling(on) {
+            settleWait = on;
         },
         stop,
         claim(options) {

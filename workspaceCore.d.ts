@@ -192,8 +192,8 @@ export interface EngineOps {
     resetClosed(engineId: string): boolean;
     /** Applies a configure to the live, parked or held panel `engineId` in one update, after the turn's in-flight gate: `plan` is called with the entry and what it is, and answers the outcome. */
     configure(engineId: string, plan: (target: PanelWindow, status: 'live' | 'parked' | 'hidden') => ConfigureOutcome): ConfigureResult;
-    /** Takes the panel out of the row for a move to another workspace: no closed-panel log, no undo window. With `run` false it only reports whether it would, as `busy` or `ok`. */
-    release(engineId: string, run: boolean): PanelResult;
+    /** Takes the panels out of the row together for a move to another workspace: no closed-panel log, no undo window. With `run` false it only reports whether it would, as `busy` or `ok`. */
+    release(engineIds: readonly string[], run: boolean): PanelResult;
     /** Takes the whole row's place in the turn's in-flight gate, runs `change`, and releases; refuses `busy` when any panel already holds a token. */
     reprice(change: () => void): PanelResult;
 }
@@ -211,6 +211,8 @@ export interface CreateRequest {
     declared?: boolean;
     /** A pin change stored for this panel while it was closed, applied as the panel is added. */
     deferredPin?: DeferredPin;
+    /** The engine id of the panel whose view asked for this one, recorded on the entry as its opener. */
+    openedBy?: string;
     /** Set for a panel moved in from another workspace: it goes to the end of the row and keeps these fields of the entry it had; `sized` is whether the person chose its size. */
     carried?: Pick<PanelWindow, 'uid' | 'title' | 'slots'> & {
         sized: boolean;
@@ -294,7 +296,19 @@ export declare const landPanelIn: (ws: WorkspaceHandle, key: PanelId, value: Add
 /** What a row tells its template views about `ws`. */
 export declare const viewContextOf: (ws: WorkspaceHandle) => PanelViewContext;
 /**
+ * What `WorkspaceColumnHandle.movePanel` and `canMovePanel` take.
+ * @public
+ */
+export interface MovePanelOptions {
+    /**
+     * True moves the panel together with every panel it opened, directly or through the panels it opened (`PanelManager.familyOf`),
+     * all or none. False or left out moves the panel alone.
+     */
+    readonly withFamily?: boolean;
+}
+/**
  * What `WorkspaceColumnHandle.movePanel` answers: the panel's id and workspace after the move, or why it stayed where it was.
+ * `canMovePanel` answers the same without moving anything.
  * @public
  */
 export type MovePanelResult = {
@@ -306,6 +320,8 @@ export type MovePanelResult = {
     readonly index: number;
     /** The panel's id in that workspace, with which `workspace.panels.get` finds it; it is the id the panel had. */
     readonly panelId: PanelId;
+    /** Every panel that moved, in the order they now stand at the end of the target's row: `panelId` alone unless the family moved. */
+    readonly panelIds: readonly PanelId[];
 } | {
     /** The panel did not move and nothing changed. */
     readonly ok: false;
@@ -314,9 +330,13 @@ export type MovePanelResult = {
     /** A sentence saying which panel and what stood in the way. */
     readonly message: string;
 };
-/** Moves the panel `key` of `from` to the end of `to`'s row; both must belong to one column. The caller has checked they differ. */
-export declare function transferPanel(from: WorkspaceHandle, key: PanelId, to: WorkspaceHandle): {
+/**
+ * Moves the panel `key` of `from`, with its family when asked, to the end of `to`'s row; both must belong to one column and the
+ * caller has checked they differ. Every member is checked on both sides before anything acts. With `run` false it only answers.
+ */
+export declare function transferPanel(from: WorkspaceHandle, key: PanelId, to: WorkspaceHandle, withFamily: boolean, run: boolean): {
     ok: true;
+    panelIds: PanelId[];
 } | Extract<MovePanelResult, {
     ok: false;
 }>;

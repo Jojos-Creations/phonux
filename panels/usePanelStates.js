@@ -4,6 +4,7 @@
  */
 import { useContext, useMemo, useSyncExternalStore } from 'react';
 import { filterStates } from '../panelHandles.js';
+import { PanelSlotContext } from '../panelSlotContext.js';
 import { PanelViewContextValue } from '../panelViewContext.js';
 const NO_SUBSCRIBE = () => () => { };
 const EMPTY_SNAPSHOT = Object.freeze({ version: 0, status: 'detached', panels: Object.freeze([]) });
@@ -16,13 +17,16 @@ export function useWorkspaceManager() {
 }
 /**
  * The workspace of the PanelRow above, as a view acts on it: `panels.get(key)` returns the operable handle of any panel
- * (close, show, hide, move, configure), `panels.addPanel` makes one, and the rest of the manager is there too. It is the same
- * object on every render and undefined outside a PanelRow that has a workspace. The workspace's own `dispose`, `update` and
+ * (close, show, hide, move, configure), `panels.addPanel` makes one, and the rest of the manager is there too. Inside a panel's
+ * view, a panel its `addPanel` creates records that panel as its opener (`PanelState.openedBy`). It is the same object on every
+ * render of one view and undefined outside a PanelRow that has a workspace. The workspace's own `dispose`, `update` and
  * `rename` are not part of it.
  * @public
  */
 export function useWorkspace() {
-    return useContext(PanelViewContextValue)?.workspace;
+    const context = useContext(PanelViewContextValue);
+    const own = useContext(PanelSlotContext)?.id;
+    return own === undefined || context?.workspaceFor === undefined ? context?.workspace : context.workspaceFor(own);
 }
 function useSnapshot() {
     const reader = useWorkspaceManager();

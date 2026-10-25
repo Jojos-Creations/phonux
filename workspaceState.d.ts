@@ -66,6 +66,8 @@ export type WorkspacePanelState = {
     };
     /** Written as `false` for a panel that cannot be closed. */
     closable?: false;
+    /** The panel whose view opened this one, named as `anchor.panel` names one: written only while that panel is in the row too. A file without it restores the panel with no opener. */
+    openedBy?: string;
 };
 /**
  * The saved workspace: a version and one entry per saved panel, in row order. The host's root column is not in it.

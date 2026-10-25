@@ -172,8 +172,10 @@ export function PanelRowSlot({ panelId, label, leftOffset, width, phoneHeight, t
             slotDriver.set(el.current, { x: leftOffset, opacity: 1 });
         else if (moved && el.current !== null && present) {
             // Before the slide starts: a listener reads the box the panel still shows.
-            if (panelId !== undefined)
-                el.current.dispatchEvent(new CustomEvent(PANEL_SLIDE_EVENT, { bubbles: true, detail: { id: panelId } }));
+            if (panelId !== undefined) {
+                const Ctor = el.current.ownerDocument.defaultView?.CustomEvent ?? CustomEvent;
+                el.current.dispatchEvent(new Ctor(PANEL_SLIDE_EVENT, { bubbles: true, detail: { id: panelId } }));
+            }
             startable.startTime = slideStart();
             slotDriver.startPending(el.current);
             delete startable.startTime;

@@ -9,6 +9,7 @@ import { resolveWorkspaceTuning } from './panelTuning.js';
 import { createHistoryPanel, slotsOf } from './panelWindow.js';
 import { cleanWorkspaceName, DEFAULT_WORKSPACE_NAME } from './workspaceName.js';
 import { entryNamed } from './panelIds.js';
+import { familyIds } from './panelOpener.js';
 import { createLiveStore, refusedLiveKeys } from './workspaceLive.js';
 /** The id of the marker entry a workspace without a root keeps. */
 export const ROOT_MARKER_ID = '__root__';
@@ -43,6 +44,7 @@ const sameState = (a, b) => a.id === b.id &&
     a.url === b.url &&
     a.listed === b.listed &&
     a.pinned === b.pinned &&
+    a.openedBy === b.openedBy &&
     JSON.stringify(a.params) === JSON.stringify(b.params) &&
     JSON.stringify(a.deferredPin) === JSON.stringify(b.deferredPin) &&
     sameSettingsValue(a.settings, b.settings);
@@ -180,6 +182,13 @@ export function createWorkspace(o = {}) {
         // A pin from code flips `parkable` for the session without recording it, so the entry's own value outvotes the layers.
         return e.settings.parkable === res.value.parkable ? res : resolveEntry(e, { ...e.overrides, parkable: e.settings.parkable });
     };
+    /** The public id of `e`'s opener while the opener is in the row, else null. */
+    const openerKey = (e, entries) => {
+        if (e.openedBy === undefined)
+            return null;
+        const opener = entries.find((p) => p.id === e.openedBy);
+        return opener === undefined || opener.marker === true ? null : panelKey(opener);
+    };
     const stateOfEntry = (e, entries, held, index) => {
         const res = entryResolution(e);
         return {
@@ -196,6 +205,7 @@ export function createWorkspace(o = {}) {
             settings: res.value,
             pinned: isPinned(e, entries, res.value.pinning, rootId),
             deferredPin: e.deferredPin ?? null,
+            openedBy: openerKey(e, entries),
         };
     };
     const stateOfRecord = (r) => {
@@ -216,6 +226,7 @@ export function createWorkspace(o = {}) {
             settings: res.value,
             pinned: false,
             deferredPin: r.deferredPin ?? null,
+            openedBy: null,
         };
     };
     /** Rebuilds the snapshot from the last commit and the records; a no-op, and no new version, when nothing changed. */
@@ -301,7 +312,7 @@ export function createWorkspace(o = {}) {
         const last = states.get(key);
         if (last !== undefined) {
             const res = entryResolution(e);
-            retired.set(key, { state: { ...last, status: 'closed', held: false, engineId: null, index: null, pinned: false, deferredPin: null }, res });
+            retired.set(key, { state: { ...last, status: 'closed', held: false, engineId: null, index: null, pinned: false, deferredPin: null, openedBy: null }, res });
             for (const old of [...retired.keys()].slice(0, Math.max(0, retired.size - RETIRED_LIMIT))) {
                 retired.delete(old);
                 handles.delete(old);
@@ -393,9 +404,19 @@ export function createWorkspace(o = {}) {
         configure: (id, patch, caller) => configureOne(id, patch, caller),
         configureTemplate: (templateId, patch) => configureTemplateOne(templateId, patch),
         configureTuning: (patch) => configureTuningOne(patch),
+        familyOf: (id) => familyOf(id),
     };
     const panels = makePanelManager(source);
     const reader = makeReader(source);
+    /** The panel `id` and its descendants by public id, in row order, read from the committed row. */
+    const familyOf = (id) => {
+        const entries = committed?.entries ?? [];
+        const top = entries.find((p) => p.marker !== true && panelKey(p) === id);
+        if (top === undefined)
+            return [];
+        const byId = new Map(entries.map((p) => [p.id, p]));
+        return familyIds(entries, top.id).map((engineId) => panelKey(byId.get(engineId)));
+    };
     const registerOne = (t) => {
         definePanel(t);
         const existing = templates.get(t.id);
@@ -443,7 +464,8 @@ export function createWorkspace(o = {}) {
         if (problem !== undefined)
             throw new PanelManagerError('invalid-options', `panel id ${JSON.stringify(id)}: ${problem}`);
     };
-    const addPanel = (given, options) => {
+    /** `addPanel` for the view of the panel drawn under `opener`, which a panel it creates records as its opener; undefined for the host's. */
+    const addPanelBy = (opener) => (given, options) => {
         if (status === 'disposed')
             throw new PanelManagerError('disposed', 'the workspace was disposed');
         let t;
@@ -490,12 +512,13 @@ export function createWorkspace(o = {}) {
         records.set(id, rec);
         if (ready && !over) {
             inflight.add(id);
-            commit.create({ id, templateId: t.id, engineId: suffix ?? newId(), ...(options?.settings !== undefined ? { settings: options.settings } : {}), ...(options?.params !== undefined ? { params: options.params } : {}), ...(options?.url !== undefined ? { url: options.url } : {}) });
+            commit.create({ id, templateId: t.id, engineId: suffix ?? newId(), ...(opener !== undefined ? { openedBy: opener } : {}), ...(options?.settings !== undefined ? { settings: options.settings } : {}), ...(options?.params !== undefined ? { params: options.params } : {}), ...(options?.url !== undefined ? { url: options.url } : {}) });
         }
         if (!ready || over)
             refresh();
         return source.handleOf(id);
     };
+    const addPanel = addPanelBy(undefined);
     /** The refusal for an operation a workspace in this state cannot take at all, or undefined when it is attached and ready. */
     const lifecycleRefusal = (id) => {
         if (status === 'disposed')
@@ -955,9 +978,12 @@ export function createWorkspace(o = {}) {
             committed = { entries: c.entries, held: c.held };
             commit = c;
             const now = new Map(c.entries.filter((e) => e.marker !== true && e.id !== rootId).map((e) => [e.id, e]));
-            for (const [engineId, e] of lastEntries)
-                if (!now.has(engineId))
-                    leave(e);
+            for (const [engineId, e] of lastEntries) {
+                if (now.has(engineId))
+                    continue;
+                leave(e);
+                viewWorkspaces.delete(engineId);
+            }
             lastEntries = now;
             inflight.clear();
             status = c.settled ? 'ready' : 'loading';
@@ -1042,8 +1068,18 @@ export function createWorkspace(o = {}) {
         },
     };
     const workspace = Object.freeze({ panels: Object.freeze({ ...handle.panels, addPanel }) });
+    // One per drawn panel, so `useWorkspace()` keeps one identity per view and a panel it adds records that view's panel as its opener.
+    const viewWorkspaces = new Map();
     const view = {
         workspace,
+        workspaceFor: (engineId) => {
+            let own = viewWorkspaces.get(engineId);
+            if (own === undefined) {
+                own = Object.freeze({ panels: Object.freeze({ ...handle.panels, addPanel: addPanelBy(engineId) }) });
+                viewWorkspaces.set(engineId, own);
+            }
+            return own;
+        },
         handleFor: (name) => {
             const e = entryNamed((observed ?? committed)?.entries ?? [], name);
             return e === undefined || e.marker === true ? undefined : source.viewHandleOf(panelKey(e));
@@ -1051,6 +1087,14 @@ export function createWorkspace(o = {}) {
         manager: reader,
     };
     const transfer = {
+        family: familyOf,
+        release: (family) => {
+            const engineIds = family.map((c) => c.engineId);
+            const check = commit.ops.release(engineIds, false);
+            if (!check.ok)
+                return { refusal: check };
+            return { go: () => void commit.ops.release(engineIds, true) };
+        },
         leaving: (key) => {
             const unavailable = lifecycleRefusal(key);
             if (unavailable !== undefined)
@@ -1069,43 +1113,61 @@ export function createWorkspace(o = {}) {
             // Code declares such a panel again at every launch, so only a tombstone keeps it out of this workspace.
             if (entry.declared === true && !(settings.closable && settings.afterClose === 'stay-closed'))
                 return no('not-movable', 'is declared by code for this workspace and would return at the next launch');
-            const check = commit.ops.release(entry.id, false);
+            const check = commit.ops.release([entry.id], false);
             if (!check.ok)
                 return { refusal: check };
             const settingsLayer = instanceLayer(entry);
             const carried = {
                 key,
                 templateId: entry.view,
+                engineId: entry.id,
+                openedBy: entry.openedBy,
                 settings: settingsLayer,
                 params: entry.params,
                 url: entry.url === '' ? undefined : entry.url,
                 fields: { ...(entry.uid !== undefined ? { uid: entry.uid } : {}), ...(entry.title !== undefined ? { title: entry.title } : {}), slots: slotsOf(entry), sized: entry.overrides?.slots !== undefined },
             };
-            return { carried, go: () => void commit.ops.release(entry.id, true) };
+            return { carried };
         },
-        arriving: (carried) => {
-            const key = carried.key;
-            const unavailable = lifecycleRefusal(key);
+        arriving: (family) => {
+            const no = (key, message, code = 'instance-limit') => ({ refusal: refused(code, `panel '${key}': ${message}`) });
+            const unavailable = lifecycleRefusal(family[0]?.key ?? '');
             if (unavailable !== undefined)
                 return { refusal: unavailable };
-            const template = templateOf(carried.templateId);
-            if (template === undefined)
-                return { refusal: refused('unknown-panel', `panel '${key}': template '${carried.templateId}' is not registered in the target workspace`) };
-            const res = resolvePanelSettings({ ...(defaults !== undefined ? { workspace: defaults } : {}), template: template.settings, ...(carried.settings !== undefined ? { instance: carried.settings } : {}) }, { lenient: true });
-            const count = instancesOf(template.id);
-            const engineId = key.includes('~') ? key.slice(key.indexOf('~') + 1) : newId();
-            const taken = records.get(key);
-            const present = committed.entries.some((p) => panelKey(p) === key || p.id === engineId) || inflight.has(key);
-            const declaredHere = taken?.intent === true;
-            const clash = present || declaredHere;
-            const full = (!res.value.multiple && count > 0) || (res.value.maxInstances !== 'unlimited' && count >= res.value.maxInstances);
-            if (clash || full)
-                return { refusal: refused('instance-limit', clash ? (present ? `panel '${key}': the target workspace already has a panel under that id` : `panel '${key}': the target workspace's code declares a panel under that id, so it cannot take another`) : `panel '${key}': template '${template.id}' is at its limit of ${res.value.multiple ? res.value.maxInstances : 1} in the target workspace`) };
+            // Counted together, so a family of two panels of one template fits only where both do.
+            const planned = new Map();
+            const plannedIds = new Set();
+            const arrivals = [];
+            for (const carried of family) {
+                const key = carried.key;
+                const template = templateOf(carried.templateId);
+                if (template === undefined)
+                    return no(key, `template '${carried.templateId}' is not registered in the target workspace`, 'unknown-panel');
+                const res = resolvePanelSettings({ ...(defaults !== undefined ? { workspace: defaults } : {}), template: template.settings, ...(carried.settings !== undefined ? { instance: carried.settings } : {}) }, { lenient: true });
+                const count = instancesOf(template.id) + (planned.get(template.id) ?? 0);
+                // A named panel draws its engine id as it lands; an anonymous one keeps the suffix of its key.
+                const engineId = key.includes('~') ? key.slice(key.indexOf('~') + 1) : undefined;
+                if (committed.entries.some((p) => panelKey(p) === key || (engineId !== undefined && p.id === engineId)) || inflight.has(key) || (engineId !== undefined && plannedIds.has(engineId)))
+                    return no(key, 'the target workspace already has a panel under that id');
+                if (records.get(key)?.intent === true)
+                    return no(key, "the target workspace's code declares a panel under that id, so it cannot take another");
+                if ((!res.value.multiple && count > 0) || (res.value.maxInstances !== 'unlimited' && count >= res.value.maxInstances))
+                    return no(key, `template '${template.id}' is at its limit of ${res.value.multiple ? res.value.maxInstances : 1} in the target workspace`);
+                planned.set(template.id, (planned.get(template.id) ?? 0) + 1);
+                if (engineId !== undefined)
+                    plannedIds.add(engineId);
+                arrivals.push({ carried, template, engineId });
+            }
             return {
                 go: () => {
-                    records.set(key, { id: key, templateId: template.id, settings: carried.settings, params: carried.params, url: carried.url, intent: false, closed: false, anonymous: key.includes('~') });
-                    inflight.add(key);
-                    commit.create({ id: key, templateId: template.id, engineId, ...(carried.settings !== undefined ? { settings: carried.settings } : {}), ...(carried.params !== undefined ? { params: carried.params } : {}), ...(carried.url !== undefined ? { url: carried.url } : {}), carried: carried.fields });
+                    const landed = new Map(arrivals.map((a) => [a.carried.engineId, a.engineId ?? newId()]));
+                    for (const { carried, template } of arrivals) {
+                        const key = carried.key;
+                        const openedBy = carried.openedBy === undefined ? undefined : landed.get(carried.openedBy);
+                        records.set(key, { id: key, templateId: template.id, settings: carried.settings, params: carried.params, url: carried.url, intent: false, closed: false, anonymous: key.includes('~') });
+                        inflight.add(key);
+                        commit.create({ id: key, templateId: template.id, engineId: landed.get(carried.engineId), ...(openedBy !== undefined ? { openedBy } : {}), ...(carried.settings !== undefined ? { settings: carried.settings } : {}), ...(carried.params !== undefined ? { params: carried.params } : {}), ...(carried.url !== undefined ? { url: carried.url } : {}), carried: carried.fields });
+                    }
                     refresh();
                 },
             };
@@ -1139,16 +1201,31 @@ export const bindingOf = (ws) => coreOf(ws).binding;
 export const landPanelIn = (ws, key, value, src) => coreOf(ws).land(key, value, src);
 /** What a row tells its template views about `ws`. */
 export const viewContextOf = (ws) => coreOf(ws).view;
-/** Moves the panel `key` of `from` to the end of `to`'s row; both must belong to one column. The caller has checked they differ. */
-export function transferPanel(from, key, to) {
-    const leaving = coreOf(from).transfer.leaving(key);
+/**
+ * Moves the panel `key` of `from`, with its family when asked, to the end of `to`'s row; both must belong to one column and the
+ * caller has checked they differ. Every member is checked on both sides before anything acts. With `run` false it only answers.
+ */
+export function transferPanel(from, key, to, withFamily, run) {
+    const source = coreOf(from).transfer;
+    const family = withFamily ? source.family(key) : [];
+    const keys = family.length > 0 ? family : [key];
+    const carried = [];
+    for (const k of keys) {
+        const one = source.leaving(k);
+        if ('refusal' in one)
+            return { ok: false, code: one.refusal.code, message: one.refusal.message };
+        carried.push(k === key ? { ...one.carried, openedBy: undefined } : one.carried);
+    }
+    const leaving = source.release(carried);
     if ('refusal' in leaving)
         return { ok: false, code: leaving.refusal.code, message: leaving.refusal.message };
-    const arriving = coreOf(to).transfer.arriving(leaving.carried);
+    const arriving = coreOf(to).transfer.arriving(carried);
     if ('refusal' in arriving)
         return { ok: false, code: arriving.refusal.code, message: `target workspace '${to.name}': ${arriving.refusal.message}` };
-    // Added before it is removed, so a failure in between would leave the panel twice, never lose it.
+    if (!run)
+        return { ok: true, panelIds: keys };
+    // Added before they are removed, so a failure in between would leave a panel twice, never lose it.
     arriving.go();
     leaving.go();
-    return { ok: true };
+    return { ok: true, panelIds: keys };
 }

@@ -57,6 +57,13 @@ export interface PanelState {
     readonly pinned: boolean;
     /** A pin change waiting for the panel to become live, or null when none is. */
     readonly deferredPin: DeferredPin | null;
+    /**
+     * The id of the panel whose view opened this one through its own `useWorkspace().panels.addPanel`, or null for a panel the
+     * host opened, one added before the workspace was ready, one that arrived alone from another workspace, and a pending or
+     * closed panel. A workspace always sets it; a state built by hand may leave it out. Set once when the panel is created; a drag, a reorder or a reopen never changes it. When the opener closes or
+     * moves away alone, this becomes the opener's own opener.
+     */
+    readonly openedBy?: PanelId | null;
 }
 /** A readonly picture of a workspace at one moment: its version, its status and every panel's state. @public */
 export type PanelSnapshot = {
