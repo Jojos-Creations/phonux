@@ -330,6 +330,10 @@ export function Workspace(props: WorkspaceProps): React.ReactElement {
     scroller.stop();
     scroller.glideTo(0, { durationSec: 0, instant: true, ease: resolved.slide.glideEase });
   }, [scrolls, overflowContainerRef]);
+  // While the window has resized and the row has not yet taken the new width, the row holds still where it was drawn.
+  const settledWidthRef = React.useRef(containerWidth);
+  settledWidthRef.current = containerWidth;
+  const holding = (container: HTMLElement): boolean => heightBudget !== undefined && Math.abs(container.clientWidth - settledWidthRef.current) > EDGE_TOLERANCE_PX;
   // A close, reopen or move slides slots without moving scrollLeft, so the row counts as moving until that slide has landed.
   const slideRef = React.useRef({ numbers: rowNumbers, endsAt: 0 });
   if (rowNumbers !== undefined && slideRef.current.numbers !== undefined && slotsMoved(slideRef.current.numbers, rowNumbers)) {
@@ -344,7 +348,8 @@ export function Workspace(props: WorkspaceProps): React.ReactElement {
       const scroller = rowScrollerFor(container);
       const held = scroller.claimHeld();
       const view = container.getBoundingClientRect();
-      const atRest = !held && scroller.glideTarget() === null && performance.now() >= slideRef.current.endsAt && rowNumbers.stops.some((stop) => Math.abs(stop - container.scrollLeft) <= EDGE_TOLERANCE_PX);
+      // A held row is not at rest: a panel the narrower window cuts stays drawn until the row's glide decides where it rests.
+      const atRest = !held && !holding(container) && scroller.glideTarget() === null && performance.now() >= slideRef.current.endsAt && rowNumbers.stops.some((stop) => Math.abs(stop - container.scrollLeft) <= EDGE_TOLERANCE_PX);
       const seen = new Set<string>();
       for (const slot of strip.querySelectorAll<HTMLElement>('[data-row-slot]')) {
         // A stepping row cuts the neighbour of a stop at the window edge, so only a panel the window does not reach at all is out of reach of Tab.
@@ -416,6 +421,8 @@ export function Workspace(props: WorkspaceProps): React.ReactElement {
   // a jump, so the end element keeps the old range in that commit and gives it back frame by frame as the row's glide carries it home.
   const scrolledRef = React.useRef(0);
   const endPadRef = React.useRef<HTMLDivElement>(null);
+  // The scroll before the window moved: the clamp's own scroll event arrives before the observer that undoes it.
+  const heldScrollRef = React.useRef(0);
   const before = drawn.current.numbers;
   // Measured from where the row's end is drawn, which for a row that fits is left of 0 (`maxScrollOf` would floor it there), and
   // the strip's margin glides, so until it lands the row ends short of the numbers by the margin still to come.
@@ -427,14 +434,40 @@ export function Workspace(props: WorkspaceProps): React.ReactElement {
     const scroller = rowScrollerFor(container);
     const follow = (): void => {
       scrolledRef.current = container.scrollLeft;
+      if (!holding(container)) heldScrollRef.current = container.scrollLeft;
       const pad = endPadRef.current;
       if (pad === null || pad.style.minWidth === '') return;
       const need = container.scrollLeft + container.clientWidth - pad.offsetLeft;
-      pad.style.minWidth = scroller.glideTarget() !== null && need > 0 ? `${need}px` : '';
+      pad.style.minWidth = (scroller.glideTarget() !== null || holding(container)) && need > 0 ? `${need}px` : '';
     };
     scrolledRef.current = container.scrollLeft;
+    heldScrollRef.current = container.scrollLeft;
     return scroller.subscribe(follow);
   }, [overflowContainerRef]);
+  // A wider window shortens the scroll range at once, and the browser would clamp the scroll before the row has moved: the end element keeps
+  // the range while the row holds. An observer runs after layout and before paint, so the clamp is undone before it is ever drawn.
+  React.useLayoutEffect(() => {
+    const container = overflowContainerRef.current;
+    if (container === null || heightBudget === undefined || typeof ResizeObserver === 'undefined') return undefined;
+    const keep = (): void => {
+      const pad = endPadRef.current;
+      if (pad === null || !holding(container)) return;
+      const need = heldScrollRef.current + container.clientWidth - pad.offsetLeft;
+      if (need <= pad.offsetWidth) return;
+      pad.style.minWidth = `${need}px`;
+      container.scrollLeft = heldScrollRef.current;
+    };
+    const observer = new ResizeObserver(keep);
+    observer.observe(container);
+    return () => observer.disconnect();
+  }, [overflowContainerRef, heightBudget === undefined]);
+  // The row has taken the window's width: a range the hold kept is given back once nothing glides through it.
+  React.useLayoutEffect(() => {
+    const container = overflowContainerRef.current;
+    const pad = endPadRef.current;
+    if (container === null || pad === null || pad.style.minWidth === '' || holding(container) || rowScrollerFor(container).glideTarget() !== null || endHold > 0) return;
+    pad.style.minWidth = '';
+  }, [containerWidth]);
   // Nothing glided the row home (a drag holds it, or motion is off): the range is given back at once.
   React.useEffect(() => {
     const container = overflowContainerRef.current;
