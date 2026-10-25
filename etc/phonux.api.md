@@ -1184,6 +1184,8 @@ export type ResolvedWorkspaceTuning = {
     hopFraction: number;
     edgeScroll: EdgeScrollTuning;
     rowGap: number;
+    rowTop: number | null;
+    phoneHeight: 'fit' | 'auto';
     saveQuietMs: number;
     gestureLockMs: number;
     gestureQuietMs: number;
@@ -1567,6 +1569,9 @@ export function useWorkspace(): ViewWorkspace | undefined;
 export function useWorkspaceManager(): PanelReader | undefined;
 
 // @public
+export function useWorkspaceRow(): WorkspaceRow;
+
+// @public
 export type ViewHandle<P extends JsonValue = JsonValue> = Omit<PanelHandle<P>, 'configure'> & {
     configure(patch: ViewPatch): ConfigureResult;
 };
@@ -1652,7 +1657,7 @@ export interface WorkspaceColumnHandle {
 
 // @public
 export interface WorkspaceColumnProps {
-    children?: (workspace: WorkspaceHandle) => React_2.ReactNode;
+    children?: (workspace: WorkspaceHandle) => React_2.ReactNode | undefined;
     column: WorkspaceColumnHandle;
 }
 
@@ -1792,6 +1797,27 @@ export interface WorkspaceProps extends Omit<ElementProps, 'children'> {
 }
 
 // @public
+export interface WorkspaceRow {
+    readonly entries: readonly WorkspaceRowEntry[];
+    readonly maxFitPanels: number | null;
+    readonly phoneSize: {
+        readonly width: number;
+        readonly height: number;
+    };
+    readonly rowNumbers: RowNumbers;
+    readonly scroller: React_2.RefObject<HTMLElement | null>;
+    readonly tuning: Pick<ResolvedWorkspaceTuning, 'slide'>;
+}
+
+// @public
+export interface WorkspaceRowEntry {
+    readonly id: string;
+    readonly settings?: {
+        readonly hollowDot: boolean;
+    };
+}
+
+// @public
 export type WorkspaceState = {
     version: 1;
     panels: WorkspacePanelState[];
@@ -1845,6 +1871,8 @@ export type WorkspaceTuning = {
         [K in keyof EdgeScrollTuning]?: EdgeScrollTuning[K];
     };
     rowGap?: number;
+    rowTop?: number | null;
+    phoneHeight?: 'fit' | 'auto';
     saveQuietMs?: number;
     gestureLockMs?: number;
     gestureQuietMs?: number;

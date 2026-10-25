@@ -246,6 +246,8 @@ test('differential tuning.resizeSettleSlides: 1.5 slides after a width change th
 test('the library tuning defaults are exactly these numbers, by key name', () => {
   assert.deepEqual(LIBRARY_TUNING_DEFAULTS, {
     rowGap: 16,
+    rowTop: null,
+    phoneHeight: 'fit',
     dragToClose: { distanceFraction: 0.25, minDistancePx: 80, flickMinDistancePx: 40, flickVelocity: 700, cancelVelocity: -300 },
     slide: { durationSec: 0.6, ease: [0.4, 0, 0.2, 1], closeExitSeconds: 0.18, closeExitEase: 'easeIn', glideEase: 'cubic-out' },
     hopFraction: 0.5,

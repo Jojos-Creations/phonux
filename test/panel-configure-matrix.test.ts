@@ -1218,6 +1218,47 @@ test('matrix:tuning.rowGap', async () => {
   assert.deepEqual([unmeasured.ws.tuning.rowGap, unmeasured.m.latest().entries === entries], [40, true], 'unmeasured: stored');
 });
 
+test('matrix:tuning.rowTop', async () => {
+  probe('tuning.rowTop');
+  await wrongScopeInEveryStatus({ tuning: { rowTop: 162 } }, 'tuning.rowTop');
+  const r = await matrixRig();
+  await r.settle();
+  const renders = r.m.renders();
+  assert.deepEqual({ ...done(r.turn(() => r.ws.panels.configureTuning({ rowTop: 162 }))) }, { ok: true, changed: true, shown: false, now: ['tuning.rowTop'], later: [], shadowed: [], notes: [] });
+  assert.equal(r.m.renders() - renders, 1, 'one commit');
+  assert.equal(r.ws.tuning.rowTop, 162, 'stored at the commit of the call');
+  done(r.turn(() => r.ws.panels.configureTuning({ rowTop: 200 })));
+  await r.settle();
+  assert.equal(r.ws.tuning.rowTop, 200, 'a second value replaces the first');
+  done(r.turn(() => r.ws.panels.configureTuning({ rowTop: null })));
+  await r.settle();
+  assert.equal(r.ws.tuning.rowTop, null, 'null restores the default room');
+  const taken = await matrixRig();
+  assert.deepEqual(taken.turn(() => [letter(taken.h.a!.hide()), letter(taken.ws.panels.configureTuning({ rowTop: 30 }))]), ['T', 'T'], 'applied while a token is held: the patch does not re-price the row');
+  assert.equal(thrownCode(() => r.ws.panels.configureTuning({ rowTop: 401 })), 'invalid-settings', 'outside 0 to 400 throws');
+  const unmeasured = await matrixRig({ width: 0 });
+  const entries = unmeasured.m.latest().entries;
+  done(unmeasured.turn(() => unmeasured.ws.panels.configureTuning({ rowTop: 40 })));
+  assert.deepEqual([unmeasured.ws.tuning.rowTop, unmeasured.m.latest().entries === entries], [40, true], 'unmeasured: stored');
+});
+
+test('matrix:tuning.phoneHeight', async () => {
+  probe('tuning.phoneHeight');
+  await wrongScopeInEveryStatus({ tuning: { phoneHeight: 'auto' } }, 'tuning.phoneHeight');
+  const r = await matrixRig();
+  await r.settle();
+  const renders = r.m.renders();
+  assert.deepEqual({ ...done(r.turn(() => r.ws.panels.configureTuning({ phoneHeight: 'auto' }))) }, { ok: true, changed: true, shown: false, now: ['tuning.phoneHeight'], later: [], shadowed: [], notes: [] });
+  assert.equal(r.m.renders() - renders, 1, 'one commit');
+  assert.equal(r.ws.tuning.phoneHeight, 'auto', 'stored at the commit of the call');
+  done(r.turn(() => r.ws.panels.configureTuning({ phoneHeight: 'fit' })));
+  await r.settle();
+  assert.equal(r.ws.tuning.phoneHeight, 'fit', 'the default is restored by a second call');
+  const taken = await matrixRig();
+  assert.deepEqual(taken.turn(() => [letter(taken.h.a!.hide()), letter(taken.ws.panels.configureTuning({ phoneHeight: 'auto' }))]), ['T', 'T'], 'applied while a token is held: the patch does not re-price the row');
+  assert.equal(thrownCode(() => r.ws.panels.configureTuning({ phoneHeight: 'tall' as never })), 'invalid-settings', 'a value other than fit or auto throws');
+});
+
 test('matrix:tuning.dragToClose', async () => {
   probe('tuning.dragToClose');
   await wrongScopeInEveryStatus({ tuning: { dragToClose: { minDistancePx: 120 } } }, 'tuning.dragToClose');
@@ -1613,13 +1654,13 @@ test('the class table ran every cell: executed cells equal 4 classes by 9 status
 
 // The design copy is frozen; a catalog key added or removed after it is listed here, never in the copy.
 const REMOVED_AFTER_DESIGN: readonly string[] = ['formFactor', 'formFactors', 'hideWhenLast', 'returnPriority', 'evictionRank', 'evictionOrder', 'scrollOnDrag', 'viewState', 'keepMounted', 'placeOnReturn', 'placeFallback', 'undoPlacement', 'closeExit', 'animated', 'persist', 'rememberLayout', 'undoWindowMs', 'reportClose', 'snapshot', 'draggable', 'placeable'];
-const ADDED_AFTER_DESIGN: readonly string[] = ['edgeHold', 'tuning.defaultEnterFrom', 'tuning.defaultExitTo', 'tuning.maxLivePanels', 'tuning.chrome', 'slots', 'maxSlots', 'tuning.resizeSettleSlides', 'tuning.phoneFit', 'tuning.phoneFitMin', 'tuning.phoneFitMax', 'hollowDot', 'movable'];
+const ADDED_AFTER_DESIGN: readonly string[] = ['edgeHold', 'tuning.defaultEnterFrom', 'tuning.defaultExitTo', 'tuning.maxLivePanels', 'tuning.chrome', 'slots', 'maxSlots', 'tuning.resizeSettleSlides', 'tuning.phoneFit', 'tuning.phoneFitMin', 'tuning.phoneFitMax', 'hollowDot', 'movable', 'tuning.rowTop', 'tuning.phoneHeight'];
 
-test('the probes ran every catalog name once: 54 executed, equal to the catalog and to the design copy of it plus the names added after it', () => {
+test('the probes ran every catalog name once: 56 executed, equal to the catalog and to the design copy of it plus the names added after it', () => {
   const design = JSON.parse(readFileSync(new URL('./fixtures/catalog-design-copy.json', import.meta.url), 'utf8')) as { name: string }[];
   assert.equal(design.length, 62);
-  assert.equal(CATALOG_NAMES.length, 54);
-  assert.equal(probesExecuted().size, 54);
+  assert.equal(CATALOG_NAMES.length, 56);
+  assert.equal(probesExecuted().size, 56);
   assert.deepEqual([...probesExecuted()].sort(), [...CATALOG_NAMES].sort());
   assert.deepEqual([...probesExecuted()].sort(), [...design.map((d) => d.name).filter((name) => !REMOVED_AFTER_DESIGN.includes(name)), ...ADDED_AFTER_DESIGN].sort());
 });

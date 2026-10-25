@@ -739,6 +739,8 @@ export type WorkspaceTuning = {
         [K in keyof EdgeScrollTuning]?: EdgeScrollTuning[K];
     };
     rowGap?: number;
+    rowTop?: number | null;
+    phoneHeight?: 'fit' | 'auto';
     saveQuietMs?: number;
     gestureLockMs?: number;
     gestureQuietMs?: number;

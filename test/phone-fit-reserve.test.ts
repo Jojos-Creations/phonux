@@ -75,6 +75,28 @@ test('a live row gap change re-fits the phone to the new reserve', async () => {
   assertFills(phoneHeight(), WINDOW_HEIGHT - TOP - FOOTER_ROOM_PX, 'gap under the footer room');
   act(() => ws.panels.configureTuning({ rowGap: 60 }));
   await until('the re-fit', () => phoneHeight() < 640);
-  assertFills(phoneHeight(), WINDOW_HEIGHT - TOP - 60, 'the wider gap is the reserve');
+  await advanceFrames(1000);
+  assert.ok(phoneHeight() <= WINDOW_HEIGHT - TOP - 60, `the wider gap is the reserve: ${phoneHeight()} against ${WINDOW_HEIGHT - TOP - 60}`);
   assert.equal(padBottom(), 60);
+});
+
+test('under phoneHeight auto the frame is never shorter than the fit, even when the row room is shorter', async () => {
+  win.width = 1300;
+  win.height = 700;
+  const drawn = async (phoneHeightMode: 'fit' | 'auto'): Promise<number> => {
+    win.width = 1300;
+    win.height = WINDOW_HEIGHT;
+    const ws = track(createWorkspace({ templates: [probe], tuning: { phoneFit: 'fit', rowGap: GAP, rowTop: 162, phoneHeight: phoneHeightMode } }));
+    ws.addPanel('reserve-probe');
+    await until('the probe', () => slots(document.body).includes('reserve-probe'));
+    await until('the first fit', () => phoneHeight() > 0);
+    await advanceFrames(1000);
+    const height = phoneHeight();
+    rigCleanup();
+    return height;
+  };
+  const fit = await drawn('fit');
+  const room = WINDOW_HEIGHT - 162 - 40;
+  assert.ok(room < fit, `the row room ${room} is shorter than the fit ${fit}, so the floor binds`);
+  assert.equal(await drawn('auto'), fit, 'auto draws the fit, not the shorter room');
 });

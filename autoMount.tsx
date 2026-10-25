@@ -19,6 +19,7 @@ import { useProvidePanels } from './panels/useProvidePanels.js';
 import type { ProvidedPanels } from './panels/useProvidePanels.js';
 import type { WorkspaceProps } from './Workspace.js';
 import { bindingOf, type WorkspaceHandle } from './workspaceCore.js';
+import { WorkspaceRowContext, type WorkspaceRow } from './workspaceRow.js';
 import { columnCoreOf } from './columnHandle.js';
 import { WorkspaceColumn } from './WorkspaceColumn.js';
 import type { WorkspaceColumnHandle } from './columnHandle.js';
@@ -126,7 +127,8 @@ function AutoBody({ workspace, columnTop }: { workspace: WorkspaceHandle; column
   const containerWidth = useContainerWidth(ref);
   const preferred = values.device?.size ?? DEFAULT_PHONE_SIZE;
   const tuning = React.useSyncExternalStore(binding.subscribe, () => binding.tuning, () => binding.tuning);
-  const topPadding = columnTop > 0 ? columnTop + (values.topInset ?? 0) + tuning.rowGap : values.topInset;
+  // Standalone, `tuning.rowTop` alone sets the row's top room; the column's own cell adds its topInset clearance to the band.
+  const topPadding = tuning.rowTop ?? (columnTop > 0 ? columnTop + (values.topInset ?? 0) + tuning.rowGap : undefined);
   const phone = usePhoneFit(ref, containerWidth, preferred, tuning, topPadding);
   const phoneWidth = phone.width;
   const provided = useProvidePanels({
@@ -151,7 +153,22 @@ function AutoBody({ workspace, columnTop }: { workspace: WorkspaceHandle; column
       <PanelRow {...rowProps(provided, workspace)} />
     </Workspace>
   );
-  return <HostProvider host={host}>{Wrap === undefined ? row : <Wrap workspace={workspace}>{row}</Wrap>}</HostProvider>;
+  const rowValue = React.useMemo(
+    (): WorkspaceRow => ({
+      rowNumbers: provided.rowNumbers,
+      entries: provided.entries,
+      maxFitPanels: provided.maxFitPanels ?? null,
+      scroller: ref,
+      tuning,
+      phoneSize: { width: phone.width, height: phone.height },
+    }),
+    [provided.rowNumbers, provided.entries, provided.maxFitPanels, tuning, phone.width, phone.height],
+  );
+  return (
+    <HostProvider host={host}>
+      <WorkspaceRowContext.Provider value={rowValue}>{Wrap === undefined ? row : <Wrap workspace={workspace}>{row}</Wrap>}</WorkspaceRowContext.Provider>
+    </HostProvider>
+  );
 }
 
 /**
