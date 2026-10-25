@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased
+
+### Added
+
+- A panel added through the `addPanel` of a view's own `useWorkspace()` records that view's panel as its opener: `PanelState.openedBy` is the opener's id, or null for a panel the host opened. It is set once, a drag or a reorder never changes it, and it is saved in the workspace file, so it survives a relaunch; a file saved before it loads with no openers. When a panel closes, the panels it opened take its own opener.
+- `PanelManager.familyOf(id)` lists a panel and every panel it opened, directly or through the panels it opened, in row order.
+- `WorkspaceColumnHandle.movePanel` takes `{ withFamily: true }` (`MovePanelOptions`) to move a panel together with its family to the end of another workspace's row, keeping who opened whom among them. It is all or nothing: one member the target refuses moves none, and the message names it. `canMovePanel` answers what `movePanel` would, without moving, so a host can offer only the workspaces that can take the whole family. `MovePanelResult` gains `panelIds`, every panel that moved in its new order. A panel moved alone now arrives with no opener, and the panels it opened stay behind under its old opener.
+
 ## 0.2.0-rc.5
 
 - Closing a panel when the row then fits, or shortens past where it is scrolled, glides the row home with the close. Before, the browser clamped the scroll: closing the last panel faded it and then snapped the row over, and closing the one before it made the last panel lurch. The settle now rides the slide's in-out curve (`slide.ease`) whenever the slots slid in the same change; a settle after a window resize alone keeps `glideEase`.

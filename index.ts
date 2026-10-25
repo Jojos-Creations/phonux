@@ -193,7 +193,7 @@ export { createWorkspaceColumn } from './columnHandle.js';
 export type { ColumnOptions, ColumnState, ColumnStatus, ColumnStorage, ColumnWorkspaceOptions, WorkspaceColumnHandle } from './columnHandle.js';
 export { COLUMN_BOTTOM_BAND, COLUMN_TOP_BAND, WORKSPACE_NAME_CONTROL_HEIGHT, WORKSPACE_NAME_INPUT_ATTRIBUTE, WorkspaceColumn } from './WorkspaceColumn.js';
 export type { WorkspaceColumnProps } from './WorkspaceColumn.js';
-export type { MovePanelResult, ViewWorkspace, WorkspaceHandle, WorkspaceOptions, WorkspaceWrapProps } from './workspaceCore.js';
+export type { MovePanelOptions, MovePanelResult, ViewWorkspace, WorkspaceHandle, WorkspaceOptions, WorkspaceWrapProps } from './workspaceCore.js';
 export type { WorkspaceLive, WorkspacePanelsInput } from './workspaceLive.js';
 export type { PanelHandle } from './panelHandles.js';
 export type { ConfigureResult, PanelManager, PanelResult, PinResult, ResetResult } from './panelManager.js';

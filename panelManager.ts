@@ -127,6 +127,11 @@ export interface PanelManager {
   configureTuning(patch: { [K in keyof WorkspaceTuning]?: WorkspaceTuning[K] | null }): ConfigureResult;
   /** Clears the person's overrides and any deferred pin of one panel, or of every panel but the root with 'all', and applies the cascade defaults now, in one update. */
   resetLayout(target: PanelId | 'all'): ResetResult;
+  /**
+   * The panel `id` and every panel it opened, directly or through the panels it opened, in row order (see `PanelState.openedBy`).
+   * Empty when the row holds no panel `id`: a pending, closed or unknown panel has no family.
+   */
+  familyOf(id: PanelId): readonly PanelId[];
   /** A readonly picture of the whole workspace, the same object until something changes. */
   getSnapshot(): PanelSnapshot;
   /** Calls `l` when the workspace changes; returns a function that stops the calls. */
@@ -145,6 +150,7 @@ export function makePanelManager(source: ReadSource): PanelManager {
     configureTemplate: (templateId, patch) => source.configureTemplate(templateId, patch),
     configureTuning: (patch) => source.configureTuning(patch),
     resetLayout: (target) => source.resetLayout(target),
+    familyOf: (id) => source.familyOf(id),
     getSnapshot: () => source.getSnapshot(),
     subscribe: (l) => source.subscribe(l),
   };

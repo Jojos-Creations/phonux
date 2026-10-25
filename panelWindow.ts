@@ -67,6 +67,8 @@ export interface PanelWindow {
   applied?: { placeOnAdd: AddPlacement };
   /** True for an entry created from a declaration in code, which code re-declares at every launch. */
   declared?: true;
+  /** The engine id of the panel whose view opened this one, set once at create; when that panel leaves the row this takes its opener. Only `keepOpeners` and a move rewrite it. */
+  openedBy?: string;
   /** A pin change waiting for this entry to become live, applied inside whichever path makes it live. Session only: never saved. */
   deferredPin?: DeferredPin;
   /** True only for the reserved '__root__' entry a row without a root keeps: it holds the anchor point, is never drawn and never counted as a column or a hop. */
