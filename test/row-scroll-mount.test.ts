@@ -1,9 +1,10 @@
 /**
  * The scroll requests and the initial scroll, through a mounted provider and Workspace. The container's width is the
- * host's measurement (1000), so the window is 968 and a row of n phone panels has strip 406n - 16: maxScroll is
- * 1452 at six panels, 1858 at seven and 3482 at eleven. The executor is observed through the container's own
- * scrollLeft once the glide has run, and through a spy on glideTo where a call count is the point. The row rests on the one-phone
- * grid (0, 406, 812, 1218, then 1452 at six panels), so a request lands on the stop nearest its raw target that shows the panel.
+ * host's measurement (1000), so the window is 968 and a row of n phone panels has strip 406n - 16 and, flush at both ends,
+ * maxScroll 406n - 984: 1452 at six panels, 1858 at seven and 3482 at eleven. The executor is observed through the
+ * container's own scrollLeft once the glide has run, and through a spy on glideTo where a call count is the point. The row rests on
+ * the one-phone grid, each inner rest moved back 86 to center the two whole panels it shows (0, 320, 726, 1132, then 1452 at six
+ * panels), so a request lands on the stop nearest its raw target that shows the panel.
  */
 import { test, afterEach, mock } from 'node:test';
 import assert from 'node:assert/strict';
@@ -12,14 +13,13 @@ import { act } from 'react';
 import type { PanelSettings, PanelWindow, ProvidedPanels, WorkspaceTuning } from '../index.js';
 import { LIBRARY_PANEL_DEFAULTS, LIBRARY_TUNING_DEFAULTS } from '../panelSettings.js';
 import { rowScrollerFor } from '../rowScroller.js';
-import { scrollTargetFor } from '../scrollTargets.js';
 import { projectWorkspaceState, type WorkspaceState, type WorkspaceStorage } from '../workspaceState.js';
 import { advanceFrames, cleanup } from './support/mount-harness.js';
 import { ROOT, made, mountRow as mountScrollRow, rootEntry, row, type MountedRow } from './support/scroll-row.js';
 
 afterEach(() => cleanup());
 
-/** The row [root a b c d e]: panel k starts at 16 + 406k, and the stops are 0, 406, 812, 1218 and 1452. */
+/** The row [root a b c d e]: panel k starts at 16 + 406k (the gap, with no margin), and the stops are 0, 320, 726, 1132 and 1452. */
 const sixPanels = (layer: PanelSettings = {}): PanelWindow[] => row(rootEntry(), ...['a', 'b', 'c', 'd', 'e'].map((id) => made(id, layer)));
 
 const mountRow = (o: { entries?: PanelWindow[]; over?: Parameters<typeof mountScrollRow>[2]; width?: number }): MountedRow => mountScrollRow(o.entries ?? sixPanels(), o.width ?? 1000, o.over);
@@ -33,8 +33,8 @@ function glides(container: HTMLElement) {
 /** Runs the glide in flight to its end. */
 const settle = (): Promise<void> => advanceFrames(900);
 
-test('scrollTo at each align scrolls to the stop nearest the literal target: panel c (left 1234) into view 640 -> 812, at the start 1218, centred 929 -> 812', async () => {
-  const expected = { 'into-view': 812, start: 1218, center: 812 } as const;
+test('scrollTo at each align scrolls to the stop nearest the literal target: panel c (left 1234) into view 640 -> 726, at the start 1218 -> 1132, centered 929 -> 726 (a tie with 1132, the earlier wins)', async () => {
+  const expected = { 'into-view': 726, start: 1132, center: 726 } as const;
   for (const align of ['into-view', 'start', 'center'] as const) {
     const m = mountRow({ entries: sixPanels({ scrollOnOpen: 'none' }) });
     const asked = glides(m.container);
@@ -54,12 +54,12 @@ test('scrollTo with no align reads the panel scrollOnOpen, and into-view when th
   const startAligned = mountRow({ entries: sixPanels({ scrollOnOpen: 'start' }) });
   act(() => void startAligned.latest().scrollTo('c'));
   await settle();
-  assert.equal(startAligned.container.scrollLeft, 1218);
+  assert.equal(startAligned.container.scrollLeft, 1132);
   cleanup();
   const none = mountRow({ entries: sixPanels({ scrollOnOpen: 'none' }) });
   act(() => void none.latest().scrollTo('c'));
   await settle();
-  assert.equal(none.container.scrollLeft, 812, 'into-view targets 640, and 812 is the nearer stop that shows c');
+  assert.equal(none.container.scrollLeft, 726, 'into-view targets 640, and 726 is the nearer stop that shows c');
 });
 
 test('a Host-bag create scrolls to the new panel at each scrollOnOpen, and none leaves scrollLeft where it is', async () => {
@@ -84,9 +84,9 @@ test('the default scrollOnOpen is read from LIBRARY_PANEL_DEFAULTS', async () =>
   const m = mountRow({ entries: sixPanels(), over: { workspaceDefaults: {} } });
   act(() => m.latest().create({ view: 'scroll-row-view' }));
   await settle();
-  const k = 6;
-  const expected = scrollTargetFor({ left: 16 + 406 * k, width: 390, scrollLeft: 0, clientWidth: 1000, maxScroll: 1858, gap: 16, align: LIBRARY_PANEL_DEFAULTS.scrollOnOpen as 'into-view' });
-  assert.equal(m.container.scrollLeft, expected);
+  // The new panel starts at 2452; into-view targets 1858, the row's end and the only stop that shows it.
+  assert.equal(LIBRARY_PANEL_DEFAULTS.scrollOnOpen, 'into-view');
+  assert.equal(m.container.scrollLeft, 1858);
 });
 
 test('activate of a live panel out of view scrolls to it, and one already in view records nothing', async () => {
@@ -97,8 +97,8 @@ test('activate of a live panel out of view scrolls to it, and one already in vie
   assert.deepEqual(asked(), [], 'a (left 422, right 812) is inside the window [16, 984]: changed false');
   act(() => m.latest().activate('d'));
   await settle();
-  assert.deepEqual(asked(), [1218], 'd starts at 1640, so into-view targets 1640 + 390 - 1000 + 16 = 1046, and 1218 is the nearer stop that shows d');
-  assert.equal(m.container.scrollLeft, 1218);
+  assert.deepEqual(asked(), [1132], 'd starts at 1640, so into-view targets 1640 + 390 - 1000 + 16 = 1046, and 1132 is the nearer stop that shows d');
+  assert.equal(m.container.scrollLeft, 1132);
 });
 
 test('activate of a parked panel brings it live and scrolls to it', async () => {
@@ -119,8 +119,8 @@ test('an undo restoring a live panel scrolls to it; the close before it scrolls 
   assert.deepEqual(asked(), []);
   act(() => m.latest().undoClose());
   await settle();
-  assert.deepEqual(asked(), [812]);
-  assert.equal(m.container.scrollLeft, 812);
+  assert.deepEqual(asked(), [726]);
+  assert.equal(m.container.scrollLeft, 726);
 });
 
 test('two requests in one commit: the last wins', async () => {
@@ -131,7 +131,7 @@ test('two requests in one commit: the last wins', async () => {
     m.latest().scrollTo('d', 'center');
   });
   await settle();
-  assert.deepEqual(asked(), [1218], 'd centred targets 1640 + 195 - 500 = 1335, equally far from the stops 1218 and 1452: the earlier wins');
+  assert.deepEqual(asked(), [1452], 'd centered targets 1640 + 195 - 500 = 1335, and 1452 is the nearer stop that shows d (c at the start would be 1132)');
 });
 
 test('first paint and a restore record no request and raise no note', async () => {
@@ -176,7 +176,7 @@ test('a request for a panel the same commit adds runs at that commit', async () 
     m.latest().scrollTo(String(firstId + 1), 'start');
   });
   await settle();
-  assert.equal(m.container.scrollLeft, 2264, 'the eighth panel starts past the strip end of 2264');
+  assert.equal(m.container.scrollLeft, 2264, 'the eighth panel starts past the strip end of 2264, which is the target it is clamped to');
   assert.deepEqual(m.notes, []);
 });
 
@@ -195,7 +195,7 @@ test('while a claim is held a scrollTo returns false, a create is dropped, and b
   claim.release();
   act(() => void m.latest().scrollTo('c'));
   await settle();
-  assert.equal(m.container.scrollLeft, 1218);
+  assert.equal(m.container.scrollLeft, 1132);
 });
 
 test('the glide takes tuning.slide.durationSec: 0.4 s is 25 frames and 0.8 s is 50', async () => {
@@ -203,9 +203,9 @@ test('the glide takes tuning.slide.durationSec: 0.4 s is 25 frames and 0.8 s is 
     const m = mountRow({ entries: sixPanels({ scrollOnOpen: 'start' }), over: { tuning: { slide: { durationSec: seconds } } } });
     act(() => void m.latest().scrollTo('c'));
     await advanceFrames((frames - 1) * 16);
-    assert.ok(m.container.scrollLeft < 1218, `${seconds}s: not there a frame early`);
+    assert.ok(m.container.scrollLeft < 1132, `${seconds}s: not there a frame early`);
     await advanceFrames(16);
-    assert.equal(m.container.scrollLeft, 1218, `${seconds}s: there on the frame`);
+    assert.equal(m.container.scrollLeft, 1132, `${seconds}s: there on the frame`);
     cleanup();
   }
 });
@@ -220,22 +220,22 @@ const follow = async (layer: PanelSettings, from: number, run: (p: ProvidedPanel
   return m.container.scrollLeft;
 };
 
-test('setSlots on an in-view panel follows it to the stop nearest the least distance that shows it whole: a to two slots from 0 targets 234 and ends at 406', async () => {
-  assert.equal(await follow({ scrollOnMove: 'follow' }, 0, (p) => p.setSlots('a', 2)), 406);
+test('setSlots on an in-view panel follows it: a to two slots from 0 targets 234, and snaps to 320, the only stop that shows it whole', async () => {
+  assert.equal(await follow({ scrollOnMove: 'follow' }, 0, (p) => p.setSlots('a', 2)), 320);
 });
 
 test('setSlots on a panel out of view scrolls nothing', async () => {
   assert.equal(await follow({ scrollOnMove: 'follow' }, 0, (p) => p.setSlots('e', 2)), 0);
 });
 
-test('reanchor of a panel in view to the left of the root follows it: c, half in view at 406, lands at the strip start and the row scrolls to 0', async () => {
+test('reanchor of a panel in view to the left of the root follows it: c, partly in view at 406, lands at the strip start and the row scrolls to 0', async () => {
   assert.equal(await follow({ scrollOnMove: 'follow' }, 406, (p) => p.reanchor('c', { panel: ROOT, position: 'left', priority: 0 })), 0);
 });
 
 test('scrollOnMove none records none, and the default reads LIBRARY_PANEL_DEFAULTS', async () => {
   assert.equal(await follow({ scrollOnMove: 'none' }, 0, (p) => p.setSlots('a', 2)), 0);
   const def = LIBRARY_PANEL_DEFAULTS.scrollOnMove;
-  assert.equal(await follow({}, 0, (p) => p.setSlots('a', 2)), def === 'follow' ? 406 : 0);
+  assert.equal(await follow({}, 0, (p) => p.setSlots('a', 2)), def === 'follow' ? 320 : 0);
 });
 
 test('a drag release (move) records none', async () => {
@@ -253,7 +253,7 @@ test('while a claim is held a follow request is dropped with the note, and the o
   act(() => m.latest().setSlots('a', 1));
   act(() => m.latest().setSlots('a', 2));
   await settle();
-  assert.equal(m.container.scrollLeft, 406);
+  assert.equal(m.container.scrollLeft, 320);
 });
 
 // --- initialScroll -------------------------------------------------------------------------------------------
@@ -266,8 +266,8 @@ function elevenPanels(): PanelWindow[] {
 }
 const initial = (initialScroll: NonNullable<WorkspaceTuning['initialScroll']>): Parameters<typeof mountScrollRow>[2] => ({ tuning: { initialScroll } });
 
-test('initialScroll with no storage runs at the first measured commit, to literal values: start 0, root 2030, end 3482, a panel by id 3248', () => {
-  const expected: [NonNullable<WorkspaceTuning['initialScroll']>, number][] = [['start', 0], ['root', 2030], ['end', 3482], [{ panel: 'w3' }, 3248]];
+test('initialScroll with no storage runs at the first measured commit, to literal values: start 0, root 1944, end 3482, a panel by id 3162', () => {
+  const expected: [NonNullable<WorkspaceTuning['initialScroll']>, number][] = [['start', 0], ['root', 1944], ['end', 3482], [{ panel: 'w3' }, 3162]];
   for (const [value, at] of expected) {
     const m = mountRow({ entries: elevenPanels(), over: initial(value) });
     assert.equal(m.container.scrollLeft, at, JSON.stringify(value));
@@ -322,7 +322,7 @@ const deferredRow = (initialScroll: NonNullable<WorkspaceTuning['initialScroll']
   return { m, resolve };
 };
 
-test('initialScroll root waits for the restore: scrollLeft stays 0 while only History exists, then puts History at the window start (2030)', async () => {
+test('initialScroll root waits for the restore: scrollLeft stays 0 while only History exists, then rests on the stop nearest the start of History that shows it (1944)', async () => {
   const { m, resolve } = deferredRow('root');
   assert.equal(m.container.scrollLeft, 0);
   assert.equal(m.latest().entries.length, 1);
@@ -330,7 +330,7 @@ test('initialScroll root waits for the restore: scrollLeft stays 0 while only Hi
     resolve();
   });
   assert.equal(m.latest().entries.length, 11);
-  assert.equal(m.container.scrollLeft, 2030);
+  assert.equal(m.container.scrollLeft, 1944);
 });
 
 test('initialScroll end after the restore ends at 3482 with the two newest web panels in the window and History outside it', async () => {
@@ -364,8 +364,8 @@ test('initialScroll is skipped when a wheel or a pointer-down reached the row be
 
 // --- a reload keeps the row's rest ---------------------------------------------------------------------------
 //
-// The row here scrolls in steps (overflow 'scroll', rowGesture 'step'): the eleven panels stop at 0, 406, 812, ...
-// from a flush-left start, so the stop that first shows panel k sits on that panel's left edge.
+// The row here scrolls in steps (overflow 'scroll', rowGesture 'step'): the eleven panels rest on the grid 0, 406, 812, ...,
+// each inner rest moved back 86 to center the panels it shows, so a stop does not sit on a panel's left edge.
 // The end is 3482. A panel as wide as the window (a two-slot panel at container 828) is the wide case.
 
 const SCROLLING = { overflow: 'scroll' } as const;
@@ -408,8 +408,8 @@ test('a saved marker mounts the row at the stop that shows its panel whole, in o
   const spy = mock.method(rowScrollerFor(m.container), 'glideTo');
   await resolve(savedOf(stepping(), { panel: 'p3', offset: 0 }));
   assert.deepEqual(saves, [], 'control: opening saves nothing');
-  // Panel 3 starts at 812, which is a stop.
-  assert.equal(m.container.scrollLeft, 812);
+  // Panel 3 starts at 812; 726 is the stop nearest it that shows it.
+  assert.equal(m.container.scrollLeft, 726);
   assert.equal(spy.mock.callCount(), 1, 'one glide, not one per step');
   assert.equal((spy.mock.calls[0]!.arguments[1] as { durationSec: number }).durationSec, 0);
 });
@@ -446,7 +446,7 @@ test('opening a file with a marker, and one without, saves nothing past the quie
     await settle();
     await flushSaves();
     assert.deepEqual(saves, [], JSON.stringify(scroll));
-    assert.equal(m.container.scrollLeft, scroll === undefined ? 0 : 812);
+    assert.equal(m.container.scrollLeft, scroll === undefined ? 0 : 726);
     cleanup();
   }
 });
@@ -503,7 +503,7 @@ test('two rows each restore their own marker', async () => {
   const second = loadedRow(b.storage, stepTuning());
   await a.resolve(savedOf(stepping(), { panel: 'p3', offset: 0 }));
   await b.resolve(savedOf(stepping(), { panel: 'w2', offset: 0 }));
-  assert.equal(first.container.scrollLeft, 812);
+  assert.equal(first.container.scrollLeft, 726);
   assert.equal(second.container.scrollLeft, nearestShowing(second, 'w2'), 'the second row lands on a stop showing w2, not the first row\'s stop');
   assert.notEqual(second.container.scrollLeft, first.container.scrollLeft);
 });
@@ -529,8 +529,8 @@ test('a panel as wide as the window: a marker one phone width into it restores i
   const entries = row(made('p1', S), made('desk', { ...S, slots: 2 }), made('p2', S), made('p3', S), rootEntry());
   const { storage, resolve } = scrollStorage();
   const m = loadedRow(storage, stepTuning(), 828);
-  // The desk starts at 406 and is 796 wide, the window's width: one phone width in is the stop at 812, the last that still shows it.
+  // The desk starts at 406 (one phone, with no margin) and is 796 wide, the window's width. One phone width in is 812, a stop.
   await resolve(savedOf(entries, { panel: 'desk', offset: 1 }));
   assert.equal(m.container.scrollLeft, 812);
-  assert.notEqual(m.container.scrollLeft, 406, 'the stop at the desk left edge is not it');
+  assert.ok(m.container.scrollLeft > 406, 'the rest is inside the desk, past its left edge');
 });

@@ -92,6 +92,11 @@ function walked(n: number, from = 0): number {
   for (let frame = 0; frame < n; frame += 1) scrollLeft += edgeScrollStep({ speed: EDGE.maxPxPerSec, dtMs: FRAME_MS, scrollLeft, maxScroll: MAX_SCROLL });
   return scrollLeft;
 }
+/**
+ * The row's stops: the one-phone grid (390 + the 16 gap apart) from 0, each inner stop moved back 86, half of (968 + 16) % 406,
+ * to center the whole slots the window shows, then MAX_SCROLL.
+ */
+const STOPS = [0, ...Array.from({ length: 8 }, (_, k) => 406 * (k + 1) - 86), MAX_SCROLL];
 /** True when a fresh claim can be taken, giving it back at once. */
 function claimFree(m: MountedRow): boolean {
   const claim = m.scroller.claim();
@@ -136,7 +141,7 @@ test('while the hold has the row, scrollTo, a created panel and a followed move 
   });
   assert.equal(accepted, true);
   await frames(80);
-  assert.equal(m.container.scrollLeft, 8 * 406, 's8 starts at 3248; the start align lands on it');
+  assert.equal(m.container.scrollLeft, 8 * 406 - 86, 's8 starts at 3248; the start align lands on the stop that shows it, 86 back by the centering shift');
   assert.notEqual(m.container.scrollLeft, after);
 });
 
@@ -258,7 +263,8 @@ test('a pointercancel on a stepping row lets the edge loop go and the row rests 
   const where = scroll.value();
   assert.ok(where > 0, 'the loop scrolled the row');
   await frames(60);
-  assert.equal(scroll.value(), Math.round(where / 406) * 406, 'the settle glide landed on a grid stop (390 + the 16 gap apart)');
+  const nearest = STOPS.reduce((best, stop) => (Math.abs(stop - where) < Math.abs(best - where) ? stop : best));
+  assert.equal(scroll.value(), nearest, 'the settle glide landed on the stop nearest where the row was left');
   assert.notEqual(scroll.value(), where, 'control: the settle moved the row');
   const settled = scroll.writes();
   await frames(60);

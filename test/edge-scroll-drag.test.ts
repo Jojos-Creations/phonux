@@ -139,8 +139,13 @@ function walked(n: number, from = 0): number {
 /** How many of the five 390 neighbours' hop thresholds `offset` reaches. */
 const hopsAt = (offset: number): number => [203, 609, 1015, 1421, 1827].filter((threshold) => offset >= threshold).length;
 const FIVE_NEIGHBOURS = { left: [], right: [390, 390, 390, 390, 390] };
-/** Where a free row comes to rest after a scroll to `at`: the nearest of its one-phone grid stops (390 + the 16 gap apart, from 0). */
-const settledAt = (at: number): number => Math.round(at / 406) * 406;
+/**
+ * The row's stops: the one-phone grid (390 + the 16 gap apart) from 0, each inner stop moved back 86, half of (968 + 16) % 406,
+ * to center the whole slots the window shows, then MAX_SCROLL.
+ */
+const STOPS = [0, ...Array.from({ length: 8 }, (_, k) => 406 * (k + 1) - 86), MAX_SCROLL];
+/** Where a free row comes to rest after a scroll to `at`: the nearest of its stops. */
+const settledAt = (at: number): number => STOPS.reduce((best, stop) => (Math.abs(stop - at) < Math.abs(best - at) ? stop : best));
 
 test('held at the right edge for 100 frames the row scrolls 99 steps; held mid-window it stays; the release adds the distance and hops over it', async () => {
   const m = mountEdgeRow();
@@ -257,7 +262,7 @@ test('hop rule: the released offset is hopped over by the view alone, at the tun
 });
 
 // ---------------------------------------------------------------------------
-// Reduced motion: one instant jump per interval, to a panel start
+// Reduced motion: one instant jump per interval, to a grid stop
 // ---------------------------------------------------------------------------
 
 /** Frames per reduced-motion interval: the loop counts whole frames, and the first of a hold has dt 0. */
@@ -275,7 +280,7 @@ async function heldSeries(m: MountedRow, n: number): Promise<number[]> {
 }
 const jumps = (series: number[]): Array<{ frame: number; to: number }> => series.flatMap((v, k) => (v !== (k === 0 ? 0 : series[k - 1]) ? [{ frame: k, to: v }] : []));
 
-test('matchMedia reduce: no continuous scroll; the row jumps once per interval to panel starts 406, 812, 1218 and 1624 and the release reports 1664', async () => {
+test('matchMedia reduce: no continuous scroll; the row jumps once per interval to the stops 320, 726, 1132 and 1538 and the release reports 1578', async () => {
   reduceMotion(true);
   const m = mountEdgeRow();
   const box = boxOf(m);
@@ -283,12 +288,13 @@ test('matchMedia reduce: no continuous scroll; the row jumps once per interval t
   assert.equal(per, 32);
   const series = await heldSeries(m, 4 * per + 1);
   const seen = jumps(series);
-  assert.deepEqual(seen.map((j) => j.to), [406, 812, 1218, 1624]);
+  assert.deepEqual(seen.map((j) => j.to), STOPS.slice(1, 5));
+  assert.deepEqual(STOPS.slice(1, 5), [320, 726, 1132, 1538]);
   assert.deepEqual(seen.slice(1).map((j, k) => j.frame - seen[k]!.frame), [per, per, per], 'one jump per interval, nothing between');
-  assert.ok(Math.abs(drawnX(box) - (40 + 1624)) < 1e-6, 'the two translations jump together');
+  assert.ok(Math.abs(drawnX(box) - (40 + 1538)) < 1e-6, 'the two translations jump together');
   await liftAt(1000);
   await frames(30);
-  assert.deepEqual(ends.map((e) => [e.offset, e.hops]), [[1664, 4]]);
+  assert.deepEqual(ends.map((e) => [e.offset, e.hops]), [[1578, 4]]);
 });
 
 test('reduced motion: a pointer that leaves the band before one interval causes no jump', async () => {
@@ -317,7 +323,7 @@ test('reduced motion: half the interval doubles the jumps, and twelve intervals 
   const long = await held(mountEdgeRow(), 12 * intervalFrames(EDGE.reducedStepMs) + 40);
   assert.equal(long[long.length - 1], MAX_SCROLL);
   assert.equal(jumps(long).at(-1)!.to, MAX_SCROLL);
-  assert.equal(jumps(long).length, 9, 'eight panel starts and then the bound');
+  assert.equal(jumps(long).length, 9, 'the eight inner stops and then the bound');
 });
 
 // ---------------------------------------------------------------------------
@@ -474,7 +480,9 @@ test('the listener counter itself sees a listener a component adds on mount', ()
 test('the last panel dragged to the right edge is drawn no further than the row end, so the scrollable width does not grow, and the hop rule still reads the pointer', async () => {
   const m = mountEdgeRow();
   const box = boxOf(m, 's10');
-  const ROW_END = 4466;
+  // The strip's right edge in the container's coordinates: the 16 gap, the row margin, then the strip. endPad lies past it.
+  const n = m.latest().rowNumbers;
+  const ROW_END = 16 + n.rowMarginLeft + n.stripWidth;
   // jsdom lays nothing out: the row's end and the box's drawn right edge are stated here, in screen px, from the scroll position and the drawn offset.
   const strip = m.container.querySelector('[data-row-strip]');
   assert.ok(strip, 'the row carries its strip mark');

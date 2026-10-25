@@ -1,3 +1,5 @@
+@AGENTS.md
+
 # phonux
 
 The library's own rules. phonux-app, the app that uses it, is a separate repository.

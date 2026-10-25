@@ -6,6 +6,12 @@
         "hooks": [
           {
             "type": "command",
+            "command": "python3 \"$CLAUDE_PROJECT_DIR\"/.claude/hooks/git_guard.py",
+            "timeout": 10,
+            "statusMessage": "Checking shared-tree git rules"
+          },
+          {
+            "type": "command",
             "command": "python3 \"$CLAUDE_PROJECT_DIR\"/.claude/hooks/gh_write_guard.py",
             "timeout": 10,
             "statusMessage": "Checking gh/queue seat rules"
@@ -31,6 +37,10 @@
       "Bash(gh api --method PUT repos/Jojos-Creations/phonux-app/pulls/*/merge*)",
       "Bash(gh api -X PUT repos/Jojos-Creations/phonux-app/pulls/*/merge*)",
       "Bash(python3 tools/queue/queue.py accept *)"
+    ],
+    "deny": [
+      "Bash(git add -A*)",
+      "Bash(git add .)"
     ]
   }
 }
