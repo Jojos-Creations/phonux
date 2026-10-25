@@ -1,7 +1,7 @@
 /**
  * Every entrance and exit style a panel may take: the cascade from the panel's own `enterFrom` and `exitTo` to the
  * workspace's `tuning.defaultEnterFrom` and `tuning.defaultExitTo`, the slot values each style starts from and leaves to,
- * and the width an `expand` grows and a `shrink` collapses, read from the slot's own style through a mounted PanelRow.
+ * the width an `expand` grows and the scale a `shrink` takes about its center, read from the slot's own style through a mounted PanelRow.
  */
 import { test, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
@@ -53,6 +53,10 @@ const axis = (slot: HTMLElement, name: 'X' | 'Y'): number => {
   return match === null ? 0 : Number(match[1]);
 };
 const widthOf = (slot: HTMLElement): number => Number.parseFloat(slot.style.width);
+const scaleOf = (slot: HTMLElement): number => {
+  const match = /scale\((-?[\d.]+)\)/.exec(slot.style.transform);
+  return match === null ? 1 : Number(match[1]);
+};
 
 /** Records every width animation a slot starts, and still runs it. */
 function recordResizes(): { calls: { from: number; to: number; transition: unknown }[]; restore: () => void } {
@@ -137,12 +141,12 @@ test('entrances: top and bottom start one row height off at the rest, fade and e
   assert.equal(panelRowSlotMotion(REST, WIDTH, 700, 'expand', 'shrink').transition, PANEL_TRANSITION, 'every style takes the shared slide transition');
 });
 
-test('exits: top and bottom slide out one row height from the rest, fade and shrink fade at the rest on the slide timing, and auto keeps the close timing', () => {
+test('exits: top and bottom slide out one row height from the rest, fade fades at the rest and shrink scales to 0 on the slide timing, and auto keeps the close timing', () => {
   const at = (exit: 'top' | 'bottom' | 'fade' | 'shrink' | 'down') => panelRowSlotMotion(REST, WIDTH, 700, 'right', exit).exit;
   assert.deepEqual(at('top'), { x: REST, y: -700, opacity: 0 });
   assert.deepEqual(at('bottom'), { x: REST, y: 700, opacity: 0 });
   assert.deepEqual(at('fade'), { x: REST, opacity: 0 });
-  assert.deepEqual(at('shrink'), { x: REST, opacity: 0 });
+  assert.deepEqual(at('shrink'), { x: REST - SPAN / 2, scale: 0, opacity: 0 }, 'shrink ends on the point where its neighbours meet');
   assert.deepEqual((at('down') as { transition?: unknown }).transition, { duration: 0.18, ease: 'easeIn' }, 'the auto close keeps its own timing');
 });
 
@@ -193,29 +197,35 @@ test('expand: the neighbours to its right slide apart on the same clock, never j
   mounted.unmount();
 });
 
-test('shrink: a leaving slot eases its width from full to 0 at its rest while the neighbours close up', async () => {
+test('shrink: a leaving slot scales to 0 about its center, which keeps to the point where its neighbours meet, and keeps its width', async () => {
   const rec = recordResizes();
   try {
     const base = [rootEntry(), made('a'), made('b', { exitTo: 'shrink' }), made('c')];
     const workspace = settledWorkspace(base);
     const mounted = mount(row(base, workspace));
     mounted.rerender(row([rootEntry(), made('a'), made('c')], workspace));
-    assert.deepEqual(rec.calls.map((c) => [c.from, c.to]), [[WIDTH, 0]]);
-    assert.equal(rec.calls[0]!.transition, PANEL_TRANSITION);
+    assert.deepEqual(rec.calls, [], 'no width animation starts');
     await advanceFrames(250);
     const b = slotOf(mounted.container, 'b')!;
     const c = slotOf(mounted.container, 'c')!;
-    assert.ok(widthOf(b) > 0 && widthOf(b) < WIDTH, `mid-shrink (${widthOf(b)})`);
-    assert.equal(axis(b, 'X'), REST, 'it shrinks at its rest');
+    assert.ok(scaleOf(b) > 0 && scaleOf(b) < 1, `mid-shrink (scale ${scaleOf(b)})`);
+    assert.equal(widthOf(b), WIDTH, 'its box keeps its full width');
+    assert.equal(b.style.overflowX, '', 'and is never clipped');
+    assert.ok(['', '50% 50%', '50% 50% 0px'].includes(b.style.transformOrigin), `it scales about its center (${b.style.transformOrigin})`);
     assert.ok(axis(c, 'X') > REST && axis(c, 'X') < REST + SPAN, 'c is closing up');
-    assert.ok(axis(c, 'X') >= REST + widthOf(b) - 0.5, 'and never covers it');
+    // a stays at its rest, so the neighbours meet midway between a's right edge and c's left edge.
+    const center = axis(b, 'X') + WIDTH / 2;
+    const meet = (REST - GAP + axis(c, 'X')) / 2;
+    assert.ok(Math.abs(center - meet) < 1, `b's center (${center}) is where a and c meet (${meet})`);
+    const half = (scaleOf(b) * WIDTH) / 2;
+    assert.ok(center - half >= REST - GAP - 0.5 && center + half <= axis(c, 'X') + 0.5, 'and b fits between them');
     mounted.unmount();
   } finally {
     rec.restore();
   }
 });
 
-test('reduced motion: an expand lands at its full width at once and a shrink at 0, as a slide lands at once', async () => {
+test('reduced motion: an expand lands at its full width at once and a shrink at scale 0, as a slide lands at once', async () => {
   const rec = recordResizes();
   try {
     const { slot, mounted } = entering({ enterFrom: 'expand' }, {}, true);
@@ -227,8 +237,9 @@ test('reduced motion: an expand lands at its full width at once and a shrink at 
     const workspace = settledWorkspace(base);
     const leaving = mount(row(base, workspace, true));
     leaving.rerender(row([rootEntry(), made('a')], workspace, true));
+    await advanceFrames(32);
     const gone = slotOf(leaving.container, 'b');
-    if (gone !== null) assert.equal(gone.style.width, '0px', 'a shrink under reduced motion is at 0 at once');
+    if (gone !== null) assert.equal(scaleOf(gone), 0, 'a shrink under reduced motion is at scale 0 at once');
     assert.deepEqual(rec.calls, []);
     leaving.unmount();
     const slide = entering({ enterFrom: 'left' }, {}, true);
@@ -240,7 +251,7 @@ test('reduced motion: an expand lands at its full width at once and a shrink at 
   }
 });
 
-test('interrupted: a park mid-expand holds its drawn width, a re-priced row eases on from the width on screen, and a return mid-shrink grows back', async () => {
+test('interrupted: a park mid-expand holds its drawn width, a re-priced row eases on from the width on screen, and a return mid-shrink scales back up', async () => {
   const rec = recordResizes();
   try {
     const base = [rootEntry(), made('a')];
@@ -268,11 +279,13 @@ test('interrupted: a park mid-expand holds its drawn width, a re-priced row ease
     again.rerender(row(shrinking.slice(0, 2), back));
     await advanceFrames(200);
     const leavingSlot = slotOf(again.container, 'b')!;
-    const narrow = widthOf(leavingSlot);
-    assert.ok(narrow > 0 && narrow < WIDTH, `mid-shrink (${narrow})`);
+    const small = scaleOf(leavingSlot);
+    assert.ok(small > 0 && small < 1, `mid-shrink (scale ${small})`);
     again.rerender(row(shrinking, back));
-    assert.deepEqual(rec.calls.map((c) => [c.from, c.to]).at(-1), [narrow, WIDTH], 'a return mid-shrink grows back from where it is');
+    await advanceFrames(100);
+    assert.ok(scaleOf(leavingSlot) > small && scaleOf(leavingSlot) < 1, `a return mid-shrink grows back from where it is (scale ${scaleOf(leavingSlot)})`);
     await advanceFrames(800);
+    assert.equal(scaleOf(leavingSlot), 1);
     assert.equal(leavingSlot.style.width, `${WIDTH}px`);
     again.unmount();
   } finally {
@@ -298,24 +311,23 @@ test('an entrance in progress keeps its style when the setting changes under it'
   mounted.unmount();
 });
 
-/** The width animations a slot starts as B leaves [root, A, B] with `b`'s settings under the workspace's `tuning`, read in the commit. */
-function exitResizes(b: PanelSettings, tuning: WorkspaceTuning = {}): number[][] {
-  const rec = recordResizes();
-  try {
-    const base = [rootEntry(), made('a'), made('b', b)];
-    const workspace = settledWorkspace(base, tuning);
-    const mounted = mount(row(base, workspace));
-    mounted.rerender(row([rootEntry(), made('a')], workspace));
-    mounted.unmount();
-    return rec.calls.map((c) => [c.from, c.to]);
-  } finally {
-    rec.restore();
-  }
+/** B's scale part way through leaving [root, A, B] with `b`'s settings under the workspace's `tuning`. */
+async function exitScale(b: PanelSettings, tuning: WorkspaceTuning = {}): Promise<number> {
+  const base = [rootEntry(), made('a'), made('b', b)];
+  const workspace = settledWorkspace(base, tuning);
+  const mounted = mount(row(base, workspace));
+  mounted.rerender(row([rootEntry(), made('a')], workspace));
+  await advanceFrames(250);
+  const slot = slotOf(mounted.container, 'b');
+  const scale = slot === null ? Number.NaN : Math.round(scaleOf(slot) * 10) / 10;
+  mounted.unmount();
+  return scale;
 }
 
-test('differential exitTo: the resolved setting decides whether a leaving slot shrinks', () => {
+test('differential exitTo: the resolved setting decides whether a leaving slot shrinks', async () => {
+  const scales = { left: await exitScale({ exitTo: 'left' }), shrink: await exitScale({ exitTo: 'shrink' }) };
   differential('exitTo', (run) => {
-    for (const value of ['left', 'shrink'] as const) run(value, () => exitResizes({ exitTo: value }));
+    for (const value of ['left', 'shrink'] as const) run(value, () => scales[value]);
   });
 });
 
@@ -325,9 +337,10 @@ test("differential tuning.defaultEnterFrom: the workspace's default decides how 
   });
 });
 
-test("differential tuning.defaultExitTo: the workspace's default decides how a panel at auto leaves", () => {
+test("differential tuning.defaultExitTo: the workspace's default decides how a panel at auto leaves", async () => {
+  const scales = { auto: await exitScale({}, { defaultExitTo: 'auto' }), shrink: await exitScale({}, { defaultExitTo: 'shrink' }) };
   differential('tuning.defaultExitTo', (run) => {
-    for (const value of ['auto', 'shrink'] as const) run(value, () => exitResizes({}, { defaultExitTo: value }));
+    for (const value of ['auto', 'shrink'] as const) run(value, () => scales[value]);
   });
 });
 

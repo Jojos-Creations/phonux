@@ -17,6 +17,11 @@
 - The MUI and DOM types leave the public API, ahead of 0.2.0 final. `createWorkspace({ theme })` and `createDefaultTheme(mode)` take and return `PhonuxTheme`, a set of CSS colors and a corner unit, and the library builds its styling theme from it. `HeaderButton.sx` and the drag handle's `sx` are a `CssStyle` (plain CSS properties), not MUI `sx`. `panelCornerRadiusPx` takes a `PhonuxTheme`. The root props of `Panel`, `PanelFrame`, `PanelHeader` and `Workspace` are `ElementProps`, not MUI `BoxProps`. The drag handle's `onPointerDown` and `onKeyDown` take `HandlePointerEvent` and `HandleKeyEvent`, which React's events satisfy.
 - `PhonuxThemeProvider` draws the row's styling for a hand-rendered row (`mount: false`), in place of an app's own MUI `ThemeProvider`.
 
+### Changed
+
+- `exitTo: 'shrink'` scales the panel down to its own center point, width and height together, on the `slide` timing. It used to narrow the panel's width toward its left edge with the height unchanged. The neighbours still close up, and the center keeps to the point where they meet, so in a centered row it holds still and the panel never overlaps them. Reduced motion lands the scale at once and keeps the fade.
+
+
 ## 0.2.0-rc.5
 
 - Closing a panel when the row then fits, or shortens past where it is scrolled, glides the row home with the close. Before, the browser clamped the scroll: closing the last panel faded it and then snapped the row over, and closing the one before it made the last panel lurch. The settle now rides the slide's in-out curve (`slide.ease`) whenever the slots slid in the same change; a settle after a window resize alone keeps `glideEase`.
