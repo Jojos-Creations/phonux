@@ -1786,8 +1786,9 @@ the panel's own `anchor`.
 
 Entrances. `auto` is the row's order: a mark, then the formula for an entry entering via an anchor, then the right.
 `anchor` takes the formula at every enter. `left`, `right`, `top` and `bottom` slide in from that side (a vertical
-slide travels the row's height), `fade` fades in at the slot's rest, and `expand` grows the slot's width from 0 to its
-full width at its rest while the neighbours to its right slide apart to make room. Every value but `auto` and `anchor`
+slide travels the row's height), `fade` fades in at the slot's rest, and `expand` scales the slot up from 0 about its
+center, width and height together, while the neighbours to its right slide apart to make room; it starts half a span
+left and reaches its rest on the same clock, so its center stays where the neighbours part. Every value but `auto` and `anchor`
 is a constant that beats the engine's mark and the anchor formula.
 
 Exits. `auto` parks toward the exit-right marks, else left, and closes downward along `slide.closeExitSeconds` and
@@ -1800,18 +1801,16 @@ that move and the center holds still on screen. An explicit `exitTo` is the same
 Every entrance and exit but the `auto` close takes the workspace's `slide` timing: the transition is the shared
 `PANEL_TRANSITION` object itself while `slide` is at its defaults (0.6 s, in-out), and every one fades the opacity as
 a slide does. The neighbours' moves are the slide every slot makes to a new rest, started on the same clock, so the
-gap at an expanding slot never closes over it. An expanding slot clips what it holds across (never up or down, where the frame draws its header) and
-leaves it at the full width: the frame draws the content at the slot's drawn width from the row's numbers, not from
-the slot's box, so the content is revealed, never squashed or reflowed.
+gap at an expanding or shrinking slot never closes over it. Both keep the slot's full box and scale it, so the content
+is never reflowed.
 
 Reduced motion is honoured as the slide honours it: under Motion's reduced-motion setting a slide's move lands at
-once and its fade still runs, so an `expand` width and a `shrink` scale land at once and the fade still runs. A slot that
+once and its fade still runs, so an `expand` or `shrink` scale lands at once and the fade still runs. A slot that
 mounts at its rest (a restored panel, or one added while a width is held) does not grow.
 
 Both settings are NEXT: the style is read when the panel next enters or leaves, and one in progress keeps its style. An
-interrupted width animation carries on from the width on screen: a re-priced row eases it to the new width, a panel
-that returns mid-shrink scales back up from where it is, and a panel that leaves mid-expand holds its drawn width
-while it leaves, and scales down from it when it shrinks. `layer` sets the stacking.
+interrupted scale carries on from the one on screen: a panel that returns mid-shrink scales back up from where it is,
+and a panel that leaves mid-expand leaves from the size it has reached. `layer` sets the stacking.
 
 ### A parked view unmounts
 
