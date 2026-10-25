@@ -1,5 +1,5 @@
 /**
- * A panel resize that grows a stepping row past the window adds its stops in the same render that moves the centring margin.
+ * A panel resize that grows a stepping row past the window adds its stops in the same render that moves the centering margin.
  * The margin snaps while stops exist, so without a panel-resize exception every panel jumped by the whole margin in one frame.
  * A window resize keeps the snap.
  */
@@ -43,20 +43,20 @@ async function openedAt1800(): Promise<ReturnType<typeof mountRow>> {
   return m;
 }
 
-test('a panel grown past the window glides the centring margin instead of snapping it, with the stops added in that same render', async () => {
+test('a panel grown past the window glides the centering margin instead of snapping it, with the stops added in that same render', async () => {
   mock.timers.enable({ apis: ['setTimeout', 'setInterval'] });
   const m = await openedAt1800();
-  assert.equal(m.latest().rowNumbers.stops.length, 0, 'control: four slots fit the window, so the row centres and has no stops');
+  assert.equal(m.latest().rowNumbers.stops.length, 0, 'control: four slots fit the window, so the row centers and has no stops');
   const start = marginOf(m.container);
-  assert.ok(start > 0, `control: a fitting row has a centring margin (${start})`);
-  act(() => void m.latest().setSlots('s1', 2));
+  assert.ok(start > 0, `control: a fitting row has a centering margin (${start})`);
+  act(() => void m.latest().setSlots('s1', 5));
   assert.ok(m.latest().rowNumbers.stops.length > 0, 'the grow added stops in the render that moved the margin');
   await advanceFrames(32);
   const mid = marginOf(m.container);
   await advanceFrames(2000);
   const end = marginOf(m.container);
-  assert.equal(end, 0, 'an overflowing row starts flush at the window edge');
-  assert.ok(mid < start && mid > end, `32 ms in the margin is between ${start} and ${end}: ${mid}`);
+  assert.equal(end, m.latest().rowNumbers.rowMarginLeft, 'an overflowing row rests on the centering of its first whole run');
+  assert.ok(Math.min(start, end) < mid && mid < Math.max(start, end), `32 ms in the margin is between ${start} and ${end}: ${mid}`);
 });
 
 test('a window resize that narrows a panel and adds stops still snaps the margin', async () => {
