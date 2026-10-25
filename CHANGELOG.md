@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- `exitTo: 'shrink'` scales the panel down to its own center point, width and height together, on the `slide` timing. It used to narrow the panel's width toward its left edge with the height unchanged. The neighbours still close up, and the center keeps to the point where they meet, so in a centered row it holds still and the panel never overlaps them. Reduced motion lands the scale at once and keeps the fade.
+
 ## 0.2.0-rc.5
 
 - Closing a panel when the row then fits, or shortens past where it is scrolled, glides the row home with the close. Before, the browser clamped the scroll: closing the last panel faded it and then snapped the row over, and closing the one before it made the last panel lurch. The settle now rides the slide's in-out curve (`slide.ease`) whenever the slots slid in the same change; a settle after a window resize alone keeps `glideEase`.

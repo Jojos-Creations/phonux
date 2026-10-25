@@ -66,7 +66,7 @@ export type SlotEntrance = 'left' | 'right' | 'top' | 'bottom' | 'fade' | 'expan
 
 /**
  * How a slot leaves: 'down' is the close exit on the close timing; the others take the slide timing, and 'shrink'
- * eases its width to 0 at its rest.
+ * scales it to 0 about its center, which moves to where its neighbours meet.
  * @internal
  */
 export type SlotExit = 'down' | 'left' | 'right' | 'top' | 'bottom' | 'fade' | 'shrink';
@@ -75,7 +75,7 @@ export type SlotExit = 'down' | 'left' | 'right' | 'top' | 'bottom' | 'fade' | '
  * The pure values behind one PanelRowSlot render, split out so a test can assert exact motion
  * values without mounting a component. `exit` stays entirely local to this function: 'down' needs a second
  * axis and its own transition, 'left' a target independent of `leftOffset`; neither fits directionalTransition's
- * symmetric default. 'expand' and 'shrink' only fade here; the slot eases their width itself.
+ * symmetric default. 'expand' only fades here; the slot eases its width itself.
  */
 export function panelRowSlotMotion(
   leftOffset: number,
@@ -115,7 +115,10 @@ export function panelRowSlotMotion(
           ? { ...parkExitTarget(rest, ownSpan, 'left', rowScroll) }
           : exitDirection === 'top' || exitDirection === 'bottom'
             ? { x: rest, y: exitDirection === 'top' ? -phoneHeight : phoneHeight, opacity: 0 }
-            : { x: rest, opacity: 0 };
+            : exitDirection === 'shrink'
+              ? // Half a span left on the slide's clock keeps the center on the point where the neighbours meet as they close up.
+                { x: rest - ownSpan / 2, scale: 0, opacity: 0 }
+              : { x: rest, opacity: 0 };
   return { initial, animate, exit, transition };
 }
 
@@ -333,16 +336,13 @@ export function PanelRowSlot({
       return;
     }
     if (!present) {
-      // A leaving slot holds the width it was drawn at, unless it shrinks from there.
+      // A leaving slot holds the width it was drawn at; a shrink scales the box it holds.
       own.run?.stop();
       own.run = undefined;
-      if (exitDirection !== 'shrink') return;
-      if (reducedMotion) draw(0);
-      else ease(own.drawn ?? width, 0, () => {});
       return;
     }
     if (own.drawn === undefined) return;
-    // Back in the row while drawn narrower (a re-priced width mid-grow, a return mid-shrink): carry on to the width from the one on screen.
+    // Back in the row while drawn narrower (a re-priced width mid-grow): carry on to the width from the one on screen.
     if (reducedMotion || snapping || tracking) {
       own.run?.stop();
       settle();
