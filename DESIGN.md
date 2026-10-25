@@ -594,6 +594,10 @@ A `resizable: true` beside `maxSlots` 1 resolves, but notes `resizable-capped` (
 The default mount calls it itself. A hand-wired flow calls it before `useProvidePanels` and gives the result to both
 `useProvidePanels` (`phoneWidth`) and `Workspace` (`phoneWidth` and `phoneHeight`); the Workspace publishes the pair to `usePhoneSize()`,
 so the capacity, the row numbers and the drawn widths price one phone width. A `Workspace` given no `phoneHeight` publishes nothing.
+The hook also returns the container width and height budget it settled on, and the host hands those, not its live measurement, to
+`useProvidePanels` and `Workspace` (`containerWidth`, `heightBudget`). A window resize then changes nothing until the window holds still,
+and lands as one slide of the row's place, its vertical place, its capacity and the phone size; the live width would recenter and park at
+once and leave the size to follow a settle later.
 
 `fitPhone` (`phoneFit.ts`, pure) takes the window width, the row's height budget (`RowHeightContext`'s value: the container
 less its padding), the preferred size, the gap, the edge space (the row gap) and the band `phoneFitMin` to `phoneFitMax`

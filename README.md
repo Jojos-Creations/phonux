@@ -83,30 +83,32 @@ the workspace with `mount: false`, then render the row inside the app's own MUI 
 <!-- advanced:start -->
 ```tsx
 import * as React from 'react';
-import { HostProvider, PanelRow, Workspace, useProvidePanels, type WorkspaceHandle } from 'phonux';
-
-const PHONE_WIDTH = 390;
+import { DEFAULT_PHONE_SIZE, HostProvider, PanelRow, Workspace, usePhoneFit, useProvidePanels, type WorkspaceHandle } from 'phonux';
 
 export function Row({ workspace }: { workspace: WorkspaceHandle }) {
   const ref = React.useRef<HTMLDivElement>(null);
   const rowRef = React.useRef<HTMLDivElement>(null);
-  const [containerWidth, setContainerWidth] = React.useState(0);
+  const [measuredWidth, setMeasuredWidth] = React.useState(0);
   React.useLayoutEffect(() => {
     const el = ref.current!;
-    const read = () => setContainerWidth(el.clientWidth);
+    const read = () => setMeasuredWidth(el.clientWidth);
     read();
     const observer = new ResizeObserver(read);
     observer.observe(el);
     return () => observer.disconnect();
   }, []);
-  const provided = useProvidePanels({ workspace, phoneWidth: PHONE_WIDTH, containerWidth, overflowContainerRef: ref });
+  // The fit hands back the width and height it settled on, so the row's place, capacity and phone size change in one glide.
+  const phone = usePhoneFit(ref, measuredWidth, DEFAULT_PHONE_SIZE, workspace.tuning);
+  const provided = useProvidePanels({ workspace, phoneWidth: phone.width, containerWidth: phone.containerWidth, overflowContainerRef: ref });
   return (
     <HostProvider host={{ panels: provided }}>
       <Workspace
         overflowContainerRef={ref}
         rowRef={rowRef}
-        containerWidth={containerWidth}
-        phoneWidth={PHONE_WIDTH}
+        containerWidth={phone.containerWidth}
+        phoneWidth={phone.width}
+        phoneHeight={phone.height}
+        heightBudget={phone.heightBudget}
         fixedColumnCount={provided.fixedViewCount}
         liveWidths={provided.liveWidths}
         rowScroll={provided.rowScroll}

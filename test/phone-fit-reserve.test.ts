@@ -75,6 +75,8 @@ test('a live row gap change re-fits the phone to the new reserve', async () => {
   await until('the first fit', () => phoneHeight() > 0 && phoneHeight() >= WINDOW_HEIGHT - TOP - FOOTER_ROOM_PX - 2);
   assertFills(phoneHeight(), WINDOW_HEIGHT - TOP - FOOTER_ROOM_PX, 'gap under the footer room');
   act(() => ws.panels.configureTuning({ rowGap: 60 }));
+  // The new budget is drawn once it has settled, which is counted on frames.
+  await advanceFrames(1000);
   await until('the re-fit', () => phoneHeight() < 640);
   assertFills(phoneHeight(), WINDOW_HEIGHT - TOP - 60, 'the wider gap is the reserve');
   assert.equal(padBottom(), 60);

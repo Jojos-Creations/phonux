@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+- A window resize (maximize, restore) moves the row once: its place, its height in the window, its capacity and the phone size change together in one slide, once the window has held still for the resize settle. Before, the row recentered and jumped vertically at once, the phone size followed 0.75 s later, and a narrower window parked a panel and brought it back.
+- `usePhoneFit` returns a `PhoneFitResult`: the phone size plus the settled `containerWidth` and `heightBudget` it was fitted to. Hand those to `useProvidePanels` and `Workspace`. `Workspace` takes `heightBudget`; given, its row's vertical place glides, its margin glides past the first measurement, and panels that fill the row's height read that budget. The settle is counted on animation frames, so `phonux/testing/row` steps it.
+
 ## 0.2.0-rc.5
 
 - Closing a panel when the row then fits, or shortens past where it is scrolled, glides the row home with the close. Before, the browser clamped the scroll: closing the last panel faded it and then snapped the row over, and closing the one before it made the last panel lurch. The settle now rides the slide's in-out curve (`slide.ease`) whenever the slots slid in the same change; a settle after a window resize alone keeps `glideEase`.

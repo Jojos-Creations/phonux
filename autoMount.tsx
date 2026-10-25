@@ -122,12 +122,14 @@ function AutoBody({ workspace, columnTop }: { workspace: WorkspaceHandle; column
   const stand = React.useRef(new Map<string, unknown>());
   const ref = React.useRef<HTMLDivElement>(null);
   const rowRef = React.useRef<HTMLDivElement>(null);
-  const containerWidth = useContainerWidth(ref);
+  const measuredWidth = useContainerWidth(ref);
   const preferred = values.device?.size ?? DEFAULT_PHONE_SIZE;
   const tuning = React.useSyncExternalStore(binding.subscribe, () => binding.tuning, () => binding.tuning);
   const topPadding = columnTop > 0 ? columnTop + (values.topInset ?? 0) + tuning.rowGap : values.topInset;
-  const phone = usePhoneFit(ref, containerWidth, preferred, tuning, topPadding);
+  const phone = usePhoneFit(ref, measuredWidth, preferred, tuning, topPadding);
   const phoneWidth = phone.width;
+  // The settled width, so the capacity, the row's place and the phone size change in the same commit.
+  const containerWidth = phone.containerWidth;
   const provided = useProvidePanels({
     ...panelsInputOf(workspace, stand.current),
     ...(values.labels !== undefined ? { labels: values.labels } : {}),
@@ -146,7 +148,7 @@ function AutoBody({ workspace, columnTop }: { workspace: WorkspaceHandle; column
   };
   const Wrap = binding.wrap;
   const row = (
-    <Workspace overflowContainerRef={ref} rowRef={rowRef} containerWidth={containerWidth} phoneWidth={phoneWidth} phoneHeight={phone.height} {...(topPadding !== undefined ? { topPadding } : {})} {...workspaceProps(provided, workspace)}>
+    <Workspace overflowContainerRef={ref} rowRef={rowRef} containerWidth={containerWidth} phoneWidth={phoneWidth} phoneHeight={phone.height} heightBudget={phone.heightBudget} {...(topPadding !== undefined ? { topPadding } : {})} {...workspaceProps(provided, workspace)}>
       <PanelRow {...rowProps(provided, workspace)} />
     </Workspace>
   );

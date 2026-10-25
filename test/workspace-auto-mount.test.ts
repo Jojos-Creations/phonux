@@ -238,6 +238,8 @@ test('a resize of the window changes how many panels fit', async () => {
   await until('the first measurement', () => fit() !== undefined && fit() !== 'null');
   const narrow = Number(fit());
   await resize(2400);
+  // The width reaches the capacity once it has settled, which is counted on frames.
+  await advanceFrames(1000);
   await until('the wider row', () => Number(fit()) > narrow);
   assert.ok(Number(fit()) > narrow, `${fit()} fit at 2400 wide, ${narrow} at 1000`);
   assert.ok(ws.rootId.length > 0);

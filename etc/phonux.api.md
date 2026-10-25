@@ -986,6 +986,14 @@ export interface PhoneDeviceAPI {
 }
 
 // @public
+export interface PhoneFitResult {
+    readonly containerWidth: number;
+    readonly height: number;
+    readonly heightBudget: number;
+    readonly width: number;
+}
+
+// @public
 export interface PhoneModel {
     height: number;
     id: string;
@@ -1483,10 +1491,7 @@ export const usePanelTuning: () => Pick<ResolvedWorkspaceTuning, "rowGap" | "dra
 export function usePhoneFit(containerRef: React_2.RefObject<HTMLDivElement | null>, containerWidth: number, preferred: {
     readonly width: number;
     readonly height: number;
-}, tuning: ResolvedWorkspaceTuning, topInset?: number): {
-    readonly width: number;
-    readonly height: number;
-};
+}, tuning: ResolvedWorkspaceTuning, topInset?: number): PhoneFitResult;
 
 // @public
 export function usePhoneSize(): {
@@ -1731,6 +1736,7 @@ export interface WorkspaceProps extends Omit<BoxProps, 'children'> {
     children: React_2.ReactNode;
     containerWidth: number;
     fixedColumnCount: number;
+    heightBudget?: number;
     liveWidths: readonly number[];
     overflowContainerRef: RefObject<HTMLDivElement | null>;
     phoneHeight?: number;

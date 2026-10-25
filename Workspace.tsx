@@ -137,7 +137,8 @@ export interface WorkspaceProps extends Omit<BoxProps, 'children'> {
   /**
    * Whether the container width has held still: the row's centring margin glides once it has, and snaps otherwise.
    * Omitted: the Workspace decides, calling the width settled once it has held for `tuning.resizeSettleSlides` slide durations (1.25 by default)
-   * (`tuning.slide.durationSec`), and at once while animation is off (Reduce Motion).
+   * (`tuning.slide.durationSec`), and at once while animation is off (Reduce Motion); with `heightBudget` given, settled from the second
+   * measurement on.
    */
   rowResizeSettled?: boolean;
   /** The width in px every fixed column renders at. */
@@ -147,6 +148,12 @@ export interface WorkspaceProps extends Omit<BoxProps, 'children'> {
    * frame and its slot agree with the width the row is priced at (pass both from `usePhoneFit`). Omitted: `useHost().device.size`.
    */
   phoneHeight?: number;
+  /**
+   * The room in px the row has to grow into, as `usePhoneFit` settles it. Given, `containerWidth` is taken as settled too (pass
+   * `usePhoneFit`'s): past the first measurement the row's margin, and with `phoneHeight` its place in that room, glide on every change,
+   * so a resized window moves the row once. Omitted: the row is centred in the container as drawn.
+   */
+  heightBudget?: number;
   /** The number of always-present columns the row renders. */
   fixedColumnCount: number;
   /** Each live panel's own width in px, in row order; a parked panel is not in the row. */
@@ -188,7 +195,7 @@ const VISUALLY_HIDDEN = { position: 'absolute', width: '1px', height: '1px', mar
  * @public
  */
 export function Workspace(props: WorkspaceProps): React.ReactElement {
-  const { overflowContainerRef, rowRef, containerWidth, rowResizeSettled: given, phoneWidth, phoneHeight, fixedColumnCount, liveWidths, rowScroll, rowNumbers, topPadding, workspace, beforeRow, children, ...rest } = props;
+  const { overflowContainerRef, rowRef, containerWidth, rowResizeSettled: given, phoneWidth, phoneHeight, heightBudget, fixedColumnCount, liveWidths, rowScroll, rowNumbers, topPadding, workspace, beforeRow, children, ...rest } = props;
   const binding = workspace === undefined ? undefined : bindingOf(workspace);
   const resolved = React.useSyncExternalStore(binding?.subscribe ?? NO_SUBSCRIPTION, () => binding?.tuning ?? LIBRARY_TUNING_DEFAULTS, () => binding?.tuning ?? LIBRARY_TUNING_DEFAULTS);
   const gap = resolved.rowGap;
@@ -205,7 +212,8 @@ export function Workspace(props: WorkspaceProps): React.ReactElement {
   React.useLayoutEffect(() => {
     if (landing && containerWidth > 0) setLanding(false);
   }, [landing, containerWidth]);
-  const rowResizeSettled = given ?? derived;
+  // A settled budget means the width is settled too: past the first measurement every change glides.
+  const rowResizeSettled = given ?? (heightBudget === undefined ? derived : !landing);
   // A panel being resized by hand holds the row where it is: its strip changes under the pointer, and a settle onto the
   // nearest stop would scroll the row while the person drags. The release settles once.
   const resizingId = React.useSyncExternalStore(chromeStore.subscribeResizing, chromeStore.resizing, () => null);
@@ -309,7 +317,11 @@ export function Workspace(props: WorkspaceProps): React.ReactElement {
   // The room the row has to grow into: the container's height less its padding. 0 (unmeasured) applies no height limit.
   const topPad = topPadding ?? gap;
   const bottomPad = rowBottomReservePx(gap);
-  const availableHeight = useRowHeightBudget(overflowContainerRef, topPad, bottomPad);
+  // A settled budget stands in for the measured one, so a panel that fills the row's height grows in the same glide.
+  const measuredHeight = useRowHeightBudget(overflowContainerRef, topPad, bottomPad, heightBudget === undefined);
+  const availableHeight = heightBudget ?? measuredHeight;
+  // Where auto margins would centre the row in its room, written out so it can glide: a flex item's auto margins are 0 once it overflows.
+  const marginTop = heightBudget === undefined || phoneHeight === undefined || heightBudget === 0 ? undefined : Math.max(0, (heightBudget - phoneHeight) / 2);
   // A row that stops scrolling must not keep the offset it had: the margin that centres it assumes the strip starts at 0.
   React.useLayoutEffect(() => {
     const container = overflowContainerRef.current;
@@ -479,9 +491,9 @@ export function Workspace(props: WorkspaceProps): React.ReactElement {
         <motion.div
           ref={rowRef}
           data-row-strip=""
-          style={{ display: 'flex', gap: `${gap}px`, marginTop: 'auto', marginBottom: 'auto', marginRight: 'auto', ...(scrolls ? { flexShrink: 0 } : {}) }}
-          animate={{ marginLeft: style.marginLeft }}
-          transition={reduced ? { duration: 0 } : style.transition}
+          style={{ display: 'flex', gap: `${gap}px`, ...(marginTop === undefined ? { marginTop: 'auto' } : {}), marginBottom: 'auto', marginRight: 'auto', ...(scrolls ? { flexShrink: 0 } : {}) }}
+          animate={{ marginLeft: style.marginLeft, ...(marginTop === undefined ? {} : { marginTop }) }}
+          transition={reduced ? { duration: 0 } : marginTop === undefined ? style.transition : { ...style.transition, marginTop: rowResizeSettled ? slideToTransition(resolved.slide) : { duration: 0 } }}
         >
           <OverlaySlot name="dialog" />
           {children}

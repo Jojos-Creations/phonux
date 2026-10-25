@@ -185,6 +185,8 @@ test('a resize holds the previous size until the width has settled, then draws t
   assert.equal(m.slotWidth(), 440);
   await resize(1400);
   assert.equal(m.slotWidth(), 440, 'held while the window is still moving');
+  // The settle is counted on frames, so the virtual clock runs it.
+  await advanceFrames(1000);
   await until('the settled fit', () => m.slotWidth() !== 440);
   assert.equal(m.slotWidth(), 330, '4 slots of 330 fill 1400 (3 would need 445, over the cap)');
 });
