@@ -38,6 +38,7 @@ import { createPanelList } from './panelList.js';
 import { settleKeeping, type RowEnv } from './rowSettle.js';
 import { useRowScrollGesture } from './useRowScrollGesture.js';
 import { useWorkspacePersistence, type RestMark } from './useWorkspacePersistence.js';
+import { keepOpeners } from '../panelOpener.js';
 
 /** Whether the host's CaptureTrigger is asked for a picture at `event`: a panel is captured at both. */
 const asksForPicture = (event: 'park' | 'close'): boolean => FIXED.snapshot === 'both' || FIXED.snapshot === event;
@@ -310,7 +311,8 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
   const rootId = core.rootId;
   const [list] = useState(() => createPanelList<PanelWindow[]>(core.initialEntries()));
   const rawPanels = useSyncExternalStore(list.subscribe, list.get, list.get);
-  const setPanels = list.set;
+  // Every change to the list passes here, so a panel that leaves by any path hands its children to its own opener.
+  const [setPanels] = useState((): typeof list.set => (next) => list.set((prev) => keepOpeners(prev, typeof next === 'function' ? next(prev) : next)));
   const tuningInput = core.tuningInput;
   const timing = timingTuning(tuningInput);
   const workspaceTuning = useSyncExternalStore(core.subscribe, () => core.tuning, () => core.tuning);
@@ -589,9 +591,10 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
     const build = (prev: PanelWindow[]): PanelWindow[] => {
       if (prev.some((p) => panelKey(p) === req.id)) return prev;
       const made = appendFromTemplate(prev, { template, id: req.engineId, name: req.id, settings: req.settings, params: req.params, url: req.url, hostData, defaults: workspaceDefaults, rootId, order: core.order, declared: req.declared === true, fallbackTitle: labels.panelTitle(req.engineId), rowEnd: carried !== undefined });
-      if (carried === undefined) return made;
+      const opened = req.openedBy === undefined ? made : made.map((p) => (p.id === req.engineId ? { ...p, openedBy: req.openedBy } : p));
+      if (carried === undefined) return opened;
       // The panel keeps its identity, name and size; its place in the old row means nothing here.
-      const kept = made.map((p) => (p.id === req.engineId ? { ...p, ...(carried.uid !== undefined ? { uid: carried.uid } : {}), ...(carried.title !== undefined ? { title: carried.title } : {}), ...(carried.slots !== undefined ? { slots: carried.slots } : {}) } : p));
+      const kept = opened.map((p) => (p.id === req.engineId ? { ...p, ...(carried.uid !== undefined ? { uid: carried.uid } : {}), ...(carried.title !== undefined ? { title: carried.title } : {}), ...(carried.slots !== undefined ? { slots: carried.slots } : {}) } : p));
       return carried.sized ? recordOverride(kept, 'slots', [req.engineId], rootId) : kept;
     };
     // A pin change stored while the panel was closed lands as the panel is added: placement, then the `parkable` flip.
@@ -918,20 +921,27 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
       gate.release(token);
       return accepted(changed);
     },
-    release: (engineId, run) => {
-      const target = held(engineId);
-      if (!isEntry(target)) return target;
-      if (gate.busy([engineId], 'close')) return busy(target);
-      if (!run) return accepted(false);
-      const token = gate.take([engineId], 'close')!;
-      const found = closePanel(panels, engineId, rootId);
-      setPanels((prev) => closePanel(prev, engineId, rootId)?.remaining ?? prev);
-      if (found !== null) {
-        forgetCollapsed(engineId);
-        releaseHold(engineId);
-        revealMostRecentlyCollapsed(found.remaining);
+    release: (engineIds, run) => {
+      const targets: PanelWindow[] = [];
+      for (const engineId of engineIds) {
+        const target = held(engineId);
+        if (!isEntry(target)) return target;
+        targets.push(target);
       }
-      if (FIXED.snapshot !== 'never') capture.evict(panelKey(target));
+      const blocked = targets.find((t) => gate.busy([t.id], 'close'));
+      if (blocked !== undefined) return busy(blocked);
+      if (!run) return accepted(false);
+      // One token for the whole set: a close holds the turn, so a second release in the same turn would answer busy.
+      const token = gate.take(engineIds, 'close')!;
+      const without = (row: PanelWindow[]): PanelWindow[] => engineIds.reduce((rest, engineId) => closePanel(rest, engineId, rootId)?.remaining ?? rest, row);
+      const remaining = without(panels);
+      setPanels(without);
+      for (const target of targets) {
+        forgetCollapsed(target.id);
+        releaseHold(target.id);
+        if (FIXED.snapshot !== 'never') capture.evict(panelKey(target));
+      }
+      revealMostRecentlyCollapsed(remaining);
       gate.release(token);
       return accepted(true);
     },
