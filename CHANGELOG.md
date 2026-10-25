@@ -19,7 +19,7 @@
 
 ### Changed
 
-- `exitTo: 'shrink'` scales the panel down to its own center point, width and height together, on the `slide` timing. It used to narrow the panel's width toward its left edge with the height unchanged. The neighbours still close up, and the center keeps to the point where they meet, so in a centered row it holds still and the panel never overlaps them. Reduced motion lands the scale at once and keeps the fade.
+- `enterFrom: 'expand'` and `exitTo: 'shrink'` mirror each other around the panel's center point. `expand` scales the panel up from 0, width and height together, where it used to widen from its left edge; its neighbours still part, and the center keeps to where they part. `exitTo: 'shrink'` scales the panel down to its own center point, width and height together, on the `slide` timing. It used to narrow the panel's width toward its left edge with the height unchanged. The neighbours still close up, and the center keeps to the point where they meet, so in a centered row it holds still and the panel never overlaps them. Reduced motion lands the scale at once and keeps the fade.
 
 
 ## 0.2.0-rc.5

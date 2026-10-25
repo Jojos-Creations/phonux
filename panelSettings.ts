@@ -84,8 +84,8 @@ export type Overflow = 'scroll' | 'park';
  * How a panel enters the row. 'auto' takes the workspace's `tuning.defaultEnterFrom`, whose own 'auto' slides in from the side
  * the row picks (an engine mark, else the anchor's side for a panel entering via its anchor, else the right). 'anchor'
  * slides in from its anchor's side whenever it enters. 'left', 'right', 'top' and 'bottom' slide in from that side,
- * 'fade' fades in where it rests, and 'expand' grows its width out of the gap at its slot while its neighbours part to
- * make room. Every entrance takes the workspace's `slide` timing.
+ * 'fade' fades in where it rests, and 'expand' scales the panel up from its center point, width and height together,
+ * while its neighbours part to make room; the center keeps to where they part. Every entrance takes the workspace's `slide` timing.
  * @public
  */
 export type EnterFrom = 'auto' | 'left' | 'right' | 'anchor' | 'top' | 'bottom' | 'fade' | 'expand';
