@@ -7,7 +7,6 @@ import { jsx as _jsx, Fragment as _Fragment, jsxs as _jsxs } from "react/jsx-run
 import * as React from 'react';
 import { createPortal } from 'react-dom';
 import { DndContext, PointerSensor, useDndMonitor, useDraggable, useSensor, useSensors } from '@dnd-kit/core';
-import { useTheme } from '@mui/material/styles';
 import { animate, cancelFrame, frame, motion, useIsPresent, useMotionValue, useReducedMotion, useReducedMotionConfig, useTransform } from 'motion/react';
 import { AnnounceContext } from './announce.js';
 import { useOptionalHost } from './hostApi.js';
@@ -664,11 +663,8 @@ function DragToCloseBox({ onClose, reorder, closeOnRelease = true, onDragMove, o
             }
         },
     });
-    // The focus ring takes the theme's accent, read from the styling theme the mount built from PhonuxTheme.
-    const accent = useTheme().palette.primary.main;
     const handle = {
-        onPointerDown: (incoming) => {
-            const event = incoming;
+        onPointerDown: (event) => {
             // The handle may itself be a button (it takes keys), so only a control inside it is skipped.
             const control = event.target.closest(INTERACTIVE);
             if (event.button !== 0 || (control !== null && control !== event.currentTarget) || closing.current)
@@ -703,7 +699,7 @@ function DragToCloseBox({ onClose, reorder, closeOnRelease = true, onDragMove, o
             draggable.listeners?.onPointerDown?.(event);
         },
         // pan-x: a horizontal swipe still scrolls the row, and a vertical one scrolls the page; the handle does not drag on touch.
-        sx: { cursor: 'grab', touchAction: 'pan-x', userSelect: 'none', '&:active': { cursor: 'grabbing' }, '&:focus-visible': { outline: '2px solid', outlineColor: accent, outlineOffset: -2 } },
+        sx: { cursor: 'grab', touchAction: 'pan-x', userSelect: 'none', '&:active': { cursor: 'grabbing' }, '&:focus-visible': { outline: '2px solid', outlineColor: 'primary.main', outlineOffset: -2 } },
         ...(onClose === undefined && reorder?.onStep === undefined
             ? {}
             : {
@@ -711,8 +707,7 @@ function DragToCloseBox({ onClose, reorder, closeOnRelease = true, onDragMove, o
                 tabIndex: 0,
                 'aria-label': labels.grabStrip(drawnTitle ?? labels.untitledPanel),
                 'aria-keyshortcuts': [reorder?.onStep === undefined ? '' : 'ArrowLeft ArrowRight', closeRef.current === undefined ? '' : 'Delete'].filter(Boolean).join(' '),
-                onKeyDown: (incoming) => {
-                    const event = incoming;
+                onKeyDown: (event) => {
                     if (event.target !== event.currentTarget || event.altKey || event.ctrlKey || event.metaKey || event.shiftKey)
                         return;
                     if ((event.key === 'ArrowLeft' || event.key === 'ArrowRight') && reorderRef.current?.onStep !== undefined) {

@@ -5,11 +5,11 @@
  * header-pill rules are explained in DESIGN.md ("PanelFrame's inset, scrollbar and header pill").
  */
 import * as React from 'react';
-import type { ElementProps } from './cssStyle.js';
-import type { PhonuxTheme } from './defaultTheme.js';
+import { type BoxProps } from '@mui/material/Box';
+import type { Theme } from '@mui/material/styles';
 import { type PanelSize } from './hostApi.js';
 /** The props of `PanelFrame`: every `Box` prop except `children`, plus `expanded` and `size`. @public */
-export interface PanelFrameProps extends Omit<ElementProps, 'children'> {
+export interface PanelFrameProps extends Omit<BoxProps, 'children'> {
     /** The frame's content, rendered inside its scroll container. */
     children: React.ReactNode;
     /** Fill the available space instead of the fixed phone size (the tap-to-expand overlay). */
@@ -24,7 +24,7 @@ export declare const PHONE_FRAME_ATTRIBUTE = "data-phone-frame";
 /** The phone's corner radius in theme shape units (4 x 6px = 24px). @public */
 export declare const PANEL_CORNER_RADIUS_UNITS = 4;
 /** That radius in px for `theme`. @public */
-export declare const panelCornerRadiusPx: (theme: PhonuxTheme) => number;
+export declare const panelCornerRadiusPx: (theme: Theme) => number;
 /**
  * No effect. PanelFrame no longer styles its content, so there is nothing to cancel; the export stays so
  * existing imports keep compiling.
@@ -40,14 +40,14 @@ export declare const panelFrameBareSx: {};
  */
 declare const PanelFrame: React.ForwardRefExoticComponent<Omit<PanelFrameProps, "ref"> & React.RefAttributes<HTMLDivElement>>;
 /** The props of `PanelHeader`: every `Box` prop except `children`. @public */
-export interface PanelHeaderProps extends Omit<ElementProps, 'children'> {
+export interface PanelHeaderProps extends Omit<BoxProps, 'children'> {
     /** The header's content; its internal layout is the caller's. */
     children: React.ReactNode;
 }
 /**
  * A header that floats ABOVE a PanelFrame (`position: absolute; bottom: calc(100% + gap)`), so its parent must
  * be `position: relative`. Internal layout is not baked in (callers differ): pass `sx`, layered on top. A plain
- * `Box`, since `Paper`'s polymorphic `component` typing collides with `Omit<ElementProps, ...>`. Drag wiring and
+ * `Box`, since `Paper`'s polymorphic `component` typing collides with `Omit<BoxProps, ...>`. Drag wiring and
  * any grab cursor belong on `Panel`'s `grabProps`, never here.
  * @public
  */

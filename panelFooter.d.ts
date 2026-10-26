@@ -3,7 +3,8 @@
  * component that draws it.
  */
 import * as React from 'react';
-import type { CssStyle } from './cssStyle.js';
+import type { SxProps } from '@mui/material/styles';
+import { type Theme } from '@mui/material/styles';
 /** The footer element of the template view above, or null; provided by the view adapter, read by `PanelFooter`. @internal */
 export declare const PanelFooterContext: React.Context<React.ReactElement<unknown, string | React.JSXElementConstructor<any>> | null>;
 /**
@@ -16,5 +17,5 @@ export declare const PanelFooterContext: React.Context<React.ReactElement<unknow
  * @public
  */
 export declare function PanelFooter({ sx }: {
-    sx?: CssStyle;
+    sx?: SxProps<Theme>;
 }): React.ReactElement | null;

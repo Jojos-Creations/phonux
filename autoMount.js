@@ -12,13 +12,12 @@ import { ThemeProvider } from '@mui/material/styles';
 import { AutoMountContext } from './autoMountContext.js';
 import { PanelRow } from './PanelRow.js';
 import { Workspace } from './Workspace.js';
-import { createDefaultTheme, muiThemeFor } from './defaultTheme.js';
+import { createDefaultTheme } from './defaultTheme.js';
 import { DEFAULT_PHONE_SIZE, HostProvider } from './hostApi.js';
 import { usePhoneFit } from './usePhoneFit.js';
 import { hostPanelsOf } from './hostPanels.js';
 import { useProvidePanels } from './panels/useProvidePanels.js';
 import { bindingOf } from './workspaceCore.js';
-import { WorkspaceRowContext } from './workspaceRow.js';
 import { columnCoreOf } from './columnHandle.js';
 import { WorkspaceColumn } from './WorkspaceColumn.js';
 /** The `Workspace` props the mount derives from what `useProvidePanels` returned: the same mapping a hand-wired flow writes out. @internal */
@@ -64,7 +63,7 @@ function panelsInputOf(workspace, stand) {
     }
     return out;
 }
-const isTheme = (t) => typeof t === 'object' && t !== null && typeof t.primary === 'string' && typeof t.radiusUnitPx === 'number';
+const isTheme = (t) => typeof t === 'object' && t !== null && typeof t.spacing === 'function' && typeof t.palette === 'object';
 /** The theme for the window's color scheme: `make` once per mode, else the default; a throw or a non-theme is reported once and the default is drawn. */
 function useMountTheme(make, onError) {
     const dark = useMediaQuery('(prefers-color-scheme: dark)');
@@ -76,7 +75,7 @@ function useMountTheme(make, onError) {
             const theme = make(mode);
             if (isTheme(theme))
                 return { theme };
-            return { theme: createDefaultTheme(mode), error: new TypeError('phonux: the theme option must return a PhonuxTheme') };
+            return { theme: createDefaultTheme(mode), error: new TypeError('phonux: the theme option must return a MUI Theme') };
         }
         catch (error) {
             return { theme: createDefaultTheme(mode), error };
@@ -94,9 +93,8 @@ function useMountTheme(make, onError) {
 export function AutoRoot({ workspace, columnTop = 0, themed = true }) {
     const binding = bindingOf(workspace);
     const theme = useMountTheme(binding.theme, binding.reportError);
-    const styling = React.useMemo(() => muiThemeFor(theme), [theme]);
     const body = _jsx(AutoBody, { workspace: workspace, columnTop: columnTop });
-    return (_jsx(AutoMountContext.Provider, { value: workspace, children: themed ? (_jsxs(ThemeProvider, { theme: styling, children: [_jsx(CssBaseline, {}), body] })) : (body) }));
+    return (_jsx(AutoMountContext.Provider, { value: workspace, children: themed ? (_jsxs(ThemeProvider, { theme: theme, children: [_jsx(CssBaseline, {}), body] })) : (body) }));
 }
 /** Inside the mount's ThemeProvider, so the phone fit and the row read the one theme. */
 function AutoBody({ workspace, columnTop }) {
@@ -109,8 +107,7 @@ function AutoBody({ workspace, columnTop }) {
     const containerWidth = useContainerWidth(ref);
     const preferred = values.device?.size ?? DEFAULT_PHONE_SIZE;
     const tuning = React.useSyncExternalStore(binding.subscribe, () => binding.tuning, () => binding.tuning);
-    // Standalone, `tuning.rowTop` alone sets the row's top room; the column's own cell adds its topInset clearance to the band.
-    const topPadding = tuning.rowTop ?? (columnTop > 0 ? columnTop + (values.topInset ?? 0) + tuning.rowGap : undefined);
+    const topPadding = columnTop > 0 ? columnTop + (values.topInset ?? 0) + tuning.rowGap : values.topInset;
     const phone = usePhoneFit(ref, containerWidth, preferred, tuning, topPadding);
     const phoneWidth = phone.width;
     const provided = useProvidePanels({
@@ -131,15 +128,7 @@ function AutoBody({ workspace, columnTop }) {
     };
     const Wrap = binding.wrap;
     const row = (_jsx(Workspace, { overflowContainerRef: ref, rowRef: rowRef, containerWidth: containerWidth, phoneWidth: phoneWidth, phoneHeight: phone.height, ...(topPadding !== undefined ? { topPadding } : {}), ...workspaceProps(provided, workspace), children: _jsx(PanelRow, { ...rowProps(provided, workspace) }) }));
-    const rowValue = React.useMemo(() => ({
-        rowNumbers: provided.rowNumbers,
-        entries: provided.entries,
-        maxFitPanels: provided.maxFitPanels ?? null,
-        scroller: ref,
-        tuning,
-        phoneSize: { width: phone.width, height: phone.height },
-    }), [provided.rowNumbers, provided.entries, provided.maxFitPanels, tuning, phone.width, phone.height]);
-    return (_jsx(HostProvider, { host: host, children: _jsx(WorkspaceRowContext.Provider, { value: rowValue, children: Wrap === undefined ? row : _jsx(Wrap, { workspace: workspace, children: row }) }) }));
+    return _jsx(HostProvider, { host: host, children: Wrap === undefined ? row : _jsx(Wrap, { workspace: workspace, children: row }) });
 }
 /**
  * Renders `workspace` into `target` (default: a full-window element appended to `document.body`) and returns the function that
@@ -171,8 +160,7 @@ export function mountWorkspace(workspace, target, onError) {
 export function ColumnRoot({ column }) {
     const core = columnCoreOf(column);
     const theme = useMountTheme(core.theme, core.reportError);
-    const styling = React.useMemo(() => muiThemeFor(theme), [theme]);
-    return (_jsxs(ThemeProvider, { theme: styling, children: [_jsx(CssBaseline, {}), _jsx(WorkspaceColumn, { column: column })] }));
+    return (_jsxs(ThemeProvider, { theme: theme, children: [_jsx(CssBaseline, {}), _jsx(WorkspaceColumn, { column: column })] }));
 }
 /** Renders `column` into `target` as `mountWorkspace` does a workspace, and returns the function that takes it away. @internal */
 export function mountColumn(column, target, onError) {

@@ -592,28 +592,6 @@ const CATALOG_ROWS = [
         configure: { cls: 'NOW', doors: ['tuning'] },
     },
     {
-        name: 'tuning.rowTop',
-        group: 'tuning',
-        values: 'integer px 0 to 400, or null (workspace only)',
-        default: 'null (the default room)',
-        scope: 'workspace',
-        viewSettable: false,
-        exists: 'new',
-        ownerEntry: 'core-app-row-api',
-        configure: { cls: 'NOW', doors: ['tuning'] },
-    },
-    {
-        name: 'tuning.phoneHeight',
-        group: 'tuning',
-        values: "'fit', 'auto' (workspace only)",
-        default: "'fit'",
-        scope: 'workspace',
-        viewSettable: false,
-        exists: 'new',
-        ownerEntry: 'core-app-row-api',
-        configure: { cls: 'NOW', doors: ['tuning'] },
-    },
-    {
         name: 'tuning.phoneFit',
         group: 'tuning',
         values: 'off, fit (workspace only)',
@@ -724,8 +702,6 @@ export const LIBRARY_PANEL_DEFAULTS = freezeClone({
  */
 export const LIBRARY_TUNING_DEFAULTS = freezeClone({
     rowGap: ROW_GAP,
-    rowTop: null,
-    phoneHeight: 'fit',
     dragToClose: {
         distanceFraction: DRAG_CLOSE_NUMBERS.distanceFraction,
         minDistancePx: DRAG_CLOSE_NUMBERS.minDistancePx,
@@ -836,8 +812,8 @@ function headerButtonSlotProblem(slot) {
         return 'disabled must be a boolean or a function';
     if (slot.hidden !== undefined && !booleanOrFunction(slot.hidden))
         return 'hidden must be a boolean or a function';
-    if (slot.sx !== undefined && (typeof slot.sx !== 'object' || slot.sx === null || Array.isArray(slot.sx)))
-        return 'sx must be a style object';
+    if (slot.sx !== undefined && (typeof slot.sx !== 'function' && (typeof slot.sx !== 'object' || slot.sx === null)))
+        return 'sx must be an object, an array or a function';
     return undefined;
 }
 const headerButtonsProblem = (v) => {
@@ -1041,8 +1017,6 @@ const TUNING_MEMBER_CHECKS = {
 const TUNING_SCALAR_CHECKS = {
     hopFraction: num(0, 1, { minOpen: true }),
     rowGap: integer(0, 200),
-    rowTop: (v) => (v === null ? undefined : integer(0, 400)(v)),
-    phoneHeight: oneOf('fit', 'auto'),
     saveQuietMs: integer(0),
     gestureLockMs: integer(0),
     gestureQuietMs: integer(1),

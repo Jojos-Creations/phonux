@@ -6,7 +6,7 @@
  */
 import * as React from 'react';
 import { type RefObject } from 'react';
-import type { ElementProps } from './cssStyle.js';
+import { type BoxProps } from '@mui/material/Box';
 import { PANEL_TRANSITION } from './PanelRowSlot.js';
 import type { SlideTuning } from './panelSettings.js';
 import { type WorkspaceHandle } from './workspaceCore.js';
@@ -61,13 +61,13 @@ export declare function workspaceShellStyle(i: WorkspaceShellStyleInput): Worksp
 /** How long the container width must hold still before the row's margin glides again: `slides` slide durations. @internal */
 export declare function resizeSettleDelayMs(slide: SlideTuning, slides: number): number;
 /**
- * Whether `width` has held still for `delayMs`; true at once when `instant`. The mount counts as a change, so a width change
- * inside the settle period snaps; one that comes after a full settle period of stillness glides from its first render.
+ * Whether `width` has held still for `delayMs`; true at once when `instant`. The width a timer last confirmed is state, so a
+ * width change reads unsettled in the very render that sees it.
  * @internal
  */
 export declare function useResizeSettled(width: number, delayMs: number, instant: boolean): boolean;
 /** The props of `Workspace`: every `Box` prop except `children`, plus the row's refs and the host's measurements. @public */
-export interface WorkspaceProps extends Omit<ElementProps, 'children'> {
+export interface WorkspaceProps extends Omit<BoxProps, 'children'> {
     /** Attach to the scroll container: the caller's ResizeObserver measures it. */
     overflowContainerRef: RefObject<HTMLDivElement | null>;
     /** Attach to the row (the flex box holding the columns): the SAME ref object a caller's own

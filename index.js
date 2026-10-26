@@ -30,7 +30,7 @@ export { Workspace } from './Workspace.js';
 export { WorkspacePanel, WorkspaceTrash } from './WorkspacePanel.js';
 export { useProvidePanels } from './panels/useProvidePanels.js';
 export { reorderStepsForOffset } from './panelWindow.js';
-export { createDefaultTheme, PhonuxThemeProvider } from './defaultTheme.js';
+export { createDefaultTheme } from './defaultTheme.js';
 export { isWorkspaceState } from './workspaceState.js';
 export { PANEL_SETTINGS_CATALOG, LIBRARY_PANEL_DEFAULTS, LIBRARY_TUNING_DEFAULTS } from './panelSettings.js';
 export { PANEL_API } from './panelApiLevel.js';
@@ -44,4 +44,3 @@ export { ACTIVE_ATTRIBUTE, CHROME_ATTRIBUTE, CHROME_PARTS, DRAGGING_ATTRIBUTE, u
 export { usePanelPresence } from './panelPresence.js';
 export { PanelManagerError } from './panelManagerError.js';
 export { usePanelDots } from './usePanelDots.js';
-export { useWorkspaceRow } from './workspaceRow.js';

@@ -4,7 +4,7 @@
  * engine to create the panel. The engine's controls reach this module through `publish` and are used only here,
  * through the handles and the reader built over `ReadSource`; DESIGN.md, "The workspace core", says why.
  */
-import type { PhonuxTheme } from './defaultTheme.js';
+import type { Theme } from '@mui/material/styles';
 import type { ComponentType, ReactNode } from 'react';
 import type { JsonValue } from './hostApi.js';
 import { type ConfigureOutcome } from './panelConfigure.js';
@@ -68,12 +68,12 @@ export type WorkspaceOptions = WorkspaceLive & {
      */
     mount?: HTMLElement | false;
     /**
-     * The theme the mount draws for the color scheme the window prefers (`prefers-color-scheme`, the only mode source), with
+     * The MUI theme the mount draws for the color scheme the window prefers (`prefers-color-scheme`, the only mode source), with
      * one `CssBaseline`. Unset: `createDefaultTheme`. A `wrap` must not draw its own `ThemeProvider` or `CssBaseline`. It runs once
      * per mode; a throw or a value that is not a theme goes to `onError` and the default theme is drawn. A workspace in a column
      * takes the column's theme. Ignored when `mount` is `false`.
      */
-    theme?: (mode: 'light' | 'dark') => PhonuxTheme;
+    theme?: (mode: 'light' | 'dark') => Theme;
     /**
      * A component rendered around the auto-mounted row, inside the host: the theme, the capture registry and the app's own
      * contexts go here, and a hook in it may read `useHost()` and call `workspace.update`. Fixed at creation, so it keeps
@@ -240,7 +240,7 @@ export interface EngineBinding {
     /** The component the auto mount renders around the row, if the app gave one. */
     readonly wrap: ComponentType<WorkspaceWrapProps> | undefined;
     /** The theme function the auto mount draws with, if the app gave one. */
-    readonly theme: ((mode: 'light' | 'dark') => PhonuxTheme) | undefined;
+    readonly theme: ((mode: 'light' | 'dark') => Theme) | undefined;
     /** A hand-mounted row was given this workspace; warns once in development when the workspace also mounts itself. */
     warnHandMounted(): void;
     /** Delivers a runtime note to the sink the attached hook bound, or holds it until one is bound; a sink that throws is ignored. */

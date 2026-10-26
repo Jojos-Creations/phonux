@@ -22,9 +22,7 @@ export const PHONE_FRAME_ATTRIBUTE = 'data-phone-frame';
 /** The phone's corner radius in theme shape units (4 x 6px = 24px). @public */
 export const PANEL_CORNER_RADIUS_UNITS = 4;
 /** That radius in px for `theme`. @public */
-export const panelCornerRadiusPx = (theme) => PANEL_CORNER_RADIUS_UNITS * theme.radiusUnitPx;
-// The same radius read off the styling theme the frame's own sx callbacks receive.
-const radiusOf = (theme) => PANEL_CORNER_RADIUS_UNITS * Number(theme.shape.borderRadius);
+export const panelCornerRadiusPx = (theme) => PANEL_CORNER_RADIUS_UNITS * Number(theme.shape.borderRadius);
 // One width for the padding and the inset shadow, so the content box begins exactly where the ring ends.
 const EDGE_PX = 1;
 /**
@@ -55,7 +53,7 @@ const PanelFrame = React.forwardRef(function PanelFrame({ children, expanded, si
             // The edge is an inset shadow inside padding of the same width, so it draws over nothing the content lays out.
             p: `${EDGE_PX}px`,
             boxShadow: (theme) => `inset 0 0 0 ${EDGE_PX}px ${theme.palette.divider}`,
-            borderRadius: (theme) => `${radiusOf(theme)}px`,
+            borderRadius: (theme) => `${panelCornerRadiusPx(theme)}px`,
             bgcolor: 'background.paper',
             display: 'flex',
             flexDirection: 'column',
@@ -79,7 +77,7 @@ const PanelFrame = React.forwardRef(function PanelFrame({ children, expanded, si
 /**
  * A header that floats ABOVE a PanelFrame (`position: absolute; bottom: calc(100% + gap)`), so its parent must
  * be `position: relative`. Internal layout is not baked in (callers differ): pass `sx`, layered on top. A plain
- * `Box`, since `Paper`'s polymorphic `component` typing collides with `Omit<ElementProps, ...>`. Drag wiring and
+ * `Box`, since `Paper`'s polymorphic `component` typing collides with `Omit<BoxProps, ...>`. Drag wiring and
  * any grab cursor belong on `Panel`'s `grabProps`, never here.
  * @public
  */
