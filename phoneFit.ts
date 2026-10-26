@@ -42,7 +42,7 @@ export interface PhoneFit {
 /**
  * Picks how many phone slots fit and the phone size that makes them fill the window. The widths are whole pixels, `floor((W + g) / N) - g`,
  * with W the window less its edge space. The smallest count whose phone is inside the band and under the height cap wins; with none, the
- * most slots inside the band at the cap, the leftover centred; with none of those, the minimum phone, as many as fit, the row scrolling
+ * most slots inside the band at the cap, the leftover centered; with none of those, the minimum phone, as many as fit, the row scrolling
  * sideways. The height is never more than the row's share, so a row too short for the minimum phone draws it shorter than its shape.
  * @internal
  */
