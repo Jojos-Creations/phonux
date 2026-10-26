@@ -292,6 +292,13 @@ export function PanelRowSlot({
       delete startable.startTime;
     }
   });
+  // An expand's scale and its neighbours' parting must share one clock, or the gap it grows into lags it by a frame.
+  React.useLayoutEffect(() => {
+    if (entrance !== 'expand' || snapping || tracking || el.current === null) return;
+    startable.startTime = slideStart();
+    slotDriver.startPending(el.current);
+    delete startable.startTime;
+  }, []);
   React.useEffect(() => {
     if (!setUpBefore.current) {
       setUpBefore.current = true;

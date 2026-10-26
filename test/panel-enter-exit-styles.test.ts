@@ -11,7 +11,7 @@ import { MotionConfig } from 'motion/react';
 import { PANEL_TRANSITION } from '../index.js';
 import type { PanelSettings, PanelWindow, WorkspaceHandle, WorkspaceTuning } from '../index.js';
 import { enterDirectionOf, exitStyleOf } from '../PanelRow.js';
-import { GAP, panelRowSlotMotion } from '../PanelRowSlot.js';
+import { GAP, panelRowSlotMotion, slotDriver } from '../PanelRowSlot.js';
 import { applyTemplate, resolvePanelSettings } from '../panelSettings.js';
 import { appendPanel, createHistoryPanel } from '../panelWindow.js';
 import { bindingOf, type EngineOps } from '../workspaceCore.js';
@@ -179,6 +179,29 @@ test('expand: the neighbours to its right slide apart on the same clock, and the
   assert.ok(seen.size > 10, `c moved through ${seen.size} positions, a slide and not a jump`);
   assert.equal(axis(c, 'X'), REST + SPAN, 'c lands one span further on');
   mounted.unmount();
+});
+
+test('expand: the growing slot starts in the same commit as the neighbours parting for it, so the two never run a frame apart', () => {
+  const started: HTMLElement[] = [];
+  const original = slotDriver.startPending;
+  slotDriver.startPending = (el) => {
+    started.push(el);
+    original(el);
+  };
+  try {
+    const base = [rootEntry(), made('a'), made('c')];
+    const workspace = settledWorkspace(base);
+    const mounted = mount(row(base, workspace));
+    started.length = 0;
+    mounted.rerender(row([rootEntry(), made('a'), made('b', { enterFrom: 'expand' }), made('c')], workspace));
+    const b = slotOf(mounted.container, 'b')!;
+    const c = slotOf(mounted.container, 'c')!;
+    assert.ok(started.includes(c), 'control: c starts its slide in the commit');
+    assert.ok(started.includes(b), 'b starts its expand in the same commit, on the same clock');
+    mounted.unmount();
+  } finally {
+    slotDriver.startPending = original;
+  }
 });
 
 test('shrink: a leaving slot scales to 0 about its center, which keeps to the point where its neighbours meet, and keeps its width', async () => {
