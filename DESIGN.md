@@ -1893,7 +1893,7 @@ a hand-built `Host` give the same view result; `settingsColumn` is `settings.set
 minus what the mount measures (`phoneWidth`, `containerWidth`, `overflowContainerRef`) and what the workspace supplies (`workspace`,
 `rootId`, `storage`, `templates`, `declared`, `workspaceDefaults`, `tuning`, `initialEntries`) and `labels`, which is its own
 option, so there is no member list to keep in step with the hook. `topInset` is an option (the `Workspace` top padding), not a
-tuning leaf: the catalog holds 22 tuning leaves, counted from `PANEL_SETTINGS_CATALOG`, and a test pins the number.
+tuning leaf: the catalog holds 23 tuning leaves, counted from `PANEL_SETTINGS_CATALOG`, and a test pins the number.
 
 **`wrap`.** A component, `ComponentType<{ children, workspace }>`, rendered inside `HostProvider` and around `Workspace`. A
 `CaptureRegistryProvider` and the app's own contexts go in it (the theme goes in the `theme` option), a hook in it may call `useHost()` and `workspace.update`, and

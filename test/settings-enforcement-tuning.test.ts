@@ -267,6 +267,7 @@ test('the library tuning defaults are exactly these numbers, by key name', () =>
     phoneFitMax: 1.13,
     defaultEnterFrom: 'expand',
     defaultExitTo: 'shrink',
+    shrinkUnfocused: false,
   });
 });
 
