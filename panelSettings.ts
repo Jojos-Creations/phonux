@@ -84,8 +84,8 @@ export type Overflow = 'scroll' | 'park';
  * How a panel enters the row. 'auto' takes the workspace's `tuning.defaultEnterFrom`, whose own 'auto' slides in from the side
  * the row picks (an engine mark, else the anchor's side for a panel entering via its anchor, else the right). 'anchor'
  * slides in from its anchor's side whenever it enters. 'left', 'right', 'top' and 'bottom' slide in from that side,
- * 'fade' fades in where it rests, and 'expand' grows its width out of the gap at its slot while its neighbours part to
- * make room. Every entrance takes the workspace's `slide` timing.
+ * 'fade' fades in where it rests, and 'expand' scales the panel up from its center point, width and height together,
+ * while its neighbours part to make room; the center keeps to where they part. Every entrance takes the workspace's `slide` timing.
  * @public
  */
 export type EnterFrom = 'auto' | 'left' | 'right' | 'anchor' | 'top' | 'bottom' | 'fade' | 'expand';
@@ -93,8 +93,9 @@ export type EnterFrom = 'auto' | 'left' | 'right' | 'anchor' | 'top' | 'bottom' 
 /**
  * How a panel leaves the row, when it parks and when it closes. 'auto' takes the workspace's `tuning.defaultExitTo`, whose own
  * 'auto' parks off the side the row picks and closes downward along `slide.closeExitSeconds` and `slide.closeExitEase`.
- * 'left', 'right', 'top' and 'bottom' slide out to that side, 'fade' fades out where it rests, and 'shrink' collapses
- * its width into the gap at its slot while its neighbours close up. Those take the workspace's `slide` timing.
+ * 'left', 'right', 'top' and 'bottom' slide out to that side, 'fade' fades out where it rests, and 'shrink' scales
+ * the panel down to its center point, width and height together, while its neighbours close up; the center keeps to
+ * where they meet, so in a centered row it holds still. Those take the workspace's `slide` timing.
  * @public
  */
 export type ExitTo = 'auto' | 'left' | 'right' | 'top' | 'bottom' | 'fade' | 'shrink';
@@ -385,9 +386,9 @@ export type WorkspaceTuning = {
   phoneFitMin?: number;
   /** The largest scale the fit gives the phone, a number from 1 to 4, as a fraction of the preferred size. */
   phoneFitMax?: number;
-  /** How a panel whose own `enterFrom` is 'auto' enters the row; any value of `EnterFrom`, and 'auto' is the row's own choice of side. */
+  /** How a panel whose own `enterFrom` is 'auto' enters the row; any value of `EnterFrom`, and 'auto' is the row's own choice of side. Default 'expand'. */
   defaultEnterFrom?: EnterFrom;
-  /** How a panel whose own `exitTo` is 'auto' leaves the row; any value of `ExitTo`, and 'auto' parks sideways and closes downward. */
+  /** How a panel whose own `exitTo` is 'auto' leaves the row; any value of `ExitTo`, and 'auto' parks sideways and closes downward. Default 'shrink'. */
   defaultExitTo?: ExitTo;
 };
 
@@ -1219,7 +1220,7 @@ const CATALOG_ROWS: readonly SettingDescriptor[] = [
     name: 'tuning.defaultEnterFrom',
     group: 'tuning',
     values: 'auto, left, right, anchor, top, bottom, fade, expand (workspace only)',
-    default: 'auto',
+    default: 'expand',
     scope: 'workspace',
     viewSettable: false,
     exists: 'new',
@@ -1230,7 +1231,7 @@ const CATALOG_ROWS: readonly SettingDescriptor[] = [
     name: 'tuning.defaultExitTo',
     group: 'tuning',
     values: 'auto, left, right, top, bottom, fade, shrink (workspace only)',
-    default: 'auto',
+    default: 'shrink',
     scope: 'workspace',
     viewSettable: false,
     exists: 'new',
@@ -1334,8 +1335,8 @@ export const LIBRARY_TUNING_DEFAULTS: ResolvedWorkspaceTuning = freezeClone({
   phoneFit: PHONE_FIT as ResolvedWorkspaceTuning['phoneFit'],
   phoneFitMin: PHONE_FIT_MIN,
   phoneFitMax: PHONE_FIT_MAX,
-  defaultEnterFrom: 'auto',
-  defaultExitTo: 'auto',
+  defaultEnterFrom: 'expand',
+  defaultExitTo: 'shrink',
 });
 
 // ---------------------------------------------------------------------------
