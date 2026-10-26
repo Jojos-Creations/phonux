@@ -95,7 +95,7 @@ export { PanelRow, usePanelCapabilities, usePanelNeighborWidths, usePanelPinned,
 export { usePanelRowDrop } from './usePanelRowDrop.js';
 export type { PanelRowDrop } from './usePanelRowDrop.js';
 export { slideToTransition } from './directionalTransition.js';
-export { GAP, PANEL_TRANSITION, PanelSizeBox } from './PanelRowSlot.js';
+export { GAP, PANEL_TRANSITION, PanelSizeBox, usePanelSizeGlide, type PanelSizeGlide } from './PanelRowSlot.js';
 export { PanelHeaderButtons, usePanelHeaderButtons } from './panelHeaderButtons.js';
 export { PanelHeaderMenu } from './PanelHeaderMenu.js';
 export { PanelFooter } from './panelFooter.js';
