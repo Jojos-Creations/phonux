@@ -680,6 +680,7 @@ export function PanelHeaderMenu(input?: PanelHeaderMenuProps): React_2.JSX.Eleme
 export interface PanelHeaderMenuProps {
     entries?: readonly HeaderMenuEntry[];
     onPinChange?: (verb: 'pin' | 'unpin', ok: boolean) => void;
+    triggerIcon?: React_2.ReactNode;
 }
 
 // @public

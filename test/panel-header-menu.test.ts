@@ -162,3 +162,11 @@ test('menu: a group draws its title and one icon button per action, with the sho
   assert.deepEqual(picked, ['fullscreen']);
   assert.equal(document.querySelector('[role="menu"]'), null, 'the menu closed on pick');
 });
+
+test('menu: the trigger draws the host icon when one is given, and the library move icon when not', async () => {
+  const rig = await headerRig({ ids: ['a'], actions: createElement<PanelHeaderMenuProps>(PanelHeaderMenu, { triggerIcon: createElement('b', { 'data-host-trigger': '' }) }) });
+  assert.ok(moveButton(rig, 'a')!.querySelector('[data-host-trigger]'), 'the host icon is the trigger');
+  const plain = await headerRig({ ids: ['a'], actions: createElement(PanelHeaderMenu) });
+  assert.equal(moveButton(plain, 'a')!.querySelector('[data-host-trigger]'), null);
+  assert.ok(moveButton(plain, 'a')!.querySelector('svg'), 'the library move icon');
+});

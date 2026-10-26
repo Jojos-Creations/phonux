@@ -64,6 +64,8 @@ export interface PanelHeaderMenuProps {
   onPinChange?: (verb: 'pin' | 'unpin', ok: boolean) => void;
   /** Entries the host adds under Pin, in order. The move menu shows when there is at least one, even for a fixed panel. */
   entries?: readonly HeaderMenuEntry[];
+  /** The icon of the menu's button; the library's move icon when omitted. */
+  triggerIcon?: React.ReactNode;
 }
 
 const NO_ENTRIES: readonly HeaderMenuEntry[] = [];
@@ -77,7 +79,7 @@ const NO_ENTRIES: readonly HeaderMenuEntry[] = [];
  * the row reading it as a choice. A refused pin or unpin is announced through the workspace's live region.
  * @public
  */
-export function PanelHeaderMenu({ onPinChange, entries = NO_ENTRIES }: PanelHeaderMenuProps = {}): React.JSX.Element | null {
+export function PanelHeaderMenu({ onPinChange, entries = NO_ENTRIES, triggerIcon }: PanelHeaderMenuProps = {}): React.JSX.Element | null {
   const labels = resolveLabels(useOptionalHost()?.labels);
   const announce = React.useContext(AnnounceContext);
   const { onClose } = usePanelDragProps();
@@ -126,7 +128,7 @@ export function PanelHeaderMenu({ onPinChange, entries = NO_ENTRIES }: PanelHead
             onClick={(event) => setAnchor(event.currentTarget)}
             sx={INHERIT}
           >
-            <ControlCameraIcon fontSize="small" />
+            {triggerIcon ?? <ControlCameraIcon fontSize="small" />}
           </IconButton>
           <Menu open={anchor !== null} anchorEl={anchor} onClose={closeMenu} disableRestoreFocus>
             {movable || pinned ? (
