@@ -12,6 +12,10 @@
 - `tuning.rowTop` (integer px 0 to 400, or null): the room above the row, which the default mount uses for the row's top padding and the phone fit alike. `tuning.phoneHeight` (`'fit'` or `'auto'`): under `phoneFit: 'fit'`, `'auto'` makes the frame as tall as the row's room, never shorter than the fit, and the width still fits.
 - A `WorkspaceColumn` cell whose children function returns `undefined` draws the library's own row for that cell; `null` draws nothing.
 
+### Changed
+
+- `slots` and `maxSlots` are documented as whole numbers from 1 to 64, the most slots any panel can have; the doc comments, README and DESIGN.md say so.
+
 ### Breaking
 
 - Standalone (no column), `topInset` no longer sets the row's top room: `tuning.rowTop` is the only control for it. In a column the cell's `topInset` still clears its links, as before.

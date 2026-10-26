@@ -569,7 +569,7 @@ Unmeasured widths use `UNMEASURED_SLOTS` (3).
 
 At 844, 1280 and 1800 px windows the fit is 2, 3 and 4 slots.
 
-`slots` defaults to 1 and `maxSlots` to every visible slot (`ALL_SLOTS`, 64), both plain library defaults. A request for more than
+`ALL_SLOTS` (64) is the hard cap: `slots` and `maxSlots` validate as whole numbers from 1 to it, and a consumer may rely on it as the upper bound. `slots` defaults to 1 and `maxSlots` to `ALL_SLOTS`, both plain library defaults. A request for more than
 the fit or `maxSlots` is clamped silently. An entry built without `slots` (a hand-built one) is one phone width;
 `appendPanel` always writes `slots`, and the settings cascade does too.
 
