@@ -488,6 +488,7 @@ export interface MinWorkspaceWidthInput {
 
 // @public
 export interface MovePanelOptions {
+    readonly leave?: readonly PanelId[];
     readonly withFamily?: boolean;
 }
 
