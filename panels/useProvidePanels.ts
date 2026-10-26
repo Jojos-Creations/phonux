@@ -819,12 +819,24 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
     prevLiveRef.current = new Map(panels.map((p) => [p.id, p.live]));
   }, [panels, capture]);
 
+  const slideMsRef = useRef(0);
+  slideMsRef.current = tuning.slide.durationSec * 1000;
   // The slots report through window events (see panelChrome.ts); a provider hears only the ids it rendered.
   useEffect(() => {
     const keyOf = (id: string): string | undefined => keyById.current.get(id);
+    // A picture is rasterised on the main thread: taken as the slide starts, it holds back the slide's first frame, so the slid
+    // panels are pictured once the last slide has landed.
+    const slid = new Set<string>();
+    let timer: ReturnType<typeof setTimeout> | undefined;
     const onSlide = (e: Event): void => {
       const key = keyOf((e as CustomEvent<{ id: string }>).detail.id);
-      if (key !== undefined && FIXED.snapshot === 'both') capture.capture(key);
+      if (key === undefined || FIXED.snapshot !== 'both') return;
+      slid.add(key);
+      clearTimeout(timer);
+      timer = setTimeout(() => {
+        for (const k of slid) capture.capture(k);
+        slid.clear();
+      }, slideMsRef.current + 100);
     };
     const onRect = (e: Event): void => {
       const d = (e as CustomEvent<PanelRectDetail>).detail;
@@ -834,6 +846,7 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
     window.addEventListener(PANEL_SLIDE_EVENT, onSlide);
     window.addEventListener(PANEL_RECT_EVENT, onRect);
     return () => {
+      clearTimeout(timer);
       window.removeEventListener(PANEL_SLIDE_EVENT, onSlide);
       window.removeEventListener(PANEL_RECT_EVENT, onRect);
     };
