@@ -1,6 +1,6 @@
 /**
  * `usePanelSizeGlide()` reports a panel box's size glide from its start until it lands, and `PanelSizeBox`'s `reveal` lays the
- * content out once at the glide's larger size, clipped by the eased box, so a grow resizes it at its start and a shrink at its end.
+ * content out once at the glide's larger width, clipped at the eased box's sides, so a grow resizes it at its start and a shrink at its end.
  */
 import { test, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
@@ -57,22 +57,23 @@ test('under Reduce Motion the box snaps and the signal stays null', async () => 
   assert.ok(seen.every((g) => g === null));
 });
 
-test('reveal: a grow lays the content out at the end size at its start, and the eased box clips it', async () => {
+test('reveal: a grow lays the content out at the end width at its start, and the eased box clips only its sides', async () => {
   const m = mount(boxed(390, 700, true));
   const box = boxOf(m.container);
   const inner = revealOf(m.container)!;
-  assert.equal(box.style.overflow, 'clip');
+  assert.deepEqual([box.style.overflow, box.style.clipPath], ['', ''], 'at rest nothing is clipped, so a header or footer drawn outside the box shows');
   assert.deepEqual([inner.style.width, inner.style.height], ['100%', '100%'], 'at rest the content fills the box');
   m.rerender(boxed(780, 500, true));
-  assert.deepEqual([inner.style.width, inner.style.height], ['780px', '700px'], 'the larger of each side, from the first frame');
+  assert.deepEqual([inner.style.width, inner.style.height], ['780px', '100%'], 'the larger width from the first frame; the height follows the box');
+  assert.equal(box.style.clipPath, 'inset(-100vh 0)', 'clipped at the sides only while gliding');
   await advanceFrames(300);
   assert.ok(Number.parseFloat(box.style.width) < 780, 'control: the box itself is still easing');
-  assert.deepEqual([inner.style.width, inner.style.height], ['780px', '700px'], 'the content is not resized mid-glide');
+  assert.equal(inner.style.width, '780px', 'the content is not resized mid-glide');
   await advanceFrames(1000);
-  assert.deepEqual([inner.style.width, inner.style.height], ['100%', '100%'], 'landed: it fills the box again');
+  assert.deepEqual([inner.style.width, box.style.clipPath], ['100%', ''], 'landed: it fills the box again, unclipped');
 });
 
-test('reveal: a shrink keeps the content at its start size until the glide ends', async () => {
+test('reveal: a shrink keeps the content at its start width until the glide ends', async () => {
   const m = mount(boxed(780, 700, true));
   const inner = revealOf(m.container)!;
   m.rerender(boxed(390, 700, true));
@@ -86,5 +87,5 @@ test('reveal: a shrink keeps the content at its start size until the glide ends'
 test('without reveal the content is not wrapped and the box does not clip', () => {
   const m = mount(boxed(390, 700));
   assert.equal(revealOf(m.container), null);
-  assert.equal(boxOf(m.container).style.overflow, '');
+  assert.deepEqual([boxOf(m.container).style.overflow, boxOf(m.container).style.clipPath], ['', '']);
 });
