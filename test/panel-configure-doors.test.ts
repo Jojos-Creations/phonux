@@ -154,10 +154,10 @@ test('doors: the table ran every row, calls by classes by one key each', () => {
 // The sweep: every catalog key through every call
 // ---------------------------------------------------------------------------
 
-test('doors: the catalog holds the plain keys, three template keys among them, and twenty-two tuning leaves', () => {
+test('doors: the catalog holds the plain keys, three template keys among them, and twenty-three tuning leaves', () => {
   assert.equal(flatKeys.length + leafKeys.length, names.length);
   assert.deepEqual(leafKeys.sort(), [...WORKSPACE_ONLY].sort());
-  assert.equal(leafKeys.length, 22);
+  assert.equal(leafKeys.length, 23);
   assert.deepEqual(PANEL_SETTINGS_CATALOG.filter((d) => d.configure.doors.length === 1 && d.configure.doors[0] === 'template').map((d) => d.name).sort(), [...TEMPLATE].sort());
 });
 
