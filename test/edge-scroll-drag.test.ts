@@ -68,7 +68,7 @@ test('pin: a 40 px horizontal drag on a reorder DragToClose reports onDragEnd(40
 });
 
 // ---------------------------------------------------------------------------
-// Through a mounted row: eleven panels (phone 390, gap 16), the window 1000 wide, maxScroll 3482 from the row numbers
+// Through a mounted row: eleven panels (phone 390, gap 16), the window 1000 wide, maxScroll 3654 from the row numbers
 // ---------------------------------------------------------------------------
 
 const ends: Array<{ id: string; offset: number; hops: number }> = [];
@@ -84,7 +84,7 @@ function EdgeBox({ id }: { id: string }): React.ReactElement {
 registerTestView('edge-view', ({ panel }) => React.createElement(EdgeBox, { id: panel.id }));
 
 const WINDOW = 1000;
-const MAX_SCROLL = 3482;
+const MAX_SCROLL = 3654;
 const EDGE = LIBRARY_TUNING_DEFAULTS.edgeScroll;
 
 function mountEdgeRow(layer: PanelSettings = {}, over: Parameters<typeof mountRow>[2] = {}): MountedRow {
@@ -140,10 +140,10 @@ function walked(n: number, from = 0): number {
 const hopsAt = (offset: number): number => [203, 609, 1015, 1421, 1827].filter((threshold) => offset >= threshold).length;
 const FIVE_NEIGHBOURS = { left: [], right: [390, 390, 390, 390, 390] };
 /**
- * The row's stops: the one-phone grid (390 + the 16 gap apart) from 0, each inner stop moved back 86, half of (968 + 16) % 406,
- * to center the whole slots the window shows, then MAX_SCROLL.
+ * The row's stops: the one-phone grid (390 + the 16 gap apart) from 0 to MAX_SCROLL. 86, half of (968 + 16) % 406, before and
+ * after the strip centers the whole slots the window shows at every stop.
  */
-const STOPS = [0, ...Array.from({ length: 8 }, (_, k) => 406 * (k + 1) - 86), MAX_SCROLL];
+const STOPS = Array.from({ length: 10 }, (_, k) => 406 * k);
 /** Where a free row comes to rest after a scroll to `at`: the nearest of its stops. */
 const settledAt = (at: number): number => STOPS.reduce((best, stop) => (Math.abs(stop - at) < Math.abs(best - at) ? stop : best));
 
@@ -280,7 +280,7 @@ async function heldSeries(m: MountedRow, n: number): Promise<number[]> {
 }
 const jumps = (series: number[]): Array<{ frame: number; to: number }> => series.flatMap((v, k) => (v !== (k === 0 ? 0 : series[k - 1]) ? [{ frame: k, to: v }] : []));
 
-test('matchMedia reduce: no continuous scroll; the row jumps once per interval to the stops 320, 726, 1132 and 1538 and the release reports 1578', async () => {
+test('matchMedia reduce: no continuous scroll; the row jumps once per interval to the stops 406, 812, 1218 and 1624 and the release reports 1664', async () => {
   reduceMotion(true);
   const m = mountEdgeRow();
   const box = boxOf(m);
@@ -289,12 +289,12 @@ test('matchMedia reduce: no continuous scroll; the row jumps once per interval t
   const series = await heldSeries(m, 4 * per + 1);
   const seen = jumps(series);
   assert.deepEqual(seen.map((j) => j.to), STOPS.slice(1, 5));
-  assert.deepEqual(STOPS.slice(1, 5), [320, 726, 1132, 1538]);
+  assert.deepEqual(STOPS.slice(1, 5), [406, 812, 1218, 1624]);
   assert.deepEqual(seen.slice(1).map((j, k) => j.frame - seen[k]!.frame), [per, per, per], 'one jump per interval, nothing between');
-  assert.ok(Math.abs(drawnX(box) - (40 + 1538)) < 1e-6, 'the two translations jump together');
+  assert.ok(Math.abs(drawnX(box) - (40 + 1624)) < 1e-6, 'the two translations jump together');
   await liftAt(1000);
   await frames(30);
-  assert.deepEqual(ends.map((e) => [e.offset, e.hops]), [[1578, 4]]);
+  assert.deepEqual(ends.map((e) => [e.offset, e.hops]), [[1664, 4]]);
 });
 
 test('reduced motion: a pointer that leaves the band before one interval causes no jump', async () => {
