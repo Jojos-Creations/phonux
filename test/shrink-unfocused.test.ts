@@ -6,6 +6,7 @@ import { test, afterEach, mock } from 'node:test';
 import assert from 'node:assert/strict';
 import './support/jsdom-globals.js';
 import { projectWorkspaceState } from '../workspaceState.js';
+import { differential, differentialsCovered } from './support/differential.js';
 import { cleanup } from './support/mount-harness.js';
 import { matrixRig, type MatrixRig } from './support/configure-matrix.js';
 import { rowScrollerFor } from './support/workspace-row.js';
@@ -15,8 +16,8 @@ afterEach(() => {
   mock.timers.reset();
 });
 
-const rig = async (): Promise<MatrixRig> => {
-  const r = await matrixRig({ workspace: { tuning: { shrinkUnfocused: true } } });
+const rig = async (shrinkUnfocused = true): Promise<MatrixRig> => {
+  const r = await matrixRig({ workspace: { tuning: { shrinkUnfocused } } });
   await r.settle();
   return r;
 };
@@ -65,4 +66,24 @@ test('turning the tuning off leaves no panel stuck: the next activation still br
   assert.deepEqual(widths(r, 'b'), [2, undefined]);
   press(r, 'a');
   assert.deepEqual(widths(r, 'b'), [2, undefined], 'off: another panel active leaves b wide');
+});
+
+test('differential tuning.shrinkUnfocused: using another panel rests a wide one only when it is on', async () => {
+  const after = async (on: boolean): Promise<unknown[]> => {
+    const r = await rig(on);
+    r.turn(() => r.h.b!.setSlots(2, 'person'));
+    press(r, 'a');
+    const out = widths(r, 'b');
+    r.m.unmount();
+    return out;
+  };
+  const seen = { off: await after(false), on: await after(true) };
+  differential('tuning.shrinkUnfocused', (run) => {
+    for (const value of [false, true]) run(value, () => seen[value ? 'on' : 'off']);
+  });
+});
+
+test('every name this file owns has a completed differential', () => {
+  assert.ok(differentialsCovered().length > 0, 'no differential completed, so the equality below would prove nothing');
+  assert.deepEqual(differentialsCovered(), ['tuning.shrinkUnfocused']);
 });
