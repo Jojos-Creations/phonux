@@ -76,7 +76,7 @@ test('differential scrollOnOpen: into-view and start put the same panel at diffe
     ['into-view', await openedAt('into-view')],
     ['start', await openedAt('start')],
   ]);
-  assert.deepEqual([...outcomes.values()], [726, 1132]);
+  assert.deepEqual([...outcomes.values()], [812, 1218]);
   differential('scrollOnOpen', (run) => {
     run('into-view', () => outcomes.get('into-view'));
     run('start', () => outcomes.get('start'));
@@ -98,7 +98,7 @@ test('differential scrollOnMove: a panel in view that grows past the window is f
     ['follow', await movedTo('follow')],
     ['none', await movedTo('none')],
   ]);
-  assert.deepEqual([...outcomes.values()], [320, 0]);
+  assert.deepEqual([...outcomes.values()], [406, 0]);
   differential('scrollOnMove', (run) => {
     run('follow', () => outcomes.get('follow'));
     run('none', () => outcomes.get('none'));

@@ -16,7 +16,7 @@ export interface RowNumbers {
   windowWidth: number;
   /** The width of every drawn entry plus one gap between each two. */
   stripWidth: number;
-  /** The row's left margin: centering for a strip that fits, 0 for one that does not. */
+  /** The row's left margin: centering for a strip that fits, the centering space before the strip on a stepping row that overflows, else 0. */
   rowMarginLeft: number;
   /** The ids of the drawn entries in the strip, in row order. Panels held at an edge are not here; `held` lists them. */
   ids: readonly string[];
@@ -71,7 +71,7 @@ export interface RowNumbers {
   stepStops: readonly number[];
   /** For each stop, the drawn entries it shows: the index of its first one and one past its last. Same order as `stops`. */
   stopSpans: readonly { first: number; end: number }[];
-  /** The space after the strip. 0: an overflowing row ends flush at the window's edge. */
+  /** The space after the strip: on a stepping row that overflows, the same centering space as before it, so the last rest centers too; else 0. */
   endPad: number;
 }
 
@@ -124,15 +124,17 @@ export function computeRowNumbers(i: {
   }
   const overflows = rowScroll && measured && stripWidth > stripWindow;
   const stepping = i.wholePanels === true && overflows;
-  // An overflowing row starts and ends flush at the strip's edges; the dot bar marks the end. A strip that fits centers between
-  // the held groups' insets, so a held panel stays flush to its edge.
+  // A stepping row centers the whole slots at every rest, the ends included: the window's leftover past its whole slots is split
+  // into a space before the strip and one after it. Any other overflowing row is flush at both ends. A strip that fits centers
+  // between the held groups' insets, so a held panel stays flush to its edge.
+  const centering = stepping ? ((stripWindow + i.gap) % (i.phoneWidth + i.gap)) / 2 : 0;
   let rowMarginLeft: number;
   if (!rowScroll) {
     rowMarginLeft = computeRowLayout({ containerWidth: i.containerWidth, phoneWidth: i.phoneWidth, gap: i.gap, fixedItemCount, liveWidths: present.flatMap((p, k) => (p.collapsible ? [allWidths[k]!] : [])) }).computedRowMarginLeft;
   } else {
-    rowMarginLeft = !measured || overflows ? 0 : (stripWindow - stripWidth) / 2;
+    rowMarginLeft = !measured ? 0 : overflows ? centering : (stripWindow - stripWidth) / 2;
   }
-  const endPad = 0;
+  const endPad = centering;
   const maxScroll = stepping ? rowMarginLeft + stripWidth + endPad - stripWindow : 0;
   // A 'both' panel keeps clear of the fixed groups and of the 'both' panels that stack on its edge. Scroll pins an earlier one
   // whenever it pins a later one, so the stack on the left runs in row order from the left group, and on the right it runs in
@@ -231,14 +233,12 @@ function spanAt(at: number, widths: readonly number[], offsets: readonly number[
 }
 
 /**
- * The rests of a stepping row: one per one-phone grid step, so a panel of N slots takes N steps to pass, with the ends flush to
- * the window edges. Every rest between them moves back by half the window's leftover past its whole slots, which centers the
- * slots it shows and keeps those steps one phone width apart. A panel no rest shows whole (one sized off the slot grid) gets a
- * rest at its left edge. Ascending; the first is 0 and the last is `maxScroll`.
+ * The rests of a stepping row: one per one-phone grid step, so a panel of N slots takes N steps to pass. The space before and
+ * after the strip centers the slots every rest shows, the ends included. A panel no rest shows whole (one sized off the slot
+ * grid) gets a rest at its left edge. Ascending; the first is 0 and the last is `maxScroll`.
  */
 function restStops(maxScroll: number, step: number, g: { widths: readonly number[]; offsets: readonly number[]; rowMarginLeft: number; gap: number; windowWidth: number }): number[] {
-  const shift = ((g.windowWidth + g.gap) % step) / 2;
-  const rests = stepGrid(maxScroll, step).map((at) => (at <= 0 || at >= maxScroll ? at : at - shift));
+  const rests = stepGrid(maxScroll, step);
   const shows = (at: number, j: number): boolean => g.rowMarginLeft + g.offsets[j]! - at >= 0 && g.rowMarginLeft + g.offsets[j]! + g.widths[j]! - at <= g.windowWidth;
   g.widths.forEach((width, j) => {
     if (width <= g.windowWidth && !rests.some((at) => shows(at, j))) rests.push(clampTo(g.rowMarginLeft + g.offsets[j]!, 0, maxScroll));

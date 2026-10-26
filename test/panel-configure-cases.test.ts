@@ -277,7 +277,7 @@ test('case B8: scrollOnOpen none on a live panel: the next open does not scroll'
     return at;
   };
   // c reopens last, at 2030 + 16, and the default brings it in on the stop that shows it whole: the row's end, 2420 - 968.
-  assert.equal(await opened(false), 1452, 'control: reopened at the row end, the default scrolls c into view on the stop that shows it whole');
+  assert.equal(await opened(false), 1624, 'control: reopened at the row end, the default scrolls c into view on the stop that shows it whole');
   assert.equal(await opened(true), 0, 'none: the open scrolls nothing');
 });
 
@@ -287,11 +287,11 @@ test('case B9: scrollOnMove follow to none: the next pin does not scroll, and no
     await r.settle();
     r.turn(() => r.h.a!.scrollTo('start'));
     await r.settle();
-    assert.equal(r.m.container.scrollLeft, 320, 'start lands on the stop nearest a\'s edge, 406 less 86, which shows a and b whole');
+    assert.equal(r.m.container.scrollLeft, 406, 'start lands on the stop nearest a\'s edge, 406, which shows a and b whole');
     if (none) {
       assert.deepEqual(shape(r.turn(() => r.h.b!.configure({ scrollOnMove: 'none' }))), { now: [], later: ['scrollOnMove'], shadowed: [] });
       await r.settle();
-      assert.equal(r.m.container.scrollLeft, 320, 'nothing scrolls at configure');
+      assert.equal(r.m.container.scrollLeft, 406, 'nothing scrolls at configure');
     }
     assert.equal(letter(r.turn(() => r.h.b!.pin())), 'T');
     await r.settle();
@@ -300,7 +300,7 @@ test('case B9: scrollOnMove follow to none: the next pin does not scroll, and no
     return at;
   };
   assert.equal(await pinned(false), 0, 'control: the pin carries b to the row start and the row follows it');
-  assert.equal(await pinned(true), 320, 'none: the pin does not scroll');
+  assert.equal(await pinned(true), 406, 'none: the pin does not scroll');
 });
 
 const ZONE = LIBRARY_TUNING_DEFAULTS.edgeScroll.zonePx;

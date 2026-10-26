@@ -30,10 +30,10 @@ test('the end element is endPad plus the row gap and the padding right is 0', ()
   assert.equal(maxScrollOf(n), Math.max(0, n.rowMarginLeft + n.stripWidth + n.endPad - n.windowWidth), 'the range the library counts is the same sum');
 });
 
-test('an overflowing row in a 968 px window ends flush: endPad is 0, so the element is the row gap alone', () => {
+test('an overflowing row in a 968 px window ends centered: endPad is the centering shift, so the element is the row gap plus 86', () => {
   const m = mountRow(panelsOf(8), 1000, { tuning: { rowGesture: 'step' } });
-  assert.equal(m.latest().rowNumbers.endPad, 0, 'the last panel ends at the window edge, leaving no leftover after it');
-  assert.equal(element(m.container)!.style.flex, '0 0 16px');
+  assert.equal(m.latest().rowNumbers.endPad, 86, 'half the leftover past the whole slots, ((968 + 16) mod 406) / 2');
+  assert.equal(element(m.container)!.style.flex, '0 0 102px');
 });
 
 const bare = (rowScroll: boolean, ref: React.RefObject<HTMLDivElement | null>): React.ReactElement =>

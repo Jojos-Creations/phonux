@@ -16,6 +16,7 @@
 
 ### Changed
 
+- A stepping row that overflows centers its whole slots at the first and last rests too, like every rest between them: `rowMarginLeft` and `endPad` are each half the window's leftover past its whole slots, and every stop sits on the one-phone grid from 0. rc.5 ended flush at both edges, which left the whole leftover beside the hidden cut neighbour, so an end rest looked off-center.
 - `slots` and `maxSlots` are documented as whole numbers from 1 to 64, the most slots any panel can have; the doc comments, README and DESIGN.md say so.
 
 ### Breaking
