@@ -638,6 +638,17 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
     if (grown.size === 0) return;
     for (const id of grown.keys()) resizePanel(id, 1, false);
     setPanels((prev) => prev.map((p) => (grown.has(p.id) && slotsOf(p) === 1 ? { ...p, restoreSlots: grown.get(p.id)! } : p)));
+    // A wide panel shrinks toward its left edge, which may be past the window's: the row glides with it so it rests in view.
+    const el = i.overflowContainerRef.current;
+    if (except === null || el === null) return;
+    const shown = [...grown.keys()].find((id) => {
+      const k = rowNumbers.ids.indexOf(id);
+      if (k < 0) return false;
+      const left = tuning.rowGap + rowNumbers.stripStart + rowNumbers.leftOffsets[k]!;
+      return left < el.scrollLeft + windowOf(el) && left + rowNumbers.widths[k]! > el.scrollLeft;
+    });
+    // A frame later: a glide started inside the press is stopped by that same press reaching the row.
+    if (shown !== undefined) requestAnimationFrame(() => requestScroll({ id: shown, kind: 'move', align: null, forced: false, fresh: false }));
   };
   // Read even with the tuning off, so turning it off never leaves a panel stuck at one phone.
   const restoreWidth = (id: string): void => {
