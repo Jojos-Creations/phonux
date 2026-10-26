@@ -422,16 +422,45 @@ function useHoldsFrame(slot: React.RefObject<HTMLElement | null>): boolean {
 export function PanelSizeBox({
   width,
   height,
+  reveal,
   children,
 }: {
   /** The box's width in px; a change animates. Omitted: the slot's drawn width inside a row, else the phone width. */
   width?: number;
   /** The box's height in px; a change animates. Omitted: the slot's drawn height inside a row, else the phone height. */
   height?: number;
-  /** The content, laid out at the box's size on every frame. */
+  /**
+   * True: while the box glides, its content is laid out once at the larger of the start and end sizes and the eased box clips it,
+   * so the content is resized when a grow starts and when a shrink ends, not on every frame. Default false.
+   */
+  reveal?: boolean;
+  /** The content, laid out at the box's size on every frame, or under `reveal` at the glide's larger size. */
   children: React.ReactNode;
 }) {
-  return <SizeBox width={width} height={height}>{children}</SizeBox>;
+  return (
+    <SizeBox width={width} height={height} reveal={reveal}>
+      {children}
+    </SizeBox>
+  );
+}
+
+/** A size glide of a panel's box: where it started and where it lands. A height of `'100%'` is the slot's own. @public */
+export interface PanelSizeGlide {
+  /** The box's size when the glide started. */
+  from: { width: number; height: number | '100%' };
+  /** The size the glide lands on. */
+  to: { width: number; height: number | '100%' };
+}
+
+const SizeGlideContext = React.createContext<PanelSizeGlide | null>(null);
+
+/**
+ * The size glide of the panel box this is called in, from its start until it lands; null while the box is still, under Reduce
+ * Motion, and outside a box. A window that draws no frames does not advance a glide, so a host that waits on its end caps the wait.
+ * @public
+ */
+export function usePanelSizeGlide(): PanelSizeGlide | null {
+  return React.useContext(SizeGlideContext);
 }
 
 const missingHost = (): never => {
@@ -449,7 +478,7 @@ export const useInsideSizeBox = (): boolean => React.useContext(SizeBoxContext);
  * default frame draws around its whole panel. A box below another draws a plain div of the same size.
  * @internal
  */
-export function SizeBox({ width: given, height: givenHeight, children }: { width?: number; height?: number | '100%'; children: React.ReactNode }) {
+export function SizeBox({ width: given, height: givenHeight, reveal = false, children }: { width?: number; height?: number | '100%'; reveal?: boolean; children: React.ReactNode }) {
   const slot = React.useContext(PanelSlotContext);
   // Read without throwing: a box given both sides needs no host.
   const phone = useOptionalPhoneSize();
@@ -464,6 +493,7 @@ export function SizeBox({ width: given, height: givenHeight, children }: { width
   const box = React.useRef<HTMLDivElement>(null);
   const drawn = React.useRef<{ width: number; height: number | '100%' } | undefined>(undefined);
   const run = React.useRef<{ stop: () => void } | undefined>(undefined);
+  const [glide, setGlide] = React.useState<PanelSizeGlide | null>(null);
   // Starts in the commit's layout effect, on the slot's slide clock (`slideStart`), so a commit that janks opens no gap to a neighbour.
   React.useLayoutEffect(() => {
     const node = box.current;
@@ -481,22 +511,38 @@ export function SizeBox({ width: given, height: givenHeight, children }: { width
     const h0 = typeof from?.height === 'number' && typeof height === 'number' ? from.height : height;
     if (from === undefined || snaps || (Math.abs(from.width - width) < 0.5 && (typeof h0 !== 'number' || typeof height !== 'number' || Math.abs(h0 - height) < 0.5))) {
       draw(width, height);
+      setGlide(null);
       return;
     }
     draw(from.width, h0);
+    setGlide({ from: { width: from.width, height: h0 }, to: { width, height } });
     const transition = slide === undefined ? PANEL_TRANSITION : slideToTransition(slide);
     run.current = animate(0, 1, {
       ...transition,
       startTime: slideStart(),
       onUpdate: (p: number) => draw(from.width + (width - from.width) * p, typeof h0 === 'number' && typeof height === 'number' ? h0 + (height - h0) * p : height),
-      onComplete: () => draw(width, height),
+      onComplete: () => {
+        draw(width, height);
+        setGlide(null);
+      },
     });
   }, [width, height, snaps, nested]);
   React.useEffect(() => () => run.current?.stop(), []);
   if (nested) return <div data-panel-size-plain="" style={{ width, height }}>{children}</div>;
+  // The larger end of each side, so a grow lays the content out once at its start and a shrink once at its end.
+  const larger = (a: number | '100%', b: number | '100%'): number | '100%' => (typeof a === 'number' && typeof b === 'number' ? Math.max(a, b) : '100%');
+  const content = reveal ? (
+    <div data-panel-size-reveal="" style={glide === null ? { width: '100%', height: '100%' } : { width: larger(glide.from.width, glide.to.width), height: larger(glide.from.height, glide.to.height) }}>
+      {children}
+    </div>
+  ) : (
+    children
+  );
   return (
-    <div ref={box} data-panel-size-box="" style={{ width, height }}>
-      <SizeBoxContext.Provider value>{children}</SizeBoxContext.Provider>
+    <div ref={box} data-panel-size-box="" style={{ width, height, ...(reveal ? { overflow: 'clip' } : {}) }}>
+      <SizeBoxContext.Provider value>
+        <SizeGlideContext.Provider value={glide}>{content}</SizeGlideContext.Provider>
+      </SizeBoxContext.Provider>
     </div>
   );
 }

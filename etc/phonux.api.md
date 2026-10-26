@@ -898,8 +898,21 @@ export interface PanelSize {
 export function PanelSizeBox(input: {
     width?: number;
     height?: number;
+    reveal?: boolean;
     children: React_2.ReactNode;
 }): React_2.JSX.Element;
+
+// @public
+export interface PanelSizeGlide {
+    from: {
+        width: number;
+        height: number | '100%';
+    };
+    to: {
+        width: number;
+        height: number | '100%';
+    };
+}
 
 // @public
 export type PanelSnapshot = {
@@ -1518,6 +1531,9 @@ export function usePanelRowDrop(): PanelRowDrop;
 
 // @public
 export function usePanelSetDragging(): (on: boolean) => void;
+
+// @public
+export function usePanelSizeGlide(): PanelSizeGlide | null;
 
 // @public
 export function usePanelSliding(): boolean;
