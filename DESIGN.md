@@ -569,7 +569,7 @@ Unmeasured widths use `UNMEASURED_SLOTS` (3).
 
 At 844, 1280 and 1800 px windows the fit is 2, 3 and 4 slots.
 
-`slots` defaults to 1 and `maxSlots` to every visible slot (`ALL_SLOTS`, 64), both plain library defaults. A request for more than
+`ALL_SLOTS` (64) is the hard cap: `slots` and `maxSlots` validate as whole numbers from 1 to it, and a consumer may rely on it as the upper bound. `slots` defaults to 1 and `maxSlots` to `ALL_SLOTS`, both plain library defaults. A request for more than
 the fit or `maxSlots` is clamped silently. An entry built without `slots` (a hand-built one) is one phone width;
 `appendPanel` always writes `slots`, and the settings cascade does too.
 
@@ -1702,7 +1702,7 @@ flip with a transition rule of its own) or SCOPE (a template-scope key).
 | `restoreVisibility` | saved, live, parked | saved | NEXT. Read only at the next launch's restore. C1: anything but live on a fixed column is settings-conflict. |
 | `afterClose` | stay-closed, return-next-launch | stay-closed | NEXT. Read when the panel next leaves the list. An existing tombstone is neither added nor removed by the flip. |
 | `tuning.rowGap` | integer px 0 to 200 (workspace only) | 16 (GAP) | NOW (configureTuning only). The whole row re-prices at this commit; in park mode a smaller capacity parks the fewest park panels through the reconcile effect; a scrolling row only re-prices and clamps scrollLeft. Slides in progress retarget. Unmeasured: stored. Busy while any panel has a token. Outside 0-200 throws. |
-| `tuning.rowTop` | integer px 0 to 400, or null (workspace only) | null (the default room) | NOW (configureTuning only). The room above the row, which the mount uses for the row's top padding and the phone fit alike; null keeps the default room. Outside 0-400 throws. |
+| `tuning.rowTop` | integer px 0 to 400, or null (workspace only) | null (the default room) | NOW (configureTuning only). The room above the row, which the mount uses for the row's top padding and the phone fit alike; taken as given, so a value under 40 px (a panel header and its gap) can push headers off the top of the screen. Null keeps the default room, never less than 40 px. Outside 0-400 throws. |
 | `tuning.phoneHeight` | 'fit', 'auto' (workspace only) | 'fit' | NOW (configureTuning only). Under `phoneFit: 'fit'`, 'auto' makes the frame as tall as the row's room and the width still fits. Other values throw. |
 | `tuning.dragToClose` | object: distanceFraction [0.05, 1], minDistancePx >= 8, flickMinDistancePx >= 8, flickVelocity >= 100, cancelVelocity <= -50 (workspace only) | 0.25, 80, 40, 700, -300 (DRAG_CLOSE) | NEXT (configureTuning only). Read at the next release; a drag in flight is judged by the values current at release. Leaves merge. The direction lock, rest time, velocity window and snap-back spring are constants in rowConstants.ts. |
 | `tuning.slide` | object: durationSec [0, 10], ease (four numbers, x1 and x2 in [0,1]), closeExitSeconds [0, 5], closeExitEase ('easeIn', 'easeOut', 'easeInOut', 'linear' or four numbers), glideEase ('cubic-out', 'linear' or four numbers) (workspace only) | 0.6, [0.4, 0, 0.2, 1], 0.18, 'easeIn', 'cubic-out' (SLOT_TRANSITION, DRAG_CLOSE.exitSeconds, CLOSE_EXIT_EASE, GLIDE_EASE) | NEXT (configureTuning only). Read at the next enter, exit, close or scroll; animations running keep their timing. The edge-scroll drag settle and a header dot click glide along `glideEase`. |
@@ -1721,8 +1721,8 @@ flip with a transition rule of its own) or SCOPE (a template-scope key).
 | `tuning.phoneFit` | off, fit (workspace only) | off (PHONE_FIT) | NOW (configureTuning only). Whether the default mount fits the phone size to the window; see "Phone fit". Other values throw. |
 | `tuning.phoneFitMin` | number above 0 and up to 1 (workspace only) | 0.82 (PHONE_FIT_MIN) | NOW (configureTuning only). The smallest scale of the preferred phone size the fit gives; see "Phone fit". Other values throw. |
 | `tuning.phoneFitMax` | number from 1 to 4 (workspace only) | 1.13 (PHONE_FIT_MAX) | NOW (configureTuning only). The largest scale of the preferred phone size the fit gives; see "Phone fit". Other values throw. |
-| `tuning.defaultEnterFrom` | auto, left, right, anchor, top, bottom, fade, expand (workspace only) | auto | NEXT (configureTuning only). Read at each panel's next enter; an entrance in progress keeps its style. |
-| `tuning.defaultExitTo` | auto, left, right, top, bottom, fade, shrink (workspace only) | auto | NEXT (configureTuning only). Read at each panel's next park or close; an exit in progress keeps its style. |
+| `tuning.defaultEnterFrom` | auto, left, right, anchor, top, bottom, fade, expand (workspace only) | expand | NEXT (configureTuning only). Read at each panel's next enter; an entrance in progress keeps its style. |
+| `tuning.defaultExitTo` | auto, left, right, top, bottom, fade, shrink (workspace only) | shrink | NEXT (configureTuning only). Read at each panel's next park or close; an exit in progress keeps its style. |
 <!-- catalog:end -->
 
 ## Panel boxes are reported, never drawn over
@@ -1788,36 +1788,37 @@ skipped and its log id is not reported.
 
 A panel's entrance is its `enterFrom` and its exit, for a park and a close alike, its `exitTo`. Each has one
 workspace-wide default, `tuning.defaultEnterFrom` and `tuning.defaultExitTo`: a panel whose own value is `auto` takes the
-workspace's, and any other value of its own wins. Both workspace defaults are `auto`, which is the behaviour below
-the row had before either existed. `anchor` is the 0.1.0 `anchoredEnter` flag as a setting, and that flag counts as
+workspace's, and any other value of its own wins. The workspace defaults are `expand` and `shrink`; set either to
+`auto` for the sideways park and downward close below, the row's behaviour before either setting existed. `anchor` is the 0.1.0 `anchoredEnter` flag as a setting, and that flag counts as
 the panel's own `anchor`.
 
 Entrances. `auto` is the row's order: a mark, then the formula for an entry entering via an anchor, then the right.
 `anchor` takes the formula at every enter. `left`, `right`, `top` and `bottom` slide in from that side (a vertical
-slide travels the row's height), `fade` fades in at the slot's rest, and `expand` grows the slot's width from 0 to its
-full width at its rest while the neighbours to its right slide apart to make room. Every value but `auto` and `anchor`
+slide travels the row's height), `fade` fades in at the slot's rest, and `expand` scales the slot up from 0 about its
+center, width and height together, while the neighbours to its right slide apart to make room; it starts half a span
+left and reaches its rest on the same clock, so its center stays where the neighbours part. Every value but `auto` and `anchor`
 is a constant that beats the engine's mark and the anchor formula.
 
 Exits. `auto` parks toward the exit-right marks, else left, and closes downward along `slide.closeExitSeconds` and
 `slide.closeExitEase`, the curve a drag close shares. `left`, `right`, `top` and `bottom` slide out to that side, `fade`
-fades out at the rest, and `shrink` eases the slot's width to 0 at its rest while the neighbours close up. An
-explicit `exitTo` is the same for a park and a close.
+fades out at the rest, and `shrink` scales the slot to 0 about its center, width and height together, while the
+neighbours close up. The slot keeps its full box and moves half a span left on the same clock, so its center stays on
+the point where the neighbours meet and it never overlaps them; in a centered row the row's own recentering cancels
+that move and the center holds still on screen. An explicit `exitTo` is the same for a park and a close.
 
 Every entrance and exit but the `auto` close takes the workspace's `slide` timing: the transition is the shared
 `PANEL_TRANSITION` object itself while `slide` is at its defaults (0.6 s, in-out), and every one fades the opacity as
 a slide does. The neighbours' moves are the slide every slot makes to a new rest, started on the same clock, so the
-gap at an expanding or shrinking slot never closes over it. An expanding or shrinking slot clips what it holds across (never up or down, where the frame draws its header) and
-leaves it at the full width: the frame draws the content at the slot's drawn width from the row's numbers, not from
-the slot's box, so the content is revealed, never squashed or reflowed.
+gap at an expanding or shrinking slot never closes over it. Both keep the slot's full box and scale it, so the content
+is never reflowed.
 
 Reduced motion is honoured as the slide honours it: under Motion's reduced-motion setting a slide's move lands at
-once and its fade still runs, so an `expand` or `shrink` width lands at once and the fade still runs. A slot that
+once and its fade still runs, so an `expand` or `shrink` scale lands at once and the fade still runs. A slot that
 mounts at its rest (a restored panel, or one added while a width is held) does not grow.
 
 Both settings are NEXT: the style is read when the panel next enters or leaves, and one in progress keeps its style. An
-interrupted width animation carries on from the width on screen: a re-priced row eases it to the new width, a panel
-that returns mid-shrink grows back from where it is, and a panel that leaves mid-expand holds its drawn width while it
-leaves, or shrinks from it. `layer` sets the stacking.
+interrupted scale carries on from the one on screen: a panel that returns mid-shrink scales back up from where it is,
+and a panel that leaves mid-expand leaves from the size it has reached. `layer` sets the stacking.
 
 ### A parked view unmounts
 
@@ -2016,13 +2017,21 @@ A Capacitor page runs in WKWebView on iPhone and in the Android System WebView. 
 - **Insets need the host's opt-in.** `env(safe-area-inset-*)` is 0 unless the page's viewport meta says `viewport-fit=cover`, and
   the library cannot write that meta. The Workspace row reads the top and bottom insets as a margin and a height shrink, so its
   measured height (`useRowHeightBudget`) already leaves them out. The side insets are not applied: the row's stops and widths are
-  computed from `gap` alone, and a side inset would move every stop.
+  computed from `gap` alone, and a side inset would move every stop. The column's links and name input add the same top and
+  bottom insets to their offsets.
+- **The header and footer have room inside the row.** Both are drawn outside the frame, so the row pads 40 px (the bar plus its
+  gap) above and below the frames, or the row gap when that is more, and the phone fit prices the height from the same numbers.
+  A phone's height is the binding side, so without the top room the header of a frame that fills the row sits off screen.
+  A dev's `tuning.rowTop` is the one exception: an explicit room is the dev's and is never raised, even below 40 px.
+- **A fitted phone is never taller than its row.** The row never scrolls vertically, so a row too short for the minimum phone
+  draws it at the minimum width and the row's height, shorter than the preferred shape, rather than cutting its bottom off.
 - **Exit distance uses the visible bottom.** `visibleViewportBottom()` (`dragToClose.tsx`) is the visual viewport's bottom, so a
   dismissed panel leaves the screen while a pinch or the on-screen keyboard has shrunk what is visible. `100dvh` is a CSS unit and
   cannot give a pixel distance to a spring.
 - **A touch never drags the grab bar.** The grab bar is `touch-action: pan-x`, so a vertical touch on it is the page's pan, and the
   browser cancels the pointer once it pans. A touch press therefore never reaches the drag sensor, and a held touch cannot close a
-  panel. A mouse or pen is unchanged and starts past the direction lock; the press is taken on the handle, not the sensor, because
+  panel. Where the page cannot pan, no cancel comes and the moves keep arriving, so a touch press is never engaged either: the
+  box stays at rest under the finger. A mouse or pen is unchanged and starts past the direction lock; the press is taken on the handle, not the sensor, because
   the sensor's activator is one per event name and would drop the mouse's. The workspace's tile drag is separate and still holds a
   touch for 250 ms.
 

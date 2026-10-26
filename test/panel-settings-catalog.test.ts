@@ -332,8 +332,8 @@ test('defaults: LIBRARY_TUNING_DEFAULTS deep-equals the exact object, with the s
     phoneFit: 'off',
     phoneFitMin: 0.82,
     phoneFitMax: 1.13,
-    defaultEnterFrom: 'auto',
-    defaultExitTo: 'auto',
+    defaultEnterFrom: 'expand',
+    defaultExitTo: 'shrink',
   });
 });
 

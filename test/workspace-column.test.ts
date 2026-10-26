@@ -370,8 +370,10 @@ test('topInset clears chrome the app draws: the controls start below it', async 
   await until('a cell', () => cells().length === 1);
   const cell = cells()[0]!;
   const top = (el: Element): string => getComputedStyle(el).top;
-  assert.equal(top(neighbour(cell, 'above')), '32px');
-  assert.equal(top(cell.querySelector('[data-workspace-name-input]')!.parentElement!), '56px');
+  // jsdom garbles env() inside calc(), so the px term and the inset are read apart.
+  const below = (value: string, px: number): boolean => value.startsWith(`calc(${px}px + `) && value.includes('safe-area-inset-top');
+  assert.ok(below(top(neighbour(cell, 'above')), 32), top(neighbour(cell, 'above')));
+  assert.ok(below(top(cell.querySelector('[data-workspace-name-input]')!.parentElement!), 56));
 });
 
 test('each control the column draws is exactly 24 px high: the neighbour buttons, the empty-column button and the name input', async () => {

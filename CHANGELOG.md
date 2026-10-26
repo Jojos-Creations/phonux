@@ -14,11 +14,26 @@
 - `ClosedPagesPanel` takes `pageSize`: it shows that many of the newest rows and a Show more button (label `closedPagesShowMore`) that shows that many more each press. Search still matches every entry. `query` lets a host draw the search field elsewhere, such as in the panel's footer: given, the panel draws no field of its own and filters by it.
 - A `WorkspaceColumn` cell whose children function returns `undefined` draws the library's own row for that cell; `null` draws nothing.
 
+### Changed
+
+- `slots` and `maxSlots` are documented as whole numbers from 1 to 64, the most slots any panel can have; the doc comments, README and DESIGN.md say so.
+
 ### Breaking
 
 - Standalone (no column), `topInset` no longer sets the row's top room: `tuning.rowTop` is the only control for it. In a column the cell's `topInset` still clears its links, as before.
 - The MUI and DOM types leave the public API, ahead of 0.2.0 final. `createWorkspace({ theme })` and `createDefaultTheme(mode)` take and return `PhonuxTheme`, a set of CSS colors and a corner unit, and the library builds its styling theme from it. `HeaderButton.sx` and the drag handle's `sx` are a `CssStyle` (plain CSS properties), not MUI `sx`. `panelCornerRadiusPx` takes a `PhonuxTheme`. The root props of `Panel`, `PanelFrame`, `PanelHeader` and `Workspace` are `ElementProps`, not MUI `BoxProps`. The drag handle's `onPointerDown` and `onKeyDown` take `HandlePointerEvent` and `HandleKeyEvent`, which React's events satisfy.
 - `PhonuxThemeProvider` draws the row's styling for a hand-rendered row (`mount: false`), in place of an app's own MUI `ThemeProvider`.
+
+### Changed
+
+- `enterFrom: 'expand'` and `exitTo: 'shrink'` mirror each other around the panel's center point. `expand` scales the panel up from 0, width and height together, where it used to widen from its left edge; its neighbours still part, and the center keeps to where they part. `exitTo: 'shrink'` scales the panel down to its own center point, width and height together, on the `slide` timing. It used to narrow the panel's width toward its left edge with the height unchanged. The neighbours still close up, and the center keeps to the point where they meet, so in a centered row it holds still and the panel never overlaps them. Reduced motion lands the scale at once and keeps the fade. They are also the library's defaults now: `tuning.defaultEnterFrom` defaults to `'expand'` and `tuning.defaultExitTo` to `'shrink'`, so a panel left at `auto` expands in and shrinks out, for a park and a close alike. **Migration:** a host that wants the earlier sideways park and downward close sets both to `'auto'` through `createWorkspace({ tuning })` or `configureTuning`.
+
+### Fixed
+
+- A panel's header stays on screen when its frame fills the row's height. The row keeps the header's room, 40 px, above its frames, as it keeps the footer's below, and the phone fit prices the height from it; a `topPadding` or `topInset` under 40 is raised to 40. An explicit `tuning.rowTop` is taken as given and never raised, so a value under 40 can push headers off the top of the screen. On a 402 x 714 phone the header sat 24 px above the screen's top.
+- The phone fit never draws a panel taller than the row. A row too short for the minimum phone keeps the minimum width and cuts the height to the row, where the frame used to run past the row's bottom, which never scrolls vertically.
+- A touch on the grab bar never moves the panel, also on a page that cannot scroll vertically. There the browser sends no `pointercancel`, and the panel followed the finger down.
+- The column's links and workspace name input sit inside the device's safe areas, as the row does, so on a page with `viewport-fit=cover` they clear the notch and the home bar.
 
 ## 0.2.0-rc.5
 

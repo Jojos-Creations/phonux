@@ -106,7 +106,9 @@ test('standalone, tuning.rowTop is the row top room and a configure moves it; to
   const ws = await started({ tuning: { rowTop: 200 } });
   assert.equal(padding(), '200px');
   await act(async () => void ws.panels.configureTuning({ rowTop: 0 }));
-  assert.equal(padding(), '0px');
+  assert.equal(padding(), '0px', 'an explicit rowTop is taken as given, never raised to the header room');
+  await act(async () => void ws.panels.configureTuning({ rowTop: null }));
+  assert.equal(padding(), '40px', 'without rowTop, never less than the header room, so a header stays on screen');
   await started({ topInset: 200 });
   assert.notEqual(getComputedStyle(document.querySelector<HTMLElement>('[data-row-scroller]')!).paddingTop, '200px');
 });
