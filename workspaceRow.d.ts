@@ -1,10 +1,15 @@
 import * as React from 'react';
 import type { RowNumbers } from './rowNumbers.js';
 import type { ResolvedWorkspaceTuning } from './panelSettings.js';
-/** The part of a panel the row's dot bar reads: its id, and whether its dot is hollow. @public */
+/** The part of a panel a row's wrap reads: its id, its saved uid, and whether its dot is hollow. @public */
 export interface WorkspaceRowEntry {
     /** The panel's id. */
     readonly id: string;
+    /**
+     * The panel's saved uid, the same across relaunches of a restored workspace, unlike `id`, which is new each launch.
+     * Absent on a hand-built entry.
+     */
+    readonly uid?: string;
     /** The panel's settings, when they are set; `hollowDot` is whether its dot is hollow. */
     readonly settings?: {
         readonly hollowDot: boolean;
