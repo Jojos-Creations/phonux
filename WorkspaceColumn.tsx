@@ -28,6 +28,10 @@ const TARGET = WORKSPACE_NAME_CONTROL_HEIGHT;
 
 const DefaultCell = React.lazy(() => import('./autoMount.js').then((m) => ({ default: m.AutoRoot })));
 
+// The column's own controls sit inside the device's safe areas, as the row does; env() is 0 unless the page sets viewport-fit=cover.
+const belowSafeTop = (px: number): string => `calc(${px}px + env(safe-area-inset-top, 0px))`;
+const aboveSafeBottom = (px: number): string => `calc(${px}px + env(safe-area-inset-bottom, 0px))`;
+
 function NameInput({ workspace, label, inset }: { workspace: WorkspaceHandle; label: string; inset: number }): React.ReactElement {
   const [draft, setDraft] = React.useState<string | null>(null);
   const commit = (): void => {
@@ -47,7 +51,7 @@ function NameInput({ workspace, label, inset }: { workspace: WorkspaceHandle; la
         }
       }}
       inputProps={{ 'aria-label': label, maxLength: MAX_WORKSPACE_NAME, [WORKSPACE_NAME_INPUT_ATTRIBUTE]: '', style: { textAlign: 'center', padding: 0, height: TARGET } }}
-      sx={{ position: 'absolute', top: 24 + inset, left: '50%', transform: 'translateX(-50%)', width: 280, maxWidth: 'calc(100% - 32px)', height: TARGET, fontSize: 14, zIndex: 1 }}
+      sx={{ position: 'absolute', top: belowSafeTop(24 + inset), left: '50%', transform: 'translateX(-50%)', width: 280, maxWidth: 'calc(100% - 32px)', height: TARGET, fontSize: 14, zIndex: 1 }}
     />
   );
 }
@@ -137,7 +141,7 @@ export function WorkspaceColumn({ column, children }: WorkspaceColumnProps): Rea
                 size="small"
                 onClick={() => (above === undefined ? create(i) : column.scrollTo(above))}
                 aria-label={above === undefined ? labels.newWorkspace : labels.goToWorkspace(above.name)}
-                sx={{ position: 'absolute', top: snap.topInset, left: '50%', transform: 'translateX(-50%)', maxWidth: 'calc(100% - 32px)', height: TARGET, minHeight: 0, py: 0, zIndex: 1, textTransform: 'none', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', display: 'block' }}
+                sx={{ position: 'absolute', top: belowSafeTop(snap.topInset), left: '50%', transform: 'translateX(-50%)', maxWidth: 'calc(100% - 32px)', height: TARGET, minHeight: 0, py: 0, zIndex: 1, textTransform: 'none', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', display: 'block' }}
               >
                 {above === undefined ? labels.newWorkspace : above.name}
               </Button>
@@ -154,7 +158,7 @@ export function WorkspaceColumn({ column, children }: WorkspaceColumnProps): Rea
                 size="small"
                 onClick={() => (below === undefined ? create(i + 1) : column.scrollTo(below))}
                 aria-label={below === undefined ? labels.newWorkspace : labels.goToWorkspace(below.name)}
-                sx={{ position: 'absolute', bottom: COLUMN_BOTTOM_BAND - TARGET, left: '50%', transform: 'translateX(-50%)', maxWidth: 'calc(100% - 32px)', height: TARGET, minHeight: 0, py: 0, zIndex: 1, textTransform: 'none', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', display: 'block' }}
+                sx={{ position: 'absolute', bottom: aboveSafeBottom(COLUMN_BOTTOM_BAND - TARGET), left: '50%', transform: 'translateX(-50%)', maxWidth: 'calc(100% - 32px)', height: TARGET, minHeight: 0, py: 0, zIndex: 1, textTransform: 'none', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', display: 'block' }}
               >
                 {below === undefined ? labels.newWorkspace : below.name}
               </Button>
@@ -163,7 +167,7 @@ export function WorkspaceColumn({ column, children }: WorkspaceColumnProps): Rea
         })}
       </div>
       {snap.workspaces.length === 0 ? (
-        <Button data-workspace-neighbour="empty" size="small" onClick={() => create(0)} sx={{ position: 'absolute', top: snap.topInset, left: '50%', transform: 'translateX(-50%)', height: TARGET, minHeight: 0, textTransform: 'none' }}>
+        <Button data-workspace-neighbour="empty" size="small" onClick={() => create(0)} sx={{ position: 'absolute', top: belowSafeTop(snap.topInset), left: '50%', transform: 'translateX(-50%)', height: TARGET, minHeight: 0, textTransform: 'none' }}>
           {labels.newWorkspace}
         </Button>
       ) : null}

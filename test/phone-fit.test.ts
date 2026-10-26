@@ -58,7 +58,7 @@ test('the table at the real phone height and gap 24: widths, counts and leftover
 test('a window the height cap binds in: the minimum wins, with as many slots as fit, never one by default', () => {
   const short = fit(844, 390);
   assert.deepEqual([short.count, short.width, short.heightCapped], [2, 320, true]);
-  assert.ok(short.height > budgetOf(390), 'the row scrolls vertically');
+  assert.equal(short.height, budgetOf(390), 'cut to the row, which never scrolls vertically');
   assert.deepEqual([fit(1280, 650).count, fit(1280, 650).width], [3, 320]);
 });
 
@@ -81,6 +81,7 @@ test('invariants over every container width and height-budget class', () => {
       const room = width - 2 * GAP;
       assert.ok(f.count >= 1, `${width}x${height}: at least one slot`);
       assert.ok(Number.isInteger(f.width) && Number.isInteger(f.height), `${width}x${height}: whole pixels`);
+      assert.ok(f.height <= budgetOf(height), `${width}x${height}: never taller than the row, got ${f.height}`);
       const minWidth = Math.ceil(PHONE_FIT_MIN * 390);
       assert.ok(f.width >= minWidth && f.width <= Math.floor(PHONE_FIT_MAX * 390), `${width}x${height}: the scale stays in the band, got ${f.width}`);
       if (room >= minWidth) assert.ok(drawn(f) <= room, `${width}x${height}: ${drawn(f)} fits ${room}`);
@@ -263,7 +264,7 @@ test('differential tuning.phoneHeight: under fit the frame scales with the width
   differential('tuning.phoneHeight', (run) => {
     for (const mode of ['fit', 'auto'] as const) run(mode, () => seen[mode]);
   });
-  assert.deepEqual(seen, { fit: 790, auto: 844 });
+  assert.deepEqual(seen, { fit: 790, auto: 900 - 40 - 40 }, 'auto is the room under the 40 px header and footer rooms');
 });
 
 test('differential tuning.rowTop: a larger room above the row shortens the auto frame, down to the fit it is never shorter than', async () => {
@@ -273,6 +274,6 @@ test('differential tuning.rowTop: a larger room above the row shortens the auto 
     run(null, () => seen.none);
     run(300, () => seen.large);
   });
-  assert.ok(fitLarge < seen.none, 'the larger room is shorter than the room that fits 844');
-  assert.deepEqual(seen, { none: 844, large: fitLarge });
+  assert.ok(fitLarge < seen.none, 'the larger room is shorter than the default room');
+  assert.deepEqual(seen, { none: 900 - 40 - 40, large: fitLarge });
 });

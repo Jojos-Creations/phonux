@@ -340,7 +340,7 @@ export type WorkspaceTuning = {
   edgeScroll?: { [K in keyof EdgeScrollTuning]?: EdgeScrollTuning[K] };
   /** The gap between panels in px, an integer from 0 to 200. */
   rowGap?: number;
-  /** The room above the row in px, an integer from 0 to 400: the only control for a standalone workspace's row top room. Null: the default room (in a column, the column band, the cell's top inset and the row gap). */
+  /** The room above the row in px, an integer from 0 to 400: the only control for a standalone workspace's row top room. Taken as given and never raised, so a value under 40 (the header's height and its gap) can push panel headers off the top of the screen. Null: the default room (in a column, the column band, the cell's top inset and the row gap), never less than 40 so headers stay on screen. */
   rowTop?: number | null;
   /** The phone's height under `phoneFit: 'fit'`: 'fit' scales it with the width; 'auto' makes the frame as tall as the row's room, never shorter than the fit. */
   phoneHeight?: 'fit' | 'auto';
