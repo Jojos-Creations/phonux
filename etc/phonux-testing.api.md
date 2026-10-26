@@ -448,6 +448,7 @@ export interface PhonuxLabels {
     closedPagesLoading: string;
     closedPagesNoMatches: string;
     closedPagesSearch: string;
+    closedPagesShowMore: string;
     closedPagesTitle: string;
     closedPagesUntitled: string;
     dragCancelled: (title: string) => string;

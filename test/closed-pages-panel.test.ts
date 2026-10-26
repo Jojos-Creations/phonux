@@ -61,6 +61,23 @@ test('the search matches title or url without regard to case, and says so when n
   assert.equal(m.container.querySelector('[data-closed-pages-empty]')?.textContent, 'No matches');
 });
 
+test('pageSize shows the newest rows, Show more reveals that many more, and search reaches past them', () => {
+  const many: ClosedPageEntry[] = Array.from({ length: 5 }, (_, i) => ({ id: `p${i}`, title: `Page ${i}`, closedAt: `2026-09-1${i}T10:00:00.000Z` }));
+  const m = mount(withHost(h(ClosedPagesPanel, { list: fakeList(many), onReopen: () => {}, pageSize: 2 })));
+  const more = (): HTMLButtonElement | null => m.container.querySelector('[data-closed-pages-more]');
+  assert.deepEqual(rows(m.container), ['Page 4', 'Page 3']);
+  React.act(() => more()?.click());
+  assert.deepEqual(rows(m.container), ['Page 4', 'Page 3', 'Page 2', 'Page 1']);
+  React.act(() => more()?.click());
+  assert.deepEqual(rows(m.container), ['Page 4', 'Page 3', 'Page 2', 'Page 1', 'Page 0']);
+  assert.equal(more(), null, 'no Show more once every row is shown');
+  typeInto(m.container.querySelector('input') as HTMLInputElement, 'page');
+  assert.deepEqual(rows(m.container), ['Page 4', 'Page 3'], 'a new search starts again at one page');
+  typeInto(m.container.querySelector('input') as HTMLInputElement, 'page 0');
+  assert.deepEqual(rows(m.container), ['Page 0'], 'search matches a page that was not shown');
+  assert.throws(() => mount(withHost(h(ClosedPagesPanel, { list: fakeList(many), onReopen: () => {}, pageSize: 0 }))), RangeError);
+});
+
 test('choosing a row touches its entry, then calls onReopen with it', () => {
   const list = fakeList(ENTRIES);
   const seen: string[] = [];

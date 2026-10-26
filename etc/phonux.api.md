@@ -100,6 +100,7 @@ export interface ClosedPagesPanelProps {
     readonly className?: string;
     readonly list: ClosedPagesList;
     readonly onReopen: (entry: ClosedPageEntry) => void;
+    readonly pageSize?: number;
 }
 
 // @public
@@ -1039,6 +1040,7 @@ export interface PhonuxLabels {
     closedPagesLoading: string;
     closedPagesNoMatches: string;
     closedPagesSearch: string;
+    closedPagesShowMore: string;
     closedPagesTitle: string;
     closedPagesUntitled: string;
     dragCancelled: (title: string) => string;
@@ -1457,7 +1459,7 @@ export function useClosedPages(input: UseClosedPagesOptions): ClosedPagesList;
 
 // @public
 export interface UseClosedPagesOptions {
-    readonly limit: number;
+    readonly limit?: number;
     readonly storage: ClosedPagesStorage;
 }
 

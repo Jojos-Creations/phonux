@@ -46,7 +46,7 @@ const flush = async (): Promise<void> => {
 };
 
 /** Mounts a probe that exposes the hook's list through `out`. */
-function mountList(storage: ClosedPagesStorage, limit: number): { out: { current?: ClosedPagesList } } {
+function mountList(storage: ClosedPagesStorage, limit?: number): { out: { current?: ClosedPagesList } } {
   const out: { current?: ClosedPagesList } = {};
   const Probe = (): null => {
     out.current = useClosedPages({ storage, limit });
@@ -146,6 +146,18 @@ test('a rejected write is reported and the in-memory list keeps the change', asy
   await flush();
   assert.equal(errors.mock.callCount(), 1);
   assert.deepEqual(ids(out.current), ['Page 1']);
+});
+
+test('with no limit the list keeps every page and never writes one away', async () => {
+  const stored = Array.from({ length: 9 }, (_, i) => entry(i));
+  const { storage, writes } = recordingStorage(stored);
+  const { out } = mountList(storage);
+  await flush();
+  assert.equal(out.current?.entries.length, 9);
+  React.act(() => out.current?.add({ ...entry(9), id: 'new', title: 'Page new' }));
+  await flush();
+  assert.equal(out.current?.entries.length, 10);
+  assert.equal(writes.at(-1)?.length, 10, 'the write holds every page');
 });
 
 test('limit must be a positive integer', () => {
