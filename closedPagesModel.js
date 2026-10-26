@@ -1,6 +1,6 @@
-/** Drops the least recently touched entries from the front until at most `limit` remain. */
+/** Drops the least recently touched entries from the front until at most `limit` remain; no limit keeps them all. */
 export function trimToLimit(entries, limit) {
-    return entries.length > limit ? entries.slice(entries.length - limit) : entries;
+    return limit !== undefined && entries.length > limit ? entries.slice(entries.length - limit) : entries;
 }
 /** Adds `entry` as the most recently touched one. An entry with the same id is replaced, not duplicated. */
 export function addClosedPage(entries, entry, limit) {
@@ -40,4 +40,16 @@ export function groupClosedPages(entries, query) {
         date,
         entries: [...dayEntries].sort((a, b) => (a.closedAt < b.closedAt ? 1 : a.closedAt > b.closedAt ? -1 : 0)),
     }));
+}
+/** Keeps the first `count` entries across `groups` in order, dropping a group left empty. */
+export function firstClosedPages(groups, count) {
+    const out = [];
+    let left = count;
+    for (const group of groups) {
+        if (left <= 0)
+            break;
+        out.push(group.entries.length <= left ? group : { date: group.date, entries: group.entries.slice(0, left) });
+        left -= group.entries.length;
+    }
+    return out;
 }

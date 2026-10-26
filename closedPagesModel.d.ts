@@ -3,10 +3,10 @@
  * touched first, so the entry to evict is always at index 0.
  */
 import type { ClosedPageEntry } from './hostApi.js';
-/** Drops the least recently touched entries from the front until at most `limit` remain. */
-export declare function trimToLimit(entries: readonly ClosedPageEntry[], limit: number): readonly ClosedPageEntry[];
+/** Drops the least recently touched entries from the front until at most `limit` remain; no limit keeps them all. */
+export declare function trimToLimit(entries: readonly ClosedPageEntry[], limit: number | undefined): readonly ClosedPageEntry[];
 /** Adds `entry` as the most recently touched one. An entry with the same id is replaced, not duplicated. */
-export declare function addClosedPage(entries: readonly ClosedPageEntry[], entry: ClosedPageEntry, limit: number): readonly ClosedPageEntry[];
+export declare function addClosedPage(entries: readonly ClosedPageEntry[], entry: ClosedPageEntry, limit: number | undefined): readonly ClosedPageEntry[];
 /** Moves the entry with `id` to the most recently touched place. Returns `entries` itself when nothing moves. */
 export declare function touchClosedPage(entries: readonly ClosedPageEntry[], id: string): readonly ClosedPageEntry[];
 /**
@@ -23,3 +23,5 @@ export interface ClosedPagesDayGroup {
 }
 /** Filters entries by a case-insensitive substring match on title or url, then groups them by day. A blank query matches everything. */
 export declare function groupClosedPages(entries: readonly ClosedPageEntry[], query: string): readonly ClosedPagesDayGroup[];
+/** Keeps the first `count` entries across `groups` in order, dropping a group left empty. */
+export declare function firstClosedPages(groups: readonly ClosedPagesDayGroup[], count: number): readonly ClosedPagesDayGroup[];

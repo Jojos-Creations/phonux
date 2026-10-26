@@ -12,11 +12,18 @@ export interface ClosedPagesPanelProps {
     readonly onReopen: (entry: ClosedPageEntry) => void;
     /** A class name for the panel's frame, for a host that styles the body. The panel draws no padding, scrolling or sizes of its own. */
     readonly className?: string;
+    /**
+     * How many rows to show at first, newest first; a Show more button under the list shows this many more each press.
+     * Search matches every entry, shown or not, and a new search starts again at this many. Absent, every row is shown.
+     * When present, must be a positive integer.
+     */
+    readonly pageSize?: number;
 }
 /**
  * The closed pages as a searchable list grouped by the day they closed, newest first. Choosing a row touches its entry
  * in the list and calls `onReopen`. Draws its own frame, so it is used as the body of a panel. Its text comes from the
  * host's `labels`.
+ * @throws RangeError when `pageSize` is given and is not a positive integer.
  * @public
  */
-export declare function ClosedPagesPanel({ list, onReopen, className }: ClosedPagesPanelProps): React.ReactElement;
+export declare function ClosedPagesPanel({ list, onReopen, className, pageSize }: ClosedPagesPanelProps): React.ReactElement;

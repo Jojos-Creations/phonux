@@ -17,11 +17,11 @@ export interface ClosedPagesStorage {
 export interface ClosedPagesList {
     /** Whether the saved log has been read. Until it is, `entries` holds only what was added since mount. */
     readonly loaded: boolean;
-    /** The entries, least recently touched first. The first entry is the next one to be evicted at the limit. */
+    /** The entries, least recently touched first. With a limit, the first entry is the next one to be evicted. */
     readonly entries: readonly ClosedPageEntry[];
     /**
-     * Records a closed page. At the limit the least recently touched entry is dropped. An entry whose `id` is already in
-     * the list replaces that entry and counts as touched.
+     * Records a closed page. With a limit, at the limit the least recently touched entry is dropped. An entry whose `id` is
+     * already in the list replaces that entry and counts as touched.
      */
     add(entry: ClosedPageEntry): void;
     /** Marks the entry with `id` as the most recently touched, so it is evicted last. Does nothing for an unknown id. */
@@ -34,16 +34,16 @@ export interface ClosedPagesList {
 export interface UseClosedPagesOptions {
     /** Where the log is saved and read. */
     readonly storage: ClosedPagesStorage;
-    /** The most entries the list keeps. The host chooses it; there is no default. Must be a positive integer. */
-    readonly limit: number;
+    /** The most entries the list keeps; past it the least recently touched are dropped. Absent, the list keeps every entry. When present, must be a positive integer. */
+    readonly limit?: number;
 }
 /**
  * A closed-pages list backed by the host's storage. Each call of `read` and `write` goes to `storage`, and nothing is
  * kept outside the component's state.
- * @throws RangeError when `limit` is not a positive integer.
+ * @throws RangeError when `limit` is given and is not a positive integer.
  * @example
  * ```ts
- * const closed = useClosedPages({ storage: closedPagesStorage, limit: 50 });
+ * const closed = useClosedPages({ storage: closedPagesStorage });
  * // in a panel's onPanelsClosed: closed.add({ id, title, url, closedAt })
  * ```
  * @public

@@ -30,6 +30,7 @@ export const DEFAULT_LABELS = {
     closedPagesEmpty: 'No closed pages yet',
     closedPagesNoMatches: 'No matches',
     closedPagesUntitled: 'Untitled',
+    closedPagesShowMore: 'Show more',
     workspacePinned: 'Pinned',
     workspaceViewing: 'Viewing',
     workspaceHidden: 'Hidden',

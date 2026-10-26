@@ -3,16 +3,16 @@ import { addClosedPage, mergeClosedPages, touchClosedPage, trimToLimit } from '.
 /**
  * A closed-pages list backed by the host's storage. Each call of `read` and `write` goes to `storage`, and nothing is
  * kept outside the component's state.
- * @throws RangeError when `limit` is not a positive integer.
+ * @throws RangeError when `limit` is given and is not a positive integer.
  * @example
  * ```ts
- * const closed = useClosedPages({ storage: closedPagesStorage, limit: 50 });
+ * const closed = useClosedPages({ storage: closedPagesStorage });
  * // in a panel's onPanelsClosed: closed.add({ id, title, url, closedAt })
  * ```
  * @public
  */
 export function useClosedPages({ storage, limit }) {
-    if (!Number.isInteger(limit) || limit < 1)
+    if (limit !== undefined && (!Number.isInteger(limit) || limit < 1))
         throw new RangeError(`useClosedPages: limit must be a positive integer, got ${String(limit)}`);
     const [entries, setEntries] = React.useState([]);
     const [loaded, setLoaded] = React.useState(false);
