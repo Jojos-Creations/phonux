@@ -78,6 +78,12 @@ test('pageSize shows the newest rows, Show more reveals that many more, and sear
   assert.throws(() => mount(withHost(h(ClosedPagesPanel, { list: fakeList(many), onReopen: () => {}, pageSize: 0 }))), RangeError);
 });
 
+test('a query from the host replaces the search field and filters the list', () => {
+  const m = mount(withHost(h(ClosedPagesPanel, { list: fakeList(ENTRIES), onReopen: () => {}, query: 'gamma' })));
+  assert.equal(m.container.querySelector('input'), null, 'no search field of its own');
+  assert.deepEqual(rows(m.container), ['Gamma']);
+});
+
 test('choosing a row touches its entry, then calls onReopen with it', () => {
   const list = fakeList(ENTRIES);
   const seen: string[] = [];

@@ -101,6 +101,7 @@ export interface ClosedPagesPanelProps {
     readonly list: ClosedPagesList;
     readonly onReopen: (entry: ClosedPageEntry) => void;
     readonly pageSize?: number;
+    readonly query?: string;
 }
 
 // @public

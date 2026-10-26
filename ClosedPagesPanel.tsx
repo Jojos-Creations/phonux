@@ -23,6 +23,11 @@ export interface ClosedPagesPanelProps {
    * When present, must be a positive integer.
    */
   readonly pageSize?: number;
+  /**
+   * The search text, for a host that draws its own search field elsewhere, such as in the panel's footer. Given, the
+   * panel draws no search field and filters by it; absent, the panel draws its own field.
+   */
+  readonly query?: string;
 }
 
 /**
@@ -32,26 +37,25 @@ export interface ClosedPagesPanelProps {
  * @throws RangeError when `pageSize` is given and is not a positive integer.
  * @public
  */
-export function ClosedPagesPanel({ list, onReopen, className, pageSize }: ClosedPagesPanelProps): React.ReactElement {
+export function ClosedPagesPanel({ list, onReopen, className, pageSize, query: hostQuery }: ClosedPagesPanelProps): React.ReactElement {
   if (pageSize !== undefined && (!Number.isInteger(pageSize) || pageSize < 1)) throw new RangeError(`ClosedPagesPanel: pageSize must be a positive integer, got ${String(pageSize)}`);
   const labels = resolveLabels(useOptionalHost()?.labels);
-  const [query, setQuery] = React.useState('');
-  const [pages, setPages] = React.useState(1);
+  const [ownQuery, setOwnQuery] = React.useState('');
+  const query = hostQuery ?? ownQuery;
+  // Keyed by the search it was counted for, so a new search starts again at one page.
+  const [paged, setPaged] = React.useState({ query, pages: 1 });
+  const pages = paged.query === query ? paged.pages : 1;
   const matches = groupClosedPages(list.entries, query);
   const total = matches.reduce((n, group) => n + group.entries.length, 0);
   const shown = pageSize === undefined ? total : pages * pageSize;
   const groups = firstClosedPages(matches, shown);
-  const search = (next: string): void => {
-    setQuery(next);
-    setPages(1);
-  };
   const reopen = (entry: ClosedPageEntry): void => {
     list.touch(entry.id);
     onReopen(entry);
   };
   return (
     <PanelFrame data-closed-pages="" className={className}>
-      <input type="search" value={query} onChange={(e) => search(e.target.value)} placeholder={labels.closedPagesSearch} aria-label={labels.closedPagesSearch} />
+      {hostQuery === undefined && <input type="search" value={query} onChange={(e) => setOwnQuery(e.target.value)} placeholder={labels.closedPagesSearch} aria-label={labels.closedPagesSearch} />}
       {!list.loaded ? (
         <div>{labels.closedPagesLoading}</div>
       ) : groups.length === 0 ? (
@@ -75,7 +79,7 @@ export function ClosedPagesPanel({ list, onReopen, className, pageSize }: Closed
           </section>
           ))}
           {shown < total && (
-            <button type="button" data-closed-pages-more="" onClick={() => setPages((n) => n + 1)}>
+            <button type="button" data-closed-pages-more="" onClick={() => setPaged({ query, pages: pages + 1 })}>
               {labels.closedPagesShowMore}
             </button>
           )}
