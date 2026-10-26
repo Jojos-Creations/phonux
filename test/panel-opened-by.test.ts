@@ -230,3 +230,36 @@ test('two members of one template are counted together against the target limit'
   assert.match(r.message, /panel 'c'/);
   assert.ok(column.canMovePanel(top, 'b', bottom, { withFamily: true }).ok);
 });
+
+test('a family move can leave members behind: what moves stays one family there, and what stays takes the moved opener\'s old opener', async () => {
+  const d = disk();
+  const { column, top, bottom } = await launch(d);
+  await tree(top);
+  const check = column.canMovePanel(top, 'a', bottom, { withFamily: true, leave: ['b'] });
+  assert.ok(check.ok);
+  assert.deepEqual(check.panelIds, ['a', 'c'], 'the answer names only what would move');
+  const moved = column.movePanel(top, 'a', bottom, { withFamily: true, leave: ['b'] });
+  assert.ok(moved.ok);
+  assert.deepEqual(moved.panelIds, ['a', 'c']);
+  await until('landed', () => ids(bottom).join() === 'home,a,c' && ids(top).join() === 'home,b,d');
+  await live(bottom, 'c');
+  assert.equal(openerOf(bottom, 'a'), null);
+  assert.equal(openerOf(bottom, 'c'), 'a', 'c takes its nearest moved ancestor, as b stayed');
+  assert.equal(openerOf(top, 'b'), null, "b takes a's old opener, none");
+  assert.deepEqual(bottom.panels.familyOf('a'), ['a', 'c']);
+});
+
+test('a member left behind no longer refuses the move; leave without withFamily, or naming the panel itself, changes nothing', async () => {
+  const d = disk();
+  const { column, top, bottom } = await launch(d);
+  bottom.addPanel('note', { id: 'b' });
+  await live(bottom, 'b');
+  await tree(top);
+  refusal(column.canMovePanel(top, 'a', bottom, { withFamily: true }));
+  const check = column.canMovePanel(top, 'a', bottom, { withFamily: true, leave: ['b', 'a'] });
+  assert.ok(check.ok, 'b is the only member the target refuses, and it stays');
+  assert.deepEqual(check.panelIds, ['a', 'c'], 'a moves though it was named');
+  const alone = column.canMovePanel(top, 'a', bottom, { leave: ['b'] });
+  assert.ok(alone.ok);
+  assert.deepEqual(alone.panelIds, ['a']);
+});

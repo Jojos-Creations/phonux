@@ -1453,6 +1453,12 @@ export interface MovePanelOptions {
    * all or none. False or left out moves the panel alone.
    */
   readonly withFamily?: boolean;
+  /**
+   * With `withFamily`, members of the family that stay in the source; the panel itself always moves. A member that moves while its
+   * opener stays takes its nearest moving ancestor as opener; one that stays while its opener moves takes that opener's old opener.
+   * The all-or-nothing checks cover only the panels that move.
+   */
+  readonly leave?: readonly PanelId[];
 }
 
 /**
@@ -1483,19 +1489,29 @@ export type MovePanelResult =
     };
 
 /**
- * Moves the panel `key` of `from`, with its family when asked, to the end of `to`'s row; both must belong to one column and the
- * caller has checked they differ. Every member is checked on both sides before anything acts. With `run` false it only answers.
+ * Moves the panel `key` of `from`, with its family less `leave` when asked, to the end of `to`'s row; both must belong to one column
+ * and the caller has checked they differ. Every moving member is checked on both sides before anything acts. With `run` false it
+ * only answers.
  */
-export function transferPanel(from: WorkspaceHandle, key: PanelId, to: WorkspaceHandle, withFamily: boolean, run: boolean): { ok: true; panelIds: PanelId[] } | Extract<MovePanelResult, { ok: false }> {
+export function transferPanel(from: WorkspaceHandle, key: PanelId, to: WorkspaceHandle, options: MovePanelOptions, run: boolean): { ok: true; panelIds: PanelId[] } | Extract<MovePanelResult, { ok: false }> {
   const source = coreOf(from).transfer;
-  const family = withFamily ? source.family(key) : [];
-  const keys = family.length > 0 ? family : [key];
-  const carried: Carried[] = [];
+  const family = options.withFamily === true ? source.family(key) : [];
+  const left = new Set((options.leave ?? []).filter((k) => k !== key));
+  const keys = family.length > 0 ? family.filter((k) => !left.has(k)) : [key];
+  const members: Carried[] = [];
   for (const k of keys) {
     const one = source.leaving(k);
     if ('refusal' in one) return { ok: false, code: one.refusal.code, message: one.refusal.message };
-    carried.push(k === key ? { ...one.carried, openedBy: undefined } : one.carried);
+    members.push(one.carried);
   }
+  const engineOf = new Map(members.map((c) => [c.key, c.engineId]));
+  const openerOf = (k: PanelId): PanelId | null => from.panels.get(k)?.getState().openedBy ?? null;
+  const carried = members.map((c): Carried => {
+    if (c.key === key) return { ...c, openedBy: undefined };
+    let opener = openerOf(c.key);
+    while (opener !== null && left.has(opener)) opener = openerOf(opener);
+    return { ...c, openedBy: opener === null ? undefined : engineOf.get(opener) };
+  });
   const leaving = source.release(carried);
   if ('refusal' in leaving) return { ok: false, code: leaving.refusal.code, message: leaving.refusal.message };
   const arriving = coreOf(to).transfer.arriving(carried);
