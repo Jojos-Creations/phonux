@@ -479,6 +479,7 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
     const scroller = rowScrollerFor(el);
     scroller.noteInput();
     if (scroller.claimHeld()) return;
+    scroller.noteMove();
     const maxScroll = maxScrollOf(rowNumbers);
     if (!rowNumbers.rowScroll || maxScroll <= 0) {
       scrollRow(direction);
@@ -630,10 +631,37 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
     core.bindNotes((note) => reportNotes(i.onNote, [note]));
     return () => core.bindNotes(undefined);
   });
+  // tuning.shrinkUnfocused: every panel wider than one phone but `except` rests at one phone, and keeps the width it goes back to.
+  const restAtPhone = (except: string | null): void => {
+    if (!tuning.shrinkUnfocused) return;
+    const grown = new Map(panels.filter((p) => p.id !== except && p.marker !== true && slotsOf(p) > 1).map((p) => [p.id, slotsOf(p)]));
+    if (grown.size === 0) return;
+    for (const id of grown.keys()) resizePanel(id, 1, false);
+    setPanels((prev) => prev.map((p) => (grown.has(p.id) && slotsOf(p) === 1 ? { ...p, restoreSlots: grown.get(p.id)! } : p)));
+  };
+  // Read even with the tuning off, so turning it off never leaves a panel stuck at one phone.
+  const restoreWidth = (id: string): void => {
+    const width = panels.find((p) => p.id === id)?.restoreSlots;
+    if (width === undefined) return;
+    if (resizePanel(id, width, false)) {
+      i.onPanelResize?.();
+      followPanel(id);
+    } else setPanels((prev) => prev.map((p) => (p.id === id ? { ...p, restoreSlots: undefined } : p)));
+  };
   useLayoutEffect(() => {
-    core.bindTouch(touchPanel);
+    core.bindTouch((id) => {
+      touchPanel(id);
+      restoreWidth(id);
+      restAtPhone(id);
+    });
     return () => core.bindTouch(undefined);
   });
+  const restAtPhoneRef = useRef(restAtPhone);
+  restAtPhoneRef.current = restAtPhone;
+  useEffect(() => {
+    const el = i.overflowContainerRef.current;
+    return el === null ? undefined : rowScrollerFor(el).subscribeMoves(() => restAtPhoneRef.current(null));
+  }, [i.overflowContainerRef]);
   const attachOwner = useRef({});
   useLayoutEffect(() => {
     core.attach(attachOwner.current);

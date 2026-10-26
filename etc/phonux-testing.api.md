@@ -762,6 +762,7 @@ export type WorkspaceTuning = {
     phoneFitMax?: number;
     defaultEnterFrom?: EnterFrom;
     defaultExitTo?: ExitTo;
+    shrinkUnfocused?: boolean;
 };
 
 // (No @packageDocumentation comment for this package)

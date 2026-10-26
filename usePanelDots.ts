@@ -70,6 +70,7 @@ export function usePanelDots(i: {
     const index = n.ids.indexOf(id);
     if (!el || index < 0) return;
     rowScrollerFor(el).noteInput();
+    rowScrollerFor(el).noteMove();
     const target = centreScroll({ index, leftOffsets: n.leftOffsets, widths: n.widths, windowWidth: n.stripWindow, maxScroll });
     if (target === null) return;
     // A stepping row rests on its stops only, so the dot's rest is the stop that shows the panel, not the margin-shifted centre.
@@ -83,6 +84,7 @@ export function usePanelDots(i: {
     if (!el) return null;
     const scroll = rowScrollerFor(el);
     scroll.noteInput();
+    scroll.noteMove();
     const claim: ScrollClaim | null = scroll.claim();
     if (claim === null) return null;
     claim.setMaxScroll(maxScroll);

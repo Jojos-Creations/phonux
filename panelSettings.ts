@@ -390,6 +390,11 @@ export type WorkspaceTuning = {
   defaultEnterFrom?: EnterFrom;
   /** How a panel whose own `exitTo` is 'auto' leaves the row; any value of `ExitTo`, and 'auto' parks sideways and closes downward. Default 'shrink'. */
   defaultExitTo?: ExitTo;
+  /**
+   * Whether a panel wider than one phone goes back to one phone width when the person scrolls the row or another panel
+   * becomes active, and back to its own width the next time it is active. Its own width is what the workspace saves. Default false.
+   */
+  shrinkUnfocused?: boolean;
 };
 
 /** Every tuning leaf after resolving, each present. @public */
@@ -438,6 +443,8 @@ export type ResolvedWorkspaceTuning = {
   defaultEnterFrom: EnterFrom;
   /** How a panel whose own `exitTo` is 'auto' leaves the row. */
   defaultExitTo: ExitTo;
+  /** Whether a panel wider than one phone rests at one phone width while it is not the active one. */
+  shrinkUnfocused: boolean;
 };
 
 /** Deeply frozen; every key is present after a resolve except `title`. @public */
@@ -1238,6 +1245,17 @@ const CATALOG_ROWS: readonly SettingDescriptor[] = [
     ownerEntry: 'lib-enter-expand',
     configure: { cls: 'NEXT', doors: ['tuning'] },
   },
+  {
+    name: 'tuning.shrinkUnfocused',
+    group: 'tuning',
+    values: 'boolean (workspace only)',
+    default: 'false',
+    scope: 'workspace',
+    viewSettable: false,
+    exists: 'new',
+    ownerEntry: 'lib-shrink-unfocused',
+    configure: { cls: 'NEXT', doors: ['tuning'] },
+  },
 ];
 
 /**
@@ -1337,6 +1355,7 @@ export const LIBRARY_TUNING_DEFAULTS: ResolvedWorkspaceTuning = freezeClone({
   phoneFitMax: PHONE_FIT_MAX,
   defaultEnterFrom: 'expand',
   defaultExitTo: 'shrink',
+  shrinkUnfocused: false,
 });
 
 // ---------------------------------------------------------------------------
@@ -1632,7 +1651,7 @@ const TUNING_MEMBER_CHECKS: Record<'dragToClose' | 'slide' | 'edgeScroll' | 'chr
   },
 };
 
-const TUNING_SCALAR_CHECKS: Record<'hopFraction' | 'rowGap' | 'rowTop' | 'phoneHeight' | 'saveQuietMs' | 'gestureLockMs' | 'gestureQuietMs' | 'resizeSettleSlides' | 'returnTieBreak' | 'dropTieBreak' | 'rowGesture' | 'initialScroll' | 'maxLivePanels' | 'shrinkOutOfView' | 'phoneFit' | 'phoneFitMin' | 'phoneFitMax' | 'defaultEnterFrom' | 'defaultExitTo', Check> = {
+const TUNING_SCALAR_CHECKS: Record<'hopFraction' | 'rowGap' | 'rowTop' | 'phoneHeight' | 'saveQuietMs' | 'gestureLockMs' | 'gestureQuietMs' | 'resizeSettleSlides' | 'returnTieBreak' | 'dropTieBreak' | 'rowGesture' | 'initialScroll' | 'maxLivePanels' | 'shrinkOutOfView' | 'phoneFit' | 'phoneFitMin' | 'phoneFitMax' | 'defaultEnterFrom' | 'defaultExitTo' | 'shrinkUnfocused', Check> = {
   hopFraction: num(0, 1, { minOpen: true }),
   rowGap: integer(0, 200),
   rowTop: (v) => (v === null ? undefined : integer(0, 400)(v)),
@@ -1656,6 +1675,7 @@ const TUNING_SCALAR_CHECKS: Record<'hopFraction' | 'rowGap' | 'rowTop' | 'phoneH
   phoneFitMax: num(1, 4),
   defaultEnterFrom: oneOf(...ENTER_FROM),
   defaultExitTo: oneOf(...EXIT_TO),
+  shrinkUnfocused: bool,
 };
 
 const isObjectLeaf = (leaf: string): leaf is keyof typeof TUNING_MEMBER_CHECKS => Object.hasOwn(TUNING_MEMBER_CHECKS, leaf);

@@ -79,6 +79,7 @@ const NAME_TABLE: Record<CatalogName, true> = {
   'tuning.initialScroll': true,
   'tuning.chrome': true,
   'tuning.maxLivePanels': true,
+  'tuning.shrinkUnfocused': true,
 };
 const NAMES = Object.keys(NAME_TABLE) as CatalogName[];
 const DERIVED_KEYS = ['movable', 'listed', 'clearable'] as const;

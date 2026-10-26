@@ -4,6 +4,7 @@
 
 ### Added
 
+- `tuning.shrinkUnfocused` (boolean, default false): a panel wider than one phone rests at one phone width while another panel is active and after the person scrolls the row, and goes back to its own width the next time a press or focus lands in it. `PanelWindow.restoreSlots` holds that width while it rests, and the workspace file saves it as the panel's `slots`.
 - `usePanelSizeGlide()`: inside a `PanelSizeBox` (or the default frame's box), the box's size glide (`PanelSizeGlide`: `from` and `to` sizes) from the commit that starts it until it lands, and null at rest.
 - `PanelSizeBox` takes `reveal`: while the box glides, its content is laid out once at the larger of the start and end sizes and clipped by the eased box, so a grow resizes it at its start and a shrink at its end rather than on every frame. Content in another process, such as a webview, then lays out twice per glide instead of about 34 times.
 - A panel added through the `addPanel` of a view's own `useWorkspace()` records that view's panel as its opener: `PanelState.openedBy` is the opener's id, or null for a panel the host opened. It is set once, a drag or a reorder never changes it, and it is saved in the workspace file, so it survives a relaunch; a file saved before it loads with no openers. When a panel closes, the panels it opened take its own opener.
