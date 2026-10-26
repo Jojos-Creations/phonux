@@ -8,7 +8,8 @@ import './support/jsdom-globals.js';
 import * as React from 'react';
 import { act } from 'react';
 import { createWorkspace, createWorkspaceColumn, definePanel, useWorkspaceRow, WorkspaceColumn, type WorkspaceRow } from '../index.js';
-import type { WorkspaceColumnHandle, WorkspaceWrapProps } from '../index.js';
+import type { WorkspaceColumnHandle, WorkspaceRowEntry, WorkspaceWrapProps } from '../index.js';
+import { memoryWorkspaceStorage } from '../fakeHost.js';
 import { mount, withHost } from './support/mount-harness.js';
 import { rigCleanup, slots, track, until } from './support/auto-rig.js';
 
@@ -37,6 +38,38 @@ test('useWorkspaceRow inside wrap returns the row: its entries, a scroller and t
   assert.ok(last.scroller !== undefined && 'current' in last.scroller);
   assert.ok(last.phoneSize.width > 0 && last.phoneSize.height > 0);
   assert.equal(last.maxFitPanels, null, 'an unfitted row has no fit count');
+});
+
+const lastAdded = async (seen: WorkspaceRow[]): Promise<WorkspaceRowEntry> => {
+  await until('the probe', () => (seen.at(-1)?.entries ?? []).some((e) => e.id !== '__root__'));
+  const added = seen.at(-1)!.entries.filter((e) => e.id !== '__root__');
+  assert.equal(added.length, 1, 'control: one panel in the row');
+  return added[0]!;
+};
+const recordingWrap = (seen: WorkspaceRow[]) => ({ children }: WorkspaceWrapProps): React.ReactElement => {
+  seen.push(useWorkspaceRow());
+  return React.createElement(React.Fragment, null, children);
+};
+
+test("a row entry carries its panel's saved uid, which is not its per-launch id", async () => {
+  const seen: WorkspaceRow[] = [];
+  const ws = track(createWorkspace({ templates: [probe], wrap: recordingWrap(seen) }));
+  ws.addPanel('probe');
+  const entry = await lastAdded(seen);
+  assert.match(entry.uid ?? '', /^u_/, 'the entry has a uid');
+  assert.notEqual(entry.uid, entry.id);
+});
+
+test('a restored row entry carries the uid its workspace file saved', async () => {
+  const uid = `u_${'7'.repeat(32)}`;
+  const storage = memoryWorkspaceStorage({
+    version: 1,
+    panels: [{ view: 'probe', url: '', live: true, anchor: { panel: '__root__', position: 'right', priority: 0 }, key: 'probe', uid }],
+  });
+  const seen: WorkspaceRow[] = [];
+  track(createWorkspace({ templates: [probe], wrap: recordingWrap(seen), storage }));
+  const entry = await lastAdded(seen);
+  assert.equal(entry.uid, uid);
 });
 
 test('the scroller is the element that scrolls the row: the one marked data-row-scroller, with the panels inside it', async () => {

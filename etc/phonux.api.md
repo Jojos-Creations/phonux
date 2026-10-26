@@ -1815,6 +1815,7 @@ export interface WorkspaceRowEntry {
     readonly settings?: {
         readonly hollowDot: boolean;
     };
+    readonly uid?: string;
 }
 
 // @public
