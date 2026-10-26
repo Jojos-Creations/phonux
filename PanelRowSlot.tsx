@@ -430,11 +430,12 @@ export function PanelSizeBox({
   /** The box's height in px; a change animates. Omitted: the slot's drawn height inside a row, else the phone height. */
   height?: number;
   /**
-   * True: while the box glides, its content is laid out once at the larger of the start and end sizes and the eased box clips it,
-   * so the content is resized when a grow starts and when a shrink ends, not on every frame. Default false.
+   * True: while the box glides, its content is laid out once at the larger of the start and end widths and the eased box clips it
+   * at its sides, so the content is resized when a grow starts and when a shrink ends, not on every frame. The height follows the
+   * box, and anything drawn above or below the box, such as a frame's header and footer, is never clipped. Default false.
    */
   reveal?: boolean;
-  /** The content, laid out at the box's size on every frame, or under `reveal` at the glide's larger size. */
+  /** The content, laid out at the box's size on every frame, or under `reveal` at the glide's larger width. */
   children: React.ReactNode;
 }) {
   return (
@@ -529,17 +530,17 @@ export function SizeBox({ width: given, height: givenHeight, reveal = false, chi
   }, [width, height, snaps, nested]);
   React.useEffect(() => () => run.current?.stop(), []);
   if (nested) return <div data-panel-size-plain="" style={{ width, height }}>{children}</div>;
-  // The larger end of each side, so a grow lays the content out once at its start and a shrink once at its end.
-  const larger = (a: number | '100%', b: number | '100%'): number | '100%' => (typeof a === 'number' && typeof b === 'number' ? Math.max(a, b) : '100%');
+  // The larger width, so a grow lays the content out once at its start and a shrink once at its end. The height follows the box,
+  // and the clip is sideways only: a frame's header and footer are drawn above and below the box.
   const content = reveal ? (
-    <div data-panel-size-reveal="" style={glide === null ? { width: '100%', height: '100%' } : { width: larger(glide.from.width, glide.to.width), height: larger(glide.from.height, glide.to.height) }}>
+    <div data-panel-size-reveal="" style={{ width: glide === null ? '100%' : Math.max(glide.from.width, glide.to.width), height: '100%' }}>
       {children}
     </div>
   ) : (
     children
   );
   return (
-    <div ref={box} data-panel-size-box="" style={{ width, height, ...(reveal ? { overflow: 'clip' } : {}) }}>
+    <div ref={box} data-panel-size-box="" style={{ width, height, ...(reveal && glide !== null ? { clipPath: 'inset(-100vh 0)' } : {}) }}>
       <SizeBoxContext.Provider value>
         <SizeGlideContext.Provider value={glide}>{content}</SizeGlideContext.Provider>
       </SizeBoxContext.Provider>
