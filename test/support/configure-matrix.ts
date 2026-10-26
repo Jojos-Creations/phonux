@@ -320,6 +320,8 @@ export async function matrixRig(o: MatrixRigOptions = {}): Promise<MatrixRig> {
     ...(o.root === false ? {} : { root: matrixTemplate('root', { settings: { title: 'History' } }) }),
     templates: [...ids.map((id) => (o.view === 'drag' ? dragTemplate : matrixTemplate)(id, { settings: { ...(o.park === true ? { overflow: 'park' as const } : {}), ...(o.settings?.[id] ?? {}) } })), ...(o.extra ?? [])],
     ...(o.workspace ?? {}),
+    // The enter and exit rows measure the sideways slide; the expand and shrink defaults have their own tests.
+    tuning: { defaultEnterFrom: 'auto', defaultExitTo: 'auto', ...(o.workspace?.tuning ?? {}) },
   });
   const h: Record<string, PanelHandle> = {};
   for (const id of ids) h[id] = ws.addPanel(id);

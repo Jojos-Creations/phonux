@@ -7,7 +7,8 @@
  */
 
 import * as React from 'react';
-import Box, { type BoxProps } from '@mui/material/Box';
+import Box from '@mui/material/Box';
+import type { CssStyle, ElementProps } from './cssStyle.js';
 import DragIndicatorIcon from '@mui/icons-material/DragIndicator';
 import { PanelHeaderRow, type PanelHeaderRowProps } from './PanelFrame.js';
 import { type PanelSize } from './hostApi.js';
@@ -26,7 +27,7 @@ export { DRAG_CLOSE, DragToClose, type DragHandleProps, type ReorderHandle } fro
 export { WindowOverlay, OverlaySlot, OVERLAY_Z, type OverlaySlotName, type WindowOverlayProps } from './windowOverlay.js';
 
 /** The props of `Panel`: every `Box` prop except `children`, `sx` and `title`, plus the header, grab handle, overlay and capture options. @public */
-export interface PanelProps extends Omit<BoxProps, 'children' | 'sx' | 'title'> {
+export interface PanelProps extends Omit<ElementProps, 'children' | 'sx' | 'title'> {
   /**
    * The header's title. Omitted entirely (not passed at all) renders
    * NO header row, rather than forcing the view into
@@ -49,7 +50,7 @@ export interface PanelProps extends Omit<BoxProps, 'children' | 'sx' | 'title'> 
    * `title` there is no header row, and the icon sits above the frame's top-left corner instead. Omitted
    * (the usual case for a view that cannot be closed, e.g. History) renders no grab handle at all.
    */
-  grabProps?: Omit<BoxProps, 'children'> & { [key: `data-${string}`]: string | boolean | undefined };
+  grabProps?: Omit<ElementProps, 'children'> & { [key: `data-${string}`]: string | boolean | undefined };
   /**
    * Content positioned absolutely over this view (History's own "+" Fab,
    * bottom-right) -- rendered as a plain sibling of `children` inside this
@@ -63,7 +64,7 @@ export interface PanelProps extends Omit<BoxProps, 'children' | 'sx' | 'title'> 
    */
   headerButtons?: boolean;
   /** Extra styles for the panel's root box, merged over the width and positioning it sets itself. */
-  sx?: BoxProps['sx'];
+  sx?: CssStyle;
   /** The panel's content, rendered inside the root box below the header. */
   children: React.ReactNode;
   /**

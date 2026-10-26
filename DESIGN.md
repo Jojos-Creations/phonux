@@ -569,7 +569,7 @@ Unmeasured widths use `UNMEASURED_SLOTS` (3).
 
 At 844, 1280 and 1800 px windows the fit is 2, 3 and 4 slots.
 
-`slots` defaults to 1 and `maxSlots` to every visible slot (`ALL_SLOTS`, 64), both plain library defaults. A request for more than
+`ALL_SLOTS` (64) is the hard cap: `slots` and `maxSlots` validate as whole numbers from 1 to it, and a consumer may rely on it as the upper bound. `slots` defaults to 1 and `maxSlots` to `ALL_SLOTS`, both plain library defaults. A request for more than
 the fit or `maxSlots` is clamped silently. An entry built without `slots` (a hand-built one) is one phone width;
 `appendPanel` always writes `slots`, and the settings cascade does too.
 
@@ -789,6 +789,10 @@ setting or an app `MotionConfig`). A button where there is no neighbour reads `l
 
 **Moving a panel.** `column.movePanel(from, panelId, to)` is the one way a panel changes workspace. A workspace keeps its panels in the row it is drawn into and saves them from there, so the move is made through both rows, not through their storage: the target creates the panel (`CreateRequest.carried` carries its `uid`, title and size) and the source removes it with `EngineOps.release`, which skips the closed-panel log and the undo window because the panel did not close. Both sides are checked before either acts, and the target adds before the source removes, so a failure in between could leave the panel twice and never lose it. The panel lands at the end of the target's row whatever its template's `placeOnAdd` says, because the person chose the workspace, not a place in it; the old row's anchor means nothing in the new one and is not carried, and neither is the person's choice of whether the panel may be parked. A size the person chose is recorded as theirs in the target, as a resize there would. The current workspace never changes: the answer carries the target workspace, its index and the panel's id, so a host that wants to follow calls `scrollTo` on it. Moving a panel code declares at every launch (`addPanel` before the workspace is ready) is allowed only when its `afterClose` is `stay-closed` and it is closable, because only the tombstone keeps it from being declared into the source again; any other would be back at the next launch, so it answers `not-movable`. `useViewState` values live in the `HostProvider` of one workspace's tree and do not move: the view starts again from its `initial`. A workspace keeps its panels in its drawn row, which is why both ends must be drawn and loaded. `hostData` is session data and is built afresh by the target's `defaultHostData`; a parked panel arrives live, as any new panel does. A refusal is an answer, not a throw, as for every operation a person's gesture can reach, and the result type adds `unknown-workspace` and `same-workspace` to `PanelRefusal`. `addWorkspace({ index: 0 })` and `addWorkspace({ index: workspaces.length })` already place a workspace above the first and below the last without moving the current one.
 
+**Who opened whom.** Each entry records the engine id of the panel whose view opened it (`PanelWindow.openedBy`), read publicly as the opener's id in `PanelState.openedBy`. It is stamped once, at create, and only through the `addPanel` of the view's own `useWorkspace()`: the row gives each drawn panel's view its own `ViewWorkspace` (`PanelViewContext.workspaceFor`), so the library knows the caller without asking for it. The host's `addPanel` and a panel declared before the workspace is ready record none, because no view asked; asking for a panel that already exists returns it and leaves its opener alone. A drag, a reorder or an `anchor` change never touches it: order and parentage are separate facts. Every change to the panel list passes through `keepOpeners` (`panelOpener.ts`) in the provider, so a panel that leaves the row by any path (close, eviction, a move) hands the panels it opened to its own opener, and a grandchild never points at a panel that is gone. The file names the opener by its uid, as `anchor.panel` does, and writes it only while the opener is saved too; a file without it restores panels with none. `PanelManager.familyOf(id)` is the panel plus every descendant, in row order.
+
+**Moving a family.** `movePanel(from, id, to, { withFamily: true })` moves `familyOf(id)` with the one existing verb, not a second one: every member is checked by the source (`leaving`) and, as a set, by the target (`arriving`, which counts the members of one template together against its limit), then the target adds them all at the end of its row in their row order and the source releases them all in one `EngineOps.release`, which holds the turn's close token once for the whole set. The answer's `panelIds` lists them. Links inside the family are kept by mapping each member's source engine id to the one it lands under; the top's link to its old opener is cut, so it tops its own family in the target. The undo window and the closed-pages log are untouched, as for a single move. A move never fails for lack of room, because the target makes room as it does for any new panel (its cap parks, and eviction picks the least recently touched); a workspace that still cannot take every panel being moved is never offered as a target, which is what `canMovePanel` (the same checks, nothing moved) is for. So "nothing moves" is a safety net a host should never hit, and when it is hit the message names the member that stood in the way.
+
 **Keys.** The column binds no key: an app binds one to `step` (Option+Up/Down in phonux-app). An app binding an arrow applies the row's guard, `arrowKeyBelongsElsewhere`, which is false for a key that is none of: a handler already took the key (`defaultPrevented`), a modifier is
 held, the key repeats or an IME composes, the target or the focused element is an input, textarea, select, contenteditable or an element
 with a role that owns the arrows (textbox, searchbox, combobox, listbox, slider, spinbutton, menu, menubar, tablist, tree, grid,
@@ -905,7 +909,9 @@ are made again at the next launch of a newer one and panels match only between d
 - **Saved.** `view`, `url`, `title`, `params`, `listed`, `live`,
   `anchor`, `slots`, `permanent`, `layer`, and the file-level `scroll` (see "Where the row rests"). `listed` and `layer` are written whenever the panel
   has them, `slots` only when it is not 1, `title` and `params` only when defined, and `permanent` only when true; no key is ever written as
-  `undefined`. A panel with no anchor of its own is saved with the one its position in the row implies.
+  `undefined`. A panel with no anchor of its own is saved with the one its position in the row implies. `openedBy` names the
+  opener as `anchor` names its target, and is written only while that opener is in the row (see "Who opened whom" under the
+  workspace column).
 - **Never saved -- `hostData`.** The host's own opaque per-panel data, which a host may use for its
   runtime handles (a live web view's id, say). No runtime handle is ever saved, and phonux cannot tell a handle from any other
   value inside the blob, so none of it is saved: `WorkspacePanelState` has no field for it. A restored panel
@@ -1700,6 +1706,8 @@ flip with a transition rule of its own) or SCOPE (a template-scope key).
 | `restoreVisibility` | saved, live, parked | saved | NEXT. Read only at the next launch's restore. C1: anything but live on a fixed column is settings-conflict. |
 | `afterClose` | stay-closed, return-next-launch | stay-closed | NEXT. Read when the panel next leaves the list. An existing tombstone is neither added nor removed by the flip. |
 | `tuning.rowGap` | integer px 0 to 200 (workspace only) | 16 (GAP) | NOW (configureTuning only). The whole row re-prices at this commit; in park mode a smaller capacity parks the fewest park panels through the reconcile effect; a scrolling row only re-prices and clamps scrollLeft. Slides in progress retarget. Unmeasured: stored. Busy while any panel has a token. Outside 0-200 throws. |
+| `tuning.rowTop` | integer px 0 to 400, or null (workspace only) | null (the default room) | NOW (configureTuning only). The room above the row, which the mount uses for the row's top padding and the phone fit alike; taken as given, so a value under 40 px (a panel header and its gap) can push headers off the top of the screen. Null keeps the default room, never less than 40 px. Outside 0-400 throws. |
+| `tuning.phoneHeight` | 'fit', 'auto' (workspace only) | 'fit' | NOW (configureTuning only). Under `phoneFit: 'fit'`, 'auto' makes the frame as tall as the row's room and the width still fits. Other values throw. |
 | `tuning.dragToClose` | object: distanceFraction [0.05, 1], minDistancePx >= 8, flickMinDistancePx >= 8, flickVelocity >= 100, cancelVelocity <= -50 (workspace only) | 0.25, 80, 40, 700, -300 (DRAG_CLOSE) | NEXT (configureTuning only). Read at the next release; a drag in flight is judged by the values current at release. Leaves merge. The direction lock, rest time, velocity window and snap-back spring are constants in rowConstants.ts. |
 | `tuning.slide` | object: durationSec [0, 10], ease (four numbers, x1 and x2 in [0,1]), closeExitSeconds [0, 5], closeExitEase ('easeIn', 'easeOut', 'easeInOut', 'linear' or four numbers), glideEase ('cubic-out', 'linear' or four numbers) (workspace only) | 0.6, [0.4, 0, 0.2, 1], 0.18, 'easeIn', 'cubic-out' (SLOT_TRANSITION, DRAG_CLOSE.exitSeconds, CLOSE_EXIT_EASE, GLIDE_EASE) | NEXT (configureTuning only). Read at the next enter, exit, close or scroll; animations running keep their timing. The edge-scroll drag settle and a header dot click glide along `glideEase`. |
 | `tuning.hopFraction` | number in (0, 1] (workspace only) | 0.5 | NEXT (configureTuning only). Read by the dragged panel's view at its next release. Outside (0, 1] throws. |
@@ -1717,8 +1725,8 @@ flip with a transition rule of its own) or SCOPE (a template-scope key).
 | `tuning.phoneFit` | off, fit (workspace only) | off (PHONE_FIT) | NOW (configureTuning only). Whether the default mount fits the phone size to the window; see "Phone fit". Other values throw. |
 | `tuning.phoneFitMin` | number above 0 and up to 1 (workspace only) | 0.82 (PHONE_FIT_MIN) | NOW (configureTuning only). The smallest scale of the preferred phone size the fit gives; see "Phone fit". Other values throw. |
 | `tuning.phoneFitMax` | number from 1 to 4 (workspace only) | 1.13 (PHONE_FIT_MAX) | NOW (configureTuning only). The largest scale of the preferred phone size the fit gives; see "Phone fit". Other values throw. |
-| `tuning.defaultEnterFrom` | auto, left, right, anchor, top, bottom, fade, expand (workspace only) | auto | NEXT (configureTuning only). Read at each panel's next enter; an entrance in progress keeps its style. |
-| `tuning.defaultExitTo` | auto, left, right, top, bottom, fade, shrink (workspace only) | auto | NEXT (configureTuning only). Read at each panel's next park or close; an exit in progress keeps its style. |
+| `tuning.defaultEnterFrom` | auto, left, right, anchor, top, bottom, fade, expand (workspace only) | expand | NEXT (configureTuning only). Read at each panel's next enter; an entrance in progress keeps its style. |
+| `tuning.defaultExitTo` | auto, left, right, top, bottom, fade, shrink (workspace only) | shrink | NEXT (configureTuning only). Read at each panel's next park or close; an exit in progress keeps its style. |
 <!-- catalog:end -->
 
 ## Panel boxes are reported, never drawn over
@@ -1784,36 +1792,37 @@ skipped and its log id is not reported.
 
 A panel's entrance is its `enterFrom` and its exit, for a park and a close alike, its `exitTo`. Each has one
 workspace-wide default, `tuning.defaultEnterFrom` and `tuning.defaultExitTo`: a panel whose own value is `auto` takes the
-workspace's, and any other value of its own wins. Both workspace defaults are `auto`, which is the behaviour below
-the row had before either existed. `anchor` is the 0.1.0 `anchoredEnter` flag as a setting, and that flag counts as
+workspace's, and any other value of its own wins. The workspace defaults are `expand` and `shrink`; set either to
+`auto` for the sideways park and downward close below, the row's behaviour before either setting existed. `anchor` is the 0.1.0 `anchoredEnter` flag as a setting, and that flag counts as
 the panel's own `anchor`.
 
 Entrances. `auto` is the row's order: a mark, then the formula for an entry entering via an anchor, then the right.
 `anchor` takes the formula at every enter. `left`, `right`, `top` and `bottom` slide in from that side (a vertical
-slide travels the row's height), `fade` fades in at the slot's rest, and `expand` grows the slot's width from 0 to its
-full width at its rest while the neighbours to its right slide apart to make room. Every value but `auto` and `anchor`
+slide travels the row's height), `fade` fades in at the slot's rest, and `expand` scales the slot up from 0 about its
+center, width and height together, while the neighbours to its right slide apart to make room; it starts half a span
+left and reaches its rest on the same clock, so its center stays where the neighbours part. Every value but `auto` and `anchor`
 is a constant that beats the engine's mark and the anchor formula.
 
 Exits. `auto` parks toward the exit-right marks, else left, and closes downward along `slide.closeExitSeconds` and
 `slide.closeExitEase`, the curve a drag close shares. `left`, `right`, `top` and `bottom` slide out to that side, `fade`
-fades out at the rest, and `shrink` eases the slot's width to 0 at its rest while the neighbours close up. An
-explicit `exitTo` is the same for a park and a close.
+fades out at the rest, and `shrink` scales the slot to 0 about its center, width and height together, while the
+neighbours close up. The slot keeps its full box and moves half a span left on the same clock, so its center stays on
+the point where the neighbours meet and it never overlaps them; in a centered row the row's own recentering cancels
+that move and the center holds still on screen. An explicit `exitTo` is the same for a park and a close.
 
 Every entrance and exit but the `auto` close takes the workspace's `slide` timing: the transition is the shared
 `PANEL_TRANSITION` object itself while `slide` is at its defaults (0.6 s, in-out), and every one fades the opacity as
 a slide does. The neighbours' moves are the slide every slot makes to a new rest, started on the same clock, so the
-gap at an expanding or shrinking slot never closes over it. An expanding or shrinking slot clips what it holds across (never up or down, where the frame draws its header) and
-leaves it at the full width: the frame draws the content at the slot's drawn width from the row's numbers, not from
-the slot's box, so the content is revealed, never squashed or reflowed.
+gap at an expanding or shrinking slot never closes over it. Both keep the slot's full box and scale it, so the content
+is never reflowed.
 
 Reduced motion is honoured as the slide honours it: under Motion's reduced-motion setting a slide's move lands at
-once and its fade still runs, so an `expand` or `shrink` width lands at once and the fade still runs. A slot that
+once and its fade still runs, so an `expand` or `shrink` scale lands at once and the fade still runs. A slot that
 mounts at its rest (a restored panel, or one added while a width is held) does not grow.
 
 Both settings are NEXT: the style is read when the panel next enters or leaves, and one in progress keeps its style. An
-interrupted width animation carries on from the width on screen: a re-priced row eases it to the new width, a panel
-that returns mid-shrink grows back from where it is, and a panel that leaves mid-expand holds its drawn width while it
-leaves, or shrinks from it. `layer` sets the stacking.
+interrupted scale carries on from the one on screen: a panel that returns mid-shrink scales back up from where it is,
+and a panel that leaves mid-expand leaves from the size it has reached. `layer` sets the stacking.
 
 ### A parked view unmounts
 
@@ -1839,7 +1848,7 @@ The default start is `definePanel`, `createWorkspace` and `addPanel`: the worksp
 - **Turning it off.** `mount: false` is the migration for a caller that renders the workspace itself. A `document`-free run mounts nothing either. A `mount` element is rendered into a child of its own and is never emptied. The mount module is loaded by a dynamic `import()` from `workspaceCore.ts` only when a mount happens, so importing the workspace module never requests `react-dom/client`; a test proves it from a child process that records every module request. Mounting is therefore async by a microtask: `addPanel` before and after it behaves as before, and a failed load reaches `onError`.
 - **Said once.** A `PanelRow` given a workspace that also mounts itself warns once in development, naming `mount: false`.
 - **Always with a workspace.** The components (`PanelRow`, `Workspace`, `HostProvider`) and `useProvidePanels` stay public, but a row is always fed by a workspace: `PanelRow`'s `workspace` prop and `PanelsInput.workspace` are required, and a plain component is `definePanel({ id, view })`, not a registered view. A custom flow differs from the mount by who writes the tree, never by where the rules come from.
-- **The theme.** The mount draws one `ThemeProvider` and one `CssBaseline`, with `theme(mode)` when the app gave that option and `createDefaultTheme(mode)` when it did not. `mode` is the window's `prefers-color-scheme`, the only mode source: an app whose mode is chosen some other way needs a later option. The function runs once per mode change; a throw, or a value that is not a MUI theme, reaches `onError` once and the default theme is drawn. A `wrap` must not draw its own `ThemeProvider` or `CssBaseline`, which would reset twice. A column draws the theme once above every cell (`ColumnOptions.theme`); the cells a `WorkspaceColumn` renders with its default cell draw none of their own, and a workspace inside a column takes the column's theme.
+- **The theme.** The mount draws one `ThemeProvider` and one `CssBaseline`, with `theme(mode)` when the app gave that option and `createDefaultTheme(mode)` when it did not. `mode` is the window's `prefers-color-scheme`, the only mode source: an app whose mode is chosen some other way needs a later option. The function runs once per mode change; a throw, or a value that is not a `PhonuxTheme`, reaches `onError` once and the default theme is drawn. A `wrap` must not draw its own `ThemeProvider` or `CssBaseline`, which would reset twice. A column draws the theme once above every cell (`ColumnOptions.theme`); the cells a `WorkspaceColumn` renders with its default cell draw none of their own, and a workspace inside a column takes the column's theme.
 - **Absence.** `history`, `snapshots` and `labels` are optional on `Host`, and a view reads each with a fallback; no library view reads `history`. The first frame of an auto-mounted workspace holds exactly the values given to `createWorkspace`, so a caller that has them at creation passes them there, and one whose data arrives later renders that frame without it and calls `workspace.update` when it lands. There is no second door that defers the first paint. `createFakeHost({ absent: ['history', 'snapshots'] })` renders the absent frame in a view test.
 - **Defaults.** `HostProvider` takes a `HostInput`: a `Host` whose `settings` and `device` may be left out. The defaults are module constants (`DEFAULT_SETTINGS`, `DEFAULT_DEVICE`) so `useHost()` returns the same objects every render, and a host that names both is passed through as it is.
 - **Typed templates.** `templates`, `root`, `registerTemplate` and the hook's `templates` take `AnyPanelTemplate` (`PanelTemplate<any>`), because `PanelTemplate<P>` is invariant in `P` and a template made for typed params would otherwise need a cast. `addPanel` keeps `P`, so `params` stay checked where they are passed, and `PanelManager.get<P>` is an unchecked cast, not a second typed getter.
@@ -1865,7 +1874,7 @@ a hand-built `Host` give the same view result; `settingsColumn` is `settings.set
 minus what the mount measures (`phoneWidth`, `containerWidth`, `overflowContainerRef`) and what the workspace supplies (`workspace`,
 `rootId`, `storage`, `templates`, `declared`, `workspaceDefaults`, `tuning`, `initialEntries`) and `labels`, which is its own
 option, so there is no member list to keep in step with the hook. `topInset` is an option (the `Workspace` top padding), not a
-tuning leaf: the catalog holds 20 tuning leaves, counted from `PANEL_SETTINGS_CATALOG`, and a test pins the number.
+tuning leaf: the catalog holds 22 tuning leaves, counted from `PANEL_SETTINGS_CATALOG`, and a test pins the number.
 
 **`wrap`.** A component, `ComponentType<{ children, workspace }>`, rendered inside `HostProvider` and around `Workspace`. A
 `CaptureRegistryProvider` and the app's own contexts go in it (the theme goes in the `theme` option), a hook in it may call `useHost()` and `workspace.update`, and
@@ -2012,13 +2021,21 @@ A Capacitor page runs in WKWebView on iPhone and in the Android System WebView. 
 - **Insets need the host's opt-in.** `env(safe-area-inset-*)` is 0 unless the page's viewport meta says `viewport-fit=cover`, and
   the library cannot write that meta. The Workspace row reads the top and bottom insets as a margin and a height shrink, so its
   measured height (`useRowHeightBudget`) already leaves them out. The side insets are not applied: the row's stops and widths are
-  computed from `gap` alone, and a side inset would move every stop.
+  computed from `gap` alone, and a side inset would move every stop. The column's links and name input add the same top and
+  bottom insets to their offsets.
+- **The header and footer have room inside the row.** Both are drawn outside the frame, so the row pads 40 px (the bar plus its
+  gap) above and below the frames, or the row gap when that is more, and the phone fit prices the height from the same numbers.
+  A phone's height is the binding side, so without the top room the header of a frame that fills the row sits off screen.
+  A dev's `tuning.rowTop` is the one exception: an explicit room is the dev's and is never raised, even below 40 px.
+- **A fitted phone is never taller than its row.** The row never scrolls vertically, so a row too short for the minimum phone
+  draws it at the minimum width and the row's height, shorter than the preferred shape, rather than cutting its bottom off.
 - **Exit distance uses the visible bottom.** `visibleViewportBottom()` (`dragToClose.tsx`) is the visual viewport's bottom, so a
   dismissed panel leaves the screen while a pinch or the on-screen keyboard has shrunk what is visible. `100dvh` is a CSS unit and
   cannot give a pixel distance to a spring.
 - **A touch never drags the grab bar.** The grab bar is `touch-action: pan-x`, so a vertical touch on it is the page's pan, and the
   browser cancels the pointer once it pans. A touch press therefore never reaches the drag sensor, and a held touch cannot close a
-  panel. A mouse or pen is unchanged and starts past the direction lock; the press is taken on the handle, not the sensor, because
+  panel. Where the page cannot pan, no cancel comes and the moves keep arriving, so a touch press is never engaged either: the
+  box stays at rest under the finger. A mouse or pen is unchanged and starts past the direction lock; the press is taken on the handle, not the sensor, because
   the sensor's activator is one per event name and would drop the mouse's. The workspace's tile drag is separate and still holds a
   touch for 250 ms.
 
@@ -2163,7 +2180,7 @@ Level N means panel code written for phonux N.x. `PANEL_API` equals the package'
 | The slot context hooks a view calls (`usePanelPinned`, `usePanelTuning` and the rest) and `useViewState`, snapshots | Workspace tuning options and the theme |
 | Header button items, the chrome attribute and part names | The saved workspace format, which has its own `version` |
 | The template's own `settings` keys and `params` | Peer dependency ranges (React, MUI) |
-| `useHost().panels` (`PanelsAPI`): the verbs a view calls and the summaries they return | The workspace-only tuning options (`rowGap`, `saveQuietMs`, `gestureLockMs`, `gestureQuietMs`, `resizeSettleSlides`, `returnTieBreak`, `dropTieBreak`, `rowGesture`, `initialScroll`, `maxLivePanels`, `chrome`, `phoneFit`, `phoneFitMin`, `phoneFitMax`, `dragToClose`, `slide`, `hopFraction`, `edgeScroll`, `defaultEnterFrom`, `defaultExitTo`): a host sets them on the workspace, and a view only reads what `usePanelTuning` returns |
+| `useHost().panels` (`PanelsAPI`): the verbs a view calls and the summaries they return | The workspace-only tuning options (`rowGap`, `rowTop`, `phoneHeight`, `saveQuietMs`, `gestureLockMs`, `gestureQuietMs`, `resizeSettleSlides`, `returnTieBreak`, `dropTieBreak`, `rowGesture`, `initialScroll`, `maxLivePanels`, `chrome`, `phoneFit`, `phoneFitMin`, `phoneFitMax`, `dragToClose`, `slide`, `hopFraction`, `edgeScroll`, `defaultEnterFrom`, `defaultExitTo`): a host sets them on the workspace, and a view only reads what `usePanelTuning` returns |
 | The frame components a view renders and their props: `PanelFrame`, `PanelHeader`, `PanelHeaderRow`, `PanelFooter`, `DragToClose`, `PanelSizeBox`, `WindowOverlay` | |
 | The view hooks: `usePanelStates`, `usePanelState`, `useWorkspace`, `useWorkspaceManager`, `useActivePanel`, `usePhoneSize` | |
 

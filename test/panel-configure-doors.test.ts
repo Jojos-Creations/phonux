@@ -19,7 +19,7 @@ afterEach(() => cleanup());
 
 type Refused = Extract<ConfigureResult, { ok: false }>;
 
-const WORKSPACE_ONLY = ['defaultEnterFrom', 'defaultExitTo', 'rowGap', 'saveQuietMs', 'gestureLockMs', 'gestureQuietMs', 'resizeSettleSlides', 'returnTieBreak', 'dropTieBreak', 'rowGesture', 'initialScroll', 'maxLivePanels', 'chrome', 'phoneFit', 'phoneFitMin', 'phoneFitMax', 'dragToClose', 'slide', 'hopFraction', 'edgeScroll'];
+const WORKSPACE_ONLY = ['defaultEnterFrom', 'defaultExitTo', 'rowGap', 'rowTop', 'phoneHeight', 'saveQuietMs', 'gestureLockMs', 'gestureQuietMs', 'resizeSettleSlides', 'returnTieBreak', 'dropTieBreak', 'rowGesture', 'initialScroll', 'maxLivePanels', 'chrome', 'phoneFit', 'phoneFitMin', 'phoneFitMax', 'dragToClose', 'slide', 'hopFraction', 'edgeScroll'];
 const TEMPLATE = ['hostCreatable', 'multiple', 'maxInstances', 'hollowDot'];
 
 /** One legal value for every settings key the catalog names, so a sweep can ask each of them. */
@@ -57,6 +57,8 @@ const VALUE: Record<string, unknown> = {
   restoreVisibility: 'parked',
   afterClose: 'return-next-launch',
   rowGap: 20,
+  rowTop: 162,
+  phoneHeight: 'auto',
   dragToClose: { minDistancePx: 90 },
   slide: { durationSec: 0.3 },
   hopFraction: 0.4,
@@ -103,12 +105,18 @@ const ROWS: readonly [Call, string, string, 'accepts' | 'wrong-scope'][] = [
   ['configure', 'an instance key', 'scrollOnOpen', 'accepts'],
   ['configure', 'a template key', 'maxInstances', 'wrong-scope'],
   ['configure', 'a workspace-only tuning key', 'rowGap', 'wrong-scope'],
+  ['configure', 'a workspace-only tuning key', 'rowTop', 'wrong-scope'],
+  ['configure', 'a workspace-only tuning key', 'phoneHeight', 'wrong-scope'],
   ['configureTemplate', 'an instance key', 'scrollOnOpen', 'wrong-scope'],
   ['configureTemplate', 'a template key', 'maxInstances', 'accepts'],
   ['configureTemplate', 'a workspace-only tuning key', 'rowGap', 'wrong-scope'],
+  ['configureTemplate', 'a workspace-only tuning key', 'rowTop', 'wrong-scope'],
+  ['configureTemplate', 'a workspace-only tuning key', 'phoneHeight', 'wrong-scope'],
   ['configureTuning', 'an instance key', 'scrollOnOpen', 'wrong-scope'],
   ['configureTuning', 'a template key', 'maxInstances', 'wrong-scope'],
   ['configureTuning', 'a workspace-only tuning key', 'rowGap', 'accepts'],
+  ['configureTuning', 'a workspace-only tuning key', 'rowTop', 'accepts'],
+  ['configureTuning', 'a workspace-only tuning key', 'phoneHeight', 'accepts'],
 ];
 
 function ask(r: PinRig, call: Call, key: string): ConfigureResult {
@@ -137,7 +145,7 @@ for (const [call, cls, key, want] of ROWS) {
 }
 
 test('doors: the table ran every row, calls by classes by one key each', () => {
-  assert.equal(executed, 3 * 3);
+  assert.equal(executed, 5 * 3);
   assert.equal(ROWS.length, executed);
 });
 
@@ -145,10 +153,10 @@ test('doors: the table ran every row, calls by classes by one key each', () => {
 // The sweep: every catalog key through every call
 // ---------------------------------------------------------------------------
 
-test('doors: the catalog holds the plain keys, three template keys among them, and twenty tuning leaves', () => {
+test('doors: the catalog holds the plain keys, three template keys among them, and twenty-two tuning leaves', () => {
   assert.equal(flatKeys.length + leafKeys.length, names.length);
   assert.deepEqual(leafKeys.sort(), [...WORKSPACE_ONLY].sort());
-  assert.equal(leafKeys.length, 20);
+  assert.equal(leafKeys.length, 22);
   assert.deepEqual(PANEL_SETTINGS_CATALOG.filter((d) => d.configure.doors.length === 1 && d.configure.doors[0] === 'template').map((d) => d.name).sort(), [...TEMPLATE].sort());
 });
 

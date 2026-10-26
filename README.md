@@ -78,7 +78,7 @@ workspace's panels are kept by `storage.workspace(id)` (return `undefined` for n
 ## Building your own flow
 
 The default start is built on the components it exports, and they stay public. This is the same row written out by hand: create
-the workspace with `mount: false`, then render the row inside the app's own MUI `ThemeProvider`.
+the workspace with `mount: false`, then render the row inside `PhonuxThemeProvider` with the theme the app wants.
 
 <!-- advanced:start -->
 ```tsx
@@ -137,7 +137,7 @@ The two layers draw the same DOM; the advanced one exists for flows the options 
 
 ## Panel sizing
 
-A panel is a whole number of slots wide: one slot is the phone width, and each added slot adds a phone width plus the row gap. Set the count with `slots` (and cap it with `maxSlots`); a person can change it by dragging, and a view can change it with `setSlots`. A panel is drawn at no more slots than fit the window, and its chosen count comes back when the window grows. A panel is the same height whatever its slot count. See `DESIGN.md` "Slot sizing".
+A panel is a whole number of slots wide: one slot is the phone width, and each added slot adds a phone width plus the row gap. Set the count with `slots` (and cap it with `maxSlots`); both are whole numbers from 1 to 64, the most slots any panel can have; a person can change it by dragging, and a view can change it with `setSlots`. A panel is drawn at no more slots than fit the window, and its chosen count comes back when the window grows. A panel is the same height whatever its slot count. See `DESIGN.md` "Slot sizing".
 
 ## Panel chrome
 

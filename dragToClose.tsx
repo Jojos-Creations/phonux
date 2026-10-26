@@ -7,6 +7,7 @@
 import * as React from 'react';
 import { createPortal } from 'react-dom';
 import { DndContext, PointerSensor, useDndMonitor, useDraggable, useSensor, useSensors } from '@dnd-kit/core';
+import { useTheme } from '@mui/material/styles';
 import { animate, cancelFrame, frame, motion, useIsPresent, useMotionValue, useReducedMotion, useReducedMotionConfig, useTransform, type MotionValue } from 'motion/react';
 import { AnnounceContext } from './announce.js';
 import { useOptionalHost } from './hostApi.js';
@@ -14,6 +15,7 @@ import { resolveLabels } from './labels.js';
 import { PanelSlotContext, type DragScroll } from './panelSlotContext.js';
 import { endEdgeHold, openEdgeHold, stepEdgeHold, type EdgeHold } from './panelRowDropScroll.js';
 import { closestRowScroller, rowScrollerFor } from './rowScroller.js';
+import type { CssStyle } from './cssStyle.js';
 import type { DragToCloseTuning } from './panelSettings.js';
 import { CLOSE_EXIT_EASE, DIRECTION_LOCK_PX, DRAG_CLOSE_NUMBERS, DRAG_REST_MS, DRAG_VELOCITY_WINDOW_MS, PREVIEW_OUT_PX, ROW_LAYER_Z, SLIDE_CLOSE_EXIT_SECONDS, SNAP_BACK_SPRING } from './rowConstants.js';
 
@@ -68,12 +70,52 @@ export function shouldCloseOnRelease({ offsetY, velocityY, height }: ReleaseMeas
   return offsetY >= rule.flickMinDistancePx && velocityY >= rule.flickVelocity;
 }
 
+/** The pointer event a handle's `onPointerDown` takes: the fields a press reads. React's pointer events satisfy it. @public */
+export interface HandlePointerEvent {
+  /** The primary button is 0. */
+  readonly button: number;
+  /** `'mouse'`, `'pen'` or `'touch'`. */
+  readonly pointerType: string;
+  /** The pointer's position in the viewport, in px. */
+  readonly clientX: number;
+  /** The vertical position, in the same units as `clientX`. */
+  readonly clientY: number;
+  /** When the press happened, in ms on the page's clock. */
+  readonly timeStamp: number;
+  /** The element the press landed on. */
+  readonly target: unknown;
+  /** The handle's element. */
+  readonly currentTarget: unknown;
+  /** Stops the browser's default for the press. */
+  preventDefault(): void;
+}
+
+/** The key event a handle's `onKeyDown` takes. React's keyboard events satisfy it. @public */
+export interface HandleKeyEvent {
+  /** The key's name, as `KeyboardEvent.key` gives it. */
+  readonly key: string;
+  /** Whether the Alt key was held. */
+  readonly altKey: boolean;
+  /** Whether the Control key was held. */
+  readonly ctrlKey: boolean;
+  /** Whether the Meta key was held. */
+  readonly metaKey: boolean;
+  /** Whether the Shift key was held. */
+  readonly shiftKey: boolean;
+  /** The element the key landed on. */
+  readonly target: unknown;
+  /** The handle's element. */
+  readonly currentTarget: unknown;
+  /** Stops the browser's default for the key. */
+  preventDefault(): void;
+}
+
 /** Spread onto Panel's `grabProps`. @public */
 export interface DragHandleProps {
   /** Starts a drag from a primary-button press on the handle; a press on a button, link or field is ignored. Until the press ends, the page shows no text selection and starts no native image drag. */
-  onPointerDown: (event: React.PointerEvent<HTMLElement>) => void;
+  onPointerDown: (event: HandlePointerEvent) => void;
   /** The handle's styles: a grab cursor, no text selection, and `touch-action: pan-x` so a horizontal swipe still scrolls the row. A keyboard focus ring is drawn when the handle takes keys. */
-  sx: { cursor: 'grab'; touchAction: 'pan-x'; userSelect: 'none'; '&:active': { cursor: 'grabbing' }; '&:focus-visible': { outline: '2px solid'; outlineColor: 'primary.main'; outlineOffset: -2 } };
+  sx: CssStyle;
   /** `'button'` when the handle takes keys, which it does when `onClose` or `reorder.onStep` is set; absent otherwise. */
   role?: 'button';
   /** 0 when the handle takes keys; absent otherwise. */
@@ -83,7 +125,7 @@ export interface DragHandleProps {
   /** The keys the handle takes, for assistive technology. */
   'aria-keyshortcuts'?: string;
   /** ArrowLeft and ArrowRight call `reorder.onStep(-1 | 1)` and Delete calls `onClose`, each said in the workspace's live region. Absent when the handle takes no keys. */
-  onKeyDown?: (event: React.KeyboardEvent<HTMLElement>) => void;
+  onKeyDown?: (event: HandleKeyEvent) => void;
 }
 
 /** Hands the same handle's horizontal drag to the caller's own reorder (DESIGN.md, "`DragToClose`"). @public */
@@ -430,7 +472,7 @@ function DragToCloseBox({
   const draggable = useDraggable({ id: React.useId() });
   // Where the pointer went down and where it is: read from the events themselves, because dnd-kit reports a move only after its
   // activation distance and a release right after the activating move would otherwise read no offset.
-  const pointer = React.useRef({ downX: 0, downY: 0, x: 0, y: 0 });
+  const pointer = React.useRef({ downX: 0, downY: 0, x: 0, y: 0, touch: false });
   const samples = React.useRef<Array<{ t: number; y: number }>>([]);
   const released = React.useRef(0);
   const y = useMotionValue(0);
@@ -648,7 +690,8 @@ function DragToCloseBox({
   // The gesture starts on the pointer's own events, in the frame the offset passes the direction lock, not when dnd-kit's
   // context renders its start; dnd-kit decides when the press is a drag (and ends or cancels it), this decides what the box does.
   latestMove.current = () => {
-    if (engaged.current) return;
+    // A touch is never engaged: where the page cannot pan, the browser sends no pointercancel and the moves keep coming.
+    if (engaged.current || pointer.current.touch) return;
     if (Math.hypot(pointer.current.x - pointer.current.downX, pointer.current.y - pointer.current.downY) < DIRECTION_LOCK_PX) return;
     engaged.current = true;
     axisLock.current = null;
@@ -788,8 +831,11 @@ function DragToCloseBox({
     },
   });
 
+  // The focus ring takes the theme's accent, read from the styling theme the mount built from PhonuxTheme.
+  const accent = useTheme().palette.primary.main;
   const handle: DragHandleProps = {
-    onPointerDown: (event) => {
+    onPointerDown: (incoming) => {
+      const event = incoming as React.PointerEvent<HTMLElement>;
       // The handle may itself be a button (it takes keys), so only a control inside it is skipped.
       const control = (event.target as Element).closest(INTERACTIVE);
       if (event.button !== 0 || (control !== null && control !== event.currentTarget) || closing.current) return; // a press would stop the exit: onClose would never run
@@ -803,7 +849,7 @@ function DragToCloseBox({
       pressedDoc.current = event.currentTarget.ownerDocument;
       selectionRelease.current = holdDragSelection(pressedDoc.current);
       previousRelease?.();
-      pointer.current = { downX: event.clientX, downY: event.clientY, x: event.clientX, y: event.clientY };
+      pointer.current = { downX: event.clientX, downY: event.clientY, x: event.clientX, y: event.clientY, touch: event.pointerType === 'touch' };
       samples.current = [{ t: event.timeStamp, y: 0 }];
       stopFollowing();
       for (const type of ['pointermove', 'pointerup', 'pointercancel']) {
@@ -816,7 +862,7 @@ function DragToCloseBox({
       draggable.listeners?.onPointerDown?.(event);
     },
     // pan-x: a horizontal swipe still scrolls the row, and a vertical one scrolls the page; the handle does not drag on touch.
-    sx: { cursor: 'grab', touchAction: 'pan-x', userSelect: 'none', '&:active': { cursor: 'grabbing' }, '&:focus-visible': { outline: '2px solid', outlineColor: 'primary.main', outlineOffset: -2 } },
+    sx: { cursor: 'grab', touchAction: 'pan-x', userSelect: 'none', '&:active': { cursor: 'grabbing' }, '&:focus-visible': { outline: '2px solid', outlineColor: accent, outlineOffset: -2 } },
     ...(onClose === undefined && reorder?.onStep === undefined
       ? {}
       : {
@@ -824,7 +870,8 @@ function DragToCloseBox({
           tabIndex: 0 as const,
           'aria-label': labels.grabStrip(drawnTitle ?? labels.untitledPanel),
           'aria-keyshortcuts': [reorder?.onStep === undefined ? '' : 'ArrowLeft ArrowRight', closeRef.current === undefined ? '' : 'Delete'].filter(Boolean).join(' '),
-          onKeyDown: (event: React.KeyboardEvent<HTMLElement>) => {
+          onKeyDown: (incoming: HandleKeyEvent) => {
+            const event = incoming as React.KeyboardEvent<HTMLElement>;
             if (event.target !== event.currentTarget || event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return;
             if ((event.key === 'ArrowLeft' || event.key === 'ArrowRight') && reorderRef.current?.onStep !== undefined) {
               event.preventDefault();

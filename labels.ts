@@ -64,6 +64,8 @@ export interface PhonuxLabels {
   closedPagesNoMatches: string;
   /** The text a closed page with no title shows. Default `Untitled`. */
   closedPagesUntitled: string;
+  /** The button under a closed-pages list with more rows than it shows. Default `Show more`. */
+  closedPagesShowMore: string;
   /** The heading over a workspace grid's pinned panels. Default `Pinned`. */
   workspacePinned: string;
   /** The heading over a workspace grid's live, unpinned panels. Default `Viewing`. */
@@ -112,6 +114,7 @@ export const DEFAULT_LABELS: Readonly<PhonuxLabels> = {
   closedPagesEmpty: 'No closed pages yet',
   closedPagesNoMatches: 'No matches',
   closedPagesUntitled: 'Untitled',
+  closedPagesShowMore: 'Show more',
   workspacePinned: 'Pinned',
   workspaceViewing: 'Viewing',
   workspaceHidden: 'Hidden',

@@ -32,7 +32,7 @@ export type WorkspaceLive = {
   snapshots?: SnapshotsAPI;
   /** Overrides of the library's visible strings; a key left out keeps its English default. */
   labels?: Partial<PhonuxLabels>;
-  /** Clearance above the row, in px, for chrome the app draws over the window. Left out: the row gap. */
+  /** Clearance above the row, in px, for chrome the app draws over a column's cell. Standalone, it does not set the row's room: `tuning.rowTop` does. Left out: the row gap. */
   topInset?: number;
   /** What `useProvidePanels` takes beyond what the workspace and the mount supply. */
   panels?: WorkspacePanelsInput;

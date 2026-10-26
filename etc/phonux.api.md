@@ -4,13 +4,10 @@
 
 ```ts
 
-import { BoxProps } from '@mui/material/Box';
 import type { ComponentType } from 'react';
 import * as React_2 from 'react';
 import type { ReactNode } from 'react';
 import { RefObject } from 'react';
-import type { SxProps } from '@mui/material/styles';
-import { Theme } from '@mui/material/styles';
 
 // @public
 export const ACTIVE_ATTRIBUTE = "data-panel-active";
@@ -103,6 +100,8 @@ export interface ClosedPagesPanelProps {
     readonly className?: string;
     readonly list: ClosedPagesList;
     readonly onReopen: (entry: ClosedPageEntry) => void;
+    readonly pageSize?: number;
+    readonly query?: string;
 }
 
 // @public
@@ -194,7 +193,7 @@ export type ConfigureResult = {
 export function createClosedPagesTemplate(input: ClosedPagesTemplateOptions): PanelTemplate;
 
 // @public
-export function createDefaultTheme(mode: 'light' | 'dark'): Theme;
+export function createDefaultTheme(mode: 'light' | 'dark'): PhonuxTheme;
 
 // @public
 export interface CreatePanelOptions {
@@ -221,6 +220,11 @@ export function createWorkspace(o?: WorkspaceOptions): WorkspaceHandle;
 
 // @public
 export function createWorkspaceColumn(o?: ColumnOptions): WorkspaceColumnHandle;
+
+// @public
+export type CssStyle = {
+    readonly [property: string]: string | number | CssStyle | undefined;
+};
 
 // @public
 export const DEFAULT_PANEL_SIZE: PanelSize;
@@ -260,22 +264,10 @@ export const DRAGGING_ATTRIBUTE = "data-panel-dragging";
 export interface DragHandleProps {
     'aria-keyshortcuts'?: string;
     'aria-label'?: string;
-    onKeyDown?: (event: React_2.KeyboardEvent<HTMLElement>) => void;
-    onPointerDown: (event: React_2.PointerEvent<HTMLElement>) => void;
+    onKeyDown?: (event: HandleKeyEvent) => void;
+    onPointerDown: (event: HandlePointerEvent) => void;
     role?: 'button';
-    sx: {
-        cursor: 'grab';
-        touchAction: 'pan-x';
-        userSelect: 'none';
-        '&:active': {
-            cursor: 'grabbing';
-        };
-        '&:focus-visible': {
-            outline: '2px solid';
-            outlineColor: 'primary.main';
-            outlineOffset: -2;
-        };
-    };
+    sx: CssStyle;
     tabIndex?: 0;
 }
 
@@ -305,6 +297,12 @@ export type EdgeScrollTuning = {
     zonePx: number;
     maxPxPerSec: number;
     reducedStepMs: number;
+};
+
+// @public
+export type ElementProps = React_2.HTMLAttributes<HTMLElement> & {
+    ref?: React_2.Ref<HTMLElement>;
+    sx?: CssStyle;
 };
 
 // @public
@@ -342,6 +340,30 @@ export interface GrabDragMove {
 }
 
 // @public
+export interface HandleKeyEvent {
+    readonly altKey: boolean;
+    readonly ctrlKey: boolean;
+    readonly currentTarget: unknown;
+    readonly key: string;
+    readonly metaKey: boolean;
+    preventDefault(): void;
+    readonly shiftKey: boolean;
+    readonly target: unknown;
+}
+
+// @public
+export interface HandlePointerEvent {
+    readonly button: number;
+    readonly clientX: number;
+    readonly clientY: number;
+    readonly currentTarget: unknown;
+    readonly pointerType: string;
+    preventDefault(): void;
+    readonly target: unknown;
+    readonly timeStamp: number;
+}
+
+// @public
 export type HeaderButton = HeaderButtonIconForm | HeaderButtonTextForm;
 
 // @public
@@ -357,7 +379,7 @@ export type HeaderButtonBase = {
     tooltip?: string | ((c: HeaderButtonContext) => string);
     disabled?: boolean | ((c: HeaderButtonContext) => boolean);
     hidden?: boolean | ((c: HeaderButtonContext) => boolean);
-    sx?: SxProps<Theme>;
+    sx?: CssStyle;
 };
 
 // @public
@@ -467,11 +489,18 @@ export interface MinWorkspaceWidthInput {
 }
 
 // @public
+export interface MovePanelOptions {
+    readonly leave?: readonly PanelId[];
+    readonly withFamily?: boolean;
+}
+
+// @public
 export type MovePanelResult = {
     readonly ok: true;
     readonly workspace: WorkspaceHandle;
     readonly index: number;
     readonly panelId: PanelId;
+    readonly panelIds: readonly PanelId[];
 } | {
     readonly ok: false;
     readonly code: PanelRefusal | 'unknown-workspace' | 'same-workspace';
@@ -533,7 +562,7 @@ export interface PanelAnchor {
 export type PanelApiLevel = 1;
 
 // @public
-export const panelCornerRadiusPx: (theme: Theme) => number;
+export const panelCornerRadiusPx: (theme: PhonuxTheme) => number;
 
 // @public
 export interface PanelDots {
@@ -557,7 +586,7 @@ export interface PanelDots {
 
 // @public
 export function PanelFooter(input: {
-    sx?: SxProps<Theme>;
+    sx?: CssStyle;
 }): React_2.ReactElement | null;
 
 // @public
@@ -567,7 +596,7 @@ export const PanelFrame: React_2.ForwardRefExoticComponent<Omit<PanelFrameProps,
 export const panelFrameBareSx: {};
 
 // @public
-export interface PanelFrameProps extends Omit<BoxProps, 'children'> {
+export interface PanelFrameProps extends Omit<ElementProps, 'children'> {
     children: React_2.ReactNode;
     expanded?: boolean;
     footer?: boolean;
@@ -629,7 +658,7 @@ export interface PanelHeaderIconItem extends PanelHeaderButtonItemBase {
 export function PanelHeaderMenu(): React_2.JSX.Element | null;
 
 // @public
-export interface PanelHeaderProps extends Omit<BoxProps, 'children'> {
+export interface PanelHeaderProps extends Omit<ElementProps, 'children'> {
     children: React_2.ReactNode;
 }
 
@@ -661,6 +690,7 @@ export interface PanelManager {
     configureTuning(patch: {
         [K in keyof WorkspaceTuning]?: WorkspaceTuning[K] | null;
     }): ConfigureResult;
+    familyOf(id: PanelId): readonly PanelId[];
     get<P extends JsonValue = JsonValue>(id: PanelId): PanelHandle<P> | undefined;
     getSnapshot(): PanelSnapshot;
     list(f?: ListFilter): readonly PanelHandle[];
@@ -692,11 +722,11 @@ export interface PanelPresence {
 export type PanelPresenceReason = 'shown' | 'exiting' | 'closing' | 'parked' | 'scrolledAway';
 
 // @public
-export interface PanelProps extends Omit<BoxProps, 'children' | 'sx' | 'title'> {
+export interface PanelProps extends Omit<ElementProps, 'children' | 'sx' | 'title'> {
     actions?: React_2.ReactNode;
     capture?: 'auto' | 'never';
     children: React_2.ReactNode;
-    grabProps?: Omit<BoxProps, 'children'> & {
+    grabProps?: Omit<ElementProps, 'children'> & {
         [key: `data-${string}`]: string | boolean | undefined;
     };
     headerButtons?: boolean;
@@ -705,7 +735,7 @@ export interface PanelProps extends Omit<BoxProps, 'children' | 'sx' | 'title'> 
     };
     overlay?: React_2.ReactNode;
     size?: PanelSize;
-    sx?: BoxProps['sx'];
+    sx?: CssStyle;
     title?: React_2.ReactNode;
     viewId?: ViewId;
 }
@@ -886,6 +916,7 @@ export interface PanelState {
     readonly id: PanelId;
     readonly index: number | null;
     readonly listed: boolean;
+    readonly openedBy?: PanelId | null;
     readonly params: JsonValue | undefined;
     readonly pinned: boolean;
     readonly settings: ResolvedPanelSettings;
@@ -957,6 +988,7 @@ export interface PanelWindow {
     listed: boolean;
     live: boolean;
     marker?: true;
+    openedBy?: string;
     overrides?: {
         anchor?: PanelAnchor;
         slots?: number;
@@ -1017,6 +1049,7 @@ export interface PhonuxLabels {
     closedPagesLoading: string;
     closedPagesNoMatches: string;
     closedPagesSearch: string;
+    closedPagesShowMore: string;
     closedPagesTitle: string;
     closedPagesUntitled: string;
     dragCancelled: (title: string) => string;
@@ -1048,6 +1081,23 @@ export interface PhonuxLabels {
     workspaceUntitled: string;
     workspaceViewing: string;
 }
+
+// @public
+export interface PhonuxTheme {
+    readonly background: string;
+    readonly divider: string;
+    readonly mode: 'light' | 'dark';
+    readonly paper: string;
+    readonly primary: string;
+    readonly radiusUnitPx: number;
+    readonly text: string;
+}
+
+// @public
+export function PhonuxThemeProvider(input: {
+    theme: PhonuxTheme;
+    children?: React_2.ReactNode;
+}): React_2.ReactElement;
 
 // @public
 export type PinHalf = {
@@ -1146,6 +1196,8 @@ export type ResolvedWorkspaceTuning = {
     hopFraction: number;
     edgeScroll: EdgeScrollTuning;
     rowGap: number;
+    rowTop: number | null;
+    phoneHeight: 'fit' | 'auto';
     saveQuietMs: number;
     gestureLockMs: number;
     gestureQuietMs: number;
@@ -1416,7 +1468,7 @@ export function useClosedPages(input: UseClosedPagesOptions): ClosedPagesList;
 
 // @public
 export interface UseClosedPagesOptions {
-    readonly limit: number;
+    readonly limit?: number;
     readonly storage: ClosedPagesStorage;
 }
 
@@ -1526,6 +1578,9 @@ export function useWorkspace(): ViewWorkspace | undefined;
 export function useWorkspaceManager(): PanelReader | undefined;
 
 // @public
+export function useWorkspaceRow(): WorkspaceRow;
+
+// @public
 export type ViewHandle<P extends JsonValue = JsonValue> = Omit<PanelHandle<P>, 'configure'> & {
     configure(patch: ViewPatch): ConfigureResult;
 };
@@ -1596,10 +1651,11 @@ export function WorkspaceColumn(input: WorkspaceColumnProps): React_2.ReactEleme
 // @public
 export interface WorkspaceColumnHandle {
     addWorkspace(o?: ColumnWorkspaceOptions): WorkspaceHandle;
+    canMovePanel(from: WorkspaceHandle | number, panelId: PanelId, to: WorkspaceHandle | number, options?: MovePanelOptions): MovePanelResult;
     configureTuning(patch: Parameters<PanelManager['configureTuning']>[0]): ConfigureResult;
     readonly current: number;
     dispose(): void;
-    movePanel(from: WorkspaceHandle | number, panelId: PanelId, to: WorkspaceHandle | number): MovePanelResult;
+    movePanel(from: WorkspaceHandle | number, panelId: PanelId, to: WorkspaceHandle | number, options?: MovePanelOptions): MovePanelResult;
     removeWorkspace(target: WorkspaceHandle | number): boolean;
     scrollTo(target: WorkspaceHandle | number): void;
     readonly status: ColumnStatus;
@@ -1610,7 +1666,7 @@ export interface WorkspaceColumnHandle {
 
 // @public
 export interface WorkspaceColumnProps {
-    children?: (workspace: WorkspaceHandle) => React_2.ReactNode;
+    children?: (workspace: WorkspaceHandle) => React_2.ReactNode | undefined;
     column: WorkspaceColumnHandle;
 }
 
@@ -1660,7 +1716,7 @@ export type WorkspaceOptions = WorkspaceLive & {
     newId?: () => string;
     onError?: (e: unknown) => void;
     mount?: HTMLElement | false;
-    theme?: (mode: 'light' | 'dark') => Theme;
+    theme?: (mode: 'light' | 'dark') => PhonuxTheme;
     wrap?: ComponentType<WorkspaceWrapProps>;
 };
 
@@ -1728,10 +1784,11 @@ export type WorkspacePanelState = {
         placeOnAdd: AddPlacement;
     };
     closable?: false;
+    openedBy?: string;
 };
 
 // @public
-export interface WorkspaceProps extends Omit<BoxProps, 'children'> {
+export interface WorkspaceProps extends Omit<ElementProps, 'children'> {
     beforeRow?: React_2.ReactNode;
     children: React_2.ReactNode;
     containerWidth: number;
@@ -1747,6 +1804,28 @@ export interface WorkspaceProps extends Omit<BoxProps, 'children'> {
     rowScroll?: boolean;
     topPadding?: number;
     workspace?: WorkspaceHandle;
+}
+
+// @public
+export interface WorkspaceRow {
+    readonly entries: readonly WorkspaceRowEntry[];
+    readonly maxFitPanels: number | null;
+    readonly phoneSize: {
+        readonly width: number;
+        readonly height: number;
+    };
+    readonly rowNumbers: RowNumbers;
+    readonly scroller: React_2.RefObject<HTMLElement | null>;
+    readonly tuning: Pick<ResolvedWorkspaceTuning, 'slide'>;
+}
+
+// @public
+export interface WorkspaceRowEntry {
+    readonly id: string;
+    readonly settings?: {
+        readonly hollowDot: boolean;
+    };
+    readonly uid?: string;
 }
 
 // @public
@@ -1803,6 +1882,8 @@ export type WorkspaceTuning = {
         [K in keyof EdgeScrollTuning]?: EdgeScrollTuning[K];
     };
     rowGap?: number;
+    rowTop?: number | null;
+    phoneHeight?: 'fit' | 'auto';
     saveQuietMs?: number;
     gestureLockMs?: number;
     gestureQuietMs?: number;

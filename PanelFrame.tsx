@@ -6,8 +6,10 @@
  */
 
 import * as React from 'react';
-import Box, { type BoxProps } from '@mui/material/Box';
+import Box from '@mui/material/Box';
+import type { ElementProps } from './cssStyle.js';
 import type { Theme } from '@mui/material/styles';
+import type { PhonuxTheme } from './defaultTheme.js';
 import MoreHorizIcon from '@mui/icons-material/MoreHoriz';
 import { useOptionalHost, type PanelSize } from './hostApi.js';
 import { usePhoneSize } from './phoneFit.js';
@@ -20,7 +22,7 @@ import { HEADER_GAP_PX, HEADER_INSET_PX } from './rowConstants.js';
 import { BAR_HEIGHT_PX } from './panelChromeSize.js';
 
 /** The props of `PanelFrame`: every `Box` prop except `children`, plus `expanded` and `size`. @public */
-export interface PanelFrameProps extends Omit<BoxProps, 'children'> {
+export interface PanelFrameProps extends Omit<ElementProps, 'children'> {
   /** The frame's content, rendered inside its scroll container. */
   children: React.ReactNode;
   /** Fill the available space instead of the fixed phone size (the tap-to-expand overlay). */
@@ -36,7 +38,10 @@ export const PHONE_FRAME_ATTRIBUTE = 'data-phone-frame';
 /** The phone's corner radius in theme shape units (4 x 6px = 24px). @public */
 export const PANEL_CORNER_RADIUS_UNITS = 4;
 /** That radius in px for `theme`. @public */
-export const panelCornerRadiusPx = (theme: Theme): number => PANEL_CORNER_RADIUS_UNITS * Number(theme.shape.borderRadius);
+export const panelCornerRadiusPx = (theme: PhonuxTheme): number => PANEL_CORNER_RADIUS_UNITS * theme.radiusUnitPx;
+
+// The same radius read off the styling theme the frame's own sx callbacks receive.
+const radiusOf = (theme: Theme): number => PANEL_CORNER_RADIUS_UNITS * Number(theme.shape.borderRadius);
 
 // One width for the padding and the inset shadow, so the content box begins exactly where the ring ends.
 const EDGE_PX = 1;
@@ -78,7 +83,7 @@ const PanelFrame = React.forwardRef<HTMLDivElement, PanelFrameProps>(function Pa
         // The edge is an inset shadow inside padding of the same width, so it draws over nothing the content lays out.
         p: `${EDGE_PX}px`,
         boxShadow: (theme: Theme) => `inset 0 0 0 ${EDGE_PX}px ${theme.palette.divider}`,
-        borderRadius: (theme: Theme) => `${panelCornerRadiusPx(theme)}px`,
+        borderRadius: (theme: Theme) => `${radiusOf(theme)}px`,
         bgcolor: 'background.paper',
         display: 'flex',
         flexDirection: 'column',
@@ -114,7 +119,7 @@ const PanelFrame = React.forwardRef<HTMLDivElement, PanelFrameProps>(function Pa
 });
 
 /** The props of `PanelHeader`: every `Box` prop except `children`. @public */
-export interface PanelHeaderProps extends Omit<BoxProps, 'children'> {
+export interface PanelHeaderProps extends Omit<ElementProps, 'children'> {
   /** The header's content; its internal layout is the caller's. */
   children: React.ReactNode;
 }
@@ -122,7 +127,7 @@ export interface PanelHeaderProps extends Omit<BoxProps, 'children'> {
 /**
  * A header that floats ABOVE a PanelFrame (`position: absolute; bottom: calc(100% + gap)`), so its parent must
  * be `position: relative`. Internal layout is not baked in (callers differ): pass `sx`, layered on top. A plain
- * `Box`, since `Paper`'s polymorphic `component` typing collides with `Omit<BoxProps, ...>`. Drag wiring and
+ * `Box`, since `Paper`'s polymorphic `component` typing collides with `Omit<ElementProps, ...>`. Drag wiring and
  * any grab cursor belong on `Panel`'s `grabProps`, never here.
  * @public
  */

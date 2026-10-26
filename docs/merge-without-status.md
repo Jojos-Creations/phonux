@@ -1,10 +1,9 @@
 # Merging when no status can be posted
 
-The merge rule in [CLAUDE.md](../CLAUDE.md) ("Agents merge verified pull requests into
-main") has two routes to a merge into main. Where `gh` can post a commit status and the pull
-request names a plan issue, the verifier agent's own steps apply: `queue ship --check`, then
-`queue gate-pass`, then the pinned merge. This page is the other route, for the two cases
-that route cannot serve:
+[AGENTS.md §13](../AGENTS.md) has two routes to a merge into main. Where `gh` can post a
+commit status and the pull request names a plan issue, the verifier agent's own steps
+apply: `queue ship --check`, then `queue gate-pass`, then the pinned merge. This page is the
+other route, for the two cases that route cannot serve:
 
 - **A cloud session.** Its proxy refuses the commit-status write `gate-pass` makes.
 - **A pull request with no plan issue**, such as one a project thread opened. `ship --check`
@@ -13,7 +12,7 @@ that route cannot serve:
 The judge is the same in both routes: `tools/queue/report_rules.py` from `origin/main`,
 applied to the newest COMMENT-type review on the pull request. Only the status write and the
 plan trailers are dropped. The merging agent is still a verifier that did not write the
-change.
+change (§6).
 
 ## 1. Post the verifier report as a COMMENT review on the audited sha
 
@@ -62,9 +61,7 @@ a fetch). A tool's success message is not that proof.
 
 ## Checked on 2026-10-25
 
-The route was first run in sku-scanner from a cloud session: `gh` reads of reviews and bodies
-work there, and the judge returned `{"ok": true}` for sku-scanner #93, which carries a PASS
-review on its head, and `no COMMENTED review found on the PR` for sku-scanner #90, whose
-verifier left a plain comment instead: the positive and negative controls for step 2. This
-repo's `tools/queue/report_rules.py` and `schema.json` were byte-identical to sku-scanner's
-and agent-ready-template's on that date, so the same judge applies here.
+From a cloud session, `gh` reads of reviews and bodies work. The judge returned
+`{"ok": true}` for sku-scanner #93, which carries a PASS review on its head, and
+`no COMMENTED review found on the PR` for sku-scanner #90, whose verifier left a plain
+comment instead: the positive and negative controls for step 2.
