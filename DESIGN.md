@@ -2026,7 +2026,8 @@ A Capacitor page runs in WKWebView on iPhone and in the Android System WebView. 
   cannot give a pixel distance to a spring.
 - **A touch never drags the grab bar.** The grab bar is `touch-action: pan-x`, so a vertical touch on it is the page's pan, and the
   browser cancels the pointer once it pans. A touch press therefore never reaches the drag sensor, and a held touch cannot close a
-  panel. A mouse or pen is unchanged and starts past the direction lock; the press is taken on the handle, not the sensor, because
+  panel. Where the page cannot pan, no cancel comes and the moves keep arriving, so a touch press is never engaged either: the
+  box stays at rest under the finger. A mouse or pen is unchanged and starts past the direction lock; the press is taken on the handle, not the sensor, because
   the sensor's activator is one per event name and would drop the mouse's. The workspace's tile drag is separate and still holds a
   touch for 250 ms.
 

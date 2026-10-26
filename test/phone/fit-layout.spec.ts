@@ -39,3 +39,24 @@ for (const height of [714, undefined]) {
     for (const bottom of boxes.frames) expect(bottom).toBeLessThanOrEqual(boxes.height);
   });
 }
+
+// A page whose row fills the screen cannot pan vertically, so the browser sends no pointercancel and the moves keep coming.
+test('a vertical touch drag on a grab bar never moves the panel', async ({ page, browserName }) => {
+  test.skip(browserName === 'webkit', 'desktop WebKit cannot synthesize touch; covered by the iOS Simulator check');
+  await page.setViewportSize({ width: 402, height: 714 });
+  await page.setContent(html);
+  await page.addScriptTag({ content: bundle });
+  const bar = await page.locator('[data-panel-grab-bar]').first().boundingBox();
+  if (!bar) throw new Error('the first panel draws a grab bar');
+  const session = await page.context().newCDPSession(page);
+  const x = bar.x + bar.width / 2;
+  const y = bar.y + bar.height / 2;
+  const offset = () => page.evaluate(() => /translateY\((-?[\d.]+)px\)/.exec(document.querySelector<HTMLElement>('[data-drag-to-close]')!.style.transform)?.[1] ?? '0');
+  await session.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x, y }] });
+  for (let step = 1; step <= 15; step++) {
+    await session.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{ x, y: y + step * 20 }] });
+    expect(Number(await offset())).toBe(0);
+  }
+  await session.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+  await expect.poll(() => page.locator('[data-phone-frame]').count()).toBe(3);
+});

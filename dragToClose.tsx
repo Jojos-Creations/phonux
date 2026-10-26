@@ -430,7 +430,7 @@ function DragToCloseBox({
   const draggable = useDraggable({ id: React.useId() });
   // Where the pointer went down and where it is: read from the events themselves, because dnd-kit reports a move only after its
   // activation distance and a release right after the activating move would otherwise read no offset.
-  const pointer = React.useRef({ downX: 0, downY: 0, x: 0, y: 0 });
+  const pointer = React.useRef({ downX: 0, downY: 0, x: 0, y: 0, touch: false });
   const samples = React.useRef<Array<{ t: number; y: number }>>([]);
   const released = React.useRef(0);
   const y = useMotionValue(0);
@@ -648,7 +648,8 @@ function DragToCloseBox({
   // The gesture starts on the pointer's own events, in the frame the offset passes the direction lock, not when dnd-kit's
   // context renders its start; dnd-kit decides when the press is a drag (and ends or cancels it), this decides what the box does.
   latestMove.current = () => {
-    if (engaged.current) return;
+    // A touch is never engaged: where the page cannot pan, the browser sends no pointercancel and the moves keep coming.
+    if (engaged.current || pointer.current.touch) return;
     if (Math.hypot(pointer.current.x - pointer.current.downX, pointer.current.y - pointer.current.downY) < DIRECTION_LOCK_PX) return;
     engaged.current = true;
     axisLock.current = null;
@@ -803,7 +804,7 @@ function DragToCloseBox({
       pressedDoc.current = event.currentTarget.ownerDocument;
       selectionRelease.current = holdDragSelection(pressedDoc.current);
       previousRelease?.();
-      pointer.current = { downX: event.clientX, downY: event.clientY, x: event.clientX, y: event.clientY };
+      pointer.current = { downX: event.clientX, downY: event.clientY, x: event.clientX, y: event.clientY, touch: event.pointerType === 'touch' };
       samples.current = [{ t: event.timeStamp, y: 0 }];
       stopFollowing();
       for (const type of ['pointermove', 'pointerup', 'pointercancel']) {
