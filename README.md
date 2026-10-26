@@ -135,7 +135,7 @@ The two layers draw the same DOM; the advanced one exists for flows the options 
 
 ## Panel sizing
 
-A panel is a whole number of slots wide: one slot is the phone width, and each added slot adds a phone width plus the row gap. Set the count with `slots` (and cap it with `maxSlots`); a person can change it by dragging, and a view can change it with `setSlots`. A panel is drawn at no more slots than fit the window, and its chosen count comes back when the window grows. A panel is the same height whatever its slot count. See `DESIGN.md` "Slot sizing".
+A panel is a whole number of slots wide: one slot is the phone width, and each added slot adds a phone width plus the row gap. Set the count with `slots` (and cap it with `maxSlots`); both are whole numbers from 1 to 64, the most slots any panel can have; a person can change it by dragging, and a view can change it with `setSlots`. A panel is drawn at no more slots than fit the window, and its chosen count comes back when the window grows. A panel is the same height whatever its slot count. See `DESIGN.md` "Slot sizing".
 
 ## Panel chrome
 

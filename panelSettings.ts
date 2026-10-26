@@ -252,9 +252,9 @@ export type SettingValues = {
   enterFrom: EnterFrom;
   /** How the panel leaves the row when it parks or closes (`ExitTo`); 'auto' takes the workspace's `tuning.defaultExitTo`. */
   exitTo: ExitTo;
-  /** How many phone-panel widths wide the panel is, an integer of 1 or more; the row draws at most the slots that fit. It starts a panel at that width and never resizes one that already exists. Default 1. */
+  /** How many phone-panel widths wide the panel is, a whole number from 1 to 64 (the most any panel can have); the row draws at most the slots that fit. It starts a panel at that width and never resizes one that already exists. Default 1. */
   slots: number;
-  /** The most slots the panel may take, an integer of 1 or more. Default: every slot that fits. */
+  /** The most slots the panel may take, a whole number from 1 to 64. Default: 64, which the window's fit caps in practice. */
   maxSlots: number;
   /** The panel's title. */
   title: string;
