@@ -5,9 +5,9 @@
  */
 import { test, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
-import './support/jsdom-globals.js';
+import { frameClock } from './support/jsdom-globals.js';
 import * as React from 'react';
-import { MotionConfig } from 'motion/react';
+import { MotionConfig, visualElementStore } from 'motion/react';
 import { PANEL_TRANSITION } from '../index.js';
 import type { PanelSettings, PanelWindow, WorkspaceHandle, WorkspaceTuning } from '../index.js';
 import { enterDirectionOf, exitStyleOf } from '../PanelRow.js';
@@ -26,6 +26,15 @@ const SPAN = WIDTH + GAP;
 const NONE: ReadonlySet<string> = new Set();
 
 registerTestView('style-view', ({ panel }) => React.createElement('i', { 'data-slot': panel.id }, panel.title));
+/** While on, every commit that renders this view moves the clock on, as a slow commit on a busy main thread does. */
+const slowCommits = { on: false };
+function SlowView({ panel }: { panel: { id: string; title?: string | undefined } }): React.ReactElement {
+  React.useLayoutEffect(() => {
+    if (slowCommits.on) frameClock.skip(80);
+  });
+  return React.createElement('i', { 'data-slot': panel.id }, panel.title);
+}
+registerTestView('slow-view', SlowView);
 
 const resolve = (layer: PanelSettings = {}) => resolvePanelSettings({ template: layer }).value;
 function made(id: string, layer: PanelSettings = {}, over: Partial<PanelWindow> = {}): PanelWindow {
@@ -223,6 +232,29 @@ test('shrink: a leaving slot scales to 0 about its center, which keeps to the po
   assert.ok(Math.abs(center - meet) < 1, `b's center (${center}) is where a and c meet (${meet})`);
   const half = (scaleOf(b) * WIDTH) / 2;
   assert.ok(center - half >= REST - GAP - 0.5 && center + half <= axis(c, 'X') + 0.5, 'and b fits between them');
+  mounted.unmount();
+});
+
+test('shrink: the leaving slot and the neighbours closing up over it count from the same moment', async () => {
+  const startOf = (el: HTMLElement, key: string): number | undefined =>
+    (visualElementStore.get(el)?.getValue(key) as { animation?: { startTime?: number | null } } | undefined)?.animation?.startTime ?? undefined;
+  const c0 = made('c', {}, { view: 'slow-view' });
+  const base = [rootEntry(), made('a'), made('b', { exitTo: 'shrink' }), c0];
+  const workspace = settledWorkspace(base);
+  const mounted = mount(row(base, workspace));
+  // The commit that removes b runs long between b's exit starting and c's slide starting.
+  slowCommits.on = true;
+  try {
+    mounted.rerender(row([rootEntry(), made('a'), c0], workspace));
+  } finally {
+    slowCommits.on = false;
+  }
+  await advanceFrames(32);
+  const b = slotOf(mounted.container, 'b')!;
+  const c = slotOf(mounted.container, 'c')!;
+  const neighbour = startOf(c, 'x');
+  assert.ok(neighbour !== undefined, 'control: c is sliding, on the commit clock');
+  assert.equal(startOf(b, 'scale'), neighbour, 'b shrinks on the same clock');
   mounted.unmount();
 });
 

@@ -274,6 +274,12 @@ export function PanelRowSlot({
   restNow.current = { leftOffset, transition: snapping || tracking ? INSTANT_TRANSITION : slideTransition };
   const setUpBefore = React.useRef(false);
   const present = useIsPresent();
+  // Motion starts an exit in its own layout effect, before this slot's: the clock must be on the transition by render, so a
+  // shrink and the neighbours closing up over it count from the same moment however late the commit runs.
+  if (!present && exitDirection === 'shrink') startable.startTime = slideStart();
+  React.useLayoutEffect(() => {
+    if (!present) delete startable.startTime;
+  });
   // The drop's new rest lands in the commit that changes it, in the same frame as the dragged box's own offset going to 0: a snap that waited
   // for Motion's next frame would draw the box a frame at the old slot.
   const lastRest = React.useRef(leftOffset);
