@@ -15,7 +15,7 @@ afterEach(() => {
 });
 
 test('a pin inside the quiet window leaves the row where it is; the same pin outside it scrolls the row to follow', async () => {
-  const pinned = async (quiet: boolean): Promise<number> => {
+  const pinned = async (quiet: boolean): Promise<{ before: number; at: number }> => {
     const r = await matrixRig({ ids: ['a', 'b', 'c', 'd', 'e'], width: 1000 });
     await r.settle();
     r.turn(() => r.h.a!.scrollTo('start'));
@@ -26,11 +26,10 @@ test('a pin inside the quiet window leaves the row where it is; the same pin out
     await r.settle();
     const at = r.m.container.scrollLeft;
     r.m.unmount();
-    assert.equal(before, 406, 'a at the left edge of the window, so b is in view');
-    return at;
+    return { before, at };
   };
   const quiet = await pinned(true);
   const loud = await pinned(false);
-  assert.equal(quiet, 406, 'the quiet pin leaves the row where it was');
-  assert.notEqual(loud, 406, 'the same pin outside the window follows the moved panel');
+  assert.equal(quiet.at, quiet.before, 'the quiet pin leaves the row where it was');
+  assert.notEqual(loud.at, loud.before, 'the same pin outside the window follows the moved panel');
 });

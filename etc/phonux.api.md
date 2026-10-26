@@ -399,6 +399,25 @@ export type HeaderButtonTextForm = HeaderButtonBase & {
 };
 
 // @public
+export interface HeaderMenuAction {
+    readonly icon?: React_2.ReactNode;
+    readonly id: string;
+    readonly label: string;
+    readonly onSelect: () => void;
+    readonly shortcut?: string;
+}
+
+// @public
+export type HeaderMenuEntry = HeaderMenuAction | HeaderMenuGroup;
+
+// @public
+export interface HeaderMenuGroup {
+    readonly actions: readonly HeaderMenuAction[];
+    readonly id: string;
+    readonly title: string;
+}
+
+// @public
 export interface HistoryAPI {
     close(): void;
     readonly closed: boolean;
@@ -659,6 +678,7 @@ export function PanelHeaderMenu(input?: PanelHeaderMenuProps): React_2.JSX.Eleme
 
 // @public
 export interface PanelHeaderMenuProps {
+    entries?: readonly HeaderMenuEntry[];
     onPinChange?: (verb: 'pin' | 'unpin', ok: boolean) => void;
 }
 

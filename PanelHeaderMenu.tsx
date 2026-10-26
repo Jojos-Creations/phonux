@@ -8,6 +8,8 @@ import Box from '@mui/material/Box';
 import IconButton from '@mui/material/IconButton';
 import ListItemIcon from '@mui/material/ListItemIcon';
 import Menu from '@mui/material/Menu';
+import Tooltip from '@mui/material/Tooltip';
+import Typography from '@mui/material/Typography';
 import MenuItem from '@mui/material/MenuItem';
 import CloseIcon from '@mui/icons-material/Close';
 import ControlCameraIcon from '@mui/icons-material/ControlCamera';
@@ -27,11 +29,44 @@ type SlotHandle = NonNullable<PanelSlotValue['handle']> & Pick<ViewHandle, 'pin'
 
 const INHERIT = { color: 'inherit' } as const;
 
+/** One entry the host adds under Pin in the move menu: a list item with a label. @public */
+export interface HeaderMenuAction {
+  /** A key that is unique within the menu. */
+  readonly id: string;
+  /** The text the entry shows, and its accessible name when it is only an icon. */
+  readonly label: string;
+  /** An icon drawn before the label, or alone in a group. */
+  readonly icon?: React.ReactNode;
+  /** A shortcut shown after the label, or in an icon's hover text, as the host spells it. */
+  readonly shortcut?: string;
+  /** Called when the entry is picked; the menu has closed by then. */
+  readonly onSelect: () => void;
+}
+
+/** A titled row of icon-only actions, for a choice shown as icons with no text but the title. @public */
+export interface HeaderMenuGroup {
+  /** A key that is unique within the menu. */
+  readonly id: string;
+  /** The title shown above the row. */
+  readonly title: string;
+  /** The icon buttons in the row, in order: each one's label is its hover text and accessible name. */
+  readonly actions: readonly HeaderMenuAction[];
+}
+
+/** One entry the host adds under Pin: a list item or a titled icon group. @public */
+export type HeaderMenuEntry = HeaderMenuAction | HeaderMenuGroup;
+
+const isGroup = (entry: HeaderMenuEntry): entry is HeaderMenuGroup => 'actions' in entry;
+
 /** The props of `PanelHeaderMenu`. @public */
 export interface PanelHeaderMenuProps {
   /** Called once a Pin or Unpin from the menu has been applied or refused: `ok` is whether the panel's pin changed. */
   onPinChange?: (verb: 'pin' | 'unpin', ok: boolean) => void;
+  /** Entries the host adds under Pin, in order. The move menu shows when there is at least one, even for a fixed panel. */
+  entries?: readonly HeaderMenuEntry[];
 }
+
+const NO_ENTRIES: readonly HeaderMenuEntry[] = [];
 
 /**
  * The header controls of the panel the call is made in, meant for the header slot (the `actions` of `Panel`, or of
@@ -42,7 +77,7 @@ export interface PanelHeaderMenuProps {
  * the row reading it as a choice. A refused pin or unpin is announced through the workspace's live region.
  * @public
  */
-export function PanelHeaderMenu({ onPinChange }: PanelHeaderMenuProps = {}): React.JSX.Element | null {
+export function PanelHeaderMenu({ onPinChange, entries = NO_ENTRIES }: PanelHeaderMenuProps = {}): React.JSX.Element | null {
   const labels = resolveLabels(useOptionalHost()?.labels);
   const announce = React.useContext(AnnounceContext);
   const { onClose } = usePanelDragProps();
@@ -59,7 +94,7 @@ export function PanelHeaderMenu({ onPinChange }: PanelHeaderMenuProps = {}): Rea
     quietly(() => moveRef.current?.focus({ preventScroll: true }));
   }, [returnFocus]);
   // A pinned panel reads as not movable, and its Unpin entry must stay reachable.
-  const showMove = movable || pinned;
+  const showMove = movable || pinned || entries.length > 0;
   if (handle === undefined || (onClose === undefined && !showMove)) return null;
 
   const closeMenu = (): void => {
@@ -94,10 +129,50 @@ export function PanelHeaderMenu({ onPinChange }: PanelHeaderMenuProps = {}): Rea
             <ControlCameraIcon fontSize="small" />
           </IconButton>
           <Menu open={anchor !== null} anchorEl={anchor} onClose={closeMenu} disableRestoreFocus>
-            <MenuItem data-panel-pin-toggle="" onClick={togglePin}>
-              <ListItemIcon>{pinned ? <PushPinIcon fontSize="small" /> : <PushPinOutlinedIcon fontSize="small" />}</ListItemIcon>
-              {pinned ? labels.unpin : labels.pin}
-            </MenuItem>
+            {movable || pinned ? (
+              <MenuItem data-panel-pin-toggle="" onClick={togglePin}>
+                <ListItemIcon>{pinned ? <PushPinIcon fontSize="small" /> : <PushPinOutlinedIcon fontSize="small" />}</ListItemIcon>
+                {pinned ? labels.unpin : labels.pin}
+              </MenuItem>
+            ) : null}
+            {entries.map((entry) =>
+              isGroup(entry) ? (
+                <Box key={entry.id} data-panel-menu-group={entry.id} role="group" aria-label={entry.title} sx={{ px: 2, py: 1 }}>
+                  <Typography variant="caption" component="div" sx={{ mb: 0.5 }}>
+                    {entry.title}
+                  </Typography>
+                  <Box sx={{ display: 'flex', gap: 0.25 }}>
+                    {entry.actions.map((action) => (
+                      <Tooltip key={action.id} title={action.shortcut === undefined ? action.label : `${action.label} (${action.shortcut})`}>
+                        <IconButton
+                          size="small"
+                          aria-label={action.label}
+                          data-panel-menu-entry={action.id}
+                          onClick={() => {
+                            closeMenu();
+                            action.onSelect();
+                          }}
+                        >
+                          {action.icon}
+                        </IconButton>
+                      </Tooltip>
+                    ))}
+                  </Box>
+                </Box>
+              ) : (
+                <MenuItem
+                  key={entry.id}
+                  data-panel-menu-entry={entry.id}
+                  onClick={() => {
+                    closeMenu();
+                    entry.onSelect();
+                  }}
+                >
+                  {entry.icon === undefined ? null : <ListItemIcon>{entry.icon}</ListItemIcon>}
+                  {entry.label}
+                </MenuItem>
+              ),
+            )}
           </Menu>
         </>
       ) : null}

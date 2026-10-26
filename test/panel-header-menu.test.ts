@@ -119,3 +119,46 @@ test('menu: after a pin, focus lands on the move button once the header is back'
   const move = moveButton(rig, 'a');
   assert.ok(move !== null && document.activeElement === move, 'focus is on the move button after the pin');
 });
+
+test('menu: host entries are listed under Pin, pick and close the menu, and show it even for a panel that cannot move', async () => {
+  const picked: string[] = [];
+  const entries = [
+    { id: 'size-big', label: 'Bigger', onSelect: () => picked.push('big') },
+    { id: 'size-small', label: 'Smaller', onSelect: () => picked.push('small') },
+  ];
+  const rig = await headerRig({ ids: ['a'], actions: createElement<PanelHeaderMenuProps>(PanelHeaderMenu, { entries }), settings: { a: { movable: false } } });
+  assert.ok(moveButton(rig, 'a'), 'the move menu shows for the host entries alone');
+  act(() => void moveButton(rig, 'a')!.click());
+  await wait();
+  assert.equal(document.querySelector('[data-panel-pin-toggle]'), null, 'no Pin entry for a fixed panel');
+  const items = [...document.querySelectorAll<HTMLElement>('[data-panel-menu-entry]')];
+  assert.deepEqual(items.map((el) => el.textContent), ['Bigger', 'Smaller']);
+  act(() => void items[1]!.click());
+  await wait();
+  assert.deepEqual(picked, ['small']);
+  assert.equal(document.querySelector('[role="menu"]'), null, 'the menu closed on pick');
+});
+
+test('menu: a group draws its title and one icon button per action, with the shortcut in its hover text, and a press picks it and closes the menu', async () => {
+  const picked: string[] = [];
+  const group = {
+    id: 'view-size',
+    title: 'View Size',
+    actions: [
+      { id: 'phone', label: 'Phone', icon: createElement('i'), shortcut: 'Option+1', onSelect: () => picked.push('phone') },
+      { id: 'fullscreen', label: 'Fullscreen', icon: createElement('i'), shortcut: 'Option+Enter', onSelect: () => picked.push('fullscreen') },
+    ],
+  };
+  const rig = await headerRig({ ids: ['a'], actions: createElement<PanelHeaderMenuProps>(PanelHeaderMenu, { entries: [group] }), settings: { a: { movable: false } } });
+  act(() => void moveButton(rig, 'a')!.click());
+  await wait();
+  const row = document.querySelector<HTMLElement>('[data-panel-menu-group="view-size"]');
+  assert.ok(row, 'the group is drawn');
+  assert.equal(row.getAttribute('aria-label'), 'View Size');
+  assert.equal(row.querySelector('[data-panel-menu-entry="phone"]')?.getAttribute('aria-label'), 'Phone');
+  assert.equal(row.querySelectorAll('button').length, 2, 'one icon button per action');
+  act(() => void row.querySelector<HTMLElement>('[data-panel-menu-entry="fullscreen"]')!.click());
+  await wait();
+  assert.deepEqual(picked, ['fullscreen']);
+  assert.equal(document.querySelector('[role="menu"]'), null, 'the menu closed on pick');
+});
