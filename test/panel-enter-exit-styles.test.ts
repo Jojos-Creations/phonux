@@ -8,7 +8,7 @@ import assert from 'node:assert/strict';
 import './support/jsdom-globals.js';
 import * as React from 'react';
 import { MotionConfig } from 'motion/react';
-import { PANEL_TRANSITION } from '../index.js';
+import { PANEL_TRANSITION, createWorkspace } from '../index.js';
 import type { PanelSettings, PanelWindow, WorkspaceHandle, WorkspaceTuning } from '../index.js';
 import { enterDirectionOf, exitStyleOf } from '../PanelRow.js';
 import { GAP, panelRowSlotMotion, slotDriver } from '../PanelRowSlot.js';
@@ -281,6 +281,13 @@ test('interrupted: a park mid-expand leaves from where it is, a re-priced row se
   assert.equal(scaleOf(leavingSlot), 1);
   assert.equal(leavingSlot.style.width, `${WIDTH}px`);
   again.unmount();
+});
+
+test("a workspace that sets neither default expands its panels in and shrinks them out; 'auto' still slides and drops", () => {
+  const tuning = createWorkspace({ mount: false }).tuning;
+  assert.deepEqual([tuning.defaultEnterFrom, tuning.defaultExitTo], ['expand', 'shrink']);
+  assert.deepEqual([enterDirectionOf('auto', false, undefined, false, () => 'right', tuning.defaultEnterFrom), exitStyleOf('auto', tuning.defaultExitTo, true, false)], ['expand', 'shrink']);
+  assert.deepEqual([enterDirectionOf('auto', false, undefined, false, () => 'right', 'auto'), exitStyleOf('auto', 'auto', true, false)], ['right', 'down'], "control: the workspace's 'auto' keeps the sideways entrance and the downward close");
 });
 
 test('an entrance in progress keeps its style when the setting changes under it', async () => {

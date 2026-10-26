@@ -13,7 +13,10 @@ import { testViewTemplate } from './test-views.js';
 export interface SeedOptions {
   /** The root's id; default 'root'. */
   rootId?: string;
-  /** Free by default, so the literal scroll targets these tests pin stay panel-start numbers; the whole-panel stops have their own tests. */
+  /**
+   * Free by default, so the literal scroll targets these tests pin stay panel-start numbers; the whole-panel stops have their own tests.
+   * Enter and exit default to 'auto': the slot tests read the sideways slide, while the expand and shrink defaults have their own tests.
+   */
   tuning?: WorkspaceTuning;
   workspaceDefaults?: PanelSettings;
   /** Templates beyond the plain one made for each distinct `view` the entries name. */
@@ -54,7 +57,7 @@ export function seededWorkspace(entries: readonly PanelWindow[], o: SeedOptions 
     // A root the engine names itself (`__root__`) is the marker a workspace without a root template has.
     ...(rootId.startsWith('_') ? {} : { root: plainTemplate(rootId, entries.find((e) => e.id === rootId)?.view ?? rootId) }),
     templates: [...(o.templates ?? []), ...views.map((v) => plainTemplate(v))],
-    tuning: { rowGesture: 'step', ...o.tuning },
+    tuning: { rowGesture: 'step', defaultEnterFrom: 'auto', defaultExitTo: 'auto', ...o.tuning },
     ...(o.workspaceDefaults !== undefined ? { defaults: o.workspaceDefaults } : {}),
     ...(o.storage !== undefined ? { storage: o.storage } : {}),
   });

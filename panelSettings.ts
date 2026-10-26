@@ -386,9 +386,9 @@ export type WorkspaceTuning = {
   phoneFitMin?: number;
   /** The largest scale the fit gives the phone, a number from 1 to 4, as a fraction of the preferred size. */
   phoneFitMax?: number;
-  /** How a panel whose own `enterFrom` is 'auto' enters the row; any value of `EnterFrom`, and 'auto' is the row's own choice of side. */
+  /** How a panel whose own `enterFrom` is 'auto' enters the row; any value of `EnterFrom`, and 'auto' is the row's own choice of side. Default 'expand'. */
   defaultEnterFrom?: EnterFrom;
-  /** How a panel whose own `exitTo` is 'auto' leaves the row; any value of `ExitTo`, and 'auto' parks sideways and closes downward. */
+  /** How a panel whose own `exitTo` is 'auto' leaves the row; any value of `ExitTo`, and 'auto' parks sideways and closes downward. Default 'shrink'. */
   defaultExitTo?: ExitTo;
 };
 
@@ -1220,7 +1220,7 @@ const CATALOG_ROWS: readonly SettingDescriptor[] = [
     name: 'tuning.defaultEnterFrom',
     group: 'tuning',
     values: 'auto, left, right, anchor, top, bottom, fade, expand (workspace only)',
-    default: 'auto',
+    default: 'expand',
     scope: 'workspace',
     viewSettable: false,
     exists: 'new',
@@ -1231,7 +1231,7 @@ const CATALOG_ROWS: readonly SettingDescriptor[] = [
     name: 'tuning.defaultExitTo',
     group: 'tuning',
     values: 'auto, left, right, top, bottom, fade, shrink (workspace only)',
-    default: 'auto',
+    default: 'shrink',
     scope: 'workspace',
     viewSettable: false,
     exists: 'new',
@@ -1335,8 +1335,8 @@ export const LIBRARY_TUNING_DEFAULTS: ResolvedWorkspaceTuning = freezeClone({
   phoneFit: PHONE_FIT as ResolvedWorkspaceTuning['phoneFit'],
   phoneFitMin: PHONE_FIT_MIN,
   phoneFitMax: PHONE_FIT_MAX,
-  defaultEnterFrom: 'auto',
-  defaultExitTo: 'auto',
+  defaultEnterFrom: 'expand',
+  defaultExitTo: 'shrink',
 });
 
 // ---------------------------------------------------------------------------
