@@ -108,7 +108,7 @@ export function createWorkspaceColumn(o = {}) {
             return stay('unknown-workspace', `${source < 0 ? 'the source' : 'the target'} workspace is not in this column`);
         if (source === target)
             return stay('same-workspace', `panel '${panelId}' is already in workspace '${list[source].name}'`);
-        const moved = transferPanel(list[source], panelId, list[target], options?.withFamily === true, run);
+        const moved = transferPanel(list[source], panelId, list[target], options ?? {}, run);
         if (!moved.ok)
             return moved;
         return { ok: true, workspace: list[target], index: target, panelId, panelIds: moved.panelIds };

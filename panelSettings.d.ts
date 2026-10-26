@@ -5,7 +5,7 @@
  * called) with no React, no Motion and no row code loaded; test/panel-settings-catalog.test.ts holds that line.
  */
 import type * as React from 'react';
-import type { SxProps, Theme } from '@mui/material/styles';
+import type { CssStyle } from './cssStyle.js';
 import type { PanelRowEntry } from './panelRowEntry.js';
 import type { PanelState, ViewHandle } from './panelTemplate.js';
 import type { PanelWindow } from './panelWindow.js';
@@ -90,8 +90,8 @@ export type HeaderButtonBase = {
     disabled?: boolean | ((c: HeaderButtonContext) => boolean);
     /** Whether the button is left out, or a function that decides. */
     hidden?: boolean | ((c: HeaderButtonContext) => boolean);
-    /** Extra styles for the button. */
-    sx?: SxProps<Theme>;
+    /** Extra styles for the button: CSS properties in camelCase, with nested keys for selectors. */
+    sx?: CssStyle;
 };
 /** The icon form of a title-bar button: the `icon` key is present, and the label is its accessible name only. @public */
 export type HeaderButtonIconForm = HeaderButtonBase & {
@@ -271,6 +271,10 @@ export type WorkspaceTuning = {
     };
     /** The gap between panels in px, an integer from 0 to 200. */
     rowGap?: number;
+    /** The room above the row in px, an integer from 0 to 400: the only control for a standalone workspace's row top room. Null: the default room (in a column, the column band, the cell's top inset and the row gap). */
+    rowTop?: number | null;
+    /** The phone's height under `phoneFit: 'fit'`: 'fit' scales it with the width; 'auto' makes the frame as tall as the row's room, never shorter than the fit. */
+    phoneHeight?: 'fit' | 'auto';
     /** Milliseconds of quiet before the workspace is saved. */
     saveQuietMs?: number;
     /** Milliseconds after a row scroll gesture during which further wheel events are ignored. */
@@ -333,6 +337,10 @@ export type ResolvedWorkspaceTuning = {
     edgeScroll: EdgeScrollTuning;
     /** The gap between panels in px, an integer from 0 to 200. */
     rowGap: number;
+    /** The room above the row in px, or null for the default room. */
+    rowTop: number | null;
+    /** The phone's height under `phoneFit: 'fit'`: 'fit' or 'auto'. */
+    phoneHeight: 'fit' | 'auto';
     /** Milliseconds of quiet before the workspace is saved. */
     saveQuietMs: number;
     /** Milliseconds after a row scroll gesture during which further wheel events are ignored. */

@@ -34,11 +34,14 @@ export function workspaceShellStyle(i) {
         ? i.rowNumbers.rowMarginLeft
         : computeRowLayout({ containerWidth: i.containerWidth, phoneWidth: i.phoneWidth, gap: i.gap ?? ROW_GAP, fixedItemCount: i.fixedColumnCount, liveWidths: i.liveWidths }).computedRowMarginLeft;
     const scrolls = i.rowNumbers?.rowScroll ?? i.rowScroll ?? false;
+    // The margin snaps while stops exist, or the scrollable width would be short of where a stop sits. A panel resize glides anyway,
+    // even inside the settle window: a grow that overflows the window adds its stops in the render that moves the margin, and a
+    // snap there jumps every panel.
+    const hasStops = i.rowNumbers !== undefined && i.rowNumbers.stops.length > 0;
+    const glides = i.panelResizing === true || (i.rowResizeSettled && !hasStops);
     return {
         marginLeft,
-        // The margin snaps while stops exist, or the scrollable width would be short of where a stop sits. A panel resize glides anyway:
-        // a grow that overflows the window adds its stops in the render that moves the margin, and a snap there jumps every panel.
-        transition: i.rowResizeSettled && (i.panelResizing === true || !(i.rowNumbers !== undefined && i.rowNumbers.stops.length > 0)) ? (i.slide === undefined ? PANEL_TRANSITION : slideToTransition(i.slide)) : { duration: 0 },
+        transition: glides ? (i.slide === undefined ? PANEL_TRANSITION : slideToTransition(i.slide)) : { duration: 0 },
         overflowX: 'hidden',
         hideScrollbar: scrolls,
     };
@@ -57,16 +60,27 @@ export function resizeSettleDelayMs(slide, slides) {
     return Math.round(slide.durationSec * slides * 1000);
 }
 /**
- * Whether `width` has held still for `delayMs`; true at once when `instant`. The width a timer last confirmed is state, so a
- * width change reads unsettled in the very render that sees it.
+ * Whether `width` has held still for `delayMs`; true at once when `instant`. The mount counts as a change, so a width change
+ * inside the settle period snaps; one that comes after a full settle period of stillness glides from its first render.
  * @internal
  */
 export function useResizeSettled(width, delayMs, instant) {
     const [confirmed, setConfirmed] = React.useState(width);
+    const [seen, setSeen] = React.useState(width);
+    const [settling, setSettling] = React.useState(true);
+    if (width !== seen) {
+        setSeen(width);
+        if (!settling)
+            setConfirmed(width);
+        setSettling(true);
+    }
     React.useEffect(() => {
         if (instant)
             return setConfirmed(width);
-        const timer = setTimeout(() => setConfirmed(width), delayMs);
+        const timer = setTimeout(() => {
+            setSettling(false);
+            setConfirmed(width);
+        }, delayMs);
         return () => clearTimeout(timer);
     }, [width, delayMs, instant]);
     return instant || confirmed === width;

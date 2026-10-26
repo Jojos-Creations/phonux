@@ -4,7 +4,7 @@
  * engine to create the panel. The engine's controls reach this module through `publish` and are used only here,
  * through the handles and the reader built over `ReadSource`; DESIGN.md, "The workspace core", says why.
  */
-import type { Theme } from '@mui/material/styles';
+import type { PhonuxTheme } from './defaultTheme.js';
 import type { ComponentType, ReactNode } from 'react';
 import type { JsonValue } from './hostApi.js';
 import { type ConfigureOutcome } from './panelConfigure.js';
@@ -68,12 +68,12 @@ export type WorkspaceOptions = WorkspaceLive & {
      */
     mount?: HTMLElement | false;
     /**
-     * The MUI theme the mount draws for the color scheme the window prefers (`prefers-color-scheme`, the only mode source), with
+     * The theme the mount draws for the color scheme the window prefers (`prefers-color-scheme`, the only mode source), with
      * one `CssBaseline`. Unset: `createDefaultTheme`. A `wrap` must not draw its own `ThemeProvider` or `CssBaseline`. It runs once
      * per mode; a throw or a value that is not a theme goes to `onError` and the default theme is drawn. A workspace in a column
      * takes the column's theme. Ignored when `mount` is `false`.
      */
-    theme?: (mode: 'light' | 'dark') => Theme;
+    theme?: (mode: 'light' | 'dark') => PhonuxTheme;
     /**
      * A component rendered around the auto-mounted row, inside the host: the theme, the capture registry and the app's own
      * contexts go here, and a hook in it may read `useHost()` and call `workspace.update`. Fixed at creation, so it keeps
@@ -240,7 +240,7 @@ export interface EngineBinding {
     /** The component the auto mount renders around the row, if the app gave one. */
     readonly wrap: ComponentType<WorkspaceWrapProps> | undefined;
     /** The theme function the auto mount draws with, if the app gave one. */
-    readonly theme: ((mode: 'light' | 'dark') => Theme) | undefined;
+    readonly theme: ((mode: 'light' | 'dark') => PhonuxTheme) | undefined;
     /** A hand-mounted row was given this workspace; warns once in development when the workspace also mounts itself. */
     warnHandMounted(): void;
     /** Delivers a runtime note to the sink the attached hook bound, or holds it until one is bound; a sink that throws is ignored. */
@@ -305,6 +305,12 @@ export interface MovePanelOptions {
      * all or none. False or left out moves the panel alone.
      */
     readonly withFamily?: boolean;
+    /**
+     * With `withFamily`, members of the family that stay in the source; the panel itself always moves. A member that moves while its
+     * opener stays takes its nearest moving ancestor as opener; one that stays while its opener moves takes that opener's old opener.
+     * The all-or-nothing checks cover only the panels that move.
+     */
+    readonly leave?: readonly PanelId[];
 }
 /**
  * What `WorkspaceColumnHandle.movePanel` answers: the panel's id and workspace after the move, or why it stayed where it was.
@@ -331,10 +337,11 @@ export type MovePanelResult = {
     readonly message: string;
 };
 /**
- * Moves the panel `key` of `from`, with its family when asked, to the end of `to`'s row; both must belong to one column and the
- * caller has checked they differ. Every member is checked on both sides before anything acts. With `run` false it only answers.
+ * Moves the panel `key` of `from`, with its family less `leave` when asked, to the end of `to`'s row; both must belong to one column
+ * and the caller has checked they differ. Every moving member is checked on both sides before anything acts. With `run` false it
+ * only answers.
  */
-export declare function transferPanel(from: WorkspaceHandle, key: PanelId, to: WorkspaceHandle, withFamily: boolean, run: boolean): {
+export declare function transferPanel(from: WorkspaceHandle, key: PanelId, to: WorkspaceHandle, options: MovePanelOptions, run: boolean): {
     ok: true;
     panelIds: PanelId[];
 } | Extract<MovePanelResult, {
