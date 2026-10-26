@@ -64,8 +64,11 @@ export interface WorkspaceColumnProps {
    * What fills a workspace's cell: the app's own hand-wired row for that workspace. Omitted: the row the library mounts itself, as
    * `createWorkspace` does. A returned row puts the column's `topInset` plus `COLUMN_TOP_BAND` plus its row gap above its panels.
    */
-  children?: (workspace: WorkspaceHandle) => React.ReactNode;
+  children?: (workspace: WorkspaceHandle) => React.ReactNode | undefined;
 }
+
+/** The cell's own row, or undefined when the function is absent or returns undefined: the library's row is drawn then. */
+const drawn = (children: WorkspaceColumnProps['children'], ws: WorkspaceHandle): React.ReactNode | undefined => (children === undefined ? undefined : children(ws));
 
 /**
  * Draws a column: one cell per workspace, the current one in view, the others inert and hidden from assistive technology but
@@ -117,6 +120,7 @@ export function WorkspaceColumn({ column, children }: WorkspaceColumnProps): Rea
           const active = i === snap.current;
           const above = snap.workspaces[i - 1];
           const below = snap.workspaces[i + 1];
+          const own = drawn(children, ws);
           return (
             <Box
               key={ws.id}
@@ -142,12 +146,12 @@ export function WorkspaceColumn({ column, children }: WorkspaceColumnProps): Rea
                 {above === undefined ? labels.newWorkspace : above.name}
               </Button>
               <NameInput workspace={ws} label={labels.workspaceName} inset={snap.topInset} />
-              {children === undefined ? (
+              {own === undefined ? (
                 <React.Suspense fallback={null}>
                   <DefaultCell workspace={ws} columnTop={COLUMN_TOP_BAND} themed={false} />
                 </React.Suspense>
               ) : (
-                children(ws)
+                own
               )}
               <Button
                 data-workspace-neighbour="below"

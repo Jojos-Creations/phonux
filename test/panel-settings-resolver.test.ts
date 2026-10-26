@@ -115,7 +115,7 @@ const ENUMERATED: Record<string, readonly unknown[]> = {
 };
 
 /** The names the enumeration table leaves to a test of their own. */
-const ELSEWHERE: readonly CatalogName[] = ['headerButtons', 'pinning', 'tuning.defaultEnterFrom', 'tuning.defaultExitTo', 'tuning.rowGap', 'tuning.dragToClose', 'tuning.slide', 'tuning.hopFraction', 'tuning.edgeScroll', 'tuning.saveQuietMs', 'tuning.gestureLockMs', 'tuning.gestureQuietMs', 'tuning.resizeSettleSlides', 'tuning.returnTieBreak', 'tuning.dropTieBreak', 'tuning.rowGesture', 'tuning.initialScroll', 'tuning.maxLivePanels', 'tuning.chrome', 'tuning.phoneFit', 'tuning.phoneFitMin', 'tuning.phoneFitMax'];
+const ELSEWHERE: readonly CatalogName[] = ['headerButtons', 'pinning', 'tuning.defaultEnterFrom', 'tuning.defaultExitTo', 'tuning.rowGap', 'tuning.rowTop', 'tuning.phoneHeight', 'tuning.dragToClose', 'tuning.slide', 'tuning.hopFraction', 'tuning.edgeScroll', 'tuning.saveQuietMs', 'tuning.gestureLockMs', 'tuning.gestureQuietMs', 'tuning.resizeSettleSlides', 'tuning.returnTieBreak', 'tuning.dropTieBreak', 'tuning.rowGesture', 'tuning.initialScroll', 'tuning.maxLivePanels', 'tuning.chrome', 'tuning.phoneFit', 'tuning.phoneFitMin', 'tuning.phoneFitMax'];
 
 type Probe = readonly [what: string, layers: PanelSettingsLayers, layer: string, key: string | undefined];
 const PROBES: readonly Probe[] = [
@@ -163,7 +163,7 @@ const PROBES: readonly Probe[] = [
   ['an instance layer that is a list', { instance: [] as unknown as PanelSettings }, 'instance', undefined],
 ];
 
-test('enumerations: the enumeration table and its companions cover every one of the 52 catalog names exactly once', () => {
+test('enumerations: the enumeration table and its companions cover every one of the 54 catalog names exactly once', () => {
   const covered = [...Object.keys(ENUMERATED), ...ELSEWHERE];
   assert.equal(new Set(covered).size, covered.length, 'a name is listed twice');
   assert.deepEqual([...covered].sort(), [...CATALOG_NAMES].sort());
@@ -198,12 +198,13 @@ test("enumerations: a probe's refusal names the layer and key in its message too
   assert.match(error.message, /template\.overflow/);
 });
 
-test('enumerations: the four enumerated tuning leaves accept every member', () => {
+test('enumerations: the five enumerated tuning leaves accept every member', () => {
   const members: Record<string, readonly unknown[]> = {
     returnTieBreak: ['latest-first', 'earliest-first', 'row-order'],
     dropTieBreak: ['leftmost', 'rightmost'],
     rowGesture: ['step', 'off'],
     initialScroll: ['start', 'end', 'root', { panel: 'x' }],
+    phoneHeight: ['fit', 'auto'],
   };
   let executed = 0;
   for (const [leaf, values] of Object.entries(members)) {
@@ -212,7 +213,7 @@ test('enumerations: the four enumerated tuning leaves accept every member', () =
       executed += 1;
     }
   }
-  assert.equal(executed, 11);
+  assert.equal(executed, 13);
   for (const [leaf, bad] of [['rowGesture', 'swipe'], ['initialScroll', 'middle'], ['initialScroll', { panel: '' }]] as const) assert.equal(checkTuningLeaf(leaf, bad).problems[0]?.key, `tuning.${leaf}`, leaf);
 });
 
@@ -238,6 +239,14 @@ const RANGES: readonly RangeRow[] = [
   ['rowGap', 200, 'accept'],
   ['rowGap', 201, 'reject'],
   ['rowGap', 0.5, 'reject'],
+  ['rowTop', 0, 'accept'],
+  ['rowTop', 400, 'accept'],
+  ['rowTop', 401, 'reject'],
+  ['rowTop', null, 'accept'],
+  ['rowTop', 0.5, 'reject'],
+  ['phoneHeight', 'fit', 'accept'],
+  ['phoneHeight', 'auto', 'accept'],
+  ['phoneHeight', 'tall', 'reject'],
   ['dragToClose.distanceFraction', 0.04, 'reject'],
   ['dragToClose.distanceFraction', 0.05, 'accept'],
   ['dragToClose.distanceFraction', 1, 'accept'],
@@ -345,7 +354,7 @@ test('ranges: every (value, outcome) row is accepted or refused by the tuning le
     executed += 1;
   }
   assert.equal(executed, RANGES.length);
-  assert.equal(RANGES.length, 94);
+  assert.equal(RANGES.length, 102);
 });
 
 test('ranges: a refusal of a tuning member names the dotted key, and the numbers of the library defaults are inside their own ranges', () => {
@@ -740,6 +749,8 @@ const WORKSPACE_TUNING_ASKS: ReadonlyArray<readonly [leaf: string, value: unknow
   ['slide', { durationSec: 0.2 }],
   ['hopFraction', 0.3],
   ['edgeScroll', { zonePx: 30 }],
+  ['rowTop', 200],
+  ['phoneHeight', 'auto'],
 ];
 
 test('scope: every tuning key throws at the workspace, template, host and instance layers alike', () => {
@@ -750,7 +761,7 @@ test('scope: every tuning key throws at the workspace, template, host and instan
       executed += 1;
     }
   }
-  assert.equal(executed, 52);
+  assert.equal(executed, 60);
 });
 
 test('scope: a wrong-scope ask beside valid keys leaves the valid keys applied', () => {

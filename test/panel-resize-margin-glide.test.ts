@@ -27,10 +27,11 @@ const withStops: WorkspaceShellStyleInput = {
   rowNumbers: { rowMarginLeft: 0, stops, rowScroll: true } as never,
 };
 
-test('workspaceShellStyle: while a panel is being resized the margin glides with the shared slide even though the row has stops', () => {
+test('workspaceShellStyle: while a panel is being resized the margin glides with the shared slide even though the row has stops and the window is settling', () => {
   assert.deepEqual(workspaceShellStyle(withStops).transition, { duration: 0 }, 'control: stops without a resize still snap');
   assert.equal(workspaceShellStyle({ ...withStops, panelResizing: true }).transition, PANEL_TRANSITION);
-  assert.deepEqual(workspaceShellStyle({ ...withStops, panelResizing: true, rowResizeSettled: false }).transition, { duration: 0 }, 'a window still moving wins over a panel resize');
+  assert.equal(workspaceShellStyle({ ...withStops, panelResizing: true, rowResizeSettled: false }).transition, PANEL_TRANSITION, 'a panel resize glides inside the window settle too');
+  assert.deepEqual(workspaceShellStyle({ ...withStops, panelResizing: false, rowResizeSettled: false }).transition, { duration: 0 }, 'a window still moving snaps the margin with stops');
 });
 
 const FOUR = () => row(rootEntry(), ...[1, 2, 3].map((k) => made(`s${k}`, { slots: 1, maxSlots: 64 })));

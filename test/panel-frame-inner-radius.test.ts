@@ -8,7 +8,7 @@ import assert from 'node:assert/strict';
 import './support/jsdom-globals.js';
 import * as React from 'react';
 import { createTheme, ThemeProvider } from '@mui/material/styles';
-import { PanelFrame, panelCornerRadiusPx } from '../index.js';
+import { createDefaultTheme, PanelFrame, panelCornerRadiusPx, type CssStyle } from '../index.js';
 import { cleanup, mount, withHost } from './support/mount-harness.js';
 
 afterEach(() => {
@@ -22,7 +22,7 @@ function radiusOf(el: HTMLElement): string {
   return value === 'inherit' && el.parentElement !== null ? radiusOf(el.parentElement) : value;
 }
 
-function rendered(radius: number, frameProps: Record<string, unknown> = {}, sx?: Record<string, unknown>) {
+function rendered(radius: number, frameProps: Record<string, unknown> = {}, sx?: CssStyle) {
   const theme = createTheme({ shape: { borderRadius: radius } });
   const frame = React.createElement(PanelFrame, { footer: false, ...frameProps, ...(sx !== undefined ? { sx } : {}), children: React.createElement('img', { 'data-fullbleed': '' }) });
   const m = mount(withHost(React.createElement(ThemeProvider, { theme }, frame)));
@@ -34,7 +34,7 @@ function rendered(radius: number, frameProps: Record<string, unknown> = {}, sx?:
 test('the content box follows the theme radius of the frame, in every theme', () => {
   for (const radius of [4, 6, 9]) {
     const { theme, outer, inner } = rendered(radius);
-    assert.equal(radiusOf(outer), `${panelCornerRadiusPx(theme)}px`, `outer at theme radius ${radius}`);
+    assert.equal(radiusOf(outer), `${panelCornerRadiusPx({ ...createDefaultTheme('light'), radiusUnitPx: radius })}px`, `outer at theme radius ${radius}`);
     assert.equal(radiusOf(inner), radiusOf(outer), `inner at theme radius ${radius}`);
     cleanup();
   }

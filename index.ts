@@ -59,7 +59,8 @@ export type {
   OverlaySlotName,
   WindowOverlayProps,
 } from './Panel.js';
-export type { GrabDragEnd, GrabDragMove, PreviewExit, PreviewOut } from './dragToClose.js';
+export type { GrabDragEnd, GrabDragMove, HandleKeyEvent, HandlePointerEvent, PreviewExit, PreviewOut } from './dragToClose.js';
+export type { CssStyle, ElementProps } from './cssStyle.js';
 
 export { default as PanelFrame } from './PanelFrame.js';
 export {
@@ -115,7 +116,8 @@ export type { PanelsInput, ProvidedPanels } from './panels/useProvidePanels.js';
 export type { PanelWindow } from './panelWindow.js';
 export { reorderStepsForOffset } from './panelWindow.js';
 
-export { createDefaultTheme } from './defaultTheme.js';
+export { createDefaultTheme, PhonuxThemeProvider } from './defaultTheme.js';
+export type { PhonuxTheme } from './defaultTheme.js';
 
 export type { WorkspacePanelState, WorkspaceState, WorkspaceStorage } from './workspaceState.js';
 export { isWorkspaceState } from './workspaceState.js';
@@ -207,3 +209,4 @@ export type { PanelPresence, PanelPresenceReason } from './panelPresence.js';
 export { PanelManagerError } from './panelManagerError.js';
 export type { PanelRefusal, PanelManagerErrorCode } from './panelManagerError.js';
 export { usePanelDots, type PanelDots } from './usePanelDots.js';
+export { useWorkspaceRow, type WorkspaceRow, type WorkspaceRowEntry } from './workspaceRow.js';

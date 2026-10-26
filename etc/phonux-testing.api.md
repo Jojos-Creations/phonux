@@ -5,8 +5,6 @@
 ```ts
 
 import type * as React_2 from 'react';
-import type { SxProps } from '@mui/material/styles';
-import type { Theme } from '@mui/material/styles';
 
 // @public
 export type AbsentHostMember = 'history' | 'snapshots';
@@ -95,6 +93,11 @@ export interface CreatePanelOptions {
 }
 
 // @public
+export type CssStyle = {
+    readonly [property: string]: string | number | CssStyle | undefined;
+};
+
+// @public
 export type DeferredPin = {
     by: 'pin' | 'unpin';
 } | {
@@ -115,6 +118,12 @@ export type EdgeScrollTuning = {
     zonePx: number;
     maxPxPerSec: number;
     reducedStepMs: number;
+};
+
+// @public
+export type ElementProps = React_2.HTMLAttributes<HTMLElement> & {
+    ref?: React_2.Ref<HTMLElement>;
+    sx?: CssStyle;
 };
 
 // @public
@@ -172,7 +181,7 @@ export type HeaderButtonBase = {
     tooltip?: string | ((c: HeaderButtonContext) => string);
     disabled?: boolean | ((c: HeaderButtonContext) => boolean);
     hidden?: boolean | ((c: HeaderButtonContext) => boolean);
-    sx?: SxProps<Theme>;
+    sx?: CssStyle;
 };
 
 // @public
@@ -730,6 +739,8 @@ export type WorkspaceTuning = {
         [K in keyof EdgeScrollTuning]?: EdgeScrollTuning[K];
     };
     rowGap?: number;
+    rowTop?: number | null;
+    phoneHeight?: 'fit' | 'auto';
     saveQuietMs?: number;
     gestureLockMs?: number;
     gestureQuietMs?: number;

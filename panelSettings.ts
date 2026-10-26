@@ -6,7 +6,7 @@
  */
 
 import type * as React from 'react';
-import type { SxProps, Theme } from '@mui/material/styles';
+import type { CssStyle } from './cssStyle.js';
 import { reportOnce } from './panelApiLevel.js';
 import { PanelManagerError } from './panelManagerError.js';
 import type { PanelRowEntry } from './panelRowEntry.js';
@@ -145,8 +145,8 @@ export type HeaderButtonBase = {
   disabled?: boolean | ((c: HeaderButtonContext) => boolean);
   /** Whether the button is left out, or a function that decides. */
   hidden?: boolean | ((c: HeaderButtonContext) => boolean);
-  /** Extra styles for the button. */
-  sx?: SxProps<Theme>;
+  /** Extra styles for the button: CSS properties in camelCase, with nested keys for selectors. */
+  sx?: CssStyle;
 };
 
 /** The icon form of a title-bar button: the `icon` key is present, and the label is its accessible name only. @public */
@@ -340,6 +340,10 @@ export type WorkspaceTuning = {
   edgeScroll?: { [K in keyof EdgeScrollTuning]?: EdgeScrollTuning[K] };
   /** The gap between panels in px, an integer from 0 to 200. */
   rowGap?: number;
+  /** The room above the row in px, an integer from 0 to 400: the only control for a standalone workspace's row top room. Taken as given and never raised, so a value under 40 (the header's height and its gap) can push panel headers off the top of the screen. Null: the default room (in a column, the column band, the cell's top inset and the row gap), never less than 40 so headers stay on screen. */
+  rowTop?: number | null;
+  /** The phone's height under `phoneFit: 'fit'`: 'fit' scales it with the width; 'auto' makes the frame as tall as the row's room, never shorter than the fit. */
+  phoneHeight?: 'fit' | 'auto';
   /** Milliseconds of quiet before the workspace is saved. */
   saveQuietMs?: number;
   /** Milliseconds after a row scroll gesture during which further wheel events are ignored. */
@@ -399,6 +403,10 @@ export type ResolvedWorkspaceTuning = {
   edgeScroll: EdgeScrollTuning;
   /** The gap between panels in px, an integer from 0 to 200. */
   rowGap: number;
+  /** The room above the row in px, or null for the default room. */
+  rowTop: number | null;
+  /** The phone's height under `phoneFit: 'fit'`: 'fit' or 'auto'. */
+  phoneHeight: 'fit' | 'auto';
   /** Milliseconds of quiet before the workspace is saved. */
   saveQuietMs: number;
   /** Milliseconds after a row scroll gesture during which further wheel events are ignored. */
@@ -1153,6 +1161,28 @@ const CATALOG_ROWS: readonly SettingDescriptor[] = [
     configure: { cls: 'NOW', doors: ['tuning'] },
   },
   {
+    name: 'tuning.rowTop',
+    group: 'tuning',
+    values: 'integer px 0 to 400, or null (workspace only)',
+    default: 'null (the default room)',
+    scope: 'workspace',
+    viewSettable: false,
+    exists: 'new',
+    ownerEntry: 'core-app-row-api',
+    configure: { cls: 'NOW', doors: ['tuning'] },
+  },
+  {
+    name: 'tuning.phoneHeight',
+    group: 'tuning',
+    values: "'fit', 'auto' (workspace only)",
+    default: "'fit'",
+    scope: 'workspace',
+    viewSettable: false,
+    exists: 'new',
+    ownerEntry: 'core-app-row-api',
+    configure: { cls: 'NOW', doors: ['tuning'] },
+  },
+  {
     name: 'tuning.phoneFit',
     group: 'tuning',
     values: 'off, fit (workspace only)',
@@ -1279,6 +1309,8 @@ export const LIBRARY_PANEL_DEFAULTS: LibraryPanelDefaults = freezeClone({
  */
 export const LIBRARY_TUNING_DEFAULTS: ResolvedWorkspaceTuning = freezeClone({
   rowGap: ROW_GAP,
+  rowTop: null,
+  phoneHeight: 'fit',
   dragToClose: {
     distanceFraction: DRAG_CLOSE_NUMBERS.distanceFraction,
     minDistancePx: DRAG_CLOSE_NUMBERS.minDistancePx,
@@ -1382,7 +1414,7 @@ function headerButtonSlotProblem(slot: Plain): string | undefined {
   if (slot.tooltip !== undefined && !stringOrFunction(slot.tooltip)) return 'tooltip must be a string or a function';
   if (slot.disabled !== undefined && !booleanOrFunction(slot.disabled)) return 'disabled must be a boolean or a function';
   if (slot.hidden !== undefined && !booleanOrFunction(slot.hidden)) return 'hidden must be a boolean or a function';
-  if (slot.sx !== undefined && (typeof slot.sx !== 'function' && (typeof slot.sx !== 'object' || slot.sx === null))) return 'sx must be an object, an array or a function';
+  if (slot.sx !== undefined && (typeof slot.sx !== 'object' || slot.sx === null || Array.isArray(slot.sx))) return 'sx must be a style object';
   return undefined;
 }
 
@@ -1599,9 +1631,11 @@ const TUNING_MEMBER_CHECKS: Record<'dragToClose' | 'slide' | 'edgeScroll' | 'chr
   },
 };
 
-const TUNING_SCALAR_CHECKS: Record<'hopFraction' | 'rowGap' | 'saveQuietMs' | 'gestureLockMs' | 'gestureQuietMs' | 'resizeSettleSlides' | 'returnTieBreak' | 'dropTieBreak' | 'rowGesture' | 'initialScroll' | 'maxLivePanels' | 'shrinkOutOfView' | 'phoneFit' | 'phoneFitMin' | 'phoneFitMax' | 'defaultEnterFrom' | 'defaultExitTo', Check> = {
+const TUNING_SCALAR_CHECKS: Record<'hopFraction' | 'rowGap' | 'rowTop' | 'phoneHeight' | 'saveQuietMs' | 'gestureLockMs' | 'gestureQuietMs' | 'resizeSettleSlides' | 'returnTieBreak' | 'dropTieBreak' | 'rowGesture' | 'initialScroll' | 'maxLivePanels' | 'shrinkOutOfView' | 'phoneFit' | 'phoneFitMin' | 'phoneFitMax' | 'defaultEnterFrom' | 'defaultExitTo', Check> = {
   hopFraction: num(0, 1, { minOpen: true }),
   rowGap: integer(0, 200),
+  rowTop: (v) => (v === null ? undefined : integer(0, 400)(v)),
+  phoneHeight: oneOf('fit', 'auto'),
   saveQuietMs: integer(0),
   gestureLockMs: integer(0),
   gestureQuietMs: integer(1),

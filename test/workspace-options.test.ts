@@ -12,7 +12,7 @@ import * as React from 'react';
 import { act } from 'react';
 import { PANEL_SETTINGS_CATALOG, PanelManagerError, PanelRow, Workspace, createWorkspace, definePanel, useHost, useProvidePanels } from '../index.js';
 import type { HistoryAPI, PanelTemplate, PhoneDeviceAPI, SettingsAPI, SnapshotsAPI, WorkspaceHandle, WorkspaceLive, WorkspaceWrapProps } from '../index.js';
-import { createDefaultTheme } from '../defaultTheme.js';
+import { createDefaultTheme, muiThemeFor } from '../defaultTheme.js';
 import { HostProvider } from '../hostApi.js';
 import { ThemeProvider } from '@mui/material/styles';
 import { advanceFrames, mount } from './support/mount-harness.js';
@@ -100,13 +100,17 @@ test('with none of them a view reads the defaults a bare HostProvider gives', as
   assert.deepEqual(hostOf(), { size: { width: 390, height: 700, modelId: 'default' }, column: false, entries: null, snapshots: false, labels: null });
 });
 
-test('topInset is the clearance above the row, and an update moves it', async () => {
+test('standalone, tuning.rowTop is the row top room and a configure moves it; topInset alone does not set it', async () => {
   win.height = 800;
-  const ws = await started({ topInset: 200 });
   const padding = (): string => getComputedStyle(document.querySelector<HTMLElement>('[data-row-scroller]')!).paddingTop;
+  const ws = await started({ tuning: { rowTop: 200 } });
   assert.equal(padding(), '200px');
-  await act(async () => ws.update({ topInset: 0 }));
-  assert.equal(padding(), '40px', 'never less than the header room, so a header stays on screen');
+  await act(async () => void ws.panels.configureTuning({ rowTop: 0 }));
+  assert.equal(padding(), '0px', 'an explicit rowTop is taken as given, never raised to the header room');
+  await act(async () => void ws.panels.configureTuning({ rowTop: null }));
+  assert.equal(padding(), '40px', 'without rowTop, never less than the header room, so a header stays on screen');
+  await started({ topInset: 200 });
+  assert.notEqual(getComputedStyle(document.querySelector<HTMLElement>('[data-row-scroller]')!).paddingTop, '200px');
 });
 
 test('panels.onPanelsClosed hears each close, and the callback an update gave is the one a later close calls', async () => {
@@ -301,7 +305,7 @@ test('an option and the same value in a hand-built Host give the same view resul
     const provided = useProvidePanels({ workspace: hand, phoneWidth: 460, containerWidth: 1000, overflowContainerRef: ref, labels: values.labels });
     const row = React.createElement(PanelRow, { entries: provided.entries, rootId: hand.rootId, closingIds: provided.closingIds, enteringViaAnchorIds: provided.enteringViaAnchorIds, exitRightIds: provided.exitRightIds, enterSideById: provided.enterSideById, maxLiveWidth: provided.maxLiveWidth, rowNumbers: provided.rowNumbers, workspace: hand });
     const shell = React.createElement(Workspace, { overflowContainerRef: ref, rowRef, containerWidth: 1000, phoneWidth: 460, fixedColumnCount: provided.fixedViewCount, liveWidths: provided.liveWidths, rowScroll: provided.rowScroll, rowNumbers: provided.rowNumbers, workspace: hand, children: row });
-    return React.createElement(ThemeProvider, { theme: createDefaultTheme('light'), children: React.createElement(HostProvider, { host: { panels: provided, ...values }, children: shell }) });
+    return React.createElement(ThemeProvider, { theme: muiThemeFor(createDefaultTheme('light')), children: React.createElement(HostProvider, { host: { panels: provided, ...values }, children: shell }) });
   }
   mount(React.createElement(HandWired));
   await advanceFrames(400);
@@ -323,11 +327,11 @@ test('the mount does not pass rowResizeSettled: Workspace settles the row from t
 // 6. The catalog's tuning leaves
 // ---------------------------------------------------------------------------
 
-test('the catalog holds 20 tuning leaves, and DESIGN.md says so', () => {
+test('the catalog holds 22 tuning leaves, and DESIGN.md says so', () => {
   const leaves = PANEL_SETTINGS_CATALOG.filter((d) => d.name.startsWith('tuning.'));
-  assert.equal(leaves.length, 20);
+  assert.equal(leaves.length, 22);
   const design = readFileSync(fileURLToPath(new URL('../DESIGN.md', import.meta.url)), 'utf8');
   const start = design.indexOf('## Workspace options, wrap and update');
   assert.ok(start >= 0);
-  assert.match(design.slice(start, design.indexOf('\n## ', start + 1)), /holds 20 tuning leaves/);
+  assert.match(design.slice(start, design.indexOf('\n## ', start + 1)), /holds 22 tuning leaves/);
 });
