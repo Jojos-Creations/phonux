@@ -18,6 +18,11 @@ export interface ClosedPagesPanelProps {
      * When present, must be a positive integer.
      */
     readonly pageSize?: number;
+    /**
+     * The search text, for a host that draws its own search field elsewhere, such as in the panel's footer. Given, the
+     * panel draws no search field and filters by it; absent, the panel draws its own field.
+     */
+    readonly query?: string;
 }
 /**
  * The closed pages as a searchable list grouped by the day they closed, newest first. Choosing a row touches its entry
@@ -26,4 +31,4 @@ export interface ClosedPagesPanelProps {
  * @throws RangeError when `pageSize` is given and is not a positive integer.
  * @public
  */
-export declare function ClosedPagesPanel({ list, onReopen, className, pageSize }: ClosedPagesPanelProps): React.ReactElement;
+export declare function ClosedPagesPanel({ list, onReopen, className, pageSize, query: hostQuery }: ClosedPagesPanelProps): React.ReactElement;
