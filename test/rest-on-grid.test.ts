@@ -1,7 +1,7 @@
 /**
  * The rest settle lands on a grid stop. With a phone, a three-slot panel and four phones at a 2000 px container (phone 380, gap 16),
- * the grid is every 396 from 0, each inner rest moved back 2 ((1968 + 16) mod 396, halved), and the row ends at 1184, off the grid
- * and a shorter last step. A rest from 892 must settle on the grid stop 790, or the step back is short.
+ * the grid is every 396 from 0, with 2 ((1968 + 16) mod 396, halved) of centering before and after the strip, so the row ends at
+ * 1188, on the grid. A rest from 892 must settle on the grid stop 792, or the step back is short.
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -13,7 +13,6 @@ import type { PanelSettings, PanelWindow } from '../index.js';
 const PHONE = 380;
 const GAP = 16;
 const STEP = PHONE + GAP;
-const SHIFT = ((2000 - 2 * GAP + GAP) % STEP) / 2;
 const ROOT = 'root';
 const made = (id: string, layer: PanelSettings = {}): PanelWindow => {
   const skeleton = appendPanel([], { url: `https://${id}.example`, title: id, view: 'scroll-row-view' }, id, ROOT)[0]!;
@@ -23,11 +22,11 @@ const made = (id: string, layer: PanelSettings = {}): PanelWindow => {
 test('a rest from between stops settles on a grid stop, so the step back is one phone width', () => {
   const n = computeRowNumbers({ entries: [made('a'), made('w', { slots: 3 }), made('p1'), made('p2'), made('p3'), made('p4')], phoneWidth: PHONE, containerWidth: 2000, gap: GAP, wholePanels: true });
   const base = 2 * STEP + 100;
-  const onGrid = (at: number) => Math.abs((at + SHIFT) / STEP - Math.round((at + SHIFT) / STEP)) < 1e-6;
+  const onGrid = (at: number) => Math.abs(at / STEP - Math.round(at / STEP)) < 1e-6;
   assert.deepEqual(n.stops, n.stepStops, 'every stop is a grid stop');
-  assert.equal(n.stops.at(-1), 1184, 'the row ends at 1184 (3152 - 1968), which is off the grid');
+  assert.equal(n.stops.at(-1), 1188, 'the row ends at 1188 (2 + 3152 + 2 - 1968), three steps');
   const settled = nearestStop(n, base);
   assert.ok(onGrid(settled), `settled ${settled}`);
-  assert.equal(settled, 2 * STEP - SHIFT, 'the grid stop 790 is nearer than the end at 1184');
-  assert.equal(settled - n.stops[n.stops.indexOf(settled) - 1]!, STEP, 'the step back to 394 is one phone width');
+  assert.equal(settled, 2 * STEP, 'the grid stop 792 is nearer than the end at 1188');
+  assert.equal(settled - n.stops[n.stops.indexOf(settled) - 1]!, STEP, 'the step back to 396 is one phone width');
 });

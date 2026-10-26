@@ -782,13 +782,13 @@ test('matrix:scrollOnOpen', async () => {
   assert.equal(r.m.container.scrollLeft, 0, 'no scroll happens at configure');
   r.turn(() => r.h.c!.scrollTo());
   await r.settle();
-  assert.equal(r.m.container.scrollLeft, 1132, "scrollTo() defaults to the setting: c's left edge 1234 less the 16 gap is 1218, and the nearest stop that shows c is 1132");
+  assert.equal(r.m.container.scrollLeft, 1218, "scrollTo() defaults to the setting: c's left edge 1320 less the 16 gap is 1304, and the nearest stop that shows c is 1218");
   done(r.turn(() => r.h.c!.configure({ scrollOnOpen: 'none' })));
   r.turn(() => r.h.a!.scrollTo('start'));
   await r.settle();
   r.turn(() => r.h.c!.scrollTo());
   await r.settle();
-  assert.equal(r.m.container.scrollLeft, 726, "none: scrollTo() falls back to into-view: c's right edge 1624 less the 984 visible is 640, and the stop that shows c whole is 726");
+  assert.equal(r.m.container.scrollLeft, 812, "none: scrollTo() falls back to into-view: c's right edge 1710 less the 984 visible is 726, and the stop that shows c whole is 812");
   const hidden = await matrixRig({ ids: ['a', 'b', 'c', 'd', 'e'], width: 1000, workspace: { tuning: { rowGesture: 'step' } } });
   hidden.turn(() => hidden.h.c!.hide());
   await hidden.settle();
@@ -796,7 +796,7 @@ test('matrix:scrollOnOpen', async () => {
   assert.equal(hidden.m.container.scrollLeft, 0, 'K, H: stored, nothing scrolls');
   hidden.turn(() => hidden.h.c!.show());
   await hidden.settle();
-  assert.equal(hidden.m.container.scrollLeft, 1132, 'the next show of the hidden panel reads it');
+  assert.equal(hidden.m.container.scrollLeft, 1218, 'the next show of the hidden panel reads it');
 });
 
 test('matrix:scrollOnMove', async () => {
@@ -815,7 +815,7 @@ test('matrix:scrollOnMove', async () => {
     r.m.unmount();
     return at;
   };
-  assert.equal(await grown(false), 320, 'control: a in view grows to two slots, 796 px, and the row follows to the stop that shows it whole, 406 less 86');
+  assert.equal(await grown(false), 406, 'control: a in view grows to two slots, 796 px, and the row follows to the stop that shows it whole, 406');
   assert.equal(await grown(true), 0, 'the next move reads none: the row stays');
 });
 
@@ -1499,8 +1499,8 @@ test('matrix:tuning.initialScroll', async () => {
   assert.equal(r.m.container.scrollLeft, 0, 'nothing scrolls now');
   const next = await matrixRig({ ids, width: 1000, workspace: { tuning: { initialScroll: 'end', rowGesture: 'step' } } });
   await next.settle();
-  // The row's end is 4450 (flush at both ends) less the 968 window: 3482, the last stop.
-  assert.equal(next.m.container.scrollLeft, 3482, 'a mount that reads end puts the strip at its farthest legal scroll');
+  // The row's end is 4450 plus 86 of centering at each end, less the 968 window: 3654, the last stop.
+  assert.equal(next.m.container.scrollLeft, 3654, 'a mount that reads end puts the strip at its farthest legal scroll');
   assert.equal(r.ws.tuning.initialScroll, 'end', 'the workspace now holds it for its next mount');
 });
 

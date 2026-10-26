@@ -34,11 +34,12 @@ test('workspaceShellStyle: while a panel is being resized the margin glides with
   assert.deepEqual(workspaceShellStyle({ ...withStops, panelResizing: false, rowResizeSettled: false }).transition, { duration: 0 }, 'a window still moving snaps the margin with stops');
 });
 
-const FOUR = () => row(rootEntry(), ...[1, 2, 3].map((k) => made(`s${k}`, { slots: 1, maxSlots: 64 })));
+// Three slots in a window of four: the fitting margin is wider than the centering an overflowing row keeps.
+const THREE = () => row(rootEntry(), ...[1, 2].map((k) => made(`s${k}`, { slots: 1, maxSlots: 64 })));
 const marginOf = (container: HTMLElement): number => Number.parseFloat(container.querySelector<HTMLElement>('[data-row-strip]')!.style.marginLeft);
 
 async function openedAt1800(): Promise<ReturnType<typeof mountRow>> {
-  const m = mountRow(FOUR(), 1800, { tuning: { rowGesture: 'step' } });
+  const m = mountRow(THREE(), 1800, { tuning: { rowGesture: 'step' } });
   await advanceFrames(2000);
   return m;
 }
@@ -46,7 +47,7 @@ async function openedAt1800(): Promise<ReturnType<typeof mountRow>> {
 test('a panel grown past the window glides the centering margin instead of snapping it, with the stops added in that same render', async () => {
   mock.timers.enable({ apis: ['setTimeout', 'setInterval'] });
   const m = await openedAt1800();
-  assert.equal(m.latest().rowNumbers.stops.length, 0, 'control: four slots fit the window, so the row centers and has no stops');
+  assert.equal(m.latest().rowNumbers.stops.length, 0, 'control: three slots fit the window, so the row centers and has no stops');
   const start = marginOf(m.container);
   assert.ok(start > 0, `control: a fitting row has a centering margin (${start})`);
   act(() => void m.latest().setSlots('s1', 5));
@@ -55,7 +56,7 @@ test('a panel grown past the window glides the centering margin instead of snapp
   const mid = marginOf(m.container);
   await advanceFrames(2000);
   const end = marginOf(m.container);
-  assert.equal(end, m.latest().rowNumbers.rowMarginLeft, 'an overflowing row rests on the centering of its first whole run');
+  assert.equal(end, m.latest().rowNumbers.rowMarginLeft, 'an overflowing row rests on its centering shift');
   assert.ok(Math.min(start, end) < mid && mid < Math.max(start, end), `32 ms in the margin is between ${start} and ${end}: ${mid}`);
 });
 
