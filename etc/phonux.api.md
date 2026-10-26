@@ -1008,6 +1008,7 @@ export interface PanelWindow {
         parkable?: boolean;
     };
     params?: JsonValue;
+    restoreSlots?: number;
     settings?: ResolvedPanelSettings;
     slots?: number;
     title?: string;
@@ -1228,6 +1229,7 @@ export type ResolvedWorkspaceTuning = {
     phoneFitMax: number;
     defaultEnterFrom: EnterFrom;
     defaultExitTo: ExitTo;
+    shrinkUnfocused: boolean;
 };
 
 // @public
@@ -1920,6 +1922,7 @@ export type WorkspaceTuning = {
     phoneFitMax?: number;
     defaultEnterFrom?: EnterFrom;
     defaultExitTo?: ExitTo;
+    shrinkUnfocused?: boolean;
 };
 
 // @public

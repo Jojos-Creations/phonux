@@ -631,6 +631,18 @@ frame. A change of count also needs margin: a step to more slots needs that coun
 step back needs the larger phone at least 2 percent under the cap. The panel's size box glides the new size on the slide timing,
 as any size change does.
 
+## Unfocused panels rest at one phone
+
+With `tuning.shrinkUnfocused` on, a panel wider than one phone is drawn one phone wide whenever it is not the panel in use.
+Two things rest it: another panel becoming active (a press or a focus inside it, the same moment `useActivePanel` changes),
+and the person moving the row (a step of the row gesture, a dot press or a drag of the dot bar). A move rests every wide
+panel, the active one included; a scroll the library makes itself, such as following a resize or opening a panel, rests
+none. A resting panel keeps the count it goes back to in `restoreSlots`, and the next press or focus inside it resizes it
+back, with the same capacity rule as `setSlots`. Any `setSlots` while it rests replaces that count. The workspace file
+saves the count it goes back to, never the resting one, so a reload never loses a chosen width. The rest is a resize from
+code, so the person's recorded `overrides.slots` stays as it was. The next activation brings a resting panel back even
+after the tuning is turned off, so no panel is left at one phone.
+
 ## `params` is opaque and JSON-serializable by construction
 
 `PanelSummary.params`/`PanelsAPI.create({ params })` carry per-component data the registry and the row never
@@ -1739,6 +1751,7 @@ flip with a transition rule of its own) or SCOPE (a template-scope key).
 | `tuning.phoneFitMax` | number from 1 to 4 (workspace only) | 1.13 (PHONE_FIT_MAX) | NOW (configureTuning only). The largest scale of the preferred phone size the fit gives; see "Phone fit". Other values throw. |
 | `tuning.defaultEnterFrom` | auto, left, right, anchor, top, bottom, fade, expand (workspace only) | expand | NEXT (configureTuning only). Read at each panel's next enter; an entrance in progress keeps its style. |
 | `tuning.defaultExitTo` | auto, left, right, top, bottom, fade, shrink (workspace only) | shrink | NEXT (configureTuning only). Read at each panel's next park or close; an exit in progress keeps its style. |
+| `tuning.shrinkUnfocused` | boolean (workspace only) | false | NEXT (configureTuning only). Read at the next activation or row scroll; a panel already at one phone keeps the width it goes back to. See "Unfocused panels rest at one phone". |
 <!-- catalog:end -->
 
 ## Panel boxes are reported, never drawn over
@@ -2192,7 +2205,7 @@ Level N means panel code written for phonux N.x. `PANEL_API` equals the package'
 | The slot context hooks a view calls (`usePanelPinned`, `usePanelTuning` and the rest) and `useViewState`, snapshots | Workspace tuning options and the theme |
 | Header button items, the chrome attribute and part names | The saved workspace format, which has its own `version` |
 | The template's own `settings` keys and `params` | Peer dependency ranges (React, MUI) |
-| `useHost().panels` (`PanelsAPI`): the verbs a view calls and the summaries they return | The workspace-only tuning options (`rowGap`, `rowTop`, `phoneHeight`, `saveQuietMs`, `gestureLockMs`, `gestureQuietMs`, `resizeSettleSlides`, `returnTieBreak`, `dropTieBreak`, `rowGesture`, `initialScroll`, `maxLivePanels`, `chrome`, `phoneFit`, `phoneFitMin`, `phoneFitMax`, `dragToClose`, `slide`, `hopFraction`, `edgeScroll`, `defaultEnterFrom`, `defaultExitTo`): a host sets them on the workspace, and a view only reads what `usePanelTuning` returns |
+| `useHost().panels` (`PanelsAPI`): the verbs a view calls and the summaries they return | The workspace-only tuning options (`rowGap`, `rowTop`, `phoneHeight`, `saveQuietMs`, `gestureLockMs`, `gestureQuietMs`, `resizeSettleSlides`, `returnTieBreak`, `dropTieBreak`, `rowGesture`, `initialScroll`, `maxLivePanels`, `chrome`, `phoneFit`, `phoneFitMin`, `phoneFitMax`, `dragToClose`, `slide`, `hopFraction`, `edgeScroll`, `defaultEnterFrom`, `defaultExitTo`, `shrinkUnfocused`): a host sets them on the workspace, and a view only reads what `usePanelTuning` returns |
 | The frame components a view renders and their props: `PanelFrame`, `PanelHeader`, `PanelHeaderRow`, `PanelFooter`, `DragToClose`, `PanelSizeBox`, `WindowOverlay` | |
 | The view hooks: `usePanelStates`, `usePanelState`, `useWorkspace`, `useWorkspaceManager`, `useActivePanel`, `usePhoneSize` | |
 

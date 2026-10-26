@@ -19,7 +19,7 @@ afterEach(() => cleanup());
 
 type Refused = Extract<ConfigureResult, { ok: false }>;
 
-const WORKSPACE_ONLY = ['defaultEnterFrom', 'defaultExitTo', 'rowGap', 'rowTop', 'phoneHeight', 'saveQuietMs', 'gestureLockMs', 'gestureQuietMs', 'resizeSettleSlides', 'returnTieBreak', 'dropTieBreak', 'rowGesture', 'initialScroll', 'maxLivePanels', 'chrome', 'phoneFit', 'phoneFitMin', 'phoneFitMax', 'dragToClose', 'slide', 'hopFraction', 'edgeScroll'];
+const WORKSPACE_ONLY = ['defaultEnterFrom', 'defaultExitTo', 'shrinkUnfocused', 'rowGap', 'rowTop', 'phoneHeight', 'saveQuietMs', 'gestureLockMs', 'gestureQuietMs', 'resizeSettleSlides', 'returnTieBreak', 'dropTieBreak', 'rowGesture', 'initialScroll', 'maxLivePanels', 'chrome', 'phoneFit', 'phoneFitMin', 'phoneFitMax', 'dragToClose', 'slide', 'hopFraction', 'edgeScroll'];
 const TEMPLATE = ['hostCreatable', 'multiple', 'maxInstances', 'hollowDot'];
 
 /** One legal value for every settings key the catalog names, so a sweep can ask each of them. */
@@ -78,6 +78,7 @@ const VALUE: Record<string, unknown> = {
   phoneFitMax: 1.1,
   defaultEnterFrom: 'expand',
   defaultExitTo: 'shrink',
+  shrinkUnfocused: true,
   slots: 2,
   maxSlots: 3,
 };

@@ -28,6 +28,10 @@ export interface RowScroller {
   inputs(): number;
   /** Records one such ask. */
   noteInput(): void;
+  /** Records that a person is moving the row itself (a step, a dot, a drag of the dot bar), not pressing inside it. */
+  noteMove(): void;
+  /** Wakes `listener` at each `noteMove()`. Returns the unsubscribe. */
+  subscribeMoves(listener: () => void): () => void;
   /** Ends the glide in flight where it is. */
   stop(): void;
   /** The exclusive writer, or null while one is held. A `replayScroll` claim keeps the scroll asked for while it is held, for `replayDeferred()`. */
@@ -85,6 +89,7 @@ function createRowScroller(el: HTMLElement): RowScroller {
   let settleWait = false;
 
   const listeners = new Set<() => void>();
+  const moveListeners = new Set<() => void>();
   const notify = (): void => {
     for (const l of [...listeners]) l();
   };
@@ -144,6 +149,13 @@ function createRowScroller(el: HTMLElement): RowScroller {
     inputs: () => inputs,
     noteInput() {
       inputs += 1;
+    },
+    noteMove() {
+      for (const l of [...moveListeners]) l();
+    },
+    subscribeMoves(listener) {
+      moveListeners.add(listener);
+      return () => void moveListeners.delete(listener);
     },
     claimHeld: () => claimed,
     deferUntilRelease(run) {

@@ -1057,6 +1057,25 @@ test('matrix:tuning.defaultExitTo', async () => {
   assert.equal(axisOf(slotAt(r, engine), 'Y'), 0, 'an exit in progress keeps its style: still sideways, never downward');
 });
 
+test('matrix:tuning.shrinkUnfocused', async () => {
+  probe('tuning.shrinkUnfocused');
+  await wrongScopeInEveryStatus({ tuning: { shrinkUnfocused: true } }, 'tuning.shrinkUnfocused');
+  const r = await matrixRig();
+  await r.settle();
+  const press = (id: string): void => r.turn(() => void r.slot(id)!.dispatchEvent(new MouseEvent('pointerdown', { bubbles: true, cancelable: true })));
+  const widths = (id: string): unknown[] => [r.entry(id).slots, r.entry(id).restoreSlots];
+  r.turn(() => r.h.b!.setSlots(2, 'person'));
+  press('c');
+  assert.deepEqual(widths('b'), [2, undefined], 'control: off by default, b stays two wide while c is active');
+  assert.deepEqual(shape(r.turn(() => r.ws.panels.configureTuning({ shrinkUnfocused: true }))), { now: [], later: ['tuning.shrinkUnfocused'], shadowed: [] });
+  assert.deepEqual(widths('b'), [2, undefined], 'nothing resizes at configure');
+  press('c');
+  assert.deepEqual(widths('b'), [1, 2], 'c used again: b rests at one phone and keeps two');
+  press('b');
+  assert.deepEqual(widths('b'), [2, undefined], 'b active again: back to two');
+  for (const bad of ['yes', 1]) assert.equal(thrownCode(() => r.ws.panels.configureTuning({ shrinkUnfocused: bad } as never)), 'invalid-settings', `${String(bad)} throws`);
+});
+
 test('matrix:title', async () => {
   probe('title');
   const logged: string[] = [];
@@ -1654,13 +1673,13 @@ test('the class table ran every cell: executed cells equal 4 classes by 9 status
 
 // The design copy is frozen; a catalog key added or removed after it is listed here, never in the copy.
 const REMOVED_AFTER_DESIGN: readonly string[] = ['formFactor', 'formFactors', 'hideWhenLast', 'returnPriority', 'evictionRank', 'evictionOrder', 'scrollOnDrag', 'viewState', 'keepMounted', 'placeOnReturn', 'placeFallback', 'undoPlacement', 'closeExit', 'animated', 'persist', 'rememberLayout', 'undoWindowMs', 'reportClose', 'snapshot', 'draggable', 'placeable'];
-const ADDED_AFTER_DESIGN: readonly string[] = ['edgeHold', 'tuning.defaultEnterFrom', 'tuning.defaultExitTo', 'tuning.maxLivePanels', 'tuning.chrome', 'slots', 'maxSlots', 'tuning.resizeSettleSlides', 'tuning.phoneFit', 'tuning.phoneFitMin', 'tuning.phoneFitMax', 'hollowDot', 'movable', 'tuning.rowTop', 'tuning.phoneHeight'];
+const ADDED_AFTER_DESIGN: readonly string[] = ['edgeHold', 'tuning.defaultEnterFrom', 'tuning.defaultExitTo', 'tuning.maxLivePanels', 'tuning.chrome', 'slots', 'maxSlots', 'tuning.resizeSettleSlides', 'tuning.phoneFit', 'tuning.phoneFitMin', 'tuning.phoneFitMax', 'hollowDot', 'movable', 'tuning.rowTop', 'tuning.phoneHeight', 'tuning.shrinkUnfocused'];
 
-test('the probes ran every catalog name once: 56 executed, equal to the catalog and to the design copy of it plus the names added after it', () => {
+test('the probes ran every catalog name once: 57 executed, equal to the catalog and to the design copy of it plus the names added after it', () => {
   const design = JSON.parse(readFileSync(new URL('./fixtures/catalog-design-copy.json', import.meta.url), 'utf8')) as { name: string }[];
   assert.equal(design.length, 62);
-  assert.equal(CATALOG_NAMES.length, 56);
-  assert.equal(probesExecuted().size, 56);
+  assert.equal(CATALOG_NAMES.length, 57);
+  assert.equal(probesExecuted().size, 57);
   assert.deepEqual([...probesExecuted()].sort(), [...CATALOG_NAMES].sort());
   assert.deepEqual([...probesExecuted()].sort(), [...design.map((d) => d.name).filter((name) => !REMOVED_AFTER_DESIGN.includes(name)), ...ADDED_AFTER_DESIGN].sort());
 });
