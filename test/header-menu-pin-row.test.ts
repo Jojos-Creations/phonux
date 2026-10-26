@@ -6,7 +6,7 @@ import { test, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
 import './support/jsdom-globals.js';
 import { quietly } from '../quietMove.js';
-import { advanceFrames, cleanup } from './support/mount-harness.js';
+import { cleanup } from './support/mount-harness.js';
 import { letter, matrixRig, viewLog } from './support/configure-matrix.js';
 
 afterEach(() => {
