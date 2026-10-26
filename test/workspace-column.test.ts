@@ -236,6 +236,28 @@ test('without Reduce Motion the column glides to the new workspace', async () =>
   assert.equal(track.style.transition, `transform ${SLIDE_DURATION_SEC}s cubic-bezier(${SLIDE_EASE.join(',')})`);
 });
 
+test('a workspace added or removed above the current one moves the track without a slide, and the next move still glides', async () => {
+  const c = await three();
+  const glide = `transform ${SLIDE_DURATION_SEC}s cubic-bezier(${SLIDE_EASE.join(',')})`;
+  act(() => void c.scrollTo(1));
+  const track = cells()[0]!.parentElement!;
+  await until('at the middle workspace', () => track.style.transform === 'translateY(-100%)');
+  const shown = c.workspaces[1]!;
+  let added: ReturnType<WorkspaceColumnHandle['addWorkspace']> | undefined;
+  act(() => void (added = c.addWorkspace({ index: 0 })));
+  await until('four cells', () => cells().length === 4);
+  assert.equal(c.workspaces[2], shown, 'the same workspace is current');
+  assert.equal(track.style.transform, 'translateY(-200%)');
+  assert.equal(track.style.transition, 'none', 'an index shift jumps');
+  act(() => c.removeWorkspace(added!));
+  await until('three cells', () => cells().length === 3);
+  assert.equal(track.style.transform, 'translateY(-100%)');
+  assert.equal(track.style.transition, 'none', 'a removal above jumps too');
+  act(() => void c.scrollTo(2));
+  await until('moved down', () => track.style.transform === 'translateY(-200%)');
+  assert.equal(track.style.transition, glide, 'a change of workspace still glides');
+});
+
 // ---------------------------------------------------------------------------
 // The saved list
 // ---------------------------------------------------------------------------
@@ -348,8 +370,10 @@ test('topInset clears chrome the app draws: the controls start below it', async 
   await until('a cell', () => cells().length === 1);
   const cell = cells()[0]!;
   const top = (el: Element): string => getComputedStyle(el).top;
-  assert.equal(top(neighbour(cell, 'above')), '32px');
-  assert.equal(top(cell.querySelector('[data-workspace-name-input]')!.parentElement!), '56px');
+  // jsdom garbles env() inside calc(), so the px term and the inset are read apart.
+  const below = (value: string, px: number): boolean => value.startsWith(`calc(${px}px + `) && value.includes('safe-area-inset-top');
+  assert.ok(below(top(neighbour(cell, 'above')), 32), top(neighbour(cell, 'above')));
+  assert.ok(below(top(cell.querySelector('[data-workspace-name-input]')!.parentElement!), 56));
 });
 
 test('each control the column draws is exactly 24 px high: the neighbour buttons, the empty-column button and the name input', async () => {

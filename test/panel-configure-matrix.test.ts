@@ -782,13 +782,13 @@ test('matrix:scrollOnOpen', async () => {
   assert.equal(r.m.container.scrollLeft, 0, 'no scroll happens at configure');
   r.turn(() => r.h.c!.scrollTo());
   await r.settle();
-  assert.equal(r.m.container.scrollLeft, 1218, "scrollTo() defaults to the setting: c's left edge 1234 less the 16 gap");
+  assert.equal(r.m.container.scrollLeft, 1132, "scrollTo() defaults to the setting: c's left edge 1234 less the 16 gap is 1218, and the nearest stop that shows c is 1132");
   done(r.turn(() => r.h.c!.configure({ scrollOnOpen: 'none' })));
   r.turn(() => r.h.a!.scrollTo('start'));
   await r.settle();
   r.turn(() => r.h.c!.scrollTo());
   await r.settle();
-  assert.equal(r.m.container.scrollLeft, 812, "none: scrollTo() falls back to into-view: c's right edge 1624 less the 984 visible is 640, and the stop that shows c whole is 812");
+  assert.equal(r.m.container.scrollLeft, 726, "none: scrollTo() falls back to into-view: c's right edge 1624 less the 984 visible is 640, and the stop that shows c whole is 726");
   const hidden = await matrixRig({ ids: ['a', 'b', 'c', 'd', 'e'], width: 1000, workspace: { tuning: { rowGesture: 'step' } } });
   hidden.turn(() => hidden.h.c!.hide());
   await hidden.settle();
@@ -796,7 +796,7 @@ test('matrix:scrollOnOpen', async () => {
   assert.equal(hidden.m.container.scrollLeft, 0, 'K, H: stored, nothing scrolls');
   hidden.turn(() => hidden.h.c!.show());
   await hidden.settle();
-  assert.equal(hidden.m.container.scrollLeft, 1218, 'the next show of the hidden panel reads it');
+  assert.equal(hidden.m.container.scrollLeft, 1132, 'the next show of the hidden panel reads it');
 });
 
 test('matrix:scrollOnMove', async () => {
@@ -815,7 +815,7 @@ test('matrix:scrollOnMove', async () => {
     r.m.unmount();
     return at;
   };
-  assert.equal(await grown(false), 406, 'control: a in view grows to two slots, 796 px, and the row follows to the stop that shows it whole');
+  assert.equal(await grown(false), 320, 'control: a in view grows to two slots, 796 px, and the row follows to the stop that shows it whole, 406 less 86');
   assert.equal(await grown(true), 0, 'the next move reads none: the row stays');
 });
 
@@ -1218,6 +1218,47 @@ test('matrix:tuning.rowGap', async () => {
   assert.deepEqual([unmeasured.ws.tuning.rowGap, unmeasured.m.latest().entries === entries], [40, true], 'unmeasured: stored');
 });
 
+test('matrix:tuning.rowTop', async () => {
+  probe('tuning.rowTop');
+  await wrongScopeInEveryStatus({ tuning: { rowTop: 162 } }, 'tuning.rowTop');
+  const r = await matrixRig();
+  await r.settle();
+  const renders = r.m.renders();
+  assert.deepEqual({ ...done(r.turn(() => r.ws.panels.configureTuning({ rowTop: 162 }))) }, { ok: true, changed: true, shown: false, now: ['tuning.rowTop'], later: [], shadowed: [], notes: [] });
+  assert.equal(r.m.renders() - renders, 1, 'one commit');
+  assert.equal(r.ws.tuning.rowTop, 162, 'stored at the commit of the call');
+  done(r.turn(() => r.ws.panels.configureTuning({ rowTop: 200 })));
+  await r.settle();
+  assert.equal(r.ws.tuning.rowTop, 200, 'a second value replaces the first');
+  done(r.turn(() => r.ws.panels.configureTuning({ rowTop: null })));
+  await r.settle();
+  assert.equal(r.ws.tuning.rowTop, null, 'null restores the default room');
+  const taken = await matrixRig();
+  assert.deepEqual(taken.turn(() => [letter(taken.h.a!.hide()), letter(taken.ws.panels.configureTuning({ rowTop: 30 }))]), ['T', 'T'], 'applied while a token is held: the patch does not re-price the row');
+  assert.equal(thrownCode(() => r.ws.panels.configureTuning({ rowTop: 401 })), 'invalid-settings', 'outside 0 to 400 throws');
+  const unmeasured = await matrixRig({ width: 0 });
+  const entries = unmeasured.m.latest().entries;
+  done(unmeasured.turn(() => unmeasured.ws.panels.configureTuning({ rowTop: 40 })));
+  assert.deepEqual([unmeasured.ws.tuning.rowTop, unmeasured.m.latest().entries === entries], [40, true], 'unmeasured: stored');
+});
+
+test('matrix:tuning.phoneHeight', async () => {
+  probe('tuning.phoneHeight');
+  await wrongScopeInEveryStatus({ tuning: { phoneHeight: 'auto' } }, 'tuning.phoneHeight');
+  const r = await matrixRig();
+  await r.settle();
+  const renders = r.m.renders();
+  assert.deepEqual({ ...done(r.turn(() => r.ws.panels.configureTuning({ phoneHeight: 'auto' }))) }, { ok: true, changed: true, shown: false, now: ['tuning.phoneHeight'], later: [], shadowed: [], notes: [] });
+  assert.equal(r.m.renders() - renders, 1, 'one commit');
+  assert.equal(r.ws.tuning.phoneHeight, 'auto', 'stored at the commit of the call');
+  done(r.turn(() => r.ws.panels.configureTuning({ phoneHeight: 'fit' })));
+  await r.settle();
+  assert.equal(r.ws.tuning.phoneHeight, 'fit', 'the default is restored by a second call');
+  const taken = await matrixRig();
+  assert.deepEqual(taken.turn(() => [letter(taken.h.a!.hide()), letter(taken.ws.panels.configureTuning({ phoneHeight: 'auto' }))]), ['T', 'T'], 'applied while a token is held: the patch does not re-price the row');
+  assert.equal(thrownCode(() => r.ws.panels.configureTuning({ phoneHeight: 'tall' as never })), 'invalid-settings', 'a value other than fit or auto throws');
+});
+
 test('matrix:tuning.dragToClose', async () => {
   probe('tuning.dragToClose');
   await wrongScopeInEveryStatus({ tuning: { dragToClose: { minDistancePx: 120 } } }, 'tuning.dragToClose');
@@ -1458,7 +1499,8 @@ test('matrix:tuning.initialScroll', async () => {
   assert.equal(r.m.container.scrollLeft, 0, 'nothing scrolls now');
   const next = await matrixRig({ ids, width: 1000, workspace: { tuning: { initialScroll: 'end', rowGesture: 'step' } } });
   await next.settle();
-  assert.equal(next.m.container.scrollLeft, 3482, 'a mount that reads end puts the strip at its farthest legal scroll: 4450 less the 969 window');
+  // The row's end is 4450 (flush at both ends) less the 968 window: 3482, the last stop.
+  assert.equal(next.m.container.scrollLeft, 3482, 'a mount that reads end puts the strip at its farthest legal scroll');
   assert.equal(r.ws.tuning.initialScroll, 'end', 'the workspace now holds it for its next mount');
 });
 
@@ -1612,13 +1654,13 @@ test('the class table ran every cell: executed cells equal 4 classes by 9 status
 
 // The design copy is frozen; a catalog key added or removed after it is listed here, never in the copy.
 const REMOVED_AFTER_DESIGN: readonly string[] = ['formFactor', 'formFactors', 'hideWhenLast', 'returnPriority', 'evictionRank', 'evictionOrder', 'scrollOnDrag', 'viewState', 'keepMounted', 'placeOnReturn', 'placeFallback', 'undoPlacement', 'closeExit', 'animated', 'persist', 'rememberLayout', 'undoWindowMs', 'reportClose', 'snapshot', 'draggable', 'placeable'];
-const ADDED_AFTER_DESIGN: readonly string[] = ['edgeHold', 'tuning.defaultEnterFrom', 'tuning.defaultExitTo', 'tuning.maxLivePanels', 'tuning.chrome', 'slots', 'maxSlots', 'tuning.resizeSettleSlides', 'tuning.phoneFit', 'tuning.phoneFitMin', 'tuning.phoneFitMax', 'hollowDot', 'movable'];
+const ADDED_AFTER_DESIGN: readonly string[] = ['edgeHold', 'tuning.defaultEnterFrom', 'tuning.defaultExitTo', 'tuning.maxLivePanels', 'tuning.chrome', 'slots', 'maxSlots', 'tuning.resizeSettleSlides', 'tuning.phoneFit', 'tuning.phoneFitMin', 'tuning.phoneFitMax', 'hollowDot', 'movable', 'tuning.rowTop', 'tuning.phoneHeight'];
 
-test('the probes ran every catalog name once: 54 executed, equal to the catalog and to the design copy of it plus the names added after it', () => {
+test('the probes ran every catalog name once: 56 executed, equal to the catalog and to the design copy of it plus the names added after it', () => {
   const design = JSON.parse(readFileSync(new URL('./fixtures/catalog-design-copy.json', import.meta.url), 'utf8')) as { name: string }[];
   assert.equal(design.length, 62);
-  assert.equal(CATALOG_NAMES.length, 54);
-  assert.equal(probesExecuted().size, 54);
+  assert.equal(CATALOG_NAMES.length, 56);
+  assert.equal(probesExecuted().size, 56);
   assert.deepEqual([...probesExecuted()].sort(), [...CATALOG_NAMES].sort());
   assert.deepEqual([...probesExecuted()].sort(), [...design.map((d) => d.name).filter((name) => !REMOVED_AFTER_DESIGN.includes(name)), ...ADDED_AFTER_DESIGN].sort());
 });

@@ -58,9 +58,13 @@ test('scrolling: wheel steps move the strip end to end and reveal nothing, where
   const control = await rigOf({ reveal: 'edges' });
   const back = (): void => wheel(control, { deltaX: -100 });
   await steps([() => wheel(control, { deltaX: 100 }), () => wheel(control, { deltaX: 100 }), back]);
-  assert.equal(control.row(), BASE, 'control: one phone width back from 812 lands on 406, where w4 is still in view between the window edge and the parked panels');
+  // 812 is a one-phone grid rest that does not center, so w4 is cut by the window's left edge there and counts as in view:
+  // the step back reveals w3 and parks the oldest live panel, w4, at once.
+  assert.equal(control.row(), 'root w1* w2* w3 w4* w5 w6 w7 w8', 'control: one phone width back from 812 lands on 406 and reveals w3, since w4 is cut by the window edge at 812');
   await steps([back]);
-  assert.equal(control.row(), 'root w1* w2* w3 w4* w5 w6 w7 w8', 'control: with root scrolled out of view and w4 first in view the next step back reveals w3 and parks the oldest panel, the leftmost of the tied, w4');
+  await advanceFrames(300);
+  assert.equal(control.m.container.scrollLeft, 0, 'control: the next step back reaches the first stop');
+  assert.equal(control.row(), 'root w1* w2* w3 w4* w5 w6 w7 w8', 'control: the revealed row stays as it is');
 });
 
 test('scrolling: Shift+wheel steps reveal nothing, where revealOnScroll edges reveals the panel at the window edge', async () => {

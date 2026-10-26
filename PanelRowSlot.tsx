@@ -1,5 +1,5 @@
 import * as React from 'react';
-import { PresenceContext, animate, motion, useIsPresent, useReducedMotion, useReducedMotionConfig, visualElementStore, type TargetAndTransition } from 'motion/react';
+import { animate, motion, useIsPresent, useReducedMotion, useReducedMotionConfig, visualElementStore, type TargetAndTransition } from 'motion/react';
 import { SLOT_TRANSITION, directionalTransition, slideToTransition } from './directionalTransition.js';
 import { ChromeStoreContext, PANEL_SLIDE_EVENT, createRectReporter, usePanelDragging, type PanelRectReporter } from './panelChrome.js';
 import { PanelSlotContext } from './panelSlotContext.js';
@@ -59,14 +59,14 @@ function slideStart(): number {
 }
 
 /**
- * How a slot enters: a slide from one side, a fade where it rests, or its width growing from 0 at its rest.
+ * How a slot enters: a slide from one side, a fade where it rests, or a scale up from 0 about its center.
  * @internal
  */
 export type SlotEntrance = 'left' | 'right' | 'top' | 'bottom' | 'fade' | 'expand';
 
 /**
  * How a slot leaves: 'down' is the close exit on the close timing; the others take the slide timing, and 'shrink'
- * eases its width to 0 at its rest.
+ * scales it to 0 about its center, which moves to where its neighbours meet.
  * @internal
  */
 export type SlotExit = 'down' | 'left' | 'right' | 'top' | 'bottom' | 'fade' | 'shrink';
@@ -75,7 +75,7 @@ export type SlotExit = 'down' | 'left' | 'right' | 'top' | 'bottom' | 'fade' | '
  * The pure values behind one PanelRowSlot render, split out so a test can assert exact motion
  * values without mounting a component. `exit` stays entirely local to this function: 'down' needs a second
  * axis and its own transition, 'left' a target independent of `leftOffset`; neither fits directionalTransition's
- * symmetric default. 'expand' and 'shrink' only fade here; the slot eases their width itself.
+ * symmetric default.
  */
 export function panelRowSlotMotion(
   leftOffset: number,
@@ -102,7 +102,10 @@ export function panelRowSlotMotion(
       ? sideways
       : enterDirection === 'top' || enterDirection === 'bottom'
         ? { initial: { x: rest, y: enterDirection === 'top' ? -phoneHeight : phoneHeight, opacity: 0 }, animate: { x: rest, y: 0, opacity: 1 } }
-        : { initial: { x: rest, opacity: 0 }, animate: { x: rest, opacity: 1 } };
+        : enterDirection === 'expand'
+          ? // Starts half a span left, where its neighbours part from, so the center rides the opening gap.
+            { initial: { x: rest - ownSpan / 2, scale: 0, opacity: 0 }, animate: { x: rest, scale: 1, opacity: 1 } }
+          : { initial: { x: rest, opacity: 0 }, animate: { x: rest, opacity: 1 } };
   // 'down': a close, timed to DragToClose's exit so trash and drag closes read as one motion (DragToClose calls
   // `onClose` after its own `y` animation, so this ramps in under a box already off-screen). 'left'/'right': a
   // park, off the edge it was hidden past, so a close never looks like a park.
@@ -115,7 +118,10 @@ export function panelRowSlotMotion(
           ? { ...parkExitTarget(rest, ownSpan, 'left', rowScroll) }
           : exitDirection === 'top' || exitDirection === 'bottom'
             ? { x: rest, y: exitDirection === 'top' ? -phoneHeight : phoneHeight, opacity: 0 }
-            : { x: rest, opacity: 0 };
+            : exitDirection === 'shrink'
+              ? // The mirror of 'expand': half a span left keeps the center where the neighbours meet as they close up.
+                { x: rest - ownSpan / 2, scale: 0, opacity: 0 }
+              : { x: rest, opacity: 0 };
   return { initial, animate, exit, transition };
 }
 
@@ -152,22 +158,10 @@ export const slotDriver = {
     (visualElementStore.get(el) as { animationState?: { animateChanges(): void } } | undefined)?.animationState?.animateChanges();
   },
   animate(el: HTMLElement, values: SlotValues, transition: TargetAndTransition['transition']): void {
-    animate(el, { x: values.x, opacity: values.opacity }, transition as never);
-  },
-  /**
-   * Eases the slot's drawn width from `from` to `to` px on the slide clock, calling `draw` with each frame's width.
-   * Returns the run, so a later move can stop it where it is.
-   */
-  resize(from: number, to: number, transition: { duration: number; ease: [number, number, number, number] }, draw: (width: number) => void, done: () => void): { stop: () => void } {
-    return animate(from, to, { ...transition, startTime: slideStart(), onUpdate: draw, onComplete: done });
+    // Scale too: a restart that stopped an expand part way would otherwise leave the panel small.
+    animate(el, { x: values.x, opacity: values.opacity, scale: 1 }, transition as never);
   },
 };
-
-/** What a slot's own width animation holds: the run in progress and the width it last drew, while it differs from the slot's. */
-interface WidthRun {
-  run?: { stop: () => void };
-  drawn?: number;
-}
 
 /**
  * One entry's animated slot in the row: its position, width, enter/exit motion and stacking.
@@ -252,8 +246,6 @@ export function PanelRowSlot({
     const { chrome: store, panelId: id } = live.current;
     if (store !== undefined && id !== undefined) store.setSliding(id, on);
   };
-  // A child AnimatePresence finds at its own first render does not enter, so it does not grow either.
-  const presence = React.useContext(PresenceContext);
   const framed = useHoldsFrame(el);
   // This slot's own copy of the transition, so the moment its slide counts from can be set for the one call that starts it.
   const startable: { duration: number; ease?: unknown; startTime?: number } = React.useMemo(() => ({ ...transition }), [transition]);
@@ -282,6 +274,12 @@ export function PanelRowSlot({
   restNow.current = { leftOffset, transition: snapping || tracking ? INSTANT_TRANSITION : slideTransition };
   const setUpBefore = React.useRef(false);
   const present = useIsPresent();
+  // Motion starts an exit in its own layout effect, before this slot's: the clock must be on the transition by render, so a
+  // shrink and the neighbours closing up over it count from the same moment however late the commit runs.
+  if (!present && exitDirection === 'shrink') startable.startTime = slideStart();
+  React.useLayoutEffect(() => {
+    if (!present) delete startable.startTime;
+  });
   // The drop's new rest lands in the commit that changes it, in the same frame as the dragged box's own offset going to 0: a snap that waited
   // for Motion's next frame would draw the box a frame at the old slot.
   const lastRest = React.useRef(leftOffset);
@@ -300,55 +298,13 @@ export function PanelRowSlot({
       delete startable.startTime;
     }
   });
-  const sizing = React.useRef<WidthRun>({});
-  const grows = React.useRef(entrance === 'expand' && !(snapping || tracking) && presence?.initial !== false);
+  // An expand's scale and its neighbours' parting must share one clock, or the gap it grows into lags it by a frame.
   React.useLayoutEffect(() => {
-    const node = el.current;
-    if (node === null) return;
-    const own = sizing.current;
-    // Clipped across only while drawn narrower than the slot, so the content keeps its full width and is revealed, never squashed,
-    // and the header the frame draws above the slot's box still shows.
-    const draw = (w: number): void => {
-      own.drawn = w;
-      node.style.width = `${w}px`;
-      node.style.overflowX = 'clip';
-      kickRect();
-    };
-    const settle = (): void => {
-      own.run = undefined;
-      own.drawn = undefined;
-      node.style.width = `${width}px`;
-      node.style.overflowX = '';
-      kickRect();
-    };
-    const ease = (from: number, to: number, done: () => void): void => {
-      own.run?.stop();
-      draw(from);
-      own.run = slotDriver.resize(from, to, transition, draw, done);
-    };
-    if (grows.current) {
-      grows.current = false;
-      if (reducedMotion) return;
-      ease(0, width, settle);
-      return;
-    }
-    if (!present) {
-      // A leaving slot holds the width it was drawn at, unless it shrinks from there.
-      own.run?.stop();
-      own.run = undefined;
-      if (exitDirection !== 'shrink') return;
-      if (reducedMotion) draw(0);
-      else ease(own.drawn ?? width, 0, () => {});
-      return;
-    }
-    if (own.drawn === undefined) return;
-    // Back in the row while drawn narrower (a re-priced width mid-grow, a return mid-shrink): carry on to the width from the one on screen.
-    if (reducedMotion || snapping || tracking) {
-      own.run?.stop();
-      settle();
-    } else ease(own.drawn, width, settle);
-  }, [width, present, snapping || tracking]);
-  React.useEffect(() => () => sizing.current.run?.stop(), []);
+    if (entrance !== 'expand' || snapping || tracking || el.current === null) return;
+    startable.startTime = slideStart();
+    slotDriver.startPending(el.current);
+    delete startable.startTime;
+  }, []);
   React.useEffect(() => {
     if (!setUpBefore.current) {
       setUpBefore.current = true;
@@ -466,16 +422,45 @@ function useHoldsFrame(slot: React.RefObject<HTMLElement | null>): boolean {
 export function PanelSizeBox({
   width,
   height,
+  reveal,
   children,
 }: {
   /** The box's width in px; a change animates. Omitted: the slot's drawn width inside a row, else the phone width. */
   width?: number;
   /** The box's height in px; a change animates. Omitted: the slot's drawn height inside a row, else the phone height. */
   height?: number;
-  /** The content, laid out at the box's size on every frame. */
+  /**
+   * True: while the box glides, its content is laid out once at the larger of the start and end sizes and the eased box clips it,
+   * so the content is resized when a grow starts and when a shrink ends, not on every frame. Default false.
+   */
+  reveal?: boolean;
+  /** The content, laid out at the box's size on every frame, or under `reveal` at the glide's larger size. */
   children: React.ReactNode;
 }) {
-  return <SizeBox width={width} height={height}>{children}</SizeBox>;
+  return (
+    <SizeBox width={width} height={height} reveal={reveal}>
+      {children}
+    </SizeBox>
+  );
+}
+
+/** A size glide of a panel's box: where it started and where it lands. A height of `'100%'` is the slot's own. @public */
+export interface PanelSizeGlide {
+  /** The box's size when the glide started. */
+  from: { width: number; height: number | '100%' };
+  /** The size the glide lands on. */
+  to: { width: number; height: number | '100%' };
+}
+
+const SizeGlideContext = React.createContext<PanelSizeGlide | null>(null);
+
+/**
+ * The size glide of the panel box this is called in, from its start until it lands; null while the box is still, under Reduce
+ * Motion, and outside a box. A window that draws no frames does not advance a glide, so a host that waits on its end caps the wait.
+ * @public
+ */
+export function usePanelSizeGlide(): PanelSizeGlide | null {
+  return React.useContext(SizeGlideContext);
 }
 
 const missingHost = (): never => {
@@ -493,7 +478,7 @@ export const useInsideSizeBox = (): boolean => React.useContext(SizeBoxContext);
  * default frame draws around its whole panel. A box below another draws a plain div of the same size.
  * @internal
  */
-export function SizeBox({ width: given, height: givenHeight, children }: { width?: number; height?: number | '100%'; children: React.ReactNode }) {
+export function SizeBox({ width: given, height: givenHeight, reveal = false, children }: { width?: number; height?: number | '100%'; reveal?: boolean; children: React.ReactNode }) {
   const slot = React.useContext(PanelSlotContext);
   // Read without throwing: a box given both sides needs no host.
   const phone = useOptionalPhoneSize();
@@ -508,6 +493,7 @@ export function SizeBox({ width: given, height: givenHeight, children }: { width
   const box = React.useRef<HTMLDivElement>(null);
   const drawn = React.useRef<{ width: number; height: number | '100%' } | undefined>(undefined);
   const run = React.useRef<{ stop: () => void } | undefined>(undefined);
+  const [glide, setGlide] = React.useState<PanelSizeGlide | null>(null);
   // Starts in the commit's layout effect, on the slot's slide clock (`slideStart`), so a commit that janks opens no gap to a neighbour.
   React.useLayoutEffect(() => {
     const node = box.current;
@@ -525,22 +511,38 @@ export function SizeBox({ width: given, height: givenHeight, children }: { width
     const h0 = typeof from?.height === 'number' && typeof height === 'number' ? from.height : height;
     if (from === undefined || snaps || (Math.abs(from.width - width) < 0.5 && (typeof h0 !== 'number' || typeof height !== 'number' || Math.abs(h0 - height) < 0.5))) {
       draw(width, height);
+      setGlide(null);
       return;
     }
     draw(from.width, h0);
+    setGlide({ from: { width: from.width, height: h0 }, to: { width, height } });
     const transition = slide === undefined ? PANEL_TRANSITION : slideToTransition(slide);
     run.current = animate(0, 1, {
       ...transition,
       startTime: slideStart(),
       onUpdate: (p: number) => draw(from.width + (width - from.width) * p, typeof h0 === 'number' && typeof height === 'number' ? h0 + (height - h0) * p : height),
-      onComplete: () => draw(width, height),
+      onComplete: () => {
+        draw(width, height);
+        setGlide(null);
+      },
     });
   }, [width, height, snaps, nested]);
   React.useEffect(() => () => run.current?.stop(), []);
   if (nested) return <div data-panel-size-plain="" style={{ width, height }}>{children}</div>;
+  // The larger end of each side, so a grow lays the content out once at its start and a shrink once at its end.
+  const larger = (a: number | '100%', b: number | '100%'): number | '100%' => (typeof a === 'number' && typeof b === 'number' ? Math.max(a, b) : '100%');
+  const content = reveal ? (
+    <div data-panel-size-reveal="" style={glide === null ? { width: '100%', height: '100%' } : { width: larger(glide.from.width, glide.to.width), height: larger(glide.from.height, glide.to.height) }}>
+      {children}
+    </div>
+  ) : (
+    children
+  );
   return (
-    <div ref={box} data-panel-size-box="" style={{ width, height }}>
-      <SizeBoxContext.Provider value>{children}</SizeBoxContext.Provider>
+    <div ref={box} data-panel-size-box="" style={{ width, height, ...(reveal ? { overflow: 'clip' } : {}) }}>
+      <SizeBoxContext.Provider value>
+        <SizeGlideContext.Provider value={glide}>{content}</SizeGlideContext.Provider>
+      </SizeBoxContext.Provider>
     </div>
   );
 }

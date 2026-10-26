@@ -7,7 +7,7 @@ import assert from 'node:assert/strict';
 import './support/jsdom-globals.js';
 import * as React from 'react';
 import { PanelRow, Workspace, createWorkspace, definePanel, usePhoneFit, usePhoneSize, useProvidePanels, type WorkspaceHandle } from '../index.js';
-import { createDefaultTheme } from '../defaultTheme.js';
+import { createDefaultTheme, muiThemeFor } from '../defaultTheme.js';
 import { HostProvider } from '../hostApi.js';
 import { ThemeProvider } from '@mui/material/styles';
 import { advanceFrames, mount } from './support/mount-harness.js';
@@ -58,7 +58,7 @@ test('the table at the real phone height and gap 24: widths, counts and leftover
 test('a window the height cap binds in: the minimum wins, with as many slots as fit, never one by default', () => {
   const short = fit(844, 390);
   assert.deepEqual([short.count, short.width, short.heightCapped], [2, 320, true]);
-  assert.ok(short.height > budgetOf(390), 'the row scrolls vertically');
+  assert.equal(short.height, budgetOf(390), 'cut to the row, which never scrolls vertically');
   assert.deepEqual([fit(1280, 650).count, fit(1280, 650).width], [3, 320]);
 });
 
@@ -81,6 +81,7 @@ test('invariants over every container width and height-budget class', () => {
       const room = width - 2 * GAP;
       assert.ok(f.count >= 1, `${width}x${height}: at least one slot`);
       assert.ok(Number.isInteger(f.width) && Number.isInteger(f.height), `${width}x${height}: whole pixels`);
+      assert.ok(f.height <= budgetOf(height), `${width}x${height}: never taller than the row, got ${f.height}`);
       const minWidth = Math.ceil(PHONE_FIT_MIN * 390);
       assert.ok(f.width >= minWidth && f.width <= Math.floor(PHONE_FIT_MAX * 390), `${width}x${height}: the scale stays in the band, got ${f.width}`);
       if (room >= minWidth) assert.ok(drawn(f) <= room, `${width}x${height}: ${drawn(f)} fits ${room}`);
@@ -205,7 +206,7 @@ test('a hand-wired flow: usePhoneFit before useProvidePanels, the pair to Worksp
     const provided = useProvidePanels({ workspace: hand, phoneWidth: phone.width, containerWidth: width, overflowContainerRef: ref });
     const row = React.createElement(PanelRow, { entries: provided.entries, rootId: hand.rootId, closingIds: provided.closingIds, enteringViaAnchorIds: provided.enteringViaAnchorIds, exitRightIds: provided.exitRightIds, enterSideById: provided.enterSideById, maxLiveWidth: provided.maxLiveWidth, rowNumbers: provided.rowNumbers, workspace: hand });
     const shell = React.createElement(Workspace, { overflowContainerRef: ref, rowRef, containerWidth: width, phoneWidth: phone.width, phoneHeight: phone.height, fixedColumnCount: provided.fixedViewCount, liveWidths: provided.liveWidths, rowScroll: provided.rowScroll, rowNumbers: provided.rowNumbers, workspace: hand, children: row });
-    return React.createElement(ThemeProvider, { theme: createDefaultTheme('light'), children: React.createElement(HostProvider, { host: { panels: provided }, children: shell }) });
+    return React.createElement(ThemeProvider, { theme: muiThemeFor(createDefaultTheme('light')), children: React.createElement(HostProvider, { host: { panels: provided }, children: shell }) });
   }
   mount(React.createElement(HandWired));
   await advanceFrames(400);
@@ -226,7 +227,7 @@ test('a Workspace given no phoneHeight publishes no phone size: usePhoneSize is 
     const provided = useProvidePanels({ workspace: hand, phoneWidth: 390, containerWidth: 1000, overflowContainerRef: ref });
     const row = React.createElement(PanelRow, { entries: provided.entries, rootId: hand.rootId, closingIds: provided.closingIds, enteringViaAnchorIds: provided.enteringViaAnchorIds, exitRightIds: provided.exitRightIds, enterSideById: provided.enterSideById, maxLiveWidth: provided.maxLiveWidth, rowNumbers: provided.rowNumbers, workspace: hand });
     const shell = React.createElement(Workspace, { overflowContainerRef: ref, rowRef, containerWidth: 1000, phoneWidth: 390, fixedColumnCount: provided.fixedViewCount, liveWidths: provided.liveWidths, rowScroll: provided.rowScroll, rowNumbers: provided.rowNumbers, workspace: hand, children: row });
-    return React.createElement(ThemeProvider, { theme: createDefaultTheme('light'), children: React.createElement(HostProvider, { host: { panels: provided }, children: shell }) });
+    return React.createElement(ThemeProvider, { theme: muiThemeFor(createDefaultTheme('light')), children: React.createElement(HostProvider, { host: { panels: provided }, children: shell }) });
   }
   mount(React.createElement(HandWired));
   await advanceFrames(400);
@@ -248,4 +249,31 @@ test('the fitted size landed by the measurement is drawn at once: no size slide 
   assert.equal(box.style.width, '330px', 'the box takes the fitted width on its first frame');
   await advanceFrames(400);
   assert.equal(box.style.transform, '', 'and it stays there');
+});
+
+/** The phone's drawn height under `tuning`, observed on a real mount. */
+async function drawnHeight(tuning: Record<string, unknown>, width: number, height: number): Promise<number> {
+  const m = await mounted({ tuning }, width, height);
+  const result = Number(document.querySelector<HTMLElement>('[data-phone]')!.dataset.phone!.split('x')[1]);
+  rigCleanup();
+  return result;
+}
+
+test('differential tuning.phoneHeight: under fit the frame scales with the width, under auto it is as tall as the row room', async () => {
+  const seen = { fit: await drawnHeight({ phoneFit: 'fit' }, 1000, 900), auto: await drawnHeight({ phoneFit: 'fit', phoneHeight: 'auto' }, 1000, 900) };
+  differential('tuning.phoneHeight', (run) => {
+    for (const mode of ['fit', 'auto'] as const) run(mode, () => seen[mode]);
+  });
+  assert.deepEqual(seen, { fit: 790, auto: 900 - 40 - 40 }, 'auto is the room under the 40 px header and footer rooms');
+});
+
+test('differential tuning.rowTop: a larger room above the row shortens the auto frame, down to the fit it is never shorter than', async () => {
+  const seen = { none: await drawnHeight({ phoneFit: 'fit', phoneHeight: 'auto' }, 1000, 900), large: await drawnHeight({ phoneFit: 'fit', phoneHeight: 'auto', rowTop: 300 }, 1000, 900) };
+  const fitLarge = await drawnHeight({ phoneFit: 'fit', phoneHeight: 'fit', rowTop: 300 }, 1000, 900);
+  differential('tuning.rowTop', (run) => {
+    run(null, () => seen.none);
+    run(300, () => seen.large);
+  });
+  assert.ok(fitLarge < seen.none, 'the larger room is shorter than the default room');
+  assert.deepEqual(seen, { none: 900 - 40 - 40, large: fitLarge });
 });

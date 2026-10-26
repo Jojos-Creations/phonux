@@ -4,13 +4,13 @@
  */
 import type { ClosedPageEntry } from './hostApi.js';
 
-/** Drops the least recently touched entries from the front until at most `limit` remain. */
-export function trimToLimit(entries: readonly ClosedPageEntry[], limit: number): readonly ClosedPageEntry[] {
-  return entries.length > limit ? entries.slice(entries.length - limit) : entries;
+/** Drops the least recently touched entries from the front until at most `limit` remain; no limit keeps them all. */
+export function trimToLimit(entries: readonly ClosedPageEntry[], limit: number | undefined): readonly ClosedPageEntry[] {
+  return limit !== undefined && entries.length > limit ? entries.slice(entries.length - limit) : entries;
 }
 
 /** Adds `entry` as the most recently touched one. An entry with the same id is replaced, not duplicated. */
-export function addClosedPage(entries: readonly ClosedPageEntry[], entry: ClosedPageEntry, limit: number): readonly ClosedPageEntry[] {
+export function addClosedPage(entries: readonly ClosedPageEntry[], entry: ClosedPageEntry, limit: number | undefined): readonly ClosedPageEntry[] {
   return trimToLimit([...entries.filter((e) => e.id !== entry.id), entry], limit);
 }
 
@@ -55,4 +55,16 @@ export function groupClosedPages(entries: readonly ClosedPageEntry[], query: str
       date,
       entries: [...dayEntries].sort((a, b) => (a.closedAt < b.closedAt ? 1 : a.closedAt > b.closedAt ? -1 : 0)),
     }));
+}
+
+/** Keeps the first `count` entries across `groups` in order, dropping a group left empty. */
+export function firstClosedPages(groups: readonly ClosedPagesDayGroup[], count: number): readonly ClosedPagesDayGroup[] {
+  const out: ClosedPagesDayGroup[] = [];
+  let left = count;
+  for (const group of groups) {
+    if (left <= 0) break;
+    out.push(group.entries.length <= left ? group : { date: group.date, entries: group.entries.slice(0, left) });
+    left -= group.entries.length;
+  }
+  return out;
 }

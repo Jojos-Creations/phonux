@@ -1,14 +1,13 @@
 /**
- * The phone fit prices the row's height from the same reserve under the frames that Workspace pads with: the footer's room,
- * or the row gap when that is more. It is the same in every theme.
+ * The phone fit prices the row's height from the same reserves that Workspace pads with: the header's room above the frames and
+ * the footer's room under them, or the row gap when that is more. It is the same in every theme.
  */
 import { afterEach, test } from 'node:test';
 import assert from 'node:assert/strict';
 import './support/jsdom-globals.js';
 import * as React from 'react';
 import { act } from 'react';
-import { createTheme, type Theme } from '@mui/material/styles';
-import { createWorkspace, definePanel, usePhoneSize } from '../index.js';
+import { createDefaultTheme, createWorkspace, definePanel, usePhoneSize, type PhonuxTheme } from '../index.js';
 import { FOOTER_ROOM_PX } from '../panelChromeSize.js';
 import { advanceFrames } from './support/mount-harness.js';
 import { RowHeightContext } from '../panelTuning.js';
@@ -28,12 +27,13 @@ const probe = definePanel({
 const phoneHeight = (): number => Number(document.querySelector<HTMLElement>('[data-phone]')!.dataset.phone!.split('x')[1]);
 const padBottom = (): number => Number.parseFloat(getComputedStyle(document.querySelector('[data-row-scroller]')!).paddingBottom);
 const GAP = 16;
-const TOP = GAP;
+/** The room above the frames: the row gap, floored at the header's room, the same 40 as the footer's. */
+const TOP = FOOTER_ROOM_PX;
 /** The fitted height is the width-quantized phone, so it falls at most 2 px short of the budget and never over. */
 const assertFills = (actual: number, budget: number, what: string): void => assert.ok(actual <= budget && actual > budget - 2, `${what}: ${actual} against a budget of ${budget}`);
 const WINDOW_HEIGHT = 700;
 
-async function autoMounted(opts: { theme?: Theme; rowGap?: number }): Promise<void> {
+async function autoMounted(opts: { theme?: PhonuxTheme; rowGap?: number }): Promise<void> {
   win.width = 1000;
   win.height = WINDOW_HEIGHT;
   const ws = track(createWorkspace({ templates: [probe], tuning: { phoneFit: 'fit', rowGap: opts.rowGap ?? GAP }, ...(opts.theme === undefined ? {} : { theme: () => opts.theme! }) }));
@@ -60,7 +60,7 @@ test('a row gap wider than the footer room is the reserve', async () => {
 });
 
 test('a mount theme with another corner radius: the reserve is 40 for the fit and the scroller padding alike', async () => {
-  const theme = createTheme({ shape: { borderRadius: 6 } });
+  const theme = { ...createDefaultTheme('light'), radiusUnitPx: 6 };
   await autoMounted({ theme });
   assert.equal(padBottom(), 40);
   assertFills(phoneHeight(), WINDOW_HEIGHT - TOP - 40, 'the fit reserve is the padding');
@@ -75,7 +75,30 @@ test('a live row gap change re-fits the phone to the new reserve', async () => {
   await until('the first fit', () => phoneHeight() > 0 && phoneHeight() >= WINDOW_HEIGHT - TOP - FOOTER_ROOM_PX - 2);
   assertFills(phoneHeight(), WINDOW_HEIGHT - TOP - FOOTER_ROOM_PX, 'gap under the footer room');
   act(() => ws.panels.configureTuning({ rowGap: 60 }));
-  await until('the re-fit', () => phoneHeight() < 640);
-  assertFills(phoneHeight(), WINDOW_HEIGHT - TOP - 60, 'the wider gap is the reserve');
+  await until('the re-fit', () => phoneHeight() <= WINDOW_HEIGHT - TOP - 60);
+  await advanceFrames(1000);
+  assert.ok(phoneHeight() <= WINDOW_HEIGHT - TOP - 60, `the wider gap is the reserve: ${phoneHeight()} against ${WINDOW_HEIGHT - TOP - 60}`);
   assert.equal(padBottom(), 60);
+});
+
+test('in a row shorter than the phone, fit and auto both draw the row room: the frame never runs off the bottom', async () => {
+  win.width = 1300;
+  win.height = 700;
+  const drawn = async (phoneHeightMode: 'fit' | 'auto'): Promise<number> => {
+    win.width = 1300;
+    win.height = WINDOW_HEIGHT;
+    const ws = track(createWorkspace({ templates: [probe], tuning: { phoneFit: 'fit', rowGap: GAP, rowTop: 162, phoneHeight: phoneHeightMode } }));
+    ws.addPanel('reserve-probe');
+    await until('the probe', () => slots(document.body).includes('reserve-probe'));
+    await until('the first fit', () => phoneHeight() > 0);
+    await advanceFrames(1000);
+    const height = phoneHeight();
+    rigCleanup();
+    return height;
+  };
+  const fit = await drawn('fit');
+  const room = WINDOW_HEIGHT - 162 - 40;
+  assert.ok(Math.round((330 / 390) * 700) > room, 'the phone at the minimum width is taller than the row room');
+  assert.equal(fit, room, 'the fit is cut to the row room');
+  assert.equal(await drawn('auto'), fit, 'auto draws the same height');
 });

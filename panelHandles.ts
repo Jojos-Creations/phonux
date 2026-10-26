@@ -85,6 +85,8 @@ export interface ReadSource {
   configure(id: PanelId, patch: InstancePatch | ViewPatch, caller: 'panel' | 'view'): ConfigureResult;
   /** Patches the template-scope settings of a template. */
   configureTemplate(templateId: string, patch: SettingsPatch): ConfigureResult;
+  /** The panel `id` and every panel it opened, in row order. */
+  familyOf(id: PanelId): readonly PanelId[];
   /** Patches the workspace tuning. */
   configureTuning(patch: { [K in keyof WorkspaceTuning]?: WorkspaceTuning[K] | null }): ConfigureResult;
 }

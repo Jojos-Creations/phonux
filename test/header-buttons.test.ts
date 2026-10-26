@@ -70,8 +70,8 @@ test('parity: a slot with only icon, label and onClick is the markup of a bare M
 });
 
 const mountedSlots = {
-  size: slot('Panel size', { order: 0, description: 'phone', sx: { color: 'common.white' } }),
-  pin: slot('Pin panel', { order: 1, pressed: (c) => c.state.pinned, sx: { color: 'common.white' } }),
+  size: slot('Panel size', { order: 0, description: 'phone', sx: { color: '#ffffff' } }),
+  pin: slot('Pin panel', { order: 1, pressed: (c) => c.state.pinned, sx: { color: '#ffffff' } }),
   menu: slot('Menu', { side: 'start' }),
 };
 
@@ -92,7 +92,7 @@ test('where drawn: two end buttons after the view action in one cluster, a start
   assert.equal(described.textContent, 'phone');
   assert.ok(buttons.every((b) => b.tagName === 'BUTTON'));
   const menu = buttons.find((b) => b.getAttribute('aria-label') === 'Menu')!;
-  assert.notEqual(size.className, menu.className, 'a slot with sx color common.white is not the inherit one');
+  assert.notEqual(size.className, menu.className, 'a slot with sx color #ffffff is not the inherit one');
 });
 
 test('where drawn: order ties break by id, and a panel declaring none draws nothing', async () => {
@@ -156,6 +156,8 @@ const INVALID: readonly (readonly [string, string, unknown])[] = [
   ["side 'middle'", 'pin', { icon: 'i', label: 'L', onClick: () => undefined, side: 'middle' }],
   ['order NaN', 'pin', { icon: 'i', label: 'L', onClick: () => undefined, order: Number.NaN }],
   ["sx 'red'", 'pin', { icon: 'i', label: 'L', onClick: () => undefined, sx: 'red' }],
+  ['an sx array', 'pin', { icon: 'i', label: 'L', onClick: () => undefined, sx: [{ color: 'red' }] as never }],
+  ['an sx function', 'pin', { icon: 'i', label: 'L', onClick: () => undefined, sx: (() => ({})) as never }],
   ['disabled that is a string', 'pin', { icon: 'i', label: 'L', onClick: () => undefined, disabled: 'yes' }],
   ['hidden that is a number', 'pin', { icon: 'i', label: 'L', onClick: () => undefined, hidden: 1 }],
   ['pressed that is a boolean', 'pin', { icon: 'i', label: 'L', onClick: () => undefined, pressed: true }],
@@ -186,8 +188,6 @@ const VALID: readonly (readonly [string, Partial<HeaderButton>])[] = [
   ['a hidden boolean', { hidden: false }],
   ["side 'start'", { side: 'start' }],
   ['a negative order', { order: -3 }],
-  ['an sx array', { sx: [{ color: 'red' }] }],
-  ['an sx function', { sx: () => ({}) }],
   ['false for the id', {}],
 ];
 let executedValid = 0;

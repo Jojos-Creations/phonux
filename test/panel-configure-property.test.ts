@@ -12,6 +12,7 @@ import assert from 'node:assert/strict';
 import './support/jsdom-globals.js';
 import type { ConfigureResult, PanelHandle, PanelSettings } from '../index.js';
 import { panelKey } from '../panelSettings.js';
+import { maxScrollOf } from '../rowNumbers.js';
 import { advanceFrames, cleanup } from './support/mount-harness.js';
 import { pinRig, type PinRig } from './support/pin-rig.js';
 
@@ -400,7 +401,8 @@ test('final property: over random settings vectors, pin, unpin, scrollTo, resetL
         await advanceFrames(900);
         const n = r.m.latest().rowNumbers;
         if (Number.isFinite(n.windowWidth)) {
-          const farthest = Math.max(0, n.rowMarginLeft + n.stripWidth - n.windowWidth);
+          // The end pad is part of the strip's bound, so the farthest legal scroll is the library's own maxScrollOf.
+          const farthest = maxScrollOf(n);
           const at = r.m.container.scrollLeft;
           assert.equal(at >= 0 && at <= farthest + 1e-6, true, `${where(step)}: scrollLeft ${at} after ${op} lies in [0, ${farthest}]`);
           scrollBounds += 1;

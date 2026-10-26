@@ -19,7 +19,7 @@ import { PanelRow, Workspace, createWorkspace, definePanel, useHost, useProvideP
 import type { HostInput, PanelTemplate, WorkspaceHandle } from '../index.js';
 import { memoryWorkspaceStorage } from '../fakeHost.js';
 import { AutoRoot, rowProps, workspaceProps } from '../autoMount.js';
-import { createDefaultTheme } from '../defaultTheme.js';
+import { createDefaultTheme, muiThemeFor } from '../defaultTheme.js';
 import { HostProvider } from '../hostApi.js';
 import { advanceFrames, mount } from './support/mount-harness.js';
 import { rigCleanup, observers, resize, slots, track, until, win } from './support/auto-rig.js';
@@ -107,7 +107,7 @@ function HandWired({ workspace }: { workspace: WorkspaceHandle }): React.ReactEl
   });
   const shell = React.createElement(Workspace, { overflowContainerRef: ref, rowRef, containerWidth, phoneWidth: 390, fixedColumnCount: provided.fixedViewCount, liveWidths: provided.liveWidths, rowScroll: provided.rowScroll, rowNumbers: provided.rowNumbers, workspace, children: row });
   const host = React.createElement(HostProvider, { host: { panels: provided }, children: shell });
-  return React.createElement(ThemeProvider, { theme: createDefaultTheme('light'), children: host });
+  return React.createElement(ThemeProvider, { theme: muiThemeFor(createDefaultTheme('light')), children: host });
 }
 
 const scrolling = (id: string): PanelTemplate => tpl(id, { settings: { overflow: 'scroll' } });
@@ -138,7 +138,7 @@ test('the auto-mounted workspace renders the same DOM as the hand-wired one, scr
   const html = (el: HTMLElement): string => (el === autoTarget ? (el.firstElementChild as HTMLElement).innerHTML : el.innerHTML).replace(/(Dnd(?:DescribedBy|LiveRegion))-\d+/g, '$1-N');
   const scroller = autoTarget.querySelector<HTMLElement>('[data-row-scroller]')!;
   assert.equal(getComputedStyle(scroller).overflowX, 'hidden', 'a stepping row moves by steps, so the browser has nothing to scroll');
-  // A strip that fits is centred by a margin; one wider than the window starts flush left.
+  // An overflowing row starts flush at the window edge; a strip that fit would center with a positive margin.
   assert.equal((scroller.firstElementChild as HTMLElement).style.marginLeft, '0px', 'control: at 700 wide the five panels overflow the row');
   assert.equal(html(autoTarget), html(handTarget), 'the rows render the same DOM at 700 wide');
   await act(async () => void auto.panels.get('b')!.close());

@@ -2,14 +2,14 @@
  * The column behind `createWorkspaceColumn`: React-free state that the `WorkspaceColumn` component draws. It owns the ordered
  * list of workspaces, their names and the current one, and saves the list through one optional storage. DESIGN.md, "The workspace column".
  */
-import { createWorkspace, transferPanel, type MovePanelResult, type WorkspaceHandle, type WorkspaceOptions } from './workspaceCore.js';
+import { createWorkspace, transferPanel, type MovePanelOptions, type MovePanelResult, type WorkspaceHandle, type WorkspaceOptions } from './workspaceCore.js';
 import { PanelManagerError } from './panelManagerError.js';
 import { checkPatch, planTuning, unchanged } from './panelConfigure.js';
 import type { ConfigureResult, PanelManager } from './panelManager.js';
 import type { PanelId } from './panelSettings.js';
 import { cleanWorkspaceName } from './workspaceName.js';
 import { refusedLiveKeys, type WorkspaceLive } from './workspaceLive.js';
-import type { Theme } from '@mui/material/styles';
+import type { PhonuxTheme } from './defaultTheme.js';
 import type { WorkspaceStorage } from './workspaceState.js';
 
 /** The saved list of a column: which workspaces exist, in order, under which name, and which one was current. @public */
@@ -115,8 +115,19 @@ export interface WorkspaceColumnHandle {
    * otherwise the answer is `not-attached` or `not-ready` and nothing changed. A view's `useViewState` is held per workspace and
    * does not move: the view starts again from its `initial`. The host data the target's `panels.defaultHostData` builds is given
    * afresh, and the source's is dropped. A parked panel arrives live, as a new panel does.
+   *
+   * The moved panel arrives with no opener (`PanelState.openedBy` is null), and the panels it opened in the source take its old
+   * opener. With `{ withFamily: true }` every panel it opened, directly or through the panels it opened, moves with it: they land
+   * after it in the order they stood, keep who opened whom among them, and the same checks apply to each one, all or nothing, so
+   * one refusal moves none and its message names the panel that stood in the way. The target's lack of room is never a refusal:
+   * it makes room as it does for any new panel, under its cap.
    */
-  movePanel(from: WorkspaceHandle | number, panelId: PanelId, to: WorkspaceHandle | number): MovePanelResult;
+  movePanel(from: WorkspaceHandle | number, panelId: PanelId, to: WorkspaceHandle | number, options?: MovePanelOptions): MovePanelResult;
+  /**
+   * What `movePanel` with the same arguments would answer now, without moving anything: a host lists as move targets only the
+   * workspaces this accepts.
+   */
+  canMovePanel(from: WorkspaceHandle | number, panelId: PanelId, to: WorkspaceHandle | number, options?: MovePanelOptions): MovePanelResult;
   /**
    * `WorkspaceManager.configureTuning` for the whole column: the patch reaches every workspace in it, those added later start from it,
    * and the column's own slide follows it. Kept for this session only. It works before the saved list has been read and refuses
@@ -149,7 +160,7 @@ interface ColumnCore {
   /** Whether the column renders itself (see `ColumnOptions.mount`). */
   readonly autoMounted: boolean;
   /** The theme function every cell is drawn under, if the app gave one. */
-  readonly theme: ((mode: 'light' | 'dark') => Theme) | undefined;
+  readonly theme: ((mode: 'light' | 'dark') => PhonuxTheme) | undefined;
   /** Reports an error the column swallowed: `onError`, else `console.error`. */
   reportError(e: unknown): void;
 }
@@ -238,6 +249,20 @@ export function createWorkspaceColumn(o: ColumnOptions = {}): WorkspaceColumnHan
     persist();
   };
 
+  /** `movePanel`, or with `run` false `canMovePanel`. */
+  const move = (from: WorkspaceHandle | number, panelId: PanelId, to: WorkspaceHandle | number, options: MovePanelOptions | undefined, run: boolean): MovePanelResult => {
+    const stay = (code: Extract<MovePanelResult, { ok: false }>['code'], message: string): MovePanelResult => ({ ok: false, code, message });
+    if (status === 'disposed') return stay('disposed', 'the column was disposed');
+    const at = (w: WorkspaceHandle | number): number => (typeof w === 'number' ? (Number.isInteger(w) && w >= 0 && w < list.length ? w : -1) : list.indexOf(w));
+    const source = at(from);
+    const target = at(to);
+    if (source < 0 || target < 0) return stay('unknown-workspace', `${source < 0 ? 'the source' : 'the target'} workspace is not in this column`);
+    if (source === target) return stay('same-workspace', `panel '${panelId}' is already in workspace '${list[source]!.name}'`);
+    const moved = transferPanel(list[source]!, panelId, list[target]!, options ?? {}, run);
+    if (!moved.ok) return moved;
+    return { ok: true, workspace: list[target]!, index: target, panelId, panelIds: moved.panelIds };
+  };
+
   const freeName = (): string => {
     const used = new Set(list.map((w) => w.name));
     for (let n = list.length + 1; ; n++) if (!used.has(`Workspace ${n}`)) return `Workspace ${n}`;
@@ -316,18 +341,8 @@ export function createWorkspaceColumn(o: ColumnOptions = {}): WorkspaceColumnHan
       commit();
       return true;
     },
-    movePanel: (from, panelId, to) => {
-      const stay = (code: Extract<MovePanelResult, { ok: false }>['code'], message: string): MovePanelResult => ({ ok: false, code, message });
-      if (status === 'disposed') return stay('disposed', 'the column was disposed');
-      const at = (w: WorkspaceHandle | number): number => (typeof w === 'number' ? (Number.isInteger(w) && w >= 0 && w < list.length ? w : -1) : list.indexOf(w));
-      const source = at(from);
-      const target = at(to);
-      if (source < 0 || target < 0) return stay('unknown-workspace', `${source < 0 ? 'the source' : 'the target'} workspace is not in this column`);
-      if (source === target) return stay('same-workspace', `panel '${panelId}' is already in workspace '${list[source]!.name}'`);
-      const moved = transferPanel(list[source]!, panelId, list[target]!);
-      if (!moved.ok) return moved;
-      return { ok: true, workspace: list[target]!, index: target, panelId };
-    },
+    movePanel: (from, panelId, to, options) => move(from, panelId, to, options, true),
+    canMovePanel: (from, panelId, to, options) => move(from, panelId, to, options, false),
     configureTuning: (patch) => {
       if (status === 'disposed') return { ok: false, code: 'disposed', message: 'the column was disposed' };
       const checked = checkPatch('tuning', patch);

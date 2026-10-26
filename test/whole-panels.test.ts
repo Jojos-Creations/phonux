@@ -1,7 +1,8 @@
 /**
  * The one-phone grid stops of a stepping row, on literal rows (phone 390, gap 16, container 1000: window 968). A strip that
- * overflows starts flush left and steps one phone width at a time; one that fits keeps its centring (two phones: 796, margin 86).
- * Pure cases first, then a mounted row.
+ * overflows sits flush at both ends, and its inner rests are the grid moved back by half the window's leftover past its whole
+ * slots, ((968 + 16) mod 406) / 2 = 86; one that fits keeps its centering (two phones: 796, margin 86). Pure cases first, then a
+ * mounted row.
  */
 import { test, afterEach, mock } from 'node:test';
 import assert from 'node:assert/strict';
@@ -28,34 +29,35 @@ const root = (): PanelWindow => applyTemplate({ ...createHistoryPanel(ROOT), vie
 const numbers = (entries: PanelWindow[], containerWidth = 1000, wholePanels = true) => computeRowNumbers({ entries, phoneWidth: 390, containerWidth, gap: 16, wholePanels });
 const six = () => [root(), ...['a', 'b', 'c', 'd', 'e'].map((id) => made(id))];
 
-test('six phone panels: the stops are the one-phone grid from a flush-left start, the last stop the end of the strip', () => {
+test('six phone panels: the stops are the one-phone grid moved back by 86, flush at both ends, the last stop the end of the strip', () => {
   const n = numbers(six());
-  assert.equal(n.rowMarginLeft, 0, 'an overflowing strip starts flush left');
-  assert.deepEqual(n.stops, [0, 406, 812, 1218, 1452], 'the last stop is the end of the strip: 2420 - 968');
-  assert.deepEqual(n.stopSpans, [{ first: 0, end: 3 }, { first: 1, end: 4 }, { first: 2, end: 5 }, { first: 3, end: 6 }, { first: 3, end: 6 }]);
-  assert.equal(n.endPad, 0);
+  assert.equal(n.rowMarginLeft, 0, 'an overflowing row starts flush at the window edge');
+  assert.deepEqual(n.stops, [0, 320, 726, 1132, 1452], 'the grid 406, 812, 1218 less 86, and the end of the strip: 2420 - 968');
+  assert.deepEqual(n.stopSpans, [{ first: 0, end: 3 }, { first: 0, end: 4 }, { first: 1, end: 5 }, { first: 2, end: 6 }, { first: 3, end: 6 }]);
+  assert.equal(n.endPad, 0, 'an overflowing row ends flush at the window edge');
   assert.equal(maxScrollOf(n), 1452, '2420 - 968, the last stop');
 });
 
-test('a two-slot panel between two phones: the grid stops are 0, 406 and the end at 640', () => {
+test('a two-slot panel between two phones: flush ends, the stops run to 640 and the inner rest shows the two-slot panel whole', () => {
   const n = numbers([root(), made('t', { slots: 2 }), made('b')]);
   assert.deepEqual(n.widths, [390, 796, 390]);
-  assert.equal(n.rowMarginLeft, 0);
-  assert.deepEqual(n.stops, [0, 406, 640], 'every stop is on the one-phone grid, and the last is the end of the strip: 1608 - 968');
-  assert.deepEqual(n.stopSpans, [{ first: 0, end: 2 }, { first: 1, end: 3 }, { first: 1, end: 3 }]);
-  assert.equal(n.endPad, 0);
+  assert.equal(n.rowMarginLeft, 0, 'an overflowing row starts flush at the window edge');
+  assert.deepEqual(n.stops, [0, 320, 640], 'the grid 406 less 86, which shows the two-slot panel (406 to 1202) whole, and the end: 1608 - 968');
+  assert.deepEqual(n.stopSpans, [{ first: 0, end: 2 }, { first: 0, end: 3 }, { first: 1, end: 3 }]);
+  assert.equal(n.endPad, 0, 'an overflowing row ends flush at the window edge');
   assert.equal(maxScrollOf(n), 640);
 });
 
-test('a panel as wide as two slots overflows by 234, so the one step is to the row end', () => {
+test('a panel as wide as two slots overflows by 234: the grid step of 406 passes the end, so the stops are 0 and 234', () => {
   const n = numbers([root(), made('d', { slots: 64 })]);
   assert.deepEqual(n.widths, [390, 796]);
-  assert.deepEqual(n.stops, [0, 234], 'the grid step of 406 is past the row end at 234, so the end is the next stop');
-  assert.equal(n.endPad, 0);
+  assert.equal(n.rowMarginLeft, 0, 'an overflowing row starts flush at the window edge');
+  assert.deepEqual(n.stops, [0, 234], 'the end, 1202 - 968, comes before the first grid step of 406');
+  assert.equal(n.endPad, 0, 'an overflowing row ends flush at the window edge');
   assert.equal(maxScrollOf(n), 234);
 });
 
-test('a strip that fits the window keeps its centring and has no stops', () => {
+test('a strip that fits the window keeps its centering and has no stops', () => {
   const n = numbers([root(), made('a')]);
   assert.equal(n.rowMarginLeft, 86);
   assert.deepEqual(n.stops, []);
@@ -75,24 +77,24 @@ test('unmeasured, and wholePanels false, give no stops: the 0.2.0 numbers', () =
 
 test('snapToStop picks the nearest stop that shows the panel; nearestStop the nearest stop; both leave a row with no stops alone', () => {
   const n = numbers(six());
-  assert.equal(snapToStop(n, 3, 100), 406, 'panel 3 is shown at the grid stop 406');
-  assert.equal(snapToStop(n, 0, 900), 0, 'panel 0 is off the window by the grid stop 406, so only stop 0 shows it');
-  assert.equal(snapToStop(n, 5, 0), 1218, 'panel 5 is first shown at the grid stop 1218');
-  assert.equal(nearestStop(n, 700), 812);
+  assert.equal(snapToStop(n, 3, 100), 320, 'panel 3 is shown at the stop 320');
+  assert.equal(snapToStop(n, 0, 900), 320, 'stop 320 still shows panel 0 (its right edge, at 390, is inside the window) and is nearer 900 than stop 0');
+  assert.equal(snapToStop(n, 5, 0), 1132, 'panel 5 is first shown at the stop 1132');
+  assert.equal(nearestStop(n, 700), 726);
   assert.equal(nearestStop(n, 100), 0);
   const none = numbers([root(), made('a')]);
   assert.equal(snapToStop(none, 1, 33), 33);
   assert.equal(nearestStop(none, 33), 33);
 });
 
-test('mounted in free mode: the one-phone grid stops, a spacer of the row gap alone and the margin is 0 once the strip overflows', () => {
+test('mounted in free mode: the one-phone grid stops, and the row is flush at both ends once the strip overflows', () => {
   const m = mountRow(panelsOf(5), 1000, { tuning: { rowGesture: 'step' } });
-  assert.deepEqual(m.latest().rowNumbers.stops, [0, 406, 812, 1218, 1452], 'a free row rests on the grid too, so a scroll that ends settles on a stop');
+  assert.deepEqual(m.latest().rowNumbers.stops, [0, 320, 726, 1132, 1452], 'a free row rests on the grid too, so a scroll that ends settles on a stop');
   assert.equal(m.latest().rowNumbers.rowMarginLeft, 0);
-  assert.equal(m.container.querySelector<HTMLElement>('[data-row-end-pad]')!.style.flex, '0 0 16px', 'the right edge space is the element, with no endPad to add');
+  assert.equal(m.container.querySelector<HTMLElement>('[data-row-end-pad]')!.style.flex, '0 0 16px', 'the right edge space is the row gap plus endPad, 16 + 0');
 });
 
-test('mounted in step mode the trailing room is one spacer element, the row gap wide, outside the strip', () => {
+test('mounted in step mode the trailing room is one spacer element, the row gap plus endPad wide, outside the strip', () => {
   const m = mountRow(panelsOf(5), 1000, { tuning: { rowGesture: 'step' } });
   const spacer = m.container.querySelector<HTMLElement>('[data-row-end-pad]');
   assert.ok(spacer, 'a spacer is drawn');
@@ -114,7 +116,7 @@ test('a resize that changes how many fit brings a row resting past the new last 
   assert.equal(m.container.scrollLeft, 1452, 'the last stop at two fit');
   m.rerender(1500);
   await advanceFrames(600);
-  assert.deepEqual(m.latest().rowNumbers.stops, [0, 406, 812, 952], 'three fit at 1500, so the last stop is the new end, 952, which shows the last four panels');
+  assert.deepEqual(m.latest().rowNumbers.stops, [0, 273, 679, 952], 'three fit at 1500: the grid less ((1468 + 16) mod 406) / 2 = 133, and the new end, 2420 - 1468');
   assert.equal(m.container.scrollLeft, 952);
 });
 

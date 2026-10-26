@@ -17,7 +17,7 @@ import { transformSync } from 'esbuild';
 import { ThemeProvider } from '@mui/material/styles';
 import { createWorkspace } from '../index.js';
 import type { PanelTemplate, WorkspaceHandle } from '../index.js';
-import { createDefaultTheme } from '../defaultTheme.js';
+import { createDefaultTheme, muiThemeFor } from '../defaultTheme.js';
 import { extractReadmeBlock } from '../tools/readme-blocks.mjs';
 import { advanceFrames } from './support/mount-harness.js';
 import { rigCleanup, track, until, win } from './support/auto-rig.js';
@@ -143,7 +143,7 @@ test('the advanced block draws the same DOM as the quickstart', async () => {
   const target = document.createElement('div');
   document.body.append(target);
   const root = createRoot(target);
-  await act(async () => root.render(React.createElement(ThemeProvider, { theme: createDefaultTheme('light') }, React.createElement(Row, { workspace: hand }))));
+  await act(async () => root.render(React.createElement(ThemeProvider, { theme: muiThemeFor(createDefaultTheme('light')) }, React.createElement(Row, { workspace: hand }))));
   const scroller = (el: ParentNode): Element => el.querySelector('[data-row-scroller]')!;
   await until('both rows', () => document.body.querySelectorAll('[data-row-scroller]').length === 2 && document.body.textContent!.split('Hello from a phone-shaped panel.').length === 3);
   await advanceFrames(800);
