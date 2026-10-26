@@ -35,6 +35,10 @@
 
 - `enterFrom: 'expand'` and `exitTo: 'shrink'` mirror each other around the panel's center point. `expand` scales the panel up from 0, width and height together, where it used to widen from its left edge; its neighbours still part, and the center keeps to where they part. `exitTo: 'shrink'` scales the panel down to its own center point, width and height together, on the `slide` timing. It used to narrow the panel's width toward its left edge with the height unchanged. The neighbours still close up, and the center keeps to the point where they meet, so in a centered row it holds still and the panel never overlaps them. Reduced motion lands the scale at once and keeps the fade. They are also the library's defaults now: `tuning.defaultEnterFrom` defaults to `'expand'` and `tuning.defaultExitTo` to `'shrink'`, so a panel left at `auto` expands in and shrinks out, for a park and a close alike. **Migration:** a host that wants the earlier sideways park and downward close sets both to `'auto'` through `createWorkspace({ tuning })` or `configureTuning`.
 
+### Added
+
+- `PanelHeaderMenu` takes an optional `onPinChange(verb, ok)`, called after each Pin or Unpin from the menu, so a host can show its own message.
+
 ### Fixed
 
 - A panel's header stays on screen when its frame fills the row's height. The row keeps the header's room, 40 px, above its frames, as it keeps the footer's below, and the phone fit prices the height from it; a `topPadding` or `topInset` under 40 is raised to 40. An explicit `tuning.rowTop` is taken as given and never raised, so a value under 40 can push headers off the top of the screen. On a 402 x 714 phone the header sat 24 px above the screen's top.
@@ -70,6 +74,8 @@
 - A panel's slide and rect events are built with its element's own window's `CustomEvent`. Where the global one is another realm's, the element refused the event and mounting a panel threw; this is a regression fix for the rect events (#475).
 
 ### Changed
+
+- Closing the header menu returns focus to its move button, and that focus no longer snaps the row onto the panel. A Pin or Unpin from the menu is kept from scrolling the row.
 
 - A touch on a drag-to-close grab bar no longer drags the panel, so a touch always scrolls the page and never closes the panel. Before, a touch that held for 250 ms could drag it. A mouse or pen drag is unchanged.
 - The Workspace row sits inside the device's top and bottom safe areas: it takes `env(safe-area-inset-top)` as a margin and shrinks its height by both insets, so its measured height leaves them out. The insets are 0 unless the page's viewport meta sets `viewport-fit=cover`; the side insets are not applied.

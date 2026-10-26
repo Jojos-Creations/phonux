@@ -36,7 +36,9 @@ import { usePanelClosing, type Reapplied } from './usePanelClosing.js';
 import { usePanelManager, type GateKind } from './usePanelManager.js';
 import { createPanelList } from './panelList.js';
 import { settleKeeping, type RowEnv } from './rowSettle.js';
+import { isQuietly } from '../quietMove.js';
 import { useRowScrollGesture } from './useRowScrollGesture.js';
+
 import { useWorkspacePersistence, type RestMark } from './useWorkspacePersistence.js';
 import { keepOpeners } from '../panelOpener.js';
 
@@ -388,7 +390,7 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
     const el = i.overflowContainerRef.current;
     const entry = panels.find((p) => p.id === id);
     const k = rowNumbers.ids.indexOf(id);
-    if (el === null || entry === undefined || k < 0 || effective(entry).scrollOnMove !== 'follow') return;
+    if (el === null || entry === undefined || k < 0 || effective(entry).scrollOnMove !== 'follow' || isQuietly()) return;
     const left = tuning.rowGap + rowNumbers.stripStart + rowNumbers.leftOffsets[k]!;
     const inView = left < el.scrollLeft + windowOf(el) - tuning.rowGap && left + rowNumbers.widths[k]! > el.scrollLeft + tuning.rowGap;
     if (inView) requestScroll({ id, kind: 'move', align: null, forced: false, fresh: false });
