@@ -353,6 +353,12 @@ export function Workspace(props: WorkspaceProps): React.ReactElement {
   if (rowNumbers !== undefined && slideRef.current.numbers !== undefined && slotsMoved(slideRef.current.numbers, rowNumbers)) {
     slideRef.current = { numbers: rowNumbers, endsAt: performance.now() + resolved.slide.durationSec * 1000 + 100 };
   } else if (slideRef.current.numbers !== rowNumbers) slideRef.current = { numbers: rowNumbers, endsAt: slideRef.current.endsAt };
+  // A new settled size grows every slot over one slide, which can outlast the scroll's glide: no slot is hidden mid-growth.
+  const sizedRef = React.useRef(`${containerWidth}x${phoneWidth}`);
+  if (sizedRef.current !== `${containerWidth}x${phoneWidth}`) {
+    sizedRef.current = `${containerWidth}x${phoneWidth}`;
+    slideRef.current = { numbers: slideRef.current.numbers, endsAt: performance.now() + resolved.slide.durationSec * 1000 + 100 };
+  }
   // Reach is written straight to the slots on every scroll event, since a state update per frame of a glide would re-render the whole row.
   React.useLayoutEffect(() => {
     const container = overflowContainerRef.current;
