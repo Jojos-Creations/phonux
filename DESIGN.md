@@ -549,8 +549,10 @@ same way.
 Easing the real size reflows the content on every frame. For DOM content that is what makes a resize read as one motion,
 but content in another process (a `<webview>`, an out-of-process iframe) relays out its whole page on every frame, and the
 host then waits on that page's frames. `PanelSizeBox`'s `reveal` lays the content out once at the larger of the glide's start
-and end sizes and lets the eased box clip it (`overflow: clip`), the same way a slot's entrance reveals content at its full
-width: a grow resizes the content when it starts and a shrink when it ends. `usePanelSizeGlide()` reports the glide (its
+and end widths and lets the eased box clip it at its sides, the same way a slot's entrance reveals content at its full width:
+a grow resizes the content when it starts and a shrink when it ends. The clip is a sideways `clip-path` set only while the box
+glides, never `overflow`, because a frame draws its header and footer outside the box, above and below it; for the same reason
+the height follows the box. `usePanelSizeGlide()` reports the glide (its
 start and end size) from the commit that starts it until it lands, for a host that handles the content itself, such as holding
 a page's load back until the size is still. It is state on the box, set in the layout effect that starts the glide, so a
 consumer re-renders twice per glide, never per frame. A window that draws no frames does not advance a glide, so a host that
