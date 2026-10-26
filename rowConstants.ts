@@ -105,8 +105,9 @@ export const EDGE_SCROLL_MAX_PX_PER_SEC = 900;
 export const EDGE_SCROLL_REDUCED_STEP_MS = 500;
 
 /**
- * The largest slot count a panel can be set to. It is finite and above what any window fits, so a consumer can
- * use it as "every visible slot" and it stays a saveable number. A drawn count is always capped at the fit.
+ * The largest slot count a panel can have: 64. `slots` and `maxSlots` accept whole numbers from 1 to this value,
+ * and a request above it is refused. A consumer may rely on it as the upper bound, and may pass it as `maxSlots`
+ * to mean "every slot that fits". A drawn count is always capped at what fits the window.
  */
 export const ALL_SLOTS = 64;
 

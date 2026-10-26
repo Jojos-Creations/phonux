@@ -114,9 +114,9 @@ test('the gap threads through every site at gaps 0, 16 and 40, from literal sums
       ),
     );
     const style = getComputedStyle(containerRef.current!);
-    // The footer room is 4 + 36 = 40 in every theme, which a gap of 40 only equals.
-    const bottom = Math.max(gap, 40);
-    assert.deepEqual([style.paddingTop, style.paddingLeft, style.paddingRight, style.paddingBottom], [`${gap}px`, `${gap}px`, `${gap}px`, `${bottom}px`], `padding at gap ${gap}, the top one with topPadding omitted, the bottom one the footer's room when that is more`);
+    // The header and footer rooms are 4 + 36 = 40 in every theme, which a gap of 40 only equals.
+    const room = Math.max(gap, 40);
+    assert.deepEqual([style.paddingTop, style.paddingLeft, style.paddingRight, style.paddingBottom], [`${room}px`, `${gap}px`, `${gap}px`, `${room}px`], `padding at gap ${gap}, the top one with topPadding omitted the header's room and the bottom one the footer's, when that is more`);
     assert.equal(rowRef.current!.style.gap, `${gap}px`);
     executed += 1;
     shell.unmount();

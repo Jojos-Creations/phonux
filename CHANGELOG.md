@@ -7,9 +7,14 @@
 - A panel added through the `addPanel` of a view's own `useWorkspace()` records that view's panel as its opener: `PanelState.openedBy` is the opener's id, or null for a panel the host opened. It is set once, a drag or a reorder never changes it, and it is saved in the workspace file, so it survives a relaunch; a file saved before it loads with no openers. When a panel closes, the panels it opened take its own opener.
 - `PanelManager.familyOf(id)` lists a panel and every panel it opened, directly or through the panels it opened, in row order.
 - `WorkspaceColumnHandle.movePanel` takes `{ withFamily: true }` (`MovePanelOptions`) to move a panel together with its family to the end of another workspace's row, keeping who opened whom among them. It is all or nothing: one member the target refuses moves none, and the message names it. `canMovePanel` answers what `movePanel` would, without moving, so a host can offer only the workspaces that can take the whole family. `MovePanelResult` gains `panelIds`, every panel that moved in its new order. A panel moved alone now arrives with no opener, and the panels it opened stay behind under its old opener.
+- `MovePanelOptions.leave`: with `withFamily`, members of the family that stay in the source while the rest moves; the panel itself always moves. A moving member whose opener stays takes its nearest moving ancestor as opener, and the all-or-nothing checks cover only what moves.
 - `useWorkspaceRow()`: a hook inside a workspace's `wrap` that returns the mounted row's `rowNumbers`, `entries` (`WorkspaceRowEntry`: id, the panel's saved `uid`, and hollow dot), `scroller`, slide values, `maxFitPanels` and the fitted `phoneSize`.
 - `tuning.rowTop` (integer px 0 to 400, or null): the room above the row, which the default mount uses for the row's top padding and the phone fit alike. `tuning.phoneHeight` (`'fit'` or `'auto'`): under `phoneFit: 'fit'`, `'auto'` makes the frame as tall as the row's room, never shorter than the fit, and the width still fits.
 - A `WorkspaceColumn` cell whose children function returns `undefined` draws the library's own row for that cell; `null` draws nothing.
+
+### Changed
+
+- `slots` and `maxSlots` are documented as whole numbers from 1 to 64, the most slots any panel can have; the doc comments, README and DESIGN.md say so.
 
 ### Breaking
 
@@ -21,6 +26,12 @@
 
 - `enterFrom: 'expand'` and `exitTo: 'shrink'` mirror each other around the panel's center point. `expand` scales the panel up from 0, width and height together, where it used to widen from its left edge; its neighbours still part, and the center keeps to where they part. `exitTo: 'shrink'` scales the panel down to its own center point, width and height together, on the `slide` timing. It used to narrow the panel's width toward its left edge with the height unchanged. The neighbours still close up, and the center keeps to the point where they meet, so in a centered row it holds still and the panel never overlaps them. Reduced motion lands the scale at once and keeps the fade. They are also the library's defaults now: `tuning.defaultEnterFrom` defaults to `'expand'` and `tuning.defaultExitTo` to `'shrink'`, so a panel left at `auto` expands in and shrinks out, for a park and a close alike. **Migration:** a host that wants the earlier sideways park and downward close sets both to `'auto'` through `createWorkspace({ tuning })` or `configureTuning`.
 
+### Fixed
+
+- A panel's header stays on screen when its frame fills the row's height. The row keeps the header's room, 40 px, above its frames, as it keeps the footer's below, and the phone fit prices the height from it; a `topPadding` or `topInset` under 40 is raised to 40. An explicit `tuning.rowTop` is taken as given and never raised, so a value under 40 can push headers off the top of the screen. On a 402 x 714 phone the header sat 24 px above the screen's top.
+- The phone fit never draws a panel taller than the row. A row too short for the minimum phone keeps the minimum width and cuts the height to the row, where the frame used to run past the row's bottom, which never scrolls vertically.
+- A touch on the grab bar never moves the panel, also on a page that cannot scroll vertically. There the browser sends no `pointercancel`, and the panel followed the finger down.
+- The column's links and workspace name input sit inside the device's safe areas, as the row does, so on a page with `viewport-fit=cover` they clear the notch and the home bar.
 
 ## 0.2.0-rc.5
 

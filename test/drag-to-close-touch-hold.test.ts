@@ -73,3 +73,30 @@ test('a touch held on the handle and then dragged down does not close the box ei
   await advanceFrames(2000);
   assert.deepEqual(closes, [], 'a held touch never starts the close drag');
 });
+
+test('a touch whose moves keep coming (a page that cannot pan sends no pointercancel) never moves the box', async () => {
+  const mounted = mount(
+    React.createElement(DragToClose, {
+      onClose: () => undefined,
+      children: (handle) => React.createElement('div', { 'data-handle': '', onPointerDown: handle.onPointerDown }, 'grab'),
+    }),
+  );
+  const handle = mounted.container.querySelector<HTMLElement>('[data-handle]')!;
+  const box = mounted.container.querySelector<HTMLElement>('[data-drag-to-close]')!;
+  const moved = (): boolean => /translate|matrix/.test(box.style.transform) && !/^(none|translateY\(0px\)|)$/.test(box.style.transform);
+  await act(async () => {
+    handle.dispatchEvent(pointerEvent('pointerdown', 'touch', ORIGIN, ORIGIN));
+  });
+  let seen = false;
+  for (let step = 1; step <= 10; step += 1) {
+    await act(async () => {
+      document.dispatchEvent(pointerEvent('pointermove', 'touch', ORIGIN, ORIGIN + step * 30));
+    });
+    await advanceFrames(FRAME_MS);
+    seen ||= moved();
+  }
+  assert.equal(seen, false, `the box stayed at rest under the finger (transform ${box.style.transform})`);
+  await act(async () => {
+    document.dispatchEvent(pointerEvent('pointerup', 'touch', ORIGIN, ORIGIN + 300));
+  });
+});

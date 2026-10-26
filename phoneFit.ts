@@ -42,7 +42,8 @@ export interface PhoneFit {
 /**
  * Picks how many phone slots fit and the phone size that makes them fill the window. The widths are whole pixels, `floor((W + g) / N) - g`,
  * with W the window less its edge space. The smallest count whose phone is inside the band and under the height cap wins; with none, the
- * most slots inside the band at the cap, the leftover centred; with none of those, the minimum phone, as many as fit, and the row scrolls.
+ * most slots inside the band at the cap, the leftover centered; with none of those, the minimum phone, as many as fit, the row scrolling
+ * sideways. The height is never more than the row's share, so a row too short for the minimum phone draws it shorter than its shape.
  * @internal
  */
 export function fitPhone(i: PhoneFitInput): PhoneFit {
@@ -56,7 +57,8 @@ export function fitPhone(i: PhoneFitInput): PhoneFit {
   const widthOf = (n: number): number => Math.floor((room + gap) / n) - gap;
   const scaleOf = (n: number): number => widthOf(n) / preferred.width;
   const minWidth = Math.ceil(min * preferred.width);
-  const make = (count: number, width: number): PhoneFit => ({ count, width, height: Math.round((width / preferred.width) * preferred.height), heightCapped: heightScale < max });
+  // The row never scrolls vertically, so a phone held at the minimum width in a row too short for it is cut to the row's height.
+  const make = (count: number, width: number): PhoneFit => ({ count, width, height: Math.min(Math.round((width / preferred.width) * preferred.height), Math.max(1, Math.floor(share))), heightCapped: heightScale < max });
 
   let inBand = 0;
   while (inBand < ALL_SLOTS && scaleOf(inBand + 1) >= min) inBand += 1;

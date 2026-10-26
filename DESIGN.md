@@ -569,7 +569,7 @@ Unmeasured widths use `UNMEASURED_SLOTS` (3).
 
 At 844, 1280 and 1800 px windows the fit is 2, 3 and 4 slots.
 
-`slots` defaults to 1 and `maxSlots` to every visible slot (`ALL_SLOTS`, 64), both plain library defaults. A request for more than
+`ALL_SLOTS` (64) is the hard cap: `slots` and `maxSlots` validate as whole numbers from 1 to it, and a consumer may rely on it as the upper bound. `slots` defaults to 1 and `maxSlots` to `ALL_SLOTS`, both plain library defaults. A request for more than
 the fit or `maxSlots` is clamped silently. An entry built without `slots` (a hand-built one) is one phone width;
 `appendPanel` always writes `slots`, and the settings cascade does too.
 
@@ -1702,7 +1702,7 @@ flip with a transition rule of its own) or SCOPE (a template-scope key).
 | `restoreVisibility` | saved, live, parked | saved | NEXT. Read only at the next launch's restore. C1: anything but live on a fixed column is settings-conflict. |
 | `afterClose` | stay-closed, return-next-launch | stay-closed | NEXT. Read when the panel next leaves the list. An existing tombstone is neither added nor removed by the flip. |
 | `tuning.rowGap` | integer px 0 to 200 (workspace only) | 16 (GAP) | NOW (configureTuning only). The whole row re-prices at this commit; in park mode a smaller capacity parks the fewest park panels through the reconcile effect; a scrolling row only re-prices and clamps scrollLeft. Slides in progress retarget. Unmeasured: stored. Busy while any panel has a token. Outside 0-200 throws. |
-| `tuning.rowTop` | integer px 0 to 400, or null (workspace only) | null (the default room) | NOW (configureTuning only). The room above the row, which the mount uses for the row's top padding and the phone fit alike; null keeps the default room. Outside 0-400 throws. |
+| `tuning.rowTop` | integer px 0 to 400, or null (workspace only) | null (the default room) | NOW (configureTuning only). The room above the row, which the mount uses for the row's top padding and the phone fit alike; taken as given, so a value under 40 px (a panel header and its gap) can push headers off the top of the screen. Null keeps the default room, never less than 40 px. Outside 0-400 throws. |
 | `tuning.phoneHeight` | 'fit', 'auto' (workspace only) | 'fit' | NOW (configureTuning only). Under `phoneFit: 'fit'`, 'auto' makes the frame as tall as the row's room and the width still fits. Other values throw. |
 | `tuning.dragToClose` | object: distanceFraction [0.05, 1], minDistancePx >= 8, flickMinDistancePx >= 8, flickVelocity >= 100, cancelVelocity <= -50 (workspace only) | 0.25, 80, 40, 700, -300 (DRAG_CLOSE) | NEXT (configureTuning only). Read at the next release; a drag in flight is judged by the values current at release. Leaves merge. The direction lock, rest time, velocity window and snap-back spring are constants in rowConstants.ts. |
 | `tuning.slide` | object: durationSec [0, 10], ease (four numbers, x1 and x2 in [0,1]), closeExitSeconds [0, 5], closeExitEase ('easeIn', 'easeOut', 'easeInOut', 'linear' or four numbers), glideEase ('cubic-out', 'linear' or four numbers) (workspace only) | 0.6, [0.4, 0, 0.2, 1], 0.18, 'easeIn', 'cubic-out' (SLOT_TRANSITION, DRAG_CLOSE.exitSeconds, CLOSE_EXIT_EASE, GLIDE_EASE) | NEXT (configureTuning only). Read at the next enter, exit, close or scroll; animations running keep their timing. The edge-scroll drag settle and a header dot click glide along `glideEase`. |
@@ -2017,13 +2017,21 @@ A Capacitor page runs in WKWebView on iPhone and in the Android System WebView. 
 - **Insets need the host's opt-in.** `env(safe-area-inset-*)` is 0 unless the page's viewport meta says `viewport-fit=cover`, and
   the library cannot write that meta. The Workspace row reads the top and bottom insets as a margin and a height shrink, so its
   measured height (`useRowHeightBudget`) already leaves them out. The side insets are not applied: the row's stops and widths are
-  computed from `gap` alone, and a side inset would move every stop.
+  computed from `gap` alone, and a side inset would move every stop. The column's links and name input add the same top and
+  bottom insets to their offsets.
+- **The header and footer have room inside the row.** Both are drawn outside the frame, so the row pads 40 px (the bar plus its
+  gap) above and below the frames, or the row gap when that is more, and the phone fit prices the height from the same numbers.
+  A phone's height is the binding side, so without the top room the header of a frame that fills the row sits off screen.
+  A dev's `tuning.rowTop` is the one exception: an explicit room is the dev's and is never raised, even below 40 px.
+- **A fitted phone is never taller than its row.** The row never scrolls vertically, so a row too short for the minimum phone
+  draws it at the minimum width and the row's height, shorter than the preferred shape, rather than cutting its bottom off.
 - **Exit distance uses the visible bottom.** `visibleViewportBottom()` (`dragToClose.tsx`) is the visual viewport's bottom, so a
   dismissed panel leaves the screen while a pinch or the on-screen keyboard has shrunk what is visible. `100dvh` is a CSS unit and
   cannot give a pixel distance to a spring.
 - **A touch never drags the grab bar.** The grab bar is `touch-action: pan-x`, so a vertical touch on it is the page's pan, and the
   browser cancels the pointer once it pans. A touch press therefore never reaches the drag sensor, and a held touch cannot close a
-  panel. A mouse or pen is unchanged and starts past the direction lock; the press is taken on the handle, not the sensor, because
+  panel. Where the page cannot pan, no cancel comes and the moves keep arriving, so a touch press is never engaged either: the
+  box stays at rest under the finger. A mouse or pen is unchanged and starts past the direction lock; the press is taken on the handle, not the sensor, because
   the sensor's activator is one per event name and would drop the mouse's. The workspace's tile drag is separate and still holds a
   touch for 250 ms.
 

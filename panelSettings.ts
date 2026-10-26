@@ -253,9 +253,9 @@ export type SettingValues = {
   enterFrom: EnterFrom;
   /** How the panel leaves the row when it parks or closes (`ExitTo`); 'auto' takes the workspace's `tuning.defaultExitTo`. */
   exitTo: ExitTo;
-  /** How many phone-panel widths wide the panel is, an integer of 1 or more; the row draws at most the slots that fit. It starts a panel at that width and never resizes one that already exists. Default 1. */
+  /** How many phone-panel widths wide the panel is, a whole number from 1 to 64 (the most any panel can have); the row draws at most the slots that fit. It starts a panel at that width and never resizes one that already exists. Default 1. */
   slots: number;
-  /** The most slots the panel may take, an integer of 1 or more. Default: every slot that fits. */
+  /** The most slots the panel may take, a whole number from 1 to 64. Default: 64, which the window's fit caps in practice. */
   maxSlots: number;
   /** The panel's title. */
   title: string;
@@ -341,7 +341,7 @@ export type WorkspaceTuning = {
   edgeScroll?: { [K in keyof EdgeScrollTuning]?: EdgeScrollTuning[K] };
   /** The gap between panels in px, an integer from 0 to 200. */
   rowGap?: number;
-  /** The room above the row in px, an integer from 0 to 400: the only control for a standalone workspace's row top room. Null: the default room (in a column, the column band, the cell's top inset and the row gap). */
+  /** The room above the row in px, an integer from 0 to 400: the only control for a standalone workspace's row top room. Taken as given and never raised, so a value under 40 (the header's height and its gap) can push panel headers off the top of the screen. Null: the default room (in a column, the column band, the cell's top inset and the row gap), never less than 40 so headers stay on screen. */
   rowTop?: number | null;
   /** The phone's height under `phoneFit: 'fit'`: 'fit' scales it with the width; 'auto' makes the frame as tall as the row's room, never shorter than the fit. */
   phoneHeight?: 'fit' | 'auto';
